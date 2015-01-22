@@ -1,6 +1,7 @@
 package httpd
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"code.google.com/p/go-uuid/uuid"
 
 	"github.com/bmizerany/pat"
 	"github.com/influxdb/influxdb"
@@ -320,4 +323,147 @@ func httpError(w http.ResponseWriter, error string, code int) {
 	w.Header().Add("content-type", "application/json")
 	w.WriteHeader(code)
 	_ = json.NewEncoder(w).Encode(results)
+}
+
+// Filters and filter helpers
+
+// parseCredentials returns the username and password encoded in
+// a request. The credentials may be present as URL query params, or as
+// a Basic Authentication header.
+// as params: http://127.0.0.1/query?u=username&p=password
+// as basic auth: http://username:password@127.0.0.1
+func parseCredentials(r *http.Request) (string, string, error) {
+	q := r.URL.Query()
+	username, password := q.Get("u"), q.Get("p")
+	if username != "" && password != "" {
+		return username, password, nil
+	}
+	auth := r.Header.Get("Authorization")
+	if auth == "" {
+		return "", "", nil
+	}
+	fields := strings.Split(auth, " ")
+	if len(fields) != 2 {
+		return "", "", fmt.Errorf("invalid Basic Authentication header")
+	}
+	bs, err := base64.StdEncoding.DecodeString(fields[1])
+	if err != nil {
+		return "", "", fmt.Errorf("invalid Base64 encoding")
+	}
+	fields = strings.Split(string(bs), ":")
+	if len(fields) != 2 {
+		return "", "", fmt.Errorf("invalid Basic Authentication value")
+	}
+	return fields[0], fields[1], nil
+}
+
+// authorize wraps a handler and ensures that if user credentials are passed in
+// an attempt is made to authenticate that user. If authentication fails, an error is returned.
+//
+// There is one exception: if there are no users in the system, authentication is not required. This
+// is to facilitate bootstrapping of a system with authentication enabled.
+func authorize(inner func(http.ResponseWriter, *http.Request, *influxdb.User), h *Handler, requireAuthentication bool) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var user *influxdb.User
+
+		// TODO corylanou: never allow this in the future without users
+		if requireAuthentication && h.server.UserCount() > 0 {
+			username, password, err := parseCredentials(r)
+			if err != nil {
+				httpError(w, err.Error(), http.StatusUnauthorized)
+				return
+			}
+			if username == "" {
+				httpError(w, "username required", http.StatusUnauthorized)
+				return
+			}
+
+			user, err = h.server.Authenticate(username, password)
+			if err != nil {
+				httpError(w, err.Error(), http.StatusUnauthorized)
+				return
+			}
+		}
+		inner(w, r, user)
+	})
+}
+
+func versionHeader(inner http.Handler, version string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("X-Influxdb-Version", version)
+		inner.ServeHTTP(w, r)
+	})
+}
+
+func cors(inner http.Handler) http.Handler {
+	// I think in general we should take the standard path, and if they need custom config
+	// allow to put that in the config.
+
+	// TODO corylanou: find out more history on this and incorporate this appropriately
+	//w.Header().Add("Access-Control-Allow-Origin", "*")
+	//w.Header().Add("Access-Control-Max-Age", "2592000")
+	//w.Header().Add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE")
+	//w.Header().Add("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept")
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if origin := r.Header.Get("Origin"); origin != "" {
+			w.Header().Set(`Access-Control-Allow-Origin`, origin)
+			w.Header().Set(`Access-Control-Allow-Methods`, strings.Join([]string{
+				`DELETE`,
+				`GET`,
+				`OPTIONS`,
+				`POST`,
+				`PUT`,
+			}, ", "))
+
+			w.Header().Set(`Access-Control-Allow-Headers`, strings.Join([]string{
+				`Accept`,
+				`Accept-Encoding`,
+				`Authorization`,
+				`Content-Length`,
+				`Content-Type`,
+				`X-CSRF-Token`,
+				`X-HTTP-Method-Override`,
+			}, ", "))
+		}
+
+		if r.Method == "OPTIONS" {
+			return
+		}
+
+		inner.ServeHTTP(w, r)
+	})
+}
+
+func requestID(inner http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		uid := uuid.NewUUID()
+		r.Header.Set("Request-Id", uid.String())
+		w.Header().Set("Request-Id", r.Header.Get("Request-Id"))
+
+		inner.ServeHTTP(w, r)
+	})
+}
+
+func logging(inner http.Handler, name string, weblog *log.Logger) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		l := &responseLogger{w: w}
+		inner.ServeHTTP(l, r)
+		logLine := buildLogLine(l, r, start)
+		weblog.Println(logLine)
+	})
+}
+
+func recovery(inner http.Handler, name string, weblog *log.Logger) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		l := &responseLogger{w: w}
+		inner.ServeHTTP(l, r)
+		if err := recover(); err != nil {
+			logLine := buildLogLine(l, r, start)
+			logLine = fmt.Sprintf(`%s [err:%s]`, logLine, err)
+			weblog.Println(logLine)
+		}
+	})
 }
