@@ -90,10 +90,17 @@ make_dir_tree() {
 }
 
 
-# do_build builds the code.
+# do_build builds the code. The version and commit must be passed in.
 do_build() {
+    version=$1
+    commit=`git rev-parse HEAD`
+    if [ $? -ne 0 ]; then
+        echo "Unable to retrieve current commit -- aborting"
+        cleanup_exit 1
+    fi
+
     rm $GOPATH/bin/*
-    go install -a ./...
+    go install -a -ldflags="-X main.version $version -X main.commit $commit" ./...
     if [ $? -ne 0 ]; then
         echo "Build failed, unable to create package -- aborting"
         cleanup_exit 1
@@ -148,7 +155,7 @@ check_gopath
 check_clean_tree
 update_tree
 check_tag_exists $VERSION
-do_build
+do_build $VERSION
 make_dir_tree $TMP_WORK_DIR $VERSION
 
 ###########################################################################
