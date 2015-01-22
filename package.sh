@@ -4,6 +4,8 @@
 # Packaging script which creates debian and RPM packages. It optionally
 # tags the repo with the given version. 'fpm' must be on the path.
 
+AWS_CONFIG_FILE=~/aws.conf
+
 INSTALL_ROOT_DIR=/opt/influxdb
 CONFIG_ROOT_DIR=/etc/opt/influxdb
 
@@ -237,6 +239,34 @@ if [ "x$response" == "xy" ]; then
 else
     echo "Not creating tag v$VERSION."
 fi
+
+
+###########################################################################
+# Offer to publish the packages.
+
+echo -n "Publish packages to S3? [y/N] "
+read response
+response=`echo $response | tr 'A-Z' 'a-z'`
+if [ "x$response" == "xy" ]; then
+    echo "Publishing packages to S3."
+    if [ ! -e "$AWS_CONFIG_FILE" ]; then
+        echo "$AWS_CONFIG_FILE does not exist -- aborting."
+        cleanup_exit 1
+    fi
+
+    for filepath in `ls *.{deb,rpm}`; do
+        echo "Uploading $filepath to S3"
+        filename=`basename $filepath`
+        bucket=influxdb
+        aws s3 cp $filepath s3://influxdb/$filename --acl public-read --region us-east-1
+        aws s3 cp $filepath s3://get.influxdb.org/$filename --acl public-read --region us-east-1
+    done
+else
+    echo "Not publishing packages to S3."
+fi
+
+###########################################################################
+# All done.
 
 echo -e "\nPackaging process complete."
 cleanup_exit 0
