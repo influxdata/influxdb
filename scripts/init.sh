@@ -161,7 +161,7 @@ case $1 in
 
     *)
         # For invalid arguments, print the usage message.
-        echo "Usage: $0 {start|stop|restart|reload|status}"
+        echo "Usage: $0 {start|stop|restart|status}"
         exit 2
         ;;
 esac
