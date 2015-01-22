@@ -332,6 +332,13 @@ func (s *Server) Initialize(u *url.URL) error {
 	return nil
 }
 
+// This is the same struct we use in the httpd package, but
+// it seems overkill to export it and share it
+type dataNodeJSON struct {
+	ID  uint64 `json:"id"`
+	URL string `json:"url"`
+}
+
 // Join creates a new data node in an existing cluster, copies the metastore,
 // and initializes the ID.
 func (s *Server) Join(u *url.URL, joinURL *url.URL) error {
