@@ -4,6 +4,7 @@ INSTALL_ROOT_DIR=/opt/influxdb
 CONFIG_ROOT_DIR=/etc/opt/influxdb
 
 SAMPLE_CONFIGURATION=etc/config.sample.toml
+INITD_SCRIPT=scripts/init.sh
 
 TMP_WORK_DIR=`mktemp -d`
 POST_INSTALL_PATH=`mktemp`
@@ -72,7 +73,7 @@ check_tag_exists () {
 make_dir_tree() {
     work_dir=$1
     version=$2
-    mkdir -p $work_dir/$INSTALL_ROOT_DIR/versions/$version
+    mkdir -p $work_dir/$INSTALL_ROOT_DIR/versions/$version/scripts
     if [ $? -ne 0 ]; then
         echo "Failed to create installation directory -- aborting."
         cleanup_exit 1
@@ -103,6 +104,17 @@ generate_postinstall_script() {
     cat  <<EOF >$POST_INSTALL_PATH
 rm -f $INSTALL_ROOT_DIR/influxd
 ln -s  $INSTALL_ROOT_DIR/versions/$version/influxd $INSTALL_ROOT_DIR/influxd
+ln -s  $INSTALL_ROOT_DIR/versions/$version/scripts/init.sh $INSTALL_ROOT_DIR/init.sh
+
+if [ ! -L /etc/init.d/influxdb ]; then
+    ln -sfn $INSTALL_ROOT_DIR/init.sh /etc/init.d/influxdb
+    if which update-rc.d > /dev/null 2>&1 ; then
+        update-rc.d -f influxdb remove
+        update-rc.d influxdb defaults
+    else
+        chkconfig --add influxdb
+    fi
+fi
 
 if ! id influxdb >/dev/null 2>&1; then
         useradd --system -U -M influxdb
@@ -142,6 +154,13 @@ if [ $? -ne 0 ]; then
     cleanup_exit 1
 fi
 echo "Binaries in $GOPATH/bin copied to $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/$VERSION"
+
+cp $INITD_SCRIPT $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/$VERSION/scripts
+if [ $? -ne 0 ]; then
+    echo "Failed to init.d script to packaging directory -- aborting."
+    cleanup_exit 1
+fi
+echo "$INITD_SCRIPT copied to $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/$VERSION/scripts"
 
 cp $SAMPLE_CONFIGURATION $TMP_WORK_DIR/$CONFIG_ROOT_DIR
 if [ $? -ne 0 ]; then
