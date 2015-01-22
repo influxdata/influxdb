@@ -1,5 +1,9 @@
 #!/bin/bash
 
+###########################################################################
+# Packaging script which creates debian and RPM packages. It optionally
+# tags the repo with the given version. 'fpm' must be on the path.
+
 INSTALL_ROOT_DIR=/opt/influxdb
 CONFIG_ROOT_DIR=/etc/opt/influxdb
 
