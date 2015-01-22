@@ -716,6 +716,39 @@ func (s *SelectStatement) GroupByInterval() (time.Duration, error) {
 	return 0, nil
 }
 
+// SetTimeRange sets the start and end time of the select statement to [start, end). i.e. start inclusive, end exclusive.
+// This is used commonly for continuous queries so the start and end are in buckets.
+func (s *SelectStatement) SetTimeRange(start, end time.Time) error {
+	cond := fmt.Sprintf("time >= %ds AND time < %ds", start.Unix(), end.Unix())
+	if s.Condition != nil {
+		cond = fmt.Sprintf("%s AND %s", s.rewriteWithoutTimeDimensions(), cond)
+	}
+
+	expr, err := NewParser(strings.NewReader(cond)).ParseExpr()
+	if err != nil {
+		return err
+	}
+	s.Condition = expr
+	return nil
+}
+
+// rewriteWithoutTimeDimensions will remove any WHERE time... clauses from the select statement
+// This is necessary when setting an explicit time range to override any that previously existed.
+func (s *SelectStatement) rewriteWithoutTimeDimensions() string {
+	n := RewriteFunc(s.Condition, func(n Node) Node {
+		switch n := n.(type) {
+		case *BinaryExpr:
+			if n.LHS.String() == "time" {
+				return &BooleanLiteral{Val: true}
+			}
+			return n
+		default:
+			return n
+		}
+	})
+	return n.String()
+}
+
 /*
 
 BinaryExpr
