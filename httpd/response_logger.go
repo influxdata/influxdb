@@ -66,6 +66,16 @@ func buildLogLine(l *responseLogger, r *http.Request, start time.Time) string {
 
 	uri := r.URL.RequestURI()
 
+	referer := r.Referer()
+	if referer == "" {
+		referer = "-"
+	}
+
+	userAgent := r.UserAgent()
+	if userAgent == "" {
+		userAgent = "-"
+	}
+
 	fields := []string{
 		host,
 		"-",
@@ -76,8 +86,8 @@ func buildLogLine(l *responseLogger, r *http.Request, start time.Time) string {
 		r.Proto,
 		strconv.Itoa(l.Status()),
 		strconv.Itoa(l.Size()),
-		r.Referer(),
-		r.UserAgent(),
+		referer,
+		userAgent,
 		r.Header.Get("Request-Id"),
 	}
 

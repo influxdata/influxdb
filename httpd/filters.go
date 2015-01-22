@@ -13,10 +13,12 @@ import (
 	"github.com/influxdb/influxdb"
 )
 
-// basicAuthCredentials returns the username and password encoded in
+// parseCredentials returns the username and password encoded in
 // a request. The credentials may be present as URL query params, or as
 // a Basic Authentication header.
-func basicAuthCredentials(r *http.Request) (string, string, error) {
+// as params: http://127.0.0.1/query?u=username&p=password
+// as basic auth: http://username:password@127.0.0.1
+func parseCredentials(r *http.Request) (string, string, error) {
 	q := r.URL.Query()
 	username, password := q.Get("u"), q.Get("p")
 	if username != "" && password != "" {
@@ -41,18 +43,18 @@ func basicAuthCredentials(r *http.Request) (string, string, error) {
 	return fields[0], fields[1], nil
 }
 
-// authorize ensures that if user credentials are passed in, an attempt is made to authenticate that user.
-// If authentication fails, an error is returned to the user.
+// authorize wraps a handler and ensures that if user credentials are passed in
+// an attempt is made to authenticate that user. If authentication fails, an error is returned.
 //
 // There is one exception: if there are no users in the system, authentication is not required. This
 // is to facilitate bootstrapping of a system with authentication enabled.
-func authorize(inner http.Handler, h *Handler, requireAuthentication bool) http.Handler {
+func authorize(inner func(http.ResponseWriter, *http.Request, *influxdb.User), h *Handler, requireAuthentication bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var user *influxdb.User
 
 		// TODO corylanou: never allow this in the future without users
 		if requireAuthentication && h.server.UserCount() > 0 {
-			username, password, err := basicAuthCredentials(r)
+			username, password, err := parseCredentials(r)
 			if err != nil {
 				httpError(w, err.Error(), http.StatusUnauthorized)
 				return
@@ -68,7 +70,13 @@ func authorize(inner http.Handler, h *Handler, requireAuthentication bool) http.
 				return
 			}
 		}
-		h.user = user
+		inner(w, r, user)
+	})
+}
+
+func versionHeader(inner http.Handler, version string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("X-Influxdb-Version", version)
 		inner.ServeHTTP(w, r)
 	})
 }

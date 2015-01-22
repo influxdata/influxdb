@@ -787,12 +787,12 @@ type HTTPServer struct {
 }
 
 func NewHTTPServer(s *Server) *HTTPServer {
-	h := httpd.NewHandler(s.Server, false)
+	h := httpd.NewHandler(s.Server, false, "X.X")
 	return &HTTPServer{httptest.NewServer(h), h}
 }
 
 func NewAuthenticatedHTTPServer(s *Server) *HTTPServer {
-	h := httpd.NewHandler(s.Server, true)
+	h := httpd.NewHandler(s.Server, true, "X.X")
 	return &HTTPServer{httptest.NewServer(h), h}
 }
 
@@ -807,7 +807,7 @@ type Server struct {
 
 // NewServer returns a new test server instance.
 func NewServer() *Server {
-	return &Server{influxdb.NewServer("X.X")}
+	return &Server{influxdb.NewServer()}
 }
 
 // OpenServer returns a new, open test server instance.

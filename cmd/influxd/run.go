@@ -67,7 +67,7 @@ func execRun(args []string) {
 
 	// Start the server handler. Attach to broker if listening on the same port.
 	if s != nil {
-		sh := httpd.NewHandler(s, config.Authentication.Enabled)
+		sh := httpd.NewHandler(s, config.Authentication.Enabled, version)
 		if h != nil && config.BrokerAddr() == config.DataAddr() {
 			h.serverHandler = sh
 		} else {
@@ -211,7 +211,7 @@ func openServer(path string, u *url.URL, b *messaging.Broker, initializing, conf
 	}
 
 	// Create and open the server.
-	s := influxdb.NewServer(version)
+	s := influxdb.NewServer()
 	if err := s.Open(path); err != nil {
 		log.Fatalf("failed to open data server: %v", err.Error())
 	}
