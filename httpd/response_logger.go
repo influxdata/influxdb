@@ -67,38 +67,43 @@ func buildLogLine(l *responseLogger, r *http.Request, start time.Time) string {
 	uri := r.URL.RequestURI()
 
 	referer := r.Referer()
-	if referer == "" {
-		referer = "-"
-	}
 
 	userAgent := r.UserAgent()
-	if userAgent == "" {
-		userAgent = "-"
-	}
 
 	fields := []string{
 		host,
 		"-",
-		username,
+		detect(username, "-"),
 		fmt.Sprintf("[%s]", start.Format("02/Jan/2006:15:04:05 -0700")),
 		r.Method,
 		uri,
 		r.Proto,
-		strconv.Itoa(l.Status()),
+		detect(strconv.Itoa(l.Status()), "-"),
 		strconv.Itoa(l.Size()),
-		referer,
-		userAgent,
+		detect(referer, "-"),
+		detect(userAgent, "-"),
 		r.Header.Get("Request-Id"),
 	}
 
 	return strings.Join(fields, " ")
 }
 
+// detect detects the first presense of a non blank string and returns it
+func detect(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
 // parses the uesrname either from the url or auth header
 func parseUsername(r *http.Request) string {
-	username := "-"
-
-	url := r.URL
+	var (
+		username = ""
+		url      = r.URL
+	)
 
 	// get username from the url if passed there
 	if url.User != nil {
@@ -108,7 +113,7 @@ func parseUsername(r *http.Request) string {
 	}
 
 	// Try to get it from the authorization header if set there
-	if username == "-" {
+	if username == "" {
 		auth := r.Header.Get("Authorization")
 		fields := strings.Split(auth, " ")
 		if len(fields) == 2 {

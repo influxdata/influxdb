@@ -312,7 +312,7 @@ func TestHandler_Ping(t *testing.T) {
 
 	status, _ := MustHTTP("GET", s.URL+`/ping`, nil, nil, "")
 
-	if status != http.StatusOK {
+	if status != http.StatusNoContent {
 		t.Fatalf("unexpected status: %d", status)
 	}
 }

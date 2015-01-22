@@ -29,7 +29,7 @@ type route struct {
 	name        string
 	method      string
 	pattern     string
-	handlerFunc func(http.ResponseWriter, *http.Request, *influxdb.User)
+	handlerFunc interface{}
 }
 
 // Handler represents an HTTP handler for the InfluxDB server.
@@ -82,8 +82,17 @@ func NewHandler(s *influxdb.Server, requireAuthentication bool, version string) 
 	)
 
 	for _, r := range h.routes {
+		var handler http.Handler
 
-		handler := authorize(r.handlerFunc, h, requireAuthentication)
+		// If it's a handler func that requires authorization, wrap it in authorization
+		if hf, ok := r.handlerFunc.(func(http.ResponseWriter, *http.Request, *influxdb.User)); ok {
+			handler = authenticate(hf, h, requireAuthentication)
+		}
+		// This is a normal handler signature and does not require authorization
+		if hf, ok := r.handlerFunc.(func(http.ResponseWriter, *http.Request)); ok {
+			handler = http.HandlerFunc(hf)
+		}
+
 		handler = versionHeader(handler, version)
 		handler = cors(handler)
 		handler = requestID(handler)
@@ -198,7 +207,7 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *influ
 }
 
 // serveMetastore returns a copy of the metastore.
-func (h *Handler) serveMetastore(w http.ResponseWriter, r *http.Request, user *influxdb.User) {
+func (h *Handler) serveMetastore(w http.ResponseWriter, r *http.Request) {
 	// Set headers.
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", `attachment; filename="meta"`)
@@ -209,12 +218,12 @@ func (h *Handler) serveMetastore(w http.ResponseWriter, r *http.Request, user *i
 }
 
 // servePing returns a simple response to let the client know the server is running.
-func (h *Handler) servePing(w http.ResponseWriter, r *http.Request, user *influxdb.User) {
-	w.WriteHeader(http.StatusOK)
+func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // serveDataNodes returns a list of all data nodes in the cluster.
-func (h *Handler) serveDataNodes(w http.ResponseWriter, r *http.Request, user *influxdb.User) {
+func (h *Handler) serveDataNodes(w http.ResponseWriter, r *http.Request) {
 	// Generate a list of objects for encoding to the API.
 	a := make([]*dataNodeJSON, 0)
 	for _, n := range h.server.DataNodes() {
@@ -229,7 +238,7 @@ func (h *Handler) serveDataNodes(w http.ResponseWriter, r *http.Request, user *i
 }
 
 // serveCreateDataNode creates a new data node in the cluster.
-func (h *Handler) serveCreateDataNode(w http.ResponseWriter, r *http.Request, user *influxdb.User) {
+func (h *Handler) serveCreateDataNode(w http.ResponseWriter, r *http.Request) {
 	// Read in data node from request body.
 	var n dataNodeJSON
 	if err := json.NewDecoder(r.Body).Decode(&n); err != nil {
@@ -269,7 +278,7 @@ func (h *Handler) serveCreateDataNode(w http.ResponseWriter, r *http.Request, us
 }
 
 // serveDeleteDataNode removes an existing node.
-func (h *Handler) serveDeleteDataNode(w http.ResponseWriter, r *http.Request, user *influxdb.User) {
+func (h *Handler) serveDeleteDataNode(w http.ResponseWriter, r *http.Request) {
 	// Parse node id.
 	nodeID, err := strconv.ParseUint(r.URL.Query().Get(":id"), 10, 64)
 	if err != nil {
@@ -357,13 +366,18 @@ func parseCredentials(r *http.Request) (string, string, error) {
 	return fields[0], fields[1], nil
 }
 
-// authorize wraps a handler and ensures that if user credentials are passed in
+// authenticate wraps a handler and ensures that if user credentials are passed in
 // an attempt is made to authenticate that user. If authentication fails, an error is returned.
 //
 // There is one exception: if there are no users in the system, authentication is not required. This
 // is to facilitate bootstrapping of a system with authentication enabled.
-func authorize(inner func(http.ResponseWriter, *http.Request, *influxdb.User), h *Handler, requireAuthentication bool) http.Handler {
+func authenticate(inner func(http.ResponseWriter, *http.Request, *influxdb.User), h *Handler, requireAuthentication bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Return early if we are not authenticating
+		if !requireAuthentication {
+			inner(w, r, nil)
+			return
+		}
 		var user *influxdb.User
 
 		// TODO corylanou: never allow this in the future without users
@@ -388,6 +402,8 @@ func authorize(inner func(http.ResponseWriter, *http.Request, *influxdb.User), h
 	})
 }
 
+// versionHeader taks a HTTP handler and returns a HTTP handler
+// and adds the X-INFLUXBD-VERSION header to outgoing responses.
 func versionHeader(inner http.Handler, version string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("X-Influxdb-Version", version)
@@ -395,16 +411,9 @@ func versionHeader(inner http.Handler, version string) http.Handler {
 	})
 }
 
+// cors responds to incoming requests and adds the appropriate cors headers
+// TODO: corylanou: add the ability to configure this in our config
 func cors(inner http.Handler) http.Handler {
-	// I think in general we should take the standard path, and if they need custom config
-	// allow to put that in the config.
-
-	// TODO corylanou: find out more history on this and incorporate this appropriately
-	//w.Header().Add("Access-Control-Allow-Origin", "*")
-	//w.Header().Add("Access-Control-Max-Age", "2592000")
-	//w.Header().Add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE")
-	//w.Header().Add("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept")
-
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if origin := r.Header.Get("Origin"); origin != "" {
 			w.Header().Set(`Access-Control-Allow-Origin`, origin)
