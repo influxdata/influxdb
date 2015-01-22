@@ -11,7 +11,6 @@ ARCH=`uname -i`
 
 ###########################################################################
 # Helper functions.
-###########################################################################
 
 # usage prints simple usage information.
 usage() {
@@ -116,7 +115,6 @@ EOF
 
 ###########################################################################
 # Start the packaging process.
-###########################################################################
 
 if [ $# -ne 1 ]; then
     usage 1
@@ -135,6 +133,9 @@ check_tag_exists $VERSION
 do_build
 make_dir_tree $TMP_WORK_DIR $VERSION
 
+###########################################################################
+# Copy the assets to the installtion directories.
+
 cp $GOPATH/bin/* $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/$VERSION
 if [ $? -ne 0 ]; then
     echo "Failed to copy binaries to packaging directory -- aborting."
@@ -149,6 +150,9 @@ if [ $? -ne 0 ]; then
 fi
 
 generate_postinstall_script $VERSION
+
+###########################################################################
+# Create the actual packages.
 
 echo -n "Commence creation of $ARCH packages, version $VERSION? [Y/n] "
 read response
@@ -187,5 +191,27 @@ if [ $? -ne 0 ]; then
 fi
 echo "Debian package created successfully."
 
-echo "Packaging process complete."
+###########################################################################
+# Offer to tag the repo.
+
+echo -n "Tag source tree with v$VERSION and push to repo? [y/N] "
+read response
+response=`echo $response | tr 'A-Z' 'a-z'`
+if [ "x$response" == "xy" ]; then
+    echo "Creating tag v$VERSION and pushing to repo"
+    git tag v$VERSION
+    if [ $? -ne 0 ]; then
+        echo "Failed to create tag v$VERSION -- aborting"
+        cleanup_exit 1
+    fi
+    git push origin v$VERSION
+    if [ $? -ne 0 ]; then
+        echo "Failed to push tag v$VERSION to repo -- aborting"
+        cleanup_exit 1
+    fi
+else
+    echo "Not creating tag v$VERSION."
+fi
+
+echo -e "\nPackaging process complete."
 cleanup_exit 0
