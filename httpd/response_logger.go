@@ -1,7 +1,6 @@
 package httpd
 
 import (
-	"encoding/base64"
 	"fmt"
 	"net"
 	"net/http"
@@ -114,16 +113,8 @@ func parseUsername(r *http.Request) string {
 
 	// Try to get it from the authorization header if set there
 	if username == "" {
-		auth := r.Header.Get("Authorization")
-		fields := strings.Split(auth, " ")
-		if len(fields) == 2 {
-			bs, err := base64.StdEncoding.DecodeString(fields[1])
-			if err == nil {
-				fields = strings.Split(string(bs), ":")
-				if len(fields) >= 1 {
-					username = fields[0]
-				}
-			}
+		if u, _, ok := r.BasicAuth(); ok {
+			username = u
 		}
 	}
 	return username
