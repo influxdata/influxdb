@@ -35,6 +35,39 @@ func TestHandler_Databases(t *testing.T) {
 	}
 }
 
+func TestHandler_DatabasesPrettyPrinted(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	srvr.CreateDatabase("bar")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "LIST DATABASES", "pretty": "true"}, nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	} else if body != `[
+    {
+        "rows": [
+            {
+                "columns": [
+                    "Name"
+                ],
+                "values": [
+                    [
+                        "bar"
+                    ],
+                    [
+                        "foo"
+                    ]
+                ]
+            }
+        ]
+    }
+]` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
 func TestHandler_CreateDatabase(t *testing.T) {
 	srvr := OpenServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
