@@ -1,10 +1,12 @@
 package client_test
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/client"
 )
 
@@ -49,7 +51,14 @@ func TestClient_Ping(t *testing.T) {
 }
 
 func TestClient_Query(t *testing.T) {
-	config := client.Config{}
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var data influxdb.Results
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(data)
+	}))
+	defer ts.Close()
+
+	config := client.Config{Addr: ts.URL}
 	c, err := client.NewClient(config)
 	if err != nil {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)

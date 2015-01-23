@@ -1,7 +1,9 @@
 package client
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"time"
@@ -23,6 +25,8 @@ type Client struct {
 }
 
 type Query struct {
+	Command  string
+	Database string
 }
 
 type Write struct {
@@ -36,8 +40,29 @@ func NewClient(c Config) (*Client, error) {
 	return &client, nil
 }
 
-func (c *Client) Query(queries ...Query) (influxdb.Results, error) {
-	return nil, nil
+func (c *Client) Query(q Query) (influxdb.Results, error) {
+	u, err := c.urlFor("/query")
+	if err != nil {
+		return nil, err
+	}
+	values := u.Query()
+	values.Set("q", q.Command)
+	values.Set("db", q.Database)
+	u.RawQuery = values.Encode()
+
+	resp, err := c.httpClient.Get(u.String())
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+
+	var results influxdb.Results
+	err = json.Unmarshal(body, &results)
+	if err != nil {
+		return nil, err
+	}
+	return results, nil
 }
 
 func (c *Client) Write(writes ...Write) (influxdb.Results, error) {
