@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -33,6 +34,9 @@ type Query struct {
 }
 
 type Write struct {
+	Database        string
+	RetentionPolicy string
+	Points          []influxdb.Point
 }
 
 func NewClient(c Config) (*Client, error) {
@@ -70,7 +74,36 @@ func (c *Client) Query(q Query) (influxdb.Results, error) {
 }
 
 func (c *Client) Write(writes ...Write) (influxdb.Results, error) {
-	return nil, nil
+	u, err := c.urlFor("/write")
+	if err != nil {
+		return nil, err
+	}
+	type data struct {
+		Points          []influxdb.Point `json:"points"`
+		Database        string           `json:"database"`
+		RetentionPolicy string           `json:"retentionPolicy"`
+	}
+
+	d := []data{}
+	for _, write := range writes {
+		d = append(d, data{Points: write.Points, Database: write.Database, RetentionPolicy: write.RetentionPolicy})
+	}
+
+	b := []byte{}
+	err = json.Unmarshal(b, &d)
+
+	resp, err := c.httpClient.Post(u.String(), "application/json", bytes.NewBuffer(b))
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var results influxdb.Results
+	err = json.NewDecoder(resp.Body).Decode(&results)
+	if err != nil {
+		return nil, err
+	}
+	return results, nil
 }
 
 func (c *Client) Ping() (time.Duration, error) {
