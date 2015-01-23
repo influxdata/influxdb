@@ -3,12 +3,10 @@ package influxdb
 import (
 	"encoding/json"
 	"math"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/boltdb/bolt"
 	"github.com/influxdb/influxdb/influxql"
 )
 
@@ -46,11 +44,6 @@ func (db *database) shardGroupByTimestamp(policy string, timestamp time.Time) (*
 		return nil, ErrRetentionPolicyNotFound
 	}
 	return p.shardGroupByTimestamp(timestamp), nil
-}
-
-// timeBetweenInclusive returns true if t is between min and max, inclusive.
-func timeBetweenInclusive(t, min, max time.Time) bool {
-	return (t.Equal(min) || t.After(min)) && (t.Equal(max) || t.Before(max))
 }
 
 // MarshalJSON encodes a database into a JSON-encoded byte slice.
@@ -101,12 +94,12 @@ type Measurement struct {
 	Name   string   `json:"name,omitempty"`
 	Fields []*Field `json:"fields,omitempty"`
 
-	// in memory index fields
+	// in-memory index fields
 	series              map[string]*Series // sorted tagset string to the series object
 	seriesByID          map[uint32]*Series // lookup table for series by their id
 	measurement         *Measurement
-	seriesByTagKeyValue map[string]map[string]SeriesIDs // map from tag key to value to sorted set of series ids
-	ids                 SeriesIDs                       // sorted list of series IDs in this measurement
+	seriesByTagKeyValue map[string]map[string]seriesIDs // map from tag key to value to sorted set of series ids
+	ids                 seriesIDs                       // sorted list of series IDs in this measurement
 }
 
 func NewMeasurement(name string) *Measurement {
@@ -116,8 +109,8 @@ func NewMeasurement(name string) *Measurement {
 
 		series:              make(map[string]*Series),
 		seriesByID:          make(map[uint32]*Series),
-		seriesByTagKeyValue: make(map[string]map[string]SeriesIDs),
-		ids:                 SeriesIDs(make([]uint32, 0)),
+		seriesByTagKeyValue: make(map[string]map[string]seriesIDs),
+		ids:                 make(seriesIDs, 0),
 	}
 }
 
@@ -184,7 +177,7 @@ func (m *Measurement) addSeries(s *Series) bool {
 	for k, v := range s.Tags {
 		valueMap := m.seriesByTagKeyValue[k]
 		if valueMap == nil {
-			valueMap = make(map[string]SeriesIDs)
+			valueMap = make(map[string]seriesIDs)
 			m.seriesByTagKeyValue[k] = valueMap
 		}
 		ids := valueMap[v]
@@ -206,63 +199,6 @@ func (m *Measurement) seriesByTags(tags map[string]string) *Series {
 	return m.series[string(marshalTags(tags))]
 }
 
-// seriesIDs returns the series ids for a given filter
-func (m *Measurement) seriesIDs(filter *TagFilter) (ids SeriesIDs) {
-	values := m.seriesByTagKeyValue[filter.Key]
-	if values == nil {
-		return
-	}
-
-	// handle regex filters
-	if filter.Regex != nil {
-		for k, v := range values {
-			if filter.Regex.MatchString(k) {
-				if ids == nil {
-					ids = v
-				} else {
-					ids = ids.Union(v)
-				}
-			}
-		}
-		if filter.Not {
-			ids = m.ids.Reject(ids)
-		}
-		return
-	}
-
-	// this is for the value is not null query
-	if filter.Not && filter.Value == "" {
-		for _, v := range values {
-			if ids == nil {
-				ids = v
-			} else {
-				ids.Intersect(v)
-			}
-		}
-		return
-	}
-
-	// get the ids that have the given key/value tag pair
-	ids = SeriesIDs(values[filter.Value])
-
-	// filter out these ids from the entire set if it's a not query
-	if filter.Not {
-		ids = m.ids.Reject(ids)
-	}
-
-	return
-}
-
-// tagValues returns a map of unique tag values for the given key
-func (m *Measurement) tagValues(key string) TagValues {
-	tags := m.seriesByTagKeyValue[key]
-	values := make(map[string]bool, len(tags))
-	for k, _ := range tags {
-		values[k] = true
-	}
-	return TagValues(values)
-}
-
 // mapValues converts a map of values with string keys to field id keys.
 // Returns nil if any field doesn't exist.
 func (m *Measurement) mapValues(values map[string]interface{}) map[uint8]interface{} {
@@ -277,6 +213,137 @@ func (m *Measurement) mapValues(values map[string]interface{}) map[uint8]interfa
 		other[f.ID] = v
 	}
 	return other
+}
+
+// expandExpr returns a list of expressions expanded by all possible tag combinations.
+func (m *Measurement) expandExpr(expr influxql.Expr) []tagSetExpr {
+	// Retrieve list of unique values for each tag.
+	valuesByTagKey := m.uniqueTagValues(expr)
+
+	// Convert keys to slices.
+	keys := make([]string, 0, len(valuesByTagKey))
+	for key := range valuesByTagKey {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	// Order uniques by key.
+	uniques := make([][]string, len(keys))
+	for i, key := range keys {
+		uniques[i] = valuesByTagKey[key]
+	}
+
+	// Reduce a condition for each combination of tag values.
+	return expandExprWithValues(expr, keys, []*string{}, uniques, 0)
+}
+
+func expandExprWithValues(expr influxql.Expr, keys []string, values []*string, uniques [][]string, index int) []tagSetExpr {
+	// If we have no more keys left then execute the reduction and return.
+	if index == len(keys) {
+		// Create map.
+		m := make(map[string]*string, len(keys))
+		for i, key := range keys {
+			if values[i] != nil {
+				var value string
+				value = *values[i]
+				m[key] = &value
+			} else {
+				m[key] = nil
+			}
+		}
+
+		// Reduce using the current tag key/value set.
+		// Ignore it if reduces down to "false".
+		e := influxql.Reduce(expr, &tagValuer{tags: m})
+		if e, ok := e.(*influxql.BooleanLiteral); ok && e.Val == false {
+			return nil
+		}
+
+		return []tagSetExpr{{tags: m, expr: e}}
+	}
+
+	// Otherwise expand for each possible value of the key.
+	var exprs []tagSetExpr
+	for _, v := range uniques[index] {
+		exprs = append(exprs, expandExprWithValues(expr, keys, append(values, &v), uniques, index+1)...)
+	}
+
+	// Also expand for the nil value.
+	exprs = append(exprs, expandExprWithValues(expr, keys, append(values, nil), uniques, index+1)...)
+
+	return exprs
+}
+
+// tagValuer is used during expression expansion to evaluate all sets of tag values.
+type tagValuer struct {
+	tags map[string]*string
+}
+
+// Value returns the string value of a tag and true if it's listed in the tagset.
+func (v *tagValuer) Value(name string) (interface{}, bool) {
+	if value, ok := v.tags[name]; ok {
+		if value == nil {
+			return nil, true
+		}
+		return *value, true
+	}
+	return nil, false
+}
+
+// tagSetExpr represents a set of tag keys/values and associated expression.
+type tagSetExpr struct {
+	tags map[string]*string
+	expr influxql.Expr
+}
+
+// uniqueTagValues returns a list of unique tag values used in an expression.
+func (m *Measurement) uniqueTagValues(expr influxql.Expr) map[string][]string {
+	// Track unique value per tag.
+	tags := make(map[string]map[string]struct{})
+
+	// Find all tag values referenced in the expression.
+	influxql.WalkFunc(expr, func(n influxql.Node) {
+		switch n := n.(type) {
+		case *influxql.BinaryExpr:
+			// Ignore non-equality operators.
+			if n.Op != influxql.EQ {
+				return
+			}
+
+			// Extract ref and string literal.
+			var key, value string
+			switch lhs := n.LHS.(type) {
+			case *influxql.VarRef:
+				if rhs, ok := n.RHS.(*influxql.StringLiteral); ok {
+					key, value = lhs.Val, rhs.Val
+				}
+			case *influxql.StringLiteral:
+				if rhs, ok := n.RHS.(*influxql.VarRef); ok {
+					key, value = rhs.Val, lhs.Val
+				}
+			}
+			if key == "" {
+				return
+			}
+
+			// Add value to set.
+			if tags[key] == nil {
+				tags[key] = make(map[string]struct{})
+			}
+			tags[key][value] = struct{}{}
+		}
+	})
+
+	// Convert to map of slices.
+	out := make(map[string][]string)
+	for k, values := range tags {
+		out[k] = make([]string, 0, len(values))
+		for v := range values {
+			out[k] = append(out[k], v)
+		}
+		sort.Strings(out[k])
+	}
+	return out
 }
 
 type Measurements []*Measurement
@@ -308,6 +375,12 @@ func (s *Series) match(tags map[string]string) bool {
 	}
 	return true
 }
+
+type seriesIDs []uint32
+
+func (p seriesIDs) Len() int           { return len(p) }
+func (p seriesIDs) Less(i, j int) bool { return p[i] < p[j] }
+func (p seriesIDs) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
 // RetentionPolicy represents a policy for creating new shards in a database and how long they're kept around for.
 type RetentionPolicy struct {
@@ -381,123 +454,8 @@ type retentionPolicyJSON struct {
 	ShardGroups []*ShardGroup `json:"shardGroups,omitempty"`
 }
 
-// TagFilter represents a tag filter when looking up other tags or measurements.
-type TagFilter struct {
-	Not   bool
-	Key   string
-	Value string
-	Regex *regexp.Regexp
-}
-
-// SeriesIDs is a convenience type for sorting, checking equality, and doing union and
-// intersection of collections of series ids.
-type SeriesIDs []uint32
-
-func (p SeriesIDs) Len() int           { return len(p) }
-func (p SeriesIDs) Less(i, j int) bool { return p[i] < p[j] }
-func (p SeriesIDs) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
-
-// Equals assumes that both are sorted. This is by design, no touchy!
-func (a SeriesIDs) Equals(seriesIDs SeriesIDs) bool {
-	if len(a) != len(seriesIDs) {
-		return false
-	}
-	for i, s := range seriesIDs {
-		if a[i] != s {
-			return false
-		}
-	}
-	return true
-}
-
-// Intersect returns a new collection of series ids in sorted order that is the intersection of the two.
-// The two collections must already be sorted.
-func (a SeriesIDs) Intersect(seriesIDs SeriesIDs) SeriesIDs {
-	l := a
-	r := seriesIDs
-
-	// we want to iterate through the shortest one and stop
-	if len(seriesIDs) < len(a) {
-		l = seriesIDs
-		r = a
-	}
-
-	// they're in sorted order so advance the counter as needed.
-	// That is, don't run comparisons against lower values that we've already passed
-	var i, j int
-
-	ids := make([]uint32, 0, len(l))
-	for i < len(l) {
-		if l[i] == r[j] {
-			ids = append(ids, l[i])
-			i += 1
-			j += 1
-		} else if l[i] < r[j] {
-			i += 1
-		} else {
-			j += 1
-		}
-	}
-
-	return SeriesIDs(ids)
-}
-
-// Union returns a new collection of series ids in sorted order that is the union of the two.
-// The two collections must already be sorted.
-func (l SeriesIDs) Union(r SeriesIDs) SeriesIDs {
-	ids := make([]uint32, 0, len(l)+len(r))
-	var i, j int
-	for i < len(l) && j < len(r) {
-		if l[i] == r[j] {
-			ids = append(ids, l[i])
-			i += 1
-			j += 1
-		} else if l[i] < r[j] {
-			ids = append(ids, l[i])
-			i += 1
-		} else {
-			ids = append(ids, r[j])
-			j += 1
-		}
-	}
-
-	// now append the remainder
-	if i < len(l) {
-		ids = append(ids, l[i:]...)
-	} else if j < len(r) {
-		ids = append(ids, r[j:]...)
-	}
-
-	return ids
-}
-
-// Reject returns a new collection of series ids in sorted order with the passed in set removed from the original. This is useful for the NOT operator.
-// The two collections must already be sorted.
-func (l SeriesIDs) Reject(r SeriesIDs) SeriesIDs {
-	var i, j int
-
-	ids := make([]uint32, 0, len(l))
-	for i < len(l) && j < len(r) {
-		if l[i] == r[j] {
-			i += 1
-			j += 1
-		} else if l[i] < r[j] {
-			ids = append(ids, l[i])
-			i += 1
-		} else {
-			j += 1
-		}
-	}
-
-	// append the remainder
-	if i < len(l) {
-		ids = append(ids, l[i:]...)
-	}
-
-	return SeriesIDs(ids)
-}
-
-// addSeriesToIndex adds the series for the given measurement to the index. Returns false if already present
+// addSeriesToIndex adds the series for the given measurement to the index.
+// Returns true if not already present.
 func (d *database) addSeriesToIndex(measurementName string, s *Series) bool {
 	// if there is a measurement for this id, it's already been added
 	if d.series[s.ID] != nil {
@@ -527,166 +485,6 @@ func (d *database) createMeasurementIfNotExists(name string) *Measurement {
 	return idx
 }
 
-// MeasurementsBySeriesIDs returns a collection of unique Measurements for the passed in SeriesIDs.
-func (d *database) MeasurementsBySeriesIDs(seriesIDs SeriesIDs) []*Measurement {
-	measurements := make(map[*Measurement]bool)
-
-	for _, id := range seriesIDs {
-		m := d.series[id].measurement
-		measurements[m] = true
-	}
-
-	values := make([]*Measurement, 0, len(measurements))
-	for m, _ := range measurements {
-		values = append(values, m)
-	}
-
-	return values
-}
-
-// SeriesIDs returns an array of series ids for the given measurements and filters to be applied to all.
-// Filters are equivalent to an AND operation. If you want to do an OR, get the series IDs for one set,
-// then get the series IDs for another set and use the SeriesIDs.Union to combine the two.
-func (d *database) SeriesIDs(names []string, filters []*TagFilter) SeriesIDs {
-	// they want all ids if no filters are specified
-	if len(filters) == 0 {
-		ids := SeriesIDs(make([]uint32, 0))
-		for _, idx := range d.measurements {
-			ids = ids.Union(idx.ids)
-		}
-		return ids
-	}
-
-	ids := SeriesIDs(make([]uint32, 0))
-	for _, n := range names {
-		ids = ids.Union(d.seriesIDsByName(n, filters))
-	}
-
-	return ids
-}
-
-// TagKeys returns a sorted array of unique tag keys for the given measurements.
-// If an empty or nil slice is passed in, the tag keys for the entire database will be returned.
-func (d *database) TagKeys(names []string) []string {
-	if len(names) == 0 {
-		names = d.names
-	}
-
-	keys := make(map[string]bool)
-	for _, n := range names {
-		idx := d.measurements[n]
-		if idx != nil {
-			for k, _ := range idx.seriesByTagKeyValue {
-				keys[k] = true
-			}
-		}
-	}
-
-	sortedKeys := make([]string, 0, len(keys))
-	for k, _ := range keys {
-		sortedKeys = append(sortedKeys, k)
-	}
-	sort.Strings(sortedKeys)
-
-	return sortedKeys
-}
-
-// TagValues returns a map of unique tag values for the given measurements and key with the given filters applied.
-// Call .ToSlice() on the result to convert it into a sorted slice of strings.
-// Filters are equivalent to and AND operation. If you want to do an OR, get the tag values for one set,
-// then get the tag values for another set and do a union of the two.
-func (d *database) TagValues(names []string, key string, filters []*TagFilter) TagValues {
-	values := TagValues(make(map[string]bool))
-
-	// see if they just want all the tag values for this key
-	if len(filters) == 0 {
-		for _, n := range names {
-			idx := d.measurements[n]
-			if idx != nil {
-				values.Union(idx.tagValues(key))
-			}
-		}
-		return values
-	}
-
-	// they have filters so just get a set of series ids matching them and then get the tag values from those
-	seriesIDs := d.SeriesIDs(names, filters)
-	return d.tagValuesBySeries(key, seriesIDs)
-}
-
-// tagValuesBySeries will return a TagValues map of all the unique tag values for a collection of series.
-func (d *database) tagValuesBySeries(key string, seriesIDs SeriesIDs) TagValues {
-	values := make(map[string]bool)
-	for _, id := range seriesIDs {
-		s := d.series[id]
-		if s == nil {
-			continue
-		}
-		if v, ok := s.Tags[key]; ok {
-			values[v] = true
-		}
-	}
-	return TagValues(values)
-}
-
-type TagValues map[string]bool
-
-// ToSlice returns a sorted slice of the TagValues
-func (t TagValues) ToSlice() []string {
-	a := make([]string, 0, len(t))
-	for v, _ := range t {
-		a = append(a, v)
-	}
-	sort.Strings(a)
-	return a
-}
-
-// Union will modify the receiver by merging in the passed in values.
-func (l TagValues) Union(r TagValues) {
-	for v, _ := range r {
-		l[v] = true
-	}
-}
-
-// Intersect will modify the receiver by keeping only the keys that exist in the passed in values
-func (l TagValues) Intersect(r TagValues) {
-	for v, _ := range l {
-		if _, ok := r[v]; !ok {
-			delete(l, v)
-		}
-	}
-}
-
-//seriesIDsByName is the same as SeriesIDs, but for a specific measurement.
-func (d *database) seriesIDsByName(name string, filters []*TagFilter) SeriesIDs {
-	idx := d.measurements[name]
-	if idx == nil {
-		return nil
-	}
-
-	// process the filters one at a time to get the list of ids they return
-	idsPerFilter := make([]SeriesIDs, len(filters), len(filters))
-	for i, filter := range filters {
-		idsPerFilter[i] = idx.seriesIDs(filter)
-	}
-
-	// collapse the set of ids
-	allIDs := idsPerFilter[0]
-	for i := 1; i < len(filters); i++ {
-		allIDs = allIDs.Intersect(idsPerFilter[i])
-	}
-
-	return allIDs
-}
-
-// MeasurementBySeriesID returns the Measurement that is the parent of the given series id.
-func (d *database) MeasurementBySeriesID(id uint32) *Measurement {
-	if s, ok := d.series[id]; ok {
-		return s.measurement
-	}
-	return nil
-}
-
 // MeasurementAndSeries returns the Measurement and the Series for a given measurement name and tag set.
 func (d *database) MeasurementAndSeries(name string, tags map[string]string) (*Measurement, *Series) {
 	idx := d.measurements[name]
@@ -694,35 +492,6 @@ func (d *database) MeasurementAndSeries(name string, tags map[string]string) (*M
 		return nil, nil
 	}
 	return idx, idx.seriesByTags(tags)
-}
-
-// SereiesByID returns the Series that has the given id.
-func (d *database) SeriesByID(id uint32) *Series {
-	return d.series[id]
-}
-
-// Measurements returns all measurements that match the given filters.
-func (d *database) Measurements(filters []*TagFilter) []*Measurement {
-	measurements := make([]*Measurement, 0, len(d.measurements))
-	for _, idx := range d.measurements {
-		measurements = append(measurements, idx.measurement)
-	}
-	return measurements
-}
-
-// Names returns all measurement names in sorted order.
-func (d *database) Names() []string {
-	return d.names
-}
-
-// DropSeries will clear the index of all references to a series.
-func (d *database) DropSeries(id uint32) {
-	panic("not implemented")
-}
-
-// DropMeasurement will clear the index of all references to a measurement and its child series.
-func (d *database) DropMeasurement(name string) {
-	panic("not implemented")
 }
 
 // used to convert the tag set to bytes for use as a lookup key
@@ -741,202 +510,7 @@ func marshalTags(tags map[string]string) []byte {
 	return []byte(strings.Join(s, "|"))
 }
 
-// dbi is an interface the query engine uses to communicate with the database during planning.
-type dbi struct {
-	server *Server
-	db     *database
+// timeBetweenInclusive returns true if t is between min and max, inclusive.
+func timeBetweenInclusive(t, min, max time.Time) bool {
+	return (t.Equal(min) || t.After(min)) && (t.Equal(max) || t.Before(max))
 }
-
-// MatchSeries returns a list of series data ids matching a name and tags.
-func (dbi *dbi) MatchSeries(name string, tags map[string]string) (a []uint32) {
-	// Find measurement by name.
-	m := dbi.db.measurements[name]
-	if m == nil {
-		return nil
-	}
-
-	// Match each series on the measurement by tagset.
-	// TODO: Use paul's fancy index.
-	for _, s := range m.seriesByID {
-		if s.match(tags) {
-			a = append(a, s.ID)
-		}
-	}
-	return
-}
-
-// SeriesTagValues returns a slice of tag values for a series.
-func (dbi *dbi) SeriesTagValues(seriesID uint32, keys []string) []string {
-	// Find series by id.
-	s := dbi.db.series[seriesID]
-
-	// Lookup value for each key.
-	values := make([]string, len(keys))
-	for i, key := range keys {
-		values[i] = s.Tags[key]
-	}
-	return values
-}
-
-// Field returns the id and data type for a series field.
-// Returns id of zero if not a field.
-func (dbi *dbi) Field(name, field string) (fieldID uint8, typ influxql.DataType) {
-	// Find measurement by name.
-	m := dbi.db.measurements[name]
-	if m == nil {
-		return 0, influxql.Unknown
-	}
-
-	// Find field by name.
-	f := m.FieldByName(field)
-	if f == nil {
-		return 0, influxql.Unknown
-	}
-
-	return f.ID, f.Type
-}
-
-// CreateIterator returns an iterator to iterate over the field values in a series.
-func (dbi *dbi) CreateIterator(seriesID uint32, fieldID uint8, typ influxql.DataType, min, max time.Time, interval time.Duration) influxql.Iterator {
-	// TODO: Add retention policy to the arguments.
-
-	// Create an iterator to hold the transaction and series ids.
-	itr := &iterator{
-		seriesID: seriesID,
-		fieldID:  fieldID,
-		typ:      typ,
-		imin:     -1,
-		interval: int64(interval),
-	}
-	if !min.IsZero() {
-		itr.min = min.UnixNano()
-	}
-	if !max.IsZero() {
-		itr.max = max.UnixNano()
-	}
-
-	// Retrieve the policy.
-	// Ignore if there are no shard groups created on the retention policy.
-	rp := dbi.db.policies[dbi.db.defaultRetentionPolicy]
-	if len(rp.shardGroups) == 0 {
-		return itr
-	}
-
-	// Find all shards which match the the time range and series id.
-	// TODO: Support multiple groups.
-	g := rp.shardGroups[0]
-
-	// Ignore shard groups that our time range does not cross.
-	if !timeBetweenInclusive(g.StartTime, min, max) &&
-		!timeBetweenInclusive(g.EndTime, min, max) {
-		return itr
-	}
-
-	// Find appropriate shard by series id.
-	sh := g.ShardBySeriesID(seriesID)
-
-	// Open a transaction on the shard.
-	tx, err := sh.store.Begin(false)
-	assert(err == nil, "read-only tx error: %s", err)
-	itr.tx = tx
-
-	// Open and position cursor.
-	b := tx.Bucket(u32tob(seriesID))
-	if b != nil {
-		cur := b.Cursor()
-		itr.k, itr.v = cur.Seek(u64tob(uint64(itr.min)))
-		itr.cur = cur
-	}
-
-	return itr
-}
-
-// iterator represents a series data iterator for a shard.
-// It can iterate over all data for a given time range for multiple series in a shard.
-type iterator struct {
-	tx       *bolt.Tx
-	cur      *bolt.Cursor
-	seriesID uint32
-	fieldID  uint8
-	typ      influxql.DataType
-
-	k, v []byte // lookahead buffer
-
-	min, max   int64 // time range
-	imin, imax int64 // interval time range
-	interval   int64 // interval duration
-}
-
-// close closes the iterator.
-func (i *iterator) Close() error {
-	if i.tx != nil {
-		return i.tx.Rollback()
-	}
-	return nil
-}
-
-// Next returns the next value from the iterator.
-func (i *iterator) Next() (key int64, value interface{}) {
-	for {
-		// Read raw key/value from lookhead buffer, if available.
-		// Otherwise read from cursor.
-		var k, v []byte
-		if i.k != nil {
-			k, v = i.k, i.v
-			i.k, i.v = nil, nil
-		} else if i.cur != nil {
-			k, v = i.cur.Next()
-		}
-
-		// Exit at the end of the cursor.
-		if k == nil {
-			return 0, nil
-		}
-
-		// Extract timestamp & field value.
-		key = int64(btou64(k))
-		value = unmarshalValue(v, i.fieldID)
-
-		// If timestamp is beyond interval time range then push onto lookahead buffer.
-		if key >= i.imax && i.imax != 0 {
-			i.k, i.v = k, v
-			return 0, nil
-		}
-
-		// Return value if it is non-nil.
-		// Otherwise loop again and try the next point.
-		if value != nil {
-			return
-		}
-	}
-}
-
-// NextIterval moves to the next iterval. Returns true unless EOF.
-func (i *iterator) NextIterval() bool {
-	// Determine the next interval's lower bound.
-	imin := i.imin + i.interval
-
-	// Initialize or move interval forward.
-	if i.imin == -1 { // initialize first interval
-		i.imin = i.min
-	} else if i.interval != 0 && (i.max == 0 || imin < i.max) { // move forward
-		i.imin = imin
-	} else { // no interval or beyond max time.
-		return false
-	}
-
-	// Interval end time should be the start time plus interval duration.
-	// If the end time is beyond the iterator end time then shorten it.
-	i.imax = i.imin + i.interval
-	if max := i.max; i.imax > max {
-		i.imax = max
-	}
-
-	return true
-}
-
-// Time returns start time of the current interval.
-func (i *iterator) Time() int64 { return i.imin }
-
-// Interval returns the group by duration.
-func (i *iterator) Interval() time.Duration { return time.Duration(i.interval) }

@@ -597,6 +597,7 @@ func TestServer_CreateShardGroupIfNotExist(t *testing.T) {
 	}
 }
 
+/* TODO(benbjohnson): Change test to not expose underlying series ids directly.
 func TestServer_Measurements(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
@@ -624,7 +625,7 @@ func TestServer_Measurements(t *testing.T) {
 		t.Fatalf("Mesurements not the same:\n  exp: %s\n  got: %s", expectedMeasurementNames, names)
 	}
 	ids := s.MeasurementSeriesIDs("foo", "foo")
-	if !ids.Equals(expectedSeriesIDs) {
+	if !reflect.DeepEqual(ids, expectedSeriesIDs) {
 		t.Fatalf("Series IDs not the same:\n  exp: %v\n  got: %v", expectedSeriesIDs, ids)
 	}
 
@@ -635,10 +636,11 @@ func TestServer_Measurements(t *testing.T) {
 		t.Fatalf("Mesurements not the same:\n  exp: %s\n  got: %s", expectedMeasurementNames, names)
 	}
 	ids = s.MeasurementSeriesIDs("foo", "foo")
-	if !ids.Equals(expectedSeriesIDs) {
+	if !reflect.DeepEqual(ids, expectedSeriesIDs) {
 		t.Fatalf("Series IDs not the same:\n  exp: %v\n  got: %v", expectedSeriesIDs, ids)
 	}
 }
+*/
 
 // Ensure the server can convert a measurement into its normalized form.
 func TestServer_NormalizeMeasurement(t *testing.T) {
@@ -731,6 +733,24 @@ func TestServer_NormalizeQuery(t *testing.T) {
 	}
 }
 
+// Ensure the server can retrieve a list of iterators for a simple SELECT statement.
+func TestServer_CreateIterators(t *testing.T) {
+	s := OpenDefaultServer(NewMessagingClient())
+	defer s.Close()
+	s.MustWriteSeries("db", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east", "host": "serverA"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(100)}}})
+
+	// Create a statement to iterate over.
+	stmt := MustParseSelectStatement(`SELECT value FROM cpu WHERE (region = 'us-east' AND value > 10) OR (region = 'us-west' AND value > 20) OR (host = 'serverA' AND value > 90) AND (time >= '2000-01-01' AND time < '2000-01-02') GROUP BY time(1h), region`)
+
+	// Retrieve iterators from server.
+	a, err := s.CreateIterators(stmt)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if n := len(a); n != 1 {
+		t.Fatalf("iterator count: exp=1, got=%d", n)
+	}
+}
+
 func mustMarshalJSON(v interface{}) string {
 	b, err := json.Marshal(v)
 	if err != nil {
@@ -779,6 +799,19 @@ func OpenUninitializedServer(client influxdb.MessagingClient) *Server {
 		panic(err.Error())
 	}
 	if err := s.SetClient(client); err != nil {
+		panic(err.Error())
+	}
+	return s
+}
+
+// OpenDefaultServer opens a server and creates a default db & retention policy.
+func OpenDefaultServer(client influxdb.MessagingClient) *Server {
+	s := OpenServer(client)
+	if err := s.CreateDatabase("db"); err != nil {
+		panic(err.Error())
+	} else if err = s.CreateRetentionPolicy("db", &influxdb.RetentionPolicy{Name: "raw"}); err != nil {
+		panic(err.Error())
+	} else if err = s.SetDefaultRetentionPolicy("db", "raw"); err != nil {
 		panic(err.Error())
 	}
 	return s
@@ -906,6 +939,15 @@ func MustParseQuery(s string) *influxql.Query {
 		panic(err.Error())
 	}
 	return q
+}
+
+// MustParseSelectStatement parses an InfluxQL select statement. Panic on error.
+func MustParseSelectStatement(s string) *influxql.SelectStatement {
+	stmt, err := influxql.NewParser(strings.NewReader(s)).ParseStatement()
+	if err != nil {
+		panic(err.Error())
+	}
+	return stmt.(*influxql.SelectStatement)
 }
 
 // errstr is an ease-of-use function to convert an error to a string.
