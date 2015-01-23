@@ -7,8 +7,11 @@
 
 [logging]
 # logging level can be one of "debug", "info", "warn" or "error"
+# rotate can be used to disable the logrotation of influxdb and use other tools
+# like the logrotate service instead
 level  = "info"
 file   = "influxdb.log"
+rotate = true
 
 # Configure the admin server
 [admin]

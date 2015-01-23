@@ -1,169 +1,173 @@
 package main
 
 import (
-	"flag"
-	"fmt"
-	"io/ioutil"
-	"os"
-	"path"
-	"path/filepath"
-	"runtime"
-	"strconv"
-	"time"
+    "flag"
+    "fmt"
+    "io/ioutil"
+    "os"
+    "path"
+    "path/filepath"
+    "runtime"
+    "strconv"
+    "time"
 
-	log "code.google.com/p/log4go"
-	"github.com/influxdb/influxdb/_vendor/raft"
-	"github.com/influxdb/influxdb/configuration"
-	"github.com/influxdb/influxdb/coordinator"
-	"github.com/influxdb/influxdb/server"
-	"github.com/jmhodges/levigo"
+    log "code.google.com/p/log4go"
+    "github.com/influxdb/influxdb/_vendor/raft"
+    "github.com/influxdb/influxdb/configuration"
+    "github.com/influxdb/influxdb/coordinator"
+    "github.com/influxdb/influxdb/server"
+    "github.com/jmhodges/levigo"
 )
 
-func setupLogging(loggingLevel, logFile string) {
-	level := log.DEBUG
-	switch loggingLevel {
-	case "fine":
-		level = log.FINE
-	case "debug":
-		level = log.DEBUG
-	case "info":
-		level = log.INFO
-	case "warn":
-		level = log.WARNING
-	case "error":
-		level = log.ERROR
-	default:
-		log.Error("Unknown log level %s. Defaulting to DEBUG", loggingLevel)
-	}
+func setupLogging(loggingLevel, logFile string, setlogrotate bool) {
+    level := log.DEBUG
+    switch loggingLevel {
+    case "fine":
+        level = log.FINE
+    case "debug":
+        level = log.DEBUG
+    case "info":
+        level = log.INFO
+    case "warn":
+        level = log.WARNING
+    case "error":
+        level = log.ERROR
+    default:
+        log.Error("Unknown log level %s. Defaulting to DEBUG", loggingLevel)
+    }
 
-	log.Global = make(map[string]*log.Filter)
+    log.Global = make(map[string]*log.Filter)
 
-	facility, ok := GetSysLogFacility(logFile)
-	if ok {
-		flw, err := NewSysLogWriter(facility)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "NewSysLogWriter: %s\n", err.Error())
-			return
+    facility, ok := GetSysLogFacility(logFile)
+    if ok {
+        flw, err := NewSysLogWriter(facility)
+        if err != nil {
+            fmt.Fprintf(os.Stderr, "NewSysLogWriter: %s\n", err.Error())
+            return
+        }
+        log.AddFilter("syslog", level, flw)
+    } else if logFile == "stdout" {
+        flw := log.NewConsoleLogWriter()
+        log.AddFilter("stdout", level, flw)
+    } else {
+        logFileDir := filepath.Dir(logFile)
+        os.MkdirAll(logFileDir, 0744)
+
+        flw := log.NewFileLogWriter(logFile, false)
+        if flw == nil {
+            os.Exit(1)
+        }
+        log.AddFilter("file", level, flw)
+
+        flw.SetFormat("[%D %T] [%L] (%S) %M")
+        if setlogrotate {
+        	flw.SetRotate(true)
+        	flw.SetRotateSize(0)
+        	flw.SetRotateLines(0)
+        	flw.SetRotateDaily(true)
+		} else {
+			flw.SetRotate(false)
 		}
-		log.AddFilter("syslog", level, flw)
-	} else if logFile == "stdout" {
-		flw := log.NewConsoleLogWriter()
-		log.AddFilter("stdout", level, flw)
-	} else {
-		logFileDir := filepath.Dir(logFile)
-		os.MkdirAll(logFileDir, 0744)
+    }
 
-		flw := log.NewFileLogWriter(logFile, false)
-		if flw == nil {
-			os.Exit(1)
-		}
-		log.AddFilter("file", level, flw)
-
-		flw.SetFormat("[%D %T] [%L] (%S) %M")
-		flw.SetRotate(true)
-		flw.SetRotateSize(0)
-		flw.SetRotateLines(0)
-		flw.SetRotateDaily(true)
-	}
-
-	log.Info("Redirectoring logging to %s", logFile)
+    log.Info("Redirectoring logging to %s", logFile)
 }
 
 func main() {
-	if start() != nil {
-		os.Exit(1)
-	}
+    if start() != nil {
+        os.Exit(1)
+    }
 
-	os.Exit(0)
+    os.Exit(0)
 }
 
 func start() error {
-	fileName := flag.String("config", "config.sample.toml", "Config file")
-	wantsVersion := flag.Bool("v", false, "Get version number")
-	resetRootPassword := flag.Bool("reset-root", false, "Reset root password")
-	hostname := flag.String("hostname", "", "Override the hostname, the `hostname` config option will be overridden")
-	raftPort := flag.Int("raft-port", 0, "Override the raft port, the `raft.port` config option will be overridden")
-	protobufPort := flag.Int("protobuf-port", 0, "Override the protobuf port, the `protobuf_port` config option will be overridden")
-	pidFile := flag.String("pidfile", "", "the pid file")
-	repairLeveldb := flag.Bool("repair-ldb", false, "set to true to repair the leveldb files")
-	stdout := flag.Bool("stdout", false, "Log to stdout overriding the configuration")
-	syslog := flag.String("syslog", "", "Log to syslog facility overriding the configuration")
+    fileName := flag.String("config", "config.sample.toml", "Config file")
+    wantsVersion := flag.Bool("v", false, "Get version number")
+    resetRootPassword := flag.Bool("reset-root", false, "Reset root password")
+    hostname := flag.String("hostname", "", "Override the hostname, the `hostname` config option will be overridden")
+    raftPort := flag.Int("raft-port", 0, "Override the raft port, the `raft.port` config option will be overridden")
+    protobufPort := flag.Int("protobuf-port", 0, "Override the protobuf port, the `protobuf_port` config option will be overridden")
+    pidFile := flag.String("pidfile", "", "the pid file")
+    repairLeveldb := flag.Bool("repair-ldb", false, "set to true to repair the leveldb files")
+    stdout := flag.Bool("stdout", false, "Log to stdout overriding the configuration")
+    syslog := flag.String("syslog", "", "Log to syslog facility overriding the configuration")
 
-	runtime.GOMAXPROCS(runtime.NumCPU())
-	flag.Parse()
+    runtime.GOMAXPROCS(runtime.NumCPU())
+    flag.Parse()
 
-	v := fmt.Sprintf("InfluxDB v%s (git: %s) (leveldb: %d.%d)", version, gitSha, levigo.GetLevelDBMajorVersion(), levigo.GetLevelDBMinorVersion())
-	if wantsVersion != nil && *wantsVersion {
-		fmt.Println(v)
-		return nil
-	}
-	config, err := configuration.LoadConfiguration(*fileName)
+    v := fmt.Sprintf("InfluxDB v%s (git: %s) (leveldb: %d.%d)", version, gitSha, levigo.GetLevelDBMajorVersion(), levigo.GetLevelDBMinorVersion())
+    if wantsVersion != nil && *wantsVersion {
+        fmt.Println(v)
+        return nil
+    }
+    config, err := configuration.LoadConfiguration(*fileName)
 
-	if err != nil {
-		return err
-	}
+    if err != nil {
+        return err
+    }
 
-	// override the hostname if it was specified on the command line
-	if hostname != nil && *hostname != "" {
-		config.Hostname = *hostname
-	}
+    // override the hostname if it was specified on the command line
+    if hostname != nil && *hostname != "" {
+        config.Hostname = *hostname
+    }
 
-	if raftPort != nil && *raftPort != 0 {
-		config.RaftServerPort = *raftPort
-	}
+    if raftPort != nil && *raftPort != 0 {
+        config.RaftServerPort = *raftPort
+    }
 
-	if protobufPort != nil && *protobufPort != 0 {
-		config.ProtobufPort = *protobufPort
-	}
+    if protobufPort != nil && *protobufPort != 0 {
+        config.ProtobufPort = *protobufPort
+    }
 
-	config.Version = v
-	config.InfluxDBVersion = version
+    config.Version = v
+    config.InfluxDBVersion = version
 
-	if *stdout {
-		config.LogFile = "stdout"
-	}
+    if *stdout {
+        config.LogFile = "stdout"
+    }
 
-	if *syslog != "" {
-		config.LogFile = *syslog
-	}
+    if *syslog != "" {
+        config.LogFile = *syslog
+    }
 
-	setupLogging(config.LogLevel, config.LogFile)
+    setupLogging(config.LogLevel, config.LogFile, config.LogRotate)
 
-	if config.RaftDebug {
-		log.Info("Turning on raft debug logging")
-		raft.SetLogLevel(raft.Trace)
-	}
+    if config.RaftDebug {
+        log.Info("Turning on raft debug logging")
+        raft.SetLogLevel(raft.Trace)
+    }
 
-	if *repairLeveldb {
-		log.Info("Repairing leveldb")
-		files, err := ioutil.ReadDir(config.DataDir)
-		if err != nil {
-			panic(err)
-		}
-		o := levigo.NewOptions()
-		defer o.Close()
-		for _, f := range files {
-			p := path.Join(config.DataDir, f.Name())
-			log.Info("Repairing %s", p)
-			if err := levigo.RepairDatabase(p, o); err != nil {
-				panic(err)
-			}
-		}
-	}
+    if *repairLeveldb {
+        log.Info("Repairing leveldb")
+        files, err := ioutil.ReadDir(config.DataDir)
+        if err != nil {
+            panic(err)
+        }
+        o := levigo.NewOptions()
+        defer o.Close()
+        for _, f := range files {
+            p := path.Join(config.DataDir, f.Name())
+            log.Info("Repairing %s", p)
+            if err := levigo.RepairDatabase(p, o); err != nil {
+                panic(err)
+            }
+        }
+    }
 
-	if pidFile != nil && *pidFile != "" {
-		pid := strconv.Itoa(os.Getpid())
-		if err := ioutil.WriteFile(*pidFile, []byte(pid), 0644); err != nil {
-			panic(err)
-		}
-	}
+    if pidFile != nil && *pidFile != "" {
+        pid := strconv.Itoa(os.Getpid())
+        if err := ioutil.WriteFile(*pidFile, []byte(pid), 0644); err != nil {
+            panic(err)
+        }
+    }
 
-	if config.BindAddress == "" {
-		log.Info("Starting Influx Server %s...", version)
-	} else {
-		log.Info("Starting Influx Server %s bound to %s...", version, config.BindAddress)
-	}
-	fmt.Printf(`
+    if config.BindAddress == "" {
+        log.Info("Starting Influx Server %s...", version)
+    } else {
+        log.Info("Starting Influx Server %s bound to %s...", version, config.BindAddress)
+    }
+    fmt.Printf(`
 +---------------------------------------------+
 |  _____        __ _            _____  ____   |
 | |_   _|      / _| |          |  __ \|  _ \  |
@@ -174,34 +178,34 @@ func start() error {
 +---------------------------------------------+
 
 `)
-	os.MkdirAll(config.RaftDir, 0744)
-	os.MkdirAll(config.DataDir, 0744)
-	server, err := server.NewServer(config)
-	if err != nil {
-		// sleep for the log to flush
-		time.Sleep(time.Second)
-		panic(err)
-	}
+    os.MkdirAll(config.RaftDir, 0744)
+    os.MkdirAll(config.DataDir, 0744)
+    server, err := server.NewServer(config)
+    if err != nil {
+        // sleep for the log to flush
+        time.Sleep(time.Second)
+        panic(err)
+    }
 
-	if err := startProfiler(server); err != nil {
-		panic(err)
-	}
+    if err := startProfiler(server); err != nil {
+        panic(err)
+    }
 
-	if *resetRootPassword {
-		// TODO: make this not suck
-		// This is ghetto as hell, but it'll work for now.
-		go func() {
-			time.Sleep(2 * time.Second) // wait for the raft server to join the cluster
+    if *resetRootPassword {
+        // TODO: make this not suck
+        // This is ghetto as hell, but it'll work for now.
+        go func() {
+            time.Sleep(2 * time.Second) // wait for the raft server to join the cluster
 
-			log.Warn("Resetting root's password to %s", coordinator.DEFAULT_ROOT_PWD)
-			if err := server.RaftServer.CreateRootUser(); err != nil {
-				panic(err)
-			}
-		}()
-	}
-	err = server.ListenAndServe()
-	if err != nil {
-		log.Error("ListenAndServe failed: ", err)
-	}
-	return err
+            log.Warn("Resetting root's password to %s", coordinator.DEFAULT_ROOT_PWD)
+            if err := server.RaftServer.CreateRootUser(); err != nil {
+                panic(err)
+            }
+        }()
+    }
+    err = server.ListenAndServe()
+    if err != nil {
+        log.Error("ListenAndServe failed: ", err)
+    }
+    return err
 }
