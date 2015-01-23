@@ -3,7 +3,6 @@ package client
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"time"
@@ -61,10 +60,9 @@ func (c *Client) Query(q Query) (influxdb.Results, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
 
 	var results influxdb.Results
-	err = json.Unmarshal(body, &results)
+	err = json.NewDecoder(resp.Body).Decode(&results)
 	if err != nil {
 		return nil, err
 	}
