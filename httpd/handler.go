@@ -115,6 +115,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *influ
 	q := r.URL.Query()
 	p := influxql.NewParser(strings.NewReader(q.Get("q")))
 	db := q.Get("db")
+	pretty := q.Get("pretty") == "true"
 
 	// Parse query from query string.
 	query, err := p.ParseQuery()
@@ -137,7 +138,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *influ
 	results := h.server.ExecuteQuery(query, db, user)
 
 	// Send results to client.
-	httpResults(w, results)
+	httpResults(w, results, pretty)
 }
 
 type batchWrite struct {
@@ -312,7 +313,7 @@ func isAuthorizationError(err error) bool {
 }
 
 // httpResult writes a Results array to the client.
-func httpResults(w http.ResponseWriter, results influxdb.Results) {
+func httpResults(w http.ResponseWriter, results influxdb.Results, pretty bool) {
 	if results.Error() != nil {
 		if isAuthorizationError(results.Error()) {
 			w.WriteHeader(http.StatusUnauthorized)
@@ -321,7 +322,13 @@ func httpResults(w http.ResponseWriter, results influxdb.Results) {
 		}
 	}
 	w.Header().Add("content-type", "application/json")
-	_ = json.NewEncoder(w).Encode(results)
+	var b []byte
+	if pretty {
+		b, _ = json.MarshalIndent(results, "", "    ")
+	} else {
+		b, _ = json.Marshal(results)
+	}
+	w.Write(b)
 }
 
 // httpError writes an error to the client in a standard format.
