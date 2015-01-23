@@ -33,6 +33,7 @@ func main() {
 	fs.StringVar(&c.database, "database", c.database, "database to connect to the server.")
 	fs.Parse(os.Args[1:])
 
+	// TODO Determine if we are an ineractive shell or running commands
 	fmt.Println("InfluxDB shell")
 	c.connect("")
 	fmt.Printf("Connecting to %s\n", c.client.Addr())
@@ -80,6 +81,8 @@ func (c *cli) parseCommand(cmd string) {
 	switch {
 	case strings.HasPrefix(lcmd, "exit"):
 		os.Exit(0)
+	case strings.HasPrefix(lcmd, "hottoddy"):
+		hottoddy()
 	case strings.HasPrefix(lcmd, "pretty"):
 		c.pretty = !c.pretty
 		if c.pretty {
@@ -121,4 +124,23 @@ func (c *cli) executeQuery(query string) {
 		}
 		fmt.Fprintln(os.Stdout, string(data))
 	}
+}
+
+func hottoddy() {
+	fmt.Println(`
+(  )         ,,,,,
+     \\         . .  ,
+      \\       | -   D
+      (._)     \__-  |
+                 |   |
+     \\|_  , ,---- _ |----.
+      \__ ( (           /  )       _
+         | \/ \.   '  _.|  \     (  )
+         |  \ /(   /    /\_ \    //
+          \ /  (       / /  )   //
+               (  ,   / / ,   (_.)
+               |......\ |  \,
+              /  /     ) \---
+       b'ger /___/___^//
+`)
 }
