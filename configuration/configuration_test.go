@@ -24,7 +24,7 @@ func (self *LoadConfigurationSuite) TestConfig(c *C) {
 
 	c.Assert(config.LogFile, Equals, "influxdb.log")
 	c.Assert(config.LogLevel, Equals, "info")
-    c.Assert(config.LogRotate, Equals, true)
+	c.Assert(config.LogRotate, Equals, true)
 
 	c.Assert(config.AdminHttpPort, Equals, 8083)
 

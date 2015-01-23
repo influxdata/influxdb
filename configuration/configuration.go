@@ -213,7 +213,7 @@ type Configuration struct {
 	Hostname                     string
 	LogFile                      string
 	LogLevel                     string
-    LogRotate                    bool
+	LogRotate                    bool
 	BindAddress                  string
 	WalDir                       string
 	WalFlushAfterRequests        int
@@ -361,7 +361,7 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 		SeedServers:                  tomlConfiguration.Cluster.SeedServers,
 		LogFile:                      tomlConfiguration.Logging.File,
 		LogLevel:                     tomlConfiguration.Logging.Level,
-        LogRotate                     tomlConfiguration.Logging.Rotate,
+		LogRotate:                    tomlConfiguration.Logging.Rotate,
 		Hostname:                     tomlConfiguration.Hostname,
 		BindAddress:                  tomlConfiguration.BindAddress,
 		ReportingDisabled:            tomlConfiguration.ReportingDisabled,
