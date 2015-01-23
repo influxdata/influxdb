@@ -3,7 +3,6 @@ package client
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/url"
 	"time"
@@ -11,18 +10,14 @@ import (
 	"github.com/influxdb/influxdb"
 )
 
-const (
-	defaultAddr = "localhost:8086"
-)
-
 type Config struct {
-	Addr     string
+	URL      url.URL
 	Username string
 	Password string
 }
 
 type Client struct {
-	addr       string
+	url        url.URL
 	username   string
 	password   string
 	httpClient *http.Client
@@ -41,7 +36,7 @@ type Write struct {
 
 func NewClient(c Config) (*Client, error) {
 	client := Client{
-		addr:       detect(c.Addr, defaultAddr),
+		url:        c.URL,
 		username:   c.Username,
 		password:   c.Password,
 		httpClient: &http.Client{},
@@ -50,16 +45,13 @@ func NewClient(c Config) (*Client, error) {
 }
 
 func (c *Client) Query(q Query) (influxdb.Results, error) {
-	u, err := c.urlFor("/query")
-	if err != nil {
-		return nil, err
-	}
-	values := u.Query()
+	c.url.Path = "query"
+	values := c.url.Query()
 	values.Set("q", q.Command)
 	values.Set("db", q.Database)
-	u.RawQuery = values.Encode()
+	c.url.RawQuery = values.Encode()
 
-	resp, err := c.httpClient.Get(u.String())
+	resp, err := c.httpClient.Get(c.url.String())
 	if err != nil {
 		return nil, err
 	}
@@ -74,10 +66,7 @@ func (c *Client) Query(q Query) (influxdb.Results, error) {
 }
 
 func (c *Client) Write(writes ...Write) (influxdb.Results, error) {
-	u, err := c.urlFor("/write")
-	if err != nil {
-		return nil, err
-	}
+	c.url.Path = "write"
 	type data struct {
 		Points          []influxdb.Point `json:"points"`
 		Database        string           `json:"database"`
@@ -90,9 +79,9 @@ func (c *Client) Write(writes ...Write) (influxdb.Results, error) {
 	}
 
 	b := []byte{}
-	err = json.Unmarshal(b, &d)
+	err := json.Unmarshal(b, &d)
 
-	resp, err := c.httpClient.Post(u.String(), "application/json", bytes.NewBuffer(b))
+	resp, err := c.httpClient.Post(c.url.String(), "application/json", bytes.NewBuffer(b))
 	if err != nil {
 		return nil, err
 	}
@@ -108,11 +97,8 @@ func (c *Client) Write(writes ...Write) (influxdb.Results, error) {
 
 func (c *Client) Ping() (time.Duration, error) {
 	now := time.Now()
-	u, err := c.urlFor("/ping")
-	if err != nil {
-		return 0, err
-	}
-	_, err = c.httpClient.Get(u.String())
+	c.url.Path = "ping"
+	_, err := c.httpClient.Get(c.url.String())
 	if err != nil {
 		return 0, err
 	}
@@ -122,20 +108,21 @@ func (c *Client) Ping() (time.Duration, error) {
 // utility functions
 
 func (c *Client) Addr() string {
-	return c.addr
+	return c.url.String()
 }
 
-func (c *Client) urlFor(path string) (*url.URL, error) {
-	var u *url.URL
-	u, err := url.Parse(fmt.Sprintf("%s%s", c.addr, path))
-	if err != nil {
-		return nil, err
-	}
-	if c.username != "" {
-		u.User = url.UserPassword(c.username, c.password)
-	}
-	return u, nil
-}
+//func (c *Client) urlFor(path string) (*url.URL, error) {
+//var u *url.URL
+//u, err := url.Parse(fmt.Sprintf("%s%s", c.addr, path))
+//if err != nil {
+//return nil, err
+//}
+//if c.username != "" {
+//u.User = url.UserPassword(c.username, c.password)
+//}
+//u.Scheme = "http"
+//return u, nil
+//}
 
 // helper functions
 

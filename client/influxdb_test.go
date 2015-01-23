@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/influxdb/influxdb"
@@ -18,24 +19,12 @@ func TestNewClient(t *testing.T) {
 	}
 }
 
-func TestNewClient_Defaults(t *testing.T) {
-	config := client.Config{}
-	c, err := client.NewClient(config)
-	if err != nil {
-		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
-	}
-
-	defaultAddr := "localhost:8086"
-	if c.Addr() != defaultAddr {
-		t.Fatalf("unexpected addr: expected: %q, actual %q", defaultAddr, c.Addr())
-	}
-}
-
 func TestClient_Ping(t *testing.T) {
 	ts := emptyTestServer()
 	defer ts.Close()
 
-	config := client.Config{Addr: ts.URL}
+	u, _ := url.Parse(ts.URL)
+	config := client.Config{URL: *u}
 	c, err := client.NewClient(config)
 	if err != nil {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
@@ -57,7 +46,8 @@ func TestClient_Query(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	config := client.Config{Addr: ts.URL}
+	u, _ := url.Parse(ts.URL)
+	config := client.Config{URL: *u}
 	c, err := client.NewClient(config)
 	if err != nil {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
@@ -87,7 +77,9 @@ func TestClient_BasicAuth(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	config := client.Config{Addr: ts.URL, Username: "username", Password: "password"}
+	u, _ := url.Parse(ts.URL)
+	u.User = url.UserPassword("username", "password")
+	config := client.Config{URL: *u, Username: "username", Password: "password"}
 	c, err := client.NewClient(config)
 	if err != nil {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
@@ -107,7 +99,8 @@ func TestClient_Write(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	config := client.Config{Addr: ts.URL}
+	u, _ := url.Parse(ts.URL)
+	config := client.Config{URL: *u}
 	c, err := client.NewClient(config)
 	if err != nil {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
