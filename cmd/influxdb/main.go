@@ -33,10 +33,14 @@ func main() {
 	fs.StringVar(&c.database, "database", c.database, "database to connect to the server.")
 	fs.Parse(os.Args[1:])
 
+	fmt.Println("InfluxDB shell")
 	c.connect("")
+	fmt.Printf("Connecting to %s\n", c.client.Addr())
+	fmt.Print("> ")
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
 		c.parseCommand(scanner.Text())
+		fmt.Print("> ")
 	}
 	if err := scanner.Err(); err != nil {
 		fmt.Fprintln(os.Stderr, "reading standard input:", err)
@@ -78,7 +82,11 @@ func (c *cli) parseCommand(cmd string) {
 		os.Exit(0)
 	case strings.HasPrefix(lcmd, "pretty"):
 		c.pretty = !c.pretty
-		fmt.Printf("Pretty print: %v\n", c.pretty)
+		if c.pretty {
+			fmt.Println("Pretty print enabled")
+		} else {
+			fmt.Println("Pretty print disabled")
+		}
 	case strings.HasPrefix(lcmd, "use"):
 		fmt.Println("We should use a database specified now... todo")
 	default:
@@ -103,7 +111,7 @@ func (c *cli) executeQuery(query string) {
 		}
 		var data []byte
 		if c.pretty {
-			data, err = json.MarshalIndent(i, "", "\t")
+			data, err = json.MarshalIndent(i, "", "    ")
 		} else {
 			data, err = json.Marshal(i)
 		}
