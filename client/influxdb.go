@@ -16,11 +16,15 @@ const (
 )
 
 type Config struct {
-	Addr string
+	Addr     string
+	Username string
+	Password string
 }
 
 type Client struct {
 	addr       string
+	username   string
+	password   string
 	httpClient *http.Client
 }
 
@@ -35,6 +39,8 @@ type Write struct {
 func NewClient(c Config) (*Client, error) {
 	client := Client{
 		addr:       detect(c.Addr, defaultAddr),
+		username:   c.Username,
+		password:   c.Password,
 		httpClient: &http.Client{},
 	}
 	return &client, nil
@@ -88,8 +94,16 @@ func (c *Client) Addr() string {
 	return c.addr
 }
 
-func (c *Client) urlFor(u string) (*url.URL, error) {
-	return url.Parse(fmt.Sprintf("%s/%s", c.addr, u))
+func (c *Client) urlFor(path string) (*url.URL, error) {
+	var u *url.URL
+	u, err := url.Parse(fmt.Sprintf("%s%s", c.addr, path))
+	if err != nil {
+		return nil, err
+	}
+	if c.username != "" {
+		u.User = url.UserPassword(c.username, c.password)
+	}
+	return u, nil
 }
 
 // helper functions

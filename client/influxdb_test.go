@@ -47,7 +47,6 @@ func TestClient_Ping(t *testing.T) {
 	if d == 0 {
 		t.Fatalf("expected a duration greater than zero.  actual %v", d)
 	}
-
 }
 
 func TestClient_Query(t *testing.T) {
@@ -66,6 +65,35 @@ func TestClient_Query(t *testing.T) {
 
 	query := client.Query{}
 	_, err = c.Query(query)
+	if err != nil {
+		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+}
+
+func TestClient_BasicAuth(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		u, p, ok := r.BasicAuth()
+
+		if !ok {
+			t.Errorf("basic auth failed")
+		}
+		if u != "username" {
+			t.Errorf("unexpected username, expected %q, actual %q", "username", u)
+		}
+		if p != "password" {
+			t.Errorf("unexpected password, expected %q, actual %q", "password", p)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer ts.Close()
+
+	config := client.Config{Addr: ts.URL, Username: "username", Password: "password"}
+	c, err := client.NewClient(config)
+	if err != nil {
+		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+
+	_, err = c.Ping()
 	if err != nil {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
 	}
