@@ -30,6 +30,12 @@ func NewParser(r io.Reader) *Parser {
 	return &Parser{s: newBufScanner(r)}
 }
 
+// ParseQuery parses a query string and returns its AST representation.
+func ParseQuery(s string) (*Query, error) { return NewParser(strings.NewReader(s)).ParseQuery() }
+
+// ParseExpr parses an expression string and returns its AST representation.
+func ParseExpr(s string) (Expr, error) { return NewParser(strings.NewReader(s)).ParseExpr() }
+
 // ParseQuery parses an InfluxQL string and returns a Query AST object.
 func (p *Parser) ParseQuery() (*Query, error) {
 	// If there's only whitespace then return no statements.

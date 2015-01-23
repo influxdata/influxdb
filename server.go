@@ -1629,7 +1629,7 @@ func (s *Server) planSelectStatement(stmt *influxql.SelectStatement, database st
 	}
 
 	// Plan query.
-	p := influxql.NewPlanner(&dbi{server: s, db: db})
+	p := influxql.NewPlanner(&serverQueryInterface{s})
 	return p.Plan(stmt)
 }
 
@@ -1716,7 +1716,8 @@ func (s *Server) MeasurementNames(database string) []string {
 	return db.names
 }
 
-func (s *Server) MeasurementSeriesIDs(database, measurement string) SeriesIDs {
+/*
+func (s *Server) MeasurementSeriesIDs(database, measurement string) []uint32 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -1725,8 +1726,9 @@ func (s *Server) MeasurementSeriesIDs(database, measurement string) SeriesIDs {
 		return nil
 	}
 
-	return db.SeriesIDs([]string{measurement}, nil)
+	return []uint32(db.SeriesIDs([]string{measurement}, nil))
 }
+*/
 
 // measurement returns a measurement by database and name.
 func (s *Server) measurement(database, name string) (*Measurement, error) {
@@ -1736,6 +1738,65 @@ func (s *Server) measurement(database, name string) (*Measurement, error) {
 	}
 
 	return db.measurements[name], nil
+}
+
+// Begin creates a transaction with a set of iterators to loop over the data in a set of statements.
+// One iterator is returned for every unique dimension, conditional set, and shard in each statement.
+func (s *Server) Begin(stmts []*influxql.SelectStatement) (influxql.Tx, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.begin(stmts)
+}
+
+func (s *Server) begin(stmts []*influxql.SelectStatement) (influxql.Tx, error) {
+	// TODO: Require one VarRef field.
+
+	// Create transaction to connect all statements & iterators.
+	tx := &Tx{
+		statements: stmts,
+		iterators:  make([][]influxql.Iterator, len(stmts)),
+	}
+
+	// Create a list of iterators for each statement.
+	for i, stmt := range stmts {
+		itrs, err := s.createIterators(stmt)
+		if err != nil {
+			return nil, err
+		}
+		tx.iterators[i] = itrs
+	}
+
+	return tx, nil
+}
+
+func (s *Server) createIterators(stmt *influxql.SelectStatement) ([]influxql.Iterator, error) {
+	// Find measurement.
+	database := "db" // TEMP: lookup db
+	m, err := s.measurement(database, stmt.Source.(*influxql.Measurement).Name)
+	if err != nil {
+		return nil, err
+	}
+
+	// Normalize dimensions to extract the interval.
+	interval, tagKeys, err := stmt.Dimensions.Normalize()
+	if err != nil {
+		return nil, err
+	}
+	warn(">", interval, tagKeys)
+
+	// Expand condition against all possible tag value sets.
+	tagExprs := m.expandExpr(stmt.Condition)
+	warn("CONDITIONS:", len(conditions))
+
+	// TODO: Create an iterator for each condition and unique set of dimension values.
+
+	// Extract the time range for each reduced conditional.
+	min, max := influxql.TimeRange(stmt.Condition)
+	if !max.IsZero() && max.Before(min) {
+		return nil, fmt.Errorf("invalid time range: %s - %s", min.Format(influxql.DateTimeFormat), max.Format(influxql.DateTimeFormat))
+	}
+
+	panic("TODO")
 }
 
 // NormalizeQuery updates all measurements and fields to be fully qualified.
@@ -1908,6 +1969,16 @@ func (s *Server) processor(client MessagingClient, done chan struct{}) {
 		}
 		s.mu.Unlock()
 	}
+}
+
+// serverQueryInterface represents a wrapper interface for the query engine to call.
+// It uses non-locking calls since the planning is already under read lock.
+type serverQueryInterface struct {
+	*Server
+}
+
+func (s *serverQueryInterface) CreateIterators(stmt *influxql.SelectStatement) ([]influxql.Iterator, error) {
+	return s.Server.createIterators(stmt)
 }
 
 // Result represents a resultset returned from a single statement.

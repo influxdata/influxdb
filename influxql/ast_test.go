@@ -93,81 +93,6 @@ func TestSelectStatement_Substatement(t *testing.T) {
 	}
 }
 
-// Ensure an expression can be folded.
-func TestFold(t *testing.T) {
-	for i, tt := range []struct {
-		in  string
-		out string
-	}{
-		// Number literals.
-		{`1 + 2`, `3.000`},
-		{`(foo*2) + ( (4/2) + (3 * 5) - 0.5 )`, `(foo * 2.000) + 16.500`},
-		{`foo(bar(2 + 3), 4)`, `foo(bar(5.000), 4.000)`},
-		{`4 / 0`, `0.000`},
-		{`4 = 4`, `true`},
-		{`4 <> 4`, `false`},
-		{`6 > 4`, `true`},
-		{`4 >= 4`, `true`},
-		{`4 < 6`, `true`},
-		{`4 <= 4`, `true`},
-		{`4 AND 5`, `4.000 AND 5.000`},
-
-		// Boolean literals.
-		{`true AND false`, `false`},
-		{`true OR false`, `true`},
-		{`true = false`, `false`},
-		{`true <> false`, `true`},
-		{`true + false`, `true + false`},
-
-		// Time literals.
-		{`now() + 2h`, `"2000-01-01 02:00:00"`},
-		{`now() / 2h`, `"2000-01-01 00:00:00" / 2h`},
-		{`4µ + now()`, `"2000-01-01 00:00:00.000004"`},
-		{`now() = now()`, `true`},
-		{`now() <> now()`, `false`},
-		{`now() < now() + 1h`, `true`},
-		{`now() <= now() + 1h`, `true`},
-		{`now() >= now() - 1h`, `true`},
-		{`now() > now() - 1h`, `true`},
-		{`now() - (now() - 60s)`, `1m`},
-		{`now() AND now()`, `"2000-01-01 00:00:00" AND "2000-01-01 00:00:00"`},
-
-		// Duration literals.
-		{`10m + 1h - 60s`, `69m`},
-		{`(10m / 2) * 5`, `25m`},
-		{`60s = 1m`, `true`},
-		{`60s <> 1m`, `false`},
-		{`60s < 1h`, `true`},
-		{`60s <= 1h`, `true`},
-		{`60s > 12s`, `true`},
-		{`60s >= 1m`, `true`},
-		{`60s AND 1m`, `1m AND 1m`},
-		{`60m / 0`, `0s`},
-		{`60m + 50`, `1h + 50.000`},
-
-		// String literals.
-		{`'foo' + 'bar'`, `'foobar'`},
-	} {
-		// Fold expression.
-		now := mustParseTime("2000-01-01T00:00:00Z")
-		expr := influxql.Fold(MustParseExpr(tt.in), &now)
-
-		// Compare with expected output.
-		if out := expr.String(); tt.out != out {
-			t.Errorf("%d. %s: unexpected expr:\n\nexp=%s\n\ngot=%s\n\n", i, tt.in, tt.out, out)
-			continue
-		}
-	}
-}
-
-// Ensure an a "now()" call is not folded when now is not passed in.
-func TestFold_WithoutNow(t *testing.T) {
-	expr := influxql.Fold(MustParseExpr(`now()`), nil)
-	if s := expr.String(); s != `now()` {
-		t.Fatalf("unexpected expr: %s", s)
-	}
-}
-
 // Ensure the time range of an expression can be extracted.
 func TestTimeRange(t *testing.T) {
 	for i, tt := range []struct {
@@ -238,4 +163,93 @@ func TestRewrite(t *testing.T) {
 	if act := act.String(); act != `2.000 = foo OR 1.000 > time` {
 		t.Fatalf("unexpected result: %s", act)
 	}
+}
+
+// Ensure an expression can be reduced.
+func TestReduce(t *testing.T) {
+	now := mustParseTime("2000-01-01T00:00:00Z")
+
+	for i, tt := range []struct {
+		in   string
+		out  string
+		data Valuer
+	}{
+		// Number literals.
+		{in: `1 + 2`, out: `3.000`},
+		{in: `(foo*2) + ( (4/2) + (3 * 5) - 0.5 )`, out: `(foo * 2.000) + 16.500`},
+		{in: `foo(bar(2 + 3), 4)`, out: `foo(bar(5.000), 4.000)`},
+		{in: `4 / 0`, out: `0.000`},
+		{in: `4 = 4`, out: `true`},
+		{in: `4 <> 4`, out: `false`},
+		{in: `6 > 4`, out: `true`},
+		{in: `4 >= 4`, out: `true`},
+		{in: `4 < 6`, out: `true`},
+		{in: `4 <= 4`, out: `true`},
+		{in: `4 AND 5`, out: `4.000 AND 5.000`},
+
+		// Boolean literals.
+		{in: `true AND false`, out: `false`},
+		{in: `true OR false`, out: `true`},
+		{in: `true OR (foo = bar AND 1 > 2)`, out: `true`},
+		{in: `(foo = bar AND 1 > 2) OR true`, out: `true`},
+		{in: `false OR (foo = bar AND 1 > 2)`, out: `false`},
+		{in: `(foo = bar AND 1 > 2) OR false`, out: `false`},
+		{in: `true = false`, out: `false`},
+		{in: `true <> false`, out: `true`},
+		{in: `true + false`, out: `true + false`},
+
+		// Time literals.
+		{in: `now() + 2h`, out: `"2000-01-01 02:00:00"`, data: map[string]interface{}{"now()": now}},
+		{in: `now() / 2h`, out: `"2000-01-01 00:00:00" / 2h`, data: map[string]interface{}{"now()": now}},
+		{in: `4µ + now()`, out: `"2000-01-01 00:00:00.000004"`, data: map[string]interface{}{"now()": now}},
+		{in: `now() = now()`, out: `true`, data: map[string]interface{}{"now()": now}},
+		{in: `now() <> now()`, out: `false`, data: map[string]interface{}{"now()": now}},
+		{in: `now() < now() + 1h`, out: `true`, data: map[string]interface{}{"now()": now}},
+		{in: `now() <= now() + 1h`, out: `true`, data: map[string]interface{}{"now()": now}},
+		{in: `now() >= now() - 1h`, out: `true`, data: map[string]interface{}{"now()": now}},
+		{in: `now() > now() - 1h`, out: `true`, data: map[string]interface{}{"now()": now}},
+		{in: `now() - (now() - 60s)`, out: `1m`, data: map[string]interface{}{"now()": now}},
+		{in: `now() AND now()`, out: `"2000-01-01 00:00:00" AND "2000-01-01 00:00:00"`, data: map[string]interface{}{"now()": now}},
+		{in: `now()`, out: `now()`},
+
+		// Duration literals.
+		{in: `10m + 1h - 60s`, out: `69m`},
+		{in: `(10m / 2) * 5`, out: `25m`},
+		{in: `60s = 1m`, out: `true`},
+		{in: `60s <> 1m`, out: `false`},
+		{in: `60s < 1h`, out: `true`},
+		{in: `60s <= 1h`, out: `true`},
+		{in: `60s > 12s`, out: `true`},
+		{in: `60s >= 1m`, out: `true`},
+		{in: `60s AND 1m`, out: `1m AND 1m`},
+		{in: `60m / 0`, out: `0s`},
+		{in: `60m + 50`, out: `1h + 50.000`},
+
+		// String literals.
+		{in: `'foo' + 'bar'`, out: `'foobar'`},
+
+		// Variable references.
+		{in: `foo`, out: `'bar'`, data: map[string]interface{}{"foo": "bar"}},
+		{in: `foo = 'bar'`, out: `true`, data: map[string]interface{}{"foo": "bar"}},
+		{in: `foo = 'bar'`, out: `false`, data: map[string]interface{}{"foo": nil}},
+		{in: `foo <> 'bar'`, out: `false`, data: map[string]interface{}{"foo": nil}},
+	} {
+		// Fold expression.
+		expr := influxql.Reduce(MustParseExpr(tt.in), tt.data)
+
+		// Compare with expected output.
+		if out := expr.String(); tt.out != out {
+			t.Errorf("%d. %s: unexpected expr:\n\nexp=%s\n\ngot=%s\n\n", i, tt.in, tt.out, out)
+			continue
+		}
+	}
+}
+
+// Valuer represents a simple wrapper around a map to implement the influxql.Valuer interface.
+type Valuer map[string]interface{}
+
+// Value returns the value and existence of a key.
+func (o Valuer) Value(key string) (v interface{}, ok bool) {
+	v, ok = o[key]
+	return
 }
