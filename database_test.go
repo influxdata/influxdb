@@ -545,6 +545,13 @@ func TestDatabase_SeriesIDsIntersect(t *testing.T) {
 			right:    []uint32{uint32(1), uint32(3), uint32(4), uint32(7)},
 		},
 
+		// both sides same size, right boundary checked.
+		{
+			expected: []uint32{},
+			left:     []uint32{uint32(2)},
+			right:    []uint32{uint32(1)},
+		},
+
 		// left side bigger
 		{
 			expected: []uint32{uint32(2)},
