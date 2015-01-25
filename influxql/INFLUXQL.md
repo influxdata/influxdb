@@ -59,16 +59,15 @@ quoted_identifier   = `"` unicode_char { unicode_char } `"` .
 ## Keywords
 
 ```
-ALL        ALTER    AS          ASC          BEGIN
-BY         CREATE   CONTINUOUS  DATABASE     DEFAULT
-DELETE     DESC     DROP        DURATION     END
-EXISTS     EXPLAIN  FIELD       FROM         GRANT
-GROUP      IF       INNER       INSERT       INTO
-KEYS       LIMIT    LIST        MEASUREMENT  MEASUREMENTS
-ON         ORDER    PASSWORD    POLICY       PRIVILEGES
-QUERIES    QUERY    READ        REPLICATION  RETENTION
-EVOKE      SELECT   SERIES      TAG          TO
-USER       VALUES   WHERE       WITH         WRITE
+ALL          ALTER        AS           ASC          BEGIN        BY
+CREATE       CONTINUOUS   DATABASE     DATABASES    DEFAULT      DELETE
+DESC         DROP         DURATION     END          EXISTS       EXPLAIN
+FIELD        FROM         GRANT        GROUP        IF           INNER
+INSERT       INTO         KEYS         LIMIT        LIST         MEASUREMENT
+MEASUREMENTS OFFSET       ON           ORDER        PASSWORD     POLICY
+POLICIES     PRIVILEGES   QUERIES      QUERY        READ         REPLICATION
+RETENTION    REVOKE       SELECT       SERIES       TAG          TO
+USER         USERS        VALUES       WHERE        WITH         WRITE
 ```
 
 ## Literals

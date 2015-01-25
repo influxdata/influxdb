@@ -82,6 +82,7 @@ const (
 	LIST
 	MEASUREMENT
 	MEASUREMENTS
+	OFFSET
 	ON
 	ORDER
 	PASSWORD
@@ -171,6 +172,7 @@ var tokens = [...]string{
 	LIST:         "LIST",
 	MEASUREMENT:  "MEASUREMENT",
 	MEASUREMENTS: "MEASUREMENTS",
+	OFFSET:       "OFFSET",
 	ON:           "ON",
 	ORDER:        "ORDER",
 	PASSWORD:     "PASSWORD",

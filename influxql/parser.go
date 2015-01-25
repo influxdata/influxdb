@@ -471,59 +471,50 @@ func (p *Parser) parsePrivilege() (Privilege, error) {
 // This function assumes the SELECT token has already been consumed.
 func (p *Parser) parseSelectStatement(tr targetRequirement) (*SelectStatement, error) {
 	stmt := &SelectStatement{}
+	var err error
 
 	// Parse fields: "SELECT FIELD+".
-	fields, err := p.parseFields()
-	if err != nil {
+	if stmt.Fields, err = p.parseFields(); err != nil {
 		return nil, err
 	}
-	stmt.Fields = fields
 
 	// Parse target: "INTO"
-	target, err := p.parseTarget(tr)
-	if err != nil {
+	if stmt.Target, err = p.parseTarget(tr); err != nil {
 		return nil, err
-	} else if target != nil {
-		stmt.Target = target
 	}
 
 	// Parse source.
 	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != FROM {
 		return nil, newParseError(tokstr(tok, lit), []string{"FROM"}, pos)
 	}
-	source, err := p.parseSource()
-	if err != nil {
+	if stmt.Source, err = p.parseSource(); err != nil {
 		return nil, err
 	}
-	stmt.Source = source
 
 	// Parse condition: "WHERE EXPR".
-	condition, err := p.parseCondition()
-	if err != nil {
+	if stmt.Condition, err = p.parseCondition(); err != nil {
 		return nil, err
 	}
-	stmt.Condition = condition
 
 	// Parse dimensions: "GROUP BY DIMENSION+".
-	dimensions, err := p.parseDimensions()
-	if err != nil {
+	if stmt.Dimensions, err = p.parseDimensions(); err != nil {
 		return nil, err
 	}
-	stmt.Dimensions = dimensions
 
 	// Parse sort: "ORDER BY FIELD+".
-	sortFields, err := p.parseOrderBy()
-	if err != nil {
+	if stmt.SortFields, err = p.parseOrderBy(); err != nil {
 		return nil, err
 	}
-	stmt.SortFields = sortFields
 
-	// Parse limit: "LIMIT INT".
-	limit, err := p.parseLimit()
-	if err != nil {
+	// Parse limit: "LIMIT <n>".
+	if stmt.Limit, err = p.parseOptionalTokenAndInt(LIMIT); err != nil {
 		return nil, err
 	}
-	stmt.Limit = limit
+
+	// Parse offset: "OFFSET <n>".
+	if stmt.Offset, err = p.parseOptionalTokenAndInt(OFFSET); err != nil {
+		return nil, err
+	}
 
 	return stmt, nil
 }
@@ -599,27 +590,27 @@ func (p *Parser) parseDeleteStatement() (*DeleteStatement, error) {
 // This function assumes the "LIST SERIES" tokens have already been consumed.
 func (p *Parser) parseListSeriesStatement() (*ListSeriesStatement, error) {
 	stmt := &ListSeriesStatement{}
+	var err error
 
 	// Parse condition: "WHERE EXPR".
-	condition, err := p.parseCondition()
-	if err != nil {
+	if stmt.Condition, err = p.parseCondition(); err != nil {
 		return nil, err
 	}
-	stmt.Condition = condition
 
 	// Parse sort: "ORDER BY FIELD+".
-	sortFields, err := p.parseOrderBy()
-	if err != nil {
+	if stmt.SortFields, err = p.parseOrderBy(); err != nil {
 		return nil, err
 	}
-	stmt.SortFields = sortFields
 
-	// Parse limit: "LIMIT INT".
-	limit, err := p.parseLimit()
-	if err != nil {
+	// Parse limit: "LIMIT <n>".
+	if stmt.Limit, err = p.parseOptionalTokenAndInt(LIMIT); err != nil {
 		return nil, err
 	}
-	stmt.Limit = limit
+
+	// Parse offset: "OFFSET <n>".
+	if stmt.Offset, err = p.parseOptionalTokenAndInt(OFFSET); err != nil {
+		return nil, err
+	}
 
 	return stmt, nil
 }
@@ -628,27 +619,27 @@ func (p *Parser) parseListSeriesStatement() (*ListSeriesStatement, error) {
 // This function assumes the "LIST MEASUREMENTS" tokens have already been consumed.
 func (p *Parser) parseListMeasurementsStatement() (*ListMeasurementsStatement, error) {
 	stmt := &ListMeasurementsStatement{}
+	var err error
 
 	// Parse condition: "WHERE EXPR".
-	condition, err := p.parseCondition()
-	if err != nil {
+	if stmt.Condition, err = p.parseCondition(); err != nil {
 		return nil, err
 	}
-	stmt.Condition = condition
 
 	// Parse sort: "ORDER BY FIELD+".
-	sortFields, err := p.parseOrderBy()
-	if err != nil {
+	if stmt.SortFields, err = p.parseOrderBy(); err != nil {
 		return nil, err
 	}
-	stmt.SortFields = sortFields
 
-	// Parse limit: "LIMIT INT".
-	limit, err := p.parseLimit()
-	if err != nil {
+	// Parse limit: "LIMIT <n>".
+	if stmt.Limit, err = p.parseOptionalTokenAndInt(LIMIT); err != nil {
 		return nil, err
 	}
-	stmt.Limit = limit
+
+	// Parse offset: "OFFSET <n>".
+	if stmt.Offset, err = p.parseOptionalTokenAndInt(OFFSET); err != nil {
+		return nil, err
+	}
 
 	return stmt, nil
 }
@@ -671,37 +662,35 @@ func (p *Parser) parseListRetentionPoliciesStatement() (*ListRetentionPoliciesSt
 // This function assumes the "LIST TAG KEYS" tokens have already been consumed.
 func (p *Parser) parseListTagKeysStatement() (*ListTagKeysStatement, error) {
 	stmt := &ListTagKeysStatement{}
+	var err error
 
 	// Parse source.
 	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != FROM {
 		return nil, newParseError(tokstr(tok, lit), []string{"FROM"}, pos)
 	}
-	source, err := p.parseSource()
-	if err != nil {
+	if stmt.Source, err = p.parseSource(); err != nil {
 		return nil, err
 	}
-	stmt.Source = source
 
 	// Parse condition: "WHERE EXPR".
-	condition, err := p.parseCondition()
-	if err != nil {
+	if stmt.Condition, err = p.parseCondition(); err != nil {
 		return nil, err
 	}
-	stmt.Condition = condition
 
 	// Parse sort: "ORDER BY FIELD+".
-	sortFields, err := p.parseOrderBy()
-	if err != nil {
+	if stmt.SortFields, err = p.parseOrderBy(); err != nil {
 		return nil, err
 	}
-	stmt.SortFields = sortFields
 
-	// Parse limit: "LIMIT INT".
-	limit, err := p.parseLimit()
-	if err != nil {
+	// Parse limit: "LIMIT <n>".
+	if stmt.Limit, err = p.parseOptionalTokenAndInt(LIMIT); err != nil {
 		return nil, err
 	}
-	stmt.Limit = limit
+
+	// Parse offset: "OFFSET <n>".
+	if stmt.Offset, err = p.parseOptionalTokenAndInt(OFFSET); err != nil {
+		return nil, err
+	}
 
 	return stmt, nil
 }
@@ -710,37 +699,35 @@ func (p *Parser) parseListTagKeysStatement() (*ListTagKeysStatement, error) {
 // This function assumes the "LIST TAG VALUES" tokens have already been consumed.
 func (p *Parser) parseListTagValuesStatement() (*ListTagValuesStatement, error) {
 	stmt := &ListTagValuesStatement{}
+	var err error
 
 	// Parse source.
 	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != FROM {
 		return nil, newParseError(tokstr(tok, lit), []string{"FROM"}, pos)
 	}
-	source, err := p.parseSource()
-	if err != nil {
+	if stmt.Source, err = p.parseSource(); err != nil {
 		return nil, err
 	}
-	stmt.Source = source
 
 	// Parse condition: "WHERE EXPR".
-	condition, err := p.parseCondition()
-	if err != nil {
+	if stmt.Condition, err = p.parseCondition(); err != nil {
 		return nil, err
 	}
-	stmt.Condition = condition
 
 	// Parse sort: "ORDER BY FIELD+".
-	sortFields, err := p.parseOrderBy()
-	if err != nil {
+	if stmt.SortFields, err = p.parseOrderBy(); err != nil {
 		return nil, err
 	}
-	stmt.SortFields = sortFields
 
-	// Parse limit: "LIMIT INT".
-	limit, err := p.parseLimit()
-	if err != nil {
+	// Parse limit: "LIMIT <n>".
+	if stmt.Limit, err = p.parseOptionalTokenAndInt(LIMIT); err != nil {
 		return nil, err
 	}
-	stmt.Limit = limit
+
+	// Parse offset: "OFFSET <n>".
+	if stmt.Offset, err = p.parseOptionalTokenAndInt(OFFSET); err != nil {
+		return nil, err
+	}
 
 	return stmt, nil
 }
@@ -755,37 +742,35 @@ func (p *Parser) parseListUsersStatement() (*ListUsersStatement, error) {
 // This function assumes the "LIST FIELD KEYS" tokens have already been consumed.
 func (p *Parser) parseListFieldKeysStatement() (*ListFieldKeysStatement, error) {
 	stmt := &ListFieldKeysStatement{}
+	var err error
 
 	// Parse source.
 	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != FROM {
 		return nil, newParseError(tokstr(tok, lit), []string{"FROM"}, pos)
 	}
-	source, err := p.parseSource()
-	if err != nil {
+	if stmt.Source, err = p.parseSource(); err != nil {
 		return nil, err
 	}
-	stmt.Source = source
 
 	// Parse condition: "WHERE EXPR".
-	condition, err := p.parseCondition()
-	if err != nil {
+	if stmt.Condition, err = p.parseCondition(); err != nil {
 		return nil, err
 	}
-	stmt.Condition = condition
 
 	// Parse sort: "ORDER BY FIELD+".
-	sortFields, err := p.parseOrderBy()
-	if err != nil {
+	if stmt.SortFields, err = p.parseOrderBy(); err != nil {
 		return nil, err
 	}
-	stmt.SortFields = sortFields
 
-	// Parse limit: "LIMIT INT".
-	limit, err := p.parseLimit()
-	if err != nil {
+	// Parse limit: "LIMIT <n>".
+	if stmt.Limit, err = p.parseOptionalTokenAndInt(LIMIT); err != nil {
 		return nil, err
 	}
-	stmt.Limit = limit
+
+	// Parse offset: "OFFSET <n>".
+	if stmt.Offset, err = p.parseOptionalTokenAndInt(OFFSET); err != nil {
+		return nil, err
+	}
 
 	return stmt, nil
 }
@@ -794,37 +779,35 @@ func (p *Parser) parseListFieldKeysStatement() (*ListFieldKeysStatement, error) 
 // This function assumes the "LIST FIELD VALUES" tokens have already been consumed.
 func (p *Parser) parseListFieldValuesStatement() (*ListFieldValuesStatement, error) {
 	stmt := &ListFieldValuesStatement{}
+	var err error
 
 	// Parse source.
 	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != FROM {
 		return nil, newParseError(tokstr(tok, lit), []string{"FROM"}, pos)
 	}
-	source, err := p.parseSource()
-	if err != nil {
+	if stmt.Source, err = p.parseSource(); err != nil {
 		return nil, err
 	}
-	stmt.Source = source
 
 	// Parse condition: "WHERE EXPR".
-	condition, err := p.parseCondition()
-	if err != nil {
+	if stmt.Condition, err = p.parseCondition(); err != nil {
 		return nil, err
 	}
-	stmt.Condition = condition
 
 	// Parse sort: "ORDER BY FIELD+".
-	sortFields, err := p.parseOrderBy()
-	if err != nil {
+	if stmt.SortFields, err = p.parseOrderBy(); err != nil {
 		return nil, err
 	}
-	stmt.SortFields = sortFields
 
 	// Parse limit: "LIMIT INT".
-	limit, err := p.parseLimit()
-	if err != nil {
+	if stmt.Limit, err = p.parseOptionalTokenAndInt(LIMIT); err != nil {
 		return nil, err
 	}
-	stmt.Limit = limit
+
+	// Parse offset: "OFFSET <n>".
+	if stmt.Offset, err = p.parseOptionalTokenAndInt(OFFSET); err != nil {
+		return nil, err
+	}
 
 	return stmt, nil
 }
@@ -1256,15 +1239,16 @@ func (p *Parser) parseDimension() (*Dimension, error) {
 	return &Dimension{Expr: expr}, nil
 }
 
-// parseLimit parses the "LIMIT" clause of the query, if it exists.
-func (p *Parser) parseLimit() (int, error) {
-	// Check if the LIMIT token exists.
-	if tok, _, _ := p.scanIgnoreWhitespace(); tok != LIMIT {
+// parseOptionalTokenAndInt parses the specified token followed
+// by an int, if it exists.
+func (p *Parser) parseOptionalTokenAndInt(t Token) (int, error) {
+	// Check if the token exists.
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok != t {
 		p.unscan()
 		return 0, nil
 	}
 
-	// Scan the limit number.
+	// Scan the number.
 	tok, pos, lit := p.scanIgnoreWhitespace()
 	if tok != NUMBER {
 		return 0, newParseError(tokstr(tok, lit), []string{"number"}, pos)
@@ -1272,14 +1256,16 @@ func (p *Parser) parseLimit() (int, error) {
 
 	// Return an error if the number has a fractional part.
 	if strings.Contains(lit, ".") {
-		return 0, &ParseError{Message: "fractional parts not allowed in limit", Pos: pos}
+		msg := fmt.Sprintf("fractional parts not allowed in %s", t.String())
+		return 0, &ParseError{Message: msg, Pos: pos}
 	}
 
 	// Parse number.
 	n, _ := strconv.ParseInt(lit, 10, 64)
 
 	if n < 1 {
-		return 0, &ParseError{Message: "LIMIT must be > 0", Pos: pos}
+		msg := fmt.Sprintf("%s must be > 0", t.String())
+		return 0, &ParseError{Message: msg, Pos: pos}
 	}
 
 	return int(n), nil
