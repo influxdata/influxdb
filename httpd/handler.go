@@ -94,6 +94,10 @@ func NewHandler(s *influxdb.Server, requireAuthentication bool, version string) 
 			"ping-head",
 			"HEAD", "/ping", h.servePing, true,
 		},
+		route{ // Tell data node to run CQs that should be run
+			"process_continuous_queries",
+			"POST", "/process_continuous_queries", h.serveProcessContinuousQueries,
+		},
 	)
 
 	for _, r := range h.routes {
@@ -320,6 +324,16 @@ func (h *Handler) serveDeleteDataNode(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// serveProcessContinuousQueries will execute any continuous queries that should be run
+func (h *Handler) serveProcessContinuousQueries(w http.ResponseWriter, r *http.Request, u *influxdb.User) {
+	if err := h.server.RunContinuousQueries(); err != nil {
+		httpError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusAccepted)
 }
 
 type dataNodeJSON struct {
