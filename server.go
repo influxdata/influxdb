@@ -108,6 +108,19 @@ type Server struct {
 	Logger *log.Logger
 
 	authenticationEnabled bool
+
+	// continuous query settings
+	RecomputePreviousN     int
+	RecomputeNoOlderThan   time.Duration
+	ComputeRunsPerInterval int
+	ComputeNoMoreThan      time.Duration
+
+	// This is the last time this data node has run continuous queries.
+	// Keep this state in memory so if a broker makes a request in another second
+	// to compute, it won't rerun CQs that have already been run. If this data node
+	// is just getting the request after being off duty for running CQs then
+	// it will recompute all of them
+	lastContinuousQueryRun time.Time
 }
 
 // NewServer returns a new instance of Server.
@@ -2954,26 +2967,31 @@ func HashPassword(password string) ([]byte, error) {
 // each incoming event.
 type ContinuousQuery struct {
 	Query string `json:"query"`
-	cq    *influxql.CreateContinuousQueryStatement
-	// TODO: ParsedQuery *parser.SelectQuery
+
+	mu      sync.Mutex
+	cq      *influxql.CreateContinuousQueryStatement
+	lastRun time.Time
 }
 
+// NewContinuousQuery returns a ContinuousQuery object with a parsed influxql.CreateContinuousQueryStatement
 func NewContinuousQuery(q string) (*ContinuousQuery, error) {
 	stmt, err := influxql.NewParser(strings.NewReader(q)).ParseStatement()
 	if err != nil {
 		return nil, err
 	}
 
-	if cq, ok := stmt.(*influxql.CreateContinuousQueryStatement); ok {
-		return &ContinuousQuery{
-			Query: q,
-			cq:    cq,
-		}, nil
+	cq, ok := stmt.(*influxql.CreateContinuousQueryStatement)
+	if !ok {
+		return nil, errors.New("query isn't a continuous query")
 	}
 
-	return nil, errors.New("query isn't a continuous query")
+	return &ContinuousQuery{
+		Query: q,
+		cq:    cq,
+	}, nil
 }
 
+// applyCreateContinuousQueryCommand adds the continuous query to the database object and saves it to the metastore
 func (s *Server) applyCreateContinuousQueryCommand(m *messaging.Message) error {
 	fmt.Println("applyCreateContinuousQueryCommand")
 	var c createContinuousQueryCommand
@@ -3007,10 +3025,181 @@ func (s *Server) applyCreateContinuousQueryCommand(m *messaging.Message) error {
 	return nil
 }
 
+// RunContinuousQueries will run any continuous queries that are due to run and write the
+// results back into the database
 func (s *Server) RunContinuousQueries() error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for _, d := range s.databases {
+		for _, c := range d.continuousQueries {
+			if s.shouldRunContinuousQuery(c) {
+				// go func(cq *ContinuousQuery) {
+				s.runContinuousQuery(c)
+				// }(c)
+			}
+		}
+	}
+
 	return nil
 }
 
+// shouldRunContinuousQuery returns true if the CQ should be schedule to run. It will use the
+// lastRunTime of the CQ and the rules for when to run set through the config to determine
+// if this CQ should be run
+func (s *Server) shouldRunContinuousQuery(cq *ContinuousQuery) bool {
+	cq.mu.Lock()
+	defer cq.mu.Unlock()
+
+	// if it's not aggregated we don't run it
+	if !cq.cq.Source.Aggregated() {
+		return false
+	}
+
+	// since it's aggregated we need to figure how often it should be run
+	interval, err := cq.cq.Source.GroupByInterval()
+	if err != nil {
+		return false
+	}
+
+	// determine how often we should run this continuous query.
+	// group by time / the number of times to compute
+	computeEvery := time.Duration(interval.Nanoseconds()/int64(s.ComputeRunsPerInterval)) * time.Nanosecond
+	// make sure we're running no more frequently than the setting in the config
+	if computeEvery < s.ComputeNoMoreThan {
+		computeEvery = s.ComputeNoMoreThan
+	}
+
+	// if we've passed the amount of time since the last run, do it up
+	if cq.lastRun.Add(computeEvery).UnixNano() <= time.Now().UnixNano() {
+		return true
+	}
+
+	return false
+}
+
+// runContinuousQuery will execute a continuous query
+// TODO: make this fan out to the cluster instead of running all the queries on this single data node
+func (s *Server) runContinuousQuery(cq *ContinuousQuery) {
+	cq.mu.Lock()
+	defer cq.mu.Unlock()
+
+	now := time.Now()
+	cq.lastRun = now
+
+	interval, err := cq.cq.Source.GroupByInterval()
+	if err != nil || interval == 0 {
+		return
+	}
+
+	startTime := now.Round(interval)
+	if startTime.UnixNano() > now.UnixNano() {
+		startTime = startTime.Add(-interval)
+	}
+
+	if err := cq.cq.Source.SetTimeRange(startTime, startTime.Add(interval)); err != nil {
+		log.Printf("cq error setting time range: %s\n", err.Error())
+	}
+
+	if err := s.runContinuousQueryAndWriteResult(cq); err != nil {
+		log.Printf("cq error: %s. running: %s\n", err.Error(), cq.cq.String())
+	}
+
+	for i := 0; i < s.RecomputePreviousN; i++ {
+		// if we're already more time past the previous window than we're going to look back, stop
+		if now.Sub(startTime) > s.RecomputeNoOlderThan {
+			return
+		}
+		newStartTime := startTime.Add(-interval)
+
+		if err := cq.cq.Source.SetTimeRange(newStartTime, startTime); err != nil {
+			log.Printf("cq error setting time range: %s\n", err.Error())
+		}
+
+		if err := s.runContinuousQueryAndWriteResult(cq); err != nil {
+			log.Printf("cq error: %s. running: %s\n", err.Error(), cq.cq.String())
+		}
+
+		startTime = newStartTime
+	}
+}
+
+// runContinuousQueryAndWriteResult will run the query against the cluster and write the results back in
+func (s *Server) runContinuousQueryAndWriteResult(cq *ContinuousQuery) error {
+	log.Printf("cq run: %s\n", cq.cq.String())
+
+	e, err := s.planSelectStatement(cq.cq.Source, cq.cq.Database)
+	if err != nil {
+		return err
+	}
+
+	// Execute plan.
+	ch, err := e.Execute()
+	if err != nil {
+		return err
+	}
+
+	// Read all rows from channel and write them in
+	// TODO paul: fill in db and retention policy when CQ parsing gets updated
+	db := ""
+	retentionPolicy := ""
+	for row := range ch {
+		points, err := s.convertRowToPoints(row)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+
+		// TODO corylanou: implement batch writing
+		for _, p := range points {
+			_, err := s.WriteSeries(db, retentionPolicy, []Point{*p})
+			if err != nil {
+				log.Printf("cq write error: %s on: %s\n", err, p)
+			}
+		}
+	}
+
+	return nil
+}
+
+// convertRowToPoints will convert a query result Row into Points that can be written back in
+func (s *Server) convertRowToPoints(row *influxql.Row) ([]*Point, error) {
+	// figure out which parts of the result are the time and which are the fields
+	timeIndex := -1
+	fieldIndexes := make(map[string]int)
+	for i, c := range row.Columns {
+		if c == "time" {
+			timeIndex = i
+		} else {
+			fieldIndexes[c] = i
+		}
+	}
+
+	if timeIndex == -1 {
+		return nil, errors.New("cq error finding time index in result")
+	}
+
+	points := make([]*Point, 0, len(row.Values))
+	for _, v := range row.Values {
+		vals := make(map[string]interface{})
+		for fieldName, fieldIndex := range fieldIndexes {
+			vals[fieldName] = v[fieldIndex]
+		}
+
+		p := &Point{
+			Name:      row.Name,
+			Tags:      row.Tags,
+			Timestamp: v[timeIndex].(time.Time),
+			Values:    vals,
+		}
+
+		points = append(points, p)
+	}
+
+	return points, nil
+}
+
+// createContinuousQueryCommand is the raft command for creating a continuous query on a database
 type createContinuousQueryCommand struct {
 	Query string `json:"query"`
 }

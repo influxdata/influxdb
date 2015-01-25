@@ -32,9 +32,9 @@ type dataNodeStore interface {
 // NewBroker returns a new instance of a Broker with default values.
 func NewBroker() *Broker {
 	b := &Broker{
-		TriggerInterval:     1 * time.Second,
-		TriggerTimeout:      2 * time.Second,
-		TriggerFailurePause: 100 * time.Millisecond,
+		TriggerInterval:     5 * time.Second,
+		TriggerTimeout:      20 * time.Second,
+		TriggerFailurePause: 1 * time.Second,
 	}
 	b.Broker = messaging.NewBroker()
 	return b
