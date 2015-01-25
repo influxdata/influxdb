@@ -332,7 +332,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `CREATE DATABASE testdb`,
 			stmt: &influxql.CreateDatabaseStatement{
-				Database: "testdb",
+				Name: "testdb",
 			},
 		},
 
@@ -364,7 +364,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		// DROP DATABASE statement
 		{
 			s:    `DROP DATABASE testdb`,
-			stmt: &influxql.DropDatabaseStatement{Database: "testdb"},
+			stmt: &influxql.DropDatabaseStatement{Name: "testdb"},
 		},
 
 		// DROP RETENTION POLICY
