@@ -58,7 +58,7 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// SELECT statement
 		{
-			s: `SELECT field1, field2 ,field3 AS field_x FROM myseries WHERE host = 'hosta.influxdb.org' GROUP BY 10h ORDER BY ASC LIMIT 20;`,
+			s: `SELECT field1, field2 ,field3 AS field_x FROM myseries WHERE host = 'hosta.influxdb.org' GROUP BY 10h ORDER BY ASC LIMIT 20 OFFSET 10;`,
 			stmt: &influxql.SelectStatement{
 				Fields: []*influxql.Field{
 					&influxql.Field{Expr: &influxql.VarRef{Val: "field1"}},
@@ -74,10 +74,11 @@ func TestParser_ParseStatement(t *testing.T) {
 				Dimensions: []*influxql.Dimension{
 					&influxql.Dimension{Expr: &influxql.DurationLiteral{Val: 10 * time.Hour}},
 				},
-				Limit: 20,
 				SortFields: []*influxql.SortField{
 					&influxql.SortField{Ascending: true},
 				},
+				Limit:  20,
+				Offset: 10,
 			},
 		},
 
@@ -331,7 +332,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `CREATE DATABASE testdb`,
 			stmt: &influxql.CreateDatabaseStatement{
-				Name: "testdb",
+				Database: "testdb",
 			},
 		},
 
@@ -363,7 +364,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		// DROP DATABASE statement
 		{
 			s:    `DROP DATABASE testdb`,
-			stmt: &influxql.DropDatabaseStatement{Name: "testdb"},
+			stmt: &influxql.DropDatabaseStatement{Database: "testdb"},
 		},
 
 		// DROP RETENTION POLICY
@@ -540,8 +541,11 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `SELECT field1 FROM "series" WHERE X +;`, err: `found ;, expected identifier, string, number, bool at line 1, char 38`},
 		{s: `SELECT field1 FROM myseries GROUP`, err: `found EOF, expected BY at line 1, char 35`},
 		{s: `SELECT field1 FROM myseries LIMIT`, err: `found EOF, expected number at line 1, char 35`},
-		{s: `SELECT field1 FROM myseries LIMIT 10.5`, err: `fractional parts not allowed in limit at line 1, char 35`},
+		{s: `SELECT field1 FROM myseries LIMIT 10.5`, err: `fractional parts not allowed in LIMIT at line 1, char 35`},
 		{s: `SELECT field1 FROM myseries LIMIT 0`, err: `LIMIT must be > 0 at line 1, char 35`},
+		{s: `SELECT field1 FROM myseries OFFSET`, err: `found EOF, expected number at line 1, char 36`},
+		{s: `SELECT field1 FROM myseries OFFSET 10.5`, err: `fractional parts not allowed in OFFSET at line 1, char 36`},
+		{s: `SELECT field1 FROM myseries OFFSET 0`, err: `OFFSET must be > 0 at line 1, char 36`},
 		{s: `SELECT field1 FROM myseries ORDER`, err: `found EOF, expected BY at line 1, char 35`},
 		{s: `SELECT field1 FROM myseries ORDER BY /`, err: `found /, expected identifier, ASC, or DESC at line 1, char 38`},
 		{s: `SELECT field1 FROM myseries ORDER BY 1`, err: `found 1, expected identifier, ASC, or DESC at line 1, char 38`},

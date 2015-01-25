@@ -532,6 +532,9 @@ type SelectStatement struct {
 	// Maximum number of rows to be returned.
 	// Unlimited if zero.
 	Limit int
+
+	// Returns rows starting at an offset from the first row.
+	Offset int
 }
 
 // String returns a string representation of the select statement.
@@ -560,6 +563,10 @@ func (s *SelectStatement) String() string {
 	}
 	if s.Limit > 0 {
 		_, _ = fmt.Fprintf(&buf, " LIMIT %d", s.Limit)
+	}
+	if s.Offset > 0 {
+		_, _ = buf.WriteString(" OFFSET ")
+		_, _ = buf.WriteString(strconv.Itoa(s.Offset))
 	}
 	return buf.String()
 }
@@ -773,6 +780,9 @@ type ListSeriesStatement struct {
 	// Maximum number of rows to be returned.
 	// Unlimited if zero.
 	Limit int
+
+	// Returns rows starting at an offset from the first row.
+	Offset int
 }
 
 // String returns a string representation of the list series statement.
@@ -791,6 +801,10 @@ func (s *ListSeriesStatement) String() string {
 	if s.Limit > 0 {
 		_, _ = buf.WriteString(" LIMIT ")
 		_, _ = buf.WriteString(strconv.Itoa(s.Limit))
+	}
+	if s.Offset > 0 {
+		_, _ = buf.WriteString(" OFFSET ")
+		_, _ = buf.WriteString(strconv.Itoa(s.Offset))
 	}
 	return buf.String()
 }
@@ -898,6 +912,9 @@ type ListMeasurementsStatement struct {
 	// Maximum number of rows to be returned.
 	// Unlimited if zero.
 	Limit int
+
+	// Returns rows starting at an offset from the first row.
+	Offset int
 }
 
 // String returns a string representation of the statement.
@@ -916,6 +933,10 @@ func (s *ListMeasurementsStatement) String() string {
 	if s.Limit > 0 {
 		_, _ = buf.WriteString(" LIMIT ")
 		_, _ = buf.WriteString(strconv.Itoa(s.Limit))
+	}
+	if s.Offset > 0 {
+		_, _ = buf.WriteString(" OFFSET ")
+		_, _ = buf.WriteString(strconv.Itoa(s.Offset))
 	}
 	return buf.String()
 }
@@ -958,6 +979,9 @@ type ListTagKeysStatement struct {
 	// Maximum number of rows to be returned.
 	// Unlimited if zero.
 	Limit int
+
+	// Returns rows starting at an offset from the first row.
+	Offset int
 }
 
 // String returns a string representation of the statement.
@@ -981,6 +1005,10 @@ func (s *ListTagKeysStatement) String() string {
 		_, _ = buf.WriteString(" LIMIT ")
 		_, _ = buf.WriteString(strconv.Itoa(s.Limit))
 	}
+	if s.Offset > 0 {
+		_, _ = buf.WriteString(" OFFSET ")
+		_, _ = buf.WriteString(strconv.Itoa(s.Offset))
+	}
 	return buf.String()
 }
 
@@ -1003,6 +1031,9 @@ type ListTagValuesStatement struct {
 	// Maximum number of rows to be returned.
 	// Unlimited if zero.
 	Limit int
+
+	// Returns rows starting at an offset from the first row.
+	Offset int
 }
 
 // String returns a string representation of the statement.
@@ -1025,6 +1056,10 @@ func (s *ListTagValuesStatement) String() string {
 	if s.Limit > 0 {
 		_, _ = buf.WriteString(" LIMIT ")
 		_, _ = buf.WriteString(strconv.Itoa(s.Limit))
+	}
+	if s.Offset > 0 {
+		_, _ = buf.WriteString(" OFFSET ")
+		_, _ = buf.WriteString(strconv.Itoa(s.Offset))
 	}
 	return buf.String()
 }
@@ -1061,6 +1096,9 @@ type ListFieldKeysStatement struct {
 	// Maximum number of rows to be returned.
 	// Unlimited if zero.
 	Limit int
+
+	// Returns rows starting at an offset from the first row.
+	Offset int
 }
 
 // String returns a string representation of the statement.
@@ -1084,6 +1122,10 @@ func (s *ListFieldKeysStatement) String() string {
 		_, _ = buf.WriteString(" LIMIT ")
 		_, _ = buf.WriteString(strconv.Itoa(s.Limit))
 	}
+	if s.Offset > 0 {
+		_, _ = buf.WriteString(" OFFSET ")
+		_, _ = buf.WriteString(strconv.Itoa(s.Offset))
+	}
 	return buf.String()
 }
 
@@ -1106,6 +1148,9 @@ type ListFieldValuesStatement struct {
 	// Maximum number of rows to be returned.
 	// Unlimited if zero.
 	Limit int
+
+	// Returns rows starting at an offset from the first row.
+	Offset int
 }
 
 // String returns a string representation of the statement.
@@ -1128,6 +1173,10 @@ func (s *ListFieldValuesStatement) String() string {
 	if s.Limit > 0 {
 		_, _ = buf.WriteString(" LIMIT ")
 		_, _ = buf.WriteString(strconv.Itoa(s.Limit))
+	}
+	if s.Offset > 0 {
+		_, _ = buf.WriteString(" OFFSET ")
+		_, _ = buf.WriteString(strconv.Itoa(s.Offset))
 	}
 	return buf.String()
 }
