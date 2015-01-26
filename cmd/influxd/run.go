@@ -49,10 +49,10 @@ func execRun(args []string) {
 	// Parse the configuration and determine if a broker and/or server exist.
 	config := parseConfig(*configPath, *hostname)
 	configExists := *configPath != ""
-	initializing := !fileExists(config.Broker.Dir) && !fileExists(config.Data.Dir)
+	initializing := !fileExists(config.BrokerDir()) && !fileExists(config.DataDir())
 
 	// Open broker, initialize or join as necessary.
-	b := openBroker(config.Broker.Dir, config.BrokerURL(), initializing, joinURLs)
+	b := openBroker(config.BrokerDir(), config.BrokerURL(), initializing, joinURLs)
 
 	// Start the broker handler.
 	var h *Handler
@@ -63,7 +63,7 @@ func execRun(args []string) {
 	}
 
 	// Open server, initialize or join as necessary.
-	s := openServer(config.Data.Dir, config.DataURL(), b, initializing, configExists, joinURLs)
+	s := openServer(config.DataDir(), config.DataURL(), b, initializing, configExists, joinURLs)
 
 	// Start the server handler. Attach to broker if listening on the same port.
 	if s != nil {
