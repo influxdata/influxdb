@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"net/url"
 	"os"
@@ -199,28 +200,20 @@ func (c *Config) BrokerURL() *url.URL {
 
 // BrokerDir returns the data directory to start up in and does home directory expansion if necessary.
 func (c *Config) BrokerDir() string {
-	path := c.Broker.Dir
-	u, _ := user.Current()
-	hd := u.HomeDir + "/"
-
-	// if path starts wiht ~/ we need to expand it
-	if path[:2] == "~/" {
-		path = strings.Replace(path, "~/", hd, 1)
+	p, e := filepath.Abs(c.Broker.Dir)
+	if e != nil {
+		log.Fatalf("Unable to get absolute path for Broker Directory: %q", c.Broker.Dir)
 	}
-	return path
+	return p
 }
 
 // DataDir returns the data directory to start up in and does home directory expansion if necessary.
 func (c *Config) DataDir() string {
-	path := c.Data.Dir
-	u, _ := user.Current()
-	hd := u.HomeDir + "/"
-
-	// if path starts wiht ~/ we need to expand it
-	if path[:2] == "~/" {
-		path = strings.Replace(path, "~/", hd, 1)
+	p, e := filepath.Abs(c.Data.Dir)
+	if e != nil {
+		log.Fatalf("Unable to get absolute path for Data Directory: %q", c.Data.Dir)
 	}
-	return path
+	return p
 }
 
 // Size represents a TOML parseable file size.
