@@ -81,8 +81,8 @@ func (c *cli) parseCommand(cmd string) {
 	switch {
 	case strings.HasPrefix(lcmd, "exit"):
 		os.Exit(0)
-	case strings.HasPrefix(lcmd, "hottoddy"):
-		hottoddy()
+	case strings.HasPrefix(lcmd, "gopher"):
+		gopher()
 	case strings.HasPrefix(lcmd, "pretty"):
 		c.pretty = !c.pretty
 		if c.pretty {
@@ -126,21 +126,59 @@ func (c *cli) executeQuery(query string) {
 	}
 }
 
-func hottoddy() {
+func gopher() {
 	fmt.Println(`
-(  )         ,,,,,
-     \\         . .  ,
-      \\       | -   D
-      (._)     \__-  |
-                 |   |
-     \\|_  , ,---- _ |----.
-      \__ ( (           /  )       _
-         | \/ \.   '  _.|  \     (  )
-         |  \ /(   /    /\_ \    //
-          \ /  (       / /  )   //
-               (  ,   / / ,   (_.)
-               |......\ |  \,
-              /  /     ) \---
-       b'ger /___/___^//
+                                          .-::-::://:-::-    .:/++/'
+                                     '://:-''/oo+//++o+/.://o-    ./+:
+                                  .:-.    '++-         .o/ '+yydhy'  o-
+                               .:/.      .h:         :osoys  .smMN-  :/
+                            -/:.'        s-         /MMMymh.   '/y/  s'
+                         -+s:''''        d          -mMMms//     '-/o:
+                       -/++/++/////:.    o:          '... s-        :s.
+                     :+-+s-'       ':/'  's-             /+          'o:
+                   '+-'o:        /ydhsh.  '//.        '-o-             o-
+                  .y. o:        .MMMdm+y    ':+++:::/+:.'               s:
+                .-h/  y-        'sdmds'h -+ydds:::-.'                   'h.
+             .//-.d'  o:          '.' 'dsNMMMNh:.:++'                    :y
+            +y.  'd   's.            .s:mddds:     ++                     o/
+           'N-  odd    'o/.       './o-s-'   .---+++'                      o-
+           'N'  yNd      .://:/:::::. -s   -+/s/./s'                       'o/'
+            so'  .h         ''''       ////s: '+. .s                         +y'
+             os/-.y'                       's' 'y::+                          +d'
+               '.:o/                        -+:-:.'                            so.---.'
+                   o'                                                          'd-.''/s'
+                   .s'                                                          :y.''.y
+                    -s                                                           mo:::'
+                     ::                                                          yh
+                      //                                      ''''               /M'
+                       o+                                    .s///:/.            'N:
+                        :+                                   /:    -s'            ho
+                         's-                               -/s/:+/.+h'            +h
+                           ys'                            ':'    '-.              -d
+                            oh                                                    .h
+                             /o                                                   .s
+                              s.                                                  .h
+                              -y                                                  .d
+                               m/                                                 -h
+                               +d                                                 /o
+                               'N-                                                y:
+                                h:                                                m.
+                                s-                                               -d
+                                o-                                               s+
+                                +-                                              'm'
+                                s/                                              oo--.
+                                y-                                             /s  ':+'
+                                s'                                           'od--' .d:
+                                -+                                         ':o: ':+-/+
+                                 y-                                      .:+-      '
+                                //o-                                 '.:+/.
+                                .-:+/'                           ''-/+/.
+                                    ./:'                    ''.:o+/-'
+                                      .+o:/:/+-'      ''.-+ooo/-'
+                                         o:   -h///++////-.
+                                        /:   .o/
+                                       //+  'y
+                                       ./sooy.
+
 `)
 }
