@@ -310,7 +310,7 @@ LIST RETENTION POLICIES mydb;
 ### LIST USERS
 
 ```
-list_users_stmt = "LIST USERES" .
+list_users_stmt = "LIST USERS" .
 ```
 
 #### Example:
