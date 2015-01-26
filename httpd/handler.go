@@ -1,7 +1,6 @@
 package httpd
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -350,27 +349,15 @@ func httpError(w http.ResponseWriter, error string, code int) {
 // as basic auth: http://username:password@127.0.0.1
 func parseCredentials(r *http.Request) (string, string, error) {
 	q := r.URL.Query()
-	username, password := q.Get("u"), q.Get("p")
-	if username != "" && password != "" {
-		return username, password, nil
+
+	if u, p := q.Get("u"), q.Get("p"); u != "" && p != "" {
+		return u, p, nil
 	}
-	auth := r.Header.Get("Authorization")
-	if auth == "" {
-		return "", "", nil
+	if u, p, ok := r.BasicAuth(); ok {
+		return u, p, nil
+	} else {
+		return "", "", fmt.Errorf("unable to parse username/password from header")
 	}
-	fields := strings.Split(auth, " ")
-	if len(fields) != 2 {
-		return "", "", fmt.Errorf("invalid Basic Authentication header")
-	}
-	bs, err := base64.StdEncoding.DecodeString(fields[1])
-	if err != nil {
-		return "", "", fmt.Errorf("invalid Base64 encoding")
-	}
-	fields = strings.Split(string(bs), ":")
-	if len(fields) != 2 {
-		return "", "", fmt.Errorf("invalid Basic Authentication value")
-	}
-	return fields[0], fields[1], nil
 }
 
 // authenticate wraps a handler and ensures that if user credentials are passed in
