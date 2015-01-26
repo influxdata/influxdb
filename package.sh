@@ -15,6 +15,11 @@ INITD_SCRIPT=scripts/init.sh
 TMP_WORK_DIR=`mktemp -d`
 POST_INSTALL_PATH=`mktemp`
 ARCH=`uname -i`
+LICENSE=MIT
+URL=influxdb.com
+MAINTAINER=support@influxdb.com
+VENDOR=Influxdb
+DESCRIPTION="Distributed time-series database"
 
 ###########################################################################
 # Helper functions.
@@ -117,8 +122,8 @@ generate_postinstall_script() {
     cat  <<EOF >$POST_INSTALL_PATH
 rm -f $INSTALL_ROOT_DIR/influxd
 rm -f $INSTALL_ROOT_DIR/init.sh
-ln -s  $INSTALL_ROOT_DIR/versions/$version/influxd $INSTALL_ROOT_DIR/influxd
-ln -s  $INSTALL_ROOT_DIR/versions/$version/scripts/init.sh $INSTALL_ROOT_DIR/init.sh
+ln -s $INSTALL_ROOT_DIR/versions/$version/influxd $INSTALL_ROOT_DIR/influxd
+ln -s $INSTALL_ROOT_DIR/versions/$version/scripts/init.sh $INSTALL_ROOT_DIR/init.sh
 
 if [ ! -L /etc/init.d/influxdb ]; then
     ln -sfn $INSTALL_ROOT_DIR/init.sh /etc/init.d/influxdb
@@ -209,8 +214,7 @@ else
     debian_package=influxdb_${VERSION}_amd64.deb
 fi
 
-COMMON_FPM_ARGS="--after-install $POST_INSTALL_PATH -n influxdb -v $VERSION -C $TMP_WORK_DIR ."
-DESCRIPTION="Distributed time-series database"
+COMMON_FPM_ARGS="-C $TMP_WORK_DIR --vendor $VENDOR --url $URL --license $LICENSE --maintainer $MAINTAINER --after-install $POST_INSTALL_PATH --name influxdb --version $VERSION ."
 $rpm_args fpm -s dir -t rpm --description "$DESCRIPTION" $COMMON_FPM_ARGS
 if [ $? -ne 0 ]; then
     echo "Failed to create RPM package -- aborting."
@@ -218,7 +222,7 @@ if [ $? -ne 0 ]; then
 fi
 echo "RPM package created successfully."
 
-fpm -s dir -t deb $deb_args --description "$DESCRIPTION"  $COMMON_FPM_ARGS
+fpm -s dir -t deb $deb_args --description "$DESCRIPTION" $COMMON_FPM_ARGS
 if [ $? -ne 0 ]; then
     echo "Failed to create Debian package -- aborting."
     cleanup_exit 1
