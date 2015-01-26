@@ -2,7 +2,6 @@ package influxql
 
 import (
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"hash/fnv"
 	"sort"
@@ -10,38 +9,48 @@ import (
 	"time"
 )
 
-// IteratorCreator represents an interface for creating iterators.
-type IteratorCreator interface {
-	// Returns an set of iterators to execute over all data for a simple select statement.
+// DB represents an interface for creating transactions.
+type DB interface {
+	Begin() (Tx, error)
+}
+
+// Tx represents a transaction.
+// The Tx must be opened before being used.
+type Tx interface {
+	// Opens and closes the transaction.
+	Open() error
+	Close() error
+
+	// SetNow sets the current time to be used throughout the transaction.
+	SetNow(time.Time)
+
+	// Creates a list of iterators for a simple select statement.
+	//
+	// The statement must adhere to the following rules:
+	//   1. It can only have a single VarRef field.
+	//   2. It can only have a single source measurement.
 	CreateIterators(*SelectStatement) ([]Iterator, error)
 }
 
 // Iterator represents a forward-only iterator over a set of points.
-// The iterator groups points together in interval sets.
 type Iterator interface {
-	Open() error
-	Close() error
+	// Tags returns the encoded dimensional tag values.
+	Tags() string
 
 	// Next returns the next value from the iterator.
 	Next() (key int64, value interface{})
-
-	// NextIterval moves to the next iterval. Returns true unless EOF.
-	NextIterval() bool
-
-	// Key returns the interval start time and tag values encoded as a byte slice.
-	Key() []byte
 }
 
 // Planner represents an object for creating execution plans.
 type Planner struct {
-	DB IteratorCreator
+	DB DB
 
 	// Returns the current time. Defaults to time.Now().
 	Now func() time.Time
 }
 
 // NewPlanner returns a new instance of Planner.
-func NewPlanner(db IteratorCreator) *Planner {
+func NewPlanner(db DB) *Planner {
 	return &Planner{
 		DB:  db,
 		Now: time.Now,
@@ -49,42 +58,32 @@ func NewPlanner(db IteratorCreator) *Planner {
 }
 
 func (p *Planner) Plan(stmt *SelectStatement) (*Executor, error) {
-	// Retrieve current time so it's consistent throughout.
 	now := p.Now()
 
-	// Create the executor.
-	e := &Executor{
-		db:         p.DB,
-		stmt:       stmt,
-		processors: make([]processor, len(stmt.Fields)),
-	}
-
-	// Reduce and replace current time.
+	// Clone the statement to be planned.
+	// Replace instances of "now()" with the current time.
+	stmt = stmt.Clone()
 	stmt.Condition = Reduce(stmt.Condition, &nowValuer{Now: now})
 
-	// Require a lower time bound.
-	// Add an upper time bound if one does not exist.
-	tmin, tmax := TimeRange(stmt.Condition)
-	if tmin.IsZero() {
-		return nil, errors.New("statement must have a lower time bound")
-	} else if tmax.IsZero() {
-		// Add 'AND time <= now()' to condition.
-		cond := &BinaryExpr{LHS: &VarRef{Val: "time"}, RHS: &TimeLiteral{Val: now}, Op: LTE}
-		if stmt.Condition == nil {
-			stmt.Condition = cond
-		} else {
-			stmt.Condition = &BinaryExpr{LHS: stmt.Condition, RHS: cond, Op: AND}
-		}
-	}
-
-	// Determine group by tag keys.
-	_, tagKeys, err := stmt.Dimensions.Normalize()
+	// Begin an unopened transaction.
+	tx, err := p.DB.Begin()
 	if err != nil {
 		return nil, err
 	}
-	e.tagKeys = tagKeys
+
+	// Create the executor.
+	e := newExecutor(tx, stmt)
+
+	// Determine group by tag keys.
+	interval, tags, err := stmt.Dimensions.Normalize()
+	if err != nil {
+		return nil, err
+	}
+	e.interval = interval
+	e.tags = tags
 
 	// Generate a processor for each field.
+	e.processors = make([]Processor, len(stmt.Fields))
 	for i, f := range stmt.Fields {
 		p, err := p.planField(e, f)
 		if err != nil {
@@ -96,13 +95,11 @@ func (p *Planner) Plan(stmt *SelectStatement) (*Executor, error) {
 	return e, nil
 }
 
-// planField returns a processor for field.
-func (p *Planner) planField(e *Executor, f *Field) (processor, error) {
+func (p *Planner) planField(e *Executor, f *Field) (Processor, error) {
 	return p.planExpr(e, f.Expr)
 }
 
-// planExpr returns a processor for an expression.
-func (p *Planner) planExpr(e *Executor, expr Expr) (processor, error) {
+func (p *Planner) planExpr(e *Executor, expr Expr) (Processor, error) {
 	switch expr := expr.(type) {
 	case *VarRef:
 		panic("TODO")
@@ -127,7 +124,7 @@ func (p *Planner) planExpr(e *Executor, expr Expr) (processor, error) {
 }
 
 // planCall generates a processor for a function call.
-func (p *Planner) planCall(e *Executor, c *Call) (processor, error) {
+func (p *Planner) planCall(e *Executor, c *Call) (Processor, error) {
 	// Ensure there is a single argument.
 	if len(c.Args) != 1 {
 		return nil, fmt.Errorf("expected one argument for %s()", c.Name)
@@ -139,52 +136,41 @@ func (p *Planner) planCall(e *Executor, c *Call) (processor, error) {
 		return nil, fmt.Errorf("expected field argument in %s()", c.Name)
 	}
 
-	// Extract the substatement for the call.
-	sub, err := e.stmt.Substatement(ref)
+	// Convert the statement to a simplified substatement for the single field.
+	stmt, err := e.stmt.Substatement(ref)
 	if err != nil {
 		return nil, err
 	}
-
-	// TODO: Map filter sets to statements.
 
 	// Retrieve a list of iterators for the substatement.
-	iterators, err := p.DB.CreateIterators(sub)
+	itrs, err := e.tx.CreateIterators(stmt)
 	if err != nil {
 		return nil, err
 	}
 
-	// Generate a reducer for the given function.
-	r := newReducer()
-	r.source = sub.Source.(*Measurement).Name
-
-	// Generate mappers for each id.
-	r.mappers = make([]*mapper, len(iterators))
-	for i, itr := range iterators {
-		r.mappers[i] = newMapper(itr)
-	}
-
-	// Set the appropriate reducer function.
+	// Retrieve map & reduce functions by name.
+	var mapFn MapFunc
+	var reduceFn ReduceFunc
 	switch strings.ToLower(c.Name) {
 	case "count":
-		r.fn = reduceSum
-		for _, m := range r.mappers {
-			m.fn = mapCount
-		}
+		mapFn, reduceFn = MapCount, ReduceSum
 	case "sum":
-		r.fn = reduceSum
-		for _, m := range r.mappers {
-			m.fn = mapSum
-		}
+		mapFn, reduceFn = MapSum, ReduceSum
 	default:
 		return nil, fmt.Errorf("function not found: %q", c.Name)
 	}
+
+	// Create mapper and reducer.
+	m := NewMapper(mapFn, itrs, e.interval)
+	r := NewReducer(reduceFn, []*Mapper{m})
+	r.name = stmt.Source.(*Measurement).Name
 
 	return r, nil
 }
 
 // planBinaryExpr generates a processor for a binary expression.
 // A binary expression represents a join operator between two processors.
-func (p *Planner) planBinaryExpr(e *Executor, expr *BinaryExpr) (processor, error) {
+func (p *Planner) planBinaryExpr(e *Executor, expr *BinaryExpr) (Processor, error) {
 	// Create processor for LHS.
 	lhs, err := p.planExpr(e, expr.LHS)
 	if err != nil {
@@ -204,17 +190,31 @@ func (p *Planner) planBinaryExpr(e *Executor, expr *BinaryExpr) (processor, erro
 // Executor represents the implementation of Executor.
 // It executes all reducers and combines their result into a row.
 type Executor struct {
-	db         IteratorCreator  // iterator source
+	tx         Tx               // transaction
 	stmt       *SelectStatement // original statement
-	processors []processor      // per-field processors
-	tagKeys    []string         // dimensional tag keys
+	processors []Processor      // per-field processors
+	interval   time.Duration    // group by interval
+	tags       []string         // dimensional tag keys
+}
+
+// newExecutor returns an executor associated with a transaction and statement.
+func newExecutor(tx Tx, stmt *SelectStatement) *Executor {
+	return &Executor{
+		tx:   tx,
+		stmt: stmt,
+	}
 }
 
 // Execute begins execution of the query and returns a channel to receive rows.
 func (e *Executor) Execute() (<-chan *Row, error) {
+	// Open transaction.
+	if err := e.tx.Open(); err != nil {
+		return nil, err
+	}
+
 	// Initialize processors.
 	for _, p := range e.processors {
-		p.start()
+		p.Process()
 	}
 
 	// Create output channel and stream data in a separate goroutine.
@@ -226,6 +226,9 @@ func (e *Executor) Execute() (<-chan *Row, error) {
 
 // execute runs in a separate separate goroutine and streams data from processors.
 func (e *Executor) execute(out chan *Row) {
+	// Ensure the transaction closes after execution.
+	defer e.tx.Close()
+
 	// TODO: Support multi-value rows.
 
 	// Initialize map of rows by encoded tagset.
@@ -245,12 +248,8 @@ loop:
 
 			// Set values on returned row.
 			for k, v := range m {
-				// Extract timestamp and tag values from key.
-				b := []byte(k)
-				timestamp := int64(binary.BigEndian.Uint64(b[0:8]))
-
 				// Lookup row values and populate data.
-				values := e.createRowValuesIfNotExists(rows, e.processors[0].name(), b[8:], timestamp)
+				values := e.createRowValuesIfNotExists(rows, e.processors[0].Name(), k.Timestamp, k.Values)
 				values[i+1] = v
 			}
 		}
@@ -277,18 +276,18 @@ loop:
 }
 
 // creates a new value set if one does not already exist for a given tagset + timestamp.
-func (e *Executor) createRowValuesIfNotExists(rows map[string]*Row, name string, tagset []byte, timestamp int64) []interface{} {
+func (e *Executor) createRowValuesIfNotExists(rows map[string]*Row, name string, timestamp int64, tagset string) []interface{} {
 	// TODO: Add "name" to lookup key.
 
 	// Find row by tagset.
 	var row *Row
-	if row = rows[string(tagset)]; row == nil {
+	if row = rows[tagset]; row == nil {
 		row = &Row{Name: name}
 
 		// Create tag map.
 		row.Tags = make(map[string]string)
-		for i, v := range unmarshalStrings(tagset) {
-			row.Tags[e.tagKeys[i]] = v
+		for i, v := range UnmarshalStrings([]byte(tagset)) {
+			row.Tags[e.tags[i]] = v
 		}
 
 		// Create column names.
@@ -303,7 +302,7 @@ func (e *Executor) createRowValuesIfNotExists(rows map[string]*Row, name string,
 		}
 
 		// Save to lookup.
-		rows[string(tagset)] = row
+		rows[tagset] = row
 	}
 
 	// If no values exist or last value doesn't match the timestamp then create new.
@@ -316,216 +315,325 @@ func (e *Executor) createRowValuesIfNotExists(rows map[string]*Row, name string,
 	return row.Values[len(row.Values)-1]
 }
 
-// dimensionKeys returns a list of tag key names for the dimensions.
-// Each dimension must be a VarRef.
-func dimensionKeys(dimensions Dimensions) (a []string) {
-	for _, d := range dimensions {
-		a = append(a, d.Expr.(*VarRef).Val)
+// Mapper represents an object for processing iterators.
+type Mapper struct {
+	fn       MapFunc    // map function
+	itrs     []Iterator // iterators
+	interval int64      // grouping interval
+}
+
+// NewMapper returns a new instance of Mapper with a given function and interval.
+func NewMapper(fn MapFunc, itrs []Iterator, interval time.Duration) *Mapper {
+	return &Mapper{
+		fn:       fn,
+		itrs:     itrs,
+		interval: interval.Nanoseconds(),
 	}
+}
+
+// Map executes the mapper's function against the iterator.
+// Returns a nil emitter if no data was found.
+func (m *Mapper) Map() *Emitter {
+	e := NewEmitter(1)
+	go m.run(e)
+	return e
+}
+
+func (m *Mapper) run(e *Emitter) {
+	// Close emitter when we're done.
+	defer func() { _ = e.Close() }()
+
+	// Exit if we have no iterators.
+	if len(m.itrs) == 0 {
+		return
+	}
+
+	// Wrap iterators with buffers.
+	bufItrs := make([]*bufIterator, len(m.itrs))
+	for i, itr := range m.itrs {
+		bufItrs[i] = &bufIterator{itr: itr}
+	}
+
+	// Determine the start time.
+	var tmin int64
+	if m.interval > 0 {
+		for _, bufItr := range bufItrs {
+			k, _ := bufItr.Peek()
+			if k != 0 && (tmin == 0 || k < tmin) {
+				tmin = k
+			}
+		}
+
+		// Align start time to interval.
+		tmin -= (tmin % m.interval)
+	}
+
+	for {
+		// Loop over each iterator.
+		eof := true
+		for _, bufItr := range bufItrs {
+			// Set the upper bound of the interval.
+			if m.interval > 0 {
+				bufItr.tmax = tmin + m.interval - 1
+			}
+
+			// Execute the map function.
+			m.fn(bufItr, e, tmin)
+
+			// Turn off the eof flag if at least one iterator still has data.
+			if !bufItr.EOF() {
+				eof = false
+			}
+		}
+
+		// Exit if there was only one interval.
+		if m.interval == 0 {
+			break
+		}
+
+		// Move the interval forward.
+		tmin += m.interval
+
+		// Exit if all iterators are exhausted.
+		if eof {
+			break
+		}
+	}
+
+}
+
+// bufIterator represents a buffer iterator.
+type bufIterator struct {
+	itr  Iterator // underlying iterator
+	tmax int64    // maximum key
+
+	buf struct {
+		key   int64
+		value interface{}
+	}
+	buffered bool
+}
+
+// Tags returns the encoded dimensional values for the iterator.
+func (i *bufIterator) Tags() string { return i.itr.Tags() }
+
+// Next returns the next key/value pair from the iterator.
+func (i *bufIterator) Next() (key int64, value interface{}) {
+	// Read the key/value pair off the buffer or underlying iterator.
+	if i.buffered {
+		i.buffered = false
+	} else {
+		i.buf.key, i.buf.value = i.itr.Next()
+	}
+	key, value = i.buf.key, i.buf.value
+
+	// If key is greater than tmax then put it back on the buffer.
+	if i.tmax != 0 && key > i.tmax {
+		i.buffered = true
+		return 0, nil
+	}
+
+	return key, value
+}
+
+// Peek returns the next key/value pair but does not move the iterator forward.
+func (i *bufIterator) Peek() (key int64, value interface{}) {
+	key, value = i.Next()
+	i.buffered = true
 	return
 }
 
-// mapper represents an object for processing iterators.
-type mapper struct {
-	itr Iterator // iterator
-	fn  mapFunc  // map function
+// EOF returns true if there is no more data in the underlying iterator.
+func (i *bufIterator) EOF() bool { i.Peek(); return i.buf.key == 0 }
 
-	c    chan map[string]interface{}
-	done chan chan struct{}
-}
+// MapFunc represents a function used for mapping iterators.
+type MapFunc func(Iterator, *Emitter, int64)
 
-// newMapper returns a new instance of mapper.
-func newMapper(itr Iterator) *mapper {
-	return &mapper{
-		itr:  itr,
-		c:    make(chan map[string]interface{}, 0),
-		done: make(chan chan struct{}, 0),
-	}
-}
-
-// start begins processing the iterator.
-func (m *mapper) start() {
-	m.itr.Open()
-	go m.run()
-}
-
-// stop stops the mapper.
-func (m *mapper) stop() {
-	m.itr.Close()
-	syncClose(m.done)
-}
-
-// C returns the streaming data channel.
-func (m *mapper) C() <-chan map[string]interface{} { return m.c }
-
-// run executes the map function against the iterator.
-func (m *mapper) run() {
-	for m.itr.NextIterval() {
-		m.fn(m.itr, m)
-	}
-	close(m.c)
-}
-
-// emit sends a value to the mapper's output channel.
-func (m *mapper) emit(key []byte, value interface{}) {
-	// OPTIMIZE: Collect emit calls and flush all at once.
-	m.c <- map[string]interface{}{string(key): value}
-}
-
-// mapFunc represents a function used for mapping iterators.
-type mapFunc func(Iterator, *mapper)
-
-// mapCount computes the number of values in an iterator.
-func mapCount(itr Iterator, m *mapper) {
+// MapCount computes the number of values in an iterator.
+func MapCount(itr Iterator, e *Emitter, tmin int64) {
 	n := 0
 	for k, _ := itr.Next(); k != 0; k, _ = itr.Next() {
 		n++
 	}
-	m.emit(itr.Key(), float64(n))
+	e.Emit(Key{tmin, itr.Tags()}, float64(n))
 }
 
-// mapSum computes the summation of values in an iterator.
-func mapSum(itr Iterator, m *mapper) {
+// MapSum computes the summation of values in an iterator.
+func MapSum(itr Iterator, e *Emitter, tmin int64) {
 	n := float64(0)
 	for k, v := itr.Next(); k != 0; k, v = itr.Next() {
 		n += v.(float64)
 	}
-	m.emit(itr.Key(), n)
+	e.Emit(Key{tmin, itr.Tags()}, n)
 }
 
-// processor represents an object for joining reducer output.
-type processor interface {
-	start()
-	stop()
-	name() string
-	C() <-chan map[string]interface{}
+// Processor represents an object for joining reducer output.
+type Processor interface {
+	Process()
+	Name() string
+	C() <-chan map[Key]interface{}
 }
 
-// reducer represents an object for processing mapper output.
+// Reducer represents an object for processing mapper output.
 // Implements processor.
-type reducer struct {
-	source  string     // source name
-	mappers []*mapper  // child mappers
-	fn      reduceFunc // reduce function
+type Reducer struct {
+	name    string
+	fn      ReduceFunc // reduce function
+	mappers []*Mapper  // child mappers
 
-	c    chan map[string]interface{}
-	done chan chan struct{}
+	c <-chan map[Key]interface{}
 }
 
-// newReducer returns a new instance of reducer.
-func newReducer() *reducer {
-	return &reducer{
-		c:    make(chan map[string]interface{}, 0),
-		done: make(chan chan struct{}, 0),
+// NewReducer returns a new instance of reducer.
+func NewReducer(fn ReduceFunc, mappers []*Mapper) *Reducer {
+	return &Reducer{
+		fn:      fn,
+		mappers: mappers,
 	}
 }
 
-// start begins streaming values from the mappers and reducing them.
-func (r *reducer) start() {
-	for _, m := range r.mappers {
-		m.start()
+// C returns the output channel.
+func (r *Reducer) C() <-chan map[Key]interface{} { return r.c }
+
+// Name returns the source name.
+func (r *Reducer) Name() string { return r.name }
+
+func (r *Reducer) Process() { r.Reduce() }
+
+// Reduce executes the reducer's function against all output from the mappers.
+func (r *Reducer) Reduce() *Emitter {
+	inputs := make([]<-chan map[Key]interface{}, len(r.mappers))
+	for i, m := range r.mappers {
+		inputs[i] = m.Map().C()
 	}
-	go r.run()
+
+	e := NewEmitter(1)
+	r.c = e.C()
+	go r.run(e, inputs)
+	return e
 }
 
-// stop stops the reducer.
-func (r *reducer) stop() {
-	for _, m := range r.mappers {
-		m.stop()
+func (r *Reducer) run(e *Emitter, inputs []<-chan map[Key]interface{}) {
+	// Close emitter when we're done.
+	defer func() { _ = e.Close() }()
+
+	// Buffer all the inputs.
+	bufInputs := make([]*bufInput, len(inputs))
+	for i, input := range inputs {
+		bufInputs[i] = &bufInput{c: input}
 	}
-	syncClose(r.done)
-}
 
-// C returns the streaming data channel.
-func (r *reducer) C() <-chan map[string]interface{} { return r.c }
-
-// name returns the source name.
-func (r *reducer) name() string { return r.source }
-
-// run runs the reducer loop to read mapper output and reduce it.
-func (r *reducer) run() {
-loop:
+	// Stream data from the inputs and reduce.
 	for {
-		// Combine all data from the mappers.
-		data := make(map[string][]interface{})
-		for _, m := range r.mappers {
-			kv, ok := <-m.C()
-			if !ok {
-				break loop
-			}
-			for k, v := range kv {
-				data[k] = append(data[k], v)
+		// Read all data from the inputers with the same timestamp.
+		timestamp := int64(0)
+		data := make(map[Key][]interface{})
+		for _, bufInput := range bufInputs {
+		loop:
+			for {
+				m := bufInput.read()
+				if m == nil {
+					break
+				}
+
+				for k, v := range m {
+					if timestamp != 0 && k.Timestamp != timestamp {
+						bufInput.unread(m)
+						break loop
+					}
+
+					timestamp = k.Timestamp
+					data[k] = append(data[k], v)
+				}
 			}
 		}
+
+		if len(data) == 0 {
+			break
+		}
+
+		// Sort keys.
+		keys := make(keySlice, 0, len(data))
+		for k := range data {
+			keys = append(keys, k)
+		}
+		sort.Sort(keys)
 
 		// Reduce each key.
-		for k, v := range data {
-			r.fn(k, v, r)
+		for _, k := range keys {
+			r.fn(k, data[k], e)
 		}
 	}
-
-	// Mark the channel as complete.
-	close(r.c)
 }
 
-// emit sends a value to the reducer's output channel.
-func (r *reducer) emit(key string, value interface{}) {
-	r.c <- map[string]interface{}{key: value}
+type bufInput struct {
+	buf map[Key]interface{}
+	c   <-chan map[Key]interface{}
 }
 
-// reduceFunc represents a function used for reducing mapper output.
-type reduceFunc func(string, []interface{}, *reducer)
+func (i *bufInput) read() map[Key]interface{} {
+	if i.buf != nil {
+		m := i.buf
+		i.buf = nil
+		return m
+	}
 
-// reduceSum computes the sum of values for each key.
-func reduceSum(key string, values []interface{}, r *reducer) {
+	m, _ := <-i.c
+	return m
+}
+
+func (i *bufInput) unread(m map[Key]interface{}) { i.buf = m }
+
+func (i *bufInput) peek() map[Key]interface{} {
+	m := i.read()
+	i.unread(m)
+	return m
+}
+
+// ReduceFunc represents a function used for reducing mapper output.
+type ReduceFunc func(Key, []interface{}, *Emitter)
+
+// ReduceSum computes the sum of values for each key.
+func ReduceSum(key Key, values []interface{}, e *Emitter) {
 	var n float64
 	for _, v := range values {
 		n += v.(float64)
 	}
-	r.emit(key, n)
+	e.Emit(key, n)
 }
 
 // binaryExprEvaluator represents a processor for combining two processors.
 type binaryExprEvaluator struct {
 	executor *Executor // parent executor
-	lhs, rhs processor // processors
+	lhs, rhs Processor // processors
 	op       Token     // operation
 
-	c    chan map[string]interface{}
-	done chan chan struct{}
+	c chan map[Key]interface{}
 }
 
 // newBinaryExprEvaluator returns a new instance of binaryExprEvaluator.
-func newBinaryExprEvaluator(e *Executor, op Token, lhs, rhs processor) *binaryExprEvaluator {
+func newBinaryExprEvaluator(e *Executor, op Token, lhs, rhs Processor) *binaryExprEvaluator {
 	return &binaryExprEvaluator{
 		executor: e,
 		op:       op,
 		lhs:      lhs,
 		rhs:      rhs,
-		c:        make(chan map[string]interface{}, 0),
-		done:     make(chan chan struct{}, 0),
+		c:        make(chan map[Key]interface{}, 0),
 	}
 }
 
-// start begins streaming values from the lhs/rhs processors
-func (e *binaryExprEvaluator) start() {
-	e.lhs.start()
-	e.rhs.start()
+// Process begins streaming values from the lhs/rhs processors
+func (e *binaryExprEvaluator) Process() {
+	e.lhs.Process()
+	e.rhs.Process()
 	go e.run()
 }
 
-// stop stops the processor.
-func (e *binaryExprEvaluator) stop() {
-	e.lhs.stop()
-	e.rhs.stop()
-	syncClose(e.done)
-}
-
 // C returns the streaming data channel.
-func (e *binaryExprEvaluator) C() <-chan map[string]interface{} { return e.c }
+func (e *binaryExprEvaluator) C() <-chan map[Key]interface{} { return e.c }
 
 // name returns the source name.
-func (e *binaryExprEvaluator) name() string { return "" }
+func (e *binaryExprEvaluator) Name() string { return "" }
 
 // run runs the processor loop to read subprocessor output and combine it.
 func (e *binaryExprEvaluator) run() {
@@ -543,7 +651,7 @@ func (e *binaryExprEvaluator) run() {
 		}
 
 		// Merge maps.
-		m := make(map[string]interface{})
+		m := make(map[Key]interface{})
 		for k, v := range lhs {
 			m[k] = e.eval(v, rhs[k])
 		}
@@ -587,7 +695,7 @@ func (e *binaryExprEvaluator) eval(lhs, rhs interface{}) interface{} {
 // literalProcessor represents a processor that continually sends a literal value.
 type literalProcessor struct {
 	val  interface{}
-	c    chan map[string]interface{}
+	c    chan map[Key]interface{}
 	done chan chan struct{}
 }
 
@@ -595,16 +703,16 @@ type literalProcessor struct {
 func newLiteralProcessor(val interface{}) *literalProcessor {
 	return &literalProcessor{
 		val:  val,
-		c:    make(chan map[string]interface{}, 0),
+		c:    make(chan map[Key]interface{}, 0),
 		done: make(chan chan struct{}, 0),
 	}
 }
 
 // C returns the streaming data channel.
-func (p *literalProcessor) C() <-chan map[string]interface{} { return p.c }
+func (p *literalProcessor) C() <-chan map[Key]interface{} { return p.c }
 
-// process continually returns a literal value with a "0" key.
-func (p *literalProcessor) start() { go p.run() }
+// Process continually returns a literal value with a "0" key.
+func (p *literalProcessor) Process() { go p.run() }
 
 // run executes the processor loop.
 func (p *literalProcessor) run() {
@@ -613,7 +721,7 @@ func (p *literalProcessor) run() {
 		case ch := <-p.done:
 			close(ch)
 			return
-		case p.c <- map[string]interface{}{"": p.val}:
+		case p.c <- map[Key]interface{}{Key{}: p.val}:
 		}
 	}
 }
@@ -622,13 +730,134 @@ func (p *literalProcessor) run() {
 func (p *literalProcessor) stop() { syncClose(p.done) }
 
 // name returns the source name.
-func (p *literalProcessor) name() string { return "" }
+func (p *literalProcessor) Name() string { return "" }
 
 // syncClose closes a "done" channel and waits for a response.
 func syncClose(done chan chan struct{}) {
 	ch := make(chan struct{}, 0)
 	done <- ch
 	<-ch
+}
+
+// Key represents a key returned by a Mapper or Reducer.
+type Key struct {
+	Timestamp int64
+	Values    string
+}
+
+type keySlice []Key
+
+func (p keySlice) Len() int { return len(p) }
+func (p keySlice) Less(i, j int) bool {
+	return p[i].Timestamp < p[j].Timestamp || p[i].Values < p[j].Values
+}
+func (p keySlice) Swap(i, j int) { p[i], p[j] = p[j], p[i] }
+
+// Emitter provides bufferred emit/flush of key/value pairs.
+type Emitter struct {
+	c chan map[Key]interface{}
+}
+
+// NewEmitter returns a new instance of Emitter with a buffer size of n.
+func NewEmitter(n int) *Emitter {
+	return &Emitter{
+		c: make(chan map[Key]interface{}, n),
+	}
+}
+
+// Close closes the emitter's output channel.
+func (e *Emitter) Close() error { close(e.c); return nil }
+
+// C returns the emitter's output channel.
+func (e *Emitter) C() <-chan map[Key]interface{} { return e.c }
+
+// Emit sets a key and value on the emitter's bufferred data.
+func (e *Emitter) Emit(key Key, value interface{}) { e.c <- map[Key]interface{}{key: value} }
+
+// MultiIterator represents an iterator that iterates over multiple iterators in sequence.
+// The iterator also allows for a maximum key value to limit the upper bound during reads.
+type MultiIterator struct {
+	// The maximum allowed key that can be read from Next().
+	// A value of zero means there is no maximum.
+	MaxKey int64
+
+	itrs    []Iterator
+	buf     []iteratorKeyValue
+	lastidx int
+}
+
+// NewMultiIterator return a new instance of MultiIterator.
+// At least one iterator must be passed in.
+// All iterators must share the same key.
+func NewMultiIterator(itrs []Iterator) *MultiIterator {
+	return &MultiIterator{
+		itrs:    itrs,
+		buf:     make([]iteratorKeyValue, len(itrs)),
+		lastidx: -1,
+	}
+}
+
+// Tags returns the encoded dimensional tag values.
+func (i *MultiIterator) Tags() string {
+	if i.lastidx == -1 {
+		return ""
+	}
+	return i.itrs[i.lastidx].Tags()
+}
+
+// Next returns the next value from the iterator.
+func (i *MultiIterator) Next() (key int64, value interface{}) {
+	// Track the first lowest key.
+	index, min := -1, int64(0)
+
+	// Retrieve the next key for each subiterator.
+	for j, itr := range i.itrs {
+		// Read next key from iterator if there's nothing in the lookahead.
+		buf := &i.buf[j]
+		if buf.key == 0 {
+			buf.key, buf.value = itr.Next()
+		}
+
+		// Determine which iterator's key/value to return next.
+		// If this iterator's key is greater than the max key then ignore it.
+		// If there is no key or the current key is the lowest then use it.
+		if buf.key > i.MaxKey {
+			continue
+		} else if min == 0 || (buf.key != 0 && buf.key < min) {
+			index, min = j, buf.key
+		}
+	}
+
+	// If there are no more key/values then return nil.
+	if index == -1 {
+		return 0, nil
+	}
+
+	// Otherwise return the key & value and unset the buffer.
+	buf := &i.buf[index]
+	i.lastidx = index
+	key, value = buf.key, buf.value
+	buf.key, buf.value = 0, nil
+	return
+}
+
+// Peek returns the next value from the iterator but does not move it forward.
+func (i *MultiIterator) Peek() (key int64, value interface{}) {
+	// Read the next value.
+	key, value = i.Next()
+
+	// Put it back if anything was read.
+	if i.lastidx != -1 {
+		buf := &i.buf[i.lastidx]
+		buf.key, buf.value = key, value
+		i.lastidx = -1
+	}
+	return
+}
+
+type iteratorKeyValue struct {
+	key   int64
+	value interface{}
 }
 
 // Row represents a single row returned from the execution of a statement.
@@ -680,22 +909,8 @@ func (p Rows) Less(i, j int) bool {
 
 func (p Rows) Swap(i, j int) { p[i], p[j] = p[j], p[i] }
 
-// MarshalKey encodes a timestamp and string values into a byte slice.
-func MarshalKey(t int64, a []string) []byte {
-	var b [8]byte
-	binary.BigEndian.PutUint64(b[0:8], uint64(t))
-	return append(b[:], marshalStrings(a)...)
-}
-
-// UnmarshalKey decodes a timestamp and string values from a byte slice.
-func UnmarshalKey(b []byte) (t int64, a []string) {
-	t = int64(binary.BigEndian.Uint64(b))
-	a = unmarshalStrings(b[8:])
-	return
-}
-
-// marshalStrings encodes an array of strings into a byte slice.
-func marshalStrings(a []string) (ret []byte) {
+// MarshalStrings encodes an array of strings into a byte slice.
+func MarshalStrings(a []string) (ret []byte) {
 	for _, s := range a {
 		// Create a slice for len+data
 		b := make([]byte, 2+len(s))
@@ -708,8 +923,8 @@ func marshalStrings(a []string) (ret []byte) {
 	return
 }
 
-// unmarshalStrings decodes a byte slice into an array of strings.
-func unmarshalStrings(b []byte) (ret []string) {
+// UnmarshalStrings decodes a byte slice into an array of strings.
+func UnmarshalStrings(b []byte) (ret []string) {
 	for {
 		// If there's no more data then exit.
 		if len(b) == 0 {

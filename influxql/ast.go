@@ -474,6 +474,57 @@ type SelectStatement struct {
 	Limit int
 }
 
+// Clone returns a deep copy of the statement.
+func (stmt *SelectStatement) Clone() *SelectStatement {
+	other := &SelectStatement{
+		Fields:     make(Fields, len(stmt.Fields)),
+		Dimensions: make(Dimensions, len(stmt.Dimensions)),
+		Source:     cloneSource(stmt.Source),
+		SortFields: make(SortFields, len(stmt.SortFields)),
+		Condition:  CloneExpr(stmt.Condition),
+		Limit:      stmt.Limit,
+	}
+	if stmt.Target != nil {
+		other.Target = &Target{Measurement: stmt.Target.Measurement, Database: stmt.Target.Database}
+	}
+	for i, f := range stmt.Fields {
+		other.Fields[i] = &Field{Expr: CloneExpr(f.Expr), Alias: f.Alias}
+	}
+	for i, d := range stmt.Dimensions {
+		other.Dimensions[i] = &Dimension{Expr: CloneExpr(d.Expr)}
+	}
+	// TODO: Copy sources.
+	for i, f := range stmt.SortFields {
+		other.SortFields[i] = &SortField{Name: f.Name, Ascending: f.Ascending}
+	}
+	return other
+}
+
+func cloneSource(s Source) Source {
+	if s == nil {
+		return nil
+	}
+
+	switch s := s.(type) {
+	case *Measurement:
+		return &Measurement{Name: s.Name}
+	case *Join:
+		other := &Join{Measurements: make(Measurements, len(s.Measurements))}
+		for i, m := range s.Measurements {
+			other.Measurements[i] = &Measurement{Name: m.Name}
+		}
+		return other
+	case *Merge:
+		other := &Merge{Measurements: make(Measurements, len(s.Measurements))}
+		for i, m := range s.Measurements {
+			other.Measurements[i] = &Measurement{Name: m.Name}
+		}
+		return other
+	default:
+		panic("unreachable")
+	}
+}
+
 // String returns a string representation of the select statement.
 func (s *SelectStatement) String() string {
 	var buf bytes.Buffer

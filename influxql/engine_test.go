@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -12,31 +13,104 @@ import (
 	"github.com/influxdb/influxdb/influxql"
 )
 
+// Ensure a mapper can process intervals across multiple iterators.
+func TestMapper_Map(t *testing.T) {
+	m := influxql.NewMapper(influxql.MapSum, []influxql.Iterator{
+		NewIterator([]string{"foo"}, []Point{
+			{"2000-01-01T00:00:00Z", float64(10)}, // first minute
+			{"2000-01-01T00:00:30Z", float64(20)},
+			{"2000-01-01T00:01:00Z", float64(30)}, // second minute
+			{"2000-01-01T00:01:30Z", float64(40)},
+			{"2000-01-01T00:03:00Z", float64(50)}, // fourth minute (skip third)
+		}),
+		NewIterator([]string{"bar"}, []Point{
+			{"2000-01-01T00:01:00Z", float64(100)}, // second minute
+			{"2000-01-01T00:01:30Z", float64(200)},
+		}),
+	}, 1*time.Minute)
+
+	ch := m.Map().C()
+	if data := <-ch; !reflect.DeepEqual(data, map[influxql.Key]interface{}{influxql.Key{Timestamp: 946684800000000000, Values: "\x00\x03foo"}: float64(30)}) {
+		t.Fatalf("unexpected data(0/foo): %#v", data)
+	} else if data := <-ch; !reflect.DeepEqual(data, map[influxql.Key]interface{}{influxql.Key{Timestamp: 946684800000000000, Values: "\x00\x03bar"}: float64(0)}) {
+		t.Fatalf("unexpected data(0/bar): %#v", data)
+	}
+	if data := <-ch; !reflect.DeepEqual(data, map[influxql.Key]interface{}{influxql.Key{Timestamp: 946684860000000000, Values: "\x00\x03foo"}: float64(70)}) {
+		t.Fatalf("unexpected data(1/foo): %#v", data)
+	} else if data := <-ch; !reflect.DeepEqual(data, map[influxql.Key]interface{}{influxql.Key{Timestamp: 946684860000000000, Values: "\x00\x03bar"}: float64(300)}) {
+		t.Fatalf("unexpected data(1/bar): %#v", data)
+	}
+	if data := <-ch; !reflect.DeepEqual(data, map[influxql.Key]interface{}{influxql.Key{Timestamp: 946684920000000000, Values: "\x00\x03foo"}: float64(0)}) {
+		t.Fatalf("unexpected data(2/foo): %#v", data)
+	} else if data := <-ch; !reflect.DeepEqual(data, map[influxql.Key]interface{}{influxql.Key{Timestamp: 946684920000000000, Values: "\x00\x03bar"}: float64(0)}) {
+		t.Fatalf("unexpected data(2/bar): %#v", data)
+	}
+	if data := <-ch; !reflect.DeepEqual(data, map[influxql.Key]interface{}{influxql.Key{Timestamp: 946684980000000000, Values: "\x00\x03foo"}: float64(50)}) {
+		t.Fatalf("unexpected data(3/foo): %#v", data)
+	} else if data := <-ch; !reflect.DeepEqual(data, map[influxql.Key]interface{}{influxql.Key{Timestamp: 946684980000000000, Values: "\x00\x03bar"}: float64(0)}) {
+		t.Fatalf("unexpected data(3/bar): %#v", data)
+	}
+}
+
+// Ensure a reducer can combine data received from a mapper.
+func TestReducer_Reduce(t *testing.T) {
+	m := influxql.NewMapper(influxql.MapSum, []influxql.Iterator{
+		NewIterator([]string{"foo"}, []Point{
+			{"2000-01-01T00:00:00Z", float64(10)},
+			{"2000-01-01T00:01:00Z", float64(20)},
+		}),
+		NewIterator([]string{"bar"}, []Point{
+			{"2000-01-01T00:00:00Z", float64(100)},
+			{"2000-01-01T00:01:00Z", float64(200)},
+		}),
+		NewIterator([]string{"foo"}, []Point{
+			{"2000-01-01T00:00:00Z", float64(1000)},
+			{"2000-01-01T00:01:00Z", float64(2000)},
+		}),
+	}, 1*time.Minute)
+
+	r := influxql.NewReducer(influxql.ReduceSum, []*influxql.Mapper{m})
+	ch := r.Reduce().C()
+	if data := <-ch; !reflect.DeepEqual(data, map[influxql.Key]interface{}{influxql.Key{Timestamp: 946684800000000000, Values: "\x00\x03bar"}: float64(100)}) {
+		t.Fatalf("unexpected data(0/bar): %#v", data)
+	} else if data = <-ch; !reflect.DeepEqual(data, map[influxql.Key]interface{}{influxql.Key{Timestamp: 946684800000000000, Values: "\x00\x03foo"}: float64(1010)}) {
+		t.Fatalf("unexpected data(0/foo): %#v", data)
+	}
+	if data := <-ch; !reflect.DeepEqual(data, map[influxql.Key]interface{}{influxql.Key{Timestamp: 946684860000000000, Values: "\x00\x03bar"}: float64(200)}) {
+		t.Fatalf("unexpected data(1/bar): %#v", data)
+	} else if data = <-ch; !reflect.DeepEqual(data, map[influxql.Key]interface{}{influxql.Key{Timestamp: 946684860000000000, Values: "\x00\x03foo"}: float64(2020)}) {
+		t.Fatalf("unexpected data(1/foo): %#v", data)
+	}
+	if data, ok := <-ch; data != nil {
+		t.Fatalf("unexpected data(end): %#v", data)
+	} else if ok {
+		t.Fatalf("expected channel close")
+	}
+}
+
 // Ensure the planner can plan and execute a simple count query.
 func TestPlanner_Plan_Count(t *testing.T) {
-	ic := &IteratorCreator{
-		CreateIteratorsFunc: func(stmt *influxql.SelectStatement) ([]influxql.Iterator, error) {
-			min, max, interval := MustTimeRangeAndInterval(stmt)
-			return []influxql.Iterator{
-				NewIterator(min, max, interval, nil, []Point{
-					{"2000-01-01T00:00:00Z", float64(100)},
-					{"2000-01-01T00:00:10Z", float64(90)},
-					{"2000-01-01T00:00:20Z", float64(80)},
-				}),
-				NewIterator(min, max, interval, nil, []Point{
-					{"2000-01-01T00:00:30Z", float64(70)},
-					{"2000-01-01T00:00:40Z", float64(60)},
-					{"2000-01-01T00:00:50Z", float64(50)},
-				})}, nil
-		},
+	tx := NewTx()
+	tx.CreateIteratorsFunc = func(stmt *influxql.SelectStatement) ([]influxql.Iterator, error) {
+		return []influxql.Iterator{
+			NewIterator(nil, []Point{
+				{"2000-01-01T00:00:00Z", float64(100)},
+				{"2000-01-01T00:00:10Z", float64(90)},
+				{"2000-01-01T00:00:20Z", float64(80)},
+			}),
+			NewIterator(nil, []Point{
+				{"2000-01-01T00:00:30Z", float64(70)},
+				{"2000-01-01T00:00:40Z", float64(60)},
+				{"2000-01-01T00:00:50Z", float64(50)},
+			})}, nil
 	}
 
 	// Expected resultset.
-	exp := minify(`[{"name":"cpu","columns":["time","count"],"values":[[978307200000000,6]]}]`)
+	exp := minify(`[{"name":"cpu","columns":["time","count"],"values":[[0,6]]}]`)
 
 	// Execute and compare.
-	rs := MustPlanAndExecute(ic, `2000-01-01T12:00:00Z`,
-		`SELECT count(value) FROM cpu WHERE time >= '2001-01-01'`)
+	rs := MustPlanAndExecute(NewDB(tx), `2000-01-01T12:00:00Z`,
+		`SELECT count(value) FROM cpu WHERE time >= '2000-01-01'`)
 	if act := minify(jsonify(rs)); exp != act {
 		t.Fatalf("unexpected resultset: %s", act)
 	}
@@ -44,21 +118,20 @@ func TestPlanner_Plan_Count(t *testing.T) {
 
 // Ensure the planner can plan and execute a count query grouped by hour.
 func TestPlanner_Plan_GroupByInterval(t *testing.T) {
-	ic := &IteratorCreator{
-		CreateIteratorsFunc: func(stmt *influxql.SelectStatement) ([]influxql.Iterator, error) {
-			min, max, interval := MustTimeRangeAndInterval(stmt)
-			return []influxql.Iterator{
-				NewIterator(min, max, interval, nil, []Point{
-					{"2000-01-01T09:00:00Z", float64(100)},
-					{"2000-01-01T09:00:00Z", float64(90)},
-					{"2000-01-01T09:30:00Z", float64(80)},
-				}),
-				NewIterator(min, max, interval, nil, []Point{
-					{"2000-01-01T11:00:00Z", float64(70)},
-					{"2000-01-01T11:00:00Z", float64(60)},
-					{"2000-01-01T11:30:00Z", float64(50)},
-				})}, nil
-		},
+	tx := NewTx()
+	tx.CreateIteratorsFunc = func(stmt *influxql.SelectStatement) ([]influxql.Iterator, error) {
+		//min, max, interval := MustTimeRangeAndInterval(stmt, `2000-01-01T12:00:00Z`)
+		return []influxql.Iterator{
+			NewIterator(nil, []Point{
+				{"2000-01-01T09:00:00Z", float64(100)},
+				{"2000-01-01T09:00:00Z", float64(90)},
+				{"2000-01-01T09:30:00Z", float64(80)},
+			}),
+			NewIterator(nil, []Point{
+				{"2000-01-01T11:00:00Z", float64(70)},
+				{"2000-01-01T11:00:00Z", float64(60)},
+				{"2000-01-01T11:30:00Z", float64(50)},
+			})}, nil
 	}
 
 	// Expected resultset.
@@ -76,7 +149,7 @@ func TestPlanner_Plan_GroupByInterval(t *testing.T) {
 	}]`)
 
 	// Query for data since 3 hours ago until now, grouped every 30 minutes.
-	rs := MustPlanAndExecute(ic, "2000-01-01T12:00:00Z", `
+	rs := MustPlanAndExecute(NewDB(tx), "2000-01-01T12:00:00Z", `
 		SELECT sum(value)
 		FROM cpu
 		WHERE time >= now() - 3h
@@ -90,25 +163,24 @@ func TestPlanner_Plan_GroupByInterval(t *testing.T) {
 
 // Ensure the planner can plan and execute a query grouped by interval and tag.
 func TestPlanner_Plan_GroupByIntervalAndTag(t *testing.T) {
-	ic := &IteratorCreator{
-		CreateIteratorsFunc: func(stmt *influxql.SelectStatement) ([]influxql.Iterator, error) {
-			min, max, interval := MustTimeRangeAndInterval(stmt)
-			return []influxql.Iterator{
-				NewIterator(min, max, interval, []string{"servera"}, []Point{
-					{"2000-01-01T09:00:00Z", float64(10)},
-					{"2000-01-01T09:30:00Z", float64(20)},
-					{"2000-01-01T11:00:00Z", float64(30)},
-					{"2000-01-01T11:30:00Z", float64(40)},
-				}),
-				NewIterator(min, max, interval, []string{"serverb"}, []Point{
-					{"2000-01-01T09:00:00Z", float64(1)},
-					{"2000-01-01T11:00:00Z", float64(2)},
-				})}, nil
-		},
+	tx := NewTx()
+	tx.CreateIteratorsFunc = func(stmt *influxql.SelectStatement) ([]influxql.Iterator, error) {
+		//min, max, interval := MustTimeRangeAndInterval(stmt, `2000-01-01T12:00:00Z`)
+		return []influxql.Iterator{
+			NewIterator([]string{"servera"}, []Point{
+				{"2000-01-01T09:00:00Z", float64(10)},
+				{"2000-01-01T09:30:00Z", float64(20)},
+				{"2000-01-01T11:00:00Z", float64(30)},
+				{"2000-01-01T11:30:00Z", float64(40)},
+			}),
+			NewIterator([]string{"serverb"}, []Point{
+				{"2000-01-01T09:00:00Z", float64(1)},
+				{"2000-01-01T11:00:00Z", float64(2)},
+			})}, nil
 	}
 
 	// Query for data since 3 hours ago until now, grouped every 30 minutes.
-	rs := MustPlanAndExecute(ic, "2000-01-01T12:00:00Z", `
+	rs := MustPlanAndExecute(NewDB(tx), "2000-01-01T12:00:00Z", `
 		SELECT sum(value)
 		FROM cpu
 		WHERE time >= now() - 3h
@@ -144,18 +216,17 @@ func TestPlanner_Plan_GroupByIntervalAndTag(t *testing.T) {
 // Ensure the planner sends the correct simplified statements to the iterator creator.
 func TestPlanner_CreateIterators(t *testing.T) {
 	var flag0, flag1 bool
-	ic := &IteratorCreator{
-		CreateIteratorsFunc: func(stmt *influxql.SelectStatement) ([]influxql.Iterator, error) {
-			switch stmt.String() {
-			case `SELECT cpu.0.value FROM cpu.0 GROUP BY time(10s)`:
-				flag0 = true
-			case `SELECT cpu.1.value FROM cpu.1 GROUP BY time(10s)`:
-				flag1 = true
-			default:
-				t.Fatalf("unexpected stmt passed to iterator creator: %s", stmt.String())
-			}
-			return nil, nil
-		},
+	tx := NewTx()
+	tx.CreateIteratorsFunc = func(stmt *influxql.SelectStatement) ([]influxql.Iterator, error) {
+		switch stmt.String() {
+		case `SELECT cpu.0.value FROM cpu.0 GROUP BY time(10s)`:
+			flag0 = true
+		case `SELECT cpu.1.value FROM cpu.1 GROUP BY time(10s)`:
+			flag1 = true
+		default:
+			t.Fatalf("unexpected stmt passed to iterator creator: %s", stmt.String())
+		}
+		return nil, nil
 	}
 
 	stmt := MustParseSelectStatement(`
@@ -164,7 +235,7 @@ func TestPlanner_CreateIterators(t *testing.T) {
 		WHERE time >= '2000-01-01 00:00:00' AND time < '2000-01-01 00:01:00'
 		GROUP BY time(10s)`)
 
-	p := influxql.NewPlanner(ic)
+	p := influxql.NewPlanner(NewDB(tx))
 	p.Now = func() time.Time { return mustParseTime("2000-01-01T12:00:00Z") }
 	if _, err := p.Plan(stmt); err != nil {
 		t.Fatalf("unexpected error: %s", err)
@@ -179,100 +250,73 @@ func TestPlanner_CreateIterators(t *testing.T) {
 	}
 }
 
-// IteratorCreator represents a mockable iterator creator.
-type IteratorCreator struct {
-	CreateIteratorsFunc func(stmt *influxql.SelectStatement) ([]influxql.Iterator, error)
+// DB represents a mockable database.
+type DB struct {
+	BeginFunc func() (influxql.Tx, error)
 }
 
-// CreateIterators returns a list of iterators for a simple SELECT statement.
-func (ic *IteratorCreator) CreateIterators(stmt *influxql.SelectStatement) ([]influxql.Iterator, error) {
-	return ic.CreateIteratorsFunc(stmt)
+// NewDB returns a mock database that returns a transaction for Begin().
+func NewDB(tx influxql.Tx) *DB {
+	return &DB{
+		BeginFunc: func() (influxql.Tx, error) { return tx, nil },
+	}
+}
+
+func (db *DB) Begin() (influxql.Tx, error) { return db.BeginFunc() }
+
+// Tx represents a mockable transaction.
+type Tx struct {
+	OpenFunc   func() error
+	CloseFunc  func() error
+	SetNowFunc func(time.Time)
+
+	CreateIteratorsFunc func(*influxql.SelectStatement) ([]influxql.Iterator, error)
+}
+
+// NewTx returns a new mock Tx.
+func NewTx() *Tx {
+	return &Tx{
+		OpenFunc:   func() error { return nil },
+		CloseFunc:  func() error { return nil },
+		SetNowFunc: func(_ time.Time) {},
+	}
+}
+
+func (tx *Tx) Open() error          { return tx.OpenFunc() }
+func (tx *Tx) Close() error         { return tx.CloseFunc() }
+func (tx *Tx) SetNow(now time.Time) { tx.SetNowFunc(now) }
+
+func (tx *Tx) CreateIterators(stmt *influxql.SelectStatement) ([]influxql.Iterator, error) {
+	return tx.CreateIteratorsFunc(stmt)
 }
 
 // Iterator represents an implementation of Iterator.
 type Iterator struct {
-	min, max int64 // time range
-	interval int64 // interval duration
-
-	tags   []string
-	points []Point
-
-	index      int   // current point index
-	imin, imax int64 // current interval time range
+	tags   string  // encoded dimensional tag values
+	points []Point // underlying point data
+	index  int     // current point index
 }
 
 // NewIterator returns a new iterator.
-func NewIterator(min, max time.Time, interval time.Duration, tags []string, points []Point) *Iterator {
-	i := &Iterator{interval: int64(interval), tags: tags, points: points}
-	if !min.IsZero() {
-		i.min = min.UnixNano()
-	}
-	if !max.IsZero() {
-		i.max = max.UnixNano()
-	}
-	return i
+func NewIterator(tags []string, points []Point) *Iterator {
+	return &Iterator{tags: string(influxql.MarshalStrings(tags)), points: points}
 }
 
-func (i *Iterator) Open() error  { i.imin = -1; return nil }
-func (i *Iterator) Close() error { return nil }
-
-// NextIterval moves the iterator to the next available interval.
-// Returns true if another iterval is available.
-func (i *Iterator) NextIterval() bool {
-	// Initialize interval start time if not set.
-	// If there's no duration then there's only one interval.
-	// Otherwise increment it by the interval.
-	if i.imin == -1 {
-		i.imin = i.min
-	} else if i.interval == 0 {
-		return false
-	} else {
-		// Update interval start time if it's before iterator end time.
-		// Otherwise return false.
-		if imin := i.imin + i.interval; i.max == 0 || imin < i.max {
-			i.imin = imin
-		} else {
-			return false
-		}
-	}
-
-	// Interval end time should be the start time plus interval duration.
-	// If the end time is beyond the iterator end time then shorten it.
-	i.imax = i.imin + i.interval
-	if i.imax > i.max {
-		i.imax = i.max
-	}
-
-	return true
-}
+// Tags returns the encoded dimensional tag values.
+func (i *Iterator) Tags() string { return i.tags }
 
 // Next returns the next point's timestamp and field value.
-func (i *Iterator) Next() (timestamp int64, value interface{}) {
-	for {
-		// If index is beyond points range then return nil.
-		if i.index > len(i.points)-1 {
-			return 0, nil
-		}
-
-		// Retrieve point and extract value.
-		p := i.points[i.index]
-
-		// Move cursor forward.
-		i.index++
-
-		// If timestamp is beyond bucket time range then move index back and exit.
-		timestamp := p.Time()
-		if timestamp >= i.imax && i.imax != 0 {
-			i.index--
-			return 0, nil
-		}
-
-		return p.Time(), p.Value
+func (i *Iterator) Next() (key int64, value interface{}) {
+	// If index is beyond points range then return nil.
+	if i.index > len(i.points)-1 {
+		return 0, nil
 	}
-}
 
-// Key returns the interval start time and tag values encoded as a byte slice.
-func (i *Iterator) Key() []byte { return influxql.MarshalKey(i.imin, i.tags) }
+	// Retrieve point and extract value.
+	p := i.points[i.index]
+	i.index++
+	return p.Time(), p.Value
+}
 
 // Point represents a single value at a given time.
 type Point struct {
@@ -284,9 +328,9 @@ type Point struct {
 func (p Point) Time() int64 { return mustParseTime(p.Timestamp).UnixNano() }
 
 // PlanAndExecute plans, executes, and retrieves all rows.
-func PlanAndExecute(ic influxql.IteratorCreator, now string, querystring string) ([]*influxql.Row, error) {
+func PlanAndExecute(db influxql.DB, now string, querystring string) ([]*influxql.Row, error) {
 	// Plan statement.
-	p := influxql.NewPlanner(ic)
+	p := influxql.NewPlanner(db)
 	p.Now = func() time.Time { return mustParseTime(now) }
 	e, err := p.Plan(MustParseSelectStatement(querystring))
 	if err != nil {
@@ -309,20 +353,24 @@ func PlanAndExecute(ic influxql.IteratorCreator, now string, querystring string)
 }
 
 // MustPlanAndExecute plans, executes, and retrieves all rows. Panic on error.
-func MustPlanAndExecute(ic influxql.IteratorCreator, now string, querystring string) []*influxql.Row {
-	rs, err := PlanAndExecute(ic, now, querystring)
+func MustPlanAndExecute(db influxql.DB, now string, querystring string) []*influxql.Row {
+	rs, err := PlanAndExecute(db, now, querystring)
 	if err != nil {
 		panic(err.Error())
 	}
 	return rs
 }
 
-// MustTimeRangeAndInterval returns the time range & interval of the query. Panic on error.
-func MustTimeRangeAndInterval(stmt *influxql.SelectStatement) (time.Time, time.Time, time.Duration) {
+// MustTimeRangeAndInterval returns the time range & interval of the query.
+// Set max to 2000-01-01 if zero. Panic on error.
+func MustTimeRangeAndInterval(stmt *influxql.SelectStatement, defaultMax string) (time.Time, time.Time, time.Duration) {
 	min, max := influxql.TimeRange(stmt.Condition)
 	interval, _, err := stmt.Dimensions.Normalize()
 	if err != nil {
 		panic(err.Error())
+	}
+	if max.IsZero() {
+		max = mustParseTime(defaultMax)
 	}
 	return min, max, interval
 }
@@ -360,3 +408,5 @@ func indent(s string) string {
 
 // minify removes tabs and newlines.
 func minify(s string) string { return strings.NewReplacer("\n", "", "\t", "").Replace(s) }
+
+func unix(nsec int64) time.Time { return time.Unix(0, nsec).UTC() }
