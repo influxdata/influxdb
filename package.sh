@@ -4,6 +4,8 @@
 # Packaging script which creates debian and RPM packages. It optionally
 # tags the repo with the given version. 'fpm' must be on the path.
 
+AWS_CONFIG_FILE=~/aws.conf
+
 INSTALL_ROOT_DIR=/opt/influxdb
 CONFIG_ROOT_DIR=/etc/opt/influxdb
 
@@ -13,6 +15,11 @@ INITD_SCRIPT=scripts/init.sh
 TMP_WORK_DIR=`mktemp -d`
 POST_INSTALL_PATH=`mktemp`
 ARCH=`uname -i`
+LICENSE=MIT
+URL=influxdb.com
+MAINTAINER=support@influxdb.com
+VENDOR=Influxdb
+DESCRIPTION="Distributed time-series database"
 
 ###########################################################################
 # Helper functions.
@@ -90,10 +97,17 @@ make_dir_tree() {
 }
 
 
-# do_build builds the code.
+# do_build builds the code. The version and commit must be passed in.
 do_build() {
+    version=$1
+    commit=`git rev-parse HEAD`
+    if [ $? -ne 0 ]; then
+        echo "Unable to retrieve current commit -- aborting"
+        cleanup_exit 1
+    fi
+
     rm $GOPATH/bin/*
-    go install -a ./...
+    go install -a -ldflags="-X main.version $version -X main.commit $commit" ./...
     if [ $? -ne 0 ]; then
         echo "Build failed, unable to create package -- aborting"
         cleanup_exit 1
@@ -108,8 +122,8 @@ generate_postinstall_script() {
     cat  <<EOF >$POST_INSTALL_PATH
 rm -f $INSTALL_ROOT_DIR/influxd
 rm -f $INSTALL_ROOT_DIR/init.sh
-ln -s  $INSTALL_ROOT_DIR/versions/$version/influxd $INSTALL_ROOT_DIR/influxd
-ln -s  $INSTALL_ROOT_DIR/versions/$version/scripts/init.sh $INSTALL_ROOT_DIR/init.sh
+ln -s $INSTALL_ROOT_DIR/versions/$version/influxd $INSTALL_ROOT_DIR/influxd
+ln -s $INSTALL_ROOT_DIR/versions/$version/scripts/init.sh $INSTALL_ROOT_DIR/init.sh
 
 if [ ! -L /etc/init.d/influxdb ]; then
     ln -sfn $INSTALL_ROOT_DIR/init.sh /etc/init.d/influxdb
@@ -148,7 +162,7 @@ check_gopath
 check_clean_tree
 update_tree
 check_tag_exists $VERSION
-do_build
+do_build $VERSION
 make_dir_tree $TMP_WORK_DIR $VERSION
 
 ###########################################################################
@@ -200,8 +214,7 @@ else
     debian_package=influxdb_${VERSION}_amd64.deb
 fi
 
-COMMON_FPM_ARGS="--after-install $POST_INSTALL_PATH -n influxdb -v $VERSION -C $TMP_WORK_DIR ."
-DESCRIPTION="Distributed time-series database"
+COMMON_FPM_ARGS="-C $TMP_WORK_DIR --vendor $VENDOR --url $URL --license $LICENSE --maintainer $MAINTAINER --after-install $POST_INSTALL_PATH --name influxdb --version $VERSION ."
 $rpm_args fpm -s dir -t rpm --description "$DESCRIPTION" $COMMON_FPM_ARGS
 if [ $? -ne 0 ]; then
     echo "Failed to create RPM package -- aborting."
@@ -209,7 +222,7 @@ if [ $? -ne 0 ]; then
 fi
 echo "RPM package created successfully."
 
-fpm -s dir -t deb $deb_args --description "$DESCRIPTION"  $COMMON_FPM_ARGS
+fpm -s dir -t deb $deb_args --description "$DESCRIPTION" $COMMON_FPM_ARGS
 if [ $? -ne 0 ]; then
     echo "Failed to create Debian package -- aborting."
     cleanup_exit 1
@@ -237,6 +250,34 @@ if [ "x$response" == "xy" ]; then
 else
     echo "Not creating tag v$VERSION."
 fi
+
+
+###########################################################################
+# Offer to publish the packages.
+
+echo -n "Publish packages to S3? [y/N] "
+read response
+response=`echo $response | tr 'A-Z' 'a-z'`
+if [ "x$response" == "xy" ]; then
+    echo "Publishing packages to S3."
+    if [ ! -e "$AWS_CONFIG_FILE" ]; then
+        echo "$AWS_CONFIG_FILE does not exist -- aborting."
+        cleanup_exit 1
+    fi
+
+    for filepath in `ls *.{deb,rpm}`; do
+        echo "Uploading $filepath to S3"
+        filename=`basename $filepath`
+        bucket=influxdb
+        aws s3 cp $filepath s3://influxdb/$filename --acl public-read --region us-east-1
+        aws s3 cp $filepath s3://get.influxdb.org/$filename --acl public-read --region us-east-1
+    done
+else
+    echo "Not publishing packages to S3."
+fi
+
+###########################################################################
+# All done.
 
 echo -e "\nPackaging process complete."
 cleanup_exit 0

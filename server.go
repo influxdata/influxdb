@@ -1535,25 +1535,25 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 			res = s.executeCreateDatabaseStatement(stmt, user)
 		case *influxql.DropDatabaseStatement:
 			res = s.executeDropDatabaseStatement(stmt, user)
-		case *influxql.ListDatabasesStatement:
-			res = s.executeListDatabasesStatement(stmt, user)
+		case *influxql.ShowDatabasesStatement:
+			res = s.executeShowDatabasesStatement(stmt, user)
 		case *influxql.CreateUserStatement:
 			res = s.executeCreateUserStatement(stmt, user)
 		case *influxql.DropUserStatement:
 			res = s.executeDropUserStatement(stmt, user)
 		case *influxql.DropSeriesStatement:
 			continue
-		case *influxql.ListSeriesStatement:
+		case *influxql.ShowSeriesStatement:
 			continue
-		case *influxql.ListMeasurementsStatement:
+		case *influxql.ShowMeasurementsStatement:
 			continue
-		case *influxql.ListTagKeysStatement:
+		case *influxql.ShowTagKeysStatement:
 			continue
-		case *influxql.ListTagValuesStatement:
+		case *influxql.ShowTagValuesStatement:
 			continue
-		case *influxql.ListFieldKeysStatement:
+		case *influxql.ShowFieldKeysStatement:
 			continue
-		case *influxql.ListFieldValuesStatement:
+		case *influxql.ShowFieldValuesStatement:
 			continue
 		case *influxql.GrantStatement:
 			continue
@@ -1565,13 +1565,13 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 			res = s.executeAlterRetentionPolicyStatement(stmt, user)
 		case *influxql.DropRetentionPolicyStatement:
 			res = s.executeDropRetentionPolicyStatement(stmt, user)
-		case *influxql.ListRetentionPoliciesStatement:
-			res = s.executeListRetentionPoliciesStatement(stmt, user)
+		case *influxql.ShowRetentionPoliciesStatement:
+			res = s.executeShowRetentionPoliciesStatement(stmt, user)
 		case *influxql.CreateContinuousQueryStatement:
 			continue
 		case *influxql.DropContinuousQueryStatement:
 			continue
-		case *influxql.ListContinuousQueriesStatement:
+		case *influxql.ShowContinuousQueriesStatement:
 			continue
 		default:
 			panic(fmt.Sprintf("unsupported statement type: %T", stmt))
@@ -1641,7 +1641,7 @@ func (s *Server) executeDropDatabaseStatement(q *influxql.DropDatabaseStatement,
 	return &Result{Err: s.DeleteDatabase(q.Name)}
 }
 
-func (s *Server) executeListDatabasesStatement(q *influxql.ListDatabasesStatement, user *User) *Result {
+func (s *Server) executeShowDatabasesStatement(q *influxql.ShowDatabasesStatement, user *User) *Result {
 	row := &influxql.Row{Columns: []string{"Name"}}
 	for _, name := range s.Databases() {
 		row.Values = append(row.Values, []interface{}{name})
@@ -1683,7 +1683,7 @@ func (s *Server) executeDropRetentionPolicyStatement(q *influxql.DropRetentionPo
 	return &Result{Err: s.DeleteRetentionPolicy(q.Database, q.Name)}
 }
 
-func (s *Server) executeListRetentionPoliciesStatement(q *influxql.ListRetentionPoliciesStatement, user *User) *Result {
+func (s *Server) executeShowRetentionPoliciesStatement(q *influxql.ShowRetentionPoliciesStatement, user *User) *Result {
 	a, err := s.RetentionPolicies(q.Database)
 	if err != nil {
 		return &Result{Err: err}

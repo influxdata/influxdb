@@ -1,4 +1,4 @@
-o "creating database"
+echo "creating database"
 curl -G http://localhost:8086/query --data-urlencode "q=CREATE DATABASE foo"
 
 echo "creating retention policy"
