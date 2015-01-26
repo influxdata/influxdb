@@ -356,7 +356,7 @@ func parseCredentials(r *http.Request) (string, string, error) {
 	if u, p, ok := r.BasicAuth(); ok {
 		return u, p, nil
 	} else {
-		return "", "", fmt.Errorf("unable to parse username/password from header")
+		return "", "", fmt.Errorf("unable to parse Basic Auth credentials")
 	}
 }
 
