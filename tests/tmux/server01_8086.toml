@@ -1,5 +1,3 @@
-hostname = "127.0.0.1"
-
 [broker]
 dir  = "~/.influxdb/8086/broker"
 port = 8086
