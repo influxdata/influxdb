@@ -99,7 +99,7 @@ type Measurement struct {
 	seriesByID          map[uint32]*Series // lookup table for series by their id
 	measurement         *Measurement
 	seriesByTagKeyValue map[string]map[string]seriesIDs // map from tag key to value to sorted set of series ids
-	ids                 seriesIDs                       // sorted list of series IDs in this measurement
+	seriesIDs           seriesIDs                       // sorted list of series IDs in this measurement
 }
 
 func NewMeasurement(name string) *Measurement {
@@ -110,7 +110,7 @@ func NewMeasurement(name string) *Measurement {
 		series:              make(map[string]*Series),
 		seriesByID:          make(map[uint32]*Series),
 		seriesByTagKeyValue: make(map[string]map[string]seriesIDs),
-		ids:                 make(seriesIDs, 0),
+		seriesIDs:           make(seriesIDs, 0),
 	}
 }
 
@@ -166,11 +166,12 @@ func (m *Measurement) addSeries(s *Series) bool {
 	m.seriesByID[s.ID] = s
 	tagset := string(marshalTags(s.Tags))
 	m.series[tagset] = s
-	m.ids = append(m.ids, s.ID)
+	m.seriesIDs = append(m.seriesIDs, s.ID)
+
 	// the series ID should always be higher than all others because it's a new
 	// series. So don't do the sort if we don't have to.
-	if len(m.ids) > 1 && m.ids[len(m.ids)-1] < m.ids[len(m.ids)-2] {
-		sort.Sort(m.ids)
+	if len(m.seriesIDs) > 1 && m.seriesIDs[len(m.seriesIDs)-1] < m.seriesIDs[len(m.seriesIDs)-2] {
+		sort.Sort(m.seriesIDs)
 	}
 
 	// add this series id to the tag index on the measurement
@@ -234,23 +235,23 @@ func (m *Measurement) expandExpr(expr influxql.Expr) []tagSetExpr {
 	}
 
 	// Reduce a condition for each combination of tag values.
-	return expandExprWithValues(expr, keys, []*string{}, uniques, 0)
+	return expandExprWithValues(expr, keys, []tagExpr{}, uniques, 0)
 }
 
-func expandExprWithValues(expr influxql.Expr, keys []string, values []*string, uniques [][]string, index int) []tagSetExpr {
+func expandExprWithValues(expr influxql.Expr, keys []string, tagExprs []tagExpr, uniques [][]string, index int) []tagSetExpr {
 	// If we have no more keys left then execute the reduction and return.
 	if index == len(keys) {
-		// Create map.
+		// Create a map of tag key/values.
 		m := make(map[string]*string, len(keys))
 		for i, key := range keys {
-			if values[i] != nil {
-				var value string
-				value = *values[i]
-				m[key] = &value
+			if tagExprs[i].op == influxql.EQ {
+				m[key] = &tagExprs[i].values[0]
 			} else {
 				m[key] = nil
 			}
 		}
+
+		// TODO: Rewrite full expressions instead of VarRef replacement.
 
 		// Reduce using the current tag key/value set.
 		// Ignore it if reduces down to "false".
@@ -259,17 +260,15 @@ func expandExprWithValues(expr influxql.Expr, keys []string, values []*string, u
 			return nil
 		}
 
-		return []tagSetExpr{{tags: m, expr: e}}
+		return []tagSetExpr{{values: copyTagExprs(tagExprs), expr: e}}
 	}
 
-	// Otherwise expand for each possible value of the key.
+	// Otherwise expand for each possible equality value of the key.
 	var exprs []tagSetExpr
 	for _, v := range uniques[index] {
-		exprs = append(exprs, expandExprWithValues(expr, keys, append(values, &v), uniques, index+1)...)
+		exprs = append(exprs, expandExprWithValues(expr, keys, append(tagExprs, tagExpr{keys[index], []string{v}, influxql.EQ}), uniques, index+1)...)
 	}
-
-	// Also expand for the nil value.
-	exprs = append(exprs, expandExprWithValues(expr, keys, append(values, nil), uniques, index+1)...)
+	exprs = append(exprs, expandExprWithValues(expr, keys, append(tagExprs, tagExpr{keys[index], uniques[index], influxql.NEQ}), uniques, index+1)...)
 
 	return exprs
 }
@@ -292,8 +291,21 @@ func (v *tagValuer) Value(name string) (interface{}, bool) {
 
 // tagSetExpr represents a set of tag keys/values and associated expression.
 type tagSetExpr struct {
-	tags map[string]*string
-	expr influxql.Expr
+	values []tagExpr
+	expr   influxql.Expr
+}
+
+// tagExpr represents one or more values assigned to a given tag.
+type tagExpr struct {
+	key    string
+	values []string
+	op     influxql.Token // EQ or NEQ
+}
+
+func copyTagExprs(a []tagExpr) []tagExpr {
+	other := make([]tagExpr, len(a))
+	copy(other, a)
+	return other
 }
 
 // uniqueTagValues returns a list of unique tag values used in an expression.
@@ -305,7 +317,7 @@ func (m *Measurement) uniqueTagValues(expr influxql.Expr) map[string][]string {
 	influxql.WalkFunc(expr, func(n influxql.Node) {
 		switch n := n.(type) {
 		case *influxql.BinaryExpr:
-			// Ignore non-equality operators.
+			// Ignore operators that are not equality.
 			if n.Op != influxql.EQ {
 				return
 			}
@@ -376,11 +388,113 @@ func (s *Series) match(tags map[string]string) bool {
 	return true
 }
 
+// seriesIDs is a convenience type for sorting, checking equality, and doing
+// union and intersection of collections of series ids.
 type seriesIDs []uint32
 
 func (p seriesIDs) Len() int           { return len(p) }
 func (p seriesIDs) Less(i, j int) bool { return p[i] < p[j] }
 func (p seriesIDs) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
+
+// equals assumes that both are sorted.
+func (a seriesIDs) equals(other seriesIDs) bool {
+	if len(a) != len(other) {
+		return false
+	}
+	for i, s := range other {
+		if a[i] != s {
+			return false
+		}
+	}
+	return true
+}
+
+// intersect returns a new collection of series ids in sorted order that is the intersection of the two.
+// The two collections must already be sorted.
+func (a seriesIDs) intersect(other seriesIDs) seriesIDs {
+	l := a
+	r := other
+
+	// we want to iterate through the shortest one and stop
+	if len(other) < len(a) {
+		l = other
+		r = a
+	}
+
+	// they're in sorted order so advance the counter as needed.
+	// That is, don't run comparisons against lower values that we've already passed
+	var i, j int
+
+	ids := make([]uint32, 0, len(l))
+	for i < len(l) {
+		if l[i] == r[j] {
+			ids = append(ids, l[i])
+			i += 1
+			j += 1
+		} else if l[i] < r[j] {
+			i += 1
+		} else {
+			j += 1
+		}
+	}
+
+	return seriesIDs(ids)
+}
+
+// union returns a new collection of series ids in sorted order that is the union of the two.
+// The two collections must already be sorted.
+func (l seriesIDs) union(r seriesIDs) seriesIDs {
+	ids := make([]uint32, 0, len(l)+len(r))
+	var i, j int
+	for i < len(l) && j < len(r) {
+		if l[i] == r[j] {
+			ids = append(ids, l[i])
+			i += 1
+			j += 1
+		} else if l[i] < r[j] {
+			ids = append(ids, l[i])
+			i += 1
+		} else {
+			ids = append(ids, r[j])
+			j += 1
+		}
+	}
+
+	// now append the remainder
+	if i < len(l) {
+		ids = append(ids, l[i:]...)
+	} else if j < len(r) {
+		ids = append(ids, r[j:]...)
+	}
+
+	return ids
+}
+
+// reject returns a new collection of series ids in sorted order with the passed in set removed from the original.
+// This is useful for the NOT operator. The two collections must already be sorted.
+func (l seriesIDs) reject(r seriesIDs) seriesIDs {
+	var i, j int
+
+	ids := make([]uint32, 0, len(l))
+	for i < len(l) && j < len(r) {
+		if l[i] == r[j] {
+			i += 1
+			j += 1
+		} else if l[i] < r[j] {
+			ids = append(ids, l[i])
+			i += 1
+		} else {
+			j += 1
+		}
+	}
+
+	// Append the remainder
+	if i < len(l) {
+		ids = append(ids, l[i:]...)
+	}
+
+	return seriesIDs(ids)
+}
 
 // RetentionPolicy represents a policy for creating new shards in a database and how long they're kept around for.
 type RetentionPolicy struct {

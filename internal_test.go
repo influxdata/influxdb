@@ -37,8 +37,8 @@ func TestMeasurement_expandExpr(t *testing.T) {
 	m.createFieldIfNotExists("value", influxql.Number)
 
 	type tagSetExprString struct {
-		tags map[string]*string
-		expr string
+		tagExpr []tagExpr
+		expr    string
 	}
 
 	for i, tt := range []struct {
@@ -49,7 +49,7 @@ func TestMeasurement_expandExpr(t *testing.T) {
 		{
 			expr: `region = 'us-east' AND value > 10`,
 			exprs: []tagSetExprString{
-				{tags: map[string]*string{"region": strref("us-east")}, expr: `value > 10.000`},
+				{tagExpr: []tagExpr{{"region", []string{"us-east"}, influxql.EQ}}, expr: `value > 10.000`},
 			},
 		},
 
@@ -57,8 +57,8 @@ func TestMeasurement_expandExpr(t *testing.T) {
 		{
 			expr: `(region = 'us-east' AND value > 10) OR (region = 'us-west' AND value > 20)`,
 			exprs: []tagSetExprString{
-				{tags: map[string]*string{"region": strref("us-east")}, expr: `value > 10.000`},
-				{tags: map[string]*string{"region": strref("us-west")}, expr: `value > 20.000`},
+				{tagExpr: []tagExpr{{"region", []string{"us-east"}, influxql.EQ}}, expr: `value > 10.000`},
+				{tagExpr: []tagExpr{{"region", []string{"us-west"}, influxql.EQ}}, expr: `value > 20.000`},
 			},
 		},
 
@@ -66,11 +66,11 @@ func TestMeasurement_expandExpr(t *testing.T) {
 		{
 			expr: `(region = 'us-east' AND value > 10) OR ((host = 'serverA' OR host = 'serverB') AND value > 20)`,
 			exprs: []tagSetExprString{
-				{tags: map[string]*string{"region": strref("us-east"), "host": strref("serverA")}, expr: `(value > 10.000) OR (value > 20.000)`},
-				{tags: map[string]*string{"region": nil, "host": strref("serverA")}, expr: `value > 20.000`},
-				{tags: map[string]*string{"region": strref("us-east"), "host": strref("serverB")}, expr: `(value > 10.000) OR (value > 20.000)`},
-				{tags: map[string]*string{"region": nil, "host": strref("serverB")}, expr: `value > 20.000`},
-				{tags: map[string]*string{"region": strref("us-east"), "host": nil}, expr: `value > 10.000`},
+				{tagExpr: []tagExpr{{key: "host", values: []string{"serverA"}, op: influxql.EQ}, {key: "region", values: []string{"us-east"}, op: influxql.EQ}}, expr: "(value > 10.000) OR (value > 20.000)"},
+				{tagExpr: []tagExpr{{key: "host", values: []string{"serverA"}, op: influxql.EQ}, {key: "region", values: []string{"us-east"}, op: influxql.NEQ}}, expr: "value > 20.000"},
+				{tagExpr: []tagExpr{{key: "host", values: []string{"serverB"}, op: influxql.EQ}, {key: "region", values: []string{"us-east"}, op: influxql.EQ}}, expr: "(value > 10.000) OR (value > 20.000)"},
+				{tagExpr: []tagExpr{{key: "host", values: []string{"serverB"}, op: influxql.EQ}, {key: "region", values: []string{"us-east"}, op: influxql.NEQ}}, expr: "value > 20.000"},
+				{tagExpr: []tagExpr{{key: "host", values: []string{"serverA", "serverB"}, op: influxql.NEQ}, {key: "region", values: []string{"us-east"}, op: influxql.EQ}}, expr: "value > 10.000"},
 			},
 		},
 	} {
@@ -80,7 +80,7 @@ func TestMeasurement_expandExpr(t *testing.T) {
 		// Convert to intermediate representation.
 		var a []tagSetExprString
 		for _, tagExpr := range tagExprs {
-			a = append(a, tagSetExprString{tags: tagExpr.tags, expr: tagExpr.expr.String()})
+			a = append(a, tagSetExprString{tagExpr: tagExpr.values, expr: tagExpr.expr.String()})
 		}
 
 		// Validate that the expanded expressions are what we expect.

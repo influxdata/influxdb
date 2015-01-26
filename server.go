@@ -90,8 +90,10 @@ type Server struct {
 
 	dataNodes map[uint64]*DataNode // data nodes by id
 	databases map[string]*database // databases by name
-	shards    map[uint64]*Shard    // shards by id
 	users     map[string]*User     // user by name
+
+	shards           map[uint64]*Shard // shards by shard id
+	shardsBySeriesID map[uint32]*Shard // shards by series id
 }
 
 // NewServer returns a new instance of Server.
@@ -101,8 +103,10 @@ func NewServer() *Server {
 		errors:    make(map[uint64]error),
 		dataNodes: make(map[uint64]*DataNode),
 		databases: make(map[string]*database),
-		shards:    make(map[uint64]*Shard),
 		users:     make(map[string]*User),
+
+		shards:           make(map[uint64]*Shard),
+		shardsBySeriesID: make(map[uint32]*Shard),
 	}
 }
 
@@ -156,6 +160,9 @@ func (s *Server) Open(path string) error {
 	if err := s.load(); err != nil {
 		return fmt.Errorf("load: %s", err)
 	}
+
+	// TODO: Open shard data stores.
+	// TODO: Associate series ids with shards.
 
 	// Set the server path.
 	s.path = path
@@ -1279,6 +1286,7 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 
 	// Find appropriate shard within the shard group.
 	sh := g.ShardBySeriesID(seriesID)
+	s.shardsBySeriesID[seriesID] = sh
 
 	// Ignore requests that have no values.
 	if len(values) == 0 {
@@ -1417,11 +1425,11 @@ func (s *Server) applyWriteRawSeries(m *messaging.Message) error {
 func (s *Server) createSeriesIfNotExists(database, name string, tags map[string]string) (uint32, error) {
 	// Try to find series locally first.
 	s.mu.RLock()
-	idx := s.databases[database]
-	if idx == nil {
+	db := s.databases[database]
+	if db == nil {
 		return 0, fmt.Errorf("database not found %q", database)
 	}
-	if _, series := idx.MeasurementAndSeries(name, tags); series != nil {
+	if _, series := db.MeasurementAndSeries(name, tags); series != nil {
 		s.mu.RUnlock()
 		return series.ID, nil
 	}
@@ -1436,7 +1444,7 @@ func (s *Server) createSeriesIfNotExists(database, name string, tags map[string]
 	}
 
 	// Lookup series again.
-	_, series := idx.MeasurementAndSeries(name, tags)
+	_, series := db.MeasurementAndSeries(name, tags)
 	if series == nil {
 		return 0, ErrSeriesNotFound
 	}
@@ -1629,7 +1637,7 @@ func (s *Server) planSelectStatement(stmt *influxql.SelectStatement, database st
 	}
 
 	// Plan query.
-	p := influxql.NewPlanner(&serverQueryInterface{s})
+	p := influxql.NewPlanner(s)
 	return p.Plan(stmt)
 }
 
@@ -1740,64 +1748,8 @@ func (s *Server) measurement(database, name string) (*Measurement, error) {
 	return db.measurements[name], nil
 }
 
-// Begin creates a transaction with a set of iterators to loop over the data in a set of statements.
-// One iterator is returned for every unique dimension, conditional set, and shard in each statement.
-func (s *Server) Begin(stmts []*influxql.SelectStatement) (influxql.Tx, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.begin(stmts)
-}
-
-func (s *Server) begin(stmts []*influxql.SelectStatement) (influxql.Tx, error) {
-	// TODO: Require one VarRef field.
-
-	// Create transaction to connect all statements & iterators.
-	tx := &Tx{
-		statements: stmts,
-		iterators:  make([][]influxql.Iterator, len(stmts)),
-	}
-
-	// Create a list of iterators for each statement.
-	for i, stmt := range stmts {
-		itrs, err := s.createIterators(stmt)
-		if err != nil {
-			return nil, err
-		}
-		tx.iterators[i] = itrs
-	}
-
-	return tx, nil
-}
-
-func (s *Server) createIterators(stmt *influxql.SelectStatement) ([]influxql.Iterator, error) {
-	// Find measurement.
-	database := "db" // TEMP: lookup db
-	m, err := s.measurement(database, stmt.Source.(*influxql.Measurement).Name)
-	if err != nil {
-		return nil, err
-	}
-
-	// Normalize dimensions to extract the interval.
-	interval, tagKeys, err := stmt.Dimensions.Normalize()
-	if err != nil {
-		return nil, err
-	}
-	warn(">", interval, tagKeys)
-
-	// Expand condition against all possible tag value sets.
-	tagExprs := m.expandExpr(stmt.Condition)
-	warn("CONDITIONS:", len(conditions))
-
-	// TODO: Create an iterator for each condition and unique set of dimension values.
-
-	// Extract the time range for each reduced conditional.
-	min, max := influxql.TimeRange(stmt.Condition)
-	if !max.IsZero() && max.Before(min) {
-		return nil, fmt.Errorf("invalid time range: %s - %s", min.Format(influxql.DateTimeFormat), max.Format(influxql.DateTimeFormat))
-	}
-
-	panic("TODO")
-}
+// Begin returns an unopened transaction associated with the server.
+func (s *Server) Begin() (influxql.Tx, error) { return newTx(s), nil }
 
 // NormalizeQuery updates all measurements and fields to be fully qualified.
 // Uses db as the default database, where applicable.
@@ -1969,16 +1921,6 @@ func (s *Server) processor(client MessagingClient, done chan struct{}) {
 		}
 		s.mu.Unlock()
 	}
-}
-
-// serverQueryInterface represents a wrapper interface for the query engine to call.
-// It uses non-locking calls since the planning is already under read lock.
-type serverQueryInterface struct {
-	*Server
-}
-
-func (s *serverQueryInterface) CreateIterators(stmt *influxql.SelectStatement) ([]influxql.Iterator, error) {
-	return s.Server.createIterators(stmt)
 }
 
 // Result represents a resultset returned from a single statement.

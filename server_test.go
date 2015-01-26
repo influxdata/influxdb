@@ -880,24 +880,6 @@ func TestServer_NormalizeQuery(t *testing.T) {
 	}
 }
 
-// Ensure the server can retrieve a list of iterators for a simple SELECT statement.
-func TestServer_CreateIterators(t *testing.T) {
-	s := OpenDefaultServer(NewMessagingClient())
-	defer s.Close()
-	s.MustWriteSeries("db", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east", "host": "serverA"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(100)}}})
-
-	// Create a statement to iterate over.
-	stmt := MustParseSelectStatement(`SELECT value FROM cpu WHERE (region = 'us-east' AND value > 10) OR (region = 'us-west' AND value > 20) OR (host = 'serverA' AND value > 90) AND (time >= '2000-01-01' AND time < '2000-01-02') GROUP BY time(1h), region`)
-
-	// Retrieve iterators from server.
-	a, err := s.CreateIterators(stmt)
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if n := len(a); n != 1 {
-		t.Fatalf("iterator count: exp=1, got=%d", n)
-	}
-}
-
 func mustMarshalJSON(v interface{}) string {
 	b, err := json.Marshal(v)
 	if err != nil {
