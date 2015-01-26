@@ -53,7 +53,7 @@ func (c *Client) Query(q Query) (influxdb.Results, error) {
 	values.Set("db", q.Database)
 	u.RawQuery = values.Encode()
 
-	resp, err := c.httpClient.Get(c.url.String())
+	resp, err := c.httpClient.Get(u.String())
 	if err != nil {
 		return nil, err
 	}
