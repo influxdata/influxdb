@@ -99,7 +99,7 @@ func (self *Client) getUrl(path string) string {
 func (self *Client) getUrlWithUserAndPass(path, username, password string) string {
 	uPassword,err := url.QueryUnescape(password)
     if err != nil {
-        return err
+        return "Can't unescape password"
     }
     return fmt.Sprintf("%s://%s%s?u=%s&p=%s", self.schema, self.host, path, username, url.QueryEscape(uPassword))
 }
