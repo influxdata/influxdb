@@ -69,8 +69,8 @@ func (p *Parser) ParseStatement() (Statement, error) {
 		return p.parseSelectStatement(targetNotRequired)
 	case DELETE:
 		return p.parseDeleteStatement()
-	case LIST:
-		return p.parseListStatement()
+	case SHOW:
+		return p.parseShowStatement()
 	case CREATE:
 		return p.parseCreateStatement()
 	case DROP:
@@ -86,43 +86,43 @@ func (p *Parser) ParseStatement() (Statement, error) {
 	}
 }
 
-// parseListStatement parses a string and returns a list statement.
-// This function assumes the LIST token has already been consumed.
-func (p *Parser) parseListStatement() (Statement, error) {
+// parseShowStatement parses a string and returns a list statement.
+// This function assumes the SHOW token has already been consumed.
+func (p *Parser) parseShowStatement() (Statement, error) {
 	tok, pos, lit := p.scanIgnoreWhitespace()
 	switch tok {
 	case CONTINUOUS:
-		return p.parseListContinuousQueriesStatement()
+		return p.parseShowContinuousQueriesStatement()
 	case DATABASES:
-		return p.parseListDatabasesStatement()
+		return p.parseShowDatabasesStatement()
 	case FIELD:
 		tok, pos, lit := p.scanIgnoreWhitespace()
 		if tok == KEYS {
-			return p.parseListFieldKeysStatement()
+			return p.parseShowFieldKeysStatement()
 		} else if tok == VALUES {
-			return p.parseListFieldValuesStatement()
+			return p.parseShowFieldValuesStatement()
 		}
 		return nil, newParseError(tokstr(tok, lit), []string{"KEYS", "VALUES"}, pos)
 	case MEASUREMENTS:
-		return p.parseListMeasurementsStatement()
+		return p.parseShowMeasurementsStatement()
 	case RETENTION:
 		tok, pos, lit := p.scanIgnoreWhitespace()
 		if tok == POLICIES {
-			return p.parseListRetentionPoliciesStatement()
+			return p.parseShowRetentionPoliciesStatement()
 		}
 		return nil, newParseError(tokstr(tok, lit), []string{"POLICIES"}, pos)
 	case SERIES:
-		return p.parseListSeriesStatement()
+		return p.parseShowSeriesStatement()
 	case TAG:
 		tok, pos, lit := p.scanIgnoreWhitespace()
 		if tok == KEYS {
-			return p.parseListTagKeysStatement()
+			return p.parseShowTagKeysStatement()
 		} else if tok == VALUES {
-			return p.parseListTagValuesStatement()
+			return p.parseShowTagValuesStatement()
 		}
 		return nil, newParseError(tokstr(tok, lit), []string{"KEYS", "VALUES"}, pos)
 	case USERS:
-		return p.parseListUsersStatement()
+		return p.parseShowUsersStatement()
 	}
 
 	return nil, newParseError(tokstr(tok, lit), []string{"SERIES", "CONTINUOUS", "MEASUREMENTS", "TAG", "FIELD", "RETENTION"}, pos)
@@ -586,10 +586,10 @@ func (p *Parser) parseDeleteStatement() (*DeleteStatement, error) {
 	return stmt, nil
 }
 
-// parseListSeriesStatement parses a string and returns a ListSeriesStatement.
-// This function assumes the "LIST SERIES" tokens have already been consumed.
-func (p *Parser) parseListSeriesStatement() (*ListSeriesStatement, error) {
-	stmt := &ListSeriesStatement{}
+// parseShowSeriesStatement parses a string and returns a ShowSeriesStatement.
+// This function assumes the "SHOW SERIES" tokens have already been consumed.
+func (p *Parser) parseShowSeriesStatement() (*ShowSeriesStatement, error) {
+	stmt := &ShowSeriesStatement{}
 	var err error
 
 	// Parse condition: "WHERE EXPR".
@@ -615,10 +615,10 @@ func (p *Parser) parseListSeriesStatement() (*ListSeriesStatement, error) {
 	return stmt, nil
 }
 
-// parseListMeasurementsStatement parses a string and returns a ListSeriesStatement.
-// This function assumes the "LIST MEASUREMENTS" tokens have already been consumed.
-func (p *Parser) parseListMeasurementsStatement() (*ListMeasurementsStatement, error) {
-	stmt := &ListMeasurementsStatement{}
+// parseShowMeasurementsStatement parses a string and returns a ShowSeriesStatement.
+// This function assumes the "SHOW MEASUREMENTS" tokens have already been consumed.
+func (p *Parser) parseShowMeasurementsStatement() (*ShowMeasurementsStatement, error) {
+	stmt := &ShowMeasurementsStatement{}
 	var err error
 
 	// Parse condition: "WHERE EXPR".
@@ -644,10 +644,10 @@ func (p *Parser) parseListMeasurementsStatement() (*ListMeasurementsStatement, e
 	return stmt, nil
 }
 
-// parseListRetentionPoliciesStatement parses a string and returns a ListRetentionPoliciesStatement.
-// This function assumes the "LIST RETENTION POLICIES" tokens have been consumed.
-func (p *Parser) parseListRetentionPoliciesStatement() (*ListRetentionPoliciesStatement, error) {
-	stmt := &ListRetentionPoliciesStatement{}
+// parseShowRetentionPoliciesStatement parses a string and returns a ShowRetentionPoliciesStatement.
+// This function assumes the "SHOW RETENTION POLICIES" tokens have been consumed.
+func (p *Parser) parseShowRetentionPoliciesStatement() (*ShowRetentionPoliciesStatement, error) {
+	stmt := &ShowRetentionPoliciesStatement{}
 
 	ident, err := p.parseIdent()
 	if err != nil {
@@ -658,10 +658,10 @@ func (p *Parser) parseListRetentionPoliciesStatement() (*ListRetentionPoliciesSt
 	return stmt, nil
 }
 
-// parseListTagKeysStatement parses a string and returns a ListSeriesStatement.
-// This function assumes the "LIST TAG KEYS" tokens have already been consumed.
-func (p *Parser) parseListTagKeysStatement() (*ListTagKeysStatement, error) {
-	stmt := &ListTagKeysStatement{}
+// parseShowTagKeysStatement parses a string and returns a ShowSeriesStatement.
+// This function assumes the "SHOW TAG KEYS" tokens have already been consumed.
+func (p *Parser) parseShowTagKeysStatement() (*ShowTagKeysStatement, error) {
+	stmt := &ShowTagKeysStatement{}
 	var err error
 
 	// Parse source.
@@ -695,10 +695,10 @@ func (p *Parser) parseListTagKeysStatement() (*ListTagKeysStatement, error) {
 	return stmt, nil
 }
 
-// parseListTagValuesStatement parses a string and returns a ListSeriesStatement.
-// This function assumes the "LIST TAG VALUES" tokens have already been consumed.
-func (p *Parser) parseListTagValuesStatement() (*ListTagValuesStatement, error) {
-	stmt := &ListTagValuesStatement{}
+// parseShowTagValuesStatement parses a string and returns a ShowSeriesStatement.
+// This function assumes the "SHOW TAG VALUES" tokens have already been consumed.
+func (p *Parser) parseShowTagValuesStatement() (*ShowTagValuesStatement, error) {
+	stmt := &ShowTagValuesStatement{}
 	var err error
 
 	// Parse source.
@@ -732,16 +732,16 @@ func (p *Parser) parseListTagValuesStatement() (*ListTagValuesStatement, error) 
 	return stmt, nil
 }
 
-// parseListUsersStatement parses a string and returns a ListUsersStatement.
-// This function assumes the "LIST USERS" tokens have been consumed.
-func (p *Parser) parseListUsersStatement() (*ListUsersStatement, error) {
-	return &ListUsersStatement{}, nil
+// parseShowUsersStatement parses a string and returns a ShowUsersStatement.
+// This function assumes the "SHOW USERS" tokens have been consumed.
+func (p *Parser) parseShowUsersStatement() (*ShowUsersStatement, error) {
+	return &ShowUsersStatement{}, nil
 }
 
-// parseListFieldKeysStatement parses a string and returns a ListSeriesStatement.
-// This function assumes the "LIST FIELD KEYS" tokens have already been consumed.
-func (p *Parser) parseListFieldKeysStatement() (*ListFieldKeysStatement, error) {
-	stmt := &ListFieldKeysStatement{}
+// parseShowFieldKeysStatement parses a string and returns a ShowSeriesStatement.
+// This function assumes the "SHOW FIELD KEYS" tokens have already been consumed.
+func (p *Parser) parseShowFieldKeysStatement() (*ShowFieldKeysStatement, error) {
+	stmt := &ShowFieldKeysStatement{}
 	var err error
 
 	// Parse source.
@@ -775,10 +775,10 @@ func (p *Parser) parseListFieldKeysStatement() (*ListFieldKeysStatement, error) 
 	return stmt, nil
 }
 
-// parseListFieldValuesStatement parses a string and returns a ListSeriesStatement.
-// This function assumes the "LIST FIELD VALUES" tokens have already been consumed.
-func (p *Parser) parseListFieldValuesStatement() (*ListFieldValuesStatement, error) {
-	stmt := &ListFieldValuesStatement{}
+// parseShowFieldValuesStatement parses a string and returns a ShowSeriesStatement.
+// This function assumes the "SHOW FIELD VALUES" tokens have already been consumed.
+func (p *Parser) parseShowFieldValuesStatement() (*ShowFieldValuesStatement, error) {
+	stmt := &ShowFieldValuesStatement{}
 	var err error
 
 	// Parse source.
@@ -827,10 +827,10 @@ func (p *Parser) parseDropSeriesStatement() (*DropSeriesStatement, error) {
 	return stmt, nil
 }
 
-// parseListContinuousQueriesStatement parses a string and returns a ListContinuousQueriesStatement.
-// This function assumes the "LIST CONTINUOUS" tokens have already been consumed.
-func (p *Parser) parseListContinuousQueriesStatement() (*ListContinuousQueriesStatement, error) {
-	stmt := &ListContinuousQueriesStatement{}
+// parseShowContinuousQueriesStatement parses a string and returns a ShowContinuousQueriesStatement.
+// This function assumes the "SHOW CONTINUOUS" tokens have already been consumed.
+func (p *Parser) parseShowContinuousQueriesStatement() (*ShowContinuousQueriesStatement, error) {
+	stmt := &ShowContinuousQueriesStatement{}
 
 	// Expect a "QUERIES" token.
 	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != QUERIES {
@@ -840,10 +840,10 @@ func (p *Parser) parseListContinuousQueriesStatement() (*ListContinuousQueriesSt
 	return stmt, nil
 }
 
-// parseListDatabasesStatement parses a string and returns a ListDatabasesStatement.
-// This function assumes the "LIST DATABASE" tokens have already been consumed.
-func (p *Parser) parseListDatabasesStatement() (*ListDatabasesStatement, error) {
-	stmt := &ListDatabasesStatement{}
+// parseShowDatabasesStatement parses a string and returns a ShowDatabasesStatement.
+// This function assumes the "SHOW DATABASE" tokens have already been consumed.
+func (p *Parser) parseShowDatabasesStatement() (*ShowDatabasesStatement, error) {
+	stmt := &ShowDatabasesStatement{}
 	return stmt, nil
 }
 

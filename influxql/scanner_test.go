@@ -126,7 +126,7 @@ func TestScanner_Scan(t *testing.T) {
 		{s: `INTO`, tok: influxql.INTO},
 		{s: `KEYS`, tok: influxql.KEYS},
 		{s: `LIMIT`, tok: influxql.LIMIT},
-		{s: `LIST`, tok: influxql.LIST},
+		{s: `SHOW`, tok: influxql.SHOW},
 		{s: `MEASUREMENT`, tok: influxql.MEASUREMENT},
 		{s: `MEASUREMENTS`, tok: influxql.MEASUREMENTS},
 		{s: `OFFSET`, tok: influxql.OFFSET},
