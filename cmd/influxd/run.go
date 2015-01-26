@@ -225,11 +225,17 @@ func openServer(path string, u *url.URL, b *messaging.Broker, initializing, conf
 			openServerClient(s, joinURLs)
 		}
 	} else if !configExists {
-		// We are spining up an server that has no config,
+		// We are spining up a server that has no config,
 		// but already has an initialized data directory
 		joinURLs = []*url.URL{b.URL()}
 		openServerClient(s, joinURLs)
 	} else {
+		if len(joinURLs) == 0 {
+			//This is the first broker, so it always spins up a client to itself for now
+			// TODO corylanou: when we have roles enabled, this will have to change as you can
+			// spin up a broker without a client
+			joinURLs = []*url.URL{b.URL()}
+		}
 		openServerClient(s, joinURLs)
 	}
 
