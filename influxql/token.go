@@ -79,9 +79,10 @@ const (
 	INTO
 	KEYS
 	LIMIT
-	LIST
+	SHOW
 	MEASUREMENT
 	MEASUREMENTS
+	OFFSET
 	ON
 	ORDER
 	PASSWORD
@@ -168,9 +169,10 @@ var tokens = [...]string{
 	INTO:         "INTO",
 	KEYS:         "KEYS",
 	LIMIT:        "LIMIT",
-	LIST:         "LIST",
+	SHOW:         "SHOW",
 	MEASUREMENT:  "MEASUREMENT",
 	MEASUREMENTS: "MEASUREMENTS",
+	OFFSET:       "OFFSET",
 	ON:           "ON",
 	ORDER:        "ORDER",
 	PASSWORD:     "PASSWORD",

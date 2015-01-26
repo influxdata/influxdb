@@ -59,16 +59,16 @@ func (_ *DropRetentionPolicyStatement) node()   {}
 func (_ *DropSeriesStatement) node()            {}
 func (_ *DropUserStatement) node()              {}
 func (_ *GrantStatement) node()                 {}
-func (_ *ListContinuousQueriesStatement) node() {}
-func (_ *ListDatabasesStatement) node()         {}
-func (_ *ListFieldKeysStatement) node()         {}
-func (_ *ListFieldValuesStatement) node()       {}
-func (_ *ListRetentionPoliciesStatement) node() {}
-func (_ *ListMeasurementsStatement) node()      {}
-func (_ *ListSeriesStatement) node()            {}
-func (_ *ListTagKeysStatement) node()           {}
-func (_ *ListTagValuesStatement) node()         {}
-func (_ *ListUsersStatement) node()             {}
+func (_ *ShowContinuousQueriesStatement) node() {}
+func (_ *ShowDatabasesStatement) node()         {}
+func (_ *ShowFieldKeysStatement) node()         {}
+func (_ *ShowFieldValuesStatement) node()       {}
+func (_ *ShowRetentionPoliciesStatement) node() {}
+func (_ *ShowMeasurementsStatement) node()      {}
+func (_ *ShowSeriesStatement) node()            {}
+func (_ *ShowTagKeysStatement) node()           {}
+func (_ *ShowTagValuesStatement) node()         {}
+func (_ *ShowUsersStatement) node()             {}
 func (_ *RevokeStatement) node()                {}
 func (_ *SelectStatement) node()                {}
 
@@ -147,16 +147,16 @@ func (_ *DropRetentionPolicyStatement) stmt()   {}
 func (_ *DropSeriesStatement) stmt()            {}
 func (_ *DropUserStatement) stmt()              {}
 func (_ *GrantStatement) stmt()                 {}
-func (_ *ListContinuousQueriesStatement) stmt() {}
-func (_ *ListDatabasesStatement) stmt()         {}
-func (_ *ListFieldKeysStatement) stmt()         {}
-func (_ *ListFieldValuesStatement) stmt()       {}
-func (_ *ListMeasurementsStatement) stmt()      {}
-func (_ *ListRetentionPoliciesStatement) stmt() {}
-func (_ *ListSeriesStatement) stmt()            {}
-func (_ *ListTagKeysStatement) stmt()           {}
-func (_ *ListTagValuesStatement) stmt()         {}
-func (_ *ListUsersStatement) stmt()             {}
+func (_ *ShowContinuousQueriesStatement) stmt() {}
+func (_ *ShowDatabasesStatement) stmt()         {}
+func (_ *ShowFieldKeysStatement) stmt()         {}
+func (_ *ShowFieldValuesStatement) stmt()       {}
+func (_ *ShowMeasurementsStatement) stmt()      {}
+func (_ *ShowRetentionPoliciesStatement) stmt() {}
+func (_ *ShowSeriesStatement) stmt()            {}
+func (_ *ShowTagKeysStatement) stmt()           {}
+func (_ *ShowTagValuesStatement) stmt()         {}
+func (_ *ShowUsersStatement) stmt()             {}
 func (_ *RevokeStatement) stmt()                {}
 func (_ *SelectStatement) stmt()                {}
 
@@ -532,6 +532,9 @@ type SelectStatement struct {
 	// Maximum number of rows to be returned.
 	// Unlimited if zero.
 	Limit int
+
+	// Returns rows starting at an offset from the first row.
+	Offset int
 }
 
 // String returns a string representation of the select statement.
@@ -560,6 +563,10 @@ func (s *SelectStatement) String() string {
 	}
 	if s.Limit > 0 {
 		_, _ = fmt.Fprintf(&buf, " LIMIT %d", s.Limit)
+	}
+	if s.Offset > 0 {
+		_, _ = buf.WriteString(" OFFSET ")
+		_, _ = buf.WriteString(strconv.Itoa(s.Offset))
 	}
 	return buf.String()
 }
@@ -762,8 +769,8 @@ func (s *DeleteStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Name: "", Privilege: WritePrivilege}}
 }
 
-// ListSeriesStatement represents a command for listing series in the database.
-type ListSeriesStatement struct {
+// ShowSeriesStatement represents a command for listing series in the database.
+type ShowSeriesStatement struct {
 	// An expression evaluated on a series name or tag.
 	Condition Expr
 
@@ -773,12 +780,15 @@ type ListSeriesStatement struct {
 	// Maximum number of rows to be returned.
 	// Unlimited if zero.
 	Limit int
+
+	// Returns rows starting at an offset from the first row.
+	Offset int
 }
 
 // String returns a string representation of the list series statement.
-func (s *ListSeriesStatement) String() string {
+func (s *ShowSeriesStatement) String() string {
 	var buf bytes.Buffer
-	_, _ = buf.WriteString("LIST SERIES")
+	_, _ = buf.WriteString("SHOW SERIES")
 
 	if s.Condition != nil {
 		_, _ = buf.WriteString(" WHERE ")
@@ -792,11 +802,15 @@ func (s *ListSeriesStatement) String() string {
 		_, _ = buf.WriteString(" LIMIT ")
 		_, _ = buf.WriteString(strconv.Itoa(s.Limit))
 	}
+	if s.Offset > 0 {
+		_, _ = buf.WriteString(" OFFSET ")
+		_, _ = buf.WriteString(strconv.Itoa(s.Offset))
+	}
 	return buf.String()
 }
 
-// RequiredPrivilege returns the privilege required to execute a ListSeriesStatement.
-func (s *ListSeriesStatement) RequiredPrivileges() ExecutionPrivileges {
+// RequiredPrivilege returns the privilege required to execute a ShowSeriesStatement.
+func (s *ShowSeriesStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Name: "", Privilege: ReadPrivilege}}
 }
 
@@ -813,25 +827,25 @@ func (s DropSeriesStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Name: "", Privilege: WritePrivilege}}
 }
 
-// ListContinuousQueriesStatement represents a command for listing continuous queries.
-type ListContinuousQueriesStatement struct{}
+// ShowContinuousQueriesStatement represents a command for listing continuous queries.
+type ShowContinuousQueriesStatement struct{}
 
 // String returns a string representation of the list continuous queries statement.
-func (s *ListContinuousQueriesStatement) String() string { return "LIST CONTINUOUS QUERIES" }
+func (s *ShowContinuousQueriesStatement) String() string { return "SHOW CONTINUOUS QUERIES" }
 
-// RequiredPrivilege returns the privilege required to execute a ListContinuousQueriesStatement.
-func (s *ListContinuousQueriesStatement) RequiredPrivileges() ExecutionPrivileges {
+// RequiredPrivilege returns the privilege required to execute a ShowContinuousQueriesStatement.
+func (s *ShowContinuousQueriesStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Name: "", Privilege: ReadPrivilege}}
 }
 
-// ListDatabasesStatement represents a command for listing all databases in the cluster.
-type ListDatabasesStatement struct{}
+// ShowDatabasesStatement represents a command for listing all databases in the cluster.
+type ShowDatabasesStatement struct{}
 
 // String returns a string representation of the list databases command.
-func (s *ListDatabasesStatement) String() string { return "LIST DATABASES" }
+func (s *ShowDatabasesStatement) String() string { return "SHOW DATABASES" }
 
-// RequiredPrivilege returns the privilege required to execute a ListDatabasesStatement
-func (s *ListDatabasesStatement) RequiredPrivileges() ExecutionPrivileges {
+// RequiredPrivilege returns the privilege required to execute a ShowDatabasesStatement
+func (s *ShowDatabasesStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
 }
 
@@ -887,8 +901,8 @@ func (s *DropContinuousQueryStatement) RequiredPrivileges() ExecutionPrivileges 
 	return ExecutionPrivileges{{Name: "", Privilege: WritePrivilege}}
 }
 
-// ListMeasurementsStatement represents a command for listing measurements.
-type ListMeasurementsStatement struct {
+// ShowMeasurementsStatement represents a command for listing measurements.
+type ShowMeasurementsStatement struct {
 	// An expression evaluated on data point.
 	Condition Expr
 
@@ -898,12 +912,15 @@ type ListMeasurementsStatement struct {
 	// Maximum number of rows to be returned.
 	// Unlimited if zero.
 	Limit int
+
+	// Returns rows starting at an offset from the first row.
+	Offset int
 }
 
 // String returns a string representation of the statement.
-func (s *ListMeasurementsStatement) String() string {
+func (s *ShowMeasurementsStatement) String() string {
 	var buf bytes.Buffer
-	_, _ = buf.WriteString("LIST MEASUREMENTS")
+	_, _ = buf.WriteString("SHOW MEASUREMENTS")
 
 	if s.Condition != nil {
 		_, _ = buf.WriteString(" WHERE ")
@@ -917,35 +934,39 @@ func (s *ListMeasurementsStatement) String() string {
 		_, _ = buf.WriteString(" LIMIT ")
 		_, _ = buf.WriteString(strconv.Itoa(s.Limit))
 	}
+	if s.Offset > 0 {
+		_, _ = buf.WriteString(" OFFSET ")
+		_, _ = buf.WriteString(strconv.Itoa(s.Offset))
+	}
 	return buf.String()
 }
 
-// RequiredPrivileges returns the privilege(s) required to execute a ListMeasurementsStatement
-func (s *ListMeasurementsStatement) RequiredPrivileges() ExecutionPrivileges {
+// RequiredPrivileges returns the privilege(s) required to execute a ShowMeasurementsStatement
+func (s *ShowMeasurementsStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Name: "", Privilege: ReadPrivilege}}
 }
 
-// ListRetentionPoliciesStatement represents a command for listing retention policies.
-type ListRetentionPoliciesStatement struct {
+// ShowRetentionPoliciesStatement represents a command for listing retention policies.
+type ShowRetentionPoliciesStatement struct {
 	// Name of the database to list policies for.
 	Database string
 }
 
-// String returns a string representation of a ListRetentionPoliciesStatement.
-func (s *ListRetentionPoliciesStatement) String() string {
+// String returns a string representation of a ShowRetentionPoliciesStatement.
+func (s *ShowRetentionPoliciesStatement) String() string {
 	var buf bytes.Buffer
-	_, _ = buf.WriteString("LIST RETENTION POLICIES ")
+	_, _ = buf.WriteString("SHOW RETENTION POLICIES ")
 	_, _ = buf.WriteString(s.Database)
 	return buf.String()
 }
 
-// RequiredPrivileges returns the privilege(s) required to execute a ListRetentionPoliciesStatement
-func (s *ListRetentionPoliciesStatement) RequiredPrivileges() ExecutionPrivileges {
+// RequiredPrivileges returns the privilege(s) required to execute a ShowRetentionPoliciesStatement
+func (s *ShowRetentionPoliciesStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Name: "", Privilege: ReadPrivilege}}
 }
 
-// ListTagKeysStatement represents a command for listing tag keys.
-type ListTagKeysStatement struct {
+// ShowTagKeysStatement represents a command for listing tag keys.
+type ShowTagKeysStatement struct {
 	// Data source that fields are extracted from.
 	Source Source
 
@@ -958,12 +979,15 @@ type ListTagKeysStatement struct {
 	// Maximum number of rows to be returned.
 	// Unlimited if zero.
 	Limit int
+
+	// Returns rows starting at an offset from the first row.
+	Offset int
 }
 
 // String returns a string representation of the statement.
-func (s *ListTagKeysStatement) String() string {
+func (s *ShowTagKeysStatement) String() string {
 	var buf bytes.Buffer
-	_, _ = buf.WriteString("LIST TAG KEYS")
+	_, _ = buf.WriteString("SHOW TAG KEYS")
 
 	if s.Source != nil {
 		_, _ = buf.WriteString(" FROM ")
@@ -981,16 +1005,20 @@ func (s *ListTagKeysStatement) String() string {
 		_, _ = buf.WriteString(" LIMIT ")
 		_, _ = buf.WriteString(strconv.Itoa(s.Limit))
 	}
+	if s.Offset > 0 {
+		_, _ = buf.WriteString(" OFFSET ")
+		_, _ = buf.WriteString(strconv.Itoa(s.Offset))
+	}
 	return buf.String()
 }
 
-// RequiredPrivileges returns the privilege(s) required to execute a ListTagKeysStatement
-func (s *ListTagKeysStatement) RequiredPrivileges() ExecutionPrivileges {
+// RequiredPrivileges returns the privilege(s) required to execute a ShowTagKeysStatement
+func (s *ShowTagKeysStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Name: "", Privilege: ReadPrivilege}}
 }
 
-// ListTagValuesStatement represents a command for listing tag values.
-type ListTagValuesStatement struct {
+// ShowTagValuesStatement represents a command for listing tag values.
+type ShowTagValuesStatement struct {
 	// Data source that fields are extracted from.
 	Source Source
 
@@ -1003,12 +1031,15 @@ type ListTagValuesStatement struct {
 	// Maximum number of rows to be returned.
 	// Unlimited if zero.
 	Limit int
+
+	// Returns rows starting at an offset from the first row.
+	Offset int
 }
 
 // String returns a string representation of the statement.
-func (s *ListTagValuesStatement) String() string {
+func (s *ShowTagValuesStatement) String() string {
 	var buf bytes.Buffer
-	_, _ = buf.WriteString("LIST TAG VALUES")
+	_, _ = buf.WriteString("SHOW TAG VALUES")
 
 	if s.Source != nil {
 		_, _ = buf.WriteString(" FROM ")
@@ -1026,29 +1057,33 @@ func (s *ListTagValuesStatement) String() string {
 		_, _ = buf.WriteString(" LIMIT ")
 		_, _ = buf.WriteString(strconv.Itoa(s.Limit))
 	}
+	if s.Offset > 0 {
+		_, _ = buf.WriteString(" OFFSET ")
+		_, _ = buf.WriteString(strconv.Itoa(s.Offset))
+	}
 	return buf.String()
 }
 
-// RequiredPrivileges returns the privilege(s) required to execute a ListTagValuesStatement
-func (s *ListTagValuesStatement) RequiredPrivileges() ExecutionPrivileges {
+// RequiredPrivileges returns the privilege(s) required to execute a ShowTagValuesStatement
+func (s *ShowTagValuesStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Name: "", Privilege: ReadPrivilege}}
 }
 
-// ListUsersStatement represents a command for listing users.
-type ListUsersStatement struct{}
+// ShowUsersStatement represents a command for listing users.
+type ShowUsersStatement struct{}
 
-// String retuns a string representation of the ListUsersStatement.
-func (s *ListUsersStatement) String() string {
-	return "LIST USERS"
+// String retuns a string representation of the ShowUsersStatement.
+func (s *ShowUsersStatement) String() string {
+	return "SHOW USERS"
 }
 
-// RequiredPrivileges returns the privilege(s) required to execute a ListUsersStatement
-func (s *ListUsersStatement) RequiredPrivileges() ExecutionPrivileges {
+// RequiredPrivileges returns the privilege(s) required to execute a ShowUsersStatement
+func (s *ShowUsersStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
 }
 
-// ListFieldKeyStatement represents a command for listing field keys.
-type ListFieldKeysStatement struct {
+// ShowFieldKeyStatement represents a command for listing field keys.
+type ShowFieldKeysStatement struct {
 	// Data source that fields are extracted from.
 	Source Source
 
@@ -1061,12 +1096,15 @@ type ListFieldKeysStatement struct {
 	// Maximum number of rows to be returned.
 	// Unlimited if zero.
 	Limit int
+
+	// Returns rows starting at an offset from the first row.
+	Offset int
 }
 
 // String returns a string representation of the statement.
-func (s *ListFieldKeysStatement) String() string {
+func (s *ShowFieldKeysStatement) String() string {
 	var buf bytes.Buffer
-	_, _ = buf.WriteString("LIST FIELD KEYS")
+	_, _ = buf.WriteString("SHOW FIELD KEYS")
 
 	if s.Source != nil {
 		_, _ = buf.WriteString(" FROM ")
@@ -1084,16 +1122,20 @@ func (s *ListFieldKeysStatement) String() string {
 		_, _ = buf.WriteString(" LIMIT ")
 		_, _ = buf.WriteString(strconv.Itoa(s.Limit))
 	}
+	if s.Offset > 0 {
+		_, _ = buf.WriteString(" OFFSET ")
+		_, _ = buf.WriteString(strconv.Itoa(s.Offset))
+	}
 	return buf.String()
 }
 
-// RequiredPrivileges returns the privilege(s) required to execute a ListFieldKeysStatement
-func (s *ListFieldKeysStatement) RequiredPrivileges() ExecutionPrivileges {
+// RequiredPrivileges returns the privilege(s) required to execute a ShowFieldKeysStatement
+func (s *ShowFieldKeysStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Name: "", Privilege: ReadPrivilege}}
 }
 
-// ListFieldValuesStatement represents a command for listing field values.
-type ListFieldValuesStatement struct {
+// ShowFieldValuesStatement represents a command for listing field values.
+type ShowFieldValuesStatement struct {
 	// Data source that fields are extracted from.
 	Source Source
 
@@ -1106,12 +1148,15 @@ type ListFieldValuesStatement struct {
 	// Maximum number of rows to be returned.
 	// Unlimited if zero.
 	Limit int
+
+	// Returns rows starting at an offset from the first row.
+	Offset int
 }
 
 // String returns a string representation of the statement.
-func (s *ListFieldValuesStatement) String() string {
+func (s *ShowFieldValuesStatement) String() string {
 	var buf bytes.Buffer
-	_, _ = buf.WriteString("LIST FIELD VALUES")
+	_, _ = buf.WriteString("SHOW FIELD VALUES")
 
 	if s.Source != nil {
 		_, _ = buf.WriteString(" FROM ")
@@ -1129,11 +1174,15 @@ func (s *ListFieldValuesStatement) String() string {
 		_, _ = buf.WriteString(" LIMIT ")
 		_, _ = buf.WriteString(strconv.Itoa(s.Limit))
 	}
+	if s.Offset > 0 {
+		_, _ = buf.WriteString(" OFFSET ")
+		_, _ = buf.WriteString(strconv.Itoa(s.Offset))
+	}
 	return buf.String()
 }
 
-// RequiredPrivileges returns the privilege(s) required to execute a ListFieldValuesStatement
-func (s *ListFieldValuesStatement) RequiredPrivileges() ExecutionPrivileges {
+// RequiredPrivileges returns the privilege(s) required to execute a ShowFieldValuesStatement
+func (s *ShowFieldValuesStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Name: "", Privilege: ReadPrivilege}}
 }
 

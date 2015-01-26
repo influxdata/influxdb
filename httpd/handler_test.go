@@ -27,7 +27,7 @@ func TestHandler_Databases(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "LIST DATABASES"}, nil, "")
+	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "SHOW DATABASES"}, nil, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `[{"rows":[{"columns":["Name"],"values":[["bar"],["foo"]]}]}]` {
@@ -42,7 +42,7 @@ func TestHandler_DatabasesPrettyPrinted(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "LIST DATABASES", "pretty": "true"}, nil, "")
+	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "SHOW DATABASES", "pretty": "true"}, nil, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `[
@@ -140,7 +140,7 @@ func TestHandler_RetentionPolicies(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "LIST RETENTION POLICIES foo"}, nil, "")
+	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "SHOW RETENTION POLICIES foo"}, nil, "")
 
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
@@ -154,7 +154,7 @@ func TestHandler_RetentionPolicies_DatabaseNotFound(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "LIST RETENTION POLICIES foo"}, nil, "")
+	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "SHOW RETENTION POLICIES foo"}, nil, "")
 
 	if status != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: %d", status)
@@ -644,7 +644,7 @@ func TestHandler_AuthenticatedDatabases_Unauthorized(t *testing.T) {
 	s := NewAuthenticatedHTTPServer(srvr)
 	defer s.Close()
 
-	status, _ := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "LIST DATABASES"}, nil, "")
+	status, _ := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "SHOW DATABASES"}, nil, "")
 	if status != http.StatusUnauthorized {
 		t.Fatalf("unexpected status: %d", status)
 	}
@@ -656,7 +656,7 @@ func TestHandler_AuthenticatedDatabases_AuthorizedQueryParams(t *testing.T) {
 	s := NewAuthenticatedHTTPServer(srvr)
 	defer s.Close()
 
-	query := map[string]string{"q": "LIST DATABASES", "u": "lisa", "p": "password"}
+	query := map[string]string{"q": "SHOW DATABASES", "u": "lisa", "p": "password"}
 	status, _ := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
@@ -669,7 +669,7 @@ func TestHandler_AuthenticatedDatabases_UnauthorizedQueryParams(t *testing.T) {
 	s := NewAuthenticatedHTTPServer(srvr)
 	defer s.Close()
 
-	query := map[string]string{"q": "LIST DATABASES", "u": "lisa", "p": "wrong"}
+	query := map[string]string{"q": "SHOW DATABASES", "u": "lisa", "p": "wrong"}
 	status, _ := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusUnauthorized {
 		t.Fatalf("unexpected status: %d", status)
@@ -684,7 +684,7 @@ func TestHandler_AuthenticatedDatabases_AuthorizedBasicAuth(t *testing.T) {
 
 	auth := make(map[string]string)
 	auth["Authorization"] = "Basic " + base64.StdEncoding.EncodeToString([]byte("lisa:password"))
-	query := map[string]string{"q": "LIST DATABASES"}
+	query := map[string]string{"q": "SHOW DATABASES"}
 	status, _ := MustHTTP("GET", s.URL+`/query`, query, auth, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
@@ -699,7 +699,7 @@ func TestHandler_AuthenticatedDatabases_UnauthorizedBasicAuth(t *testing.T) {
 
 	auth := make(map[string]string)
 	auth["Authorization"] = "Basic " + base64.StdEncoding.EncodeToString([]byte("lisa:wrong"))
-	query := map[string]string{"q": "LIST DATABASES"}
+	query := map[string]string{"q": "SHOW DATABASES"}
 	status, _ := MustHTTP("GET", s.URL+`/query`, query, auth, "")
 	if status != http.StatusUnauthorized {
 		t.Fatalf("unexpected status: %d", status)

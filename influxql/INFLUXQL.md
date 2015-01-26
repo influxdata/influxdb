@@ -59,16 +59,15 @@ quoted_identifier   = `"` unicode_char { unicode_char } `"` .
 ## Keywords
 
 ```
-ALL        ALTER    AS          ASC          BEGIN
-BY         CREATE   CONTINUOUS  DATABASE     DEFAULT
-DELETE     DESC     DROP        DURATION     END
-EXISTS     EXPLAIN  FIELD       FROM         GRANT
-GROUP      IF       INNER       INSERT       INTO
-KEYS       LIMIT    LIST        MEASUREMENT  MEASUREMENTS
-ON         ORDER    PASSWORD    POLICY       PRIVILEGES
-QUERIES    QUERY    READ        REPLICATION  RETENTION
-EVOKE      SELECT   SERIES      TAG          TO
-USER       VALUES   WHERE       WITH         WRITE
+ALL          ALTER        AS           ASC          BEGIN        BY
+CREATE       CONTINUOUS   DATABASE     DATABASES    DEFAULT      DELETE
+DESC         DROP         DURATION     END          EXISTS       EXPLAIN
+FIELD        FROM         GRANT        GROUP        IF           INNER
+INSERT       INTO         KEYS         LIMIT        SHOW         MEASUREMENT
+MEASUREMENTS OFFSET       ON           ORDER        PASSWORD     POLICY
+POLICIES     PRIVILEGES   QUERIES      QUERY        READ         REPLICATION
+RETENTION    REVOKE       SELECT       SERIES       TAG          TO
+USER         USERS        VALUES       WHERE        WITH         WRITE
 ```
 
 ## Literals
@@ -114,16 +113,16 @@ statement           = alter_retention_policy_stmt |
                       drop_series_stmt |
                       drop_user_stmt |
                       grant_stmt |
-                      list_continuous_queries_stmt |
-                      list_databases_stmt |
-                      list_field_key_stmt |
-                      list_field_value_stmt |
-                      list_measurements_stmt |
-                      list_retention_policies |
-                      list_series_stmt |
-                      list_tag_key_stmt |
-                      list_tag_value_stmt |
-                      list_users_stmt |
+                      show_continuous_queries_stmt |
+                      show_databases_stmt |
+                      show_field_key_stmt |
+                      show_field_value_stmt |
+                      show_measurements_stmt |
+                      show_retention_policies |
+                      show_series_stmt |
+                      show_tag_key_stmt |
+                      show_tag_value_stmt |
+                      show_users_stmt |
                       revoke_stmt |
                       select_stmt .
 ```
@@ -282,43 +281,43 @@ GRANT ALL TO jdoe;
 GRANT READ ON mydb TO jdoe;
 ```
 
-### LIST DATABASES
+### SHOW DATABASES
 
 ```
-list_databases_stmt = "LIST DATABASES" .
-```
-
-#### Example:
-
-```sql
--- list all databases
-LIST DATABASES;
-```
-
-### LIST RETENTION POLICIES
-
-```
-list_retention_policies = "LIST RETENTION POLICIES" db_name .
+show_databases_stmt = "SHOW DATABASES" .
 ```
 
 #### Example:
 
 ```sql
--- list all retention policies on a database
-LIST RETENTION POLICIES mydb;
+-- show all databases
+SHOW DATABASES;
 ```
 
-### LIST USERS
+### SHOW RETENTION POLICIES
 
 ```
-list_users_stmt = "LIST USERES" .
+show_retention_policies = "SHOW RETENTION POLICIES" db_name .
 ```
 
 #### Example:
 
 ```sql
--- list all users
-LIST USERS;
+-- show all retention policies on a database
+SHOW RETENTION POLICIES mydb;
+```
+
+### SHOW USERS
+
+```
+show_users_stmt = "SHOW USERS" .
+```
+
+#### Example:
+
+```sql
+-- show all users
+SHOW USERS;
 ```
 
 ## Clauses
