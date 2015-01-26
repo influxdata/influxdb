@@ -156,6 +156,8 @@ func (p *Planner) planCall(e *Executor, c *Call) (Processor, error) {
 		mapFn, reduceFn = MapCount, ReduceSum
 	case "sum":
 		mapFn, reduceFn = MapSum, ReduceSum
+	case "mean":
+		mapFn, reduceFn = MapMean, ReduceMean
 	default:
 		return nil, fmt.Errorf("function not found: %q", c.Name)
 	}
@@ -600,6 +602,33 @@ func ReduceSum(key Key, values []interface{}, e *Emitter) {
 		n += v.(float64)
 	}
 	e.Emit(key, n)
+}
+
+// MapMean computes the count and sum of values in an iterator to be combined by the reducer.
+func MapMean(itr Iterator, e *Emitter, tmin int64) {
+	out := &meanMapOutput{}
+
+	for k, v := itr.Next(); k != 0; k, v = itr.Next() {
+		out.Count++
+		out.Sum += v.(float64)
+	}
+	e.Emit(Key{tmin, itr.Tags()}, out)
+}
+
+type meanMapOutput struct {
+	Count int
+	Sum   float64
+}
+
+// ReduceMean computes the mean of values for each key.
+func ReduceMean(key Key, values []interface{}, e *Emitter) {
+	out := &meanMapOutput{}
+	for _, v := range values {
+		val := v.(*meanMapOutput)
+		out.Count += val.Count
+		out.Sum += val.Sum
+	}
+	e.Emit(key, out.Sum/float64(out.Count))
 }
 
 // binaryExprEvaluator represents a processor for combining two processors.
