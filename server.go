@@ -339,6 +339,13 @@ func (s *Server) Initialize(u *url.URL) error {
 	return nil
 }
 
+// This is the same struct we use in the httpd package, but
+// it seems overkill to export it and share it
+type dataNodeJSON struct {
+	ID  uint64 `json:"id"`
+	URL string `json:"url"`
+}
+
 // Join creates a new data node in an existing cluster, copies the metastore,
 // and initializes the ID.
 func (s *Server) Join(u *url.URL, joinURL *url.URL) error {
@@ -804,6 +811,13 @@ func (s *Server) Users() (a []*User) {
 	return a
 }
 
+// UserCount returns the number of users.
+func (s *Server) UserCount() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.users)
+}
+
 // AdminUserExists returns whether at least 1 admin-level user exists.
 func (s *Server) AdminUserExists() bool {
 	for _, u := range s.users {
@@ -821,11 +835,11 @@ func (s *Server) Authenticate(username, password string) (*User, error) {
 	defer s.mu.Unlock()
 	u := s.users[username]
 	if u == nil {
-		return nil, fmt.Errorf("user not found")
+		return nil, fmt.Errorf("invalid username or password")
 	}
 	err := u.Authenticate(password)
 	if err != nil {
-		return nil, fmt.Errorf("invalid credentials")
+		return nil, fmt.Errorf("invalid username or password")
 	}
 	return u, nil
 }
@@ -859,9 +873,10 @@ func (s *Server) applyCreateUser(m *messaging.Message) (err error) {
 
 	// Create the user.
 	u := &User{
-		Name:  c.Username,
-		Hash:  string(hash),
-		Admin: c.Admin,
+		Name:       c.Username,
+		Hash:       string(hash),
+		Privileges: make(map[string]influxql.Privilege),
+		Admin:      c.Admin,
 	}
 
 	// Persist to metastore.
@@ -1508,6 +1523,13 @@ func (s *Server) ReadSeries(database, retentionPolicy, name string, tags map[str
 // Returns a resultset for each statement in the query.
 // Stops on first execution error that occurs.
 func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Results {
+	// Authorize user to execute the query.
+	if err := Authorize(user, q, database); err != nil {
+		return Results{
+			{Err: err},
+		}
+	}
+
 	// Build empty resultsets.
 	results := make(Results, len(q.Statements))
 
@@ -1521,25 +1543,25 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 			res = s.executeCreateDatabaseStatement(stmt, user)
 		case *influxql.DropDatabaseStatement:
 			res = s.executeDropDatabaseStatement(stmt, user)
-		case *influxql.ListDatabasesStatement:
-			res = s.executeListDatabasesStatement(stmt, user)
+		case *influxql.ShowDatabasesStatement:
+			res = s.executeShowDatabasesStatement(stmt, user)
 		case *influxql.CreateUserStatement:
 			res = s.executeCreateUserStatement(stmt, user)
 		case *influxql.DropUserStatement:
 			res = s.executeDropUserStatement(stmt, user)
 		case *influxql.DropSeriesStatement:
 			continue
-		case *influxql.ListSeriesStatement:
+		case *influxql.ShowSeriesStatement:
 			continue
-		case *influxql.ListMeasurementsStatement:
+		case *influxql.ShowMeasurementsStatement:
 			continue
-		case *influxql.ListTagKeysStatement:
+		case *influxql.ShowTagKeysStatement:
 			continue
-		case *influxql.ListTagValuesStatement:
+		case *influxql.ShowTagValuesStatement:
 			continue
-		case *influxql.ListFieldKeysStatement:
+		case *influxql.ShowFieldKeysStatement:
 			continue
-		case *influxql.ListFieldValuesStatement:
+		case *influxql.ShowFieldValuesStatement:
 			continue
 		case *influxql.GrantStatement:
 			continue
@@ -1551,13 +1573,13 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 			res = s.executeAlterRetentionPolicyStatement(stmt, user)
 		case *influxql.DropRetentionPolicyStatement:
 			res = s.executeDropRetentionPolicyStatement(stmt, user)
-		case *influxql.ListRetentionPoliciesStatement:
-			res = s.executeListRetentionPoliciesStatement(stmt, user)
+		case *influxql.ShowRetentionPoliciesStatement:
+			res = s.executeShowRetentionPoliciesStatement(stmt, user)
 		case *influxql.CreateContinuousQueryStatement:
 			continue
 		case *influxql.DropContinuousQueryStatement:
 			continue
-		case *influxql.ListContinuousQueriesStatement:
+		case *influxql.ShowContinuousQueriesStatement:
 			continue
 		default:
 			panic(fmt.Sprintf("unsupported statement type: %T", stmt))
@@ -1627,7 +1649,7 @@ func (s *Server) executeDropDatabaseStatement(q *influxql.DropDatabaseStatement,
 	return &Result{Err: s.DeleteDatabase(q.Name)}
 }
 
-func (s *Server) executeListDatabasesStatement(q *influxql.ListDatabasesStatement, user *User) *Result {
+func (s *Server) executeShowDatabasesStatement(q *influxql.ShowDatabasesStatement, user *User) *Result {
 	row := &influxql.Row{Columns: []string{"Name"}}
 	for _, name := range s.Databases() {
 		row.Values = append(row.Values, []interface{}{name})
@@ -1669,7 +1691,7 @@ func (s *Server) executeDropRetentionPolicyStatement(q *influxql.DropRetentionPo
 	return &Result{Err: s.DeleteRetentionPolicy(q.Database, q.Name)}
 }
 
-func (s *Server) executeListRetentionPoliciesStatement(q *influxql.ListRetentionPoliciesStatement, user *User) *Result {
+func (s *Server) executeShowRetentionPoliciesStatement(q *influxql.ShowRetentionPoliciesStatement, user *User) *Result {
 	a, err := s.RetentionPolicies(q.Database)
 	if err != nil {
 		return &Result{Err: err}
@@ -1966,6 +1988,48 @@ func (p dataNodes) Len() int           { return len(p) }
 func (p dataNodes) Less(i, j int) bool { return p[i].ID < p[j].ID }
 func (p dataNodes) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
+// Authorize user u to execute query q on database.
+// database can be "" for queries that do not require a database.
+// If u is nil, this means authorization is disabled.
+func Authorize(u *User, q *influxql.Query, database string) error {
+	// Cluster admins can do anything.
+	if u == nil || u.Admin {
+		return nil
+	}
+
+	// Check each statement in the query.
+	for _, stmt := range q.Statements {
+		// Get the privileges required to execute the statement.
+		privs := stmt.RequiredPrivileges()
+
+		// Make sure the user has each privilege required to execute
+		// the statement.
+		for _, p := range privs {
+			// Use the db name specified by the statement or the db
+			// name passed by the caller if one wasn't specified by
+			// the statement.
+			dbname := p.Name
+			if dbname == "" {
+				dbname = database
+			}
+
+			// Check if user has required privilege.
+			if !u.Authorize(p.Privilege, dbname) {
+				var msg string
+				if dbname == "" {
+					msg = "requires cluster admin"
+				} else {
+					msg = fmt.Sprintf("requires %s privilege on %s", p.Privilege.String(), dbname)
+				}
+				return &ErrAuthorize{
+					text: fmt.Sprintf("%s not authorized to execute '%s'.  %s", u.Name, stmt.String(), msg),
+				}
+			}
+		}
+	}
+	return nil
+}
+
 // BcryptCost is the cost associated with generating password with Bcrypt.
 // This setting is lowered during testing to improve test suite performance.
 var BcryptCost = 10
@@ -1973,15 +2037,22 @@ var BcryptCost = 10
 // User represents a user account on the system.
 // It can be given read/write permissions to individual databases.
 type User struct {
-	Name  string `json:"name"`
-	Hash  string `json:"hash"`
-	Admin bool   `json:"admin,omitempty"`
+	Name       string                        `json:"name"`
+	Hash       string                        `json:"hash"`
+	Privileges map[string]influxql.Privilege `json:"privileges"` // db name to privilege
+	Admin      bool                          `json:"admin,omitempty"`
 }
 
 // Authenticate returns nil if the password matches the user's password.
 // Returns an error if the password was incorrect.
 func (u *User) Authenticate(password string) error {
 	return bcrypt.CompareHashAndPassword([]byte(u.Hash), []byte(password))
+}
+
+// Authorize returns true if the user is authorized and false if not.
+func (u *User) Authorize(privilege influxql.Privilege, database string) bool {
+	p, ok := u.Privileges[database]
+	return (ok && p >= privilege) || (u.Admin)
 }
 
 // users represents a list of users, sortable by name.

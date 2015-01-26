@@ -75,8 +75,8 @@ func (p *Parser) ParseStatement() (Statement, error) {
 		return p.parseSelectStatement(targetNotRequired)
 	case DELETE:
 		return p.parseDeleteStatement()
-	case LIST:
-		return p.parseListStatement()
+	case SHOW:
+		return p.parseShowStatement()
 	case CREATE:
 		return p.parseCreateStatement()
 	case DROP:
@@ -92,43 +92,43 @@ func (p *Parser) ParseStatement() (Statement, error) {
 	}
 }
 
-// parseListStatement parses a string and returns a list statement.
-// This function assumes the LIST token has already been consumed.
-func (p *Parser) parseListStatement() (Statement, error) {
+// parseShowStatement parses a string and returns a list statement.
+// This function assumes the SHOW token has already been consumed.
+func (p *Parser) parseShowStatement() (Statement, error) {
 	tok, pos, lit := p.scanIgnoreWhitespace()
 	switch tok {
 	case CONTINUOUS:
-		return p.parseListContinuousQueriesStatement()
+		return p.parseShowContinuousQueriesStatement()
 	case DATABASES:
-		return p.parseListDatabasesStatement()
+		return p.parseShowDatabasesStatement()
 	case FIELD:
 		tok, pos, lit := p.scanIgnoreWhitespace()
 		if tok == KEYS {
-			return p.parseListFieldKeysStatement()
+			return p.parseShowFieldKeysStatement()
 		} else if tok == VALUES {
-			return p.parseListFieldValuesStatement()
+			return p.parseShowFieldValuesStatement()
 		}
 		return nil, newParseError(tokstr(tok, lit), []string{"KEYS", "VALUES"}, pos)
 	case MEASUREMENTS:
-		return p.parseListMeasurementsStatement()
+		return p.parseShowMeasurementsStatement()
 	case RETENTION:
 		tok, pos, lit := p.scanIgnoreWhitespace()
 		if tok == POLICIES {
-			return p.parseListRetentionPoliciesStatement()
+			return p.parseShowRetentionPoliciesStatement()
 		}
 		return nil, newParseError(tokstr(tok, lit), []string{"POLICIES"}, pos)
 	case SERIES:
-		return p.parseListSeriesStatement()
+		return p.parseShowSeriesStatement()
 	case TAG:
 		tok, pos, lit := p.scanIgnoreWhitespace()
 		if tok == KEYS {
-			return p.parseListTagKeysStatement()
+			return p.parseShowTagKeysStatement()
 		} else if tok == VALUES {
-			return p.parseListTagValuesStatement()
+			return p.parseShowTagValuesStatement()
 		}
 		return nil, newParseError(tokstr(tok, lit), []string{"KEYS", "VALUES"}, pos)
 	case USERS:
-		return p.parseListUsersStatement()
+		return p.parseShowUsersStatement()
 	}
 
 	return nil, newParseError(tokstr(tok, lit), []string{"SERIES", "CONTINUOUS", "MEASUREMENTS", "TAG", "FIELD", "RETENTION"}, pos)
@@ -477,59 +477,50 @@ func (p *Parser) parsePrivilege() (Privilege, error) {
 // This function assumes the SELECT token has already been consumed.
 func (p *Parser) parseSelectStatement(tr targetRequirement) (*SelectStatement, error) {
 	stmt := &SelectStatement{}
+	var err error
 
 	// Parse fields: "SELECT FIELD+".
-	fields, err := p.parseFields()
-	if err != nil {
+	if stmt.Fields, err = p.parseFields(); err != nil {
 		return nil, err
 	}
-	stmt.Fields = fields
 
 	// Parse target: "INTO"
-	target, err := p.parseTarget(tr)
-	if err != nil {
+	if stmt.Target, err = p.parseTarget(tr); err != nil {
 		return nil, err
-	} else if target != nil {
-		stmt.Target = target
 	}
 
 	// Parse source.
 	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != FROM {
 		return nil, newParseError(tokstr(tok, lit), []string{"FROM"}, pos)
 	}
-	source, err := p.parseSource()
-	if err != nil {
+	if stmt.Source, err = p.parseSource(); err != nil {
 		return nil, err
 	}
-	stmt.Source = source
 
 	// Parse condition: "WHERE EXPR".
-	condition, err := p.parseCondition()
-	if err != nil {
+	if stmt.Condition, err = p.parseCondition(); err != nil {
 		return nil, err
 	}
-	stmt.Condition = condition
 
 	// Parse dimensions: "GROUP BY DIMENSION+".
-	dimensions, err := p.parseDimensions()
-	if err != nil {
+	if stmt.Dimensions, err = p.parseDimensions(); err != nil {
 		return nil, err
 	}
-	stmt.Dimensions = dimensions
 
 	// Parse sort: "ORDER BY FIELD+".
-	sortFields, err := p.parseOrderBy()
-	if err != nil {
+	if stmt.SortFields, err = p.parseOrderBy(); err != nil {
 		return nil, err
 	}
-	stmt.SortFields = sortFields
 
-	// Parse limit: "LIMIT INT".
-	limit, err := p.parseLimit()
-	if err != nil {
+	// Parse limit: "LIMIT <n>".
+	if stmt.Limit, err = p.parseOptionalTokenAndInt(LIMIT); err != nil {
 		return nil, err
 	}
-	stmt.Limit = limit
+
+	// Parse offset: "OFFSET <n>".
+	if stmt.Offset, err = p.parseOptionalTokenAndInt(OFFSET); err != nil {
+		return nil, err
+	}
 
 	return stmt, nil
 }
@@ -601,68 +592,68 @@ func (p *Parser) parseDeleteStatement() (*DeleteStatement, error) {
 	return stmt, nil
 }
 
-// parseListSeriesStatement parses a string and returns a ListSeriesStatement.
-// This function assumes the "LIST SERIES" tokens have already been consumed.
-func (p *Parser) parseListSeriesStatement() (*ListSeriesStatement, error) {
-	stmt := &ListSeriesStatement{}
+// parseShowSeriesStatement parses a string and returns a ShowSeriesStatement.
+// This function assumes the "SHOW SERIES" tokens have already been consumed.
+func (p *Parser) parseShowSeriesStatement() (*ShowSeriesStatement, error) {
+	stmt := &ShowSeriesStatement{}
+	var err error
 
 	// Parse condition: "WHERE EXPR".
-	condition, err := p.parseCondition()
-	if err != nil {
+	if stmt.Condition, err = p.parseCondition(); err != nil {
 		return nil, err
 	}
-	stmt.Condition = condition
 
 	// Parse sort: "ORDER BY FIELD+".
-	sortFields, err := p.parseOrderBy()
-	if err != nil {
+	if stmt.SortFields, err = p.parseOrderBy(); err != nil {
 		return nil, err
 	}
-	stmt.SortFields = sortFields
 
-	// Parse limit: "LIMIT INT".
-	limit, err := p.parseLimit()
-	if err != nil {
+	// Parse limit: "LIMIT <n>".
+	if stmt.Limit, err = p.parseOptionalTokenAndInt(LIMIT); err != nil {
 		return nil, err
 	}
-	stmt.Limit = limit
+
+	// Parse offset: "OFFSET <n>".
+	if stmt.Offset, err = p.parseOptionalTokenAndInt(OFFSET); err != nil {
+		return nil, err
+	}
 
 	return stmt, nil
 }
 
-// parseListMeasurementsStatement parses a string and returns a ListSeriesStatement.
-// This function assumes the "LIST MEASUREMENTS" tokens have already been consumed.
-func (p *Parser) parseListMeasurementsStatement() (*ListMeasurementsStatement, error) {
-	stmt := &ListMeasurementsStatement{}
+// parseShowMeasurementsStatement parses a string and returns a ShowSeriesStatement.
+// This function assumes the "SHOW MEASUREMENTS" tokens have already been consumed.
+func (p *Parser) parseShowMeasurementsStatement() (*ShowMeasurementsStatement, error) {
+	stmt := &ShowMeasurementsStatement{}
+	var err error
 
 	// Parse condition: "WHERE EXPR".
-	condition, err := p.parseCondition()
-	if err != nil {
+	if stmt.Condition, err = p.parseCondition(); err != nil {
 		return nil, err
 	}
-	stmt.Condition = condition
 
 	// Parse sort: "ORDER BY FIELD+".
-	sortFields, err := p.parseOrderBy()
-	if err != nil {
+	if stmt.SortFields, err = p.parseOrderBy(); err != nil {
 		return nil, err
 	}
-	stmt.SortFields = sortFields
 
-	// Parse limit: "LIMIT INT".
-	limit, err := p.parseLimit()
-	if err != nil {
+	// Parse limit: "LIMIT <n>".
+	if stmt.Limit, err = p.parseOptionalTokenAndInt(LIMIT); err != nil {
 		return nil, err
 	}
-	stmt.Limit = limit
+
+	// Parse offset: "OFFSET <n>".
+	if stmt.Offset, err = p.parseOptionalTokenAndInt(OFFSET); err != nil {
+		return nil, err
+	}
 
 	return stmt, nil
 }
 
-// parseListRetentionPoliciesStatement parses a string and returns a ListRetentionPoliciesStatement.
-// This function assumes the "LIST RETENTION POLICIES" tokens have been consumed.
-func (p *Parser) parseListRetentionPoliciesStatement() (*ListRetentionPoliciesStatement, error) {
-	stmt := &ListRetentionPoliciesStatement{}
+// parseShowRetentionPoliciesStatement parses a string and returns a ShowRetentionPoliciesStatement.
+// This function assumes the "SHOW RETENTION POLICIES" tokens have been consumed.
+func (p *Parser) parseShowRetentionPoliciesStatement() (*ShowRetentionPoliciesStatement, error) {
+	stmt := &ShowRetentionPoliciesStatement{}
 
 	ident, err := p.parseIdent()
 	if err != nil {
@@ -673,164 +664,156 @@ func (p *Parser) parseListRetentionPoliciesStatement() (*ListRetentionPoliciesSt
 	return stmt, nil
 }
 
-// parseListTagKeysStatement parses a string and returns a ListSeriesStatement.
-// This function assumes the "LIST TAG KEYS" tokens have already been consumed.
-func (p *Parser) parseListTagKeysStatement() (*ListTagKeysStatement, error) {
-	stmt := &ListTagKeysStatement{}
+// parseShowTagKeysStatement parses a string and returns a ShowSeriesStatement.
+// This function assumes the "SHOW TAG KEYS" tokens have already been consumed.
+func (p *Parser) parseShowTagKeysStatement() (*ShowTagKeysStatement, error) {
+	stmt := &ShowTagKeysStatement{}
+	var err error
 
 	// Parse source.
 	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != FROM {
 		return nil, newParseError(tokstr(tok, lit), []string{"FROM"}, pos)
 	}
-	source, err := p.parseSource()
-	if err != nil {
+	if stmt.Source, err = p.parseSource(); err != nil {
 		return nil, err
 	}
-	stmt.Source = source
 
 	// Parse condition: "WHERE EXPR".
-	condition, err := p.parseCondition()
-	if err != nil {
+	if stmt.Condition, err = p.parseCondition(); err != nil {
 		return nil, err
 	}
-	stmt.Condition = condition
 
 	// Parse sort: "ORDER BY FIELD+".
-	sortFields, err := p.parseOrderBy()
-	if err != nil {
+	if stmt.SortFields, err = p.parseOrderBy(); err != nil {
 		return nil, err
 	}
-	stmt.SortFields = sortFields
 
-	// Parse limit: "LIMIT INT".
-	limit, err := p.parseLimit()
-	if err != nil {
+	// Parse limit: "LIMIT <n>".
+	if stmt.Limit, err = p.parseOptionalTokenAndInt(LIMIT); err != nil {
 		return nil, err
 	}
-	stmt.Limit = limit
+
+	// Parse offset: "OFFSET <n>".
+	if stmt.Offset, err = p.parseOptionalTokenAndInt(OFFSET); err != nil {
+		return nil, err
+	}
 
 	return stmt, nil
 }
 
-// parseListTagValuesStatement parses a string and returns a ListSeriesStatement.
-// This function assumes the "LIST TAG VALUES" tokens have already been consumed.
-func (p *Parser) parseListTagValuesStatement() (*ListTagValuesStatement, error) {
-	stmt := &ListTagValuesStatement{}
+// parseShowTagValuesStatement parses a string and returns a ShowSeriesStatement.
+// This function assumes the "SHOW TAG VALUES" tokens have already been consumed.
+func (p *Parser) parseShowTagValuesStatement() (*ShowTagValuesStatement, error) {
+	stmt := &ShowTagValuesStatement{}
+	var err error
 
 	// Parse source.
 	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != FROM {
 		return nil, newParseError(tokstr(tok, lit), []string{"FROM"}, pos)
 	}
-	source, err := p.parseSource()
-	if err != nil {
+	if stmt.Source, err = p.parseSource(); err != nil {
 		return nil, err
 	}
-	stmt.Source = source
 
 	// Parse condition: "WHERE EXPR".
-	condition, err := p.parseCondition()
-	if err != nil {
+	if stmt.Condition, err = p.parseCondition(); err != nil {
 		return nil, err
 	}
-	stmt.Condition = condition
 
 	// Parse sort: "ORDER BY FIELD+".
-	sortFields, err := p.parseOrderBy()
-	if err != nil {
+	if stmt.SortFields, err = p.parseOrderBy(); err != nil {
 		return nil, err
 	}
-	stmt.SortFields = sortFields
 
-	// Parse limit: "LIMIT INT".
-	limit, err := p.parseLimit()
-	if err != nil {
+	// Parse limit: "LIMIT <n>".
+	if stmt.Limit, err = p.parseOptionalTokenAndInt(LIMIT); err != nil {
 		return nil, err
 	}
-	stmt.Limit = limit
+
+	// Parse offset: "OFFSET <n>".
+	if stmt.Offset, err = p.parseOptionalTokenAndInt(OFFSET); err != nil {
+		return nil, err
+	}
 
 	return stmt, nil
 }
 
-// parseListUsersStatement parses a string and returns a ListUsersStatement.
-// This function assumes the "LIST USERS" tokens have been consumed.
-func (p *Parser) parseListUsersStatement() (*ListUsersStatement, error) {
-	return &ListUsersStatement{}, nil
+// parseShowUsersStatement parses a string and returns a ShowUsersStatement.
+// This function assumes the "SHOW USERS" tokens have been consumed.
+func (p *Parser) parseShowUsersStatement() (*ShowUsersStatement, error) {
+	return &ShowUsersStatement{}, nil
 }
 
-// parseListFieldKeysStatement parses a string and returns a ListSeriesStatement.
-// This function assumes the "LIST FIELD KEYS" tokens have already been consumed.
-func (p *Parser) parseListFieldKeysStatement() (*ListFieldKeysStatement, error) {
-	stmt := &ListFieldKeysStatement{}
+// parseShowFieldKeysStatement parses a string and returns a ShowSeriesStatement.
+// This function assumes the "SHOW FIELD KEYS" tokens have already been consumed.
+func (p *Parser) parseShowFieldKeysStatement() (*ShowFieldKeysStatement, error) {
+	stmt := &ShowFieldKeysStatement{}
+	var err error
 
 	// Parse source.
 	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != FROM {
 		return nil, newParseError(tokstr(tok, lit), []string{"FROM"}, pos)
 	}
-	source, err := p.parseSource()
-	if err != nil {
+	if stmt.Source, err = p.parseSource(); err != nil {
 		return nil, err
 	}
-	stmt.Source = source
 
 	// Parse condition: "WHERE EXPR".
-	condition, err := p.parseCondition()
-	if err != nil {
+	if stmt.Condition, err = p.parseCondition(); err != nil {
 		return nil, err
 	}
-	stmt.Condition = condition
 
 	// Parse sort: "ORDER BY FIELD+".
-	sortFields, err := p.parseOrderBy()
-	if err != nil {
+	if stmt.SortFields, err = p.parseOrderBy(); err != nil {
 		return nil, err
 	}
-	stmt.SortFields = sortFields
 
-	// Parse limit: "LIMIT INT".
-	limit, err := p.parseLimit()
-	if err != nil {
+	// Parse limit: "LIMIT <n>".
+	if stmt.Limit, err = p.parseOptionalTokenAndInt(LIMIT); err != nil {
 		return nil, err
 	}
-	stmt.Limit = limit
+
+	// Parse offset: "OFFSET <n>".
+	if stmt.Offset, err = p.parseOptionalTokenAndInt(OFFSET); err != nil {
+		return nil, err
+	}
 
 	return stmt, nil
 }
 
-// parseListFieldValuesStatement parses a string and returns a ListSeriesStatement.
-// This function assumes the "LIST FIELD VALUES" tokens have already been consumed.
-func (p *Parser) parseListFieldValuesStatement() (*ListFieldValuesStatement, error) {
-	stmt := &ListFieldValuesStatement{}
+// parseShowFieldValuesStatement parses a string and returns a ShowSeriesStatement.
+// This function assumes the "SHOW FIELD VALUES" tokens have already been consumed.
+func (p *Parser) parseShowFieldValuesStatement() (*ShowFieldValuesStatement, error) {
+	stmt := &ShowFieldValuesStatement{}
+	var err error
 
 	// Parse source.
 	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != FROM {
 		return nil, newParseError(tokstr(tok, lit), []string{"FROM"}, pos)
 	}
-	source, err := p.parseSource()
-	if err != nil {
+	if stmt.Source, err = p.parseSource(); err != nil {
 		return nil, err
 	}
-	stmt.Source = source
 
 	// Parse condition: "WHERE EXPR".
-	condition, err := p.parseCondition()
-	if err != nil {
+	if stmt.Condition, err = p.parseCondition(); err != nil {
 		return nil, err
 	}
-	stmt.Condition = condition
 
 	// Parse sort: "ORDER BY FIELD+".
-	sortFields, err := p.parseOrderBy()
-	if err != nil {
+	if stmt.SortFields, err = p.parseOrderBy(); err != nil {
 		return nil, err
 	}
-	stmt.SortFields = sortFields
 
 	// Parse limit: "LIMIT INT".
-	limit, err := p.parseLimit()
-	if err != nil {
+	if stmt.Limit, err = p.parseOptionalTokenAndInt(LIMIT); err != nil {
 		return nil, err
 	}
-	stmt.Limit = limit
+
+	// Parse offset: "OFFSET <n>".
+	if stmt.Offset, err = p.parseOptionalTokenAndInt(OFFSET); err != nil {
+		return nil, err
+	}
 
 	return stmt, nil
 }
@@ -850,10 +833,10 @@ func (p *Parser) parseDropSeriesStatement() (*DropSeriesStatement, error) {
 	return stmt, nil
 }
 
-// parseListContinuousQueriesStatement parses a string and returns a ListContinuousQueriesStatement.
-// This function assumes the "LIST CONTINUOUS" tokens have already been consumed.
-func (p *Parser) parseListContinuousQueriesStatement() (*ListContinuousQueriesStatement, error) {
-	stmt := &ListContinuousQueriesStatement{}
+// parseShowContinuousQueriesStatement parses a string and returns a ShowContinuousQueriesStatement.
+// This function assumes the "SHOW CONTINUOUS" tokens have already been consumed.
+func (p *Parser) parseShowContinuousQueriesStatement() (*ShowContinuousQueriesStatement, error) {
+	stmt := &ShowContinuousQueriesStatement{}
 
 	// Expect a "QUERIES" token.
 	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != QUERIES {
@@ -863,10 +846,10 @@ func (p *Parser) parseListContinuousQueriesStatement() (*ListContinuousQueriesSt
 	return stmt, nil
 }
 
-// parseListDatabasesStatement parses a string and returns a ListDatabasesStatement.
-// This function assumes the "LIST DATABASE" tokens have already been consumed.
-func (p *Parser) parseListDatabasesStatement() (*ListDatabasesStatement, error) {
-	stmt := &ListDatabasesStatement{}
+// parseShowDatabasesStatement parses a string and returns a ShowDatabasesStatement.
+// This function assumes the "SHOW DATABASE" tokens have already been consumed.
+func (p *Parser) parseShowDatabasesStatement() (*ShowDatabasesStatement, error) {
+	stmt := &ShowDatabasesStatement{}
 	return stmt, nil
 }
 
@@ -1262,15 +1245,16 @@ func (p *Parser) parseDimension() (*Dimension, error) {
 	return &Dimension{Expr: expr}, nil
 }
 
-// parseLimit parses the "LIMIT" clause of the query, if it exists.
-func (p *Parser) parseLimit() (int, error) {
-	// Check if the LIMIT token exists.
-	if tok, _, _ := p.scanIgnoreWhitespace(); tok != LIMIT {
+// parseOptionalTokenAndInt parses the specified token followed
+// by an int, if it exists.
+func (p *Parser) parseOptionalTokenAndInt(t Token) (int, error) {
+	// Check if the token exists.
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok != t {
 		p.unscan()
 		return 0, nil
 	}
 
-	// Scan the limit number.
+	// Scan the number.
 	tok, pos, lit := p.scanIgnoreWhitespace()
 	if tok != NUMBER {
 		return 0, newParseError(tokstr(tok, lit), []string{"number"}, pos)
@@ -1278,14 +1262,16 @@ func (p *Parser) parseLimit() (int, error) {
 
 	// Return an error if the number has a fractional part.
 	if strings.Contains(lit, ".") {
-		return 0, &ParseError{Message: "fractional parts not allowed in limit", Pos: pos}
+		msg := fmt.Sprintf("fractional parts not allowed in %s", t.String())
+		return 0, &ParseError{Message: msg, Pos: pos}
 	}
 
 	// Parse number.
 	n, _ := strconv.ParseInt(lit, 10, 64)
 
 	if n < 1 {
-		return 0, &ParseError{Message: "LIMIT must be > 0", Pos: pos}
+		msg := fmt.Sprintf("%s must be > 0", t.String())
+		return 0, &ParseError{Message: msg, Pos: pos}
 	}
 
 	return int(n), nil

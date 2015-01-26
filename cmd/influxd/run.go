@@ -14,6 +14,7 @@ import (
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/collectd"
 	"github.com/influxdb/influxdb/graphite"
+	"github.com/influxdb/influxdb/httpd"
 	"github.com/influxdb/influxdb/messaging"
 )
 
@@ -41,6 +42,8 @@ func execRun(args []string) {
 
 	// Print sweet InfluxDB logo and write the process id to file.
 	log.Print(logo)
+	log.SetPrefix(`[srvr] `)
+	log.SetFlags(log.LstdFlags)
 	writePIDFile(*pidPath)
 
 	// Parse the configuration and determine if a broker and/or server exist.
@@ -64,8 +67,7 @@ func execRun(args []string) {
 
 	// Start the server handler. Attach to broker if listening on the same port.
 	if s != nil {
-		sh := influxdb.NewHandler(s)
-		sh.AuthenticationEnabled = config.Authentication.Enabled
+		sh := httpd.NewHandler(s, config.Authentication.Enabled, version)
 		if h != nil && config.BrokerAddr() == config.DataAddr() {
 			h.serverHandler = sh
 		} else {

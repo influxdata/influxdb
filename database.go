@@ -3,6 +3,7 @@ package influxdb
 import (
 	"encoding/json"
 	"math"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -44,6 +45,141 @@ func (db *database) shardGroupByTimestamp(policy string, timestamp time.Time) (*
 		return nil, ErrRetentionPolicyNotFound
 	}
 	return p.shardGroupByTimestamp(timestamp), nil
+}
+
+// seriesIDs returns an array of series ids for the given measurements and filters to be applied to all.
+// Filters are equivalent to an AND operation. If you want to do an OR, get the series IDs for one set,
+// then get the series IDs for another set and use the SeriesIDs.Union to combine the two.
+func (d *database) seriesIDs(names []string, filters []*TagFilter) seriesIDs {
+	// they want all ids if no filters are specified
+	if len(filters) == 0 {
+		ids := seriesIDs(make([]uint32, 0))
+		for _, m := range d.measurements {
+			ids = ids.union(m.seriesIDs)
+		}
+		return ids
+	}
+
+	ids := seriesIDs(make([]uint32, 0))
+	for _, n := range names {
+		ids = ids.union(d.seriesIDsByName(n, filters))
+	}
+
+	return ids
+}
+
+// TagKeys returns a sorted array of unique tag keys for the given measurements.
+// If an empty or nil slice is passed in, the tag keys for the entire database will be returned.
+func (d *database) TagKeys(names []string) []string {
+	if len(names) == 0 {
+		names = d.names
+	}
+
+	keys := make(map[string]bool)
+	for _, n := range names {
+		idx := d.measurements[n]
+		if idx != nil {
+			for k, _ := range idx.seriesByTagKeyValue {
+				keys[k] = true
+			}
+		}
+	}
+
+	sortedKeys := make([]string, 0, len(keys))
+	for k, _ := range keys {
+		sortedKeys = append(sortedKeys, k)
+	}
+	sort.Strings(sortedKeys)
+
+	return sortedKeys
+}
+
+// TagValues returns a map of unique tag values for the given measurements and key with the given filters applied.
+// Call .ToSlice() on the result to convert it into a sorted slice of strings.
+// Filters are equivalent to and AND operation. If you want to do an OR, get the tag values for one set,
+// then get the tag values for another set and do a union of the two.
+func (d *database) TagValues(names []string, key string, filters []*TagFilter) TagValues {
+	values := TagValues(make(map[string]bool))
+
+	// see if they just want all the tag values for this key
+	if len(filters) == 0 {
+		for _, n := range names {
+			idx := d.measurements[n]
+			if idx != nil {
+				values.Union(idx.tagValues(key))
+			}
+		}
+		return values
+	}
+
+	// they have filters so just get a set of series ids matching them and then get the tag values from those
+	seriesIDs := d.seriesIDs(names, filters)
+	return d.tagValuesBySeries(key, seriesIDs)
+}
+
+// tagValuesBySeries will return a TagValues map of all the unique tag values for a collection of series.
+func (d *database) tagValuesBySeries(key string, ids seriesIDs) TagValues {
+	values := make(map[string]bool)
+	for _, id := range ids {
+		s := d.series[id]
+		if s == nil {
+			continue
+		}
+		if v, ok := s.Tags[key]; ok {
+			values[v] = true
+		}
+	}
+	return TagValues(values)
+}
+
+type TagValues map[string]bool
+
+// Slice returns a sorted slice of the TagValues
+func (t TagValues) Slice() []string {
+	a := make([]string, 0, len(t))
+	for v, _ := range t {
+		a = append(a, v)
+	}
+	sort.Strings(a)
+	return a
+}
+
+// Union will modify the receiver by merging in the passed in values.
+func (l TagValues) Union(r TagValues) {
+	for v, _ := range r {
+		l[v] = true
+	}
+}
+
+// Intersect will modify the receiver by keeping only the keys that exist in the passed in values
+func (l TagValues) Intersect(r TagValues) {
+	for v, _ := range l {
+		if _, ok := r[v]; !ok {
+			delete(l, v)
+		}
+	}
+}
+
+// seriesIDsByName is the same as SeriesIDs, but for a specific measurement.
+func (d *database) seriesIDsByName(name string, filters []*TagFilter) seriesIDs {
+	m := d.measurements[name]
+	if m == nil {
+		return nil
+	}
+
+	// process the filters one at a time to get the list of ids they return
+	idsPerFilter := make([]seriesIDs, len(filters), len(filters))
+	for i, filter := range filters {
+		idsPerFilter[i] = m.seriesIDsByFilter(filter)
+	}
+
+	// collapse the set of ids
+	allIDs := idsPerFilter[0]
+	for i := 1; i < len(filters); i++ {
+		allIDs = allIDs.intersect(idsPerFilter[i])
+	}
+
+	return allIDs
 }
 
 // MarshalJSON encodes a database into a JSON-encoded byte slice.
@@ -195,9 +331,66 @@ func (m *Measurement) addSeries(s *Series) bool {
 	return true
 }
 
+// tagValues returns a map of unique tag values for the given key
+func (m *Measurement) tagValues(key string) TagValues {
+	tags := m.seriesByTagKeyValue[key]
+	values := make(map[string]bool, len(tags))
+	for k, _ := range tags {
+		values[k] = true
+	}
+	return TagValues(values)
+}
+
 // seriesByTags returns the Series that matches the given tagset.
 func (m *Measurement) seriesByTags(tags map[string]string) *Series {
 	return m.series[string(marshalTags(tags))]
+}
+
+// seriesIDs returns the series ids for a given filter
+func (m *Measurement) seriesIDsByFilter(filter *TagFilter) (ids seriesIDs) {
+	values := m.seriesByTagKeyValue[filter.Key]
+	if values == nil {
+		return
+	}
+
+	// handle regex filters
+	if filter.Regex != nil {
+		for k, v := range values {
+			if filter.Regex.MatchString(k) {
+				if ids == nil {
+					ids = v
+				} else {
+					ids = ids.union(v)
+				}
+			}
+		}
+		if filter.Not {
+			ids = m.seriesIDs.reject(ids)
+		}
+		return
+	}
+
+	// this is for the value is not null query
+	if filter.Not && filter.Value == "" {
+		for _, v := range values {
+			if ids == nil {
+				ids = v
+			} else {
+				ids.intersect(v)
+			}
+		}
+		return
+	}
+
+	// get the ids that have the given key/value tag pair
+	ids = seriesIDs(values[filter.Value])
+
+	// filter out these ids from the entire set if it's a not query
+	if filter.Not {
+		ids = m.seriesIDs.reject(ids)
+	}
+
+	return
 }
 
 // mapValues converts a map of values with string keys to field id keys.
@@ -388,6 +581,14 @@ func (s *Series) match(tags map[string]string) bool {
 	return true
 }
 
+// TagFilter represents a tag filter when looking up other tags or measurements.
+type TagFilter struct {
+	Not   bool
+	Key   string
+	Value string
+	Regex *regexp.Regexp
+}
+
 // seriesIDs is a convenience type for sorting, checking equality, and doing
 // union and intersection of collections of series ids.
 type seriesIDs []uint32
@@ -426,7 +627,7 @@ func (a seriesIDs) intersect(other seriesIDs) seriesIDs {
 	var i, j int
 
 	ids := make([]uint32, 0, len(l))
-	for i < len(l) {
+	for i < len(l) && j < len(r) {
 		if l[i] == r[j] {
 			ids = append(ids, l[i])
 			i += 1

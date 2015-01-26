@@ -105,6 +105,27 @@ var (
 	ErrNotExecuted = errors.New("not executed")
 )
 
+// ErrAuthorize represents an authorization error.
+type ErrAuthorize struct {
+	text string
+}
+
+// Error returns the text of the error.
+func (e *ErrAuthorize) Error() string {
+	return e.text
+}
+
+// authorize satisfies isAuthorizationError
+func (_ ErrAuthorize) authorize() {}
+
+func isAuthorizationError(err error) bool {
+	type authorize interface {
+		authorize()
+	}
+	_, ok := err.(authorize)
+	return ok
+}
+
 // mustMarshal encodes a value to JSON.
 // This will panic if an error occurs. This should only be used internally when
 // an invalid marshal will cause corruption and a panic is appropriate.

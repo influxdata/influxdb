@@ -1,4 +1,4 @@
-package influxdb_test
+package httpd_test
 
 import (
 	"bytes"
@@ -7,10 +7,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/influxdb/influxdb"
+	"github.com/influxdb/influxdb/httpd"
+	"github.com/influxdb/influxdb/messaging"
 )
 
 func init() {
@@ -24,10 +27,43 @@ func TestHandler_Databases(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "LIST DATABASES"}, nil, "")
+	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "SHOW DATABASES"}, nil, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `[{"rows":[{"columns":["Name"],"values":[["bar"],["foo"]]}]}]` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_DatabasesPrettyPrinted(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	srvr.CreateDatabase("bar")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "SHOW DATABASES", "pretty": "true"}, nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	} else if body != `[
+    {
+        "rows": [
+            {
+                "columns": [
+                    "Name"
+                ],
+                "values": [
+                    [
+                        "bar"
+                    ],
+                    [
+                        "foo"
+                    ]
+                ]
+            }
+        ]
+    }
+]` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -104,7 +140,7 @@ func TestHandler_RetentionPolicies(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "LIST RETENTION POLICIES foo"}, nil, "")
+	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "SHOW RETENTION POLICIES foo"}, nil, "")
 
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
@@ -118,7 +154,7 @@ func TestHandler_RetentionPolicies_DatabaseNotFound(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "LIST RETENTION POLICIES foo"}, nil, "")
+	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "SHOW RETENTION POLICIES foo"}, nil, "")
 
 	if status != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: %d", status)
@@ -309,7 +345,7 @@ func TestHandler_Ping(t *testing.T) {
 
 	status, _ := MustHTTP("GET", s.URL+`/ping`, nil, nil, "")
 
-	if status != http.StatusOK {
+	if status != http.StatusNoContent {
 		t.Fatalf("unexpected status: %d", status)
 	}
 }
@@ -385,7 +421,7 @@ func TestHandler_CreateUser_BadRequest(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != "error parsing query: found 0, expected identifier at line 1, char 13" {
+	} else if body != `[{"error":"error parsing query: found 0, expected identifier at line 1, char 13"}]` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -399,7 +435,7 @@ func TestHandler_CreateUser_BadRequest_NoName(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != "error parsing query: found WITH, expected identifier at line 1, char 13" {
+	} else if body != `[{"error":"error parsing query: found WITH, expected identifier at line 1, char 13"}]` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -413,7 +449,7 @@ func TestHandler_CreateUser_BadRequest_NoPassword(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != "error parsing query: found EOF, expected WITH at line 1, char 18" {
+	} else if body != `[{"error":"error parsing query: found EOF, expected WITH at line 1, char 18"}]` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -574,13 +610,12 @@ func TestHandler_DeleteUser_DataNodeNotFound(t *testing.T) {
 // Perform a subset of endpoint testing, with authentication enabled.
 
 func TestHandler_AuthenticatedCreateAdminUser(t *testing.T) {
-	t.Skip()
 	srvr := OpenServer(NewMessagingClient())
 	s := NewAuthenticatedHTTPServer(srvr)
 	defer s.Close()
 
 	// Attempting to create a non-admin user should fail.
-	query := map[string]string{"q": "CREATE USER maeve WITH PASSWORD pass"}
+	query := map[string]string{"q": "CREATE USER maeve WITH PASSWORD 'pass'"}
 	status, _ := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusUnauthorized {
 		t.Fatalf("unexpected status: %d", status)
@@ -588,7 +623,7 @@ func TestHandler_AuthenticatedCreateAdminUser(t *testing.T) {
 
 	// Creating the first admin user, without supplying authentication
 	// credentials should be OK.
-	query = map[string]string{"q": "CREATE USER orla WITH PASSWORD pass WITH ALL PRIVILEGES"}
+	query = map[string]string{"q": "CREATE USER orla WITH PASSWORD 'pass' WITH ALL PRIVILEGES"}
 	status, _ = MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
@@ -596,7 +631,7 @@ func TestHandler_AuthenticatedCreateAdminUser(t *testing.T) {
 
 	// Creating a second admin user, without supplying authentication
 	// credentials should fail.
-	query = map[string]string{"q": "CREATE USER louise WITH PASSWORD pass WITH ALL PRIVILEGES"}
+	query = map[string]string{"q": "CREATE USER louise WITH PASSWORD 'pass' WITH ALL PRIVILEGES"}
 	status, _ = MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusUnauthorized {
 		t.Fatalf("unexpected status: %d", status)
@@ -605,12 +640,11 @@ func TestHandler_AuthenticatedCreateAdminUser(t *testing.T) {
 }
 
 func TestHandler_AuthenticatedDatabases_Unauthorized(t *testing.T) {
-	t.Skip()
 	srvr := OpenServer(NewMessagingClient())
 	s := NewAuthenticatedHTTPServer(srvr)
 	defer s.Close()
 
-	status, _ := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "LIST DATABASES"}, nil, "")
+	status, _ := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "SHOW DATABASES"}, nil, "")
 	if status != http.StatusUnauthorized {
 		t.Fatalf("unexpected status: %d", status)
 	}
@@ -622,7 +656,7 @@ func TestHandler_AuthenticatedDatabases_AuthorizedQueryParams(t *testing.T) {
 	s := NewAuthenticatedHTTPServer(srvr)
 	defer s.Close()
 
-	query := map[string]string{"q": "LIST DATABASES", "u": "lisa", "p": "password"}
+	query := map[string]string{"q": "SHOW DATABASES", "u": "lisa", "p": "password"}
 	status, _ := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
@@ -635,7 +669,7 @@ func TestHandler_AuthenticatedDatabases_UnauthorizedQueryParams(t *testing.T) {
 	s := NewAuthenticatedHTTPServer(srvr)
 	defer s.Close()
 
-	query := map[string]string{"q": "LIST DATABASES", "u": "lisa", "p": "wrong"}
+	query := map[string]string{"q": "SHOW DATABASES", "u": "lisa", "p": "wrong"}
 	status, _ := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusUnauthorized {
 		t.Fatalf("unexpected status: %d", status)
@@ -650,7 +684,7 @@ func TestHandler_AuthenticatedDatabases_AuthorizedBasicAuth(t *testing.T) {
 
 	auth := make(map[string]string)
 	auth["Authorization"] = "Basic " + base64.StdEncoding.EncodeToString([]byte("lisa:password"))
-	query := map[string]string{"q": "LIST DATABASES"}
+	query := map[string]string{"q": "SHOW DATABASES"}
 	status, _ := MustHTTP("GET", s.URL+`/query`, query, auth, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
@@ -665,7 +699,7 @@ func TestHandler_AuthenticatedDatabases_UnauthorizedBasicAuth(t *testing.T) {
 
 	auth := make(map[string]string)
 	auth["Authorization"] = "Basic " + base64.StdEncoding.EncodeToString([]byte("lisa:wrong"))
-	query := map[string]string{"q": "LIST DATABASES"}
+	query := map[string]string{"q": "SHOW DATABASES"}
 	status, _ := MustHTTP("GET", s.URL+`/query`, query, auth, "")
 	if status != http.StatusUnauthorized {
 		t.Fatalf("unexpected status: %d", status)
@@ -782,20 +816,122 @@ func MustParseURL(s string) *url.URL {
 // Server is a test HTTP server that wraps a handler
 type HTTPServer struct {
 	*httptest.Server
-	Handler *influxdb.Handler
+	Handler *httpd.Handler
 }
 
 func NewHTTPServer(s *Server) *HTTPServer {
-	h := influxdb.NewHandler(s.Server)
+	h := httpd.NewHandler(s.Server, false, "X.X")
 	return &HTTPServer{httptest.NewServer(h), h}
 }
 
 func NewAuthenticatedHTTPServer(s *Server) *HTTPServer {
-	h := influxdb.NewHandler(s.Server)
-	h.AuthenticationEnabled = true
+	h := httpd.NewHandler(s.Server, true, "X.X")
 	return &HTTPServer{httptest.NewServer(h), h}
 }
 
 func (s *HTTPServer) Close() {
 	s.Server.Close()
+}
+
+// Server is a wrapping test struct for influxdb.Server.
+type Server struct {
+	*influxdb.Server
+}
+
+// NewServer returns a new test server instance.
+func NewServer() *Server {
+	return &Server{influxdb.NewServer()}
+}
+
+// OpenServer returns a new, open test server instance.
+func OpenServer(client influxdb.MessagingClient) *Server {
+	s := OpenUninitializedServer(client)
+	if err := s.Initialize(&url.URL{Host: "127.0.0.1:8080"}); err != nil {
+		panic(err.Error())
+	}
+	return s
+}
+
+// OpenUninitializedServer returns a new, uninitialized, open test server instance.
+func OpenUninitializedServer(client influxdb.MessagingClient) *Server {
+	s := NewServer()
+	if err := s.Open(tempfile()); err != nil {
+		panic(err.Error())
+	}
+	if err := s.SetClient(client); err != nil {
+		panic(err.Error())
+	}
+	return s
+}
+
+// TODO corylanou: evaluate how much of this should be in this package
+// vs. how much should be a mocked out interface
+// MessagingClient represents a test client for the messaging broker.
+type MessagingClient struct {
+	index uint64
+	c     chan *messaging.Message
+
+	PublishFunc       func(*messaging.Message) (uint64, error)
+	CreateReplicaFunc func(replicaID uint64) error
+	DeleteReplicaFunc func(replicaID uint64) error
+	SubscribeFunc     func(replicaID, topicID uint64) error
+	UnsubscribeFunc   func(replicaID, topicID uint64) error
+}
+
+// NewMessagingClient returns a new instance of MessagingClient.
+func NewMessagingClient() *MessagingClient {
+	c := &MessagingClient{c: make(chan *messaging.Message, 1)}
+	c.PublishFunc = c.send
+	c.CreateReplicaFunc = func(replicaID uint64) error { return nil }
+	c.DeleteReplicaFunc = func(replicaID uint64) error { return nil }
+	c.SubscribeFunc = func(replicaID, topicID uint64) error { return nil }
+	c.UnsubscribeFunc = func(replicaID, topicID uint64) error { return nil }
+	return c
+}
+
+// Publish attaches an autoincrementing index to the message.
+// This function also execute's the client's PublishFunc mock function.
+func (c *MessagingClient) Publish(m *messaging.Message) (uint64, error) {
+	c.index++
+	m.Index = c.index
+	return c.PublishFunc(m)
+}
+
+// send sends the message through to the channel.
+// This is the default value of PublishFunc.
+func (c *MessagingClient) send(m *messaging.Message) (uint64, error) {
+	c.c <- m
+	return m.Index, nil
+}
+
+// Creates a new replica with a given ID on the broker.
+func (c *MessagingClient) CreateReplica(replicaID uint64) error {
+	return c.CreateReplicaFunc(replicaID)
+}
+
+// Deletes an existing replica with a given ID from the broker.
+func (c *MessagingClient) DeleteReplica(replicaID uint64) error {
+	return c.DeleteReplicaFunc(replicaID)
+}
+
+// Subscribe adds a subscription to a replica for a topic on the broker.
+func (c *MessagingClient) Subscribe(replicaID, topicID uint64) error {
+	return c.SubscribeFunc(replicaID, topicID)
+}
+
+// Unsubscribe removes a subscrition from a replica for a topic on the broker.
+func (c *MessagingClient) Unsubscribe(replicaID, topicID uint64) error {
+	return c.UnsubscribeFunc(replicaID, topicID)
+}
+
+// C returns a channel for streaming message.
+func (c *MessagingClient) C() <-chan *messaging.Message { return c.c }
+
+// tempfile returns a temporary path.
+func tempfile() string {
+	f, _ := ioutil.TempFile("", "influxdb-")
+	path := f.Name()
+	f.Close()
+	os.Remove(path)
+	return path
 }

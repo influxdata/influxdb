@@ -1,0 +1,11 @@
+echo "creating database"
+curl -G http://localhost:8086/query --data-urlencode "q=CREATE DATABASE foo"
+
+echo "creating retention policy"
+curl -G http://localhost:8086/query --data-urlencode "q=CREATE RETENTION POLICY bar ON foo DURATION 1h REPLICATION 1 DEFAULT"
+
+echo "inserting data"
+curl -d '{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}}]}' -H "Content-Type: application/json" http://localhost:8086/write
+
+echo "querying data"
+curl -G http://localhost:8086/query --data-urlencode "db=foo&q=SELECT COUNT(value) FROM cpu WHERE time > now() - 1h"

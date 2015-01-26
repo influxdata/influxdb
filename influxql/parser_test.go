@@ -58,7 +58,7 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// SELECT statement
 		{
-			s: `SELECT field1, field2 ,field3 AS field_x FROM myseries WHERE host = 'hosta.influxdb.org' GROUP BY 10h ORDER BY ASC LIMIT 20;`,
+			s: `SELECT field1, field2 ,field3 AS field_x FROM myseries WHERE host = 'hosta.influxdb.org' GROUP BY 10h ORDER BY ASC LIMIT 20 OFFSET 10;`,
 			stmt: &influxql.SelectStatement{
 				Fields: []*influxql.Field{
 					&influxql.Field{Expr: &influxql.VarRef{Val: "field1"}},
@@ -74,10 +74,11 @@ func TestParser_ParseStatement(t *testing.T) {
 				Dimensions: []*influxql.Dimension{
 					&influxql.Dimension{Expr: &influxql.DurationLiteral{Val: 10 * time.Hour}},
 				},
-				Limit: 20,
 				SortFields: []*influxql.SortField{
 					&influxql.SortField{Ascending: true},
 				},
+				Limit:  20,
+				Offset: 10,
 			},
 		},
 
@@ -147,22 +148,22 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
-		// LIST DATABASES
+		// SHOW DATABASES
 		{
-			s:    `LIST DATABASES`,
-			stmt: &influxql.ListDatabasesStatement{},
+			s:    `SHOW DATABASES`,
+			stmt: &influxql.ShowDatabasesStatement{},
 		},
 
-		// LIST SERIES statement
+		// SHOW SERIES statement
 		{
-			s:    `LIST SERIES`,
-			stmt: &influxql.ListSeriesStatement{},
+			s:    `SHOW SERIES`,
+			stmt: &influxql.ShowSeriesStatement{},
 		},
 
-		// LIST SERIES WHERE with ORDER BY and LIMIT
+		// SHOW SERIES WHERE with ORDER BY and LIMIT
 		{
-			s: `LIST SERIES WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
-			stmt: &influxql.ListSeriesStatement{
+			s: `SHOW SERIES WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
+			stmt: &influxql.ShowSeriesStatement{
 				Condition: &influxql.BinaryExpr{
 					Op:  influxql.EQ,
 					LHS: &influxql.VarRef{Val: "region"},
@@ -177,10 +178,10 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
-		// LIST MEASUREMENTS WHERE with ORDER BY and LIMIT
+		// SHOW MEASUREMENTS WHERE with ORDER BY and LIMIT
 		{
-			s: `LIST MEASUREMENTS WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
-			stmt: &influxql.ListMeasurementsStatement{
+			s: `SHOW MEASUREMENTS WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
+			stmt: &influxql.ShowMeasurementsStatement{
 				Condition: &influxql.BinaryExpr{
 					Op:  influxql.EQ,
 					LHS: &influxql.VarRef{Val: "region"},
@@ -195,18 +196,18 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
-		// LIST RETENTION POLICIES
+		// SHOW RETENTION POLICIES
 		{
-			s: `LIST RETENTION POLICIES mydb`,
-			stmt: &influxql.ListRetentionPoliciesStatement{
+			s: `SHOW RETENTION POLICIES mydb`,
+			stmt: &influxql.ShowRetentionPoliciesStatement{
 				Database: "mydb",
 			},
 		},
 
-		// LIST TAG KEYS
+		// SHOW TAG KEYS
 		{
-			s: `LIST TAG KEYS FROM src WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
-			stmt: &influxql.ListTagKeysStatement{
+			s: `SHOW TAG KEYS FROM src WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
+			stmt: &influxql.ShowTagKeysStatement{
 				Source: &influxql.Measurement{Name: "src"},
 				Condition: &influxql.BinaryExpr{
 					Op:  influxql.EQ,
@@ -222,10 +223,10 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
-		// LIST TAG VALUES
+		// SHOW TAG VALUES
 		{
-			s: `LIST TAG VALUES FROM src WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
-			stmt: &influxql.ListTagValuesStatement{
+			s: `SHOW TAG VALUES FROM src WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
+			stmt: &influxql.ShowTagValuesStatement{
 				Source: &influxql.Measurement{Name: "src"},
 				Condition: &influxql.BinaryExpr{
 					Op:  influxql.EQ,
@@ -241,16 +242,16 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
-		// LIST USERS
+		// SHOW USERS
 		{
-			s:    `LIST USERS`,
-			stmt: &influxql.ListUsersStatement{},
+			s:    `SHOW USERS`,
+			stmt: &influxql.ShowUsersStatement{},
 		},
 
-		// LIST FIELD KEYS
+		// SHOW FIELD KEYS
 		{
-			s: `LIST FIELD KEYS FROM src WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
-			stmt: &influxql.ListFieldKeysStatement{
+			s: `SHOW FIELD KEYS FROM src WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
+			stmt: &influxql.ShowFieldKeysStatement{
 				Source: &influxql.Measurement{Name: "src"},
 				Condition: &influxql.BinaryExpr{
 					Op:  influxql.EQ,
@@ -266,10 +267,10 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
-		// LIST FIELD VALUES
+		// SHOW FIELD VALUES
 		{
-			s: `LIST FIELD VALUES FROM src WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
-			stmt: &influxql.ListFieldValuesStatement{
+			s: `SHOW FIELD VALUES FROM src WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
+			stmt: &influxql.ShowFieldValuesStatement{
 				Source: &influxql.Measurement{Name: "src"},
 				Condition: &influxql.BinaryExpr{
 					Op:  influxql.EQ,
@@ -291,10 +292,10 @@ func TestParser_ParseStatement(t *testing.T) {
 			stmt: &influxql.DropSeriesStatement{Name: "myseries"},
 		},
 
-		// LIST CONTINUOUS QUERIES statement
+		// SHOW CONTINUOUS QUERIES statement
 		{
-			s:    `LIST CONTINUOUS QUERIES`,
-			stmt: &influxql.ListContinuousQueriesStatement{},
+			s:    `SHOW CONTINUOUS QUERIES`,
+			stmt: &influxql.ShowContinuousQueriesStatement{},
 		},
 
 		// CREATE CONTINUOUS QUERY ... INTO <measurement>
@@ -540,8 +541,11 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `SELECT field1 FROM "series" WHERE X +;`, err: `found ;, expected identifier, string, number, bool at line 1, char 38`},
 		{s: `SELECT field1 FROM myseries GROUP`, err: `found EOF, expected BY at line 1, char 35`},
 		{s: `SELECT field1 FROM myseries LIMIT`, err: `found EOF, expected number at line 1, char 35`},
-		{s: `SELECT field1 FROM myseries LIMIT 10.5`, err: `fractional parts not allowed in limit at line 1, char 35`},
+		{s: `SELECT field1 FROM myseries LIMIT 10.5`, err: `fractional parts not allowed in LIMIT at line 1, char 35`},
 		{s: `SELECT field1 FROM myseries LIMIT 0`, err: `LIMIT must be > 0 at line 1, char 35`},
+		{s: `SELECT field1 FROM myseries OFFSET`, err: `found EOF, expected number at line 1, char 36`},
+		{s: `SELECT field1 FROM myseries OFFSET 10.5`, err: `fractional parts not allowed in OFFSET at line 1, char 36`},
+		{s: `SELECT field1 FROM myseries OFFSET 0`, err: `OFFSET must be > 0 at line 1, char 36`},
 		{s: `SELECT field1 FROM myseries ORDER`, err: `found EOF, expected BY at line 1, char 35`},
 		{s: `SELECT field1 FROM myseries ORDER BY /`, err: `found /, expected identifier, ASC, or DESC at line 1, char 38`},
 		{s: `SELECT field1 FROM myseries ORDER BY 1`, err: `found 1, expected identifier, ASC, or DESC at line 1, char 38`},
@@ -554,10 +558,10 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `DELETE FROM`, err: `found EOF, expected identifier at line 1, char 13`},
 		{s: `DELETE FROM myseries WHERE`, err: `found EOF, expected identifier, string, number, bool at line 1, char 28`},
 		{s: `DROP SERIES`, err: `found EOF, expected identifier at line 1, char 13`},
-		{s: `LIST CONTINUOUS`, err: `found EOF, expected QUERIES at line 1, char 17`},
-		{s: `LIST RETENTION`, err: `found EOF, expected POLICIES at line 1, char 16`},
-		{s: `LIST RETENTION POLICIES`, err: `found EOF, expected identifier at line 1, char 25`},
-		{s: `LIST FOO`, err: `found FOO, expected SERIES, CONTINUOUS, MEASUREMENTS, TAG, FIELD, RETENTION at line 1, char 6`},
+		{s: `SHOW CONTINUOUS`, err: `found EOF, expected QUERIES at line 1, char 17`},
+		{s: `SHOW RETENTION`, err: `found EOF, expected POLICIES at line 1, char 16`},
+		{s: `SHOW RETENTION POLICIES`, err: `found EOF, expected identifier at line 1, char 25`},
+		{s: `SHOW FOO`, err: `found FOO, expected SERIES, CONTINUOUS, MEASUREMENTS, TAG, FIELD, RETENTION at line 1, char 6`},
 		{s: `DROP CONTINUOUS`, err: `found EOF, expected QUERY at line 1, char 17`},
 		{s: `DROP CONTINUOUS QUERY`, err: `found EOF, expected identifier at line 1, char 23`},
 		{s: `DROP FOO`, err: `found FOO, expected SERIES, CONTINUOUS at line 1, char 6`},
