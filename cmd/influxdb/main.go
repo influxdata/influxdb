@@ -19,6 +19,7 @@ type cli struct {
 	username string
 	password string
 	database string
+	version  string
 	pretty   bool // controls pretty print for json
 }
 
@@ -36,7 +37,6 @@ func main() {
 	// TODO Determine if we are an ineractive shell or running commands
 	fmt.Println("InfluxDB shell")
 	c.connect("")
-	fmt.Printf("Connecting to %s\n", c.client.Addr())
 	fmt.Print("> ")
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
@@ -72,8 +72,15 @@ func (c *cli) connect(cmd string) {
 		})
 	if err != nil {
 		fmt.Printf("Could not create client %s", err)
+		return
 	}
 	c.client = cl
+	if _, v, e := c.client.Ping(); e != nil {
+		fmt.Printf("Failed to connect to %s\n", c.client.Addr())
+	} else {
+		c.version = v
+		fmt.Printf("Connected to %s version %s\n", c.client.Addr(), c.version)
+	}
 }
 
 func (c *cli) parseCommand(cmd string) {
@@ -83,6 +90,8 @@ func (c *cli) parseCommand(cmd string) {
 		os.Exit(0)
 	case strings.HasPrefix(lcmd, "gopher"):
 		gopher()
+	case strings.HasPrefix(lcmd, "connect"):
+		c.connect(cmd)
 	case strings.HasPrefix(lcmd, "pretty"):
 		c.pretty = !c.pretty
 		if c.pretty {

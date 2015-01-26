@@ -29,12 +29,15 @@ func TestClient_Ping(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
 	}
-	d, err := c.Ping()
+	d, version, err := c.Ping()
 	if err != nil {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
 	}
 	if d == 0 {
 		t.Fatalf("expected a duration greater than zero.  actual %v", d)
+	}
+	if version != "x.x" {
+		t.Fatalf("unexpected version.  expected %s,  actual %v", "x.x", version)
 	}
 }
 
@@ -85,7 +88,7 @@ func TestClient_BasicAuth(t *testing.T) {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
 	}
 
-	_, err = c.Ping()
+	_, _, err = c.Ping()
 	if err != nil {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
 	}
@@ -117,6 +120,7 @@ func TestClient_Write(t *testing.T) {
 
 func emptyTestServer() *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Influxdb-Version", "x.x")
 		return
 	}))
 }

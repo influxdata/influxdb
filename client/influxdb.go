@@ -45,11 +45,13 @@ func NewClient(c Config) (*Client, error) {
 }
 
 func (c *Client) Query(q Query) (influxdb.Results, error) {
-	c.url.Path = "query"
-	values := c.url.Query()
+	u := c.url
+
+	u.Path = "query"
+	values := u.Query()
 	values.Set("q", q.Command)
 	values.Set("db", q.Database)
-	c.url.RawQuery = values.Encode()
+	u.RawQuery = values.Encode()
 
 	resp, err := c.httpClient.Get(c.url.String())
 	if err != nil {
@@ -95,14 +97,16 @@ func (c *Client) Write(writes ...Write) (influxdb.Results, error) {
 	return results, nil
 }
 
-func (c *Client) Ping() (time.Duration, error) {
+func (c *Client) Ping() (time.Duration, string, error) {
 	now := time.Now()
-	c.url.Path = "ping"
-	_, err := c.httpClient.Get(c.url.String())
+	u := c.url
+	u.Path = "ping"
+	resp, err := c.httpClient.Get(u.String())
 	if err != nil {
-		return 0, err
+		return 0, "", err
 	}
-	return time.Since(now), nil
+	version := resp.Header.Get("X-Influxdb-Version")
+	return time.Since(now), version, nil
 }
 
 // utility functions
