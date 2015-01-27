@@ -30,7 +30,7 @@ func TestHandler_Databases(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "SHOW DATABASES"}, nil, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `[{"rows":[{"columns":["Name"],"values":[["bar"],["foo"]]}]}]` {
+	} else if body != `{"results":[{"rows":[{"columns":["Name"],"values":[["bar"],["foo"]]}]}]}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -45,25 +45,27 @@ func TestHandler_DatabasesPrettyPrinted(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "SHOW DATABASES", "pretty": "true"}, nil, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `[
-    {
-        "rows": [
-            {
-                "columns": [
-                    "Name"
-                ],
-                "values": [
-                    [
-                        "bar"
+	} else if body != `{
+    "results": [
+        {
+            "rows": [
+                {
+                    "columns": [
+                        "Name"
                     ],
-                    [
-                        "foo"
+                    "values": [
+                        [
+                            "bar"
+                        ],
+                        [
+                            "foo"
+                        ]
                     ]
-                ]
-            }
-        ]
-    }
-]` {
+                }
+            ]
+        }
+    ]
+}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -76,7 +78,7 @@ func TestHandler_CreateDatabase(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "CREATE DATABASE foo"}, nil, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `[{}]` {
+	} else if body != `{"results":[{}]}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -101,7 +103,7 @@ func TestHandler_CreateDatabase_Conflict(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "CREATE DATABASE foo"}, nil, "")
 	if status != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `[{"error":"database exists"}]` {
+	} else if body != `{"results":[{"error":"database exists"}]}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -115,7 +117,7 @@ func TestHandler_DeleteDatabase(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "DROP DATABASE foo"}, nil, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `[{}]` {
+	} else if body != `{"results":[{}]}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -128,7 +130,7 @@ func TestHandler_DeleteDatabase_NotFound(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "DROP DATABASE bar"}, nil, "")
 	if status != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `[{"error":"database not found"}]` {
+	} else if body != `{"results":[{"error":"database not found"}]}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -144,7 +146,7 @@ func TestHandler_RetentionPolicies(t *testing.T) {
 
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `[{"rows":[{"columns":["Name"],"values":[["bar"]]}]}]` {
+	} else if body != `{"results":[{"rows":[{"columns":["Name"],"values":[["bar"]]}]}]}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -158,7 +160,7 @@ func TestHandler_RetentionPolicies_DatabaseNotFound(t *testing.T) {
 
 	if status != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `[{"error":"database not found"}]` {
+	} else if body != `{"results":[{"error":"database not found"}]}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -174,7 +176,7 @@ func TestHandler_CreateRetentionPolicy(t *testing.T) {
 
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `[{}]` {
+	} else if body != `{"results":[{}]}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -302,7 +304,7 @@ func TestHandler_DeleteRetentionPolicy(t *testing.T) {
 
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `[{}]` {
+	} else if body != `{"results":[{}]}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -317,7 +319,7 @@ func TestHandler_DeleteRetentionPolicy_DatabaseNotFound(t *testing.T) {
 
 	if status != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `[{"error":"database not found"}]` {
+	} else if body != `{"results":[{"error":"database not found"}]}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -333,7 +335,7 @@ func TestHandler_DeleteRetentionPolicy_NotFound(t *testing.T) {
 
 	if status != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `[{"error":"retention policy not found"}]` {
+	} else if body != `{"results":[{"error":"retention policy not found"}]}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -360,7 +362,7 @@ func TestHandler_Users_NoUsers(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `[{"rows":[{"columns":["User"]}]}]` {
+	} else if body != `{"results":[{"rows":[{"columns":["User"]}]}]}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -375,7 +377,7 @@ func TestHandler_Users_OneUser(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `[{"rows":[{"columns":["User"],"values":[["jdoe"]]}]}]` {
+	} else if body != `{"results":[{"rows":[{"columns":["User"],"values":[["jdoe"]]}]}]}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -392,7 +394,7 @@ func TestHandler_Users_MultipleUsers(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `[{"rows":[{"columns":["User"],"values":[["csmith"],["jdoe"],["mclark"]]}]}]` {
+	} else if body != `{"results":[{"rows":[{"columns":["User"],"values":[["csmith"],["jdoe"],["mclark"]]}]}]}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -406,7 +408,7 @@ func TestHandler_CreateUser(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `[{}]` {
+	} else if body != `{"results":[{}]}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -420,7 +422,7 @@ func TestHandler_CreateUser_BadRequest(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `[{"error":"error parsing query: found 0, expected identifier at line 1, char 13"}]` {
+	} else if body != `{"error":"error parsing query: found 0, expected identifier at line 1, char 13"}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -434,7 +436,7 @@ func TestHandler_CreateUser_BadRequest_NoName(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `[{"error":"error parsing query: found WITH, expected identifier at line 1, char 13"}]` {
+	} else if body != `{"error":"error parsing query: found WITH, expected identifier at line 1, char 13"}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -448,7 +450,7 @@ func TestHandler_CreateUser_BadRequest_NoPassword(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `[{"error":"error parsing query: found EOF, expected WITH at line 1, char 18"}]` {
+	} else if body != `{"error":"error parsing query: found EOF, expected WITH at line 1, char 18"}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -499,7 +501,7 @@ func TestHandler_DeleteUser(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `[{}]` {
+	} else if body != `{"results":[{}]}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -513,7 +515,7 @@ func TestHandler_DeleteUser_UserNotFound(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `[{"error":"user not found"}]` {
+	} else if body != `{"results":[{"error":"user not found"}]}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }

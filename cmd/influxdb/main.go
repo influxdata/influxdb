@@ -111,7 +111,7 @@ func (c *cli) executeQuery(query string) {
 	if err != nil {
 		fmt.Printf("ERR: %s\n", err)
 	}
-	for _, r := range results {
+	for _, r := range results.Results {
 		var i interface{}
 		if r.Err != nil {
 			i = r.Err
