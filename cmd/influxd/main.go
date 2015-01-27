@@ -88,7 +88,8 @@ func execRun(args []string) {
 	log.SetFlags(log.LstdFlags)
 	writePIDFile(*pidPath)
 
-	influxd.Run(*configPath, *hostname, *join, version)
+	config := influxd.ParseConfigWithDefaults(*configPath, *hostname)
+	influxd.Run(config, *join, version)
 
 	// Wait indefinitely.
 	<-(chan struct{})(nil)

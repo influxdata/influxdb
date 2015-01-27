@@ -219,7 +219,12 @@ func (h *Handler) serveMetastore(w http.ResponseWriter, r *http.Request) {
 
 // servePing returns a simple response to let the client know the server is running.
 func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNoContent)
+	if h.server.Ready() {
+		w.WriteHeader(http.StatusNoContent)
+	} else {
+		// http://httpstatus.es/503 - Service Unavailable
+		w.WriteHeader(503)
+	}
 }
 
 // serveDataNodes returns a list of all data nodes in the cluster.
@@ -331,9 +336,9 @@ func httpResults(w http.ResponseWriter, results influxdb.Results, pretty bool) {
 }
 
 // httpError writes an error to the client in a standard format.
-func httpError(w http.ResponseWriter, error string, code int) {
+func httpError(w http.ResponseWriter, err string, code int) {
 	var results influxdb.Results
-	results = append(results, &influxdb.Result{Err: errors.New(error)})
+	results = append(results, &influxdb.Result{Err: errors.New(err)})
 
 	w.Header().Add("content-type", "application/json")
 	w.WriteHeader(code)

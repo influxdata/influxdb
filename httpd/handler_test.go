@@ -888,6 +888,10 @@ func NewMessagingClient() *MessagingClient {
 	return c
 }
 
+func (c *MessagingClient) Opened() bool {
+	return true
+}
+
 // Publish attaches an autoincrementing index to the message.
 // This function also execute's the client's PublishFunc mock function.
 func (c *MessagingClient) Publish(m *messaging.Message) (uint64, error) {
