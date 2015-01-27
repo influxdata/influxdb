@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"hash/fnv"
-	"log"
 	"math"
 	"sort"
 	"strings"
@@ -127,14 +126,11 @@ func (p *Planner) planExpr(e *Executor, expr Expr) (Processor, error) {
 
 // planCall generates a processor for a function call.
 func (p *Planner) planRawQuery(e *Executor, v *VarRef) (Processor, error) {
-	log.Println("plan: ", v.String())
 	// Convert the statement to a simplified substatement for the single field.
 	stmt, err := e.stmt.Substatement(v)
 	if err != nil {
 		return nil, err
 	}
-
-	log.Println("plan: ", stmt.String())
 
 	// Retrieve a list of iterators for the substatement.
 	itrs, err := e.tx.CreateIterators(stmt)
@@ -701,7 +697,6 @@ func ReducePercentile(percentile float64) ReduceFunc {
 func MapRawQuery(itr Iterator, e *Emitter, tmin int64) {
 	for k, v := itr.Next(); k != 0; k, v = itr.Next() {
 		e.Emit(Key{k, itr.Tags()}, v)
-		log.Println("**** ", k, v)
 	}
 }
 
@@ -711,7 +706,6 @@ type rawQueryMapOutput struct {
 }
 
 func ReduceRawQuery(key Key, values []interface{}, e *Emitter) {
-	log.Println("reduce: ", key.Timestamp, values)
 	for _, v := range values {
 		e.Emit(key, v)
 	}

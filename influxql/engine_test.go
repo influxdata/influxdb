@@ -207,7 +207,7 @@ func TestPlanner_Plan_RawData(t *testing.T) {
 	}
 
 	// Expected resultset.
-	exp := minify(`[{"name":"cpu","columns":["time","value"],"values":[[946684800000000,80],[946684860000000,60]]}]`)
+	exp := minify(`[{"name":"cpu","columns":["time","value"],"values":[[946684800000000,40],[946684810000000,30],[946684820000000,80],[946684822000000,20],[946684824000000,50],[946684890000000,10],[946684900000000,9],[946684910000000,8]]}]`)
 
 	// Execute and compare.
 	rs := MustPlanAndExecute(NewDB(tx), `2000-01-01T12:00:00Z`,
