@@ -1,6 +1,7 @@
 package influxdb
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"sync"
@@ -56,16 +57,18 @@ func (tx *tx) Open() error {
 
 	// Open cursors on every series iterator.
 	for _, itr := range tx.itrs {
-		txn := tx.txns[itr.shardID]
+		for _, shardID := range itr.shardIDs {
+			txn := tx.txns[shardID]
 
-		// Retrieve series bucket.
-		b := txn.Bucket(u32tob(itr.seriesID))
-		if b == nil {
-			continue
+			// Retrieve series bucket.
+			b := txn.Bucket(u32tob(itr.seriesID))
+			if b == nil {
+				continue
+			}
+
+			// Add cursor.
+			itr.cur.cursors = append(itr.cur.cursors, b.Cursor())
 		}
-
-		// Create cursor.
-		itr.cur = b.Cursor()
 	}
 
 	return nil
@@ -191,19 +194,23 @@ func (tx *tx) createExprIterators(m *Measurement, fieldID uint8, interval time.D
 			seriesID:  seriesID,
 			fieldID:   fieldID,
 			condition: expr,
-			tmax:      tmax.UnixNano(),
+			cur: &multiCursor{
+				kmin: u64tob(uint64(tmin.UnixNano())),
+				kmax: u64tob(uint64(tmax.UnixNano())),
+			},
 		}
 
-		// Lookup shard.
-		sh := tx.server.shardsBySeriesID[seriesID]
-		if sh != nil {
-			itr.shardID = sh.ID
-			tx.dbs[sh.ID] = sh.store
+		// Lookup shards.
+		shards := tx.server.shardsBySeriesID[seriesID]
+		for _, sh := range shards {
+			itr.shardIDs = append(itr.shardIDs, sh.ID)
+			if tx.dbs[sh.ID] == nil {
+				tx.dbs[sh.ID] = sh.store
+			}
 		}
-
-		itrs = append(itrs, itr)
 
 		// Track series iterators on tx so their cursors can be opened.
+		itrs = append(itrs, itr)
 		tx.itrs = append(tx.itrs, itr)
 	}
 
@@ -248,46 +255,64 @@ func splitIdent(s string) (db, rp, m string, err error) {
 
 // seriesIterator represents an iterator for traversing over a single series.
 type seriesIterator struct {
-	shardID     uint64
-	seriesID    uint32
-	fieldID     uint8
-	tags        string // encoded dimensional tag values
-	condition   influxql.Expr
-	tmin, tmax  int64
-	initialized bool
-	cur         *bolt.Cursor
+	seriesID  uint32
+	fieldID   uint8
+	tags      string // encoded dimensional tag values
+	condition influxql.Expr
+
+	shardIDs []uint64
+	cur      *multiCursor
 }
 
 func (i *seriesIterator) Tags() string { return i.tags }
 
 func (i *seriesIterator) Next() (key int64, value interface{}) {
-	if i.cur == nil {
-		return 0, nil
-	}
-
-	// If not run yet then seek to the first key.
-	// Otherwise retrieve next key.
-	var k, v []byte
-	if !i.initialized {
-		k, v = i.cur.Seek(u64tob(uint64(i.tmin)))
-		i.initialized = true
-	} else {
-		k, v = i.cur.Next()
-	}
-
 	// Ignore if there's no more data.
+	k, v := i.cur.Next()
 	if k == nil {
 		return 0, nil
 	}
 
-	// Read timestamp. Ignore if greater than tmax.
+	// Read timestamp & field value.
 	key = int64(btou64(k))
-	if i.tmax != 0 && key > i.tmax {
-		return 0, nil
-	}
-
-	// Read field value.
 	value = unmarshalValue(v, i.fieldID)
-	warn("!", key, value)
 	return key, value
+}
+
+type multiCursor struct {
+	cursors     []*bolt.Cursor
+	index       int
+	initialized bool
+	kmin, kmax  []byte // min/max keys
+}
+
+func (c *multiCursor) Next() (key, value []byte) {
+	for {
+		// Exit if no more cursors remain.
+		if c.index >= len(c.cursors) {
+			return nil, nil
+		}
+
+		// Move to the first or next key.
+		if !c.initialized {
+			key, value = c.cursors[c.index].Seek(c.kmin)
+			c.initialized = true
+		} else {
+			key, value = c.cursors[c.index].Next()
+		}
+
+		// Clear key if it's above max allowed.
+		if bytes.Compare(key, c.kmax) == 1 {
+			key, value = nil, nil
+		}
+
+		// If there is no key then increment the index and retry.
+		if key == nil {
+			c.index++
+			c.initialized = false
+			continue
+		}
+
+		return key, value
+	}
 }

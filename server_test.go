@@ -938,7 +938,7 @@ func OpenDefaultServer(client influxdb.MessagingClient) *Server {
 	s := OpenServer(client)
 	if err := s.CreateDatabase("db"); err != nil {
 		panic(err.Error())
-	} else if err = s.CreateRetentionPolicy("db", &influxdb.RetentionPolicy{Name: "raw"}); err != nil {
+	} else if err = s.CreateRetentionPolicy("db", &influxdb.RetentionPolicy{Name: "raw", Duration: 1 * time.Hour}); err != nil {
 		panic(err.Error())
 	} else if err = s.SetDefaultRetentionPolicy("db", "raw"); err != nil {
 		panic(err.Error())
