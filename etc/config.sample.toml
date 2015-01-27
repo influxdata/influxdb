@@ -15,6 +15,11 @@ bind-address = "0.0.0.0"
 # Change this option to true to disable reporting.
 reporting-disabled = false
 
+# Controls settings for initial start-up. Once a node a successfully started,
+# these settings no longer apply.
+[initialization]
+join-urls = ""
+
 # Control authentication
 # If not set authetication is DISABLED. Be sure to explicitly set this flag to
 # true if you want authentication. If authentication is enabled, and no administrative
