@@ -4,12 +4,15 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"os"
+	"reflect"
 	"testing"
 	"time"
 
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/influxd"
+	"github.com/influxdb/influxdb/influxql"
 )
 
 func TestNewServer(t *testing.T) {
@@ -81,20 +84,14 @@ func TestNewServer(t *testing.T) {
 
 	// Createa a database
 	t.Log("Creating database")
-	u := c.BrokerURL()
-	u.Path = "query"
 
-	v := u.Query()
-	v.Set("q", "CREATE DATABASE foo")
-	u.RawQuery = v.Encode()
+	u := urlFor(c.BrokerURL(), "query", url.Values{"q": []string{"CREATE DATABASE foo"}})
 
 	resp, err := http.Get(u.String())
 	if err != nil {
 		t.Fatalf("Couldn't create database: %s", err)
 	}
 	defer resp.Body.Close()
-	body, _ := ioutil.ReadAll(resp.Body)
-	t.Fatalf("%s", string(body))
 
 	var results influxdb.Results
 	err = json.NewDecoder(resp.Body).Decode(&results)
@@ -109,6 +106,40 @@ func TestNewServer(t *testing.T) {
 	}
 
 	// Query the database exists
+	u = urlFor(c.BrokerURL(), "query", url.Values{"q": []string{"SHOW DATABASES"}})
+
+	resp, err = http.Get(u.String())
+	if err != nil {
+		t.Fatalf("Couldn't query databases: %s", err)
+	}
+	defer resp.Body.Close()
+
+	err = json.NewDecoder(resp.Body).Decode(&results)
+	if err != nil {
+		t.Fatalf("Couldn't decode results: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("show databases failed.  Unexpected status code.  expected: %d, actual %d", http.StatusOK, resp.StatusCode)
+	}
+	if len(results) != 1 {
+		t.Fatalf("show databases failed.  Unexpected results length.  expected: %d, actual %d", 1, len(results))
+	}
+
+	rows := results[0].Rows
+	if len(rows) != 1 {
+		t.Fatalf("show databases failed.  Unexpected rows length.  expected: %d, actual %d", 1, len(rows))
+	}
+	row := rows[0]
+	expectedRow := &influxql.Row{
+		Columns: []string{"Name"},
+		Values:  [][]interface{}{{"foo"}},
+	}
+	if !reflect.DeepEqual(row, expectedRow) {
+		t.Fatalf("show databases failed.  Unexpected row.  expected: %+v, actual %+v", expectedRow, row)
+	}
+	if row.Columns[0] != "Name" {
+		t.Fatalf("show databases failed.  Unexpected row.Columns[0].  expected: %s, actual %s", "Name", row.Columns[0])
+	}
 
 	// Create a retention policy
 
@@ -118,4 +149,10 @@ func TestNewServer(t *testing.T) {
 
 	// Query the data exists
 
+}
+
+func urlFor(u *url.URL, path string, params url.Values) *url.URL {
+	u.Path = path
+	u.RawQuery = params.Encode()
+	return u
 }
