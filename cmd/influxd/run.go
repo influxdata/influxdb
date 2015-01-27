@@ -25,20 +25,11 @@ func execRun(args []string) {
 	var (
 		configPath = fs.String("config", "", "")
 		pidPath    = fs.String("pidfile", "", "")
-		role       = fs.String("role", "", "")
 		hostname   = fs.String("hostname", "", "")
 		join       = fs.String("join", "", "")
 	)
 	fs.Usage = printRunUsage
 	fs.Parse(args)
-
-	// Validate CLI flags.
-	if *role != "" && *role != "broker" && *role != "data" {
-		log.Fatalf("role must be '', 'broker', or 'data'")
-	}
-
-	// Parse join urls from the --join flag.
-	joinURLs := parseURLs(*join)
 
 	// Print sweet InfluxDB logo and write the process id to file.
 	log.Print(logo)
@@ -50,6 +41,14 @@ func execRun(args []string) {
 	config := parseConfig(*configPath, *hostname)
 	configExists := *configPath != ""
 	initializing := !fileExists(config.BrokerDir()) && !fileExists(config.DataDir())
+
+	// Parse join urls from the --join flag.
+	var joinURLs []*url.URL
+	if *join == "" {
+		joinURLs = parseURLs(config.JoinURLs())
+	} else {
+		joinURLs = parseURLs(*join)
+	}
 
 	// Open broker, initialize or join as necessary.
 	b := openBroker(config.BrokerDir(), config.BrokerURL(), initializing, joinURLs)
@@ -326,12 +325,6 @@ is used.
         -config <path>
                           Set the path to the configuration file.
 
-        -role <role>
-                          Set the role to 'broker' or 'data'.  'broker' means
-                          it will take part in Raft distributed consensus.
-                          'data' means it will store time-series data.
-                          If neither 'broker' or 'data' is specified then
-                          the server will run as both a broker and data node.
 
         -hostname <name>
                           Override the hostname, the 'hostname' configuration

@@ -36,6 +36,9 @@ const (
 
 	// DefaultDataPort represents the default port the data server runs on.
 	DefaultDataPort = 8086
+
+	// DefaultJoinURLs represents the default URLs for joining a cluster.
+	DefaultJoinURLs = ""
 )
 
 // Config represents the configuration format for the influxd binary.
@@ -45,6 +48,10 @@ type Config struct {
 	ReportingDisabled bool   `toml:"reporting-disabled"`
 	Version           string `toml:"-"`
 	InfluxDBVersion   string `toml:"-"`
+
+	Initialization struct {
+		JoinURLs string `toml:"join-urls"`
+	}
 
 	Authentication struct {
 		Enabled bool `toml:"enabled"`
@@ -214,6 +221,14 @@ func (c *Config) DataDir() string {
 		log.Fatalf("Unable to get absolute path for Data Directory: %q", c.Data.Dir)
 	}
 	return p
+}
+
+func (c *Config) JoinURLs() string {
+	if c.Initialization.JoinURLs == "" {
+		return DefaultJoinURLs
+	} else {
+		return c.Initialization.JoinURLs
+	}
 }
 
 // Size represents a TOML parseable file size.
