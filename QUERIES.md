@@ -43,7 +43,7 @@ REVOKE ALL [PRIVILEGES] FROM <user>
 -- delete a user
 DROP USER <name>
 ```
-<privilege> := READ | WRITE | All [PRIVILEGES]
+where `<privilege> := READ | WRITE | All [PRIVILEGES]`.
 
 # Select
 
