@@ -1,4 +1,4 @@
-package main_test
+package influxd_test
 
 import (
 	"reflect"
@@ -6,12 +6,12 @@ import (
 	"testing"
 	"time"
 
-	main "github.com/influxdb/influxdb/cmd/influxd"
+	"github.com/influxdb/influxdb/influxd"
 )
 
 // Ensure that megabyte sizes can be parsed.
 func TestSize_UnmarshalText_MB(t *testing.T) {
-	var s main.Size
+	var s influxd.Size
 	if err := s.UnmarshalText([]byte("200m")); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	} else if s != 200*(1<<20) {
@@ -25,7 +25,7 @@ func TestSize_UnmarshalText_GB(t *testing.T) {
 		t.Skip("large gigabyte parsing on 64-bit arch only")
 	}
 
-	var s main.Size
+	var s influxd.Size
 	if err := s.UnmarshalText([]byte("10g")); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	} else if s != 10*(1<<30) {
@@ -35,7 +35,7 @@ func TestSize_UnmarshalText_GB(t *testing.T) {
 
 // Ensure that a TOML configuration file can be parsed into a Config.
 func TestParseConfig(t *testing.T) {
-	c, err := main.ParseConfig(testFile)
+	c, err := influxd.ParseConfig(testFile)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	} else if c.Hostname != "myserver.com" {
@@ -62,7 +62,7 @@ func TestParseConfig(t *testing.T) {
 		t.Fatalf("admin assets mismatch: %v", c.Admin.Assets)
 	}
 
-	if c.Data.Port != main.DefaultBrokerPort {
+	if c.Data.Port != influxd.DefaultBrokerPort {
 		t.Fatalf("data port mismatch: %v", c.Data.Port)
 	}
 
@@ -306,31 +306,31 @@ func TestCollectd_ConnectionString(t *testing.T) {
 		name             string
 		defaultBindAddr  string
 		connectionString string
-		config           main.Collectd
+		config           influxd.Collectd
 	}{
 		{
 			name:             "No address or port provided from config",
 			defaultBindAddr:  "192.168.0.1",
 			connectionString: "192.168.0.1:25826",
-			config:           main.Collectd{},
+			config:           influxd.Collectd{},
 		},
 		{
 			name:             "address provided, no port provided from config",
 			defaultBindAddr:  "192.168.0.1",
 			connectionString: "192.168.0.2:25826",
-			config:           main.Collectd{Addr: "192.168.0.2"},
+			config:           influxd.Collectd{Addr: "192.168.0.2"},
 		},
 		{
 			name:             "no address provided, port provided from config",
 			defaultBindAddr:  "192.168.0.1",
 			connectionString: "192.168.0.1:25827",
-			config:           main.Collectd{Port: 25827},
+			config:           influxd.Collectd{Port: 25827},
 		},
 		{
 			name:             "both address and port provided from config",
 			defaultBindAddr:  "192.168.0.1",
 			connectionString: "192.168.0.2:25827",
-			config:           main.Collectd{Addr: "192.168.0.2", Port: 25827},
+			config:           influxd.Collectd{Addr: "192.168.0.2", Port: 25827},
 		},
 	}
 
