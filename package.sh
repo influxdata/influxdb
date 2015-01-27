@@ -182,7 +182,7 @@ if [ $? -ne 0 ]; then
 fi
 echo "$INITD_SCRIPT copied to $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/$VERSION/scripts"
 
-cp $SAMPLE_CONFIGURATION $TMP_WORK_DIR/$CONFIG_ROOT_DIR
+cp $SAMPLE_CONFIGURATION $TMP_WORK_DIR/$CONFIG_ROOT_DIR/influxdb.conf
 if [ $? -ne 0 ]; then
     echo "Failed to copy $SAMPLE_CONFIGURATION to packaging directory -- aborting."
     cleanup_exit 1

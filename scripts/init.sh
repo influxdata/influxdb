@@ -91,7 +91,7 @@ daemon=/opt/influxdb/influxd
 pidfile=/var/opt/influxdb/run/influxd.pid
 
 # Configuration file
-config=/etc/opt/influxdb/config.sample.toml
+config=/etc/opt/influxdb/influxdb.conf
 
 # If the daemon is not there, then exit.
 [ -x $daemon ] || exit 5
