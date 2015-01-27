@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"hash/fnv"
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -126,7 +127,11 @@ func (p *Planner) planExpr(e *Executor, expr Expr) (Processor, error) {
 // planCall generates a processor for a function call.
 func (p *Planner) planCall(e *Executor, c *Call) (Processor, error) {
 	// Ensure there is a single argument.
-	if len(c.Args) != 1 {
+	if c.Name == "percentile" {
+		if len(c.Args) != 2 {
+			return nil, fmt.Errorf("expected two arguments for percentile()")
+		}
+	} else if len(c.Args) != 1 {
 		return nil, fmt.Errorf("expected one argument for %s()", c.Name)
 	}
 
@@ -158,6 +163,12 @@ func (p *Planner) planCall(e *Executor, c *Call) (Processor, error) {
 		mapFn, reduceFn = MapSum, ReduceSum
 	case "mean":
 		mapFn, reduceFn = MapMean, ReduceMean
+	case "percentile":
+		lit, ok := c.Args[1].(*NumberLiteral)
+		if !ok {
+			return nil, fmt.Errorf("expected float argument in percentile()")
+		}
+		mapFn, reduceFn = MapEcho, ReducePercentile(lit.Val)
 	default:
 		return nil, fmt.Errorf("function not found: %q", c.Name)
 	}
@@ -629,6 +640,40 @@ func ReduceMean(key Key, values []interface{}, e *Emitter) {
 		out.Sum += val.Sum
 	}
 	e.Emit(key, out.Sum/float64(out.Count))
+}
+
+// MapEcho emits the data points for each group by interval
+func MapEcho(itr Iterator, e *Emitter, tmin int64) {
+	var values []interface{}
+
+	for k, v := itr.Next(); k != 0; k, v = itr.Next() {
+		values = append(values, v)
+	}
+	e.Emit(Key{tmin, itr.Tags()}, values)
+}
+
+// ReducePercentile computes the percentile of values for each key.
+func ReducePercentile(percentile float64) ReduceFunc {
+	return func(key Key, values []interface{}, e *Emitter) {
+		var allValues []float64
+
+		for _, v := range values {
+			vals := v.([]interface{})
+			for _, v := range vals {
+				allValues = append(allValues, v.(float64))
+			}
+		}
+
+		sort.Float64s(allValues)
+		length := len(allValues)
+		index := int(math.Floor(float64(length)*percentile/100.0+0.5)) - 1
+
+		if index < 0 || index >= len(allValues) {
+			e.Emit(key, 0.0)
+		}
+
+		e.Emit(key, allValues[index])
+	}
 }
 
 // binaryExprEvaluator represents a processor for combining two processors.
