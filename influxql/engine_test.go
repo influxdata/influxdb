@@ -15,7 +15,7 @@ import (
 
 // Ensure a mapper can process intervals across multiple iterators.
 func TestMapper_Map(t *testing.T) {
-	m := influxql.NewMapper(influxql.MapSum, []influxql.Iterator{
+	m := influxql.NewMapper(influxql.MapSum,
 		NewIterator([]string{"foo"}, []Point{
 			{"2000-01-01T00:00:00Z", float64(10)}, // first minute
 			{"2000-01-01T00:00:30Z", float64(20)},
@@ -23,53 +23,42 @@ func TestMapper_Map(t *testing.T) {
 			{"2000-01-01T00:01:30Z", float64(40)},
 			{"2000-01-01T00:03:00Z", float64(50)}, // fourth minute (skip third)
 		}),
-		NewIterator([]string{"bar"}, []Point{
-			{"2000-01-01T00:01:00Z", float64(100)}, // second minute
-			{"2000-01-01T00:01:30Z", float64(200)},
-		}),
-	}, 1*time.Minute)
+		1*time.Minute)
 
 	ch := m.Map().C()
 	if data := <-ch; !reflect.DeepEqual(data, map[influxql.Key]interface{}{influxql.Key{Timestamp: 946684800000000000, Values: "\x00\x03foo"}: float64(30)}) {
 		t.Fatalf("unexpected data(0/foo): %#v", data)
-	} else if data := <-ch; !reflect.DeepEqual(data, map[influxql.Key]interface{}{influxql.Key{Timestamp: 946684800000000000, Values: "\x00\x03bar"}: float64(0)}) {
-		t.Fatalf("unexpected data(0/bar): %#v", data)
 	}
 	if data := <-ch; !reflect.DeepEqual(data, map[influxql.Key]interface{}{influxql.Key{Timestamp: 946684860000000000, Values: "\x00\x03foo"}: float64(70)}) {
 		t.Fatalf("unexpected data(1/foo): %#v", data)
-	} else if data := <-ch; !reflect.DeepEqual(data, map[influxql.Key]interface{}{influxql.Key{Timestamp: 946684860000000000, Values: "\x00\x03bar"}: float64(300)}) {
-		t.Fatalf("unexpected data(1/bar): %#v", data)
 	}
 	if data := <-ch; !reflect.DeepEqual(data, map[influxql.Key]interface{}{influxql.Key{Timestamp: 946684920000000000, Values: "\x00\x03foo"}: float64(0)}) {
 		t.Fatalf("unexpected data(2/foo): %#v", data)
-	} else if data := <-ch; !reflect.DeepEqual(data, map[influxql.Key]interface{}{influxql.Key{Timestamp: 946684920000000000, Values: "\x00\x03bar"}: float64(0)}) {
-		t.Fatalf("unexpected data(2/bar): %#v", data)
 	}
 	if data := <-ch; !reflect.DeepEqual(data, map[influxql.Key]interface{}{influxql.Key{Timestamp: 946684980000000000, Values: "\x00\x03foo"}: float64(50)}) {
 		t.Fatalf("unexpected data(3/foo): %#v", data)
-	} else if data := <-ch; !reflect.DeepEqual(data, map[influxql.Key]interface{}{influxql.Key{Timestamp: 946684980000000000, Values: "\x00\x03bar"}: float64(0)}) {
-		t.Fatalf("unexpected data(3/bar): %#v", data)
 	}
 }
 
 // Ensure a reducer can combine data received from a mapper.
 func TestReducer_Reduce(t *testing.T) {
-	m := influxql.NewMapper(influxql.MapSum, []influxql.Iterator{
-		NewIterator([]string{"foo"}, []Point{
-			{"2000-01-01T00:00:00Z", float64(10)},
-			{"2000-01-01T00:01:00Z", float64(20)},
-		}),
-		NewIterator([]string{"bar"}, []Point{
-			{"2000-01-01T00:00:00Z", float64(100)},
-			{"2000-01-01T00:01:00Z", float64(200)},
-		}),
-		NewIterator([]string{"foo"}, []Point{
+	m := []*influxql.Mapper{
+		influxql.NewMapper(influxql.MapSum,
+			NewIterator([]string{"foo"}, []Point{
+				{"2000-01-01T00:00:00Z", float64(10)},
+				{"2000-01-01T00:01:00Z", float64(20)},
+			}), 1*time.Minute),
+		influxql.NewMapper(influxql.MapSum,
+			NewIterator([]string{"bar"}, []Point{
+				{"2000-01-01T00:00:00Z", float64(100)},
+				{"2000-01-01T00:01:00Z", float64(200)},
+			}), 1*time.Minute),
+		influxql.NewMapper(influxql.MapSum, NewIterator([]string{"foo"}, []Point{
 			{"2000-01-01T00:00:00Z", float64(1000)},
 			{"2000-01-01T00:01:00Z", float64(2000)},
-		}),
-	}, 1*time.Minute)
+		}), 1*time.Minute)}
 
-	r := influxql.NewReducer(influxql.ReduceSum, []*influxql.Mapper{m})
+	r := influxql.NewReducer(influxql.ReduceSum, m)
 	ch := r.Reduce().C()
 	if data := <-ch; !reflect.DeepEqual(data, map[influxql.Key]interface{}{influxql.Key{Timestamp: 946684800000000000, Values: "\x00\x03bar"}: float64(100)}) {
 		t.Fatalf("unexpected data(0/bar): %#v", data)
@@ -190,6 +179,44 @@ func TestPlanner_Plan_Percentile(t *testing.T) {
 	}
 }
 
+// Ensure the planner can plan and execute a query that returns raw data points
+func TestPlanner_Plan_RawData(t *testing.T) {
+	tx := NewTx()
+	tx.CreateIteratorsFunc = func(stmt *influxql.SelectStatement) ([]influxql.Iterator, error) {
+		return []influxql.Iterator{
+			NewIterator(nil, []Point{
+				{"2000-01-01T00:00:00Z", float64(100)},
+				{"2000-01-01T00:00:10Z", float64(90)},
+				{"2000-01-01T00:00:20Z", float64(80)},
+			}),
+			NewIterator(nil, []Point{
+				{"2000-01-01T00:00:00Z", float64(70)},
+				{"2000-01-01T00:00:10Z", float64(60)},
+				{"2000-01-01T00:00:24Z", float64(50)},
+			}),
+			NewIterator(nil, []Point{
+				{"2000-01-01T00:00:00Z", float64(40)},
+				{"2000-01-01T00:00:10Z", float64(30)},
+				{"2000-01-01T00:00:22Z", float64(20)},
+			}),
+			NewIterator(nil, []Point{
+				{"2000-01-01T00:01:30Z", float64(10)},
+				{"2000-01-01T00:01:40Z", float64(9)},
+				{"2000-01-01T00:01:50Z", float64(8)},
+			})}, nil
+	}
+
+	// Expected resultset.
+	exp := minify(`[{"name":"cpu","columns":["time","value"],"values":[[946684800000000,40],[946684810000000,30],[946684820000000,80],[946684822000000,20],[946684824000000,50],[946684890000000,10],[946684900000000,9],[946684910000000,8]]}]`)
+
+	// Execute and compare.
+	rs := MustPlanAndExecute(NewDB(tx), `2000-01-01T12:00:00Z`,
+		`SELECT value FROM cpu WHERE time >= '2000-01-01T00:00:11Z'`)
+	if act := minify(jsonify(rs)); exp != act {
+		t.Fatalf("unexpected resultset: %s", act)
+	}
+}
+
 // Ensure the planner can plan and execute a count query grouped by hour.
 func TestPlanner_Plan_GroupByInterval(t *testing.T) {
 	tx := NewTx()
@@ -215,8 +242,6 @@ func TestPlanner_Plan_GroupByInterval(t *testing.T) {
 		"values":[
 			[946717200000000,190],
 			[946719000000000,80],
-			[946720800000000,0],
-			[946722600000000,0],
 			[946724400000000,130],
 			[946726200000000,50]
 		]

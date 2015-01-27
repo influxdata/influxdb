@@ -103,7 +103,7 @@ func (p *Planner) planField(e *Executor, f *Field) (Processor, error) {
 func (p *Planner) planExpr(e *Executor, expr Expr) (Processor, error) {
 	switch expr := expr.(type) {
 	case *VarRef:
-		panic("TODO")
+		return p.planRawQuery(e, expr)
 	case *Call:
 		return p.planCall(e, expr)
 	case *BinaryExpr:
@@ -122,6 +122,32 @@ func (p *Planner) planExpr(e *Executor, expr Expr) (Processor, error) {
 		return newLiteralProcessor(expr.Val), nil
 	}
 	panic("unreachable")
+}
+
+// planCall generates a processor for a function call.
+func (p *Planner) planRawQuery(e *Executor, v *VarRef) (Processor, error) {
+	// Convert the statement to a simplified substatement for the single field.
+	stmt, err := e.stmt.Substatement(v)
+	if err != nil {
+		return nil, err
+	}
+
+	// Retrieve a list of iterators for the substatement.
+	itrs, err := e.tx.CreateIterators(stmt)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create mapper and reducer.
+	mappers := make([]*Mapper, len(itrs))
+	for i, itr := range itrs {
+		mappers[i] = NewMapper(MapRawQuery, itr, e.interval)
+	}
+	r := NewReducer(ReduceRawQuery, mappers)
+	r.name = stmt.Source.(*Measurement).Name
+
+	return r, nil
+
 }
 
 // planCall generates a processor for a function call.
@@ -174,8 +200,11 @@ func (p *Planner) planCall(e *Executor, c *Call) (Processor, error) {
 	}
 
 	// Create mapper and reducer.
-	m := NewMapper(mapFn, itrs, e.interval)
-	r := NewReducer(reduceFn, []*Mapper{m})
+	mappers := make([]*Mapper, len(itrs))
+	for i, itr := range itrs {
+		mappers[i] = NewMapper(mapFn, itr, e.interval)
+	}
+	r := NewReducer(reduceFn, mappers)
 	r.name = stmt.Source.(*Measurement).Name
 
 	return r, nil
@@ -330,16 +359,16 @@ func (e *Executor) createRowValuesIfNotExists(rows map[string]*Row, name string,
 
 // Mapper represents an object for processing iterators.
 type Mapper struct {
-	fn       MapFunc    // map function
-	itrs     []Iterator // iterators
-	interval int64      // grouping interval
+	fn       MapFunc  // map function
+	itr      Iterator // iterators
+	interval int64    // grouping interval
 }
 
 // NewMapper returns a new instance of Mapper with a given function and interval.
-func NewMapper(fn MapFunc, itrs []Iterator, interval time.Duration) *Mapper {
+func NewMapper(fn MapFunc, itr Iterator, interval time.Duration) *Mapper {
 	return &Mapper{
 		fn:       fn,
-		itrs:     itrs,
+		itr:      itr,
 		interval: interval.Nanoseconds(),
 	}
 }
@@ -356,63 +385,34 @@ func (m *Mapper) run(e *Emitter) {
 	// Close emitter when we're done.
 	defer func() { _ = e.Close() }()
 
-	// Exit if we have no iterators.
-	if len(m.itrs) == 0 {
-		return
-	}
-
-	// Wrap iterators with buffers.
-	bufItrs := make([]*bufIterator, len(m.itrs))
-	for i, itr := range m.itrs {
-		bufItrs[i] = &bufIterator{itr: itr}
-	}
+	// Wrap iterator with buffer.
+	bufItr := &bufIterator{itr: m.itr}
 
 	// Determine the start time.
 	var tmin int64
 	if m.interval > 0 {
-		for _, bufItr := range bufItrs {
-			k, _ := bufItr.Peek()
-			if k != 0 && (tmin == 0 || k < tmin) {
-				tmin = k
-			}
-		}
-
 		// Align start time to interval.
+		tmin, _ = bufItr.Peek()
 		tmin -= (tmin % m.interval)
 	}
 
 	for {
-		// Loop over each iterator.
-		eof := true
-		for _, bufItr := range bufItrs {
-			// Set the upper bound of the interval.
-			if m.interval > 0 {
-				bufItr.tmax = tmin + m.interval - 1
-			}
-
-			// Execute the map function.
-			m.fn(bufItr, e, tmin)
-
-			// Turn off the eof flag if at least one iterator still has data.
-			if !bufItr.EOF() {
-				eof = false
-			}
+		// Set the upper bound of the interval.
+		if m.interval > 0 {
+			bufItr.tmax = tmin + m.interval - 1
 		}
 
-		// Exit if there was only one interval.
-		if m.interval == 0 {
+		// Execute the map function.
+		m.fn(bufItr, e, tmin)
+
+		// Exit if there was only one interval or no more data is available.
+		if bufItr.EOF() {
 			break
 		}
 
 		// Move the interval forward.
 		tmin += m.interval
-
-		// Exit if all iterators are exhausted.
-		if eof {
-			break
-		}
 	}
-
 }
 
 // bufIterator represents a buffer iterator.
@@ -540,24 +540,30 @@ func (r *Reducer) run(e *Emitter, inputs []<-chan map[Key]interface{}) {
 	for {
 		// Read all data from the inputers with the same timestamp.
 		timestamp := int64(0)
+		for _, bufInput := range bufInputs {
+			rec := bufInput.peek()
+			if rec == nil {
+				continue
+			}
+			if timestamp == 0 || rec.Key.Timestamp < timestamp {
+				timestamp = rec.Key.Timestamp
+			}
+		}
+
 		data := make(map[Key][]interface{})
 		for _, bufInput := range bufInputs {
-		loop:
 			for {
-				m := bufInput.read()
-				if m == nil {
+				rec := bufInput.read()
+				if rec == nil {
 					break
 				}
 
-				for k, v := range m {
-					if timestamp != 0 && k.Timestamp != timestamp {
-						bufInput.unread(m)
-						break loop
-					}
-
-					timestamp = k.Timestamp
-					data[k] = append(data[k], v)
+				if rec.Key.Timestamp != timestamp {
+					bufInput.unread(rec)
+					break
 				}
+
+				data[rec.Key] = append(data[rec.Key], rec.Value)
 			}
 		}
 
@@ -580,27 +586,39 @@ func (r *Reducer) run(e *Emitter, inputs []<-chan map[Key]interface{}) {
 }
 
 type bufInput struct {
-	buf map[Key]interface{}
+	buf *Record
 	c   <-chan map[Key]interface{}
 }
 
-func (i *bufInput) read() map[Key]interface{} {
+func (i *bufInput) read() *Record {
 	if i.buf != nil {
-		m := i.buf
+		rec := i.buf
 		i.buf = nil
-		return m
+		return rec
 	}
 
 	m, _ := <-i.c
-	return m
+	return mapToRecord(m)
 }
 
-func (i *bufInput) unread(m map[Key]interface{}) { i.buf = m }
+func (i *bufInput) unread(rec *Record) { i.buf = rec }
 
-func (i *bufInput) peek() map[Key]interface{} {
-	m := i.read()
-	i.unread(m)
-	return m
+func (i *bufInput) peek() *Record {
+	rec := i.read()
+	i.unread(rec)
+	return rec
+}
+
+type Record struct {
+	Key   Key
+	Value interface{}
+}
+
+func mapToRecord(m map[Key]interface{}) *Record {
+	for k, v := range m {
+		return &Record{k, v}
+	}
+	return nil
 }
 
 // ReduceFunc represents a function used for reducing mapper output.
@@ -673,6 +691,23 @@ func ReducePercentile(percentile float64) ReduceFunc {
 		}
 
 		e.Emit(key, allValues[index])
+	}
+}
+
+func MapRawQuery(itr Iterator, e *Emitter, tmin int64) {
+	for k, v := itr.Next(); k != 0; k, v = itr.Next() {
+		e.Emit(Key{k, itr.Tags()}, v)
+	}
+}
+
+type rawQueryMapOutput struct {
+	timestamp int64
+	value     interface{}
+}
+
+func ReduceRawQuery(key Key, values []interface{}, e *Emitter) {
+	for _, v := range values {
+		e.Emit(key, v)
 	}
 }
 
