@@ -1,6 +1,7 @@
 package influxdb_test
 
 import (
+	"reflect"
 	"sort"
 	"testing"
 
@@ -17,7 +18,7 @@ func TestTx_CreateIterators(t *testing.T) {
 	s.MustWriteSeries("db", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east", "host": "serverA"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(100)}}})
 	s.MustWriteSeries("db", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east", "host": "serverA"}, Timestamp: mustParseTime("2000-01-01T00:00:10Z"), Values: map[string]interface{}{"value": float64(90)}}})
 	s.MustWriteSeries("db", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east", "host": "serverA"}, Timestamp: mustParseTime("2000-01-01T00:00:20Z"), Values: map[string]interface{}{"value": float64(80)}}})
-	s.MustWriteSeries("db", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east", "host": "serverA"}, Timestamp: mustParseTime("2000-01-01T00:00:30Z"), Values: map[string]interface{}{"value": float64(60)}}})
+	s.MustWriteSeries("db", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east", "host": "serverA"}, Timestamp: mustParseTime("2000-01-01T00:00:30Z"), Values: map[string]interface{}{"value": float64(70)}}})
 
 	// Write to us-west
 	s.MustWriteSeries("db", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-west", "host": "serverB"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(1)}}})
@@ -52,8 +53,18 @@ func TestTx_CreateIterators(t *testing.T) {
 	defer tx.Close()
 
 	// Iterate over each one.
-	data := slurp(itrs)
-	warnf("> %v", data)
+	if data := slurp(itrs); !reflect.DeepEqual(data, []keyValue{
+		{key: 946684800000000000, value: float64(100)},
+		{key: 946684800000000000, value: float64(2000)},
+		{key: 946684800000000000, value: float64(1)},
+		{key: 946684800000000000, value: float64(2)},
+		{key: 946684800000000000, value: float64(1000)},
+		{key: 946684810000000000, value: float64(90)},
+		{key: 946684820000000000, value: float64(80)},
+		{key: 946684830000000000, value: float64(70)},
+	}) {
+		t.Fatalf("unexpected data: %#v", data)
+	}
 }
 
 func slurp(itrs []influxql.Iterator) []keyValue {

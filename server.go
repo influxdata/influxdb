@@ -92,8 +92,8 @@ type Server struct {
 	databases map[string]*database // databases by name
 	users     map[string]*User     // user by name
 
-	shards           map[uint64]*Shard // shards by shard id
-	shardsBySeriesID map[uint32]*Shard // shards by series id
+	shards           map[uint64]*Shard   // shards by shard id
+	shardsBySeriesID map[uint32][]*Shard // shards by series id
 }
 
 // NewServer returns a new instance of Server.
@@ -106,7 +106,7 @@ func NewServer() *Server {
 		users:     make(map[string]*User),
 
 		shards:           make(map[uint64]*Shard),
-		shardsBySeriesID: make(map[uint32]*Shard),
+		shardsBySeriesID: make(map[uint32][]*Shard),
 	}
 }
 
@@ -1286,7 +1286,6 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 
 	// Find appropriate shard within the shard group.
 	sh := g.ShardBySeriesID(seriesID)
-	s.shardsBySeriesID[seriesID] = sh
 
 	// Ignore requests that have no values.
 	if len(values) == 0 {
@@ -1390,6 +1389,9 @@ func (s *Server) applyWriteSeries(m *messaging.Message) error {
 		return err
 	}
 
+	// Add to lookup.
+	s.addShardBySeriesID(sh, c.SeriesID)
+
 	// Encode the values into a binary format.
 	data := marshalValues(rawValues)
 
@@ -1415,11 +1417,23 @@ func (s *Server) applyWriteRawSeries(m *messaging.Message) error {
 	seriesID, timestamp := unmarshalPointHeader(m.Data[:pointHeaderSize])
 	data := m.Data[pointHeaderSize:]
 
+	// Add to lookup.
+	s.addShardBySeriesID(sh, seriesID)
+
 	// TODO: Enable some way to specify if the data should be overwritten
 	overwrite := true
 
 	// Write to shard.
 	return sh.writeSeries(seriesID, timestamp, data, overwrite)
+}
+
+func (s *Server) addShardBySeriesID(sh *Shard, seriesID uint32) {
+	for _, other := range s.shardsBySeriesID[seriesID] {
+		if other.ID == sh.ID {
+			return
+		}
+	}
+	s.shardsBySeriesID[seriesID] = append(s.shardsBySeriesID[seriesID], sh)
 }
 
 func (s *Server) createSeriesIfNotExists(database, name string, tags map[string]string) (uint32, error) {
