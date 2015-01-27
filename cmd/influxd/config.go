@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"net/url"
 	"os"
@@ -195,6 +196,24 @@ func (c *Config) BrokerURL() *url.URL {
 		Scheme: "http",
 		Host:   net.JoinHostPort(c.Hostname, strconv.Itoa(c.Broker.Port)),
 	}
+}
+
+// BrokerDir returns the data directory to start up in and does home directory expansion if necessary.
+func (c *Config) BrokerDir() string {
+	p, e := filepath.Abs(c.Broker.Dir)
+	if e != nil {
+		log.Fatalf("Unable to get absolute path for Broker Directory: %q", c.Broker.Dir)
+	}
+	return p
+}
+
+// DataDir returns the data directory to start up in and does home directory expansion if necessary.
+func (c *Config) DataDir() string {
+	p, e := filepath.Abs(c.Data.Dir)
+	if e != nil {
+		log.Fatalf("Unable to get absolute path for Data Directory: %q", c.Data.Dir)
+	}
+	return p
 }
 
 // Size represents a TOML parseable file size.
