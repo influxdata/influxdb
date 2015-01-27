@@ -231,9 +231,8 @@ func openServer(path string, u *url.URL, b *messaging.Broker, initializing, conf
 		openServerClient(s, joinURLs)
 	} else {
 		if len(joinURLs) == 0 {
-			//This is the first broker, so it always spins up a client to itself for now
-			// TODO corylanou: when we have roles enabled, this will have to change as you can
-			// spin up a broker without a client
+			// If a config exists, but no joinUrls are specified, fall back to the broker URL
+			// TODO: Make sure we have a leader, and then spin up the server
 			joinURLs = []*url.URL{b.URL()}
 		}
 		openServerClient(s, joinURLs)
