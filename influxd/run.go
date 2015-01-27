@@ -22,10 +22,12 @@ const (
 
 // Run will launch a influxd server and associated brokers/endpoints
 // based on the config passed in
-func Run(configPath, hostname, join, version string) {
+func Run(config *Config, join, version string) {
 	// Parse the configuration and determine if a broker and/or server exist.
-	config := parseConfig(configPath, hostname)
-	configExists := configPath != ""
+	configExists := config != nil
+	if config == nil {
+		config = NewConfig()
+	}
 	initializing := !fileExists(config.BrokerDir()) && !fileExists(config.DataDir())
 
 	// Parse join urls from the --join flag.
@@ -103,8 +105,9 @@ func Run(configPath, hostname, join, version string) {
 	}
 }
 
-// parses the configuration from a given path. Sets overrides as needed.
-func parseConfig(path, hostname string) *Config {
+// ParseConfigWithDefaults Parses the configuration from a given path.
+// Sets overrides as needed.
+func ParseConfigWithDefaults(path, hostname string) *Config {
 	if path == "" {
 		log.Println("No config provided, using default settings")
 		return NewConfig()

@@ -126,6 +126,14 @@ func (s *Server) Path() string {
 	return s.path
 }
 
+func (s *Server) Ready() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.client.Opened()
+
+}
+
 // shardPath returns the path for a shard.
 func (s *Server) shardPath(id uint64) string {
 	if s.path == "" {
@@ -2009,6 +2017,9 @@ type MessagingClient interface {
 
 	// Removes a subscription from the replica for a topic.
 	Unsubscribe(replicaID, topicID uint64) error
+
+	// Opened returns true if the messaging client has been opened
+	Opened() bool
 
 	// The streaming channel for all subscribed messages.
 	C() <-chan *messaging.Message
