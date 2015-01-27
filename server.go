@@ -528,6 +528,13 @@ func (s *Server) DatabaseExists(name string) bool {
 	return s.databases[name] != nil
 }
 
+// Database returns a database given a database name.
+func (s *Server) database(name string) *database {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.databases[name]
+}
+
 // Databases returns a sorted list of all database names.
 func (s *Server) Databases() (a []string) {
 	s.mu.RLock()
@@ -1566,7 +1573,7 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 		case *influxql.DropSeriesStatement:
 			continue
 		case *influxql.ShowSeriesStatement:
-			continue
+			res = s.executeShowSeriesStatement(stmt, database, user)
 		case *influxql.ShowMeasurementsStatement:
 			continue
 		case *influxql.ShowTagKeysStatement:
@@ -1681,6 +1688,33 @@ func (s *Server) executeCreateUserStatement(q *influxql.CreateUserStatement, use
 
 func (s *Server) executeDropUserStatement(q *influxql.DropUserStatement, user *User) *Result {
 	return &Result{Err: s.DeleteUser(q.Name)}
+}
+
+func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, database string, user *User) *Result {
+	// Find the database.
+	db := s.database(database)
+	if db == nil {
+		return &Result{Err: ErrDatabaseNotFound}
+	}
+
+	// Find the measurement.
+	var m *Measurement
+	if stmt.Source != nil {
+		if im, ok := stmt.Source.(*influxql.Measurement); ok {
+			m = db.measurements[im.Name]
+		} else {
+			return &Result{Err: ErrMeasurementNotFound}
+		}
+	}
+
+	ids, err := db.seriesFromExpr(m, stmt.Condition)
+	if err != nil {
+		return &Result{Err: err}
+	}
+
+	fmt.Println(ids)
+
+	return &Result{Err: ErrNotExecuted}
 }
 
 func (s *Server) executeCreateRetentionPolicyStatement(q *influxql.CreateRetentionPolicyStatement, user *User) *Result {

@@ -825,6 +825,9 @@ func (s *DeleteStatement) RequiredPrivileges() ExecutionPrivileges {
 
 // ShowSeriesStatement represents a command for listing series in the database.
 type ShowSeriesStatement struct {
+	// Measurement(s) the series are listed for.
+	Source Source
+
 	// An expression evaluated on a series name or tag.
 	Condition Expr
 

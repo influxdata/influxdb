@@ -2,6 +2,7 @@ package influxdb
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"regexp"
 	"sort"
@@ -828,4 +829,52 @@ func marshalTags(tags map[string]string) []byte {
 // timeBetweenInclusive returns true if t is between min and max, inclusive.
 func timeBetweenInclusive(t, min, max time.Time) bool {
 	return (t.Equal(min) || t.After(min)) && (t.Equal(max) || t.Before(max))
+}
+
+// seriesIDsByExpr given a measurement and expression containing
+// only tags returns a list of series IDs.
+func (d *database) seriesIDsByExpr(m *Measurement, expr influxql.Expr) (seriesIDs, error) {
+	switch e := expr.(type) {
+	case *influxql.BinaryExpr:
+		switch e.Op {
+		case influxql.EQ, influxql.NEQ:
+			tag, ok := e.LHS.(*influxql.VarRef)
+			if !ok {
+				return nil, fmt.Errorf("left side of '=' must be a tag name")
+			}
+
+			value, ok := e.RHS.(*influxql.StringLiteral)
+			if !ok {
+				return nil, fmt.Errorf("right side of '=' must be a tag value string")
+			}
+
+			tf := &TagFilter{
+				Not:   e.Op == influxql.NEQ,
+				Key:   tag.Val,
+				Value: value.Val,
+			}
+			return m.seriesIDsByFilter(tf), nil
+		case influxql.OR, influxql.AND:
+			lhsIDs, err := d.seriesIDsByExpr(m, e.LHS)
+			if err != nil {
+				return nil, err
+			}
+
+			rhsIDs, err := d.seriesIDsByExpr(m, e.RHS)
+			if err != nil {
+				return nil, err
+			}
+
+			if e.Op == influxql.OR {
+				return lhsIDs.union(rhsIDs), nil
+			} else {
+				return lhsIDs.intersect(rhsIDs), nil
+			}
+		default:
+			return nil, fmt.Errorf("invalid operator")
+		}
+	case *influxql.ParenExpr:
+		return d.seriesIDsByExpr(m, e.Expr)
+	}
+	return nil, fmt.Errorf("%#v", expr)
 }
