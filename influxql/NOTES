@@ -21,6 +21,23 @@ for each shard group in time range {
   }
 }
 
+(host = 'serverA' AND value > 100) OR (region = 'uswest' AND value < 10)
+
+value > 100 OR value < 10  (host=serverA, region=uswest)
+value < 10                 (host!=serverA, region=uswest)
+value > 100
+
+
+filters := make(map[whereCond]seriesIds)
+filters := make(map[uint32]whereCond)
+seriesIds
+
+
+select mean(value) from foo WHERE someField = 'important' group by time(5m)
+
+===================
+
+
 
 select derivative(mean(value))
 from cpu

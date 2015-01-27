@@ -15,21 +15,27 @@ func TestTx_CreateIterators(t *testing.T) {
 	defer s.Close()
 
 	// Write to us-east
-	s.MustWriteSeries("db", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east", "host": "serverA"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(100)}}})
-	s.MustWriteSeries("db", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east", "host": "serverA"}, Timestamp: mustParseTime("2000-01-01T00:00:10Z"), Values: map[string]interface{}{"value": float64(90)}}})
-	s.MustWriteSeries("db", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east", "host": "serverA"}, Timestamp: mustParseTime("2000-01-01T00:00:20Z"), Values: map[string]interface{}{"value": float64(80)}}})
-	s.MustWriteSeries("db", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east", "host": "serverA"}, Timestamp: mustParseTime("2000-01-01T00:00:30Z"), Values: map[string]interface{}{"value": float64(70)}}})
+	s.MustWriteSeries("db", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east", "host": "serverA", "service": "redis"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(100)}}})
+	s.MustWriteSeries("db", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east", "host": "serverB", "service": "redis"}, Timestamp: mustParseTime("2000-01-01T00:00:10Z"), Values: map[string]interface{}{"value": float64(90)}}})
+	s.MustWriteSeries("db", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east", "host": "serverC"}, Timestamp: mustParseTime("2000-01-01T00:00:20Z"), Values: map[string]interface{}{"value": float64(80)}}})
+	s.MustWriteSeries("db", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east", "host": "serverA", "service": "redis"}, Timestamp: mustParseTime("2000-01-01T00:00:30Z"), Values: map[string]interface{}{"value": float64(70)}}})
 
 	// Write to us-west
-	s.MustWriteSeries("db", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-west", "host": "serverB"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(1)}}})
-	s.MustWriteSeries("db", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-west", "host": "serverC"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(2)}}})
-
-	// Write to serverA in multiple regions.
-	s.MustWriteSeries("db", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "euro-1", "host": "serverA"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(1000)}}})
-	s.MustWriteSeries("db", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "india-1", "host": "serverA"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(2000)}}})
+	s.MustWriteSeries("db", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-west", "host": "serverD"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(1)}}})
+	s.MustWriteSeries("db", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-west", "host": "serverE", "service": "redis"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(2)}}})
 
 	// Create a statement to iterate over.
-	stmt := MustParseSelectStatement(`SELECT value FROM "db"."raw"."cpu" WHERE ((region = 'us-east' AND value > 10) OR (region = 'us-west' AND value > 20) OR (host = 'serverA' AND value > 90)) AND (time >= '2000-01-01' AND time < '2000-01-02') GROUP BY time(1h), region`)
+	// stmt := MustParseSelectStatement(`
+	// 	SELECT value
+	// 	FROM "db"."raw"."cpu"
+	// 	WHERE (((service = 'redis' AND region = 'us-west' AND value > 20) AND host = 'serverE') OR service='redis') AND (time >= '2000-01-01' AND time < '2000-01-02')
+	// 	GROUP BY time(1h), region`)
+
+	stmt := MustParseSelectStatement(`
+		SELECT value
+		FROM "db"."raw"."cpu"
+		WHERE (service = 'redis' AND (value > 10 OR value < 5)) AND (time >= '2000-01-01' AND time < '2000-01-02')
+		GROUP BY time(1h), region`)
 
 	// Retrieve iterators from server.
 	tx, err := s.Begin()
@@ -42,7 +48,7 @@ func TestTx_CreateIterators(t *testing.T) {
 	itrs, err := tx.CreateIterators(stmt)
 	if err != nil {
 		t.Fatalf("unexpected error: %#v", err)
-	} else if n := len(itrs); n != 5 {
+	} else if n := len(itrs); n != 2 {
 		t.Fatalf("iterator count: %d", n)
 	}
 
@@ -54,14 +60,10 @@ func TestTx_CreateIterators(t *testing.T) {
 
 	// Iterate over each one.
 	if data := slurp(itrs); !reflect.DeepEqual(data, []keyValue{
-		{key: 946684800000000000, value: float64(100)},
-		{key: 946684800000000000, value: float64(2000)},
-		{key: 946684800000000000, value: float64(1)},
-		{key: 946684800000000000, value: float64(2)},
-		{key: 946684800000000000, value: float64(1000)},
-		{key: 946684810000000000, value: float64(90)},
-		{key: 946684820000000000, value: float64(80)},
-		{key: 946684830000000000, value: float64(70)},
+		{key: 946684800000000000, value: float64(100), tags: "\x00\aus-east"},
+		{key: 946684800000000000, value: float64(2), tags: "\x00\aus-west"},
+		{key: 946684810000000000, value: float64(90), tags: "\x00\aus-east"},
+		{key: 946684830000000000, value: float64(70), tags: "\x00\aus-east"},
 	}) {
 		t.Fatalf("unexpected data: %#v", data)
 	}

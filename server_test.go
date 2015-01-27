@@ -711,15 +711,15 @@ func TestServer_ExecuteQuery(t *testing.T) {
 	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-west"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(100)}}})
 
 	// Select data from the server.
-	results := s.ExecuteQuery(MustParseQuery("SELECT sum(value) FROM cpu"), "foo", nil)
-	if len(results.Results) != 1 {
-		t.Fatalf("unexpected result count: %d", len(results.Results))
+	results := s.ExecuteQuery(MustParseQuery(`SELECT sum(value) FROM "foo"."raw".cpu GROUP BY time(10s), region`), "foo", nil)
+	if len(results) != 1 {
+		t.Fatalf("unexpected result count: %d", len(results))
 	}
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error: %s", res.Err)
-	} else if len(res.Rows) != 1 {
+	} else if len(res.Rows) != 2 {
 		t.Fatalf("unexpected row count: %d", len(res.Rows))
-	} else if s := mustMarshalJSON(res); s != `{"rows":[{"name":"cpu","columns":["time","sum"],"values":[[0,150]]}]}` {
+	} else if s := mustMarshalJSON(res); s != `{"rows":[{"name":"\"foo\".\"raw\".cpu","tags":{"region":"us-east"},"columns":["time","sum"],"values":[[946684800000000,20],[946684810000000,30]]},{"name":"\"foo\".\"raw\".cpu","tags":{"region":"us-west"},"columns":["time","sum"],"values":[[946684800000000,100]]}]}` {
 		t.Fatalf("unexpected row(0): %s", s)
 	}
 }

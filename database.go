@@ -216,6 +216,175 @@ func (m *Measurement) mapValues(values map[string]interface{}) map[uint8]interfa
 	return other
 }
 
+func (m *Measurement) seriesIDsAndFilters(stmt *influxql.SelectStatement) (seriesIDs, map[uint32]influxql.Expr) {
+	seriesIdsToExpr := make(map[uint32]influxql.Expr)
+	if stmt.Condition == nil {
+		return m.seriesIDs, nil
+	}
+	ids, _, expr := m.walkWhereForSeriesIds(stmt.Condition, seriesIdsToExpr)
+	warn("ids: ", ids, expr)
+	warn("foo: ", seriesIdsToExpr)
+	return ids, seriesIdsToExpr
+}
+
+// tagSets returns the unique tag sets that exist for the given tag keys. This is used to determine
+// what composite series will be created by a group by. i.e. "group by region" should return:
+// {"region":"uswest"}, {"region":"useast"}
+// or region, service returns
+// {"region": "uswest", "service": "redis"}, {"region": "uswest", "service": "mysql"}, etc...
+func (m *Measurement) tagSets(stmt *influxql.SelectStatement, dimensions []string) map[string]map[uint32]influxql.Expr {
+	// get the unique set of series ids and the filters that should be applied to each
+	seriesIDs, filters := m.seriesIDsAndFilters(stmt)
+
+	// build the tag sets
+	tagSets := make(map[string]map[uint32]influxql.Expr)
+	for _, id := range seriesIDs {
+		// get the series and set the tag values for the dimensions we care about
+		s := m.seriesByID[id]
+		tags := make([]string, len(dimensions))
+		for i, dim := range dimensions {
+			tags[i] = s.Tags[dim]
+		}
+
+		// marshal it into a string and put this series and its expr into the tagSets map
+		t := string(influxql.MarshalStrings(tags))
+		set, ok := tagSets[t]
+		if !ok {
+			set = make(map[uint32]influxql.Expr)
+		}
+		set[id] = filters[id]
+		tagSets[t] = set
+	}
+
+	return tagSets
+}
+
+// idsForExpr will return a collection of series ids, a bool indicating if the result should be
+// used (it'll be false if it's a time expr) and a field expression if the passed in expression is against a field.
+func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (seriesIDs, bool, influxql.Expr) {
+	name, ok := n.LHS.(*influxql.VarRef)
+	value := n.RHS
+	if !ok {
+		name, _ = n.RHS.(*influxql.VarRef)
+		value = n.LHS
+	}
+
+	// ignore time literals
+	if _, ok := value.(*influxql.TimeLiteral); ok {
+		return nil, false, nil
+	}
+
+	// if it's a field we can't collapse it so we have to look at all series ids for this
+	if m.FieldByName(name.Val) != nil {
+		warn("field: ", name.Val, n.String())
+		return m.seriesIDs, true, n
+	}
+
+	// tag values can only be strings so if it's not a string this is an empty set
+	str, ok := value.(*influxql.StringLiteral)
+	if !ok {
+		return nil, true, nil
+	}
+
+	vals, ok := m.seriesByTagKeyValue[name.Val]
+	if !ok {
+		return nil, true, nil
+	}
+
+	return vals[str.Val], true, nil
+}
+
+// walkWhereForSeriesIds will recursively walk the where clause and return a collection of series ids, a boolean indicating if this return
+// value should be included in the resulting set, and an expression if the return is a field expression.
+// The map that it takes maps each series id to the field expression that should be used to evaluate it when iterating over its cursor.
+// Series that have no field expressions won't be in the map
+func (m *Measurement) walkWhereForSeriesIds(node influxql.Node, filters map[uint32]influxql.Expr) (seriesIDs, bool, influxql.Expr) {
+	warn(". ", node.String())
+	switch n := node.(type) {
+	case *influxql.BinaryExpr:
+		warn("op: ", n.Op)
+		// if it's EQ then it's either a field expression or against a tag. we can return this
+		if n.Op == influxql.EQ {
+			ids, shouldInclude, expr := m.idsForExpr(n)
+			warn("eq ", ids, shouldInclude)
+			return ids, shouldInclude, expr
+		} else if n.Op == influxql.AND || n.Op == influxql.OR { // if it's an AND or OR we need to union or intersect the results
+			var ids seriesIDs
+			l, il, lexpr := m.walkWhereForSeriesIds(n.LHS, filters)
+			r, ir, rexpr := m.walkWhereForSeriesIds(n.RHS, filters)
+
+			if il && ir { // we should include both the LHS and RHS of the BinaryExpr in the return
+				if n.Op == influxql.AND {
+					ids = l.intersect(r)
+				} else if n.Op == influxql.OR {
+					ids = l.union(r)
+				}
+			} else if !il && !ir { // we don't need to include either so return nothing
+				return nil, false, nil
+			} else if il { // just include the left side
+				ids = l
+			} else { // just include the right side
+				ids = r
+			}
+
+			warn("... ", n.Op, lexpr, rexpr)
+			if n.Op == influxql.OR && il && ir && (lexpr == nil || rexpr == nil) {
+				// if it's an OR and we're going to include both sides and one of those expression is nil,
+				// we need to clear out restrictive filters on series that don't need them anymore
+				idsToClear := l.intersect(r)
+				warn("clearning")
+				for _, id := range idsToClear {
+					delete(filters, id)
+				}
+			} else {
+				// put the LHS field expression into the filters
+				if lexpr != nil {
+					for _, id := range ids {
+						f := filters[id]
+						if f == nil {
+							filters[id] = lexpr
+						} else {
+							filters[id] = &influxql.BinaryExpr{LHS: f, RHS: lexpr, Op: n.Op}
+						}
+					}
+				}
+
+				// put the RHS field expression into the filters
+				if rexpr != nil {
+					for _, id := range ids {
+						f := filters[id]
+						if f == nil {
+							filters[id] = rexpr
+						} else {
+							filters[id] = &influxql.BinaryExpr{LHS: f, RHS: rexpr, Op: n.Op}
+						}
+					}
+				}
+
+				// if the op is AND and we include both, clear out any of the non-intersecting ids.
+				// that is, filters that are no longer part of the end result set
+				if n.Op == influxql.AND && il && ir {
+					filtersToClear := l.union(r).reject(ids)
+					warn("filt ", filtersToClear)
+					for _, id := range filtersToClear {
+						delete(filters, id)
+					}
+				}
+			}
+
+			// finally return the ids and say that we should include them
+			return ids, true, nil
+		}
+
+		return m.idsForExpr(n)
+	case *influxql.ParenExpr:
+		// walk down the tree
+		return m.walkWhereForSeriesIds(n.Expr, filters)
+	default:
+		return nil, false, nil
+	}
+}
+
 // expandExpr returns a list of expressions expanded by all possible tag combinations.
 func (m *Measurement) expandExpr(expr influxql.Expr) []tagSetExpr {
 	// Retrieve list of unique values for each tag.
