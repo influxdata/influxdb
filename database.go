@@ -2,6 +2,7 @@ package influxdb
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"regexp"
 	"sort"
@@ -66,6 +67,20 @@ func (d *database) seriesIDs(names []string, filters []*TagFilter) seriesIDs {
 	}
 
 	return ids
+}
+
+// MeasurementNames returns a list of measurement names.
+func (d *database) MeasurementNames() []string {
+	names := make([]string, 0, len(d.measurements))
+	for k, _ := range d.measurements {
+		names = append(names, k)
+	}
+	return names
+}
+
+// Series takes a series ID and returns a series.
+func (d *database) Series(id uint32) *Series {
+	return d.series[id]
 }
 
 // TagKeys returns a sorted array of unique tag keys for the given measurements.
@@ -828,4 +843,52 @@ func marshalTags(tags map[string]string) []byte {
 // timeBetweenInclusive returns true if t is between min and max, inclusive.
 func timeBetweenInclusive(t, min, max time.Time) bool {
 	return (t.Equal(min) || t.After(min)) && (t.Equal(max) || t.Before(max))
+}
+
+// seriesIDsByExpr given a measurement and expression containing
+// only tags returns a list of series IDs.
+func (d *database) seriesIDsByExpr(measurements []string, expr influxql.Expr) (seriesIDs, error) {
+	switch e := expr.(type) {
+	case *influxql.BinaryExpr:
+		switch e.Op {
+		case influxql.EQ, influxql.NEQ:
+			tag, ok := e.LHS.(*influxql.VarRef)
+			if !ok {
+				return nil, fmt.Errorf("left side of '=' must be a tag name")
+			}
+
+			value, ok := e.RHS.(*influxql.StringLiteral)
+			if !ok {
+				return nil, fmt.Errorf("right side of '=' must be a tag value string")
+			}
+
+			tf := &TagFilter{
+				Not:   e.Op == influxql.NEQ,
+				Key:   tag.Val,
+				Value: value.Val,
+			}
+			return d.seriesIDs(measurements, []*TagFilter{tf}), nil
+		case influxql.OR, influxql.AND:
+			lhsIDs, err := d.seriesIDsByExpr(measurements, e.LHS)
+			if err != nil {
+				return nil, err
+			}
+
+			rhsIDs, err := d.seriesIDsByExpr(measurements, e.RHS)
+			if err != nil {
+				return nil, err
+			}
+
+			if e.Op == influxql.OR {
+				return lhsIDs.union(rhsIDs), nil
+			} else {
+				return lhsIDs.intersect(rhsIDs), nil
+			}
+		default:
+			return nil, fmt.Errorf("invalid operator")
+		}
+	case *influxql.ParenExpr:
+		return d.seriesIDsByExpr(measurements, e.Expr)
+	}
+	return nil, fmt.Errorf("%#v", expr)
 }

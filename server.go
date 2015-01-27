@@ -528,6 +528,13 @@ func (s *Server) DatabaseExists(name string) bool {
 	return s.databases[name] != nil
 }
 
+// Database returns a database given a database name.
+func (s *Server) database(name string) *database {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.databases[name]
+}
+
 // Databases returns a sorted list of all database names.
 func (s *Server) Databases() (a []string) {
 	s.mu.RLock()
@@ -1253,6 +1260,18 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 	}
 	name, tags, timestamp, values := points[0].Name, points[0].Tags, points[0].Timestamp, points[0].Values
 
+	// TODO: temporary band aid? **********************************************
+	// Convert from JSON numbers to actual numbers, if possible.
+	for k, v := range values {
+		n, ok := v.(json.Number)
+		if ok {
+			if f, err := n.Float64(); err == nil {
+				values[k] = f
+			}
+		}
+	}
+	// ************************************************************************
+
 	// Find the id for the series and tagset
 	seriesID, err := s.createSeriesIfNotExists(database, name, tags)
 	if err != nil {
@@ -1566,7 +1585,7 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 		case *influxql.DropSeriesStatement:
 			continue
 		case *influxql.ShowSeriesStatement:
-			continue
+			res = s.executeShowSeriesStatement(stmt, database, user)
 		case *influxql.ShowMeasurementsStatement:
 			continue
 		case *influxql.ShowTagKeysStatement:
@@ -1681,6 +1700,58 @@ func (s *Server) executeCreateUserStatement(q *influxql.CreateUserStatement, use
 
 func (s *Server) executeDropUserStatement(q *influxql.DropUserStatement, user *User) *Result {
 	return &Result{Err: s.DeleteUser(q.Name)}
+}
+
+func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, database string, user *User) *Result {
+	// Find the database.
+	db := s.database(database)
+	if db == nil {
+		return &Result{Err: ErrDatabaseNotFound}
+	}
+
+	fmt.Printf("# series = %d\n", len(db.series))
+
+	// Make a list of measurements we're interested in.
+	var measurements []string
+	if stmt.Source != nil {
+		// TODO: (david) handle multiple measurement sources
+		if m, ok := stmt.Source.(*influxql.Measurement); ok {
+			measurements = append(measurements, m.Name)
+		} else {
+			return &Result{Err: ErrMeasurementNotFound}
+		}
+	} else {
+		// No measurements specified in FROM clause so get all measurements.
+		measurements = db.MeasurementNames()
+	}
+
+	// Get series IDs for the measurements, filtered by the WHERE clause.
+	ids, err := db.seriesIDsByExpr(measurements, stmt.Condition)
+	if err != nil {
+		return &Result{Err: err}
+	}
+
+	// Make result struct with presized list of Rows.
+	result := &Result{
+		Rows: make(influxql.Rows, 0, len(ids)),
+	}
+
+	// Add one result row for each series.
+	for _, id := range ids {
+		if series := db.Series(id); series != nil {
+			r := &influxql.Row{
+				Name: series.measurement.Name,
+			}
+
+			// Get the tags for the series and sort them.
+			r.Columns = mapKeyList(series.Tags)
+			sort.Strings(r.Columns)
+
+			result.Rows = append(result.Rows, r)
+		}
+	}
+
+	return result
 }
 
 func (s *Server) executeCreateRetentionPolicyStatement(q *influxql.CreateRetentionPolicyStatement, user *User) *Result {
