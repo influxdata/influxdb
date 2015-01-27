@@ -126,6 +126,12 @@ func writePIDFile(path string) {
 		return
 	}
 
+	// Ensure the required directory structure exists.
+	err := os.MkdirAll(filepath.Dir(path), 0700)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	// Retrieve the PID and write it.
 	pid := strconv.Itoa(os.Getpid())
 	if err := ioutil.WriteFile(path, []byte(pid), 0644); err != nil {
