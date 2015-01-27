@@ -1541,6 +1541,8 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 			res = s.executeCreateUserStatement(stmt, user)
 		case *influxql.DropUserStatement:
 			res = s.executeDropUserStatement(stmt, user)
+		case *influxql.ShowUsersStatement:
+			res = s.executeShowUsersStatement(stmt, user)
 		case *influxql.DropSeriesStatement:
 			continue
 		case *influxql.ShowSeriesStatement:
@@ -1659,6 +1661,14 @@ func (s *Server) executeCreateUserStatement(q *influxql.CreateUserStatement, use
 
 func (s *Server) executeDropUserStatement(q *influxql.DropUserStatement, user *User) *Result {
 	return &Result{Err: s.DeleteUser(q.Name)}
+}
+
+func (s *Server) executeShowUsersStatement(q *influxql.ShowUsersStatement, user *User) *Result {
+	row := &influxql.Row{Columns: []string{"User"}}
+	for _, user := range s.Users() {
+		row.Values = append(row.Values, []interface{}{user.Name})
+	}
+	return &Result{Rows: []*influxql.Row{row}}
 }
 
 func (s *Server) executeCreateRetentionPolicyStatement(q *influxql.CreateRetentionPolicyStatement, user *User) *Result {

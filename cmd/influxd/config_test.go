@@ -42,6 +42,10 @@ func TestParseConfig(t *testing.T) {
 		t.Fatalf("hostname mismatch: %v", c.Hostname)
 	}
 
+	if c.JoinURLs() != "http://127.0.0.1:8086" {
+		t.Fatalf("JoinURLs mistmatch: %v", c.JoinURLs())
+	}
+
 	if c.Logging.File != "influxdb.log" {
 		t.Fatalf("logging file mismatch: %v", c.Logging.File)
 	} else if c.Logging.Level != "info" {
@@ -154,6 +158,11 @@ const testFile = `
 # systems in the cluster, you'll have to set the hostname to an IP or something
 # that can be resolved here.
 hostname = "myserver.com"
+
+# Controls certain parameters that only take effect until an initial successful
+# start-up has occurred.
+[initialization]
+join-urls = "http://127.0.0.1:8086"
 
 # Control authentication
 [authentication]

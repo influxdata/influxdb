@@ -39,11 +39,6 @@ if [ "x$STDOUT" == "x" ]; then
     STDOUT=/dev/null
 fi
 
-echo "Setting ulimit -n $NOFILES"
-if ! ulimit -n $NOFILES >/dev/null 2>&1; then
-    echo -n "Cannot set the max number of open file descriptors"
-fi
-
 function pidofproc() {
     if [ $# -ne 3 ]; then
         echo "Expected three arguments, e.g. $0 -p pidfile daemon-name"
@@ -91,7 +86,7 @@ daemon=/opt/influxdb/influxd
 pidfile=/var/opt/influxdb/run/influxd.pid
 
 # Configuration file
-config=/etc/opt/influxdb/config.sample.toml
+config=/etc/opt/influxdb/influxdb.conf
 
 # If the daemon is not there, then exit.
 [ -x $daemon ] || exit 5
@@ -108,17 +103,13 @@ case $1 in
             fi
         fi
         # Start the daemon.
-        log_success_msg "Starting the process" "$name"
-        # Start the daemon with the help of start-stop-daemon
-        # Log the message appropriately
-        cd /
-        if which start-stop-daemon > /dev/null 2>&1; then
-            nohup start-stop-daemon --chuid influxdb:influxdb -d / --start --quiet --oknodo --pidfile $pidfile --exec $daemon -- -pidfile $pidfile -config $config >> $STDOUT 2>&1 &
-        elif set | egrep '^start_daemon' > /dev/null 2>&1; then
-            start_daemon -u influxdb ${daemon}-daemon -pidfile $pidfile -config $config >> $STDOUT 2>&1
-        else
-            su -s /bin/sh -c "${daemon}-daemon -pidfile $pidfile -config $config >> $STDOUT 2>&1" influxdb
+        if ! ulimit -n $NOFILES >/dev/null 2>&1; then
+            echo -n "Cannot set the max number of open file descriptors"
+		    exit 1
         fi
+
+        log_success_msg "Starting the process" "$name"
+        nohup $daemon run -config $config -pidfile $pidfile > /dev/null 2>&1 &
         log_success_msg "$name process was started"
         ;;
 
