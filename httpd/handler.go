@@ -153,7 +153,6 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *influ
 	var br batchWrite
 
 	dec := json.NewDecoder(r.Body)
-	dec.UseNumber()
 
 	var writeError = func(result influxdb.Result, statusCode int) {
 		w.WriteHeader(statusCode)
