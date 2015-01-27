@@ -1,3 +1,27 @@
+SELECT mean(value) FROM cpu
+WHERE service = 'redis'
+GROUP BY region, time(10m)
+
+
+based on group by, get unique tag sets for region
+cpu region=uswest -> get series ids from cpu where <tagset> and <where cond>
+cpu region=useast -> get series ids from cpu where <tagset> and <where cond>
+
+for each shard group in time range {
+  for each group by tagset {
+    shardItrs := map[shard]itr
+    for id := range seriesIds {
+      shard := group.shardForId(id)
+      shardItrs[shard].addId(id)
+    }
+    for _, itr := range shardItrs {
+      itr.tags = tagset
+      itr.name = cpu
+    }
+  }
+}
+
+
 select derivative(mean(value))
 from cpu
 group by time(5m)
