@@ -1,56 +1,74 @@
 package integrations
 
-import (
-	"fmt"
-	"log"
-	"os"
-	"path/filepath"
-	"runtime"
-)
+//import (
+//"fmt"
+//"log"
+//"net/http"
+//"net/url"
+//"path/filepath"
 
-type Server struct {
-	p          *os.Process
-	configFile string
-	sslOnly    bool
-	args       []string
-}
+//"github.com/influxdb/influxdb"
+//"github.com/influxdb/influxdb/messaging"
+//)
 
-func NewServer() (*Server, error) {
-	return &Server{}, nil
-}
+//type Config struct {
+//BrokerURL *url.URL
+//BrokerDir string
 
-func (s *Server) Start() error {
-	if s.p != nil {
-		return fmt.Errorf("Server is already running with pid %d", s.p.Pid)
-	}
+//ServerURL *url.URL
+//ServerDir string
+//}
 
-	log.Printf("Starting server\n")
-	dir, err := os.Getwd()
-	if err != nil {
-		return err
-	}
+//type Server struct {
+//broker        *messaging.Broker
+//brokerHandler http.Handler
 
-	log.Println(dir)
-	root := filepath.Join(dir, "..")
-	filename := filepath.Join(root, "influxdb")
-	if runtime.GOOS == "windows" {
-		filename += ".exe"
-	}
-	if s.configFile == "" {
-		s.configFile = "../server_single_test.toml"
-	}
-	args := []string{filename, "-config", s.configFile}
-	args = append(args, s.args...)
-	log.Println(filename)
+//server        *influxdb.Server
+//serverHandler http.Handler
 
-	p, err := os.StartProcess(filename, args, &os.ProcAttr{
-		Dir:   root,
-		Env:   os.Environ(),
-		Files: []*os.File{os.Stdin, os.Stdout, os.Stderr},
-	})
-	if err != nil {
-		return err
-	}
-	s.p = p
-	return nil
-}
+//config Config
+//}
+
+//func NewServer(c Config) (*Server, error) {
+//return &Server{
+//config: c,
+//}, nil
+//}
+
+//func (s *Server) Start() error {
+//// Launch the broker
+//s.broker = messaging.NewBroker()
+//if err := s.broker.Open(s.config.BrokerDir, s.config.BrokerURL); err != nil {
+//return err
+//}
+//if err := s.broker.Initialize(); err != nil {
+//return err
+//}
+//s.brokerHandler = messaging.NewHandler(s.broker)
+//go func() { log.Fatal(http.ListenAndServe(s.config.BrokerURL.Host, s.brokerHandler)) }()
+
+//// Lanch the server
+//s.server = influxdb.NewServer()
+//if err := s.server.Open(s.config.ServerDir); err != nil {
+//return err
+//}
+
+//if err := s.broker.CreateReplica(1); err != nil {
+//return err
+//}
+
+//c := messaging.NewClient(1)
+//if err := c.Open(filepath.Join(s.server.Path(), "messaging"), []*url.URL{s.broker.URL()}); err != nil {
+//return fmt.Errorf("Couldn't open new messaging client: %s", err)
+//}
+//if err := s.server.SetClient(c); err != nil {
+//return fmt.Errorf("Couldn't setclient: %s", err)
+//}
+
+//// Initialize the server.
+//if err := s.server.Initialize(s.broker.URL()); err != nil {
+//return err
+//}
+
+//return nil
+//}

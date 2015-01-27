@@ -1,14 +1,11 @@
-package main
+package influxd
 
 import (
-	"flag"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/influxdb/influxdb"
@@ -18,36 +15,25 @@ import (
 	"github.com/influxdb/influxdb/messaging"
 )
 
-// execRun runs the "run" command.
-func execRun(args []string) {
-	// Parse command flags.
-	fs := flag.NewFlagSet("", flag.ExitOnError)
-	var (
-		configPath = fs.String("config", "", "")
-		pidPath    = fs.String("pidfile", "", "")
-		hostname   = fs.String("hostname", "", "")
-		join       = fs.String("join", "", "")
-	)
-	fs.Usage = printRunUsage
-	fs.Parse(args)
+const (
+	// Defines what directory we should store messages in
+	messagingClientFile string = "messaging"
+)
 
-	// Print sweet InfluxDB logo and write the process id to file.
-	log.Print(logo)
-	log.SetPrefix(`[srvr] `)
-	log.SetFlags(log.LstdFlags)
-	writePIDFile(*pidPath)
-
+// Run will launch a influxd server and associated brokers/endpoints
+// based on the config passed in
+func Run(configPath, hostname, join, version string) {
 	// Parse the configuration and determine if a broker and/or server exist.
-	config := parseConfig(*configPath, *hostname)
-	configExists := *configPath != ""
+	config := parseConfig(configPath, hostname)
+	configExists := configPath != ""
 	initializing := !fileExists(config.BrokerDir()) && !fileExists(config.DataDir())
 
 	// Parse join urls from the --join flag.
 	var joinURLs []*url.URL
-	if *join == "" {
+	if join == "" {
 		joinURLs = parseURLs(config.JoinURLs())
 	} else {
-		joinURLs = parseURLs(*join)
+		joinURLs = parseURLs(join)
 	}
 
 	// Open broker, initialize or join as necessary.
@@ -114,28 +100,6 @@ func execRun(args []string) {
 				log.Fatalf("unrecognized Graphite Server prototcol %s", c.Protocol)
 			}
 		}
-	}
-
-	// Wait indefinitely.
-	<-(chan struct{})(nil)
-}
-
-// write the current process id to a file specified by path.
-func writePIDFile(path string) {
-	if path == "" {
-		return
-	}
-
-	// Ensure the required directory structure exists.
-	err := os.MkdirAll(filepath.Dir(path), 0700)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// Retrieve the PID and write it.
-	pid := strconv.Itoa(os.Getpid())
-	if err := ioutil.WriteFile(path, []byte(pid), 0644); err != nil {
-		log.Fatal(err)
 	}
 }
 
@@ -319,27 +283,4 @@ func fileExists(path string) bool {
 		return false
 	}
 	return true
-}
-
-func printRunUsage() {
-	log.Printf(`usage: run [flags]
-
-run starts the broker and data node server. If this is the first time running
-the command then a new cluster will be initialized unless the -join argument
-is used.
-
-        -config <path>
-                          Set the path to the configuration file.
-
-
-        -hostname <name>
-                          Override the hostname, the 'hostname' configuration
-                          option will be overridden.
-
-        -join <url>
-                          Joins the server to an existing cluster.
-
-        -pidfile <path>
-                          Write process ID to a file.
-`)
 }

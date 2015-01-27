@@ -1,4 +1,4 @@
-package main
+package influxd
 
 import (
 	"fmt"
