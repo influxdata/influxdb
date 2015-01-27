@@ -149,6 +149,47 @@ func TestPlanner_Plan_Mean(t *testing.T) {
 	}
 }
 
+// Ensure the planner can plan and execute a percentile query
+func TestPlanner_Plan_Percentile(t *testing.T) {
+	tx := NewTx()
+	tx.CreateIteratorsFunc = func(stmt *influxql.SelectStatement) ([]influxql.Iterator, error) {
+		return []influxql.Iterator{
+			NewIterator(nil, []Point{
+				{"2000-01-01T00:00:00Z", float64(100)},
+				{"2000-01-01T00:00:10Z", float64(90)},
+				{"2000-01-01T00:00:20Z", float64(80)},
+			}),
+			NewIterator(nil, []Point{
+				{"2000-01-01T00:00:00Z", float64(80)},
+				{"2000-01-01T00:00:10Z", float64(80)},
+				{"2000-01-01T00:00:20Z", float64(50)},
+			}),
+			NewIterator(nil, []Point{
+				{"2000-01-01T00:01:30Z", float64(70)},
+				{"2000-01-01T00:01:40Z", float64(60)},
+				{"2000-01-01T00:01:50Z", float64(50)},
+			})}, nil
+	}
+
+	// Expected resultset.
+	exp := minify(`[{"name":"cpu","columns":["time","percentile"],"values":[[946684800000000,80],[946684860000000,60]]}]`)
+
+	// Execute and compare.
+	rs := MustPlanAndExecute(NewDB(tx), `2000-01-01T12:00:00Z`,
+		`SELECT percentile(value, 60) FROM cpu WHERE time >= '2000-01-01' GROUP BY time(1m)`)
+	if act := minify(jsonify(rs)); exp != act {
+		t.Fatalf("unexpected resultset: %s", act)
+	}
+
+	exp = minify(`[{"name":"cpu","columns":["time","percentile"],"values":[[946684800000000,100],[946684860000000,70]]}]`)
+	// Execute and compare.
+	rs = MustPlanAndExecute(NewDB(tx), `2000-01-01T12:00:00Z`,
+		`SELECT percentile(value, 99.9) FROM cpu WHERE time >= '2000-01-01' GROUP BY time(1m)`)
+	if act := minify(jsonify(rs)); exp != act {
+		t.Fatalf("unexpected resultset: %s", act)
+	}
+}
+
 // Ensure the planner can plan and execute a count query grouped by hour.
 func TestPlanner_Plan_GroupByInterval(t *testing.T) {
 	tx := NewTx()
