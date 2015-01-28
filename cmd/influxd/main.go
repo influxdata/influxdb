@@ -3,8 +3,11 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -24,11 +27,6 @@ const logo = `
 var (
 	version string = "0.9"
 	commit  string
-)
-
-// Various constants used by the main package.
-const (
-	messagingClientFile string = "messaging"
 )
 
 func main() {
@@ -67,6 +65,32 @@ func main() {
 	default:
 		log.Fatalf(`influxd: unknown command "%s"`+"\n"+`Run 'influxd help' for usage`+"\n\n", cmd)
 	}
+}
+
+// execRun runs the "run" command.
+func execRun(args []string) {
+	// Parse command flags.
+	fs := flag.NewFlagSet("", flag.ExitOnError)
+	var (
+		configPath = fs.String("config", "", "")
+		pidPath    = fs.String("pidfile", "", "")
+		hostname   = fs.String("hostname", "", "")
+		join       = fs.String("join", "", "")
+	)
+	fs.Usage = printRunUsage
+	fs.Parse(args)
+
+	// Print sweet InfluxDB logo and write the process id to file.
+	log.Print(logo)
+	log.SetPrefix(`[srvr] `)
+	log.SetFlags(log.LstdFlags)
+	writePIDFile(*pidPath)
+
+	config := ParseConfigWithDefaults(*configPath, *hostname)
+	Run(config, *join, version)
+
+	// Wait indefinitely.
+	<-(chan struct{})(nil)
 }
 
 // execVersion runs the "version" command.
@@ -115,4 +139,46 @@ type Stopper interface {
 
 type State struct {
 	Mode string `json:"mode"`
+}
+
+func printRunUsage() {
+	log.Printf(`usage: run [flags]
+
+run starts the broker and data node server. If this is the first time running
+the command then a new cluster will be initialized unless the -join argument
+is used.
+
+        -config <path>
+                          Set the path to the configuration file.
+
+
+        -hostname <name>
+                          Override the hostname, the 'hostname' configuration
+                          option will be overridden.
+
+        -join <url>
+                          Joins the server to an existing cluster.
+
+        -pidfile <path>
+                          Write process ID to a file.
+`)
+}
+
+// write the current process id to a file specified by path.
+func writePIDFile(path string) {
+	if path == "" {
+		return
+	}
+
+	// Ensure the required directory structure exists.
+	err := os.MkdirAll(filepath.Dir(path), 0700)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Retrieve the PID and write it.
+	pid := strconv.Itoa(os.Getpid())
+	if err := ioutil.WriteFile(path, []byte(pid), 0644); err != nil {
+		log.Fatal(err)
+	}
 }
