@@ -815,7 +815,7 @@ func TestHandler_serveShowSeries(t *testing.T) {
 		{"name": "gpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}}
 		]}`)
 
-	if status != http.StatusOK {
+	if status != http.StatusCreated {
 		t.Log(body)
 		t.Fatalf("unexpected status after write: %d", status)
 	}
@@ -996,7 +996,7 @@ func TestHandler_serveShowMeasurements(t *testing.T) {
 		{"name": "gpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}}
 		]}`)
 
-	if status != http.StatusOK {
+	if status != http.StatusCreated {
 		t.Log(body)
 		t.Fatalf("unexpected status after write: %d", status)
 	}
