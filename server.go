@@ -1587,7 +1587,7 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 		case *influxql.ShowSeriesStatement:
 			res = s.executeShowSeriesStatement(stmt, database, user)
 		case *influxql.ShowMeasurementsStatement:
-			continue
+			res = s.executeShowMeasurementsStatement(stmt, database, user)
 		case *influxql.ShowTagKeysStatement:
 			continue
 		case *influxql.ShowTagValuesStatement:
@@ -1709,12 +1709,10 @@ func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, 
 		return &Result{Err: ErrDatabaseNotFound}
 	}
 
-	fmt.Printf("# series = %d\n", len(db.series))
-
 	// Make a list of measurements we're interested in.
 	var measurements []string
 	if stmt.Source != nil {
-		// TODO: (david) handle multiple measurement sources
+		// TODO: handle multiple measurement sources
 		if m, ok := stmt.Source.(*influxql.Measurement); ok {
 			measurements = append(measurements, m.Name)
 		} else {
@@ -1736,6 +1734,8 @@ func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, 
 		Rows: make(influxql.Rows, 0, len(ids)),
 	}
 
+	// TODO: support OFFSET & LIMIT
+
 	// Add one result row for each series.
 	for _, id := range ids {
 		if series := db.Series(id); series != nil {
@@ -1749,6 +1749,64 @@ func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, 
 
 			result.Rows = append(result.Rows, r)
 		}
+	}
+
+	return result
+}
+
+func (s *Server) executeShowMeasurementsStatement(stmt *influxql.ShowMeasurementsStatement, database string, user *User) *Result {
+	// Find the database.
+	db := s.database(database)
+	if db == nil {
+		return &Result{Err: ErrDatabaseNotFound}
+	}
+
+	// Get all measurements in sorted order.
+	measurements := db.Measurements()
+	sort.Sort(measurements)
+
+	// If a WHERE clause was specified, filter the measurements.
+	if stmt.Condition != nil {
+		var err error
+		measurements, err = db.measurementsByExpr(stmt.Condition)
+		if err != nil {
+			return &Result{Err: err}
+		}
+	}
+
+	offset := stmt.Offset
+	limit := stmt.Limit
+
+	// If OFFSET is past the end of the array, return empty results.
+	if offset > len(measurements)-1 {
+		return &Result{}
+	}
+
+	// Calculate last index based on LIMIT.
+	end := len(measurements)
+	if limit > 0 && offset+limit < end {
+		limit = offset + limit
+	} else {
+		limit = end
+	}
+
+	// Make result with presized list Rows.
+	result := &Result{
+		Rows: make(influxql.Rows, 0, len(measurements)),
+	}
+
+	fmt.Printf("o = %d, l = %d\n", offset, limit)
+
+	// Add one result row for each measurement.
+	for i := offset; i < limit; i++ {
+		m := measurements[i]
+		r := &influxql.Row{
+			Name:    m.Name,
+			Columns: m.tagKeys(),
+		}
+		sort.Strings(r.Columns)
+
+		result.Rows = append(result.Rows, r)
 	}
 
 	return result

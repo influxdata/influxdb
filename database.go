@@ -1057,3 +1057,171 @@ func (m *Measurement) seriesIDsByFilter(filter *TagFilter) (ids seriesIDs) {
 
 	return
 }
+
+func (a Measurements) Len() int           { return len(a) }
+func (a Measurements) Less(i, j int) bool { return a[i].Name < a[j].Name }
+func (a Measurements) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+
+func (a Measurements) intersect(other Measurements) Measurements {
+	l := a
+	r := other
+
+	// we want to iterate through the shortest one and stop
+	if len(other) < len(a) {
+		l = other
+		r = a
+	}
+
+	// they're in sorted order so advance the counter as needed.
+	// That is, don't run comparisons against lower values that we've already passed
+	var i, j int
+
+	result := make(Measurements, 0, len(l))
+	for i < len(l) && j < len(r) {
+		if l[i].Name == r[j].Name {
+			result = append(result, l[i])
+			i += 1
+			j += 1
+		} else if l[i].Name < r[j].Name {
+			i += 1
+		} else {
+			j += 1
+		}
+	}
+
+	return result
+}
+
+func (a Measurements) union(other Measurements) Measurements {
+	result := make(Measurements, 0, len(a)+len(other))
+	var i, j int
+	for i < len(a) && j < len(other) {
+		if a[i].Name == other[j].Name {
+			result = append(result, a[i])
+			i += 1
+			j += 1
+		} else if a[i].Name < other[j].Name {
+			result = append(result, a[i])
+			i += 1
+		} else {
+			result = append(result, other[j])
+			j += 1
+		}
+	}
+
+	// now append the remainder
+	if i < len(a) {
+		result = append(result, a[i:]...)
+	} else if j < len(other) {
+		result = append(result, other[j:]...)
+	}
+
+	return result
+}
+
+// measurementsByExpr takes and expression containing only tags and returns
+// a list of matching *Measurement.
+func (d *database) measurementsByExpr(expr influxql.Expr) (Measurements, error) {
+	switch e := expr.(type) {
+	case *influxql.BinaryExpr:
+		switch e.Op {
+		case influxql.EQ, influxql.NEQ:
+			tag, ok := e.LHS.(*influxql.VarRef)
+			if !ok {
+				return nil, fmt.Errorf("left side of '=' must be a tag name")
+			}
+
+			value, ok := e.RHS.(*influxql.StringLiteral)
+			if !ok {
+				return nil, fmt.Errorf("right side of '=' must be a tag value string")
+			}
+
+			tf := &TagFilter{
+				Not:   e.Op == influxql.NEQ,
+				Key:   tag.Val,
+				Value: value.Val,
+			}
+			return d.measurementsByTagFilters([]*TagFilter{tf}), nil
+		case influxql.OR, influxql.AND:
+			lhsIDs, err := d.measurementsByExpr(e.LHS)
+			if err != nil {
+				return nil, err
+			}
+
+			rhsIDs, err := d.measurementsByExpr(e.RHS)
+			if err != nil {
+				return nil, err
+			}
+
+			if e.Op == influxql.OR {
+				return lhsIDs.union(rhsIDs), nil
+			} else {
+				return lhsIDs.intersect(rhsIDs), nil
+			}
+		default:
+			return nil, fmt.Errorf("invalid operator")
+		}
+	case *influxql.ParenExpr:
+		return d.measurementsByExpr(e.Expr)
+	}
+	return nil, fmt.Errorf("%#v", expr)
+}
+
+func (d *database) measurementsByTagFilters(filters []*TagFilter) Measurements {
+	// If no filters, then return all measurements.
+	if len(filters) == 0 {
+		measurements := make(Measurements, 0, len(d.measurements))
+		for _, m := range d.measurements {
+			measurements = append(measurements, m)
+		}
+		return measurements
+	}
+
+	// Build a list of measurements matching the filters.
+	var measurements Measurements
+	var tagMatch bool
+	for _, m := range d.measurements {
+		for _, f := range filters {
+			tagMatch = false
+			if tagVals, ok := m.seriesByTagKeyValue[f.Key]; ok {
+				if _, ok := tagVals[f.Value]; ok {
+					tagMatch = true
+				}
+			}
+
+			isEQ := !f.Not
+
+			// tags match | operation is EQ | measurement matches
+			// --------------------------------------------------
+			//     True   |       True      |      True
+			//     True   |       False     |      False
+			//     False  |       True      |      False
+			//     False  |       False     |      True
+
+			if tagMatch == isEQ {
+				measurements = append(measurements, m)
+				break
+			}
+		}
+	}
+
+	return measurements
+}
+
+// Measurements returns a list of all measurements.
+func (d *database) Measurements() Measurements {
+	measurements := make(Measurements, 0, len(d.measurements))
+	for _, m := range d.measurements {
+		measurements = append(measurements, m)
+	}
+	return measurements
+}
+
+// tagKeys returns a list of the measurement's tag names.
+func (m *Measurement) tagKeys() []string {
+	keys := make([]string, 0, len(m.seriesByTagKeyValue))
+	for k, _ := range m.seriesByTagKeyValue {
+		keys = append(keys, k)
+	}
+	return keys
+}
