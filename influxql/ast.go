@@ -2,6 +2,7 @@ package influxql
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -83,6 +84,7 @@ func (_ Fields) node()           {}
 func (_ *Join) node()            {}
 func (_ *Measurement) node()     {}
 func (_ Measurements) node()     {}
+func (_ *nilLiteral) node()      {}
 func (_ *Merge) node()           {}
 func (_ *NumberLiteral) node()   {}
 func (_ *ParenExpr) node()       {}
@@ -170,6 +172,7 @@ func (_ *BinaryExpr) expr()      {}
 func (_ *BooleanLiteral) expr()  {}
 func (_ *Call) expr()            {}
 func (_ *DurationLiteral) expr() {}
+func (_ *nilLiteral) expr()      {}
 func (_ *NumberLiteral) expr()   {}
 func (_ *ParenExpr) expr()       {}
 func (_ *StringLiteral) expr()   {}
@@ -535,6 +538,57 @@ type SelectStatement struct {
 
 	// Returns rows starting at an offset from the first row.
 	Offset int
+}
+
+// Clone returns a deep copy of the statement.
+func (stmt *SelectStatement) Clone() *SelectStatement {
+	other := &SelectStatement{
+		Fields:     make(Fields, len(stmt.Fields)),
+		Dimensions: make(Dimensions, len(stmt.Dimensions)),
+		Source:     cloneSource(stmt.Source),
+		SortFields: make(SortFields, len(stmt.SortFields)),
+		Condition:  CloneExpr(stmt.Condition),
+		Limit:      stmt.Limit,
+	}
+	if stmt.Target != nil {
+		other.Target = &Target{Measurement: stmt.Target.Measurement, Database: stmt.Target.Database}
+	}
+	for i, f := range stmt.Fields {
+		other.Fields[i] = &Field{Expr: CloneExpr(f.Expr), Alias: f.Alias}
+	}
+	for i, d := range stmt.Dimensions {
+		other.Dimensions[i] = &Dimension{Expr: CloneExpr(d.Expr)}
+	}
+	// TODO: Copy sources.
+	for i, f := range stmt.SortFields {
+		other.SortFields[i] = &SortField{Name: f.Name, Ascending: f.Ascending}
+	}
+	return other
+}
+
+func cloneSource(s Source) Source {
+	if s == nil {
+		return nil
+	}
+
+	switch s := s.(type) {
+	case *Measurement:
+		return &Measurement{Name: s.Name}
+	case *Join:
+		other := &Join{Measurements: make(Measurements, len(s.Measurements))}
+		for i, m := range s.Measurements {
+			other.Measurements[i] = &Measurement{Name: m.Name}
+		}
+		return other
+	case *Merge:
+		other := &Merge{Measurements: make(Measurements, len(s.Measurements))}
+		for i, m := range s.Measurements {
+			other.Measurements[i] = &Measurement{Name: m.Name}
+		}
+		return other
+	default:
+		panic("unreachable")
+	}
 }
 
 // String returns a string representation of the select statement.
@@ -1244,6 +1298,41 @@ func (a Dimensions) String() string {
 	return strings.Join(str, ", ")
 }
 
+// Normalize returns the interval and tag dimensions separately.
+// Returns 0 if no time interval is specified.
+// Returns an error if multiple time dimensions exist or if non-VarRef dimensions are specified.
+func (a Dimensions) Normalize() (time.Duration, []string, error) {
+	var dur time.Duration
+	var tags []string
+
+	for _, dim := range a {
+		switch expr := dim.Expr.(type) {
+		case *Call:
+			// Ensure the call is time() and it only has one duration argument.
+			// If we already have a duration
+			if strings.ToLower(expr.Name) != "time" {
+				return 0, nil, errors.New("only time() calls allowed in dimensions")
+			} else if len(expr.Args) != 1 {
+				return 0, nil, errors.New("time dimension expected one argument")
+			} else if lit, ok := expr.Args[0].(*DurationLiteral); !ok {
+				return 0, nil, errors.New("time dimension must have one duration argument")
+			} else if dur != 0 {
+				return 0, nil, errors.New("multiple time dimensions not allowed")
+			} else {
+				dur = lit.Val
+			}
+
+		case *VarRef:
+			tags = append(tags, expr.Val)
+
+		default:
+			return 0, nil, errors.New("only time and tag dimensions allowed")
+		}
+	}
+
+	return dur, tags, nil
+}
+
 // Dimension represents an expression that a select statement is grouped by.
 type Dimension struct {
 	Expr Expr
@@ -1339,6 +1428,22 @@ func (l *BooleanLiteral) String() string {
 	return "false"
 }
 
+// isTrueLiteral returns true if the expression is a literal "true" value.
+func isTrueLiteral(expr Expr) bool {
+	if expr, ok := expr.(*BooleanLiteral); ok {
+		return expr.Val == true
+	}
+	return false
+}
+
+// isFalseLiteral returns true if the expression is a literal "false" value.
+func isFalseLiteral(expr Expr) bool {
+	if expr, ok := expr.(*BooleanLiteral); ok {
+		return expr.Val == false
+	}
+	return false
+}
+
 // StringLiteral represents a string literal.
 type StringLiteral struct {
 	Val string
@@ -1364,6 +1469,13 @@ type DurationLiteral struct {
 
 // String returns a string representation of the literal.
 func (l *DurationLiteral) String() string { return FormatDuration(l.Val) }
+
+// nilLiteral represents a nil literal.
+// This is not available to the query language itself. It's only used internally.
+type nilLiteral struct{}
+
+// String returns a string representation of the literal.
+func (l *nilLiteral) String() string { return `nil` }
 
 // BinaryExpr represents an operation between two expressions.
 type BinaryExpr struct {
@@ -1391,219 +1503,38 @@ type Wildcard struct{}
 // String returns a string representation of the wildcard.
 func (e *Wildcard) String() string { return "*" }
 
-// Fold performs constant folding on an expression.
-// The function, "now()", is expanded into the current time during folding.
-func Fold(expr Expr, now *time.Time) Expr {
+// CloneExpr returns a deep copy of the expression.
+func CloneExpr(expr Expr) Expr {
+	if expr == nil {
+		return nil
+	}
 	switch expr := expr.(type) {
-	case *Call:
-		// Replace "now()" with current time.
-		if strings.ToLower(expr.Name) == "now" && now != nil {
-			return &TimeLiteral{Val: *now}
-		}
-
-		// Fold call arguments.
-		for i, arg := range expr.Args {
-			expr.Args[i] = Fold(arg, now)
-		}
-		return expr
-
 	case *BinaryExpr:
-		// Fold and evaluate binary expression.
-		return foldBinaryExpr(expr, now)
-
-	case *ParenExpr:
-		// Fold inside expression.
-		// Return inside expression if not a binary expression.
-		expr.Expr = Fold(expr.Expr, now)
-		if _, ok := expr.Expr.(*BinaryExpr); !ok {
-			return expr.Expr
-		}
-		return expr
-
-	default:
-		return expr
-	}
-}
-
-// foldBinaryExpr performs constant folding if the binary expression has two literals.
-func foldBinaryExpr(expr *BinaryExpr, now *time.Time) Expr {
-	// Fold both sides of binary expression first.
-	expr.LHS = Fold(expr.LHS, now)
-	expr.RHS = Fold(expr.RHS, now)
-
-	// Evaluate operations if both sides are the same type.
-	switch lhs := expr.LHS.(type) {
-	case *NumberLiteral:
-		if _, ok := expr.RHS.(*NumberLiteral); ok {
-			return foldNumberLiterals(expr)
-		}
+		return &BinaryExpr{Op: expr.Op, LHS: CloneExpr(expr.LHS), RHS: CloneExpr(expr.RHS)}
 	case *BooleanLiteral:
-		if _, ok := expr.RHS.(*BooleanLiteral); ok {
-			return foldBooleanLiterals(expr)
+		return &BooleanLiteral{Val: expr.Val}
+	case *Call:
+		args := make([]Expr, len(expr.Args))
+		for i, arg := range expr.Args {
+			args[i] = CloneExpr(arg)
 		}
-	case *TimeLiteral:
-		switch expr.RHS.(type) {
-		case *TimeLiteral:
-			return foldTimeLiterals(expr)
-		case *DurationLiteral:
-			return foldTimeDurationLiterals(expr)
-		}
+		return &Call{Name: expr.Name, Args: args}
 	case *DurationLiteral:
-		switch rhs := expr.RHS.(type) {
-		case *DurationLiteral:
-			return foldDurationLiterals(expr)
-		case *NumberLiteral:
-			return foldDurationNumberLiterals(expr)
-		case *TimeLiteral:
-			if expr.Op == ADD {
-				return &TimeLiteral{Val: rhs.Val.Add(lhs.Val)}
-			}
-		}
+		return &DurationLiteral{Val: expr.Val}
+	case *NumberLiteral:
+		return &NumberLiteral{Val: expr.Val}
+	case *ParenExpr:
+		return &ParenExpr{Expr: CloneExpr(expr.Expr)}
 	case *StringLiteral:
-		if rhs, ok := expr.RHS.(*StringLiteral); ok && expr.Op == ADD {
-			return &StringLiteral{Val: lhs.Val + rhs.Val}
-		}
+		return &StringLiteral{Val: expr.Val}
+	case *TimeLiteral:
+		return &TimeLiteral{Val: expr.Val}
+	case *VarRef:
+		return &VarRef{Val: expr.Val}
+	case *Wildcard:
+		return &Wildcard{}
 	}
-
-	return expr
-}
-
-// foldNumberLiterals performs constant folding on two number literals.
-func foldNumberLiterals(expr *BinaryExpr) Expr {
-	lhs := expr.LHS.(*NumberLiteral)
-	rhs := expr.RHS.(*NumberLiteral)
-
-	switch expr.Op {
-	case ADD:
-		return &NumberLiteral{Val: lhs.Val + rhs.Val}
-	case SUB:
-		return &NumberLiteral{Val: lhs.Val - rhs.Val}
-	case MUL:
-		return &NumberLiteral{Val: lhs.Val * rhs.Val}
-	case DIV:
-		if rhs.Val == 0 {
-			return &NumberLiteral{Val: 0}
-		}
-		return &NumberLiteral{Val: lhs.Val / rhs.Val}
-	case EQ:
-		return &BooleanLiteral{Val: lhs.Val == rhs.Val}
-	case NEQ:
-		return &BooleanLiteral{Val: lhs.Val != rhs.Val}
-	case GT:
-		return &BooleanLiteral{Val: lhs.Val > rhs.Val}
-	case GTE:
-		return &BooleanLiteral{Val: lhs.Val >= rhs.Val}
-	case LT:
-		return &BooleanLiteral{Val: lhs.Val < rhs.Val}
-	case LTE:
-		return &BooleanLiteral{Val: lhs.Val <= rhs.Val}
-	default:
-		return expr
-	}
-}
-
-// foldBooleanLiterals performs constant folding on two boolean literals.
-func foldBooleanLiterals(expr *BinaryExpr) Expr {
-	lhs := expr.LHS.(*BooleanLiteral)
-	rhs := expr.RHS.(*BooleanLiteral)
-
-	switch expr.Op {
-	case EQ:
-		return &BooleanLiteral{Val: lhs.Val == rhs.Val}
-	case NEQ:
-		return &BooleanLiteral{Val: lhs.Val != rhs.Val}
-	case AND:
-		return &BooleanLiteral{Val: lhs.Val && rhs.Val}
-	case OR:
-		return &BooleanLiteral{Val: lhs.Val || rhs.Val}
-	default:
-		return expr
-	}
-}
-
-// foldTimeLiterals performs constant folding on two time literals.
-func foldTimeLiterals(expr *BinaryExpr) Expr {
-	lhs := expr.LHS.(*TimeLiteral)
-	rhs := expr.RHS.(*TimeLiteral)
-
-	switch expr.Op {
-	case SUB:
-		return &DurationLiteral{Val: lhs.Val.Sub(rhs.Val)}
-	case EQ:
-		return &BooleanLiteral{Val: lhs.Val.Equal(rhs.Val)}
-	case NEQ:
-		return &BooleanLiteral{Val: !lhs.Val.Equal(rhs.Val)}
-	case GT:
-		return &BooleanLiteral{Val: lhs.Val.After(rhs.Val)}
-	case GTE:
-		return &BooleanLiteral{Val: lhs.Val.After(rhs.Val) || lhs.Val.Equal(rhs.Val)}
-	case LT:
-		return &BooleanLiteral{Val: lhs.Val.Before(rhs.Val)}
-	case LTE:
-		return &BooleanLiteral{Val: lhs.Val.Before(rhs.Val) || lhs.Val.Equal(rhs.Val)}
-	default:
-		return expr
-	}
-}
-
-// foldTimeDurationLiterals performs constant folding on a time and duration literal.
-func foldTimeDurationLiterals(expr *BinaryExpr) Expr {
-	lhs := expr.LHS.(*TimeLiteral)
-	rhs := expr.RHS.(*DurationLiteral)
-
-	switch expr.Op {
-	case ADD:
-		return &TimeLiteral{Val: lhs.Val.Add(rhs.Val)}
-	case SUB:
-		return &TimeLiteral{Val: lhs.Val.Add(-rhs.Val)}
-	default:
-		return expr
-	}
-}
-
-// foldDurationLiterals performs constant folding on two duration literals.
-func foldDurationLiterals(expr *BinaryExpr) Expr {
-	lhs := expr.LHS.(*DurationLiteral)
-	rhs := expr.RHS.(*DurationLiteral)
-
-	switch expr.Op {
-	case ADD:
-		return &DurationLiteral{Val: lhs.Val + rhs.Val}
-	case SUB:
-		return &DurationLiteral{Val: lhs.Val - rhs.Val}
-	case EQ:
-		return &BooleanLiteral{Val: lhs.Val == rhs.Val}
-	case NEQ:
-		return &BooleanLiteral{Val: lhs.Val != rhs.Val}
-	case GT:
-		return &BooleanLiteral{Val: lhs.Val > rhs.Val}
-	case GTE:
-		return &BooleanLiteral{Val: lhs.Val >= rhs.Val}
-	case LT:
-		return &BooleanLiteral{Val: lhs.Val < rhs.Val}
-	case LTE:
-		return &BooleanLiteral{Val: lhs.Val <= rhs.Val}
-	default:
-		return expr
-	}
-}
-
-// foldDurationNumberLiterals performs constant folding on duration and number literal.
-func foldDurationNumberLiterals(expr *BinaryExpr) Expr {
-	lhs := expr.LHS.(*DurationLiteral)
-	rhs := expr.RHS.(*NumberLiteral)
-
-	switch expr.Op {
-	case MUL:
-		return &DurationLiteral{Val: lhs.Val * time.Duration(rhs.Val)}
-	case DIV:
-		if rhs.Val == 0 {
-			return &DurationLiteral{Val: 0}
-		}
-		return &DurationLiteral{Val: lhs.Val / time.Duration(rhs.Val)}
-	default:
-		return expr
-	}
+	panic("unreachable")
 }
 
 // TimeRange returns the minimum and maximum times specified by an expression.
@@ -1805,3 +1736,390 @@ func RewriteFunc(node Node, fn func(Node) Node) Node {
 type rewriterFunc func(Node) Node
 
 func (fn rewriterFunc) Rewrite(n Node) Node { return fn(n) }
+
+// Eval evaluates expr against a map.
+func Eval(expr Expr, m map[string]interface{}) interface{} {
+	if expr == nil {
+		return nil
+	}
+
+	switch expr := expr.(type) {
+	case *BinaryExpr:
+		return evalBinaryExpr(expr, m)
+	case *BooleanLiteral:
+		return expr.Val
+	case *NumberLiteral:
+		return expr.Val
+	case *ParenExpr:
+		return Eval(expr.Expr, m)
+	case *StringLiteral:
+		return expr.Val
+	case *VarRef:
+		return m[expr.Val]
+	default:
+		return nil
+	}
+}
+
+func evalBinaryExpr(expr *BinaryExpr, m map[string]interface{}) interface{} {
+	lhs := Eval(expr.LHS, m)
+	rhs := Eval(expr.RHS, m)
+
+	// Evaluate if both sides are simple types.
+	switch lhs := lhs.(type) {
+	case bool:
+		rhs, _ := rhs.(bool)
+		switch expr.Op {
+		case AND:
+			return lhs && rhs
+		case OR:
+			return lhs || rhs
+		}
+	case float64:
+		rhs, _ := rhs.(float64)
+		switch expr.Op {
+		case EQ:
+			return lhs == rhs
+		case NEQ:
+			return lhs != rhs
+		case LT:
+			return lhs < rhs
+		case LTE:
+			return lhs <= rhs
+		case GT:
+			return lhs > rhs
+		case GTE:
+			return lhs >= rhs
+		case ADD:
+			return lhs + rhs
+		case SUB:
+			return lhs - rhs
+		case MUL:
+			return lhs * rhs
+		case DIV:
+			if rhs == 0 {
+				return float64(0)
+			}
+			return lhs / rhs
+		}
+	case string:
+		rhs, _ := rhs.(string)
+		switch expr.Op {
+		case EQ:
+			return lhs == rhs
+		case NEQ:
+			return lhs != rhs
+		}
+	}
+	return nil
+}
+
+// Reduce evaluates expr using the available values in valuer.
+// References that don't exist in valuer are ignored.
+func Reduce(expr Expr, valuer Valuer) Expr {
+	expr = reduce(expr, valuer)
+
+	// Unwrap parens at top level.
+	if expr, ok := expr.(*ParenExpr); ok {
+		return expr.Expr
+	}
+	return expr
+}
+
+func reduce(expr Expr, valuer Valuer) Expr {
+	if expr == nil {
+		return nil
+	}
+
+	switch expr := expr.(type) {
+	case *BinaryExpr:
+		return reduceBinaryExpr(expr, valuer)
+	case *Call:
+		return reduceCall(expr, valuer)
+	case *ParenExpr:
+		return reduceParenExpr(expr, valuer)
+	case *VarRef:
+		return reduceVarRef(expr, valuer)
+	default:
+		return CloneExpr(expr)
+	}
+}
+
+func reduceBinaryExpr(expr *BinaryExpr, valuer Valuer) Expr {
+	// Reduce both sides first.
+	op := expr.Op
+	lhs := reduce(expr.LHS, valuer)
+	rhs := reduce(expr.RHS, valuer)
+
+	// Do not evaluate if one side is nil.
+	if lhs == nil || rhs == nil {
+		return &BinaryExpr{LHS: lhs, RHS: rhs, Op: expr.Op}
+	}
+
+	// If we have a logical operator (AND, OR) and one side is a boolean literal
+	// then we need to have special handling.
+	if op == AND {
+		if isFalseLiteral(lhs) || isFalseLiteral(rhs) {
+			return &BooleanLiteral{Val: false}
+		} else if isTrueLiteral(lhs) {
+			return rhs
+		} else if isTrueLiteral(rhs) {
+			return lhs
+		}
+	} else if op == OR {
+		if isTrueLiteral(lhs) || isTrueLiteral(rhs) {
+			return &BooleanLiteral{Val: true}
+		} else if isFalseLiteral(lhs) {
+			return rhs
+		} else if isFalseLiteral(rhs) {
+			return lhs
+		}
+	}
+
+	// Evaluate if both sides are simple types.
+	switch lhs := lhs.(type) {
+	case *BooleanLiteral:
+		return reduceBinaryExprBooleanLHS(op, lhs, rhs)
+	case *DurationLiteral:
+		return reduceBinaryExprDurationLHS(op, lhs, rhs)
+	case *nilLiteral:
+		return reduceBinaryExprNilLHS(op, lhs, rhs)
+	case *NumberLiteral:
+		return reduceBinaryExprNumberLHS(op, lhs, rhs)
+	case *StringLiteral:
+		return reduceBinaryExprStringLHS(op, lhs, rhs)
+	case *TimeLiteral:
+		return reduceBinaryExprTimeLHS(op, lhs, rhs)
+	default:
+		return &BinaryExpr{Op: op, LHS: lhs, RHS: rhs}
+	}
+}
+
+func reduceBinaryExprBooleanLHS(op Token, lhs *BooleanLiteral, rhs Expr) Expr {
+	switch rhs := rhs.(type) {
+	case *BooleanLiteral:
+		switch op {
+		case EQ:
+			return &BooleanLiteral{Val: lhs.Val == rhs.Val}
+		case NEQ:
+			return &BooleanLiteral{Val: lhs.Val != rhs.Val}
+		case AND:
+			return &BooleanLiteral{Val: lhs.Val && rhs.Val}
+		case OR:
+			return &BooleanLiteral{Val: lhs.Val || rhs.Val}
+		}
+	case *nilLiteral:
+		return &BooleanLiteral{Val: false}
+	}
+	return &BinaryExpr{Op: op, LHS: lhs, RHS: rhs}
+}
+
+func reduceBinaryExprDurationLHS(op Token, lhs *DurationLiteral, rhs Expr) Expr {
+	switch rhs := rhs.(type) {
+	case *DurationLiteral:
+		switch op {
+		case ADD:
+			return &DurationLiteral{Val: lhs.Val + rhs.Val}
+		case SUB:
+			return &DurationLiteral{Val: lhs.Val - rhs.Val}
+		case EQ:
+			return &BooleanLiteral{Val: lhs.Val == rhs.Val}
+		case NEQ:
+			return &BooleanLiteral{Val: lhs.Val != rhs.Val}
+		case GT:
+			return &BooleanLiteral{Val: lhs.Val > rhs.Val}
+		case GTE:
+			return &BooleanLiteral{Val: lhs.Val >= rhs.Val}
+		case LT:
+			return &BooleanLiteral{Val: lhs.Val < rhs.Val}
+		case LTE:
+			return &BooleanLiteral{Val: lhs.Val <= rhs.Val}
+		}
+	case *NumberLiteral:
+		switch op {
+		case MUL:
+			return &DurationLiteral{Val: lhs.Val * time.Duration(rhs.Val)}
+		case DIV:
+			if rhs.Val == 0 {
+				return &DurationLiteral{Val: 0}
+			}
+			return &DurationLiteral{Val: lhs.Val / time.Duration(rhs.Val)}
+		}
+	case *TimeLiteral:
+		switch op {
+		case ADD:
+			return &TimeLiteral{Val: rhs.Val.Add(lhs.Val)}
+		}
+	case *nilLiteral:
+		return &BooleanLiteral{Val: false}
+	}
+	return &BinaryExpr{Op: op, LHS: lhs, RHS: rhs}
+}
+
+func reduceBinaryExprNilLHS(op Token, lhs *nilLiteral, rhs Expr) Expr {
+	switch op {
+	case EQ, NEQ:
+		return &BooleanLiteral{Val: false}
+	}
+	return &BinaryExpr{Op: op, LHS: lhs, RHS: rhs}
+}
+
+func reduceBinaryExprNumberLHS(op Token, lhs *NumberLiteral, rhs Expr) Expr {
+	switch rhs := rhs.(type) {
+	case *NumberLiteral:
+		switch op {
+		case ADD:
+			return &NumberLiteral{Val: lhs.Val + rhs.Val}
+		case SUB:
+			return &NumberLiteral{Val: lhs.Val - rhs.Val}
+		case MUL:
+			return &NumberLiteral{Val: lhs.Val * rhs.Val}
+		case DIV:
+			if rhs.Val == 0 {
+				return &NumberLiteral{Val: 0}
+			}
+			return &NumberLiteral{Val: lhs.Val / rhs.Val}
+		case EQ:
+			return &BooleanLiteral{Val: lhs.Val == rhs.Val}
+		case NEQ:
+			return &BooleanLiteral{Val: lhs.Val != rhs.Val}
+		case GT:
+			return &BooleanLiteral{Val: lhs.Val > rhs.Val}
+		case GTE:
+			return &BooleanLiteral{Val: lhs.Val >= rhs.Val}
+		case LT:
+			return &BooleanLiteral{Val: lhs.Val < rhs.Val}
+		case LTE:
+			return &BooleanLiteral{Val: lhs.Val <= rhs.Val}
+		}
+	case *nilLiteral:
+		return &BooleanLiteral{Val: false}
+	}
+	return &BinaryExpr{Op: op, LHS: lhs, RHS: rhs}
+}
+
+func reduceBinaryExprStringLHS(op Token, lhs *StringLiteral, rhs Expr) Expr {
+	switch rhs := rhs.(type) {
+	case *StringLiteral:
+		switch op {
+		case EQ:
+			return &BooleanLiteral{Val: lhs.Val == rhs.Val}
+		case NEQ:
+			return &BooleanLiteral{Val: lhs.Val != rhs.Val}
+		case ADD:
+			return &StringLiteral{Val: lhs.Val + rhs.Val}
+		}
+	case *nilLiteral:
+		switch op {
+		case EQ, NEQ:
+			return &BooleanLiteral{Val: false}
+		}
+	}
+	return &BinaryExpr{Op: op, LHS: lhs, RHS: rhs}
+}
+
+func reduceBinaryExprTimeLHS(op Token, lhs *TimeLiteral, rhs Expr) Expr {
+	switch rhs := rhs.(type) {
+	case *DurationLiteral:
+		switch op {
+		case ADD:
+			return &TimeLiteral{Val: lhs.Val.Add(rhs.Val)}
+		case SUB:
+			return &TimeLiteral{Val: lhs.Val.Add(-rhs.Val)}
+		}
+	case *TimeLiteral:
+		switch op {
+		case SUB:
+			return &DurationLiteral{Val: lhs.Val.Sub(rhs.Val)}
+		case EQ:
+			return &BooleanLiteral{Val: lhs.Val.Equal(rhs.Val)}
+		case NEQ:
+			return &BooleanLiteral{Val: !lhs.Val.Equal(rhs.Val)}
+		case GT:
+			return &BooleanLiteral{Val: lhs.Val.After(rhs.Val)}
+		case GTE:
+			return &BooleanLiteral{Val: lhs.Val.After(rhs.Val) || lhs.Val.Equal(rhs.Val)}
+		case LT:
+			return &BooleanLiteral{Val: lhs.Val.Before(rhs.Val)}
+		case LTE:
+			return &BooleanLiteral{Val: lhs.Val.Before(rhs.Val) || lhs.Val.Equal(rhs.Val)}
+		}
+	case *nilLiteral:
+		return &BooleanLiteral{Val: false}
+	}
+	return &BinaryExpr{Op: op, LHS: lhs, RHS: rhs}
+}
+
+func reduceCall(expr *Call, valuer Valuer) Expr {
+	// Evaluate "now()" if valuer is set.
+	if strings.ToLower(expr.Name) == "now" && len(expr.Args) == 0 && valuer != nil {
+		if v, ok := valuer.Value("now()"); ok {
+			v, _ := v.(time.Time)
+			return &TimeLiteral{Val: v}
+		}
+	}
+
+	// Otherwise reduce arguments.
+	args := make([]Expr, len(expr.Args))
+	for i, arg := range expr.Args {
+		args[i] = reduce(arg, valuer)
+	}
+	return &Call{Name: expr.Name, Args: args}
+}
+
+func reduceParenExpr(expr *ParenExpr, valuer Valuer) Expr {
+	subexpr := reduce(expr.Expr, valuer)
+	if subexpr, ok := subexpr.(*BinaryExpr); ok {
+		return &ParenExpr{Expr: subexpr}
+	}
+	return subexpr
+}
+
+func reduceVarRef(expr *VarRef, valuer Valuer) Expr {
+	// Ignore if there is no valuer.
+	if valuer == nil {
+		return &VarRef{Val: expr.Val}
+	}
+
+	// Retrieve the value of the ref.
+	// Ignore if the value doesn't exist.
+	v, ok := valuer.Value(expr.Val)
+	if !ok {
+		return &VarRef{Val: expr.Val}
+	}
+
+	// Return the value as a literal.
+	switch v := v.(type) {
+	case bool:
+		return &BooleanLiteral{Val: v}
+	case time.Duration:
+		return &DurationLiteral{Val: v}
+	case float64:
+		return &NumberLiteral{Val: v}
+	case string:
+		return &StringLiteral{Val: v}
+	case time.Time:
+		return &TimeLiteral{Val: v}
+	default:
+		return &nilLiteral{}
+	}
+}
+
+// Valuer is the interface that wraps the Value() method.
+//
+// Value returns the value and existence flag for a given key.
+type Valuer interface {
+	Value(key string) (interface{}, bool)
+}
+
+// nowValuer returns only the value for "now()".
+type nowValuer struct {
+	Now time.Time
+}
+
+func (v *nowValuer) Value(key string) (interface{}, bool) {
+	if key == "now()" {
+		return v.Now, true
+	}
+	return nil, false
+}

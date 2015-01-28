@@ -90,8 +90,10 @@ type Server struct {
 
 	dataNodes map[uint64]*DataNode // data nodes by id
 	databases map[string]*database // databases by name
-	shards    map[uint64]*Shard    // shards by id
 	users     map[string]*User     // user by name
+
+	shards           map[uint64]*Shard   // shards by shard id
+	shardsBySeriesID map[uint32][]*Shard // shards by series id
 }
 
 // NewServer returns a new instance of Server.
@@ -101,8 +103,10 @@ func NewServer() *Server {
 		errors:    make(map[uint64]error),
 		dataNodes: make(map[uint64]*DataNode),
 		databases: make(map[string]*database),
-		shards:    make(map[uint64]*Shard),
 		users:     make(map[string]*User),
+
+		shards:           make(map[uint64]*Shard),
+		shardsBySeriesID: make(map[uint32][]*Shard),
 	}
 }
 
@@ -156,6 +160,9 @@ func (s *Server) Open(path string) error {
 	if err := s.load(); err != nil {
 		return fmt.Errorf("load: %s", err)
 	}
+
+	// TODO: Open shard data stores.
+	// TODO: Associate series ids with shards.
 
 	// Set the server path.
 	s.path = path
@@ -1382,6 +1389,9 @@ func (s *Server) applyWriteSeries(m *messaging.Message) error {
 		return err
 	}
 
+	// Add to lookup.
+	s.addShardBySeriesID(sh, c.SeriesID)
+
 	// Encode the values into a binary format.
 	data := marshalValues(rawValues)
 
@@ -1407,6 +1417,9 @@ func (s *Server) applyWriteRawSeries(m *messaging.Message) error {
 	seriesID, timestamp := unmarshalPointHeader(m.Data[:pointHeaderSize])
 	data := m.Data[pointHeaderSize:]
 
+	// Add to lookup.
+	s.addShardBySeriesID(sh, seriesID)
+
 	// TODO: Enable some way to specify if the data should be overwritten
 	overwrite := true
 
@@ -1414,14 +1427,23 @@ func (s *Server) applyWriteRawSeries(m *messaging.Message) error {
 	return sh.writeSeries(seriesID, timestamp, data, overwrite)
 }
 
+func (s *Server) addShardBySeriesID(sh *Shard, seriesID uint32) {
+	for _, other := range s.shardsBySeriesID[seriesID] {
+		if other.ID == sh.ID {
+			return
+		}
+	}
+	s.shardsBySeriesID[seriesID] = append(s.shardsBySeriesID[seriesID], sh)
+}
+
 func (s *Server) createSeriesIfNotExists(database, name string, tags map[string]string) (uint32, error) {
 	// Try to find series locally first.
 	s.mu.RLock()
-	idx := s.databases[database]
-	if idx == nil {
+	db := s.databases[database]
+	if db == nil {
 		return 0, fmt.Errorf("database not found %q", database)
 	}
-	if _, series := idx.MeasurementAndSeries(name, tags); series != nil {
+	if _, series := db.MeasurementAndSeries(name, tags); series != nil {
 		s.mu.RUnlock()
 		return series.ID, nil
 	}
@@ -1436,7 +1458,7 @@ func (s *Server) createSeriesIfNotExists(database, name string, tags map[string]
 	}
 
 	// Lookup series again.
-	_, series := idx.MeasurementAndSeries(name, tags)
+	_, series := db.MeasurementAndSeries(name, tags)
 	if series == nil {
 		return 0, ErrSeriesNotFound
 	}
@@ -1629,7 +1651,7 @@ func (s *Server) planSelectStatement(stmt *influxql.SelectStatement, database st
 	}
 
 	// Plan query.
-	p := influxql.NewPlanner(&dbi{server: s, db: db})
+	p := influxql.NewPlanner(s)
 	return p.Plan(stmt)
 }
 
@@ -1716,7 +1738,8 @@ func (s *Server) MeasurementNames(database string) []string {
 	return db.names
 }
 
-func (s *Server) MeasurementSeriesIDs(database, measurement string) SeriesIDs {
+/*
+func (s *Server) MeasurementSeriesIDs(database, measurement string) []uint32 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -1725,8 +1748,9 @@ func (s *Server) MeasurementSeriesIDs(database, measurement string) SeriesIDs {
 		return nil
 	}
 
-	return db.SeriesIDs([]string{measurement}, nil)
+	return []uint32(db.SeriesIDs([]string{measurement}, nil))
 }
+*/
 
 // measurement returns a measurement by database and name.
 func (s *Server) measurement(database, name string) (*Measurement, error) {
@@ -1737,6 +1761,9 @@ func (s *Server) measurement(database, name string) (*Measurement, error) {
 
 	return db.measurements[name], nil
 }
+
+// Begin returns an unopened transaction associated with the server.
+func (s *Server) Begin() (influxql.Tx, error) { return newTx(s), nil }
 
 // NormalizeQuery updates all measurements and fields to be fully qualified.
 // Uses db as the default database, where applicable.

@@ -524,5 +524,12 @@ func SplitIdent(s string) (segments []string, err error) {
 
 var errInvalidIdentifier = errors.New("invalid identifier")
 
+// assert will panic with a given formatted message if the given condition is false.
+func assert(condition bool, msg string, v ...interface{}) {
+	if !condition {
+		panic(fmt.Sprintf("assert failed: "+msg, v...))
+	}
+}
+
 func warn(v ...interface{})              { fmt.Fprintln(os.Stderr, v...) }
 func warnf(msg string, v ...interface{}) { fmt.Fprintf(os.Stderr, msg+"\n", v...) }
