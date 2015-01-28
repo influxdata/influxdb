@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -19,35 +18,20 @@ import (
 )
 
 // execRun runs the "run" command.
-func execRun(args []string) {
-	// Parse command flags.
-	fs := flag.NewFlagSet("", flag.ExitOnError)
-	var (
-		configPath = fs.String("config", "", "")
-		pidPath    = fs.String("pidfile", "", "")
-		hostname   = fs.String("hostname", "", "")
-		join       = fs.String("join", "", "")
-	)
-	fs.Usage = printRunUsage
-	fs.Parse(args)
-
-	// Print sweet InfluxDB logo and write the process id to file.
-	log.Print(logo)
-	log.SetPrefix(`[srvr] `)
-	log.SetFlags(log.LstdFlags)
-	writePIDFile(*pidPath)
-
+func Run(config *Config, join, version string) *influxdb.Server {
 	// Parse the configuration and determine if a broker and/or server exist.
-	config := parseConfig(*configPath, *hostname)
-	configExists := *configPath != ""
+	configExists := config != nil
+	if config == nil {
+		config = NewConfig()
+	}
 	initializing := !fileExists(config.BrokerDir()) && !fileExists(config.DataDir())
 
 	// Parse join urls from the --join flag.
 	var joinURLs []*url.URL
-	if *join == "" {
+	if join == "" {
 		joinURLs = parseURLs(config.JoinURLs())
 	} else {
-		joinURLs = parseURLs(*join)
+		joinURLs = parseURLs(join)
 	}
 
 	// Open broker, initialize or join as necessary.
@@ -115,9 +99,7 @@ func execRun(args []string) {
 			}
 		}
 	}
-
-	// Wait indefinitely.
-	<-(chan struct{})(nil)
+	return s
 }
 
 // write the current process id to a file specified by path.

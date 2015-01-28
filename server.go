@@ -118,6 +118,14 @@ func (s *Server) ID() uint64 {
 	return s.id
 }
 
+// Ready indicates when the server is ready to accept connections and write data
+func (s *Server) Ready() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.client.Opened()
+}
+
 // Path returns the path used when opening the server.
 // Returns an empty string when the server is closed.
 func (s *Server) Path() string {
@@ -2184,12 +2192,31 @@ func (r *Result) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&o)
 }
 
+// UnmarshalJSON decodes the data into the Result struct
+func (r *Result) UnmarshalJSON(b []byte) error {
+	var o struct {
+		Rows []*influxql.Row `json:"rows,omitempty"`
+		Err  string          `json:"error,omitempty"`
+	}
+
+	err := json.Unmarshal(b, &o)
+	if err != nil {
+		return err
+	}
+	r.Rows = o.Rows
+	if o.Err != "" {
+		r.Err = errors.New(o.Err)
+	}
+	return nil
+}
+
 // Results represents a list of statement results.
 type Results struct {
 	Results []*Result
 	Err     error
 }
 
+// UnmarshalJSON decodes the data into the Results struct
 func (r Results) MarshalJSON() ([]byte, error) {
 	// Define a struct that outputs "error" as a string.
 	var o struct {
@@ -2204,6 +2231,23 @@ func (r Results) MarshalJSON() ([]byte, error) {
 	}
 
 	return json.Marshal(&o)
+}
+
+func (r *Results) UnmarshalJSON(b []byte) error {
+	var o struct {
+		Results []*Result `json:"results,omitempty"`
+		Err     string    `json:"error,omitempty"`
+	}
+
+	err := json.Unmarshal(b, &o)
+	if err != nil {
+		return err
+	}
+	r.Results = o.Results
+	if o.Err != "" {
+		r.Err = errors.New(o.Err)
+	}
+	return nil
 }
 
 // Error returns the first error from any statement.
@@ -2236,6 +2280,9 @@ type MessagingClient interface {
 
 	// The streaming channel for all subscribed messages.
 	C() <-chan *messaging.Message
+
+	// Opened returns true if the messaging client has been opened
+	Opened() bool
 }
 
 // DataNode represents a data node in the cluster.

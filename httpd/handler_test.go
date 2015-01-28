@@ -1161,6 +1161,11 @@ func (c *MessagingClient) Publish(m *messaging.Message) (uint64, error) {
 	return c.PublishFunc(m)
 }
 
+// Opened returns true if the messaging client has been opened
+func (c *MessagingClient) Opened() bool {
+	return true
+}
+
 // send sends the message through to the channel.
 // This is the default value of PublishFunc.
 func (c *MessagingClient) send(m *messaging.Message) (uint64, error) {
