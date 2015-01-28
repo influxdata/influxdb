@@ -34,7 +34,7 @@ func TestTx_CreateIterators(t *testing.T) {
 	stmt := MustParseSelectStatement(`
 		SELECT value
 		FROM "db"."raw"."cpu"
-		WHERE (service = 'redis' AND (value > 10 OR value < 5)) AND (time >= '2000-01-01' AND time < '2000-01-02')
+		WHERE (service = 'redis' AND value < 100) AND (time >= '2000-01-01' AND time < '2000-01-02')
 		GROUP BY time(1h), region`)
 
 	// Retrieve iterators from server.
@@ -60,7 +60,6 @@ func TestTx_CreateIterators(t *testing.T) {
 
 	// Iterate over each one.
 	if data := slurp(itrs); !reflect.DeepEqual(data, []keyValue{
-		{key: 946684800000000000, value: float64(100), tags: "\x00\aus-east"},
 		{key: 946684800000000000, value: float64(2), tags: "\x00\aus-west"},
 		{key: 946684810000000000, value: float64(90), tags: "\x00\aus-east"},
 		{key: 946684830000000000, value: float64(70), tags: "\x00\aus-east"},

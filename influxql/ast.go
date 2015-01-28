@@ -1737,6 +1737,83 @@ type rewriterFunc func(Node) Node
 
 func (fn rewriterFunc) Rewrite(n Node) Node { return fn(n) }
 
+// Eval evaluates expr against a map.
+func Eval(expr Expr, m map[string]interface{}) interface{} {
+	if expr == nil {
+		return nil
+	}
+
+	switch expr := expr.(type) {
+	case *BinaryExpr:
+		return evalBinaryExpr(expr, m)
+	case *BooleanLiteral:
+		return expr.Val
+	case *NumberLiteral:
+		return expr.Val
+	case *ParenExpr:
+		return Eval(expr.Expr, m)
+	case *StringLiteral:
+		return expr.Val
+	case *VarRef:
+		return m[expr.Val]
+	default:
+		return nil
+	}
+}
+
+func evalBinaryExpr(expr *BinaryExpr, m map[string]interface{}) interface{} {
+	lhs := Eval(expr.LHS, m)
+	rhs := Eval(expr.RHS, m)
+
+	// Evaluate if both sides are simple types.
+	switch lhs := lhs.(type) {
+	case bool:
+		rhs, _ := rhs.(bool)
+		switch expr.Op {
+		case AND:
+			return lhs && rhs
+		case OR:
+			return lhs || rhs
+		}
+	case float64:
+		rhs, _ := rhs.(float64)
+		switch expr.Op {
+		case EQ:
+			return lhs == rhs
+		case NEQ:
+			return lhs != rhs
+		case LT:
+			return lhs < rhs
+		case LTE:
+			return lhs <= rhs
+		case GT:
+			return lhs > rhs
+		case GTE:
+			return lhs >= rhs
+		case ADD:
+			return lhs + rhs
+		case SUB:
+			return lhs - rhs
+		case MUL:
+			return lhs * rhs
+		case DIV:
+			if rhs == 0 {
+				return float64(0)
+			}
+			return lhs / rhs
+		}
+	case string:
+		rhs, _ := rhs.(string)
+		switch expr.Op {
+		case EQ:
+			return lhs == rhs
+		case NEQ:
+			return lhs != rhs
+		}
+	}
+	return nil
+}
+
 // Reduce evaluates expr using the available values in valuer.
 // References that don't exist in valuer are ignored.
 func Reduce(expr Expr, valuer Valuer) Expr {

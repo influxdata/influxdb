@@ -1,6 +1,7 @@
 package influxql_test
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
@@ -162,6 +163,50 @@ func TestRewrite(t *testing.T) {
 	// Verify that everything is flipped.
 	if act := act.String(); act != `2.000 = foo OR 1.000 > time` {
 		t.Fatalf("unexpected result: %s", act)
+	}
+}
+
+// Ensure an expression can be reduced.
+func TestEval(t *testing.T) {
+	for i, tt := range []struct {
+		in   string
+		out  interface{}
+		data map[string]interface{}
+	}{
+		// Number literals.
+		{in: `1 + 2`, out: float64(3)},
+		{in: `(foo*2) + ( (4/2) + (3 * 5) - 0.5 )`, out: float64(26.5), data: map[string]interface{}{"foo": float64(5)}},
+		{in: `foo / 2`, out: float64(2), data: map[string]interface{}{"foo": float64(4)}},
+		{in: `4 = 4`, out: true},
+		{in: `4 <> 4`, out: false},
+		{in: `6 > 4`, out: true},
+		{in: `4 >= 4`, out: true},
+		{in: `4 < 6`, out: true},
+		{in: `4 <= 4`, out: true},
+		{in: `4 AND 5`, out: nil},
+
+		// Boolean literals.
+		{in: `true AND false`, out: false},
+		{in: `true OR false`, out: true},
+
+		// String literals.
+		{in: `'foo' = 'bar'`, out: false},
+		{in: `'foo' = 'foo'`, out: true},
+
+		// Variable references.
+		{in: `foo`, out: "bar", data: map[string]interface{}{"foo": "bar"}},
+		{in: `foo = 'bar'`, out: true, data: map[string]interface{}{"foo": "bar"}},
+		{in: `foo = 'bar'`, out: nil, data: map[string]interface{}{"foo": nil}},
+		{in: `foo <> 'bar'`, out: true, data: map[string]interface{}{"foo": "xxx"}},
+	} {
+		// Evaluate expression.
+		out := influxql.Eval(MustParseExpr(tt.in), tt.data)
+
+		// Compare with expected output.
+		if !reflect.DeepEqual(tt.out, out) {
+			t.Errorf("%d. %s: unexpected output:\n\nexp=%#v\n\ngot=%#v\n\n", i, tt.in, tt.out, out)
+			continue
+		}
 	}
 }
 
