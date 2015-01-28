@@ -222,7 +222,7 @@ func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	} else {
 		// http://httpstatus.es/503 - Service Unavailable
-		w.WriteHeader(503)
+		w.WriteHeader(http.StatusServiceUnavailable)
 	}
 }
 
