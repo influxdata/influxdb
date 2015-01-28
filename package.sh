@@ -2,7 +2,9 @@
 
 ###########################################################################
 # Packaging script which creates debian and RPM packages. It optionally
-# tags the repo with the given version. 'fpm' must be on the path.
+# tags the repo with the given version.
+#
+# 'fpm' must be on the path, and the AWS CLI tools must also be installed.
 
 AWS_FILE=~/aws.conf
 
