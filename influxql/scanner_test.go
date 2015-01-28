@@ -124,6 +124,7 @@ func TestScanner_Scan(t *testing.T) {
 		{s: `INNER`, tok: influxql.INNER},
 		{s: `INSERT`, tok: influxql.INSERT},
 		{s: `INTO`, tok: influxql.INTO},
+		{s: `KEY`, tok: influxql.KEY},
 		{s: `KEYS`, tok: influxql.KEYS},
 		{s: `LIMIT`, tok: influxql.LIMIT},
 		{s: `SHOW`, tok: influxql.SHOW},

@@ -77,6 +77,7 @@ const (
 	INNER
 	INSERT
 	INTO
+	KEY
 	KEYS
 	LIMIT
 	SHOW
@@ -167,6 +168,7 @@ var tokens = [...]string{
 	INNER:        "INNER",
 	INSERT:       "INSERT",
 	INTO:         "INTO",
+	KEY:          "KEY",
 	KEYS:         "KEYS",
 	LIMIT:        "LIMIT",
 	SHOW:         "SHOW",
