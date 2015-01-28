@@ -91,6 +91,7 @@ func (_ *ParenExpr) node()       {}
 func (_ *SortField) node()       {}
 func (_ SortFields) node()       {}
 func (_ *StringLiteral) node()   {}
+func (_ *TagKeyIdent) node()     {}
 func (_ *Target) node()          {}
 func (_ *TimeLiteral) node()     {}
 func (_ *VarRef) node()          {}
@@ -176,6 +177,7 @@ func (_ *nilLiteral) expr()      {}
 func (_ *NumberLiteral) expr()   {}
 func (_ *ParenExpr) expr()       {}
 func (_ *StringLiteral) expr()   {}
+func (_ *TagKeyIdent) expr()     {}
 func (_ *TimeLiteral) expr()     {}
 func (_ *VarRef) expr()          {}
 func (_ *Wildcard) expr()        {}
@@ -1451,6 +1453,12 @@ type StringLiteral struct {
 
 // String returns a string representation of the literal.
 func (l *StringLiteral) String() string { return QuoteString(l.Val) }
+
+// TagKeyIdent represents a special TAG KEY identifier.
+type TagKeyIdent struct{}
+
+// String returns a string representation of the TagKeyIdent.
+func (t *TagKeyIdent) String() string { return "TAG KEY" }
 
 // TimeLiteral represents a point-in-time literal.
 type TimeLiteral struct {

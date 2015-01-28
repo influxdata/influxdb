@@ -242,6 +242,69 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// SHOW TAG VALUES ... TAG KEY =
+		{
+			s: `SHOW TAG VALUES FROM cpu WHERE TAG KEY = 'host' AND region = 'uswest'`,
+			stmt: &influxql.ShowTagValuesStatement{
+				Source: &influxql.Measurement{Name: "cpu"},
+				Condition: &influxql.BinaryExpr{
+					Op: influxql.AND,
+					LHS: &influxql.BinaryExpr{
+						Op:  influxql.EQ,
+						LHS: &influxql.TagKeyIdent{},
+						RHS: &influxql.StringLiteral{Val: "host"},
+					},
+					RHS: &influxql.BinaryExpr{
+						Op:  influxql.EQ,
+						LHS: &influxql.VarRef{Val: "region"},
+						RHS: &influxql.StringLiteral{Val: "uswest"},
+					},
+				},
+			},
+		},
+
+		// SHOW TAG VALUES ... AND TAG KEY =
+		{
+			s: `SHOW TAG VALUES FROM cpu WHERE region = 'uswest' AND TAG KEY = 'host'`,
+			stmt: &influxql.ShowTagValuesStatement{
+				Source: &influxql.Measurement{Name: "cpu"},
+				Condition: &influxql.BinaryExpr{
+					Op: influxql.AND,
+					LHS: &influxql.BinaryExpr{
+						Op:  influxql.EQ,
+						LHS: &influxql.VarRef{Val: "region"},
+						RHS: &influxql.StringLiteral{Val: "uswest"},
+					},
+					RHS: &influxql.BinaryExpr{
+						Op:  influxql.EQ,
+						LHS: &influxql.TagKeyIdent{},
+						RHS: &influxql.StringLiteral{Val: "host"},
+					},
+				},
+			},
+		},
+
+		// SHOW TAG VALUES ... AND ... = TAG KEY
+		{
+			s: `SHOW TAG VALUES FROM cpu WHERE region = 'uswest' AND 'host' = TAG KEY`,
+			stmt: &influxql.ShowTagValuesStatement{
+				Source: &influxql.Measurement{Name: "cpu"},
+				Condition: &influxql.BinaryExpr{
+					Op: influxql.AND,
+					LHS: &influxql.BinaryExpr{
+						Op:  influxql.EQ,
+						LHS: &influxql.VarRef{Val: "region"},
+						RHS: &influxql.StringLiteral{Val: "uswest"},
+					},
+					RHS: &influxql.BinaryExpr{
+						Op:  influxql.EQ,
+						LHS: &influxql.StringLiteral{Val: "host"},
+						RHS: &influxql.TagKeyIdent{},
+					},
+				},
+			},
+		},
+
 		// SHOW USERS
 		{
 			s:    `SHOW USERS`,
