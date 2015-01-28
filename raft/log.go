@@ -24,10 +24,10 @@ import (
 
 const (
 	// DefaultHeartbeatInterval is the default time to wait between heartbeats.
-	DefaultHeartbeatInterval = 50 * time.Millisecond
+	DefaultHeartbeatInterval = 150 * time.Millisecond
 
 	// DefaultElectionTimeout is the default time before starting an election.
-	DefaultElectionTimeout = 150 * time.Millisecond
+	DefaultElectionTimeout = 500 * time.Millisecond
 
 	// DefaultReconnectTimeout is the default time to wait before reconnecting.
 	DefaultReconnectTimeout = 10 * time.Millisecond
@@ -247,18 +247,24 @@ func (l *Log) Open(path string) error {
 	}
 	l.config = c
 
-	// If this log is the only node then promote to leader immediately.
-	if c != nil && len(c.Nodes) == 1 && c.Nodes[0].ID == l.id {
-		l.Logger.Println("log open: promoting to leader immediately")
-		l.setState(Leader)
-	}
-
 	// Determine last applied index from FSM.
 	index, err := l.FSM.Index()
 	if err != nil {
 		return err
 	}
 	l.index = index
+	l.appliedIndex = index
+	l.commitIndex = index
+
+	// If this log is the only node then promote to leader immediately.
+	// Otherwise if there's any configuration then start it as a follower.
+	if c != nil && len(c.Nodes) == 1 && c.Nodes[0].ID == l.id {
+		l.Logger.Println("log open: promoting to leader immediately")
+		l.setState(Leader)
+	} else if l.config != nil {
+		l.setState(Follower)
+		l.lastContact = l.Clock.Now()
+	}
 
 	// Start goroutine to apply logs.
 	l.done = append(l.done, make(chan chan struct{}))
@@ -554,6 +560,8 @@ func (l *Log) Leave() error {
 
 // setState moves the log to a given state.
 func (l *Log) setState(state State) {
+	l.Logger.Printf("log state change: %s => %s", l.state, state)
+
 	// Stop previous state.
 	if l.ch != nil {
 		close(l.ch)
