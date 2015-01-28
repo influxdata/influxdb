@@ -184,6 +184,29 @@ func TestHandler_CreateRetentionPolicy(t *testing.T) {
 	}
 }
 
+func TestHandler_CreateRetentionPolicyAsDefault(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	query := map[string]string{"q": "CREATE RETENTION POLICY bar ON foo DURATION 1h REPLICATION 1 DEFAULT"}
+	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
+
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	} else if body != `{"results":[{}]}` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+
+	rp, err := srvr.DefaultRetentionPolicy("foo")
+	if err != nil {
+		t.Fatal(err)
+	} else if rp.Name != "bar" {
+		t.Fatalf("default retention policy mismatch:\n  exp=%s\n  got=%s\n", "bar", rp.Name)
+	}
+}
+
 func TestHandler_CreateRetentionPolicy_DatabaseNotFound(t *testing.T) {
 	srvr := OpenServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)

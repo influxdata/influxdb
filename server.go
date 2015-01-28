@@ -1917,7 +1917,19 @@ func (s *Server) executeCreateRetentionPolicyStatement(q *influxql.CreateRetenti
 	rp := NewRetentionPolicy(q.Name)
 	rp.Duration = q.Duration
 	rp.ReplicaN = uint32(q.Replication)
-	return &Result{Err: s.CreateRetentionPolicy(q.Database, rp)}
+
+	// Create new retention policy.
+	err := s.CreateRetentionPolicy(q.Database, rp)
+	if err != nil {
+		return &Result{Err: s.CreateRetentionPolicy(q.Database, rp)}
+	}
+
+	// If requested, set new policy as the default.
+	if q.Default {
+		err = s.SetDefaultRetentionPolicy(q.Database, q.Name)
+	}
+
+	return &Result{Err: err}
 }
 
 func (s *Server) executeAlterRetentionPolicyStatement(q *influxql.AlterRetentionPolicyStatement, user *User) *Result {
