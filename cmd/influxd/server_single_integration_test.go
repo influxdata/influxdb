@@ -24,7 +24,12 @@ func TestNewServer(t *testing.T) {
 		version = "x.x"
 	)
 
+	//tmpBrokerDir, _ := os.TempDir("", "broker")
+	//tmpDataDir, _ := os.TempDir("", "data")
+
 	c := main.NewConfig()
+	//c.BrokerDir = tmpBrokerDir
+	//c.DataDir = tmpDataDir
 
 	now := time.Now()
 	var spinupTime time.Duration
@@ -164,7 +169,7 @@ func TestNewServer(t *testing.T) {
 
 	// Query the data exists
 	t.Log("Query data")
-	u = urlFor(c.BrokerURL(), "query", url.Values{"q": []string{`select mean(value) from "foo"."bar".cpu`}})
+	u = urlFor(c.BrokerURL(), "query", url.Values{"q": []string{`select mean(value) from "foo"."bar".cpu`}, "db": []string{"foo"}})
 
 	resp, err = client.Get(u.String())
 	if err != nil {
