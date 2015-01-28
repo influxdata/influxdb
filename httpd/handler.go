@@ -321,6 +321,7 @@ func httpResults(w http.ResponseWriter, results influxdb.Results, pretty bool) {
 		if isAuthorizationError(results.Error()) {
 			w.WriteHeader(http.StatusUnauthorized)
 		} else {
+			log.Printf("%+v", results.Results[0].Err)
 			w.WriteHeader(http.StatusInternalServerError)
 		}
 	}
