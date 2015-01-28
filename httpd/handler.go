@@ -164,7 +164,7 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *influ
 	for {
 		if err := dec.Decode(&br); err != nil {
 			if err.Error() == "EOF" {
-				w.WriteHeader(http.StatusOK)
+				w.WriteHeader(http.StatusCreated)
 				return
 			}
 			writeError(influxdb.Result{Err: err}, http.StatusInternalServerError)
@@ -321,6 +321,7 @@ func httpResults(w http.ResponseWriter, results influxdb.Results, pretty bool) {
 		if isAuthorizationError(results.Error()) {
 			w.WriteHeader(http.StatusUnauthorized)
 		} else {
+			log.Printf("%+v", results.Results[0].Err)
 			w.WriteHeader(http.StatusInternalServerError)
 		}
 	}

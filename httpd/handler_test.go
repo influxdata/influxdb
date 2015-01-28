@@ -742,7 +742,7 @@ func TestHandler_serveWriteSeries(t *testing.T) {
 
 	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}}]}`)
 
-	if status != http.StatusOK {
+	if status != http.StatusCreated {
 		t.Fatalf("unexpected status: %d", status)
 	}
 }
