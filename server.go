@@ -1754,9 +1754,10 @@ func (s *Server) executeDropUserStatement(q *influxql.DropUserStatement, user *U
 }
 
 func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, database string, user *User) *Result {
-	// Find the database.
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
+	// Find the database.
 	db := s.databases[database]
 	if db == nil {
 		return &Result{Err: ErrDatabaseNotFound}
@@ -1767,13 +1768,22 @@ func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, 
 	if stmt.Source != nil {
 		// TODO: handle multiple measurement sources
 		if m, ok := stmt.Source.(*influxql.Measurement); ok {
-			measurements = append(measurements, m.Name)
+			segments, err := influxql.SplitIdent(m.Name)
+			if err != nil {
+				return &Result{Err: err}
+			}
+			measurements = append(measurements, segments[2])
 		} else {
 			return &Result{Err: ErrMeasurementNotFound}
 		}
 	} else {
 		// No measurements specified in FROM clause so get all measurements.
 		measurements = db.MeasurementNames()
+	}
+
+	// If OFFSET is past the end of the array, return empty results.
+	if stmt.Offset > len(measurements)-1 {
+		return &Result{}
 	}
 
 	// Sort measurement names so results are always in the same order.
@@ -1799,6 +1809,11 @@ func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, 
 			filters := map[uint32]influxql.Expr{}
 			ids, _, _ = m.walkWhereForSeriesIds(stmt.Condition, filters)
 
+			// If no series matched, then go to the next measurement.
+			if len(ids) == 0 {
+				continue
+			}
+
 			// TODO: check return of walkWhereForSeriesIds for fields
 		} else {
 			// No WHERE clause so get all series IDs for this measurement.
@@ -1814,13 +1829,13 @@ func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, 
 		// Loop through series IDs getting matching tag sets.
 		for _, id := range ids {
 			if s, ok := m.seriesByID[id]; ok {
-				values := make([]string, 0, len(r.Columns))
+				values := make([]interface{}, 0, len(r.Columns))
 				for _, column := range r.Columns {
 					values = append(values, s.Tags[column])
 				}
 
 				// Add the tag values to the row.
-				r.Values = append(r.Values, []interface{}{values})
+				r.Values = append(r.Values, values)
 			}
 		}
 

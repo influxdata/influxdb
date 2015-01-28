@@ -9,11 +9,13 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/httpd"
+	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/messaging"
 )
 
@@ -778,6 +780,7 @@ func TestHandler_serveShowSeries(t *testing.T) {
 	srvr := OpenServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
+	srvr.SetDefaultRetentionPolicy("foo", "bar")
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
@@ -796,17 +799,120 @@ func TestHandler_serveShowSeries(t *testing.T) {
 
 	var tests = []struct {
 		q   string
-		r   string
+		r   *influxdb.Results
 		err string
 	}{
 		// SHOW SERIES
 		{
 			q: `SHOW SERIES`,
-			r: `{"results":[{"rows":[{"name":"cpu","columns":["host","region"],"values":[[["server01",""]],[["server01","uswest"]],[["server01","useast"]],[["server02","useast"]]]},{"name":"gpu","columns":["host","region"],"values":[[["server02","useast"]]]}]}]}`,
+			r: &influxdb.Results{
+				Results: []*influxdb.Result{
+					&influxdb.Result{
+						Rows: []*influxql.Row{
+							&influxql.Row{
+								Name:    "cpu",
+								Columns: []string{"host", "region"},
+								Values: [][]interface{}{
+									str2iface([]string{"server01", ""}),
+									str2iface([]string{"server01", "uswest"}),
+									str2iface([]string{"server01", "useast"}),
+									str2iface([]string{"server02", "useast"}),
+								},
+							},
+							&influxql.Row{
+								Name:    "gpu",
+								Columns: []string{"host", "region"},
+								Values: [][]interface{}{
+									str2iface([]string{"server02", "useast"}),
+								},
+							},
+						},
+					},
+				},
+			},
 		},
+		// SHOW SERIES ... LIMIT
+		// {
+		// 	q: `SHOW SERIES LIMIT 1`,
+		// 	r: &influxdb.Results{
+		// 		Results: []*influxdb.Result{
+		// 			&influxdb.Result{
+		// 				Rows: []*influxql.Row{
+		// 					&influxql.Row{
+		// 						Name:    "cpu",
+		// 						Columns: []string{"host", "region"},
+		// 						Values: [][]interface{}{
+		// 							str2iface([]string{"server01", ""}),
+		// 							str2iface([]string{"server01", "uswest"}),
+		// 							str2iface([]string{"server01", "useast"}),
+		// 							str2iface([]string{"server02", "useast"}),
+		// 						},
+		// 					},
+		// 				},
+		// 			},
+		// 		},
+		// 	},
+		// },
+		// SHOW SERIES FROM
 		{
-			q: `SHOW SERIES from cpu where region = 'uswest'`,
-			r: `{"results":[{"rows":[{"name":"cpu","columns":["host","region"],"values":[[["server01","uswest"]]]}]}]}`,
+			q: `SHOW SERIES FROM cpu`,
+			r: &influxdb.Results{
+				Results: []*influxdb.Result{
+					&influxdb.Result{
+						Rows: []*influxql.Row{
+							&influxql.Row{
+								Name:    "cpu",
+								Columns: []string{"host", "region"},
+								Values: [][]interface{}{
+									str2iface([]string{"server01", ""}),
+									str2iface([]string{"server01", "uswest"}),
+									str2iface([]string{"server01", "useast"}),
+									str2iface([]string{"server02", "useast"}),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		// SHOW SERIES WHERE
+		{
+			q: `SHOW SERIES WHERE region = 'uswest'`,
+			r: &influxdb.Results{
+				Results: []*influxdb.Result{
+					&influxdb.Result{
+						Rows: []*influxql.Row{
+							&influxql.Row{
+								Name:    "cpu",
+								Columns: []string{"host", "region"},
+								Values: [][]interface{}{
+									str2iface([]string{"server01", "uswest"}),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		// SHOW SERIES FROM ... WHERE
+		{
+			q: `SHOW SERIES FROM cpu WHERE region = 'useast'`,
+			r: &influxdb.Results{
+				Results: []*influxdb.Result{
+					&influxdb.Result{
+						Rows: []*influxql.Row{
+							&influxql.Row{
+								Name:    "cpu",
+								Columns: []string{"host", "region"},
+								Values: [][]interface{}{
+									str2iface([]string{"server01", "useast"}),
+									str2iface([]string{"server02", "useast"}),
+								},
+							},
+						},
+					},
+				},
+			},
 		},
 	}
 
@@ -824,18 +930,28 @@ func TestHandler_serveShowSeries(t *testing.T) {
 		if err := json.Unmarshal([]byte(body), r); err != nil {
 			t.Logf("query #%d: %s", i, tt.q)
 			t.Log(body)
-			t.Error("error marshaling result: ", err)
+			t.Error(err)
 		}
 
-		if body != tt.r {
-			t.Errorf("result mismatch\n  exp: %s\n  got: %s\n", tt.r, body)
+		if !reflect.DeepEqual(tt.err, errstring(r.Err)) {
+			t.Errorf("%d. %s: error mismatch:\n  exp=%s\n  got=%s\n\n", i, tt.q, tt.err, r.Err)
+		} else if tt.err == "" && !reflect.DeepEqual(tt.r, r) {
+
+			t.Log(body)
+			t.Log("")
+			b, _ := json.Marshal(tt.r)
+			t.Log(string(b))
+			if body == string(b) {
+				t.Log("******  strings are equal")
+			}
+			t.Errorf("%d. %s: result mismatch:\n\nexp=%#v\n\ngot=%#v\n\n", i, tt.q, tt.r, r)
 		}
 	}
 }
 
 // str2iface converts an array of strings to an array of interfaces.
 func str2iface(strs []string) []interface{} {
-	a := make([]interface{}, len(strs))
+	a := make([]interface{}, 0, len(strs))
 	for _, s := range strs {
 		a = append(a, interface{}(s))
 	}
