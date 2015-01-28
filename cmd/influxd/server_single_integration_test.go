@@ -3,6 +3,7 @@ package main_test
 import (
 	"bytes"
 	"encoding/json"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -24,17 +25,21 @@ func TestNewServer(t *testing.T) {
 		version = "x.x"
 	)
 
-	//tmpBrokerDir, _ := os.TempDir("", "broker")
-	//tmpDataDir, _ := os.TempDir("", "data")
+	//tmpBrokerDir, _ := ioutil.TempDir("", "")
+	//tmpDataDir, _ := ioutil.TempDir("", "")
+	//defer func() {
+	//os.Remove(tmpBrokerDir)
+	//os.Remove(tmpDataDir)
+	//}()
 
 	c := main.NewConfig()
-	//c.BrokerDir = tmpBrokerDir
-	//c.DataDir = tmpDataDir
+	//c.Broker.Dir = tmpBrokerDir
+	//c.Data.Dir = tmpDataDir
 
 	now := time.Now()
 	var spinupTime time.Duration
 
-	main.Run(nil, join, version)
+	main.Run(c, join, version)
 
 	ready := make(chan bool, 1)
 	go func() {
@@ -81,13 +86,16 @@ func TestNewServer(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		b, _ := ioutil.ReadAll(resp.Body)
+		t.Logf("json: %s", string(b))
+		t.Fatalf("Create database failed.  Unexpected status code.  expected: %d, actual %d", http.StatusOK, resp.StatusCode)
+	}
+
 	var results influxdb.Results
 	err = json.NewDecoder(resp.Body).Decode(&results)
 	if err != nil {
 		t.Fatalf("Couldn't decode results: %v", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("Create database failed.  Unexpected status code.  expected: %d, actual %d", http.StatusOK, resp.StatusCode)
 	}
 	if len(results.Results) != 1 {
 		t.Fatalf("Create database failed.  Unexpected results length.  expected: %d, actual %d", 1, len(results.Results))
@@ -102,12 +110,15 @@ func TestNewServer(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		b, _ := ioutil.ReadAll(resp.Body)
+		t.Logf("json: %s", string(b))
+		t.Fatalf("show databases failed.  Unexpected status code.  expected: %d, actual %d", http.StatusOK, resp.StatusCode)
+	}
+
 	err = json.NewDecoder(resp.Body).Decode(&results)
 	if err != nil {
 		t.Fatalf("Couldn't decode results: %v", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("show databases failed.  Unexpected status code.  expected: %d, actual %d", http.StatusOK, resp.StatusCode)
 	}
 	if len(results.Results) != 1 {
 		t.Fatalf("show databases failed.  Unexpected results length.  expected: %d, actual %d", 1, len(results.Results))
@@ -140,12 +151,15 @@ func TestNewServer(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		b, _ := ioutil.ReadAll(resp.Body)
+		t.Logf("json: %s", string(b))
+		t.Fatalf("Create retention policy failed.  Unexpected status code.  expected: %d, actual %d", http.StatusOK, resp.StatusCode)
+	}
+
 	err = json.NewDecoder(resp.Body).Decode(&results)
 	if err != nil {
 		t.Fatalf("Couldn't decode results: %v", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("Create retention policy failed.  Unexpected status code.  expected: %d, actual %d", http.StatusOK, resp.StatusCode)
 	}
 	if len(results.Results) != 1 {
 		t.Fatalf("Create retention policy failed.  Unexpected results length.  expected: %d, actual %d", 1, len(results.Results))
@@ -176,16 +190,15 @@ func TestNewServer(t *testing.T) {
 		t.Fatalf("Couldn't query databases: %s", err)
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := ioutil.ReadAll(resp.Body)
+		t.Logf("json: %s", string(b))
+		t.Fatalf("query databases failed.  Unexpected status code.  expected: %d, actual %d", http.StatusOK, resp.StatusCode)
+	}
 
 	err = json.NewDecoder(resp.Body).Decode(&results)
 	if err != nil {
 		t.Fatalf("Couldn't decode results: %v", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		if results.Error() != nil {
-			t.Logf("result error: %s", results.Error())
-		}
-		t.Fatalf("query databases failed.  Unexpected status code.  expected: %d, actual %d", http.StatusOK, resp.StatusCode)
 	}
 	if len(results.Results) != 1 {
 		t.Fatalf("query databases failed.  Unexpected results length.  expected: %d, actual %d", 1, len(results.Results))
