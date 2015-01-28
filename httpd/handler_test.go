@@ -773,6 +773,38 @@ func TestHandler_serveWriteSeries_noDatabaseSpecified(t *testing.T) {
 	}
 }
 
+func TestHandler_serveShowSeries(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [
+		{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "uswest"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
+		{"name": "gpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}}
+		]}`)
+
+	if status != http.StatusOK {
+		t.Log(body)
+		t.Fatalf("unexpected status after write: %d", status)
+	}
+
+	query := map[string]string{"db": "foo", "q": "SHOW SERIES FROM cpu WHERE (host = 'server01' AND region = 'uswest') OR region = 'useast'"}
+	status, body = MustHTTP("GET", s.URL+`/query`, query, nil, "")
+
+	if status != http.StatusOK {
+		t.Log(body)
+		t.Fatalf("unexpected status after query: %d", status)
+	}
+
+	t.Log(body)
+	t.Fatalf("test")
+}
+
 // Utility functions for this test suite.
 
 func MustHTTP(verb, path string, params, headers map[string]string, body string) (int, string) {

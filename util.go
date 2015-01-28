@@ -63,3 +63,30 @@ func removeTimestampFieldDefinition(fields []string) []string {
 	fields = removeField(fields, "time")
 	return removeField(fields, "sequence_number")
 }
+
+func mapKeyList(m interface{}) []string {
+
+	switch m.(type) {
+	case map[string]string:
+		return mapStrStrKeyList(m.(map[string]string))
+	case map[string]int:
+		return mapStrIntKeyList(m.(map[string]int))
+	}
+	return nil
+}
+
+func mapStrStrKeyList(m map[string]string) []string {
+	l := make([]string, 0, len(m))
+	for k, _ := range m {
+		l = append(l, k)
+	}
+	return l
+}
+
+func mapStrIntKeyList(m map[string]int) []string {
+	l := make([]string, 0, len(m))
+	for k, _ := range m {
+		l = append(l, k)
+	}
+	return l
+}

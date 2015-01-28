@@ -2,6 +2,7 @@ package influxdb
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"regexp"
 	"sort"
@@ -45,6 +46,20 @@ func (db *database) shardGroupByTimestamp(policy string, timestamp time.Time) (*
 		return nil, ErrRetentionPolicyNotFound
 	}
 	return p.shardGroupByTimestamp(timestamp), nil
+}
+
+// MeasurementNames returns a list of measurement names.
+func (d *database) MeasurementNames() []string {
+	names := make([]string, 0, len(d.measurements))
+	for k, _ := range d.measurements {
+		names = append(names, k)
+	}
+	return names
+}
+
+// Series takes a series ID and returns a series.
+func (d *database) Series(id uint32) *Series {
+	return d.series[id]
 }
 
 // MarshalJSON encodes a database into a JSON-encoded byte slice.
@@ -903,4 +918,142 @@ func marshalTags(tags map[string]string) []byte {
 // timeBetweenInclusive returns true if t is between min and max, inclusive.
 func timeBetweenInclusive(t, min, max time.Time) bool {
 	return (t.Equal(min) || t.After(min)) && (t.Equal(max) || t.Before(max))
+}
+
+// seriesIDsByExpr given a measurement and expression containing
+// only tags returns a list of series IDs.
+func (d *database) seriesIDsByExpr(measurements []string, expr influxql.Expr) (seriesIDs, error) {
+	switch e := expr.(type) {
+	case *influxql.BinaryExpr:
+		switch e.Op {
+		case influxql.EQ, influxql.NEQ:
+			tag, ok := e.LHS.(*influxql.VarRef)
+			if !ok {
+				return nil, fmt.Errorf("left side of '=' must be a tag name")
+			}
+
+			value, ok := e.RHS.(*influxql.StringLiteral)
+			if !ok {
+				return nil, fmt.Errorf("right side of '=' must be a tag value string")
+			}
+
+			tf := &TagFilter{
+				Not:   e.Op == influxql.NEQ,
+				Key:   tag.Val,
+				Value: value.Val,
+			}
+			return d.SeriesIDs(measurements, []*TagFilter{tf}), nil
+		case influxql.OR, influxql.AND:
+			lhsIDs, err := d.seriesIDsByExpr(measurements, e.LHS)
+			if err != nil {
+				return nil, err
+			}
+
+			rhsIDs, err := d.seriesIDsByExpr(measurements, e.RHS)
+			if err != nil {
+				return nil, err
+			}
+
+			if e.Op == influxql.OR {
+				return lhsIDs.union(rhsIDs), nil
+			} else {
+				return lhsIDs.intersect(rhsIDs), nil
+			}
+		default:
+			return nil, fmt.Errorf("invalid operator")
+		}
+	case *influxql.ParenExpr:
+		return d.seriesIDsByExpr(measurements, e.Expr)
+	}
+	return nil, fmt.Errorf("%#v", expr)
+}
+
+// seriesIDs returns an array of series ids for the given measurements and filters to be applied to all.
+// Filters are equivalent to an AND operation. If you want to do an OR, get the series IDs for one set,
+// then get the series IDs for another set and use the SeriesIDs.Union to combine the two.
+func (d *database) SeriesIDs(names []string, filters []*TagFilter) seriesIDs {
+	// they want all ids if no filters are specified
+	if len(filters) == 0 {
+		ids := seriesIDs(make([]uint32, 0))
+		for _, m := range d.measurements {
+			ids = ids.union(m.seriesIDs)
+		}
+		return ids
+	}
+
+	ids := seriesIDs(make([]uint32, 0))
+	for _, n := range names {
+		ids = ids.union(d.seriesIDsByName(n, filters))
+	}
+
+	return ids
+}
+
+// seriesIDsByName is the same as SeriesIDs, but for a specific measurement.
+func (d *database) seriesIDsByName(name string, filters []*TagFilter) seriesIDs {
+	m := d.measurements[name]
+	if m == nil {
+		return nil
+	}
+
+	// process the filters one at a time to get the list of ids they return
+	idsPerFilter := make([]seriesIDs, len(filters), len(filters))
+	for i, filter := range filters {
+		idsPerFilter[i] = m.seriesIDsByFilter(filter)
+	}
+
+	// collapse the set of ids
+	allIDs := idsPerFilter[0]
+	for i := 1; i < len(filters); i++ {
+		allIDs = allIDs.intersect(idsPerFilter[i])
+	}
+
+	return allIDs
+}
+
+// seriesIDs returns the series ids for a given filter
+func (m *Measurement) seriesIDsByFilter(filter *TagFilter) (ids seriesIDs) {
+	values := m.seriesByTagKeyValue[filter.Key]
+	if values == nil {
+		return
+	}
+
+	// handle regex filters
+	if filter.Regex != nil {
+		for k, v := range values {
+			if filter.Regex.MatchString(k) {
+				if ids == nil {
+					ids = v
+				} else {
+					ids = ids.union(v)
+				}
+			}
+		}
+		if filter.Not {
+			ids = m.seriesIDs.reject(ids)
+		}
+		return
+	}
+
+	// this is for the value is not null query
+	if filter.Not && filter.Value == "" {
+		for _, v := range values {
+			if ids == nil {
+				ids = v
+			} else {
+				ids.intersect(v)
+			}
+		}
+		return
+	}
+
+	// get the ids that have the given key/value tag pair
+	ids = seriesIDs(values[filter.Value])
+
+	// filter out these ids from the entire set if it's a not query
+	if filter.Not {
+		ids = m.seriesIDs.reject(ids)
+	}
+
+	return
 }
