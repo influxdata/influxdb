@@ -2,9 +2,11 @@
 
 ###########################################################################
 # Packaging script which creates debian and RPM packages. It optionally
-# tags the repo with the given version. 'fpm' must be on the path.
+# tags the repo with the given version.
+#
+# 'fpm' must be on the path, and the AWS CLI tools must also be installed.
 
-AWS_CONFIG_FILE=~/aws.conf
+AWS_FILE=~/aws.conf
 
 INSTALL_ROOT_DIR=/opt/influxdb
 CONFIG_ROOT_DIR=/etc/opt/influxdb
@@ -262,8 +264,8 @@ read response
 response=`echo $response | tr 'A-Z' 'a-z'`
 if [ "x$response" == "xy" ]; then
     echo "Publishing packages to S3."
-    if [ ! -e "$AWS_CONFIG_FILE" ]; then
-        echo "$AWS_CONFIG_FILE does not exist -- aborting."
+    if [ ! -e "$AWS_FILE" ]; then
+        echo "$AWS_FILE does not exist -- aborting."
         cleanup_exit 1
     fi
 
@@ -271,8 +273,18 @@ if [ "x$response" == "xy" ]; then
         echo "Uploading $filepath to S3"
         filename=`basename $filepath`
         bucket=influxdb
-        aws s3 cp $filepath s3://influxdb/$filename --acl public-read --region us-east-1
-        aws s3 cp $filepath s3://get.influxdb.org/$filename --acl public-read --region us-east-1
+        echo "Uploading $filename to s3://influxdb/$filename"
+        AWS_CONFIG_FILE=$AWS_FILE aws s3 cp $filepath s3://influxdb/$filename --acl public-read --region us-east-1
+        if [ $? -ne 0 ]; then
+            echo "Upload failed -- aborting".
+            cleanup_exit 1
+        fi
+        echo "Uploading $filename to s3://get.influxdb.org/$filename"
+        AWS_CONFIG_FILE=$AWS_FILE aws s3 cp $filepath s3://get.influxdb.org/$filename --acl public-read --region us-east-1
+        if [ $? -ne 0 ]; then
+            echo "Upload failed -- aborting".
+            cleanup_exit 1
+        fi
     done
 else
     echo "Not publishing packages to S3."
