@@ -173,20 +173,21 @@ func (tx *metatx) saveDatabase(db *database) error {
 	if err != nil {
 		return err
 	}
-	_, err = b.CreateBucketIfNotExists([]byte("TagBytesToID"))
-	if err != nil {
-		return err
-	}
-	_, err = b.CreateBucketIfNotExists([]byte("Series"))
-	if err != nil {
-		return err
-	}
+	_, _ = b.CreateBucketIfNotExists([]byte("TagBytesToID"))
+	_, _ = b.CreateBucketIfNotExists([]byte("Measurements"))
+	_, _ = b.CreateBucketIfNotExists([]byte("Series"))
 	return b.Put([]byte("meta"), mustMarshalJSON(db))
 }
 
 // deleteDatabase removes database from the metastore.
 func (tx *metatx) deleteDatabase(name string) error {
 	return tx.Bucket([]byte("Databases")).DeleteBucket([]byte(name))
+}
+
+// saveMeasurement persists a measurement to the metastore.
+func (tx *metatx) saveMeasurement(database string, m *Measurement) error {
+	b := tx.Bucket([]byte("Databases")).Bucket([]byte(database)).Bucket([]byte("Measurements"))
+	return b.Put([]byte(m.Name), mustMarshalJSON(m))
 }
 
 // sets the series id for the database, name, and tags.
@@ -221,17 +222,26 @@ func (tx *metatx) createSeries(database, name string, tags map[string]string) (*
 // loops through all the measurements and series in a database
 func (tx *metatx) indexDatabase(db *database) {
 	// get the bucket that holds series data for the database
-	b := tx.Bucket([]byte("Databases")).Bucket([]byte(db.name)).Bucket([]byte("Series"))
-	c := b.Cursor()
+	b := tx.Bucket([]byte("Databases")).Bucket([]byte(db.name))
 
+	// Iterate over and index series.
+	seriesBucket := b.Bucket([]byte("Series"))
+	c := seriesBucket.Cursor()
 	for k, _ := c.First(); k != nil; k, _ = c.Next() {
-		mc := b.Bucket(k).Cursor()
+		mc := seriesBucket.Bucket(k).Cursor()
 		name := string(k)
 		for id, v := mc.First(); id != nil; id, v = mc.Next() {
 			var s *Series
 			mustUnmarshalJSON(v, &s)
 			db.addSeriesToIndex(name, s)
 		}
+	}
+
+	// Iterate over measurement metadata.
+	c = b.Bucket([]byte("Measurements")).Cursor()
+	for k, v := c.First(); k != nil; k, v = c.Next() {
+		m := db.createMeasurementIfNotExists(string(k))
+		mustUnmarshalJSON(v, &m)
 	}
 }
 

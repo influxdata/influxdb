@@ -173,22 +173,40 @@ func (c *Client) Close() error {
 
 // Publish sends a message to the broker and returns an index or error.
 func (c *Client) Publish(m *Message) (uint64, error) {
-	// Send the message to the messages endpoint.
-	u := *c.LeaderURL()
-	u.Path = "/messaging/messages"
-	u.RawQuery = url.Values{
-		"type":    {strconv.FormatUint(uint64(m.Type), 10)},
-		"topicID": {strconv.FormatUint(m.TopicID, 10)},
-	}.Encode()
-	resp, err := http.Post(u.String(), "application/octet-stream", bytes.NewReader(m.Data))
-	if err != nil {
-		return 0, err
-	}
-	defer func() { _ = resp.Body.Close() }()
+	var resp *http.Response
+	var err error
 
-	// If a non-200 status is returned then an error occurred.
-	if resp.StatusCode != http.StatusOK {
-		return 0, errors.New(resp.Header.Get("X-Broker-Error"))
+	u := *c.LeaderURL()
+	for {
+		// Send the message to the messages endpoint.
+		u.Path = "/messaging/messages"
+		u.RawQuery = url.Values{
+			"type":    {strconv.FormatUint(uint64(m.Type), 10)},
+			"topicID": {strconv.FormatUint(m.TopicID, 10)},
+		}.Encode()
+		resp, err = http.Post(u.String(), "application/octet-stream", bytes.NewReader(m.Data))
+		if err != nil {
+			return 0, err
+		}
+		defer resp.Body.Close()
+
+		// If a temporary redirect occurs then update the leader and retry.
+		// If a non-200 status is returned then an error occurred.
+		if resp.StatusCode == http.StatusTemporaryRedirect {
+			redirectURL, err := url.Parse(resp.Header.Get("Location"))
+			if err != nil {
+				return 0, fmt.Errorf("bad redirect: %s", resp.Header.Get("Location"))
+			}
+			u = *redirectURL
+			continue
+		} else if resp.StatusCode != http.StatusOK {
+			if errstr := resp.Header.Get("X-Broker-Error"); errstr != "" {
+				return 0, errors.New(errstr)
+			}
+			return 0, fmt.Errorf("cannot publish(%d)", resp.StatusCode)
+		} else {
+			break
+		}
 	}
 
 	// Parse broker index.
@@ -202,19 +220,32 @@ func (c *Client) Publish(m *Message) (uint64, error) {
 
 // CreateReplica creates a replica on the broker.
 func (c *Client) CreateReplica(id uint64) error {
-	// Send request to the last known leader.
-	u := *c.LeaderURL()
-	u.Path = "/messaging/replicas"
-	u.RawQuery = url.Values{"id": {strconv.FormatUint(id, 10)}}.Encode()
-	resp, err := http.Post(u.String(), "application/octet-stream", nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = resp.Body.Close() }()
+	var resp *http.Response
+	var err error
 
-	// If a non-201 status is returned then an error occurred.
-	if resp.StatusCode != http.StatusCreated {
-		return errors.New(resp.Header.Get("X-Broker-Error"))
+	u := *c.LeaderURL()
+	for {
+		u.Path = "/messaging/replicas"
+		u.RawQuery = url.Values{"id": {strconv.FormatUint(id, 10)}}.Encode()
+		resp, err = http.Post(u.String(), "application/octet-stream", nil)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		// If a temporary redirect occurs then update the leader and retry.
+		// If a non-201 status is returned then an error occurred.
+		if resp.StatusCode == http.StatusTemporaryRedirect {
+			redirectURL, err := url.Parse(resp.Header.Get("Location"))
+			if err != nil {
+				return fmt.Errorf("bad redirect: %s", resp.Header.Get("Location"))
+			}
+			u = *redirectURL
+			continue
+		} else if resp.StatusCode != http.StatusCreated {
+			return errors.New(resp.Header.Get("X-Broker-Error"))
+		}
+		break
 	}
 
 	return nil
@@ -222,20 +253,33 @@ func (c *Client) CreateReplica(id uint64) error {
 
 // DeleteReplica removes a replica on the broker.
 func (c *Client) DeleteReplica(id uint64) error {
-	// Send request to the last known leader.
-	u := *c.LeaderURL()
-	u.Path = "/messaging/replicas"
-	u.RawQuery = url.Values{"id": {strconv.FormatUint(id, 10)}}.Encode()
-	req, _ := http.NewRequest("DELETE", u.String(), nil)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = resp.Body.Close() }()
+	var resp *http.Response
+	var err error
 
-	// If a non-204 status is returned then an error occurred.
-	if resp.StatusCode != http.StatusNoContent {
-		return errors.New(resp.Header.Get("X-Broker-Error"))
+	u := *c.LeaderURL()
+	for {
+		u.Path = "/messaging/replicas"
+		u.RawQuery = url.Values{"id": {strconv.FormatUint(id, 10)}}.Encode()
+		req, _ := http.NewRequest("DELETE", u.String(), nil)
+		resp, err = http.DefaultClient.Do(req)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		// If a temporary redirect occurs then update the leader and retry.
+		// If a non-204 status is returned then an error occurred.
+		if resp.StatusCode == http.StatusTemporaryRedirect {
+			redirectURL, err := url.Parse(resp.Header.Get("Location"))
+			if err != nil {
+				return fmt.Errorf("bad redirect: %s", resp.Header.Get("Location"))
+			}
+			u = *redirectURL
+			continue
+		} else if resp.StatusCode != http.StatusNoContent {
+			return errors.New(resp.Header.Get("X-Broker-Error"))
+		}
+		break
 	}
 
 	return nil
@@ -243,22 +287,35 @@ func (c *Client) DeleteReplica(id uint64) error {
 
 // Subscribe subscribes a replica to a topic on the broker.
 func (c *Client) Subscribe(replicaID, topicID uint64) error {
-	// Send request to the last known leader.
-	u := *c.LeaderURL()
-	u.Path = "/messaging/subscriptions"
-	u.RawQuery = url.Values{
-		"replicaID": {strconv.FormatUint(replicaID, 10)},
-		"topicID":   {strconv.FormatUint(topicID, 10)},
-	}.Encode()
-	resp, err := http.Post(u.String(), "application/octet-stream", nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = resp.Body.Close() }()
+	var resp *http.Response
+	var err error
 
-	// If a non-201 status is returned then an error occurred.
-	if resp.StatusCode != http.StatusCreated {
-		return errors.New(resp.Header.Get("X-Broker-Error"))
+	u := *c.LeaderURL()
+	for {
+		u.Path = "/messaging/subscriptions"
+		u.RawQuery = url.Values{
+			"replicaID": {strconv.FormatUint(replicaID, 10)},
+			"topicID":   {strconv.FormatUint(topicID, 10)},
+		}.Encode()
+		resp, err = http.Post(u.String(), "application/octet-stream", nil)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		// If a temporary redirect occurs then update the leader and retry.
+		// If a non-201 status is returned then an error occurred.
+		if resp.StatusCode == http.StatusTemporaryRedirect {
+			redirectURL, err := url.Parse(resp.Header.Get("Location"))
+			if err != nil {
+				return fmt.Errorf("bad redirect: %s", resp.Header.Get("Location"))
+			}
+			u = *redirectURL
+			continue
+		} else if resp.StatusCode != http.StatusCreated {
+			return errors.New(resp.Header.Get("X-Broker-Error"))
+		}
+		break
 	}
 
 	return nil
@@ -266,23 +323,36 @@ func (c *Client) Subscribe(replicaID, topicID uint64) error {
 
 // Unsubscribe unsubscribes a replica from a topic on the broker.
 func (c *Client) Unsubscribe(replicaID, topicID uint64) error {
-	// Send request to the last known leader.
-	u := *c.LeaderURL()
-	u.Path = "/messaging/subscriptions"
-	u.RawQuery = url.Values{
-		"replicaID": {strconv.FormatUint(replicaID, 10)},
-		"topicID":   {strconv.FormatUint(topicID, 10)},
-	}.Encode()
-	req, _ := http.NewRequest("DELETE", u.String(), nil)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = resp.Body.Close() }()
+	var resp *http.Response
+	var err error
 
-	// If a non-204 status is returned then an error occurred.
-	if resp.StatusCode != http.StatusNoContent {
-		return errors.New(resp.Header.Get("X-Broker-Error"))
+	u := *c.LeaderURL()
+	for {
+		u.Path = "/messaging/subscriptions"
+		u.RawQuery = url.Values{
+			"replicaID": {strconv.FormatUint(replicaID, 10)},
+			"topicID":   {strconv.FormatUint(topicID, 10)},
+		}.Encode()
+		req, _ := http.NewRequest("DELETE", u.String(), nil)
+		resp, err = http.DefaultClient.Do(req)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		// If a temporary redirect occurs then update the leader and retry.
+		// If a non-204 status is returned then an error occurred.
+		if resp.StatusCode == http.StatusTemporaryRedirect {
+			redirectURL, err := url.Parse(resp.Header.Get("Location"))
+			if err != nil {
+				return fmt.Errorf("bad redirect: %s", resp.Header.Get("Location"))
+			}
+			u = *redirectURL
+			continue
+		} else if resp.StatusCode != http.StatusNoContent {
+			return errors.New(resp.Header.Get("X-Broker-Error"))
+		}
+		break
 	}
 
 	return nil
@@ -329,8 +399,11 @@ func (c *Client) streamFromURL(u *url.URL, done chan chan struct{}) error {
 	// Ensure that we received a 200 OK from the server before streaming.
 	if resp.StatusCode != http.StatusOK {
 		time.Sleep(c.ReconnectTimeout)
+		c.Logger.Printf("reconnecting to broker: %s (status=%d)", u, resp.StatusCode)
 		return nil
 	}
+
+	c.Logger.Printf("connected to broker: %s", u)
 
 	// Continuously decode messages from request body in a separate goroutine.
 	errNotify := make(chan error, 0)

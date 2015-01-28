@@ -50,6 +50,13 @@ func NewBroker() *Broker {
 // Returns empty string if the broker is not open.
 func (b *Broker) Path() string { return b.path }
 
+func (b *Broker) metaPath() string {
+	if b.path == "" {
+		return ""
+	}
+	return filepath.Join(b.path, "meta")
+}
+
 func (b *Broker) opened() bool { return b.path != "" }
 
 // Open initializes the log.
@@ -69,6 +76,12 @@ func (b *Broker) Open(path string, u *url.URL) error {
 		return ErrConnectionAddressRequired
 	}
 
+	// Read meta data from snapshot.
+	if err := b.load(); err != nil {
+		_ = b.close()
+		return err
+	}
+
 	// Open underlying raft log.
 	if err := b.log.Open(filepath.Join(path, "raft")); err != nil {
 		return fmt.Errorf("raft: %s", err)
@@ -85,7 +98,10 @@ func (b *Broker) Open(path string, u *url.URL) error {
 func (b *Broker) Close() error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	return b.close()
+}
 
+func (b *Broker) close() error {
 	// Return error if the broker is already closed.
 	if !b.opened() {
 		return ErrClosed
@@ -118,9 +134,139 @@ func (b *Broker) closeReplicas() {
 	b.replicas = make(map[uint64]*Replica)
 }
 
+// load reads the broker metadata from disk.
+func (b *Broker) load() error {
+	// Read snapshot header from disk.
+	// Ignore if no snapshot exists.
+	f, err := os.Open(b.metaPath())
+	if os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	defer func() { _ = f.Close() }()
+
+	// Read snapshot header from disk.
+	hdr := &snapshotHeader{}
+	if err := json.NewDecoder(f).Decode(&hdr); err != nil {
+		return err
+	}
+
+	// Copy topic files from snapshot to local disk.
+	for _, st := range hdr.Topics {
+		t := b.createTopic(st.ID)
+		t.index = st.Index
+
+		// Open new empty topic file.
+		if err := t.open(); err != nil {
+			return fmt.Errorf("open topic: %s", err)
+		}
+	}
+
+	// Update the replicas.
+	for _, sr := range hdr.Replicas {
+		// Create replica.
+		r := newReplica(b, sr.ID)
+		b.replicas[r.id] = r
+
+		// Append replica's topics.
+		for _, srt := range sr.Topics {
+			r.topics[srt.TopicID] = srt.Index
+		}
+	}
+
+	// Set the broker's index to the last index seen across all topics.
+	b.index = hdr.maxIndex()
+
+	return nil
+}
+
+// save persists the broker metadata to disk.
+func (b *Broker) save() error {
+	if b.path == "" {
+		return fmt.Errorf("broker not open")
+	}
+
+	// Calculate header under lock.
+	hdr, err := b.createSnapshotHeader()
+	if err != nil {
+		return fmt.Errorf("create snapshot: %s", err)
+	}
+
+	// Write snapshot to disk.
+	f, err := os.Create(b.metaPath())
+	if err != nil {
+		return err
+	}
+	defer func() { _ = f.Close() }()
+
+	// Write snapshot to disk.
+	if err := json.NewEncoder(f).Encode(&hdr); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// mustSave persists the broker metadata to disk. Panic on error.
+func (b *Broker) mustSave() {
+	if err := b.save(); err != nil {
+		panic(err.Error())
+	}
+}
+
+// createSnapshotHeader creates a snapshot header.
+func (b *Broker) createSnapshotHeader() (*snapshotHeader, error) {
+	// Create parent header.
+	s := &snapshotHeader{}
+
+	// Append topics.
+	for _, t := range b.topics {
+		// Retrieve current topic file size.
+		var sz int64
+		if t.file != nil {
+			fi, err := t.file.Stat()
+			if err != nil {
+				return nil, err
+			}
+			sz = fi.Size()
+		}
+
+		// Append topic to the snapshot.
+		s.Topics = append(s.Topics, &snapshotTopic{
+			ID:    t.id,
+			Index: t.index,
+			Size:  sz,
+			path:  t.path,
+		})
+	}
+
+	// Append replicas and the current index for each topic.
+	for _, r := range b.replicas {
+		sr := &snapshotReplica{ID: r.id}
+
+		for topicID, index := range r.topics {
+			sr.Topics = append(sr.Topics, &snapshotReplicaTopic{
+				TopicID: topicID,
+				Index:   index,
+			})
+		}
+
+		s.Replicas = append(s.Replicas, sr)
+	}
+
+	return s, nil
+}
+
 // URL returns the connection url for the broker.
 func (b *Broker) URL() *url.URL {
 	return b.log.URL
+}
+
+// LeaderURL returns the connection url for the leader broker.
+func (b *Broker) LeaderURL() *url.URL {
+	_, u := b.log.Leader()
+	return u
 }
 
 // Initialize creates a new cluster.
@@ -189,7 +335,10 @@ func (b *Broker) createTopicIfNotExists(id uint64) *topic {
 	if t := b.topics[id]; t != nil {
 		return t
 	}
-	return b.createTopic(id)
+
+	t := b.createTopic(id)
+	b.mustSave()
+	return t
 }
 
 // CreateReplica creates a new named replica.
@@ -223,6 +372,8 @@ func (b *Broker) mustApplyCreateReplica(m *Message) {
 
 	// Add replica to the broker.
 	b.replicas[c.ID] = r
+
+	b.mustSave()
 }
 
 // DeleteReplica deletes an existing replica by id.
@@ -265,6 +416,8 @@ func (b *Broker) mustApplyDeleteReplica(m *Message) {
 
 	// Remove replica from broker.
 	delete(b.replicas, c.ID)
+
+	b.mustSave()
 }
 
 // Subscribe adds a subscription to a topic from a replica.
@@ -310,6 +463,8 @@ func (b *Broker) mustApplySubscribe(m *Message) {
 
 	// Catch up replica.
 	_, _ = t.writeTo(r, index)
+
+	b.mustSave()
 }
 
 // Unsubscribe removes a subscription for a topic from a replica.
@@ -342,6 +497,8 @@ func (b *Broker) mustApplyUnsubscribe(m *Message) {
 	if t := b.topics[c.TopicID]; t != nil {
 		delete(t.replicas, c.ReplicaID)
 	}
+
+	b.mustSave()
 }
 
 // brokerFSM implements the raft.FSM interface for the broker.
@@ -392,6 +549,10 @@ func (fsm *brokerFSM) MustApply(e *raft.LogEntry) {
 	// Save highest applied index.
 	// TODO: Persist to disk for raft commands.
 	b.index = e.Index
+
+	// HACK: Persist metadata after each apply.
+	//       This should be derived on startup from the topic logs.
+	b.mustSave()
 }
 
 // Index returns the highest index that the broker has seen.
@@ -408,7 +569,7 @@ func (fsm *brokerFSM) Snapshot(w io.Writer) (uint64, error) {
 
 	// Calculate header under lock.
 	b.mu.RLock()
-	hdr, err := fsm.createSnapshotHeader()
+	hdr, err := b.createSnapshotHeader()
 	b.mu.RUnlock()
 	if err != nil {
 		return 0, fmt.Errorf("create snapshot: %s", err)
@@ -437,47 +598,6 @@ func (fsm *brokerFSM) Snapshot(w io.Writer) (uint64, error) {
 
 	// Return the snapshot and its last applied index.
 	return hdr.maxIndex(), nil
-}
-
-// createSnapshotHeader creates a snapshot header.
-func (fsm *brokerFSM) createSnapshotHeader() (*snapshotHeader, error) {
-	b := (*Broker)(fsm)
-
-	// Create parent header.
-	s := &snapshotHeader{}
-
-	// Append topics.
-	for _, t := range b.topics {
-		// Retrieve current topic file size.
-		fi, err := t.file.Stat()
-		if err != nil {
-			return nil, err
-		}
-
-		// Append topic to the snapshot.
-		s.Topics = append(s.Topics, &snapshotTopic{
-			ID:    t.id,
-			Index: t.index,
-			Size:  fi.Size(),
-			path:  t.path,
-		})
-	}
-
-	// Append replicas and the current index for each topic.
-	for _, r := range b.replicas {
-		sr := &snapshotReplica{ID: r.id}
-
-		for topicID, index := range r.topics {
-			sr.Topics = append(sr.Topics, &snapshotReplicaTopic{
-				TopicID: topicID,
-				Index:   index,
-			})
-		}
-
-		s.Replicas = append(s.Replicas, sr)
-	}
-
-	return s, nil
 }
 
 // Restore reads the broker state.

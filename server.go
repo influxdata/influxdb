@@ -134,6 +134,14 @@ func (s *Server) shardPath(id uint64) string {
 	return filepath.Join(s.path, "shards", strconv.FormatUint(id, 10))
 }
 
+// metaPath returns the path for the metastore.
+func (s *Server) metaPath() string {
+	if s.path == "" {
+		return ""
+	}
+	return filepath.Join(s.path, "meta")
+}
+
 // Open initializes the server from a given path.
 func (s *Server) Open(path string) error {
 	// Ensure the server isn't already open and there's a path provided.
@@ -142,6 +150,9 @@ func (s *Server) Open(path string) error {
 	} else if path == "" {
 		return ErrPathRequired
 	}
+
+	// Set the server path.
+	s.path = path
 
 	// Create required directories.
 	if err := os.MkdirAll(path, 0700); err != nil {
@@ -152,7 +163,7 @@ func (s *Server) Open(path string) error {
 	}
 
 	// Open metadata store.
-	if err := s.meta.open(filepath.Join(path, "meta")); err != nil {
+	if err := s.meta.open(s.metaPath()); err != nil {
 		return fmt.Errorf("meta: %s", err)
 	}
 
@@ -163,9 +174,6 @@ func (s *Server) Open(path string) error {
 
 	// TODO: Open shard data stores.
 	// TODO: Associate series ids with shards.
-
-	// Set the server path.
-	s.path = path
 
 	return nil
 }
@@ -200,6 +208,12 @@ func (s *Server) load() error {
 		// Read server id.
 		s.id = tx.id()
 
+		// Load data nodes.
+		s.dataNodes = make(map[uint64]*DataNode)
+		for _, node := range tx.dataNodes() {
+			s.dataNodes[node.ID] = node
+		}
+
 		// Load databases.
 		s.databases = make(map[string]*database)
 		for _, db := range tx.databases() {
@@ -213,6 +227,19 @@ func (s *Server) load() error {
 			})
 			if err != nil {
 				return err
+			}
+		}
+
+		// Open all shards.
+		for _, db := range s.databases {
+			for _, rp := range db.policies {
+				for _, g := range rp.shardGroups {
+					for _, sh := range g.Shards {
+						if err := sh.open(s.shardPath(sh.ID)); err != nil {
+							return fmt.Errorf("cannot open shard store: id=%d, err=%s", sh.ID, err)
+						}
+					}
+				}
 			}
 		}
 
@@ -381,11 +408,42 @@ func (s *Server) Join(u *url.URL, joinURL *url.URL) error {
 
 	// Download the metastore from joining server.
 	joinURL.Path = "/metastore"
-	resp, err = http.Post(joinURL.String(), "application/octet-stream", &buf)
+	resp, err = http.Get(joinURL.String())
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
+
+	// Check response & parse content length.
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unsuccessful meta copy: status=%d (%s)", resp.StatusCode, joinURL.String())
+	}
+	sz, err := strconv.ParseInt(resp.Header.Get("Content-Length"), 10, 64)
+	if err != nil {
+		return fmt.Errorf("cannot parse meta size: %s", err)
+	}
+
+	// Close the metastore.
+	_ = s.meta.close()
+
+	// Overwrite the metastore.
+	f, err := os.Create(s.metaPath())
+	if err != nil {
+		return fmt.Errorf("create meta file: %s", err)
+	}
+
+	// Copy and check size.
+	if _, err := io.CopyN(f, resp.Body, sz); err != nil {
+		_ = f.Close()
+		return fmt.Errorf("copy meta file: %s", err)
+	}
+	_ = f.Close()
+
+	// Reopen metastore.
+	s.meta = &metastore{}
+	if err := s.meta.open(s.metaPath()); err != nil {
+		return fmt.Errorf("reopen meta: %s", err)
+	}
 
 	// Update the ID on the metastore.
 	if err := s.meta.mustUpdate(func(tx *metatx) error {
@@ -394,8 +452,11 @@ func (s *Server) Join(u *url.URL, joinURL *url.URL) error {
 		return err
 	}
 
-	// Set the ID on the server.
-	s.id = n.ID
+	// Reload the server.
+	log.Printf("reloading metadata")
+	if err := s.load(); err != nil {
+		return fmt.Errorf("reload: %s", err)
+	}
 
 	return nil
 }
@@ -1384,6 +1445,9 @@ func (s *Server) applyWriteSeries(m *messaging.Message) error {
 
 	// Update metastore.
 	if err := s.meta.mustUpdate(func(tx *metatx) error {
+		if err := tx.saveMeasurement(db.name, mm); err != nil {
+			return fmt.Errorf("save measurement: %s", err)
+		}
 		return tx.saveDatabase(db)
 	}); err != nil {
 		return err
@@ -1670,7 +1734,7 @@ func (s *Server) executeDropDatabaseStatement(q *influxql.DropDatabaseStatement,
 }
 
 func (s *Server) executeShowDatabasesStatement(q *influxql.ShowDatabasesStatement, user *User) *Result {
-	row := &influxql.Row{Columns: []string{"Name"}}
+	row := &influxql.Row{Columns: []string{"name"}}
 	for _, name := range s.Databases() {
 		row.Values = append(row.Values, []interface{}{name})
 	}
