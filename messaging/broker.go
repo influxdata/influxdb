@@ -328,10 +328,6 @@ func (b *Broker) createTopic(id uint64) *topic {
 		replicas: make(map[uint64]*Replica),
 	}
 	b.topics[t.id] = t
-
-	// Persist to disk.
-	b.mustSave()
-
 	return t
 }
 
@@ -339,7 +335,10 @@ func (b *Broker) createTopicIfNotExists(id uint64) *topic {
 	if t := b.topics[id]; t != nil {
 		return t
 	}
-	return b.createTopic(id)
+
+	t := b.createTopic(id)
+	b.mustSave()
+	return t
 }
 
 // CreateReplica creates a new named replica.
