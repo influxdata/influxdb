@@ -1,4 +1,4 @@
-package integrations_test
+package main_test
 
 import (
 	"encoding/json"
@@ -11,8 +11,9 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb"
-	"github.com/influxdb/influxdb/influxd"
 	"github.com/influxdb/influxdb/influxql"
+
+	main "github.com/influxdb/influxdb/cmd/influxd"
 )
 
 func TestNewServer(t *testing.T) {
@@ -35,14 +36,14 @@ func TestNewServer(t *testing.T) {
 		version = "x.x"
 	)
 
-	c := influxd.NewConfig()
+	c := main.NewConfig()
 	c.Broker.Dir = tmpBrokerDir
 	c.Data.Dir = tmpDataDir
 
 	now := time.Now()
 	var spinupTime time.Duration
 
-	influxd.Run(nil, join, version)
+	main.Run(nil, join, version)
 
 	// In the interst of getting basic integration tests going, we are sleeping for
 	// now until we have a "ready" state in the system

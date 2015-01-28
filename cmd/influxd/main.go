@@ -9,8 +9,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-
-	"github.com/influxdb/influxdb/influxd"
 )
 
 const logo = `
@@ -88,8 +86,8 @@ func execRun(args []string) {
 	log.SetFlags(log.LstdFlags)
 	writePIDFile(*pidPath)
 
-	config := influxd.ParseConfigWithDefaults(*configPath, *hostname)
-	influxd.Run(config, *join, version)
+	config := ParseConfigWithDefaults(*configPath, *hostname)
+	Run(config, *join, version)
 
 	// Wait indefinitely.
 	<-(chan struct{})(nil)

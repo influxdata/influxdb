@@ -1,4 +1,4 @@
-package influxd
+package main
 
 import (
 	"log"
