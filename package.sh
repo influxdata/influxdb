@@ -166,7 +166,7 @@ do_build $VERSION
 make_dir_tree $TMP_WORK_DIR $VERSION
 
 ###########################################################################
-# Copy the assets to the installtion directories.
+# Copy the assets to the installation directories.
 
 cp $GOPATH/bin/* $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/$VERSION
 if [ $? -ne 0 ]; then
