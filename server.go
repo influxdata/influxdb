@@ -1253,18 +1253,6 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 	}
 	name, tags, timestamp, values := points[0].Name, points[0].Tags, points[0].Timestamp, points[0].Values
 
-	// TODO: temporary band aid? **********************************************
-	// Convert from JSON numbers to actual numbers, if possible.
-	for k, v := range values {
-		n, ok := v.(json.Number)
-		if ok {
-			if f, err := n.Float64(); err == nil {
-				values[k] = f
-			}
-		}
-	}
-	// ************************************************************************
-
 	// Find the id for the series and tagset
 	seriesID, err := s.createSeriesIfNotExists(database, name, tags)
 	if err != nil {
