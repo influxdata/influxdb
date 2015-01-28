@@ -1662,9 +1662,9 @@ func (s *Server) executeDropUserStatement(q *influxql.DropUserStatement, user *U
 }
 
 func (s *Server) executeShowUsersStatement(q *influxql.ShowUsersStatement, user *User) *Result {
-	row := &influxql.Row{Columns: []string{"User"}}
+	row := &influxql.Row{Columns: []string{"user", "admin"}}
 	for _, user := range s.Users() {
-		row.Values = append(row.Values, []interface{}{user.Name})
+		row.Values = append(row.Values, []interface{}{user.Name, user.Admin})
 	}
 	return &Result{Rows: []*influxql.Row{row}}
 }

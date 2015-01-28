@@ -362,7 +362,7 @@ func TestHandler_Users_NoUsers(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"results":[{"rows":[{"columns":["User"]}]}]}` {
+	} else if body != `{"results":[{"rows":[{"columns":["user","admin"]}]}]}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -377,7 +377,7 @@ func TestHandler_Users_OneUser(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"results":[{"rows":[{"columns":["User"],"values":[["jdoe"]]}]}]}` {
+	} else if body != `{"results":[{"rows":[{"columns":["user","admin"],"values":[["jdoe",true]]}]}]}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -394,7 +394,7 @@ func TestHandler_Users_MultipleUsers(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"results":[{"rows":[{"columns":["User"],"values":[["csmith"],["jdoe"],["mclark"]]}]}]}` {
+	} else if body != `{"results":[{"rows":[{"columns":["user","admin"],"values":[["csmith",false],["jdoe",false],["mclark",true]]}]}]}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
