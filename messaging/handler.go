@@ -131,14 +131,7 @@ func (h *Handler) publish(w http.ResponseWriter, r *http.Request) {
 	// Publish message to the broker.
 	index, err := h.broker.Publish(m)
 	if err == raft.ErrNotLeader {
-		if u := h.broker.LeaderURL(); u != nil {
-			redirectURL := *r.URL
-			redirectURL.Scheme = u.Scheme
-			redirectURL.Host = u.Host
-			http.Redirect(w, r, redirectURL.String(), http.StatusTemporaryRedirect)
-		} else {
-			h.error(w, err, http.StatusInternalServerError)
-		}
+		h.redirectToLeader(w, r)
 		return
 	} else if err != nil {
 		h.error(w, err, http.StatusInternalServerError)
@@ -161,7 +154,10 @@ func (h *Handler) createReplica(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create a new replica on the broker.
-	if err := h.broker.CreateReplica(replicaID); err == ErrReplicaExists {
+	if err := h.broker.CreateReplica(replicaID); err == raft.ErrNotLeader {
+		h.redirectToLeader(w, r)
+		return
+	} else if err == ErrReplicaExists {
 		h.error(w, err, http.StatusConflict)
 		return
 	} else if err != nil {
@@ -183,7 +179,10 @@ func (h *Handler) deleteReplica(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete the replica on the broker.
-	if err := h.broker.DeleteReplica(replicaID); err != nil {
+	if err := h.broker.DeleteReplica(replicaID); err == raft.ErrNotLeader {
+		h.redirectToLeader(w, r)
+		return
+	} else if err != nil {
 		h.error(w, err, http.StatusInternalServerError)
 		return
 	}
@@ -211,7 +210,10 @@ func (h *Handler) subscribe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Subscribe a replica to a topic.
-	if err := h.broker.Subscribe(replicaID, topicID); err == ErrReplicaNotFound {
+	if err := h.broker.Subscribe(replicaID, topicID); err == raft.ErrNotLeader {
+		h.redirectToLeader(w, r)
+		return
+	} else if err == ErrReplicaNotFound {
 		h.error(w, err, http.StatusNotFound)
 		return
 	} else if err != nil {
@@ -242,7 +244,10 @@ func (h *Handler) unsubscribe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Unsubscribe the replica from the topic.
-	if err := h.broker.Unsubscribe(replicaID, topicID); err == ErrReplicaNotFound {
+	if err := h.broker.Unsubscribe(replicaID, topicID); err == raft.ErrNotLeader {
+		h.redirectToLeader(w, r)
+		return
+	} else if err == ErrReplicaNotFound {
 		h.error(w, err, http.StatusNotFound)
 		return
 	} else if err != nil {
@@ -257,4 +262,18 @@ func (h *Handler) error(w http.ResponseWriter, err error, code int) {
 	s := err.Error()
 	w.Header().Set("X-Broker-Error", s)
 	http.Error(w, s, code)
+}
+
+// redirects to the current known leader.
+// If no leader is found then returns a 500.
+func (h *Handler) redirectToLeader(w http.ResponseWriter, r *http.Request) {
+	if u := h.broker.LeaderURL(); u != nil {
+		redirectURL := *r.URL
+		redirectURL.Scheme = u.Scheme
+		redirectURL.Host = u.Host
+		http.Redirect(w, r, redirectURL.String(), http.StatusTemporaryRedirect)
+		return
+	}
+
+	h.error(w, raft.ErrNotLeader, http.StatusInternalServerError)
 }
