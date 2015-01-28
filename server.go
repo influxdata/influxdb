@@ -200,6 +200,12 @@ func (s *Server) load() error {
 		// Read server id.
 		s.id = tx.id()
 
+		// Load data nodes.
+		s.dataNodes = make(map[uint64]*DataNode)
+		for _, node := range tx.dataNodes() {
+			s.dataNodes[node.ID] = node
+		}
+
 		// Load databases.
 		s.databases = make(map[string]*database)
 		for _, db := range tx.databases() {
