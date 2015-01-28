@@ -3,6 +3,7 @@ package influxdb
 import (
 	"encoding/json"
 	"math"
+	"regexp"
 	"sort"
 	"strings"
 	"time"

@@ -712,9 +712,6 @@ func TestServer_ExecuteQuery(t *testing.T) {
 
 	// Select data from the server.
 	results := s.ExecuteQuery(MustParseQuery(`SELECT sum(value) FROM "foo"."raw".cpu GROUP BY time(10s), region`), "foo", nil)
-	if len(results) != 1 {
-		t.Fatalf("unexpected result count: %d", len(results))
-	}
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error: %s", res.Err)
 	} else if len(res.Rows) != 2 {
