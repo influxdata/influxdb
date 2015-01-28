@@ -3,6 +3,7 @@ package httpd_test
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/json"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -773,6 +774,129 @@ func TestHandler_serveWriteSeries_noDatabaseSpecified(t *testing.T) {
 	}
 }
 
+func TestHandler_serveShowSeries(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [
+		{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "uswest"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
+		{"name": "gpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}}
+		]}`)
+
+	if status != http.StatusOK {
+		t.Log(body)
+		t.Fatalf("unexpected status after write: %d", status)
+	}
+
+	var tests = []struct {
+		q   string
+		r   string
+		err string
+	}{
+		// SHOW SERIES
+		{
+			q: `SHOW SERIES`,
+			r: `{"results":[{"rows":[{"name":"cpu","columns":["host","region"],"values":[[["server01",""]],[["server01","uswest"]],[["server01","useast"]],[["server02","useast"]]]},{"name":"gpu","columns":["host","region"],"values":[[["server02","useast"]]]}]}]}`,
+		},
+		{
+			q: `SHOW SERIES from cpu where region = 'uswest'`,
+			r: `{"results":[{"rows":[{"name":"cpu","columns":["host","region"],"values":[[["server01","uswest"]]]}]}]}`,
+		},
+	}
+
+	for i, tt := range tests {
+		query := map[string]string{"db": "foo", "q": tt.q}
+		status, body = MustHTTP("GET", s.URL+`/query`, query, nil, "")
+
+		if status != http.StatusOK {
+			t.Logf("query #%d: %s", i, tt.q)
+			t.Log(body)
+			t.Errorf("unexpected status: %d", status)
+		}
+
+		r := &influxdb.Results{}
+		if err := json.Unmarshal([]byte(body), r); err != nil {
+			t.Logf("query #%d: %s", i, tt.q)
+			t.Log(body)
+			t.Error("error marshaling result: ", err)
+		}
+
+		if body != tt.r {
+			t.Errorf("result mismatch\n  exp: %s\n  got: %s\n", tt.r, body)
+		}
+	}
+}
+
+// str2iface converts an array of strings to an array of interfaces.
+func str2iface(strs []string) []interface{} {
+	a := make([]interface{}, len(strs))
+	for _, s := range strs {
+		a = append(a, interface{}(s))
+	}
+	return a
+}
+
+func TestHandler_serveShowMeasurements(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [
+		{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "uswest"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
+		{"name": "gpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}}
+		]}`)
+
+	if status != http.StatusOK {
+		t.Log(body)
+		t.Fatalf("unexpected status after write: %d", status)
+	}
+
+	var tests = []struct {
+		q   string
+		r   string
+		err string
+	}{
+		// SHOW SERIES
+		{
+			q: `SHOW MEASUREMENTS LIMIT 2`,
+			r: `{"results":[{"rows":[{"name":"cpu","columns":["host","region"]},{"name":"gpu","columns":["host","region"]}]}]}`,
+		},
+	}
+
+	for i, tt := range tests {
+		query := map[string]string{"db": "foo", "q": tt.q}
+		status, body = MustHTTP("GET", s.URL+`/query`, query, nil, "")
+
+		if status != http.StatusOK {
+			t.Logf("query #%d: %s", i, tt.q)
+			t.Log(body)
+			t.Errorf("unexpected status: %d", status)
+		}
+
+		r := &influxdb.Results{}
+		if err := json.Unmarshal([]byte(body), r); err != nil {
+			t.Logf("query #%d: %s", i, tt.q)
+			t.Log(body)
+			t.Error("error marshaling result: ", err)
+		}
+
+		if body != tt.r {
+			t.Errorf("result mismatch\n  exp: %s\n  got: %s\n", tt.r, body)
+		}
+	}
+}
+
 // Utility functions for this test suite.
 
 func MustHTTP(verb, path string, params, headers map[string]string, body string) (int, string) {
@@ -935,4 +1059,12 @@ func tempfile() string {
 	f.Close()
 	os.Remove(path)
 	return path
+}
+
+// errstring converts an error to its string representation.
+func errstring(err error) string {
+	if err != nil {
+		return err.Error()
+	}
+	return ""
 }

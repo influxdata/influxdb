@@ -598,6 +598,15 @@ func (p *Parser) parseShowSeriesStatement() (*ShowSeriesStatement, error) {
 	stmt := &ShowSeriesStatement{}
 	var err error
 
+	// Parse optional FROM.
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == FROM {
+		if stmt.Source, err = p.parseSource(); err != nil {
+			return nil, err
+		}
+	} else {
+		p.unscan()
+	}
+
 	// Parse condition: "WHERE EXPR".
 	if stmt.Condition, err = p.parseCondition(); err != nil {
 		return nil, err

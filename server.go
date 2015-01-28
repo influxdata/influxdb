@@ -1636,9 +1636,9 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 		case *influxql.DropSeriesStatement:
 			continue
 		case *influxql.ShowSeriesStatement:
-			continue
+			res = s.executeShowSeriesStatement(stmt, database, user)
 		case *influxql.ShowMeasurementsStatement:
-			continue
+			res = s.executeShowMeasurementsStatement(stmt, database, user)
 		case *influxql.ShowTagKeysStatement:
 			continue
 		case *influxql.ShowTagValuesStatement:
@@ -1751,6 +1751,143 @@ func (s *Server) executeCreateUserStatement(q *influxql.CreateUserStatement, use
 
 func (s *Server) executeDropUserStatement(q *influxql.DropUserStatement, user *User) *Result {
 	return &Result{Err: s.DeleteUser(q.Name)}
+}
+
+func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, database string, user *User) *Result {
+	// Find the database.
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	db := s.databases[database]
+	if db == nil {
+		return &Result{Err: ErrDatabaseNotFound}
+	}
+
+	// Make a list of measurements we're interested in.
+	var measurements []string
+	if stmt.Source != nil {
+		// TODO: handle multiple measurement sources
+		if m, ok := stmt.Source.(*influxql.Measurement); ok {
+			measurements = append(measurements, m.Name)
+		} else {
+			return &Result{Err: ErrMeasurementNotFound}
+		}
+	} else {
+		// No measurements specified in FROM clause so get all measurements.
+		measurements = db.MeasurementNames()
+	}
+
+	// Sort measurement names so results are always in the same order.
+	sort.Strings(measurements)
+
+	// Create result struct that will be populated and returned.
+	result := &Result{
+		Rows: make(influxql.Rows, 0, len(measurements)),
+	}
+
+	// Loop through measurements to build result. One result row / measurement.
+	for _, name := range measurements {
+		// Look up the measurement by name.
+		m, ok := db.measurements[name]
+		if !ok {
+			continue
+		}
+
+		var ids seriesIDs
+
+		if stmt.Condition != nil {
+			// Get series IDs that match the WHERE clause.
+			filters := map[uint32]influxql.Expr{}
+			ids, _, _ = m.walkWhereForSeriesIds(stmt.Condition, filters)
+
+			// TODO: check return of walkWhereForSeriesIds for fields
+		} else {
+			// No WHERE clause so get all series IDs for this measurement.
+			ids = m.seriesIDs
+		}
+
+		// Make a new row for this measurement.
+		r := &influxql.Row{
+			Name:    m.Name,
+			Columns: m.tagKeys(),
+		}
+
+		// Loop through series IDs getting matching tag sets.
+		for _, id := range ids {
+			if s, ok := m.seriesByID[id]; ok {
+				values := make([]string, 0, len(r.Columns))
+				for _, column := range r.Columns {
+					values = append(values, s.Tags[column])
+				}
+
+				// Add the tag values to the row.
+				r.Values = append(r.Values, []interface{}{values})
+			}
+		}
+
+		// Append the row to the result.
+		result.Rows = append(result.Rows, r)
+	}
+
+	return result
+}
+
+func (s *Server) executeShowMeasurementsStatement(stmt *influxql.ShowMeasurementsStatement, database string, user *User) *Result {
+	// Find the database.
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	db := s.databases[database]
+	if db == nil {
+		return &Result{Err: ErrDatabaseNotFound}
+	}
+
+	// Get all measurements in sorted order.
+	measurements := db.Measurements()
+	sort.Sort(measurements)
+
+	// If a WHERE clause was specified, filter the measurements.
+	if stmt.Condition != nil {
+		var err error
+		measurements, err = db.measurementsByExpr(stmt.Condition)
+		if err != nil {
+			return &Result{Err: err}
+		}
+	}
+
+	offset := stmt.Offset
+	limit := stmt.Limit
+
+	// If OFFSET is past the end of the array, return empty results.
+	if offset > len(measurements)-1 {
+		return &Result{}
+	}
+
+	// Calculate last index based on LIMIT.
+	end := len(measurements)
+	if limit > 0 && offset+limit < end {
+		limit = offset + limit
+	} else {
+		limit = end
+	}
+
+	// Make result with presized list Rows.
+	result := &Result{
+		Rows: make(influxql.Rows, 0, len(measurements)),
+	}
+
+	// Add one result row for each measurement.
+	for i := offset; i < limit; i++ {
+		m := measurements[i]
+		r := &influxql.Row{
+			Name:    m.Name,
+			Columns: m.tagKeys(),
+		}
+		sort.Strings(r.Columns)
+
+		result.Rows = append(result.Rows, r)
+	}
+
+	return result
 }
 
 func (s *Server) executeShowUsersStatement(q *influxql.ShowUsersStatement, user *User) *Result {
