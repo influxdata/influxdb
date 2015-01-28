@@ -86,8 +86,9 @@ func TestNewServer(t *testing.T) {
 	t.Log("Creating database")
 
 	u := urlFor(c.BrokerURL(), "query", url.Values{"q": []string{"CREATE DATABASE foo"}})
+	client := http.Client{Timeout: 100 * time.Millisecond}
 
-	resp, err := http.Get(u.String())
+	resp, err := client.Get(u.String())
 	if err != nil {
 		t.Fatalf("Couldn't create database: %s", err)
 	}
@@ -108,7 +109,7 @@ func TestNewServer(t *testing.T) {
 	// Query the database exists
 	u = urlFor(c.BrokerURL(), "query", url.Values{"q": []string{"SHOW DATABASES"}})
 
-	resp, err = http.Get(u.String())
+	resp, err = client.Get(u.String())
 	if err != nil {
 		t.Fatalf("Couldn't query databases: %s", err)
 	}
