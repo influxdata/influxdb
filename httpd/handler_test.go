@@ -30,7 +30,7 @@ func TestHandler_Databases(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "SHOW DATABASES"}, nil, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"results":[{"rows":[{"columns":["Name"],"values":[["bar"],["foo"]]}]}]}` {
+	} else if body != `{"results":[{"rows":[{"columns":["name"],"values":[["bar"],["foo"]]}]}]}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -51,7 +51,7 @@ func TestHandler_DatabasesPrettyPrinted(t *testing.T) {
             "rows": [
                 {
                     "columns": [
-                        "Name"
+                        "name"
                     ],
                     "values": [
                         [
