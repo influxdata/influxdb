@@ -3,16 +3,19 @@ package httpd_test
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/json"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/httpd"
+	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/messaging"
 )
 
@@ -793,16 +796,75 @@ func TestHandler_serveShowSeries(t *testing.T) {
 		t.Fatalf("unexpected status after write: %d", status)
 	}
 
-	query := map[string]string{"db": "foo", "q": "SHOW SERIES FROM cpu WHERE (host = 'server01' AND region = 'uswest') OR region = 'useast'"}
-	status, body = MustHTTP("GET", s.URL+`/query`, query, nil, "")
-
-	if status != http.StatusOK {
-		t.Log(body)
-		t.Fatalf("unexpected status after query: %d", status)
+	var tests = []struct {
+		q   string
+		r   *influxdb.Results
+		err string
+	}{
+		// SHOW SERIES
+		{
+			q: `SHOW SERIES`,
+			r: &influxdb.Results{
+				Results: []*influxdb.Result{
+					&influxdb.Result{
+						Rows: []*influxql.Row{
+							&influxql.Row{
+								Name:    "cpu",
+								Columns: []string{"host", "region"},
+								Values: [][]interface{}{
+									str2iface([]string{"server01", ""}),
+									str2iface([]string{"server01", "uswest"}),
+									str2iface([]string{"server01", "useast"}),
+									str2iface([]string{"server02", "useast"}),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
-	t.Log(body)
-	t.Fatalf("test")
+	for i, tt := range tests {
+		query := map[string]string{"db": "foo", "q": tt.q}
+		status, body = MustHTTP("GET", s.URL+`/query`, query, nil, "")
+
+		if status != http.StatusOK {
+			t.Logf("query #%d: %s", i, tt.q)
+			t.Log(body)
+			t.Errorf("unexpected status: %d", status)
+		}
+
+		r := &influxdb.Results{}
+		if err := json.Unmarshal([]byte(body), r); err != nil {
+			t.Logf("query #%d: %s", i, tt.q)
+			t.Log(body)
+			t.Error(err)
+		}
+
+		if !reflect.DeepEqual(tt.err, errstring(r.Err)) {
+			t.Errorf("%d. %s: error mismatch:\n  exp=%s\n  got=%s\n\n", i, tt.q, tt.err, r.Err)
+		} else if tt.err == "" && !reflect.DeepEqual(tt.r, r) {
+
+			t.Log(body)
+			t.Log("")
+			b, _ := json.Marshal(r)
+			t.Log(string(b))
+			if body == string(b) {
+				t.Log("******  strings are equal")
+			}
+			t.Errorf("%d. %s: result mismatch:\n\nexp=%#v\n\ngot=%#v\n\n", i, tt.q, tt.r, r)
+		}
+	}
+}
+
+// str2iface converts an array of strings to an array of interfaces.
+func str2iface(strs []string) []interface{} {
+	a := make([]interface{}, len(strs))
+	for _, s := range strs {
+		a = append(a, interface{}(s))
+	}
+	return a
 }
 
 func TestHandler_serveShowMeasurements(t *testing.T) {
@@ -999,4 +1061,12 @@ func tempfile() string {
 	f.Close()
 	os.Remove(path)
 	return path
+}
+
+// errstring converts an error to its string representation.
+func errstring(err error) string {
+	if err != nil {
+		return err.Error()
+	}
+	return ""
 }

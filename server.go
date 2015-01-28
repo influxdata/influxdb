@@ -1723,32 +1723,56 @@ func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, 
 		measurements = db.MeasurementNames()
 	}
 
-	// Get series IDs for the measurements, filtered by the WHERE clause.
-	ids, err := db.seriesIDsByExpr(measurements, stmt.Condition)
-	if err != nil {
-		return &Result{Err: err}
-	}
+	// Sort measurement names so results are always in the same order.
+	sort.Strings(measurements)
 
-	// Make result struct with presized list of Rows.
+	// Create result struct that will be populated and returned.
 	result := &Result{
-		Rows: make(influxql.Rows, 0, len(ids)),
+		Rows: make(influxql.Rows, 0, len(measurements)),
 	}
 
-	// TODO: support OFFSET & LIMIT
-
-	// Add one result row for each series.
-	for _, id := range ids {
-		if series := db.Series(id); series != nil {
-			r := &influxql.Row{
-				Name: series.measurement.Name,
-			}
-
-			// Get the tags for the series and sort them.
-			r.Columns = mapKeyList(series.Tags)
-			sort.Strings(r.Columns)
-
-			result.Rows = append(result.Rows, r)
+	// Loop through measurements to build result. One result row / measurement.
+	for _, name := range measurements {
+		// Look up the measurement by name.
+		m, ok := db.measurements[name]
+		if !ok {
+			continue
 		}
+
+		var ids seriesIDs
+
+		if stmt.Condition != nil {
+			// Get series IDs that match the WHERE clause.
+			filters := map[uint32]influxql.Expr{}
+			ids, _, _ = m.walkWhereForSeriesIds(stmt.Condition, filters)
+
+			// TODO: check return of walkWhereForSeriesIds for fields
+		} else {
+			// No WHERE clause so get all series IDs for this measurement.
+			ids = m.seriesIDs
+		}
+
+		// Make a new row for this measurement.
+		r := &influxql.Row{
+			Name:    m.Name,
+			Columns: m.tagKeys(),
+		}
+
+		// Loop through series IDs getting matching tag sets.
+		for _, id := range ids {
+			if s, ok := m.seriesByID[id]; ok {
+				values := make([]string, 0, len(r.Columns))
+				for _, column := range r.Columns {
+					values = append(values, s.Tags[column])
+				}
+
+				// Add the tag values to the row.
+				r.Values = append(r.Values, []interface{}{values})
+			}
+		}
+
+		// Append the row to the result.
+		result.Rows = append(result.Rows, r)
 	}
 
 	return result
@@ -1794,8 +1818,6 @@ func (s *Server) executeShowMeasurementsStatement(stmt *influxql.ShowMeasurement
 	result := &Result{
 		Rows: make(influxql.Rows, 0, len(measurements)),
 	}
-
-	fmt.Printf("o = %d, l = %d\n", offset, limit)
 
 	// Add one result row for each measurement.
 	for i := offset; i < limit; i++ {

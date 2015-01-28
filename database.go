@@ -920,54 +920,6 @@ func timeBetweenInclusive(t, min, max time.Time) bool {
 	return (t.Equal(min) || t.After(min)) && (t.Equal(max) || t.Before(max))
 }
 
-// seriesIDsByExpr given a measurement and expression containing
-// only tags returns a list of series IDs.
-func (d *database) seriesIDsByExpr(measurements []string, expr influxql.Expr) (seriesIDs, error) {
-	switch e := expr.(type) {
-	case *influxql.BinaryExpr:
-		switch e.Op {
-		case influxql.EQ, influxql.NEQ:
-			tag, ok := e.LHS.(*influxql.VarRef)
-			if !ok {
-				return nil, fmt.Errorf("left side of '=' must be a tag name")
-			}
-
-			value, ok := e.RHS.(*influxql.StringLiteral)
-			if !ok {
-				return nil, fmt.Errorf("right side of '=' must be a tag value string")
-			}
-
-			tf := &TagFilter{
-				Not:   e.Op == influxql.NEQ,
-				Key:   tag.Val,
-				Value: value.Val,
-			}
-			return d.SeriesIDs(measurements, []*TagFilter{tf}), nil
-		case influxql.OR, influxql.AND:
-			lhsIDs, err := d.seriesIDsByExpr(measurements, e.LHS)
-			if err != nil {
-				return nil, err
-			}
-
-			rhsIDs, err := d.seriesIDsByExpr(measurements, e.RHS)
-			if err != nil {
-				return nil, err
-			}
-
-			if e.Op == influxql.OR {
-				return lhsIDs.union(rhsIDs), nil
-			} else {
-				return lhsIDs.intersect(rhsIDs), nil
-			}
-		default:
-			return nil, fmt.Errorf("invalid operator")
-		}
-	case *influxql.ParenExpr:
-		return d.seriesIDsByExpr(measurements, e.Expr)
-	}
-	return nil, fmt.Errorf("%#v", expr)
-}
-
 // seriesIDs returns an array of series ids for the given measurements and filters to be applied to all.
 // Filters are equivalent to an AND operation. If you want to do an OR, get the series IDs for one set,
 // then get the series IDs for another set and use the SeriesIDs.Union to combine the two.
@@ -1223,5 +1175,6 @@ func (m *Measurement) tagKeys() []string {
 	for k, _ := range m.seriesByTagKeyValue {
 		keys = append(keys, k)
 	}
+	sort.Strings(keys)
 	return keys
 }
