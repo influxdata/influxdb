@@ -1835,6 +1835,7 @@ func (s *Server) measurement(database, name string) (*Measurement, error) {
 // Begin returns an unopened transaction associated with the server.
 func (s *Server) Begin() (influxql.Tx, error) { return newTx(s), nil }
 
+// NormalizeStatement adds a default database and policy to the measurements in statement.
 func (s *Server) NormalizeStatement(stmt influxql.Statement, defaultDatabase string) (err error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
