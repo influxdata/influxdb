@@ -2192,12 +2192,31 @@ func (r *Result) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&o)
 }
 
+// UnmarshalJSON decodes the data into the Result struct
+func (r *Result) UnmarshalJSON(b []byte) error {
+	var o struct {
+		Rows []*influxql.Row `json:"rows,omitempty"`
+		Err  string          `json:"error,omitempty"`
+	}
+
+	err := json.Unmarshal(b, &o)
+	if err != nil {
+		return err
+	}
+	r.Rows = o.Rows
+	if o.Err != "" {
+		r.Err = errors.New(o.Err)
+	}
+	return nil
+}
+
 // Results represents a list of statement results.
 type Results struct {
 	Results []*Result
 	Err     error
 }
 
+// UnmarshalJSON decodes the data into the Results struct
 func (r Results) MarshalJSON() ([]byte, error) {
 	// Define a struct that outputs "error" as a string.
 	var o struct {
@@ -2212,6 +2231,23 @@ func (r Results) MarshalJSON() ([]byte, error) {
 	}
 
 	return json.Marshal(&o)
+}
+
+func (r *Results) UnmarshalJSON(b []byte) error {
+	var o struct {
+		Results []*Result `json:"results,omitempty"`
+		Err     string    `json:"error,omitempty"`
+	}
+
+	err := json.Unmarshal(b, &o)
+	if err != nil {
+		return err
+	}
+	r.Results = o.Results
+	if o.Err != "" {
+		r.Err = errors.New(o.Err)
+	}
+	return nil
 }
 
 // Error returns the first error from any statement.
