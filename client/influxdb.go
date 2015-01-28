@@ -44,7 +44,7 @@ func NewClient(c Config) (*Client, error) {
 	return &client, nil
 }
 
-func (c *Client) Query(q Query) (influxdb.Results, error) {
+func (c *Client) Query(q Query) (*influxdb.Results, error) {
 	u := c.url
 
 	u.Path = "query"
@@ -64,10 +64,10 @@ func (c *Client) Query(q Query) (influxdb.Results, error) {
 	if err != nil {
 		return nil, err
 	}
-	return results, nil
+	return &results, nil
 }
 
-func (c *Client) Write(writes ...Write) (influxdb.Results, error) {
+func (c *Client) Write(writes ...Write) (*influxdb.Results, error) {
 	c.url.Path = "write"
 	type data struct {
 		Points          []influxdb.Point `json:"points"`
@@ -94,7 +94,7 @@ func (c *Client) Write(writes ...Write) (influxdb.Results, error) {
 	if err != nil {
 		return nil, err
 	}
-	return results, nil
+	return &results, nil
 }
 
 func (c *Client) Ping() (time.Duration, string, error) {

@@ -1517,13 +1517,11 @@ func (s *Server) ReadSeries(database, retentionPolicy, name string, tags map[str
 func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Results {
 	// Authorize user to execute the query.
 	if err := Authorize(user, q, database); err != nil {
-		return Results{
-			{Err: err},
-		}
+		return Results{Err: err}
 	}
 
 	// Build empty resultsets.
-	results := make(Results, len(q.Statements))
+	results := Results{Results: make([]*Result, len(q.Statements))}
 
 	// Execute each statement.
 	for i, stmt := range q.Statements {
@@ -1580,16 +1578,16 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 		}
 
 		// If an error occurs then stop processing remaining statements.
-		results[i] = res
+		results.Results[i] = res
 		if res.Err != nil {
 			break
 		}
 	}
 
 	// Fill any empty results after error.
-	for i, res := range results {
+	for i, res := range results.Results {
 		if res == nil {
-			results[i] = &Result{Err: ErrNotExecuted}
+			results.Results[i] = &Result{Err: ErrNotExecuted}
 		}
 	}
 
@@ -1936,12 +1934,31 @@ func (r *Result) MarshalJSON() ([]byte, error) {
 }
 
 // Results represents a list of statement results.
-type Results []*Result
+type Results struct {
+	Results []*Result
+	Err     error
+}
+
+func (r Results) MarshalJSON() ([]byte, error) {
+	// Define a struct that outputs "error" as a string.
+	var o struct {
+		Results []*Result `json:"results,omitempty"`
+		Err     string    `json:"error,omitempty"`
+	}
+
+	// Copy fields to output struct.
+	o.Results = r.Results
+	if r.Err != nil {
+		o.Err = r.Err.Error()
+	}
+
+	return json.Marshal(&o)
+}
 
 // Error returns the first error from any statement.
 // Returns nil if no errors occurred on any statements.
 func (a Results) Error() error {
-	for _, r := range a {
+	for _, r := range a.Results {
 		if r.Err != nil {
 			return r.Err
 		}
