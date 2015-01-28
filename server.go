@@ -528,13 +528,6 @@ func (s *Server) DatabaseExists(name string) bool {
 	return s.databases[name] != nil
 }
 
-// Database returns a database given a database name.
-func (s *Server) database(name string) *database {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.databases[name]
-}
-
 // Databases returns a sorted list of all database names.
 func (s *Server) Databases() (a []string) {
 	s.mu.RLock()
@@ -1704,7 +1697,9 @@ func (s *Server) executeDropUserStatement(q *influxql.DropUserStatement, user *U
 
 func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, database string, user *User) *Result {
 	// Find the database.
-	db := s.database(database)
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	db := s.databases[database]
 	if db == nil {
 		return &Result{Err: ErrDatabaseNotFound}
 	}
@@ -1780,7 +1775,10 @@ func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, 
 
 func (s *Server) executeShowMeasurementsStatement(stmt *influxql.ShowMeasurementsStatement, database string, user *User) *Result {
 	// Find the database.
-	db := s.database(database)
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	db := s.databases[database]
 	if db == nil {
 		return &Result{Err: ErrDatabaseNotFound}
 	}
