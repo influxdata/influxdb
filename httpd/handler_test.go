@@ -9,13 +9,11 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/httpd"
-	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/messaging"
 )
 
@@ -798,30 +796,17 @@ func TestHandler_serveShowSeries(t *testing.T) {
 
 	var tests = []struct {
 		q   string
-		r   *influxdb.Results
+		r   string
 		err string
 	}{
 		// SHOW SERIES
 		{
 			q: `SHOW SERIES`,
-			r: &influxdb.Results{
-				Results: []*influxdb.Result{
-					&influxdb.Result{
-						Rows: []*influxql.Row{
-							&influxql.Row{
-								Name:    "cpu",
-								Columns: []string{"host", "region"},
-								Values: [][]interface{}{
-									str2iface([]string{"server01", ""}),
-									str2iface([]string{"server01", "uswest"}),
-									str2iface([]string{"server01", "useast"}),
-									str2iface([]string{"server02", "useast"}),
-								},
-							},
-						},
-					},
-				},
-			},
+			r: `{"results":[{"rows":[{"name":"cpu","columns":["host","region"],"values":[[["server01",""]],[["server01","uswest"]],[["server01","useast"]],[["server02","useast"]]]},{"name":"gpu","columns":["host","region"],"values":[[["server02","useast"]]]}]}]}`,
+		},
+		{
+			q: `SHOW SERIES from cpu where region = 'uswest'`,
+			r: `{"results":[{"rows":[{"name":"cpu","columns":["host","region"],"values":[[["server01","uswest"]]]}]}]}`,
 		},
 	}
 
@@ -839,21 +824,11 @@ func TestHandler_serveShowSeries(t *testing.T) {
 		if err := json.Unmarshal([]byte(body), r); err != nil {
 			t.Logf("query #%d: %s", i, tt.q)
 			t.Log(body)
-			t.Error(err)
+			t.Error("error marshaling result: ", err)
 		}
 
-		if !reflect.DeepEqual(tt.err, errstring(r.Err)) {
-			t.Errorf("%d. %s: error mismatch:\n  exp=%s\n  got=%s\n\n", i, tt.q, tt.err, r.Err)
-		} else if tt.err == "" && !reflect.DeepEqual(tt.r, r) {
-
-			t.Log(body)
-			t.Log("")
-			b, _ := json.Marshal(r)
-			t.Log(string(b))
-			if body == string(b) {
-				t.Log("******  strings are equal")
-			}
-			t.Errorf("%d. %s: result mismatch:\n\nexp=%#v\n\ngot=%#v\n\n", i, tt.q, tt.r, r)
+		if body != tt.r {
+			t.Errorf("result mismatch\n  exp: %s\n  got: %s\n", tt.r, body)
 		}
 	}
 }
@@ -887,16 +862,39 @@ func TestHandler_serveShowMeasurements(t *testing.T) {
 		t.Fatalf("unexpected status after write: %d", status)
 	}
 
-	query := map[string]string{"db": "foo", "q": "SHOW MEASUREMENTS LIMIT 2"}
-	status, body = MustHTTP("GET", s.URL+`/query`, query, nil, "")
-
-	if status != http.StatusOK {
-		t.Log(body)
-		t.Fatalf("unexpected status after query: %d", status)
+	var tests = []struct {
+		q   string
+		r   string
+		err string
+	}{
+		// SHOW SERIES
+		{
+			q: `SHOW MEASUREMENTS LIMIT 2`,
+			r: `{"results":[{"rows":[{"name":"cpu","columns":["host","region"]},{"name":"gpu","columns":["host","region"]}]}]}`,
+		},
 	}
 
-	t.Log(body)
-	t.Fatalf("test")
+	for i, tt := range tests {
+		query := map[string]string{"db": "foo", "q": tt.q}
+		status, body = MustHTTP("GET", s.URL+`/query`, query, nil, "")
+
+		if status != http.StatusOK {
+			t.Logf("query #%d: %s", i, tt.q)
+			t.Log(body)
+			t.Errorf("unexpected status: %d", status)
+		}
+
+		r := &influxdb.Results{}
+		if err := json.Unmarshal([]byte(body), r); err != nil {
+			t.Logf("query #%d: %s", i, tt.q)
+			t.Log(body)
+			t.Error("error marshaling result: ", err)
+		}
+
+		if body != tt.r {
+			t.Errorf("result mismatch\n  exp: %s\n  got: %s\n", tt.r, body)
+		}
+	}
 }
 
 // Utility functions for this test suite.
