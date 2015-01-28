@@ -1173,9 +1173,10 @@ func TestServer_RunContinuousQueries(t *testing.T) {
 	if err := s.CreateDatabase("foo"); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "bar"}); err != nil {
+	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "raw"}); err != nil {
 		t.Fatal(err)
 	}
+	s.SetDefaultRetentionPolicy("foo", "raw")
 
 	s.RecomputePreviousN = 2
 	s.RecomputeNoOlderThan = 4 * time.Second
@@ -1183,7 +1184,7 @@ func TestServer_RunContinuousQueries(t *testing.T) {
 	s.ComputeNoMoreThan = 2 * time.Second
 
 	// create and check
-	q := "CREATE CONTINUOUS QUERY myquery ON foo BEGIN SELECT count() INTO measure1 FROM myseries GROUP BY time(5s) END"
+	q := `CREATE CONTINUOUS QUERY myquery ON foo BEGIN SELECT mean(value) INTO cpu_region FROM "foo"."raw".cpu GROUP BY time(5s), region END`
 	stmt, err := influxql.NewParser(strings.NewReader(q)).ParseStatement()
 	if err != nil {
 		t.Fatalf("error parsing query %s", err.Error())
@@ -1193,26 +1194,43 @@ func TestServer_RunContinuousQueries(t *testing.T) {
 		t.Fatalf("error creating continuous query %s", err.Error())
 	}
 
+	// Write series with one point to the database.
+	now := time.Now().UTC()
+	fmt.Println("TIME: ", now.UTC().Format(influxql.DateTimeFormat))
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: now, Values: map[string]interface{}{"value": float64(20)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: now, Values: map[string]interface{}{"value": float64(30)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-west"}, Timestamp: now, Values: map[string]interface{}{"value": float64(100)}}})
+
 	// TODO: figure out how to actually test this
-	t.Skip("pending")
-	// fmt.Println("CQ 1")
-	// s.RunContinuousQueries()
-	// fmt.Println("CQ 2")
-	// s.RunContinuousQueries()
-	// time.Sleep(time.Second * 2)
-	// fmt.Println("CQ 3")
-	// s.RunContinuousQueries()
-	// fmt.Println("CQ 4")
-	// s.RunContinuousQueries()
-	// time.Sleep(time.Second * 3)
-	// fmt.Println("CQ 5")
-	// s.RunContinuousQueries()
-	// time.Sleep(time.Second * 3)
-	// fmt.Println("CQ 6")
-	// s.RunContinuousQueries()
-	// time.Sleep(time.Second * 3)
-	// fmt.Println("CQ 7")
-	// s.RunContinuousQueries()
+	// t.Skip("pending")
+	fmt.Println("CQ 1")
+	s.RunContinuousQueries()
+	fmt.Println("CQ 2")
+	s.RunContinuousQueries()
+	time.Sleep(time.Second * 2)
+	// Select data from the server.
+	results := s.ExecuteQuery(MustParseQuery(`SELECT value, region FROM "foo"."raw".cpu_region GROUP BY region`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Rows) != 2 {
+		t.Fatalf("unexpected row count: %d", len(res.Rows))
+	} else if s := mustMarshalJSON(res); s != `{"rows":[{"name":"\"foo\".\"raw\".cpu","tags":{"region":"us-east"},"columns":["time","sum"],"values":[[946684800000000,20],[946684810000000,30]]},{"name":"\"foo\".\"raw\".cpu","tags":{"region":"us-west"},"columns":["time","sum"],"values":[[946684800000000,100]]}]}` {
+		t.Fatalf("unexpected row(0): %s", s)
+	}
+
+	fmt.Println("CQ 3")
+	s.RunContinuousQueries()
+	fmt.Println("CQ 4")
+	s.RunContinuousQueries()
+	time.Sleep(time.Second * 3)
+	fmt.Println("CQ 5")
+	s.RunContinuousQueries()
+	time.Sleep(time.Second * 3)
+	fmt.Println("CQ 6")
+	s.RunContinuousQueries()
+	time.Sleep(time.Second * 3)
+	fmt.Println("CQ 7")
+	s.RunContinuousQueries()
 }
 
 func mustMarshalJSON(v interface{}) string {

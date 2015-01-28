@@ -3034,9 +3034,9 @@ func (s *Server) RunContinuousQueries() error {
 	for _, d := range s.databases {
 		for _, c := range d.continuousQueries {
 			if s.shouldRunContinuousQuery(c) {
-				// go func(cq *ContinuousQuery) {
-				s.runContinuousQuery(c)
-				// }(c)
+				go func(cq *ContinuousQuery) {
+					s.runContinuousQuery(c)
+				}(c)
 			}
 		}
 	}
@@ -3126,7 +3126,7 @@ func (s *Server) runContinuousQuery(cq *ContinuousQuery) {
 
 // runContinuousQueryAndWriteResult will run the query against the cluster and write the results back in
 func (s *Server) runContinuousQueryAndWriteResult(cq *ContinuousQuery) error {
-	log.Printf("cq run: %s\n", cq.cq.String())
+	log.Printf("cq run: %s %s\n", cq.cq.Database, cq.cq.Source.String())
 
 	e, err := s.planSelectStatement(cq.cq.Source, cq.cq.Database)
 	if err != nil {
@@ -3144,6 +3144,7 @@ func (s *Server) runContinuousQueryAndWriteResult(cq *ContinuousQuery) error {
 	db := ""
 	retentionPolicy := ""
 	for row := range ch {
+		warn("row: ", row)
 		points, err := s.convertRowToPoints(row)
 		if err != nil {
 			log.Println(err)
@@ -3158,6 +3159,7 @@ func (s *Server) runContinuousQueryAndWriteResult(cq *ContinuousQuery) error {
 			}
 		}
 	}
+	warn("cq.run.write")
 
 	return nil
 }
