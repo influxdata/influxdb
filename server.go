@@ -41,7 +41,7 @@ const (
 	DefaultShardDuration = 7 * (24 * time.Hour)
 
 	// DefaultShardRetention is the length of time before a shard is dropped.
-	DefaultShardRetention = time.Duration(0)
+	DefaultShardRetention = 7 * (24 * time.Hour)
 )
 
 const (
