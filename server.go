@@ -1664,7 +1664,7 @@ func (s *Server) executeDropDatabaseStatement(q *influxql.DropDatabaseStatement,
 }
 
 func (s *Server) executeShowDatabasesStatement(q *influxql.ShowDatabasesStatement, user *User) *Result {
-	row := &influxql.Row{Columns: []string{"Name"}}
+	row := &influxql.Row{Columns: []string{"name"}}
 	for _, name := range s.Databases() {
 		row.Values = append(row.Values, []interface{}{name})
 	}
