@@ -38,6 +38,8 @@ func (h *Handler) SetBroker(b *Broker) {
 
 // ServeHTTP serves an HTTP request.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// h.broker.Logger.Printf("%s %s", r.Method, r.URL.String())
+
 	// Delegate raft requests to its own handler.
 	if strings.HasPrefix(r.URL.Path, "/raft") {
 		h.raftHandler.ServeHTTP(w, r)
@@ -128,7 +130,17 @@ func (h *Handler) publish(w http.ResponseWriter, r *http.Request) {
 
 	// Publish message to the broker.
 	index, err := h.broker.Publish(m)
-	if err != nil {
+	if err == raft.ErrNotLeader {
+		if u := h.broker.LeaderURL(); u != nil {
+			redirectURL := *r.URL
+			redirectURL.Scheme = u.Scheme
+			redirectURL.Host = u.Host
+			http.Redirect(w, r, redirectURL.String(), http.StatusTemporaryRedirect)
+		} else {
+			h.error(w, err, http.StatusInternalServerError)
+		}
+		return
+	} else if err != nil {
 		h.error(w, err, http.StatusInternalServerError)
 		return
 	}
