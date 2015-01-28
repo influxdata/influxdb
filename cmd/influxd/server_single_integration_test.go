@@ -99,7 +99,7 @@ func TestNewServer(t *testing.T) {
 		}
 	}()
 
-	// Createa a database
+	// Create a database
 	t.Log("Creating database")
 
 	u := urlFor(c.BrokerURL(), "query", url.Values{"q": []string{"CREATE DATABASE foo"}})
