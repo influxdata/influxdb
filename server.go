@@ -118,6 +118,14 @@ func (s *Server) ID() uint64 {
 	return s.id
 }
 
+// Ready indicates when the server is ready to accept connections and write data
+func (s *Server) Ready() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.client.Opened()
+}
+
 // Path returns the path used when opening the server.
 // Returns an empty string when the server is closed.
 func (s *Server) Path() string {
@@ -2236,6 +2244,9 @@ type MessagingClient interface {
 
 	// The streaming channel for all subscribed messages.
 	C() <-chan *messaging.Message
+
+	// Opened returns true if the messaging client has been opened
+	Opened() bool
 }
 
 // DataNode represents a data node in the cluster.

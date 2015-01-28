@@ -1002,6 +1002,11 @@ func NewMessagingClient() *MessagingClient {
 	return c
 }
 
+// Opened returns true if the messaging client has been opened
+func (c *MessagingClient) Opened() bool {
+	return true
+}
+
 // Publish attaches an autoincrementing index to the message.
 // This function also execute's the client's PublishFunc mock function.
 func (c *MessagingClient) Publish(m *messaging.Message) (uint64, error) {
