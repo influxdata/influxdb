@@ -221,9 +221,7 @@ func (m *Measurement) seriesIDsAndFilters(stmt *influxql.SelectStatement) (serie
 	if stmt.Condition == nil {
 		return m.seriesIDs, nil
 	}
-	ids, _, expr := m.walkWhereForSeriesIds(stmt.Condition, seriesIdsToExpr)
-	warn("ids: ", ids, expr)
-	warn("foo: ", seriesIdsToExpr)
+	ids, _, _ := m.walkWhereForSeriesIds(stmt.Condition, seriesIdsToExpr)
 	return ids, seriesIdsToExpr
 }
 
@@ -276,7 +274,6 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (seriesIDs, bool, influ
 
 	// if it's a field we can't collapse it so we have to look at all series ids for this
 	if m.FieldByName(name.Val) != nil {
-		warn("field: ", name.Val, n.String())
 		return m.seriesIDs, true, n
 	}
 
@@ -299,14 +296,11 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (seriesIDs, bool, influ
 // The map that it takes maps each series id to the field expression that should be used to evaluate it when iterating over its cursor.
 // Series that have no field expressions won't be in the map
 func (m *Measurement) walkWhereForSeriesIds(node influxql.Node, filters map[uint32]influxql.Expr) (seriesIDs, bool, influxql.Expr) {
-	warn(". ", node.String())
 	switch n := node.(type) {
 	case *influxql.BinaryExpr:
-		warn("op: ", n.Op)
 		// if it's EQ then it's either a field expression or against a tag. we can return this
 		if n.Op == influxql.EQ {
 			ids, shouldInclude, expr := m.idsForExpr(n)
-			warn("eq ", ids, shouldInclude)
 			return ids, shouldInclude, expr
 		} else if n.Op == influxql.AND || n.Op == influxql.OR { // if it's an AND or OR we need to union or intersect the results
 			var ids seriesIDs
@@ -327,12 +321,10 @@ func (m *Measurement) walkWhereForSeriesIds(node influxql.Node, filters map[uint
 				ids = r
 			}
 
-			warn("... ", n.Op, lexpr, rexpr)
 			if n.Op == influxql.OR && il && ir && (lexpr == nil || rexpr == nil) {
 				// if it's an OR and we're going to include both sides and one of those expression is nil,
 				// we need to clear out restrictive filters on series that don't need them anymore
 				idsToClear := l.intersect(r)
-				warn("clearning")
 				for _, id := range idsToClear {
 					delete(filters, id)
 				}
@@ -365,7 +357,6 @@ func (m *Measurement) walkWhereForSeriesIds(node influxql.Node, filters map[uint
 				// that is, filters that are no longer part of the end result set
 				if n.Op == influxql.AND && il && ir {
 					filtersToClear := l.union(r).reject(ids)
-					warn("filt ", filtersToClear)
 					for _, id := range filtersToClear {
 						delete(filters, id)
 					}
