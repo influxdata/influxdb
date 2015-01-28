@@ -522,6 +522,15 @@ func SplitIdent(s string) (segments []string, err error) {
 	}
 }
 
+// lastIdent returns the last identifier.
+func lastIdent(s string) string {
+	a, _ := SplitIdent(s)
+	if len(a) == 0 {
+		return ""
+	}
+	return a[len(a)-1]
+}
+
 var errInvalidIdentifier = errors.New("invalid identifier")
 
 // assert will panic with a given formatted message if the given condition is false.

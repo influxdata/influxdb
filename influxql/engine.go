@@ -144,7 +144,7 @@ func (p *Planner) planRawQuery(e *Executor, v *VarRef) (Processor, error) {
 		mappers[i] = NewMapper(MapRawQuery, itr, e.interval)
 	}
 	r := NewReducer(ReduceRawQuery, mappers)
-	r.name = stmt.Source.(*Measurement).Name
+	r.name = lastIdent(stmt.Source.(*Measurement).Name)
 
 	return r, nil
 
@@ -205,7 +205,7 @@ func (p *Planner) planCall(e *Executor, c *Call) (Processor, error) {
 		mappers[i] = NewMapper(mapFn, itr, e.interval)
 	}
 	r := NewReducer(reduceFn, mappers)
-	r.name = stmt.Source.(*Measurement).Name
+	r.name = lastIdent(stmt.Source.(*Measurement).Name)
 
 	return r, nil
 }

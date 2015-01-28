@@ -1611,6 +1611,12 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 
 	// Execute each statement.
 	for i, stmt := range q.Statements {
+		// Set default database and policy on the statement.
+		if err := s.NormalizeStatement(stmt, database); err != nil {
+			results.Results[i] = &Result{Err: err}
+			break
+		}
+
 		var res *Result
 		switch stmt := stmt.(type) {
 		case *influxql.SelectStatement:
@@ -1829,21 +1835,11 @@ func (s *Server) measurement(database, name string) (*Measurement, error) {
 // Begin returns an unopened transaction associated with the server.
 func (s *Server) Begin() (influxql.Tx, error) { return newTx(s), nil }
 
-// NormalizeQuery updates all measurements and fields to be fully qualified.
-// Uses db as the default database, where applicable.
-func (s *Server) NormalizeQuery(q *influxql.Query, defaultDatabase string) error {
+// NormalizeStatement adds a default database and policy to the measurements in statement.
+func (s *Server) NormalizeStatement(stmt influxql.Statement, defaultDatabase string) (err error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	for _, stmt := range q.Statements {
-		if err := s.normalizeStatement(stmt, defaultDatabase); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (s *Server) normalizeStatement(stmt influxql.Statement, defaultDatabase string) (err error) {
 	// Track prefixes for replacing field names.
 	prefixes := make(map[string]string)
 
