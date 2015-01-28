@@ -164,7 +164,7 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *influ
 	for {
 		if err := dec.Decode(&br); err != nil {
 			if err.Error() == "EOF" {
-				w.WriteHeader(http.StatusCreated)
+				w.WriteHeader(http.StatusOK)
 				return
 			}
 			writeError(influxdb.Result{Err: err}, http.StatusInternalServerError)
