@@ -1697,9 +1697,9 @@ func (s *Server) executeShowRetentionPoliciesStatement(q *influxql.ShowRetention
 		return &Result{Err: err}
 	}
 
-	row := &influxql.Row{Columns: []string{"Name"}}
+	row := &influxql.Row{Columns: []string{"name", "duration", "replicaN"}}
 	for _, rp := range a {
-		row.Values = append(row.Values, []interface{}{rp.Name})
+		row.Values = append(row.Values, []interface{}{rp.Name, rp.Duration.String(), rp.ReplicaN})
 	}
 	return &Result{Rows: []*influxql.Row{row}}
 }
