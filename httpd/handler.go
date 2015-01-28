@@ -336,12 +336,9 @@ func httpResults(w http.ResponseWriter, results influxdb.Results, pretty bool) {
 
 // httpError writes an error to the client in a standard format.
 func httpError(w http.ResponseWriter, err string, code int) {
-	var results influxdb.Results
-	results = append(results, &influxdb.Result{Err: errors.New(err)})
-
 	w.Header().Add("content-type", "application/json")
 	w.WriteHeader(code)
-	_ = json.NewEncoder(w).Encode(results)
+	_ = json.NewEncoder(w).Encode(influxdb.Results{Err: errors.New(err)})
 }
 
 // Filters and filter helpers

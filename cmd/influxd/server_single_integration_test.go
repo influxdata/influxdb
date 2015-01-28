@@ -103,8 +103,8 @@ func TestNewServer(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("Create database failed.  Unexpected status code.  expected: %d, actual %d", http.StatusOK, resp.StatusCode)
 	}
-	if len(results) != 1 {
-		t.Fatalf("Create database failed.  Unexpected results length.  expected: %d, actual %d", 1, len(results))
+	if len(results.Results) != 1 {
+		t.Fatalf("Create database failed.  Unexpected results length.  expected: %d, actual %d", 1, len(results.Results))
 	}
 
 	// Query the database exists
@@ -123,11 +123,11 @@ func TestNewServer(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("show databases failed.  Unexpected status code.  expected: %d, actual %d", http.StatusOK, resp.StatusCode)
 	}
-	if len(results) != 1 {
-		t.Fatalf("show databases failed.  Unexpected results length.  expected: %d, actual %d", 1, len(results))
+	if len(results.Results) != 1 {
+		t.Fatalf("show databases failed.  Unexpected results length.  expected: %d, actual %d", 1, len(results.Results))
 	}
 
-	rows := results[0].Rows
+	rows := results.Results[0].Rows
 	if len(rows) != 1 {
 		t.Fatalf("show databases failed.  Unexpected rows length.  expected: %d, actual %d", 1, len(rows))
 	}
