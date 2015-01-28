@@ -4,7 +4,31 @@
 # Packaging script which creates debian and RPM packages. It optionally
 # tags the repo with the given version.
 #
-# 'fpm' must be on the path, and the AWS CLI tools must also be installed.
+# Requirements: GOPATH must be set. 'fpm' must be on the path, and the AWS
+# CLI tools must also be installed.
+#
+#    https://github.com/jordansissel/fpm
+#    http://aws.amazon.com/cli/
+#
+# Packaging process: to package a build, simple execute:
+#
+#    package.sh <version>
+#
+# where <version> is the desired version. If generation of a debian and RPM
+# package is successful, the script will offer to tag the repo using the
+# supplied version string.
+#
+# AWS upload: the script will also offer to upload the packages to S3. If
+# this option is selected, the credentials should be present in the file
+# ~/aws.conf. The contents should be of the form:
+#
+#    [default]
+#    aws_access_key_id=<access ID>
+#    aws_secret_access_key=<secret key>
+#    region = us-east-1
+#
+# Trim the leading spaces when creating the file. The script will exit if
+# S3 upload is requested, but this file does not exist.
 
 AWS_FILE=~/aws.conf
 
