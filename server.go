@@ -230,6 +230,19 @@ func (s *Server) load() error {
 			}
 		}
 
+		// Open all shards.
+		for _, db := range s.databases {
+			for _, rp := range db.policies {
+				for _, g := range rp.shardGroups {
+					for _, sh := range g.Shards {
+						if err := sh.open(s.shardPath(sh.ID)); err != nil {
+							return fmt.Errorf("cannot open shard store: id=%d, err=%s", sh.ID, err)
+						}
+					}
+				}
+			}
+		}
+
 		// Load users.
 		s.users = make(map[string]*User)
 		for _, u := range tx.users() {
@@ -1432,6 +1445,9 @@ func (s *Server) applyWriteSeries(m *messaging.Message) error {
 
 	// Update metastore.
 	if err := s.meta.mustUpdate(func(tx *metatx) error {
+		if err := tx.saveMeasurement(db.name, mm); err != nil {
+			return fmt.Errorf("save measurement: %s", err)
+		}
 		return tx.saveDatabase(db)
 	}); err != nil {
 		return err
