@@ -41,7 +41,7 @@ const (
 	DefaultShardDuration = 7 * (24 * time.Hour)
 
 	// DefaultShardRetention is the length of time before a shard is dropped.
-	DefaultShardRetention = time.Duration(0)
+	DefaultShardRetention = 7 * (24 * time.Hour)
 )
 
 const (
@@ -1684,9 +1684,9 @@ func (s *Server) executeDropUserStatement(q *influxql.DropUserStatement, user *U
 }
 
 func (s *Server) executeShowUsersStatement(q *influxql.ShowUsersStatement, user *User) *Result {
-	row := &influxql.Row{Columns: []string{"User"}}
+	row := &influxql.Row{Columns: []string{"user", "admin"}}
 	for _, user := range s.Users() {
-		row.Values = append(row.Values, []interface{}{user.Name})
+		row.Values = append(row.Values, []interface{}{user.Name, user.Admin})
 	}
 	return &Result{Rows: []*influxql.Row{row}}
 }
@@ -1719,9 +1719,9 @@ func (s *Server) executeShowRetentionPoliciesStatement(q *influxql.ShowRetention
 		return &Result{Err: err}
 	}
 
-	row := &influxql.Row{Columns: []string{"Name"}}
+	row := &influxql.Row{Columns: []string{"name", "duration", "replicaN"}}
 	for _, rp := range a {
-		row.Values = append(row.Values, []interface{}{rp.Name})
+		row.Values = append(row.Values, []interface{}{rp.Name, rp.Duration.String(), rp.ReplicaN})
 	}
 	return &Result{Rows: []*influxql.Row{row}}
 }
