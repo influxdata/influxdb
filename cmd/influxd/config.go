@@ -51,7 +51,7 @@ type Config struct {
 
 	Initialization struct {
 		JoinURLs string `toml:"join-urls"`
-	}
+	} `toml:"initialization"`
 
 	Authentication struct {
 		Enabled bool `toml:"enabled"`
