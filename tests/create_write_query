@@ -8,4 +8,4 @@ echo "inserting data"
 curl -d '{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2015-01-26T22:01:11.703Z","values": {"value": 100}}]}' -H "Content-Type: application/json" http://localhost:8086/write
 
 echo "querying data"
-curl -G http://localhost:8086/query --data-urlencode "db=foo&q=SELECT COUNT(value) FROM cpu WHERE time > now() - 1h"
+curl -G http://localhost:8086/query --data-urlencode "db=foo" --data-urlencode "q=SELECT COUNT(value) FROM cpu WHERE time > now() - 1h"
