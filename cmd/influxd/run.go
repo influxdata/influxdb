@@ -18,7 +18,7 @@ import (
 )
 
 // execRun runs the "run" command.
-func Run(config *Config, join, version string) {
+func Run(config *Config, join, version string) *influxdb.Server {
 	// Parse the configuration and determine if a broker and/or server exist.
 	configExists := config != nil
 	if config == nil {
@@ -99,6 +99,7 @@ func Run(config *Config, join, version string) {
 			}
 		}
 	}
+	return s
 }
 
 // write the current process id to a file specified by path.

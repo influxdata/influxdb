@@ -39,7 +39,20 @@ func TestNewServer(t *testing.T) {
 	now := time.Now()
 	var spinupTime time.Duration
 
-	main.Run(c, join, version)
+	s := main.Run(c, join, version)
+
+	defer func() {
+		s.Close()
+		t.Log("Shutting down server and cleaning up tmp directories")
+		err := os.RemoveAll(tmpBrokerDir)
+		if err != nil {
+			t.Logf("Failed to clean up %q: %s\n", tmpBrokerDir, err)
+		}
+		err = os.RemoveAll(tmpDataDir)
+		if err != nil {
+			t.Logf("Failed to clean up %q: %s\n", tmpDataDir, err)
+		}
+	}()
 
 	defer func() {
 		t.Log("Shutting down server and cleaning up tmp directories")
