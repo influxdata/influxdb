@@ -679,12 +679,13 @@ func (p *Parser) parseShowTagKeysStatement() (*ShowTagKeysStatement, error) {
 	stmt := &ShowTagKeysStatement{}
 	var err error
 
-	// Parse source.
-	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != FROM {
-		return nil, newParseError(tokstr(tok, lit), []string{"FROM"}, pos)
-	}
-	if stmt.Source, err = p.parseSource(); err != nil {
-		return nil, err
+	// Parse optional source.
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == FROM {
+		if stmt.Source, err = p.parseSource(); err != nil {
+			return nil, err
+		}
+	} else {
+		p.unscan()
 	}
 
 	// Parse condition: "WHERE EXPR".

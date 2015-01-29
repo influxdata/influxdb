@@ -1640,7 +1640,7 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 		case *influxql.ShowMeasurementsStatement:
 			res = s.executeShowMeasurementsStatement(stmt, database, user)
 		case *influxql.ShowTagKeysStatement:
-			continue
+			res = s.executeShowTagKeysStatement(stmt, database, user)
 		case *influxql.ShowTagValuesStatement:
 			continue
 		case *influxql.ShowFieldKeysStatement:
@@ -1763,31 +1763,16 @@ func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, 
 		return &Result{Err: ErrDatabaseNotFound}
 	}
 
-	// Make a list of measurements we're interested in.
-	var measurements []string
-	if stmt.Source != nil {
-		// TODO: handle multiple measurement sources
-		if m, ok := stmt.Source.(*influxql.Measurement); ok {
-			segments, err := influxql.SplitIdent(m.Name)
-			if err != nil {
-				return &Result{Err: err}
-			}
-			measurements = append(measurements, segments[2])
-		} else {
-			return &Result{Err: ErrMeasurementNotFound}
-		}
-	} else {
-		// No measurements specified in FROM clause so get all measurements.
-		measurements = db.MeasurementNames()
+	// Get the list of measurements we're interested in.
+	measurements, err := measurementsFromSourceOrDB(stmt.Source, db)
+	if err != nil {
+		return &Result{Err: err}
 	}
 
-	// If OFFSET is past the end of the array, return empty results.
-	if stmt.Offset > len(measurements)-1 {
-		return &Result{}
-	}
-
-	// Sort measurement names so results are always in the same order.
-	sort.Strings(measurements)
+	// // If OFFSET is past the end of the array, return empty results.
+	// if stmt.Offset > len(measurements)-1 {
+	// 	return &Result{}
+	// }
 
 	// Create result struct that will be populated and returned.
 	result := &Result{
@@ -1847,10 +1832,10 @@ func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, 
 }
 
 func (s *Server) executeShowMeasurementsStatement(stmt *influxql.ShowMeasurementsStatement, database string, user *User) *Result {
-	// Find the database.
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
+	// Find the database.
 	db := s.databases[database]
 	if db == nil {
 		return &Result{Err: ErrDatabaseNotFound}
@@ -1897,12 +1882,93 @@ func (s *Server) executeShowMeasurementsStatement(stmt *influxql.ShowMeasurement
 			Name:    m.Name,
 			Columns: m.tagKeys(),
 		}
-		sort.Strings(r.Columns)
 
 		result.Rows = append(result.Rows, r)
 	}
 
 	return result
+}
+
+func (s *Server) executeShowTagKeysStatement(stmt *influxql.ShowTagKeysStatement, database string, user *User) *Result {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	// Find the database.
+	db := s.databases[database]
+	if db == nil {
+		return &Result{Err: ErrDatabaseNotFound}
+	}
+
+	// Get the list of measurements we're interested in.
+	measurements, err := measurementsFromSourceOrDB(stmt.Source, db)
+	if err != nil {
+		return &Result{Err: err}
+	}
+
+	// Make result.
+	result := &Result{
+		Rows: make(influxql.Rows, 0, len(measurements)),
+	}
+
+	// Add one row per measurement to the result.
+	for _, name := range measurements {
+		// Look up the measurement by name.
+		m, ok := db.measurements[name]
+		if !ok {
+			continue
+		}
+
+		// TODO: filter tag keys by stmt.Condition
+
+		// Get the tag keys in sorted order.
+		keys := m.tagKeys()
+
+		// Convert keys to an [][]interface{}.
+		values := make([][]interface{}, 0, len(m.seriesByTagKeyValue))
+		for _, k := range keys {
+			v := interface{}(k)
+			values = append(values, []interface{}{v})
+		}
+
+		// Make a result row for the measurement.
+		r := &influxql.Row{
+			Name:    m.Name,
+			Columns: []string{"tagKey"},
+			Values:  values,
+		}
+
+		result.Rows = append(result.Rows, r)
+	}
+
+	// TODO: LIMIT & OFFSET
+
+	return result
+}
+
+// measurementsFromSourceOrDB returns a list of measurement names from the
+// statement passed in or, if the statement is nil, a list of all
+// measurement names from the database passed in.
+func measurementsFromSourceOrDB(stmt influxql.Source, db *database) ([]string, error) {
+	var measurements []string
+	if stmt != nil {
+		// TODO: handle multiple measurement sources
+		if m, ok := stmt.(*influxql.Measurement); ok {
+			segments, err := influxql.SplitIdent(m.Name)
+			if err != nil {
+				return nil, err
+			}
+
+			measurements = append(measurements, segments[2])
+		} else {
+			return nil, errors.New("identifiers in FROM clause must be measurement names")
+		}
+	} else {
+		// No measurements specified in FROM clause so get all measurements.
+		measurements = db.MeasurementNames()
+	}
+	sort.Strings(measurements)
+
+	return measurements, nil
 }
 
 func (s *Server) executeShowUsersStatement(q *influxql.ShowUsersStatement, user *User) *Result {

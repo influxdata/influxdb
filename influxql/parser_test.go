@@ -206,6 +206,14 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// SHOW TAG KEYS
 		{
+			s: `SHOW TAG KEYS FROM src`,
+			stmt: &influxql.ShowTagKeysStatement{
+				Source: &influxql.Measurement{Name: "src"},
+			},
+		},
+
+		// SHOW TAG KEYS
+		{
 			s: `SHOW TAG KEYS FROM src WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
 			stmt: &influxql.ShowTagKeysStatement{
 				Source: &influxql.Measurement{Name: "src"},

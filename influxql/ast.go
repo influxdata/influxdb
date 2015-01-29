@@ -1648,6 +1648,16 @@ func Walk(v Visitor, node Node) {
 		Walk(v, n.Source)
 		Walk(v, n.Condition)
 
+	case *ShowTagKeysStatement:
+		Walk(v, n.Source)
+		Walk(v, n.Condition)
+		Walk(v, n.SortFields)
+
+	case *ShowTagValuesStatement:
+		Walk(v, n.Source)
+		Walk(v, n.Condition)
+		Walk(v, n.SortFields)
+
 	case Fields:
 		for _, c := range n {
 			Walk(v, c)
