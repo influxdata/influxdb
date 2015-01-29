@@ -142,7 +142,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *influ
 }
 
 type BatchWrite struct {
-	Points          []influxdb.Point  `json:"points"`
+	Points          []client.Point    `json:"points"`
 	Database        string            `json:"database"`
 	RetentionPolicy string            `json:"retentionPolicy"`
 	Tags            map[string]string `json:"tags"`
@@ -152,14 +152,14 @@ type BatchWrite struct {
 // UnmarshalJSON decodes the data into the batchWrite struct
 func (br *BatchWrite) UnmarshalJSON(b []byte) error {
 	var normal struct {
-		Points          []influxdb.Point  `json:"points"`
+		Points          []client.Point    `json:"points"`
 		Database        string            `json:"database"`
 		RetentionPolicy string            `json:"retentionPolicy"`
 		Tags            map[string]string `json:"tags"`
 		Timestamp       time.Time         `json:"timestamp"`
 	}
 	var epoch struct {
-		Points          []influxdb.Point  `json:"points"`
+		Points          []client.Point    `json:"points"`
 		Database        string            `json:"database"`
 		RetentionPolicy string            `json:"retentionPolicy"`
 		Tags            map[string]string `json:"tags"`
@@ -238,8 +238,8 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *influ
 		}
 
 		for _, p := range br.Points {
-			if p.Timestamp.IsZero() {
-				p.Timestamp = br.Timestamp
+			if p.Timestamp.Time().IsZero() {
+				p.Timestamp = client.Timestamp(br.Timestamp)
 			}
 			if len(br.Tags) > 0 {
 				for k, _ := range br.Tags {
@@ -248,7 +248,14 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *influ
 					}
 				}
 			}
-			if _, err := h.server.WriteSeries(br.Database, br.RetentionPolicy, []influxdb.Point{p}); err != nil {
+			// Need to convert from a client.Point to a influxdb.Point
+			iPoint := influxdb.Point{
+				Name:      p.Name,
+				Tags:      p.Tags,
+				Timestamp: p.Timestamp.Time(),
+				Values:    p.Values,
+			}
+			if _, err := h.server.WriteSeries(br.Database, br.RetentionPolicy, []influxdb.Point{iPoint}); err != nil {
 				writeError(influxdb.Result{Err: err}, http.StatusInternalServerError)
 				return
 			}

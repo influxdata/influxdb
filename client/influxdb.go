@@ -205,12 +205,24 @@ func (a Results) Error() error {
 	return nil
 }
 
+type Timestamp time.Time
+
+func (t Timestamp) Time() time.Time {
+	return time.Time(t)
+}
+
+func (t Timestamp) MarshalJSON() ([]byte, error) {
+	// Always send back in UTC with nanoseconds
+	s := t.Time().UTC().Format(time.RFC3339Nano)
+	return []byte(`"` + s + `"`), nil
+}
+
 // Point defines the values that will be written to the database
 type Point struct {
-	Name      string
-	Tags      map[string]string
-	Timestamp time.Time
-	Values    map[string]interface{}
+	Name      string                 `json:"name"`
+	Tags      map[string]string      `json:"tags"`
+	Timestamp Timestamp              `json:"timestamp"`
+	Values    map[string]interface{} `json:"values"`
 }
 
 // UnmarshalJSON decodes the data into the Point struct
@@ -241,7 +253,7 @@ func (p *Point) UnmarshalJSON(b []byte) error {
 		}
 		p.Name = epoch.Name
 		p.Tags = epoch.Tags
-		p.Timestamp = ts
+		p.Timestamp = Timestamp(ts)
 		p.Values = epoch.Values
 		return nil
 	}(); err == nil {
@@ -253,7 +265,7 @@ func (p *Point) UnmarshalJSON(b []byte) error {
 	}
 	p.Name = normal.Name
 	p.Tags = normal.Tags
-	p.Timestamp = normal.Timestamp
+	p.Timestamp = Timestamp(normal.Timestamp)
 	p.Values = normal.Values
 
 	return nil
