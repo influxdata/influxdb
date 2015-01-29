@@ -115,8 +115,7 @@ type Config struct {
 	} `toml:"cluster"`
 
 	Logging struct {
-		File  string `toml:"file"`
-		Level string `toml:"level"`
+		File string `toml:"file"`
 	} `toml:"logging"`
 }
 

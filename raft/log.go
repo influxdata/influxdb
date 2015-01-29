@@ -206,6 +206,11 @@ func (l *Log) Config() *Config {
 	return nil
 }
 
+// SetLogOutput sets writer for all Raft output.
+func (l *Log) SetLogOutput(w io.Writer) {
+	l.Logger = log.New(w, "[raft] ", log.LstdFlags)
+}
+
 // Open initializes the log from a path.
 // If the path does not exist then it is created.
 func (l *Log) Open(path string) error {

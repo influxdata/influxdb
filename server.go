@@ -94,6 +94,8 @@ type Server struct {
 
 	shards           map[uint64]*Shard   // shards by shard id
 	shardsBySeriesID map[uint32][]*Shard // shards by series id
+
+	Logger *log.Logger
 }
 
 // NewServer returns a new instance of Server.
@@ -107,6 +109,7 @@ func NewServer() *Server {
 
 		shards:           make(map[uint64]*Shard),
 		shardsBySeriesID: make(map[uint32][]*Shard),
+		Logger:           log.New(os.Stderr, "[server] ", log.LstdFlags),
 	}
 }
 
@@ -140,6 +143,11 @@ func (s *Server) metaPath() string {
 		return ""
 	}
 	return filepath.Join(s.path, "meta")
+}
+
+// SetLogOutput sets writer for all Server log output.
+func (s *Server) SetLogOutput(w io.Writer) {
+	s.Logger = log.New(w, "[server] ", log.LstdFlags)
 }
 
 // Open initializes the server from a given path.

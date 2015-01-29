@@ -29,9 +29,7 @@ join-urls = ""
 enabled = false
 
 [logging]
-# logging level can be one of "fine", "debug", "info", "warn" or "error"
-level  = "info"
-file   = "influxdb.log"         # stdout to log to standard out, or syslog facility
+file   = "/var/log/influxdb/influxd.log"
 
 # Configure the admin server
 [admin]
