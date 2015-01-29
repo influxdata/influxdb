@@ -29,7 +29,7 @@ join-urls = ""
 enabled = false
 
 [logging]
-file   = "influxdb.log"         # stdout to log to standard out, or syslog facility
+file   = "/var/log/influxdb/influxd.log"
 
 # Configure the admin server
 [admin]

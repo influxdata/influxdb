@@ -43,11 +43,15 @@ func execRun(args []string) {
 	initializing := !fileExists(config.BrokerDir()) && !fileExists(config.DataDir())
 
 	// Create a logging writer.
-	f, err := os.OpenFile(config.Logging.File, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0660)
-	if err != nil {
-		log.Fatalf("unable to open log file %s: %s", config.Logging.File, err.Error())
+	logWriter := os.Stderr
+	if config.Logging.File != "" {
+		var err error
+		logWriter, err = os.OpenFile(config.Logging.File, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0660)
+		if err != nil {
+			log.Fatalf("unable to open log file %s: %s", config.Logging.File, err.Error())
+		}
 	}
-	log.SetOutput(f)
+	log.SetOutput(logWriter)
 
 	// Parse join urls from the --join flag.
 	var joinURLs []*url.URL
