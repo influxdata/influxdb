@@ -174,7 +174,6 @@ func (br *BatchWrite) UnmarshalJSON(b []byte) error {
 		}
 		// Convert from epoch to time.Time
 		ts, err := client.EpochToTime(epoch.Timestamp, epoch.Precision)
-		log.Println(ts, err)
 		if err != nil {
 			return err
 		}
