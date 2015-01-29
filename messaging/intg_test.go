@@ -1,8 +1,9 @@
 package messaging_test
 
 import (
+	"fmt"
+	"net/url"
 	"testing"
-	//"time"
 
 	"github.com/influxdb/influxdb/messaging"
 )
@@ -58,5 +59,71 @@ func TestBroker_Join(t *testing.T) {
 		t.Fatalf("message count mismatch: %d", len(a))
 	} else if m := a.Last(); string(m.Data) != `ZZZZ` {
 		t.Fatalf("unexpected message: %s", m.Data)
+	}
+}
+
+func BenchmarkBroker_Publish(b *testing.B) {
+	c := NewCluster(3)
+	defer c.Close()
+
+	// Create replica and connect client.
+	c.Leader().Broker().CreateReplica(100)
+	client := messaging.NewClient(100)
+	client.Open("", []*url.URL{c.URL()})
+
+	b.ResetTimer()
+
+	var index uint64
+	for i := 0; i < b.N; i++ {
+		var err error
+		index, err = client.Publish(&messaging.Message{Type: 0, TopicID: 1, Data: make([]byte, 50)})
+		if err != nil {
+			b.Fatalf("unexpected error: %s", err)
+		}
+	}
+
+	// Wait for the broker to commit.
+	c.MustSync(index)
+}
+
+// Cluster represents a set of joined Servers.
+type Cluster struct {
+	Servers []*Server
+}
+
+// NewCluster returns a Cluster with n servers.
+func NewCluster(n int) *Cluster {
+	c := &Cluster{}
+	c.Servers = []*Server{NewServer()}
+
+	// Join additional servers on.
+	for i := 1; i < n; i++ {
+		// Join each additional server to the first.
+		other := NewUninitializedServer()
+		if err := other.Broker().Join(c.Leader().Broker().URL()); err != nil {
+			panic("join error: " + err.Error())
+		}
+
+		c.Servers = append(c.Servers, other)
+	}
+
+	return c
+}
+
+func (c *Cluster) Leader() *Server { return c.Servers[0] }
+func (c *Cluster) URL() *url.URL   { return c.Leader().Broker().URL() }
+
+// MustSync runs sync against every server in the cluster. Panic on error.
+func (c *Cluster) MustSync(index uint64) {
+	for i, s := range c.Servers {
+		if err := s.Broker().Sync(index); err != nil {
+			panic(fmt.Sprintf("sync error(%d): %s", i, err))
+		}
+	}
+}
+
+func (c *Cluster) Close() {
+	for _, s := range c.Servers {
+		s.Close()
 	}
 }
