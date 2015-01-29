@@ -3,6 +3,7 @@ package client
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"time"
@@ -129,6 +130,31 @@ func (c *Client) Addr() string {
 //}
 
 // helper functions
+
+func EpochToTime(epoch int64, precision string) (time.Time, error) {
+	if precision == "" {
+		precision = "s"
+	}
+	var t time.Time
+	switch precision {
+	case "h":
+		t = time.Unix(0, epoch*int64(time.Hour))
+	case "m":
+		t = time.Unix(0, epoch*int64(time.Minute))
+	case "s":
+		t = time.Unix(0, epoch*int64(time.Second))
+	case "ms":
+		t = time.Unix(0, epoch*int64(time.Millisecond))
+	case "u":
+		t = time.Unix(0, epoch*int64(time.Microsecond))
+	case "n":
+		t = time.Unix(0, epoch)
+	default:
+		return time.Time{}, fmt.Errorf("Unknowm precision %q", precision)
+	}
+	return t, nil
+
+}
 
 func detect(values ...string) string {
 	for _, v := range values {

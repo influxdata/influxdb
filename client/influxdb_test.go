@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/client"
@@ -113,6 +114,35 @@ func TestClient_Write(t *testing.T) {
 	_, err = c.Write(write)
 	if err != nil {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+}
+
+func TestEpochToTime(t *testing.T) {
+	now := time.Now()
+
+	tests := []struct {
+		name      string
+		epoch     int64
+		precision string
+		expected  time.Time
+	}{
+		{name: "nanoseconds", epoch: now.UnixNano(), precision: "n", expected: now},
+		{name: "microseconds", epoch: now.Round(time.Microsecond).UnixNano() / int64(time.Microsecond), precision: "u", expected: now.Round(time.Microsecond)},
+		{name: "milliseconds", epoch: now.Round(time.Millisecond).UnixNano() / int64(time.Millisecond), precision: "ms", expected: now.Round(time.Millisecond)},
+		{name: "seconds", epoch: now.Round(time.Second).UnixNano() / int64(time.Second), precision: "s", expected: now.Round(time.Second)},
+		{name: "minutes", epoch: now.Round(time.Minute).UnixNano() / int64(time.Minute), precision: "m", expected: now.Round(time.Minute)},
+		{name: "hours", epoch: now.Round(time.Hour).UnixNano() / int64(time.Hour), precision: "h", expected: now.Round(time.Hour)},
+	}
+
+	for _, test := range tests {
+		t.Logf("testing %q\n", test.name)
+		tm, e := client.EpochToTime(test.epoch, test.precision)
+		if e != nil {
+			t.Fatalf("unexpected error: expected %v, actual: %v", nil, e)
+		}
+		if tm != test.expected {
+			t.Fatalf("unexpected time: expected %v, actual %v", test.expected, tm)
+		}
 	}
 }
 
