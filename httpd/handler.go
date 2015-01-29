@@ -148,6 +148,7 @@ type BatchWrite struct {
 	RetentionPolicy string            `json:"retentionPolicy"`
 	Tags            map[string]string `json:"tags"`
 	Timestamp       time.Time         `json:"timestamp"`
+	Precision       string            `json:"precision"`
 }
 
 // UnmarshalJSON decodes the data into the batchWrite struct
@@ -184,6 +185,7 @@ func (br *BatchWrite) UnmarshalJSON(b []byte) error {
 		br.RetentionPolicy = epoch.RetentionPolicy
 		br.Tags = epoch.Tags
 		br.Timestamp = ts
+		br.Precision = epoch.Precision
 		return nil
 	}(); err == nil {
 		return nil
@@ -198,6 +200,7 @@ func (br *BatchWrite) UnmarshalJSON(b []byte) error {
 	br.RetentionPolicy = normal.RetentionPolicy
 	br.Tags = normal.Tags
 	br.Timestamp = normal.Timestamp
+	br.Precision = normal.Precision
 
 	return nil
 }
@@ -244,6 +247,10 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *influ
 			if p.Timestamp.Time().IsZero() {
 				p.Timestamp = client.Timestamp(br.Timestamp)
 			}
+			if p.Precision == "" && br.Precision != "" {
+				p.Precision = br.Precision
+			}
+			p.Timestamp = client.Timestamp(client.SetPrecision(p.Timestamp.Time(), p.Precision))
 			if len(br.Tags) > 0 {
 				for k, _ := range br.Tags {
 					if p.Tags[k] == "" {

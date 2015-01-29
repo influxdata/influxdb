@@ -226,6 +226,7 @@ type Point struct {
 	Tags      map[string]string      `json:"tags"`
 	Timestamp Timestamp              `json:"timestamp"`
 	Values    map[string]interface{} `json:"values"`
+	Precision string                 `json:"precision"`
 }
 
 // UnmarshalJSON decodes the data into the Point struct
@@ -258,6 +259,7 @@ func (p *Point) UnmarshalJSON(b []byte) error {
 		p.Name = epoch.Name
 		p.Tags = epoch.Tags
 		p.Timestamp = Timestamp(ts)
+		p.Precision = epoch.Precision
 		p.Values = epoch.Values
 		return nil
 	}(); err == nil {
@@ -271,6 +273,7 @@ func (p *Point) UnmarshalJSON(b []byte) error {
 	p.Name = normal.Name
 	p.Tags = normal.Tags
 	p.Timestamp = Timestamp(normal.Timestamp)
+	p.Precision = normal.Precision
 	p.Values = normal.Values
 
 	return nil
