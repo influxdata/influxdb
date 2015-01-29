@@ -117,6 +117,9 @@ func (tx *tx) CreateIterators(stmt *influxql.SelectStatement) ([]influxql.Iterat
 	if err != nil {
 		return nil, err
 	}
+	if m == nil {
+		return nil, ErrMeasurementNotFound
+	}
 
 	// Find field.
 	fieldName := stmt.Fields[0].Expr.(*influxql.VarRef).Val
