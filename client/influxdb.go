@@ -3,12 +3,13 @@ package client
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"time"
 
-	"github.com/influxdb/influxdb"
+	"github.com/influxdb/influxdb/influxql"
 )
 
 type Config struct {
@@ -32,7 +33,7 @@ type Query struct {
 type Write struct {
 	Database        string
 	RetentionPolicy string
-	Points          []influxdb.Point
+	Points          []Point
 }
 
 func NewClient(c Config) (*Client, error) {
@@ -45,7 +46,7 @@ func NewClient(c Config) (*Client, error) {
 	return &client, nil
 }
 
-func (c *Client) Query(q Query) (*influxdb.Results, error) {
+func (c *Client) Query(q Query) (*Results, error) {
 	u := c.url
 
 	u.Path = "query"
@@ -60,7 +61,7 @@ func (c *Client) Query(q Query) (*influxdb.Results, error) {
 	}
 	defer resp.Body.Close()
 
-	var results influxdb.Results
+	var results Results
 	err = json.NewDecoder(resp.Body).Decode(&results)
 	if err != nil {
 		return nil, err
@@ -68,12 +69,12 @@ func (c *Client) Query(q Query) (*influxdb.Results, error) {
 	return &results, nil
 }
 
-func (c *Client) Write(writes ...Write) (*influxdb.Results, error) {
+func (c *Client) Write(writes ...Write) (*Results, error) {
 	c.url.Path = "write"
 	type data struct {
-		Points          []influxdb.Point `json:"points"`
-		Database        string           `json:"database"`
-		RetentionPolicy string           `json:"retentionPolicy"`
+		Points          []Point `json:"points"`
+		Database        string  `json:"database"`
+		RetentionPolicy string  `json:"retentionPolicy"`
 	}
 
 	d := []data{}
@@ -90,7 +91,7 @@ func (c *Client) Write(writes ...Write) (*influxdb.Results, error) {
 	}
 	defer resp.Body.Close()
 
-	var results influxdb.Results
+	var results Results
 	err = json.NewDecoder(resp.Body).Decode(&results)
 	if err != nil {
 		return nil, err
@@ -108,6 +109,154 @@ func (c *Client) Ping() (time.Duration, string, error) {
 	}
 	version := resp.Header.Get("X-Influxdb-Version")
 	return time.Since(now), version, nil
+}
+
+// Structs
+
+// Result represents a resultset returned from a single statement.
+type Result struct {
+	Rows []*influxql.Row
+	Err  error
+}
+
+// MarshalJSON encodes the result into JSON.
+func (r *Result) MarshalJSON() ([]byte, error) {
+	// Define a struct that outputs "error" as a string.
+	var o struct {
+		Rows []*influxql.Row `json:"rows,omitempty"`
+		Err  string          `json:"error,omitempty"`
+	}
+
+	// Copy fields to output struct.
+	o.Rows = r.Rows
+	if r.Err != nil {
+		o.Err = r.Err.Error()
+	}
+
+	return json.Marshal(&o)
+}
+
+// UnmarshalJSON decodes the data into the Result struct
+func (r *Result) UnmarshalJSON(b []byte) error {
+	var o struct {
+		Rows []*influxql.Row `json:"rows,omitempty"`
+		Err  string          `json:"error,omitempty"`
+	}
+
+	err := json.Unmarshal(b, &o)
+	if err != nil {
+		return err
+	}
+	r.Rows = o.Rows
+	if o.Err != "" {
+		r.Err = errors.New(o.Err)
+	}
+	return nil
+}
+
+// Results represents a list of statement results.
+type Results struct {
+	Results []*Result
+	Err     error
+}
+
+func (r Results) MarshalJSON() ([]byte, error) {
+	// Define a struct that outputs "error" as a string.
+	var o struct {
+		Results []*Result `json:"results,omitempty"`
+		Err     string    `json:"error,omitempty"`
+	}
+
+	// Copy fields to output struct.
+	o.Results = r.Results
+	if r.Err != nil {
+		o.Err = r.Err.Error()
+	}
+
+	return json.Marshal(&o)
+}
+
+// UnmarshalJSON decodes the data into the Results struct
+func (r *Results) UnmarshalJSON(b []byte) error {
+	var o struct {
+		Results []*Result `json:"results,omitempty"`
+		Err     string    `json:"error,omitempty"`
+	}
+
+	err := json.Unmarshal(b, &o)
+	if err != nil {
+		return err
+	}
+	r.Results = o.Results
+	if o.Err != "" {
+		r.Err = errors.New(o.Err)
+	}
+	return nil
+}
+
+// Error returns the first error from any statement.
+// Returns nil if no errors occurred on any statements.
+func (a Results) Error() error {
+	for _, r := range a.Results {
+		if r.Err != nil {
+			return r.Err
+		}
+	}
+	return nil
+}
+
+// Point defines the values that will be written to the database
+type Point struct {
+	Name      string
+	Tags      map[string]string
+	Timestamp time.Time
+	Values    map[string]interface{}
+}
+
+// UnmarshalJSON decodes the data into the Point struct
+func (p *Point) UnmarshalJSON(b []byte) error {
+	var normal struct {
+		Name      string                 `json:"name"`
+		Tags      map[string]string      `json:"tags"`
+		Timestamp time.Time              `json:"timestamp"`
+		Values    map[string]interface{} `json:"values"`
+	}
+	var epoch struct {
+		Name      string                 `json:"name"`
+		Tags      map[string]string      `json:"tags"`
+		Timestamp int64                  `json:"timestamp"`
+		Precision string                 `json:"precision"`
+		Values    map[string]interface{} `json:"values"`
+	}
+
+	if err := func() error {
+		var err error
+		if err = json.Unmarshal(b, &epoch); err != nil {
+			return err
+		}
+		// Convert from epoch to time.Time
+		ts, err := EpochToTime(epoch.Timestamp, epoch.Precision)
+		if err != nil {
+			return err
+		}
+		p.Name = epoch.Name
+		p.Tags = epoch.Tags
+		p.Timestamp = ts
+		p.Values = epoch.Values
+		return nil
+	}(); err == nil {
+		return nil
+	}
+
+	if err := json.Unmarshal(b, &normal); err != nil {
+		return err
+	}
+	p.Name = normal.Name
+	p.Tags = normal.Tags
+	p.Timestamp = normal.Timestamp
+	p.Values = normal.Values
+
+	return nil
 }
 
 // utility functions

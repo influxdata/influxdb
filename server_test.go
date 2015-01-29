@@ -900,9 +900,9 @@ func TestServer_TagNamesBySeries(t *testing.T)  { t.Skip("pending") }
 func TestServer_TagValues(t *testing.T)         { t.Skip("pending") }
 func TestServer_TagValuesBySeries(t *testing.T) { t.Skip("pending") }
 
-// Point tests
+// Point JSON Unmarshal tests
 
-func TestPoint_UnmarshalEpoch(t *testing.T) {
+func TestbatchWrite_UnmarshalEpoch(t *testing.T) {
 	var (
 		now     = time.Now()
 		nanos   = now.UnixNano()
@@ -926,7 +926,9 @@ func TestPoint_UnmarshalEpoch(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		log.Println(test.name)
+		json := fmt.Sprintf(`"points": [{timestamp: "%d"}`, test.epoch)
+		log.Println(json)
+		t.Fatal("foo")
 	}
 
 }

@@ -1313,48 +1313,6 @@ type Point struct {
 	Values    map[string]interface{}
 }
 
-// UnmarshalJSON decodes the data into the Point struct
-func (p *Point) UnmarshalJSON(b []byte) error {
-	var normal struct {
-		Name      string
-		Tags      map[string]string
-		Timestamp time.Time
-		Values    map[string]interface{}
-	}
-	var epoch struct {
-		Name      string
-		Tags      map[string]string
-		Timestamp string `json:",string"`
-		Precision string // Can be h, m, s, ms, u, n, defaults to s if blank
-		Values    map[string]interface{}
-	}
-
-	err := json.Unmarshal(b, &epoch)
-	if err == nil {
-		// Convert from epoch to time.Time
-		switch epoch.Precision {
-		case "h":
-		case "m":
-		case "ms":
-		case "u":
-		case "n":
-		default: // defaults to seconds
-
-		}
-	}
-
-	err = json.Unmarshal(b, &normal)
-	if err != nil {
-		p = &Point{
-			Name:      normal.Name,
-			Tags:      normal.Tags,
-			Timestamp: normal.Timestamp,
-			Values:    normal.Values,
-		}
-	}
-	return nil
-}
-
 // WriteSeries writes series data to the database.
 // Returns the messaging index the data was written to.
 func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (uint64, error) {
