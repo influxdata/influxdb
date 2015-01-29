@@ -141,6 +141,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *influ
 	httpResults(w, results, pretty)
 }
 
+// BatchWrite is used to send batch write data to the http /write endpoint
 type BatchWrite struct {
 	Points          []client.Point    `json:"points"`
 	Database        string            `json:"database"`

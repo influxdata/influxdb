@@ -205,12 +205,15 @@ func (a Results) Error() error {
 	return nil
 }
 
+// Timestamp is a custom type so we marshal JSON properly into UTC nanosecond time
 type Timestamp time.Time
 
+// Time returns the time represented by the Timestamp
 func (t Timestamp) Time() time.Time {
 	return time.Time(t)
 }
 
+// MarshalJSON returns time in UTC with nanoseconds
 func (t Timestamp) MarshalJSON() ([]byte, error) {
 	// Always send back in UTC with nanoseconds
 	s := t.Time().UTC().Format(time.RFC3339Nano)
@@ -279,21 +282,9 @@ func (c *Client) Addr() string {
 	return c.url.String()
 }
 
-//func (c *Client) urlFor(path string) (*url.URL, error) {
-//var u *url.URL
-//u, err := url.Parse(fmt.Sprintf("%s%s", c.addr, path))
-//if err != nil {
-//return nil, err
-//}
-//if c.username != "" {
-//u.User = url.UserPassword(c.username, c.password)
-//}
-//u.Scheme = "http"
-//return u, nil
-//}
-
 // helper functions
 
+// EpochToTime takes a unix epoch time and uses precision to return back a time.Time
 func EpochToTime(epoch int64, precision string) (time.Time, error) {
 	if precision == "" {
 		precision = "s"
@@ -316,7 +307,6 @@ func EpochToTime(epoch int64, precision string) (time.Time, error) {
 		return time.Time{}, fmt.Errorf("Unknowm precision %q", precision)
 	}
 	return t, nil
-
 }
 
 // SetPrecision will round a time to the specified precision
