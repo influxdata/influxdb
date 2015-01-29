@@ -81,7 +81,7 @@ enabled = false
 # database = ""  # store graphite data in this database
 
 # Raft configuration
-[raft]
+[broker]
 # The raft port should be open between all servers in a cluster.
 # However, this port shouldn't be accessible from the internet.
 
@@ -94,7 +94,7 @@ debug = false
 
 # election-timeout = "1s"
 
-[storage]
+[data]
 
 dir = "/tmp/influxdb/development/db"
 # How many requests to potentially buffer in memory. If the buffer gets filled then writes
