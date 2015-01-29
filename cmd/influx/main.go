@@ -47,7 +47,7 @@ func main() {
 	usr, err := user.Current()
 	// Only load history if we can get the user
 	if err == nil {
-		historyFile = filepath.Join(usr.HomeDir, ".influxdb_history")
+		historyFile = filepath.Join(usr.HomeDir, ".influx_history")
 
 		if f, err := os.Open(historyFile); err == nil {
 			line.ReadHistory(f)
