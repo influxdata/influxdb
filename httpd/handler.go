@@ -16,6 +16,7 @@ import (
 
 	"github.com/bmizerany/pat"
 	"github.com/influxdb/influxdb"
+	"github.com/influxdb/influxdb/client"
 	"github.com/influxdb/influxdb/influxql"
 )
 
@@ -140,7 +141,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *influ
 	httpResults(w, results, pretty)
 }
 
-type batchWrite struct {
+type BatchWrite struct {
 	Points          []influxdb.Point  `json:"points"`
 	Database        string            `json:"database"`
 	RetentionPolicy string            `json:"retentionPolicy"`
@@ -148,9 +149,60 @@ type batchWrite struct {
 	Timestamp       time.Time         `json:"timestamp"`
 }
 
+// UnmarshalJSON decodes the data into the batchWrite struct
+func (br *BatchWrite) UnmarshalJSON(b []byte) error {
+	var normal struct {
+		Points          []influxdb.Point  `json:"points"`
+		Database        string            `json:"database"`
+		RetentionPolicy string            `json:"retentionPolicy"`
+		Tags            map[string]string `json:"tags"`
+		Timestamp       time.Time         `json:"timestamp"`
+	}
+	var epoch struct {
+		Points          []influxdb.Point  `json:"points"`
+		Database        string            `json:"database"`
+		RetentionPolicy string            `json:"retentionPolicy"`
+		Tags            map[string]string `json:"tags"`
+		Timestamp       int64             `json:"timestamp"`
+		Precision       string            `json:"precision"`
+	}
+
+	if err := func() error {
+		var err error
+		if err = json.Unmarshal(b, &epoch); err != nil {
+			return err
+		}
+		// Convert from epoch to time.Time
+		ts, err := client.EpochToTime(epoch.Timestamp, epoch.Precision)
+		log.Println(ts, err)
+		if err != nil {
+			return err
+		}
+		br.Points = epoch.Points
+		br.Database = epoch.Database
+		br.RetentionPolicy = epoch.RetentionPolicy
+		br.Tags = epoch.Tags
+		br.Timestamp = ts
+		return nil
+	}(); err == nil {
+		return nil
+	}
+
+	if err := json.Unmarshal(b, &normal); err != nil {
+		return err
+	}
+	br.Points = normal.Points
+	br.Database = normal.Database
+	br.RetentionPolicy = normal.RetentionPolicy
+	br.Tags = normal.Tags
+	br.Timestamp = normal.Timestamp
+
+	return nil
+}
+
 // serveWrite receives incoming series data and writes it to the database.
 func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *influxdb.User) {
-	var br batchWrite
+	var br BatchWrite
 
 	dec := json.NewDecoder(r.Body)
 
