@@ -1064,11 +1064,19 @@ func TestHandler_serveShowTagKeys(t *testing.T) {
 						Rows: []*influxql.Row{
 							&influxql.Row{
 								Name:    "cpu",
-								Columns: []string{"host", "region"},
+								Columns: []string{"tagKey"},
+								Values: [][]interface{}{
+									str2iface([]string{"host"}),
+									str2iface([]string{"region"}),
+								},
 							},
 							&influxql.Row{
 								Name:    "gpu",
-								Columns: []string{"host", "region"},
+								Columns: []string{"tagKey"},
+								Values: [][]interface{}{
+									str2iface([]string{"host"}),
+									str2iface([]string{"region"}),
+								},
 							},
 						},
 					},
@@ -1084,7 +1092,11 @@ func TestHandler_serveShowTagKeys(t *testing.T) {
 						Rows: []*influxql.Row{
 							&influxql.Row{
 								Name:    "cpu",
-								Columns: []string{"host", "region"},
+								Columns: []string{"tagKey"},
+								Values: [][]interface{}{
+									str2iface([]string{"host"}),
+									str2iface([]string{"region"}),
+								},
 							},
 						},
 					},
@@ -1112,6 +1124,8 @@ func TestHandler_serveShowTagKeys(t *testing.T) {
 		if !reflect.DeepEqual(tt.err, errstring(r.Err)) {
 			t.Errorf("%d. %s: error mismatch:\n  exp=%s\n  got=%s\n\n", i, tt.q, tt.err, r.Err)
 		} else if tt.err == "" && !reflect.DeepEqual(tt.r, r) {
+			b, _ := json.Marshal(tt.r)
+			t.Log(string(b))
 			t.Log(body)
 			t.Errorf("%d. %s: result mismatch:\n\nexp=%#v\n\ngot=%#v\n\n", i, tt.q, tt.r, r)
 		}

@@ -1774,9 +1774,6 @@ func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, 
 	// 	return &Result{}
 	// }
 
-	// Sort measurement names so results are always in the same order.
-	sort.Strings(measurements)
-
 	// Create result struct that will be populated and returned.
 	result := &Result{
 		Rows: make(influxql.Rows, 0, len(measurements)),
@@ -1923,9 +1920,21 @@ func (s *Server) executeShowTagKeysStatement(stmt *influxql.ShowTagKeysStatement
 
 		// TODO: filter tag keys by stmt.Condition
 
+		// Get the tag keys in sorted order.
+		keys := m.tagKeys()
+
+		// Convert keys to an [][]interface{}.
+		values := make([][]interface{}, 0, len(m.seriesByTagKeyValue))
+		for _, k := range keys {
+			v := interface{}(k)
+			values = append(values, []interface{}{v})
+		}
+
+		// Make a result row for the measurement.
 		r := &influxql.Row{
 			Name:    m.Name,
-			Columns: m.tagKeys(),
+			Columns: []string{"tagKey"},
+			Values:  values,
 		}
 
 		result.Rows = append(result.Rows, r)
@@ -1957,6 +1966,7 @@ func measurementsFromSourceOrDB(stmt influxql.Source, db *database) ([]string, e
 		// No measurements specified in FROM clause so get all measurements.
 		measurements = db.MeasurementNames()
 	}
+	sort.Strings(measurements)
 
 	return measurements, nil
 }
