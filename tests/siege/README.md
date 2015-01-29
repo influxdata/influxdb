@@ -27,11 +27,11 @@ To run siege, first start one or more InfluxDB nodes. At least one of those
 nodes should run on the default port of `8086`.
 
 Next, generate a URL file to run. You can use the `urlgen` utility in this
-folder to make the file. Simply set the number of unique series and number of
-points to generate:
+folder to make the file. Simply set the number of unique clients and number of
+series to generate:
 
 ```sh
-$ ./urlgen -s 10 -p 1000 > urls.txt
+$ ./urlgen -c 10 -s 100 > urls.txt
 ```
 
 Now you can execute siege. There are several arguments available but only 
