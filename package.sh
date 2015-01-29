@@ -133,6 +133,10 @@ do_build() {
     fi
 
     rm $GOPATH/bin/*
+    go get -u -f ./...
+    if [ $? -ne 0 ]; then
+        echo "WARNING: failed to 'go get' packages."
+    fi
     go install -a -ldflags="-X main.version $version -X main.commit $commit" ./...
     if [ $? -ne 0 ]; then
         echo "Build failed, unable to create package -- aborting"
