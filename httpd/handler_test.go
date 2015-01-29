@@ -103,23 +103,26 @@ func TestBatchWrite_UnmarshalRFC(t *testing.T) {
 	tests := []struct {
 		name     string
 		rfc      string
+		now      time.Time
 		expected time.Time
 	}{
 		{
 			name:     "RFC3339Nano",
 			rfc:      time.RFC3339Nano,
+			now:      now,
 			expected: now,
 		},
 		{
 			name:     "RFC3339",
 			rfc:      time.RFC3339,
+			now:      now.Round(time.Second),
 			expected: now.Round(time.Second),
 		},
 	}
 
 	for _, test := range tests {
 		t.Logf("testing %q\n", test.name)
-		ts := now.Format(test.rfc)
+		ts := test.now.Format(test.rfc)
 		data := []byte(fmt.Sprintf(`{"timestamp": %q}`, ts))
 		t.Logf("json: %s", string(data))
 		var br httpd.BatchWrite
