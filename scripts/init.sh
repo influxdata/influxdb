@@ -27,14 +27,6 @@ if [ -r $DEFAULT ]; then
     source $DEFAULT
 fi
 
-if [ "x$NOFILES" == "x" ]; then
-    NOFILES=0
-fi
-
-if [ $NOFILES -le 0 ]; then
-    NOFILES=65536
-fi
-
 if [ "x$STDOUT" == "x" ]; then
     STDOUT=/dev/null
 fi
@@ -102,12 +94,14 @@ case $1 in
                 exit 1 # Exit
             fi
         fi
-        # Start the daemon.
-        if ! ulimit -n $NOFILES >/dev/null 2>&1; then
-            echo -n "Cannot set the max number of open file descriptors"
-		    exit 1
+
+        # Avoid any open file-limit issues.
+        ulimit -n 65536
+        if [ $? -ne 0 ]; then
+            echo "Warning: failed to increase open file limit"
         fi
 
+        # Start the daemon.
         log_success_msg "Starting the process" "$name"
         nohup $daemon run -config $config -pidfile $pidfile > /dev/null 2>&1 &
         log_success_msg "$name process was started"
