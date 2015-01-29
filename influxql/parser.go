@@ -348,13 +348,37 @@ func (p *Parser) parseDuration() (time.Duration, error) {
 	return d, nil
 }
 
-// parserIdent parses an identifier.
+// parseIdent parses an identifier.
 func (p *Parser) parseIdent() (string, error) {
 	tok, pos, lit := p.scanIgnoreWhitespace()
 	if tok != IDENT {
 		return "", newParseError(tokstr(tok, lit), []string{"identifier"}, pos)
 	}
 	return lit, nil
+}
+
+// parseIdentList parses a comma delimited list of identifiers.
+func (p *Parser) parseIdentList() ([]string, error) {
+	// Parse first (required) identifier.
+	ident, err := p.parseIdent()
+	if err != nil {
+		return nil, err
+	}
+	idents := []string{ident}
+
+	// Parse remaining (optional) identifiers.
+	for {
+		if tok, _, _ := p.scanIgnoreWhitespace(); tok != COMMA {
+			p.unscan()
+			return idents, nil
+		}
+
+		if ident, err = p.parseIdent(); err != nil {
+			return nil, err
+		}
+
+		idents = append(idents, ident)
+	}
 }
 
 // parserString parses a string.
@@ -717,11 +741,17 @@ func (p *Parser) parseShowTagValuesStatement() (*ShowTagValuesStatement, error) 
 	stmt := &ShowTagValuesStatement{}
 	var err error
 
-	// Parse source.
-	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != FROM {
-		return nil, newParseError(tokstr(tok, lit), []string{"FROM"}, pos)
+	// Parse optional source.
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == FROM {
+		if stmt.Source, err = p.parseSource(); err != nil {
+			return nil, err
+		}
+	} else {
+		p.unscan()
 	}
-	if stmt.Source, err = p.parseSource(); err != nil {
+
+	// Parse required WITH KEY.
+	if stmt.TagKeys, err = p.parseTagKeys(); err != nil {
 		return nil, err
 	}
 
@@ -746,6 +776,47 @@ func (p *Parser) parseShowTagValuesStatement() (*ShowTagValuesStatement, error) 
 	}
 
 	return stmt, nil
+}
+
+// parseTagKeys parses a string and returns a list of tag keys.
+func (p *Parser) parseTagKeys() ([]string, error) {
+	var err error
+
+	// Parse required WITH KEY tokens.
+	if err := p.parseTokens([]Token{WITH, KEY}); err != nil {
+		return nil, err
+	}
+
+	var tagKeys []string
+
+	// Parse required IN or EQ token.
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok == IN {
+		// Parse required ( token.
+		if tok, pos, lit = p.scanIgnoreWhitespace(); tok != LPAREN {
+			return nil, newParseError(tokstr(tok, lit), []string{"("}, pos)
+		}
+
+		// Parse tag key list.
+		if tagKeys, err = p.parseIdentList(); err != nil {
+			return nil, err
+		}
+
+		// Parse required ) token.
+		if tok, pos, lit = p.scanIgnoreWhitespace(); tok != RPAREN {
+			return nil, newParseError(tokstr(tok, lit), []string{"("}, pos)
+		}
+	} else if tok == EQ {
+		// Parse required tag key.
+		ident, err := p.parseIdent()
+		if err != nil {
+			return nil, err
+		}
+		tagKeys = append(tagKeys, ident)
+	} else {
+		return nil, newParseError(tokstr(tok, lit), []string{"IN", "="}, pos)
+	}
+
+	return tagKeys, nil
 }
 
 // parseShowUsersStatement parses a string and returns a ShowUsersStatement.
@@ -1457,11 +1528,6 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 	case DURATION_VAL:
 		v, _ := ParseDuration(lit)
 		return &DurationLiteral{Val: v}, nil
-	case TAG:
-		if tok, pos, lit = p.scanIgnoreWhitespace(); tok != KEY {
-			return nil, newParseError(tokstr(tok, lit), []string{"KEY"}, pos)
-		}
-		return &TagKeyIdent{}, nil
 	default:
 		return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string", "number", "bool"}, pos)
 	}

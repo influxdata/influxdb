@@ -1132,6 +1132,147 @@ func TestHandler_serveShowTagKeys(t *testing.T) {
 	}
 }
 
+func TestHandler_serveShowTagValues(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
+	srvr.SetDefaultRetentionPolicy("foo", "bar")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [
+		{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "uswest"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
+		{"name": "gpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}}
+		]}`)
+
+	if status != http.StatusOK {
+		t.Log(body)
+		t.Fatalf("unexpected status after write: %d", status)
+	}
+
+	var tests = []struct {
+		q   string
+		r   *influxdb.Results
+		err string
+	}{
+		// SHOW TAG VALUES
+		{
+			q: `SHOW TAG VALUES WITH KEY = host`,
+			r: &influxdb.Results{
+				Results: []*influxdb.Result{
+					&influxdb.Result{
+						Rows: []*influxql.Row{
+							&influxql.Row{
+								Name:    "cpu",
+								Columns: []string{"tagValue"},
+								Values: [][]interface{}{
+									str2iface([]string{"server01"}),
+									str2iface([]string{"server02"}),
+								},
+							},
+							&influxql.Row{
+								Name:    "gpu",
+								Columns: []string{"tagValue"},
+								Values: [][]interface{}{
+									str2iface([]string{"server02"}),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		// SHOW TAG VALUES FROM ...
+		{
+			q: `SHOW TAG VALUES FROM cpu WITH KEY = host`,
+			r: &influxdb.Results{
+				Results: []*influxdb.Result{
+					&influxdb.Result{
+						Rows: []*influxql.Row{
+							&influxql.Row{
+								Name:    "cpu",
+								Columns: []string{"tagValue"},
+								Values: [][]interface{}{
+									str2iface([]string{"server01"}),
+									str2iface([]string{"server02"}),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		// SHOW TAG VALUES FROM ... WHERE ...
+		{
+			q: `SHOW TAG VALUES FROM cpu WITH KEY = host WHERE region = 'uswest'`,
+			r: &influxdb.Results{
+				Results: []*influxdb.Result{
+					&influxdb.Result{
+						Rows: []*influxql.Row{
+							&influxql.Row{
+								Name:    "cpu",
+								Columns: []string{"tagValue"},
+								Values: [][]interface{}{
+									str2iface([]string{"server01"}),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		// SHOW TAG VALUES FROM ... WITH KEY IN ... WHERE ...
+		{
+			q: `SHOW TAG VALUES FROM cpu WITH KEY IN (host, region) WHERE region = 'uswest'`,
+			r: &influxdb.Results{
+				Results: []*influxdb.Result{
+					&influxdb.Result{
+						Rows: []*influxql.Row{
+							&influxql.Row{
+								Name:    "cpu",
+								Columns: []string{"tagValue"},
+								Values: [][]interface{}{
+									str2iface([]string{"server01"}),
+									str2iface([]string{"uswest"}),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	for i, tt := range tests {
+		query := map[string]string{"db": "foo", "q": tt.q}
+		status, body = MustHTTP("GET", s.URL+`/query`, query, nil, "")
+
+		if status != http.StatusOK {
+			t.Logf("query #%d: %s", i, tt.q)
+			t.Log(body)
+			t.Errorf("unexpected status: %d", status)
+		}
+
+		r := &influxdb.Results{}
+		if err := json.Unmarshal([]byte(body), r); err != nil {
+			t.Logf("query #%d: %s", i, tt.q)
+			t.Log(body)
+			t.Error(err)
+		}
+
+		if !reflect.DeepEqual(tt.err, errstring(r.Err)) {
+			t.Errorf("%d. %s: error mismatch:\n  exp=%s\n  got=%s\n\n", i, tt.q, tt.err, r.Err)
+		} else if tt.err == "" && !reflect.DeepEqual(tt.r, r) {
+			b, _ := json.Marshal(tt.r)
+			t.Log(string(b))
+			t.Log(body)
+			t.Errorf("%d. %s: result mismatch:\n\nexp=%#v\n\ngot=%#v\n\n", i, tt.q, tt.r, r)
+		}
+	}
+}
+
 // Utility functions for this test suite.
 
 func MustHTTP(verb, path string, params, headers map[string]string, body string) (int, string) {

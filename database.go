@@ -1178,3 +1178,77 @@ func (m *Measurement) tagKeys() []string {
 	sort.Strings(keys)
 	return keys
 }
+
+func (m *Measurement) tagValuesByKeyAndSeriesID(tagKeys []string, ids seriesIDs) stringSet {
+	// If no tag keys were passed, get all tag keys for the measurement.
+	if len(tagKeys) == 0 {
+		for k, _ := range m.seriesByTagKeyValue {
+			tagKeys = append(tagKeys, k)
+		}
+	}
+
+	// Make a set to hold all tag values found.
+	tagValues := newStringSet()
+
+	// Iterate all series to collect tag values.
+	for _, id := range ids {
+		s, ok := m.seriesByID[id]
+		if !ok {
+			continue
+		}
+
+		// Iterate the tag keys we're interested in and collect values
+		// from this series, if they exist.
+		for _, tagKey := range tagKeys {
+			if tagVal, ok := s.Tags[tagKey]; ok {
+				tagValues.add(tagVal)
+			}
+		}
+	}
+
+	return tagValues
+}
+
+type stringSet map[string]struct{}
+
+func newStringSet() stringSet {
+	return make(map[string]struct{})
+}
+
+func (s stringSet) add(ss string) {
+	s[ss] = struct{}{}
+}
+
+func (s stringSet) list() []string {
+	l := make([]string, 0, len(s))
+	for k, _ := range s {
+		l = append(l, k)
+	}
+	return l
+}
+
+func (s stringSet) union(o stringSet) stringSet {
+	ns := newStringSet()
+	for k, _ := range s {
+		ns[k] = struct{}{}
+	}
+	for k, _ := range o {
+		ns[k] = struct{}{}
+	}
+	return ns
+}
+
+func (s stringSet) intersect(o stringSet) stringSet {
+	ns := newStringSet()
+	for k, _ := range s {
+		if _, ok := o[k]; ok {
+			ns[k] = struct{}{}
+		}
+	}
+	for k, _ := range o {
+		if _, ok := s[k]; ok {
+			ns[k] = struct{}{}
+		}
+	}
+	return ns
+}

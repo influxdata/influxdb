@@ -69,8 +69,8 @@ func mapKeyList(m interface{}) []string {
 	switch m.(type) {
 	case map[string]string:
 		return mapStrStrKeyList(m.(map[string]string))
-	case map[string]int:
-		return mapStrIntKeyList(m.(map[string]int))
+	case map[string]uint32:
+		return mapStrUint32KeyList(m.(map[string]uint32))
 	}
 	return nil
 }
@@ -83,7 +83,7 @@ func mapStrStrKeyList(m map[string]string) []string {
 	return l
 }
 
-func mapStrIntKeyList(m map[string]int) []string {
+func mapStrUint32KeyList(m map[string]uint32) []string {
 	l := make([]string, 0, len(m))
 	for k, _ := range m {
 		l = append(l, k)

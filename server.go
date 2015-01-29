@@ -1642,7 +1642,7 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 		case *influxql.ShowTagKeysStatement:
 			res = s.executeShowTagKeysStatement(stmt, database, user)
 		case *influxql.ShowTagValuesStatement:
-			continue
+			res = s.executeShowTagValuesStatement(stmt, database, user)
 		case *influxql.ShowFieldKeysStatement:
 			continue
 		case *influxql.ShowFieldValuesStatement:
@@ -1943,6 +1943,82 @@ func (s *Server) executeShowTagKeysStatement(stmt *influxql.ShowTagKeysStatement
 	// TODO: LIMIT & OFFSET
 
 	return result
+}
+
+func (s *Server) executeShowTagValuesStatement(stmt *influxql.ShowTagValuesStatement, database string, user *User) *Result {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	// Find the database.
+	db := s.databases[database]
+	if db == nil {
+		return &Result{Err: ErrDatabaseNotFound}
+	}
+
+	// Get the list of measurements we're interested in.
+	measurements, err := measurementsFromSourceOrDB(stmt.Source, db)
+	if err != nil {
+		return &Result{Err: err}
+	}
+
+	// Make result.
+	result := &Result{
+		Rows: make(influxql.Rows, 0, len(measurements)),
+	}
+
+	for _, name := range measurements {
+		// Look up the measurement by name.
+		m, ok := db.measurements[name]
+		if !ok {
+			continue
+		}
+
+		var ids seriesIDs
+
+		if stmt.Condition != nil {
+			// Get series IDs that match the WHERE clause.
+			filters := map[uint32]influxql.Expr{}
+			ids, _, _ = m.walkWhereForSeriesIds(stmt.Condition, filters)
+
+			// If no series matched, then go to the next measurement.
+			if len(ids) == 0 {
+				continue
+			}
+
+			// TODO: check return of walkWhereForSeriesIds for fields
+		} else {
+			// No WHERE clause so get all series IDs for this measurement.
+			ids = m.seriesIDs
+		}
+
+		tagValues := m.tagValuesByKeyAndSeriesID(stmt.TagKeys, ids)
+
+		r := &influxql.Row{
+			Name:    m.Name,
+			Columns: []string{"tagValue"},
+		}
+
+		vals := tagValues.list()
+		sort.Strings(vals)
+
+		for _, val := range vals {
+			v := interface{}(val)
+			r.Values = append(r.Values, []interface{}{v})
+		}
+
+		result.Rows = append(result.Rows, r)
+	}
+
+	return result
+}
+
+// str2iface converts an array of strings to an array of interfaces.
+func str2iface(strs []string) []interface{} {
+	a := make([]interface{}, 0, len(strs))
+	for _, s := range strs {
+		a = append(a, interface{}(s))
+	}
+	return a
 }
 
 // measurementsFromSourceOrDB returns a list of measurement names from the
