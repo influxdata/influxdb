@@ -59,6 +59,12 @@ func (b *Broker) metaPath() string {
 
 func (b *Broker) opened() bool { return b.path != "" }
 
+// SetLogOutput sets writer for all Broker log output.
+func (b *Broker) SetLogOutput(w io.Writer) {
+	b.Logger = log.New(w, "[broker] ", log.LstdFlags)
+	b.log.SetLogOutput(w)
+}
+
 // Open initializes the log.
 // The broker then must be initialized or join a cluster before it can be used.
 func (b *Broker) Open(path string, u *url.URL) error {
