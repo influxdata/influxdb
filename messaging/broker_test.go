@@ -194,6 +194,28 @@ func TestBroker_Unsubscribe_ErrReplicaNotFound(t *testing.T) {
 	}
 }
 
+// Benchmarks a single broker without HTTP.
+func BenchmarkBroker_Publish(b *testing.B) {
+	br := NewBroker(nil)
+	defer br.Close()
+
+	b.ResetTimer()
+
+	var index uint64
+	for i := 0; i < b.N; i++ {
+		var err error
+		index, err = br.Publish(&messaging.Message{Type: 0, TopicID: 1, Data: make([]byte, 50)})
+		if err != nil {
+			b.Fatalf("unexpected error: %s", err)
+		}
+	}
+
+	// Wait for the broker to commit.
+	if err := br.Sync(index); err != nil {
+		b.Fatalf("sync error: %s", err)
+	}
+}
+
 // Broker is a wrapper for broker.Broker that creates the broker in a temporary location.
 type Broker struct {
 	*messaging.Broker
