@@ -29,7 +29,7 @@ join-urls = ""
 enabled = false
 
 [logging]
-file   = "/var/log/influxdb/influxd.log"
+file   = "/var/log/influxdb/influxd.log" # Leave blank for to redirect logging to stderr.
 
 # Configure the admin server
 [admin]
