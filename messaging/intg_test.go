@@ -62,7 +62,8 @@ func TestBroker_Join(t *testing.T) {
 	}
 }
 
-func BenchmarkBroker_Publish(b *testing.B) {
+// Benchmarks a cluster of 3 brokers over HTTP.
+func BenchmarkCluster_Publish(b *testing.B) {
 	c := NewCluster(3)
 	defer c.Close()
 
