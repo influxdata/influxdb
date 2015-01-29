@@ -231,11 +231,12 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
-		// SHOW TAG VALUES
+		// SHOW TAG VALUES FROM ... WITH KEY = ...
 		{
-			s: `SHOW TAG VALUES FROM src WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
+			s: `SHOW TAG VALUES FROM src WITH KEY = region WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
 			stmt: &influxql.ShowTagValuesStatement{
-				Source: &influxql.Measurement{Name: "src"},
+				Source:  &influxql.Measurement{Name: "src"},
+				TagKeys: []string{"region"},
 				Condition: &influxql.BinaryExpr{
 					Op:  influxql.EQ,
 					LHS: &influxql.VarRef{Val: "region"},
@@ -250,65 +251,43 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
-		// SHOW TAG VALUES ... TAG KEY =
+		// SHOW TAG VALUES FROM ... WITH KEY IN...
 		{
-			s: `SHOW TAG VALUES FROM cpu WHERE TAG KEY = 'host' AND region = 'uswest'`,
+			s: `SHOW TAG VALUES FROM cpu WITH KEY IN (region, host) WHERE region = 'uswest'`,
 			stmt: &influxql.ShowTagValuesStatement{
-				Source: &influxql.Measurement{Name: "cpu"},
+				Source:  &influxql.Measurement{Name: "cpu"},
+				TagKeys: []string{"region", "host"},
 				Condition: &influxql.BinaryExpr{
-					Op: influxql.AND,
-					LHS: &influxql.BinaryExpr{
-						Op:  influxql.EQ,
-						LHS: &influxql.TagKeyIdent{},
-						RHS: &influxql.StringLiteral{Val: "host"},
-					},
-					RHS: &influxql.BinaryExpr{
-						Op:  influxql.EQ,
-						LHS: &influxql.VarRef{Val: "region"},
-						RHS: &influxql.StringLiteral{Val: "uswest"},
-					},
+					Op:  influxql.EQ,
+					LHS: &influxql.VarRef{Val: "region"},
+					RHS: &influxql.StringLiteral{Val: "uswest"},
 				},
 			},
 		},
 
 		// SHOW TAG VALUES ... AND TAG KEY =
 		{
-			s: `SHOW TAG VALUES FROM cpu WHERE region = 'uswest' AND TAG KEY = 'host'`,
+			s: `SHOW TAG VALUES FROM cpu WITH KEY IN (region,service,host)WHERE region = 'uswest'`,
 			stmt: &influxql.ShowTagValuesStatement{
-				Source: &influxql.Measurement{Name: "cpu"},
+				Source:  &influxql.Measurement{Name: "cpu"},
+				TagKeys: []string{"region", "service", "host"},
 				Condition: &influxql.BinaryExpr{
-					Op: influxql.AND,
-					LHS: &influxql.BinaryExpr{
-						Op:  influxql.EQ,
-						LHS: &influxql.VarRef{Val: "region"},
-						RHS: &influxql.StringLiteral{Val: "uswest"},
-					},
-					RHS: &influxql.BinaryExpr{
-						Op:  influxql.EQ,
-						LHS: &influxql.TagKeyIdent{},
-						RHS: &influxql.StringLiteral{Val: "host"},
-					},
+					Op:  influxql.EQ,
+					LHS: &influxql.VarRef{Val: "region"},
+					RHS: &influxql.StringLiteral{Val: "uswest"},
 				},
 			},
 		},
 
-		// SHOW TAG VALUES ... AND ... = TAG KEY
+		// SHOW TAG VALUES WITH KEY = ...
 		{
-			s: `SHOW TAG VALUES FROM cpu WHERE region = 'uswest' AND 'host' = TAG KEY`,
+			s: `SHOW TAG VALUES WITH KEY = host WHERE region = 'uswest'`,
 			stmt: &influxql.ShowTagValuesStatement{
-				Source: &influxql.Measurement{Name: "cpu"},
+				TagKeys: []string{"host"},
 				Condition: &influxql.BinaryExpr{
-					Op: influxql.AND,
-					LHS: &influxql.BinaryExpr{
-						Op:  influxql.EQ,
-						LHS: &influxql.VarRef{Val: "region"},
-						RHS: &influxql.StringLiteral{Val: "uswest"},
-					},
-					RHS: &influxql.BinaryExpr{
-						Op:  influxql.EQ,
-						LHS: &influxql.StringLiteral{Val: "host"},
-						RHS: &influxql.TagKeyIdent{},
-					},
+					Op:  influxql.EQ,
+					LHS: &influxql.VarRef{Val: "region"},
+					RHS: &influxql.StringLiteral{Val: "uswest"},
 				},
 			},
 		},
