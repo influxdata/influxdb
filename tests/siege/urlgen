@@ -1,0 +1,59 @@
+#!/bin/sh -e
+
+# Calculate start time as unix timestamp.
+TIME=`date -j -f "%b %d %T %Z %Y" "Jan 01 00:00:00 EDT 2000" "+%s"`
+
+# Set defaults.
+INTERVAL=10
+NUMSERIES=1
+NUMPOINTS=100
+
+# Parse arguments
+while getopts "s:p:i:h" opt; do
+	case $opt in
+	i)
+		INTERVAL=$OPTARG
+		;;
+	s)
+		NUMSERIES=$OPTARG
+		;;
+	p)
+		NUMPOINTS=$OPTARG
+		;;
+	h)
+		echo "urlgen is a utility for generating URL files for siege."
+		echo ""
+		echo "Usage:"
+		echo "	urlgen.sh [OPTIONS]"
+		echo ""
+		echo "The following arguments can be specified:"
+		echo ""
+		echo "	-i seconds"
+	    echo "	    Interval between generated points per series."
+		echo ""
+		echo "	-s num"
+	    echo "	    Number of unique series to generate."
+		echo ""
+		echo "	-p num"
+	    echo "	    Number of points per series to generate."
+		echo ""
+		exit 1
+		;;
+	esac
+done
+
+# Generate a new value every interval per series.
+for i in `seq 1 $NUMPOINTS`;
+do
+	# Move forward the current time.
+	let TIME=TIME+INTERVAL
+	TIMESTAMP=`date -j -f "%s" $TIME +"%Y-%m-%dT%H:%M:%SZ"`
+
+	# Generate a URL for each series.
+	for series in `seq 1 $NUMSERIES`;
+	do
+		echo 'http://localhost:8086/write POST {"database" : "db", "retentionPolicy" : "raw", "points": [{"name": "cpu", "tags": {"host": "server'$series'"}, "timestamp": "'$TIMESTAMP'","values": {"value": 100}}]}'
+	done
+done
+
+
