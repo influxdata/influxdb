@@ -1,15 +1,17 @@
 package main
 
 import (
-	"bufio"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"net/url"
 	"os"
+	"os/user"
+	"path/filepath"
 	"strings"
 
 	"github.com/influxdb/influxdb/client"
+	"github.com/peterh/liner"
 )
 
 type cli struct {
@@ -37,19 +39,69 @@ func main() {
 	// TODO Determine if we are an ineractive shell or running commands
 	fmt.Println("InfluxDB shell")
 	c.connect("")
-	fmt.Print("> ")
-	scanner := bufio.NewScanner(os.Stdin)
-	for scanner.Scan() {
-		c.parseCommand(scanner.Text())
-		fmt.Print("> ")
+
+	line := liner.NewLiner()
+	defer line.Close()
+
+	var historyFile string
+	usr, err := user.Current()
+	// Only load history if we can get the user
+	if err == nil {
+		historyFile = filepath.Join(usr.HomeDir, ".influx_history")
+
+		if f, err := os.Open(historyFile); err == nil {
+			line.ReadHistory(f)
+			f.Close()
+		}
 	}
-	if err := scanner.Err(); err != nil {
-		fmt.Fprintln(os.Stderr, "reading standard input:", err)
+
+	for {
+		l, e := line.Prompt("> ")
+		if e != nil {
+			break
+		}
+		if !c.parseCommand(l) {
+			// write out the history
+			if f, err := os.Create(historyFile); err == nil {
+				line.WriteHistory(f)
+				f.Close()
+			}
+			break
+		}
+		line.AppendHistory(l)
 	}
+}
+
+func (c *cli) parseCommand(cmd string) bool {
+	lcmd := strings.ToLower(cmd)
+	switch {
+	case strings.HasPrefix(lcmd, "exit"):
+		// signal the program to exit
+		return false
+	case strings.HasPrefix(lcmd, "gopher"):
+		gopher()
+	case strings.HasPrefix(lcmd, "connect"):
+		c.connect(cmd)
+	case strings.HasPrefix(lcmd, "help"):
+		help()
+	case strings.HasPrefix(lcmd, "pretty"):
+		c.pretty = !c.pretty
+		if c.pretty {
+			fmt.Println("Pretty print enabled")
+		} else {
+			fmt.Println("Pretty print disabled")
+		}
+	case strings.HasPrefix(lcmd, "use"):
+		fmt.Println("We should use a database specified now... todo")
+	default:
+		c.executeQuery(cmd)
+	}
+	return true
 }
 
 func (c *cli) connect(cmd string) {
 	var cl *client.Client
+
 	if cmd != "" {
 		// TODO parse out connection string
 	}
@@ -83,56 +135,41 @@ func (c *cli) connect(cmd string) {
 	}
 }
 
-func (c *cli) parseCommand(cmd string) {
-	lcmd := strings.ToLower(cmd)
-	switch {
-	case strings.HasPrefix(lcmd, "exit"):
-		os.Exit(0)
-	case strings.HasPrefix(lcmd, "gopher"):
-		gopher()
-	case strings.HasPrefix(lcmd, "connect"):
-		c.connect(cmd)
-	case strings.HasPrefix(lcmd, "pretty"):
-		c.pretty = !c.pretty
-		if c.pretty {
-			fmt.Println("Pretty print enabled")
-		} else {
-			fmt.Println("Pretty print disabled")
-		}
-	case strings.HasPrefix(lcmd, "use"):
-		fmt.Println("We should use a database specified now... todo")
-	default:
-		c.executeQuery(cmd)
-	}
-}
-
 func (c *cli) executeQuery(query string) {
 	results, err := c.client.Query(client.Query{Command: query, Database: c.database})
 	if err != nil {
 		fmt.Printf("ERR: %s\n", err)
+		return
 	}
-	for _, r := range results.Results {
-		var i interface{}
-		if r.Err != nil {
-			i = r.Err
-		} else {
-			if len(r.Rows) == 0 {
-				continue
-			}
-			i = r.Rows
-		}
-		var data []byte
-		if c.pretty {
-			data, err = json.MarshalIndent(i, "", "    ")
-		} else {
-			data, err = json.Marshal(i)
-		}
-		if err != nil {
-			fmt.Printf("ERR: %s\n", err)
-			return
-		}
-		fmt.Fprintln(os.Stdout, string(data))
+	var data []byte
+	if c.pretty {
+		data, err = json.MarshalIndent(results, "", "    ")
+	} else {
+		data, err = json.Marshal(results)
 	}
+	if err != nil {
+		fmt.Printf("ERR: %s\n", err)
+		return
+	}
+	fmt.Fprintln(os.Stdout, string(data))
+}
+
+func help() {
+	fmt.Println(`Usage:
+        connect <host:port>   connect to another node
+        pretty                toggle pretty print
+        use <db_name>         set current databases
+        exit                  quit the influx shell
+
+        show databases        show database names
+        show series           show series information
+        show measurements     show measurement information
+        show tag keys         show tag key information
+        show tag values       show tag value information
+
+        a full list of influxql commands can be found at:
+        http://influxdb.com/docs
+`)
 }
 
 func gopher() {
