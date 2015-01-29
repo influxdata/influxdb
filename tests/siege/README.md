@@ -6,13 +6,33 @@ If you're on Mac you can install `siege` using `brew`. If you're on Linux
 you can install using your package manager.
 
 
+## Initializing the database
+
+Before you run your siege, you need to do 2 things:
+
+- Create a database named `db`.
+- Create a retention policy named `raw`.
+
+You can do this with the following commands:
+
+```sh
+$ curl -G http://localhost:8086/query --data-urlencode "q=CREATE DATABASE db"
+$ curl -G http://localhost:8086/query --data-urlencode "q=CREATE RETENTION POLICY raw ON db DURATION 1h REPLICATION 1 DEFAULT"
+```
+
+
 ## Running
 
 To run siege, first start one or more InfluxDB nodes. At least one of those
 nodes should run on the default port of `8086`.
 
-Next, choose a URL file to run. The URL files are named based on their series
-cardinality. For example, `series.10.txt` has 10 unique series.
+Next, generate a URL file to run. You can use the `urlgen` utility in this
+folder to make the file. Simply set the number of unique series and number of
+points to generate:
+
+```sh
+$ ./urlgen -s 10 -p 1000 > urls.txt
+```
 
 Now you can execute siege. There are several arguments available but only 
 a few that we're concerned with:
@@ -26,8 +46,21 @@ a few that we're concerned with:
 ```
 
 These can be combined to simulate different load. For example, this command
-will execute writes against 10 unique series using 100 concurrent connections:
+will execute writes against using 100 concurrent connections with a 1 second
+delay in between each call:
 
 ```sh
-$ siege -c 100 -f series.10.txt
+$ siege -c 100 -f urls.txt
 ```
+
+Again, you can also specify the `-b` option to remove the delay.
+
+
+## Verification
+
+You can verify that your data made it in by executing a query against it:
+
+```sh
+$ curl -G http://localhost:8086/query --data-urlencode "db=db" --data-urlencode "q=SELECT sum(value) FROM cpu GROUP BY time(1h)"
+```
+

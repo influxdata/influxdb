@@ -4,7 +4,7 @@
 TIME=`date -j -f "%b %d %T %Z %Y" "Jan 01 00:00:00 EDT 2000" "+%s"`
 
 # Set defaults.
-INTERVAL=10
+INTERVAL=1      # 1s
 NUMSERIES=1
 NUMPOINTS=100
 
@@ -30,12 +30,15 @@ while getopts "s:p:i:h" opt; do
 		echo ""
 		echo "	-i seconds"
 	    echo "	    Interval between generated points per series."
+	    echo "	    Defaults to 1 second."
 		echo ""
 		echo "	-s num"
 	    echo "	    Number of unique series to generate."
+	    echo "	    Defaults to 1 series."
 		echo ""
 		echo "	-p num"
 	    echo "	    Number of points per series to generate."
+	    echo "	    Defaults to 100 points."
 		echo ""
 		exit 1
 		;;
