@@ -231,6 +231,7 @@ func (p *Point) UnmarshalJSON(b []byte) error {
 		Name      string                 `json:"name"`
 		Tags      map[string]string      `json:"tags"`
 		Timestamp time.Time              `json:"timestamp"`
+		Precision string                 `json:"precision"`
 		Values    map[string]interface{} `json:"values"`
 	}
 	var epoch struct {
@@ -263,6 +264,7 @@ func (p *Point) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &normal); err != nil {
 		return err
 	}
+	normal.Timestamp = SetPrecision(normal.Timestamp, normal.Precision)
 	p.Name = normal.Name
 	p.Tags = normal.Tags
 	p.Timestamp = Timestamp(normal.Timestamp)
@@ -315,6 +317,24 @@ func EpochToTime(epoch int64, precision string) (time.Time, error) {
 	}
 	return t, nil
 
+}
+
+// SetPrecision will round a time to the specified precision
+func SetPrecision(t time.Time, precision string) time.Time {
+	switch precision {
+	case "n":
+	case "u":
+		return t.Round(time.Microsecond)
+	case "ms":
+		return t.Round(time.Millisecond)
+	case "s":
+		return t.Round(time.Second)
+	case "m":
+		return t.Round(time.Minute)
+	case "h":
+		return t.Round(time.Hour)
+	}
+	return t
 }
 
 func detect(values ...string) string {

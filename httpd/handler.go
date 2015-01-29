@@ -157,6 +157,7 @@ func (br *BatchWrite) UnmarshalJSON(b []byte) error {
 		RetentionPolicy string            `json:"retentionPolicy"`
 		Tags            map[string]string `json:"tags"`
 		Timestamp       time.Time         `json:"timestamp"`
+		Precision       string            `json:"precision"`
 	}
 	var epoch struct {
 		Points          []client.Point    `json:"points"`
@@ -190,6 +191,7 @@ func (br *BatchWrite) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &normal); err != nil {
 		return err
 	}
+	normal.Timestamp = client.SetPrecision(normal.Timestamp, normal.Precision)
 	br.Points = normal.Points
 	br.Database = normal.Database
 	br.RetentionPolicy = normal.RetentionPolicy
