@@ -48,8 +48,6 @@ func TestParseConfig(t *testing.T) {
 
 	if c.Logging.File != "influxdb.log" {
 		t.Fatalf("logging file mismatch: %v", c.Logging.File)
-	} else if c.Logging.Level != "info" {
-		t.Fatalf("logging level mismatch: %v", c.Logging.Level)
 	}
 
 	if !c.Authentication.Enabled {
@@ -169,8 +167,6 @@ join-urls = "http://127.0.0.1:8086"
 enabled = true
 
 [logging]
-# logging level can be one of "debug", "info", "warn" or "error"
-level  = "info"
 file   = "influxdb.log"
 
 # Configure the admin server
