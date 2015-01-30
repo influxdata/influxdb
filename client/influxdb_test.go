@@ -192,7 +192,7 @@ func TestPoint_UnmarshalEpoch(t *testing.T) {
 }
 
 func TestPoint_UnmarshalRFC(t *testing.T) {
-	now := time.Now()
+	now := time.Now().UTC()
 	tests := []struct {
 		name     string
 		rfc      string
