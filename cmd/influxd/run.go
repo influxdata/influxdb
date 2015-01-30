@@ -350,7 +350,6 @@ is used.
         -config <path>
                           Set the path to the configuration file.
 
-
         -hostname <name>
                           Override the hostname, the 'hostname' configuration
                           option will be overridden.
