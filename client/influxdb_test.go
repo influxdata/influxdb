@@ -186,7 +186,7 @@ func TestPoint_UnmarshalEpoch(t *testing.T) {
 			t.Fatalf("unexpected error.  exptected: %v, actual: %v", nil, err)
 		}
 		if p.Timestamp.Time() != test.expected {
-			t.Fatalf("Unexpected time.  expected: %v, actual: %v", test.expected, p.Timestamp)
+			t.Fatalf("Unexpected time.  expected: %v, actual: %v", test.expected, p.Timestamp.Time())
 		}
 	}
 }
