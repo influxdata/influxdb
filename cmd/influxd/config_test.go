@@ -125,6 +125,10 @@ func TestParseConfig(t *testing.T) {
 		t.Fatalf("data dir mismatch: %v", c.Data.Dir)
 	}
 
+	if c.Cluster.Dir != "/tmp/influxdb/development/cluster" {
+		t.Fatalf("cluster dir mismatch: %v", c.Cluster.Dir)
+	}
+
 	// TODO: UDP Servers testing.
 	/*
 		c.Assert(config.UdpServers, HasLen, 1)
@@ -217,6 +221,7 @@ dir  = "/tmp/influxdb/development/broker"
 dir = "/tmp/influxdb/development/db"
 
 [cluster]
+dir = "/tmp/influxdb/development/cluster"
 `
 
 func TestCollectd_ConnectionString(t *testing.T) {
