@@ -395,7 +395,7 @@ func (p *Parser) parseString() (string, error) {
 func (p *Parser) parseRevokeStatement() (*RevokeStatement, error) {
 	stmt := &RevokeStatement{}
 
-	// Parse the privilege to be granted.
+	// Parse the privilege to be revoked.
 	priv, err := p.parsePrivilege()
 	if err != nil {
 		return nil, err
@@ -405,7 +405,7 @@ func (p *Parser) parseRevokeStatement() (*RevokeStatement, error) {
 	// Parse ON clause.
 	tok, pos, lit := p.scanIgnoreWhitespace()
 	if tok == ON {
-		// Parse the name of the thing we're granting a privilege to use.
+		// Parse the name of the thing we're revoking a privilege to use.
 		lit, err := p.parseIdent()
 		if err != nil {
 			return nil, err
@@ -424,7 +424,7 @@ func (p *Parser) parseRevokeStatement() (*RevokeStatement, error) {
 		return nil, newParseError(tokstr(tok, lit), []string{"FROM"}, pos)
 	}
 
-	// Parse the name of the user we're granting the privilege to.
+	// Parse the name of the user we're revoking the privilege from.
 	lit, err = p.parseIdent()
 	if err != nil {
 		return nil, err

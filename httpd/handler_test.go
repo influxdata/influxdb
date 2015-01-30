@@ -872,6 +872,58 @@ func TestHandler_GrantAdmin(t *testing.T) {
 	}
 }
 
+func TestHandler_RevokeAdmin(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	// Create a cluster admin that will revoke admin from "john".
+	srvr.CreateUser("lisa", "password", true)
+	// Create user that will have cluster admin revoked.
+	srvr.CreateUser("john", "password", true)
+	s := NewAuthenticatedHTTPServer(srvr)
+	defer s.Close()
+
+	auth := make(map[string]string)
+	auth["Authorization"] = "Basic " + base64.StdEncoding.EncodeToString([]byte("lisa:password"))
+	query := map[string]string{"q": "REVOKE ALL PRIVILEGES FROM john"}
+
+	status, body := MustHTTP("GET", s.URL+`/query`, query, auth, "")
+
+	if status != http.StatusOK {
+		t.Log(body)
+		t.Fatalf("unexpected status: %d", status)
+	}
+
+	if u := srvr.User("john"); u.Admin {
+		t.Fatal(`expected user "john" not to be admin`)
+	}
+}
+
+func TestHandler_RevokeDBPrivilege(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	// Create a cluster admin that will revoke privilege from "john".
+	srvr.CreateUser("lisa", "password", true)
+	// Create user that will have privilege revoked.
+	srvr.CreateUser("john", "password", false)
+	u := srvr.User("john")
+	u.Privileges["foo"] = influxql.ReadPrivilege
+	s := NewAuthenticatedHTTPServer(srvr)
+	defer s.Close()
+
+	auth := make(map[string]string)
+	auth["Authorization"] = "Basic " + base64.StdEncoding.EncodeToString([]byte("lisa:password"))
+	query := map[string]string{"q": "REVOKE READ ON foo FROM john"}
+
+	status, body := MustHTTP("GET", s.URL+`/query`, query, auth, "")
+
+	if status != http.StatusOK {
+		t.Log(body)
+		t.Fatalf("unexpected status: %d", status)
+	}
+
+	if _, ok := u.Privileges["foo"]; ok {
+		t.Fatal(`expected user "john" not to have privileges on foo`)
+	}
+}
+
 func TestHandler_serveWriteSeries(t *testing.T) {
 	srvr := OpenServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")

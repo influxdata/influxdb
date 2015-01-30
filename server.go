@@ -1658,7 +1658,7 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 		case *influxql.GrantStatement:
 			res = s.executeGrantStatement(stmt, database, user)
 		case *influxql.RevokeStatement:
-			continue
+			res = s.executeRevokeStatement(stmt, user)
 		case *influxql.CreateRetentionPolicyStatement:
 			res = s.executeCreateRetentionPolicyStatement(stmt, user)
 		case *influxql.AlterRetentionPolicyStatement:
@@ -2047,6 +2047,38 @@ func (s *Server) executeGrantStatement(stmt *influxql.GrantStatement, database s
 	} else {
 		// Grant user the requested privilege on the database.
 		u.Privileges[database] = stmt.Privilege
+	}
+
+	return &Result{}
+}
+
+func (s *Server) executeRevokeStatement(stmt *influxql.RevokeStatement, user *User) *Result {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	// Look up the user in the statement that will have privilege revoked.
+	// NOTE: the user passed in by the caller is the revoker.
+	u, ok := s.users[stmt.User]
+	if !ok {
+		return &Result{Err: ErrUserNotFound}
+	}
+
+	// Check if this privilege is being revoked on the cluster.
+	if stmt.On == "" {
+		// The only privilege allowed on the cluster is admin (AllPrivileges).
+		if stmt.Privilege != influxql.AllPrivileges {
+			return &Result{
+				Err: fmt.Errorf("cannot revoke %s on the cluser, only %s",
+					stmt.Privilege.String(),
+					influxql.AllPrivileges.String()),
+			}
+		}
+
+		// Revoke user cluster admin privileges.
+		u.Admin = false
+	} else {
+		// Revoke user's privilege on the database.
+		delete(u.Privileges, stmt.On)
 	}
 
 	return &Result{}
