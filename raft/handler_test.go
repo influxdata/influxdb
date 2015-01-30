@@ -35,6 +35,7 @@ func TestHTTPHandler_HandleJoin(t *testing.T) {
 
 // Ensure a heartbeat can be sent over HTTP.
 func TestHTTPHandler_HandleHeartbeat(t *testing.T) {
+	t.Skip()
 	n := NewInitNode()
 	defer n.Close()
 
