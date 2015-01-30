@@ -26,7 +26,6 @@ func init() {
 }
 
 func TestBatchWrite_UnmarshalEpoch(t *testing.T) {
-	t.Skip()
 	now := time.Now()
 	tests := []struct {
 		name      string
@@ -100,7 +99,6 @@ func TestBatchWrite_UnmarshalEpoch(t *testing.T) {
 }
 
 func TestBatchWrite_UnmarshalRFC(t *testing.T) {
-	t.Skip()
 	now := time.Now()
 	tests := []struct {
 		name     string
