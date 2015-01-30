@@ -1656,7 +1656,7 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 		case *influxql.ShowFieldValuesStatement:
 			continue
 		case *influxql.GrantStatement:
-			continue
+			res = s.executeGrantStatement(stmt, database, user)
 		case *influxql.RevokeStatement:
 			continue
 		case *influxql.CreateRetentionPolicyStatement:
@@ -2018,6 +2018,38 @@ func (s *Server) executeShowTagValuesStatement(stmt *influxql.ShowTagValuesState
 	}
 
 	return result
+}
+
+func (s *Server) executeGrantStatement(stmt *influxql.GrantStatement, database string, user *User) *Result {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	// Look up the user in the statement that will be granted the privilege.
+	// NOTE: the user passed in by the caller is the granter.
+	u, ok := s.users[stmt.User]
+	if !ok {
+		return &Result{Err: ErrUserNotFound}
+	}
+
+	// Check if this privilege is being granted on the cluster.
+	if database == "" {
+		// The only privilege allowed on the cluster is admin (AllPrivileges).
+		if stmt.Privilege != influxql.AllPrivileges {
+			return &Result{
+				Err: fmt.Errorf("cannot grant %s on the cluser, only %s",
+					stmt.Privilege.String(),
+					influxql.AllPrivileges.String()),
+			}
+		}
+
+		// Grant user cluster admin privileges.
+		u.Admin = true
+	} else {
+		// Grant user the requested privilege on the database.
+		u.Privileges[database] = stmt.Privilege
+	}
+
+	return &Result{}
 }
 
 // str2iface converts an array of strings to an array of interfaces.

@@ -848,6 +848,30 @@ func TestHandler_AuthenticatedDatabases_UnauthorizedBasicAuth(t *testing.T) {
 	}
 }
 
+func TestHandler_GrantAdmin(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	// Create a cluster admin that will grant admin to "john".
+	srvr.CreateUser("lisa", "password", true)
+	// Create user that will be granted cluster admin.
+	srvr.CreateUser("john", "password", false)
+	s := NewAuthenticatedHTTPServer(srvr)
+	defer s.Close()
+
+	auth := make(map[string]string)
+	auth["Authorization"] = "Basic " + base64.StdEncoding.EncodeToString([]byte("lisa:password"))
+	query := map[string]string{"q": "GRANT ALL PRIVILEGES TO john"}
+
+	status, _ := MustHTTP("GET", s.URL+`/query`, query, auth, "")
+
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+
+	if u := srvr.User("john"); !u.Admin {
+		t.Fatal(`expected user "john" to be admin`)
+	}
+}
+
 func TestHandler_serveWriteSeries(t *testing.T) {
 	srvr := OpenServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
