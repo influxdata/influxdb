@@ -73,6 +73,9 @@ const (
 	// Write series data messages (per-topic)
 	writeRawSeriesMessageType = messaging.MessageType(0x80)
 	writeSeriesMessageType    = messaging.MessageType(0x81)
+
+	// Privilege messages
+	setPrivilegeMessageType = messaging.MessageType(0x90)
 )
 
 // Server represents a collection of metadata and raw metric data.
@@ -1036,6 +1039,52 @@ func (s *Server) applyDeleteUser(m *messaging.Message) error {
 
 type deleteUserCommand struct {
 	Username string `json:"username"`
+}
+
+// SetPrivilege grants / revokes a privilege to a user.
+func (s *Server) SetPrivilege(p influxql.Privilege, username string, dbname string) error {
+	c := &setPrivilegeCommand{p, username, dbname}
+	_, err := s.broadcast(setPrivilegeMessageType, c)
+	return err
+}
+
+func (s *Server) applySetPrivilege(m *messaging.Message) error {
+	var c setPrivilegeCommand
+	mustUnmarshalJSON(m.Data, &c)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Validate user.
+	if c.Username == "" {
+		return ErrUsernameRequired
+	}
+
+	u := s.users[c.Username]
+	if u == nil {
+		return ErrUserNotFound
+	}
+
+	// If dbname is empty, update user's Admin flag.
+	if c.Database == "" && (c.Privilege == influxql.AllPrivileges || c.Privilege == influxql.NoPrivileges) {
+		u.Admin = (c.Privilege == influxql.AllPrivileges)
+	} else if c.Database != "" {
+		// Update user's privilege for the database.
+		u.Privileges[c.Database] = c.Privilege
+	} else {
+		return ErrInvalidGrantRevoke
+	}
+
+	// Persist to metastore.
+	return s.meta.mustUpdate(func(tx *metatx) error {
+		return tx.saveUser(u)
+	})
+}
+
+type setPrivilegeCommand struct {
+	Privilege influxql.Privilege `json:"privilege"`
+	Username  string             `json:"username"`
+	Database  string             `json:"database"`
 }
 
 // RetentionPolicy returns a retention policy by name.
@@ -2021,67 +2070,11 @@ func (s *Server) executeShowTagValuesStatement(stmt *influxql.ShowTagValuesState
 }
 
 func (s *Server) executeGrantStatement(stmt *influxql.GrantStatement, user *User) *Result {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	// Look up the user in the statement that will be granted the privilege.
-	// NOTE: the user passed in by the caller is the granter.
-	u, ok := s.users[stmt.User]
-	if !ok {
-		return &Result{Err: ErrUserNotFound}
-	}
-
-	// Check if this privilege is being granted on the cluster.
-	if stmt.On == "" {
-		// The only privilege allowed on the cluster is admin (AllPrivileges).
-		if stmt.Privilege != influxql.AllPrivileges {
-			return &Result{
-				Err: fmt.Errorf("cannot grant %s on the cluser, only %s",
-					stmt.Privilege.String(),
-					influxql.AllPrivileges.String()),
-			}
-		}
-
-		// Grant user cluster admin privileges.
-		u.Admin = true
-	} else {
-		// Grant user the requested privilege on the database.
-		u.Privileges[stmt.On] = stmt.Privilege
-	}
-
-	return &Result{}
+	return &Result{Err: s.SetPrivilege(stmt.Privilege, stmt.User, stmt.On)}
 }
 
 func (s *Server) executeRevokeStatement(stmt *influxql.RevokeStatement, user *User) *Result {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	// Look up the user in the statement that will have privilege revoked.
-	// NOTE: the user passed in by the caller is the revoker.
-	u, ok := s.users[stmt.User]
-	if !ok {
-		return &Result{Err: ErrUserNotFound}
-	}
-
-	// Check if this privilege is being revoked on the cluster.
-	if stmt.On == "" {
-		// The only privilege allowed on the cluster is admin (AllPrivileges).
-		if stmt.Privilege != influxql.AllPrivileges {
-			return &Result{
-				Err: fmt.Errorf("cannot revoke %s on the cluser, only %s",
-					stmt.Privilege.String(),
-					influxql.AllPrivileges.String()),
-			}
-		}
-
-		// Revoke user cluster admin privileges.
-		u.Admin = false
-	} else {
-		// Revoke user's privilege on the database.
-		delete(u.Privileges, stmt.On)
-	}
-
-	return &Result{}
+	return &Result{Err: s.SetPrivilege(influxql.NoPrivileges, stmt.User, stmt.On)}
 }
 
 // str2iface converts an array of strings to an array of interfaces.
@@ -2363,6 +2356,8 @@ func (s *Server) processor(client MessagingClient, done chan struct{}) {
 			err = s.applySetDefaultRetentionPolicy(m)
 		case createSeriesIfNotExistsMessageType:
 			err = s.applyCreateSeriesIfNotExists(m)
+		case setPrivilegeMessageType:
+			err = s.applySetPrivilege(m)
 		}
 
 		// Sync high water mark and errors.
