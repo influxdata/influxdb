@@ -1,7 +1,31 @@
 #!/bin/sh -e
 
 # Calculate start time as unix timestamp.
-TIME=`date -j -f "%b %d %T %Z %Y" "Jan 01 00:00:00 EDT 2000" "+%s"`
+
+PLATFORM=`uname`
+
+_date_to_unix_timestamp () {
+    if [  "$PLATFORM" = "Darwin" ] ; then
+        date -j -f "%b %d %T %Z %Y" "$1" "+%s"
+    elif [  "$PLATFORM" = "Linux" ] ; then
+        date -d "$1" "+%s"
+    else
+        echo "I don't know if your date can read a format and a time, failing"
+        exit 99
+    fi
+}
+
+_timestamp_to_time_string () {
+    if [  "$PLATFORM" = "Darwin" ] ; then
+        date -j -f "%s" "$1" +"%Y-%m-%dT%H:%M:%SZ"
+    elif [  "$PLATFORM" = "Linux" ] ; then
+        date -d "@$1" +"%Y-%m-%dT%H:%M:%SZ"
+    fi
+}
+
+# Starting the test at "Jan 01 00:00:00 EDT 2000"
+TIME=`_date_to_unix_timestamp "Jan 01 00:00:00 EDT 2000"`
+
 
 # Set defaults.
 INTERVAL=1      # 1s
@@ -49,8 +73,8 @@ done
 for i in `seq 1 $NUMPOINTS`;
 do
 	# Move forward the current time.
-	let TIME=TIME+INTERVAL
-	TIMESTAMP=`date -j -f "%s" $TIME +"%Y-%m-%dT%H:%M:%SZ"`
+	TIME=$((TIME+INTERVAL))
+	TIMESTAMP=`_timestamp_to_time_string $TIME`
 
 	# Generate a URL for each series.
 	for series in `seq 1 $NUMSERIES`;
@@ -58,5 +82,3 @@ do
 		echo 'http://localhost:8086/write POST {"database" : "db", "retentionPolicy" : "raw", "points": [{"name": "cpu", "tags": {"host": "server'$series'"}, "timestamp": "'$TIMESTAMP'","values": {"value": 100}}]}'
 	done
 done
-
-
