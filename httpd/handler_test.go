@@ -130,7 +130,7 @@ func TestBatchWrite_UnmarshalRFC(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error.  exptected: %v, actual: %v", nil, err)
 		}
-		if br.Timestamp != test.expected {
+		if !br.Timestamp.Equal(test.expected) {
 			t.Fatalf("Unexpected time.  expected: %v, actual: %v", test.expected, br.Timestamp)
 		}
 	}
