@@ -113,6 +113,8 @@ func TestLog_State(t *testing.T) {
 
 // Ensure that a node has no configuration after it's closed.
 func TestLog_Config_Closed(t *testing.T) {
+	// TODO corylanou: racy test: gist: https://gist.github.com/corylanou/965ccf919e965082c338
+	t.Skip()
 	n := NewInitNode()
 	n.Close()
 	if n.Log.Config() != nil {
@@ -178,6 +180,8 @@ func TestLog_Apply_Cluster(t *testing.T) {
 
 // Ensure that a new leader can be elected.
 func TestLog_Elect(t *testing.T) {
+	// TODO: corylanou: racy test.  gist: https://gist.github.com/corylanou/2a354673bd863a7c0770
+	t.Skip()
 	c := NewCluster(3)
 	defer c.Close()
 	n0, n1, n2 := c.Nodes[0], c.Nodes[1], c.Nodes[2]
