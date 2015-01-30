@@ -147,11 +147,6 @@ func (c *cli) use(cmd string) {
 }
 
 func (c *cli) executeQuery(query string) {
-	if c.database == "" {
-		fmt.Println("ERR: No database specified.")
-		fmt.Println(`Please set a database with the command "use <database>".`)
-		return
-	}
 	results, err := c.client.Query(client.Query{Command: query, Database: c.database})
 	if err != nil {
 		fmt.Printf("ERR: %s\n", err)
@@ -168,6 +163,10 @@ func (c *cli) executeQuery(query string) {
 		return
 	}
 	fmt.Fprintln(os.Stdout, string(data))
+	if results.Error() != nil && c.database == "" {
+		fmt.Println("Warning: It is possible this error is due to not setting a database.")
+		fmt.Println(`Please set a database with the command "use <database>".`)
+	}
 }
 
 func help() {
