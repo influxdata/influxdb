@@ -1656,7 +1656,7 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 		case *influxql.ShowFieldValuesStatement:
 			continue
 		case *influxql.GrantStatement:
-			res = s.executeGrantStatement(stmt, database, user)
+			res = s.executeGrantStatement(stmt, user)
 		case *influxql.RevokeStatement:
 			res = s.executeRevokeStatement(stmt, user)
 		case *influxql.CreateRetentionPolicyStatement:
@@ -2020,7 +2020,7 @@ func (s *Server) executeShowTagValuesStatement(stmt *influxql.ShowTagValuesState
 	return result
 }
 
-func (s *Server) executeGrantStatement(stmt *influxql.GrantStatement, database string, user *User) *Result {
+func (s *Server) executeGrantStatement(stmt *influxql.GrantStatement, user *User) *Result {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -2032,7 +2032,7 @@ func (s *Server) executeGrantStatement(stmt *influxql.GrantStatement, database s
 	}
 
 	// Check if this privilege is being granted on the cluster.
-	if database == "" {
+	if stmt.On == "" {
 		// The only privilege allowed on the cluster is admin (AllPrivileges).
 		if stmt.Privilege != influxql.AllPrivileges {
 			return &Result{
@@ -2046,7 +2046,7 @@ func (s *Server) executeGrantStatement(stmt *influxql.GrantStatement, database s
 		u.Admin = true
 	} else {
 		// Grant user the requested privilege on the database.
-		u.Privileges[database] = stmt.Privilege
+		u.Privileges[stmt.On] = stmt.Privilege
 	}
 
 	return &Result{}

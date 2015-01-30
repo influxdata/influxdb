@@ -872,6 +872,33 @@ func TestHandler_GrantAdmin(t *testing.T) {
 	}
 }
 
+func TestHandler_GrantDBPrivilege(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	// Create a cluster admin that will grant privilege to "john".
+	srvr.CreateUser("lisa", "password", true)
+	// Create user that will be granted a privilege.
+	srvr.CreateUser("john", "password", false)
+	s := NewAuthenticatedHTTPServer(srvr)
+	defer s.Close()
+
+	auth := make(map[string]string)
+	auth["Authorization"] = "Basic " + base64.StdEncoding.EncodeToString([]byte("lisa:password"))
+	query := map[string]string{"q": "GRANT READ ON foo TO john"}
+
+	status, _ := MustHTTP("GET", s.URL+`/query`, query, auth, "")
+
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+
+	u := srvr.User("john")
+	if p, ok := u.Privileges["foo"]; !ok {
+		t.Fatal(`expected john to have privileges on foo but he has none`)
+	} else if p != influxql.ReadPrivilege {
+		t.Fatalf(`expected john to have read privilege on foo but he has %s`, p.String())
+	}
+}
+
 func TestHandler_RevokeAdmin(t *testing.T) {
 	srvr := OpenServer(NewMessagingClient())
 	// Create a cluster admin that will revoke admin from "john".
