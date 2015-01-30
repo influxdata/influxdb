@@ -33,7 +33,7 @@ running the following:
 Project structure
 -----------------
 
-First you need to setup the project structure
+First you need to setup the project structure:
 
     export GOPATH=$HOME/gocodez
     mkdir -p $GOPATH/src/github.com/influxdb
@@ -70,7 +70,7 @@ For more information on `go vet`, [read the GoDoc](https://godoc.org/golang.org/
 Build and Test
 -----
 
-Make sure you have Go installed. To build the project, execute the following commands:
+Make sure you have Go installed and the project structure as shown above. To then build the project, execute the following commands:
 
 ```bash
 cd $GOPATH/src/github.com/influxdb
