@@ -223,7 +223,7 @@ func TestPoint_UnmarshalRFC(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error.  exptected: %v, actual: %v", nil, err)
 		}
-		if p.Timestamp.Time() != test.expected {
+		if !p.Timestamp.Time().Equal(test.expected) {
 			t.Fatalf("Unexpected time.  expected: %v, actual: %v", test.expected, p.Timestamp.Time())
 		}
 	}
