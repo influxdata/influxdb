@@ -92,7 +92,7 @@ func (c *cli) parseCommand(cmd string) bool {
 			fmt.Println("Pretty print disabled")
 		}
 	case strings.HasPrefix(lcmd, "use"):
-		fmt.Println("We should use a database specified now... todo")
+		c.use(cmd)
 	default:
 		c.executeQuery(cmd)
 	}
@@ -135,7 +135,23 @@ func (c *cli) connect(cmd string) {
 	}
 }
 
+func (c *cli) use(cmd string) {
+	args := strings.Split(cmd, " ")
+	if len(args) != 2 {
+		fmt.Printf("Could not parse database name from %q.\n", cmd)
+		return
+	}
+	d := strings.TrimSpace(args[1])
+	c.database = d
+	fmt.Printf("Using database %s\n", d)
+}
+
 func (c *cli) executeQuery(query string) {
+	if c.database == "" {
+		fmt.Println("ERR: No database specified.")
+		fmt.Println(`Please set a database with the command "use <database>".`)
+		return
+	}
 	results, err := c.client.Query(client.Query{Command: query, Database: c.database})
 	if err != nil {
 		fmt.Printf("ERR: %s\n", err)
