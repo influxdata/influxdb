@@ -185,15 +185,14 @@ func TestPoint_UnmarshalEpoch(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error.  exptected: %v, actual: %v", nil, err)
 		}
-		if p.Timestamp.Time() != test.expected {
-			t.Fatalf("Unexpected time.  expected: %v, actual: %v", test.expected, p.Timestamp)
+		if !p.Timestamp.Time().Equal(test.expected) {
+			t.Fatalf("Unexpected time.  expected: %v, actual: %v", test.expected, p.Timestamp.Time())
 		}
 	}
 }
 
 func TestPoint_UnmarshalRFC(t *testing.T) {
-	t.Skip()
-	now := time.Now()
+	now := time.Now().UTC()
 	tests := []struct {
 		name     string
 		rfc      string
@@ -224,8 +223,8 @@ func TestPoint_UnmarshalRFC(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error.  exptected: %v, actual: %v", nil, err)
 		}
-		if p.Timestamp.Time() != test.expected {
-			t.Fatalf("Unexpected time.  expected: %v, actual: %v", test.expected, p.Timestamp)
+		if !p.Timestamp.Time().Equal(test.expected) {
+			t.Fatalf("Unexpected time.  expected: %v, actual: %v", test.expected, p.Timestamp.Time())
 		}
 	}
 }
