@@ -103,15 +103,7 @@ type Config struct {
 	} `toml:"data"`
 
 	Cluster struct {
-		Dir                       string   `toml:"dir"`
-		ProtobufPort              int      `toml:"protobuf_port"`
-		ProtobufTimeout           Duration `toml:"protobuf_timeout"`
-		ProtobufHeartbeatInterval Duration `toml:"protobuf_heartbeat"`
-		MinBackoff                Duration `toml:"protobuf_min_backoff"`
-		MaxBackoff                Duration `toml:"protobuf_max_backoff"`
-		WriteBufferSize           int      `toml:"write-buffer-size"`
-		ConcurrentShardQueryLimit int      `toml:"concurrent-shard-query-limit"`
-		MaxResponseBufferSize     int      `toml:"max-response-buffer-size"`
+		Dir string `toml:"dir"`
 	} `toml:"cluster"`
 
 	Logging struct {
@@ -125,18 +117,12 @@ func NewConfig() *Config {
 
 	c := &Config{}
 	c.Data.RetentionSweepPeriod = Duration(10 * time.Minute)
-	c.Cluster.ConcurrentShardQueryLimit = DefaultConcurrentShardQueryLimit
 	c.Broker.Dir = filepath.Join(u.HomeDir, ".influxdb/broker")
 	c.Broker.Port = DefaultBrokerPort
 	c.Broker.Timeout = Duration(1 * time.Second)
-	c.Cluster.MinBackoff = Duration(1 * time.Second)
-	c.Cluster.MaxBackoff = Duration(10 * time.Second)
-	c.Cluster.ProtobufHeartbeatInterval = Duration(10 * time.Millisecond)
 	c.Data.Dir = filepath.Join(u.HomeDir, ".influxdb/data")
 	c.Data.Port = DefaultDataPort
 	c.Data.WriteBufferSize = 1000
-	c.Cluster.WriteBufferSize = 1000
-	c.Cluster.MaxResponseBufferSize = 100
 
 	// Detect hostname (or set to localhost).
 	if c.Hostname, _ = os.Hostname(); c.Hostname == "" {
