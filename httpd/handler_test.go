@@ -26,7 +26,7 @@ func init() {
 }
 
 func TestBatchWrite_UnmarshalEpoch(t *testing.T) {
-	now := time.Now()
+	now := time.Now().UTC()
 	tests := []struct {
 		name      string
 		epoch     int64
@@ -92,7 +92,7 @@ func TestBatchWrite_UnmarshalEpoch(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error.  exptected: %v, actual: %v", nil, err)
 		}
-		if br.Timestamp != test.expected {
+		if !br.Timestamp.Equal(test.expected) {
 			t.Fatalf("Unexpected time.  expected: %v, actual: %v", test.expected, br.Timestamp)
 		}
 	}
