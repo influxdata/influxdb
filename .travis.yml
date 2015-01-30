@@ -7,7 +7,10 @@ install:
   - go get -d -v ./... && go build -v ./...
   - go get -u golang.org/x/tools/cmd/vet;
 
-script: go test -v ./...; go tool vet .
+script:
+    # Put each test command on its own line.
+  - go test -v ./...
+  - go tool vet .
 
 notifications:
   email:
