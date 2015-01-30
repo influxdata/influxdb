@@ -848,6 +848,140 @@ func TestHandler_AuthenticatedDatabases_UnauthorizedBasicAuth(t *testing.T) {
 	}
 }
 
+func TestHandler_GrantAdmin(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	// Create a cluster admin that will grant admin to "john".
+	srvr.CreateUser("lisa", "password", true)
+	// Create user that will be granted cluster admin.
+	srvr.CreateUser("john", "password", false)
+	s := NewAuthenticatedHTTPServer(srvr)
+	defer s.Close()
+
+	auth := make(map[string]string)
+	auth["Authorization"] = "Basic " + base64.StdEncoding.EncodeToString([]byte("lisa:password"))
+	query := map[string]string{"q": "GRANT ALL PRIVILEGES TO john"}
+
+	status, _ := MustHTTP("GET", s.URL+`/query`, query, auth, "")
+
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+
+	if u := srvr.User("john"); !u.Admin {
+		t.Fatal(`expected user "john" to be admin`)
+	}
+
+	// Make sure update persists after server restart.
+	srvr.Restart()
+
+	if u := srvr.User("john"); !u.Admin {
+		t.Fatal(`expected user "john" to be admin after server restart`)
+	}
+}
+
+func TestHandler_GrantDBPrivilege(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	// Create a cluster admin that will grant privilege to "john".
+	srvr.CreateUser("lisa", "password", true)
+	// Create user that will be granted a privilege.
+	srvr.CreateUser("john", "password", false)
+	s := NewAuthenticatedHTTPServer(srvr)
+	defer s.Close()
+
+	auth := make(map[string]string)
+	auth["Authorization"] = "Basic " + base64.StdEncoding.EncodeToString([]byte("lisa:password"))
+	query := map[string]string{"q": "GRANT READ ON foo TO john"}
+
+	status, _ := MustHTTP("GET", s.URL+`/query`, query, auth, "")
+
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+
+	u := srvr.User("john")
+	if p, ok := u.Privileges["foo"]; !ok {
+		t.Fatal(`expected john to have privileges on foo but he has none`)
+	} else if p != influxql.ReadPrivilege {
+		t.Fatalf(`expected john to have read privilege on foo but he has %s`, p.String())
+	}
+
+	// Make sure update persists after server restart.
+	srvr.Restart()
+
+	u = srvr.User("john")
+	if p, ok := u.Privileges["foo"]; !ok {
+		t.Fatal(`expected john to have privileges on foo but he has none after restart`)
+	} else if p != influxql.ReadPrivilege {
+		t.Fatalf(`expected john to have read privilege on foo but he has %s after restart`, p.String())
+	}
+}
+
+func TestHandler_RevokeAdmin(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	// Create a cluster admin that will revoke admin from "john".
+	srvr.CreateUser("lisa", "password", true)
+	// Create user that will have cluster admin revoked.
+	srvr.CreateUser("john", "password", true)
+	s := NewAuthenticatedHTTPServer(srvr)
+	defer s.Close()
+
+	auth := make(map[string]string)
+	auth["Authorization"] = "Basic " + base64.StdEncoding.EncodeToString([]byte("lisa:password"))
+	query := map[string]string{"q": "REVOKE ALL PRIVILEGES FROM john"}
+
+	status, body := MustHTTP("GET", s.URL+`/query`, query, auth, "")
+
+	if status != http.StatusOK {
+		t.Log(body)
+		t.Fatalf("unexpected status: %d", status)
+	}
+
+	if u := srvr.User("john"); u.Admin {
+		t.Fatal(`expected user "john" not to be admin`)
+	}
+
+	// Make sure update persists after server restart.
+	srvr.Restart()
+
+	if u := srvr.User("john"); u.Admin {
+		t.Fatal(`expected user "john" not to be admin after restart`)
+	}
+}
+
+func TestHandler_RevokeDBPrivilege(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	// Create a cluster admin that will revoke privilege from "john".
+	srvr.CreateUser("lisa", "password", true)
+	// Create user that will have privilege revoked.
+	srvr.CreateUser("john", "password", false)
+	u := srvr.User("john")
+	u.Privileges["foo"] = influxql.ReadPrivilege
+	s := NewAuthenticatedHTTPServer(srvr)
+	defer s.Close()
+
+	auth := make(map[string]string)
+	auth["Authorization"] = "Basic " + base64.StdEncoding.EncodeToString([]byte("lisa:password"))
+	query := map[string]string{"q": "REVOKE READ ON foo FROM john"}
+
+	status, body := MustHTTP("GET", s.URL+`/query`, query, auth, "")
+
+	if status != http.StatusOK {
+		t.Log(body)
+		t.Fatalf("unexpected status: %d", status)
+	}
+
+	if p := u.Privileges["foo"]; p != influxql.NoPrivileges {
+		t.Fatal(`expected user "john" not to have privileges on foo`)
+	}
+
+	// Make sure update persists after server restart.
+	srvr.Restart()
+
+	if p := u.Privileges["foo"]; p != influxql.NoPrivileges {
+		t.Fatal(`expected user "john" not to have privileges on foo after restart`)
+	}
+}
+
 func TestHandler_serveWriteSeries(t *testing.T) {
 	srvr := OpenServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
@@ -1468,6 +1602,30 @@ func OpenServer(client influxdb.MessagingClient) *Server {
 		panic(err.Error())
 	}
 	return s
+}
+
+// Close shuts down the server and removes all temporary files.
+func (s *Server) Close() {
+	defer os.RemoveAll(s.Path())
+	s.Server.Close()
+}
+
+// Restart stops and restarts the server.
+func (s *Server) Restart() {
+	path, client := s.Path(), s.Client()
+
+	// Stop the server.
+	if err := s.Server.Close(); err != nil {
+		panic("close: " + err.Error())
+	}
+
+	// Open and reset the client.
+	if err := s.Server.Open(path); err != nil {
+		panic("open: " + err.Error())
+	}
+	if err := s.Server.SetClient(client); err != nil {
+		panic("client: " + err.Error())
+	}
 }
 
 // OpenUninitializedServer returns a new, uninitialized, open test server instance.

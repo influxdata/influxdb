@@ -73,6 +73,9 @@ const (
 	// Write series data messages (per-topic)
 	writeRawSeriesMessageType = messaging.MessageType(0x80)
 	writeSeriesMessageType    = messaging.MessageType(0x81)
+
+	// Privilege messages
+	setPrivilegeMessageType = messaging.MessageType(0x90)
 )
 
 // Server represents a collection of metadata and raw metric data.
@@ -1038,6 +1041,52 @@ type deleteUserCommand struct {
 	Username string `json:"username"`
 }
 
+// SetPrivilege grants / revokes a privilege to a user.
+func (s *Server) SetPrivilege(p influxql.Privilege, username string, dbname string) error {
+	c := &setPrivilegeCommand{p, username, dbname}
+	_, err := s.broadcast(setPrivilegeMessageType, c)
+	return err
+}
+
+func (s *Server) applySetPrivilege(m *messaging.Message) error {
+	var c setPrivilegeCommand
+	mustUnmarshalJSON(m.Data, &c)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Validate user.
+	if c.Username == "" {
+		return ErrUsernameRequired
+	}
+
+	u := s.users[c.Username]
+	if u == nil {
+		return ErrUserNotFound
+	}
+
+	// If dbname is empty, update user's Admin flag.
+	if c.Database == "" && (c.Privilege == influxql.AllPrivileges || c.Privilege == influxql.NoPrivileges) {
+		u.Admin = (c.Privilege == influxql.AllPrivileges)
+	} else if c.Database != "" {
+		// Update user's privilege for the database.
+		u.Privileges[c.Database] = c.Privilege
+	} else {
+		return ErrInvalidGrantRevoke
+	}
+
+	// Persist to metastore.
+	return s.meta.mustUpdate(func(tx *metatx) error {
+		return tx.saveUser(u)
+	})
+}
+
+type setPrivilegeCommand struct {
+	Privilege influxql.Privilege `json:"privilege"`
+	Username  string             `json:"username"`
+	Database  string             `json:"database"`
+}
+
 // RetentionPolicy returns a retention policy by name.
 // Returns an error if the database doesn't exist.
 func (s *Server) RetentionPolicy(database, name string) (*RetentionPolicy, error) {
@@ -1656,9 +1705,9 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 		case *influxql.ShowFieldValuesStatement:
 			continue
 		case *influxql.GrantStatement:
-			continue
+			res = s.executeGrantStatement(stmt, user)
 		case *influxql.RevokeStatement:
-			continue
+			res = s.executeRevokeStatement(stmt, user)
 		case *influxql.CreateRetentionPolicyStatement:
 			res = s.executeCreateRetentionPolicyStatement(stmt, user)
 		case *influxql.AlterRetentionPolicyStatement:
@@ -2020,6 +2069,14 @@ func (s *Server) executeShowTagValuesStatement(stmt *influxql.ShowTagValuesState
 	return result
 }
 
+func (s *Server) executeGrantStatement(stmt *influxql.GrantStatement, user *User) *Result {
+	return &Result{Err: s.SetPrivilege(stmt.Privilege, stmt.User, stmt.On)}
+}
+
+func (s *Server) executeRevokeStatement(stmt *influxql.RevokeStatement, user *User) *Result {
+	return &Result{Err: s.SetPrivilege(influxql.NoPrivileges, stmt.User, stmt.On)}
+}
+
 // str2iface converts an array of strings to an array of interfaces.
 func str2iface(strs []string) []interface{} {
 	a := make([]interface{}, 0, len(strs))
@@ -2299,6 +2356,8 @@ func (s *Server) processor(client MessagingClient, done chan struct{}) {
 			err = s.applySetDefaultRetentionPolicy(m)
 		case createSeriesIfNotExistsMessageType:
 			err = s.applyCreateSeriesIfNotExists(m)
+		case setPrivilegeMessageType:
+			err = s.applySetPrivilege(m)
 		}
 
 		// Sync high water mark and errors.

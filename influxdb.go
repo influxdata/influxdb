@@ -103,6 +103,10 @@ var (
 	// ErrNotExecuted is returned when a statement is not executed in a query.
 	// This can occur when a previous statement in the same query has errored.
 	ErrNotExecuted = errors.New("not executed")
+
+	// ErrInvalidGrantRevoke is returned when a statement requests an invalid
+	// privilege for a user on the cluster or a database.
+	ErrInvalidGrantRevoke = errors.New("invalid privilege requested")
 )
 
 // ErrAuthorize represents an authorization error.
