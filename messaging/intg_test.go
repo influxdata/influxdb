@@ -10,6 +10,7 @@ import (
 
 // Ensure a broker can join to another existing broker and copy a snapshot.
 func TestBroker_Join(t *testing.T) {
+	t.Skip()
 	s0, s1 := NewServer(), NewUninitializedServer()
 	defer s0.Close()
 	defer s1.Close()
