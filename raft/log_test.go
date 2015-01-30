@@ -136,6 +136,7 @@ func TestLog_Config(t *testing.T) {
 
 // Ensure that a new log can be successfully opened and closed.
 func TestLog_Apply_Cluster(t *testing.T) {
+	// TODO corylanou racy test.  gist: https://gist.github.com/corylanou/00d99de1ed9e02873196
 	t.Skip()
 	c := NewCluster(3)
 	defer c.Close()
