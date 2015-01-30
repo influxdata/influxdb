@@ -66,7 +66,6 @@ func TestLog_Reopen(t *testing.T) {
 func TestLog_Apply(t *testing.T) {
 	// TODO corylanou: this test is intermittently failing.  Fix and re-enable
 	// trace can be found here for failing test: https://gist.github.com/corylanou/1bb0a5d11447177e478f
-	t.Skip()
 	n := NewInitNode()
 	defer n.Close()
 
@@ -329,7 +328,7 @@ func NewNode() *Node {
 func NewInitNode() *Node {
 	n := NewNode()
 	n.Open()
-	go func() { n.Clock().Add(2 * n.Log.ApplyInterval) }()
+	go func() { n.Clock().Add(3 * n.Log.ApplyInterval) }()
 	if err := n.Log.Initialize(); err != nil {
 		panic("initialize: " + err.Error())
 	}
