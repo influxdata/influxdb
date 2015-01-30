@@ -312,8 +312,8 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (seriesIDs, bool, influ
 // value should be included in the resulting set, and an expression if the return is a field expression.
 // The map that it takes maps each series id to the field expression that should be used to evaluate it when iterating over its cursor.
 // Series that have no field expressions won't be in the map
-func (m *Measurement) walkWhereForSeriesIds(node influxql.Node, filters map[uint32]influxql.Expr) (seriesIDs, bool, influxql.Expr) {
-	switch n := node.(type) {
+func (m *Measurement) walkWhereForSeriesIds(expr influxql.Expr, filters map[uint32]influxql.Expr) (seriesIDs, bool, influxql.Expr) {
+	switch n := expr.(type) {
 	case *influxql.BinaryExpr:
 		// if it's EQ then it's either a field expression or against a tag. we can return this
 		if n.Op == influxql.EQ {
@@ -448,6 +448,24 @@ func expandExprWithValues(expr influxql.Expr, keys []string, tagExprs []tagExpr,
 	exprs = append(exprs, expandExprWithValues(expr, keys, append(tagExprs, tagExpr{keys[index], uniques[index], influxql.NEQ}), uniques, index+1)...)
 
 	return exprs
+}
+
+// seriesIDsAllOrByExpr walks an expressions for matching series IDs
+// or, if no expressions is given, returns all series IDs for the measurement.
+func (m *Measurement) seriesIDsAllOrByExpr(expr influxql.Expr) (seriesIDs, error) {
+	// If no expression given or the measurement has no series,
+	// we can take just return the ids or nil accordingly.
+	if expr == nil {
+		return m.seriesIDs, nil
+	} else if len(m.seriesIDs) == 0 {
+		return nil, nil
+	}
+
+	// Get series IDs that match the WHERE clause.
+	filters := map[uint32]influxql.Expr{}
+	ids, _, _ := m.walkWhereForSeriesIds(expr, filters)
+
+	return ids, nil
 }
 
 // tagValuer is used during expression expansion to evaluate all sets of tag values.
@@ -1176,6 +1194,7 @@ func (db *database) Measurements() Measurements {
 	for _, m := range db.measurements {
 		measurements = append(measurements, m)
 	}
+	sort.Sort(measurements)
 	return measurements
 }
 
@@ -1227,6 +1246,11 @@ func newStringSet() stringSet {
 
 func (s stringSet) add(ss string) {
 	s[ss] = struct{}{}
+}
+
+func (s stringSet) contains(ss string) bool {
+	_, ok := s[ss]
+	return ok
 }
 
 func (s stringSet) list() []string {

@@ -317,25 +317,6 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
-		// SHOW FIELD VALUES
-		{
-			s: `SHOW FIELD VALUES FROM src WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
-			stmt: &influxql.ShowFieldValuesStatement{
-				Source: &influxql.Measurement{Name: "src"},
-				Condition: &influxql.BinaryExpr{
-					Op:  influxql.EQ,
-					LHS: &influxql.VarRef{Val: "region"},
-					RHS: &influxql.StringLiteral{Val: "uswest"},
-				},
-				SortFields: []*influxql.SortField{
-					{Ascending: true},
-					{Name: "field1"},
-					{Name: "field2"},
-				},
-				Limit: 10,
-			},
-		},
-
 		// DROP SERIES statement
 		{
 			s:    `DROP SERIES myseries`,

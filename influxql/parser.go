@@ -105,8 +105,6 @@ func (p *Parser) parseShowStatement() (Statement, error) {
 		tok, pos, lit := p.scanIgnoreWhitespace()
 		if tok == KEYS {
 			return p.parseShowFieldKeysStatement()
-		} else if tok == VALUES {
-			return p.parseShowFieldValuesStatement()
 		}
 		return nil, newParseError(tokstr(tok, lit), []string{"KEYS", "VALUES"}, pos)
 	case MEASUREMENTS:
@@ -830,12 +828,13 @@ func (p *Parser) parseShowFieldKeysStatement() (*ShowFieldKeysStatement, error) 
 	stmt := &ShowFieldKeysStatement{}
 	var err error
 
-	// Parse source.
-	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != FROM {
-		return nil, newParseError(tokstr(tok, lit), []string{"FROM"}, pos)
-	}
-	if stmt.Source, err = p.parseSource(); err != nil {
-		return nil, err
+	// Parse optional source.
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == FROM {
+		if stmt.Source, err = p.parseSource(); err != nil {
+			return nil, err
+		}
+	} else {
+		p.unscan()
 	}
 
 	// Parse condition: "WHERE EXPR".
@@ -849,43 +848,6 @@ func (p *Parser) parseShowFieldKeysStatement() (*ShowFieldKeysStatement, error) 
 	}
 
 	// Parse limit: "LIMIT <n>".
-	if stmt.Limit, err = p.parseOptionalTokenAndInt(LIMIT); err != nil {
-		return nil, err
-	}
-
-	// Parse offset: "OFFSET <n>".
-	if stmt.Offset, err = p.parseOptionalTokenAndInt(OFFSET); err != nil {
-		return nil, err
-	}
-
-	return stmt, nil
-}
-
-// parseShowFieldValuesStatement parses a string and returns a ShowSeriesStatement.
-// This function assumes the "SHOW FIELD VALUES" tokens have already been consumed.
-func (p *Parser) parseShowFieldValuesStatement() (*ShowFieldValuesStatement, error) {
-	stmt := &ShowFieldValuesStatement{}
-	var err error
-
-	// Parse source.
-	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != FROM {
-		return nil, newParseError(tokstr(tok, lit), []string{"FROM"}, pos)
-	}
-	if stmt.Source, err = p.parseSource(); err != nil {
-		return nil, err
-	}
-
-	// Parse condition: "WHERE EXPR".
-	if stmt.Condition, err = p.parseCondition(); err != nil {
-		return nil, err
-	}
-
-	// Parse sort: "ORDER BY FIELD+".
-	if stmt.SortFields, err = p.parseOrderBy(); err != nil {
-		return nil, err
-	}
-
-	// Parse limit: "LIMIT INT".
 	if stmt.Limit, err = p.parseOptionalTokenAndInt(LIMIT); err != nil {
 		return nil, err
 	}
