@@ -2,10 +2,12 @@ package client_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/client"
@@ -113,6 +115,146 @@ func TestClient_Write(t *testing.T) {
 	_, err = c.Write(write)
 	if err != nil {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+}
+
+func TestPoint_UnmarshalEpoch(t *testing.T) {
+	now := time.Now()
+	tests := []struct {
+		name      string
+		epoch     int64
+		precision string
+		expected  time.Time
+	}{
+		{
+			name:      "nanoseconds",
+			epoch:     now.UnixNano(),
+			precision: "n",
+			expected:  now,
+		},
+		{
+			name:      "microseconds",
+			epoch:     now.Round(time.Microsecond).UnixNano() / int64(time.Microsecond),
+			precision: "u",
+			expected:  now.Round(time.Microsecond),
+		},
+		{
+			name:      "milliseconds",
+			epoch:     now.Round(time.Millisecond).UnixNano() / int64(time.Millisecond),
+			precision: "ms",
+			expected:  now.Round(time.Millisecond),
+		},
+		{
+			name:      "seconds",
+			epoch:     now.Round(time.Second).UnixNano() / int64(time.Second),
+			precision: "s",
+			expected:  now.Round(time.Second),
+		},
+		{
+			name:      "minutes",
+			epoch:     now.Round(time.Minute).UnixNano() / int64(time.Minute),
+			precision: "m",
+			expected:  now.Round(time.Minute),
+		},
+		{
+			name:      "hours",
+			epoch:     now.Round(time.Hour).UnixNano() / int64(time.Hour),
+			precision: "h",
+			expected:  now.Round(time.Hour),
+		},
+		{
+			name:      "max int64",
+			epoch:     9223372036854775807,
+			precision: "n",
+			expected:  time.Unix(0, 9223372036854775807),
+		},
+		{
+			name:      "100 years from now",
+			epoch:     now.Add(time.Hour * 24 * 365 * 100).UnixNano(),
+			precision: "n",
+			expected:  now.Add(time.Hour * 24 * 365 * 100),
+		},
+	}
+
+	for _, test := range tests {
+		t.Logf("testing %q\n", test.name)
+		data := []byte(fmt.Sprintf(`{"timestamp": %d, "precision":"%s"}`, test.epoch, test.precision))
+		t.Logf("json: %s", string(data))
+		var p client.Point
+		err := json.Unmarshal(data, &p)
+		if err != nil {
+			t.Fatalf("unexpected error.  exptected: %v, actual: %v", nil, err)
+		}
+		if p.Timestamp.Time() != test.expected {
+			t.Fatalf("Unexpected time.  expected: %v, actual: %v", test.expected, p.Timestamp)
+		}
+	}
+}
+
+func TestPoint_UnmarshalRFC(t *testing.T) {
+	now := time.Now()
+	tests := []struct {
+		name     string
+		rfc      string
+		now      time.Time
+		expected time.Time
+	}{
+		{
+			name:     "RFC3339Nano",
+			rfc:      time.RFC3339Nano,
+			now:      now,
+			expected: now,
+		},
+		{
+			name:     "RFC3339",
+			rfc:      time.RFC3339,
+			now:      now.Round(time.Second),
+			expected: now.Round(time.Second),
+		},
+	}
+
+	for _, test := range tests {
+		t.Logf("testing %q\n", test.name)
+		ts := test.now.Format(test.rfc)
+		data := []byte(fmt.Sprintf(`{"timestamp": %q}`, ts))
+		t.Logf("json: %s", string(data))
+		var p client.Point
+		err := json.Unmarshal(data, &p)
+		if err != nil {
+			t.Fatalf("unexpected error.  exptected: %v, actual: %v", nil, err)
+		}
+		if p.Timestamp.Time() != test.expected {
+			t.Fatalf("Unexpected time.  expected: %v, actual: %v", test.expected, p.Timestamp)
+		}
+	}
+}
+
+func TestEpochToTime(t *testing.T) {
+	now := time.Now()
+
+	tests := []struct {
+		name      string
+		epoch     int64
+		precision string
+		expected  time.Time
+	}{
+		{name: "nanoseconds", epoch: now.UnixNano(), precision: "n", expected: now},
+		{name: "microseconds", epoch: now.Round(time.Microsecond).UnixNano() / int64(time.Microsecond), precision: "u", expected: now.Round(time.Microsecond)},
+		{name: "milliseconds", epoch: now.Round(time.Millisecond).UnixNano() / int64(time.Millisecond), precision: "ms", expected: now.Round(time.Millisecond)},
+		{name: "seconds", epoch: now.Round(time.Second).UnixNano() / int64(time.Second), precision: "s", expected: now.Round(time.Second)},
+		{name: "minutes", epoch: now.Round(time.Minute).UnixNano() / int64(time.Minute), precision: "m", expected: now.Round(time.Minute)},
+		{name: "hours", epoch: now.Round(time.Hour).UnixNano() / int64(time.Hour), precision: "h", expected: now.Round(time.Hour)},
+	}
+
+	for _, test := range tests {
+		t.Logf("testing %q\n", test.name)
+		tm, e := client.EpochToTime(test.epoch, test.precision)
+		if e != nil {
+			t.Fatalf("unexpected error: expected %v, actual: %v", nil, e)
+		}
+		if tm != test.expected {
+			t.Fatalf("unexpected time: expected %v, actual %v", test.expected, tm)
+		}
 	}
 }
 

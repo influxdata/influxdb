@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/url"
 	"os"
 	"reflect"
@@ -898,6 +899,39 @@ func TestDatabase_TagNames(t *testing.T)        { t.Skip("pending") }
 func TestServer_TagNamesBySeries(t *testing.T)  { t.Skip("pending") }
 func TestServer_TagValues(t *testing.T)         { t.Skip("pending") }
 func TestServer_TagValuesBySeries(t *testing.T) { t.Skip("pending") }
+
+// Point JSON Unmarshal tests
+
+func TestbatchWrite_UnmarshalEpoch(t *testing.T) {
+	var (
+		now     = time.Now()
+		nanos   = now.UnixNano()
+		micros  = nanos / int64(time.Microsecond)
+		millis  = nanos / int64(time.Millisecond)
+		seconds = nanos / int64(time.Second)
+		minutes = nanos / int64(time.Minute)
+		hours   = nanos / int64(time.Hour)
+	)
+
+	tests := []struct {
+		name  string
+		epoch int64
+	}{
+		{name: "nanos", epoch: nanos},
+		{name: "micros", epoch: micros},
+		{name: "millis", epoch: millis},
+		{name: "seconds", epoch: seconds},
+		{name: "minutes", epoch: minutes},
+		{name: "hours", epoch: hours},
+	}
+
+	for _, test := range tests {
+		json := fmt.Sprintf(`"points": [{timestamp: "%d"}`, test.epoch)
+		log.Println(json)
+		t.Fatal("foo")
+	}
+
+}
 
 // Server is a wrapping test struct for influxdb.Server.
 type Server struct {
