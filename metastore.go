@@ -204,11 +204,6 @@ func (tx *metatx) createSeries(database, name string, tags map[string]string) (*
 	id, _ := t.NextSequence()
 
 	// store the tag map for the series
-	b, err = db.Bucket([]byte("Series")).CreateBucketIfNotExists([]byte(name))
-	if err != nil {
-		return nil, err
-	}
-
 	s := &Series{ID: uint32(id), Tags: tags}
 	idBytes := make([]byte, 4)
 	*(*uint32)(unsafe.Pointer(&idBytes[0])) = uint32(id)
