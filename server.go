@@ -1371,6 +1371,11 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 	}
 	name, tags, timestamp, values := points[0].Name, points[0].Tags, points[0].Timestamp, points[0].Values
 
+	// Ignore requests that have no values.
+	if len(values) == 0 {
+		return 0, nil
+	}
+
 	// Find the id for the series and tagset
 	seriesID, err := s.createSeriesIfNotExists(database, name, tags)
 	if err != nil {
@@ -1404,11 +1409,6 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 
 	// Find appropriate shard within the shard group.
 	sh := g.ShardBySeriesID(seriesID)
-
-	// Ignore requests that have no values.
-	if len(values) == 0 {
-		return 0, nil
-	}
 
 	// Convert string-key/values to fieldID-key/values.
 	// If not all fields can be converted then send as a non-raw write series.
