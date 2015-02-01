@@ -120,7 +120,7 @@ func (e *ErrAuthorize) Error() string {
 }
 
 // authorize satisfies isAuthorizationError
-func (_ ErrAuthorize) authorize() {}
+func (ErrAuthorize) authorize() {}
 
 func isAuthorizationError(err error) bool {
 	type authorize interface {

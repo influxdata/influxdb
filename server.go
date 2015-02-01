@@ -712,7 +712,7 @@ func (s *Server) ShardGroups(database string) ([]*ShardGroup, error) {
 	return a, nil
 }
 
-// CreateShardGroupIfNotExist creates the shard group for a retention policy for the interval a timestamp falls into.
+// CreateShardGroupIfNotExists creates the shard group for a retention policy for the interval a timestamp falls into.
 func (s *Server) CreateShardGroupIfNotExists(database, policy string, timestamp time.Time) error {
 	c := &createShardGroupIfNotExistsCommand{Database: database, Policy: policy, Timestamp: timestamp}
 	_, err := s.broadcast(createShardGroupIfNotExistsMessageType, c)
@@ -2167,6 +2167,7 @@ func (s *Server) executeShowRetentionPoliciesStatement(q *influxql.ShowRetention
 	return &Result{Rows: []*influxql.Row{row}}
 }
 
+// MeasurementNames returns a list of all measurements for the specified database.
 func (s *Server) MeasurementNames(database string) []string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -2417,6 +2418,7 @@ type Results struct {
 	Err     error
 }
 
+// MarshalJSON encodes a Results stuct into JSON.
 func (r Results) MarshalJSON() ([]byte, error) {
 	// Define a struct that outputs "error" as a string.
 	var o struct {
@@ -2453,10 +2455,10 @@ func (r *Results) UnmarshalJSON(b []byte) error {
 
 // Error returns the first error from any statement.
 // Returns nil if no errors occurred on any statements.
-func (a Results) Error() error {
-	for _, r := range a.Results {
-		if r.Err != nil {
-			return r.Err
+func (r *Results) Error() error {
+	for _, rr := range r.Results {
+		if rr.Err != nil {
+			return rr.Err
 		}
 	}
 	return nil
@@ -2572,11 +2574,13 @@ func (p users) Len() int           { return len(p) }
 func (p users) Less(i, j int) bool { return p[i].Name < p[j].Name }
 func (p users) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
+// Matcher can match either a Regex or plain string.
 type Matcher struct {
 	IsRegex bool
 	Name    string
 }
 
+// Matches returns true of the name passed in matches this Matcher.
 func (m *Matcher) Matches(name string) bool {
 	if m.IsRegex {
 		matches, _ := regexp.MatchString(m.Name, name)

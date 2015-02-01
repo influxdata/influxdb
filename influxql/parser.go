@@ -166,11 +166,10 @@ func (p *Parser) parseDropStatement() (Statement, error) {
 	} else if tok == DATABASE {
 		return p.parseDropDatabaseStatement()
 	} else if tok == RETENTION {
-		if tok, pos, lit := p.scanIgnoreWhitespace(); tok == POLICY {
-			return p.parseDropRetentionPolicyStatement()
-		} else {
+		if tok, pos, lit := p.scanIgnoreWhitespace(); tok != POLICY {
 			return nil, newParseError(tokstr(tok, lit), []string{"POLICY"}, pos)
 		}
+		return p.parseDropRetentionPolicyStatement()
 	} else if tok == USER {
 		return p.parseDropUserStatement()
 	}
@@ -1257,9 +1256,8 @@ func (p *Parser) parseSource() (Source, error) {
 	// Return the appropriate source type.
 	if sourceType == "join" {
 		return &Join{Measurements: measurements}, nil
-	} else {
-		return &Merge{Measurements: measurements}, nil
 	}
+	return &Merge{Measurements: measurements}, nil
 }
 
 // parseCondition parses the "WHERE" clause of the query, if it exists.
@@ -1497,10 +1495,9 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 		// Otherwise parse as a variable reference.
 		if tok0, _, _ := p.scan(); tok0 == LPAREN {
 			return p.parseCall(lit)
-		} else {
-			p.unscan()
-			return &VarRef{Val: lit}, nil
 		}
+		p.unscan()
+		return &VarRef{Val: lit}, nil
 	case STRING:
 		// If literal looks like a date time then parse it as a time literal.
 		if isDateTimeString(lit) {
@@ -1598,11 +1595,10 @@ func ParseDuration(s string) (time.Duration, error) {
 
 	// If there's only character then it must be a digit (in microseconds).
 	if len(s) == 1 {
-		if n, err := strconv.ParseInt(s, 10, 64); err != nil {
-			return 0, ErrInvalidDuration
-		} else {
+		if n, err := strconv.ParseInt(s, 10, 64); err == nil {
 			return time.Duration(n) * time.Microsecond, nil
 		}
+		return 0, ErrInvalidDuration
 	}
 
 	// Split string into individual runes.
@@ -1664,9 +1660,8 @@ func FormatDuration(d time.Duration) string {
 		return fmt.Sprintf("%ds", d/time.Second)
 	} else if d%time.Millisecond == 0 {
 		return fmt.Sprintf("%dms", d/time.Millisecond)
-	} else {
-		return fmt.Sprintf("%d", d/time.Microsecond)
 	}
+	return fmt.Sprintf("%d", d/time.Microsecond)
 }
 
 // parseTokens consumes an expected sequence of tokens.
@@ -1679,7 +1674,7 @@ func (p *Parser) parseTokens(toks []Token) error {
 	return nil
 }
 
-// Quote returns a quoted string.
+// QuoteString returns a quoted string.
 func QuoteString(s string) string {
 	return `'` + strings.NewReplacer("\n", `\n`, `\`, `\\`, `'`, `\'`).Replace(s) + `'`
 }
