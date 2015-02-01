@@ -252,7 +252,7 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *influ
 			}
 			p.Timestamp = client.Timestamp(client.SetPrecision(p.Timestamp.Time(), p.Precision))
 			if len(br.Tags) > 0 {
-				for k, _ := range br.Tags {
+				for k := range br.Tags {
 					if p.Tags[k] == "" {
 						p.Tags[k] = br.Tags[k]
 					}
