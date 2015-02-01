@@ -161,7 +161,7 @@ func TestServer_SingleStatementQueryAuthorization(t *testing.T) {
 				Name:     "myquery",
 				Database: "foo",
 				Source: &influxql.SelectStatement{
-					Fields: []*influxql.Field{&influxql.Field{Expr: &influxql.Call{Name: "count"}}},
+					Fields: []*influxql.Field{{Expr: &influxql.Call{Name: "count"}}},
 					Target: &influxql.Target{Measurement: "measure1", Database: "bar"},
 					Source: &influxql.Measurement{Name: "myseries"},
 				},
@@ -219,13 +219,13 @@ func TestServer_MultiStatementQueryAuthorization(t *testing.T) {
 		Statements: []influxql.Statement{
 			// Statement that requires read.
 			&influxql.SelectStatement{
-				Fields: []*influxql.Field{&influxql.Field{Expr: &influxql.Call{Name: "count"}}},
+				Fields: []*influxql.Field{{Expr: &influxql.Call{Name: "count"}}},
 				Source: &influxql.Measurement{Name: "cpu"},
 			},
 
 			// Statement that requires write.
 			&influxql.SelectStatement{
-				Fields: []*influxql.Field{&influxql.Field{Expr: &influxql.Call{Name: "count"}}},
+				Fields: []*influxql.Field{{Expr: &influxql.Call{Name: "count"}}},
 				Source: &influxql.Measurement{Name: "cpu"},
 				Target: &influxql.Target{Measurement: "tmp"},
 			},
@@ -655,7 +655,7 @@ func TestServer_WriteSeries(t *testing.T) {
 
 	// Write series with one point to the database.
 	tags := map[string]string{"host": "servera.influx.com", "region": "uswest"}
-	index, err := s.WriteSeries("foo", "mypolicy", []influxdb.Point{influxdb.Point{Name: "cpu_load", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(23.2)}}})
+	index, err := s.WriteSeries("foo", "mypolicy", []influxdb.Point{{Name: "cpu_load", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(23.2)}}})
 	if err != nil {
 		t.Fatal(err)
 	} else if err = s.Sync(index); err != nil {
@@ -663,7 +663,7 @@ func TestServer_WriteSeries(t *testing.T) {
 	}
 
 	// Write another point 10 seconds later so it goes through "raw series".
-	index, err = s.WriteSeries("foo", "mypolicy", []influxdb.Point{influxdb.Point{Name: "cpu_load", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:10Z"), Values: map[string]interface{}{"value": float64(100)}}})
+	index, err = s.WriteSeries("foo", "mypolicy", []influxdb.Point{{Name: "cpu_load", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:10Z"), Values: map[string]interface{}{"value": float64(100)}}})
 	if err != nil {
 		t.Fatal(err)
 	} else if err = s.Sync(index); err != nil {

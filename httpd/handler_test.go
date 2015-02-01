@@ -1077,9 +1077,9 @@ func TestHandler_serveShowSeries(t *testing.T) {
 			q: `SHOW SERIES`,
 			r: &influxdb.Results{
 				Results: []*influxdb.Result{
-					&influxdb.Result{
+					{
 						Rows: []*influxql.Row{
-							&influxql.Row{
+							{
 								Name:    "cpu",
 								Columns: []string{"host", "region"},
 								Values: [][]interface{}{
@@ -1089,7 +1089,7 @@ func TestHandler_serveShowSeries(t *testing.T) {
 									str2iface([]string{"server02", "useast"}),
 								},
 							},
-							&influxql.Row{
+							{
 								Name:    "gpu",
 								Columns: []string{"host", "region"},
 								Values: [][]interface{}{
@@ -1128,9 +1128,9 @@ func TestHandler_serveShowSeries(t *testing.T) {
 			q: `SHOW SERIES FROM cpu`,
 			r: &influxdb.Results{
 				Results: []*influxdb.Result{
-					&influxdb.Result{
+					{
 						Rows: []*influxql.Row{
-							&influxql.Row{
+							{
 								Name:    "cpu",
 								Columns: []string{"host", "region"},
 								Values: [][]interface{}{
@@ -1150,9 +1150,9 @@ func TestHandler_serveShowSeries(t *testing.T) {
 			q: `SHOW SERIES WHERE region = 'uswest'`,
 			r: &influxdb.Results{
 				Results: []*influxdb.Result{
-					&influxdb.Result{
+					{
 						Rows: []*influxql.Row{
-							&influxql.Row{
+							{
 								Name:    "cpu",
 								Columns: []string{"host", "region"},
 								Values: [][]interface{}{
@@ -1169,9 +1169,9 @@ func TestHandler_serveShowSeries(t *testing.T) {
 			q: `SHOW SERIES FROM cpu WHERE region = 'useast'`,
 			r: &influxdb.Results{
 				Results: []*influxdb.Result{
-					&influxdb.Result{
+					{
 						Rows: []*influxql.Row{
-							&influxql.Row{
+							{
 								Name:    "cpu",
 								Columns: []string{"host", "region"},
 								Values: [][]interface{}{
@@ -1307,9 +1307,9 @@ func TestHandler_serveShowTagKeys(t *testing.T) {
 			q: `SHOW TAG KEYS`,
 			r: &influxdb.Results{
 				Results: []*influxdb.Result{
-					&influxdb.Result{
+					{
 						Rows: []*influxql.Row{
-							&influxql.Row{
+							{
 								Name:    "cpu",
 								Columns: []string{"tagKey"},
 								Values: [][]interface{}{
@@ -1317,7 +1317,7 @@ func TestHandler_serveShowTagKeys(t *testing.T) {
 									str2iface([]string{"region"}),
 								},
 							},
-							&influxql.Row{
+							{
 								Name:    "gpu",
 								Columns: []string{"tagKey"},
 								Values: [][]interface{}{
@@ -1335,9 +1335,9 @@ func TestHandler_serveShowTagKeys(t *testing.T) {
 			q: `SHOW TAG KEYS FROM cpu`,
 			r: &influxdb.Results{
 				Results: []*influxdb.Result{
-					&influxdb.Result{
+					{
 						Rows: []*influxql.Row{
-							&influxql.Row{
+							{
 								Name:    "cpu",
 								Columns: []string{"tagKey"},
 								Values: [][]interface{}{
@@ -1410,9 +1410,9 @@ func TestHandler_serveShowTagValues(t *testing.T) {
 			q: `SHOW TAG VALUES WITH KEY = host`,
 			r: &influxdb.Results{
 				Results: []*influxdb.Result{
-					&influxdb.Result{
+					{
 						Rows: []*influxql.Row{
-							&influxql.Row{
+							{
 								Name:    "cpu",
 								Columns: []string{"tagValue"},
 								Values: [][]interface{}{
@@ -1420,7 +1420,7 @@ func TestHandler_serveShowTagValues(t *testing.T) {
 									str2iface([]string{"server02"}),
 								},
 							},
-							&influxql.Row{
+							{
 								Name:    "gpu",
 								Columns: []string{"tagValue"},
 								Values: [][]interface{}{
@@ -1437,9 +1437,9 @@ func TestHandler_serveShowTagValues(t *testing.T) {
 			q: `SHOW TAG VALUES FROM cpu WITH KEY = host`,
 			r: &influxdb.Results{
 				Results: []*influxdb.Result{
-					&influxdb.Result{
+					{
 						Rows: []*influxql.Row{
-							&influxql.Row{
+							{
 								Name:    "cpu",
 								Columns: []string{"tagValue"},
 								Values: [][]interface{}{
@@ -1457,9 +1457,9 @@ func TestHandler_serveShowTagValues(t *testing.T) {
 			q: `SHOW TAG VALUES FROM cpu WITH KEY = host WHERE region = 'uswest'`,
 			r: &influxdb.Results{
 				Results: []*influxdb.Result{
-					&influxdb.Result{
+					{
 						Rows: []*influxql.Row{
-							&influxql.Row{
+							{
 								Name:    "cpu",
 								Columns: []string{"tagValue"},
 								Values: [][]interface{}{
@@ -1476,9 +1476,9 @@ func TestHandler_serveShowTagValues(t *testing.T) {
 			q: `SHOW TAG VALUES FROM cpu WITH KEY IN (host, region) WHERE region = 'uswest'`,
 			r: &influxdb.Results{
 				Results: []*influxdb.Result{
-					&influxdb.Result{
+					{
 						Rows: []*influxql.Row{
-							&influxql.Row{
+							{
 								Name:    "cpu",
 								Columns: []string{"tagValue"},
 								Values: [][]interface{}{
