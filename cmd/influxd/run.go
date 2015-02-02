@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"io"
 	"io/ioutil"
 	"log"
@@ -19,51 +18,21 @@ import (
 	"github.com/influxdb/influxdb/messaging"
 )
 
-// execRun runs the "run" command.
-func execRun(args []string) {
-	// Parse command flags.
-	fs := flag.NewFlagSet("", flag.ExitOnError)
-	var (
-		configPath = fs.String("config", "", "")
-		pidPath    = fs.String("pidfile", "", "")
-		hostname   = fs.String("hostname", "", "")
-		join       = fs.String("join", "", "")
-	)
-	fs.Usage = printRunUsage
-	fs.Parse(args)
-
-	// Print sweet InfluxDB logo and write the process id to file.
-	log.Print(logo)
-	log.SetPrefix(`[influxd] `)
-	log.SetFlags(log.LstdFlags)
-	writePIDFile(*pidPath)
-
+func Run(config *Config, join, version string, logWriter *os.File) *influxdb.Server {
 	// Parse the configuration and determine if a broker and/or server exist.
-	config := parseConfig(*configPath, *hostname)
-	configExists := *configPath != ""
-	initializing := !fileExists(config.BrokerDir()) && !fileExists(config.DataDir())
-
-	// Create a logging writer.
-	logWriter := os.Stderr
-	if config.Logging.File != "" {
-		var err error
-		logWriter, err = os.OpenFile(config.Logging.File, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0660)
-		if err != nil {
-			log.Fatalf("unable to open log file %s: %s", config.Logging.File, err.Error())
-		}
+	configExists := config != nil
+	if config == nil {
+		config = NewConfig()
 	}
-	log.SetOutput(logWriter)
+	initializing := !fileExists(config.BrokerDir()) && !fileExists(config.DataDir())
 
 	// Parse join urls from the --join flag.
 	var joinURLs []*url.URL
-	if *join == "" {
+	if join == "" {
 		joinURLs = parseURLs(config.JoinURLs())
 	} else {
-		joinURLs = parseURLs(*join)
+		joinURLs = parseURLs(join)
 	}
-
-	// Mark the start of the log.
-	log.Printf("influxd starting up")
 
 	// Open broker, initialize or join as necessary.
 	b := openBroker(config.BrokerDir(), config.BrokerURL(), initializing, joinURLs, logWriter)
@@ -130,9 +99,7 @@ func execRun(args []string) {
 			}
 		}
 	}
-
-	// Wait indefinitely.
-	<-(chan struct{})(nil)
+	return s
 }
 
 // write the current process id to a file specified by path.
