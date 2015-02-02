@@ -34,7 +34,6 @@ port   = 8083              # binding is disabled if the port isn't set
 
 # Configure the HTTP API endpoint. All time-series data and queries uses this endpoint.
 [api]
-port     = 8086    # binding is disabled if the node is not a Data node.
 # ssl-port = 8084    # SSL support is enabled if you set a port and cert
 # ssl-cert = "/path/to/cert.pem"
 
@@ -73,14 +72,15 @@ enabled = false
 # Broker configuration. Brokers are nodes which participate in distributed
 # consensus.
 [broker]
-
 # Where the Raft logs are stored. The user running InfluxDB will need read/write access.
 dir  = "/tmp/influxdb/development/raft"
+port = 8086
 
 # Data node configuration. Data nodes are where the time-series data, in the form of
 # shards, is stored.
 [data]
 dir = "/tmp/influxdb/development/db"
+port = 8086
 
 [cluster]
 # Location for cluster state storage. For storing state persistently across restarts.
