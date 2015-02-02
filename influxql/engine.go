@@ -299,12 +299,8 @@ loop:
 	}
 
 	// Normalize rows and values.
-	// This converts the timestamps from nanoseconds to microseconds.
 	a := make(Rows, 0, len(rows))
 	for _, row := range rows {
-		for _, values := range row.Values {
-			values[0] = values[0].(int64) / int64(time.Microsecond)
-		}
 		a = append(a, row)
 	}
 	sort.Sort(a)
