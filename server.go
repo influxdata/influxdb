@@ -124,6 +124,14 @@ func (s *Server) ID() uint64 {
 	return s.id
 }
 
+// Ready indicates when the server is ready to accept connections and write data
+func (s *Server) Ready() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.client.Opened()
+}
+
 // Path returns the path used when opening the server.
 // Returns an empty string when the server is closed.
 func (s *Server) Path() string {
@@ -2474,6 +2482,9 @@ type MessagingClient interface {
 
 	// Deletes an existing replica with a given ID from the broker.
 	DeleteReplica(replicaID uint64) error
+
+	// Opened returns true if the messaging client has been opened
+	Opened() bool
 
 	// Creates a subscription for a replica to a topic.
 	Subscribe(replicaID, topicID uint64) error
