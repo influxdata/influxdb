@@ -124,7 +124,11 @@ func (c *cli) connect(cmd string) {
 			} else {
 				c.port = i
 			}
-			c.host = h[0]
+			if h[0] == "" {
+				c.host = default_host
+			} else {
+				c.host = h[0]
+			}
 		} else {
 			c.host = cmd
 			// If they didn't specify a port, always use the default port
