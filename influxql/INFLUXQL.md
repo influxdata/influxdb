@@ -176,6 +176,7 @@ statement           = alter_retention_policy_stmt |
                       delete_stmt |
                       drop_continuous_query_stmt |
                       drop_database_stmt |
+                      drop_measurement_stmt |
                       drop_retention_policy_stmt |
                       drop_series_stmt |
                       drop_user_stmt |
@@ -338,6 +339,19 @@ drop_database_stmt = "DROP DATABASE" db_name .
 DROP DATABASE mydb;
 ```
 
+### DROP MEASUREMENT
+
+```
+drop_measurement_stmt = "DROP MEASUREMENT" measurement .
+```
+
+#### Examples:
+
+```sql
+-- drop the cpu measurement
+DROP MEASUREMENT cpu;
+```
+
 ### DROP RETENTION POLICY
 
 ```
@@ -354,7 +368,7 @@ DROP RETENTION POLICY "1h.cpu" ON mydb;
 ### DROP SERIES
 
 ```
-drop_series_stmt =
+drop_series_stmt = "DROP SERIES" [ from_clause ] [ where_clause ]
 ```
 
 #### Example:
@@ -597,15 +611,21 @@ field            = expr [ alias ] .
 
 fields           = field { "," field } .
 
-measurement      = [ db_name "." [ policy_name ] "." ]
+measurement      = measurement_name |
+                   ( policy_name "." measurement_name ) |
+                   ( db_name "." [ policy_name ] "." measurement_name ) .
 
 measurements     = measurement { "," measurement } .
+
+measurement_name = identifier .
 
 password         = identifier .
 
 policy_name      = identifier .
 
 privilege        = "ALL" [ "PRIVILEGES" ] | "READ" | "WRITE" .
+
+series_id        = int_lit .
 
 sort_field       = field_name [ ASC | DESC ] .
 
