@@ -40,16 +40,25 @@ type CommandLine struct {
 func main() {
 	c := CommandLine{}
 
-	promptForPassword := false
-
 	fs := flag.NewFlagSet("default", flag.ExitOnError)
 	fs.StringVar(&c.Host, "host", default_host, "influxdb host to connect to")
 	fs.IntVar(&c.Port, "port", default_port, "influxdb port to connect to")
-	fs.StringVar(&c.Username, "username", c.Username, "username to connect to the server.  can be blank if authorization is not required")
-	fs.StringVar(&c.Password, "password", c.Password, "password to connect to the server.  can be blank if authorization is not required")
+	fs.StringVar(&c.Username, "username", c.Username, "username to connect to the server.")
+	fs.StringVar(&c.Password, "password", c.Password, `password to connect to the server.  Leaving blank will prompt for password (--password="")`)
 	fs.StringVar(&c.Database, "database", c.Database, "database to connect to the server.")
 	fs.StringVar(&c.Format, "output", default_format, "format specifies the format of the server responses:  json, csv, or column")
 	fs.Parse(os.Args[1:])
+
+	var promptForPassword bool
+	// determine if they set the password flag but provided no value
+	for _, v := range os.Args {
+		v = strings.Replace(v, "-", "", -1)
+		v = strings.ToLower(v)
+		if strings.HasPrefix(v, "password") {
+			promptForPassword = true
+			break
+		}
+	}
 
 	// TODO Determine if we are an ineractive shell or running commands
 	fmt.Println("InfluxDB shell")
