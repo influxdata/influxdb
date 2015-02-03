@@ -1365,23 +1365,6 @@ type Point struct {
 // WriteSeries writes series data to the database.
 // Returns the messaging index the data was written to.
 func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (uint64, error) {
-	// TODO corylanou: implement batch writing
-	if len(points) != 1 {
-		return 0, errors.New("batching WriteSeries has not been implemented yet")
-	}
-	name, tags, timestamp, values := points[0].Name, points[0].Tags, points[0].Timestamp, points[0].Values
-
-	// Ignore requests that have no values.
-	if len(values) == 0 {
-		return 0, nil
-	}
-
-	// Find the id for the series and tagset
-	seriesID, err := s.createSeriesIfNotExists(database, name, tags)
-	if err != nil {
-		return 0, err
-	}
-
 	// If the retention policy is not set, use the default for this database.
 	if retentionPolicy == "" {
 		rp, err := s.DefaultRetentionPolicy(database)
@@ -1391,6 +1374,49 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 			return 0, ErrDefaultRetentionPolicyNotFound
 		}
 		retentionPolicy = rp.Name
+	}
+
+	// Collect responses for each channel.
+	type resp struct {
+		index uint64
+		err   error
+	}
+	ch := make(chan resp, len(points))
+
+	// Write each point in parallel.
+	var wg sync.WaitGroup
+	for i := range points {
+		wg.Add(1)
+		go func(p *Point) {
+			index, err := s.writePoint(database, retentionPolicy, p)
+			ch <- resp{index, err}
+			wg.Done()
+		}(&points[i])
+	}
+	wg.Wait()
+	close(ch)
+
+	// Calculate max index and check for errors.
+	var index uint64
+	var err error
+	for resp := range ch {
+		if resp.index > index {
+			index = resp.index
+		}
+		if err == nil && resp.err != nil {
+			err = resp.err
+		}
+	}
+	return index, err
+}
+
+func (s *Server) writePoint(database, retentionPolicy string, point *Point) (uint64, error) {
+	name, tags, timestamp, values := point.Name, point.Tags, point.Timestamp, point.Values
+
+	// Find the id for the series and tagset
+	seriesID, err := s.createSeriesIfNotExists(database, name, tags)
+	if err != nil {
+		return 0, err
 	}
 
 	// Retrieve measurement.

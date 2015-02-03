@@ -28,21 +28,21 @@ TIME=`_date_to_unix_timestamp "Jan 01 00:00:00 EDT 2000"`
 
 
 # Set defaults.
-INTERVAL=1      # 1s
+INTERVAL=10      # 1s
+NUMCLIENTS=10
 NUMSERIES=1
-NUMPOINTS=100
 
 # Parse arguments
-while getopts "s:p:i:h" opt; do
+while getopts "s:c:i:h" opt; do
 	case $opt in
 	i)
 		INTERVAL=$OPTARG
 		;;
+	c)
+		NUMCLIENTS=$OPTARG
+		;;
 	s)
 		NUMSERIES=$OPTARG
-		;;
-	p)
-		NUMPOINTS=$OPTARG
 		;;
 	h)
 		echo "urlgen is a utility for generating URL files for siege."
@@ -53,24 +53,25 @@ while getopts "s:p:i:h" opt; do
 		echo "The following arguments can be specified:"
 		echo ""
 		echo "	-i seconds"
-	    echo "	    Interval between generated points per series."
-	    echo "	    Defaults to 1 second."
+	    echo "	    Interval between requests."
+	    echo "	    Defaults to 10 seconds."
 		echo ""
 		echo "	-s num"
 	    echo "	    Number of unique series to generate."
 	    echo "	    Defaults to 1 series."
 		echo ""
-		echo "	-p num"
-	    echo "	    Number of points per series to generate."
-	    echo "	    Defaults to 100 points."
+		echo "	-c num"
+	    echo "	    Number of clients to simulate."
+	    echo "	    One request per client."
+	    echo "	    Defaults to 10 clients."
 		echo ""
 		exit 1
 		;;
 	esac
 done
 
-# Generate a new value every interval per series.
-for i in `seq 1 $NUMPOINTS`;
+# Generate a new request every interval per client.
+for i in `seq 1 $NUMCLIENTS`;
 do
 	# Move forward the current time.
 	TIME=$((TIME+INTERVAL))
@@ -79,6 +80,28 @@ do
 	# Generate a URL for each series.
 	for series in `seq 1 $NUMSERIES`;
 	do
-		echo 'http://localhost:8086/write POST {"database" : "db", "retentionPolicy" : "raw", "points": [{"name": "cpu", "tags": {"host": "server'$series'"}, "timestamp": "'$TIMESTAMP'","values": {"value": 100}}]}'
+		# Generate a URL for each second in the interval.
+		POINTS=""
+		for j in `seq 0 $INTERVAL`;
+		do
+			# Format the timestamp to ISO 8601.
+			let CURRTIME=TIME+j
+			TIMESTAMP=`date -j -f "%s" $CURRTIME +"%Y-%m-%dT%H:%M:%SZ"`
+
+			# Add comma separator.
+			if [ "$j" -ne "0" ]
+			then
+				POINTS=$POINTS,
+			fi
+
+			# Append the point.
+			POINTS=$POINTS'{"name": "cpu", "tags": {"host": "server'$series'"}, "timestamp": "'$TIMESTAMP'","values": {"value": 100}}'
+		done
+
+		# Write out point.
+		echo 'http://localhost:8086/write POST {"database" : "db", "retentionPolicy" : "raw", "points": ['$POINTS']}'
 	done
+
+	# Move forward the current time.
+	let TIME=TIME+INTERVAL
 done
