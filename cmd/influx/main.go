@@ -246,7 +246,7 @@ func WriteJSON(results *client.Results, pretty bool, w io.Writer) {
 func WriteCSV(results *client.Results, w io.Writer) {
 	csvw := csv.NewWriter(w)
 	for _, result := range results.Results {
-		// Create a tabbed writer for each result a they won't always line up
+		// Create a tabbed writer for each result as they won't always line up
 		rows := resultToCSV(result, "\t", false)
 		for _, r := range rows {
 			csvw.Write(strings.Split(r, "\t"))
