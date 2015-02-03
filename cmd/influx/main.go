@@ -8,10 +8,16 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/influxdb/influxdb/client"
 	"github.com/peterh/liner"
+)
+
+const (
+	default_host = "localhost"
+	default_port = 8086
 )
 
 type cli struct {
@@ -29,8 +35,8 @@ func main() {
 	c := cli{}
 
 	fs := flag.NewFlagSet("default", flag.ExitOnError)
-	fs.StringVar(&c.host, "host", "localhost", "influxdb host to connect to")
-	fs.IntVar(&c.port, "port", 8086, "influxdb port to connect to")
+	fs.StringVar(&c.host, "host", default_host, "influxdb host to connect to")
+	fs.IntVar(&c.port, "port", default_port, "influxdb port to connect to")
 	fs.StringVar(&c.username, "username", c.username, "username to connect to the server.  can be blank if authorization is not required")
 	fs.StringVar(&c.password, "password", c.password, "password to connect to the server.  can be blank if authorization is not required")
 	fs.StringVar(&c.database, "database", c.database, "database to connect to the server.")
@@ -73,7 +79,7 @@ func main() {
 }
 
 func (c *cli) parseCommand(cmd string) bool {
-	lcmd := strings.ToLower(cmd)
+	lcmd := strings.TrimSpace(strings.ToLower(cmd))
 	switch {
 	case strings.HasPrefix(lcmd, "exit"):
 		// signal the program to exit
@@ -93,6 +99,8 @@ func (c *cli) parseCommand(cmd string) bool {
 		}
 	case strings.HasPrefix(lcmd, "use"):
 		c.use(cmd)
+	case lcmd == "":
+		break
 	default:
 		c.executeQuery(cmd)
 	}
@@ -103,8 +111,31 @@ func (c *cli) connect(cmd string) {
 	var cl *client.Client
 
 	if cmd != "" {
-		// TODO parse out connection string
+		// Remove the "connect" keyword if it exists
+		cmd = strings.TrimSpace(strings.Replace(cmd, "connect", "", -1))
+		if cmd == "" {
+			return
+		}
+		if strings.Contains(cmd, ":") {
+			h := strings.Split(cmd, ":")
+			if i, e := strconv.Atoi(h[1]); e != nil {
+				fmt.Printf("Connect error: Invalid port number %q: %s\n", cmd, e)
+				return
+			} else {
+				c.port = i
+			}
+			if h[0] == "" {
+				c.host = default_host
+			} else {
+				c.host = h[0]
+			}
+		} else {
+			c.host = cmd
+			// If they didn't specify a port, always use the default port
+			c.port = default_port
+		}
 	}
+
 	u := url.URL{
 		Scheme: "http",
 	}
