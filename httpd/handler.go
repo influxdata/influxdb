@@ -286,13 +286,17 @@ func (h *Handler) serveMetastore(w http.ResponseWriter, r *http.Request) {
 
 // servePing returns a simple response to let the client know the server is running.
 func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNoContent)
+	if h.server.Ready() {
+		w.WriteHeader(http.StatusNoContent)
+	} else {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}
 }
 
 // serveDataNodes returns a list of all data nodes in the cluster.
 func (h *Handler) serveDataNodes(w http.ResponseWriter, r *http.Request) {
 	// Generate a list of objects for encoding to the API.
-	a := make([]*dataNodeJSON, 0)
+	var a = make([]*dataNodeJSON, 0)
 	for _, n := range h.server.DataNodes() {
 		a = append(a, &dataNodeJSON{
 			ID:  n.ID,
@@ -419,9 +423,8 @@ func parseCredentials(r *http.Request) (string, string, error) {
 	}
 	if u, p, ok := r.BasicAuth(); ok {
 		return u, p, nil
-	} else {
-		return "", "", fmt.Errorf("unable to parse Basic Auth credentials")
 	}
+	return "", "", fmt.Errorf("unable to parse Basic Auth credentials")
 }
 
 // authenticate wraps a handler and ensures that if user credentials are passed in

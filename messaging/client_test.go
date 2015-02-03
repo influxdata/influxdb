@@ -75,6 +75,32 @@ func TestClient_Open_ErrBrokerURLRequired(t *testing.T) {
 	}
 }
 
+// Ensure that a client can check Opened status.
+func TestClient_Opened(t *testing.T) {
+	c := NewClient(1000)
+	defer c.Close()
+
+	// Create replica on broker.
+	c.Server.Handler.Broker().CreateReplica(1000)
+
+	// Open client to broker.
+	f := NewTempFile()
+	defer os.Remove(f)
+	u, _ := url.Parse(c.Server.URL)
+	if err := c.Open(f, []*url.URL{u}); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	if !c.Opened() {
+		t.Fatalf("expected server to be opened")
+	}
+
+	// Close connection to the broker.
+	if err := c.Client.Close(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+}
+
 // Ensure that a client can close while a message is pending.
 func TestClient_Close(t *testing.T) {
 	c := NewClient(1000)

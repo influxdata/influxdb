@@ -149,6 +149,14 @@ func (c *Client) Open(path string, urls []*url.URL) error {
 	return nil
 }
 
+// Opened returns the status of if the client is ready to accept messages
+func (c *Client) Opened() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.opened
+}
+
 // Close disconnects the client from the broker cluster.
 func (c *Client) Close() error {
 	c.mu.Lock()
