@@ -299,8 +299,13 @@ loop:
 	}
 
 	// Normalize rows and values.
+	// Convernt all times to timestamps
 	a := make(Rows, 0, len(rows))
 	for _, row := range rows {
+		for _, values := range row.Values {
+			t := time.Unix(0, values[0].(int64))
+			values[0] = t.UTC().Format(time.RFC3339Nano)
+		}
 		a = append(a, row)
 	}
 	sort.Sort(a)
