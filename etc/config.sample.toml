@@ -43,6 +43,8 @@ enabled = false
 # protocol = "" # Set to "tcp" or "udp"
 # address = "0.0.0.0" # If not set, is actually set to bind-address.
 # port = 2003
+# name-position = "last"
+# name-separator = "-"
 # database = ""  # store graphite data in this database
 
 # Configure the collectd input.
