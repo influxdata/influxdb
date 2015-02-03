@@ -37,7 +37,6 @@ func TestNewServer(t *testing.T) {
 	c.Data.Dir = tmpDataDir
 
 	now := time.Now()
-	var spinupTime time.Duration
 
 	s := main.Run(c, join, version, os.Stderr)
 
@@ -51,39 +50,6 @@ func TestNewServer(t *testing.T) {
 		err = os.RemoveAll(tmpDataDir)
 		if err != nil {
 			t.Logf("Failed to clean up %q: %s\n", tmpDataDir, err)
-		}
-	}()
-
-	ready := make(chan bool, 1)
-	go func() {
-		for {
-			resp, err := http.Get(c.BrokerURL().String() + "/ping")
-			if err != nil {
-				t.Fatalf("failed to spin up server: %s", err)
-			}
-			if resp.StatusCode != http.StatusNoContent {
-				time.Sleep(2 * time.Millisecond)
-			} else {
-				ready <- true
-				break
-			}
-		}
-	}()
-
-	// wait for the server to spin up
-	func() {
-		for {
-			select {
-			case <-ready:
-				spinupTime = time.Since(now)
-				t.Logf("Spinup time of server was %v\n", spinupTime)
-				return
-			case <-time.After(3 * time.Second):
-				if spinupTime == 0 {
-					ellapsed := time.Since(now)
-					t.Fatalf("server failed to spin up in time %v", ellapsed)
-				}
-			}
 		}
 	}()
 

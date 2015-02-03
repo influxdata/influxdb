@@ -4,6 +4,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -41,7 +42,12 @@ func Run(config *Config, join, version string, logWriter *os.File) *influxdb.Ser
 	var h *Handler
 	if b != nil {
 		h = &Handler{brokerHandler: messaging.NewHandler(b)}
-		go func() { log.Fatal(http.ListenAndServe(config.BrokerAddr(), h)) }()
+		// We want to make sure we are spun up before we exit this function, so we manually listen and serve
+		listener, err := net.Listen("tcp", config.BrokerAddr())
+		if err != nil {
+			log.Fatal(err)
+		}
+		go func() { log.Fatal(http.Serve(listener, h)) }()
 		log.Printf("broker listening on %s", config.BrokerAddr())
 	}
 
@@ -54,7 +60,12 @@ func Run(config *Config, join, version string, logWriter *os.File) *influxdb.Ser
 		if h != nil && config.BrokerAddr() == config.DataAddr() {
 			h.serverHandler = sh
 		} else {
-			go func() { log.Fatal(http.ListenAndServe(config.DataAddr(), sh)) }()
+			// We want to make sure we are spun up before we exit this function, so we manually listen and serve
+			listener, err := net.Listen("tcp", config.DataAddr())
+			if err != nil {
+				log.Fatal(err)
+			}
+			go func() { log.Fatal(http.Serve(listener, sh)) }()
 		}
 		log.Printf("data node #%d listening on %s", s.ID(), config.DataAddr())
 
