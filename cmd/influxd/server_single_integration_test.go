@@ -34,7 +34,9 @@ func TestNewServer(t *testing.T) {
 
 	c := main.NewConfig()
 	c.Broker.Dir = tmpBrokerDir
+	c.Broker.Port = 8090
 	c.Data.Dir = tmpDataDir
+	c.Data.Port = 8090
 
 	now := time.Now()
 
