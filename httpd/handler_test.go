@@ -87,13 +87,13 @@ func TestBatchWrite_UnmarshalEpoch(t *testing.T) {
 		t.Logf("testing %q\n", test.name)
 		data := []byte(fmt.Sprintf(`{"timestamp": %d, "precision":"%s"}`, test.epoch, test.precision))
 		t.Logf("json: %s", string(data))
-		var br httpd.BatchWrite
-		err := json.Unmarshal(data, &br)
+		var bp influxdb.BatchPoints
+		err := json.Unmarshal(data, &bp)
 		if err != nil {
 			t.Fatalf("unexpected error.  exptected: %v, actual: %v", nil, err)
 		}
-		if !br.Timestamp.Equal(test.expected) {
-			t.Fatalf("Unexpected time.  expected: %v, actual: %v", test.expected, br.Timestamp)
+		if !bp.Timestamp.Equal(test.expected) {
+			t.Fatalf("Unexpected time.  expected: %v, actual: %v", test.expected, bp.Timestamp)
 		}
 	}
 }
@@ -125,13 +125,13 @@ func TestBatchWrite_UnmarshalRFC(t *testing.T) {
 		ts := test.now.Format(test.rfc)
 		data := []byte(fmt.Sprintf(`{"timestamp": %q}`, ts))
 		t.Logf("json: %s", string(data))
-		var br httpd.BatchWrite
-		err := json.Unmarshal(data, &br)
+		var bp influxdb.BatchPoints
+		err := json.Unmarshal(data, &bp)
 		if err != nil {
 			t.Fatalf("unexpected error.  exptected: %v, actual: %v", nil, err)
 		}
-		if !br.Timestamp.Equal(test.expected) {
-			t.Fatalf("Unexpected time.  expected: %v, actual: %v", test.expected, br.Timestamp)
+		if !bp.Timestamp.Equal(test.expected) {
+			t.Fatalf("Unexpected time.  expected: %v, actual: %v", test.expected, bp.Timestamp)
 		}
 	}
 }
