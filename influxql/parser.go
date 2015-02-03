@@ -166,11 +166,10 @@ func (p *Parser) parseDropStatement() (Statement, error) {
 	} else if tok == DATABASE {
 		return p.parseDropDatabaseStatement()
 	} else if tok == RETENTION {
-		if tok, pos, lit := p.scanIgnoreWhitespace(); tok == POLICY {
-			return p.parseDropRetentionPolicyStatement()
-		} else {
+		if tok, pos, lit := p.scanIgnoreWhitespace(); tok != POLICY {
 			return nil, newParseError(tokstr(tok, lit), []string{"POLICY"}, pos)
 		}
+		return p.parseDropRetentionPolicyStatement()
 	} else if tok == USER {
 		return p.parseDropUserStatement()
 	}
@@ -348,13 +347,37 @@ func (p *Parser) parseDuration() (time.Duration, error) {
 	return d, nil
 }
 
-// parserIdent parses an identifier.
+// parseIdent parses an identifier.
 func (p *Parser) parseIdent() (string, error) {
 	tok, pos, lit := p.scanIgnoreWhitespace()
 	if tok != IDENT {
 		return "", newParseError(tokstr(tok, lit), []string{"identifier"}, pos)
 	}
 	return lit, nil
+}
+
+// parseIdentList parses a comma delimited list of identifiers.
+func (p *Parser) parseIdentList() ([]string, error) {
+	// Parse first (required) identifier.
+	ident, err := p.parseIdent()
+	if err != nil {
+		return nil, err
+	}
+	idents := []string{ident}
+
+	// Parse remaining (optional) identifiers.
+	for {
+		if tok, _, _ := p.scanIgnoreWhitespace(); tok != COMMA {
+			p.unscan()
+			return idents, nil
+		}
+
+		if ident, err = p.parseIdent(); err != nil {
+			return nil, err
+		}
+
+		idents = append(idents, ident)
+	}
 }
 
 // parserString parses a string.
@@ -371,7 +394,7 @@ func (p *Parser) parseString() (string, error) {
 func (p *Parser) parseRevokeStatement() (*RevokeStatement, error) {
 	stmt := &RevokeStatement{}
 
-	// Parse the privilege to be granted.
+	// Parse the privilege to be revoked.
 	priv, err := p.parsePrivilege()
 	if err != nil {
 		return nil, err
@@ -381,7 +404,7 @@ func (p *Parser) parseRevokeStatement() (*RevokeStatement, error) {
 	// Parse ON clause.
 	tok, pos, lit := p.scanIgnoreWhitespace()
 	if tok == ON {
-		// Parse the name of the thing we're granting a privilege to use.
+		// Parse the name of the thing we're revoking a privilege to use.
 		lit, err := p.parseIdent()
 		if err != nil {
 			return nil, err
@@ -400,7 +423,7 @@ func (p *Parser) parseRevokeStatement() (*RevokeStatement, error) {
 		return nil, newParseError(tokstr(tok, lit), []string{"FROM"}, pos)
 	}
 
-	// Parse the name of the user we're granting the privilege to.
+	// Parse the name of the user we're revoking the privilege from.
 	lit, err = p.parseIdent()
 	if err != nil {
 		return nil, err
@@ -717,11 +740,17 @@ func (p *Parser) parseShowTagValuesStatement() (*ShowTagValuesStatement, error) 
 	stmt := &ShowTagValuesStatement{}
 	var err error
 
-	// Parse source.
-	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != FROM {
-		return nil, newParseError(tokstr(tok, lit), []string{"FROM"}, pos)
+	// Parse optional source.
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == FROM {
+		if stmt.Source, err = p.parseSource(); err != nil {
+			return nil, err
+		}
+	} else {
+		p.unscan()
 	}
-	if stmt.Source, err = p.parseSource(); err != nil {
+
+	// Parse required WITH KEY.
+	if stmt.TagKeys, err = p.parseTagKeys(); err != nil {
 		return nil, err
 	}
 
@@ -746,6 +775,47 @@ func (p *Parser) parseShowTagValuesStatement() (*ShowTagValuesStatement, error) 
 	}
 
 	return stmt, nil
+}
+
+// parseTagKeys parses a string and returns a list of tag keys.
+func (p *Parser) parseTagKeys() ([]string, error) {
+	var err error
+
+	// Parse required WITH KEY tokens.
+	if err := p.parseTokens([]Token{WITH, KEY}); err != nil {
+		return nil, err
+	}
+
+	var tagKeys []string
+
+	// Parse required IN or EQ token.
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok == IN {
+		// Parse required ( token.
+		if tok, pos, lit = p.scanIgnoreWhitespace(); tok != LPAREN {
+			return nil, newParseError(tokstr(tok, lit), []string{"("}, pos)
+		}
+
+		// Parse tag key list.
+		if tagKeys, err = p.parseIdentList(); err != nil {
+			return nil, err
+		}
+
+		// Parse required ) token.
+		if tok, pos, lit = p.scanIgnoreWhitespace(); tok != RPAREN {
+			return nil, newParseError(tokstr(tok, lit), []string{"("}, pos)
+		}
+	} else if tok == EQ {
+		// Parse required tag key.
+		ident, err := p.parseIdent()
+		if err != nil {
+			return nil, err
+		}
+		tagKeys = append(tagKeys, ident)
+	} else {
+		return nil, newParseError(tokstr(tok, lit), []string{"IN", "="}, pos)
+	}
+
+	return tagKeys, nil
 }
 
 // parseShowUsersStatement parses a string and returns a ShowUsersStatement.
@@ -1186,9 +1256,8 @@ func (p *Parser) parseSource() (Source, error) {
 	// Return the appropriate source type.
 	if sourceType == "join" {
 		return &Join{Measurements: measurements}, nil
-	} else {
-		return &Merge{Measurements: measurements}, nil
 	}
+	return &Merge{Measurements: measurements}, nil
 }
 
 // parseCondition parses the "WHERE" clause of the query, if it exists.
@@ -1426,10 +1495,9 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 		// Otherwise parse as a variable reference.
 		if tok0, _, _ := p.scan(); tok0 == LPAREN {
 			return p.parseCall(lit)
-		} else {
-			p.unscan()
-			return &VarRef{Val: lit}, nil
 		}
+		p.unscan()
+		return &VarRef{Val: lit}, nil
 	case STRING:
 		// If literal looks like a date time then parse it as a time literal.
 		if isDateTimeString(lit) {
@@ -1457,11 +1525,6 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 	case DURATION_VAL:
 		v, _ := ParseDuration(lit)
 		return &DurationLiteral{Val: v}, nil
-	case TAG:
-		if tok, pos, lit = p.scanIgnoreWhitespace(); tok != KEY {
-			return nil, newParseError(tokstr(tok, lit), []string{"KEY"}, pos)
-		}
-		return &TagKeyIdent{}, nil
 	default:
 		return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string", "number", "bool"}, pos)
 	}
@@ -1532,11 +1595,10 @@ func ParseDuration(s string) (time.Duration, error) {
 
 	// If there's only character then it must be a digit (in microseconds).
 	if len(s) == 1 {
-		if n, err := strconv.ParseInt(s, 10, 64); err != nil {
-			return 0, ErrInvalidDuration
-		} else {
+		if n, err := strconv.ParseInt(s, 10, 64); err == nil {
 			return time.Duration(n) * time.Microsecond, nil
 		}
+		return 0, ErrInvalidDuration
 	}
 
 	// Split string into individual runes.
@@ -1598,9 +1660,8 @@ func FormatDuration(d time.Duration) string {
 		return fmt.Sprintf("%ds", d/time.Second)
 	} else if d%time.Millisecond == 0 {
 		return fmt.Sprintf("%dms", d/time.Millisecond)
-	} else {
-		return fmt.Sprintf("%d", d/time.Microsecond)
 	}
+	return fmt.Sprintf("%d", d/time.Microsecond)
 }
 
 // parseTokens consumes an expected sequence of tokens.
@@ -1613,7 +1674,7 @@ func (p *Parser) parseTokens(toks []Token) error {
 	return nil
 }
 
-// Quote returns a quoted string.
+// QuoteString returns a quoted string.
 func QuoteString(s string) string {
 	return `'` + strings.NewReplacer("\n", `\n`, `\`, `\\`, `'`, `\'`).Replace(s) + `'`
 }

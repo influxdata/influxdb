@@ -27,17 +27,11 @@ if [ -r $DEFAULT ]; then
     source $DEFAULT
 fi
 
-if [ "x$NOFILES" == "x" ]; then
-    NOFILES=0
-fi
-
-if [ $NOFILES -le 0 ]; then
-    NOFILES=65536
-fi
-
 if [ "x$STDOUT" == "x" ]; then
     STDOUT=/dev/null
 fi
+
+OPEN_FILE_LIMIT=65536
 
 function pidofproc() {
     if [ $# -ne 3 ]; then
@@ -102,14 +96,20 @@ case $1 in
                 exit 1 # Exit
             fi
         fi
-        # Start the daemon.
-        if ! ulimit -n $NOFILES >/dev/null 2>&1; then
-            echo -n "Cannot set the max number of open file descriptors"
-		    exit 1
+
+        # Bump the file limits, before launching the daemon. These will carry over to
+        # launched processes.
+        ulimit -n $OPEN_FILE_LIMIT
+        if [ $? -ne 0 ]; then
+            log_failure_msg "set open file limit to $OPEN_FILE_LIMIT"
         fi
 
         log_success_msg "Starting the process" "$name"
-        nohup $daemon run -config $config -pidfile $pidfile > /dev/null 2>&1 &
+        if which start-stop-daemon > /dev/null 2>&1; then
+            start-stop-daemon --chuid influxdb:influxdb --start --quiet --pidfile $pidfile --exec $daemon -- -pidfile $pidfile -config $config > $STDOUT 2>&1 &
+        else
+            nohup $daemon run -config $config -pidfile $pidfile > $STDOUT 2>&1 &
+        fi
         log_success_msg "$name process was started"
         ;;
 

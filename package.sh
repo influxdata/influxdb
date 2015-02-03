@@ -33,6 +33,8 @@
 AWS_FILE=~/aws.conf
 
 INSTALL_ROOT_DIR=/opt/influxdb
+INFLUXDB_RUN_DIR=/var/opt/influxdb
+INFLUXDB_LOG_DIR=/var/log/influxdb
 CONFIG_ROOT_DIR=/etc/opt/influxdb
 
 SAMPLE_CONFIGURATION=etc/config.sample.toml
@@ -133,6 +135,10 @@ do_build() {
     fi
 
     rm $GOPATH/bin/*
+    go get -u -f ./...
+    if [ $? -ne 0 ]; then
+        echo "WARNING: failed to 'go get' packages."
+    fi
     go install -a -ldflags="-X main.version $version -X main.commit $commit" ./...
     if [ $? -ne 0 ]; then
         echo "Build failed, unable to create package -- aborting"
@@ -169,6 +175,11 @@ if ! id influxdb >/dev/null 2>&1; then
 fi
 chown -R -L influxdb:influxdb $INSTALL_ROOT_DIR
 chmod -R a+rX $INSTALL_ROOT_DIR
+
+mkdir -p $INFLUXDB_RUN_DIR
+chown -R -L influxdb:influxdb $INFLUXDB_RUN_DIR
+mkdir -p $INFLUXDB_LOG_DIR
+chown -R -L influxdb:influxdb $INFLUXDB_LOG_DIR
 EOF
     echo "Post-install script created successfully at $POST_INSTALL_PATH"
 }

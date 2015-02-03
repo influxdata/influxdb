@@ -73,6 +73,9 @@ const (
 	// Write series data messages (per-topic)
 	writeRawSeriesMessageType = messaging.MessageType(0x80)
 	writeSeriesMessageType    = messaging.MessageType(0x81)
+
+	// Privilege messages
+	setPrivilegeMessageType = messaging.MessageType(0x90)
 )
 
 // Server represents a collection of metadata and raw metric data.
@@ -94,6 +97,8 @@ type Server struct {
 
 	shards           map[uint64]*Shard   // shards by shard id
 	shardsBySeriesID map[uint32][]*Shard // shards by series id
+
+	Logger *log.Logger
 }
 
 // NewServer returns a new instance of Server.
@@ -107,6 +112,7 @@ func NewServer() *Server {
 
 		shards:           make(map[uint64]*Shard),
 		shardsBySeriesID: make(map[uint32][]*Shard),
+		Logger:           log.New(os.Stderr, "[server] ", log.LstdFlags),
 	}
 }
 
@@ -140,6 +146,11 @@ func (s *Server) metaPath() string {
 		return ""
 	}
 	return filepath.Join(s.path, "meta")
+}
+
+// SetLogOutput sets writer for all Server log output.
+func (s *Server) SetLogOutput(w io.Writer) {
+	s.Logger = log.New(w, "[server] ", log.LstdFlags)
 }
 
 // Open initializes the server from a given path.
@@ -701,7 +712,7 @@ func (s *Server) ShardGroups(database string) ([]*ShardGroup, error) {
 	return a, nil
 }
 
-// CreateShardGroupIfNotExist creates the shard group for a retention policy for the interval a timestamp falls into.
+// CreateShardGroupIfNotExists creates the shard group for a retention policy for the interval a timestamp falls into.
 func (s *Server) CreateShardGroupIfNotExists(database, policy string, timestamp time.Time) error {
 	c := &createShardGroupIfNotExistsCommand{Database: database, Policy: policy, Timestamp: timestamp}
 	_, err := s.broadcast(createShardGroupIfNotExistsMessageType, c)
@@ -1028,6 +1039,52 @@ func (s *Server) applyDeleteUser(m *messaging.Message) error {
 
 type deleteUserCommand struct {
 	Username string `json:"username"`
+}
+
+// SetPrivilege grants / revokes a privilege to a user.
+func (s *Server) SetPrivilege(p influxql.Privilege, username string, dbname string) error {
+	c := &setPrivilegeCommand{p, username, dbname}
+	_, err := s.broadcast(setPrivilegeMessageType, c)
+	return err
+}
+
+func (s *Server) applySetPrivilege(m *messaging.Message) error {
+	var c setPrivilegeCommand
+	mustUnmarshalJSON(m.Data, &c)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Validate user.
+	if c.Username == "" {
+		return ErrUsernameRequired
+	}
+
+	u := s.users[c.Username]
+	if u == nil {
+		return ErrUserNotFound
+	}
+
+	// If dbname is empty, update user's Admin flag.
+	if c.Database == "" && (c.Privilege == influxql.AllPrivileges || c.Privilege == influxql.NoPrivileges) {
+		u.Admin = (c.Privilege == influxql.AllPrivileges)
+	} else if c.Database != "" {
+		// Update user's privilege for the database.
+		u.Privileges[c.Database] = c.Privilege
+	} else {
+		return ErrInvalidGrantRevoke
+	}
+
+	// Persist to metastore.
+	return s.meta.mustUpdate(func(tx *metatx) error {
+		return tx.saveUser(u)
+	})
+}
+
+type setPrivilegeCommand struct {
+	Privilege influxql.Privilege `json:"privilege"`
+	Username  string             `json:"username"`
+	Database  string             `json:"database"`
 }
 
 // RetentionPolicy returns a retention policy by name.
@@ -1379,11 +1436,6 @@ func (s *Server) writePoint(database, retentionPolicy string, point *Point) (uin
 	// Find appropriate shard within the shard group.
 	sh := g.ShardBySeriesID(seriesID)
 
-	// Ignore requests that have no values.
-	if len(values) == 0 {
-		return 0, nil
-	}
-
 	// Convert string-key/values to fieldID-key/values.
 	// If not all fields can be converted then send as a non-raw write series.
 	rawValues := m.mapValues(values)
@@ -1673,15 +1725,15 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 		case *influxql.ShowTagKeysStatement:
 			res = s.executeShowTagKeysStatement(stmt, database, user)
 		case *influxql.ShowTagValuesStatement:
-			continue
+			res = s.executeShowTagValuesStatement(stmt, database, user)
 		case *influxql.ShowFieldKeysStatement:
 			continue
 		case *influxql.ShowFieldValuesStatement:
 			continue
 		case *influxql.GrantStatement:
-			continue
+			res = s.executeGrantStatement(stmt, user)
 		case *influxql.RevokeStatement:
-			continue
+			res = s.executeRevokeStatement(stmt, user)
 		case *influxql.CreateRetentionPolicyStatement:
 			res = s.executeCreateRetentionPolicyStatement(stmt, user)
 		case *influxql.AlterRetentionPolicyStatement:
@@ -1976,6 +2028,90 @@ func (s *Server) executeShowTagKeysStatement(stmt *influxql.ShowTagKeysStatement
 	return result
 }
 
+func (s *Server) executeShowTagValuesStatement(stmt *influxql.ShowTagValuesStatement, database string, user *User) *Result {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	// Find the database.
+	db := s.databases[database]
+	if db == nil {
+		return &Result{Err: ErrDatabaseNotFound}
+	}
+
+	// Get the list of measurements we're interested in.
+	measurements, err := measurementsFromSourceOrDB(stmt.Source, db)
+	if err != nil {
+		return &Result{Err: err}
+	}
+
+	// Make result.
+	result := &Result{
+		Rows: make(influxql.Rows, 0, len(measurements)),
+	}
+
+	for _, name := range measurements {
+		// Look up the measurement by name.
+		m, ok := db.measurements[name]
+		if !ok {
+			continue
+		}
+
+		var ids seriesIDs
+
+		if stmt.Condition != nil {
+			// Get series IDs that match the WHERE clause.
+			filters := map[uint32]influxql.Expr{}
+			ids, _, _ = m.walkWhereForSeriesIds(stmt.Condition, filters)
+
+			// If no series matched, then go to the next measurement.
+			if len(ids) == 0 {
+				continue
+			}
+
+			// TODO: check return of walkWhereForSeriesIds for fields
+		} else {
+			// No WHERE clause so get all series IDs for this measurement.
+			ids = m.seriesIDs
+		}
+
+		tagValues := m.tagValuesByKeyAndSeriesID(stmt.TagKeys, ids)
+
+		r := &influxql.Row{
+			Name:    m.Name,
+			Columns: []string{"tagValue"},
+		}
+
+		vals := tagValues.list()
+		sort.Strings(vals)
+
+		for _, val := range vals {
+			v := interface{}(val)
+			r.Values = append(r.Values, []interface{}{v})
+		}
+
+		result.Rows = append(result.Rows, r)
+	}
+
+	return result
+}
+
+func (s *Server) executeGrantStatement(stmt *influxql.GrantStatement, user *User) *Result {
+	return &Result{Err: s.SetPrivilege(stmt.Privilege, stmt.User, stmt.On)}
+}
+
+func (s *Server) executeRevokeStatement(stmt *influxql.RevokeStatement, user *User) *Result {
+	return &Result{Err: s.SetPrivilege(influxql.NoPrivileges, stmt.User, stmt.On)}
+}
+
+// str2iface converts an array of strings to an array of interfaces.
+func str2iface(strs []string) []interface{} {
+	a := make([]interface{}, 0, len(strs))
+	for _, s := range strs {
+		a = append(a, interface{}(s))
+	}
+	return a
+}
+
 // measurementsFromSourceOrDB returns a list of measurement names from the
 // statement passed in or, if the statement is nil, a list of all
 // measurement names from the database passed in.
@@ -2057,6 +2193,7 @@ func (s *Server) executeShowRetentionPoliciesStatement(q *influxql.ShowRetention
 	return &Result{Rows: []*influxql.Row{row}}
 }
 
+// MeasurementNames returns a list of all measurements for the specified database.
 func (s *Server) MeasurementNames(database string) []string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -2246,6 +2383,8 @@ func (s *Server) processor(client MessagingClient, done chan struct{}) {
 			err = s.applySetDefaultRetentionPolicy(m)
 		case createSeriesIfNotExistsMessageType:
 			err = s.applyCreateSeriesIfNotExists(m)
+		case setPrivilegeMessageType:
+			err = s.applySetPrivilege(m)
 		}
 
 		// Sync high water mark and errors.
@@ -2305,6 +2444,7 @@ type Results struct {
 	Err     error
 }
 
+// MarshalJSON encodes a Results stuct into JSON.
 func (r Results) MarshalJSON() ([]byte, error) {
 	// Define a struct that outputs "error" as a string.
 	var o struct {
@@ -2341,10 +2481,10 @@ func (r *Results) UnmarshalJSON(b []byte) error {
 
 // Error returns the first error from any statement.
 // Returns nil if no errors occurred on any statements.
-func (a Results) Error() error {
-	for _, r := range a.Results {
-		if r.Err != nil {
-			return r.Err
+func (r *Results) Error() error {
+	for _, rr := range r.Results {
+		if rr.Err != nil {
+			return rr.Err
 		}
 	}
 	return nil
@@ -2460,11 +2600,13 @@ func (p users) Len() int           { return len(p) }
 func (p users) Less(i, j int) bool { return p[i].Name < p[j].Name }
 func (p users) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
+// Matcher can match either a Regex or plain string.
 type Matcher struct {
 	IsRegex bool
 	Name    string
 }
 
+// Matches returns true of the name passed in matches this Matcher.
 func (m *Matcher) Matches(name string) bool {
 	if m.IsRegex {
 		matches, _ := regexp.MatchString(m.Name, name)

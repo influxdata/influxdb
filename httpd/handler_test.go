@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +13,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/httpd"
@@ -21,6 +23,117 @@ import (
 
 func init() {
 	influxdb.BcryptCost = 4
+}
+
+func TestBatchWrite_UnmarshalEpoch(t *testing.T) {
+	now := time.Now().UTC()
+	tests := []struct {
+		name      string
+		epoch     int64
+		precision string
+		expected  time.Time
+	}{
+		{
+			name:      "nanoseconds",
+			epoch:     now.UnixNano(),
+			precision: "n",
+			expected:  now,
+		},
+		{
+			name:      "microseconds",
+			epoch:     now.Round(time.Microsecond).UnixNano() / int64(time.Microsecond),
+			precision: "u",
+			expected:  now.Round(time.Microsecond),
+		},
+		{
+			name:      "milliseconds",
+			epoch:     now.Round(time.Millisecond).UnixNano() / int64(time.Millisecond),
+			precision: "ms",
+			expected:  now.Round(time.Millisecond),
+		},
+		{
+			name:      "seconds",
+			epoch:     now.Round(time.Second).UnixNano() / int64(time.Second),
+			precision: "s",
+			expected:  now.Round(time.Second),
+		},
+		{
+			name:      "minutes",
+			epoch:     now.Round(time.Minute).UnixNano() / int64(time.Minute),
+			precision: "m",
+			expected:  now.Round(time.Minute),
+		},
+		{
+			name:      "hours",
+			epoch:     now.Round(time.Hour).UnixNano() / int64(time.Hour),
+			precision: "h",
+			expected:  now.Round(time.Hour),
+		},
+		{
+			name:      "max int64",
+			epoch:     9223372036854775807,
+			precision: "n",
+			expected:  time.Unix(0, 9223372036854775807),
+		},
+		{
+			name:      "100 years from now",
+			epoch:     now.Add(time.Hour * 24 * 365 * 100).UnixNano(),
+			precision: "n",
+			expected:  now.Add(time.Hour * 24 * 365 * 100),
+		},
+	}
+
+	for _, test := range tests {
+		t.Logf("testing %q\n", test.name)
+		data := []byte(fmt.Sprintf(`{"timestamp": %d, "precision":"%s"}`, test.epoch, test.precision))
+		t.Logf("json: %s", string(data))
+		var br httpd.BatchWrite
+		err := json.Unmarshal(data, &br)
+		if err != nil {
+			t.Fatalf("unexpected error.  exptected: %v, actual: %v", nil, err)
+		}
+		if !br.Timestamp.Equal(test.expected) {
+			t.Fatalf("Unexpected time.  expected: %v, actual: %v", test.expected, br.Timestamp)
+		}
+	}
+}
+
+func TestBatchWrite_UnmarshalRFC(t *testing.T) {
+	now := time.Now()
+	tests := []struct {
+		name     string
+		rfc      string
+		now      time.Time
+		expected time.Time
+	}{
+		{
+			name:     "RFC3339Nano",
+			rfc:      time.RFC3339Nano,
+			now:      now,
+			expected: now,
+		},
+		{
+			name:     "RFC3339",
+			rfc:      time.RFC3339,
+			now:      now.Round(time.Second),
+			expected: now.Round(time.Second),
+		},
+	}
+
+	for _, test := range tests {
+		t.Logf("testing %q\n", test.name)
+		ts := test.now.Format(test.rfc)
+		data := []byte(fmt.Sprintf(`{"timestamp": %q}`, ts))
+		t.Logf("json: %s", string(data))
+		var br httpd.BatchWrite
+		err := json.Unmarshal(data, &br)
+		if err != nil {
+			t.Fatalf("unexpected error.  exptected: %v, actual: %v", nil, err)
+		}
+		if !br.Timestamp.Equal(test.expected) {
+			t.Fatalf("Unexpected time.  expected: %v, actual: %v", test.expected, br.Timestamp)
+		}
+	}
 }
 
 func TestHandler_Databases(t *testing.T) {
@@ -733,6 +846,140 @@ func TestHandler_AuthenticatedDatabases_UnauthorizedBasicAuth(t *testing.T) {
 	}
 }
 
+func TestHandler_GrantAdmin(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	// Create a cluster admin that will grant admin to "john".
+	srvr.CreateUser("lisa", "password", true)
+	// Create user that will be granted cluster admin.
+	srvr.CreateUser("john", "password", false)
+	s := NewAuthenticatedHTTPServer(srvr)
+	defer s.Close()
+
+	auth := make(map[string]string)
+	auth["Authorization"] = "Basic " + base64.StdEncoding.EncodeToString([]byte("lisa:password"))
+	query := map[string]string{"q": "GRANT ALL PRIVILEGES TO john"}
+
+	status, _ := MustHTTP("GET", s.URL+`/query`, query, auth, "")
+
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+
+	if u := srvr.User("john"); !u.Admin {
+		t.Fatal(`expected user "john" to be admin`)
+	}
+
+	// Make sure update persists after server restart.
+	srvr.Restart()
+
+	if u := srvr.User("john"); !u.Admin {
+		t.Fatal(`expected user "john" to be admin after server restart`)
+	}
+}
+
+func TestHandler_GrantDBPrivilege(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	// Create a cluster admin that will grant privilege to "john".
+	srvr.CreateUser("lisa", "password", true)
+	// Create user that will be granted a privilege.
+	srvr.CreateUser("john", "password", false)
+	s := NewAuthenticatedHTTPServer(srvr)
+	defer s.Close()
+
+	auth := make(map[string]string)
+	auth["Authorization"] = "Basic " + base64.StdEncoding.EncodeToString([]byte("lisa:password"))
+	query := map[string]string{"q": "GRANT READ ON foo TO john"}
+
+	status, _ := MustHTTP("GET", s.URL+`/query`, query, auth, "")
+
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+
+	u := srvr.User("john")
+	if p, ok := u.Privileges["foo"]; !ok {
+		t.Fatal(`expected john to have privileges on foo but he has none`)
+	} else if p != influxql.ReadPrivilege {
+		t.Fatalf(`expected john to have read privilege on foo but he has %s`, p.String())
+	}
+
+	// Make sure update persists after server restart.
+	srvr.Restart()
+
+	u = srvr.User("john")
+	if p, ok := u.Privileges["foo"]; !ok {
+		t.Fatal(`expected john to have privileges on foo but he has none after restart`)
+	} else if p != influxql.ReadPrivilege {
+		t.Fatalf(`expected john to have read privilege on foo but he has %s after restart`, p.String())
+	}
+}
+
+func TestHandler_RevokeAdmin(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	// Create a cluster admin that will revoke admin from "john".
+	srvr.CreateUser("lisa", "password", true)
+	// Create user that will have cluster admin revoked.
+	srvr.CreateUser("john", "password", true)
+	s := NewAuthenticatedHTTPServer(srvr)
+	defer s.Close()
+
+	auth := make(map[string]string)
+	auth["Authorization"] = "Basic " + base64.StdEncoding.EncodeToString([]byte("lisa:password"))
+	query := map[string]string{"q": "REVOKE ALL PRIVILEGES FROM john"}
+
+	status, body := MustHTTP("GET", s.URL+`/query`, query, auth, "")
+
+	if status != http.StatusOK {
+		t.Log(body)
+		t.Fatalf("unexpected status: %d", status)
+	}
+
+	if u := srvr.User("john"); u.Admin {
+		t.Fatal(`expected user "john" not to be admin`)
+	}
+
+	// Make sure update persists after server restart.
+	srvr.Restart()
+
+	if u := srvr.User("john"); u.Admin {
+		t.Fatal(`expected user "john" not to be admin after restart`)
+	}
+}
+
+func TestHandler_RevokeDBPrivilege(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	// Create a cluster admin that will revoke privilege from "john".
+	srvr.CreateUser("lisa", "password", true)
+	// Create user that will have privilege revoked.
+	srvr.CreateUser("john", "password", false)
+	u := srvr.User("john")
+	u.Privileges["foo"] = influxql.ReadPrivilege
+	s := NewAuthenticatedHTTPServer(srvr)
+	defer s.Close()
+
+	auth := make(map[string]string)
+	auth["Authorization"] = "Basic " + base64.StdEncoding.EncodeToString([]byte("lisa:password"))
+	query := map[string]string{"q": "REVOKE READ ON foo FROM john"}
+
+	status, body := MustHTTP("GET", s.URL+`/query`, query, auth, "")
+
+	if status != http.StatusOK {
+		t.Log(body)
+		t.Fatalf("unexpected status: %d", status)
+	}
+
+	if p := u.Privileges["foo"]; p != influxql.NoPrivileges {
+		t.Fatal(`expected user "john" not to have privileges on foo`)
+	}
+
+	// Make sure update persists after server restart.
+	srvr.Restart()
+
+	if p := u.Privileges["foo"]; p != influxql.NoPrivileges {
+		t.Fatal(`expected user "john" not to have privileges on foo after restart`)
+	}
+}
+
 func TestHandler_serveWriteSeries(t *testing.T) {
 	srvr := OpenServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
@@ -830,9 +1077,9 @@ func TestHandler_serveShowSeries(t *testing.T) {
 			q: `SHOW SERIES`,
 			r: &influxdb.Results{
 				Results: []*influxdb.Result{
-					&influxdb.Result{
+					{
 						Rows: []*influxql.Row{
-							&influxql.Row{
+							{
 								Name:    "cpu",
 								Columns: []string{"host", "region"},
 								Values: [][]interface{}{
@@ -842,7 +1089,7 @@ func TestHandler_serveShowSeries(t *testing.T) {
 									str2iface([]string{"server02", "useast"}),
 								},
 							},
-							&influxql.Row{
+							{
 								Name:    "gpu",
 								Columns: []string{"host", "region"},
 								Values: [][]interface{}{
@@ -881,9 +1128,9 @@ func TestHandler_serveShowSeries(t *testing.T) {
 			q: `SHOW SERIES FROM cpu`,
 			r: &influxdb.Results{
 				Results: []*influxdb.Result{
-					&influxdb.Result{
+					{
 						Rows: []*influxql.Row{
-							&influxql.Row{
+							{
 								Name:    "cpu",
 								Columns: []string{"host", "region"},
 								Values: [][]interface{}{
@@ -903,9 +1150,9 @@ func TestHandler_serveShowSeries(t *testing.T) {
 			q: `SHOW SERIES WHERE region = 'uswest'`,
 			r: &influxdb.Results{
 				Results: []*influxdb.Result{
-					&influxdb.Result{
+					{
 						Rows: []*influxql.Row{
-							&influxql.Row{
+							{
 								Name:    "cpu",
 								Columns: []string{"host", "region"},
 								Values: [][]interface{}{
@@ -922,9 +1169,9 @@ func TestHandler_serveShowSeries(t *testing.T) {
 			q: `SHOW SERIES FROM cpu WHERE region = 'useast'`,
 			r: &influxdb.Results{
 				Results: []*influxdb.Result{
-					&influxdb.Result{
+					{
 						Rows: []*influxql.Row{
-							&influxql.Row{
+							{
 								Name:    "cpu",
 								Columns: []string{"host", "region"},
 								Values: [][]interface{}{
@@ -1060,9 +1307,9 @@ func TestHandler_serveShowTagKeys(t *testing.T) {
 			q: `SHOW TAG KEYS`,
 			r: &influxdb.Results{
 				Results: []*influxdb.Result{
-					&influxdb.Result{
+					{
 						Rows: []*influxql.Row{
-							&influxql.Row{
+							{
 								Name:    "cpu",
 								Columns: []string{"tagKey"},
 								Values: [][]interface{}{
@@ -1070,7 +1317,7 @@ func TestHandler_serveShowTagKeys(t *testing.T) {
 									str2iface([]string{"region"}),
 								},
 							},
-							&influxql.Row{
+							{
 								Name:    "gpu",
 								Columns: []string{"tagKey"},
 								Values: [][]interface{}{
@@ -1088,9 +1335,9 @@ func TestHandler_serveShowTagKeys(t *testing.T) {
 			q: `SHOW TAG KEYS FROM cpu`,
 			r: &influxdb.Results{
 				Results: []*influxdb.Result{
-					&influxdb.Result{
+					{
 						Rows: []*influxql.Row{
-							&influxql.Row{
+							{
 								Name:    "cpu",
 								Columns: []string{"tagKey"},
 								Values: [][]interface{}{
@@ -1131,6 +1378,149 @@ func TestHandler_serveShowTagKeys(t *testing.T) {
 		}
 	}
 }
+
+func TestHandler_serveShowTagValues(t *testing.T) {
+	srvr := OpenServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
+	srvr.SetDefaultRetentionPolicy("foo", "bar")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [
+		{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "uswest"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
+		{"name": "gpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}}
+		]}`)
+
+	if status != http.StatusOK {
+		t.Log(body)
+		t.Fatalf("unexpected status after write: %d", status)
+	}
+
+	var tests = []struct {
+		q   string
+		r   *influxdb.Results
+		err string
+	}{
+		// SHOW TAG VALUES
+		{
+			q: `SHOW TAG VALUES WITH KEY = host`,
+			r: &influxdb.Results{
+				Results: []*influxdb.Result{
+					{
+						Rows: []*influxql.Row{
+							{
+								Name:    "cpu",
+								Columns: []string{"tagValue"},
+								Values: [][]interface{}{
+									str2iface([]string{"server01"}),
+									str2iface([]string{"server02"}),
+								},
+							},
+							{
+								Name:    "gpu",
+								Columns: []string{"tagValue"},
+								Values: [][]interface{}{
+									str2iface([]string{"server02"}),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		// SHOW TAG VALUES FROM ...
+		{
+			q: `SHOW TAG VALUES FROM cpu WITH KEY = host`,
+			r: &influxdb.Results{
+				Results: []*influxdb.Result{
+					{
+						Rows: []*influxql.Row{
+							{
+								Name:    "cpu",
+								Columns: []string{"tagValue"},
+								Values: [][]interface{}{
+									str2iface([]string{"server01"}),
+									str2iface([]string{"server02"}),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		// SHOW TAG VALUES FROM ... WHERE ...
+		{
+			q: `SHOW TAG VALUES FROM cpu WITH KEY = host WHERE region = 'uswest'`,
+			r: &influxdb.Results{
+				Results: []*influxdb.Result{
+					{
+						Rows: []*influxql.Row{
+							{
+								Name:    "cpu",
+								Columns: []string{"tagValue"},
+								Values: [][]interface{}{
+									str2iface([]string{"server01"}),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		// SHOW TAG VALUES FROM ... WITH KEY IN ... WHERE ...
+		{
+			q: `SHOW TAG VALUES FROM cpu WITH KEY IN (host, region) WHERE region = 'uswest'`,
+			r: &influxdb.Results{
+				Results: []*influxdb.Result{
+					{
+						Rows: []*influxql.Row{
+							{
+								Name:    "cpu",
+								Columns: []string{"tagValue"},
+								Values: [][]interface{}{
+									str2iface([]string{"server01"}),
+									str2iface([]string{"uswest"}),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	for i, tt := range tests {
+		query := map[string]string{"db": "foo", "q": tt.q}
+		status, body = MustHTTP("GET", s.URL+`/query`, query, nil, "")
+
+		if status != http.StatusOK {
+			t.Logf("query #%d: %s", i, tt.q)
+			t.Log(body)
+			t.Errorf("unexpected status: %d", status)
+		}
+
+		r := &influxdb.Results{}
+		if err := json.Unmarshal([]byte(body), r); err != nil {
+			t.Logf("query #%d: %s", i, tt.q)
+			t.Log(body)
+			t.Error(err)
+		}
+
+		if !reflect.DeepEqual(tt.err, errstring(r.Err)) {
+			t.Errorf("%d. %s: error mismatch:\n  exp=%s\n  got=%s\n\n", i, tt.q, tt.err, r.Err)
+		} else if tt.err == "" && !reflect.DeepEqual(tt.r, r) {
+			b, _ := json.Marshal(tt.r)
+			t.Log(string(b))
+			t.Log(body)
+			t.Errorf("%d. %s: result mismatch:\n\nexp=%#v\n\ngot=%#v\n\n", i, tt.q, tt.r, r)
+		}
+	}
+}
+
+// batchWrite JSON Unmarshal tests
 
 // Utility functions for this test suite.
 
@@ -1210,6 +1600,30 @@ func OpenServer(client influxdb.MessagingClient) *Server {
 		panic(err.Error())
 	}
 	return s
+}
+
+// Close shuts down the server and removes all temporary files.
+func (s *Server) Close() {
+	defer os.RemoveAll(s.Path())
+	s.Server.Close()
+}
+
+// Restart stops and restarts the server.
+func (s *Server) Restart() {
+	path, client := s.Path(), s.Client()
+
+	// Stop the server.
+	if err := s.Server.Close(); err != nil {
+		panic("close: " + err.Error())
+	}
+
+	// Open and reset the client.
+	if err := s.Server.Open(path); err != nil {
+		panic("open: " + err.Error())
+	}
+	if err := s.Server.SetClient(client); err != nil {
+		panic("client: " + err.Error())
+	}
 }
 
 // OpenUninitializedServer returns a new, uninitialized, open test server instance.

@@ -74,6 +74,7 @@ const (
 	GRANT
 	GROUP
 	IF
+	IN
 	INNER
 	INSERT
 	INTO
@@ -165,6 +166,7 @@ var tokens = [...]string{
 	GRANT:        "GRANT",
 	GROUP:        "GROUP",
 	IF:           "IF",
+	IN:           "IN",
 	INNER:        "INNER",
 	INSERT:       "INSERT",
 	INTO:         "INTO",

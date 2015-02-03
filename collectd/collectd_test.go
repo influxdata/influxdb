@@ -211,33 +211,33 @@ func TestUnmarshal_Points(t *testing.T) {
 		{
 			name: "single value",
 			points: []influxdb.Point{
-				influxdb.Point{Name: "disk_read", Values: map[string]interface{}{"disk_read": float64(1)}},
+				{Name: "disk_read", Values: map[string]interface{}{"disk_read": float64(1)}},
 			},
 			packet: gollectd.Packet{
 				Plugin: "disk",
 				Values: []gollectd.Value{
-					gollectd.Value{Name: "read", Value: 1},
+					{Name: "read", Value: 1},
 				},
 			},
 		},
 		{
 			name: "multi value",
 			points: []influxdb.Point{
-				influxdb.Point{Name: "disk_read", Values: map[string]interface{}{"disk_read": float64(1)}},
-				influxdb.Point{Name: "disk_write", Values: map[string]interface{}{"disk_write": float64(5)}},
+				{Name: "disk_read", Values: map[string]interface{}{"disk_read": float64(1)}},
+				{Name: "disk_write", Values: map[string]interface{}{"disk_write": float64(5)}},
 			},
 			packet: gollectd.Packet{
 				Plugin: "disk",
 				Values: []gollectd.Value{
-					gollectd.Value{Name: "read", Value: 1},
-					gollectd.Value{Name: "write", Value: 5},
+					{Name: "read", Value: 1},
+					{Name: "write", Value: 5},
 				},
 			},
 		},
 		{
 			name: "tags",
 			points: []influxdb.Point{
-				influxdb.Point{
+				{
 					Name:   "disk_read",
 					Tags:   map[string]string{"host": "server01", "instance": "sdk", "type": "disk_octets", "type_instance": "single"},
 					Values: map[string]interface{}{"disk_read": float64(1)},
@@ -250,7 +250,7 @@ func TestUnmarshal_Points(t *testing.T) {
 				Type:           "disk_octets",
 				TypeInstance:   "single",
 				Values: []gollectd.Value{
-					gollectd.Value{Name: "read", Value: 1},
+					{Name: "read", Value: 1},
 				},
 			},
 		},
@@ -313,13 +313,13 @@ func TestUnmarshal_Time(t *testing.T) {
 			packet: gollectd.Packet{
 				TimeHR: timeHR(testTime),
 				Values: []gollectd.Value{
-					gollectd.Value{
+					{
 						Value: 1,
 					},
 				},
 			},
 			points: []influxdb.Point{
-				influxdb.Point{Timestamp: testTime},
+				{Timestamp: testTime},
 			},
 		},
 		{
@@ -327,13 +327,13 @@ func TestUnmarshal_Time(t *testing.T) {
 			packet: gollectd.Packet{
 				Time: uint64(testTime.Round(time.Second).Unix()),
 				Values: []gollectd.Value{
-					gollectd.Value{
+					{
 						Value: 1,
 					},
 				},
 			},
 			points: []influxdb.Point{
-				influxdb.Point{Timestamp: testTime.Round(time.Second)},
+				{Timestamp: testTime.Round(time.Second)},
 			},
 		},
 	}

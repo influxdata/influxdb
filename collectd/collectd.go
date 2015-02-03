@@ -155,7 +155,7 @@ func Unmarshal(data *gollectd.Packet) []influxdb.Point {
 	}
 
 	var points []influxdb.Point
-	for i, _ := range data.Values {
+	for i := range data.Values {
 		name := fmt.Sprintf("%s_%s", data.Plugin, data.Values[i].Name)
 		tags := make(map[string]string)
 		values := make(map[string]interface{})

@@ -6,11 +6,15 @@ import (
 	"code.google.com/p/log4go"
 )
 
+// TimePrecision represents a level of time precision.
 type TimePrecision int
 
 const (
+	// MicrosecondPrecision is 1/1,000,000 th of a second.
 	MicrosecondPrecision TimePrecision = iota
+	// MillisecondPrecision is 1/1,000 th of a second.
 	MillisecondPrecision
+	// SecondPrecision is 1 second precision.
 	SecondPrecision
 )
 
@@ -69,23 +73,23 @@ func mapKeyList(m interface{}) []string {
 	switch m.(type) {
 	case map[string]string:
 		return mapStrStrKeyList(m.(map[string]string))
-	case map[string]int:
-		return mapStrIntKeyList(m.(map[string]int))
+	case map[string]uint32:
+		return mapStrUint32KeyList(m.(map[string]uint32))
 	}
 	return nil
 }
 
 func mapStrStrKeyList(m map[string]string) []string {
 	l := make([]string, 0, len(m))
-	for k, _ := range m {
+	for k := range m {
 		l = append(l, k)
 	}
 	return l
 }
 
-func mapStrIntKeyList(m map[string]int) []string {
+func mapStrUint32KeyList(m map[string]uint32) []string {
 	l := make([]string, 0, len(m))
-	for k, _ := range m {
+	for k := range m {
 		l = append(l, k)
 	}
 	return l

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"math/rand"
@@ -85,6 +86,11 @@ func (c *Client) LeaderURL() *url.URL {
 	// TODO(benbjohnson): Actually keep track of the leader.
 	// HACK(benbjohnson): For testing, just grab a url.
 	return c.config.Brokers[0]
+}
+
+// SetLogOutput sets writer for all Client log output.
+func (c *Client) SetLogOutput(w io.Writer) {
+	c.Logger = log.New(w, "[messaging] ", log.LstdFlags)
 }
 
 // Open initializes and opens the connection to the cluster. The

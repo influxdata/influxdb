@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/url"
 	"os"
 	"reflect"
@@ -160,7 +161,7 @@ func TestServer_SingleStatementQueryAuthorization(t *testing.T) {
 				Name:     "myquery",
 				Database: "foo",
 				Source: &influxql.SelectStatement{
-					Fields: []*influxql.Field{&influxql.Field{Expr: &influxql.Call{Name: "count"}}},
+					Fields: []*influxql.Field{{Expr: &influxql.Call{Name: "count"}}},
 					Target: &influxql.Target{Measurement: "measure1", Database: "bar"},
 					Source: &influxql.Measurement{Name: "myseries"},
 				},
@@ -218,13 +219,13 @@ func TestServer_MultiStatementQueryAuthorization(t *testing.T) {
 		Statements: []influxql.Statement{
 			// Statement that requires read.
 			&influxql.SelectStatement{
-				Fields: []*influxql.Field{&influxql.Field{Expr: &influxql.Call{Name: "count"}}},
+				Fields: []*influxql.Field{{Expr: &influxql.Call{Name: "count"}}},
 				Source: &influxql.Measurement{Name: "cpu"},
 			},
 
 			// Statement that requires write.
 			&influxql.SelectStatement{
-				Fields: []*influxql.Field{&influxql.Field{Expr: &influxql.Call{Name: "count"}}},
+				Fields: []*influxql.Field{{Expr: &influxql.Call{Name: "count"}}},
 				Source: &influxql.Measurement{Name: "cpu"},
 				Target: &influxql.Target{Measurement: "tmp"},
 			},
@@ -654,7 +655,7 @@ func TestServer_WriteSeries(t *testing.T) {
 
 	// Write series with one point to the database.
 	tags := map[string]string{"host": "servera.influx.com", "region": "uswest"}
-	index, err := s.WriteSeries("foo", "mypolicy", []influxdb.Point{influxdb.Point{Name: "cpu_load", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(23.2)}}})
+	index, err := s.WriteSeries("foo", "mypolicy", []influxdb.Point{{Name: "cpu_load", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(23.2)}}})
 	if err != nil {
 		t.Fatal(err)
 	} else if err = s.Sync(index); err != nil {
@@ -662,7 +663,7 @@ func TestServer_WriteSeries(t *testing.T) {
 	}
 
 	// Write another point 10 seconds later so it goes through "raw series".
-	index, err = s.WriteSeries("foo", "mypolicy", []influxdb.Point{influxdb.Point{Name: "cpu_load", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:10Z"), Values: map[string]interface{}{"value": float64(100)}}})
+	index, err = s.WriteSeries("foo", "mypolicy", []influxdb.Point{{Name: "cpu_load", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:10Z"), Values: map[string]interface{}{"value": float64(100)}}})
 	if err != nil {
 		t.Fatal(err)
 	} else if err = s.Sync(index); err != nil {
@@ -716,7 +717,7 @@ func TestServer_ExecuteQuery(t *testing.T) {
 		t.Fatalf("unexpected error: %s", res.Err)
 	} else if len(res.Rows) != 2 {
 		t.Fatalf("unexpected row count: %d", len(res.Rows))
-	} else if s := mustMarshalJSON(res); s != `{"rows":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","sum"],"values":[[946684800000000,20],[946684810000000,30]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","sum"],"values":[[946684800000000,100]]}]}` {
+	} else if s := mustMarshalJSON(res); s != `{"rows":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","sum"],"values":[[946684800000000000,20],[946684810000000000,30]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","sum"],"values":[[946684800000000000,100]]}]}` {
 		t.Fatalf("unexpected row(0): %s", s)
 	}
 }
@@ -898,6 +899,39 @@ func TestDatabase_TagNames(t *testing.T)        { t.Skip("pending") }
 func TestServer_TagNamesBySeries(t *testing.T)  { t.Skip("pending") }
 func TestServer_TagValues(t *testing.T)         { t.Skip("pending") }
 func TestServer_TagValuesBySeries(t *testing.T) { t.Skip("pending") }
+
+// Point JSON Unmarshal tests
+
+func TestbatchWrite_UnmarshalEpoch(t *testing.T) {
+	var (
+		now     = time.Now()
+		nanos   = now.UnixNano()
+		micros  = nanos / int64(time.Microsecond)
+		millis  = nanos / int64(time.Millisecond)
+		seconds = nanos / int64(time.Second)
+		minutes = nanos / int64(time.Minute)
+		hours   = nanos / int64(time.Hour)
+	)
+
+	tests := []struct {
+		name  string
+		epoch int64
+	}{
+		{name: "nanos", epoch: nanos},
+		{name: "micros", epoch: micros},
+		{name: "millis", epoch: millis},
+		{name: "seconds", epoch: seconds},
+		{name: "minutes", epoch: minutes},
+		{name: "hours", epoch: hours},
+	}
+
+	for _, test := range tests {
+		json := fmt.Sprintf(`"points": [{timestamp: "%d"}`, test.epoch)
+		log.Println(json)
+		t.Fatal("foo")
+	}
+
+}
 
 // Server is a wrapping test struct for influxdb.Server.
 type Server struct {

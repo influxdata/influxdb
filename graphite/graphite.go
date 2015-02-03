@@ -115,7 +115,7 @@ func (p *Parser) DecodeNameAndTags(field string) (string, map[string]string, err
 		values = values[0 : len(values)-1]
 	} else {
 		name = values[0]
-		values = values[1:len(values)]
+		values = values[1:]
 	}
 
 	if name == "" {

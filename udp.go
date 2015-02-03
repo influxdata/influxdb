@@ -5,7 +5,7 @@ import (
 	"sync"
 )
 
-// UDPServer
+// UDPServer represents a UDP transport for InfluxDB.
 type UDPServer struct {
 	server *Server
 

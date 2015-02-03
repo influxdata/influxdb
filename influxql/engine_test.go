@@ -128,7 +128,7 @@ func TestPlanner_Plan_Mean(t *testing.T) {
 	}
 
 	// Expected resultset.
-	exp := minify(`[{"name":"cpu","columns":["time","mean"],"values":[[946684800000000,80],[946684860000000,60]]}]`)
+	exp := minify(`[{"name":"cpu","columns":["time","mean"],"values":[[946684800000000000,80],[946684860000000000,60]]}]`)
 
 	// Execute and compare.
 	rs := MustPlanAndExecute(NewDB(tx), `2000-01-01T12:00:00Z`,
@@ -161,7 +161,7 @@ func TestPlanner_Plan_Percentile(t *testing.T) {
 	}
 
 	// Expected resultset.
-	exp := minify(`[{"name":"cpu","columns":["time","percentile"],"values":[[946684800000000,80],[946684860000000,60]]}]`)
+	exp := minify(`[{"name":"cpu","columns":["time","percentile"],"values":[[946684800000000000,80],[946684860000000000,60]]}]`)
 
 	// Execute and compare.
 	rs := MustPlanAndExecute(NewDB(tx), `2000-01-01T12:00:00Z`,
@@ -170,7 +170,7 @@ func TestPlanner_Plan_Percentile(t *testing.T) {
 		t.Fatalf("unexpected resultset: %s", act)
 	}
 
-	exp = minify(`[{"name":"cpu","columns":["time","percentile"],"values":[[946684800000000,100],[946684860000000,70]]}]`)
+	exp = minify(`[{"name":"cpu","columns":["time","percentile"],"values":[[946684800000000000,100],[946684860000000000,70]]}]`)
 	// Execute and compare.
 	rs = MustPlanAndExecute(NewDB(tx), `2000-01-01T12:00:00Z`,
 		`SELECT percentile(value, 99.9) FROM cpu WHERE time >= '2000-01-01' GROUP BY time(1m)`)
@@ -207,7 +207,7 @@ func TestPlanner_Plan_RawData(t *testing.T) {
 	}
 
 	// Expected resultset.
-	exp := minify(`[{"name":"cpu","columns":["time","value"],"values":[[946684800000000,40],[946684810000000,30],[946684820000000,80],[946684822000000,20],[946684824000000,50],[946684890000000,10],[946684900000000,9],[946684910000000,8]]}]`)
+	exp := minify(`[{"name":"cpu","columns":["time","value"],"values":[[946684800000000000,40],[946684810000000000,30],[946684820000000000,80],[946684822000000000,20],[946684824000000000,50],[946684890000000000,10],[946684900000000000,9],[946684910000000000,8]]}]`)
 
 	// Execute and compare.
 	rs := MustPlanAndExecute(NewDB(tx), `2000-01-01T12:00:00Z`,
@@ -240,10 +240,10 @@ func TestPlanner_Plan_GroupByInterval(t *testing.T) {
 		"name":"cpu",
 		"columns":["time","sum"],
 		"values":[
-			[946717200000000,190],
-			[946719000000000,80],
-			[946724400000000,130],
-			[946726200000000,50]
+			[946717200000000000,190],
+			[946719000000000000,80],
+			[946724400000000000,130],
+			[946726200000000000,50]
 		]
 	}]`)
 
@@ -291,18 +291,18 @@ func TestPlanner_Plan_GroupByIntervalAndTag(t *testing.T) {
 		"tags":{"host":"servera"},
 		"columns":["time","sum"],
 		"values":[
-			[946717200000000,30],
-			[946720800000000,0],
-			[946724400000000,70]
+			[946717200000000000,30],
+			[946720800000000000,0],
+			[946724400000000000,70]
 		]
 	},{
 		"name":"cpu",
 		"tags":{"host":"serverb"},
 		"columns":["time","sum"],
 		"values":[
-			[946717200000000,1],
-			[946720800000000,0],
-			[946724400000000,2]
+			[946717200000000000,1],
+			[946720800000000000,0],
+			[946724400000000000,2]
 		]
 	}]`)
 

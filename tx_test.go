@@ -11,6 +11,7 @@ import (
 
 // Ensure a transaction can retrieve a list of iterators for a simple SELECT statement.
 func TestTx_CreateIterators(t *testing.T) {
+	t.Skip()
 	s := OpenDefaultServer(NewMessagingClient())
 	defer s.Close()
 

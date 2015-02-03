@@ -16,9 +16,9 @@ bind-address = "0.0.0.0"
 reporting-disabled = false
 
 # Controls settings for initial start-up. Once a node a successfully started,
-# these settings no longer apply.
+# these settings are ignored.
 [initialization]
-join-urls = ""
+join-urls = "" # Comma-delimited URLs for joining another cluster.
 
 # Control authentication
 # If not set authetication is DISABLED. Be sure to explicitly set this flag to
@@ -28,38 +28,35 @@ join-urls = ""
 [authentication]
 enabled = false
 
-[logging]
-# logging level can be one of "fine", "debug", "info", "warn" or "error"
-level  = "info"
-file   = "influxdb.log"         # stdout to log to standard out, or syslog facility
-
 # Configure the admin server
 [admin]
 port   = 8083              # binding is disabled if the port isn't set
 
-# Configure the http api
+# Configure the HTTP API endpoint. All time-series data and queries uses this endpoint.
 [api]
-port     = 8086    # binding is disabled if the node is not a Data node.
 # ssl-port = 8084    # SSL support is enabled if you set a port and cert
 # ssl-cert = "/path/to/cert.pem"
 
-# connections will timeout after this amount of time. Ensures that clients that misbehave
-# and keep alive connections they don't use won't end up connection a million times.
-# However, if a request is taking longer than this to complete, could be a problem.
-read-timeout = "5s"
+# Configure the Graphite plugins.
+[[graphite]] # 1 or more of these sections may be present.
+enabled = false
+# protocol = "" # Set to "tcp" or "udp"
+# address = "0.0.0.0" # If not set, is actually set to bind-address.
+# port = 2003
+# name-position = "last"
+# name-separator = "-"
+# database = ""  # store graphite data in this database
 
+# Configure the collectd input.
+[collectd]
+enabled = false
+#address = "0.0.0.0" # If not set, is actually set to bind-address.
+#port = 25827
+#database = "collectd_database"
+#typesdb = "types.db"
+
+# Input plugin configuration.
 [input_plugins]
-
-  # Configure the collectd api
-  [input_plugins.collectd]
-  enabled = false
-  # address = "0.0.0.0" # If not set, is actually set to bind-address.
-  # port = 25826
-  # database = ""
-  # types.db can be found in a collectd installation or on github:
-  # https://github.com/collectd/collectd/blob/master/src/types.db
-  # typesdb = "/usr/share/collectd/types.db" # The path to the collectd types.db file
-
   # Configure the udp api
   [input_plugins.udp]
   enabled = false
@@ -74,93 +71,22 @@ read-timeout = "5s"
   # port = 5551
   # database = "db1"
 
-# Configure the Graphite plugins.
-[[graphite]] # 1 or more of these sections may be present.
-enabled = false
-# protocol = "" # Set to "tcp" or "udp"
-# address = "0.0.0.0" # If not set, is actually set to bind-address.
-# port = 2003
-# database = ""  # store graphite data in this database
-
-# Raft configuration
-[raft]
-# The raft port should be open between all servers in a cluster.
-# However, this port shouldn't be accessible from the internet.
-
-port = 8090 # Binding is disabled if node is not a Broker.
-
-# Where the raft logs are stored. The user running InfluxDB will need read/write access.
+# Broker configuration. Brokers are nodes which participate in distributed
+# consensus.
+[broker]
+# Where the Raft logs are stored. The user running InfluxDB will need read/write access.
 dir  = "/tmp/influxdb/development/raft"
+port = 8086
 
-debug = false
-
-# election-timeout = "1s"
-
-[storage]
-
+# Data node configuration. Data nodes are where the time-series data, in the form of
+# shards, is stored.
+[data]
 dir = "/tmp/influxdb/development/db"
-# How many requests to potentially buffer in memory. If the buffer gets filled then writes
-# will still be logged and once the local storage has caught up (or compacted) the writes
-# will be replayed from the WAL
-write-buffer-size = 10000
-
-# The default setting on this is 0, which means unlimited. Set this to something if you want to
-# limit the max number of open files. max-open-files is per shard so this * that will be max.
-max-open-shards = 0
-
-# The default setting is 100. This option tells how many points will be fetched from LevelDb before
-# they get flushed into backend.
-point-batch-size = 100
-
-# The number of points to batch in memory before writing them to leveldb. Lowering this number will
-# reduce the memory usage, but will result in slower writes.
-write-batch-size = 5000000
-
-# The server will check this often for shards that have expired that should be cleared.
-retention-sweep-period = "10m"
+port = 8086
 
 [cluster]
-
 # Location for cluster state storage. For storing state persistently across restarts.
 dir = "/tmp/influxdb/development/state"
 
-# Replication happens over a TCP connection with a Protobuf protocol.
-# This port should be reachable between all servers in a cluster.
-# However, this port shouldn't be accessible from the internet.
-
-protobuf_port = 8099
-protobuf_timeout = "2s" # the write timeout on the protobuf conn any duration parseable by time.ParseDuration
-protobuf_heartbeat = "200ms" # the heartbeat interval between the servers. must be parseable by time.ParseDuration
-protobuf_min_backoff = "1s" # the minimum backoff after a failed heartbeat attempt
-protobuf_max_backoff = "10s" # the maxmimum backoff after a failed heartbeat attempt
-
-# How many write requests to potentially buffer in memory per server. If the buffer gets filled then writes
-# will still be logged and once the server has caught up (or come back online) the writes
-# will be replayed from the WAL
-write-buffer-size = 1000
-
-# the maximum number of responses to buffer from remote nodes, if the
-# expected number of responses exceed this number then querying will
-# happen sequentially and the buffer size will be limited to this
-# number
-max-response-buffer-size = 100
-
-# When queries get distributed out to shards, they go in parallel. This means that results can get buffered
-# in memory since results will come in any order, but have to be processed in the correct time order.
-# Setting this higher will give better performance, but you'll need more memory. Setting this to 1 will ensure
-# that you don't need to buffer in memory, but you won't get the best performance.
-concurrent-shard-query-limit = 10
-
-[wal]
-
-dir   = "/tmp/influxdb/development/wal"
-flush-after = 1000 # the number of writes after which wal will be flushed, 0 for flushing on every write
-bookmark-after = 1000 # the number of writes after which a bookmark will be created
-
-# the number of writes after which an index entry is created pointing
-# to the offset of the first request, default to 1k
-index-after = 1000
-
-# the number of requests per one log file, if new requests came in a
-# new log file will be created
-requests-per-logfile = 10000
+[logging]
+file   = "/var/log/influxdb/influxd.log" # Leave blank to redirect logs to stderr.

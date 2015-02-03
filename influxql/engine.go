@@ -58,6 +58,7 @@ func NewPlanner(db DB) *Planner {
 	}
 }
 
+// Plan creates an execution plan for the given SelectStatement and returns an Executor.
 func (p *Planner) Plan(stmt *SelectStatement) (*Executor, error) {
 	now := p.Now()
 
@@ -298,12 +299,8 @@ loop:
 	}
 
 	// Normalize rows and values.
-	// This converts the timestamps from nanoseconds to microseconds.
 	a := make(Rows, 0, len(rows))
 	for _, row := range rows {
-		for _, values := range row.Values {
-			values[0] = values[0].(int64) / int64(time.Microsecond)
-		}
 		a = append(a, row)
 	}
 	sort.Sort(a)
@@ -511,6 +508,7 @@ func (r *Reducer) C() <-chan map[Key]interface{} { return r.c }
 // Name returns the source name.
 func (r *Reducer) Name() string { return r.name }
 
+// Process processes the Reducer.
 func (r *Reducer) Process() { r.Reduce() }
 
 // Reduce executes the reducer's function against all output from the mappers.

@@ -48,8 +48,6 @@ func TestParseConfig(t *testing.T) {
 
 	if c.Logging.File != "influxdb.log" {
 		t.Fatalf("logging file mismatch: %v", c.Logging.File)
-	} else if c.Logging.Level != "info" {
-		t.Fatalf("logging level mismatch: %v", c.Logging.Level)
 	}
 
 	if !c.Authentication.Enabled {
@@ -115,7 +113,7 @@ func TestParseConfig(t *testing.T) {
 		t.Errorf("collectd typesdb mismatch: expected %v, got %v", "foo-db-type", c.Collectd.TypesDB)
 	}
 
-	if c.Broker.Port != 8090 {
+	if c.Broker.Port != 8086 {
 		t.Fatalf("broker port mismatch: %v", c.Broker.Port)
 	} else if c.Broker.Dir != "/tmp/influxdb/development/broker" {
 		t.Fatalf("broker dir mismatch: %v", c.Broker.Dir)
@@ -127,18 +125,8 @@ func TestParseConfig(t *testing.T) {
 		t.Fatalf("data dir mismatch: %v", c.Data.Dir)
 	}
 
-	if c.Cluster.ProtobufPort != 8099 {
-		t.Fatalf("protobuf port mismatch: %v", c.Cluster.ProtobufPort)
-	} else if time.Duration(c.Cluster.ProtobufTimeout) != 2*time.Second {
-		t.Fatalf("protobuf timeout mismatch: %v", c.Cluster.ProtobufTimeout)
-	} else if time.Duration(c.Cluster.ProtobufHeartbeatInterval) != 200*time.Millisecond {
-		t.Fatalf("protobuf heartbeat interval mismatch: %v", c.Cluster.ProtobufHeartbeatInterval)
-	} else if time.Duration(c.Cluster.MinBackoff) != 100*time.Millisecond {
-		t.Fatalf("min backoff mismatch: %v", c.Cluster.MinBackoff)
-	} else if time.Duration(c.Cluster.MaxBackoff) != 1*time.Second {
-		t.Fatalf("max backoff mismatch: %v", c.Cluster.MaxBackoff)
-	} else if c.Cluster.MaxResponseBufferSize != 5 {
-		t.Fatalf("max response buffer size mismatch: %v", c.Cluster.MaxResponseBufferSize)
+	if c.Cluster.Dir != "/tmp/influxdb/development/cluster" {
+		t.Fatalf("cluster dir mismatch: %v", c.Cluster.Dir)
 	}
 
 	// TODO: UDP Servers testing.
@@ -169,8 +157,6 @@ join-urls = "http://127.0.0.1:8086"
 enabled = true
 
 [logging]
-# logging level can be one of "debug", "info", "warn" or "error"
-level  = "info"
 file   = "influxdb.log"
 
 # Configure the admin server
@@ -220,15 +206,11 @@ port = 25827
 database = "collectd_database"
 typesdb = "foo-db-type"
 
-# Raft configuration
-[raft]
-# The raft port should be open between all servers in a cluster.
 # Broker configuration
 [broker]
 # The broker port should be open between all servers in a cluster.
 # However, this port shouldn't be accessible from the internet.
-
-port = 8090
+port = 8086
 
 # Where the broker logs are stored. The user running InfluxDB will need read/write access.
 dir  = "/tmp/influxdb/development/broker"
@@ -238,67 +220,8 @@ dir  = "/tmp/influxdb/development/broker"
 [data]
 dir = "/tmp/influxdb/development/db"
 
-# How many requests to potentially buffer in memory. If the buffer gets filled then writes
-# will still be logged and once the local storage has caught up (or compacted) the writes
-# will be replayed from the WAL
-write-buffer-size = 10000
-
-# The server will check this often for shards that have expired and should be cleared.
-retention-sweep-period = "10m"
-
 [cluster]
-# A comma separated list of servers to seed
-# this server. this is only relevant when the
-# server is joining a new cluster. Otherwise
-# the server will use the list of known servers
-# prior to shutting down. Any server can be pointed to
-# as a seed. It will find the Raft leader automatically.
-
-# Here's an example. Note that the port on the host is the same as the broker port.
-seed-servers = ["hosta:8090", "hostb:8090"]
-
-# Replication happens over a TCP connection with a Protobuf protocol.
-# This port should be reachable between all servers in a cluster.
-# However, this port shouldn't be accessible from the internet.
-
-protobuf_port = 8099
-protobuf_timeout = "2s" # the write timeout on the protobuf conn any duration parseable by time.ParseDuration
-protobuf_heartbeat = "200ms" # the heartbeat interval between the servers. must be parseable by time.ParseDuration
-protobuf_min_backoff = "100ms" # the minimum backoff after a failed heartbeat attempt
-protobuf_max_backoff = "1s" # the maxmimum backoff after a failed heartbeat attempt
-
-# How many write requests to potentially buffer in memory per server. If the buffer gets filled then writes
-# will still be logged and once the server has caught up (or come back online) the writes
-# will be replayed from the WAL
-write-buffer-size = 10000
-
-# the maximum number of responses to buffer from remote nodes, if the
-# expected number of responses exceed this number then querying will
-# happen sequentially and the buffer size will be limited to this
-# number
-max-response-buffer-size = 5
-
-# When queries get distributed out to shards, they go in parallel. This means that results can get buffered
-# in memory since results will come in any order, but have to be processed in the correct time order.
-# Setting this higher will give better performance, but you'll need more memory. Setting this to 1 will ensure
-# that you don't need to buffer in memory, but you won't get the best performance.
-concurrent-shard-query-limit = 10
-
-[leveldb]
-
-# Maximum mmap open files, this will affect the virtual memory used by
-# the process
-# max-open-files = 40
-lru-cache-size = "200m"
-
-# The default setting on this is 0, which means unlimited. Set this to
-# something if you want to limit the max number of open
-# files. max-open-files is per shard so this * that will be max.
-# max-open-shards = 0
-
-# The default setting is 100. This option tells how many points will be fetched from LevelDb before
-# they get flushed into backend.
-point-batch-size = 50
+dir = "/tmp/influxdb/development/cluster"
 `
 
 func TestCollectd_ConnectionString(t *testing.T) {

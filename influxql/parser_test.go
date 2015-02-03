@@ -50,7 +50,7 @@ func TestParser_ParseStatement(t *testing.T) {
 			s: `SELECT * FROM myseries`,
 			stmt: &influxql.SelectStatement{
 				Fields: []*influxql.Field{
-					&influxql.Field{Expr: &influxql.Wildcard{}},
+					{Expr: &influxql.Wildcard{}},
 				},
 				Source: &influxql.Measurement{Name: "myseries"},
 			},
@@ -61,9 +61,9 @@ func TestParser_ParseStatement(t *testing.T) {
 			s: `SELECT field1, field2 ,field3 AS field_x FROM myseries WHERE host = 'hosta.influxdb.org' GROUP BY 10h ORDER BY ASC LIMIT 20 OFFSET 10;`,
 			stmt: &influxql.SelectStatement{
 				Fields: []*influxql.Field{
-					&influxql.Field{Expr: &influxql.VarRef{Val: "field1"}},
-					&influxql.Field{Expr: &influxql.VarRef{Val: "field2"}},
-					&influxql.Field{Expr: &influxql.VarRef{Val: "field3"}, Alias: "field_x"},
+					{Expr: &influxql.VarRef{Val: "field1"}},
+					{Expr: &influxql.VarRef{Val: "field2"}},
+					{Expr: &influxql.VarRef{Val: "field3"}, Alias: "field_x"},
 				},
 				Source: &influxql.Measurement{Name: "myseries"},
 				Condition: &influxql.BinaryExpr{
@@ -72,10 +72,10 @@ func TestParser_ParseStatement(t *testing.T) {
 					RHS: &influxql.StringLiteral{Val: "hosta.influxdb.org"},
 				},
 				Dimensions: []*influxql.Dimension{
-					&influxql.Dimension{Expr: &influxql.DurationLiteral{Val: 10 * time.Hour}},
+					{Expr: &influxql.DurationLiteral{Val: 10 * time.Hour}},
 				},
 				SortFields: []*influxql.SortField{
-					&influxql.SortField{Ascending: true},
+					{Ascending: true},
 				},
 				Limit:  20,
 				Offset: 10,
@@ -86,7 +86,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SELECT field1 FROM join(aa,"bb", cc) JOIN cc`,
 			stmt: &influxql.SelectStatement{
-				Fields: []*influxql.Field{&influxql.Field{Expr: &influxql.VarRef{Val: "field1"}}},
+				Fields: []*influxql.Field{{Expr: &influxql.VarRef{Val: "field1"}}},
 				Source: &influxql.Join{
 					Measurements: []*influxql.Measurement{
 						{Name: "aa"},
@@ -101,7 +101,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SELECT field1 FROM merge(aa,b.b)`,
 			stmt: &influxql.SelectStatement{
-				Fields: []*influxql.Field{&influxql.Field{Expr: &influxql.VarRef{Val: "field1"}}},
+				Fields: []*influxql.Field{{Expr: &influxql.VarRef{Val: "field1"}}},
 				Source: &influxql.Merge{
 					Measurements: []*influxql.Measurement{
 						{Name: "aa"},
@@ -115,7 +115,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `select my_field from myseries`,
 			stmt: &influxql.SelectStatement{
-				Fields: []*influxql.Field{&influxql.Field{Expr: &influxql.VarRef{Val: "my_field"}}},
+				Fields: []*influxql.Field{{Expr: &influxql.VarRef{Val: "my_field"}}},
 				Source: &influxql.Measurement{Name: "myseries"},
 			},
 		},
@@ -124,12 +124,12 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SELECT field1 FROM myseries ORDER BY ASC, field1, field2 DESC LIMIT 10`,
 			stmt: &influxql.SelectStatement{
-				Fields: []*influxql.Field{&influxql.Field{Expr: &influxql.VarRef{Val: "field1"}}},
+				Fields: []*influxql.Field{{Expr: &influxql.VarRef{Val: "field1"}}},
 				Source: &influxql.Measurement{Name: "myseries"},
 				SortFields: []*influxql.SortField{
-					&influxql.SortField{Ascending: true},
-					&influxql.SortField{Name: "field1"},
-					&influxql.SortField{Name: "field2"},
+					{Ascending: true},
+					{Name: "field1"},
+					{Name: "field2"},
 				},
 				Limit: 10,
 			},
@@ -170,9 +170,9 @@ func TestParser_ParseStatement(t *testing.T) {
 					RHS: &influxql.StringLiteral{Val: "uswest"},
 				},
 				SortFields: []*influxql.SortField{
-					&influxql.SortField{Ascending: true},
-					&influxql.SortField{Name: "field1"},
-					&influxql.SortField{Name: "field2"},
+					{Ascending: true},
+					{Name: "field1"},
+					{Name: "field2"},
 				},
 				Limit: 10,
 			},
@@ -188,9 +188,9 @@ func TestParser_ParseStatement(t *testing.T) {
 					RHS: &influxql.StringLiteral{Val: "uswest"},
 				},
 				SortFields: []*influxql.SortField{
-					&influxql.SortField{Ascending: true},
-					&influxql.SortField{Name: "field1"},
-					&influxql.SortField{Name: "field2"},
+					{Ascending: true},
+					{Name: "field1"},
+					{Name: "field2"},
 				},
 				Limit: 10,
 			},
@@ -223,92 +223,71 @@ func TestParser_ParseStatement(t *testing.T) {
 					RHS: &influxql.StringLiteral{Val: "uswest"},
 				},
 				SortFields: []*influxql.SortField{
-					&influxql.SortField{Ascending: true},
-					&influxql.SortField{Name: "field1"},
-					&influxql.SortField{Name: "field2"},
+					{Ascending: true},
+					{Name: "field1"},
+					{Name: "field2"},
 				},
 				Limit: 10,
 			},
 		},
 
-		// SHOW TAG VALUES
+		// SHOW TAG VALUES FROM ... WITH KEY = ...
 		{
-			s: `SHOW TAG VALUES FROM src WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
+			s: `SHOW TAG VALUES FROM src WITH KEY = region WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
 			stmt: &influxql.ShowTagValuesStatement{
-				Source: &influxql.Measurement{Name: "src"},
+				Source:  &influxql.Measurement{Name: "src"},
+				TagKeys: []string{"region"},
 				Condition: &influxql.BinaryExpr{
 					Op:  influxql.EQ,
 					LHS: &influxql.VarRef{Val: "region"},
 					RHS: &influxql.StringLiteral{Val: "uswest"},
 				},
 				SortFields: []*influxql.SortField{
-					&influxql.SortField{Ascending: true},
-					&influxql.SortField{Name: "field1"},
-					&influxql.SortField{Name: "field2"},
+					{Ascending: true},
+					{Name: "field1"},
+					{Name: "field2"},
 				},
 				Limit: 10,
 			},
 		},
 
-		// SHOW TAG VALUES ... TAG KEY =
+		// SHOW TAG VALUES FROM ... WITH KEY IN...
 		{
-			s: `SHOW TAG VALUES FROM cpu WHERE TAG KEY = 'host' AND region = 'uswest'`,
+			s: `SHOW TAG VALUES FROM cpu WITH KEY IN (region, host) WHERE region = 'uswest'`,
 			stmt: &influxql.ShowTagValuesStatement{
-				Source: &influxql.Measurement{Name: "cpu"},
+				Source:  &influxql.Measurement{Name: "cpu"},
+				TagKeys: []string{"region", "host"},
 				Condition: &influxql.BinaryExpr{
-					Op: influxql.AND,
-					LHS: &influxql.BinaryExpr{
-						Op:  influxql.EQ,
-						LHS: &influxql.TagKeyIdent{},
-						RHS: &influxql.StringLiteral{Val: "host"},
-					},
-					RHS: &influxql.BinaryExpr{
-						Op:  influxql.EQ,
-						LHS: &influxql.VarRef{Val: "region"},
-						RHS: &influxql.StringLiteral{Val: "uswest"},
-					},
+					Op:  influxql.EQ,
+					LHS: &influxql.VarRef{Val: "region"},
+					RHS: &influxql.StringLiteral{Val: "uswest"},
 				},
 			},
 		},
 
 		// SHOW TAG VALUES ... AND TAG KEY =
 		{
-			s: `SHOW TAG VALUES FROM cpu WHERE region = 'uswest' AND TAG KEY = 'host'`,
+			s: `SHOW TAG VALUES FROM cpu WITH KEY IN (region,service,host)WHERE region = 'uswest'`,
 			stmt: &influxql.ShowTagValuesStatement{
-				Source: &influxql.Measurement{Name: "cpu"},
+				Source:  &influxql.Measurement{Name: "cpu"},
+				TagKeys: []string{"region", "service", "host"},
 				Condition: &influxql.BinaryExpr{
-					Op: influxql.AND,
-					LHS: &influxql.BinaryExpr{
-						Op:  influxql.EQ,
-						LHS: &influxql.VarRef{Val: "region"},
-						RHS: &influxql.StringLiteral{Val: "uswest"},
-					},
-					RHS: &influxql.BinaryExpr{
-						Op:  influxql.EQ,
-						LHS: &influxql.TagKeyIdent{},
-						RHS: &influxql.StringLiteral{Val: "host"},
-					},
+					Op:  influxql.EQ,
+					LHS: &influxql.VarRef{Val: "region"},
+					RHS: &influxql.StringLiteral{Val: "uswest"},
 				},
 			},
 		},
 
-		// SHOW TAG VALUES ... AND ... = TAG KEY
+		// SHOW TAG VALUES WITH KEY = ...
 		{
-			s: `SHOW TAG VALUES FROM cpu WHERE region = 'uswest' AND 'host' = TAG KEY`,
+			s: `SHOW TAG VALUES WITH KEY = host WHERE region = 'uswest'`,
 			stmt: &influxql.ShowTagValuesStatement{
-				Source: &influxql.Measurement{Name: "cpu"},
+				TagKeys: []string{"host"},
 				Condition: &influxql.BinaryExpr{
-					Op: influxql.AND,
-					LHS: &influxql.BinaryExpr{
-						Op:  influxql.EQ,
-						LHS: &influxql.VarRef{Val: "region"},
-						RHS: &influxql.StringLiteral{Val: "uswest"},
-					},
-					RHS: &influxql.BinaryExpr{
-						Op:  influxql.EQ,
-						LHS: &influxql.StringLiteral{Val: "host"},
-						RHS: &influxql.TagKeyIdent{},
-					},
+					Op:  influxql.EQ,
+					LHS: &influxql.VarRef{Val: "region"},
+					RHS: &influxql.StringLiteral{Val: "uswest"},
 				},
 			},
 		},
@@ -330,9 +309,9 @@ func TestParser_ParseStatement(t *testing.T) {
 					RHS: &influxql.StringLiteral{Val: "uswest"},
 				},
 				SortFields: []*influxql.SortField{
-					&influxql.SortField{Ascending: true},
-					&influxql.SortField{Name: "field1"},
-					&influxql.SortField{Name: "field2"},
+					{Ascending: true},
+					{Name: "field1"},
+					{Name: "field2"},
 				},
 				Limit: 10,
 			},
@@ -349,9 +328,9 @@ func TestParser_ParseStatement(t *testing.T) {
 					RHS: &influxql.StringLiteral{Val: "uswest"},
 				},
 				SortFields: []*influxql.SortField{
-					&influxql.SortField{Ascending: true},
-					&influxql.SortField{Name: "field1"},
-					&influxql.SortField{Name: "field2"},
+					{Ascending: true},
+					{Name: "field1"},
+					{Name: "field2"},
 				},
 				Limit: 10,
 			},
@@ -376,7 +355,7 @@ func TestParser_ParseStatement(t *testing.T) {
 				Name:     "myquery",
 				Database: "testdb",
 				Source: &influxql.SelectStatement{
-					Fields: []*influxql.Field{&influxql.Field{Expr: &influxql.Call{Name: "count"}}},
+					Fields: []*influxql.Field{{Expr: &influxql.Call{Name: "count"}}},
 					Target: &influxql.Target{Measurement: "measure1"},
 					Source: &influxql.Measurement{Name: "myseries"},
 				},
@@ -390,7 +369,7 @@ func TestParser_ParseStatement(t *testing.T) {
 				Name:     "myquery",
 				Database: "testdb",
 				Source: &influxql.SelectStatement{
-					Fields: []*influxql.Field{&influxql.Field{Expr: &influxql.Call{Name: "count"}}},
+					Fields: []*influxql.Field{{Expr: &influxql.Call{Name: "count"}}},
 					Target: &influxql.Target{
 						Measurement: `"1h.policy1"."cpu.load"`,
 					},

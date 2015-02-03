@@ -48,11 +48,9 @@ where `<privilege> := READ | WRITE | All [PRIVILEGES]`.
 # Select
 
 ```sql
--- get the top 10 host measurements for the last hour (same host can appear multiple times)
-SELECT top(10, value), host FROM cpu WHERE time > now() - 1h
+SELECT mean(value) from cpu WHERE host = 'serverA' AND time > now() - 4h GROUP BY time(5m)
 
--- get the top 10 unique hosts for the last hour
-SELECT top(10, value), distinct(host) FROM cpu WHERE time > now() - 1h
+SELECT mean(value) from cpu WHERE time > now() - 4h GROUP BY time(5m), region
 ```
 
 ## Group By
@@ -68,9 +66,9 @@ DROP MEASUREMENT <name>
 DROP MEASUREMENT cpu WHERE region = 'uswest'
 ```
 
-## List
+## Show
 
-List series queries are for pulling out individual series from measurement names and tag data. They're useful for discovery.
+Show series queries are for pulling out individual series from measurement names and tag data. They're useful for discovery.
 
 ```sql
 -- show all databases
@@ -107,8 +105,8 @@ SHOW TAG KEYS FROM cpu
 SHOW TAG KEYS FROM temperature, wind_speed
 
 -- show all the tag values. note that a single WHERE TAG KEY = '...' clause is required
-SHOW TAG VALUES WHERE TAG KEY = 'region'
-SHOW TAG VALUES FROM cpu WHERE region = 'uswest' and TAG KEY = 'host'
+SHOW TAG VALUES WITH TAG KEY = 'region'
+SHOW TAG VALUES FROM cpu WHERE region = 'uswest' WITH TAG KEY = 'host'
 
 -- and you can do stuff against fields
 SHOW FIELD KEYS FROM cpu

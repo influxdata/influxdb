@@ -13,11 +13,17 @@ import (
 type DataType string
 
 const (
-	Unknown  = DataType("")
-	Number   = DataType("number")
-	Boolean  = DataType("boolean")
-	String   = DataType("string")
-	Time     = DataType("time")
+	// Unknown primitive data type.
+	Unknown = DataType("")
+	// Number means the data type is an int or float.
+	Number = DataType("number")
+	// Boolean means the data type is a boolean.
+	Boolean = DataType("boolean")
+	// String means the data type is a string of text.
+	String = DataType("string")
+	// Time means the data type is a time.
+	Time = DataType("time")
+	// Duration means the data type is a duration of time.
 	Duration = DataType("duration")
 )
 
@@ -45,57 +51,56 @@ type Node interface {
 	String() string
 }
 
-func (_ *Query) node()     {}
-func (_ Statements) node() {}
+func (*Query) node()     {}
+func (Statements) node() {}
 
-func (_ *AlterRetentionPolicyStatement) node()  {}
-func (_ *CreateContinuousQueryStatement) node() {}
-func (_ *CreateDatabaseStatement) node()        {}
-func (_ *CreateRetentionPolicyStatement) node() {}
-func (_ *CreateUserStatement) node()            {}
-func (_ *DeleteStatement) node()                {}
-func (_ *DropContinuousQueryStatement) node()   {}
-func (_ *DropDatabaseStatement) node()          {}
-func (_ *DropRetentionPolicyStatement) node()   {}
-func (_ *DropSeriesStatement) node()            {}
-func (_ *DropUserStatement) node()              {}
-func (_ *GrantStatement) node()                 {}
-func (_ *ShowContinuousQueriesStatement) node() {}
-func (_ *ShowDatabasesStatement) node()         {}
-func (_ *ShowFieldKeysStatement) node()         {}
-func (_ *ShowFieldValuesStatement) node()       {}
-func (_ *ShowRetentionPoliciesStatement) node() {}
-func (_ *ShowMeasurementsStatement) node()      {}
-func (_ *ShowSeriesStatement) node()            {}
-func (_ *ShowTagKeysStatement) node()           {}
-func (_ *ShowTagValuesStatement) node()         {}
-func (_ *ShowUsersStatement) node()             {}
-func (_ *RevokeStatement) node()                {}
-func (_ *SelectStatement) node()                {}
+func (*AlterRetentionPolicyStatement) node()  {}
+func (*CreateContinuousQueryStatement) node() {}
+func (*CreateDatabaseStatement) node()        {}
+func (*CreateRetentionPolicyStatement) node() {}
+func (*CreateUserStatement) node()            {}
+func (*DeleteStatement) node()                {}
+func (*DropContinuousQueryStatement) node()   {}
+func (*DropDatabaseStatement) node()          {}
+func (*DropRetentionPolicyStatement) node()   {}
+func (*DropSeriesStatement) node()            {}
+func (*DropUserStatement) node()              {}
+func (*GrantStatement) node()                 {}
+func (*ShowContinuousQueriesStatement) node() {}
+func (*ShowDatabasesStatement) node()         {}
+func (*ShowFieldKeysStatement) node()         {}
+func (*ShowFieldValuesStatement) node()       {}
+func (*ShowRetentionPoliciesStatement) node() {}
+func (*ShowMeasurementsStatement) node()      {}
+func (*ShowSeriesStatement) node()            {}
+func (*ShowTagKeysStatement) node()           {}
+func (*ShowTagValuesStatement) node()         {}
+func (*ShowUsersStatement) node()             {}
+func (*RevokeStatement) node()                {}
+func (*SelectStatement) node()                {}
 
-func (_ *BinaryExpr) node()      {}
-func (_ *BooleanLiteral) node()  {}
-func (_ *Call) node()            {}
-func (_ *Dimension) node()       {}
-func (_ Dimensions) node()       {}
-func (_ *DurationLiteral) node() {}
-func (_ *Field) node()           {}
-func (_ Fields) node()           {}
-func (_ *Join) node()            {}
-func (_ *Measurement) node()     {}
-func (_ Measurements) node()     {}
-func (_ *nilLiteral) node()      {}
-func (_ *Merge) node()           {}
-func (_ *NumberLiteral) node()   {}
-func (_ *ParenExpr) node()       {}
-func (_ *SortField) node()       {}
-func (_ SortFields) node()       {}
-func (_ *StringLiteral) node()   {}
-func (_ *TagKeyIdent) node()     {}
-func (_ *Target) node()          {}
-func (_ *TimeLiteral) node()     {}
-func (_ *VarRef) node()          {}
-func (_ *Wildcard) node()        {}
+func (*BinaryExpr) node()      {}
+func (*BooleanLiteral) node()  {}
+func (*Call) node()            {}
+func (*Dimension) node()       {}
+func (Dimensions) node()       {}
+func (*DurationLiteral) node() {}
+func (*Field) node()           {}
+func (Fields) node()           {}
+func (*Join) node()            {}
+func (*Measurement) node()     {}
+func (Measurements) node()     {}
+func (*nilLiteral) node()      {}
+func (*Merge) node()           {}
+func (*NumberLiteral) node()   {}
+func (*ParenExpr) node()       {}
+func (*SortField) node()       {}
+func (SortFields) node()       {}
+func (*StringLiteral) node()   {}
+func (*Target) node()          {}
+func (*TimeLiteral) node()     {}
+func (*VarRef) node()          {}
+func (*Wildcard) node()        {}
 
 // Query represents a collection of ordered statements.
 type Query struct {
@@ -138,30 +143,30 @@ type ExecutionPrivilege struct {
 // ExecutionPrivileges is a list of privileges required to execute a statement.
 type ExecutionPrivileges []ExecutionPrivilege
 
-func (_ *AlterRetentionPolicyStatement) stmt()  {}
-func (_ *CreateContinuousQueryStatement) stmt() {}
-func (_ *CreateDatabaseStatement) stmt()        {}
-func (_ *CreateRetentionPolicyStatement) stmt() {}
-func (_ *CreateUserStatement) stmt()            {}
-func (_ *DeleteStatement) stmt()                {}
-func (_ *DropContinuousQueryStatement) stmt()   {}
-func (_ *DropDatabaseStatement) stmt()          {}
-func (_ *DropRetentionPolicyStatement) stmt()   {}
-func (_ *DropSeriesStatement) stmt()            {}
-func (_ *DropUserStatement) stmt()              {}
-func (_ *GrantStatement) stmt()                 {}
-func (_ *ShowContinuousQueriesStatement) stmt() {}
-func (_ *ShowDatabasesStatement) stmt()         {}
-func (_ *ShowFieldKeysStatement) stmt()         {}
-func (_ *ShowFieldValuesStatement) stmt()       {}
-func (_ *ShowMeasurementsStatement) stmt()      {}
-func (_ *ShowRetentionPoliciesStatement) stmt() {}
-func (_ *ShowSeriesStatement) stmt()            {}
-func (_ *ShowTagKeysStatement) stmt()           {}
-func (_ *ShowTagValuesStatement) stmt()         {}
-func (_ *ShowUsersStatement) stmt()             {}
-func (_ *RevokeStatement) stmt()                {}
-func (_ *SelectStatement) stmt()                {}
+func (*AlterRetentionPolicyStatement) stmt()  {}
+func (*CreateContinuousQueryStatement) stmt() {}
+func (*CreateDatabaseStatement) stmt()        {}
+func (*CreateRetentionPolicyStatement) stmt() {}
+func (*CreateUserStatement) stmt()            {}
+func (*DeleteStatement) stmt()                {}
+func (*DropContinuousQueryStatement) stmt()   {}
+func (*DropDatabaseStatement) stmt()          {}
+func (*DropRetentionPolicyStatement) stmt()   {}
+func (*DropSeriesStatement) stmt()            {}
+func (*DropUserStatement) stmt()              {}
+func (*GrantStatement) stmt()                 {}
+func (*ShowContinuousQueriesStatement) stmt() {}
+func (*ShowDatabasesStatement) stmt()         {}
+func (*ShowFieldKeysStatement) stmt()         {}
+func (*ShowFieldValuesStatement) stmt()       {}
+func (*ShowMeasurementsStatement) stmt()      {}
+func (*ShowRetentionPoliciesStatement) stmt() {}
+func (*ShowSeriesStatement) stmt()            {}
+func (*ShowTagKeysStatement) stmt()           {}
+func (*ShowTagValuesStatement) stmt()         {}
+func (*ShowUsersStatement) stmt()             {}
+func (*RevokeStatement) stmt()                {}
+func (*SelectStatement) stmt()                {}
 
 // Expr represents an expression that can be evaluated to a value.
 type Expr interface {
@@ -169,18 +174,17 @@ type Expr interface {
 	expr()
 }
 
-func (_ *BinaryExpr) expr()      {}
-func (_ *BooleanLiteral) expr()  {}
-func (_ *Call) expr()            {}
-func (_ *DurationLiteral) expr() {}
-func (_ *nilLiteral) expr()      {}
-func (_ *NumberLiteral) expr()   {}
-func (_ *ParenExpr) expr()       {}
-func (_ *StringLiteral) expr()   {}
-func (_ *TagKeyIdent) expr()     {}
-func (_ *TimeLiteral) expr()     {}
-func (_ *VarRef) expr()          {}
-func (_ *Wildcard) expr()        {}
+func (*BinaryExpr) expr()      {}
+func (*BooleanLiteral) expr()  {}
+func (*Call) expr()            {}
+func (*DurationLiteral) expr() {}
+func (*nilLiteral) expr()      {}
+func (*NumberLiteral) expr()   {}
+func (*ParenExpr) expr()       {}
+func (*StringLiteral) expr()   {}
+func (*TimeLiteral) expr()     {}
+func (*VarRef) expr()          {}
+func (*Wildcard) expr()        {}
 
 // Source represents a source of data for a statement.
 type Source interface {
@@ -188,9 +192,9 @@ type Source interface {
 	source()
 }
 
-func (_ *Join) source()        {}
-func (_ *Measurement) source() {}
-func (_ *Merge) source()       {}
+func (*Join) source()        {}
+func (*Measurement) source() {}
+func (*Merge) source()       {}
 
 // SortField represents a field to sort results by.
 type SortField struct {
@@ -236,7 +240,7 @@ func (s *CreateDatabaseStatement) String() string {
 	return buf.String()
 }
 
-// RequiredPrivilege returns the privilege required to execute a CreateDatabaseStatement.
+// RequiredPrivileges returns the privilege required to execute a CreateDatabaseStatement.
 func (s *CreateDatabaseStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
 }
@@ -255,7 +259,7 @@ func (s *DropDatabaseStatement) String() string {
 	return buf.String()
 }
 
-// RequiredPrivilege returns the privilege required to execute a DropDatabaseStatement.
+// RequiredPrivileges returns the privilege required to execute a DropDatabaseStatement.
 func (s *DropDatabaseStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
 }
@@ -279,7 +283,7 @@ func (s *DropRetentionPolicyStatement) String() string {
 	return buf.String()
 }
 
-// RequiredPrivilege returns the privilege required to execute a DropRetentionPolicyStatement.
+// RequiredPrivileges returns the privilege required to execute a DropRetentionPolicyStatement.
 func (s *DropRetentionPolicyStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Name: s.Database, Privilege: WritePrivilege}}
 }
@@ -312,7 +316,7 @@ func (s *CreateUserStatement) String() string {
 	return buf.String()
 }
 
-// RequiredPrivilege returns the privilege(s) required to execute a CreateUserStatement.
+// RequiredPrivileges returns the privilege(s) required to execute a CreateUserStatement.
 func (s *CreateUserStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
 }
@@ -331,7 +335,7 @@ func (s *DropUserStatement) String() string {
 	return buf.String()
 }
 
-// RequiredPrivilege returns the privilege(s) required to execute a DropUserStatement.
+// RequiredPrivileges returns the privilege(s) required to execute a DropUserStatement.
 func (s *DropUserStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
 }
@@ -340,9 +344,13 @@ func (s *DropUserStatement) RequiredPrivileges() ExecutionPrivileges {
 type Privilege int
 
 const (
+	// NoPrivileges means no privileges required / granted / revoked.
 	NoPrivileges Privilege = iota
+	// ReadPrivilege means read privilege required / granted / revoked.
 	ReadPrivilege
+	// WritePrivilege means write privilege required / granted / revoked.
 	WritePrivilege
+	// AllPrivileges means all privileges required / granted / revoked.
 	AllPrivileges
 )
 
@@ -390,7 +398,7 @@ func (s *GrantStatement) String() string {
 	return buf.String()
 }
 
-// RequiredPrivilege returns the privilege required to execute a GrantStatement.
+// RequiredPrivileges returns the privilege required to execute a GrantStatement.
 func (s *GrantStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
 }
@@ -421,7 +429,7 @@ func (s *RevokeStatement) String() string {
 	return buf.String()
 }
 
-// RequiredPrivilege returns the privilege required to execute a RevokeStatement.
+// RequiredPrivileges returns the privilege required to execute a RevokeStatement.
 func (s *RevokeStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
 }
@@ -461,7 +469,7 @@ func (s *CreateRetentionPolicyStatement) String() string {
 	return buf.String()
 }
 
-// RequiredPrivilege returns the privilege required to execute a CreateRetentionPolicyStatement.
+// RequiredPrivileges returns the privilege required to execute a CreateRetentionPolicyStatement.
 func (s *CreateRetentionPolicyStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
 }
@@ -509,7 +517,7 @@ func (s *AlterRetentionPolicyStatement) String() string {
 	return buf.String()
 }
 
-// RequiredPrivilege returns the privilege required to execute an AlterRetentionPolicyStatement.
+// RequiredPrivileges returns the privilege required to execute an AlterRetentionPolicyStatement.
 func (s *AlterRetentionPolicyStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
 }
@@ -543,26 +551,26 @@ type SelectStatement struct {
 }
 
 // Clone returns a deep copy of the statement.
-func (stmt *SelectStatement) Clone() *SelectStatement {
+func (s *SelectStatement) Clone() *SelectStatement {
 	other := &SelectStatement{
-		Fields:     make(Fields, len(stmt.Fields)),
-		Dimensions: make(Dimensions, len(stmt.Dimensions)),
-		Source:     cloneSource(stmt.Source),
-		SortFields: make(SortFields, len(stmt.SortFields)),
-		Condition:  CloneExpr(stmt.Condition),
-		Limit:      stmt.Limit,
+		Fields:     make(Fields, len(s.Fields)),
+		Dimensions: make(Dimensions, len(s.Dimensions)),
+		Source:     cloneSource(s.Source),
+		SortFields: make(SortFields, len(s.SortFields)),
+		Condition:  CloneExpr(s.Condition),
+		Limit:      s.Limit,
 	}
-	if stmt.Target != nil {
-		other.Target = &Target{Measurement: stmt.Target.Measurement, Database: stmt.Target.Database}
+	if s.Target != nil {
+		other.Target = &Target{Measurement: s.Target.Measurement, Database: s.Target.Database}
 	}
-	for i, f := range stmt.Fields {
+	for i, f := range s.Fields {
 		other.Fields[i] = &Field{Expr: CloneExpr(f.Expr), Alias: f.Alias}
 	}
-	for i, d := range stmt.Dimensions {
+	for i, d := range s.Dimensions {
 		other.Dimensions[i] = &Dimension{Expr: CloneExpr(d.Expr)}
 	}
 	// TODO: Copy sources.
-	for i, f := range stmt.SortFields {
+	for i, f := range s.SortFields {
 		other.SortFields[i] = &SortField{Name: f.Name, Ascending: f.Ascending}
 	}
 	return other
@@ -627,7 +635,7 @@ func (s *SelectStatement) String() string {
 	return buf.String()
 }
 
-// RequiredPrivilege returns the privilege required to execute the SelectStatement.
+// RequiredPrivileges returns the privilege required to execute the SelectStatement.
 func (s *SelectStatement) RequiredPrivileges() ExecutionPrivileges {
 	ep := ExecutionPrivileges{{Name: "", Privilege: ReadPrivilege}}
 
@@ -820,7 +828,7 @@ func (s *DeleteStatement) String() string {
 	return s.String()
 }
 
-// RequiredPrivilege returns the privilege required to execute a DeleteStatement.
+// RequiredPrivileges returns the privilege required to execute a DeleteStatement.
 func (s *DeleteStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Name: "", Privilege: WritePrivilege}}
 }
@@ -868,7 +876,7 @@ func (s *ShowSeriesStatement) String() string {
 	return buf.String()
 }
 
-// RequiredPrivilege returns the privilege required to execute a ShowSeriesStatement.
+// RequiredPrivileges returns the privilege required to execute a ShowSeriesStatement.
 func (s *ShowSeriesStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Name: "", Privilege: ReadPrivilege}}
 }
@@ -881,7 +889,7 @@ type DropSeriesStatement struct {
 // String returns a string representation of the drop series statement.
 func (s *DropSeriesStatement) String() string { return fmt.Sprintf("DROP SERIES %s", s.Name) }
 
-// RequiredPrivilege returns the privilige reqired to execute a DropSeriesStatement.
+// RequiredPrivileges returns the privilige reqired to execute a DropSeriesStatement.
 func (s DropSeriesStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Name: "", Privilege: WritePrivilege}}
 }
@@ -892,7 +900,7 @@ type ShowContinuousQueriesStatement struct{}
 // String returns a string representation of the list continuous queries statement.
 func (s *ShowContinuousQueriesStatement) String() string { return "SHOW CONTINUOUS QUERIES" }
 
-// RequiredPrivilege returns the privilege required to execute a ShowContinuousQueriesStatement.
+// RequiredPrivileges returns the privilege required to execute a ShowContinuousQueriesStatement.
 func (s *ShowContinuousQueriesStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Name: "", Privilege: ReadPrivilege}}
 }
@@ -903,12 +911,12 @@ type ShowDatabasesStatement struct{}
 // String returns a string representation of the list databases command.
 func (s *ShowDatabasesStatement) String() string { return "SHOW DATABASES" }
 
-// RequiredPrivilege returns the privilege required to execute a ShowDatabasesStatement
+// RequiredPrivileges returns the privilege required to execute a ShowDatabasesStatement
 func (s *ShowDatabasesStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
 }
 
-// CreateContinuousQueriesStatement represents a command for creating a continuous query.
+// CreateContinuousQueryStatement represents a command for creating a continuous query.
 type CreateContinuousQueryStatement struct {
 	// Name of the continuous query to be created.
 	Name string
@@ -925,7 +933,7 @@ func (s *CreateContinuousQueryStatement) String() string {
 	return fmt.Sprintf("CREATE CONTINUOUS QUERY %s ON %s BEGIN %s END", s.Name, s.Database, s.Source.String())
 }
 
-// RequiredPrivilege returns the privilege required to execute a CreateContinuousQueryStatement.
+// RequiredPrivileges returns the privilege required to execute a CreateContinuousQueryStatement.
 func (s *CreateContinuousQueryStatement) RequiredPrivileges() ExecutionPrivileges {
 	ep := ExecutionPrivileges{{Name: s.Database, Privilege: ReadPrivilege}}
 
@@ -945,7 +953,7 @@ func (s *CreateContinuousQueryStatement) RequiredPrivileges() ExecutionPrivilege
 	return ep
 }
 
-// DropContinuousQueriesStatement represents a command for removing a continuous query.
+// DropContinuousQueryStatement represents a command for removing a continuous query.
 type DropContinuousQueryStatement struct {
 	Name string
 }
@@ -1081,6 +1089,9 @@ type ShowTagValuesStatement struct {
 	// Data source that fields are extracted from.
 	Source Source
 
+	// Tag key(s) to pull values from.
+	TagKeys []string
+
 	// An expression evaluated on data point.
 	Condition Expr
 
@@ -1141,7 +1152,7 @@ func (s *ShowUsersStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
 }
 
-// ShowFieldKeyStatement represents a command for listing field keys.
+// ShowFieldKeysStatement represents a command for listing field keys.
 type ShowFieldKeysStatement struct {
 	// Data source that fields are extracted from.
 	Source Source
@@ -1456,12 +1467,6 @@ type StringLiteral struct {
 
 // String returns a string representation of the literal.
 func (l *StringLiteral) String() string { return QuoteString(l.Val) }
-
-// TagKeyIdent represents a special TAG KEY identifier.
-type TagKeyIdent struct{}
-
-// String returns a string representation of the TagKeyIdent.
-func (t *TagKeyIdent) String() string { return "TAG KEY" }
 
 // TimeLiteral represents a point-in-time literal.
 type TimeLiteral struct {
