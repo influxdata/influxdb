@@ -1,23 +1,27 @@
 package main
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"os/user"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"text/tabwriter"
 
 	"github.com/influxdb/influxdb/client"
 	"github.com/peterh/liner"
 )
 
 const (
-	default_host = "localhost"
-	default_port = 8086
+	default_host   = "localhost"
+	default_port   = 8086
+	default_format = "column"
 )
 
 type CommandLine struct {
@@ -28,7 +32,8 @@ type CommandLine struct {
 	Password string
 	Database string
 	Version  string
-	Pretty   bool // controls pretty print for json
+	Pretty   bool   // controls pretty print for json
+	Format   string // controls the output format.  Valid values are json, csv, or column
 }
 
 func main() {
@@ -40,6 +45,7 @@ func main() {
 	fs.StringVar(&c.Username, "username", c.Username, "username to connect to the server.  can be blank if authorization is not required")
 	fs.StringVar(&c.Password, "password", c.Password, "password to connect to the server.  can be blank if authorization is not required")
 	fs.StringVar(&c.Database, "database", c.Database, "database to connect to the server.")
+	fs.StringVar(&c.Format, "output", default_format, "format specifies the format of the server responses:  json, csv, or column")
 	fs.Parse(os.Args[1:])
 
 	// TODO Determine if we are an ineractive shell or running commands
@@ -90,6 +96,10 @@ func (c *CommandLine) ParseCommand(cmd string) bool {
 		c.connect(cmd)
 	case strings.HasPrefix(lcmd, "help"):
 		help()
+	case strings.HasPrefix(lcmd, "format"):
+		c.SetFormat(cmd)
+	case strings.HasPrefix(lcmd, "settings"):
+		c.Settings()
 	case strings.HasPrefix(lcmd, "pretty"):
 		c.Pretty = !c.Pretty
 		if c.Pretty {
@@ -177,27 +187,160 @@ func (c *CommandLine) use(cmd string) {
 	fmt.Printf("Using database %s\n", d)
 }
 
+func (c *CommandLine) SetFormat(cmd string) {
+	// Remove the "format" keyword if it exists
+	cmd = strings.TrimSpace(strings.Replace(cmd, "format", "", -1))
+	// normalize cmd
+	cmd = strings.ToLower(cmd)
+
+	switch cmd {
+	case "json", "csv", "column":
+		c.Format = cmd
+	default:
+		fmt.Printf("Unknown format %q. Please use json, csv, or column.\n", cmd)
+	}
+}
+
 func (c *CommandLine) executeQuery(query string) {
 	results, err := c.Client.Query(client.Query{Command: query, Database: c.Database})
 	if err != nil {
 		fmt.Printf("ERR: %s\n", err)
 		return
 	}
+	if err != nil {
+		fmt.Printf("ERR: %s\n", err)
+		return
+	}
+
+	c.FormatResults(results, os.Stdout)
+	if results.Error() != nil && c.Database == "" {
+		fmt.Println("Warning: It is possible this error is due to not setting a database.")
+		fmt.Println(`Please set a database with the command "use <database>".`)
+	}
+
+}
+
+func (c *CommandLine) FormatResults(results *client.Results, w io.Writer) {
+	switch c.Format {
+	case "json":
+		WriteJSON(results, c.Pretty, w)
+	case "csv":
+		WriteCSV(results, w)
+	case "column":
+		WriteColumns(results, w)
+	default:
+		fmt.Fprintf(w, "Unknown output format %q.\n", c.Format)
+	}
+}
+
+func WriteJSON(results *client.Results, pretty bool, w io.Writer) {
 	var data []byte
-	if c.Pretty {
+	var err error
+	if pretty {
 		data, err = json.MarshalIndent(results, "", "    ")
 	} else {
 		data, err = json.Marshal(results)
 	}
 	if err != nil {
-		fmt.Printf("ERR: %s\n", err)
+		fmt.Fprintf(w, "Unable to parse json: %s\n", err)
 		return
 	}
-	fmt.Fprintln(os.Stdout, string(data))
-	if results.Error() != nil && c.Database == "" {
-		fmt.Println("Warning: It is possible this error is due to not setting a database.")
-		fmt.Println(`Please set a database with the command "use <database>".`)
+	fmt.Fprintln(w, string(data))
+}
+
+func WriteCSV(results *client.Results, w io.Writer) {
+	csvw := csv.NewWriter(w)
+	for _, result := range results.Results {
+		// Create a tabbed writer for each result a they won't always line up
+		rows := resultToCSV(result, "\t", false)
+		for _, r := range rows {
+			csvw.Write(strings.Split(r, "\t"))
+		}
+		csvw.Flush()
 	}
+}
+
+func WriteColumns(results *client.Results, w io.Writer) {
+	for _, result := range results.Results {
+		// Create a tabbed writer for each result a they won't always line up
+		w := new(tabwriter.Writer)
+		w.Init(os.Stdout, 0, 8, 1, '\t', 0)
+		csv := resultToCSV(result, "\t", true)
+		for _, r := range csv {
+			fmt.Fprintln(w, r)
+		}
+		w.Flush()
+	}
+}
+
+func resultToCSV(result *client.Result, seperator string, headerLines bool) []string {
+	rows := []string{}
+	// Create a tabbed writer for each result a they won't always line up
+	columnNames := []string{"name", "tags"}
+
+	for i, row := range result.Rows {
+		// Output the column headings
+		if i == 0 {
+			for _, column := range row.Columns {
+				columnNames = append(columnNames, column)
+			}
+			rows = append(rows, strings.Join(columnNames, seperator))
+		}
+		if headerLines {
+			// create column underscores
+			lines := []string{}
+			for _, columnName := range columnNames {
+				lines = append(lines, strings.Repeat("-", len(columnName)))
+			}
+			rows = append(rows, strings.Join(lines, seperator))
+		}
+		// gather tags
+		tags := []string{}
+		for k, v := range row.Tags {
+			tags = append(tags, fmt.Sprintf("%s=%s", k, v))
+		}
+		for _, v := range row.Values {
+			values := []string{row.Name}
+			values = append(values, strings.Join(tags, ","))
+
+			for _, vv := range v {
+				values = append(values, interfaceToString(vv))
+			}
+			rows = append(rows, strings.Join(values, seperator))
+		}
+	}
+	return rows
+}
+
+func interfaceToString(v interface{}) string {
+	switch t := v.(type) {
+	case nil:
+		return ""
+	case bool:
+		return fmt.Sprintf("%v", v)
+	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, uintptr:
+		return fmt.Sprintf("%d", t)
+	case float32, float64:
+		return fmt.Sprintf("%v", t)
+	default:
+		return fmt.Sprintf("%v", t)
+	}
+}
+
+func (c *CommandLine) Settings() {
+	w := new(tabwriter.Writer)
+	w.Init(os.Stdout, 0, 8, 1, '\t', 0)
+	if c.Port > 0 {
+		fmt.Fprintf(w, "Host\t%s:%d\n", c.Host, c.Port)
+	} else {
+		fmt.Fprintf(w, "Host\t%s\n", c.Host)
+	}
+	fmt.Fprintf(w, "Username\t%s\n", c.Username)
+	fmt.Fprintf(w, "Database\t%s\n", c.Database)
+	fmt.Fprintf(w, "Pretty\t%v\n", c.Pretty)
+	fmt.Fprintf(w, "Format\t%s\n", c.Format)
+	fmt.Fprintln(w)
+	w.Flush()
 }
 
 func help() {
@@ -205,6 +348,8 @@ func help() {
         connect <host:port>   connect to another node
         pretty                toggle pretty print
         use <db_name>         set current databases
+        format <format>       set the output format: json, csv, or column
+        settings              output the current settings for the shell
         exit                  quit the influx shell
 
         show databases        show database names
