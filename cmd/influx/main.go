@@ -26,6 +26,7 @@ const (
 
 type CommandLine struct {
 	Client   *client.Client
+	Line     *liner.State
 	Host     string
 	Port     int
 	Username string
@@ -39,6 +40,8 @@ type CommandLine struct {
 func main() {
 	c := CommandLine{}
 
+	promptForPassword := false
+
 	fs := flag.NewFlagSet("default", flag.ExitOnError)
 	fs.StringVar(&c.Host, "host", default_host, "influxdb host to connect to")
 	fs.IntVar(&c.Port, "port", default_port, "influxdb port to connect to")
@@ -50,10 +53,20 @@ func main() {
 
 	// TODO Determine if we are an ineractive shell or running commands
 	fmt.Println("InfluxDB shell")
-	c.connect("")
 
-	line := liner.NewLiner()
-	defer line.Close()
+	c.Line = liner.NewLiner()
+	defer c.Line.Close()
+
+	if promptForPassword {
+		p, e := c.Line.PasswordPrompt("password: ")
+		if e != nil {
+			fmt.Println("Unable to parse password.")
+		} else {
+			c.Password = p
+		}
+	}
+
+	c.connect("")
 
 	var historyFile string
 	usr, err := user.Current()
@@ -62,25 +75,25 @@ func main() {
 		historyFile = filepath.Join(usr.HomeDir, ".influx_history")
 
 		if f, err := os.Open(historyFile); err == nil {
-			line.ReadHistory(f)
+			c.Line.ReadHistory(f)
 			f.Close()
 		}
 	}
 
 	for {
-		l, e := line.Prompt("> ")
+		l, e := c.Line.Prompt("> ")
 		if e != nil {
 			break
 		}
 		if !c.ParseCommand(l) {
 			// write out the history
 			if f, err := os.Create(historyFile); err == nil {
-				line.WriteHistory(f)
+				c.Line.WriteHistory(f)
 				f.Close()
 			}
 			break
 		}
-		line.AppendHistory(l)
+		c.Line.AppendHistory(l)
 	}
 }
 
@@ -94,6 +107,8 @@ func (c *CommandLine) ParseCommand(cmd string) bool {
 		gopher()
 	case strings.HasPrefix(lcmd, "connect"):
 		c.connect(cmd)
+	case strings.HasPrefix(lcmd, "auth"):
+		c.SetAuth()
 	case strings.HasPrefix(lcmd, "help"):
 		help()
 	case strings.HasPrefix(lcmd, "format"):
@@ -174,6 +189,21 @@ func (c *CommandLine) connect(cmd string) {
 		c.Version = v
 		fmt.Printf("Connected to %s version %s\n", c.Client.Addr(), c.Version)
 	}
+}
+
+func (c *CommandLine) SetAuth() {
+	u, e := c.Line.Prompt("username: ")
+	if e != nil {
+		fmt.Printf("Unable to process input: %s", e)
+		return
+	}
+	c.Username = strings.TrimSpace(u)
+	p, e := c.Line.PasswordPrompt("password: ")
+	if e != nil {
+		fmt.Printf("Unable to process input: %s", e)
+		return
+	}
+	c.Password = p
 }
 
 func (c *CommandLine) use(cmd string) {
@@ -341,6 +371,7 @@ func (c *CommandLine) Settings() {
 func help() {
 	fmt.Println(`Usage:
         connect <host:port>   connect to another node
+        auth                  prompt for username and password
         pretty                toggle pretty print
         use <db_name>         set current databases
         format <format>       set the output format: json, csv, or column
