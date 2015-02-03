@@ -1210,15 +1210,6 @@ func (d *database) SeriesByID(id uint32) *Series {
 	return d.series[id]
 }
 
-// Measurements returns all measurements that match the given filters.
-func (d *database) Measurements(filters []*TagFilter) []*Measurement {
-	measurements := make([]*Measurement, 0, len(d.measurements))
-	for _, idx := range d.measurements {
-		measurements = append(measurements, idx.measurement)
-	}
-	return measurements
-}
-
 // Names returns all measurement names in sorted order.
 func (d *database) Names() []string {
 	return d.names
