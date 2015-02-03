@@ -20,26 +20,26 @@ const (
 	default_port = 8086
 )
 
-type cli struct {
-	client   *client.Client
-	host     string
-	port     int
-	username string
-	password string
-	database string
-	version  string
-	pretty   bool // controls pretty print for json
+type CommandLine struct {
+	Client   *client.Client
+	Host     string
+	Port     int
+	Username string
+	Password string
+	Database string
+	Version  string
+	Pretty   bool // controls pretty print for json
 }
 
 func main() {
-	c := cli{}
+	c := CommandLine{}
 
 	fs := flag.NewFlagSet("default", flag.ExitOnError)
-	fs.StringVar(&c.host, "host", default_host, "influxdb host to connect to")
-	fs.IntVar(&c.port, "port", default_port, "influxdb port to connect to")
-	fs.StringVar(&c.username, "username", c.username, "username to connect to the server.  can be blank if authorization is not required")
-	fs.StringVar(&c.password, "password", c.password, "password to connect to the server.  can be blank if authorization is not required")
-	fs.StringVar(&c.database, "database", c.database, "database to connect to the server.")
+	fs.StringVar(&c.Host, "host", default_host, "influxdb host to connect to")
+	fs.IntVar(&c.Port, "port", default_port, "influxdb port to connect to")
+	fs.StringVar(&c.Username, "username", c.Username, "username to connect to the server.  can be blank if authorization is not required")
+	fs.StringVar(&c.Password, "password", c.Password, "password to connect to the server.  can be blank if authorization is not required")
+	fs.StringVar(&c.Database, "database", c.Database, "database to connect to the server.")
 	fs.Parse(os.Args[1:])
 
 	// TODO Determine if we are an ineractive shell or running commands
@@ -66,7 +66,7 @@ func main() {
 		if e != nil {
 			break
 		}
-		if !c.parseCommand(l) {
+		if !c.ParseCommand(l) {
 			// write out the history
 			if f, err := os.Create(historyFile); err == nil {
 				line.WriteHistory(f)
@@ -78,7 +78,7 @@ func main() {
 	}
 }
 
-func (c *cli) parseCommand(cmd string) bool {
+func (c *CommandLine) ParseCommand(cmd string) bool {
 	lcmd := strings.TrimSpace(strings.ToLower(cmd))
 	switch {
 	case strings.HasPrefix(lcmd, "exit"):
@@ -91,8 +91,8 @@ func (c *cli) parseCommand(cmd string) bool {
 	case strings.HasPrefix(lcmd, "help"):
 		help()
 	case strings.HasPrefix(lcmd, "pretty"):
-		c.pretty = !c.pretty
-		if c.pretty {
+		c.Pretty = !c.Pretty
+		if c.Pretty {
 			fmt.Println("Pretty print enabled")
 		} else {
 			fmt.Println("Pretty print disabled")
@@ -107,7 +107,7 @@ func (c *cli) parseCommand(cmd string) bool {
 	return true
 }
 
-func (c *cli) connect(cmd string) {
+func (c *CommandLine) connect(cmd string) {
 	var cl *client.Client
 
 	if cmd != "" {
@@ -122,69 +122,69 @@ func (c *cli) connect(cmd string) {
 				fmt.Printf("Connect error: Invalid port number %q: %s\n", cmd, e)
 				return
 			} else {
-				c.port = i
+				c.Port = i
 			}
 			if h[0] == "" {
-				c.host = default_host
+				c.Host = default_host
 			} else {
-				c.host = h[0]
+				c.Host = h[0]
 			}
 		} else {
-			c.host = cmd
+			c.Host = cmd
 			// If they didn't specify a port, always use the default port
-			c.port = default_port
+			c.Port = default_port
 		}
 	}
 
 	u := url.URL{
 		Scheme: "http",
 	}
-	if c.port > 0 {
-		u.Host = fmt.Sprintf("%s:%d", c.host, c.port)
+	if c.Port > 0 {
+		u.Host = fmt.Sprintf("%s:%d", c.Host, c.Port)
 	} else {
-		u.Host = c.host
+		u.Host = c.Host
 	}
-	if c.username != "" {
-		u.User = url.UserPassword(c.username, c.password)
+	if c.Username != "" {
+		u.User = url.UserPassword(c.Username, c.Password)
 	}
 	cl, err := client.NewClient(
 		client.Config{
 			URL:      u,
-			Username: c.username,
-			Password: c.password,
+			Username: c.Username,
+			Password: c.Password,
 		})
 	if err != nil {
 		fmt.Printf("Could not create client %s", err)
 		return
 	}
-	c.client = cl
-	if _, v, e := c.client.Ping(); e != nil {
-		fmt.Printf("Failed to connect to %s\n", c.client.Addr())
+	c.Client = cl
+	if _, v, e := c.Client.Ping(); e != nil {
+		fmt.Printf("Failed to connect to %s\n", c.Client.Addr())
 	} else {
-		c.version = v
-		fmt.Printf("Connected to %s version %s\n", c.client.Addr(), c.version)
+		c.Version = v
+		fmt.Printf("Connected to %s version %s\n", c.Client.Addr(), c.Version)
 	}
 }
 
-func (c *cli) use(cmd string) {
+func (c *CommandLine) use(cmd string) {
 	args := strings.Split(cmd, " ")
 	if len(args) != 2 {
 		fmt.Printf("Could not parse database name from %q.\n", cmd)
 		return
 	}
 	d := strings.TrimSpace(args[1])
-	c.database = d
+	c.Database = d
 	fmt.Printf("Using database %s\n", d)
 }
 
-func (c *cli) executeQuery(query string) {
-	results, err := c.client.Query(client.Query{Command: query, Database: c.database})
+func (c *CommandLine) executeQuery(query string) {
+	results, err := c.Client.Query(client.Query{Command: query, Database: c.Database})
 	if err != nil {
 		fmt.Printf("ERR: %s\n", err)
 		return
 	}
 	var data []byte
-	if c.pretty {
+	if c.Pretty {
 		data, err = json.MarshalIndent(results, "", "    ")
 	} else {
 		data, err = json.Marshal(results)
@@ -194,7 +194,7 @@ func (c *cli) executeQuery(query string) {
 		return
 	}
 	fmt.Fprintln(os.Stdout, string(data))
-	if results.Error() != nil && c.database == "" {
+	if results.Error() != nil && c.Database == "" {
 		fmt.Println("Warning: It is possible this error is due to not setting a database.")
 		fmt.Println(`Please set a database with the command "use <database>".`)
 	}
