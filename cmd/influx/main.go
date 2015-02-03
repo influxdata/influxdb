@@ -52,9 +52,8 @@ func main() {
 	var promptForPassword bool
 	// determine if they set the password flag but provided no value
 	for _, v := range os.Args {
-		v = strings.Replace(v, "-", "", -1)
 		v = strings.ToLower(v)
-		if strings.HasPrefix(v, "password") {
+		if (strings.HasPrefix(v, "-password") || strings.HasPrefix(v, "--password")) && c.Password == "" {
 			promptForPassword = true
 			break
 		}
