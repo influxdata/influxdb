@@ -196,6 +196,9 @@ func NormalizeBatchPoints(bp BatchPoints) ([]Point, error) {
 		}
 		p.Timestamp = client.Timestamp(client.SetPrecision(p.Timestamp.Time(), p.Precision))
 		if len(bp.Tags) > 0 {
+			if p.Tags == nil {
+				p.Tags = make(map[string]string)
+			}
 			for k := range bp.Tags {
 				if p.Tags[k] == "" {
 					p.Tags[k] = bp.Tags[k]
