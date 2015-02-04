@@ -1727,9 +1727,7 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 		case *influxql.ShowTagValuesStatement:
 			res = s.executeShowTagValuesStatement(stmt, database, user)
 		case *influxql.ShowFieldKeysStatement:
-			continue
-		case *influxql.ShowFieldValuesStatement:
-			continue
+			res = s.executeShowFieldKeysStatement(stmt, database, user)
 		case *influxql.GrantStatement:
 			res = s.executeGrantStatement(stmt, user)
 		case *influxql.RevokeStatement:
@@ -1863,13 +1861,7 @@ func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, 
 	}
 
 	// Loop through measurements to build result. One result row / measurement.
-	for _, name := range measurements {
-		// Look up the measurement by name.
-		m, ok := db.measurements[name]
-		if !ok {
-			continue
-		}
-
+	for _, m := range measurements {
 		var ids seriesIDs
 
 		if stmt.Condition != nil {
@@ -1994,13 +1986,7 @@ func (s *Server) executeShowTagKeysStatement(stmt *influxql.ShowTagKeysStatement
 	}
 
 	// Add one row per measurement to the result.
-	for _, name := range measurements {
-		// Look up the measurement by name.
-		m, ok := db.measurements[name]
-		if !ok {
-			continue
-		}
-
+	for _, m := range measurements {
 		// TODO: filter tag keys by stmt.Condition
 
 		// Get the tag keys in sorted order.
@@ -2049,13 +2035,7 @@ func (s *Server) executeShowTagValuesStatement(stmt *influxql.ShowTagValuesState
 		Rows: make(influxql.Rows, 0, len(measurements)),
 	}
 
-	for _, name := range measurements {
-		// Look up the measurement by name.
-		m, ok := db.measurements[name]
-		if !ok {
-			continue
-		}
-
+	for _, m := range measurements {
 		var ids seriesIDs
 
 		if stmt.Condition != nil {
@@ -2095,6 +2075,84 @@ func (s *Server) executeShowTagValuesStatement(stmt *influxql.ShowTagValuesState
 	return result
 }
 
+// filterMeasurementsByExpr filters a list of measurements by a tags expression.
+func filterMeasurementsByExpr(measurements Measurements, expr influxql.Expr) (Measurements, error) {
+	// Create a list to hold result measurements.
+	filtered := make(Measurements, 0)
+
+	// Iterate measurements adding the ones that match to the result.
+	for _, m := range measurements {
+		// Look up series IDs that match the tags expression.
+		ids, err := m.seriesIDsAllOrByExpr(expr)
+		if err != nil {
+			return nil, err
+		} else if len(ids) > 0 {
+			filtered = append(filtered, m)
+		}
+	}
+	sort.Sort(filtered)
+
+	return filtered, nil
+}
+
+func (s *Server) executeShowFieldKeysStatement(stmt *influxql.ShowFieldKeysStatement, database string, user *User) *Result {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var err error
+
+	// Find the database.
+	db := s.databases[database]
+	if db == nil {
+		return &Result{Err: ErrDatabaseNotFound}
+	}
+
+	// Get the list of measurements we're interested in.
+	measurements, err := measurementsFromSourceOrDB(stmt.Source, db)
+	if err != nil {
+		return &Result{Err: err}
+	}
+
+	// If the statement has a where clause, filter the measurements by it.
+	if stmt.Condition != nil {
+		if measurements, err = filterMeasurementsByExpr(measurements, stmt.Condition); err != nil {
+			return &Result{Err: err}
+		}
+	}
+
+	// Make result.
+	result := &Result{
+		Rows: make(influxql.Rows, 0, len(measurements)),
+	}
+
+	// Loop through measurements, adding a result row for each.
+	for _, m := range measurements {
+		// Create a new row.
+		r := &influxql.Row{
+			Name:    m.Name,
+			Columns: []string{"fieldKey"},
+		}
+
+		// Get a list of field names from the measurement then sort them.
+		names := make([]string, 0, len(m.Fields))
+		for _, f := range m.Fields {
+			names = append(names, f.Name)
+		}
+		sort.Strings(names)
+
+		// Add the field names to the result row values.
+		for _, n := range names {
+			v := interface{}(n)
+			r.Values = append(r.Values, []interface{}{v})
+		}
+
+		// Append the row to the result.
+		result.Rows = append(result.Rows, r)
+	}
+
+	return result
+}
+
 func (s *Server) executeGrantStatement(stmt *influxql.GrantStatement, user *User) *Result {
 	return &Result{Err: s.SetPrivilege(stmt.Privilege, stmt.User, stmt.On)}
 }
@@ -2103,20 +2161,11 @@ func (s *Server) executeRevokeStatement(stmt *influxql.RevokeStatement, user *Us
 	return &Result{Err: s.SetPrivilege(influxql.NoPrivileges, stmt.User, stmt.On)}
 }
 
-// str2iface converts an array of strings to an array of interfaces.
-func str2iface(strs []string) []interface{} {
-	a := make([]interface{}, 0, len(strs))
-	for _, s := range strs {
-		a = append(a, interface{}(s))
-	}
-	return a
-}
-
-// measurementsFromSourceOrDB returns a list of measurement names from the
+// measurementsFromSourceOrDB returns a list of measurements from the
 // statement passed in or, if the statement is nil, a list of all
 // measurement names from the database passed in.
-func measurementsFromSourceOrDB(stmt influxql.Source, db *database) ([]string, error) {
-	var measurements []string
+func measurementsFromSourceOrDB(stmt influxql.Source, db *database) (Measurements, error) {
+	var measurements Measurements
 	if stmt != nil {
 		// TODO: handle multiple measurement sources
 		if m, ok := stmt.(*influxql.Measurement); ok {
@@ -2124,16 +2173,20 @@ func measurementsFromSourceOrDB(stmt influxql.Source, db *database) ([]string, e
 			if err != nil {
 				return nil, err
 			}
+			name := m.Name
+			if len(segments) == 3 {
+				name = segments[2]
+			}
 
-			measurements = append(measurements, segments[2])
+			measurements = append(measurements, db.measurements[name])
 		} else {
 			return nil, errors.New("identifiers in FROM clause must be measurement names")
 		}
 	} else {
 		// No measurements specified in FROM clause so get all measurements.
-		measurements = db.MeasurementNames()
+		measurements = db.Measurements()
 	}
-	sort.Strings(measurements)
+	sort.Sort(measurements)
 
 	return measurements, nil
 }

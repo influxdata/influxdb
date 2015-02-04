@@ -69,7 +69,6 @@ func (*GrantStatement) node()                 {}
 func (*ShowContinuousQueriesStatement) node() {}
 func (*ShowDatabasesStatement) node()         {}
 func (*ShowFieldKeysStatement) node()         {}
-func (*ShowFieldValuesStatement) node()       {}
 func (*ShowRetentionPoliciesStatement) node() {}
 func (*ShowMeasurementsStatement) node()      {}
 func (*ShowSeriesStatement) node()            {}
@@ -158,7 +157,6 @@ func (*GrantStatement) stmt()                 {}
 func (*ShowContinuousQueriesStatement) stmt() {}
 func (*ShowDatabasesStatement) stmt()         {}
 func (*ShowFieldKeysStatement) stmt()         {}
-func (*ShowFieldValuesStatement) stmt()       {}
 func (*ShowMeasurementsStatement) stmt()      {}
 func (*ShowRetentionPoliciesStatement) stmt() {}
 func (*ShowSeriesStatement) stmt()            {}
@@ -1201,58 +1199,6 @@ func (s *ShowFieldKeysStatement) String() string {
 
 // RequiredPrivileges returns the privilege(s) required to execute a ShowFieldKeysStatement
 func (s *ShowFieldKeysStatement) RequiredPrivileges() ExecutionPrivileges {
-	return ExecutionPrivileges{{Name: "", Privilege: ReadPrivilege}}
-}
-
-// ShowFieldValuesStatement represents a command for listing field values.
-type ShowFieldValuesStatement struct {
-	// Data source that fields are extracted from.
-	Source Source
-
-	// An expression evaluated on data point.
-	Condition Expr
-
-	// Fields to sort results by
-	SortFields SortFields
-
-	// Maximum number of rows to be returned.
-	// Unlimited if zero.
-	Limit int
-
-	// Returns rows starting at an offset from the first row.
-	Offset int
-}
-
-// String returns a string representation of the statement.
-func (s *ShowFieldValuesStatement) String() string {
-	var buf bytes.Buffer
-	_, _ = buf.WriteString("SHOW FIELD VALUES")
-
-	if s.Source != nil {
-		_, _ = buf.WriteString(" FROM ")
-		_, _ = buf.WriteString(s.Source.String())
-	}
-	if s.Condition != nil {
-		_, _ = buf.WriteString(" WHERE ")
-		_, _ = buf.WriteString(s.Condition.String())
-	}
-	if len(s.SortFields) > 0 {
-		_, _ = buf.WriteString(" ORDER BY ")
-		_, _ = buf.WriteString(s.SortFields.String())
-	}
-	if s.Limit > 0 {
-		_, _ = buf.WriteString(" LIMIT ")
-		_, _ = buf.WriteString(strconv.Itoa(s.Limit))
-	}
-	if s.Offset > 0 {
-		_, _ = buf.WriteString(" OFFSET ")
-		_, _ = buf.WriteString(strconv.Itoa(s.Offset))
-	}
-	return buf.String()
-}
-
-// RequiredPrivileges returns the privilege(s) required to execute a ShowFieldValuesStatement
-func (s *ShowFieldValuesStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Name: "", Privilege: ReadPrivilege}}
 }
 
