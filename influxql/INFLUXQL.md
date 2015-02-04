@@ -4,7 +4,7 @@
 
 This is a reference for the Influx Query Language ("InfluxQL").
 
-InfluxQL is a SQL-like query language for interacting with InfluxDB.  It was lovingly crafted to feel familiar to those coming from other
+InfluxQL is a SQL-like query language for interacting with InfluxDB.  It has been lovingly crafted to feel familiar to those coming from other
 SQL or SQL-like environments while providing features specific to storing
 and analyzing time series data.
 
@@ -44,16 +44,46 @@ decimal_digit       = "0" .. "9" .
 
 Database names are more limited than other identifiers because they appear in URLs.
 
+The rules:
+
+- must start with an upper or lowercase ASCII letter
+- may contain only ASCII leters, decimal digits, "_", and "-"
+
 ```
 db_name             = ascii_letter { ascii_letter | decimal_digit | "_" | "-" } .
 ```
 
+#### Examples:
+
+```
+mydb
+MyDB
+my-db_3
+```
+
 ## Identifiers
+
+Identifiers are things like measurement names, retention policy names, tag keys, etc.
+
+The rules:
+
+- double quoted identifiers can contain any unicode character other than a new
+- double quoted identifiers can contain escaped `"` characters (i.e., `\"`)
+- unquoted identifiers must start with an upper or lowercase ASCII character
+- unquoted identifiers may contain only ASCII letters, decimal digits, "_", and "."
 
 ```
 identifier          = unquoted_identifier | quoted_identifier .
 unquoted_identifier = ascii_letter { ascii_letter | decimal_digit | "_" | "." } .
 quoted_identifier   = `"` unicode_char { unicode_char } `"` .
+```
+
+#### Examples:
+
+```
+cpu
+"1h.cpu"
+"1_Crazy-1337.identifer>NAME"
 ```
 
 ## Keywords
@@ -62,36 +92,74 @@ quoted_identifier   = `"` unicode_char { unicode_char } `"` .
 ALL          ALTER        AS           ASC          BEGIN        BY
 CREATE       CONTINUOUS   DATABASE     DATABASES    DEFAULT      DELETE
 DESC         DROP         DURATION     END          EXISTS       EXPLAIN
-FIELD        FROM         GRANT        GROUP        IF           INNER
-INSERT       INTO         KEYS         LIMIT        SHOW         MEASUREMENT
-MEASUREMENTS OFFSET       ON           ORDER        PASSWORD     POLICY
-POLICIES     PRIVILEGES   QUERIES      QUERY        READ         REPLICATION
-RETENTION    REVOKE       SELECT       SERIES       TAG          TO
-USER         USERS        VALUES       WHERE        WITH         WRITE
+FIELD        FROM         GRANT        GROUP        IF           IN
+INNER        INSERT       INTO         KEY          KEYS         LIMIT
+SHOW         MEASUREMENT  MEASUREMENTS OFFSET       ON           ORDER
+PASSWORD     POLICY       POLICIES     PRIVILEGES   QUERIES      QUERY
+READ         REPLICATION  RETENTION    REVOKE       SELECT       SERIES
+TAG          TO           USER         USERS        VALUES       WHERE
+WITH         WRITE
 ```
 
 ## Literals
 
 ### Numbers
 
+InfluxQL supports decimal integer literals and float literals.  Hex, octal, etc. are not
+currently supported.
+
 ```
 int_lit             = decimal_lit .
 decimal_lit         = ( "1" .. "9" ) { decimal_digit } .
 float_lit           = decimals "." decimals .
-decimals            = decimal_digit { decimal_digit } .
 ```
 
 ### Strings
 
+String literals must be surrounded by single quotes. Strings may contain `'` characters as long as they are escaped (i.e., `\'`).
+
 ```
-string_lit          = '"' { unicode_char } '"' .
+string_lit          = `'` { unicode_char } `'`' .
 ```
 
 ### Durations
 
+Duration literals specify a length of time and are specified by an integer
+followed by (without spaces) the duration units.
+
+| Units  | Meaning                                 |
+|--------|-----------------------------------------|
+| u or µ | microseconds (1 millionth of a second)  |
+| ms     | milliseconds (1 thousandth of a second) |
+| s      | second                                  |
+| m      | minute                                  |
+| h      | hour                                    |
+| d      | day                                     |
+| w      | week                                    |
+
+
 ```
 duration_lit        = decimals duration_unit .
 duration_unit       = "u" | "µ" | "s" | "h" | "d" | "w" | "ms" .
+```
+
+### Dates & Times
+
+The date & time literal format is not specified in EBNF like the rest of this
+document.  It is specified using Go's date / time parsing format, which is
+a reference date written in the format required by InfluxQL.  The reference
+date time is:
+
+January 2nd, 2006 at 3:04:05 PM
+
+```
+time_lit            = "2006-01-02 15:04:05.999999" | "2006-01-02"
+```
+
+### Boolean
+
+```
+bool_lit            = TRUE | FALSE .
 ```
 
 ## Queries
@@ -102,26 +170,26 @@ A query is composed of one or more statements separated by a semicolon.
 query               = statement { ; statement } .
 
 statement           = alter_retention_policy_stmt |
-					            create_continuous_query_stmt |
+                      create_continuous_query_stmt |
                       create_database_stmt |
                       create_retention_policy_stmt |
                       create_user_stmt |
                       delete_stmt |
                       drop_continuous_query_stmt |
                       drop_database_stmt |
+                      drop_measurement_stmt |
                       drop_retention_policy_stmt |
                       drop_series_stmt |
                       drop_user_stmt |
                       grant_stmt |
                       show_continuous_queries_stmt |
                       show_databases_stmt |
-                      show_field_key_stmt |
-                      show_field_value_stmt |
+                      show_field_keys_stmt |
                       show_measurements_stmt |
                       show_retention_policies |
                       show_series_stmt |
-                      show_tag_key_stmt |
-                      show_tag_value_stmt |
+                      show_tag_keys_stmt |
+                      show_tag_values_stmt |
                       show_users_stmt |
                       revoke_stmt |
                       select_stmt .
@@ -252,6 +320,39 @@ delete_stmt  = "DELETE" from_clause where_clause .
 DELETE FROM cpu WHERE region = 'uswest';
 ```
 
+### DROP CONTINUOUS QUERY
+
+drop_continuous_query_stmt = "DROP CONTINUOUS QUERY" query_name .
+
+#### Example:
+
+```sql
+DROP CONTINUOUS QUERY myquery;
+```
+
+### DROP DATABASE
+
+drop_database_stmt = "DROP DATABASE" db_name .
+
+#### Example:
+
+```sql
+DROP DATABASE mydb;
+```
+
+### DROP MEASUREMENT
+
+```
+drop_measurement_stmt = "DROP MEASUREMENT" measurement .
+```
+
+#### Examples:
+
+```sql
+-- drop the cpu measurement
+DROP MEASUREMENT cpu;
+```
+
 ### DROP RETENTION POLICY
 
 ```
@@ -265,7 +366,34 @@ drop_retention_policy_stmt = "DROP RETENTION POLICY" policy_name "ON" db_name .
 DROP RETENTION POLICY "1h.cpu" ON mydb;
 ```
 
+### DROP SERIES
+
+```
+drop_series_stmt = "DROP SERIES" [ from_clause ] [ where_clause ]
+```
+
+#### Example:
+
+```sql
+
+```
+
+### DROP USER
+
+```
+drop_user_stmt = "DROP USER" user_name .
+```
+
+#### Example:
+
+```sql
+DROP USER jdoe;
+
+```
+
 ### GRANT
+
+NOTE: Users can be granted privileges on databases that do not exist.
 
 ```
 grant_stmt = "GRANT" privilege [ on_clause ] to_clause
@@ -281,6 +409,17 @@ GRANT ALL TO jdoe;
 GRANT READ ON mydb TO jdoe;
 ```
 
+### SHOW CONTINUOUS QUERIES
+
+show_continuous_queries_stmt = "SHOW CONTINUOUS QUERIES"
+
+#### Example:
+
+```sql
+-- show all continuous queries
+SHOW CONTINUOUS QUERIES;
+```
+
 ### SHOW DATABASES
 
 ```
@@ -292,6 +431,29 @@ show_databases_stmt = "SHOW DATABASES" .
 ```sql
 -- show all databases
 SHOW DATABASES;
+```
+
+### SHOW FIELD
+
+show_field_keys_stmt =
+
+#### Examples:
+
+```sql
+
+```
+
+### SHOW MEASUREMENTS
+
+show_measurements_stmt = [ where_clause ] [ group_by_clause ] [ limit_clause ]
+                         [ offset_clause ] .
+
+```sql
+-- show all measurements
+SHOW MEASUREMENTS;
+
+-- show measurements where region tag = 'uswest' AND host tag = 'serverA'
+SHOW MEASUREMENTS WHERE region = 'uswest' AND host = 'serverA';
 ```
 
 ### SHOW RETENTION POLICIES
@@ -307,6 +469,62 @@ show_retention_policies = "SHOW RETENTION POLICIES" db_name .
 SHOW RETENTION POLICIES mydb;
 ```
 
+### SHOW SERIES
+
+```
+show_series_stmt = [ from_clause ] [ where_clause ] [ group_by_clause ]
+                   [ limit_clause ] [ offset_clause ] .
+```
+
+#### Example:
+
+```sql
+
+```
+
+### SHOW TAG KEYS
+
+```
+show_tag_keys_stmt = [ from_clause ] [ where_clause ] [ group_by_clause ]
+                     [ limit_clause ] [ offset_clause ] .
+```
+
+#### Examples:
+
+```sql
+-- show all tag keys
+SHOW TAG KEYS;
+
+-- show all tag keys from the cpu measurement
+SHOW TAG KEYS FROM cpu;
+
+-- show all tag keys from the cpu measurement where the region key = 'uswest'
+SHOW TAG KEYS FROM cpu WHERE region = 'uswest';
+
+-- show sll tag keys where the host key = 'serverA'
+SHOW TAG KEYS WHERE host = 'serverA';
+```
+
+### SHOW TAG VALUES
+
+```
+show_tag_values_stmt = [ from_clause ] with_tag_clause [ where_clause ]
+                       [ group_by_clause ] [ limit_clause ] [ offset_clause ] .
+```
+
+#### Examples:
+
+```sql
+-- show all tag values across all measurements for the region tag
+SHOW TAG VALUES WITH TAG = 'region';
+
+-- show tag values from the cpu measurement for the region tag
+SHOW TAG VALUES FROM cpu WITH TAG = 'region';
+
+-- show tag values from the cpu measurement for region & host tag keys where service = 'redis'
+SHOW TAG VALUES FROM cpu WITH TAG IN (region, host) WHERE service = 'redis';
+```
+
 ### SHOW USERS
 
 ```
@@ -320,30 +538,99 @@ show_users_stmt = "SHOW USERS" .
 SHOW USERS;
 ```
 
+### REVOKE
+
+```
+revoke_stmt = privilege [ "ON" db_name ] "FROM" user_name
+```
+
+#### Examples:
+
+```sql
+-- revoke cluster admin from jdoe
+REVOKE ALL PRIVILEGES FROM jdoe;
+
+-- revoke read privileges from jdoe on mydb
+REVOKE READ ON mydb FROM jdoe;
+```
+
+### SELECT
+
+```
+select_stmt = fields from_clause [ into_clause ] [ where_clause ]
+              [ group_by_clause ] [ order_by_clause ] [ limit_clause ]
+              [ offset_clause ] .
+```
+
+#### Examples:
+
+```sql
+-- select mean value from the cpu measurement where region = 'uswest' grouped by 10 minute intervals
+SELECT mean(value) FROM cpu WHERE region = 'uswest' GROUP BY time(10m);
+```
+
 ## Clauses
 
 ```
-from_clause  = "FROM" measurements .
+from_clause     = "FROM" measurements .
 
-where_clause = "WHERE" expr .
+group_by_clause = "GROUP BY" dimensions .
 
-on_clause    = db_name .
+limit_clause    = "LIMIT" int_lit .
 
-to_clause    = user_name .
+offset_clause   = "OFFSET" int_lit .
+
+on_clause       = db_name .
+
+order_by_clause = "ORDER BY" sort_fields .
+
+to_clause       = user_name .
+
+where_clause    = "WHERE" expr .
 ```
+
+## Expressions
+
+```
+binary_op        = "+" | "-" | "*" | "/" | "AND" | "OR" | "=" | "!=" | "<" |
+                   "<=" | ">" | ">=" .
+
+expr             = unary_expr { binary_op unary_expr } .
+
+unary_expr       = "(" expr ")" | var_ref | time_lit | string_lit |
+                   number_lit | bool_lit | duration_lit .
 
 ## Other
 
-```
-expr =
+decimals          = decimal_digit { decimal_digit } .
 
-measurements =
+dimenson         = expr .
+
+dimensons        = dimenson { "," dimenson } .
+
+field            = expr [ alias ] .
+
+fields           = field { "," field } .
+
+measurement      = measurement_name |
+                   ( policy_name "." measurement_name ) |
+                   ( db_name "." [ policy_name ] "." measurement_name ) .
+
+measurements     = measurement { "," measurement } .
+
+measurement_name = identifier .
 
 password         = identifier .
 
 policy_name      = identifier .
 
-user_name        = identifier .
-
 privilege        = "ALL" [ "PRIVILEGES" ] | "READ" | "WRITE" .
+
+series_id        = int_lit .
+
+sort_field       = field_name [ ASC | DESC ] .
+
+sort_fields      = sort_field { "," sort_field } .
+
+user_name        = identifier .
 ```
