@@ -18,6 +18,9 @@ if ! tmux ls | grep -q "$session"; then
 	sleep 1
 	tmux send-keys -t $session:1.2 'influxd -config server_8087.toml -join http://127.0.0.1:8086' C-m
 	tmux send-keys -t $session:1.3 'influxd -config server_8088.toml -join http://127.0.0.1:8086' C-m
+	sleep 1
+	
+	./seed.sh
 
 	# even out the layouts
 	tmux select-layout -t $session even-horizontal
