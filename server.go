@@ -1413,6 +1413,14 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 func (s *Server) writePoint(database, retentionPolicy string, point *Point) (uint64, error) {
 	name, tags, timestamp, values := point.Name, point.Tags, point.Timestamp, point.Values
 
+	// Sanity-check the data point.
+	if name == "" {
+		return 0, ErrMeasurementNameRequired
+	}
+	if len(values) == 0 {
+		return 0, ErrValuesRequired
+	}
+
 	// Find the id for the series and tagset
 	seriesID, err := s.createSeriesIfNotExists(database, name, tags)
 	if err != nil {

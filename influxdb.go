@@ -91,8 +91,14 @@ var (
 	// ErrInvalidQuery is returned when executing an unknown query type.
 	ErrInvalidQuery = errors.New("invalid query")
 
+	// ErrMeasurementNameRequired is returned when a point does not contain a name.
+	ErrMeasurementNameRequired = errors.New("measurement name required")
+
 	// ErrMeasurementNotFound is returned when a measurement does not exist.
 	ErrMeasurementNotFound = errors.New("measurement not found")
+
+	// ErrValuesRequired is returned when a point does not any values
+	ErrValuesRequired = errors.New("values required")
 
 	// ErrFieldOverflow is returned when too many fields are created on a measurement.
 	ErrFieldOverflow = errors.New("field overflow")
