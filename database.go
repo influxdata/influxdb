@@ -1194,7 +1194,6 @@ func (db *database) Measurements() Measurements {
 	for _, m := range db.measurements {
 		measurements = append(measurements, m)
 	}
-	sort.Sort(measurements)
 	return measurements
 }
 
