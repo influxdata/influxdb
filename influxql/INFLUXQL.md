@@ -67,7 +67,8 @@ Identifiers are things like measurement names, retention policy names, tag keys,
 
 The rules:
 
-- double quoted identifiers can contain any unicode character other than a new line
+- double quoted identifiers can contain any unicode character other than a new
+- double quoted identifiers can contain escaped `"` characters (i.e., `\"`)
 - unquoted identifiers must start with an upper or lowercase ASCII character
 - unquoted identifiers may contain only ASCII letters, decimal digits, "_", and "."
 
@@ -115,7 +116,7 @@ float_lit           = decimals "." decimals .
 
 ### Strings
 
-String literals must be surrounded by single quotes.
+String literals must be surrounded by single quotes. Strings may contain `'` characters as long as they are escaped (i.e., `\'`).
 
 ```
 string_lit          = `'` { unicode_char } `'`' .
@@ -380,13 +381,13 @@ drop_series_stmt = "DROP SERIES" [ from_clause ] [ where_clause ]
 ### DROP USER
 
 ```
-drop_user_stmt =
+drop_user_stmt = "DROP USER" user_name .
 ```
 
 #### Example:
 
 ```sql
-
+DROP USER jdoe;
 
 ```
 
