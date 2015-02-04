@@ -241,7 +241,7 @@ func (p *Point) UnmarshalJSON(b []byte) error {
 	var epoch struct {
 		Name      string                 `json:"name"`
 		Tags      map[string]string      `json:"tags"`
-		Timestamp int64                  `json:"timestamp"`
+		Timestamp *int64                 `json:"timestamp"`
 		Precision string                 `json:"precision"`
 		Values    map[string]interface{} `json:"values"`
 	}
@@ -251,10 +251,14 @@ func (p *Point) UnmarshalJSON(b []byte) error {
 		if err = json.Unmarshal(b, &epoch); err != nil {
 			return err
 		}
-		// Convert from epoch to time.Time
-		ts, err := EpochToTime(epoch.Timestamp, epoch.Precision)
-		if err != nil {
-			return err
+		// Convert from epoch to time.Time, but only if Timestamp
+		// was actually set.
+		var ts time.Time
+		if epoch.Timestamp != nil {
+			ts, err = EpochToTime(*epoch.Timestamp, epoch.Precision)
+			if err != nil {
+				return err
+			}
 		}
 		p.Name = epoch.Name
 		p.Tags = epoch.Tags

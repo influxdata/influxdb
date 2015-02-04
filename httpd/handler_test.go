@@ -12,6 +12,7 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -87,13 +88,13 @@ func TestBatchWrite_UnmarshalEpoch(t *testing.T) {
 		t.Logf("testing %q\n", test.name)
 		data := []byte(fmt.Sprintf(`{"timestamp": %d, "precision":"%s"}`, test.epoch, test.precision))
 		t.Logf("json: %s", string(data))
-		var br httpd.BatchWrite
-		err := json.Unmarshal(data, &br)
+		var bp influxdb.BatchPoints
+		err := json.Unmarshal(data, &bp)
 		if err != nil {
-			t.Fatalf("unexpected error.  exptected: %v, actual: %v", nil, err)
+			t.Fatalf("unexpected error.  expected: %v, actual: %v", nil, err)
 		}
-		if !br.Timestamp.Equal(test.expected) {
-			t.Fatalf("Unexpected time.  expected: %v, actual: %v", test.expected, br.Timestamp)
+		if !bp.Timestamp.Equal(test.expected) {
+			t.Fatalf("Unexpected time.  expected: %v, actual: %v", test.expected, bp.Timestamp)
 		}
 	}
 }
@@ -125,13 +126,13 @@ func TestBatchWrite_UnmarshalRFC(t *testing.T) {
 		ts := test.now.Format(test.rfc)
 		data := []byte(fmt.Sprintf(`{"timestamp": %q}`, ts))
 		t.Logf("json: %s", string(data))
-		var br httpd.BatchWrite
-		err := json.Unmarshal(data, &br)
+		var bp influxdb.BatchPoints
+		err := json.Unmarshal(data, &bp)
 		if err != nil {
 			t.Fatalf("unexpected error.  exptected: %v, actual: %v", nil, err)
 		}
-		if !br.Timestamp.Equal(test.expected) {
-			t.Fatalf("Unexpected time.  expected: %v, actual: %v", test.expected, br.Timestamp)
+		if !bp.Timestamp.Equal(test.expected) {
+			t.Fatalf("Unexpected time.  expected: %v, actual: %v", test.expected, bp.Timestamp)
 		}
 	}
 }
@@ -1750,6 +1751,7 @@ func OpenUninitializedServer(client influxdb.MessagingClient) *Server {
 type MessagingClient struct {
 	index uint64
 	c     chan *messaging.Message
+	mu    sync.Mutex // Ensure all publishing is serialized.
 
 	PublishFunc       func(*messaging.Message) (uint64, error)
 	CreateReplicaFunc func(replicaID uint64) error
@@ -1772,6 +1774,8 @@ func NewMessagingClient() *MessagingClient {
 // Publish attaches an autoincrementing index to the message.
 // This function also execute's the client's PublishFunc mock function.
 func (c *MessagingClient) Publish(m *messaging.Message) (uint64, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.index++
 	m.Index = c.index
 	return c.PublishFunc(m)
