@@ -299,7 +299,7 @@ loop:
 	}
 
 	// Normalize rows and values.
-	// Convernt all times to timestamps
+	// Convert all times to timestamps
 	a := make(Rows, 0, len(rows))
 	for _, row := range rows {
 		for _, values := range row.Values {
