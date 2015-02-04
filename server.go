@@ -1105,8 +1105,8 @@ func (s *Server) RetentionPolicy(database, name string) (*RetentionPolicy, error
 // DefaultRetentionPolicy returns the default retention policy for a database.
 // Returns an error if the database doesn't exist.
 func (s *Server) DefaultRetentionPolicy(database string) (*RetentionPolicy, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	// Lookup database.
 	db := s.databases[database]
@@ -1794,8 +1794,8 @@ func (s *Server) executeSelectStatement(stmt *influxql.SelectStatement, database
 
 // plans a selection statement under lock.
 func (s *Server) planSelectStatement(stmt *influxql.SelectStatement, database string) (*influxql.Executor, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	// Find database.
 	db := s.databases[database]
