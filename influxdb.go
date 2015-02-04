@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/influxdb/influxdb/client"
 	"time"
+
+	"github.com/influxdb/influxdb/client"
 )
 
 var (
@@ -143,7 +144,7 @@ func (bp *BatchPoints) UnmarshalJSON(b []byte) error {
 		Database        string            `json:"database"`
 		RetentionPolicy string            `json:"retentionPolicy"`
 		Tags            map[string]string `json:"tags"`
-		Timestamp       int64             `json:"timestamp"`
+		Timestamp       *int64            `json:"timestamp"`
 		Precision       string            `json:"precision"`
 	}
 
@@ -153,9 +154,12 @@ func (bp *BatchPoints) UnmarshalJSON(b []byte) error {
 			return err
 		}
 		// Convert from epoch to time.Time
-		ts, err := client.EpochToTime(epoch.Timestamp, epoch.Precision)
-		if err != nil {
-			return err
+		var ts time.Time
+		if epoch.Timestamp != nil {
+			ts, err = client.EpochToTime(*epoch.Timestamp, epoch.Precision)
+			if err != nil {
+				return err
+			}
 		}
 		bp.Points = epoch.Points
 		bp.Database = epoch.Database
