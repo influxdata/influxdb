@@ -90,7 +90,7 @@ func TestBatchWrite_UnmarshalEpoch(t *testing.T) {
 		var bp influxdb.BatchPoints
 		err := json.Unmarshal(data, &bp)
 		if err != nil {
-			t.Fatalf("unexpected error.  exptected: %v, actual: %v", nil, err)
+			t.Fatalf("unexpected error.  expected: %v, actual: %v", nil, err)
 		}
 		if !bp.Timestamp.Equal(test.expected) {
 			t.Fatalf("Unexpected time.  expected: %v, actual: %v", test.expected, bp.Timestamp)
