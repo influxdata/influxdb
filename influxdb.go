@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-
 	"time"
 
 	"github.com/influxdb/influxdb/client"
