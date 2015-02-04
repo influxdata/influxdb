@@ -12,6 +12,7 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -1644,6 +1645,7 @@ func OpenUninitializedServer(client influxdb.MessagingClient) *Server {
 type MessagingClient struct {
 	index uint64
 	c     chan *messaging.Message
+	mu    sync.Mutex // Ensure all publishing is serialized.
 
 	PublishFunc       func(*messaging.Message) (uint64, error)
 	CreateReplicaFunc func(replicaID uint64) error
@@ -1666,6 +1668,8 @@ func NewMessagingClient() *MessagingClient {
 // Publish attaches an autoincrementing index to the message.
 // This function also execute's the client's PublishFunc mock function.
 func (c *MessagingClient) Publish(m *messaging.Message) (uint64, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.index++
 	m.Index = c.index
 	return c.PublishFunc(m)
