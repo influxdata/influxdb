@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"strconv"
 	"testing"
 	"time"
 
@@ -202,7 +201,6 @@ func TestNewServer(t *testing.T) {
 		t.Fatalf("query databases failed.  Unexpected status code.  expected: %d, actual %d", http.StatusOK, resp.StatusCode)
 	}
 
-	strNow := strconv.FormatInt(now.UnixNano(), 10)
 	expectedResults = client.Results{
 		Results: []client.Result{
 			{Rows: []influxql.Row{
@@ -210,7 +208,7 @@ func TestNewServer(t *testing.T) {
 					Name:    "cpu",
 					Columns: []string{"time", "value"},
 					Values: [][]interface{}{
-						[]interface{}{json.Number(strNow), json.Number("100")},
+						[]interface{}{now.FormatTime(time.RFC3339Nano), json.Number("100")},
 					},
 				}}},
 		},
