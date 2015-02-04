@@ -717,7 +717,7 @@ func TestServer_ExecuteQuery(t *testing.T) {
 		t.Fatalf("unexpected error: %s", res.Err)
 	} else if len(res.Rows) != 2 {
 		t.Fatalf("unexpected row count: %d", len(res.Rows))
-	} else if s := mustMarshalJSON(res); s != `{"rows":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","sum"],"values":[[946684800000000000,20],[946684810000000000,30]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","sum"],"values":[[946684800000000000,100]]}]}` {
+	} else if s := mustMarshalJSON(res); s != `{"rows":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","sum"],"values":[["2000-01-01T00:00:00Z",20],["2000-01-01T00:00:10Z",30]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","sum"],"values":[["2000-01-01T00:00:00Z",100]]}]}` {
 		t.Fatalf("unexpected row(0): %s", s)
 	}
 }
