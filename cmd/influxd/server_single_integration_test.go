@@ -37,7 +37,7 @@ func TestNewServer(t *testing.T) {
 	c.Data.Dir = tmpDataDir
 	c.Data.Port = 8090
 
-	now := time.Now()
+	now := time.Now().UTC()
 
 	s := main.Run(c, join, version, os.Stderr)
 
@@ -208,7 +208,7 @@ func TestNewServer(t *testing.T) {
 					Name:    "cpu",
 					Columns: []string{"time", "value"},
 					Values: [][]interface{}{
-						[]interface{}{now.FormatTime(time.RFC3339Nano), json.Number("100")},
+						[]interface{}{now.Format(time.RFC3339Nano), json.Number("100")},
 					},
 				}}},
 		},
