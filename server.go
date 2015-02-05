@@ -124,8 +124,6 @@ func NewServer() *Server {
 
 // SetAuthenticationEnabled turns on or off server authentication
 func (s *Server) SetAuthenticationEnabled(enabled bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.authenticationEnabled = enabled
 }
 
