@@ -81,7 +81,8 @@ func (t *Ticker) Stop() {
 }
 
 // newClockChan returns a channel that sends a channel after a given duration.
-// The channel being sent can be used to notify the sender when an action is done.
+// The channel being sent, over the channel that is returned, can be used to
+// notify the sender when an action is done.
 func newClockChan(d time.Duration) <-chan chan struct{} {
 	ch := make(chan chan struct{})
 	go func() {
