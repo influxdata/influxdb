@@ -19,7 +19,7 @@ import (
 	main "github.com/influxdb/influxdb/cmd/influxd"
 )
 
-func TestNewServer(t *testing.T) {
+func Test_ServerSingleIntegration(t *testing.T) {
 	var (
 		join    = ""
 		version = "x.x"
@@ -30,6 +30,11 @@ func TestNewServer(t *testing.T) {
 	tmpDataDir := filepath.Join(tmpDir, "data")
 	t.Logf("Using tmp directorie %q for broker\n", tmpBrokerDir)
 	t.Logf("Using tmp directorie %q for data\n", tmpDataDir)
+	// Sometimes if this test fails, it's because of a log.Fatal() in the program.
+	// This prevents the defer from cleaning up directories.
+	// To be safe, nuke them always before starting
+	_ = os.RemoveAll(tmpBrokerDir)
+	_ = os.RemoveAll(tmpDataDir)
 
 	c := main.NewConfig()
 	c.Broker.Dir = tmpBrokerDir
@@ -42,8 +47,11 @@ func TestNewServer(t *testing.T) {
 	s := main.Run(c, join, version, os.Stderr)
 
 	defer func() {
-		s.Close()
 		t.Log("Shutting down server and cleaning up tmp directories")
+		if s != nil {
+			s.Close()
+		}
+
 		err := os.RemoveAll(tmpBrokerDir)
 		if err != nil {
 			t.Logf("Failed to clean up %q: %s\n", tmpBrokerDir, err)
@@ -53,6 +61,10 @@ func TestNewServer(t *testing.T) {
 			t.Logf("Failed to clean up %q: %s\n", tmpDataDir, err)
 		}
 	}()
+
+	if s == nil {
+		t.Fatalf("Failed to open server")
+	}
 
 	// Create a database
 	t.Log("Creating database")
