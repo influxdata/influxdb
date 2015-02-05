@@ -1,67 +1,79 @@
 package raft_test
 
 import (
-	"encoding/binary"
+	"io"
+	"io/ioutil"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
-	"reflect"
 	"testing"
-	"time"
 
 	"github.com/influxdb/influxdb/raft"
 )
 
 // Ensure a node can join a cluster over HTTP.
-func TestHTTPHandler_HandleJoin(t *testing.T) {
-	n := NewInitNode()
-	defer n.Close()
+func TestHandler_HandleJoin(t *testing.T) {
+	h := NewHandler()
+	h.AddPeerFunc = func(u *url.URL) (uint64, *raft.Config, error) {
+		if u.String() != "http://localhost:1000" {
+			t.Fatalf("unexpected url: %s", u)
+		}
+		return 2, &raft.Config{}, nil
+	}
+	s := httptest.NewServer(h)
+	defer s.Close()
 
 	// Send request to join cluster.
-	go func() { n.Clock().Add(n.Log.ApplyInterval) }()
-	resp, err := http.Get(n.Server.URL + "/join?url=" + url.QueryEscape("http://localhost:1000"))
+	resp, err := http.Get(s.URL + "/join?url=" + url.QueryEscape("http://localhost:1000"))
 	defer resp.Body.Close()
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	} else if resp.StatusCode != http.StatusOK {
 		t.Fatalf("unexpected status: %d: %s", resp.StatusCode, resp.Header.Get("X-Raft-Error"))
-	}
-	if s := resp.Header.Get("X-Raft-Error"); s != "" {
+	} else if s := resp.Header.Get("X-Raft-Error"); s != "" {
 		t.Fatalf("unexpected raft error: %s", s)
-	}
-	if s := resp.Header.Get("X-Raft-ID"); s != "2" {
+	} else if s = resp.Header.Get("X-Raft-ID"); s != "2" {
 		t.Fatalf("unexpected raft id: %s", s)
 	}
 }
 
 // Ensure a heartbeat can be sent over HTTP.
-func TestHTTPHandler_HandleHeartbeat(t *testing.T) {
-	t.Skip()
-	n := NewInitNode()
-	defer n.Close()
+func TestHandler_HandleHeartbeat(t *testing.T) {
+	h := NewHandler()
+	h.HeartbeatFunc = func(term, commitIndex, leaderID uint64) (currentIndex, currentTerm uint64, err error) {
+		if term != 1 {
+			t.Fatalf("unexpected term: %d", term)
+		} else if commitIndex != 2 {
+			t.Fatalf("unexpected commit index: %d", commitIndex)
+		} else if leaderID != 3 {
+			t.Fatalf("unexpected leader id: %d", leaderID)
+		}
+		return 4, 5, nil
+	}
+	s := httptest.NewServer(h)
+	defer s.Close()
 
 	// Send heartbeat.
-	resp, err := http.Get(n.Server.URL + "/heartbeat?term=1&commitIndex=0&leaderID=1")
+	resp, err := http.Get(s.URL + "/heartbeat?term=1&commitIndex=2&leaderID=3")
 	defer resp.Body.Close()
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	} else if resp.StatusCode != http.StatusOK {
 		t.Fatalf("unexpected status: %d", resp.StatusCode)
-	}
-	if s := resp.Header.Get("X-Raft-Error"); s != "" {
+	} else if s := resp.Header.Get("X-Raft-Error"); s != "" {
 		t.Fatalf("unexpected raft error: %s", s)
-	}
-	if s := resp.Header.Get("X-Raft-Index"); s != "1" {
+	} else if s = resp.Header.Get("X-Raft-Index"); s != "4" {
 		t.Fatalf("unexpected raft index: %s", s)
-	}
-	if s := resp.Header.Get("X-Raft-Term"); s != "1" {
+	} else if s = resp.Header.Get("X-Raft-Term"); s != "5" {
 		t.Fatalf("unexpected raft term: %s", s)
 	}
 }
 
 // Ensure that sending a heartbeat with an invalid term returns an error.
-func TestHTTPHandler_HandleHeartbeat_Error(t *testing.T) {
-	// TODO corylanou: racy failing test.  Stack trace here: https://gist.github.com/corylanou/5864e2058656fd6e542f
-	t.Skip()
+func TestHandler_HandleHeartbeat_Error(t *testing.T) {
+	h := NewHandler()
+	s := httptest.NewServer(h)
+	defer s.Close()
 
 	var tests = []struct {
 		query string
@@ -72,55 +84,59 @@ func TestHTTPHandler_HandleHeartbeat_Error(t *testing.T) {
 		{query: `term=1&commitIndex=0&leaderID=XXX`, err: `invalid leader id`},
 	}
 	for i, tt := range tests {
-		func() {
-			n := NewInitNode()
-			defer n.Close()
-
-			// Send heartbeat.
-			resp, err := http.Get(n.Server.URL + "/heartbeat?" + tt.query)
-			defer resp.Body.Close()
-			if err != nil {
-				t.Fatalf("%d. unexpected error: %s", i, err)
-			} else if resp.StatusCode != http.StatusBadRequest {
-				t.Fatalf("%d. unexpected status: %d", i, resp.StatusCode)
-			}
-			if s := resp.Header.Get("X-Raft-Error"); s != tt.err {
-				t.Fatalf("%d. unexpected raft error: %s", i, s)
-			}
-		}()
+		resp, err := http.Get(s.URL + "/heartbeat?" + tt.query)
+		resp.Body.Close()
+		if err != nil {
+			t.Errorf("%d. unexpected error: %s", i, err)
+		} else if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("%d. unexpected status: %d", i, resp.StatusCode)
+		} else if s := resp.Header.Get("X-Raft-Error"); s != tt.err {
+			t.Errorf("%d. unexpected raft error: %s", i, s)
+		}
 	}
 }
 
 // Ensure that sending a heartbeat to a closed log returns an error.
-func TestHTTPHandler_HandleHeartbeat_ErrClosed(t *testing.T) {
-	// TODO corylanou: racy failing test.  Stack trace here:https://gist.github.com/corylanou/02ea4cc47a479df39706
-	t.Skip()
-	n := NewInitNode()
-	n.Log.Close()
-	defer n.Close()
+func TestHandler_HandleHeartbeat_ErrClosed(t *testing.T) {
+	h := NewHandler()
+	h.HeartbeatFunc = func(term, commitIndex, leaderID uint64) (currentIndex, currentTerm uint64, err error) {
+		return 0, 0, raft.ErrClosed
+	}
+	s := httptest.NewServer(h)
+	defer s.Close()
 
 	// Send heartbeat.
-	resp, err := http.Get(n.Server.URL + "/heartbeat?term=1&commitIndex=0&leaderID=1")
+	resp, err := http.Get(s.URL + "/heartbeat?term=0&commitIndex=0&leaderID=0")
 	defer resp.Body.Close()
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	} else if resp.StatusCode != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: %d", resp.StatusCode)
-	}
-	if s := resp.Header.Get("X-Raft-Error"); s != "log closed" {
+	} else if s := resp.Header.Get("X-Raft-Error"); s != "log closed" {
 		t.Fatalf("unexpected raft error: %s", s)
 	}
 }
 
 // Ensure a stream can be retrieved over HTTP.
-func TestHTTPHandler_HandleStream(t *testing.T) {
-	// TODO corylanou: racy failing test.  Stack trace here: https://gist.github.com/corylanou/fc4e97afd31f793af426
-	t.Skip()
-	n := NewInitNode()
-	defer n.Close()
+func TestHandler_HandleStream(t *testing.T) {
+	h := NewHandler()
+	h.WriteEntriesToFunc = func(w io.Writer, id, term, index uint64) error {
+		if w == nil {
+			t.Fatalf("expected writer")
+		} else if id != 1 {
+			t.Fatalf("unexpected id: %d", id)
+		} else if term != 2 {
+			t.Fatalf("unexpected term: %d", term)
+		}
+
+		w.Write([]byte("ok"))
+		return nil
+	}
+	s := httptest.NewServer(h)
+	defer s.Close()
 
 	// Connect to stream.
-	resp, err := http.Get(n.Server.URL + "/stream?id=1&term=1")
+	resp, err := http.Get(s.URL + "/stream?id=1&term=2")
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	} else if resp.StatusCode != http.StatusOK {
@@ -128,62 +144,24 @@ func TestHTTPHandler_HandleStream(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	// Ensure the stream is connected before applying a command.
-	time.Sleep(10 * time.Millisecond)
-
-	// Add an entry.
-	if _, err := n.Log.Apply([]byte("xyz")); err != nil {
-		t.Fatal(err)
-	}
-
-	// Move log's clock ahead & flush data.
-	n.Log.Clock.Add(n.Log.HeartbeatInterval)
-	n.Log.Flush()
-
 	// Read entries from stream.
-	var e raft.LogEntry
-	dec := raft.NewLogEntryDecoder(resp.Body)
-
-	// First entry should be the configuration.
-	if err := dec.Decode(&e); err != nil {
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
-	} else if e.Type != 0xFE {
-		t.Fatalf("expected configuration type: %d", e.Type)
-	}
-
-	// Next entry should be the snapshot.
-	if err := dec.Decode(&e); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if !reflect.DeepEqual(&e, &raft.LogEntry{Type: 0xFF, Data: nil}) {
-		t.Fatalf("expected snapshot type: %d", e.Type)
-	}
-
-	// Read off the snapshot.
-	var fsm FSM
-	if err := fsm.Restore(resp.Body); err != nil {
-		t.Fatalf("restore: %s", err)
-	}
-
-	// Read off the snapshot index.
-	var index uint64
-	if err := binary.Read(resp.Body, binary.BigEndian, &index); err != nil {
-		t.Fatalf("read snapshot index: %s", err)
-	} else if index != 1 {
-		t.Fatalf("unexpected snapshot index: %d", index)
-	}
-
-	// Next entry should be the command.
-	if err := dec.Decode(&e); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if !reflect.DeepEqual(&e, &raft.LogEntry{Index: 2, Term: 1, Data: []byte("xyz")}) {
-		t.Fatalf("unexpected entry: %#v", &e)
+	} else if string(b) != "ok" {
+		t.Fatalf("unexpected body: %s", b)
 	}
 }
 
 // Ensure that requesting a stream with an invalid term will return an error.
-func TestHTTPHandler_HandleStream_Error(t *testing.T) {
-	// TODO corylanou: raft racy test.  gist: https://gist.github.com/corylanou/aa4e75c4d873ea48fc90
-	t.Skip()
+func TestHandler_HandleStream_Error(t *testing.T) {
+	h := NewHandler()
+	h.WriteEntriesToFunc = func(w io.Writer, id, term, index uint64) error {
+		return raft.ErrNotLeader
+	}
+	s := httptest.NewServer(h)
+	defer s.Close()
+
 	var tests = []struct {
 		query string
 		code  int
@@ -192,51 +170,62 @@ func TestHTTPHandler_HandleStream_Error(t *testing.T) {
 		{query: `id=1&term=XXX&index=0`, code: http.StatusBadRequest, err: `invalid term`},
 		{query: `id=1&term=1&index=XXX`, code: http.StatusBadRequest, err: `invalid index`},
 		{query: `id=XXX&term=1&index=XXX`, code: http.StatusBadRequest, err: `invalid id`},
-		{query: `id=1&term=2&index=0`, code: http.StatusInternalServerError, err: `not leader`},
+		{query: `id=0&term=1&index=2`, code: http.StatusInternalServerError, err: `not leader`},
 	}
 	for i, tt := range tests {
-		func() {
-			n := NewInitNode()
-			defer n.Close()
-
-			// Connect to stream.
-			resp, err := http.Get(n.Server.URL + "/stream?" + tt.query)
-			defer resp.Body.Close()
-			if err != nil {
-				t.Fatalf("%d. unexpected error: %s", i, err)
-			} else if resp.StatusCode != tt.code {
-				t.Fatalf("%d. unexpected status: %d", i, resp.StatusCode)
-			}
-			if s := resp.Header.Get("X-Raft-Error"); s != tt.err {
-				t.Fatalf("%d. unexpected raft error: %s", i, s)
-			}
-		}()
+		resp, err := http.Get(s.URL + "/stream?" + tt.query)
+		resp.Body.Close()
+		if err != nil {
+			t.Fatalf("%d. unexpected error: %s", i, err)
+		} else if resp.StatusCode != tt.code {
+			t.Fatalf("%d. unexpected status: %d", i, resp.StatusCode)
+		} else if s := resp.Header.Get("X-Raft-Error"); s != tt.err {
+			t.Fatalf("%d. unexpected raft error: %s", i, s)
+		}
 	}
 }
 
 // Ensure a vote request can be sent over HTTP.
-func TestHTTPHandler_HandleRequestVote(t *testing.T) {
-	n := NewInitNode()
-	defer n.Close()
+func TestHandler_HandleRequestVote(t *testing.T) {
+	h := NewHandler()
+	h.RequestVoteFunc = func(term, candidateID, lastLogIndex, lastLogTerm uint64) (uint64, error) {
+		if term != 1 {
+			t.Fatalf("unexpected term: %d", term)
+		} else if candidateID != 2 {
+			t.Fatalf("unexpected candidate id: %d", candidateID)
+		} else if lastLogIndex != 3 {
+			t.Fatalf("unexpected last log index: %d", lastLogIndex)
+		} else if lastLogTerm != 4 {
+			t.Fatalf("unexpected last log term: %d", lastLogTerm)
+		}
+		return 5, nil
+	}
+	s := httptest.NewServer(h)
+	defer s.Close()
 
 	// Send vote request.
-	resp, err := http.Get(n.Server.URL + "/vote?term=5&candidateID=2&lastLogIndex=3&lastLogTerm=4")
+	resp, err := http.Get(s.URL + "/vote?term=1&candidateID=2&lastLogIndex=3&lastLogTerm=4")
 	defer resp.Body.Close()
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	} else if resp.StatusCode != http.StatusOK {
 		t.Fatalf("unexpected status: %d", resp.StatusCode)
-	}
-	if s := resp.Header.Get("X-Raft-Error"); s != "" {
+	} else if s := resp.Header.Get("X-Raft-Error"); s != "" {
 		t.Fatalf("unexpected raft error: %s", s)
-	}
-	if s := resp.Header.Get("X-Raft-Term"); s != "1" {
+	} else if s = resp.Header.Get("X-Raft-Term"); s != "5" {
 		t.Fatalf("unexpected raft term: %s", s)
 	}
 }
 
 // Ensure sending invalid parameters in a vote request returns an error.
-func TestHTTPHandler_HandleRequestVote_Error(t *testing.T) {
+func TestHandler_HandleRequestVote_Error(t *testing.T) {
+	h := NewHandler()
+	h.RequestVoteFunc = func(term, candidateID, lastLogIndex, lastLogTerm uint64) (uint64, error) {
+		return 0, raft.ErrStaleTerm
+	}
+	s := httptest.NewServer(h)
+	defer s.Close()
+
 	var tests = []struct {
 		query string
 		code  int
@@ -249,36 +238,61 @@ func TestHTTPHandler_HandleRequestVote_Error(t *testing.T) {
 		{query: `term=0&candidateID=2&lastLogIndex=0&lastLogTerm=0`, code: http.StatusInternalServerError, err: `stale term`},
 	}
 	for i, tt := range tests {
-		func() {
-			n := NewInitNode()
-			defer n.Close()
-
-			// Send vote request.
-			resp, err := http.Get(n.Server.URL + "/vote?" + tt.query)
-			defer resp.Body.Close()
-			if err != nil {
-				t.Fatalf("%d. unexpected error: %s", i, err)
-			} else if resp.StatusCode != tt.code {
-				t.Fatalf("%d. unexpected status: %d", i, resp.StatusCode)
-			}
-			if s := resp.Header.Get("X-Raft-Error"); s != tt.err {
-				t.Fatalf("%d. unexpected raft error: %s", i, s)
-			}
-		}()
+		resp, err := http.Get(s.URL + "/vote?" + tt.query)
+		defer resp.Body.Close()
+		if err != nil {
+			t.Fatalf("%d. unexpected error: %s", i, err)
+		} else if resp.StatusCode != tt.code {
+			t.Fatalf("%d. unexpected status: %d", i, resp.StatusCode)
+		} else if s := resp.Header.Get("X-Raft-Error"); s != tt.err {
+			t.Fatalf("%d. unexpected raft error: %s", i, s)
+		}
 	}
 }
 
 // Ensure an invalid path returns a 404.
-func TestHTTPHandler_NotFound(t *testing.T) {
-	n := NewInitNode()
-	defer n.Close()
+func TestHandler_NotFound(t *testing.T) {
+	s := httptest.NewServer(NewHandler())
+	defer s.Close()
 
 	// Send vote request.
-	resp, err := http.Get(n.Server.URL + "/aaaaahhhhh")
+	resp, err := http.Get(s.URL + "/aaaaahhhhh")
 	defer resp.Body.Close()
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	} else if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("unexpected status: %d", resp.StatusCode)
 	}
+}
+
+// Handler represents a test wrapper for the raft.Handler.
+type Handler struct {
+	*raft.Handler
+	AddPeerFunc        func(u *url.URL) (uint64, *raft.Config, error)
+	RemovePeerFunc     func(id uint64) error
+	HeartbeatFunc      func(term, commitIndex, leaderID uint64) (currentIndex, currentTerm uint64, err error)
+	WriteEntriesToFunc func(w io.Writer, id, term, index uint64) error
+	RequestVoteFunc    func(term, candidateID, lastLogIndex, lastLogTerm uint64) (uint64, error)
+}
+
+// NewHandler returns a new instance of Handler.
+func NewHandler() *Handler {
+	h := &Handler{Handler: &raft.Handler{}}
+	h.Handler.Log = h
+	return h
+}
+
+func (h *Handler) AddPeer(u *url.URL) (uint64, *raft.Config, error) { return h.AddPeerFunc(u) }
+func (h *Handler) RemovePeer(id uint64) error                       { return h.RemovePeerFunc(id) }
+
+func (h *Handler) Heartbeat(term, commitIndex, leaderID uint64) (currentIndex, currentTerm uint64, err error) {
+	return h.HeartbeatFunc(term, commitIndex, leaderID)
+}
+
+func (h *Handler) WriteEntriesTo(w io.Writer, id, term, index uint64) error {
+	return h.WriteEntriesToFunc(w, id, term, index)
+}
+
+func (h *Handler) RequestVote(term, candidateID, lastLogIndex, lastLogTerm uint64) (uint64, error) {
+	return h.RequestVoteFunc(term, candidateID, lastLogIndex, lastLogTerm)
 }
