@@ -1189,17 +1189,25 @@ type createRetentionPolicyCommand struct {
 	SplitN   uint32        `json:"splitN"`
 }
 
+// RetentionPolicyUpdate represents retention policy fields that
+// need to be updated.
+type RetentionPolicyUpdate struct {
+	Name     *string        `json:"name,omitempty"`
+	Duration *time.Duration `json:"duration,omitempty"`
+	ReplicaN *uint32        `json:"replicaN,omitempty"`
+}
+
 // UpdateRetentionPolicy updates an existing retention policy on a database.
-func (s *Server) UpdateRetentionPolicy(database, name string, rp *RetentionPolicy) error {
-	c := &updateRetentionPolicyCommand{Database: database, Name: name, NewName: rp.Name}
+func (s *Server) UpdateRetentionPolicy(database, name string, rpu *RetentionPolicyUpdate) error {
+	c := &updateRetentionPolicyCommand{Database: database, Name: name, Policy: rpu}
 	_, err := s.broadcast(updateRetentionPolicyMessageType, c)
 	return err
 }
 
 type updateRetentionPolicyCommand struct {
-	Database string `json:"database"`
-	Name     string `json:"name"`
-	NewName  string `json:"newName"`
+	Database string                 `json:"database"`
+	Name     string                 `json:"name"`
+	Policy   *RetentionPolicyUpdate `json:"policy"`
 }
 
 func (s *Server) applyUpdateRetentionPolicy(m *messaging.Message) (err error) {
@@ -1223,11 +1231,21 @@ func (s *Server) applyUpdateRetentionPolicy(m *messaging.Message) (err error) {
 		return ErrRetentionPolicyNotFound
 	}
 
-	// Update the policy name, if not blank.
-	if c.NewName != c.Name && c.NewName != "" {
+	// Update the policy name.
+	if c.Policy.Name != nil {
 		delete(db.policies, p.Name)
-		p.Name = c.NewName
+		p.Name = *c.Policy.Name
 		db.policies[p.Name] = p
+	}
+
+	// Update duration.
+	if c.Policy.Duration != nil {
+		p.Duration = *c.Policy.Duration
+	}
+
+	// Update replication factor.
+	if c.Policy.ReplicaN != nil {
+		p.ReplicaN = *c.Policy.ReplicaN
 	}
 
 	// Persist to metastore.
@@ -2215,7 +2233,7 @@ func (s *Server) executeCreateRetentionPolicyStatement(q *influxql.CreateRetenti
 	// Create new retention policy.
 	err := s.CreateRetentionPolicy(q.Database, rp)
 	if err != nil {
-		return &Result{Err: s.CreateRetentionPolicy(q.Database, rp)}
+		return &Result{Err: err}
 	}
 
 	// If requested, set new policy as the default.
@@ -2226,15 +2244,24 @@ func (s *Server) executeCreateRetentionPolicyStatement(q *influxql.CreateRetenti
 	return &Result{Err: err}
 }
 
-func (s *Server) executeAlterRetentionPolicyStatement(q *influxql.AlterRetentionPolicyStatement, user *User) *Result {
-	rp := NewRetentionPolicy(q.Name)
-	if q.Duration != nil {
-		rp.Duration = *q.Duration
+func (s *Server) executeAlterRetentionPolicyStatement(stmt *influxql.AlterRetentionPolicyStatement, user *User) *Result {
+	rpu := &RetentionPolicyUpdate{
+		Duration: stmt.Duration,
+		ReplicaN: func() *uint32 { n := uint32(*stmt.Replication); return &n }(),
 	}
-	if q.Replication != nil {
-		rp.ReplicaN = uint32(*q.Replication)
+
+	// Update the retention policy.
+	err := s.UpdateRetentionPolicy(stmt.Database, stmt.Name, rpu)
+	if err != nil {
+		return &Result{Err: err}
 	}
-	return &Result{Err: s.UpdateRetentionPolicy(q.Database, q.Name, rp)}
+
+	// If requested, set as default retention policy.
+	if stmt.Default {
+		err = s.SetDefaultRetentionPolicy(stmt.Database, stmt.Name)
+	}
+
+	return &Result{Err: err}
 }
 
 func (s *Server) executeDropRetentionPolicyStatement(q *influxql.DropRetentionPolicyStatement, user *User) *Result {

@@ -760,13 +760,13 @@ func (a seriesIDs) reject(other seriesIDs) seriesIDs {
 // RetentionPolicy represents a policy for creating new shards in a database and how long they're kept around for.
 type RetentionPolicy struct {
 	// Unique name within database. Required.
-	Name string
+	Name string `json:"name"`
 
 	// Length of time to keep data around
-	Duration time.Duration
+	Duration time.Duration `json:"duration"`
 
 	// The number of copies to make of each shard.
-	ReplicaN uint32
+	ReplicaN uint32 `json:"replicaN"`
 
 	shardGroups []*ShardGroup
 }

@@ -365,24 +365,32 @@ func TestHandler_CreateRetentionPolicy_BadRequest(t *testing.T) {
 }
 
 func TestHandler_UpdateRetentionPolicy(t *testing.T) {
-	t.Skip()
 	srvr := OpenServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	query := map[string]string{"q": "ALTER RETENTION POLICY bar ON foo REPLICATION 42 DURATION 1m"}
+	query := map[string]string{"q": "ALTER RETENTION POLICY bar ON foo REPLICATION 42 DURATION 1m DEFAULT"}
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 
 	// Verify updated policy.
 	p, _ := srvr.RetentionPolicy("foo", "bar")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != "" {
+	} else if body != `{"results":[{}]}` {
 		t.Fatalf("unexpected body: %s", body)
 	} else if p.ReplicaN != 42 {
 		t.Fatalf("unexpected replication factor: %d", p.ReplicaN)
+	}
+
+	// Make sure retention policy has been set as default.
+	if p, err := srvr.DefaultRetentionPolicy("foo"); err != nil {
+		t.Fatal(err)
+	} else if p == nil {
+		t.Fatal("default retention policy not set")
+	} else if p.Name != "bar" {
+		t.Fatal(`expected default retention policy to be "bar"`)
 	}
 }
 

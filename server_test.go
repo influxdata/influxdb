@@ -539,6 +539,52 @@ func TestServer_CreateRetentionPolicy_ErrRetentionPolicyExists(t *testing.T) {
 	}
 }
 
+// Ensure the database can alter an existing retention policy.
+func TestServer_AlterRetentionPolicy(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// Create a database.
+	if err := s.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a retention policy on the database.
+	rp := &influxdb.RetentionPolicy{
+		Name:     "bar",
+		Duration: time.Hour,
+		ReplicaN: 2,
+	}
+	if err := s.CreateRetentionPolicy("foo", rp); err != nil {
+		t.Fatal(err)
+	}
+
+	// Alter the retention policy.
+	duration := time.Minute
+	replicaN := uint32(3)
+	rp2 := &influxdb.RetentionPolicyUpdate{
+		Duration: &duration,
+		ReplicaN: &replicaN,
+	}
+	if err := s.UpdateRetentionPolicy("foo", "bar", rp2); err != nil {
+		t.Fatal(err)
+	}
+
+	// Restart the server to make sure the changes persist afterwards.
+	s.Restart()
+
+	// Verify that the policy exists.
+	if o, err := s.RetentionPolicy("foo", "bar"); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if o == nil {
+		t.Fatalf("retention policy not found")
+	} else if o.Duration != *rp2.Duration {
+		t.Fatalf("retention policy mismatch:\n\texp Duration = %s\n\tgot Duration = %s\n", rp2.Duration, o.Duration)
+	} else if o.ReplicaN != *rp2.ReplicaN {
+		t.Fatalf("retention policy mismatch:\n\texp ReplicaN = %d\n\tgot ReplicaN = %d\n", rp2.ReplicaN, o.ReplicaN)
+	}
+}
+
 // Ensure the server can delete an existing retention policy.
 func TestServer_DeleteRetentionPolicy(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
