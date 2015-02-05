@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -11,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"compress/gzip"
 
 	"code.google.com/p/go-uuid/uuid"
 
@@ -92,6 +95,7 @@ func NewHandler(s *influxdb.Server, requireAuthentication bool, version string) 
 			handler = http.HandlerFunc(hf)
 		}
 
+		handler = gzipFilter(handler)
 		handler = versionHeader(handler, version)
 		handler = cors(handler)
 		handler = requestID(handler)
@@ -373,6 +377,30 @@ func authenticate(inner func(http.ResponseWriter, *http.Request, *influxdb.User)
 			}
 		}
 		inner(w, r, user)
+	})
+}
+
+type gzipResponseWriter struct {
+	io.Writer
+	http.ResponseWriter
+}
+
+func (w gzipResponseWriter) Write(b []byte) (int, error) {
+	return w.Writer.Write(b)
+}
+
+// determines if the client can accept compressed responses, and encodes accordingly
+func gzipFilter(inner http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+			inner.ServeHTTP(w, r)
+			return
+		}
+		w.Header().Set("Content-Encoding", "gzip")
+		gz := gzip.NewWriter(w)
+		defer gz.Close()
+		gzw := gzipResponseWriter{Writer: gz, ResponseWriter: w}
+		inner.ServeHTTP(gzw, r)
 	})
 }
 
