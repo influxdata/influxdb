@@ -117,7 +117,8 @@ func NewServer() *Server {
 		Logger:           log.New(os.Stderr, "[server] ", log.LstdFlags),
 	}
 	// Server will always return with authentication enabled.
-	// To set the server to 'authless mode', call server.SetAuthenticationEnabled(false)
+	// This ensures that disabling authentication must be an explicit decision.
+	// To set the server to 'authless mode', call server.SetAuthenticationEnabled(false).
 	s.authenticationEnabled = true
 	return &s
 }
