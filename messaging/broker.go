@@ -190,7 +190,7 @@ func (b *Broker) load() error {
 // save persists the broker metadata to disk.
 func (b *Broker) save() error {
 	if b.path == "" {
-		return fmt.Errorf("broker not open")
+		return ErrClosed
 	}
 
 	// Calculate header under lock.
@@ -216,7 +216,7 @@ func (b *Broker) save() error {
 
 // mustSave persists the broker metadata to disk. Panic on error.
 func (b *Broker) mustSave() {
-	if err := b.save(); err != nil {
+	if err := b.save(); err != nil && err != ErrClosed {
 		panic(err.Error())
 	}
 }

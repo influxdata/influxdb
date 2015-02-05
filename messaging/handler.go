@@ -11,7 +11,7 @@ import (
 
 // Handler represents an HTTP handler by the broker.
 type Handler struct {
-	raftHandler *raft.HTTPHandler
+	raftHandler *raft.Handler
 	broker      *Broker
 }
 
@@ -30,7 +30,7 @@ func (h *Handler) SetBroker(b *Broker) {
 	h.broker = b
 
 	if b != nil {
-		h.raftHandler = raft.NewHTTPHandler(b.log)
+		h.raftHandler = &raft.Handler{Log: b.log}
 	} else {
 		h.raftHandler = nil
 	}

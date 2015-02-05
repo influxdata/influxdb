@@ -7,224 +7,226 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	"net/http/httptest"
 	"net/url"
 	"os"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/influxdb/influxdb/raft"
 )
 
 // Ensure that opening an already open log returns an error.
 func TestLog_Open_ErrOpen(t *testing.T) {
-	n := NewInitNode()
-	defer n.Close()
-	if err := n.Log.Open(tempfile()); err != raft.ErrOpen {
+	l := NewInitializedLog(&url.URL{Host: "log0"})
+	defer l.Close()
+	if err := l.Open(tempfile()); err != raft.ErrOpen {
 		t.Fatal("expected error")
 	}
 }
 
 // Ensure that a log can be checked for being open.
 func TestLog_Opened(t *testing.T) {
-	n := NewInitNode()
-	if n.Log.Opened() != true {
+	l := NewInitializedLog(&url.URL{Host: "log0"})
+	if l.Opened() != true {
 		t.Fatalf("expected open")
 	}
-	n.Close()
-	if n.Log.Opened() != false {
+	l.Close()
+	if l.Opened() != false {
 		t.Fatalf("expected closed")
 	}
 }
 
 // Ensure that reopening an existing log will restore its ID.
 func TestLog_Reopen(t *testing.T) {
-	n := NewInitNode()
-	if n.Log.ID() != 1 {
+	l := NewInitializedLog(&url.URL{Host: "log0"})
+	if l.ID() != 1 {
 		t.Fatalf("expected id == 1")
 	}
-	path := n.Log.Path()
+	path := l.Path()
 
 	// Close log and make sure id is cleared.
-	n.Close()
-	if n.Log.ID() != 0 {
+	l.Log.Close()
+	if l.ID() != 0 {
 		t.Fatalf("expected id == 0")
 	}
 
 	// Re-open and ensure id is restored.
-	if err := n.Log.Open(path); err != nil {
+	if err := l.Open(path); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
-	if n.Log.ID() != 1 {
-		t.Fatalf("expected id == 1")
+	if id := l.ID(); id != 1 {
+		t.Fatalf("unexpected id: %d", id)
 	}
-	n.Close()
+	l.Close()
 }
 
 // Ensure that a single node-cluster can apply a log entry.
 func TestLog_Apply(t *testing.T) {
-	// TODO corylanou: this test is intermittently failing.  Fix and re-enable
-	// trace can be found here for failing test: https://gist.github.com/corylanou/1bb0a5d11447177e478f
-	t.Skip()
-	n := NewInitNode()
-	defer n.Close()
+	l := NewInitializedLog(&url.URL{Host: "log0"})
+	defer l.Close()
 
 	// Apply a command.
-	index, err := n.Log.Apply([]byte("foo"))
+	index, err := l.Apply([]byte("foo"))
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	} else if index != 2 {
 		t.Fatalf("unexpected index: %d", index)
 	}
 
+	// Force apply cycle and then signal wait.
+	go func() { l.Clock.apply() }()
+
 	// Single node clusters should apply to FSM immediately.
-	n.Log.Wait(index)
-	if n := len(n.FSM().Commands); n != 1 {
+	l.Wait(index)
+	if n := len(l.FSM.Commands); n != 1 {
 		t.Fatalf("unexpected command count: %d", n)
-	}
-}
-
-// Ensure that log ids are set sequentially.
-func TestLog_ID_Sequential(t *testing.T) {
-	c := NewCluster(3)
-	defer c.Close()
-	for i, n := range c.Nodes {
-		if n.Log.ID() != uint64(i+1) {
-			t.Fatalf("expected id: %d, got: %d", i+1, n.Log.ID())
-		}
-	}
-}
-
-// Ensure that cluster starts with one leader and multiple followers.
-func TestLog_State(t *testing.T) {
-	c := NewCluster(3)
-	defer c.Close()
-	if state := c.Nodes[0].Log.State(); state != raft.Leader {
-		t.Fatalf("unexpected state(0): %s", state)
-	}
-	if state := c.Nodes[1].Log.State(); state != raft.Follower {
-		t.Fatalf("unexpected state(1): %s", state)
-	}
-	if state := c.Nodes[2].Log.State(); state != raft.Follower {
-		t.Fatalf("unexpected state(2): %s", state)
 	}
 }
 
 // Ensure that a node has no configuration after it's closed.
 func TestLog_Config_Closed(t *testing.T) {
-	// TODO corylanou: racy test: gist: https://gist.github.com/corylanou/965ccf919e965082c338
-	t.Skip()
-	n := NewInitNode()
-	n.Close()
-	if n.Log.Config() != nil {
+	l := NewInitializedLog(&url.URL{Host: "log0"})
+	defer l.Close()
+	l.Log.Close()
+	if l.Config() != nil {
 		t.Fatal("expected nil config")
 	}
 }
 
-// Ensure that each node's configuration matches in the cluster.
-func TestLog_Config(t *testing.T) {
-	c := NewCluster(3)
+// Ensure that log ids in a cluster are set sequentially.
+func TestCluster_ID_Sequential(t *testing.T) {
+	c := NewCluster()
 	defer c.Close()
-	config := jsonify(c.Nodes[0].Log.Config())
-	for _, n := range c.Nodes[1:] {
-		if b := jsonify(n.Log.Config()); config != b {
-			t.Fatalf("config mismatch(%d):\n\nexp=%s\n\ngot:%s\n\n", n.Log.ID(), config, b)
+	for i, l := range c.Logs {
+		if l.ID() != uint64(i+1) {
+			t.Fatalf("expected id: %d, got: %d", i+1, l.ID())
 		}
 	}
 }
 
-// Ensure that a new log can be successfully opened and closed.
-func TestLog_Apply_Cluster(t *testing.T) {
-	// TODO corylanou racy test.  gist: https://gist.github.com/corylanou/00d99de1ed9e02873196
-	t.Skip()
-	c := NewCluster(3)
+// Ensure that cluster starts with one leader and multiple followers.
+func TestCluster_State(t *testing.T) {
+	c := NewCluster()
+	defer c.Close()
+	if state := c.Logs[0].State(); state != raft.Leader {
+		t.Fatalf("unexpected state(0): %s", state)
+	}
+	if state := c.Logs[1].State(); state != raft.Follower {
+		t.Fatalf("unexpected state(1): %s", state)
+	}
+	if state := c.Logs[2].State(); state != raft.Follower {
+		t.Fatalf("unexpected state(2): %s", state)
+	}
+}
+
+// Ensure that each node's configuration matches in the cluster.
+func TestCluster_Config(t *testing.T) {
+	c := NewCluster()
+	defer c.Close()
+	config := jsonify(c.Logs[0].Config())
+	for _, l := range c.Logs[1:] {
+		if b := jsonify(l.Config()); config != b {
+			t.Fatalf("config mismatch(%d):\n\nexp=%s\n\ngot:%s\n\n", l.ID(), config, b)
+		}
+	}
+}
+
+// Ensure that a command can be applied to a cluster and distributed appropriately.
+func TestCluster_Apply(t *testing.T) {
+	c := NewCluster()
 	defer c.Close()
 
 	// Apply a command.
-	leader := c.Nodes[0]
-	index, err := leader.Log.Apply([]byte("foo"))
+	leader := c.Logs[0]
+	index, err := leader.Apply([]byte("foo"))
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	} else if index != 4 {
 		t.Fatalf("unexpected index: %d", index)
 	}
-	leader.Log.Flush()
+	c.Logs[1].MustWaitUncommitted(4)
+	c.Logs[2].MustWaitUncommitted(4)
 
 	// Should not apply immediately.
-	if n := len(leader.FSM().Commands); n != 0 {
+	if n := len(leader.FSM.Commands); n != 0 {
 		t.Fatalf("unexpected pre-heartbeat command count: %d", n)
 	}
 
-	// Wait for a heartbeat and let the log apply the changes.
+	// Run the heartbeat on the leader and have all logs apply.
 	// Only the leader should have the changes applied.
-	c.Clock().Add(leader.Log.HeartbeatInterval)
-	if n := len(c.Nodes[0].FSM().Commands); n != 1 {
+	c.Logs[0].Clock.heartbeat()
+	c.Logs[0].Clock.apply()
+	c.Logs[1].Clock.apply()
+	c.Logs[2].Clock.apply()
+	if n := len(c.Logs[0].FSM.Commands); n != 1 {
 		t.Fatalf("unexpected command count(0): %d", n)
 	}
-	if n := len(c.Nodes[1].FSM().Commands); n != 0 {
+	if n := len(c.Logs[1].FSM.Commands); n != 0 {
 		t.Fatalf("unexpected command count(1): %d", n)
 	}
-	if n := len(c.Nodes[2].FSM().Commands); n != 0 {
+	if n := len(c.Logs[2].FSM.Commands); n != 0 {
 		t.Fatalf("unexpected command count(2): %d", n)
 	}
 
-	// Wait for another heartbeat and all nodes should be in sync.
-	c.Clock().Add(leader.Log.HeartbeatInterval)
-	if n := len(c.Nodes[1].FSM().Commands); n != 1 {
+	// Wait for another heartbeat and all logs should be in sync.
+	c.Logs[0].Clock.heartbeat()
+	c.Logs[1].Clock.apply()
+	c.Logs[2].Clock.apply()
+	if n := len(c.Logs[1].FSM.Commands); n != 1 {
 		t.Fatalf("unexpected command count(1): %d", n)
 	}
-	if n := len(c.Nodes[2].FSM().Commands); n != 1 {
+	if n := len(c.Logs[2].FSM.Commands); n != 1 {
 		t.Fatalf("unexpected command count(2): %d", n)
 	}
 }
 
 // Ensure that a new leader can be elected.
 func TestLog_Elect(t *testing.T) {
-	// TODO: corylanou: racy test.  gist: https://gist.github.com/corylanou/2a354673bd863a7c0770
-	t.Skip()
-	c := NewCluster(3)
+	c := NewCluster()
 	defer c.Close()
-	n0, n1, n2 := c.Nodes[0], c.Nodes[1], c.Nodes[2]
 
 	// Stop leader.
-	path := n0.Log.Path()
-	n0.Log.Close()
+	path := c.Logs[0].Path()
+	c.Logs[0].Log.Close()
 
-	// Wait for election timeout.
-	c.Clock().Add(2 * n0.Log.ElectionTimeout)
+	// Signal election on node 1. Then heartbeat to establish leadership.
+	c.Logs[1].Clock.now = c.Logs[1].Clock.now.Add(raft.DefaultElectionTimeout)
+	c.Logs[1].Clock.election()
+	c.Logs[1].Clock.heartbeat()
 
-	// Ensure one node is elected in the next term.
-	if s1, s2 := n1.Log.State(), n2.Log.State(); s1 != raft.Leader && s2 != raft.Leader {
-		t.Fatalf("expected leader: n1=%s, n2=%s", s1, s2)
-	}
-	leader := c.Leader()
-	if term := leader.Log.Term(); term != 2 {
-		t.Fatalf("unexpected new term: %d", term)
+	// Ensure node 1 is elected in the next term.
+	if state := c.Logs[1].State(); state != raft.Leader {
+		t.Fatalf("expected node 1 to move to leader: %s", state)
+	} else if term := c.Logs[1].Term(); term != 2 {
+		t.Fatalf("expected term 2: got %d", term)
 	}
 
 	// Restart leader and make sure it rejoins as a follower.
-	if err := n0.Log.Open(path); err != nil {
+	if err := c.Logs[0].Open(path); err != nil {
 		t.Fatalf("unexpected open error: %s", err)
 	}
 
-	// Wait for a heartbeat and verify the new leader is still the leader.
-	c.Clock().Add(leader.Log.HeartbeatInterval)
-	if state := leader.Log.State(); state != raft.Leader {
-		t.Fatalf("new leader deposed: %s", state)
-	}
-	if term := n0.Log.Term(); term != 2 {
-		t.Fatalf("invalid term: %d", term)
+	// Wait for a heartbeat and verify the node 1 is still the leader.
+	c.Logs[1].Clock.heartbeat()
+	if state := c.Logs[1].State(); state != raft.Leader {
+		t.Fatalf("node 1 unexpectedly deposed: %s", state)
+	} else if term := c.Logs[1].Term(); term != 2 {
+		t.Fatalf("expected node 0 to go to term 2: got term %d", term)
 	}
 
 	// Apply a command and ensure it's replicated.
-	index, err := leader.Log.Apply([]byte("abc"))
+	index, err := c.Logs[1].Log.Apply([]byte("abc"))
 	if err != nil {
 		t.Fatalf("unexpected apply error: %s", err)
 	}
-	leader.Log.Flush()
-	go func() { c.Clock().Add(2 * leader.Log.HeartbeatInterval) }()
-	if err := leader.Log.Wait(index); err != nil {
+
+	c.MustWaitUncommitted(index)
+	c.Logs[1].Clock.heartbeat()
+	c.Logs[1].Clock.heartbeat()
+	c.Logs[0].Clock.apply()
+	c.Logs[1].Clock.apply()
+	c.Logs[2].Clock.apply()
+	if err := c.Logs[0].Wait(index); err != nil {
 		t.Fatalf("unexpected wait error: %s", err)
 	}
 }
@@ -250,137 +252,150 @@ func TestState_String(t *testing.T) {
 
 // Cluster represents a collection of nodes that share the same mock clock.
 type Cluster struct {
-	Nodes []*Node
+	Logs []*Log
 }
 
-// NewCluster creates a new cluster with an initial set of nodes.
-func NewCluster(nodeN int) *Cluster {
+// NewCluster creates a new 3 log cluster.
+func NewCluster() *Cluster {
 	c := &Cluster{}
-	for i := 0; i < nodeN; i++ {
-		n := c.NewNode()
-		n.Open()
+	t := NewTransport()
 
-		// Initialize the first node.
-		// Join remaining nodes to the first node.
-		if i == 0 {
-			go func() { n.Clock().Add(2 * n.Log.ApplyInterval) }()
-			if err := n.Log.Initialize(); err != nil {
-				panic("initialize: " + err.Error())
-			}
-		} else {
-			go func() { n.Clock().Add(n.Log.HeartbeatInterval) }()
-			if err := n.Log.Join(c.Nodes[0].Log.URL); err != nil {
-				panic("join: " + err.Error())
-			}
-		}
+	logN := 3
+	for i := 0; i < logN; i++ {
+		l := NewLog(&url.URL{Host: fmt.Sprintf("log%d", i)})
+		l.Transport = t
+		c.Logs = append(c.Logs, l)
+		t.register(l.Log)
+		warnf("Log %s: %p", l.URL.String(), l.Log)
+	}
+	warn("")
+
+	// Initialize leader.
+	c.Logs[0].MustOpen()
+	c.Logs[0].MustInitialize()
+
+	// Join second node.
+	go func() {
+		c.Logs[0].MustWaitUncommitted(2)
+		c.Logs[0].Clock.apply()
+		c.Logs[0].Clock.heartbeat()
+		c.Logs[1].Clock.apply()
+	}()
+	c.Logs[1].MustOpen()
+	if err := c.Logs[1].Join(c.Logs[0].URL); err != nil {
+		panic("join: " + err.Error())
 	}
 
-	// Make sure everything is replicated to all followers.
-	c.Nodes[0].Log.Flush()
-	c.Clock().Add(c.Nodes[0].Log.HeartbeatInterval)
+	// Join third node.
+	go func() {
+		c.Logs[0].MustWaitUncommitted(3)
+		c.Logs[0].Clock.heartbeat()
+		c.Logs[0].Clock.apply()
+		c.Logs[1].Clock.apply()
+		c.Logs[2].Clock.apply()
+	}()
+	c.Logs[2].MustOpen()
+	if err := c.Logs[2].Log.Join(c.Logs[0].Log.URL); err != nil {
+		panic("join: " + err.Error())
+	}
+
+	// Heartbeart final commit index to all nodes and reapply.
+	c.Logs[0].Clock.heartbeat()
+	c.Logs[1].Clock.apply()
+	c.Logs[2].Clock.apply()
 
 	return c
 }
 
-// Close closes all nodes in the cluster.
+// Close closes all logs in the cluster.
 func (c *Cluster) Close() {
-	for _, n := range c.Nodes {
-		n.Close()
+	for _, l := range c.Logs {
+		l.Close()
 	}
 }
 
-// NewNode creates a new node on the cluster with the same clock.
-func (c *Cluster) NewNode() *Node {
-	n := NewNode()
-	if len(c.Nodes) > 0 {
-		n.Log.Clock = c.Nodes[0].Clock()
-	}
-	c.Nodes = append(c.Nodes, n)
-	return n
-}
-
-// Clock returns the a clock that will slightly delay clock movement.
-func (c *Cluster) Clock() raft.Clock { return &delayClock{c.Nodes[0].Log.Clock} }
-
-// Leader returns the leader node with the highest term.
-func (c *Cluster) Leader() *Node {
-	var leader *Node
-	for _, n := range c.Nodes {
-		if n.Log.State() == raft.Leader && (leader == nil || leader.Log.Term() < n.Log.Term()) {
-			leader = n
+// Leader returns the leader log with the highest term.
+func (c *Cluster) Leader() *Log {
+	var leader *Log
+	for _, l := range c.Logs {
+		if l.State() == raft.Leader && (leader == nil || leader.Log.Term() < l.Term()) {
+			leader = l
 		}
 	}
 	return leader
 }
 
-// Node represents a log, FSM and associated HTTP server.
-type Node struct {
-	Log    *raft.Log
-	Server *httptest.Server
+// WaitUncommitted waits until all logs in the cluster have reached a given uncomiitted index.
+func (c *Cluster) MustWaitUncommitted(index uint64) {
+	for _, l := range c.Logs {
+		l.MustWaitUncommitted(index)
+	}
 }
 
-// NewNode returns a new instance of Node.
-func NewNode() *Node {
-	n := &Node{Log: raft.NewLog()}
-	n.Log.FSM = &FSM{}
-	n.Log.Clock = raft.NewMockClock()
-	n.Log.Rand = seq()
+// flush issues messages to cycle all logs.
+func (c *Cluster) flush() {
+	for _, l := range c.Logs {
+		l.Clock.heartbeat()
+		l.Clock.apply()
+	}
+}
+
+// Log represents a test log.
+type Log struct {
+	*raft.Log
+	Clock *Clock
+	FSM   *FSM
+}
+
+// NewLog returns a new instance of Log.
+func NewLog(u *url.URL) *Log {
+	l := &Log{Log: raft.NewLog(), Clock: NewClock(), FSM: &FSM{}}
+	l.URL = u
+	l.Log.FSM = l.FSM
+	l.Log.Clock = l.Clock
+	l.Rand = seq()
+	l.DebugEnabled = true
 	if !testing.Verbose() {
-		n.Log.Logger = log.New(ioutil.Discard, "", 0)
+		l.Logger = log.New(ioutil.Discard, "", 0)
 	}
-	return n
+	return l
 }
 
-// NewInitNode returns a new initialized Node.
-func NewInitNode() *Node {
-	n := NewNode()
-	n.Open()
-	go func() { n.Clock().Add(3 * n.Log.ApplyInterval) }()
-	if err := n.Log.Initialize(); err != nil {
-		panic("initialize: " + err.Error())
-	}
-	return n
+// NewInitializedLog returns a new initialized Node.
+func NewInitializedLog(u *url.URL) *Log {
+	l := NewLog(u)
+	l.MustOpen()
+	l.MustInitialize()
+	return l
 }
 
-// Open opens the log and HTTP server.
-func (n *Node) Open() {
-	// Start the HTTP server.
-	n.Server = httptest.NewServer(raft.NewHTTPHandler(n.Log))
-	n.Log.URL, _ = url.Parse(n.Server.URL)
-
-	// Open the log.
-	if err := n.Log.Open(tempfile()); err != nil {
+// MustOpen opens the log. Panic on error.
+func (l *Log) MustOpen() {
+	if err := l.Open(tempfile()); err != nil {
 		panic("open: " + err.Error())
 	}
 }
 
-// Close closes the log and HTTP server.
-func (n *Node) Close() error {
-	defer func() { _ = os.RemoveAll(n.Log.Path()) }()
-	_ = n.Log.Close()
-	if n.Server != nil {
-		n.Server.CloseClientConnections()
-		n.Server.Close()
-		n.Server = nil
+// MustInitialize initializes the log. Panic on error.
+func (l *Log) MustInitialize() {
+	go func() { l.Clock.apply() }()
+	if err := l.Initialize(); err != nil {
+		panic("initialize: " + err.Error())
 	}
+}
+
+// Close closes the log and HTTP server.
+func (l *Log) Close() error {
+	defer os.RemoveAll(l.Log.Path())
+	_ = l.Log.Close()
 	return nil
 }
 
-// Clock returns the a clock that will slightly delay clock movement.
-func (n *Node) Clock() raft.Clock { return &delayClock{n.Log.Clock} }
-
-// FSM returns the state machine.
-func (n *Node) FSM() *FSM { return n.Log.FSM.(*FSM) }
-
-// delayClock represents a clock that adds a slight delay on clock movement.
-// This ensures that clock movement doesn't occur too quickly.
-type delayClock struct {
-	raft.Clock
-}
-
-func (c *delayClock) Add(d time.Duration) {
-	time.Sleep(10 * time.Millisecond)
-	c.Clock.Add(d)
+// MustWaitUncommitted waits for at least a given uncommitted index. Panic on error.
+func (l *Log) MustWaitUncommitted(index uint64) {
+	if err := l.Log.WaitUncommitted(index); err != nil {
+		panic(l.URL.String() + " wait uncommitted: " + err.Error())
+	}
 }
 
 // FSM represents a simple state machine that records all commands.
@@ -418,7 +433,10 @@ func (fsm *FSM) Restore(r io.Reader) error {
 	if _, err := io.ReadFull(r, buf); err != nil {
 		return err
 	}
-	return json.Unmarshal(buf, &fsm)
+	if err := json.Unmarshal(buf, &fsm); err != nil {
+		return err
+	}
+	return nil
 }
 
 // MockFSM represents a state machine that can be mocked out.
@@ -462,5 +480,14 @@ func jsonify(v interface{}) string {
 	return string(b)
 }
 
-func warn(v ...interface{})              { fmt.Fprintln(os.Stderr, v...) }
-func warnf(msg string, v ...interface{}) { fmt.Fprintf(os.Stderr, msg+"\n", v...) }
+func warn(v ...interface{}) {
+	if testing.Verbose() {
+		fmt.Fprintln(os.Stderr, v...)
+	}
+}
+
+func warnf(msg string, v ...interface{}) {
+	if testing.Verbose() {
+		fmt.Fprintf(os.Stderr, msg+"\n", v...)
+	}
+}

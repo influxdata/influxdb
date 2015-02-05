@@ -1,6 +1,25 @@
 package raft_test
 
 import (
+	"bytes"
+	"fmt"
+	"io"
+	"io/ioutil"
+	"net/url"
+	"sync"
+	"testing"
+	"time"
+
+	// "net/http"
+	// "net/http/httptest"
+	// "strings"
+	// "testing"
+
+	"github.com/influxdb/influxdb/raft"
+)
+
+/*
+import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -11,41 +30,6 @@ import (
 	"github.com/influxdb/influxdb/raft"
 )
 
-// Ensure a join on an unsupported scheme returns an error.
-func TestTransportMux_Join_ErrUnsupportedScheme(t *testing.T) {
-	u, _ := url.Parse("foo://bar")
-	_, _, err := raft.DefaultTransport.Join(u, nil)
-	if err == nil || err.Error() != `transport scheme not supported: foo` {
-		t.Fatalf("unexpected error: %s", err)
-	}
-}
-
-// Ensure a heartbeat on an unsupported scheme returns an error.
-func TestTransportMux_Heartbeat_ErrUnsupportedScheme(t *testing.T) {
-	u, _ := url.Parse("foo://bar")
-	_, _, err := raft.DefaultTransport.Heartbeat(u, 0, 0, 0)
-	if err == nil || err.Error() != `transport scheme not supported: foo` {
-		t.Fatalf("unexpected error: %s", err)
-	}
-}
-
-// Ensure a stream on an unsupported scheme returns an error.
-func TestTransportMux_ReadFrom_ErrUnsupportedScheme(t *testing.T) {
-	u, _ := url.Parse("foo://bar")
-	_, err := raft.DefaultTransport.ReadFrom(u, 0, 0, 0)
-	if err == nil || err.Error() != `transport scheme not supported: foo` {
-		t.Fatalf("unexpected error: %s", err)
-	}
-}
-
-// Ensure a stream on an unsupported scheme returns an error.
-func TestTransportMux_RequestVote_ErrUnsupportedScheme(t *testing.T) {
-	u, _ := url.Parse("foo://bar")
-	_, err := raft.DefaultTransport.RequestVote(u, 0, 0, 0, 0)
-	if err == nil || err.Error() != `transport scheme not supported: foo` {
-		t.Fatalf("unexpected error: %s", err)
-	}
-}
 
 // Ensure a heartbeat over HTTP can be read and responded to.
 func TestHTTPTransport_Heartbeat(t *testing.T) {
@@ -264,5 +248,165 @@ func TestHTTPTransport_RequestVote_ErrConnectionRefused(t *testing.T) {
 		t.Fatal("expected error")
 	} else if !strings.Contains(err.Error(), `connection refused`) {
 		t.Fatalf("unexpected error: %s", err)
+	}
+}
+*/
+
+// Transport represents a test transport that directly calls another log.
+// Logs are looked up by hostname only.
+type Transport struct {
+	logs map[string]*raft.Log // logs by host
+}
+
+// NewTransport returns a new instance of Transport.
+func NewTransport() *Transport {
+	return &Transport{logs: make(map[string]*raft.Log)}
+}
+
+// register registers a log by hostname.
+func (t *Transport) register(l *raft.Log) {
+	t.logs[l.URL.Host] = l
+}
+
+// log returns a log registered by hostname.
+func (t *Transport) log(u *url.URL) (*raft.Log, error) {
+	if l := t.logs[u.Host]; l != nil {
+		return l, nil
+	}
+	return nil, fmt.Errorf("log not found: %s", u.String())
+}
+
+// Join calls the AddPeer method on the target log.
+func (t *Transport) Join(u *url.URL, nodeURL *url.URL) (uint64, *raft.Config, error) {
+	l, err := t.log(u)
+	if err != nil {
+		return 0, nil, err
+	}
+	return l.AddPeer(nodeURL)
+}
+
+// Leave calls the RemovePeer method on the target log.
+func (t *Transport) Leave(u *url.URL, id uint64) error {
+	l, err := t.log(u)
+	if err != nil {
+		return err
+	}
+	return l.RemovePeer(id)
+}
+
+// Heartbeat calls the Heartbeat method on the target log.
+func (t *Transport) Heartbeat(u *url.URL, term, commitIndex, leaderID uint64) (lastIndex, currentTerm uint64, err error) {
+	l, err := t.log(u)
+	if err != nil {
+		return 0, 0, err
+	}
+	return l.Heartbeat(term, commitIndex, leaderID)
+}
+
+// ReadFrom streams entries from the target log.
+func (t *Transport) ReadFrom(u *url.URL, id, term, index uint64) (io.ReadCloser, error) {
+	l, err := t.log(u)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create a streaming buffer that will hang until Close() is called.
+	buf := newStreamingBuffer()
+	go func() {
+		if err := l.WriteEntriesTo(buf.buf, id, term, index); err != nil {
+			warnf("Transport.ReadFrom: error: %s", err)
+		}
+		_ = buf.Close()
+	}()
+	return buf, nil
+}
+
+// RequestVote calls RequestVote() on the target log.
+func (t *Transport) RequestVote(u *url.URL, term, candidateID, lastLogIndex, lastLogTerm uint64) (uint64, error) {
+	l, err := t.log(u)
+	if err != nil {
+		return 0, err
+	}
+	return l.RequestVote(term, candidateID, lastLogIndex, lastLogTerm)
+}
+
+// streamingBuffer implements a streaming bytes buffer.
+// This will hang during reads until there is data available or the streamer is closed.
+type streamingBuffer struct {
+	mu     sync.Mutex
+	buf    *bytes.Buffer
+	closed bool
+}
+
+// newStreamingBuffer returns a new streamingBuffer.
+func newStreamingBuffer() *streamingBuffer {
+	return &streamingBuffer{buf: bytes.NewBuffer(nil)}
+}
+
+// Close marks the buffer as closed.
+func (b *streamingBuffer) Close() error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.closed = true
+	return nil
+}
+
+// Closed returns true if Close() has been called.
+func (b *streamingBuffer) Closed() bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.closed
+}
+
+func (b *streamingBuffer) Read(p []byte) (n int, err error) {
+	for {
+		n, err = b.buf.Read(p)
+		if err == io.EOF && n > 0 { // hit EOF, read data
+			return n, nil
+		} else if err == io.EOF { // hit EOF, no data
+			// If closed then return EOF.
+			if b.Closed() {
+				return n, err
+			}
+
+			// If not closed then wait a bit and try again.
+			time.Sleep(1 * time.Millisecond)
+			continue
+		}
+
+		// If we've read data or we've hit a non-EOF error then return.
+		return n, err
+	}
+}
+
+// Ensure the streaming buffer will continue to stream data, if available, after it's closed.
+// This is primarily a santity check to make sure our test buffer isn't causing problems.
+func TestStreamingBuffer(t *testing.T) {
+	// Write some data to buffer.
+	buf := newStreamingBuffer()
+	buf.buf.WriteString("foo")
+
+	// Read all data out in separate goroutine.
+	start := make(chan struct{}, 0)
+	ch := make(chan string, 0)
+	go func() {
+		close(start)
+		b, err := ioutil.ReadAll(buf)
+		if err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		}
+		ch <- string(b)
+	}()
+
+	// Wait for reader to kick in.
+	<-start
+
+	// Write some more data and then close.
+	buf.buf.WriteString("bar")
+	buf.Close()
+
+	// Verify all data was read.
+	if s := <-ch; s != "foobar" {
+		t.Fatalf("unexpected output: %s", s)
 	}
 }

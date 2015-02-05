@@ -9,18 +9,19 @@ import (
 	"strconv"
 )
 
-// HTTPHandler represents an HTTP endpoint for Raft to communicate over.
-type HTTPHandler struct {
-	log *Log
-}
-
-// NewHTTPHandler returns a new instance of HTTPHandler associated with a log.
-func NewHTTPHandler(log *Log) *HTTPHandler {
-	return &HTTPHandler{log: log}
+// Handler represents an HTTP endpoint for Raft to communicate over.
+type Handler struct {
+	Log interface {
+		AddPeer(u *url.URL) (uint64, *Config, error)
+		RemovePeer(id uint64) error
+		Heartbeat(term, commitIndex, leaderID uint64) (currentIndex, currentTerm uint64, err error)
+		WriteEntriesTo(w io.Writer, id, term, index uint64) error
+		RequestVote(term, candidateID, lastLogIndex, lastLogTerm uint64) (uint64, error)
+	}
 }
 
 // ServeHTTP handles all incoming HTTP requests.
-func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch path.Base(r.URL.Path) {
 	case "join":
 		h.serveJoin(w, r)
@@ -40,7 +41,7 @@ func (h *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // serveJoin serves a Raft membership addition to the underlying log.
-func (h *HTTPHandler) serveJoin(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) serveJoin(w http.ResponseWriter, r *http.Request) {
 	// TODO(benbjohnson): Redirect to leader.
 
 	// Parse argument.
@@ -59,7 +60,7 @@ func (h *HTTPHandler) serveJoin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Add peer to the log.
-	id, config, err := h.log.AddPeer(u)
+	id, config, err := h.Log.AddPeer(u)
 	if err != nil {
 		w.Header().Set("X-Raft-Error", err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
@@ -75,7 +76,7 @@ func (h *HTTPHandler) serveJoin(w http.ResponseWriter, r *http.Request) {
 }
 
 // serveLeave removes a member from the cluster.
-func (h *HTTPHandler) serveLeave(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) serveLeave(w http.ResponseWriter, r *http.Request) {
 	// TODO(benbjohnson): Redirect to leader.
 
 	// Parse arguments.
@@ -87,7 +88,7 @@ func (h *HTTPHandler) serveLeave(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Remove a peer from the log.
-	if err := h.log.RemovePeer(id); err != nil {
+	if err := h.Log.RemovePeer(id); err != nil {
 		w.Header().Set("X-Raft-Error", err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -97,7 +98,7 @@ func (h *HTTPHandler) serveLeave(w http.ResponseWriter, r *http.Request) {
 }
 
 // serveHeartbeat serves a Raft heartbeat to the underlying log.
-func (h *HTTPHandler) serveHeartbeat(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) serveHeartbeat(w http.ResponseWriter, r *http.Request) {
 	var err error
 	var term, commitIndex, leaderID uint64
 
@@ -119,7 +120,7 @@ func (h *HTTPHandler) serveHeartbeat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Execute heartbeat on the log.
-	currentIndex, currentTerm, err := h.log.Heartbeat(term, commitIndex, leaderID)
+	currentIndex, currentTerm, err := h.Log.Heartbeat(term, commitIndex, leaderID)
 
 	// Return current term and index.
 	w.Header().Set("X-Raft-Index", strconv.FormatUint(currentIndex, 10))
@@ -136,7 +137,7 @@ func (h *HTTPHandler) serveHeartbeat(w http.ResponseWriter, r *http.Request) {
 }
 
 // serveStream provides a streaming log endpoint.
-func (h *HTTPHandler) serveStream(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) serveStream(w http.ResponseWriter, r *http.Request) {
 	var err error
 	var id, index, term uint64
 
@@ -166,7 +167,7 @@ func (h *HTTPHandler) serveStream(w http.ResponseWriter, r *http.Request) {
 	// TODO(benbjohnson): Redirect to leader.
 
 	// Write to the response.
-	if err := h.log.WriteEntriesTo(w, id, term, index); err != nil && err != io.EOF {
+	if err := h.Log.WriteEntriesTo(w, id, term, index); err != nil && err != io.EOF {
 		w.Header().Set("X-Raft-Error", err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -174,7 +175,7 @@ func (h *HTTPHandler) serveStream(w http.ResponseWriter, r *http.Request) {
 }
 
 // serveRequestVote serves a vote request to the underlying log.
-func (h *HTTPHandler) serveRequestVote(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) serveRequestVote(w http.ResponseWriter, r *http.Request) {
 	var err error
 	var term, candidateID, lastLogIndex, lastLogTerm uint64
 
@@ -201,7 +202,7 @@ func (h *HTTPHandler) serveRequestVote(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Execute heartbeat on the log.
-	currentTerm, err := h.log.RequestVote(term, candidateID, lastLogIndex, lastLogTerm)
+	currentTerm, err := h.Log.RequestVote(term, candidateID, lastLogIndex, lastLogTerm)
 
 	// Return current term and index.
 	w.Header().Set("X-Raft-Term", strconv.FormatUint(currentTerm, 10))

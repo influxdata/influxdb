@@ -22,20 +22,6 @@ import (
 	"time"
 )
 
-const (
-	// DefaultHeartbeatInterval is the default time to wait between heartbeats.
-	DefaultHeartbeatInterval = 150 * time.Millisecond
-
-	// DefaultElectionTimeout is the default time before starting an election.
-	DefaultElectionTimeout = 500 * time.Millisecond
-
-	// DefaultReconnectTimeout is the default time to wait before reconnecting.
-	DefaultReconnectTimeout = 10 * time.Millisecond
-
-	// DefaultApplyInterval is the default time between checks to apply commands.
-	DefaultApplyInterval = 10 * time.Millisecond
-)
-
 // FSM represents the state machine that the log is applied to.
 // The FSM must maintain the highest index that it has seen.
 type FSM interface {
@@ -115,30 +101,28 @@ type Log struct {
 	FSM FSM
 
 	// The transport used to communicate with other nodes in the cluster.
-	// If nil, then the DefaultTransport is used.
-	Transport Transport
+	Transport interface {
+		Join(u *url.URL, nodeURL *url.URL) (uint64, *Config, error)
+		Leave(u *url.URL, id uint64) error
+		Heartbeat(u *url.URL, term, commitIndex, leaderID uint64) (lastIndex, currentTerm uint64, err error)
+		ReadFrom(u *url.URL, id, term, index uint64) (io.ReadCloser, error)
+		RequestVote(u *url.URL, term, candidateID, lastLogIndex, lastLogTerm uint64) (uint64, error)
+	}
 
-	// The amount of time between Append Entries RPC calls from the leader to
-	// its followers.
-	HeartbeatInterval time.Duration
-
-	// The amount of time before a follower attempts an election.
-	ElectionTimeout time.Duration
-
-	// The amount of time between stream reconnection attempts.
-	ReconnectTimeout time.Duration
-
-	// The amount of time that the log will wait between applying outstanding
-	// committed log entries. A lower interval will reduce latency but a higher
-	// interval will batch more commands together and improve throughput.
-	ApplyInterval time.Duration
-
-	// Clock is an abstraction of the time package. By default it will use
-	// a real-time clock but a mock clock can be used for testing.
-	Clock Clock
+	// Clock is an abstraction of time.
+	Clock interface {
+		Now() time.Time
+		AfterApplyInterval() <-chan chan struct{}
+		AfterElectionTimeout() <-chan chan struct{}
+		AfterHeartbeatInterval() <-chan chan struct{}
+		AfterReconnectTimeout() <-chan chan struct{}
+	}
 
 	// Rand returns a random number.
 	Rand func() int64
+
+	// Sets whether trace messages are logged.
+	DebugEnabled bool
 
 	// This logs some asynchronous errors that occur within the log.
 	Logger *log.Logger
@@ -146,16 +130,13 @@ type Log struct {
 
 // NewLog creates a new instance of Log with reasonable defaults.
 func NewLog() *Log {
-	return &Log{
-		Clock:  &clock{},
-		Rand:   rand.Int63,
-		Logger: log.New(os.Stderr, "[raft] ", log.LstdFlags),
-
-		HeartbeatInterval: DefaultHeartbeatInterval,
-		ElectionTimeout:   DefaultElectionTimeout,
-		ReconnectTimeout:  DefaultReconnectTimeout,
-		ApplyInterval:     DefaultApplyInterval,
+	l := &Log{
+		Clock:     NewClock(),
+		Transport: &HTTPTransport{},
+		Rand:      rand.Int63,
 	}
+	l.SetLogOutput(os.Stderr)
+	return l
 }
 
 // Path returns the data path of the Raft log.
@@ -206,11 +187,6 @@ func (l *Log) Config() *Config {
 	return nil
 }
 
-// SetLogOutput sets writer for all Raft output.
-func (l *Log) SetLogOutput(w io.Writer) {
-	l.Logger = log.New(w, "[raft] ", log.LstdFlags)
-}
-
 // Open initializes the log from a path.
 // If the path does not exist then it is created.
 func (l *Log) Open(path string) error {
@@ -234,7 +210,7 @@ func (l *Log) Open(path string) error {
 		_ = l.close()
 		return err
 	}
-	l.id = id
+	l.setID(id)
 
 	// Initialize log term.
 	term, err := l.readTerm()
@@ -257,6 +233,7 @@ func (l *Log) Open(path string) error {
 	if err != nil {
 		return err
 	}
+	l.tracef("fsm: index=%d", index)
 	l.index = index
 	l.appliedIndex = index
 	l.commitIndex = index
@@ -322,13 +299,20 @@ func (l *Log) close() error {
 	}
 	l.writers = nil
 
+	l.tracef("closing")
+
 	// Clear log info.
-	l.id = 0
+	l.setID(0)
 	l.path = ""
 	l.index, l.term = 0, 0
 	l.config = nil
 
 	return nil
+}
+
+func (l *Log) setID(id uint64) {
+	l.id = id
+	l.updateLogPrefix()
 }
 
 // readID reads the log identifier from file.
@@ -420,14 +404,6 @@ func (l *Log) writeConfig(config *Config) error {
 	return nil
 }
 
-// transport returns the log's transport or the default transport.
-func (l *Log) transport() Transport {
-	if t := l.Transport; t != nil {
-		return t
-	}
-	return DefaultTransport
-}
-
 // Initialize a new log.
 // Returns an error if log data already exists.
 func (l *Log) Initialize() error {
@@ -457,7 +433,7 @@ func (l *Log) Initialize() error {
 		if err := l.writeID(id); err != nil {
 			return err
 		}
-		l.id = id
+		l.setID(id)
 
 		// Automatically promote to leader.
 		term := uint64(1)
@@ -488,6 +464,34 @@ func (l *Log) Initialize() error {
 	return l.Wait(index)
 }
 
+// SetLogOutput sets writer for all Raft output.
+func (l *Log) SetLogOutput(w io.Writer) {
+	l.Logger = log.New(w, "", log.LstdFlags)
+	l.updateLogPrefix()
+}
+
+func (l *Log) updateLogPrefix() {
+	var host string
+	if l.URL != nil {
+		host = l.URL.Host
+	}
+	l.Logger.SetPrefix(fmt.Sprintf("[raft] %s ", host))
+}
+
+// trace writes a log message if DebugEnabled is true.
+func (l *Log) trace(v ...interface{}) {
+	if l.DebugEnabled {
+		l.Logger.Print(v...)
+	}
+}
+
+// trace writes a formatted log message if DebugEnabled is true.
+func (l *Log) tracef(msg string, v ...interface{}) {
+	if l.DebugEnabled {
+		l.Logger.Printf(msg+"\n", v...)
+	}
+}
+
 // Leader returns the id and URL associated with the current leader.
 // Returns zero if there is no current leader.
 func (l *Log) Leader() (id uint64, u *url.URL) {
@@ -514,29 +518,45 @@ func (l *Log) leader() (id uint64, u *url.URL) {
 // Join contacts a node in the cluster to request membership.
 // A log cannot join a cluster if it has already been initialized.
 func (l *Log) Join(u *url.URL) error {
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	// Validate under lock.
+	var nodeURL *url.URL
+	if err := func() error {
+		l.mu.Lock()
+		defer l.mu.Unlock()
 
-	// Check if open.
-	if !l.opened() {
-		return ErrClosed
-	} else if l.id != 0 {
-		return ErrInitialized
-	} else if l.URL == nil {
-		return ErrURLRequired
+		if !l.opened() {
+			return ErrClosed
+		} else if l.id != 0 {
+			return ErrInitialized
+		} else if l.URL == nil {
+			return ErrURLRequired
+		}
+
+		nodeURL = l.URL
+		return nil
+	}(); err != nil {
+		return err
 	}
 
+	l.tracef("joining to: %s", u)
+
 	// Send join request.
-	id, config, err := l.transport().Join(u, l.URL)
+	id, config, err := l.Transport.Join(u, nodeURL)
 	if err != nil {
 		return err
 	}
+
+	l.tracef("confirmed join")
+
+	// Lock once the join request is returned.
+	l.mu.Lock()
+	defer l.mu.Unlock()
 
 	// Write identifier.
 	if err := l.writeID(id); err != nil {
 		return err
 	}
-	l.id = id
+	l.setID(id)
 
 	// Write config.
 	if err := l.writeConfig(config); err != nil {
@@ -597,6 +617,7 @@ func (l *Log) setState(state State) {
 
 // followerLoop continually attempts to stream the log from the current leader.
 func (l *Log) followerLoop(done chan struct{}) {
+	l.tracef("follower loop")
 	var rch chan struct{}
 	for {
 		// Retrieve the term, last index, & leader URL.
@@ -611,12 +632,14 @@ func (l *Log) followerLoop(done chan struct{}) {
 
 		// If no leader exists then wait momentarily and retry.
 		if u == nil {
+			l.tracef("follower loop: no leader")
 			time.Sleep(1 * time.Millisecond)
 			continue
 		}
 
 		// Connect to leader.
-		r, err := l.transport().ReadFrom(u, id, term, index)
+		l.tracef("follower loop: read from: %s, id=%d, term=%d, index=%d", u.String(), id, term, index)
+		r, err := l.Transport.ReadFrom(u, id, term, index)
 		if err != nil {
 			l.Logger.Printf("connect stream: %s", err)
 		}
@@ -663,7 +686,7 @@ func (l *Log) elect(done chan struct{}) {
 	for _, n := range config.Nodes {
 		if n.ID != id {
 			go func(n *ConfigNode) {
-				peerTerm, err := l.transport().RequestVote(n.URL, term, id, lastLogIndex, lastLogTerm)
+				peerTerm, err := l.Transport.RequestVote(n.URL, term, id, lastLogIndex, lastLogTerm)
 				if err != nil {
 					l.Logger.Printf("request vote: %s", err)
 					return
@@ -677,14 +700,15 @@ func (l *Log) elect(done chan struct{}) {
 	}
 
 	// Wait for respones or timeout.
-	after := l.Clock.After(l.ElectionTimeout)
+	after := l.Clock.AfterElectionTimeout()
 	voteN := 1
 loop:
 	for {
 		select {
 		case <-done:
 			return
-		case <-after:
+		case ch := <-after:
+			defer close(ch)
 			break loop
 		case <-ch:
 			voteN++
@@ -713,24 +737,30 @@ loop:
 
 // leaderLoop periodically sends heartbeats to all followers to maintain dominance.
 func (l *Log) leaderLoop(done chan struct{}) {
-	ticker := l.Clock.Ticker(l.HeartbeatInterval)
-	defer ticker.Stop()
+	l.tracef("leader loop: start")
+	confirm := make(chan struct{}, 0)
 	for {
 		// Send hearbeat to followers.
 		if err := l.sendHeartbeat(done); err != nil {
+			close(confirm)
 			return
 		}
+
+		// Signal clock that the heartbeat has occurred.
+		close(confirm)
 
 		select {
 		case <-done: // wait for state change.
 			return
-		case <-ticker.C: // wait for next heartbeat
+		case confirm = <-l.Clock.AfterHeartbeatInterval(): // wait for next heartbeat
 		}
 	}
 }
 
 // sendHeartbeat sends heartbeats to all the nodes.
 func (l *Log) sendHeartbeat(done chan struct{}) error {
+	l.tracef("sending heartbeat")
+
 	// Retrieve config and term.
 	l.mu.Lock()
 	if err := check(done); err != nil {
@@ -744,6 +774,7 @@ func (l *Log) sendHeartbeat(done chan struct{}) error {
 
 	// Ignore if there is no config or nodes yet.
 	if config == nil || len(config.Nodes) <= 1 {
+		l.tracef("sending heartbeat: no peers")
 		return nil
 	}
 
@@ -755,12 +786,14 @@ func (l *Log) sendHeartbeat(done chan struct{}) error {
 	for _, n := range config.Nodes {
 		if n.ID != l.id {
 			go func(n *ConfigNode) {
-				peerIndex, peerTerm, err := l.transport().Heartbeat(n.URL, term, commitIndex, leaderID)
+				l.tracef("sending heartbeat: url=%s, term=%d, commit=%d, leaderID=%d", n.URL, term, commitIndex, leaderID)
+				peerIndex, peerTerm, err := l.Transport.Heartbeat(n.URL, term, commitIndex, leaderID)
 				if err != nil {
 					l.Logger.Printf("heartbeat: %s", err)
 					return
 				} else if peerTerm > term {
 					// TODO(benbjohnson): Step down.
+					l.tracef("sending heartbeat: TODO step down: peer=%d, term=%d", peerTerm, term)
 					return
 				}
 				ch <- peerIndex
@@ -769,7 +802,7 @@ func (l *Log) sendHeartbeat(done chan struct{}) error {
 	}
 
 	// Wait for heartbeat responses or timeout.
-	after := l.Clock.After(l.HeartbeatInterval)
+	after := l.Clock.AfterHeartbeatInterval()
 	indexes := make([]uint64, 1, nodeN)
 	indexes[0] = localIndex
 loop:
@@ -777,11 +810,14 @@ loop:
 		select {
 		case <-done:
 			return errDone
-		case <-after:
+		case ch := <-after:
+			defer close(ch)
+			l.tracef("sending heartbeat: timeout")
 			break loop
 		case index := <-ch:
 			indexes = append(indexes, index)
 			if len(indexes) == nodeN {
+				l.tracef("sending heartbeat: received heartbeats")
 				break loop
 			}
 		}
@@ -791,6 +827,7 @@ loop:
 	// We don't add the +1 because the slice starts from 0.
 	quorumIndex := (nodeN / 2)
 	if quorumIndex >= len(indexes) {
+		l.tracef("sending heartbeat: no quorum: n=%d", quorumIndex)
 		return nil
 	}
 
@@ -805,6 +842,7 @@ loop:
 		return err
 	}
 	if newCommitIndex > l.commitIndex {
+		l.tracef("sending heartbeat: commit index %d => %d", l.commitIndex, newCommitIndex)
 		l.commitIndex = newCommitIndex
 	}
 	l.mu.Unlock()
@@ -875,12 +913,45 @@ func (l *Log) Wait(index uint64) error {
 		} else if appliedIndex >= index {
 			return nil
 		}
-		l.Clock.Sleep(l.ApplyInterval)
+		time.Sleep(1 * time.Millisecond)
+	}
+}
+
+// waitCommitted blocks until a given committed index is reached.
+func (l *Log) waitCommitted(index uint64) error {
+	for {
+		l.mu.Lock()
+		state, committedIndex := l.state, l.commitIndex
+		l.mu.Unlock()
+
+		if state == Stopped {
+			return ErrClosed
+		} else if committedIndex >= index {
+			return nil
+		}
+		time.Sleep(1 * time.Millisecond)
+	}
+}
+
+// waitUncommitted blocks until a given uncommitted index is reached.
+func (l *Log) waitUncommitted(index uint64) error {
+	for {
+		l.mu.Lock()
+		state, uncommittedIndex := l.state, l.index
+		l.mu.Unlock()
+
+		if state == Stopped {
+			return ErrClosed
+		} else if uncommittedIndex >= index {
+			return nil
+		}
+		time.Sleep(1 * time.Millisecond)
 	}
 }
 
 // append adds a log entry to the list of entries.
 func (l *Log) append(e *LogEntry) {
+	l.tracef("append: idx=%d, prev=%d", e.Index, l.index)
 	assert(e.Index == l.index+1, "non-contiguous log index(%d): idx=%d, prev=%d", l.id, e.Index, l.index)
 
 	// Encode entry to a byte slice.
@@ -913,13 +984,16 @@ func (l *Log) append(e *LogEntry) {
 func (l *Log) applier(done chan chan struct{}) {
 	for {
 		// Wait for a close signal or timeout.
+		var confirm chan struct{}
 		select {
 		case ch := <-done:
 			close(ch)
 			return
 
-		case <-l.Clock.After(l.ApplyInterval):
+		case confirm = <-l.Clock.AfterApplyInterval():
 		}
+
+		l.tracef("applying")
 
 		// Apply all entries committed since the previous apply.
 		err := func() error {
@@ -937,8 +1011,10 @@ func (l *Log) applier(done chan chan struct{}) {
 			// Ignore if there are no pending entries.
 			// Ignore if all entries are applied.
 			if len(l.entries) == 0 {
+				l.tracef("applying: no entries")
 				return nil
 			} else if l.appliedIndex == l.commitIndex {
+				l.tracef("applying: up to date")
 				return nil
 			}
 
@@ -963,6 +1039,8 @@ func (l *Log) applier(done chan chan struct{}) {
 
 			// Iterate over each entry and apply it.
 			for _, e := range entries {
+				l.tracef("applying: entry: idx=%d", e.Index)
+
 				switch e.Type {
 				case LogEntryCommand, LogEntryNop:
 				case LogEntryInitialize:
@@ -990,12 +1068,15 @@ func (l *Log) applier(done chan chan struct{}) {
 		// If error occurred then log it.
 		// The log will retry after a given timeout.
 		if err == errDone {
+			close(confirm)
 			return
 		} else if err != nil {
-			l.Logger.Printf("apply: %s", err)
+			l.Logger.Printf("apply error: %s", err)
 			// TODO(benbjohnson): Longer timeout before retry?
-			continue
 		}
+
+		// Signal clock that apply is done.
+		close(confirm)
 	}
 }
 
@@ -1105,18 +1186,23 @@ func (l *Log) Heartbeat(term, commitIndex, leaderID uint64) (currentIndex, curre
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
+	l.tracef("heartbeat: term=%d, commit=%d, leaderID: %d", term, commitIndex, leaderID)
+
 	// Check if log is closed.
 	if !l.opened() {
+		l.tracef("heartbeat: closed")
 		return 0, 0, ErrClosed
 	}
 
 	// Ignore if the incoming term is less than the log's term.
 	if term < l.term {
+		l.tracef("heartbeat: stale term, ignore")
 		return l.index, l.term, nil
 	}
 
 	// Step down if we see a higher term.
 	if term > l.term {
+		l.tracef("heartbeat: higher term, stepping down")
 		l.term = term
 		l.setState(Follower)
 	}
@@ -1164,12 +1250,14 @@ func (l *Log) RequestVote(term, candidateID, lastLogIndex, lastLogTerm uint64) (
 func (l *Log) elector(done chan chan struct{}) {
 	for {
 		// Wait for a close signal or election timeout.
+		var confirm chan struct{}
 		select {
 		case ch := <-done:
 			close(ch)
 			return
-		case <-l.Clock.After(l.ElectionTimeout): // TODO(election): Randomize
+		case confirm = <-l.Clock.AfterElectionTimeout(): // TODO(election): Randomize
 		}
+		l.tracef("check election")
 
 		// If log is a follower or candidate and an election timeout has passed
 		// since a contact from a heartbeat then start a new election.
@@ -1177,7 +1265,6 @@ func (l *Log) elector(done chan chan struct{}) {
 			l.mu.Lock()
 			defer l.mu.Unlock()
 
-			// Verify that we're not closing.
 			// Verify, under lock, that we're not closing.
 			select {
 			case ch := <-done:
@@ -1189,10 +1276,17 @@ func (l *Log) elector(done chan chan struct{}) {
 			// Ignore if not a follower or a candidate.
 			// Ignore if the last contact was less than the election timeout.
 			if l.state != Follower && l.state != Candidate {
+				l.tracef("elector: log is not follower or candidate")
 				return nil
-			} else if l.lastContact.IsZero() || l.Clock.Now().Sub(l.lastContact) < l.ElectionTimeout {
+			} else if l.lastContact.IsZero() {
+				l.tracef("elector: last contact is zero")
+				return nil
+			} else if l.Clock.Now().Sub(l.lastContact) < DefaultElectionTimeout { // TODO: Refactor into follower loop and candidate loop.
+				l.tracef("elector: last contact is less than election timeout")
 				return nil
 			}
+
+			l.tracef("elector: beginning election in term %d", l.term+1)
 
 			// Otherwise start a new election and promote.
 			term := l.term + 1
@@ -1207,10 +1301,14 @@ func (l *Log) elector(done chan chan struct{}) {
 
 		// Check if we exited because we're closing.
 		if err == errDone {
+			close(confirm)
 			return
 		} else if err != nil {
 			panic("unreachable")
 		}
+
+		// Signal clock that elector is done.
+		close(confirm)
 	}
 }
 
@@ -1391,6 +1489,8 @@ func (l *Log) ReadFrom(r io.ReadCloser) error {
 	// Continually decode entries.
 	dec := NewLogEntryDecoder(r)
 	for {
+		l.tracef("read from")
+
 		// Decode single entry.
 		var e LogEntry
 		if err := dec.Decode(&e); err == io.EOF {
@@ -1401,6 +1501,8 @@ func (l *Log) ReadFrom(r io.ReadCloser) error {
 
 		// If this is a config entry then update the config.
 		if e.Type == logEntryConfig {
+			l.tracef("read from: config")
+
 			config := &Config{}
 			if err := NewConfigDecoder(bytes.NewReader(e.Data)).Decode(config); err != nil {
 				return err
@@ -1418,15 +1520,19 @@ func (l *Log) ReadFrom(r io.ReadCloser) error {
 
 		// If this is a snapshot then load it.
 		if e.Type == logEntrySnapshot {
+			l.tracef("read from: snapshot")
+
 			if err := l.FSM.Restore(r); err != nil {
 				return err
 			}
+			l.tracef("read from: snapshot: restored")
 
 			// Read the snapshot index off the end of the snapshot.
 			var index uint64
 			if err := binary.Read(r, binary.BigEndian, &index); err != nil {
 				return fmt.Errorf("read snapshot index: %s", err)
 			}
+			l.tracef("read from: snapshot: index=%d", index)
 
 			// Update the indicies.
 			l.index = index
@@ -1440,7 +1546,14 @@ func (l *Log) ReadFrom(r io.ReadCloser) error {
 		}
 
 		// Append entry to the log.
+		l.mu.Lock()
+		if l.state == Stopped {
+			l.mu.Unlock()
+			return nil
+		}
+		l.tracef("read from: entry: index=%d / prev=%d / commit=%d", e.Index, l.index, l.commitIndex)
 		l.append(&e)
+		l.mu.Unlock()
 	}
 }
 
