@@ -52,7 +52,8 @@ func Run(config *Config, join, version string, logWriter *os.File) *influxdb.Ser
 	}
 
 	// Open server, initialize or join as necessary.
-	s := openServer(config.Authentication.Enabled, config.DataDir(), config.DataURL(), b, initializing, configExists, joinURLs, logWriter)
+	s := openServer(config.DataDir(), config.DataURL(), b, initializing, configExists, joinURLs, logWriter)
+	s.SetAuthenticationEnabled(config.Authentication.Enabled)
 
 	// Start the server handler. Attach to broker if listening on the same port.
 	if s != nil {
@@ -203,14 +204,14 @@ func joinBroker(b *messaging.Broker, joinURLs []*url.URL) {
 }
 
 // creates and initializes a server.
-func openServer(authenticationEnabled bool, path string, u *url.URL, b *messaging.Broker, initializing, configExists bool, joinURLs []*url.URL, w io.Writer) *influxdb.Server {
+func openServer(path string, u *url.URL, b *messaging.Broker, initializing, configExists bool, joinURLs []*url.URL, w io.Writer) *influxdb.Server {
 	// Ignore if there's no existing server and we're not initializing or joining.
 	if !fileExists(path) && !initializing && len(joinURLs) == 0 {
 		return nil
 	}
 
 	// Create and open the server.
-	s := influxdb.NewServer(authenticationEnabled)
+	s := influxdb.NewServer()
 	s.SetLogOutput(w)
 	if err := s.Open(path); err != nil {
 		log.Fatalf("failed to open data server: %v", err.Error())

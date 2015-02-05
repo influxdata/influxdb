@@ -287,6 +287,8 @@ func isAuthorizationError(err error) bool {
 
 // httpResult writes a Results array to the client.
 func httpResults(w http.ResponseWriter, results influxdb.Results, pretty bool) {
+	log.Printf("%+v\n", results)
+	log.Printf("%v\n", results.Error())
 	if results.Error() != nil {
 		if isAuthorizationError(results.Error()) {
 			w.WriteHeader(http.StatusUnauthorized)

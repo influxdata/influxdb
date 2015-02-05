@@ -138,7 +138,7 @@ func TestBatchWrite_UnmarshalRFC(t *testing.T) {
 }
 
 func TestHandler_Databases(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), false)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	srvr.CreateDatabase("bar")
 	s := NewHTTPServer(srvr)
@@ -153,7 +153,7 @@ func TestHandler_Databases(t *testing.T) {
 }
 
 func TestHandler_DatabasesPrettyPrinted(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), false)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	srvr.CreateDatabase("bar")
 	s := NewHTTPServer(srvr)
@@ -188,7 +188,7 @@ func TestHandler_DatabasesPrettyPrinted(t *testing.T) {
 }
 
 func TestHandler_CreateDatabase(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), false)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
@@ -201,7 +201,7 @@ func TestHandler_CreateDatabase(t *testing.T) {
 }
 
 func TestHandler_CreateDatabase_BadRequest_NoName(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), true)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
@@ -212,7 +212,7 @@ func TestHandler_CreateDatabase_BadRequest_NoName(t *testing.T) {
 }
 
 func TestHandler_CreateDatabase_Conflict(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), false)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	s := NewHTTPServer(srvr)
 	defer s.Close()
@@ -226,7 +226,7 @@ func TestHandler_CreateDatabase_Conflict(t *testing.T) {
 }
 
 func TestHandler_DeleteDatabase(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), false)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	s := NewHTTPServer(srvr)
 	defer s.Close()
@@ -240,7 +240,7 @@ func TestHandler_DeleteDatabase(t *testing.T) {
 }
 
 func TestHandler_DeleteDatabase_NotFound(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), false)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
@@ -253,7 +253,7 @@ func TestHandler_DeleteDatabase_NotFound(t *testing.T) {
 }
 
 func TestHandler_RetentionPolicies(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), false)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
 	s := NewHTTPServer(srvr)
@@ -269,7 +269,7 @@ func TestHandler_RetentionPolicies(t *testing.T) {
 }
 
 func TestHandler_RetentionPolicies_DatabaseNotFound(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), false)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
@@ -283,7 +283,7 @@ func TestHandler_RetentionPolicies_DatabaseNotFound(t *testing.T) {
 }
 
 func TestHandler_CreateRetentionPolicy(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), false)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	s := NewHTTPServer(srvr)
 	defer s.Close()
@@ -299,7 +299,7 @@ func TestHandler_CreateRetentionPolicy(t *testing.T) {
 }
 
 func TestHandler_CreateRetentionPolicyAsDefault(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), false)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	s := NewHTTPServer(srvr)
 	defer s.Close()
@@ -322,7 +322,7 @@ func TestHandler_CreateRetentionPolicyAsDefault(t *testing.T) {
 }
 
 func TestHandler_CreateRetentionPolicy_DatabaseNotFound(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), false)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
@@ -335,7 +335,7 @@ func TestHandler_CreateRetentionPolicy_DatabaseNotFound(t *testing.T) {
 }
 
 func TestHandler_CreateRetentionPolicy_Conflict(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), false)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	s := NewHTTPServer(srvr)
 	defer s.Close()
@@ -351,7 +351,7 @@ func TestHandler_CreateRetentionPolicy_Conflict(t *testing.T) {
 }
 
 func TestHandler_CreateRetentionPolicy_BadRequest(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), true)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	s := NewHTTPServer(srvr)
 	defer s.Close()
@@ -365,7 +365,7 @@ func TestHandler_CreateRetentionPolicy_BadRequest(t *testing.T) {
 }
 
 func TestHandler_UpdateRetentionPolicy(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), false)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
 	s := NewHTTPServer(srvr)
@@ -395,7 +395,7 @@ func TestHandler_UpdateRetentionPolicy(t *testing.T) {
 }
 
 func TestHandler_UpdateRetentionPolicy_BadRequest(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), true)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
 	s := NewHTTPServer(srvr)
@@ -411,7 +411,7 @@ func TestHandler_UpdateRetentionPolicy_BadRequest(t *testing.T) {
 }
 
 func TestHandler_UpdateRetentionPolicy_DatabaseNotFound(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), false)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
@@ -425,7 +425,7 @@ func TestHandler_UpdateRetentionPolicy_DatabaseNotFound(t *testing.T) {
 }
 
 func TestHandler_UpdateRetentionPolicy_NotFound(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), false)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
 	s := NewHTTPServer(srvr)
@@ -441,7 +441,7 @@ func TestHandler_UpdateRetentionPolicy_NotFound(t *testing.T) {
 }
 
 func TestHandler_DeleteRetentionPolicy(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), false)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
 	s := NewHTTPServer(srvr)
@@ -458,7 +458,7 @@ func TestHandler_DeleteRetentionPolicy(t *testing.T) {
 }
 
 func TestHandler_DeleteRetentionPolicy_DatabaseNotFound(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), false)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
@@ -473,7 +473,7 @@ func TestHandler_DeleteRetentionPolicy_DatabaseNotFound(t *testing.T) {
 }
 
 func TestHandler_DeleteRetentionPolicy_NotFound(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), false)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	s := NewHTTPServer(srvr)
 	defer s.Close()
@@ -489,7 +489,7 @@ func TestHandler_DeleteRetentionPolicy_NotFound(t *testing.T) {
 }
 
 func TestHandler_GzipEnabled(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), true)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
@@ -513,7 +513,7 @@ func TestHandler_GzipEnabled(t *testing.T) {
 }
 
 func TestHandler_GzipDisabled(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), true)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
@@ -537,7 +537,7 @@ func TestHandler_GzipDisabled(t *testing.T) {
 }
 
 func TestHandler_Ping(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), true)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
@@ -549,7 +549,7 @@ func TestHandler_Ping(t *testing.T) {
 }
 
 func TestHandler_Users_NoUsers(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), false)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	s := NewHTTPServer(srvr)
 	defer s.Close()
@@ -564,7 +564,7 @@ func TestHandler_Users_NoUsers(t *testing.T) {
 }
 
 func TestHandler_Users_OneUser(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), false)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateUser("jdoe", "1337", true)
 	s := NewHTTPServer(srvr)
 	defer s.Close()
@@ -579,7 +579,7 @@ func TestHandler_Users_OneUser(t *testing.T) {
 }
 
 func TestHandler_Users_MultipleUsers(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), false)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateUser("jdoe", "1337", false)
 	srvr.CreateUser("mclark", "1337", true)
 	srvr.CreateUser("csmith", "1337", false)
@@ -596,7 +596,7 @@ func TestHandler_Users_MultipleUsers(t *testing.T) {
 }
 
 func TestHandler_CreateUser(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), false)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
@@ -610,7 +610,7 @@ func TestHandler_CreateUser(t *testing.T) {
 }
 
 func TestHandler_CreateUser_BadRequest(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), false)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
@@ -624,7 +624,7 @@ func TestHandler_CreateUser_BadRequest(t *testing.T) {
 }
 
 func TestHandler_CreateUser_BadRequest_NoName(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), false)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
@@ -638,7 +638,7 @@ func TestHandler_CreateUser_BadRequest_NoName(t *testing.T) {
 }
 
 func TestHandler_CreateUser_BadRequest_NoPassword(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), false)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
@@ -653,7 +653,7 @@ func TestHandler_CreateUser_BadRequest_NoPassword(t *testing.T) {
 
 func TestHandler_UpdateUser(t *testing.T) {
 	t.Skip()
-	srvr := OpenServer(NewMessagingClient(), false)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateUser("jdoe", "1337", false)
 	s := NewHTTPServer(srvr)
 	defer s.Close()
@@ -674,7 +674,7 @@ func TestHandler_UpdateUser(t *testing.T) {
 
 func TestHandler_UpdateUser_PasswordBadRequest(t *testing.T) {
 	t.Skip()
-	srvr := OpenServer(NewMessagingClient(), false)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateUser("jdoe", "1337", false)
 	s := NewHTTPServer(srvr)
 	defer s.Close()
@@ -688,7 +688,7 @@ func TestHandler_UpdateUser_PasswordBadRequest(t *testing.T) {
 }
 
 func TestHandler_DeleteUser(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), false)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateUser("jdoe", "1337", false)
 	s := NewHTTPServer(srvr)
 	defer s.Close()
@@ -703,7 +703,7 @@ func TestHandler_DeleteUser(t *testing.T) {
 }
 
 func TestHandler_DeleteUser_UserNotFound(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), false)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
@@ -718,7 +718,7 @@ func TestHandler_DeleteUser_UserNotFound(t *testing.T) {
 
 func TestHandler_DataNodes(t *testing.T) {
 	t.Skip()
-	srvr := OpenUninitializedServer(NewMessagingClient(), false)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateDataNode(MustParseURL("http://localhost:1000"))
 	srvr.CreateDataNode(MustParseURL("http://localhost:2000"))
 	srvr.CreateDataNode(MustParseURL("http://localhost:3000"))
@@ -735,7 +735,7 @@ func TestHandler_DataNodes(t *testing.T) {
 
 func TestHandler_CreateDataNode(t *testing.T) {
 	t.Skip()
-	srvr := OpenUninitializedServer(NewMessagingClient(), false)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
@@ -749,7 +749,7 @@ func TestHandler_CreateDataNode(t *testing.T) {
 
 func TestHandler_CreateDataNode_BadRequest(t *testing.T) {
 	t.Skip()
-	srvr := OpenServer(NewMessagingClient(), false)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
@@ -763,7 +763,7 @@ func TestHandler_CreateDataNode_BadRequest(t *testing.T) {
 
 func TestHandler_CreateDataNode_InternalServerError(t *testing.T) {
 	t.Skip()
-	srvr := OpenServer(NewMessagingClient(), false)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
@@ -777,7 +777,7 @@ func TestHandler_CreateDataNode_InternalServerError(t *testing.T) {
 
 func TestHandler_DeleteDataNode(t *testing.T) {
 	t.Skip()
-	srvr := OpenServer(NewMessagingClient(), false)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateDataNode(MustParseURL("http://localhost:1000"))
 	s := NewHTTPServer(srvr)
 	defer s.Close()
@@ -792,7 +792,7 @@ func TestHandler_DeleteDataNode(t *testing.T) {
 
 func TestHandler_DeleteUser_DataNodeNotFound(t *testing.T) {
 	t.Skip()
-	srvr := OpenServer(NewMessagingClient(), false)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
@@ -807,7 +807,7 @@ func TestHandler_DeleteUser_DataNodeNotFound(t *testing.T) {
 // Perform a subset of endpoint testing, with authentication enabled.
 
 func TestHandler_AuthenticatedCreateAdminUser(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), true)
+	srvr := OpenAuthenticatedServer(NewMessagingClient())
 	s := NewAuthenticatedHTTPServer(srvr)
 	defer s.Close()
 
@@ -828,7 +828,7 @@ func TestHandler_AuthenticatedCreateAdminUser(t *testing.T) {
 }
 
 func TestHandler_AuthenticatedDatabases_Unauthorized(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), true)
+	srvr := OpenAuthenticatedServer(NewMessagingClient())
 	s := NewAuthenticatedHTTPServer(srvr)
 	defer s.Close()
 
@@ -839,7 +839,7 @@ func TestHandler_AuthenticatedDatabases_Unauthorized(t *testing.T) {
 }
 
 func TestHandler_AuthenticatedDatabases_AuthorizedQueryParams(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), true)
+	srvr := OpenAuthenticatedServer(NewMessagingClient())
 	srvr.CreateUser("lisa", "password", true)
 	s := NewAuthenticatedHTTPServer(srvr)
 	defer s.Close()
@@ -852,7 +852,7 @@ func TestHandler_AuthenticatedDatabases_AuthorizedQueryParams(t *testing.T) {
 }
 
 func TestHandler_AuthenticatedDatabases_UnauthorizedQueryParams(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), true)
+	srvr := OpenAuthenticatedServer(NewMessagingClient())
 	srvr.CreateUser("lisa", "password", true)
 	s := NewAuthenticatedHTTPServer(srvr)
 	defer s.Close()
@@ -865,7 +865,7 @@ func TestHandler_AuthenticatedDatabases_UnauthorizedQueryParams(t *testing.T) {
 }
 
 func TestHandler_AuthenticatedDatabases_AuthorizedBasicAuth(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), true)
+	srvr := OpenAuthenticatedServer(NewMessagingClient())
 	srvr.CreateUser("lisa", "password", true)
 	s := NewAuthenticatedHTTPServer(srvr)
 	defer s.Close()
@@ -880,7 +880,7 @@ func TestHandler_AuthenticatedDatabases_AuthorizedBasicAuth(t *testing.T) {
 }
 
 func TestHandler_AuthenticatedDatabases_UnauthorizedBasicAuth(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), true)
+	srvr := OpenAuthenticatedServer(NewMessagingClient())
 	srvr.CreateUser("lisa", "password", true)
 	s := NewAuthenticatedHTTPServer(srvr)
 	defer s.Close()
@@ -895,7 +895,7 @@ func TestHandler_AuthenticatedDatabases_UnauthorizedBasicAuth(t *testing.T) {
 }
 
 func TestHandler_GrantAdmin(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), true)
+	srvr := OpenAuthenticatedServer(NewMessagingClient())
 	// Create a cluster admin that will grant admin to "john".
 	srvr.CreateUser("lisa", "password", true)
 	// Create user that will be granted cluster admin.
@@ -926,7 +926,7 @@ func TestHandler_GrantAdmin(t *testing.T) {
 }
 
 func TestHandler_GrantDBPrivilege(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), true)
+	srvr := OpenAuthenticatedServer(NewMessagingClient())
 	// Create a cluster admin that will grant privilege to "john".
 	srvr.CreateUser("lisa", "password", true)
 	// Create user that will be granted a privilege.
@@ -963,7 +963,7 @@ func TestHandler_GrantDBPrivilege(t *testing.T) {
 }
 
 func TestHandler_RevokeAdmin(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), true)
+	srvr := OpenAuthenticatedServer(NewMessagingClient())
 	// Create a cluster admin that will revoke admin from "john".
 	srvr.CreateUser("lisa", "password", true)
 	// Create user that will have cluster admin revoked.
@@ -995,7 +995,7 @@ func TestHandler_RevokeAdmin(t *testing.T) {
 }
 
 func TestHandler_RevokeDBPrivilege(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), true)
+	srvr := OpenAuthenticatedServer(NewMessagingClient())
 	// Create a cluster admin that will revoke privilege from "john".
 	srvr.CreateUser("lisa", "password", true)
 	// Create user that will have privilege revoked.
@@ -1029,7 +1029,7 @@ func TestHandler_RevokeDBPrivilege(t *testing.T) {
 }
 
 func TestHandler_serveWriteSeries(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), true)
+	srvr := OpenAuthenticatedServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
 	s := NewHTTPServer(srvr)
@@ -1043,7 +1043,7 @@ func TestHandler_serveWriteSeries(t *testing.T) {
 }
 
 func TestHandler_serveWriteSeries_noDatabaseExists(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), true)
+	srvr := OpenAuthenticatedServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
@@ -1061,7 +1061,7 @@ func TestHandler_serveWriteSeries_noDatabaseExists(t *testing.T) {
 }
 
 func TestHandler_serveWriteSeries_invalidJSON(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), true)
+	srvr := OpenAuthenticatedServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
@@ -1078,7 +1078,7 @@ func TestHandler_serveWriteSeries_invalidJSON(t *testing.T) {
 }
 
 func TestHandler_serveWriteSeries_noDatabaseSpecified(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), true)
+	srvr := OpenAuthenticatedServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
@@ -1095,7 +1095,7 @@ func TestHandler_serveWriteSeries_noDatabaseSpecified(t *testing.T) {
 }
 
 func TestHandler_serveShowSeries(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), false)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
 	srvr.SetDefaultRetentionPolicy("foo", "bar")
@@ -1270,7 +1270,7 @@ func str2iface(strs []string) []interface{} {
 }
 
 func TestHandler_serveShowMeasurements(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), false)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
 	s := NewHTTPServer(srvr)
@@ -1325,7 +1325,7 @@ func TestHandler_serveShowMeasurements(t *testing.T) {
 }
 
 func TestHandler_serveShowTagKeys(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), false)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
 	srvr.SetDefaultRetentionPolicy("foo", "bar")
@@ -1428,7 +1428,7 @@ func TestHandler_serveShowTagKeys(t *testing.T) {
 }
 
 func TestHandler_serveShowTagValues(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), false)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
 	srvr.SetDefaultRetentionPolicy("foo", "bar")
@@ -1569,7 +1569,7 @@ func TestHandler_serveShowTagValues(t *testing.T) {
 }
 
 func TestHandler_serveShowFieldKeys(t *testing.T) {
-	srvr := OpenServer(NewMessagingClient(), false)
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
 	srvr.SetDefaultRetentionPolicy("foo", "bar")
@@ -1743,16 +1743,23 @@ type Server struct {
 }
 
 // NewServer returns a new test server instance.
-func NewServer(authenticationEnabled bool) *Server {
-	return &Server{influxdb.NewServer(authenticationEnabled)}
+func NewServer() *Server {
+	return &Server{influxdb.NewServer()}
 }
 
-// OpenServer returns a new, open test server instance.
-func OpenServer(client influxdb.MessagingClient, authenticationEnabled bool) *Server {
-	s := OpenUninitializedServer(client, authenticationEnabled)
+// OpenAuthenticatedServer returns a new, open test server instance with authentication enabled.
+func OpenAuthenticatedServer(client influxdb.MessagingClient) *Server {
+	s := OpenUninitializedServer(client)
 	if err := s.Initialize(&url.URL{Host: "127.0.0.1:8080"}); err != nil {
 		panic(err.Error())
 	}
+	return s
+}
+
+// OpenAuthlessServer returns a new, open test server instance without authentication enabled.
+func OpenAuthlessServer(client influxdb.MessagingClient) *Server {
+	s := OpenAuthenticatedServer(client)
+	s.SetAuthenticationEnabled(false)
 	return s
 }
 
@@ -1781,8 +1788,8 @@ func (s *Server) Restart() {
 }
 
 // OpenUninitializedServer returns a new, uninitialized, open test server instance.
-func OpenUninitializedServer(client influxdb.MessagingClient, authenticationEnabled bool) *Server {
-	s := NewServer(authenticationEnabled)
+func OpenUninitializedServer(client influxdb.MessagingClient) *Server {
+	s := NewServer()
 	if err := s.Open(tempfile()); err != nil {
 		panic(err.Error())
 	}

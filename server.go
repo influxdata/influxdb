@@ -104,7 +104,7 @@ type Server struct {
 }
 
 // NewServer returns a new instance of Server.
-func NewServer(authenticationEnabled bool) *Server {
+func NewServer() *Server {
 	s := Server{
 		meta:      &metastore{},
 		errors:    make(map[uint64]error),
@@ -116,8 +116,17 @@ func NewServer(authenticationEnabled bool) *Server {
 		shardsBySeriesID: make(map[uint32][]*Shard),
 		Logger:           log.New(os.Stderr, "[server] ", log.LstdFlags),
 	}
-	s.authenticationEnabled = authenticationEnabled
+	// Server will always return with authentication enabled.
+	// To set the server to 'authless mode', call server.SetAuthenticationEnabled(false)
+	s.authenticationEnabled = true
 	return &s
+}
+
+// SetAuthenticationEnabled turns on or off server authentication
+func (s *Server) SetAuthenticationEnabled(enabled bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.authenticationEnabled = enabled
 }
 
 // ID returns the data node id for the server.
