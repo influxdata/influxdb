@@ -986,7 +986,9 @@ type Server struct {
 
 // NewServer returns a new test server instance.
 func NewServer() *Server {
-	return &Server{influxdb.NewServer()}
+	s := influxdb.NewServer()
+	s.SetAuthenticationEnabled(false)
+	return &Server{s}
 }
 
 // OpenServer returns a new, open test server instance.

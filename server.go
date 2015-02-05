@@ -99,11 +99,13 @@ type Server struct {
 	shardsBySeriesID map[uint32][]*Shard // shards by series id
 
 	Logger *log.Logger
+
+	authenticationEnabled bool
 }
 
 // NewServer returns a new instance of Server.
 func NewServer() *Server {
-	return &Server{
+	s := Server{
 		meta:      &metastore{},
 		errors:    make(map[uint64]error),
 		dataNodes: make(map[uint64]*DataNode),
@@ -114,6 +116,16 @@ func NewServer() *Server {
 		shardsBySeriesID: make(map[uint32][]*Shard),
 		Logger:           log.New(os.Stderr, "[server] ", log.LstdFlags),
 	}
+	// Server will always return with authentication enabled.
+	// This ensures that disabling authentication must be an explicit decision.
+	// To set the server to 'authless mode', call server.SetAuthenticationEnabled(false).
+	s.authenticationEnabled = true
+	return &s
+}
+
+// SetAuthenticationEnabled turns on or off server authentication
+func (s *Server) SetAuthenticationEnabled(enabled bool) {
+	s.authenticationEnabled = enabled
 }
 
 // ID returns the data node id for the server.
@@ -905,7 +917,13 @@ func (s *Server) AdminUserExists() bool {
 func (s *Server) Authenticate(username, password string) (*User, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	u := s.users[username]
+
+	// If authorization is not enabled and user is nil, we are authorized
+	if u == nil && !s.authenticationEnabled {
+		return nil, nil
+	}
 	if u == nil {
 		return nil, fmt.Errorf("invalid username or password")
 	}
@@ -1711,8 +1729,10 @@ func (s *Server) ReadSeries(database, retentionPolicy, name string, tags map[str
 // Stops on first execution error that occurs.
 func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Results {
 	// Authorize user to execute the query.
-	if err := Authorize(user, q, database); err != nil {
-		return Results{Err: err}
+	if s.authenticationEnabled {
+		if err := Authorize(user, q, database); err != nil {
+			return Results{Err: err}
+		}
 	}
 
 	// Build empty resultsets.
@@ -2570,6 +2590,9 @@ func (r *Results) UnmarshalJSON(b []byte) error {
 // Error returns the first error from any statement.
 // Returns nil if no errors occurred on any statements.
 func (r *Results) Error() error {
+	if r.Err != nil {
+		return r.Err
+	}
 	for _, rr := range r.Results {
 		if rr.Err != nil {
 			return rr.Err
@@ -2618,8 +2641,12 @@ func (p dataNodes) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 // database can be "" for queries that do not require a database.
 // If u is nil, this means authorization is disabled.
 func Authorize(u *User, q *influxql.Query, database string) error {
+	if u == nil {
+		return ErrAuthorize{text: "no user provided"}
+	}
+
 	// Cluster admins can do anything.
-	if u == nil || u.Admin {
+	if u.Admin {
 		return nil
 	}
 
@@ -2647,7 +2674,7 @@ func Authorize(u *User, q *influxql.Query, database string) error {
 				} else {
 					msg = fmt.Sprintf("requires %s privilege on %s", p.Privilege.String(), dbname)
 				}
-				return &ErrAuthorize{
+				return ErrAuthorize{
 					text: fmt.Sprintf("%s not authorized to execute '%s'.  %s", u.Name, stmt.String(), msg),
 				}
 			}

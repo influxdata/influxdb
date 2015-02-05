@@ -53,6 +53,7 @@ func Run(config *Config, join, version string, logWriter *os.File) *influxdb.Ser
 
 	// Open server, initialize or join as necessary.
 	s := openServer(config.DataDir(), config.DataURL(), b, initializing, configExists, joinURLs, logWriter)
+	s.SetAuthenticationEnabled(config.Authentication.Enabled)
 
 	// Start the server handler. Attach to broker if listening on the same port.
 	if s != nil {
