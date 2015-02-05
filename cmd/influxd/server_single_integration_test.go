@@ -30,7 +30,7 @@ func Test_ServerSingleIntegration(t *testing.T) {
 	tmpDataDir := filepath.Join(tmpDir, "data")
 	t.Logf("Using tmp directorie %q for broker\n", tmpBrokerDir)
 	t.Logf("Using tmp directorie %q for data\n", tmpDataDir)
-	// Sometimes if this test fails, it's because of a log.Fatalin the program.
+	// Sometimes if this test fails, it's because of a log.Fatal() in the program.
 	// This prevents the defer from cleaning up directories.
 	// To be safe, nuke them always before starting
 	_ = os.RemoveAll(tmpBrokerDir)
