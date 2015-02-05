@@ -226,7 +226,7 @@ type ErrAuthorize struct {
 }
 
 // Error returns the text of the error.
-func (e *ErrAuthorize) Error() string {
+func (e ErrAuthorize) Error() string {
 	return e.text
 }
 

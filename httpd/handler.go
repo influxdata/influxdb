@@ -127,16 +127,6 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *influ
 		return
 	}
 
-	// If authentication is enabled and there are no users yet, make sure
-	// the first statement is creating a new cluster admin.
-	if h.requireAuthentication && h.server.UserCount() == 0 {
-		stmt, ok := query.Statements[0].(*influxql.CreateUserStatement)
-		if !ok || stmt.Privilege == nil || *stmt.Privilege != influxql.AllPrivileges {
-			httpError(w, "must create cluster admin", http.StatusUnauthorized)
-			return
-		}
-	}
-
 	// Execute query. One result will return for each statement.
 	results := h.server.ExecuteQuery(query, db, user)
 
@@ -291,10 +281,7 @@ type dataNodeJSON struct {
 }
 
 func isAuthorizationError(err error) bool {
-	type authorize interface {
-		authorize()
-	}
-	_, ok := err.(authorize)
+	_, ok := err.(influxdb.ErrAuthorize)
 	return ok
 }
 
