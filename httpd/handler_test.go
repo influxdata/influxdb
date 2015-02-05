@@ -718,7 +718,7 @@ func TestHandler_DeleteUser_UserNotFound(t *testing.T) {
 
 func TestHandler_DataNodes(t *testing.T) {
 	t.Skip()
-	srvr := OpenAuthlessServer(NewMessagingClient())
+	srvr := OpenUninitializedServer(NewMessagingClient())
 	srvr.CreateDataNode(MustParseURL("http://localhost:1000"))
 	srvr.CreateDataNode(MustParseURL("http://localhost:2000"))
 	srvr.CreateDataNode(MustParseURL("http://localhost:3000"))
@@ -735,7 +735,7 @@ func TestHandler_DataNodes(t *testing.T) {
 
 func TestHandler_CreateDataNode(t *testing.T) {
 	t.Skip()
-	srvr := OpenAuthlessServer(NewMessagingClient())
+	srvr := OpenUninitializedServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
