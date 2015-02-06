@@ -2644,7 +2644,6 @@ func (s *Server) Authorize(u *User, q *influxql.Query, database string) error {
 	const authErrLogFmt = `unauthorized request | user: %q | query: %q | database %q\n`
 
 	if u == nil {
-		log.Println("sup")
 		s.Logger.Printf(authErrLogFmt, "", q.String(), database)
 		return ErrAuthorize{text: "no user provided"}
 	}
