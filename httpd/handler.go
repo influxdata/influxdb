@@ -78,7 +78,7 @@ func NewHandler(s *influxdb.Server, requireAuthentication bool, version string) 
 			"GET", "/metastore", h.serveMetastore,
 		},
 		route{ // Status
-			"ping",
+			"status",
 			"GET", "/status", h.serveStatus,
 		},
 		route{ // Ping
@@ -218,7 +218,6 @@ func (h *Handler) serveStatus(w http.ResponseWriter, r *http.Request) {
 		b, _ = json.Marshal(data)
 	}
 	w.Write(b)
-
 }
 
 // servePing returns a simple response to let the client know the server is running.
