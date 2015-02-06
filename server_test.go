@@ -170,22 +170,22 @@ func TestServer_SingleStatementQueryAuthorization(t *testing.T) {
 	}
 
 	// admin user should be authorized to execute any query.
-	if err := influxdb.Authorize(admin, adminOnlyQuery, ""); err != nil {
+	if err := s.Authorize(admin, adminOnlyQuery, ""); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := influxdb.Authorize(admin, readWriteQuery, "foo"); err != nil {
+	if err := s.Authorize(admin, readWriteQuery, "foo"); err != nil {
 		t.Fatal(err)
 	}
 
 	// Normal user should not be authorized to execute admin only query.
-	if err := influxdb.Authorize(user, adminOnlyQuery, ""); err == nil {
+	if err := s.Authorize(user, adminOnlyQuery, ""); err == nil {
 		t.Fatalf("normal user should not be authorized to execute cluster admin level queries")
 	}
 
 	// Normal user should not be authorized to execute query that selects into another
 	// database which (s)he doesn't have privileges on.
-	if err := influxdb.Authorize(user, readWriteQuery, ""); err == nil {
+	if err := s.Authorize(user, readWriteQuery, ""); err == nil {
 		t.Fatalf("normal user should not be authorized to write to database bar")
 	}
 
@@ -193,7 +193,7 @@ func TestServer_SingleStatementQueryAuthorization(t *testing.T) {
 	user.Privileges["bar"] = influxql.WritePrivilege
 
 	//Authorization on the previous query should now succeed.
-	if err := influxdb.Authorize(user, readWriteQuery, ""); err != nil {
+	if err := s.Authorize(user, readWriteQuery, ""); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -233,12 +233,12 @@ func TestServer_MultiStatementQueryAuthorization(t *testing.T) {
 	}
 
 	// Admin should be authorized to execute both statements in the query.
-	if err := influxdb.Authorize(admin, readWriteQuery, "foo"); err != nil {
+	if err := s.Authorize(admin, readWriteQuery, "foo"); err != nil {
 		t.Fatal(err)
 	}
 
 	// Normal user with only read privileges should not be authorized to execute both statements.
-	if err := influxdb.Authorize(user, readWriteQuery, "foo"); err == nil {
+	if err := s.Authorize(user, readWriteQuery, "foo"); err == nil {
 		t.Fatalf("user should not be authorized to execute both statements")
 	}
 }

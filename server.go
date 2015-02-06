@@ -1730,7 +1730,7 @@ func (s *Server) ReadSeries(database, retentionPolicy, name string, tags map[str
 func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Results {
 	// Authorize user to execute the query.
 	if s.authenticationEnabled {
-		if err := Authorize(user, q, database); err != nil {
+		if err := s.Authorize(user, q, database); err != nil {
 			return Results{Err: err}
 		}
 	}
@@ -2640,7 +2640,7 @@ func (p dataNodes) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 // Authorize user u to execute query q on database.
 // database can be "" for queries that do not require a database.
 // If u is nil, this means authorization is disabled.
-func Authorize(u *User, q *influxql.Query, database string) error {
+func (s *Server) Authorize(u *User, q *influxql.Query, database string) error {
 	if u == nil {
 		return ErrAuthorize{text: "no user provided"}
 	}
