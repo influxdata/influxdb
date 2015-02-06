@@ -1398,26 +1398,34 @@ func TestHandler_serveShowTagKeys(t *testing.T) {
 				},
 			},
 		},
+		// SHOW TAG KEYS FROM <non-existant measurement>
+		{
+			q:   `SHOW TAG KEYS FROM bad`,
+			err: `measurement "bad" not found`,
+		},
 	}
 	for i, tt := range tests {
 		query := map[string]string{"db": "foo", "q": tt.q}
 		status, body = MustHTTP("GET", s.URL+`/query`, query, nil, "")
 
-		if status != http.StatusOK {
+		if (tt.err == "" && status != http.StatusOK) ||
+			(tt.err != "" && status != http.StatusInternalServerError) {
 			t.Logf("query #%d: %s", i, tt.q)
-			t.Log(body)
+			t.Logf("body = %s\n", body)
 			t.Errorf("unexpected status: %d", status)
 		}
 
 		r := &influxdb.Results{}
 		if err := json.Unmarshal([]byte(body), r); err != nil {
 			t.Logf("query #%d: %s", i, tt.q)
-			t.Log(body)
+			t.Logf("body = %s\n", body)
 			t.Error(err)
 		}
 
-		if !reflect.DeepEqual(tt.err, errstring(r.Err)) {
-			t.Errorf("%d. %s: error mismatch:\n  exp=%s\n  got=%s\n\n", i, tt.q, tt.err, r.Err)
+		if !reflect.DeepEqual(tt.err, errstring(r.Results[0].Err)) {
+			t.Logf("body = %s\n", body)
+			fmt.Printf("r.Results[0].Err) = %v\n", r.Results[0].Err)
+			t.Errorf("%d. %s: error mismatch:\n  exp=%s\n  got=%s\n\n", i, tt.q, tt.err, errstring(r.Results[0].Err))
 		} else if tt.err == "" && !reflect.DeepEqual(tt.r, r) {
 			b, _ := json.Marshal(tt.r)
 			t.Log(string(b))

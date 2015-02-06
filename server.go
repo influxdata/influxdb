@@ -2224,6 +2224,11 @@ func measurementsFromSourceOrDB(stmt influxql.Source, db *database) (Measurement
 				name = segments[2]
 			}
 
+			measurement := db.measurements[name]
+			if measurement == nil {
+				return nil, fmt.Errorf(`measurement "%s" not found`, name)
+			}
+
 			measurements = append(measurements, db.measurements[name])
 		} else {
 			return nil, errors.New("identifiers in FROM clause must be measurement names")
