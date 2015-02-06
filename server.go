@@ -1730,7 +1730,7 @@ func (s *Server) ReadSeries(database, retentionPolicy, name string, tags map[str
 func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Results {
 	// Authorize user to execute the query.
 	if s.authenticationEnabled {
-		if err := Authorize(user, q, database); err != nil {
+		if err := s.Authorize(user, q, database); err != nil {
 			return Results{Err: err}
 		}
 	}
@@ -2640,8 +2640,11 @@ func (p dataNodes) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 // Authorize user u to execute query q on database.
 // database can be "" for queries that do not require a database.
 // If u is nil, this means authorization is disabled.
-func Authorize(u *User, q *influxql.Query, database string) error {
+func (s *Server) Authorize(u *User, q *influxql.Query, database string) error {
+	const authErrLogFmt = `unauthorized request | user: %q | query: %q | database %q\n`
+
 	if u == nil {
+		s.Logger.Printf(authErrLogFmt, "", q.String(), database)
 		return ErrAuthorize{text: "no user provided"}
 	}
 
@@ -2674,6 +2677,7 @@ func Authorize(u *User, q *influxql.Query, database string) error {
 				} else {
 					msg = fmt.Sprintf("requires %s privilege on %s", p.Privilege.String(), dbname)
 				}
+				s.Logger.Printf(authErrLogFmt, u.Name, q.String(), database)
 				return ErrAuthorize{
 					text: fmt.Sprintf("%s not authorized to execute '%s'.  %s", u.Name, stmt.String(), msg),
 				}
