@@ -138,8 +138,8 @@ func (s *Server) ID() uint64 {
 
 // Index returns the index for the server.
 func (s *Server) Index() uint64 {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.index
 }
 
