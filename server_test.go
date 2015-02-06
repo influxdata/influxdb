@@ -1,6 +1,7 @@
 package influxdb_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -93,6 +94,47 @@ func TestServer_DeleteDataNode(t *testing.T) {
 		t.Fatal(err)
 	} else if s.DataNode(n.ID) != nil {
 		t.Fatalf("data node not actually dropped")
+	}
+}
+
+// Test unuathorized requests logging
+func TestServer_UnauthorizedRequests(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	s.SetAuthenticationEnabled(true)
+
+	var b bytes.Buffer
+	s.SetLogOutput(&b)
+
+	adminOnlyQuery := &influxql.Query{
+		Statements: []influxql.Statement{
+			&influxql.DropDatabaseStatement{Name: "foo"},
+		},
+	}
+
+	e := s.Authorize(nil, adminOnlyQuery, "foo")
+	if _, ok := e.(influxdb.ErrAuthorize); !ok {
+		t.Fatalf("unexpected error.  expected %v, actual: %v", influxdb.ErrAuthorize{}, e)
+	}
+	if !strings.Contains(b.String(), "unauthorized request") {
+		t.Log(b.String())
+		t.Fatalf(`log should contain "unuathorized request"`)
+	}
+
+	b.Reset()
+
+	// Create normal database user.
+	s.CreateUser("user1", "user1", false)
+	user1 := s.User("user1")
+
+	e = s.Authorize(user1, adminOnlyQuery, "foo")
+	if _, ok := e.(influxdb.ErrAuthorize); !ok {
+		t.Fatalf("unexpected error.  expected %v, actual: %v", influxdb.ErrAuthorize{}, e)
+	}
+	if !strings.Contains(b.String(), "unauthorized request") {
+		t.Log(b.String())
+		t.Fatalf(`log should contain "unuathorized request"`)
 	}
 }
 
