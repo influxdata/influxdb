@@ -82,7 +82,7 @@ func (h *Handler) serveLeave(w http.ResponseWriter, r *http.Request) {
 	// Parse arguments.
 	id, err := strconv.ParseUint(r.FormValue("id"), 10, 64)
 	if err != nil {
-		w.Header().Set("X-Raft-ID", "invalid raft id")
+		w.Header().Set("X-Raft-Error", "invalid raft id")
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}

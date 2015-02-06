@@ -79,6 +79,7 @@ type Log struct {
 	ch    chan struct{} // state change channel
 
 	term        uint64    // current election term
+	lastLogTerm uint64    // highest term in the log
 	leaderID    uint64    // the current leader
 	votedFor    uint64    // candidate voted for in current election term
 	lastContact time.Time // last contact from the leader
@@ -182,7 +183,7 @@ func (l *Log) Config() *Config {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.config != nil {
-		return l.config.clone()
+		return l.config.Clone()
 	}
 	return nil
 }
@@ -219,6 +220,7 @@ func (l *Log) Open(path string) error {
 		return err
 	}
 	l.term = term
+	l.lastLogTerm = term
 
 	// Read config.
 	c, err := l.readConfig()
@@ -304,7 +306,7 @@ func (l *Log) close() error {
 	// Clear log info.
 	l.setID(0)
 	l.path = ""
-	l.index, l.term = 0, 0
+	l.index, l.term, l.lastLogTerm = 0, 0, 0
 	l.config = nil
 
 	return nil
@@ -424,7 +426,7 @@ func (l *Log) Initialize() error {
 
 		// Generate a new configuration with one node.
 		config = &Config{MaxNodeID: id}
-		config.addNode(id, l.URL)
+		config.AddNode(id, l.URL)
 
 		// Generate new 8-hex digit cluster identifier.
 		config.ClusterID = uint64(l.Rand())
@@ -441,6 +443,7 @@ func (l *Log) Initialize() error {
 			return fmt.Errorf("write term: %s", err)
 		}
 		l.term = term
+		l.lastLogTerm = term
 		l.setState(Leader)
 
 		l.Logger.Printf("log initialize: promoted to 'leader' with cluster ID %d, log ID %d, term %d",
@@ -608,7 +611,7 @@ func (l *Log) setState(state State) {
 		go l.followerLoop(l.ch)
 	case Candidate:
 		l.ch = make(chan struct{})
-		go l.elect(l.ch)
+		go l.candidateLoop(l.ch)
 	case Leader:
 		l.ch = make(chan struct{})
 		go l.leaderLoop(l.ch)
@@ -649,6 +652,7 @@ func (l *Log) followerLoop(done chan struct{}) {
 		go func(u *url.URL, term, index uint64, rch chan struct{}) {
 			// Attach the stream to the log.
 			if err := l.ReadFrom(r); err != nil {
+				l.tracef("followerLoop: read from: disconnect: %s", err)
 				close(rch)
 			}
 		}(u, term, index, rch)
@@ -659,80 +663,91 @@ func (l *Log) followerLoop(done chan struct{}) {
 		case <-done:
 			return
 		case <-rch:
+			time.Sleep(10 * time.Millisecond)
 			// FIX: l.Clock.Sleep(l.ReconnectTimeout)
 			continue
 		}
 	}
 }
 
-// elect requests votes from other nodes in an attempt to become the new leader.
-func (l *Log) elect(done chan struct{}) {
-	// Retrieve config and term.
-	l.mu.Lock()
-	if err := check(done); err != nil {
+// candidateLoop requests vote from other nodes in an attempt to become leader.
+func (l *Log) candidateLoop(done chan struct{}) {
+	l.tracef("candidateLoop")
+	for {
+		// Retrieve config and term.
+		l.mu.Lock()
+		term, id := l.term, l.id
+		lastLogIndex, lastLogTerm := l.index, l.lastLogTerm
+		config := l.config
 		l.mu.Unlock()
-		return
-	}
-	term, id := l.term, l.id
-	lastLogIndex, lastLogTerm := l.index, l.term // FIX: Find actual last index/term.
-	config := l.config
-	l.mu.Unlock()
 
-	// Determine node count.
-	nodeN := len(config.Nodes)
+		// Request votes from all other nodes.
+		ch := l.sendVoteRequests(config.Nodes, term, id, lastLogIndex, lastLogTerm)
 
-	// Request votes from all other nodes.
-	ch := make(chan struct{}, nodeN)
-	for _, n := range config.Nodes {
-		if n.ID != id {
-			go func(n *ConfigNode) {
-				peerTerm, err := l.Transport.RequestVote(n.URL, term, id, lastLogIndex, lastLogTerm)
-				if err != nil {
-					l.Logger.Printf("request vote: %s", err)
-					return
-				} else if peerTerm > term {
-					// TODO(benbjohnson): Step down.
+		// Wait for respones or timeout.
+		voteN := 1
+		nodeN := len(config.Nodes)
+		after := l.Clock.AfterElectionTimeout()
+	loop:
+		for {
+			select {
+			case <-done:
+				return
+			case ch := <-after:
+				defer close(ch)
+				break loop
+			case resp := <-ch:
+				if resp.peerTerm > term {
+					l.Logger.Printf("higher term, stepping down: %d > %d", resp.peerTerm, term)
+					l.term = resp.peerTerm
+					l.setState(Follower)
 					return
 				}
-				ch <- struct{}{}
-			}(n)
-		}
-	}
 
-	// Wait for respones or timeout.
-	after := l.Clock.AfterElectionTimeout()
-	voteN := 1
-loop:
-	for {
-		select {
-		case <-done:
-			return
-		case ch := <-after:
-			defer close(ch)
-			break loop
-		case <-ch:
-			voteN++
-			if voteN >= (nodeN/2)+1 {
-				break loop
+				voteN++
+				if voteN >= (nodeN/2)+1 {
+					break loop
+				}
 			}
 		}
-	}
 
-	// Exit if we don't have a quorum.
-	if voteN < (nodeN/2)+1 {
-		return
-	}
+		// Retry if we don't have a quorum.
+		if voteN < (nodeN/2)+1 {
+			l.mu.Lock()
+			l.term++
+			l.mu.Unlock()
+			continue
+		}
 
-	// Change to a leader state.
-	l.mu.Lock()
-	if err := check(done); err != nil {
+		// Change to a leader state if we received a quorum.
+		l.mu.Lock()
+		l.setState(Leader)
 		l.mu.Unlock()
-		return
 	}
-	l.setState(Leader)
-	l.mu.Unlock()
+}
 
-	return
+// sendVoteRequests sends vote requests to all peers.
+// Returns a channel that signals each response.
+func (l *Log) sendVoteRequests(nodes []*ConfigNode, term, id, lastLogIndex, lastLogTerm uint64) <-chan voteResponse {
+	ch := make(chan voteResponse, len(nodes))
+	for _, n := range nodes {
+		if n.ID == id {
+			continue
+		}
+		go func(n *ConfigNode) {
+			peerTerm, err := l.Transport.RequestVote(n.URL, term, id, lastLogIndex, lastLogTerm)
+			if err != nil {
+				l.tracef("sendVoteRequests: %s: %s", n.URL.String(), err)
+				return
+			}
+			ch <- voteResponse{peerTerm: peerTerm}
+		}(n)
+	}
+	return ch
+}
+
+type voteResponse struct {
+	peerTerm uint64
 }
 
 // leaderLoop periodically sends heartbeats to all followers to maintain dominance.
@@ -748,12 +763,14 @@ func (l *Log) leaderLoop(done chan struct{}) {
 
 		// Signal clock that the heartbeat has occurred.
 		close(confirm)
+		l.tracef("leaderLoop: ...")
 
 		select {
 		case <-done: // wait for state change.
 			return
 		case confirm = <-l.Clock.AfterHeartbeatInterval(): // wait for next heartbeat
 		}
+		l.tracef("leaderLoop: continue")
 	}
 }
 
@@ -763,10 +780,6 @@ func (l *Log) sendHeartbeat(done chan struct{}) error {
 
 	// Retrieve config and term.
 	l.mu.Lock()
-	if err := check(done); err != nil {
-		l.mu.Unlock()
-		return err
-	}
 	commitIndex, localIndex := l.commitIndex, l.index
 	term, leaderID := l.term, l.id
 	config := l.config
@@ -778,31 +791,12 @@ func (l *Log) sendHeartbeat(done chan struct{}) error {
 		return nil
 	}
 
-	// Determine node count.
-	nodeN := len(config.Nodes)
-
-	// Send heartbeats to all followers.
-	ch := make(chan uint64, nodeN)
-	for _, n := range config.Nodes {
-		if n.ID != l.id {
-			go func(n *ConfigNode) {
-				l.tracef("sendHeartbeat: url=%s, term=%d, commit=%d, leaderID=%d", n.URL, term, commitIndex, leaderID)
-				peerIndex, peerTerm, err := l.Transport.Heartbeat(n.URL, term, commitIndex, leaderID)
-				if err != nil {
-					l.Logger.Printf("heartbeat: %s", err)
-					return
-				} else if peerTerm > term {
-					// TODO(benbjohnson): Step down.
-					l.tracef("sendHeartbeat: TODO step down: peer=%d, term=%d", peerTerm, term)
-					return
-				}
-				ch <- peerIndex
-			}(n)
-		}
-	}
+	// Send heartbeats to all peers.
+	resps := l.sendHeartbeatRequests(config.Nodes, term, commitIndex, leaderID)
 
 	// Wait for heartbeat responses or timeout.
 	after := l.Clock.AfterHeartbeatInterval()
+	nodeN := len(config.Nodes)
 	indexes := make([]uint64, 1, nodeN)
 	indexes[0] = localIndex
 loop:
@@ -814,8 +808,17 @@ loop:
 			defer close(ch)
 			l.tracef("sendHeartbeat: timeout")
 			break loop
-		case index := <-ch:
-			indexes = append(indexes, index)
+		case resp := <-resps:
+			if resp.peerTerm > term {
+				l.tracef("sendHeartbeat: step down: peer=%d, term=%d", resp.peerTerm, term)
+				l.mu.Lock()
+				l.term = resp.peerTerm
+				l.setState(Follower)
+				l.mu.Unlock()
+				return nil
+			}
+
+			indexes = append(indexes, resp.peerIndex)
 			if len(indexes) == nodeN {
 				l.tracef("sendHeartbeat: received heartbeats")
 				break loop
@@ -832,7 +835,7 @@ loop:
 	}
 
 	// Determine commit index by quorum (n/2+1).
-	sort.Sort(uint64Slice(indexes))
+	sort.Sort(sort.Reverse(uint64Slice(indexes)))
 	newCommitIndex := indexes[quorumIndex]
 
 	// Update the commit index, if higher.
@@ -847,6 +850,31 @@ loop:
 	}
 	l.mu.Unlock()
 	return nil
+}
+
+func (l *Log) sendHeartbeatRequests(nodes []*ConfigNode, term, commitIndex, leaderID uint64) <-chan heartbeatResponse {
+	ch := make(chan heartbeatResponse, len(nodes))
+	for _, n := range nodes {
+		if n.ID == leaderID {
+			continue
+		}
+		go func(n *ConfigNode) {
+			l.tracef("sendHeartbeatRequests: url=%s, term=%d, commit=%d, leaderID=%d", n.URL, term, commitIndex, leaderID)
+			peerIndex, peerTerm, err := l.Transport.Heartbeat(n.URL, term, commitIndex, leaderID)
+			l.tracef("sendHeartbeatRequest: response: url=%s, peerTerm=%d, peerIndex=%d, err=%s", n.URL, peerTerm, peerIndex, err)
+			if err != nil {
+				l.Logger.Printf("heartbeat: error: %s", err)
+				return
+			}
+			ch <- heartbeatResponse{peerTerm: peerTerm, peerIndex: peerIndex}
+		}(n)
+	}
+	return ch
+}
+
+type heartbeatResponse struct {
+	peerTerm  uint64
+	peerIndex uint64
 }
 
 // check looks if the channel has any messages.
@@ -937,12 +965,11 @@ func (l *Log) waitCommitted(index uint64) error {
 func (l *Log) waitUncommitted(index uint64) error {
 	for {
 		l.mu.Lock()
-		state, uncommittedIndex := l.state, l.index
+		uncommittedIndex := l.index
+		l.tracef("waitUncommitted: %s / %d", l.state, l.index)
 		l.mu.Unlock()
 
-		if state == Stopped {
-			return ErrClosed
-		} else if uncommittedIndex >= index {
+		if uncommittedIndex >= index {
 			return nil
 		}
 		time.Sleep(1 * time.Millisecond)
@@ -951,7 +978,7 @@ func (l *Log) waitUncommitted(index uint64) error {
 
 // append adds a log entry to the list of entries.
 func (l *Log) append(e *LogEntry) {
-	l.tracef("append: idx=%d, prev=%d", e.Index, l.index)
+	//l.tracef("append: idx=%d, prev=%d", e.Index, l.index)
 	assert(e.Index == l.index+1, "non-contiguous log index(%d): idx=%d, prev=%d", l.id, e.Index, l.index)
 
 	// Encode entry to a byte slice.
@@ -962,6 +989,7 @@ func (l *Log) append(e *LogEntry) {
 	// Add to pending entries list to wait to be applied.
 	l.entries = append(l.entries, e)
 	l.index = e.Index
+	l.lastLogTerm = e.Term
 
 	// Write to tailing writers.
 	for i := 0; i < len(l.writers); i++ {
@@ -993,7 +1021,7 @@ func (l *Log) applier(done chan chan struct{}) {
 		case confirm = <-l.Clock.AfterApplyInterval():
 		}
 
-		l.tracef("applier")
+		//l.tracef("applier")
 
 		// Apply all entries committed since the previous apply.
 		err := func() error {
@@ -1014,7 +1042,7 @@ func (l *Log) applier(done chan chan struct{}) {
 				l.tracef("applier: no entries")
 				return nil
 			} else if l.appliedIndex == l.commitIndex {
-				l.tracef("applier: up to date")
+				//l.tracef("applier: up to date")
 				return nil
 			}
 
@@ -1022,10 +1050,12 @@ func (l *Log) applier(done chan chan struct{}) {
 			min := l.entries[0].Index
 			startIndex, endIndex := l.appliedIndex+1, l.commitIndex
 			if maxIndex := l.entries[len(l.entries)-1].Index; l.commitIndex > maxIndex {
+				l.tracef("applier: commit index above max: commit=%d, max=%d", l.commitIndex, maxIndex)
 				endIndex = maxIndex
 			}
 
 			// Determine entries to apply.
+			l.tracef("applier: entries: len=%d, min=%d, start=%d, end=%d <%d:%d>", len(l.entries), min, startIndex, endIndex, startIndex-min, endIndex-min+1)
 			entries := l.entries[startIndex-min : endIndex-min+1]
 
 			// Determine low water mark for entries to cut off.
@@ -1039,7 +1069,7 @@ func (l *Log) applier(done chan chan struct{}) {
 
 			// Iterate over each entry and apply it.
 			for _, e := range entries {
-				l.tracef("applier: entry: idx=%d", e.Index)
+				// l.tracef("applier: entry: idx=%d", e.Index)
 
 				switch e.Type {
 				case LogEntryCommand, LogEntryNop:
@@ -1109,14 +1139,14 @@ func (l *Log) mustApplyAddPeer(e *LogEntry) {
 	}
 
 	// Clone configuration.
-	config := l.config.clone()
+	config := l.config.Clone()
 
 	// Increment the node identifier.
 	config.MaxNodeID++
 	n.ID = config.MaxNodeID
 
 	// Add node to configuration.
-	if err := config.addNode(n.ID, n.URL); err != nil {
+	if err := config.AddNode(n.ID, n.URL); err != nil {
 		l.Logger.Panicf("apply: add node: %s", err)
 	}
 
@@ -1167,7 +1197,7 @@ func (l *Log) AddPeer(u *url.URL) (uint64, *Config, error) {
 		return 0, nil, fmt.Errorf("node not found")
 	}
 
-	return n.ID, l.config.clone(), nil
+	return n.ID, l.config.Clone(), nil
 }
 
 // RemovePeer removes an existing peer from the cluster by id.
@@ -1189,14 +1219,14 @@ func (l *Log) Heartbeat(term, commitIndex, leaderID uint64) (currentIndex, curre
 	l.tracef("Heartbeat: term=%d, commit=%d, leaderID: %d", term, commitIndex, leaderID)
 
 	// Check if log is closed.
-	if !l.opened() {
+	if !l.opened() || l.state == Stopped {
 		l.tracef("Heartbeat: closed")
 		return 0, 0, ErrClosed
 	}
 
 	// Ignore if the incoming term is less than the log's term.
 	if term < l.term {
-		l.tracef("Heartbeat: stale term, ignore")
+		l.tracef("Heartbeat: stale term, ignore: %d < %d", term, l.term)
 		return l.index, l.term, nil
 	}
 
@@ -1211,6 +1241,7 @@ func (l *Log) Heartbeat(term, commitIndex, leaderID uint64) (currentIndex, curre
 	l.leaderID = leaderID
 	l.lastContact = l.Clock.Now()
 
+	l.tracef("Heartbeat: return: index=%d, term=%d", l.index, l.term)
 	return l.index, l.term, nil
 }
 
@@ -1454,6 +1485,7 @@ func (l *Log) advanceWriter(writer *logWriter, snapshotIndex uint64) error {
 
 // removeWriter removes a writer from the list of log writers.
 func (l *Log) removeWriter(writer *logWriter) {
+	l.tracef("removeWriter")
 	for i, w := range l.writers {
 		if w == writer {
 			copy(l.writers[i:], l.writers[i+1:])
@@ -1477,6 +1509,7 @@ func (l *Log) Flush() {
 
 // ReadFrom continually reads log entries from a reader.
 func (l *Log) ReadFrom(r io.ReadCloser) error {
+	l.tracef("ReadFrom")
 	if err := l.initReadFrom(r); err != nil {
 		return err
 	}
@@ -1489,8 +1522,6 @@ func (l *Log) ReadFrom(r io.ReadCloser) error {
 	// Continually decode entries.
 	dec := NewLogEntryDecoder(r)
 	for {
-		l.tracef("ReadFrom")
-
 		// Decode single entry.
 		var e LogEntry
 		if err := dec.Decode(&e); err == io.EOF {
@@ -1551,7 +1582,7 @@ func (l *Log) ReadFrom(r io.ReadCloser) error {
 			l.mu.Unlock()
 			return nil
 		}
-		l.tracef("ReadFrom: entry: index=%d / prev=%d / commit=%d", e.Index, l.index, l.commitIndex)
+		//l.tracef("ReadFrom: entry: index=%d / prev=%d / commit=%d", e.Index, l.index, l.commitIndex)
 		l.append(&e)
 		l.mu.Unlock()
 	}

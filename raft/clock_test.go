@@ -2,7 +2,10 @@ package raft_test
 
 import (
 	"flag"
+	"testing"
 	"time"
+
+	"github.com/influxdb/influxdb/raft"
 )
 
 var (
@@ -12,6 +15,58 @@ var (
 // DefaultTime represents the time that the test clock is initialized to.
 // Defaults to midnight on Jan 1, 2000 UTC
 var DefaultTime = time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
+
+// Ensure the AfterApplyInterval returns a channel that fires after the default apply interval.
+func TestClock_AfterApplyInterval(t *testing.T) {
+	c := raft.NewClock()
+	c.ApplyInterval = 10 * time.Millisecond
+	t0 := time.Now()
+	<-c.AfterApplyInterval()
+	if d := time.Since(t0); d < c.ApplyInterval {
+		t.Fatalf("channel fired too soon: %v", d)
+	}
+}
+
+// Ensure the AfterElectionTimeout returns a channel that fires after the clock's election timeout.
+func TestClock_AfterElectionTimeout(t *testing.T) {
+	c := raft.NewClock()
+	c.ElectionTimeout = 10 * time.Millisecond
+	t0 := time.Now()
+	<-c.AfterElectionTimeout()
+	if d := time.Since(t0); d < c.ElectionTimeout {
+		t.Fatalf("channel fired too soon: %v", d)
+	}
+}
+
+// Ensure the AfterHeartbeatInterval returns a channel that fires after the clock's heartbeat interval.
+func TestClock_AfterHeartbeatInterval(t *testing.T) {
+	c := raft.NewClock()
+	c.HeartbeatInterval = 10 * time.Millisecond
+	t0 := time.Now()
+	<-c.AfterHeartbeatInterval()
+	if d := time.Since(t0); d < c.HeartbeatInterval {
+		t.Fatalf("channel fired too soon: %v", d)
+	}
+}
+
+// Ensure the AfterReconnectTimeout returns a channel that fires after the clock's reconnect interval.
+func TestClock_AfterReconnectTimeout(t *testing.T) {
+	c := raft.NewClock()
+	c.ReconnectTimeout = 10 * time.Millisecond
+	t0 := time.Now()
+	<-c.AfterReconnectTimeout()
+	if d := time.Since(t0); d < c.ReconnectTimeout {
+		t.Fatalf("channel fired too soon: %v", d)
+	}
+}
+
+// Ensure the clock can return the current time.
+func TestClock_Now(t *testing.T) {
+	now := raft.NewClock().Now()
+	if exp := time.Now(); exp.Sub(now) > 1*time.Second {
+		t.Fatalf("clock time is different than wall time: exp=%v, got=%v", exp, now)
+	}
+}
 
 // Clock represents a testable clock.
 type Clock struct {

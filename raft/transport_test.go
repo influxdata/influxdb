@@ -5,31 +5,144 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"net/url"
-	"sync"
-	"testing"
-	"time"
-
-	// "net/http"
-	// "net/http/httptest"
-	// "strings"
-	// "testing"
-
-	"github.com/influxdb/influxdb/raft"
-)
-
-/*
-import (
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/influxdb/influxdb/raft"
 )
 
+// Ensure a join over HTTP can be read and responded to.
+func TestHTTPTransport_Join(t *testing.T) {
+	// Start mock HTTP server.
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if path := r.URL.Path; path != `/raft/join` {
+			t.Fatalf("unexpected path: %q", path)
+		}
+		if s := r.FormValue("url"); s != `//local` {
+			t.Fatalf("unexpected term: %q", s)
+		}
+		w.Header().Set("X-Raft-ID", "1")
+		w.Write([]byte(`{}`))
+	}))
+	defer s.Close()
+
+	// Execute join against test server.
+	u, _ := url.Parse(s.URL)
+	id, config, err := (&raft.HTTPTransport{}).Join(u, &url.URL{Host: "local"})
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if id != 1 {
+		t.Fatalf("unexpected id: %d", id)
+	} else if config == nil {
+		t.Fatalf("unexpected config")
+	}
+}
+
+// Ensure that joining a server that doesn't exist returns an error.
+func TestHTTPTransport_Join_ErrConnectionRefused(t *testing.T) {
+	_, _, err := (&raft.HTTPTransport{}).Join(&url.URL{Scheme: "http", Host: "localhost:27322"}, &url.URL{Host: "local"})
+	if err == nil || !strings.Contains(err.Error(), "connection refused") {
+		t.Fatalf("unexpected error: %s", err)
+	}
+}
+
+// Ensure the response from a join contains a valid id.
+func TestHTTPTransport_Join_ErrInvalidID(t *testing.T) {
+	// Start mock HTTP server.
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Raft-ID", "xxx")
+	}))
+	defer s.Close()
+
+	// Execute join against test server.
+	u, _ := url.Parse(s.URL)
+	_, _, err := (&raft.HTTPTransport{}).Join(u, &url.URL{Host: "local"})
+	if err == nil || err.Error() != `invalid id: "xxx"` {
+		t.Fatalf("unexpected error: %s", err)
+	}
+}
+
+// Ensure the response from a join contains a valid config.
+func TestHTTPTransport_Join_ErrInvalidConfig(t *testing.T) {
+	// Start mock HTTP server.
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Raft-ID", "1")
+		w.Write([]byte(`{`))
+	}))
+	defer s.Close()
+
+	// Execute join against test server.
+	u, _ := url.Parse(s.URL)
+	_, _, err := (&raft.HTTPTransport{}).Join(u, &url.URL{Host: "local"})
+	if err == nil || err.Error() != `config unmarshal: unexpected EOF` {
+		t.Fatalf("unexpected error: %s", err)
+	}
+}
+
+// Ensure the errors returned from a join are passed through.
+func TestHTTPTransport_Join_Err(t *testing.T) {
+	// Start mock HTTP server.
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Raft-ID", "")
+		w.Header().Set("X-Raft-Error", "oh no")
+	}))
+	defer s.Close()
+
+	// Execute join against test server.
+	u, _ := url.Parse(s.URL)
+	_, _, err := (&raft.HTTPTransport{}).Join(u, &url.URL{Host: "local"})
+	if err == nil || err.Error() != `oh no` {
+		t.Fatalf("unexpected error: %s", err)
+	}
+}
+
+// Ensure a leave over HTTP can be read and responded to.
+func TestHTTPTransport_Leave(t *testing.T) {
+	// Start mock HTTP server.
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if path := r.URL.Path; path != `/raft/leave` {
+			t.Fatalf("unexpected path: %q", path)
+		} else if id := r.FormValue("id"); id != `1` {
+			t.Fatalf("unexpected id: %q", id)
+		}
+	}))
+	defer s.Close()
+
+	// Execute join against test server.
+	u, _ := url.Parse(s.URL)
+	if err := (&raft.HTTPTransport{}).Leave(u, 1); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+}
+
+// Ensure that leaving a server that doesn't exist returns an error.
+func TestHTTPTransport_Leave_ErrConnectionRefused(t *testing.T) {
+	err := (&raft.HTTPTransport{}).Leave(&url.URL{Scheme: "http", Host: "localhost:27322"}, 1)
+	if err == nil || !strings.Contains(err.Error(), "connection refused") {
+		t.Fatalf("unexpected error: %s", err)
+	}
+}
+
+// Ensure the errors returned from a leave are passed through.
+func TestHTTPTransport_Leave_Err(t *testing.T) {
+	// Start mock HTTP server.
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Raft-Error", "oh no")
+	}))
+	defer s.Close()
+
+	// Execute leave against test server.
+	u, _ := url.Parse(s.URL)
+	err := (&raft.HTTPTransport{}).Leave(u, 1)
+	if err == nil || err.Error() != `oh no` {
+		t.Fatalf("unexpected error: %s", err)
+	}
+}
 
 // Ensure a heartbeat over HTTP can be read and responded to.
 func TestHTTPTransport_Heartbeat(t *testing.T) {
@@ -55,7 +168,7 @@ func TestHTTPTransport_Heartbeat(t *testing.T) {
 
 	// Execute heartbeat against test server.
 	u, _ := url.Parse(s.URL)
-	newIndex, newTerm, err := raft.DefaultTransport.Heartbeat(u, 1, 2, 3)
+	newIndex, newTerm, err := (&raft.HTTPTransport{}).Heartbeat(u, 1, 2, 3)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	} else if newIndex != 4 {
@@ -87,7 +200,7 @@ func TestHTTPTransport_Heartbeat_Err(t *testing.T) {
 		}))
 
 		u, _ := url.Parse(s.URL)
-		_, _, err := raft.DefaultTransport.Heartbeat(u, 1, 2, 3)
+		_, _, err := (&raft.HTTPTransport{}).Heartbeat(u, 1, 2, 3)
 		if err == nil {
 			t.Errorf("%d. expected error", i)
 		} else if tt.err != err.Error() {
@@ -100,7 +213,7 @@ func TestHTTPTransport_Heartbeat_Err(t *testing.T) {
 // Ensure an HTTP heartbeat to a stopped server returns an error.
 func TestHTTPTransport_Heartbeat_ErrConnectionRefused(t *testing.T) {
 	u, _ := url.Parse("http://localhost:41932")
-	_, _, err := raft.DefaultTransport.Heartbeat(u, 0, 0, 0)
+	_, _, err := (&raft.HTTPTransport{}).Heartbeat(u, 0, 0, 0)
 	if err == nil {
 		t.Fatal("expected error")
 	} else if !strings.Contains(err.Error(), `connection refused`) {
@@ -130,7 +243,7 @@ func TestHTTPTransport_ReadFrom(t *testing.T) {
 
 	// Execute stream against test server.
 	u, _ := url.Parse(s.URL)
-	r, err := raft.DefaultTransport.ReadFrom(u, 1, 2, 3)
+	r, err := (&raft.HTTPTransport{}).ReadFrom(u, 1, 2, 3)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -150,7 +263,7 @@ func TestHTTPTransport_ReadFrom_Err(t *testing.T) {
 
 	// Execute stream against test server.
 	u, _ := url.Parse(s.URL)
-	r, err := raft.DefaultTransport.ReadFrom(u, 0, 0, 0)
+	r, err := (&raft.HTTPTransport{}).ReadFrom(u, 0, 0, 0)
 	if err == nil {
 		t.Fatalf("expected error")
 	} else if err.Error() != `bad stream` {
@@ -163,7 +276,7 @@ func TestHTTPTransport_ReadFrom_Err(t *testing.T) {
 // Ensure an streaming over HTTP to a stopped server returns an error.
 func TestHTTPTransport_ReadFrom_ErrConnectionRefused(t *testing.T) {
 	u, _ := url.Parse("http://localhost:41932")
-	_, err := raft.DefaultTransport.ReadFrom(u, 0, 0, 0)
+	_, err := (&raft.HTTPTransport{}).ReadFrom(u, 0, 0, 0)
 	if err == nil {
 		t.Fatal("expected error")
 	} else if !strings.Contains(err.Error(), `connection refused`) {
@@ -197,7 +310,7 @@ func TestHTTPTransport_RequestVote(t *testing.T) {
 
 	// Execute heartbeat against test server.
 	u, _ := url.Parse(s.URL)
-	newTerm, err := raft.DefaultTransport.RequestVote(u, 1, 2, 3, 4)
+	newTerm, err := (&raft.HTTPTransport{}).RequestVote(u, 1, 2, 3, 4)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	} else if newTerm != 5 {
@@ -214,7 +327,7 @@ func TestHTTPTransport_RequestVote_ErrInvalidTerm(t *testing.T) {
 	defer s.Close()
 
 	u, _ := url.Parse(s.URL)
-	_, err := raft.DefaultTransport.RequestVote(u, 0, 0, 0, 0)
+	_, err := (&raft.HTTPTransport{}).RequestVote(u, 0, 0, 0, 0)
 	if err == nil {
 		t.Errorf("expected error")
 	} else if err.Error() != `invalid term: "xxx"` {
@@ -232,7 +345,7 @@ func TestHTTPTransport_RequestVote_Error(t *testing.T) {
 	defer s.Close()
 
 	u, _ := url.Parse(s.URL)
-	_, err := raft.DefaultTransport.RequestVote(u, 0, 0, 0, 0)
+	_, err := (&raft.HTTPTransport{}).RequestVote(u, 0, 0, 0, 0)
 	if err == nil {
 		t.Errorf("expected error")
 	} else if err.Error() != `already voted` {
@@ -243,14 +356,13 @@ func TestHTTPTransport_RequestVote_Error(t *testing.T) {
 // Ensure that requesting a vote over HTTP to a stopped server returns an error.
 func TestHTTPTransport_RequestVote_ErrConnectionRefused(t *testing.T) {
 	u, _ := url.Parse("http://localhost:41932")
-	_, err := raft.DefaultTransport.RequestVote(u, 0, 0, 0, 0)
+	_, err := (&raft.HTTPTransport{}).RequestVote(u, 0, 0, 0, 0)
 	if err == nil {
 		t.Fatal("expected error")
 	} else if !strings.Contains(err.Error(), `connection refused`) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }
-*/
 
 // Transport represents a test transport that directly calls another log.
 // Logs are looked up by hostname only.
@@ -313,7 +425,7 @@ func (t *Transport) ReadFrom(u *url.URL, id, term, index uint64) (io.ReadCloser,
 	// Create a streaming buffer that will hang until Close() is called.
 	buf := newStreamingBuffer()
 	go func() {
-		if err := l.WriteEntriesTo(buf.buf, id, term, index); err != nil {
+		if err := l.WriteEntriesTo(buf, id, term, index); err != nil {
 			warnf("Transport.ReadFrom: error: %s", err)
 		}
 		_ = buf.Close()
@@ -360,7 +472,10 @@ func (b *streamingBuffer) Closed() bool {
 
 func (b *streamingBuffer) Read(p []byte) (n int, err error) {
 	for {
+		b.mu.Lock()
 		n, err = b.buf.Read(p)
+		b.mu.Unlock()
+
 		if err == io.EOF && n > 0 { // hit EOF, read data
 			return n, nil
 		} else if err == io.EOF { // hit EOF, no data
@@ -377,6 +492,12 @@ func (b *streamingBuffer) Read(p []byte) (n int, err error) {
 		// If we've read data or we've hit a non-EOF error then return.
 		return n, err
 	}
+}
+
+func (b *streamingBuffer) Write(p []byte) (n int, err error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
 }
 
 // Ensure the streaming buffer will continue to stream data, if available, after it's closed.

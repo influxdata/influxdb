@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/url"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 
@@ -250,6 +251,95 @@ func TestState_String(t *testing.T) {
 	}
 }
 
+func BenchmarkLogApply1(b *testing.B) { benchmarkLogApply(b, 1) }
+func BenchmarkLogApply2(b *testing.B) { benchmarkLogApply(b, 2) }
+func BenchmarkLogApply3(b *testing.B) { benchmarkLogApply(b, 3) }
+
+// Benchmarks an n-node cluster connected through an in-memory transport.
+func benchmarkLogApply(b *testing.B, logN int) {
+	warnf("== BenchmarkLogApply (%d) ====================================", b.N)
+
+	logs := make([]*raft.Log, logN)
+	t := NewTransport()
+	var ptrs []string
+	for i := 0; i < logN; i++ {
+		// Create log.
+		l := raft.NewLog()
+		l.URL = &url.URL{Host: fmt.Sprintf("log%d", i)}
+		l.FSM = &BenchmarkFSM{}
+		l.DebugEnabled = true
+		l.Transport = t
+		t.register(l)
+
+		// Open log.
+		if err := l.Open(tempfile()); err != nil {
+			b.Fatalf("open: %s", err)
+		}
+
+		// Initialize or join.
+		if i == 0 {
+			if err := l.Initialize(); err != nil {
+				b.Fatalf("initialize: %s", err)
+			}
+		} else {
+			if err := l.Join(logs[0].URL); err != nil {
+				b.Fatalf("initialize: %s", err)
+			}
+		}
+
+		ptrs = append(ptrs, fmt.Sprintf("%d/%p", i, l))
+		logs[i] = l
+	}
+	warn("LOGS:", strings.Join(ptrs, " "))
+	b.ResetTimer()
+
+	// Apply commands to leader.
+	var index uint64
+	var err error
+	for i := 0; i < b.N; i++ {
+		index, err = logs[0].Apply(make([]byte, 50))
+		if err != nil {
+			b.Fatalf("apply: %s", err)
+		}
+	}
+
+	// Wait for all logs to catch up.
+	for i, l := range logs {
+		if err := l.Wait(index); err != nil {
+			b.Fatalf("wait(%d): %s", i, err)
+		}
+	}
+	b.StopTimer()
+
+	// Verify FSM indicies match.
+	for i, l := range logs {
+		if fsm := l.FSM.(*BenchmarkFSM); index != fsm.index {
+			b.Errorf("fsm index mismatch(%d): exp=%d, got=%d", i, index, fsm.index)
+		}
+	}
+}
+
+// BenchmarkFSM represents a state machine that records the command count.
+type BenchmarkFSM struct {
+	index uint64
+}
+
+// MustApply updates the index.
+func (fsm *BenchmarkFSM) MustApply(entry *raft.LogEntry) { fsm.index = entry.Index }
+
+// Index returns the highest applied index.
+func (fsm *BenchmarkFSM) Index() (uint64, error) { return fsm.index, nil }
+
+// Snapshot writes the FSM's index as the snapshot.
+func (fsm *BenchmarkFSM) Snapshot(w io.Writer) (uint64, error) {
+	return fsm.index, binary.Write(w, binary.BigEndian, fsm.index)
+}
+
+// Restore reads the snapshot from the reader.
+func (fsm *BenchmarkFSM) Restore(r io.Reader) error {
+	return binary.Read(r, binary.BigEndian, &fsm.index)
+}
+
 // Cluster represents a collection of nodes that share the same mock clock.
 type Cluster struct {
 	Logs []*Log
@@ -275,26 +365,29 @@ func NewCluster() *Cluster {
 	c.Logs[0].MustInitialize()
 
 	// Join second node.
+	c.Logs[1].MustOpen()
 	go func() {
 		c.Logs[0].MustWaitUncommitted(2)
 		c.Logs[0].Clock.apply()
-		c.Logs[0].Clock.heartbeat()
-		c.Logs[1].Clock.apply()
 	}()
-	c.Logs[1].MustOpen()
 	if err := c.Logs[1].Join(c.Logs[0].URL); err != nil {
 		panic("join: " + err.Error())
 	}
+	c.Logs[0].Clock.heartbeat()
+	c.Logs[1].MustWaitUncommitted(2)
+	c.Logs[1].Clock.apply()
+	c.Logs[0].Clock.heartbeat()
 
 	// Join third node.
+	c.Logs[2].MustOpen()
 	go func() {
 		c.Logs[0].MustWaitUncommitted(3)
+		c.Logs[1].MustWaitUncommitted(3)
 		c.Logs[0].Clock.heartbeat()
 		c.Logs[0].Clock.apply()
 		c.Logs[1].Clock.apply()
 		c.Logs[2].Clock.apply()
 	}()
-	c.Logs[2].MustOpen()
 	if err := c.Logs[2].Log.Join(c.Logs[0].Log.URL); err != nil {
 		panic("join: " + err.Error())
 	}
@@ -378,7 +471,10 @@ func (l *Log) MustOpen() {
 
 // MustInitialize initializes the log. Panic on error.
 func (l *Log) MustInitialize() {
-	go func() { l.Clock.apply() }()
+	go func() {
+		l.MustWaitUncommitted(1)
+		l.Clock.apply()
+	}()
 	if err := l.Initialize(); err != nil {
 		panic("initialize: " + err.Error())
 	}

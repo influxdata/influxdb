@@ -50,6 +50,32 @@ func TestConfig_NodeByURL(t *testing.T) {
 	}
 }
 
+// Ensure that the config can add nodes.
+func TestConfig_AddNode(t *testing.T) {
+	var c raft.Config
+	c.AddNode(1, &url.URL{Host: "localhost:8000"})
+	c.AddNode(2, &url.URL{Host: "localhost:9000"})
+	if n := c.Nodes[0]; !reflect.DeepEqual(n, &raft.ConfigNode{ID: 1, URL: &url.URL{Host: "localhost:8000"}}) {
+		t.Fatalf("unexpected node(0): %#v", n)
+	} else if n = c.Nodes[1]; !reflect.DeepEqual(n, &raft.ConfigNode{ID: 2, URL: &url.URL{Host: "localhost:9000"}}) {
+		t.Fatalf("unexpected node(1): %#v", n)
+	}
+}
+
+// Ensure that the config can remove nodes.
+func TestConfig_RemoveNode(t *testing.T) {
+	var c raft.Config
+	c.AddNode(1, &url.URL{Host: "localhost:8000"})
+	c.AddNode(2, &url.URL{Host: "localhost:9000"})
+	if err := c.RemoveNode(1); err != nil {
+		t.Fatalf("unexpected error(0): %s", err)
+	} else if err = c.RemoveNode(2); err != nil {
+		t.Fatalf("unexpected error(1): %s", err)
+	} else if err = c.RemoveNode(1000); err != raft.ErrNodeNotFound {
+		t.Fatalf("unexpected error(2): %s", err)
+	}
+}
+
 // Ensure that the config encoder can properly encode a config.
 func TestConfigEncoder_Encode(t *testing.T) {
 	c := &raft.Config{
