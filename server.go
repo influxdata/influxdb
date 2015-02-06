@@ -136,6 +136,13 @@ func (s *Server) ID() uint64 {
 	return s.id
 }
 
+// Index returns the index for the server.
+func (s *Server) Index() uint64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.index
+}
+
 // Path returns the path used when opening the server.
 // Returns an empty string when the server is closed.
 func (s *Server) Path() string {

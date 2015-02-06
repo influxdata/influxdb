@@ -77,6 +77,10 @@ func NewHandler(s *influxdb.Server, requireAuthentication bool, version string) 
 			"metastore",
 			"GET", "/metastore", h.serveMetastore,
 		},
+		route{ // Status
+			"status",
+			"GET", "/status", h.serveStatus,
+		},
 		route{ // Ping
 			"ping",
 			"GET", "/ping", h.servePing,
@@ -192,6 +196,28 @@ func (h *Handler) serveMetastore(w http.ResponseWriter, r *http.Request) {
 	if err := h.server.CopyMetastore(w); err != nil {
 		httpError(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+// serveStatus returns a set of states that the server is currently in.
+func (h *Handler) serveStatus(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("content-type", "application/json")
+
+	pretty := r.URL.Query().Get("pretty") == "true"
+
+	data := struct {
+		Id    uint64 `json:"id"`
+		Index uint64 `json:"index"`
+	}{
+		Id:    h.server.ID(),
+		Index: h.server.Index(),
+	}
+	var b []byte
+	if pretty {
+		b, _ = json.MarshalIndent(data, "", "    ")
+	} else {
+		b, _ = json.Marshal(data)
+	}
+	w.Write(b)
 }
 
 // servePing returns a simple response to let the client know the server is running.
