@@ -127,7 +127,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *influ
 	// Parse query from query string.
 	query, err := p.ParseQuery()
 	if err != nil {
-		httpError(w, "error parsing query: "+err.Error(), http.StatusBadRequest)
+		httpError(w, "error parsing query: "+err.Error(), pretty, http.StatusBadRequest)
 		return
 	}
 
@@ -194,7 +194,7 @@ func (h *Handler) serveMetastore(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", `attachment; filename="meta"`)
 
 	if err := h.server.CopyMetastore(w); err != nil {
-		httpError(w, err.Error(), http.StatusInternalServerError)
+		httpError(w, err.Error(), false, http.StatusInternalServerError)
 	}
 }
 
@@ -245,23 +245,23 @@ func (h *Handler) serveCreateDataNode(w http.ResponseWriter, r *http.Request) {
 	// Read in data node from request body.
 	var n dataNodeJSON
 	if err := json.NewDecoder(r.Body).Decode(&n); err != nil {
-		httpError(w, err.Error(), http.StatusBadRequest)
+		httpError(w, err.Error(), false, http.StatusBadRequest)
 		return
 	}
 
 	// Parse the URL.
 	u, err := url.Parse(n.URL)
 	if err != nil {
-		httpError(w, "invalid data node url", http.StatusBadRequest)
+		httpError(w, "invalid data node url", false, http.StatusBadRequest)
 		return
 	}
 
 	// Create the data node.
 	if err := h.server.CreateDataNode(u); err == influxdb.ErrDataNodeExists {
-		httpError(w, err.Error(), http.StatusConflict)
+		httpError(w, err.Error(), false, http.StatusConflict)
 		return
 	} else if err != nil {
-		httpError(w, err.Error(), http.StatusInternalServerError)
+		httpError(w, err.Error(), false, http.StatusInternalServerError)
 		return
 	}
 
@@ -270,7 +270,7 @@ func (h *Handler) serveCreateDataNode(w http.ResponseWriter, r *http.Request) {
 
 	// Create a new replica on the broker.
 	if err := h.server.Client().CreateReplica(node.ID); err != nil {
-		httpError(w, err.Error(), http.StatusBadGateway)
+		httpError(w, err.Error(), false, http.StatusBadGateway)
 		return
 	}
 
@@ -285,16 +285,16 @@ func (h *Handler) serveDeleteDataNode(w http.ResponseWriter, r *http.Request) {
 	// Parse node id.
 	nodeID, err := strconv.ParseUint(r.URL.Query().Get(":id"), 10, 64)
 	if err != nil {
-		httpError(w, "invalid node id", http.StatusBadRequest)
+		httpError(w, "invalid node id", false, http.StatusBadRequest)
 		return
 	}
 
 	// Delete the node.
 	if err := h.server.DeleteDataNode(nodeID); err == influxdb.ErrDataNodeNotFound {
-		httpError(w, err.Error(), http.StatusNotFound)
+		httpError(w, err.Error(), false, http.StatusNotFound)
 		return
 	} else if err != nil {
-		httpError(w, err.Error(), http.StatusInternalServerError)
+		httpError(w, err.Error(), false, http.StatusInternalServerError)
 		return
 	}
 
@@ -331,10 +331,18 @@ func httpResults(w http.ResponseWriter, results influxdb.Results, pretty bool) {
 }
 
 // httpError writes an error to the client in a standard format.
-func httpError(w http.ResponseWriter, error string, code int) {
+func httpError(w http.ResponseWriter, error string, pretty bool, code int) {
 	w.Header().Add("content-type", "application/json")
 	w.WriteHeader(code)
-	_ = json.NewEncoder(w).Encode(influxdb.Results{Err: errors.New(error)})
+
+	results := influxdb.Results{Err: errors.New(error)}
+	var b []byte
+	if pretty {
+		b, _ = json.MarshalIndent(results, "", "    ")
+	} else {
+		b, _ = json.Marshal(results)
+	}
+	w.Write(b)
 }
 
 // Filters and filter helpers
@@ -375,17 +383,17 @@ func authenticate(inner func(http.ResponseWriter, *http.Request, *influxdb.User)
 		if requireAuthentication && h.server.UserCount() > 0 {
 			username, password, err := parseCredentials(r)
 			if err != nil {
-				httpError(w, err.Error(), http.StatusUnauthorized)
+				httpError(w, err.Error(), false, http.StatusUnauthorized)
 				return
 			}
 			if username == "" {
-				httpError(w, "username required", http.StatusUnauthorized)
+				httpError(w, "username required", false, http.StatusUnauthorized)
 				return
 			}
 
 			user, err = h.server.Authenticate(username, password)
 			if err != nil {
-				httpError(w, err.Error(), http.StatusUnauthorized)
+				httpError(w, err.Error(), false, http.StatusUnauthorized)
 				return
 			}
 		}
