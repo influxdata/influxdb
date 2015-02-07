@@ -20,6 +20,8 @@ import (
 )
 
 func Test_ServerSingleIntegration(t *testing.T) {
+	t.Skip("pending review")
+
 	var (
 		join    = ""
 		version = "x.x"
