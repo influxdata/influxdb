@@ -113,7 +113,7 @@ func TestHTTPTransport_Leave(t *testing.T) {
 	}))
 	defer s.Close()
 
-	// Execute join against test server.
+	// Execute leave against test server.
 	u, _ := url.Parse(s.URL)
 	if err := (&raft.HTTPTransport{}).Leave(u, 1); err != nil {
 		t.Fatalf("unexpected error: %s", err)
