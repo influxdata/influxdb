@@ -69,6 +69,44 @@ func main() {
 	}
 }
 
+// execRun runs the "run" command.
+func execRun(args []string) {
+	// Parse command flags.
+	fs := flag.NewFlagSet("", flag.ExitOnError)
+	var (
+		configPath = fs.String("config", "", "")
+		pidPath    = fs.String("pidfile", "", "")
+		hostname   = fs.String("hostname", "", "")
+		join       = fs.String("join", "", "")
+	)
+	fs.Usage = printRunUsage
+	fs.Parse(args)
+
+	// Print sweet InfluxDB logo and write the process id to file.
+	log.Print(logo)
+	log.SetPrefix(`[srvr] `)
+	log.SetFlags(log.LstdFlags)
+	writePIDFile(*pidPath)
+
+	config := parseConfig(*configPath, *hostname)
+
+	// Create a logging writer.
+	logWriter := os.Stderr
+	if config.Logging.File != "" {
+		var err error
+		logWriter, err = os.OpenFile(config.Logging.File, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0660)
+		if err != nil {
+			log.Fatalf("unable to open log file %s: %s", config.Logging.File, err.Error())
+		}
+	}
+	log.SetOutput(logWriter)
+
+	Run(config, *join, version, logWriter)
+
+	// Wait indefinitely.
+	<-(chan struct{})(nil)
+}
+
 // execVersion runs the "version" command.
 // Prints the commit SHA1 if set by the build process.
 func execVersion(args []string) {

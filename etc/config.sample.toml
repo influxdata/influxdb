@@ -18,7 +18,7 @@ reporting-disabled = false
 # Controls settings for initial start-up. Once a node a successfully started,
 # these settings are ignored.
 [initialization]
-join-urls = "" # Comma-delimited URLs for joining another cluster.
+join-urls = "" # Comma-delimited URLs, in the form http://host:port, for joining another cluster. 
 
 # Control authentication
 # If not set authetication is DISABLED. Be sure to explicitly set this flag to

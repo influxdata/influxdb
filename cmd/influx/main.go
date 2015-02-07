@@ -306,7 +306,7 @@ func WriteColumns(results *client.Results, w io.Writer) {
 	}
 }
 
-func resultToCSV(result *client.Result, seperator string, headerLines bool) []string {
+func resultToCSV(result client.Result, seperator string, headerLines bool) []string {
 	rows := []string{}
 	// Create a tabbed writer for each result a they won't always line up
 	columnNames := []string{"name", "tags"}

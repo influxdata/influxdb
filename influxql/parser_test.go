@@ -664,6 +664,7 @@ func TestParser_ParseExpr(t *testing.T) {
 		{s: `false`, expr: &influxql.BooleanLiteral{Val: false}},
 		{s: `my_ident`, expr: &influxql.VarRef{Val: "my_ident"}},
 		{s: `'2000-01-01 00:00:00'`, expr: &influxql.TimeLiteral{Val: mustParseTime("2000-01-01T00:00:00Z")}},
+		{s: `'2000-01-01 00:00:00.232'`, expr: &influxql.TimeLiteral{Val: mustParseTime("2000-01-01T00:00:00.232Z")}},
 		{s: `'2000-01-32 00:00:00'`, err: `unable to parse datetime at line 1, char 1`},
 		{s: `'2000-01-01'`, expr: &influxql.TimeLiteral{Val: mustParseTime("2000-01-01T00:00:00Z")}},
 		{s: `'2000-01-99'`, err: `unable to parse date at line 1, char 1`},

@@ -62,7 +62,9 @@ func (c *Client) Query(q Query) (*Results, error) {
 	defer resp.Body.Close()
 
 	var results Results
-	err = json.NewDecoder(resp.Body).Decode(&results)
+	dec := json.NewDecoder(resp.Body)
+	dec.UseNumber()
+	err = dec.Decode(&results)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +94,10 @@ func (c *Client) Write(writes ...Write) (*Results, error) {
 	defer resp.Body.Close()
 
 	var results Results
-	err = json.NewDecoder(resp.Body).Decode(&results)
+	dec := json.NewDecoder(resp.Body)
+	dec.UseNumber()
+	err = dec.Decode(&results)
+
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +120,7 @@ func (c *Client) Ping() (time.Duration, string, error) {
 
 // Result represents a resultset returned from a single statement.
 type Result struct {
-	Rows []*influxql.Row
+	Rows []influxql.Row
 	Err  error
 }
 
@@ -123,8 +128,8 @@ type Result struct {
 func (r *Result) MarshalJSON() ([]byte, error) {
 	// Define a struct that outputs "error" as a string.
 	var o struct {
-		Rows []*influxql.Row `json:"rows,omitempty"`
-		Err  string          `json:"error,omitempty"`
+		Rows []influxql.Row `json:"rows,omitempty"`
+		Err  string         `json:"error,omitempty"`
 	}
 
 	// Copy fields to output struct.
@@ -139,11 +144,13 @@ func (r *Result) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON decodes the data into the Result struct
 func (r *Result) UnmarshalJSON(b []byte) error {
 	var o struct {
-		Rows []*influxql.Row `json:"rows,omitempty"`
-		Err  string          `json:"error,omitempty"`
+		Rows []influxql.Row `json:"rows,omitempty"`
+		Err  string         `json:"error,omitempty"`
 	}
 
-	err := json.Unmarshal(b, &o)
+	dec := json.NewDecoder(bytes.NewBuffer(b))
+	dec.UseNumber()
+	err := dec.Decode(&o)
 	if err != nil {
 		return err
 	}
@@ -156,15 +163,15 @@ func (r *Result) UnmarshalJSON(b []byte) error {
 
 // Results represents a list of statement results.
 type Results struct {
-	Results []*Result
+	Results []Result
 	Err     error
 }
 
 func (r Results) MarshalJSON() ([]byte, error) {
 	// Define a struct that outputs "error" as a string.
 	var o struct {
-		Results []*Result `json:"results,omitempty"`
-		Err     string    `json:"error,omitempty"`
+		Results []Result `json:"results,omitempty"`
+		Err     string   `json:"error,omitempty"`
 	}
 
 	// Copy fields to output struct.
@@ -179,11 +186,13 @@ func (r Results) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON decodes the data into the Results struct
 func (r *Results) UnmarshalJSON(b []byte) error {
 	var o struct {
-		Results []*Result `json:"results,omitempty"`
-		Err     string    `json:"error,omitempty"`
+		Results []Result `json:"results,omitempty"`
+		Err     string   `json:"error,omitempty"`
 	}
 
-	err := json.Unmarshal(b, &o)
+	dec := json.NewDecoder(bytes.NewBuffer(b))
+	dec.UseNumber()
+	err := dec.Decode(&o)
 	if err != nil {
 		return err
 	}
@@ -248,7 +257,9 @@ func (p *Point) UnmarshalJSON(b []byte) error {
 
 	if err := func() error {
 		var err error
-		if err = json.Unmarshal(b, &epoch); err != nil {
+		dec := json.NewDecoder(bytes.NewBuffer(b))
+		dec.UseNumber()
+		if err = dec.Decode(&epoch); err != nil {
 			return err
 		}
 		// Convert from epoch to time.Time, but only if Timestamp
@@ -264,13 +275,15 @@ func (p *Point) UnmarshalJSON(b []byte) error {
 		p.Tags = epoch.Tags
 		p.Timestamp = Timestamp(ts)
 		p.Precision = epoch.Precision
-		p.Values = epoch.Values
+		p.Values = normalizeValues(epoch.Values)
 		return nil
 	}(); err == nil {
 		return nil
 	}
 
-	if err := json.Unmarshal(b, &normal); err != nil {
+	dec := json.NewDecoder(bytes.NewBuffer(b))
+	dec.UseNumber()
+	if err := dec.Decode(&normal); err != nil {
 		return err
 	}
 	normal.Timestamp = SetPrecision(normal.Timestamp, normal.Precision)
@@ -278,9 +291,28 @@ func (p *Point) UnmarshalJSON(b []byte) error {
 	p.Tags = normal.Tags
 	p.Timestamp = Timestamp(normal.Timestamp)
 	p.Precision = normal.Precision
-	p.Values = normal.Values
+	p.Values = normalizeValues(normal.Values)
 
 	return nil
+}
+
+// Remove any notion of json.Number
+func normalizeValues(values map[string]interface{}) map[string]interface{} {
+	newValues := map[string]interface{}{}
+
+	for k, v := range values {
+		switch v := v.(type) {
+		case json.Number:
+			jv, e := v.Float64()
+			if e != nil {
+				panic(fmt.Sprintf("unable to convert json.Number to float64: %s", e))
+			}
+			newValues[k] = jv
+		default:
+			newValues[k] = v
+		}
+	}
+	return newValues
 }
 
 // utility functions

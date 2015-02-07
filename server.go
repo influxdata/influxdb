@@ -99,11 +99,13 @@ type Server struct {
 	shardsBySeriesID map[uint32][]*Shard // shards by series id
 
 	Logger *log.Logger
+
+	authenticationEnabled bool
 }
 
 // NewServer returns a new instance of Server.
 func NewServer() *Server {
-	return &Server{
+	s := Server{
 		meta:      &metastore{},
 		errors:    make(map[uint64]error),
 		dataNodes: make(map[uint64]*DataNode),
@@ -114,6 +116,16 @@ func NewServer() *Server {
 		shardsBySeriesID: make(map[uint32][]*Shard),
 		Logger:           log.New(os.Stderr, "[server] ", log.LstdFlags),
 	}
+	// Server will always return with authentication enabled.
+	// This ensures that disabling authentication must be an explicit decision.
+	// To set the server to 'authless mode', call server.SetAuthenticationEnabled(false).
+	s.authenticationEnabled = true
+	return &s
+}
+
+// SetAuthenticationEnabled turns on or off server authentication
+func (s *Server) SetAuthenticationEnabled(enabled bool) {
+	s.authenticationEnabled = enabled
 }
 
 // ID returns the data node id for the server.
@@ -122,6 +134,13 @@ func (s *Server) ID() uint64 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.id
+}
+
+// Index returns the index for the server.
+func (s *Server) Index() uint64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.index
 }
 
 // Path returns the path used when opening the server.
@@ -905,7 +924,13 @@ func (s *Server) AdminUserExists() bool {
 func (s *Server) Authenticate(username, password string) (*User, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	u := s.users[username]
+
+	// If authorization is not enabled and user is nil, we are authorized
+	if u == nil && !s.authenticationEnabled {
+		return nil, nil
+	}
 	if u == nil {
 		return nil, fmt.Errorf("invalid username or password")
 	}
@@ -1189,17 +1214,25 @@ type createRetentionPolicyCommand struct {
 	SplitN   uint32        `json:"splitN"`
 }
 
+// RetentionPolicyUpdate represents retention policy fields that
+// need to be updated.
+type RetentionPolicyUpdate struct {
+	Name     *string        `json:"name,omitempty"`
+	Duration *time.Duration `json:"duration,omitempty"`
+	ReplicaN *uint32        `json:"replicaN,omitempty"`
+}
+
 // UpdateRetentionPolicy updates an existing retention policy on a database.
-func (s *Server) UpdateRetentionPolicy(database, name string, rp *RetentionPolicy) error {
-	c := &updateRetentionPolicyCommand{Database: database, Name: name, NewName: rp.Name}
+func (s *Server) UpdateRetentionPolicy(database, name string, rpu *RetentionPolicyUpdate) error {
+	c := &updateRetentionPolicyCommand{Database: database, Name: name, Policy: rpu}
 	_, err := s.broadcast(updateRetentionPolicyMessageType, c)
 	return err
 }
 
 type updateRetentionPolicyCommand struct {
-	Database string `json:"database"`
-	Name     string `json:"name"`
-	NewName  string `json:"newName"`
+	Database string                 `json:"database"`
+	Name     string                 `json:"name"`
+	Policy   *RetentionPolicyUpdate `json:"policy"`
 }
 
 func (s *Server) applyUpdateRetentionPolicy(m *messaging.Message) (err error) {
@@ -1223,11 +1256,21 @@ func (s *Server) applyUpdateRetentionPolicy(m *messaging.Message) (err error) {
 		return ErrRetentionPolicyNotFound
 	}
 
-	// Update the policy name, if not blank.
-	if c.NewName != c.Name && c.NewName != "" {
+	// Update the policy name.
+	if c.Policy.Name != nil {
 		delete(db.policies, p.Name)
-		p.Name = c.NewName
+		p.Name = *c.Policy.Name
 		db.policies[p.Name] = p
+	}
+
+	// Update duration.
+	if c.Policy.Duration != nil {
+		p.Duration = *c.Policy.Duration
+	}
+
+	// Update replication factor.
+	if c.Policy.ReplicaN != nil {
+		p.ReplicaN = *c.Policy.ReplicaN
 	}
 
 	// Persist to metastore.
@@ -1693,8 +1736,10 @@ func (s *Server) ReadSeries(database, retentionPolicy, name string, tags map[str
 // Stops on first execution error that occurs.
 func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Results {
 	// Authorize user to execute the query.
-	if err := Authorize(user, q, database); err != nil {
-		return Results{Err: err}
+	if s.authenticationEnabled {
+		if err := s.Authorize(user, q, database); err != nil {
+			return Results{Err: err}
+		}
 	}
 
 	// Build empty resultsets.
@@ -2186,6 +2231,11 @@ func measurementsFromSourceOrDB(stmt influxql.Source, db *database) (Measurement
 				name = segments[2]
 			}
 
+			measurement := db.measurements[name]
+			if measurement == nil {
+				return nil, fmt.Errorf(`measurement "%s" not found`, name)
+			}
+
 			measurements = append(measurements, db.measurements[name])
 		} else {
 			return nil, errors.New("identifiers in FROM clause must be measurement names")
@@ -2215,7 +2265,7 @@ func (s *Server) executeCreateRetentionPolicyStatement(q *influxql.CreateRetenti
 	// Create new retention policy.
 	err := s.CreateRetentionPolicy(q.Database, rp)
 	if err != nil {
-		return &Result{Err: s.CreateRetentionPolicy(q.Database, rp)}
+		return &Result{Err: err}
 	}
 
 	// If requested, set new policy as the default.
@@ -2226,15 +2276,24 @@ func (s *Server) executeCreateRetentionPolicyStatement(q *influxql.CreateRetenti
 	return &Result{Err: err}
 }
 
-func (s *Server) executeAlterRetentionPolicyStatement(q *influxql.AlterRetentionPolicyStatement, user *User) *Result {
-	rp := NewRetentionPolicy(q.Name)
-	if q.Duration != nil {
-		rp.Duration = *q.Duration
+func (s *Server) executeAlterRetentionPolicyStatement(stmt *influxql.AlterRetentionPolicyStatement, user *User) *Result {
+	rpu := &RetentionPolicyUpdate{
+		Duration: stmt.Duration,
+		ReplicaN: func() *uint32 { n := uint32(*stmt.Replication); return &n }(),
 	}
-	if q.Replication != nil {
-		rp.ReplicaN = uint32(*q.Replication)
+
+	// Update the retention policy.
+	err := s.UpdateRetentionPolicy(stmt.Database, stmt.Name, rpu)
+	if err != nil {
+		return &Result{Err: err}
 	}
-	return &Result{Err: s.UpdateRetentionPolicy(q.Database, q.Name, rp)}
+
+	// If requested, set as default retention policy.
+	if stmt.Default {
+		err = s.SetDefaultRetentionPolicy(stmt.Database, stmt.Name)
+	}
+
+	return &Result{Err: err}
 }
 
 func (s *Server) executeDropRetentionPolicyStatement(q *influxql.DropRetentionPolicyStatement, user *User) *Result {
@@ -2543,6 +2602,9 @@ func (r *Results) UnmarshalJSON(b []byte) error {
 // Error returns the first error from any statement.
 // Returns nil if no errors occurred on any statements.
 func (r *Results) Error() error {
+	if r.Err != nil {
+		return r.Err
+	}
 	for _, rr := range r.Results {
 		if rr.Err != nil {
 			return rr.Err
@@ -2590,9 +2652,16 @@ func (p dataNodes) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 // Authorize user u to execute query q on database.
 // database can be "" for queries that do not require a database.
 // If u is nil, this means authorization is disabled.
-func Authorize(u *User, q *influxql.Query, database string) error {
+func (s *Server) Authorize(u *User, q *influxql.Query, database string) error {
+	const authErrLogFmt = `unauthorized request | user: %q | query: %q | database %q\n`
+
+	if u == nil {
+		s.Logger.Printf(authErrLogFmt, "", q.String(), database)
+		return ErrAuthorize{text: "no user provided"}
+	}
+
 	// Cluster admins can do anything.
-	if u == nil || u.Admin {
+	if u.Admin {
 		return nil
 	}
 
@@ -2620,7 +2689,8 @@ func Authorize(u *User, q *influxql.Query, database string) error {
 				} else {
 					msg = fmt.Sprintf("requires %s privilege on %s", p.Privilege.String(), dbname)
 				}
-				return &ErrAuthorize{
+				s.Logger.Printf(authErrLogFmt, u.Name, q.String(), database)
+				return ErrAuthorize{
 					text: fmt.Sprintf("%s not authorized to execute '%s'.  %s", u.Name, stmt.String(), msg),
 				}
 			}

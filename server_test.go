@@ -1,6 +1,7 @@
 package influxdb_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -96,6 +97,47 @@ func TestServer_DeleteDataNode(t *testing.T) {
 	}
 }
 
+// Test unuathorized requests logging
+func TestServer_UnauthorizedRequests(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	s.SetAuthenticationEnabled(true)
+
+	var b bytes.Buffer
+	s.SetLogOutput(&b)
+
+	adminOnlyQuery := &influxql.Query{
+		Statements: []influxql.Statement{
+			&influxql.DropDatabaseStatement{Name: "foo"},
+		},
+	}
+
+	e := s.Authorize(nil, adminOnlyQuery, "foo")
+	if _, ok := e.(influxdb.ErrAuthorize); !ok {
+		t.Fatalf("unexpected error.  expected %v, actual: %v", influxdb.ErrAuthorize{}, e)
+	}
+	if !strings.Contains(b.String(), "unauthorized request") {
+		t.Log(b.String())
+		t.Fatalf(`log should contain "unuathorized request"`)
+	}
+
+	b.Reset()
+
+	// Create normal database user.
+	s.CreateUser("user1", "user1", false)
+	user1 := s.User("user1")
+
+	e = s.Authorize(user1, adminOnlyQuery, "foo")
+	if _, ok := e.(influxdb.ErrAuthorize); !ok {
+		t.Fatalf("unexpected error.  expected %v, actual: %v", influxdb.ErrAuthorize{}, e)
+	}
+	if !strings.Contains(b.String(), "unauthorized request") {
+		t.Log(b.String())
+		t.Fatalf(`log should contain "unuathorized request"`)
+	}
+}
+
 // Test user privilege authorization.
 func TestServer_UserPrivilegeAuthorization(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
@@ -170,22 +212,22 @@ func TestServer_SingleStatementQueryAuthorization(t *testing.T) {
 	}
 
 	// admin user should be authorized to execute any query.
-	if err := influxdb.Authorize(admin, adminOnlyQuery, ""); err != nil {
+	if err := s.Authorize(admin, adminOnlyQuery, ""); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := influxdb.Authorize(admin, readWriteQuery, "foo"); err != nil {
+	if err := s.Authorize(admin, readWriteQuery, "foo"); err != nil {
 		t.Fatal(err)
 	}
 
 	// Normal user should not be authorized to execute admin only query.
-	if err := influxdb.Authorize(user, adminOnlyQuery, ""); err == nil {
+	if err := s.Authorize(user, adminOnlyQuery, ""); err == nil {
 		t.Fatalf("normal user should not be authorized to execute cluster admin level queries")
 	}
 
 	// Normal user should not be authorized to execute query that selects into another
 	// database which (s)he doesn't have privileges on.
-	if err := influxdb.Authorize(user, readWriteQuery, ""); err == nil {
+	if err := s.Authorize(user, readWriteQuery, ""); err == nil {
 		t.Fatalf("normal user should not be authorized to write to database bar")
 	}
 
@@ -193,7 +235,7 @@ func TestServer_SingleStatementQueryAuthorization(t *testing.T) {
 	user.Privileges["bar"] = influxql.WritePrivilege
 
 	//Authorization on the previous query should now succeed.
-	if err := influxdb.Authorize(user, readWriteQuery, ""); err != nil {
+	if err := s.Authorize(user, readWriteQuery, ""); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -233,12 +275,12 @@ func TestServer_MultiStatementQueryAuthorization(t *testing.T) {
 	}
 
 	// Admin should be authorized to execute both statements in the query.
-	if err := influxdb.Authorize(admin, readWriteQuery, "foo"); err != nil {
+	if err := s.Authorize(admin, readWriteQuery, "foo"); err != nil {
 		t.Fatal(err)
 	}
 
 	// Normal user with only read privileges should not be authorized to execute both statements.
-	if err := influxdb.Authorize(user, readWriteQuery, "foo"); err == nil {
+	if err := s.Authorize(user, readWriteQuery, "foo"); err == nil {
 		t.Fatalf("user should not be authorized to execute both statements")
 	}
 }
@@ -536,6 +578,52 @@ func TestServer_CreateRetentionPolicy_ErrRetentionPolicyExists(t *testing.T) {
 	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "bar"})
 	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "bar"}); err != influxdb.ErrRetentionPolicyExists {
 		t.Fatal(err)
+	}
+}
+
+// Ensure the database can alter an existing retention policy.
+func TestServer_AlterRetentionPolicy(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// Create a database.
+	if err := s.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a retention policy on the database.
+	rp := &influxdb.RetentionPolicy{
+		Name:     "bar",
+		Duration: time.Hour,
+		ReplicaN: 2,
+	}
+	if err := s.CreateRetentionPolicy("foo", rp); err != nil {
+		t.Fatal(err)
+	}
+
+	// Alter the retention policy.
+	duration := time.Minute
+	replicaN := uint32(3)
+	rp2 := &influxdb.RetentionPolicyUpdate{
+		Duration: &duration,
+		ReplicaN: &replicaN,
+	}
+	if err := s.UpdateRetentionPolicy("foo", "bar", rp2); err != nil {
+		t.Fatal(err)
+	}
+
+	// Restart the server to make sure the changes persist afterwards.
+	s.Restart()
+
+	// Verify that the policy exists.
+	if o, err := s.RetentionPolicy("foo", "bar"); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if o == nil {
+		t.Fatalf("retention policy not found")
+	} else if o.Duration != *rp2.Duration {
+		t.Fatalf("retention policy mismatch:\n\texp Duration = %s\n\tgot Duration = %s\n", rp2.Duration, o.Duration)
+	} else if o.ReplicaN != *rp2.ReplicaN {
+		t.Fatalf("retention policy mismatch:\n\texp ReplicaN = %d\n\tgot ReplicaN = %d\n", rp2.ReplicaN, o.ReplicaN)
 	}
 }
 
@@ -940,7 +1028,9 @@ type Server struct {
 
 // NewServer returns a new test server instance.
 func NewServer() *Server {
-	return &Server{influxdb.NewServer()}
+	s := influxdb.NewServer()
+	s.SetAuthenticationEnabled(false)
+	return &Server{s}
 }
 
 // OpenServer returns a new, open test server instance.
