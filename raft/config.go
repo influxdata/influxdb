@@ -42,8 +42,8 @@ func (c *Config) NodeByURL(u *url.URL) *ConfigNode {
 	return nil
 }
 
-// addNode adds a new node to the config.
-func (c *Config) addNode(id uint64, u *url.URL) error {
+// AddNode adds a new node to the config.
+func (c *Config) AddNode(id uint64, u *url.URL) error {
 	// Validate that the id is non-zero and the url exists.
 	if id == 0 {
 		return ErrInvalidNodeID
@@ -66,9 +66,9 @@ func (c *Config) addNode(id uint64, u *url.URL) error {
 	return nil
 }
 
-// removeNode removes a node by id.
+// RemoveNode removes a node by id.
 // Returns ErrNodeNotFound if the node does not exist.
-func (c *Config) removeNode(id uint64) error {
+func (c *Config) RemoveNode(id uint64) error {
 	for i, node := range c.Nodes {
 		if node.ID == id {
 			copy(c.Nodes[i:], c.Nodes[i+1:])
@@ -80,8 +80,8 @@ func (c *Config) removeNode(id uint64) error {
 	return ErrNodeNotFound
 }
 
-// clone returns a deep copy of the configuration.
-func (c *Config) clone() *Config {
+// Clone returns a deep copy of the configuration.
+func (c *Config) Clone() *Config {
 	other := &Config{
 		ClusterID: c.ClusterID,
 		Index:     c.Index,
@@ -166,7 +166,7 @@ func (dec *ConfigDecoder) Decode(c *Config) error {
 		}
 
 		// Append node to config.
-		if err := c.addNode(n.ID, u); err != nil {
+		if err := c.AddNode(n.ID, u); err != nil {
 			return err
 		}
 	}

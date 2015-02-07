@@ -59,7 +59,9 @@ func (dec *LogEntryDecoder) Decode(e *LogEntry) error {
 	}
 
 	// If it's not a snapshot then read the full header.
-	if _, err := io.ReadFull(dec.r, b[1:]); err != nil {
+	if _, err := io.ReadFull(dec.r, b[1:]); err == io.EOF {
+		return io.ErrUnexpectedEOF
+	} else if err != nil {
 		return err
 	}
 	sz := binary.BigEndian.Uint64(b[0:8]) & 0x00FFFFFFFFFFFFFF
@@ -68,7 +70,7 @@ func (dec *LogEntryDecoder) Decode(e *LogEntry) error {
 
 	// Read data.
 	data := make([]byte, sz)
-	if _, err := io.ReadFull(dec.r, data); err != nil {
+	if _, err := io.ReadFull(dec.r, data); err != nil && err != io.EOF {
 		return err
 	}
 	e.Data = data

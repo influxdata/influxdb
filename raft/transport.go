@@ -28,6 +28,11 @@ func (t *HTTPTransport) Join(uri *url.URL, nodeURL *url.URL) (uint64, *Config, e
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	// Parse returned error.
+	if s := resp.Header.Get("X-Raft-Error"); s != "" {
+		return 0, nil, errors.New(s)
+	}
+
 	// Parse returned id.
 	idString := resp.Header.Get("X-Raft-ID")
 	id, err := strconv.ParseUint(idString, 10, 64)
@@ -41,17 +46,29 @@ func (t *HTTPTransport) Join(uri *url.URL, nodeURL *url.URL) (uint64, *Config, e
 		return 0, nil, fmt.Errorf("config unmarshal: %s", err)
 	}
 
-	// Parse returned error.
-	if s := resp.Header.Get("X-Raft-Error"); s != "" {
-		return 0, nil, errors.New(s)
-	}
-
 	return id, config, nil
 }
 
 // Leave removes a node from a cluster's membership.
 func (t *HTTPTransport) Leave(uri *url.URL, id uint64) error {
-	return nil // TODO(benbjohnson)
+	// Construct URL.
+	u := *uri
+	u.Path = path.Join(u.Path, "raft/leave")
+	u.RawQuery = (&url.Values{"id": {strconv.FormatUint(id, 10)}}).Encode()
+
+	// Send HTTP request.
+	resp, err := http.Get(u.String())
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	// Parse returned error.
+	if s := resp.Header.Get("X-Raft-Error"); s != "" {
+		return errors.New(s)
+	}
+
+	return nil
 }
 
 // Heartbeat checks the status of a follower.
