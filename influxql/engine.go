@@ -404,13 +404,13 @@ func (m *Mapper) run(e *Emitter) {
 			bufItr.tmax = tmin + m.interval - 1
 		}
 
-		// Execute the map function.
-		m.fn(bufItr, e, tmin)
-
 		// Exit if there was only one interval or no more data is available.
 		if bufItr.EOF() {
 			break
 		}
+
+		// Execute the map function.
+		m.fn(bufItr, e, tmin)
 
 		// Move the interval forward.
 		tmin += m.interval
