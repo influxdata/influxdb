@@ -827,16 +827,15 @@ loop:
 	}
 
 	// Ignore if we don't have enough for a quorum ((n / 2) + 1).
-	// We don't add the +1 because the slice starts from 0.
-	quorumIndex := (nodeN / 2)
-	if quorumIndex >= len(indexes) {
-		l.tracef("sendHeartbeat: no quorum: n=%d", quorumIndex)
+	quorum := (nodeN / 2) + 1
+	if quorum > len(indexes) {
+		l.tracef("sendHeartbeat: no quorum: len=%d, n=%d", len(indexes), quorum)
 		return nil
 	}
 
 	// Determine commit index by quorum (n/2+1).
 	sort.Sort(sort.Reverse(uint64Slice(indexes)))
-	newCommitIndex := indexes[quorumIndex]
+	newCommitIndex := indexes[quorum-1]
 
 	// Update the commit index, if higher.
 	l.mu.Lock()
