@@ -278,19 +278,19 @@ func TestSelectStatement_OnlyTimeDimensions(t *testing.T) {
 			exp:  false,
 		},
 		{
-			stmt: `SELECT value FROM foo WHERE time >= '2000-01-01T00:00:05'`,
+			stmt: `SELECT value FROM foo WHERE time >= '2000-01-01T00:00:05Z'`,
 			exp:  true,
 		},
 		{
-			stmt: `SELECT value FROM foo WHERE time >= '2000-01-01T00:00:05' AND time < '2000-01-01T00:00:05'`,
+			stmt: `SELECT value FROM foo WHERE time >= '2000-01-01T00:00:05Z' AND time < '2000-01-01T00:00:05Z'`,
 			exp:  true,
 		},
 		{
-			stmt: `SELECT value FROM foo WHERE time >= '2000-01-01T00:00:05' AND asdf = 'bar'`,
+			stmt: `SELECT value FROM foo WHERE time >= '2000-01-01T00:00:05Z' AND asdf = 'bar'`,
 			exp:  false,
 		},
 		{
-			stmt: `SELECT value FROM foo WHERE asdf = 'jkl' AND (time >= '2000-01-01T00:00:05' AND time < '2000-01-01T00:00:05')`,
+			stmt: `SELECT value FROM foo WHERE asdf = 'jkl' AND (time >= '2000-01-01T00:00:05Z' AND time < '2000-01-01T00:00:05Z')`,
 			exp:  false,
 		},
 	}

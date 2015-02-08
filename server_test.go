@@ -1111,6 +1111,7 @@ func TestServer_CreateContinuousQuery(t *testing.T) {
 	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "bar"}); err != nil {
 		t.Fatal(err)
 	}
+	s.SetDefaultRetentionPolicy("foo", "bar")
 
 	// create and check
 	q := "CREATE CONTINUOUS QUERY myquery ON foo BEGIN SELECT count() INTO measure1 FROM myseries GROUP BY time(10m) END"
@@ -1126,8 +1127,8 @@ func TestServer_CreateContinuousQuery(t *testing.T) {
 	queries := s.ContinuousQueries("foo")
 	cqObj, _ := influxdb.NewContinuousQuery(q)
 	expected := []*influxdb.ContinuousQuery{cqObj}
-	if !reflect.DeepEqual(queries, expected) {
-		t.Fatalf("query not saved:\n\texp: %s\ngot: %s", mustMarshalJSON(expected), mustMarshalJSON(queries))
+	if mustMarshalJSON(expected) != mustMarshalJSON(queries) {
+		t.Fatalf("query not saved:\n\texp: %s\n\tgot: %s", mustMarshalJSON(expected), mustMarshalJSON(queries))
 	}
 	s.Restart()
 
@@ -1183,8 +1184,8 @@ func TestServer_RunContinuousQueries(t *testing.T) {
 	s.ComputeRunsPerInterval = 5
 	s.ComputeNoMoreThan = 2 * time.Second
 
-	// create and check
-	q := `CREATE CONTINUOUS QUERY myquery ON foo BEGIN SELECT mean(value) INTO cpu_region FROM "foo"."raw".cpu GROUP BY time(5s), region END`
+	// create cq and check
+	q := `CREATE CONTINUOUS QUERY myquery ON foo BEGIN SELECT mean(value) INTO cpu_region FROM cpu GROUP BY time(5s), region END`
 	stmt, err := influxql.NewParser(strings.NewReader(q)).ParseStatement()
 	if err != nil {
 		t.Fatalf("error parsing query %s", err.Error())
@@ -1193,16 +1194,26 @@ func TestServer_RunContinuousQueries(t *testing.T) {
 	if err := s.CreateContinuousQuery(cq); err != nil {
 		t.Fatalf("error creating continuous query %s", err.Error())
 	}
+	if err := s.RunContinuousQueries(); err != nil {
+		t.Fatalf("error running cqs when no data exists: %s", err.Error())
+	}
 
 	// Write series with one point to the database.
 	now := time.Now().UTC()
-	fmt.Println("TIME: ", now.UTC().Format(influxql.DateTimeFormat))
 	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: now, Values: map[string]interface{}{"value": float64(20)}}})
 	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: now, Values: map[string]interface{}{"value": float64(30)}}})
 	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-west"}, Timestamp: now, Values: map[string]interface{}{"value": float64(100)}}})
 
+	start := time.Now().Round(time.Minute * 5).Add(-time.Minute * 5)
+	end := start.Add(time.Minute * 5)
+	cond := fmt.Sprintf("time >= '%s' AND time < '%s'", start.UTC().Format(time.RFC3339Nano), end.UTC().Format(time.RFC3339Nano))
+	q1, _ := influxql.NewParser(strings.NewReader(fmt.Sprintf(`SELECT mean(value) FROM "foo"."raw"."cpu" WHERE %s GROUP BY time(5s), region`, cond))).ParseQuery()
+	fmt.Println("ASDF: ", q1.String())
+	r1 := s.ExecuteQuery(q1, "foo", nil)
+	fmt.Println("RESULTS: ", r1.Results[0])
+
+	time.Sleep(time.Second * 2)
 	// TODO: figure out how to actually test this
-	// t.Skip("pending")
 	fmt.Println("CQ 1")
 	s.RunContinuousQueries()
 	fmt.Println("CQ 2")

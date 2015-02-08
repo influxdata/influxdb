@@ -44,7 +44,7 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 	// Start the broker handler.
 	var h *Handler
 	if b != nil {
-		h = &Handler{brokerHandler: messaging.NewHandler(b)}
+		h = &Handler{brokerHandler: messaging.NewHandler(b.Broker)}
 		// We want to make sure we are spun up before we exit this function, so we manually listen and serve
 		listener, err := net.Listen("tcp", config.BrokerAddr())
 		if err != nil {

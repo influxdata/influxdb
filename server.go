@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"sort"
 	"strconv"
@@ -2037,6 +2038,7 @@ func (s *Server) planSelectStatement(stmt *influxql.SelectStatement) (*influxql.
 
 	// Plan query.
 	p := influxql.NewPlanner(s)
+
 	return p.Plan(stmt)
 }
 
@@ -2968,9 +2970,12 @@ func HashPassword(password string) ([]byte, error) {
 type ContinuousQuery struct {
 	Query string `json:"query"`
 
-	mu      sync.Mutex
-	cq      *influxql.CreateContinuousQueryStatement
-	lastRun time.Time
+	mu              sync.Mutex
+	cq              *influxql.CreateContinuousQueryStatement
+	lastRun         time.Time
+	intoDB          string
+	intoRP          string
+	intoMeasurement string
 }
 
 // NewContinuousQuery returns a ContinuousQuery object with a parsed influxql.CreateContinuousQueryStatement
@@ -2985,15 +2990,36 @@ func NewContinuousQuery(q string) (*ContinuousQuery, error) {
 		return nil, errors.New("query isn't a continuous query")
 	}
 
-	return &ContinuousQuery{
+	cquery := &ContinuousQuery{
 		Query: q,
 		cq:    cq,
-	}, nil
+	}
+
+	// set which database and retention policy, and measuremet a CQ is writing into
+	a, err := influxql.SplitIdent(cq.Source.Target.Measurement)
+	if err != nil {
+		return nil, err
+	}
+
+	// set the default into database to the same as the from database
+	cquery.intoDB = cq.Database
+
+	if len(a) == 1 { // into only set the measurement name. keep default db and rp
+		cquery.intoMeasurement = a[0]
+	} else if len(a) == 2 { // into set the rp and the measurement
+		cquery.intoRP = a[0]
+		cquery.intoMeasurement = a[1]
+	} else { // into set db, rp, and measurement
+		cquery.intoDB = a[0]
+		cquery.intoRP = a[1]
+		cquery.intoMeasurement = a[2]
+	}
+
+	return cquery, nil
 }
 
 // applyCreateContinuousQueryCommand adds the continuous query to the database object and saves it to the metastore
 func (s *Server) applyCreateContinuousQueryCommand(m *messaging.Message) error {
-	fmt.Println("applyCreateContinuousQueryCommand")
 	var c createContinuousQueryCommand
 	mustUnmarshalJSON(m.Data, &c)
 
@@ -3002,12 +3028,21 @@ func (s *Server) applyCreateContinuousQueryCommand(m *messaging.Message) error {
 		return err
 	}
 
+	// normalize the select statement in the CQ so that it has the database and retention policy inserted
+	if err := s.NormalizeStatement(cq.cq.Source, cq.cq.Database); err != nil {
+		return err
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// ensure the into database exists
+	if s.databases[cq.intoDB] == nil {
+		return ErrDatabaseNotFound
+	}
+
 	// Retrieve the database.
 	db := s.databases[cq.cq.Database]
-	// TODO: we need to do a check to make sure the INTO database is present.
 	if db == nil {
 		return ErrDatabaseNotFound
 	} else if db.continuousQueryByName(cq.cq.Name) != nil {
@@ -3028,12 +3063,16 @@ func (s *Server) applyCreateContinuousQueryCommand(m *messaging.Message) error {
 // RunContinuousQueries will run any continuous queries that are due to run and write the
 // results back into the database
 func (s *Server) RunContinuousQueries() error {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	// s.mu.RLock()
+	// defer s.mu.RUnlock()
 
 	for _, d := range s.databases {
 		for _, c := range d.continuousQueries {
 			if s.shouldRunContinuousQuery(c) {
+				// set the into retention policy based on what is now the default
+				if c.intoRP == "" {
+					c.intoRP = d.defaultRetentionPolicy
+				}
 				go func(cq *ContinuousQuery) {
 					s.runContinuousQuery(c)
 				}(c)
@@ -3048,9 +3087,6 @@ func (s *Server) RunContinuousQueries() error {
 // lastRunTime of the CQ and the rules for when to run set through the config to determine
 // if this CQ should be run
 func (s *Server) shouldRunContinuousQuery(cq *ContinuousQuery) bool {
-	cq.mu.Lock()
-	defer cq.mu.Unlock()
-
 	// if it's not aggregated we don't run it
 	if !cq.cq.Source.Aggregated() {
 		return false
@@ -3126,9 +3162,11 @@ func (s *Server) runContinuousQuery(cq *ContinuousQuery) {
 
 // runContinuousQueryAndWriteResult will run the query against the cluster and write the results back in
 func (s *Server) runContinuousQueryAndWriteResult(cq *ContinuousQuery) error {
-	log.Printf("cq run: %s %s\n", cq.cq.Database, cq.cq.Source.String())
+	warn("> cq run: ", cq.cq.Database, cq.cq.Source.String())
 
 	e, err := s.planSelectStatement(cq.cq.Source, cq.cq.Database)
+	warn("> planned")
+
 	if err != nil {
 		return err
 	}
@@ -3141,8 +3179,7 @@ func (s *Server) runContinuousQueryAndWriteResult(cq *ContinuousQuery) error {
 
 	// Read all rows from channel and write them in
 	// TODO paul: fill in db and retention policy when CQ parsing gets updated
-	db := ""
-	retentionPolicy := ""
+	warn("cq.start.empty.ch")
 	for row := range ch {
 		warn("row: ", row)
 		points, err := s.convertRowToPoints(row)
@@ -3150,13 +3187,17 @@ func (s *Server) runContinuousQueryAndWriteResult(cq *ContinuousQuery) error {
 			log.Println(err)
 			continue
 		}
-
-		// TODO corylanou: implement batch writing
 		for _, p := range points {
-			_, err := s.WriteSeries(db, retentionPolicy, []Point{*p})
+			warn("> ", p)
+		}
+
+		if len(points) > 0 {
+			_, err = s.WriteSeries(cq.intoDB, cq.intoRP, points)
 			if err != nil {
-				log.Printf("cq write error: %s on: %s\n", err, p)
+				log.Printf("cq err: %s", err)
 			}
+		} else {
+			warn("> empty points")
 		}
 	}
 	warn("cq.run.write")
@@ -3165,7 +3206,7 @@ func (s *Server) runContinuousQueryAndWriteResult(cq *ContinuousQuery) error {
 }
 
 // convertRowToPoints will convert a query result Row into Points that can be written back in
-func (s *Server) convertRowToPoints(row *influxql.Row) ([]*Point, error) {
+func (s *Server) convertRowToPoints(row *influxql.Row) ([]Point, error) {
 	// figure out which parts of the result are the time and which are the fields
 	timeIndex := -1
 	fieldIndexes := make(map[string]int)
@@ -3181,13 +3222,16 @@ func (s *Server) convertRowToPoints(row *influxql.Row) ([]*Point, error) {
 		return nil, errors.New("cq error finding time index in result")
 	}
 
-	points := make([]*Point, 0, len(row.Values))
+	points := make([]Point, 0, len(row.Values))
 	for _, v := range row.Values {
 		vals := make(map[string]interface{})
 		for fieldName, fieldIndex := range fieldIndexes {
 			vals[fieldName] = v[fieldIndex]
 		}
 
+		warn("> ", row)
+		warn("> ", reflect.TypeOf(v[timeIndex]))
+		warn("> ", vals)
 		p := &Point{
 			Name:      row.Name,
 			Tags:      row.Tags,
@@ -3195,7 +3239,7 @@ func (s *Server) convertRowToPoints(row *influxql.Row) ([]*Point, error) {
 			Values:    vals,
 		}
 
-		points = append(points, p)
+		points = append(points, *p)
 	}
 
 	return points, nil

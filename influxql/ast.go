@@ -719,21 +719,10 @@ func (s *SelectStatement) GroupByInterval() (time.Duration, error) {
 // SetTimeRange sets the start and end time of the select statement to [start, end). i.e. start inclusive, end exclusive.
 // This is used commonly for continuous queries so the start and end are in buckets.
 func (s *SelectStatement) SetTimeRange(start, end time.Time) error {
-	cond := fmt.Sprintf("time >= '%s' AND time < '%s'", start.Format(DateTimeFormat), end.Format(DateTimeFormat))
+	cond := fmt.Sprintf("time >= '%s' AND time < '%s'", start.UTC().Format(time.RFC3339Nano), end.UTC().Format(time.RFC3339Nano))
 	if s.Condition != nil {
 		cond = fmt.Sprintf("%s AND %s", s.rewriteWithoutTimeDimensions(), cond)
 	}
-
-	// cond = ""
-	// var filteredDims Dimensions
-	// for _, d := range s.Dimensions {
-	// 	if call, ok := d.Expr.(*Call); ok && strings.ToLower(call.Name) == "time" {
-	// 		// do nothing
-	// 	} else {
-	// 		filteredDims = append(filteredDims, d)
-	// 	}
-	// }
-	// s.Dimensions = filteredDims
 
 	expr, err := NewParser(strings.NewReader(cond)).ParseExpr()
 	if err != nil {
@@ -893,6 +882,7 @@ func MatchSource(src Source, name string) string {
 	return ""
 }
 
+// TODO pauldix: Target should actually have a Database, RetentionPolicy, and Measurement. These should be set based on the ON part of the query, and the SplitIdent of the INTO name
 // Target represents a target (destination) policy, measurment, and DB.
 type Target struct {
 	// Measurement to write into.
@@ -1620,6 +1610,7 @@ func TimeRange(expr Expr) (min, max time.Time) {
 			// Otherwise check for for the right-hand side and flip the operator.
 			value, op := timeExprValue(n.LHS, n.RHS), n.Op
 			if value.IsZero() {
+				return
 				if value = timeExprValue(n.RHS, n.LHS); value.IsZero() {
 					return
 				} else if op == LT {
@@ -1671,15 +1662,11 @@ func timeExprValue(ref Expr, lit Expr) time.Time {
 	if ref, ok := ref.(*VarRef); ok && strings.ToLower(ref.Val) == "time" {
 		switch lit := lit.(type) {
 		case *TimeLiteral:
-			warn("timeExpr ", lit.Val.String())
 			return lit.Val
 		case *DurationLiteral:
 			return time.Unix(0, int64(lit.Val)).UTC()
-		default:
-			warn("timeExpr: ", lit.String())
 		}
 	}
-	warn("timeExpr is nil")
 	return time.Time{}
 }
 

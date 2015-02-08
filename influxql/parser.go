@@ -1481,7 +1481,12 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 		if isDateTimeString(lit) {
 			t, err := time.Parse(DateTimeFormat, lit)
 			if err != nil {
-				return nil, &ParseError{Message: "unable to parse datetime", Pos: pos}
+				// try to parse it as an RFCNano time
+				t, err := time.Parse(time.RFC3339Nano, lit)
+				if err != nil {
+					return nil, &ParseError{Message: "unable to parse datetime", Pos: pos}
+				}
+				return &TimeLiteral{Val: t}, nil
 			}
 			return &TimeLiteral{Val: t}, nil
 		} else if isDateString(lit) {
@@ -1688,7 +1693,7 @@ func isDateString(s string) bool { return dateStringRegexp.MatchString(s) }
 func isDateTimeString(s string) bool { return dateTimeStringRegexp.MatchString(s) }
 
 var dateStringRegexp = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
-var dateTimeStringRegexp = regexp.MustCompile(`^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d+)?$`)
+var dateTimeStringRegexp = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}.+`)
 
 // ErrInvalidDuration is returned when parsing a malformatted duration.
 var ErrInvalidDuration = errors.New("invalid duration")
