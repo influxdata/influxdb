@@ -808,6 +808,22 @@ func TestServer_ExecuteQuery(t *testing.T) {
 	} else if s := mustMarshalJSON(res); s != `{"rows":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","sum"],"values":[["2000-01-01T00:00:00Z",20],["2000-01-01T00:00:10Z",30]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","sum"],"values":[["2000-01-01T00:00:00Z",100]]}]}` {
 		t.Fatalf("unexpected row(0): %s", s)
 	}
+
+	// Simple non-aggregation.
+	results = s.ExecuteQuery(MustParseQuery(`SELECT value FROM cpu WHERE time >= '2000-01-01 00:00:05'`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error during simple SELECT: %s", res.Err)
+	} else if s := mustMarshalJSON(res); s != `{"rows":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:10Z",30]]}]}` {
+		t.Fatalf("unexpected row(0) during simple SELECT: %s", s)
+	}
+
+	// Sum aggregation.
+	results = s.ExecuteQuery(MustParseQuery(`SELECT sum(value) FROM cpu WHERE time >= '2000-01-01 00:00:05' GROUP BY time(10s), region`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error during SUM: %s", res.Err)
+	} else if s := mustMarshalJSON(res); s != `{"rows":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","sum"],"values":[["2000-01-01T00:00:10Z",30]]}]}` {
+		t.Fatalf("unexpected row(0) during SUM: %s", s)
+	}
 }
 
 func TestServer_CreateShardGroupIfNotExist(t *testing.T) {

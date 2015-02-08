@@ -239,6 +239,12 @@ func (m *Measurement) seriesIDsAndFilters(stmt *influxql.SelectStatement) (serie
 		return m.seriesIDs, nil
 	}
 	ids, _, _ := m.walkWhereForSeriesIds(stmt.Condition, seriesIdsToExpr)
+
+	// ids will be empty if all they had was a time in the where clause. so return all measurement series ids
+	if len(ids) == 0 && stmt.OnlyTimeDimensions() {
+		return m.seriesIDs, nil
+	}
+
 	return ids, seriesIdsToExpr
 }
 

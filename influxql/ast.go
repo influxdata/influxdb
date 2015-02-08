@@ -655,6 +655,31 @@ func (s *SelectStatement) Aggregated() bool {
 	return v
 }
 
+// OnlyTimeDimensions returns true if the statement has a where clause with only time constraints
+func (s *SelectStatement) OnlyTimeDimensions() bool {
+	return s.walkForTime(s.Condition)
+}
+
+// walkForTime is called by the OnlyTimeDimensions method to walk the where clause to determine if
+// the only things specified are based on time
+func (s *SelectStatement) walkForTime(node Node) bool {
+	switch n := node.(type) {
+	case *BinaryExpr:
+		if n.Op == AND || n.Op == OR {
+			return s.walkForTime(n.LHS) && s.walkForTime(n.RHS)
+		}
+		if ref, ok := n.LHS.(*VarRef); ok && strings.ToLower(ref.Val) == "time" {
+			return true
+		}
+		return false
+	case *ParenExpr:
+		// walk down the tree
+		return s.walkForTime(n.Expr)
+	default:
+		return false
+	}
+}
+
 /*
 
 BinaryExpr
