@@ -33,8 +33,8 @@ func createCombinedNodeCluster(t *testing.T, testName string, nServers, basePort
 	tmpDir := os.TempDir()
 	tmpBrokerDir := filepath.Join(tmpDir, "broker-integration-test")
 	tmpDataDir := filepath.Join(tmpDir, "data-integration-test")
-	t.Logf("Using tmp directory %q for brokers\n", tmpBrokerDir)
-	t.Logf("Using tmp directory %q for data nodes\n", tmpDataDir)
+	t.Logf("Test %s: using tmp directory %q for brokers\n", testName, tmpBrokerDir)
+	t.Logf("Test %s: using tmp directory %q for data nodes\n", testName, tmpDataDir)
 	// Sometimes if a test fails, it's because of a log.Fatal() in the program.
 	// This prevents the defer from cleaning up directories.
 	// To be safe, nuke them always before starting
@@ -49,19 +49,14 @@ func createCombinedNodeCluster(t *testing.T, testName string, nServers, basePort
 	c.Data.Port = basePort
 	s := main.Run(c, "", "x.x", os.Stderr)
 	if s == nil {
-		t.Fatalf("Failed to create node on port %d", basePort)
+		t.Fatalf("Test %s: failed to create node on port %d", testName, basePort)
 	}
 }
 
-func Test_ServerSingleIntegration(t *testing.T) {
-
+// simpleWriteAndQuery creates a simple database, retention policy, and replicates
+// the data across all nodes. It then ensures a series of writes and queries are OK.
+func simpleWriteAndQuery(t *testing.T, testname string, serverURL *url.URL, nServers int) {
 	now := time.Now().UTC()
-
-	createCombinedNodeCluster(t, "single node", 1, 8090)
-	serverURL := &url.URL{
-		Scheme: "http",
-		Host:   "localhost:8090",
-	}
 
 	// Create a database
 	t.Log("Creating database")
@@ -127,7 +122,8 @@ func Test_ServerSingleIntegration(t *testing.T) {
 
 	// Create a retention policy
 	t.Log("Creating retention policy")
-	u = urlFor(serverURL, "query", url.Values{"q": []string{"CREATE RETENTION POLICY bar ON foo DURATION 1h REPLICATION 1 DEFAULT"}})
+	replication := fmt.Sprintf("CREATE RETENTION POLICY bar ON foo DURATION 1h REPLICATION %d DEFAULT", nServers)
+	u = urlFor(serverURL, "query", url.Values{"q": []string{replication}})
 	resp, err = http.Get(u.String())
 	if err != nil {
 		t.Fatalf("Couldn't create retention policy: %s", err)
@@ -221,6 +217,15 @@ func Test_ServerSingleIntegration(t *testing.T) {
 		t.Logf("%#v\n", results)
 		t.Fatalf("query databases failed.  Unexpected results.")
 	}
+}
+
+func Test_ServerSingleIntegration(t *testing.T) {
+	createCombinedNodeCluster(t, "single node", 1, 8090)
+	serverURL := &url.URL{
+		Scheme: "http",
+		Host:   "localhost:8090",
+	}
+	simpleWriteAndQuery(t, "single node", serverURL, 1)
 }
 
 func urlFor(u *url.URL, path string, params url.Values) *url.URL {
