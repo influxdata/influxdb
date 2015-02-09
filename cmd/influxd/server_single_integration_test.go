@@ -47,9 +47,26 @@ func createCombinedNodeCluster(t *testing.T, testName string, nServers, basePort
 	c.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(basePort))
 	c.Broker.Port = basePort
 	c.Data.Port = basePort
+
 	s := main.Run(c, "", "x.x", os.Stderr)
 	if s == nil {
-		t.Fatalf("Test %s: failed to create node on port %d", testName, basePort)
+		t.Fatalf("Test %s: failed to create leader node on port %d", testName, basePort)
+	}
+
+	// Create subsequent nodes, which join to first node.
+	for i := 1; i < nServers; i++ {
+		nextPort := basePort + i
+		c.Broker.Dir = filepath.Join(tmpBrokerDir, strconv.Itoa(nextPort))
+		c.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(nextPort))
+		c.Broker.Port = nextPort
+		c.Data.Port = nextPort
+
+		s := main.Run(c, "http://localhost:"+strconv.Itoa(basePort), "x.x", os.Stderr)
+		if s == nil {
+			t.Fatalf("Test %s: failed to create following node on port %d", testName, basePort)
+		}
+
+		time.Sleep(3 * time.Second)
 	}
 }
 
@@ -221,11 +238,22 @@ func simpleWriteAndQuery(t *testing.T, testname string, serverURL *url.URL, nSer
 
 func Test_ServerSingleIntegration(t *testing.T) {
 	createCombinedNodeCluster(t, "single node", 1, 8090)
+
 	serverURL := &url.URL{
 		Scheme: "http",
 		Host:   "localhost:8090",
 	}
 	simpleWriteAndQuery(t, "single node", serverURL, 1)
+}
+
+func Test_Server3NodeIntegration(t *testing.T) {
+	createCombinedNodeCluster(t, "3 node", 3, 8090)
+
+	serverURL := &url.URL{
+		Scheme: "http",
+		Host:   "localhost:8090",
+	}
+	simpleWriteAndQuery(t, "3 node", serverURL, 3)
 }
 
 func urlFor(u *url.URL, path string, params url.Values) *url.URL {
