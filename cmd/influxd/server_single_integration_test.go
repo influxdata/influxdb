@@ -182,7 +182,7 @@ func simpleWriteAndQuery(t *testing.T, testname string, serverURL *url.URL, nSer
 
 	// Need some time for server to get consensus and write data
 	// TODO corylanou query the status endpoint for the server and wait for the index to update to know the write was applied
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(3000 * time.Millisecond)
 
 	// Query the data exists
 	t.Log("Query data")
