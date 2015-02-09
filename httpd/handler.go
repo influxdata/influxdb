@@ -32,6 +32,7 @@ type route struct {
 	method      string
 	pattern     string
 	handlerFunc interface{}
+	gzipped     bool
 }
 
 // Handler represents an HTTP handler for the InfluxDB server.
@@ -55,35 +56,35 @@ func NewHandler(s *influxdb.Server, requireAuthentication bool, version string) 
 	h.routes = append(h.routes,
 		route{
 			"query", // Query serving route.
-			"GET", "/query", h.serveQuery,
+			"GET", "/query", h.serveQuery, true,
 		},
 		route{
 			"write", // Data-ingest route.
-			"POST", "/write", h.serveWrite,
+			"POST", "/write", h.serveWrite, true,
 		},
 		route{ // List data nodes
 			"data_nodes_index",
-			"GET", "/data_nodes", h.serveDataNodes,
+			"GET", "/data_nodes", h.serveDataNodes, true,
 		},
 		route{ // Create data node
 			"data_nodes_create",
-			"POST", "/data_nodes", h.serveCreateDataNode,
+			"POST", "/data_nodes", h.serveCreateDataNode, true,
 		},
 		route{ // Delete data node
 			"data_nodes_delete",
-			"DELETE", "/data_nodes/:id", h.serveDeleteDataNode,
+			"DELETE", "/data_nodes/:id", h.serveDeleteDataNode, true,
 		},
 		route{ // Metastore
 			"metastore",
-			"GET", "/metastore", h.serveMetastore,
+			"GET", "/metastore", h.serveMetastore, false,
 		},
 		route{ // Status
 			"status",
-			"GET", "/status", h.serveStatus,
+			"GET", "/status", h.serveStatus, true,
 		},
 		route{ // Ping
 			"ping",
-			"GET", "/ping", h.servePing,
+			"GET", "/ping", h.servePing, true,
 		},
 	)
 
@@ -99,7 +100,9 @@ func NewHandler(s *influxdb.Server, requireAuthentication bool, version string) 
 			handler = http.HandlerFunc(hf)
 		}
 
-		handler = gzipFilter(handler)
+		if r.gzipped {
+			handler = gzipFilter(handler)
+		}
 		handler = versionHeader(handler, version)
 		handler = cors(handler)
 		handler = requestID(handler)
