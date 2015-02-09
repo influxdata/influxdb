@@ -196,7 +196,7 @@ func Test_ServerSingleIntegration(t *testing.T) {
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		t.Fatalf("Coulnd't read body of response: %s", err)
+		t.Fatalf("Couldn't read body of response: %s", err)
 	}
 	t.Logf("resp.Body: %s\n", string(body))
 
