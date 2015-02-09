@@ -1145,23 +1145,16 @@ func TestServer_CreateContinuousQuery_ErrContinuousQueryExists(t *testing.T) {
 }
 
 // Ensure the server returns an error when creating a continuous query on a database that doesn't exist
-func TestServer_CreateCreateContinuousQuery_ErrDatabaseNotFound(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
-	defer s.Close()
+func TestServer_CreateContinuousQuery_ErrDatabaseNotFound(t *testing.T) {
 	t.Skip("pending")
 }
 
 // Ensure the server returns an error when creating a continuous query on a retention policy that doesn't exist
-func TestServer_CreateCreateContinuousQuery_ErrRetentionPolicyNotFound(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
-	defer s.Close()
+func TestServer_CreateContinuousQuery_ErrRetentionPolicyNotFound(t *testing.T) {
+	t.Skip("pending")
+}
 
-	// Create the "foo" database.
-	if err := s.CreateDatabase("foo"); err != nil {
-		t.Fatal(err)
-	}
-
-	// Create on an RP that doesn't exist
+func TestServer_CreateContinuousQuery_ErrInfinteLoop(t *testing.T) {
 	t.Skip("pending")
 }
 
