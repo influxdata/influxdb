@@ -23,11 +23,10 @@ import (
 // createCombinedNodeCluster creates a cluster of nServers nodes, each of which
 // runs as both a Broker and Data node. If any part cluster creation fails,
 // the testing is marked as failed.
-func createCombinedNodeCluster(t *testing.T, testName string, nServers, basePort int) {
-	t.Logf("Creating cluster of %d nodes for test %s", nServers, testName)
-
-	if nServers == 0 {
-		return
+func createCombinedNodeCluster(t *testing.T, testName string, nNodes, basePort int) {
+	t.Logf("Creating cluster of %d nodes for test %s", nNodes, testName)
+	if nNodes < 1 {
+		t.Fatalf("Test %s: asked to create nonsense cluster")
 	}
 
 	tmpDir := os.TempDir()
@@ -54,7 +53,7 @@ func createCombinedNodeCluster(t *testing.T, testName string, nServers, basePort
 	}
 
 	// Create subsequent nodes, which join to first node.
-	for i := 1; i < nServers; i++ {
+	for i := 1; i < nNodes; i++ {
 		nextPort := basePort + i
 		c.Broker.Dir = filepath.Join(tmpBrokerDir, strconv.Itoa(nextPort))
 		c.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(nextPort))
@@ -237,23 +236,36 @@ func simpleWriteAndQuery(t *testing.T, testname string, serverURL *url.URL, nSer
 }
 
 func Test_ServerSingleIntegration(t *testing.T) {
-	createCombinedNodeCluster(t, "single node", 1, 8090)
+	nNodes := 1
+	createCombinedNodeCluster(t, "single node", nNodes, 8090)
 
 	serverURL := &url.URL{
 		Scheme: "http",
 		Host:   "localhost:8090",
 	}
-	simpleWriteAndQuery(t, "single node", serverURL, 1)
+	simpleWriteAndQuery(t, "single node", serverURL, nNodes)
 }
 
 func Test_Server3NodeIntegration(t *testing.T) {
-	createCombinedNodeCluster(t, "3 node", 3, 8090)
+	nNodes := 3
+	createCombinedNodeCluster(t, "3 node", nNodes, 8090)
 
 	serverURL := &url.URL{
 		Scheme: "http",
 		Host:   "localhost:8090",
 	}
-	simpleWriteAndQuery(t, "3 node", serverURL, 3)
+	simpleWriteAndQuery(t, "3 node", serverURL, nNodes)
+}
+
+func Test_Server5NodeIntegration(t *testing.T) {
+	nNodes := 5
+	createCombinedNodeCluster(t, "5 node", nNodes, 8090)
+
+	serverURL := &url.URL{
+		Scheme: "http",
+		Host:   "localhost:8090",
+	}
+	simpleWriteAndQuery(t, "5 node", serverURL, nNodes)
 }
 
 func urlFor(u *url.URL, path string, params url.Values) *url.URL {
