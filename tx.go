@@ -283,6 +283,11 @@ func (c *seriesCursor) Next(fieldName string, fieldID uint8, tmin, tmax int64) (
 			return 0, nil
 		}
 
+		// Skip to the next if we don't have a field value for this field for this point
+		if value == nil {
+			continue
+		}
+
 		// Evaluate condition. Move to next key/value if non-true.
 		if c.condition != nil {
 			if ok, _ := influxql.Eval(c.condition, map[string]interface{}{fieldName: value}).(bool); !ok {
