@@ -11,7 +11,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"reflect"
 	"regexp"
 	"sort"
 	"strconv"
@@ -3162,10 +3161,7 @@ func (s *Server) runContinuousQuery(cq *ContinuousQuery) {
 
 // runContinuousQueryAndWriteResult will run the query against the cluster and write the results back in
 func (s *Server) runContinuousQueryAndWriteResult(cq *ContinuousQuery) error {
-	warn("> cq run: ", cq.cq.Database, cq.cq.Source.String())
-
 	e, err := s.planSelectStatement(cq.cq.Source, cq.cq.Database)
-	warn("> planned")
 
 	if err != nil {
 		return err
@@ -3178,35 +3174,27 @@ func (s *Server) runContinuousQueryAndWriteResult(cq *ContinuousQuery) error {
 	}
 
 	// Read all rows from channel and write them in
-	// TODO paul: fill in db and retention policy when CQ parsing gets updated
-	warn("cq.start.empty.ch")
 	for row := range ch {
-		warn("row: ", row)
-		points, err := s.convertRowToPoints(row)
+		points, err := s.convertRowToPoints(cq.intoMeasurement, row)
 		if err != nil {
 			log.Println(err)
 			continue
-		}
-		for _, p := range points {
-			warn("> ", p)
 		}
 
 		if len(points) > 0 {
 			_, err = s.WriteSeries(cq.intoDB, cq.intoRP, points)
 			if err != nil {
-				log.Printf("cq err: %s", err)
+				log.Printf("[cq] err: %s", err)
 			}
-		} else {
-			warn("> empty points")
 		}
 	}
-	warn("cq.run.write")
 
 	return nil
 }
 
-// convertRowToPoints will convert a query result Row into Points that can be written back in
-func (s *Server) convertRowToPoints(row *influxql.Row) ([]Point, error) {
+// convertRowToPoints will convert a query result Row into Points that can be written back in.
+// Used for continuous and INTO queries
+func (s *Server) convertRowToPoints(measurementName string, row *influxql.Row) ([]Point, error) {
 	// figure out which parts of the result are the time and which are the fields
 	timeIndex := -1
 	fieldIndexes := make(map[string]int)
@@ -3229,11 +3217,8 @@ func (s *Server) convertRowToPoints(row *influxql.Row) ([]Point, error) {
 			vals[fieldName] = v[fieldIndex]
 		}
 
-		warn("> ", row)
-		warn("> ", reflect.TypeOf(v[timeIndex]))
-		warn("> ", vals)
 		p := &Point{
-			Name:      row.Name,
+			Name:      measurementName,
 			Tags:      row.Tags,
 			Timestamp: v[timeIndex].(time.Time),
 			Values:    vals,

@@ -1610,7 +1610,6 @@ func TimeRange(expr Expr) (min, max time.Time) {
 			// Otherwise check for for the right-hand side and flip the operator.
 			value, op := timeExprValue(n.LHS, n.RHS), n.Op
 			if value.IsZero() {
-				return
 				if value = timeExprValue(n.RHS, n.LHS); value.IsZero() {
 					return
 				} else if op == LT {

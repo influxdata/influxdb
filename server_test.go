@@ -1179,13 +1179,13 @@ func TestServer_RunContinuousQueries(t *testing.T) {
 	}
 	s.SetDefaultRetentionPolicy("foo", "raw")
 
-	s.RecomputePreviousN = 2
-	s.RecomputeNoOlderThan = 4 * time.Second
+	s.RecomputePreviousN = 50
+	s.RecomputeNoOlderThan = time.Second
 	s.ComputeRunsPerInterval = 5
-	s.ComputeNoMoreThan = 2 * time.Second
+	s.ComputeNoMoreThan = 2 * time.Millisecond
 
 	// create cq and check
-	q := `CREATE CONTINUOUS QUERY myquery ON foo BEGIN SELECT mean(value) INTO cpu_region FROM cpu GROUP BY time(5s), region END`
+	q := `CREATE CONTINUOUS QUERY myquery ON foo BEGIN SELECT mean(value) INTO cpu_region FROM cpu GROUP BY time(5ms), region END`
 	stmt, err := influxql.NewParser(strings.NewReader(q)).ParseStatement()
 	if err != nil {
 		t.Fatalf("error parsing query %s", err.Error())
@@ -1198,50 +1198,49 @@ func TestServer_RunContinuousQueries(t *testing.T) {
 		t.Fatalf("error running cqs when no data exists: %s", err.Error())
 	}
 
-	// Write series with one point to the database.
-	now := time.Now().UTC()
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: now, Values: map[string]interface{}{"value": float64(20)}}})
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: now, Values: map[string]interface{}{"value": float64(30)}}})
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-west"}, Timestamp: now, Values: map[string]interface{}{"value": float64(100)}}})
+	// set a test time in the middle of a 5 second interval that we can work with
+	testTime := time.Now().UTC().Round(5 * time.Millisecond)
+	if testTime.UnixNano() > time.Now().UnixNano() {
+		testTime = testTime.Add(-5 * time.Millisecond)
+	}
+	testTime.Add(time.Millisecond * 2)
 
-	start := time.Now().Round(time.Minute * 5).Add(-time.Minute * 5)
-	end := start.Add(time.Minute * 5)
-	cond := fmt.Sprintf("time >= '%s' AND time < '%s'", start.UTC().Format(time.RFC3339Nano), end.UTC().Format(time.RFC3339Nano))
-	q1, _ := influxql.NewParser(strings.NewReader(fmt.Sprintf(`SELECT mean(value) FROM "foo"."raw"."cpu" WHERE %s GROUP BY time(5s), region`, cond))).ParseQuery()
-	fmt.Println("ASDF: ", q1.String())
-	r1 := s.ExecuteQuery(q1, "foo", nil)
-	fmt.Println("RESULTS: ", r1.Results[0])
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: testTime, Values: map[string]interface{}{"value": float64(30)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: testTime.Add(-time.Millisecond * 5), Values: map[string]interface{}{"value": float64(20)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-west"}, Timestamp: testTime, Values: map[string]interface{}{"value": float64(100)}}})
 
-	time.Sleep(time.Second * 2)
-	// TODO: figure out how to actually test this
-	fmt.Println("CQ 1")
+	// Run CQs after a period of time
+	time.Sleep(time.Millisecond * 50)
 	s.RunContinuousQueries()
-	fmt.Println("CQ 2")
-	s.RunContinuousQueries()
-	time.Sleep(time.Second * 2)
-	// Select data from the server.
-	results := s.ExecuteQuery(MustParseQuery(`SELECT value, region FROM "foo"."raw".cpu_region GROUP BY region`), "foo", nil)
-	if res := results.Results[0]; res.Err != nil {
-		t.Fatalf("unexpected error: %s", res.Err)
-	} else if len(res.Rows) != 2 {
-		t.Fatalf("unexpected row count: %d", len(res.Rows))
-	} else if s := mustMarshalJSON(res); s != `{"rows":[{"name":"\"foo\".\"raw\".cpu","tags":{"region":"us-east"},"columns":["time","sum"],"values":[[946684800000000,20],[946684810000000,30]]},{"name":"\"foo\".\"raw\".cpu","tags":{"region":"us-west"},"columns":["time","sum"],"values":[[946684800000000,100]]}]}` {
-		t.Fatalf("unexpected row(0): %s", s)
+	// give the CQs time to run
+	time.Sleep(time.Millisecond * 100)
+
+	verify := func(num int, exp string) {
+		results := s.ExecuteQuery(MustParseQuery(`SELECT mean(mean) FROM cpu_region GROUP BY region`), "foo", nil)
+		if res := results.Results[0]; res.Err != nil {
+			t.Fatalf("unexpected error verify %d: %s", num, res.Err)
+		} else if len(res.Rows) != 2 {
+			t.Fatalf("unexpected row count on verify %d: %d", num, len(res.Rows))
+		} else if s := mustMarshalJSON(res); s != exp {
+			t.Fatalf("unexpected row(0) on verify %d: %s", num, s)
+		}
 	}
 
-	fmt.Println("CQ 3")
+	// ensure CQ results were saved
+	verify(1, `{"rows":[{"name":"cpu_region","tags":{"region":"us-east"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",25]]},{"name":"cpu_region","tags":{"region":"us-west"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",100]]}]}`)
+
+	// ensure that repeated runs don't cause duplicate data
 	s.RunContinuousQueries()
-	fmt.Println("CQ 4")
+	verify(2, `{"rows":[{"name":"cpu_region","tags":{"region":"us-east"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",25]]},{"name":"cpu_region","tags":{"region":"us-west"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",100]]}]}`)
+
+	// ensure that data written into a previous window is picked up and the result recomputed.
+	time.Sleep(time.Millisecond * 2)
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-west"}, Timestamp: testTime.Add(-time.Millisecond), Values: map[string]interface{}{"value": float64(50)}}})
 	s.RunContinuousQueries()
-	time.Sleep(time.Second * 3)
-	fmt.Println("CQ 5")
-	s.RunContinuousQueries()
-	time.Sleep(time.Second * 3)
-	fmt.Println("CQ 6")
-	s.RunContinuousQueries()
-	time.Sleep(time.Second * 3)
-	fmt.Println("CQ 7")
-	s.RunContinuousQueries()
+	// give CQs time to run
+	time.Sleep(time.Millisecond * 50)
+
+	verify(3, `{"rows":[{"name":"cpu_region","tags":{"region":"us-east"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",25]]},{"name":"cpu_region","tags":{"region":"us-west"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",75]]}]}`)
 }
 
 func mustMarshalJSON(v interface{}) string {

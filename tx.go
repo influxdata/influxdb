@@ -78,7 +78,6 @@ func (tx *tx) CreateIterators(stmt *influxql.SelectStatement) ([]influxql.Iterat
 
 	// Grab time range from statement.
 	tmin, tmax := influxql.TimeRange(stmt.Condition)
-	warn("range: ", tmin.Format(influxql.DateTimeFormat), tmax.Format(influxql.DateTimeFormat))
 	if tmin.IsZero() {
 		tmin = time.Unix(0, 1)
 	}
