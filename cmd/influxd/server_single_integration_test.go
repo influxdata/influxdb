@@ -26,7 +26,7 @@ import (
 func createCombinedNodeCluster(t *testing.T, testName string, nNodes, basePort int) {
 	t.Logf("Creating cluster of %d nodes for test %s", nNodes, testName)
 	if nNodes < 1 {
-		t.Fatalf("Test %s: asked to create nonsense cluster")
+		t.Fatalf("Test %s: asked to create nonsense cluster", testName)
 	}
 
 	tmpDir := os.TempDir()
@@ -71,7 +71,7 @@ func createCombinedNodeCluster(t *testing.T, testName string, nNodes, basePort i
 
 // simpleWriteAndQuery creates a simple database, retention policy, and replicates
 // the data across all nodes. It then ensures a series of writes and queries are OK.
-func simpleWriteAndQuery(t *testing.T, testname string, serverURL *url.URL, nServers int) {
+func simpleWriteAndQuery(t *testing.T, testname string, serverURL *url.URL, nNodes int) {
 	now := time.Now().UTC()
 
 	// Create a database
@@ -138,7 +138,7 @@ func simpleWriteAndQuery(t *testing.T, testname string, serverURL *url.URL, nSer
 
 	// Create a retention policy
 	t.Log("Creating retention policy")
-	replication := fmt.Sprintf("CREATE RETENTION POLICY bar ON foo DURATION 1h REPLICATION %d DEFAULT", nServers)
+	replication := fmt.Sprintf("CREATE RETENTION POLICY bar ON foo DURATION 1h REPLICATION %d DEFAULT", nNodes)
 	u = urlFor(serverURL, "query", url.Values{"q": []string{replication}})
 	resp, err = http.Get(u.String())
 	if err != nil {
@@ -181,7 +181,7 @@ func simpleWriteAndQuery(t *testing.T, testname string, serverURL *url.URL, nSer
 
 	// Need some time for server to get consensus and write data
 	// TODO corylanou query the status endpoint for the server and wait for the index to update to know the write was applied
-	time.Sleep(3000 * time.Millisecond)
+	time.Sleep(time.Duration(nNodes) * time.Second)
 
 	// Query the data exists
 	t.Log("Query data")
