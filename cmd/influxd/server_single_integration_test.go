@@ -20,7 +20,6 @@ import (
 )
 
 func Test_ServerSingleIntegration(t *testing.T) {
-	t.Skip("pending review")
 
 	var (
 		join    = ""
@@ -72,9 +71,8 @@ func Test_ServerSingleIntegration(t *testing.T) {
 	t.Log("Creating database")
 
 	u := urlFor(c.BrokerURL(), "query", url.Values{"q": []string{"CREATE DATABASE foo"}})
-	httpClient := http.Client{Timeout: 100 * time.Millisecond}
 
-	resp, err := httpClient.Get(u.String())
+	resp, err := http.Get(u.String())
 	if err != nil {
 		t.Fatalf("Couldn't create database: %s", err)
 	}
@@ -101,7 +99,7 @@ func Test_ServerSingleIntegration(t *testing.T) {
 	// Query the database exists
 	u = urlFor(c.BrokerURL(), "query", url.Values{"q": []string{"SHOW DATABASES"}})
 
-	resp, err = httpClient.Get(u.String())
+	resp, err = http.Get(u.String())
 	if err != nil {
 		t.Fatalf("Couldn't query databases: %s", err)
 	}
@@ -139,7 +137,7 @@ func Test_ServerSingleIntegration(t *testing.T) {
 
 	u = urlFor(c.BrokerURL(), "query", url.Values{"q": []string{"CREATE RETENTION POLICY bar ON foo DURATION 1h REPLICATION 1 DEFAULT"}})
 
-	resp, err = httpClient.Get(u.String())
+	resp, err = http.Get(u.String())
 	if err != nil {
 		t.Fatalf("Couldn't create retention policy: %s", err)
 	}
@@ -172,7 +170,7 @@ func Test_ServerSingleIntegration(t *testing.T) {
 	buf := []byte(fmt.Sprintf(`{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": %d, "precision":"n","values": {"value": 100}}]}`, now.UnixNano()))
 	t.Logf("Writing raw data: %s", string(buf))
 
-	resp, err = httpClient.Post(u.String(), "application/json", bytes.NewReader(buf))
+	resp, err = http.Post(u.String(), "application/json", bytes.NewReader(buf))
 	if err != nil {
 		t.Fatalf("Couldn't write data: %s", err)
 	}
@@ -188,7 +186,7 @@ func Test_ServerSingleIntegration(t *testing.T) {
 	t.Log("Query data")
 	u = urlFor(c.BrokerURL(), "query", url.Values{"q": []string{`select value from "foo"."bar".cpu`}, "db": []string{"foo"}})
 
-	resp, err = httpClient.Get(u.String())
+	resp, err = http.Get(u.String())
 	if err != nil {
 		t.Fatalf("Couldn't query databases: %s", err)
 	}
