@@ -1040,6 +1040,36 @@ func TestHandler_RevokeDBPrivilege(t *testing.T) {
 	}
 }
 
+func TestHandler_ShowContinuousQueries(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
+	srvr.SetDefaultRetentionPolicy("foo", "bar")
+
+	// create and check
+	q := "CREATE CONTINUOUS QUERY myquery ON foo BEGIN SELECT count() INTO measure1 FROM myseries GROUP BY time(10m) END"
+	stmt, err := influxql.NewParser(strings.NewReader(q)).ParseStatement()
+	if err != nil {
+		t.Fatalf("error parsing query %s", err.Error())
+	}
+	cq := stmt.(*influxql.CreateContinuousQueryStatement)
+	if err := srvr.CreateContinuousQuery(cq); err != nil {
+		t.Fatalf("error creating continuous query %s", err.Error())
+	}
+
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	query := map[string]string{"q": "SHOW CONTINUOUS QUERIES"}
+	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	} else if body != `{"results":[{"rows":[{"name":"foo","columns":["name","query"],"values":[["myquery","CREATE CONTINUOUS QUERY myquery ON foo BEGIN SELECT count() INTO measure1 FROM myseries GROUP BY time(10m) END"]]}]}]}` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+
+}
+
 func TestHandler_serveWriteSeries(t *testing.T) {
 	srvr := OpenAuthenticatedServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")

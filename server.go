@@ -1953,7 +1953,7 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 		case *influxql.DropContinuousQueryStatement:
 			continue
 		case *influxql.ShowContinuousQueriesStatement:
-			continue
+			res = s.executeShowContinuousQueriesStatement(stmt, database, user)
 		default:
 			panic(fmt.Sprintf("unsupported statement type: %T", stmt))
 		}
@@ -2310,6 +2310,18 @@ func (s *Server) executeShowTagValuesStatement(stmt *influxql.ShowTagValuesState
 	}
 
 	return result
+}
+
+func (s *Server) executeShowContinuousQueriesStatement(stmt *influxql.ShowContinuousQueriesStatement, database string, user *User) *Result {
+	rows := make([]*influxql.Row, 0)
+	for _, name := range s.Databases() {
+		row := &influxql.Row{Columns: []string{"name", "query"}, Name: name}
+		for _, cq := range s.ContinuousQueries(name) {
+			row.Values = append(row.Values, []interface{}{cq.cq.Name, cq.Query})
+		}
+		rows = append(rows, row)
+	}
+	return &Result{Rows: rows}
 }
 
 // filterMeasurementsByExpr filters a list of measurements by a tags expression.
