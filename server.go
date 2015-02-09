@@ -1848,12 +1848,6 @@ func (s *Server) planSelectStatement(stmt *influxql.SelectStatement, database st
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	// Find database.
-	db := s.databases[database]
-	if db == nil {
-		return nil, ErrDatabaseNotFound
-	}
-
 	// Plan query.
 	p := influxql.NewPlanner(s)
 	return p.Plan(stmt)
