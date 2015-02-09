@@ -30,8 +30,8 @@ func Test_ServerSingleIntegration(t *testing.T) {
 	tmpDir := os.TempDir()
 	tmpBrokerDir := filepath.Join(tmpDir, "broker")
 	tmpDataDir := filepath.Join(tmpDir, "data")
-	t.Logf("Using tmp directorie %q for broker\n", tmpBrokerDir)
-	t.Logf("Using tmp directorie %q for data\n", tmpDataDir)
+	t.Logf("Using tmp directory %q for broker\n", tmpBrokerDir)
+	t.Logf("Using tmp directory %q for data\n", tmpDataDir)
 	// Sometimes if this test fails, it's because of a log.Fatal() in the program.
 	// This prevents the defer from cleaning up directories.
 	// To be safe, nuke them always before starting
