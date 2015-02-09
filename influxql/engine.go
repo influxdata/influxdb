@@ -121,6 +121,8 @@ func (p *Planner) planExpr(e *Executor, expr Expr) (Processor, error) {
 		return newLiteralProcessor(expr.Val), nil
 	case *DurationLiteral:
 		return newLiteralProcessor(expr.Val), nil
+	case *Wildcard:
+		panic("Wildcard operator not yet implemented")
 	}
 	panic("unreachable")
 }
