@@ -88,13 +88,9 @@ func createCombinedNodeCluster(t *testing.T, testName string, nNodes, basePort i
 	return nodes
 }
 
-// simpleWriteAndQuery creates a simple database, retention policy, and replicates
-// the data across all nodes. It then ensures a series of writes and queries are OK.
-func simpleWriteAndQuery(t *testing.T, testname string, serverURL *url.URL, nNodes int) {
-	now := time.Now().UTC()
-
-	// Create a database
-	t.Log("Creating database")
+// createDatabase creates a database, and verifies that the creation was successful.
+func createDatabase(t *testing.T, testName string, serverURL *url.URL, database string) {
+	t.Logf("Test: %s: creating database %s", testName, database)
 	u := urlFor(serverURL, "query", url.Values{"q": []string{"CREATE DATABASE foo"}})
 	resp, err := http.Get(u.String())
 	if err != nil {
@@ -154,17 +150,20 @@ func simpleWriteAndQuery(t *testing.T, testname string, serverURL *url.URL, nNod
 	if !reflect.DeepEqual(results, expectedResults) {
 		t.Fatalf("show databases failed.  Unexpected results.  expected: %+v, actual %+v", expectedResults, results)
 	}
+}
 
-	// Create a retention policy
+// createRetentionPolicy creates a retetention policy and verifies that the creation was successful.
+func createRetentionPolicy(t *testing.T, testName string, serverURL *url.URL, database, retention string, replicaN int) {
 	t.Log("Creating retention policy")
-	replication := fmt.Sprintf("CREATE RETENTION POLICY bar ON foo DURATION 1h REPLICATION %d DEFAULT", nNodes)
-	u = urlFor(serverURL, "query", url.Values{"q": []string{replication}})
-	resp, err = http.Get(u.String())
+	replication := fmt.Sprintf("CREATE RETENTION POLICY bar ON foo DURATION 1h REPLICATION %d DEFAULT", replicaN)
+	u := urlFor(serverURL, "query", url.Values{"q": []string{replication}})
+	resp, err := http.Get(u.String())
 	if err != nil {
 		t.Fatalf("Couldn't create retention policy: %s", err)
 	}
 	defer resp.Body.Close()
 
+	var results client.Results
 	err = json.NewDecoder(resp.Body).Decode(&results)
 	if err != nil {
 		t.Fatalf("Couldn't decode results: %v", err)
@@ -181,16 +180,21 @@ func simpleWriteAndQuery(t *testing.T, testname string, serverURL *url.URL, nNod
 	if len(results.Results) != 1 {
 		t.Fatalf("Create retention policy failed.  Unexpected results length.  expected: %d, actual %d", 1, len(results.Results))
 	}
+}
 
-	// TODO corylanou: Query the retention policy exists
+// simpleWriteAndQuery creates a simple database, retention policy, and replicates
+// the data across all nodes. It then ensures a series of writes and queries are OK.
+func simpleWriteAndQuery(t *testing.T, testname string, serverURL *url.URL, nNodes int) {
+	now := time.Now().UTC()
+	var results client.Results
 
 	// Write Data
 	t.Log("Write data")
-	u = urlFor(serverURL, "write", url.Values{})
+	u := urlFor(serverURL, "write", url.Values{})
 
 	buf := []byte(fmt.Sprintf(`{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": %d, "precision":"n","values": {"value": 100}}]}`, now.UnixNano()))
 	t.Logf("Writing raw data: %s", string(buf))
-	resp, err = http.Post(u.String(), "application/json", bytes.NewReader(buf))
+	resp, err := http.Post(u.String(), "application/json", bytes.NewReader(buf))
 	if err != nil {
 		t.Fatalf("Couldn't write data: %s", err)
 	}
@@ -232,7 +236,7 @@ func simpleWriteAndQuery(t *testing.T, testname string, serverURL *url.URL, nNod
 		t.Fatalf("query databases failed.  Unexpected status code.  expected: %d, actual %d", http.StatusOK, resp.StatusCode)
 	}
 
-	expectedResults = client.Results{
+	expectedResults := client.Results{
 		Results: []client.Result{
 			{Rows: []influxql.Row{
 				{
@@ -257,37 +261,49 @@ func simpleWriteAndQuery(t *testing.T, testname string, serverURL *url.URL, nNod
 func Test_ServerSingleIntegration(t *testing.T) {
 	nNodes := 1
 	basePort := 8090
+	testName := "single node"
 	createCombinedNodeCluster(t, "single node", nNodes, basePort)
 
 	serverURL := &url.URL{
 		Scheme: "http",
 		Host:   "localhost:" + strconv.Itoa(basePort),
 	}
-	simpleWriteAndQuery(t, "single node", serverURL, nNodes)
+
+	createDatabase(t, testName, serverURL, "foo")
+	createRetentionPolicy(t, testName, serverURL, "foo", "bar", nNodes)
+	simpleWriteAndQuery(t, testName, serverURL, nNodes)
 }
 
 func Test_Server3NodeIntegration(t *testing.T) {
 	nNodes := 3
 	basePort := 8190
-	createCombinedNodeCluster(t, "3 node", nNodes, basePort)
+	testName := "3 node"
+	createCombinedNodeCluster(t, testName, nNodes, basePort)
 
 	serverURL := &url.URL{
 		Scheme: "http",
 		Host:   "localhost:" + strconv.Itoa(basePort),
 	}
-	simpleWriteAndQuery(t, "3 node", serverURL, nNodes)
+
+	createDatabase(t, testName, serverURL, "foo")
+	createRetentionPolicy(t, testName, serverURL, "foo", "bar", nNodes)
+	simpleWriteAndQuery(t, testName, serverURL, nNodes)
 }
 
 func Test_Server5NodeIntegration(t *testing.T) {
 	nNodes := 5
 	basePort := 8290
-	createCombinedNodeCluster(t, "5 node", nNodes, basePort)
+	testName := "5 node"
+	createCombinedNodeCluster(t, testName, nNodes, basePort)
 
 	serverURL := &url.URL{
 		Scheme: "http",
 		Host:   "localhost:" + strconv.Itoa(basePort),
 	}
-	simpleWriteAndQuery(t, "5 node", serverURL, nNodes)
+
+	createDatabase(t, testName, serverURL, "foo")
+	createRetentionPolicy(t, testName, serverURL, "foo", "bar", nNodes)
+	simpleWriteAndQuery(t, testName, serverURL, nNodes)
 }
 
 func urlFor(u *url.URL, path string, params url.Values) *url.URL {
