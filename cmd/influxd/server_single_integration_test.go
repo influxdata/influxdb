@@ -64,8 +64,6 @@ func createCombinedNodeCluster(t *testing.T, testName string, nNodes, basePort i
 		if s == nil {
 			t.Fatalf("Test %s: failed to create following node on port %d", testName, basePort)
 		}
-
-		time.Sleep(3 * time.Second)
 	}
 }
 
