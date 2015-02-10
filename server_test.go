@@ -846,14 +846,14 @@ func TestServer_ExecuteWildcardQuery(t *testing.T) {
 	s.CreateUser("susy", "pass", false)
 
 	// Write series with one point to the database.
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(20), "val-x": 10}}})
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: mustParseTime("2000-01-01T00:00:10Z"), Values: map[string]interface{}{"value": float64(30), "val-x": 20}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(10)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: mustParseTime("2000-01-01T00:00:10Z"), Values: map[string]interface{}{"val-x": 20}}})
 
 	// Select * (wildcard).
 	results := s.ExecuteQuery(MustParseQuery(`SELECT * FROM cpu`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error during SELECT *: %s", res.Err)
-	} else if s := mustMarshalJSON(res); s != `{"rows":[{"name":"cpu","columns":["time","val-x","value"],"values":[["2000-01-01T00:00:00Z",10,20],["2000-01-01T00:00:10Z",20,30]]}]}` {
+	} else if s := mustMarshalJSON(res); s != `{"rows":[{"name":"cpu","columns":["time","value","val-x"],"values":[["2000-01-01T00:00:00Z",10,null],["2000-01-01T00:00:10Z",null,20]]}]}` {
 		t.Fatalf("unexpected results during SELECT *: %s", s)
 	}
 }
