@@ -1823,7 +1823,7 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 // executeSelectStatement plans and executes a select statement against a database.
 func (s *Server) executeSelectStatement(stmt *influxql.SelectStatement, database string, user *User) *Result {
 	// Plan statement execution.
-	e, err := s.planSelectStatement(stmt, database)
+	e, err := s.planSelectStatement(stmt)
 	if err != nil {
 		return &Result{Err: err}
 	}
@@ -1844,7 +1844,7 @@ func (s *Server) executeSelectStatement(stmt *influxql.SelectStatement, database
 }
 
 // plans a selection statement under lock.
-func (s *Server) planSelectStatement(stmt *influxql.SelectStatement, database string) (*influxql.Executor, error) {
+func (s *Server) planSelectStatement(stmt *influxql.SelectStatement) (*influxql.Executor, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
