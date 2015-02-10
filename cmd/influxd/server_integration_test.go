@@ -171,10 +171,10 @@ func createDatabase(t *testing.T, testName string, nodes cluster, database strin
 }
 
 // createRetentionPolicy creates a retetention policy and verifies that the creation was successful.
-func createRetentionPolicy(t *testing.T, testName string, nodes cluster, database, retention string, replicaN int) {
+func createRetentionPolicy(t *testing.T, testName string, nodes cluster, database, retention string) {
 	t.Log("Creating retention policy")
 	serverURL := nodes[0].url
-	replication := fmt.Sprintf("CREATE RETENTION POLICY bar ON foo DURATION 1h REPLICATION %d DEFAULT", replicaN)
+	replication := fmt.Sprintf("CREATE RETENTION POLICY bar ON foo DURATION 1h REPLICATION %d DEFAULT", len(nodes))
 
 	u := urlFor(serverURL, "query", url.Values{"q": []string{replication}})
 	resp, err := http.Get(u.String())
@@ -204,7 +204,7 @@ func createRetentionPolicy(t *testing.T, testName string, nodes cluster, databas
 
 // simpleWriteAndQuery creates a simple database, retention policy, and replicates
 // the data across all nodes. It then ensures a series of writes and queries are OK.
-func simpleWriteAndQuery(t *testing.T, testname string, nodes cluster, nNodes int) {
+func simpleWriteAndQuery(t *testing.T, testname string, nodes cluster) {
 	now := time.Now().UTC()
 	serverURL := nodes[0].url
 	var results client.Results
@@ -225,7 +225,7 @@ func simpleWriteAndQuery(t *testing.T, testname string, nodes cluster, nNodes in
 
 	// Need some time for server to get consensus and write data
 	// TODO corylanou query the status endpoint for the server and wait for the index to update to know the write was applied
-	time.Sleep(time.Duration(nNodes) * time.Second)
+	time.Sleep(time.Duration(len(nodes)) * time.Second)
 
 	// Query the data exists
 	t.Log("Query data")
@@ -286,30 +286,36 @@ func Test_ServerSingleIntegration(t *testing.T) {
 	nodes := createCombinedNodeCluster(t, "single node", nNodes, basePort)
 
 	createDatabase(t, testName, nodes, "foo")
-	createRetentionPolicy(t, testName, nodes, "foo", "bar", nNodes)
-	simpleWriteAndQuery(t, testName, nodes, nNodes)
+	createRetentionPolicy(t, testName, nodes, "foo", "bar")
+	simpleWriteAndQuery(t, testName, nodes)
 }
 
 func Test_Server3NodeIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
 	nNodes := 3
 	basePort := 8190
 	testName := "3 node"
 	nodes := createCombinedNodeCluster(t, testName, nNodes, basePort)
 
 	createDatabase(t, testName, nodes, "foo")
-	createRetentionPolicy(t, testName, nodes, "foo", "bar", nNodes)
-	simpleWriteAndQuery(t, testName, nodes, nNodes)
+	createRetentionPolicy(t, testName, nodes, "foo", "bar")
+	simpleWriteAndQuery(t, testName, nodes)
 }
 
 func Test_Server5NodeIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
 	nNodes := 5
 	basePort := 8290
 	testName := "5 node"
 	nodes := createCombinedNodeCluster(t, testName, nNodes, basePort)
 
 	createDatabase(t, testName, nodes, "foo")
-	createRetentionPolicy(t, testName, nodes, "foo", "bar", nNodes)
-	simpleWriteAndQuery(t, testName, nodes, nNodes)
+	createRetentionPolicy(t, testName, nodes, "foo", "bar")
+	simpleWriteAndQuery(t, testName, nodes)
 }
 
 func urlFor(u *url.URL, path string, params url.Values) *url.URL {
