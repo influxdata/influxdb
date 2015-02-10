@@ -225,13 +225,13 @@ func write(t *testing.T, testname string, nodes cluster, data string) {
 
 // simpleQuery creates a simple database, retention policy, and replicates
 // the data across all nodes. It then ensures a series of writes and queries are OK.
-func simpleQuery(t *testing.T, testname string, nodes cluster, expected client.Results) {
+func simpleQuery(t *testing.T, testname string, nodes cluster, query string, expected client.Results) {
 	serverURL := nodes[0].url
 	var results client.Results
 
 	// Query the data exists
 	t.Log("Query data")
-	u := urlFor(serverURL, "query", url.Values{"q": []string{`select value from "foo"."bar".cpu`}, "db": []string{"foo"}})
+	u := urlFor(serverURL, "query", url.Values{"q": []string{query}, "db": []string{"foo"}})
 	resp, err := http.Get(u.String())
 	if err != nil {
 		t.Fatalf("Couldn't query databases: %s", err)
@@ -309,7 +309,7 @@ func Test_ServerSingleIntegration(t *testing.T) {
 		},
 	}
 
-	simpleQuery(t, testName, nodes, expectedResults)
+	simpleQuery(t, testName, nodes, `select value from "foo"."bar".cpu`, expectedResults)
 }
 
 func Test_Server3NodeIntegration(t *testing.T) {
@@ -358,7 +358,7 @@ func Test_Server3NodeIntegration(t *testing.T) {
 		},
 	}
 
-	simpleQuery(t, testName, nodes, expectedResults)
+	simpleQuery(t, testName, nodes, `select value from "foo"."bar".cpu`, expectedResults)
 }
 
 func Test_Server5NodeIntegration(t *testing.T) {
@@ -408,7 +408,7 @@ func Test_Server5NodeIntegration(t *testing.T) {
 		},
 	}
 
-	simpleQuery(t, testName, nodes, expectedResults)
+	simpleQuery(t, testName, nodes, `select value from "foo"."bar".cpu`, expectedResults)
 }
 
 func urlFor(u *url.URL, path string, params url.Values) *url.URL {
