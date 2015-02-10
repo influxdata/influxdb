@@ -291,6 +291,9 @@ func Test_ServerSingleIntegration(t *testing.T) {
 }
 
 func Test_Server3NodeIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
 	nNodes := 3
 	basePort := 8190
 	testName := "3 node"
@@ -302,6 +305,9 @@ func Test_Server3NodeIntegration(t *testing.T) {
 }
 
 func Test_Server5NodeIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
 	nNodes := 5
 	basePort := 8290
 	testName := "5 node"
