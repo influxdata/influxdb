@@ -223,46 +223,47 @@ func write(t *testing.T, testname string, nodes cluster, data string) {
 	time.Sleep(time.Duration(len(nodes)) * time.Second)
 }
 
-// simpleQuery creates a simple database, retention policy, and replicates
-// the data across all nodes. It then ensures a series of writes and queries are OK.
+// simpleQuery executes the given query against all nodes in the cluster, and verify the
+// returned results are as expected.
 func simpleQuery(t *testing.T, testname string, nodes cluster, query string, expected client.Results) {
-	serverURL := nodes[0].url
 	var results client.Results
 
 	// Query the data exists
-	t.Log("Query data")
-	u := urlFor(serverURL, "query", url.Values{"q": []string{query}, "db": []string{"foo"}})
-	resp, err := http.Get(u.String())
-	if err != nil {
-		t.Fatalf("Couldn't query databases: %s", err)
-	}
-	defer resp.Body.Close()
+	for _, n := range nodes {
+		t.Logf("Test name %s: query data on node %s", n.url)
+		u := urlFor(n.url, "query", url.Values{"q": []string{query}, "db": []string{"foo"}})
+		resp, err := http.Get(u.String())
+		if err != nil {
+			t.Fatalf("Couldn't query databases: %s", err)
+		}
+		defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatalf("Couldn't read body of response: %s", err)
-	}
-	t.Logf("resp.Body: %s\n", string(body))
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("Couldn't read body of response: %s", err)
+		}
+		t.Logf("resp.Body: %s\n", string(body))
 
-	dec := json.NewDecoder(bytes.NewReader(body))
-	dec.UseNumber()
-	err = dec.Decode(&results)
-	if err != nil {
-		t.Fatalf("Couldn't decode results: %v", err)
-	}
+		dec := json.NewDecoder(bytes.NewReader(body))
+		dec.UseNumber()
+		err = dec.Decode(&results)
+		if err != nil {
+			t.Fatalf("Couldn't decode results: %v", err)
+		}
 
-	if results.Error() != nil {
-		t.Logf("results.Error(): %q", results.Error().Error())
-	}
+		if results.Error() != nil {
+			t.Logf("results.Error(): %q", results.Error().Error())
+		}
 
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("query databases failed.  Unexpected status code.  expected: %d, actual %d", http.StatusOK, resp.StatusCode)
-	}
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("query databases failed.  Unexpected status code.  expected: %d, actual %d", http.StatusOK, resp.StatusCode)
+		}
 
-	if !reflect.DeepEqual(results, expected) {
-		t.Logf("Expected: %#v\n", expected)
-		t.Logf("Actual: %#v\n", results)
-		t.Fatalf("query databases failed.  Unexpected results.")
+		if !reflect.DeepEqual(results, expected) {
+			t.Logf("Expected: %#v\n", expected)
+			t.Logf("Actual: %#v\n", results)
+			t.Fatalf("query databases failed.  Unexpected results.")
+		}
 	}
 }
 
@@ -309,7 +310,7 @@ func Test_ServerSingleIntegration(t *testing.T) {
 		},
 	}
 
-	simpleQuery(t, testName, nodes, `select value from "foo"."bar".cpu`, expectedResults)
+	simpleQuery(t, testName, nodes[:1], `select value from "foo"."bar".cpu`, expectedResults)
 }
 
 func Test_Server3NodeIntegration(t *testing.T) {
@@ -358,7 +359,7 @@ func Test_Server3NodeIntegration(t *testing.T) {
 		},
 	}
 
-	simpleQuery(t, testName, nodes, `select value from "foo"."bar".cpu`, expectedResults)
+	simpleQuery(t, testName, nodes[:1], `select value from "foo"."bar".cpu`, expectedResults)
 }
 
 func Test_Server5NodeIntegration(t *testing.T) {
@@ -408,7 +409,7 @@ func Test_Server5NodeIntegration(t *testing.T) {
 		},
 	}
 
-	simpleQuery(t, testName, nodes, `select value from "foo"."bar".cpu`, expectedResults)
+	simpleQuery(t, testName, nodes[:1], `select value from "foo"."bar".cpu`, expectedResults)
 }
 
 func urlFor(u *url.URL, path string, params url.Values) *url.URL {
