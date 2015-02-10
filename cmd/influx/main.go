@@ -246,11 +246,13 @@ func (c *CommandLine) executeQuery(query string) {
 		return
 	}
 	c.FormatResults(results, os.Stdout)
-	if results.Error() != nil && c.Database == "" {
-		fmt.Println("Warning: It is possible this error is due to not setting a database.")
-		fmt.Println(`Please set a database with the command "use <database>".`)
+	if results.Error() != nil {
+		fmt.Printf("ERR: %s\n", results.Error())
+		if c.Database == "" {
+			fmt.Println("Warning: It is possible this error is due to not setting a database.")
+			fmt.Println(`Please set a database with the command "use <database>".`)
+		}
 	}
-
 }
 
 func (c *CommandLine) FormatResults(results *client.Results, w io.Writer) {

@@ -13,10 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/crypto/bcrypt"
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/messaging"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // Ensure the server can be successfully opened and closed.
