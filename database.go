@@ -806,6 +806,15 @@ func (rp *RetentionPolicy) shardGroupByID(shardID uint64) *ShardGroup {
 	return nil
 }
 
+func (rp *RetentionPolicy) removeShardGroupByID(shardID uint64) {
+	for i, g := range rp.shardGroups {
+		if g.ID == shardID {
+			rp.shardGroups[i] = nil
+			rp.shardGroups = append(rp.shardGroups[:i], rp.shardGroups[i+1:]...)
+		}
+	}
+}
+
 // MarshalJSON encodes a retention policy to a JSON-encoded byte slice.
 func (rp *RetentionPolicy) MarshalJSON() ([]byte, error) {
 	var o retentionPolicyJSON
