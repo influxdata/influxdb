@@ -275,7 +275,27 @@ func Test_ServerSingleIntegration(t *testing.T) {
 
 	createDatabase(t, testName, nodes, "foo")
 	createRetentionPolicy(t, testName, nodes, "foo", "bar")
-	write(t, testName, nodes, fmt.Sprintf(`{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": %d, "precision":"n","values": {"value": 100}}]}`, now.UnixNano()))
+	write(t, testName, nodes, fmt.Sprintf(`
+{
+"database":
+    "foo",
+    "retentionPolicy":
+    "bar",
+    "points":
+    [{
+        "name":
+        "cpu",
+        "tags": {
+            "host": "server01"
+        },
+        "timestamp": %d,
+        "precision":"n",
+        "values":{
+            "value": 100
+        }
+    }]
+}
+`, now.UnixNano()))
 	expectedResults := client.Results{
 		Results: []client.Result{
 			{Rows: []influxql.Row{
@@ -304,7 +324,27 @@ func Test_Server3NodeIntegration(t *testing.T) {
 
 	createDatabase(t, testName, nodes, "foo")
 	createRetentionPolicy(t, testName, nodes, "foo", "bar")
-	write(t, testName, nodes, fmt.Sprintf(`{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": %d, "precision":"n","values": {"value": 100}}]}`, now.UnixNano()))
+	write(t, testName, nodes, fmt.Sprintf(`
+{
+"database":
+	"foo",
+	"retentionPolicy":
+	"bar",
+	"points":
+	[{
+		"name":
+		"cpu",
+		"tags": {
+			"host": "server01"
+		},
+		"timestamp": %d,
+		"precision":"n",
+		"values":{
+			"value": 100
+		}
+	}]
+}
+`, now.UnixNano()))
 	expectedResults := client.Results{
 		Results: []client.Result{
 			{Rows: []influxql.Row{
@@ -333,7 +373,28 @@ func Test_Server5NodeIntegration(t *testing.T) {
 
 	createDatabase(t, testName, nodes, "foo")
 	createRetentionPolicy(t, testName, nodes, "foo", "bar")
-	write(t, testName, nodes, fmt.Sprintf(`{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": %d, "precision":"n","values": {"value": 100}}]}`, now.UnixNano()))
+	write(t, testName, nodes, fmt.Sprintf(`
+{
+"database":
+    "foo",
+    "retentionPolicy":
+    "bar",
+    "points":
+    [{
+        "name":
+        "cpu",
+        "tags": {
+            "host": "server01"
+        },
+        "timestamp": %d,
+        "precision":"n",
+        "values":{
+            "value": 100
+        }
+    }]
+}
+`, now.UnixNano()))
+
 	expectedResults := client.Results{
 		Results: []client.Result{
 			{Rows: []influxql.Row{
