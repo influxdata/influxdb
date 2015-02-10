@@ -206,6 +206,9 @@ func (r *Results) UnmarshalJSON(b []byte) error {
 // Error returns the first error from any statement.
 // Returns nil if no errors occurred on any statements.
 func (a Results) Error() error {
+	if a.Err != nil {
+		return a.Err
+	}
 	for _, r := range a.Results {
 		if r.Err != nil {
 			return r.Err
