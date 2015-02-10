@@ -366,7 +366,7 @@ func Test_Server3NodeIntegration(t *testing.T) {
 		},
 	}
 
-	simpleQuery(t, testName, nodes[:1], `select value from "foo"."bar".cpu`, expectedResults)
+	simpleQuery(t, testName, nodes[:3], `select value from "foo"."bar".cpu`, expectedResults)
 }
 
 func Test_Server5NodeIntegration(t *testing.T) {
