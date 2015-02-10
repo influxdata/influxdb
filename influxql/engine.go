@@ -190,6 +190,8 @@ func (p *Planner) planCall(e *Executor, c *Call) (Processor, error) {
 		mapFn, reduceFn = MapSum, ReduceSum
 	case "mean":
 		mapFn, reduceFn = MapMean, ReduceMean
+	case "min":
+		mapFn, reduceFn = MapMin, ReduceMin
 	case "percentile":
 		lit, ok := c.Args[1].(*NumberLiteral)
 		if !ok {
@@ -661,6 +663,33 @@ func ReduceMean(key Key, values []interface{}, e *Emitter) {
 		out.Sum += val.Sum
 	}
 	e.Emit(key, out.Sum/float64(out.Count))
+}
+
+// MapMin collects the values to pass to the reducer
+func MapMin(itr Iterator, e *Emitter, tmin int64) {
+	var values []float64
+
+	for k, v := itr.Next(); k != 0; k, v = itr.Next() {
+		values = append(values, v.(float64))
+	}
+	e.Emit(Key{tmin, itr.Tags()}, values)
+}
+
+// ReduceMin computes the min of value.
+func ReduceMin(key Key, values []interface{}, e *Emitter) {
+	var min *float64
+	for _, value := range values {
+		vals := value.([]float64)
+		for _, v := range vals {
+			// Initialize min
+			if min == nil {
+				min = &v
+			}
+			m := math.Min(*min, v)
+			min = &m
+		}
+	}
+	e.Emit(key, min)
 }
 
 // MapEcho emits the data points for each group by interval
