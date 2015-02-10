@@ -30,12 +30,15 @@ type node struct {
 	leader bool
 }
 
+// cluster represents a multi-node cluster.
+type cluster []node
+
 // createCombinedNodeCluster creates a cluster of nServers nodes, each of which
 // runs as both a Broker and Data node. If any part cluster creation fails,
 // the testing is marked as failed.
 //
 // This function returns a slice of nodes, the first of which will be the leader.
-func createCombinedNodeCluster(t *testing.T, testName string, nNodes, basePort int) []node {
+func createCombinedNodeCluster(t *testing.T, testName string, nNodes, basePort int) cluster {
 	t.Logf("Creating cluster of %d nodes for test %s", nNodes, testName)
 	if nNodes < 1 {
 		t.Fatalf("Test %s: asked to create nonsense cluster", testName)
@@ -102,7 +105,7 @@ func createCombinedNodeCluster(t *testing.T, testName string, nNodes, basePort i
 }
 
 // createDatabase creates a database, and verifies that the creation was successful.
-func createDatabase(t *testing.T, testName string, nodes []node, database string) {
+func createDatabase(t *testing.T, testName string, nodes cluster, database string) {
 	t.Logf("Test: %s: creating database %s", testName, database)
 	serverURL := nodes[0].url
 
@@ -168,7 +171,7 @@ func createDatabase(t *testing.T, testName string, nodes []node, database string
 }
 
 // createRetentionPolicy creates a retetention policy and verifies that the creation was successful.
-func createRetentionPolicy(t *testing.T, testName string, nodes []node, database, retention string, replicaN int) {
+func createRetentionPolicy(t *testing.T, testName string, nodes cluster, database, retention string, replicaN int) {
 	t.Log("Creating retention policy")
 	serverURL := nodes[0].url
 	replication := fmt.Sprintf("CREATE RETENTION POLICY bar ON foo DURATION 1h REPLICATION %d DEFAULT", replicaN)
@@ -201,7 +204,7 @@ func createRetentionPolicy(t *testing.T, testName string, nodes []node, database
 
 // simpleWriteAndQuery creates a simple database, retention policy, and replicates
 // the data across all nodes. It then ensures a series of writes and queries are OK.
-func simpleWriteAndQuery(t *testing.T, testname string, nodes []node, nNodes int) {
+func simpleWriteAndQuery(t *testing.T, testname string, nodes cluster, nNodes int) {
 	now := time.Now().UTC()
 	serverURL := nodes[0].url
 	var results client.Results
