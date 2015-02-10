@@ -27,6 +27,7 @@ type node struct {
 	broker *messaging.Broker
 	server *influxdb.Server
 	url    *url.URL
+	leader bool
 }
 
 // createCombinedNodeCluster creates a cluster of nServers nodes, each of which
@@ -71,6 +72,7 @@ func createCombinedNodeCluster(t *testing.T, testName string, nNodes, basePort i
 		broker: b,
 		server: s,
 		url:    &url.URL{Scheme: "http", Host: "localhost:" + strconv.Itoa(basePort)},
+		leader: true,
 	})
 
 	// Create subsequent nodes, which join to first node.
