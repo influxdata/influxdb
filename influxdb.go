@@ -192,7 +192,11 @@ func NormalizeBatchPoints(bp BatchPoints) ([]Point, error) {
 	points := []Point{}
 	for _, p := range bp.Points {
 		if p.Timestamp.Time().IsZero() {
-			p.Timestamp = client.Timestamp(bp.Timestamp)
+			if bp.Timestamp.IsZero() {
+				p.Timestamp = client.Timestamp(time.Now())
+			} else {
+				p.Timestamp = client.Timestamp(bp.Timestamp)
+			}
 		}
 		if p.Precision == "" && bp.Precision != "" {
 			p.Precision = bp.Precision
