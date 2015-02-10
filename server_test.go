@@ -824,6 +824,16 @@ func TestServer_ExecuteQuery(t *testing.T) {
 	} else if s := mustMarshalJSON(res); s != `{"rows":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","sum"],"values":[["2000-01-01T00:00:10Z",30]]}]}` {
 		t.Fatalf("unexpected row(0) during SUM: %s", s)
 	}
+
+	// Aggregation with a null field value
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: mustParseTime("2000-01-01T00:00:03Z"), Values: map[string]interface{}{"otherVal": float64(20)}}})
+	// Sum aggregation.
+	results = s.ExecuteQuery(MustParseQuery(`SELECT sum(value) FROM cpu GROUP BY region`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error during SUM: %s", res.Err)
+	} else if s := mustMarshalJSON(res); s != `{"rows":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",50]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",100]]}]}` {
+		t.Fatalf("unexpected row(0) during SUM: %s", s)
+	}
 }
 
 func TestServer_CreateShardGroupIfNotExist(t *testing.T) {
