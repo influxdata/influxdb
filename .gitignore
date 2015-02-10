@@ -65,3 +65,6 @@ integration/migration_data/
 
 # goide project files
 .idea
+
+# goconvey config files
+*.goconvey
