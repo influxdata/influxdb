@@ -1848,10 +1848,44 @@ func (s *Server) planSelectStatement(stmt *influxql.SelectStatement, database st
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	// Find database.
-	db := s.databases[database]
-	if db == nil {
-		return nil, ErrDatabaseNotFound
+	// If this is a wildcard statement, expand this to use the fields
+	// This is temporary until we move other parts of the system further
+	isWildcard := false
+	for _, f := range stmt.Fields {
+		if _, ok := f.Expr.(*influxql.Wildcard); ok {
+			isWildcard = true
+			break
+		}
+	}
+
+	if len(stmt.Fields) != 1 && isWildcard {
+		return nil, fmt.Errorf("unsupported query: %s.  currently only single wildcard is supported.", stmt.String())
+	}
+
+	if isWildcard {
+		if measurement, ok := stmt.Source.(*influxql.Measurement); ok {
+			segments, err := influxql.SplitIdent(measurement.Name)
+			if err != nil {
+				return nil, fmt.Errorf("unable to parse measurement %s", measurement.Name)
+			}
+			db, m := segments[0], segments[2]
+			if s.databases[db].measurements[m] == nil {
+				return nil, fmt.Errorf("measurement %s does not exist.", measurement.Name)
+			}
+
+			// Need to sort names for consistency
+			names := []string{}
+			for _, f := range s.databases[db].measurements[m].Fields {
+				names = append(names, f.Name)
+			}
+			sort.Strings(names)
+
+			var fields influxql.Fields
+			for _, n := range names {
+				fields = append(fields, &influxql.Field{Expr: &influxql.VarRef{Val: n}})
+			}
+			stmt.Fields = fields
+		}
 	}
 
 	// Plan query.
