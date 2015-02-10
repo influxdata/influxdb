@@ -10,68 +10,92 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"testing"
 	"time"
 
+	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/client"
 	"github.com/influxdb/influxdb/influxql"
+	"github.com/influxdb/influxdb/messaging"
 
 	main "github.com/influxdb/influxdb/cmd/influxd"
 )
 
-func Test_ServerSingleIntegration(t *testing.T) {
+type node struct {
+	broker *messaging.Broker
+	server *influxdb.Server
+}
 
-	var (
-		join    = ""
-		version = "x.x"
-	)
+// createCombinedNodeCluster creates a cluster of nServers nodes, each of which
+// runs as both a Broker and Data node. If any part cluster creation fails,
+// the testing is marked as failed.
+//
+// This function returns a slice of nodes, the first of which will be the leader.
+func createCombinedNodeCluster(t *testing.T, testName string, nNodes, basePort int) []node {
+	t.Logf("Creating cluster of %d nodes for test %s", nNodes, testName)
+	if nNodes < 1 {
+		t.Fatalf("Test %s: asked to create nonsense cluster", testName)
+	}
+
+	nodes := make([]node, 0)
 
 	tmpDir := os.TempDir()
-	tmpBrokerDir := filepath.Join(tmpDir, "broker")
-	tmpDataDir := filepath.Join(tmpDir, "data")
-	t.Logf("Using tmp directory %q for broker\n", tmpBrokerDir)
-	t.Logf("Using tmp directory %q for data\n", tmpDataDir)
-	// Sometimes if this test fails, it's because of a log.Fatal() in the program.
+	tmpBrokerDir := filepath.Join(tmpDir, "broker-integration-test")
+	tmpDataDir := filepath.Join(tmpDir, "data-integration-test")
+	t.Logf("Test %s: using tmp directory %q for brokers\n", testName, tmpBrokerDir)
+	t.Logf("Test %s: using tmp directory %q for data nodes\n", testName, tmpDataDir)
+	// Sometimes if a test fails, it's because of a log.Fatal() in the program.
 	// This prevents the defer from cleaning up directories.
 	// To be safe, nuke them always before starting
 	_ = os.RemoveAll(tmpBrokerDir)
 	_ = os.RemoveAll(tmpDataDir)
 
+	// Create the first node, special case.
 	c := main.NewConfig()
-	c.Broker.Dir = tmpBrokerDir
-	c.Broker.Port = 8090
-	c.Data.Dir = tmpDataDir
-	c.Data.Port = 8090
+	c.Broker.Dir = filepath.Join(tmpBrokerDir, strconv.Itoa(basePort))
+	c.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(basePort))
+	c.Broker.Port = basePort
+	c.Data.Port = basePort
 
-	now := time.Now().UTC()
-
-	s := main.Run(c, join, version, os.Stderr)
-
-	defer func() {
-		t.Log("Shutting down server and cleaning up tmp directories")
-		if s != nil {
-			s.Close()
-		}
-
-		err := os.RemoveAll(tmpBrokerDir)
-		if err != nil {
-			t.Logf("Failed to clean up %q: %s\n", tmpBrokerDir, err)
-		}
-		err = os.RemoveAll(tmpDataDir)
-		if err != nil {
-			t.Logf("Failed to clean up %q: %s\n", tmpDataDir, err)
-		}
-	}()
-
-	if s == nil {
-		t.Fatalf("Failed to open server")
+	b, s := main.Run(c, "", "x.x", os.Stderr)
+	if b == nil {
+		t.Fatalf("Test %s: failed to create broker on port %d", testName, basePort)
 	}
+	if s == nil {
+		t.Fatalf("Test %s: failed to create leader data node on port %d", testName, basePort)
+	}
+	nodes = append(nodes, node{broker: b, server: s})
+
+	// Create subsequent nodes, which join to first node.
+	for i := 1; i < nNodes; i++ {
+		nextPort := basePort + i
+		c.Broker.Dir = filepath.Join(tmpBrokerDir, strconv.Itoa(nextPort))
+		c.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(nextPort))
+		c.Broker.Port = nextPort
+		c.Data.Port = nextPort
+
+		b, s := main.Run(c, "http://localhost:"+strconv.Itoa(basePort), "x.x", os.Stderr)
+		if b == nil {
+			t.Fatalf("Test %s: failed to create following broker on port %d", testName, basePort)
+		}
+		if s == nil {
+			t.Fatalf("Test %s: failed to create following data node on port %d", testName, basePort)
+		}
+		nodes = append(nodes, node{broker: b, server: s})
+	}
+
+	return nodes
+}
+
+// simpleWriteAndQuery creates a simple database, retention policy, and replicates
+// the data across all nodes. It then ensures a series of writes and queries are OK.
+func simpleWriteAndQuery(t *testing.T, testname string, serverURL *url.URL, nNodes int) {
+	now := time.Now().UTC()
 
 	// Create a database
 	t.Log("Creating database")
-
-	u := urlFor(c.BrokerURL(), "query", url.Values{"q": []string{"CREATE DATABASE foo"}})
-
+	u := urlFor(serverURL, "query", url.Values{"q": []string{"CREATE DATABASE foo"}})
 	resp, err := http.Get(u.String())
 	if err != nil {
 		t.Fatalf("Couldn't create database: %s", err)
@@ -97,8 +121,7 @@ func Test_ServerSingleIntegration(t *testing.T) {
 	}
 
 	// Query the database exists
-	u = urlFor(c.BrokerURL(), "query", url.Values{"q": []string{"SHOW DATABASES"}})
-
+	u = urlFor(serverURL, "query", url.Values{"q": []string{"SHOW DATABASES"}})
 	resp, err = http.Get(u.String())
 	if err != nil {
 		t.Fatalf("Couldn't query databases: %s", err)
@@ -134,9 +157,8 @@ func Test_ServerSingleIntegration(t *testing.T) {
 
 	// Create a retention policy
 	t.Log("Creating retention policy")
-
-	u = urlFor(c.BrokerURL(), "query", url.Values{"q": []string{"CREATE RETENTION POLICY bar ON foo DURATION 1h REPLICATION 1 DEFAULT"}})
-
+	replication := fmt.Sprintf("CREATE RETENTION POLICY bar ON foo DURATION 1h REPLICATION %d DEFAULT", nNodes)
+	u = urlFor(serverURL, "query", url.Values{"q": []string{replication}})
 	resp, err = http.Get(u.String())
 	if err != nil {
 		t.Fatalf("Couldn't create retention policy: %s", err)
@@ -164,12 +186,10 @@ func Test_ServerSingleIntegration(t *testing.T) {
 
 	// Write Data
 	t.Log("Write data")
-
-	u = urlFor(c.BrokerURL(), "write", url.Values{})
+	u = urlFor(serverURL, "write", url.Values{})
 
 	buf := []byte(fmt.Sprintf(`{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": %d, "precision":"n","values": {"value": 100}}]}`, now.UnixNano()))
 	t.Logf("Writing raw data: %s", string(buf))
-
 	resp, err = http.Post(u.String(), "application/json", bytes.NewReader(buf))
 	if err != nil {
 		t.Fatalf("Couldn't write data: %s", err)
@@ -180,12 +200,11 @@ func Test_ServerSingleIntegration(t *testing.T) {
 
 	// Need some time for server to get consensus and write data
 	// TODO corylanou query the status endpoint for the server and wait for the index to update to know the write was applied
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(time.Duration(nNodes) * time.Second)
 
 	// Query the data exists
 	t.Log("Query data")
-	u = urlFor(c.BrokerURL(), "query", url.Values{"q": []string{`select value from "foo"."bar".cpu`}, "db": []string{"foo"}})
-
+	u = urlFor(serverURL, "query", url.Values{"q": []string{`select value from "foo"."bar".cpu`}, "db": []string{"foo"}})
 	resp, err = http.Get(u.String())
 	if err != nil {
 		t.Fatalf("Couldn't query databases: %s", err)
@@ -233,6 +252,42 @@ func Test_ServerSingleIntegration(t *testing.T) {
 		t.Logf("%#v\n", results)
 		t.Fatalf("query databases failed.  Unexpected results.")
 	}
+}
+
+func Test_ServerSingleIntegration(t *testing.T) {
+	nNodes := 1
+	basePort := 8090
+	createCombinedNodeCluster(t, "single node", nNodes, basePort)
+
+	serverURL := &url.URL{
+		Scheme: "http",
+		Host:   "localhost:" + strconv.Itoa(basePort),
+	}
+	simpleWriteAndQuery(t, "single node", serverURL, nNodes)
+}
+
+func Test_Server3NodeIntegration(t *testing.T) {
+	nNodes := 3
+	basePort := 8190
+	createCombinedNodeCluster(t, "3 node", nNodes, basePort)
+
+	serverURL := &url.URL{
+		Scheme: "http",
+		Host:   "localhost:" + strconv.Itoa(basePort),
+	}
+	simpleWriteAndQuery(t, "3 node", serverURL, nNodes)
+}
+
+func Test_Server5NodeIntegration(t *testing.T) {
+	nNodes := 5
+	basePort := 8290
+	createCombinedNodeCluster(t, "5 node", nNodes, basePort)
+
+	serverURL := &url.URL{
+		Scheme: "http",
+		Host:   "localhost:" + strconv.Itoa(basePort),
+	}
+	simpleWriteAndQuery(t, "5 node", serverURL, nNodes)
 }
 
 func urlFor(u *url.URL, path string, params url.Values) *url.URL {
