@@ -1872,9 +1872,17 @@ func (s *Server) planSelectStatement(stmt *influxql.SelectStatement, database st
 			if s.databases[db].measurements[m] == nil {
 				return nil, fmt.Errorf("measurement %s does not exist.", measurement.Name)
 			}
-			var fields influxql.Fields
+
+			// Need to sort names for consistency
+			names := []string{}
 			for _, f := range s.databases[db].measurements[m].Fields {
-				fields = append(fields, &influxql.Field{Expr: &influxql.VarRef{Val: f.Name}})
+				names = append(names, f.Name)
+			}
+			sort.Strings(names)
+
+			var fields influxql.Fields
+			for _, n := range names {
+				fields = append(fields, &influxql.Field{Expr: &influxql.VarRef{Val: n}})
 			}
 			stmt.Fields = fields
 		}
