@@ -795,6 +795,17 @@ func (rp *RetentionPolicy) shardGroupByTimestamp(timestamp time.Time) *ShardGrou
 	return nil
 }
 
+// shardGroupByID returns the group in the policy for the given ID.
+// Returns nil if group does not exist.
+func (rp *RetentionPolicy) shardGroupByID(shardID uint64) *ShardGroup {
+	for _, g := range rp.shardGroups {
+		if g.ID == shardID {
+			return g
+		}
+	}
+	return nil
+}
+
 // MarshalJSON encodes a retention policy to a JSON-encoded byte slice.
 func (rp *RetentionPolicy) MarshalJSON() ([]byte, error) {
 	var o retentionPolicyJSON

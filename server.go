@@ -80,10 +80,11 @@ const (
 
 // Server represents a collection of metadata and raw metric data.
 type Server struct {
-	mu   sync.RWMutex
-	id   uint64
-	path string
-	done chan struct{} // goroutine close notification
+	mu     sync.RWMutex
+	id     uint64
+	path   string
+	done   chan struct{} // goroutine close notification
+	rpDone chan struct{} // retention policies goroutine close notification
 
 	client MessagingClient  // broker client
 	index  uint64           // highest broadcast index seen
@@ -220,6 +221,10 @@ func (s *Server) Close() error {
 		return ErrServerClosed
 	}
 
+	if s.rpDone != nil {
+		close(s.rpDone)
+	}
+
 	// Remove path.
 	s.path = ""
 
@@ -294,7 +299,22 @@ func (s *Server) EnforceRetentionPolicies(checkInterval time.Duration) error {
 	if checkInterval == 0 {
 		return fmt.Errorf("retention policy check interval must be non-zero")
 	}
+	rpDone := make(chan struct{}, 0)
+	s.rpDone = rpDone
+	go s.retentionPoliciesLoop(checkInterval, rpDone)
 	return nil
+}
+
+func (s *Server) retentionPoliciesLoop(interval time.Duration, done chan struct{}) {
+	for {
+		select {
+		case <-done:
+			return
+		case <-time.After(interval):
+		}
+
+		log.Println("retention policy enforcement check commencing")
+	}
 }
 
 // Client retrieves the current messaging client.
