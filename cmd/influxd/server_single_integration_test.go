@@ -256,33 +256,36 @@ func simpleWriteAndQuery(t *testing.T, testname string, serverURL *url.URL, nNod
 
 func Test_ServerSingleIntegration(t *testing.T) {
 	nNodes := 1
-	createCombinedNodeCluster(t, "single node", nNodes, 8090)
+	basePort := 8090
+	createCombinedNodeCluster(t, "single node", nNodes, basePort)
 
 	serverURL := &url.URL{
 		Scheme: "http",
-		Host:   "localhost:8090",
+		Host:   "localhost:" + strconv.Itoa(basePort),
 	}
 	simpleWriteAndQuery(t, "single node", serverURL, nNodes)
 }
 
 func Test_Server3NodeIntegration(t *testing.T) {
 	nNodes := 3
-	createCombinedNodeCluster(t, "3 node", nNodes, 8090)
+	basePort := 8190
+	createCombinedNodeCluster(t, "3 node", nNodes, basePort)
 
 	serverURL := &url.URL{
 		Scheme: "http",
-		Host:   "localhost:8090",
+		Host:   "localhost:" + strconv.Itoa(basePort),
 	}
 	simpleWriteAndQuery(t, "3 node", serverURL, nNodes)
 }
 
 func Test_Server5NodeIntegration(t *testing.T) {
 	nNodes := 5
-	createCombinedNodeCluster(t, "5 node", nNodes, 8090)
+	basePort := 8290
+	createCombinedNodeCluster(t, "5 node", nNodes, basePort)
 
 	serverURL := &url.URL{
 		Scheme: "http",
-		Host:   "localhost:8090",
+		Host:   "localhost:" + strconv.Itoa(basePort),
 	}
 	simpleWriteAndQuery(t, "5 node", serverURL, nNodes)
 }
