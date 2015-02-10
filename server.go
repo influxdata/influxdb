@@ -222,8 +222,14 @@ func (s *Server) Close() error {
 		return ErrServerClosed
 	}
 
+	// Stop goroutines.
 	if s.rpDone != nil {
 		close(s.rpDone)
+		s.rpDone = nil
+	}
+	if s.done != nil {
+		close(s.done)
+		s.done = nil
 	}
 
 	// Remove path.
