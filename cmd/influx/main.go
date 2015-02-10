@@ -245,6 +245,10 @@ func (c *CommandLine) executeQuery(query string) {
 		fmt.Printf("ERR: %s\n", err)
 		return
 	}
+	if results.Error() != nil {
+		fmt.Printf("ERR: %s\n", results.Error())
+		return
+	}
 	c.FormatResults(results, os.Stdout)
 	if results.Error() != nil && c.Database == "" {
 		fmt.Println("Warning: It is possible this error is due to not setting a database.")
