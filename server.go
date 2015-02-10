@@ -288,6 +288,15 @@ func (s *Server) load() error {
 	})
 }
 
+// EnforceRetentionPolicies ensures that data that is aging-out due to retention policies is
+// removed from the system.
+func (s *Server) EnforceRetentionPolicies(checkInterval time.Duration) error {
+	if checkInterval == 0 {
+		return fmt.Errorf("retention policy check interval must be non-zero")
+	}
+	return nil
+}
+
 // Client retrieves the current messaging client.
 func (s *Server) Client() MessagingClient {
 	s.mu.RLock()

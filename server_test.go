@@ -725,6 +725,15 @@ func TestServer_SetDefaultRetentionPolicy_ErrRetentionPolicyNotFound(t *testing.
 	}
 }
 
+// Ensure the server prohibits a zero check interval for retention policy enforcement.
+func TestServer_EnforceRetentionPolicies_ErrZeroInterval(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+	if err := s.EnforceRetentionPolicies(time.Duration(0)); err == nil {
+		t.Fatal("failed to prohibit retention policies zero check interval")
+	}
+}
+
 // Ensure the database can write data to the database.
 func TestServer_WriteSeries(t *testing.T) {
 	c := NewMessagingClient()
