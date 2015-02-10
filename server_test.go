@@ -715,7 +715,7 @@ func TestServer_SetDefaultRetentionPolicy(t *testing.T) {
 	}
 }
 
-// Ensure the server returns an error when setting the deafult retention policy to a non-existant one.
+// Ensure the server returns an error when setting the default retention policy to a non-existant one.
 func TestServer_SetDefaultRetentionPolicy_ErrRetentionPolicyNotFound(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
