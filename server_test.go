@@ -842,11 +842,6 @@ func TestServer_ExecuteWildcardQuery(t *testing.T) {
 	// Write series with one point to the database.
 	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(20), "val-x": 10}}})
 	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: mustParseTime("2000-01-01T00:00:10Z"), Values: map[string]interface{}{"value": float64(30), "val-x": 20}}})
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-west"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(100), "val-x": 30}}})
-
-	// TODO corylanou: make this test work after it waits enough time to flush out writes.
-	// It is currently passing by accident, as the last write doesn't have enough time to show up and the tests below should not pass
-	// time.Sleep(1 * time.Second)
 
 	// Select * (wildcard).
 	results := s.ExecuteQuery(MustParseQuery(`SELECT * FROM cpu`), "foo", nil)
