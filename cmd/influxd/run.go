@@ -19,7 +19,7 @@ import (
 	"github.com/influxdb/influxdb/messaging"
 )
 
-func Run(config *Config, join, version string, logWriter *os.File) *influxdb.Server {
+func Run(config *Config, join, version string, logWriter *os.File) (*messaging.Broker, *influxdb.Server) {
 	// Parse the configuration and determine if a broker and/or server exist.
 	configExists := config != nil
 	if config == nil {
@@ -111,7 +111,7 @@ func Run(config *Config, join, version string, logWriter *os.File) *influxdb.Ser
 			}
 		}
 	}
-	return s
+	return b, s
 }
 
 // write the current process id to a file specified by path.

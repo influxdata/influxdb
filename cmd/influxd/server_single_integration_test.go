@@ -14,20 +14,31 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/client"
 	"github.com/influxdb/influxdb/influxql"
+	"github.com/influxdb/influxdb/messaging"
 
 	main "github.com/influxdb/influxdb/cmd/influxd"
 )
 
+type node struct {
+	broker *messaging.Broker
+	server *influxdb.Server
+}
+
 // createCombinedNodeCluster creates a cluster of nServers nodes, each of which
 // runs as both a Broker and Data node. If any part cluster creation fails,
 // the testing is marked as failed.
-func createCombinedNodeCluster(t *testing.T, testName string, nNodes, basePort int) {
+//
+// This function returns a slice of nodes, the first of which will be the leader.
+func createCombinedNodeCluster(t *testing.T, testName string, nNodes, basePort int) []node {
 	t.Logf("Creating cluster of %d nodes for test %s", nNodes, testName)
 	if nNodes < 1 {
 		t.Fatalf("Test %s: asked to create nonsense cluster", testName)
 	}
+
+	nodes := make([]node, 0)
 
 	tmpDir := os.TempDir()
 	tmpBrokerDir := filepath.Join(tmpDir, "broker-integration-test")
@@ -47,10 +58,14 @@ func createCombinedNodeCluster(t *testing.T, testName string, nNodes, basePort i
 	c.Broker.Port = basePort
 	c.Data.Port = basePort
 
-	s := main.Run(c, "", "x.x", os.Stderr)
-	if s == nil {
-		t.Fatalf("Test %s: failed to create leader node on port %d", testName, basePort)
+	b, s := main.Run(c, "", "x.x", os.Stderr)
+	if b == nil {
+		t.Fatalf("Test %s: failed to create broker on port %d", testName, basePort)
 	}
+	if s == nil {
+		t.Fatalf("Test %s: failed to create leader data node on port %d", testName, basePort)
+	}
+	nodes = append(nodes, node{broker: b, server: s})
 
 	// Create subsequent nodes, which join to first node.
 	for i := 1; i < nNodes; i++ {
@@ -60,11 +75,17 @@ func createCombinedNodeCluster(t *testing.T, testName string, nNodes, basePort i
 		c.Broker.Port = nextPort
 		c.Data.Port = nextPort
 
-		s := main.Run(c, "http://localhost:"+strconv.Itoa(basePort), "x.x", os.Stderr)
-		if s == nil {
-			t.Fatalf("Test %s: failed to create following node on port %d", testName, basePort)
+		b, s := main.Run(c, "http://localhost:"+strconv.Itoa(basePort), "x.x", os.Stderr)
+		if b == nil {
+			t.Fatalf("Test %s: failed to create following broker on port %d", testName, basePort)
 		}
+		if s == nil {
+			t.Fatalf("Test %s: failed to create following data node on port %d", testName, basePort)
+		}
+		nodes = append(nodes, node{broker: b, server: s})
 	}
+
+	return nodes
 }
 
 // simpleWriteAndQuery creates a simple database, retention policy, and replicates
