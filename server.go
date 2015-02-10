@@ -1848,6 +1848,28 @@ func (s *Server) planSelectStatement(stmt *influxql.SelectStatement, database st
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
+	// If this is a wildcard statement, expand this to use the fields
+	// This is temporary until we move other parts of the system further
+	if len(stmt.Fields) == 1 {
+		if _, ok := stmt.Fields[0].Expr.(*influxql.Wildcard); ok {
+			if measurement, ok := stmt.Source.(*influxql.Measurement); ok {
+				segments, err := influxql.SplitIdent(measurement.Name)
+				if err != nil {
+					return nil, fmt.Errorf("unable to parse measurement %s", measurement.Name)
+				}
+				db, m := segments[0], segments[2]
+				if s.databases[db].measurements[m] == nil {
+					return nil, fmt.Errorf("measurement %s does not exist.", measurement.Name)
+				}
+				var fields influxql.Fields
+				for _, f := range s.databases[db].measurements[m].Fields {
+					fields = append(fields, &influxql.Field{Expr: &influxql.VarRef{Val: f.Name}})
+				}
+				stmt.Fields = fields
+			}
+		}
+	}
+
 	// Plan query.
 	p := influxql.NewPlanner(s)
 	return p.Plan(stmt)

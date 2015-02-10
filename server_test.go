@@ -799,6 +799,10 @@ func TestServer_ExecuteQuery(t *testing.T) {
 	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: mustParseTime("2000-01-01T00:00:10Z"), Values: map[string]interface{}{"value": float64(30)}}})
 	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-west"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(100)}}})
 
+	// TODO corylanou: make this test work after it waits enough time to flush out writes.
+	// It is currently passing by accident, as the last write doesn't have enough time to show up and the tests below should not pass
+	// time.Sleep(1 * time.Second)
+
 	// Select data from the server.
 	results := s.ExecuteQuery(MustParseQuery(`SELECT sum(value) FROM cpu GROUP BY time(10s), region`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
