@@ -677,14 +677,16 @@ func MapMin(itr Iterator, e *Emitter, tmin int64) {
 
 // ReduceMin computes the min of value.
 func ReduceMin(key Key, values []interface{}, e *Emitter) {
-	var min float64
-	for i, value := range values {
+	var min *float64
+	for _, value := range values {
 		vals := value.([]float64)
-		for j, v := range vals {
-			if i == 0 && j == 0 {
-				min = v
+		for _, v := range vals {
+			// Initialize min
+			if min == nil {
+				min = &v
 			}
-			min = math.Min(min, v)
+			m := math.Min(*min, v)
+			min = &m
 		}
 	}
 	e.Emit(key, min)

@@ -138,8 +138,8 @@ func TestPlanner_Plan_Mean(t *testing.T) {
 	}
 }
 
-// Ensure the planner can plan and execute a min query
-func TestPlanner_Plan_Min(t *testing.T) {
+// Ensure the planner can plan and execute a min query with results
+func TestPlanner_Plan_MinWithResults(t *testing.T) {
 	tx := NewTx()
 	tx.CreateIteratorsFunc = func(stmt *influxql.SelectStatement) ([]influxql.Iterator, error) {
 		return []influxql.Iterator{
@@ -178,7 +178,25 @@ func TestPlanner_Plan_Min(t *testing.T) {
 	// Expected resultset.
 	exp := minify(`[{"name":"cpu","columns":["time","min"],"values":[["2000-01-01T00:00:00Z",100],["2000-01-01T00:01:00Z",0],["2000-01-01T00:02:00Z",-30],["2000-01-01T00:03:00Z",-30],["2000-01-01T00:04:00Z",0]]}]`)
 
-	// Execute and compare.
+	// Execute and compare with results.
+	rs := MustPlanAndExecute(NewDB(tx), `2000-01-01T12:00:00Z`,
+		`SELECT min(value) FROM cpu WHERE time >= '2000-01-01' GROUP BY time(1m)`)
+	if act := minify(jsonify(rs)); exp != act {
+		t.Fatalf("unexpected resultset: %s", act)
+	}
+}
+
+// Ensure the planner can plan and execute a min query without results
+func TestPlanner_Plan_MinWithoutResults(t *testing.T) {
+	tx := NewTx()
+	tx.CreateIteratorsFunc = func(stmt *influxql.SelectStatement) ([]influxql.Iterator, error) {
+		return []influxql.Iterator{NewIterator(nil, []Point{})}, nil
+	}
+
+	// Expected resultset.
+	exp := "null"
+
+	// Execute and compare with results.
 	rs := MustPlanAndExecute(NewDB(tx), `2000-01-01T12:00:00Z`,
 		`SELECT min(value) FROM cpu WHERE time >= '2000-01-01' GROUP BY time(1m)`)
 	if act := minify(jsonify(rs)); exp != act {
