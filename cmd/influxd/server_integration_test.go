@@ -22,6 +22,13 @@ import (
 	main "github.com/influxdb/influxdb/cmd/influxd"
 )
 
+// urlFor returns a URL with the path and query params correctly appended and set.
+func urlFor(u *url.URL, path string, params url.Values) *url.URL {
+	u.Path = path
+	u.RawQuery = params.Encode()
+	return u
+}
+
 // node represents a node under test, which is both a broker and data node.
 type node struct {
 	broker *messaging.Broker
@@ -230,7 +237,7 @@ func simpleQuery(t *testing.T, testname string, nodes cluster, query string, exp
 
 	// Query the data exists
 	for _, n := range nodes {
-		t.Logf("Test name %s: query data on node %s", n.url)
+		t.Logf("Test name %s: query data on node %s", testname, n.url)
 		u := urlFor(n.url, "query", url.Values{"q": []string{query}, "db": []string{"foo"}})
 		resp, err := http.Get(u.String())
 		if err != nil {
@@ -410,10 +417,4 @@ func Test_Server5NodeIntegration(t *testing.T) {
 	}
 
 	simpleQuery(t, testName, nodes[:1], `select value from "foo"."bar".cpu`, expectedResults)
-}
-
-func urlFor(u *url.URL, path string, params url.Values) *url.URL {
-	u.Path = path
-	u.RawQuery = params.Encode()
-	return u
 }
