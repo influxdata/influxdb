@@ -192,6 +192,8 @@ func (p *Planner) planCall(e *Executor, c *Call) (Processor, error) {
 		mapFn, reduceFn = MapMean, ReduceMean
 	case "min":
 		mapFn, reduceFn = MapMin, ReduceMin
+	case "max":
+		mapFn, reduceFn = MapMax, ReduceMax
 	case "percentile":
 		lit, ok := c.Args[1].(*NumberLiteral)
 		if !ok {
@@ -690,6 +692,33 @@ func ReduceMin(key Key, values []interface{}, e *Emitter) {
 		}
 	}
 	e.Emit(key, min)
+}
+
+// MapMax collects the values to pass to the reducer
+func MapMax(itr Iterator, e *Emitter, tmax int64) {
+	var values []float64
+
+	for k, v := itr.Next(); k != 0; k, v = itr.Next() {
+		values = append(values, v.(float64))
+	}
+	e.Emit(Key{tmax, itr.Tags()}, values)
+}
+
+// ReduceMax computes the max of value.
+func ReduceMax(key Key, values []interface{}, e *Emitter) {
+	var max *float64
+	for _, value := range values {
+		vals := value.([]float64)
+		for _, v := range vals {
+			// Initialize max
+			if max == nil {
+				max = &v
+			}
+			m := math.Max(*max, v)
+			max = &m
+		}
+	}
+	e.Emit(key, max)
 }
 
 // MapEcho emits the data points for each group by interval
