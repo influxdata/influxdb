@@ -91,14 +91,15 @@ type Config struct {
 	} `toml:"broker"`
 
 	Data struct {
-		Dir                  string                    `toml:"dir"`
-		Port                 int                       `toml:"port"`
-		WriteBufferSize      int                       `toml:"write-buffer-size"`
-		MaxOpenShards        int                       `toml:"max-open-shards"`
-		PointBatchSize       int                       `toml:"point-batch-size"`
-		WriteBatchSize       int                       `toml:"write-batch-size"`
-		Engines              map[string]toml.Primitive `toml:"engines"`
-		RetentionSweepPeriod Duration                  `toml:"retention-sweep-period"`
+		Dir                   string                    `toml:"dir"`
+		Port                  int                       `toml:"port"`
+		WriteBufferSize       int                       `toml:"write-buffer-size"`
+		MaxOpenShards         int                       `toml:"max-open-shards"`
+		PointBatchSize        int                       `toml:"point-batch-size"`
+		WriteBatchSize        int                       `toml:"write-batch-size"`
+		Engines               map[string]toml.Primitive `toml:"engines"`
+		RetentionCheckEnabled bool                      `toml:"retention-check-enabled"`
+		RetentionCheckPeriod  Duration                  `toml:"retention-check-period"`
 	} `toml:"data"`
 
 	Cluster struct {
@@ -115,13 +116,14 @@ func NewConfig() *Config {
 	u, _ := user.Current()
 
 	c := &Config{}
-	c.Data.RetentionSweepPeriod = Duration(10 * time.Minute)
 	c.Broker.Dir = filepath.Join(u.HomeDir, ".influxdb/broker")
 	c.Broker.Port = DefaultBrokerPort
 	c.Broker.Timeout = Duration(1 * time.Second)
 	c.Data.Dir = filepath.Join(u.HomeDir, ".influxdb/data")
 	c.Data.Port = DefaultDataPort
 	c.Data.WriteBufferSize = 1000
+	c.Data.RetentionCheckEnabled = true
+	c.Data.RetentionCheckPeriod = Duration(10 * time.Minute)
 
 	// Detect hostname (or set to localhost).
 	if c.Hostname, _ = os.Hostname(); c.Hostname == "" {

@@ -79,8 +79,13 @@ port = 8086
 # Data node configuration. Data nodes are where the time-series data, in the form of
 # shards, is stored.
 [data]
-dir = "/tmp/influxdb/development/db"
-port = 8086
+  dir = "/tmp/influxdb/development/db"
+  port = 8086
+
+  # Control whether retention policies are enforced and how long the system waits between
+  # enforcing those policies.
+  retention-check-enabled = true
+  retention-check-period = "10m"
 
 [cluster]
 # Location for cluster state storage. For storing state persistently across restarts.
