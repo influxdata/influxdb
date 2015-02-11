@@ -752,6 +752,11 @@ func MapStddev(itr Iterator, e *Emitter, tmax int64) {
 
 	for k, v := itr.Next(); k != 0; k, v = itr.Next() {
 		values = append(values, v.(float64))
+		// Emit in batches of 1000
+		if len(values) == 1000 {
+			e.Emit(Key{tmax, itr.Tags()}, values)
+			values = []float64{}
+		}
 	}
 	if len(values) > 0 {
 		e.Emit(Key{tmax, itr.Tags()}, values)
