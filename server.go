@@ -229,6 +229,11 @@ func (s *Server) Close() error {
 	// Close metastore.
 	_ = s.meta.close()
 
+	// Close shards.
+	for _, sh := range s.shards {
+		_ = sh.close()
+	}
+
 	return nil
 }
 
