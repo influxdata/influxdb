@@ -669,56 +669,79 @@ func ReduceMean(key Key, values []interface{}, e *Emitter) {
 
 // MapMin collects the values to pass to the reducer
 func MapMin(itr Iterator, e *Emitter, tmin int64) {
-	var values []float64
+	var min float64
+	pointsYielded := false
 
 	for k, v := itr.Next(); k != 0; k, v = itr.Next() {
-		values = append(values, v.(float64))
+		val := v.(float64)
+		// Initialize min
+		if !pointsYielded {
+			min = val
+			pointsYielded = true
+		}
+		min = math.Min(min, val)
 	}
-	e.Emit(Key{tmin, itr.Tags()}, values)
+	if pointsYielded {
+		e.Emit(Key{tmin, itr.Tags()}, min)
+	}
 }
 
 // ReduceMin computes the min of value.
 func ReduceMin(key Key, values []interface{}, e *Emitter) {
-	var min *float64
-	for _, value := range values {
-		vals := value.([]float64)
-		for _, v := range vals {
-			// Initialize min
-			if min == nil {
-				min = &v
-			}
-			m := math.Min(*min, v)
-			min = &m
+	var min float64
+	pointsYielded := false
+
+	for _, v := range values {
+		val := v.(float64)
+		// Initialize min
+		if !pointsYielded {
+			min = val
+			pointsYielded = true
 		}
+		m := math.Min(min, val)
+		min = m
 	}
-	e.Emit(key, min)
+	if pointsYielded {
+		e.Emit(key, min)
+	}
 }
 
 // MapMax collects the values to pass to the reducer
 func MapMax(itr Iterator, e *Emitter, tmax int64) {
-	var values []float64
+	var max float64
+	pointsYielded := false
 
 	for k, v := itr.Next(); k != 0; k, v = itr.Next() {
-		values = append(values, v.(float64))
+		val := v.(float64)
+		// Initialize max
+		if !pointsYielded {
+			max = val
+			pointsYielded = true
+		}
+		max = math.Max(max, val)
 	}
-	e.Emit(Key{tmax, itr.Tags()}, values)
+	if pointsYielded {
+		e.Emit(Key{tmax, itr.Tags()}, max)
+	}
 }
 
 // ReduceMax computes the max of value.
 func ReduceMax(key Key, values []interface{}, e *Emitter) {
-	var max *float64
-	for _, value := range values {
-		vals := value.([]float64)
-		for _, v := range vals {
-			// Initialize max
-			if max == nil {
-				max = &v
-			}
-			m := math.Max(*max, v)
-			max = &m
+	var max float64
+	pointsYielded := false
+
+	for _, v := range values {
+		val := v.(float64)
+		// Initialize max
+		if !pointsYielded {
+			max = val
+			pointsYielded = true
 		}
+		max = math.Max(max, val)
 	}
-	e.Emit(key, max)
+	if pointsYielded {
+		e.Emit(key, max)
+	}
 }
 
 // MapEcho emits the data points for each group by interval
