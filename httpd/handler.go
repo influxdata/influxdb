@@ -60,6 +60,10 @@ func NewHandler(s *influxdb.Server, requireAuthentication bool, version string) 
 		},
 		route{
 			"write", // Data-ingest route.
+			"OPTIONS", "/write", h.serveOptions, true,
+		},
+		route{
+			"write", // Data-ingest route.
 			"POST", "/write", h.serveWrite, true,
 		},
 		route{ // List data nodes
@@ -221,6 +225,11 @@ func (h *Handler) serveStatus(w http.ResponseWriter, r *http.Request) {
 		b, _ = json.Marshal(data)
 	}
 	w.Write(b)
+}
+
+// serveOptions returns an empty response to comply with OPTIONS pre-flight requests
+func (h *Handler) serveOptions(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // servePing returns a simple response to let the client know the server is running.
