@@ -229,6 +229,11 @@ func (s *Server) Close() error {
 	// Close metastore.
 	_ = s.meta.close()
 
+	// Close shards.
+	for _, sh := range s.shards {
+		_ = sh.close()
+	}
+
 	return nil
 }
 
@@ -834,6 +839,9 @@ func (s *Server) applyCreateShardGroupIfNotExists(m *messaging.Message) (err err
 			}
 		}
 
+		// Retention policy has a new shard group, so update the policy.
+		rp.shardGroups = append(rp.shardGroups, g)
+
 		return tx.saveDatabase(db)
 	}); err != nil {
 		g.close()
@@ -857,7 +865,6 @@ func (s *Server) applyCreateShardGroupIfNotExists(m *messaging.Message) (err err
 	for _, sh := range g.Shards {
 		s.shards[sh.ID] = sh
 	}
-	rp.shardGroups = append(rp.shardGroups, g)
 
 	// Subscribe to shard if it matches the server's index.
 	// TODO: Move subscription outside of command processing.
