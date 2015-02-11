@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/influxdb/influxdb"
+	"github.com/influxdb/influxdb/admin"
 	"github.com/influxdb/influxdb/collectd"
 	"github.com/influxdb/influxdb/graphite"
 	"github.com/influxdb/influxdb/httpd"
@@ -70,6 +71,13 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 		}
 		log.Printf("data node #%d listening on %s", s.ID(), config.DataAddr())
 
+		// Start the admin interface on the default port
+		if config.Admin.Port > 0 {
+			log.Printf("starting admin server on :8083")
+			a := admin.NewHttpServer(":8083")
+			go a.ListenAndServe()
+		}
+
 		// Spin up the collectd server
 		if config.Collectd.Enabled {
 			c := config.Collectd
@@ -80,6 +88,7 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 				log.Printf("failed to start collectd Server: %v\n", err.Error())
 			}
 		}
+
 		// Spin up any Graphite servers
 		for _, c := range config.Graphites {
 			if !c.Enabled {

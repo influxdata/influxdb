@@ -56,8 +56,6 @@ func TestParseConfig(t *testing.T) {
 
 	if c.Admin.Port != 8083 {
 		t.Fatalf("admin port mismatch: %v", c.Admin.Port)
-	} else if c.Admin.Assets != "./admin" {
-		t.Fatalf("admin assets mismatch: %v", c.Admin.Assets)
 	}
 
 	if c.Data.Port != main.DefaultBrokerPort {

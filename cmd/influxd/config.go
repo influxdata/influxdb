@@ -59,7 +59,6 @@ type Config struct {
 
 	Admin struct {
 		Port   int    `toml:"port"`
-		Assets string `toml:"assets"`
 	} `toml:"admin"`
 
 	HTTPAPI struct {
