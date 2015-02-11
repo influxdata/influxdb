@@ -131,8 +131,8 @@ func (s *Server) SetAuthenticationEnabled(enabled bool) {
 // ID returns the data node id for the server.
 // Returns zero if the server is closed or the server has not joined a cluster.
 func (s *Server) ID() uint64 {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.id
 }
 
