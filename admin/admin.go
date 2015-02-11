@@ -21,31 +21,31 @@ func NewHttpServer(port string) *HttpServer {
 	return &HttpServer{port: port, closed: true}
 }
 
-func (self *HttpServer) ListenAndServe() {
-	if self.port == "" {
+func (s *HttpServer) ListenAndServe() {
+	if s.port == "" {
 		return
 	}
 
-	self.closed = false
+	s.closed = false
 	var err error
-	self.listener, err = net.Listen("tcp", self.port)
+	s.listener, err = net.Listen("tcp", s.port)
 	if err != nil {
 		panic(err)
 	}
 
 	statikFS, _ := fs.New()
 
-	err = http.Serve(self.listener, http.FileServer(statikFS))
+	err = http.Serve(s.listener, http.FileServer(statikFS))
 	if !strings.Contains(err.Error(), "closed") {
 		panic(err)
 	}
 }
 
-func (self *HttpServer) Close() {
-	if self.closed {
+func (s *HttpServer) Close() {
+	if s.closed {
 		return
 	}
 
-	self.closed = true
-	self.listener.Close()
+	s.closed = true
+	s.listener.Close()
 }
