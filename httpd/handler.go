@@ -177,6 +177,11 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *influ
 		return
 	}
 
+	if h.requireAuthentication && user == nil {
+		writeError(influxdb.Result{Err: fmt.Errorf("user is required to write to database %q", bp.Database)}, http.StatusUnauthorized)
+		return
+	}
+
 	if h.requireAuthentication && !user.Authorize(influxql.WritePrivilege, bp.Database) {
 		writeError(influxdb.Result{Err: fmt.Errorf("%q user is not authorized to write to database %q", user.Name, bp.Database)}, http.StatusUnauthorized)
 		return

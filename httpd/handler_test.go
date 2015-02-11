@@ -1042,6 +1042,25 @@ func TestHandler_serveWriteSeries(t *testing.T) {
 	}
 }
 
+func TestHandler_serveWriteSeriesWithAuthNilUser(t *testing.T) {
+	srvr := OpenAuthenticatedServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
+	s := NewAuthenticatedHTTPServer(srvr)
+	defer s.Close()
+
+	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}}]}`)
+
+	if status != http.StatusUnauthorized {
+		t.Fatalf("unexpected status: %d", status)
+	}
+
+	response := `{"error":"user is required to write to database \"foo\""}`
+	if body != response {
+		t.Fatalf("unexpected body: expected %s, actual %s", response, body)
+	}
+}
+
 func TestHandler_serveWriteSeries_noDatabaseExists(t *testing.T) {
 	srvr := OpenAuthenticatedServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
