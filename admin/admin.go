@@ -29,6 +29,9 @@ func (s *HttpServer) ListenAndServe() {
 	s.closed = false
 	var err error
 	s.listener, _ = net.Listen("tcp", s.port)
+	if err != nil {
+		return
+	}
 
 	statikFS, _ := fs.New()
 
