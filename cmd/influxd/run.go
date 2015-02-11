@@ -71,10 +71,12 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 		}
 		log.Printf("data node #%d listening on %s", s.ID(), config.DataAddr())
 
-    // Start the admin interface on the default port
-    log.Printf("starting admin server on :8083")
-		a := admin.NewHttpServer(":8083")
-		go a.ListenAndServe()
+		// Start the admin interface on the default port
+		if config.Admin.Port > 0 {
+			log.Printf("starting admin server on :8083")
+			a := admin.NewHttpServer(":8083")
+			go a.ListenAndServe()
+		}
 
 		// Spin up the collectd server
 		if config.Collectd.Enabled {
