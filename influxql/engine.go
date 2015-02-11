@@ -753,7 +753,9 @@ func MapStddev(itr Iterator, e *Emitter, tmax int64) {
 	for k, v := itr.Next(); k != 0; k, v = itr.Next() {
 		values = append(values, v.(float64))
 	}
-	e.Emit(Key{tmax, itr.Tags()}, values)
+	if len(values) > 0 {
+		e.Emit(Key{tmax, itr.Tags()}, values)
+	}
 }
 
 // ReduceStddev computes the stddev of values.
@@ -762,6 +764,10 @@ func ReduceStddev(key Key, values []interface{}, e *Emitter) {
 	// Collect all the data points
 	for _, value := range values {
 		data = append(data, value.([]float64)...)
+	}
+	// If no data, leave
+	if len(data) == 0 {
+		return
 	}
 	// If we only have one data point, the std dev is undefined
 	if len(data) == 1 {
