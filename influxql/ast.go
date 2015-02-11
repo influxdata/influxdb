@@ -32,6 +32,8 @@ func InspectDataType(v interface{}) DataType {
 	switch v.(type) {
 	case float64:
 		return Number
+	case int:
+		return Number
 	case bool:
 		return Boolean
 	case string:

@@ -216,19 +216,32 @@ func (m *Measurement) seriesByTags(tags map[string]string) *Series {
 }
 
 // mapValues converts a map of values with string keys to field id keys.
-// Returns nil if any field doesn't exist.
-func (m *Measurement) mapValues(values map[string]interface{}) map[uint8]interface{} {
+//
+// If a field exists, but its type is different, return an error. If error is
+// nil, but at least 1 field has not been mapped, nil is returned as the map.
+func (m *Measurement) mapValues(values map[string]interface{}) (map[uint8]interface{}, error) {
+	unmapped := false
 	other := make(map[uint8]interface{}, len(values))
 	for k, v := range values {
-		// TODO: Cast value to original field type.
-
 		f := m.FieldByName(k)
+
 		if f == nil {
-			return nil
+			unmapped = true
+		} else {
+			if influxql.InspectDataType(v) != f.Type {
+				return nil, fmt.Errorf("field %s is not of type %s", k, f.Type)
+			}
+			other[f.ID] = v
 		}
-		other[f.ID] = v
 	}
-	return other
+
+	// At least 1 field isn't mapped, so return nil.
+	if unmapped {
+		return nil, nil
+	}
+
+	// All fields exist, and are of the expected type.
+	return other, nil
 }
 
 func (m *Measurement) seriesIDsAndFilters(stmt *influxql.SelectStatement) (seriesIDs, map[uint32]influxql.Expr) {

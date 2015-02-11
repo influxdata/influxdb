@@ -1605,8 +1605,12 @@ func (s *Server) writePoint(database, retentionPolicy string, point *Point) (uin
 	sh := g.ShardBySeriesID(seriesID)
 
 	// Convert string-key/values to fieldID-key/values.
+	rawValues, err := m.mapValues(values)
+	if err != nil {
+		return 0, err
+	}
+
 	// If not all fields can be converted then send as a non-raw write series.
-	rawValues := m.mapValues(values)
 	if rawValues == nil {
 		// Encode the command.
 		data := mustMarshalJSON(&writeSeriesCommand{
