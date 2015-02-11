@@ -146,8 +146,8 @@ func (s *Server) Index() uint64 {
 // Path returns the path used when opening the server.
 // Returns an empty string when the server is closed.
 func (s *Server) Path() string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.path
 }
 
