@@ -157,12 +157,10 @@ func (m *Measurement) createFieldIfNotExists(name string, typ influxql.DataType)
 
 // Field returns a field by id.
 func (m *Measurement) Field(id uint8) *Field {
-	for _, f := range m.Fields {
-		if f.ID == id {
-			return f
-		}
+	if int(id) > len(m.Fields) {
+		return nil
 	}
-	return nil
+	return m.Fields[id-1]
 }
 
 // FieldByName returns a field by name.
