@@ -10,6 +10,9 @@ import (
 	"time"
 )
 
+// how many values we will map before emitting
+const emitBatchSize = 1000
+
 // DB represents an interface for creating transactions.
 type DB interface {
 	Begin() (Tx, error)
@@ -752,8 +755,8 @@ func MapStddev(itr Iterator, e *Emitter, tmax int64) {
 
 	for k, v := itr.Next(); k != 0; k, v = itr.Next() {
 		values = append(values, v.(float64))
-		// Emit in batches of 1000
-		if len(values) == 1000 {
+		// Emit in batches
+		if len(values) == emitBatchSize {
 			e.Emit(Key{tmax, itr.Tags()}, values)
 			values = []float64{}
 		}
