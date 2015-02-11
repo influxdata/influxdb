@@ -763,6 +763,11 @@ func ReduceStddev(key Key, values []interface{}, e *Emitter) {
 	for _, value := range values {
 		data = append(data, value.([]float64)...)
 	}
+	// If we only have one data point, the std dev is undefined
+	if len(data) == 1 {
+		e.Emit(key, "undefined")
+		return
+	}
 	// Get the sum
 	var sum float64
 	for _, v := range data {
@@ -777,7 +782,7 @@ func ReduceStddev(key Key, values []interface{}, e *Emitter) {
 		sq := math.Pow(dif, 2)
 		variance += sq
 	}
-	variance = variance / float64(len(data))
+	variance = variance / float64(len(data)-1)
 	stddev := math.Sqrt(variance)
 
 	e.Emit(key, stddev)
