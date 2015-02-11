@@ -1,30 +1,31 @@
-package admin
+package admin_test
 
 import (
 	"io/ioutil"
 	"net/http"
 	"testing"
 
-	. "gopkg.in/check.v1"
+	"github.com/influxdb/influxdb/admin"
 )
 
-// Hook up gocheck into the gotest runner.
-func Test(t *testing.T) {
-	TestingT(t)
-}
-
-type HttpServerSuite struct {
-}
-
-var _ = Suite(&HttpServerSuite{})
-
-func (self *HttpServerSuite) TestServesIndexByDefault(c *C) {
-	s := NewHttpServer(":8083")
+func Test_ServesIndexByDefault(t *testing.T) {
+	s := admin.NewServer(":8083")
 	go func() { s.ListenAndServe() }()
+	defer s.Close()
+
 	resp, err := http.Get("http://localhost:8083/")
-	c.Assert(err, IsNil)
+	if err != nil {
+		t.Fatalf("couldn't complete GET to / on port 8083")
+	}
 	defer resp.Body.Close()
-	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("didn't get a 200 OK response from server, got %s instead", resp.StatusCode)
+	}
+
 	_, err = ioutil.ReadAll(resp.Body)
-	c.Assert(err, IsNil)
+
+	if err != nil {
+		t.Fatalf("couldn't read body")
+	}
 }

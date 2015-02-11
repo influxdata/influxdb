@@ -84,7 +84,7 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 		// Start the admin interface on the default port
 		if config.Admin.Port > 0 {
 			log.Printf("starting admin server on :8083")
-			a := admin.NewHttpServer(":8083")
+			a := admin.NewServer(":8083")
 			go a.ListenAndServe()
 		}
 
