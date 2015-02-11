@@ -669,54 +669,66 @@ func ReduceMean(key Key, values []interface{}, e *Emitter) {
 
 // MapMin collects the values to pass to the reducer
 func MapMin(itr Iterator, e *Emitter, tmin int64) {
-	var values []float64
+	var min *float64
 
 	for k, v := itr.Next(); k != 0; k, v = itr.Next() {
-		values = append(values, v.(float64))
+		if min == nil {
+			m := v.(float64)
+			min = &m
+		}
+		m := math.Min(*min, v.(float64))
+		min = &m
 	}
-	e.Emit(Key{tmin, itr.Tags()}, values)
+	if min != nil {
+		e.Emit(Key{tmin, itr.Tags()}, *min)
+	}
 }
 
 // ReduceMin computes the min of value.
 func ReduceMin(key Key, values []interface{}, e *Emitter) {
 	var min *float64
+
 	for _, value := range values {
-		vals := value.([]float64)
-		for _, v := range vals {
-			// Initialize min
-			if min == nil {
-				min = &v
-			}
-			m := math.Min(*min, v)
-			min = &m
+		v := value.(float64)
+		// Initialize min
+		if min == nil {
+			min = &v
 		}
+		m := math.Min(*min, v)
+		min = &m
 	}
 	e.Emit(key, min)
 }
 
 // MapMax collects the values to pass to the reducer
 func MapMax(itr Iterator, e *Emitter, tmax int64) {
-	var values []float64
+	var max *float64
 
 	for k, v := itr.Next(); k != 0; k, v = itr.Next() {
-		values = append(values, v.(float64))
+		if max == nil {
+			m := v.(float64)
+			max = &m
+		}
+		m := math.Max(*max, v.(float64))
+		max = &m
 	}
-	e.Emit(Key{tmax, itr.Tags()}, values)
+	if max != nil {
+		e.Emit(Key{tmax, itr.Tags()}, *max)
+	}
 }
 
 // ReduceMax computes the max of value.
 func ReduceMax(key Key, values []interface{}, e *Emitter) {
 	var max *float64
+
 	for _, value := range values {
-		vals := value.([]float64)
-		for _, v := range vals {
-			// Initialize max
-			if max == nil {
-				max = &v
-			}
-			m := math.Max(*max, v)
-			max = &m
+		v := value.(float64)
+		// Initialize max
+		if max == nil {
+			max = &v
 		}
+		m := math.Max(*max, v)
+		max = &m
 	}
 	e.Emit(key, max)
 }
