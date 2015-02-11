@@ -22,9 +22,7 @@ join-urls = "" # Comma-delimited URLs, in the form http://host:port, for joining
 
 # Control authentication
 # If not set authetication is DISABLED. Be sure to explicitly set this flag to
-# true if you want authentication. If authentication is enabled, and no administrative
-# user exists in the system, the system will allow one administrative user to be
-# created without requiring any authentication.
+# true if you want authentication.
 [authentication]
 enabled = false
 
