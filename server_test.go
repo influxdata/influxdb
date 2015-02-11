@@ -729,7 +729,7 @@ func TestServer_SetDefaultRetentionPolicy_ErrRetentionPolicyNotFound(t *testing.
 func TestServer_EnforceRetentionPolicies_ErrZeroInterval(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
-	if err := s.EnforceRetentionPolicies(time.Duration(0)); err == nil {
+	if err := s.StartRetentionPolicyEnforcement(time.Duration(0)); err == nil {
 		t.Fatal("failed to prohibit retention policies zero check interval")
 	}
 }

@@ -60,7 +60,7 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 	// Enable retention policy enforcement if requested.
 	if config.Data.RetentionCheckEnabled {
 		interval := time.Duration(config.Data.RetentionCheckPeriod)
-		if err := s.EnforceRetentionPolicies(interval); err != nil {
+		if err := s.StartRetentionPolicyEnforcement(interval); err != nil {
 			log.Fatalf("retention policy enforcement failed: %s", err.Error())
 		}
 		log.Printf("broker enforcing retention policies with check interval of %s", interval)

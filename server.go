@@ -294,39 +294,40 @@ func (s *Server) load() error {
 	})
 }
 
-// EnforceRetentionPolicies ensures that data that is aging-out due to retention policies is
-// removed from the system.
-func (s *Server) EnforceRetentionPolicies(checkInterval time.Duration) error {
+//  StartRetentionPolicyEnforcement launches retention policy enforcement.
+func (s *Server) StartRetentionPolicyEnforcement(checkInterval time.Duration) error {
 	if checkInterval == 0 {
 		return fmt.Errorf("retention policy check interval must be non-zero")
 	}
 	rpDone := make(chan struct{}, 0)
 	s.rpDone = rpDone
-	go s.retentionPoliciesLoop(checkInterval, rpDone)
+	go func() {
+		for {
+			select {
+			case <-rpDone:
+				return
+			case <-time.After(checkInterval):
+				s.EnforceRetentionPolicies()
+			}
+		}
+	}()
 	return nil
 }
 
-func (s *Server) retentionPoliciesLoop(interval time.Duration, done chan struct{}) {
-	for {
-		select {
-		case <-done:
-			return
-		case <-time.After(interval):
-		}
+// EnforceRetentionPolicies ensures that data that is aging-out due to retention policies
+// is removed from the server.
+func (s *Server) EnforceRetentionPolicies() {
+	log.Println("retention policy enforcement check commencing")
 
-		log.Println("retention policy enforcement check commencing")
-
-		// Check all shard groups.
-		for _, db := range s.databases {
-			for _, rp := range db.policies {
-				for _, g := range rp.shardGroups {
-					if g.EndTime.Add(rp.Duration).Before(time.Now()) {
-						log.Printf("shard group %d, retention policy %s, database %s due for deletion",
-							g.ID, db.name, rp.Name)
-						if err := s.DeleteShardGroup(db.name, rp.Name, g.ID); err != nil {
-							log.Printf("failed to request deletion of shard group %d: %s",
-								g.ID, err.Error())
-						}
+	// Check all shard groups.
+	for _, db := range s.databases {
+		for _, rp := range db.policies {
+			for _, g := range rp.shardGroups {
+				if g.EndTime.Add(rp.Duration).Before(time.Now()) {
+					log.Printf("shard group %d, retention policy %s, database %s due for deletion",
+						g.ID, db.name, rp.Name)
+					if err := s.DeleteShardGroup(db.name, rp.Name, g.ID); err != nil {
+						log.Printf("failed to request deletion of shard group %d: %s", g.ID, err.Error())
 					}
 				}
 			}
