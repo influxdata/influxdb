@@ -892,6 +892,41 @@ func TestServer_CreateShardGroupIfNotExist(t *testing.T) {
 	}
 }
 
+func TestServer_DeleteShardGroup(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+	s.CreateDatabase("foo")
+
+	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "bar"}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.CreateShardGroupIfNotExists("foo", "bar", time.Time{}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Get the new shard's ID.
+	var g []*influxdb.ShardGroup
+	g, err := s.ShardGroups("foo")
+	if err != nil {
+		t.Fatal(err)
+	} else if len(g) != 1 {
+		t.Fatalf("expected 1 shard group but found %d", len(g))
+	}
+	id := g[0].ID
+
+	// Delete the shard group and verify it's gone.
+	if err := s.DeleteShardGroup("foo", "bar", id); err != nil {
+		t.Fatal(err)
+	}
+	g, err = s.ShardGroups("foo")
+	if err != nil {
+		t.Fatal(err)
+	} else if len(g) != 0 {
+		t.Fatalf("expected 0 shard group but found %d", len(g))
+	}
+}
+
 /* TODO(benbjohnson): Change test to not expose underlying series ids directly.
 func TestServer_Measurements(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
