@@ -13,9 +13,10 @@ import (
 )
 
 type Config struct {
-	URL      url.URL
-	Username string
-	Password string
+	URL       url.URL
+	Username  string
+	Password  string
+	UserAgent string
 }
 
 type Client struct {
@@ -23,6 +24,7 @@ type Client struct {
 	username   string
 	password   string
 	httpClient *http.Client
+	userAgent  string
 }
 
 type Query struct {
@@ -42,6 +44,7 @@ func NewClient(c Config) (*Client, error) {
 		username:   c.Username,
 		password:   c.Password,
 		httpClient: &http.Client{},
+		userAgent:  c.UserAgent,
 	}
 	return &client, nil
 }
@@ -55,7 +58,14 @@ func (c *Client) Query(q Query) (*Results, error) {
 	values.Set("db", q.Database)
 	u.RawQuery = values.Encode()
 
-	resp, err := c.httpClient.Get(u.String())
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	if c.userAgent != "" {
+		req.Header.Set("User-Agent", c.userAgent)
+	}
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +97,15 @@ func (c *Client) Write(writes ...Write) (*Results, error) {
 	b := []byte{}
 	err := json.Unmarshal(b, &d)
 
-	resp, err := c.httpClient.Post(c.url.String(), "application/json", bytes.NewBuffer(b))
+	req, err := http.NewRequest("POST", c.url.String(), bytes.NewBuffer(b))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if c.userAgent != "" {
+		req.Header.Set("User-Agent", c.userAgent)
+	}
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +126,15 @@ func (c *Client) Ping() (time.Duration, string, error) {
 	now := time.Now()
 	u := c.url
 	u.Path = "ping"
-	resp, err := c.httpClient.Get(u.String())
+
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		return 0, "", err
+	}
+	if c.userAgent != "" {
+		req.Header.Set("User-Agent", c.userAgent)
+	}
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return 0, "", err
 	}

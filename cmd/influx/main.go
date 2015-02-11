@@ -182,9 +182,10 @@ func (c *CommandLine) connect(cmd string) {
 	}
 	cl, err := client.NewClient(
 		client.Config{
-			URL:      u,
-			Username: c.Username,
-			Password: c.Password,
+			URL:       u,
+			Username:  c.Username,
+			Password:  c.Password,
+			UserAgent: "InfluxDB shell",
 		})
 	if err != nil {
 		fmt.Printf("Could not create client %s", err)
