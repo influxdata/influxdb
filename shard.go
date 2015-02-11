@@ -111,18 +111,22 @@ func (s *Shard) readSeries(seriesID uint32, timestamp int64) (values []byte, err
 }
 
 // writeSeries writes series data to a shard.
-func (s *Shard) writeSeries(seriesID uint32, timestamp int64, values []byte, overwrite bool) error {
+func (s *Shard) writeSeries(points []rawPoint) error {
 	return s.store.Update(func(tx *bolt.Tx) error {
-		// Create a bucket for the series.
-		b, err := tx.CreateBucketIfNotExists(u32tob(seriesID))
-		if err != nil {
-			return err
-		}
+		for i := range points {
+			p := &points[i]
 
-		// Insert the values by timestamp.
-		warn("[write]", seriesID, time.Unix(0, timestamp))
-		if err := b.Put(u64tob(uint64(timestamp)), values); err != nil {
-			return err
+			// Create a bucket for the series.
+			b, err := tx.CreateBucketIfNotExists(u32tob(p.seriesID))
+			if err != nil {
+				return err
+			}
+
+			// Insert the values by timestamp.
+			warn("[write]", p.seriesID, time.Unix(0, p.timestamp))
+			if err := b.Put(u64tob(uint64(p.timestamp)), p.values); err != nil {
+				return err
+			}
 		}
 
 		return nil
@@ -133,24 +137,34 @@ func (s *Shard) deleteSeries(name string) error {
 	panic("not yet implemented") // TODO
 }
 
+// rawPoint represents a low-level point passed into the shard write.
+type rawPoint struct {
+	seriesID  uint32
+	timestamp int64
+	values    []byte
+	overwrite bool
+}
+
 // Shards represents a list of shards.
 type Shards []*Shard
 
 // pointHeaderSize represents the size of a point header, in bytes.
-const pointHeaderSize = 4 + 8 // seriesID + timestamp
+const pointHeaderSize = 4 + 8 + 4 // seriesID + timestamp + data_len
 
-// marshalPointHeader encodes a series id, timestamp, & flagset into a byte slice.
-func marshalPointHeader(seriesID uint32, timestamp int64) []byte {
-	b := make([]byte, 12)
+// marshalPointHeader encodes a series id, timestamp, & data size into a byte slice.
+func marshalPointHeader(seriesID uint32, timestamp int64, sz uint32) []byte {
+	b := make([]byte, pointHeaderSize)
 	binary.BigEndian.PutUint32(b[0:4], seriesID)
 	binary.BigEndian.PutUint64(b[4:12], uint64(timestamp))
+	binary.BigEndian.PutUint32(b[12:16], sz)
 	return b
 }
 
-// unmarshalPointHeader decodes a byte slice into a series id, timestamp & flagset.
-func unmarshalPointHeader(b []byte) (seriesID uint32, timestamp int64) {
+// unmarshalPointHeader decodes a byte slice into a series id, timestamp & data size.
+func unmarshalPointHeader(b []byte) (seriesID uint32, timestamp int64, sz uint32) {
 	seriesID = binary.BigEndian.Uint32(b[0:4])
 	timestamp = int64(binary.BigEndian.Uint64(b[4:12]))
+	sz = binary.BigEndian.Uint32(b[12:16])
 	return
 }
 

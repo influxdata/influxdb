@@ -4,28 +4,16 @@
 
 PLATFORM=`uname`
 
-_date_to_unix_timestamp () {
-    if [  "$PLATFORM" = "Darwin" ] ; then
-        date -j -f "%b %d %T %Z %Y" "$1" "+%s"
-    elif [  "$PLATFORM" = "Linux" ] ; then
-        date -d "$1" "+%s"
-    else
-        echo "I don't know if your date can read a format and a time, failing"
-        exit 99
-    fi
-}
-
 _timestamp_to_time_string () {
     if [  "$PLATFORM" = "Darwin" ] ; then
-        date -j -f "%s" "$1" +"%Y-%m-%dT%H:%M:%SZ"
+        date -ju -f "%s" "$1" +"%Y-%m-%dT%H:%M:%SZ"
     elif [  "$PLATFORM" = "Linux" ] ; then
         date -d "@$1" +"%Y-%m-%dT%H:%M:%SZ"
     fi
 }
 
 # Starting the test at "Jan 01 00:00:00 EDT 2000"
-TIME=`_date_to_unix_timestamp "Jan 01 00:00:00 EDT 2000"`
-
+TIME=946684800
 
 # Set defaults.
 INTERVAL=10      # 1s
@@ -86,7 +74,7 @@ do
 		do
 			# Format the timestamp to ISO 8601.
 			let CURRTIME=TIME+j
-			TIMESTAMP=`date -j -f "%s" $CURRTIME +"%Y-%m-%dT%H:%M:%SZ"`
+			TIMESTAMP=`_timestamp_to_time_string $CURRTIME`
 
 			# Add comma separator.
 			if [ "$j" -ne "0" ]

@@ -750,8 +750,12 @@ func TestServer_WriteSeries(t *testing.T) {
 		t.Fatalf("sync error: %s", err)
 	}
 
-	// Write another point 10 seconds later so it goes through "raw series".
-	index, err = s.WriteSeries("foo", "mypolicy", []influxdb.Point{{Name: "cpu_load", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:10Z"), Values: map[string]interface{}{"value": float64(100)}}})
+	// Write more points seconds later so it goes through "raw series".
+	points := make([]influxdb.Point, 1000)
+	for i := range points {
+		points[i] = influxdb.Point{Name: "cpu_load", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:10Z").Add(time.Duration(i) * time.Second), Values: map[string]interface{}{"value": float64(100)}}
+	}
+	index, err = s.WriteSeries("foo", "mypolicy", points)
 	if err != nil {
 		t.Fatal(err)
 	} else if err = s.Sync(index); err != nil {
@@ -778,7 +782,7 @@ func TestServer_WriteSeries(t *testing.T) {
 	}
 
 	// Retrieve non-existent series data point.
-	if v, err := s.ReadSeries("foo", "mypolicy", "cpu_load", tags, mustParseTime("2000-01-01T00:01:00Z")); err != nil {
+	if v, err := s.ReadSeries("foo", "mypolicy", "cpu_load", tags, mustParseTime("2000-01-02T00:00:00Z")); err != nil {
 		t.Fatal(err)
 	} else if v != nil {
 		t.Fatalf("expected nil values: %#v", v)

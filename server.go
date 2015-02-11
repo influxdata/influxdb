@@ -42,6 +42,9 @@ const (
 
 	// DefaultShardRetention is the length of time before a shard is dropped.
 	DefaultShardRetention = 7 * (24 * time.Hour)
+
+	// DefaultFlushInterval is the time between flushing raw point data.
+	DefaultFlushInterval = 100 * time.Millisecond
 )
 
 const (
@@ -98,6 +101,11 @@ type Server struct {
 	shards           map[uint64]*Shard   // shards by shard id
 	shardsBySeriesID map[uint32][]*Shard // shards by series id
 
+	shardBufs map[uint64]*shardBuf // shard buffer by shard id
+
+	// The time between flushing the raw point buffer.
+	FlushInterval time.Duration
+
 	Logger *log.Logger
 
 	authenticationEnabled bool
@@ -114,7 +122,11 @@ func NewServer() *Server {
 
 		shards:           make(map[uint64]*Shard),
 		shardsBySeriesID: make(map[uint32][]*Shard),
-		Logger:           log.New(os.Stderr, "[server] ", log.LstdFlags),
+
+		shardBufs: make(map[uint64]*shardBuf),
+
+		FlushInterval: DefaultFlushInterval,
+		Logger:        log.New(os.Stderr, "[server] ", log.LstdFlags),
 	}
 	// Server will always return with authentication enabled.
 	// This ensures that disabling authentication must be an explicit decision.
@@ -317,6 +329,7 @@ func (s *Server) setClient(client MessagingClient) error {
 		done := make(chan struct{}, 0)
 		s.done = done
 		go s.processor(client, done)
+		go s.flusher(client, done)
 	}
 
 	return nil
@@ -1512,15 +1525,23 @@ func (s *Server) writePoint(database, retentionPolicy string, point *Point) (uin
 	// we can send a raw write series message which is much smaller and faster.
 
 	// Encode point header.
-	data := marshalPointHeader(seriesID, timestamp.UnixNano())
-	data = append(data, marshalValues(rawValues)...)
+	rawValuesData := marshalValues(rawValues)
+	data := marshalPointHeader(seriesID, timestamp.UnixNano(), uint32(len(rawValuesData)))
+	data = append(data, rawValuesData...)
 
-	// Publish "raw write series" message on shard's topic to broker.
-	return s.client.Publish(&messaging.Message{
-		Type:    writeRawSeriesMessageType,
-		TopicID: sh.ID,
-		Data:    data,
-	})
+	// Find or create shard buffer and add data.
+	s.mu.Lock()
+	buf, ok := s.shardBufs[sh.ID]
+	if !ok {
+		buf = &shardBuf{done: make(chan struct{}, 0)}
+		s.shardBufs[sh.ID] = buf
+	}
+	buf.data = append(buf.data, data...)
+	s.mu.Unlock()
+
+	// Wait for buffer to send and then return error.
+	<-buf.done
+	return buf.index, buf.err
 }
 
 type writeSeriesCommand struct {
@@ -1597,7 +1618,7 @@ func (s *Server) applyWriteSeries(m *messaging.Message) error {
 	overwrite := true
 
 	// Write to shard.
-	return sh.writeSeries(c.SeriesID, c.Timestamp, data, overwrite)
+	return sh.writeSeries([]rawPoint{{seriesID: c.SeriesID, timestamp: c.Timestamp, values: data, overwrite: overwrite}})
 }
 
 // applyWriteRawSeries writes raw series data to the database.
@@ -1610,19 +1631,32 @@ func (s *Server) applyWriteRawSeries(m *messaging.Message) error {
 		return ErrShardNotFound
 	}
 
-	// Extract the series id and timestamp from the header.
-	// Everything after the header is the marshalled value.
-	seriesID, timestamp := unmarshalPointHeader(m.Data[:pointHeaderSize])
-	data := m.Data[pointHeaderSize:]
+	// Read in every point.
+	data := m.Data
+	points := make([]rawPoint, 0, 100)
+	for {
+		if len(data) == 0 {
+			break
+		}
 
-	// Add to lookup.
-	s.addShardBySeriesID(sh, seriesID)
+		// Extract the series id and timestamp from the header.
+		// Everything after the header is the marshalled value.
+		seriesID, timestamp, sz := unmarshalPointHeader(data[:pointHeaderSize])
+		values := data[pointHeaderSize : pointHeaderSize+sz]
+		data = data[pointHeaderSize+sz:]
 
-	// TODO: Enable some way to specify if the data should be overwritten
-	overwrite := true
+		// Add to lookup.
+		s.addShardBySeriesID(sh, seriesID)
 
-	// Write to shard.
-	return sh.writeSeries(seriesID, timestamp, data, overwrite)
+		// TODO: Enable some way to specify if the data should be overwritten
+		overwrite := true
+
+		// Append point to list.
+		points = append(points, rawPoint{seriesID: seriesID, timestamp: timestamp, values: values, overwrite: overwrite})
+	}
+
+	// Write all points to shard.
+	return sh.writeSeries(points)
 }
 
 func (s *Server) addShardBySeriesID(sh *Shard, seriesID uint32) {
@@ -2543,6 +2577,42 @@ func (s *Server) processor(client MessagingClient, done chan struct{}) {
 	}
 }
 
+// flusher sends raw point data in batches to the broker by topic.
+func (s *Server) flusher(client MessagingClient, done chan struct{}) {
+	ticker := time.NewTicker(s.FlushInterval)
+	defer ticker.Stop()
+
+	for {
+		// Wait for the next flush or until done.
+		select {
+		case <-ticker.C:
+		case <-done:
+			return
+		}
+
+		// Retrieve point data under lock and create new pending queue.
+		s.mu.Lock()
+		bufs := s.shardBufs
+		s.shardBufs = make(map[uint64]*shardBuf)
+		s.mu.Unlock()
+
+		// TODO: Parallelize publishing.
+
+		// Send out each shard buffer.
+		for shardID, buf := range bufs {
+			// Publish message and set the returned index and error on the buffer.
+			buf.index, buf.err = client.Publish(&messaging.Message{
+				Type:    writeRawSeriesMessageType,
+				TopicID: shardID,
+				Data:    buf.data,
+			})
+
+			// Notify all listeners.
+			close(buf.done)
+		}
+	}
+}
+
 // Result represents a resultset returned from a single statement.
 type Result struct {
 	Rows []*influxql.Row
@@ -2786,6 +2856,20 @@ type ContinuousQuery struct {
 	ID    uint32
 	Query string
 	// TODO: ParsedQuery *parser.SelectQuery
+}
+
+// shardBuf provides a place to buffer writes to the shard.
+// When the buffer is flushed, it's err is set and done is closed.
+type shardBuf struct {
+	data  []byte
+	index uint64
+	err   error
+	done  chan struct{}
+}
+
+func (s *shardBuf) wait() error {
+	<-s.done
+	return s.err
 }
 
 // copyURL returns a copy of the the URL.
