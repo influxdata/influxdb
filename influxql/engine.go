@@ -196,6 +196,10 @@ func (p *Planner) planCall(e *Executor, c *Call) (Processor, error) {
 		mapFn, reduceFn = MapMax, ReduceMax
 	case "stddev":
 		mapFn, reduceFn = MapStddev, ReduceStddev
+	case "first":
+		mapFn, reduceFn = MapFirst, ReduceFirst
+	case "last":
+		mapFn, reduceFn = MapLast, ReduceLast
 	case "percentile":
 		lit, ok := c.Args[1].(*NumberLiteral)
 		if !ok {
@@ -792,6 +796,101 @@ func ReduceStddev(key Key, values []interface{}, e *Emitter) {
 	stddev := math.Sqrt(variance)
 
 	e.Emit(key, stddev)
+}
+
+type firstLastMapOutput struct {
+	time int64
+	val  interface{}
+}
+
+// MapFirst collects the values to pass to the reducer
+func MapFirst(itr Iterator, e *Emitter, tmax int64) {
+	out := firstLastMapOutput{}
+	pointsYielded := false
+
+	for k, v := itr.Next(); k != 0; k, v = itr.Next() {
+		// Initialize first
+		if !pointsYielded {
+			out.time = k
+			out.val = v
+			pointsYielded = true
+		}
+		if k < out.time {
+			out.time = k
+			out.val = v
+		}
+	}
+	if pointsYielded {
+		e.Emit(Key{tmax, itr.Tags()}, out)
+	}
+}
+
+// ReduceFirst computes the first of value.
+func ReduceFirst(key Key, values []interface{}, e *Emitter) {
+	out := firstLastMapOutput{}
+	pointsYielded := false
+
+	for _, v := range values {
+		val := v.(firstLastMapOutput)
+		// Initialize first
+		if !pointsYielded {
+			out.time = val.time
+			out.val = val.val
+			pointsYielded = true
+		}
+		if val.time < out.time {
+			out.time = val.time
+			out.val = val.val
+		}
+	}
+	if pointsYielded {
+		e.Emit(key, out.val)
+	}
+}
+
+// MapLast collects the values to pass to the reducer
+func MapLast(itr Iterator, e *Emitter, tmax int64) {
+	out := firstLastMapOutput{}
+	pointsYielded := false
+
+	for k, v := itr.Next(); k != 0; k, v = itr.Next() {
+		// Initialize last
+		if !pointsYielded {
+			out.time = k
+			out.val = v
+			pointsYielded = true
+		}
+		if k > out.time {
+			out.time = k
+			out.val = v
+		}
+	}
+	if pointsYielded {
+		e.Emit(Key{tmax, itr.Tags()}, out)
+	}
+}
+
+// ReduceLast computes the last of value.
+func ReduceLast(key Key, values []interface{}, e *Emitter) {
+	out := firstLastMapOutput{}
+	pointsYielded := false
+
+	for _, v := range values {
+		val := v.(firstLastMapOutput)
+		// Initialize last
+		if !pointsYielded {
+			out.time = val.time
+			out.val = val.val
+			pointsYielded = true
+		}
+		if val.time > out.time {
+			out.time = val.time
+			out.val = val.val
+		}
+	}
+	if pointsYielded {
+		e.Emit(key, out.val)
+	}
 }
 
 // MapEcho emits the data points for each group by interval
