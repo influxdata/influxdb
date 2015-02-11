@@ -270,6 +270,72 @@ func TestPlanner_Plan_MinWithoutResults(t *testing.T) {
 	}
 }
 
+// Ensure the planner can plan and execute a standard deviation query with results
+func TestPlanner_Plan_StddevWithResults(t *testing.T) {
+	tx := NewTx()
+	tx.CreateIteratorsFunc = func(stmt *influxql.SelectStatement) ([]influxql.Iterator, error) {
+		return []influxql.Iterator{
+			NewIterator(nil, []Point{
+				{"2000-01-01T00:00:00Z", float64(1)},
+				{"2000-01-01T00:00:10Z", float64(2)},
+				{"2000-01-01T00:00:20Z", float64(3)},
+			}),
+			NewIterator(nil, []Point{
+				{"2000-01-01T00:01:00Z", float64(10)},
+				{"2000-01-01T00:01:10Z", float64(8)},
+				{"2000-01-01T00:01:20Z", float64(10)},
+				{"2000-01-01T00:01:30Z", float64(8)},
+				{"2000-01-01T00:01:40Z", float64(8)},
+				{"2000-01-01T00:01:50Z", float64(4)},
+			}),
+			NewIterator(nil, []Point{
+				{"2000-01-01T00:02:20Z", float64(10)},
+				{"2000-01-01T00:02:30Z", float64(20)},
+				{"2000-01-01T00:02:40Z", float64(30)},
+			}),
+			NewIterator(nil, []Point{
+				{"2000-01-01T00:03:20Z", float64(-10)},
+				{"2000-01-01T00:03:30Z", float64(0)},
+				{"2000-01-01T00:03:40Z", float64(10)},
+			}),
+			NewIterator(nil, []Point{
+				{"2000-01-01T00:04:20Z", float64(10)},
+				{"2000-01-01T00:04:30Z", float64(10)},
+			}),
+			NewIterator(nil, []Point{
+				{"2000-01-01T00:05:20Z", float64(10)},
+			})}, nil
+	}
+
+	// Expected resultset.
+	exp := minify(`[{"name":"cpu","columns":["time","stddev"],"values":[["2000-01-01T00:00:00Z",1],["2000-01-01T00:01:00Z",2.1908902300206643],["2000-01-01T00:02:00Z",10],["2000-01-01T00:03:00Z",10],["2000-01-01T00:04:00Z",0],["2000-01-01T00:05:00Z","undefined"]]}]`)
+
+	// Execute and compare with results.
+	rs := MustPlanAndExecute(NewDB(tx), `2000-01-01T12:00:00Z`,
+		`SELECT stddev(value) FROM cpu WHERE time >= '2000-01-01' GROUP BY time(1m)`)
+	if act := minify(jsonify(rs)); exp != act {
+		t.Fatalf("unexpected resultset: %s", act)
+	}
+}
+
+// Ensure the planner can plan and execute a stddev query without results
+func TestPlanner_Plan_StddevWithoutResults(t *testing.T) {
+	tx := NewTx()
+	tx.CreateIteratorsFunc = func(stmt *influxql.SelectStatement) ([]influxql.Iterator, error) {
+		return []influxql.Iterator{NewIterator(nil, []Point{})}, nil
+	}
+
+	// Expected resultset.
+	exp := "null"
+
+	// Execute and compare with results.
+	rs := MustPlanAndExecute(NewDB(tx), `2000-01-01T12:00:00Z`,
+		`SELECT stddev(value) FROM cpu WHERE time >= '2000-01-01' GROUP BY time(1m)`)
+	if act := minify(jsonify(rs)); exp != act {
+		t.Fatalf("unexpected resultset: %s", act)
+	}
+}
+
 // Ensure the planner can plan and execute a percentile query
 func TestPlanner_Plan_Percentile(t *testing.T) {
 	tx := NewTx()
