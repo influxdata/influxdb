@@ -726,11 +726,47 @@ func TestServer_SetDefaultRetentionPolicy_ErrRetentionPolicyNotFound(t *testing.
 }
 
 // Ensure the server prohibits a zero check interval for retention policy enforcement.
-func TestServer_EnforceRetentionPolicies_ErrZeroInterval(t *testing.T) {
+func TestServer_StartRetentionPolicyEnforcement_ErrZeroInterval(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 	if err := s.StartRetentionPolicyEnforcement(time.Duration(0)); err == nil {
 		t.Fatal("failed to prohibit retention policies zero check interval")
+	}
+}
+
+func TestServer_EnforceRetentionPolices(t *testing.T) {
+	c := NewMessagingClient()
+	s := OpenServer(c)
+	defer s.Close()
+	s.CreateDatabase("foo")
+	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "mypolicy", Duration: 30 * time.Minute})
+
+	// Create two shard groups for the the new retention policy -- 1 which will age out immediately
+	// the other in more than an hour.
+	s.CreateShardGroupIfNotExists("foo", "mypolicy", time.Now().Add(-1*time.Hour))
+	s.CreateShardGroupIfNotExists("foo", "mypolicy", time.Now().Add(time.Hour))
+
+	// Check the two shard groups exist.
+	var g []*influxdb.ShardGroup
+	g, err := s.ShardGroups("foo")
+	if err != nil {
+		t.Fatal(err)
+	} else if len(g) != 2 {
+		t.Fatalf("expected 2 shard group but found %d", len(g))
+	}
+
+	// Run retention enforcement.
+	s.EnforceRetentionPolicies()
+
+	// Ensure enforcement is in effect across restarts.
+	s.Restart()
+
+	// First shard group should have been removed.
+	g, err = s.ShardGroups("foo")
+	if err != nil {
+		t.Fatal(err)
+	} else if len(g) != 1 {
+		t.Fatalf("expected 1 shard group but found %d", len(g))
 	}
 }
 
