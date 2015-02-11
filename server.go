@@ -979,7 +979,8 @@ func (s *Server) applyDeleteShardGroup(m *messaging.Message) (err error) {
 		path := shard.store.Path()
 		shard.close()
 		if err := os.Remove(path); err != nil {
-			// Log, but keep going.
+			// Log, but keep going. This can happen if shards were deleted, but the server exited
+			// before it acknowledged the delete command.
 			log.Printf("error deleting shard %s, group ID %d, policy %s: %s", path, g.ID, rp.Name, err.Error())
 		}
 	}
