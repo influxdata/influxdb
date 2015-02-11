@@ -873,6 +873,9 @@ func TestServer_CreateShardGroupIfNotExist(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Restart the server to ensure the shard group is not lost.
+	s.Restart()
+
 	if a, err := s.ShardGroups("foo"); err != nil {
 		t.Fatal(err)
 	} else if len(a) != 1 {
