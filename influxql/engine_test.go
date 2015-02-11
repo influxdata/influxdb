@@ -426,7 +426,7 @@ func TestPlanner_Plan_LastWithoutResults(t *testing.T) {
 
 	// Execute and compare with results.
 	rs := MustPlanAndExecute(NewDB(tx), `2000-01-01T12:00:00Z`,
-		`SELECT first(value) FROM cpu WHERE time >= '2000-01-01' GROUP BY time(1m)`)
+		`SELECT last(value) FROM cpu WHERE time >= '2000-01-01' GROUP BY time(1m)`)
 	if act := minify(jsonify(rs)); exp != act {
 		t.Fatalf("unexpected resultset: %s", act)
 	}
