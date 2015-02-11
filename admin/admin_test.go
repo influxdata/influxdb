@@ -2,9 +2,10 @@ package admin
 
 import (
 	"io/ioutil"
-	. "launchpad.net/gocheck"
 	"net/http"
 	"testing"
+
+	. "gopkg.in/check.v1"
 )
 
 // Hook up gocheck into the gotest runner.
