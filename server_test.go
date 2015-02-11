@@ -715,13 +715,58 @@ func TestServer_SetDefaultRetentionPolicy(t *testing.T) {
 	}
 }
 
-// Ensure the server returns an error when setting the deafult retention policy to a non-existant one.
+// Ensure the server returns an error when setting the default retention policy to a non-existant one.
 func TestServer_SetDefaultRetentionPolicy_ErrRetentionPolicyNotFound(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 	s.CreateDatabase("foo")
 	if err := s.SetDefaultRetentionPolicy("foo", "no_such_policy"); err != influxdb.ErrRetentionPolicyNotFound {
 		t.Fatal(err)
+	}
+}
+
+// Ensure the server prohibits a zero check interval for retention policy enforcement.
+func TestServer_StartRetentionPolicyEnforcement_ErrZeroInterval(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+	if err := s.StartRetentionPolicyEnforcement(time.Duration(0)); err == nil {
+		t.Fatal("failed to prohibit retention policies zero check interval")
+	}
+}
+
+func TestServer_EnforceRetentionPolices(t *testing.T) {
+	c := NewMessagingClient()
+	s := OpenServer(c)
+	defer s.Close()
+	s.CreateDatabase("foo")
+	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "mypolicy", Duration: 30 * time.Minute})
+
+	// Create two shard groups for the the new retention policy -- 1 which will age out immediately
+	// the other in more than an hour.
+	s.CreateShardGroupIfNotExists("foo", "mypolicy", time.Now().Add(-1*time.Hour))
+	s.CreateShardGroupIfNotExists("foo", "mypolicy", time.Now().Add(time.Hour))
+
+	// Check the two shard groups exist.
+	var g []*influxdb.ShardGroup
+	g, err := s.ShardGroups("foo")
+	if err != nil {
+		t.Fatal(err)
+	} else if len(g) != 2 {
+		t.Fatalf("expected 2 shard group but found %d", len(g))
+	}
+
+	// Run retention enforcement.
+	s.EnforceRetentionPolicies()
+
+	// Ensure enforcement is in effect across restarts.
+	s.Restart()
+
+	// First shard group should have been removed.
+	g, err = s.ShardGroups("foo")
+	if err != nil {
+		t.Fatal(err)
+	} else if len(g) != 1 {
+		t.Fatalf("expected 1 shard group but found %d", len(g))
 	}
 }
 
@@ -880,6 +925,41 @@ func TestServer_CreateShardGroupIfNotExist(t *testing.T) {
 		t.Fatal(err)
 	} else if len(a) != 1 {
 		t.Fatalf("expected 1 shard group but found %d", len(a))
+	}
+}
+
+func TestServer_DeleteShardGroup(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+	s.CreateDatabase("foo")
+
+	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "bar"}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.CreateShardGroupIfNotExists("foo", "bar", time.Time{}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Get the new shard's ID.
+	var g []*influxdb.ShardGroup
+	g, err := s.ShardGroups("foo")
+	if err != nil {
+		t.Fatal(err)
+	} else if len(g) != 1 {
+		t.Fatalf("expected 1 shard group but found %d", len(g))
+	}
+	id := g[0].ID
+
+	// Delete the shard group and verify it's gone.
+	if err := s.DeleteShardGroup("foo", "bar", id); err != nil {
+		t.Fatal(err)
+	}
+	g, err = s.ShardGroups("foo")
+	if err != nil {
+		t.Fatal(err)
+	} else if len(g) != 0 {
+		t.Fatalf("expected 0 shard group but found %d", len(g))
 	}
 }
 

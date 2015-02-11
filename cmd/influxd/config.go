@@ -91,14 +91,10 @@ type Config struct {
 	} `toml:"broker"`
 
 	Data struct {
-		Dir                  string                    `toml:"dir"`
-		Port                 int                       `toml:"port"`
-		WriteBufferSize      int                       `toml:"write-buffer-size"`
-		MaxOpenShards        int                       `toml:"max-open-shards"`
-		PointBatchSize       int                       `toml:"point-batch-size"`
-		WriteBatchSize       int                       `toml:"write-batch-size"`
-		Engines              map[string]toml.Primitive `toml:"engines"`
-		RetentionSweepPeriod Duration                  `toml:"retention-sweep-period"`
+		Dir                   string   `toml:"dir"`
+		Port                  int      `toml:"port"`
+		RetentionCheckEnabled bool     `toml:"retention-check-enabled"`
+		RetentionCheckPeriod  Duration `toml:"retention-check-period"`
 	} `toml:"data"`
 
 	Cluster struct {
@@ -115,13 +111,13 @@ func NewConfig() *Config {
 	u, _ := user.Current()
 
 	c := &Config{}
-	c.Data.RetentionSweepPeriod = Duration(10 * time.Minute)
 	c.Broker.Dir = filepath.Join(u.HomeDir, ".influxdb/broker")
 	c.Broker.Port = DefaultBrokerPort
 	c.Broker.Timeout = Duration(1 * time.Second)
 	c.Data.Dir = filepath.Join(u.HomeDir, ".influxdb/data")
 	c.Data.Port = DefaultDataPort
-	c.Data.WriteBufferSize = 1000
+	c.Data.RetentionCheckEnabled = true
+	c.Data.RetentionCheckPeriod = Duration(10 * time.Minute)
 
 	// Detect hostname (or set to localhost).
 	if c.Hostname, _ = os.Hostname(); c.Hostname == "" {
@@ -136,31 +132,6 @@ func NewConfig() *Config {
 	// })
 
 	return c
-}
-
-// PointBatchSize returns the data point batch size, if set.
-// If not set, the LevelDB point batch size is returned.
-// If that is not set then the default point batch size is returned.
-func (c *Config) PointBatchSize() int {
-	if c.Data.PointBatchSize != 0 {
-		return c.Data.PointBatchSize
-	}
-	return DefaultPointBatchSize
-}
-
-// WriteBatchSize returns the data write batch size, if set.
-// If not set, the LevelDB write batch size is returned.
-// If that is not set then the default write batch size is returned.
-func (c *Config) WriteBatchSize() int {
-	if c.Data.WriteBatchSize != 0 {
-		return c.Data.WriteBatchSize
-	}
-	return DefaultWriteBatchSize
-}
-
-// MaxOpenShards returns the maximum number of shards to keep open at once.
-func (c *Config) MaxOpenShards() int {
-	return c.Data.MaxOpenShards
 }
 
 // DataAddr returns the binding address the data server

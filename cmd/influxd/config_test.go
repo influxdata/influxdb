@@ -122,6 +122,12 @@ func TestParseConfig(t *testing.T) {
 	if c.Data.Dir != "/tmp/influxdb/development/db" {
 		t.Fatalf("data dir mismatch: %v", c.Data.Dir)
 	}
+	if c.Data.RetentionCheckEnabled != true {
+		t.Fatalf("Retention check enabled mismatch: %v", c.Data.RetentionCheckEnabled)
+	}
+	if c.Data.RetentionCheckPeriod != main.Duration(5*time.Minute) {
+		t.Fatalf("Retention check period mismatch: %v", c.Data.RetentionCheckPeriod)
+	}
 
 	if c.Cluster.Dir != "/tmp/influxdb/development/cluster" {
 		t.Fatalf("cluster dir mismatch: %v", c.Cluster.Dir)
@@ -217,6 +223,8 @@ dir  = "/tmp/influxdb/development/broker"
 
 [data]
 dir = "/tmp/influxdb/development/db"
+retention-check-enabled = true
+retention-check-period = "5m"
 
 [cluster]
 dir = "/tmp/influxdb/development/cluster"

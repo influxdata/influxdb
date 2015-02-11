@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/admin"
@@ -55,6 +56,15 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 	// Open server, initialize or join as necessary.
 	s := openServer(config.DataDir(), config.DataURL(), b, initializing, configExists, joinURLs, logWriter)
 	s.SetAuthenticationEnabled(config.Authentication.Enabled)
+
+	// Enable retention policy enforcement if requested.
+	if config.Data.RetentionCheckEnabled {
+		interval := time.Duration(config.Data.RetentionCheckPeriod)
+		if err := s.StartRetentionPolicyEnforcement(interval); err != nil {
+			log.Fatalf("retention policy enforcement failed: %s", err.Error())
+		}
+		log.Printf("broker enforcing retention policies with check interval of %s", interval)
+	}
 
 	// Start the server handler. Attach to broker if listening on the same port.
 	if s != nil {

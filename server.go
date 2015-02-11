@@ -66,6 +66,7 @@ const (
 
 	// Shard messages
 	createShardGroupIfNotExistsMessageType = messaging.MessageType(0x40)
+	deleteShardGroupMessageType            = messaging.MessageType(0x41)
 
 	// Series messages
 	createSeriesIfNotExistsMessageType = messaging.MessageType(0x50)
@@ -80,10 +81,11 @@ const (
 
 // Server represents a collection of metadata and raw metric data.
 type Server struct {
-	mu   sync.RWMutex
-	id   uint64
-	path string
-	done chan struct{} // goroutine close notification
+	mu     sync.RWMutex
+	id     uint64
+	path   string
+	done   chan struct{} // goroutine close notification
+	rpDone chan struct{} // retention policies goroutine close notification
 
 	client MessagingClient  // broker client
 	index  uint64           // highest broadcast index seen
@@ -220,6 +222,10 @@ func (s *Server) Close() error {
 		return ErrServerClosed
 	}
 
+	if s.rpDone != nil {
+		close(s.rpDone)
+	}
+
 	// Remove path.
 	s.path = ""
 
@@ -286,6 +292,47 @@ func (s *Server) load() error {
 
 		return nil
 	})
+}
+
+//  StartRetentionPolicyEnforcement launches retention policy enforcement.
+func (s *Server) StartRetentionPolicyEnforcement(checkInterval time.Duration) error {
+	if checkInterval == 0 {
+		return fmt.Errorf("retention policy check interval must be non-zero")
+	}
+	rpDone := make(chan struct{}, 0)
+	s.rpDone = rpDone
+	go func() {
+		for {
+			select {
+			case <-rpDone:
+				return
+			case <-time.After(checkInterval):
+				s.EnforceRetentionPolicies()
+			}
+		}
+	}()
+	return nil
+}
+
+// EnforceRetentionPolicies ensures that data that is aging-out due to retention policies
+// is removed from the server.
+func (s *Server) EnforceRetentionPolicies() {
+	log.Println("retention policy enforcement check commencing")
+
+	// Check all shard groups.
+	for _, db := range s.databases {
+		for _, rp := range db.policies {
+			for _, g := range rp.shardGroups {
+				if g.EndTime.Add(rp.Duration).Before(time.Now()) {
+					log.Printf("shard group %d, retention policy %s, database %s due for deletion",
+						g.ID, rp.Name, db.name)
+					if err := s.DeleteShardGroup(db.name, rp.Name, g.ID); err != nil {
+						log.Printf("failed to request deletion of shard group %d: %s", g.ID, err.Error())
+					}
+				}
+			}
+		}
+	}
 }
 
 // Client retrieves the current messaging client.
@@ -888,6 +935,69 @@ type createShardGroupIfNotExistsCommand struct {
 	Database  string    `json:"database"`
 	Policy    string    `json:"policy"`
 	Timestamp time.Time `json:"timestamp"`
+}
+
+// DeleteShardGroup deletes the shard group identified by shardID.
+func (s *Server) DeleteShardGroup(database, policy string, shardID uint64) error {
+	c := &deleteShardGroupCommand{Database: database, Policy: policy, ID: shardID}
+	_, err := s.broadcast(deleteShardGroupMessageType, c)
+	return err
+}
+
+// applyDeleteShardGroup deletes shard data from disk and updates the metastore.
+func (s *Server) applyDeleteShardGroup(m *messaging.Message) (err error) {
+	var c deleteShardGroupCommand
+	mustUnmarshalJSON(m.Data, &c)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Retrieve database.
+	db := s.databases[c.Database]
+	if s.databases[c.Database] == nil {
+		return ErrDatabaseNotFound
+	}
+
+	// Validate retention policy.
+	rp := db.policies[c.Policy]
+	if rp == nil {
+		return ErrRetentionPolicyNotFound
+	}
+
+	// If shard group no longer exists, then ignore request. This can occur if multiple
+	// data nodes triggered the deletion.
+	g := rp.shardGroupByID(c.ID)
+	if g == nil {
+		return nil
+	}
+
+	for _, shard := range g.Shards {
+		// Ignore shards not on this server.
+		if !shard.HasDataNodeID(s.id) {
+			continue
+		}
+
+		path := shard.store.Path()
+		shard.close()
+		if err := os.Remove(path); err != nil {
+			// Log, but keep going. This can happen if shards were deleted, but the server exited
+			// before it acknowledged the delete command.
+			log.Printf("error deleting shard %s, group ID %d, policy %s: %s", path, g.ID, rp.Name, err.Error())
+		}
+	}
+
+	// Remove from metastore.
+	rp.removeShardGroupByID(c.ID)
+	err = s.meta.mustUpdate(func(tx *metatx) error {
+		return tx.saveDatabase(db)
+	})
+	return
+}
+
+type deleteShardGroupCommand struct {
+	Database string `json:"database"`
+	Policy   string `json:"policy"`
+	ID       uint64 `json:"id"`
 }
 
 // User returns a user by username
@@ -2532,6 +2642,8 @@ func (s *Server) processor(client MessagingClient, done chan struct{}) {
 			err = s.applyDeleteRetentionPolicy(m)
 		case createShardGroupIfNotExistsMessageType:
 			err = s.applyCreateShardGroupIfNotExists(m)
+		case deleteShardGroupMessageType:
+			err = s.applyDeleteShardGroup(m)
 		case setDefaultRetentionPolicyMessageType:
 			err = s.applySetDefaultRetentionPolicy(m)
 		case createSeriesIfNotExistsMessageType:
