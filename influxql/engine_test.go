@@ -414,7 +414,7 @@ func TestPlanner_Plan_LastWithResults(t *testing.T) {
 	}
 }
 
-// Ensure the planner can plan and execute a first query without results
+// Ensure the planner can plan and execute a last query without results
 func TestPlanner_Plan_LastWithoutResults(t *testing.T) {
 	tx := NewTx()
 	tx.CreateIteratorsFunc = func(stmt *influxql.SelectStatement) ([]influxql.Iterator, error) {
