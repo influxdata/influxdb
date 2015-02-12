@@ -25,17 +25,8 @@ func TestBroker_WillRunQueries(t *testing.T) {
 	badServer := httptest.NewServer(badHandler)
 	defer badServer.Close()
 
-	// return the data nodes so all the failure cases get hit first
-	testNodeServer := &BrokerTestDataNodeServer{
-		dataNodes: []*influxdb.DataNode{
-			&influxdb.DataNode{URL: &url.URL{Host: "127.0.0.1:8090"}},
-			&influxdb.DataNode{URL: &url.URL{Host: timeoutServer.URL[7:]}},
-			&influxdb.DataNode{URL: &url.URL{Host: badServer.URL[7:]}},
-			&influxdb.DataNode{URL: &url.URL{Host: server.URL[7:]}},
-		},
-	}
-
 	b := influxdb.NewBroker()
+
 	// set the trigger times and failure sleeps for the test
 	b.TriggerInterval = 2 * time.Millisecond
 	b.TriggerTimeout = 100 * time.Millisecond
@@ -52,7 +43,15 @@ func TestBroker_WillRunQueries(t *testing.T) {
 	}
 	defer b.Close()
 
-	b.RunContinuousQueryLoop(testNodeServer)
+	// set the data nodes (replicas) so all the failure cases get hit first
+	if err := b.Broker.CreateReplica(1, &url.URL{Host: "127.0.0.1:8090"}); err != nil {
+		t.Fatalf("couldn't create replica ", err.Error())
+	}
+	b.Broker.CreateReplica(2, &url.URL{Host: timeoutServer.URL[7:]})
+	b.Broker.CreateReplica(3, &url.URL{Host: badServer.URL[7:]})
+	b.Broker.CreateReplica(4, &url.URL{Host: server.URL[7:]})
+
+	b.RunContinuousQueryLoop()
 	// every failure and success case should be hit in this time frame
 	time.Sleep(1400 * time.Millisecond)
 	if timeoutHandler.requestCount != 1 {
@@ -64,14 +63,6 @@ func TestBroker_WillRunQueries(t *testing.T) {
 	if testHandler.requestCount < 1 || testHandler.processRequestCount < 1 {
 		t.Fatal("broker failed to send multiple continuous query requests to the data node")
 	}
-}
-
-type BrokerTestDataNodeServer struct {
-	dataNodes []*influxdb.DataNode
-}
-
-func (b *BrokerTestDataNodeServer) DataNodes() []*influxdb.DataNode {
-	return b.dataNodes
 }
 
 type BrokerTestHandler struct {

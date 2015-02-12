@@ -13,11 +13,10 @@ import (
 type Broker struct {
 	*messaging.Broker
 
-	done   chan struct{}
-	server dataNodeStore
+	done chan struct{}
 
 	// send CQ processing requests to the same data node
-	currentCQProcessingNode *DataNode
+	currentCQProcessingNode *messaging.Replica
 
 	// variables to control when to trigger processing and when to timeout
 	TriggerInterval     time.Duration
@@ -39,10 +38,6 @@ const (
 	DefaultFailureSleep = 100 * time.Millisecond
 )
 
-type dataNodeStore interface {
-	DataNodes() []*DataNode
-}
-
 // NewBroker returns a new instance of a Broker with default values.
 func NewBroker() *Broker {
 	b := &Broker{
@@ -54,8 +49,7 @@ func NewBroker() *Broker {
 	return b
 }
 
-func (b *Broker) RunContinuousQueryLoop(d dataNodeStore) {
-	b.server = d
+func (b *Broker) RunContinuousQueryLoop() {
 	b.done = make(chan struct{})
 	go b.continuousQueryLoop(b.done)
 }
@@ -85,15 +79,11 @@ func (b *Broker) continuousQueryLoop(done chan struct{}) {
 }
 
 func (b *Broker) runContinuousQueries() {
-	if b.server == nil {
-		return
-	}
-
 	next := 0
 	for {
 		// if the current node hasn't been set it's our first time or we're reset. move to the next one
 		if b.currentCQProcessingNode == nil {
-			dataNodes := b.server.DataNodes()
+			dataNodes := b.Broker.Replicas()
 			if len(dataNodes) == 0 {
 				return // don't have any nodes to try, give it up
 			}

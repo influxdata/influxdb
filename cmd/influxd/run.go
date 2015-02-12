@@ -52,6 +52,9 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 		}
 		go func() { log.Fatal(http.Serve(listener, h)) }()
 		log.Printf("broker listening on %s", config.BrokerAddr())
+
+		// have it occasionally tell a data node in the cluster to run continuous queries
+		b.RunContinuousQueryLoop()
 	}
 
 	// Open server, initialize or join as necessary.
@@ -88,11 +91,6 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 			log.Printf("starting admin server on %s", port)
 			a := admin.NewServer(port)
 			go a.ListenAndServe()
-		}
-
-		// if this is a server running a broker, have it occasionally run continuous queries
-		if b != nil {
-			b.RunContinuousQueryLoop(s)
 		}
 
 		// Spin up the collectd server
@@ -252,7 +250,7 @@ func openServer(config *Config, b *influxdb.Broker, initializing, configExists b
 	// If the server is uninitialized then initialize or join it.
 	if initializing {
 		if len(joinURLs) == 0 {
-			initializeServer(s, b, w)
+			initializeServer(config.DataURL(), s, b, w)
 		} else {
 			joinServer(s, config.DataURL(), joinURLs)
 			openServerClient(s, joinURLs, w)
@@ -275,11 +273,11 @@ func openServer(config *Config, b *influxdb.Broker, initializing, configExists b
 }
 
 // initializes a new server that does not yet have an ID.
-func initializeServer(s *influxdb.Server, b *influxdb.Broker, w io.Writer) {
+func initializeServer(u *url.URL, s *influxdb.Server, b *influxdb.Broker, w io.Writer) {
 	// TODO: Create replica using the messaging client.
 
 	// Create replica on broker.
-	if err := b.CreateReplica(1); err != nil {
+	if err := b.CreateReplica(1, u); err != nil {
 		log.Fatalf("replica creation error: %s", err)
 	}
 

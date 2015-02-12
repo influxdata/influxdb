@@ -27,7 +27,7 @@ func TestClient_Open(t *testing.T) {
 	defer c.Close()
 
 	// Create replica on broker.
-	c.Server.Handler.Broker().CreateReplica(1000)
+	c.Server.Handler.Broker().CreateReplica(1000, &url.URL{Host: "localhost"})
 
 	// Open client to broker.
 	f := NewTempFile()
@@ -81,7 +81,7 @@ func TestClient_Close(t *testing.T) {
 	defer c.Close()
 
 	// Create replica on broker.
-	c.Server.Handler.Broker().CreateReplica(1000)
+	c.Server.Handler.Broker().CreateReplica(1000, &url.URL{Host: "localhost"})
 
 	// Open client to broker.
 	f := NewTempFile()
@@ -141,7 +141,7 @@ func TestClient_CreateReplica(t *testing.T) {
 	defer c.Close()
 
 	// Create replica through client.
-	if err := c.CreateReplica(123); err != nil {
+	if err := c.CreateReplica(123, &url.URL{Host: "localhost"}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -155,8 +155,8 @@ func TestClient_CreateReplica(t *testing.T) {
 func TestClient_CreateReplica_Err(t *testing.T) {
 	c := OpenClient(0)
 	defer c.Close()
-	c.Server.Handler.Broker().CreateReplica(123)
-	if err := c.CreateReplica(123); err == nil || err.Error() != `replica already exists` {
+	c.Server.Handler.Broker().CreateReplica(123, &url.URL{Host: "localhost"})
+	if err := c.CreateReplica(123, &url.URL{Host: "localhost"}); err == nil || err.Error() != `replica already exists` {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -165,7 +165,7 @@ func TestClient_CreateReplica_Err(t *testing.T) {
 func TestClient_DeleteReplica(t *testing.T) {
 	c := OpenClient(0)
 	defer c.Close()
-	c.Server.Handler.Broker().CreateReplica(123)
+	c.Server.Handler.Broker().CreateReplica(123, &url.URL{Host: "localhost"})
 
 	// Delete replica through client.
 	if err := c.DeleteReplica(123); err != nil {
@@ -182,7 +182,7 @@ func TestClient_DeleteReplica(t *testing.T) {
 func TestClient_Subscribe(t *testing.T) {
 	c := OpenClient(0)
 	defer c.Close()
-	c.Server.Broker().CreateReplica(100)
+	c.Server.Broker().CreateReplica(100, &url.URL{Host: "localhost"})
 
 	// Create subscription through client.
 	if err := c.Subscribe(100, 200); err != nil {
@@ -208,7 +208,7 @@ func TestClient_Subscribe_Err(t *testing.T) {
 func TestClient_Unsubscribe(t *testing.T) {
 	c := OpenClient(0)
 	defer c.Close()
-	c.Server.Broker().CreateReplica(100)
+	c.Server.Broker().CreateReplica(100, &url.URL{Host: "localhost"})
 	c.Server.Broker().Subscribe(100, 200)
 
 	// Remove subscription through client.
@@ -250,7 +250,7 @@ func NewClient(replicaID uint64) *Client {
 // OpenClient returns a new, open instance of Client.
 func OpenClient(replicaID uint64) *Client {
 	c := NewClient(replicaID)
-	c.Server.Handler.Broker().CreateReplica(replicaID)
+	c.Server.Handler.Broker().CreateReplica(replicaID, &url.URL{Host: "localhost"})
 
 	// Open client to broker.
 	c.clientConfig = NewTempFile()

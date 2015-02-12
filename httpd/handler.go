@@ -294,7 +294,7 @@ func (h *Handler) serveCreateDataNode(w http.ResponseWriter, r *http.Request) {
 	node := h.server.DataNodeByURL(u)
 
 	// Create a new replica on the broker.
-	if err := h.server.Client().CreateReplica(node.ID); err != nil {
+	if err := h.server.Client().CreateReplica(node.ID, node.URL); err != nil {
 		httpError(w, err.Error(), false, http.StatusBadGateway)
 		return
 	}

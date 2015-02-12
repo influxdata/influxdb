@@ -2122,7 +2122,7 @@ type MessagingClient struct {
 	mu    sync.Mutex // Ensure all publishing is serialized.
 
 	PublishFunc       func(*messaging.Message) (uint64, error)
-	CreateReplicaFunc func(replicaID uint64) error
+	CreateReplicaFunc func(replicaID uint64, connectURL *url.URL) error
 	DeleteReplicaFunc func(replicaID uint64) error
 	SubscribeFunc     func(replicaID, topicID uint64) error
 	UnsubscribeFunc   func(replicaID, topicID uint64) error
@@ -2132,7 +2132,7 @@ type MessagingClient struct {
 func NewMessagingClient() *MessagingClient {
 	c := &MessagingClient{c: make(chan *messaging.Message, 1)}
 	c.PublishFunc = c.send
-	c.CreateReplicaFunc = func(replicaID uint64) error { return nil }
+	c.CreateReplicaFunc = func(replicaID uint64, connectURL *url.URL) error { return nil }
 	c.DeleteReplicaFunc = func(replicaID uint64) error { return nil }
 	c.SubscribeFunc = func(replicaID, topicID uint64) error { return nil }
 	c.UnsubscribeFunc = func(replicaID, topicID uint64) error { return nil }
@@ -2157,8 +2157,8 @@ func (c *MessagingClient) send(m *messaging.Message) (uint64, error) {
 }
 
 // Creates a new replica with a given ID on the broker.
-func (c *MessagingClient) CreateReplica(replicaID uint64) error {
-	return c.CreateReplicaFunc(replicaID)
+func (c *MessagingClient) CreateReplica(replicaID uint64, connectURL *url.URL) error {
+	return c.CreateReplicaFunc(replicaID, connectURL)
 }
 
 // Deletes an existing replica with a given ID from the broker.

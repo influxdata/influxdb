@@ -3,6 +3,7 @@ package messaging
 import (
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -152,9 +153,14 @@ func (h *Handler) createReplica(w http.ResponseWriter, r *http.Request) {
 	} else {
 		replicaID = uint64(n)
 	}
+	u, err := url.Parse(r.URL.Query().Get("url"))
+	if err != nil {
+		h.error(w, err, http.StatusBadRequest)
+		return
+	}
 
 	// Create a new replica on the broker.
-	if err := h.broker.CreateReplica(replicaID); err == raft.ErrNotLeader {
+	if err := h.broker.CreateReplica(replicaID, u); err == raft.ErrNotLeader {
 		h.redirectToLeader(w, r)
 		return
 	} else if err == ErrReplicaExists {

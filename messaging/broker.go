@@ -172,7 +172,7 @@ func (b *Broker) load() error {
 	// Update the replicas.
 	for _, sr := range hdr.Replicas {
 		// Create replica.
-		r := newReplica(b, sr.ID)
+		r := newReplica(b, sr.ID, sr.URL)
 		b.replicas[r.id] = r
 
 		// Append replica's topics.
@@ -249,7 +249,7 @@ func (b *Broker) createSnapshotHeader() (*snapshotHeader, error) {
 
 	// Append replicas and the current index for each topic.
 	for _, r := range b.replicas {
-		sr := &snapshotReplica{ID: r.id}
+		sr := &snapshotReplica{ID: r.id, URL: r.URL.String()}
 
 		for topicID, index := range r.topics {
 			sr.Topics = append(sr.Topics, &snapshotReplicaTopic{
@@ -329,6 +329,18 @@ func (b *Broker) Replica(id uint64) *Replica {
 	return b.replicas[id]
 }
 
+// Replicas returns a list of the replicas in the system
+func (b *Broker) Replicas() []*Replica {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	a := make([]*Replica, 0, len(b.replicas))
+	for _, r := range b.replicas {
+		a = append(a, r)
+	}
+	sort.Sort(replicas(a))
+	return a
+}
+
 // initializes a new topic object.
 func (b *Broker) createTopic(id uint64) *topic {
 	t := &topic{
@@ -351,7 +363,7 @@ func (b *Broker) createTopicIfNotExists(id uint64) *topic {
 }
 
 // CreateReplica creates a new named replica.
-func (b *Broker) CreateReplica(id uint64) error {
+func (b *Broker) CreateReplica(id uint64, connectURL *url.URL) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -364,7 +376,7 @@ func (b *Broker) CreateReplica(id uint64) error {
 	// Add command to create replica.
 	return b.PublishSync(&Message{
 		Type: CreateReplicaMessageType,
-		Data: mustMarshalJSON(&CreateReplicaCommand{ID: id}),
+		Data: mustMarshalJSON(&CreateReplicaCommand{ID: id, URL: connectURL.String()}),
 	})
 }
 
@@ -373,7 +385,7 @@ func (b *Broker) mustApplyCreateReplica(m *Message) {
 	mustUnmarshalJSON(m.Data, &c)
 
 	// Create replica.
-	r := newReplica(b, c.ID)
+	r := newReplica(b, c.ID, c.URL)
 
 	// Automatically subscribe to the config topic.
 	t := b.createTopicIfNotExists(BroadcastTopicID)
@@ -660,7 +672,7 @@ func (fsm *brokerFSM) Restore(r io.Reader) error {
 	// Update the replicas.
 	for _, sr := range s.Replicas {
 		// Create replica.
-		r := newReplica(b, sr.ID)
+		r := newReplica(b, sr.ID, sr.URL)
 		b.replicas[r.id] = r
 
 		// Append replica's topics.
@@ -705,6 +717,7 @@ func (s *snapshotHeader) maxIndex() uint64 {
 type snapshotReplica struct {
 	ID     uint64                  `json:"id"`
 	Topics []*snapshotReplicaTopic `json:"topics"`
+	URL    string                  `json:"url"`
 }
 
 type snapshotTopic struct {
@@ -837,12 +850,19 @@ func (t *topic) encode(m *Message) error {
 	return nil
 }
 
+type replicas []*Replica
+
+func (a replicas) Len() int           { return len(a) }
+func (a replicas) Less(i, j int) bool { return a[i].id < a[j].id }
+func (a replicas) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+
 // Replica represents a collection of subscriptions to topics on the broker.
 // The replica maintains the highest index read for each topic so that the
 // broker can use this high water mark for trimming the topic logs.
 type Replica struct {
+	URL *url.URL
+
 	id     uint64
-	url    *url.URL // TODO
 	broker *Broker
 
 	writer io.Writer     // currently attached writer
@@ -852,8 +872,15 @@ type Replica struct {
 }
 
 // newReplica returns a new Replica instance associated with a broker.
-func newReplica(b *Broker, id uint64) *Replica {
+func newReplica(b *Broker, id uint64, urlstr string) *Replica {
+	// get the url of the replica
+	u, err := url.Parse(urlstr)
+	if err != nil {
+		panic(err.Error())
+	}
+
 	return &Replica{
+		URL:    u,
 		broker: b,
 		id:     id,
 		topics: make(map[uint64]uint64),
@@ -946,7 +973,8 @@ func (r *Replica) WriteTo(w io.Writer) (int64, error) {
 
 // CreateReplica creates a new replica.
 type CreateReplicaCommand struct {
-	ID uint64 `json:"id"`
+	ID  uint64 `json:"id"`
+	URL string `json:"url"`
 }
 
 // DeleteReplicaCommand removes a replica.

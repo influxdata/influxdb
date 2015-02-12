@@ -2841,7 +2841,7 @@ type MessagingClient interface {
 	Publish(m *messaging.Message) (index uint64, err error)
 
 	// Creates a new replica with a given ID on the broker.
-	CreateReplica(replicaID uint64) error
+	CreateReplica(replicaID uint64, connectURL *url.URL) error
 
 	// Deletes an existing replica with a given ID from the broker.
 	DeleteReplica(replicaID uint64) error
