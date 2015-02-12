@@ -2154,7 +2154,7 @@ func (s *Server) executeShowMeasurementsStatement(stmt *influxql.ShowMeasurement
 		row.Values = append(row.Values, []interface{}{v})
 	}
 
-	// Make result.
+	// Make a result.
 	result := &Result{
 		Rows: influxql.Rows{row},
 	}
