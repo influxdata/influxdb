@@ -756,7 +756,7 @@ func ReduceMax(key Key, values []interface{}, e *Emitter) {
 }
 
 type spreadMapOutput struct {
-	min, max float64
+	Min, Max float64
 }
 
 // MapSpread collects the values to pass to the reducer
@@ -768,12 +768,12 @@ func MapSpread(itr Iterator, e *Emitter, tmax int64) {
 		val := v.(float64)
 		// Initialize
 		if !pointsYielded {
-			out.max = val
-			out.min = val
+			out.Max = val
+			out.Min = val
 			pointsYielded = true
 		}
-		out.max = math.Max(out.max, val)
-		out.min = math.Min(out.min, val)
+		out.Max = math.Max(out.Max, val)
+		out.Min = math.Min(out.Min, val)
 	}
 	if pointsYielded {
 		e.Emit(Key{tmax, itr.Tags()}, out)
@@ -789,15 +789,15 @@ func ReduceSpread(key Key, values []interface{}, e *Emitter) {
 		val := v.(spreadMapOutput)
 		// Initialize
 		if !pointsYielded {
-			result.max = val.max
-			result.min = val.min
+			result.Max = val.Max
+			result.Min = val.Min
 			pointsYielded = true
 		}
-		result.max = math.Max(result.max, val.max)
-		result.min = math.Min(result.min, val.min)
+		result.Max = math.Max(result.Max, val.Max)
+		result.Min = math.Min(result.Min, val.Min)
 	}
 	if pointsYielded {
-		e.Emit(key, result.max-result.min)
+		e.Emit(key, result.Max-result.Min)
 	}
 }
 
@@ -857,8 +857,8 @@ func ReduceStddev(key Key, values []interface{}, e *Emitter) {
 }
 
 type firstLastMapOutput struct {
-	time int64
-	val  interface{}
+	Time int64
+	Val  interface{}
 }
 
 // MapFirst collects the values to pass to the reducer
@@ -869,13 +869,13 @@ func MapFirst(itr Iterator, e *Emitter, tmax int64) {
 	for k, v := itr.Next(); k != 0; k, v = itr.Next() {
 		// Initialize first
 		if !pointsYielded {
-			out.time = k
-			out.val = v
+			out.Time = k
+			out.Val = v
 			pointsYielded = true
 		}
-		if k < out.time {
-			out.time = k
-			out.val = v
+		if k < out.Time {
+			out.Time = k
+			out.Val = v
 		}
 	}
 	if pointsYielded {
@@ -892,17 +892,17 @@ func ReduceFirst(key Key, values []interface{}, e *Emitter) {
 		val := v.(firstLastMapOutput)
 		// Initialize first
 		if !pointsYielded {
-			out.time = val.time
-			out.val = val.val
+			out.Time = val.Time
+			out.Val = val.Val
 			pointsYielded = true
 		}
-		if val.time < out.time {
-			out.time = val.time
-			out.val = val.val
+		if val.Time < out.Time {
+			out.Time = val.Time
+			out.Val = val.Val
 		}
 	}
 	if pointsYielded {
-		e.Emit(key, out.val)
+		e.Emit(key, out.Val)
 	}
 }
 
@@ -914,13 +914,13 @@ func MapLast(itr Iterator, e *Emitter, tmax int64) {
 	for k, v := itr.Next(); k != 0; k, v = itr.Next() {
 		// Initialize last
 		if !pointsYielded {
-			out.time = k
-			out.val = v
+			out.Time = k
+			out.Val = v
 			pointsYielded = true
 		}
-		if k > out.time {
-			out.time = k
-			out.val = v
+		if k > out.Time {
+			out.Time = k
+			out.Val = v
 		}
 	}
 	if pointsYielded {
@@ -937,17 +937,17 @@ func ReduceLast(key Key, values []interface{}, e *Emitter) {
 		val := v.(firstLastMapOutput)
 		// Initialize last
 		if !pointsYielded {
-			out.time = val.time
-			out.val = val.val
+			out.Time = val.Time
+			out.Val = val.Val
 			pointsYielded = true
 		}
-		if val.time > out.time {
-			out.time = val.time
-			out.val = val.val
+		if val.Time > out.Time {
+			out.Time = val.Time
+			out.Val = val.Val
 		}
 	}
 	if pointsYielded {
-		e.Emit(key, out.val)
+		e.Emit(key, out.Val)
 	}
 }
 
