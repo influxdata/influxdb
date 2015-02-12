@@ -135,8 +135,12 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 			}
 		}
 	}
+
+  s.StartReportingLoop(version)
+
 	return b.Broker, s
 }
+
 
 // write the current process id to a file specified by path.
 func writePIDFile(path string) {

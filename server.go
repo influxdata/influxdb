@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -3115,4 +3116,26 @@ func copyURL(u *url.URL) *url.URL {
 	other := &url.URL{}
 	*other = *u
 	return other
+}
+
+func (s *Server) StartReportingLoop(version string) chan struct{} {
+	s.reportStats(version)
+
+	ticker := time.NewTicker(24 * time.Hour)
+	for {
+		select {
+		case <-ticker.C:
+			s.reportStats(version)
+		}
+	}
+}
+
+func (s *Server) reportStats(version string) {
+	json := fmt.Sprintf(`[{"name":"reports", "columns":["os", "arch", "id", "version"], points:[["%s", "%s", "%x", "%s"]]}]`,
+		runtime.GOOS, runtime.GOARCH, s.ID(), version)
+
+	data := bytes.NewBufferString(json)
+
+	http.Post("http://localhost:8086/db/reporting/series?u=reporter&p=influxdb", "application/json", data)
+	log.Printf("Reporting data: %s", json)
 }
