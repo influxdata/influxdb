@@ -1363,10 +1363,10 @@ func TestHandler_serveShowMeasurements(t *testing.T) {
 		r   string
 		err string
 	}{
-		// SHOW SERIES
+		// SHOW MEASUREMENTS
 		{
 			q: `SHOW MEASUREMENTS LIMIT 2`,
-			r: `{"results":[{"rows":[{"name":"cpu","columns":["host","region"]},{"name":"gpu","columns":["host","region"]}]}]}`,
+			r: `{"results":[{"rows":[{"name":"measurements","columns":["name"],"values":[["cpu"],["gpu"]]}]}]}`,
 		},
 	}
 
