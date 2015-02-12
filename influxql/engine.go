@@ -780,7 +780,7 @@ func MapSpread(itr Iterator, e *Emitter, tmax int64) {
 	}
 }
 
-// ReduceSpread computes the max of value.
+// ReduceSpread computes the spread of values.
 func ReduceSpread(key Key, values []interface{}, e *Emitter) {
 	var result spreadMapOutput
 	pointsYielded := false
