@@ -154,6 +154,7 @@ func NewConfig() *Config {
 	c.ContinuousQuery.RecomputeNoOlderThan = Duration(10 * time.Minute)
 	c.ContinuousQuery.ComputeRunsPerInterval = 10
 	c.ContinuousQuery.ComputeNoMoreThan = Duration(2 * time.Minute)
+	c.ReportingDisabled = false
 
 	// Detect hostname (or set to localhost).
 	if c.Hostname, _ = os.Hostname(); c.Hostname == "" {

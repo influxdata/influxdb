@@ -107,6 +107,7 @@ func createCombinedNodeCluster(t *testing.T, testName string, nNodes, basePort i
 	c.Broker.Port = basePort
 	c.Data.Port = basePort
 	c.Admin.Enabled = false
+	c.ReportingDisabled = true
 
 	b, s := main.Run(c, "", "x.x", os.Stderr)
 	if b == nil {
