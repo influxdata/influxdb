@@ -2156,9 +2156,8 @@ func (s *Server) executeShowMeasurementsStatement(stmt *influxql.ShowMeasurement
 
 	// Make result.
 	result := &Result{
-		Rows: make(influxql.Rows, 1),
+		Rows: influxql.Rows{row},
 	}
-	result.Rows[0] = row
 
 	return result
 }
