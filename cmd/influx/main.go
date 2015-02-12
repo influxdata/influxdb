@@ -18,6 +18,11 @@ import (
 	"github.com/peterh/liner"
 )
 
+// These variables are populated via the Go linker.
+var (
+	version string = "0.9"
+)
+
 const (
 	default_host   = "localhost"
 	default_port   = 8086
@@ -60,7 +65,7 @@ func main() {
 	}
 
 	// TODO Determine if we are an ineractive shell or running commands
-	fmt.Println("InfluxDB shell")
+	fmt.Println("InfluxDB shell " + version)
 
 	c.Line = liner.NewLiner()
 	defer c.Line.Close()
@@ -185,7 +190,7 @@ func (c *CommandLine) connect(cmd string) {
 			URL:       u,
 			Username:  c.Username,
 			Password:  c.Password,
-			UserAgent: "InfluxDB shell",
+			UserAgent: "InfluxDBShell/" + version,
 		})
 	if err != nil {
 		fmt.Printf("Could not create client %s", err)
