@@ -3136,6 +3136,6 @@ func (s *Server) reportStats(version string) {
 
 	data := bytes.NewBufferString(json)
 
-	http.Post("http://localhost:8086/db/reporting/series?u=reporter&p=influxdb", "application/json", data)
 	log.Printf("Reporting data: %s", json)
+	go http.Post("http://localhost:8086/db/reporting/series?u=reporter&p=influxdb", "application/json", data)
 }
