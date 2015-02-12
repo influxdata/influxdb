@@ -139,7 +139,7 @@ func (tx *tx) CreateIterators(stmt *influxql.SelectStatement) ([]influxql.Iterat
 				// create a series cursor for each unique series id
 				cursors := make([]*seriesCursor, 0, len(set))
 				for id, cond := range set {
-					cursors = append(cursors, &seriesCursor{id: id, condition: cond})
+					cursors = append(cursors, &seriesCursor{id: id, condition: cond, decoder: m})
 				}
 
 				// create the shard iterator that will map over all series for the shard
@@ -247,11 +247,16 @@ type keyValue struct {
 	value interface{}
 }
 
+type fieldDecoder interface {
+	DecodeField(b []byte, fieldID uint8) interface{}
+}
+
 type seriesCursor struct {
 	id          uint32
 	condition   influxql.Expr
 	cur         *bolt.Cursor
 	initialized bool
+	decoder     fieldDecoder
 }
 
 func (c *seriesCursor) Next(fieldName string, fieldID uint8, tmin, tmax int64) (key int64, value interface{}) {
@@ -277,7 +282,7 @@ func (c *seriesCursor) Next(fieldName string, fieldID uint8, tmin, tmax int64) (
 		}
 
 		// Marshal key & value.
-		key, value = int64(btou64(k)), unmarshalValue(v, fieldID)
+		key, value = int64(btou64(k)), c.decoder.DecodeField(v, fieldID)
 
 		if key > tmax {
 			return 0, nil
