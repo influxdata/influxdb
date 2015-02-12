@@ -1,12 +1,10 @@
 package influxdb
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"math"
-	"sort"
 	"time"
 
 	"github.com/boltdb/bolt"
@@ -153,62 +151,6 @@ func unmarshalPointHeader(b []byte) (seriesID uint32, timestamp int64) {
 	seriesID = binary.BigEndian.Uint32(b[0:4])
 	timestamp = int64(binary.BigEndian.Uint64(b[4:12]))
 	return
-}
-
-// marshalValues encodes a set of field ids and values to a byte slice.
-func marshalValues(values map[uint8]interface{}) []byte {
-	// Sort fields for consistency.
-	fieldIDs := make([]uint8, 0, len(values))
-	for fieldID := range values {
-		fieldIDs = append(fieldIDs, fieldID)
-	}
-	sort.Sort(uint8Slice(fieldIDs))
-
-	// Allocate byte slice and write field count.
-	b := make([]byte, 1, 10)
-	b[0] = byte(len(values))
-
-	// Write out each field.
-	for _, fieldID := range fieldIDs {
-		var buf []byte
-
-		// Convert integers to floats.
-		v := values[fieldID]
-		if intval, ok := v.(int); ok {
-			v = float64(intval)
-		}
-
-		// Encode value after field id.
-		switch v := v.(type) {
-		case float64:
-			buf = make([]byte, 9)
-			binary.BigEndian.PutUint64(buf[1:9], math.Float64bits(v))
-		case bool:
-			buf = make([]byte, 2)
-			if v {
-				buf[1] = 1
-			}
-		case string:
-			var b bytes.Buffer
-			b.WriteByte(0)
-			b.Write([]byte(v))
-			buf = b.Bytes()
-		case time.Time:
-			panic(fmt.Sprintf("unsupported value type: %T", v))
-		case time.Duration:
-			panic(fmt.Sprintf("unsupported value type: %T", v))
-		default:
-			panic(fmt.Sprintf("unsupported value type: %T", v))
-		}
-
-		// Place field ID before actual value.
-		buf[0] = fieldID
-
-		// Append temp buffer to the end.
-		b = append(b, buf...)
-	}
-
-	return b
 }
 
 // unmarshalValues decodes a byte slice into a set of field ids and values.

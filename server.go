@@ -1634,7 +1634,7 @@ func (s *Server) writePoint(database, retentionPolicy string, point *Point) (uin
 
 	// Encode point header.
 	data := marshalPointHeader(seriesID, timestamp.UnixNano())
-	data = append(data, marshalValues(rawValues)...)
+	data = append(data, m.EncodeFields(rawValues)...)
 
 	// Publish "raw write series" message on shard's topic to broker.
 	return s.client.Publish(&messaging.Message{
@@ -1712,7 +1712,7 @@ func (s *Server) applyWriteSeries(m *messaging.Message) error {
 	s.addShardBySeriesID(sh, c.SeriesID)
 
 	// Encode the values into a binary format.
-	data := marshalValues(rawValues)
+	data := mm.EncodeFields(rawValues)
 
 	// TODO: Enable some way to specify if the data should be overwritten
 	overwrite := true
