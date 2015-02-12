@@ -2141,20 +2141,22 @@ func (s *Server) executeShowMeasurementsStatement(stmt *influxql.ShowMeasurement
 		limit = end
 	}
 
-	// Make result with presized list Rows.
-	result := &Result{
-		Rows: make(influxql.Rows, 0, len(measurements)),
+	// Make a result row to hold all measurement names.
+	row := &influxql.Row{
+		Name:    "measurements",
+		Columns: []string{"name"},
 	}
 
-	// Add one result row for each measurement.
+	// Add one value to the row for each measurement name.
 	for i := offset; i < limit; i++ {
 		m := measurements[i]
-		r := &influxql.Row{
-			Name:    m.Name,
-			Columns: m.tagKeys(),
-		}
+		v := interface{}(m.Name)
+		row.Values = append(row.Values, []interface{}{v})
+	}
 
-		result.Rows = append(result.Rows, r)
+	// Make a result.
+	result := &Result{
+		Rows: influxql.Rows{row},
 	}
 
 	return result
