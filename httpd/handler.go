@@ -96,7 +96,7 @@ func NewHandler(s *influxdb.Server, requireAuthentication bool, version string) 
 		},
 		route{ // Tell data node to run CQs that should be run
 			"process_continuous_queries",
-			"POST", "/process_continuous_queries", h.serveProcessContinuousQueries,
+			"POST", "/process_continuous_queries", h.serveProcessContinuousQueries, false,
 		},
 	)
 

@@ -135,7 +135,7 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 			}
 		}
 	}
-	return b, s
+	return b.Broker, s
 }
 
 // write the current process id to a file specified by path.

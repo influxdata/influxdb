@@ -685,9 +685,9 @@ func (s *SelectStatement) walkForTime(node Node) bool {
 	}
 }
 
-// GroupByIterval extacts the time interval, if specified.
+// GroupByIterval extracts the time interval, if specified.
 func (s *SelectStatement) GroupByInterval() (time.Duration, error) {
-	// return if we've already puled it out
+	// return if we've already pulled it out
 	if s.groupByInterval != 0 {
 		return s.groupByInterval, nil
 	}

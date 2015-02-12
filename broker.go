@@ -25,6 +25,20 @@ type Broker struct {
 	TriggerFailurePause time.Duration
 }
 
+const (
+	// DefaultContinuousQueryCheckTime is how frequently the broker will ask a data node
+	// in the cluster to run any continuous queries that should be run.
+	DefaultContinuousQueryCheckTime = 1 * time.Second
+
+	// DefaultDataNodeTimeout is how long the broker will wait before timing out on a data node
+	// that it has requested process continuous queries.
+	DefaultDataNodeTimeout = 1 * time.Second
+
+	// DefaultFailureSleep is how long the broker will sleep before trying the next data node in
+	// the cluster if the current data node failed to respond
+	DefaultFailureSleep = 100 * time.Millisecond
+)
+
 type dataNodeStore interface {
 	DataNodes() []*DataNode
 }
@@ -43,7 +57,7 @@ func NewBroker() *Broker {
 func (b *Broker) RunContinuousQueryLoop(d dataNodeStore) {
 	b.server = d
 	b.done = make(chan struct{})
-	go b.continuousQueryLoop()
+	go b.continuousQueryLoop(b.done)
 }
 
 func (b *Broker) Close() error {
@@ -54,18 +68,18 @@ func (b *Broker) Close() error {
 	return b.Broker.Close()
 }
 
-func (b *Broker) continuousQueryLoop() {
+func (b *Broker) continuousQueryLoop(done chan struct{}) {
 	for {
 		// Check if broker is currently leader.
 		if b.Broker.IsLeader() {
 			b.runContinuousQueries()
 		}
 
-		// Wait for a timeout or until done.
+		// Sleep until either the broker is closed or we need to run continuous queries again
 		select {
-		case <-b.done:
+		case <-done:
 			return
-		case <-time.After(1 * time.Second):
+		case <-time.After(DefaultContinuousQueryCheckTime):
 		}
 	}
 }
@@ -97,19 +111,19 @@ func (b *Broker) runContinuousQueries() {
 
 		// reset and let the loop try the next data node in the cluster
 		b.currentCQProcessingNode = nil
-		<-time.After(100 * time.Millisecond)
+		<-time.After(DefaultFailureSleep)
 	}
 }
 
 func (b *Broker) requestContinuousQueryProcessing() error {
 	// Send request.
-	cqUrl := copyURL(b.currentCQProcessingNode.URL)
-	cqUrl.Path = "/process_continuous_queries"
-	cqUrl.Scheme = "http"
+	cqURL := copyURL(b.currentCQProcessingNode.URL)
+	cqURL.Path = "/process_continuous_queries"
+	cqURL.Scheme = "http"
 	client := &http.Client{
-		Timeout: 1 * time.Second,
+		Timeout: DefaultDataNodeTimeout,
 	}
-	resp, err := client.Post(cqUrl.String(), "application/octet-stream", nil)
+	resp, err := client.Post(cqURL.String(), "application/octet-stream", nil)
 	if err != nil {
 		return err
 	}

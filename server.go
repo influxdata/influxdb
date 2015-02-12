@@ -3074,8 +3074,8 @@ func (s *Server) applyCreateContinuousQueryCommand(m *messaging.Message) error {
 // RunContinuousQueries will run any continuous queries that are due to run and write the
 // results back into the database
 func (s *Server) RunContinuousQueries() error {
-	// s.mu.RLock()
-	// defer s.mu.RUnlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	for _, d := range s.databases {
 		for _, c := range d.continuousQueries {
@@ -3173,7 +3173,7 @@ func (s *Server) runContinuousQuery(cq *ContinuousQuery) {
 
 // runContinuousQueryAndWriteResult will run the query against the cluster and write the results back in
 func (s *Server) runContinuousQueryAndWriteResult(cq *ContinuousQuery) error {
-	e, err := s.planSelectStatement(cq.cq.Source, cq.cq.Database)
+	e, err := s.planSelectStatement(cq.cq.Source)
 
 	if err != nil {
 		return err
