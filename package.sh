@@ -216,7 +216,7 @@ echo "Binaries in $GOPATH/bin copied to $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions
 
 cp $INITD_SCRIPT $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/$VERSION/scripts
 if [ $? -ne 0 ]; then
-    echo "Failed to init.d script to packaging directory -- aborting."
+    echo "Failed to copy init.d script to packaging directory -- aborting."
     cleanup_exit 1
 fi
 echo "$INITD_SCRIPT copied to $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/$VERSION/scripts"
