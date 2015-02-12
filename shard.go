@@ -1,6 +1,7 @@
 package influxdb
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -169,9 +170,7 @@ func marshalValues(values map[uint8]interface{}) []byte {
 
 	// Write out each field.
 	for _, fieldID := range fieldIDs {
-		// Create a temporary buffer for this field.
-		buf := make([]byte, 9)
-		buf[0] = fieldID
+		var buf []byte
 
 		// Convert integers to floats.
 		v := values[fieldID]
@@ -180,13 +179,30 @@ func marshalValues(values map[uint8]interface{}) []byte {
 		}
 
 		// Encode value after field id.
-		// TODO: Support non-float types.
 		switch v := v.(type) {
 		case float64:
+			buf = make([]byte, 9)
 			binary.BigEndian.PutUint64(buf[1:9], math.Float64bits(v))
+		case bool:
+			buf = make([]byte, 2)
+			if v {
+				buf[1] = 1
+			}
+		case string:
+			var b bytes.Buffer
+			b.WriteByte(0)
+			b.Write([]byte(v))
+			buf = b.Bytes()
+		case time.Time:
+			panic(fmt.Sprintf("unsupported value type: %T", v))
+		case time.Duration:
+			panic(fmt.Sprintf("unsupported value type: %T", v))
 		default:
 			panic(fmt.Sprintf("unsupported value type: %T", v))
 		}
+
+		// Place field ID before actual value.
+		buf[0] = fieldID
 
 		// Append temp buffer to the end.
 		b = append(b, buf...)
