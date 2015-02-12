@@ -90,8 +90,10 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 			go a.ListenAndServe()
 		}
 
-		// broker needs the server to occasionally run continuous queries
-		b.RunContinuousQueryLoop(s)
+		// if this is a server running a broker, have it occasionally run continuous queries
+		if b != nil {
+			b.RunContinuousQueryLoop(s)
+		}
 
 		// Spin up the collectd server
 		if config.Collectd.Enabled {
