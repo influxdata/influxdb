@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -82,9 +83,10 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 		log.Printf("data node #%d listening on %s", s.ID(), config.DataAddr())
 
 		// Start the admin interface on the default port
-		if config.Admin.Port > 0 {
-			log.Printf("starting admin server on :8083")
-			a := admin.NewHttpServer(":8083")
+		if config.Admin.Enabled {
+			port := fmt.Sprintf(":%d", config.Admin.Port)
+			log.Printf("starting admin server on %s", port)
+			a := admin.NewServer(port)
 			go a.ListenAndServe()
 		}
 

@@ -10,18 +10,18 @@ import (
 	_ "github.com/influxdb/influxdb/statik"
 )
 
-type HttpServer struct {
+type Server struct {
 	port     string
 	listener net.Listener
 	closed   bool
 }
 
 // port should be a string that looks like ":8083" or whatever port to serve on.
-func NewHttpServer(port string) *HttpServer {
-	return &HttpServer{port: port, closed: true}
+func NewServer(port string) *Server {
+	return &Server{port: port, closed: true}
 }
 
-func (s *HttpServer) ListenAndServe() {
+func (s *Server) ListenAndServe() {
 	if s.port == "" {
 		return
 	}
@@ -41,7 +41,7 @@ func (s *HttpServer) ListenAndServe() {
 	}
 }
 
-func (s *HttpServer) Close() {
+func (s *Server) Close() {
 	if s.closed {
 		return
 	}
