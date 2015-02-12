@@ -197,6 +197,8 @@ func (p *Planner) planCall(e *Executor, c *Call) (Processor, error) {
 		mapFn, reduceFn = MapMin, ReduceMin
 	case "max":
 		mapFn, reduceFn = MapMax, ReduceMax
+	case "spread":
+		mapFn, reduceFn = MapSpread, ReduceSpread
 	case "stddev":
 		mapFn, reduceFn = MapStddev, ReduceStddev
 	case "first":
@@ -750,6 +752,52 @@ func ReduceMax(key Key, values []interface{}, e *Emitter) {
 	}
 	if pointsYielded {
 		e.Emit(key, max)
+	}
+}
+
+type spreadMapOutput struct {
+	min, max float64
+}
+
+// MapSpread collects the values to pass to the reducer
+func MapSpread(itr Iterator, e *Emitter, tmax int64) {
+	var out spreadMapOutput
+	pointsYielded := false
+
+	for k, v := itr.Next(); k != 0; k, v = itr.Next() {
+		val := v.(float64)
+		// Initialize
+		if !pointsYielded {
+			out.max = val
+			out.min = val
+			pointsYielded = true
+		}
+		out.max = math.Max(out.max, val)
+		out.min = math.Min(out.min, val)
+	}
+	if pointsYielded {
+		e.Emit(Key{tmax, itr.Tags()}, out)
+	}
+}
+
+// ReduceSpread computes the spread of values.
+func ReduceSpread(key Key, values []interface{}, e *Emitter) {
+	var result spreadMapOutput
+	pointsYielded := false
+
+	for _, v := range values {
+		val := v.(spreadMapOutput)
+		// Initialize
+		if !pointsYielded {
+			result.max = val.max
+			result.min = val.min
+			pointsYielded = true
+		}
+		result.max = math.Max(result.max, val.max)
+		result.min = math.Min(result.min, val.min)
+	}
+	if pointsYielded {
+		e.Emit(key, result.max-result.min)
 	}
 }
 
