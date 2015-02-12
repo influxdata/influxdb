@@ -796,9 +796,8 @@ func ReduceSpread(key Key, values []interface{}, e *Emitter) {
 		result.max = math.Max(result.max, val.max)
 		result.min = math.Min(result.min, val.min)
 	}
-	spread := result.max - result.min
 	if pointsYielded {
-		e.Emit(key, spread)
+		e.Emit(key, result.max-result.min)
 	}
 }
 
