@@ -28,7 +28,8 @@ enabled = false
 
 # Configure the admin server
 [admin]
-port   = 8083              # binding is disabled if the port isn't set
+enabled = true
+port = 8083
 
 # Configure the HTTP API endpoint. All time-series data and queries uses this endpoint.
 [api]

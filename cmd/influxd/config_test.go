@@ -54,6 +54,10 @@ func TestParseConfig(t *testing.T) {
 		t.Fatalf("authentication enabled mismatch: %v", c.Authentication.Enabled)
 	}
 
+	if c.Admin.Enabled != true {
+		t.Fatalf("admin enabled mismatch: %v", c.Admin.Enabled)
+	}
+
 	if c.Admin.Port != 8083 {
 		t.Fatalf("admin port mismatch: %v", c.Admin.Port)
 	}
@@ -165,8 +169,8 @@ file   = "influxdb.log"
 
 # Configure the admin server
 [admin]
-port   = 8083                   # binding is disabled if the port isn't set
-assets = "./admin"
+enabled = true
+port = 8083
 
 # Configure the http api
 [api]

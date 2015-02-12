@@ -20,7 +20,7 @@ func Test_ServesIndexByDefault(t *testing.T) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("didn't get a 200 OK response from server, got %s instead", resp.StatusCode)
+		t.Fatalf("didn't get a 200 OK response from server, got %d instead", resp.StatusCode)
 	}
 
 	_, err = ioutil.ReadAll(resp.Body)

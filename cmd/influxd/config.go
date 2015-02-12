@@ -58,7 +58,8 @@ type Config struct {
 	} `toml:"authentication"`
 
 	Admin struct {
-		Port int `toml:"port"`
+		Enabled bool `toml:"enabled"`
+		Port    int  `toml:"port"`
 	} `toml:"admin"`
 
 	HTTPAPI struct {
