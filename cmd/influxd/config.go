@@ -119,6 +119,8 @@ func NewConfig() *Config {
 	c.Data.Port = DefaultDataPort
 	c.Data.RetentionCheckEnabled = true
 	c.Data.RetentionCheckPeriod = Duration(10 * time.Minute)
+	c.Admin.Enabled = true
+	c.Admin.Port = 8083
 
 	// Detect hostname (or set to localhost).
 	if c.Hostname, _ = os.Hostname(); c.Hostname == "" {

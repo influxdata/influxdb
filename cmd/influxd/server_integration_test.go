@@ -70,6 +70,7 @@ func createCombinedNodeCluster(t *testing.T, testName string, nNodes, basePort i
 	c.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(basePort))
 	c.Broker.Port = basePort
 	c.Data.Port = basePort
+	c.Admin.Enabled = false
 
 	b, s := main.Run(c, "", "x.x", os.Stderr)
 	if b == nil {
