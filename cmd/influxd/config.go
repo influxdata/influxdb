@@ -150,8 +150,6 @@ func NewConfig() *Config {
 	c.Data.RetentionCheckPeriod = Duration(10 * time.Minute)
 	c.Admin.Enabled = true
 	c.Admin.Port = 8083
-	c.Cluster.WriteBufferSize = 1000
-	c.Cluster.MaxResponseBufferSize = 100
 	c.ContinuousQuery.RecomputePreviousN = 2
 	c.ContinuousQuery.RecomputeNoOlderThan = Duration(10 * time.Minute)
 	c.ContinuousQuery.ComputeRunsPerInterval = 10
