@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"math"
 	"time"
 
 	"github.com/boltdb/bolt"
@@ -151,44 +150,6 @@ func unmarshalPointHeader(b []byte) (seriesID uint32, timestamp int64) {
 	seriesID = binary.BigEndian.Uint32(b[0:4])
 	timestamp = int64(binary.BigEndian.Uint64(b[4:12]))
 	return
-}
-
-// unmarshalValues decodes a byte slice into a set of field ids and values.
-func unmarshalValues(b []byte) map[uint8]interface{} {
-	if len(b) == 0 {
-		return nil
-	}
-
-	// Read the field count from the field byte.
-	n := int(b[0])
-
-	// Create a map to hold the decoded data.
-	values := make(map[uint8]interface{}, n)
-
-	// Start from the second byte and iterate over until we're done decoding.
-	b = b[1:]
-	for i := 0; i < n; i++ {
-		// First byte is the field identifier.
-		fieldID := b[0]
-
-		// Decode value.
-		// TODO: Support non-float types.
-		value := math.Float64frombits(binary.BigEndian.Uint64(b[1:9]))
-
-		values[fieldID] = value
-
-		// Move bytes forward.
-		b = b[9:]
-	}
-
-	return values
-}
-
-// unmarshalValue extracts a single value by field id from an encoded byte slice.
-func unmarshalValue(b []byte, fieldID uint8) interface{} {
-	// OPTIMIZE: Don't materialize entire map. Just search for value.
-	values := unmarshalValues(b)
-	return values[fieldID]
 }
 
 type uint8Slice []uint8

@@ -1834,7 +1834,7 @@ func (s *Server) ReadSeries(database, retentionPolicy, name string, tags map[str
 	}
 
 	// Decode into a raw value map.
-	rawValues := unmarshalValues(data)
+	rawValues := mm.DecodeFields(data)
 	if rawValues == nil {
 		return nil, nil
 	}
