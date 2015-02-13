@@ -104,7 +104,7 @@ var (
 	ErrFieldOverflow = errors.New("field overflow")
 
 	// ErrFieldTypeConflict is returned when a new field already exists with a different type.
-	ErrFieldTypeConflict = errors.New("field overflow")
+	ErrFieldTypeConflict = errors.New("field type conflict")
 
 	// ErrSeriesNotFound is returned when looking up a non-existent series by database, name and tags
 	ErrSeriesNotFound = errors.New("series not found")

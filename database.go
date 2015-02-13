@@ -228,7 +228,7 @@ func (m *Measurement) mapValues(values map[string]interface{}) map[uint8]interfa
 
 		f := m.FieldByName(k)
 		if f == nil {
-			return nil
+			panic(fmt.Sprintf("Field does not exist for %s", k))
 		}
 		other[f.ID] = v
 	}
