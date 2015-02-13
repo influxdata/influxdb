@@ -13,6 +13,10 @@ import (
 	"github.com/influxdb/influxdb/influxql"
 )
 
+const (
+	maxStringLength = 64 * 1024
+)
+
 // database is a collection of retention policies and shards. It also has methods
 // for keeping an in memory index of all the measurements, series, and tags in the database.
 // Methods on this struct aren't goroutine safe. They assume that the server is handling
@@ -189,24 +193,49 @@ func (m *Measurement) EncodeFields(values map[uint8]interface{}) []byte {
 
 	// Write out each field.
 	for _, fieldID := range fieldIDs {
-		// Create a temporary buffer for this field.
-		buf := make([]byte, 9)
-		buf[0] = fieldID
+		var buf []byte
 
-		// Convert integers to floats.
-		v := values[fieldID]
-		if intval, ok := v.(int); ok {
-			v = float64(intval)
+		field := m.Field(fieldID)
+		if field == nil {
+			panic(fmt.Sprintf("field ID %d has no mapping", fieldID))
 		}
+		switch field.Type {
+		case influxql.Number:
+			v := values[fieldID]
+			// Convert integers to floats.
+			if intval, ok := v.(int); ok {
+				v = float64(intval)
+			}
 
-		// Encode value after field id.
-		// TODO: Support non-float types.
-		switch v := v.(type) {
-		case float64:
-			binary.BigEndian.PutUint64(buf[1:9], math.Float64bits(v))
+			buf = make([]byte, 9)
+			binary.BigEndian.PutUint64(buf[1:9], math.Float64bits(v.(float64)))
+		case influxql.Boolean:
+			v := values[fieldID].(bool)
+
+			// Only 1 byte need for a boolean.
+			buf = make([]byte, 2)
+			if v {
+				buf[1] = byte(1)
+			}
+		case influxql.String:
+			v := values[fieldID].(string)
+			if len(v) > maxStringLength {
+				v = v[:maxStringLength]
+			}
+			// Make a buffer for field ID, the string length, and the string.
+			buf = make([]byte, len(v)+3)
+
+			// Set the string length, then copy the string itself.
+			binary.BigEndian.PutUint16(buf[1:3], uint16(len(v)))
+			for k, v := range []byte(v) {
+				buf[k+3] = byte(v)
+			}
 		default:
-			panic(fmt.Sprintf("unsupported value type: %T", v))
+			panic(fmt.Sprintf("unsupported value type: %T", values[fieldID]))
 		}
+
+		// Always set the field ID as the leading byte.
+		buf[0] = fieldID
 
 		// Append temp buffer to the end.
 		b = append(b, buf...)
@@ -232,15 +261,36 @@ func (m *Measurement) DecodeFields(b []byte) map[uint8]interface{} {
 	for i := 0; i < n; i++ {
 		// First byte is the field identifier.
 		fieldID := b[0]
+		field := m.Field(fieldID)
+		if field == nil {
+			panic(fmt.Sprintf("field ID %d has no mapping", fieldID))
+		}
 
-		// Decode value.
-		// TODO: Support non-float types.
-		value := math.Float64frombits(binary.BigEndian.Uint64(b[1:9]))
+		var value interface{}
+		switch field.Type {
+		case influxql.Number:
+			value = math.Float64frombits(binary.BigEndian.Uint64(b[1:9]))
+			// Move bytes forward.
+			b = b[9:]
+		case influxql.Boolean:
+			if b[1] == 1 {
+				value = true
+			} else {
+				value = false
+			}
+			// Move bytes forward.
+			b = b[2:]
+		case influxql.String:
+			size := binary.BigEndian.Uint16(b[1:3])
+			value = string(b[3:size])
+			// Move bytes forward.
+			b = b[size+3:]
+		default:
+			panic(fmt.Sprintf("unsupported value type: %T", values[fieldID]))
+		}
 
 		values[fieldID] = value
 
-		// Move bytes forward.
-		b = b[9:]
 	}
 
 	return values
