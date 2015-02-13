@@ -1739,12 +1739,17 @@ func (s *Server) createSeriesIfNotExists(database, name string, tags map[string]
 }
 
 func (s *Server) createFieldsIfNotExists(database string, measurement string, values map[string]interface{}) ([]byte, error) {
-	// Check to see if the fields already exist.
 	s.mu.RLock()
+
+	// Check to see if the fields already exist.
 	m, err := s.measurement(database, measurement)
 	if err != nil {
+		s.mu.RUnlock()
+
 		return nil, err
 	} else if m == nil {
+		s.mu.RUnlock()
+
 		return nil, ErrMeasurementNotFound
 	}
 
@@ -1755,19 +1760,22 @@ func (s *Server) createFieldsIfNotExists(database string, measurement string, va
 			newFields[k] = influxql.InspectDataType(v)
 		} else {
 			if f.Type != influxql.InspectDataType(v) {
+				s.mu.RUnlock()
+
 				return nil, fmt.Errorf(fmt.Sprintf("field %s is mapped as %s", k, f.Type))
 			}
 		}
 	}
 
-	// Create new fields if necessary.
 	if len(newFields) == 0 {
+		s.mu.RUnlock()
 		return marshalValues(m.mapValues(values)), err
 	}
+
 	// release the read lock so the broadcast can actually go through and acquire the write lock
 	s.mu.RUnlock()
 
-	// If it doesn't exist then create a message and broadcast.
+	// There are some new fields, so create field types mappings on cluster.
 	c := &createFieldsIfNotExistCommand{Database: database, Measurement: measurement, Fields: newFields}
 	_, err = s.broadcast(createFieldsIfNotExistsMessageType, c)
 	if err != nil {
