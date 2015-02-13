@@ -1756,6 +1756,7 @@ func (s *Server) createSeriesIfNotExists(database, name string, tags map[string]
 	s.mu.RLock()
 	db := s.databases[database]
 	if db == nil {
+		s.mu.RUnlock()
 		return 0, fmt.Errorf("database not found %q", database)
 	}
 	if _, series := db.MeasurementAndSeries(name, tags); series != nil {
