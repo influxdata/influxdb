@@ -42,7 +42,10 @@ type Iterator interface {
 	Tags() string
 
 	// Next returns the next value from the iterator.
-	Next() (key int64, value interface{})
+	Next() (key int64, data []byte)
+
+	// Return the field value the iterator is for
+	FieldValue(data []byte) interface{}
 }
 
 // Planner represents an object for creating execution plans.
@@ -684,7 +687,7 @@ func MapMin(itr Iterator, e *Emitter, tmin int64) {
 	pointsYielded := false
 
 	for k, v := itr.Next(); k != 0; k, v = itr.Next() {
-		val := v.(float64)
+		val := itr.FieldValue(v).(float64)
 		// Initialize min
 		if !pointsYielded {
 			min = val
