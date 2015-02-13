@@ -2,6 +2,7 @@ package influxql_test
 
 import (
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -760,6 +761,26 @@ func TestParser_ParseExpr(t *testing.T) {
 					RHS: &influxql.NumberLiteral{Val: 2},
 				},
 				RHS: &influxql.NumberLiteral{Val: 3},
+			},
+		},
+
+		// Binary expression with regex on right.
+		{
+			s: `region =~ 'us.*'`,
+			expr: &influxql.BinaryExpr{
+				Op:  influxql.EQREGEX,
+				LHS: &influxql.VarRef{Val: "region"},
+				RHS: &influxql.RegexLiteral{Val: regexp.MustCompile(`us.*`)},
+			},
+		},
+
+		// Binary expression with NEQ regex on left.
+		{
+			s: `'us.*' !~ region`,
+			expr: &influxql.BinaryExpr{
+				Op:  influxql.NEQREGEX,
+				RHS: &influxql.VarRef{Val: "region"},
+				LHS: &influxql.RegexLiteral{Val: regexp.MustCompile(`us.*`)},
 			},
 		},
 

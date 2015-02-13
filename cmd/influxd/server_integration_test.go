@@ -202,7 +202,7 @@ func createDatabase(t *testing.T, testName string, nodes cluster, database strin
 	expectedResults := client.Results{
 		Results: []client.Result{
 			{Rows: []influxql.Row{
-				influxql.Row{
+				{
 					Columns: []string{"name"},
 					Values:  [][]interface{}{{"foo"}},
 				},
@@ -394,7 +394,7 @@ func Test_ServerSingleIntegration(t *testing.T) {
 					Name:    "cpu",
 					Columns: []string{"time", "value"},
 					Values: [][]interface{}{
-						[]interface{}{now.Format(time.RFC3339Nano), json.Number("100")},
+						{now.Format(time.RFC3339Nano), json.Number("100")},
 					},
 				}}},
 		},
@@ -440,7 +440,7 @@ func Test_Server3NodeIntegration(t *testing.T) {
 					Name:    "cpu",
 					Columns: []string{"time", "value"},
 					Values: [][]interface{}{
-						[]interface{}{now.Format(time.RFC3339Nano), json.Number("100")},
+						{now.Format(time.RFC3339Nano), json.Number("100")},
 					},
 				}}},
 		},
@@ -487,7 +487,7 @@ func Test_Server5NodeIntegration(t *testing.T) {
 					Name:    "cpu",
 					Columns: []string{"time", "value"},
 					Values: [][]interface{}{
-						[]interface{}{now.Format(time.RFC3339Nano), json.Number("100")},
+						{now.Format(time.RFC3339Nano), json.Number("100")},
 					},
 				}}},
 		},

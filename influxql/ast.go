@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -95,6 +96,7 @@ func (*nilLiteral) node()      {}
 func (*Merge) node()           {}
 func (*NumberLiteral) node()   {}
 func (*ParenExpr) node()       {}
+func (*RegexLiteral) node()    {}
 func (*SortField) node()       {}
 func (SortFields) node()       {}
 func (*StringLiteral) node()   {}
@@ -181,6 +183,7 @@ func (*DurationLiteral) expr() {}
 func (*nilLiteral) expr()      {}
 func (*NumberLiteral) expr()   {}
 func (*ParenExpr) expr()       {}
+func (*RegexLiteral) expr()    {}
 func (*StringLiteral) expr()   {}
 func (*TimeLiteral) expr()     {}
 func (*VarRef) expr()          {}
@@ -1559,6 +1562,14 @@ type ParenExpr struct {
 
 // String returns a string representation of the parenthesized expression.
 func (e *ParenExpr) String() string { return fmt.Sprintf("(%s)", e.Expr.String()) }
+
+// RegexLiteral represents a regular expression.
+type RegexLiteral struct {
+	Val *regexp.Regexp
+}
+
+// String returns a string representation of the literal.
+func (r *RegexLiteral) String() string { return r.Val.String() }
 
 // Wildcard represents a wild card expression.
 type Wildcard struct{}
