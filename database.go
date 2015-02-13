@@ -132,16 +132,20 @@ func NewMeasurement(name string) *Measurement {
 }
 
 // createFieldIfNotExists creates a new field with an autoincrementing ID.
-// Returns an error if 255 fields have already been created on the measurement.
-func (m *Measurement) createFieldIfNotExists(name string, typ influxql.DataType) (*Field, error) {
+// Returns an error if 255 fields have already been created on the measurement or
+// the fields already exists with a different type.
+func (m *Measurement) createFieldIfNotExists(name string, typ influxql.DataType) error {
 	// Ignore if the field already exists.
 	if f := m.FieldByName(name); f != nil {
-		return f, nil
+		if f.Type != typ {
+			return ErrFieldTypeConflict
+		}
+		return nil
 	}
 
 	// Only 255 fields are allowed. If we go over that then return an error.
 	if len(m.Fields)+1 > math.MaxUint8 {
-		return nil, ErrFieldOverflow
+		return ErrFieldOverflow
 	}
 
 	// Create and append a new field.
@@ -152,7 +156,7 @@ func (m *Measurement) createFieldIfNotExists(name string, typ influxql.DataType)
 	}
 	m.Fields = append(m.Fields, f)
 
-	return f, nil
+	return nil
 }
 
 // Field returns a field by id.

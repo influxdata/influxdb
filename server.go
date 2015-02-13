@@ -71,6 +71,9 @@ const (
 	// Series messages
 	createSeriesIfNotExistsMessageType = messaging.MessageType(0x50)
 
+	// Measurement messages
+	createFieldsIfNotExistMessageType = messaging.MessageType(0x60)
+
 	// Write series data messages (per-topic)
 	writeRawSeriesMessageType = messaging.MessageType(0x80)
 	writeSeriesMessageType    = messaging.MessageType(0x81)
@@ -1476,6 +1479,46 @@ type setDefaultRetentionPolicyCommand struct {
 	Name     string `json:"name"`
 }
 
+type createFieldsIfNotExistCommand struct {
+	Database    string                       `json:"database"`
+	Measurement string                       `json:"measurement"`
+	Fields      map[string]influxql.DataType `json:"fields"`
+}
+
+func (s *Server) applyCreateFieldsIfNotExist(m *messaging.Message) error {
+	var c createFieldsIfNotExistCommand
+	mustUnmarshalJSON(m.Data, &c)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Validate command.
+	db := s.databases[c.Database]
+	if db == nil {
+		return ErrDatabaseNotFound
+	}
+	mm := db.measurements[c.Measurement]
+	if mm == nil {
+		return ErrMeasurementNotFound
+	}
+
+	// Create fields in Metastore.
+	for k, v := range c.Fields {
+		if err := mm.createFieldIfNotExists(k, v); err != nil {
+			if err == ErrFieldOverflow {
+				log.Printf("no more fields allowed: %s::%s", mm.Name, k)
+				continue
+			} else if err == ErrFieldTypeConflict {
+				log.Printf("field type conflict: %s::%s", mm.Name, k)
+				continue
+			}
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (s *Server) applyCreateSeriesIfNotExists(m *messaging.Message) error {
 	var c createSeriesIfNotExistsCommand
 	mustUnmarshalJSON(m.Data, &c)
@@ -1682,16 +1725,19 @@ func (s *Server) applyWriteSeries(m *messaging.Message) error {
 		// TODO: Support non-float types.
 
 		// Find or create fields.
-		// If too many fields are on the measurement then log the issue.
+		// Just skip certain errors.
 		// If any other error occurs then exit.
-		f, err := mm.createFieldIfNotExists(k, influxql.Number)
+		err := mm.createFieldIfNotExists(k, influxql.Number)
 		if err == ErrFieldOverflow {
 			log.Printf("no more fields allowed: %s::%s", mm.Name, k)
+			continue
+		} else if err == ErrFieldTypeConflict {
+			log.Printf("ddd")
 			continue
 		} else if err != nil {
 			return err
 		}
-		rawValues[f.ID] = v
+		rawValues[1] = v
 	}
 
 	// Update metastore.
@@ -2649,6 +2695,8 @@ func (s *Server) processor(client MessagingClient, done chan struct{}) {
 			err = s.applyDeleteShardGroup(m)
 		case setDefaultRetentionPolicyMessageType:
 			err = s.applySetDefaultRetentionPolicy(m)
+		case createFieldsIfNotExistMessageType:
+			err = s.applyCreateFieldsIfNotExist(m)
 		case createSeriesIfNotExistsMessageType:
 			err = s.applyCreateSeriesIfNotExists(m)
 		case setPrivilegeMessageType:
