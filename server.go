@@ -1656,15 +1656,15 @@ func (s *Server) writePoint(database, retentionPolicy string, point *Point) (uin
 	// Find appropriate shard within the shard group.
 	sh := g.ShardBySeriesID(seriesID)
 
-	// Get the marshalled fields.
-	rawValues, err := s.createFieldsIfNotExists(database, measurement, values)
+	// Ensure fields are created as necessary.
+	err = s.createFieldsIfNotExists(database, measurement, values)
 	if err != nil {
 		return 0, err
 	}
 
 	// Encode point header.
 	data := marshalPointHeader(seriesID, timestamp.UnixNano())
-	data = append(data, rawValues...)
+	data = append(data, marshalValues(m.mapValues(values))...)
 
 	// Publish "raw write series" message on shard's topic to broker.
 	return s.client.Publish(&messaging.Message{
@@ -1738,52 +1738,50 @@ func (s *Server) createSeriesIfNotExists(database, name string, tags map[string]
 	return series.ID, nil
 }
 
-func (s *Server) createFieldsIfNotExists(database string, measurement string, values map[string]interface{}) ([]byte, error) {
-	s.mu.RLock()
+func (s *Server) createFieldsIfNotExists(database string, measurement string, values map[string]interface{}) error {
+	// Local function keeps locking foolproof.
+	f := func(database string, measurement string, values map[string]interface{}) (map[string]influxql.DataType, error) {
+		s.mu.RLock()
+		defer s.mu.RUnlock()
 
-	// Check to see if the fields already exist.
-	m, err := s.measurement(database, measurement)
-	if err != nil {
-		s.mu.RUnlock()
+		// Check to see if the fields already exist.
+		m, err := s.measurement(database, measurement)
+		if err != nil {
+			return nil, err
+		} else if m == nil {
+			return nil, ErrMeasurementNotFound
+		}
 
-		return nil, err
-	} else if m == nil {
-		s.mu.RUnlock()
-
-		return nil, ErrMeasurementNotFound
-	}
-
-	newFields := make(map[string]influxql.DataType)
-	for k, v := range values {
-		f := m.FieldByName(k)
-		if f == nil {
-			newFields[k] = influxql.InspectDataType(v)
-		} else {
-			if f.Type != influxql.InspectDataType(v) {
-				s.mu.RUnlock()
-
-				return nil, fmt.Errorf(fmt.Sprintf("field %s is mapped as %s", k, f.Type))
+		newFields := make(map[string]influxql.DataType)
+		for k, v := range values {
+			f := m.FieldByName(k)
+			if f == nil {
+				newFields[k] = influxql.InspectDataType(v)
+			} else {
+				if f.Type != influxql.InspectDataType(v) {
+					return nil, fmt.Errorf(fmt.Sprintf("field %s is mapped as %s", k, f.Type))
+				}
 			}
 		}
+		return newFields, nil
 	}
 
+	newFields, err := f(database, measurement, values)
+	if err != nil {
+		return err
+	}
 	if len(newFields) == 0 {
-		s.mu.RUnlock()
-		return marshalValues(m.mapValues(values)), err
+		return nil
 	}
-
-	// release the read lock so the broadcast can actually go through and acquire the write lock
-	s.mu.RUnlock()
 
 	// There are some new fields, so create field types mappings on cluster.
 	c := &createFieldsIfNotExistCommand{Database: database, Measurement: measurement, Fields: newFields}
 	_, err = s.broadcast(createFieldsIfNotExistsMessageType, c)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	// Lookup fields again since Metastore will have updated.
-	return marshalValues(m.mapValues(values)), nil
+	return nil
 }
 
 // ReadSeries reads a single point from a series in the database.
