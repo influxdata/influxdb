@@ -26,13 +26,13 @@ func (s *Server) ListenAndServe() {
 		return
 	}
 
-	s.closed = false
 	var err error
-	s.listener, _ = net.Listen("tcp", s.port)
+	s.listener, err = net.Listen("tcp", s.port)
 	if err != nil {
 		return
 	}
 
+	s.closed = false
 	statikFS, _ := fs.New()
 
 	err = http.Serve(s.listener, http.FileServer(statikFS))
