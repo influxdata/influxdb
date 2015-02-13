@@ -548,6 +548,18 @@ func TestHandler_Ping(t *testing.T) {
 	}
 }
 
+func TestHandler_PingHead(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, _ := MustHTTP("HEAD", s.URL+`/ping`, nil, nil, "")
+
+	if status != http.StatusNoContent {
+		t.Fatalf("unexpected status: %d", status)
+	}
+}
+
 func TestHandler_Users_NoUsers(t *testing.T) {
 	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
