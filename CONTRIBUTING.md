@@ -75,6 +75,8 @@ To install go vet, run the following command:
 go get golang.org/x/tools/cmd/vet
 ```
 
+NOTE: If you have not installed mercurial, the above command will fail.  See [Revision Control Systems](#revision-control-systems) above.
+
 For more information on `go vet`, [read the GoDoc](https://godoc.org/golang.org/x/tools/cmd/vet).
 
 Build and Test
