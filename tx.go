@@ -220,7 +220,7 @@ func (i *shardIterator) close() error {
 
 func (i *shardIterator) Tags() string { return i.tags }
 
-func (i *shardIterator) Next() (key int64, value interface{}) {
+func (i *shardIterator) Next() (key int64, data []byte) {
 	min := -1
 
 	for ind, kv := range i.keyValues {
@@ -259,7 +259,7 @@ type seriesCursor struct {
 	decoder     fieldDecoder
 }
 
-func (c *seriesCursor) Next(fieldName string, fieldID uint8, tmin, tmax int64) (key int64, value interface{}) {
+func (c *seriesCursor) Next(fieldName string, tmin, tmax int64) (key int64, data []byte) {
 	// TODO: clean this up when we make it so series ids are only queried against the shards they exist in.
 	//       Right now we query for all series ids on a query against each shard, even if that shard may not have the
 	//       data, so cur could be nil.
