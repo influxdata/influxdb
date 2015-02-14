@@ -144,13 +144,14 @@ func (tx *tx) CreateIterators(stmt *influxql.SelectStatement) ([]influxql.Iterat
 
 				// create the shard iterator that will map over all series for the shard
 				itr := &shardIterator{
-					fieldName: f.Name,
-					fieldID:   f.ID,
-					tags:      tag,
-					db:        sh.store,
-					cursors:   cursors,
-					tmin:      tmin.UnixNano(),
-					tmax:      tmax.UnixNano(),
+					measurement: m,
+					fieldName:   f.Name,
+					fieldID:     f.ID,
+					tags:        tag,
+					db:          sh.store,
+					cursors:     cursors,
+					tmin:        tmin.UnixNano(),
+					tmax:        tmax.UnixNano(),
 				}
 
 				// Add to tx so the bolt transaction can be opened/closed.
@@ -177,14 +178,15 @@ func splitIdent(s string) (db, rp, m string, err error) {
 
 // shardIterator represents an iterator for traversing over a single series.
 type shardIterator struct {
-	fieldName  string
-	fieldID    uint8
-	tags       string // encoded dimensional tag values
-	cursors    []*seriesCursor
-	keyValues  []keyValue
-	db         *bolt.DB // data stores by shard id
-	txn        *bolt.Tx // read transactions by shard id
-	tmin, tmax int64
+	fieldName   string
+	fieldID     uint8
+	measurement *Measurement
+	tags        string // encoded dimensional tag values
+	cursors     []*seriesCursor
+	keyValues   []keyValue
+	db          *bolt.DB // data stores by shard id
+	txn         *bolt.Tx // read transactions by shard id
+	tmin, tmax  int64
 }
 
 func (i *shardIterator) open() error {
@@ -207,7 +209,7 @@ func (i *shardIterator) open() error {
 
 	i.keyValues = make([]keyValue, len(i.cursors))
 	for j, cur := range i.cursors {
-		i.keyValues[j].key, i.keyValues[j].value = cur.Next(i.fieldName, i.fieldID, i.tmin, i.tmax)
+		i.keyValues[j].key, i.keyValues[j].data, i.keyValues[j].value = cur.Next(i.fieldName, i.fieldID, i.tmin, i.tmax)
 	}
 
 	return nil
@@ -220,7 +222,7 @@ func (i *shardIterator) close() error {
 
 func (i *shardIterator) Tags() string { return i.tags }
 
-func (i *shardIterator) Next() (key int64, data []byte) {
+func (i *shardIterator) Next() (key int64, data []byte, value interface{}) {
 	min := -1
 
 	for ind, kv := range i.keyValues {
@@ -231,19 +233,27 @@ func (i *shardIterator) Next() (key int64, data []byte) {
 
 	// if min is -1 we've exhausted all cursors for the given time range
 	if min == -1 {
-		return 0, nil
+		return 0, nil, nil
 	}
 
 	kv := i.keyValues[min]
 	key = kv.key
+	data = kv.data
 	value = kv.value
 
-	i.keyValues[min].key, i.keyValues[min].value = i.cursors[min].Next(i.fieldName, i.fieldID, i.tmin, i.tmax)
-	return key, value
+	i.keyValues[min].key, i.keyValues[min].data, i.keyValues[min].value = i.cursors[min].Next(i.fieldName, i.fieldID, i.tmin, i.tmax)
+	return key, data, value
+}
+
+// FieldValue returns the value for the field this iterator works on from the given data
+// TODO: refactor this so it doesn't use the measurement. Should be able to just marshal the single field without decoding everything
+func (i *shardIterator) FieldValue(data []byte) interface{} {
+	return i.measurement.DecodeField(data, i.fieldID)
 }
 
 type keyValue struct {
 	key   int64
+	data  []byte
 	value interface{}
 }
 
@@ -259,12 +269,12 @@ type seriesCursor struct {
 	decoder     fieldDecoder
 }
 
-func (c *seriesCursor) Next(fieldName string, tmin, tmax int64) (key int64, data []byte) {
+func (c *seriesCursor) Next(fieldName string, fieldID uint8, tmin, tmax int64) (key int64, data []byte, value interface{}) {
 	// TODO: clean this up when we make it so series ids are only queried against the shards they exist in.
 	//       Right now we query for all series ids on a query against each shard, even if that shard may not have the
 	//       data, so cur could be nil.
 	if c.cur == nil {
-		return 0, nil
+		return 0, nil, nil
 	}
 
 	for {
@@ -278,14 +288,14 @@ func (c *seriesCursor) Next(fieldName string, tmin, tmax int64) (key int64, data
 
 		// Exit if there is no more data.
 		if k == nil {
-			return 0, nil
+			return 0, nil, nil
 		}
 
 		// Marshal key & value.
 		key, value = int64(btou64(k)), c.decoder.DecodeField(v, fieldID)
 
 		if key > tmax {
-			return 0, nil
+			return 0, nil, nil
 		}
 
 		// Skip to the next if we don't have a field value for this field for this point
@@ -300,6 +310,6 @@ func (c *seriesCursor) Next(fieldName string, tmin, tmax int64) (key int64, data
 			}
 		}
 
-		return key, value
+		return key, v, value
 	}
 }
