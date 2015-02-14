@@ -1759,7 +1759,7 @@ func (s *Server) createFieldsIfNotExists(database string, measurement string, va
 				newFields[k] = influxql.InspectDataType(v)
 			} else {
 				if f.Type != influxql.InspectDataType(v) {
-					return nil, fmt.Errorf(fmt.Sprintf("field %s is mapped as %s", k, f.Type))
+					return nil, fmt.Errorf(fmt.Sprintf("field \"%s\" is type %T, mapped as type %s", k, v, f.Type))
 				}
 			}
 		}
