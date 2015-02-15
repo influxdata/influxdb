@@ -1256,6 +1256,38 @@ func TestHandler_serveWriteSeriesInvalidField(t *testing.T) {
 	}
 }
 
+func TestHandler_serveWriteSeriesFieldTypeConflict(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
+	srvr.SetDefaultRetentionPolicy("foo", "bar")
+
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"values": {"value": 100}}]}`)
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+
+	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"values": {"value": "foo"}}]}`)
+	if status != http.StatusInternalServerError {
+		t.Errorf("unexpected status: %d", status)
+	}
+
+	r := &influxdb.Results{}
+	if err := json.Unmarshal([]byte(body), r); err != nil {
+		t.Log(body)
+		t.Error(err)
+	}
+	if len(r.Results) != 0 {
+		t.Fatalf("unexpected results count")
+	}
+	if r.Err.Error() != "field \"value\" is type string, mapped as type number" {
+		t.Fatalf("unexpected error returned, actual: %s", r.Err.Error())
+	}
+}
+
 func TestHandler_serveShowSeries(t *testing.T) {
 	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
