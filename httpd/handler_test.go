@@ -1138,6 +1138,7 @@ func TestHandler_serveWriteSeriesNonZeroTime(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	}
+	time.Sleep(100 * time.Millisecond) // Ensure data node picks up write.
 
 	query := map[string]string{"db": "foo", "q": "select value from cpu"}
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
@@ -1179,6 +1180,7 @@ func TestHandler_serveWriteSeriesZeroTime(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	}
+	time.Sleep(100 * time.Millisecond) // Ensure data node picks up write.
 
 	query := map[string]string{"db": "foo", "q": "select value from cpu"}
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
