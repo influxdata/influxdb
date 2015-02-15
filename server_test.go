@@ -905,10 +905,6 @@ func TestServer_ExecuteWildcardQuery(t *testing.T) {
 	}
 }
 
-func TestServer_CreateFieldsIfNotExist(t *testing.T) {
-
-}
-
 func TestServer_CreateShardGroupIfNotExist(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
