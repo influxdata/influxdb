@@ -1,6 +1,7 @@
 package raft
 
 import (
+	"math/rand"
 	"time"
 )
 
@@ -39,8 +40,11 @@ func NewClock() *Clock {
 // AfterApplyInterval returns a channel that fires after the apply interval.
 func (c *Clock) AfterApplyInterval() <-chan chan struct{} { return newClockChan(c.ApplyInterval) }
 
-// AfterElectionTimeout returns a channel that fires after the election timeout.
-func (c *Clock) AfterElectionTimeout() <-chan chan struct{} { return newClockChan(c.ElectionTimeout) }
+// AfterElectionTimeout returns a channel that fires after a duration that is
+// between the election timeout and double the election timeout.
+func (c *Clock) AfterElectionTimeout() <-chan chan struct{} {
+	return newClockChan(c.ElectionTimeout + time.Duration(rand.Intn(int(c.ElectionTimeout))))
+}
 
 // AfterHeartbeatInterval returns a channel that fires after the heartbeat interval.
 func (c *Clock) AfterHeartbeatInterval() <-chan chan struct{} {

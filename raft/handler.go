@@ -12,11 +12,11 @@ import (
 // Handler represents an HTTP endpoint for Raft to communicate over.
 type Handler struct {
 	Log interface {
-		AddPeer(u *url.URL) (uint64, *Config, error)
+		AddPeer(u *url.URL) (uint64, uint64, *Config, error)
 		RemovePeer(id uint64) error
-		Heartbeat(term, commitIndex, leaderID uint64) (currentIndex, currentTerm uint64, err error)
+		Heartbeat(term, commitIndex, leaderID uint64) (currentIndex uint64, err error)
 		WriteEntriesTo(w io.Writer, id, term, index uint64) error
-		RequestVote(term, candidateID, lastLogIndex, lastLogTerm uint64) (uint64, error)
+		RequestVote(term, candidateID, lastLogIndex, lastLogTerm uint64) error
 	}
 }
 
@@ -60,7 +60,7 @@ func (h *Handler) serveJoin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Add peer to the log.
-	id, config, err := h.Log.AddPeer(u)
+	id, leaderID, config, err := h.Log.AddPeer(u)
 	if err != nil {
 		w.Header().Set("X-Raft-Error", err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
@@ -69,6 +69,7 @@ func (h *Handler) serveJoin(w http.ResponseWriter, r *http.Request) {
 
 	// Return member's id in the cluster.
 	w.Header().Set("X-Raft-ID", strconv.FormatUint(id, 10))
+	w.Header().Set("X-Raft-Leader-ID", strconv.FormatUint(leaderID, 10))
 	w.WriteHeader(http.StatusOK)
 
 	// Write config to the body.
@@ -120,11 +121,10 @@ func (h *Handler) serveHeartbeat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Execute heartbeat on the log.
-	currentIndex, currentTerm, err := h.Log.Heartbeat(term, commitIndex, leaderID)
+	currentIndex, err := h.Log.Heartbeat(term, commitIndex, leaderID)
 
 	// Return current term and index.
 	w.Header().Set("X-Raft-Index", strconv.FormatUint(currentIndex, 10))
-	w.Header().Set("X-Raft-Term", strconv.FormatUint(currentTerm, 10))
 
 	// Write error, if applicable.
 	if err != nil {
@@ -201,14 +201,8 @@ func (h *Handler) serveRequestVote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Execute heartbeat on the log.
-	currentTerm, err := h.Log.RequestVote(term, candidateID, lastLogIndex, lastLogTerm)
-
-	// Return current term and index.
-	w.Header().Set("X-Raft-Term", strconv.FormatUint(currentTerm, 10))
-
 	// Write error, if applicable.
-	if err != nil {
+	if err := h.Log.RequestVote(term, candidateID, lastLogIndex, lastLogTerm); err != nil {
 		w.Header().Set("X-Raft-Error", err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
 		return

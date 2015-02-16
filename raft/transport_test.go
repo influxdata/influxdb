@@ -27,17 +27,20 @@ func TestHTTPTransport_Join(t *testing.T) {
 			t.Fatalf("unexpected term: %q", s)
 		}
 		w.Header().Set("X-Raft-ID", "1")
+		w.Header().Set("X-Raft-Leader-ID", "2")
 		w.Write([]byte(`{}`))
 	}))
 	defer s.Close()
 
 	// Execute join against test server.
 	u, _ := url.Parse(s.URL)
-	id, config, err := (&raft.HTTPTransport{}).Join(u, &url.URL{Host: "local"})
+	id, leaderID, config, err := (&raft.HTTPTransport{}).Join(u, &url.URL{Host: "local"})
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	} else if id != 1 {
 		t.Fatalf("unexpected id: %d", id)
+	} else if leaderID != 2 {
+		t.Fatalf("unexpected leader id: %d", leaderID)
 	} else if config == nil {
 		t.Fatalf("unexpected config")
 	}
@@ -45,7 +48,7 @@ func TestHTTPTransport_Join(t *testing.T) {
 
 // Ensure that joining a server that doesn't exist returns an error.
 func TestHTTPTransport_Join_ErrConnectionRefused(t *testing.T) {
-	_, _, err := (&raft.HTTPTransport{}).Join(&url.URL{Scheme: "http", Host: "localhost:27322"}, &url.URL{Host: "local"})
+	_, _, _, err := (&raft.HTTPTransport{}).Join(&url.URL{Scheme: "http", Host: "localhost:27322"}, &url.URL{Host: "local"})
 	if err == nil || !strings.Contains(err.Error(), "connection refused") {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -61,7 +64,7 @@ func TestHTTPTransport_Join_ErrInvalidID(t *testing.T) {
 
 	// Execute join against test server.
 	u, _ := url.Parse(s.URL)
-	_, _, err := (&raft.HTTPTransport{}).Join(u, &url.URL{Host: "local"})
+	_, _, _, err := (&raft.HTTPTransport{}).Join(u, &url.URL{Host: "local"})
 	if err == nil || err.Error() != `invalid id: "xxx"` {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -72,13 +75,14 @@ func TestHTTPTransport_Join_ErrInvalidConfig(t *testing.T) {
 	// Start mock HTTP server.
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Raft-ID", "1")
+		w.Header().Set("X-Raft-Leader-ID", "1")
 		w.Write([]byte(`{`))
 	}))
 	defer s.Close()
 
 	// Execute join against test server.
 	u, _ := url.Parse(s.URL)
-	_, _, err := (&raft.HTTPTransport{}).Join(u, &url.URL{Host: "local"})
+	_, _, _, err := (&raft.HTTPTransport{}).Join(u, &url.URL{Host: "local"})
 	if err == nil || err.Error() != `config unmarshal: unexpected EOF` {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -95,7 +99,7 @@ func TestHTTPTransport_Join_Err(t *testing.T) {
 
 	// Execute join against test server.
 	u, _ := url.Parse(s.URL)
-	_, _, err := (&raft.HTTPTransport{}).Join(u, &url.URL{Host: "local"})
+	_, _, _, err := (&raft.HTTPTransport{}).Join(u, &url.URL{Host: "local"})
 	if err == nil || err.Error() != `oh no` {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -161,20 +165,17 @@ func TestHTTPTransport_Heartbeat(t *testing.T) {
 			t.Fatalf("unexpected leader id: %q", leaderID)
 		}
 		w.Header().Set("X-Raft-Index", "4")
-		w.Header().Set("X-Raft-Term", "5")
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer s.Close()
 
 	// Execute heartbeat against test server.
 	u, _ := url.Parse(s.URL)
-	newIndex, newTerm, err := (&raft.HTTPTransport{}).Heartbeat(u, 1, 2, 3)
+	newIndex, err := (&raft.HTTPTransport{}).Heartbeat(u, 1, 2, 3)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	} else if newIndex != 4 {
 		t.Fatalf("unexpected new index: %d", newIndex)
-	} else if newTerm != 5 {
-		t.Fatalf("unexpected new term: %d", newTerm)
 	}
 }
 
@@ -182,25 +183,22 @@ func TestHTTPTransport_Heartbeat(t *testing.T) {
 func TestHTTPTransport_Heartbeat_Err(t *testing.T) {
 	var tests = []struct {
 		index  string
-		term   string
 		errstr string
 		err    string
 	}{
-		{index: "", term: "", err: `invalid index: ""`},
-		{index: "1000", term: "", err: `invalid term: ""`},
-		{index: "1", term: "2", errstr: "bad heartbeat", err: `bad heartbeat`},
+		{index: "", err: `invalid index: ""`},
+		{index: "1", errstr: "bad heartbeat", err: `bad heartbeat`},
 	}
 	for i, tt := range tests {
 		// Start mock HTTP server.
 		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("X-Raft-Index", tt.index)
-			w.Header().Set("X-Raft-Term", tt.term)
 			w.Header().Set("X-Raft-Error", tt.errstr)
 			w.WriteHeader(http.StatusOK)
 		}))
 
 		u, _ := url.Parse(s.URL)
-		_, _, err := (&raft.HTTPTransport{}).Heartbeat(u, 1, 2, 3)
+		_, err := (&raft.HTTPTransport{}).Heartbeat(u, 1, 2, 3)
 		if err == nil {
 			t.Errorf("%d. expected error", i)
 		} else if tt.err != err.Error() {
@@ -213,7 +211,7 @@ func TestHTTPTransport_Heartbeat_Err(t *testing.T) {
 // Ensure an HTTP heartbeat to a stopped server returns an error.
 func TestHTTPTransport_Heartbeat_ErrConnectionRefused(t *testing.T) {
 	u, _ := url.Parse("http://localhost:41932")
-	_, _, err := (&raft.HTTPTransport{}).Heartbeat(u, 0, 0, 0)
+	_, err := (&raft.HTTPTransport{}).Heartbeat(u, 0, 0, 0)
 	if err == nil {
 		t.Fatal("expected error")
 	} else if !strings.Contains(err.Error(), `connection refused`) {
@@ -303,35 +301,14 @@ func TestHTTPTransport_RequestVote(t *testing.T) {
 		if lastLogTerm := r.FormValue("lastLogTerm"); lastLogTerm != `4` {
 			t.Fatalf("unexpected last log term: %v", lastLogTerm)
 		}
-		w.Header().Set("X-Raft-Term", "5")
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer s.Close()
 
 	// Execute heartbeat against test server.
 	u, _ := url.Parse(s.URL)
-	newTerm, err := (&raft.HTTPTransport{}).RequestVote(u, 1, 2, 3, 4)
-	if err != nil {
+	if err := (&raft.HTTPTransport{}).RequestVote(u, 1, 2, 3, 4); err != nil {
 		t.Fatalf("unexpected error: %s", err)
-	} else if newTerm != 5 {
-		t.Fatalf("unexpected new term: %d", newTerm)
-	}
-}
-
-// Ensure that a returned vote with an invalid term returns an error.
-func TestHTTPTransport_RequestVote_ErrInvalidTerm(t *testing.T) {
-	// Start mock HTTP server.
-	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("X-Raft-Term", `xxx`)
-	}))
-	defer s.Close()
-
-	u, _ := url.Parse(s.URL)
-	_, err := (&raft.HTTPTransport{}).RequestVote(u, 0, 0, 0, 0)
-	if err == nil {
-		t.Errorf("expected error")
-	} else if err.Error() != `invalid term: "xxx"` {
-		t.Errorf("unexpected error: %s", err)
 	}
 }
 
@@ -345,8 +322,7 @@ func TestHTTPTransport_RequestVote_Error(t *testing.T) {
 	defer s.Close()
 
 	u, _ := url.Parse(s.URL)
-	_, err := (&raft.HTTPTransport{}).RequestVote(u, 0, 0, 0, 0)
-	if err == nil {
+	if err := (&raft.HTTPTransport{}).RequestVote(u, 0, 0, 0, 0); err == nil {
 		t.Errorf("expected error")
 	} else if err.Error() != `already voted` {
 		t.Errorf("unexpected error: %s", err)
@@ -356,8 +332,7 @@ func TestHTTPTransport_RequestVote_Error(t *testing.T) {
 // Ensure that requesting a vote over HTTP to a stopped server returns an error.
 func TestHTTPTransport_RequestVote_ErrConnectionRefused(t *testing.T) {
 	u, _ := url.Parse("http://localhost:41932")
-	_, err := (&raft.HTTPTransport{}).RequestVote(u, 0, 0, 0, 0)
-	if err == nil {
+	if err := (&raft.HTTPTransport{}).RequestVote(u, 0, 0, 0, 0); err == nil {
 		t.Fatal("expected error")
 	} else if !strings.Contains(err.Error(), `connection refused`) {
 		t.Fatalf("unexpected error: %s", err)
@@ -389,10 +364,10 @@ func (t *Transport) log(u *url.URL) (*raft.Log, error) {
 }
 
 // Join calls the AddPeer method on the target log.
-func (t *Transport) Join(u *url.URL, nodeURL *url.URL) (uint64, *raft.Config, error) {
+func (t *Transport) Join(u *url.URL, nodeURL *url.URL) (uint64, uint64, *raft.Config, error) {
 	l, err := t.log(u)
 	if err != nil {
-		return 0, nil, err
+		return 0, 0, nil, err
 	}
 	return l.AddPeer(nodeURL)
 }
@@ -407,10 +382,10 @@ func (t *Transport) Leave(u *url.URL, id uint64) error {
 }
 
 // Heartbeat calls the Heartbeat method on the target log.
-func (t *Transport) Heartbeat(u *url.URL, term, commitIndex, leaderID uint64) (lastIndex, currentTerm uint64, err error) {
+func (t *Transport) Heartbeat(u *url.URL, term, commitIndex, leaderID uint64) (lastIndex uint64, err error) {
 	l, err := t.log(u)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	return l.Heartbeat(term, commitIndex, leaderID)
 }
@@ -434,10 +409,10 @@ func (t *Transport) ReadFrom(u *url.URL, id, term, index uint64) (io.ReadCloser,
 }
 
 // RequestVote calls RequestVote() on the target log.
-func (t *Transport) RequestVote(u *url.URL, term, candidateID, lastLogIndex, lastLogTerm uint64) (uint64, error) {
+func (t *Transport) RequestVote(u *url.URL, term, candidateID, lastLogIndex, lastLogTerm uint64) error {
 	l, err := t.log(u)
 	if err != nil {
-		return 0, err
+		return err
 	}
 	return l.RequestVote(term, candidateID, lastLogIndex, lastLogTerm)
 }
