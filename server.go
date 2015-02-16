@@ -1662,15 +1662,23 @@ func (s *Server) writePoint(database, retentionPolicy string, point *Point) (uin
 		return 0, err
 	}
 
-	// Convert string-key/values to fieldID-key/values.
-	rawValues, err := m.mapValues(values)
+	// Get a field codec.
+	s.mu.RLock()
+	codec := NewFieldCodec(m)
+	s.mu.RUnlock()
+	if codec == nil {
+		panic("field codec is nil")
+	}
+
+	// Convert string-key/values to encoded fields.
+	encodedFields, err := codec.EncodeFields(values)
 	if err != nil {
 		return 0, err
 	}
 
 	// Encode point header.
 	data := marshalPointHeader(seriesID, timestamp.UnixNano())
-	data = append(data, m.EncodeFields(rawValues)...)
+	data = append(data, encodedFields...)
 
 	// Publish "raw write series" message on shard's topic to broker.
 	return s.client.Publish(&messaging.Message{
