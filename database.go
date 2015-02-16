@@ -137,16 +137,20 @@ func NewMeasurement(name string) *Measurement {
 }
 
 // createFieldIfNotExists creates a new field with an autoincrementing ID.
-// Returns an error if 255 fields have already been created on the measurement.
-func (m *Measurement) createFieldIfNotExists(name string, typ influxql.DataType) (*Field, error) {
+// Returns an error if 255 fields have already been created on the measurement or
+// the fields already exists with a different type.
+func (m *Measurement) createFieldIfNotExists(name string, typ influxql.DataType) error {
 	// Ignore if the field already exists.
 	if f := m.FieldByName(name); f != nil {
-		return f, nil
+		if f.Type != typ {
+			return ErrFieldTypeConflict
+		}
+		return nil
 	}
 
 	// Only 255 fields are allowed. If we go over that then return an error.
 	if len(m.Fields)+1 > math.MaxUint8 {
-		return nil, ErrFieldOverflow
+		return ErrFieldOverflow
 	}
 
 	// Create and append a new field.
@@ -157,7 +161,7 @@ func (m *Measurement) createFieldIfNotExists(name string, typ influxql.DataType)
 	}
 	m.Fields = append(m.Fields, f)
 
-	return f, nil
+	return nil
 }
 
 // Field returns a field by id.
@@ -350,24 +354,16 @@ func (m *Measurement) seriesByTags(tags map[string]string) *Series {
 // If a field exists, but its type is different, return an error. If error is
 // nil, but at least 1 field has not been mapped, nil is returned as the map.
 func (m *Measurement) mapValues(values map[string]interface{}) (map[uint8]interface{}, error) {
-	unmapped := false
 	other := make(map[uint8]interface{}, len(values))
 	for k, v := range values {
 		f := m.FieldByName(k)
-
 		if f == nil {
-			unmapped = true
+			panic(fmt.Sprintf("field does not exist for %s", k))
+		} else if influxql.InspectDataType(v) != f.Type {
+			return nil, fmt.Errorf("field %s is not of type %s", k, f.Type)
 		} else {
-			if influxql.InspectDataType(v) != f.Type {
-				return nil, fmt.Errorf("field %s is not of type %s", k, f.Type)
-			}
 			other[f.ID] = v
 		}
-	}
-
-	// At least 1 field isn't mapped, so return nil.
-	if unmapped {
-		return nil, nil
 	}
 
 	// All fields exist, and are of the expected type.

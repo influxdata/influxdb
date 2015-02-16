@@ -90,6 +90,10 @@ func NewHandler(s *influxdb.Server, requireAuthentication bool, version string) 
 			"ping",
 			"GET", "/ping", h.servePing, true,
 		},
+		route{ // Ping
+			"ping-head",
+			"HEAD", "/ping", h.servePing, true,
+		},
 	)
 
 	for _, r := range h.routes {

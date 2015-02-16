@@ -30,6 +30,16 @@ running the following:
     gvm install go1.4
     gvm use go1.4 --default
 
+Revision Control Systems
+------
+
+Go has the ability to import remote packages via revision control systems with the `go get` command.  To ensure that you can retrieve any remote package, be sure to install the following rcs software to your system.
+Currently the project only depends on `git` and `mercurial`.
+
+[Install Git](http://git-scm.com/book/en/Getting-Started-Installing-Git)
+
+[Install Mercurial](http://mercurial.selenic.com/wiki/Download)
+
 Project structure
 -----------------
 
@@ -64,6 +74,8 @@ To install go vet, run the following command:
 ```
 go get golang.org/x/tools/cmd/vet
 ```
+
+NOTE: If you have not installed mercurial, the above command will fail.  See [Revision Control Systems](#revision-control-systems) above.
 
 For more information on `go vet`, [read the GoDoc](https://godoc.org/golang.org/x/tools/cmd/vet).
 
