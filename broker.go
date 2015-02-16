@@ -49,11 +49,13 @@ func NewBroker() *Broker {
 	return b
 }
 
+// RunContinuousQueryLoop starts running continuous queries on a background goroutine.
 func (b *Broker) RunContinuousQueryLoop() {
 	b.done = make(chan struct{})
 	go b.continuousQueryLoop(b.done)
 }
 
+// Close closes the broker.
 func (b *Broker) Close() error {
 	if b.done != nil {
 		close(b.done)

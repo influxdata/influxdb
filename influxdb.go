@@ -109,7 +109,7 @@ var (
 	// ErrFieldTypeConflict is returned when a new field already exists with a different type.
 	ErrFieldTypeConflict = errors.New("field type conflict")
 
-	// ErrFieldNotFound
+	// ErrFieldNotFound is returned when a field cannot be found.
 	ErrFieldNotFound = errors.New("field not found")
 
 	// ErrSeriesNotFound is returned when looking up a non-existent series by database, name and tags

@@ -301,14 +301,9 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// SHOW FIELD KEYS
 		{
-			s: `SHOW FIELD KEYS FROM src WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
+			s: `SHOW FIELD KEYS FROM src ORDER BY ASC, field1, field2 DESC LIMIT 10`,
 			stmt: &influxql.ShowFieldKeysStatement{
 				Source: &influxql.Measurement{Name: "src"},
-				Condition: &influxql.BinaryExpr{
-					Op:  influxql.EQ,
-					LHS: &influxql.VarRef{Val: "region"},
-					RHS: &influxql.StringLiteral{Val: "uswest"},
-				},
 				SortFields: []*influxql.SortField{
 					{Ascending: true},
 					{Name: "field1"},
@@ -341,7 +336,7 @@ func TestParser_ParseStatement(t *testing.T) {
 					Target: &influxql.Target{Measurement: "measure1"},
 					Source: &influxql.Measurement{Name: "myseries"},
 					Dimensions: []*influxql.Dimension{
-						&influxql.Dimension{
+						{
 							Expr: &influxql.Call{
 								Name: "time",
 								Args: []influxql.Expr{
@@ -367,7 +362,7 @@ func TestParser_ParseStatement(t *testing.T) {
 					},
 					Source: &influxql.Measurement{Name: "myseries"},
 					Dimensions: []*influxql.Dimension{
-						&influxql.Dimension{
+						{
 							Expr: &influxql.Call{
 								Name: "time",
 								Args: []influxql.Expr{

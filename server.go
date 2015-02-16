@@ -307,7 +307,7 @@ func (s *Server) load() error {
 	})
 }
 
-//  StartRetentionPolicyEnforcement launches retention policy enforcement.
+// StartRetentionPolicyEnforcement launches retention policy enforcement.
 func (s *Server) StartRetentionPolicyEnforcement(checkInterval time.Duration) error {
 	if checkInterval == 0 {
 		return fmt.Errorf("retention policy check interval must be non-zero")
@@ -2000,7 +2000,7 @@ func (s *Server) planSelectStatement(stmt *influxql.SelectStatement) (*influxql.
 	}
 
 	if len(stmt.Fields) != 1 && isWildcard {
-		return nil, fmt.Errorf("unsupported query: %s.  currently only single wildcard is supported.", stmt.String())
+		return nil, fmt.Errorf("unsupported query: %s.  currently only single wildcard is supported", stmt.String())
 	}
 
 	if isWildcard {
@@ -2011,7 +2011,7 @@ func (s *Server) planSelectStatement(stmt *influxql.SelectStatement) (*influxql.
 			}
 			db, m := segments[0], segments[2]
 			if s.databases[db].measurements[m] == nil {
-				return nil, fmt.Errorf("measurement %s does not exist.", measurement.Name)
+				return nil, fmt.Errorf("measurement %s does not exist", measurement.Name)
 			}
 			var fields influxql.Fields
 			for _, f := range s.databases[db].measurements[m].Fields {
@@ -2137,9 +2137,7 @@ func (s *Server) executeShowMeasurementsStatement(stmt *influxql.ShowMeasurement
 		return &Result{Err: ErrDatabaseNotFound}
 	}
 
-	// Get all measurements in sorted order.
-	measurements := db.Measurements()
-	sort.Sort(measurements)
+	var measurements Measurements
 
 	// If a WHERE clause was specified, filter the measurements.
 	if stmt.Condition != nil {
@@ -2148,7 +2146,11 @@ func (s *Server) executeShowMeasurementsStatement(stmt *influxql.ShowMeasurement
 		if err != nil {
 			return &Result{Err: err}
 		}
+	} else {
+		// Otherwise, get all measurements from the database.
+		measurements = db.Measurements()
 	}
+	sort.Sort(measurements)
 
 	offset := stmt.Offset
 	limit := stmt.Limit
@@ -2299,7 +2301,7 @@ func (s *Server) executeShowTagValuesStatement(stmt *influxql.ShowTagValuesState
 }
 
 func (s *Server) executeShowContinuousQueriesStatement(stmt *influxql.ShowContinuousQueriesStatement, database string, user *User) *Result {
-	rows := make([]*influxql.Row, 0)
+	rows := []*influxql.Row{}
 	for _, name := range s.Databases() {
 		row := &influxql.Row{Columns: []string{"name", "query"}, Name: name}
 		for _, cq := range s.ContinuousQueries(name) {
@@ -2313,8 +2315,7 @@ func (s *Server) executeShowContinuousQueriesStatement(stmt *influxql.ShowContin
 // filterMeasurementsByExpr filters a list of measurements by a tags expression.
 func filterMeasurementsByExpr(measurements Measurements, expr influxql.Expr) (Measurements, error) {
 	// Create a list to hold result measurements.
-	filtered := make(Measurements, 0)
-
+	filtered := Measurements{}
 	// Iterate measurements adding the ones that match to the result.
 	for _, m := range measurements {
 		// Look up series IDs that match the tags expression.
@@ -2346,13 +2347,6 @@ func (s *Server) executeShowFieldKeysStatement(stmt *influxql.ShowFieldKeysState
 	measurements, err := measurementsFromSourceOrDB(stmt.Source, db)
 	if err != nil {
 		return &Result{Err: err}
-	}
-
-	// If the statement has a where clause, filter the measurements by it.
-	if stmt.Condition != nil {
-		if measurements, err = filterMeasurementsByExpr(measurements, stmt.Condition); err != nil {
-			return &Result{Err: err}
-		}
 	}
 
 	// Make result.
@@ -2499,12 +2493,14 @@ func (s *Server) executeCreateContinuousQueryStatement(q *influxql.CreateContinu
 	return &Result{Err: s.CreateContinuousQuery(q)}
 }
 
+// CreateContinuousQuery creates a continuous query.
 func (s *Server) CreateContinuousQuery(q *influxql.CreateContinuousQueryStatement) error {
 	c := &createContinuousQueryCommand{Query: q.String()}
 	_, err := s.broadcast(createContinuousQueryMessageType, c)
 	return err
 }
 
+// ContinuousQueries returns a list of all continuous queries.
 func (s *Server) ContinuousQueries(database string) []*ContinuousQuery {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

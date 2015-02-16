@@ -544,6 +544,11 @@ func lastIdent(s string) string {
 
 var errInvalidIdentifier = errors.New("invalid identifier")
 
+// IsRegexOp returns true if the operator accepts a regex operand.
+func IsRegexOp(t Token) bool {
+	return (t == EQREGEX || t == NEQREGEX)
+}
+
 // assert will panic with a given formatted message if the given condition is false.
 func assert(condition bool, msg string, v ...interface{}) {
 	if !condition {

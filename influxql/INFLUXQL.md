@@ -435,12 +435,16 @@ SHOW DATABASES;
 
 ### SHOW FIELD
 
-show_field_keys_stmt =
+show_field_keys_stmt = "SHOW FIELD KEYS" [ from_clause ] .
 
 #### Examples:
 
 ```sql
+-- show field keys from all measurements
+SHOW FIELD KEYS;
 
+-- show field keys from specified measurement
+SHOW FIELD KEYS FROM cpu;
 ```
 
 ### SHOW MEASUREMENTS
@@ -599,9 +603,11 @@ expr             = unary_expr { binary_op unary_expr } .
 
 unary_expr       = "(" expr ")" | var_ref | time_lit | string_lit |
                    number_lit | bool_lit | duration_lit .
+```
 
 ## Other
 
+```
 decimals          = decimal_digit { decimal_digit } .
 
 dimenson         = expr .

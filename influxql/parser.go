@@ -837,11 +837,6 @@ func (p *Parser) parseShowFieldKeysStatement() (*ShowFieldKeysStatement, error) 
 		p.unscan()
 	}
 
-	// Parse condition: "WHERE EXPR".
-	if stmt.Condition, err = p.parseCondition(); err != nil {
-		return nil, err
-	}
-
 	// Parse sort: "ORDER BY FIELD+".
 	if stmt.SortFields, err = p.parseOrderBy(); err != nil {
 		return nil, err
