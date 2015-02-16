@@ -1790,7 +1790,7 @@ func (s *Server) createFieldsIfNotExists(database string, measurement string, va
 	return nil
 }
 
-// ReadSeries reads a single point from a series in the database.
+// ReadSeries reads a single point from a series in the database. It is used for debug and test only.
 func (s *Server) ReadSeries(database, retentionPolicy, name string, tags map[string]string, timestamp time.Time) (map[string]interface{}, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
