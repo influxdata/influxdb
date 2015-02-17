@@ -35,5 +35,5 @@ You don't need to build the project to use it. Pre-built
 the recommended way to get it running. However, if you want to
 contribute to the core of InfluxDB, you'll need to build. For those
 adventurous enough, you can
-[follow along on our docs](http://github.com/influxdb/influxdb/blob/master/contributing.md)
+[follow along on our docs](http://github.com/influxdb/influxdb/blob/master/CONTRIBUTING.md)
 
