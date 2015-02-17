@@ -118,8 +118,6 @@ To install go cover, run the following command:
 go get golang.org/x/tools/cmd/cover
 ```
 
-
-
 Useful links
 ------------
 - [Useful techniques in Go](http://arslan.io/ten-useful-techniques-in-go)
