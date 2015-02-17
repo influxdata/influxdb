@@ -31,9 +31,11 @@ build/
 
 # executables
 
+influxd
 **/influxd
 !**/influxd/
 
+influxdb
 **/influxdb
 !**/influxdb/
 
