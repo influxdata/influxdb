@@ -113,6 +113,11 @@ go test -run=TestDatabase . -v
 go test -coverprofile /tmp/cover . && go tool cover -html /tmp/cover
 ```
 
+To install go cover, run the following command:
+```
+go get golang.org/x/tools/cmd/cover
+```
+
 Useful links
 ------------
 - [Useful techniques in Go](http://arslan.io/ten-useful-techniques-in-go)
