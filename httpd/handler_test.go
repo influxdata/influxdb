@@ -1215,7 +1215,7 @@ func TestHandler_serveWriteSeriesZeroTime(t *testing.T) {
 	}
 }
 
-func TestHandler_serveWriteSeriesInvalidField(t *testing.T) {
+func TestHandler_serveWriteSeriesInvalidQueryField(t *testing.T) {
 	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
