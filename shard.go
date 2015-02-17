@@ -118,7 +118,6 @@ func (s *Shard) writeSeries(seriesID uint32, timestamp int64, values []byte, ove
 		}
 
 		// Insert the values by timestamp.
-		warn("[write]", seriesID, time.Unix(0, timestamp))
 		if err := b.Put(u64tob(uint64(timestamp)), values); err != nil {
 			return err
 		}
