@@ -772,14 +772,52 @@ func (f *FieldCodec) EncodeFields(values map[string]interface{}) ([]byte, error)
 	return b, nil
 }
 
-// DecodeByID
-func (f *FieldCodec) DecodeByID(fieldId uint8, b []byte) (interface{}, error) {
-	return 0, nil
-}
+// DecodeByID scans a byte slice for a field with the given ID, converts it to its
+// expected type, and return that value.
+func (f *FieldCodec) DecodeByID(targetID uint8, b []byte) (interface{}, error) {
+	if len(b) == 0 {
+		return 0, ErrFieldNotFound
+	}
 
-// DecodeByName
-func (f *FieldCodec) DecodeByName(fieldName uint8, b []byte) (interface{}, error) {
-	return 0, nil
+	// Read the field count from the field byte.
+	n := int(b[0])
+	// Start from the second byte and iterate over until we're done decoding.
+	b = b[1:]
+	for i := 0; i < n; i++ {
+		field, ok := f.fieldsByID[b[0]]
+		if !ok {
+			panic(fmt.Sprintf("field ID %d has no mapping", b[0]))
+		}
+
+		var value interface{}
+		switch field.Type {
+		case influxql.Number:
+			// Move bytes forward.
+			value = math.Float64frombits(binary.BigEndian.Uint64(b[1:9]))
+			b = b[9:]
+		case influxql.Boolean:
+			if b[1] == 1 {
+				value = true
+			} else {
+				value = false
+			}
+			// Move bytes forward.
+			b = b[2:]
+		case influxql.String:
+			size := binary.BigEndian.Uint16(b[1:3])
+			value = string(b[3:size])
+			// Move bytes forward.
+			b = b[size+3:]
+		default:
+			panic(fmt.Sprintf("unsupported value type: %T", field.Type))
+		}
+
+		if field.ID == targetID {
+			return value, nil
+		}
+	}
+
+	return 0, ErrFieldNotFound
 }
 
 // Series belong to a Measurement and represent unique time series in a database
