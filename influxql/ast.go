@@ -985,11 +985,34 @@ func (s *ShowSeriesStatement) RequiredPrivileges() ExecutionPrivileges {
 
 // DropSeriesStatement represents a command for removing a series from the database.
 type DropSeriesStatement struct {
-	Name string
+	// The Id of the series being dropped (optional)
+	SeriesID uint32
+
+	// Data source that fields are extracted from (optional)
+	Source Source
+
+	// An expression evaluated on data point (optional)
+	Condition Expr
 }
 
 // String returns a string representation of the drop series statement.
-func (s *DropSeriesStatement) String() string { return fmt.Sprintf("DROP SERIES %s", s.Name) }
+func (s *DropSeriesStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("DROP SERIES ")
+
+	if s.Source != nil {
+		_, _ = buf.WriteString("FROM ")
+		_, _ = buf.WriteString(s.Source.String())
+		if s.Condition != nil {
+			_, _ = buf.WriteString(" WHERE ")
+			_, _ = buf.WriteString(s.Condition.String())
+		}
+	} else {
+		_, _ = buf.WriteString(fmt.Sprintf("%d", s.SeriesID))
+	}
+
+	return buf.String()
+}
 
 // RequiredPrivileges returns the privilige reqired to execute a DropSeriesStatement.
 func (s DropSeriesStatement) RequiredPrivileges() ExecutionPrivileges {
