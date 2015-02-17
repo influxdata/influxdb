@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strconv"
 	"testing"
 	"time"
@@ -504,5 +505,68 @@ func Test_AllTagCombinationsInShowSeriesAreSelectable(t *testing.T) {
 		if result.Err != nil {
 			t.Fatalf("Expected no error, received %v", result.Err)
 		}
+	}
+}
+
+func Test_DataArrivesInOrder(t *testing.T) {
+	nNodes := 1
+	basePort := 8400
+	testName := "test data arrives in order"
+	now := time.Now().Round(time.Second).UTC()
+	nodes := createCombinedNodeCluster(t, testName, nNodes, basePort)
+
+	createDatabase(t, testName, nodes, "foo")
+	createRetentionPolicy(t, testName, nodes, "foo", "bar")
+
+	bp := influxdb.BatchPoints{
+		Database: "foo",
+	}
+
+	totalPoints := 8
+	for i := 0; i < totalPoints; i++ {
+		p := client.Point{
+			Name: "my_measurement",
+			Tags: map[string]string{
+				"host": fmt.Sprintf("server_%d", i%10),
+			},
+			Values: map[string]interface{}{
+				"value": i,
+			},
+			Timestamp: client.Timestamp(now.Add(time.Duration(-i) * time.Second)),
+		}
+
+		bp.Points = append(bp.Points, p)
+	}
+
+	bpJson, err := json.Marshal(bp)
+	if err != nil {
+		t.Fatalf("Expected no error, received %v", err)
+	}
+
+	write(t, testName, nodes, string(bpJson))
+
+	c, err := client.NewClient(client.Config{URL: *nodes[0].url})
+	if err != nil {
+		t.Fatalf("Expected no error, received %v", err)
+	}
+
+	query := "SELECT value FROM my_measurement ORDER BY ASC"
+	result, err := c.Query(client.Query{Command: query, Database: "foo"})
+	if err != nil {
+		t.Fatalf("Expected no error, received %v", err)
+	}
+	var times []string
+	for _, r := range result.Results {
+		for _, row := range r.Rows {
+			for _, values := range row.Values {
+				timestamp := values[0].(string)
+				times = append(times, timestamp)
+			}
+		}
+	}
+
+	if !sort.StringsAreSorted(times) {
+		t.Log(times)
+		t.Fatalf("Expected timestamps to arrive in order, but they were out of order")
 	}
 }
