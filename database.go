@@ -691,7 +691,7 @@ func (f *FieldCodec) EncodeFields(values map[string]interface{}) ([]byte, error)
 			if len(value) > maxStringLength {
 				value = value[:maxStringLength]
 			}
-			// Make a buffer for field ID, the string length, and the string.
+			// Make a buffer for field ID (1 bytes), the string length (2 bytes), and the string.
 			buf = make([]byte, len(value)+3)
 
 			// Set the string length, then copy the string itself.
@@ -746,7 +746,7 @@ func (f *FieldCodec) DecodeByID(targetID uint8, b []byte) (interface{}, error) {
 			b = b[2:]
 		case influxql.String:
 			size := binary.BigEndian.Uint16(b[1:3])
-			value = string(b[3:size])
+			value = string(b[3 : 3+size])
 			// Move bytes forward.
 			b = b[size+3:]
 		default:
