@@ -1665,9 +1665,23 @@ func (s *Server) writePoint(database, retentionPolicy string, point *Point) (uin
 		return 0, err
 	}
 
+	// Get a field codec.
+	s.mu.RLock()
+	codec := NewFieldCodec(m)
+	s.mu.RUnlock()
+	if codec == nil {
+		panic("field codec is nil")
+	}
+
+	// Convert string-key/values to encoded fields.
+	encodedFields, err := codec.EncodeFields(values)
+	if err != nil {
+		return 0, err
+	}
+
 	// Encode point header.
 	data := marshalPointHeader(seriesID, timestamp.UnixNano())
-	data = append(data, marshalValues(m.mapValues(values))...)
+	data = append(data, encodedFields...)
 
 	// Publish "raw write series" message on shard's topic to broker.
 	return s.client.Publish(&messaging.Message{
@@ -1787,7 +1801,7 @@ func (s *Server) createFieldsIfNotExists(database string, measurement string, va
 	return nil
 }
 
-// ReadSeries reads a single point from a series in the database.
+// ReadSeries reads a single point from a series in the database. It is used for debug and test only.
 func (s *Server) ReadSeries(database, retentionPolicy, name string, tags map[string]string, timestamp time.Time) (map[string]interface{}, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -1837,7 +1851,8 @@ func (s *Server) ReadSeries(database, retentionPolicy, name string, tags map[str
 	}
 
 	// Decode into a raw value map.
-	rawValues := unmarshalValues(data)
+	codec := NewFieldCodec(mm)
+	rawValues := codec.DecodeFields(data)
 	if rawValues == nil {
 		return nil, nil
 	}

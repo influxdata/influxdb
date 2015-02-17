@@ -72,7 +72,7 @@ func TestTx_CreateIterators(t *testing.T) {
 func slurp(itrs []influxql.Iterator) []keyValue {
 	var rows []keyValue
 	for _, itr := range itrs {
-		for k, v := itr.Next(); k != 0; k, v = itr.Next() {
+		for k, _, v := itr.Next(); k != 0; k, _, v = itr.Next() {
 			rows = append(rows, keyValue{key: k, value: v, tags: itr.Tags()})
 		}
 	}
