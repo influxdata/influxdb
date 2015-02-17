@@ -2733,7 +2733,7 @@ type Results struct {
 	Err     error
 }
 
-// MarshalJSON encodes a Results stuct into JSON.
+// MarshalJSON encodes a Results struct into JSON.
 func (r Results) MarshalJSON() ([]byte, error) {
 	// Define a struct that outputs "error" as a string.
 	var o struct {
