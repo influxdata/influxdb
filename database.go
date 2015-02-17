@@ -182,65 +182,6 @@ func (m *Measurement) FieldByName(name string) *Field {
 	return nil
 }
 
-// DecodeFields decodes a byte slice into a set of field ids and values.
-func (m *Measurement) DecodeFields(b []byte) map[uint8]interface{} {
-	if len(b) == 0 {
-		return nil
-	}
-
-	// Read the field count from the field byte.
-	n := int(b[0])
-
-	// Create a map to hold the decoded data.
-	values := make(map[uint8]interface{}, n)
-
-	// Start from the second byte and iterate over until we're done decoding.
-	b = b[1:]
-	for i := 0; i < n; i++ {
-		// First byte is the field identifier.
-		fieldID := b[0]
-		field := m.Field(fieldID)
-		if field == nil {
-			panic(fmt.Sprintf("field ID %d has no mapping", fieldID))
-		}
-
-		var value interface{}
-		switch field.Type {
-		case influxql.Number:
-			value = math.Float64frombits(binary.BigEndian.Uint64(b[1:9]))
-			// Move bytes forward.
-			b = b[9:]
-		case influxql.Boolean:
-			if b[1] == 1 {
-				value = true
-			} else {
-				value = false
-			}
-			// Move bytes forward.
-			b = b[2:]
-		case influxql.String:
-			size := binary.BigEndian.Uint16(b[1:3])
-			value = string(b[3:size])
-			// Move bytes forward.
-			b = b[size+3:]
-		default:
-			panic(fmt.Sprintf("unsupported value type: %T", values[fieldID]))
-		}
-
-		values[fieldID] = value
-
-	}
-
-	return values
-}
-
-// DecodeField extracts a single value by field ID from an encoded byte slice.
-func (m *Measurement) DecodeField(b []byte, fieldID uint8) interface{} {
-	// OPTIMIZE: Don't materialize entire map. Just search for value.
-	values := m.DecodeFields(b)
-	return values[fieldID]
-}
-
 // addSeries will add a series to the measurementIndex. Returns false if already present
 func (m *Measurement) addSeries(s *Series) bool {
 	if _, ok := m.seriesByID[s.ID]; ok {
@@ -818,6 +759,58 @@ func (f *FieldCodec) DecodeByID(targetID uint8, b []byte) (interface{}, error) {
 	}
 
 	return 0, ErrFieldNotFound
+}
+
+// DecodeFields decodes a byte slice into a set of field ids and values.
+func (f *FieldCodec) DecodeFields(b []byte) map[uint8]interface{} {
+	if len(b) == 0 {
+		return nil
+	}
+
+	// Read the field count from the field byte.
+	n := int(b[0])
+
+	// Create a map to hold the decoded data.
+	values := make(map[uint8]interface{}, n)
+
+	// Start from the second byte and iterate over until we're done decoding.
+	b = b[1:]
+	for i := 0; i < n; i++ {
+		// First byte is the field identifier.
+		fieldID := b[0]
+		field := f.fieldsByID[fieldID]
+		if field == nil {
+			panic(fmt.Sprintf("field ID %d has no mapping", fieldID))
+		}
+
+		var value interface{}
+		switch field.Type {
+		case influxql.Number:
+			value = math.Float64frombits(binary.BigEndian.Uint64(b[1:9]))
+			// Move bytes forward.
+			b = b[9:]
+		case influxql.Boolean:
+			if b[1] == 1 {
+				value = true
+			} else {
+				value = false
+			}
+			// Move bytes forward.
+			b = b[2:]
+		case influxql.String:
+			size := binary.BigEndian.Uint16(b[1:3])
+			value = string(b[3:size])
+			// Move bytes forward.
+			b = b[size+3:]
+		default:
+			panic(fmt.Sprintf("unsupported value type: %T", f.fieldsByID[fieldID]))
+		}
+
+		values[fieldID] = value
+
+	}
+
+	return values
 }
 
 // Series belong to a Measurement and represent unique time series in a database

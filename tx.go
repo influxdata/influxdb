@@ -248,12 +248,6 @@ func (i *shardIterator) Next() (key int64, data []byte, value interface{}) {
 	return key, data, value
 }
 
-// FieldValue returns the value for the field this iterator works on from the given data
-// TODO: refactor this so it doesn't use the measurement. Should be able to just marshal the single field without decoding everything
-func (i *shardIterator) FieldValue(data []byte) interface{} {
-	return i.measurement.DecodeField(data, i.fieldID)
-}
-
 type keyValue struct {
 	key   int64
 	data  []byte
