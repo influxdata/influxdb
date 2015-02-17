@@ -1032,6 +1032,28 @@ func TestServer_ExecuteWildcardQuery(t *testing.T) {
 	}
 }
 
+// Ensure the server can execute a wildcard GROUP BY
+func TestServer_ExecuteWildcardGroupBy(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+	s.CreateDatabase("foo")
+	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "raw", Duration: 1 * time.Hour})
+	s.SetDefaultRetentionPolicy("foo", "raw")
+	s.CreateUser("susy", "pass", false)
+
+	// Write series with one point to the database.
+	// We deliberatly write one value per insert as we need to create each field in a predicatable order for testing.
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(10)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: mustParseTime("2000-01-01T00:00:10Z"), Values: map[string]interface{}{"val-x": 20}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: mustParseTime("2000-01-01T00:00:20Z"), Values: map[string]interface{}{"value": 30, "val-x": 40}}})
+
+	// Select * (wildcard).
+	results := s.ExecuteQuery(MustParseQuery(`SELECT value FROM cpu GROUP BY *`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error during SELECT *: %s", res.Err)
+	}
+}
+
 func TestServer_CreateShardGroupIfNotExist(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
