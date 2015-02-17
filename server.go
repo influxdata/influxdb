@@ -1502,6 +1502,7 @@ func (s *Server) applyCreateFieldsIfNotExist(m *messaging.Message) error {
 	}
 
 	// Create fields in Metastore.
+	nCurrFields := len(mm.Fields)
 	for k, v := range c.Fields {
 		if err := mm.createFieldIfNotExists(k, v); err != nil {
 			if err == ErrFieldOverflow {
@@ -1515,14 +1516,16 @@ func (s *Server) applyCreateFieldsIfNotExist(m *messaging.Message) error {
 		}
 	}
 
-	// Update metastore.
-	if err := s.meta.mustUpdate(func(tx *metatx) error {
-		if err := tx.saveMeasurement(db.name, mm); err != nil {
-			return fmt.Errorf("save measurement: %s", err)
+	// Update Metastore only if the Measurement's fields were actually changed.
+	if len(mm.Fields) > nCurrFields {
+		if err := s.meta.mustUpdate(func(tx *metatx) error {
+			if err := tx.saveMeasurement(db.name, mm); err != nil {
+				return fmt.Errorf("save measurement: %s", err)
+			}
+			return tx.saveDatabase(db)
+		}); err != nil {
+			return err
 		}
-		return tx.saveDatabase(db)
-	}); err != nil {
-		return err
 	}
 
 	return nil
