@@ -71,9 +71,14 @@ const (
 	// Series messages
 	createSeriesIfNotExistsMessageType = messaging.MessageType(0x50)
 
+	// Measurement messages
+	createFieldsIfNotExistsMessageType = messaging.MessageType(0x60)
+
+	// Continuous Query messages
+	createContinuousQueryMessageType = messaging.MessageType(0x70)
+
 	// Write series data messages (per-topic)
 	writeRawSeriesMessageType = messaging.MessageType(0x80)
-	writeSeriesMessageType    = messaging.MessageType(0x81)
 
 	// Privilege messages
 	setPrivilegeMessageType = messaging.MessageType(0x90)
@@ -103,6 +108,19 @@ type Server struct {
 	Logger *log.Logger
 
 	authenticationEnabled bool
+
+	// continuous query settings
+	RecomputePreviousN     int
+	RecomputeNoOlderThan   time.Duration
+	ComputeRunsPerInterval int
+	ComputeNoMoreThan      time.Duration
+
+	// This is the last time this data node has run continuous queries.
+	// Keep this state in memory so if a broker makes a request in another second
+	// to compute, it won't rerun CQs that have already been run. If this data node
+	// is just getting the request after being off duty for running CQs then
+	// it will recompute all of them
+	lastContinuousQueryRun time.Time
 }
 
 // NewServer returns a new instance of Server.
@@ -1476,6 +1494,59 @@ type setDefaultRetentionPolicyCommand struct {
 	Name     string `json:"name"`
 }
 
+type createFieldsIfNotExistCommand struct {
+	Database    string                       `json:"database"`
+	Measurement string                       `json:"measurement"`
+	Fields      map[string]influxql.DataType `json:"fields"`
+}
+
+func (s *Server) applyCreateFieldsIfNotExist(m *messaging.Message) error {
+	var c createFieldsIfNotExistCommand
+	mustUnmarshalJSON(m.Data, &c)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Validate command.
+	db := s.databases[c.Database]
+	if db == nil {
+		return ErrDatabaseNotFound
+	}
+	mm := db.measurements[c.Measurement]
+	if mm == nil {
+		return ErrMeasurementNotFound
+	}
+
+	// Create fields in Metastore.
+	nCurrFields := len(mm.Fields)
+	for k, v := range c.Fields {
+		if err := mm.createFieldIfNotExists(k, v); err != nil {
+			if err == ErrFieldOverflow {
+				log.Printf("no more fields allowed: %s::%s", mm.Name, k)
+				continue
+			} else if err == ErrFieldTypeConflict {
+				log.Printf("field type conflict: %s::%s", mm.Name, k)
+				continue
+			}
+			return err
+		}
+	}
+
+	// Update Metastore only if the Measurement's fields were actually changed.
+	if len(mm.Fields) > nCurrFields {
+		if err := s.meta.mustUpdate(func(tx *metatx) error {
+			if err := tx.saveMeasurement(db.name, mm); err != nil {
+				return fmt.Errorf("save measurement: %s", err)
+			}
+			return tx.saveDatabase(db)
+		}); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (s *Server) applyCreateSeriesIfNotExists(m *messaging.Message) error {
 	var c createSeriesIfNotExistsCommand
 	mustUnmarshalJSON(m.Data, &c)
@@ -1571,10 +1642,10 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 }
 
 func (s *Server) writePoint(database, retentionPolicy string, point *Point) (uint64, error) {
-	name, tags, timestamp, values := point.Name, point.Tags, point.Timestamp, point.Values
+	measurement, tags, timestamp, values := point.Name, point.Tags, point.Timestamp, point.Values
 
 	// Sanity-check the data point.
-	if name == "" {
+	if measurement == "" {
 		return 0, ErrMeasurementNameRequired
 	}
 	if len(values) == 0 {
@@ -1582,13 +1653,13 @@ func (s *Server) writePoint(database, retentionPolicy string, point *Point) (uin
 	}
 
 	// Find the id for the series and tagset
-	seriesID, err := s.createSeriesIfNotExists(database, name, tags)
+	seriesID, err := s.createSeriesIfNotExists(database, measurement, tags)
 	if err != nil {
 		return 0, err
 	}
 
 	// Retrieve measurement.
-	m, err := s.measurement(database, name)
+	m, err := s.measurement(database, measurement)
 	if err != nil {
 		return 0, err
 	} else if m == nil {
@@ -1604,33 +1675,29 @@ func (s *Server) writePoint(database, retentionPolicy string, point *Point) (uin
 	// Find appropriate shard within the shard group.
 	sh := g.ShardBySeriesID(seriesID)
 
-	// Convert string-key/values to fieldID-key/values.
-	// If not all fields can be converted then send as a non-raw write series.
-	rawValues := m.mapValues(values)
-	if rawValues == nil {
-		// Encode the command.
-		data := mustMarshalJSON(&writeSeriesCommand{
-			Database:    database,
-			Measurement: name,
-			SeriesID:    seriesID,
-			Timestamp:   timestamp.UnixNano(),
-			Values:      values,
-		})
-
-		// Publish "write series" message on shard's topic to broker.
-		return s.client.Publish(&messaging.Message{
-			Type:    writeSeriesMessageType,
-			TopicID: sh.ID,
-			Data:    data,
-		})
+	// Ensure fields are created as necessary.
+	err = s.createFieldsIfNotExists(database, measurement, values)
+	if err != nil {
+		return 0, err
 	}
 
-	// If we can successfully encode the string keys to raw field ids then
-	// we can send a raw write series message which is much smaller and faster.
+	// Get a field codec.
+	s.mu.RLock()
+	codec := NewFieldCodec(m)
+	s.mu.RUnlock()
+	if codec == nil {
+		panic("field codec is nil")
+	}
+
+	// Convert string-key/values to encoded fields.
+	encodedFields, err := codec.EncodeFields(values)
+	if err != nil {
+		return 0, err
+	}
 
 	// Encode point header.
 	data := marshalPointHeader(seriesID, timestamp.UnixNano())
-	data = append(data, marshalValues(rawValues)...)
+	data = append(data, encodedFields...)
 
 	// Publish "raw write series" message on shard's topic to broker.
 	return s.client.Publish(&messaging.Message{
@@ -1638,83 +1705,6 @@ func (s *Server) writePoint(database, retentionPolicy string, point *Point) (uin
 		TopicID: sh.ID,
 		Data:    data,
 	})
-}
-
-type writeSeriesCommand struct {
-	Database    string                 `json:"database"`
-	Measurement string                 `json:"measurement"`
-	SeriesID    uint32                 `json:"seriesID"`
-	Timestamp   int64                  `json:"timestamp"`
-	Values      map[string]interface{} `json:"values"`
-}
-
-// applyWriteSeries writes "non-raw" series data to the database.
-// Non-raw data occurs when fields have not been created yet so the field
-// names cannot be converted to field ids.
-func (s *Server) applyWriteSeries(m *messaging.Message) error {
-	var c writeSeriesCommand
-	mustUnmarshalJSON(m.Data, &c)
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	// Retrieve the shard.
-	sh := s.shards[m.TopicID]
-	if sh == nil {
-		return ErrShardNotFound
-	}
-
-	// Retrieve the database.
-	db := s.databases[c.Database]
-	if db == nil {
-		return ErrDatabaseNotFound
-	}
-
-	// Retrieve the measurement.
-	mm := db.measurements[c.Measurement]
-	if mm == nil {
-		return ErrMeasurementNotFound
-	}
-
-	// Encode value map and create fields as needed.
-	rawValues := make(map[uint8]interface{}, len(c.Values))
-	for k, v := range c.Values {
-		// TODO: Support non-float types.
-
-		// Find or create fields.
-		// If too many fields are on the measurement then log the issue.
-		// If any other error occurs then exit.
-		f, err := mm.createFieldIfNotExists(k, influxql.Number)
-		if err == ErrFieldOverflow {
-			log.Printf("no more fields allowed: %s::%s", mm.Name, k)
-			continue
-		} else if err != nil {
-			return err
-		}
-		rawValues[f.ID] = v
-	}
-
-	// Update metastore.
-	if err := s.meta.mustUpdate(func(tx *metatx) error {
-		if err := tx.saveMeasurement(db.name, mm); err != nil {
-			return fmt.Errorf("save measurement: %s", err)
-		}
-		return tx.saveDatabase(db)
-	}); err != nil {
-		return err
-	}
-
-	// Add to lookup.
-	s.addShardBySeriesID(sh, c.SeriesID)
-
-	// Encode the values into a binary format.
-	data := marshalValues(rawValues)
-
-	// TODO: Enable some way to specify if the data should be overwritten
-	overwrite := true
-
-	// Write to shard.
-	return sh.writeSeries(c.SeriesID, c.Timestamp, data, overwrite)
 }
 
 // applyWriteRawSeries writes raw series data to the database.
@@ -1756,6 +1746,7 @@ func (s *Server) createSeriesIfNotExists(database, name string, tags map[string]
 	s.mu.RLock()
 	db := s.databases[database]
 	if db == nil {
+		s.mu.RUnlock()
 		return 0, fmt.Errorf("database not found %q", database)
 	}
 	if _, series := db.MeasurementAndSeries(name, tags); series != nil {
@@ -1780,7 +1771,53 @@ func (s *Server) createSeriesIfNotExists(database, name string, tags map[string]
 	return series.ID, nil
 }
 
-// ReadSeries reads a single point from a series in the database.
+func (s *Server) createFieldsIfNotExists(database string, measurement string, values map[string]interface{}) error {
+	// Local function keeps locking foolproof.
+	f := func(database string, measurement string, values map[string]interface{}) (map[string]influxql.DataType, error) {
+		s.mu.RLock()
+		defer s.mu.RUnlock()
+
+		// Check to see if the fields already exist.
+		m, err := s.measurement(database, measurement)
+		if err != nil {
+			return nil, err
+		} else if m == nil {
+			return nil, ErrMeasurementNotFound
+		}
+
+		newFields := make(map[string]influxql.DataType)
+		for k, v := range values {
+			f := m.FieldByName(k)
+			if f == nil {
+				newFields[k] = influxql.InspectDataType(v)
+			} else {
+				if f.Type != influxql.InspectDataType(v) {
+					return nil, fmt.Errorf(fmt.Sprintf("field \"%s\" is type %T, mapped as type %s", k, v, f.Type))
+				}
+			}
+		}
+		return newFields, nil
+	}
+
+	newFields, err := f(database, measurement, values)
+	if err != nil {
+		return err
+	}
+	if len(newFields) == 0 {
+		return nil
+	}
+
+	// There are some new fields, so create field types mappings on cluster.
+	c := &createFieldsIfNotExistCommand{Database: database, Measurement: measurement, Fields: newFields}
+	_, err = s.broadcast(createFieldsIfNotExistsMessageType, c)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ReadSeries reads a single point from a series in the database. It is used for debug and test only.
 func (s *Server) ReadSeries(database, retentionPolicy, name string, tags map[string]string, timestamp time.Time) (map[string]interface{}, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -1830,7 +1867,8 @@ func (s *Server) ReadSeries(database, retentionPolicy, name string, tags map[str
 	}
 
 	// Decode into a raw value map.
-	rawValues := unmarshalValues(data)
+	codec := NewFieldCodec(mm)
+	rawValues := codec.DecodeFields(data)
 	if rawValues == nil {
 		return nil, nil
 	}
@@ -1911,11 +1949,11 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 		case *influxql.ShowRetentionPoliciesStatement:
 			res = s.executeShowRetentionPoliciesStatement(stmt, user)
 		case *influxql.CreateContinuousQueryStatement:
-			continue
+			res = s.executeCreateContinuousQueryStatement(stmt, user)
 		case *influxql.DropContinuousQueryStatement:
 			continue
 		case *influxql.ShowContinuousQueriesStatement:
-			continue
+			res = s.executeShowContinuousQueriesStatement(stmt, database, user)
 		default:
 			panic(fmt.Sprintf("unsupported statement type: %T", stmt))
 		}
@@ -1999,6 +2037,7 @@ func (s *Server) planSelectStatement(stmt *influxql.SelectStatement) (*influxql.
 
 	// Plan query.
 	p := influxql.NewPlanner(s)
+
 	return p.Plan(stmt)
 }
 
@@ -2273,6 +2312,18 @@ func (s *Server) executeShowTagValuesStatement(stmt *influxql.ShowTagValuesState
 	return result
 }
 
+func (s *Server) executeShowContinuousQueriesStatement(stmt *influxql.ShowContinuousQueriesStatement, database string, user *User) *Result {
+	rows := make([]*influxql.Row, 0)
+	for _, name := range s.Databases() {
+		row := &influxql.Row{Columns: []string{"name", "query"}, Name: name}
+		for _, cq := range s.ContinuousQueries(name) {
+			row.Values = append(row.Values, []interface{}{cq.cq.Name, cq.Query})
+		}
+		rows = append(rows, row)
+	}
+	return &Result{Rows: rows}
+}
+
 // filterMeasurementsByExpr filters a list of measurements by a tags expression.
 func filterMeasurementsByExpr(measurements Measurements, expr influxql.Expr) (Measurements, error) {
 	// Create a list to hold result measurements.
@@ -2458,6 +2509,28 @@ func (s *Server) executeShowRetentionPoliciesStatement(q *influxql.ShowRetention
 	return &Result{Rows: []*influxql.Row{row}}
 }
 
+func (s *Server) executeCreateContinuousQueryStatement(q *influxql.CreateContinuousQueryStatement, user *User) *Result {
+	return &Result{Err: s.CreateContinuousQuery(q)}
+}
+
+func (s *Server) CreateContinuousQuery(q *influxql.CreateContinuousQueryStatement) error {
+	c := &createContinuousQueryCommand{Query: q.String()}
+	_, err := s.broadcast(createContinuousQueryMessageType, c)
+	return err
+}
+
+func (s *Server) ContinuousQueries(database string) []*ContinuousQuery {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	db := s.databases[database]
+	if db == nil {
+		return nil
+	}
+
+	return db.continuousQueries
+}
+
 // MeasurementNames returns a list of all measurements for the specified database.
 func (s *Server) MeasurementNames(database string) []string {
 	s.mu.RLock()
@@ -2618,8 +2691,6 @@ func (s *Server) processor(client MessagingClient, done chan struct{}) {
 		// Process message.
 		var err error
 		switch m.Type {
-		case writeSeriesMessageType:
-			err = s.applyWriteSeries(m)
 		case writeRawSeriesMessageType:
 			err = s.applyWriteRawSeries(m)
 		case createDataNodeMessageType:
@@ -2648,10 +2719,14 @@ func (s *Server) processor(client MessagingClient, done chan struct{}) {
 			err = s.applyDeleteShardGroup(m)
 		case setDefaultRetentionPolicyMessageType:
 			err = s.applySetDefaultRetentionPolicy(m)
+		case createFieldsIfNotExistsMessageType:
+			err = s.applyCreateFieldsIfNotExist(m)
 		case createSeriesIfNotExistsMessageType:
 			err = s.applyCreateSeriesIfNotExists(m)
 		case setPrivilegeMessageType:
 			err = s.applySetPrivilege(m)
+		case createContinuousQueryMessageType:
+			err = s.applyCreateContinuousQueryCommand(m)
 		}
 
 		// Sync high water mark and errors.
@@ -2711,7 +2786,7 @@ type Results struct {
 	Err     error
 }
 
-// MarshalJSON encodes a Results stuct into JSON.
+// MarshalJSON encodes a Results struct into JSON.
 func (r Results) MarshalJSON() ([]byte, error) {
 	// Define a struct that outputs "error" as a string.
 	var o struct {
@@ -2766,7 +2841,7 @@ type MessagingClient interface {
 	Publish(m *messaging.Message) (index uint64, err error)
 
 	// Creates a new replica with a given ID on the broker.
-	CreateReplica(replicaID uint64) error
+	CreateReplica(replicaID uint64, connectURL *url.URL) error
 
 	// Deletes an existing replica with a given ID from the broker.
 	DeleteReplica(replicaID uint64) error
@@ -2904,9 +2979,272 @@ func HashPassword(password string) ([]byte, error) {
 // ContinuousQuery represents a query that exists on the server and processes
 // each incoming event.
 type ContinuousQuery struct {
-	ID    uint32
-	Query string
-	// TODO: ParsedQuery *parser.SelectQuery
+	Query string `json:"query"`
+
+	mu              sync.Mutex
+	cq              *influxql.CreateContinuousQueryStatement
+	lastRun         time.Time
+	intoDB          string
+	intoRP          string
+	intoMeasurement string
+}
+
+// NewContinuousQuery returns a ContinuousQuery object with a parsed influxql.CreateContinuousQueryStatement
+func NewContinuousQuery(q string) (*ContinuousQuery, error) {
+	stmt, err := influxql.NewParser(strings.NewReader(q)).ParseStatement()
+	if err != nil {
+		return nil, err
+	}
+
+	cq, ok := stmt.(*influxql.CreateContinuousQueryStatement)
+	if !ok {
+		return nil, errors.New("query isn't a continuous query")
+	}
+
+	cquery := &ContinuousQuery{
+		Query: q,
+		cq:    cq,
+	}
+
+	// set which database and retention policy, and measuremet a CQ is writing into
+	a, err := influxql.SplitIdent(cq.Source.Target.Measurement)
+	if err != nil {
+		return nil, err
+	}
+
+	// set the default into database to the same as the from database
+	cquery.intoDB = cq.Database
+
+	if len(a) == 1 { // into only set the measurement name. keep default db and rp
+		cquery.intoMeasurement = a[0]
+	} else if len(a) == 2 { // into set the rp and the measurement
+		cquery.intoRP = a[0]
+		cquery.intoMeasurement = a[1]
+	} else { // into set db, rp, and measurement
+		cquery.intoDB = a[0]
+		cquery.intoRP = a[1]
+		cquery.intoMeasurement = a[2]
+	}
+
+	return cquery, nil
+}
+
+// applyCreateContinuousQueryCommand adds the continuous query to the database object and saves it to the metastore
+func (s *Server) applyCreateContinuousQueryCommand(m *messaging.Message) error {
+	var c createContinuousQueryCommand
+	mustUnmarshalJSON(m.Data, &c)
+
+	cq, err := NewContinuousQuery(c.Query)
+	if err != nil {
+		return err
+	}
+
+	// normalize the select statement in the CQ so that it has the database and retention policy inserted
+	if err := s.NormalizeStatement(cq.cq.Source, cq.cq.Database); err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// ensure the into database exists
+	if s.databases[cq.intoDB] == nil {
+		return ErrDatabaseNotFound
+	}
+
+	// Retrieve the database.
+	db := s.databases[cq.cq.Database]
+	if db == nil {
+		return ErrDatabaseNotFound
+	} else if db.continuousQueryByName(cq.cq.Name) != nil {
+		return ErrContinuousQueryExists
+	}
+
+	// Add cq to the database.
+	db.continuousQueries = append(db.continuousQueries, cq)
+
+	// Persist to metastore.
+	s.meta.mustUpdate(func(tx *metatx) error {
+		return tx.saveDatabase(db)
+	})
+
+	return nil
+}
+
+// RunContinuousQueries will run any continuous queries that are due to run and write the
+// results back into the database
+func (s *Server) RunContinuousQueries() error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for _, d := range s.databases {
+		for _, c := range d.continuousQueries {
+			if s.shouldRunContinuousQuery(c) {
+				// set the into retention policy based on what is now the default
+				if c.intoRP == "" {
+					c.intoRP = d.defaultRetentionPolicy
+				}
+				go func(cq *ContinuousQuery) {
+					s.runContinuousQuery(c)
+				}(c)
+			}
+		}
+	}
+
+	return nil
+}
+
+// shouldRunContinuousQuery returns true if the CQ should be schedule to run. It will use the
+// lastRunTime of the CQ and the rules for when to run set through the config to determine
+// if this CQ should be run
+func (s *Server) shouldRunContinuousQuery(cq *ContinuousQuery) bool {
+	// if it's not aggregated we don't run it
+	if !cq.cq.Source.Aggregated() {
+		return false
+	}
+
+	// since it's aggregated we need to figure how often it should be run
+	interval, err := cq.cq.Source.GroupByInterval()
+	if err != nil {
+		return false
+	}
+
+	// determine how often we should run this continuous query.
+	// group by time / the number of times to compute
+	computeEvery := time.Duration(interval.Nanoseconds()/int64(s.ComputeRunsPerInterval)) * time.Nanosecond
+	// make sure we're running no more frequently than the setting in the config
+	if computeEvery < s.ComputeNoMoreThan {
+		computeEvery = s.ComputeNoMoreThan
+	}
+
+	// if we've passed the amount of time since the last run, do it up
+	if cq.lastRun.Add(computeEvery).UnixNano() <= time.Now().UnixNano() {
+		return true
+	}
+
+	return false
+}
+
+// runContinuousQuery will execute a continuous query
+// TODO: make this fan out to the cluster instead of running all the queries on this single data node
+func (s *Server) runContinuousQuery(cq *ContinuousQuery) {
+	cq.mu.Lock()
+	defer cq.mu.Unlock()
+
+	now := time.Now()
+	cq.lastRun = now
+
+	interval, err := cq.cq.Source.GroupByInterval()
+	if err != nil || interval == 0 {
+		return
+	}
+
+	startTime := now.Round(interval)
+	if startTime.UnixNano() > now.UnixNano() {
+		startTime = startTime.Add(-interval)
+	}
+
+	if err := cq.cq.Source.SetTimeRange(startTime, startTime.Add(interval)); err != nil {
+		log.Printf("cq error setting time range: %s\n", err.Error())
+	}
+
+	if err := s.runContinuousQueryAndWriteResult(cq); err != nil {
+		log.Printf("cq error: %s. running: %s\n", err.Error(), cq.cq.String())
+	}
+
+	for i := 0; i < s.RecomputePreviousN; i++ {
+		// if we're already more time past the previous window than we're going to look back, stop
+		if now.Sub(startTime) > s.RecomputeNoOlderThan {
+			return
+		}
+		newStartTime := startTime.Add(-interval)
+
+		if err := cq.cq.Source.SetTimeRange(newStartTime, startTime); err != nil {
+			log.Printf("cq error setting time range: %s\n", err.Error())
+		}
+
+		if err := s.runContinuousQueryAndWriteResult(cq); err != nil {
+			log.Printf("cq error: %s. running: %s\n", err.Error(), cq.cq.String())
+		}
+
+		startTime = newStartTime
+	}
+}
+
+// runContinuousQueryAndWriteResult will run the query against the cluster and write the results back in
+func (s *Server) runContinuousQueryAndWriteResult(cq *ContinuousQuery) error {
+	e, err := s.planSelectStatement(cq.cq.Source)
+
+	if err != nil {
+		return err
+	}
+
+	// Execute plan.
+	ch, err := e.Execute()
+	if err != nil {
+		return err
+	}
+
+	// Read all rows from channel and write them in
+	for row := range ch {
+		points, err := s.convertRowToPoints(cq.intoMeasurement, row)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+
+		if len(points) > 0 {
+			_, err = s.WriteSeries(cq.intoDB, cq.intoRP, points)
+			if err != nil {
+				log.Printf("[cq] err: %s", err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// convertRowToPoints will convert a query result Row into Points that can be written back in.
+// Used for continuous and INTO queries
+func (s *Server) convertRowToPoints(measurementName string, row *influxql.Row) ([]Point, error) {
+	// figure out which parts of the result are the time and which are the fields
+	timeIndex := -1
+	fieldIndexes := make(map[string]int)
+	for i, c := range row.Columns {
+		if c == "time" {
+			timeIndex = i
+		} else {
+			fieldIndexes[c] = i
+		}
+	}
+
+	if timeIndex == -1 {
+		return nil, errors.New("cq error finding time index in result")
+	}
+
+	points := make([]Point, 0, len(row.Values))
+	for _, v := range row.Values {
+		vals := make(map[string]interface{})
+		for fieldName, fieldIndex := range fieldIndexes {
+			vals[fieldName] = v[fieldIndex]
+		}
+
+		p := &Point{
+			Name:      measurementName,
+			Tags:      row.Tags,
+			Timestamp: v[timeIndex].(time.Time),
+			Values:    vals,
+		}
+
+		points = append(points, *p)
+	}
+
+	return points, nil
+}
+
+// createContinuousQueryCommand is the raft command for creating a continuous query on a database
+type createContinuousQueryCommand struct {
+	Query string `json:"query"`
 }
 
 // copyURL returns a copy of the the URL.

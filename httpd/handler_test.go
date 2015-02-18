@@ -1040,6 +1040,36 @@ func TestHandler_RevokeDBPrivilege(t *testing.T) {
 	}
 }
 
+func TestHandler_ShowContinuousQueries(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
+	srvr.SetDefaultRetentionPolicy("foo", "bar")
+
+	// create and check
+	q := "CREATE CONTINUOUS QUERY myquery ON foo BEGIN SELECT count() INTO measure1 FROM myseries GROUP BY time(10m) END"
+	stmt, err := influxql.NewParser(strings.NewReader(q)).ParseStatement()
+	if err != nil {
+		t.Fatalf("error parsing query %s", err.Error())
+	}
+	cq := stmt.(*influxql.CreateContinuousQueryStatement)
+	if err := srvr.CreateContinuousQuery(cq); err != nil {
+		t.Fatalf("error creating continuous query %s", err.Error())
+	}
+
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	query := map[string]string{"q": "SHOW CONTINUOUS QUERIES"}
+	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	} else if body != `{"results":[{"rows":[{"name":"foo","columns":["name","query"],"values":[["myquery","CREATE CONTINUOUS QUERY myquery ON foo BEGIN SELECT count() INTO measure1 FROM myseries GROUP BY time(10m) END"]]}]}]}` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+
+}
+
 func TestHandler_serveWriteSeries(t *testing.T) {
 	srvr := OpenAuthenticatedServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
@@ -1125,6 +1155,45 @@ func TestHandler_serveWriteSeries_noDatabaseSpecified(t *testing.T) {
 	}
 }
 
+func TestHandler_serveWriteSeriesNonZeroTime(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
+	srvr.SetDefaultRetentionPolicy("foo", "bar")
+
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z", "values": {"value": 100}}]}`)
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	time.Sleep(100 * time.Millisecond) // Ensure data node picks up write.
+
+	query := map[string]string{"db": "foo", "q": "select value from cpu"}
+	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
+	if status != http.StatusOK {
+		t.Logf("query %s\n", query)
+		t.Log(body)
+		t.Errorf("unexpected status: %d", status)
+	}
+
+	r := &influxdb.Results{}
+	if err := json.Unmarshal([]byte(body), r); err != nil {
+		t.Logf("query : %s\n", query)
+		t.Log(body)
+		t.Error(err)
+	}
+	if len(r.Results) != 1 {
+		t.Fatalf("unexpected results count")
+	}
+
+	result := r.Results[0]
+	if len(result.Rows) != 1 {
+		t.Fatalf("unexpected row count, expected: %d, actual: %d", 1, len(result.Rows))
+	}
+}
+
 func TestHandler_serveWriteSeriesZeroTime(t *testing.T) {
 	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
@@ -1141,6 +1210,7 @@ func TestHandler_serveWriteSeriesZeroTime(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	}
+	time.Sleep(100 * time.Millisecond) // Ensure data node picks up write.
 
 	query := map[string]string{"db": "foo", "q": "select value from cpu"}
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
@@ -1171,7 +1241,162 @@ func TestHandler_serveWriteSeriesZeroTime(t *testing.T) {
 		t.Fatalf("failed to write a default time, actual: %v", row.Values[0][0])
 	}
 	if !timestamp.After(now) {
-		t.Fatalf("time was not valid.  expected something after %v, actual: %v", now, timestamp)
+		t.Fatalf("time was not valid. expected something after %v, actual: %v", now, timestamp)
+	}
+}
+
+func TestHandler_serveWriteSeriesStringValues(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
+	srvr.SetDefaultRetentionPolicy("foo", "bar")
+
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "logs", "tags": {"host": "server01"},"values": {"event": "disk full"}}]}`)
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	time.Sleep(100 * time.Millisecond) // Ensure data node picks up write.
+
+	query := map[string]string{"db": "foo", "q": "select event from logs"}
+	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
+	if status != http.StatusOK {
+		t.Logf("query %s\n", query)
+		t.Log(body)
+		t.Errorf("unexpected status: %d", status)
+	}
+
+	r := &influxdb.Results{}
+	if err := json.Unmarshal([]byte(body), r); err != nil {
+		t.Logf("query : %s\n", query)
+		t.Log(body)
+		t.Error(err)
+	}
+	if len(r.Results) != 1 {
+		t.Fatalf("unexpected results count")
+	}
+	result := r.Results[0]
+	if len(result.Rows) != 1 {
+		t.Fatalf("unexpected row count, expected: %d, actual: %d", 1, len(result.Rows))
+	}
+	if result.Rows[0].Values[0][1] != "disk full" {
+		t.Fatalf("unexpected string value, actual: %s", result.Rows[0].Values[0][1])
+	}
+}
+
+func TestHandler_serveWriteSeriesBoolValues(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
+	srvr.SetDefaultRetentionPolicy("foo", "bar")
+
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "disk", "tags": {"host": "server01"},"values": {"full": false}}]}`)
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	time.Sleep(100 * time.Millisecond) // Ensure data node picks up write.
+
+	query := map[string]string{"db": "foo", "q": "select full from disk"}
+	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
+	if status != http.StatusOK {
+		t.Logf("query %s\n", query)
+		t.Log(body)
+		t.Errorf("unexpected status: %d", status)
+	}
+
+	r := &influxdb.Results{}
+	if err := json.Unmarshal([]byte(body), r); err != nil {
+		t.Logf("query : %s\n", query)
+		t.Log(body)
+		t.Error(err)
+	}
+	if len(r.Results) != 1 {
+		t.Fatalf("unexpected results count")
+	}
+	result := r.Results[0]
+	if len(result.Rows) != 1 {
+		t.Fatalf("unexpected row count, expected: %d, actual: %d", 1, len(result.Rows))
+	}
+	if result.Rows[0].Values[0][1] != false {
+		t.Fatalf("unexpected string value, actual: %s", result.Rows[0].Values[0][1])
+	}
+}
+
+func TestHandler_serveWriteSeriesInvalidQueryField(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
+	srvr.SetDefaultRetentionPolicy("foo", "bar")
+
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"values": {"value": 100}}]}`)
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	time.Sleep(100 * time.Millisecond) // Ensure data node picks up write.
+
+	query := map[string]string{"db": "foo", "q": "select bar from cpu"}
+	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
+	if status != http.StatusInternalServerError {
+		t.Logf("query %s\n", query)
+		t.Log(body)
+		t.Errorf("unexpected status: %d", status)
+	}
+
+	r := &influxdb.Results{}
+	if err := json.Unmarshal([]byte(body), r); err != nil {
+		t.Logf("query : %s\n", query)
+		t.Log(body)
+		t.Error(err)
+	}
+	if len(r.Results) != 1 {
+		t.Fatalf("unexpected results count")
+	}
+	result := r.Results[0]
+	if len(result.Rows) != 0 {
+		t.Fatalf("unexpected row count, expected: %d, actual: %d", 0, len(result.Rows))
+	}
+	if result.Err.Error() != "field not found: bar" {
+		t.Fatalf("unexpected error returned, actual: %s", result.Err.Error())
+	}
+}
+
+func TestHandler_serveWriteSeriesFieldTypeConflict(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
+	srvr.SetDefaultRetentionPolicy("foo", "bar")
+
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"values": {"value": 100}}]}`)
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+
+	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"values": {"value": "foo"}}]}`)
+	if status != http.StatusInternalServerError {
+		t.Errorf("unexpected status: %d", status)
+	}
+
+	r := &influxdb.Results{}
+	if err := json.Unmarshal([]byte(body), r); err != nil {
+		t.Log(body)
+		t.Error(err)
+	}
+	if len(r.Results) != 0 {
+		t.Fatalf("unexpected results count")
+	}
+	if r.Err.Error() != "field \"value\" is type string, mapped as type number" {
+		t.Fatalf("unexpected error returned, actual: %s", r.Err.Error())
 	}
 }
 
@@ -1897,7 +2122,7 @@ type MessagingClient struct {
 	mu    sync.Mutex // Ensure all publishing is serialized.
 
 	PublishFunc       func(*messaging.Message) (uint64, error)
-	CreateReplicaFunc func(replicaID uint64) error
+	CreateReplicaFunc func(replicaID uint64, connectURL *url.URL) error
 	DeleteReplicaFunc func(replicaID uint64) error
 	SubscribeFunc     func(replicaID, topicID uint64) error
 	UnsubscribeFunc   func(replicaID, topicID uint64) error
@@ -1907,7 +2132,7 @@ type MessagingClient struct {
 func NewMessagingClient() *MessagingClient {
 	c := &MessagingClient{c: make(chan *messaging.Message, 1)}
 	c.PublishFunc = c.send
-	c.CreateReplicaFunc = func(replicaID uint64) error { return nil }
+	c.CreateReplicaFunc = func(replicaID uint64, connectURL *url.URL) error { return nil }
 	c.DeleteReplicaFunc = func(replicaID uint64) error { return nil }
 	c.SubscribeFunc = func(replicaID, topicID uint64) error { return nil }
 	c.UnsubscribeFunc = func(replicaID, topicID uint64) error { return nil }
@@ -1932,8 +2157,8 @@ func (c *MessagingClient) send(m *messaging.Message) (uint64, error) {
 }
 
 // Creates a new replica with a given ID on the broker.
-func (c *MessagingClient) CreateReplica(replicaID uint64) error {
-	return c.CreateReplicaFunc(replicaID)
+func (c *MessagingClient) CreateReplica(replicaID uint64, connectURL *url.URL) error {
+	return c.CreateReplicaFunc(replicaID, connectURL)
 }
 
 // Deletes an existing replica with a given ID from the broker.

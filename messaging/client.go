@@ -225,15 +225,18 @@ func (c *Client) Publish(m *Message) (uint64, error) {
 }
 
 // CreateReplica creates a replica on the broker.
-func (c *Client) CreateReplica(id uint64) error {
+func (c *Client) CreateReplica(id uint64, u *url.URL) error {
 	var resp *http.Response
 	var err error
 
-	u := *c.LeaderURL()
+	leaderURL := *c.LeaderURL()
 	for {
-		u.Path = "/messaging/replicas"
-		u.RawQuery = url.Values{"id": {strconv.FormatUint(id, 10)}}.Encode()
-		resp, err = http.Post(u.String(), "application/octet-stream", nil)
+		leaderURL.Path = "/messaging/replicas"
+		leaderURL.RawQuery = url.Values{
+			"id":  {strconv.FormatUint(id, 10)},
+			"url": {u.String()},
+		}.Encode()
+		resp, err = http.Post(leaderURL.String(), "application/octet-stream", nil)
 		if err != nil {
 			return err
 		}
@@ -246,7 +249,7 @@ func (c *Client) CreateReplica(id uint64) error {
 			if err != nil {
 				return fmt.Errorf("bad redirect: %s", resp.Header.Get("Location"))
 			}
-			u = *redirectURL
+			leaderURL = *redirectURL
 			continue
 		} else if resp.StatusCode != http.StatusCreated {
 			return errors.New(resp.Header.Get("X-Broker-Error"))

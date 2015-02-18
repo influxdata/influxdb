@@ -32,6 +32,8 @@ func InspectDataType(v interface{}) DataType {
 	switch v.(type) {
 	case float64:
 		return Number
+	case int:
+		return Number
 	case bool:
 		return Boolean
 	case string:
@@ -546,6 +548,9 @@ type SelectStatement struct {
 
 	// Returns rows starting at an offset from the first row.
 	Offset int
+
+	// memoize the group by interval
+	groupByInterval time.Duration
 }
 
 // Clone returns a deep copy of the statement.
@@ -680,6 +685,76 @@ func (s *SelectStatement) walkForTime(node Node) bool {
 	}
 }
 
+// GroupByIterval extracts the time interval, if specified.
+func (s *SelectStatement) GroupByInterval() (time.Duration, error) {
+	// return if we've already pulled it out
+	if s.groupByInterval != 0 {
+		return s.groupByInterval, nil
+	}
+
+	// Ignore if there are no dimensions.
+	if len(s.Dimensions) == 0 {
+		return 0, nil
+	}
+
+	for _, d := range s.Dimensions {
+		if call, ok := d.Expr.(*Call); ok && strings.ToLower(call.Name) == "time" {
+			// Make sure there is exactly one argument.
+			if len(call.Args) != 1 {
+				return 0, errors.New("time dimension expected one argument")
+			}
+
+			// Ensure the argument is a duration.
+			lit, ok := call.Args[0].(*DurationLiteral)
+			if !ok {
+				return 0, errors.New("time dimension must have one duration argument")
+			}
+			s.groupByInterval = lit.Val
+			return lit.Val, nil
+		}
+	}
+	return 0, nil
+}
+
+// SetTimeRange sets the start and end time of the select statement to [start, end). i.e. start inclusive, end exclusive.
+// This is used commonly for continuous queries so the start and end are in buckets.
+func (s *SelectStatement) SetTimeRange(start, end time.Time) error {
+	cond := fmt.Sprintf("time >= '%s' AND time < '%s'", start.UTC().Format(time.RFC3339Nano), end.UTC().Format(time.RFC3339Nano))
+	if s.Condition != nil {
+		cond = fmt.Sprintf("%s AND %s", s.rewriteWithoutTimeDimensions(), cond)
+	}
+
+	expr, err := NewParser(strings.NewReader(cond)).ParseExpr()
+	if err != nil {
+		return err
+	}
+
+	// fold out any previously replaced time dimensios and set the condition
+	s.Condition = Reduce(expr, nil)
+
+	return nil
+}
+
+// rewriteWithoutTimeDimensions will remove any WHERE time... clauses from the select statement
+// This is necessary when setting an explicit time range to override any that previously existed.
+func (s *SelectStatement) rewriteWithoutTimeDimensions() string {
+	n := RewriteFunc(s.Condition, func(n Node) Node {
+		switch n := n.(type) {
+		case *BinaryExpr:
+			if n.LHS.String() == "time" {
+				return &BooleanLiteral{Val: true}
+			}
+			return n
+		case *Call:
+			return &BooleanLiteral{Val: true}
+		default:
+			return n
+		}
+	})
+
+	return n.String()
+}
+
 /*
 
 BinaryExpr
@@ -807,6 +882,7 @@ func MatchSource(src Source, name string) string {
 	return ""
 }
 
+// TODO pauldix: Target should actually have a Database, RetentionPolicy, and Measurement. These should be set based on the ON part of the query, and the SplitIdent of the INTO name
 // Target represents a target (destination) policy, measurment, and DB.
 type Target struct {
 	// Measurement to write into.

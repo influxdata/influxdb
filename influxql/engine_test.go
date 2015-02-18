@@ -765,16 +765,16 @@ func NewIterator(tags []string, points []Point) *Iterator {
 func (i *Iterator) Tags() string { return i.tags }
 
 // Next returns the next point's timestamp and field value.
-func (i *Iterator) Next() (key int64, value interface{}) {
+func (i *Iterator) Next() (key int64, data []byte, value interface{}) {
 	// If index is beyond points range then return nil.
 	if i.index > len(i.points)-1 {
-		return 0, nil
+		return 0, nil, nil
 	}
 
 	// Retrieve point and extract value.
 	p := i.points[i.index]
 	i.index++
-	return p.Time(), p.Value
+	return p.Time(), nil, p.Value
 }
 
 // Point represents a single value at a given time.
