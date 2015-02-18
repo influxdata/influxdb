@@ -381,7 +381,7 @@ func TestSelectStatement_RewriteWildcards(t *testing.T) {
 			t.Fatalf("invalid statement: %q: %s", tt.stmt, err)
 		}
 
-		// Extract substatement.
+		// Rewrite statement.
 		rw := stmt.(*influxql.SelectStatement).RewriteWildcards(fields, dimensions)
 		if rw == nil {
 			t.Errorf("%d. %q: unexpected nil statement", i, tt.stmt)
