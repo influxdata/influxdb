@@ -1585,6 +1585,68 @@ type createSeriesIfNotExistsCommand struct {
 	Tags     map[string]string `json:"tags"`
 }
 
+type createMeasurementSubcommand struct {
+	Name   string                       `json:"name"`
+	Tags   map[string]map[string]string `json:"tags"`
+	Fields map[string]influxql.DataType `json:"fields"`
+}
+
+type createMeasurementsIfNotExistsCommand struct {
+	Database     string                                 `json:"database"`
+	Measurements map[string]createMeasurementSubcommand `json:"measurements"`
+}
+
+// addMeasurementIfNotExists adds the Measurement to the command, but only if not already present
+// in the command.
+func (c *createMeasurementsIfNotExistsCommand) addMeasurementIfNotExists(name string) error {
+	_, ok := c.Measurements[name]
+	if !ok {
+		c.Measurements[name] = createMeasurementSubcommand{Name: name}
+	}
+	return nil
+}
+
+// addSeriesIfNotExists adds the Series, identified by Measurement name and tag set, to
+// the command, but only if not already present in the command.
+func (c *createMeasurementsIfNotExistsCommand) addSeriesIfNotExists(measurement string, tags map[string]string) error {
+	_, ok := c.Measurements[measurement]
+	if !ok {
+		return ErrMeasurementNotFound
+	}
+
+	tagset := string(marshalTags(tags))
+	_, ok = c.Measurements[measurement].Tags[tagset]
+	if ok {
+		// Series already present in in subcommand, nothing to do.
+		return nil
+	}
+	// Tag-set needs to added to subcommand.
+	c.Measurements[measurement].Tags[tagset] = tags
+
+	return nil
+}
+
+// addFieldIfNotExists adds the field to the command for the Measurement, but only if it is not already
+// present. It will return an error if the field is present in the command, but is of a different type.
+func (c *createMeasurementsIfNotExistsCommand) addFieldIfNotExists(measurement, name string, typ influxql.DataType) error {
+	_, ok := c.Measurements[measurement]
+	if !ok {
+		return ErrMeasurementNotFound
+	}
+
+	t, ok := c.Measurements[measurement].Fields[name]
+	if ok {
+		if typ != t {
+			return ErrFieldTypeConflict
+		}
+		// Field already present in subcommand with same type, nothing to do.
+		return nil
+	}
+	// New field for this measurement so add it to the subcommand.
+	c.Measurements[measurement].Fields[name] = typ
+	return nil
+}
+
 // Point defines the values that will be written to the database
 type Point struct {
 	Name      string
@@ -1605,6 +1667,10 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 			return 0, ErrDefaultRetentionPolicyNotFound
 		}
 		retentionPolicy = rp.Name
+	}
+
+	if err := s.createMeasurementsIfNotExists(database, retentionPolicy, points); err != nil {
+		return 0, err
 	}
 
 	// Collect responses for each channel.
@@ -1769,6 +1835,64 @@ func (s *Server) createSeriesIfNotExists(database, name string, tags map[string]
 		return 0, ErrSeriesNotFound
 	}
 	return series.ID, nil
+}
+
+// createMeasurementsIfNotExists walks the "points" and ensures that all new Series are created, and all
+// new Measurement fields have been created, across the cluster.
+func (s *Server) createMeasurementsIfNotExists(database, retentionPolicy string, points []Point) error {
+	c := createMeasurementsIfNotExistsCommand{Database: database}
+
+	s.mu.RLock()
+	db := s.databases[database]
+	if db == nil {
+		s.mu.RUnlock()
+		return fmt.Errorf("database not found %q", database)
+	}
+
+	for _, p := range points {
+		measurement, series := db.MeasurementAndSeries(p.Name, p.Tags)
+
+		if measurement == nil {
+			// Measurement not in Metastore, add to command so it's created cluster-wide.
+			c.addMeasurementIfNotExists(p.Name)
+		}
+
+		if series == nil {
+			// Series does not exist in Metastore, add it so it's created cluster-wide.
+			c.addSeriesIfNotExists(p.Name, p.Tags)
+		}
+
+		for k, v := range p.Values {
+			if measurement != nil {
+				if f := measurement.FieldByName(k); f != nil {
+					// Field present in Metastore, make sure there is no type conflict.
+					if f.Type != influxql.InspectDataType(v) {
+						return fmt.Errorf(fmt.Sprintf("field \"%s\" is type %T, mapped as type %s", k, v, f.Type))
+					} else {
+						// Field does not exist in Metastore, add it so it's created cluster-wide.
+						if err := c.addFieldIfNotExists(p.Name, k, influxql.InspectDataType(v)); err != nil {
+							return err
+						}
+					}
+				}
+			} else {
+				// Measurement does not exist, so fields can't exist. Add each one unconditionally.
+				if err := c.addFieldIfNotExists(p.Name, k, influxql.InspectDataType(v)); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	// Any broadcast actually required?
+	if len(c.Measurements) > 0 {
+		_, err := s.broadcast(createSeriesIfNotExistsMessageType, c)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (s *Server) createFieldsIfNotExists(database string, measurement string, values map[string]interface{}) error {
