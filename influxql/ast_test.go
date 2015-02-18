@@ -262,6 +262,12 @@ func TestSelectStatement_RewriteWildcards(t *testing.T) {
 			rewrite: `SELECT value FROM cpu GROUP BY host`,
 		},
 
+		// No GROUP BY wildcards, time only
+		{
+			stmt:    `SELECT value FROM cpu GROUP BY time(5ms)`,
+			rewrite: `SELECT value FROM cpu GROUP BY time(5ms)`,
+		},
+
 		// GROUP BY wildcard
 		{
 			stmt:    `SELECT value FROM cpu GROUP BY *`,

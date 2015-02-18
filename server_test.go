@@ -1044,13 +1044,23 @@ func TestServer_ExecuteWildcardGroupBy(t *testing.T) {
 	// Write series with one point to the database.
 	// We deliberatly write one value per insert as we need to create each field in a predicatable order for testing.
 	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(10)}}})
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: mustParseTime("2000-01-01T00:00:10Z"), Values: map[string]interface{}{"val-x": 20}}})
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: mustParseTime("2000-01-01T00:00:20Z"), Values: map[string]interface{}{"value": 30, "val-x": 40}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: mustParseTime("2000-01-01T00:00:10Z"), Values: map[string]interface{}{"value": 20}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-west"}, Timestamp: mustParseTime("2000-01-01T00:00:20Z"), Values: map[string]interface{}{"value": 30}}})
 
-	// Select * (wildcard).
-	results := s.ExecuteQuery(MustParseQuery(`SELECT value FROM cpu GROUP BY *`), "foo", nil)
+	// GROUP BY * (wildcard).
+	results := s.ExecuteQuery(MustParseQuery(`SELECT mean(value) FROM cpu GROUP BY *`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
-		t.Fatalf("unexpected error during SELECT *: %s", res.Err)
+		t.Fatalf("unexpected error during GROUP BY *: %s", res.Err)
+	} else if s := mustMarshalJSON(res); s != `{"rows":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",15]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",30]]}]}` {
+		t.Fatalf("unexpected results during SELECT *: %s", s)
+	}
+
+	// GROUP BY * (wildcard) with time.
+	results = s.ExecuteQuery(MustParseQuery(`SELECT mean(value) FROM cpu GROUP BY *,time(1m)`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error during GROUP BY *: %s", res.Err)
+	} else if s := mustMarshalJSON(res); s != `{"rows":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","mean"],"values":[["2000-01-01T00:00:00Z",15]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","mean"],"values":[["2000-01-01T00:00:00Z",30]]}]}` {
+		t.Fatalf("unexpected results during SELECT *: %s", s)
 	}
 }
 
