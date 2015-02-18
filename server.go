@@ -1807,6 +1807,10 @@ func (s *Server) executeSelectStatement(stmt *influxql.SelectStatement, database
 
 // rewriteSelectStatement performs any necessary query re-writing.
 func (s *Server) rewriteSelectStatement(stmt *influxql.SelectStatement) (*influxql.SelectStatement, error) {
+	if !stmt.HasWildcard() {
+		return stmt, nil
+	}
+
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 

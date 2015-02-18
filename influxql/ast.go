@@ -721,6 +721,25 @@ func (s *SelectStatement) walkForTime(node Node) bool {
 	}
 }
 
+// HasWildcard returns whether or not the select statement has at least 1 wildcard
+func (s *SelectStatement) HasWildcard() bool {
+	for _, f := range s.Fields {
+		_, ok := f.Expr.(*Wildcard)
+		if ok {
+			return true
+		}
+	}
+
+	for _, d := range s.Dimensions {
+		_, ok := d.Expr.(*Wildcard)
+		if ok {
+			return true
+		}
+	}
+
+	return false
+}
+
 // GroupByIterval extracts the time interval, if specified.
 func (s *SelectStatement) GroupByInterval() (time.Duration, error) {
 	// return if we've already pulled it out

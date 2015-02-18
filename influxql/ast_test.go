@@ -215,6 +215,81 @@ func TestSelectStatement_SetTimeRange(t *testing.T) {
 	}
 }
 
+func TestSelectStatement_HasWildcard(t *testing.T) {
+	var tests = []struct {
+		stmt     string
+		wildcard bool
+	}{
+		// No wildcards
+		{
+			stmt:     `SELECT value FROM cpu`,
+			wildcard: false,
+		},
+
+		// Query wildcard
+		{
+			stmt:     `SELECT * FROM cpu`,
+			wildcard: true,
+		},
+
+		// No GROUP BY wildcards
+		{
+			stmt:     `SELECT value FROM cpu GROUP BY host`,
+			wildcard: false,
+		},
+
+		// No GROUP BY wildcards, time only
+		{
+			stmt:     `SELECT value FROM cpu GROUP BY time(5ms)`,
+			wildcard: false,
+		},
+
+		// GROUP BY wildcard
+		{
+			stmt:     `SELECT value FROM cpu GROUP BY *`,
+			wildcard: true,
+		},
+
+		// GROUP BY wildcard with time
+		{
+			stmt:     `SELECT value FROM cpu GROUP BY *,time(1m)`,
+			wildcard: true,
+		},
+
+		// GROUP BY wildcard with explicit
+		{
+			stmt:     `SELECT value FROM cpu GROUP BY *,host`,
+			wildcard: true,
+		},
+
+		// GROUP BY multiple wildcards
+		{
+			stmt:     `SELECT value FROM cpu GROUP BY *,*`,
+			wildcard: true,
+		},
+
+		// Combo
+		{
+			stmt:     `SELECT * FROM cpu GROUP BY *`,
+			wildcard: true,
+		},
+	}
+
+	for i, tt := range tests {
+		// Parse statement.
+		stmt, err := influxql.NewParser(strings.NewReader(tt.stmt)).ParseStatement()
+		if err != nil {
+			t.Fatalf("invalid statement: %q: %s", tt.stmt, err)
+		}
+
+		// Test wildcard detection.
+		if w := stmt.(*influxql.SelectStatement).HasWildcard(); tt.wildcard != w {
+			t.Errorf("%d. %q: unexpected wildcard detection:\n\nexp=%v\n\ngot=%v\n\n", i, tt.stmt, tt.wildcard, w)
+			continue
+		}
+	}
+}
+
 // Test SELECT statement wildcard rewrite.
 func TestSelectStatement_RewriteWildcards(t *testing.T) {
 	var fields = influxql.Fields{
