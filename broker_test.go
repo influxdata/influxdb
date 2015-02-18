@@ -45,7 +45,7 @@ func TestBroker_WillRunQueries(t *testing.T) {
 
 	// set the data nodes (replicas) so all the failure cases get hit first
 	if err := b.Broker.CreateReplica(1, &url.URL{Host: "127.0.0.1:8090"}); err != nil {
-		t.Fatalf("couldn't create replica ", err.Error())
+		t.Fatalf("couldn't create replica %s", err.Error())
 	}
 	b.Broker.CreateReplica(2, &url.URL{Host: timeoutServer.URL[7:]})
 	b.Broker.CreateReplica(3, &url.URL{Host: badServer.URL[7:]})
