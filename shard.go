@@ -4,8 +4,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"math"
-	"sort"
 	"time"
 
 	"github.com/boltdb/bolt"
@@ -120,7 +118,6 @@ func (s *Shard) writeSeries(seriesID uint32, timestamp int64, values []byte, ove
 		}
 
 		// Insert the values by timestamp.
-		warn("[write]", seriesID, time.Unix(0, timestamp))
 		if err := b.Put(u64tob(uint64(timestamp)), values); err != nil {
 			return err
 		}
@@ -152,85 +149,6 @@ func unmarshalPointHeader(b []byte) (seriesID uint32, timestamp int64) {
 	seriesID = binary.BigEndian.Uint32(b[0:4])
 	timestamp = int64(binary.BigEndian.Uint64(b[4:12]))
 	return
-}
-
-// marshalValues encodes a set of field ids and values to a byte slice.
-func marshalValues(values map[uint8]interface{}) []byte {
-	// Sort fields for consistency.
-	fieldIDs := make([]uint8, 0, len(values))
-	for fieldID := range values {
-		fieldIDs = append(fieldIDs, fieldID)
-	}
-	sort.Sort(uint8Slice(fieldIDs))
-
-	// Allocate byte slice and write field count.
-	b := make([]byte, 1, 10)
-	b[0] = byte(len(values))
-
-	// Write out each field.
-	for _, fieldID := range fieldIDs {
-		// Create a temporary buffer for this field.
-		buf := make([]byte, 9)
-		buf[0] = fieldID
-
-		// Convert integers to floats.
-		v := values[fieldID]
-		if intval, ok := v.(int); ok {
-			v = float64(intval)
-		}
-
-		// Encode value after field id.
-		// TODO: Support non-float types.
-		switch v := v.(type) {
-		case float64:
-			binary.BigEndian.PutUint64(buf[1:9], math.Float64bits(v))
-		default:
-			panic(fmt.Sprintf("unsupported value type: %T", v))
-		}
-
-		// Append temp buffer to the end.
-		b = append(b, buf...)
-	}
-
-	return b
-}
-
-// unmarshalValues decodes a byte slice into a set of field ids and values.
-func unmarshalValues(b []byte) map[uint8]interface{} {
-	if len(b) == 0 {
-		return nil
-	}
-
-	// Read the field count from the field byte.
-	n := int(b[0])
-
-	// Create a map to hold the decoded data.
-	values := make(map[uint8]interface{}, n)
-
-	// Start from the second byte and iterate over until we're done decoding.
-	b = b[1:]
-	for i := 0; i < n; i++ {
-		// First byte is the field identifier.
-		fieldID := b[0]
-
-		// Decode value.
-		// TODO: Support non-float types.
-		value := math.Float64frombits(binary.BigEndian.Uint64(b[1:9]))
-
-		values[fieldID] = value
-
-		// Move bytes forward.
-		b = b[9:]
-	}
-
-	return values
-}
-
-// unmarshalValue extracts a single value by field id from an encoded byte slice.
-func unmarshalValue(b []byte, fieldID uint8) interface{} {
-	// OPTIMIZE: Don't materialize entire map. Just search for value.
-	values := unmarshalValues(b)
-	return values[fieldID]
 }
 
 type uint8Slice []uint8

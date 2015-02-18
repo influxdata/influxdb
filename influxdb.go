@@ -106,6 +106,9 @@ var (
 	// ErrFieldTypeConflict is returned when a new field already exists with a different type.
 	ErrFieldTypeConflict = errors.New("field type conflict")
 
+	// ErrFieldNotFound
+	ErrFieldNotFound = errors.New("field not found")
+
 	// ErrSeriesNotFound is returned when looking up a non-existent series by database, name and tags
 	ErrSeriesNotFound = errors.New("series not found")
 
@@ -119,6 +122,9 @@ var (
 	// ErrInvalidGrantRevoke is returned when a statement requests an invalid
 	// privilege for a user on the cluster or a database.
 	ErrInvalidGrantRevoke = errors.New("invalid privilege requested")
+
+	// ErrContinuousQueryExists is returned when creating a duplicate continuous query.
+	ErrContinuousQueryExists = errors.New("continuous query already exists")
 )
 
 // BatchPoints is used to send batched data in a single write.

@@ -331,7 +331,7 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// CREATE CONTINUOUS QUERY ... INTO <measurement>
 		{
-			s: `CREATE CONTINUOUS QUERY myquery ON testdb BEGIN SELECT count() INTO measure1 FROM myseries END`,
+			s: `CREATE CONTINUOUS QUERY myquery ON testdb BEGIN SELECT count() INTO measure1 FROM myseries GROUP BY time(5m) END`,
 			stmt: &influxql.CreateContinuousQueryStatement{
 				Name:     "myquery",
 				Database: "testdb",
@@ -339,13 +339,23 @@ func TestParser_ParseStatement(t *testing.T) {
 					Fields: []*influxql.Field{{Expr: &influxql.Call{Name: "count"}}},
 					Target: &influxql.Target{Measurement: "measure1"},
 					Source: &influxql.Measurement{Name: "myseries"},
+					Dimensions: []*influxql.Dimension{
+						&influxql.Dimension{
+							Expr: &influxql.Call{
+								Name: "time",
+								Args: []influxql.Expr{
+									&influxql.DurationLiteral{Val: 5 * time.Minute},
+								},
+							},
+						},
+					},
 				},
 			},
 		},
 
 		// CREATE CONTINUOUS QUERY ... INTO <retention-policy>.<measurement>
 		{
-			s: `CREATE CONTINUOUS QUERY myquery ON testdb BEGIN SELECT count() INTO "1h.policy1"."cpu.load" FROM myseries END`,
+			s: `CREATE CONTINUOUS QUERY myquery ON testdb BEGIN SELECT count() INTO "1h.policy1"."cpu.load" FROM myseries GROUP BY time(5m) END`,
 			stmt: &influxql.CreateContinuousQueryStatement{
 				Name:     "myquery",
 				Database: "testdb",
@@ -355,6 +365,16 @@ func TestParser_ParseStatement(t *testing.T) {
 						Measurement: `"1h.policy1"."cpu.load"`,
 					},
 					Source: &influxql.Measurement{Name: "myseries"},
+					Dimensions: []*influxql.Dimension{
+						&influxql.Dimension{
+							Expr: &influxql.Call{
+								Name: "time",
+								Args: []influxql.Expr{
+									&influxql.DurationLiteral{Val: 5 * time.Minute},
+								},
+							},
+						},
+					},
 				},
 			},
 		},
@@ -642,6 +662,12 @@ func TestParser_ParseStatement(t *testing.T) {
 
 	for i, tt := range tests {
 		stmt, err := influxql.NewParser(strings.NewReader(tt.s)).ParseStatement()
+
+		// if it's a CQ, there is a non-exported field that gets memoized during parsing that needs to be set
+		if _, ok := stmt.(*influxql.CreateContinuousQueryStatement); ok {
+			tt.stmt.(*influxql.CreateContinuousQueryStatement).Source.GroupByInterval()
+		}
+
 		if !reflect.DeepEqual(tt.err, errstring(err)) {
 			t.Errorf("%d. %q: error mismatch:\n  exp=%s\n  got=%s\n\n", i, tt.s, tt.err, err)
 		} else if tt.err == "" && !reflect.DeepEqual(tt.stmt, stmt) {

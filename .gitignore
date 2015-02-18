@@ -30,8 +30,15 @@ protocol/protocol.pb.go
 build/
 
 # executables
-/influxd
-/influxdb
+
+influxd
+**/influxd
+!**/influxd/
+
+influxdb
+**/influxdb
+!**/influxdb/
+
 /benchmark-tool
 /main
 /benchmark-storage

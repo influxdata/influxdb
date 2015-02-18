@@ -48,7 +48,7 @@ func TestBroker_Publish(t *testing.T) {
 	defer b.Close()
 
 	// Create a new named replica.
-	if err := b.CreateReplica(2000); err != nil {
+	if err := b.CreateReplica(2000, &url.URL{Host: "localhost"}); err != nil {
 		t.Fatalf("create replica: %s", err)
 	}
 
@@ -122,8 +122,8 @@ func TestBroker_CreateReplica_ErrReplicaExists(t *testing.T) {
 	defer b.Close()
 
 	// Create a replica twice.
-	b.CreateReplica(2000)
-	if err := b.CreateReplica(2000); err != messaging.ErrReplicaExists {
+	b.CreateReplica(2000, &url.URL{Host: "localhost"})
+	if err := b.CreateReplica(2000, &url.URL{Host: "localhost"}); err != messaging.ErrReplicaExists {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }
@@ -134,7 +134,7 @@ func TestBroker_DeleteReplica(t *testing.T) {
 	defer b.Close()
 
 	// Create a new named replica.
-	if err := b.CreateReplica(2000); err != nil {
+	if err := b.CreateReplica(2000, &url.URL{Host: "localhost"}); err != nil {
 		t.Fatalf("create replica: %s", err)
 	}
 
@@ -179,7 +179,7 @@ func TestBroker_DeleteReplica_ErrReplicaNotFound(t *testing.T) {
 func TestBroker_Subscribe_ErrReplicaNotFound(t *testing.T) {
 	b := NewBroker(nil)
 	defer b.Close()
-	b.CreateReplica(2000)
+	b.CreateReplica(2000, &url.URL{Host: "localhost"})
 	if err := b.Subscribe(3000, 20); err != messaging.ErrReplicaNotFound {
 		t.Fatalf("unexpected error: %s", err)
 	}

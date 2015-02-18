@@ -44,7 +44,7 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 	// Start the broker handler.
 	var h *Handler
 	if b != nil {
-		h = &Handler{brokerHandler: messaging.NewHandler(b)}
+		h = &Handler{brokerHandler: messaging.NewHandler(b.Broker)}
 		// We want to make sure we are spun up before we exit this function, so we manually listen and serve
 		listener, err := net.Listen("tcp", config.BrokerAddr())
 		if err != nil {
@@ -52,10 +52,13 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 		}
 		go func() { log.Fatal(http.Serve(listener, h)) }()
 		log.Printf("broker listening on %s", config.BrokerAddr())
+
+		// have it occasionally tell a data node in the cluster to run continuous queries
+		b.RunContinuousQueryLoop()
 	}
 
 	// Open server, initialize or join as necessary.
-	s := openServer(config.DataDir(), config.DataURL(), b, initializing, configExists, joinURLs, logWriter)
+	s := openServer(config, b, initializing, configExists, joinURLs, logWriter)
 	s.SetAuthenticationEnabled(config.Authentication.Enabled)
 
 	// Enable retention policy enforcement if requested.
@@ -132,7 +135,7 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 			}
 		}
 	}
-	return b, s
+	return b.Broker, s
 }
 
 // write the current process id to a file specified by path.
@@ -176,15 +179,16 @@ func parseConfig(path, hostname string) *Config {
 }
 
 // creates and initializes a broker.
-func openBroker(path string, u *url.URL, initializing bool, joinURLs []*url.URL, w io.Writer) *messaging.Broker {
+func openBroker(path string, u *url.URL, initializing bool, joinURLs []*url.URL, w io.Writer) *influxdb.Broker {
 	// Ignore if there's no existing broker and we're not initializing or joining.
 	if !fileExists(path) && !initializing && len(joinURLs) == 0 {
 		return nil
 	}
 
 	// Create broker.
-	b := messaging.NewBroker()
+	b := influxdb.NewBroker()
 	b.SetLogOutput(w)
+
 	if err := b.Open(path, u); err != nil {
 		log.Fatalf("failed to open broker: %s", err)
 	}
@@ -204,14 +208,14 @@ func openBroker(path string, u *url.URL, initializing bool, joinURLs []*url.URL,
 }
 
 // initializes a new broker.
-func initializeBroker(b *messaging.Broker) {
+func initializeBroker(b *influxdb.Broker) {
 	if err := b.Initialize(); err != nil {
 		log.Fatalf("initialize: %s", err)
 	}
 }
 
 // joins a broker to an existing cluster.
-func joinBroker(b *messaging.Broker, joinURLs []*url.URL) {
+func joinBroker(b *influxdb.Broker, joinURLs []*url.URL) {
 	// Attempts to join each server until successful.
 	for _, u := range joinURLs {
 		if err := b.Join(u); err != nil {
@@ -225,25 +229,30 @@ func joinBroker(b *messaging.Broker, joinURLs []*url.URL) {
 }
 
 // creates and initializes a server.
-func openServer(path string, u *url.URL, b *messaging.Broker, initializing, configExists bool, joinURLs []*url.URL, w io.Writer) *influxdb.Server {
+func openServer(config *Config, b *influxdb.Broker, initializing, configExists bool, joinURLs []*url.URL, w io.Writer) *influxdb.Server {
 	// Ignore if there's no existing server and we're not initializing or joining.
-	if !fileExists(path) && !initializing && len(joinURLs) == 0 {
+	if !fileExists(config.Data.Dir) && !initializing && len(joinURLs) == 0 {
 		return nil
 	}
 
 	// Create and open the server.
 	s := influxdb.NewServer()
 	s.SetLogOutput(w)
-	if err := s.Open(path); err != nil {
+	s.RecomputePreviousN = config.ContinuousQuery.RecomputePreviousN
+	s.RecomputeNoOlderThan = time.Duration(config.ContinuousQuery.RecomputeNoOlderThan)
+	s.ComputeRunsPerInterval = config.ContinuousQuery.ComputeRunsPerInterval
+	s.ComputeNoMoreThan = time.Duration(config.ContinuousQuery.ComputeNoMoreThan)
+
+	if err := s.Open(config.Data.Dir); err != nil {
 		log.Fatalf("failed to open data server: %v", err.Error())
 	}
 
 	// If the server is uninitialized then initialize or join it.
 	if initializing {
 		if len(joinURLs) == 0 {
-			initializeServer(s, b, w)
+			initializeServer(config.DataURL(), s, b, w)
 		} else {
-			joinServer(s, u, joinURLs)
+			joinServer(s, config.DataURL(), joinURLs)
 			openServerClient(s, joinURLs, w)
 		}
 	} else if !configExists {
@@ -264,11 +273,11 @@ func openServer(path string, u *url.URL, b *messaging.Broker, initializing, conf
 }
 
 // initializes a new server that does not yet have an ID.
-func initializeServer(s *influxdb.Server, b *messaging.Broker, w io.Writer) {
+func initializeServer(u *url.URL, s *influxdb.Server, b *influxdb.Broker, w io.Writer) {
 	// TODO: Create replica using the messaging client.
 
 	// Create replica on broker.
-	if err := b.CreateReplica(1); err != nil {
+	if err := b.CreateReplica(1, u); err != nil {
 		log.Fatalf("replica creation error: %s", err)
 	}
 

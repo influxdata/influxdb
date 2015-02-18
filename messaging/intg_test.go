@@ -19,7 +19,7 @@ func TestBroker_Join(t *testing.T) {
 	b0, b1 := s0.Broker(), s1.Broker()
 
 	// Create data on the first server.
-	b0.CreateReplica(20)
+	b0.CreateReplica(20, &url.URL{Host: "localhost"})
 	b0.Subscribe(20, 1000)
 	index, _ := b0.Publish(&messaging.Message{Type: 100, TopicID: 1000, Data: []byte("XXXX")})
 	b0.Sync(index)
@@ -69,7 +69,7 @@ func BenchmarkCluster_Publish(b *testing.B) {
 	defer c.Close()
 
 	// Create replica and connect client.
-	c.Leader().Broker().CreateReplica(100)
+	c.Leader().Broker().CreateReplica(100, &url.URL{Host: "localhost"})
 	client := messaging.NewClient(100)
 	client.Open("", []*url.URL{c.URL()})
 

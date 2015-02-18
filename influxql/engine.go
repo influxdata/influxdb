@@ -42,7 +42,7 @@ type Iterator interface {
 	Tags() string
 
 	// Next returns the next value from the iterator.
-	Next() (key int64, value interface{})
+	Next() (key int64, data []byte, value interface{})
 }
 
 // Planner represents an object for creating execution plans.
@@ -319,7 +319,7 @@ loop:
 	for _, row := range rows {
 		for _, values := range row.Values {
 			t := time.Unix(0, values[0].(int64))
-			values[0] = t.UTC().Format(time.RFC3339Nano)
+			values[0] = t.UTC()
 		}
 		a = append(a, row)
 	}
@@ -409,7 +409,7 @@ func (m *Mapper) run(e *Emitter) {
 	var tmin int64
 	if m.interval > 0 {
 		// Align start time to interval.
-		tmin, _ = bufItr.Peek()
+		tmin, _, _ = bufItr.Peek()
 		tmin -= (tmin % m.interval)
 	}
 
@@ -439,6 +439,7 @@ type bufIterator struct {
 
 	buf struct {
 		key   int64
+		data  []byte
 		value interface{}
 	}
 	buffered bool
@@ -448,27 +449,27 @@ type bufIterator struct {
 func (i *bufIterator) Tags() string { return i.itr.Tags() }
 
 // Next returns the next key/value pair from the iterator.
-func (i *bufIterator) Next() (key int64, value interface{}) {
+func (i *bufIterator) Next() (key int64, data []byte, value interface{}) {
 	// Read the key/value pair off the buffer or underlying iterator.
 	if i.buffered {
 		i.buffered = false
 	} else {
-		i.buf.key, i.buf.value = i.itr.Next()
+		i.buf.key, i.buf.data, i.buf.value = i.itr.Next()
 	}
-	key, value = i.buf.key, i.buf.value
+	key, data, value = i.buf.key, i.buf.data, i.buf.value
 
 	// If key is greater than tmax then put it back on the buffer.
 	if i.tmax != 0 && key > i.tmax {
 		i.buffered = true
-		return 0, nil
+		return 0, nil, nil
 	}
 
-	return key, value
+	return key, data, value
 }
 
 // Peek returns the next key/value pair but does not move the iterator forward.
-func (i *bufIterator) Peek() (key int64, value interface{}) {
-	key, value = i.Next()
+func (i *bufIterator) Peek() (key int64, data []byte, value interface{}) {
+	key, data, value = i.Next()
 	i.buffered = true
 	return
 }
@@ -482,7 +483,7 @@ type MapFunc func(Iterator, *Emitter, int64)
 // MapCount computes the number of values in an iterator.
 func MapCount(itr Iterator, e *Emitter, tmin int64) {
 	n := 0
-	for k, _ := itr.Next(); k != 0; k, _ = itr.Next() {
+	for k, _, _ := itr.Next(); k != 0; k, _, _ = itr.Next() {
 		n++
 	}
 	e.Emit(Key{tmin, itr.Tags()}, float64(n))
@@ -491,7 +492,7 @@ func MapCount(itr Iterator, e *Emitter, tmin int64) {
 // MapSum computes the summation of values in an iterator.
 func MapSum(itr Iterator, e *Emitter, tmin int64) {
 	n := float64(0)
-	for k, v := itr.Next(); k != 0; k, v = itr.Next() {
+	for k, _, v := itr.Next(); k != 0; k, _, v = itr.Next() {
 		n += v.(float64)
 	}
 	e.Emit(Key{tmin, itr.Tags()}, n)
@@ -655,7 +656,7 @@ func ReduceSum(key Key, values []interface{}, e *Emitter) {
 func MapMean(itr Iterator, e *Emitter, tmin int64) {
 	out := &meanMapOutput{}
 
-	for k, v := itr.Next(); k != 0; k, v = itr.Next() {
+	for k, _, v := itr.Next(); k != 0; k, _, v = itr.Next() {
 		out.Count++
 		out.Sum += v.(float64)
 	}
@@ -683,7 +684,7 @@ func MapMin(itr Iterator, e *Emitter, tmin int64) {
 	var min float64
 	pointsYielded := false
 
-	for k, v := itr.Next(); k != 0; k, v = itr.Next() {
+	for k, _, v := itr.Next(); k != 0; k, _, v = itr.Next() {
 		val := v.(float64)
 		// Initialize min
 		if !pointsYielded {
@@ -722,7 +723,7 @@ func MapMax(itr Iterator, e *Emitter, tmax int64) {
 	var max float64
 	pointsYielded := false
 
-	for k, v := itr.Next(); k != 0; k, v = itr.Next() {
+	for k, _, v := itr.Next(); k != 0; k, _, v = itr.Next() {
 		val := v.(float64)
 		// Initialize max
 		if !pointsYielded {
@@ -764,7 +765,7 @@ func MapSpread(itr Iterator, e *Emitter, tmax int64) {
 	var out spreadMapOutput
 	pointsYielded := false
 
-	for k, v := itr.Next(); k != 0; k, v = itr.Next() {
+	for k, _, v := itr.Next(); k != 0; k, _, v = itr.Next() {
 		val := v.(float64)
 		// Initialize
 		if !pointsYielded {
@@ -805,7 +806,7 @@ func ReduceSpread(key Key, values []interface{}, e *Emitter) {
 func MapStddev(itr Iterator, e *Emitter, tmax int64) {
 	var values []float64
 
-	for k, v := itr.Next(); k != 0; k, v = itr.Next() {
+	for k, _, v := itr.Next(); k != 0; k, _, v = itr.Next() {
 		values = append(values, v.(float64))
 		// Emit in batches.
 		// unbounded emission of data can lead to excessive memory use
@@ -866,7 +867,7 @@ func MapFirst(itr Iterator, e *Emitter, tmax int64) {
 	out := firstLastMapOutput{}
 	pointsYielded := false
 
-	for k, v := itr.Next(); k != 0; k, v = itr.Next() {
+	for k, _, v := itr.Next(); k != 0; k, _, v = itr.Next() {
 		// Initialize first
 		if !pointsYielded {
 			out.Time = k
@@ -911,7 +912,7 @@ func MapLast(itr Iterator, e *Emitter, tmax int64) {
 	out := firstLastMapOutput{}
 	pointsYielded := false
 
-	for k, v := itr.Next(); k != 0; k, v = itr.Next() {
+	for k, _, v := itr.Next(); k != 0; k, _, v = itr.Next() {
 		// Initialize last
 		if !pointsYielded {
 			out.Time = k
@@ -955,7 +956,7 @@ func ReduceLast(key Key, values []interface{}, e *Emitter) {
 func MapEcho(itr Iterator, e *Emitter, tmin int64) {
 	var values []interface{}
 
-	for k, v := itr.Next(); k != 0; k, v = itr.Next() {
+	for k, _, v := itr.Next(); k != 0; k, _, v = itr.Next() {
 		values = append(values, v)
 	}
 	e.Emit(Key{tmin, itr.Tags()}, values)
@@ -986,7 +987,7 @@ func ReducePercentile(percentile float64) ReduceFunc {
 }
 
 func MapRawQuery(itr Iterator, e *Emitter, tmin int64) {
-	for k, v := itr.Next(); k != 0; k, v = itr.Next() {
+	for k, _, v := itr.Next(); k != 0; k, _, v = itr.Next() {
 		e.Emit(Key{k, itr.Tags()}, v)
 	}
 }

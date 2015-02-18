@@ -18,7 +18,7 @@ func TestHandler_stream(t *testing.T) {
 	defer s.Close()
 
 	// Create replica.
-	s.Handler.Broker().CreateReplica(2000)
+	s.Handler.Broker().CreateReplica(2000, &url.URL{Host: "localhost"})
 
 	// Send request to stream the replica.
 	resp, err := http.Get(s.URL + `/messaging/messages?replicaID=2000`)
@@ -83,7 +83,7 @@ func TestHandler_publish(t *testing.T) {
 
 	// Stream subscription for a replica.
 	var m messaging.Message
-	s.Handler.Broker().CreateReplica(2000)
+	s.Handler.Broker().CreateReplica(2000, &url.URL{Host: "localhost"})
 	s.Handler.Broker().Subscribe(2000, 200)
 	go func() {
 		resp, _ := http.Get(s.URL + `/messaging/messages?replicaID=2000`)
@@ -220,7 +220,7 @@ func TestHandler_createReplica_ErrReplicaIDRequired(t *testing.T) {
 func TestHandler_createReplica_ErrReplicaExists(t *testing.T) {
 	s := NewServer()
 	defer s.Close()
-	s.Handler.Broker().CreateReplica(200)
+	s.Handler.Broker().CreateReplica(200, &url.URL{Host: "localhost"})
 
 	// Send request to the broker.
 	resp, _ := http.Post(s.URL+`/messaging/replicas?id=200`, "application/octet-stream", nil)
@@ -236,7 +236,7 @@ func TestHandler_createReplica_ErrReplicaExists(t *testing.T) {
 func TestHandler_deleteReplica(t *testing.T) {
 	s := NewServer()
 	defer s.Close()
-	s.Handler.Broker().CreateReplica(200)
+	s.Handler.Broker().CreateReplica(200, &url.URL{Host: "localhost"})
 
 	// Send request to the broker.
 	req, _ := http.NewRequest("DELETE", s.URL+`/messaging/replicas?id=200`, nil)
@@ -272,7 +272,7 @@ func TestHandler_deleteReplica_ErrReplicaIDRequired(t *testing.T) {
 func TestHandler_subscribe(t *testing.T) {
 	s := NewServer()
 	defer s.Close()
-	s.Broker().CreateReplica(100)
+	s.Broker().CreateReplica(100, &url.URL{Host: "localhost"})
 
 	// Send request to the broker.
 	resp, _ := http.Post(s.URL+`/messaging/subscriptions?replicaID=100&topicID=200`, "application/octet-stream", nil)
@@ -330,7 +330,7 @@ func TestHandler_subscribe_ErrReplicaNotFound(t *testing.T) {
 func TestHandler_unsubscribe(t *testing.T) {
 	s := NewServer()
 	defer s.Close()
-	s.Handler.Broker().CreateReplica(200)
+	s.Handler.Broker().CreateReplica(200, &url.URL{Host: "localhost"})
 	s.Handler.Broker().Subscribe(200, 100)
 
 	// Send request to the broker.

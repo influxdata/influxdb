@@ -1,6 +1,7 @@
 package influxdb
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -12,6 +13,10 @@ import (
 	"github.com/influxdb/influxdb/influxql"
 )
 
+const (
+	maxStringLength = 64 * 1024
+)
+
 // database is a collection of retention policies and shards. It also has methods
 // for keeping an in memory index of all the measurements, series, and tags in the database.
 // Methods on this struct aren't goroutine safe. They assume that the server is handling
@@ -19,7 +24,8 @@ import (
 type database struct {
 	name string
 
-	policies map[string]*RetentionPolicy // retention policies by name
+	policies          map[string]*RetentionPolicy // retention policies by name
+	continuousQueries []*ContinuousQuery          // continuous queries
 
 	defaultRetentionPolicy string
 
@@ -32,10 +38,11 @@ type database struct {
 // newDatabase returns an instance of database.
 func newDatabase() *database {
 	return &database{
-		policies:     make(map[string]*RetentionPolicy),
-		measurements: make(map[string]*Measurement),
-		series:       make(map[uint32]*Series),
-		names:        make([]string, 0),
+		policies:          make(map[string]*RetentionPolicy),
+		continuousQueries: make([]*ContinuousQuery, 0),
+		measurements:      make(map[string]*Measurement),
+		series:            make(map[uint32]*Series),
+		names:             make([]string, 0),
 	}
 }
 
@@ -46,15 +53,6 @@ func (db *database) shardGroupByTimestamp(policy string, timestamp time.Time) (*
 		return nil, ErrRetentionPolicyNotFound
 	}
 	return p.shardGroupByTimestamp(timestamp), nil
-}
-
-// MeasurementNames returns a list of measurement names.
-func (db *database) MeasurementNames() []string {
-	names := make([]string, 0, len(db.measurements))
-	for k := range db.measurements {
-		names = append(names, k)
-	}
-	return names
 }
 
 // Series takes a series ID and returns a series.
@@ -71,6 +69,7 @@ func (db *database) MarshalJSON() ([]byte, error) {
 	for _, rp := range db.policies {
 		o.Policies = append(o.Policies, rp)
 	}
+	o.ContinuousQueries = db.continuousQueries
 	return json.Marshal(&o)
 }
 
@@ -92,6 +91,13 @@ func (db *database) UnmarshalJSON(data []byte) error {
 		db.policies[rp.Name] = rp
 	}
 
+	// we need the parsed continuous queries to be in the in memory index
+	db.continuousQueries = make([]*ContinuousQuery, 0, len(o.ContinuousQueries))
+	for _, cq := range o.ContinuousQueries {
+		c, _ := NewContinuousQuery(cq.Query)
+		db.continuousQueries = append(db.continuousQueries, c)
+	}
+
 	return nil
 }
 
@@ -100,6 +106,7 @@ type databaseJSON struct {
 	Name                   string             `json:"name,omitempty"`
 	DefaultRetentionPolicy string             `json:"defaultRetentionPolicy,omitempty"`
 	Policies               []*RetentionPolicy `json:"policies,omitempty"`
+	ContinuousQueries      []*ContinuousQuery `json:"continuousQueries,omitempty"`
 }
 
 // Measurement represents a collection of time series in a database. It also contains in memory
@@ -217,22 +224,6 @@ func (m *Measurement) addSeries(s *Series) bool {
 // seriesByTags returns the Series that matches the given tagset.
 func (m *Measurement) seriesByTags(tags map[string]string) *Series {
 	return m.series[string(marshalTags(tags))]
-}
-
-// mapValues converts a map of values with string keys to field id keys.
-// Returns nil if any field doesn't exist.
-func (m *Measurement) mapValues(values map[string]interface{}) map[uint8]interface{} {
-	other := make(map[uint8]interface{}, len(values))
-	for k, v := range values {
-		// TODO: Cast value to original field type.
-
-		f := m.FieldByName(k)
-		if f == nil {
-			panic(fmt.Sprintf("Field does not exist for %s", k))
-		}
-		other[f.ID] = v
-	}
-	return other
 }
 
 func (m *Measurement) seriesIDsAndFilters(stmt *influxql.SelectStatement) (seriesIDs, map[uint32]influxql.Expr) {
@@ -635,6 +626,195 @@ type Field struct {
 // Fields represents a list of fields.
 type Fields []*Field
 
+// FieldCodec providecs encoding and decoding functionality for the fields of a given
+// Measurement. It is a distinct type to avoid locking writes on this node while
+// potentially long-running queries are executing.
+//
+// It is not affected by changes to the Measurement object after codec creation.
+type FieldCodec struct {
+	fieldsByID   map[uint8]*Field
+	fieldsByName map[string]*Field
+}
+
+// NewFieldCodec returns a FieldCodec for the given Measurement. Must be called with
+// a RLock that protects the Measurement.
+func NewFieldCodec(m *Measurement) *FieldCodec {
+	fieldsByID := make(map[uint8]*Field, len(m.Fields))
+	fieldsByName := make(map[string]*Field, len(m.Fields))
+	for _, f := range m.Fields {
+		fieldsByID[f.ID] = f
+		fieldsByName[f.Name] = f
+	}
+	return &FieldCodec{fieldsByID: fieldsByID, fieldsByName: fieldsByName}
+}
+
+// EncodeFields converts a map of values with string keys to a byte slice of field
+// IDs and values.
+//
+// If a field exists in the codec, but its type is different, an error is returned. If
+// a field is not present in the codec, the system panics.
+func (f *FieldCodec) EncodeFields(values map[string]interface{}) ([]byte, error) {
+	// Allocate byte slice and write field count.
+	b := make([]byte, 1, 10)
+	b[0] = byte(len(values))
+
+	for k, v := range values {
+		field := f.fieldsByName[k]
+		if field == nil {
+			panic(fmt.Sprintf("field does not exist for %s", k))
+		} else if influxql.InspectDataType(v) != field.Type {
+			return nil, fmt.Errorf("field %s is not of type %s", k, field.Type)
+		}
+
+		var buf []byte
+
+		switch field.Type {
+		case influxql.Number:
+			var value float64
+			// Convert integers to floats.
+			if intval, ok := v.(int); ok {
+				value = float64(intval)
+			} else {
+				value = v.(float64)
+			}
+
+			buf = make([]byte, 9)
+			binary.BigEndian.PutUint64(buf[1:9], math.Float64bits(value))
+		case influxql.Boolean:
+			value := v.(bool)
+
+			// Only 1 byte need for a boolean.
+			buf = make([]byte, 2)
+			if value {
+				buf[1] = byte(1)
+			}
+		case influxql.String:
+			value := v.(string)
+			if len(value) > maxStringLength {
+				value = value[:maxStringLength]
+			}
+			// Make a buffer for field ID (1 bytes), the string length (2 bytes), and the string.
+			buf = make([]byte, len(value)+3)
+
+			// Set the string length, then copy the string itself.
+			binary.BigEndian.PutUint16(buf[1:3], uint16(len(value)))
+			for i, c := range []byte(value) {
+				buf[i+3] = byte(c)
+			}
+		default:
+			panic(fmt.Sprintf("unsupported value type: %T", v))
+		}
+
+		// Always set the field ID as the leading byte.
+		buf[0] = field.ID
+
+		// Append temp buffer to the end.
+		b = append(b, buf...)
+	}
+
+	return b, nil
+}
+
+// DecodeByID scans a byte slice for a field with the given ID, converts it to its
+// expected type, and return that value.
+func (f *FieldCodec) DecodeByID(targetID uint8, b []byte) (interface{}, error) {
+	if len(b) == 0 {
+		return 0, ErrFieldNotFound
+	}
+
+	// Read the field count from the field byte.
+	n := int(b[0])
+	// Start from the second byte and iterate over until we're done decoding.
+	b = b[1:]
+	for i := 0; i < n; i++ {
+		field, ok := f.fieldsByID[b[0]]
+		if !ok {
+			panic(fmt.Sprintf("field ID %d has no mapping", b[0]))
+		}
+
+		var value interface{}
+		switch field.Type {
+		case influxql.Number:
+			// Move bytes forward.
+			value = math.Float64frombits(binary.BigEndian.Uint64(b[1:9]))
+			b = b[9:]
+		case influxql.Boolean:
+			if b[1] == 1 {
+				value = true
+			} else {
+				value = false
+			}
+			// Move bytes forward.
+			b = b[2:]
+		case influxql.String:
+			size := binary.BigEndian.Uint16(b[1:3])
+			value = string(b[3 : 3+size])
+			// Move bytes forward.
+			b = b[size+3:]
+		default:
+			panic(fmt.Sprintf("unsupported value type: %T", field.Type))
+		}
+
+		if field.ID == targetID {
+			return value, nil
+		}
+	}
+
+	return 0, ErrFieldNotFound
+}
+
+// DecodeFields decodes a byte slice into a set of field ids and values.
+func (f *FieldCodec) DecodeFields(b []byte) map[uint8]interface{} {
+	if len(b) == 0 {
+		return nil
+	}
+
+	// Read the field count from the field byte.
+	n := int(b[0])
+
+	// Create a map to hold the decoded data.
+	values := make(map[uint8]interface{}, n)
+
+	// Start from the second byte and iterate over until we're done decoding.
+	b = b[1:]
+	for i := 0; i < n; i++ {
+		// First byte is the field identifier.
+		fieldID := b[0]
+		field := f.fieldsByID[fieldID]
+		if field == nil {
+			panic(fmt.Sprintf("field ID %d has no mapping", fieldID))
+		}
+
+		var value interface{}
+		switch field.Type {
+		case influxql.Number:
+			value = math.Float64frombits(binary.BigEndian.Uint64(b[1:9]))
+			// Move bytes forward.
+			b = b[9:]
+		case influxql.Boolean:
+			if b[1] == 1 {
+				value = true
+			} else {
+				value = false
+			}
+			// Move bytes forward.
+			b = b[2:]
+		case influxql.String:
+			size := binary.BigEndian.Uint16(b[1:3])
+			value = string(b[3:size])
+			// Move bytes forward.
+			b = b[size+3:]
+		default:
+			panic(fmt.Sprintf("unsupported value type: %T", f.fieldsByID[fieldID]))
+		}
+
+		values[fieldID] = value
+
+	}
+
+	return values
+}
+
 // Series belong to a Measurement and represent unique time series in a database
 type Series struct {
 	ID   uint32
@@ -1014,6 +1194,35 @@ func (db *database) MeasurementAndSeries(name string, tags map[string]string) (*
 		return nil, nil
 	}
 	return idx, idx.seriesByTags(tags)
+}
+
+// SeriesByID returns the Series that has the given id.
+func (d *database) SeriesByID(id uint32) *Series {
+	return d.series[id]
+}
+
+// Names returns all measurement names in sorted order.
+func (d *database) MeasurementNames() []string {
+	return d.names
+}
+
+// DropSeries will clear the index of all references to a series.
+func (d *database) DropSeries(id uint32) {
+	panic("not implemented")
+}
+
+// DropMeasurement will clear the index of all references to a measurement and its child series.
+func (d *database) DropMeasurement(name string) {
+	panic("not implemented")
+}
+
+func (d *database) continuousQueryByName(name string) *ContinuousQuery {
+	for _, cq := range d.continuousQueries {
+		if cq.cq.Name == name {
+			return cq
+		}
+	}
+	return nil
 }
 
 // used to convert the tag set to bytes for use as a lookup key

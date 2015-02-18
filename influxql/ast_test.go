@@ -1,9 +1,11 @@
 package influxql_test
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/influxdb/influxdb/influxql"
 )
@@ -94,6 +96,125 @@ func TestSelectStatement_Substatement(t *testing.T) {
 	}
 }
 
+// Ensure the SELECT statement can extract GROUP BY interval.
+func TestSelectStatement_GroupByInterval(t *testing.T) {
+	q := "SELECT sum(value) from foo GROUP BY time(10m)"
+	stmt, err := influxql.NewParser(strings.NewReader(q)).ParseStatement()
+	if err != nil {
+		t.Fatalf("invalid statement: %q: %s", stmt, err)
+	}
+
+	s := stmt.(*influxql.SelectStatement)
+	d, err := s.GroupByInterval()
+	if d != 10*time.Minute {
+		t.Fatalf("group by interval not equal:\nexp=%s\ngot=%s", 10*time.Minute, d)
+	}
+	if err != nil {
+		t.Fatalf("error parsing group by interval: %s", err.Error())
+	}
+}
+
+// Ensure the SELECT statment can have its start and end time set
+func TestSelectStatement_SetTimeRange(t *testing.T) {
+	q := "SELECT sum(value) from foo GROUP BY time(10m)"
+	stmt, err := influxql.NewParser(strings.NewReader(q)).ParseStatement()
+	if err != nil {
+		t.Fatalf("invalid statement: %q: %s", stmt, err)
+	}
+
+	s := stmt.(*influxql.SelectStatement)
+	min, max := influxql.TimeRange(s.Condition)
+	start := time.Now().Add(-20 * time.Hour).Round(time.Second).UTC()
+	end := time.Now().Add(10 * time.Hour).Round(time.Second).UTC()
+	s.SetTimeRange(start, end)
+	min, max = influxql.TimeRange(s.Condition)
+
+	if min != start {
+		t.Fatalf("start time wasn't set properly.\n  exp: %s\n  got: %s", start, min)
+	}
+	// the end range is actually one microsecond before the given one since end is exclusive
+	end = end.Add(-time.Microsecond)
+	if max != end {
+		t.Fatalf("end time wasn't set properly.\n  exp: %s\n  got: %s", end, max)
+	}
+
+	// ensure we can set a time on a select that already has one set
+	start = time.Now().Add(-20 * time.Hour).Round(time.Second).UTC()
+	end = time.Now().Add(10 * time.Hour).Round(time.Second).UTC()
+	q = fmt.Sprintf("SELECT sum(value) from foo WHERE time >= %ds and time <= %ds GROUP BY time(10m)", start.Unix(), end.Unix())
+	stmt, err = influxql.NewParser(strings.NewReader(q)).ParseStatement()
+	if err != nil {
+		t.Fatalf("invalid statement: %q: %s", stmt, err)
+	}
+
+	s = stmt.(*influxql.SelectStatement)
+	min, max = influxql.TimeRange(s.Condition)
+	if start != min || end != max {
+		t.Fatalf("start and end times weren't equal:\n  exp: %s\n  got: %s\n  exp: %s\n  got:%s\n", start, min, end, max)
+	}
+
+	// update and ensure it saves it
+	start = time.Now().Add(-40 * time.Hour).Round(time.Second).UTC()
+	end = time.Now().Add(20 * time.Hour).Round(time.Second).UTC()
+	s.SetTimeRange(start, end)
+	min, max = influxql.TimeRange(s.Condition)
+
+	// TODO: right now the SetTimeRange can't override the start time if it's more recent than what they're trying to set it to.
+	//       shouldn't matter for our purposes with continuous queries, but fix this later
+
+	if min != start {
+		t.Fatalf("start time wasn't set properly.\n  exp: %s\n  got: %s", start, min)
+	}
+	// the end range is actually one microsecond before the given one since end is exclusive
+	end = end.Add(-time.Microsecond)
+	if max != end {
+		t.Fatalf("end time wasn't set properly.\n  exp: %s\n  got: %s", end, max)
+	}
+
+	// ensure that when we set a time range other where clause conditions are still there
+	q = "SELECT sum(value) from foo WHERE foo = 'bar' GROUP BY time(10m)"
+	stmt, err = influxql.NewParser(strings.NewReader(q)).ParseStatement()
+	if err != nil {
+		t.Fatalf("invalid statement: %q: %s", stmt, err)
+	}
+
+	s = stmt.(*influxql.SelectStatement)
+
+	// update and ensure it saves it
+	start = time.Now().Add(-40 * time.Hour).Round(time.Second).UTC()
+	end = time.Now().Add(20 * time.Hour).Round(time.Second).UTC()
+	s.SetTimeRange(start, end)
+	min, max = influxql.TimeRange(s.Condition)
+
+	if min != start {
+		t.Fatalf("start time wasn't set properly.\n  exp: %s\n  got: %s", start, min)
+	}
+	// the end range is actually one microsecond before the given one since end is exclusive
+	end = end.Add(-time.Microsecond)
+	if max != end {
+		t.Fatalf("end time wasn't set properly.\n  exp: %s\n  got: %s", end, max)
+	}
+
+	// ensure the where clause is there
+	hasWhere := false
+	influxql.WalkFunc(s.Condition, func(n influxql.Node) {
+		if ex, ok := n.(*influxql.BinaryExpr); ok {
+			if lhs, ok := ex.LHS.(*influxql.VarRef); ok {
+				if lhs.Val == "foo" {
+					if rhs, ok := ex.RHS.(*influxql.StringLiteral); ok {
+						if rhs.Val == "bar" {
+							hasWhere = true
+						}
+					}
+				}
+			}
+		}
+	})
+	if !hasWhere {
+		t.Fatal("set time range cleared out the where clause")
+	}
+}
+
 // Ensure the time range of an expression can be extracted.
 func TestTimeRange(t *testing.T) {
 	for i, tt := range []struct {
@@ -157,19 +278,19 @@ func TestSelectStatement_OnlyTimeDimensions(t *testing.T) {
 			exp:  false,
 		},
 		{
-			stmt: `SELECT value FROM foo WHERE time >= '2000-01-01T00:00:05'`,
+			stmt: `SELECT value FROM foo WHERE time >= '2000-01-01T00:00:05Z'`,
 			exp:  true,
 		},
 		{
-			stmt: `SELECT value FROM foo WHERE time >= '2000-01-01T00:00:05' AND time < '2000-01-01T00:00:05'`,
+			stmt: `SELECT value FROM foo WHERE time >= '2000-01-01T00:00:05Z' AND time < '2000-01-01T00:00:05Z'`,
 			exp:  true,
 		},
 		{
-			stmt: `SELECT value FROM foo WHERE time >= '2000-01-01T00:00:05' AND asdf = 'bar'`,
+			stmt: `SELECT value FROM foo WHERE time >= '2000-01-01T00:00:05Z' AND asdf = 'bar'`,
 			exp:  false,
 		},
 		{
-			stmt: `SELECT value FROM foo WHERE asdf = 'jkl' AND (time >= '2000-01-01T00:00:05' AND time < '2000-01-01T00:00:05')`,
+			stmt: `SELECT value FROM foo WHERE asdf = 'jkl' AND (time >= '2000-01-01T00:00:05Z' AND time < '2000-01-01T00:00:05Z')`,
 			exp:  false,
 		},
 	}
