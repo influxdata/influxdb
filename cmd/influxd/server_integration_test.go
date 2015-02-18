@@ -419,3 +419,88 @@ func Test_Server5NodeIntegration(t *testing.T) {
 
 	simpleQuery(t, testName, nodes[:1], `select value from "foo"."bar".cpu`, expectedResults)
 }
+
+func Test_AllTagCombinationsInShowSeriesAreSelectable(t *testing.T) {
+	nNodes := 1
+	basePort := 8390
+	testName := "all tag combinations in SHOW SERIES are selectable"
+	now := time.Now().UTC()
+	nodes := createCombinedNodeCluster(t, testName, nNodes, basePort)
+
+	createDatabase(t, testName, nodes, "foo")
+	createRetentionPolicy(t, testName, nodes, "foo", "bar")
+
+	bp := influxdb.BatchPoints{
+		Database: "foo",
+	}
+
+	measurementName := "my_measurement"
+
+	totalPoints := 21
+	tagRarity := 3
+	for i := 0; i < totalPoints; i++ {
+		var rarity string
+		if (i % tagRarity) == 0 {
+			rarity = "rare"
+		} else {
+			rarity = "common"
+		}
+
+		p := client.Point{
+			Name: measurementName,
+			Tags: map[string]string{
+				"host":   fmt.Sprintf("server%d", i%10),
+				"rarity": rarity,
+			},
+			Values: map[string]interface{}{
+				"value": float64(i) / 1000.0,
+			},
+			Timestamp: client.Timestamp(now.Add(time.Duration(-i) * time.Second)),
+		}
+
+		bp.Points = append(bp.Points, p)
+	}
+
+	bpJson, err := json.Marshal(bp)
+	if err != nil {
+		t.Fatalf("Expected no error, received %v", err)
+	}
+
+	write(t, testName, nodes, string(bpJson))
+
+	c, err := client.NewClient(client.Config{URL: *nodes[0].url})
+	if err != nil {
+		t.Fatalf("Expected no error, received %v", err)
+	}
+
+	result, err := c.Query(client.Query{Command: "SHOW SERIES", Database: "foo"})
+	if err != nil {
+		t.Fatalf("Expected no error, received %v", err)
+	}
+
+	var tagPairs [][]string
+	for _, r := range result.Results {
+		for _, row := range r.Rows {
+			for _, tagPair := range row.Values {
+				pair := []string{}
+				for _, tag := range tagPair {
+					pair = append(pair, tag.(string))
+				}
+				tagPairs = append(tagPairs, pair)
+			}
+		}
+	}
+
+	for _, tagPair := range tagPairs {
+		host := tagPair[0]
+		rarity := tagPair[1]
+		query := fmt.Sprintf("SELECT value FROM %s WHERE host = '%s' AND rarity = '%s'", measurementName, host, rarity)
+		result, err = c.Query(client.Query{Command: query, Database: "foo"})
+		if err != nil {
+			t.Fatalf("Expected no error, received %v", err)
+		}
+		if result.Err != nil {
+			t.Fatalf("Expected no error, received %v", result.Err)
+		}
+	}
+}
