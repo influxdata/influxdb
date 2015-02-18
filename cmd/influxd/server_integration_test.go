@@ -436,8 +436,6 @@ func Test_AllTagCombinationsInShowSeriesAreSelectable(t *testing.T) {
 
 	measurementName := "my_measurement"
 
-	// 21 points, 3 tagRarity results in this test failing ~100% of the time
-	// this test seems to fail when a tag is associated with < 30% of total points
 	totalPoints := 21
 	tagRarity := 3
 	for i := 0; i < totalPoints; i++ {
