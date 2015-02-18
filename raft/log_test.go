@@ -327,6 +327,7 @@ func benchmarkClusterApply(b *testing.B, logN int) {
 	warnf("== BenchmarkClusterApply (%d) ====================================", b.N)
 
 	c := NewRealTimeCluster(logN, indexFSMFunc)
+	defer c.Close()
 	b.ResetTimer()
 
 	// Apply commands to leader.

@@ -10,10 +10,10 @@ const (
 	DefaultApplyInterval = 10 * time.Millisecond
 
 	// DefaultElectionTimeout is the default time before starting an election.
-	DefaultElectionTimeout = 500 * time.Millisecond
+	DefaultElectionTimeout = 1 * time.Second
 
 	// DefaultHeartbeatInterval is the default time to wait between heartbeats.
-	DefaultHeartbeatInterval = 150 * time.Millisecond
+	DefaultHeartbeatInterval = 100 * time.Millisecond
 
 	// DefaultReconnectTimeout is the default time to wait before reconnecting.
 	DefaultReconnectTimeout = 10 * time.Millisecond

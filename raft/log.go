@@ -305,10 +305,7 @@ func (l *Log) close() error {
 	l.tracef("closing...")
 
 	// Close the reader, if open.
-	if l.reader != nil {
-		_ = l.reader.Close()
-		l.reader = nil
-	}
+	l.closeReader()
 
 	// Notify goroutines of closing and wait outside of lock.
 	if l.closing != nil {
@@ -334,6 +331,13 @@ func (l *Log) close() error {
 	l.tracef("closed")
 
 	return nil
+}
+
+func (l *Log) closeReader() {
+	if l.reader != nil {
+		_ = l.reader.Close()
+		l.reader = nil
+	}
 }
 
 func (l *Log) setID(id uint64) {
@@ -688,6 +692,7 @@ func (l *Log) followerLoop(closing <-chan struct{}) State {
 		case <-l.initialize:
 			return Leader
 		case ch := <-l.Clock.AfterElectionTimeout():
+			l.closeReader()
 			close(ch)
 			return Candidate
 		case hb := <-l.heartbeats:
@@ -720,9 +725,9 @@ func (l *Log) readFromLeader(wg *sync.WaitGroup, transitioning <-chan struct{}) 
 		default:
 		}
 
-		// Retrieve the term, last index, & leader URL.
+		// Retrieve the term, last commit index, & leader URL.
 		l.mu.Lock()
-		id, index, term := l.id, l.index, l.term
+		id, commitIndex, term := l.id, l.commitIndex, l.term
 		_, u := l.leader()
 		l.mu.Unlock()
 
@@ -734,8 +739,8 @@ func (l *Log) readFromLeader(wg *sync.WaitGroup, transitioning <-chan struct{}) 
 		}
 
 		// Connect to leader.
-		l.tracef("readFromLeader: read from: %s, id=%d, term=%d, index=%d", u.String(), id, term, index)
-		r, err := l.Transport.ReadFrom(u, id, term, index)
+		l.tracef("readFromLeader: read from: %s, id=%d, term=%d, index=%d", u.String(), id, term, commitIndex)
+		r, err := l.Transport.ReadFrom(u, id, term, commitIndex)
 		if err != nil {
 			l.Logger.Printf("connect stream: %s", err)
 		}
@@ -745,6 +750,18 @@ func (l *Log) readFromLeader(wg *sync.WaitGroup, transitioning <-chan struct{}) 
 			l.tracef("readFromLeader: read from: disconnect: %s", err)
 		}
 	}
+}
+
+// truncate removes all uncommitted entries.
+func (l *Log) truncate() {
+	if len(l.entries) == 0 {
+		return
+	}
+
+	entmin := l.entries[0].Index
+	assert(l.commitIndex >= entmin, "commit index before lowest entry: commit=%d, entmin=%d", l.commitIndex, entmin)
+	l.entries = l.entries[:l.commitIndex-entmin]
+	l.index = l.commitIndex
 }
 
 // candidateLoop requests vote from other nodes in an attempt to become leader.
@@ -790,7 +807,7 @@ func (l *Log) candidateLoop(closing <-chan struct{}) State {
 			return Leader
 		case ch := <-l.Clock.AfterElectionTimeout():
 			close(ch)
-			return Candidate // retry
+			return Follower
 		}
 	}
 }
@@ -871,6 +888,9 @@ func (l *Log) leaderLoop(closing <-chan struct{}) State {
 
 		case hb := <-l.heartbeats: // step down on higher term
 			if hb.term > term {
+				l.mu.Lock()
+				l.truncate()
+				l.mu.Unlock()
 				return Follower
 			}
 			continue
@@ -1032,7 +1052,7 @@ func (l *Log) Wait(index uint64) error {
 		} else if appliedIndex >= index {
 			return nil
 		}
-		time.Sleep(1 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 	}
 }
 
@@ -1353,7 +1373,7 @@ func (l *Log) Heartbeat(term, commitIndex, leaderID uint64) (currentIndex uint64
 }
 
 // RequestVote requests a vote from the log.
-func (l *Log) RequestVote(term, candidateID, lastLogIndex, lastLogTerm uint64) error {
+func (l *Log) RequestVote(term, candidateID, lastLogIndex, lastLogTerm uint64) (err error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -1362,7 +1382,9 @@ func (l *Log) RequestVote(term, candidateID, lastLogIndex, lastLogTerm uint64) e
 		return ErrClosed
 	}
 
-	l.tracef("RV(term=%d, candidateID=%d, lastLogIndex=%d, lastLogTerm=%d) (err=%v)", term, candidateID, lastLogIndex, lastLogTerm)
+	defer func() {
+		l.tracef("RV(term=%d, candidateID=%d, lastLogIndex=%d, lastLogTerm=%d) (err=%v)", term, candidateID, lastLogIndex, lastLogTerm, err)
+	}()
 
 	// Deny vote if:
 	//   1. Candidate is requesting a vote from an earlier term. (§5.1)
@@ -1637,9 +1659,7 @@ func (l *Log) initReadFrom(r io.ReadCloser) error {
 	}
 
 	// Remove previous reader, if one exists.
-	if l.reader != nil {
-		_ = l.reader.Close()
-	}
+	l.closeReader()
 
 	// Set new reader.
 	l.reader = r
