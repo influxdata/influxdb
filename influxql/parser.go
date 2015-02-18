@@ -935,6 +935,22 @@ func (p *Parser) parseCreateContinuousQueryStatement() (*CreateContinuousQuerySt
 	}
 	stmt.Source = source
 
+	// validate that the statement has a non-zero group by interval if it is aggregated
+	if source.Aggregated() {
+		d, err := source.GroupByInterval()
+		if d == 0 || err != nil {
+			// rewind so we can output an error with some info
+			p.unscan() // unscan the whitespace
+			p.unscan() // unscan the last token
+			tok, pos, lit := p.scanIgnoreWhitespace()
+			expected := []string{"GROUP BY time(...)"}
+			if err != nil {
+				expected = append(expected, err.Error())
+			}
+			return nil, newParseError(tokstr(tok, lit), expected, pos)
+		}
+	}
+
 	// Expect a "END" keyword.
 	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != END {
 		return nil, newParseError(tokstr(tok, lit), []string{"END"}, pos)
@@ -1465,7 +1481,12 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 		if isDateTimeString(lit) {
 			t, err := time.Parse(DateTimeFormat, lit)
 			if err != nil {
-				return nil, &ParseError{Message: "unable to parse datetime", Pos: pos}
+				// try to parse it as an RFCNano time
+				t, err := time.Parse(time.RFC3339Nano, lit)
+				if err != nil {
+					return nil, &ParseError{Message: "unable to parse datetime", Pos: pos}
+				}
+				return &TimeLiteral{Val: t}, nil
 			}
 			return &TimeLiteral{Val: t}, nil
 		} else if isDateString(lit) {
@@ -1672,7 +1693,7 @@ func isDateString(s string) bool { return dateStringRegexp.MatchString(s) }
 func isDateTimeString(s string) bool { return dateTimeStringRegexp.MatchString(s) }
 
 var dateStringRegexp = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
-var dateTimeStringRegexp = regexp.MustCompile(`^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d+)?$`)
+var dateTimeStringRegexp = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}.+`)
 
 // ErrInvalidDuration is returned when parsing a malformatted duration.
 var ErrInvalidDuration = errors.New("invalid duration")

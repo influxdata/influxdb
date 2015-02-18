@@ -1040,6 +1040,36 @@ func TestHandler_RevokeDBPrivilege(t *testing.T) {
 	}
 }
 
+func TestHandler_ShowContinuousQueries(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
+	srvr.SetDefaultRetentionPolicy("foo", "bar")
+
+	// create and check
+	q := "CREATE CONTINUOUS QUERY myquery ON foo BEGIN SELECT count() INTO measure1 FROM myseries GROUP BY time(10m) END"
+	stmt, err := influxql.NewParser(strings.NewReader(q)).ParseStatement()
+	if err != nil {
+		t.Fatalf("error parsing query %s", err.Error())
+	}
+	cq := stmt.(*influxql.CreateContinuousQueryStatement)
+	if err := srvr.CreateContinuousQuery(cq); err != nil {
+		t.Fatalf("error creating continuous query %s", err.Error())
+	}
+
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	query := map[string]string{"q": "SHOW CONTINUOUS QUERIES"}
+	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	} else if body != `{"results":[{"rows":[{"name":"foo","columns":["name","query"],"values":[["myquery","CREATE CONTINUOUS QUERY myquery ON foo BEGIN SELECT count() INTO measure1 FROM myseries GROUP BY time(10m) END"]]}]}]}` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+
+}
+
 func TestHandler_serveWriteSeries(t *testing.T) {
 	srvr := OpenAuthenticatedServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
@@ -2092,7 +2122,7 @@ type MessagingClient struct {
 	mu    sync.Mutex // Ensure all publishing is serialized.
 
 	PublishFunc       func(*messaging.Message) (uint64, error)
-	CreateReplicaFunc func(replicaID uint64) error
+	CreateReplicaFunc func(replicaID uint64, connectURL *url.URL) error
 	DeleteReplicaFunc func(replicaID uint64) error
 	SubscribeFunc     func(replicaID, topicID uint64) error
 	UnsubscribeFunc   func(replicaID, topicID uint64) error
@@ -2102,7 +2132,7 @@ type MessagingClient struct {
 func NewMessagingClient() *MessagingClient {
 	c := &MessagingClient{c: make(chan *messaging.Message, 1)}
 	c.PublishFunc = c.send
-	c.CreateReplicaFunc = func(replicaID uint64) error { return nil }
+	c.CreateReplicaFunc = func(replicaID uint64, connectURL *url.URL) error { return nil }
 	c.DeleteReplicaFunc = func(replicaID uint64) error { return nil }
 	c.SubscribeFunc = func(replicaID, topicID uint64) error { return nil }
 	c.UnsubscribeFunc = func(replicaID, topicID uint64) error { return nil }
@@ -2127,8 +2157,8 @@ func (c *MessagingClient) send(m *messaging.Message) (uint64, error) {
 }
 
 // Creates a new replica with a given ID on the broker.
-func (c *MessagingClient) CreateReplica(replicaID uint64) error {
-	return c.CreateReplicaFunc(replicaID)
+func (c *MessagingClient) CreateReplica(replicaID uint64, connectURL *url.URL) error {
+	return c.CreateReplicaFunc(replicaID, connectURL)
 }
 
 // Deletes an existing replica with a given ID from the broker.

@@ -1099,6 +1099,143 @@ func TestServer_NormalizeQuery(t *testing.T) {
 	}
 }
 
+// Ensure the server can create a continuous query
+func TestServer_CreateContinuousQuery(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// Create the "foo" database.
+	if err := s.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "bar"}); err != nil {
+		t.Fatal(err)
+	}
+	s.SetDefaultRetentionPolicy("foo", "bar")
+
+	// create and check
+	q := "CREATE CONTINUOUS QUERY myquery ON foo BEGIN SELECT count() INTO measure1 FROM myseries GROUP BY time(10m) END"
+	stmt, err := influxql.NewParser(strings.NewReader(q)).ParseStatement()
+	if err != nil {
+		t.Fatalf("error parsing query %s", err.Error())
+	}
+	cq := stmt.(*influxql.CreateContinuousQueryStatement)
+	if err := s.CreateContinuousQuery(cq); err != nil {
+		t.Fatalf("error creating continuous query %s", err.Error())
+	}
+
+	queries := s.ContinuousQueries("foo")
+	cqObj, _ := influxdb.NewContinuousQuery(q)
+	expected := []*influxdb.ContinuousQuery{cqObj}
+	if mustMarshalJSON(expected) != mustMarshalJSON(queries) {
+		t.Fatalf("query not saved:\n\texp: %s\n\tgot: %s", mustMarshalJSON(expected), mustMarshalJSON(queries))
+	}
+	s.Restart()
+
+	// check again
+	queries = s.ContinuousQueries("foo")
+	if !reflect.DeepEqual(queries, expected) {
+		t.Fatalf("query not saved:\n\texp: %s\ngot: %s", mustMarshalJSON(expected), mustMarshalJSON(queries))
+	}
+}
+
+// Ensure the server prevents a duplicate named continuous query from being created
+func TestServer_CreateContinuousQuery_ErrContinuousQueryExists(t *testing.T) {
+	t.Skip("pending")
+}
+
+// Ensure the server returns an error when creating a continuous query on a database that doesn't exist
+func TestServer_CreateContinuousQuery_ErrDatabaseNotFound(t *testing.T) {
+	t.Skip("pending")
+}
+
+// Ensure the server returns an error when creating a continuous query on a retention policy that doesn't exist
+func TestServer_CreateContinuousQuery_ErrRetentionPolicyNotFound(t *testing.T) {
+	t.Skip("pending")
+}
+
+func TestServer_CreateContinuousQuery_ErrInfinteLoop(t *testing.T) {
+	t.Skip("pending")
+}
+
+// Ensure
+func TestServer_RunContinuousQueries(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// Create the "foo" database.
+	if err := s.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "raw"}); err != nil {
+		t.Fatal(err)
+	}
+	s.SetDefaultRetentionPolicy("foo", "raw")
+
+	s.RecomputePreviousN = 50
+	s.RecomputeNoOlderThan = time.Second
+	s.ComputeRunsPerInterval = 5
+	s.ComputeNoMoreThan = 2 * time.Millisecond
+
+	// create cq and check
+	q := `CREATE CONTINUOUS QUERY myquery ON foo BEGIN SELECT mean(value) INTO cpu_region FROM cpu GROUP BY time(5ms), region END`
+	stmt, err := influxql.NewParser(strings.NewReader(q)).ParseStatement()
+	if err != nil {
+		t.Fatalf("error parsing query %s", err.Error())
+	}
+	cq := stmt.(*influxql.CreateContinuousQueryStatement)
+	if err := s.CreateContinuousQuery(cq); err != nil {
+		t.Fatalf("error creating continuous query %s", err.Error())
+	}
+	if err := s.RunContinuousQueries(); err != nil {
+		t.Fatalf("error running cqs when no data exists: %s", err.Error())
+	}
+
+	// set a test time in the middle of a 5 second interval that we can work with
+	testTime := time.Now().UTC().Round(5 * time.Millisecond)
+	if testTime.UnixNano() > time.Now().UnixNano() {
+		testTime = testTime.Add(-5 * time.Millisecond)
+	}
+	testTime.Add(time.Millisecond * 2)
+
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: testTime, Values: map[string]interface{}{"value": float64(30)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: testTime.Add(-time.Millisecond * 5), Values: map[string]interface{}{"value": float64(20)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-west"}, Timestamp: testTime, Values: map[string]interface{}{"value": float64(100)}}})
+
+	// Run CQs after a period of time
+	time.Sleep(time.Millisecond * 50)
+	s.RunContinuousQueries()
+	// give the CQs time to run
+	time.Sleep(time.Millisecond * 100)
+
+	verify := func(num int, exp string) {
+		results := s.ExecuteQuery(MustParseQuery(`SELECT mean(mean) FROM cpu_region GROUP BY region`), "foo", nil)
+		if res := results.Results[0]; res.Err != nil {
+			t.Fatalf("unexpected error verify %d: %s", num, res.Err)
+		} else if len(res.Rows) != 2 {
+			t.Fatalf("unexpected row count on verify %d: %d", num, len(res.Rows))
+		} else if s := mustMarshalJSON(res); s != exp {
+			t.Fatalf("unexpected row(0) on verify %d: %s", num, s)
+		}
+	}
+
+	// ensure CQ results were saved
+	verify(1, `{"rows":[{"name":"cpu_region","tags":{"region":"us-east"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",25]]},{"name":"cpu_region","tags":{"region":"us-west"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",100]]}]}`)
+
+	// ensure that repeated runs don't cause duplicate data
+	s.RunContinuousQueries()
+	verify(2, `{"rows":[{"name":"cpu_region","tags":{"region":"us-east"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",25]]},{"name":"cpu_region","tags":{"region":"us-west"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",100]]}]}`)
+
+	// ensure that data written into a previous window is picked up and the result recomputed.
+	time.Sleep(time.Millisecond * 2)
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-west"}, Timestamp: testTime.Add(-time.Millisecond), Values: map[string]interface{}{"value": float64(50)}}})
+	s.RunContinuousQueries()
+	// give CQs time to run
+	time.Sleep(time.Millisecond * 50)
+
+	verify(3, `{"rows":[{"name":"cpu_region","tags":{"region":"us-east"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",25]]},{"name":"cpu_region","tags":{"region":"us-west"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",75]]}]}`)
+}
+
 func mustMarshalJSON(v interface{}) string {
 	b, err := json.Marshal(v)
 	if err != nil {
@@ -1242,7 +1379,7 @@ type MessagingClient struct {
 	c     chan *messaging.Message
 
 	PublishFunc       func(*messaging.Message) (uint64, error)
-	CreateReplicaFunc func(replicaID uint64) error
+	CreateReplicaFunc func(replicaID uint64, connectURL *url.URL) error
 	DeleteReplicaFunc func(replicaID uint64) error
 	SubscribeFunc     func(replicaID, topicID uint64) error
 	UnsubscribeFunc   func(replicaID, topicID uint64) error
@@ -1252,7 +1389,7 @@ type MessagingClient struct {
 func NewMessagingClient() *MessagingClient {
 	c := &MessagingClient{c: make(chan *messaging.Message, 1)}
 	c.PublishFunc = c.send
-	c.CreateReplicaFunc = func(replicaID uint64) error { return nil }
+	c.CreateReplicaFunc = func(replicaID uint64, connectURL *url.URL) error { return nil }
 	c.DeleteReplicaFunc = func(replicaID uint64) error { return nil }
 	c.SubscribeFunc = func(replicaID, topicID uint64) error { return nil }
 	c.UnsubscribeFunc = func(replicaID, topicID uint64) error { return nil }
@@ -1275,8 +1412,8 @@ func (c *MessagingClient) send(m *messaging.Message) (uint64, error) {
 }
 
 // Creates a new replica with a given ID on the broker.
-func (c *MessagingClient) CreateReplica(replicaID uint64) error {
-	return c.CreateReplicaFunc(replicaID)
+func (c *MessagingClient) CreateReplica(replicaID uint64, connectURL *url.URL) error {
+	return c.CreateReplicaFunc(replicaID, connectURL)
 }
 
 // Deletes an existing replica with a given ID from the broker.

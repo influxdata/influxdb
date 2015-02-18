@@ -319,7 +319,7 @@ loop:
 	for _, row := range rows {
 		for _, values := range row.Values {
 			t := time.Unix(0, values[0].(int64))
-			values[0] = t.UTC().Format(time.RFC3339Nano)
+			values[0] = t.UTC()
 		}
 		a = append(a, row)
 	}
