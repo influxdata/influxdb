@@ -323,6 +323,16 @@ func TestParser_ParseStatement(t *testing.T) {
 			stmt: &influxql.DropSeriesStatement{Source: &influxql.Measurement{Name: "src"}},
 		},
 		{
+			s: `DROP SERIES WHERE host = 'hosta.influxdb.org'`,
+			stmt: &influxql.DropSeriesStatement{
+				Condition: &influxql.BinaryExpr{
+					Op:  influxql.EQ,
+					LHS: &influxql.VarRef{Val: "host"},
+					RHS: &influxql.StringLiteral{Val: "hosta.influxdb.org"},
+				},
+			},
+		},
+		{
 			s: `DROP SERIES FROM src WHERE host = 'hosta.influxdb.org'`,
 			stmt: &influxql.DropSeriesStatement{
 				Source: &influxql.Measurement{Name: "src"},
@@ -968,6 +978,27 @@ func TestDropSeriesStatement_String(t *testing.T) {
 			s: `DROP SERIES FROM src WHERE host = 'hosta.influxdb.org'`,
 			stmt: &influxql.DropSeriesStatement{
 				Source: &influxql.Measurement{Name: "src"},
+				Condition: &influxql.BinaryExpr{
+					Op:  influxql.EQ,
+					LHS: &influxql.VarRef{Val: "host"},
+					RHS: &influxql.StringLiteral{Val: "hosta.influxdb.org"},
+				},
+			},
+		},
+		{
+			s: `DROP SERIES FROM src WHERE host = 'hosta.influxdb.org'`,
+			stmt: &influxql.DropSeriesStatement{
+				Source: &influxql.Measurement{Name: "src"},
+				Condition: &influxql.BinaryExpr{
+					Op:  influxql.EQ,
+					LHS: &influxql.VarRef{Val: "host"},
+					RHS: &influxql.StringLiteral{Val: "hosta.influxdb.org"},
+				},
+			},
+		},
+		{
+			s: `DROP SERIES WHERE host = 'hosta.influxdb.org'`,
+			stmt: &influxql.DropSeriesStatement{
 				Condition: &influxql.BinaryExpr{
 					Op:  influxql.EQ,
 					LHS: &influxql.VarRef{Val: "host"},

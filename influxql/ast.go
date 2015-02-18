@@ -998,17 +998,20 @@ type DropSeriesStatement struct {
 // String returns a string representation of the drop series statement.
 func (s *DropSeriesStatement) String() string {
 	var buf bytes.Buffer
-	_, _ = buf.WriteString("DROP SERIES ")
+	i, _ := buf.WriteString("DROP SERIES")
 
 	if s.Source != nil {
-		_, _ = buf.WriteString("FROM ")
+		_, _ = buf.WriteString(" FROM ")
 		_, _ = buf.WriteString(s.Source.String())
-		if s.Condition != nil {
-			_, _ = buf.WriteString(" WHERE ")
-			_, _ = buf.WriteString(s.Condition.String())
-		}
-	} else {
-		_, _ = buf.WriteString(fmt.Sprintf("%d", s.SeriesID))
+	}
+	if s.Condition != nil {
+		_, _ = buf.WriteString(" WHERE ")
+		_, _ = buf.WriteString(s.Condition.String())
+	}
+
+	// If we haven't written any data since the initial statement, then this was a SeriesID statement
+	if len(buf.String()) == i {
+		_, _ = buf.WriteString(fmt.Sprintf(" %d", s.SeriesID))
 	}
 
 	return buf.String()
