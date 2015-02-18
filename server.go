@@ -68,6 +68,10 @@ const (
 	createShardGroupIfNotExistsMessageType = messaging.MessageType(0x40)
 	deleteShardGroupMessageType            = messaging.MessageType(0x41)
 
+	// Series messages
+	createSeriesIfNotExistsMessageType = messaging.MessageType(0x50)
+	deleteSeriesMessageType            = messaging.MessageType(0x51)
+
 	// Measurement messages
 	createMeasurementsIfNotExistsMessageType = messaging.MessageType(0x50)
 
@@ -1504,6 +1508,37 @@ func (c *createMeasurementsIfNotExistsCommand) addFieldIfNotExists(measurement, 
 	return nil
 }
 
+// DeleteSeries deletes from an existing series.
+func (s *Server) DeleteSeries(stmt *influxql.DropSeriesStatement, database string) error {
+	c := deleteSeriesCommand{}
+
+	if stmt.Source != nil {
+		measurement := stmt.Source.(*influxql.Measurement)
+
+		m := s.databases[database].measurements[measurement.Name]
+		if m == nil {
+			return fmt.Errorf("measurement not found: %s", measurement.Name)
+		}
+
+		seriesIdsToExpr := make(map[uint32]influxql.Expr)
+		ids, _, _ := m.walkWhereForSeriesIds(stmt.Condition, seriesIdsToExpr)
+		// TODO check if expr is empty, if not, we got things other than tags
+
+		c.SeriesIDs = ids
+
+	} else {
+
+		c.SeriesIDs = append(c.SeriesIDs, stmt.SeriesID)
+	}
+
+	_, err := s.broadcast(deleteSeriesMessageType, c)
+	return err
+}
+
+type deleteSeriesCommand struct {
+	SeriesIDs []uint32 `json:"seriesIds"`
+}
+
 // Point defines the values that will be written to the database
 type Point struct {
 	Name      string
@@ -1872,7 +1907,7 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 		case *influxql.ShowUsersStatement:
 			res = s.executeShowUsersStatement(stmt, user)
 		case *influxql.DropSeriesStatement:
-			continue
+			res = s.executeDeleteSeriesStatement(stmt, database, user)
 		case *influxql.ShowSeriesStatement:
 			res = s.executeShowSeriesStatement(stmt, database, user)
 		case *influxql.ShowMeasurementsStatement:
@@ -2014,6 +2049,16 @@ func (s *Server) executeCreateUserStatement(q *influxql.CreateUserStatement, use
 
 func (s *Server) executeDropUserStatement(q *influxql.DropUserStatement, user *User) *Result {
 	return &Result{Err: s.DeleteUser(q.Name)}
+}
+
+func (s *Server) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, database string) *Result {
+	return &Result{Err: s.DeleteSeries(stmt, database)}
+}
+
+func (s *Server) executeDeleteSeriesStatement(stmt *influxql.DropSeriesStatement, database string, user *User) *Result {
+	// TODO
+
+	return &Result{}
 }
 
 func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, database string, user *User) *Result {
