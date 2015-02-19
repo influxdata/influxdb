@@ -1680,6 +1680,7 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 		retentionPolicy = rp.Name
 	}
 
+	// Ensure all required Series and Measurement Fields are created cluster-wide.
 	if err := s.createMeasurementsIfNotExists(database, retentionPolicy, points); err != nil {
 		return 0, err
 	}
@@ -1851,49 +1852,55 @@ func (s *Server) createSeriesIfNotExists(database, name string, tags map[string]
 // createMeasurementsIfNotExists walks the "points" and ensures that all new Series are created, and all
 // new Measurement fields have been created, across the cluster.
 func (s *Server) createMeasurementsIfNotExists(database, retentionPolicy string, points []Point) error {
-	c := createMeasurementsIfNotExistsCommand{Database: database}
+	c := newCreateMeasurementsIfNotExistsCommand(database)
 
-	s.mu.RLock()
-	db := s.databases[database]
-	if db == nil {
-		s.mu.RUnlock()
-		return fmt.Errorf("database not found %q", database)
-	}
+	// Local function keeps lock management foolproof.
+	func() error {
+		s.mu.RLock()
+		defer s.mu.RUnlock()
 
-	for _, p := range points {
-		measurement, series := db.MeasurementAndSeries(p.Name, p.Tags)
-
-		if measurement == nil {
-			// Measurement not in Metastore, add to command so it's created cluster-wide.
-			c.addMeasurementIfNotExists(p.Name)
+		db := s.databases[database]
+		if db == nil {
+			return fmt.Errorf("database not found %q", database)
 		}
 
-		if series == nil {
-			// Series does not exist in Metastore, add it so it's created cluster-wide.
-			c.addSeriesIfNotExists(p.Name, p.Tags)
-		}
+		for _, p := range points {
+			measurement, series := db.MeasurementAndSeries(p.Name, p.Tags)
 
-		for k, v := range p.Values {
-			if measurement != nil {
-				if f := measurement.FieldByName(k); f != nil {
-					// Field present in Metastore, make sure there is no type conflict.
-					if f.Type != influxql.InspectDataType(v) {
-						return fmt.Errorf(fmt.Sprintf("field \"%s\" is type %T, mapped as type %s", k, v, f.Type))
-					} else {
-						// Field does not exist in Metastore, add it so it's created cluster-wide.
-						if err := c.addFieldIfNotExists(p.Name, k, influxql.InspectDataType(v)); err != nil {
-							return err
+			if measurement == nil {
+				// Measurement not in Metastore, add to command so it's created cluster-wide.
+				c.addMeasurementIfNotExists(p.Name)
+			}
+
+			if series == nil {
+				// Series does not exist in Metastore, add it so it's created cluster-wide.
+				c.addSeriesIfNotExists(p.Name, p.Tags)
+			}
+
+			for k, v := range p.Values {
+				if measurement != nil {
+					if f := measurement.FieldByName(k); f != nil {
+						// Field present in Metastore, make sure there is no type conflict.
+						if f.Type != influxql.InspectDataType(v) {
+							return fmt.Errorf(fmt.Sprintf("field \"%s\" is type %T, mapped as type %s", k, v, f.Type))
+						} else {
+							// Field does not exist in Metastore, add it so it's created cluster-wide.
+							if err := c.addFieldIfNotExists(p.Name, k, influxql.InspectDataType(v)); err != nil {
+								return err
+							}
 						}
 					}
-				}
-			} else {
-				// Measurement does not exist, so fields can't exist. Add each one unconditionally.
-				if err := c.addFieldIfNotExists(p.Name, k, influxql.InspectDataType(v)); err != nil {
-					return err
+				} else {
+					// Measurement does not exist in Metastore, so fields can't exist. Add each one unconditionally.
+					if err := c.addFieldIfNotExists(p.Name, k, influxql.InspectDataType(v)); err != nil {
+						return err
+					}
 				}
 			}
 		}
-	}
+
+		return nil
+	}()
 
 	// Any broadcast actually required?
 	if len(c.Measurements) > 0 {
