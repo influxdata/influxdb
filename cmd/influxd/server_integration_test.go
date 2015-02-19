@@ -613,3 +613,53 @@ func Test_DataArrivesInOrder(t *testing.T) {
 		t.Fatalf("Expected timestamps to arrive in order, but they were out of order")
 	}
 }
+
+func assertResultHasValues(t *testing.T, results *client.Results, query string) {
+	for _, r := range results.Results {
+		for _, row := range r.Rows {
+			for range row.Values {
+				return
+			}
+		}
+	}
+
+	t.Fatalf("Expected result for `%s` to contain values, but it did not: %v", query, results)
+}
+
+func Test_WhereTimeRangeCrossesHourBoundary(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
+	basePort := 8410
+	testName := "where time range crosses hour boundary"
+	testServer := newTestInfluxServer(t, basePort, testName)
+	defer testServer.Teardown()
+
+	totalPoints := 15
+	testServer.InsertPoints(totalPoints, func(timestamp client.Timestamp, index int) client.Point {
+		return client.Point{
+			Name: "my_measurement",
+			Values: map[string]interface{}{
+				"value": index,
+			},
+			Timestamp: timestamp,
+		}
+	})
+
+	query := "SELECT * FROM my_measurement"
+	result := testServer.PerformQuery(query)
+	if err := result.Error(); err != nil {
+		t.Fatalf("Expected no error, received %v", err)
+	}
+	assertResultHasValues(t, result, query)
+
+	for i := 60; i > 0; i-- {
+		query := fmt.Sprintf("SELECT * FROM my_measurement WHERE time > now() - %dm", i)
+		result := testServer.PerformQuery(query)
+		if err := result.Error(); err != nil {
+			t.Fatalf("Expected no error, received %v", err)
+		}
+		assertResultHasValues(t, result, query)
+	}
+}
