@@ -1596,12 +1596,23 @@ type createMeasurementsIfNotExistsCommand struct {
 	Measurements map[string]createMeasurementSubcommand `json:"measurements"`
 }
 
+func newCreateMeasurementsIfNotExistsCommand(database string) *createMeasurementsIfNotExistsCommand {
+	return &createMeasurementsIfNotExistsCommand{
+		Database:     database,
+		Measurements: make(map[string]createMeasurementSubcommand),
+	}
+}
+
 // addMeasurementIfNotExists adds the Measurement to the command, but only if not already present
 // in the command.
 func (c *createMeasurementsIfNotExistsCommand) addMeasurementIfNotExists(name string) error {
 	_, ok := c.Measurements[name]
 	if !ok {
-		c.Measurements[name] = createMeasurementSubcommand{Name: name}
+		c.Measurements[name] = createMeasurementSubcommand{
+			Name:   name,
+			Tags:   make(map[string]map[string]string),
+			Fields: make(map[string]influxql.DataType),
+		}
 	}
 	return nil
 }

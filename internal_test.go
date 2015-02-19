@@ -90,6 +90,78 @@ func TestMeasurement_expandExpr(t *testing.T) {
 	}
 }
 
+// Ensure the createMeasurementsIfNotExistsCommand operates correctly.
+func TestCreateMeasurementsCommand(t *testing.T) {
+	var err error
+	var n int
+	c := newCreateMeasurementsIfNotExistsCommand("foo")
+	if c == nil {
+		t.Fatal("createMeasurementsIfNotExistsCommand is nil")
+	}
+
+	// Add Measurement.
+	err = c.addMeasurementIfNotExists("bar")
+	if err != nil {
+		t.Fatal("error adding measurement bar")
+	}
+	err = c.addMeasurementIfNotExists("bar")
+	if err != nil {
+		t.Fatal("error re-adding measurement bar")
+	}
+
+	n = len(c.Measurements)
+	if n != 1 {
+		t.Fatalf("wrong number of measurements, expected 1, got %d", n)
+	}
+
+	// Add Series, no tags.
+	err = c.addSeriesIfNotExists("bar", nil)
+	if err != nil {
+		t.Fatal("error adding series with nil tags")
+	}
+
+	// Add Series, some tags.
+	tags := map[string]string{"host": "server01"}
+	err = c.addSeriesIfNotExists("bar", tags)
+	if err != nil {
+		t.Fatal("error adding series with non-nil tags")
+	}
+
+	// Add Series, same tags again.
+	err = c.addSeriesIfNotExists("bar", tags)
+	if err != nil {
+		t.Fatal("error re-adding series with non-nil tags")
+	}
+
+	n = len(c.Measurements["bar"].Tags)
+	if n != 2 {
+		t.Fatalf("measurement has wrong number of tags, expected 2, got %d", n)
+	}
+
+	// Add a fields.
+	err = c.addFieldIfNotExists("bar", "value", influxql.Number)
+	if err != nil {
+		t.Fatal("error adding field \"value\"")
+	}
+
+	// Add same field again.
+	err = c.addFieldIfNotExists("bar", "value", influxql.Number)
+	if err != nil {
+		t.Fatal("error re-adding field \"value\"")
+	}
+
+	// Add another field.
+	err = c.addFieldIfNotExists("bar", "value2", influxql.String)
+	if err != nil {
+		t.Fatal("error re-adding field \"value2\"")
+	}
+
+	n = len(c.Measurements["bar"].Fields)
+	if n != 2 {
+		t.Fatalf("wrong number of fields, expected 2, got %d", n)
+	}
+}
+
 // MustParseExpr parses an expression string and returns its AST representation.
 func MustParseExpr(s string) influxql.Expr {
 	expr, err := influxql.ParseExpr(s)
