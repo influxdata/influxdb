@@ -138,7 +138,7 @@ func TestCreateMeasurementsCommand(t *testing.T) {
 		t.Fatalf("measurement has wrong number of tags, expected 2, got %d", n)
 	}
 
-	// Add a fields.
+	// Add a field.
 	err = c.addFieldIfNotExists("bar", "value", influxql.Number)
 	if err != nil {
 		t.Fatal("error adding field \"value\"")
@@ -159,6 +159,41 @@ func TestCreateMeasurementsCommand(t *testing.T) {
 	n = len(c.Measurements["bar"].Fields)
 	if n != 2 {
 		t.Fatalf("wrong number of fields, expected 2, got %d", n)
+	}
+}
+
+// Ensure the createMeasurementsIfNotExistsCommand returns expected errors.
+func TestCreateMeasurementsCommand_Errors(t *testing.T) {
+	var err error
+	c := newCreateMeasurementsIfNotExistsCommand("foo")
+	if c == nil {
+		t.Fatal("createMeasurementsIfNotExistsCommand is nil")
+	}
+
+	err = c.addSeriesIfNotExists("bar", nil)
+	if err != ErrMeasurementNotFound {
+		t.Fatalf("expected ErrMeasurementNotFound got %s", err.Error())
+	}
+
+	err = c.addFieldIfNotExists("bar", "value", influxql.Number)
+	if err != ErrMeasurementNotFound {
+		t.Fatalf("expected ErrMeasurementNotFound got %s", err.Error())
+	}
+
+	// Add Measurement.
+	err = c.addMeasurementIfNotExists("bar")
+	if err != nil {
+		t.Fatal("error adding measurement bar")
+	}
+
+	// Test type conflicts
+	err = c.addFieldIfNotExists("bar", "value", influxql.Number)
+	if err != nil {
+		t.Fatal("error adding field \"value\"")
+	}
+	err = c.addFieldIfNotExists("bar", "value", influxql.String)
+	if err != ErrFieldTypeConflict {
+		t.Fatalf("expected ErrFieldTypeConflict got %s", err.Error())
 	}
 }
 
