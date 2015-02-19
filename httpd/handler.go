@@ -31,8 +31,9 @@ type route struct {
 	name        string
 	method      string
 	pattern     string
-	handlerFunc interface{}
 	gzipped     bool
+	log         bool
+	handlerFunc interface{}
 }
 
 // Handler represents an HTTP handler for the InfluxDB server.
@@ -56,47 +57,47 @@ func NewHandler(s *influxdb.Server, requireAuthentication bool, version string) 
 	h.routes = append(h.routes,
 		route{
 			"query", // Query serving route.
-			"GET", "/query", h.serveQuery, true,
+			"GET", "/query", true, true, h.serveQuery,
 		},
 		route{
 			"write", // Data-ingest route.
-			"OPTIONS", "/write", h.serveOptions, true,
+			"OPTIONS", "/write", true, true, h.serveOptions,
 		},
 		route{
 			"write", // Data-ingest route.
-			"POST", "/write", h.serveWrite, true,
+			"POST", "/write", true, true, h.serveWrite,
 		},
 		route{ // List data nodes
 			"data_nodes_index",
-			"GET", "/data_nodes", h.serveDataNodes, true,
+			"GET", "/data_nodes", true, false, h.serveDataNodes,
 		},
 		route{ // Create data node
 			"data_nodes_create",
-			"POST", "/data_nodes", h.serveCreateDataNode, true,
+			"POST", "/data_nodes", true, false, h.serveCreateDataNode,
 		},
 		route{ // Delete data node
 			"data_nodes_delete",
-			"DELETE", "/data_nodes/:id", h.serveDeleteDataNode, true,
+			"DELETE", "/data_nodes/:id", true, false, h.serveDeleteDataNode,
 		},
 		route{ // Metastore
 			"metastore",
-			"GET", "/metastore", h.serveMetastore, false,
+			"GET", "/metastore", false, false, h.serveMetastore,
 		},
 		route{ // Status
 			"status",
-			"GET", "/status", h.serveStatus, true,
+			"GET", "/status", true, true, h.serveStatus,
 		},
 		route{ // Ping
 			"ping",
-			"GET", "/ping", h.servePing, true,
+			"GET", "/ping", true, true, h.servePing,
 		},
 		route{ // Ping
 			"ping-head",
-			"HEAD", "/ping", h.servePing, true,
+			"HEAD", "/ping", true, true, h.servePing,
 		},
 		route{ // Tell data node to run CQs that should be run
 			"process_continuous_queries",
-			"POST", "/process_continuous_queries", h.serveProcessContinuousQueries, false,
+			"POST", "/process_continuous_queries", false, false, h.serveProcessContinuousQueries,
 		},
 	)
 
@@ -118,7 +119,9 @@ func NewHandler(s *influxdb.Server, requireAuthentication bool, version string) 
 		handler = versionHeader(handler, version)
 		handler = cors(handler)
 		handler = requestID(handler)
-		handler = logging(handler, r.name, weblog)
+		if r.log {
+			handler = logging(handler, r.name, weblog)
+		}
 		handler = recovery(handler, r.name, weblog) // make sure recovery is always last
 
 		h.mux.Add(r.method, r.pattern, handler)
