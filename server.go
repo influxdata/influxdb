@@ -1577,7 +1577,7 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 	}
 
 	// Build writeRawSeriesMessageType publish commands.
-	shardData := make(map[uint64][]byte)
+	shardData := make(map[uint64][]byte, 0)
 	for _, p := range points {
 		// Local function makes lock management foolproof.
 		measurement, series, err := func() (*Measurement, *Series, error) {
@@ -1619,9 +1619,12 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 			return 0, err
 		}
 
-		// Encode point header, followed by point data, and assign to shard.
-		data := marshalPointHeader(series.ID, p.Timestamp.UnixNano())
+		// Encode point header, followed by point data, and add to shard's batch.
+		data := marshalPointHeader(series.ID, uint32(len(encodedFields)), p.Timestamp.UnixNano())
 		data = append(data, encodedFields...)
+		if shardData[sh.ID] == nil {
+			shardData[sh.ID] = make([]byte, 0)
+		}
 		shardData[sh.ID] = append(shardData[sh.ID], data...)
 	}
 
@@ -1655,19 +1658,37 @@ func (s *Server) applyWriteRawSeries(m *messaging.Message) error {
 		return ErrShardNotFound
 	}
 
-	// Extract the series id and timestamp from the header.
-	// Everything after the header is the marshalled value.
-	seriesID, timestamp := unmarshalPointHeader(m.Data[:pointHeaderSize])
-	data := m.Data[pointHeaderSize:]
-
-	// Add to lookup.
-	s.addShardBySeriesID(sh, seriesID)
-
 	// TODO: Enable some way to specify if the data should be overwritten
 	overwrite := true
 
-	// Write to shard.
-	return sh.writeSeries(seriesID, timestamp, data, overwrite)
+	for {
+		if pointHeaderSize > len(m.Data) {
+			return ErrInvalidPointBuffer
+		}
+		seriesID, payloadLength, timestamp := unmarshalPointHeader(m.Data[:pointHeaderSize])
+		m.Data = m.Data[pointHeaderSize:]
+
+		if payloadLength > uint32(len(m.Data)) {
+			return ErrInvalidPointBuffer
+		}
+		data := m.Data[:payloadLength]
+
+		// Add to lookup.
+		s.addShardBySeriesID(sh, seriesID)
+
+		// Write to shard.
+		if err := sh.writeSeries(seriesID, timestamp, data, overwrite); err != nil {
+			return err
+		}
+
+		// Push the buffer forward and check if we're done.
+		m.Data = m.Data[payloadLength:]
+		if len(m.Data) == 0 {
+			break
+		}
+	}
+
+	return nil
 }
 
 func (s *Server) addShardBySeriesID(sh *Shard, seriesID uint32) {

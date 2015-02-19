@@ -81,6 +81,9 @@ var (
 	// ErrShardNotFound is returned writing to a non-existent shard.
 	ErrShardNotFound = errors.New("shard not found")
 
+	// ErrInvalidPointBuffer is returned when a buffer containing data for writing is invalid
+	ErrInvalidPointBuffer = errors.New("invalid point buffer")
+
 	// ErrReadAccessDenied is returned when a user attempts to read
 	// data that he or she does not have permission to read.
 	ErrReadAccessDenied = errors.New("read access denied")

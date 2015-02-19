@@ -134,20 +134,22 @@ func (s *Shard) deleteSeries(name string) error {
 type Shards []*Shard
 
 // pointHeaderSize represents the size of a point header, in bytes.
-const pointHeaderSize = 4 + 8 // seriesID + timestamp
+const pointHeaderSize = 4 + 4 + 8 // seriesID + payload length + timestamp
 
-// marshalPointHeader encodes a series id, timestamp, & flagset into a byte slice.
-func marshalPointHeader(seriesID uint32, timestamp int64) []byte {
-	b := make([]byte, 12)
+// marshalPointHeader encodes a series id, payload length, timestamp, & flagset into a byte slice.
+func marshalPointHeader(seriesID uint32, payloadLength uint32, timestamp int64) []byte {
+	b := make([]byte, pointHeaderSize)
 	binary.BigEndian.PutUint32(b[0:4], seriesID)
-	binary.BigEndian.PutUint64(b[4:12], uint64(timestamp))
+	binary.BigEndian.PutUint32(b[4:8], payloadLength)
+	binary.BigEndian.PutUint64(b[8:16], uint64(timestamp))
 	return b
 }
 
 // unmarshalPointHeader decodes a byte slice into a series id, timestamp & flagset.
-func unmarshalPointHeader(b []byte) (seriesID uint32, timestamp int64) {
+func unmarshalPointHeader(b []byte) (seriesID uint32, payloadLength uint32, timestamp int64) {
 	seriesID = binary.BigEndian.Uint32(b[0:4])
-	timestamp = int64(binary.BigEndian.Uint64(b[4:12]))
+	payloadLength = binary.BigEndian.Uint32(b[4:8])
+	timestamp = int64(binary.BigEndian.Uint64(b[8:16]))
 	return
 }
 
