@@ -1745,6 +1745,66 @@ func (s *Server) createMeasurementsIfNotExists(database, retentionPolicy string,
 
 // applyCreateMeasurementsIfNotExists creates the Measurements, Series, and Fields in the Metastore.
 func (s *Server) applyCreateMeasurementsIfNotExists(m *messaging.Message) error {
+	var c createMeasurementsIfNotExistsCommand
+	mustUnmarshalJSON(m.Data, &c)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	// Validate command.
+	db := s.databases[c.Database]
+	if db == nil {
+		return ErrDatabaseNotFound
+	}
+
+	// Process command within a transaction.
+	if err := s.meta.mustUpdate(func(tx *metatx) error {
+		for _, cm := range c.Measurements {
+			// Create each series
+			for _, t := range cm.Tags {
+				_, ss := db.MeasurementAndSeries(cm.Name, t)
+
+				// Ensure creation of Series is idempotent.
+				if ss != nil {
+					continue
+				}
+
+				series, err := tx.createSeries(db.name, cm.Name, t)
+				if err != nil {
+					return err
+				}
+				db.addSeriesToIndex(cm.Name, series)
+			}
+
+			// Create each new field.
+			mm := db.measurements[cm.Name]
+			if mm == nil {
+				panic(fmt.Sprintf("Measurement %s does not exist", cm.Name))
+			}
+			for k, v := range cm.Fields {
+				if err := mm.createFieldIfNotExists(k, v); err != nil {
+					if err == ErrFieldOverflow {
+						log.Printf("no more fields allowed: %s::%s", mm.Name, k)
+						continue
+					} else if err == ErrFieldTypeConflict {
+						log.Printf("field type conflict: %s::%s", mm.Name, k)
+						continue
+					}
+					return err
+				}
+				if err := tx.saveMeasurement(db.name, mm); err != nil {
+					return fmt.Errorf("save measurement: %s", err)
+				}
+			}
+			if err := tx.saveDatabase(db); err != nil {
+				return fmt.Errorf("save database: %s", err)
+			}
+		}
+
+		return nil
+	}); err != nil {
+		return err
+	}
+
 	return nil
 }
 
