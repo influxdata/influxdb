@@ -1170,6 +1170,8 @@ func TestHandler_serveWriteSeriesNonZeroTime(t *testing.T) {
 	}
 	time.Sleep(100 * time.Millisecond) // Ensure data node picks up write.
 
+	srvr.Restart() // Ensure data is queryable across restarts.
+
 	query := map[string]string{"db": "foo", "q": "select value from cpu"}
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusOK {
@@ -1211,6 +1213,8 @@ func TestHandler_serveWriteSeriesZeroTime(t *testing.T) {
 		t.Fatalf("unexpected status: %d", status)
 	}
 	time.Sleep(100 * time.Millisecond) // Ensure data node picks up write.
+
+	srvr.Restart() // Ensure data is queryable across restarts.
 
 	query := map[string]string{"db": "foo", "q": "select value from cpu"}
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
@@ -1260,6 +1264,8 @@ func TestHandler_serveWriteSeriesStringValues(t *testing.T) {
 	}
 	time.Sleep(100 * time.Millisecond) // Ensure data node picks up write.
 
+	srvr.Restart() // Ensure data is queryable across restarts.
+
 	query := map[string]string{"db": "foo", "q": "select event from logs"}
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusOK {
@@ -1300,6 +1306,8 @@ func TestHandler_serveWriteSeriesBoolValues(t *testing.T) {
 		t.Fatalf("unexpected status: %d", status)
 	}
 	time.Sleep(100 * time.Millisecond) // Ensure data node picks up write.
+
+	srvr.Restart() // Ensure data is queryable across restarts.
 
 	query := map[string]string{"db": "foo", "q": "select full from disk"}
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
