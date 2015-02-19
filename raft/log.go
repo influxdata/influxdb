@@ -43,6 +43,10 @@ type FSM interface {
 
 const logEntryHeaderSize = 8 + 8 + 8 // sz+index+term
 
+// WaitInterval represents the amount of time between checks to the applied index.
+// This is used by clients wanting to wait until a given index is processed.
+const WaitInterval = 100 * time.Millisecond
+
 // State represents whether the log is a follower, candidate, or leader.
 type State int
 
@@ -77,7 +81,6 @@ type Log struct {
 	config *Config // cluster configuration
 
 	state      State          // current node state
-	initialize chan struct{}  // initialization channel
 	heartbeats chan heartbeat // incoming heartbeat channel
 
 	term        uint64    // current election term
@@ -135,11 +138,9 @@ type Log struct {
 // NewLog creates a new instance of Log with reasonable defaults.
 func NewLog() *Log {
 	l := &Log{
-		Clock:     NewClock(),
-		Transport: &HTTPTransport{},
-		Rand:      rand.Int63,
-
-		initialize: make(chan struct{}, 0),
+		Clock:      NewClock(),
+		Transport:  &HTTPTransport{},
+		Rand:       rand.Int63,
 		heartbeats: make(chan heartbeat, 1),
 	}
 	l.SetLogOutput(os.Stderr)
@@ -486,14 +487,6 @@ func (l *Log) Initialize() error {
 		return err
 	}
 
-	// Wait until leader state change.
-	for {
-		if l.state == Leader {
-			break
-		}
-		runtime.Gosched()
-	}
-
 	// Set initial configuration.
 	var buf bytes.Buffer
 	_ = NewConfigEncoder(&buf).Encode(config)
@@ -629,7 +622,7 @@ func (l *Log) Leave() error {
 }
 
 // startStateLoop begins the state loop in a separate goroutine.
-// Returns once the state has transitioned from "stopped".
+// Returns once the state has transitioned to the initial state passed in.
 func (l *Log) startStateLoop(closing <-chan struct{}, state State) {
 	l.wg.Add(1)
 	go l.stateLoop(closing, state)
@@ -675,7 +668,7 @@ func (l *Log) followerLoop(closing <-chan struct{}) State {
 	l.tracef("followerLoop")
 	defer l.tracef("followerLoop: exit")
 
-	// Ensure all follower goroutines complete before transitioning.
+	// Ensure all follower goroutines complete before transitioning to another state.
 	var wg sync.WaitGroup
 	defer wg.Wait()
 	var transitioning = make(chan struct{})
@@ -689,8 +682,6 @@ func (l *Log) followerLoop(closing <-chan struct{}) State {
 		select {
 		case <-closing:
 			return Stopped
-		case <-l.initialize:
-			return Leader
 		case ch := <-l.Clock.AfterElectionTimeout():
 			l.closeReader()
 			close(ch)
@@ -778,7 +769,7 @@ func (l *Log) candidateLoop(closing <-chan struct{}) State {
 	term := l.term
 	l.mu.Unlock()
 
-	// Ensure all follower goroutines complete before transitioning.
+	// Ensure all candidate goroutines complete before transitioning to another state.
 	var wg sync.WaitGroup
 	defer wg.Wait()
 	var transitioning = make(chan struct{})
@@ -863,7 +854,7 @@ func (l *Log) leaderLoop(closing <-chan struct{}) State {
 	l.tracef("leaderLoop")
 	defer l.tracef("leaderLoop: exit")
 
-	// Ensure all follower goroutines complete before transitioning.
+	// Ensure all leader goroutines complete before transitioning to another state.
 	var wg sync.WaitGroup
 	defer wg.Wait()
 	var transitioning = make(chan struct{})
@@ -1052,7 +1043,7 @@ func (l *Log) Wait(index uint64) error {
 		} else if appliedIndex >= index {
 			return nil
 		}
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(WaitInterval)
 	}
 }
 
@@ -1068,7 +1059,7 @@ func (l *Log) waitCommitted(index uint64) error {
 		} else if committedIndex >= index {
 			return nil
 		}
-		time.Sleep(1 * time.Millisecond)
+		time.Sleep(WaitInterval)
 	}
 }
 
@@ -1083,7 +1074,7 @@ func (l *Log) waitUncommitted(index uint64) error {
 		if uncommittedIndex >= index {
 			return nil
 		}
-		time.Sleep(1 * time.Millisecond)
+		time.Sleep(WaitInterval)
 	}
 }
 

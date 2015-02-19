@@ -12,7 +12,7 @@ import (
 // Handler represents an HTTP endpoint for Raft to communicate over.
 type Handler struct {
 	Log interface {
-		AddPeer(u *url.URL) (uint64, uint64, *Config, error)
+		AddPeer(u *url.URL) (id uint64, leaderID uint64, config *Config, err error)
 		RemovePeer(id uint64) error
 		Heartbeat(term, commitIndex, leaderID uint64) (currentIndex uint64, err error)
 		WriteEntriesTo(w io.Writer, id, term, index uint64) error
