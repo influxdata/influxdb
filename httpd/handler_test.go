@@ -535,6 +535,45 @@ func TestHandler_GzipDisabled(t *testing.T) {
 		t.Fatalf("unexpected Content-Encoding.  expected %q, actual: %q", "", ce)
 	}
 }
+func TestHandler_Index(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, body := MustHTTP("GET", s.URL, nil, nil, "")
+
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+
+	if body != "1" {
+		t.Fatalf("unexpected body.  expected %q, actual %q", "1", body)
+	}
+}
+
+func TestHandler_IndexJson(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, body := MustHTTP("GET", s.URL+`/index.json`, nil, nil, "")
+
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+
+	var data = struct {
+		Id uint64 `json:"index"`
+	}{}
+
+	if err := json.Unmarshal([]byte(body), &data); err != nil {
+		t.Error(err)
+	}
+	if data.Id != 1 {
+		t.Log("body: ", body)
+		t.Fatalf("unexpected index, expected 1, actual: %d", data.Id)
+	}
+}
 
 func TestHandler_Ping(t *testing.T) {
 	srvr := OpenAuthlessServer(NewMessagingClient())

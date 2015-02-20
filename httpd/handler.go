@@ -99,6 +99,14 @@ func NewHandler(s *influxdb.Server, requireAuthentication bool, version string) 
 			"process_continuous_queries",
 			"POST", "/process_continuous_queries", false, false, h.serveProcessContinuousQueries,
 		},
+		route{
+			"index-json", // Query serving route.
+			"GET", "/index.json", true, true, h.serveIndexJson,
+		},
+		route{
+			"index", // Query serving route.
+			"GET", "/", true, true, h.serveIndex,
+		},
 	)
 
 	for _, r := range h.routes {
@@ -251,6 +259,31 @@ func (h *Handler) serveOptions(w http.ResponseWriter, r *http.Request) {
 // servePing returns a simple response to let the client know the server is running.
 func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// serveIndex returns the current index of the node as the body of the response
+func (h *Handler) serveIndex(w http.ResponseWriter, r *http.Request) {
+	w.Write([]byte(fmt.Sprintf("%d", h.server.Index())))
+}
+
+// serveIndexJson returns the current index of the node as json
+func (h *Handler) serveIndexJson(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("content-type", "application/json")
+
+	pretty := r.URL.Query().Get("pretty") == "true"
+
+	data := struct {
+		Index uint64 `json:"index"`
+	}{
+		Index: h.server.Index(),
+	}
+	var b []byte
+	if pretty {
+		b, _ = json.MarshalIndent(data, "", "    ")
+	} else {
+		b, _ = json.Marshal(data)
+	}
+	w.Write(b)
 }
 
 // serveDataNodes returns a list of all data nodes in the cluster.
