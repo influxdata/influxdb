@@ -830,6 +830,32 @@ func TestServer_WriteSeries(t *testing.T) {
 	}
 }
 
+// Ensure the server can drop a series.
+func TestServer_DropSeries(t *testing.T) {
+	c := NewMessagingClient()
+	s := OpenServer(c)
+	defer s.Close()
+	s.CreateDatabase("foo")
+	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "mypolicy", Duration: 1 * time.Hour})
+	s.CreateUser("susy", "pass", false)
+
+	// Write series with one point to the database.
+	tags := map[string]string{"host": "servera.influx.com", "region": "uswest"}
+	index, err := s.WriteSeries("foo", "mypolicy", []influxdb.Point{{Name: "cpu_load", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(23.2)}}})
+	if err != nil {
+		t.Fatal(err)
+	} else if err = s.Sync(index); err != nil {
+		t.Fatalf("sync error: %s", err)
+	}
+
+	// Drop the first series
+	if err := s.DeleteSeries("foo", 1); err != nil {
+		t.Fatal(err)
+	} else if s.SeriesExists("foo", 1) {
+		t.Fatalf("series not actually dropped")
+	}
+}
+
 // Ensure the server can execute a query and return the data correctly.
 func TestServer_ExecuteQuery(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
