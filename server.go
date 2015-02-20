@@ -1506,13 +1506,10 @@ func (c *createMeasurementsIfNotExistsCommand) addMeasurementIfNotExists(name st
 // addSeriesIfNotExists adds the Series, identified by Measurement name and tag set, to
 // the command, but only if not already present in the command.
 func (c *createMeasurementsIfNotExistsCommand) addSeriesIfNotExists(measurement string, tags map[string]string) error {
-	_, ok := c.Measurements[measurement]
-	if !ok {
-		return ErrMeasurementNotFound
-	}
+	c.addMeasurementIfNotExists(measurement)
 
 	tagset := string(marshalTags(tags))
-	_, ok = c.Measurements[measurement].Tags[tagset]
+	_, ok := c.Measurements[measurement].Tags[tagset]
 	if ok {
 		// Series already present in in subcommand, nothing to do.
 		return nil
@@ -1526,10 +1523,7 @@ func (c *createMeasurementsIfNotExistsCommand) addSeriesIfNotExists(measurement 
 // addFieldIfNotExists adds the field to the command for the Measurement, but only if it is not already
 // present. It will return an error if the field is present in the command, but is of a different type.
 func (c *createMeasurementsIfNotExistsCommand) addFieldIfNotExists(measurement, name string, typ influxql.DataType) error {
-	_, ok := c.Measurements[measurement]
-	if !ok {
-		return ErrMeasurementNotFound
-	}
+	c.addMeasurementIfNotExists(measurement)
 
 	t, ok := c.Measurements[measurement].Fields[name]
 	if ok {
@@ -1718,14 +1712,11 @@ func (s *Server) createMeasurementsIfNotExists(database, retentionPolicy string,
 		for _, p := range points {
 			measurement, series := db.MeasurementAndSeries(p.Name, p.Tags)
 
-			if measurement == nil {
-				// Measurement not in Metastore, add to command so it's created cluster-wide.
-				c.addMeasurementIfNotExists(p.Name)
-			}
-
 			if series == nil {
 				// Series does not exist in Metastore, add it so it's created cluster-wide.
-				c.addSeriesIfNotExists(p.Name, p.Tags)
+				if err := c.addSeriesIfNotExists(p.Name, p.Tags); err != nil {
+					return err
+				}
 			}
 
 			for k, v := range p.Values {

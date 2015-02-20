@@ -170,16 +170,6 @@ func TestCreateMeasurementsCommand_Errors(t *testing.T) {
 		t.Fatal("createMeasurementsIfNotExistsCommand is nil")
 	}
 
-	err = c.addSeriesIfNotExists("bar", nil)
-	if err != ErrMeasurementNotFound {
-		t.Fatalf("expected ErrMeasurementNotFound got %s", err.Error())
-	}
-
-	err = c.addFieldIfNotExists("bar", "value", influxql.Number)
-	if err != ErrMeasurementNotFound {
-		t.Fatalf("expected ErrMeasurementNotFound got %s", err.Error())
-	}
-
 	// Add Measurement.
 	err = c.addMeasurementIfNotExists("bar")
 	if err != nil {
