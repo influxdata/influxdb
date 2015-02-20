@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
@@ -39,6 +40,35 @@ type node struct {
 
 // cluster represents a multi-node cluster.
 type cluster []node
+
+// createBatch returns a JSON string, representing the request body for a batch write. The timestamp
+// simply increases and the value is a random integer.
+func createBatch(nPoints int, database, retention, measurement string, tags map[string]string) string {
+	type Point struct {
+		Name      string            `json:"name"`
+		Tags      map[string]string `json:"tags"`
+		Timestamp int64             `json:"timestamp"`
+		Precision string            `json:"precision"`
+		Values    map[string]int    `json:"values"`
+	}
+	type PointBatch struct {
+		Database        string  `json:"database"`
+		RetentionPolicy string  `json:"retentionPolicy"`
+		Points          []Point `json:"points"`
+	}
+
+	rand.Seed(time.Now().UTC().UnixNano())
+	points := make([]Point, 0)
+	for i := 0; i < nPoints; i++ {
+		values := map[string]int{"value": rand.Int()}
+		point := Point{Name: measurement, Tags: tags, Timestamp: time.Now().UTC().UnixNano(), Precision: "n", Values: values}
+		points = append(points, point)
+	}
+	batch := PointBatch{Database: database, RetentionPolicy: retention, Points: points}
+
+	buf, _ := json.Marshal(batch)
+	return string(buf)
+}
 
 // createCombinedNodeCluster creates a cluster of nServers nodes, each of which
 // runs as both a Broker and Data node. If any part cluster creation fails,
@@ -409,4 +439,18 @@ func Test_Server5NodeIntegration(t *testing.T) {
 	}
 
 	simpleQuery(t, testName, nodes[:1], `select value from "foo"."bar".cpu`, expectedResults)
+}
+
+func Test_ServerSingleLargeBatchIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+	nNodes := 1
+	basePort := 8390
+	testName := "single node large batch"
+	nodes := createCombinedNodeCluster(t, "single node large batch", nNodes, basePort)
+
+	createDatabase(t, testName, nodes, "foo")
+	createRetentionPolicy(t, testName, nodes, "foo", "bar")
+	write(t, testName, nodes, createBatch(2, "foo", "bar", "cpu", map[string]string{"host": "server01"}))
 }
