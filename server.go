@@ -1514,14 +1514,25 @@ func (s *Server) applyDeleteSeries(m *messaging.Message) error {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.databases[c.Database] == nil {
+	database := s.databases[c.Database]
+	if database == nil {
 		return ErrDatabaseNotFound
 	}
 
 	// Remove from metastore.
-	err := s.meta.mustUpdate(func(tx *metatx) error { return tx.deleteSeries(c.Database, c.SeriesIDs) })
-	if err != nil {
-		return err
+	for _, seriesID := range c.SeriesIDs {
+		series := database.series[seriesID]
+		if series == nil {
+			return fmt.Errorf("series not found for id %d", seriesID)
+		}
+		m := series.measurement
+		if m == nil {
+			return fmt.Errorf("measurement not found for series %d", seriesID)
+		}
+		err := s.meta.mustUpdate(func(tx *metatx) error { return tx.deleteSeries(c.Database, m.Name, seriesID) })
+		if err != nil {
+			return err
+		}
 	}
 
 	// Delete the database entry.
