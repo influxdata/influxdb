@@ -99,8 +99,7 @@ type Server struct {
 	databases map[string]*database // databases by name
 	users     map[string]*User     // user by name
 
-	shards           map[uint64]*Shard   // shards by shard id
-	shardsBySeriesID map[uint32][]*Shard // shards by series id
+	shards map[uint64]*Shard // shards by shard id
 
 	Logger *log.Logger
 
@@ -129,9 +128,8 @@ func NewServer() *Server {
 		databases: make(map[string]*database),
 		users:     make(map[string]*User),
 
-		shards:           make(map[uint64]*Shard),
-		shardsBySeriesID: make(map[uint32][]*Shard),
-		Logger:           log.New(os.Stderr, "[server] ", log.LstdFlags),
+		shards: make(map[uint64]*Shard),
+		Logger: log.New(os.Stderr, "[server] ", log.LstdFlags),
 	}
 	// Server will always return with authentication enabled.
 	// This ensures that disabling authentication must be an explicit decision.
@@ -1669,9 +1667,6 @@ func (s *Server) applyWriteRawSeries(m *messaging.Message) error {
 		}
 		data := m.Data[:payloadLength]
 
-		// Add to lookup.
-		s.addShardBySeriesID(sh, seriesID)
-
 		// Write to shard.
 		if err := sh.writeSeries(seriesID, timestamp, data, overwrite); err != nil {
 			return err
@@ -1685,15 +1680,6 @@ func (s *Server) applyWriteRawSeries(m *messaging.Message) error {
 	}
 
 	return nil
-}
-
-func (s *Server) addShardBySeriesID(sh *Shard, seriesID uint32) {
-	for _, other := range s.shardsBySeriesID[seriesID] {
-		if other.ID == sh.ID {
-			return
-		}
-	}
-	s.shardsBySeriesID[seriesID] = append(s.shardsBySeriesID[seriesID], sh)
 }
 
 // createMeasurementsIfNotExists walks the "points" and ensures that all new Series are created, and all
