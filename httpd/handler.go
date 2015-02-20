@@ -277,6 +277,7 @@ func (h *Handler) serveWait(w http.ResponseWriter, r *http.Request) {
 
 	if index == 0 {
 		w.WriteHeader(http.StatusBadRequest)
+		return
 	}
 
 	var d time.Duration
