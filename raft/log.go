@@ -1386,7 +1386,7 @@ func (l *Log) RequestVote(term, candidateID, lastLogIndex, lastLogTerm uint64) (
 		return ErrAlreadyVoted
 	} else if lastLogTerm < l.lastLogTerm {
 		return ErrOutOfDateLog
-	} else if lastLogTerm == l.term && lastLogIndex < l.lastLogIndex {
+	} else if lastLogTerm == l.lastLogTerm && lastLogIndex < l.lastLogIndex {
 		return ErrOutOfDateLog
 	}
 
