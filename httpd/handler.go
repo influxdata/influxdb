@@ -261,13 +261,13 @@ func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// serveIndex returns the current index of the node as the body of the response
+// serveIndex returns the current index of the node as the body of the response (optionally in json)
 // Takes optional parameters:
 //     index - If specified, will poll for index before returning
 //     timeout - time in milliseconds to wait until index is met before erring out
 //               default timeout if not specified is 100 milliseconds
 func (h *Handler) serveIndex(w http.ResponseWriter, r *http.Request) {
-	index, _ := strconv.Atoi(r.URL.Query().Get("index"))
+	index, _ := strconv.ParseUint(r.URL.Query().Get("index"), 10, 64)
 	timeout, _ := strconv.Atoi(r.URL.Query().Get("timeout"))
 
 	if index > 0 {
@@ -277,14 +277,13 @@ func (h *Handler) serveIndex(w http.ResponseWriter, r *http.Request) {
 		} else {
 			d = time.Duration(timeout) * time.Millisecond
 		}
-		err := h.pollForIndex(uint64(index), d)
+		err := h.pollForIndex(index, d)
 		if err != nil {
 			w.WriteHeader(http.StatusRequestTimeout)
 			return
 		}
 	}
 	if !strings.HasSuffix(strings.ToLower(r.URL.Path), ".json") {
-
 		w.Write([]byte(fmt.Sprintf("%d", h.server.Index())))
 		return
 	}
