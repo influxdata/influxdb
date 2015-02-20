@@ -257,25 +257,10 @@ func TestCluster_Elect_RealTime(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		leader := c.Logs[0]
 		for i := uint64(0); i < commandN; i++ {
-			for {
-				// Apply entry to leader.
-				// If not leader, find new leader.
-				index, err := leader.Apply(make([]byte, 50))
-				if err == raft.ErrNotLeader {
-					for _, l := range c.Logs {
-						if l.State() == raft.Leader {
-							leader = l
-							break
-						}
-					}
-					continue
-				} else if err != nil {
-					t.Fatalf("apply: index=%d, err=%s", index, err)
-				} else {
-					break
-				}
+			index, err := c.Apply(make([]byte, 50))
+			if err != nil {
+				t.Fatalf("apply: index=%d, err=%s", index, err)
 			}
 			time.Sleep(time.Duration(rand.Intn(10)) * time.Millisecond)
 		}
@@ -334,7 +319,7 @@ func benchmarkClusterApply(b *testing.B, logN int) {
 	var index uint64
 	var err error
 	for i := 0; i < b.N; i++ {
-		index, err = c.Logs[0].Apply(make([]byte, 50))
+		index, err = c.Apply(make([]byte, 50))
 		if err != nil {
 			b.Fatalf("apply: %s", err)
 		}
@@ -467,7 +452,7 @@ func NewRealTimeCluster(logN int, fsmFn func() raft.FSM) *Cluster {
 	}
 
 	// Ensure nodes are ready.
-	index := c.Logs[0].Index()
+	index, _ := c.Logs[0].LastLogIndexTerm()
 	for i := 0; i < logN; i++ {
 		c.Logs[i].MustWait(index)
 	}
@@ -479,6 +464,21 @@ func NewRealTimeCluster(logN int, fsmFn func() raft.FSM) *Cluster {
 func (c *Cluster) Close() {
 	for _, l := range c.Logs {
 		l.Close()
+	}
+}
+
+// Apply continually tries to apply data to the current leader.
+// If the leader cannot be found then it will retry until it finds the leader.
+func (c *Cluster) Apply(data []byte) (uint64, error) {
+	for {
+		for _, l := range c.Logs {
+			index, err := l.Apply(make([]byte, 50))
+			if err == raft.ErrNotLeader {
+				continue
+			}
+			return index, err
+		}
+		time.Sleep(1 * time.Millisecond)
 	}
 }
 

@@ -83,13 +83,14 @@ type Log struct {
 	state      State          // current node state
 	heartbeats chan heartbeat // incoming heartbeat channel
 
+	lastLogTerm  uint64 // highest term in the log
+	lastLogIndex uint64 // highest index in the log
+
 	term        uint64    // current election term
-	lastLogTerm uint64    // highest term in the log
 	leaderID    uint64    // the current leader
 	votedFor    uint64    // candidate voted for in current election term
 	lastContact time.Time // last contact from the leader
 
-	index        uint64 // highest entry available (FSM or log)
 	commitIndex  uint64 // highest entry to be committed
 	appliedIndex uint64 // highest entry to applied to state machine
 
@@ -178,11 +179,11 @@ func (l *Log) State() State {
 	return l.state
 }
 
-// Index returns the highest available index.
-func (l *Log) Index() uint64 {
+// LastLogIndexTerm returns the last index & term from the log.
+func (l *Log) LastLogIndexTerm() (index, term uint64) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return l.index
+	return l.lastLogIndex, l.lastLogTerm
 }
 
 // CommtIndex returns the highest committed index.
@@ -265,7 +266,7 @@ func (l *Log) Open(path string) error {
 		return err
 	}
 	l.tracef("Open: fsm: index=%d", index)
-	l.index = index
+	l.lastLogIndex = index
 	l.appliedIndex = index
 	l.commitIndex = index
 
@@ -277,7 +278,7 @@ func (l *Log) Open(path string) error {
 	// If a log exists then start the state loop.
 	if c != nil {
 		l.Logger.Printf("log open: created at %s, with ID %d, term %d, last applied index of %d",
-			path, l.id, l.term, l.index)
+			path, l.id, l.term, l.lastLogIndex)
 
 		// If the config only has one node then start it as the leader.
 		// Otherwise start as a follower.
@@ -326,7 +327,8 @@ func (l *Log) close() error {
 	// Clear log info.
 	l.setID(0)
 	l.path = ""
-	l.index, l.term, l.votedFor, l.lastLogTerm = 0, 0, 0, 0
+	l.lastLogIndex, l.lastLogTerm = 0, 0
+	l.term, l.votedFor = 0, 0
 	l.config = nil
 
 	l.tracef("closed")
@@ -752,7 +754,7 @@ func (l *Log) truncate() {
 	entmin := l.entries[0].Index
 	assert(l.commitIndex >= entmin, "commit index before lowest entry: commit=%d, entmin=%d", l.commitIndex, entmin)
 	l.entries = l.entries[:l.commitIndex-entmin]
-	l.index = l.commitIndex
+	l.lastLogIndex = l.commitIndex
 }
 
 // candidateLoop requests vote from other nodes in an attempt to become leader.
@@ -812,7 +814,8 @@ func (l *Log) elect(term uint64, elected chan struct{}, wg *sync.WaitGroup, tran
 		l.mu.Unlock()
 		return
 	}
-	id, lastLogIndex, lastLogTerm, config := l.id, l.index, l.lastLogTerm, l.config
+	id, config := l.id, l.config
+	lastLogIndex, lastLogTerm := l.lastLogIndex, l.lastLogTerm
 	l.mu.Unlock()
 
 	// Request votes from peers.
@@ -914,7 +917,7 @@ func (l *Log) heartbeater(term uint64, committed chan uint64, wg *sync.WaitGroup
 		l.mu.Unlock()
 		return
 	}
-	commitIndex, localIndex, leaderID, config := l.commitIndex, l.index, l.id, l.config
+	commitIndex, localIndex, leaderID, config := l.commitIndex, l.lastLogIndex, l.id, l.config
 	l.mu.Unlock()
 
 	// Commit latest index if there are no peers.
@@ -1011,7 +1014,7 @@ func (l *Log) internalApply(typ LogEntryType, command []byte) (index uint64, err
 	// Create log entry.
 	e := LogEntry{
 		Type:  typ,
-		Index: l.index + 1,
+		Index: l.lastLogIndex + 1,
 		Term:  l.term,
 		Data:  command,
 	}
@@ -1022,7 +1025,7 @@ func (l *Log) internalApply(typ LogEntryType, command []byte) (index uint64, err
 
 	// If there is no config or only one node then move commit index forward.
 	if l.config == nil || len(l.config.Nodes) <= 1 {
-		l.commitIndex = l.index
+		l.commitIndex = l.lastLogIndex
 	}
 
 	return
@@ -1067,11 +1070,11 @@ func (l *Log) waitCommitted(index uint64) error {
 func (l *Log) waitUncommitted(index uint64) error {
 	for {
 		l.mu.Lock()
-		uncommittedIndex := l.index
-		//l.tracef("waitUncommitted: %s / %d", l.state, l.index)
+		lastLogIndex := l.lastLogIndex
+		//l.tracef("waitUncommitted: %s / %d", l.state, l.lastLogIndex)
 		l.mu.Unlock()
 
-		if uncommittedIndex >= index {
+		if lastLogIndex >= index {
 			return nil
 		}
 		time.Sleep(WaitInterval)
@@ -1080,8 +1083,8 @@ func (l *Log) waitUncommitted(index uint64) error {
 
 // append adds a log entry to the list of entries.
 func (l *Log) append(e *LogEntry) {
-	//l.tracef("append: idx=%d, prev=%d", e.Index, l.index)
-	assert(e.Index == l.index+1, "non-contiguous log index(%d): idx=%d, prev=%d", l.id, e.Index, l.index)
+	//l.tracef("append: idx=%d, prev=%d", e.Index, l.lastLogIndex)
+	assert(e.Index == l.lastLogIndex+1, "non-contiguous log index(%d): idx=%d, prev=%d", l.id, e.Index, l.lastLogIndex)
 
 	// Encode entry to a byte slice.
 	buf := make([]byte, logEntryHeaderSize+len(e.Data))
@@ -1090,7 +1093,7 @@ func (l *Log) append(e *LogEntry) {
 
 	// Add to pending entries list to wait to be applied.
 	l.entries = append(l.entries, e)
-	l.index = e.Index
+	l.lastLogIndex = e.Index
 	l.lastLogTerm = e.Term
 
 	// Write to tailing writers.
@@ -1160,8 +1163,6 @@ func (l *Log) applier(closing <-chan struct{}) {
 			l.tracef("applier: entries: available=%d-%d, [next,commit]=%d-%d", entmin, entmax, nextUnappliedIndex, commitIndex)
 			assert(nextUnappliedIndex <= commitIndex, "next unapplied index after commit index: next=%d, commit=%d", nextUnappliedIndex, commitIndex)
 
-			l.tracef("applier.3")
-
 			// Determine the lowest index to start from.
 			// This should be the next entry after the last applied entry.
 			// Ignore if we don't have any entries after the last applied yet.
@@ -1170,8 +1171,6 @@ func (l *Log) applier(closing <-chan struct{}) {
 				return nil
 			}
 			imin := nextUnappliedIndex
-
-			l.tracef("applier.4")
 
 			// Determine the highest index to go to.
 			// This should be the committed index.
@@ -1350,7 +1349,7 @@ func (l *Log) Heartbeat(term, commitIndex, leaderID uint64) (currentIndex uint64
 	// Ignore if the incoming term is less than the log's term.
 	if term < l.term {
 		l.tracef("HB: stale term, ignore: %d < %d", term, l.term)
-		return l.index, ErrStaleTerm
+		return l.lastLogIndex, ErrStaleTerm
 	}
 
 	// Send heartbeat to channel for the state loop to process.
@@ -1359,8 +1358,8 @@ func (l *Log) Heartbeat(term, commitIndex, leaderID uint64) (currentIndex uint64
 	default:
 	}
 
-	l.tracef("HB: (term=%d, commit=%d, leaderID: %d) (index=%d, term=%d)", term, commitIndex, leaderID, l.index, l.term)
-	return l.index, nil
+	l.tracef("HB: (term=%d, commit=%d, leaderID: %d) (index=%d, term=%d)", term, commitIndex, leaderID, l.lastLogIndex, l.term)
+	return l.lastLogIndex, nil
 }
 
 // RequestVote requests a vote from the log.
@@ -1385,9 +1384,9 @@ func (l *Log) RequestVote(term, candidateID, lastLogIndex, lastLogTerm uint64) (
 		return ErrStaleTerm
 	} else if term == l.term && l.votedFor != 0 && l.votedFor != candidateID {
 		return ErrAlreadyVoted
-	} else if lastLogTerm < l.term {
+	} else if lastLogTerm < l.lastLogTerm {
 		return ErrOutOfDateLog
-	} else if lastLogTerm == l.term && lastLogIndex < l.index {
+	} else if lastLogTerm == l.term && lastLogIndex < l.lastLogIndex {
 		return ErrOutOfDateLog
 	}
 
@@ -1467,7 +1466,7 @@ func (l *Log) initWriter(w io.Writer, id, term, index uint64) (*logWriter, error
 		return nil, ErrNotLeader
 	} else if term > l.term {
 		return nil, ErrStaleTerm
-	} else if index > l.index {
+	} else if index > l.lastLogIndex {
 		return nil, ErrUncommittedIndex
 	}
 
@@ -1618,7 +1617,7 @@ func (l *Log) ReadFrom(r io.ReadCloser) error {
 
 			// Update the indicies & clear the entries.
 			l.mu.Lock()
-			l.index = index
+			l.lastLogIndex = index
 			l.commitIndex = index
 			l.appliedIndex = index
 			l.entries = nil
@@ -1633,7 +1632,7 @@ func (l *Log) ReadFrom(r io.ReadCloser) error {
 			l.mu.Unlock()
 			return nil
 		}
-		//l.tracef("ReadFrom: entry: index=%d / prev=%d / commit=%d", e.Index, l.index, l.commitIndex)
+		//l.tracef("ReadFrom: entry: index=%d / prev=%d / commit=%d", e.Index, l.lastLogIndex, l.commitIndex)
 		l.append(&e)
 		l.mu.Unlock()
 	}
