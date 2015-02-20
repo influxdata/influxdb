@@ -552,31 +552,7 @@ func TestHandler_Index(t *testing.T) {
 	}
 }
 
-func TestHandler_IndexJson(t *testing.T) {
-	srvr := OpenAuthlessServer(NewMessagingClient())
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	status, body := MustHTTP("GET", s.URL+`/index.json`, nil, nil, "")
-
-	if status != http.StatusOK {
-		t.Fatalf("unexpected status: %d", status)
-	}
-
-	var data = struct {
-		Id uint64 `json:"index"`
-	}{}
-
-	if err := json.Unmarshal([]byte(body), &data); err != nil {
-		t.Error(err)
-	}
-	if data.Id != 1 {
-		t.Log("body: ", body)
-		t.Fatalf("unexpected index, expected 1, actual: %d", data.Id)
-	}
-}
-
-func TestHandler_IndexSpecified(t *testing.T) {
+func TestHandler_Wait(t *testing.T) {
 	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
@@ -584,7 +560,7 @@ func TestHandler_IndexSpecified(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, _ := MustHTTP("GET", s.URL, map[string]string{"index": "2", "timeout": "200"}, nil, "")
+	status, _ := MustHTTP("GET", s.URL+`/wait/2`, map[string]string{"timeout": "200"}, nil, "")
 
 	// Write some data
 	_, _ = MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}}]}`)
@@ -594,12 +570,36 @@ func TestHandler_IndexSpecified(t *testing.T) {
 	}
 }
 
-func TestHandler_IndexSpecifiedExpectTimeout(t *testing.T) {
+func TestHandler_WaitNoIndexSpecified(t *testing.T) {
 	srvr := OpenAuthlessServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, _ := MustHTTP("GET", s.URL, map[string]string{"index": "2", "timeout": "1"}, nil, "")
+	status, _ := MustHTTP("GET", s.URL+`/wait`, nil, nil, "")
+
+	if status != http.StatusNotFound {
+		t.Fatalf("unexpected status, expected:  %d, actual: %d", http.StatusNotFound, status)
+	}
+}
+
+func TestHandler_WaitInvalidIndexSpecified(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, _ := MustHTTP("GET", s.URL+`/wait/foo`, nil, nil, "")
+
+	if status != http.StatusBadRequest {
+		t.Fatalf("unexpected status, expected:  %d, actual: %d", http.StatusBadRequest, status)
+	}
+}
+
+func TestHandler_WaitExpectTimeout(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, _ := MustHTTP("GET", s.URL+`/wait/2`, map[string]string{"timeout": "1"}, nil, "")
 
 	if status != http.StatusRequestTimeout {
 		t.Fatalf("unexpected status, expected:  %d, actual: %d", http.StatusRequestTimeout, status)
