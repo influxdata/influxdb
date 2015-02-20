@@ -2157,6 +2157,7 @@ func (s *Server) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, 
 		return &Result{Err: err}
 	}
 
+	s.mu.RUnlock()
 	for _, m := range measurements {
 		var ids seriesIDs
 
@@ -2176,7 +2177,6 @@ func (s *Server) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, 
 			ids = m.seriesIDs
 		}
 
-		s.mu.RUnlock()
 		// Delete series by ID.
 		for _, id := range ids {
 			err := s.DeleteSeries(database, id)
