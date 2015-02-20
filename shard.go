@@ -108,18 +108,37 @@ func (s *Shard) readSeries(seriesID uint32, timestamp int64) (values []byte, err
 	return
 }
 
-// writeSeries writes series data to a shard.
-func (s *Shard) writeSeries(seriesID uint32, timestamp int64, values []byte, overwrite bool) error {
+// writeSeries writes series batch to a shard.
+func (s *Shard) writeSeries(batch []byte) error {
 	return s.store.Update(func(tx *bolt.Tx) error {
-		// Create a bucket for the series.
-		b, err := tx.CreateBucketIfNotExists(u32tob(seriesID))
-		if err != nil {
-			return err
-		}
+		for {
+			if pointHeaderSize > len(batch) {
+				return ErrInvalidPointBuffer
+			}
+			seriesID, payloadLength, timestamp := unmarshalPointHeader(batch[:pointHeaderSize])
+			batch = batch[pointHeaderSize:]
 
-		// Insert the values by timestamp.
-		if err := b.Put(u64tob(uint64(timestamp)), values); err != nil {
-			return err
+			if payloadLength > uint32(len(batch)) {
+				return ErrInvalidPointBuffer
+			}
+			data := batch[:payloadLength]
+
+			// Create a bucket for the series.
+			b, err := tx.CreateBucketIfNotExists(u32tob(seriesID))
+			if err != nil {
+				return err
+			}
+
+			// Insert the values by timestamp.
+			if err := b.Put(u64tob(uint64(timestamp)), data); err != nil {
+				return err
+			}
+
+			// Push the buffer forward and check if we're done.
+			batch = batch[payloadLength:]
+			if len(batch) == 0 {
+				break
+			}
 		}
 
 		return nil

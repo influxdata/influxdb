@@ -1652,31 +1652,8 @@ func (s *Server) applyWriteRawSeries(m *messaging.Message) error {
 		return ErrShardNotFound
 	}
 
-	// TODO: Enable some way to specify if the data should be overwritten
-	overwrite := true
-
-	for {
-		if pointHeaderSize > len(m.Data) {
-			return ErrInvalidPointBuffer
-		}
-		seriesID, payloadLength, timestamp := unmarshalPointHeader(m.Data[:pointHeaderSize])
-		m.Data = m.Data[pointHeaderSize:]
-
-		if payloadLength > uint32(len(m.Data)) {
-			return ErrInvalidPointBuffer
-		}
-		data := m.Data[:payloadLength]
-
-		// Write to shard.
-		if err := sh.writeSeries(seriesID, timestamp, data, overwrite); err != nil {
-			return err
-		}
-
-		// Push the buffer forward and check if we're done.
-		m.Data = m.Data[payloadLength:]
-		if len(m.Data) == 0 {
-			break
-		}
+	if err := sh.writeSeries(m.Data); err != nil {
+		return err
 	}
 
 	return nil
