@@ -1496,8 +1496,11 @@ func TestHandler_serveWriteSeriesBatch(t *testing.T) {
 	if len(result.Rows) != 1 {
 		t.Fatalf("unexpected row count, expected: %d, actual: %d", 1, len(result.Rows))
 	}
-	if result.Rows[0].Values[0][1] != false {
-		t.Fatalf("unexpected string value, actual: %s", result.Rows[0].Values[0][1])
+	if len(result.Rows[0].Columns) != 3 {
+		t.Fatalf("unexpected column count, expected: %d, actual: %d", 3, len(result.Rows[0].Columns))
+	}
+	if len(result.Rows[0].Values) != 3 {
+		t.Fatalf("unexpected values count, expected: %d, actual: %d", 3, len(result.Rows[0].Values))
 	}
 }
 
