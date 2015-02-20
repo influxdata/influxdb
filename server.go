@@ -1725,18 +1725,13 @@ func (s *Server) createMeasurementsIfNotExists(database, retentionPolicy string,
 						// Field present in Metastore, make sure there is no type conflict.
 						if f.Type != influxql.InspectDataType(v) {
 							return fmt.Errorf(fmt.Sprintf("field \"%s\" is type %T, mapped as type %s", k, v, f.Type))
-						} else {
-							// Field does not exist in Metastore, add it so it's created cluster-wide.
-							if err := c.addFieldIfNotExists(p.Name, k, influxql.InspectDataType(v)); err != nil {
-								return err
-							}
 						}
+						continue // Field is present, and it's of the same type. Nothing more to do.
 					}
-				} else {
-					// Measurement does not exist in Metastore, so fields can't exist. Add each one unconditionally.
-					if err := c.addFieldIfNotExists(p.Name, k, influxql.InspectDataType(v)); err != nil {
-						return err
-					}
+				}
+				// Field isn't in Metastore. Add it to command so it's created cluster-wide.
+				if err := c.addFieldIfNotExists(p.Name, k, influxql.InspectDataType(v)); err != nil {
+					return err
 				}
 			}
 		}
