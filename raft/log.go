@@ -788,7 +788,7 @@ func (l *Log) candidateLoop(closing <-chan struct{}) State {
 			return Stopped
 		case hb := <-l.heartbeats:
 			l.mu.Lock()
-			if hb.term > l.term {
+			if hb.term >= l.term {
 				l.term = hb.term
 				l.votedFor = 0
 				l.leaderID = hb.leaderID
@@ -1386,7 +1386,7 @@ func (l *Log) RequestVote(term, candidateID, lastLogIndex, lastLogTerm uint64) (
 		return ErrAlreadyVoted
 	} else if lastLogTerm < l.lastLogTerm {
 		return ErrOutOfDateLog
-	} else if lastLogTerm == l.term && lastLogIndex < l.lastLogIndex {
+	} else if lastLogTerm == l.lastLogTerm && lastLogIndex < l.lastLogIndex {
 		return ErrOutOfDateLog
 	}
 

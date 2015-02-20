@@ -297,8 +297,9 @@ func TestCluster_Elect_RealTime(t *testing.T) {
 
 	// Verify FSM indicies match.
 	for i, l := range c.Logs {
-		if exp, fsm := commandN+minIndex, l.FSM.(*IndexFSM); exp != fsm.index {
-			t.Errorf("fsm index mismatch(%d): exp=%d, got=%d", i, exp, fsm.index)
+		fsmIndex, _ := l.FSM.(*raft.IndexFSM).Index()
+		if exp := commandN + minIndex; exp != fsmIndex {
+			t.Errorf("fsm index mismatch(%d): exp=%d, got=%d", i, exp, fsmIndex)
 		}
 	}
 }
@@ -333,34 +334,12 @@ func benchmarkClusterApply(b *testing.B, logN int) {
 
 	// Verify FSM indicies match.
 	for i, l := range c.Logs {
-		if fsm := l.FSM.(*IndexFSM); index != fsm.index {
-			b.Errorf("fsm index mismatch(%d): exp=%d, got=%d", i, index, fsm.index)
+		fsmIndex, _ := l.FSM.(*raft.IndexFSM).Index()
+		if index != fsmIndex {
+			b.Errorf("fsm index mismatch(%d): exp=%d, got=%d", i, index, fsmIndex)
 		}
 	}
 }
-
-// IndexFSM represents a state machine that only records the last applied index.
-type IndexFSM struct {
-	index uint64
-}
-
-// MustApply updates the index.
-func (fsm *IndexFSM) MustApply(entry *raft.LogEntry) { fsm.index = entry.Index }
-
-// Index returns the highest applied index.
-func (fsm *IndexFSM) Index() (uint64, error) { return fsm.index, nil }
-
-// Snapshot writes the FSM's index as the snapshot.
-func (fsm *IndexFSM) Snapshot(w io.Writer) (uint64, error) {
-	return fsm.index, binary.Write(w, binary.BigEndian, fsm.index)
-}
-
-// Restore reads the snapshot from the reader.
-func (fsm *IndexFSM) Restore(r io.Reader) error {
-	return binary.Read(r, binary.BigEndian, &fsm.index)
-}
-
-func indexFSMFunc() raft.FSM { return &IndexFSM{} }
 
 // Cluster represents a collection of nodes that share the same mock clock.
 type Cluster struct {
@@ -643,7 +622,8 @@ func (fsm *FSM) Restore(r io.Reader) error {
 	return nil
 }
 
-func fsmFunc() raft.FSM { return &FSM{} }
+func fsmFunc() raft.FSM      { return &FSM{} }
+func indexFSMFunc() raft.FSM { return &raft.IndexFSM{} }
 
 // seq implements the raft.Log#Rand interface and returns incrementing ints.
 func seq() func() int64 {

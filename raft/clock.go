@@ -43,7 +43,8 @@ func (c *Clock) AfterApplyInterval() <-chan chan struct{} { return newClockChan(
 // AfterElectionTimeout returns a channel that fires after a duration that is
 // between the election timeout and double the election timeout.
 func (c *Clock) AfterElectionTimeout() <-chan chan struct{} {
-	return newClockChan(c.ElectionTimeout + time.Duration(rand.Intn(int(c.ElectionTimeout))))
+	d := c.ElectionTimeout + time.Duration(rand.Intn(int(c.ElectionTimeout)))
+	return newClockChan(d)
 }
 
 // AfterHeartbeatInterval returns a channel that fires after the heartbeat interval.
