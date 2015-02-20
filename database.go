@@ -663,7 +663,7 @@ func (f *FieldCodec) EncodeFields(values map[string]interface{}) ([]byte, error)
 		if field == nil {
 			panic(fmt.Sprintf("field does not exist for %s", k))
 		} else if influxql.InspectDataType(v) != field.Type {
-			return nil, fmt.Errorf("field %s is not of type %s", k, field.Type)
+			return nil, fmt.Errorf("field \"%s\" is type %T, mapped as type %s", k, k, field.Type)
 		}
 
 		var buf []byte
