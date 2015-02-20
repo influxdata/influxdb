@@ -1,6 +1,7 @@
 package raft
 
 import (
+	"math/rand"
 	"time"
 )
 
@@ -9,10 +10,10 @@ const (
 	DefaultApplyInterval = 10 * time.Millisecond
 
 	// DefaultElectionTimeout is the default time before starting an election.
-	DefaultElectionTimeout = 500 * time.Millisecond
+	DefaultElectionTimeout = 1 * time.Second
 
 	// DefaultHeartbeatInterval is the default time to wait between heartbeats.
-	DefaultHeartbeatInterval = 150 * time.Millisecond
+	DefaultHeartbeatInterval = 100 * time.Millisecond
 
 	// DefaultReconnectTimeout is the default time to wait before reconnecting.
 	DefaultReconnectTimeout = 10 * time.Millisecond
@@ -39,8 +40,11 @@ func NewClock() *Clock {
 // AfterApplyInterval returns a channel that fires after the apply interval.
 func (c *Clock) AfterApplyInterval() <-chan chan struct{} { return newClockChan(c.ApplyInterval) }
 
-// AfterElectionTimeout returns a channel that fires after the election timeout.
-func (c *Clock) AfterElectionTimeout() <-chan chan struct{} { return newClockChan(c.ElectionTimeout) }
+// AfterElectionTimeout returns a channel that fires after a duration that is
+// between the election timeout and double the election timeout.
+func (c *Clock) AfterElectionTimeout() <-chan chan struct{} {
+	return newClockChan(c.ElectionTimeout + time.Duration(rand.Intn(int(c.ElectionTimeout))))
+}
 
 // AfterHeartbeatInterval returns a channel that fires after the heartbeat interval.
 func (c *Clock) AfterHeartbeatInterval() <-chan chan struct{} {
