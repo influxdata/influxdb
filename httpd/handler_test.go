@@ -536,6 +536,92 @@ func TestHandler_GzipDisabled(t *testing.T) {
 	}
 }
 
+func TestHandler_Index(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, body := MustHTTP("GET", s.URL, nil, nil, "")
+
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+
+	if body != "1" {
+		t.Fatalf("unexpected body.  expected %q, actual %q", "1", body)
+	}
+}
+
+func TestHandler_Wait(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, body := MustHTTP("GET", s.URL+`/wait/1`, map[string]string{"timeout": "1"}, nil, "")
+
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+
+	if body != "1" {
+		t.Fatalf("unexpected body.  expected %q, actual %q", "1", body)
+	}
+}
+
+func TestHandler_WaitIncrement(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
+
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, _ := MustHTTP("GET", s.URL+`/wait/2`, map[string]string{"timeout": "200"}, nil, "")
+
+	// Write some data
+	_, _ = MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}}]}`)
+
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status, expected:  %d, actual: %d", http.StatusOK, status)
+	}
+}
+
+func TestHandler_WaitNoIndexSpecified(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, _ := MustHTTP("GET", s.URL+`/wait`, nil, nil, "")
+
+	if status != http.StatusNotFound {
+		t.Fatalf("unexpected status, expected:  %d, actual: %d", http.StatusNotFound, status)
+	}
+}
+
+func TestHandler_WaitInvalidIndexSpecified(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, _ := MustHTTP("GET", s.URL+`/wait/foo`, nil, nil, "")
+
+	if status != http.StatusBadRequest {
+		t.Fatalf("unexpected status, expected:  %d, actual: %d", http.StatusBadRequest, status)
+	}
+}
+
+func TestHandler_WaitExpectTimeout(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, _ := MustHTTP("GET", s.URL+`/wait/2`, map[string]string{"timeout": "1"}, nil, "")
+
+	if status != http.StatusRequestTimeout {
+		t.Fatalf("unexpected status, expected:  %d, actual: %d", http.StatusRequestTimeout, status)
+	}
+}
+
 func TestHandler_Ping(t *testing.T) {
 	srvr := OpenAuthlessServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
@@ -1170,6 +1256,8 @@ func TestHandler_serveWriteSeriesNonZeroTime(t *testing.T) {
 	}
 	time.Sleep(100 * time.Millisecond) // Ensure data node picks up write.
 
+	srvr.Restart() // Ensure data is queryable across restarts.
+
 	query := map[string]string{"db": "foo", "q": "select value from cpu"}
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusOK {
@@ -1211,6 +1299,8 @@ func TestHandler_serveWriteSeriesZeroTime(t *testing.T) {
 		t.Fatalf("unexpected status: %d", status)
 	}
 	time.Sleep(100 * time.Millisecond) // Ensure data node picks up write.
+
+	srvr.Restart() // Ensure data is queryable across restarts.
 
 	query := map[string]string{"db": "foo", "q": "select value from cpu"}
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
@@ -1260,6 +1350,8 @@ func TestHandler_serveWriteSeriesStringValues(t *testing.T) {
 	}
 	time.Sleep(100 * time.Millisecond) // Ensure data node picks up write.
 
+	srvr.Restart() // Ensure data is queryable across restarts.
+
 	query := map[string]string{"db": "foo", "q": "select event from logs"}
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusOK {
@@ -1300,6 +1392,8 @@ func TestHandler_serveWriteSeriesBoolValues(t *testing.T) {
 		t.Fatalf("unexpected status: %d", status)
 	}
 	time.Sleep(100 * time.Millisecond) // Ensure data node picks up write.
+
+	srvr.Restart() // Ensure data is queryable across restarts.
 
 	query := map[string]string{"db": "foo", "q": "select full from disk"}
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
