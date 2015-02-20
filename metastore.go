@@ -3,7 +3,6 @@ package influxdb
 import (
 	"encoding/binary"
 	"time"
-	"unsafe"
 
 	"github.com/boltdb/bolt"
 )
@@ -205,8 +204,7 @@ func (tx *metatx) createSeries(database, name string, tags map[string]string) (*
 
 	// store the tag map for the series
 	s := &Series{ID: uint32(id), Tags: tags}
-	idBytes := make([]byte, 4)
-	*(*uint32)(unsafe.Pointer(&idBytes[0])) = uint32(id)
+	idBytes := u32tob(uint32(id))
 
 	if err := b.Put(idBytes, mustMarshalJSON(s)); err != nil {
 		return nil, err
@@ -218,10 +216,14 @@ func (tx *metatx) deleteSeries(database, name string, seriesID uint32) error {
 	measurmentBucket := tx.Bucket([]byte("Databases")).Bucket([]byte(database)).Bucket([]byte("Series")).Bucket([]byte(name))
 
 	c := measurmentBucket.Cursor()
+
 	for k, _ := c.First(); k != nil; k, _ = c.Next() {
 		id := btou32(k)
 		if id == seriesID {
-			c.Delete()
+			err := c.Delete()
+			if err != nil {
+				return err
+			}
 		}
 	}
 

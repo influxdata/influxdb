@@ -1572,6 +1572,7 @@ func (s *Server) applyDeleteSeries(m *messaging.Message) error {
 		}
 	}
 
+	// Remove shard data
 	for _, rp := range s.databases[c.Database].policies {
 		for _, id := range c.SeriesIDs {
 			err := rp.deleteSeries(id)
@@ -1583,7 +1584,18 @@ func (s *Server) applyDeleteSeries(m *messaging.Message) error {
 
 	// Delete the database entry.
 	for _, id := range c.SeriesIDs {
-		delete(s.databases[c.Database].series, id)
+		if !database.removeSeriesFromIndex(id) {
+			return fmt.Errorf("failed to remove series id %d from index", id)
+		}
+	}
+
+	// Delete measurment references to the series
+	for _, m := range database.measurements {
+		for _, id := range c.SeriesIDs {
+			if !m.removeSeries(id) {
+				return fmt.Errorf("failed to remove series id %d from measurment %q", id, m.Name)
+			}
+		}
 	}
 	return nil
 }
@@ -2122,10 +2134,10 @@ func (s *Server) executeDropUserStatement(q *influxql.DropUserStatement, user *U
 
 func (s *Server) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, database string, user *User) *Result {
 	s.mu.RLock()
-	defer s.mu.RUnlock()
 
 	// Handle the simple `DROP SERIES <id>` case.
 	if stmt.Source == nil && stmt.Condition == nil {
+		s.mu.RUnlock()
 		return &Result{Err: s.DeleteSeries(database, stmt.SeriesID)}
 	}
 
@@ -2134,12 +2146,14 @@ func (s *Server) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, 
 	// Find the database.
 	db := s.databases[database]
 	if db == nil {
+		s.mu.RUnlock()
 		return &Result{Err: ErrDatabaseNotFound}
 	}
 
 	// Get the list of measurements we're interested in.
 	measurements, err := measurementsFromSourceOrDB(stmt.Source, db)
 	if err != nil {
+		s.mu.RUnlock()
 		return &Result{Err: err}
 	}
 
@@ -2162,6 +2176,7 @@ func (s *Server) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, 
 			ids = m.seriesIDs
 		}
 
+		s.mu.RUnlock()
 		// Delete series by ID.
 		for _, id := range ids {
 			err := s.DeleteSeries(database, id)
