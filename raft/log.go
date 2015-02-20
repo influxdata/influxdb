@@ -788,7 +788,7 @@ func (l *Log) candidateLoop(closing <-chan struct{}) State {
 			return Stopped
 		case hb := <-l.heartbeats:
 			l.mu.Lock()
-			if hb.term > l.term {
+			if hb.term >= l.term {
 				l.term = hb.term
 				l.votedFor = 0
 				l.leaderID = hb.leaderID
