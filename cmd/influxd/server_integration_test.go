@@ -286,19 +286,16 @@ func Test_ServerSingleIntegration(t *testing.T) {
 	createRetentionPolicy(t, testName, nodes, "foo", "bar")
 	write(t, testName, nodes, fmt.Sprintf(`
 {
-"database":
-    "foo",
-    "retentionPolicy":
-    "bar",
+	"database": "foo",
+    "retentionPolicy": "bar",
     "points":
     [{
-        "name":
-        "cpu",
+        "name": "cpu",
         "tags": {
             "host": "server01"
         },
         "timestamp": %d,
-        "precision":"n",
+        "precision": "n",
         "values":{
             "value": 100
         }
@@ -335,19 +332,16 @@ func Test_Server3NodeIntegration(t *testing.T) {
 	createRetentionPolicy(t, testName, nodes, "foo", "bar")
 	write(t, testName, nodes, fmt.Sprintf(`
 {
-"database":
-	"foo",
-	"retentionPolicy":
-	"bar",
+	"database": "foo",
+	"retentionPolicy": "bar",
 	"points":
 	[{
-		"name":
-		"cpu",
+		"name": "cpu",
 		"tags": {
 			"host": "server01"
 		},
 		"timestamp": %d,
-		"precision":"n",
+		"precision": "n",
 		"values":{
 			"value": 100
 		}
@@ -384,19 +378,16 @@ func Test_Server5NodeIntegration(t *testing.T) {
 	createRetentionPolicy(t, testName, nodes, "foo", "bar")
 	write(t, testName, nodes, fmt.Sprintf(`
 {
-"database":
-    "foo",
-    "retentionPolicy":
-    "bar",
+	"database": "foo",
+    "retentionPolicy": "bar",
     "points":
     [{
-        "name":
-        "cpu",
+        "name": "cpu",
         "tags": {
             "host": "server01"
         },
         "timestamp": %d,
-        "precision":"n",
+        "precision": "n",
         "values":{
             "value": 100
         }
