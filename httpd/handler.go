@@ -303,7 +303,6 @@ func (h *Handler) serveIndex(w http.ResponseWriter, r *http.Request) {
 		b, _ = json.Marshal(data)
 	}
 	w.Write(b)
-
 }
 
 // pollForIndex will poll until either the index is met or it times out
