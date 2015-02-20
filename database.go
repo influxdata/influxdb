@@ -221,6 +221,34 @@ func (m *Measurement) addSeries(s *Series) bool {
 	return true
 }
 
+// removeSeries will remove a series from the measurementIndex. Returns true if already removed
+func (m *Measurement) removeSeries(seriesID uint32) bool {
+	if _, ok := m.seriesByID[seriesID]; !ok {
+		return true
+	}
+	s := m.seriesByID[seriesID]
+	tagset := string(marshalTags(s.Tags))
+
+	delete(m.series, tagset)
+	delete(m.seriesByID, seriesID)
+
+	var ids []uint32
+	for _, id := range m.seriesIDs {
+		if id != seriesID {
+			ids = append(ids, id)
+		}
+	}
+	m.seriesIDs = ids
+	sort.Sort(m.seriesIDs)
+
+	// add this series id to the tag index on the measurement
+	for k, _ := range s.Tags {
+		delete(m.seriesByTagKeyValue, k)
+	}
+
+	return true
+}
+
 // seriesByTags returns the Series that matches the given tagset.
 func (m *Measurement) seriesByTags(tags map[string]string) *Series {
 	return m.series[string(marshalTags(tags))]
@@ -1084,6 +1112,17 @@ func (db *database) addSeriesToIndex(measurementName string, s *Series) bool {
 	// TODO: add this series to the global tag index
 
 	return idx.addSeries(s)
+}
+
+// removeSeriesFromIndex removes the series from the index
+func (db *database) removeSeriesFromIndex(seriesID uint32) bool {
+	// if the series is already gone, return
+	if db.series[seriesID] == nil {
+		return true
+	}
+
+	delete(db.series, seriesID)
+	return true
 }
 
 // createMeasurementIfNotExists will either add a measurement object to the index or return the existing one.
