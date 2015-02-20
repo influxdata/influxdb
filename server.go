@@ -1472,20 +1472,20 @@ type setDefaultRetentionPolicyCommand struct {
 }
 
 type createMeasurementSubcommand struct {
-	Name   string                       `json:"name"`
-	Tags   map[string]map[string]string `json:"tags"`
-	Fields map[string]influxql.DataType `json:"fields"`
+	Name   string              `json:"name"`
+	Tags   []map[string]string `json:"tags"`
+	Fields []*Field            `json:"fields"`
 }
 
 type createMeasurementsIfNotExistsCommand struct {
-	Database     string                                 `json:"database"`
-	Measurements map[string]createMeasurementSubcommand `json:"measurements"`
+	Database     string                                  `json:"database"`
+	Measurements map[string]*createMeasurementSubcommand `json:"measurements"`
 }
 
 func newCreateMeasurementsIfNotExistsCommand(database string) *createMeasurementsIfNotExistsCommand {
 	return &createMeasurementsIfNotExistsCommand{
 		Database:     database,
-		Measurements: make(map[string]createMeasurementSubcommand),
+		Measurements: make(map[string]*createMeasurementSubcommand),
 	}
 }
 
@@ -1494,10 +1494,10 @@ func newCreateMeasurementsIfNotExistsCommand(database string) *createMeasurement
 func (c *createMeasurementsIfNotExistsCommand) addMeasurementIfNotExists(name string) {
 	_, ok := c.Measurements[name]
 	if !ok {
-		c.Measurements[name] = createMeasurementSubcommand{
+		c.Measurements[name] = &createMeasurementSubcommand{
 			Name:   name,
-			Tags:   make(map[string]map[string]string),
-			Fields: make(map[string]influxql.DataType),
+			Tags:   make([]map[string]string, 0),
+			Fields: make([]*Field, 0),
 		}
 	}
 }
@@ -1507,14 +1507,16 @@ func (c *createMeasurementsIfNotExistsCommand) addMeasurementIfNotExists(name st
 func (c *createMeasurementsIfNotExistsCommand) addSeriesIfNotExists(measurement string, tags map[string]string) {
 	c.addMeasurementIfNotExists(measurement)
 
+	m := c.Measurements[measurement]
 	tagset := string(marshalTags(tags))
-	_, ok := c.Measurements[measurement].Tags[tagset]
-	if ok {
-		// Series already present in in subcommand, nothing to do.
-		return
+	for _, t := range m.Tags {
+		if string(marshalTags(t)) == tagset {
+			// Series already present in subcommand, nothing to do.
+			return
+		}
 	}
 	// Tag-set needs to added to subcommand.
-	c.Measurements[measurement].Tags[tagset] = tags
+	m.Tags = append(m.Tags, tags)
 
 	return
 }
@@ -1524,16 +1526,20 @@ func (c *createMeasurementsIfNotExistsCommand) addSeriesIfNotExists(measurement 
 func (c *createMeasurementsIfNotExistsCommand) addFieldIfNotExists(measurement, name string, typ influxql.DataType) error {
 	c.addMeasurementIfNotExists(measurement)
 
-	t, ok := c.Measurements[measurement].Fields[name]
-	if ok {
-		if typ != t {
-			return ErrFieldTypeConflict
+	m := c.Measurements[measurement]
+	for _, f := range m.Fields {
+		if f.Name == name {
+			if f.Type != typ {
+				return ErrFieldTypeConflict
+			}
+			// Field already present in subcommand with same type, nothing to do.
+			return nil
 		}
-		// Field already present in subcommand with same type, nothing to do.
-		return nil
 	}
+
 	// New field for this measurement so add it to the subcommand.
-	c.Measurements[measurement].Fields[name] = typ
+	newField := &Field{Name: name, Type: typ}
+	m.Fields = append(m.Fields, newField)
 	return nil
 }
 
@@ -1781,13 +1787,13 @@ func (s *Server) applyCreateMeasurementsIfNotExists(m *messaging.Message) error 
 			if mm == nil {
 				panic(fmt.Sprintf("Measurement %s does not exist", cm.Name))
 			}
-			for k, v := range cm.Fields {
-				if err := mm.createFieldIfNotExists(k, v); err != nil {
+			for _, f := range cm.Fields {
+				if err := mm.createFieldIfNotExists(f.Name, f.Type); err != nil {
 					if err == ErrFieldOverflow {
-						log.Printf("no more fields allowed: %s::%s", mm.Name, k)
+						log.Printf("no more fields allowed: %s::%s", mm.Name, f.Name)
 						continue
 					} else if err == ErrFieldTypeConflict {
-						log.Printf("field type conflict: %s::%s", mm.Name, k)
+						log.Printf("field type conflict: %s::%s", mm.Name, f.Name)
 						continue
 					}
 					return err
