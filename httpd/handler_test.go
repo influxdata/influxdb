@@ -554,6 +554,22 @@ func TestHandler_Index(t *testing.T) {
 
 func TestHandler_Wait(t *testing.T) {
 	srvr := OpenAuthlessServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, body := MustHTTP("GET", s.URL+`/wait/1`, map[string]string{"timeout": "1"}, nil, "")
+
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+
+	if body != "1" {
+		t.Fatalf("unexpected body.  expected %q, actual %q", "1", body)
+	}
+}
+
+func TestHandler_WaitIncrement(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
 
