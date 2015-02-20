@@ -1491,7 +1491,7 @@ func newCreateMeasurementsIfNotExistsCommand(database string) *createMeasurement
 
 // addMeasurementIfNotExists adds the Measurement to the command, but only if not already present
 // in the command.
-func (c *createMeasurementsIfNotExistsCommand) addMeasurementIfNotExists(name string) error {
+func (c *createMeasurementsIfNotExistsCommand) addMeasurementIfNotExists(name string) {
 	_, ok := c.Measurements[name]
 	if !ok {
 		c.Measurements[name] = createMeasurementSubcommand{
@@ -1500,24 +1500,23 @@ func (c *createMeasurementsIfNotExistsCommand) addMeasurementIfNotExists(name st
 			Fields: make(map[string]influxql.DataType),
 		}
 	}
-	return nil
 }
 
 // addSeriesIfNotExists adds the Series, identified by Measurement name and tag set, to
 // the command, but only if not already present in the command.
-func (c *createMeasurementsIfNotExistsCommand) addSeriesIfNotExists(measurement string, tags map[string]string) error {
+func (c *createMeasurementsIfNotExistsCommand) addSeriesIfNotExists(measurement string, tags map[string]string) {
 	c.addMeasurementIfNotExists(measurement)
 
 	tagset := string(marshalTags(tags))
 	_, ok := c.Measurements[measurement].Tags[tagset]
 	if ok {
 		// Series already present in in subcommand, nothing to do.
-		return nil
+		return
 	}
 	// Tag-set needs to added to subcommand.
 	c.Measurements[measurement].Tags[tagset] = tags
 
-	return nil
+	return
 }
 
 // addFieldIfNotExists adds the field to the command for the Measurement, but only if it is not already
@@ -1579,12 +1578,12 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 			defer s.mu.RUnlock()
 			db := s.databases[database]
 			if db == nil {
-				return nil, nil, fmt.Errorf("database not found %q", database)
+				return nil, nil, ErrDatabaseNotFound
 			}
 			if measurement, series := db.MeasurementAndSeries(p.Name, p.Tags); series != nil {
 				return measurement, series, nil
 			}
-			panic("series not found")
+			return nil, nil, ErrSeriesNotFound
 		}()
 		if err != nil {
 			return 0, err
@@ -1603,9 +1602,6 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 		s.mu.RLock()
 		codec := NewFieldCodec(measurement)
 		s.mu.RUnlock()
-		if codec == nil {
-			panic("field codec is nil")
-		}
 
 		// Convert string-key/values to encoded fields.
 		encodedFields, err := codec.EncodeFields(p.Values)
@@ -1714,9 +1710,7 @@ func (s *Server) createMeasurementsIfNotExists(database, retentionPolicy string,
 
 			if series == nil {
 				// Series does not exist in Metastore, add it so it's created cluster-wide.
-				if err := c.addSeriesIfNotExists(p.Name, p.Tags); err != nil {
-					return err
-				}
+				c.addSeriesIfNotExists(p.Name, p.Tags)
 			}
 
 			for k, v := range p.Values {

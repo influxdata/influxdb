@@ -99,39 +99,23 @@ func TestCreateMeasurementsCommand(t *testing.T) {
 		t.Fatal("createMeasurementsIfNotExistsCommand is nil")
 	}
 
-	// Add Measurement.
-	err = c.addMeasurementIfNotExists("bar")
-	if err != nil {
-		t.Fatal("error adding measurement bar")
-	}
-	err = c.addMeasurementIfNotExists("bar")
-	if err != nil {
-		t.Fatal("error re-adding measurement bar")
-	}
-
+	// Add Measurement twice, to make sure nothing blows up.
+	c.addMeasurementIfNotExists("bar")
+	c.addMeasurementIfNotExists("bar")
 	n = len(c.Measurements)
 	if n != 1 {
 		t.Fatalf("wrong number of measurements, expected 1, got %d", n)
 	}
 
 	// Add Series, no tags.
-	err = c.addSeriesIfNotExists("bar", nil)
-	if err != nil {
-		t.Fatal("error adding series with nil tags")
-	}
+	c.addSeriesIfNotExists("bar", nil)
 
 	// Add Series, some tags.
 	tags := map[string]string{"host": "server01"}
-	err = c.addSeriesIfNotExists("bar", tags)
-	if err != nil {
-		t.Fatal("error adding series with non-nil tags")
-	}
+	c.addSeriesIfNotExists("bar", tags)
 
 	// Add Series, same tags again.
-	err = c.addSeriesIfNotExists("bar", tags)
-	if err != nil {
-		t.Fatal("error re-adding series with non-nil tags")
-	}
+	c.addSeriesIfNotExists("bar", tags)
 
 	n = len(c.Measurements["bar"].Tags)
 	if n != 2 {
@@ -170,11 +154,17 @@ func TestCreateMeasurementsCommand_Errors(t *testing.T) {
 		t.Fatal("createMeasurementsIfNotExistsCommand is nil")
 	}
 
-	// Add Measurement.
-	err = c.addMeasurementIfNotExists("bar")
+	// Ensure fields can be added to non-existent Measurements. The
+	// Measurements should be created automatically.
+	c.addSeriesIfNotExists("bar", nil)
+
+	err = c.addFieldIfNotExists("bar", "value", influxql.Number)
 	if err != nil {
-		t.Fatal("error adding measurement bar")
+		t.Fatalf("unexpected error got %s", err.Error())
 	}
+
+	// Add Measurement. Adding it now should be OK.
+	c.addMeasurementIfNotExists("bar")
 
 	// Test type conflicts
 	err = c.addFieldIfNotExists("bar", "value", influxql.Number)
