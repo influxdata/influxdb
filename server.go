@@ -1545,34 +1545,44 @@ func (c *createMeasurementsIfNotExistsCommand) addFieldIfNotExists(measurement, 
 	return nil
 }
 
-// DeleteSeries deletes from an existing series.
-func (s *Server) DeleteSeries(stmt *influxql.DropSeriesStatement, database string) error {
-	c := deleteSeriesCommand{}
+func (s *Server) applyDeleteSeries(m *messaging.Message) error {
+	var c deleteSeriesCommand
+	mustUnmarshalJSON(m.Data, &c)
 
-	if stmt.Source != nil {
-		measurement := stmt.Source.(*influxql.Measurement)
-
-		m := s.databases[database].measurements[measurement.Name]
-		if m == nil {
-			return fmt.Errorf("measurement not found: %s", measurement.Name)
-		}
-
-		seriesIdsToExpr := make(map[uint32]influxql.Expr)
-		ids, _, _ := m.walkWhereForSeriesIds(stmt.Condition, seriesIdsToExpr)
-		// TODO check if expr is empty, if not, we got things other than tags
-
-		c.SeriesIDs = ids
-
-	} else {
-
-		c.SeriesIDs = append(c.SeriesIDs, stmt.SeriesID)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.databases[c.Database] == nil {
+		return ErrDatabaseNotFound
 	}
 
+	// Remove from metastore.
+	err := s.meta.mustUpdate(func(tx *metatx) error { return tx.deleteSeries(c.Database, c.SeriesIDs) })
+	if err != nil {
+		return err
+	}
+
+	// Delete the database entry.
+	for _, id := range c.SeriesIDs {
+		delete(s.databases[c.Database].series, id)
+	}
+	return nil
+}
+
+type createSeriesIfNotExistsCommand struct {
+	Database string            `json:"database"`
+	Name     string            `json:"name"`
+	Tags     map[string]string `json:"tags"`
+}
+
+// DeleteSeries deletes from an existing series.
+func (s *Server) DeleteSeries(database string, SeriesIDs ...uint32) error {
+	c := deleteSeriesCommand{Database: database, SeriesIDs: SeriesIDs}
 	_, err := s.broadcast(deleteSeriesMessageType, c)
 	return err
 }
 
 type deleteSeriesCommand struct {
+	Database  string   `json:"datbase"`
 	SeriesIDs []uint32 `json:"seriesIds"`
 }
 
@@ -1946,7 +1956,7 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 		case *influxql.ShowUsersStatement:
 			res = s.executeShowUsersStatement(stmt, user)
 		case *influxql.DropSeriesStatement:
-			res = s.executeDeleteSeriesStatement(stmt, database, user)
+			res = s.executeDropSeriesStatement(stmt, database, user)
 		case *influxql.ShowSeriesStatement:
 			res = s.executeShowSeriesStatement(stmt, database, user)
 		case *influxql.ShowMeasurementsStatement:
@@ -2090,13 +2100,56 @@ func (s *Server) executeDropUserStatement(q *influxql.DropUserStatement, user *U
 	return &Result{Err: s.DeleteUser(q.Name)}
 }
 
-func (s *Server) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, database string) *Result {
-	return &Result{Err: s.DeleteSeries(stmt, database)}
-}
+func (s *Server) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, database string, user *User) *Result {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
-func (s *Server) executeDeleteSeriesStatement(stmt *influxql.DropSeriesStatement, database string, user *User) *Result {
-	// TODO
+	// Handle the simple `DROP SERIES <id>` case.
+	if stmt.Source == nil && stmt.Condition == nil {
+		return &Result{Err: s.DeleteSeries(database, stmt.SeriesID)}
+	}
 
+	// Handle the more complicated `DROP SERIES` with sources and/or conditions...
+
+	// Find the database.
+	db := s.databases[database]
+	if db == nil {
+		return &Result{Err: ErrDatabaseNotFound}
+	}
+
+	// Get the list of measurements we're interested in.
+	measurements, err := measurementsFromSourceOrDB(stmt.Source, db)
+	if err != nil {
+		return &Result{Err: err}
+	}
+
+	for _, m := range measurements {
+		var ids seriesIDs
+
+		if stmt.Condition != nil {
+			// Get series IDs that match the WHERE clause.
+			filters := map[uint32]influxql.Expr{}
+			ids, _, _ = m.walkWhereForSeriesIds(stmt.Condition, filters)
+
+			// If no series matched, then go to the next measurement.
+			if len(ids) == 0 {
+				continue
+			}
+
+			// TODO: check return of walkWhereForSeriesIds for fields
+		} else {
+			// No WHERE clause so get all series IDs for this measurement.
+			ids = m.seriesIDs
+		}
+
+		// Delete series by ID.
+		for _, id := range ids {
+			err := s.DeleteSeries(database, id)
+			if err != nil {
+				return &Result{Err: err}
+			}
+		}
+	}
 	return &Result{}
 }
 
@@ -2752,6 +2805,8 @@ func (s *Server) processor(client MessagingClient, done chan struct{}) {
 			err = s.applySetDefaultRetentionPolicy(m)
 		case createMeasurementsIfNotExistsMessageType:
 			err = s.applyCreateMeasurementsIfNotExists(m)
+		case deleteSeriesMessageType:
+			err = s.applyDeleteSeries(m)
 		case setPrivilegeMessageType:
 			err = s.applySetPrivilege(m)
 		case createContinuousQueryMessageType:
