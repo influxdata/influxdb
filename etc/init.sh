@@ -87,11 +87,15 @@ name=influxdb
 # Daemon name, where is the actual executable
 daemon=/usr/bin/$name
 
-# pid file for the daemon
-pidfile=/opt/influxdb/shared/influxdb.pid
+if [ -z "$pidfile" ]; then
+    # pid file for the daemon
+    pidfile=/opt/$name/shared/influxdb.pid
+fi
 
-# Configuration file
-config=/opt/$name/shared/config.toml
+if [ -z "$config" ]; then
+    # Configuration file
+    config=/opt/$name/shared/config.toml
+fi
 
 # If the daemon is not there, then exit.
 [ -x $daemon ] || exit 5
