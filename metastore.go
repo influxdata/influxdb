@@ -9,6 +9,11 @@ import (
 	"github.com/boltdb/bolt"
 )
 
+var (
+	databasesBucket = []byte("Databases")
+	seriesBucket    = []byte("Series")
+)
+
 // metastore represents the low-level data store for metadata.
 type metastore struct {
 	db *bolt.DB
@@ -238,6 +243,16 @@ func (tx *metatx) createSeries(database, name string, tags map[string]string) (*
 		return nil, err
 	}
 	return s, nil
+}
+
+func (tx *metatx) deleteSeries(database, name string, seriesID uint32) error {
+	m := tx.Bucket(databasesBucket).Bucket([]byte(database)).Bucket(seriesBucket).Bucket(name)
+
+	err := db.Bucket([]byte("Series")).DeleteBucket([]byte(id))
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // loops through all the measurements and series in a database
