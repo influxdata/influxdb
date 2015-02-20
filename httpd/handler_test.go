@@ -536,6 +536,76 @@ func TestHandler_GzipDisabled(t *testing.T) {
 	}
 }
 
+func TestHandler_Index(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, body := MustHTTP("GET", s.URL, nil, nil, "")
+
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+
+	if body != "1" {
+		t.Fatalf("unexpected body.  expected %q, actual %q", "1", body)
+	}
+}
+
+func TestHandler_IndexJson(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, body := MustHTTP("GET", s.URL+`/index.json`, nil, nil, "")
+
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+
+	var data = struct {
+		Id uint64 `json:"index"`
+	}{}
+
+	if err := json.Unmarshal([]byte(body), &data); err != nil {
+		t.Error(err)
+	}
+	if data.Id != 1 {
+		t.Log("body: ", body)
+		t.Fatalf("unexpected index, expected 1, actual: %d", data.Id)
+	}
+}
+
+func TestHandler_IndexSpecified(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
+
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, _ := MustHTTP("GET", s.URL, map[string]string{"index": "2", "timeout": "200"}, nil, "")
+
+	// Write some data
+	_, _ = MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}}]}`)
+
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status, expected:  %d, actual: %d", http.StatusOK, status)
+	}
+}
+
+func TestHandler_IndexSpecifiedExpectTimeout(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, _ := MustHTTP("GET", s.URL, map[string]string{"index": "2", "timeout": "1"}, nil, "")
+
+	if status != http.StatusRequestTimeout {
+		t.Fatalf("unexpected status, expected:  %d, actual: %d", http.StatusRequestTimeout, status)
+	}
+}
+
 func TestHandler_Ping(t *testing.T) {
 	srvr := OpenAuthlessServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)

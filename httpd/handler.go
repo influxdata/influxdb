@@ -99,6 +99,14 @@ func NewHandler(s *influxdb.Server, requireAuthentication bool, version string) 
 			"process_continuous_queries",
 			"POST", "/process_continuous_queries", false, false, h.serveProcessContinuousQueries,
 		},
+		route{
+			"index-json", // Query serving route.
+			"GET", "/index.json", true, true, h.serveIndex,
+		},
+		route{
+			"index", // Query serving route.
+			"GET", "/", true, true, h.serveIndex,
+		},
 	)
 
 	for _, r := range h.routes {
@@ -251,6 +259,74 @@ func (h *Handler) serveOptions(w http.ResponseWriter, r *http.Request) {
 // servePing returns a simple response to let the client know the server is running.
 func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// serveIndex returns the current index of the node as the body of the response (optionally in json)
+// Takes optional parameters:
+//     index - If specified, will poll for index before returning
+//     timeout - time in milliseconds to wait until index is met before erring out
+//               default timeout if not specified is 100 milliseconds
+func (h *Handler) serveIndex(w http.ResponseWriter, r *http.Request) {
+	index, _ := strconv.ParseUint(r.URL.Query().Get("index"), 10, 64)
+	timeout, _ := strconv.Atoi(r.URL.Query().Get("timeout"))
+
+	if index > 0 {
+		var d time.Duration
+		if timeout == 0 {
+			d = 100 * time.Millisecond
+		} else {
+			d = time.Duration(timeout) * time.Millisecond
+		}
+		err := h.pollForIndex(index, d)
+		if err != nil {
+			w.WriteHeader(http.StatusRequestTimeout)
+			return
+		}
+	}
+	if !strings.HasSuffix(strings.ToLower(r.URL.Path), ".json") {
+		w.Write([]byte(fmt.Sprintf("%d", h.server.Index())))
+		return
+	}
+	w.Header().Add("content-type", "application/json")
+
+	pretty := r.URL.Query().Get("pretty") == "true"
+
+	data := struct {
+		Index uint64 `json:"index"`
+	}{
+		Index: h.server.Index(),
+	}
+	var b []byte
+	if pretty {
+		b, _ = json.MarshalIndent(data, "", "    ")
+	} else {
+		b, _ = json.Marshal(data)
+	}
+	w.Write(b)
+}
+
+// pollForIndex will poll until either the index is met or it times out
+// timeout is in milliseconds
+func (h *Handler) pollForIndex(index uint64, timeout time.Duration) error {
+	done := make(chan struct{})
+
+	go func() {
+		for {
+			if h.server.Index() >= index {
+				done <- struct{}{}
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+
+	for {
+		select {
+		case <-done:
+			return nil
+		case <-time.Tick(timeout):
+			return fmt.Errorf("timed out")
+		}
+	}
 }
 
 // serveDataNodes returns a list of all data nodes in the cluster.
