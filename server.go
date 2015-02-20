@@ -1535,6 +1535,15 @@ func (s *Server) applyDeleteSeries(m *messaging.Message) error {
 		}
 	}
 
+	for _, rp := range s.databases[c.Database].policies {
+		for _, id := range c.SeriesIDs {
+			err := rp.deleteSeries(id)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	// Delete the database entry.
 	for _, id := range c.SeriesIDs {
 		delete(s.databases[c.Database].series, id)
