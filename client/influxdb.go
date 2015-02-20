@@ -96,6 +96,9 @@ func (c *Client) Write(writes ...Write) (*Results, error) {
 
 	b := []byte{}
 	err := json.Unmarshal(b, &d)
+	if err != nil {
+		return nil, err
+	}
 
 	req, err := http.NewRequest("POST", c.url.String(), bytes.NewBuffer(b))
 	if err != nil {
