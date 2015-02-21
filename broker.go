@@ -117,7 +117,7 @@ func (b *Broker) requestContinuousQueryProcessing() error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check if created.
 	if resp.StatusCode != http.StatusAccepted {

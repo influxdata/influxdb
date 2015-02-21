@@ -129,7 +129,7 @@ func (s *Server) Close() error {
 	if s.conn == nil {
 		return errors.New("server already closed")
 	}
-	s.conn.Close()
+	_ = s.conn.Close()
 	s.conn = nil
 
 	// Wait for all goroutines to shutdown.

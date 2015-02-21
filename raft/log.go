@@ -457,7 +457,9 @@ func (l *Log) Initialize() error {
 
 		// Generate a new configuration with one node.
 		config = &Config{MaxNodeID: id}
-		config.AddNode(id, l.URL)
+		if err := config.AddNode(id, l.URL); err != nil {
+			return err
+		}
 
 		// Generate new 8-hex digit cluster identifier.
 		config.ClusterID = uint64(l.Rand())
@@ -1285,12 +1287,11 @@ func (l *Log) mustApplyAddPeer(e *LogEntry) {
 }
 
 // mustApplyRemovePeer removes a node from the cluster configuration.
-func (l *Log) mustApplyRemovePeer(e *LogEntry) error {
+func (l *Log) mustApplyRemovePeer(e *LogEntry) {
 	// TODO(benbjohnson): Clone configuration.
 	// TODO(benbjohnson): Remove node from configuration.
 	// TODO(benbjohnson): Set configuration index.
 	// TODO(benbjohnson): Write configuration.
-	return nil
 }
 
 // AddPeer creates a new peer in the cluster.

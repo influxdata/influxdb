@@ -47,5 +47,5 @@ func (s *Server) Close() {
 	}
 
 	s.closed = true
-	s.listener.Close()
+	_ = s.listener.Close()
 }

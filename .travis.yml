@@ -6,11 +6,13 @@ go:
 install:
   - go get -d -v -t ./... && go build -v ./...
   - go get -u golang.org/x/tools/cmd/vet;
+  - go get -u github.com/kisielk/errcheck
 
 script:
     # Put each test command on its own line.
   - go test -timeout 60s -v ./...
   - go tool vet .
+  - pwd && make errcheck
 
 notifications:
   email:

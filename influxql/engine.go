@@ -285,7 +285,7 @@ func (e *Executor) Execute() (<-chan *Row, error) {
 // execute runs in a separate separate goroutine and streams data from processors.
 func (e *Executor) execute(out chan *Row) {
 	// Ensure the transaction closes after execution.
-	defer e.tx.Close()
+	defer func() { _ = e.tx.Close() }()
 
 	// TODO: Support multi-value rows.
 
@@ -1189,8 +1189,8 @@ func (r *Row) tagsHash() uint64 {
 	h := fnv.New64a()
 	keys := r.tagsKeys()
 	for _, k := range keys {
-		h.Write([]byte(k))
-		h.Write([]byte(r.Tags[k]))
+		_, _ = h.Write([]byte(k))
+		_, _ = h.Write([]byte(r.Tags[k]))
 	}
 	return h.Sum64()
 }
