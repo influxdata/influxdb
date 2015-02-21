@@ -23,6 +23,12 @@ import (
 	main "github.com/influxdb/influxdb/cmd/influxd"
 )
 
+const (
+	// Use a prime batch size, so that internal batching code, which most likely
+	// uses nice round batches, has to deal with leftover.
+	batchSize = 4217
+)
+
 // urlFor returns a URL with the path and query params correctly appended and set.
 func urlFor(u *url.URL, path string, params url.Values) *url.URL {
 	u.Path = path
@@ -247,7 +253,6 @@ func write(t *testing.T, testname string, nodes cluster, data string) {
 	u := urlFor(serverURL, "write", url.Values{})
 
 	buf := []byte(data)
-	t.Logf("Writing raw data: %s", string(buf))
 	resp, err := http.Post(u.String(), "application/json", bytes.NewReader(buf))
 	if err != nil {
 		t.Fatalf("Couldn't write data: %s", err)
@@ -301,6 +306,56 @@ func simpleQuery(t *testing.T, testname string, nodes cluster, query string, exp
 			t.Logf("Expected: %#v\n", expected)
 			t.Logf("Actual: %#v\n", results)
 			t.Fatalf("query databases failed.  Unexpected results.")
+		}
+	}
+}
+
+// simpleCountQuery executes the given query against all nodes in the cluster, and verify the
+// the count for the given field is as expected.
+func simpleCountQuery(t *testing.T, testname string, nodes cluster, query, field string, expected int64) {
+	var results client.Results
+
+	// Query the data exists
+	for _, n := range nodes {
+		t.Logf("Test name %s: query data on node %s", testname, n.url)
+		u := urlFor(n.url, "query", url.Values{"q": []string{query}, "db": []string{"foo"}})
+		resp, err := http.Get(u.String())
+		if err != nil {
+			t.Fatalf("Couldn't query databases: %s", err)
+		}
+		defer resp.Body.Close()
+
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("Couldn't read body of response: %s", err)
+		}
+		t.Logf("resp.Body: %s\n", string(body))
+
+		dec := json.NewDecoder(bytes.NewReader(body))
+		dec.UseNumber()
+		err = dec.Decode(&results)
+		if err != nil {
+			t.Fatalf("Couldn't decode results: %v", err)
+		}
+
+		if results.Error() != nil {
+			t.Logf("results.Error(): %q", results.Error().Error())
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("query databases failed.  Unexpected status code.  expected: %d, actual %d", http.StatusOK, resp.StatusCode)
+		}
+
+		j, ok := results.Results[0].Rows[0].Values[0][1].(json.Number)
+		if !ok {
+			t.Fatalf("count is not a JSON number")
+		}
+		count, err := j.Int64()
+		if err != nil {
+			t.Fatalf("failed to convert count to int64")
+		}
+		if count != expected {
+			t.Fatalf("count value is wrong, expected %d, go %d", expected, count)
 		}
 	}
 }
@@ -452,5 +507,6 @@ func Test_ServerSingleLargeBatchIntegration(t *testing.T) {
 
 	createDatabase(t, testName, nodes, "foo")
 	createRetentionPolicy(t, testName, nodes, "foo", "bar")
-	write(t, testName, nodes, createBatch(2, "foo", "bar", "cpu", map[string]string{"host": "server01"}))
+	write(t, testName, nodes, createBatch(batchSize, "foo", "bar", "cpu", map[string]string{"host": "server01"}))
+	simpleCountQuery(t, "single node large batch", nodes, `select count(value) from "foo"."bar".cpu`, "value", batchSize)
 }
