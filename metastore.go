@@ -238,7 +238,7 @@ func (tx *metatx) createSeries(database, name string, tags map[string]string) (*
 	return s, nil
 }
 
-func (tx *metatx) deleteSeries(database, name string, seriesID uint32) error {
+func (tx *metatx) dropSeries(database, name string, seriesID uint32) error {
 	measurmentBucket := tx.Bucket([]byte("Databases")).Bucket([]byte(database)).Bucket([]byte("Series")).Bucket([]byte(name))
 
 	c := measurmentBucket.Cursor()

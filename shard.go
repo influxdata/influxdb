@@ -45,10 +45,10 @@ func newShardGroup() *ShardGroup { return &ShardGroup{} }
 // Duration returns the duration between the shard group's start and end time.
 func (g *ShardGroup) Duration() time.Duration { return g.EndTime.Sub(g.StartTime) }
 
-// deleteSeries will delete all data with the seriesID
-func (g *ShardGroup) deleteSeries(seriesID uint32) error {
+// dropSeries will delete all data with the seriesID
+func (g *ShardGroup) dropSeries(seriesID uint32) error {
 	for _, s := range g.Shards {
-		err := s.deleteSeries(seriesID)
+		err := s.dropSeries(seriesID)
 		if err != nil {
 			return err
 		}
@@ -156,7 +156,7 @@ func (s *Shard) writeSeries(batch []byte) error {
 	})
 }
 
-func (s *Shard) deleteSeries(seriesID uint32) error {
+func (s *Shard) dropSeries(seriesID uint32) error {
 	return s.store.Update(func(tx *bolt.Tx) error {
 		return tx.DeleteBucket(u32tob(seriesID))
 	})
