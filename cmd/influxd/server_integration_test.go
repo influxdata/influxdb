@@ -263,7 +263,7 @@ func write(t *testing.T, testname string, nodes cluster, data string) {
 
 	// Need some time for server to get consensus and write data
 	// TODO corylanou query the status endpoint for the server and wait for the index to update to know the write was applied
-	time.Sleep(time.Duration(len(nodes)) * 3 * time.Second)
+	time.Sleep(time.Duration(time.Second))
 }
 
 // simpleQuery executes the given query against all nodes in the cluster, and verify the
