@@ -69,20 +69,19 @@ const (
 	deleteShardGroupMessageType            = messaging.MessageType(0x41)
 
 	// Series messages
-	createSeriesIfNotExistsMessageType = messaging.MessageType(0x50)
-	deleteSeriesMessageType            = messaging.MessageType(0x51)
+	deleteSeriesMessageType = messaging.MessageType(0x50)
 
 	// Measurement messages
-	createMeasurementsIfNotExistsMessageType = messaging.MessageType(0x50)
+	createMeasurementsIfNotExistsMessageType = messaging.MessageType(0x60)
 
 	// Continuous Query messages
-	createContinuousQueryMessageType = messaging.MessageType(0x60)
+	createContinuousQueryMessageType = messaging.MessageType(0760)
 
 	// Write series data messages (per-topic)
-	writeRawSeriesMessageType = messaging.MessageType(0x70)
+	writeRawSeriesMessageType = messaging.MessageType(0x80)
 
 	// Privilege messages
-	setPrivilegeMessageType = messaging.MessageType(0x80)
+	setPrivilegeMessageType = messaging.MessageType(0x90)
 )
 
 // Server represents a collection of metadata and raw metric data.
@@ -1609,12 +1608,6 @@ func (s *Server) applyDeleteSeries(m *messaging.Message) error {
 		}
 	}
 	return nil
-}
-
-type createSeriesIfNotExistsCommand struct {
-	Database string            `json:"database"`
-	Name     string            `json:"name"`
-	Tags     map[string]string `json:"tags"`
 }
 
 // DeleteSeries deletes from an existing series.
