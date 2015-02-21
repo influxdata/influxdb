@@ -2122,34 +2122,32 @@ func (s *Server) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, 
 		return &Result{Err: err}
 	}
 
-	s.mu.RUnlock()
+	var ids seriesIDs
 	for _, m := range measurements {
-		var ids seriesIDs
-
+		var tmpIDs seriesIDs
 		if stmt.Condition != nil {
 			// Get series IDs that match the WHERE clause.
 			filters := map[uint32]influxql.Expr{}
-			ids, _, _ = m.walkWhereForSeriesIds(stmt.Condition, filters)
-
-			// If no series matched, then go to the next measurement.
-			if len(ids) == 0 {
-				continue
-			}
+			tmpIDs, _, _ = m.walkWhereForSeriesIds(stmt.Condition, filters)
 
 			// TODO: check return of walkWhereForSeriesIds for fields
 		} else {
 			// No WHERE clause so get all series IDs for this measurement.
-			ids = m.seriesIDs
+			tmpIDs = m.seriesIDs
 		}
 
-		// Delete series by ID.
-		for _, id := range ids {
-			err := s.DropSeries(database, id)
-			if err != nil {
-				return &Result{Err: err}
-			}
+		ids = ids.union(tmpIDs)
+	}
+	s.mu.RUnlock()
+
+	// Delete series by ID.
+	for _, id := range ids {
+		err := s.DropSeries(database, id)
+		if err != nil {
+			return &Result{Err: err}
 		}
 	}
+
 	return &Result{}
 }
 
