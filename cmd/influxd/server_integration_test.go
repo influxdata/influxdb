@@ -263,7 +263,7 @@ func write(t *testing.T, testname string, nodes cluster, data string) {
 
 	// Need some time for server to get consensus and write data
 	// TODO corylanou query the status endpoint for the server and wait for the index to update to know the write was applied
-	time.Sleep(time.Duration(len(nodes)) * time.Second)
+	time.Sleep(time.Duration(time.Second))
 }
 
 // simpleQuery executes the given query against all nodes in the cluster, and verify the
@@ -346,6 +346,9 @@ func simpleCountQuery(t *testing.T, testname string, nodes cluster, query, field
 			t.Fatalf("query databases failed.  Unexpected status code.  expected: %d, actual %d", http.StatusOK, resp.StatusCode)
 		}
 
+		if len(results.Results) != 1 || len(results.Results[0].Rows) != 1 {
+			t.Fatal("results object returned has insufficient entries")
+		}
 		j, ok := results.Results[0].Rows[0].Values[0][1].(json.Number)
 		if !ok {
 			t.Fatalf("count is not a JSON number")
@@ -504,6 +507,36 @@ func Test_ServerSingleLargeBatchIntegration(t *testing.T) {
 	basePort := 8390
 	testName := "single node large batch"
 	nodes := createCombinedNodeCluster(t, "single node large batch", nNodes, basePort)
+
+	createDatabase(t, testName, nodes, "foo")
+	createRetentionPolicy(t, testName, nodes, "foo", "bar")
+	write(t, testName, nodes, createBatch(batchSize, "foo", "bar", "cpu", map[string]string{"host": "server01"}))
+	simpleCountQuery(t, "single node large batch", nodes, `select count(value) from "foo"."bar".cpu`, "value", batchSize)
+}
+
+func Test_Server3NodeLargeBatchIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+	nNodes := 3
+	basePort := 8490
+	testName := "3 node large batch"
+	nodes := createCombinedNodeCluster(t, testName, nNodes, basePort)
+
+	createDatabase(t, testName, nodes, "foo")
+	createRetentionPolicy(t, testName, nodes, "foo", "bar")
+	write(t, testName, nodes, createBatch(batchSize, "foo", "bar", "cpu", map[string]string{"host": "server01"}))
+	simpleCountQuery(t, "single node large batch", nodes, `select count(value) from "foo"."bar".cpu`, "value", batchSize)
+}
+
+func Test_Server5NodeLargeBatchIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+	nNodes := 5
+	basePort := 8590
+	testName := "5 node large batch"
+	nodes := createCombinedNodeCluster(t, testName, nNodes, basePort)
 
 	createDatabase(t, testName, nodes, "foo")
 	createRetentionPolicy(t, testName, nodes, "foo", "bar")
