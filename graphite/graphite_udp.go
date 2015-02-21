@@ -1,6 +1,7 @@
 package graphite
 
 import (
+	"log"
 	"net"
 	"strings"
 
@@ -61,7 +62,10 @@ func (u *UDPServer) ListenAndServe(iface string) error {
 				}
 
 				// Send the data to database
-				u.writer.WriteSeries(u.Database, "", []influxdb.Point{point})
+				if _, err := u.writer.WriteSeries(u.Database, "", []influxdb.Point{point}); err != nil {
+					log.Printf("write series: %s", err)
+					continue
+				}
 			}
 		}
 	}()

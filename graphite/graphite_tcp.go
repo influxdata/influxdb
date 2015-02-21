@@ -53,7 +53,7 @@ func (t *TCPServer) ListenAndServe(iface string) error {
 
 // handleConnection services an individual TCP connection.
 func (t *TCPServer) handleConnection(conn net.Conn) {
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	reader := bufio.NewReader(conn)
 	for {
@@ -74,6 +74,9 @@ func (t *TCPServer) handleConnection(conn net.Conn) {
 		}
 
 		// Send the data to database
-		t.writer.WriteSeries(t.Database, "", []influxdb.Point{point})
+		if _, err := t.writer.WriteSeries(t.Database, "", []influxdb.Point{point}); err != nil {
+			log.Printf("write series: %s", err)
+			continue
+		}
 	}
 }

@@ -243,7 +243,7 @@ func (s *Server) Close() error {
 	s.path = ""
 
 	// Close message processing.
-	s.setClient(nil)
+	_ = s.setClient(nil)
 
 	// Close metastore.
 	_ = s.meta.close()
@@ -487,7 +487,7 @@ func (s *Server) Join(u *url.URL, joinURL *url.URL) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check if created.
 	if resp.StatusCode != http.StatusCreated {
@@ -507,7 +507,7 @@ func (s *Server) Join(u *url.URL, joinURL *url.URL) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check response & parse content length.
 	if resp.StatusCode != http.StatusOK {
@@ -971,7 +971,7 @@ func (s *Server) applyDeleteShardGroup(m *messaging.Message) (err error) {
 		}
 
 		path := shard.store.Path()
-		shard.close()
+		_ = shard.close()
 		if err := os.Remove(path); err != nil {
 			// Log, but keep going. This can happen if shards were deleted, but the server exited
 			// before it acknowledged the delete command.
@@ -1163,9 +1163,11 @@ func (s *Server) applyDeleteUser(m *messaging.Message) error {
 	}
 
 	// Remove from metastore.
-	s.meta.mustUpdate(func(tx *metatx) error {
+	if err := s.meta.mustUpdate(func(tx *metatx) error {
 		return tx.deleteUser(c.Username)
-	})
+	}); err != nil {
+		return err
+	}
 
 	// Delete the user.
 	delete(s.users, c.Username)
@@ -1302,6 +1304,7 @@ func (s *Server) applyCreateRetentionPolicy(m *messaging.Message) error {
 	}
 
 	// Add policy to the database.
+	oldPolicy := db.policies[c.Name]
 	db.policies[c.Name] = &RetentionPolicy{
 		Name:     c.Name,
 		Duration: c.Duration,
@@ -1309,9 +1312,12 @@ func (s *Server) applyCreateRetentionPolicy(m *messaging.Message) error {
 	}
 
 	// Persist to metastore.
-	s.meta.mustUpdate(func(tx *metatx) error {
+	if err := s.meta.mustUpdate(func(tx *metatx) error {
 		return tx.saveDatabase(db)
-	})
+	}); err != nil {
+		db.policies[c.Name] = oldPolicy
+		return err
+	}
 
 	return nil
 }
@@ -1671,7 +1677,7 @@ func (s *Server) createMeasurementsIfNotExists(database, retentionPolicy string,
 	c := newCreateMeasurementsIfNotExistsCommand(database)
 
 	// Local function keeps lock management foolproof.
-	func() error {
+	if err := func() error {
 		s.mu.RLock()
 		defer s.mu.RUnlock()
 
@@ -1706,7 +1712,9 @@ func (s *Server) createMeasurementsIfNotExists(database, retentionPolicy string,
 		}
 
 		return nil
-	}()
+	}(); err != nil {
+		return err
+	}
 
 	// Any broadcast actually required?
 	if len(c.Measurements) > 0 {
@@ -3048,9 +3056,13 @@ func (s *Server) applyCreateContinuousQueryCommand(m *messaging.Message) error {
 	db.continuousQueries = append(db.continuousQueries, cq)
 
 	// Persist to metastore.
-	s.meta.mustUpdate(func(tx *metatx) error {
+	if err := s.meta.mustUpdate(func(tx *metatx) error {
 		return tx.saveDatabase(db)
-	})
+	}); err != nil {
+		db.continuousQueries[len(db.continuousQueries)-1] = nil
+		db.continuousQueries = db.continuousQueries[:len(db.continuousQueries)-1]
+		return err
+	}
 
 	return nil
 }

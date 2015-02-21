@@ -194,7 +194,7 @@ func (c *Client) Publish(m *Message) (uint64, error) {
 		if err != nil {
 			return 0, err
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		// If a temporary redirect occurs then update the leader and retry.
 		// If a non-200 status is returned then an error occurred.

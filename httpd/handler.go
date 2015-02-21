@@ -248,7 +248,7 @@ func (h *Handler) serveStatus(w http.ResponseWriter, r *http.Request) {
 	} else {
 		b, _ = json.Marshal(data)
 	}
-	w.Write(b)
+	_, _ = w.Write(b)
 }
 
 // serveOptions returns an empty response to comply with OPTIONS pre-flight requests
@@ -263,7 +263,7 @@ func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
 
 // serveIndex returns the current index of the node as the body of the response
 func (h *Handler) serveIndex(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte(fmt.Sprintf("%d", h.server.Index())))
+	_, _ = w.Write([]byte(fmt.Sprintf("%d", h.server.Index())))
 }
 
 // serveWait returns the current index of the node as the body of the response
@@ -291,7 +291,7 @@ func (h *Handler) serveWait(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusRequestTimeout)
 		return
 	}
-	w.Write([]byte(fmt.Sprintf("%d", h.server.Index())))
+	_, _ = w.Write([]byte(fmt.Sprintf("%d", h.server.Index())))
 }
 
 // pollForIndex will poll until either the index is met or it times out
@@ -430,7 +430,7 @@ func httpResults(w http.ResponseWriter, results influxdb.Results, pretty bool) {
 	} else {
 		b, _ = json.Marshal(results)
 	}
-	w.Write(b)
+	_, _ = w.Write(b)
 }
 
 // httpError writes an error to the client in a standard format.
@@ -445,7 +445,7 @@ func httpError(w http.ResponseWriter, error string, pretty bool, code int) {
 	} else {
 		b, _ = json.Marshal(results)
 	}
-	w.Write(b)
+	_, _ = w.Write(b)
 }
 
 // Filters and filter helpers
@@ -522,7 +522,7 @@ func gzipFilter(inner http.Handler) http.Handler {
 		}
 		w.Header().Set("Content-Encoding", "gzip")
 		gz := gzip.NewWriter(w)
-		defer gz.Close()
+		defer func() { _ = gz.Close() }()
 		gzw := gzipResponseWriter{Writer: gz, ResponseWriter: w}
 		inner.ServeHTTP(gzw, r)
 	})

@@ -124,7 +124,7 @@ func (s *Scanner) scanIdent() (tok Token, pos Pos, lit string) {
 		if ch == eof {
 			break
 		} else if ch == '.' {
-			buf.WriteRune(ch)
+			_, _ = buf.WriteRune(ch)
 		} else if ch == '"' {
 			if tok0, pos0, lit0 := s.scanString(); tok == BADSTRING || tok == BADESCAPE {
 				return tok0, pos0, lit0
@@ -135,7 +135,7 @@ func (s *Scanner) scanIdent() (tok Token, pos Pos, lit string) {
 			}
 		} else if isIdentChar(ch) {
 			s.r.unread()
-			buf.WriteString(ScanBareIdent(s.r))
+			_, _ = buf.WriteString(ScanBareIdent(s.r))
 		} else {
 			s.r.unread()
 			break
@@ -450,7 +450,7 @@ func ScanBareIdent(r io.RuneScanner) string {
 		if err != nil {
 			break
 		} else if !isIdentChar(ch) {
-			r.UnreadRune()
+			_ = r.UnreadRune()
 			break
 		} else {
 			_, _ = buf.WriteRune(ch)

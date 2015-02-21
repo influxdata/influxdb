@@ -69,7 +69,7 @@ func (c *Client) Query(q Query) (*Results, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var results Results
 	dec := json.NewDecoder(resp.Body)
@@ -109,7 +109,7 @@ func (c *Client) Write(writes ...Write) (*Results, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	var results Results
 	dec := json.NewDecoder(resp.Body)

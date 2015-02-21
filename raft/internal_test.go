@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"io"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"testing"
 )
@@ -20,6 +21,7 @@ func (l *Log) WaitApplied(index uint64) error     { return l.Wait(index) }
 // NewOpenedLog returns an opened Log. Panic on error.
 func NewOpenedLog() *Log {
 	l := NewLog()
+	l.URL = &url.URL{Host: "localhost"}
 	l.FSM = &IndexFSM{}
 	if err := l.Open(tempfile()); err != nil {
 		panic(err.Error())
