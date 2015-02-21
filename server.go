@@ -241,6 +241,7 @@ func (s *Server) Close() error {
 
 	// Remove path.
 	s.path = ""
+	s.index = 0
 
 	// Close message processing.
 	s.setClient(nil)
@@ -259,8 +260,9 @@ func (s *Server) Close() error {
 // load reads the state of the server from the metastore.
 func (s *Server) load() error {
 	return s.meta.view(func(tx *metatx) error {
-		// Read server id.
+		// Read server id & index.
 		s.id = tx.id()
+		s.index = tx.index()
 
 		// Load data nodes.
 		s.dataNodes = make(map[uint64]*DataNode)
@@ -449,7 +451,7 @@ func (s *Server) Initialize(u *url.URL) error {
 	assert(n != nil && n.ID == 1, "invalid initial server id: %d", n.ID)
 
 	// Set the ID on the metastore.
-	if err := s.meta.mustUpdate(func(tx *metatx) error {
+	if err := s.meta.mustUpdate(0, func(tx *metatx) error {
 		return tx.setID(n.ID)
 	}); err != nil {
 		return err
@@ -541,7 +543,7 @@ func (s *Server) Join(u *url.URL, joinURL *url.URL) error {
 	}
 
 	// Update the ID on the metastore.
-	if err := s.meta.mustUpdate(func(tx *metatx) error {
+	if err := s.meta.mustUpdate(0, func(tx *metatx) error {
 		return tx.setID(n.ID)
 	}); err != nil {
 		return err
@@ -610,9 +612,6 @@ func (s *Server) applyCreateDataNode(m *messaging.Message) (err error) {
 	var c createDataNodeCommand
 	mustUnmarshalJSON(m.Data, &c)
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	// Validate parameters.
 	if c.URL == "" {
 		return ErrDataNodeURLRequired
@@ -631,7 +630,7 @@ func (s *Server) applyCreateDataNode(m *messaging.Message) (err error) {
 	n.URL = u
 
 	// Persist to metastore.
-	err = s.meta.mustUpdate(func(tx *metatx) error {
+	err = s.meta.mustUpdate(m.Index, func(tx *metatx) error {
 		n.ID = tx.nextDataNodeID()
 		return tx.saveDataNode(n)
 	})
@@ -657,15 +656,13 @@ func (s *Server) applyDeleteDataNode(m *messaging.Message) (err error) {
 	var c deleteDataNodeCommand
 	mustUnmarshalJSON(m.Data, &c)
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	n := s.dataNodes[c.ID]
 	if n == nil {
 		return ErrDataNodeNotFound
 	}
 
 	// Remove from metastore.
-	err = s.meta.mustUpdate(func(tx *metatx) error { return tx.deleteDataNode(c.ID) })
+	err = s.meta.mustUpdate(m.Index, func(tx *metatx) error { return tx.deleteDataNode(c.ID) })
 
 	// Delete the node.
 	delete(s.dataNodes, n.ID)
@@ -706,8 +703,6 @@ func (s *Server) applyCreateDatabase(m *messaging.Message) (err error) {
 	var c createDatabaseCommand
 	mustUnmarshalJSON(m.Data, &c)
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.databases[c.Name] != nil {
 		return ErrDatabaseExists
 	}
@@ -717,7 +712,7 @@ func (s *Server) applyCreateDatabase(m *messaging.Message) (err error) {
 	db.name = c.Name
 
 	// Persist to metastore.
-	err = s.meta.mustUpdate(func(tx *metatx) error { return tx.saveDatabase(db) })
+	err = s.meta.mustUpdate(m.Index, func(tx *metatx) error { return tx.saveDatabase(db) })
 
 	// Add to databases on server.
 	s.databases[c.Name] = db
@@ -740,14 +735,12 @@ func (s *Server) applyDeleteDatabase(m *messaging.Message) (err error) {
 	var c deleteDatabaseCommand
 	mustUnmarshalJSON(m.Data, &c)
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.databases[c.Name] == nil {
 		return ErrDatabaseNotFound
 	}
 
 	// Remove from metastore.
-	err = s.meta.mustUpdate(func(tx *metatx) error { return tx.deleteDatabase(c.Name) })
+	err = s.meta.mustUpdate(m.Index, func(tx *metatx) error { return tx.deleteDatabase(c.Name) })
 
 	// Delete the database entry.
 	delete(s.databases, c.Name)
@@ -807,9 +800,6 @@ func (s *Server) applyCreateShardGroupIfNotExists(m *messaging.Message) (err err
 	var c createShardGroupIfNotExistsCommand
 	mustUnmarshalJSON(m.Data, &c)
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	// Retrieve database.
 	db := s.databases[c.Database]
 	if s.databases[c.Database] == nil {
@@ -859,7 +849,7 @@ func (s *Server) applyCreateShardGroupIfNotExists(m *messaging.Message) (err err
 	}
 
 	// Persist to metastore if a shard was created.
-	if err = s.meta.mustUpdate(func(tx *metatx) error {
+	if err = s.meta.mustUpdate(m.Index, func(tx *metatx) error {
 		// Generate an ID for the group.
 		g.ID = tx.nextShardGroupID()
 
@@ -942,9 +932,6 @@ func (s *Server) applyDeleteShardGroup(m *messaging.Message) (err error) {
 	var c deleteShardGroupCommand
 	mustUnmarshalJSON(m.Data, &c)
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	// Retrieve database.
 	db := s.databases[c.Database]
 	if s.databases[c.Database] == nil {
@@ -981,7 +968,7 @@ func (s *Server) applyDeleteShardGroup(m *messaging.Message) (err error) {
 
 	// Remove from metastore.
 	rp.removeShardGroupByID(c.ID)
-	err = s.meta.mustUpdate(func(tx *metatx) error {
+	err = s.meta.mustUpdate(m.Index, func(tx *metatx) error {
 		return tx.saveDatabase(db)
 	})
 	return
@@ -1062,9 +1049,6 @@ func (s *Server) applyCreateUser(m *messaging.Message) (err error) {
 	var c createUserCommand
 	mustUnmarshalJSON(m.Data, &c)
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	// Validate user.
 	if c.Username == "" {
 		return ErrUsernameRequired
@@ -1087,7 +1071,7 @@ func (s *Server) applyCreateUser(m *messaging.Message) (err error) {
 	}
 
 	// Persist to metastore.
-	err = s.meta.mustUpdate(func(tx *metatx) error {
+	err = s.meta.mustUpdate(m.Index, func(tx *metatx) error {
 		return tx.saveUser(u)
 	})
 
@@ -1112,9 +1096,6 @@ func (s *Server) applyUpdateUser(m *messaging.Message) (err error) {
 	var c updateUserCommand
 	mustUnmarshalJSON(m.Data, &c)
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	// Validate command.
 	u := s.users[c.Username]
 	if u == nil {
@@ -1131,7 +1112,7 @@ func (s *Server) applyUpdateUser(m *messaging.Message) (err error) {
 	}
 
 	// Persist to metastore.
-	return s.meta.mustUpdate(func(tx *metatx) error {
+	return s.meta.mustUpdate(m.Index, func(tx *metatx) error {
 		return tx.saveUser(u)
 	})
 }
@@ -1152,9 +1133,6 @@ func (s *Server) applyDeleteUser(m *messaging.Message) error {
 	var c deleteUserCommand
 	mustUnmarshalJSON(m.Data, &c)
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	// Validate user.
 	if c.Username == "" {
 		return ErrUsernameRequired
@@ -1163,7 +1141,7 @@ func (s *Server) applyDeleteUser(m *messaging.Message) error {
 	}
 
 	// Remove from metastore.
-	s.meta.mustUpdate(func(tx *metatx) error {
+	s.meta.mustUpdate(m.Index, func(tx *metatx) error {
 		return tx.deleteUser(c.Username)
 	})
 
@@ -1187,9 +1165,6 @@ func (s *Server) applySetPrivilege(m *messaging.Message) error {
 	var c setPrivilegeCommand
 	mustUnmarshalJSON(m.Data, &c)
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	// Validate user.
 	if c.Username == "" {
 		return ErrUsernameRequired
@@ -1211,7 +1186,7 @@ func (s *Server) applySetPrivilege(m *messaging.Message) error {
 	}
 
 	// Persist to metastore.
-	return s.meta.mustUpdate(func(tx *metatx) error {
+	return s.meta.mustUpdate(m.Index, func(tx *metatx) error {
 		return tx.saveUser(u)
 	})
 }
@@ -1288,9 +1263,6 @@ func (s *Server) applyCreateRetentionPolicy(m *messaging.Message) error {
 	var c createRetentionPolicyCommand
 	mustUnmarshalJSON(m.Data, &c)
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	// Retrieve the database.
 	db := s.databases[c.Database]
 	if s.databases[c.Database] == nil {
@@ -1309,7 +1281,7 @@ func (s *Server) applyCreateRetentionPolicy(m *messaging.Message) error {
 	}
 
 	// Persist to metastore.
-	s.meta.mustUpdate(func(tx *metatx) error {
+	s.meta.mustUpdate(m.Index, func(tx *metatx) error {
 		return tx.saveDatabase(db)
 	})
 
@@ -1349,9 +1321,6 @@ func (s *Server) applyUpdateRetentionPolicy(m *messaging.Message) (err error) {
 	var c updateRetentionPolicyCommand
 	mustUnmarshalJSON(m.Data, &c)
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	// Validate command.
 	db := s.databases[c.Database]
 	if s.databases[c.Database] == nil {
@@ -1384,7 +1353,7 @@ func (s *Server) applyUpdateRetentionPolicy(m *messaging.Message) (err error) {
 	}
 
 	// Persist to metastore.
-	err = s.meta.mustUpdate(func(tx *metatx) error {
+	err = s.meta.mustUpdate(m.Index, func(tx *metatx) error {
 		return tx.saveDatabase(db)
 	})
 
@@ -1402,9 +1371,6 @@ func (s *Server) applyDeleteRetentionPolicy(m *messaging.Message) (err error) {
 	var c deleteRetentionPolicyCommand
 	mustUnmarshalJSON(m.Data, &c)
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	// Retrieve the database.
 	db := s.databases[c.Database]
 	if s.databases[c.Database] == nil {
@@ -1419,7 +1385,7 @@ func (s *Server) applyDeleteRetentionPolicy(m *messaging.Message) (err error) {
 	delete(db.policies, c.Name)
 
 	// Persist to metastore.
-	err = s.meta.mustUpdate(func(tx *metatx) error {
+	err = s.meta.mustUpdate(m.Index, func(tx *metatx) error {
 		return tx.saveDatabase(db)
 	})
 
@@ -1442,9 +1408,6 @@ func (s *Server) applySetDefaultRetentionPolicy(m *messaging.Message) (err error
 	var c setDefaultRetentionPolicyCommand
 	mustUnmarshalJSON(m.Data, &c)
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	// Validate command.
 	db := s.databases[c.Database]
 	if s.databases[c.Database] == nil {
@@ -1457,7 +1420,7 @@ func (s *Server) applySetDefaultRetentionPolicy(m *messaging.Message) (err error
 	db.defaultRetentionPolicy = c.Name
 
 	// Persist to metastore.
-	err = s.meta.mustUpdate(func(tx *metatx) error {
+	err = s.meta.mustUpdate(m.Index, func(tx *metatx) error {
 		return tx.saveDatabase(db)
 	})
 
@@ -1724,8 +1687,6 @@ func (s *Server) applyCreateMeasurementsIfNotExists(m *messaging.Message) error 
 	var c createMeasurementsIfNotExistsCommand
 	mustUnmarshalJSON(m.Data, &c)
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	// Validate command.
 	db := s.databases[c.Database]
 	if db == nil {
@@ -1733,7 +1694,7 @@ func (s *Server) applyCreateMeasurementsIfNotExists(m *messaging.Message) error 
 	}
 
 	// Process command within a transaction.
-	if err := s.meta.mustUpdate(func(tx *metatx) error {
+	if err := s.meta.mustUpdate(m.Index, func(tx *metatx) error {
 		for _, cm := range c.Measurements {
 			// Create each series
 			for _, t := range cm.Tags {
@@ -2561,7 +2522,10 @@ func (s *Server) Begin() (influxql.Tx, error) { return newTx(s), nil }
 func (s *Server) NormalizeStatement(stmt influxql.Statement, defaultDatabase string) (err error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	return s.normalizeStatement(stmt, defaultDatabase)
+}
 
+func (s *Server) normalizeStatement(stmt influxql.Statement, defaultDatabase string) (err error) {
 	// Track prefixes for replacing field names.
 	prefixes := make(map[string]string)
 
@@ -2668,58 +2632,76 @@ func (s *Server) processor(client MessagingClient, done chan struct{}) {
 			}
 		}
 
-		// Exit if closed.
-		// TODO: Wrap this check in a lock with the apply itself.
-		if !s.opened() {
+		// Handle write series separately so we don't lock server during shard writes.
+		if m.Type == writeRawSeriesMessageType {
+			// Write series to shard without lock.
+			err := s.applyWriteRawSeries(m)
+
+			// Set index & error under lock.
+			s.mu.Lock()
+			s.index = m.Index
+			if err != nil {
+				s.errors[m.Index] = err
+			}
+			s.mu.Unlock()
 			continue
 		}
 
-		// Process message.
-		var err error
-		switch m.Type {
-		case writeRawSeriesMessageType:
-			err = s.applyWriteRawSeries(m)
-		case createDataNodeMessageType:
-			err = s.applyCreateDataNode(m)
-		case deleteDataNodeMessageType:
-			err = s.applyDeleteDataNode(m)
-		case createDatabaseMessageType:
-			err = s.applyCreateDatabase(m)
-		case deleteDatabaseMessageType:
-			err = s.applyDeleteDatabase(m)
-		case createUserMessageType:
-			err = s.applyCreateUser(m)
-		case updateUserMessageType:
-			err = s.applyUpdateUser(m)
-		case deleteUserMessageType:
-			err = s.applyDeleteUser(m)
-		case createRetentionPolicyMessageType:
-			err = s.applyCreateRetentionPolicy(m)
-		case updateRetentionPolicyMessageType:
-			err = s.applyUpdateRetentionPolicy(m)
-		case deleteRetentionPolicyMessageType:
-			err = s.applyDeleteRetentionPolicy(m)
-		case createShardGroupIfNotExistsMessageType:
-			err = s.applyCreateShardGroupIfNotExists(m)
-		case deleteShardGroupMessageType:
-			err = s.applyDeleteShardGroup(m)
-		case setDefaultRetentionPolicyMessageType:
-			err = s.applySetDefaultRetentionPolicy(m)
-		case createMeasurementsIfNotExistsMessageType:
-			err = s.applyCreateMeasurementsIfNotExists(m)
-		case setPrivilegeMessageType:
-			err = s.applySetPrivilege(m)
-		case createContinuousQueryMessageType:
-			err = s.applyCreateContinuousQueryCommand(m)
-		}
+		// All other messages must be processed under lock.
+		func() {
+			s.mu.Lock()
+			defer s.mu.Unlock()
 
-		// Sync high water mark and errors.
-		s.mu.Lock()
-		s.index = m.Index
-		if err != nil {
-			s.errors[m.Index] = err
-		}
-		s.mu.Unlock()
+			// Exit if closed or if the index is below the high water mark.
+			if !s.opened() {
+				return
+			} else if s.index >= m.Index {
+				return
+			}
+
+			// Process message.
+			var err error
+			switch m.Type {
+			case createDataNodeMessageType:
+				err = s.applyCreateDataNode(m)
+			case deleteDataNodeMessageType:
+				err = s.applyDeleteDataNode(m)
+			case createDatabaseMessageType:
+				err = s.applyCreateDatabase(m)
+			case deleteDatabaseMessageType:
+				err = s.applyDeleteDatabase(m)
+			case createUserMessageType:
+				err = s.applyCreateUser(m)
+			case updateUserMessageType:
+				err = s.applyUpdateUser(m)
+			case deleteUserMessageType:
+				err = s.applyDeleteUser(m)
+			case createRetentionPolicyMessageType:
+				err = s.applyCreateRetentionPolicy(m)
+			case updateRetentionPolicyMessageType:
+				err = s.applyUpdateRetentionPolicy(m)
+			case deleteRetentionPolicyMessageType:
+				err = s.applyDeleteRetentionPolicy(m)
+			case createShardGroupIfNotExistsMessageType:
+				err = s.applyCreateShardGroupIfNotExists(m)
+			case deleteShardGroupMessageType:
+				err = s.applyDeleteShardGroup(m)
+			case setDefaultRetentionPolicyMessageType:
+				err = s.applySetDefaultRetentionPolicy(m)
+			case createMeasurementsIfNotExistsMessageType:
+				err = s.applyCreateMeasurementsIfNotExists(m)
+			case setPrivilegeMessageType:
+				err = s.applySetPrivilege(m)
+			case createContinuousQueryMessageType:
+				err = s.applyCreateContinuousQueryCommand(m)
+			}
+
+			// Sync high water mark and errors.
+			s.index = m.Index
+			if err != nil {
+				s.errors[m.Index] = err
+			}
+		}()
 	}
 }
 
@@ -3024,12 +3006,9 @@ func (s *Server) applyCreateContinuousQueryCommand(m *messaging.Message) error {
 	}
 
 	// normalize the select statement in the CQ so that it has the database and retention policy inserted
-	if err := s.NormalizeStatement(cq.cq.Source, cq.cq.Database); err != nil {
+	if err := s.normalizeStatement(cq.cq.Source, cq.cq.Database); err != nil {
 		return err
 	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	// ensure the into database exists
 	if s.databases[cq.intoDB] == nil {
@@ -3048,7 +3027,7 @@ func (s *Server) applyCreateContinuousQueryCommand(m *messaging.Message) error {
 	db.continuousQueries = append(db.continuousQueries, cq)
 
 	// Persist to metastore.
-	s.meta.mustUpdate(func(tx *metatx) error {
+	s.meta.mustUpdate(m.Index, func(tx *metatx) error {
 		return tx.saveDatabase(db)
 	})
 

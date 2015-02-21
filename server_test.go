@@ -1292,6 +1292,40 @@ func TestbatchWrite_UnmarshalEpoch(t *testing.T) {
 
 }
 
+// Ensure the server will skip over replayed log entries and not blow up.
+func TestServer_Replay(t *testing.T) {
+	c := NewMessagingClient()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Record all messages through the client.
+	var messages []*messaging.Message
+	c.PublishFunc = func(m *messaging.Message) (uint64, error) {
+		messages = append(messages, m)
+		c.c <- m
+		return m.Index, nil
+	}
+
+	// Create a new node.
+	u, _ := url.Parse("http://localhost:80000")
+	if err := s.CreateDataNode(u); err != nil {
+		t.Fatal(err)
+	}
+	s.Restart()
+
+	// Replay messages through client.
+	for _, m := range messages {
+		c.c <- m
+	}
+
+	// Sleep so it has a moment to process & ignore.
+	time.Sleep(100 * time.Millisecond)
+
+	// NOTE: There is no way to introspect into the server to see that
+	// messages are being dropped. This test exists to make sure the server
+	// doesn't crash on retry.
+}
+
 // Server is a wrapping test struct for influxdb.Server.
 type Server struct {
 	*influxdb.Server
