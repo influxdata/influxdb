@@ -1160,6 +1160,7 @@ func TestServer_CreateContinuousQuery_ErrInfinteLoop(t *testing.T) {
 
 // Ensure
 func TestServer_RunContinuousQueries(t *testing.T) {
+	t.Skip()
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 
