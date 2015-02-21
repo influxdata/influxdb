@@ -506,12 +506,12 @@ func Test_ServerSingleLargeBatchIntegration(t *testing.T) {
 	nNodes := 1
 	basePort := 8390
 	testName := "single node large batch"
-	nodes := createCombinedNodeCluster(t, "single node large batch", nNodes, basePort)
+	nodes := createCombinedNodeCluster(t, testName, nNodes, basePort)
 
 	createDatabase(t, testName, nodes, "foo")
 	createRetentionPolicy(t, testName, nodes, "foo", "bar")
 	write(t, testName, nodes, createBatch(batchSize, "foo", "bar", "cpu", map[string]string{"host": "server01"}))
-	simpleCountQuery(t, "single node large batch", nodes, `select count(value) from "foo"."bar".cpu`, "value", batchSize)
+	simpleCountQuery(t, testName, nodes, `select count(value) from "foo"."bar".cpu`, "value", batchSize)
 }
 
 func Test_Server3NodeLargeBatchIntegration(t *testing.T) {
@@ -542,4 +542,22 @@ func Test_Server5NodeLargeBatchIntegration(t *testing.T) {
 	createRetentionPolicy(t, testName, nodes, "foo", "bar")
 	write(t, testName, nodes, createBatch(batchSize, "foo", "bar", "cpu", map[string]string{"host": "server01"}))
 	simpleCountQuery(t, "single node large batch", nodes, `select count(value) from "foo"."bar".cpu`, "value", batchSize)
+}
+
+func Test_ServerMultiLargeBatchIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+	nNodes := 1
+	nBatches := 5
+	basePort := 8690
+	testName := "single node multi batch"
+	nodes := createCombinedNodeCluster(t, testName, nNodes, basePort)
+
+	createDatabase(t, testName, nodes, "foo")
+	createRetentionPolicy(t, testName, nodes, "foo", "bar")
+	for i := 0; i < nBatches; i++ {
+		write(t, testName, nodes, createBatch(batchSize, "foo", "bar", "cpu", map[string]string{"host": "server01"}))
+	}
+	simpleCountQuery(t, testName, nodes, `select count(value) from "foo"."bar".cpu`, "value", batchSize*int64(nBatches))
 }
