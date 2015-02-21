@@ -57,7 +57,7 @@ func (b *Broker) metaPath() string {
 	return filepath.Join(b.path, "meta")
 }
 
-// Index returns the highest index seen by the broker.
+// Index returns the highest index seen by the broker across all topics.
 // Returns 0 if the broker is closed.
 func (b *Broker) Index() uint64 {
 	b.mu.Lock()

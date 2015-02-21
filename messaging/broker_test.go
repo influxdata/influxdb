@@ -200,9 +200,12 @@ func TestBroker_Reopen(t *testing.T) {
 	defer b.Close()
 	b.MustCreateReplica(2000, &url.URL{Host: "localhost"})
 	b.MustSubscribe(2000, 20)
+	b.MustSubscribe(2000, 21)
 	b.MustPublishSync(&messaging.Message{TopicID: 20, Data: []byte("0000")})
 	b.MustPublishSync(&messaging.Message{TopicID: 20, Data: []byte("0000")})
+	b.MustPublishSync(&messaging.Message{TopicID: 21, Data: []byte("0000")})
 	index := b.MustPublishSync(&messaging.Message{TopicID: 20, Data: []byte("0000")})
+	time.Sleep(100 * time.Millisecond)
 
 	// Close broker and reopen with a new broker instance.
 	path, u := b.Path(), b.URL()
