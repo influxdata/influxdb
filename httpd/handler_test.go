@@ -1992,7 +1992,8 @@ func TestHandler_serveShowTagValues(t *testing.T) {
 		{"name": "cpu", "tags": {"host": "server01", "region": "uswest"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
 		{"name": "cpu", "tags": {"host": "server01", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
 		{"name": "cpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
-		{"name": "gpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}}
+		{"name": "gpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
+		{"name": "gpu", "tags": {"host": "server03", "region": "caeast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}}
 		]}`)
 
 	if status != http.StatusOK {
@@ -2130,27 +2131,6 @@ func TestHandler_serveShowTagValues(t *testing.T) {
 				},
 			},
 		},
-		// SHOW FIELD KEYS FROM ...
-		{
-			q: `SHOW FIELD KEYS FROM cpu`,
-			r: &influxdb.Results{
-				Results: []*influxdb.Result{
-					{
-						Rows: []*influxql.Row{
-							{
-								Name:    "cpu",
-								Columns: []string{"fieldKey"},
-								Values: [][]interface{}{
-									str2iface([]string{"field1"}),
-									str2iface([]string{"field2"}),
-									str2iface([]string{"field3"}),
-								},
-							},
-						},
-					},
-				},
-			},
-		},
 	}
 	for i, tt := range tests {
 		query := map[string]string{"db": "foo", "q": tt.q}
@@ -2232,6 +2212,27 @@ func TestHandler_serveShowFieldKeys(t *testing.T) {
 									str2iface([]string{"field5"}),
 									str2iface([]string{"field6"}),
 									str2iface([]string{"field7"}),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		// SHOW FIELD KEYS FROM ...
+		{
+			q: `SHOW FIELD KEYS FROM cpu`,
+			r: &influxdb.Results{
+				Results: []*influxdb.Result{
+					{
+						Rows: []*influxql.Row{
+							{
+								Name:    "cpu",
+								Columns: []string{"fieldKey"},
+								Values: [][]interface{}{
+									str2iface([]string{"field1"}),
+									str2iface([]string{"field2"}),
+									str2iface([]string{"field3"}),
 								},
 							},
 						},
