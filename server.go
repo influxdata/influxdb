@@ -1611,8 +1611,8 @@ func (s *Server) applyDropSeries(m *messaging.Message) error {
 }
 
 // DropSeries deletes from an existing series.
-func (s *Server) DropSeries(database string, SeriesIDs ...uint32) error {
-	c := dropSeriesCommand{Database: database, SeriesIDs: SeriesIDs}
+func (s *Server) DropSeries(database string, seriesIDs []uint32) error {
+	c := dropSeriesCommand{Database: database, SeriesIDs: seriesIDs}
 	_, err := s.broadcast(dropSeriesMessageType, c)
 	return err
 }
@@ -2142,7 +2142,7 @@ func (s *Server) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, 
 	// Handle the simple `DROP SERIES <id>` case.
 	if stmt.Source == nil && stmt.Condition == nil {
 		s.mu.RUnlock()
-		return &Result{Err: s.DropSeries(database, stmt.SeriesID)}
+		return &Result{Err: s.DropSeries(database, []uint32{stmt.SeriesID})}
 	}
 
 	// Handle the more complicated `DROP SERIES` with sources and/or conditions...
@@ -2179,15 +2179,7 @@ func (s *Server) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, 
 	}
 	s.mu.RUnlock()
 
-	// Delete series by ID.
-	for _, id := range ids {
-		err := s.DropSeries(database, id)
-		if err != nil {
-			return &Result{Err: err}
-		}
-	}
-
-	return &Result{}
+	return &Result{Err: s.DropSeries(database, []uint32(ids))}
 }
 
 func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, database string, user *User) *Result {
