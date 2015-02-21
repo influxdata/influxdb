@@ -7,7 +7,7 @@ import (
 	"github.com/influxdb/influxdb"
 )
 
-// Ensure the server can be successfully opened and closed.
+// Ensure that data with epoch timestamps can be decoded.
 func TestBatchPoints_Normal(t *testing.T) {
 	var p influxdb.BatchPoints
 	data := []byte(`
@@ -22,11 +22,9 @@ func TestBatchPoints_Normal(t *testing.T) {
             },
             "timestamp": 14244733039069373,
             "precision": "n",
-            "values": [
-                {
+            "values": {
                     "value": 4541770385657154000
-                }
-            ]
+            }
         },
         {
             "name": "cpu",
@@ -35,17 +33,15 @@ func TestBatchPoints_Normal(t *testing.T) {
             },
             "timestamp": 14244733039069380,
             "precision": "n",
-            "values": [
-                {
+            "values": {
                     "value": 7199311900554737000
-                }
-            ]
+            }
         }
     ]
 }
 `)
 
 	if err := json.Unmarshal(data, &p); err != nil {
-		t.Error("failed to unmarshal nanosecond data")
+		t.Errorf("failed to unmarshal nanosecond data: %s", err.Error())
 	}
 }
