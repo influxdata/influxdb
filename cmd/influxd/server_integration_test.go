@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strconv"
 	"testing"
 	"time"
@@ -117,7 +118,7 @@ func createDatabase(t *testing.T, testName string, nodes cluster, database strin
 	t.Logf("Test: %s: creating database %s", testName, database)
 	serverURL := nodes[0].url
 
-	u := urlFor(serverURL, "query", url.Values{"q": []string{"CREATE DATABASE foo"}})
+	u := urlFor(serverURL, "query", url.Values{"q": []string{"CREATE DATABASE " + database}})
 	resp, err := http.Get(u.String())
 	if err != nil {
 		t.Fatalf("Couldn't create database: %s", err)
@@ -168,7 +169,7 @@ func createDatabase(t *testing.T, testName string, nodes cluster, database strin
 			{Rows: []influxql.Row{
 				influxql.Row{
 					Columns: []string{"name"},
-					Values:  [][]interface{}{{"foo"}},
+					Values:  [][]interface{}{{database}},
 				},
 			}},
 		},
@@ -182,7 +183,7 @@ func createDatabase(t *testing.T, testName string, nodes cluster, database strin
 func createRetentionPolicy(t *testing.T, testName string, nodes cluster, database, retention string) {
 	t.Log("Creating retention policy")
 	serverURL := nodes[0].url
-	replication := fmt.Sprintf("CREATE RETENTION POLICY bar ON foo DURATION 1h REPLICATION %d DEFAULT", len(nodes))
+	replication := fmt.Sprintf("CREATE RETENTION POLICY %s ON %s DURATION 1h REPLICATION %d DEFAULT", retention, database, len(nodes))
 
 	u := urlFor(serverURL, "query", url.Values{"q": []string{replication}})
 	resp, err := http.Get(u.String())
@@ -273,6 +274,92 @@ func simpleQuery(t *testing.T, testname string, nodes cluster, query string, exp
 			t.Fatalf("query databases failed.  Unexpected results.")
 		}
 	}
+}
+
+// testInfluxServer is a higher-level abstraction for starting an InfluxDB
+// server for test
+type testInfluxServer struct {
+	t            *testing.T
+	databaseName string
+	testName     string
+	nodes        cluster
+}
+
+// newTestInfluxServer returns a new testInfluxServer given a testing.T, base
+// port, and test name.
+func newTestInfluxServer(t *testing.T, basePort int, testName string) *testInfluxServer {
+	nNodes := 1
+	nodes := createCombinedNodeCluster(t, testName, nNodes, basePort)
+
+	now := time.Now().Unix()
+	databaseName := fmt.Sprintf("db_%d", now)
+	retentionPolicyName := fmt.Sprintf("rp_%d", now)
+	createDatabase(t, testName, nodes, databaseName)
+	createRetentionPolicy(t, testName, nodes, databaseName, retentionPolicyName)
+
+	return &testInfluxServer{
+		t:            t,
+		databaseName: databaseName,
+		testName:     testName,
+		nodes:        nodes,
+	}
+}
+
+// Teardown cleans up the server when it is no longer needed
+func (s *testInfluxServer) Teardown() {
+	for _, n := range s.nodes {
+		n.server.Close()
+	}
+}
+
+// pointGenerator is a type used as a callback when calling the
+// testInfluxServer.InsertPoints method
+type pointGenerator func(timestamp client.Timestamp, index int) client.Point
+
+// InsertPoints uses the given callback to generate as many points as specified
+// as totalPoints.  The callback will be called with a client.Timestamp that can
+// be directly inserted as the Timestamp field on the client.Point type and
+// with an index that increments between each call.
+//
+// If there is a failure in writing the data, InsertPoints will cause the
+// current test to fail.
+func (s *testInfluxServer) InsertPoints(totalPoints int, callback pointGenerator) {
+	bp := influxdb.BatchPoints{
+		Database: s.databaseName,
+	}
+
+	startTime := time.Now().Round(time.Second).Add(time.Duration(-totalPoints) * time.Second).UTC()
+
+	for i := 0; i < totalPoints; i++ {
+		timestamp := client.Timestamp(startTime.Add(time.Duration(i) * time.Second))
+		p := callback(timestamp, i)
+
+		bp.Points = append(bp.Points, p)
+	}
+
+	bpJson, err := json.Marshal(bp)
+	if err != nil {
+		s.t.Fatalf("Expected no error, received %v", err)
+	}
+
+	write(s.t, s.testName, s.nodes, string(bpJson))
+}
+
+// PerformQuery will execute the given query against the default database
+// created for the testInfluxServer.  If there is an error *executing* the
+// query, PerformQuery will cause the current test to fail.  If the query
+// executes but the server returns an error, it is the caller's responsibility
+// to check if results.Err or results.Error() is set.
+func (s *testInfluxServer) PerformQuery(query string) *client.Results {
+	c, err := client.NewClient(client.Config{URL: *s.nodes[0].url})
+	if err != nil {
+		s.t.Fatalf("Expected no error, received %v", err)
+	}
+	result, err := c.Query(client.Query{Command: query, Database: s.databaseName})
+	if err != nil {
+		s.t.Fatalf("Expected no error, received %v", err)
+	}
+	return result
 }
 
 func Test_ServerSingleIntegration(t *testing.T) {
@@ -409,4 +496,111 @@ func Test_Server5NodeIntegration(t *testing.T) {
 	}
 
 	simpleQuery(t, testName, nodes[:1], `select value from "foo"."bar".cpu`, expectedResults)
+}
+
+func Test_AllTagCombinationsInShowSeriesAreSelectable(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
+	basePort := 8390
+	testName := "all tag combinations in SHOW SERIES are selectable"
+	testServer := newTestInfluxServer(t, basePort, testName)
+	defer testServer.Teardown()
+
+	measurementName := "my_measurement"
+	totalPoints := 21
+	tagRarity := 3
+	testServer.InsertPoints(totalPoints, func(timestamp client.Timestamp, index int) client.Point {
+		var rarity string
+		if (index % tagRarity) == 0 {
+			rarity = "rare"
+		} else {
+			rarity = "common"
+		}
+		return client.Point{
+			Name: measurementName,
+			Tags: map[string]string{
+				"host":   fmt.Sprintf("server%d", index%10),
+				"rarity": rarity,
+			},
+			Values: map[string]interface{}{
+				"value": float64(index) / 1000.0,
+			},
+			Timestamp: timestamp,
+		}
+	})
+
+	result := testServer.PerformQuery("SHOW SERIES")
+	if err := result.Error(); err != nil {
+		t.Fatalf("Expected no error, received %v", err)
+	}
+
+	var tagPairs [][]string
+	for _, r := range result.Results {
+		for _, row := range r.Rows {
+			for _, tagPair := range row.Values {
+				pair := []string{}
+				for _, tag := range tagPair {
+					pair = append(pair, tag.(string))
+				}
+				tagPairs = append(tagPairs, pair)
+			}
+		}
+	}
+
+	for _, tagPair := range tagPairs {
+		host := tagPair[0]
+		rarity := tagPair[1]
+		query := fmt.Sprintf("SELECT value FROM %s WHERE host = '%s' AND rarity = '%s'", measurementName, host, rarity)
+		result := testServer.PerformQuery(query)
+		if result.Err != nil {
+			t.Fatalf("Expected no error, received %v", result.Err)
+		}
+	}
+}
+
+func Test_DataArrivesInOrder(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
+	basePort := 8400
+	testName := "data arrives in order"
+	testServer := newTestInfluxServer(t, basePort, testName)
+	defer testServer.Teardown()
+
+	totalPoints := 10
+	testServer.InsertPoints(totalPoints, func(timestamp client.Timestamp, index int) client.Point {
+		return client.Point{
+			Name: "my_measurement",
+			Tags: map[string]string{
+				"host": fmt.Sprintf("server_%d", index%10),
+			},
+			Values: map[string]interface{}{
+				"value": index,
+			},
+			Timestamp: timestamp,
+		}
+	})
+
+	result := testServer.PerformQuery("SELECT value FROM my_measurement ORDER BY ASC")
+	if err := result.Error(); err != nil {
+		t.Fatalf("Expected no error, received %v", err)
+	}
+
+	var times []string
+	for _, r := range result.Results {
+		for _, row := range r.Rows {
+			for _, values := range row.Values {
+				timestamp := values[0].(string)
+				times = append(times, timestamp)
+			}
+		}
+	}
+
+	if !sort.StringsAreSorted(times) {
+		t.Log(times)
+		t.Fatalf("Expected timestamps to arrive in order, but they were out of order")
+	}
 }
