@@ -1539,37 +1539,29 @@ func (s *Server) applyDropSeries(m *messaging.Message) error {
 		if measurement == nil {
 			return fmt.Errorf("measurement not found for series %d", seriesID)
 		}
-		err := s.meta.mustUpdate(m.Index, func(tx *metatx) error { return tx.dropSeries(c.Database, measurement.Name, seriesID) })
+		err := s.meta.mustUpdate(m.Index, func(tx *metatx) error {
+			if err := tx.dropSeries(c.Database, measurement.Name, seriesID); err != nil {
+				return err
+			}
+
+			// Remove shard data
+			for _, rp := range s.databases[c.Database].policies {
+				if err := rp.dropSeries(seriesID); err != nil {
+					return err
+				}
+			}
+
+			// Delete the database entry.
+			if err := database.dropSeries(c.SeriesIDs...); err != nil {
+				return fmt.Errorf("failed to remove series from index")
+			}
+			return nil
+		})
 		if err != nil {
 			return err
 		}
 	}
 
-	// Remove shard data
-	for _, rp := range s.databases[c.Database].policies {
-		for _, id := range c.SeriesIDs {
-			err := rp.dropSeries(id)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	// Delete the database entry.
-	for _, id := range c.SeriesIDs {
-		if !database.removeSeriesFromIndex(id) {
-			return fmt.Errorf("failed to remove series id %d from index", id)
-		}
-	}
-
-	// Delete measurment references to the series
-	for _, m := range database.measurements {
-		for _, id := range c.SeriesIDs {
-			if !m.removeSeries(id) {
-				return fmt.Errorf("failed to remove series id %d from measurment %q", id, m.Name)
-			}
-		}
-	}
 	return nil
 }
 

@@ -222,7 +222,7 @@ func (m *Measurement) addSeries(s *Series) bool {
 }
 
 // removeSeries will remove a series from the measurementIndex. Returns true if already removed
-func (m *Measurement) removeSeries(seriesID uint32) bool {
+func (m *Measurement) dropSeries(seriesID uint32) bool {
 	if _, ok := m.seriesByID[seriesID]; !ok {
 		return true
 	}
@@ -1114,15 +1114,25 @@ func (db *database) addSeriesToIndex(measurementName string, s *Series) bool {
 	return idx.addSeries(s)
 }
 
-// removeSeriesFromIndex removes the series from the index
-func (db *database) removeSeriesFromIndex(seriesID uint32) bool {
-	// if the series is already gone, return
-	if db.series[seriesID] == nil {
-		return true
+// dropSeries removes the series from the in memory references
+func (db *database) dropSeries(seriesIDs ...uint32) error {
+	for _, id := range seriesIDs {
+		// if the series is already gone, return
+		if db.series[id] == nil {
+			continue
+		}
+
+		delete(db.series, id)
+
+		// Remove series information from measurements
+		for _, m := range db.measurements {
+			if !m.dropSeries(id) {
+				return fmt.Errorf("failed to remove series id %d from measurment %q", id, m.Name)
+			}
+		}
 	}
 
-	delete(db.series, seriesID)
-	return true
+	return nil
 }
 
 // createMeasurementIfNotExists will either add a measurement object to the index or return the existing one.
