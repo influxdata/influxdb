@@ -1486,6 +1486,17 @@ func (c *createMeasurementsIfNotExistsCommand) addSeriesIfNotExists(measurement 
 	return
 }
 
+// SeriesExists returns true if a series exists.
+func (s *Server) SeriesExists(name string, id uint32) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	d := s.databases[name]
+	if d == nil {
+		return false
+	}
+	return d.series[id] != nil
+}
+
 // addFieldIfNotExists adds the field to the command for the Measurement, but only if it is not already
 // present. It will return an error if the field is present in the command, but is of a different type.
 func (c *createMeasurementsIfNotExistsCommand) addFieldIfNotExists(measurement, name string, typ influxql.DataType) error {
