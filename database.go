@@ -1018,10 +1018,10 @@ func (rp *RetentionPolicy) shardGroupByID(shardID uint64) *ShardGroup {
 	return nil
 }
 
-// deleteSeries will delete all data with the seriesID
-func (rp *RetentionPolicy) deleteSeries(seriesID uint32) error {
+// dropSeries will delete all data with the seriesID
+func (rp *RetentionPolicy) dropSeries(seriesID uint32) error {
 	for _, g := range rp.shardGroups {
-		err := g.deleteSeries(seriesID)
+		err := g.dropSeries(seriesID)
 		if err != nil {
 			return err
 		}

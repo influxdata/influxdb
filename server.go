@@ -69,7 +69,7 @@ const (
 	deleteShardGroupMessageType            = messaging.MessageType(0x41)
 
 	// Series messages
-	deleteSeriesMessageType = messaging.MessageType(0x50)
+	dropSeriesMessageType = messaging.MessageType(0x50)
 
 	// Measurement messages
 	createMeasurementsIfNotExistsMessageType = messaging.MessageType(0x60)
@@ -1555,8 +1555,8 @@ func (c *createMeasurementsIfNotExistsCommand) addFieldIfNotExists(measurement, 
 	return nil
 }
 
-func (s *Server) applyDeleteSeries(m *messaging.Message) error {
-	var c deleteSeriesCommand
+func (s *Server) applyDropSeries(m *messaging.Message) error {
+	var c dropSeriesCommand
 	mustUnmarshalJSON(m.Data, &c)
 
 	s.mu.Lock()
@@ -1576,7 +1576,7 @@ func (s *Server) applyDeleteSeries(m *messaging.Message) error {
 		if m == nil {
 			return fmt.Errorf("measurement not found for series %d", seriesID)
 		}
-		err := s.meta.mustUpdate(func(tx *metatx) error { return tx.deleteSeries(c.Database, m.Name, seriesID) })
+		err := s.meta.mustUpdate(func(tx *metatx) error { return tx.dropSeries(c.Database, m.Name, seriesID) })
 		if err != nil {
 			return err
 		}
@@ -1585,7 +1585,7 @@ func (s *Server) applyDeleteSeries(m *messaging.Message) error {
 	// Remove shard data
 	for _, rp := range s.databases[c.Database].policies {
 		for _, id := range c.SeriesIDs {
-			err := rp.deleteSeries(id)
+			err := rp.dropSeries(id)
 			if err != nil {
 				return err
 			}
@@ -1610,14 +1610,14 @@ func (s *Server) applyDeleteSeries(m *messaging.Message) error {
 	return nil
 }
 
-// DeleteSeries deletes from an existing series.
-func (s *Server) DeleteSeries(database string, SeriesIDs ...uint32) error {
-	c := deleteSeriesCommand{Database: database, SeriesIDs: SeriesIDs}
-	_, err := s.broadcast(deleteSeriesMessageType, c)
+// DropSeries deletes from an existing series.
+func (s *Server) DropSeries(database string, SeriesIDs ...uint32) error {
+	c := dropSeriesCommand{Database: database, SeriesIDs: SeriesIDs}
+	_, err := s.broadcast(dropSeriesMessageType, c)
 	return err
 }
 
-type deleteSeriesCommand struct {
+type dropSeriesCommand struct {
 	Database  string   `json:"datbase"`
 	SeriesIDs []uint32 `json:"seriesIds"`
 }
@@ -2142,7 +2142,7 @@ func (s *Server) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, 
 	// Handle the simple `DROP SERIES <id>` case.
 	if stmt.Source == nil && stmt.Condition == nil {
 		s.mu.RUnlock()
-		return &Result{Err: s.DeleteSeries(database, stmt.SeriesID)}
+		return &Result{Err: s.DropSeries(database, stmt.SeriesID)}
 	}
 
 	// Handle the more complicated `DROP SERIES` with sources and/or conditions...
@@ -2183,7 +2183,7 @@ func (s *Server) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, 
 
 		// Delete series by ID.
 		for _, id := range ids {
-			err := s.DeleteSeries(database, id)
+			err := s.DropSeries(database, id)
 			if err != nil {
 				return &Result{Err: err}
 			}
@@ -2844,8 +2844,8 @@ func (s *Server) processor(client MessagingClient, done chan struct{}) {
 			err = s.applySetDefaultRetentionPolicy(m)
 		case createMeasurementsIfNotExistsMessageType:
 			err = s.applyCreateMeasurementsIfNotExists(m)
-		case deleteSeriesMessageType:
-			err = s.applyDeleteSeries(m)
+		case dropSeriesMessageType:
+			err = s.applyDropSeries(m)
 		case setPrivilegeMessageType:
 			err = s.applySetPrivilege(m)
 		case createContinuousQueryMessageType:
