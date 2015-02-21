@@ -194,6 +194,34 @@ func TestBroker_Unsubscribe_ErrReplicaNotFound(t *testing.T) {
 	}
 }
 
+// Ensure the broker can reopen and recover correctly.
+func TestBroker_Reopen(t *testing.T) {
+	b := NewBroker(nil)
+	defer b.Close()
+	b.MustCreateReplica(2000, &url.URL{Host: "localhost"})
+	b.MustSubscribe(2000, 20)
+	b.MustSubscribe(2000, 21)
+	b.MustPublishSync(&messaging.Message{TopicID: 20, Data: []byte("0000")})
+	b.MustPublishSync(&messaging.Message{TopicID: 20, Data: []byte("0000")})
+	b.MustPublishSync(&messaging.Message{TopicID: 21, Data: []byte("0000")})
+	index := b.MustPublishSync(&messaging.Message{TopicID: 20, Data: []byte("0000")})
+	time.Sleep(100 * time.Millisecond)
+
+	// Close broker and reopen with a new broker instance.
+	path, u := b.Path(), b.URL()
+	b.Broker.Close()
+	b.Broker = messaging.NewBroker()
+	if err := b.Broker.Open(path, u); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify the broker is up to date.
+	newIndex := b.Index()
+	if newIndex != index {
+		t.Fatalf("index mismatch: exp=%d, got=%d", index, newIndex)
+	}
+}
+
 // Benchmarks a single broker without HTTP.
 func BenchmarkBroker_Publish(b *testing.B) {
 	br := NewBroker(nil)
@@ -274,6 +302,43 @@ func (b *Broker) MustReadAll(replicaID uint64) (a []*messaging.Message) {
 		a = append(a, m)
 	}
 	return
+}
+
+// MustCreateReplica creates a new replica. Panic on error.
+func (b *Broker) MustCreateReplica(replicaID uint64, u *url.URL) {
+	if err := b.CreateReplica(replicaID, u); err != nil {
+		panic(err.Error())
+	}
+}
+
+// MustSubscribe subscribes a replica to a topic. Panic on error.
+func (b *Broker) MustSubscribe(replicaID, topicID uint64) {
+	if err := b.Subscribe(replicaID, topicID); err != nil {
+		panic(err.Error())
+	}
+}
+
+// MustSync syncs to a broker index. Panic on error.
+func (b *Broker) MustSync(index uint64) {
+	if err := b.Sync(index); err != nil {
+		panic(err.Error())
+	}
+}
+
+// MustPublish publishes a message to the broker. Panic on error.
+func (b *Broker) MustPublish(m *messaging.Message) uint64 {
+	index, err := b.Publish(&messaging.Message{Type: 100, TopicID: 20, Data: []byte("0000")})
+	if err != nil {
+		panic(err.Error())
+	}
+	return index
+}
+
+// MustPublishSync publishes a message to the broker and syncs to that index. Panic on error.
+func (b *Broker) MustPublishSync(m *messaging.Message) uint64 {
+	index := b.MustPublish(m)
+	b.MustSync(index)
+	return index
 }
 
 // Messages represents a collection of messages.
