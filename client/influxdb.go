@@ -94,8 +94,7 @@ func (c *Client) Write(writes ...Write) (*Results, error) {
 		d = append(d, data{Points: write.Points, Database: write.Database, RetentionPolicy: write.RetentionPolicy})
 	}
 
-	b := []byte{}
-	err := json.Unmarshal(b, &d)
+	b, err := json.Marshal(d)
 	if err != nil {
 		return nil, err
 	}
