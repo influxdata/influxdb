@@ -57,6 +57,14 @@ func (b *Broker) metaPath() string {
 	return filepath.Join(b.path, "meta")
 }
 
+// Index returns the highest index seen by the broker.
+// Returns 0 if the broker is closed.
+func (b *Broker) Index() uint64 {
+	b.mu.Lock()
+	b.mu.Unlock()
+	return b.index
+}
+
 func (b *Broker) opened() bool { return b.path != "" }
 
 // SetLogOutput sets writer for all Broker log output.
@@ -181,9 +189,23 @@ func (b *Broker) load() error {
 		}
 	}
 
-	// Set the broker's index to the last index seen across all topics.
-	b.index = hdr.maxIndex()
+	// Read the highest index from each of the topic files.
+	if err := b.loadIndex(); err != nil {
+		return fmt.Errorf("load index: %s", err)
+	}
 
+	return nil
+}
+
+// loadIndex reads through all topics to find the highest known index.
+func (b *Broker) loadIndex() error {
+	for _, t := range b.topics {
+		if err := t.loadIndex(); err != nil {
+			return fmt.Errorf("topic(%d): %s", t.id, err)
+		} else if t.index > b.index {
+			b.index = t.index
+		}
+	}
 	return nil
 }
 
@@ -568,12 +590,7 @@ func (fsm *brokerFSM) MustApply(e *raft.LogEntry) {
 	}
 
 	// Save highest applied index.
-	// TODO: Persist to disk for raft commands.
 	b.index = e.Index
-
-	// HACK: Persist metadata after each apply.
-	//       This should be derived on startup from the topic logs.
-	b.mustSave()
 }
 
 // Index returns the highest index that the broker has seen.
@@ -772,6 +789,33 @@ func (t *topic) Close() error {
 		t.file = nil
 	}
 	return nil
+}
+
+// loadIndex reads the highest available index for a topic from disk.
+func (t *topic) loadIndex() error {
+	// Open topic file for reading.
+	f, err := os.Open(t.path)
+	if os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	defer func() { _ = f.Close() }()
+
+	// Read all messages.
+	dec := NewMessageDecoder(bufio.NewReader(f))
+	for {
+		// Decode message.
+		var m Message
+		if err := dec.Decode(&m); err == io.EOF {
+			return nil
+		} else if err != nil {
+			return fmt.Errorf("decode: %s", err)
+		}
+
+		// Update the topic's highest index.
+		t.index = m.Index
+	}
 }
 
 // writeTo writes the topic to a replica since a given index.
