@@ -1130,6 +1130,13 @@ func (db *database) dropSeries(seriesIDs ...uint32) error {
 				return fmt.Errorf("failed to remove series id %d from measurment %q", id, m.Name)
 			}
 		}
+
+		// Remove shard data
+		for _, rp := range db.policies {
+			if err := rp.dropSeries(id); err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil

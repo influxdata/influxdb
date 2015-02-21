@@ -1544,14 +1544,7 @@ func (s *Server) applyDropSeries(m *messaging.Message) error {
 				return err
 			}
 
-			// Remove shard data
-			for _, rp := range s.databases[c.Database].policies {
-				if err := rp.dropSeries(seriesID); err != nil {
-					return err
-				}
-			}
-
-			// Delete the database entry.
+			// Delete series from the database.
 			if err := database.dropSeries(c.SeriesIDs...); err != nil {
 				return fmt.Errorf("failed to remove series from index")
 			}
