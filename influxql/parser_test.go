@@ -2,6 +2,7 @@ package influxql_test
 
 import (
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -300,14 +301,9 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// SHOW FIELD KEYS
 		{
-			s: `SHOW FIELD KEYS FROM src WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
+			s: `SHOW FIELD KEYS FROM src ORDER BY ASC, field1, field2 DESC LIMIT 10`,
 			stmt: &influxql.ShowFieldKeysStatement{
 				Source: &influxql.Measurement{Name: "src"},
-				Condition: &influxql.BinaryExpr{
-					Op:  influxql.EQ,
-					LHS: &influxql.VarRef{Val: "region"},
-					RHS: &influxql.StringLiteral{Val: "uswest"},
-				},
 				SortFields: []*influxql.SortField{
 					{Ascending: true},
 					{Name: "field1"},
@@ -340,7 +336,7 @@ func TestParser_ParseStatement(t *testing.T) {
 					Target: &influxql.Target{Measurement: "measure1"},
 					Source: &influxql.Measurement{Name: "myseries"},
 					Dimensions: []*influxql.Dimension{
-						&influxql.Dimension{
+						{
 							Expr: &influxql.Call{
 								Name: "time",
 								Args: []influxql.Expr{
@@ -366,7 +362,7 @@ func TestParser_ParseStatement(t *testing.T) {
 					},
 					Source: &influxql.Measurement{Name: "myseries"},
 					Dimensions: []*influxql.Dimension{
-						&influxql.Dimension{
+						{
 							Expr: &influxql.Call{
 								Name: "time",
 								Args: []influxql.Expr{
@@ -760,6 +756,26 @@ func TestParser_ParseExpr(t *testing.T) {
 					RHS: &influxql.NumberLiteral{Val: 2},
 				},
 				RHS: &influxql.NumberLiteral{Val: 3},
+			},
+		},
+
+		// Binary expression with regex on right.
+		{
+			s: `region =~ 'us.*'`,
+			expr: &influxql.BinaryExpr{
+				Op:  influxql.EQREGEX,
+				LHS: &influxql.VarRef{Val: "region"},
+				RHS: &influxql.RegexLiteral{Val: regexp.MustCompile(`us.*`)},
+			},
+		},
+
+		// Binary expression with NEQ regex on left.
+		{
+			s: `'us.*' !~ region`,
+			expr: &influxql.BinaryExpr{
+				Op:  influxql.NEQREGEX,
+				RHS: &influxql.VarRef{Val: "region"},
+				LHS: &influxql.RegexLiteral{Val: regexp.MustCompile(`us.*`)},
 			},
 		},
 

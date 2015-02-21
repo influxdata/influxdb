@@ -61,7 +61,18 @@ func (s *Scanner) Scan() (tok Token, pos Pos, lit string) {
 	case '/':
 		return DIV, pos, ""
 	case '=':
+		if ch1, _ := s.r.read(); ch1 == '~' {
+			return EQREGEX, pos, ""
+		}
+		s.r.unread()
 		return EQ, pos, ""
+	case '!':
+		if ch1, _ := s.r.read(); ch1 == '=' {
+			return NEQ, pos, ""
+		} else if ch1 == '~' {
+			return NEQREGEX, pos, ""
+		}
+		s.r.unread()
 	case '>':
 		if ch1, _ := s.r.read(); ch1 == '=' {
 			return GTE, pos, ""
@@ -532,6 +543,11 @@ func lastIdent(s string) string {
 }
 
 var errInvalidIdentifier = errors.New("invalid identifier")
+
+// IsRegexOp returns true if the operator accepts a regex operand.
+func IsRegexOp(t Token) bool {
+	return (t == EQREGEX || t == NEQREGEX)
+}
 
 // assert will panic with a given formatted message if the given condition is false.
 func assert(condition bool, msg string, v ...interface{}) {

@@ -293,18 +293,30 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (seriesIDs, bool, influ
 		return m.seriesIDs, true, n
 	}
 
-	// tag values can only be strings so if it's not a string this is an empty set
-	str, ok := value.(*influxql.StringLiteral)
+	tagVals, ok := m.seriesByTagKeyValue[name.Val]
 	if !ok {
 		return nil, true, nil
 	}
 
-	vals, ok := m.seriesByTagKeyValue[name.Val]
-	if !ok {
-		return nil, true, nil
+	// if we're looking for series with a specific tag value
+	if str, ok := value.(*influxql.StringLiteral); ok {
+		return tagVals[str.Val], true, nil
 	}
 
-	return vals[str.Val], true, nil
+	// if we're looking for series with tag values that match a regex
+	if re, ok := value.(*influxql.RegexLiteral); ok {
+		var ids seriesIDs
+		for k := range tagVals {
+			match := re.Val.MatchString(k)
+
+			if (match && n.Op == influxql.EQREGEX) || (!match && n.Op == influxql.NEQREGEX) {
+				ids = ids.union(tagVals[k])
+			}
+		}
+		return ids, true, nil
+	}
+
+	return nil, true, nil
 }
 
 // walkWhereForSeriesIds will recursively walk the where clause and return a collection of series ids, a boolean indicating if this return
@@ -315,7 +327,7 @@ func (m *Measurement) walkWhereForSeriesIds(expr influxql.Expr, filters map[uint
 	switch n := expr.(type) {
 	case *influxql.BinaryExpr:
 		// if it's EQ then it's either a field expression or against a tag. we can return this
-		if n.Op == influxql.EQ {
+		if n.Op == influxql.EQ || n.Op == influxql.EQREGEX || n.Op == influxql.NEQREGEX {
 			ids, shouldInclude, expr := m.idsForExpr(n)
 			return ids, shouldInclude, expr
 		} else if n.Op == influxql.AND || n.Op == influxql.OR { // if it's an AND or OR we need to union or intersect the results
@@ -1039,122 +1051,10 @@ type retentionPolicyJSON struct {
 
 // TagFilter represents a tag filter when looking up other tags or measurements.
 type TagFilter struct {
-	Not   bool
+	Op    influxql.Token
 	Key   string
 	Value string
 	Regex *regexp.Regexp
-}
-
-// SeriesIDs is a convenience type for sorting, checking equality, and doing union and
-// intersection of collections of series ids.
-type SeriesIDs []uint32
-
-func (a SeriesIDs) Len() int           { return len(a) }
-func (a SeriesIDs) Less(i, j int) bool { return a[i] < a[j] }
-func (a SeriesIDs) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-
-// Equals assumes that both are sorted. This is by design, no touchy!
-func (a SeriesIDs) Equals(seriesIDs SeriesIDs) bool {
-	if len(a) != len(seriesIDs) {
-		return false
-	}
-	for i, s := range seriesIDs {
-		if a[i] != s {
-			return false
-		}
-	}
-	return true
-}
-
-// Intersect returns a new collection of series ids in sorted order that is the intersection of the two.
-// The two collections must already be sorted.
-func (a SeriesIDs) Intersect(seriesIDs SeriesIDs) SeriesIDs {
-	l := a
-	r := seriesIDs
-
-	// we want to iterate through the shortest one and stop
-	if len(seriesIDs) < len(a) {
-		l = seriesIDs
-		r = a
-	}
-
-	// they're in sorted order so advance the counter as needed.
-	// That is, don't run comparisons against lower values that we've already passed
-	var i, j int
-
-	ids := make([]uint32, 0, len(l))
-	for i < len(l) && j < len(r) {
-		if l[i] == r[j] {
-			ids = append(ids, l[i])
-			i++
-			j++
-		} else if l[i] < r[j] {
-			i++
-		} else {
-			j++
-		}
-	}
-
-	return SeriesIDs(ids)
-}
-
-// Union returns a new collection of series ids in sorted order that is the union of the two.
-// The two collections must already be sorted.
-func (a SeriesIDs) Union(other SeriesIDs) SeriesIDs {
-	l := a
-	r := other
-	ids := make([]uint32, 0, len(l)+len(r))
-	var i, j int
-	for i < len(l) && j < len(r) {
-		if l[i] == r[j] {
-			ids = append(ids, l[i])
-			i++
-			j++
-		} else if l[i] < r[j] {
-			ids = append(ids, l[i])
-			i++
-		} else {
-			ids = append(ids, r[j])
-			j++
-		}
-	}
-
-	// now append the remainder
-	if i < len(l) {
-		ids = append(ids, l[i:]...)
-	} else if j < len(r) {
-		ids = append(ids, r[j:]...)
-	}
-
-	return ids
-}
-
-// Reject returns a new collection of series ids in sorted order with the passed in set removed from the original. This is useful for the NOT operator.
-// The two collections must already be sorted.
-func (a SeriesIDs) Reject(other SeriesIDs) SeriesIDs {
-	l := a
-	r := other
-	var i, j int
-
-	ids := make([]uint32, 0, len(l))
-	for i < len(l) && j < len(r) {
-		if l[i] == r[j] {
-			i++
-			j++
-		} else if l[i] < r[j] {
-			ids = append(ids, l[i])
-			i++
-		} else {
-			j++
-		}
-	}
-
-	// append the remainder
-	if i < len(l) {
-		ids = append(ids, l[i:]...)
-	}
-
-	return SeriesIDs(ids)
 }
 
 // addSeriesToIndex adds the series for the given measurement to the index. Returns false if already present
@@ -1197,27 +1097,27 @@ func (db *database) MeasurementAndSeries(name string, tags map[string]string) (*
 }
 
 // SeriesByID returns the Series that has the given id.
-func (d *database) SeriesByID(id uint32) *Series {
-	return d.series[id]
+func (db *database) SeriesByID(id uint32) *Series {
+	return db.series[id]
 }
 
 // Names returns all measurement names in sorted order.
-func (d *database) MeasurementNames() []string {
-	return d.names
+func (db *database) MeasurementNames() []string {
+	return db.names
 }
 
 // DropSeries will clear the index of all references to a series.
-func (d *database) DropSeries(id uint32) {
+func (db *database) DropSeries(id uint32) {
 	panic("not implemented")
 }
 
 // DropMeasurement will clear the index of all references to a measurement and its child series.
-func (d *database) DropMeasurement(name string) {
+func (db *database) DropMeasurement(name string) {
 	panic("not implemented")
 }
 
-func (d *database) continuousQueryByName(name string) *ContinuousQuery {
-	for _, cq := range d.continuousQueries {
+func (db *database) continuousQueryByName(name string) *ContinuousQuery {
+	for _, cq := range db.continuousQueries {
 		if cq.cq.Name == name {
 			return cq
 		}
@@ -1246,118 +1146,37 @@ func timeBetweenInclusive(t, min, max time.Time) bool {
 	return (t.Equal(min) || t.After(min)) && (t.Equal(max) || t.Before(max))
 }
 
-// seriesIDs returns an array of series ids for the given measurements and filters to be applied to all.
-// Filters are equivalent to an AND operation. If you want to do an OR, get the series IDs for one set,
-// then get the series IDs for another set and use the SeriesIDs.Union to combine the two.
-func (db *database) SeriesIDs(names []string, filters []*TagFilter) seriesIDs {
-	// they want all ids if no filters are specified
-	if len(filters) == 0 {
-		ids := seriesIDs(make([]uint32, 0))
-		for _, m := range db.measurements {
-			ids = ids.union(m.seriesIDs)
-		}
-		return ids
-	}
-
-	ids := seriesIDs(make([]uint32, 0))
-	for _, n := range names {
-		ids = ids.union(db.seriesIDsByName(n, filters))
-	}
-
-	return ids
-}
-
-// seriesIDsByName is the same as SeriesIDs, but for a specific measurement.
-func (db *database) seriesIDsByName(name string, filters []*TagFilter) seriesIDs {
-	m := db.measurements[name]
-	if m == nil {
-		return nil
-	}
-
-	// process the filters one at a time to get the list of ids they return
-	idsPerFilter := make([]seriesIDs, len(filters), len(filters))
-	for i, filter := range filters {
-		idsPerFilter[i] = m.seriesIDsByFilter(filter)
-	}
-
-	// collapse the set of ids
-	allIDs := idsPerFilter[0]
-	for i := 1; i < len(filters); i++ {
-		allIDs = allIDs.intersect(idsPerFilter[i])
-	}
-
-	return allIDs
-}
-
-// seriesIDs returns the series ids for a given filter
-func (m *Measurement) seriesIDsByFilter(filter *TagFilter) (ids seriesIDs) {
-	values := m.seriesByTagKeyValue[filter.Key]
-	if values == nil {
-		return
-	}
-
-	// handle regex filters
-	if filter.Regex != nil {
-		for k, v := range values {
-			if filter.Regex.MatchString(k) {
-				if ids == nil {
-					ids = v
-				} else {
-					ids = ids.union(v)
-				}
-			}
-		}
-		if filter.Not {
-			ids = m.seriesIDs.reject(ids)
-		}
-		return
-	}
-
-	// this is for the value is not null query
-	if filter.Not && filter.Value == "" {
-		for _, v := range values {
-			if ids == nil {
-				ids = v
-			} else {
-				ids.intersect(v)
-			}
-		}
-		return
-	}
-
-	// get the ids that have the given key/value tag pair
-	ids = seriesIDs(values[filter.Value])
-
-	// filter out these ids from the entire set if it's a not query
-	if filter.Not {
-		ids = m.seriesIDs.reject(ids)
-	}
-
-	return
-}
-
 // measurementsByExpr takes and expression containing only tags and returns
 // a list of matching *Measurement.
 func (db *database) measurementsByExpr(expr influxql.Expr) (Measurements, error) {
 	switch e := expr.(type) {
 	case *influxql.BinaryExpr:
 		switch e.Op {
-		case influxql.EQ, influxql.NEQ:
+		case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
 			tag, ok := e.LHS.(*influxql.VarRef)
 			if !ok {
-				return nil, fmt.Errorf("left side of '=' must be a tag name")
-			}
-
-			value, ok := e.RHS.(*influxql.StringLiteral)
-			if !ok {
-				return nil, fmt.Errorf("right side of '=' must be a tag value string")
+				return nil, fmt.Errorf("left side of '%s' must be a tag name", e.Op.String())
 			}
 
 			tf := &TagFilter{
-				Not:   e.Op == influxql.NEQ,
-				Key:   tag.Val,
-				Value: value.Val,
+				Op:  e.Op,
+				Key: tag.Val,
 			}
+
+			if influxql.IsRegexOp(e.Op) {
+				re, ok := e.RHS.(*influxql.RegexLiteral)
+				if !ok {
+					return nil, fmt.Errorf("right side of '%s' must be a regular expression", e.Op.String())
+				}
+				tf.Regex = re.Val
+			} else {
+				s, ok := e.RHS.(*influxql.StringLiteral)
+				if !ok {
+					return nil, fmt.Errorf("right side of '%s' must be a tag value string", e.Op.String())
+				}
+				tf.Value = s.Val
+			}
+
 			return db.measurementsByTagFilters([]*TagFilter{tf}), nil
 		case influxql.OR, influxql.AND:
 			lhsIDs, err := db.measurementsByExpr(e.LHS)
@@ -1397,16 +1216,35 @@ func (db *database) measurementsByTagFilters(filters []*TagFilter) Measurements 
 	// Build a list of measurements matching the filters.
 	var measurements Measurements
 	var tagMatch bool
+
+	// Iterate through all measurements in the database.
 	for _, m := range db.measurements {
+		// Iterate filters seeing if the measurement has a matching tag.
 		for _, f := range filters {
+			tagVals, ok := m.seriesByTagKeyValue[f.Key]
+			if !ok {
+				continue
+			}
+
 			tagMatch = false
-			if tagVals, ok := m.seriesByTagKeyValue[f.Key]; ok {
+
+			// If the operator is non-regex, only check the specified value.
+			if f.Op == influxql.EQ || f.Op == influxql.NEQ {
 				if _, ok := tagVals[f.Value]; ok {
 					tagMatch = true
 				}
+			} else {
+				// Else, the operator is regex and we have to check all tag
+				// values against the regular expression.
+				for tagVal := range tagVals {
+					if f.Regex.MatchString(tagVal) {
+						tagMatch = true
+						break
+					}
+				}
 			}
 
-			isEQ := !f.Not
+			isEQ := (f.Op == influxql.EQ || f.Op == influxql.EQREGEX)
 
 			// tags match | operation is EQ | measurement matches
 			// --------------------------------------------------
