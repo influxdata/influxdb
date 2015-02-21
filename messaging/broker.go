@@ -468,6 +468,8 @@ func (b *Broker) Subscribe(replicaID, topicID uint64) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
+	// TODO: Allow non-zero starting index.
+
 	// Ensure replica & topic exist.
 	if b.replicas[replicaID] == nil {
 		return ErrReplicaNotFound
@@ -492,7 +494,6 @@ func (b *Broker) mustApplySubscribe(m *Message) {
 
 	// Save current index on topic.
 	t := b.createTopicIfNotExists(c.TopicID)
-	index := t.index
 
 	// Ensure topic is not already subscribed to.
 	if _, ok := r.topics[c.TopicID]; ok {
@@ -501,11 +502,11 @@ func (b *Broker) mustApplySubscribe(m *Message) {
 	}
 
 	// Add subscription to replica.
-	r.topics[c.TopicID] = index
+	r.topics[c.TopicID] = c.Index
 	t.replicas[c.ReplicaID] = r
 
 	// Catch up replica.
-	_, _ = t.writeTo(r, index)
+	_, _ = t.writeTo(r, c.Index)
 
 	b.mustSave()
 }
@@ -1030,6 +1031,7 @@ type DeleteReplicaCommand struct {
 type SubscribeCommand struct {
 	ReplicaID uint64 `json:"replicaID"` // replica id
 	TopicID   uint64 `json:"topicID"`   // topic id
+	Index     uint64 `json:"index"`     // index
 }
 
 // UnsubscribeCommand removes a subscription for a topic from a replica.
