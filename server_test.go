@@ -849,7 +849,7 @@ func TestServer_DropSeries(t *testing.T) {
 	}
 
 	// Drop the first series
-	if err := s.DropSeries("foo", 1); err != nil {
+	if err := s.DropSeries("foo", []uint32{1}); err != nil {
 		t.Fatal(err)
 	} else if s.SeriesExists("foo", 1) {
 		t.Fatalf("series not actually dropped")
