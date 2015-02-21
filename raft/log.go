@@ -45,7 +45,7 @@ const logEntryHeaderSize = 8 + 8 + 8 // sz+index+term
 
 // WaitInterval represents the amount of time between checks to the applied index.
 // This is used by clients wanting to wait until a given index is processed.
-const WaitInterval = 100 * time.Millisecond
+const WaitInterval = 1 * time.Millisecond
 
 // State represents whether the log is a follower, candidate, or leader.
 type State int
