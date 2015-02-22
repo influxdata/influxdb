@@ -75,7 +75,7 @@ const (
 	createMeasurementsIfNotExistsMessageType = messaging.MessageType(0x60)
 
 	// Continuous Query messages
-	createContinuousQueryMessageType = messaging.MessageType(0760)
+	createContinuousQueryMessageType = messaging.MessageType(0x70)
 
 	// Write series data messages (per-topic)
 	writeRawSeriesMessageType = messaging.MessageType(0x80)
