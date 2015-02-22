@@ -3133,15 +3133,15 @@ func (s *Server) StartReportingLoop(version string, clusterID uint64) chan struc
 func (s *Server) reportStats(version string, clusterID uint64) {
 	json := fmt.Sprintf(`[{
     "name":"reports",
-    "columns":["os", "arch", version", "id", "cluster_id", "num_series", "num_measurements"],
+    "columns":["os", "arch", "version", "id", "cluster_id", "num_series", "num_measurements"],
     "points":[["%s", "%s", "%s", "%x", "%x", "%d", "%d"]]
   }]`, runtime.GOOS, runtime.GOARCH, version, s.ID(), clusterID, s.numSeries(), s.numMeasurements())
 
 	data := bytes.NewBufferString(json)
 
-	log.Printf("Reporting data: %s", json)
+	log.Printf("Sending anonymous usage statistics to m.influxdb.com")
 	client := http.Client{Timeout: time.Duration(5 * time.Second)}
-	go client.Post("http://localhost:8086/db/reporting/series?u=reporter&p=influxdb", "application/json", data)
+	go client.Post("http://m.influxdb.com:8086/db/reporting-test/series?u=reporter&p=influxdb", "application/json", data)
 }
 
 func (s *Server) numSeries() int {
