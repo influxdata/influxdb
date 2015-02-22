@@ -3133,7 +3133,7 @@ func (s *Server) StartReportingLoop(version string, clusterID uint64) chan struc
 func (s *Server) reportStats(version string, clusterID uint64) {
 	json := fmt.Sprintf(`[{
     "name":"reports",
-    "columns":["os", "arch", "version", "id", "cluster_id", "num_series", "num_measurements", "num_databases"],
+    "columns":["os", "arch", "version", "server_id", "id", "num_series", "num_measurements", "num_databases"],
     "points":[["%s", "%s", "%s", "%x", "%x", "%d", "%d", "%d"]]
   }]`, runtime.GOOS, runtime.GOARCH, version, s.ID(), clusterID, s.numSeries(), s.numMeasurements(), len(s.databases))
 
