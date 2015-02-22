@@ -34,9 +34,9 @@ func NewClient(options ...func(*Client) error) (*Client, error) {
 }
 
 // SetOption takes one or more option function and applies them in order to Client.
-func (t *Client) setOption(options ...func(*Client) error) error {
+func (c *Client) setOption(options ...func(*Client) error) error {
 	for _, opt := range options {
-		if err := opt(t); err != nil {
+		if err := opt(c); err != nil {
 			return err
 		}
 	}
@@ -60,9 +60,9 @@ func Password(p string) func(*Client) error {
 }
 
 // Allow the Hostname to be configured.
-func URL(h url.URL) func(*Client) error {
+func URL(u url.URL) func(*Client) error {
 	return func(t *Client) error {
-		t.url = h
+		t.url = u
 		return nil
 	}
 }
