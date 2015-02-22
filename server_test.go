@@ -882,7 +882,7 @@ func TestServer_DropSeries(t *testing.T) {
 // drop one of those series
 // ensure that the dropped series is gone
 // ensure that we can still query: select value from cpu where region=uswest
-func TestServer_DropSeriesMultipleMeasurements(t *testing.T) {
+func TestServer_DropSeriesTagsPreserved(t *testing.T) {
 	c := NewMessagingClient()
 	s := OpenServer(c)
 	defer s.Close()
