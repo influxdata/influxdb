@@ -1135,26 +1135,27 @@ func (db *database) addSeriesToIndex(measurementName string, s *Series) bool {
 }
 
 // dropSeries removes the series from the in memory references
-func (db *database) dropSeries(seriesIDs ...uint32) error {
-	for _, id := range seriesIDs {
-		// if the series is already gone, return
-		if db.series[id] == nil {
-			continue
-		}
+func (db *database) dropSeries(seriesByMeasurement map[string][]uint32) error {
+	for measurement, ids := range seriesByMeasurement {
+		for _, id := range ids {
+			// if the series is already gone, return
+			if db.series[id] == nil {
+				continue
+			}
 
-		delete(db.series, id)
+			delete(db.series, id)
 
-		// Remove series information from measurements
-		for _, m := range db.measurements {
+			// Remove series information from measurements
+			m := db.measurements[measurement]
 			if !m.dropSeries(id) {
 				return fmt.Errorf("failed to remove series id %d from measurment %q", id, m.Name)
 			}
-		}
 
-		// Remove shard data
-		for _, rp := range db.policies {
-			if err := rp.dropSeries(id); err != nil {
-				return err
+			// Remove shard data
+			for _, rp := range db.policies {
+				if err := rp.dropSeries(id); err != nil {
+					return err
+				}
 			}
 		}
 	}
