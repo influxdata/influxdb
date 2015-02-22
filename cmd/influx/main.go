@@ -185,13 +185,7 @@ func (c *CommandLine) connect(cmd string) {
 	if c.Username != "" {
 		u.User = url.UserPassword(c.Username, c.Password)
 	}
-	cl, err := client.NewClient(
-		client.Config{
-			URL:       u,
-			Username:  c.Username,
-			Password:  c.Password,
-			UserAgent: "InfluxDBShell/" + version,
-		})
+	cl, err := client.NewClient(client.URL(u), client.Username(c.Username), client.Password(c.Password), client.Useragent("InfluxDBShell/"+version))
 	if err != nil {
 		fmt.Printf("Could not create client %s", err)
 		return

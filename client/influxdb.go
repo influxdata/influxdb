@@ -12,19 +12,67 @@ import (
 	"github.com/influxdb/influxdb/influxql"
 )
 
-type Config struct {
-	URL       url.URL
-	Username  string
-	Password  string
-	UserAgent string
-}
-
 type Client struct {
 	url        url.URL
 	username   string
 	password   string
 	httpClient *http.Client
 	userAgent  string
+}
+
+func NewClient(options ...func(*Client) error) (*Client, error) {
+	//Default Options
+	c := Client{
+		url: url.URL{
+			Scheme: "http",
+			Host:   "localhost:8086",
+		},
+		httpClient: &http.Client{},
+	}
+
+	return &c, c.setOption(options...)
+}
+
+// SetOption takes one or more option function and applies them in order to Client.
+func (t *Client) setOption(options ...func(*Client) error) error {
+	for _, opt := range options {
+		if err := opt(t); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Allow the username to be set as an option.
+func Username(u string) func(*Client) error {
+	return func(t *Client) error {
+		t.username = u
+		return nil
+	}
+}
+
+// Set Password to be set as an option.
+func Password(p string) func(*Client) error {
+	return func(t *Client) error {
+		t.password = p
+		return nil
+	}
+}
+
+// Allow the Hostname to be configured.
+func URL(h url.URL) func(*Client) error {
+	return func(t *Client) error {
+		t.url = h
+		return nil
+	}
+}
+
+// Allow the Agent to be configured.
+func Useragent(a string) func(*Client) error {
+	return func(t *Client) error {
+		t.userAgent = a
+		return nil
+	}
 }
 
 type Query struct {
@@ -36,17 +84,6 @@ type Write struct {
 	Database        string
 	RetentionPolicy string
 	Points          []Point
-}
-
-func NewClient(c Config) (*Client, error) {
-	client := Client{
-		url:        c.URL,
-		username:   c.Username,
-		password:   c.Password,
-		httpClient: &http.Client{},
-		userAgent:  c.UserAgent,
-	}
-	return &client, nil
 }
 
 func (c *Client) Query(q Query) (*Results, error) {
