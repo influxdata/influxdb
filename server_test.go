@@ -830,6 +830,133 @@ func TestServer_WriteSeries(t *testing.T) {
 	}
 }
 
+// Ensure the server can drop a series.
+func TestServer_DropSeries(t *testing.T) {
+	c := NewMessagingClient()
+	s := OpenServer(c)
+	defer s.Close()
+	s.CreateDatabase("foo")
+	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "raw", Duration: 1 * time.Hour})
+	s.SetDefaultRetentionPolicy("foo", "raw")
+	s.CreateUser("susy", "pass", false)
+
+	// Write series with one point to the database.
+	tags := map[string]string{"host": "serverA", "region": "uswest"}
+	index, err := s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(23.2)}}})
+	if err != nil {
+		t.Fatal(err)
+	} else if err = s.Sync(index); err != nil {
+		t.Fatalf("sync error: %s", err)
+	}
+
+	// Ensure series exiss
+	results := s.ExecuteQuery(MustParseQuery(`SHOW SERIES`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Rows) != 1 {
+		t.Fatalf("unexpected row count: %d", len(res.Rows))
+	} else if s := mustMarshalJSON(res); s != `{"rows":[{"name":"cpu","columns":["host","region"],"values":[["serverA","uswest"]]}]}` {
+		t.Fatalf("unexpected row(0): %s", s)
+	}
+
+	// Drop series
+	results = s.ExecuteQuery(MustParseQuery(`DROP SERIES FROM cpu`), "foo", nil)
+	if results.Error() != nil {
+		t.Fatalf("unexpected error: %s", results.Error())
+	}
+
+	results = s.ExecuteQuery(MustParseQuery(`SHOW SERIES`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Rows) != 1 {
+		t.Fatalf("unexpected row count: %d", len(res.Rows))
+	} else if s := mustMarshalJSON(res); s != `{"rows":[{"name":"cpu","columns":[]}]}` {
+		t.Fatalf("unexpected row(0): %s", s)
+	}
+
+}
+
+// Ensure Drop Series can:
+// write to measurement cpu with tags region=uswest host=serverA
+// write to measurement cpu with tags region=uswest host=serverB
+// drop one of those series
+// ensure that the dropped series is gone
+// ensure that we can still query: select value from cpu where region=uswest
+func TestServer_DropSeriesTagsPreserved(t *testing.T) {
+	c := NewMessagingClient()
+	s := OpenServer(c)
+	defer s.Close()
+	s.CreateDatabase("foo")
+	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "raw", Duration: 1 * time.Hour})
+	s.SetDefaultRetentionPolicy("foo", "raw")
+	s.CreateUser("susy", "pass", false)
+
+	// Write series with one point to the database.
+	tags := map[string]string{"host": "serverA", "region": "uswest"}
+	index, err := s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(23.2)}}})
+	if err != nil {
+		t.Fatal(err)
+	} else if err = s.Sync(index); err != nil {
+		t.Fatalf("sync error: %s", err)
+	}
+
+	tags = map[string]string{"host": "serverB", "region": "uswest"}
+	index, err = s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:01Z"), Values: map[string]interface{}{"value": float64(33.2)}}})
+	if err != nil {
+		t.Fatal(err)
+	} else if err = s.Sync(index); err != nil {
+		t.Fatalf("sync error: %s", err)
+	}
+
+	results := s.ExecuteQuery(MustParseQuery(`SHOW SERIES`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Rows) != 1 {
+		t.Fatalf("unexpected row count: %d", len(res.Rows))
+	} else if s := mustMarshalJSON(res); s != `{"rows":[{"name":"cpu","columns":["host","region"],"values":[["serverA","uswest"],["serverB","uswest"]]}]}` {
+		t.Fatalf("unexpected row(0): %s", s)
+	}
+
+	results = s.ExecuteQuery(MustParseQuery(`DROP SERIES FROM cpu where host='serverA'`), "foo", nil)
+	if results.Error() != nil {
+		t.Fatalf("unexpected error: %s", results.Error())
+	}
+
+	results = s.ExecuteQuery(MustParseQuery(`SHOW SERIES`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Rows) != 1 {
+		t.Fatalf("unexpected row count: %d", len(res.Rows))
+	} else if s := mustMarshalJSON(res); s != `{"rows":[{"name":"cpu","columns":["host","region"],"values":[["serverB","uswest"]]}]}` {
+		t.Fatalf("unexpected row(0): %s", s)
+	}
+
+	results = s.ExecuteQuery(MustParseQuery(`SELECT * FROM cpu where host='serverA'`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Rows) != 0 {
+		t.Fatalf("unexpected row count: %d", len(res.Rows))
+	}
+
+	results = s.ExecuteQuery(MustParseQuery(`SELECT * FROM cpu where host='serverB'`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Rows) != 1 {
+		t.Fatalf("unexpected row count: %d", len(res.Rows))
+	} else if s := mustMarshalJSON(res); s != `{"rows":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:01Z",33.2]]}]}` {
+		t.Fatalf("unexpected row(0): %s", s)
+	}
+
+	results = s.ExecuteQuery(MustParseQuery(`SELECT * FROM cpu where region='uswest'`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Rows) != 1 {
+		t.Fatalf("unexpected row count: %d", len(res.Rows))
+	} else if s := mustMarshalJSON(res); s != `{"rows":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:01Z",33.2]]}]}` {
+		t.Fatalf("unexpected row(0): %s", s)
+	}
+}
+
 // Ensure the server can execute a query and return the data correctly.
 func TestServer_ExecuteQuery(t *testing.T) {
 	s := OpenServer(NewMessagingClient())

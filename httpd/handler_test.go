@@ -1156,6 +1156,27 @@ func TestHandler_ShowContinuousQueries(t *testing.T) {
 
 }
 
+func TestHandler_DropSeries(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}}]}`)
+
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+
+	query := map[string]string{"db": "foo", "q": "DROP SERIES FROM cpu"}
+	status, _ = MustHTTP("GET", s.URL+`/query`, query, nil, "")
+
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+}
+
 func TestHandler_serveWriteSeries(t *testing.T) {
 	srvr := OpenAuthenticatedServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")

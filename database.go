@@ -221,6 +221,54 @@ func (m *Measurement) addSeries(s *Series) bool {
 	return true
 }
 
+// removeSeries will remove a series from the measurementIndex. Returns true if already removed
+func (m *Measurement) dropSeries(seriesID uint32) bool {
+	if _, ok := m.seriesByID[seriesID]; !ok {
+		return true
+	}
+	s := m.seriesByID[seriesID]
+	tagset := string(marshalTags(s.Tags))
+
+	delete(m.series, tagset)
+	delete(m.seriesByID, seriesID)
+
+	var ids []uint32
+	for _, id := range m.seriesIDs {
+		if id != seriesID {
+			ids = append(ids, id)
+		}
+	}
+	m.seriesIDs = ids
+
+	// remove this series id to the tag index on the measurement
+	// s.seriesByTagKeyValue is defined as map[string]map[string]seriesIDs
+	for k, v := range m.seriesByTagKeyValue {
+		values := v
+		for kk, vv := range values {
+			var ids []uint32
+			for _, id := range vv {
+				if id != seriesID {
+					ids = append(ids, id)
+				}
+			}
+			// Check to see if we have any ids, if not, remove the key
+			if len(ids) == 0 {
+				delete(values, kk)
+			} else {
+				values[kk] = ids
+			}
+		}
+		// If we have no values, then we delete the key
+		if len(values) == 0 {
+			delete(m.seriesByTagKeyValue, k)
+		} else {
+			m.seriesByTagKeyValue[k] = values
+		}
+	}
+
+	return true
+}
+
 // seriesByTags returns the Series that matches the given tagset.
 func (m *Measurement) seriesByTags(tags map[string]string) *Series {
 	return m.series[string(marshalTags(tags))]
@@ -1002,6 +1050,17 @@ func (rp *RetentionPolicy) shardGroupByID(shardID uint64) *ShardGroup {
 	return nil
 }
 
+// dropSeries will delete all data with the seriesID
+func (rp *RetentionPolicy) dropSeries(seriesID uint32) error {
+	for _, g := range rp.shardGroups {
+		err := g.dropSeries(seriesID)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (rp *RetentionPolicy) removeShardGroupByID(shardID uint64) {
 	for i, g := range rp.shardGroups {
 		if g.ID == shardID {
@@ -1073,6 +1132,32 @@ func (db *database) addSeriesToIndex(measurementName string, s *Series) bool {
 	// TODO: add this series to the global tag index
 
 	return idx.addSeries(s)
+}
+
+// dropSeries removes the series from the in memory references
+func (db *database) dropSeries(seriesByMeasurement map[string][]uint32) error {
+	for measurement, ids := range seriesByMeasurement {
+		for _, id := range ids {
+			// if the series is already gone, return
+			if db.series[id] == nil {
+				continue
+			}
+
+			delete(db.series, id)
+
+			// Remove series information from measurements
+			db.measurements[measurement].dropSeries(id)
+
+			// Remove shard data
+			for _, rp := range db.policies {
+				if err := rp.dropSeries(id); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
 }
 
 // createMeasurementIfNotExists will either add a measurement object to the index or return the existing one.

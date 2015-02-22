@@ -859,14 +859,31 @@ func (p *Parser) parseShowFieldKeysStatement() (*ShowFieldKeysStatement, error) 
 // This function assumes the "DROP SERIES" tokens have already been consumed.
 func (p *Parser) parseDropSeriesStatement() (*DropSeriesStatement, error) {
 	stmt := &DropSeriesStatement{}
+	var err error
 
-	// Read the name of the series to drop.
-	lit, err := p.parseIdent()
-	if err != nil {
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == FROM {
+		// Parse source.
+		if stmt.Source, err = p.parseSource(); err != nil {
+			return nil, err
+		}
+	} else {
+		p.unscan()
+	}
+
+	// Parse condition: "WHERE EXPR".
+	if stmt.Condition, err = p.parseCondition(); err != nil {
 		return nil, err
 	}
-	stmt.Name = lit
 
+	// If they didn't provide a FROM or a WHERE, they need to provide the SeriesID
+	if stmt.Condition == nil && stmt.Source == nil {
+		var id int
+		id, err = p.parseInt(0, math.MaxUint32)
+		if err != nil {
+			return nil, err
+		}
+		stmt.SeriesID = uint32(id)
+	}
 	return stmt, nil
 }
 

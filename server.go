@@ -68,17 +68,20 @@ const (
 	createShardGroupIfNotExistsMessageType = messaging.MessageType(0x40)
 	deleteShardGroupMessageType            = messaging.MessageType(0x41)
 
+	// Series messages
+	dropSeriesMessageType = messaging.MessageType(0x50)
+
 	// Measurement messages
-	createMeasurementsIfNotExistsMessageType = messaging.MessageType(0x50)
+	createMeasurementsIfNotExistsMessageType = messaging.MessageType(0x60)
 
 	// Continuous Query messages
-	createContinuousQueryMessageType = messaging.MessageType(0x60)
+	createContinuousQueryMessageType = messaging.MessageType(0x70)
 
 	// Write series data messages (per-topic)
-	writeRawSeriesMessageType = messaging.MessageType(0x70)
+	writeRawSeriesMessageType = messaging.MessageType(0x80)
 
 	// Privilege messages
-	setPrivilegeMessageType = messaging.MessageType(0x80)
+	setPrivilegeMessageType = messaging.MessageType(0x90)
 )
 
 // Server represents a collection of metadata and raw metric data.
@@ -1504,6 +1507,46 @@ func (c *createMeasurementsIfNotExistsCommand) addFieldIfNotExists(measurement, 
 	return nil
 }
 
+func (s *Server) applyDropSeries(m *messaging.Message) error {
+	var c dropSeriesCommand
+	mustUnmarshalJSON(m.Data, &c)
+
+	database := s.databases[c.Database]
+	if database == nil {
+		return ErrDatabaseNotFound
+	}
+
+	// Remove from metastore.
+	err := s.meta.mustUpdate(m.Index, func(tx *metatx) error {
+		if err := tx.dropSeries(c.Database, c.SeriesByMeasurement); err != nil {
+			return err
+		}
+
+		// Delete series from the database.
+		if err := database.dropSeries(c.SeriesByMeasurement); err != nil {
+			return fmt.Errorf("failed to remove series from index")
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// DropSeries deletes from an existing series.
+func (s *Server) DropSeries(database string, seriesByMeasurement map[string][]uint32) error {
+	c := dropSeriesCommand{Database: database, SeriesByMeasurement: seriesByMeasurement}
+	_, err := s.broadcast(dropSeriesMessageType, c)
+	return err
+}
+
+type dropSeriesCommand struct {
+	Database            string              `json:"datbase"`
+	SeriesByMeasurement map[string][]uint32 `json:"seriesIds"`
+}
+
 // Point defines the values that will be written to the database
 type Point struct {
 	Name      string
@@ -1872,7 +1915,7 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 		case *influxql.ShowUsersStatement:
 			res = s.executeShowUsersStatement(stmt, user)
 		case *influxql.DropSeriesStatement:
-			continue
+			res = s.executeDropSeriesStatement(stmt, database, user)
 		case *influxql.ShowSeriesStatement:
 			res = s.executeShowSeriesStatement(stmt, database, user)
 		case *influxql.ShowMeasurementsStatement:
@@ -2014,6 +2057,60 @@ func (s *Server) executeCreateUserStatement(q *influxql.CreateUserStatement, use
 
 func (s *Server) executeDropUserStatement(q *influxql.DropUserStatement, user *User) *Result {
 	return &Result{Err: s.DeleteUser(q.Name)}
+}
+
+func (s *Server) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, database string, user *User) *Result {
+	s.mu.RLock()
+
+	seriesByMeasurement := make(map[string][]uint32)
+	// Handle the simple `DROP SERIES <id>` case.
+	if stmt.Source == nil && stmt.Condition == nil {
+		for _, db := range s.databases {
+			for _, m := range db.measurements {
+				if m.seriesByID[stmt.SeriesID] != nil {
+					seriesByMeasurement[m.Name] = []uint32{stmt.SeriesID}
+				}
+			}
+		}
+
+		s.mu.RUnlock()
+		return &Result{Err: s.DropSeries(database, seriesByMeasurement)}
+	}
+
+	// Handle the more complicated `DROP SERIES` with sources and/or conditions...
+
+	// Find the database.
+	db := s.databases[database]
+	if db == nil {
+		s.mu.RUnlock()
+		return &Result{Err: ErrDatabaseNotFound}
+	}
+
+	// Get the list of measurements we're interested in.
+	measurements, err := measurementsFromSourceOrDB(stmt.Source, db)
+	if err != nil {
+		s.mu.RUnlock()
+		return &Result{Err: err}
+	}
+
+	for _, m := range measurements {
+		var ids seriesIDs
+		if stmt.Condition != nil {
+			// Get series IDs that match the WHERE clause.
+			filters := map[uint32]influxql.Expr{}
+			ids, _, _ = m.walkWhereForSeriesIds(stmt.Condition, filters)
+
+			// TODO: check return of walkWhereForSeriesIds for fields
+		} else {
+			// No WHERE clause so get all series IDs for this measurement.
+			ids = m.seriesIDs
+		}
+
+		seriesByMeasurement[m.Name] = ids
+	}
+	s.mu.RUnlock()
+
+	return &Result{Err: s.DropSeries(database, seriesByMeasurement)}
 }
 
 func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, database string, user *User) *Result {
@@ -2690,6 +2787,8 @@ func (s *Server) processor(client MessagingClient, done chan struct{}) {
 				err = s.applySetPrivilege(m)
 			case createContinuousQueryMessageType:
 				err = s.applyCreateContinuousQueryCommand(m)
+			case dropSeriesMessageType:
+				err = s.applyDropSeries(m)
 			}
 
 			// Sync high water mark and errors.

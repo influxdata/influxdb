@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"time"
-	"unsafe"
 
 	"github.com/boltdb/bolt"
 )
@@ -231,13 +230,27 @@ func (tx *metatx) createSeries(database, name string, tags map[string]string) (*
 
 	// store the tag map for the series
 	s := &Series{ID: uint32(id), Tags: tags}
-	idBytes := make([]byte, 4)
-	*(*uint32)(unsafe.Pointer(&idBytes[0])) = uint32(id)
+	idBytes := u32tob(uint32(id))
 
 	if err := b.Put(idBytes, mustMarshalJSON(s)); err != nil {
 		return nil, err
 	}
 	return s, nil
+}
+
+// dropSeries removes all seriesIDS for a given database/measurement
+func (tx *metatx) dropSeries(database string, seriesByMeasurement map[string][]uint32) error {
+	for measurement, ids := range seriesByMeasurement {
+		b := tx.Bucket([]byte("Databases")).Bucket([]byte(database)).Bucket([]byte("Series")).Bucket([]byte(measurement))
+		if b != nil {
+			for _, id := range ids {
+				if err := b.Delete(u32tob(id)); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // loops through all the measurements and series in a database
