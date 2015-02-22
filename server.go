@@ -44,46 +44,6 @@ const (
 	DefaultShardRetention = 7 * (24 * time.Hour)
 )
 
-const (
-	// Data node messages
-	createDataNodeMessageType = messaging.MessageType(0x00)
-	deleteDataNodeMessageType = messaging.MessageType(0x01)
-
-	// Database messages
-	createDatabaseMessageType = messaging.MessageType(0x10)
-	deleteDatabaseMessageType = messaging.MessageType(0x11)
-
-	// Retention policy messages
-	createRetentionPolicyMessageType     = messaging.MessageType(0x20)
-	updateRetentionPolicyMessageType     = messaging.MessageType(0x21)
-	deleteRetentionPolicyMessageType     = messaging.MessageType(0x22)
-	setDefaultRetentionPolicyMessageType = messaging.MessageType(0x23)
-
-	// User messages
-	createUserMessageType = messaging.MessageType(0x30)
-	updateUserMessageType = messaging.MessageType(0x31)
-	deleteUserMessageType = messaging.MessageType(0x32)
-
-	// Shard messages
-	createShardGroupIfNotExistsMessageType = messaging.MessageType(0x40)
-	deleteShardGroupMessageType            = messaging.MessageType(0x41)
-
-	// Series messages
-	dropSeriesMessageType = messaging.MessageType(0x50)
-
-	// Measurement messages
-	createMeasurementsIfNotExistsMessageType = messaging.MessageType(0x60)
-
-	// Continuous Query messages
-	createContinuousQueryMessageType = messaging.MessageType(0x70)
-
-	// Write series data messages (per-topic)
-	writeRawSeriesMessageType = messaging.MessageType(0x80)
-
-	// Privilege messages
-	setPrivilegeMessageType = messaging.MessageType(0x90)
-)
-
 // Server represents a collection of metadata and raw metric data.
 type Server struct {
 	mu     sync.RWMutex
@@ -644,10 +604,6 @@ func (s *Server) applyCreateDataNode(m *messaging.Message) (err error) {
 	return
 }
 
-type createDataNodeCommand struct {
-	URL string `json:"url"`
-}
-
 // DeleteDataNode deletes an existing data node.
 func (s *Server) DeleteDataNode(id uint64) error {
 	c := &deleteDataNodeCommand{ID: id}
@@ -671,10 +627,6 @@ func (s *Server) applyDeleteDataNode(m *messaging.Message) (err error) {
 	delete(s.dataNodes, n.ID)
 
 	return
-}
-
-type deleteDataNodeCommand struct {
-	ID uint64 `json:"id"`
 }
 
 // DatabaseExists returns true if a database exists.
@@ -723,10 +675,6 @@ func (s *Server) applyCreateDatabase(m *messaging.Message) (err error) {
 	return
 }
 
-type createDatabaseCommand struct {
-	Name string `json:"name"`
-}
-
 // DeleteDatabase deletes an existing database.
 func (s *Server) DeleteDatabase(name string) error {
 	c := &deleteDatabaseCommand{Name: name}
@@ -748,10 +696,6 @@ func (s *Server) applyDeleteDatabase(m *messaging.Message) (err error) {
 	// Delete the database entry.
 	delete(s.databases, c.Name)
 	return
-}
-
-type deleteDatabaseCommand struct {
-	Name string `json:"name"`
 }
 
 // Shard returns a shard by ID.
@@ -917,12 +861,6 @@ func (s *Server) applyCreateShardGroupIfNotExists(m *messaging.Message) (err err
 	return
 }
 
-type createShardGroupIfNotExistsCommand struct {
-	Database  string    `json:"database"`
-	Policy    string    `json:"policy"`
-	Timestamp time.Time `json:"timestamp"`
-}
-
 // DeleteShardGroup deletes the shard group identified by shardID.
 func (s *Server) DeleteShardGroup(database, policy string, shardID uint64) error {
 	c := &deleteShardGroupCommand{Database: database, Policy: policy, ID: shardID}
@@ -975,12 +913,6 @@ func (s *Server) applyDeleteShardGroup(m *messaging.Message) (err error) {
 		return tx.saveDatabase(db)
 	})
 	return
-}
-
-type deleteShardGroupCommand struct {
-	Database string `json:"database"`
-	Policy   string `json:"policy"`
-	ID       uint64 `json:"id"`
 }
 
 // User returns a user by username
@@ -1082,12 +1014,6 @@ func (s *Server) applyCreateUser(m *messaging.Message) (err error) {
 	return
 }
 
-type createUserCommand struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
-	Admin    bool   `json:"admin,omitempty"`
-}
-
 // UpdateUser updates an existing user on the server.
 func (s *Server) UpdateUser(username, password string) error {
 	c := &updateUserCommand{Username: username, Password: password}
@@ -1120,11 +1046,6 @@ func (s *Server) applyUpdateUser(m *messaging.Message) (err error) {
 	})
 }
 
-type updateUserCommand struct {
-	Username string `json:"username"`
-	Password string `json:"password,omitempty"`
-}
-
 // DeleteUser removes a user from the server.
 func (s *Server) DeleteUser(username string) error {
 	c := &deleteUserCommand{Username: username}
@@ -1151,10 +1072,6 @@ func (s *Server) applyDeleteUser(m *messaging.Message) error {
 	// Delete the user.
 	delete(s.users, c.Username)
 	return nil
-}
-
-type deleteUserCommand struct {
-	Username string `json:"username"`
 }
 
 // SetPrivilege grants / revokes a privilege to a user.
@@ -1192,12 +1109,6 @@ func (s *Server) applySetPrivilege(m *messaging.Message) error {
 	return s.meta.mustUpdate(m.Index, func(tx *metatx) error {
 		return tx.saveUser(u)
 	})
-}
-
-type setPrivilegeCommand struct {
-	Privilege influxql.Privilege `json:"privilege"`
-	Username  string             `json:"username"`
-	Database  string             `json:"database"`
 }
 
 // RetentionPolicy returns a retention policy by name.
@@ -1291,14 +1202,6 @@ func (s *Server) applyCreateRetentionPolicy(m *messaging.Message) error {
 	return nil
 }
 
-type createRetentionPolicyCommand struct {
-	Database string        `json:"database"`
-	Name     string        `json:"name"`
-	Duration time.Duration `json:"duration"`
-	ReplicaN uint32        `json:"replicaN"`
-	SplitN   uint32        `json:"splitN"`
-}
-
 // RetentionPolicyUpdate represents retention policy fields that
 // need to be updated.
 type RetentionPolicyUpdate struct {
@@ -1312,12 +1215,6 @@ func (s *Server) UpdateRetentionPolicy(database, name string, rpu *RetentionPoli
 	c := &updateRetentionPolicyCommand{Database: database, Name: name, Policy: rpu}
 	_, err := s.broadcast(updateRetentionPolicyMessageType, c)
 	return err
-}
-
-type updateRetentionPolicyCommand struct {
-	Database string                 `json:"database"`
-	Name     string                 `json:"name"`
-	Policy   *RetentionPolicyUpdate `json:"policy"`
 }
 
 func (s *Server) applyUpdateRetentionPolicy(m *messaging.Message) (err error) {
@@ -1395,11 +1292,6 @@ func (s *Server) applyDeleteRetentionPolicy(m *messaging.Message) (err error) {
 	return
 }
 
-type deleteRetentionPolicyCommand struct {
-	Database string `json:"database"`
-	Name     string `json:"name"`
-}
-
 // SetDefaultRetentionPolicy sets the default policy to write data into and query from on a database.
 func (s *Server) SetDefaultRetentionPolicy(database, name string) error {
 	c := &setDefaultRetentionPolicyCommand{Database: database, Name: name}
@@ -1428,83 +1320,6 @@ func (s *Server) applySetDefaultRetentionPolicy(m *messaging.Message) (err error
 	})
 
 	return
-}
-
-type setDefaultRetentionPolicyCommand struct {
-	Database string `json:"database"`
-	Name     string `json:"name"`
-}
-
-type createMeasurementSubcommand struct {
-	Name   string              `json:"name"`
-	Tags   []map[string]string `json:"tags"`
-	Fields []*Field            `json:"fields"`
-}
-
-type createMeasurementsIfNotExistsCommand struct {
-	Database     string                                  `json:"database"`
-	Measurements map[string]*createMeasurementSubcommand `json:"measurements"`
-}
-
-func newCreateMeasurementsIfNotExistsCommand(database string) *createMeasurementsIfNotExistsCommand {
-	return &createMeasurementsIfNotExistsCommand{
-		Database:     database,
-		Measurements: make(map[string]*createMeasurementSubcommand),
-	}
-}
-
-// addMeasurementIfNotExists adds the Measurement to the command, but only if not already present
-// in the command.
-func (c *createMeasurementsIfNotExistsCommand) addMeasurementIfNotExists(name string) {
-	_, ok := c.Measurements[name]
-	if !ok {
-		c.Measurements[name] = &createMeasurementSubcommand{
-			Name:   name,
-			Tags:   make([]map[string]string, 0),
-			Fields: make([]*Field, 0),
-		}
-	}
-}
-
-// addSeriesIfNotExists adds the Series, identified by Measurement name and tag set, to
-// the command, but only if not already present in the command.
-func (c *createMeasurementsIfNotExistsCommand) addSeriesIfNotExists(measurement string, tags map[string]string) {
-	c.addMeasurementIfNotExists(measurement)
-
-	m := c.Measurements[measurement]
-	tagset := string(marshalTags(tags))
-	for _, t := range m.Tags {
-		if string(marshalTags(t)) == tagset {
-			// Series already present in subcommand, nothing to do.
-			return
-		}
-	}
-	// Tag-set needs to added to subcommand.
-	m.Tags = append(m.Tags, tags)
-
-	return
-}
-
-// addFieldIfNotExists adds the field to the command for the Measurement, but only if it is not already
-// present. It will return an error if the field is present in the command, but is of a different type.
-func (c *createMeasurementsIfNotExistsCommand) addFieldIfNotExists(measurement, name string, typ influxql.DataType) error {
-	c.addMeasurementIfNotExists(measurement)
-
-	m := c.Measurements[measurement]
-	for _, f := range m.Fields {
-		if f.Name == name {
-			if f.Type != typ {
-				return ErrFieldTypeConflict
-			}
-			// Field already present in subcommand with same type, nothing to do.
-			return nil
-		}
-	}
-
-	// New field for this measurement so add it to the subcommand.
-	newField := &Field{Name: name, Type: typ}
-	m.Fields = append(m.Fields, newField)
-	return nil
 }
 
 func (s *Server) applyDropSeries(m *messaging.Message) error {
@@ -1540,11 +1355,6 @@ func (s *Server) DropSeries(database string, seriesByMeasurement map[string][]ui
 	c := dropSeriesCommand{Database: database, SeriesByMeasurement: seriesByMeasurement}
 	_, err := s.broadcast(dropSeriesMessageType, c)
 	return err
-}
-
-type dropSeriesCommand struct {
-	Database            string              `json:"datbase"`
-	SeriesByMeasurement map[string][]uint32 `json:"seriesIds"`
 }
 
 // Point defines the values that will be written to the database
@@ -3298,11 +3108,6 @@ func (s *Server) convertRowToPoints(measurementName string, row *influxql.Row) (
 	}
 
 	return points, nil
-}
-
-// createContinuousQueryCommand is the raft command for creating a continuous query on a database
-type createContinuousQueryCommand struct {
-	Query string `json:"query"`
 }
 
 // copyURL returns a copy of the the URL.
