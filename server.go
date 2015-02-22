@@ -1522,8 +1522,6 @@ func (s *Server) applyDropSeries(m *messaging.Message) error {
 	var c dropSeriesCommand
 	mustUnmarshalJSON(m.Data, &c)
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	database := s.databases[c.Database]
 	if database == nil {
 		return ErrDatabaseNotFound
