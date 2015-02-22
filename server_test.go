@@ -836,24 +836,44 @@ func TestServer_DropSeries(t *testing.T) {
 	s := OpenServer(c)
 	defer s.Close()
 	s.CreateDatabase("foo")
-	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "mypolicy", Duration: 1 * time.Hour})
+	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "raw", Duration: 1 * time.Hour})
+	s.SetDefaultRetentionPolicy("foo", "raw")
 	s.CreateUser("susy", "pass", false)
 
 	// Write series with one point to the database.
-	tags := map[string]string{"host": "servera.influx.com", "region": "uswest"}
-	index, err := s.WriteSeries("foo", "mypolicy", []influxdb.Point{{Name: "cpu_load", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(23.2)}}})
+	tags := map[string]string{"host": "serverA", "region": "uswest"}
+	index, err := s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(23.2)}}})
 	if err != nil {
 		t.Fatal(err)
 	} else if err = s.Sync(index); err != nil {
 		t.Fatalf("sync error: %s", err)
 	}
 
-	// Drop the first series
-	if err := s.DropSeries("foo", []uint32{1}); err != nil {
-		t.Fatal(err)
-	} else if s.SeriesExists("foo", 1) {
-		t.Fatalf("series not actually dropped")
+	// Ensure series exiss
+	results := s.ExecuteQuery(MustParseQuery(`SHOW SERIES`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Rows) != 1 {
+		t.Fatalf("unexpected row count: %d", len(res.Rows))
+	} else if s := mustMarshalJSON(res); s != `{"rows":[{"name":"cpu","columns":["host","region"],"values":[["serverA","uswest"]]}]}` {
+		t.Fatalf("unexpected row(0): %s", s)
 	}
+
+	// Drop series
+	results = s.ExecuteQuery(MustParseQuery(`DROP SERIES FROM cpu`), "foo", nil)
+	if results.Error() != nil {
+		t.Fatalf("unexpected error: %s", results.Error())
+	}
+
+	results = s.ExecuteQuery(MustParseQuery(`SHOW SERIES`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Rows) != 1 {
+		t.Fatalf("unexpected row count: %d", len(res.Rows))
+	} else if s := mustMarshalJSON(res); s != `{"rows":[{"name":"cpu","columns":[]}]}` {
+		t.Fatalf("unexpected row(0): %s", s)
+	}
+
 }
 
 // Ensure Drop Series can:
