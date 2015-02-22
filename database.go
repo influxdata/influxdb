@@ -1146,10 +1146,7 @@ func (db *database) dropSeries(seriesByMeasurement map[string][]uint32) error {
 			delete(db.series, id)
 
 			// Remove series information from measurements
-			m := db.measurements[measurement]
-			if !m.dropSeries(id) {
-				return fmt.Errorf("failed to remove series id %d from measurment %q", id, m.Name)
-			}
+			db.measurements[measurement].dropSeries(id)
 
 			// Remove shard data
 			for _, rp := range db.policies {
