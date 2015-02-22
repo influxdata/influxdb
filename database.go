@@ -261,7 +261,7 @@ func (m *Measurement) dropSeries(seriesID uint32) bool {
 		}
 		// If we have no values, then we delete the key
 		if len(values) == 0 {
-			delete(m.series, k)
+			delete(m.seriesByTagKeyValue, k)
 		} else {
 			m.seriesByTagKeyValue[k] = values
 		}
