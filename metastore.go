@@ -238,21 +238,12 @@ func (tx *metatx) createSeries(database, name string, tags map[string]string) (*
 	return s, nil
 }
 
+// dropSeries removes all seriesIDS for a given database/measurement
 func (tx *metatx) dropSeries(database, name string, seriesID uint32) error {
-	measurmentBucket := tx.Bucket([]byte("Databases")).Bucket([]byte(database)).Bucket([]byte("Series")).Bucket([]byte(name))
-
-	c := measurmentBucket.Cursor()
-
-	for k, _ := c.First(); k != nil; k, _ = c.Next() {
-		id := btou32(k)
-		if id == seriesID {
-			err := c.Delete()
-			if err != nil {
-				return err
-			}
-		}
+	b := tx.Bucket([]byte("Databases")).Bucket([]byte(database)).Bucket([]byte("Series")).Bucket([]byte(name))
+	if b != nil {
+		return b.Delete(u32tob(seriesID))
 	}
-
 	return nil
 }
 
