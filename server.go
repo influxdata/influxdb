@@ -1516,6 +1516,8 @@ func (s *Server) applyDropSeries(m *messaging.Message) error {
 		return ErrDatabaseNotFound
 	}
 
+	seriesByMeasurement := make(map[string][]uint32)
+
 	// Remove from metastore.
 	for _, seriesID := range c.SeriesIDs {
 		series := database.series[seriesID]
@@ -1526,20 +1528,22 @@ func (s *Server) applyDropSeries(m *messaging.Message) error {
 		if measurement == nil {
 			return fmt.Errorf("measurement not found for series %d", seriesID)
 		}
-		err := s.meta.mustUpdate(m.Index, func(tx *metatx) error {
-			if err := tx.dropSeries(c.Database, measurement.Name, seriesID); err != nil {
-				return err
-			}
+		seriesByMeasurement[measurement.Name] = append(seriesByMeasurement[measurement.Name], seriesID)
+	}
 
-			// Delete series from the database.
-			if err := database.dropSeries(c.SeriesIDs...); err != nil {
-				return fmt.Errorf("failed to remove series from index")
-			}
-			return nil
-		})
-		if err != nil {
+	err := s.meta.mustUpdate(m.Index, func(tx *metatx) error {
+		if err := tx.dropSeries(c.Database, seriesByMeasurement); err != nil {
 			return err
 		}
+
+		// Delete series from the database.
+		if err := database.dropSeries(c.SeriesIDs...); err != nil {
+			return fmt.Errorf("failed to remove series from index")
+		}
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 
 	return nil
