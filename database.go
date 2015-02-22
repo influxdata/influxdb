@@ -239,7 +239,6 @@ func (m *Measurement) dropSeries(seriesID uint32) bool {
 		}
 	}
 	m.seriesIDs = ids
-	sort.Sort(m.seriesIDs)
 
 	// remove this series id to the tag index on the measurement
 	// s.seriesByTagKeyValue is defined as map[string]map[string]seriesIDs
