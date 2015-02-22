@@ -861,8 +861,7 @@ func (p *Parser) parseDropSeriesStatement() (*DropSeriesStatement, error) {
 	stmt := &DropSeriesStatement{}
 	var err error
 
-	tok, _, _ := p.scanIgnoreWhitespace()
-	if tok == FROM {
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == FROM {
 		// Parse source.
 		if stmt.Source, err = p.parseSource(); err != nil {
 			return nil, err
