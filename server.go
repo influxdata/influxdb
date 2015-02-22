@@ -3131,12 +3131,35 @@ func (s *Server) StartReportingLoop(version string) chan struct{} {
 }
 
 func (s *Server) reportStats(version string) {
-	json := fmt.Sprintf(`[{"name":"reports", "columns":["os", "arch", "id", "version"], points:[["%s", "%s", "%x", "%s"]]}]`,
-		runtime.GOOS, runtime.GOARCH, s.ID(), version)
+	json := fmt.Sprintf(`[{
+    "name":"reports",
+    "columns":["os", "arch", version", "id", "cluster_id", "num_series", "num_measurements"],
+    "points":[["%s", "%s", "%s", "%x", "%x", "%d", "%d"]]
+  }]`, runtime.GOOS, runtime.GOARCH, version, s.ID(), "xxxx", s.numSeries(), s.numMeasurements())
 
 	data := bytes.NewBufferString(json)
 
 	log.Printf("Reporting data: %s", json)
 	client := http.Client{Timeout: time.Duration(5 * time.Second)}
 	go client.Post("http://localhost:8086/db/reporting/series?u=reporter&p=influxdb", "application/json", data)
+}
+
+func (s *Server) numSeries() int {
+	n := 0
+
+	for _, db := range s.databases {
+		n += len(db.series)
+	}
+
+	return n
+}
+
+func (s *Server) numMeasurements() int {
+	n := 0
+
+	for _, db := range s.databases {
+		n += len(db.measurements)
+	}
+
+	return n
 }
