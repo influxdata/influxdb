@@ -157,6 +157,9 @@ func (s *Shard) writeSeries(batch []byte) error {
 }
 
 func (s *Shard) dropSeries(seriesID uint32) error {
+	if s.store == nil {
+		return nil
+	}
 	return s.store.Update(func(tx *bolt.Tx) error {
 		return tx.DeleteBucket(u32tob(seriesID))
 	})
