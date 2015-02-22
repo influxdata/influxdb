@@ -241,9 +241,30 @@ func (m *Measurement) dropSeries(seriesID uint32) bool {
 	m.seriesIDs = ids
 	sort.Sort(m.seriesIDs)
 
-	// add this series id to the tag index on the measurement
-	for k, _ := range s.Tags {
-		delete(m.seriesByTagKeyValue, k)
+	// remove this series id to the tag index on the measurement
+	// s.seriesByTagKeyValue is defined as map[string]map[string]seriesIDs
+	for k, v := range m.seriesByTagKeyValue {
+		values := v
+		for kk, vv := range values {
+			var ids []uint32
+			for _, id := range vv {
+				if id != seriesID {
+					ids = append(ids, id)
+				}
+			}
+			// Check to see if we have any ids, if not, remove the key
+			if len(ids) == 0 {
+				delete(values, kk)
+			} else {
+				values[kk] = ids
+			}
+		}
+		// If we have no values, then we delete the key
+		if len(values) == 0 {
+			delete(m.series, k)
+		} else {
+			m.seriesByTagKeyValue[k] = values
+		}
 	}
 
 	return true
