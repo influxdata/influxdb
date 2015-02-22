@@ -4,12 +4,12 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/influxdb/influxdb"
+	"github.com/influxdb/influxdb/client"
 )
 
 // Ensure that data with epoch timestamps can be decoded.
 func TestBatchPoints_Normal(t *testing.T) {
-	var p influxdb.BatchPoints
+	var p client.BatchPoints
 	data := []byte(`
 {                                                                                                                                                       
     "database": "foo",                                                                                                                                    

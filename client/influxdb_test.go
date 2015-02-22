@@ -111,7 +111,7 @@ func TestClient_Write(t *testing.T) {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
 	}
 
-	write := client.Write{}
+	write := client.BatchPoints{}
 	_, err = c.Write(write)
 	if err != nil {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
@@ -172,7 +172,7 @@ func TestClient_UserAgent(t *testing.T) {
 		}
 
 		receivedUserAgent = ""
-		write := client.Write{}
+		write := client.BatchPoints{}
 		_, err = c.Write(write)
 		if err != nil {
 			t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
