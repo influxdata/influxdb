@@ -50,6 +50,8 @@ func NewBroker() *Broker {
 // Returns empty string if the broker is not open.
 func (b *Broker) Path() string { return b.path }
 
+func (b *Broker) Log() *raft.Log { return b.log }
+
 func (b *Broker) metaPath() string {
 	if b.path == "" {
 		return ""

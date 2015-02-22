@@ -3118,24 +3118,24 @@ func copyURL(u *url.URL) *url.URL {
 	return other
 }
 
-func (s *Server) StartReportingLoop(version string) chan struct{} {
-	s.reportStats(version)
+func (s *Server) StartReportingLoop(version string, clusterID uint64) chan struct{} {
+	s.reportStats(version, clusterID)
 
 	ticker := time.NewTicker(24 * time.Hour)
 	for {
 		select {
 		case <-ticker.C:
-			s.reportStats(version)
+			s.reportStats(version, clusterID)
 		}
 	}
 }
 
-func (s *Server) reportStats(version string) {
+func (s *Server) reportStats(version string, clusterID uint64) {
 	json := fmt.Sprintf(`[{
     "name":"reports",
     "columns":["os", "arch", version", "id", "cluster_id", "num_series", "num_measurements"],
     "points":[["%s", "%s", "%s", "%x", "%x", "%d", "%d"]]
-  }]`, runtime.GOOS, runtime.GOARCH, version, s.ID(), "xxxx", s.numSeries(), s.numMeasurements())
+  }]`, runtime.GOOS, runtime.GOARCH, version, s.ID(), clusterID, s.numSeries(), s.numMeasurements())
 
 	data := bytes.NewBufferString(json)
 
