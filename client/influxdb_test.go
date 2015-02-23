@@ -118,6 +118,27 @@ func TestClient_Write(t *testing.T) {
 	}
 }
 
+func TestClient_Write_ErrNoWrites(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var data influxdb.Results
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(data)
+	}))
+	defer ts.Close()
+
+	u, _ := url.Parse(ts.URL)
+	config := client.Config{URL: *u}
+	c, err := client.NewClient(config)
+	if err != nil {
+		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+
+	_, err = c.Write()
+	if err != client.ErrNoWrites {
+		t.Fatalf("expected error.  expected %v, actual %v", client.ErrNoWrites, err)
+	}
+}
+
 func TestClient_UserAgent(t *testing.T) {
 	receivedUserAgent := ""
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

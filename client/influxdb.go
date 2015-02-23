@@ -12,6 +12,11 @@ import (
 	"github.com/influxdb/influxdb/influxql"
 )
 
+var (
+	// ErrNoWrites is when Write() is called with No Parameters.
+	ErrNoWrites = errors.New("nothing to write")
+)
+
 type Config struct {
 	URL       url.URL
 	Username  string
