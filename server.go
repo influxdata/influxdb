@@ -3131,35 +3131,28 @@ func (s *Server) StartReportingLoop(version string, clusterID uint64) chan struc
 }
 
 func (s *Server) reportStats(version string, clusterID uint64) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	numSeries, numMeasurements := 0, 0
+
+	for _, db := range s.databases {
+		numSeries += len(db.series)
+		numMeasurements += len(db.measurements)
+	}
+
+	numDatabases := len(s.databases)
+
 	json := fmt.Sprintf(`[{
     "name":"reports",
     "columns":["os", "arch", "version", "server_id", "id", "num_series", "num_measurements", "num_databases"],
     "points":[["%s", "%s", "%s", "%x", "%x", "%d", "%d", "%d"]]
-  }]`, runtime.GOOS, runtime.GOARCH, version, s.ID(), clusterID, s.numSeries(), s.numMeasurements(), len(s.databases))
+  }]`, runtime.GOOS, runtime.GOARCH, version, s.ID(), clusterID, numSeries, numMeasurements, numDatabases)
 
 	data := bytes.NewBufferString(json)
 
 	log.Printf("Sending anonymous usage statistics to m.influxdb.com")
+
 	client := http.Client{Timeout: time.Duration(5 * time.Second)}
-	go client.Post("http://m.influxdb.com:8086/db/reporting-test/series?u=reporter&p=influxdb", "application/json", data)
-}
-
-func (s *Server) numSeries() int {
-	n := 0
-
-	for _, db := range s.databases {
-		n += len(db.series)
-	}
-
-	return n
-}
-
-func (s *Server) numMeasurements() int {
-	n := 0
-
-	for _, db := range s.databases {
-		n += len(db.measurements)
-	}
-
-	return n
+	go client.Post("http://m.influxdb.com:8086/db/reporting/series?u=reporter&p=influxdb", "application/json", data)
 }
