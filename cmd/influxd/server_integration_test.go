@@ -56,7 +56,7 @@ func createBatch(nPoints int, database, retention, measurement string, tags map[
 		Tags      map[string]string `json:"tags"`
 		Timestamp int64             `json:"timestamp"`
 		Precision string            `json:"precision"`
-		Values    map[string]int    `json:"values"`
+		Fields    map[string]int    `json:"fields"`
 	}
 	type PointBatch struct {
 		Database        string  `json:"database"`
@@ -67,8 +67,8 @@ func createBatch(nPoints int, database, retention, measurement string, tags map[
 	rand.Seed(time.Now().UTC().UnixNano())
 	points := make([]Point, 0)
 	for i := 0; i < nPoints; i++ {
-		values := map[string]int{"value": rand.Int()}
-		point := Point{Name: measurement, Tags: tags, Timestamp: time.Now().UTC().UnixNano(), Precision: "n", Values: values}
+		fields := map[string]int{"value": rand.Int()}
+		point := Point{Name: measurement, Tags: tags, Timestamp: time.Now().UTC().UnixNano(), Precision: "n", Fields: fields}
 		points = append(points, point)
 	}
 	batch := PointBatch{Database: database, RetentionPolicy: retention, Points: points}
@@ -425,7 +425,7 @@ func Test_ServerSingleIntegration(t *testing.T) {
         },
         "timestamp": %d,
         "precision": "n",
-        "values":{
+        "fields":{
             "value": 100
         }
     }]
@@ -470,7 +470,7 @@ func Test_Server3NodeIntegration(t *testing.T) {
 		},
 		"timestamp": %d,
 		"precision": "n",
-		"values":{
+		"fields":{
 			"value": 100
 		}
 	}]
@@ -516,7 +516,7 @@ func Test_Server5NodeIntegration(t *testing.T) {
         },
         "timestamp": %d,
         "precision": "n",
-        "values":{
+        "fields":{
             "value": 100
         }
     }]
