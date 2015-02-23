@@ -819,6 +819,62 @@ func (s *SelectStatement) Substatement(ref *VarRef) (*SelectStatement, error) {
 	return other, nil
 }
 
+// FieldNames returns the field names that are referenced in the select statement
+func (s *SelectStatement) FieldNames() []string {
+	var a []string
+	for _, f := range s.Fields {
+		a = append(a, s.walkFieldNames(f)...)
+	}
+	return a
+}
+
+// walkFieldNames will walk the Expr and return the fieldNames
+func (s *SelectStatement) walkFieldNames(exp Expr) []string {
+	switch expr := expr.(type) {
+	case *VarRef:
+		return []string{expr.Val}
+	case *Call:
+		return s.walkFieldNames(expr)
+	case *BinaryExpr:
+		var ret []string
+		ret = append(ret, s.walkFieldNames(expr.LHS)...)
+		ret = append(ret, s.walkFieldNames(expr.RHS)...)
+		return ret
+	case *ParenExpr:
+		return s.walkFieldNames(expr.Expr)
+	}
+
+	return nil
+}
+
+// AggregateCalls returns the Call objects from the query
+func (s *SelectStatement) AggregateCalls() []*Call {
+	var a []*Call
+	for _, f := range s.Fields {
+		a = append(a, s.walkAggregateCalls(f)...)
+	}
+	return a
+}
+
+// walkAggregateCalls walks the Field of a query for any aggregate calls made
+func (s *SelectStatement) walkAggregateCalls(exp Expr) []*Call {
+	switch expr := expr.(type) {
+	case *VarRef:
+		return nil
+	case *Call:
+		return []*Call{expr}
+	case *BinaryExpr:
+		var ret []*Call
+		ret = append(ret, s.walkAggregateCalls(expr.LHS)...)
+		ret = append(ret, s.walkAggregateCalls(expr.RHS)...)
+		return ret
+	case *ParenExpr:
+		return s.walkAggregateCalls(expr.Expr)
+	}
+
+	return nil
+}
+
 // filters an expression to exclude expressions unrelated to a source.
 func filterExprBySource(name string, expr Expr) Expr {
 	switch expr := expr.(type) {

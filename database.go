@@ -226,7 +226,9 @@ func (m *Measurement) seriesByTags(tags map[string]string) *Series {
 	return m.series[string(marshalTags(tags))]
 }
 
-func (m *Measurement) seriesIDsAndFilters(stmt *influxql.SelectStatement) (seriesIDs, map[uint32]influxql.Expr) {
+// filters walks the where clause of a select statement and returns a map with all series ids
+// matching the where clause and any filter expression that should be applied to each
+func (m *Measurement) filters(stmt *influxql.SelectStatement) map[uint32]influxql.Expr {
 	seriesIdsToExpr := make(map[uint32]influxql.Expr)
 	if stmt.Condition == nil {
 		return m.seriesIDs, nil
@@ -235,10 +237,12 @@ func (m *Measurement) seriesIDsAndFilters(stmt *influxql.SelectStatement) (serie
 
 	// ids will be empty if all they had was a time in the where clause. so return all measurement series ids
 	if len(ids) == 0 && stmt.OnlyTimeDimensions() {
-		return m.seriesIDs, nil
+		for _, id := range m.seriesIDs {
+			seriesIdsToExpr[id] = nil
+		}
 	}
 
-	return ids, seriesIdsToExpr
+	return seriesIdsToExpr
 }
 
 // tagSets returns the unique tag sets that exist for the given tag keys. This is used to determine
@@ -246,13 +250,16 @@ func (m *Measurement) seriesIDsAndFilters(stmt *influxql.SelectStatement) (serie
 // {"region":"uswest"}, {"region":"useast"}
 // or region, service returns
 // {"region": "uswest", "service": "redis"}, {"region": "uswest", "service": "mysql"}, etc...
-func (m *Measurement) tagSets(stmt *influxql.SelectStatement, dimensions []string) map[string]map[uint32]influxql.Expr {
+// This will also populate the TagSet objects with the series IDs that match each tagset and any
+// influx filter expression that goes with the series
+func (m *Measurement) tagSets(stmt *influxql.SelectStatement, dimensions []string) []*influxql.TagSet {
 	// get the unique set of series ids and the filters that should be applied to each
-	seriesIDs, filters := m.seriesIDsAndFilters(stmt)
+	filters := m.filters(stmt)
 
 	// build the tag sets
-	tagSets := make(map[string]map[uint32]influxql.Expr)
-	for _, id := range seriesIDs {
+	tagStrings := make([]string, 0)
+	tagSets := make(map[string]*influxql.TagSet)
+	for id, filter := range seriesIDs {
 		// get the series and set the tag values for the dimensions we care about
 		s := m.seriesByID[id]
 		tags := make([]string, len(dimensions))
@@ -261,16 +268,31 @@ func (m *Measurement) tagSets(stmt *influxql.SelectStatement, dimensions []strin
 		}
 
 		// marshal it into a string and put this series and its expr into the tagSets map
-		t := string(influxql.MarshalStrings(tags))
+		t := strings.Join(tags, "")
 		set, ok := tagSets[t]
 		if !ok {
-			set = make(map[uint32]influxql.Expr)
+			tagStrings = append(tagStrings, t)
+			set = influxql.NewTagSet()
+			// set the tags for this set
+			tags := make(map[string]string)
+			for i, dim := range dimensions {
+				tags[dim] = tags[i]
+			}
+			set.Tags = tags
+			set.Key = marshalTags(tags)
 		}
-		set[id] = filters[id]
+		set.AddFilter(id, filter)
 		tagSets[t] = set
 	}
 
-	return tagSets
+	// return the tag sets in sorted order
+	a := make([]*influxql.TagSet, 0, len(tagSets))
+	sort.Strings(tagStrings)
+	for _, s := range tagStrings {
+		a = append(a, tagSets[s])
+	}
+
+	return a
 }
 
 // idsForExpr will return a collection of series ids, a bool indicating if the result should be

@@ -879,6 +879,38 @@ func TestServer_ExecuteQuery(t *testing.T) {
 	} else if s := mustMarshalJSON(res); s != `{"rows":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",50]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",100]]}]}` {
 		t.Fatalf("unexpected row(0) during SUM: %s", s)
 	}
+
+	// Multiple aggregations
+	exp := `{"rows":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","sum","mean"],"values":[["1970-01-01T00:00:00Z",50,25]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","sum","mean"],"values":[["1970-01-01T00:00:00Z",100,100]]}]}`
+	results = s.ExecuteQuery(MustParseQuery(`SELECT sum(value), mean(value) FROM cpu GROUP BY region`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error during multiple aggregation: %s", res.Err)
+	} else if s := mustMarshalJSON(res); s != exp {
+		t.Fatalf("unexpected row(0) during multiple aggregation:\n  exp: %s\n  got: %s", exp, s)
+	}
+
+	exp = `{"rows":[{"tags":{"region":"us-east"},"columns":["time","div"],"values":[["1970-01-01T00:00:00Z",2]]},{"tags":{"region":"us-west"},"columns":["time","div"],"values":[["1970-01-01T00:00:00Z",1]]}]}`
+	results = s.ExecuteQuery(MustParseQuery(`SELECT sum(value) / mean(value) as div FROM cpu GROUP BY region`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error during multiple aggregation: %s", res.Err)
+	} else if s := mustMarshalJSON(res); s != exp {
+		t.Fatalf("unexpected row(0) during multiple aggregation:\n  exp: %s\n  got: %s", exp, s)
+	}
+
+	// Group by multiple dimensions
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "load", Tags: map[string]string{"region": "us-east", "host": "serverA"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(20)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "load", Tags: map[string]string{"region": "us-east", "host": "serverB"}, Timestamp: mustParseTime("2000-01-01T00:00:10Z"), Values: map[string]interface{}{"value": float64(30)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "load", Tags: map[string]string{"region": "us-west", "host": "serverC"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(100)}}})
+
+	// Multiple group by dimensions
+	results = s.ExecuteQuery(MustParseQuery(`SELECT sum(value) FROM load GROUP BY time(10s), region, host`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Rows) != 3 {
+		t.Fatalf("unexpected row count: %d", len(res.Rows))
+	} else if s := mustMarshalJSON(res); s != `{"rows":[{"name":"load","tags":{"host":"serverA","region":"us-east"},"columns":["time","sum"],"values":[["2000-01-01T00:00:00Z",20]]},{"name":"load","tags":{"host":"serverB","region":"us-east"},"columns":["time","sum"],"values":[["2000-01-01T00:00:10Z",30]]},{"name":"load","tags":{"host":"serverC","region":"us-west"},"columns":["time","sum"],"values":[["2000-01-01T00:00:00Z",100]]}]}` {
+		t.Fatalf("unexpected row(0): %s", s)
+	}
 }
 
 // Ensure the server can execute a wildcard query and return the data correctly.
