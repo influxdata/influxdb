@@ -201,7 +201,7 @@ func createDatabase(t *testing.T, testName string, nodes cluster, database strin
 
 	expectedResults := client.Results{
 		Results: []client.Result{
-			{Rows: []influxql.Row{
+			{Series: []influxql.Row{
 				{
 					Columns: []string{"name"},
 					Values:  [][]interface{}{{"foo"}},
@@ -346,10 +346,10 @@ func simpleCountQuery(t *testing.T, testname string, nodes cluster, query, field
 			t.Fatalf("query databases failed.  Unexpected status code.  expected: %d, actual %d", http.StatusOK, resp.StatusCode)
 		}
 
-		if len(results.Results) != 1 || len(results.Results[0].Rows) != 1 {
+		if len(results.Results) != 1 || len(results.Results[0].Series) != 1 {
 			t.Fatal("results object returned has insufficient entries")
 		}
-		j, ok := results.Results[0].Rows[0].Values[0][1].(json.Number)
+		j, ok := results.Results[0].Series[0].Values[0][1].(json.Number)
 		if !ok {
 			t.Fatalf("count is not a JSON number")
 		}
@@ -392,7 +392,7 @@ func Test_ServerSingleIntegration(t *testing.T) {
 `, now.UnixNano()))
 	expectedResults := client.Results{
 		Results: []client.Result{
-			{Rows: []influxql.Row{
+			{Series: []influxql.Row{
 				{
 					Name:    "cpu",
 					Columns: []string{"time", "value"},
@@ -438,7 +438,7 @@ func Test_Server3NodeIntegration(t *testing.T) {
 `, now.UnixNano()))
 	expectedResults := client.Results{
 		Results: []client.Result{
-			{Rows: []influxql.Row{
+			{Series: []influxql.Row{
 				{
 					Name:    "cpu",
 					Columns: []string{"time", "value"},
@@ -485,7 +485,7 @@ func Test_Server5NodeIntegration(t *testing.T) {
 
 	expectedResults := client.Results{
 		Results: []client.Result{
-			{Rows: []influxql.Row{
+			{Series: []influxql.Row{
 				{
 					Name:    "cpu",
 					Columns: []string{"time", "value"},

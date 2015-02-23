@@ -319,7 +319,7 @@ func resultToCSV(result client.Result, seperator string, headerLines bool) []str
 	// Create a tabbed writer for each result a they won't always line up
 	columnNames := []string{"name", "tags"}
 
-	for i, row := range result.Rows {
+	for i, row := range result.Series {
 		// Output the column headings
 		if i == 0 {
 			for _, column := range row.Columns {
