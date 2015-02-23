@@ -225,7 +225,7 @@ func TestHandler_CreateDatabase_Conflict(t *testing.T) {
 	}
 }
 
-func TestHandler_DeleteDatabase(t *testing.T) {
+func TestHandler_DropDatabase(t *testing.T) {
 	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	s := NewHTTPServer(srvr)
@@ -239,7 +239,7 @@ func TestHandler_DeleteDatabase(t *testing.T) {
 	}
 }
 
-func TestHandler_DeleteDatabase_NotFound(t *testing.T) {
+func TestHandler_DropDatabase_NotFound(t *testing.T) {
 	srvr := OpenAuthlessServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
 	defer s.Close()

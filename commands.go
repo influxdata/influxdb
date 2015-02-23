@@ -14,7 +14,7 @@ const (
 
 	// Database messages
 	createDatabaseMessageType = messaging.MessageType(0x10)
-	deleteDatabaseMessageType = messaging.MessageType(0x11)
+	dropDatabaseMessageType   = messaging.MessageType(0x11)
 
 	// Retention policy messages
 	createRetentionPolicyMessageType     = messaging.MessageType(0x20)
@@ -59,7 +59,7 @@ type createDatabaseCommand struct {
 	Name string `json:"name"`
 }
 
-type deleteDatabaseCommand struct {
+type dropDatabaseCommand struct {
 	Name string `json:"name"`
 }
 

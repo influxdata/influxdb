@@ -330,7 +330,7 @@ func TestServer_DropDatabase(t *testing.T) {
 	s.Restart()
 
 	// Drop the "foo" database and verify that it's gone.
-	if err := s.DeleteDatabase("foo"); err != nil {
+	if err := s.DropDatabase("foo"); err != nil {
 		t.Fatal(err)
 	} else if s.DatabaseExists("foo") {
 		t.Fatalf("database not actually dropped")
@@ -343,7 +343,7 @@ func TestServer_DropDatabase_ErrDatabaseNotFound(t *testing.T) {
 	defer s.Close()
 
 	// Drop a database that doesn't exist.
-	if err := s.DeleteDatabase("no_such_db"); err != influxdb.ErrDatabaseNotFound {
+	if err := s.DropDatabase("no_such_db"); err != influxdb.ErrDatabaseNotFound {
 		t.Fatal(err)
 	}
 }

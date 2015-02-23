@@ -204,8 +204,8 @@ func (tx *metatx) saveDatabase(db *database) error {
 	return b.Put([]byte("meta"), mustMarshalJSON(db))
 }
 
-// deleteDatabase removes database from the metastore.
-func (tx *metatx) deleteDatabase(name string) error {
+// dropDatabase removes database from the metastore.
+func (tx *metatx) dropDatabase(name string) error {
 	return tx.Bucket([]byte("Databases")).DeleteBucket([]byte(name))
 }
 
