@@ -439,6 +439,12 @@ func TestParser_ParseStatement(t *testing.T) {
 			stmt: &influxql.DropDatabaseStatement{Name: "testdb"},
 		},
 
+		// DROP MEASUREMENT statement
+		{
+			s:    `DROP MEASUREMENT cpu`,
+			stmt: &influxql.DropMeasurementStatement{Name: "cpu"},
+		},
+
 		// DROP RETENTION POLICY
 		{
 			s: `DROP RETENTION POLICY "1h.cpu" ON mydb`,
