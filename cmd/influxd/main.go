@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
+	"runtime"
+	"runtime/pprof"
 	"strings"
 )
 
@@ -78,9 +81,15 @@ func execRun(args []string) {
 		pidPath    = fs.String("pidfile", "", "")
 		hostname   = fs.String("hostname", "", "")
 		join       = fs.String("join", "", "")
+		cpuprofile = fs.String("cpuprofile", "", "")
+		memprofile = fs.String("memprofile", "", "")
 	)
 	fs.Usage = printRunUsage
 	fs.Parse(args)
+
+	// Start profiling, if set.
+	startProfiling(*cpuprofile, *memprofile)
+	defer stopProfiling()
 
 	// Print sweet InfluxDB logo and write the process id to file.
 	log.Print(logo)
@@ -153,4 +162,48 @@ type Stopper interface {
 
 type State struct {
 	Mode string `json:"mode"`
+}
+
+var prof struct {
+	cpu *os.File
+	mem *os.File
+}
+
+func startProfiling(cpuprofile, memprofile string) {
+	if cpuprofile != "" {
+		f, err := os.Create(cpuprofile)
+		if err != nil {
+			log.Fatalf("cpuprofile: %v", err)
+		}
+		prof.cpu = f
+		pprof.StartCPUProfile(prof.cpu)
+	}
+
+	if memprofile != "" {
+		f, err := os.Create(memprofile)
+		if err != nil {
+			log.Fatalf("memprofile: %v", err)
+		}
+		prof.mem = f
+		runtime.MemProfileRate = 4096
+	}
+
+	go func() {
+		c := make(chan os.Signal, 1)
+		signal.Notify(c, os.Interrupt)
+		<-c
+		stopProfiling()
+		os.Exit(0)
+	}()
+}
+
+func stopProfiling() {
+	if prof.cpu != nil {
+		pprof.StopCPUProfile()
+		prof.cpu.Close()
+	}
+	if prof.mem != nil {
+		pprof.Lookup("heap").WriteTo(prof.mem, 0)
+		prof.mem.Close()
+	}
 }
