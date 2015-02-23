@@ -135,6 +135,13 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 			}
 		}
 	}
+
+	// unless disabled, start the loop to report anonymous usage stats every 24h
+	if !config.ReportingDisabled {
+		clusterID := b.Broker.Log().Config().ClusterID
+		go s.StartReportingLoop(version, clusterID)
+	}
+
 	return b.Broker, s
 }
 
