@@ -31,8 +31,9 @@ type route struct {
 	name        string
 	method      string
 	pattern     string
-	handlerFunc interface{}
 	gzipped     bool
+	log         bool
+	handlerFunc interface{}
 }
 
 // Handler represents an HTTP handler for the InfluxDB server.
@@ -56,47 +57,55 @@ func NewHandler(s *influxdb.Server, requireAuthentication bool, version string) 
 	h.routes = append(h.routes,
 		route{
 			"query", // Query serving route.
-			"GET", "/query", h.serveQuery, true,
+			"GET", "/query", true, true, h.serveQuery,
 		},
 		route{
 			"write", // Data-ingest route.
-			"OPTIONS", "/write", h.serveOptions, true,
+			"OPTIONS", "/write", true, true, h.serveOptions,
 		},
 		route{
 			"write", // Data-ingest route.
-			"POST", "/write", h.serveWrite, true,
+			"POST", "/write", true, true, h.serveWrite,
 		},
 		route{ // List data nodes
 			"data_nodes_index",
-			"GET", "/data_nodes", h.serveDataNodes, true,
+			"GET", "/data_nodes", true, false, h.serveDataNodes,
 		},
 		route{ // Create data node
 			"data_nodes_create",
-			"POST", "/data_nodes", h.serveCreateDataNode, true,
+			"POST", "/data_nodes", true, false, h.serveCreateDataNode,
 		},
 		route{ // Delete data node
 			"data_nodes_delete",
-			"DELETE", "/data_nodes/:id", h.serveDeleteDataNode, true,
+			"DELETE", "/data_nodes/:id", true, false, h.serveDeleteDataNode,
 		},
 		route{ // Metastore
 			"metastore",
-			"GET", "/metastore", h.serveMetastore, false,
+			"GET", "/metastore", false, false, h.serveMetastore,
 		},
 		route{ // Status
 			"status",
-			"GET", "/status", h.serveStatus, true,
+			"GET", "/status", true, true, h.serveStatus,
 		},
 		route{ // Ping
 			"ping",
-			"GET", "/ping", h.servePing, true,
+			"GET", "/ping", true, true, h.servePing,
 		},
 		route{ // Ping
 			"ping-head",
-			"HEAD", "/ping", h.servePing, true,
+			"HEAD", "/ping", true, true, h.servePing,
 		},
 		route{ // Tell data node to run CQs that should be run
 			"process_continuous_queries",
-			"POST", "/process_continuous_queries", h.serveProcessContinuousQueries, false,
+			"POST", "/process_continuous_queries", false, false, h.serveProcessContinuousQueries,
+		},
+		route{
+			"wait", // Wait.
+			"GET", "/wait/:index", true, true, h.serveWait,
+		},
+		route{
+			"index", // Index.
+			"GET", "/", true, true, h.serveIndex,
 		},
 	)
 
@@ -118,7 +127,9 @@ func NewHandler(s *influxdb.Server, requireAuthentication bool, version string) 
 		handler = versionHeader(handler, version)
 		handler = cors(handler)
 		handler = requestID(handler)
-		handler = logging(handler, r.name, weblog)
+		if r.log {
+			handler = logging(handler, r.name, weblog)
+		}
 		handler = recovery(handler, r.name, weblog) // make sure recovery is always last
 
 		h.mux.Add(r.method, r.pattern, handler)
@@ -248,6 +259,63 @@ func (h *Handler) serveOptions(w http.ResponseWriter, r *http.Request) {
 // servePing returns a simple response to let the client know the server is running.
 func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// serveIndex returns the current index of the node as the body of the response
+func (h *Handler) serveIndex(w http.ResponseWriter, r *http.Request) {
+	w.Write([]byte(fmt.Sprintf("%d", h.server.Index())))
+}
+
+// serveWait returns the current index of the node as the body of the response
+// Takes optional parameters:
+//     index - If specified, will poll for index before returning
+//     timeout (optional) - time in milliseconds to wait until index is met before erring out
+//               default timeout if not specified is 100 milliseconds
+func (h *Handler) serveWait(w http.ResponseWriter, r *http.Request) {
+	index, _ := strconv.ParseUint(r.URL.Query().Get(":index"), 10, 64)
+	timeout, _ := strconv.Atoi(r.URL.Query().Get("timeout"))
+
+	if index == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	var d time.Duration
+	if timeout == 0 {
+		d = 100 * time.Millisecond
+	} else {
+		d = time.Duration(timeout) * time.Millisecond
+	}
+	err := h.pollForIndex(index, d)
+	if err != nil {
+		w.WriteHeader(http.StatusRequestTimeout)
+		return
+	}
+	w.Write([]byte(fmt.Sprintf("%d", h.server.Index())))
+}
+
+// pollForIndex will poll until either the index is met or it times out
+// timeout is in milliseconds
+func (h *Handler) pollForIndex(index uint64, timeout time.Duration) error {
+	done := make(chan struct{})
+
+	go func() {
+		for {
+			if h.server.Index() >= index {
+				done <- struct{}{}
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+
+	for {
+		select {
+		case <-done:
+			return nil
+		case <-time.Tick(timeout):
+			return fmt.Errorf("timed out")
+		}
+	}
 }
 
 // serveDataNodes returns a list of all data nodes in the cluster.

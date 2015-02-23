@@ -90,6 +90,93 @@ func TestMeasurement_expandExpr(t *testing.T) {
 	}
 }
 
+// Ensure the createMeasurementsIfNotExistsCommand operates correctly.
+func TestCreateMeasurementsCommand(t *testing.T) {
+	var err error
+	var n int
+	c := newCreateMeasurementsIfNotExistsCommand("foo")
+	if c == nil {
+		t.Fatal("createMeasurementsIfNotExistsCommand is nil")
+	}
+
+	// Add Measurement twice, to make sure nothing blows up.
+	c.addMeasurementIfNotExists("bar")
+	c.addMeasurementIfNotExists("bar")
+	n = len(c.Measurements)
+	if n != 1 {
+		t.Fatalf("wrong number of measurements, expected 1, got %d", n)
+	}
+
+	// Add Series, no tags.
+	c.addSeriesIfNotExists("bar", nil)
+
+	// Add Series, some tags.
+	tags := map[string]string{"host": "server01"}
+	c.addSeriesIfNotExists("bar", tags)
+
+	// Add Series, same tags again.
+	c.addSeriesIfNotExists("bar", tags)
+
+	n = len(c.Measurements["bar"].Tags)
+	if n != 2 {
+		t.Fatalf("measurement has wrong number of tags, expected 2, got %d", n)
+	}
+
+	// Add a field.
+	err = c.addFieldIfNotExists("bar", "value", influxql.Number)
+	if err != nil {
+		t.Fatal("error adding field \"value\"")
+	}
+
+	// Add same field again.
+	err = c.addFieldIfNotExists("bar", "value", influxql.Number)
+	if err != nil {
+		t.Fatal("error re-adding field \"value\"")
+	}
+
+	// Add another field.
+	err = c.addFieldIfNotExists("bar", "value2", influxql.String)
+	if err != nil {
+		t.Fatal("error re-adding field \"value2\"")
+	}
+
+	n = len(c.Measurements["bar"].Fields)
+	if n != 2 {
+		t.Fatalf("wrong number of fields, expected 2, got %d", n)
+	}
+}
+
+// Ensure the createMeasurementsIfNotExistsCommand returns expected errors.
+func TestCreateMeasurementsCommand_Errors(t *testing.T) {
+	var err error
+	c := newCreateMeasurementsIfNotExistsCommand("foo")
+	if c == nil {
+		t.Fatal("createMeasurementsIfNotExistsCommand is nil")
+	}
+
+	// Ensure fields can be added to non-existent Measurements. The
+	// Measurements should be created automatically.
+	c.addSeriesIfNotExists("bar", nil)
+
+	err = c.addFieldIfNotExists("bar", "value", influxql.Number)
+	if err != nil {
+		t.Fatalf("unexpected error got %s", err.Error())
+	}
+
+	// Add Measurement. Adding it now should be OK.
+	c.addMeasurementIfNotExists("bar")
+
+	// Test type conflicts
+	err = c.addFieldIfNotExists("bar", "value", influxql.Number)
+	if err != nil {
+		t.Fatal("error adding field \"value\"")
+	}
+	err = c.addFieldIfNotExists("bar", "value", influxql.String)
+	if err != ErrFieldTypeConflict {
+		t.Fatalf("expected ErrFieldTypeConflict got %s", err.Error())
+	}
+}
+
 // MustParseExpr parses an expression string and returns its AST representation.
 func MustParseExpr(s string) influxql.Expr {
 	expr, err := influxql.ParseExpr(s)

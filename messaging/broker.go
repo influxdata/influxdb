@@ -57,6 +57,14 @@ func (b *Broker) metaPath() string {
 	return filepath.Join(b.path, "meta")
 }
 
+// Index returns the highest index seen by the broker across all topics.
+// Returns 0 if the broker is closed.
+func (b *Broker) Index() uint64 {
+	b.mu.Lock()
+	b.mu.Unlock()
+	return b.index
+}
+
 func (b *Broker) opened() bool { return b.path != "" }
 
 // SetLogOutput sets writer for all Broker log output.
@@ -181,9 +189,23 @@ func (b *Broker) load() error {
 		}
 	}
 
-	// Set the broker's index to the last index seen across all topics.
-	b.index = hdr.maxIndex()
+	// Read the highest index from each of the topic files.
+	if err := b.loadIndex(); err != nil {
+		return fmt.Errorf("load index: %s", err)
+	}
 
+	return nil
+}
+
+// loadIndex reads through all topics to find the highest known index.
+func (b *Broker) loadIndex() error {
+	for _, t := range b.topics {
+		if err := t.loadIndex(); err != nil {
+			return fmt.Errorf("topic(%d): %s", t.id, err)
+		} else if t.index > b.index {
+			b.index = t.index
+		}
+	}
 	return nil
 }
 
@@ -446,6 +468,8 @@ func (b *Broker) Subscribe(replicaID, topicID uint64) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
+	// TODO: Allow non-zero starting index.
+
 	// Ensure replica & topic exist.
 	if b.replicas[replicaID] == nil {
 		return ErrReplicaNotFound
@@ -470,7 +494,6 @@ func (b *Broker) mustApplySubscribe(m *Message) {
 
 	// Save current index on topic.
 	t := b.createTopicIfNotExists(c.TopicID)
-	index := t.index
 
 	// Ensure topic is not already subscribed to.
 	if _, ok := r.topics[c.TopicID]; ok {
@@ -479,11 +502,11 @@ func (b *Broker) mustApplySubscribe(m *Message) {
 	}
 
 	// Add subscription to replica.
-	r.topics[c.TopicID] = index
+	r.topics[c.TopicID] = c.Index
 	t.replicas[c.ReplicaID] = r
 
 	// Catch up replica.
-	_, _ = t.writeTo(r, index)
+	_, _ = t.writeTo(r, c.Index)
 
 	b.mustSave()
 }
@@ -568,12 +591,7 @@ func (fsm *brokerFSM) MustApply(e *raft.LogEntry) {
 	}
 
 	// Save highest applied index.
-	// TODO: Persist to disk for raft commands.
 	b.index = e.Index
-
-	// HACK: Persist metadata after each apply.
-	//       This should be derived on startup from the topic logs.
-	b.mustSave()
 }
 
 // Index returns the highest index that the broker has seen.
@@ -772,6 +790,33 @@ func (t *topic) Close() error {
 		t.file = nil
 	}
 	return nil
+}
+
+// loadIndex reads the highest available index for a topic from disk.
+func (t *topic) loadIndex() error {
+	// Open topic file for reading.
+	f, err := os.Open(t.path)
+	if os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	defer func() { _ = f.Close() }()
+
+	// Read all messages.
+	dec := NewMessageDecoder(bufio.NewReader(f))
+	for {
+		// Decode message.
+		var m Message
+		if err := dec.Decode(&m); err == io.EOF {
+			return nil
+		} else if err != nil {
+			return fmt.Errorf("decode: %s", err)
+		}
+
+		// Update the topic's highest index.
+		t.index = m.Index
+	}
 }
 
 // writeTo writes the topic to a replica since a given index.
@@ -986,6 +1031,7 @@ type DeleteReplicaCommand struct {
 type SubscribeCommand struct {
 	ReplicaID uint64 `json:"replicaID"` // replica id
 	TopicID   uint64 `json:"topicID"`   // topic id
+	Index     uint64 `json:"index"`     // index
 }
 
 // UnsubscribeCommand removes a subscription for a topic from a replica.

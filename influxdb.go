@@ -81,6 +81,9 @@ var (
 	// ErrShardNotFound is returned writing to a non-existent shard.
 	ErrShardNotFound = errors.New("shard not found")
 
+	// ErrInvalidPointBuffer is returned when a buffer containing data for writing is invalid
+	ErrInvalidPointBuffer = errors.New("invalid point buffer")
+
 	// ErrReadAccessDenied is returned when a user attempts to read
 	// data that he or she does not have permission to read.
 	ErrReadAccessDenied = errors.New("read access denied")
@@ -106,7 +109,7 @@ var (
 	// ErrFieldTypeConflict is returned when a new field already exists with a different type.
 	ErrFieldTypeConflict = errors.New("field type conflict")
 
-	// ErrFieldNotFound
+	// ErrFieldNotFound is returned when a field cannot be found.
 	ErrFieldNotFound = errors.New("field not found")
 
 	// ErrSeriesNotFound is returned when looking up a non-existent series by database, name and tags

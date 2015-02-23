@@ -2,8 +2,8 @@ package influxdb
 
 import (
 	"encoding/binary"
+	"fmt"
 	"time"
-	"unsafe"
 
 	"github.com/boltdb/bolt"
 )
@@ -72,10 +72,22 @@ func (m *metastore) mustView(fn func(*metatx) error) (err error) {
 }
 
 // mustUpdate executes a function in the context of a read-write transaction.
+// This function requires an index so that it can track the last commit from the broker.
 // Panics if a disk or system error occurs. Return error from the fn for validation errors.
-func (m *metastore) mustUpdate(fn func(*metatx) error) (err error) {
+func (m *metastore) mustUpdate(index uint64, fn func(*metatx) error) (err error) {
 	if e := m.update(func(tx *metatx) error {
+		curr := tx.index()
+		assert(index == 0 || index > curr, "metastore index replay: meta=%d, index=%d", curr, index)
+
+		// Execute function passed in.
 		err = fn(tx)
+
+		// Update index, if set.
+		if index > 0 {
+			if e := tx.setIndex(index); e != nil {
+				return fmt.Errorf("set index: %s", e)
+			}
+		}
 		return nil
 	}); e != nil {
 		panic("metastore update: " + e.Error())
@@ -99,6 +111,19 @@ func (tx *metatx) id() (id uint64) {
 // setID sets the server id.
 func (tx *metatx) setID(v uint64) error {
 	return tx.Bucket([]byte("Meta")).Put([]byte("id"), u64tob(v))
+}
+
+// index returns the index stored in the meta bucket.
+func (tx *metatx) index() (index uint64) {
+	if v := tx.Bucket([]byte("Meta")).Get([]byte("index")); v != nil {
+		index = btou64(v)
+	}
+	return
+}
+
+// setIndex sets the index stored in the meta bucket.
+func (tx *metatx) setIndex(v uint64) error {
+	return tx.Bucket([]byte("Meta")).Put([]byte("index"), u64tob(v))
 }
 
 // mustNextSequence generates a new sequence for a key in the meta bucket.
@@ -205,13 +230,27 @@ func (tx *metatx) createSeries(database, name string, tags map[string]string) (*
 
 	// store the tag map for the series
 	s := &Series{ID: uint32(id), Tags: tags}
-	idBytes := make([]byte, 4)
-	*(*uint32)(unsafe.Pointer(&idBytes[0])) = uint32(id)
+	idBytes := u32tob(uint32(id))
 
 	if err := b.Put(idBytes, mustMarshalJSON(s)); err != nil {
 		return nil, err
 	}
 	return s, nil
+}
+
+// dropSeries removes all seriesIDS for a given database/measurement
+func (tx *metatx) dropSeries(database string, seriesByMeasurement map[string][]uint32) error {
+	for measurement, ids := range seriesByMeasurement {
+		b := tx.Bucket([]byte("Databases")).Bucket([]byte(database)).Bucket([]byte("Series")).Bucket([]byte(measurement))
+		if b != nil {
+			for _, id := range ids {
+				if err := b.Delete(u32tob(id)); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // loops through all the measurements and series in a database

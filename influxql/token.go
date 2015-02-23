@@ -35,12 +35,14 @@ const (
 	AND // AND
 	OR  // OR
 
-	EQ  // =
-	NEQ // !=
-	LT  // <
-	LTE // <=
-	GT  // >
-	GTE // >=
+	EQ       // =
+	NEQ      // !=
+	EQREGEX  // =~
+	NEQREGEX // !~
+	LT       // <
+	LTE      // <=
+	GT       // >
+	GTE      // >=
 	operator_end
 
 	LPAREN    // (
@@ -130,12 +132,14 @@ var tokens = [...]string{
 	AND: "AND",
 	OR:  "OR",
 
-	EQ:  "=",
-	NEQ: "!=",
-	LT:  "<",
-	LTE: "<=",
-	GT:  ">",
-	GTE: ">=",
+	EQ:       "=",
+	NEQ:      "!=",
+	EQREGEX:  "=~",
+	NEQREGEX: "!~",
+	LT:       "<",
+	LTE:      "<=",
+	GT:       ">",
+	GTE:      ">=",
 
 	LPAREN:    "(",
 	RPAREN:    ")",

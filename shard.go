@@ -45,6 +45,17 @@ func newShardGroup() *ShardGroup { return &ShardGroup{} }
 // Duration returns the duration between the shard group's start and end time.
 func (g *ShardGroup) Duration() time.Duration { return g.EndTime.Sub(g.StartTime) }
 
+// dropSeries will delete all data with the seriesID
+func (g *ShardGroup) dropSeries(seriesID uint32) error {
+	for _, s := range g.Shards {
+		err := s.dropSeries(seriesID)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // newShard returns a new initialized Shard instance.
 func newShard() *Shard { return &Shard{} }
 
@@ -108,46 +119,72 @@ func (s *Shard) readSeries(seriesID uint32, timestamp int64) (values []byte, err
 	return
 }
 
-// writeSeries writes series data to a shard.
-func (s *Shard) writeSeries(seriesID uint32, timestamp int64, values []byte, overwrite bool) error {
+// writeSeries writes series batch to a shard.
+func (s *Shard) writeSeries(batch []byte) error {
 	return s.store.Update(func(tx *bolt.Tx) error {
-		// Create a bucket for the series.
-		b, err := tx.CreateBucketIfNotExists(u32tob(seriesID))
-		if err != nil {
-			return err
-		}
+		for {
+			if pointHeaderSize > len(batch) {
+				return ErrInvalidPointBuffer
+			}
+			seriesID, payloadLength, timestamp := unmarshalPointHeader(batch[:pointHeaderSize])
+			batch = batch[pointHeaderSize:]
 
-		// Insert the values by timestamp.
-		if err := b.Put(u64tob(uint64(timestamp)), values); err != nil {
-			return err
+			if payloadLength > uint32(len(batch)) {
+				return ErrInvalidPointBuffer
+			}
+			data := batch[:payloadLength]
+
+			// Create a bucket for the series.
+			b, err := tx.CreateBucketIfNotExists(u32tob(seriesID))
+			if err != nil {
+				return err
+			}
+
+			// Insert the values by timestamp.
+			if err := b.Put(u64tob(uint64(timestamp)), data); err != nil {
+				return err
+			}
+
+			// Push the buffer forward and check if we're done.
+			batch = batch[payloadLength:]
+			if len(batch) == 0 {
+				break
+			}
 		}
 
 		return nil
 	})
 }
 
-func (s *Shard) deleteSeries(name string) error {
-	panic("not yet implemented") // TODO
+func (s *Shard) dropSeries(seriesID uint32) error {
+	if s.store == nil {
+		return nil
+	}
+	return s.store.Update(func(tx *bolt.Tx) error {
+		return tx.DeleteBucket(u32tob(seriesID))
+	})
 }
 
 // Shards represents a list of shards.
 type Shards []*Shard
 
 // pointHeaderSize represents the size of a point header, in bytes.
-const pointHeaderSize = 4 + 8 // seriesID + timestamp
+const pointHeaderSize = 4 + 4 + 8 // seriesID + payload length + timestamp
 
-// marshalPointHeader encodes a series id, timestamp, & flagset into a byte slice.
-func marshalPointHeader(seriesID uint32, timestamp int64) []byte {
-	b := make([]byte, 12)
+// marshalPointHeader encodes a series id, payload length, timestamp, & flagset into a byte slice.
+func marshalPointHeader(seriesID uint32, payloadLength uint32, timestamp int64) []byte {
+	b := make([]byte, pointHeaderSize)
 	binary.BigEndian.PutUint32(b[0:4], seriesID)
-	binary.BigEndian.PutUint64(b[4:12], uint64(timestamp))
+	binary.BigEndian.PutUint32(b[4:8], payloadLength)
+	binary.BigEndian.PutUint64(b[8:16], uint64(timestamp))
 	return b
 }
 
 // unmarshalPointHeader decodes a byte slice into a series id, timestamp & flagset.
-func unmarshalPointHeader(b []byte) (seriesID uint32, timestamp int64) {
+func unmarshalPointHeader(b []byte) (seriesID uint32, payloadLength uint32, timestamp int64) {
 	seriesID = binary.BigEndian.Uint32(b[0:4])
-	timestamp = int64(binary.BigEndian.Uint64(b[4:12]))
+	payloadLength = binary.BigEndian.Uint32(b[4:8])
+	timestamp = int64(binary.BigEndian.Uint64(b[8:16]))
 	return
 }
 

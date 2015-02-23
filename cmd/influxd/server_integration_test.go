@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
@@ -21,6 +22,12 @@ import (
 	"github.com/influxdb/influxdb/messaging"
 
 	main "github.com/influxdb/influxdb/cmd/influxd"
+)
+
+const (
+	// Use a prime batch size, so that internal batching code, which most likely
+	// uses nice round batches, has to deal with leftover.
+	batchSize = 4217
 )
 
 // urlFor returns a URL with the path and query params correctly appended and set.
@@ -40,6 +47,35 @@ type node struct {
 
 // cluster represents a multi-node cluster.
 type cluster []node
+
+// createBatch returns a JSON string, representing the request body for a batch write. The timestamp
+// simply increases and the value is a random integer.
+func createBatch(nPoints int, database, retention, measurement string, tags map[string]string) string {
+	type Point struct {
+		Name      string            `json:"name"`
+		Tags      map[string]string `json:"tags"`
+		Timestamp int64             `json:"timestamp"`
+		Precision string            `json:"precision"`
+		Values    map[string]int    `json:"values"`
+	}
+	type PointBatch struct {
+		Database        string  `json:"database"`
+		RetentionPolicy string  `json:"retentionPolicy"`
+		Points          []Point `json:"points"`
+	}
+
+	rand.Seed(time.Now().UTC().UnixNano())
+	points := make([]Point, 0)
+	for i := 0; i < nPoints; i++ {
+		values := map[string]int{"value": rand.Int()}
+		point := Point{Name: measurement, Tags: tags, Timestamp: time.Now().UTC().UnixNano(), Precision: "n", Values: values}
+		points = append(points, point)
+	}
+	batch := PointBatch{Database: database, RetentionPolicy: retention, Points: points}
+
+	buf, _ := json.Marshal(batch)
+	return string(buf)
+}
 
 // createCombinedNodeCluster creates a cluster of nServers nodes, each of which
 // runs as both a Broker and Data node. If any part cluster creation fails,
@@ -166,8 +202,8 @@ func createDatabase(t *testing.T, testName string, nodes cluster, database strin
 
 	expectedResults := client.Results{
 		Results: []client.Result{
-			{Rows: []influxql.Row{
-				influxql.Row{
+			{Series: []influxql.Row{
+				{
 					Columns: []string{"name"},
 					Values:  [][]interface{}{{database}},
 				},
@@ -218,7 +254,6 @@ func write(t *testing.T, testname string, nodes cluster, data string) {
 	u := urlFor(serverURL, "write", url.Values{})
 
 	buf := []byte(data)
-	t.Logf("Writing raw data: %s", string(buf))
 	resp, err := http.Post(u.String(), "application/json", bytes.NewReader(buf))
 	if err != nil {
 		t.Fatalf("Couldn't write data: %s", err)
@@ -229,7 +264,7 @@ func write(t *testing.T, testname string, nodes cluster, data string) {
 
 	// Need some time for server to get consensus and write data
 	// TODO corylanou query the status endpoint for the server and wait for the index to update to know the write was applied
-	time.Sleep(time.Duration(len(nodes)) * time.Second)
+	time.Sleep(time.Duration(time.Second))
 }
 
 // simpleQuery executes the given query against all nodes in the cluster, and verify the
@@ -274,6 +309,258 @@ func simpleQuery(t *testing.T, testname string, nodes cluster, query string, exp
 			t.Fatalf("query databases failed.  Unexpected results.")
 		}
 	}
+}
+
+// simpleCountQuery executes the given query against all nodes in the cluster, and verify the
+// the count for the given field is as expected.
+func simpleCountQuery(t *testing.T, testname string, nodes cluster, query, field string, expected int64) {
+	var results client.Results
+
+	// Query the data exists
+	for _, n := range nodes {
+		t.Logf("Test name %s: query data on node %s", testname, n.url)
+		u := urlFor(n.url, "query", url.Values{"q": []string{query}, "db": []string{"foo"}})
+		resp, err := http.Get(u.String())
+		if err != nil {
+			t.Fatalf("Couldn't query databases: %s", err)
+		}
+		defer resp.Body.Close()
+
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("Couldn't read body of response: %s", err)
+		}
+		t.Logf("resp.Body: %s\n", string(body))
+
+		dec := json.NewDecoder(bytes.NewReader(body))
+		dec.UseNumber()
+		err = dec.Decode(&results)
+		if err != nil {
+			t.Fatalf("Couldn't decode results: %v", err)
+		}
+
+		if results.Error() != nil {
+			t.Logf("results.Error(): %q", results.Error().Error())
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("query databases failed.  Unexpected status code.  expected: %d, actual %d", http.StatusOK, resp.StatusCode)
+		}
+
+		if len(results.Results) != 1 || len(results.Results[0].Series) != 1 {
+			t.Fatal("results object returned has insufficient entries")
+		}
+		j, ok := results.Results[0].Series[0].Values[0][1].(json.Number)
+		if !ok {
+			t.Fatalf("count is not a JSON number")
+		}
+		count, err := j.Int64()
+		if err != nil {
+			t.Fatalf("failed to convert count to int64")
+		}
+		if count != expected {
+			t.Fatalf("count value is wrong, expected %d, go %d", expected, count)
+		}
+	}
+}
+
+func Test_ServerSingleIntegration(t *testing.T) {
+	nNodes := 1
+	basePort := 8090
+	testName := "single node"
+	now := time.Now().UTC()
+	nodes := createCombinedNodeCluster(t, "single node", nNodes, basePort)
+
+	createDatabase(t, testName, nodes, "foo")
+	createRetentionPolicy(t, testName, nodes, "foo", "bar")
+	write(t, testName, nodes, fmt.Sprintf(`
+{
+	"database": "foo",
+    "retentionPolicy": "bar",
+    "points":
+    [{
+        "name": "cpu",
+        "tags": {
+            "host": "server01"
+        },
+        "timestamp": %d,
+        "precision": "n",
+        "values":{
+            "value": 100
+        }
+    }]
+}
+`, now.UnixNano()))
+	expectedResults := client.Results{
+		Results: []client.Result{
+			{Series: []influxql.Row{
+				{
+					Name:    "cpu",
+					Columns: []string{"time", "value"},
+					Values: [][]interface{}{
+						{now.Format(time.RFC3339Nano), json.Number("100")},
+					},
+				}}},
+		},
+	}
+
+	simpleQuery(t, testName, nodes[:1], `select value from "foo"."bar".cpu`, expectedResults)
+}
+
+func Test_Server3NodeIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+	nNodes := 3
+	basePort := 8190
+	testName := "3 node"
+	now := time.Now().UTC()
+	nodes := createCombinedNodeCluster(t, testName, nNodes, basePort)
+
+	createDatabase(t, testName, nodes, "foo")
+	createRetentionPolicy(t, testName, nodes, "foo", "bar")
+	write(t, testName, nodes, fmt.Sprintf(`
+{
+	"database": "foo",
+	"retentionPolicy": "bar",
+	"points":
+	[{
+		"name": "cpu",
+		"tags": {
+			"host": "server01"
+		},
+		"timestamp": %d,
+		"precision": "n",
+		"values":{
+			"value": 100
+		}
+	}]
+}
+`, now.UnixNano()))
+	expectedResults := client.Results{
+		Results: []client.Result{
+			{Series: []influxql.Row{
+				{
+					Name:    "cpu",
+					Columns: []string{"time", "value"},
+					Values: [][]interface{}{
+						{now.Format(time.RFC3339Nano), json.Number("100")},
+					},
+				}}},
+		},
+	}
+
+	simpleQuery(t, testName, nodes[:1], `select value from "foo"."bar".cpu`, expectedResults)
+}
+
+func Test_Server5NodeIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+	nNodes := 5
+	basePort := 8290
+	testName := "5 node"
+	now := time.Now().UTC()
+	nodes := createCombinedNodeCluster(t, testName, nNodes, basePort)
+
+	createDatabase(t, testName, nodes, "foo")
+	createRetentionPolicy(t, testName, nodes, "foo", "bar")
+	write(t, testName, nodes, fmt.Sprintf(`
+{
+	"database": "foo",
+    "retentionPolicy": "bar",
+    "points":
+    [{
+        "name": "cpu",
+        "tags": {
+            "host": "server01"
+        },
+        "timestamp": %d,
+        "precision": "n",
+        "values":{
+            "value": 100
+        }
+    }]
+}
+`, now.UnixNano()))
+
+	expectedResults := client.Results{
+		Results: []client.Result{
+			{Series: []influxql.Row{
+				{
+					Name:    "cpu",
+					Columns: []string{"time", "value"},
+					Values: [][]interface{}{
+						{now.Format(time.RFC3339Nano), json.Number("100")},
+					},
+				}}},
+		},
+	}
+
+	simpleQuery(t, testName, nodes[:1], `select value from "foo"."bar".cpu`, expectedResults)
+}
+
+func Test_ServerSingleLargeBatchIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+	nNodes := 1
+	basePort := 8390
+	testName := "single node large batch"
+	nodes := createCombinedNodeCluster(t, testName, nNodes, basePort)
+
+	createDatabase(t, testName, nodes, "foo")
+	createRetentionPolicy(t, testName, nodes, "foo", "bar")
+	write(t, testName, nodes, createBatch(batchSize, "foo", "bar", "cpu", map[string]string{"host": "server01"}))
+	simpleCountQuery(t, testName, nodes, `select count(value) from "foo"."bar".cpu`, "value", batchSize)
+}
+
+func Test_Server3NodeLargeBatchIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+	nNodes := 3
+	basePort := 8490
+	testName := "3 node large batch"
+	nodes := createCombinedNodeCluster(t, testName, nNodes, basePort)
+
+	createDatabase(t, testName, nodes, "foo")
+	createRetentionPolicy(t, testName, nodes, "foo", "bar")
+	write(t, testName, nodes, createBatch(batchSize, "foo", "bar", "cpu", map[string]string{"host": "server01"}))
+	simpleCountQuery(t, "single node large batch", nodes, `select count(value) from "foo"."bar".cpu`, "value", batchSize)
+}
+
+func Test_Server5NodeLargeBatchIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+	nNodes := 5
+	basePort := 8590
+	testName := "5 node large batch"
+	nodes := createCombinedNodeCluster(t, testName, nNodes, basePort)
+
+	createDatabase(t, testName, nodes, "foo")
+	createRetentionPolicy(t, testName, nodes, "foo", "bar")
+	write(t, testName, nodes, createBatch(batchSize, "foo", "bar", "cpu", map[string]string{"host": "server01"}))
+	simpleCountQuery(t, "single node large batch", nodes, `select count(value) from "foo"."bar".cpu`, "value", batchSize)
+}
+
+func Test_ServerMultiLargeBatchIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+	nNodes := 1
+	nBatches := 5
+	basePort := 8690
+	testName := "single node multi batch"
+	nodes := createCombinedNodeCluster(t, testName, nNodes, basePort)
+
+	createDatabase(t, testName, nodes, "foo")
+	createRetentionPolicy(t, testName, nodes, "foo", "bar")
+	for i := 0; i < nBatches; i++ {
+		write(t, testName, nodes, createBatch(batchSize, "foo", "bar", "cpu", map[string]string{"host": "server01"}))
+	}
+	simpleCountQuery(t, testName, nodes, `select count(value) from "foo"."bar".cpu`, "value", batchSize*int64(nBatches))
 }
 
 // testInfluxServer is a higher-level abstraction for starting an InfluxDB
@@ -362,157 +649,12 @@ func (s *testInfluxServer) PerformQuery(query string) *client.Results {
 	return result
 }
 
-func Test_ServerSingleIntegration(t *testing.T) {
-	nNodes := 1
-	basePort := 8090
-	testName := "single node"
-	now := time.Now().UTC()
-	nodes := createCombinedNodeCluster(t, "single node", nNodes, basePort)
-
-	createDatabase(t, testName, nodes, "foo")
-	createRetentionPolicy(t, testName, nodes, "foo", "bar")
-	write(t, testName, nodes, fmt.Sprintf(`
-{
-"database":
-    "foo",
-    "retentionPolicy":
-    "bar",
-    "points":
-    [{
-        "name":
-        "cpu",
-        "tags": {
-            "host": "server01"
-        },
-        "timestamp": %d,
-        "precision":"n",
-        "values":{
-            "value": 100
-        }
-    }]
-}
-`, now.UnixNano()))
-	expectedResults := client.Results{
-		Results: []client.Result{
-			{Rows: []influxql.Row{
-				{
-					Name:    "cpu",
-					Columns: []string{"time", "value"},
-					Values: [][]interface{}{
-						[]interface{}{now.Format(time.RFC3339Nano), json.Number("100")},
-					},
-				}}},
-		},
-	}
-
-	simpleQuery(t, testName, nodes[:1], `select value from "foo"."bar".cpu`, expectedResults)
-}
-
-func Test_Server3NodeIntegration(t *testing.T) {
-	if testing.Short() {
-		t.Skip()
-	}
-	nNodes := 3
-	basePort := 8190
-	testName := "3 node"
-	now := time.Now().UTC()
-	nodes := createCombinedNodeCluster(t, testName, nNodes, basePort)
-
-	createDatabase(t, testName, nodes, "foo")
-	createRetentionPolicy(t, testName, nodes, "foo", "bar")
-	write(t, testName, nodes, fmt.Sprintf(`
-{
-"database":
-	"foo",
-	"retentionPolicy":
-	"bar",
-	"points":
-	[{
-		"name":
-		"cpu",
-		"tags": {
-			"host": "server01"
-		},
-		"timestamp": %d,
-		"precision":"n",
-		"values":{
-			"value": 100
-		}
-	}]
-}
-`, now.UnixNano()))
-	expectedResults := client.Results{
-		Results: []client.Result{
-			{Rows: []influxql.Row{
-				{
-					Name:    "cpu",
-					Columns: []string{"time", "value"},
-					Values: [][]interface{}{
-						[]interface{}{now.Format(time.RFC3339Nano), json.Number("100")},
-					},
-				}}},
-		},
-	}
-
-	simpleQuery(t, testName, nodes[:1], `select value from "foo"."bar".cpu`, expectedResults)
-}
-
-func Test_Server5NodeIntegration(t *testing.T) {
-	if testing.Short() {
-		t.Skip()
-	}
-	nNodes := 5
-	basePort := 8290
-	testName := "5 node"
-	now := time.Now().UTC()
-	nodes := createCombinedNodeCluster(t, testName, nNodes, basePort)
-
-	createDatabase(t, testName, nodes, "foo")
-	createRetentionPolicy(t, testName, nodes, "foo", "bar")
-	write(t, testName, nodes, fmt.Sprintf(`
-{
-"database":
-    "foo",
-    "retentionPolicy":
-    "bar",
-    "points":
-    [{
-        "name":
-        "cpu",
-        "tags": {
-            "host": "server01"
-        },
-        "timestamp": %d,
-        "precision":"n",
-        "values":{
-            "value": 100
-        }
-    }]
-}
-`, now.UnixNano()))
-
-	expectedResults := client.Results{
-		Results: []client.Result{
-			{Rows: []influxql.Row{
-				{
-					Name:    "cpu",
-					Columns: []string{"time", "value"},
-					Values: [][]interface{}{
-						[]interface{}{now.Format(time.RFC3339Nano), json.Number("100")},
-					},
-				}}},
-		},
-	}
-
-	simpleQuery(t, testName, nodes[:1], `select value from "foo"."bar".cpu`, expectedResults)
-}
-
 func Test_AllTagCombinationsInShowSeriesAreSelectable(t *testing.T) {
 	if testing.Short() {
 		t.Skip()
 	}
 
-	basePort := 8390
+	basePort := 8790
 	testName := "all tag combinations in SHOW SERIES are selectable"
 	testServer := newTestInfluxServer(t, basePort, testName)
 	defer testServer.Teardown()
@@ -547,7 +689,7 @@ func Test_AllTagCombinationsInShowSeriesAreSelectable(t *testing.T) {
 
 	var tagPairs [][]string
 	for _, r := range result.Results {
-		for _, row := range r.Rows {
+		for _, row := range r.Series {
 			for _, tagPair := range row.Values {
 				pair := []string{}
 				for _, tag := range tagPair {
@@ -574,7 +716,7 @@ func Test_DataArrivesInOrder(t *testing.T) {
 		t.Skip()
 	}
 
-	basePort := 8400
+	basePort := 8890
 	testName := "data arrives in order"
 	testServer := newTestInfluxServer(t, basePort, testName)
 	defer testServer.Teardown()
@@ -600,7 +742,7 @@ func Test_DataArrivesInOrder(t *testing.T) {
 
 	var times []string
 	for _, r := range result.Results {
-		for _, row := range r.Rows {
+		for _, row := range r.Series {
 			for _, values := range row.Values {
 				timestamp := values[0].(string)
 				times = append(times, timestamp)
@@ -616,7 +758,7 @@ func Test_DataArrivesInOrder(t *testing.T) {
 
 func assertResultHasValues(t *testing.T, results *client.Results, query string) {
 	for _, r := range results.Results {
-		for _, row := range r.Rows {
+		for _, row := range r.Series {
 			for range row.Values {
 				return
 			}
@@ -631,7 +773,7 @@ func Test_WhereTimeRangeCrossesHourBoundary(t *testing.T) {
 		t.Skip()
 	}
 
-	basePort := 8410
+	basePort := 8990
 	testName := "where time range crosses hour boundary"
 	testServer := newTestInfluxServer(t, basePort, testName)
 	defer testServer.Teardown()

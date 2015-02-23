@@ -2,6 +2,7 @@ package influxql_test
 
 import (
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -300,14 +301,9 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// SHOW FIELD KEYS
 		{
-			s: `SHOW FIELD KEYS FROM src WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
+			s: `SHOW FIELD KEYS FROM src ORDER BY ASC, field1, field2 DESC LIMIT 10`,
 			stmt: &influxql.ShowFieldKeysStatement{
 				Source: &influxql.Measurement{Name: "src"},
-				Condition: &influxql.BinaryExpr{
-					Op:  influxql.EQ,
-					LHS: &influxql.VarRef{Val: "region"},
-					RHS: &influxql.StringLiteral{Val: "uswest"},
-				},
 				SortFields: []*influxql.SortField{
 					{Ascending: true},
 					{Name: "field1"},
@@ -319,8 +315,33 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// DROP SERIES statement
 		{
-			s:    `DROP SERIES myseries`,
-			stmt: &influxql.DropSeriesStatement{Name: "myseries"},
+			s:    `DROP SERIES 1`,
+			stmt: &influxql.DropSeriesStatement{SeriesID: 1},
+		},
+		{
+			s:    `DROP SERIES FROM src`,
+			stmt: &influxql.DropSeriesStatement{Source: &influxql.Measurement{Name: "src"}},
+		},
+		{
+			s: `DROP SERIES WHERE host = 'hosta.influxdb.org'`,
+			stmt: &influxql.DropSeriesStatement{
+				Condition: &influxql.BinaryExpr{
+					Op:  influxql.EQ,
+					LHS: &influxql.VarRef{Val: "host"},
+					RHS: &influxql.StringLiteral{Val: "hosta.influxdb.org"},
+				},
+			},
+		},
+		{
+			s: `DROP SERIES FROM src WHERE host = 'hosta.influxdb.org'`,
+			stmt: &influxql.DropSeriesStatement{
+				Source: &influxql.Measurement{Name: "src"},
+				Condition: &influxql.BinaryExpr{
+					Op:  influxql.EQ,
+					LHS: &influxql.VarRef{Val: "host"},
+					RHS: &influxql.StringLiteral{Val: "hosta.influxdb.org"},
+				},
+			},
 		},
 
 		// SHOW CONTINUOUS QUERIES statement
@@ -340,7 +361,7 @@ func TestParser_ParseStatement(t *testing.T) {
 					Target: &influxql.Target{Measurement: "measure1"},
 					Source: &influxql.Measurement{Name: "myseries"},
 					Dimensions: []*influxql.Dimension{
-						&influxql.Dimension{
+						{
 							Expr: &influxql.Call{
 								Name: "time",
 								Args: []influxql.Expr{
@@ -366,7 +387,7 @@ func TestParser_ParseStatement(t *testing.T) {
 					},
 					Source: &influxql.Measurement{Name: "myseries"},
 					Dimensions: []*influxql.Dimension{
-						&influxql.Dimension{
+						{
 							Expr: &influxql.Call{
 								Name: "time",
 								Args: []influxql.Expr{
@@ -608,7 +629,9 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `DELETE`, err: `found EOF, expected FROM at line 1, char 8`},
 		{s: `DELETE FROM`, err: `found EOF, expected identifier at line 1, char 13`},
 		{s: `DELETE FROM myseries WHERE`, err: `found EOF, expected identifier, string, number, bool at line 1, char 28`},
-		{s: `DROP SERIES`, err: `found EOF, expected identifier at line 1, char 13`},
+		{s: `DROP SERIES`, err: `found EOF, expected number at line 1, char 13`},
+		{s: `DROP SERIES FROM`, err: `found EOF, expected identifier at line 1, char 18`},
+		{s: `DROP SERIES FROM src WHERE`, err: `found EOF, expected identifier, string, number, bool at line 1, char 28`},
 		{s: `SHOW CONTINUOUS`, err: `found EOF, expected QUERIES at line 1, char 17`},
 		{s: `SHOW RETENTION`, err: `found EOF, expected POLICIES at line 1, char 16`},
 		{s: `SHOW RETENTION POLICIES`, err: `found EOF, expected identifier at line 1, char 25`},
@@ -763,6 +786,26 @@ func TestParser_ParseExpr(t *testing.T) {
 			},
 		},
 
+		// Binary expression with regex on right.
+		{
+			s: `region =~ 'us.*'`,
+			expr: &influxql.BinaryExpr{
+				Op:  influxql.EQREGEX,
+				LHS: &influxql.VarRef{Val: "region"},
+				RHS: &influxql.RegexLiteral{Val: regexp.MustCompile(`us.*`)},
+			},
+		},
+
+		// Binary expression with NEQ regex on left.
+		{
+			s: `'us.*' !~ region`,
+			expr: &influxql.BinaryExpr{
+				Op:  influxql.NEQREGEX,
+				RHS: &influxql.VarRef{Val: "region"},
+				LHS: &influxql.RegexLiteral{Val: regexp.MustCompile(`us.*`)},
+			},
+		},
+
 		// Complex binary expression.
 		{
 			s: `value + 3 < 30 AND 1 + 2 OR true`,
@@ -913,6 +956,62 @@ func TestQuoteIdent(t *testing.T) {
 	} {
 		if s := influxql.QuoteIdent(tt.ident); tt.s != s {
 			t.Errorf("%d. %s: mismatch: %s != %s", i, tt.ident, tt.s, s)
+		}
+	}
+}
+
+// Ensure DropSeriesStatement can convert to a string
+func TestDropSeriesStatement_String(t *testing.T) {
+	var tests = []struct {
+		s    string
+		stmt influxql.Statement
+	}{
+		{
+			s:    `DROP SERIES 1`,
+			stmt: &influxql.DropSeriesStatement{SeriesID: 1},
+		},
+		{
+			s:    `DROP SERIES FROM src`,
+			stmt: &influxql.DropSeriesStatement{Source: &influxql.Measurement{Name: "src"}},
+		},
+		{
+			s: `DROP SERIES FROM src WHERE host = 'hosta.influxdb.org'`,
+			stmt: &influxql.DropSeriesStatement{
+				Source: &influxql.Measurement{Name: "src"},
+				Condition: &influxql.BinaryExpr{
+					Op:  influxql.EQ,
+					LHS: &influxql.VarRef{Val: "host"},
+					RHS: &influxql.StringLiteral{Val: "hosta.influxdb.org"},
+				},
+			},
+		},
+		{
+			s: `DROP SERIES FROM src WHERE host = 'hosta.influxdb.org'`,
+			stmt: &influxql.DropSeriesStatement{
+				Source: &influxql.Measurement{Name: "src"},
+				Condition: &influxql.BinaryExpr{
+					Op:  influxql.EQ,
+					LHS: &influxql.VarRef{Val: "host"},
+					RHS: &influxql.StringLiteral{Val: "hosta.influxdb.org"},
+				},
+			},
+		},
+		{
+			s: `DROP SERIES WHERE host = 'hosta.influxdb.org'`,
+			stmt: &influxql.DropSeriesStatement{
+				Condition: &influxql.BinaryExpr{
+					Op:  influxql.EQ,
+					LHS: &influxql.VarRef{Val: "host"},
+					RHS: &influxql.StringLiteral{Val: "hosta.influxdb.org"},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		s := test.stmt.String()
+		if s != test.s {
+			t.Errorf("error rendering string. expected %s, actual: %s", test.s, s)
 		}
 	}
 }

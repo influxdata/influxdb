@@ -147,7 +147,7 @@ func TestHandler_Databases(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "SHOW DATABASES"}, nil, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"results":[{"rows":[{"columns":["name"],"values":[["bar"],["foo"]]}]}]}` {
+	} else if body != `{"results":[{"series":[{"columns":["name"],"values":[["bar"],["foo"]]}]}]}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -165,7 +165,7 @@ func TestHandler_DatabasesPrettyPrinted(t *testing.T) {
 	} else if body != `{
     "results": [
         {
-            "rows": [
+            "series": [
                 {
                     "columns": [
                         "name"
@@ -263,7 +263,7 @@ func TestHandler_RetentionPolicies(t *testing.T) {
 
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"results":[{"rows":[{"columns":["name","duration","replicaN"],"values":[["bar","168h0m0s",1]]}]}]}` {
+	} else if body != `{"results":[{"series":[{"columns":["name","duration","replicaN"],"values":[["bar","168h0m0s",1]]}]}]}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -536,6 +536,92 @@ func TestHandler_GzipDisabled(t *testing.T) {
 	}
 }
 
+func TestHandler_Index(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, body := MustHTTP("GET", s.URL, nil, nil, "")
+
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+
+	if body != "1" {
+		t.Fatalf("unexpected body.  expected %q, actual %q", "1", body)
+	}
+}
+
+func TestHandler_Wait(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, body := MustHTTP("GET", s.URL+`/wait/1`, map[string]string{"timeout": "1"}, nil, "")
+
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+
+	if body != "1" {
+		t.Fatalf("unexpected body.  expected %q, actual %q", "1", body)
+	}
+}
+
+func TestHandler_WaitIncrement(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
+
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, _ := MustHTTP("GET", s.URL+`/wait/2`, map[string]string{"timeout": "200"}, nil, "")
+
+	// Write some data
+	_, _ = MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}}]}`)
+
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status, expected:  %d, actual: %d", http.StatusOK, status)
+	}
+}
+
+func TestHandler_WaitNoIndexSpecified(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, _ := MustHTTP("GET", s.URL+`/wait`, nil, nil, "")
+
+	if status != http.StatusNotFound {
+		t.Fatalf("unexpected status, expected:  %d, actual: %d", http.StatusNotFound, status)
+	}
+}
+
+func TestHandler_WaitInvalidIndexSpecified(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, _ := MustHTTP("GET", s.URL+`/wait/foo`, nil, nil, "")
+
+	if status != http.StatusBadRequest {
+		t.Fatalf("unexpected status, expected:  %d, actual: %d", http.StatusBadRequest, status)
+	}
+}
+
+func TestHandler_WaitExpectTimeout(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, _ := MustHTTP("GET", s.URL+`/wait/2`, map[string]string{"timeout": "1"}, nil, "")
+
+	if status != http.StatusRequestTimeout {
+		t.Fatalf("unexpected status, expected:  %d, actual: %d", http.StatusRequestTimeout, status)
+	}
+}
+
 func TestHandler_Ping(t *testing.T) {
 	srvr := OpenAuthlessServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
@@ -570,7 +656,7 @@ func TestHandler_Users_NoUsers(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"results":[{"rows":[{"columns":["user","admin"]}]}]}` {
+	} else if body != `{"results":[{"series":[{"columns":["user","admin"]}]}]}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -585,7 +671,7 @@ func TestHandler_Users_OneUser(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"results":[{"rows":[{"columns":["user","admin"],"values":[["jdoe",true]]}]}]}` {
+	} else if body != `{"results":[{"series":[{"columns":["user","admin"],"values":[["jdoe",true]]}]}]}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -602,7 +688,7 @@ func TestHandler_Users_MultipleUsers(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"results":[{"rows":[{"columns":["user","admin"],"values":[["csmith",false],["jdoe",false],["mclark",true]]}]}]}` {
+	} else if body != `{"results":[{"series":[{"columns":["user","admin"],"values":[["csmith",false],["jdoe",false],["mclark",true]]}]}]}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -1064,10 +1150,31 @@ func TestHandler_ShowContinuousQueries(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"results":[{"rows":[{"name":"foo","columns":["name","query"],"values":[["myquery","CREATE CONTINUOUS QUERY myquery ON foo BEGIN SELECT count() INTO measure1 FROM myseries GROUP BY time(10m) END"]]}]}]}` {
+	} else if body != `{"results":[{"series":[{"name":"foo","columns":["name","query"],"values":[["myquery","CREATE CONTINUOUS QUERY myquery ON foo BEGIN SELECT count() INTO measure1 FROM myseries GROUP BY time(10m) END"]]}]}]}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 
+}
+
+func TestHandler_DropSeries(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}}]}`)
+
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+
+	query := map[string]string{"db": "foo", "q": "DROP SERIES FROM cpu"}
+	status, _ = MustHTTP("GET", s.URL+`/query`, query, nil, "")
+
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
 }
 
 func TestHandler_serveWriteSeries(t *testing.T) {
@@ -1170,6 +1277,8 @@ func TestHandler_serveWriteSeriesNonZeroTime(t *testing.T) {
 	}
 	time.Sleep(100 * time.Millisecond) // Ensure data node picks up write.
 
+	srvr.Restart() // Ensure data is queryable across restarts.
+
 	query := map[string]string{"db": "foo", "q": "select value from cpu"}
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusOK {
@@ -1189,8 +1298,8 @@ func TestHandler_serveWriteSeriesNonZeroTime(t *testing.T) {
 	}
 
 	result := r.Results[0]
-	if len(result.Rows) != 1 {
-		t.Fatalf("unexpected row count, expected: %d, actual: %d", 1, len(result.Rows))
+	if len(result.Series) != 1 {
+		t.Fatalf("unexpected row count, expected: %d, actual: %d", 1, len(result.Series))
 	}
 }
 
@@ -1212,6 +1321,8 @@ func TestHandler_serveWriteSeriesZeroTime(t *testing.T) {
 	}
 	time.Sleep(100 * time.Millisecond) // Ensure data node picks up write.
 
+	srvr.Restart() // Ensure data is queryable across restarts.
+
 	query := map[string]string{"db": "foo", "q": "select value from cpu"}
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 
@@ -1232,10 +1343,10 @@ func TestHandler_serveWriteSeriesZeroTime(t *testing.T) {
 		t.Fatalf("unexpected results count")
 	}
 	result := r.Results[0]
-	if len(result.Rows) != 1 {
-		t.Fatalf("unexpected row count, expected: %d, actual: %d", 1, len(result.Rows))
+	if len(result.Series) != 1 {
+		t.Fatalf("unexpected row count, expected: %d, actual: %d", 1, len(result.Series))
 	}
-	row := result.Rows[0]
+	row := result.Series[0]
 	timestamp, _ := time.Parse(time.RFC3339Nano, row.Values[0][0].(string))
 	if timestamp.IsZero() {
 		t.Fatalf("failed to write a default time, actual: %v", row.Values[0][0])
@@ -1260,6 +1371,8 @@ func TestHandler_serveWriteSeriesStringValues(t *testing.T) {
 	}
 	time.Sleep(100 * time.Millisecond) // Ensure data node picks up write.
 
+	srvr.Restart() // Ensure data is queryable across restarts.
+
 	query := map[string]string{"db": "foo", "q": "select event from logs"}
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusOK {
@@ -1278,11 +1391,11 @@ func TestHandler_serveWriteSeriesStringValues(t *testing.T) {
 		t.Fatalf("unexpected results count")
 	}
 	result := r.Results[0]
-	if len(result.Rows) != 1 {
-		t.Fatalf("unexpected row count, expected: %d, actual: %d", 1, len(result.Rows))
+	if len(result.Series) != 1 {
+		t.Fatalf("unexpected row count, expected: %d, actual: %d", 1, len(result.Series))
 	}
-	if result.Rows[0].Values[0][1] != "disk full" {
-		t.Fatalf("unexpected string value, actual: %s", result.Rows[0].Values[0][1])
+	if result.Series[0].Values[0][1] != "disk full" {
+		t.Fatalf("unexpected string value, actual: %s", result.Series[0].Values[0][1])
 	}
 }
 
@@ -1300,6 +1413,8 @@ func TestHandler_serveWriteSeriesBoolValues(t *testing.T) {
 		t.Fatalf("unexpected status: %d", status)
 	}
 	time.Sleep(100 * time.Millisecond) // Ensure data node picks up write.
+
+	srvr.Restart() // Ensure data is queryable across restarts.
 
 	query := map[string]string{"db": "foo", "q": "select full from disk"}
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
@@ -1319,11 +1434,94 @@ func TestHandler_serveWriteSeriesBoolValues(t *testing.T) {
 		t.Fatalf("unexpected results count")
 	}
 	result := r.Results[0]
-	if len(result.Rows) != 1 {
-		t.Fatalf("unexpected row count, expected: %d, actual: %d", 1, len(result.Rows))
+	if len(result.Series) != 1 {
+		t.Fatalf("unexpected row count, expected: %d, actual: %d", 1, len(result.Series))
 	}
-	if result.Rows[0].Values[0][1] != false {
-		t.Fatalf("unexpected string value, actual: %s", result.Rows[0].Values[0][1])
+	if result.Series[0].Values[0][1] != false {
+		t.Fatalf("unexpected string value, actual: %s", result.Series[0].Values[0][1])
+	}
+}
+
+func TestHandler_serveWriteSeriesBatch(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
+	srvr.SetDefaultRetentionPolicy("foo", "bar")
+
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	batch := `
+{
+    "database": "foo",
+    "retentionPolicy": "bar",
+    "points": [
+        {
+            "name": "disk",
+            "timestamp": "2009-11-10T23:00:00Z",
+            "tags": {
+                "host": "server01"
+            },
+            "values": {
+                "full": false
+            }
+        },
+        {
+            "name": "disk",
+            "timestamp": "2009-11-10T23:00:01Z",
+            "tags": {
+                "host": "server01"
+            },
+            "values": {
+                "full": true
+            }
+        },
+        {
+            "name": "disk",
+            "timestamp": "2009-11-10T23:00:02Z",
+            "tags": {
+                "host": "server02"
+            },
+            "values": {
+                "full_pct": 64
+            }
+        }
+    ]
+}
+`
+	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, batch)
+	if status != http.StatusOK {
+		t.Log(body)
+		t.Fatalf("unexpected status: %d", status)
+	}
+	time.Sleep(200 * time.Millisecond) // Ensure data node picks up write.
+
+	query := map[string]string{"db": "foo", "q": "select * from disk"}
+	status, body = MustHTTP("GET", s.URL+`/query`, query, nil, "")
+	if status != http.StatusOK {
+		t.Logf("query %s\n", query)
+		t.Log(body)
+		t.Errorf("unexpected status: %d", status)
+	}
+
+	r := &influxdb.Results{}
+	if err := json.Unmarshal([]byte(body), r); err != nil {
+		t.Logf("query : %s\n", query)
+		t.Log(body)
+		t.Error(err)
+	}
+	if len(r.Results) != 1 {
+		t.Fatalf("unexpected results count")
+	}
+	result := r.Results[0]
+	if len(result.Series) != 1 {
+		t.Fatalf("unexpected row count, expected: %d, actual: %d", 1, len(result.Series))
+	}
+	if len(result.Series[0].Columns) != 3 {
+		t.Fatalf("unexpected column count, expected: %d, actual: %d", 3, len(result.Series[0].Columns))
+	}
+	if len(result.Series[0].Values) != 3 {
+		t.Fatalf("unexpected values count, expected: %d, actual: %d", 3, len(result.Series[0].Values))
 	}
 }
 
@@ -1360,8 +1558,8 @@ func TestHandler_serveWriteSeriesInvalidQueryField(t *testing.T) {
 		t.Fatalf("unexpected results count")
 	}
 	result := r.Results[0]
-	if len(result.Rows) != 0 {
-		t.Fatalf("unexpected row count, expected: %d, actual: %d", 0, len(result.Rows))
+	if len(result.Series) != 0 {
+		t.Fatalf("unexpected row count, expected: %d, actual: %d", 0, len(result.Series))
 	}
 	if result.Err.Error() != "field not found: bar" {
 		t.Fatalf("unexpected error returned, actual: %s", result.Err.Error())
@@ -1413,7 +1611,8 @@ func TestHandler_serveShowSeries(t *testing.T) {
 		{"name": "cpu", "tags": {"host": "server01", "region": "uswest"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
 		{"name": "cpu", "tags": {"host": "server01", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
 		{"name": "cpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
-		{"name": "gpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}}
+		{"name": "gpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
+		{"name": "gpu", "tags": {"host": "server03", "region": "caeast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}}
 		]}`)
 
 	if status != http.StatusOK {
@@ -1432,7 +1631,7 @@ func TestHandler_serveShowSeries(t *testing.T) {
 			r: &influxdb.Results{
 				Results: []*influxdb.Result{
 					{
-						Rows: []*influxql.Row{
+						Series: []*influxql.Row{
 							{
 								Name:    "cpu",
 								Columns: []string{"host", "region"},
@@ -1448,6 +1647,7 @@ func TestHandler_serveShowSeries(t *testing.T) {
 								Columns: []string{"host", "region"},
 								Values: [][]interface{}{
 									str2iface([]string{"server02", "useast"}),
+									str2iface([]string{"server03", "caeast"}),
 								},
 							},
 						},
@@ -1461,7 +1661,7 @@ func TestHandler_serveShowSeries(t *testing.T) {
 		// 	r: &influxdb.Results{
 		// 		Results: []*influxdb.Result{
 		// 			&influxdb.Result{
-		// 				Rows: []*influxql.Row{
+		// 				Series: []*influxql.Row{
 		// 					&influxql.Row{
 		// 						Name:    "cpu",
 		// 						Columns: []string{"host", "region"},
@@ -1483,7 +1683,7 @@ func TestHandler_serveShowSeries(t *testing.T) {
 			r: &influxdb.Results{
 				Results: []*influxdb.Result{
 					{
-						Rows: []*influxql.Row{
+						Series: []*influxql.Row{
 							{
 								Name:    "cpu",
 								Columns: []string{"host", "region"},
@@ -1505,7 +1705,7 @@ func TestHandler_serveShowSeries(t *testing.T) {
 			r: &influxdb.Results{
 				Results: []*influxdb.Result{
 					{
-						Rows: []*influxql.Row{
+						Series: []*influxql.Row{
 							{
 								Name:    "cpu",
 								Columns: []string{"host", "region"},
@@ -1518,13 +1718,54 @@ func TestHandler_serveShowSeries(t *testing.T) {
 				},
 			},
 		},
+
+		// SHOW SERIES WHERE =~ regex
+		{
+			q: `SHOW SERIES WHERE region =~ 'ca.*'`,
+			r: &influxdb.Results{
+				Results: []*influxdb.Result{
+					{
+						Series: []*influxql.Row{
+							{
+								Name:    "gpu",
+								Columns: []string{"host", "region"},
+								Values: [][]interface{}{
+									str2iface([]string{"server03", "caeast"}),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+
+		// SHOW SERIES WHERE !~ regex
+		{
+			q: `SHOW SERIES WHERE host !~ 'server0[12]'`,
+			r: &influxdb.Results{
+				Results: []*influxdb.Result{
+					{
+						Series: []*influxql.Row{
+							{
+								Name:    "gpu",
+								Columns: []string{"host", "region"},
+								Values: [][]interface{}{
+									str2iface([]string{"server03", "caeast"}),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+
 		// SHOW SERIES FROM ... WHERE
 		{
 			q: `SHOW SERIES FROM cpu WHERE region = 'useast'`,
 			r: &influxdb.Results{
 				Results: []*influxdb.Result{
 					{
-						Rows: []*influxql.Row{
+						Series: []*influxql.Row{
 							{
 								Name:    "cpu",
 								Columns: []string{"host", "region"},
@@ -1558,9 +1799,12 @@ func TestHandler_serveShowSeries(t *testing.T) {
 		}
 
 		if !reflect.DeepEqual(tt.err, errstring(r.Err)) {
+			t.Logf("query #%d: %s", i, tt.q)
 			t.Errorf("%d. %s: error mismatch:\n  exp=%s\n  got=%s\n\n", i, tt.q, tt.err, r.Err)
 		} else if tt.err == "" && !reflect.DeepEqual(tt.r, r) {
-			t.Log(body)
+			t.Logf("query #%d: %s", i, tt.q)
+			t.Logf("exp = %s", mustMarshalJSON(tt.r))
+			t.Logf("got = %s", body)
 			t.Errorf("%d. %s: result mismatch:\n\nexp=%#v\n\ngot=%#v\n\n", i, tt.q, tt.r, r)
 		}
 	}
@@ -1587,7 +1831,9 @@ func TestHandler_serveShowMeasurements(t *testing.T) {
 		{"name": "cpu", "tags": {"host": "server01", "region": "uswest"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
 		{"name": "cpu", "tags": {"host": "server01", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
 		{"name": "cpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
-		{"name": "gpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}}
+		{"name": "gpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
+		{"name": "gpu", "tags": {"host": "server02", "region": "caeast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
+		{"name": "other", "tags": {"host": "server03", "region": "caeast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}}
 		]}`)
 
 	if status != http.StatusOK {
@@ -1603,7 +1849,19 @@ func TestHandler_serveShowMeasurements(t *testing.T) {
 		// SHOW MEASUREMENTS
 		{
 			q: `SHOW MEASUREMENTS LIMIT 2`,
-			r: `{"results":[{"rows":[{"name":"measurements","columns":["name"],"values":[["cpu"],["gpu"]]}]}]}`,
+			r: `{"results":[{"series":[{"name":"measurements","columns":["name"],"values":[["cpu"],["gpu"]]}]}]}`,
+		},
+
+		// SHOW MEASUREMENTS WHERE =~ regex
+		{
+			q: `SHOW MEASUREMENTS WHERE region =~ 'ca.*'`,
+			r: `{"results":[{"series":[{"name":"measurements","columns":["name"],"values":[["gpu"],["other"]]}]}]}`,
+		},
+
+		// SHOW MEASUREMENTS WHERE !~ regex
+		{
+			q: `SHOW MEASUREMENTS WHERE region !~ 'ca.*'`,
+			r: `{"results":[{"series":[{"name":"measurements","columns":["name"],"values":[["cpu"]]}]}]}`,
 		},
 	}
 
@@ -1643,7 +1901,8 @@ func TestHandler_serveShowTagKeys(t *testing.T) {
 		{"name": "cpu", "tags": {"host": "server01", "region": "uswest"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
 		{"name": "cpu", "tags": {"host": "server01", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
 		{"name": "cpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
-		{"name": "gpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}}
+		{"name": "gpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
+		{"name": "gpu", "tags": {"host": "server03", "region": "caeast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}}
 		]}`)
 
 	if status != http.StatusOK {
@@ -1662,7 +1921,7 @@ func TestHandler_serveShowTagKeys(t *testing.T) {
 			r: &influxdb.Results{
 				Results: []*influxdb.Result{
 					{
-						Rows: []*influxql.Row{
+						Series: []*influxql.Row{
 							{
 								Name:    "cpu",
 								Columns: []string{"tagKey"},
@@ -1690,7 +1949,7 @@ func TestHandler_serveShowTagKeys(t *testing.T) {
 			r: &influxdb.Results{
 				Results: []*influxdb.Result{
 					{
-						Rows: []*influxql.Row{
+						Series: []*influxql.Row{
 							{
 								Name:    "cpu",
 								Columns: []string{"tagKey"},
@@ -1754,7 +2013,8 @@ func TestHandler_serveShowTagValues(t *testing.T) {
 		{"name": "cpu", "tags": {"host": "server01", "region": "uswest"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
 		{"name": "cpu", "tags": {"host": "server01", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
 		{"name": "cpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
-		{"name": "gpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}}
+		{"name": "gpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
+		{"name": "gpu", "tags": {"host": "server03", "region": "caeast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}}
 		]}`)
 
 	if status != http.StatusOK {
@@ -1773,7 +2033,7 @@ func TestHandler_serveShowTagValues(t *testing.T) {
 			r: &influxdb.Results{
 				Results: []*influxdb.Result{
 					{
-						Rows: []*influxql.Row{
+						Series: []*influxql.Row{
 							{
 								Name:    "cpu",
 								Columns: []string{"tagValue"},
@@ -1787,6 +2047,7 @@ func TestHandler_serveShowTagValues(t *testing.T) {
 								Columns: []string{"tagValue"},
 								Values: [][]interface{}{
 									str2iface([]string{"server02"}),
+									str2iface([]string{"server03"}),
 								},
 							},
 						},
@@ -1800,7 +2061,7 @@ func TestHandler_serveShowTagValues(t *testing.T) {
 			r: &influxdb.Results{
 				Results: []*influxdb.Result{
 					{
-						Rows: []*influxql.Row{
+						Series: []*influxql.Row{
 							{
 								Name:    "cpu",
 								Columns: []string{"tagValue"},
@@ -1820,12 +2081,50 @@ func TestHandler_serveShowTagValues(t *testing.T) {
 			r: &influxdb.Results{
 				Results: []*influxdb.Result{
 					{
-						Rows: []*influxql.Row{
+						Series: []*influxql.Row{
 							{
 								Name:    "cpu",
 								Columns: []string{"tagValue"},
 								Values: [][]interface{}{
 									str2iface([]string{"server01"}),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		// SHOW TAG VALUES FROM ... WHERE =~ regex
+		{
+			q: `SHOW TAG VALUES WITH KEY = host WHERE region =~ 'ca.*'`,
+			r: &influxdb.Results{
+				Results: []*influxdb.Result{
+					{
+						Series: []*influxql.Row{
+							{
+								Name:    "gpu",
+								Columns: []string{"tagValue"},
+								Values: [][]interface{}{
+									str2iface([]string{"server03"}),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		// SHOW TAG VALUES FROM ... WHERE !~ regex
+		{
+			q: `SHOW TAG VALUES WITH KEY = region WHERE host !~ 'server0[12]'`,
+			r: &influxdb.Results{
+				Results: []*influxdb.Result{
+					{
+						Series: []*influxql.Row{
+							{
+								Name:    "gpu",
+								Columns: []string{"tagValue"},
+								Values: [][]interface{}{
+									str2iface([]string{"caeast"}),
 								},
 							},
 						},
@@ -1839,7 +2138,7 @@ func TestHandler_serveShowTagValues(t *testing.T) {
 			r: &influxdb.Results{
 				Results: []*influxdb.Result{
 					{
-						Rows: []*influxql.Row{
+						Series: []*influxql.Row{
 							{
 								Name:    "cpu",
 								Columns: []string{"tagValue"},
@@ -1872,11 +2171,12 @@ func TestHandler_serveShowTagValues(t *testing.T) {
 		}
 
 		if !reflect.DeepEqual(tt.err, errstring(r.Err)) {
+			t.Logf("query #%d: %s", i, tt.q)
 			t.Errorf("%d. %s: error mismatch:\n  exp=%s\n  got=%s\n\n", i, tt.q, tt.err, r.Err)
 		} else if tt.err == "" && !reflect.DeepEqual(tt.r, r) {
-			b, _ := json.Marshal(tt.r)
-			t.Log(string(b))
-			t.Log(body)
+			t.Logf("query #%d: %s", i, tt.q)
+			t.Logf("exp = %s", mustMarshalJSON(tt.r))
+			t.Logf("got = %s", body)
 			t.Errorf("%d. %s: result mismatch:\n\nexp=%#v\n\ngot=%#v\n\n", i, tt.q, tt.r, r)
 		}
 	}
@@ -1895,7 +2195,8 @@ func TestHandler_serveShowFieldKeys(t *testing.T) {
 		{"name": "cpu", "tags": {"host": "server01", "region": "uswest"},"timestamp": "2009-11-10T23:00:00Z","values": {"field1": 200, "field2": 300, "field3": 400}},
 		{"name": "cpu", "tags": {"host": "server01", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"field1": 200, "field2": 300, "field3": 400}},
 		{"name": "cpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"field1": 200, "field2": 300, "field3": 400}},
-		{"name": "gpu", "tags": {"host": "server01", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"field4": 200, "field5": 300}}
+		{"name": "gpu", "tags": {"host": "server01", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"field4": 200, "field5": 300}},
+		{"name": "gpu", "tags": {"host": "server03", "region": "caeast"},"timestamp": "2009-11-10T23:00:00Z","values": {"field6": 200, "field7": 300}}
 		]}`)
 
 	if status != http.StatusOK {
@@ -1908,35 +2209,13 @@ func TestHandler_serveShowFieldKeys(t *testing.T) {
 		r   *influxdb.Results
 		err string
 	}{
-		// SHOW FIELD KEYS FROM ...
+		// SHOW FIELD KEYS
 		{
-			q: `SHOW FIELD KEYS FROM cpu`,
+			q: `SHOW FIELD KEYS`,
 			r: &influxdb.Results{
 				Results: []*influxdb.Result{
 					{
-						Rows: []*influxql.Row{
-							{
-								Name:    "cpu",
-								Columns: []string{"fieldKey"},
-								Values: [][]interface{}{
-									str2iface([]string{"field1"}),
-									str2iface([]string{"field2"}),
-									str2iface([]string{"field3"}),
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-
-		// SHOW FIELD KEYS WHERE
-		{
-			q: `SHOW FIELD KEYS WHERE host = 'server01'`,
-			r: &influxdb.Results{
-				Results: []*influxdb.Result{
-					{
-						Rows: []*influxql.Row{
+						Series: []*influxql.Row{
 							{
 								Name:    "cpu",
 								Columns: []string{"fieldKey"},
@@ -1952,6 +2231,29 @@ func TestHandler_serveShowFieldKeys(t *testing.T) {
 								Values: [][]interface{}{
 									str2iface([]string{"field4"}),
 									str2iface([]string{"field5"}),
+									str2iface([]string{"field6"}),
+									str2iface([]string{"field7"}),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		// SHOW FIELD KEYS FROM ...
+		{
+			q: `SHOW FIELD KEYS FROM cpu`,
+			r: &influxdb.Results{
+				Results: []*influxdb.Result{
+					{
+						Series: []*influxql.Row{
+							{
+								Name:    "cpu",
+								Columns: []string{"fieldKey"},
+								Values: [][]interface{}{
+									str2iface([]string{"field1"}),
+									str2iface([]string{"field2"}),
+									str2iface([]string{"field3"}),
 								},
 							},
 						},
@@ -1978,11 +2280,12 @@ func TestHandler_serveShowFieldKeys(t *testing.T) {
 		}
 
 		if !reflect.DeepEqual(tt.err, errstring(r.Err)) {
+			t.Logf("query #%d: %s", i, tt.q)
 			t.Errorf("%d. %s: error mismatch:\n  exp=%s\n  got=%s\n\n", i, tt.q, tt.err, r.Err)
 		} else if tt.err == "" && !reflect.DeepEqual(tt.r, r) {
-			b, _ := json.Marshal(tt.r)
-			t.Log(string(b))
-			t.Log(body)
+			t.Logf("query #%d: %s", i, tt.q)
+			t.Logf("exp = %s", mustMarshalJSON(tt.r))
+			t.Logf("got = %s", body)
 			t.Errorf("%d. %s: result mismatch:\n\nexp=%#v\n\ngot=%#v\n\n", i, tt.q, tt.r, r)
 		}
 	}
@@ -2194,4 +2497,13 @@ func errstring(err error) string {
 		return err.Error()
 	}
 	return ""
+}
+
+// marshalJSON marshals input to a string of JSON or panics on error.
+func mustMarshalJSON(i interface{}) string {
+	b, err := json.Marshal(i)
+	if err != nil {
+		panic(err)
+	}
+	return string(b)
 }

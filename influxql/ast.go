@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -95,6 +96,7 @@ func (*nilLiteral) node()      {}
 func (*Merge) node()           {}
 func (*NumberLiteral) node()   {}
 func (*ParenExpr) node()       {}
+func (*RegexLiteral) node()    {}
 func (*SortField) node()       {}
 func (SortFields) node()       {}
 func (*StringLiteral) node()   {}
@@ -181,6 +183,7 @@ func (*DurationLiteral) expr() {}
 func (*nilLiteral) expr()      {}
 func (*NumberLiteral) expr()   {}
 func (*ParenExpr) expr()       {}
+func (*RegexLiteral) expr()    {}
 func (*StringLiteral) expr()   {}
 func (*TimeLiteral) expr()     {}
 func (*VarRef) expr()          {}
@@ -982,11 +985,37 @@ func (s *ShowSeriesStatement) RequiredPrivileges() ExecutionPrivileges {
 
 // DropSeriesStatement represents a command for removing a series from the database.
 type DropSeriesStatement struct {
-	Name string
+	// The Id of the series being dropped (optional)
+	SeriesID uint32
+
+	// Data source that fields are extracted from (optional)
+	Source Source
+
+	// An expression evaluated on data point (optional)
+	Condition Expr
 }
 
 // String returns a string representation of the drop series statement.
-func (s *DropSeriesStatement) String() string { return fmt.Sprintf("DROP SERIES %s", s.Name) }
+func (s *DropSeriesStatement) String() string {
+	var buf bytes.Buffer
+	i, _ := buf.WriteString("DROP SERIES")
+
+	if s.Source != nil {
+		_, _ = buf.WriteString(" FROM ")
+		_, _ = buf.WriteString(s.Source.String())
+	}
+	if s.Condition != nil {
+		_, _ = buf.WriteString(" WHERE ")
+		_, _ = buf.WriteString(s.Condition.String())
+	}
+
+	// If we haven't written any data since the initial statement, then this was a SeriesID statement
+	if len(buf.String()) == i {
+		_, _ = buf.WriteString(fmt.Sprintf(" %d", s.SeriesID))
+	}
+
+	return buf.String()
+}
 
 // RequiredPrivileges returns the privilige reqired to execute a DropSeriesStatement.
 func (s DropSeriesStatement) RequiredPrivileges() ExecutionPrivileges {
@@ -1256,9 +1285,6 @@ type ShowFieldKeysStatement struct {
 	// Data source that fields are extracted from.
 	Source Source
 
-	// An expression evaluated on data point.
-	Condition Expr
-
 	// Fields to sort results by
 	SortFields SortFields
 
@@ -1278,10 +1304,6 @@ func (s *ShowFieldKeysStatement) String() string {
 	if s.Source != nil {
 		_, _ = buf.WriteString(" FROM ")
 		_, _ = buf.WriteString(s.Source.String())
-	}
-	if s.Condition != nil {
-		_, _ = buf.WriteString(" WHERE ")
-		_, _ = buf.WriteString(s.Condition.String())
 	}
 	if len(s.SortFields) > 0 {
 		_, _ = buf.WriteString(" ORDER BY ")
@@ -1560,6 +1582,14 @@ type ParenExpr struct {
 // String returns a string representation of the parenthesized expression.
 func (e *ParenExpr) String() string { return fmt.Sprintf("(%s)", e.Expr.String()) }
 
+// RegexLiteral represents a regular expression.
+type RegexLiteral struct {
+	Val *regexp.Regexp
+}
+
+// String returns a string representation of the literal.
+func (r *RegexLiteral) String() string { return r.Val.String() }
+
 // Wildcard represents a wild card expression.
 type Wildcard struct{}
 
@@ -1588,6 +1618,8 @@ func CloneExpr(expr Expr) Expr {
 		return &NumberLiteral{Val: expr.Val}
 	case *ParenExpr:
 		return &ParenExpr{Expr: CloneExpr(expr.Expr)}
+	case *RegexLiteral:
+		return &RegexLiteral{Val: expr.Val}
 	case *StringLiteral:
 		return &StringLiteral{Val: expr.Val}
 	case *TimeLiteral:
