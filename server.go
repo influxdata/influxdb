@@ -2126,9 +2126,10 @@ func (s *Server) executeShowTagValuesStatement(stmt *influxql.ShowTagValuesState
 
 	// Make result.
 	result := &Result{
-		Series: make(influxql.Rows, 0, len(measurements)),
+		Series: make(influxql.Rows, 0),
 	}
 
+	tagValues := make(map[string]stringSet)
 	for _, m := range measurements {
 		var ids seriesIDs
 
@@ -2148,14 +2149,22 @@ func (s *Server) executeShowTagValuesStatement(stmt *influxql.ShowTagValuesState
 			ids = m.seriesIDs
 		}
 
-		tagValues := m.tagValuesByKeyAndSeriesID(stmt.TagKeys, ids)
+		for k, v := range m.tagValuesByKeyAndSeriesID(stmt.TagKeys, ids) {
+			_, ok := tagValues[k]
+			if !ok {
+				tagValues[k] = v
+			}
+			tagValues[k] = tagValues[k].union(v)
+		}
+	}
 
+	for k, v := range tagValues {
 		r := &influxql.Row{
-			Name:    m.Name,
-			Columns: []string{"tagValue"},
+			Name:    k + "TagValues",
+			Columns: []string{k},
 		}
 
-		vals := tagValues.list()
+		vals := v.list()
 		sort.Strings(vals)
 
 		for _, val := range vals {
@@ -2166,6 +2175,7 @@ func (s *Server) executeShowTagValuesStatement(stmt *influxql.ShowTagValuesState
 		result.Series = append(result.Series, r)
 	}
 
+	sort.Sort(result.Series)
 	return result
 }
 
@@ -2613,7 +2623,7 @@ func (s *Server) processor(client MessagingClient, done chan struct{}) {
 
 // Result represents a resultset returned from a single statement.
 type Result struct {
-	Series []*influxql.Row
+	Series influxql.Rows
 	Err    error
 }
 
