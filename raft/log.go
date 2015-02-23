@@ -922,6 +922,7 @@ func (l *Log) heartbeater(term uint64, committed chan uint64, wg *sync.WaitGroup
 
 	// Commit latest index if there are no peers.
 	if config == nil || len(config.Nodes) <= 1 {
+		time.Sleep(10 * time.Millisecond)
 		committed <- localIndex
 		return
 	}
