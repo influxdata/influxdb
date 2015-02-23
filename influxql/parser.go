@@ -159,6 +159,8 @@ func (p *Parser) parseDropStatement() (Statement, error) {
 	tok, pos, lit := p.scanIgnoreWhitespace()
 	if tok == SERIES {
 		return p.parseDropSeriesStatement()
+		//} else if tok == MEASUREMENT {
+		//return p.parseDropMeasurementStatement()
 	} else if tok == CONTINUOUS {
 		return p.parseDropContinuousQueryStatement()
 	} else if tok == DATABASE {
@@ -173,6 +175,7 @@ func (p *Parser) parseDropStatement() (Statement, error) {
 	}
 
 	return nil, newParseError(tokstr(tok, lit), []string{"SERIES", "CONTINUOUS"}, pos)
+	//return nil, newParseError(tokstr(tok, lit), []string{"SERIES", "CONTINUOUS", "MEASUREMENT"}, pos)
 }
 
 // parseAlterStatement parses a string and returns an alter statement.

@@ -628,6 +628,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `DELETE`, err: `found EOF, expected FROM at line 1, char 8`},
 		{s: `DELETE FROM`, err: `found EOF, expected identifier at line 1, char 13`},
 		{s: `DELETE FROM myseries WHERE`, err: `found EOF, expected identifier, string, number, bool at line 1, char 28`},
+		//{s: `DROP MEASUREMENT`, err: `found EOF, expected number at line 1, char 13`},
 		{s: `DROP SERIES`, err: `found EOF, expected number at line 1, char 13`},
 		{s: `DROP SERIES FROM`, err: `found EOF, expected identifier at line 1, char 18`},
 		{s: `DROP SERIES FROM src WHERE`, err: `found EOF, expected identifier, string, number, bool at line 1, char 28`},
