@@ -1790,9 +1790,9 @@ func (s *Server) executeSelectStatement(stmt *influxql.SelectStatement, database
 	}
 
 	// Read all rows from channel.
-	res := &Result{Rows: make([]*influxql.Row, 0)}
+	res := &Result{Series: make([]*influxql.Row, 0)}
 	for row := range ch {
-		res.Rows = append(res.Rows, row)
+		res.Series = append(res.Series, row)
 	}
 
 	return res
@@ -1854,7 +1854,7 @@ func (s *Server) executeShowDatabasesStatement(q *influxql.ShowDatabasesStatemen
 	for _, name := range s.Databases() {
 		row.Values = append(row.Values, []interface{}{name})
 	}
-	return &Result{Rows: []*influxql.Row{row}}
+	return &Result{Series: []*influxql.Row{row}}
 }
 
 func (s *Server) executeCreateUserStatement(q *influxql.CreateUserStatement, user *User) *Result {
@@ -1946,7 +1946,7 @@ func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, 
 
 	// Create result struct that will be populated and returned.
 	result := &Result{
-		Rows: make(influxql.Rows, 0, len(measurements)),
+		Series: make(influxql.Rows, 0, len(measurements)),
 	}
 
 	// Loop through measurements to build result. One result row / measurement.
@@ -1989,7 +1989,7 @@ func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, 
 		}
 
 		// Append the row to the result.
-		result.Rows = append(result.Rows, r)
+		result.Series = append(result.Series, r)
 	}
 
 	return result
@@ -2051,7 +2051,7 @@ func (s *Server) executeShowMeasurementsStatement(stmt *influxql.ShowMeasurement
 
 	// Make a result.
 	result := &Result{
-		Rows: influxql.Rows{row},
+		Series: influxql.Rows{row},
 	}
 
 	return result
@@ -2075,7 +2075,7 @@ func (s *Server) executeShowTagKeysStatement(stmt *influxql.ShowTagKeysStatement
 
 	// Make result.
 	result := &Result{
-		Rows: make(influxql.Rows, 0, len(measurements)),
+		Series: make(influxql.Rows, 0, len(measurements)),
 	}
 
 	// Add one row per measurement to the result.
@@ -2099,7 +2099,7 @@ func (s *Server) executeShowTagKeysStatement(stmt *influxql.ShowTagKeysStatement
 			Values:  values,
 		}
 
-		result.Rows = append(result.Rows, r)
+		result.Series = append(result.Series, r)
 	}
 
 	// TODO: LIMIT & OFFSET
@@ -2125,7 +2125,7 @@ func (s *Server) executeShowTagValuesStatement(stmt *influxql.ShowTagValuesState
 
 	// Make result.
 	result := &Result{
-		Rows: make(influxql.Rows, 0, len(measurements)),
+		Series: make(influxql.Rows, 0, len(measurements)),
 	}
 
 	for _, m := range measurements {
@@ -2162,7 +2162,7 @@ func (s *Server) executeShowTagValuesStatement(stmt *influxql.ShowTagValuesState
 			r.Values = append(r.Values, []interface{}{v})
 		}
 
-		result.Rows = append(result.Rows, r)
+		result.Series = append(result.Series, r)
 	}
 
 	return result
@@ -2177,7 +2177,7 @@ func (s *Server) executeShowContinuousQueriesStatement(stmt *influxql.ShowContin
 		}
 		rows = append(rows, row)
 	}
-	return &Result{Rows: rows}
+	return &Result{Series: rows}
 }
 
 // filterMeasurementsByExpr filters a list of measurements by a tags expression.
@@ -2219,7 +2219,7 @@ func (s *Server) executeShowFieldKeysStatement(stmt *influxql.ShowFieldKeysState
 
 	// Make result.
 	result := &Result{
-		Rows: make(influxql.Rows, 0, len(measurements)),
+		Series: make(influxql.Rows, 0, len(measurements)),
 	}
 
 	// Loop through measurements, adding a result row for each.
@@ -2244,7 +2244,7 @@ func (s *Server) executeShowFieldKeysStatement(stmt *influxql.ShowFieldKeysState
 		}
 
 		// Append the row to the result.
-		result.Rows = append(result.Rows, r)
+		result.Series = append(result.Series, r)
 	}
 
 	return result
@@ -2298,7 +2298,7 @@ func (s *Server) executeShowUsersStatement(q *influxql.ShowUsersStatement, user 
 	for _, user := range s.Users() {
 		row.Values = append(row.Values, []interface{}{user.Name, user.Admin})
 	}
-	return &Result{Rows: []*influxql.Row{row}}
+	return &Result{Series: []*influxql.Row{row}}
 }
 
 func (s *Server) executeCreateRetentionPolicyStatement(q *influxql.CreateRetentionPolicyStatement, user *User) *Result {
@@ -2354,7 +2354,7 @@ func (s *Server) executeShowRetentionPoliciesStatement(q *influxql.ShowRetention
 	for _, rp := range a {
 		row.Values = append(row.Values, []interface{}{rp.Name, rp.Duration.String(), rp.ReplicaN})
 	}
-	return &Result{Rows: []*influxql.Row{row}}
+	return &Result{Series: []*influxql.Row{row}}
 }
 
 func (s *Server) executeCreateContinuousQueryStatement(q *influxql.CreateContinuousQueryStatement, user *User) *Result {
@@ -2612,20 +2612,20 @@ func (s *Server) processor(client MessagingClient, done chan struct{}) {
 
 // Result represents a resultset returned from a single statement.
 type Result struct {
-	Rows []*influxql.Row
-	Err  error
+	Series []*influxql.Row
+	Err    error
 }
 
 // MarshalJSON encodes the result into JSON.
 func (r *Result) MarshalJSON() ([]byte, error) {
 	// Define a struct that outputs "error" as a string.
 	var o struct {
-		Rows []*influxql.Row `json:"rows,omitempty"`
-		Err  string          `json:"error,omitempty"`
+		Series []*influxql.Row `json:"series,omitempty"`
+		Err    string          `json:"error,omitempty"`
 	}
 
 	// Copy fields to output struct.
-	o.Rows = r.Rows
+	o.Series = r.Series
 	if r.Err != nil {
 		o.Err = r.Err.Error()
 	}
@@ -2636,15 +2636,15 @@ func (r *Result) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON decodes the data into the Result struct
 func (r *Result) UnmarshalJSON(b []byte) error {
 	var o struct {
-		Rows []*influxql.Row `json:"rows,omitempty"`
-		Err  string          `json:"error,omitempty"`
+		Series []*influxql.Row `json:"series,omitempty"`
+		Err    string          `json:"error,omitempty"`
 	}
 
 	err := json.Unmarshal(b, &o)
 	if err != nil {
 		return err
 	}
-	r.Rows = o.Rows
+	r.Series = o.Series
 	if o.Err != "" {
 		r.Err = errors.New(o.Err)
 	}
