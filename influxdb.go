@@ -100,8 +100,8 @@ var (
 	// ErrMeasurementNotFound is returned when a measurement does not exist.
 	ErrMeasurementNotFound = errors.New("measurement not found")
 
-	// ErrValuesRequired is returned when a point does not any values
-	ErrValuesRequired = errors.New("values required")
+	// ErrFieldsRequired is returned when a point does not any fields.
+	ErrFieldsRequired = errors.New("fields required")
 
 	// ErrFieldOverflow is returned when too many fields are created on a measurement.
 	ErrFieldOverflow = errors.New("field overflow")
@@ -229,7 +229,7 @@ func NormalizeBatchPoints(bp BatchPoints) ([]Point, error) {
 			Name:      p.Name,
 			Tags:      p.Tags,
 			Timestamp: p.Timestamp.Time(),
-			Values:    p.Values,
+			Fields:    p.Fields,
 		})
 	}
 

@@ -1363,7 +1363,7 @@ type Point struct {
 	Name      string
 	Tags      map[string]string
 	Timestamp time.Time
-	Values    map[string]interface{}
+	Fields    map[string]interface{}
 }
 
 // WriteSeries writes series data to the database.
@@ -1426,7 +1426,7 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 			}
 
 			// Convert string-key/values to encoded fields.
-			encodedFields, err := codec.EncodeFields(p.Values)
+			encodedFields, err := codec.EncodeFields(p.Fields)
 			if err != nil {
 				return err
 			}
@@ -1505,7 +1505,7 @@ func (s *Server) createMeasurementsIfNotExists(database, retentionPolicy string,
 				c.addSeriesIfNotExists(p.Name, p.Tags)
 			}
 
-			for k, v := range p.Values {
+			for k, v := range p.Fields {
 				if measurement != nil {
 					if f := measurement.FieldByName(k); f != nil {
 						// Field present in Metastore, make sure there is no type conflict.
@@ -1669,14 +1669,14 @@ func (s *Server) ReadSeries(database, retentionPolicy, name string, tags map[str
 
 	// Decode into a raw value map.
 	codec := NewFieldCodec(mm)
-	rawValues := codec.DecodeFields(data)
-	if rawValues == nil {
+	rawFields := codec.DecodeFields(data)
+	if rawFields == nil {
 		return nil, nil
 	}
 
 	// Decode into a string-key value map.
-	values := make(map[string]interface{}, len(rawValues))
-	for fieldID, value := range rawValues {
+	values := make(map[string]interface{}, len(rawFields))
+	for fieldID, value := range rawFields {
 		f := mm.Field(fieldID)
 		if f == nil {
 			continue
@@ -3102,7 +3102,7 @@ func (s *Server) convertRowToPoints(measurementName string, row *influxql.Row) (
 			Name:      measurementName,
 			Tags:      row.Tags,
 			Timestamp: v[timeIndex].(time.Time),
-			Values:    vals,
+			Fields:    vals,
 		}
 
 		points = append(points, *p)

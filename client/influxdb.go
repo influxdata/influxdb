@@ -258,12 +258,12 @@ func (t Timestamp) MarshalJSON() ([]byte, error) {
 	return []byte(`"` + s + `"`), nil
 }
 
-// Point defines the values that will be written to the database
+// Point defines the fields that will be written to the database
 type Point struct {
 	Name      string                 `json:"name"`
 	Tags      map[string]string      `json:"tags"`
 	Timestamp Timestamp              `json:"timestamp"`
-	Values    map[string]interface{} `json:"values"`
+	Fields    map[string]interface{} `json:"fields"`
 	Precision string                 `json:"precision"`
 }
 
@@ -274,14 +274,14 @@ func (p *Point) UnmarshalJSON(b []byte) error {
 		Tags      map[string]string      `json:"tags"`
 		Timestamp time.Time              `json:"timestamp"`
 		Precision string                 `json:"precision"`
-		Values    map[string]interface{} `json:"values"`
+		Fields    map[string]interface{} `json:"fields"`
 	}
 	var epoch struct {
 		Name      string                 `json:"name"`
 		Tags      map[string]string      `json:"tags"`
 		Timestamp *int64                 `json:"timestamp"`
 		Precision string                 `json:"precision"`
-		Values    map[string]interface{} `json:"values"`
+		Fields    map[string]interface{} `json:"fields"`
 	}
 
 	if err := func() error {
@@ -304,7 +304,7 @@ func (p *Point) UnmarshalJSON(b []byte) error {
 		p.Tags = epoch.Tags
 		p.Timestamp = Timestamp(ts)
 		p.Precision = epoch.Precision
-		p.Values = normalizeValues(epoch.Values)
+		p.Fields = normalizeFields(epoch.Fields)
 		return nil
 	}(); err == nil {
 		return nil
@@ -320,28 +320,28 @@ func (p *Point) UnmarshalJSON(b []byte) error {
 	p.Tags = normal.Tags
 	p.Timestamp = Timestamp(normal.Timestamp)
 	p.Precision = normal.Precision
-	p.Values = normalizeValues(normal.Values)
+	p.Fields = normalizeFields(normal.Fields)
 
 	return nil
 }
 
 // Remove any notion of json.Number
-func normalizeValues(values map[string]interface{}) map[string]interface{} {
-	newValues := map[string]interface{}{}
+func normalizeFields(fields map[string]interface{}) map[string]interface{} {
+	newFields := map[string]interface{}{}
 
-	for k, v := range values {
+	for k, v := range fields {
 		switch v := v.(type) {
 		case json.Number:
 			jv, e := v.Float64()
 			if e != nil {
 				panic(fmt.Sprintf("unable to convert json.Number to float64: %s", e))
 			}
-			newValues[k] = jv
+			newFields[k] = jv
 		default:
-			newValues[k] = v
+			newFields[k] = v
 		}
 	}
-	return newValues
+	return newFields
 }
 
 // utility functions

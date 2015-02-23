@@ -158,9 +158,9 @@ func Unmarshal(data *gollectd.Packet) []influxdb.Point {
 	for i := range data.Values {
 		name := fmt.Sprintf("%s_%s", data.Plugin, data.Values[i].Name)
 		tags := make(map[string]string)
-		values := make(map[string]interface{})
+		fields := make(map[string]interface{})
 
-		values[name] = data.Values[i].Value
+		fields[name] = data.Values[i].Value
 
 		if data.Hostname != "" {
 			tags["host"] = data.Hostname
@@ -178,7 +178,7 @@ func Unmarshal(data *gollectd.Packet) []influxdb.Point {
 			Name:      name,
 			Tags:      tags,
 			Timestamp: timestamp,
-			Values:    values,
+			Fields:    fields,
 		}
 
 		points = append(points, p)
