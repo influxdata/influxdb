@@ -544,7 +544,7 @@ func Test_Server5NodeLargeBatchIntegration(t *testing.T) {
 	simpleCountQuery(t, "single node large batch", nodes, `select count(value) from "foo"."bar".cpu`, "value", batchSize)
 }
 
-func Test_ServerMultiLargeBatchIntegration(t *testing.T) {
+func Test_ServerSingleMultiLargeBatchIntegration(t *testing.T) {
 	if testing.Short() {
 		t.Skip()
 	}
@@ -558,6 +558,60 @@ func Test_ServerMultiLargeBatchIntegration(t *testing.T) {
 	createRetentionPolicy(t, testName, nodes, "foo", "bar")
 	for i := 0; i < nBatches; i++ {
 		write(t, testName, nodes, createBatch(batchSize, "foo", "bar", "cpu", map[string]string{"host": "server01"}))
+	}
+	simpleCountQuery(t, testName, nodes, `select count(value) from "foo"."bar".cpu`, "value", batchSize*int64(nBatches))
+}
+
+func Test_Server3NodeMultiLargeBatchIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+	nNodes := 3
+	nBatches := 5
+	basePort := 8790
+	testName := "3-node multi batch"
+	nodes := createCombinedNodeCluster(t, testName, nNodes, basePort)
+
+	createDatabase(t, testName, nodes, "foo")
+	createRetentionPolicy(t, testName, nodes, "foo", "bar")
+	for i := 0; i < nBatches; i++ {
+		write(t, testName, nodes, createBatch(batchSize, "foo", "bar", "cpu", map[string]string{"host": "server01"}))
+	}
+	simpleCountQuery(t, testName, nodes, `select count(value) from "foo"."bar".cpu`, "value", batchSize*int64(nBatches))
+}
+
+func Test_Server5NodeMultiLargeBatchIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+	nNodes := 5
+	nBatches := 5
+	basePort := 8890
+	testName := "5-node multi batch"
+	nodes := createCombinedNodeCluster(t, testName, nNodes, basePort)
+
+	createDatabase(t, testName, nodes, "foo")
+	createRetentionPolicy(t, testName, nodes, "foo", "bar")
+	for i := 0; i < nBatches; i++ {
+		write(t, testName, nodes, createBatch(batchSize, "foo", "bar", "cpu", map[string]string{"host": "server01"}))
+	}
+	simpleCountQuery(t, testName, nodes, `select count(value) from "foo"."bar".cpu`, "value", batchSize*int64(nBatches))
+}
+
+func Test_Server7NodeMultiLargeBatchIntegrationRotatingSeries(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+	nNodes := 7
+	nBatches := 10
+	basePort := 8990
+	testName := "7-node multi batch"
+	nodes := createCombinedNodeCluster(t, testName, nNodes, basePort)
+
+	createDatabase(t, testName, nodes, "foo")
+	createRetentionPolicy(t, testName, nodes, "foo", "bar")
+	for i := 0; i < nBatches; i++ {
+		write(t, testName, nodes, createBatch(batchSize, "foo", "bar", "cpu", map[string]string{"host": "server" + strconv.Itoa(i)}))
 	}
 	simpleCountQuery(t, testName, nodes, `select count(value) from "foo"."bar".cpu`, "value", batchSize*int64(nBatches))
 }
