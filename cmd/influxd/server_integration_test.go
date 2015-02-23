@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -247,8 +248,8 @@ func createRetentionPolicy(t *testing.T, testName string, nodes cluster, databas
 }
 
 // writes writes the provided data to the cluster. It verfies that a 200 OK is returned by the server.
-func write(t *testing.T, testname string, nodes cluster, data string) {
-	t.Logf("Test %s: writing data", testname)
+func write(t *testing.T, testName string, nodes cluster, data string) {
+	t.Logf("Test %s: writing data", testName)
 	serverURL := nodes[0].url
 	u := urlFor(serverURL, "write", url.Values{})
 
@@ -261,19 +262,22 @@ func write(t *testing.T, testname string, nodes cluster, data string) {
 		t.Fatalf("Write to database failed.  Unexpected status code.  expected: %d, actual %d", http.StatusOK, resp.StatusCode)
 	}
 
-	// Need some time for server to get consensus and write data
-	// TODO corylanou query the status endpoint for the server and wait for the index to update to know the write was applied
-	time.Sleep(time.Duration(time.Second))
+	index, err := strconv.ParseInt(resp.Header.Get("X-InfluxDB-Index"), 10, 64)
+	if err != nil {
+		t.Fatalf("Couldn't get index. header: %s,  err: %s.", resp.Header.Get("X-InfluxDB-Index"), err)
+	}
+	wait(t, testName, nodes, index)
+	t.Log("Finished writing and waiting")
 }
 
 // simpleQuery executes the given query against all nodes in the cluster, and verify the
 // returned results are as expected.
-func simpleQuery(t *testing.T, testname string, nodes cluster, query string, expected client.Results) {
+func simpleQuery(t *testing.T, testName string, nodes cluster, query string, expected client.Results) {
 	var results client.Results
 
 	// Query the data exists
 	for _, n := range nodes {
-		t.Logf("Test name %s: query data on node %s", testname, n.url)
+		t.Logf("Test name %s: query data on node %s", testName, n.url)
 		u := urlFor(n.url, "query", url.Values{"q": []string{query}, "db": []string{"foo"}})
 		resp, err := http.Get(u.String())
 		if err != nil {
@@ -310,14 +314,50 @@ func simpleQuery(t *testing.T, testname string, nodes cluster, query string, exp
 	}
 }
 
+func wait(t *testing.T, testName string, nodes cluster, index int64) {
+	// Wait for the index to sync up
+	var wg sync.WaitGroup
+	wg.Add(len(nodes))
+	for _, n := range nodes {
+		go func(t *testing.T, testName string, nodes cluster, u *url.URL, index int64) {
+			u = urlFor(u, fmt.Sprintf("wait/%d", index), nil)
+			t.Logf("Test name %s: wait on node %s for index %d", testName, u, index)
+			resp, err := http.Get(u.String())
+			if err != nil {
+				t.Fatalf("Couldn't wait: %s", err)
+			}
+
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("query databases failed.  Unexpected status code.  expected: %d, actual %d", http.StatusOK, resp.StatusCode)
+			}
+
+			defer resp.Body.Close()
+			body, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				t.Fatalf("Couldn't read body of response: %s", err)
+			}
+			t.Logf("resp.Body: %s\n", string(body))
+
+			i, _ := strconv.Atoi(string(body))
+			if i == 0 {
+				t.Fatalf("Unexpected body: %s", string(body))
+			}
+
+			wg.Done()
+
+		}(t, testName, nodes, n.url, index)
+	}
+	wg.Wait()
+}
+
 // simpleCountQuery executes the given query against all nodes in the cluster, and verify the
 // the count for the given field is as expected.
-func simpleCountQuery(t *testing.T, testname string, nodes cluster, query, field string, expected int64) {
+func simpleCountQuery(t *testing.T, testName string, nodes cluster, query, field string, expected int64) {
 	var results client.Results
 
 	// Query the data exists
 	for _, n := range nodes {
-		t.Logf("Test name %s: query data on node %s", testname, n.url)
+		t.Logf("Test name %s: query data on node %s", testName, n.url)
 		u := urlFor(n.url, "query", url.Values{"q": []string{query}, "db": []string{"foo"}})
 		resp, err := http.Get(u.String())
 		if err != nil {
@@ -402,7 +442,6 @@ func Test_ServerSingleIntegration(t *testing.T) {
 				}}},
 		},
 	}
-
 	simpleQuery(t, testName, nodes[:1], `select value from "foo"."bar".cpu`, expectedResults)
 }
 
