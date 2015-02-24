@@ -1019,7 +1019,7 @@ func TestServer_RawDataReturnsInOrder(t *testing.T) {
 
 	for i := 1; i < 500; i++ {
 		host := fmt.Sprintf("server-%d", i%10)
-		s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east", "host": host}, Timestamp: time.Unix(int64(i), 0), Values: map[string]interface{}{"value": float64(i)}}})
+		s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east", "host": host}, Timestamp: time.Unix(int64(i), 0), Fields: map[string]interface{}{"value": float64(i)}}})
 	}
 
 	results := s.ExecuteQuery(MustParseQuery(`SELECT count(value) FROM cpu`), "foo", nil)
