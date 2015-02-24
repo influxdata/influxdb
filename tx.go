@@ -18,6 +18,10 @@ type tx struct {
 	now    time.Time
 
 	itrs []*shardIterator // shard iterators
+
+	// used by DecodeFields and FieldIDs. Only used in a raw query, which won't let you select from more than one measurement
+	measurement *Measurement
+	decoder     fieldDecoder
 }
 
 // newTx return a new initialized Tx.
@@ -120,6 +124,7 @@ func (tx *tx) CreateIterators(stmt *influxql.SelectStatement) ([]influxql.Iterat
 	if m == nil {
 		return nil, ErrMeasurementNotFound
 	}
+	tx.measurement = m
 
 	// Find field.
 	fieldName := stmt.Fields[0].Expr.(*influxql.VarRef).Val
@@ -131,6 +136,15 @@ func (tx *tx) CreateIterators(stmt *influxql.SelectStatement) ([]influxql.Iterat
 
 	// Get a field decoder.
 	d := NewFieldCodec(m)
+	tx.decoder = d
+
+	// if it's a raw data query we'll need to pass these to the series cursor
+	var fieldIDs []uint8
+	var fieldNames []string
+	if stmt.RawQuery {
+		fieldIDs, _ = tx.FieldIDs(stmt.Fields)
+		fieldNames = tx.fieldNames(stmt.Fields)
+	}
 
 	// Create an iterator for every shard.
 	var itrs []influxql.Iterator
@@ -142,7 +156,13 @@ func (tx *tx) CreateIterators(stmt *influxql.SelectStatement) ([]influxql.Iterat
 				// create a series cursor for each unique series id
 				cursors := make([]*seriesCursor, 0, len(set))
 				for id, cond := range set {
-					cursors = append(cursors, &seriesCursor{id: id, condition: cond, decoder: d})
+					c := &seriesCursor{id: id, condition: cond, decoder: d, rawQuery: stmt.RawQuery}
+					if stmt.RawQuery {
+						c.fieldIDs = fieldIDs
+						c.fieldNames = fieldNames
+						c.tx = tx
+					}
+					cursors = append(cursors, c)
 				}
 
 				// create the shard iterator that will map over all series for the shard
@@ -166,6 +186,43 @@ func (tx *tx) CreateIterators(stmt *influxql.SelectStatement) ([]influxql.Iterat
 	}
 
 	return itrs, nil
+}
+
+// DecodeValues is for use in a raw data query
+func (tx *tx) DecodeValues(fieldIDs []uint8, timestamp int64, data []byte) []interface{} {
+	vals := make([]interface{}, len(fieldIDs)+1)
+	vals[0] = timestamp
+	for i, id := range fieldIDs {
+		v, _ := tx.decoder.DecodeByID(id, data)
+		vals[i+1] = v
+	}
+	return vals
+}
+
+// FieldIDs will take an array of fields and return the id associated with each
+func (tx *tx) FieldIDs(fields []*influxql.Field) ([]uint8, error) {
+	names := tx.fieldNames(fields)
+	ids := make([]uint8, len(names))
+
+	for i, n := range names {
+		field := tx.measurement.FieldByName(n)
+		if field == nil {
+			return nil, ErrFieldNotFound
+		}
+		ids[i] = field.ID
+	}
+
+	return ids, nil
+}
+
+func (tx *tx) fieldNames(fields []*influxql.Field) []string {
+	var a []string
+	for _, f := range fields {
+		if v, ok := f.Expr.(*influxql.VarRef); ok { // this is a raw query so we handle it differently
+			a = append(a, v.Val)
+		}
+	}
+	return a
 }
 
 // splitIdent splits an identifier into it's database, policy, and measurement parts.
@@ -264,6 +321,11 @@ type seriesCursor struct {
 	cur         *bolt.Cursor
 	initialized bool
 	decoder     fieldDecoder
+	// these are for raw data queries
+	tx         *tx
+	rawQuery   bool
+	fieldIDs   []uint8
+	fieldNames []string
 }
 
 func (c *seriesCursor) Next(fieldName string, fieldID uint8, tmin, tmax int64) (key int64, data []byte, value interface{}) {
@@ -290,13 +352,32 @@ func (c *seriesCursor) Next(fieldName string, fieldID uint8, tmin, tmax int64) (
 
 		// Marshal key & value.
 		key := int64(btou64(k))
-		value, err := c.decoder.DecodeByID(fieldID, v)
-		if err != nil {
-			continue
-		}
 
 		if key > tmax {
 			return 0, nil, nil
+		}
+
+		// if it's a raw query we handle things differently
+		if c.rawQuery {
+			// we'll need to marshal all the field values if the condition isn't nil
+			if c.condition != nil {
+				fieldValues := make(map[string]interface{})
+				values := c.tx.DecodeValues(c.fieldIDs, 0, data)[1:]
+				for i, val := range values {
+					fieldValues[c.fieldNames[i]] = val
+				}
+				if ok, _ := influxql.Eval(c.condition, fieldValues).(bool); !ok {
+					continue
+				}
+			}
+
+			// no condition so yield all data by default
+			return key, v, nil
+		}
+
+		value, err := c.decoder.DecodeByID(fieldID, v)
+		if err != nil {
+			continue
 		}
 
 		// Skip to the next if we don't have a field value for this field for this point

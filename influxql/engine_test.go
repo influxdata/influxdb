@@ -539,44 +539,6 @@ func TestPlanner_Plan_Percentile(t *testing.T) {
 	}
 }
 
-// Ensure the planner can plan and execute a query that returns raw data points
-func TestPlanner_Plan_RawData(t *testing.T) {
-	tx := NewTx()
-	tx.CreateIteratorsFunc = func(stmt *influxql.SelectStatement) ([]influxql.Iterator, error) {
-		return []influxql.Iterator{
-			NewIterator(nil, []Point{
-				{"2000-01-01T00:00:00Z", float64(100)},
-				{"2000-01-01T00:00:10Z", float64(90)},
-				{"2000-01-01T00:00:20Z", float64(80)},
-			}),
-			NewIterator(nil, []Point{
-				{"2000-01-01T00:00:00Z", float64(70)},
-				{"2000-01-01T00:00:10Z", float64(60)},
-				{"2000-01-01T00:00:24Z", float64(50)},
-			}),
-			NewIterator(nil, []Point{
-				{"2000-01-01T00:00:00Z", float64(40)},
-				{"2000-01-01T00:00:10Z", float64(30)},
-				{"2000-01-01T00:00:22Z", float64(20)},
-			}),
-			NewIterator(nil, []Point{
-				{"2000-01-01T00:01:30Z", float64(10)},
-				{"2000-01-01T00:01:40Z", float64(9)},
-				{"2000-01-01T00:01:50Z", float64(8)},
-			})}, nil
-	}
-
-	// Expected resultset.
-	exp := minify(`[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:00Z",40],["2000-01-01T00:00:10Z",30],["2000-01-01T00:00:20Z",80],["2000-01-01T00:00:22Z",20],["2000-01-01T00:00:24Z",50],["2000-01-01T00:01:30Z",10],["2000-01-01T00:01:40Z",9],["2000-01-01T00:01:50Z",8]]}]`)
-
-	// Execute and compare.
-	rs := MustPlanAndExecute(NewDB(tx), `2000-01-01T12:00:00Z`,
-		`SELECT value FROM cpu WHERE time >= '2000-01-01T00:00:11Z'`)
-	if act := minify(jsonify(rs)); exp != act {
-		t.Fatalf("unexpected resultset: %s", act)
-	}
-}
-
 // Ensure the planner can plan and execute a count query grouped by hour.
 func TestPlanner_Plan_GroupByInterval(t *testing.T) {
 	tx := NewTx()
@@ -748,6 +710,9 @@ func (tx *Tx) SetNow(now time.Time) { tx.SetNowFunc(now) }
 func (tx *Tx) CreateIterators(stmt *influxql.SelectStatement) ([]influxql.Iterator, error) {
 	return tx.CreateIteratorsFunc(stmt)
 }
+
+func (tx *Tx) DecodeValues(fieldIDs []uint8, timestamp int64, data []byte) []interface{} { return nil }
+func (tx *Tx) FieldIDs(fields []*influxql.Field) ([]uint8, error)                        { return nil, nil }
 
 // Iterator represents an implementation of Iterator.
 type Iterator struct {

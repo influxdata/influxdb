@@ -1008,6 +1008,51 @@ func TestServer_ExecuteQuery(t *testing.T) {
 	}
 }
 
+// Ensure that when querying for raw data values that they return in time order
+func TestServer_RawDataReturnsInOrder(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+	s.CreateDatabase("foo")
+	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "raw", Duration: 1 * time.Hour})
+	s.SetDefaultRetentionPolicy("foo", "raw")
+	s.CreateUser("susy", "pass", false)
+
+	for i := 1; i < 500; i++ {
+		host := fmt.Sprintf("server-%d", i%10)
+		s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east", "host": host}, Timestamp: time.Unix(int64(i), 0), Fields: map[string]interface{}{"value": float64(i)}}})
+	}
+
+	results := s.ExecuteQuery(MustParseQuery(`SELECT count(value) FROM cpu`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error during COUNT: %s", res.Err)
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",499]]}]}` {
+		t.Fatalf("unexpected row(0) during COUNT: %s", s)
+	}
+
+	results = s.ExecuteQuery(MustParseQuery(`SELECT value FROM cpu`), "foo", nil)
+
+	lastTime := int64(0)
+	for _, v := range results.Results[0].Series[0].Values {
+		tt := v[0].(time.Time)
+		if lastTime > tt.UnixNano() {
+			t.Fatal("values out of order")
+		}
+		lastTime = tt.UnixNano()
+	}
+	if len(results.Results[0].Series[0].Values) != 499 {
+		t.Fatal("expected 499 values")
+	}
+
+	results = s.ExecuteQuery(MustParseQuery(`SELECT value FROM cpu GROUP BY *`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error during GROUP BY *: %s", res.Err)
+	} else if len(res.Series) != 10 {
+		t.Fatalf("expected 10 series back but got %d", len(res.Series))
+	} else if len(res.Series[0].Values) != 50 {
+		t.Fatalf("expected 50 values per series but got %d", len(res.Series[0].Values))
+	}
+}
+
 // Ensure the server can execute a wildcard query and return the data correctly.
 func TestServer_ExecuteWildcardQuery(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
@@ -1027,7 +1072,7 @@ func TestServer_ExecuteWildcardQuery(t *testing.T) {
 	results := s.ExecuteQuery(MustParseQuery(`SELECT * FROM cpu`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error during SELECT *: %s", res.Err)
-	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["time","value","val-x"],"values":[["2000-01-01T00:00:00Z",10,null],["2000-01-01T00:00:10Z",null,20],["2000-01-01T00:00:20Z",30,40]]}]}` {
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["time","value","val-x"],"values":[["2000-01-01T00:00:00Z",10,0],["2000-01-01T00:00:10Z",0,20],["2000-01-01T00:00:20Z",30,40]]}]}` {
 		t.Fatalf("unexpected results during SELECT *: %s", s)
 	}
 }
