@@ -1,6 +1,13 @@
-## v0.9.0-rc.3 [2015-02-23]
+## v0.9.0-rc4 [2015-02-24]
 
-## Features
+### Bugfixes
+
+- Fix authentication issue with continuous queries
+- Print version in the log on startup
+
+## v0.9.0-rc3 [2015-02-23]
+
+### Features
 
 - [#1659](https://github.com/influxdb/influxdb/pull/1659): WHERE against regexes: `WHERE =~ '.*asdf'
 - [#1580](https://github.com/influxdb/influxdb/pull/1580): Add support for fields with bool, int, or string data types
