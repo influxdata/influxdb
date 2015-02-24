@@ -398,7 +398,7 @@ func (h *Handler) serveDeleteDataNode(w http.ResponseWriter, r *http.Request) {
 }
 
 // serveProcessContinuousQueries will execute any continuous queries that should be run
-func (h *Handler) serveProcessContinuousQueries(w http.ResponseWriter, r *http.Request, u *influxdb.User) {
+func (h *Handler) serveProcessContinuousQueries(w http.ResponseWriter, r *http.Request) {
 	if err := h.server.RunContinuousQueries(); err != nil {
 		httpError(w, err.Error(), false, http.StatusInternalServerError)
 		return
