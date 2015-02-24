@@ -830,6 +830,71 @@ func TestServer_WriteSeries(t *testing.T) {
 	}
 }
 
+// Ensure the server can drop a measurement.
+func TestServer_DropMeasurement(t *testing.T) {
+	c := NewMessagingClient()
+	s := OpenServer(c)
+	defer s.Close()
+	s.CreateDatabase("foo")
+	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "raw", Duration: 1 * time.Hour})
+	s.SetDefaultRetentionPolicy("foo", "raw")
+	s.CreateUser("susy", "pass", false)
+
+	// Write series with one point to the database.
+	tags := map[string]string{"host": "serverA", "region": "uswest"}
+	index, err := s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	if err != nil {
+		t.Fatal(err)
+	} else if err = s.Sync(index); err != nil {
+		t.Fatalf("sync error: %s", err)
+	}
+
+	// Ensure measurement exists
+	results := s.ExecuteQuery(MustParseQuery(`SHOW MEASUREMENTS`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 1 {
+		t.Fatalf("unexpected row count: %d", len(res.Series))
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"measurements","columns":["name"],"values":[["cpu"]]}]}` {
+		t.Fatalf("unexpected row(0): %s", s)
+	}
+
+	// Ensure series exists
+	results = s.ExecuteQuery(MustParseQuery(`SHOW SERIES`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 1 {
+		t.Fatalf("unexpected row count: %d", len(res.Series))
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["host","region"],"values":[["serverA","uswest"]]}]}` {
+		t.Fatalf("unexpected row(0): %s", s)
+	}
+
+	// Drop measurement
+	results = s.ExecuteQuery(MustParseQuery(`DROP MEASUREMENT cpu`), "foo", nil)
+	if results.Error() != nil {
+		t.Fatalf("unexpected error: %s", results.Error())
+	}
+
+	results = s.ExecuteQuery(MustParseQuery(`SHOW MEASUREMENTS`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 0 {
+		t.Fatalf("unexpected row count: %d", len(res.Series))
+	} else if s := mustMarshalJSON(res); s != `{}` {
+		t.Fatalf("unexpected row(0): %s", s)
+	}
+
+	results = s.ExecuteQuery(MustParseQuery(`SHOW SERIES`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 0 {
+		t.Fatalf("unexpected row count: %d", len(res.Series))
+	} else if s := mustMarshalJSON(res); s != `{}` {
+		t.Fatalf("unexpected row(0): %s", s)
+	}
+
+}
+
 // Ensure the server can drop a series.
 func TestServer_DropSeries(t *testing.T) {
 	c := NewMessagingClient()
@@ -849,7 +914,7 @@ func TestServer_DropSeries(t *testing.T) {
 		t.Fatalf("sync error: %s", err)
 	}
 
-	// Ensure series exiss
+	// Ensure series exists
 	results := s.ExecuteQuery(MustParseQuery(`SHOW SERIES`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error: %s", res.Err)
