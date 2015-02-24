@@ -2290,6 +2290,17 @@ func TestHandler_serveShowFieldKeys(t *testing.T) {
 	}
 }
 
+func TestHandler_ProcessContinousQueries(t *testing.T) {
+	srvr := OpenAuthenticatedServer(NewMessagingClient())
+	s := NewAuthenticatedHTTPServer(srvr)
+	defer s.Close()
+
+	status, _ := MustHTTP("POST", s.URL+`/process_continuous_queries`, nil, nil, "")
+	if status != http.StatusAccepted {
+		t.Fatalf("unexpected status: %d", status)
+	}
+}
+
 // batchWrite JSON Unmarshal tests
 
 // Utility functions for this test suite.
