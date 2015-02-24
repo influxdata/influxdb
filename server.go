@@ -1612,6 +1612,32 @@ func (s *Server) DropMeasurement(database, name string) error {
 	return err
 }
 
+func (s *Server) applyDropMeasurement(m *messaging.Message) error {
+	var c dropMeasurementCommand
+	mustUnmarshalJSON(m.Data, &c)
+
+	database := s.databases[c.Database]
+	if database == nil {
+		return ErrDatabaseNotFound
+	}
+
+	// Remove from metastore.
+	err := s.meta.mustUpdate(m.Index, func(tx *metatx) error {
+		if err := tx.dropMeasurement(c.Database, c.Name); err != nil {
+			return err
+		}
+
+		// Delete measurement from the database.
+		database.dropMeasurement(c.Name)
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // createShardGroupsIfNotExist walks the "points" and ensures that all required shards exist on the cluster.
 func (s *Server) createShardGroupsIfNotExists(database, retentionPolicy string, points []Point) error {
 	for _, p := range points {
@@ -2631,6 +2657,8 @@ func (s *Server) processor(client MessagingClient, done chan struct{}) {
 				err = s.applySetDefaultRetentionPolicy(m)
 			case createMeasurementsIfNotExistsMessageType:
 				err = s.applyCreateMeasurementsIfNotExists(m)
+			case dropMeasurementMessageType:
+				err = s.applyDropMeasurement(m)
 			case setPrivilegeMessageType:
 				err = s.applySetPrivilege(m)
 			case createContinuousQueryMessageType:
