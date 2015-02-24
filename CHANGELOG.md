@@ -15,6 +15,7 @@
 - [#1573](https://github.com/influxdb/influxdb/pull/1573): Add `stddev` aggregate function
 - [#1565](https://github.com/influxdb/influxdb/pull/1565): Add the admin interface back into the server and update for new API
 - [#1562](https://github.com/influxdb/influxdb/pull/1562): Enforce retention policies
+- [#1700](https://github.com/influxdb/influxdb/pull/1700): Change `Values` to `Fields` in results output.  BREAKING API CHANGE
 - [#1706](https://github.com/influxdb/influxdb/pull/1706): Add support for `LIMIT` and `OFFSET`, which work on the number of series returned in a query. To limit the number of data points use a `WHERE time` clause
 
 ### Bugfixes
