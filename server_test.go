@@ -1051,7 +1051,7 @@ func TestServer_ExecuteWildcardGroupBy(t *testing.T) {
 	results := s.ExecuteQuery(MustParseQuery(`SELECT mean(value) FROM cpu GROUP BY *`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error during GROUP BY *: %s", res.Err)
-	} else if s := mustMarshalJSON(res); s != `{"rows":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",15]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",30]]}]}` {
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",15]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",30]]}]}` {
 		t.Fatalf("unexpected results during SELECT *: %s", s)
 	}
 
@@ -1059,7 +1059,7 @@ func TestServer_ExecuteWildcardGroupBy(t *testing.T) {
 	results = s.ExecuteQuery(MustParseQuery(`SELECT mean(value) FROM cpu GROUP BY *,time(1m)`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error during GROUP BY *: %s", res.Err)
-	} else if s := mustMarshalJSON(res); s != `{"rows":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","mean"],"values":[["2000-01-01T00:00:00Z",15]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","mean"],"values":[["2000-01-01T00:00:00Z",30]]}]}` {
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","mean"],"values":[["2000-01-01T00:00:00Z",15]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","mean"],"values":[["2000-01-01T00:00:00Z",30]]}]}` {
 		t.Fatalf("unexpected results during SELECT *: %s", s)
 	}
 }
