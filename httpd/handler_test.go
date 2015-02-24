@@ -1200,7 +1200,7 @@ func TestHandler_serveWriteSeriesWithNoFields(t *testing.T) {
 
 	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z"}]}`)
 
-	expected := `{"error":"point cpu has no fields"}`
+	expected := fmt.Sprintf(`{"error":"%s"}`, influxdb.ErrFieldsRequired.Error())
 
 	if status != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: %d", status)

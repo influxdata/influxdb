@@ -1372,7 +1372,7 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 	// Make sure every point has at least one field.
 	for _, p := range points {
 		if len(p.Fields) == 0 {
-			return 0, fmt.Errorf("point %s has no fields", p.Name)
+			return 0, ErrFieldsRequired
 		}
 	}
 
