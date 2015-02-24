@@ -141,7 +141,7 @@ func NewLog() *Log {
 	l := &Log{
 		Clock:      NewClock(),
 		Transport:  &HTTPTransport{},
-		Rand:       rand.Int63,
+		Rand:       rand.NewSource(time.Now().UnixNano()).Int63,
 		heartbeats: make(chan heartbeat, 1),
 	}
 	l.SetLogOutput(os.Stderr)
