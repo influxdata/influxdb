@@ -1,3 +1,11 @@
+## v0.9.0-rc5 [unreleased]
+
+### Bugfixes
+
+- [#1720](https://github.com/influxdb/influxdb/pull/1720): Parse Series IDs as unsigned 32-bits.
+
+### Features
+
 ## v0.9.0-rc4 [2015-02-24]
 
 ### Bugfixes

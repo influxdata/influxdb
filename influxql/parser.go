@@ -330,6 +330,22 @@ func (p *Parser) parseInt(min, max int) (int, error) {
 	return n, nil
 }
 
+// parseUInt32 parses a string and returns a 32-bit unsigned integer literal.
+func (p *Parser) parseUInt32() (uint32, error) {
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	if tok != NUMBER {
+		return 0, newParseError(tokstr(tok, lit), []string{"number"}, pos)
+	}
+
+	// Convert string to unsigned 32-bit integer
+	n, err := strconv.ParseUint(lit, 10, 32)
+	if err != nil {
+		return 0, &ParseError{Message: err.Error(), Pos: pos}
+	}
+
+	return uint32(n), nil
+}
+
 // parseDuration parses a string and returns a duration literal.
 // This function assumes the DURATION token has already been consumed.
 func (p *Parser) parseDuration() (time.Duration, error) {
@@ -877,12 +893,11 @@ func (p *Parser) parseDropSeriesStatement() (*DropSeriesStatement, error) {
 
 	// If they didn't provide a FROM or a WHERE, they need to provide the SeriesID
 	if stmt.Condition == nil && stmt.Source == nil {
-		var id int
-		id, err = p.parseInt(0, math.MaxUint32)
+		id, err := p.parseUInt32()
 		if err != nil {
 			return nil, err
 		}
-		stmt.SeriesID = uint32(id)
+		stmt.SeriesID = id
 	}
 	return stmt, nil
 }
