@@ -18,6 +18,10 @@ type tx struct {
 	now    time.Time
 
 	itrs []*shardIterator // shard iterators
+
+	// used by DecodeFields and FieldIDs. Only used in a raw query, which won't let you select from more than one measurement
+	measurement *Measurement
+	decoder     fieldDecoder
 }
 
 // newTx return a new initialized Tx.
@@ -120,6 +124,7 @@ func (tx *tx) CreateIterators(stmt *influxql.SelectStatement) ([]influxql.Iterat
 	if m == nil {
 		return nil, ErrMeasurementNotFound
 	}
+	tx.measurement = m
 
 	// Find field.
 	fieldName := stmt.Fields[0].Expr.(*influxql.VarRef).Val
@@ -131,6 +136,7 @@ func (tx *tx) CreateIterators(stmt *influxql.SelectStatement) ([]influxql.Iterat
 
 	// Get a field decoder.
 	d := NewFieldCodec(m)
+	tx.decoder = d
 
 	// Create an iterator for every shard.
 	var itrs []influxql.Iterator
@@ -166,6 +172,34 @@ func (tx *tx) CreateIterators(stmt *influxql.SelectStatement) ([]influxql.Iterat
 	}
 
 	return itrs, nil
+}
+
+// DecodeValues is for use in a raw data query
+func (tx *tx) DecodeValues(fieldIDs []uint8, timestamp int64, data []byte) []interface{} {
+	vals := make([]interface{}, len(fieldIDs)+1)
+	vals[0] = timestamp
+	for i, id := range fieldIDs {
+		v, _ := tx.decoder.DecodeByID(id, data)
+		vals[i+1] = v
+	}
+	return vals
+}
+
+// FieldIDs will take an array of fields and return the id associated with each
+func (tx *tx) FieldIDs(fields []*influxql.Field) ([]uint8, error) {
+	ids := make([]uint8, len(fields))
+	for i, f := range fields {
+		if v, ok := f.Expr.(*influxql.VarRef); ok { // this is a raw query so we handle it differently
+			field := tx.measurement.FieldByName(v.Val)
+			if field == nil {
+				return nil, ErrFieldNotFound
+			}
+			ids[i] = field.ID
+		} else {
+			return nil, ErrFieldNotFound
+		}
+	}
+	return ids, nil
 }
 
 // splitIdent splits an identifier into it's database, policy, and measurement parts.

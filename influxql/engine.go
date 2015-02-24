@@ -2,6 +2,7 @@ package influxql
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"math"
@@ -34,6 +35,11 @@ type Tx interface {
 	//   1. It can only have a single VarRef field.
 	//   2. It can only have a single source measurement.
 	CreateIterators(*SelectStatement) ([]Iterator, error)
+
+	// DecodeValues is for use in a raw data query
+	DecodeValues(fieldIDs []uint8, timestamp int64, data []byte) []interface{}
+	// FieldIDs will take an array of fields and return the id associated with each
+	FieldIDs(fields []*Field) ([]uint8, error)
 }
 
 // Iterator represents a forward-only iterator over a set of points.
@@ -88,13 +94,21 @@ func (p *Planner) Plan(stmt *SelectStatement) (*Executor, error) {
 	e.tags = tags
 
 	// Generate a processor for each field.
-	e.processors = make([]Processor, len(stmt.Fields))
-	for i, f := range stmt.Fields {
-		p, err := p.planField(e, f)
+	e.processors = make([]Processor, 0)
+	if v, ok := stmt.Fields[0].Expr.(*VarRef); ok { // this is a raw query so we handle it differently
+		proc, err := p.planRawQuery(e, v)
 		if err != nil {
 			return nil, err
 		}
-		e.processors[i] = p
+		e.processors = append(e.processors, proc)
+	} else {
+		for _, f := range stmt.Fields {
+			p, err := p.planField(e, f)
+			if err != nil {
+				return nil, err
+			}
+			e.processors = append(e.processors, p)
+		}
 	}
 
 	return e, nil
@@ -107,7 +121,7 @@ func (p *Planner) planField(e *Executor, f *Field) (Processor, error) {
 func (p *Planner) planExpr(e *Executor, expr Expr) (Processor, error) {
 	switch expr := expr.(type) {
 	case *VarRef:
-		return p.planRawQuery(e, expr)
+		return nil, errors.New("query has a raw field mixed with an aggregate in the select")
 	case *Call:
 		return p.planCall(e, expr)
 	case *BinaryExpr:
@@ -142,6 +156,11 @@ func (p *Planner) planRawQuery(e *Executor, v *VarRef) (Processor, error) {
 		return nil, err
 	}
 
+	// Verify that all the fields exist
+	if _, err := e.tx.FieldIDs(e.stmt.Fields); err != nil {
+		return nil, err
+	}
+
 	// Create mapper and reducer.
 	mappers := make([]*Mapper, len(itrs))
 	for i, itr := range itrs {
@@ -149,6 +168,7 @@ func (p *Planner) planRawQuery(e *Executor, v *VarRef) (Processor, error) {
 	}
 	r := NewReducer(ReduceRawQuery, mappers)
 	r.name = lastIdent(stmt.Source.(*Measurement).Name)
+	r.isRawQuery = true
 
 	return r, nil
 
@@ -292,6 +312,11 @@ func (e *Executor) execute(out chan *Row) {
 	// Initialize map of rows by encoded tagset.
 	rows := make(map[string]*Row)
 
+	var fieldIDs []uint8
+	if e.processors[0].IsRawQuery() {
+		fieldIDs, _ = e.tx.FieldIDs(e.stmt.Fields)
+	}
+
 	// Combine values from each processor.
 loop:
 	for {
@@ -304,11 +329,21 @@ loop:
 				break loop
 			}
 
+			isRaw := p.IsRawQuery()
 			// Set values on returned row.
 			for k, v := range m {
 				// Lookup row values and populate data.
-				values := e.createRowValuesIfNotExists(rows, e.processors[0].Name(), k.Timestamp, k.Values)
-				values[i+1] = v
+				row, values := e.createRowValuesIfNotExists(rows, e.processors[0].Name(), k.Timestamp, k.Values)
+				if isRaw {
+					vv := v.([]*rawQueryMapOutput)
+					vals := make([][]interface{}, len(vv))
+					for i, val := range vv {
+						vals[i] = e.tx.DecodeValues(fieldIDs, val.timestamp, val.data)
+					}
+					row.Values = vals
+				} else {
+					values[i+1] = v
+				}
 			}
 		}
 	}
@@ -335,7 +370,7 @@ loop:
 }
 
 // creates a new value set if one does not already exist for a given tagset + timestamp.
-func (e *Executor) createRowValuesIfNotExists(rows map[string]*Row, name string, timestamp int64, tagset string) []interface{} {
+func (e *Executor) createRowValuesIfNotExists(rows map[string]*Row, name string, timestamp int64, tagset string) (*Row, []interface{}) {
 	// TODO: Add "name" to lookup key.
 
 	// Find row by tagset.
@@ -371,7 +406,7 @@ func (e *Executor) createRowValuesIfNotExists(rows map[string]*Row, name string,
 		row.Values = append(row.Values, values)
 	}
 
-	return row.Values[len(row.Values)-1]
+	return row, row.Values[len(row.Values)-1]
 }
 
 // Mapper represents an object for processing iterators.
@@ -503,14 +538,16 @@ type Processor interface {
 	Process()
 	Name() string
 	C() <-chan map[Key]interface{}
+	IsRawQuery() bool
 }
 
 // Reducer represents an object for processing mapper output.
 // Implements processor.
 type Reducer struct {
-	name    string
-	fn      ReduceFunc // reduce function
-	mappers []*Mapper  // child mappers
+	name       string
+	fn         ReduceFunc // reduce function
+	mappers    []*Mapper  // child mappersf
+	isRawQuery bool
 
 	c <-chan map[Key]interface{}
 }
@@ -531,6 +568,10 @@ func (r *Reducer) Name() string { return r.name }
 
 // Process processes the Reducer.
 func (r *Reducer) Process() { r.Reduce() }
+
+func (r *Reducer) IsRawQuery() bool {
+	return r.isRawQuery
+}
 
 // Reduce executes the reducer's function against all output from the mappers.
 func (r *Reducer) Reduce() *Emitter {
@@ -987,20 +1028,45 @@ func ReducePercentile(percentile float64) ReduceFunc {
 }
 
 func MapRawQuery(itr Iterator, e *Emitter, tmin int64) {
-	for k, _, v := itr.Next(); k != 0; k, _, v = itr.Next() {
-		e.Emit(Key{k, itr.Tags()}, v)
+	var values []interface{}
+
+	for k, d, _ := itr.Next(); k != 0; k, d, _ = itr.Next() {
+		values = append(values, &rawQueryMapOutput{k, d})
+		// Emit in batches.
+		// unbounded emission of data can lead to excessive memory use
+		// or other potential performance problems.
+		if len(values) == emitBatchSize {
+			e.Emit(Key{0, itr.Tags()}, values)
+			values = []interface{}{}
+		}
+	}
+	if len(values) > 0 {
+		e.Emit(Key{0, itr.Tags()}, values)
 	}
 }
 
 type rawQueryMapOutput struct {
 	timestamp int64
-	value     interface{}
+	data      []byte
 }
 
+type rawQueryOutputs []*rawQueryMapOutput
+
+func (p rawQueryOutputs) Len() int { return len(p) }
+func (p rawQueryOutputs) Less(i, j int) bool {
+	return p[i].timestamp < p[j].timestamp
+}
+func (p rawQueryOutputs) Swap(i, j int) { p[i], p[j] = p[j], p[i] }
+
 func ReduceRawQuery(key Key, values []interface{}, e *Emitter) {
+	allValues := make([]*rawQueryMapOutput, 0)
 	for _, v := range values {
-		e.Emit(key, v)
+		for _, v := range v.([]interface{}) {
+			allValues = append(allValues, v.(*rawQueryMapOutput))
+		}
 	}
+	sort.Sort(rawQueryOutputs(allValues))
+	e.Emit(Key{0, key.Values}, allValues)
 }
 
 // binaryExprEvaluator represents a processor for combining two processors.
@@ -1035,6 +1101,8 @@ func (e *binaryExprEvaluator) C() <-chan map[Key]interface{} { return e.c }
 
 // name returns the source name.
 func (e *binaryExprEvaluator) Name() string { return "" }
+
+func (e *binaryExprEvaluator) IsRawQuery() bool { return false }
 
 // run runs the processor loop to read subprocessor output and combine it.
 func (e *binaryExprEvaluator) run() {
@@ -1132,6 +1200,8 @@ func (p *literalProcessor) stop() { syncClose(p.done) }
 
 // name returns the source name.
 func (p *literalProcessor) Name() string { return "" }
+
+func (p *literalProcessor) IsRawQuery() bool { return false }
 
 // syncClose closes a "done" channel and waits for a response.
 func syncClose(done chan chan struct{}) {
