@@ -1,7 +1,6 @@
 package influxdb
 
 import (
-	"errors"
 	"fmt"
 	"sort"
 	"sync"
@@ -151,7 +150,7 @@ func (tx *tx) CreateIterators(stmt *influxql.SelectStatement) ([]influxql.Iterat
 	// limit the number of series in this query if they specified a limit
 	if stmt.Limit > 0 {
 		if stmt.Offset > len(tagSets) {
-			return nil, errors.New("offset higher than the number of series in the result")
+			return nil, nil
 		}
 
 		limitSets := make(map[string]map[uint32]influxql.Expr)
@@ -161,12 +160,12 @@ func (tx *tx) CreateIterators(stmt *influxql.SelectStatement) ([]influxql.Iterat
 		}
 		sort.Strings(orderedSets)
 
-		if stmt.Limit > len(orderedSets) {
+		if stmt.Offset+stmt.Limit > len(orderedSets) {
 			stmt.Limit = len(orderedSets) - stmt.Offset
 		}
 
-		orderedSets = orderedSets[stmt.Offset:stmt.Limit]
-		for _, s := range orderedSets {
+		sets := orderedSets[stmt.Offset : stmt.Offset+stmt.Limit]
+		for _, s := range sets {
 			limitSets[s] = tagSets[s]
 		}
 		tagSets = limitSets
