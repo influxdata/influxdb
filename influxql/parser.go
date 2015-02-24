@@ -236,7 +236,7 @@ func (p *Parser) parseCreateRetentionPolicyStatement() (*CreateRetentionPolicySt
 	if err != nil {
 		return nil, err
 	}
-	stmt.Replication = n
+	stmt.Replication = int(n)
 
 	// Parse optional DEFAULT token.
 	if tok, pos, lit = p.scanIgnoreWhitespace(); tok == DEFAULT {
@@ -285,10 +285,11 @@ Loop:
 			}
 			stmt.Duration = &d
 		case REPLICATION:
-			n, err := p.parseInt(1, math.MaxInt32)
+			n64, err := p.parseInt(1, math.MaxInt32)
 			if err != nil {
 				return nil, err
 			}
+			n := int(n64)
 			stmt.Replication = &n
 		case DEFAULT:
 			stmt.Default = true
@@ -305,7 +306,7 @@ Loop:
 }
 
 // parseInt parses a string and returns an integer literal.
-func (p *Parser) parseInt(min, max int) (int, error) {
+func (p *Parser) parseInt(min, max int64) (int64, error) {
 	tok, pos, lit := p.scanIgnoreWhitespace()
 	if tok != NUMBER {
 		return 0, newParseError(tokstr(tok, lit), []string{"number"}, pos)
@@ -317,7 +318,7 @@ func (p *Parser) parseInt(min, max int) (int, error) {
 	}
 
 	// Convert string to int.
-	n, err := strconv.Atoi(lit)
+	n, err := strconv.ParseInt(lit, 10, 64)
 	if err != nil {
 		return 0, &ParseError{Message: err.Error(), Pos: pos}
 	} else if min > n || n > max {
@@ -877,7 +878,7 @@ func (p *Parser) parseDropSeriesStatement() (*DropSeriesStatement, error) {
 
 	// If they didn't provide a FROM or a WHERE, they need to provide the SeriesID
 	if stmt.Condition == nil && stmt.Source == nil {
-		var id int
+		var id int64
 		id, err = p.parseInt(0, math.MaxUint32)
 		if err != nil {
 			return nil, err
