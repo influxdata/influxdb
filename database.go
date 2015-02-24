@@ -1050,18 +1050,32 @@ func (rp *RetentionPolicy) shardGroupByID(shardID uint64) *ShardGroup {
 }
 
 // dropMeasurement will remove a measurement from the index.
-func (d *database) dropMeasurement(name string) {
-	if _, ok := d.measurements[name]; !ok {
-		return
+func (db *database) dropMeasurement(name string) error {
+	if _, ok := db.measurements[name]; !ok {
+		return nil
 	}
-	delete(d.measurements, name)
+	delete(db.measurements, name)
 
-	for id, series := range d.series {
+	// collect the series ids to remove
+	var ids []uint32
+
+	for id, series := range db.series {
 		if series.measurement.Name == name {
-			delete(d.series, id)
+			ids = append(ids, id)
+			delete(db.series, id)
 		}
 	}
-	return
+
+	// Remove shard data
+	for _, rp := range db.policies {
+		for _, id := range ids {
+			if err := rp.dropSeries(id); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 // dropSeries will delete all data with the seriesID

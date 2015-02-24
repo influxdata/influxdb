@@ -1628,7 +1628,9 @@ func (s *Server) applyDropMeasurement(m *messaging.Message) error {
 		}
 
 		// Delete measurement from the database.
-		database.dropMeasurement(c.Name)
+		if err := database.dropMeasurement(c.Name); err != nil {
+			return err
+		}
 		return nil
 	})
 	if err != nil {
