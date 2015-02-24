@@ -36,6 +36,7 @@ const (
 
 	// Measurement messages
 	createMeasurementsIfNotExistsMessageType = messaging.MessageType(0x60)
+	dropMeasurementMessageType               = messaging.MessageType(0x61)
 
 	// Continuous Query messages
 	createContinuousQueryMessageType = messaging.MessageType(0x70)
@@ -112,6 +113,10 @@ type deleteRetentionPolicyCommand struct {
 type setDefaultRetentionPolicyCommand struct {
 	Database string `json:"database"`
 	Name     string `json:"name"`
+}
+
+type dropMeasurementCommand struct {
+	Name string `json:"name"`
 }
 
 type createMeasurementSubcommand struct {

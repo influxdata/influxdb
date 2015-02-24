@@ -209,7 +209,13 @@ func (tx *metatx) dropDatabase(name string) error {
 	return tx.Bucket([]byte("Databases")).DeleteBucket([]byte(name))
 }
 
+// dropMeasurement removes measurement from the metastore.
+func (tx *metatx) dropMeasurement(database, measurement string) error {
+	return tx.Bucket([]byte("Databases")).Bucket([]byte(database)).Bucket([]byte("Series")).DeleteBucket([]byte(measurement))
+}
+
 // saveMeasurement persists a measurement to the metastore.
+
 func (tx *metatx) saveMeasurement(database string, m *Measurement) error {
 	b := tx.Bucket([]byte("Databases")).Bucket([]byte(database)).Bucket([]byte("Measurements"))
 	return b.Put([]byte(m.Name), mustMarshalJSON(m))

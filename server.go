@@ -1736,6 +1736,8 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 			res = s.executeDropSeriesStatement(stmt, database, user)
 		case *influxql.ShowSeriesStatement:
 			res = s.executeShowSeriesStatement(stmt, database, user)
+		case *influxql.DropMeasurementStatement:
+			res = s.executeDropMeasurementStatement(stmt, database, user)
 		case *influxql.ShowMeasurementsStatement:
 			res = s.executeShowMeasurementsStatement(stmt, database, user)
 		case *influxql.ShowTagKeysStatement:
@@ -1883,6 +1885,11 @@ func (s *Server) executeCreateUserStatement(q *influxql.CreateUserStatement, use
 
 func (s *Server) executeDropUserStatement(q *influxql.DropUserStatement, user *User) *Result {
 	return &Result{Err: s.DeleteUser(q.Name)}
+}
+
+func (s *Server) executeDropMeasurementStatement(stmt *influxql.DropMeasurementStatement, database string, user *User) *Result {
+	return &Result{}
+	//return &Result{Err: s.DropMeasurement(database, stmt.Name)}
 }
 
 func (s *Server) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, database string, user *User) *Result {
