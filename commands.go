@@ -116,7 +116,8 @@ type setDefaultRetentionPolicyCommand struct {
 }
 
 type dropMeasurementCommand struct {
-	Name string `json:"name"`
+	Database string `json:"database"`
+	Name     string `json:"name"`
 }
 
 type createMeasurementSubcommand struct {

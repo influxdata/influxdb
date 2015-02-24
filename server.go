@@ -1606,6 +1606,12 @@ func (s *Server) applyCreateMeasurementsIfNotExists(m *messaging.Message) error 
 	return nil
 }
 
+func (s *Server) DropMeasurement(database, name string) error {
+	c := &dropMeasurementCommand{Database: database, Name: name}
+	_, err := s.broadcast(dropMeasurementMessageType, c)
+	return err
+}
+
 // createShardGroupsIfNotExist walks the "points" and ensures that all required shards exist on the cluster.
 func (s *Server) createShardGroupsIfNotExists(database, retentionPolicy string, points []Point) error {
 	for _, p := range points {
@@ -1888,8 +1894,7 @@ func (s *Server) executeDropUserStatement(q *influxql.DropUserStatement, user *U
 }
 
 func (s *Server) executeDropMeasurementStatement(stmt *influxql.DropMeasurementStatement, database string, user *User) *Result {
-	return &Result{}
-	//return &Result{Err: s.DropMeasurement(database, stmt.Name)}
+	return &Result{Err: s.DropMeasurement(database, stmt.Name)}
 }
 
 func (s *Server) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, database string, user *User) *Result {
