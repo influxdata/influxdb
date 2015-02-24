@@ -2,6 +2,7 @@ package influxdb
 
 import (
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -144,6 +145,30 @@ func (tx *tx) CreateIterators(stmt *influxql.SelectStatement) ([]influxql.Iterat
 	if stmt.RawQuery {
 		fieldIDs, _ = tx.FieldIDs(stmt.Fields)
 		fieldNames = tx.fieldNames(stmt.Fields)
+	}
+
+	// limit the number of series in this query if they specified a limit
+	if stmt.Limit > 0 {
+		if stmt.Offset > len(tagSets) {
+			return nil, nil
+		}
+
+		limitSets := make(map[string]map[uint32]influxql.Expr)
+		orderedSets := make([]string, 0, len(tagSets))
+		for k, _ := range tagSets {
+			orderedSets = append(orderedSets, k)
+		}
+		sort.Strings(orderedSets)
+
+		if stmt.Offset+stmt.Limit > len(orderedSets) {
+			stmt.Limit = len(orderedSets) - stmt.Offset
+		}
+
+		sets := orderedSets[stmt.Offset : stmt.Offset+stmt.Limit]
+		for _, s := range sets {
+			limitSets[s] = tagSets[s]
+		}
+		tagSets = limitSets
 	}
 
 	// Create an iterator for every shard.

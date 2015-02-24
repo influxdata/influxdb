@@ -568,6 +568,7 @@ func (s *SelectStatement) Clone() *SelectStatement {
 		SortFields: make(SortFields, len(s.SortFields)),
 		Condition:  CloneExpr(s.Condition),
 		Limit:      s.Limit,
+		Offset:     s.Offset,
 	}
 	if s.Target != nil {
 		other.Target = &Target{Measurement: s.Target.Measurement, Database: s.Target.Database}
@@ -852,6 +853,7 @@ func (s *SelectStatement) Substatement(ref *VarRef) (*SelectStatement, error) {
 		Fields:     Fields{{Expr: ref}},
 		Dimensions: s.Dimensions,
 		Limit:      s.Limit,
+		Offset:     s.Offset,
 		SortFields: s.SortFields,
 	}
 
