@@ -607,6 +607,39 @@ func cloneSource(s Source) Source {
 	}
 }
 
+// RewriteWildcards returns the re-written form of the select statement. Any wildcard query
+// fields are replaced with the supplied fields, and any wildcard GROUP BY fields are replaced
+// with the supplied dimensions.
+func (s *SelectStatement) RewriteWildcards(fields Fields, dimensions Dimensions) *SelectStatement {
+	other := s.Clone()
+
+	// Rewrite all wildcard query fields
+	rwFields := make(Fields, 0, len(s.Fields))
+	for _, f := range s.Fields {
+		switch f.Expr.(type) {
+		case *Wildcard:
+			rwFields = append(rwFields, fields...)
+		default:
+			rwFields = append(rwFields, f)
+		}
+	}
+	other.Fields = rwFields
+
+	// Rewrite all wildcard GROUP BY fields
+	rwDimensions := make(Dimensions, 0, len(s.Dimensions))
+	for _, d := range s.Dimensions {
+		switch d.Expr.(type) {
+		case *Wildcard:
+			rwDimensions = append(rwDimensions, dimensions...)
+		default:
+			rwDimensions = append(rwDimensions, d)
+		}
+	}
+	other.Dimensions = rwDimensions
+
+	return other
+}
+
 // String returns a string representation of the select statement.
 func (s *SelectStatement) String() string {
 	var buf bytes.Buffer
@@ -686,6 +719,25 @@ func (s *SelectStatement) walkForTime(node Node) bool {
 	default:
 		return false
 	}
+}
+
+// HasWildcard returns whether or not the select statement has at least 1 wildcard
+func (s *SelectStatement) HasWildcard() bool {
+	for _, f := range s.Fields {
+		_, ok := f.Expr.(*Wildcard)
+		if ok {
+			return true
+		}
+	}
+
+	for _, d := range s.Dimensions {
+		_, ok := d.Expr.(*Wildcard)
+		if ok {
+			return true
+		}
+	}
+
+	return false
 }
 
 // GroupByIterval extracts the time interval, if specified.

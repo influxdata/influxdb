@@ -1528,6 +1528,8 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 	case DURATION_VAL:
 		v, _ := ParseDuration(lit)
 		return &DurationLiteral{Val: v}, nil
+	case MUL:
+		return &Wildcard{}, nil
 	default:
 		return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string", "number", "bool"}, pos)
 	}

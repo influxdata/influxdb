@@ -1778,6 +1778,12 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 
 // executeSelectStatement plans and executes a select statement against a database.
 func (s *Server) executeSelectStatement(stmt *influxql.SelectStatement, database string, user *User) *Result {
+	// Perform any necessary query re-writing.
+	stmt, err := s.rewriteSelectStatement(stmt)
+	if err != nil {
+		return &Result{Err: err}
+	}
+
 	// Plan statement execution.
 	e, err := s.planSelectStatement(stmt)
 	if err != nil {
@@ -1799,42 +1805,44 @@ func (s *Server) executeSelectStatement(stmt *influxql.SelectStatement, database
 	return res
 }
 
+// rewriteSelectStatement performs any necessary query re-writing.
+func (s *Server) rewriteSelectStatement(stmt *influxql.SelectStatement) (*influxql.SelectStatement, error) {
+	if !stmt.HasWildcard() {
+		return stmt, nil
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var fields influxql.Fields
+	var dimensions influxql.Dimensions
+	if measurement, ok := stmt.Source.(*influxql.Measurement); ok {
+		segments, err := influxql.SplitIdent(measurement.Name)
+		if err != nil {
+			return nil, fmt.Errorf("unable to parse measurement %s", measurement.Name)
+		}
+		db, m := segments[0], segments[2]
+
+		mm := s.databases[db].measurements[m]
+		if mm == nil {
+			return nil, fmt.Errorf("measurement %s does not exist.", measurement.Name)
+		}
+
+		for _, f := range mm.Fields {
+			fields = append(fields, &influxql.Field{Expr: &influxql.VarRef{Val: f.Name}})
+		}
+		for _, t := range mm.tagKeys() {
+			dimensions = append(dimensions, &influxql.Dimension{Expr: &influxql.VarRef{Val: t}})
+		}
+	}
+
+	return stmt.RewriteWildcards(fields, dimensions), nil
+}
+
 // plans a selection statement under lock.
 func (s *Server) planSelectStatement(stmt *influxql.SelectStatement) (*influxql.Executor, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-
-	// If this is a wildcard statement, expand this to use the fields
-	// This is temporary until we move other parts of the system further
-	isWildcard := false
-	for _, f := range stmt.Fields {
-		if _, ok := f.Expr.(*influxql.Wildcard); ok {
-			isWildcard = true
-			break
-		}
-	}
-
-	if len(stmt.Fields) != 1 && isWildcard {
-		return nil, fmt.Errorf("unsupported query: %s.  currently only single wildcard is supported", stmt.String())
-	}
-
-	if isWildcard {
-		if measurement, ok := stmt.Source.(*influxql.Measurement); ok {
-			segments, err := influxql.SplitIdent(measurement.Name)
-			if err != nil {
-				return nil, fmt.Errorf("unable to parse measurement %s", measurement.Name)
-			}
-			db, m := segments[0], segments[2]
-			if s.databases[db].measurements[m] == nil {
-				return nil, fmt.Errorf("measurement %s does not exist", measurement.Name)
-			}
-			var fields influxql.Fields
-			for _, f := range s.databases[db].measurements[m].Fields {
-				fields = append(fields, &influxql.Field{Expr: &influxql.VarRef{Val: f.Name}})
-			}
-			stmt.Fields = fields
-		}
-	}
 
 	// Plan query.
 	p := influxql.NewPlanner(s)
