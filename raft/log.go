@@ -138,6 +138,7 @@ type Log struct {
 
 // NewLog creates a new instance of Log with reasonable defaults.
 func NewLog() *Log {
+	rand.Seed(time.Now().UTC().UnixNano())
 	l := &Log{
 		Clock:      NewClock(),
 		Transport:  &HTTPTransport{},
