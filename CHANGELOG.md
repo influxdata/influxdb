@@ -1,11 +1,46 @@
-## v0.9.0-rc.1 [unreleased]
+## v0.9.0-rc.3 [2015-02-23]
 
 ## Features
 
+- [#1659](https://github.com/influxdb/influxdb/pull/1659): WHERE against regexes: `WHERE =~ '.*asdf'
+- [#1580](https://github.com/influxdb/influxdb/pull/1580): Add support for fields with bool, int, or string data types
+- [#1687](https://github.com/influxdb/influxdb/pull/1687): Change `Rows` to `Series` in results output. BREAKING API CHANGE
+- [#1629](https://github.com/influxdb/influxdb/pull/1629): Add support for `DROP SERIES` queries
+- [#1632](https://github.com/influxdb/influxdb/pull/1632): Add support for `GROUP BY *` to return all series within a measurement
+- [#1689](https://github.com/influxdb/influxdb/pull/1689): Change `SHOW TAG VALUES WITH KEY="foo"` to use the key name in the result. BREAKING API CHANGE
+- [#1699](https://github.com/influxdb/influxdb/pull/1699): Add CPU and memory profiling options to daemon
+- [#1672](https://github.com/influxdb/influxdb/pull/1672): Add index tracking to metastore. Makes downed node recovery actually work
+- [#1591](https://github.com/influxdb/influxdb/pull/1591): Add `spread` aggregate function
+- [#1576](https://github.com/influxdb/influxdb/pull/1576): Add `first` and `last` aggregate functions
+- [#1573](https://github.com/influxdb/influxdb/pull/1573): Add `stddev` aggregate function
+- [#1565](https://github.com/influxdb/influxdb/pull/1565): Add the admin interface back into the server and update for new API
+- [#1562](https://github.com/influxdb/influxdb/pull/1562): Enforce retention policies
+
+### Bugfixes
+
+- [#1636](https://github.com/influxdb/influxdb/issues/1636): Don't store number of fields in raw data. THIS IS A BREAKING DATA CHANGE. YOU MUST START WITH A FRESH DATABASE
+- [#1701](https://github.com/influxdb/influxdb/pull/1701), [#1667](https://github.com/influxdb/influxdb/pull/1667), [#1663](https://github.com/influxdb/influxdb/pull/1663), [#1615](https://github.com/influxdb/influxdb/pull/1615): Raft fixes
+- [#1644](https://github.com/influxdb/influxdb/pull/1644): Add batching support for significantly improved write performance
+- [#1704](https://github.com/influxdb/influxdb/pull/1704): Fix queries that pull back raw data (i.e. ones without aggregate functions)
+
+
+## v0.9.0-rc1,2 [no public release]
+
+### Features
+
+- Support for tags added
+- New queries for showing measurement names, tag keys, and tag values
 - Renamed shard spaces to retention policies
 - Deprecated matching against regex in favor of explicit writing and querying on retention policies
-- Pure Go InfluxQL scanner
-- [Added Loopback client for single-node systems](https://github.com/influxdb/influxdb/pull/1157)
+- Pure Go InfluxQL parser
+- Switch to BoltDB as underlying datastore
+- BoltDB backed metastore to store schema information
+- Updated HTTP API to only have two endpoints `/query` and `/write`
+- Added all administrative functions to the query language
+- Change cluster architecture to have brokers and data nodes
+- Switch to streaming Raft implementation
+- In memory inverted index of the tag data
+- Pure Go implementation!
 
 ## v0.8.6 [2014-11-15]
 
