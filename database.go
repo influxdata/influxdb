@@ -714,9 +714,8 @@ func NewFieldCodec(m *Measurement) *FieldCodec {
 // If a field exists in the codec, but its type is different, an error is returned. If
 // a field is not present in the codec, the system panics.
 func (f *FieldCodec) EncodeFields(values map[string]interface{}) ([]byte, error) {
-	// Allocate byte slice and write field count.
-	b := make([]byte, 1, 10)
-	b[0] = byte(len(values))
+	// Allocate byte slice
+	b := make([]byte, 0, 10)
 
 	for k, v := range values {
 		field := f.fieldsByName[k]
@@ -782,11 +781,11 @@ func (f *FieldCodec) DecodeByID(targetID uint8, b []byte) (interface{}, error) {
 		return 0, ErrFieldNotFound
 	}
 
-	// Read the field count from the field byte.
-	n := int(b[0])
-	// Start from the second byte and iterate over until we're done decoding.
-	b = b[1:]
-	for i := 0; i < n; i++ {
+	for {
+		if len(b) < 1 {
+			// No more bytes.
+			break
+		}
 		field, ok := f.fieldsByID[b[0]]
 		if !ok {
 			panic(fmt.Sprintf("field ID %d has no mapping", b[0]))
@@ -829,15 +828,15 @@ func (f *FieldCodec) DecodeFields(b []byte) map[uint8]interface{} {
 		return nil
 	}
 
-	// Read the field count from the field byte.
-	n := int(b[0])
-
 	// Create a map to hold the decoded data.
-	values := make(map[uint8]interface{}, n)
+	values := make(map[uint8]interface{}, 0)
 
-	// Start from the second byte and iterate over until we're done decoding.
-	b = b[1:]
-	for i := 0; i < n; i++ {
+	for {
+		if len(b) < 1 {
+			// No more bytes.
+			break
+		}
+
 		// First byte is the field identifier.
 		fieldID := b[0]
 		field := f.fieldsByID[fieldID]
