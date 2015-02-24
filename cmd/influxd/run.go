@@ -251,6 +251,7 @@ func openServer(config *Config, b *influxdb.Broker, initializing, configExists b
 	s.RecomputeNoOlderThan = time.Duration(config.ContinuousQuery.RecomputeNoOlderThan)
 	s.ComputeRunsPerInterval = config.ContinuousQuery.ComputeRunsPerInterval
 	s.ComputeNoMoreThan = time.Duration(config.ContinuousQuery.ComputeNoMoreThan)
+	s.ContinuousQueryDisable = config.ContinuousQuery.Disable
 
 	if err := s.Open(config.Data.Dir); err != nil {
 		log.Fatalf("failed to open data server: %v", err.Error())

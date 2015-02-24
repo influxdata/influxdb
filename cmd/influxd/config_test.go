@@ -234,6 +234,9 @@ dir = "/tmp/influxdb/development/db"
 retention-check-enabled = true
 retention-check-period = "5m"
 
+[continuous_queries]
+disable = false
+
 [cluster]
 dir = "/tmp/influxdb/development/cluster"
 `
