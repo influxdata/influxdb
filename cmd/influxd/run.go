@@ -23,6 +23,8 @@ import (
 )
 
 func Run(config *Config, join, version string, logWriter *os.File) (*messaging.Broker, *influxdb.Server) {
+	log.Printf("influxdb started, version %s, commit %s", version, commit)
+
 	// Parse the configuration and determine if a broker and/or server exist.
 	configExists := config != nil
 	if config == nil {

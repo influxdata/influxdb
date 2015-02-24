@@ -37,6 +37,11 @@ const (
 func main() {
 	log.SetFlags(0)
 
+	// If commit not set, make that clear.
+	if commit == "" {
+		commit = "unknown"
+	}
+
 	// Shift binary name off argument list.
 	args := os.Args[1:]
 
