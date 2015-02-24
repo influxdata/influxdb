@@ -62,6 +62,10 @@ func TestParseConfig(t *testing.T) {
 		t.Fatalf("admin port mismatch: %v", c.Admin.Port)
 	}
 
+	if c.ContinuousQuery.Disable == true {
+		t.Fatalf("continuous query disable mismatch: %v", c.ContinuousQuery.Disable)
+	}
+
 	if c.Data.Port != main.DefaultBrokerPort {
 		t.Fatalf("data port mismatch: %v", c.Data.Port)
 	}

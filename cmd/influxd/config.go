@@ -133,6 +133,9 @@ type Config struct {
 		// If you have a group by time(5m) then you'll get five computes per interval. Any group by time window larger
 		// than 10m will get computed 10 times for each interval.
 		ComputeNoMoreThan Duration `toml:"compute-no-more-than"`
+
+		// If this flag is set to true, both the brokers and data nodes should ignore any CQ processing.
+		Disable bool `toml:"disable"`
 	} `toml:"continuous_queries"`
 }
 
@@ -154,6 +157,7 @@ func NewConfig() *Config {
 	c.ContinuousQuery.RecomputeNoOlderThan = Duration(10 * time.Minute)
 	c.ContinuousQuery.ComputeRunsPerInterval = 10
 	c.ContinuousQuery.ComputeNoMoreThan = Duration(2 * time.Minute)
+	c.ContinuousQuery.Disable = false
 	c.ReportingDisabled = false
 
 	// Detect hostname (or set to localhost).
