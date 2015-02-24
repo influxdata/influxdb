@@ -39,6 +39,7 @@
 - [#1701](https://github.com/influxdb/influxdb/pull/1701), [#1667](https://github.com/influxdb/influxdb/pull/1667), [#1663](https://github.com/influxdb/influxdb/pull/1663), [#1615](https://github.com/influxdb/influxdb/pull/1615): Raft fixes
 - [#1644](https://github.com/influxdb/influxdb/pull/1644): Add batching support for significantly improved write performance
 - [#1704](https://github.com/influxdb/influxdb/pull/1704): Fix queries that pull back raw data (i.e. ones without aggregate functions)
+- [#1718](https://github.com/influxdb/influxdb/pull/1718): Return an error on write if any of the points are don't have at least one field
 
 
 ## v0.9.0-rc1,2 [no public release]

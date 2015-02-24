@@ -1369,6 +1369,13 @@ type Point struct {
 // WriteSeries writes series data to the database.
 // Returns the messaging index the data was written to.
 func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (uint64, error) {
+	// Make sure every point has at least one field.
+	for _, p := range points {
+		if len(p.Fields) == 0 {
+			return 0, ErrFieldsRequired
+		}
+	}
+
 	// If the retention policy is not set, use the default for this database.
 	if retentionPolicy == "" {
 		rp, err := s.DefaultRetentionPolicy(database)
