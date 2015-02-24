@@ -1042,6 +1042,15 @@ func TestServer_RawDataReturnsInOrder(t *testing.T) {
 	if len(results.Results[0].Series[0].Values) != 499 {
 		t.Fatal("expected 499 values")
 	}
+
+	results = s.ExecuteQuery(MustParseQuery(`SELECT value FROM cpu GROUP BY *`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error during GROUP BY *: %s", res.Err)
+	} else if len(res.Series) != 10 {
+		t.Fatalf("expected 10 series back but got %d", len(res.Series))
+	} else if len(res.Series[0].Values) != 50 {
+		t.Fatalf("expected 50 values per series but got %d", len(res.Series[0].Values))
+	}
 }
 
 // Ensure the server can execute a wildcard query and return the data correctly.
