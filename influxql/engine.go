@@ -144,11 +144,8 @@ func (p *Planner) planExpr(e *Executor, expr Expr) (Processor, error) {
 
 // planCall generates a processor for a function call.
 func (p *Planner) planRawQuery(e *Executor, v *VarRef) (Processor, error) {
-	// Convert the statement to a simplified substatement for the single field.
-	stmt, err := e.stmt.Substatement(v)
-	if err != nil {
-		return nil, err
-	}
+	stmt := e.stmt
+	stmt.RawQuery = true
 
 	// Retrieve a list of iterators for the substatement.
 	itrs, err := e.tx.CreateIterators(stmt)
@@ -313,7 +310,8 @@ func (e *Executor) execute(out chan *Row) {
 	rows := make(map[string]*Row)
 
 	var fieldIDs []uint8
-	if e.processors[0].IsRawQuery() {
+	isRaw := e.processors[0].IsRawQuery()
+	if isRaw {
 		fieldIDs, _ = e.tx.FieldIDs(e.stmt.Fields)
 	}
 
@@ -329,7 +327,6 @@ loop:
 				break loop
 			}
 
-			isRaw := p.IsRawQuery()
 			// Set values on returned row.
 			for k, v := range m {
 				// Lookup row values and populate data.

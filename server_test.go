@@ -1039,6 +1039,9 @@ func TestServer_RawDataReturnsInOrder(t *testing.T) {
 		}
 		lastTime = tt.UnixNano()
 	}
+	if len(results.Results[0].Series[0].Values) != 499 {
+		t.Fatal("expected 499 values")
+	}
 }
 
 // Ensure the server can execute a wildcard query and return the data correctly.
@@ -1060,7 +1063,7 @@ func TestServer_ExecuteWildcardQuery(t *testing.T) {
 	results := s.ExecuteQuery(MustParseQuery(`SELECT * FROM cpu`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error during SELECT *: %s", res.Err)
-	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["time","value","val-x"],"values":[["2000-01-01T00:00:00Z",10,null],["2000-01-01T00:00:10Z",null,20],["2000-01-01T00:00:20Z",30,40]]}]}` {
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["time","value","val-x"],"values":[["2000-01-01T00:00:00Z",10,0],["2000-01-01T00:00:10Z",0,20],["2000-01-01T00:00:20Z",30,40]]}]}` {
 		t.Fatalf("unexpected results during SELECT *: %s", s)
 	}
 }

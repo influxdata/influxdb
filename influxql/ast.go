@@ -554,6 +554,9 @@ type SelectStatement struct {
 
 	// memoize the group by interval
 	groupByInterval time.Duration
+
+	// if it's a query for raw data values (i.e. not an aggregate)
+	RawQuery bool
 }
 
 // Clone returns a deep copy of the statement.
