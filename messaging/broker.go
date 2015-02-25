@@ -17,8 +17,14 @@ import (
 	"github.com/influxdb/influxdb/raft"
 )
 
-// BroadcastTopicID is the topic used to communicate with all replicas.
-const BroadcastTopicID = uint64(0)
+const (
+	// BroadcastTopicID is the topic used to communicate with all replicas.
+	BroadcastTopicID = uint64(0)
+
+	// MaxSegmentSize represents the largest size a segment can be before a
+	// new segment is started.
+	MaxSegmentSize = 10 * 1024 * 1024 // 10MB
+)
 
 // Broker represents distributed messaging system segmented into topics.
 // Each topic represents a linear series of events.
@@ -50,8 +56,10 @@ func NewBroker() *Broker {
 // Returns empty string if the broker is not open.
 func (b *Broker) Path() string { return b.path }
 
+// Log returns the underlying raft log.
 func (b *Broker) Log() *raft.Log { return b.log }
 
+// metaPath returns the file path to the broker's metadata file.
 func (b *Broker) metaPath() string {
 	if b.path == "" {
 		return ""
@@ -63,10 +71,11 @@ func (b *Broker) metaPath() string {
 // Returns 0 if the broker is closed.
 func (b *Broker) Index() uint64 {
 	b.mu.Lock()
-	b.mu.Unlock()
+	defer b.mu.Unlock()
 	return b.index
 }
 
+// opened returns true if the broker is in an open and running state.
 func (b *Broker) opened() bool { return b.path != "" }
 
 // SetLogOutput sets writer for all Broker log output.
@@ -100,6 +109,7 @@ func (b *Broker) Open(path string, u *url.URL) error {
 
 	// Open underlying raft log.
 	if err := b.log.Open(filepath.Join(path, "raft")); err != nil {
+		_ = b.close()
 		return fmt.Errorf("raft: %s", err)
 	}
 
@@ -170,7 +180,7 @@ func (b *Broker) load() error {
 
 	// Copy topic files from snapshot to local disk.
 	for _, st := range hdr.Topics {
-		t := b.createTopic(st.ID)
+		t := b.newTopic(st.ID)
 		t.index = st.Index
 
 		// Open new empty topic file.
@@ -342,9 +352,7 @@ func (b *Broker) PublishSync(m *Message) error {
 }
 
 // Sync pauses until the given index has been applied.
-func (b *Broker) Sync(index uint64) error {
-	return b.log.Wait(index)
-}
+func (b *Broker) Sync(index uint64) error { return b.log.Wait(index) }
 
 // Replica returns a replica by id.
 func (b *Broker) Replica(id uint64) *Replica {
@@ -366,7 +374,7 @@ func (b *Broker) Replicas() []*Replica {
 }
 
 // initializes a new topic object.
-func (b *Broker) createTopic(id uint64) *topic {
+func (b *Broker) newTopic(id uint64) *topic {
 	t := &topic{
 		id:       id,
 		path:     filepath.Join(b.path, strconv.FormatUint(uint64(id), 10)),
@@ -381,7 +389,7 @@ func (b *Broker) createTopicIfNotExists(id uint64) *topic {
 		return t
 	}
 
-	t := b.createTopic(id)
+	t := b.newTopic(id)
 	b.mustSave()
 	return t
 }
@@ -508,7 +516,7 @@ func (b *Broker) mustApplySubscribe(m *Message) {
 	t.replicas[c.ReplicaID] = r
 
 	// Catch up replica.
-	_, _ = t.writeTo(r, c.Index)
+	_ = t.writeTo(r, c.Index)
 
 	b.mustSave()
 }
@@ -670,7 +678,7 @@ func (fsm *brokerFSM) Restore(r io.Reader) error {
 
 	// Copy topic files from snapshot to local disk.
 	for _, st := range s.Topics {
-		t := b.createTopic(st.ID)
+		t := b.newTopic(st.ID)
 		t.index = st.Index
 
 		// Remove existing file if it exists.
@@ -755,14 +763,29 @@ type snapshotReplicaTopic struct {
 
 // topic represents a single named queue of messages.
 // Each topic is identified by a unique path.
+//
+// Topics write their entries to segmented log files which contain a
+// contiguous range of entries. These segments are periodically dropped
+// as data is replicated the replicas and the replicas heartbeat back
+// a confirmation of receipt.
 type topic struct {
-	id    uint64 // unique identifier
-	index uint64 // highest index written
-	path  string // on-disk path
+	id       uint64   // unique identifier
+	index    uint64   // highest index written
+	path     string   // on-disk path
+	segments segments // list of available segments
 
-	file *os.File // on-disk representation
+	file *os.File // current segment
 
 	replicas map[uint64]*Replica // replicas subscribed to topic
+}
+
+// segmentPath returns the path to a segment starting with a given log index.
+func (t *topic) segmentPath(index uint64) string {
+	path := t.path
+	if path == "" {
+		return ""
+	}
+	return filepath.Join(path, strconv.FormatUint(index, 10))
 }
 
 // open opens a topic for writing.
@@ -770,16 +793,62 @@ func (t *topic) open() error {
 	assert(t.file == nil, "topic already open: %d", t.id)
 
 	// Ensure the parent directory exists.
-	if err := os.MkdirAll(filepath.Dir(t.path), 0700); err != nil {
+	if err := os.MkdirAll(t.path, 0700); err != nil {
 		return err
 	}
 
-	// Open the writer to the on-disk file.
-	f, err := os.OpenFile(t.path, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0600)
+	// Read available segments.
+	if err := t.loadSegments(); err != nil {
+		return fmt.Errorf("read segments: %s", err)
+	}
+
+	// Open the writer on the latest segment.
+	f, err := os.OpenFile(t.segments.last().path, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0600)
 	if err != nil {
 		return err
 	}
 	t.file = f
+
+	return nil
+}
+
+// loadSegments reads all available segments for the topic.
+// At least one segment will always exist.
+func (t *topic) loadSegments() error {
+	// Open handle to directory.
+	f, err := os.Open(t.path)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = f.Close() }()
+
+	// Read directory items.
+	fis, err := f.Readdir(0)
+	if err != nil {
+		return err
+	}
+
+	// Create a segment for each file with a numeric name.
+	var a segments
+	for _, fi := range fis {
+		index, err := strconv.ParseUint(fi.Name(), 10, 64)
+		if err != nil {
+			continue
+		}
+		a = append(a, &segment{
+			index: index,
+			path:  t.segmentPath(index),
+			size:  fi.Size(),
+		})
+	}
+	sort.Sort(a)
+
+	// Create a first segment if one doesn't exist.
+	if len(a) == 0 {
+		a = segments{&segment{index: 0, path: t.segmentPath(0), size: 0}}
+	}
+
+	t.segments = a
 
 	return nil
 }
@@ -797,7 +866,7 @@ func (t *topic) Close() error {
 // loadIndex reads the highest available index for a topic from disk.
 func (t *topic) loadIndex() error {
 	// Open topic file for reading.
-	f, err := os.Open(t.path)
+	f, err := os.Open(t.segments.last().path)
 	if os.IsNotExist(err) {
 		return nil
 	} else if err != nil {
@@ -823,21 +892,44 @@ func (t *topic) loadIndex() error {
 
 // writeTo writes the topic to a replica since a given index.
 // Returns an error if the starting index is unavailable.
-func (t *topic) writeTo(r *Replica, index uint64) (int64, error) {
+func (t *topic) writeTo(r *Replica, index uint64) error {
 	// TODO: If index is too old then return an error.
 
-	// Open topic file for reading.
+	// Loop over each segment and write if it contains entries after index.
+	segments := t.segments
+	for i, s := range segments {
+		// Determine the maximum index in the range.
+		var next *segment
+		if i < len(segments)-1 {
+			next = segments[i+1]
+		}
+
+		// If the index is after the end of the segment then ignore.
+		if next != nil && index >= next.index {
+			continue
+		}
+
+		// Otherwise write segment to replica.
+		if err := t.writeSegmentTo(r, index, s); err != nil {
+			return fmt.Errorf("write segment(%d/%d): %s", t.id, s.index, err)
+		}
+	}
+
+	return nil
+}
+
+func (t *topic) writeSegmentTo(r *Replica, index uint64, segment *segment) error {
+	// Open segment for reading.
 	// If it doesn't exist then just exit immediately.
-	f, err := os.Open(t.path)
+	f, err := os.Open(segment.path)
 	if os.IsNotExist(err) {
-		return 0, nil
+		return nil
 	} else if err != nil {
-		return 0, err
+		return err
 	}
 	defer func() { _ = f.Close() }()
 
 	// Stream out all messages until EOF.
-	var total int64
 	dec := NewMessageDecoder(bufio.NewReader(f))
 	for {
 		// Decode message.
@@ -845,7 +937,7 @@ func (t *topic) writeTo(r *Replica, index uint64) (int64, error) {
 		if err := dec.Decode(&m); err == io.EOF {
 			break
 		} else if err != nil {
-			return total, fmt.Errorf("decode: %s", err)
+			return fmt.Errorf("decode: %s", err)
 		}
 
 		// Ignore message if it's on or before high water mark.
@@ -854,14 +946,13 @@ func (t *topic) writeTo(r *Replica, index uint64) (int64, error) {
 		}
 
 		// Write message out to stream.
-		n, err := m.WriteTo(r)
+		_, err := m.WriteTo(r)
 		if err != nil {
-			return total, fmt.Errorf("write to: %s", err)
+			return fmt.Errorf("write to: %s", err)
 		}
-		total += n
 	}
 
-	return total, nil
+	return nil
 }
 
 // encode writes a message to the end of the topic.
@@ -897,6 +988,22 @@ func (t *topic) encode(m *Message) error {
 	return nil
 }
 
+// segment represents a contiguous section of a topic log.
+type segment struct {
+	index uint64 // starting index of the segment and name
+	path  string // path to the segment file.
+	size  int64  // total size of the segment file, in bytes.
+}
+
+// segments represents a list of segments sorted by index.
+type segments []*segment
+
+func (a segments) last() *segment     { return a[len(a)-1] }
+func (a segments) Len() int           { return len(a) }
+func (a segments) Less(i, j int) bool { return a[i].index < a[j].index }
+func (a segments) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+
+// replicas represents a sortable list of replicas.
 type replicas []*Replica
 
 func (a replicas) Len() int           { return len(a) }
@@ -1004,7 +1111,7 @@ func (r *Replica) WriteTo(w io.Writer) (int64, error) {
 		// Write topic messages from last known index.
 		// Replica machine can ignore messages it already seen.
 		index := r.topics[topicID]
-		if _, err := t.writeTo(r, index); err != nil {
+		if err := t.writeTo(r, index); err != nil {
 			r.closeWriter()
 			return 0, fmt.Errorf("add stream writer: %s", err)
 		}
