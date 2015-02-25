@@ -38,7 +38,7 @@ curl -G 'http://localhost:8086/query' --data-urlencode "q=CREATE DATABASE mydb"
 ### Setting up the database's retention policy
 
 ```JSON
-curl -G 'http://localhost:8086/query' --data-urlencode "q=CREATE RETENTION POLICY mypolicy ON mydb DURATION 7d REPLICATION 1" DEFAULT"
+curl -G 'http://localhost:8086/query' --data-urlencode "q=CREATE RETENTION POLICY mypolicy ON mydb DURATION 7d REPLICATION 1 DEFAULT"
 ```
 
 ## Helpful Links
