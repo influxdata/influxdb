@@ -1,4 +1,4 @@
-# InfluxDB [![Build Status](https://travis-ci.org/influxdb/influxdb.png?branch=master)](https://travis-ci.org/influxdb/influxdb)
+# InfluxDB [![Build Status](https://travis-ci.org/influxdb/influxdb.png?branch=master)](https://travis-ci.org/influxdb/influxdb) [![Circle CI](https://circleci.com/gh/influxdb/influxdb/tree/master.svg?style=svg)](https://circleci.com/gh/influxdb/influxdb/tree/master)
 
 ## An Open-Source, Distributed, Time Series Database
 
