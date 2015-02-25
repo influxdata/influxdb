@@ -20,8 +20,6 @@ events, and performing analytics.
 
 ## Getting Started
 
-
-
 ### Building
 
 You don't need to build the project to use it - you can use any of our
@@ -29,6 +27,10 @@ You don't need to build the project to use it - you can use any of our
 the recommended way to get it running. However, if you want to contribute to the core of InfluxDB, you'll need to build.
 For those adventurous enough, you can
 [follow along on our docs](http://github.com/influxdb/influxdb/blob/master/CONTRIBUTING.md).
+
+### Starting InfluxDB
+* `service influxdb start` if you have installed InfluxDB using an official Debian or RPM package.
+* `$GOPATH/bin/influxd` if you have built InfluxDB from source.
 
 ### Creating your first database
 
@@ -70,6 +72,6 @@ curl -G http://localhost:8086/query?pretty=true \
 ## Helpful Links
 
 * Understand the [design goals and motivations of the project](http://influxdb.com/docs/v0.9/introduction/overview.html).
-* Follow the [getting started guide](http://influxdb.com/docs/v0.9/introduction/getting_started.html) to find out how to install InfluxDB, start writing data, and issue queries - in just a few minutes.
+* Follow the [getting started guide](http://influxdb.com/docs/v0.9/introduction/getting_started.html) to find out how to install InfluxDB, start writing more data, and issue more queries - in just a few minutes.
 * See the  [HTTP API documentation to start writing a library for your favorite language](http://influxdb.com/docs/v0.9/concepts/reading_and_writing_data.html).
 
