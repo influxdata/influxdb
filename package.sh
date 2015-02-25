@@ -49,6 +49,11 @@ MAINTAINER=support@influxdb.com
 VENDOR=Influxdb
 DESCRIPTION="Distributed time-series database"
 
+BINS=(
+    influxd
+    influx
+    )
+
 ###########################################################################
 # Helper functions.
 
@@ -134,7 +139,9 @@ do_build() {
         cleanup_exit 1
     fi
 
-    rm $GOPATH/bin/*
+    for b in ${BINS[*]}; do
+        rm -f $GOPATH/bin/$b
+    done
     go get -u -f ./...
     if [ $? -ne 0 ]; then
         echo "WARNING: failed to 'go get' packages."
@@ -207,12 +214,14 @@ make_dir_tree $TMP_WORK_DIR $VERSION
 ###########################################################################
 # Copy the assets to the installation directories.
 
-cp $GOPATH/bin/* $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/$VERSION
-if [ $? -ne 0 ]; then
-    echo "Failed to copy binaries to packaging directory -- aborting."
-    cleanup_exit 1
-fi
-echo "Binaries in $GOPATH/bin copied to $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/$VERSION"
+for b in ${BINS[*]}; do
+    cp $GOPATH/bin/$b $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/$VERSION
+    if [ $? -ne 0 ]; then
+        echo "Failed to copy binaries to packaging directory -- aborting."
+        cleanup_exit 1
+    fi
+done
+echo "${BINS[*]} copied to $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/$VERSION"
 
 cp $INITD_SCRIPT $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/$VERSION/scripts
 if [ $? -ne 0 ]; then
