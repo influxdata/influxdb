@@ -6,6 +6,8 @@
 
 ### Features
 
+- [#1698](https://github.com/influxdb/influxdb/pull/1698): Wire up DROP MEASUREMENT
+
 ## v0.9.0-rc4 [2015-02-24]
 
 ### Bugfixes
