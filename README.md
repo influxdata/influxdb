@@ -48,5 +48,5 @@ curl -XGET 'http://localhost:8086/query' --data-urlencode "q=CREATE RETENTION PO
 * See the
   [list of libraries for different languages](http://influxdb.com/docs/v0.8/client_libraries/javascript.html),
   or check out the
-  [HTTP API documentation to start writing a library for your favorite language](http://influxdb.com/docs/v0.8/api/reading_and_writing_data.html).
+  [HTTP API documentation to start writing a library for your favorite language](http://influxdb.com/docs/v0.9/api/reading_and_writing_data.html).
 
