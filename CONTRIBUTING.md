@@ -36,9 +36,8 @@ Revision Control Systems
 Go has the ability to import remote packages via revision control systems with the `go get` command.  To ensure that you can retrieve any remote package, be sure to install the following rcs software to your system.
 Currently the project only depends on `git` and `mercurial`.
 
-[Install Git](http://git-scm.com/book/en/Getting-Started-Installing-Git)
-
-[Install Mercurial](http://mercurial.selenic.com/wiki/Download)
+* [Install Git](http://git-scm.com/book/en/Getting-Started-Installing-Git)
+* [Install Mercurial](http://mercurial.selenic.com/wiki/Download)
 
 Project structure
 -----------------
