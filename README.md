@@ -11,7 +11,7 @@ events, and performing analytics.
 
 ## Features
 
-* Built-in HTTP API so you don't have to write any server side code to get up and running.
+* Built-in [HTTP API] (http://influxdb.com/docs/v0.9/concepts/reading_and_writing_data.html) so you don't have to write any server side code to get up and running.
 * Clustering is supported out of the box, so that you can scale horizontally to handle your data.
 * Simple to install and manage, and fast to get data in and out.
 * It aims to answer queries in real-time. That means every data point is
