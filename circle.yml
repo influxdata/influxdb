@@ -1,0 +1,10 @@
+dependencies:
+    pre:
+        - go get -u golang.org/x/tools/cmd/vet;
+
+
+test:
+    override:
+    # Put each test command on its own line.
+        - go test -timeout 60s -v ./...
+        - go tool vet .

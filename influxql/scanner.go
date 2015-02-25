@@ -137,12 +137,10 @@ func (s *Scanner) scanIdent() (tok Token, pos Pos, lit string) {
 		} else if ch == '.' {
 			buf.WriteRune(ch)
 		} else if ch == '"' {
-			if tok0, pos0, lit0 := s.scanString(); tok == BADSTRING || tok == BADESCAPE {
+			if tok0, pos0, lit0 := s.scanString(); tok0 == BADSTRING || tok0 == BADESCAPE {
 				return tok0, pos0, lit0
 			} else {
-				_ = buf.WriteByte('"')
 				_, _ = buf.WriteString(lit0)
-				_ = buf.WriteByte('"')
 			}
 		} else if isIdentChar(ch) {
 			s.r.unread()

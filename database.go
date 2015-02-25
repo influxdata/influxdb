@@ -221,7 +221,7 @@ func (m *Measurement) addSeries(s *Series) bool {
 	return true
 }
 
-// removeSeries will remove a series from the measurementIndex. Returns true if already removed
+// dropSeries will remove a series from the measurementIndex. Returns true if already removed
 func (m *Measurement) dropSeries(seriesID uint32) bool {
 	if _, ok := m.seriesByID[seriesID]; !ok {
 		return true
@@ -1046,6 +1046,40 @@ func (rp *RetentionPolicy) shardGroupByID(shardID uint64) *ShardGroup {
 			return g
 		}
 	}
+	return nil
+}
+
+// dropMeasurement will remove a measurement from:
+//    In memory index.
+//    Series data from the shards.
+func (db *database) dropMeasurement(name string) error {
+	if _, ok := db.measurements[name]; !ok {
+		return nil
+	}
+
+	// remove measurement from in memory index
+	delete(db.measurements, name)
+
+	// collect the series ids to remove
+	var ids []uint32
+
+	// remove series from in memory map
+	for id, series := range db.series {
+		if series.measurement.Name == name {
+			ids = append(ids, id)
+			delete(db.series, id)
+		}
+	}
+
+	// remove series data from shards
+	for _, rp := range db.policies {
+		for _, id := range ids {
+			if err := rp.dropSeries(id); err != nil {
+				return err
+			}
+		}
+	}
+
 	return nil
 }
 

@@ -366,10 +366,10 @@ func (p *Parser) parseDuration() (time.Duration, error) {
 // parseIdent parses an identifier.
 func (p *Parser) parseIdent() (string, error) {
 	tok, pos, lit := p.scanIgnoreWhitespace()
-	if tok == IDENT || tok == STRING {
-		return lit, nil
+	if tok != IDENT {
+		return "", newParseError(tokstr(tok, lit), []string{"identifier"}, pos)
 	}
-	return "", newParseError(tokstr(tok, lit), []string{"identifier"}, pos)
+	return lit, nil
 }
 
 // parseIdentList parses a comma delimited list of identifiers.

@@ -1606,6 +1606,45 @@ func (s *Server) applyCreateMeasurementsIfNotExists(m *messaging.Message) error 
 	return nil
 }
 
+func (s *Server) DropMeasurement(database, name string) error {
+	c := &dropMeasurementCommand{Database: database, Name: name}
+	_, err := s.broadcast(dropMeasurementMessageType, c)
+	return err
+}
+
+func (s *Server) applyDropMeasurement(m *messaging.Message) error {
+	var c dropMeasurementCommand
+	mustUnmarshalJSON(m.Data, &c)
+
+	database := s.databases[c.Database]
+	if database == nil {
+		return ErrDatabaseNotFound
+	}
+
+	measurement := database.measurements[c.Name]
+	if measurement == nil {
+		return ErrMeasurementNotFound
+	}
+
+	err := s.meta.mustUpdate(m.Index, func(tx *metatx) error {
+		// Drop metastore data
+		if err := tx.dropMeasurement(c.Database, c.Name); err != nil {
+			return err
+		}
+
+		// Drop measurement from the database.
+		if err := database.dropMeasurement(c.Name); err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // createShardGroupsIfNotExist walks the "points" and ensures that all required shards exist on the cluster.
 func (s *Server) createShardGroupsIfNotExists(database, retentionPolicy string, points []Point) error {
 	for _, p := range points {
@@ -1736,6 +1775,8 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 			res = s.executeDropSeriesStatement(stmt, database, user)
 		case *influxql.ShowSeriesStatement:
 			res = s.executeShowSeriesStatement(stmt, database, user)
+		case *influxql.DropMeasurementStatement:
+			res = s.executeDropMeasurementStatement(stmt, database, user)
 		case *influxql.ShowMeasurementsStatement:
 			res = s.executeShowMeasurementsStatement(stmt, database, user)
 		case *influxql.ShowTagKeysStatement:
@@ -1883,6 +1924,10 @@ func (s *Server) executeCreateUserStatement(q *influxql.CreateUserStatement, use
 
 func (s *Server) executeDropUserStatement(q *influxql.DropUserStatement, user *User) *Result {
 	return &Result{Err: s.DeleteUser(q.Name)}
+}
+
+func (s *Server) executeDropMeasurementStatement(stmt *influxql.DropMeasurementStatement, database string, user *User) *Result {
+	return &Result{Err: s.DropMeasurement(database, stmt.Name)}
 }
 
 func (s *Server) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, database string, user *User) *Result {
@@ -2619,6 +2664,8 @@ func (s *Server) processor(client MessagingClient, done chan struct{}) {
 				err = s.applySetDefaultRetentionPolicy(m)
 			case createMeasurementsIfNotExistsMessageType:
 				err = s.applyCreateMeasurementsIfNotExists(m)
+			case dropMeasurementMessageType:
+				err = s.applyDropMeasurement(m)
 			case setPrivilegeMessageType:
 				err = s.applySetPrivilege(m)
 			case createContinuousQueryMessageType:
