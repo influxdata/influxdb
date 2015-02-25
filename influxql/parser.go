@@ -159,6 +159,8 @@ func (p *Parser) parseDropStatement() (Statement, error) {
 	tok, pos, lit := p.scanIgnoreWhitespace()
 	if tok == SERIES {
 		return p.parseDropSeriesStatement()
+	} else if tok == MEASUREMENT {
+		return p.parseDropMeasurementStatement()
 	} else if tok == CONTINUOUS {
 		return p.parseDropContinuousQueryStatement()
 	} else if tok == DATABASE {
@@ -172,7 +174,7 @@ func (p *Parser) parseDropStatement() (Statement, error) {
 		return p.parseDropUserStatement()
 	}
 
-	return nil, newParseError(tokstr(tok, lit), []string{"SERIES", "CONTINUOUS"}, pos)
+	return nil, newParseError(tokstr(tok, lit), []string{"SERIES", "CONTINUOUS", "MEASUREMENT"}, pos)
 }
 
 // parseAlterStatement parses a string and returns an alter statement.
@@ -364,10 +366,10 @@ func (p *Parser) parseDuration() (time.Duration, error) {
 // parseIdent parses an identifier.
 func (p *Parser) parseIdent() (string, error) {
 	tok, pos, lit := p.scanIgnoreWhitespace()
-	if tok != IDENT {
-		return "", newParseError(tokstr(tok, lit), []string{"identifier"}, pos)
+	if tok == IDENT || tok == STRING {
+		return lit, nil
 	}
-	return lit, nil
+	return "", newParseError(tokstr(tok, lit), []string{"identifier"}, pos)
 }
 
 // parseIdentList parses a comma delimited list of identifiers.
@@ -867,6 +869,21 @@ func (p *Parser) parseShowFieldKeysStatement() (*ShowFieldKeysStatement, error) 
 	if stmt.Offset, err = p.parseOptionalTokenAndInt(OFFSET); err != nil {
 		return nil, err
 	}
+
+	return stmt, nil
+}
+
+// parseDropMeasurementStatement parses a string and returns a DropMeasurementStatement.
+// This function assumes the "DROP MEASUREMENT" tokens have already been consumed.
+func (p *Parser) parseDropMeasurementStatement() (*DropMeasurementStatement, error) {
+	stmt := &DropMeasurementStatement{}
+
+	// Parse the name of the measurement to be dropped.
+	lit, err := p.parseIdent()
+	if err != nil {
+		return nil, err
+	}
+	stmt.Name = lit
 
 	return stmt, nil
 }
