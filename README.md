@@ -25,7 +25,7 @@ events, and performing analytics.
 ### Building
 
 You don't need to build the project to use it - you can use any of our
-[pre-built packages](http://influxdb.com/docs/v0.8/introduction/installation.html) to install InfluxDB. That's
+[pre-built packages](http://influxdb.com/download/) to install InfluxDB. That's
 the recommended way to get it running. However, if you want to contribute to the core of InfluxDB, you'll need to build.
 For those adventurous enough, you can
 [follow along on our docs](http://github.com/influxdb/influxdb/blob/master/CONTRIBUTING.md).
