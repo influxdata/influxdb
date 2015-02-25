@@ -46,7 +46,7 @@ type node struct {
 }
 
 // cluster represents a multi-node cluster.
-type cluster []node
+type cluster []*node
 
 // createBatch returns a JSON string, representing the request body for a batch write. The timestamp
 // simply increases and the value is a random integer.
@@ -88,7 +88,7 @@ func createCombinedNodeCluster(t *testing.T, testName string, nNodes, basePort i
 		t.Fatalf("Test %s: asked to create nonsense cluster", testName)
 	}
 
-	nodes := make([]node, 0)
+	nodes := make([]*node, 0)
 
 	tmpDir := os.TempDir()
 	tmpBrokerDir := filepath.Join(tmpDir, "broker-integration-test")
@@ -117,7 +117,7 @@ func createCombinedNodeCluster(t *testing.T, testName string, nNodes, basePort i
 	if s == nil {
 		t.Fatalf("Test %s: failed to create leader data node on port %d", testName, basePort)
 	}
-	nodes = append(nodes, node{
+	nodes = append(nodes, &node{
 		broker: b,
 		server: s,
 		url:    &url.URL{Scheme: "http", Host: "localhost:" + strconv.Itoa(basePort)},
@@ -140,7 +140,7 @@ func createCombinedNodeCluster(t *testing.T, testName string, nNodes, basePort i
 			t.Fatalf("Test %s: failed to create following data node on port %d", testName, basePort)
 		}
 
-		nodes = append(nodes, node{
+		nodes = append(nodes, &node{
 			broker: b,
 			server: s,
 			url:    &url.URL{Scheme: "http", Host: "localhost:" + strconv.Itoa(nextPort)},
