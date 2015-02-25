@@ -493,6 +493,7 @@ func Test_Server3NodeIntegration(t *testing.T) {
 }
 
 func Test_Server5NodeIntegration(t *testing.T) {
+	t.Skip()
 	if testing.Short() {
 		t.Skip()
 	}
@@ -570,6 +571,7 @@ func Test_Server3NodeLargeBatchIntegration(t *testing.T) {
 }
 
 func Test_Server5NodeLargeBatchIntegration(t *testing.T) {
+	t.Skip()
 	if testing.Short() {
 		t.Skip()
 	}
@@ -585,6 +587,7 @@ func Test_Server5NodeLargeBatchIntegration(t *testing.T) {
 }
 
 func Test_ServerMultiLargeBatchIntegration(t *testing.T) {
+	t.Skip()
 	if testing.Short() {
 		t.Skip()
 	}
