@@ -44,7 +44,7 @@ curl -XGET 'http://localhost:8086/query' --data-urlencode "q=CREATE RETENTION PO
 ## Helpful Links
 
 * Understand the [design goals and motivations of the project](http://influxdb.com/docs/v0.8/introduction/overview.html).
-* Follow the [getting started guide](http://influxdb.com/docs/v0.8/introduction/getting_started.html) to find out how to install InfluxDB, start writing data, and issue queries - in just a few minutes.
+* Follow the [getting started guide](http://influxdb.com/docs/v0.9/introduction/getting_started.html) to find out how to install InfluxDB, start writing data, and issue queries - in just a few minutes.
 * See the
   [list of libraries for different languages](http://influxdb.com/docs/v0.8/client_libraries/javascript.html),
   or check out the
