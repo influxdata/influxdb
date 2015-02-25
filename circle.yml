@@ -1,3 +1,9 @@
+machine:
+    pre:
+        - bash < <(curl -s -S -L https://raw.githubusercontent.com/moovweb/gvm/master/binscripts/gvm-installer)
+        - gvm install go1.4
+        - gvm use go1.4
+
 dependencies:
     pre:
         - go get -u golang.org/x/tools/cmd/vet;
@@ -6,5 +12,6 @@ dependencies:
 test:
     override:
     # Put each test command on its own line.
+        - go version
         - go test -timeout 60s -v ./...
         - go tool vet .
