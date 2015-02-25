@@ -1621,13 +1621,18 @@ func (s *Server) applyDropMeasurement(m *messaging.Message) error {
 		return ErrDatabaseNotFound
 	}
 
-	// Remove from metastore.
+	measurement := database.measurements[c.Name]
+	if measurement == nil {
+		return ErrMeasurementNotFound
+	}
+
 	err := s.meta.mustUpdate(m.Index, func(tx *metatx) error {
+		// Drop metastore data
 		if err := tx.dropMeasurement(c.Database, c.Name); err != nil {
 			return err
 		}
 
-		// Delete measurement from the database.
+		// Drop measurement from the database.
 		if err := database.dropMeasurement(c.Name); err != nil {
 			return err
 		}

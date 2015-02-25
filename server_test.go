@@ -894,6 +894,38 @@ func TestServer_DropMeasurement(t *testing.T) {
 	}
 }
 
+// Ensure the server can handles drop measurement if none exists.
+func TestServer_DropMeasurementNoneExists(t *testing.T) {
+	c := NewMessagingClient()
+	s := OpenServer(c)
+	defer s.Close()
+	s.CreateDatabase("foo")
+	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "raw", Duration: 1 * time.Hour})
+	s.SetDefaultRetentionPolicy("foo", "raw")
+	s.CreateUser("susy", "pass", false)
+
+	// Drop measurement
+	results := s.ExecuteQuery(MustParseQuery(`DROP MEASUREMENT bar`), "foo", nil)
+	if results.Error().Error() != `measurement not found` {
+		t.Fatalf("unexpected error: %s", results.Error())
+	}
+
+	// Write series with one point to the database.
+	tags := map[string]string{"host": "serverA", "region": "uswest"}
+	index, err := s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	if err != nil {
+		t.Fatal(err)
+	} else if err = s.Sync(index); err != nil {
+		t.Fatalf("sync error: %s", err)
+	}
+
+	// Drop measurement after writing data to ensure we still get the same error
+	results = s.ExecuteQuery(MustParseQuery(`DROP MEASUREMENT bar`), "foo", nil)
+	if results.Error().Error() != `measurement not found` {
+		t.Fatalf("unexpected error: %s", results.Error())
+	}
+}
+
 // Ensure Drop measurement can:
 // write to measurement cpu with tags region=uswest host=serverA
 // write to measurement memory with tags region=uswest host=serverB
