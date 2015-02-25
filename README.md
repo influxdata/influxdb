@@ -33,20 +33,37 @@ For those adventurous enough, you can
 ### Creating your first database
 
 ```JSON
-curl -G 'http://localhost:8086/query' --data-urlencode "q=CREATE DATABASE mydb"
+curl -G 'http://localhost:8086/query' \
+    --data-urlencode "q=CREATE DATABASE mydb"
 ```
 ### Setting up the database's retention policy
 
 ```JSON
-curl -G 'http://localhost:8086/query' --data-urlencode "q=CREATE RETENTION POLICY mypolicy ON mydb DURATION 7d REPLICATION 1 DEFAULT"
+curl -G 'http://localhost:8086/query' \
+    --data-urlencode "q=CREATE RETENTION POLICY mypolicy \
+    ON mydb DURATION 7d REPLICATION 1 DEFAULT"
 ```
 ### Insert some data
 ```JSON
-curl -d '{"database" : "mydb", "retentionPolicy" : "mypolicy", "points": [{"name": "cpu", "tags": {"region":"uswest","host": "server01"},"fields": {"value": 100}}]}' -H "Content-Type: application/json" http://localhost:8086/write
+curl -H "Content-Type: application/json" http://localhost:8086/write -d '
+{
+    "database": "mydb",
+    "retentionPolicy": "mypolicy",
+    "points": [
+        {
+            "name": "cpu",
+             "tags": {
+                 "region":"uswest",
+                 "host": "server01"},
+             "fields": {"value": 100}
+         }
+      ]
+}'
 ```
 ### Query for the data
 ```JSON
-curl -G http://localhost:8086/query?pretty=true --data-urlencode "db=mydb" --data-urlencode "q=SELECT * FROM cpu"
+curl -G http://localhost:8086/query?pretty=true \
+--data-urlencode "db=mydb" --data-urlencode "q=SELECT * FROM cpu"
 ```
 ## Helpful Links
 
