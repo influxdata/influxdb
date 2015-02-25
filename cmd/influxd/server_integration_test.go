@@ -66,7 +66,7 @@ type Cluster []*Node
 // the testing is marked as failed.
 //
 // This function returns a slice of nodes, the first of which will be the leader.
-func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes, basePort int) Cluster {
+func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes, basePort int, baseConfig *main.Config) Cluster {
 	t.Logf("Creating cluster of %d nodes for test %s", nNodes, testName)
 	if nNodes < 1 {
 		t.Fatalf("Test %s: asked to create nonsense cluster", testName)
@@ -85,7 +85,10 @@ func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes, ba
 	_ = os.RemoveAll(tmpDataDir)
 
 	// Create the first node, special case.
-	c := main.NewConfig()
+	c := baseConfig
+	if c == nil {
+		c = main.NewConfig()
+	}
 	c.Broker.Dir = filepath.Join(tmpBrokerDir, strconv.Itoa(basePort))
 	c.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(basePort))
 	c.Broker.Port = basePort
@@ -762,7 +765,7 @@ func TestSingleServer(t *testing.T) {
 		os.RemoveAll(dir)
 	}()
 
-	nodes := createCombinedNodeCluster(t, testName, dir, 1, 8090)
+	nodes := createCombinedNodeCluster(t, testName, dir, 1, 8090, nil)
 
 	runTestsData(t, testName, nodes, "mydb", "myrp")
 }
@@ -778,7 +781,7 @@ func Test3NodeServer(t *testing.T) {
 		os.RemoveAll(dir)
 	}()
 
-	nodes := createCombinedNodeCluster(t, testName, dir, 3, 8190)
+	nodes := createCombinedNodeCluster(t, testName, dir, 3, 8190, nil)
 
 	runTestsData(t, testName, nodes, "mydb", "myrp")
 }
