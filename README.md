@@ -55,7 +55,9 @@ curl -H "Content-Type: application/json" http://localhost:8086/write -d '
              "tags": {
                  "region":"uswest",
                  "host": "server01"},
-             "fields": {"value": 100}
+             "fields":{
+                 "value": 100
+              }
          }
       ]
 }'
