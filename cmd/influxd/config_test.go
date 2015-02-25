@@ -62,6 +62,10 @@ func TestParseConfig(t *testing.T) {
 		t.Fatalf("admin port mismatch: %v", c.Admin.Port)
 	}
 
+	if c.ContinuousQuery.Disable == true {
+		t.Fatalf("continuous query disable mismatch: %v", c.ContinuousQuery.Disable)
+	}
+
 	if c.Data.Port != main.DefaultBrokerPort {
 		t.Fatalf("data port mismatch: %v", c.Data.Port)
 	}
@@ -229,6 +233,9 @@ dir  = "/tmp/influxdb/development/broker"
 dir = "/tmp/influxdb/development/db"
 retention-check-enabled = true
 retention-check-period = "5m"
+
+[continuous_queries]
+disable = false
 
 [cluster]
 dir = "/tmp/influxdb/development/cluster"

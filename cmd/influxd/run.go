@@ -56,7 +56,11 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 		log.Printf("broker listening on %s", config.BrokerAddr())
 
 		// have it occasionally tell a data node in the cluster to run continuous queries
-		b.RunContinuousQueryLoop()
+		if config.ContinuousQuery.Disable {
+			log.Printf("Not running continuous queries. [continuous_queries].disable is set to true.")
+		} else {
+			b.RunContinuousQueryLoop()
+		}
 	}
 
 	// Open server, initialize or join as necessary.
