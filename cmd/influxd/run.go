@@ -56,7 +56,11 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 		log.Printf("broker listening on %s", config.BrokerAddr())
 
 		// have it occasionally tell a data node in the cluster to run continuous queries
-		b.RunContinuousQueryLoop()
+		if config.ContinuousQuery.Disable {
+			log.Printf("Not running continuous queries. [continuous_queries].disable is set to true.")
+		} else {
+			b.RunContinuousQueryLoop()
+		}
 	}
 
 	// Open server, initialize or join as necessary.
@@ -251,7 +255,6 @@ func openServer(config *Config, b *influxdb.Broker, initializing, configExists b
 	s.RecomputeNoOlderThan = time.Duration(config.ContinuousQuery.RecomputeNoOlderThan)
 	s.ComputeRunsPerInterval = config.ContinuousQuery.ComputeRunsPerInterval
 	s.ComputeNoMoreThan = time.Duration(config.ContinuousQuery.ComputeNoMoreThan)
-	s.ContinuousQueryDisable = config.ContinuousQuery.Disable
 
 	if err := s.Open(config.Data.Dir); err != nil {
 		log.Fatalf("failed to open data server: %v", err.Error())

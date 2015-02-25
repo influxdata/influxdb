@@ -74,7 +74,6 @@ type Server struct {
 	RecomputeNoOlderThan   time.Duration
 	ComputeRunsPerInterval int
 	ComputeNoMoreThan      time.Duration
-	ContinuousQueryDisable bool
 
 	// This is the last time this data node has run continuous queries.
 	// Keep this state in memory so if a broker makes a request in another second
@@ -2969,11 +2968,6 @@ func (s *Server) applyCreateContinuousQueryCommand(m *messaging.Message) error {
 // RunContinuousQueries will run any continuous queries that are due to run and write the
 // results back into the database
 func (s *Server) RunContinuousQueries() error {
-	if s.ContinuousQueryDisable {
-		log.Printf("Not running continuous queries. [continuous_queries].disable is set to true.")
-		return nil
-	}
-
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
