@@ -141,6 +141,10 @@ To install go cover, run the following command:
 go get golang.org/x/tools/cmd/cover
 ```
 
+Submitting a pull request
+------------
+To submit a pull request you should fork the InfluxDB repository, and make your change on a feature branch of your fork. Then generate a pull request from your branch against *master* of the InfluxDB repository. Include in your pull request details of your change -- the why *and* the how -- as well as the testing your performed. There will usually be some back and forth as we finalize the change, but once that completes it may be merged.
+
 Useful links
 ------------
 - [Useful techniques in Go](http://arslan.io/ten-useful-techniques-in-go)
