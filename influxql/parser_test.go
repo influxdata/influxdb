@@ -293,6 +293,19 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// SHOW TAG VALUES WITH KEY = "..."
+		{
+			s: `SHOW TAG VALUES WITH KEY = "host" WHERE region = 'uswest'`,
+			stmt: &influxql.ShowTagValuesStatement{
+				TagKeys: []string{`"host"`},
+				Condition: &influxql.BinaryExpr{
+					Op:  influxql.EQ,
+					LHS: &influxql.VarRef{Val: "region"},
+					RHS: &influxql.StringLiteral{Val: "uswest"},
+				},
+			},
+		},
+
 		// SHOW USERS
 		{
 			s:    `SHOW USERS`,

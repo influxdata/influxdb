@@ -2066,6 +2066,27 @@ func TestHandler_serveShowTagValues(t *testing.T) {
 				},
 			},
 		},
+		// SHOW TAG VALUES WITH KEY = "..."
+		{
+			q: `SHOW TAG VALUES WITH KEY = "host"`,
+			r: &influxdb.Results{
+				Results: []*influxdb.Result{
+					{
+						Series: []*influxql.Row{
+							{
+								Name:    "hostTagValues",
+								Columns: []string{"host"},
+								Values: [][]interface{}{
+									str2iface([]string{"server01"}),
+									str2iface([]string{"server02"}),
+									str2iface([]string{"server03"}),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 		// SHOW TAG VALUES FROM ...
 		{
 			q: `SHOW TAG VALUES FROM cpu WITH KEY = host`,
