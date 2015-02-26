@@ -207,7 +207,7 @@ func createDatabase(t *testing.T, testName string, nodes cluster, database strin
 			{Series: []influxql.Row{
 				{
 					Columns: []string{"name"},
-					Values:  [][]interface{}{{"foo"}},
+					Values:  [][]interface{}{{database}},
 				},
 			}},
 		},
@@ -280,7 +280,7 @@ func simpleQuery(t *testing.T, testName string, nodes cluster, query string, exp
 	// Query the data exists
 	for _, n := range nodes {
 		t.Logf("Test name %s: query data on node %s", testName, n.url)
-		u := urlFor(n.url, "query", url.Values{"q": []string{query}, "db": []string{"foo"}})
+		u := urlFor(n.url, "query", url.Values{"q": []string{query}})
 		resp, err := http.Get(u.String())
 		if err != nil {
 			t.Fatalf("Couldn't query databases: %s", err)
