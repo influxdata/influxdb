@@ -100,6 +100,16 @@ func (tx *tx) CreateIterators(stmt *influxql.SelectStatement) ([]influxql.Iterat
 		return nil, ErrRetentionPolicyNotFound
 	}
 
+	// Find measurement.
+	m, err := tx.server.measurement(database, measurement)
+	if err != nil {
+		return nil, err
+	}
+	if m == nil {
+		return nil, ErrMeasurementNotFound
+	}
+	tx.measurement = m
+
 	// Find shard groups within time range.
 	var shardGroups []*ShardGroup
 	for _, group := range rp.shardGroups {
@@ -116,16 +126,6 @@ func (tx *tx) CreateIterators(stmt *influxql.SelectStatement) ([]influxql.Iterat
 	if err != nil {
 		return nil, err
 	}
-
-	// Find measurement.
-	m, err := tx.server.measurement(database, measurement)
-	if err != nil {
-		return nil, err
-	}
-	if m == nil {
-		return nil, ErrMeasurementNotFound
-	}
-	tx.measurement = m
 
 	// Find field.
 	fieldName := stmt.Fields[0].Expr.(*influxql.VarRef).Val
