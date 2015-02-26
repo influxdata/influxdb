@@ -32,9 +32,10 @@ const (
 
 // urlFor returns a URL with the path and query params correctly appended and set.
 func urlFor(u *url.URL, path string, params url.Values) *url.URL {
-	u.Path = path
-	u.RawQuery = params.Encode()
-	return u
+	v, _ := url.Parse(u.String())
+	v.Path = path
+	v.RawQuery = params.Encode()
+	return v
 }
 
 // node represents a node under test, which is both a broker and data node.
