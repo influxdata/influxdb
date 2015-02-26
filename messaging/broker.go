@@ -853,6 +853,11 @@ func (t *topic) writeTo(r *Replica, index uint64) (int64, error) {
 			continue
 		}
 
+		// Don't send broker-only messages to replicas.
+		if m.Type.isBrokerMessage() {
+			continue
+		}
+
 		// Write message out to stream.
 		n, err := m.WriteTo(r)
 		if err != nil {
@@ -889,9 +894,11 @@ func (t *topic) encode(m *Message) error {
 	// Move up high water mark on the topic.
 	t.index = m.Index
 
-	// Write message out to all replicas.
-	for _, r := range t.replicas {
-		_, _ = r.Write(b)
+	// If it is not a broker-only message, send it to the replicas too.
+	if !m.Type.isBrokerMessage() {
+		for _, r := range t.replicas {
+			_, _ = r.Write(b)
+		}
 	}
 
 	return nil
@@ -1044,6 +1051,10 @@ type UnsubscribeCommand struct {
 
 // MessageType represents the type of message.
 type MessageType uint16
+
+func (m MessageType) isBrokerMessage() bool {
+	return uint16(m)&uint16(BrokerMessageType) == uint16(BrokerMessageType)
+}
 
 const (
 	BrokerMessageType = 0x8000
