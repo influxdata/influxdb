@@ -1340,7 +1340,7 @@ func (s *Server) applyDropSeries(m *messaging.Message) error {
 
 		// Delete series from the database.
 		if err := database.dropSeries(c.SeriesByMeasurement); err != nil {
-			return fmt.Errorf("failed to remove series from index")
+			return fmt.Errorf("failed to remove series from index: %s", err)
 		}
 		return nil
 	})
