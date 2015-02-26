@@ -2,6 +2,7 @@
 
 ### Bugfixes
 
+- [#1752](https://github.com/influxdb/influxdb/pull/1752): remove debug log output from collectd.
 - [#1720](https://github.com/influxdb/influxdb/pull/1720): Parse Series IDs as unsigned 32-bits.
 
 ### Features
