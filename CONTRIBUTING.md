@@ -6,13 +6,13 @@ Bug reports
 Before you file an issue, please search existing issues in case it has already been filed, or perhaps even fixed. If you file an issue, please include the following.
 * The version of InfluxDB you are running
 * Whether you installed it using a pre-built package, or built it from source.
-* A small test case, if applicable, that demonstrate the issues. Test cases should be in the form of `curl` commands. For example:
+* A small test case, if applicable, that demonstrates the issues. Test cases should be in the form of `curl` commands. For example:
 ```
 # Delete a Measurement
-curl -G http://influxdbhost:8086/query  --data-urlencode 'db=storage' --data-urlencode 'q=DROP MEASUREMENT cpu'
+curl -G http://localhost:8086/query  --data-urlencode 'db=mydb' --data-urlencode 'q=DROP MEASUREMENT cpu'
 
 # Query the Measurement, it should return no data, but data comes back.
-curl -G http://influxdbhost:8086/query  --data-urlencode 'db=storage' --data-urlencode 'SELECT * from cpu'
+curl -G http://localhost:8086/query  --data-urlencode 'db=mydb' --data-urlencode 'SELECT * from cpu'
 ```
 If you don't include a clear test case like this, your issue may not be investigated, and may even be closed.
 
