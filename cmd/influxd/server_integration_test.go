@@ -32,9 +32,10 @@ const (
 
 // urlFor returns a URL with the path and query params correctly appended and set.
 func urlFor(u *url.URL, path string, params url.Values) *url.URL {
-	u.Path = path
-	u.RawQuery = params.Encode()
-	return u
+	v, _ := url.Parse(u.String())
+	v.Path = path
+	v.RawQuery = params.Encode()
+	return v
 }
 
 // node represents a node under test, which is both a broker and data node.
@@ -46,7 +47,7 @@ type node struct {
 }
 
 // cluster represents a multi-node cluster.
-type cluster []node
+type cluster []*node
 
 // createBatch returns a JSON string, representing the request body for a batch write. The timestamp
 // simply increases and the value is a random integer.
@@ -88,7 +89,7 @@ func createCombinedNodeCluster(t *testing.T, testName string, nNodes, basePort i
 		t.Fatalf("Test %s: asked to create nonsense cluster", testName)
 	}
 
-	nodes := make([]node, 0)
+	nodes := make([]*node, 0)
 
 	tmpDir := os.TempDir()
 	tmpBrokerDir := filepath.Join(tmpDir, "broker-integration-test")
@@ -117,7 +118,7 @@ func createCombinedNodeCluster(t *testing.T, testName string, nNodes, basePort i
 	if s == nil {
 		t.Fatalf("Test %s: failed to create leader data node on port %d", testName, basePort)
 	}
-	nodes = append(nodes, node{
+	nodes = append(nodes, &node{
 		broker: b,
 		server: s,
 		url:    &url.URL{Scheme: "http", Host: "localhost:" + strconv.Itoa(basePort)},
@@ -140,7 +141,7 @@ func createCombinedNodeCluster(t *testing.T, testName string, nNodes, basePort i
 			t.Fatalf("Test %s: failed to create following data node on port %d", testName, basePort)
 		}
 
-		nodes = append(nodes, node{
+		nodes = append(nodes, &node{
 			broker: b,
 			server: s,
 			url:    &url.URL{Scheme: "http", Host: "localhost:" + strconv.Itoa(nextPort)},
@@ -155,7 +156,7 @@ func createDatabase(t *testing.T, testName string, nodes cluster, database strin
 	t.Logf("Test: %s: creating database %s", testName, database)
 	serverURL := nodes[0].url
 
-	u := urlFor(serverURL, "query", url.Values{"q": []string{"CREATE DATABASE foo"}})
+	u := urlFor(serverURL, "query", url.Values{"q": []string{"CREATE DATABASE " + database}})
 	resp, err := http.Get(u.String())
 	if err != nil {
 		t.Fatalf("Couldn't create database: %s", err)
@@ -206,7 +207,7 @@ func createDatabase(t *testing.T, testName string, nodes cluster, database strin
 			{Series: []influxql.Row{
 				{
 					Columns: []string{"name"},
-					Values:  [][]interface{}{{"foo"}},
+					Values:  [][]interface{}{{database}},
 				},
 			}},
 		},
@@ -220,7 +221,7 @@ func createDatabase(t *testing.T, testName string, nodes cluster, database strin
 func createRetentionPolicy(t *testing.T, testName string, nodes cluster, database, retention string) {
 	t.Log("Creating retention policy")
 	serverURL := nodes[0].url
-	replication := fmt.Sprintf("CREATE RETENTION POLICY bar ON foo DURATION 1h REPLICATION %d DEFAULT", len(nodes))
+	replication := fmt.Sprintf("CREATE RETENTION POLICY %s ON %s DURATION 1h REPLICATION %d DEFAULT", retention, database, len(nodes))
 
 	u := urlFor(serverURL, "query", url.Values{"q": []string{replication}})
 	resp, err := http.Get(u.String())
@@ -279,7 +280,7 @@ func simpleQuery(t *testing.T, testName string, nodes cluster, query string, exp
 	// Query the data exists
 	for _, n := range nodes {
 		t.Logf("Test name %s: query data on node %s", testName, n.url)
-		u := urlFor(n.url, "query", url.Values{"q": []string{query}, "db": []string{"foo"}})
+		u := urlFor(n.url, "query", url.Values{"q": []string{query}})
 		resp, err := http.Get(u.String())
 		if err != nil {
 			t.Fatalf("Couldn't query databases: %s", err)
@@ -359,7 +360,7 @@ func simpleCountQuery(t *testing.T, testName string, nodes cluster, query, field
 	// Query the data exists
 	for _, n := range nodes {
 		t.Logf("Test name %s: query data on node %s", testName, n.url)
-		u := urlFor(n.url, "query", url.Values{"q": []string{query}, "db": []string{"foo"}})
+		u := urlFor(n.url, "query", url.Values{"q": []string{query}})
 		resp, err := http.Get(u.String())
 		if err != nil {
 			t.Fatalf("Couldn't query databases: %s", err)
@@ -567,7 +568,7 @@ func Test_Server3NodeLargeBatchIntegration(t *testing.T) {
 	createDatabase(t, testName, nodes, "foo")
 	createRetentionPolicy(t, testName, nodes, "foo", "bar")
 	write(t, testName, nodes, createBatch(batchSize, "foo", "bar", "cpu", map[string]string{"host": "server01"}))
-	simpleCountQuery(t, "single node large batch", nodes, `select count(value) from "foo"."bar".cpu`, "value", batchSize)
+	simpleCountQuery(t, testName, nodes, `select count(value) from "foo"."bar".cpu`, "value", batchSize)
 }
 
 func Test_Server5NodeLargeBatchIntegration(t *testing.T) {
@@ -583,7 +584,7 @@ func Test_Server5NodeLargeBatchIntegration(t *testing.T) {
 	createDatabase(t, testName, nodes, "foo")
 	createRetentionPolicy(t, testName, nodes, "foo", "bar")
 	write(t, testName, nodes, createBatch(batchSize, "foo", "bar", "cpu", map[string]string{"host": "server01"}))
-	simpleCountQuery(t, "single node large batch", nodes, `select count(value) from "foo"."bar".cpu`, "value", batchSize)
+	simpleCountQuery(t, testName, nodes, `select count(value) from "foo"."bar".cpu`, "value", batchSize)
 }
 
 func Test_ServerMultiLargeBatchIntegration(t *testing.T) {
