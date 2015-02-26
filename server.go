@@ -2672,6 +2672,8 @@ func (s *Server) processor(client MessagingClient, done chan struct{}) {
 				err = s.applyCreateContinuousQueryCommand(m)
 			case dropSeriesMessageType:
 				err = s.applyDropSeries(m)
+			default:
+				panic(fmt.Sprintf("unknown message type: %v", m.Type))
 			}
 
 			// Sync high water mark and errors.
