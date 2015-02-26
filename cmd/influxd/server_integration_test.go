@@ -156,7 +156,7 @@ func createDatabase(t *testing.T, testName string, nodes cluster, database strin
 	t.Logf("Test: %s: creating database %s", testName, database)
 	serverURL := nodes[0].url
 
-	u := urlFor(serverURL, "query", url.Values{"q": []string{"CREATE DATABASE foo"}})
+	u := urlFor(serverURL, "query", url.Values{"q": []string{"CREATE DATABASE " + database}})
 	resp, err := http.Get(u.String())
 	if err != nil {
 		t.Fatalf("Couldn't create database: %s", err)
@@ -221,7 +221,7 @@ func createDatabase(t *testing.T, testName string, nodes cluster, database strin
 func createRetentionPolicy(t *testing.T, testName string, nodes cluster, database, retention string) {
 	t.Log("Creating retention policy")
 	serverURL := nodes[0].url
-	replication := fmt.Sprintf("CREATE RETENTION POLICY bar ON foo DURATION 1h REPLICATION %d DEFAULT", len(nodes))
+	replication := fmt.Sprintf("CREATE RETENTION POLICY %s ON %s DURATION 1h REPLICATION %d DEFAULT", retention, database, len(nodes))
 
 	u := urlFor(serverURL, "query", url.Values{"q": []string{replication}})
 	resp, err := http.Get(u.String())
@@ -360,7 +360,7 @@ func simpleCountQuery(t *testing.T, testName string, nodes cluster, query, field
 	// Query the data exists
 	for _, n := range nodes {
 		t.Logf("Test name %s: query data on node %s", testName, n.url)
-		u := urlFor(n.url, "query", url.Values{"q": []string{query}, "db": []string{"foo"}})
+		u := urlFor(n.url, "query", url.Values{"q": []string{query}})
 		resp, err := http.Get(u.String())
 		if err != nil {
 			t.Fatalf("Couldn't query databases: %s", err)
@@ -568,7 +568,7 @@ func Test_Server3NodeLargeBatchIntegration(t *testing.T) {
 	createDatabase(t, testName, nodes, "foo")
 	createRetentionPolicy(t, testName, nodes, "foo", "bar")
 	write(t, testName, nodes, createBatch(batchSize, "foo", "bar", "cpu", map[string]string{"host": "server01"}))
-	simpleCountQuery(t, "single node large batch", nodes, `select count(value) from "foo"."bar".cpu`, "value", batchSize)
+	simpleCountQuery(t, testName, nodes, `select count(value) from "foo"."bar".cpu`, "value", batchSize)
 }
 
 func Test_Server5NodeLargeBatchIntegration(t *testing.T) {
@@ -584,7 +584,7 @@ func Test_Server5NodeLargeBatchIntegration(t *testing.T) {
 	createDatabase(t, testName, nodes, "foo")
 	createRetentionPolicy(t, testName, nodes, "foo", "bar")
 	write(t, testName, nodes, createBatch(batchSize, "foo", "bar", "cpu", map[string]string{"host": "server01"}))
-	simpleCountQuery(t, "single node large batch", nodes, `select count(value) from "foo"."bar".cpu`, "value", batchSize)
+	simpleCountQuery(t, testName, nodes, `select count(value) from "foo"."bar".cpu`, "value", batchSize)
 }
 
 func Test_ServerMultiLargeBatchIntegration(t *testing.T) {
