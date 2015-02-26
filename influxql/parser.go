@@ -372,6 +372,17 @@ func (p *Parser) parseIdent() (string, error) {
 	return lit, nil
 }
 
+// parseIdentNoQuote parses an identifier and strips outermost double-quotes if present.
+func (p *Parser) parseIdentNoQuote() (string, error) {
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	if tok != IDENT {
+		return "", newParseError(tokstr(tok, lit), []string{"identifier"}, pos)
+	}
+	lit = strings.TrimSuffix(lit, `"`)
+	lit = strings.TrimPrefix(lit, `"`)
+	return lit, nil
+}
+
 // parseIdentList parses a comma delimited list of identifiers.
 func (p *Parser) parseIdentList() ([]string, error) {
 	// Parse first (required) identifier.
@@ -822,7 +833,7 @@ func (p *Parser) parseTagKeys() ([]string, error) {
 		}
 	} else if tok == EQ {
 		// Parse required tag key.
-		ident, err := p.parseIdent()
+		ident, err := p.parseIdentNoQuote()
 		if err != nil {
 			return nil, err
 		}
