@@ -63,9 +63,14 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 		// We want to make sure we are spun up before we exit this function, so we manually listen and serve
 		listener, err := net.Listen("tcp", config.BrokerAddr())
 		if err != nil {
-			log.Fatal(err)
+			log.Fatalf("failed to listen for broker on tcp: %s ", err)
 		}
-		go func() { log.Fatal(http.Serve(listener, h)) }()
+		go func() {
+			err := http.Serve(listener, h)
+			if err != nil {
+				log.Fatalf("failed to serve broker: %s", err)
+			}
+		}()
 		log.Printf("broker listening on %s", config.BrokerAddr())
 
 		// have it occasionally tell a data node in the cluster to run continuous queries
