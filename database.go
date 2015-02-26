@@ -1404,6 +1404,7 @@ func (m *Measurement) tagValuesByKeyAndSeriesID(tagKeys []string, ids seriesIDs)
 	// If no tag keys were passed, get all tag keys for the measurement.
 	if len(tagKeys) == 0 {
 		for k := range m.seriesByTagKeyValue {
+			k = strings.Trim(k, `"`)
 			tagKeys = append(tagKeys, k)
 		}
 	}
