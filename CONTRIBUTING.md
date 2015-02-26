@@ -1,6 +1,30 @@
 Contributing to InfluxDB
 ========================
 
+Bug reports
+---------------
+Before you file an issue, please search existing issues in case it has already been filed, or perhaps even fixed. If you file an issue, please include the following.
+* The version of InfluxDB you are running
+* Whether you installed it using a pre-built package, or built it from source.
+* A small test case, if applicable, that demonstrate the issues. Test cases should be in the form of `curl` commands. For example:
+```
+# Delete a Measurement
+curl -G http://influxdbhost:8086/query  --data-urlencode 'db=storage' --data-urlencode 'q=DROP MEASUREMENT cpu'
+
+# Query the Measurement, it should return no data, but data comes back.
+curl -G http://influxdbhost:8086/query  --data-urlencode 'db=storage' --data-urlencode 'SELECT * from cpu'
+```
+If you don't include a clear test case like this, your issue may not be investigated, and may even be closed.
+
+Please note that issues are *not the place to file general questions* such as "how do I use collectd with InfluxDB?" Questions of this nature should be sent to the mailing list, not filed as issues. Issues like this will be closed.
+
+Feature requests
+---------------
+We really like to receive feature requests, as it helps us prioritize our work. Please be clear about your requirements, as incomplete feature requests may simply be closed if we don't understand what you would like to see added to InfluxDB.
+
+Contributing to the source code
+---------------
+
 InfluxDB follows standard Go project structure. This means that all
 your go development are done in $GOPATH/src. GOPATH can be any
 directory under which InfluxDB and all it's dependencies will be
