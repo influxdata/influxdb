@@ -121,6 +121,8 @@ var tokens = [...]string{
 	NUMBER:       "NUMBER",
 	DURATION_VAL: "DURATION_VAL",
 	STRING:       "STRING",
+	BADSTRING:    "BADSTRING",
+	BADESCAPE:    "BADESCAPE",
 	TRUE:         "TRUE",
 	FALSE:        "FALSE",
 
