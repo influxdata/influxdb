@@ -69,7 +69,7 @@ func NewPlanner(db DB) *Planner {
 
 // Plan creates an execution plan for the given SelectStatement and returns an Executor.
 func (p *Planner) Plan(stmt *SelectStatement) (*Executor, error) {
-	now := p.Now()
+	now := p.Now().UTC()
 
 	// Clone the statement to be planned.
 	// Replace instances of "now()" with the current time.
@@ -698,7 +698,9 @@ func MapMean(itr Iterator, e *Emitter, tmin int64) {
 		out.Count++
 		out.Sum += v.(float64)
 	}
-	e.Emit(Key{tmin, itr.Tags()}, out)
+	if out.Count > 0 {
+		e.Emit(Key{tmin, itr.Tags()}, out)
+	}
 }
 
 type meanMapOutput struct {
@@ -714,7 +716,9 @@ func ReduceMean(key Key, values []interface{}, e *Emitter) {
 		out.Count += val.Count
 		out.Sum += val.Sum
 	}
-	e.Emit(key, out.Sum/float64(out.Count))
+	if out.Count > 0 {
+		e.Emit(key, out.Sum/float64(out.Count))
+	}
 }
 
 // MapMin collects the values to pass to the reducer

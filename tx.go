@@ -2,6 +2,7 @@ package influxdb
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"sync"
 	"time"
@@ -309,10 +310,12 @@ func (i *shardIterator) Tags() string { return i.tags }
 
 func (i *shardIterator) Next() (key int64, data []byte, value interface{}) {
 	min := -1
+	minKey := int64(math.MaxInt64)
 
 	for ind, kv := range i.keyValues {
-		if kv.key != 0 && kv.key < i.tmax {
+		if kv.key != 0 && kv.key < i.tmax && kv.key < minKey {
 			min = ind
+			minKey = kv.key
 		}
 	}
 
