@@ -1,4 +1,4 @@
-## v0.9.0-rc5 [unreleased]
+## v0.9.0-rc5 [2015-02-27]
 
 ### Bugfixes
 
