@@ -114,7 +114,7 @@ func (tx *tx) CreateIterators(stmt *influxql.SelectStatement) ([]influxql.Iterat
 	// Find shard groups within time range.
 	var shardGroups []*ShardGroup
 	for _, group := range rp.shardGroups {
-		if timeBetweenInclusive(group.StartTime, tmin, tmax) || timeBetweenInclusive(group.EndTime, tmin, tmax) || (group.StartTime.Before(tmin) && group.EndTime.After(tmax)) {
+		if timeBetweenInclusive(group.StartTime, tmin, tmax) || timeBetweenInclusive(group.EndTime, tmin, tmax) {
 			shardGroups = append(shardGroups, group)
 		}
 	}
