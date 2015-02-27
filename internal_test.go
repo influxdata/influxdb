@@ -287,6 +287,14 @@ func TestShardGroup_Contains(t *testing.T) {
 		t.Fatal("shard group not selected when min at start time and when max at end time")
 	}
 
+	if !g.Contains(g.StartTime, g.StartTime) {
+		t.Fatal("shard group not selected when min and max set to start time")
+	}
+
+	if !g.Contains(g.EndTime, g.EndTime) {
+		t.Fatal("shard group not selected when min and max set to end time")
+	}
+
 	if g.Contains(g.StartTime.Add(-10*time.Hour), g.EndTime.Add(-9*time.Hour)) {
 		t.Fatal("shard group selected when both min and max before shard times")
 	}
