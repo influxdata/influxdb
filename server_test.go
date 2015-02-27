@@ -1096,7 +1096,7 @@ func TestServer_DropSeries(t *testing.T) {
 	}
 }
 
-// Ensure the server can drop a series from measurement.
+// Ensure the server can drop a series from measurement when more than one shard exists.
 func TestServer_DropSeriesFromMeasurement(t *testing.T) {
 	c := NewMessagingClient()
 	s := OpenServer(c)
