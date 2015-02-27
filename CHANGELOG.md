@@ -6,6 +6,7 @@
 - [#1720](https://github.com/influxdb/influxdb/pull/1720): Parse Series IDs as unsigned 32-bits.
 - [#1767](https://github.com/influxdb/influxdb/pull/1767): Drop Series was failing across shards.  Issue #1761.
 - [#1773](https://github.com/influxdb/influxdb/pull/1773): Fix bug when merging series together that have unequal number of points in a group by interval
+- [#1771](https://github.com/influxdb/influxdb/pull/1771): Make `SHOW SERIES` return IDs and support `LIMIT` and `OFFSET`
 
 ### Features
 

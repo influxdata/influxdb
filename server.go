@@ -2000,11 +2000,6 @@ func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, 
 		return &Result{Err: err}
 	}
 
-	// // If OFFSET is past the end of the array, return empty results.
-	// if stmt.Offset > len(measurements)-1 {
-	// 	return &Result{}
-	// }
-
 	// Create result struct that will be populated and returned.
 	result := &Result{
 		Series: make(influxql.Rows, 0, len(measurements)),
@@ -2039,7 +2034,8 @@ func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, 
 		// Loop through series IDs getting matching tag sets.
 		for _, id := range ids {
 			if s, ok := m.seriesByID[id]; ok {
-				values := make([]interface{}, 0, len(r.Columns))
+				values := make([]interface{}, 0, len(r.Columns)+1)
+				values = append(values, id)
 				for _, column := range r.Columns {
 					values = append(values, s.Tags[column])
 				}
@@ -2048,12 +2044,47 @@ func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, 
 				r.Values = append(r.Values, values)
 			}
 		}
+		// make the id the first column
+		r.Columns = append([]string{"id"}, r.Columns...)
 
 		// Append the row to the result.
 		result.Series = append(result.Series, r)
 	}
 
+	if stmt.Limit > 0 {
+		result.Series = s.filterShowSeriesResult(stmt.Limit, stmt.Offset, result.Series)
+	}
+
 	return result
+}
+
+// filterShowSeriesResult will limit the number of series returned based on the limit and the offset.
+// Unlike limit and offset on SELECT statements, the limit and offset don't apply to the number of Rows, but
+// to the number of total Values returned, since each Value represents a unique series.
+func (s *Server) filterShowSeriesResult(limit, offset int, rows influxql.Rows) influxql.Rows {
+	var filteredSeries influxql.Rows
+	seriesCount := 0
+	for _, s := range rows {
+		var currentSeries [][]interface{}
+
+		// filter the values
+		for _, v := range s.Values {
+			if seriesCount >= offset && seriesCount-offset < limit {
+				currentSeries = append(currentSeries, v)
+			}
+			seriesCount++
+		}
+
+		// only add the row back in if there are some values in it
+		if len(currentSeries) > 0 {
+			s.Values = currentSeries
+			filteredSeries = append(filteredSeries, s)
+			if seriesCount > limit+offset {
+				return filteredSeries
+			}
+		}
+	}
+	return filteredSeries
 }
 
 func (s *Server) executeShowMeasurementsStatement(stmt *influxql.ShowMeasurementsStatement, database string, user *User) *Result {
