@@ -625,6 +625,24 @@ func TestServer_AlterRetentionPolicy(t *testing.T) {
 	} else if o.ReplicaN != *rp2.ReplicaN {
 		t.Fatalf("retention policy mismatch:\n\texp ReplicaN = %d\n\tgot ReplicaN = %d\n", rp2.ReplicaN, o.ReplicaN)
 	}
+
+	// Test update duration only.
+	duration = time.Hour
+	results := s.ExecuteQuery(MustParseQuery(`ALTER RETENTION POLICY bar ON foo DURATION 1h`), "foo", nil)
+	if results.Error() != nil {
+		t.Fatalf("unexpected error: %s", results.Error())
+	}
+
+	// Verify results
+	if o, err := s.RetentionPolicy("foo", "bar"); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if o == nil {
+		t.Fatalf("retention policy not found")
+	} else if o.Duration != duration {
+		t.Fatalf("retention policy mismatch:\n\texp Duration = %s\n\tgot Duration = %s\n", duration, o.Duration)
+	} else if o.ReplicaN != *rp2.ReplicaN {
+		t.Fatalf("retention policy mismatch:\n\texp ReplicaN = %d\n\tgot ReplicaN = %d\n", rp2.ReplicaN, o.ReplicaN)
+	}
 }
 
 // Ensure the server can delete an existing retention policy.

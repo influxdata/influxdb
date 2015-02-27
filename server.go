@@ -2398,7 +2398,13 @@ func (s *Server) executeCreateRetentionPolicyStatement(q *influxql.CreateRetenti
 func (s *Server) executeAlterRetentionPolicyStatement(stmt *influxql.AlterRetentionPolicyStatement, user *User) *Result {
 	rpu := &RetentionPolicyUpdate{
 		Duration: stmt.Duration,
-		ReplicaN: func() *uint32 { n := uint32(*stmt.Replication); return &n }(),
+		ReplicaN: func() *uint32 {
+			if stmt.Replication == nil {
+				return nil
+			} else {
+				n := uint32(*stmt.Replication); return &n
+			}
+		}(),
 	}
 
 	// Update the retention policy.
