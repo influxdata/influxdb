@@ -23,8 +23,8 @@ _timestamp_to_time_string () {
     fi
 }
 
-# Starting the test at "Jan 01 00:00:00 EDT 2000"
-TIME=`_date_to_unix_timestamp "Jan 01 00:00:00 EDT 2000"`
+# Starting the test at "Jan 01 00:00:00 GMT 2000"
+TIME=`_date_to_unix_timestamp "Jan 01 00:00:00 GMT 2000"`
 
 
 # Set defaults.
