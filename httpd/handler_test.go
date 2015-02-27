@@ -1652,20 +1652,20 @@ func TestHandler_serveShowSeries(t *testing.T) {
 						Series: []*influxql.Row{
 							{
 								Name:    "cpu",
-								Columns: []string{"host", "region"},
+								Columns: []string{"id", "host", "region"},
 								Values: [][]interface{}{
-									str2iface([]string{"server01", ""}),
-									str2iface([]string{"server01", "uswest"}),
-									str2iface([]string{"server01", "useast"}),
-									str2iface([]string{"server02", "useast"}),
+									[]interface{}{1, "server01", ""},
+									[]interface{}{2, "server01", "uswest"},
+									[]interface{}{3, "server01", "useast"},
+									[]interface{}{4, "server02", "useast"},
 								},
 							},
 							{
 								Name:    "gpu",
-								Columns: []string{"host", "region"},
+								Columns: []string{"id", "host", "region"},
 								Values: [][]interface{}{
-									str2iface([]string{"server02", "useast"}),
-									str2iface([]string{"server03", "caeast"}),
+									[]interface{}{5, "server02", "useast"},
+									[]interface{}{6, "server03", "caeast"},
 								},
 							},
 						},
@@ -1673,29 +1673,6 @@ func TestHandler_serveShowSeries(t *testing.T) {
 				},
 			},
 		},
-		// SHOW SERIES ... LIMIT
-		// {
-		// 	q: `SHOW SERIES LIMIT 1`,
-		// 	r: &influxdb.Results{
-		// 		Results: []*influxdb.Result{
-		// 			&influxdb.Result{
-		// 				Series: []*influxql.Row{
-		// 					&influxql.Row{
-		// 						Name:    "cpu",
-		// 						Columns: []string{"host", "region"},
-		// 						Values: [][]interface{}{
-		// 							str2iface([]string{"server01", ""}),
-		// 							str2iface([]string{"server01", "uswest"}),
-		// 							str2iface([]string{"server01", "useast"}),
-		// 							str2iface([]string{"server02", "useast"}),
-		// 						},
-		// 					},
-		// 				},
-		// 			},
-		// 		},
-		// 	},
-		// },
-		// SHOW SERIES FROM
 		{
 			q: `SHOW SERIES FROM cpu`,
 			r: &influxdb.Results{
@@ -1704,12 +1681,12 @@ func TestHandler_serveShowSeries(t *testing.T) {
 						Series: []*influxql.Row{
 							{
 								Name:    "cpu",
-								Columns: []string{"host", "region"},
+								Columns: []string{"id", "host", "region"},
 								Values: [][]interface{}{
-									str2iface([]string{"server01", ""}),
-									str2iface([]string{"server01", "uswest"}),
-									str2iface([]string{"server01", "useast"}),
-									str2iface([]string{"server02", "useast"}),
+									[]interface{}{1, "server01", ""},
+									[]interface{}{2, "server01", "uswest"},
+									[]interface{}{3, "server01", "useast"},
+									[]interface{}{4, "server02", "useast"},
 								},
 							},
 						},
@@ -1726,9 +1703,9 @@ func TestHandler_serveShowSeries(t *testing.T) {
 						Series: []*influxql.Row{
 							{
 								Name:    "cpu",
-								Columns: []string{"host", "region"},
+								Columns: []string{"id", "host", "region"},
 								Values: [][]interface{}{
-									str2iface([]string{"server01", "uswest"}),
+									[]interface{}{2, "server01", "uswest"},
 								},
 							},
 						},
@@ -1746,9 +1723,9 @@ func TestHandler_serveShowSeries(t *testing.T) {
 						Series: []*influxql.Row{
 							{
 								Name:    "gpu",
-								Columns: []string{"host", "region"},
+								Columns: []string{"id", "host", "region"},
 								Values: [][]interface{}{
-									str2iface([]string{"server03", "caeast"}),
+									[]interface{}{6, "server03", "caeast"},
 								},
 							},
 						},
@@ -1766,9 +1743,9 @@ func TestHandler_serveShowSeries(t *testing.T) {
 						Series: []*influxql.Row{
 							{
 								Name:    "gpu",
-								Columns: []string{"host", "region"},
+								Columns: []string{"id", "host", "region"},
 								Values: [][]interface{}{
-									str2iface([]string{"server03", "caeast"}),
+									[]interface{}{6, "server03", "caeast"},
 								},
 							},
 						},
@@ -1786,10 +1763,10 @@ func TestHandler_serveShowSeries(t *testing.T) {
 						Series: []*influxql.Row{
 							{
 								Name:    "cpu",
-								Columns: []string{"host", "region"},
+								Columns: []string{"id", "host", "region"},
 								Values: [][]interface{}{
-									str2iface([]string{"server01", "useast"}),
-									str2iface([]string{"server02", "useast"}),
+									[]interface{}{3, "server01", "useast"},
+									[]interface{}{4, "server02", "useast"},
 								},
 							},
 						},
@@ -1819,7 +1796,7 @@ func TestHandler_serveShowSeries(t *testing.T) {
 		if !reflect.DeepEqual(tt.err, errstring(r.Err)) {
 			t.Logf("query #%d: %s", i, tt.q)
 			t.Errorf("%d. %s: error mismatch:\n  exp=%s\n  got=%s\n\n", i, tt.q, tt.err, r.Err)
-		} else if tt.err == "" && !reflect.DeepEqual(tt.r, r) {
+		} else if tt.err == "" && mustMarshalJSON(tt.r) != body {
 			t.Logf("query #%d: %s", i, tt.q)
 			t.Logf("exp = %s", mustMarshalJSON(tt.r))
 			t.Logf("got = %s", body)
