@@ -2051,7 +2051,7 @@ func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, 
 		result.Series = append(result.Series, r)
 	}
 
-	if stmt.Limit > 0 {
+	if stmt.Limit > 0 || stmt.Offset > 0 {
 		result.Series = s.filterShowSeriesResult(stmt.Limit, stmt.Offset, result.Series)
 	}
 
@@ -2064,11 +2064,11 @@ func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, 
 func (s *Server) filterShowSeriesResult(limit, offset int, rows influxql.Rows) influxql.Rows {
 	var filteredSeries influxql.Rows
 	seriesCount := 0
-	for _, s := range rows {
+	for _, r := range rows {
 		var currentSeries [][]interface{}
 
 		// filter the values
-		for _, v := range s.Values {
+		for _, v := range r.Values {
 			if seriesCount >= offset && seriesCount-offset < limit {
 				currentSeries = append(currentSeries, v)
 			}
@@ -2077,8 +2077,8 @@ func (s *Server) filterShowSeriesResult(limit, offset int, rows influxql.Rows) i
 
 		// only add the row back in if there are some values in it
 		if len(currentSeries) > 0 {
-			s.Values = currentSeries
-			filteredSeries = append(filteredSeries, s)
+			r.Values = currentSeries
+			filteredSeries = append(filteredSeries, r)
 			if seriesCount > limit+offset {
 				return filteredSeries
 			}

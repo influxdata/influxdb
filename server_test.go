@@ -1133,7 +1133,7 @@ func TestServer_DropSeriesFromMeasurement(t *testing.T) {
 		t.Fatalf("unexpected error: %s", res.Err)
 	} else if len(res.Series) != 1 {
 		t.Fatalf("unexpected row count: %d", len(res.Series))
-	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["id", "host", "region"],"vales":[[1,"serverA","uswest"]]}]}` {
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["id","host","region"],"values":[[1,"serverA","uswest"]]}]}` {
 		t.Fatalf("unexpected row(0): %s", s)
 	}
 }
