@@ -14,7 +14,7 @@ const (
 
 	// Database messages
 	createDatabaseMessageType = messaging.MessageType(0x10)
-	deleteDatabaseMessageType = messaging.MessageType(0x11)
+	dropDatabaseMessageType   = messaging.MessageType(0x11)
 
 	// Retention policy messages
 	createRetentionPolicyMessageType     = messaging.MessageType(0x20)
@@ -36,6 +36,7 @@ const (
 
 	// Measurement messages
 	createMeasurementsIfNotExistsMessageType = messaging.MessageType(0x60)
+	dropMeasurementMessageType               = messaging.MessageType(0x61)
 
 	// Continuous Query messages
 	createContinuousQueryMessageType = messaging.MessageType(0x70)
@@ -59,7 +60,7 @@ type createDatabaseCommand struct {
 	Name string `json:"name"`
 }
 
-type deleteDatabaseCommand struct {
+type dropDatabaseCommand struct {
 	Name string `json:"name"`
 }
 
@@ -110,6 +111,11 @@ type deleteRetentionPolicyCommand struct {
 }
 
 type setDefaultRetentionPolicyCommand struct {
+	Database string `json:"database"`
+	Name     string `json:"name"`
+}
+
+type dropMeasurementCommand struct {
 	Database string `json:"database"`
 	Name     string `json:"name"`
 }

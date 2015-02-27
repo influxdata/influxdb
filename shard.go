@@ -161,7 +161,11 @@ func (s *Shard) dropSeries(seriesID uint32) error {
 		return nil
 	}
 	return s.store.Update(func(tx *bolt.Tx) error {
-		return tx.DeleteBucket(u32tob(seriesID))
+		err := tx.DeleteBucket(u32tob(seriesID))
+		if err != bolt.ErrBucketNotFound {
+			return err
+		}
+		return nil
 	})
 }
 

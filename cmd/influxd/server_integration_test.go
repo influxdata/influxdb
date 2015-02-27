@@ -13,6 +13,7 @@ import (
 	"reflect"
 	"sort"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -32,9 +33,10 @@ const (
 
 // urlFor returns a URL with the path and query params correctly appended and set.
 func urlFor(u *url.URL, path string, params url.Values) *url.URL {
-	u.Path = path
-	u.RawQuery = params.Encode()
-	return u
+	v, _ := url.Parse(u.String())
+	v.Path = path
+	v.RawQuery = params.Encode()
+	return v
 }
 
 // node represents a node under test, which is both a broker and data node.
@@ -46,7 +48,7 @@ type node struct {
 }
 
 // cluster represents a multi-node cluster.
-type cluster []node
+type cluster []*node
 
 // createBatch returns a JSON string, representing the request body for a batch write. The timestamp
 // simply increases and the value is a random integer.
@@ -56,7 +58,7 @@ func createBatch(nPoints int, database, retention, measurement string, tags map[
 		Tags      map[string]string `json:"tags"`
 		Timestamp int64             `json:"timestamp"`
 		Precision string            `json:"precision"`
-		Values    map[string]int    `json:"values"`
+		Fields    map[string]int    `json:"fields"`
 	}
 	type PointBatch struct {
 		Database        string  `json:"database"`
@@ -67,8 +69,8 @@ func createBatch(nPoints int, database, retention, measurement string, tags map[
 	rand.Seed(time.Now().UTC().UnixNano())
 	points := make([]Point, 0)
 	for i := 0; i < nPoints; i++ {
-		values := map[string]int{"value": rand.Int()}
-		point := Point{Name: measurement, Tags: tags, Timestamp: time.Now().UTC().UnixNano(), Precision: "n", Values: values}
+		fields := map[string]int{"value": rand.Int()}
+		point := Point{Name: measurement, Tags: tags, Timestamp: time.Now().UTC().UnixNano(), Precision: "n", Fields: fields}
 		points = append(points, point)
 	}
 	batch := PointBatch{Database: database, RetentionPolicy: retention, Points: points}
@@ -88,7 +90,7 @@ func createCombinedNodeCluster(t *testing.T, testName string, nNodes, basePort i
 		t.Fatalf("Test %s: asked to create nonsense cluster", testName)
 	}
 
-	nodes := make([]node, 0)
+	nodes := make([]*node, 0)
 
 	tmpDir := os.TempDir()
 	tmpBrokerDir := filepath.Join(tmpDir, "broker-integration-test")
@@ -108,6 +110,7 @@ func createCombinedNodeCluster(t *testing.T, testName string, nNodes, basePort i
 	c.Broker.Port = basePort
 	c.Data.Port = basePort
 	c.Admin.Enabled = false
+	c.ReportingDisabled = true
 
 	b, s := main.Run(c, "", "x.x", os.Stderr)
 	if b == nil {
@@ -116,7 +119,7 @@ func createCombinedNodeCluster(t *testing.T, testName string, nNodes, basePort i
 	if s == nil {
 		t.Fatalf("Test %s: failed to create leader data node on port %d", testName, basePort)
 	}
-	nodes = append(nodes, node{
+	nodes = append(nodes, &node{
 		broker: b,
 		server: s,
 		url:    &url.URL{Scheme: "http", Host: "localhost:" + strconv.Itoa(basePort)},
@@ -139,7 +142,7 @@ func createCombinedNodeCluster(t *testing.T, testName string, nNodes, basePort i
 			t.Fatalf("Test %s: failed to create following data node on port %d", testName, basePort)
 		}
 
-		nodes = append(nodes, node{
+		nodes = append(nodes, &node{
 			broker: b,
 			server: s,
 			url:    &url.URL{Scheme: "http", Host: "localhost:" + strconv.Itoa(nextPort)},
@@ -248,8 +251,8 @@ func createRetentionPolicy(t *testing.T, testName string, nodes cluster, databas
 }
 
 // writes writes the provided data to the cluster. It verfies that a 200 OK is returned by the server.
-func write(t *testing.T, testname string, nodes cluster, data string) {
-	t.Logf("Test %s: writing data", testname)
+func write(t *testing.T, testName string, nodes cluster, data string) {
+	t.Logf("Test %s: writing data", testName)
 	serverURL := nodes[0].url
 	u := urlFor(serverURL, "write", url.Values{})
 
@@ -262,20 +265,23 @@ func write(t *testing.T, testname string, nodes cluster, data string) {
 		t.Fatalf("Write to database failed.  Unexpected status code.  expected: %d, actual %d", http.StatusOK, resp.StatusCode)
 	}
 
-	// Need some time for server to get consensus and write data
-	// TODO corylanou query the status endpoint for the server and wait for the index to update to know the write was applied
-	time.Sleep(time.Duration(time.Second))
+	index, err := strconv.ParseInt(resp.Header.Get("X-InfluxDB-Index"), 10, 64)
+	if err != nil {
+		t.Fatalf("Couldn't get index. header: %s,  err: %s.", resp.Header.Get("X-InfluxDB-Index"), err)
+	}
+	wait(t, testName, nodes, index)
+	t.Log("Finished writing and waiting")
 }
 
 // simpleQuery executes the given query against all nodes in the cluster, and verify the
 // returned results are as expected.
-func simpleQuery(t *testing.T, testname string, nodes cluster, query string, expected client.Results) {
+func simpleQuery(t *testing.T, testName string, nodes cluster, query string, expected client.Results) {
 	var results client.Results
 
 	// Query the data exists
 	for _, n := range nodes {
-		t.Logf("Test name %s: query data on node %s", testname, n.url)
-		u := urlFor(n.url, "query", url.Values{"q": []string{query}, "db": []string{"foo"}})
+		t.Logf("Test name %s: query data on node %s", testName, n.url)
+		u := urlFor(n.url, "query", url.Values{"q": []string{query}})
 		resp, err := http.Get(u.String())
 		if err != nil {
 			t.Fatalf("Couldn't query databases: %s", err)
@@ -311,15 +317,51 @@ func simpleQuery(t *testing.T, testname string, nodes cluster, query string, exp
 	}
 }
 
+func wait(t *testing.T, testName string, nodes cluster, index int64) {
+	// Wait for the index to sync up
+	var wg sync.WaitGroup
+	wg.Add(len(nodes))
+	for _, n := range nodes {
+		go func(t *testing.T, testName string, nodes cluster, u *url.URL, index int64) {
+			u = urlFor(u, fmt.Sprintf("wait/%d", index), nil)
+			t.Logf("Test name %s: wait on node %s for index %d", testName, u, index)
+			resp, err := http.Get(u.String())
+			if err != nil {
+				t.Fatalf("Couldn't wait: %s", err)
+			}
+
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("query databases failed.  Unexpected status code.  expected: %d, actual %d", http.StatusOK, resp.StatusCode)
+			}
+
+			defer resp.Body.Close()
+			body, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				t.Fatalf("Couldn't read body of response: %s", err)
+			}
+			t.Logf("resp.Body: %s\n", string(body))
+
+			i, _ := strconv.Atoi(string(body))
+			if i == 0 {
+				t.Fatalf("Unexpected body: %s", string(body))
+			}
+
+			wg.Done()
+
+		}(t, testName, nodes, n.url, index)
+	}
+	wg.Wait()
+}
+
 // simpleCountQuery executes the given query against all nodes in the cluster, and verify the
 // the count for the given field is as expected.
-func simpleCountQuery(t *testing.T, testname string, nodes cluster, query, field string, expected int64) {
+func simpleCountQuery(t *testing.T, testName string, nodes cluster, query, field string, expected int64) {
 	var results client.Results
 
 	// Query the data exists
 	for _, n := range nodes {
-		t.Logf("Test name %s: query data on node %s", testname, n.url)
-		u := urlFor(n.url, "query", url.Values{"q": []string{query}, "db": []string{"foo"}})
+		t.Logf("Test name %s: query data on node %s", testName, n.url)
+		u := urlFor(n.url, "query", url.Values{"q": []string{query}})
 		resp, err := http.Get(u.String())
 		if err != nil {
 			t.Fatalf("Couldn't query databases: %s", err)
@@ -385,7 +427,7 @@ func Test_ServerSingleIntegration(t *testing.T) {
         },
         "timestamp": %d,
         "precision": "n",
-        "values":{
+        "fields":{
             "value": 100
         }
     }]
@@ -403,7 +445,6 @@ func Test_ServerSingleIntegration(t *testing.T) {
 				}}},
 		},
 	}
-
 	simpleQuery(t, testName, nodes[:1], `select value from "foo"."bar".cpu`, expectedResults)
 }
 
@@ -431,7 +472,7 @@ func Test_Server3NodeIntegration(t *testing.T) {
 		},
 		"timestamp": %d,
 		"precision": "n",
-		"values":{
+		"fields":{
 			"value": 100
 		}
 	}]
@@ -454,6 +495,7 @@ func Test_Server3NodeIntegration(t *testing.T) {
 }
 
 func Test_Server5NodeIntegration(t *testing.T) {
+	t.Skip()
 	if testing.Short() {
 		t.Skip()
 	}
@@ -477,7 +519,7 @@ func Test_Server5NodeIntegration(t *testing.T) {
         },
         "timestamp": %d,
         "precision": "n",
-        "values":{
+        "fields":{
             "value": 100
         }
     }]
@@ -527,10 +569,11 @@ func Test_Server3NodeLargeBatchIntegration(t *testing.T) {
 	createDatabase(t, testName, nodes, "foo")
 	createRetentionPolicy(t, testName, nodes, "foo", "bar")
 	write(t, testName, nodes, createBatch(batchSize, "foo", "bar", "cpu", map[string]string{"host": "server01"}))
-	simpleCountQuery(t, "single node large batch", nodes, `select count(value) from "foo"."bar".cpu`, "value", batchSize)
+	simpleCountQuery(t, testName, nodes, `select count(value) from "foo"."bar".cpu`, "value", batchSize)
 }
 
 func Test_Server5NodeLargeBatchIntegration(t *testing.T) {
+	t.Skip()
 	if testing.Short() {
 		t.Skip()
 	}
@@ -542,10 +585,11 @@ func Test_Server5NodeLargeBatchIntegration(t *testing.T) {
 	createDatabase(t, testName, nodes, "foo")
 	createRetentionPolicy(t, testName, nodes, "foo", "bar")
 	write(t, testName, nodes, createBatch(batchSize, "foo", "bar", "cpu", map[string]string{"host": "server01"}))
-	simpleCountQuery(t, "single node large batch", nodes, `select count(value) from "foo"."bar".cpu`, "value", batchSize)
+	simpleCountQuery(t, testName, nodes, `select count(value) from "foo"."bar".cpu`, "value", batchSize)
 }
 
 func Test_ServerMultiLargeBatchIntegration(t *testing.T) {
+	t.Skip()
 	if testing.Short() {
 		t.Skip()
 	}

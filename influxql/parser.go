@@ -159,6 +159,8 @@ func (p *Parser) parseDropStatement() (Statement, error) {
 	tok, pos, lit := p.scanIgnoreWhitespace()
 	if tok == SERIES {
 		return p.parseDropSeriesStatement()
+	} else if tok == MEASUREMENT {
+		return p.parseDropMeasurementStatement()
 	} else if tok == CONTINUOUS {
 		return p.parseDropContinuousQueryStatement()
 	} else if tok == DATABASE {
@@ -172,7 +174,7 @@ func (p *Parser) parseDropStatement() (Statement, error) {
 		return p.parseDropUserStatement()
 	}
 
-	return nil, newParseError(tokstr(tok, lit), []string{"SERIES", "CONTINUOUS"}, pos)
+	return nil, newParseError(tokstr(tok, lit), []string{"SERIES", "CONTINUOUS", "MEASUREMENT"}, pos)
 }
 
 // parseAlterStatement parses a string and returns an alter statement.
@@ -328,6 +330,22 @@ func (p *Parser) parseInt(min, max int) (int, error) {
 	}
 
 	return n, nil
+}
+
+// parseUInt32 parses a string and returns a 32-bit unsigned integer literal.
+func (p *Parser) parseUInt32() (uint32, error) {
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	if tok != NUMBER {
+		return 0, newParseError(tokstr(tok, lit), []string{"number"}, pos)
+	}
+
+	// Convert string to unsigned 32-bit integer
+	n, err := strconv.ParseUint(lit, 10, 32)
+	if err != nil {
+		return 0, &ParseError{Message: err.Error(), Pos: pos}
+	}
+
+	return uint32(n), nil
 }
 
 // parseDuration parses a string and returns a duration literal.
@@ -855,6 +873,21 @@ func (p *Parser) parseShowFieldKeysStatement() (*ShowFieldKeysStatement, error) 
 	return stmt, nil
 }
 
+// parseDropMeasurementStatement parses a string and returns a DropMeasurementStatement.
+// This function assumes the "DROP MEASUREMENT" tokens have already been consumed.
+func (p *Parser) parseDropMeasurementStatement() (*DropMeasurementStatement, error) {
+	stmt := &DropMeasurementStatement{}
+
+	// Parse the name of the measurement to be dropped.
+	lit, err := p.parseIdent()
+	if err != nil {
+		return nil, err
+	}
+	stmt.Name = lit
+
+	return stmt, nil
+}
+
 // parseDropSeriesStatement parses a string and returns a DropSeriesStatement.
 // This function assumes the "DROP SERIES" tokens have already been consumed.
 func (p *Parser) parseDropSeriesStatement() (*DropSeriesStatement, error) {
@@ -877,12 +910,11 @@ func (p *Parser) parseDropSeriesStatement() (*DropSeriesStatement, error) {
 
 	// If they didn't provide a FROM or a WHERE, they need to provide the SeriesID
 	if stmt.Condition == nil && stmt.Source == nil {
-		var id int
-		id, err = p.parseInt(0, math.MaxUint32)
+		id, err := p.parseUInt32()
 		if err != nil {
 			return nil, err
 		}
-		stmt.SeriesID = uint32(id)
+		stmt.SeriesID = id
 	}
 	return stmt, nil
 }
@@ -1528,6 +1560,8 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 	case DURATION_VAL:
 		v, _ := ParseDuration(lit)
 		return &DurationLiteral{Val: v}, nil
+	case MUL:
+		return &Wildcard{}, nil
 	default:
 		return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string", "number", "bool"}, pos)
 	}

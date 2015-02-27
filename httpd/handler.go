@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -212,9 +213,11 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *influ
 		return
 	}
 
-	if _, err := h.server.WriteSeries(bp.Database, bp.RetentionPolicy, points); err != nil {
+	if index, err := h.server.WriteSeries(bp.Database, bp.RetentionPolicy, points); err != nil {
 		writeError(influxdb.Result{Err: err}, http.StatusInternalServerError)
 		return
+	} else {
+		w.Header().Add("X-InfluxDB-Index", fmt.Sprintf("%d", index))
 	}
 }
 
@@ -270,7 +273,7 @@ func (h *Handler) serveIndex(w http.ResponseWriter, r *http.Request) {
 // Takes optional parameters:
 //     index - If specified, will poll for index before returning
 //     timeout (optional) - time in milliseconds to wait until index is met before erring out
-//               default timeout if not specified is 100 milliseconds
+//               default timeout if not specified really big (max int64)
 func (h *Handler) serveWait(w http.ResponseWriter, r *http.Request) {
 	index, _ := strconv.ParseUint(r.URL.Query().Get(":index"), 10, 64)
 	timeout, _ := strconv.Atoi(r.URL.Query().Get("timeout"))
@@ -282,7 +285,7 @@ func (h *Handler) serveWait(w http.ResponseWriter, r *http.Request) {
 
 	var d time.Duration
 	if timeout == 0 {
-		d = 100 * time.Millisecond
+		d = math.MaxInt64
 	} else {
 		d = time.Duration(timeout) * time.Millisecond
 	}
@@ -312,7 +315,7 @@ func (h *Handler) pollForIndex(index uint64, timeout time.Duration) error {
 		select {
 		case <-done:
 			return nil
-		case <-time.Tick(timeout):
+		case <-time.After(timeout):
 			return fmt.Errorf("timed out")
 		}
 	}
@@ -395,7 +398,7 @@ func (h *Handler) serveDeleteDataNode(w http.ResponseWriter, r *http.Request) {
 }
 
 // serveProcessContinuousQueries will execute any continuous queries that should be run
-func (h *Handler) serveProcessContinuousQueries(w http.ResponseWriter, r *http.Request, u *influxdb.User) {
+func (h *Handler) serveProcessContinuousQueries(w http.ResponseWriter, r *http.Request) {
 	if err := h.server.RunContinuousQueries(); err != nil {
 		httpError(w, err.Error(), false, http.StatusInternalServerError)
 		return
@@ -532,7 +535,7 @@ func gzipFilter(inner http.Handler) http.Handler {
 // and adds the X-INFLUXBD-VERSION header to outgoing responses.
 func versionHeader(inner http.Handler, version string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Add("X-Influxdb-Version", version)
+		w.Header().Add("X-InfluxDB-Version", version)
 		inner.ServeHTTP(w, r)
 	})
 }

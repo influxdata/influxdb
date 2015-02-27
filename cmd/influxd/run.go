@@ -23,6 +23,8 @@ import (
 )
 
 func Run(config *Config, join, version string, logWriter *os.File) (*messaging.Broker, *influxdb.Server) {
+	log.Printf("influxdb started, version %s, commit %s", version, commit)
+
 	// Parse the configuration and determine if a broker and/or server exist.
 	configExists := config != nil
 	if config == nil {
@@ -54,7 +56,11 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 		log.Printf("broker listening on %s", config.BrokerAddr())
 
 		// have it occasionally tell a data node in the cluster to run continuous queries
-		b.RunContinuousQueryLoop()
+		if config.ContinuousQuery.Disable {
+			log.Printf("Not running continuous queries. [continuous_queries].disable is set to true.")
+		} else {
+			b.RunContinuousQueryLoop()
+		}
 	}
 
 	// Open server, initialize or join as necessary.
@@ -135,6 +141,13 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 			}
 		}
 	}
+
+	// unless disabled, start the loop to report anonymous usage stats every 24h
+	if !config.ReportingDisabled {
+		clusterID := b.Broker.Log().Config().ClusterID
+		go s.StartReportingLoop(version, clusterID)
+	}
+
 	return b.Broker, s
 }
 

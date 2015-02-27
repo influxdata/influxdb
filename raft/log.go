@@ -141,7 +141,7 @@ func NewLog() *Log {
 	l := &Log{
 		Clock:      NewClock(),
 		Transport:  &HTTPTransport{},
-		Rand:       rand.Int63,
+		Rand:       rand.NewSource(time.Now().UnixNano()).Int63,
 		heartbeats: make(chan heartbeat, 1),
 	}
 	l.SetLogOutput(os.Stderr)
@@ -922,6 +922,7 @@ func (l *Log) heartbeater(term uint64, committed chan uint64, wg *sync.WaitGroup
 
 	// Commit latest index if there are no peers.
 	if config == nil || len(config.Nodes) <= 1 {
+		time.Sleep(10 * time.Millisecond)
 		committed <- localIndex
 		return
 	}

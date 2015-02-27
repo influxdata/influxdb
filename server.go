@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -301,7 +302,7 @@ func (s *Server) EnforceRetentionPolicies() {
 	for _, db := range s.databases {
 		for _, rp := range db.policies {
 			for _, g := range rp.shardGroups {
-				if g.EndTime.Add(rp.Duration).Before(time.Now()) {
+				if g.EndTime.Add(rp.Duration).Before(time.Now().UTC()) {
 					log.Printf("shard group %d, retention policy %s, database %s due for deletion",
 						g.ID, rp.Name, db.name)
 					if err := s.DeleteShardGroup(db.name, rp.Name, g.ID); err != nil {
@@ -675,15 +676,15 @@ func (s *Server) applyCreateDatabase(m *messaging.Message) (err error) {
 	return
 }
 
-// DeleteDatabase deletes an existing database.
-func (s *Server) DeleteDatabase(name string) error {
-	c := &deleteDatabaseCommand{Name: name}
-	_, err := s.broadcast(deleteDatabaseMessageType, c)
+// DropDatabase deletes an existing database.
+func (s *Server) DropDatabase(name string) error {
+	c := &dropDatabaseCommand{Name: name}
+	_, err := s.broadcast(dropDatabaseMessageType, c)
 	return err
 }
 
-func (s *Server) applyDeleteDatabase(m *messaging.Message) (err error) {
-	var c deleteDatabaseCommand
+func (s *Server) applyDropDatabase(m *messaging.Message) (err error) {
+	var c dropDatabaseCommand
 	mustUnmarshalJSON(m.Data, &c)
 
 	if s.databases[c.Name] == nil {
@@ -691,7 +692,7 @@ func (s *Server) applyDeleteDatabase(m *messaging.Message) (err error) {
 	}
 
 	// Remove from metastore.
-	err = s.meta.mustUpdate(m.Index, func(tx *metatx) error { return tx.deleteDatabase(c.Name) })
+	err = s.meta.mustUpdate(m.Index, func(tx *metatx) error { return tx.dropDatabase(c.Name) })
 
 	// Delete the database entry.
 	delete(s.databases, c.Name)
@@ -1339,7 +1340,7 @@ func (s *Server) applyDropSeries(m *messaging.Message) error {
 
 		// Delete series from the database.
 		if err := database.dropSeries(c.SeriesByMeasurement); err != nil {
-			return fmt.Errorf("failed to remove series from index")
+			return fmt.Errorf("failed to remove series from index: %s", err)
 		}
 		return nil
 	})
@@ -1362,12 +1363,19 @@ type Point struct {
 	Name      string
 	Tags      map[string]string
 	Timestamp time.Time
-	Values    map[string]interface{}
+	Fields    map[string]interface{}
 }
 
 // WriteSeries writes series data to the database.
 // Returns the messaging index the data was written to.
 func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (uint64, error) {
+	// Make sure every point has at least one field.
+	for _, p := range points {
+		if len(p.Fields) == 0 {
+			return 0, ErrFieldsRequired
+		}
+	}
+
 	// If the retention policy is not set, use the default for this database.
 	if retentionPolicy == "" {
 		rp, err := s.DefaultRetentionPolicy(database)
@@ -1425,7 +1433,7 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 			}
 
 			// Convert string-key/values to encoded fields.
-			encodedFields, err := codec.EncodeFields(p.Values)
+			encodedFields, err := codec.EncodeFields(p.Fields)
 			if err != nil {
 				return err
 			}
@@ -1504,7 +1512,7 @@ func (s *Server) createMeasurementsIfNotExists(database, retentionPolicy string,
 				c.addSeriesIfNotExists(p.Name, p.Tags)
 			}
 
-			for k, v := range p.Values {
+			for k, v := range p.Fields {
 				if measurement != nil {
 					if f := measurement.FieldByName(k); f != nil {
 						// Field present in Metastore, make sure there is no type conflict.
@@ -1598,6 +1606,45 @@ func (s *Server) applyCreateMeasurementsIfNotExists(m *messaging.Message) error 
 	return nil
 }
 
+func (s *Server) DropMeasurement(database, name string) error {
+	c := &dropMeasurementCommand{Database: database, Name: name}
+	_, err := s.broadcast(dropMeasurementMessageType, c)
+	return err
+}
+
+func (s *Server) applyDropMeasurement(m *messaging.Message) error {
+	var c dropMeasurementCommand
+	mustUnmarshalJSON(m.Data, &c)
+
+	database := s.databases[c.Database]
+	if database == nil {
+		return ErrDatabaseNotFound
+	}
+
+	measurement := database.measurements[c.Name]
+	if measurement == nil {
+		return ErrMeasurementNotFound
+	}
+
+	err := s.meta.mustUpdate(m.Index, func(tx *metatx) error {
+		// Drop metastore data
+		if err := tx.dropMeasurement(c.Database, c.Name); err != nil {
+			return err
+		}
+
+		// Drop measurement from the database.
+		if err := database.dropMeasurement(c.Name); err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // createShardGroupsIfNotExist walks the "points" and ensures that all required shards exist on the cluster.
 func (s *Server) createShardGroupsIfNotExists(database, retentionPolicy string, points []Point) error {
 	for _, p := range points {
@@ -1668,14 +1715,14 @@ func (s *Server) ReadSeries(database, retentionPolicy, name string, tags map[str
 
 	// Decode into a raw value map.
 	codec := NewFieldCodec(mm)
-	rawValues := codec.DecodeFields(data)
-	if rawValues == nil {
+	rawFields := codec.DecodeFields(data)
+	if rawFields == nil {
 		return nil, nil
 	}
 
 	// Decode into a string-key value map.
-	values := make(map[string]interface{}, len(rawValues))
-	for fieldID, value := range rawValues {
+	values := make(map[string]interface{}, len(rawFields))
+	for fieldID, value := range rawFields {
 		f := mm.Field(fieldID)
 		if f == nil {
 			continue
@@ -1728,6 +1775,8 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 			res = s.executeDropSeriesStatement(stmt, database, user)
 		case *influxql.ShowSeriesStatement:
 			res = s.executeShowSeriesStatement(stmt, database, user)
+		case *influxql.DropMeasurementStatement:
+			res = s.executeDropMeasurementStatement(stmt, database, user)
 		case *influxql.ShowMeasurementsStatement:
 			res = s.executeShowMeasurementsStatement(stmt, database, user)
 		case *influxql.ShowTagKeysStatement:
@@ -1777,6 +1826,12 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 
 // executeSelectStatement plans and executes a select statement against a database.
 func (s *Server) executeSelectStatement(stmt *influxql.SelectStatement, database string, user *User) *Result {
+	// Perform any necessary query re-writing.
+	stmt, err := s.rewriteSelectStatement(stmt)
+	if err != nil {
+		return &Result{Err: err}
+	}
+
 	// Plan statement execution.
 	e, err := s.planSelectStatement(stmt)
 	if err != nil {
@@ -1798,42 +1853,44 @@ func (s *Server) executeSelectStatement(stmt *influxql.SelectStatement, database
 	return res
 }
 
+// rewriteSelectStatement performs any necessary query re-writing.
+func (s *Server) rewriteSelectStatement(stmt *influxql.SelectStatement) (*influxql.SelectStatement, error) {
+	if !stmt.HasWildcard() {
+		return stmt, nil
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var fields influxql.Fields
+	var dimensions influxql.Dimensions
+	if measurement, ok := stmt.Source.(*influxql.Measurement); ok {
+		segments, err := influxql.SplitIdent(measurement.Name)
+		if err != nil {
+			return nil, fmt.Errorf("unable to parse measurement %s", measurement.Name)
+		}
+		db, m := segments[0], segments[2]
+
+		mm := s.databases[db].measurements[m]
+		if mm == nil {
+			return nil, fmt.Errorf("measurement %s does not exist.", measurement.Name)
+		}
+
+		for _, f := range mm.Fields {
+			fields = append(fields, &influxql.Field{Expr: &influxql.VarRef{Val: f.Name}})
+		}
+		for _, t := range mm.tagKeys() {
+			dimensions = append(dimensions, &influxql.Dimension{Expr: &influxql.VarRef{Val: t}})
+		}
+	}
+
+	return stmt.RewriteWildcards(fields, dimensions), nil
+}
+
 // plans a selection statement under lock.
 func (s *Server) planSelectStatement(stmt *influxql.SelectStatement) (*influxql.Executor, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-
-	// If this is a wildcard statement, expand this to use the fields
-	// This is temporary until we move other parts of the system further
-	isWildcard := false
-	for _, f := range stmt.Fields {
-		if _, ok := f.Expr.(*influxql.Wildcard); ok {
-			isWildcard = true
-			break
-		}
-	}
-
-	if len(stmt.Fields) != 1 && isWildcard {
-		return nil, fmt.Errorf("unsupported query: %s.  currently only single wildcard is supported", stmt.String())
-	}
-
-	if isWildcard {
-		if measurement, ok := stmt.Source.(*influxql.Measurement); ok {
-			segments, err := influxql.SplitIdent(measurement.Name)
-			if err != nil {
-				return nil, fmt.Errorf("unable to parse measurement %s", measurement.Name)
-			}
-			db, m := segments[0], segments[2]
-			if s.databases[db].measurements[m] == nil {
-				return nil, fmt.Errorf("measurement %s does not exist", measurement.Name)
-			}
-			var fields influxql.Fields
-			for _, f := range s.databases[db].measurements[m].Fields {
-				fields = append(fields, &influxql.Field{Expr: &influxql.VarRef{Val: f.Name}})
-			}
-			stmt.Fields = fields
-		}
-	}
 
 	// Plan query.
 	p := influxql.NewPlanner(s)
@@ -1846,7 +1903,7 @@ func (s *Server) executeCreateDatabaseStatement(q *influxql.CreateDatabaseStatem
 }
 
 func (s *Server) executeDropDatabaseStatement(q *influxql.DropDatabaseStatement, user *User) *Result {
-	return &Result{Err: s.DeleteDatabase(q.Name)}
+	return &Result{Err: s.DropDatabase(q.Name)}
 }
 
 func (s *Server) executeShowDatabasesStatement(q *influxql.ShowDatabasesStatement, user *User) *Result {
@@ -1867,6 +1924,10 @@ func (s *Server) executeCreateUserStatement(q *influxql.CreateUserStatement, use
 
 func (s *Server) executeDropUserStatement(q *influxql.DropUserStatement, user *User) *Result {
 	return &Result{Err: s.DeleteUser(q.Name)}
+}
+
+func (s *Server) executeDropMeasurementStatement(stmt *influxql.DropMeasurementStatement, database string, user *User) *Result {
+	return &Result{Err: s.DropMeasurement(database, stmt.Name)}
 }
 
 func (s *Server) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, database string, user *User) *Result {
@@ -2125,9 +2186,10 @@ func (s *Server) executeShowTagValuesStatement(stmt *influxql.ShowTagValuesState
 
 	// Make result.
 	result := &Result{
-		Series: make(influxql.Rows, 0, len(measurements)),
+		Series: make(influxql.Rows, 0),
 	}
 
+	tagValues := make(map[string]stringSet)
 	for _, m := range measurements {
 		var ids seriesIDs
 
@@ -2147,14 +2209,22 @@ func (s *Server) executeShowTagValuesStatement(stmt *influxql.ShowTagValuesState
 			ids = m.seriesIDs
 		}
 
-		tagValues := m.tagValuesByKeyAndSeriesID(stmt.TagKeys, ids)
+		for k, v := range m.tagValuesByKeyAndSeriesID(stmt.TagKeys, ids) {
+			_, ok := tagValues[k]
+			if !ok {
+				tagValues[k] = v
+			}
+			tagValues[k] = tagValues[k].union(v)
+		}
+	}
 
+	for k, v := range tagValues {
 		r := &influxql.Row{
-			Name:    m.Name,
-			Columns: []string{"tagValue"},
+			Name:    k + "TagValues",
+			Columns: []string{k},
 		}
 
-		vals := tagValues.list()
+		vals := v.list()
 		sort.Strings(vals)
 
 		for _, val := range vals {
@@ -2165,6 +2235,7 @@ func (s *Server) executeShowTagValuesStatement(stmt *influxql.ShowTagValuesState
 		result.Series = append(result.Series, r)
 	}
 
+	sort.Sort(result.Series)
 	return result
 }
 
@@ -2285,8 +2356,12 @@ func measurementsFromSourceOrDB(stmt influxql.Source, db *database) (Measurement
 			return nil, errors.New("identifiers in FROM clause must be measurement names")
 		}
 	} else {
-		// No measurements specified in FROM clause so get all measurements.
-		measurements = db.Measurements()
+		// No measurements specified in FROM clause so get all measurements that have series.
+		for _, m := range db.Measurements() {
+			if len(m.seriesIDs) > 0 {
+				measurements = append(measurements, m)
+			}
+		}
 	}
 	sort.Sort(measurements)
 
@@ -2571,8 +2646,8 @@ func (s *Server) processor(client MessagingClient, done chan struct{}) {
 				err = s.applyDeleteDataNode(m)
 			case createDatabaseMessageType:
 				err = s.applyCreateDatabase(m)
-			case deleteDatabaseMessageType:
-				err = s.applyDeleteDatabase(m)
+			case dropDatabaseMessageType:
+				err = s.applyDropDatabase(m)
 			case createUserMessageType:
 				err = s.applyCreateUser(m)
 			case updateUserMessageType:
@@ -2593,6 +2668,8 @@ func (s *Server) processor(client MessagingClient, done chan struct{}) {
 				err = s.applySetDefaultRetentionPolicy(m)
 			case createMeasurementsIfNotExistsMessageType:
 				err = s.applyCreateMeasurementsIfNotExists(m)
+			case dropMeasurementMessageType:
+				err = s.applyDropMeasurement(m)
 			case setPrivilegeMessageType:
 				err = s.applySetPrivilege(m)
 			case createContinuousQueryMessageType:
@@ -2612,7 +2689,7 @@ func (s *Server) processor(client MessagingClient, done chan struct{}) {
 
 // Result represents a resultset returned from a single statement.
 type Result struct {
-	Series []*influxql.Row
+	Series influxql.Rows
 	Err    error
 }
 
@@ -3101,7 +3178,7 @@ func (s *Server) convertRowToPoints(measurementName string, row *influxql.Row) (
 			Name:      measurementName,
 			Tags:      row.Tags,
 			Timestamp: v[timeIndex].(time.Time),
-			Values:    vals,
+			Fields:    vals,
 		}
 
 		points = append(points, *p)
@@ -3115,4 +3192,43 @@ func copyURL(u *url.URL) *url.URL {
 	other := &url.URL{}
 	*other = *u
 	return other
+}
+
+func (s *Server) StartReportingLoop(version string, clusterID uint64) chan struct{} {
+	s.reportStats(version, clusterID)
+
+	ticker := time.NewTicker(24 * time.Hour)
+	for {
+		select {
+		case <-ticker.C:
+			s.reportStats(version, clusterID)
+		}
+	}
+}
+
+func (s *Server) reportStats(version string, clusterID uint64) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	numSeries, numMeasurements := 0, 0
+
+	for _, db := range s.databases {
+		numSeries += len(db.series)
+		numMeasurements += len(db.measurements)
+	}
+
+	numDatabases := len(s.databases)
+
+	json := fmt.Sprintf(`[{
+    "name":"reports",
+    "columns":["os", "arch", "version", "server_id", "id", "num_series", "num_measurements", "num_databases"],
+    "points":[["%s", "%s", "%s", "%x", "%x", "%d", "%d", "%d"]]
+  }]`, runtime.GOOS, runtime.GOARCH, version, s.ID(), clusterID, numSeries, numMeasurements, numDatabases)
+
+	data := bytes.NewBufferString(json)
+
+	log.Printf("Sending anonymous usage statistics to m.influxdb.com")
+
+	client := http.Client{Timeout: time.Duration(5 * time.Second)}
+	go client.Post("http://m.influxdb.com:8086/db/reporting/series?u=reporter&p=influxdb", "application/json", data)
 }

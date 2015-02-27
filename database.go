@@ -221,7 +221,7 @@ func (m *Measurement) addSeries(s *Series) bool {
 	return true
 }
 
-// removeSeries will remove a series from the measurementIndex. Returns true if already removed
+// dropSeries will remove a series from the measurementIndex. Returns true if already removed
 func (m *Measurement) dropSeries(seriesID uint32) bool {
 	if _, ok := m.seriesByID[seriesID]; !ok {
 		return true
@@ -714,9 +714,8 @@ func NewFieldCodec(m *Measurement) *FieldCodec {
 // If a field exists in the codec, but its type is different, an error is returned. If
 // a field is not present in the codec, the system panics.
 func (f *FieldCodec) EncodeFields(values map[string]interface{}) ([]byte, error) {
-	// Allocate byte slice and write field count.
-	b := make([]byte, 1, 10)
-	b[0] = byte(len(values))
+	// Allocate byte slice
+	b := make([]byte, 0, 10)
 
 	for k, v := range values {
 		field := f.fieldsByName[k]
@@ -782,11 +781,11 @@ func (f *FieldCodec) DecodeByID(targetID uint8, b []byte) (interface{}, error) {
 		return 0, ErrFieldNotFound
 	}
 
-	// Read the field count from the field byte.
-	n := int(b[0])
-	// Start from the second byte and iterate over until we're done decoding.
-	b = b[1:]
-	for i := 0; i < n; i++ {
+	for {
+		if len(b) < 1 {
+			// No more bytes.
+			break
+		}
 		field, ok := f.fieldsByID[b[0]]
 		if !ok {
 			panic(fmt.Sprintf("field ID %d has no mapping", b[0]))
@@ -829,15 +828,15 @@ func (f *FieldCodec) DecodeFields(b []byte) map[uint8]interface{} {
 		return nil
 	}
 
-	// Read the field count from the field byte.
-	n := int(b[0])
-
 	// Create a map to hold the decoded data.
-	values := make(map[uint8]interface{}, n)
+	values := make(map[uint8]interface{}, 0)
 
-	// Start from the second byte and iterate over until we're done decoding.
-	b = b[1:]
-	for i := 0; i < n; i++ {
+	for {
+		if len(b) < 1 {
+			// No more bytes.
+			break
+		}
+
 		// First byte is the field identifier.
 		fieldID := b[0]
 		field := f.fieldsByID[fieldID]
@@ -1050,6 +1049,40 @@ func (rp *RetentionPolicy) shardGroupByID(shardID uint64) *ShardGroup {
 	return nil
 }
 
+// dropMeasurement will remove a measurement from:
+//    In memory index.
+//    Series data from the shards.
+func (db *database) dropMeasurement(name string) error {
+	if _, ok := db.measurements[name]; !ok {
+		return nil
+	}
+
+	// remove measurement from in memory index
+	delete(db.measurements, name)
+
+	// collect the series ids to remove
+	var ids []uint32
+
+	// remove series from in memory map
+	for id, series := range db.series {
+		if series.measurement.Name == name {
+			ids = append(ids, id)
+			delete(db.series, id)
+		}
+	}
+
+	// remove series data from shards
+	for _, rp := range db.policies {
+		for _, id := range ids {
+			if err := rp.dropSeries(id); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 // dropSeries will delete all data with the seriesID
 func (rp *RetentionPolicy) dropSeries(seriesID uint32) error {
 	for _, g := range rp.shardGroups {
@@ -1151,7 +1184,7 @@ func (db *database) dropSeries(seriesByMeasurement map[string][]uint32) error {
 			// Remove shard data
 			for _, rp := range db.policies {
 				if err := rp.dropSeries(id); err != nil {
-					return err
+					return fmt.Errorf("database.retentionPolicies.dropSeries: %s", err)
 				}
 			}
 		}
@@ -1367,7 +1400,7 @@ func (m *Measurement) tagKeys() []string {
 	return keys
 }
 
-func (m *Measurement) tagValuesByKeyAndSeriesID(tagKeys []string, ids seriesIDs) stringSet {
+func (m *Measurement) tagValuesByKeyAndSeriesID(tagKeys []string, ids seriesIDs) map[string]stringSet {
 	// If no tag keys were passed, get all tag keys for the measurement.
 	if len(tagKeys) == 0 {
 		for k := range m.seriesByTagKeyValue {
@@ -1375,8 +1408,8 @@ func (m *Measurement) tagValuesByKeyAndSeriesID(tagKeys []string, ids seriesIDs)
 		}
 	}
 
-	// Make a set to hold all tag values found.
-	tagValues := newStringSet()
+	// Mapping between tag keys to all existing tag values.
+	tagValues := make(map[string]stringSet, 0)
 
 	// Iterate all series to collect tag values.
 	for _, id := range ids {
@@ -1388,8 +1421,12 @@ func (m *Measurement) tagValuesByKeyAndSeriesID(tagKeys []string, ids seriesIDs)
 		// Iterate the tag keys we're interested in and collect values
 		// from this series, if they exist.
 		for _, tagKey := range tagKeys {
+			tagKey = strings.Trim(tagKey, `"`)
 			if tagVal, ok := s.Tags[tagKey]; ok {
-				tagValues.add(tagVal)
+				if _, ok = tagValues[tagKey]; !ok {
+					tagValues[tagKey] = newStringSet()
+				}
+				tagValues[tagKey].add(tagVal)
 			}
 		}
 	}
