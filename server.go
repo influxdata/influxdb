@@ -1340,7 +1340,7 @@ func (s *Server) applyDropSeries(m *messaging.Message) error {
 
 		// Delete series from the database.
 		if err := database.dropSeries(c.SeriesByMeasurement); err != nil {
-			return fmt.Errorf("failed to remove series from index")
+			return fmt.Errorf("failed to remove series from index: %s", err)
 		}
 		return nil
 	})
@@ -2356,8 +2356,12 @@ func measurementsFromSourceOrDB(stmt influxql.Source, db *database) (Measurement
 			return nil, errors.New("identifiers in FROM clause must be measurement names")
 		}
 	} else {
-		// No measurements specified in FROM clause so get all measurements.
-		measurements = db.Measurements()
+		// No measurements specified in FROM clause so get all measurements that have series.
+		for _, m := range db.Measurements() {
+			if len(m.seriesIDs) > 0 {
+				measurements = append(measurements, m)
+			}
+		}
 	}
 	sort.Sort(measurements)
 

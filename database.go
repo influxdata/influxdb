@@ -1184,7 +1184,7 @@ func (db *database) dropSeries(seriesByMeasurement map[string][]uint32) error {
 			// Remove shard data
 			for _, rp := range db.policies {
 				if err := rp.dropSeries(id); err != nil {
-					return err
+					return fmt.Errorf("database.retentionPolicies.dropSeries: %s", err)
 				}
 			}
 		}
