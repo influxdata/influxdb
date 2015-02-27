@@ -719,7 +719,7 @@ func Test_AllTagCombinationsInShowSeriesAreSelectable(t *testing.T) {
 				"host":   fmt.Sprintf("server%d", index%10),
 				"rarity": rarity,
 			},
-			Values: map[string]interface{}{
+			Fields: map[string]interface{}{
 				"value": float64(index) / 1000.0,
 			},
 			Timestamp: timestamp,
@@ -772,7 +772,7 @@ func Test_DataArrivesInOrder(t *testing.T) {
 			Tags: map[string]string{
 				"host": fmt.Sprintf("server_%d", index%10),
 			},
-			Values: map[string]interface{}{
+			Fields: map[string]interface{}{
 				"value": index,
 			},
 			Timestamp: timestamp,
@@ -826,7 +826,7 @@ func Test_WhereTimeRangeCrossesHourBoundary(t *testing.T) {
 	testServer.InsertPoints(totalPoints, func(timestamp client.Timestamp, index int) client.Point {
 		return client.Point{
 			Name: "my_measurement",
-			Values: map[string]interface{}{
+			Fields: map[string]interface{}{
 				"value": index,
 			},
 			Timestamp: timestamp,
@@ -840,7 +840,8 @@ func Test_WhereTimeRangeCrossesHourBoundary(t *testing.T) {
 	}
 	assertResultHasValues(t, result, query)
 
-	for i := 60; i > 0; i-- {
+	for i := 60; i > 1; i-- {
+		fmt.Println("%d", i)
 		query := fmt.Sprintf("SELECT * FROM my_measurement WHERE time > now() - %dm", i)
 		result := testServer.PerformQuery(query)
 		if err := result.Error(); err != nil {
