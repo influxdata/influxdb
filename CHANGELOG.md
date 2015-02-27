@@ -1,7 +1,9 @@
-## v0.9.0-rc6 [Unrelease]
+## v0.9.0-rc6 [2015-02-27]
 
 ### Bugfixes
 
+- [#1780](https://github.com/influxdb/influxdb/pull/1780): Malformed identifiers get through the parser
+- [#1775](https://github.com/influxdb/influxdb/pull/1775): Panic "index out of range" on some queries
 - [#1744](https://github.com/influxdb/influxdb/pull/1744): Select shard groups which completely encompass time range. Thanks @kylezh.
 
 ## v0.9.0-rc5 [2015-02-27]
