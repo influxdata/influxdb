@@ -5,6 +5,7 @@ package influxdb
 import (
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/influxdb/influxdb/influxql"
 )
@@ -256,6 +257,42 @@ func Test_seriesIDs_reject(t *testing.T) {
 
 	if !exp.equals(got) {
 		t.Fatalf("exp=%v, got=%v", exp, got)
+	}
+}
+
+// Test shard group selection.
+func TestShardGroup_Contains(t *testing.T) {
+	// Make a shard group 1 hour in duration
+	g := newShardGroup()
+	g.StartTime, _ = time.Parse(time.RFC3339, "2000-01-01T00:00:00Z")
+	g.EndTime = g.StartTime.Add(time.Hour)
+
+	if !g.Contains(g.StartTime.Add(-time.Minute), g.EndTime) {
+		t.Fatal("shard group not selected when min before start time")
+	}
+
+	if !g.Contains(g.StartTime, g.EndTime.Add(time.Minute)) {
+		t.Fatal("shard group not selected when max after after end time")
+	}
+
+	if !g.Contains(g.StartTime.Add(-time.Minute), g.EndTime.Add(time.Minute)) {
+		t.Fatal("shard group not selected when min before start time and when max after end time")
+	}
+
+	if !g.Contains(g.StartTime.Add(time.Minute), g.EndTime.Add(-time.Minute)) {
+		t.Fatal("shard group not selected when min after start time and when max before end time")
+	}
+
+	if !g.Contains(g.StartTime, g.EndTime) {
+		t.Fatal("shard group not selected when min at start time and when max at end time")
+	}
+
+	if g.Contains(g.StartTime.Add(-10*time.Hour), g.EndTime.Add(-9*time.Hour)) {
+		t.Fatal("shard group selected when both min and max before shard times")
+	}
+
+	if g.Contains(g.StartTime.Add(24*time.Hour), g.EndTime.Add(25*time.Hour)) {
+		t.Fatal("shard group selected when both min and max after shard times")
 	}
 }
 

@@ -1,3 +1,9 @@
+## v0.9.0-rc6 [Unrelease]
+
+### Bugfixes
+
+- [#1744](https://github.com/influxdb/influxdb/pull/1744): Select shard groups which completely encompass time range. Thanks @kylezh.
+
 ## v0.9.0-rc5 [2015-02-27]
 
 ### Bugfixes
