@@ -930,7 +930,7 @@ func (a seriesIDs) intersect(other seriesIDs) seriesIDs {
 	var i, j int
 
 	ids := make([]uint32, 0, len(l))
-	for i < len(l) {
+	for i < len(l) && j < len(r) {
 		if l[i] == r[j] {
 			ids = append(ids, l[i])
 			i++
