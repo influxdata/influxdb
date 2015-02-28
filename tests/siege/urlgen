@@ -1,4 +1,4 @@
-#!/bin/sh -e
+#!/bin/bash -e
 
 # Calculate start time as unix timestamp.
 
@@ -86,7 +86,7 @@ do
 		do
 			# Format the timestamp to ISO 8601.
 			let CURRTIME=TIME+j
-			TIMESTAMP=`date -j -f "%s" $CURRTIME +"%Y-%m-%dT%H:%M:%SZ"`
+			TIMESTAMP=`_timestamp_to_time_string $CURRTIME`
 
 			# Add comma separator.
 			if [ "$j" -ne "0" ]
