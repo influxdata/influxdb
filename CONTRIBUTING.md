@@ -17,7 +17,7 @@ curl -G http://localhost:8086/query  --data-urlencode 'db=mydb' --data-urlencode
 ```
 If you don't include a clear test case like this, your issue may not be investigated, and may even be closed.
 
-Please note that issues are *not the place to file general questions* such as "how do I use collectd with InfluxDB?" Questions of this nature should be sent to the mailing list, not filed as issues. Issues like this will be closed.
+Please note that issues are *not the place to file general questions* such as "how do I use collectd with InfluxDB?" Questions of this nature should be sent to the [Google Group](https://groups.google.com/forum/#!forum/influxdb), not filed as issues. Issues like this will be closed.
 
 Feature requests
 ---------------
