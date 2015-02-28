@@ -1554,9 +1554,16 @@ func (s *Server) applyCreateMeasurementsIfNotExists(m *messaging.Message) error 
 		return ErrDatabaseNotFound
 	}
 
+	measurements := make([]string, 0, len(c.Measurements))
+	for m := range c.Measurements {
+		measurements = append(measurements, m)
+	}
+	sort.Strings(measurements)
+
 	// Process command within a transaction.
 	if err := s.meta.mustUpdate(m.Index, func(tx *metatx) error {
-		for _, cm := range c.Measurements {
+		for _, m := range measurements {
+			cm := c.Measurements[m]
 			// Create each series
 			for _, t := range cm.Tags {
 				_, ss := db.MeasurementAndSeries(cm.Name, t)
