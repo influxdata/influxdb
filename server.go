@@ -2433,7 +2433,8 @@ func (s *Server) executeAlterRetentionPolicyStatement(stmt *influxql.AlterRetent
 			if stmt.Replication == nil {
 				return nil
 			} else {
-				n := uint32(*stmt.Replication); return &n
+				n := uint32(*stmt.Replication)
+				return &n
 			}
 		}(),
 	}
