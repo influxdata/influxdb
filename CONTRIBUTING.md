@@ -10,6 +10,7 @@ Before you file an issue, please search existing issues in case it has already b
 * A small test case, if applicable, that demonstrates the issues.
 
 Remember the golden rule of bug reports: **The easier you make it for us to reproduce the problem, the faster it will get fixed.**
+If you have never written a bug report before, or if you want to brush up on your bug reporting skills, we recommend reading [Simon Tatham's essay "How to Report Bugs Effectively."](http://www.chiark.greenend.org.uk/~sgtatham/bugs.html)
 
 Test cases should be in the form of `curl` commands. For example:
 ```
