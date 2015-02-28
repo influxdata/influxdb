@@ -4,6 +4,7 @@ Contributing to InfluxDB
 Bug reports
 ---------------
 Before you file an issue, please search existing issues in case it has already been filed, or perhaps even fixed. If you file an issue, please include the following.
+* Full details of your operating system (or distribution) e.g. 64-bit Ubuntu 14.04.
 * The version of InfluxDB you are running
 * Whether you installed it using a pre-built package, or built it from source.
 * A small test case, if applicable, that demonstrates the issues. Test cases should be in the form of `curl` commands. For example:
