@@ -1,4 +1,4 @@
-#!/bin/sh -e
+#!/bin/bash -e
 
 # Calculate start time as unix timestamp.
 
@@ -23,8 +23,8 @@ _timestamp_to_time_string () {
     fi
 }
 
-# Starting the test at "Jan 01 00:00:00 EDT 2000"
-TIME=`_date_to_unix_timestamp "Jan 01 00:00:00 EDT 2000"`
+# Starting the test at "Jan 01 00:00:00 GMT 2000"
+TIME=`_date_to_unix_timestamp "Jan 01 00:00:00 GMT 2000"`
 
 
 # Set defaults.
@@ -86,7 +86,7 @@ do
 		do
 			# Format the timestamp to ISO 8601.
 			let CURRTIME=TIME+j
-			TIMESTAMP=`date -j -f "%s" $CURRTIME +"%Y-%m-%dT%H:%M:%SZ"`
+			TIMESTAMP=`_timestamp_to_time_string $CURRTIME`
 
 			# Add comma separator.
 			if [ "$j" -ne "0" ]
