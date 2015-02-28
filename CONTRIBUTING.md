@@ -7,15 +7,28 @@ Before you file an issue, please search existing issues in case it has already b
 * Full details of your operating system (or distribution) e.g. 64-bit Ubuntu 14.04.
 * The version of InfluxDB you are running
 * Whether you installed it using a pre-built package, or built it from source.
-* A small test case, if applicable, that demonstrates the issues. Test cases should be in the form of `curl` commands. For example:
+* A small test case, if applicable, that demonstrates the issues.
+
+Remember the golden rule of bug reports: **The easier you make it for us to reproduce the problem, the faster it will get fixed.**
+
+Test cases should be in the form of `curl` commands. For example:
 ```
+# create database
+curl -G http://localhost:8086/query --data-urlencode "q=CREATE DATABASE mydb"
+ 
+# create retention policy
+curl -G http://localhost:8086/query --data-urlencode "q=CREATE RETENTION POLICY myrp ON mydb DURATION 365d REPLICATION 1 DEFAULT"
+ 
+# write data
+curl -d '{"database" : "mydb", "retentionPolicy" : "myrp", "points": [{"name":"cpu","tags":{"region":"useast","host":"server_1","service":"redis"},"fields":{"value":61}}]}' -H "Content-Type: application/json" http://localhost:8086/write
+
 # Delete a Measurement
 curl -G http://localhost:8086/query  --data-urlencode 'db=mydb' --data-urlencode 'q=DROP MEASUREMENT cpu'
 
 # Query the Measurement, it should return no data, but data comes back.
 curl -G http://localhost:8086/query  --data-urlencode 'db=mydb' --data-urlencode 'SELECT * from cpu'
 ```
-If you don't include a clear test case like this, your issue may not be investigated, and may even be closed.
+If you don't include a clear test case like this, your issue may not be investigated, and may even be closed. If writing the data is too difficult, please zip up your data directory and include a link to it in your bug report.
 
 Please note that issues are *not the place to file general questions* such as "how do I use collectd with InfluxDB?" Questions of this nature should be sent to the [Google Group](https://groups.google.com/forum/#!forum/influxdb), not filed as issues. Issues like this will be closed.
 
