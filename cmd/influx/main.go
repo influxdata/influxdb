@@ -221,12 +221,12 @@ func (c *CommandLine) SetAuth() {
 }
 
 func (c *CommandLine) use(cmd string) {
-	args := strings.Split(cmd, " ")
+	args := strings.Split(strings.TrimSpace(cmd), " ")
 	if len(args) != 2 {
 		fmt.Printf("Could not parse database name from %q.\n", cmd)
 		return
 	}
-	d := strings.TrimSpace(args[1])
+	d := args[1]
 	c.Database = d
 	fmt.Printf("Using database %s\n", d)
 }

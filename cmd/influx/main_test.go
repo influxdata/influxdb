@@ -57,3 +57,21 @@ func TestParseCommand_Exit(t *testing.T) {
 		}
 	}
 }
+
+func TestParseCommand_Use(t *testing.T) {
+	c := main.CommandLine{}
+	tests := []struct {
+		cmd string
+	}{
+		{cmd: "use db"},
+		{cmd: " use db"},
+		{cmd: "use db "},
+		{cmd: "Use db"},
+	}
+
+	for _, test := range tests {
+		if !c.ParseCommand(test.cmd) {
+			t.Fatalf(`Command "use" failed for %q.`, test.cmd)
+		}
+	}
+}
