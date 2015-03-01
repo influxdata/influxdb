@@ -44,8 +44,8 @@ type Client struct {
 	opened bool
 	done   chan chan struct{} // disconnection notification
 
-	// Channel streams messages from the broker.
-	c chan *Message
+	c     chan *Message // channel streams messages from the broker.
+	index uint64        // highest index sent over the channel
 
 	// The amount of time to wait before reconnecting to a broker stream.
 	ReconnectTimeout time.Duration
@@ -70,6 +70,13 @@ func (c *Client) ReplicaID() uint64 { return c.replicaID }
 // Messages can be duplicated so it is important to check the index
 // of the incoming message index to make sure it has not been processed.
 func (c *Client) C() <-chan *Message { return c.c }
+
+// Index returns the highest index sent over the channel.
+func (c *Client) Index() uint64 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.index
+}
 
 // URLs returns a list of broker URLs to connect to.
 func (c *Client) URLs() []*url.URL {
@@ -167,9 +174,10 @@ func (c *Client) Close() error {
 		c.done = nil
 	}
 
-	// Close message stream.
+	// Close message stream & clear index.
 	close(c.c)
 	c.c = nil
+	c.index = 0
 
 	// Unset open flag.
 	c.opened = false
@@ -222,6 +230,42 @@ func (c *Client) Publish(m *Message) (uint64, error) {
 	}
 
 	return index, nil
+}
+
+// Heartbeat sends a heartbeat back to the broker with the client's index.
+func (c *Client) Heartbeat() error {
+	var resp *http.Response
+	var err error
+
+	// Retrieve the parameters under lock.
+	c.mu.Lock()
+	replicaID, index := c.replicaID, c.index
+	c.mu.Unlock()
+
+	u := *c.LeaderURL()
+	// Send the message to the messages endpoint.
+	u.Path = "/messaging/heartbeat"
+	u.RawQuery = url.Values{
+		"replicaID": {strconv.FormatUint(replicaID, 10)},
+		"index":     {strconv.FormatUint(index, 10)},
+	}.Encode()
+	resp, err = http.Post(u.String(), "application/octet-stream", nil)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	// If the server returns a redirect then it's not the leader.
+	// If it returns a non-200 code then return the error.
+	if resp.StatusCode == http.StatusTemporaryRedirect {
+		return ErrNoLeader
+	} else if resp.StatusCode != http.StatusOK {
+		if errstr := resp.Header.Get("X-Broker-Error"); errstr != "" {
+			return errors.New(errstr)
+		}
+		return fmt.Errorf("heartbeat error: %d", resp.StatusCode)
+	}
+	return nil
 }
 
 // CreateReplica creates a replica on the broker.
@@ -430,6 +474,13 @@ func (c *Client) streamFromURL(u *url.URL, done chan chan struct{}) error {
 
 			// Write message to streaming channel.
 			c.c <- m
+
+			// Update the index on the client.
+			c.mu.Lock()
+			if m.Index > c.index {
+				c.index = m.Index
+			}
+			c.mu.Unlock()
 		}
 	}()
 

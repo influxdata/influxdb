@@ -33,6 +33,15 @@ func TestHandler_stream(t *testing.T) {
 	// Decode from body.
 	var m messaging.Message
 	dec := messaging.NewMessageDecoder(resp.Body)
+
+	// First message should be an internal message.
+	if err := dec.Decode(&m); err != nil {
+		t.Fatalf("decode error: %s", err)
+	} else if m.Index != 1 && m.Type != messaging.InternalMessageType {
+		t.Fatalf("unexpected index/type: %d / %x", m.Index, m.Type)
+	}
+
+	// Second message should be an the create replica message.
 	if err := dec.Decode(&m); err != nil {
 		t.Fatalf("decode error: %s", err)
 	} else if m.Index != 2 && m.Type != messaging.CreateReplicaMessageType {

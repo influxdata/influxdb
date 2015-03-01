@@ -181,9 +181,9 @@ func (b *Broker) load() error {
 	// Copy topic files from snapshot to local disk.
 	for _, st := range hdr.Topics {
 		t := b.newTopic(st.ID)
-		t.index = st.Index
 
-		// Open new empty topic file.
+		// Ignore segment data in the snapshot since we have the data locally.
+		// Simply opening the topic will automatically build the segments object.
 		if err := t.open(); err != nil {
 			return fmt.Errorf("open topic: %s", err)
 		}
@@ -196,8 +196,8 @@ func (b *Broker) load() error {
 		b.replicas[r.id] = r
 
 		// Append replica's topics.
-		for _, srt := range sr.Topics {
-			r.topics[srt.TopicID] = srt.Index
+		for _, topicID := range sr.TopicIDs {
+			r.topics[topicID] = struct{}{}
 		}
 	}
 
@@ -258,44 +258,55 @@ func (b *Broker) mustSave() {
 // createSnapshotHeader creates a snapshot header.
 func (b *Broker) createSnapshotHeader() (*snapshotHeader, error) {
 	// Create parent header.
-	s := &snapshotHeader{}
+	sh := &snapshotHeader{}
 
 	// Append topics.
 	for _, t := range b.topics {
-		// Retrieve current topic file size.
-		var sz int64
-		if t.file != nil {
-			fi, err := t.file.Stat()
-			if err != nil {
-				return nil, err
+		// Create snapshot topic.
+		st := &snapshotTopic{ID: t.id}
+
+		// Add segments to topic.
+		for _, s := range t.segments {
+			// Retrieve current segment file size from disk.
+			var size int64
+			fi, err := os.Stat(s.path)
+			if os.IsNotExist(err) {
+				size = 0
+			} else if err == nil {
+				size = fi.Size()
+			} else {
+				return nil, fmt.Errorf("stat segment: %s", err)
 			}
-			sz = fi.Size()
+
+			// Append segment.
+			st.Segments = append(st.Segments, &snapshotTopicSegment{
+				Index: s.index,
+				Size:  size,
+				path:  s.path,
+			})
+
+			// Bump the snapshot header max index.
+			if s.index > sh.Index {
+				sh.Index = s.index
+			}
 		}
 
 		// Append topic to the snapshot.
-		s.Topics = append(s.Topics, &snapshotTopic{
-			ID:    t.id,
-			Index: t.index,
-			Size:  sz,
-			path:  t.path,
-		})
+		sh.Topics = append(sh.Topics, st)
 	}
 
 	// Append replicas and the current index for each topic.
 	for _, r := range b.replicas {
 		sr := &snapshotReplica{ID: r.id, URL: r.URL.String()}
 
-		for topicID, index := range r.topics {
-			sr.Topics = append(sr.Topics, &snapshotReplicaTopic{
-				TopicID: topicID,
-				Index:   index,
-			})
+		for topicID := range r.topics {
+			sr.TopicIDs = append(sr.TopicIDs, topicID)
 		}
 
-		s.Replicas = append(s.Replicas, sr)
+		sh.Replicas = append(sh.Replicas, sr)
 	}
 
-	return s, nil
+	return sh, nil
 }
 
 // URL returns the connection url for the broker.
@@ -373,7 +384,29 @@ func (b *Broker) Replicas() []*Replica {
 	return a
 }
 
-// initializes a new topic object.
+// minReplicaTopicIndex returns the lowest index replicated for all replicas
+// subscribed to a given topic. Requires a lock.
+func (b *Broker) minReplicaTopicIndex(topicID uint64) uint64 {
+	var index uint64
+	var updated bool
+
+	for _, r := range b.replicas {
+		// Ignore replicas that are not subscribed.
+		if _, ok := r.topics[topicID]; !ok {
+			continue
+		}
+
+		// Move the index down if unset or a lowest index is found.
+		if !updated || r.index < index {
+			index = r.index
+			updated = true
+		}
+	}
+
+	return index
+}
+
+// initializes a new topic object. Requires lock.
 func (b *Broker) newTopic(id uint64) *topic {
 	t := &topic{
 		id:       id,
@@ -384,13 +417,31 @@ func (b *Broker) newTopic(id uint64) *topic {
 	return t
 }
 
-func (b *Broker) createTopicIfNotExists(id uint64) *topic {
+// creates and opens a topic if it doesn't already exist. Requires lock.
+func (b *Broker) createTopicIfNotExists(id uint64) (*topic, error) {
 	if t := b.topics[id]; t != nil {
-		return t
+		return t, nil
 	}
 
+	// Create topic and save metadata.
 	t := b.newTopic(id)
-	b.mustSave()
+	if err := b.save(); err != nil {
+		return nil, fmt.Errorf("save: %s", err)
+	}
+
+	// Open topic.
+	if err := t.open(); err != nil {
+		return nil, fmt.Errorf("open topic: %s", err)
+	}
+
+	return t, nil
+}
+
+func (b *Broker) mustCreateTopicIfNotExists(id uint64) *topic {
+	t, err := b.createTopicIfNotExists(id)
+	if err != nil {
+		panic(err.Error())
+	}
 	return t
 }
 
@@ -420,8 +471,8 @@ func (b *Broker) mustApplyCreateReplica(m *Message) {
 	r := newReplica(b, c.ID, c.URL)
 
 	// Automatically subscribe to the config topic.
-	t := b.createTopicIfNotExists(BroadcastTopicID)
-	r.topics[BroadcastTopicID] = t.index
+	b.createTopicIfNotExists(BroadcastTopicID)
+	r.topics[BroadcastTopicID] = struct{}{}
 
 	// Add replica to the broker.
 	b.replicas[c.ID] = r
@@ -462,7 +513,7 @@ func (b *Broker) mustApplyDeleteReplica(m *Message) {
 			delete(t.replicas, r.id)
 		}
 	}
-	r.topics = make(map[uint64]uint64)
+	r.topics = make(map[uint64]struct{})
 
 	// Close replica's writer.
 	r.closeWriter()
@@ -503,7 +554,7 @@ func (b *Broker) mustApplySubscribe(m *Message) {
 	}
 
 	// Save current index on topic.
-	t := b.createTopicIfNotExists(c.TopicID)
+	t := b.mustCreateTopicIfNotExists(c.TopicID)
 
 	// Ensure topic is not already subscribed to.
 	if _, ok := r.topics[c.TopicID]; ok {
@@ -512,11 +563,11 @@ func (b *Broker) mustApplySubscribe(m *Message) {
 	}
 
 	// Add subscription to replica.
-	r.topics[c.TopicID] = c.Index
+	r.topics[c.TopicID] = struct{}{}
 	t.replicas[c.ReplicaID] = r
 
 	// Catch up replica.
-	_ = t.writeTo(r, c.Index)
+	_ = t.writeTo(r)
 
 	b.mustSave()
 }
@@ -553,6 +604,81 @@ func (b *Broker) mustApplyUnsubscribe(m *Message) {
 	}
 
 	b.mustSave()
+}
+
+// ReplicaIndex returns the highest received index of a replica.
+func (b *Broker) ReplicaIndex(id uint64) (uint64, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	// Ensure replica exists.
+	r := b.replicas[id]
+	if r == nil {
+		return 0, ErrReplicaNotFound
+	}
+	return r.index, nil
+}
+
+// Heartbeat records a heartbeat from a replica.
+// The heartbeat is transient and only stored on the leader. It is used for
+// truncating the broker log segments but truncation can only occur if the
+// broker has current heartbeats from all replicas.
+func (b *Broker) Heartbeat(id, index uint64) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	// Ignore if the broker is not the leader.
+	if !b.IsLeader() {
+		return raft.ErrNotLeader
+	}
+
+	// Find replica.
+	r := b.replicas[id]
+	if r == nil {
+		return ErrReplicaNotFound
+	}
+
+	// Update its highest index received.
+	r.index = index
+	return nil
+}
+
+// Truncate removes log segments that have been replicated to all subscribed replicas.
+func (b *Broker) Truncate() error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	// Loop over every topic.
+	for _, t := range b.topics {
+		// Determine the highest index replicated to all subscribed replicas.
+		minReplicaTopicIndex := b.minReplicaTopicIndex(t.id)
+
+		// Loop over segments and close as needed.
+		newSegments := make(segments, 0, len(t.segments))
+		for i, s := range t.segments {
+			// Find the next segment so we can find the upper index bound.
+			var next *segment
+			if i < len(t.segments)-1 {
+				next = t.segments[i+1]
+			}
+
+			// Ignore the last segment or if the next index is less than
+			// the highest index replicated across all replicas.
+			if next == nil || minReplicaTopicIndex < next.index {
+				newSegments = append(newSegments, s)
+				continue
+			}
+
+			// Remove the segment if the replicated index has moved pasted
+			// all the entries inside this segment.
+			s.close()
+			if err := os.Remove(s.path); err != nil && !os.IsNotExist(err) {
+				return fmt.Errorf("remove segment: topic=%d, segment=%d, err=%s", t.id, s.index, err)
+			}
+		}
+	}
+
+	return nil
 }
 
 // brokerFSM implements the raft.FSM interface for the broker.
@@ -595,7 +721,7 @@ func (fsm *brokerFSM) MustApply(e *raft.LogEntry) {
 	m.Index = e.Index
 
 	// Write to the topic.
-	t := b.createTopicIfNotExists(m.TopicID)
+	t := b.mustCreateTopicIfNotExists(m.TopicID)
 	if err := t.encode(m); err != nil {
 		panic("encode: " + err.Error())
 	}
@@ -640,13 +766,15 @@ func (fsm *brokerFSM) Snapshot(w io.Writer) (uint64, error) {
 
 	// Stream each topic sequentially.
 	for _, t := range hdr.Topics {
-		if _, err := copyFileN(w, t.path, t.Size); err != nil {
-			return 0, err
+		for _, s := range t.Segments {
+			if _, err := copyFileN(w, s.path, s.Size); err != nil {
+				return 0, err
+			}
 		}
 	}
 
 	// Return the snapshot and its last applied index.
-	return hdr.maxIndex(), nil
+	return hdr.Index, nil
 }
 
 // Restore reads the broker state.
@@ -667,8 +795,8 @@ func (fsm *brokerFSM) Restore(r io.Reader) error {
 	}
 
 	// Decode header.
-	s := &snapshotHeader{}
-	if err := json.Unmarshal(buf, &s); err != nil {
+	sh := &snapshotHeader{}
+	if err := json.Unmarshal(buf, &sh); err != nil {
 		return fmt.Errorf("decode header: %s", err)
 	}
 
@@ -677,35 +805,52 @@ func (fsm *brokerFSM) Restore(r io.Reader) error {
 	b.closeReplicas()
 
 	// Copy topic files from snapshot to local disk.
-	for _, st := range s.Topics {
+	for _, st := range sh.Topics {
 		t := b.newTopic(st.ID)
-		t.index = st.Index
 
 		// Remove existing file if it exists.
-		if err := os.Remove(t.path); err != nil && !os.IsNotExist(err) {
+		if err := os.RemoveAll(t.path); err != nil && !os.IsNotExist(err) {
 			return err
+		}
+
+		// Copy data from snapshot into segment files.
+		// We don't instantiate the segments because that will be done
+		// automatically when calling open() on the topic.
+		for _, ss := range st.Segments {
+			if err := func() error {
+				// Create a new file with the starting index.
+				f, err := os.Open(t.segmentPath(ss.Index))
+				if err != nil {
+					return fmt.Errorf("open segment: %s", err)
+				}
+				defer func() { _ = f.Close() }()
+
+				// Copy from stream into file.
+				if _, err := io.CopyN(f, r, ss.Size); err != nil {
+					return fmt.Errorf("copy segment: %s", err)
+				}
+
+				return nil
+			}(); err != nil {
+				return err
+			}
 		}
 
 		// Open new empty topic file.
 		if err := t.open(); err != nil {
 			return fmt.Errorf("open topic: %s", err)
 		}
-
-		// Copy data from snapshot into file.
-		if _, err := io.CopyN(t.file, r, st.Size); err != nil {
-			return fmt.Errorf("copy topic: %s", err)
-		}
 	}
 
 	// Update the replicas.
-	for _, sr := range s.Replicas {
+	for _, sr := range sh.Replicas {
 		// Create replica.
 		r := newReplica(b, sr.ID, sr.URL)
 		b.replicas[r.id] = r
 
 		// Append replica's topics.
-		for _, srt := range sr.Topics {
-			r.topics[srt.TopicID] = srt.Index
+		for _, topicID := range sr.TopicIDs {
+			r.topics[topicID] = struct{}{}
 		}
 	}
 
@@ -729,36 +874,25 @@ func copyFileN(w io.Writer, path string, n int64) (int64, error) {
 type snapshotHeader struct {
 	Replicas []*snapshotReplica `json:"replicas"`
 	Topics   []*snapshotTopic   `json:"topics"`
-}
-
-// maxIndex returns the highest applied index across all topics.
-func (s *snapshotHeader) maxIndex() uint64 {
-	var idx uint64
-	for _, t := range s.Topics {
-		if t.Index > idx {
-			idx = t.Index
-		}
-	}
-	return idx
+	Index    uint64             `json:"index"`
 }
 
 type snapshotReplica struct {
-	ID     uint64                  `json:"id"`
-	Topics []*snapshotReplicaTopic `json:"topics"`
-	URL    string                  `json:"url"`
+	ID       uint64   `json:"id"`
+	TopicIDs []uint64 `json:"topicIDs"`
+	URL      string   `json:"url"`
 }
 
 type snapshotTopic struct {
-	ID    uint64 `json:"id"`
+	ID       uint64                  `json:"id"`
+	Segments []*snapshotTopicSegment `json:"segments"`
+}
+
+type snapshotTopicSegment struct {
 	Index uint64 `json:"index"`
 	Size  int64  `json:"size"`
 
 	path string
-}
-
-type snapshotReplicaTopic struct {
-	TopicID uint64 `json:"topicID"`
-	Index   uint64 `json:"index"`
 }
 
 // topic represents a single named queue of messages.
@@ -774,8 +908,6 @@ type topic struct {
 	path     string   // on-disk path
 	segments segments // list of available segments
 
-	file *os.File // current segment
-
 	replicas map[uint64]*Replica // replicas subscribed to topic
 }
 
@@ -790,7 +922,7 @@ func (t *topic) segmentPath(index uint64) string {
 
 // open opens a topic for writing.
 func (t *topic) open() error {
-	assert(t.file == nil, "topic already open: %d", t.id)
+	assert(len(t.segments) == 0, "topic already open: %d", t.id)
 
 	// Ensure the parent directory exists.
 	if err := os.MkdirAll(t.path, 0700); err != nil {
@@ -801,13 +933,6 @@ func (t *topic) open() error {
 	if err := t.loadSegments(); err != nil {
 		return fmt.Errorf("read segments: %s", err)
 	}
-
-	// Open the writer on the latest segment.
-	f, err := os.OpenFile(t.segments.last().path, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0600)
-	if err != nil {
-		return err
-	}
-	t.file = f
 
 	return nil
 }
@@ -855,10 +980,8 @@ func (t *topic) loadSegments() error {
 
 // close closes the underlying file.
 func (t *topic) Close() error {
-	// Close file.
-	if t.file != nil {
-		_ = t.file.Close()
-		t.file = nil
+	for _, s := range t.segments {
+		_ = s.close()
 	}
 	return nil
 }
@@ -890,10 +1013,13 @@ func (t *topic) loadIndex() error {
 	}
 }
 
-// writeTo writes the topic to a replica since a given index.
+// writeTo writes the topic to a replica. Only writes messages after replica index.
 // Returns an error if the starting index is unavailable.
-func (t *topic) writeTo(r *Replica, index uint64) error {
+func (t *topic) writeTo(r *Replica) error {
 	// TODO: If index is too old then return an error.
+
+	// Retrieve the replica's highest received index.
+	index := r.index
 
 	// Loop over each segment and write if it contains entries after index.
 	segments := t.segments
@@ -957,24 +1083,36 @@ func (t *topic) writeSegmentTo(r *Replica, index uint64, segment *segment) error
 
 // encode writes a message to the end of the topic.
 func (t *topic) encode(m *Message) error {
-	// Ensure the topic is open and ready for writing.
-	if t.file == nil {
-		if err := t.open(); err != nil {
-			return fmt.Errorf("open: %s", err)
-		}
-	}
-
 	// Ensure message is in-order.
 	assert(m.Index > t.index, "topic message out of order: %d -> %d", t.index, m.Index)
+
+	// Retrieve the last segment.
+	s := t.segments.last()
+
+	// Close the segment if it's too large.
+	if s.size > MaxSegmentSize {
+		s.close()
+		s = nil
+	}
+
+	// Create and append a new segment if we don't have one.
+	if s == nil {
+		t.segments = append(t.segments, &segment{index: m.Index, path: t.segmentPath(m.Index)})
+	}
+	if s.file == nil {
+		if err := s.open(); err != nil {
+			return fmt.Errorf("open segment: %s", err)
+		}
+	}
 
 	// Encode message.
 	b := make([]byte, messageHeaderSize+len(m.Data))
 	copy(b, m.marshalHeader())
 	copy(b[messageHeaderSize:], m.Data)
 
-	// Write to topic file.
-	if _, err := t.file.Write(b); err != nil {
-		return fmt.Errorf("encode header: %s", err)
+	// Write to segment.
+	if _, err := s.file.Write(b); err != nil {
+		return fmt.Errorf("write segment: %s", err)
 	}
 
 	// Move up high water mark on the topic.
@@ -993,12 +1131,42 @@ type segment struct {
 	index uint64 // starting index of the segment and name
 	path  string // path to the segment file.
 	size  int64  // total size of the segment file, in bytes.
+
+	file *os.File // handle for writing, only open for last segment
+}
+
+// open opens the file handle for append.
+func (s *segment) open() error {
+	f, err := os.OpenFile(s.path, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0600)
+	if err != nil {
+		return err
+	}
+	s.file = f
+	return nil
+}
+
+// close closes the segment's writing file handle.
+func (s *segment) close() error {
+	if s.file != nil {
+		err := s.file.Close()
+		s.file = nil
+		return err
+	}
+	return nil
 }
 
 // segments represents a list of segments sorted by index.
 type segments []*segment
 
-func (a segments) last() *segment     { return a[len(a)-1] }
+// last returns the last segment in the slice.
+// Returns nil if there are no elements.
+func (a segments) last() *segment {
+	if len(a) == 0 {
+		return nil
+	}
+	return a[len(a)-1]
+}
+
 func (a segments) Len() int           { return len(a) }
 func (a segments) Less(i, j int) bool { return a[i].index < a[j].index }
 func (a segments) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
@@ -1018,11 +1186,12 @@ type Replica struct {
 
 	id     uint64
 	broker *Broker
+	index  uint64 // highest index replicated to the replica.
 
 	writer io.Writer     // currently attached writer
 	done   chan struct{} // notify when current writer is removed
 
-	topics map[uint64]uint64 // current index for each subscribed topic
+	topics map[uint64]struct{} // set of subscribed topics.
 }
 
 // newReplica returns a new Replica instance associated with a broker.
@@ -1037,7 +1206,7 @@ func newReplica(b *Broker, id uint64, urlstr string) *Replica {
 		URL:    u,
 		broker: b,
 		id:     id,
-		topics: make(map[uint64]uint64),
+		topics: make(map[uint64]struct{}),
 	}
 }
 
@@ -1108,10 +1277,8 @@ func (r *Replica) WriteTo(w io.Writer) (int64, error) {
 		t := r.broker.topics[topicID]
 		assert(t != nil, "topic missing: %s", topicID)
 
-		// Write topic messages from last known index.
-		// Replica machine can ignore messages it already seen.
-		index := r.topics[topicID]
-		if err := t.writeTo(r, index); err != nil {
+		// Write topic messages to replica.
+		if err := t.writeTo(r); err != nil {
 			r.closeWriter()
 			return 0, fmt.Errorf("add stream writer: %s", err)
 		}
@@ -1140,7 +1307,6 @@ type DeleteReplicaCommand struct {
 type SubscribeCommand struct {
 	ReplicaID uint64 `json:"replicaID"` // replica id
 	TopicID   uint64 `json:"topicID"`   // topic id
-	Index     uint64 `json:"index"`     // index
 }
 
 // UnsubscribeCommand removes a subscription for a topic from a replica.

@@ -73,6 +73,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else {
 			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		}
+	case "/messaging/heartbeat":
+		if r.Method == "POST" {
+			h.heartbeat(w, r)
+		} else {
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		}
 	default:
 		http.NotFound(w, r)
 	}
@@ -261,6 +267,32 @@ func (h *Handler) unsubscribe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// recieves a heartbeat from a client.
+func (h *Handler) heartbeat(w http.ResponseWriter, r *http.Request) {
+	// Read the replica id.
+	replicaID, err := strconv.ParseUint(r.URL.Query().Get("replicaID"), 10, 16)
+	if err != nil {
+		h.error(w, ErrReplicaIDRequired, http.StatusBadRequest)
+		return
+	}
+
+	// Read the index.
+	index, err := strconv.ParseUint(r.URL.Query().Get("index"), 10, 16)
+	if err != nil {
+		h.error(w, ErrIndexRequired, http.StatusBadRequest)
+		return
+	}
+
+	// Update the replica's index.
+	if err := h.broker.Heartbeat(replicaID, index); err == raft.ErrNotLeader {
+		h.redirectToLeader(w, r)
+		return
+	} else if err != nil {
+		h.error(w, err, http.StatusInternalServerError)
+		return
+	}
 }
 
 // error writes an error to the client and sets the status code.

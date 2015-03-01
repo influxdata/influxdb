@@ -45,4 +45,10 @@ var (
 
 	// ErrTopicRequired is returned publishing a message without a topic ID.
 	ErrTopicRequired = errors.New("topic required")
+
+	// ErrNoLeader is returned when a leader cannot be reached.
+	ErrNoLeader = errors.New("no leader")
+
+	// ErrIndexRequired is returned when making a call without a valid index.
+	ErrIndexRequired = errors.New("index required")
 )

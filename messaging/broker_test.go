@@ -80,6 +80,9 @@ func TestBroker_Publish(t *testing.T) {
 	// Read out the config messages first.
 	var m messaging.Message
 	dec := messaging.NewMessageDecoder(&buf)
+	if err := dec.Decode(&m); err != nil || m.Type != messaging.InternalMessageType {
+		t.Fatalf("decode(internal): %x (%v)", m.Type, err)
+	}
 	if err := dec.Decode(&m); err != nil || m.Type != messaging.CreateReplicaMessageType {
 		t.Fatalf("decode(create replica): %x (%v)", m.Type, err)
 	}

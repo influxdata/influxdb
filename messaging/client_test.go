@@ -37,9 +37,11 @@ func TestClient_Open(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 
-	// Receive a message from the stream.
-	if m := <-c.C(); m.Type != messaging.CreateReplicaMessageType {
-		t.Fatalf("unexpected message type: %x", m.Type)
+	// Receive messages from the stream.
+	if m := <-c.C(); m.Type != messaging.InternalMessageType {
+		t.Fatalf("message type mismatch(internal): %x", m.Type)
+	} else if m = <-c.C(); m.Type != messaging.CreateReplicaMessageType {
+		t.Fatalf("message type mismatch(create replica): %x", m.Type)
 	}
 
 	// Close connection to the broker.
@@ -132,6 +134,41 @@ func TestClient_Publish_ErrLogClosed(t *testing.T) {
 	// Publish message to the broker.
 	if _, err := c.Publish(&messaging.Message{Type: 100, TopicID: 0, Data: []byte{0}}); err == nil || err.Error() != "log closed" {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+// Ensure that a client can heartbeat its status to the broker.
+func TestClient_Heartbeat(t *testing.T) {
+	c := OpenClient(1000)
+	defer c.Close()
+
+	// Publish message to the broker.
+	index := c.MustPublish(&messaging.Message{Type: 100, TopicID: messaging.BroadcastTopicID, Data: []byte{}})
+
+	// Flush the channel until we receive our message.
+loop:
+	for {
+		select {
+		case m := <-c.C():
+			if m.Index == index {
+				break loop
+			}
+		}
+	}
+
+	// Wait until the index moves forward.
+	c.Sync(index)
+
+	// Send heartbeat to the broker.
+	if err := c.Heartbeat(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify the broker received the heartbeat.
+	if replicaIndex, err := c.Server.Broker().ReplicaIndex(1000); err != nil {
+		t.Fatal(err)
+	} else if replicaIndex != index {
+		t.Fatalf("unexpected replica index: exp=%d, got=%d", index, replicaIndex)
 	}
 }
 
@@ -270,6 +307,25 @@ func (c *Client) Close() {
 		os.Remove(c.clientConfig)
 	}
 	c.Server.Close()
+}
+
+// MustPublish publishes a message. Panic on error.
+func (c *Client) MustPublish(m *messaging.Message) uint64 {
+	index, err := c.Publish(m)
+	if err != nil {
+		panic(err.Error())
+	}
+	return index
+}
+
+// Sync waits until the client's index reaches the given index.
+func (c *Client) Sync(index uint64) {
+	for {
+		if c.Index() == index {
+			return
+		}
+		time.Sleep(1 * time.Millisecond)
+	}
 }
 
 // NewTempFile returns the path of a new temporary file.
