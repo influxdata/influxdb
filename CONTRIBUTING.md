@@ -1,6 +1,45 @@
 Contributing to InfluxDB
 ========================
 
+Bug reports
+---------------
+Before you file an issue, please search existing issues in case it has already been filed, or perhaps even fixed. If you file an issue, please include the following.
+* Full details of your operating system (or distribution) e.g. 64-bit Ubuntu 14.04.
+* The version of InfluxDB you are running
+* Whether you installed it using a pre-built package, or built it from source.
+* A small test case, if applicable, that demonstrates the issues.
+
+Remember the golden rule of bug reports: **The easier you make it for us to reproduce the problem, the faster it will get fixed.**
+If you have never written a bug report before, or if you want to brush up on your bug reporting skills, we recommend reading [Simon Tatham's essay "How to Report Bugs Effectively."](http://www.chiark.greenend.org.uk/~sgtatham/bugs.html)
+
+Test cases should be in the form of `curl` commands. For example:
+```
+# create database
+curl -G http://localhost:8086/query --data-urlencode "q=CREATE DATABASE mydb"
+ 
+# create retention policy
+curl -G http://localhost:8086/query --data-urlencode "q=CREATE RETENTION POLICY myrp ON mydb DURATION 365d REPLICATION 1 DEFAULT"
+ 
+# write data
+curl -d '{"database" : "mydb", "retentionPolicy" : "myrp", "points": [{"name":"cpu","tags":{"region":"useast","host":"server_1","service":"redis"},"fields":{"value":61}}]}' -H "Content-Type: application/json" http://localhost:8086/write
+
+# Delete a Measurement
+curl -G http://localhost:8086/query  --data-urlencode 'db=mydb' --data-urlencode 'q=DROP MEASUREMENT cpu'
+
+# Query the Measurement, it should return no data, but data comes back.
+curl -G http://localhost:8086/query  --data-urlencode 'db=mydb' --data-urlencode 'SELECT * from cpu'
+```
+If you don't include a clear test case like this, your issue may not be investigated, and may even be closed. If writing the data is too difficult, please zip up your data directory and include a link to it in your bug report.
+
+Please note that issues are *not the place to file general questions* such as "how do I use collectd with InfluxDB?" Questions of this nature should be sent to the [Google Group](https://groups.google.com/forum/#!forum/influxdb), not filed as issues. Issues like this will be closed.
+
+Feature requests
+---------------
+We really like to receive feature requests, as it helps us prioritize our work. Please be clear about your requirements, as incomplete feature requests may simply be closed if we don't understand what you would like to see added to InfluxDB.
+
+Contributing to the source code
+---------------
+
 InfluxDB follows standard Go project structure. This means that all
 your go development are done in $GOPATH/src. GOPATH can be any
 directory under which InfluxDB and all it's dependencies will be
@@ -116,6 +155,10 @@ To install go cover, run the following command:
 ```
 go get golang.org/x/tools/cmd/cover
 ```
+
+Submitting a pull request
+------------
+To submit a pull request you should fork the InfluxDB repository, and make your change on a feature branch of your fork. Then generate a pull request from your branch against *master* of the InfluxDB repository. Include in your pull request details of your change -- the why *and* the how -- as well as the testing your performed. There will usually be some back and forth as we finalize the change, but once that completes it may be merged.
 
 Useful links
 ------------

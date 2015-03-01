@@ -2,6 +2,7 @@ package influxdb
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"sync"
 	"time"
@@ -100,10 +101,20 @@ func (tx *tx) CreateIterators(stmt *influxql.SelectStatement) ([]influxql.Iterat
 		return nil, ErrRetentionPolicyNotFound
 	}
 
+	// Find measurement.
+	m, err := tx.server.measurement(database, measurement)
+	if err != nil {
+		return nil, err
+	}
+	if m == nil {
+		return nil, ErrMeasurementNotFound
+	}
+	tx.measurement = m
+
 	// Find shard groups within time range.
 	var shardGroups []*ShardGroup
 	for _, group := range rp.shardGroups {
-		if timeBetweenInclusive(group.StartTime, tmin, tmax) || timeBetweenInclusive(group.EndTime, tmin, tmax) {
+		if group.Contains(tmin, tmax) {
 			shardGroups = append(shardGroups, group)
 		}
 	}
@@ -116,16 +127,6 @@ func (tx *tx) CreateIterators(stmt *influxql.SelectStatement) ([]influxql.Iterat
 	if err != nil {
 		return nil, err
 	}
-
-	// Find measurement.
-	m, err := tx.server.measurement(database, measurement)
-	if err != nil {
-		return nil, err
-	}
-	if m == nil {
-		return nil, ErrMeasurementNotFound
-	}
-	tx.measurement = m
 
 	// Find field.
 	fieldName := stmt.Fields[0].Expr.(*influxql.VarRef).Val
@@ -309,10 +310,12 @@ func (i *shardIterator) Tags() string { return i.tags }
 
 func (i *shardIterator) Next() (key int64, data []byte, value interface{}) {
 	min := -1
+	minKey := int64(math.MaxInt64)
 
 	for ind, kv := range i.keyValues {
-		if kv.key != 0 && kv.key < i.tmax {
+		if kv.key != 0 && kv.key < i.tmax && kv.key < minKey {
 			min = ind
+			minKey = kv.key
 		}
 	}
 

@@ -1,10 +1,30 @@
-## v0.9.0-rc5 [unreleased]
+## v0.9.0-rc7 [Unreleased]
 
 ### Bugfixes
 
+- [#1744](https://github.com/influxdb/influxdb/pull/1744): Allow retention policies to be modified without specifying replication factor. Thanks @kylezh
+
+## v0.9.0-rc6 [2015-02-27]
+
+### Bugfixes
+
+- [#1780](https://github.com/influxdb/influxdb/pull/1780): Malformed identifiers get through the parser
+- [#1775](https://github.com/influxdb/influxdb/pull/1775): Panic "index out of range" on some queries
+- [#1744](https://github.com/influxdb/influxdb/pull/1744): Select shard groups which completely encompass time range. Thanks @kylezh.
+
+## v0.9.0-rc5 [2015-02-27]
+
+### Bugfixes
+
+- [#1752](https://github.com/influxdb/influxdb/pull/1752): remove debug log output from collectd.
 - [#1720](https://github.com/influxdb/influxdb/pull/1720): Parse Series IDs as unsigned 32-bits.
+- [#1767](https://github.com/influxdb/influxdb/pull/1767): Drop Series was failing across shards.  Issue #1761.
+- [#1773](https://github.com/influxdb/influxdb/pull/1773): Fix bug when merging series together that have unequal number of points in a group by interval
+- [#1771](https://github.com/influxdb/influxdb/pull/1771): Make `SHOW SERIES` return IDs and support `LIMIT` and `OFFSET`
 
 ### Features
+
+- [#1698](https://github.com/influxdb/influxdb/pull/1698): Wire up DROP MEASUREMENT
 
 ## v0.9.0-rc4 [2015-02-24]
 

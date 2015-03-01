@@ -90,7 +90,6 @@ func (s *Server) serve(conn *net.UDPConn) {
 			log.Printf("Collectd ReadFromUDP error: %s", err)
 			continue
 		}
-		log.Printf("received %d bytes", n)
 		if n > 0 {
 			s.handleMessage(buffer[:n])
 		}
@@ -102,7 +101,6 @@ func (s *Server) serve(conn *net.UDPConn) {
 }
 
 func (s *Server) handleMessage(buffer []byte) {
-	log.Printf("handling message")
 	packets, err := gollectd.Packets(buffer, s.typesdb)
 	if err != nil {
 		log.Printf("Collectd parse error: %s", err)

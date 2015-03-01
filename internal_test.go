@@ -5,6 +5,7 @@ package influxdb
 import (
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/influxdb/influxdb/influxql"
 )
@@ -117,9 +118,12 @@ func TestCreateMeasurementsCommand(t *testing.T) {
 	// Add Series, same tags again.
 	c.addSeriesIfNotExists("bar", tags)
 
-	n = len(c.Measurements["bar"].Tags)
-	if n != 2 {
-		t.Fatalf("measurement has wrong number of tags, expected 2, got %d", n)
+	for _, m := range c.Measurements {
+		if m.Name == "bar" {
+			if len(m.Tags) != 2 {
+				t.Fatalf("measurement has wrong number of tags, expected 2, got %d", n)
+			}
+		}
 	}
 
 	// Add a field.
@@ -140,9 +144,12 @@ func TestCreateMeasurementsCommand(t *testing.T) {
 		t.Fatal("error re-adding field \"value2\"")
 	}
 
-	n = len(c.Measurements["bar"].Fields)
-	if n != 2 {
-		t.Fatalf("wrong number of fields, expected 2, got %d", n)
+	for _, m := range c.Measurements {
+		if m.Name == "bar" {
+			if len(m.Fields) != 2 {
+				t.Fatalf("measurement has wrong number of fields, expected 2, got %d", n)
+			}
+		}
 	}
 }
 
@@ -174,6 +181,132 @@ func TestCreateMeasurementsCommand_Errors(t *testing.T) {
 	err = c.addFieldIfNotExists("bar", "value", influxql.String)
 	if err != ErrFieldTypeConflict {
 		t.Fatalf("expected ErrFieldTypeConflict got %s", err.Error())
+	}
+}
+
+// Test comparing seriesIDs for equality.
+func Test_seriesIDs_equals(t *testing.T) {
+	ids1 := seriesIDs{1, 2, 3}
+	ids2 := seriesIDs{1, 2, 3}
+	ids3 := seriesIDs{4, 5, 6}
+
+	if !ids1.equals(ids2) {
+		t.Fatal("expected ids1 == ids2")
+	} else if ids1.equals(ids3) {
+		t.Fatal("expected ids1 != ids3")
+	}
+}
+
+// Test intersecting sets of seriesIDs.
+func Test_seriesIDs_intersect(t *testing.T) {
+	// Test swaping l & r, all branches of if-else, and exit loop when 'j < len(r)'
+	ids1 := seriesIDs{1, 3, 4, 5, 6}
+	ids2 := seriesIDs{1, 2, 3, 7}
+	exp := seriesIDs{1, 3}
+	got := ids1.intersect(ids2)
+
+	if !exp.equals(got) {
+		t.Fatalf("exp=%v, got=%v", exp, got)
+	}
+
+	// Test exit for loop when 'i < len(l)'
+	ids1 = seriesIDs{1}
+	ids2 = seriesIDs{1, 2}
+	exp = seriesIDs{1}
+	got = ids1.intersect(ids2)
+
+	if !exp.equals(got) {
+		t.Fatalf("exp=%v, got=%v", exp, got)
+	}
+}
+
+// Test union sets of seriesIDs.
+func Test_seriesIDs_union(t *testing.T) {
+	// Test all branches of if-else, exit loop because of 'j < len(r)', and append remainder from left.
+	ids1 := seriesIDs{1, 2, 3, 7}
+	ids2 := seriesIDs{1, 3, 4, 5, 6}
+	exp := seriesIDs{1, 2, 3, 4, 5, 6, 7}
+	got := ids1.union(ids2)
+
+	if !exp.equals(got) {
+		t.Fatalf("exp=%v, got=%v", exp, got)
+	}
+
+	// Test exit because of 'i < len(l)' and append remainder from right.
+	ids1 = seriesIDs{1}
+	ids2 = seriesIDs{1, 2}
+	exp = seriesIDs{1, 2}
+	got = ids1.union(ids2)
+
+	if !exp.equals(got) {
+		t.Fatalf("exp=%v, got=%v", exp, got)
+	}
+}
+
+// Test removing one set of seriesIDs from another.
+func Test_seriesIDs_reject(t *testing.T) {
+	// Test all branches of if-else, exit loop because of 'j < len(r)', and append remainder from left.
+	ids1 := seriesIDs{1, 2, 3, 7}
+	ids2 := seriesIDs{1, 3, 4, 5, 6}
+	exp := seriesIDs{2, 7}
+	got := ids1.reject(ids2)
+
+	if !exp.equals(got) {
+		t.Fatalf("exp=%v, got=%v", exp, got)
+	}
+
+	// Test exit because of 'i < len(l)'.
+	ids1 = seriesIDs{1}
+	ids2 = seriesIDs{1, 2}
+	exp = seriesIDs{}
+	got = ids1.reject(ids2)
+
+	if !exp.equals(got) {
+		t.Fatalf("exp=%v, got=%v", exp, got)
+	}
+}
+
+// Test shard group selection.
+func TestShardGroup_Contains(t *testing.T) {
+	// Make a shard group 1 hour in duration
+	g := newShardGroup()
+	g.StartTime, _ = time.Parse(time.RFC3339, "2000-01-01T00:00:00Z")
+	g.EndTime = g.StartTime.Add(time.Hour)
+
+	if !g.Contains(g.StartTime.Add(-time.Minute), g.EndTime) {
+		t.Fatal("shard group not selected when min before start time")
+	}
+
+	if !g.Contains(g.StartTime, g.EndTime.Add(time.Minute)) {
+		t.Fatal("shard group not selected when max after after end time")
+	}
+
+	if !g.Contains(g.StartTime.Add(-time.Minute), g.EndTime.Add(time.Minute)) {
+		t.Fatal("shard group not selected when min before start time and when max after end time")
+	}
+
+	if !g.Contains(g.StartTime.Add(time.Minute), g.EndTime.Add(-time.Minute)) {
+		t.Fatal("shard group not selected when min after start time and when max before end time")
+	}
+
+	if !g.Contains(g.StartTime, g.EndTime) {
+		t.Fatal("shard group not selected when min at start time and when max at end time")
+	}
+
+	if !g.Contains(g.StartTime, g.StartTime) {
+		t.Fatal("shard group not selected when min and max set to start time")
+	}
+
+	if !g.Contains(g.EndTime, g.EndTime) {
+		t.Fatal("shard group not selected when min and max set to end time")
+	}
+
+	if g.Contains(g.StartTime.Add(-10*time.Hour), g.EndTime.Add(-9*time.Hour)) {
+		t.Fatal("shard group selected when both min and max before shard times")
+	}
+
+	if g.Contains(g.StartTime.Add(24*time.Hour), g.EndTime.Add(25*time.Hour)) {
+		t.Fatal("shard group selected when both min and max after shard times")
 	}
 }
 

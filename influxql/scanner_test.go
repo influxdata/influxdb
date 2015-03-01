@@ -60,6 +60,11 @@ func TestScanner_Scan(t *testing.T) {
 		{s: `foo`, tok: influxql.IDENT, lit: `foo`},
 		{s: `Zx12_3U_-`, tok: influxql.IDENT, lit: `Zx12_3U_`},
 		{s: `"foo".bar`, tok: influxql.IDENT, lit: `"foo".bar`},
+		{s: `"foo\\bar"`, tok: influxql.IDENT, lit: `"foo\bar"`},
+		{s: `"foo\bar"`, tok: influxql.BADESCAPE, lit: `\b`, pos: influxql.Pos{Line: 0, Char: 5}},
+		{s: `"foo\"bar\""`, tok: influxql.IDENT, lit: `"foo"bar""`},
+		{s: `test"`, tok: influxql.BADSTRING, lit: "", pos: influxql.Pos{Line: 0, Char: 3}},
+		{s: `"test`, tok: influxql.BADSTRING, lit: `test`},
 
 		{s: `true`, tok: influxql.TRUE},
 		{s: `false`, tok: influxql.FALSE},

@@ -610,9 +610,9 @@ unary_expr       = "(" expr ")" | var_ref | time_lit | string_lit |
 ```
 decimals          = decimal_digit { decimal_digit } .
 
-dimenson         = expr .
+dimension         = expr .
 
-dimensons        = dimenson { "," dimenson } .
+dimensions        = dimension { "," dimension } .
 
 field            = expr [ alias ] .
 

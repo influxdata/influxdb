@@ -65,6 +65,7 @@ func (*CreateUserStatement) node()            {}
 func (*DeleteStatement) node()                {}
 func (*DropContinuousQueryStatement) node()   {}
 func (*DropDatabaseStatement) node()          {}
+func (*DropMeasurementStatement) node()       {}
 func (*DropRetentionPolicyStatement) node()   {}
 func (*DropSeriesStatement) node()            {}
 func (*DropUserStatement) node()              {}
@@ -154,6 +155,7 @@ func (*CreateUserStatement) stmt()            {}
 func (*DeleteStatement) stmt()                {}
 func (*DropContinuousQueryStatement) stmt()   {}
 func (*DropDatabaseStatement) stmt()          {}
+func (*DropMeasurementStatement) stmt()       {}
 func (*DropRetentionPolicyStatement) stmt()   {}
 func (*DropSeriesStatement) stmt()            {}
 func (*DropUserStatement) stmt()              {}
@@ -1196,6 +1198,25 @@ func (s *ShowMeasurementsStatement) String() string {
 // RequiredPrivileges returns the privilege(s) required to execute a ShowMeasurementsStatement
 func (s *ShowMeasurementsStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Name: "", Privilege: ReadPrivilege}}
+}
+
+// DropMeasurmentStatement represents a command to drop a measurement.
+type DropMeasurementStatement struct {
+	// Name of the measurement to be dropped.
+	Name string
+}
+
+// String returns a string representation of the drop measurement statement.
+func (s *DropMeasurementStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("DROP MEASUREMENT ")
+	_, _ = buf.WriteString(s.Name)
+	return buf.String()
+}
+
+// RequiredPrivileges returns the privilege(s) required to execute a DropMeasurementStatement
+func (s *DropMeasurementStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
 }
 
 // ShowRetentionPoliciesStatement represents a command for listing retention policies.

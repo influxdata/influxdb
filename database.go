@@ -221,7 +221,7 @@ func (m *Measurement) addSeries(s *Series) bool {
 	return true
 }
 
-// removeSeries will remove a series from the measurementIndex. Returns true if already removed
+// dropSeries will remove a series from the measurementIndex. Returns true if already removed
 func (m *Measurement) dropSeries(seriesID uint32) bool {
 	if _, ok := m.seriesByID[seriesID]; !ok {
 		return true
@@ -930,7 +930,7 @@ func (a seriesIDs) intersect(other seriesIDs) seriesIDs {
 	var i, j int
 
 	ids := make([]uint32, 0, len(l))
-	for i < len(l) {
+	for i < len(l) && j < len(r) {
 		if l[i] == r[j] {
 			ids = append(ids, l[i])
 			i++
@@ -1049,6 +1049,40 @@ func (rp *RetentionPolicy) shardGroupByID(shardID uint64) *ShardGroup {
 	return nil
 }
 
+// dropMeasurement will remove a measurement from:
+//    In memory index.
+//    Series data from the shards.
+func (db *database) dropMeasurement(name string) error {
+	if _, ok := db.measurements[name]; !ok {
+		return nil
+	}
+
+	// remove measurement from in memory index
+	delete(db.measurements, name)
+
+	// collect the series ids to remove
+	var ids []uint32
+
+	// remove series from in memory map
+	for id, series := range db.series {
+		if series.measurement.Name == name {
+			ids = append(ids, id)
+			delete(db.series, id)
+		}
+	}
+
+	// remove series data from shards
+	for _, rp := range db.policies {
+		for _, id := range ids {
+			if err := rp.dropSeries(id); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 // dropSeries will delete all data with the seriesID
 func (rp *RetentionPolicy) dropSeries(seriesID uint32) error {
 	for _, g := range rp.shardGroups {
@@ -1150,7 +1184,7 @@ func (db *database) dropSeries(seriesByMeasurement map[string][]uint32) error {
 			// Remove shard data
 			for _, rp := range db.policies {
 				if err := rp.dropSeries(id); err != nil {
-					return err
+					return fmt.Errorf("database.retentionPolicies.dropSeries: %s", err)
 				}
 			}
 		}
@@ -1387,6 +1421,7 @@ func (m *Measurement) tagValuesByKeyAndSeriesID(tagKeys []string, ids seriesIDs)
 		// Iterate the tag keys we're interested in and collect values
 		// from this series, if they exist.
 		for _, tagKey := range tagKeys {
+			tagKey = strings.Trim(tagKey, `"`)
 			if tagVal, ok := s.Tags[tagKey]; ok {
 				if _, ok = tagValues[tagKey]; !ok {
 					tagValues[tagKey] = newStringSet()

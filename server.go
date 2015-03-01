@@ -302,7 +302,7 @@ func (s *Server) EnforceRetentionPolicies() {
 	for _, db := range s.databases {
 		for _, rp := range db.policies {
 			for _, g := range rp.shardGroups {
-				if g.EndTime.Add(rp.Duration).Before(time.Now()) {
+				if g.EndTime.Add(rp.Duration).Before(time.Now().UTC()) {
 					log.Printf("shard group %d, retention policy %s, database %s due for deletion",
 						g.ID, rp.Name, db.name)
 					if err := s.DeleteShardGroup(db.name, rp.Name, g.ID); err != nil {
@@ -1340,7 +1340,7 @@ func (s *Server) applyDropSeries(m *messaging.Message) error {
 
 		// Delete series from the database.
 		if err := database.dropSeries(c.SeriesByMeasurement); err != nil {
-			return fmt.Errorf("failed to remove series from index")
+			return fmt.Errorf("failed to remove series from index: %s", err)
 		}
 		return nil
 	})
@@ -1606,6 +1606,45 @@ func (s *Server) applyCreateMeasurementsIfNotExists(m *messaging.Message) error 
 	return nil
 }
 
+func (s *Server) DropMeasurement(database, name string) error {
+	c := &dropMeasurementCommand{Database: database, Name: name}
+	_, err := s.broadcast(dropMeasurementMessageType, c)
+	return err
+}
+
+func (s *Server) applyDropMeasurement(m *messaging.Message) error {
+	var c dropMeasurementCommand
+	mustUnmarshalJSON(m.Data, &c)
+
+	database := s.databases[c.Database]
+	if database == nil {
+		return ErrDatabaseNotFound
+	}
+
+	measurement := database.measurements[c.Name]
+	if measurement == nil {
+		return ErrMeasurementNotFound
+	}
+
+	err := s.meta.mustUpdate(m.Index, func(tx *metatx) error {
+		// Drop metastore data
+		if err := tx.dropMeasurement(c.Database, c.Name); err != nil {
+			return err
+		}
+
+		// Drop measurement from the database.
+		if err := database.dropMeasurement(c.Name); err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // createShardGroupsIfNotExist walks the "points" and ensures that all required shards exist on the cluster.
 func (s *Server) createShardGroupsIfNotExists(database, retentionPolicy string, points []Point) error {
 	for _, p := range points {
@@ -1736,6 +1775,8 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 			res = s.executeDropSeriesStatement(stmt, database, user)
 		case *influxql.ShowSeriesStatement:
 			res = s.executeShowSeriesStatement(stmt, database, user)
+		case *influxql.DropMeasurementStatement:
+			res = s.executeDropMeasurementStatement(stmt, database, user)
 		case *influxql.ShowMeasurementsStatement:
 			res = s.executeShowMeasurementsStatement(stmt, database, user)
 		case *influxql.ShowTagKeysStatement:
@@ -1885,6 +1926,10 @@ func (s *Server) executeDropUserStatement(q *influxql.DropUserStatement, user *U
 	return &Result{Err: s.DeleteUser(q.Name)}
 }
 
+func (s *Server) executeDropMeasurementStatement(stmt *influxql.DropMeasurementStatement, database string, user *User) *Result {
+	return &Result{Err: s.DropMeasurement(database, stmt.Name)}
+}
+
 func (s *Server) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, database string, user *User) *Result {
 	s.mu.RLock()
 
@@ -1955,11 +2000,6 @@ func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, 
 		return &Result{Err: err}
 	}
 
-	// // If OFFSET is past the end of the array, return empty results.
-	// if stmt.Offset > len(measurements)-1 {
-	// 	return &Result{}
-	// }
-
 	// Create result struct that will be populated and returned.
 	result := &Result{
 		Series: make(influxql.Rows, 0, len(measurements)),
@@ -1994,7 +2034,8 @@ func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, 
 		// Loop through series IDs getting matching tag sets.
 		for _, id := range ids {
 			if s, ok := m.seriesByID[id]; ok {
-				values := make([]interface{}, 0, len(r.Columns))
+				values := make([]interface{}, 0, len(r.Columns)+1)
+				values = append(values, id)
 				for _, column := range r.Columns {
 					values = append(values, s.Tags[column])
 				}
@@ -2003,12 +2044,47 @@ func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, 
 				r.Values = append(r.Values, values)
 			}
 		}
+		// make the id the first column
+		r.Columns = append([]string{"id"}, r.Columns...)
 
 		// Append the row to the result.
 		result.Series = append(result.Series, r)
 	}
 
+	if stmt.Limit > 0 || stmt.Offset > 0 {
+		result.Series = s.filterShowSeriesResult(stmt.Limit, stmt.Offset, result.Series)
+	}
+
 	return result
+}
+
+// filterShowSeriesResult will limit the number of series returned based on the limit and the offset.
+// Unlike limit and offset on SELECT statements, the limit and offset don't apply to the number of Rows, but
+// to the number of total Values returned, since each Value represents a unique series.
+func (s *Server) filterShowSeriesResult(limit, offset int, rows influxql.Rows) influxql.Rows {
+	var filteredSeries influxql.Rows
+	seriesCount := 0
+	for _, r := range rows {
+		var currentSeries [][]interface{}
+
+		// filter the values
+		for _, v := range r.Values {
+			if seriesCount >= offset && seriesCount-offset < limit {
+				currentSeries = append(currentSeries, v)
+			}
+			seriesCount++
+		}
+
+		// only add the row back in if there are some values in it
+		if len(currentSeries) > 0 {
+			r.Values = currentSeries
+			filteredSeries = append(filteredSeries, r)
+			if seriesCount > limit+offset {
+				return filteredSeries
+			}
+		}
+	}
+	return filteredSeries
 }
 
 func (s *Server) executeShowMeasurementsStatement(stmt *influxql.ShowMeasurementsStatement, database string, user *User) *Result {
@@ -2311,8 +2387,12 @@ func measurementsFromSourceOrDB(stmt influxql.Source, db *database) (Measurement
 			return nil, errors.New("identifiers in FROM clause must be measurement names")
 		}
 	} else {
-		// No measurements specified in FROM clause so get all measurements.
-		measurements = db.Measurements()
+		// No measurements specified in FROM clause so get all measurements that have series.
+		for _, m := range db.Measurements() {
+			if len(m.seriesIDs) > 0 {
+				measurements = append(measurements, m)
+			}
+		}
 	}
 	sort.Sort(measurements)
 
@@ -2349,7 +2429,14 @@ func (s *Server) executeCreateRetentionPolicyStatement(q *influxql.CreateRetenti
 func (s *Server) executeAlterRetentionPolicyStatement(stmt *influxql.AlterRetentionPolicyStatement, user *User) *Result {
 	rpu := &RetentionPolicyUpdate{
 		Duration: stmt.Duration,
-		ReplicaN: func() *uint32 { n := uint32(*stmt.Replication); return &n }(),
+		ReplicaN: func() *uint32 {
+			if stmt.Replication == nil {
+				return nil
+			} else {
+				n := uint32(*stmt.Replication)
+				return &n
+			}
+		}(),
 	}
 
 	// Update the retention policy.
@@ -2619,6 +2706,8 @@ func (s *Server) processor(client MessagingClient, done chan struct{}) {
 				err = s.applySetDefaultRetentionPolicy(m)
 			case createMeasurementsIfNotExistsMessageType:
 				err = s.applyCreateMeasurementsIfNotExists(m)
+			case dropMeasurementMessageType:
+				err = s.applyDropMeasurement(m)
 			case setPrivilegeMessageType:
 				err = s.applySetPrivilege(m)
 			case createContinuousQueryMessageType:
