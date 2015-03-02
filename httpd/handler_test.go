@@ -1478,22 +1478,26 @@ func TestHandler_serveWriteSeriesWhereIntField(t *testing.T) {
 
 	srvr.Restart() // Ensure data is queryable across restarts.
 
-	query := map[string]string{"db": "foo", "q": "select load from cpu where load = 99"}
+	query := map[string]string{"db": "foo", "q": "select load from cpu where load = 100"}
 	status, body = MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusOK {
 		t.Logf("query %s\n", query)
 		t.Log(body)
 		t.Errorf("unexpected status: %d", status)
 	}
-
-	r := &influxdb.Results{}
-	if err := json.Unmarshal([]byte(body), r); err != nil {
-		t.Logf("query : %s\n", query)
-		t.Log(body)
-		t.Error(err)
+	if string(body) != `{"results":[{}]}` {
+		t.Fatalf("unexpected results, got %s", string(body))
 	}
-	if len(r.Results) != 0 {
-		t.Fatalf("unexpected results count, expected 0, got %d", len(r.Results))
+
+	query = map[string]string{"db": "foo", "q": "select load from cpu where load = 99"}
+	status, body = MustHTTP("GET", s.URL+`/query`, query, nil, "")
+	if status != http.StatusOK {
+		t.Logf("query %s\n", query)
+		t.Log(body)
+		t.Errorf("unexpected status: %d", status)
+	}
+	if string(body) != `{"results":[{}]}` {
+		t.Fatalf("unexpected results, got %s", string(body))
 	}
 }
 
