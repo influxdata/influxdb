@@ -377,6 +377,9 @@ func (m *Measurement) walkWhereForSeriesIds(expr influxql.Expr, filters map[uint
 		// if it's EQ then it's either a field expression or against a tag. we can return this
 		if n.Op == influxql.EQ || n.Op == influxql.EQREGEX || n.Op == influxql.NEQREGEX {
 			ids, shouldInclude, expr := m.idsForExpr(n)
+			for _, id := range ids {
+				filters[id] = expr
+			}
 			return ids, shouldInclude, expr
 		} else if n.Op == influxql.AND || n.Op == influxql.OR { // if it's an AND or OR we need to union or intersect the results
 			var ids seriesIDs

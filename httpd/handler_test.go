@@ -1460,6 +1460,43 @@ func TestHandler_serveWriteSeriesBoolValues(t *testing.T) {
 	}
 }
 
+func TestHandler_serveWriteSeriesWhereIntField(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
+	srvr.SetDefaultRetentionPolicy("foo", "bar")
+
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "fields": {"load": 100}}]}`)
+	if status != http.StatusOK {
+		t.Logf("body %s\n", body)
+		t.Fatalf("unexpected status: %d", status)
+	}
+	time.Sleep(100 * time.Millisecond) // Ensure data node picks up write.
+
+	srvr.Restart() // Ensure data is queryable across restarts.
+
+	query := map[string]string{"db": "foo", "q": "select load from cpu where load = 99"}
+	status, body = MustHTTP("GET", s.URL+`/query`, query, nil, "")
+	if status != http.StatusOK {
+		t.Logf("query %s\n", query)
+		t.Log(body)
+		t.Errorf("unexpected status: %d", status)
+	}
+
+	r := &influxdb.Results{}
+	if err := json.Unmarshal([]byte(body), r); err != nil {
+		t.Logf("query : %s\n", query)
+		t.Log(body)
+		t.Error(err)
+	}
+	if len(r.Results) != 0 {
+		t.Fatalf("unexpected results count, expected 0, got %d", len(r.Results))
+	}
+}
+
 func TestHandler_serveWriteSeriesBatch(t *testing.T) {
 	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
