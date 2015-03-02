@@ -3,6 +3,7 @@
 ### Bugfixes
 
 - [#1744](https://github.com/influxdb/influxdb/pull/1744): Allow retention policies to be modified without specifying replication factor. Thanks @kylezh
+- [#1809](https://github.com/influxdb/influxdb/pull/1809): Packaging post-install script unconditionally removes init.d symlink. Thanks @sineos
 
 ## v0.9.0-rc6 [2015-02-27]
 
