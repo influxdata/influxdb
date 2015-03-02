@@ -44,20 +44,8 @@ func TestBroker_Close_ErrClosed(t *testing.T) {
 
 // Ensure the broker can write messages to the appropriate topics.
 func TestBroker_Publish(t *testing.T) {
-	//TODO fix and renable test.  currently racy
-	t.Skip()
 	b := NewBroker(nil)
 	defer b.Close()
-
-	// Create a new named replica.
-	if err := b.CreateReplica(2000, &url.URL{Host: "localhost"}); err != nil {
-		t.Fatalf("create replica: %s", err)
-	}
-
-	// Subscribe replica to a topic.
-	if err := b.Subscribe(2000, 20); err != nil {
-		t.Fatalf("subscribe: %s", err)
-	}
 
 	// Write a message to the broker.
 	index, err := b.Publish(&messaging.Message{Type: 100, TopicID: 20, Data: []byte("0000")})

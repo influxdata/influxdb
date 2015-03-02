@@ -1,9 +1,9 @@
 package messaging
 
 import (
+	"io"
 	"io/ioutil"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 
@@ -51,31 +51,15 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
 	case "/messaging/messages":
 		if r.Method == "GET" {
-			h.stream(w, r)
+			h.getMessages(w, r)
 		} else if r.Method == "POST" {
-			h.publish(w, r)
-		} else {
-			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
-		}
-	case "/messaging/replicas":
-		if r.Method == "POST" {
-			h.createReplica(w, r)
-		} else if r.Method == "DELETE" {
-			h.deleteReplica(w, r)
-		} else {
-			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
-		}
-	case "/messaging/subscriptions":
-		if r.Method == "POST" {
-			h.subscribe(w, r)
-		} else if r.Method == "DELETE" {
-			h.unsubscribe(w, r)
+			h.postMessages(w, r)
 		} else {
 			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		}
 	case "/messaging/heartbeat":
 		if r.Method == "POST" {
-			h.heartbeat(w, r)
+			h.postHeartbeat(w, r)
 		} else {
 			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		}
@@ -84,47 +68,60 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// connects the requestor as the replica's writer.
-func (h *Handler) stream(w http.ResponseWriter, r *http.Request) {
-	// Read the replica ID.
-	var replicaID uint64
-	if n, err := strconv.ParseUint(r.URL.Query().Get("replicaID"), 10, 64); err != nil {
-		h.error(w, ErrReplicaIDRequired, http.StatusBadRequest)
-		return
-	} else {
-		replicaID = uint64(n)
-	}
-
-	// Find the replica on the broker.
-	replica := h.broker.Replica(replicaID)
-	if replica == nil {
-		h.error(w, ErrReplicaNotFound, http.StatusNotFound)
+// getMessages streams messages from a topic.
+func (h *Handler) getMessages(w http.ResponseWriter, req *http.Request) {
+	// Read the topic ID.
+	topicID, err := strconv.ParseUint(req.URL.Query().Get("topicID"), 10, 64)
+	if err != nil {
+		h.error(w, ErrTopicRequired, http.StatusBadRequest)
 		return
 	}
 
-	// Connect the response writer to the replica.
-	// This will block until the replica is closed or a new writer connects.
-	_, _ = replica.WriteTo(w)
+	// Read the index to start from.
+	index, err := strconv.ParseUint(req.URL.Query().Get("index"), 10, 64)
+	if err != nil {
+		h.error(w, ErrIndexRequired, http.StatusBadRequest)
+		return
+	}
+
+	// Read the streaming flag.
+	streaming := (req.URL.Query().Get("streaming") == "true")
+
+	// Create a topic reader.
+	r, err := h.broker.OpenTopicReader(topicID, index, streaming)
+	if err != nil {
+		h.error(w, err, http.StatusInternalServerError)
+		return
+	}
+	defer r.Close()
+
+	// Ensure we close the topic reader if the connection is disconnected.
+	if w, ok := w.(http.CloseNotifier); ok {
+		go func() {
+			select {
+			case <-w.CloseNotify():
+			}
+		}()
+	}
+
+	// Write out all data from the topic reader.
+	io.Copy(w, r)
 }
 
-// publishes a message to the broker.
-func (h *Handler) publish(w http.ResponseWriter, r *http.Request) {
-	m := &Message{}
-
+// postMessages publishes a message to the broker.
+func (h *Handler) postMessages(w http.ResponseWriter, r *http.Request) {
 	// Read the message type.
-	if n, err := strconv.ParseUint(r.URL.Query().Get("type"), 10, 16); err != nil {
+	typ, err := strconv.ParseUint(r.URL.Query().Get("type"), 10, 16)
+	if err != nil {
 		h.error(w, ErrMessageTypeRequired, http.StatusBadRequest)
 		return
-	} else {
-		m.Type = MessageType(n)
 	}
 
 	// Read the topic ID.
-	if n, err := strconv.ParseUint(r.URL.Query().Get("topicID"), 10, 64); err != nil {
+	topicID, err := strconv.ParseUint(r.URL.Query().Get("topicID"), 10, 64)
+	if err != nil {
 		h.error(w, ErrTopicRequired, http.StatusBadRequest)
 		return
-	} else {
-		m.TopicID = uint64(n)
 	}
 
 	// Read the request body.
@@ -133,10 +130,9 @@ func (h *Handler) publish(w http.ResponseWriter, r *http.Request) {
 		h.error(w, err, http.StatusInternalServerError)
 		return
 	}
-	m.Data = data
 
 	// Publish message to the broker.
-	index, err := h.broker.Publish(m)
+	index, err := h.broker.Publish(&Message{Type: MessageType(typ), TopicID: topicID, Data: data})
 	if err == raft.ErrNotLeader {
 		h.redirectToLeader(w, r)
 		return
@@ -149,132 +145,13 @@ func (h *Handler) publish(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Broker-Index", strconv.FormatUint(index, 10))
 }
 
-// createReplica creates a new replica with a given ID.
-func (h *Handler) createReplica(w http.ResponseWriter, r *http.Request) {
-	// Read the replica ID.
-	var replicaID uint64
-	if n, err := strconv.ParseUint(r.URL.Query().Get("id"), 10, 64); err != nil {
-		h.error(w, ErrReplicaIDRequired, http.StatusBadRequest)
-		return
-	} else {
-		replicaID = uint64(n)
-	}
-	u, err := url.Parse(r.URL.Query().Get("url"))
+// postHearbeat receives a heartbeat from a client reporting the highest
+// replicated index for a given topic.
+func (h *Handler) postHeartbeat(w http.ResponseWriter, r *http.Request) {
+	// Read the topic id.
+	topicID, err := strconv.ParseUint(r.URL.Query().Get("topicID"), 10, 16)
 	if err != nil {
-		h.error(w, err, http.StatusBadRequest)
-		return
-	}
-
-	// Create a new replica on the broker.
-	if err := h.broker.CreateReplica(replicaID, u); err == raft.ErrNotLeader {
-		h.redirectToLeader(w, r)
-		return
-	} else if err == ErrReplicaExists {
-		h.error(w, err, http.StatusConflict)
-		return
-	} else if err != nil {
-		h.error(w, err, http.StatusInternalServerError)
-		return
-	}
-	w.WriteHeader(http.StatusCreated)
-}
-
-// deleteReplica deletes an existing replica by ID.
-func (h *Handler) deleteReplica(w http.ResponseWriter, r *http.Request) {
-	// Read the replica ID.
-	var replicaID uint64
-	if n, err := strconv.ParseUint(r.URL.Query().Get("id"), 10, 64); err != nil {
-		h.error(w, ErrReplicaIDRequired, http.StatusBadRequest)
-		return
-	} else {
-		replicaID = uint64(n)
-	}
-
-	// Delete the replica on the broker.
-	if err := h.broker.DeleteReplica(replicaID); err == raft.ErrNotLeader {
-		h.redirectToLeader(w, r)
-		return
-	} else if err != nil {
-		h.error(w, err, http.StatusInternalServerError)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
-}
-
-// subscribe creates a new subscription for a replica on a topic.
-func (h *Handler) subscribe(w http.ResponseWriter, r *http.Request) {
-	// Read the replica ID.
-	var replicaID uint64
-	if n, err := strconv.ParseUint(r.URL.Query().Get("replicaID"), 10, 64); err != nil {
-		h.error(w, ErrReplicaIDRequired, http.StatusBadRequest)
-		return
-	} else {
-		replicaID = uint64(n)
-	}
-
-	// Read the topic ID.
-	var topicID uint64
-	if n, err := strconv.ParseUint(r.URL.Query().Get("topicID"), 10, 64); err != nil {
 		h.error(w, ErrTopicRequired, http.StatusBadRequest)
-		return
-	} else {
-		topicID = uint64(n)
-	}
-
-	// Subscribe a replica to a topic.
-	if err := h.broker.Subscribe(replicaID, topicID); err == raft.ErrNotLeader {
-		h.redirectToLeader(w, r)
-		return
-	} else if err == ErrReplicaNotFound {
-		h.error(w, err, http.StatusNotFound)
-		return
-	} else if err != nil {
-		h.error(w, err, http.StatusInternalServerError)
-		return
-	}
-	w.WriteHeader(http.StatusCreated)
-}
-
-// unsubscribe removes a subscription from a replica for a topic.
-func (h *Handler) unsubscribe(w http.ResponseWriter, r *http.Request) {
-	// Read the replica ID.
-	var replicaID uint64
-	if n, err := strconv.ParseUint(r.URL.Query().Get("replicaID"), 10, 64); err != nil {
-		h.error(w, ErrReplicaIDRequired, http.StatusBadRequest)
-		return
-	} else {
-		replicaID = uint64(n)
-	}
-
-	// Read the topic ID.
-	var topicID uint64
-	if n, err := strconv.ParseUint(r.URL.Query().Get("topicID"), 10, 64); err != nil {
-		h.error(w, ErrTopicRequired, http.StatusBadRequest)
-		return
-	} else {
-		topicID = uint64(n)
-	}
-
-	// Unsubscribe the replica from the topic.
-	if err := h.broker.Unsubscribe(replicaID, topicID); err == raft.ErrNotLeader {
-		h.redirectToLeader(w, r)
-		return
-	} else if err == ErrReplicaNotFound {
-		h.error(w, err, http.StatusNotFound)
-		return
-	} else if err != nil {
-		h.error(w, err, http.StatusInternalServerError)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
-}
-
-// recieves a heartbeat from a client.
-func (h *Handler) heartbeat(w http.ResponseWriter, r *http.Request) {
-	// Read the replica id.
-	replicaID, err := strconv.ParseUint(r.URL.Query().Get("replicaID"), 10, 16)
-	if err != nil {
-		h.error(w, ErrReplicaIDRequired, http.StatusBadRequest)
 		return
 	}
 
@@ -285,8 +162,8 @@ func (h *Handler) heartbeat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Update the replica's index.
-	if err := h.broker.Heartbeat(replicaID, index); err == raft.ErrNotLeader {
+	// Update the topic's highest replicated index.
+	if err := h.broker.SetTopicMaxIndex(topicID, index); err == raft.ErrNotLeader {
 		h.redirectToLeader(w, r)
 		return
 	} else if err != nil {

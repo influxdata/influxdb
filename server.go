@@ -43,6 +43,9 @@ const (
 
 	// DefaultShardRetention is the length of time before a shard is dropped.
 	DefaultShardRetention = 7 * (24 * time.Hour)
+
+	// BroadcastTopicID is the topic used for all metadata.
+	BroadcastTopicID = uint64(0)
 )
 
 // Server represents a collection of metadata and raw metric data.
