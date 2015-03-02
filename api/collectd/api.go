@@ -131,7 +131,7 @@ func packetToSeries(p *collectd.Packet) []*protocol.Series {
 	series := make([]*protocol.Series, len(p.Values))
 
 	for i, _ := range p.Values {
-		metricName := p.FormatName()
+		metricName := p.Plugin
 
 		values := []*protocol.FieldValue{}
 		values = append(values, &protocol.FieldValue{
