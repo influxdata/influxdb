@@ -1415,6 +1415,24 @@ func TestHandler_serveWriteSeriesStringValues(t *testing.T) {
 	if result.Series[0].Values[0][1] != "disk full" {
 		t.Fatalf("unexpected string value, actual: %s", result.Series[0].Values[0][1])
 	}
+
+	// Test filtering by field value.
+	query = map[string]string{"db": "foo", "q": "select event from logs where event='nonsense'"}
+	status, body = MustHTTP("GET", s.URL+`/query`, query, nil, "")
+	if status != http.StatusOK {
+		t.Logf("query %s\n", query)
+		t.Log(body)
+		t.Errorf("unexpected status: %d", status)
+	}
+
+	if err := json.Unmarshal([]byte(body), r); err != nil {
+		t.Logf("query : %s\n", query)
+		t.Log(body)
+		t.Error(err)
+	}
+	if len(r.Results) != 0 {
+		t.Fatalf("unexpected results count, expected 0, got %d", len(r.Results))
+	}
 }
 
 func TestHandler_serveWriteSeriesBoolValues(t *testing.T) {
