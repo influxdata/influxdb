@@ -2092,7 +2092,7 @@ func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, 
 
 	// Create result struct that will be populated and returned.
 	result := &Result{
-		Rows: make(influxql.Rows, 0, len(measurements)),
+		Rows: make([]*influxql.Row, 0, len(measurements)),
 	}
 
 	// Loop through measurements to build result. One result row / measurement.
@@ -2195,7 +2195,7 @@ func (s *Server) executeShowMeasurementsStatement(stmt *influxql.ShowMeasurement
 
 	// Make a result.
 	result := &Result{
-		Rows: influxql.Rows{row},
+		Rows: []*influxql.Row{row},
 	}
 
 	return result
@@ -2219,7 +2219,7 @@ func (s *Server) executeShowTagKeysStatement(stmt *influxql.ShowTagKeysStatement
 
 	// Make result.
 	result := &Result{
-		Rows: make(influxql.Rows, 0, len(measurements)),
+		Rows: make([]*influxql.Row, 0, len(measurements)),
 	}
 
 	// Add one row per measurement to the result.
@@ -2269,7 +2269,7 @@ func (s *Server) executeShowTagValuesStatement(stmt *influxql.ShowTagValuesState
 
 	// Make result.
 	result := &Result{
-		Rows: make(influxql.Rows, 0, len(measurements)),
+		Rows: make([]*influxql.Row, 0, len(measurements)),
 	}
 
 	for _, m := range measurements {
@@ -2371,7 +2371,7 @@ func (s *Server) executeShowFieldKeysStatement(stmt *influxql.ShowFieldKeysState
 
 	// Make result.
 	result := &Result{
-		Rows: make(influxql.Rows, 0, len(measurements)),
+		Rows: make([]*influxql.Row, 0, len(measurements)),
 	}
 
 	// Loop through measurements, adding a result row for each.

@@ -2,12 +2,8 @@ package influxql
 
 import (
 	"bytes"
-	"encoding/binary"
-	"fmt"
 	"hash/fnv"
-	"math"
 	"sort"
-	"strings"
 	"time"
 )
 
@@ -20,38 +16,32 @@ type DB interface {
 // The Tx must be opened before being used.
 type Tx interface {
 	// Create MapReduceJobs for the given select statement. One MRJob will be created per unique tagset that matches the query
-	CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []string, interval int64) ([]*influxql.MapReduceJob, error)
-}
-
-// Iterator represents a forward-only iterator over a set of points. These are used by the MapFunctions defined in functions.go
-type Iterator interface {
-	Next() (seriesID uint16, timestamp int64, value interface{})
-	CurrentFieldValues() map[uint8]interface{}
-	Tags(seriesID uint16) map[string]string
+	CreateMapReduceJobs(stmt *SelectStatement, tagKeys []string) ([]*MapReduceJob, error)
 }
 
 type MapReduceJob struct {
 	MeasurementName string
 	TagSet          *TagSet
-	Reducer         *Reducer
-	TMin            int64  // minimum time specified in the query
-	TMax            int64  // maximum time specified in the query
-	Interval        int64  // group by interval in nanoseconds
-	FuncCount       int    // number of map/reduce functions are in the job
-	key             []byte // a key that identifies the MRJob so it can be sorted
+	Mappers         []Mapper         // the mappers to hit all shards for this MRJob
+	TMin            int64            // minimum time specified in the query
+	TMax            int64            // maximum time specified in the query
+	key             []byte           // a key that identifies the MRJob so it can be sorted
+	interval        int64            // the group by interval of the query
+	stmt            *SelectStatement // the select statement this job was created for
 }
 
 func (m *MapReduceJob) Open() error {
-	for _, mm := range m.Reducer.Mappers {
+	for _, mm := range m.Mappers {
 		if err := mm.Open(); err != nil {
 			m.Close()
 			return err
 		}
 	}
+	return nil
 }
 
 func (m *MapReduceJob) Close() {
-	for _, mm := range m.Reducer.Mappers {
+	for _, mm := range m.Mappers {
 		mm.Close()
 	}
 }
@@ -63,54 +53,106 @@ func (m *MapReduceJob) Key() []byte {
 	return m.key
 }
 
-type funcOutput struct {
-	emmitters []*localEmitter
-	times     []int64
-	values    []interface{}
-	closed    bool
-}
-
-// pull gets the lates times and values from the mapper and returns true if all emitters are closed
-func (m *funcOutput) pull() bool {
-	if m.closed {
-		return m.closed
+func (m *MapReduceJob) Execute(out chan *Row) {
+	warn("Execute0")
+	aggregates := m.stmt.AggregateCalls()
+	reduceFuncs := make([]ReduceFunc, len(aggregates))
+	for i, c := range aggregates {
+		warn("Execute0.1 ", c.String())
+		reduceFunc, err := InitializeReduceFunc(c)
+		if err != nil {
+			out <- &Row{Err: err}
+			return
+		}
+		reduceFuncs[i] = reduceFunc
 	}
 
-	m.closed = true
-	for i, e := range m.emmitters {
-		td, ok := <-e.out
-		if ok {
-			m.closed = false
-			m.times[i] = td.timestamp
-			m.values[i] = td.data
+	warn("Execute1")
+	for _, mm := range m.Mappers {
+		mm.Begin(aggregates[0], m.TMin)
+	}
+
+	// we'll have a fixed number of points with timestamps in buckets. Initialize those times and a slice to hold the associated values
+	var pointCountInResult int
+
+	// if the user didn't specify a start time or a group by interval, we're returning a single point that describes the entire range
+	if m.TMin == 0 || m.interval == 0 {
+		// they want a single aggregate point for the entire time range
+		m.interval = m.TMax - m.TMin
+		pointCountInResult = 1
+	} else {
+		warn(m.TMax, m.TMin, m.interval)
+		pointCountInResult = int((m.TMax - m.TMin) / m.interval)
+	}
+
+	warn("Execute1.1 ", pointCountInResult)
+
+	// initialize the times of the aggregate points
+	resultTimes := make([]int64, pointCountInResult)
+	resultValues := make([][]interface{}, pointCountInResult)
+	for i, _ := range resultTimes {
+		resultTimes[i] = m.TMin + (int64(i) * m.interval)
+		resultValues[i] = make([]interface{}, 0, len(aggregates)+1)
+	}
+
+	warn("Execute2")
+	// now loop through the aggregate functions and populate everything
+	for i, c := range aggregates {
+		if err := m.processAggregate(c, reduceFuncs[i], resultValues); err != nil {
+			out <- &Row{
+				Name: m.MeasurementName,
+				Tags: m.TagSet.Tags,
+				Err:  err,
+			}
 		}
 	}
 
-	return m.closed
+	// put together the row to return
+	columnNames := make([]string, len(aggregates)+1)
+	columnNames[0] = "time"
+	for i, a := range aggregates {
+		columnNames[i+1] = a.Name
+	}
+
+	row := &Row{
+		Name:    m.MeasurementName,
+		Tags:    m.TagSet.Tags,
+		Columns: columnNames,
+		Values:  resultValues,
+	}
+
+	// and we out
+	out <- row
 }
 
-func newFuncOutput(funcCount int) *funcOutput {
-	output := &funcOutput{
-		emitters: make([]*localEmitter, funcCount),
-		times:    make([]int64, funcCount),
-		values:   make([][]interface{}, funcCount),
-	}
-	for i, _ := range output.emmitters {
-		output.emmitters[i] = newLocalEmitter()
-	}
-	return output
-}
+func (m *MapReduceJob) processAggregate(c *Call, reduceFunc ReduceFunc, resultValues [][]interface{}) error {
+	warn("processAggregate0")
+	mapperOutputs := make([]interface{}, len(m.Mappers))
 
-func (m *MapReduceJob) Execute(out chan *Row) {
-	outputs := make([]*mapperOutput, len(m.Reducer.Mappers))
-
-	for i, mm := range m.Reducer.Mappers {
-		output := newLocalOutput(m.FuncCount)
-		outputs[i] = output
-		go mm.Run(output.emmitters)
+	warn("processAggregate1")
+	// intialize the mappers
+	for _, mm := range m.Mappers {
+		if err := mm.Begin(c, m.TMin); err != nil {
+			return err
+		}
 	}
 
-	out <- m.Reducer.Reduce(outputs)
+	// populate the result values for each interval of time
+	for i, _ := range resultValues {
+		warn("processAggregate2 ", i, len(m.Mappers))
+		// collect the results from each mapper
+		for j, mm := range m.Mappers {
+			res, err := mm.NextInterval(m.interval)
+			if err != nil {
+				return err
+			}
+			mapperOutputs[j] = res
+		}
+		warn("processAggregate2 ", i)
+		resultValues[i] = append(resultValues[i], reduceFunc(mapperOutputs))
+	}
+
+	return nil
 }
 
 type MapReduceJobs []*MapReduceJob
@@ -119,106 +161,37 @@ func (a MapReduceJobs) Len() int           { return len(a) }
 func (a MapReduceJobs) Less(i, j int) bool { return bytes.Compare(a[i].Key(), a[j].Key()) == -1 }
 func (a MapReduceJobs) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
-// Mapper is a collection of map functions. A single mapper will be created
+// Mapper will run through a map function. A single mapper will be created
 // for each shard for each tagset that must be hit to satisfy a query.
 // Mappers can either point to a local shard or could point to a remote server.
 type Mapper interface {
-	Run(e []Emitter) error
+	// Open will open the necessary resources to being the map job. Could be connections to remote servers or
+	// hitting the local bolt store
 	Open() error
+
+	// Close will close the mapper (either the bolt transaction or the request)
 	Close()
-}
 
-type Reducer struct {
-	Mappers     []Mapper
-	ReduceFuncs []ReduceFunc
-}
+	// Begin will set up the mapper to run the map function for a given aggregate call starting at the passed in time
+	Begin(*Call, int64) error
 
-type mapFuncOutput struct {
-	values []interface{}
-}
-
-func (r *Reducer) Reduce(outputs []*funcOutput) *Row {
-	minTime := math.MaxInt64
-	for _, o := range outputs {
-		o.pull()
-		if o.times[0] < minTime {
-			minTime = o.times[0]
-		}
-	}
-
-	for {
-		mapFuncOutputs := make([]*mapFuncOutput, len(r.ReduceFuncs))
-		for {
-			matched = false
-			for _, o := range outputs {
-				if o.times[0] == tmin {
-					values
-				}
-			}
-			if !matched {
-				minTime = math.MaxInt64
-				for _, o := range outputs {
-					if o.times[0] < minTime {
-						minTime = o.times[0]
-					}
-				}
-				break
-			}
-		}
-		closed := true
-		for _, o := range outputs {
-			if !o.pull() {
-				closed = false
-			}
-		}
-		if closed {
-			return row
-		}
-	}
+	// NextInterval will get the time ordered next interval of the given interval size from the mapper. This is a
+	// forward only operation from the start time passed into Begin. Will return nil when there is no more data to be read.
+	// We pass the interval in here so that it can be varied over the period of the query. This is useful for the raw
+	// data queries where we'd like to gradually adjust the amount of time we scan over.
+	NextInterval(interval int64) (interface{}, error)
 }
 
 type TagSet struct {
 	Tags      map[string]string
-	Filters   []*influxql.Expr
-	SeriesIDs []uint16
+	Filters   []Expr
+	SeriesIDs []uint32
 	Key       []byte
 }
 
-func NewTagSet() *TagSet {
-	return &TagSet{SeriesFilters: make(map[uint16]*influxql.Expr)}
-}
-
-func (t *TagSet) AddFilter(id uint16, filter Expr) {
+func (t *TagSet) AddFilter(id uint32, filter Expr) {
 	t.SeriesIDs = append(t.SeriesIDs, id)
 	t.Filters = append(t.Filters, filter)
-}
-
-type Emitter interface {
-	Emit(timestamp int64, data interface{})
-	// Close closes the emitter. If an error is passed in it means that the emitter didn't get to complete before some error in processing was hit
-	Close(error) error
-}
-
-type timeData struct {
-	timestamp int64
-	data      interface{}
-}
-
-type localEmitter struct {
-	out chan *timeData
-}
-
-func newLocalEmitter() *localEmitter {
-	return &localEmitter{make(chan *timeData, 0)}
-}
-
-func (e *localEmitter) Emit(timestamp int64, data interface{}) {
-	e.out <- &timeData{timestamp, data}
-}
-
-func (e localEmitter) Close(error) error {
-	close(e.out)
-	return nil
 }
 
 // Planner represents an object for creating execution plans.
@@ -241,9 +214,7 @@ func NewPlanner(db DB) *Planner {
 func (p *Planner) Plan(stmt *SelectStatement) (*Executor, error) {
 	now := p.Now()
 
-	// Clone the statement to be planned.
 	// Replace instances of "now()" with the current time.
-	stmt = stmt.Clone()
 	stmt.Condition = Reduce(stmt.Condition, &nowValuer{Now: now})
 
 	// Begin an unopened transaction.
@@ -259,17 +230,25 @@ func (p *Planner) Plan(stmt *SelectStatement) (*Executor, error) {
 	}
 
 	// TODO: hanldle queries that select from multiple measurements. This assumes that we're only selecting from a single one
-	jobs := tx.CreateMapReduceJobs(stmt, tags, interval)
+	jobs, err := tx.CreateMapReduceJobs(stmt, tags)
+	if err != nil {
+		return nil, err
+	}
+	for _, j := range jobs {
+		j.interval = interval.Nanoseconds()
+		j.stmt = stmt
+	}
 
-	return &Executor{tx: tx, stmt: stmt, jobs: jobs}, nil
+	return &Executor{tx: tx, stmt: stmt, jobs: jobs, interval: interval.Nanoseconds()}, nil
 }
 
 // Executor represents the implementation of Executor.
 // It executes all reducers and combines their result into a row.
 type Executor struct {
-	tx   Tx               // transaction
-	stmt *SelectStatement // original statement
-	jobs []*MapReduceJob  // one job per unique tag set that will return in the query
+	tx       Tx               // transaction
+	stmt     *SelectStatement // original statement
+	jobs     []*MapReduceJob  // one job per unique tag set that will return in the query
+	interval int64            // the group by interval of the query in nanoseconds
 }
 
 // Execute begins execution of the query and returns a channel to receive rows.
@@ -290,8 +269,8 @@ func (e *Executor) Execute() (<-chan *Row, error) {
 }
 
 func (e *Executor) close() {
-	for _, m := range e.jobs {
-		job.Close()
+	for _, j := range e.jobs {
+		j.Close()
 	}
 }
 
@@ -302,72 +281,11 @@ func (e *Executor) execute(out chan *Row) {
 
 	// Execute each MRJob serially
 	for _, j := range e.jobs {
-		job.Execute(out)
+		j.Execute(out)
 	}
 
 	// Mark the end of the output channel.
 	close(out)
-}
-
-// creates a new value set if one does not already exist for a given tagset + timestamp.
-func (e *Executor) createRowValuesIfNotExists(rows map[string]*Row, name string, timestamp int64, tagset string) []interface{} {
-	// TODO: Add "name" to lookup key.
-
-	// Find row by tagset.
-	var row *Row
-	if row = rows[tagset]; row == nil {
-		row = &Row{Name: name}
-
-		// Create tag map.
-		row.Tags = make(map[string]string)
-		for i, v := range UnmarshalStrings([]byte(tagset)) {
-			row.Tags[e.tags[i]] = v
-		}
-
-		// Create column names.
-		row.Columns = make([]string, 1, len(e.stmt.Fields)+1)
-		row.Columns[0] = "time"
-		for i, f := range e.stmt.Fields {
-			name := f.Name()
-			if name == "" {
-				name = fmt.Sprintf("col%d", i)
-			}
-			row.Columns = append(row.Columns, name)
-		}
-
-		// Save to lookup.
-		rows[tagset] = row
-	}
-
-	// If no values exist or last value doesn't match the timestamp then create new.
-	if len(row.Values) == 0 || row.Values[len(row.Values)-1][0] != timestamp {
-		values := make([]interface{}, len(e.processors)+1)
-		values[0] = timestamp
-		row.Values = append(row.Values, values)
-	}
-
-	return row.Values[len(row.Values)-1]
-}
-
-// eval evaluates two values using the evaluator's operation.
-func (e *binaryExprEvaluator) eval(lhs, rhs interface{}) interface{} {
-	switch e.op {
-	case ADD:
-		return lhs.(float64) + rhs.(float64)
-	case SUB:
-		return lhs.(float64) - rhs.(float64)
-	case MUL:
-		return lhs.(float64) * rhs.(float64)
-	case DIV:
-		rhs := rhs.(float64)
-		if rhs == 0 {
-			return float64(0)
-		}
-		return lhs.(float64) / rhs
-	default:
-		// TODO: Validate operation & data types.
-		panic("invalid operation: " + e.op.String())
-	}
 }
 
 // Row represents a single row returned from the execution of a statement.
@@ -398,54 +316,4 @@ func (r *Row) tagsKeys() []string {
 	}
 	sort.Strings(a)
 	return a
-}
-
-// Rows represents a list of rows that can be sorted consistently by name/tag.
-type Rows []*Row
-
-func (p Rows) Len() int { return len(p) }
-
-func (p Rows) Less(i, j int) bool {
-	// Sort by name first.
-	if p[i].Name != p[j].Name {
-		return p[i].Name < p[j].Name
-	}
-
-	// Sort by tag set hash. Tags don't have a meaningful sort order so we
-	// just compute a hash and sort by that instead. This allows the tests
-	// to receive rows in a predictable order every time.
-	return p[i].tagsHash() < p[j].tagsHash()
-}
-
-func (p Rows) Swap(i, j int) { p[i], p[j] = p[j], p[i] }
-
-// MarshalStrings encodes an array of strings into a byte slice.
-func MarshalStrings(a []string) (ret []byte) {
-	for _, s := range a {
-		// Create a slice for len+data
-		b := make([]byte, 2+len(s))
-		binary.BigEndian.PutUint16(b[0:2], uint16(len(s)))
-		copy(b[2:], s)
-
-		// Append it to the full byte slice.
-		ret = append(ret, b...)
-	}
-	return
-}
-
-// UnmarshalStrings decodes a byte slice into an array of strings.
-func UnmarshalStrings(b []byte) (ret []string) {
-	for {
-		// If there's no more data then exit.
-		if len(b) == 0 {
-			return
-		}
-
-		// Decode size + data.
-		n := binary.BigEndian.Uint16(b[0:2])
-		ret = append(ret, string(b[2:n+2]))
-
-		// Move the byte slice forward and retry.
-		b = b[n+2:]
-	}
 }

@@ -845,7 +845,7 @@ func TestServer_ExecuteQuery(t *testing.T) {
 	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-west"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(100)}}})
 
 	// Select data from the server.
-	results := s.ExecuteQuery(MustParseQuery(`SELECT sum(value) FROM cpu GROUP BY time(10s), region`), "foo", nil)
+	results := s.ExecuteQuery(MustParseQuery(`SELECT sum(value) FROM cpu where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:00:10Z' GROUP BY time(10s), region`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error: %s", res.Err)
 	} else if len(res.Rows) != 2 {

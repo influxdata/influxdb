@@ -3,6 +3,7 @@ package influxdb
 import (
 	"fmt"
 	"math"
+	"sort"
 	"sync"
 	"time"
 
@@ -17,8 +18,6 @@ type tx struct {
 	server *Server
 	opened bool
 	now    time.Time
-
-	itrs []*shardIterator // shard iterators
 }
 
 // newTx return a new initialized Tx.
@@ -33,7 +32,7 @@ func newTx(server *Server) *tx {
 func (tx *tx) SetNow(now time.Time) { tx.now = now }
 
 // CreateMappers will create a set of mappers that need to be run to execute the map phase of a MapReduceJob.
-func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []string, interval int64) ([]*influxql.MapReduceJob, error) {
+func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []string) ([]*influxql.MapReduceJob, error) {
 	// Parse the source segments.
 	database, policyName, measurement, err := splitIdent(stmt.Source.(*influxql.Measurement).Name)
 	if err != nil {
@@ -60,17 +59,19 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 	}
 
 	// Validate the fields asked for exist
-	for _, f := range stmt.FieldNames() {
-		if m.FieldByName(f) == nil {
+	for _, f := range stmt.DatabaseFields() {
+		field := m.FieldByName(f.Name)
+		if field == nil {
 			return nil, ErrFieldNotFound
 		}
+
+		// populat the ID on the select statement so it can be used later in the query
+		f.ID = field.ID
 	}
 
 	// Grab time range from statement.
 	tmin, tmax := influxql.TimeRange(stmt.Condition)
-	if tmin.IsZero() {
-		tmin = time.Unix(0, 1)
-	}
+	warn("tx: ", tmin, tmax, tmin.UnixNano())
 	if tmax.IsZero() {
 		tmax = tx.now
 	}
@@ -78,7 +79,7 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 	// Find shard groups within time range.
 	var shardGroups []*ShardGroup
 	for _, group := range rp.shardGroups {
-		if timeBetweenInclusive(group.StartTime, tmin, tmax) || timeBetweenInclusive(group.EndTime, tmin, tmax) {
+		if group.Contains(tmin, tmax) {
 			shardGroups = append(shardGroups, group)
 		}
 	}
@@ -86,10 +87,8 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 		return nil, nil
 	}
 
+	// get the sorted unique tag sets for this query.
 	tagSets := m.tagSets(stmt, tagKeys)
-
-	// Get a field decoder.
-	d := NewFieldCodec(m)
 
 	jobs := make([]*influxql.MapReduceJob, 0, len(tagSets))
 	for _, t := range tagSets {
@@ -98,38 +97,11 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 			MeasurementName: m.Name,
 			TagSet:          t,
 			TMin:            tmin.UnixNano(),
-			TMax:            tmin.UnixNano(),
-			Interval:        interval,
+			TMax:            tmax.UnixNano(),
 		}
 
 		// make a mapper for each shard that must be hit. We may need to hit multiple shards within a shard group
 		mappers := make([]influxql.Mapper, 0)
-
-		// we'll need map and reduce funcs for each aggregate
-		aggregateCalls := stmt.AggregateCalls()
-		job.FuncCount = len(aggregateCalls)
-
-		// reduce funcs
-		reduceFuncs := make([]influxql.ReduceFunc, len(aggregateCalls))
-
-		// and we'll need the field each aggregate works on
-		fieldIDs := make([]uint8, len(aggregateCalls))
-
-		for i, c := range aggregateCalls {
-			// Ensure the argument is a variable reference.
-			ref, ok := c.Args[0].(*VarRef)
-			if !ok {
-				return nil, fmt.Errorf("expected field argument in %s()", c.Name)
-			}
-			fieldIDs[i] = m.FieldByName(ref.Val).ID
-
-			// now set the reduce function. We set the map function with each mapper later on.
-			_, reduceFunc, err := influxql.MapReduceFuncs(c)
-			if err != nil {
-				return nil, err
-			}
-			reduceFuncs[i] = reduceFunc
-		}
 
 		// create mappers for each shard we need to hit
 		for _, sg := range shardGroups {
@@ -138,27 +110,19 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 				panic("distributed queries not implemented yet and there are too many shards in this group")
 			}
 
-			// set the map functions. We do this inside the loop because they may carry some state between calls, so we need a new one for each mapper
-			mapFuncs := make([]influxql.MapFunc, len(aggregateCalls))
-			for i, c := range aggregateCalls {
-				m, _, _ := influxql.MapReduceFuncs()
-				mapFuncs[i] = m
-			}
-
 			shard := sg.Shards[0]
 			mapper := &LocalMapper{
-				seriesIDs: t.SeriesIDs(),
+				seriesIDs: t.SeriesIDs,
 				db:        shard.store,
 				job:       job,
-				mapFuncs:  mapFuncs,
-				fieldIDs:  fieldIDs,
-				decoder:   fieldDecoder,
+				decoder:   NewFieldCodec(m),
+				filters:   t.Filters,
 			}
 
-			mappers := append(mappers, mapper)
+			mappers = append(mappers, mapper)
 		}
 
-		job.reducer = &influxql.Reducer{Mappers: mappers, ReduceFuncs: reduceFuncs}
+		job.Mappers = mappers
 
 		jobs = append(jobs, job)
 	}
@@ -170,22 +134,21 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 
 // LocalMapper implements the influxql.Mapper interface for running map tasks over a shard that is local to this server
 type LocalMapper struct {
-	decoder     fieldDecoder           // decoder for the raw data bytes
-	tagSet      *influxql.TagSet       // filters to be applied to each series
-	filters     []*influxql.Expr       // filters for each series
-	cursors     []*bolt.Cursor         // bolt cursors for each series id
-	seriesIDs   []uint16               // seriesIDs to be read from this shard
-	db          *bolt.DB               // bolt store for the shard accessed by this mapper
-	txn         *bolt.Tx               // read transactions by shard id
-	job         *influxql.MapReduceJob // the MRJob this mapper belongs to
-	mapFuncs    []influxql.MapFunc     // the map functions
-	fieldIDs    []uint8                // the field ID that is associated with each mapFunc
-	keyBuffer   [][]byte
-	valueBuffer [][]byte
-	tmin        int64
-	tmax        int64
-	fieldID     uint8    // the id of the field currently iterating
-	startKeys   [][]byte // the keys at the start of a group by intervals
+	cursorsEmpty bool                   // boolean that lets us know if the cursors are empty
+	decoder      fieldDecoder           // decoder for the raw data bytes
+	tagSet       *influxql.TagSet       // filters to be applied to each series
+	filters      []influxql.Expr        // filters for each series
+	cursors      []*bolt.Cursor         // bolt cursors for each series id
+	seriesIDs    []uint32               // seriesIDs to be read from this shard
+	db           *bolt.DB               // bolt store for the shard accessed by this mapper
+	txn          *bolt.Tx               // read transactions by shard id
+	job          *influxql.MapReduceJob // the MRJob this mapper belongs to
+	mapFunc      influxql.MapFunc       // the map func
+	fieldID      uint8                  // the field ID associated with the mapFunc
+	keyBuffer    []int64                // the current timestamp key for each cursor
+	valueBuffer  [][]byte               // the current value for each cursor
+	tmin         int64                  // the min of the current group by interval being iterated over
+	tmax         int64                  // the max of the current group by interval being iterated over
 }
 
 func (l *LocalMapper) Open() error {
@@ -197,127 +160,125 @@ func (l *LocalMapper) Open() error {
 	l.txn = txn
 
 	// create a bolt cursor for each unique series id
-	l.cursors = make([]*seriesCursor, len(l.seriesIDs), len(l.seriesIDs))
-	l.filters = make()
+	l.cursors = make([]*bolt.Cursor, len(l.seriesIDs))
+
 	for i, id := range l.seriesIDs {
-		b := i.txn.Bucket(u32tob(c.id))
+		b := l.txn.Bucket(u32tob(id))
 		if b == nil {
 			continue
 		}
 
 		l.cursors[i] = b.Cursor()
 	}
-}
 
-func (l *LocalMapper) Close() {
-	_ = i.txn.Rollback()
 	return nil
 }
 
-func (l *LocalMapper) Run(emitters []influxql.Emitter) {
+func (l *LocalMapper) Close() {
+	_ = l.txn.Rollback()
+}
+
+// Begin will set up the mapper to run the map function for a given aggregate call starting at the passed in time
+func (l *LocalMapper) Begin(c *influxql.Call, startingTime int64) error {
 	// set up the buffers. These ensure that we return data in time order
+	mapFunc, err := influxql.InitializeMapFunc(c)
+	if err != nil {
+		return err
+	}
+	l.mapFunc = mapFunc
 	l.keyBuffer = make([]int64, len(l.cursors))
 	l.valueBuffer = make([][]byte, len(l.cursors))
-	l.tmin = math.MaxInt64
+	l.tmin = startingTime
 
 	// seek the bolt cursors and fill the buffers
 	for i, c := range l.cursors {
 		k, v := c.Seek(u64tob(uint64(l.job.TMin)))
-		l.startKeys[i] = k
 		if k == nil {
-			keyBuffer[i] = 0
-			valueBuffer[i] = nil
+			l.keyBuffer[i] = 0
+			l.valueBuffer[i] = nil
 			continue
 		}
+		l.cursorsEmpty = false
 		t := int64(btou64(k))
-		if t < l.tmin {
-			l.tmin = t
+		l.keyBuffer[i] = t
+		l.valueBuffer[i] = v
+	}
+	return nil
+}
+
+// NextInterval will get the time ordered next interval of the given interval size from the mapper. This is a
+// forward only operation from the start time passed into Begin. Will return nil when there is no more data to be read.
+func (l *LocalMapper) NextInterval(interval int64) (interface{}, error) {
+	warn("NextInterval ", l.tmin, l.tmax, interval)
+	if l.cursorsEmpty || l.tmin > l.job.TMax {
+		return nil, nil
+	}
+
+	// Set the upper bound of the interval.
+	if interval > 0 {
+		l.tmax = l.tmin + interval - 1
+	}
+
+	// Execute the map function. This local mapper acts as the iterator
+	val := l.mapFunc(l)
+
+	// see if all the cursors are empty
+	l.cursorsEmpty = true
+	for _, k := range l.keyBuffer {
+		if k != 0 {
+			l.cursorsEmpty = false
+			break
 		}
-		keyBuffer[i] = k
-		valueBuffer[i] = v
 	}
 
-	// tmin should be the start of the group by interval for the first data point
-	if l.job.Interval > 0 {
-		l.tmin -= (l.tmin % l.job.Interval)
-	}
+	// Move the interval forward.
+	l.tmin += interval
 
-	// now empty the cursors and yield to the map functions
+	return val, nil
+}
+
+func (l *LocalMapper) Next() (seriesID uint32, timestamp int64, value interface{}) {
+	warn("Next")
 	for {
-		// Set the upper bound of the interval.
-		if m.interval > 0 {
-			l.tmax = l.tmin + l.job.Interval - 1
-		}
-
-		// Execute the map functions. The local mapper acts as the iterator for the map functions
-		for i, m := range l.mapFuncs {
-			l.fieldID = i
-			// only rewind if we have to.
-			if i != 0 && len(l.mapFuncs) > 1 {
-				l.rewind() // rewind to the beginning of this interval to yield to the map func
-			}
-			m(l, emitters[i], l.tmin)
-		}
-
-		// set the start keys to the end keys of the interval or break out if everything is done
-		cursorsEmpty := true
+		// find the minimum timestamp
+		min := -1
+		minKey := int64(math.MaxInt64)
 		for i, k := range l.keyBuffer {
-			if k != nil {
-				cursorsEmpty = false
-			}
-			l.startKeys[i] = k
-		}
-
-		if cursorsEmpty { // close out the emitters and return
-			for _, e := range emitters {
-				_ = e.Close(nil)
-			}
-			return
-		}
-
-		// Move the interval forward.
-		l.tmin += m.interval
-	}
-}
-
-func (l *LocalMapper) Next() (seriesID uint16, timestamp int64, value interface{}) {
-	// find the minimum timestamp
-	min := -1
-	for i, k := range l.keyBuffer {
-		if k != nil {
-			t := int64(btou64(k))
-			if t != 0 && t < l.tmax {
+			if k != 0 && k <= l.tmax && k < minKey && k >= l.tmin {
 				min = i
+				minKey = k
 			}
 		}
-	}
 
-	// return if all the cursors have reached the end
-	if min == -1 {
-		return 0, 0, nil
-	}
-
-	// save the curent key and value
-	key = l.keyBuffer[min]
-	value = l.valueBuffer[min]
-	seriesID = l.seriesIDs[min]
-
-	// advance the cursor
-	l.keyBuffer[min], l.valueBuffer[min] = l.cursors[min].Next()
-
-	// decode the value and return
-	val := l.decoder.DecodeByID(l.fieldID, v)
-	return seriesID, int64(btou64(key)), val
-}
-
-// rewind resets the cursors to the beginning of a group by interval
-func (l *LocalMapper) rewind() {
-	for i, k := range l.startKeys {
-		if k != nil {
-			kk, v := l.cursors[i].Seek(k)
-			l.keyBuffer[i] = int64(btou64(kk))
-			l.valueBuffer[i] = v
+		// return if there is no more data in this group by interval
+		if min == -1 {
+			return 0, 0, nil
 		}
+
+		// save the curent key and value
+		timestamp = l.keyBuffer[min]
+		value, err := l.decoder.DecodeByID(l.fieldID, l.valueBuffer[min])
+
+		// advance the cursor
+		nextKey, nextVal := l.cursors[min].Next()
+		if nextKey == nil {
+			l.keyBuffer[min] = 0
+		} else {
+			l.keyBuffer[min] = int64(btou64(nextKey))
+		}
+		l.valueBuffer[min] = nextVal
+
+		// if we didn't find the field keep iterating
+		if err != nil {
+			continue
+		}
+		seriesID = l.seriesIDs[min]
+
+		if value == nil {
+			return 0, 0, nil
+		}
+
+		return seriesID, timestamp, value
 	}
 }
 
@@ -326,7 +287,7 @@ func (l *LocalMapper) CurrentFieldValues() map[uint8]interface{} {
 	panic("not implemented")
 }
 
-func (l *LocalMapper) Tags(seriesID uint16) map[string]string {
+func (l *LocalMapper) Tags(seriesID uint32) map[string]string {
 	// TODO: implement this
 	panic("not implemented")
 }

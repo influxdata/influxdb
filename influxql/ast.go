@@ -551,6 +551,9 @@ type SelectStatement struct {
 
 	// memoize the group by interval
 	groupByInterval time.Duration
+
+	// keep the database fields so their ids can be populated
+	databaseFields []*DatabaseField
 }
 
 // Clone returns a deep copy of the statement.
@@ -819,24 +822,43 @@ func (s *SelectStatement) Substatement(ref *VarRef) (*SelectStatement, error) {
 	return other, nil
 }
 
-// FieldNames returns the field names that are referenced in the select statement
-func (s *SelectStatement) FieldNames() []string {
-	var a []string
-	for _, f := range s.Fields {
-		a = append(a, s.walkFieldNames(f)...)
-	}
-	return a
+type DatabaseField struct {
+	Name string
+	ID   uint8 // the underlying database id. This will get populated during planning
 }
 
-// walkFieldNames will walk the Expr and return the fieldNames
-func (s *SelectStatement) walkFieldNames(exp Expr) []string {
-	switch expr := expr.(type) {
+// DatabaseFields returns the database fields that are referenced in the select statement
+func (s *SelectStatement) DatabaseFields() []*DatabaseField {
+	if s.databaseFields != nil {
+		return s.databaseFields
+	}
+
+	var a []*DatabaseField
+	for _, f := range s.Fields {
+		a = append(a, s.walkFieldNames(f.Expr)...)
+	}
+
+	s.databaseFields = a
+	return s.databaseFields
+}
+
+// walkFieldNames will walk the Expr and return the database fields
+func (s *SelectStatement) walkFieldNames(exp Expr) []*DatabaseField {
+	switch expr := exp.(type) {
 	case *VarRef:
-		return []string{expr.Val}
+		return []*DatabaseField{{Name: expr.Val}}
 	case *Call:
-		return s.walkFieldNames(expr)
+		if len(expr.Args) == 0 {
+			return nil
+		}
+		lit, ok := expr.Args[0].(*VarRef)
+		if !ok {
+			return nil
+		}
+
+		return []*DatabaseField{{Name: lit.Val}}
 	case *BinaryExpr:
-		var ret []string
+		var ret []*DatabaseField
 		ret = append(ret, s.walkFieldNames(expr.LHS)...)
 		ret = append(ret, s.walkFieldNames(expr.RHS)...)
 		return ret
@@ -851,14 +873,14 @@ func (s *SelectStatement) walkFieldNames(exp Expr) []string {
 func (s *SelectStatement) AggregateCalls() []*Call {
 	var a []*Call
 	for _, f := range s.Fields {
-		a = append(a, s.walkAggregateCalls(f)...)
+		a = append(a, s.walkAggregateCalls(f.Expr)...)
 	}
 	return a
 }
 
 // walkAggregateCalls walks the Field of a query for any aggregate calls made
 func (s *SelectStatement) walkAggregateCalls(exp Expr) []*Call {
-	switch expr := expr.(type) {
+	switch expr := exp.(type) {
 	case *VarRef:
 		return nil
 	case *Call:
