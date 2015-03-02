@@ -1913,7 +1913,7 @@ func TestHandler_serveShowSeries(t *testing.T) {
 
 		// SHOW SERIES WHERE =~ regex
 		{
-			q: `SHOW SERIES WHERE region =~ 'ca.*'`,
+			q: "SHOW SERIES WHERE region =~ `ca.*`",
 			r: &influxdb.Results{
 				Results: []*influxdb.Result{
 					{
@@ -1933,7 +1933,7 @@ func TestHandler_serveShowSeries(t *testing.T) {
 
 		// SHOW SERIES WHERE !~ regex
 		{
-			q: `SHOW SERIES WHERE host !~ 'server0[12]'`,
+			q: "SHOW SERIES WHERE host !~ `server0[12]`",
 			r: &influxdb.Results{
 				Results: []*influxdb.Result{
 					{
@@ -2046,13 +2046,13 @@ func TestHandler_serveShowMeasurements(t *testing.T) {
 
 		// SHOW MEASUREMENTS WHERE =~ regex
 		{
-			q: `SHOW MEASUREMENTS WHERE region =~ 'ca.*'`,
+			q: "SHOW MEASUREMENTS WHERE region =~ `ca.*`",
 			r: `{"results":[{"series":[{"name":"measurements","columns":["name"],"values":[["gpu"],["other"]]}]}]}`,
 		},
 
 		// SHOW MEASUREMENTS WHERE !~ regex
 		{
-			q: `SHOW MEASUREMENTS WHERE region !~ 'ca.*'`,
+			q: "SHOW MEASUREMENTS WHERE region !~ `ca.*`",
 			r: `{"results":[{"series":[{"name":"measurements","columns":["name"],"values":[["cpu"]]}]}]}`,
 		},
 	}
@@ -2302,7 +2302,7 @@ func TestHandler_serveShowTagValues(t *testing.T) {
 		},
 		// SHOW TAG VALUES FROM ... WHERE =~ regex
 		{
-			q: `SHOW TAG VALUES WITH KEY = host WHERE region =~ 'ca.*'`,
+			q: "SHOW TAG VALUES WITH KEY = host WHERE region =~ `ca.*`",
 			r: &influxdb.Results{
 				Results: []*influxdb.Result{
 					{
@@ -2321,7 +2321,7 @@ func TestHandler_serveShowTagValues(t *testing.T) {
 		},
 		// SHOW TAG VALUES FROM ... WHERE !~ regex
 		{
-			q: `SHOW TAG VALUES WITH KEY = region WHERE host !~ 'server0[12]'`,
+			q: "SHOW TAG VALUES WITH KEY = region WHERE host !~ `server0[12]`",
 			r: &influxdb.Results{
 				Results: []*influxdb.Result{
 					{

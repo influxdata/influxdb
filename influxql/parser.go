@@ -1488,14 +1488,6 @@ func (p *Parser) ParseExpr() (Expr, error) {
 		} else {
 			expr = &BinaryExpr{LHS: expr, RHS: rhs, Op: op}
 		}
-
-		// If the operator was =~ or !~, parse the regular expression.
-		b, ok := expr.(*BinaryExpr)
-		if ok && (b.Op == EQREGEX || b.Op == NEQREGEX) {
-			if expr, err = p.parseRegexExpr(b); err != nil {
-				return nil, err
-			}
-		}
 	}
 }
 
@@ -1562,51 +1554,15 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 		return &DurationLiteral{Val: v}, nil
 	case MUL:
 		return &Wildcard{}, nil
+	case REGEX:
+		re, err := regexp.Compile(lit)
+		if err != nil {
+			return nil, &ParseError{Message: err.Error(), Pos: pos}
+		}
+		return &RegexLiteral{Val: re}, nil
 	default:
 		return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string", "number", "bool"}, pos)
 	}
-}
-
-// parseRegexExpr parses the string literal on one side of a binary expression
-// and returns a new binary expression with a regex literal in place of the
-// string literal.
-func (p *Parser) parseRegexExpr(expr *BinaryExpr) (*BinaryExpr, error) {
-	if expr.Op != EQREGEX && expr.Op != NEQREGEX {
-		// Don't call parseRegex unless you have a regex operator!
-		panic("parseRegex only works with =~ or !~ regex operators")
-	}
-
-	newExpr := &BinaryExpr{Op: expr.Op}
-
-	if regex, ok := expr.RHS.(*StringLiteral); ok {
-		// Found regex text on right side of operator.
-		re, err := regexp.Compile(regex.Val)
-		if err != nil {
-			return nil, err
-		}
-		newExpr.RHS = &RegexLiteral{Val: re}
-
-		// Make sure left side of operator is an identifier.
-		if newExpr.LHS, ok = expr.LHS.(*VarRef); !ok {
-			return nil, fmt.Errorf("left operand of operator %s must be an identifier", expr.Op.String())
-		}
-	} else if regex, ok = expr.LHS.(*StringLiteral); ok {
-		// Found regex text on left side of operator.
-		re, err := regexp.Compile(regex.Val)
-		if err != nil {
-			return nil, err
-		}
-		newExpr.LHS = &RegexLiteral{Val: re}
-
-		// Make sure right side of operator is an identifer.
-		if newExpr.RHS, ok = expr.RHS.(*VarRef); !ok {
-			return nil, fmt.Errorf("right operand of operator %s must be an identifier", expr.Op.String())
-		}
-	} else {
-		return nil, fmt.Errorf("operator %s requires one string operand", expr.Op.String())
-	}
-
-	return newExpr, nil
 }
 
 // parseCall parses a function call.

@@ -102,6 +102,10 @@ func TestScanner_Scan(t *testing.T) {
 		{s: `10w`, tok: influxql.DURATION_VAL, lit: `10w`},
 		{s: `10x`, tok: influxql.NUMBER, lit: `10`}, // non-duration unit
 
+		// Regular expressions
+		{s: "`.*`", tok: influxql.REGEX, lit: ".*"},
+		{s: "`.*\\``", tok: influxql.REGEX, lit: ".*`"},
+
 		// Keywords
 		{s: `ALL`, tok: influxql.ALL},
 		{s: `ALTER`, tok: influxql.ALTER},

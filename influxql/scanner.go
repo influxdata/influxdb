@@ -95,6 +95,8 @@ func (s *Scanner) Scan() (tok Token, pos Pos, lit string) {
 		return COMMA, pos, ""
 	case ';':
 		return SEMICOLON, pos, ""
+	case '`':
+		return s.scanRegex()
 	}
 
 	return ILLEGAL, pos, string(ch0)
@@ -177,6 +179,26 @@ func (s *Scanner) scanString() (tok Token, pos Pos, lit string) {
 		return BADESCAPE, pos, lit
 	}
 	return STRING, pos, lit
+}
+
+func (s *Scanner) scanRegex() (tok Token, pos Pos, lit string) {
+	s.r.unread()
+	_, pos = s.r.curr()
+
+	// Start & end sentinels.
+	start, end := '`', '`'
+	// Valid escape chars.
+	escapes := map[rune]rune{'`': '`'}
+
+	b, err := ScanDelimited(s.r, start, end, escapes)
+
+	if err == errBadEscape {
+		_, pos = s.r.curr()
+		return BADESCAPE, pos, lit
+	} else if err != nil {
+		return BADREGEX, pos, lit
+	}
+	return REGEX, pos, string(b)
 }
 
 // scanNumber consumes anything that looks like the start of a number.
@@ -415,6 +437,46 @@ func (r *reader) curr() (ch rune, pos Pos) {
 // eof is a marker code point to signify that the reader can't read any more.
 const eof = rune(0)
 
+func ScanDelimited(r io.RuneScanner, start, end rune, escapes map[rune]rune) ([]byte, error) {
+	// Scan start delimiter.
+	if ch, _, err := r.ReadRune(); err != nil {
+		return nil, err
+	} else if ch != start {
+		return nil, fmt.Errorf("expected %s; found %s", string(ch), string(start))
+	}
+
+	var buf bytes.Buffer
+	for {
+		ch0, _, err := r.ReadRune()
+		if ch0 == end {
+			return buf.Bytes(), nil
+		} else if err != nil {
+			return buf.Bytes(), err
+		} else if ch0 == '\n' {
+			return nil, errors.New("delimited text contains new line")
+		} else if ch0 == '\\' {
+			// If the next character is an escape then write the escaped char.
+			// If it's not a valid escape then return an error.
+			ch1, _, err := r.ReadRune()
+			if err != nil {
+				return nil, err
+			}
+
+			r, ok := escapes[ch1]
+			if !ok {
+				buf.Reset()
+				_, _ = buf.WriteRune(ch0)
+				_, _ = buf.WriteRune(ch1)
+				return buf.Bytes(), errBadEscape
+			}
+
+			_, _ = buf.WriteRune(r)
+		} else {
+			_, _ = buf.WriteRune(ch0)
+		}
+	}
+}
+
 // ScanString reads a quoted string from a rune reader.
 func ScanString(r io.RuneScanner) (string, error) {
 	ending, _, err := r.ReadRune()
@@ -450,6 +512,7 @@ func ScanString(r io.RuneScanner) (string, error) {
 
 var errBadString = errors.New("bad string")
 var errBadEscape = errors.New("bad escape")
+var errBadRegex = errors.New("bad regex")
 
 // ScanBareIdent reads bare identifier from a rune reader.
 func ScanBareIdent(r io.RuneScanner) string {
