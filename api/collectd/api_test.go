@@ -39,10 +39,12 @@ func (cas *CollectdApiSuite) TestPacketToSeriesWithUnixTimestamp(c *C) {
 	// Test InfluxDB collectd API's packetToSeries function
 	packet := &(*packets)[0]
 	series := packetToSeries(packet)
+	name := series[0].GetName()
 	timestamp := *series[0].Points[0].Timestamp
 	values := series[0].Points[0].Values
 	dsname := values[5].GetStringValue()
 	dsval := values[7].GetDoubleValue()
+	c.Assert(name, Equals, "entropy")
 	c.Assert(timestamp, Equals, int64(1414080767000000))
 	c.Assert(dsname, Equals, "value")
 	c.Assert(dsval, Equals, float64(288))
@@ -65,10 +67,12 @@ func (cas *CollectdApiSuite) TestPacketToSeriesWithHiResTimestamp(c *C) {
 	// Test InfluxDB collectd API's packetToSeries function
 	packet := &(*packets)[0]
 	series := packetToSeries(packet)
+	name := series[0].GetName()
 	timestamp := *series[0].Points[0].Timestamp
 	values := series[0].Points[0].Values
 	dsname := values[5].GetStringValue()
 	dsval := values[7].GetDoubleValue()
+	c.Assert(name, Equals, "processes")
 	c.Assert(timestamp, Equals, int64(1414187920000000))
 	c.Assert(dsname, Equals, "value")
 	c.Assert(dsval, Equals, float64(1))
@@ -92,18 +96,22 @@ func (cas *CollectdApiSuite) TestPacketToSeriesWithMultiDataSet(c *C) {
 	packet := &(*packets)[0]
 	series := packetToSeries(packet)
 
+	name := series[0].GetName()
 	timestamp0 := *series[0].Points[0].Timestamp
 	values0 := series[0].Points[0].Values
 	dsname0 := values0[5].GetStringValue()
 	dsval0 := values0[7].GetDoubleValue()
+	c.Assert(name, Equals, "snmp")
 	c.Assert(timestamp0, Equals, int64(1415069537000000))
 	c.Assert(dsname0, Equals, "rx")
 	c.Assert(dsval0, Equals, float64(263065527))
 
+	name1 := series[1].GetName()
 	timestamp1 := *series[1].Points[0].Timestamp
 	values1 := series[1].Points[0].Values
 	dsname1 := values1[5].GetStringValue()
 	dsval1 := values1[7].GetDoubleValue()
+	c.Assert(name1, Equals, "snmp")
 	c.Assert(timestamp1, Equals, int64(1415069537000000))
 	c.Assert(dsname1, Equals, "tx")
 	c.Assert(dsval1, Equals, float64(243108547))
