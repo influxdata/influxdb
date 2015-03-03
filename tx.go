@@ -390,8 +390,8 @@ func (c *seriesCursor) Next(fieldName string, fieldID uint8, tmin, tmax int64) (
 			// we'll need to marshal all the field values if the condition isn't nil
 			if c.condition != nil {
 				fieldValues := make(map[string]interface{})
-				values := c.tx.DecodeValues(c.fieldIDs, 0, data)[1:]
-				for i, val := range values {
+				values := c.tx.DecodeValues(c.fieldIDs, 0, data)
+				for i, val := range values[1:] { // Skip the timestamp.
 					fieldValues[c.fieldNames[i]] = val
 				}
 				if ok, _ := influxql.Eval(c.condition, fieldValues).(bool); !ok {
