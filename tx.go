@@ -216,10 +216,11 @@ func (tx *tx) CreateIterators(stmt *influxql.SelectStatement) ([]influxql.Iterat
 
 // DecodeValues is for use in a raw data query
 func (tx *tx) DecodeValues(fieldIDs []uint8, timestamp int64, data []byte) []interface{} {
-	vals := make([]interface{}, len(fieldIDs))
+	vals := make([]interface{}, len(fieldIDs)+1)
+	vals[0] = timestamp
 	for i, id := range fieldIDs {
 		v, _ := tx.decoder.DecodeByID(id, data)
-		vals[i] = v
+		vals[i+1] = v
 	}
 	return vals
 }
@@ -390,7 +391,7 @@ func (c *seriesCursor) Next(fieldName string, fieldID uint8, tmin, tmax int64) (
 			if c.condition != nil {
 				fieldValues := make(map[string]interface{})
 				values := c.tx.DecodeValues(c.fieldIDs, 0, data)
-				for i, val := range values {
+				for i, val := range values[1:] { // Skip the timestamp.
 					fieldValues[c.fieldNames[i]] = val
 				}
 				if ok, _ := influxql.Eval(c.condition, fieldValues).(bool); !ok {
