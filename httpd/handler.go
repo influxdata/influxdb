@@ -417,11 +417,17 @@ func isAuthorizationError(err error) bool {
 	return ok
 }
 
+func isMeasurementNotFoundError(err error) bool {
+	return (err.Error() == "measurement not found")
+}
+
 // httpResult writes a Results array to the client.
 func httpResults(w http.ResponseWriter, results influxdb.Results, pretty bool) {
 	if results.Error() != nil {
 		if isAuthorizationError(results.Error()) {
 			w.WriteHeader(http.StatusUnauthorized)
+		} else if isMeasurementNotFoundError(results.Error()) {
+			w.WriteHeader(http.StatusOK)
 		} else {
 			w.WriteHeader(http.StatusInternalServerError)
 		}
