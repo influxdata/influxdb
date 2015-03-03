@@ -1469,7 +1469,7 @@ func TestHandler_serveWriteSeriesWhereIntField(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "fields": {"load": 100}}]}`)
+	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "timestamp": "2009-11-10T23:00:02Z", "fields": {"load": 100}}]}`)
 	if status != http.StatusOK {
 		t.Logf("body %s\n", body)
 		t.Fatalf("unexpected status: %d", status)
@@ -1485,7 +1485,7 @@ func TestHandler_serveWriteSeriesWhereIntField(t *testing.T) {
 		t.Log(body)
 		t.Errorf("unexpected status: %d", status)
 	}
-	if string(body) == `{"results":[{}]}` {
+	if string(body) != `{"results":[{"series":[{"name":"cpu","columns":["time","load"],"values":[["2009-11-10T23:00:02Z",100]]}]}]}` {
 		t.Fatalf("unexpected results, got %s", string(body))
 	}
 
