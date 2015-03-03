@@ -1485,7 +1485,7 @@ func TestHandler_serveWriteSeriesWhereIntField(t *testing.T) {
 		t.Log(body)
 		t.Errorf("unexpected status: %d", status)
 	}
-	if string(body) != `{"results":[{}]}` {
+	if string(body) == `{"results":[{}]}` {
 		t.Fatalf("unexpected results, got %s", string(body))
 	}
 
