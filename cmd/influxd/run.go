@@ -63,12 +63,12 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 		// We want to make sure we are spun up before we exit this function, so we manually listen and serve
 		listener, err := net.Listen("tcp", config.BrokerAddr())
 		if err != nil {
-			log.Fatalf("failed to listen for broker on tcp: %s ", err)
+			log.Fatalf("Broker failed to listen on %s. %s ", config.BrokerAddr(), err)
 		}
 		go func() {
 			err := http.Serve(listener, h)
 			if err != nil {
-				log.Fatalf("failed to serve broker: %s", err)
+				log.Fatalf("Broker failed to server on %s.: %s", config.BrokerAddr(), err)
 			}
 		}()
 		log.Printf("broker listening on %s", config.BrokerAddr())
