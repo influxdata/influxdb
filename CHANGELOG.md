@@ -1,4 +1,4 @@
-## v0.9.0-rc7 [Unreleased]
+## v0.9.0-rc7 [2015-03-02]
 
 ### Features
 - [#1813](https://github.com/influxdb/influxdb/pull/1813): Queries for missing measurements or fields now return a 200 with an error message in the series JSON.
