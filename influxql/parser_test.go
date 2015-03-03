@@ -136,9 +136,9 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
-		// SELECT * FROM cpu WHERE host = 'serverC' AND region =~ `.*west.*`
+		// SELECT * FROM cpu WHERE host = 'serverC' AND region =~ /.*west.*/
 		{
-			s: "SELECT * FROM cpu WHERE host = 'serverC' AND region =~ `.*west.*`",
+			s: `SELECT * FROM cpu WHERE host = 'serverC' AND region =~ /.*west.*/`,
 			stmt: &influxql.SelectStatement{
 				Fields: []*influxql.Field{{Expr: &influxql.Wildcard{}}},
 				Source: &influxql.Measurement{Name: "cpu"},
@@ -861,23 +861,13 @@ func TestParser_ParseExpr(t *testing.T) {
 			},
 		},
 
-		// Binary expression with regex on right.
+		// Binary expression with regex.
 		{
-			s: "region =~ `us.*`",
+			s: "region =~ /us.*/",
 			expr: &influxql.BinaryExpr{
 				Op:  influxql.EQREGEX,
 				LHS: &influxql.VarRef{Val: "region"},
 				RHS: &influxql.RegexLiteral{Val: regexp.MustCompile(`us.*`)},
-			},
-		},
-
-		// Binary expression with NEQ regex on left.
-		{
-			s: "`us.*` !~ region",
-			expr: &influxql.BinaryExpr{
-				Op:  influxql.NEQREGEX,
-				RHS: &influxql.VarRef{Val: "region"},
-				LHS: &influxql.RegexLiteral{Val: regexp.MustCompile(`us.*`)},
 			},
 		},
 

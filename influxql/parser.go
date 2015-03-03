@@ -1456,6 +1456,8 @@ func (p *Parser) parseSortField() (*SortField, error) {
 
 // ParseExpr parses an expression.
 func (p *Parser) ParseExpr() (Expr, error) {
+	var err error
+
 	// Parse a non-binary expression type to start.
 	// This variable will always be the root of the expression tree.
 	expr, err := p.parseUnaryExpr()
@@ -1472,10 +1474,18 @@ func (p *Parser) ParseExpr() (Expr, error) {
 			return expr, nil
 		}
 
-		// Otherwise parse the next unary expression.
-		rhs, err := p.parseUnaryExpr()
-		if err != nil {
-			return nil, err
+		// Otherwise parse the next expression.
+		var rhs Expr
+		if IsRegexOp(op) {
+			// RHS of a regex operator must be a regular expression.
+			p.consumeWhitespace()
+			if rhs, err = p.parseRegex(); err != nil {
+				return nil, err
+			}
+		} else {
+			if rhs, err = p.parseUnaryExpr(); err != nil {
+				return nil, err
+			}
 		}
 
 		// Assign the new root based on the precendence of the LHS and RHS operators.
@@ -1563,6 +1573,28 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 	default:
 		return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string", "number", "bool"}, pos)
 	}
+}
+
+// parseRegex parses a regular expression.
+func (p *Parser) parseRegex() (Expr, error) {
+	tok, pos, lit := p.s.s.ScanRegex()
+
+	if tok == BADESCAPE {
+		msg := fmt.Sprintf("bad escape: %s", lit)
+		return nil, &ParseError{Message: msg, Pos: pos}
+	} else if tok == BADREGEX {
+		msg := fmt.Sprintf("bad regex: %s", lit)
+		return nil, &ParseError{Message: msg, Pos: pos}
+	} else if tok != REGEX {
+		return nil, newParseError(tokstr(tok, lit), []string{"regex"}, pos)
+	}
+
+	re, err := regexp.Compile(lit)
+	if err != nil {
+		return nil, &ParseError{Message: err.Error(), Pos: pos}
+	}
+
+	return &RegexLiteral{Val: re}, nil
 }
 
 // parseCall parses a function call.

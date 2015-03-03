@@ -95,8 +95,6 @@ func (s *Scanner) Scan() (tok Token, pos Pos, lit string) {
 		return COMMA, pos, ""
 	case ';':
 		return SEMICOLON, pos, ""
-	case '`':
-		return s.scanRegex()
 	}
 
 	return ILLEGAL, pos, string(ch0)
@@ -181,14 +179,13 @@ func (s *Scanner) scanString() (tok Token, pos Pos, lit string) {
 	return STRING, pos, lit
 }
 
-func (s *Scanner) scanRegex() (tok Token, pos Pos, lit string) {
-	s.r.unread()
+func (s *Scanner) ScanRegex() (tok Token, pos Pos, lit string) {
 	_, pos = s.r.curr()
 
 	// Start & end sentinels.
-	start, end := '`', '`'
+	start, end := '/', '/'
 	// Valid escape chars.
-	escapes := map[rune]rune{'`': '`'}
+	escapes := map[rune]rune{'/': '/'}
 
 	b, err := ScanDelimited(s.r, start, end, escapes)
 
@@ -322,6 +319,16 @@ func newBufScanner(r io.Reader) *bufScanner {
 
 // Scan reads the next token from the scanner.
 func (s *bufScanner) Scan() (tok Token, pos Pos, lit string) {
+	return s.scanFunc(s.s.Scan)
+}
+
+// ScanRegex reads a regex token from the scanner.
+func (s *bufScanner) ScanRegex() (tok Token, pos Pos, lit string) {
+	return s.scanFunc(s.s.ScanRegex)
+}
+
+// scanFunc uses the provided function to scan the next token.
+func (s *bufScanner) scanFunc(scan func() (Token, Pos, string)) (tok Token, pos Pos, lit string) {
 	// If we have unread tokens then read them off the buffer first.
 	if s.n > 0 {
 		s.n--
@@ -331,7 +338,7 @@ func (s *bufScanner) Scan() (tok Token, pos Pos, lit string) {
 	// Move buffer position forward and save the token.
 	s.i = (s.i + 1) % len(s.buf)
 	buf := &s.buf[s.i]
-	buf.tok, buf.pos, buf.lit = s.s.Scan()
+	buf.tok, buf.pos, buf.lit = scan()
 
 	return s.curr()
 }
@@ -442,7 +449,7 @@ func ScanDelimited(r io.RuneScanner, start, end rune, escapes map[rune]rune) ([]
 	if ch, _, err := r.ReadRune(); err != nil {
 		return nil, err
 	} else if ch != start {
-		return nil, fmt.Errorf("expected %s; found %s", string(ch), string(start))
+		return nil, fmt.Errorf("expected %s; found %s", string(start), string(ch))
 	}
 
 	var buf bytes.Buffer
