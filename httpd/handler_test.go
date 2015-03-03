@@ -1489,6 +1489,17 @@ func TestHandler_serveWriteSeriesWhereIntField(t *testing.T) {
 		t.Fatalf("unexpected results, got %s", string(body))
 	}
 
+	query = map[string]string{"db": "foo", "q": "select load from cpu where load > 99"}
+	status, body = MustHTTP("GET", s.URL+`/query`, query, nil, "")
+	if status != http.StatusOK {
+		t.Logf("query %s\n", query)
+		t.Log(body)
+		t.Errorf("unexpected status: %d", status)
+	}
+	if string(body) != `{"results":[{"series":[{"name":"cpu","columns":["time","load"],"values":[["2009-11-10T23:00:02Z",100]]}]}]}` {
+		t.Fatalf("unexpected results, got %s", string(body))
+	}
+
 	query = map[string]string{"db": "foo", "q": "select load from cpu where load = 99"}
 	status, body = MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusOK {
