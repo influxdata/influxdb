@@ -1609,7 +1609,7 @@ func TestHandler_serveWriteSeriesInvalidQueryField(t *testing.T) {
 
 	query := map[string]string{"db": "foo", "q": "select bar from cpu"}
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
-	if status != http.StatusInternalServerError {
+	if status != http.StatusOK {
 		t.Logf("query %s\n", query)
 		t.Log(body)
 		t.Errorf("unexpected status: %d", status)
