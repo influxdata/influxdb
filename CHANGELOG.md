@@ -1,5 +1,8 @@
 ## v0.9.0-rc7 [Unreleased]
 
+### Features
+- [1813](https://github.com/influxdb/influxdb/pull/1813): Queries for missing measurements or fields now return a 200 with an error message in the series JSON.
+
 ### Bugfixes
 
 - [#1744](https://github.com/influxdb/influxdb/pull/1744): Allow retention policies to be modified without specifying replication factor. Thanks @kylezh
