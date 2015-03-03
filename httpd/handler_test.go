@@ -275,6 +275,32 @@ func TestHandler_SelectMeasurement_NotFound(t *testing.T) {
 	}
 }
 
+func TestHandler_SelectField_NotFound(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	query := map[string]string{"q": "CREATE RETENTION POLICY bar ON foo DURATION 1h REPLICATION 1 DEFAULT"}
+	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
+
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	} else if body != `{"results":[{}]}` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+
+	// Write some data
+	_, _ = MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
+
+	status, body = MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "SELECT abc FROM cpu", "db": "foo"}, nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	} else if body != `{"results":[{"error":"field not found: abc"}]}` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
 func TestHandler_RetentionPolicies(t *testing.T) {
 	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
