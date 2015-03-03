@@ -225,8 +225,8 @@ func runTests_Errors(t *testing.T, nodes Cluster) {
 	}
 }
 
-// runTests tests write and query of data.
-func runTestsData(t *testing.T, testName string, nodes Cluster, database, retention string) {
+// runTests tests write and query of data. Setting testNumbers allows only a subset of tests to be run.
+func runTestsData(t *testing.T, testName string, nodes Cluster, database, retention string, testNums ...int) {
 	t.Logf("Running tests against %d-node cluster", len(nodes))
 
 	// Start by ensuring database and retention policy exist.
@@ -265,6 +265,65 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			name:     "field not found",
 			query:    `SELECT abc FROM "%DB%"."%RP%".cpu WHERE time < now()`,
 			expected: `{"results":[{"error":"field not found: abc"}]}`,
+		},
+
+		// WHERE fields queries
+		{
+			reset:    true,
+			name:     "WHERE fields",
+			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "timestamp": "2015-02-28T01:03:36.703820946Z", "fields": {"alert_id": "alert", "tenant_id": "tenant"}}]}`,
+			query:    `SELECT alert_id FROM "%DB%"."%RP%".cpu WHERE alert_id='alert'`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","alert_id"],"values":[["2015-02-28T01:03:36.703820946Z","alert"]]}]}]}`,
+		},
+		{
+			name:     "WHERE fields with AND query, all fields in SELECT",
+			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "timestamp": "2015-02-28T01:03:36.703820946Z", "fields": {"alert_id": "alert", "tenant_id": "tenant"}}]}`,
+			query:    `SELECT alert_id,tenant_id FROM "%DB%"."%RP%".cpu WHERE alert_id='alert' AND tenant_id='tenant'`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","alert_id","tenant_id"],"values":[["2015-02-28T01:03:36.703820946Z","alert","tenant"]]}]}]}`,
+		},
+		{
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "timestamp": "2009-11-10T23:00:02Z", "fields": {"load": 100}},
+			                                                                      {"name": "cpu", "timestamp": "2009-11-10T23:01:02Z", "fields": {"load": 80}}]}`,
+			query:    `select load from "%DB%"."%RP%".cpu where load > 100`,
+			expected: `{"results":[{}]}`,
+		},
+		{
+			query:    `select load from "%DB%"."%RP%".cpu where load >= 100`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","load"],"values":[["2009-11-10T23:00:02Z",100]]}]}]}`,
+		},
+		{
+			query:    `select load from "%DB%"."%RP%".cpu where load = 100`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","load"],"values":[["2009-11-10T23:00:02Z",100]]}]}]}`,
+		},
+		{
+			query:    `select load from "%DB%"."%RP%".cpu where load <= 100`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","load"],"values":[["2009-11-10T23:00:02Z",100],["2009-11-10T23:01:02Z",80]]}]}]}`,
+		},
+		{
+			query:    `select load from "%DB%"."%RP%".cpu where load > 99`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","load"],"values":[["2009-11-10T23:00:02Z",100]]}]}]}`,
+		},
+		{
+			query:    `select load from "%DB%"."%RP%".cpu where load = 99`,
+			expected: `{"results":[{}]}`,
+		},
+		{
+			query:    `select load from "%DB%"."%RP%".cpu where load < 99`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","load"],"values":[["2009-11-10T23:01:02Z",80]]}]}]}`,
+		},
+		{
+			query:    `select load from "%DB%"."%RP%".cpu where load < 80`,
+			expected: `{"results":[{}]}`,
+		},
+		{
+			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "logs", "timestamp": "2009-11-10T23:00:02Z","fields": {"event": "disk full"}}]}`,
+			query:    `select event from "%DB%"."%RP%".logs where event = 'disk full'`,
+			expected: `{"results":[{"series":[{"name":"logs","columns":["time","event"],"values":[["2009-11-10T23:00:02Z","disk full"]]}]}]}`,
+		},
+		{
+			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "logs", "timestamp": "2009-11-10T23:00:02Z","fields": {"event": "disk full"}}]}`,
+			query:    `select event from "%DB%"."%RP%".logs where event = 'nonsense'`,
+			expected: `{"results":[{}]}`,
 		},
 
 		// User control tests
@@ -337,7 +396,27 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		},
 	}
 
-	for _, tt := range tests {
+	for i, tt := range tests {
+		// If tests were explicitly requested, only run those tests.
+		if len(testNums) > 0 {
+			var found bool
+			for _, t := range testNums {
+				if i == t {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
+
+		name := tt.name
+		if name == "" {
+			name = tt.query
+		}
+		t.Logf("Running test %d: %s", i, name)
+
 		if tt.reset {
 			t.Logf(`reseting for test "%s"`, tt.name)
 			deleteDatabase(t, testName, nodes, database)
@@ -352,10 +431,6 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		if tt.query != "" {
 			got, ok := query(t, nodes, rewriteDbRp(tt.query, database, retention), rewriteDbRp(tt.expected, database, retention))
 			if !ok {
-				name := tt.name
-				if name == "" {
-					name = tt.query
-				}
 				t.Errorf(`Test "%s" failed, expected: %s, got: %s`, name, rewriteDbRp(tt.expected, database, retention), got)
 			}
 		}
