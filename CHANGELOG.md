@@ -2,6 +2,7 @@
 
 ### Features
 - [1813](https://github.com/influxdb/influxdb/pull/1813): Queries for missing measurements or fields now return a 200 with an error message in the series JSON.
+- [1826](https://github.com/influxdb/influxdb/pull/1826), [1827](https://github.com/influxdb/influxdb/pull/1827): WHERE field condition checking.
 
 ### Bugfixes
 
