@@ -281,6 +281,50 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			query:    `SELECT alert_id,tenant_id FROM "%DB%"."%RP%".cpu WHERE alert_id='alert' AND tenant_id='tenant'`,
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","alert_id","tenant_id"],"values":[["2015-02-28T01:03:36.703820946Z","alert","tenant"]]}]}]}`,
 		},
+		{
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "timestamp": "2009-11-10T23:00:02Z", "fields": {"load": 100}},
+			                                                                      {"name": "cpu", "timestamp": "2009-11-10T23:01:02Z", "fields": {"load": 80}}]}`,
+			query:    `select load from "%DB%"."%RP%".cpu where load > 100`,
+			expected: `{"results":[{}]}`,
+		},
+		{
+			query:    `select load from "%DB%"."%RP%".cpu where load >= 100`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","load"],"values":[["2009-11-10T23:00:02Z",100]]}]}]}`,
+		},
+		{
+			query:    `select load from "%DB%"."%RP%".cpu where load = 100`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","load"],"values":[["2009-11-10T23:00:02Z",100]]}]}]}`,
+		},
+		{
+			query:    `select load from "%DB%"."%RP%".cpu where load <= 100`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","load"],"values":[["2009-11-10T23:00:02Z",100],["2009-11-10T23:01:02Z",80]]}]}]}`,
+		},
+		{
+			query:    `select load from "%DB%"."%RP%".cpu where load > 99`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","load"],"values":[["2009-11-10T23:00:02Z",100]]}]}]}`,
+		},
+		{
+			query:    `select load from "%DB%"."%RP%".cpu where load = 99`,
+			expected: `{"results":[{}]}`,
+		},
+		{
+			query:    `select load from "%DB%"."%RP%".cpu where load < 99`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","load"],"values":[["2009-11-10T23:01:02Z",80]]}]}]}`,
+		},
+		{
+			query:    `select load from "%DB%"."%RP%".cpu where load < 80`,
+			expected: `{"results":[{}]}`,
+		},
+		{
+			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "logs", "timestamp": "2009-11-10T23:00:02Z","fields": {"event": "disk full"}}]}`,
+			query:    `select event from "%DB%"."%RP%".logs where event = 'disk full'`,
+			expected: `{"results":[{"series":[{"name":"logs","columns":["time","event"],"values":[["2009-11-10T23:00:02Z","disk full"]]}]}]}`,
+		},
+		{
+			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "logs", "timestamp": "2009-11-10T23:00:02Z","fields": {"event": "disk full"}}]}`,
+			query:    `select event from "%DB%"."%RP%".logs where event = 'nonsense'`,
+			expected: `{"results":[{}]}`,
+		},
 
 		// User control tests
 		{
