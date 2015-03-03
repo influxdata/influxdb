@@ -1510,7 +1510,7 @@ func TestHandler_serveWriteSeriesWhereStringField(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "logs", "tags": {"host": "server01"},"fields": {"event": "disk full"}}]}`)
+	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "logs", "timestamp": "2009-11-10T23:00:02Z","fields": {"event": "disk full"}}]}`)
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	}
@@ -1518,18 +1518,18 @@ func TestHandler_serveWriteSeriesWhereStringField(t *testing.T) {
 
 	srvr.Restart() // Ensure data is queryable across restarts.
 
-	query := map[string]string{"db": "foo", "q": "select event from logs where event = 'nonsense'"}
+	query := map[string]string{"db": "foo", "q": "select event from logs where event = 'disk full'"}
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusOK {
 		t.Logf("query %s\n", query)
 		t.Log(body)
 		t.Errorf("unexpected status: %d", status)
 	}
-	if string(body) != `{"results":[{}]}` {
+	if string(body) != `{"results":[{"series":[{"name":"logs","columns":["time","event"],"values":[["2009-11-10T23:00:02Z","disk full"]]}]}]}` {
 		t.Fatalf("unexpected results, got %s", string(body))
 	}
 
-	query = map[string]string{"db": "foo", "q": "select event from logs where event = 'disk full'"}
+	query = map[string]string{"db": "foo", "q": "select event from logs where event = 'nonsense'"}
 	status, body = MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusOK {
 		t.Logf("query %s\n", query)
