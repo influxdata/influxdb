@@ -1,3 +1,14 @@
+## v0.9.0-rc7 [2015-03-02]
+
+### Features
+- [#1813](https://github.com/influxdb/influxdb/pull/1813): Queries for missing measurements or fields now return a 200 with an error message in the series JSON.
+- [#1826](https://github.com/influxdb/influxdb/pull/1826), [#1827](https://github.com/influxdb/influxdb/pull/1827): Fixed queries with `WHERE` clauses against fields.
+
+### Bugfixes
+
+- [#1744](https://github.com/influxdb/influxdb/pull/1744): Allow retention policies to be modified without specifying replication factor. Thanks @kylezh
+- [#1809](https://github.com/influxdb/influxdb/pull/1809): Packaging post-install script unconditionally removes init.d symlink. Thanks @sineos
+
 ## v0.9.0-rc6 [2015-02-27]
 
 ### Bugfixes

@@ -127,36 +127,39 @@ type createMeasurementSubcommand struct {
 }
 
 type createMeasurementsIfNotExistsCommand struct {
-	Database     string                                  `json:"database"`
-	Measurements map[string]*createMeasurementSubcommand `json:"measurements"`
+	Database     string                         `json:"database"`
+	Measurements []*createMeasurementSubcommand `json:"measurements"`
 }
 
 func newCreateMeasurementsIfNotExistsCommand(database string) *createMeasurementsIfNotExistsCommand {
 	return &createMeasurementsIfNotExistsCommand{
 		Database:     database,
-		Measurements: make(map[string]*createMeasurementSubcommand),
+		Measurements: make([]*createMeasurementSubcommand, 0),
 	}
 }
 
 // addMeasurementIfNotExists adds the Measurement to the command, but only if not already present
 // in the command.
-func (c *createMeasurementsIfNotExistsCommand) addMeasurementIfNotExists(name string) {
-	_, ok := c.Measurements[name]
-	if !ok {
-		c.Measurements[name] = &createMeasurementSubcommand{
-			Name:   name,
-			Tags:   make([]map[string]string, 0),
-			Fields: make([]*Field, 0),
+func (c *createMeasurementsIfNotExistsCommand) addMeasurementIfNotExists(name string) *createMeasurementSubcommand {
+	for _, m := range c.Measurements {
+		if m.Name == name {
+			return m
 		}
 	}
+	m := &createMeasurementSubcommand{
+		Name:   name,
+		Tags:   make([]map[string]string, 0),
+		Fields: make([]*Field, 0),
+	}
+	c.Measurements = append(c.Measurements, m)
+	return m
 }
 
 // addSeriesIfNotExists adds the Series, identified by Measurement name and tag set, to
 // the command, but only if not already present in the command.
 func (c *createMeasurementsIfNotExistsCommand) addSeriesIfNotExists(measurement string, tags map[string]string) {
-	c.addMeasurementIfNotExists(measurement)
+	m := c.addMeasurementIfNotExists(measurement)
 
-	m := c.Measurements[measurement]
 	tagset := string(marshalTags(tags))
 	for _, t := range m.Tags {
 		if string(marshalTags(t)) == tagset {
@@ -173,9 +176,8 @@ func (c *createMeasurementsIfNotExistsCommand) addSeriesIfNotExists(measurement 
 // addFieldIfNotExists adds the field to the command for the Measurement, but only if it is not already
 // present. It will return an error if the field is present in the command, but is of a different type.
 func (c *createMeasurementsIfNotExistsCommand) addFieldIfNotExists(measurement, name string, typ influxql.DataType) error {
-	c.addMeasurementIfNotExists(measurement)
+	m := c.addMeasurementIfNotExists(measurement)
 
-	m := c.Measurements[measurement]
 	for _, f := range m.Fields {
 		if f.Name == name {
 			if f.Type != typ {

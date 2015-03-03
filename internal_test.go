@@ -118,9 +118,12 @@ func TestCreateMeasurementsCommand(t *testing.T) {
 	// Add Series, same tags again.
 	c.addSeriesIfNotExists("bar", tags)
 
-	n = len(c.Measurements["bar"].Tags)
-	if n != 2 {
-		t.Fatalf("measurement has wrong number of tags, expected 2, got %d", n)
+	for _, m := range c.Measurements {
+		if m.Name == "bar" {
+			if len(m.Tags) != 2 {
+				t.Fatalf("measurement has wrong number of tags, expected 2, got %d", n)
+			}
+		}
 	}
 
 	// Add a field.
@@ -141,9 +144,12 @@ func TestCreateMeasurementsCommand(t *testing.T) {
 		t.Fatal("error re-adding field \"value2\"")
 	}
 
-	n = len(c.Measurements["bar"].Fields)
-	if n != 2 {
-		t.Fatalf("wrong number of fields, expected 2, got %d", n)
+	for _, m := range c.Measurements {
+		if m.Name == "bar" {
+			if len(m.Fields) != 2 {
+				t.Fatalf("measurement has wrong number of fields, expected 2, got %d", n)
+			}
+		}
 	}
 }
 

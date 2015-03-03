@@ -252,6 +252,55 @@ func TestHandler_DropDatabase_NotFound(t *testing.T) {
 	}
 }
 
+func TestHandler_SelectMeasurement_NotFound(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	query := map[string]string{"q": "CREATE RETENTION POLICY bar ON foo DURATION 1h REPLICATION 1 DEFAULT"}
+	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
+
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	} else if body != `{"results":[{}]}` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+
+	status, body = MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "SELECT value FROM foobarbaz", "db": "foo"}, nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	} else if body != `{"results":[{"error":"measurement not found"}]}` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestHandler_SelectField_NotFound(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	query := map[string]string{"q": "CREATE RETENTION POLICY bar ON foo DURATION 1h REPLICATION 1 DEFAULT"}
+	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
+
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	} else if body != `{"results":[{}]}` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+
+	// Write some data
+	_, _ = MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
+
+	status, body = MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "SELECT abc FROM cpu", "db": "foo"}, nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	} else if body != `{"results":[{"error":"field not found: abc"}]}` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
 func TestHandler_RetentionPolicies(t *testing.T) {
 	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
@@ -1460,6 +1509,154 @@ func TestHandler_serveWriteSeriesBoolValues(t *testing.T) {
 	}
 }
 
+func TestHandler_serveWriteSeriesWhereIntField(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
+	srvr.SetDefaultRetentionPolicy("foo", "bar")
+
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "timestamp": "2009-11-10T23:00:02Z", "fields": {"load": 100}},
+		                                                                                                                   {"name": "cpu", "timestamp": "2009-11-10T23:01:02Z", "fields": {"load": 80}}]}`)
+	if status != http.StatusOK {
+		t.Logf("body %s\n", body)
+		t.Fatalf("unexpected status: %d", status)
+	}
+	time.Sleep(100 * time.Millisecond) // Ensure data node picks up write.
+
+	srvr.Restart() // Ensure data is queryable across restarts.
+
+	query := map[string]string{"db": "foo", "q": "select load from cpu where load > 100"}
+	status, body = MustHTTP("GET", s.URL+`/query`, query, nil, "")
+	if status != http.StatusOK {
+		t.Logf("query %s\n", query)
+		t.Log(body)
+		t.Errorf("unexpected status: %d", status)
+	}
+	if string(body) != `{"results":[{}]}` {
+		t.Fatalf("unexpected results, got %s", string(body))
+	}
+
+	query = map[string]string{"db": "foo", "q": "select load from cpu where load >= 100"}
+	status, body = MustHTTP("GET", s.URL+`/query`, query, nil, "")
+	if status != http.StatusOK {
+		t.Logf("query %s\n", query)
+		t.Log(body)
+		t.Errorf("unexpected status: %d", status)
+	}
+	if string(body) != `{"results":[{"series":[{"name":"cpu","columns":["time","load"],"values":[["2009-11-10T23:00:02Z",100]]}]}]}` {
+		t.Fatalf("unexpected results, got %s", string(body))
+	}
+
+	query = map[string]string{"db": "foo", "q": "select load from cpu where load = 100"}
+	status, body = MustHTTP("GET", s.URL+`/query`, query, nil, "")
+	if status != http.StatusOK {
+		t.Logf("query %s\n", query)
+		t.Log(body)
+		t.Errorf("unexpected status: %d", status)
+	}
+	if string(body) != `{"results":[{"series":[{"name":"cpu","columns":["time","load"],"values":[["2009-11-10T23:00:02Z",100]]}]}]}` {
+		t.Fatalf("unexpected results, got %s", string(body))
+	}
+
+	query = map[string]string{"db": "foo", "q": "select load from cpu where load <= 100"}
+	status, body = MustHTTP("GET", s.URL+`/query`, query, nil, "")
+	if status != http.StatusOK {
+		t.Logf("query %s\n", query)
+		t.Log(body)
+		t.Errorf("unexpected status: %d", status)
+	}
+	if string(body) != `{"results":[{"series":[{"name":"cpu","columns":["time","load"],"values":[["2009-11-10T23:00:02Z",100],["2009-11-10T23:01:02Z",80]]}]}]}` {
+		t.Fatalf("unexpected results, got %s", string(body))
+	}
+
+	query = map[string]string{"db": "foo", "q": "select load from cpu where load > 99"}
+	status, body = MustHTTP("GET", s.URL+`/query`, query, nil, "")
+	if status != http.StatusOK {
+		t.Logf("query %s\n", query)
+		t.Log(body)
+		t.Errorf("unexpected status: %d", status)
+	}
+	if string(body) != `{"results":[{"series":[{"name":"cpu","columns":["time","load"],"values":[["2009-11-10T23:00:02Z",100]]}]}]}` {
+		t.Fatalf("unexpected results, got %s", string(body))
+	}
+
+	query = map[string]string{"db": "foo", "q": "select load from cpu where load = 99"}
+	status, body = MustHTTP("GET", s.URL+`/query`, query, nil, "")
+	if status != http.StatusOK {
+		t.Logf("query %s\n", query)
+		t.Log(body)
+		t.Errorf("unexpected status: %d", status)
+	}
+	if string(body) != `{"results":[{}]}` {
+		t.Fatalf("unexpected results, got %s", string(body))
+	}
+
+	query = map[string]string{"db": "foo", "q": "select load from cpu where load < 99"}
+	status, body = MustHTTP("GET", s.URL+`/query`, query, nil, "")
+	if status != http.StatusOK {
+		t.Logf("query %s\n", query)
+		t.Log(body)
+		t.Errorf("unexpected status: %d", status)
+	}
+	if string(body) != `{"results":[{"series":[{"name":"cpu","columns":["time","load"],"values":[["2009-11-10T23:01:02Z",80]]}]}]}` {
+		t.Fatalf("unexpected results, got %s", string(body))
+	}
+
+	query = map[string]string{"db": "foo", "q": "select load from cpu where load < 80"}
+	status, body = MustHTTP("GET", s.URL+`/query`, query, nil, "")
+	if status != http.StatusOK {
+		t.Logf("query %s\n", query)
+		t.Log(body)
+		t.Errorf("unexpected status: %d", status)
+	}
+	if string(body) != `{"results":[{}]}` {
+		t.Fatalf("unexpected results, got %s", string(body))
+	}
+}
+
+func TestHandler_serveWriteSeriesWhereStringField(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
+	srvr.SetDefaultRetentionPolicy("foo", "bar")
+
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "logs", "timestamp": "2009-11-10T23:00:02Z","fields": {"event": "disk full"}}]}`)
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	time.Sleep(100 * time.Millisecond) // Ensure data node picks up write.
+
+	srvr.Restart() // Ensure data is queryable across restarts.
+
+	query := map[string]string{"db": "foo", "q": "select event from logs where event = 'disk full'"}
+	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
+	if status != http.StatusOK {
+		t.Logf("query %s\n", query)
+		t.Log(body)
+		t.Errorf("unexpected status: %d", status)
+	}
+	if string(body) != `{"results":[{"series":[{"name":"logs","columns":["time","event"],"values":[["2009-11-10T23:00:02Z","disk full"]]}]}]}` {
+		t.Fatalf("unexpected results, got %s", string(body))
+	}
+
+	query = map[string]string{"db": "foo", "q": "select event from logs where event = 'nonsense'"}
+	status, body = MustHTTP("GET", s.URL+`/query`, query, nil, "")
+	if status != http.StatusOK {
+		t.Logf("query %s\n", query)
+		t.Log(body)
+		t.Errorf("unexpected status: %d", status)
+	}
+	if string(body) != `{"results":[{}]}` {
+		t.Fatalf("unexpected results, got %s", string(body))
+	}
+}
+
 func TestHandler_serveWriteSeriesBatch(t *testing.T) {
 	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
@@ -1560,7 +1757,7 @@ func TestHandler_serveWriteSeriesInvalidQueryField(t *testing.T) {
 
 	query := map[string]string{"db": "foo", "q": "select bar from cpu"}
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
-	if status != http.StatusInternalServerError {
+	if status != http.StatusOK {
 		t.Logf("query %s\n", query)
 		t.Log(body)
 		t.Errorf("unexpected status: %d", status)
