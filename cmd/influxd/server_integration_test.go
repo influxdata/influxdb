@@ -225,8 +225,8 @@ func runTests_Errors(t *testing.T, nodes Cluster) {
 	}
 }
 
-// runTests tests write and query of data.
-func runTestsData(t *testing.T, testName string, nodes Cluster, database, retention string) {
+// runTests tests write and query of data. Setting testNumbers allows only a subset of tests to be run.
+func runTestsData(t *testing.T, testName string, nodes Cluster, database, retention string, testNums ...int) {
 	t.Logf("Running tests against %d-node cluster", len(nodes))
 
 	// Start by ensuring database and retention policy exist.
@@ -346,7 +346,27 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		},
 	}
 
-	for _, tt := range tests {
+	for i, tt := range tests {
+		// If tests were explicitly requested, only run those tests.
+		if len(testNums) > 0 {
+			var found bool
+			for _, t := range testNums {
+				if i == t {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
+
+		name := tt.name
+		if name == "" {
+			name = tt.query
+		}
+		t.Logf("Running test %d: %s", i, name)
+
 		if tt.reset {
 			t.Logf(`reseting for test "%s"`, tt.name)
 			deleteDatabase(t, testName, nodes, database)
@@ -361,10 +381,6 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		if tt.query != "" {
 			got, ok := query(t, nodes, rewriteDbRp(tt.query, database, retention), rewriteDbRp(tt.expected, database, retention))
 			if !ok {
-				name := tt.name
-				if name == "" {
-					name = tt.query
-				}
 				t.Errorf(`Test "%s" failed, expected: %s, got: %s`, name, rewriteDbRp(tt.expected, database, retention), got)
 			}
 		}
