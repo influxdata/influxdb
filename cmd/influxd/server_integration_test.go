@@ -880,11 +880,13 @@ func TestClientLibrary(t *testing.T) {
 }
 
 func Test_ServerSingleGraphiteIntegration(t *testing.T) {
-	//t.Skip()
-	dir := tempfile()
+	if testing.Short() {
+		t.Skip()
+	}
 	nNodes := 1
 	basePort := 8390
 	testName := "graphite integration"
+	dir := tempfile()
 	now := time.Now().UTC().Round(time.Millisecond)
 	c := main.NewConfig()
 	g := main.Graphite{
