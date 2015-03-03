@@ -252,55 +252,6 @@ func TestHandler_DropDatabase_NotFound(t *testing.T) {
 	}
 }
 
-func TestHandler_SelectMeasurement_NotFound(t *testing.T) {
-	srvr := OpenAuthlessServer(NewMessagingClient())
-	srvr.CreateDatabase("foo")
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	query := map[string]string{"q": "CREATE RETENTION POLICY bar ON foo DURATION 1h REPLICATION 1 DEFAULT"}
-	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
-
-	if status != http.StatusOK {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"results":[{}]}` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-
-	status, body = MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "SELECT value FROM foobarbaz", "db": "foo"}, nil, "")
-	if status != http.StatusOK {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"results":[{"error":"measurement not found"}]}` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-func TestHandler_SelectField_NotFound(t *testing.T) {
-	srvr := OpenAuthlessServer(NewMessagingClient())
-	srvr.CreateDatabase("foo")
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	query := map[string]string{"q": "CREATE RETENTION POLICY bar ON foo DURATION 1h REPLICATION 1 DEFAULT"}
-	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
-
-	if status != http.StatusOK {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"results":[{}]}` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-
-	// Write some data
-	_, _ = MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
-
-	status, body = MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "SELECT abc FROM cpu", "db": "foo"}, nil, "")
-	if status != http.StatusOK {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"results":[{"error":"field not found: abc"}]}` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
 func TestHandler_RetentionPolicies(t *testing.T) {
 	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
@@ -695,36 +646,6 @@ func TestHandler_PingHead(t *testing.T) {
 	}
 }
 
-func TestHandler_Users_NoUsers(t *testing.T) {
-	srvr := OpenAuthlessServer(NewMessagingClient())
-	srvr.CreateDatabase("foo")
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	query := map[string]string{"q": "SHOW USERS"}
-	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
-	if status != http.StatusOK {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"results":[{"series":[{"columns":["user","admin"]}]}]}` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-func TestHandler_Users_OneUser(t *testing.T) {
-	srvr := OpenAuthlessServer(NewMessagingClient())
-	srvr.CreateUser("jdoe", "1337", true)
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	query := map[string]string{"q": "SHOW USERS"}
-	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
-	if status != http.StatusOK {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"results":[{"series":[{"columns":["user","admin"],"values":[["jdoe",true]]}]}]}` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
 func TestHandler_Users_MultipleUsers(t *testing.T) {
 	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateUser("jdoe", "1337", false)
@@ -738,62 +659,6 @@ func TestHandler_Users_MultipleUsers(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `{"results":[{"series":[{"columns":["user","admin"],"values":[["csmith",false],["jdoe",false],["mclark",true]]}]}]}` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-func TestHandler_CreateUser(t *testing.T) {
-	srvr := OpenAuthlessServer(NewMessagingClient())
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	query := map[string]string{"q": `CREATE USER testuser WITH PASSWORD '1337'`}
-	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
-	if status != http.StatusOK {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"results":[{}]}` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-func TestHandler_CreateUser_BadRequest(t *testing.T) {
-	srvr := OpenAuthlessServer(NewMessagingClient())
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	query := map[string]string{"q": "CREATE USER 0xBAD WITH PASSWORD pwd1337"}
-	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
-	if status != http.StatusBadRequest {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"error":"error parsing query: found 0, expected identifier at line 1, char 13"}` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-func TestHandler_CreateUser_BadRequest_NoName(t *testing.T) {
-	srvr := OpenAuthlessServer(NewMessagingClient())
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	query := map[string]string{"q": "CREATE USER WITH PASSWORD pwd1337"}
-	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
-	if status != http.StatusBadRequest {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"error":"error parsing query: found WITH, expected identifier at line 1, char 13"}` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-func TestHandler_CreateUser_BadRequest_NoPassword(t *testing.T) {
-	srvr := OpenAuthlessServer(NewMessagingClient())
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	query := map[string]string{"q": "CREATE USER jdoe"}
-	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
-	if status != http.StatusBadRequest {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"error":"error parsing query: found EOF, expected WITH at line 1, char 18"}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -830,35 +695,6 @@ func TestHandler_UpdateUser_PasswordBadRequest(t *testing.T) {
 	if status != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `json: cannot unmarshal number into Go value of type string` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-func TestHandler_DeleteUser(t *testing.T) {
-	srvr := OpenAuthlessServer(NewMessagingClient())
-	srvr.CreateUser("jdoe", "1337", false)
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	query := map[string]string{"q": "DROP USER jdoe"}
-	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
-	if status != http.StatusOK {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"results":[{}]}` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-func TestHandler_DeleteUser_UserNotFound(t *testing.T) {
-	srvr := OpenAuthlessServer(NewMessagingClient())
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	query := map[string]string{"q": "DROP USER jdoe"}
-	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
-	if status != http.StatusInternalServerError {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"results":[{"error":"user not found"}]}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -1041,37 +877,6 @@ func TestHandler_AuthenticatedDatabases_UnauthorizedBasicAuth(t *testing.T) {
 	}
 }
 
-func TestHandler_GrantAdmin(t *testing.T) {
-	srvr := OpenAuthenticatedServer(NewMessagingClient())
-	// Create a cluster admin that will grant admin to "john".
-	srvr.CreateUser("lisa", "password", true)
-	// Create user that will be granted cluster admin.
-	srvr.CreateUser("john", "password", false)
-	s := NewAuthenticatedHTTPServer(srvr)
-	defer s.Close()
-
-	auth := make(map[string]string)
-	auth["Authorization"] = "Basic " + base64.StdEncoding.EncodeToString([]byte("lisa:password"))
-	query := map[string]string{"q": "GRANT ALL PRIVILEGES TO john"}
-
-	status, _ := MustHTTP("GET", s.URL+`/query`, query, auth, "")
-
-	if status != http.StatusOK {
-		t.Fatalf("unexpected status: %d", status)
-	}
-
-	if u := srvr.User("john"); !u.Admin {
-		t.Fatal(`expected user "john" to be admin`)
-	}
-
-	// Make sure update persists after server restart.
-	srvr.Restart()
-
-	if u := srvr.User("john"); !u.Admin {
-		t.Fatal(`expected user "john" to be admin after server restart`)
-	}
-}
-
 func TestHandler_GrantDBPrivilege(t *testing.T) {
 	srvr := OpenAuthenticatedServer(NewMessagingClient())
 	// Create a cluster admin that will grant privilege to "john".
@@ -1173,36 +978,6 @@ func TestHandler_RevokeDBPrivilege(t *testing.T) {
 	if p := u.Privileges["foo"]; p != influxql.NoPrivileges {
 		t.Fatal(`expected user "john" not to have privileges on foo after restart`)
 	}
-}
-
-func TestHandler_ShowContinuousQueries(t *testing.T) {
-	srvr := OpenAuthlessServer(NewMessagingClient())
-	srvr.CreateDatabase("foo")
-	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
-	srvr.SetDefaultRetentionPolicy("foo", "bar")
-
-	// create and check
-	q := "CREATE CONTINUOUS QUERY myquery ON foo BEGIN SELECT count() INTO measure1 FROM myseries GROUP BY time(10m) END"
-	stmt, err := influxql.NewParser(strings.NewReader(q)).ParseStatement()
-	if err != nil {
-		t.Fatalf("error parsing query %s", err.Error())
-	}
-	cq := stmt.(*influxql.CreateContinuousQueryStatement)
-	if err := srvr.CreateContinuousQuery(cq); err != nil {
-		t.Fatalf("error creating continuous query %s", err.Error())
-	}
-
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	query := map[string]string{"q": "SHOW CONTINUOUS QUERIES"}
-	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
-	if status != http.StatusOK {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"results":[{"series":[{"name":"foo","columns":["name","query"],"values":[["myquery","CREATE CONTINUOUS QUERY myquery ON foo BEGIN SELECT count() INTO measure1 FROM myseries GROUP BY time(10m) END"]]}]}]}` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-
 }
 
 func TestHandler_DropSeries(t *testing.T) {

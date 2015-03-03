@@ -242,6 +242,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		query    string // If equal to the blank string, no query is executed.
 		expected string // If 'query' is equal to the blank string, this is ignored.
 	}{
+		// Data read and write tests
 		{
 			reset:    true,
 			name:     "single point with timestamp",
@@ -253,6 +254,86 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			name:     "single point, select with now()",
 			query:    `SELECT * FROM "%DB%"."%RP%".cpu WHERE time < now()`,
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",100]]}]}]}`,
+		},
+
+		{
+			name:     "measurement not found",
+			query:    `SELECT value FROM "%DB%"."%RP%".foobarbaz`,
+			expected: `{"results":[{"error":"measurement not found"}]}`,
+		},
+		{
+			name:     "field not found",
+			query:    `SELECT abc FROM "%DB%"."%RP%".cpu WHERE time < now()`,
+			expected: `{"results":[{"error":"field not found: abc"}]}`,
+		},
+
+		// User control tests
+		{
+			name:     "show users, no actual users",
+			query:    `SHOW USERS`,
+			expected: `{"results":[{"series":[{"columns":["user","admin"]}]}]}`,
+		},
+		{
+			query:    `CREATE USER jdoe WITH PASSWORD '1337'`,
+			expected: `{"results":[{}]}`,
+		},
+		{
+			name:     "show users, 1 existing user",
+			query:    `SHOW USERS`,
+			expected: `{"results":[{"series":[{"columns":["user","admin"],"values":[["jdoe",false]]}]}]}`,
+		},
+		{
+			query:    `GRANT ALL PRIVILEGES TO jdoe`,
+			expected: `{"results":[{}]}`,
+		},
+		{
+			name:     "show users, existing user as admin",
+			query:    `SHOW USERS`,
+			expected: `{"results":[{"series":[{"columns":["user","admin"],"values":[["jdoe",true]]}]}]}`,
+		},
+		{
+			name:     "grant DB privileges to user",
+			query:    `GRANT READ ON %DB% TO jdoe`,
+			expected: `{"results":[{}]}`,
+		},
+		{
+			query:    `REVOKE ALL PRIVILEGES FROM jdoe`,
+			expected: `{"results":[{}]}`,
+		},
+		{
+			name:     "bad create user request",
+			query:    `CREATE USER 0xBAD WITH PASSWORD pwd1337`,
+			expected: `{"error":"error parsing query: found 0, expected identifier at line 1, char 13"}`,
+		},
+		{
+			name:     "bad create user request, no name",
+			query:    `CREATE USER WITH PASSWORD pwd1337`,
+			expected: `{"error":"error parsing query: found WITH, expected identifier at line 1, char 13"}`,
+		},
+		{
+			name:     "bad create user request, no password",
+			query:    `CREATE USER jdoe`,
+			expected: `{"error":"error parsing query: found EOF, expected WITH at line 1, char 18"}`,
+		},
+		{
+			query:    `DROP USER jdoe`,
+			expected: `{"results":[{}]}`,
+		},
+		{
+			name:     "delete non existing user",
+			query:    `DROP USER noone`,
+			expected: `{"results":[{"error":"user not found"}]}`,
+		},
+
+		// Continuous query control.
+		{
+			name:     "create continuous query",
+			query:    `CREATE CONTINUOUS QUERY myquery ON %DB% BEGIN SELECT count() INTO measure1 FROM myseries GROUP BY time(10m) END`,
+			expected: `{"results":[{}]}`,
+		},
+		{
+			query:    `SHOW CONTINUOUS QUERIES`,
+			expected: `{"results":[{"series":[{"name":"%DB%","columns":["name","query"],"values":[["myquery","CREATE CONTINUOUS QUERY myquery ON %DB% BEGIN SELECT count() INTO measure1 FROM myseries GROUP BY time(10m) END"]]}]}]}`,
 		},
 	}
 
@@ -271,7 +352,11 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		if tt.query != "" {
 			got, ok := query(t, nodes, rewriteDbRp(tt.query, database, retention), rewriteDbRp(tt.expected, database, retention))
 			if !ok {
-				t.Errorf(`Test "%s" failed, expected: %s, got: %s`, tt.name, rewriteDbRp(tt.expected, database, retention), got)
+				name := tt.name
+				if name == "" {
+					name = tt.query
+				}
+				t.Errorf(`Test "%s" failed, expected: %s, got: %s`, name, rewriteDbRp(tt.expected, database, retention), got)
 			}
 		}
 	}
