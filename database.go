@@ -375,7 +375,8 @@ func (m *Measurement) walkWhereForSeriesIds(expr influxql.Expr, filters map[uint
 	switch n := expr.(type) {
 	case *influxql.BinaryExpr:
 		// if it's EQ then it's either a field expression or against a tag. we can return this
-		if n.Op == influxql.EQ || n.Op == influxql.EQREGEX || n.Op == influxql.NEQREGEX {
+		if n.Op == influxql.EQ || n.Op == influxql.LT || n.Op == influxql.LTE || n.Op == influxql.GT ||
+			n.Op == influxql.GTE || n.Op == influxql.EQREGEX || n.Op == influxql.NEQREGEX {
 			ids, shouldInclude, expr := m.idsForExpr(n)
 			for _, id := range ids {
 				filters[id] = expr
