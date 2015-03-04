@@ -695,6 +695,11 @@ func MapMean(itr Iterator, e *Emitter, tmin int64) {
 	out := &meanMapOutput{}
 
 	for k, _, v := itr.Next(); k != 0; k, _, v = itr.Next() {
+		_, isFloat := v.(float64)
+		_, isInt := v.(int)
+		if !isFloat && !isInt {
+			continue
+		}
 		out.Count++
 		out.Sum += v.(float64)
 	}
