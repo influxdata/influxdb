@@ -352,6 +352,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		},
 
 		// Metadata display tests
+
 		{
 			reset: true,
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
@@ -391,6 +392,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["id","host","region"],"values":[[3,"server01","useast"],[4,"server02","useast"]]}]}]}`,
 		},
+
 		{
 			reset: true,
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
@@ -415,6 +417,31 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			query:    "SHOW MEASUREMENTS WHERE region !~ /ca.*/",
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"measurements","columns":["name"],"values":[["cpu"]]}]}]}`,
+		},
+
+		{
+			reset: true,
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+		{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "uswest"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "gpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "gpu", "tags": {"host": "server03", "region": "caeast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}}
+		]}`,
+			query:    "SHOW TAG KEYS",
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["tagKey"],"values":[["host"],["region"]]},{"name":"gpu","columns":["tagKey"],"values":[["host"],["region"]]}]}]}`,
+		},
+		{
+			query:    "SHOW TAG KEYS FROM cpu",
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["tagKey"],"values":[["host"],["region"]]}]}]}`,
+		},
+		{
+			query:    "SHOW TAG KEYS FROM bad",
+			queryDb:  "%DB%",
+			expected: `{"results":[{"error":"measurement \"bad\" not found"}]}`,
 		},
 
 		// User control tests
