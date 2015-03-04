@@ -253,15 +253,18 @@ if [ $ARCH == "i386" ]; then
     debian_package=influxdb_${VERSION}_i686.deb
     deb_args="-a i686"
     rpm_args="setarch i686"
+    fpm_arch_name="i686"
 elif [ $ARCH == "arm" ]; then
     rpm_package=influxdb-$VERSION-1.armel.rpm
     debian_package=influxdb_${VERSION}_armel.deb
+    fpm_arch_name="all"
 else
     rpm_package=influxdb-$VERSION-1.x86_64.rpm
     debian_package=influxdb_${VERSION}_amd64.deb
+    fpm_arch_name="x86_64"
 fi
 
-COMMON_FPM_ARGS="-C $TMP_WORK_DIR --vendor $VENDOR --url $URL --license $LICENSE --maintainer $MAINTAINER --after-install $POST_INSTALL_PATH --name influxdb --version $VERSION ."
+COMMON_FPM_ARGS="-C $TMP_WORK_DIR --vendor $VENDOR --url $URL --license $LICENSE --maintainer $MAINTAINER --after-install $POST_INSTALL_PATH --name influxdb --version $VERSION -a $fpm_arch_args ."
 $rpm_args fpm -s dir -t rpm --description "$DESCRIPTION" $COMMON_FPM_ARGS
 if [ $? -ne 0 ]; then
     echo "Failed to create RPM package -- aborting."
