@@ -74,15 +74,9 @@ type Config struct {
 
 	InputPlugins struct {
 		UDPInput struct {
-			Enabled  bool   `toml:"enabled"`
-			Port     int    `toml:"port"`
-			Database string `toml:"database"`
+			Enabled bool `toml:"enabled"`
+			Port    int  `toml:"port"`
 		} `toml:"udp"`
-		UDPServersInput []struct {
-			Enabled  bool   `toml:"enabled"`
-			Port     int    `toml:"port"`
-			Database string `toml:"database"`
-		} `toml:"udp_servers"`
 	} `toml:"input_plugins"`
 
 	Broker struct {

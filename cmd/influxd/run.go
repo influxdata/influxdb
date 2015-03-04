@@ -20,6 +20,7 @@ import (
 	"github.com/influxdb/influxdb/graphite"
 	"github.com/influxdb/influxdb/httpd"
 	"github.com/influxdb/influxdb/messaging"
+	"github.com/influxdb/influxdb/udp"
 )
 
 func Run(config *Config, join, version string, logWriter *os.File) (*messaging.Broker, *influxdb.Server) {
@@ -108,6 +109,17 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 			if err != nil {
 				log.Printf("failed to start collectd Server: %v\n", err.Error())
 			}
+		}
+
+		// Start the server bound to a UDP listener
+		if config.InputPlugins.UDPInput.Enabled {
+			connectString := fmt.Sprintf("%s:%d", config.BindAddress, config.InputPlugins.UDPInput.Port)
+			log.Printf("Starting UDP listener on %s", connectString)
+			u := udp.NewUDPServer(s)
+			if err := u.ListenAndServe(connectString); err != nil {
+				log.Printf("Failed to start UDP listener on %s. Got error %s.", connectString, err)
+			}
+
 		}
 
 		// Spin up any Graphite servers
