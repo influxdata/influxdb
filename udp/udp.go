@@ -32,16 +32,15 @@ func NewUDPServer(w SeriesWriter) *UDPServer {
 
 // ListenAndServe binds the server to the given UDP interface.
 func (u *UDPServer) ListenAndServe(iface string) error {
-
 	addr, err := net.ResolveUDPAddr("udp", iface)
 	if err != nil {
-		log.Printf("Failed resolve UDP address %s. Error is %s", iface, err)
+		log.Printf("Failed resolve UDP address %s: %s", iface, err)
 		return err
 	}
 
 	conn, err := net.ListenUDP("udp", addr)
 	if err != nil {
-		log.Printf("Failed set up UDP listener at address %s. Error is %s", addr, err)
+		log.Printf("Failed set up UDP listener at address %s: %s", addr, err)
 		return err
 	}
 
@@ -50,35 +49,26 @@ func (u *UDPServer) ListenAndServe(iface string) error {
 
 	go func() {
 		for {
-			_, remote, err := conn.ReadFromUDP(buf)
+			_, _, err := conn.ReadFromUDP(buf)
 			if err != nil {
-				log.Printf("Failed read UDP message. Error is %s.", err)
+				log.Printf("Failed read UDP message: %s.", err)
 				continue
 			}
 
 			dec := json.NewDecoder(bytes.NewReader(buf))
 			if err := dec.Decode(&bp); err != nil {
 				log.Printf("Failed decode JSON UDP message")
-				msgUDP := []byte("Failed to decode your message")
-				conn.WriteToUDP(msgUDP, remote)
 				continue
 			}
 
 			points, err := influxdb.NormalizeBatchPoints(bp)
 			if err != nil {
 				log.Printf("Failed normalize batch points")
-				msgUDP := []byte("Failed find points in your message")
-				conn.WriteToUDP(msgUDP, remote)
 				continue
 			}
 
 			if msgIndex, err := u.writer.WriteSeries(bp.Database, bp.RetentionPolicy, points); err != nil {
-				log.Printf("Server write failed. Message index was %d. Error is %s.", msgIndex, err)
-				msgUDP := []byte("Failed to write series to the database")
-				conn.WriteToUDP(msgUDP, remote)
-			} else {
-				msgUDP := []byte("Write OK")
-				conn.WriteToUDP(msgUDP, remote)
+				log.Printf("Server write failed. Message index was %d: %s", msgIndex, err)
 			}
 		}
 	}()

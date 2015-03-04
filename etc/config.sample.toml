@@ -53,21 +53,11 @@ enabled = false
 #database = "collectd_database"
 #typesdb = "types.db"
 
-# Input plugin configuration.
-[input_plugins]
-  # Configure the udp api
-  [input_plugins.udp]
-  enabled = false
-  # port = 4444
-  # database = ""
-
-  # Configure multiple udp apis each can write to separate db.  Just
-  # repeat the following section to enable multiple udp apis on
-  # different ports.
-  [[input_plugins.udp_servers]] # array of tables
-  enabled = false
-  # port = 5551
-  # database = "db1"
+# Configure UDP listener for series data.
+[udp]
+enabled = false
+#bind-address = "0.0.0.0"
+#port = 4444
 
 # Broker configuration. Brokers are nodes which participate in distributed
 # consensus.

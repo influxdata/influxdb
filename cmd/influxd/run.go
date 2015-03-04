@@ -112,12 +112,11 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 		}
 
 		// Start the server bound to a UDP listener
-		if config.InputPlugins.UDPInput.Enabled {
-			connectString := fmt.Sprintf("%s:%d", config.BindAddress, config.InputPlugins.UDPInput.Port)
-			log.Printf("Starting UDP listener on %s", connectString)
+		if config.UDP.Enabled {
+			log.Printf("Starting UDP listener on %s", config.DataAddrUDP())
 			u := udp.NewUDPServer(s)
-			if err := u.ListenAndServe(connectString); err != nil {
-				log.Printf("Failed to start UDP listener on %s. Got error %s.", connectString, err)
+			if err := u.ListenAndServe(config.DataAddrUDP()); err != nil {
+				log.Printf("Failed to start UDP listener on %s: %s", config.DataAddrUDP(), err)
 			}
 
 		}

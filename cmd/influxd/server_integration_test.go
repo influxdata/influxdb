@@ -134,7 +134,7 @@ func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes, ba
 // createDatabase creates a database, and verifies that the creation was successful.
 func createDatabase(t *testing.T, testName string, nodes Cluster, database string) {
 	t.Logf("Test: %s: creating database %s", testName, database)
-	query(t, nodes[:1], "CREATE DATABASE "+database, `{"results":[{}]}`)
+	query(t, nodes[:1], "", "CREATE DATABASE "+database, `{"results":[{}]}`)
 }
 
 // createRetentionPolicy creates a retetention policy and verifies that the creation was successful.
@@ -142,13 +142,13 @@ func createDatabase(t *testing.T, testName string, nodes Cluster, database strin
 func createRetentionPolicy(t *testing.T, testName string, nodes Cluster, database, retention string) {
 	t.Logf("Creating retention policy %s for database %s", retention, database)
 	command := fmt.Sprintf("CREATE RETENTION POLICY %s ON %s DURATION 1h REPLICATION %d DEFAULT", retention, database, len(nodes))
-	query(t, nodes[:1], command, `{"results":[{}]}`)
+	query(t, nodes[:1], "", command, `{"results":[{}]}`)
 }
 
 // deleteDatabase delete a database, and verifies that the deletion was successful.
 func deleteDatabase(t *testing.T, testName string, nodes Cluster, database string) {
 	t.Logf("Test: %s: deleting database %s", testName, database)
-	query(t, nodes[:1], "DROP DATABASE "+database, `{"results":[{}]}`)
+	query(t, nodes[:1], "", "DROP DATABASE "+database, `{"results":[{}]}`)
 }
 
 // writes writes the provided data to the cluster. It verfies that a 200 OK is returned by the server.
@@ -170,10 +170,15 @@ func write(t *testing.T, node *Node, data string) {
 
 // query executes the given query against all nodes in the cluster, and verifies no errors occured, and
 // ensures the returned data is as expected
-func query(t *testing.T, nodes Cluster, query, expected string) (string, bool) {
+func query(t *testing.T, nodes Cluster, urlDb, query, expected string) (string, bool) {
+	v := url.Values{"q": []string{query}}
+	if urlDb != "" {
+		v.Set("db", urlDb)
+	}
+
 	// Query the data exists
 	for _, n := range nodes {
-		u := urlFor(n.url, "query", url.Values{"q": []string{query}})
+		u := urlFor(n.url, "query", v)
 		resp, err := http.Get(u.String())
 		if err != nil {
 			t.Fatalf("Failed to execute query '%s': %s", query, err.Error())
@@ -217,7 +222,7 @@ func runTests_Errors(t *testing.T, nodes Cluster) {
 		}
 
 		if tt.query != "" {
-			got, ok := query(t, nodes, tt.query, tt.expected)
+			got, ok := query(t, nodes, "", tt.query, tt.expected)
 			if !ok {
 				t.Errorf("Test '%s' failed, expected: %s, got: %s", tt.name, tt.expected, got)
 			}
@@ -240,6 +245,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		name     string // Test name, for easy-to-read test log output.
 		write    string // If equal to the empty string, no data is written.
 		query    string // If equal to the blank string, no query is executed.
+		queryDb  string // If set, is used as the "db" query param.
 		expected string // If 'query' is equal to the blank string, this is ignored.
 	}{
 		// Data read and write tests
@@ -345,6 +351,159 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			expected: `{"results":[{}]}`,
 		},
 
+		// Metadata display tests
+
+		{
+			reset: true,
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+		{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "uswest"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "gpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "gpu", "tags": {"host": "server03", "region": "caeast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}}
+		]}`,
+			query:    "SHOW SERIES",
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["id","host","region"],"values":[[1,"server01",""],[2,"server01","uswest"],[3,"server01","useast"],[4,"server02","useast"]]},{"name":"gpu","columns":["id","host","region"],"values":[[5,"server02","useast"],[6,"server03","caeast"]]}]}]}`,
+		},
+		{
+			query:    "SHOW SERIES FROM cpu",
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["id","host","region"],"values":[[1,"server01",""],[2,"server01","uswest"],[3,"server01","useast"],[4,"server02","useast"]]}]}]}`,
+		},
+		{
+			query:    "SHOW SERIES WHERE region = 'uswest'",
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["id","host","region"],"values":[[2,"server01","uswest"]]}]}]}`,
+		},
+		{
+			query:    "SHOW SERIES WHERE region =~ /ca.*/",
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"gpu","columns":["id","host","region"],"values":[[6,"server03","caeast"]]}]}]}`,
+		},
+		{
+			query:    "SHOW SERIES WHERE host !~ /server0[12]/",
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"gpu","columns":["id","host","region"],"values":[[6,"server03","caeast"]]}]}]}`,
+		},
+		{
+			query:    "SHOW SERIES FROM cpu WHERE region = 'useast'",
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["id","host","region"],"values":[[3,"server01","useast"],[4,"server02","useast"]]}]}]}`,
+		},
+
+		{
+			reset: true,
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+		{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "uswest"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "gpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "gpu", "tags": {"host": "server02", "region": "caeast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "other", "tags": {"host": "server03", "region": "caeast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}}
+		]}`,
+			query:    "SHOW MEASUREMENTS LIMIT 2",
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"measurements","columns":["name"],"values":[["cpu"],["gpu"]]}]}]}`,
+		},
+		{
+			query:    "SHOW MEASUREMENTS WHERE region =~ /ca.*/",
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"measurements","columns":["name"],"values":[["gpu"],["other"]]}]}]}`,
+		},
+		{
+			query:    "SHOW MEASUREMENTS WHERE region !~ /ca.*/",
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"measurements","columns":["name"],"values":[["cpu"]]}]}]}`,
+		},
+
+		{
+			reset: true,
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+		{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "uswest"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "gpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "gpu", "tags": {"host": "server03", "region": "caeast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}}
+		]}`,
+			query:    "SHOW TAG KEYS",
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["tagKey"],"values":[["host"],["region"]]},{"name":"gpu","columns":["tagKey"],"values":[["host"],["region"]]}]}]}`,
+		},
+		{
+			query:    "SHOW TAG KEYS FROM cpu",
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["tagKey"],"values":[["host"],["region"]]}]}]}`,
+		},
+		{
+			query:    "SHOW TAG KEYS FROM bad",
+			queryDb:  "%DB%",
+			expected: `{"results":[{"error":"measurement \"bad\" not found"}]}`,
+		},
+
+		{
+			reset: true,
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+		{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "uswest"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "gpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "gpu", "tags": {"host": "server03", "region": "caeast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}}
+		]}`,
+			query:    "SHOW TAG VALUES WITH KEY = host",
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"hostTagValues","columns":["host"],"values":[["server01"],["server02"],["server03"]]}]}]}`,
+		},
+		{
+			query:    `SHOW TAG VALUES WITH KEY = "host"`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"hostTagValues","columns":["host"],"values":[["server01"],["server02"],["server03"]]}]}]}`,
+		},
+		{
+			query:    `SHOW TAG VALUES FROM cpu WITH KEY = host WHERE region = 'uswest'`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"hostTagValues","columns":["host"],"values":[["server01"]]}]}]}`,
+		},
+		{
+			query:    `SHOW TAG VALUES WITH KEY = host WHERE region =~ /ca.*/`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"hostTagValues","columns":["host"],"values":[["server03"]]}]}]}`,
+		},
+		{
+			query:    `SHOW TAG VALUES WITH KEY = region WHERE host !~ /server0[12]/`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"regionTagValues","columns":["region"],"values":[["caeast"]]}]}]}`,
+		},
+		{
+			query:    `SHOW TAG VALUES FROM cpu WITH KEY IN (host, region) WHERE region = 'uswest'`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"hostTagValues","columns":["host"],"values":[["server01"]]},{"name":"regionTagValues","columns":["region"],"values":[["uswest"]]}]}]}`,
+		},
+
+		{
+			reset: true,
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+		{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"field1": 100}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "uswest"},"timestamp": "2009-11-10T23:00:00Z","fields": {"field1": 200, "field2": 300, "field3": 400}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"field1": 200, "field2": 300, "field3": 400}},
+		{"name": "cpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"field1": 200, "field2": 300, "field3": 400}},
+		{"name": "gpu", "tags": {"host": "server01", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"field4": 200, "field5": 300}},
+		{"name": "gpu", "tags": {"host": "server03", "region": "caeast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"field6": 200, "field7": 300}}
+		]}`,
+			query:    `SHOW FIELD KEYS`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["fieldKey"],"values":[["field1"],["field2"],["field3"]]},{"name":"gpu","columns":["fieldKey"],"values":[["field4"],["field5"],["field6"],["field7"]]}]}]}`,
+		},
+		{
+			query:    `SHOW FIELD KEYS FROM cpu`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["fieldKey"],"values":[["field1"],["field2"],["field3"]]}]}]}`,
+		},
+
 		// User control tests
 		{
 			name:     "show users, no actual users",
@@ -437,7 +596,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		t.Logf("Running test %d: %s", i, name)
 
 		if tt.reset {
-			t.Logf(`reseting for test "%s"`, tt.name)
+			t.Logf(`reseting for test "%s"`, name)
 			deleteDatabase(t, testName, nodes, database)
 			createDatabase(t, testName, nodes, database)
 			createRetentionPolicy(t, testName, nodes, database, retention)
@@ -448,7 +607,11 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		}
 
 		if tt.query != "" {
-			got, ok := query(t, nodes, rewriteDbRp(tt.query, database, retention), rewriteDbRp(tt.expected, database, retention))
+			urlDb := ""
+			if tt.queryDb != "" {
+				urlDb = tt.queryDb
+			}
+			got, ok := query(t, nodes, rewriteDbRp(urlDb, database, retention), rewriteDbRp(tt.query, database, retention), rewriteDbRp(tt.expected, database, retention))
 			if !ok {
 				t.Errorf(`Test "%s" failed, expected: %s, got: %s`, name, rewriteDbRp(tt.expected, database, retention), got)
 			}
