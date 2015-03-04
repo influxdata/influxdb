@@ -23,6 +23,8 @@ const (
 	BADESCAPE    // \q
 	TRUE         // true
 	FALSE        // false
+	REGEX        // Regular expressions
+	BADREGEX     // `.*
 	literal_end
 
 	operator_beg
@@ -125,6 +127,7 @@ var tokens = [...]string{
 	BADESCAPE:    "BADESCAPE",
 	TRUE:         "TRUE",
 	FALSE:        "FALSE",
+	REGEX:        "REGEX",
 
 	ADD: "+",
 	SUB: "-",
@@ -238,7 +241,7 @@ func (tok Token) Precedence() int {
 		return 1
 	case AND:
 		return 2
-	case EQ, NEQ, LT, LTE, GT, GTE:
+	case EQ, NEQ, EQREGEX, NEQREGEX, LT, LTE, GT, GTE:
 		return 3
 	case ADD, SUB:
 		return 4

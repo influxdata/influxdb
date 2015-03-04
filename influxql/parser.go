@@ -1456,6 +1456,8 @@ func (p *Parser) parseSortField() (*SortField, error) {
 
 // ParseExpr parses an expression.
 func (p *Parser) ParseExpr() (Expr, error) {
+	var err error
+
 	// Parse a non-binary expression type to start.
 	// This variable will always be the root of the expression tree.
 	expr, err := p.parseUnaryExpr()
@@ -1472,10 +1474,18 @@ func (p *Parser) ParseExpr() (Expr, error) {
 			return expr, nil
 		}
 
-		// Otherwise parse the next unary expression.
-		rhs, err := p.parseUnaryExpr()
-		if err != nil {
-			return nil, err
+		// Otherwise parse the next expression.
+		var rhs Expr
+		if IsRegexOp(op) {
+			// RHS of a regex operator must be a regular expression.
+			p.consumeWhitespace()
+			if rhs, err = p.parseRegex(); err != nil {
+				return nil, err
+			}
+		} else {
+			if rhs, err = p.parseUnaryExpr(); err != nil {
+				return nil, err
+			}
 		}
 
 		// Assign the new root based on the precendence of the LHS and RHS operators.
@@ -1487,14 +1497,6 @@ func (p *Parser) ParseExpr() (Expr, error) {
 			}
 		} else {
 			expr = &BinaryExpr{LHS: expr, RHS: rhs, Op: op}
-		}
-
-		// If the operator was =~ or !~, parse the regular expression.
-		b, ok := expr.(*BinaryExpr)
-		if ok && (b.Op == EQREGEX || b.Op == NEQREGEX) {
-			if expr, err = p.parseRegexExpr(b); err != nil {
-				return nil, err
-			}
 		}
 	}
 }
@@ -1562,51 +1564,37 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 		return &DurationLiteral{Val: v}, nil
 	case MUL:
 		return &Wildcard{}, nil
+	case REGEX:
+		re, err := regexp.Compile(lit)
+		if err != nil {
+			return nil, &ParseError{Message: err.Error(), Pos: pos}
+		}
+		return &RegexLiteral{Val: re}, nil
 	default:
 		return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string", "number", "bool"}, pos)
 	}
 }
 
-// parseRegexExpr parses the string literal on one side of a binary expression
-// and returns a new binary expression with a regex literal in place of the
-// string literal.
-func (p *Parser) parseRegexExpr(expr *BinaryExpr) (*BinaryExpr, error) {
-	if expr.Op != EQREGEX && expr.Op != NEQREGEX {
-		// Don't call parseRegex unless you have a regex operator!
-		panic("parseRegex only works with =~ or !~ regex operators")
+// parseRegex parses a regular expression.
+func (p *Parser) parseRegex() (Expr, error) {
+	tok, pos, lit := p.s.s.ScanRegex()
+
+	if tok == BADESCAPE {
+		msg := fmt.Sprintf("bad escape: %s", lit)
+		return nil, &ParseError{Message: msg, Pos: pos}
+	} else if tok == BADREGEX {
+		msg := fmt.Sprintf("bad regex: %s", lit)
+		return nil, &ParseError{Message: msg, Pos: pos}
+	} else if tok != REGEX {
+		return nil, newParseError(tokstr(tok, lit), []string{"regex"}, pos)
 	}
 
-	newExpr := &BinaryExpr{Op: expr.Op}
-
-	if regex, ok := expr.RHS.(*StringLiteral); ok {
-		// Found regex text on right side of operator.
-		re, err := regexp.Compile(regex.Val)
-		if err != nil {
-			return nil, err
-		}
-		newExpr.RHS = &RegexLiteral{Val: re}
-
-		// Make sure left side of operator is an identifier.
-		if newExpr.LHS, ok = expr.LHS.(*VarRef); !ok {
-			return nil, fmt.Errorf("left operand of operator %s must be an identifier", expr.Op.String())
-		}
-	} else if regex, ok = expr.LHS.(*StringLiteral); ok {
-		// Found regex text on left side of operator.
-		re, err := regexp.Compile(regex.Val)
-		if err != nil {
-			return nil, err
-		}
-		newExpr.LHS = &RegexLiteral{Val: re}
-
-		// Make sure right side of operator is an identifer.
-		if newExpr.RHS, ok = expr.RHS.(*VarRef); !ok {
-			return nil, fmt.Errorf("right operand of operator %s must be an identifier", expr.Op.String())
-		}
-	} else {
-		return nil, fmt.Errorf("operator %s requires one string operand", expr.Op.String())
+	re, err := regexp.Compile(lit)
+	if err != nil {
+		return nil, &ParseError{Message: err.Error(), Pos: pos}
 	}
 
-	return newExpr, nil
+	return &RegexLiteral{Val: re}, nil
 }
 
 // parseCall parses a function call.
