@@ -247,7 +247,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			reset:    true,
 			name:     "single point with timestamp",
 			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "timestamp": "2015-02-28T01:03:36.703820946Z", "tags": {"host": "server01"}, "fields": {"value": 100}}]}`,
-			query:    `SELECT * FROM "%DB%"."myrp".cpu`,
+			query:    `SELECT * FROM "%DB%"."%RP%".cpu`,
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",100]]}]}]}`,
 		},
 		{
