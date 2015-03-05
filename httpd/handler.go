@@ -20,6 +20,7 @@ import (
 
 	"github.com/bmizerany/pat"
 	"github.com/influxdb/influxdb"
+	"github.com/influxdb/influxdb/client"
 	"github.com/influxdb/influxdb/influxql"
 )
 
@@ -167,7 +168,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *influ
 
 // serveWrite receives incoming series data and writes it to the database.
 func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *influxdb.User) {
-	var bp influxdb.BatchPoints
+	var bp client.BatchPoints
 
 	dec := json.NewDecoder(r.Body)
 

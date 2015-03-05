@@ -32,10 +32,71 @@ type Query struct {
 	Database string
 }
 
-type Write struct {
-	Database        string
-	RetentionPolicy string
-	Points          []Point
+// BatchPoints is used to send batched data in a single write.
+type BatchPoints struct {
+	Points          []Point           `json:"points"`
+	Database        string            `json:"database"`
+	RetentionPolicy string            `json:"retentionPolicy"`
+	Tags            map[string]string `json:"tags"`
+	Timestamp       time.Time         `json:"timestamp"`
+	Precision       string            `json:"precision"`
+}
+
+// UnmarshalJSON decodes the data into the BatchPoints struct
+func (bp *BatchPoints) UnmarshalJSON(b []byte) error {
+	var normal struct {
+		Points          []Point           `json:"points"`
+		Database        string            `json:"database"`
+		RetentionPolicy string            `json:"retentionPolicy"`
+		Tags            map[string]string `json:"tags"`
+		Timestamp       time.Time         `json:"timestamp"`
+		Precision       string            `json:"precision"`
+	}
+	var epoch struct {
+		Points          []Point           `json:"points"`
+		Database        string            `json:"database"`
+		RetentionPolicy string            `json:"retentionPolicy"`
+		Tags            map[string]string `json:"tags"`
+		Timestamp       *int64            `json:"timestamp"`
+		Precision       string            `json:"precision"`
+	}
+
+	if err := func() error {
+		var err error
+		if err = json.Unmarshal(b, &epoch); err != nil {
+			return err
+		}
+		// Convert from epoch to time.Time
+		var ts time.Time
+		if epoch.Timestamp != nil {
+			ts, err = EpochToTime(*epoch.Timestamp, epoch.Precision)
+			if err != nil {
+				return err
+			}
+		}
+		bp.Points = epoch.Points
+		bp.Database = epoch.Database
+		bp.RetentionPolicy = epoch.RetentionPolicy
+		bp.Tags = epoch.Tags
+		bp.Timestamp = ts
+		bp.Precision = epoch.Precision
+		return nil
+	}(); err == nil {
+		return nil
+	}
+
+	if err := json.Unmarshal(b, &normal); err != nil {
+		return err
+	}
+	normal.Timestamp = SetPrecision(normal.Timestamp, normal.Precision)
+	bp.Points = normal.Points
+	bp.Database = normal.Database
+	bp.RetentionPolicy = normal.RetentionPolicy
+	bp.Tags = normal.Tags
+	bp.Timestamp = normal.Timestamp
+	bp.Precision = normal.Precision
+
+	return nil
 }
 
 func NewClient(c Config) (*Client, error) {
@@ -81,7 +142,7 @@ func (c *Client) Query(q Query) (*Results, error) {
 	return &results, nil
 }
 
-func (c *Client) Write(writes ...Write) (*Results, error) {
+func (c *Client) Write(writes ...BatchPoints) (*Results, error) {
 	c.url.Path = "write"
 	type data struct {
 		Points          []Point `json:"points"`

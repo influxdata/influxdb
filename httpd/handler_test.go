@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb"
+	"github.com/influxdb/influxdb/client"
 	"github.com/influxdb/influxdb/httpd"
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/messaging"
@@ -87,7 +88,7 @@ func TestBatchWrite_UnmarshalEpoch(t *testing.T) {
 		t.Logf("testing %q\n", test.name)
 		data := []byte(fmt.Sprintf(`{"timestamp": %d, "precision":"%s"}`, test.epoch, test.precision))
 		t.Logf("json: %s", string(data))
-		var bp influxdb.BatchPoints
+		var bp client.BatchPoints
 		err := json.Unmarshal(data, &bp)
 		if err != nil {
 			t.Fatalf("unexpected error.  expected: %v, actual: %v", nil, err)
@@ -125,7 +126,7 @@ func TestBatchWrite_UnmarshalRFC(t *testing.T) {
 		ts := test.now.Format(test.rfc)
 		data := []byte(fmt.Sprintf(`{"timestamp": %q}`, ts))
 		t.Logf("json: %s", string(data))
-		var bp influxdb.BatchPoints
+		var bp client.BatchPoints
 		err := json.Unmarshal(data, &bp)
 		if err != nil {
 			t.Fatalf("unexpected error.  exptected: %v, actual: %v", nil, err)
