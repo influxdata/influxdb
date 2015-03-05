@@ -98,6 +98,19 @@ func TestClient_BasicAuth(t *testing.T) {
 
 func TestClient_Write(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var writes []client.JsonData
+
+		defer r.Body.Close()
+
+		err := json.NewDecoder(r.Body).Decode(&writes)
+		if err != nil {
+			t.Error("unable to decode writes: ", err)
+		}
+
+		if len(writes) != 1 {
+			t.Error("did not recieve any writes")
+		}
+
 		var data influxdb.Results
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(data)

@@ -81,21 +81,24 @@ func (c *Client) Query(q Query) (*Results, error) {
 	return &results, nil
 }
 
+type JsonData struct {
+	Points          []Point `json:"points"`
+	Database        string  `json:"database"`
+	RetentionPolicy string  `json:"retentionPolicy"`
+}
+
 func (c *Client) Write(writes ...Write) (*Results, error) {
 	c.url.Path = "write"
-	type data struct {
-		Points          []Point `json:"points"`
-		Database        string  `json:"database"`
-		RetentionPolicy string  `json:"retentionPolicy"`
-	}
 
-	d := []data{}
+	d := []JsonData{}
 	for _, write := range writes {
-		d = append(d, data{Points: write.Points, Database: write.Database, RetentionPolicy: write.RetentionPolicy})
+		d = append(d, JsonData{Points: write.Points, Database: write.Database, RetentionPolicy: write.RetentionPolicy})
 	}
 
-	b := []byte{}
-	err := json.Unmarshal(b, &d)
+	b, err := json.Marshal(d)
+	if err != nil {
+		return nil, err
+	}
 
 	req, err := http.NewRequest("POST", c.url.String(), bytes.NewBuffer(b))
 	if err != nil {
