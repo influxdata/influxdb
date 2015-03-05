@@ -54,6 +54,10 @@ func TestParseConfig(t *testing.T) {
 		t.Fatalf("authentication enabled mismatch: %v", c.Authentication.Enabled)
 	}
 
+	if c.UDP.Enabled {
+		t.Fatalf("udp enabled mismatch: %v", c.UDP.Enabled)
+	}
+
 	if c.Admin.Enabled != true {
 		t.Fatalf("admin enabled mismatch: %v", c.Admin.Enabled)
 	}
