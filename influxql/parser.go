@@ -133,7 +133,7 @@ func (p *Parser) parseShowStatement() (Statement, error) {
 }
 
 // parseCreateStatement parses a string and returns a create statement.
-// This function assumes the CREATE token has already been consumned.
+// This function assumes the CREATE token has already been consumed.
 func (p *Parser) parseCreateStatement() (Statement, error) {
 	tok, pos, lit := p.scanIgnoreWhitespace()
 	if tok == CONTINUOUS {
