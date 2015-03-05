@@ -3,9 +3,10 @@
 ### Bugfixes
 - [#1836] (https://github.com/influxdb/influxdb/pull/1836): Store each parsed shell command in history file.
 - [#1789] (https://github.com/influxdb/influxdb/pull/1789): add --config-files option to fpm command. Thanks @kylezh
- 
+
 ### Features
 - [#1755] (https://github.com/influxdb/influxdb/pull/1848): Support JSON data ingest over UDP
+- [#1857] (https://github.com/influxdb/influxdb/pull/1857): Support retention policies with infinite duration
 
 ## v0.9.0-rc7 [2015-03-02]
 

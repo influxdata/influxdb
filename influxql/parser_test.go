@@ -637,6 +637,17 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// CREATE RETENTION POLICY with infinite retention
+		{
+			s: `CREATE RETENTION POLICY policy1 ON testdb DURATION INF REPLICATION 2`,
+			stmt: &influxql.CreateRetentionPolicyStatement{
+				Name:        "policy1",
+				Database:    "testdb",
+				Duration:    0,
+				Replication: 2,
+			},
+		},
+
 		// CREATE RETENTION POLICY ... DEFAULT
 		{
 			s: `CREATE RETENTION POLICY policy1 ON testdb DURATION 2m REPLICATION 4 DEFAULT`,
@@ -659,6 +670,12 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s:    `ALTER RETENTION POLICY policy1 ON testdb DEFAULT REPLICATION 4 DURATION 1m`,
 			stmt: newAlterRetentionPolicyStatement("policy1", "testdb", time.Minute, 4, true),
+		},
+
+		// ALTER RETENTION POLICY with infinite retention
+		{
+			s:    `ALTER RETENTION POLICY policy1 ON testdb DEFAULT REPLICATION 4 DURATION INF`,
+			stmt: newAlterRetentionPolicyStatement("policy1", "testdb", 0, 4, true),
 		},
 
 		// ALTER RETENTION POLICY without optional DURATION

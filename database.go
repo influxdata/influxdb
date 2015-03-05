@@ -1013,7 +1013,7 @@ type RetentionPolicy struct {
 	// Unique name within database. Required.
 	Name string `json:"name"`
 
-	// Length of time to keep data around
+	// Length of time to keep data around. A zero duration means keep the data forever.
 	Duration time.Duration `json:"duration"`
 
 	// The number of copies to make of each shard.

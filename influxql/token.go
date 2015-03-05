@@ -79,6 +79,7 @@ const (
 	GROUP
 	IF
 	IN
+	INF
 	INNER
 	INSERT
 	INTO
@@ -176,6 +177,7 @@ var tokens = [...]string{
 	GROUP:        "GROUP",
 	IF:           "IF",
 	IN:           "IN",
+	INF:          "INF",
 	INNER:        "INNER",
 	INSERT:       "INSERT",
 	INTO:         "INTO",

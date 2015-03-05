@@ -302,7 +302,7 @@ func (s *Server) EnforceRetentionPolicies() {
 	for _, db := range s.databases {
 		for _, rp := range db.policies {
 			for _, g := range rp.shardGroups {
-				if g.EndTime.Add(rp.Duration).Before(time.Now().UTC()) {
+				if rp.Duration != 0 && g.EndTime.Add(rp.Duration).Before(time.Now().UTC()) {
 					log.Printf("shard group %d, retention policy %s, database %s due for deletion",
 						g.ID, rp.Name, db.name)
 					if err := s.DeleteShardGroup(db.name, rp.Name, g.ID); err != nil {
