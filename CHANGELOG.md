@@ -5,6 +5,7 @@
 - [#1789] (https://github.com/influxdb/influxdb/pull/1789): add --config-files option to fpm command. Thanks @kylezh
  
 ### Features
+- [#1755] (https://github.com/influxdb/influxdb/pull/1848): add udp listener
 
 ## v0.9.0-rc7 [2015-03-02]
 
