@@ -352,9 +352,14 @@ func (p *Parser) parseUInt32() (uint32, error) {
 // This function assumes the DURATION token has already been consumed.
 func (p *Parser) parseDuration() (time.Duration, error) {
 	tok, pos, lit := p.scanIgnoreWhitespace()
-	if tok != DURATION_VAL {
+	if tok != DURATION_VAL && tok != INF {
 		return 0, newParseError(tokstr(tok, lit), []string{"duration"}, pos)
 	}
+
+	if tok == INF {
+		return 0, nil
+	}
+
 	d, err := ParseDuration(lit)
 	if err != nil {
 		return 0, &ParseError{Message: err.Error(), Pos: pos}
