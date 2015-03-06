@@ -174,6 +174,7 @@ enabled = true
 
 [logging]
 file   = "influxdb.log"
+write-tracing = true
 
 # Configure the admin server
 [admin]

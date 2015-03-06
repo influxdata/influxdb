@@ -8,6 +8,7 @@
 ### Features
 - [#1755](https://github.com/influxdb/influxdb/pull/1848): Support JSON data ingest over UDP
 - [#1857](https://github.com/influxdb/influxdb/pull/1857): Support retention policies with infinite duration
+- [#1858](https://github.com/influxdb/influxdb/pull/1858): Enable detailed tracing of write path
 
 ## v0.9.0-rc7 [2015-03-02]
 

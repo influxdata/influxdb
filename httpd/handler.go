@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"math"
 	"net/http"
@@ -43,6 +44,9 @@ type Handler struct {
 	routes                []route
 	mux                   *pat.PatternServeMux
 	requireAuthentication bool
+
+	Logger     *log.Logger
+	WriteTrace bool // Detailed logging of write path
 }
 
 // NewHandler returns a new instance of Handler.
@@ -51,9 +55,8 @@ func NewHandler(s *influxdb.Server, requireAuthentication bool, version string) 
 		server: s,
 		mux:    pat.New(),
 		requireAuthentication: requireAuthentication,
+		Logger:                log.New(os.Stderr, "[http] ", log.LstdFlags),
 	}
-
-	weblog := log.New(os.Stderr, `[http] `, 0)
 
 	h.routes = append(h.routes,
 		route{
@@ -129,9 +132,9 @@ func NewHandler(s *influxdb.Server, requireAuthentication bool, version string) 
 		handler = cors(handler)
 		handler = requestID(handler)
 		if r.log {
-			handler = logging(handler, r.name, weblog)
+			handler = logging(handler, r.name, h.Logger)
 		}
-		handler = recovery(handler, r.name, weblog) // make sure recovery is always last
+		handler = recovery(handler, r.name, h.Logger) // make sure recovery is always last
 
 		h.mux.Add(r.method, r.pattern, handler)
 	}
@@ -139,7 +142,12 @@ func NewHandler(s *influxdb.Server, requireAuthentication bool, version string) 
 	return h
 }
 
-//ServeHTTP responds to HTTP request to the handler.
+// SetLogOutput sets writer for all handler log output.
+func (h *Handler) SetLogOutput(w io.Writer) {
+	h.Logger = log.New(w, "[http] ", log.LstdFlags)
+}
+
+// ServeHTTP responds to HTTP request to the handler.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.mux.ServeHTTP(w, r)
 }
@@ -168,8 +176,19 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *influ
 // serveWrite receives incoming series data and writes it to the database.
 func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *influxdb.User) {
 	var bp influxdb.BatchPoints
+	var dec *json.Decoder
 
-	dec := json.NewDecoder(r.Body)
+	if h.WriteTrace {
+		b, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			h.Logger.Print("write handler failed to read bytes from request body")
+		} else {
+			h.Logger.Printf("write body received by handler: %s", string(b))
+		}
+		dec = json.NewDecoder(strings.NewReader(string(b)))
+	} else {
+		dec = json.NewDecoder(r.Body)
+	}
 
 	var writeError = func(result influxdb.Result, statusCode int) {
 		w.WriteHeader(statusCode)
