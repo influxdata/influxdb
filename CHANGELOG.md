@@ -1,4 +1,4 @@
-## v0.9.0-rc8 [unreleased]
+## v0.9.0-rc8 [2015-03-05]
 
 ### Bugfixes
 - [#1836](https://github.com/influxdb/influxdb/pull/1836): Store each parsed shell command in history file.
