@@ -3,6 +3,7 @@
 ### Bugfixes
 - [#1836] (https://github.com/influxdb/influxdb/pull/1836): Store each parsed shell command in history file.
 - [#1789] (https://github.com/influxdb/influxdb/pull/1789): add --config-files option to fpm command. Thanks @kylezh
+- [#1753] (https://github.com/influxdb/influxdb/pull/1874): Do Not Panic on Missing Dirs
  
 ### Features
 - [#1755] (https://github.com/influxdb/influxdb/pull/1848): Support JSON data ingest over UDP
