@@ -16,8 +16,6 @@ import (
 // Iterator represents a forward-only iterator over a set of points. These are used by the MapFunctions in this file
 type Iterator interface {
 	Next() (seriesID uint32, timestamp int64, value interface{})
-	CurrentFieldValues() map[uint8]interface{}
-	Tags(seriesID uint32) map[string]string
 }
 
 // MapFunc represents a function used for mapping over a sequential series of data. The iterator represents a single group by interval
@@ -28,6 +26,11 @@ type ReduceFunc func([]interface{}) interface{}
 
 // InitializeMapFunc takes an aggregate call from the query and returns the MapFunc
 func InitializeMapFunc(c *Call) (MapFunc, error) {
+	// see if it's a query for raw data
+	if c == nil {
+		return MapRawQuery, nil
+	}
+
 	// Ensure that there is either a single argument or if for percentile, two
 	if c.Name == "percentile" {
 		if len(c.Args) != 2 {
@@ -76,6 +79,11 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 
 // InitializeReduceFunc takes an aggregate call from the query and returns the ReduceFunc
 func InitializeReduceFunc(c *Call) (ReduceFunc, error) {
+	// see if it's a query for raw data
+	if c == nil {
+		return ReduceRawQuery, nil
+	}
+
 	// Retrieve reduce function by name.
 	switch strings.ToLower(c.Name) {
 	case "count":
@@ -500,55 +508,43 @@ func ReducePercentile(percentile float64) ReduceFunc {
 	}
 }
 
-// TODO: make this more efficient to stream data.
-func MapRawQuery(fields []*Field) MapFunc {
-	return func(itr Iterator) interface{} {
-		var values []*rawQueryMapOutput
-
-		for _, k, v := itr.Next(); k != 0; _, k, v = itr.Next() {
-			values = append(values, &rawQueryMapOutput{k, itr.CurrentFieldValues(), v})
-		}
-
-		return values
+// MapRawQuery is for queries without aggregates
+func MapRawQuery(itr Iterator) interface{} {
+	var values []interface{}
+	for _, k, v := itr.Next(); k != 0; _, k, v = itr.Next() {
+		val := &rawQueryMapOutput{k, v}
+		warn("Map0: ", k, v)
+		values = append(values, val)
 	}
+	warn("Map1: ", values)
+	return values
 }
 
 type rawQueryMapOutput struct {
 	timestamp int64
-	fields    map[uint8]interface{}
-	value     interface{}
+	values    interface{}
 }
+
 type rawOutputs []*rawQueryMapOutput
 
 func (a rawOutputs) Len() int           { return len(a) }
 func (a rawOutputs) Less(i, j int) bool { return a[i].timestamp < a[j].timestamp }
 func (a rawOutputs) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
-// TODO: make this streaming so it doesn't buffer everything in memory
-func ReduceRawQuery(fields []*DatabaseField) ReduceFunc {
-	return func(values []interface{}) interface{} {
-		var a []*rawQueryMapOutput
-		for _, v := range values {
-			if v == nil {
-				continue
-			}
-			a = append(a, v.([]*rawQueryMapOutput)...)
+// ReduceRawQuery is for queries without aggregates
+func ReduceRawQuery(values []interface{}) interface{} {
+	allValues := make([]*rawQueryMapOutput, 0)
+	for _, v := range values {
+		warn("Red0: ", v)
+		if v == nil {
+			continue
 		}
-		if len(a) > 0 {
-			sort.Sort(rawOutputs(a))
-
-			allVals := make([][]interface{}, len(a))
-			for _, o := range a {
-				vals := make([]interface{}, len(fields))
-				for i, f := range fields {
-					vals[i] = o.fields[f.ID]
-				}
-				allVals = append(allVals, vals)
-			}
-
-			return allVals
+		for _, raw := range v.([]interface{}) {
+			warn("Red1: ", raw)
+			allValues = append(allValues, raw.(*rawQueryMapOutput))
 		}
-
-		return nil
 	}
+	sort.Sort(rawOutputs(allValues))
+	warn("Red2: ", allValues)
+	return allValues
 }

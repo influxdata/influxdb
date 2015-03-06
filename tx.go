@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math"
 	"sort"
-	"sync"
 	"time"
 
 	"github.com/boltdb/bolt"
@@ -14,10 +13,12 @@ import (
 // tx represents a transaction that spans multiple shard data stores.
 // This transaction will open and close all data stores atomically.
 type tx struct {
-	mu     sync.Mutex
 	server *Server
-	opened bool
 	now    time.Time
+
+	// used by DecodeFields and FieldIDs. Only used in a raw query, which won't let you select from more than one measurement
+	measurement *Measurement
+	decoder     fieldDecoder
 }
 
 // newTx return a new initialized Tx.
@@ -58,15 +59,37 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 		return nil, ErrMeasurementNotFound
 	}
 
-	// Validate the fields asked for exist
-	for _, f := range stmt.DatabaseFields() {
-		field := m.FieldByName(f.Name)
-		if field == nil {
-			return nil, ErrFieldNotFound
-		}
+	tx.measurement = m
+	tx.decoder = NewFieldCodec(m)
 
-		// populat the ID on the select statement so it can be used later in the query
-		f.ID = field.ID
+	// Validate the fields and tags asked for exist and keep track of which are in the select vs the where
+	var selectFields []*Field
+	var whereFields []*Field
+	var selectTags []string
+
+	for _, n := range stmt.NamesInSelect() {
+		f := m.FieldByName(n)
+		if f != nil {
+			selectFields = append(selectFields, f)
+			continue
+		}
+		if !m.HasTagKey(n) {
+			return nil, fmt.Errorf("unknown field or tag name in select clause: %s", n)
+		}
+		selectTags = append(selectTags, n)
+	}
+	for _, n := range stmt.NamesInWhere() {
+		if n == "time" {
+			continue
+		}
+		f := m.FieldByName(n)
+		if f != nil {
+			whereFields = append(whereFields, f)
+			continue
+		}
+		if !m.HasTagKey(n) {
+			return nil, fmt.Errorf("unknown field or tag name in where clause: %s", n)
+		}
 	}
 
 	// Grab time range from statement.
@@ -112,11 +135,14 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 
 			shard := sg.Shards[0]
 			mapper := &LocalMapper{
-				seriesIDs: t.SeriesIDs,
-				db:        shard.store,
-				job:       job,
-				decoder:   NewFieldCodec(m),
-				filters:   t.Filters,
+				seriesIDs:    t.SeriesIDs,
+				db:           shard.store,
+				job:          job,
+				decoder:      NewFieldCodec(m),
+				filters:      t.Filters,
+				whereFields:  whereFields,
+				selectFields: selectFields,
+				selectTags:   selectTags,
 			}
 
 			mappers = append(mappers, mapper)
@@ -132,23 +158,67 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 	return jobs, nil
 }
 
+// DecodeValues is for use in a raw data query
+func (tx *tx) DecodeValues(fieldIDs []uint8, timestamp int64, data []byte) []interface{} {
+	vals := make([]interface{}, len(fieldIDs)+1)
+	vals[0] = timestamp
+	for i, id := range fieldIDs {
+		v, _ := tx.decoder.DecodeByID(id, data)
+		vals[i+1] = v
+	}
+	return vals
+}
+
+// FieldIDs will take an array of fields and return the id associated with each
+func (tx *tx) FieldIDs(fields []*influxql.Field) ([]uint8, error) {
+	names := tx.fieldNames(fields)
+	ids := make([]uint8, len(names))
+
+	for i, n := range names {
+		field := tx.measurement.FieldByName(n)
+		if field == nil {
+			return nil, ErrFieldNotFound
+		}
+		ids[i] = field.ID
+	}
+
+	return ids, nil
+}
+
+// fieldNames returns the referenced database field names from the slice of fields
+func (tx *tx) fieldNames(fields []*influxql.Field) []string {
+	var a []string
+	for _, f := range fields {
+		if v, ok := f.Expr.(*influxql.VarRef); ok { // this is a raw query so we handle it differently
+			a = append(a, v.Val)
+		}
+	}
+	return a
+}
+
 // LocalMapper implements the influxql.Mapper interface for running map tasks over a shard that is local to this server
 type LocalMapper struct {
-	cursorsEmpty bool                   // boolean that lets us know if the cursors are empty
-	decoder      fieldDecoder           // decoder for the raw data bytes
-	tagSet       *influxql.TagSet       // filters to be applied to each series
-	filters      []influxql.Expr        // filters for each series
-	cursors      []*bolt.Cursor         // bolt cursors for each series id
-	seriesIDs    []uint32               // seriesIDs to be read from this shard
-	db           *bolt.DB               // bolt store for the shard accessed by this mapper
-	txn          *bolt.Tx               // read transactions by shard id
-	job          *influxql.MapReduceJob // the MRJob this mapper belongs to
-	mapFunc      influxql.MapFunc       // the map func
-	fieldID      uint8                  // the field ID associated with the mapFunc
-	keyBuffer    []int64                // the current timestamp key for each cursor
-	valueBuffer  [][]byte               // the current value for each cursor
-	tmin         int64                  // the min of the current group by interval being iterated over
-	tmax         int64                  // the max of the current group by interval being iterated over
+	cursorsEmpty    bool                   // boolean that lets us know if the cursors are empty
+	decoder         fieldDecoder           // decoder for the raw data bytes
+	tagSet          *influxql.TagSet       // filters to be applied to each series
+	filters         []influxql.Expr        // filters for each series
+	cursors         []*bolt.Cursor         // bolt cursors for each series id
+	seriesIDs       []uint32               // seriesIDs to be read from this shard
+	db              *bolt.DB               // bolt store for the shard accessed by this mapper
+	txn             *bolt.Tx               // read transactions by shard id
+	job             *influxql.MapReduceJob // the MRJob this mapper belongs to
+	mapFunc         influxql.MapFunc       // the map func
+	fieldID         uint8                  // the field ID associated with the mapFunc curently being run
+	fieldName       string                 // the field name associated with the mapFunc currently being run
+	keyBuffer       []int64                // the current timestamp key for each cursor
+	valueBuffer     [][]byte               // the current value for each cursor
+	tmin            int64                  // the min of the current group by interval being iterated over
+	tmax            int64                  // the max of the current group by interval being iterated over
+	additionalNames []string               // additional field or tag names that might be requested from the map function
+	whereFields     []*Field               // field names that occur in the where clause
+	selectFields    []*Field               // field names that occur in the select clause
+	selectTags      []string               // tag keys that occur in the select clause
+	isRaw           bool                   // if the query is a non-aggregate query
 }
 
 func (l *LocalMapper) Open() error {
@@ -189,6 +259,31 @@ func (l *LocalMapper) Begin(c *influxql.Call, startingTime int64) error {
 	l.keyBuffer = make([]int64, len(l.cursors))
 	l.valueBuffer = make([][]byte, len(l.cursors))
 	l.tmin = startingTime
+
+	// determine if this is a raw data query with a single field, multiple fields, or an aggregate
+	var fieldName string
+	if c == nil { // its a raw data query
+		l.isRaw = true
+		if len(l.selectFields) == 1 {
+			fieldName = l.selectFields[0].Name
+		}
+	} else {
+		lit, ok := c.Args[0].(*influxql.VarRef)
+		if !ok {
+			return fmt.Errorf("aggregate call didn't contain a field %s", c.String())
+		}
+		fieldName = lit.Val
+	}
+
+	// set up the field info if a specific field was set for this mapper
+	if fieldName != "" {
+		f := l.decoder.FieldByName(fieldName)
+		if f == nil {
+			return fmt.Errorf("%s isn't a field on measurement %s", fieldName, l.job.MeasurementName)
+		}
+		l.fieldID = f.ID
+		l.fieldName = f.Name
+	}
 
 	// seek the bolt cursors and fill the buffers
 	for i, c := range l.cursors {
@@ -238,7 +333,7 @@ func (l *LocalMapper) NextInterval(interval int64) (interface{}, error) {
 }
 
 func (l *LocalMapper) Next() (seriesID uint32, timestamp int64, value interface{}) {
-	warn("Next")
+	warn("Next0")
 	for {
 		// find the minimum timestamp
 		min := -1
@@ -249,15 +344,48 @@ func (l *LocalMapper) Next() (seriesID uint32, timestamp int64, value interface{
 				minKey = k
 			}
 		}
+		warn("Next1 ", min, minKey)
 
 		// return if there is no more data in this group by interval
 		if min == -1 {
 			return 0, 0, nil
 		}
 
-		// save the curent key and value
+		// set the current timestamp and seriesID
 		timestamp = l.keyBuffer[min]
-		value, err := l.decoder.DecodeByID(l.fieldID, l.valueBuffer[min])
+		seriesID = l.seriesIDs[min]
+
+		// decode either the value, or values we need. Also filter if necessary
+		var value interface{}
+		var err error
+		if l.isRaw && len(l.selectFields) > 1 {
+			fieldsWithNames := l.decoder.DecodeFieldsWithNames(l.valueBuffer[min])
+			value = fieldsWithNames
+
+			// if there's a where clause, make sure we don't need to filter this value
+			if l.filters[min] != nil {
+				if !matchesWhere(l.filters[min], fieldsWithNames) {
+					value = nil
+				}
+			}
+		} else {
+			value, err = l.decoder.DecodeByID(l.fieldID, l.valueBuffer[min])
+
+			// if there's a where clase, see if we need to filter
+			if l.filters[min] != nil {
+				// see if the where is only on this field or on one or more other fields. if the latter, we'll have to decode everything
+				if len(l.whereFields) == 1 && l.whereFields[0].ID == l.fieldID {
+					if !matchesWhere(l.filters[min], map[string]interface{}{l.fieldName: value}) {
+						value = nil
+					}
+				} else { // decode everything
+					fieldsWithNames := l.decoder.DecodeFieldsWithNames(l.valueBuffer[min])
+					if !matchesWhere(l.filters[min], fieldsWithNames) {
+						value = nil
+					}
+				}
+			}
+		}
 
 		// advance the cursor
 		nextKey, nextVal := l.cursors[min].Next()
@@ -268,28 +396,22 @@ func (l *LocalMapper) Next() (seriesID uint32, timestamp int64, value interface{
 		}
 		l.valueBuffer[min] = nextVal
 
-		// if we didn't find the field keep iterating
-		if err != nil {
+		// if the value didn't match our filter or if we didn't find the field keep iterating
+		if err != nil || value == nil {
 			continue
 		}
-		seriesID = l.seriesIDs[min]
 
-		if value == nil {
-			return 0, 0, nil
-		}
-
+		warn("Next4 ", seriesID, timestamp, value)
 		return seriesID, timestamp, value
 	}
 }
 
-func (l *LocalMapper) CurrentFieldValues() map[uint8]interface{} {
-	// TODO: implement this
-	panic("not implemented")
-}
-
-func (l *LocalMapper) Tags(seriesID uint32) map[string]string {
-	// TODO: implement this
-	panic("not implemented")
+// matchesFilter returns true if the value matches the where clause
+func matchesWhere(f influxql.Expr, fields map[string]interface{}) bool {
+	if ok, _ := influxql.Eval(f, fields).(bool); !ok {
+		return false
+	}
+	return true
 }
 
 // splitIdent splits an identifier into it's database, policy, and measurement parts.
@@ -305,4 +427,6 @@ func splitIdent(s string) (db, rp, m string, err error) {
 
 type fieldDecoder interface {
 	DecodeByID(fieldID uint8, b []byte) (interface{}, error)
+	FieldByName(name string) *Field
+	DecodeFieldsWithNames(b []byte) map[string]interface{}
 }

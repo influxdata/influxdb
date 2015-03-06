@@ -551,9 +551,6 @@ type SelectStatement struct {
 
 	// memoize the group by interval
 	groupByInterval time.Duration
-
-	// keep the database fields so their ids can be populated
-	databaseFields []*DatabaseField
 }
 
 // Clone returns a deep copy of the statement.
@@ -822,31 +819,31 @@ func (s *SelectStatement) Substatement(ref *VarRef) (*SelectStatement, error) {
 	return other, nil
 }
 
-type DatabaseField struct {
-	Name string
-	ID   uint8 // the underlying database id. This will get populated during planning
+// NamesInWhere returns the field and tag names (idents) referenced in the where clause
+func (s *SelectStatement) NamesInWhere() []string {
+	var a []string
+	if s.Condition != nil {
+		a = s.walkNames(s.Condition)
+	}
+	return a
 }
 
-// DatabaseFields returns the database fields that are referenced in the select statement
-func (s *SelectStatement) DatabaseFields() []*DatabaseField {
-	if s.databaseFields != nil {
-		return s.databaseFields
-	}
+// NamesInSelect returns the field and tag names (idents) in the select clause
+func (s *SelectStatement) NamesInSelect() []string {
+	var a []string
 
-	var a []*DatabaseField
 	for _, f := range s.Fields {
-		a = append(a, s.walkFieldNames(f.Expr)...)
+		a = append(a, s.walkNames(f.Expr)...)
 	}
 
-	s.databaseFields = a
-	return s.databaseFields
+	return a
 }
 
 // walkFieldNames will walk the Expr and return the database fields
-func (s *SelectStatement) walkFieldNames(exp Expr) []*DatabaseField {
+func (s *SelectStatement) walkNames(exp Expr) []string {
 	switch expr := exp.(type) {
 	case *VarRef:
-		return []*DatabaseField{{Name: expr.Val}}
+		return []string{expr.Val}
 	case *Call:
 		if len(expr.Args) == 0 {
 			return nil
@@ -856,14 +853,14 @@ func (s *SelectStatement) walkFieldNames(exp Expr) []*DatabaseField {
 			return nil
 		}
 
-		return []*DatabaseField{{Name: lit.Val}}
+		return []string{lit.Val}
 	case *BinaryExpr:
-		var ret []*DatabaseField
-		ret = append(ret, s.walkFieldNames(expr.LHS)...)
-		ret = append(ret, s.walkFieldNames(expr.RHS)...)
+		var ret []string
+		ret = append(ret, s.walkNames(expr.LHS)...)
+		ret = append(ret, s.walkNames(expr.RHS)...)
 		return ret
 	case *ParenExpr:
-		return s.walkFieldNames(expr.Expr)
+		return s.walkNames(expr.Expr)
 	}
 
 	return nil

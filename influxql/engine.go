@@ -67,32 +67,40 @@ func (m *MapReduceJob) Execute(out chan *Row) {
 		reduceFuncs[i] = reduceFunc
 	}
 
-	warn("Execute1")
-	for _, mm := range m.Mappers {
-		mm.Begin(aggregates[0], m.TMin)
+	isRaw := false
+	// modify if it's a raw data query
+	if len(aggregates) == 0 {
+		isRaw = true
+		aggregates = []*Call{nil}
+		r, _ := InitializeReduceFunc(nil)
+		reduceFuncs = append(reduceFuncs, r)
 	}
 
+	warn("Execute1: ", len(m.Mappers))
 	// we'll have a fixed number of points with timestamps in buckets. Initialize those times and a slice to hold the associated values
 	var pointCountInResult int
 
 	// if the user didn't specify a start time or a group by interval, we're returning a single point that describes the entire range
-	if m.TMin == 0 || m.interval == 0 {
+	if m.TMin == 0 || m.interval == 0 || isRaw {
 		// they want a single aggregate point for the entire time range
 		m.interval = m.TMax - m.TMin
 		pointCountInResult = 1
 	} else {
-		warn(m.TMax, m.TMin, m.interval)
-		pointCountInResult = int((m.TMax - m.TMin) / m.interval)
+		intervalTop := m.TMax/m.interval*m.interval + m.interval
+		warn("ex: ", intervalTop, intervalTop-m.TMax, m.interval)
+		pointCountInResult = int((intervalTop - m.TMin) / m.interval)
 	}
 
-	warn("Execute1.1 ", pointCountInResult)
+	warn("Execute1.1 ", pointCountInResult, m.TMin, m.TMax)
 
 	// initialize the times of the aggregate points
 	resultTimes := make([]int64, pointCountInResult)
 	resultValues := make([][]interface{}, pointCountInResult)
 	for i, _ := range resultTimes {
-		resultTimes[i] = m.TMin + (int64(i) * m.interval)
-		resultValues[i] = make([]interface{}, 0, len(aggregates)+1)
+		t := m.TMin + (int64(i) * m.interval)
+		resultTimes[i] = t
+		vals := make([]interface{}, 0, len(aggregates)+1)
+		resultValues[i] = append(vals, time.Unix(0, t).UTC())
 	}
 
 	warn("Execute2")
@@ -104,7 +112,14 @@ func (m *MapReduceJob) Execute(out chan *Row) {
 				Tags: m.TagSet.Tags,
 				Err:  err,
 			}
+
+			return
 		}
+	}
+
+	if isRaw {
+		out <- m.processRawResults(resultValues)
+		return
 	}
 
 	// put together the row to return
@@ -123,6 +138,63 @@ func (m *MapReduceJob) Execute(out chan *Row) {
 
 	// and we out
 	out <- row
+}
+
+// processRawResults will handle converting the reduce results from a raw query into a Row
+func (m *MapReduceJob) processRawResults(resultValues [][]interface{}) *Row {
+	selectNames := m.stmt.NamesInSelect()
+	hasTime := false
+	for _, n := range selectNames {
+		if n == "time" {
+			hasTime = true
+		}
+	}
+
+	// time should always be in the list of names they get back
+	if !hasTime {
+		selectNames = append([]string{"time"}, selectNames...)
+	}
+
+	// if they've selected only a single value we have to handle things a little differently
+	singleValue := len(selectNames) == 2
+
+	warn("0> ", selectNames)
+	row := &Row{
+		Name:    m.MeasurementName,
+		Tags:    m.TagSet.Tags,
+		Columns: selectNames,
+	}
+
+	// return an empty row if there are no results
+	if len(resultValues) == 0 || len(resultValues[0]) != 2 {
+		warn("1> empty resaults ", len(resultValues[0]))
+		return row
+	}
+
+	// the results will hav all of the raw mapper results, convert into the row
+	for _, v := range resultValues[0][1].([]*rawQueryMapOutput) {
+		warn("2> ", v)
+		vals := make([]interface{}, len(selectNames))
+
+		if singleValue {
+			warn("3> ")
+			vals[0] = time.Unix(0, v.timestamp).UTC()
+			vals[1] = v.values.(interface{})
+		} else {
+			fields := v.values.(map[string]interface{})
+			for i, n := range selectNames {
+				if n == "time" {
+					vals[i] = time.Unix(0, v.timestamp).UTC()
+				} else {
+					vals[i] = fields[n]
+				}
+			}
+		}
+
+		row.Values = append(row.Values, vals)
+	}
+
+	return row
 }
 
 func (m *MapReduceJob) processAggregate(c *Call, reduceFunc ReduceFunc, resultValues [][]interface{}) error {

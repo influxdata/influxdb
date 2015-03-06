@@ -138,6 +138,11 @@ func NewMeasurement(name string) *Measurement {
 	}
 }
 
+// HasTagKey returns true if at least on series in this measurement has written a value for the passed in tag key
+func (m *Measurement) HasTagKey(k string) bool {
+	return m.seriesByTagKeyValue[k] != nil
+}
+
 // createFieldIfNotExists creates a new field with an autoincrementing ID.
 // Returns an error if 255 fields have already been created on the measurement or
 // the fields already exists with a different type.
@@ -838,6 +843,24 @@ func (f *FieldCodec) DecodeFields(b []byte) map[uint8]interface{} {
 	}
 
 	return values
+}
+
+// DecodeFieldsWithNames decodes a byte slice into a set of field names and values
+func (f *FieldCodec) DecodeFieldsWithNames(b []byte) map[string]interface{} {
+	fields := f.DecodeFields(b)
+	m := make(map[string]interface{})
+	for id, v := range fields {
+		field := f.fieldsByID[id]
+		if field != nil {
+			m[field.Name] = v
+		}
+	}
+	return m
+}
+
+// FieldIDByName returns the field id by the name of the field. It will return a zero if not found
+func (f *FieldCodec) FieldByName(name string) *Field {
+	return f.fieldsByName[name]
 }
 
 // Series belong to a Measurement and represent unique time series in a database
