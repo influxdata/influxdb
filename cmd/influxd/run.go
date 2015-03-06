@@ -80,6 +80,9 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 	// Start the server handler. Attach to broker if listening on the same port.
 	if s != nil {
 		sh := httpd.NewHandler(s, config.Authentication.Enabled, version)
+		sh.SetLogOutput(logWriter)
+		sh.WriteTrace = config.Logging.WriteTraceEnabled
+
 		if h != nil && config.BrokerAddr() == config.DataAddr() {
 			h.serverHandler = sh
 		} else {
