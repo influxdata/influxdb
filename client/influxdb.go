@@ -33,9 +33,12 @@ type Query struct {
 }
 
 type Write struct {
-	Database        string
-	RetentionPolicy string
-	Points          []Point
+	Database        string            `json:"database"`
+	RetentionPolicy string            `json:"retentionPolicy"`
+	Points          []Point           `json:"points"`
+	Tags            map[string]string `json:"tags"`
+	Timestamp       Timestamp         `json:"timestamp"`
+	Precision       string            `json:"precision"`
 }
 
 func NewClient(c Config) (*Client, error) {
@@ -81,23 +84,16 @@ func (c *Client) Query(q Query) (*Results, error) {
 	return &results, nil
 }
 
-func (c *Client) Write(writes ...Write) (*Results, error) {
+func (c *Client) Write(write Write) (*Results, error) {
 	c.url.Path = "write"
-	type data struct {
-		Points          []Point `json:"points"`
-		Database        string  `json:"database"`
-		RetentionPolicy string  `json:"retentionPolicy"`
+
+	b := &bytes.Buffer{}
+	err := json.NewEncoder(b).Encode(write)
+	if err != nil {
+		return nil, err
 	}
 
-	d := []data{}
-	for _, write := range writes {
-		d = append(d, data{Points: write.Points, Database: write.Database, RetentionPolicy: write.RetentionPolicy})
-	}
-
-	b := []byte{}
-	err := json.Unmarshal(b, &d)
-
-	req, err := http.NewRequest("POST", c.url.String(), bytes.NewBuffer(b))
+	req, err := http.NewRequest("POST", c.url.String(), b)
 	if err != nil {
 		return nil, err
 	}
@@ -109,15 +105,17 @@ func (c *Client) Write(writes ...Write) (*Results, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
-
 	var results Results
-	dec := json.NewDecoder(resp.Body)
-	dec.UseNumber()
-	err = dec.Decode(&results)
+	if resp.StatusCode != http.StatusOK {
+		defer resp.Body.Close()
 
-	if err != nil {
-		return nil, err
+		dec := json.NewDecoder(resp.Body)
+		dec.UseNumber()
+		err = dec.Decode(&results)
+
+		if err != nil {
+			return nil, err
+		}
 	}
 	return &results, nil
 }
