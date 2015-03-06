@@ -234,21 +234,6 @@ func (a Results) Error() error {
 	return nil
 }
 
-// Timestamp is a custom type so we marshal JSON properly into UTC nanosecond time
-type Timestamp time.Time
-
-// Time returns the time represented by the Timestamp
-func (t Timestamp) Time() time.Time {
-	return time.Time(t)
-}
-
-// MarshalJSON returns time in UTC with nanoseconds
-func (t Timestamp) MarshalJSON() ([]byte, error) {
-	// Always send back in UTC with nanoseconds
-	s := t.Time().UTC().Format(time.RFC3339Nano)
-	return []byte(`"` + s + `"`), nil
-}
-
 // Point defines the fields that will be written to the database
 type Point struct {
 	Name      string
