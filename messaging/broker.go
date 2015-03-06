@@ -776,7 +776,7 @@ func (t *topic) addReplica(r *Replica) {
 // replica returns the replica with the specified ID.
 func (t *topic) replica(id uint64) *Replica {
 	t.mu.RLock()
-	defer t.mu.Unlock()
+	defer t.mu.RUnlock()
 	return t.replicas[id]
 }
 
