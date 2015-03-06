@@ -5,6 +5,9 @@
 - [#1864](https://github.com/influxdb/influxdb/pull/1864): fix race in startStateLoop
 - [#1753](https://github.com/influxdb/influxdb/pull/1874): Do Not Panic on Missing Dirs
 
+### Features
+- [#1875](https://github.com/influxdb/influxdb/pull/1875): Support trace logging of Raft.
+
 ## v0.9.0-rc9 [2015-03-06]
 
 ### Bugfixes
