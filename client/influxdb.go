@@ -12,6 +12,11 @@ import (
 	"github.com/influxdb/influxdb/influxql"
 )
 
+var (
+	// ErrNoWrites is when Write() is called with No Parameters.
+	ErrNoWrites = errors.New("nothing to write")
+)
+
 type Config struct {
 	URL       url.URL
 	Username  string
@@ -82,6 +87,10 @@ func (c *Client) Query(q Query) (*Results, error) {
 }
 
 func (c *Client) Write(writes ...Write) (*Results, error) {
+	if len(writes) <= 0 {
+		return nil, ErrNoWrites
+	}
+
 	c.url.Path = "write"
 	type data struct {
 		Points          []Point `json:"points"`
