@@ -662,7 +662,7 @@ func Test3NodeServer(t *testing.T) {
 func TestClientLibrary(t *testing.T) {
 	testName := "single server integration via client library"
 	if testing.Short() {
-		//t.Skip(fmt.Sprintf("skipping '%s'", testName))
+		t.Skip(fmt.Sprintf("skipping '%s'", testName))
 	}
 	dir := tempfile()
 	defer func() {
