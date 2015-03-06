@@ -770,7 +770,7 @@ func (t *topic) open() error {
 	assert(t.file == nil, "topic already open: %d", t.id)
 
 	// Ensure the parent directory exists.
-	if err := os.MkdirAll(filepath.Dir(t.path), 0700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(t.path), 0755); err != nil {
 		return err
 	}
 
