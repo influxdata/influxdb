@@ -259,8 +259,8 @@ func TestPoint_UnmarshalEpoch(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error.  exptected: %v, actual: %v", nil, err)
 		}
-		if !p.Timestamp.Time().Equal(test.expected) {
-			t.Fatalf("Unexpected time.  expected: %v, actual: %v", test.expected, p.Timestamp.Time())
+		if !p.Timestamp.Equal(test.expected) {
+			t.Fatalf("Unexpected time.  expected: %v, actual: %v", test.expected, p.Timestamp)
 		}
 	}
 }
@@ -297,8 +297,8 @@ func TestPoint_UnmarshalRFC(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error.  exptected: %v, actual: %v", nil, err)
 		}
-		if !p.Timestamp.Time().Equal(test.expected) {
-			t.Fatalf("Unexpected time.  expected: %v, actual: %v", test.expected, p.Timestamp.Time())
+		if !p.Timestamp.Equal(test.expected) {
+			t.Fatalf("Unexpected time.  expected: %v, actual: %v", test.expected, p.Timestamp)
 		}
 	}
 }

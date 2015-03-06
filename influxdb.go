@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"time"
+
+	"github.com/influxdb/influxdb/client"
 )
 
 var (
@@ -177,3 +180,42 @@ func assert(condition bool, msg string, v ...interface{}) {
 
 func warn(v ...interface{})              { fmt.Fprintln(os.Stderr, v...) }
 func warnf(msg string, v ...interface{}) { fmt.Fprintf(os.Stderr, msg+"\n", v...) }
+
+// NormalizeBatchPoints returns a slice of Points, created by populating individual
+// points within the batch, which do not have timestamps or tags, with the top-level
+// values.
+func NormalizeBatchPoints(bp client.BatchPoints) ([]Point, error) {
+	points := []Point{}
+	for _, p := range bp.Points {
+		if p.Timestamp.IsZero() {
+			if bp.Timestamp.IsZero() {
+				p.Timestamp = time.Now()
+			} else {
+				p.Timestamp = bp.Timestamp
+			}
+		}
+		if p.Precision == "" && bp.Precision != "" {
+			p.Precision = bp.Precision
+		}
+		p.Timestamp = client.SetPrecision(p.Timestamp, p.Precision)
+		if len(bp.Tags) > 0 {
+			if p.Tags == nil {
+				p.Tags = make(map[string]string)
+			}
+			for k := range bp.Tags {
+				if p.Tags[k] == "" {
+					p.Tags[k] = bp.Tags[k]
+				}
+			}
+		}
+		// Need to convert from a client.Point to a influxdb.Point
+		points = append(points, Point{
+			Name:      p.Name,
+			Tags:      p.Tags,
+			Timestamp: p.Timestamp,
+			Fields:    p.Fields,
+		})
+	}
+
+	return points, nil
+}
