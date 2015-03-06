@@ -13,6 +13,7 @@
 - [#1872](https://github.com/influxdb/influxdb/pull/1872): Fix "stale term" errors with raft
 
 ## v0.9.0-rc8 [2015-03-05]
+- [#1868](https://github.com/influxdb/influxdb/pull/1868): Use `BatchPoints` for `client.Write` method.
 
 ### Bugfixes
 - [#1836](https://github.com/influxdb/influxdb/pull/1836): Store each parsed shell command in history file.
