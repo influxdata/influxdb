@@ -2105,6 +2105,8 @@ func (s *Server) rewriteSelectStatement(stmt *influxql.SelectStatement) (*influx
 	return stmt.RewriteWildcards(fields, dimensions), nil
 }
 
+//func (s *Server) expand
+
 // plans a selection statement under lock.
 func (s *Server) planSelectStatement(stmt *influxql.SelectStatement) (*influxql.Executor, error) {
 	s.mu.RLock()
