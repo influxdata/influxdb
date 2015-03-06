@@ -1,10 +1,10 @@
 ## v0.9.0-rc9 [2015-03-06]
 
 ### Bugfixes
-
 - [1872](https://github.com/influxdb/influxdb/pull/1872): Fix "stale term" errors with raft
 - [#1867](https://github.com/influxdb/influxdb/pull/1867): Fix race accessing topic replicas map
 - [#1864](https://github.com/influxdb/influxdb/pull/1864): fix race in startStateLoop
+- [#1753] (https://github.com/influxdb/influxdb/pull/1874): Do Not Panic on Missing Dirs
 
 ## v0.9.0-rc8 [2015-03-05]
 
