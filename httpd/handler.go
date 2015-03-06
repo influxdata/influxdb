@@ -365,7 +365,6 @@ func (p *indexPoller) PollForIndex(index uint64, timeout time.Duration) error {
 	case <-done:
 		return nil
 	}
-	return nil
 }
 
 func (p *indexPoller) Quit() {
