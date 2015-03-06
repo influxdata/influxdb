@@ -1576,7 +1576,7 @@ func (s *Server) applyCreateMeasurementsIfNotExists(m *messaging.Message) error 
 			// Create each new field.
 			mm := db.measurements[cm.Name]
 			if mm == nil {
-				panic(fmt.Sprintf("Measurement %s does not exist", cm.Name))
+				panic(fmt.Sprintf("measurement not found: %s", cm.Name))
 			}
 			for _, f := range cm.Fields {
 				if err := mm.createFieldIfNotExists(f.Name, f.Type); err != nil {
@@ -1873,7 +1873,7 @@ func (s *Server) rewriteSelectStatement(stmt *influxql.SelectStatement) (*influx
 
 		mm := s.databases[db].measurements[m]
 		if mm == nil {
-			return nil, fmt.Errorf("measurement %s does not exist.", measurement.Name)
+			return nil, fmt.Errorf("measurement not found: %s", measurement.Name)
 		}
 
 		for _, f := range mm.Fields {
