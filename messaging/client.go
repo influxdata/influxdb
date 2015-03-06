@@ -92,15 +92,18 @@ func (c *Client) LeaderURL() *url.URL {
 	}
 }
 
-// SetLeaderURL sets the explicit broker leader.
+// SetLeaderURL sets the explicit broker leader. The leader is set to the scheme, host,
+// and port (if any) contained in the URL. All other components of the URL are ignored.
 func (c *Client) SetLeaderURL(u *url.URL) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if u == nil {
 		return
 	}
-	c.Logger.Printf("setting broker leader to %s", u.String())
-	c.config.Leader = u
+
+	v := &url.URL{Scheme: u.Scheme, Host: u.Host}
+	c.Logger.Printf("setting broker leader to %s", v.String())
+	c.config.Leader = v
 }
 
 // SetLogOutput sets writer for all Client log output.
