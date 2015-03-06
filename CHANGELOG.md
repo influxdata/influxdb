@@ -2,6 +2,7 @@
 
 ### Bugfixes
 
+- [1872](https://github.com/influxdb/influxdb/pull/1872): Fix "stale term" errors with raft
 - [#1867](https://github.com/influxdb/influxdb/pull/1867): Fix race accessing topic replicas map
 - [#1864](https://github.com/influxdb/influxdb/pull/1864): fix race in startStateLoop
 
