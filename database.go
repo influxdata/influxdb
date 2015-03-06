@@ -826,6 +826,19 @@ func (f *FieldCodec) DecodeByID(targetID uint8, b []byte) (interface{}, error) {
 	return 0, ErrFieldNotFound
 }
 
+// DecodeFieldsWithNames decodes a byte slice into a set of field names and values
+func (f *FieldCodec) DecodeFieldsWithNames(b []byte) map[string]interface{} {
+	fields := f.DecodeFields(b)
+	m := make(map[string]interface{})
+	for id, v := range fields {
+		field := f.fieldsByID[id]
+		if field != nil {
+			m[field.Name] = v
+		}
+	}
+	return m
+}
+
 // DecodeFields decodes a byte slice into a set of field ids and values.
 func (f *FieldCodec) DecodeFields(b []byte) map[uint8]interface{} {
 	if len(b) == 0 {

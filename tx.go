@@ -341,6 +341,7 @@ type keyValue struct {
 
 type fieldDecoder interface {
 	DecodeByID(fieldID uint8, b []byte) (interface{}, error)
+	DecodeFieldsWithNames(b []byte) map[string]interface{}
 }
 
 type seriesCursor struct {
@@ -389,12 +390,8 @@ func (c *seriesCursor) Next(fieldName string, fieldID uint8, tmin, tmax int64) (
 		if c.rawQuery {
 			// we'll need to marshal all the field values if the condition isn't nil
 			if c.condition != nil {
-				fieldValues := make(map[string]interface{})
-				values := c.tx.DecodeValues(c.fieldIDs, 0, v)
-				for i, val := range values[1:] { // Skip the timestamp.
-					fieldValues[c.fieldNames[i]] = val
-				}
-				if ok, _ := influxql.Eval(c.condition, fieldValues).(bool); !ok {
+				values := c.tx.decoder.DecodeFieldsWithNames(v)
+				if ok, _ := influxql.Eval(c.condition, values).(bool); !ok {
 					continue
 				}
 			}
