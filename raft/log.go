@@ -14,7 +14,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"runtime"
 	"runtime/debug"
 	"sort"
 	"strconv"
@@ -627,20 +626,21 @@ func (l *Log) Leave() error {
 // Returns once the state has transitioned to the initial state passed in.
 func (l *Log) startStateLoop(closing <-chan struct{}, state State) {
 	l.wg.Add(1)
-	go l.stateLoop(closing, state)
+	stateChanged := make(chan struct{})
+	go l.stateLoop(closing, state, stateChanged)
 
 	// Wait until state change.
-	for {
-		if l.state == state {
-			break
-		}
-		runtime.Gosched()
-	}
+	<-stateChanged
 }
 
 // stateLoop runs in a separate goroutine and runs the appropriate state loop.
-func (l *Log) stateLoop(closing <-chan struct{}, state State) {
+func (l *Log) stateLoop(closing <-chan struct{}, state State, stateChanged chan struct{}) {
 	defer l.wg.Done()
+
+	l.Logger.Printf("log state change: %s => %s", l.state, state)
+	l.state = state
+	close(stateChanged)
+
 	for {
 		// Transition to new state.
 		l.Logger.Printf("log state change: %s => %s", l.state, state)

@@ -3,6 +3,7 @@
 ### Bugfixes
 
 - [#1867](https://github.com/influxdb/influxdb/pull/1867): Fix race accessing topic replicas map
+- [#1864](https://github.com/influxdb/influxdb/pull/1864): fix race in startStateLoop
 
 ## v0.9.0-rc8 [2015-03-05]
 
