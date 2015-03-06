@@ -88,6 +88,26 @@ func BenchmarkCluster_Publish(b *testing.B) {
 	c.MustSync(index)
 }
 
+// Ensure a client is properly redirected to the leader.
+func TestClient_LeaderRedirect(t *testing.T) {
+	c := NewCluster(3)
+	defer c.Close()
+
+	// Explicity tell the client to send its writes to a follower.
+	c.Leader().Broker().CreateReplica(100, &url.URL{Host: "localhost"})
+	client := messaging.NewClient(100)
+	client.Open("", []*url.URL{c.Follower().Broker().URL()})
+
+	// Ensure after writing to leader, client has correct leader URL.
+	_, err := client.Publish(&messaging.Message{Type: 0, TopicID: 1, Data: make([]byte, 50)})
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if client.LeaderURL().String() != c.URL().String() {
+		t.Fatalf("client not using expected leader, expected: %s, actual: %s", c.URL().String(), client.LeaderURL().String())
+	}
+}
+
 // Cluster represents a set of joined Servers.
 type Cluster struct {
 	Servers []*Server
@@ -114,6 +134,16 @@ func NewCluster(n int) *Cluster {
 
 func (c *Cluster) Leader() *Server { return c.Servers[0] }
 func (c *Cluster) URL() *url.URL   { return c.Leader().Broker().URL() }
+
+// Follower returns a follower in the cluster -- if it exists -- and assuming
+// that the first node is the leader.
+func (c *Cluster) Follower() *Server {
+	if len(c.Servers) > 1 {
+		return c.Servers[1]
+	} else {
+		return nil
+	}
+}
 
 // MustSync runs sync against every server in the cluster. Panic on error.
 func (c *Cluster) MustSync(index uint64) {
