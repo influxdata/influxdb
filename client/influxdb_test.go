@@ -1,8 +1,10 @@
 package client_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -97,8 +99,26 @@ func TestClient_BasicAuth(t *testing.T) {
 }
 
 func TestClient_Write(t *testing.T) {
+	write := client.Write{
+		Database: "database",
+	}
+
+	bw, err := json.Marshal(write)
+	if err != nil {
+		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var data influxdb.Results
+
+		b, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+		}
+
+		if !bytes.Equal(bw, b) {
+			t.Fatalf("unexpected data received.  expected %v, actual %v", bw, b)
+		}
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(data)
 	}))
@@ -111,7 +131,6 @@ func TestClient_Write(t *testing.T) {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
 	}
 
-	write := client.Write{}
 	_, err = c.Write(write)
 	if err != nil {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
