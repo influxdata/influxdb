@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"time"
@@ -77,11 +79,6 @@ func (c *Client) Query(q Query) (*Results, error) {
 
 func (c *Client) Write(bp BatchPoints) (*Results, error) {
 	c.url.Path = "write"
-	type data struct {
-		Points          []Point `json:"points"`
-		Database        string  `json:"database"`
-		RetentionPolicy string  `json:"retentionPolicy"`
-	}
 
 	b, err := json.Marshal(&bp)
 	if err != nil {
@@ -103,13 +100,23 @@ func (c *Client) Write(bp BatchPoints) (*Results, error) {
 	defer resp.Body.Close()
 
 	var results Results
-	dec := json.NewDecoder(resp.Body)
-	dec.UseNumber()
-	err = dec.Decode(&results)
+	body, _ := ioutil.ReadAll(resp.Body)
+	if len(body) > 0 {
+		dec := json.NewDecoder(bytes.NewReader(body))
+		dec.UseNumber()
+		err = dec.Decode(&results)
 
-	if err != nil {
-		return nil, err
+		if err != nil {
+			log.Println("status code: ", resp.StatusCode)
+			log.Println("body: ", resp.Body)
+			return nil, err
+		}
 	}
+
+	if resp.StatusCode != http.StatusOK {
+		return &results, results.Error()
+	}
+
 	return &results, nil
 }
 

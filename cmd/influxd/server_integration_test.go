@@ -2,20 +2,24 @@ package main_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/influxdb/influxdb"
+	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/messaging"
 
+	"github.com/influxdb/influxdb/client"
 	main "github.com/influxdb/influxdb/cmd/influxd"
 )
 
@@ -653,4 +657,102 @@ func Test3NodeServer(t *testing.T) {
 	nodes := createCombinedNodeCluster(t, testName, dir, 3, 8190)
 
 	runTestsData(t, testName, nodes, "mydb", "myrp")
+}
+
+func TestClientLibrary(t *testing.T) {
+	testName := "single server integration via client library"
+	if testing.Short() {
+		//t.Skip(fmt.Sprintf("skipping '%s'", testName))
+	}
+	dir := tempfile()
+	defer func() {
+		os.RemoveAll(dir)
+	}()
+
+	database := "mydb"
+	retentionPolicy := "myrp"
+	now := time.Now().UTC()
+
+	nodes := createCombinedNodeCluster(t, testName, dir, 1, 8090)
+	createDatabase(t, testName, nodes, database)
+	createRetentionPolicy(t, testName, nodes, database, retentionPolicy)
+
+	tests := []struct {
+		name                         string
+		bp                           client.BatchPoints
+		results                      client.Results
+		query                        client.Query
+		writeExpected, queryExpected *client.Results
+		writeErr, queryErr           string
+	}{
+		{
+			name:          "empty batchpoint",
+			writeExpected: &client.Results{Err: fmt.Errorf("database is required")},
+			writeErr:      "database is required",
+		},
+		{
+			name:          "no points",
+			bp:            client.BatchPoints{Database: "mydb"},
+			writeExpected: &client.Results{},
+		},
+		{
+			name: "one point",
+			bp: client.BatchPoints{
+				Database: "mydb",
+				Points: []client.Point{
+					{Name: "cpu", Fields: map[string]interface{}{"value": 1.1}, Timestamp: now},
+				},
+			},
+			writeExpected: &client.Results{},
+			query:         client.Query{Command: `select * from "mydb"."myrp".cpu`},
+			queryExpected: &client.Results{
+				Results: []client.Result{
+					{
+						Series: []influxql.Row{
+							{Name: "cpu", Columns: []string{"time", "value"}, Values: [][]interface{}{{now.Format(time.RFC3339Nano), json.Number("1.1")}}},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	c, e := client.NewClient(client.Config{URL: *nodes[0].url})
+	if e != nil {
+		t.Fatalf("error creating client: %s", e)
+	}
+
+	for _, test := range tests {
+		t.Logf("testing %s - %s\n", testName, test.name)
+		writeResult, err := c.Write(test.bp)
+		if test.writeErr == "" && err != nil {
+			t.Errorf("unexpected error %v", err)
+		} else if test.writeErr != "" && err == nil {
+			t.Errorf("expected error %s, got <nil>", test.writeErr)
+		} else if e != nil && test.writeErr != err.Error() {
+			t.Errorf("unexpected error. expected: %s, got %v", test.writeErr, err)
+		}
+		if !reflect.DeepEqual(test.writeExpected, writeResult) {
+			t.Logf("write expected result: %+v\n", test.writeExpected)
+			t.Logf("write got result:      %+v\n", writeResult)
+			t.Error("unexpected results")
+		}
+
+		if test.query.Command != "" {
+			time.Sleep(50 * time.Millisecond)
+			queryResult, err := c.Query(test.query)
+			if test.queryErr == "" && err != nil {
+				t.Errorf("unexpected error %v", err)
+			} else if test.queryErr != "" && err == nil {
+				t.Errorf("expected error %s, got <nil>", test.queryErr)
+			} else if e != nil && test.queryErr != err.Error() {
+				t.Errorf("unexpected error. expected: %s, got %v", test.queryErr, err)
+			}
+			if !reflect.DeepEqual(test.queryExpected, queryResult) {
+				t.Logf("query expected result: %+v\n", test.queryExpected)
+				t.Logf("query got result:      %+v\n", queryResult)
+				t.Error("unexpected results")
+			}
+		}
+	}
 }

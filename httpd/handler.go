@@ -190,6 +190,7 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *influ
 		dec = json.NewDecoder(strings.NewReader(string(b)))
 	} else {
 		dec = json.NewDecoder(r.Body)
+		defer r.Body.Close()
 	}
 
 	var writeError = func(result influxdb.Result, statusCode int) {
