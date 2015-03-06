@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/url"
 	"time"
@@ -107,8 +106,6 @@ func (c *Client) Write(bp BatchPoints) (*Results, error) {
 		err = dec.Decode(&results)
 
 		if err != nil {
-			log.Println("status code: ", resp.StatusCode)
-			log.Println("body: ", resp.Body)
 			return nil, err
 		}
 	}
