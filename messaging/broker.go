@@ -762,7 +762,22 @@ type topic struct {
 
 	file *os.File // on-disk representation
 
+	mu       sync.RWMutex
 	replicas map[uint64]*Replica // replicas subscribed to topic
+}
+
+// addReplica adds a replica to the topic.
+func (t *topic) addReplica(r *Replica) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.replicas[r.id] = r
+}
+
+// replica returns the replica with the specified ID.
+func (t *topic) replica(id uint64) *Replica {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return t.replicas[id]
 }
 
 // open opens a topic for writing.
@@ -890,9 +905,13 @@ func (t *topic) encode(m *Message) error {
 	t.index = m.Index
 
 	// Write message out to all replicas.
-	for _, r := range t.replicas {
-		_, _ = r.Write(b)
-	}
+	func() {
+		t.mu.Lock()
+		defer t.mu.Unlock()
+		for _, r := range t.replicas {
+			_, _ = r.Write(b)
+		}
+	}()
 
 	return nil
 }
@@ -1010,7 +1029,7 @@ func (r *Replica) WriteTo(w io.Writer) (int64, error) {
 		}
 
 		// Attach replica to topic to tail new messages.
-		t.replicas[r.id] = r
+		t.addReplica(r)
 	}
 
 	// Wait for writer to close and then return.
