@@ -673,7 +673,7 @@ func TestClientLibrary(t *testing.T) {
 	retentionPolicy := "myrp"
 	now := time.Now().UTC()
 
-	nodes := createCombinedNodeCluster(t, testName, dir, 1, 8090)
+	nodes := createCombinedNodeCluster(t, testName, dir, 1, 8290)
 	createDatabase(t, testName, nodes, database)
 	createRetentionPolicy(t, testName, nodes, database, retentionPolicy)
 
