@@ -14,7 +14,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"runtime"
 	"runtime/debug"
 	"sort"
 	"strconv"
@@ -82,6 +81,7 @@ type Log struct {
 
 	state      State          // current node state
 	heartbeats chan heartbeat // incoming heartbeat channel
+	terms      chan uint64    // incoming channel of newer terms
 
 	lastLogTerm  uint64 // highest term in the log
 	lastLogIndex uint64 // highest index in the log
@@ -143,6 +143,7 @@ func NewLog() *Log {
 		Transport:  &HTTPTransport{},
 		Rand:       rand.NewSource(time.Now().UnixNano()).Int63,
 		heartbeats: make(chan heartbeat, 1),
+		terms:      make(chan uint64, 1),
 	}
 	l.SetLogOutput(os.Stderr)
 	return l
@@ -627,20 +628,21 @@ func (l *Log) Leave() error {
 // Returns once the state has transitioned to the initial state passed in.
 func (l *Log) startStateLoop(closing <-chan struct{}, state State) {
 	l.wg.Add(1)
-	go l.stateLoop(closing, state)
+	stateChanged := make(chan struct{})
+	go l.stateLoop(closing, state, stateChanged)
 
 	// Wait until state change.
-	for {
-		if l.state == state {
-			break
-		}
-		runtime.Gosched()
-	}
+	<-stateChanged
 }
 
 // stateLoop runs in a separate goroutine and runs the appropriate state loop.
-func (l *Log) stateLoop(closing <-chan struct{}, state State) {
+func (l *Log) stateLoop(closing <-chan struct{}, state State, stateChanged chan struct{}) {
 	defer l.wg.Done()
+
+	l.Logger.Printf("log state change: %s => %s", l.state, state)
+	l.state = state
+	close(stateChanged)
+
 	for {
 		// Transition to new state.
 		l.Logger.Printf("log state change: %s => %s", l.state, state)
@@ -880,9 +882,20 @@ func (l *Log) leaderLoop(closing <-chan struct{}) State {
 		case <-closing: // wait for state change.
 			return Stopped
 
+		case newTerm := <-l.terms: // step down on higher term
+			if newTerm > term {
+				l.mu.Lock()
+				l.term = newTerm
+				l.truncate()
+				l.mu.Unlock()
+				return Follower
+			}
+			continue
+
 		case hb := <-l.heartbeats: // step down on higher term
 			if hb.term > term {
 				l.mu.Lock()
+				l.term = hb.term
 				l.truncate()
 				l.mu.Unlock()
 				return Follower
@@ -1461,12 +1474,16 @@ func (l *Log) initWriter(w io.Writer, id, term, index uint64) (*logWriter, error
 
 	// Do not begin streaming if:
 	//   1. Node is not the leader.
-	//   2. Term is earlier than current term.
+	//   2. Term is after current term.
 	//   3. Index is after the commit index.
 	if l.state != Leader {
 		return nil, ErrNotLeader
 	} else if term > l.term {
-		return nil, ErrStaleTerm
+		select {
+		case l.terms <- term:
+		default:
+		}
+		return nil, ErrNotLeader
 	} else if index > l.lastLogIndex {
 		return nil, ErrUncommittedIndex
 	}

@@ -83,3 +83,4 @@ dir = "/tmp/influxdb/development/state"
 
 [logging]
 file   = "/var/log/influxdb/influxd.log" # Leave blank to redirect logs to stderr.
+write-tracing = false # If true, enables detailed logging of the write system.
