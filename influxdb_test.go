@@ -60,11 +60,11 @@ func TestNormalizeBatchPoints(t *testing.T) {
 		t.Logf("running test %q", test.name)
 		p, e := influxdb.NormalizeBatchPoints(test.bp)
 		if test.err == "" && e != nil {
-			t.Error("unexpected error %s", e)
+			t.Errorf("unexpected error %v", e)
 		} else if test.err != "" && e == nil {
-			t.Error("expected error %s, got <nil>", test.err)
+			t.Errorf("expected error %s, got <nil>", test.err)
 		} else if e != nil && test.err != e.Error() {
-			t.Error("unexpected error. expected: %s, got %s", test.err, e)
+			t.Errorf("unexpected error. expected: %s, got %v", test.err, e)
 		}
 		if !reflect.DeepEqual(p, test.p) {
 			t.Logf("expected: %+v", test.p)

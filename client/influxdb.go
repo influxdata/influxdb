@@ -249,27 +249,30 @@ func (t Timestamp) MarshalJSON() ([]byte, error) {
 
 // Point defines the fields that will be written to the database
 type Point struct {
-	Name      string                 `json:"name"`
-	Tags      map[string]string      `json:"tags"`
-	Timestamp time.Time              `json:"timestamp"`
-	Fields    map[string]interface{} `json:"fields"`
-	Precision string                 `json:"precision"`
+	Name      string
+	Tags      map[string]string
+	Timestamp time.Time
+	Fields    map[string]interface{}
+	Precision string
 }
 
 // MarshalJSON will format the time in RFC3339Nano
+// Precision is also ignored as it is only used for writing, not reading
+// Or another way to say it is we always send back in nanosecond precision
 func (p *Point) MarshalJSON() ([]byte, error) {
 	point := struct {
 		Name      string                 `json:"name"`
-		Tags      map[string]string      `json:"tags"`
-		Timestamp string                 `json:"timestamp"`
+		Tags      map[string]string      `json:"tags,omitempty"`
+		Timestamp string                 `json:"timestamp,omitempty"`
 		Fields    map[string]interface{} `json:"fields"`
-		Precision string                 `json:"precision"`
 	}{
-		Name:      p.Name,
-		Tags:      p.Tags,
-		Timestamp: p.Timestamp.UTC().Format(time.RFC3339Nano),
-		Fields:    p.Fields,
-		Precision: p.Precision,
+		Name:   p.Name,
+		Tags:   p.Tags,
+		Fields: p.Fields,
+	}
+	// Let it omit empty if it's really zero
+	if !p.Timestamp.IsZero() {
+		point.Timestamp = p.Timestamp.UTC().Format(time.RFC3339Nano)
 	}
 	return json.Marshal(&point)
 }

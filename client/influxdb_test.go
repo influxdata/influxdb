@@ -303,6 +303,52 @@ func TestPoint_UnmarshalRFC(t *testing.T) {
 	}
 }
 
+func TestPoint_MarshalOmitempty(t *testing.T) {
+	now := time.Now().UTC()
+	tests := []struct {
+		name     string
+		point    client.Point
+		now      time.Time
+		expected string
+	}{
+		{
+			name:     "all empty",
+			point:    client.Point{Name: "cpu", Fields: map[string]interface{}{"value": 1.1}},
+			now:      now,
+			expected: `{"name":"cpu","fields":{"value":1.1}}`,
+		},
+		{
+			name:     "with time",
+			point:    client.Point{Name: "cpu", Fields: map[string]interface{}{"value": 1.1}, Timestamp: now},
+			now:      now,
+			expected: fmt.Sprintf(`{"name":"cpu","timestamp":"%s","fields":{"value":1.1}}`, now.Format(time.RFC3339Nano)),
+		},
+		{
+			name:     "with tags",
+			point:    client.Point{Name: "cpu", Fields: map[string]interface{}{"value": 1.1}, Tags: map[string]string{"foo": "bar"}},
+			now:      now,
+			expected: `{"name":"cpu","tags":{"foo":"bar"},"fields":{"value":1.1}}`,
+		},
+		{
+			name:     "with precision",
+			point:    client.Point{Name: "cpu", Fields: map[string]interface{}{"value": 1.1}, Precision: "ms"},
+			now:      now,
+			expected: `{"name":"cpu","fields":{"value":1.1}}`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Logf("testing %q\n", test.name)
+		b, err := json.Marshal(&test.point)
+		if err != nil {
+			t.Fatalf("unexpected error.  exptected: %v, actual: %v", nil, err)
+		}
+		if test.expected != string(b) {
+			t.Fatalf("Unexpected result.  expected: %v, actual: %v", test.expected, string(b))
+		}
+	}
+}
+
 func TestEpochToTime(t *testing.T) {
 	now := time.Now()
 
