@@ -1,3 +1,9 @@
+## v0.9.0-rc9 [2015-03-??]
+
+### Bugfixes
+
+- [#1867](https://github.com/influxdb/influxdb/pull/1867): Fix race accessing topic replicas map
+
 ## v0.9.0-rc8 [2015-03-05]
 
 ### Bugfixes
