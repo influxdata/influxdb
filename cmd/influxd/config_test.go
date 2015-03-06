@@ -175,6 +175,7 @@ enabled = true
 [logging]
 file   = "influxdb.log"
 write-tracing = true
+raft-tracing = true
 
 # Configure the admin server
 [admin]

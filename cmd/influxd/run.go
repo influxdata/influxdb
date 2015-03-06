@@ -53,6 +53,9 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 	// Open broker, initialize or join as necessary.
 	b := openBroker(config.BrokerDir(), config.BrokerURL(), initBroker, joinURLs, logWriter)
 
+	// Configure debug of Raft module.
+	b.EnableRaftDebug(config.Logging.RaftTraceEnabled)
+
 	// Start the broker handler.
 	var h *Handler
 	if b != nil {

@@ -75,6 +75,11 @@ func (b *Broker) SetLogOutput(w io.Writer) {
 	b.log.SetLogOutput(w)
 }
 
+// EnableRaftDebug controls debugging functionality in the Raft concensus module.
+func (b *Broker) EnableRaftDebug(enable bool) {
+	b.log.DebugEnabled = enable
+}
+
 // Open initializes the log.
 // The broker then must be initialized or join a cluster before it can be used.
 func (b *Broker) Open(path string, u *url.URL) error {
