@@ -4,6 +4,7 @@
 - [#1867](https://github.com/influxdb/influxdb/pull/1867): Fix race accessing topic replicas map
 - [#1864](https://github.com/influxdb/influxdb/pull/1864): fix race in startStateLoop
 - [#1753](https://github.com/influxdb/influxdb/pull/1874): Do Not Panic on Missing Dirs
+- [#1877](https://github.com/influxdb/influxdb/pull/1877): Broker clients track broker leader
 
 ## v0.9.0-rc9 [2015-03-06]
 
