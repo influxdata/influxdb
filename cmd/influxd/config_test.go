@@ -237,6 +237,7 @@ dir  = "/tmp/influxdb/development/broker"
 
 [data]
 dir = "/tmp/influxdb/development/db"
+retention-auto-create = false
 retention-check-enabled = true
 retention-check-period = "5m"
 

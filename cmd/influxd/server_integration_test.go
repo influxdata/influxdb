@@ -356,7 +356,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		{
 			name:     "missing measurement with `GROUP BY *`",
 			query:    `select load from "%DB%"."%RP%".missing group by *`,
-			expected: `{"results":[{"error":"measurement not found: \"%DB%\".\"%RP%\".\"missing\""}]}`,
+			expected: `{"results":[{"error":"measurement not found: \"mydb\".\"myrp\".\"missing\""}]}`,
 		},
 
 		// Metadata display tests
