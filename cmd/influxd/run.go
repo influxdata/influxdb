@@ -262,6 +262,7 @@ func openServer(config *Config, b *influxdb.Broker, initializing, configExists b
 	// Create and open the server.
 	s := influxdb.NewServer()
 	s.SetLogOutput(w)
+	s.WriteTrace = config.Logging.WriteTraceEnabled
 	s.RecomputePreviousN = config.ContinuousQuery.RecomputePreviousN
 	s.RecomputeNoOlderThan = time.Duration(config.ContinuousQuery.RecomputeNoOlderThan)
 	s.ComputeRunsPerInterval = config.ContinuousQuery.ComputeRunsPerInterval
