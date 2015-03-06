@@ -359,6 +359,7 @@ func (p *indexPoller) PollForIndex(index uint64, timeout time.Duration) error {
 
 	select {
 	case <-time.After(timeout):
+		p.Quit()
 		return errPollTimedOut
 	case <-aborted:
 		return errAborted
