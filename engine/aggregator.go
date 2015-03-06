@@ -35,6 +35,7 @@ func init() {
 	registeredAggregators["count"] = NewCountAggregator
 	registeredAggregators["histogram"] = NewHistogramAggregator
 	registeredAggregators["derivative"] = NewDerivativeAggregator
+	registeredAggregators["non_negative_derivative"] = NewNonNegativeDerivativeAggregator
 	registeredAggregators["difference"] = NewDifferenceAggregator
 	registeredAggregators["stddev"] = NewStandardDeviationAggregator
 	registeredAggregators["min"] = NewMinAggregator
@@ -443,6 +444,112 @@ func NewDerivativeAggregator(q *parser.SelectQuery, v *parser.Value, defaultValu
 	}
 
 	return &DerivativeAggregator{
+		AbstractAggregator: AbstractAggregator{
+			value: v.Elems[0],
+		},
+		defaultValue: wrappedDefaultValue,
+		alias:        v.Alias,
+	}, nil
+}
+
+//
+// NonNegativeDerivative Aggregator
+//
+
+type NonNegativeDerivativeAggregatorState struct {
+	firstValue *protocol.Point
+	lastValue  *protocol.Point
+}
+
+type NonNegativeDerivativeAggregator struct {
+	AbstractAggregator
+	defaultValue *protocol.FieldValue
+	alias        string
+}
+
+func (self *NonNegativeDerivativeAggregator) AggregatePoint(state interface{}, p *protocol.Point) (interface{}, error) {
+	fieldValue, err := GetValue(self.value, self.columns, p)
+	if err != nil {
+		return nil, err
+	}
+
+	var value float64
+	if ptr := fieldValue.Int64Value; ptr != nil {
+		value = float64(*ptr)
+	} else if ptr := fieldValue.DoubleValue; ptr != nil {
+		value = *ptr
+	} else {
+		// else ignore this point
+		return state, nil
+	}
+
+	newValue := &protocol.Point{
+		Timestamp: p.Timestamp,
+		Values:    []*protocol.FieldValue{{DoubleValue: &value}},
+	}
+
+	s, ok := state.(*NonNegativeDerivativeAggregatorState)
+	if !ok {
+		s = &NonNegativeDerivativeAggregatorState{}
+	}
+
+	if s.firstValue == nil {
+		s.firstValue = newValue
+		return s, nil
+	}
+
+	s.lastValue = newValue
+	return s, nil
+}
+
+func (self *NonNegativeDerivativeAggregator) ColumnNames() []string {
+	if self.alias != "" {
+		return []string{self.alias}
+	}
+	return []string{"non_negative_derivative"}
+}
+
+func (self *NonNegativeDerivativeAggregator) GetValues(state interface{}) [][]*protocol.FieldValue {
+	s, ok := state.(*NonNegativeDerivativeAggregatorState)
+	if !ok {
+		return [][]*protocol.FieldValue{{self.defaultValue}}
+	}
+
+	if s.firstValue == nil || s.lastValue == nil {
+		return nil
+	}
+
+	// if an old value exist, then compute the non-negative derivative and insert it in the points slice
+	deltaT := float64(*s.lastValue.Timestamp-*s.firstValue.Timestamp) / float64(time.Second/time.Microsecond)
+	deltaV := *s.lastValue.Values[0].DoubleValue - *s.firstValue.Values[0].DoubleValue
+	derivative := deltaV / deltaT
+
+	if derivative < 0 {
+		derivative = 0
+	}
+
+	return [][]*protocol.FieldValue{
+		{
+			{DoubleValue: &derivative},
+		},
+	}
+}
+
+func NewNonNegativeDerivativeAggregator(q *parser.SelectQuery, v *parser.Value, defaultValue *parser.Value) (Aggregator, error) {
+	if len(v.Elems) != 1 {
+		return nil, common.NewQueryError(common.WrongNumberOfArguments, "function non_negative_derivative() requires exactly one argument")
+	}
+
+	if v.Elems[0].Type == parser.ValueWildcard {
+		return nil, common.NewQueryError(common.InvalidArgument, "function non_negative_derivative() doesn't work with wildcards")
+	}
+
+	wrappedDefaultValue, err := wrapDefaultValue(defaultValue)
+	if err != nil {
+		return nil, err
+	}
+
+	return &NonNegativeDerivativeAggregator{
 		AbstractAggregator: AbstractAggregator{
 			value: v.Elems[0],
 		},
