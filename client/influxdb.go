@@ -248,10 +248,10 @@ type Point struct {
 // Or another way to say it is we always send back in nanosecond precision
 func (p *Point) MarshalJSON() ([]byte, error) {
 	point := struct {
-		Name      string                 `json:"name"`
+		Name      string                 `json:"name,omitempty"`
 		Tags      map[string]string      `json:"tags,omitempty"`
 		Timestamp string                 `json:"timestamp,omitempty"`
-		Fields    map[string]interface{} `json:"fields"`
+		Fields    map[string]interface{} `json:"fields,omitempty"`
 	}{
 		Name:   p.Name,
 		Tags:   p.Tags,
@@ -343,12 +343,12 @@ func normalizeFields(fields map[string]interface{}) map[string]interface{} {
 
 // BatchPoints is used to send batched data in a single write.
 type BatchPoints struct {
-	Points          []Point           `json:"points"`
-	Database        string            `json:"database"`
-	RetentionPolicy string            `json:"retentionPolicy"`
-	Tags            map[string]string `json:"tags"`
-	Timestamp       time.Time         `json:"timestamp"`
-	Precision       string            `json:"precision"`
+	Points          []Point           `json:"points,omitempty"`
+	Database        string            `json:"database,omitempty"`
+	RetentionPolicy string            `json:"retentionPolicy,omitempty"`
+	Tags            map[string]string `json:"tags,omitempty"`
+	Timestamp       time.Time         `json:"timestamp,omitempty"`
+	Precision       string            `json:"precision,omitempty"`
 }
 
 // UnmarshalJSON decodes the data into the BatchPoints struct
