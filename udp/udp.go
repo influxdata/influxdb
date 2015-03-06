@@ -3,9 +3,11 @@ package udp
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/influxdb/influxdb"
 	"log"
 	"net"
+
+	"github.com/influxdb/influxdb"
+	"github.com/influxdb/influxdb/client"
 )
 
 const (
@@ -44,7 +46,7 @@ func (u *UDPServer) ListenAndServe(iface string) error {
 		return err
 	}
 
-	var bp influxdb.BatchPoints
+	var bp client.BatchPoints
 	buf := make([]byte, udpBufferSize)
 
 	go func() {

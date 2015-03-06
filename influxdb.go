@@ -5,9 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"time"
-
-	"github.com/influxdb/influxdb/client"
 )
 
 var (
@@ -129,112 +126,6 @@ var (
 	// ErrContinuousQueryExists is returned when creating a duplicate continuous query.
 	ErrContinuousQueryExists = errors.New("continuous query already exists")
 )
-
-// BatchPoints is used to send batched data in a single write.
-type BatchPoints struct {
-	Points          []client.Point    `json:"points"`
-	Database        string            `json:"database"`
-	RetentionPolicy string            `json:"retentionPolicy"`
-	Tags            map[string]string `json:"tags"`
-	Timestamp       time.Time         `json:"timestamp"`
-	Precision       string            `json:"precision"`
-}
-
-// UnmarshalJSON decodes the data into the BatchPoints struct
-func (bp *BatchPoints) UnmarshalJSON(b []byte) error {
-	var normal struct {
-		Points          []client.Point    `json:"points"`
-		Database        string            `json:"database"`
-		RetentionPolicy string            `json:"retentionPolicy"`
-		Tags            map[string]string `json:"tags"`
-		Timestamp       time.Time         `json:"timestamp"`
-		Precision       string            `json:"precision"`
-	}
-	var epoch struct {
-		Points          []client.Point    `json:"points"`
-		Database        string            `json:"database"`
-		RetentionPolicy string            `json:"retentionPolicy"`
-		Tags            map[string]string `json:"tags"`
-		Timestamp       *int64            `json:"timestamp"`
-		Precision       string            `json:"precision"`
-	}
-
-	if err := func() error {
-		var err error
-		if err = json.Unmarshal(b, &epoch); err != nil {
-			return err
-		}
-		// Convert from epoch to time.Time
-		var ts time.Time
-		if epoch.Timestamp != nil {
-			ts, err = client.EpochToTime(*epoch.Timestamp, epoch.Precision)
-			if err != nil {
-				return err
-			}
-		}
-		bp.Points = epoch.Points
-		bp.Database = epoch.Database
-		bp.RetentionPolicy = epoch.RetentionPolicy
-		bp.Tags = epoch.Tags
-		bp.Timestamp = ts
-		bp.Precision = epoch.Precision
-		return nil
-	}(); err == nil {
-		return nil
-	}
-
-	if err := json.Unmarshal(b, &normal); err != nil {
-		return err
-	}
-	normal.Timestamp = client.SetPrecision(normal.Timestamp, normal.Precision)
-	bp.Points = normal.Points
-	bp.Database = normal.Database
-	bp.RetentionPolicy = normal.RetentionPolicy
-	bp.Tags = normal.Tags
-	bp.Timestamp = normal.Timestamp
-	bp.Precision = normal.Precision
-
-	return nil
-}
-
-// NormalizeBatchPoints returns a slice of Points, created by populating individual
-// points within the batch, which do not have timestamps or tags, with the top-level
-// values.
-func NormalizeBatchPoints(bp BatchPoints) ([]Point, error) {
-	points := []Point{}
-	for _, p := range bp.Points {
-		if p.Timestamp.Time().IsZero() {
-			if bp.Timestamp.IsZero() {
-				p.Timestamp = client.Timestamp(time.Now())
-			} else {
-				p.Timestamp = client.Timestamp(bp.Timestamp)
-			}
-		}
-		if p.Precision == "" && bp.Precision != "" {
-			p.Precision = bp.Precision
-		}
-		p.Timestamp = client.Timestamp(client.SetPrecision(p.Timestamp.Time(), p.Precision))
-		if len(bp.Tags) > 0 {
-			if p.Tags == nil {
-				p.Tags = make(map[string]string)
-			}
-			for k := range bp.Tags {
-				if p.Tags[k] == "" {
-					p.Tags[k] = bp.Tags[k]
-				}
-			}
-		}
-		// Need to convert from a client.Point to a influxdb.Point
-		points = append(points, Point{
-			Name:      p.Name,
-			Tags:      p.Tags,
-			Timestamp: p.Timestamp.Time(),
-			Fields:    p.Fields,
-		})
-	}
-
-	return points, nil
-}
 
 // ErrAuthorize represents an authorization error.
 type ErrAuthorize struct {
