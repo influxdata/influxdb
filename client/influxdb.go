@@ -83,8 +83,10 @@ func (c *Client) Write(bp BatchPoints) (*Results, error) {
 		RetentionPolicy string  `json:"retentionPolicy"`
 	}
 
-	b := []byte{}
-	err := json.Unmarshal(b, &bp)
+	b, err := json.Marshal(&bp)
+	if err != nil {
+		return nil, err
+	}
 
 	req, err := http.NewRequest("POST", c.url.String(), bytes.NewBuffer(b))
 	if err != nil {
