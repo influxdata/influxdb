@@ -51,4 +51,13 @@ var (
 
 	// ErrIndexRequired is returned when making a call without a valid index.
 	ErrIndexRequired = errors.New("index required")
+
+	// ErrTopicOpen is returned when opening an already open topic.
+	ErrTopicOpen = errors.New("topic already open")
+
+	// ErrSegmentReclaimed is returned when requesting a segment that has been deleted.
+	ErrSegmentReclaimed = errors.New("segment reclaimed")
+
+	// ErrStaleWrite is returned when writing a message with an old index to a topic.
+	ErrStaleWrite = errors.New("stale write")
 )

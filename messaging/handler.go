@@ -88,11 +88,7 @@ func (h *Handler) getMessages(w http.ResponseWriter, req *http.Request) {
 	streaming := (req.URL.Query().Get("streaming") == "true")
 
 	// Create a topic reader.
-	r, err := h.broker.OpenTopicReader(topicID, index, streaming)
-	if err != nil {
-		h.error(w, err, http.StatusInternalServerError)
-		return
-	}
+	r := NewTopicReader(h.broker.TopicPath(topicID), index, streaming)
 	defer r.Close()
 
 	// Ensure we close the topic reader if the connection is disconnected.

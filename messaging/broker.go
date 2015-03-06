@@ -1,9 +1,9 @@
 package messaging
 
 import (
-	"bufio"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -19,10 +19,6 @@ import (
 	"github.com/influxdb/influxdb/raft"
 )
 
-// MaxSegmentSize represents the largest size a segment can be before a
-// new segment is started.
-const MaxSegmentSize = 10 * 1024 * 1024 // 10MB
-
 // Broker represents distributed messaging system segmented into topics.
 // Each topic represents a linear series of events.
 type Broker struct {
@@ -32,7 +28,7 @@ type Broker struct {
 	log   *raft.Log // internal raft log
 
 	meta   *bolt.DB          // metadata
-	topics map[uint64]*topic // topics by id
+	topics map[uint64]*Topic // topics by id
 
 	Logger *log.Logger
 }
@@ -41,7 +37,7 @@ type Broker struct {
 func NewBroker() *Broker {
 	b := &Broker{
 		log:    raft.NewLog(),
-		topics: make(map[uint64]*topic),
+		topics: make(map[uint64]*Topic),
 		Logger: log.New(os.Stderr, "[broker] ", log.LstdFlags),
 	}
 	b.log.FSM = (*brokerFSM)(b)
@@ -63,7 +59,14 @@ func (b *Broker) metaPath() string {
 	return filepath.Join(b.path, "meta")
 }
 
-// topicPath returns the file path to a topic's data.
+// TopicPath returns the file path to a topic's data.
+// Returns a blank string if the broker is closed.
+func (b *Broker) TopicPath(id uint64) string {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.topicPath(id)
+}
+
 func (b *Broker) topicPath(id uint64) string {
 	if b.path == "" {
 		return ""
@@ -105,9 +108,16 @@ func (b *Broker) Open(path string, u *url.URL) error {
 		return ErrConnectionAddressRequired
 	}
 
+	// Ensure root directory exists.
+	if err := os.MkdirAll(path, 0700); err != nil {
+		b.close()
+		return fmt.Errorf("mkdir: %s", err)
+	}
+
 	// Open meta file.
 	meta, err := bolt.Open(b.metaPath(), 0600, &bolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
+		b.close()
 		return fmt.Errorf("open meta: %s", err)
 	}
 	b.meta = meta
@@ -129,12 +139,8 @@ func (b *Broker) Open(path string, u *url.URL) error {
 
 	// Read all topic metadata into memory.
 	if err := b.openTopics(); err != nil {
-		return fmt.Errorf("load topics: %s", err)
-	}
-
-	// Read the highest index from each of the topic files.
-	if err := b.loadIndex(); err != nil {
-		return fmt.Errorf("load index: %s", err)
+		b.close()
+		return fmt.Errorf("open topics: %s", err)
 	}
 
 	// Open underlying raft log.
@@ -152,19 +158,47 @@ func (b *Broker) Open(path string, u *url.URL) error {
 
 // loadTopics reads all topic metadata into memory.
 func (b *Broker) openTopics() error {
-	// TODO: Determine topic metadata from directory listing.
-	panic("not yet implemented")
-}
+	// Open handle to directory.
+	f, err := os.Open(b.path)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = f.Close() }()
 
-// loadIndex reads through all topics to find the highest known index.
-func (b *Broker) loadIndex() error {
+	// Read directory items.
+	fis, err := f.Readdir(0)
+	if err != nil {
+		return err
+	}
+
+	// Create a topic for each directory with a numeric name.
+	for _, fi := range fis {
+		// Ignore non-directory entries.
+		if !fi.IsDir() {
+			continue
+		}
+
+		// Filename must be numeric.
+		topicID, err := strconv.ParseUint(fi.Name(), 10, 64)
+		if err != nil {
+			continue
+		}
+
+		// Create and open topic.
+		t := NewTopic(topicID)
+		if err := t.Open(filepath.Join(b.path, fi.Name())); err != nil {
+			return fmt.Errorf("open topic: id=%d, err=%s", topicID, err)
+		}
+		b.topics[t.id] = t
+	}
+
+	// Retrieve the highest index across all topics.
 	for _, t := range b.topics {
-		if topicIndex, err := t.maxIndex(); err != nil {
-			return fmt.Errorf("topic max index: topic=%d, err=%s", t.id, err)
-		} else if topicIndex > b.index {
-			b.index = topicIndex
+		if t.index > b.index {
+			b.index = t.index
 		}
 	}
+
 	return nil
 }
 
@@ -196,7 +230,7 @@ func (b *Broker) closeTopics() {
 	for _, t := range b.topics {
 		_ = t.Close()
 	}
-	b.topics = make(map[uint64]*topic)
+	b.topics = make(map[uint64]*Topic)
 }
 
 // createSnapshotHeader creates a snapshot header.
@@ -209,11 +243,17 @@ func (b *Broker) createSnapshotHeader() (*snapshotHeader, error) {
 		// Create snapshot topic.
 		st := &snapshotTopic{ID: t.id}
 
+		// TODO: Read segments from disk, not topic.
+		segments, err := ReadSegments(t.path)
+		if err != nil {
+			return nil, fmt.Errorf("read segments: %s", err)
+		}
+
 		// Add segments to topic.
-		for _, s := range t.segments {
+		for _, s := range segments {
 			// Retrieve current segment file size from disk.
 			var size int64
-			fi, err := os.Stat(s.path)
+			fi, err := os.Stat(s.Path)
 			if os.IsNotExist(err) {
 				size = 0
 			} else if err == nil {
@@ -224,15 +264,15 @@ func (b *Broker) createSnapshotHeader() (*snapshotHeader, error) {
 
 			// Append segment.
 			st.Segments = append(st.Segments, &snapshotTopicSegment{
-				Index: s.index,
+				Index: s.Index,
 				Size:  size,
-				path:  s.path,
+				path:  s.Path,
 			})
+		}
 
-			// Bump the snapshot header max index.
-			if s.index > sh.Index {
-				sh.Index = s.index
-			}
+		// Bump the snapshot header max index.
+		if t.index > sh.Index {
+			sh.Index = t.index
 		}
 
 		// Append topic to the snapshot.
@@ -299,59 +339,6 @@ func (b *Broker) PublishSync(m *Message) error {
 // Sync pauses until the given index has been applied.
 func (b *Broker) Sync(index uint64) error { return b.log.Wait(index) }
 
-// initializes a new topic object. Requires lock.
-func (b *Broker) newTopic(id uint64) *topic {
-	t := &topic{id: id, path: b.topicPath(id)}
-	b.topics[t.id] = t
-	return t
-}
-
-// creates and opens a topic if it doesn't already exist. Requires lock.
-func (b *Broker) createTopicIfNotExists(id uint64) (*topic, error) {
-	if t := b.topics[id]; t != nil {
-		return t, nil
-	}
-
-	// Open topic.
-	t := b.newTopic(id)
-	if err := t.open(); err != nil {
-		return nil, fmt.Errorf("open topic: %s", err)
-	}
-
-	return t, nil
-}
-
-func (b *Broker) mustCreateTopicIfNotExists(id uint64) *topic {
-	t, err := b.createTopicIfNotExists(id)
-	if err != nil {
-		panic(err.Error())
-	}
-	return t
-}
-
-// OpenTopicReader returns a reader on a topic that starts from a given index.
-//
-// If streaming is true then the reader is held open indefinitely and waits
-// for new messages on the topic. If streaming is false then the reader will
-// return EOF at the end of the topic.
-func (b *Broker) OpenTopicReader(topicID, index uint64, streaming bool) (io.ReadCloser, error) {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
-
-	// Exit if the broker is closed.
-	if !b.opened() {
-		return nil, ErrClosed
-	}
-
-	// Return new reader.
-	r := &topicReader{
-		path:      b.topicPath(topicID),
-		index:     index,
-		streaming: streaming,
-	}
-	return r, nil
-}
-
 // SetTopicMaxIndex updates the highest replicated index for a topic.
 // If a higher index is already set on the topic then the call is ignored.
 // This index is only held in memory and is used for topic segment reclamation.
@@ -407,10 +394,10 @@ func (b *Broker) Truncate() error {
 			minReplicaTopicIndex := b.minReplicaTopicIndex(t.id)
 
 			// Loop over segments and close as needed.
-			newSegments := make(segments, 0, len(t.segments))
+			newSegments := make(Segments, 0, len(t.segments))
 			for i, s := range t.segments {
 				// Find the next segment so we can find the upper index bound.
-				var next *segment
+				var next *Segment
 				if i < len(t.segments)-1 {
 					next = t.segments[i+1]
 				}
@@ -461,9 +448,19 @@ func (fsm *brokerFSM) MustApply(e *raft.LogEntry) {
 	case SetTopicMaxIndexMessageType:
 		b.mustApplySetTopicMaxIndex(m)
 	default:
-		t := b.mustCreateTopicIfNotExists(m.TopicID)
-		if err := t.encode(m); err != nil {
-			panic("encode: " + err.Error())
+		// Create topic if not exists.
+		t := b.topics[m.TopicID]
+		if t == nil {
+			t = NewTopic(m.TopicID)
+			if err := t.Open(b.topicPath(t.id)); err != nil {
+				panic("open topic: " + err.Error())
+			}
+			b.topics[t.id] = t
+		}
+
+		// Write message to topic.
+		if err := t.WriteMessage(m); err != nil {
+			panic("write message: " + err.Error())
 		}
 	}
 
@@ -534,6 +531,13 @@ func (fsm *brokerFSM) Restore(r io.Reader) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
+	// Remove and recreate broker path.
+	if err := os.RemoveAll(b.path); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("remove all: %s", err)
+	} else if err = os.MkdirAll(b.path, 0700); err != nil {
+		return fmt.Errorf("mkdir: %s", err)
+	}
+
 	// Read header frame.
 	var sz uint32
 	if err := binary.Read(r, binary.BigEndian, &sz); err != nil {
@@ -555,16 +559,11 @@ func (fsm *brokerFSM) Restore(r io.Reader) error {
 
 	// Copy topic files from snapshot to local disk.
 	for _, st := range sh.Topics {
-		t := b.newTopic(st.ID)
-
-		// Remove existing file if it exists.
-		if err := os.RemoveAll(t.path); err != nil && !os.IsNotExist(err) {
-			return err
-		}
+		t := NewTopic(st.ID)
 
 		// Copy data from snapshot into segment files.
 		// We don't instantiate the segments because that will be done
-		// automatically when calling open() on the topic.
+		// automatically when calling Open() on the topic.
 		for _, ss := range st.Segments {
 			if err := func() error {
 				// Create a new file with the starting index.
@@ -586,9 +585,10 @@ func (fsm *brokerFSM) Restore(r io.Reader) error {
 		}
 
 		// Open new empty topic file.
-		if err := t.open(); err != nil {
+		if err := t.Open(b.topicPath(t.id)); err != nil {
 			return fmt.Errorf("open topic: %s", err)
 		}
+		b.topics[t.id] = t
 	}
 
 	return nil
@@ -625,210 +625,163 @@ type snapshotTopicSegment struct {
 	path string
 }
 
+// DefaultMaxSegmentSize is the largest a segment can get before starting a new segment.
+const DefaultMaxSegmentSize = 10 * 1024 * 1024 // 10MB
+
 // topic represents a single named queue of messages.
 // Each topic is identified by a unique path.
 //
 // Topics write their entries to segmented log files which contain a
 // contiguous range of entries.
-type topic struct {
-	id       uint64   // unique identifier
-	index    uint64   // highest index replicated
-	path     string   // on-disk path
-	segments segments // list of available segments
+type Topic struct {
+	mu    sync.Mutex
+	id    uint64   // unique identifier
+	index uint64   // highest index replicated
+	path  string   // on-disk path
+	file  *os.File // last segment writer
+
+	// The largest a segment can get before splitting into a new segment.
+	MaxSegmentSize int64
 }
 
-// segmentPath returns the path to a segment starting with a given log index.
-func (t *topic) segmentPath(index uint64) string {
-	path := t.path
-	if path == "" {
+// NewTopic returns a new instance of topic.
+func NewTopic(id uint64) *Topic {
+	return &Topic{
+		id:             id,
+		MaxSegmentSize: DefaultMaxSegmentSize,
+	}
+}
+
+// SegmentPath returns the path to a segment starting with a given log index.
+func (t *Topic) SegmentPath(index uint64) string {
+	t.mu.Lock()
+	defer t.mu.Lock()
+	return t.segmentPath(index)
+}
+
+func (t *Topic) segmentPath(index uint64) string {
+	if t.path == "" {
 		return ""
 	}
-	return filepath.Join(path, strconv.FormatUint(index, 10))
+	return filepath.Join(t.path, strconv.FormatUint(index, 10))
 }
 
-// open opens a topic for writing.
-func (t *topic) open() error {
-	assert(len(t.segments) == 0, "topic already open: %d", t.id)
+// Open opens a topic for writing.
+func (t *Topic) Open(path string) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	// Ensure topic is not already open.
+	if t.path != "" {
+		return ErrTopicOpen
+	}
+	t.path = path
 
 	// Ensure the parent directory exists.
 	if err := os.MkdirAll(t.path, 0700); err != nil {
+		t.close()
 		return err
 	}
 
 	// Read available segments.
-	if err := t.loadSegments(); err != nil {
+	segments, err := ReadSegments(t.path)
+	if err != nil {
+		t.close()
 		return fmt.Errorf("read segments: %s", err)
 	}
 
-	return nil
-}
+	// Read max index and open file handle if we have segments.
+	if len(segments) > 0 {
+		s := segments.Last()
 
-// loadSegments reads all available segments for the topic.
-// At least one segment will always exist.
-func (t *topic) loadSegments() error {
-	// Open handle to directory.
-	f, err := os.Open(t.path)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = f.Close() }()
-
-	// Read directory items.
-	fis, err := f.Readdir(0)
-	if err != nil {
-		return err
-	}
-
-	// Create a segment for each file with a numeric name.
-	var a segments
-	for _, fi := range fis {
-		index, err := strconv.ParseUint(fi.Name(), 10, 64)
+		// Read the last segment and extract the last message index.
+		index, err := ReadSegmentMaxIndex(s.Path)
 		if err != nil {
-			continue
+			t.close()
+			return fmt.Errorf("read segment max index: %s", err)
 		}
-		a = append(a, &segment{
-			index: index,
-			path:  t.segmentPath(index),
-			size:  fi.Size(),
-		})
-	}
-	sort.Sort(a)
+		t.index = index
 
-	// Create a first segment if one doesn't exist.
-	if len(a) == 0 {
-		a = segments{&segment{index: 0, path: t.segmentPath(0), size: 0}}
-	}
-
-	t.segments = a
-
-	return nil
-}
-
-// close closes the underlying file.
-func (t *topic) Close() error {
-	for _, s := range t.segments {
-		_ = s.close()
-	}
-	return nil
-}
-
-// maxIndex reads the highest available index for a topic from disk.
-func (t *topic) maxIndex() (uint64, error) {
-	// Ignore if there are no available segments.
-	if len(t.segments) == 0 {
-		return 0, nil
-	}
-
-	// Open last segment for reading.
-	f, err := os.Open(t.segments.last().path)
-	if os.IsNotExist(err) {
-		return 0, nil
-	} else if err != nil {
-		return 0, err
-	}
-	defer func() { _ = f.Close() }()
-
-	// Read all messages.
-	index := uint64(0)
-	dec := NewMessageDecoder(bufio.NewReader(f))
-	for {
-		// Decode message.
-		var m Message
-		if err := dec.Decode(&m); err == io.EOF {
-			return index, nil
-		} else if err != nil {
-			return index, fmt.Errorf("decode: %s", err)
-		}
-
-		// Update the topic's highest index.
-		index = m.Index
-	}
-}
-
-// writeTo writes the topic to a replica. Only writes messages after replica index.
-// Returns an error if the starting index is unavailable.
-func (t *topic) writeTo(w io.Writer, index uint64) error {
-	// TODO: If index is too old then return an error.
-
-	// Loop over each segment and write if it contains entries after index.
-	segments := t.segments
-	for i, s := range segments {
-		// Determine the maximum index in the range.
-		var next *segment
-		if i < len(segments)-1 {
-			next = segments[i+1]
-		}
-
-		// If the index is after the end of the segment then ignore.
-		if next != nil && index >= next.index {
-			continue
-		}
-
-		// Otherwise write segment.
-		if err := t.writeSegmentTo(w, index, s); err != nil {
-			return fmt.Errorf("write segment(%d/%d): %s", t.id, s.index, err)
-		}
-	}
-
-	return nil
-}
-
-func (t *topic) writeSegmentTo(w io.Writer, index uint64, segment *segment) error {
-	// Open segment for reading.
-	// If it doesn't exist then just exit immediately.
-	f, err := os.Open(segment.path)
-	if os.IsNotExist(err) {
-		return nil
-	} else if err != nil {
-		return err
-	}
-	defer func() { _ = f.Close() }()
-
-	// Stream out all messages until EOF.
-	dec := NewMessageDecoder(bufio.NewReader(f))
-	for {
-		// Decode message.
-		var m Message
-		if err := dec.Decode(&m); err == io.EOF {
-			break
-		} else if err != nil {
-			return fmt.Errorf("decode: %s", err)
-		}
-
-		// Ignore message if it's on or before high water mark.
-		if m.Index <= index {
-			continue
-		}
-
-		// Write message out to stream.
-		_, err := m.WriteTo(w)
+		// Open file handle on the segment.
+		f, err := os.OpenFile(s.Path, os.O_RDWR|os.O_APPEND, 0600)
 		if err != nil {
-			return fmt.Errorf("write to: %s", err)
-		}
-	}
-
-	return nil
-}
-
-// encode writes a message to the end of the topic.
-func (t *topic) encode(m *Message) error {
-	// Retrieve the last segment.
-	s := t.segments.last()
-
-	// Close the segment if it's too large.
-	if s.size > MaxSegmentSize {
-		s.close()
-		s = nil
-	}
-
-	// Create and append a new segment if we don't have one.
-	if s == nil {
-		t.segments = append(t.segments, &segment{index: m.Index, path: t.segmentPath(m.Index)})
-	}
-	if s.file == nil {
-		if err := s.open(); err != nil {
+			t.close()
 			return fmt.Errorf("open segment: %s", err)
 		}
+		t.file = f
+	}
+
+	return nil
+}
+
+// Close closes the topic and segment writer.
+func (t *Topic) Close() error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.close()
+}
+
+func (t *Topic) close() error {
+	if t.file != nil {
+		_ = t.file.Close()
+		t.file = nil
+	}
+
+	t.path = ""
+	t.index = 0
+
+	return nil
+}
+
+// ReadIndex reads the highest available index for a topic from disk.
+func (t *Topic) ReadIndex() (uint64, error) {
+	// Read a list of all segments.
+	segments, err := ReadSegments(t.path)
+	if err != nil {
+		return 0, fmt.Errorf("read segments: %s", err)
+	}
+
+	// Ignore if there are no available segments.
+	if len(segments) == 0 {
+		return 0, nil
+	}
+
+	// Read highest index on the last segment.
+	index, err := ReadSegmentMaxIndex(segments.Last().Path)
+	if err != nil {
+		return 0, fmt.Errorf("read segment max index: %s", err)
+	}
+
+	return index, nil
+}
+
+// WriteMessage writes a message to the end of the topic.
+func (t *Topic) WriteMessage(m *Message) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	// Return error if message index is lower than the topic's highest index.
+	if m.Index <= t.index {
+		return ErrStaleWrite
+	}
+
+	// Close the current file handle if it's too large.
+	if t.file != nil {
+		if fi, err := t.file.Stat(); err != nil {
+			return fmt.Errorf("stat: %s", err)
+		} else if fi.Size() > t.MaxSegmentSize {
+			_ = t.file.Close()
+			t.file = nil
+		}
+	}
+
+	// Create a new segment if we have no handle.
+	if t.file == nil {
+		f, err := os.OpenFile(t.segmentPath(m.Index), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+		if err != nil {
+			return fmt.Errorf("create segment file: %s", err)
+		}
+		t.file = f
 	}
 
 	// Encode message.
@@ -836,87 +789,169 @@ func (t *topic) encode(m *Message) error {
 	copy(b, m.marshalHeader())
 	copy(b[messageHeaderSize:], m.Data)
 
-	// Write to segment.
-	if _, err := s.file.Write(b); err != nil {
+	// Write to last segment.
+	if _, err := t.file.Write(b); err != nil {
 		return fmt.Errorf("write segment: %s", err)
 	}
 
 	return nil
 }
 
-// segment represents a contiguous section of a topic log.
-type segment struct {
-	index uint64 // starting index of the segment and name
-	path  string // path to the segment file.
-	size  int64  // total size of the segment file, in bytes.
-
-	file *os.File // handle for writing, only open for last segment
+// Segment represents a contiguous section of a topic log.
+type Segment struct {
+	Index uint64 // starting index of the segment and name
+	Path  string // path to the segment file.
 }
 
-// open opens the file handle for append.
-func (s *segment) open() error {
-	f, err := os.OpenFile(s.path, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0600)
+// Size returns the file size of the segment.
+func (s *Segment) Size() (int64, error) {
+	fi, err := os.Stat(s.Path)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	s.file = f
-	return nil
+	return fi.Size(), nil
 }
 
-// close closes the segment's writing file handle.
-func (s *segment) close() error {
-	if s.file != nil {
-		err := s.file.Close()
-		s.file = nil
-		return err
-	}
-	return nil
-}
+// Segments represents a list of segments sorted by index.
+type Segments []*Segment
 
-// segments represents a list of segments sorted by index.
-type segments []*segment
-
-// last returns the last segment in the slice.
-// Returns nil if there are no elements.
-func (a segments) last() *segment {
+// Last returns the last segment in the slice.
+// Returns nil if there are no segments.
+func (a Segments) Last() *Segment {
 	if len(a) == 0 {
 		return nil
 	}
 	return a[len(a)-1]
 }
 
-func (a segments) Len() int           { return len(a) }
-func (a segments) Less(i, j int) bool { return a[i].index < a[j].index }
-func (a segments) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a Segments) Len() int           { return len(a) }
+func (a Segments) Less(i, j int) bool { return a[i].Index < a[j].Index }
+func (a Segments) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
-// topicReader reads data on a single topic from a given index.
-type topicReader struct {
+// ReadSegments reads all segments from a directory path.
+func ReadSegments(path string) (Segments, error) {
+	// Open handle to directory.
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = f.Close() }()
+
+	// Read directory items.
+	fis, err := f.Readdir(0)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create a segment for each file with a numeric name.
+	var a Segments
+	for _, fi := range fis {
+		index, err := strconv.ParseUint(fi.Name(), 10, 64)
+		if err != nil {
+			continue
+		}
+
+		a = append(a, &Segment{
+			Index: index,
+			Path:  filepath.Join(path, fi.Name()),
+		})
+	}
+	sort.Sort(a)
+
+	return a, nil
+}
+
+// ReadSegmentByIndex returns the segment that contains a given index.
+func ReadSegmentByIndex(path string, index uint64) (*Segment, error) {
+	// Find a list of all segments.
+	segments, err := ReadSegments(path)
+	if err != nil {
+		return nil, fmt.Errorf("read segments: %s", err)
+	}
+
+	// If there are no segments then ignore.
+	// If index is zero then start from the first segment.
+	// If index is less than the first segment range then return error.
+	if len(segments) == 0 {
+		return nil, nil
+	} else if index == 0 {
+		return segments[0], nil
+	} else if index < segments[0].Index {
+		return nil, ErrSegmentReclaimed
+	}
+
+	// Find segment that contains index.
+	for i := range segments[:len(segments)-1] {
+		if index >= segments[i].Index && index < segments[i+1].Index {
+			return segments[i], nil
+		}
+	}
+
+	// If no segment ranged matched then return the last segment.
+	return segments[len(segments)-1], nil
+}
+
+// ReadSegmentMaxIndex returns the highest index recorded in a segment.
+func ReadSegmentMaxIndex(path string) (uint64, error) {
+	// Open segment file.
+	f, err := os.Open(path)
+	if err != nil {
+		return 0, fmt.Errorf("open: %s", err)
+	}
+	defer func() { _ = f.Close() }()
+
+	// Read all messages until the end.
+	dec := NewMessageDecoder(f)
+	index := uint64(0)
+	for {
+		var m Message
+		if err := dec.Decode(&m); err == io.EOF {
+			return index, nil
+		} else if err != nil {
+			return 0, fmt.Errorf("decode: %s", err)
+		}
+		index = m.Index
+	}
+}
+
+// TopicReader reads data on a single topic from a given index.
+type TopicReader struct {
 	mu        sync.Mutex
 	path      string // topic directory path
 	index     uint64 // starting index
-	streaming bool   // true if reader should wait indefinitely
+	streaming bool   // true if reader should hang and wait for new messages
 
-	segment uint64   // current segment index
-	file    *os.File // current segment file handler
-	closed  bool
+	file   *os.File // current segment file handler
+	closed bool
+}
+
+// NewTopicReader returns a new instance of TopicReader that reads segments
+// from a path starting from a given index.
+func NewTopicReader(path string, index uint64, streaming bool) *TopicReader {
+	return &TopicReader{
+		path:      path,
+		index:     index,
+		streaming: streaming,
+	}
 }
 
 // Read reads the next bytes from the reader into the buffer.
-func (r *topicReader) Read(p []byte) (int, error) {
-	// Retrieve current segment file handle.
-	f, err := r.File()
-	if err != nil {
-		return 0, fmt.Errorf("file: %s", err)
-	}
-
-	// Read from underlying file.
+func (r *TopicReader) Read(p []byte) (int, error) {
 	for {
+		// Retrieve current segment file handle.
+		f, err := r.File()
+		if err != nil {
+			return 0, fmt.Errorf("file: %s", err)
+		} else if f == nil {
+			return 0, io.EOF
+		}
+
 		// Write data to buffer.
 		// If no more data is available, then retry with the next segment.
 		if n, err := r.Read(p); err == io.EOF {
 			f, err = r.NextFile()
 			if err != nil {
-				return fmt.Errorf("next: %s", err)
+				return 0, fmt.Errorf("next: %s", err)
 			}
 			continue
 		} else {
@@ -927,45 +962,47 @@ func (r *topicReader) Read(p []byte) (int, error) {
 
 // File returns the current segment file handle.
 // Returns nil when there is no more data left.
-func (r *topicReader) File() (*os.File, error) {
+func (r *TopicReader) File() (*os.File, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	// Exit if closed.
 	if r.closed {
-		return errors.New("topic reader closed")
+		return nil, errors.New("topic reader closed")
 	}
 
 	// If the first file hasn't been opened then open it and seek.
 	if r.file == nil {
 		// Find the segment containing the index.
-		segment, err := r.segmentByIndex(r.index)
+		// Exit if no segments are available.
+		segment, err := ReadSegmentByIndex(r.path, r.index)
 		if err != nil {
-			return fmt.Errorf("segment by index: %s", err)
+			return nil, fmt.Errorf("segment by index: %s", err)
+		} else if segment == nil {
+			return nil, nil
 		}
 
 		// Open that segment file.
-		f, err := os.Open(filepath.Join(r.path, strconv.FormatUint(segment, 10)))
+		f, err := os.Open(filepath.Join(r.path, segment.Path))
 		if err != nil {
-			return fmt.Errorf("open: %s", err)
+			return nil, fmt.Errorf("open: %s", err)
 		}
 
 		// Seek to index.
-		if err := r.seekAfterIndex(f); err != nil {
+		if err := r.seekAfterIndex(f, r.index); err != nil {
 			_ = f.Close()
-			return fmt.Errorf("seek to index: %s", err)
+			return nil, fmt.Errorf("seek to index: %s", err)
 		}
 
 		// Save file handle and segment name.
 		r.file = f
-		r.segment = segment
 	}
 
-	return r.file
+	return r.file, nil
 }
 
 // seekAfterIndex moves a segment file to the message after a given index.
-func (r *topicReader) seekAfterIndex(f *os.File, seek uint64) error {
+func (r *TopicReader) seekAfterIndex(f *os.File, seek uint64) error {
 	dec := NewMessageDecoder(f)
 	for {
 		var m Message
@@ -978,16 +1015,15 @@ func (r *topicReader) seekAfterIndex(f *os.File, seek uint64) error {
 }
 
 // NextFile closes the current segment's file handle and opens the next segment.
-func (r *topicReader) NextFile() (*os.File, error) {
+func (r *TopicReader) NextFile() (*os.File, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	//
-
+	panic("not yet implemented")
 }
 
 // Close closes the reader.
-func (r *topicReader) Close() error {
+func (r *TopicReader) Close() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -1000,7 +1036,7 @@ func (r *topicReader) Close() error {
 	// Mark reader as closed.
 	r.closed = true
 
-	return
+	return nil
 }
 
 // MessageType represents the type of message.
