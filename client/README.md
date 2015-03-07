@@ -4,7 +4,7 @@ InfluxDB Go Client Library
 # package client
 
 ```go
-    import "github.com/influxdb/influxdb/client"
+import "github.com/influxdb/influxdb/client"
  ```
 
 
@@ -13,14 +13,13 @@ InfluxDB Go Client Library
 ```go
 func EpochToTime(epoch int64, precision string) (time.Time, error)
 ```
-
-    EpochToTime takes a unix epoch time and uses precision to return back a
-    time.Time
+EpochToTime takes a unix epoch time and uses precision to return back a
+time.Time
 
 ```go
 func SetPrecision(t time.Time, precision string) time.Time
 ```
-    SetPrecision will round a time to the specified precision
+SetPrecision will round a time to the specified precision
 
 #TYPES
 
