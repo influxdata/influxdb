@@ -201,7 +201,8 @@ type Results struct {
 	Err     error
 }
 
-func (r Results) MarshalJSON() ([]byte, error) {
+// MarshalJSON encodes the result into JSON.
+func (r *Results) MarshalJSON() ([]byte, error) {
 	// Define a struct that outputs "error" as a string.
 	var o struct {
 		Results []Result `json:"results,omitempty"`
