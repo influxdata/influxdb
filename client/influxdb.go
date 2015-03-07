@@ -47,6 +47,9 @@ func (c *Client) Query(q Query) (*Results, error) {
 	u := c.url
 
 	u.Path = "query"
+	if c.username != "" {
+		u.User = url.UserPassword(c.username, c.password)
+	}
 	values := u.Query()
 	values.Set("q", q.Command)
 	values.Set("db", q.Database)
