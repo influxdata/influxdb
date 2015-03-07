@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"time"
@@ -99,15 +98,11 @@ func (c *Client) Write(bp BatchPoints) (*Results, error) {
 	defer resp.Body.Close()
 
 	var results Results
-	body, _ := ioutil.ReadAll(resp.Body)
-	if len(body) > 0 {
-		dec := json.NewDecoder(bytes.NewReader(body))
-		dec.UseNumber()
-		err = dec.Decode(&results)
-
-		if err != nil {
-			return nil, err
-		}
+	dec := json.NewDecoder(resp.Body)
+	dec.UseNumber()
+	err = dec.Decode(&results)
+	if err != nil && err.Error() != "EOF" {
+		return nil, err
 	}
 
 	if resp.StatusCode != http.StatusOK {
