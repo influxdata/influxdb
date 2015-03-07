@@ -13,6 +13,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"compress/gzip"
@@ -302,74 +303,40 @@ func (h *Handler) serveWait(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var d time.Duration
-	if timeout == 0 {
-		d = math.MaxInt64
-	} else {
-		d = time.Duration(timeout) * time.Millisecond
+	var (
+		timedOut int32
+		aborted  int32
+		timer    = time.NewTimer(time.Duration(math.MaxInt64))
+	)
+	defer timer.Stop()
+	if timeout > 0 {
+		timer.Reset(time.Duration(timeout) * time.Millisecond)
+		go func() {
+			<-timer.C
+			atomic.StoreInt32(&timedOut, 1)
+		}()
 	}
-	poller := &indexPoller{
-		h:    h,
-		quit: make(chan bool),
-	}
+
 	if notify, ok := w.(http.CloseNotifier); ok {
-		go func(poller *indexPoller) {
+		go func() {
 			<-notify.CloseNotify()
-			poller.Quit()
-		}(poller)
+			atomic.StoreInt32(&aborted, 1)
+		}()
 	}
 
-	err := poller.PollForIndex(index, d)
-	switch err {
-	case errPollTimedOut:
-		w.WriteHeader(http.StatusRequestTimeout)
-	case nil:
-		w.Write([]byte(fmt.Sprintf("%d", h.server.Index())))
-	}
-}
-
-type indexPoller struct {
-	h    *Handler
-	quit chan bool
-}
-
-var (
-	errPollTimedOut = errors.New("timed out")
-	errAborted      = errors.New("aborted")
-)
-
-func (p *indexPoller) PollForIndex(index uint64, timeout time.Duration) error {
-	aborted := make(chan bool)
-	done := make(chan bool)
-	go func() {
-		for {
-			select {
-			case <-p.quit:
-				aborted <- true
-				return
-			default:
-				if p.h.server.Index() >= index {
-					done <- true
-					return
-				}
-				time.Sleep(10 * time.Millisecond)
-			}
+	for {
+		if idx := h.server.Index(); idx >= index {
+			w.Write([]byte(fmt.Sprintf("%d", idx)))
+			break
+		} else if atomic.LoadInt32(&aborted) == 1 {
+			break
+		} else if atomic.LoadInt32(&timedOut) == 1 {
+			w.WriteHeader(http.StatusRequestTimeout)
+			break
+		} else {
+			time.Sleep(10 * time.Millisecond)
 		}
-	}()
-
-	select {
-	case <-time.After(timeout):
-		p.Quit()
-		return errPollTimedOut
-	case <-aborted:
-		return errAborted
-	case <-done:
-		return nil
 	}
-}
-
-func (p *indexPoller) Quit() {
-	p.quit <- true
 }
 
 // serveDataNodes returns a list of all data nodes in the cluster.
