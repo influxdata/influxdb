@@ -13,9 +13,10 @@ import (
 )
 
 type Config struct {
-	URL      url.URL
-	Username string
-	Password string
+	URL       url.URL
+	Username  string
+	Password  string
+	UserAgent string
 }
 
 type Client struct {
@@ -23,6 +24,7 @@ type Client struct {
 	username   string
 	password   string
 	httpClient *http.Client
+	userAgent  string
 }
 
 type Query struct {
@@ -42,6 +44,7 @@ func NewClient(c Config) (*Client, error) {
 		username:   c.Username,
 		password:   c.Password,
 		httpClient: &http.Client{},
+		userAgent:  c.UserAgent,
 	}
 	return &client, nil
 }
@@ -55,7 +58,14 @@ func (c *Client) Query(q Query) (*Results, error) {
 	values.Set("db", q.Database)
 	u.RawQuery = values.Encode()
 
-	resp, err := c.httpClient.Get(u.String())
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	if c.userAgent != "" {
+		req.Header.Set("User-Agent", c.userAgent)
+	}
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +97,15 @@ func (c *Client) Write(writes ...Write) (*Results, error) {
 	b := []byte{}
 	err := json.Unmarshal(b, &d)
 
-	resp, err := c.httpClient.Post(c.url.String(), "application/json", bytes.NewBuffer(b))
+	req, err := http.NewRequest("POST", c.url.String(), bytes.NewBuffer(b))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if c.userAgent != "" {
+		req.Header.Set("User-Agent", c.userAgent)
+	}
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +126,15 @@ func (c *Client) Ping() (time.Duration, string, error) {
 	now := time.Now()
 	u := c.url
 	u.Path = "ping"
-	resp, err := c.httpClient.Get(u.String())
+
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		return 0, "", err
+	}
+	if c.userAgent != "" {
+		req.Header.Set("User-Agent", c.userAgent)
+	}
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return 0, "", err
 	}
@@ -120,20 +146,20 @@ func (c *Client) Ping() (time.Duration, string, error) {
 
 // Result represents a resultset returned from a single statement.
 type Result struct {
-	Rows []influxql.Row
-	Err  error
+	Series []influxql.Row
+	Err    error
 }
 
 // MarshalJSON encodes the result into JSON.
 func (r *Result) MarshalJSON() ([]byte, error) {
 	// Define a struct that outputs "error" as a string.
 	var o struct {
-		Rows []influxql.Row `json:"rows,omitempty"`
-		Err  string         `json:"error,omitempty"`
+		Series []influxql.Row `json:"series,omitempty"`
+		Err    string         `json:"error,omitempty"`
 	}
 
 	// Copy fields to output struct.
-	o.Rows = r.Rows
+	o.Series = r.Series
 	if r.Err != nil {
 		o.Err = r.Err.Error()
 	}
@@ -144,8 +170,8 @@ func (r *Result) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON decodes the data into the Result struct
 func (r *Result) UnmarshalJSON(b []byte) error {
 	var o struct {
-		Rows []influxql.Row `json:"rows,omitempty"`
-		Err  string         `json:"error,omitempty"`
+		Series []influxql.Row `json:"series,omitempty"`
+		Err    string         `json:"error,omitempty"`
 	}
 
 	dec := json.NewDecoder(bytes.NewBuffer(b))
@@ -154,7 +180,7 @@ func (r *Result) UnmarshalJSON(b []byte) error {
 	if err != nil {
 		return err
 	}
-	r.Rows = o.Rows
+	r.Series = o.Series
 	if o.Err != "" {
 		r.Err = errors.New(o.Err)
 	}
@@ -232,12 +258,12 @@ func (t Timestamp) MarshalJSON() ([]byte, error) {
 	return []byte(`"` + s + `"`), nil
 }
 
-// Point defines the values that will be written to the database
+// Point defines the fields that will be written to the database
 type Point struct {
 	Name      string                 `json:"name"`
 	Tags      map[string]string      `json:"tags"`
 	Timestamp Timestamp              `json:"timestamp"`
-	Values    map[string]interface{} `json:"values"`
+	Fields    map[string]interface{} `json:"fields"`
 	Precision string                 `json:"precision"`
 }
 
@@ -248,14 +274,14 @@ func (p *Point) UnmarshalJSON(b []byte) error {
 		Tags      map[string]string      `json:"tags"`
 		Timestamp time.Time              `json:"timestamp"`
 		Precision string                 `json:"precision"`
-		Values    map[string]interface{} `json:"values"`
+		Fields    map[string]interface{} `json:"fields"`
 	}
 	var epoch struct {
 		Name      string                 `json:"name"`
 		Tags      map[string]string      `json:"tags"`
 		Timestamp *int64                 `json:"timestamp"`
 		Precision string                 `json:"precision"`
-		Values    map[string]interface{} `json:"values"`
+		Fields    map[string]interface{} `json:"fields"`
 	}
 
 	if err := func() error {
@@ -278,7 +304,7 @@ func (p *Point) UnmarshalJSON(b []byte) error {
 		p.Tags = epoch.Tags
 		p.Timestamp = Timestamp(ts)
 		p.Precision = epoch.Precision
-		p.Values = normalizeValues(epoch.Values)
+		p.Fields = normalizeFields(epoch.Fields)
 		return nil
 	}(); err == nil {
 		return nil
@@ -294,28 +320,28 @@ func (p *Point) UnmarshalJSON(b []byte) error {
 	p.Tags = normal.Tags
 	p.Timestamp = Timestamp(normal.Timestamp)
 	p.Precision = normal.Precision
-	p.Values = normalizeValues(normal.Values)
+	p.Fields = normalizeFields(normal.Fields)
 
 	return nil
 }
 
 // Remove any notion of json.Number
-func normalizeValues(values map[string]interface{}) map[string]interface{} {
-	newValues := map[string]interface{}{}
+func normalizeFields(fields map[string]interface{}) map[string]interface{} {
+	newFields := map[string]interface{}{}
 
-	for k, v := range values {
+	for k, v := range fields {
 		switch v := v.(type) {
 		case json.Number:
 			jv, e := v.Float64()
 			if e != nil {
 				panic(fmt.Sprintf("unable to convert json.Number to float64: %s", e))
 			}
-			newValues[k] = jv
+			newFields[k] = jv
 		default:
-			newValues[k] = v
+			newFields[k] = v
 		}
 	}
-	return newValues
+	return newFields
 }
 
 // utility functions

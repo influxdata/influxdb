@@ -69,12 +69,12 @@ func (p *Parser) Parse(line string) (influxdb.Point, error) {
 		return influxdb.Point{}, err
 	}
 
-	values := make(map[string]interface{})
+	fieldValues := make(map[string]interface{})
 	// Determine if value is a float or an int.
 	if i := int64(v); float64(i) == v {
-		values[name] = int64(v)
+		fieldValues[name] = int64(v)
 	} else {
-		values[name] = v
+		fieldValues[name] = v
 	}
 
 	// Parse timestamp.
@@ -88,7 +88,7 @@ func (p *Parser) Parse(line string) (influxdb.Point, error) {
 	point := influxdb.Point{
 		Name:      name,
 		Tags:      tags,
-		Values:    values,
+		Fields:    fieldValues,
 		Timestamp: timestamp,
 	}
 

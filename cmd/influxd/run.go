@@ -20,9 +20,12 @@ import (
 	"github.com/influxdb/influxdb/graphite"
 	"github.com/influxdb/influxdb/httpd"
 	"github.com/influxdb/influxdb/messaging"
+	"github.com/influxdb/influxdb/udp"
 )
 
 func Run(config *Config, join, version string, logWriter *os.File) (*messaging.Broker, *influxdb.Server) {
+	log.Printf("influxdb started, version %s, commit %s", version, commit)
+
 	// Parse the configuration and determine if a broker and/or server exist.
 	configExists := config != nil
 	if config == nil {
@@ -54,7 +57,11 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 		log.Printf("broker listening on %s", config.BrokerAddr())
 
 		// have it occasionally tell a data node in the cluster to run continuous queries
-		b.RunContinuousQueryLoop()
+		if config.ContinuousQuery.Disable {
+			log.Printf("Not running continuous queries. [continuous_queries].disable is set to true.")
+		} else {
+			b.RunContinuousQueryLoop()
+		}
 	}
 
 	// Open server, initialize or join as necessary.
@@ -73,6 +80,9 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 	// Start the server handler. Attach to broker if listening on the same port.
 	if s != nil {
 		sh := httpd.NewHandler(s, config.Authentication.Enabled, version)
+		sh.SetLogOutput(logWriter)
+		sh.WriteTrace = config.Logging.WriteTraceEnabled
+
 		if h != nil && config.BrokerAddr() == config.DataAddr() {
 			h.serverHandler = sh
 		} else {
@@ -102,6 +112,16 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 			if err != nil {
 				log.Printf("failed to start collectd Server: %v\n", err.Error())
 			}
+		}
+
+		// Start the server bound to a UDP listener
+		if config.UDP.Enabled {
+			log.Printf("Starting UDP listener on %s", config.DataAddrUDP())
+			u := udp.NewUDPServer(s)
+			if err := u.ListenAndServe(config.DataAddrUDP()); err != nil {
+				log.Printf("Failed to start UDP listener on %s: %s", config.DataAddrUDP(), err)
+			}
+
 		}
 
 		// Spin up any Graphite servers
@@ -135,6 +155,13 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 			}
 		}
 	}
+
+	// unless disabled, start the loop to report anonymous usage stats every 24h
+	if !config.ReportingDisabled {
+		clusterID := b.Broker.Log().Config().ClusterID
+		go s.StartReportingLoop(version, clusterID)
+	}
+
 	return b.Broker, s
 }
 
@@ -238,6 +265,7 @@ func openServer(config *Config, b *influxdb.Broker, initializing, configExists b
 	// Create and open the server.
 	s := influxdb.NewServer()
 	s.SetLogOutput(w)
+	s.WriteTrace = config.Logging.WriteTraceEnabled
 	s.RecomputePreviousN = config.ContinuousQuery.RecomputePreviousN
 	s.RecomputeNoOlderThan = time.Duration(config.ContinuousQuery.RecomputeNoOlderThan)
 	s.ComputeRunsPerInterval = config.ContinuousQuery.ComputeRunsPerInterval

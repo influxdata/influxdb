@@ -389,3 +389,22 @@ func (r *Row) tagsKeys() []string {
 	sort.Strings(a)
 	return a
 }
+
+// Rows represents a list of rows that can be sorted consistently by name/tag.
+type Rows []*Row
+
+func (p Rows) Len() int { return len(p) }
+
+func (p Rows) Less(i, j int) bool {
+	// Sort by name first.
+	if p[i].Name != p[j].Name {
+		return p[i].Name < p[j].Name
+	}
+
+	// Sort by tag set hash. Tags don't have a meaningful sort order so we
+	// just compute a hash and sort by that instead. This allows the tests
+	// to receive rows in a predictable order every time.
+	return p[i].tagsHash() < p[j].tagsHash()
+}
+
+func (p Rows) Swap(i, j int) { p[i], p[j] = p[j], p[i] }

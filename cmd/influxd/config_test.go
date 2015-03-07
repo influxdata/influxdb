@@ -54,12 +54,20 @@ func TestParseConfig(t *testing.T) {
 		t.Fatalf("authentication enabled mismatch: %v", c.Authentication.Enabled)
 	}
 
+	if c.UDP.Enabled {
+		t.Fatalf("udp enabled mismatch: %v", c.UDP.Enabled)
+	}
+
 	if c.Admin.Enabled != true {
 		t.Fatalf("admin enabled mismatch: %v", c.Admin.Enabled)
 	}
 
 	if c.Admin.Port != 8083 {
 		t.Fatalf("admin port mismatch: %v", c.Admin.Port)
+	}
+
+	if c.ContinuousQuery.Disable == true {
+		t.Fatalf("continuous query disable mismatch: %v", c.ContinuousQuery.Disable)
 	}
 
 	if c.Data.Port != main.DefaultBrokerPort {
@@ -166,6 +174,7 @@ enabled = true
 
 [logging]
 file   = "influxdb.log"
+write-tracing = true
 
 # Configure the admin server
 [admin]
@@ -229,6 +238,9 @@ dir  = "/tmp/influxdb/development/broker"
 dir = "/tmp/influxdb/development/db"
 retention-check-enabled = true
 retention-check-period = "5m"
+
+[continuous_queries]
+disable = false
 
 [cluster]
 dir = "/tmp/influxdb/development/cluster"

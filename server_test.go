@@ -330,7 +330,7 @@ func TestServer_DropDatabase(t *testing.T) {
 	s.Restart()
 
 	// Drop the "foo" database and verify that it's gone.
-	if err := s.DeleteDatabase("foo"); err != nil {
+	if err := s.DropDatabase("foo"); err != nil {
 		t.Fatal(err)
 	} else if s.DatabaseExists("foo") {
 		t.Fatalf("database not actually dropped")
@@ -343,7 +343,7 @@ func TestServer_DropDatabase_ErrDatabaseNotFound(t *testing.T) {
 	defer s.Close()
 
 	// Drop a database that doesn't exist.
-	if err := s.DeleteDatabase("no_such_db"); err != influxdb.ErrDatabaseNotFound {
+	if err := s.DropDatabase("no_such_db"); err != influxdb.ErrDatabaseNotFound {
 		t.Fatal(err)
 	}
 }
@@ -625,6 +625,24 @@ func TestServer_AlterRetentionPolicy(t *testing.T) {
 	} else if o.ReplicaN != *rp2.ReplicaN {
 		t.Fatalf("retention policy mismatch:\n\texp ReplicaN = %d\n\tgot ReplicaN = %d\n", rp2.ReplicaN, o.ReplicaN)
 	}
+
+	// Test update duration only.
+	duration = time.Hour
+	results := s.ExecuteQuery(MustParseQuery(`ALTER RETENTION POLICY bar ON foo DURATION 1h`), "foo", nil)
+	if results.Error() != nil {
+		t.Fatalf("unexpected error: %s", results.Error())
+	}
+
+	// Verify results
+	if o, err := s.RetentionPolicy("foo", "bar"); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if o == nil {
+		t.Fatalf("retention policy not found")
+	} else if o.Duration != duration {
+		t.Fatalf("retention policy mismatch:\n\texp Duration = %s\n\tgot Duration = %s\n", duration, o.Duration)
+	} else if o.ReplicaN != *rp2.ReplicaN {
+		t.Fatalf("retention policy mismatch:\n\texp ReplicaN = %d\n\tgot ReplicaN = %d\n", rp2.ReplicaN, o.ReplicaN)
+	}
 }
 
 // Ensure the server can delete an existing retention policy.
@@ -788,7 +806,7 @@ func TestServer_WriteSeries(t *testing.T) {
 
 	// Write series with one point to the database.
 	tags := map[string]string{"host": "servera.influx.com", "region": "uswest"}
-	index, err := s.WriteSeries("foo", "mypolicy", []influxdb.Point{{Name: "cpu_load", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(23.2)}}})
+	index, err := s.WriteSeries("foo", "mypolicy", []influxdb.Point{{Name: "cpu_load", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
 	if err != nil {
 		t.Fatal(err)
 	} else if err = s.Sync(index); err != nil {
@@ -796,7 +814,7 @@ func TestServer_WriteSeries(t *testing.T) {
 	}
 
 	// Write another point 10 seconds later so it goes through "raw series".
-	index, err = s.WriteSeries("foo", "mypolicy", []influxdb.Point{{Name: "cpu_load", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:10Z"), Values: map[string]interface{}{"value": float64(100)}}})
+	index, err = s.WriteSeries("foo", "mypolicy", []influxdb.Point{{Name: "cpu_load", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:10Z"), Fields: map[string]interface{}{"value": float64(100)}}})
 	if err != nil {
 		t.Fatal(err)
 	} else if err = s.Sync(index); err != nil {
@@ -830,6 +848,426 @@ func TestServer_WriteSeries(t *testing.T) {
 	}
 }
 
+// Ensure the server can drop a measurement.
+func TestServer_DropMeasurement(t *testing.T) {
+	c := NewMessagingClient()
+	s := OpenServer(c)
+	defer s.Close()
+	s.CreateDatabase("foo")
+	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "raw", Duration: 1 * time.Hour})
+	s.SetDefaultRetentionPolicy("foo", "raw")
+	s.CreateUser("susy", "pass", false)
+
+	// Write series with one point to the database.
+	tags := map[string]string{"host": "serverA", "region": "uswest"}
+	index, err := s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	if err != nil {
+		t.Fatal(err)
+	} else if err = s.Sync(index); err != nil {
+		t.Fatalf("sync error: %s", err)
+	}
+
+	// Ensure measurement exists
+	results := s.ExecuteQuery(MustParseQuery(`SHOW MEASUREMENTS`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 1 {
+		t.Fatalf("unexpected row count: %d", len(res.Series))
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"measurements","columns":["name"],"values":[["cpu"]]}]}` {
+		t.Fatalf("unexpected row(0): %s", s)
+	}
+
+	// Ensure series exists
+	results = s.ExecuteQuery(MustParseQuery(`SHOW SERIES`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 1 {
+		t.Fatalf("unexpected row count: %d", len(res.Series))
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["id","host","region"],"values":[[1,"serverA","uswest"]]}]}` {
+		t.Fatalf("unexpected row(0): %s", s)
+	}
+
+	// Drop measurement
+	results = s.ExecuteQuery(MustParseQuery(`DROP MEASUREMENT cpu`), "foo", nil)
+	if results.Error() != nil {
+		t.Fatalf("unexpected error: %s", results.Error())
+	}
+
+	results = s.ExecuteQuery(MustParseQuery(`SHOW MEASUREMENTS`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 0 {
+		t.Fatalf("unexpected row count: %d", len(res.Series))
+	} else if s := mustMarshalJSON(res); s != `{}` {
+		t.Fatalf("unexpected row(0): %s", s)
+	}
+
+	results = s.ExecuteQuery(MustParseQuery(`SHOW SERIES`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 0 {
+		t.Fatalf("unexpected row count: %d", len(res.Series))
+	} else if s := mustMarshalJSON(res); s != `{}` {
+		t.Fatalf("unexpected row(0): %s", s)
+	}
+}
+
+// Ensure the server can handles drop measurement if none exists.
+func TestServer_DropMeasurementNoneExists(t *testing.T) {
+	c := NewMessagingClient()
+	s := OpenServer(c)
+	defer s.Close()
+	s.CreateDatabase("foo")
+	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "raw", Duration: 1 * time.Hour})
+	s.SetDefaultRetentionPolicy("foo", "raw")
+	s.CreateUser("susy", "pass", false)
+
+	// Drop measurement
+	results := s.ExecuteQuery(MustParseQuery(`DROP MEASUREMENT bar`), "foo", nil)
+	if results.Error().Error() != `measurement not found` {
+		t.Fatalf("unexpected error: %s", results.Error())
+	}
+
+	// Write series with one point to the database.
+	tags := map[string]string{"host": "serverA", "region": "uswest"}
+	index, err := s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	if err != nil {
+		t.Fatal(err)
+	} else if err = s.Sync(index); err != nil {
+		t.Fatalf("sync error: %s", err)
+	}
+
+	// Drop measurement after writing data to ensure we still get the same error
+	results = s.ExecuteQuery(MustParseQuery(`DROP MEASUREMENT bar`), "foo", nil)
+	if results.Error().Error() != `measurement not found` {
+		t.Fatalf("unexpected error: %s", results.Error())
+	}
+}
+
+// Ensure Drop measurement can:
+// write to measurement cpu with tags region=uswest host=serverA
+// write to measurement memory with tags region=uswest host=serverB
+// drop one of those measurements
+// ensure that the dropped measurement is gone
+// ensure that we can still query: show measurements
+// ensure that we can still make various queries:
+//    select * from memory where region=uswest and host=serverb
+//    select * from memory where host=serverb
+//    select * from memory where region=uswest
+func TestServer_DropMeasurementSeriesTagsPreserved(t *testing.T) {
+	c := NewMessagingClient()
+	s := OpenServer(c)
+	defer s.Close()
+	s.CreateDatabase("foo")
+	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "raw", Duration: 1 * time.Hour})
+	s.SetDefaultRetentionPolicy("foo", "raw")
+	s.CreateUser("susy", "pass", false)
+
+	// Write series with one point to the database.
+	tags := map[string]string{"host": "serverA", "region": "uswest"}
+	index, err := s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	if err != nil {
+		t.Fatal(err)
+	} else if err = s.Sync(index); err != nil {
+		t.Fatalf("sync error: %s", err)
+	}
+
+	tags = map[string]string{"host": "serverB", "region": "uswest"}
+	index, err = s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "memory", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:01Z"), Fields: map[string]interface{}{"value": float64(33.2)}}})
+	if err != nil {
+		t.Fatal(err)
+	} else if err = s.Sync(index); err != nil {
+		t.Fatalf("sync error: %s", err)
+	}
+
+	// Ensure measurement exists
+	results := s.ExecuteQuery(MustParseQuery(`SHOW MEASUREMENTS`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 1 {
+		t.Fatalf("unexpected row count: %d", len(res.Series))
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"measurements","columns":["name"],"values":[["cpu"],["memory"]]}]}` {
+		t.Fatalf("unexpected row(0): %s", s)
+	}
+
+	results = s.ExecuteQuery(MustParseQuery(`SHOW SERIES`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 2 {
+		t.Fatalf("unexpected row count: %d", len(res.Series))
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["id","host","region"],"values":[[1,"serverA","uswest"]]},{"name":"memory","columns":["id","host","region"],"values":[[2,"serverB","uswest"]]}]}` {
+		t.Fatalf("unexpected row(0): %s", s)
+	}
+
+	// Ensure we can query for memory with both tags
+	results = s.ExecuteQuery(MustParseQuery(`SELECT * FROM memory where region='uswest' and host='serverB'`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 1 {
+		t.Fatalf("unexpected row count: %d", len(res.Series))
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"memory","columns":["time","value"],"values":[["2000-01-01T00:00:01Z",33.2]]}]}` {
+		t.Fatalf("unexpected row(0): %s", s)
+	}
+
+	// Drop measurement
+	results = s.ExecuteQuery(MustParseQuery(`DROP MEASUREMENT cpu`), "foo", nil)
+	if results.Error() != nil {
+		t.Fatalf("unexpected error: %s", results.Error())
+	}
+
+	// Ensure measurement exists
+	results = s.ExecuteQuery(MustParseQuery(`SHOW MEASUREMENTS`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 1 {
+		t.Fatalf("unexpected row count: %d", len(res.Series))
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"measurements","columns":["name"],"values":[["memory"]]}]}` {
+		t.Fatalf("unexpected row(0): %s", s)
+	}
+
+	results = s.ExecuteQuery(MustParseQuery(`SHOW SERIES`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 1 {
+		t.Fatalf("unexpected row count: %d", len(res.Series))
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"memory","columns":["id","host","region"],"values":[[2,"serverB","uswest"]]}]}` {
+		t.Fatalf("unexpected row(0): %s", s)
+	}
+
+	results = s.ExecuteQuery(MustParseQuery(`SELECT * FROM cpu`), "foo", nil)
+	if res := results.Results[0]; res.Err.Error() != `measurement not found: "foo"."raw"."cpu"` {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 0 {
+		t.Fatalf("unexpected row count: %d", len(res.Series))
+	}
+
+	results = s.ExecuteQuery(MustParseQuery(`SELECT * FROM memory where host='serverB'`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 1 {
+		t.Fatalf("unexpected row count: %d", len(res.Series))
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"memory","columns":["time","value"],"values":[["2000-01-01T00:00:01Z",33.2]]}]}` {
+		t.Fatalf("unexpected row(0): %s", s)
+	}
+
+	results = s.ExecuteQuery(MustParseQuery(`SELECT * FROM memory where region='uswest'`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 1 {
+		t.Fatalf("unexpected row count: %d", len(res.Series))
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"memory","columns":["time","value"],"values":[["2000-01-01T00:00:01Z",33.2]]}]}` {
+		t.Fatalf("unexpected row(0): %s", s)
+	}
+
+	results = s.ExecuteQuery(MustParseQuery(`SELECT * FROM memory where region='uswest' and host='serverB'`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 1 {
+		t.Fatalf("unexpected row count: %d", len(res.Series))
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"memory","columns":["time","value"],"values":[["2000-01-01T00:00:01Z",33.2]]}]}` {
+		t.Fatalf("unexpected row(0): %s", s)
+	}
+}
+
+// Ensure the server can drop a series.
+func TestServer_DropSeries(t *testing.T) {
+	c := NewMessagingClient()
+	s := OpenServer(c)
+	defer s.Close()
+	s.CreateDatabase("foo")
+	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "raw", Duration: 1 * time.Hour})
+	s.SetDefaultRetentionPolicy("foo", "raw")
+	s.CreateUser("susy", "pass", false)
+
+	// Write series with one point to the database.
+	tags := map[string]string{"host": "serverA", "region": "uswest"}
+	index, err := s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	if err != nil {
+		t.Fatal(err)
+	} else if err = s.Sync(index); err != nil {
+		t.Fatalf("sync error: %s", err)
+	}
+
+	// Ensure series exists
+	results := s.ExecuteQuery(MustParseQuery(`SHOW SERIES`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 1 {
+		t.Fatalf("unexpected row count: %d", len(res.Series))
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["id","host","region"],"values":[[1,"serverA","uswest"]]}]}` {
+		t.Fatalf("unexpected row(0): %s", s)
+	}
+
+	// Drop series
+	results = s.ExecuteQuery(MustParseQuery(`DROP SERIES FROM cpu`), "foo", nil)
+	if results.Error() != nil {
+		t.Fatalf("unexpected error: %s", results.Error())
+	}
+
+	results = s.ExecuteQuery(MustParseQuery(`SHOW SERIES`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 0 {
+		t.Fatalf("unexpected row count: %d", len(res.Series))
+	} else if s := mustMarshalJSON(res); s != `{}` {
+		t.Fatalf("unexpected row(0): %s", s)
+	}
+}
+
+// Ensure the server can drop a series from measurement when more than one shard exists.
+func TestServer_DropSeriesFromMeasurement(t *testing.T) {
+	c := NewMessagingClient()
+	s := OpenServer(c)
+	defer s.Close()
+	s.CreateDatabase("foo")
+	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "raw", Duration: 1 * time.Hour})
+	s.SetDefaultRetentionPolicy("foo", "raw")
+	s.CreateUser("susy", "pass", false)
+
+	// Write series with one point to the database.
+	tags := map[string]string{"host": "serverA", "region": "uswest"}
+	index, err := s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	if err != nil {
+		t.Fatal(err)
+	} else if err = s.Sync(index); err != nil {
+		t.Fatalf("sync error: %s", err)
+	}
+	tags = map[string]string{"host": "serverb", "region": "useast"}
+	index, err = s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "memory", Tags: tags, Timestamp: mustParseTime("2000-01-02T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23465432423)}}})
+	if err != nil {
+		t.Fatal(err)
+	} else if err = s.Sync(index); err != nil {
+		t.Fatalf("sync error: %s", err)
+	}
+
+	// Drop series
+	results := s.ExecuteQuery(MustParseQuery(`DROP SERIES FROM memory`), "foo", nil)
+	if results.Error() != nil {
+		t.Fatalf("unexpected error: %s", results.Error())
+	}
+
+	results = s.ExecuteQuery(MustParseQuery(`SHOW SERIES`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 1 {
+		t.Fatalf("unexpected row count: %d", len(res.Series))
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["id","host","region"],"values":[[1,"serverA","uswest"]]}]}` {
+		t.Fatalf("unexpected row(0): %s", s)
+	}
+}
+
+// Ensure that when merging many series together and some of them have a different number of points than others
+// in a group by interval the results are correct
+func TestServer_MergeManySeries(t *testing.T) {
+	c := NewMessagingClient()
+	s := OpenServer(c)
+	defer s.Close()
+	s.CreateDatabase("foo")
+	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "raw", Duration: 1 * time.Hour})
+	s.SetDefaultRetentionPolicy("foo", "raw")
+
+	for i := 1; i < 11; i++ {
+		for j := 1; j < 5+i%3; j++ {
+			tags := map[string]string{"host": fmt.Sprintf("server_%d", i)}
+			if index, err := s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Timestamp: time.Unix(int64(j), int64(0)), Fields: map[string]interface{}{"value": float64(22)}}}); err != nil {
+				t.Fatalf("unexpected error: %s", err.Error())
+			} else if err = s.Sync(index); err != nil {
+				t.Fatalf("sync error: %s", err)
+			}
+		}
+	}
+
+	results := s.ExecuteQuery(MustParseQuery(`select count(value) from cpu group by time(1s)`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 1 {
+		t.Fatalf("unexpected row count: %d", len(res.Series))
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["time","count"],"values":[["1970-01-01T00:00:01Z",10],["1970-01-01T00:00:02Z",10],["1970-01-01T00:00:03Z",10],["1970-01-01T00:00:04Z",10],["1970-01-01T00:00:05Z",7],["1970-01-01T00:00:06Z",3]]}]}` {
+		t.Fatalf("unexpected row(0): %s", s)
+	}
+}
+
+// Ensure Drop Series can:
+// write to measurement cpu with tags region=uswest host=serverA
+// write to measurement cpu with tags region=uswest host=serverB
+// drop one of those series
+// ensure that the dropped series is gone
+// ensure that we can still query: select value from cpu where region=uswest
+func TestServer_DropSeriesTagsPreserved(t *testing.T) {
+	c := NewMessagingClient()
+	s := OpenServer(c)
+	defer s.Close()
+	s.CreateDatabase("foo")
+	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "raw", Duration: 1 * time.Hour})
+	s.SetDefaultRetentionPolicy("foo", "raw")
+	s.CreateUser("susy", "pass", false)
+
+	// Write series with one point to the database.
+	tags := map[string]string{"host": "serverA", "region": "uswest"}
+	index, err := s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	if err != nil {
+		t.Fatal(err)
+	} else if err = s.Sync(index); err != nil {
+		t.Fatalf("sync error: %s", err)
+	}
+
+	tags = map[string]string{"host": "serverB", "region": "uswest"}
+	index, err = s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:01Z"), Fields: map[string]interface{}{"value": float64(33.2)}}})
+	if err != nil {
+		t.Fatal(err)
+	} else if err = s.Sync(index); err != nil {
+		t.Fatalf("sync error: %s", err)
+	}
+
+	results := s.ExecuteQuery(MustParseQuery(`SHOW SERIES`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 1 {
+		t.Fatalf("unexpected row count: %d", len(res.Series))
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["id","host","region"],"values":[[1,"serverA","uswest"],[2,"serverB","uswest"]]}]}` {
+		t.Fatalf("unexpected row(0): %s", s)
+	}
+
+	results = s.ExecuteQuery(MustParseQuery(`DROP SERIES FROM cpu where host='serverA'`), "foo", nil)
+	if results.Error() != nil {
+		t.Fatalf("unexpected error: %s", results.Error())
+	}
+
+	results = s.ExecuteQuery(MustParseQuery(`SHOW SERIES`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 1 {
+		t.Fatalf("unexpected row count: %d", len(res.Series))
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["id","host","region"],"values":[[2,"serverB","uswest"]]}]}` {
+		t.Fatalf("unexpected row(0): %s", s)
+	}
+
+	results = s.ExecuteQuery(MustParseQuery(`SELECT * FROM cpu where host='serverA'`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 0 {
+		t.Fatalf("unexpected row count: %d", len(res.Series))
+	}
+
+	results = s.ExecuteQuery(MustParseQuery(`SELECT * FROM cpu where host='serverB'`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 1 {
+		t.Fatalf("unexpected row count: %d", len(res.Series))
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:01Z",33.2]]}]}` {
+		t.Fatalf("unexpected row(0): %s", s)
+	}
+
+	results = s.ExecuteQuery(MustParseQuery(`SELECT * FROM cpu where region='uswest'`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 1 {
+		t.Fatalf("unexpected row count: %d", len(res.Series))
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:01Z",33.2]]}]}` {
+		t.Fatalf("unexpected row(0): %s", s)
+	}
+}
+
 // Ensure the server can execute a query and return the data correctly.
 func TestServer_ExecuteQuery(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
@@ -840,18 +1278,18 @@ func TestServer_ExecuteQuery(t *testing.T) {
 	s.CreateUser("susy", "pass", false)
 
 	// Write series with one point to the database.
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(20)}}})
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: mustParseTime("2000-01-01T00:00:10Z"), Values: map[string]interface{}{"value": float64(30)}}})
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-west"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(100)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(20)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: mustParseTime("2000-01-01T00:00:10Z"), Fields: map[string]interface{}{"value": float64(30)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-west"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(100)}}})
 
 	fmt.Println("test1")
 	// Select data from the server.
-	expected := `{"rows":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","sum"],"values":[["2000-01-01T00:00:00Z",20],["2000-01-01T00:00:10Z",30]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","sum"],"values":[["2000-01-01T00:00:00Z",100],["2000-01-01T00:00:10Z",0]]}]}`
+	expected := `{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","sum"],"values":[["2000-01-01T00:00:00Z",20],["2000-01-01T00:00:10Z",30]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","sum"],"values":[["2000-01-01T00:00:00Z",100],["2000-01-01T00:00:10Z",0]]}]}`
 	results := s.ExecuteQuery(MustParseQuery(`SELECT sum(value) FROM cpu where time >= '2000-01-01T00:00:00Z' AND time < '2000-01-01T00:00:20Z' GROUP BY time(10s), region`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error: %s", res.Err)
-	} else if len(res.Rows) != 2 {
-		t.Fatalf("unexpected row count: %d", len(res.Rows))
+	} else if len(res.Series) != 2 {
+		t.Fatalf("unexpected row count: %d", len(res.Series))
 	} else if s := mustMarshalJSON(res); s != expected {
 		t.Fatalf("unexpected row(0):\nexp: %s\ngot: %s", expected, s)
 	}
@@ -861,7 +1299,7 @@ func TestServer_ExecuteQuery(t *testing.T) {
 	results = s.ExecuteQuery(MustParseQuery(`SELECT value FROM cpu WHERE time >= '2000-01-01 00:00:05'`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error during simple SELECT: %s", res.Err)
-	} else if s := mustMarshalJSON(res); s != `{"rows":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:10Z",30]]}]}` {
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:10Z",30]]}]}` {
 		t.Fatalf("unexpected row(0) during simple SELECT: %s", s)
 	}
 
@@ -869,17 +1307,17 @@ func TestServer_ExecuteQuery(t *testing.T) {
 	results = s.ExecuteQuery(MustParseQuery(`SELECT sum(value) FROM cpu WHERE time >= '2000-01-01 00:00:05' GROUP BY time(10s), region`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error during SUM: %s", res.Err)
-	} else if s := mustMarshalJSON(res); s != `{"rows":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","sum"],"values":[["2000-01-01T00:00:10Z",30]]}]}` {
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","sum"],"values":[["2000-01-01T00:00:10Z",30]]}]}` {
 		t.Fatalf("unexpected row(0) during SUM: %s", s)
 	}
 
 	// Aggregation with a null field value
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: mustParseTime("2000-01-01T00:00:03Z"), Values: map[string]interface{}{"otherVal": float64(20)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: mustParseTime("2000-01-01T00:00:03Z"), Fields: map[string]interface{}{"otherVal": float64(20)}}})
 	// Sum aggregation.
 	results = s.ExecuteQuery(MustParseQuery(`SELECT sum(value) FROM cpu GROUP BY region`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error during SUM: %s", res.Err)
-	} else if s := mustMarshalJSON(res); s != `{"rows":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",50]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",100]]}]}` {
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",50]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",100]]}]}` {
 		t.Fatalf("unexpected row(0) during SUM: %s", s)
 	}
 
@@ -901,18 +1339,191 @@ func TestServer_ExecuteQuery(t *testing.T) {
 	}
 
 	// Group by multiple dimensions
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "load", Tags: map[string]string{"region": "us-east", "host": "serverA"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(20)}}})
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "load", Tags: map[string]string{"region": "us-east", "host": "serverB"}, Timestamp: mustParseTime("2000-01-01T00:00:10Z"), Values: map[string]interface{}{"value": float64(30)}}})
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "load", Tags: map[string]string{"region": "us-west", "host": "serverC"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(100)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "load", Tags: map[string]string{"region": "us-east", "host": "serverA"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(20)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "load", Tags: map[string]string{"region": "us-east", "host": "serverB"}, Timestamp: mustParseTime("2000-01-01T00:00:10Z"), Fields: map[string]interface{}{"value": float64(30)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "load", Tags: map[string]string{"region": "us-west", "host": "serverC"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(100)}}})
 
 	// Multiple group by dimensions
 	results = s.ExecuteQuery(MustParseQuery(`SELECT sum(value) FROM load GROUP BY time(10s), region, host`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error: %s", res.Err)
-	} else if len(res.Rows) != 3 {
-		t.Fatalf("unexpected row count: %d", len(res.Rows))
+	} else if len(res.Series) != 3 {
+		t.Fatalf("unexpected row count: %d", len(res.Series))
 	} else if s := mustMarshalJSON(res); s != `{"rows":[{"name":"load","tags":{"host":"serverA","region":"us-east"},"columns":["time","sum"],"values":[["2000-01-01T00:00:00Z",20]]},{"name":"load","tags":{"host":"serverB","region":"us-east"},"columns":["time","sum"],"values":[["2000-01-01T00:00:10Z",30]]},{"name":"load","tags":{"host":"serverC","region":"us-west"},"columns":["time","sum"],"values":[["2000-01-01T00:00:00Z",100]]}]}` {
 		t.Fatalf("unexpected row(0): %s", s)
+	}
+
+	// WHERE with AND
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "uk", "host": "serverZ", "service": "redis"}, Timestamp: mustParseTime("2000-01-01T00:00:03Z"), Fields: map[string]interface{}{"value": float64(20)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "uk", "host": "serverZ", "service": "mysql"}, Timestamp: mustParseTime("2000-01-01T00:00:03Z"), Fields: map[string]interface{}{"value": float64(30)}}})
+	// Sum aggregation.
+	results = s.ExecuteQuery(MustParseQuery(`SELECT sum(value) FROM cpu WHERE region='uk' AND host='serverZ'`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error during SUM: %s", res.Err)
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",50]]}]}` {
+		t.Fatalf("unexpected row(0) during SUM AND: %s", s)
+	}
+
+	// TODO re-enable. The following code is racy
+	//results = s.ExecuteQuery(MustParseQuery(`SELECT * FROM cpu WHERE region='uk' AND host='serverZ'`), "foo", nil)
+	//if res := results.Results[0]; res.Err != nil {
+	//t.Fatalf("unexpected error during SUM: %s", res.Err)
+	//} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["time","value","otherVal"],"values":[["2000-01-01T00:00:03Z",30,0],["2000-01-01T00:00:03Z",20,0]]}]}` {
+	//t.Fatalf("unexpected row(0) during SUM AND: %s", s)
+	//}
+
+	// Select that should return an empty result.
+	results = s.ExecuteQuery(MustParseQuery(`SELECT value FROM cpu WHERE time >= '3000-01-01 00:00:05'`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error during simple SELECT: %s", res.Err)
+	} else if s := mustMarshalJSON(res); s != `{}` {
+		t.Fatalf("unexpected row(0) during simple SELECT: %s", s)
+	}
+}
+
+// Ensure the server respects limit and offset in show series queries
+func TestServer_ShowSeriesLimitOffset(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+	s.CreateDatabase("foo")
+	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "raw", Duration: 1 * time.Hour})
+	s.SetDefaultRetentionPolicy("foo", "raw")
+
+	// Write series with one point to the database.
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east", "host": "serverA"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(20)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east", "host": "serverB"}, Timestamp: mustParseTime("2000-01-01T00:00:10Z"), Fields: map[string]interface{}{"value": float64(30)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-west", "host": "serverC"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(100)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "memory", Tags: map[string]string{"region": "us-west", "host": "serverB"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(100)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "memory", Tags: map[string]string{"region": "us-east", "host": "serverA"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(100)}}})
+
+	// Select data from the server.
+	results := s.ExecuteQuery(MustParseQuery(`SHOW SERIES LIMIT 3 OFFSET 1`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 2 {
+		t.Fatalf("unexpected row count: %d", len(res.Series))
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["id","host","region"],"values":[[2,"serverB","us-east"],[3,"serverC","us-west"]]},{"name":"memory","columns":["id","host","region"],"values":[[4,"serverB","us-west"]]}]}` {
+		t.Fatalf("unexpected row(0): %s", s)
+	}
+
+	// Select data from the server.
+	results = s.ExecuteQuery(MustParseQuery(`SHOW SERIES LIMIT 2 OFFSET 4`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 1 {
+		t.Fatalf("unexpected row count: %d", len(res.Series))
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"memory","columns":["id","host","region"],"values":[[5,"serverA","us-east"]]}]}` {
+		t.Fatalf("unexpected row(0): %s", s)
+	}
+
+	// Select data from the server.
+	results = s.ExecuteQuery(MustParseQuery(`SHOW SERIES LIMIT 2 OFFSET 20`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 0 {
+		t.Fatalf("unexpected row count: %d", len(res.Series))
+	}
+
+	// Select data from the server.
+	results = s.ExecuteQuery(MustParseQuery(`SHOW SERIES LIMIT 20`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 2 {
+		t.Fatalf("unexpected row count: %d", len(res.Series))
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["id","host","region"],"values":[[1,"serverA","us-east"],[2,"serverB","us-east"],[3,"serverC","us-west"]]},{"name":"memory","columns":["id","host","region"],"values":[[4,"serverB","us-west"],[5,"serverA","us-east"]]}]}` {
+		t.Fatalf("unexpected row(0): %s", s)
+	}
+}
+
+// Ensure that when querying for raw data values that they return in time order
+func TestServer_RawDataReturnsInOrder(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+	s.CreateDatabase("foo")
+	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "raw", Duration: 1 * time.Hour})
+	s.SetDefaultRetentionPolicy("foo", "raw")
+	s.CreateUser("susy", "pass", false)
+
+	for i := 1; i < 500; i++ {
+		host := fmt.Sprintf("server-%d", i%10)
+		s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east", "host": host}, Timestamp: time.Unix(int64(i), 0), Fields: map[string]interface{}{"value": float64(i)}}})
+	}
+
+	results := s.ExecuteQuery(MustParseQuery(`SELECT count(value) FROM cpu`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error during COUNT: %s", res.Err)
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",499]]}]}` {
+		t.Fatalf("unexpected row(0) during COUNT: %s", s)
+	}
+
+	results = s.ExecuteQuery(MustParseQuery(`SELECT value FROM cpu`), "foo", nil)
+
+	lastTime := int64(0)
+	for _, v := range results.Results[0].Series[0].Values {
+		tt := v[0].(time.Time)
+		if lastTime > tt.UnixNano() {
+			t.Fatal("values out of order")
+		}
+		lastTime = tt.UnixNano()
+	}
+	if len(results.Results[0].Series[0].Values) != 499 {
+		t.Fatal("expected 499 values")
+	}
+
+	results = s.ExecuteQuery(MustParseQuery(`SELECT value FROM cpu GROUP BY *`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error during GROUP BY *: %s", res.Err)
+	} else if len(res.Series) != 10 {
+		t.Fatalf("expected 10 series back but got %d", len(res.Series))
+	} else if len(res.Series[0].Values) != 50 {
+		t.Fatalf("expected 50 values per series but got %d", len(res.Series[0].Values))
+	}
+}
+
+// Ensure that limit and offset work
+func TestServer_LimitAndOffset(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+	s.CreateDatabase("foo")
+	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "raw", Duration: 1 * time.Hour})
+	s.SetDefaultRetentionPolicy("foo", "raw")
+
+	for i := 1; i < 10; i++ {
+		host := fmt.Sprintf("server-%d", i)
+		s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east", "host": host}, Timestamp: time.Unix(int64(i), 0), Fields: map[string]interface{}{"value": float64(i)}}})
+	}
+
+	results := s.ExecuteQuery(MustParseQuery(`SELECT count(value) FROM cpu GROUP BY * LIMIT 20`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error during COUNT: %s", res.Err)
+	} else if len(res.Series) != 9 {
+		t.Fatalf("unexpected 9 series back but got %d", len(res.Series))
+	}
+
+	results = s.ExecuteQuery(MustParseQuery(`SELECT count(value) FROM cpu GROUP BY * LIMIT 2 OFFSET 1`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error during COUNT: %s", res.Err)
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","tags":{"host":"server-2","region":"us-east"},"columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]},{"name":"cpu","tags":{"host":"server-3","region":"us-east"},"columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]}]}` {
+		t.Fatalf("unexpected row(0) during COUNT: %s", s)
+	}
+
+	results = s.ExecuteQuery(MustParseQuery(`SELECT count(value) FROM cpu GROUP BY * LIMIT 2 OFFSET 3`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error during COUNT: %s", res.Err)
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","tags":{"host":"server-5","region":"us-east"},"columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]},{"name":"cpu","tags":{"host":"server-4","region":"us-east"},"columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]}]}` {
+		t.Fatalf("unexpected row(0) during COUNT: %s", s)
+	}
+
+	results = s.ExecuteQuery(MustParseQuery(`SELECT count(value) FROM cpu GROUP BY * LIMIT 3 OFFSET 8`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error during COUNT: %s", res.Err)
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","tags":{"host":"server-9","region":"us-east"},"columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]}]}` {
+		t.Fatalf("unexpected row(0) during COUNT: %s", s)
+	}
+
+	results = s.ExecuteQuery(MustParseQuery(`SELECT count(value) FROM cpu GROUP BY * LIMIT 3 OFFSET 20`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error during COUNT: %s", res.Err)
 	}
 }
 
@@ -927,15 +1538,47 @@ func TestServer_ExecuteWildcardQuery(t *testing.T) {
 
 	// Write series with one point to the database.
 	// We deliberatly write one value per insert as we need to create each field in a predicatable order for testing.
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Values: map[string]interface{}{"value": float64(10)}}})
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: mustParseTime("2000-01-01T00:00:10Z"), Values: map[string]interface{}{"val-x": 20}}})
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: mustParseTime("2000-01-01T00:00:20Z"), Values: map[string]interface{}{"value": 30, "val-x": 40}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(10)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: mustParseTime("2000-01-01T00:00:10Z"), Fields: map[string]interface{}{"val-x": 20}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: mustParseTime("2000-01-01T00:00:20Z"), Fields: map[string]interface{}{"value": 30, "val-x": 40}}})
 
 	// Select * (wildcard).
 	results := s.ExecuteQuery(MustParseQuery(`SELECT * FROM cpu`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error during SELECT *: %s", res.Err)
-	} else if s := mustMarshalJSON(res); s != `{"rows":[{"name":"cpu","columns":["time","value","val-x"],"values":[["2000-01-01T00:00:00Z",10,null],["2000-01-01T00:00:10Z",null,20],["2000-01-01T00:00:20Z",30,40]]}]}` {
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["time","value","val-x"],"values":[["2000-01-01T00:00:00Z",10,0],["2000-01-01T00:00:10Z",0,20],["2000-01-01T00:00:20Z",30,40]]}]}` {
+		t.Fatalf("unexpected results during SELECT *: %s", s)
+	}
+}
+
+// Ensure the server can execute a wildcard GROUP BY
+func TestServer_ExecuteWildcardGroupBy(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+	s.CreateDatabase("foo")
+	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "raw", Duration: 1 * time.Hour})
+	s.SetDefaultRetentionPolicy("foo", "raw")
+	s.CreateUser("susy", "pass", false)
+
+	// Write series with one point to the database.
+	// We deliberatly write one value per insert as we need to create each field in a predicatable order for testing.
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(10)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: mustParseTime("2000-01-01T00:00:10Z"), Fields: map[string]interface{}{"value": 20}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-west"}, Timestamp: mustParseTime("2000-01-01T00:00:20Z"), Fields: map[string]interface{}{"value": 30}}})
+
+	// GROUP BY * (wildcard).
+	results := s.ExecuteQuery(MustParseQuery(`SELECT mean(value) FROM cpu GROUP BY *`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error during GROUP BY *: %s", res.Err)
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",15]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",30]]}]}` {
+		t.Fatalf("unexpected results during SELECT *: %s", s)
+	}
+
+	// GROUP BY * (wildcard) with time.
+	results = s.ExecuteQuery(MustParseQuery(`SELECT mean(value) FROM cpu GROUP BY *,time(1m)`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error during GROUP BY *: %s", res.Err)
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","mean"],"values":[["2000-01-01T00:00:00Z",15]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","mean"],"values":[["2000-01-01T00:00:00Z",30]]}]}` {
 		t.Fatalf("unexpected results during SELECT *: %s", s)
 	}
 }
@@ -1012,7 +1655,7 @@ func TestServer_Measurements(t *testing.T) {
 	tags := map[string]string{"host": "servera.influx.com", "region": "uswest"}
 	values := map[string]interface{}{"value": 23.2}
 
-	index, err := s.WriteSeries("foo", "mypolicy", []influxdb.Point{influxdb.Point{Name: "cpu_load", Tags: tags, Timestamp: timestamp, Values: values}})
+	index, err := s.WriteSeries("foo", "mypolicy", []influxdb.Point{influxdb.Point{Name: "cpu_load", Tags: tags, Timestamp: timestamp, Fields: values}})
 	if err != nil {
 		t.Fatal(err)
 	} else if err = s.Sync(index); err != nil {
@@ -1195,6 +1838,7 @@ func TestServer_CreateContinuousQuery_ErrInfinteLoop(t *testing.T) {
 
 // Ensure
 func TestServer_RunContinuousQueries(t *testing.T) {
+	t.Skip()
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 
@@ -1233,9 +1877,9 @@ func TestServer_RunContinuousQueries(t *testing.T) {
 	}
 	testTime.Add(time.Millisecond * 2)
 
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: testTime, Values: map[string]interface{}{"value": float64(30)}}})
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: testTime.Add(-time.Millisecond * 5), Values: map[string]interface{}{"value": float64(20)}}})
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-west"}, Timestamp: testTime, Values: map[string]interface{}{"value": float64(100)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: testTime, Fields: map[string]interface{}{"value": float64(30)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: testTime.Add(-time.Millisecond * 5), Fields: map[string]interface{}{"value": float64(20)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-west"}, Timestamp: testTime, Fields: map[string]interface{}{"value": float64(100)}}})
 
 	// Run CQs after a period of time
 	time.Sleep(time.Millisecond * 50)
@@ -1247,28 +1891,28 @@ func TestServer_RunContinuousQueries(t *testing.T) {
 		results := s.ExecuteQuery(MustParseQuery(`SELECT mean(mean) FROM cpu_region GROUP BY region`), "foo", nil)
 		if res := results.Results[0]; res.Err != nil {
 			t.Fatalf("unexpected error verify %d: %s", num, res.Err)
-		} else if len(res.Rows) != 2 {
-			t.Fatalf("unexpected row count on verify %d: %d", num, len(res.Rows))
+		} else if len(res.Series) != 2 {
+			t.Fatalf("unexpected row count on verify %d: %d", num, len(res.Series))
 		} else if s := mustMarshalJSON(res); s != exp {
 			t.Fatalf("unexpected row(0) on verify %d: %s", num, s)
 		}
 	}
 
 	// ensure CQ results were saved
-	verify(1, `{"rows":[{"name":"cpu_region","tags":{"region":"us-east"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",25]]},{"name":"cpu_region","tags":{"region":"us-west"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",100]]}]}`)
+	verify(1, `{"series":[{"name":"cpu_region","tags":{"region":"us-east"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",25]]},{"name":"cpu_region","tags":{"region":"us-west"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",100]]}]}`)
 
 	// ensure that repeated runs don't cause duplicate data
 	s.RunContinuousQueries()
-	verify(2, `{"rows":[{"name":"cpu_region","tags":{"region":"us-east"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",25]]},{"name":"cpu_region","tags":{"region":"us-west"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",100]]}]}`)
+	verify(2, `{"series":[{"name":"cpu_region","tags":{"region":"us-east"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",25]]},{"name":"cpu_region","tags":{"region":"us-west"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",100]]}]}`)
 
 	// ensure that data written into a previous window is picked up and the result recomputed.
 	time.Sleep(time.Millisecond * 2)
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-west"}, Timestamp: testTime.Add(-time.Millisecond), Values: map[string]interface{}{"value": float64(50)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-west"}, Timestamp: testTime.Add(-time.Millisecond), Fields: map[string]interface{}{"value": float64(50)}}})
 	s.RunContinuousQueries()
 	// give CQs time to run
 	time.Sleep(time.Millisecond * 50)
 
-	verify(3, `{"rows":[{"name":"cpu_region","tags":{"region":"us-east"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",25]]},{"name":"cpu_region","tags":{"region":"us-west"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",75]]}]}`)
+	verify(3, `{"series":[{"name":"cpu_region","tags":{"region":"us-east"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",25]]},{"name":"cpu_region","tags":{"region":"us-west"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",75]]}]}`)
 }
 
 func mustMarshalJSON(v interface{}) string {
@@ -1324,6 +1968,40 @@ func TestbatchWrite_UnmarshalEpoch(t *testing.T) {
 		t.Fatal("foo")
 	}
 
+}
+
+// Ensure the server will skip over replayed log entries and not blow up.
+func TestServer_Replay(t *testing.T) {
+	c := NewMessagingClient()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Record all messages through the client.
+	var messages []*messaging.Message
+	c.PublishFunc = func(m *messaging.Message) (uint64, error) {
+		messages = append(messages, m)
+		c.c <- m
+		return m.Index, nil
+	}
+
+	// Create a new node.
+	u, _ := url.Parse("http://localhost:80000")
+	if err := s.CreateDataNode(u); err != nil {
+		t.Fatal(err)
+	}
+	s.Restart()
+
+	// Replay messages through client.
+	for _, m := range messages {
+		c.c <- m
+	}
+
+	// Sleep so it has a moment to process & ignore.
+	time.Sleep(100 * time.Millisecond)
+
+	// NOTE: There is no way to introspect into the server to see that
+	// messages are being dropped. This test exists to make sure the server
+	// doesn't crash on retry.
 }
 
 // Server is a wrapping test struct for influxdb.Server.

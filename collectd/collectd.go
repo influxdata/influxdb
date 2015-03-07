@@ -90,7 +90,6 @@ func (s *Server) serve(conn *net.UDPConn) {
 			log.Printf("Collectd ReadFromUDP error: %s", err)
 			continue
 		}
-		log.Printf("received %d bytes", n)
 		if n > 0 {
 			s.handleMessage(buffer[:n])
 		}
@@ -102,7 +101,6 @@ func (s *Server) serve(conn *net.UDPConn) {
 }
 
 func (s *Server) handleMessage(buffer []byte) {
-	log.Printf("handling message")
 	packets, err := gollectd.Packets(buffer, s.typesdb)
 	if err != nil {
 		log.Printf("Collectd parse error: %s", err)
@@ -158,9 +156,9 @@ func Unmarshal(data *gollectd.Packet) []influxdb.Point {
 	for i := range data.Values {
 		name := fmt.Sprintf("%s_%s", data.Plugin, data.Values[i].Name)
 		tags := make(map[string]string)
-		values := make(map[string]interface{})
+		fields := make(map[string]interface{})
 
-		values[name] = data.Values[i].Value
+		fields[name] = data.Values[i].Value
 
 		if data.Hostname != "" {
 			tags["host"] = data.Hostname
@@ -178,7 +176,7 @@ func Unmarshal(data *gollectd.Packet) []influxdb.Point {
 			Name:      name,
 			Tags:      tags,
 			Timestamp: timestamp,
-			Values:    values,
+			Fields:    fields,
 		}
 
 		points = append(points, p)

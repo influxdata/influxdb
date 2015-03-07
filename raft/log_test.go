@@ -7,11 +7,12 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"net/url"
 	"os"
-	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/influxdb/influxdb/raft"
 )
@@ -79,7 +80,7 @@ func TestLog_Apply(t *testing.T) {
 
 	// Single node clusters should apply to FSM immediately.
 	l.Wait(index)
-	if n := len(l.FSM.Commands); n != 1 {
+	if n := len(l.FSM.(*FSM).Commands); n != 1 {
 		t.Fatalf("unexpected command count: %d", n)
 	}
 }
@@ -96,7 +97,7 @@ func TestLog_Config_Closed(t *testing.T) {
 
 // Ensure that log ids in a cluster are set sequentially.
 func TestCluster_ID_Sequential(t *testing.T) {
-	c := NewCluster()
+	c := NewCluster(fsmFunc)
 	defer c.Close()
 	for i, l := range c.Logs {
 		if l.ID() != uint64(i+1) {
@@ -107,7 +108,7 @@ func TestCluster_ID_Sequential(t *testing.T) {
 
 // Ensure that cluster starts with one leader and multiple followers.
 func TestCluster_State(t *testing.T) {
-	c := NewCluster()
+	c := NewCluster(fsmFunc)
 	defer c.Close()
 	if state := c.Logs[0].State(); state != raft.Leader {
 		t.Fatalf("unexpected state(0): %s", state)
@@ -122,7 +123,7 @@ func TestCluster_State(t *testing.T) {
 
 // Ensure that each node's configuration matches in the cluster.
 func TestCluster_Config(t *testing.T) {
-	c := NewCluster()
+	c := NewCluster(fsmFunc)
 	defer c.Close()
 	config := jsonify(c.Logs[0].Config())
 	for _, l := range c.Logs[1:] {
@@ -134,7 +135,7 @@ func TestCluster_Config(t *testing.T) {
 
 // Ensure that a command can be applied to a cluster and distributed appropriately.
 func TestCluster_Apply(t *testing.T) {
-	c := NewCluster()
+	c := NewCluster(fsmFunc)
 	defer c.Close()
 
 	// Apply a command.
@@ -149,41 +150,30 @@ func TestCluster_Apply(t *testing.T) {
 	c.Logs[2].MustWaitUncommitted(4)
 
 	// Should not apply immediately.
-	if n := len(leader.FSM.Commands); n != 0 {
+	if n := len(leader.FSM.(*FSM).Commands); n != 0 {
 		t.Fatalf("unexpected pre-heartbeat command count: %d", n)
 	}
 
 	// Run the heartbeat on the leader and have all logs apply.
 	// Only the leader should have the changes applied.
-	c.Logs[0].Clock.heartbeat()
+	c.Logs[0].HeartbeatUntil(4)
 	c.Logs[0].Clock.apply()
 	c.Logs[1].Clock.apply()
 	c.Logs[2].Clock.apply()
-	if n := len(c.Logs[0].FSM.Commands); n != 1 {
+	if n := len(c.Logs[0].FSM.(*FSM).Commands); n != 1 {
 		t.Fatalf("unexpected command count(0): %d", n)
 	}
-	if n := len(c.Logs[1].FSM.Commands); n != 0 {
+	if n := len(c.Logs[1].FSM.(*FSM).Commands); n != 1 {
 		t.Fatalf("unexpected command count(1): %d", n)
 	}
-	if n := len(c.Logs[2].FSM.Commands); n != 0 {
-		t.Fatalf("unexpected command count(2): %d", n)
-	}
-
-	// Wait for another heartbeat and all logs should be in sync.
-	c.Logs[0].Clock.heartbeat()
-	c.Logs[1].Clock.apply()
-	c.Logs[2].Clock.apply()
-	if n := len(c.Logs[1].FSM.Commands); n != 1 {
-		t.Fatalf("unexpected command count(1): %d", n)
-	}
-	if n := len(c.Logs[2].FSM.Commands); n != 1 {
+	if n := len(c.Logs[2].FSM.(*FSM).Commands); n != 1 {
 		t.Fatalf("unexpected command count(2): %d", n)
 	}
 }
 
 // Ensure that a new leader can be elected.
 func TestLog_Elect(t *testing.T) {
-	c := NewCluster()
+	c := NewCluster(fsmFunc)
 	defer c.Close()
 
 	// Stop leader.
@@ -222,7 +212,7 @@ func TestLog_Elect(t *testing.T) {
 	}
 
 	c.MustWaitUncommitted(index)
-	c.Logs[1].Clock.heartbeat()
+	c.Logs[1].HeartbeatUntil(index)
 	c.Logs[1].Clock.heartbeat()
 	c.Logs[0].Clock.apply()
 	c.Logs[1].Clock.apply()
@@ -251,93 +241,104 @@ func TestState_String(t *testing.T) {
 	}
 }
 
-func BenchmarkLogApply1(b *testing.B) { benchmarkLogApply(b, 1) }
-func BenchmarkLogApply2(b *testing.B) { benchmarkLogApply(b, 2) }
-func BenchmarkLogApply3(b *testing.B) { benchmarkLogApply(b, 3) }
+// Ensure a cluster of nodes can successfully re-elect while applying commands.
+func TestCluster_Elect_RealTime(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skip: short mode")
+	}
+
+	// Create a cluster with a real-time clock.
+	c := NewRealTimeCluster(3, indexFSMFunc)
+	minIndex := c.Logs[0].AppliedIndex()
+	commandN := uint64(1000) - minIndex
+
+	// Run a loop to continually apply commands.
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := uint64(0); i < commandN; i++ {
+			index, err := c.Apply(make([]byte, 50))
+			if err != nil {
+				t.Fatalf("apply: index=%d, err=%s", index, err)
+			}
+			time.Sleep(time.Duration(rand.Intn(10)) * time.Millisecond)
+		}
+	}()
+
+	// Run a loop to periodically kill off nodes.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		// Wait for nodes to get going.
+		time.Sleep(500 * time.Millisecond)
+
+		// Choose random log.
+		// i := rand.Intn(len(c.Logs))
+		i := 0
+		l := c.Logs[i]
+
+		// Restart the log.
+		path := l.Path()
+		l.Log.Close()
+		if err := l.Log.Open(path); err != nil {
+			t.Fatalf("reopen(%d): %s", i, err)
+		}
+	}()
+
+	// Wait for all logs to catch up.
+	wg.Wait()
+	for i, l := range c.Logs {
+		if err := l.Wait(commandN + minIndex); err != nil {
+			t.Errorf("wait(%d): %s", i, err)
+		}
+	}
+
+	// Verify FSM indicies match.
+	for i, l := range c.Logs {
+		fsmIndex, _ := l.FSM.(*raft.IndexFSM).Index()
+		if exp := commandN + minIndex; exp != fsmIndex {
+			t.Errorf("fsm index mismatch(%d): exp=%d, got=%d", i, exp, fsmIndex)
+		}
+	}
+}
+
+func BenchmarkClusterApply1(b *testing.B) { benchmarkClusterApply(b, 1) }
+func BenchmarkClusterApply2(b *testing.B) { benchmarkClusterApply(b, 2) }
+func BenchmarkClusterApply3(b *testing.B) { benchmarkClusterApply(b, 3) }
 
 // Benchmarks an n-node cluster connected through an in-memory transport.
-func benchmarkLogApply(b *testing.B, logN int) {
-	warnf("== BenchmarkLogApply (%d) ====================================", b.N)
+func benchmarkClusterApply(b *testing.B, logN int) {
+	warnf("== BenchmarkClusterApply (%d) ====================================", b.N)
 
-	logs := make([]*raft.Log, logN)
-	t := NewTransport()
-	var ptrs []string
-	for i := 0; i < logN; i++ {
-		// Create log.
-		l := raft.NewLog()
-		l.URL = &url.URL{Host: fmt.Sprintf("log%d", i)}
-		l.FSM = &BenchmarkFSM{}
-		l.DebugEnabled = true
-		l.Transport = t
-		t.register(l)
-
-		// Open log.
-		if err := l.Open(tempfile()); err != nil {
-			b.Fatalf("open: %s", err)
-		}
-
-		// Initialize or join.
-		if i == 0 {
-			if err := l.Initialize(); err != nil {
-				b.Fatalf("initialize: %s", err)
-			}
-		} else {
-			if err := l.Join(logs[0].URL); err != nil {
-				b.Fatalf("initialize: %s", err)
-			}
-		}
-
-		ptrs = append(ptrs, fmt.Sprintf("%d/%p", i, l))
-		logs[i] = l
-	}
-	warn("LOGS:", strings.Join(ptrs, " "))
+	c := NewRealTimeCluster(logN, indexFSMFunc)
+	defer c.Close()
 	b.ResetTimer()
 
 	// Apply commands to leader.
 	var index uint64
 	var err error
 	for i := 0; i < b.N; i++ {
-		index, err = logs[0].Apply(make([]byte, 50))
+		index, err = c.Apply(make([]byte, 50))
 		if err != nil {
 			b.Fatalf("apply: %s", err)
 		}
 	}
 
 	// Wait for all logs to catch up.
-	for i, l := range logs {
-		if err := l.Wait(index); err != nil {
-			b.Fatalf("wait(%d): %s", i, err)
-		}
+	for _, l := range c.Logs {
+		l.MustWait(index)
 	}
 	b.StopTimer()
 
 	// Verify FSM indicies match.
-	for i, l := range logs {
-		if fsm := l.FSM.(*BenchmarkFSM); index != fsm.index {
-			b.Errorf("fsm index mismatch(%d): exp=%d, got=%d", i, index, fsm.index)
+	for i, l := range c.Logs {
+		fsmIndex, _ := l.FSM.(*raft.IndexFSM).Index()
+		if index != fsmIndex {
+			b.Errorf("fsm index mismatch(%d): exp=%d, got=%d", i, index, fsmIndex)
 		}
 	}
-}
-
-// BenchmarkFSM represents a state machine that records the command count.
-type BenchmarkFSM struct {
-	index uint64
-}
-
-// MustApply updates the index.
-func (fsm *BenchmarkFSM) MustApply(entry *raft.LogEntry) { fsm.index = entry.Index }
-
-// Index returns the highest applied index.
-func (fsm *BenchmarkFSM) Index() (uint64, error) { return fsm.index, nil }
-
-// Snapshot writes the FSM's index as the snapshot.
-func (fsm *BenchmarkFSM) Snapshot(w io.Writer) (uint64, error) {
-	return fsm.index, binary.Write(w, binary.BigEndian, fsm.index)
-}
-
-// Restore reads the snapshot from the reader.
-func (fsm *BenchmarkFSM) Restore(r io.Reader) error {
-	return binary.Read(r, binary.BigEndian, &fsm.index)
 }
 
 // Cluster represents a collection of nodes that share the same mock clock.
@@ -346,13 +347,14 @@ type Cluster struct {
 }
 
 // NewCluster creates a new 3 log cluster.
-func NewCluster() *Cluster {
+func NewCluster(fsmFn func() raft.FSM) *Cluster {
 	c := &Cluster{}
 	t := NewTransport()
 
 	logN := 3
 	for i := 0; i < logN; i++ {
 		l := NewLog(&url.URL{Host: fmt.Sprintf("log%d", i)})
+		l.Log.FSM = fsmFn()
 		l.Transport = t
 		c.Logs = append(c.Logs, l)
 		t.register(l.Log)
@@ -383,7 +385,7 @@ func NewCluster() *Cluster {
 	go func() {
 		c.Logs[0].MustWaitUncommitted(3)
 		c.Logs[1].MustWaitUncommitted(3)
-		c.Logs[0].Clock.heartbeat()
+		c.Logs[0].HeartbeatUntil(3)
 		c.Logs[0].Clock.apply()
 		c.Logs[1].Clock.apply()
 		c.Logs[2].Clock.apply()
@@ -400,10 +402,62 @@ func NewCluster() *Cluster {
 	return c
 }
 
+// NewRealTimeCluster a new cluster with n logs.
+// All logs use a real-time clock instead of a test clock.
+func NewRealTimeCluster(logN int, fsmFn func() raft.FSM) *Cluster {
+	c := &Cluster{}
+	t := NewTransport()
+
+	for i := 0; i < logN; i++ {
+		l := NewLog(&url.URL{Host: fmt.Sprintf("log%d", i)})
+		l.Log.FSM = fsmFn()
+		l.Clock = nil
+		l.Log.Clock = raft.NewClock()
+		l.Transport = t
+		c.Logs = append(c.Logs, l)
+		t.register(l.Log)
+		warnf("Log %s: %p", l.URL.String(), l.Log)
+	}
+	warn("")
+
+	// Initialize leader.
+	c.Logs[0].MustOpen()
+	c.Logs[0].MustInitialize()
+
+	// Join remaining nodes.
+	for i := 1; i < logN; i++ {
+		c.Logs[i].MustOpen()
+		c.Logs[i].MustJoin(c.Logs[0].URL)
+	}
+
+	// Ensure nodes are ready.
+	index, _ := c.Logs[0].LastLogIndexTerm()
+	for i := 0; i < logN; i++ {
+		c.Logs[i].MustWait(index)
+	}
+
+	return c
+}
+
 // Close closes all logs in the cluster.
 func (c *Cluster) Close() {
 	for _, l := range c.Logs {
 		l.Close()
+	}
+}
+
+// Apply continually tries to apply data to the current leader.
+// If the leader cannot be found then it will retry until it finds the leader.
+func (c *Cluster) Apply(data []byte) (uint64, error) {
+	for {
+		for _, l := range c.Logs {
+			index, err := l.Apply(make([]byte, 50))
+			if err == raft.ErrNotLeader {
+				continue
+			}
+			return index, err
+		}
+		time.Sleep(1 * time.Millisecond)
 	}
 }
 
@@ -418,7 +472,7 @@ func (c *Cluster) Leader() *Log {
 	return leader
 }
 
-// WaitUncommitted waits until all logs in the cluster have reached a given uncomiitted index.
+// WaitCommitted waits until all logs in the cluster have reached a given uncommitted index.
 func (c *Cluster) MustWaitUncommitted(index uint64) {
 	for _, l := range c.Logs {
 		l.MustWaitUncommitted(index)
@@ -437,14 +491,12 @@ func (c *Cluster) flush() {
 type Log struct {
 	*raft.Log
 	Clock *Clock
-	FSM   *FSM
 }
 
 // NewLog returns a new instance of Log.
 func NewLog(u *url.URL) *Log {
-	l := &Log{Log: raft.NewLog(), Clock: NewClock(), FSM: &FSM{}}
+	l := &Log{Log: raft.NewLog(), Clock: NewClock()}
 	l.URL = u
-	l.Log.FSM = l.FSM
 	l.Log.Clock = l.Clock
 	l.Rand = seq()
 	l.DebugEnabled = true
@@ -457,6 +509,7 @@ func NewLog(u *url.URL) *Log {
 // NewInitializedLog returns a new initialized Node.
 func NewInitializedLog(u *url.URL) *Log {
 	l := NewLog(u)
+	l.Log.FSM = &FSM{}
 	l.MustOpen()
 	l.MustInitialize()
 	return l
@@ -473,10 +526,19 @@ func (l *Log) MustOpen() {
 func (l *Log) MustInitialize() {
 	go func() {
 		l.MustWaitUncommitted(1)
-		l.Clock.apply()
+		if l.Clock != nil {
+			l.Clock.apply()
+		}
 	}()
 	if err := l.Initialize(); err != nil {
 		panic("initialize: " + err.Error())
+	}
+}
+
+// MustJoin joins the log to another log. Panic on error.
+func (l *Log) MustJoin(u *url.URL) {
+	if err := l.Join(u); err != nil {
+		panic("join: " + err.Error())
 	}
 }
 
@@ -487,10 +549,35 @@ func (l *Log) Close() error {
 	return nil
 }
 
+// MustWaits waits for at least a given applied index. Panic on error.
+func (l *Log) MustWait(index uint64) {
+	if err := l.Log.Wait(index); err != nil {
+		panic(l.URL.String() + " wait: " + err.Error())
+	}
+}
+
+// MustCommitted waits for at least a given committed index. Panic on error.
+func (l *Log) MustWaitCommitted(index uint64) {
+	if err := l.Log.WaitCommitted(index); err != nil {
+		panic(l.URL.String() + " wait committed: " + err.Error())
+	}
+}
+
 // MustWaitUncommitted waits for at least a given uncommitted index. Panic on error.
 func (l *Log) MustWaitUncommitted(index uint64) {
 	if err := l.Log.WaitUncommitted(index); err != nil {
 		panic(l.URL.String() + " wait uncommitted: " + err.Error())
+	}
+}
+
+// HeartbeatUtil continues to heartbeat until an index is committed.
+func (l *Log) HeartbeatUntil(index uint64) {
+	for {
+		time.Sleep(1 * time.Millisecond)
+		l.Clock.heartbeat()
+		if l.CommitIndex() >= index {
+			return
+		}
 	}
 }
 
@@ -535,18 +622,8 @@ func (fsm *FSM) Restore(r io.Reader) error {
 	return nil
 }
 
-// MockFSM represents a state machine that can be mocked out.
-type MockFSM struct {
-	ApplyFunc    func(*raft.LogEntry) error
-	IndexFunc    func() (uint64, error)
-	SnapshotFunc func(w io.Writer) (index uint64, err error)
-	RestoreFunc  func(r io.Reader) error
-}
-
-func (fsm *MockFSM) Apply(e *raft.LogEntry) error         { return fsm.ApplyFunc(e) }
-func (fsm *MockFSM) Index() (uint64, error)               { return fsm.IndexFunc() }
-func (fsm *MockFSM) Snapshot(w io.Writer) (uint64, error) { return fsm.SnapshotFunc(w) }
-func (fsm *MockFSM) Restore(r io.Reader) error            { return fsm.RestoreFunc(r) }
+func fsmFunc() raft.FSM      { return &FSM{} }
+func indexFSMFunc() raft.FSM { return &raft.IndexFSM{} }
 
 // seq implements the raft.Log#Rand interface and returns incrementing ints.
 func seq() func() int64 {
@@ -587,3 +664,13 @@ func warnf(msg string, v ...interface{}) {
 		fmt.Fprintf(os.Stderr, msg+"\n", v...)
 	}
 }
+
+// u64tob converts a uint64 into an 8-byte slice.
+func u64tob(v uint64) []byte {
+	b := make([]byte, 8)
+	binary.BigEndian.PutUint64(b, v)
+	return b
+}
+
+// btou64 converts an 8-byte slice into an uint64.
+func btou64(b []byte) uint64 { return binary.BigEndian.Uint64(b) }

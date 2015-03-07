@@ -23,6 +23,8 @@ const (
 	BADESCAPE    // \q
 	TRUE         // true
 	FALSE        // false
+	REGEX        // Regular expressions
+	BADREGEX     // `.*
 	literal_end
 
 	operator_beg
@@ -35,12 +37,14 @@ const (
 	AND // AND
 	OR  // OR
 
-	EQ  // =
-	NEQ // !=
-	LT  // <
-	LTE // <=
-	GT  // >
-	GTE // >=
+	EQ       // =
+	NEQ      // !=
+	EQREGEX  // =~
+	NEQREGEX // !~
+	LT       // <
+	LTE      // <=
+	GT       // >
+	GTE      // >=
 	operator_end
 
 	LPAREN    // (
@@ -75,6 +79,7 @@ const (
 	GROUP
 	IF
 	IN
+	INF
 	INNER
 	INSERT
 	INTO
@@ -119,8 +124,11 @@ var tokens = [...]string{
 	NUMBER:       "NUMBER",
 	DURATION_VAL: "DURATION_VAL",
 	STRING:       "STRING",
+	BADSTRING:    "BADSTRING",
+	BADESCAPE:    "BADESCAPE",
 	TRUE:         "TRUE",
 	FALSE:        "FALSE",
+	REGEX:        "REGEX",
 
 	ADD: "+",
 	SUB: "-",
@@ -130,12 +138,14 @@ var tokens = [...]string{
 	AND: "AND",
 	OR:  "OR",
 
-	EQ:  "=",
-	NEQ: "!=",
-	LT:  "<",
-	LTE: "<=",
-	GT:  ">",
-	GTE: ">=",
+	EQ:       "=",
+	NEQ:      "!=",
+	EQREGEX:  "=~",
+	NEQREGEX: "!~",
+	LT:       "<",
+	LTE:      "<=",
+	GT:       ">",
+	GTE:      ">=",
 
 	LPAREN:    "(",
 	RPAREN:    ")",
@@ -167,6 +177,7 @@ var tokens = [...]string{
 	GROUP:        "GROUP",
 	IF:           "IF",
 	IN:           "IN",
+	INF:          "INF",
 	INNER:        "INNER",
 	INSERT:       "INSERT",
 	INTO:         "INTO",
@@ -232,7 +243,7 @@ func (tok Token) Precedence() int {
 		return 1
 	case AND:
 		return 2
-	case EQ, NEQ, LT, LTE, GT, GTE:
+	case EQ, NEQ, EQREGEX, NEQREGEX, LT, LTE, GT, GTE:
 		return 3
 	case ADD, SUB:
 		return 4

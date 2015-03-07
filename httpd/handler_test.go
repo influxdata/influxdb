@@ -10,7 +10,6 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -147,7 +146,7 @@ func TestHandler_Databases(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "SHOW DATABASES"}, nil, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"results":[{"rows":[{"columns":["name"],"values":[["bar"],["foo"]]}]}]}` {
+	} else if body != `{"results":[{"series":[{"columns":["name"],"values":[["bar"],["foo"]]}]}]}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -165,7 +164,7 @@ func TestHandler_DatabasesPrettyPrinted(t *testing.T) {
 	} else if body != `{
     "results": [
         {
-            "rows": [
+            "series": [
                 {
                     "columns": [
                         "name"
@@ -225,7 +224,7 @@ func TestHandler_CreateDatabase_Conflict(t *testing.T) {
 	}
 }
 
-func TestHandler_DeleteDatabase(t *testing.T) {
+func TestHandler_DropDatabase(t *testing.T) {
 	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	s := NewHTTPServer(srvr)
@@ -239,7 +238,7 @@ func TestHandler_DeleteDatabase(t *testing.T) {
 	}
 }
 
-func TestHandler_DeleteDatabase_NotFound(t *testing.T) {
+func TestHandler_DropDatabase_NotFound(t *testing.T) {
 	srvr := OpenAuthlessServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
 	defer s.Close()
@@ -263,7 +262,7 @@ func TestHandler_RetentionPolicies(t *testing.T) {
 
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"results":[{"rows":[{"columns":["name","duration","replicaN"],"values":[["bar","168h0m0s",1]]}]}]}` {
+	} else if body != `{"results":[{"series":[{"columns":["name","duration","replicaN"],"values":[["bar","168h0m0s",1]]}]}]}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -536,6 +535,92 @@ func TestHandler_GzipDisabled(t *testing.T) {
 	}
 }
 
+func TestHandler_Index(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, body := MustHTTP("GET", s.URL, nil, nil, "")
+
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+
+	if body != "1" {
+		t.Fatalf("unexpected body.  expected %q, actual %q", "1", body)
+	}
+}
+
+func TestHandler_Wait(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, body := MustHTTP("GET", s.URL+`/wait/1`, map[string]string{"timeout": "1"}, nil, "")
+
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+
+	if body != "1" {
+		t.Fatalf("unexpected body.  expected %q, actual %q", "1", body)
+	}
+}
+
+func TestHandler_WaitIncrement(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
+
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, _ := MustHTTP("GET", s.URL+`/wait/2`, map[string]string{"timeout": "200"}, nil, "")
+
+	// Write some data
+	_, _ = MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
+
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status, expected:  %d, actual: %d", http.StatusOK, status)
+	}
+}
+
+func TestHandler_WaitNoIndexSpecified(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, _ := MustHTTP("GET", s.URL+`/wait`, nil, nil, "")
+
+	if status != http.StatusNotFound {
+		t.Fatalf("unexpected status, expected:  %d, actual: %d", http.StatusNotFound, status)
+	}
+}
+
+func TestHandler_WaitInvalidIndexSpecified(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, _ := MustHTTP("GET", s.URL+`/wait/foo`, nil, nil, "")
+
+	if status != http.StatusBadRequest {
+		t.Fatalf("unexpected status, expected:  %d, actual: %d", http.StatusBadRequest, status)
+	}
+}
+
+func TestHandler_WaitExpectTimeout(t *testing.T) {
+	srvr := OpenAuthlessServer(NewMessagingClient())
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, _ := MustHTTP("GET", s.URL+`/wait/2`, map[string]string{"timeout": "1"}, nil, "")
+
+	if status != http.StatusRequestTimeout {
+		t.Fatalf("unexpected status, expected:  %d, actual: %d", http.StatusRequestTimeout, status)
+	}
+}
+
 func TestHandler_Ping(t *testing.T) {
 	srvr := OpenAuthlessServer(NewMessagingClient())
 	s := NewHTTPServer(srvr)
@@ -560,36 +645,6 @@ func TestHandler_PingHead(t *testing.T) {
 	}
 }
 
-func TestHandler_Users_NoUsers(t *testing.T) {
-	srvr := OpenAuthlessServer(NewMessagingClient())
-	srvr.CreateDatabase("foo")
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	query := map[string]string{"q": "SHOW USERS"}
-	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
-	if status != http.StatusOK {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"results":[{"rows":[{"columns":["user","admin"]}]}]}` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-func TestHandler_Users_OneUser(t *testing.T) {
-	srvr := OpenAuthlessServer(NewMessagingClient())
-	srvr.CreateUser("jdoe", "1337", true)
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	query := map[string]string{"q": "SHOW USERS"}
-	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
-	if status != http.StatusOK {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"results":[{"rows":[{"columns":["user","admin"],"values":[["jdoe",true]]}]}]}` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
 func TestHandler_Users_MultipleUsers(t *testing.T) {
 	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateUser("jdoe", "1337", false)
@@ -602,63 +657,7 @@ func TestHandler_Users_MultipleUsers(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"results":[{"rows":[{"columns":["user","admin"],"values":[["csmith",false],["jdoe",false],["mclark",true]]}]}]}` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-func TestHandler_CreateUser(t *testing.T) {
-	srvr := OpenAuthlessServer(NewMessagingClient())
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	query := map[string]string{"q": `CREATE USER testuser WITH PASSWORD '1337'`}
-	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
-	if status != http.StatusOK {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"results":[{}]}` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-func TestHandler_CreateUser_BadRequest(t *testing.T) {
-	srvr := OpenAuthlessServer(NewMessagingClient())
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	query := map[string]string{"q": "CREATE USER 0xBAD WITH PASSWORD pwd1337"}
-	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
-	if status != http.StatusBadRequest {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"error":"error parsing query: found 0, expected identifier at line 1, char 13"}` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-func TestHandler_CreateUser_BadRequest_NoName(t *testing.T) {
-	srvr := OpenAuthlessServer(NewMessagingClient())
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	query := map[string]string{"q": "CREATE USER WITH PASSWORD pwd1337"}
-	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
-	if status != http.StatusBadRequest {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"error":"error parsing query: found WITH, expected identifier at line 1, char 13"}` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-func TestHandler_CreateUser_BadRequest_NoPassword(t *testing.T) {
-	srvr := OpenAuthlessServer(NewMessagingClient())
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	query := map[string]string{"q": "CREATE USER jdoe"}
-	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
-	if status != http.StatusBadRequest {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"error":"error parsing query: found EOF, expected WITH at line 1, char 18"}` {
+	} else if body != `{"results":[{"series":[{"columns":["user","admin"],"values":[["csmith",false],["jdoe",false],["mclark",true]]}]}]}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -695,35 +694,6 @@ func TestHandler_UpdateUser_PasswordBadRequest(t *testing.T) {
 	if status != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `json: cannot unmarshal number into Go value of type string` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-func TestHandler_DeleteUser(t *testing.T) {
-	srvr := OpenAuthlessServer(NewMessagingClient())
-	srvr.CreateUser("jdoe", "1337", false)
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	query := map[string]string{"q": "DROP USER jdoe"}
-	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
-	if status != http.StatusOK {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"results":[{}]}` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-func TestHandler_DeleteUser_UserNotFound(t *testing.T) {
-	srvr := OpenAuthlessServer(NewMessagingClient())
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	query := map[string]string{"q": "DROP USER jdoe"}
-	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
-	if status != http.StatusInternalServerError {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"results":[{"error":"user not found"}]}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -906,37 +876,6 @@ func TestHandler_AuthenticatedDatabases_UnauthorizedBasicAuth(t *testing.T) {
 	}
 }
 
-func TestHandler_GrantAdmin(t *testing.T) {
-	srvr := OpenAuthenticatedServer(NewMessagingClient())
-	// Create a cluster admin that will grant admin to "john".
-	srvr.CreateUser("lisa", "password", true)
-	// Create user that will be granted cluster admin.
-	srvr.CreateUser("john", "password", false)
-	s := NewAuthenticatedHTTPServer(srvr)
-	defer s.Close()
-
-	auth := make(map[string]string)
-	auth["Authorization"] = "Basic " + base64.StdEncoding.EncodeToString([]byte("lisa:password"))
-	query := map[string]string{"q": "GRANT ALL PRIVILEGES TO john"}
-
-	status, _ := MustHTTP("GET", s.URL+`/query`, query, auth, "")
-
-	if status != http.StatusOK {
-		t.Fatalf("unexpected status: %d", status)
-	}
-
-	if u := srvr.User("john"); !u.Admin {
-		t.Fatal(`expected user "john" to be admin`)
-	}
-
-	// Make sure update persists after server restart.
-	srvr.Restart()
-
-	if u := srvr.User("john"); !u.Admin {
-		t.Fatal(`expected user "john" to be admin after server restart`)
-	}
-}
-
 func TestHandler_GrantDBPrivilege(t *testing.T) {
 	srvr := OpenAuthenticatedServer(NewMessagingClient())
 	// Create a cluster admin that will grant privilege to "john".
@@ -1040,34 +979,25 @@ func TestHandler_RevokeDBPrivilege(t *testing.T) {
 	}
 }
 
-func TestHandler_ShowContinuousQueries(t *testing.T) {
+func TestHandler_DropSeries(t *testing.T) {
 	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
-	srvr.SetDefaultRetentionPolicy("foo", "bar")
-
-	// create and check
-	q := "CREATE CONTINUOUS QUERY myquery ON foo BEGIN SELECT count() INTO measure1 FROM myseries GROUP BY time(10m) END"
-	stmt, err := influxql.NewParser(strings.NewReader(q)).ParseStatement()
-	if err != nil {
-		t.Fatalf("error parsing query %s", err.Error())
-	}
-	cq := stmt.(*influxql.CreateContinuousQueryStatement)
-	if err := srvr.CreateContinuousQuery(cq); err != nil {
-		t.Fatalf("error creating continuous query %s", err.Error())
-	}
-
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	query := map[string]string{"q": "SHOW CONTINUOUS QUERIES"}
-	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
+	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
+
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"results":[{"rows":[{"name":"foo","columns":["name","query"],"values":[["myquery","CREATE CONTINUOUS QUERY myquery ON foo BEGIN SELECT count() INTO measure1 FROM myseries GROUP BY time(10m) END"]]}]}]}` {
-		t.Fatalf("unexpected body: %s", body)
 	}
 
+	query := map[string]string{"db": "foo", "q": "DROP SERIES FROM cpu"}
+	status, _ = MustHTTP("GET", s.URL+`/query`, query, nil, "")
+
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
 }
 
 func TestHandler_serveWriteSeries(t *testing.T) {
@@ -1077,10 +1007,28 @@ func TestHandler_serveWriteSeries(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}}]}`)
+	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
 
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
+	}
+}
+
+func TestHandler_serveWriteSeriesWithNoFields(t *testing.T) {
+	srvr := OpenAuthenticatedServer(NewMessagingClient())
+	srvr.CreateDatabase("foo")
+	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z"}]}`)
+
+	expected := fmt.Sprintf(`{"error":"%s"}`, influxdb.ErrFieldsRequired.Error())
+
+	if status != http.StatusInternalServerError {
+		t.Fatalf("unexpected status: %d", status)
+	} else if body != expected {
+		t.Fatalf("result mismatch:\n\texp=%s\n\tgot=%s\n", expected, body)
 	}
 }
 
@@ -1091,7 +1039,7 @@ func TestHandler_serveWriteSeriesWithAuthNilUser(t *testing.T) {
 	s := NewAuthenticatedHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}}]}`)
+	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
 
 	if status != http.StatusUnauthorized {
 		t.Fatalf("unexpected status: %d", status)
@@ -1108,7 +1056,7 @@ func TestHandler_serveWriteSeries_noDatabaseExists(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}}]}`)
+	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
 
 	expectedStatus := http.StatusNotFound
 	if status != expectedStatus {
@@ -1126,7 +1074,7 @@ func TestHandler_serveWriteSeries_invalidJSON(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}}]}`)
+	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
 
 	if status != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: expected: %d, actual: %d", http.StatusInternalServerError, status)
@@ -1164,11 +1112,13 @@ func TestHandler_serveWriteSeriesNonZeroTime(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z", "values": {"value": 100}}]}`)
+	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z", "fields": {"value": 100}}]}`)
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	}
 	time.Sleep(100 * time.Millisecond) // Ensure data node picks up write.
+
+	srvr.Restart() // Ensure data is queryable across restarts.
 
 	query := map[string]string{"db": "foo", "q": "select value from cpu"}
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
@@ -1189,8 +1139,8 @@ func TestHandler_serveWriteSeriesNonZeroTime(t *testing.T) {
 	}
 
 	result := r.Results[0]
-	if len(result.Rows) != 1 {
-		t.Fatalf("unexpected row count, expected: %d, actual: %d", 1, len(result.Rows))
+	if len(result.Series) != 1 {
+		t.Fatalf("unexpected row count, expected: %d, actual: %d", 1, len(result.Series))
 	}
 }
 
@@ -1205,12 +1155,14 @@ func TestHandler_serveWriteSeriesZeroTime(t *testing.T) {
 
 	now := time.Now()
 
-	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"values": {"value": 100}}]}`)
+	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"fields": {"value": 100}}]}`)
 
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	}
 	time.Sleep(100 * time.Millisecond) // Ensure data node picks up write.
+
+	srvr.Restart() // Ensure data is queryable across restarts.
 
 	query := map[string]string{"db": "foo", "q": "select value from cpu"}
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
@@ -1232,10 +1184,10 @@ func TestHandler_serveWriteSeriesZeroTime(t *testing.T) {
 		t.Fatalf("unexpected results count")
 	}
 	result := r.Results[0]
-	if len(result.Rows) != 1 {
-		t.Fatalf("unexpected row count, expected: %d, actual: %d", 1, len(result.Rows))
+	if len(result.Series) != 1 {
+		t.Fatalf("unexpected row count, expected: %d, actual: %d", 1, len(result.Series))
 	}
-	row := result.Rows[0]
+	row := result.Series[0]
 	timestamp, _ := time.Parse(time.RFC3339Nano, row.Values[0][0].(string))
 	if timestamp.IsZero() {
 		t.Fatalf("failed to write a default time, actual: %v", row.Values[0][0])
@@ -1245,7 +1197,7 @@ func TestHandler_serveWriteSeriesZeroTime(t *testing.T) {
 	}
 }
 
-func TestHandler_serveWriteSeriesStringValues(t *testing.T) {
+func TestHandler_serveWriteSeriesBatch(t *testing.T) {
 	srvr := OpenAuthlessServer(NewMessagingClient())
 	srvr.CreateDatabase("foo")
 	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
@@ -1254,55 +1206,53 @@ func TestHandler_serveWriteSeriesStringValues(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "logs", "tags": {"host": "server01"},"values": {"event": "disk full"}}]}`)
-	if status != http.StatusOK {
-		t.Fatalf("unexpected status: %d", status)
-	}
-	time.Sleep(100 * time.Millisecond) // Ensure data node picks up write.
-
-	query := map[string]string{"db": "foo", "q": "select event from logs"}
-	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
-	if status != http.StatusOK {
-		t.Logf("query %s\n", query)
-		t.Log(body)
-		t.Errorf("unexpected status: %d", status)
-	}
-
-	r := &influxdb.Results{}
-	if err := json.Unmarshal([]byte(body), r); err != nil {
-		t.Logf("query : %s\n", query)
-		t.Log(body)
-		t.Error(err)
-	}
-	if len(r.Results) != 1 {
-		t.Fatalf("unexpected results count")
-	}
-	result := r.Results[0]
-	if len(result.Rows) != 1 {
-		t.Fatalf("unexpected row count, expected: %d, actual: %d", 1, len(result.Rows))
-	}
-	if result.Rows[0].Values[0][1] != "disk full" {
-		t.Fatalf("unexpected string value, actual: %s", result.Rows[0].Values[0][1])
-	}
+	batch := `
+{
+    "database": "foo",
+    "retentionPolicy": "bar",
+    "points": [
+        {
+            "name": "disk",
+            "timestamp": "2009-11-10T23:00:00Z",
+            "tags": {
+                "host": "server01"
+            },
+            "fields": {
+                "full": false
+            }
+        },
+        {
+            "name": "disk",
+            "timestamp": "2009-11-10T23:00:01Z",
+            "tags": {
+                "host": "server01"
+            },
+            "fields": {
+                "full": true
+            }
+        },
+        {
+            "name": "disk",
+            "timestamp": "2009-11-10T23:00:02Z",
+            "tags": {
+                "host": "server02"
+            },
+            "fields": {
+                "full_pct": 64
+            }
+        }
+    ]
 }
-
-func TestHandler_serveWriteSeriesBoolValues(t *testing.T) {
-	srvr := OpenAuthlessServer(NewMessagingClient())
-	srvr.CreateDatabase("foo")
-	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
-	srvr.SetDefaultRetentionPolicy("foo", "bar")
-
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "disk", "tags": {"host": "server01"},"values": {"full": false}}]}`)
+`
+	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, batch)
 	if status != http.StatusOK {
+		t.Log(body)
 		t.Fatalf("unexpected status: %d", status)
 	}
-	time.Sleep(100 * time.Millisecond) // Ensure data node picks up write.
+	time.Sleep(200 * time.Millisecond) // Ensure data node picks up write.
 
-	query := map[string]string{"db": "foo", "q": "select full from disk"}
-	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
+	query := map[string]string{"db": "foo", "q": "select * from disk"}
+	status, body = MustHTTP("GET", s.URL+`/query`, query, nil, "")
 	if status != http.StatusOK {
 		t.Logf("query %s\n", query)
 		t.Log(body)
@@ -1319,52 +1269,14 @@ func TestHandler_serveWriteSeriesBoolValues(t *testing.T) {
 		t.Fatalf("unexpected results count")
 	}
 	result := r.Results[0]
-	if len(result.Rows) != 1 {
-		t.Fatalf("unexpected row count, expected: %d, actual: %d", 1, len(result.Rows))
+	if len(result.Series) != 1 {
+		t.Fatalf("unexpected row count, expected: %d, actual: %d", 1, len(result.Series))
 	}
-	if result.Rows[0].Values[0][1] != false {
-		t.Fatalf("unexpected string value, actual: %s", result.Rows[0].Values[0][1])
+	if len(result.Series[0].Columns) != 3 {
+		t.Fatalf("unexpected column count, expected: %d, actual: %d", 3, len(result.Series[0].Columns))
 	}
-}
-
-func TestHandler_serveWriteSeriesInvalidQueryField(t *testing.T) {
-	srvr := OpenAuthlessServer(NewMessagingClient())
-	srvr.CreateDatabase("foo")
-	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
-	srvr.SetDefaultRetentionPolicy("foo", "bar")
-
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"values": {"value": 100}}]}`)
-	if status != http.StatusOK {
-		t.Fatalf("unexpected status: %d", status)
-	}
-	time.Sleep(100 * time.Millisecond) // Ensure data node picks up write.
-
-	query := map[string]string{"db": "foo", "q": "select bar from cpu"}
-	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
-	if status != http.StatusInternalServerError {
-		t.Logf("query %s\n", query)
-		t.Log(body)
-		t.Errorf("unexpected status: %d", status)
-	}
-
-	r := &influxdb.Results{}
-	if err := json.Unmarshal([]byte(body), r); err != nil {
-		t.Logf("query : %s\n", query)
-		t.Log(body)
-		t.Error(err)
-	}
-	if len(r.Results) != 1 {
-		t.Fatalf("unexpected results count")
-	}
-	result := r.Results[0]
-	if len(result.Rows) != 0 {
-		t.Fatalf("unexpected row count, expected: %d, actual: %d", 0, len(result.Rows))
-	}
-	if result.Err.Error() != "field not found: bar" {
-		t.Fatalf("unexpected error returned, actual: %s", result.Err.Error())
+	if len(result.Series[0].Values) != 3 {
+		t.Fatalf("unexpected values count, expected: %d, actual: %d", 3, len(result.Series[0].Values))
 	}
 }
 
@@ -1377,12 +1289,12 @@ func TestHandler_serveWriteSeriesFieldTypeConflict(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"values": {"value": 100}}]}`)
+	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"fields": {"value": 100}}]}`)
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	}
 
-	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"values": {"value": "foo"}}]}`)
+	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"fields": {"value": "foo"}}]}`)
 	if status != http.StatusInternalServerError {
 		t.Errorf("unexpected status: %d", status)
 	}
@@ -1400,172 +1312,6 @@ func TestHandler_serveWriteSeriesFieldTypeConflict(t *testing.T) {
 	}
 }
 
-func TestHandler_serveShowSeries(t *testing.T) {
-	srvr := OpenAuthlessServer(NewMessagingClient())
-	srvr.CreateDatabase("foo")
-	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
-	srvr.SetDefaultRetentionPolicy("foo", "bar")
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [
-		{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
-		{"name": "cpu", "tags": {"host": "server01", "region": "uswest"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
-		{"name": "cpu", "tags": {"host": "server01", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
-		{"name": "cpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
-		{"name": "gpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}}
-		]}`)
-
-	if status != http.StatusOK {
-		t.Log(body)
-		t.Fatalf("unexpected status after write: %d", status)
-	}
-
-	var tests = []struct {
-		q   string
-		r   *influxdb.Results
-		err string
-	}{
-		// SHOW SERIES
-		{
-			q: `SHOW SERIES`,
-			r: &influxdb.Results{
-				Results: []*influxdb.Result{
-					{
-						Rows: []*influxql.Row{
-							{
-								Name:    "cpu",
-								Columns: []string{"host", "region"},
-								Values: [][]interface{}{
-									str2iface([]string{"server01", ""}),
-									str2iface([]string{"server01", "uswest"}),
-									str2iface([]string{"server01", "useast"}),
-									str2iface([]string{"server02", "useast"}),
-								},
-							},
-							{
-								Name:    "gpu",
-								Columns: []string{"host", "region"},
-								Values: [][]interface{}{
-									str2iface([]string{"server02", "useast"}),
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		// SHOW SERIES ... LIMIT
-		// {
-		// 	q: `SHOW SERIES LIMIT 1`,
-		// 	r: &influxdb.Results{
-		// 		Results: []*influxdb.Result{
-		// 			&influxdb.Result{
-		// 				Rows: []*influxql.Row{
-		// 					&influxql.Row{
-		// 						Name:    "cpu",
-		// 						Columns: []string{"host", "region"},
-		// 						Values: [][]interface{}{
-		// 							str2iface([]string{"server01", ""}),
-		// 							str2iface([]string{"server01", "uswest"}),
-		// 							str2iface([]string{"server01", "useast"}),
-		// 							str2iface([]string{"server02", "useast"}),
-		// 						},
-		// 					},
-		// 				},
-		// 			},
-		// 		},
-		// 	},
-		// },
-		// SHOW SERIES FROM
-		{
-			q: `SHOW SERIES FROM cpu`,
-			r: &influxdb.Results{
-				Results: []*influxdb.Result{
-					{
-						Rows: []*influxql.Row{
-							{
-								Name:    "cpu",
-								Columns: []string{"host", "region"},
-								Values: [][]interface{}{
-									str2iface([]string{"server01", ""}),
-									str2iface([]string{"server01", "uswest"}),
-									str2iface([]string{"server01", "useast"}),
-									str2iface([]string{"server02", "useast"}),
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		// SHOW SERIES WHERE
-		{
-			q: `SHOW SERIES WHERE region = 'uswest'`,
-			r: &influxdb.Results{
-				Results: []*influxdb.Result{
-					{
-						Rows: []*influxql.Row{
-							{
-								Name:    "cpu",
-								Columns: []string{"host", "region"},
-								Values: [][]interface{}{
-									str2iface([]string{"server01", "uswest"}),
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		// SHOW SERIES FROM ... WHERE
-		{
-			q: `SHOW SERIES FROM cpu WHERE region = 'useast'`,
-			r: &influxdb.Results{
-				Results: []*influxdb.Result{
-					{
-						Rows: []*influxql.Row{
-							{
-								Name:    "cpu",
-								Columns: []string{"host", "region"},
-								Values: [][]interface{}{
-									str2iface([]string{"server01", "useast"}),
-									str2iface([]string{"server02", "useast"}),
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-
-	for i, tt := range tests {
-		query := map[string]string{"db": "foo", "q": tt.q}
-		status, body = MustHTTP("GET", s.URL+`/query`, query, nil, "")
-
-		if status != http.StatusOK {
-			t.Logf("query #%d: %s", i, tt.q)
-			t.Log(body)
-			t.Errorf("unexpected status: %d", status)
-		}
-
-		r := &influxdb.Results{}
-		if err := json.Unmarshal([]byte(body), r); err != nil {
-			t.Logf("query #%d: %s", i, tt.q)
-			t.Log(body)
-			t.Error(err)
-		}
-
-		if !reflect.DeepEqual(tt.err, errstring(r.Err)) {
-			t.Errorf("%d. %s: error mismatch:\n  exp=%s\n  got=%s\n\n", i, tt.q, tt.err, r.Err)
-		} else if tt.err == "" && !reflect.DeepEqual(tt.r, r) {
-			t.Log(body)
-			t.Errorf("%d. %s: result mismatch:\n\nexp=%#v\n\ngot=%#v\n\n", i, tt.q, tt.r, r)
-		}
-	}
-}
-
 // str2iface converts an array of strings to an array of interfaces.
 func str2iface(strs []string) []interface{} {
 	a := make([]interface{}, 0, len(strs))
@@ -1575,416 +1321,14 @@ func str2iface(strs []string) []interface{} {
 	return a
 }
 
-func TestHandler_serveShowMeasurements(t *testing.T) {
-	srvr := OpenAuthlessServer(NewMessagingClient())
-	srvr.CreateDatabase("foo")
-	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
-	s := NewHTTPServer(srvr)
+func TestHandler_ProcessContinousQueries(t *testing.T) {
+	srvr := OpenAuthenticatedServer(NewMessagingClient())
+	s := NewAuthenticatedHTTPServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [
-		{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
-		{"name": "cpu", "tags": {"host": "server01", "region": "uswest"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
-		{"name": "cpu", "tags": {"host": "server01", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
-		{"name": "cpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
-		{"name": "gpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}}
-		]}`)
-
-	if status != http.StatusOK {
-		t.Log(body)
-		t.Fatalf("unexpected status after write: %d", status)
-	}
-
-	var tests = []struct {
-		q   string
-		r   string
-		err string
-	}{
-		// SHOW MEASUREMENTS
-		{
-			q: `SHOW MEASUREMENTS LIMIT 2`,
-			r: `{"results":[{"rows":[{"name":"measurements","columns":["name"],"values":[["cpu"],["gpu"]]}]}]}`,
-		},
-	}
-
-	for i, tt := range tests {
-		query := map[string]string{"db": "foo", "q": tt.q}
-		status, body = MustHTTP("GET", s.URL+`/query`, query, nil, "")
-
-		if status != http.StatusOK {
-			t.Logf("query #%d: %s", i, tt.q)
-			t.Log(body)
-			t.Errorf("unexpected status: %d", status)
-		}
-
-		r := &influxdb.Results{}
-		if err := json.Unmarshal([]byte(body), r); err != nil {
-			t.Logf("query #%d: %s", i, tt.q)
-			t.Log(body)
-			t.Error("error marshaling result: ", err)
-		}
-
-		if body != tt.r {
-			t.Errorf("result mismatch\n  exp: %s\n  got: %s\n", tt.r, body)
-		}
-	}
-}
-
-func TestHandler_serveShowTagKeys(t *testing.T) {
-	srvr := OpenAuthlessServer(NewMessagingClient())
-	srvr.CreateDatabase("foo")
-	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
-	srvr.SetDefaultRetentionPolicy("foo", "bar")
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [
-		{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
-		{"name": "cpu", "tags": {"host": "server01", "region": "uswest"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
-		{"name": "cpu", "tags": {"host": "server01", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
-		{"name": "cpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
-		{"name": "gpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}}
-		]}`)
-
-	if status != http.StatusOK {
-		t.Log(body)
-		t.Fatalf("unexpected status after write: %d", status)
-	}
-
-	var tests = []struct {
-		q   string
-		r   *influxdb.Results
-		err string
-	}{
-		// SHOW TAG KEYS
-		{
-			q: `SHOW TAG KEYS`,
-			r: &influxdb.Results{
-				Results: []*influxdb.Result{
-					{
-						Rows: []*influxql.Row{
-							{
-								Name:    "cpu",
-								Columns: []string{"tagKey"},
-								Values: [][]interface{}{
-									str2iface([]string{"host"}),
-									str2iface([]string{"region"}),
-								},
-							},
-							{
-								Name:    "gpu",
-								Columns: []string{"tagKey"},
-								Values: [][]interface{}{
-									str2iface([]string{"host"}),
-									str2iface([]string{"region"}),
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		// SHOW TAG KEYS FROM...
-		{
-			q: `SHOW TAG KEYS FROM cpu`,
-			r: &influxdb.Results{
-				Results: []*influxdb.Result{
-					{
-						Rows: []*influxql.Row{
-							{
-								Name:    "cpu",
-								Columns: []string{"tagKey"},
-								Values: [][]interface{}{
-									str2iface([]string{"host"}),
-									str2iface([]string{"region"}),
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		// SHOW TAG KEYS FROM <non-existant measurement>
-		{
-			q:   `SHOW TAG KEYS FROM bad`,
-			err: `measurement "bad" not found`,
-		},
-	}
-	for i, tt := range tests {
-		query := map[string]string{"db": "foo", "q": tt.q}
-		status, body = MustHTTP("GET", s.URL+`/query`, query, nil, "")
-
-		if (tt.err == "" && status != http.StatusOK) ||
-			(tt.err != "" && status != http.StatusInternalServerError) {
-			t.Logf("query #%d: %s", i, tt.q)
-			t.Logf("body = %s\n", body)
-			t.Errorf("unexpected status: %d", status)
-		}
-
-		r := &influxdb.Results{}
-		if err := json.Unmarshal([]byte(body), r); err != nil {
-			t.Logf("query #%d: %s", i, tt.q)
-			t.Logf("body = %s\n", body)
-			t.Error(err)
-		}
-
-		if !reflect.DeepEqual(tt.err, errstring(r.Results[0].Err)) {
-			t.Logf("body = %s\n", body)
-			fmt.Printf("r.Results[0].Err) = %v\n", r.Results[0].Err)
-			t.Errorf("%d. %s: error mismatch:\n  exp=%s\n  got=%s\n\n", i, tt.q, tt.err, errstring(r.Results[0].Err))
-		} else if tt.err == "" && !reflect.DeepEqual(tt.r, r) {
-			b, _ := json.Marshal(tt.r)
-			t.Log(string(b))
-			t.Log(body)
-			t.Errorf("%d. %s: result mismatch:\n\nexp=%#v\n\ngot=%#v\n\n", i, tt.q, tt.r, r)
-		}
-	}
-}
-
-func TestHandler_serveShowTagValues(t *testing.T) {
-	srvr := OpenAuthlessServer(NewMessagingClient())
-	srvr.CreateDatabase("foo")
-	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
-	srvr.SetDefaultRetentionPolicy("foo", "bar")
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [
-		{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
-		{"name": "cpu", "tags": {"host": "server01", "region": "uswest"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
-		{"name": "cpu", "tags": {"host": "server01", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
-		{"name": "cpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}},
-		{"name": "gpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"value": 100}}
-		]}`)
-
-	if status != http.StatusOK {
-		t.Log(body)
-		t.Fatalf("unexpected status after write: %d", status)
-	}
-
-	var tests = []struct {
-		q   string
-		r   *influxdb.Results
-		err string
-	}{
-		// SHOW TAG VALUES
-		{
-			q: `SHOW TAG VALUES WITH KEY = host`,
-			r: &influxdb.Results{
-				Results: []*influxdb.Result{
-					{
-						Rows: []*influxql.Row{
-							{
-								Name:    "cpu",
-								Columns: []string{"tagValue"},
-								Values: [][]interface{}{
-									str2iface([]string{"server01"}),
-									str2iface([]string{"server02"}),
-								},
-							},
-							{
-								Name:    "gpu",
-								Columns: []string{"tagValue"},
-								Values: [][]interface{}{
-									str2iface([]string{"server02"}),
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		// SHOW TAG VALUES FROM ...
-		{
-			q: `SHOW TAG VALUES FROM cpu WITH KEY = host`,
-			r: &influxdb.Results{
-				Results: []*influxdb.Result{
-					{
-						Rows: []*influxql.Row{
-							{
-								Name:    "cpu",
-								Columns: []string{"tagValue"},
-								Values: [][]interface{}{
-									str2iface([]string{"server01"}),
-									str2iface([]string{"server02"}),
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		// SHOW TAG VALUES FROM ... WHERE ...
-		{
-			q: `SHOW TAG VALUES FROM cpu WITH KEY = host WHERE region = 'uswest'`,
-			r: &influxdb.Results{
-				Results: []*influxdb.Result{
-					{
-						Rows: []*influxql.Row{
-							{
-								Name:    "cpu",
-								Columns: []string{"tagValue"},
-								Values: [][]interface{}{
-									str2iface([]string{"server01"}),
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		// SHOW TAG VALUES FROM ... WITH KEY IN ... WHERE ...
-		{
-			q: `SHOW TAG VALUES FROM cpu WITH KEY IN (host, region) WHERE region = 'uswest'`,
-			r: &influxdb.Results{
-				Results: []*influxdb.Result{
-					{
-						Rows: []*influxql.Row{
-							{
-								Name:    "cpu",
-								Columns: []string{"tagValue"},
-								Values: [][]interface{}{
-									str2iface([]string{"server01"}),
-									str2iface([]string{"uswest"}),
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-	for i, tt := range tests {
-		query := map[string]string{"db": "foo", "q": tt.q}
-		status, body = MustHTTP("GET", s.URL+`/query`, query, nil, "")
-
-		if status != http.StatusOK {
-			t.Logf("query #%d: %s", i, tt.q)
-			t.Log(body)
-			t.Errorf("unexpected status: %d", status)
-		}
-
-		r := &influxdb.Results{}
-		if err := json.Unmarshal([]byte(body), r); err != nil {
-			t.Logf("query #%d: %s", i, tt.q)
-			t.Log(body)
-			t.Error(err)
-		}
-
-		if !reflect.DeepEqual(tt.err, errstring(r.Err)) {
-			t.Errorf("%d. %s: error mismatch:\n  exp=%s\n  got=%s\n\n", i, tt.q, tt.err, r.Err)
-		} else if tt.err == "" && !reflect.DeepEqual(tt.r, r) {
-			b, _ := json.Marshal(tt.r)
-			t.Log(string(b))
-			t.Log(body)
-			t.Errorf("%d. %s: result mismatch:\n\nexp=%#v\n\ngot=%#v\n\n", i, tt.q, tt.r, r)
-		}
-	}
-}
-
-func TestHandler_serveShowFieldKeys(t *testing.T) {
-	srvr := OpenAuthlessServer(NewMessagingClient())
-	srvr.CreateDatabase("foo")
-	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
-	srvr.SetDefaultRetentionPolicy("foo", "bar")
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [
-		{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","values": {"field1": 100}},
-		{"name": "cpu", "tags": {"host": "server01", "region": "uswest"},"timestamp": "2009-11-10T23:00:00Z","values": {"field1": 200, "field2": 300, "field3": 400}},
-		{"name": "cpu", "tags": {"host": "server01", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"field1": 200, "field2": 300, "field3": 400}},
-		{"name": "cpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"field1": 200, "field2": 300, "field3": 400}},
-		{"name": "gpu", "tags": {"host": "server01", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","values": {"field4": 200, "field5": 300}}
-		]}`)
-
-	if status != http.StatusOK {
-		t.Log(body)
-		t.Fatalf("unexpected status after write: %d", status)
-	}
-
-	var tests = []struct {
-		q   string
-		r   *influxdb.Results
-		err string
-	}{
-		// SHOW FIELD KEYS FROM ...
-		{
-			q: `SHOW FIELD KEYS FROM cpu`,
-			r: &influxdb.Results{
-				Results: []*influxdb.Result{
-					{
-						Rows: []*influxql.Row{
-							{
-								Name:    "cpu",
-								Columns: []string{"fieldKey"},
-								Values: [][]interface{}{
-									str2iface([]string{"field1"}),
-									str2iface([]string{"field2"}),
-									str2iface([]string{"field3"}),
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-
-		// SHOW FIELD KEYS WHERE
-		{
-			q: `SHOW FIELD KEYS WHERE host = 'server01'`,
-			r: &influxdb.Results{
-				Results: []*influxdb.Result{
-					{
-						Rows: []*influxql.Row{
-							{
-								Name:    "cpu",
-								Columns: []string{"fieldKey"},
-								Values: [][]interface{}{
-									str2iface([]string{"field1"}),
-									str2iface([]string{"field2"}),
-									str2iface([]string{"field3"}),
-								},
-							},
-							{
-								Name:    "gpu",
-								Columns: []string{"fieldKey"},
-								Values: [][]interface{}{
-									str2iface([]string{"field4"}),
-									str2iface([]string{"field5"}),
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-	for i, tt := range tests {
-		query := map[string]string{"db": "foo", "q": tt.q}
-		status, body = MustHTTP("GET", s.URL+`/query`, query, nil, "")
-
-		if status != http.StatusOK {
-			t.Logf("query #%d: %s", i, tt.q)
-			t.Log(body)
-			t.Errorf("unexpected status: %d", status)
-		}
-
-		r := &influxdb.Results{}
-		if err := json.Unmarshal([]byte(body), r); err != nil {
-			t.Logf("query #%d: %s", i, tt.q)
-			t.Log(body)
-			t.Error(err)
-		}
-
-		if !reflect.DeepEqual(tt.err, errstring(r.Err)) {
-			t.Errorf("%d. %s: error mismatch:\n  exp=%s\n  got=%s\n\n", i, tt.q, tt.err, r.Err)
-		} else if tt.err == "" && !reflect.DeepEqual(tt.r, r) {
-			b, _ := json.Marshal(tt.r)
-			t.Log(string(b))
-			t.Log(body)
-			t.Errorf("%d. %s: result mismatch:\n\nexp=%#v\n\ngot=%#v\n\n", i, tt.q, tt.r, r)
-		}
+	status, _ := MustHTTP("POST", s.URL+`/process_continuous_queries`, nil, nil, "")
+	if status != http.StatusAccepted {
+		t.Fatalf("unexpected status: %d", status)
 	}
 }
 
@@ -2194,4 +1538,13 @@ func errstring(err error) string {
 		return err.Error()
 	}
 	return ""
+}
+
+// marshalJSON marshals input to a string of JSON or panics on error.
+func mustMarshalJSON(i interface{}) string {
+	b, err := json.Marshal(i)
+	if err != nil {
+		panic(err)
+	}
+	return string(b)
 }

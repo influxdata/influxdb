@@ -18,6 +18,11 @@ import (
 	"github.com/peterh/liner"
 )
 
+// These variables are populated via the Go linker.
+var (
+	version string = "0.9"
+)
+
 const (
 	default_host   = "localhost"
 	default_port   = 8086
@@ -60,7 +65,7 @@ func main() {
 	}
 
 	// TODO Determine if we are an ineractive shell or running commands
-	fmt.Println("InfluxDB shell")
+	fmt.Println("InfluxDB shell " + version)
 
 	c.Line = liner.NewLiner()
 	defer c.Line.Close()
@@ -93,15 +98,18 @@ func main() {
 		if e != nil {
 			break
 		}
-		if !c.ParseCommand(l) {
+		if c.ParseCommand(l) {
 			// write out the history
-			if f, err := os.Create(historyFile); err == nil {
-				c.Line.WriteHistory(f)
-				f.Close()
+			if len(historyFile) > 0 {
+				c.Line.AppendHistory(l)
+				if f, err := os.Create(historyFile); err == nil {
+					c.Line.WriteHistory(f)
+					f.Close()
+				}
 			}
-			break
+		} else {
+			break // exit main loop
 		}
-		c.Line.AppendHistory(l)
 	}
 }
 
@@ -182,9 +190,10 @@ func (c *CommandLine) connect(cmd string) {
 	}
 	cl, err := client.NewClient(
 		client.Config{
-			URL:      u,
-			Username: c.Username,
-			Password: c.Password,
+			URL:       u,
+			Username:  c.Username,
+			Password:  c.Password,
+			UserAgent: "InfluxDBShell/" + version,
 		})
 	if err != nil {
 		fmt.Printf("Could not create client %s", err)
@@ -215,12 +224,12 @@ func (c *CommandLine) SetAuth() {
 }
 
 func (c *CommandLine) use(cmd string) {
-	args := strings.Split(cmd, " ")
+	args := strings.Split(strings.TrimSpace(cmd), " ")
 	if len(args) != 2 {
 		fmt.Printf("Could not parse database name from %q.\n", cmd)
 		return
 	}
-	d := strings.TrimSpace(args[1])
+	d := args[1]
 	c.Database = d
 	fmt.Printf("Using database %s\n", d)
 }
@@ -313,7 +322,7 @@ func resultToCSV(result client.Result, seperator string, headerLines bool) []str
 	// Create a tabbed writer for each result a they won't always line up
 	columnNames := []string{"name", "tags"}
 
-	for i, row := range result.Rows {
+	for i, row := range result.Series {
 		// Output the column headings
 		if i == 0 {
 			for _, column := range row.Columns {

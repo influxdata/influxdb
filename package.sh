@@ -49,6 +49,11 @@ MAINTAINER=support@influxdb.com
 VENDOR=Influxdb
 DESCRIPTION="Distributed time-series database"
 
+BINS=(
+    influxd
+    influx
+    )
+
 ###########################################################################
 # Helper functions.
 
@@ -134,7 +139,9 @@ do_build() {
         cleanup_exit 1
     fi
 
-    rm $GOPATH/bin/*
+    for b in ${BINS[*]}; do
+        rm -f $GOPATH/bin/$b
+    done
     go get -u -f ./...
     if [ $? -ne 0 ]; then
         echo "WARNING: failed to 'go get' packages."
@@ -159,15 +166,14 @@ ln -s $INSTALL_ROOT_DIR/versions/$version/influxd $INSTALL_ROOT_DIR/influxd
 ln -s $INSTALL_ROOT_DIR/versions/$version/influx $INSTALL_ROOT_DIR/influx
 ln -s $INSTALL_ROOT_DIR/versions/$version/scripts/init.sh $INSTALL_ROOT_DIR/init.sh
 
-if [ ! -L /etc/init.d/influxdb ]; then
-    ln -sfn $INSTALL_ROOT_DIR/init.sh /etc/init.d/influxdb
-    chmod +x /etc/init.d/influxdb
-    if which update-rc.d > /dev/null 2>&1 ; then
-        update-rc.d -f influxdb remove
-        update-rc.d influxdb defaults
-    else
-        chkconfig --add influxdb
-    fi
+rm -f /etc/init.d/influxdb
+ln -sfn $INSTALL_ROOT_DIR/init.sh /etc/init.d/influxdb
+chmod +x /etc/init.d/influxdb
+if which update-rc.d > /dev/null 2>&1 ; then
+    update-rc.d -f influxdb remove
+    update-rc.d influxdb defaults
+else
+    chkconfig --add influxdb
 fi
 
 if ! id influxdb >/dev/null 2>&1; then
@@ -207,12 +213,14 @@ make_dir_tree $TMP_WORK_DIR $VERSION
 ###########################################################################
 # Copy the assets to the installation directories.
 
-cp $GOPATH/bin/* $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/$VERSION
-if [ $? -ne 0 ]; then
-    echo "Failed to copy binaries to packaging directory -- aborting."
-    cleanup_exit 1
-fi
-echo "Binaries in $GOPATH/bin copied to $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/$VERSION"
+for b in ${BINS[*]}; do
+    cp $GOPATH/bin/$b $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/$VERSION
+    if [ $? -ne 0 ]; then
+        echo "Failed to copy binaries to packaging directory -- aborting."
+        cleanup_exit 1
+    fi
+done
+echo "${BINS[*]} copied to $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/$VERSION"
 
 cp $INITD_SCRIPT $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/$VERSION/scripts
 if [ $? -ne 0 ]; then
@@ -253,7 +261,7 @@ else
     debian_package=influxdb_${VERSION}_amd64.deb
 fi
 
-COMMON_FPM_ARGS="-C $TMP_WORK_DIR --vendor $VENDOR --url $URL --license $LICENSE --maintainer $MAINTAINER --after-install $POST_INSTALL_PATH --name influxdb --version $VERSION ."
+COMMON_FPM_ARGS="-C $TMP_WORK_DIR --vendor $VENDOR --url $URL --license $LICENSE --maintainer $MAINTAINER --after-install $POST_INSTALL_PATH --name influxdb --version $VERSION --config-files $CONFIG_ROOT_DIR ."
 $rpm_args fpm -s dir -t rpm --description "$DESCRIPTION" $COMMON_FPM_ARGS
 if [ $? -ne 0 ]; then
     echo "Failed to create RPM package -- aborting."

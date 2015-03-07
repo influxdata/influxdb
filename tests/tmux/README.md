@@ -15,7 +15,7 @@ Use [http://www.json-generator.com/](http://www.json-generator.com/)
         "name": "cpu", 
         "tags": {"host": "server01"},
         "timestamp": "{{date(new Date(2015, 15, 1), new Date(), 'YYYY-MM-ddThh:mm:ss Z')}}",
-        "values": {
+        "fields": {
           "value": '{{integer(1, 1000)}}'
         }
       }

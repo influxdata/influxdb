@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -31,8 +33,9 @@ type route struct {
 	name        string
 	method      string
 	pattern     string
-	handlerFunc interface{}
 	gzipped     bool
+	log         bool
+	handlerFunc interface{}
 }
 
 // Handler represents an HTTP handler for the InfluxDB server.
@@ -41,6 +44,9 @@ type Handler struct {
 	routes                []route
 	mux                   *pat.PatternServeMux
 	requireAuthentication bool
+
+	Logger     *log.Logger
+	WriteTrace bool // Detailed logging of write path
 }
 
 // NewHandler returns a new instance of Handler.
@@ -49,54 +55,61 @@ func NewHandler(s *influxdb.Server, requireAuthentication bool, version string) 
 		server: s,
 		mux:    pat.New(),
 		requireAuthentication: requireAuthentication,
+		Logger:                log.New(os.Stderr, "[http] ", log.LstdFlags),
 	}
-
-	weblog := log.New(os.Stderr, `[http] `, 0)
 
 	h.routes = append(h.routes,
 		route{
 			"query", // Query serving route.
-			"GET", "/query", h.serveQuery, true,
+			"GET", "/query", true, true, h.serveQuery,
 		},
 		route{
 			"write", // Data-ingest route.
-			"OPTIONS", "/write", h.serveOptions, true,
+			"OPTIONS", "/write", true, true, h.serveOptions,
 		},
 		route{
 			"write", // Data-ingest route.
-			"POST", "/write", h.serveWrite, true,
+			"POST", "/write", true, true, h.serveWrite,
 		},
 		route{ // List data nodes
 			"data_nodes_index",
-			"GET", "/data_nodes", h.serveDataNodes, true,
+			"GET", "/data_nodes", true, false, h.serveDataNodes,
 		},
 		route{ // Create data node
 			"data_nodes_create",
-			"POST", "/data_nodes", h.serveCreateDataNode, true,
+			"POST", "/data_nodes", true, false, h.serveCreateDataNode,
 		},
 		route{ // Delete data node
 			"data_nodes_delete",
-			"DELETE", "/data_nodes/:id", h.serveDeleteDataNode, true,
+			"DELETE", "/data_nodes/:id", true, false, h.serveDeleteDataNode,
 		},
 		route{ // Metastore
 			"metastore",
-			"GET", "/metastore", h.serveMetastore, false,
+			"GET", "/metastore", false, false, h.serveMetastore,
 		},
 		route{ // Status
 			"status",
-			"GET", "/status", h.serveStatus, true,
+			"GET", "/status", true, true, h.serveStatus,
 		},
 		route{ // Ping
 			"ping",
-			"GET", "/ping", h.servePing, true,
+			"GET", "/ping", true, true, h.servePing,
 		},
 		route{ // Ping
 			"ping-head",
-			"HEAD", "/ping", h.servePing, true,
+			"HEAD", "/ping", true, true, h.servePing,
 		},
 		route{ // Tell data node to run CQs that should be run
 			"process_continuous_queries",
-			"POST", "/process_continuous_queries", h.serveProcessContinuousQueries, false,
+			"POST", "/process_continuous_queries", false, false, h.serveProcessContinuousQueries,
+		},
+		route{
+			"wait", // Wait.
+			"GET", "/wait/:index", true, true, h.serveWait,
+		},
+		route{
+			"index", // Index.
+			"GET", "/", true, true, h.serveIndex,
 		},
 	)
 
@@ -118,8 +131,10 @@ func NewHandler(s *influxdb.Server, requireAuthentication bool, version string) 
 		handler = versionHeader(handler, version)
 		handler = cors(handler)
 		handler = requestID(handler)
-		handler = logging(handler, r.name, weblog)
-		handler = recovery(handler, r.name, weblog) // make sure recovery is always last
+		if r.log {
+			handler = logging(handler, r.name, h.Logger)
+		}
+		handler = recovery(handler, r.name, h.Logger) // make sure recovery is always last
 
 		h.mux.Add(r.method, r.pattern, handler)
 	}
@@ -127,7 +142,12 @@ func NewHandler(s *influxdb.Server, requireAuthentication bool, version string) 
 	return h
 }
 
-//ServeHTTP responds to HTTP request to the handler.
+// SetLogOutput sets writer for all handler log output.
+func (h *Handler) SetLogOutput(w io.Writer) {
+	h.Logger = log.New(w, "[http] ", log.LstdFlags)
+}
+
+// ServeHTTP responds to HTTP request to the handler.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.mux.ServeHTTP(w, r)
 }
@@ -156,8 +176,19 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *influ
 // serveWrite receives incoming series data and writes it to the database.
 func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *influxdb.User) {
 	var bp influxdb.BatchPoints
+	var dec *json.Decoder
 
-	dec := json.NewDecoder(r.Body)
+	if h.WriteTrace {
+		b, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			h.Logger.Print("write handler failed to read bytes from request body")
+		} else {
+			h.Logger.Printf("write body received by handler: %s", string(b))
+		}
+		dec = json.NewDecoder(strings.NewReader(string(b)))
+	} else {
+		dec = json.NewDecoder(r.Body)
+	}
 
 	var writeError = func(result influxdb.Result, statusCode int) {
 		w.WriteHeader(statusCode)
@@ -201,9 +232,11 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *influ
 		return
 	}
 
-	if _, err := h.server.WriteSeries(bp.Database, bp.RetentionPolicy, points); err != nil {
+	if index, err := h.server.WriteSeries(bp.Database, bp.RetentionPolicy, points); err != nil {
 		writeError(influxdb.Result{Err: err}, http.StatusInternalServerError)
 		return
+	} else {
+		w.Header().Add("X-InfluxDB-Index", fmt.Sprintf("%d", index))
 	}
 }
 
@@ -248,6 +281,63 @@ func (h *Handler) serveOptions(w http.ResponseWriter, r *http.Request) {
 // servePing returns a simple response to let the client know the server is running.
 func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// serveIndex returns the current index of the node as the body of the response
+func (h *Handler) serveIndex(w http.ResponseWriter, r *http.Request) {
+	w.Write([]byte(fmt.Sprintf("%d", h.server.Index())))
+}
+
+// serveWait returns the current index of the node as the body of the response
+// Takes optional parameters:
+//     index - If specified, will poll for index before returning
+//     timeout (optional) - time in milliseconds to wait until index is met before erring out
+//               default timeout if not specified really big (max int64)
+func (h *Handler) serveWait(w http.ResponseWriter, r *http.Request) {
+	index, _ := strconv.ParseUint(r.URL.Query().Get(":index"), 10, 64)
+	timeout, _ := strconv.Atoi(r.URL.Query().Get("timeout"))
+
+	if index == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	var d time.Duration
+	if timeout == 0 {
+		d = math.MaxInt64
+	} else {
+		d = time.Duration(timeout) * time.Millisecond
+	}
+	err := h.pollForIndex(index, d)
+	if err != nil {
+		w.WriteHeader(http.StatusRequestTimeout)
+		return
+	}
+	w.Write([]byte(fmt.Sprintf("%d", h.server.Index())))
+}
+
+// pollForIndex will poll until either the index is met or it times out
+// timeout is in milliseconds
+func (h *Handler) pollForIndex(index uint64, timeout time.Duration) error {
+	done := make(chan struct{})
+
+	go func() {
+		for {
+			if h.server.Index() >= index {
+				done <- struct{}{}
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+
+	for {
+		select {
+		case <-done:
+			return nil
+		case <-time.After(timeout):
+			return fmt.Errorf("timed out")
+		}
+	}
 }
 
 // serveDataNodes returns a list of all data nodes in the cluster.
@@ -327,7 +417,7 @@ func (h *Handler) serveDeleteDataNode(w http.ResponseWriter, r *http.Request) {
 }
 
 // serveProcessContinuousQueries will execute any continuous queries that should be run
-func (h *Handler) serveProcessContinuousQueries(w http.ResponseWriter, r *http.Request, u *influxdb.User) {
+func (h *Handler) serveProcessContinuousQueries(w http.ResponseWriter, r *http.Request) {
 	if err := h.server.RunContinuousQueries(); err != nil {
 		httpError(w, err.Error(), false, http.StatusInternalServerError)
 		return
@@ -346,12 +436,25 @@ func isAuthorizationError(err error) bool {
 	return ok
 }
 
+func isMeasurementNotFoundError(err error) bool {
+	return (err.Error() == "measurement not found")
+}
+
+func isFieldNotFoundError(err error) bool {
+	return (strings.HasPrefix(err.Error(), "field not found"))
+}
+
 // httpResult writes a Results array to the client.
 func httpResults(w http.ResponseWriter, results influxdb.Results, pretty bool) {
 	if results.Error() != nil {
 		if isAuthorizationError(results.Error()) {
 			w.WriteHeader(http.StatusUnauthorized)
+		} else if isMeasurementNotFoundError(results.Error()) {
+			w.WriteHeader(http.StatusOK)
+		} else if isFieldNotFoundError(results.Error()) {
+			w.WriteHeader(http.StatusOK)
 		} else {
+			fmt.Println(results.Error())
 			w.WriteHeader(http.StatusInternalServerError)
 		}
 	}
@@ -464,7 +567,7 @@ func gzipFilter(inner http.Handler) http.Handler {
 // and adds the X-INFLUXBD-VERSION header to outgoing responses.
 func versionHeader(inner http.Handler, version string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Add("X-Influxdb-Version", version)
+		w.Header().Add("X-InfluxDB-Version", version)
 		inner.ServeHTTP(w, r)
 	})
 }

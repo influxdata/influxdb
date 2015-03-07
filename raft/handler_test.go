@@ -14,11 +14,11 @@ import (
 // Ensure a node can join a cluster over HTTP.
 func TestHandler_HandleJoin(t *testing.T) {
 	h := NewHandler()
-	h.AddPeerFunc = func(u *url.URL) (uint64, *raft.Config, error) {
+	h.AddPeerFunc = func(u *url.URL) (uint64, uint64, *raft.Config, error) {
 		if u.String() != "http://localhost:1000" {
 			t.Fatalf("unexpected url: %s", u)
 		}
-		return 2, &raft.Config{}, nil
+		return 2, 3, &raft.Config{}, nil
 	}
 	s := httptest.NewServer(h)
 	defer s.Close()
@@ -34,14 +34,16 @@ func TestHandler_HandleJoin(t *testing.T) {
 		t.Fatalf("unexpected raft error: %s", s)
 	} else if s = resp.Header.Get("X-Raft-ID"); s != "2" {
 		t.Fatalf("unexpected raft id: %s", s)
+	} else if s = resp.Header.Get("X-Raft-Leader-ID"); s != "3" {
+		t.Fatalf("unexpected raft leader id: %s", s)
 	}
 }
 
 // Ensure that joining with an invalid query string with return an error.
 func TestHandler_HandleJoin_Error(t *testing.T) {
 	h := NewHandler()
-	h.AddPeerFunc = func(u *url.URL) (uint64, *raft.Config, error) {
-		return 0, nil, raft.ErrClosed
+	h.AddPeerFunc = func(u *url.URL) (uint64, uint64, *raft.Config, error) {
+		return 0, 0, nil, raft.ErrClosed
 	}
 	s := httptest.NewServer(h)
 	defer s.Close()
@@ -123,7 +125,7 @@ func TestHandler_HandleLeave_Error(t *testing.T) {
 // Ensure a heartbeat can be sent over HTTP.
 func TestHandler_HandleHeartbeat(t *testing.T) {
 	h := NewHandler()
-	h.HeartbeatFunc = func(term, commitIndex, leaderID uint64) (currentIndex, currentTerm uint64, err error) {
+	h.HeartbeatFunc = func(term, commitIndex, leaderID uint64) (currentIndex uint64, err error) {
 		if term != 1 {
 			t.Fatalf("unexpected term: %d", term)
 		} else if commitIndex != 2 {
@@ -131,7 +133,7 @@ func TestHandler_HandleHeartbeat(t *testing.T) {
 		} else if leaderID != 3 {
 			t.Fatalf("unexpected leader id: %d", leaderID)
 		}
-		return 4, 5, nil
+		return 4, nil
 	}
 	s := httptest.NewServer(h)
 	defer s.Close()
@@ -147,8 +149,6 @@ func TestHandler_HandleHeartbeat(t *testing.T) {
 		t.Fatalf("unexpected raft error: %s", s)
 	} else if s = resp.Header.Get("X-Raft-Index"); s != "4" {
 		t.Fatalf("unexpected raft index: %s", s)
-	} else if s = resp.Header.Get("X-Raft-Term"); s != "5" {
-		t.Fatalf("unexpected raft term: %s", s)
 	}
 }
 
@@ -182,8 +182,8 @@ func TestHandler_HandleHeartbeat_Error(t *testing.T) {
 // Ensure that sending a heartbeat to a closed log returns an error.
 func TestHandler_HandleHeartbeat_ErrClosed(t *testing.T) {
 	h := NewHandler()
-	h.HeartbeatFunc = func(term, commitIndex, leaderID uint64) (currentIndex, currentTerm uint64, err error) {
-		return 0, 0, raft.ErrClosed
+	h.HeartbeatFunc = func(term, commitIndex, leaderID uint64) (currentIndex uint64, err error) {
+		return 0, raft.ErrClosed
 	}
 	s := httptest.NewServer(h)
 	defer s.Close()
@@ -271,7 +271,7 @@ func TestHandler_HandleStream_Error(t *testing.T) {
 // Ensure a vote request can be sent over HTTP.
 func TestHandler_HandleRequestVote(t *testing.T) {
 	h := NewHandler()
-	h.RequestVoteFunc = func(term, candidateID, lastLogIndex, lastLogTerm uint64) (uint64, error) {
+	h.RequestVoteFunc = func(term, candidateID, lastLogIndex, lastLogTerm uint64) error {
 		if term != 1 {
 			t.Fatalf("unexpected term: %d", term)
 		} else if candidateID != 2 {
@@ -281,7 +281,7 @@ func TestHandler_HandleRequestVote(t *testing.T) {
 		} else if lastLogTerm != 4 {
 			t.Fatalf("unexpected last log term: %d", lastLogTerm)
 		}
-		return 5, nil
+		return nil
 	}
 	s := httptest.NewServer(h)
 	defer s.Close()
@@ -295,16 +295,14 @@ func TestHandler_HandleRequestVote(t *testing.T) {
 		t.Fatalf("unexpected status: %d", resp.StatusCode)
 	} else if s := resp.Header.Get("X-Raft-Error"); s != "" {
 		t.Fatalf("unexpected raft error: %s", s)
-	} else if s = resp.Header.Get("X-Raft-Term"); s != "5" {
-		t.Fatalf("unexpected raft term: %s", s)
 	}
 }
 
 // Ensure sending invalid parameters in a vote request returns an error.
 func TestHandler_HandleRequestVote_Error(t *testing.T) {
 	h := NewHandler()
-	h.RequestVoteFunc = func(term, candidateID, lastLogIndex, lastLogTerm uint64) (uint64, error) {
-		return 0, raft.ErrStaleTerm
+	h.RequestVoteFunc = func(term, candidateID, lastLogIndex, lastLogTerm uint64) error {
+		return raft.ErrStaleTerm
 	}
 	s := httptest.NewServer(h)
 	defer s.Close()
@@ -366,11 +364,11 @@ func TestHandler_Ping(t *testing.T) {
 // Handler represents a test wrapper for the raft.Handler.
 type Handler struct {
 	*raft.Handler
-	AddPeerFunc        func(u *url.URL) (uint64, *raft.Config, error)
+	AddPeerFunc        func(u *url.URL) (uint64, uint64, *raft.Config, error)
 	RemovePeerFunc     func(id uint64) error
-	HeartbeatFunc      func(term, commitIndex, leaderID uint64) (currentIndex, currentTerm uint64, err error)
+	HeartbeatFunc      func(term, commitIndex, leaderID uint64) (currentIndex uint64, err error)
 	WriteEntriesToFunc func(w io.Writer, id, term, index uint64) error
-	RequestVoteFunc    func(term, candidateID, lastLogIndex, lastLogTerm uint64) (uint64, error)
+	RequestVoteFunc    func(term, candidateID, lastLogIndex, lastLogTerm uint64) error
 }
 
 // NewHandler returns a new instance of Handler.
@@ -380,10 +378,10 @@ func NewHandler() *Handler {
 	return h
 }
 
-func (h *Handler) AddPeer(u *url.URL) (uint64, *raft.Config, error) { return h.AddPeerFunc(u) }
-func (h *Handler) RemovePeer(id uint64) error                       { return h.RemovePeerFunc(id) }
+func (h *Handler) AddPeer(u *url.URL) (uint64, uint64, *raft.Config, error) { return h.AddPeerFunc(u) }
+func (h *Handler) RemovePeer(id uint64) error                               { return h.RemovePeerFunc(id) }
 
-func (h *Handler) Heartbeat(term, commitIndex, leaderID uint64) (currentIndex, currentTerm uint64, err error) {
+func (h *Handler) Heartbeat(term, commitIndex, leaderID uint64) (currentIndex uint64, err error) {
 	return h.HeartbeatFunc(term, commitIndex, leaderID)
 }
 
@@ -391,6 +389,6 @@ func (h *Handler) WriteEntriesTo(w io.Writer, id, term, index uint64) error {
 	return h.WriteEntriesToFunc(w, id, term, index)
 }
 
-func (h *Handler) RequestVote(term, candidateID, lastLogIndex, lastLogTerm uint64) (uint64, error) {
+func (h *Handler) RequestVote(term, candidateID, lastLogIndex, lastLogTerm uint64) error {
 	return h.RequestVoteFunc(term, candidateID, lastLogIndex, lastLogTerm)
 }

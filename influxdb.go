@@ -81,6 +81,9 @@ var (
 	// ErrShardNotFound is returned writing to a non-existent shard.
 	ErrShardNotFound = errors.New("shard not found")
 
+	// ErrInvalidPointBuffer is returned when a buffer containing data for writing is invalid
+	ErrInvalidPointBuffer = errors.New("invalid point buffer")
+
 	// ErrReadAccessDenied is returned when a user attempts to read
 	// data that he or she does not have permission to read.
 	ErrReadAccessDenied = errors.New("read access denied")
@@ -97,8 +100,8 @@ var (
 	// ErrMeasurementNotFound is returned when a measurement does not exist.
 	ErrMeasurementNotFound = errors.New("measurement not found")
 
-	// ErrValuesRequired is returned when a point does not any values
-	ErrValuesRequired = errors.New("values required")
+	// ErrFieldsRequired is returned when a point does not any fields.
+	ErrFieldsRequired = errors.New("fields required")
 
 	// ErrFieldOverflow is returned when too many fields are created on a measurement.
 	ErrFieldOverflow = errors.New("field overflow")
@@ -106,7 +109,7 @@ var (
 	// ErrFieldTypeConflict is returned when a new field already exists with a different type.
 	ErrFieldTypeConflict = errors.New("field type conflict")
 
-	// ErrFieldNotFound
+	// ErrFieldNotFound is returned when a field cannot be found.
 	ErrFieldNotFound = errors.New("field not found")
 
 	// ErrSeriesNotFound is returned when looking up a non-existent series by database, name and tags
@@ -226,7 +229,7 @@ func NormalizeBatchPoints(bp BatchPoints) ([]Point, error) {
 			Name:      p.Name,
 			Tags:      p.Tags,
 			Timestamp: p.Timestamp.Time(),
-			Values:    p.Values,
+			Fields:    p.Fields,
 		})
 	}
 

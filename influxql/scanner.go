@@ -61,7 +61,18 @@ func (s *Scanner) Scan() (tok Token, pos Pos, lit string) {
 	case '/':
 		return DIV, pos, ""
 	case '=':
+		if ch1, _ := s.r.read(); ch1 == '~' {
+			return EQREGEX, pos, ""
+		}
+		s.r.unread()
 		return EQ, pos, ""
+	case '!':
+		if ch1, _ := s.r.read(); ch1 == '=' {
+			return NEQ, pos, ""
+		} else if ch1 == '~' {
+			return NEQREGEX, pos, ""
+		}
+		s.r.unread()
 	case '>':
 		if ch1, _ := s.r.read(); ch1 == '=' {
 			return GTE, pos, ""
@@ -126,7 +137,7 @@ func (s *Scanner) scanIdent() (tok Token, pos Pos, lit string) {
 		} else if ch == '.' {
 			buf.WriteRune(ch)
 		} else if ch == '"' {
-			if tok0, pos0, lit0 := s.scanString(); tok == BADSTRING || tok == BADESCAPE {
+			if tok0, pos0, lit0 := s.scanString(); tok0 == BADSTRING || tok0 == BADESCAPE {
 				return tok0, pos0, lit0
 			} else {
 				_ = buf.WriteByte('"')
@@ -166,6 +177,25 @@ func (s *Scanner) scanString() (tok Token, pos Pos, lit string) {
 		return BADESCAPE, pos, lit
 	}
 	return STRING, pos, lit
+}
+
+func (s *Scanner) ScanRegex() (tok Token, pos Pos, lit string) {
+	_, pos = s.r.curr()
+
+	// Start & end sentinels.
+	start, end := '/', '/'
+	// Valid escape chars.
+	escapes := map[rune]rune{'/': '/'}
+
+	b, err := ScanDelimited(s.r, start, end, escapes)
+
+	if err == errBadEscape {
+		_, pos = s.r.curr()
+		return BADESCAPE, pos, lit
+	} else if err != nil {
+		return BADREGEX, pos, lit
+	}
+	return REGEX, pos, string(b)
 }
 
 // scanNumber consumes anything that looks like the start of a number.
@@ -289,6 +319,16 @@ func newBufScanner(r io.Reader) *bufScanner {
 
 // Scan reads the next token from the scanner.
 func (s *bufScanner) Scan() (tok Token, pos Pos, lit string) {
+	return s.scanFunc(s.s.Scan)
+}
+
+// ScanRegex reads a regex token from the scanner.
+func (s *bufScanner) ScanRegex() (tok Token, pos Pos, lit string) {
+	return s.scanFunc(s.s.ScanRegex)
+}
+
+// scanFunc uses the provided function to scan the next token.
+func (s *bufScanner) scanFunc(scan func() (Token, Pos, string)) (tok Token, pos Pos, lit string) {
 	// If we have unread tokens then read them off the buffer first.
 	if s.n > 0 {
 		s.n--
@@ -298,7 +338,7 @@ func (s *bufScanner) Scan() (tok Token, pos Pos, lit string) {
 	// Move buffer position forward and save the token.
 	s.i = (s.i + 1) % len(s.buf)
 	buf := &s.buf[s.i]
-	buf.tok, buf.pos, buf.lit = s.s.Scan()
+	buf.tok, buf.pos, buf.lit = scan()
 
 	return s.curr()
 }
@@ -404,6 +444,46 @@ func (r *reader) curr() (ch rune, pos Pos) {
 // eof is a marker code point to signify that the reader can't read any more.
 const eof = rune(0)
 
+func ScanDelimited(r io.RuneScanner, start, end rune, escapes map[rune]rune) ([]byte, error) {
+	// Scan start delimiter.
+	if ch, _, err := r.ReadRune(); err != nil {
+		return nil, err
+	} else if ch != start {
+		return nil, fmt.Errorf("expected %s; found %s", string(start), string(ch))
+	}
+
+	var buf bytes.Buffer
+	for {
+		ch0, _, err := r.ReadRune()
+		if ch0 == end {
+			return buf.Bytes(), nil
+		} else if err != nil {
+			return buf.Bytes(), err
+		} else if ch0 == '\n' {
+			return nil, errors.New("delimited text contains new line")
+		} else if ch0 == '\\' {
+			// If the next character is an escape then write the escaped char.
+			// If it's not a valid escape then return an error.
+			ch1, _, err := r.ReadRune()
+			if err != nil {
+				return nil, err
+			}
+
+			r, ok := escapes[ch1]
+			if !ok {
+				buf.Reset()
+				_, _ = buf.WriteRune(ch0)
+				_, _ = buf.WriteRune(ch1)
+				return buf.Bytes(), errBadEscape
+			}
+
+			_, _ = buf.WriteRune(r)
+		} else {
+			_, _ = buf.WriteRune(ch0)
+		}
+	}
+}
+
 // ScanString reads a quoted string from a rune reader.
 func ScanString(r io.RuneScanner) (string, error) {
 	ending, _, err := r.ReadRune()
@@ -439,6 +519,7 @@ func ScanString(r io.RuneScanner) (string, error) {
 
 var errBadString = errors.New("bad string")
 var errBadEscape = errors.New("bad escape")
+var errBadRegex = errors.New("bad regex")
 
 // ScanBareIdent reads bare identifier from a rune reader.
 func ScanBareIdent(r io.RuneScanner) string {
@@ -532,6 +613,11 @@ func lastIdent(s string) string {
 }
 
 var errInvalidIdentifier = errors.New("invalid identifier")
+
+// IsRegexOp returns true if the operator accepts a regex operand.
+func IsRegexOp(t Token) bool {
+	return (t == EQREGEX || t == NEQREGEX)
+}
 
 // assert will panic with a given formatted message if the given condition is false.
 func assert(condition bool, msg string, v ...interface{}) {

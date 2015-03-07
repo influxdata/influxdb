@@ -15,7 +15,7 @@ import (
 type HTTPTransport struct{}
 
 // Join requests membership into a node's cluster.
-func (t *HTTPTransport) Join(uri *url.URL, nodeURL *url.URL) (uint64, *Config, error) {
+func (t *HTTPTransport) Join(uri *url.URL, nodeURL *url.URL) (uint64, uint64, *Config, error) {
 	// Construct URL.
 	u := *uri
 	u.Path = path.Join(u.Path, "raft/join")
@@ -24,29 +24,34 @@ func (t *HTTPTransport) Join(uri *url.URL, nodeURL *url.URL) (uint64, *Config, e
 	// Send HTTP request.
 	resp, err := http.Get(u.String())
 	if err != nil {
-		return 0, nil, err
+		return 0, 0, nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	// Parse returned error.
 	if s := resp.Header.Get("X-Raft-Error"); s != "" {
-		return 0, nil, errors.New(s)
+		return 0, 0, nil, errors.New(s)
 	}
 
 	// Parse returned id.
-	idString := resp.Header.Get("X-Raft-ID")
-	id, err := strconv.ParseUint(idString, 10, 64)
+	id, err := strconv.ParseUint(resp.Header.Get("X-Raft-ID"), 10, 64)
 	if err != nil {
-		return 0, nil, fmt.Errorf("invalid id: %q", idString)
+		return 0, 0, nil, fmt.Errorf("invalid id: %q", resp.Header.Get("X-Raft-ID"))
+	}
+
+	// Parse returned id.
+	leaderID, err := strconv.ParseUint(resp.Header.Get("X-Raft-Leader-ID"), 10, 64)
+	if err != nil {
+		return 0, 0, nil, fmt.Errorf("invalid leader id: %q", resp.Header.Get("X-Raft-Leader-ID"))
 	}
 
 	// Unmarshal config.
 	var config *Config
 	if err := json.NewDecoder(resp.Body).Decode(&config); err != nil {
-		return 0, nil, fmt.Errorf("config unmarshal: %s", err)
+		return 0, 0, nil, fmt.Errorf("config unmarshal: %s", err)
 	}
 
-	return id, config, nil
+	return id, leaderID, config, nil
 }
 
 // Leave removes a node from a cluster's membership.
@@ -72,7 +77,7 @@ func (t *HTTPTransport) Leave(uri *url.URL, id uint64) error {
 }
 
 // Heartbeat checks the status of a follower.
-func (t *HTTPTransport) Heartbeat(uri *url.URL, term, commitIndex, leaderID uint64) (uint64, uint64, error) {
+func (t *HTTPTransport) Heartbeat(uri *url.URL, term, commitIndex, leaderID uint64) (uint64, error) {
 	// Construct URL.
 	u := *uri
 	u.Path = path.Join(u.Path, "raft/heartbeat")
@@ -87,7 +92,7 @@ func (t *HTTPTransport) Heartbeat(uri *url.URL, term, commitIndex, leaderID uint
 	// Send HTTP request.
 	resp, err := http.Get(u.String())
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	_ = resp.Body.Close()
 
@@ -95,22 +100,15 @@ func (t *HTTPTransport) Heartbeat(uri *url.URL, term, commitIndex, leaderID uint
 	newIndexString := resp.Header.Get("X-Raft-Index")
 	newIndex, err := strconv.ParseUint(newIndexString, 10, 64)
 	if err != nil {
-		return 0, 0, fmt.Errorf("invalid index: %q", newIndexString)
-	}
-
-	// Parse returned term.
-	newTermString := resp.Header.Get("X-Raft-Term")
-	newTerm, err := strconv.ParseUint(newTermString, 10, 64)
-	if err != nil {
-		return 0, 0, fmt.Errorf("invalid term: %q", newTermString)
+		return 0, fmt.Errorf("invalid index: %q", newIndexString)
 	}
 
 	// Parse returned error.
 	if s := resp.Header.Get("X-Raft-Error"); s != "" {
-		return newIndex, newTerm, errors.New(s)
+		return newIndex, errors.New(s)
 	}
 
-	return newIndex, newTerm, nil
+	return newIndex, nil
 }
 
 // ReadFrom streams the log from a leader.
@@ -142,7 +140,7 @@ func (t *HTTPTransport) ReadFrom(uri *url.URL, id, term, index uint64) (io.ReadC
 }
 
 // RequestVote requests a vote for a candidate in a given term.
-func (t *HTTPTransport) RequestVote(uri *url.URL, term, candidateID, lastLogIndex, lastLogTerm uint64) (uint64, error) {
+func (t *HTTPTransport) RequestVote(uri *url.URL, term, candidateID, lastLogIndex, lastLogTerm uint64) error {
 	// Construct URL.
 	u := *uri
 	u.Path = path.Join(u.Path, "raft/vote")
@@ -158,21 +156,14 @@ func (t *HTTPTransport) RequestVote(uri *url.URL, term, candidateID, lastLogInde
 	// Send HTTP request.
 	resp, err := http.Get(u.String())
 	if err != nil {
-		return 0, err
+		return err
 	}
 	_ = resp.Body.Close()
 
-	// Parse returned term.
-	newTermString := resp.Header.Get("X-Raft-Term")
-	newTerm, err := strconv.ParseUint(newTermString, 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("invalid term: %q", newTermString)
-	}
-
 	// Parse returned error.
 	if s := resp.Header.Get("X-Raft-Error"); s != "" {
-		return newTerm, errors.New(s)
+		return errors.New(s)
 	}
 
-	return newTerm, nil
+	return nil
 }

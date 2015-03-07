@@ -225,13 +225,13 @@ func Test_DecodeMetric(t *testing.T) {
 			t.Fatalf("tags len mismatch.  expected %d, got %d", len(test.tags), len(point.Tags))
 		}
 		if test.isInt {
-			i := point.Values[point.Name].(int64)
+			i := point.Fields[point.Name].(int64)
 			if i != test.iv {
-				t.Fatalf("integerValue value mismatch.  expected %v, got %v", test.iv, point.Values[point.Name])
+				t.Fatalf("integerValue value mismatch.  expected %v, got %v", test.iv, point.Fields[point.Name])
 			}
 		} else {
-			f := point.Values[point.Name].(float64)
-			if point.Values[point.Name] != f {
+			f := point.Fields[point.Name].(float64)
+			if point.Fields[point.Name] != f {
 				t.Fatalf("floatValue value mismatch.  expected %v, got %v", test.fv, f)
 			}
 		}

@@ -118,6 +118,80 @@ func TestClient_Write(t *testing.T) {
 	}
 }
 
+func TestClient_UserAgent(t *testing.T) {
+	receivedUserAgent := ""
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedUserAgent = r.UserAgent()
+
+		var data influxdb.Results
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(data)
+	}))
+	defer ts.Close()
+
+	_, err := http.Get(ts.URL)
+	if err != nil {
+		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+
+	defaultUserAgent := receivedUserAgent
+
+	tests := []struct {
+		name      string
+		userAgent string
+		expected  string
+	}{
+		{
+			name:      "Empty user agent",
+			userAgent: "",
+			expected:  defaultUserAgent,
+		},
+		{
+			name:      "Custom user agent",
+			userAgent: "Test Influx Client",
+			expected:  "Test Influx Client",
+		},
+	}
+
+	for _, test := range tests {
+		u, _ := url.Parse(ts.URL)
+		config := client.Config{URL: *u, UserAgent: test.userAgent}
+		c, err := client.NewClient(config)
+		if err != nil {
+			t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+		}
+
+		receivedUserAgent = ""
+		query := client.Query{}
+		_, err = c.Query(query)
+		if err != nil {
+			t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+		}
+		if receivedUserAgent != test.expected {
+			t.Fatalf("Unexpected user agent. expected %v, actual %v", test.expected, receivedUserAgent)
+		}
+
+		receivedUserAgent = ""
+		write := client.Write{}
+		_, err = c.Write(write)
+		if err != nil {
+			t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+		}
+		if receivedUserAgent != test.expected {
+			t.Fatalf("Unexpected user agent. expected %v, actual %v", test.expected, receivedUserAgent)
+		}
+
+		receivedUserAgent = ""
+		_, _, err = c.Ping()
+		if err != nil {
+			t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+		}
+		if receivedUserAgent != test.expected {
+			t.Fatalf("Unexpected user agent. expected %v, actual %v", test.expected, receivedUserAgent)
+		}
+	}
+}
+
 func TestPoint_UnmarshalEpoch(t *testing.T) {
 	now := time.Now()
 	tests := []struct {

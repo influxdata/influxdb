@@ -133,7 +133,7 @@ func (p *Parser) parseShowStatement() (Statement, error) {
 }
 
 // parseCreateStatement parses a string and returns a create statement.
-// This function assumes the CREATE token has already been consumned.
+// This function assumes the CREATE token has already been consumed.
 func (p *Parser) parseCreateStatement() (Statement, error) {
 	tok, pos, lit := p.scanIgnoreWhitespace()
 	if tok == CONTINUOUS {
@@ -159,6 +159,8 @@ func (p *Parser) parseDropStatement() (Statement, error) {
 	tok, pos, lit := p.scanIgnoreWhitespace()
 	if tok == SERIES {
 		return p.parseDropSeriesStatement()
+	} else if tok == MEASUREMENT {
+		return p.parseDropMeasurementStatement()
 	} else if tok == CONTINUOUS {
 		return p.parseDropContinuousQueryStatement()
 	} else if tok == DATABASE {
@@ -172,7 +174,7 @@ func (p *Parser) parseDropStatement() (Statement, error) {
 		return p.parseDropUserStatement()
 	}
 
-	return nil, newParseError(tokstr(tok, lit), []string{"SERIES", "CONTINUOUS"}, pos)
+	return nil, newParseError(tokstr(tok, lit), []string{"SERIES", "CONTINUOUS", "MEASUREMENT"}, pos)
 }
 
 // parseAlterStatement parses a string and returns an alter statement.
@@ -330,13 +332,34 @@ func (p *Parser) parseInt(min, max int) (int, error) {
 	return n, nil
 }
 
+// parseUInt32 parses a string and returns a 32-bit unsigned integer literal.
+func (p *Parser) parseUInt32() (uint32, error) {
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	if tok != NUMBER {
+		return 0, newParseError(tokstr(tok, lit), []string{"number"}, pos)
+	}
+
+	// Convert string to unsigned 32-bit integer
+	n, err := strconv.ParseUint(lit, 10, 32)
+	if err != nil {
+		return 0, &ParseError{Message: err.Error(), Pos: pos}
+	}
+
+	return uint32(n), nil
+}
+
 // parseDuration parses a string and returns a duration literal.
 // This function assumes the DURATION token has already been consumed.
 func (p *Parser) parseDuration() (time.Duration, error) {
 	tok, pos, lit := p.scanIgnoreWhitespace()
-	if tok != DURATION_VAL {
+	if tok != DURATION_VAL && tok != INF {
 		return 0, newParseError(tokstr(tok, lit), []string{"duration"}, pos)
 	}
+
+	if tok == INF {
+		return 0, nil
+	}
+
 	d, err := ParseDuration(lit)
 	if err != nil {
 		return 0, &ParseError{Message: err.Error(), Pos: pos}
@@ -837,11 +860,6 @@ func (p *Parser) parseShowFieldKeysStatement() (*ShowFieldKeysStatement, error) 
 		p.unscan()
 	}
 
-	// Parse condition: "WHERE EXPR".
-	if stmt.Condition, err = p.parseCondition(); err != nil {
-		return nil, err
-	}
-
 	// Parse sort: "ORDER BY FIELD+".
 	if stmt.SortFields, err = p.parseOrderBy(); err != nil {
 		return nil, err
@@ -860,18 +878,49 @@ func (p *Parser) parseShowFieldKeysStatement() (*ShowFieldKeysStatement, error) 
 	return stmt, nil
 }
 
-// parseDropSeriesStatement parses a string and returns a DropSeriesStatement.
-// This function assumes the "DROP SERIES" tokens have already been consumed.
-func (p *Parser) parseDropSeriesStatement() (*DropSeriesStatement, error) {
-	stmt := &DropSeriesStatement{}
+// parseDropMeasurementStatement parses a string and returns a DropMeasurementStatement.
+// This function assumes the "DROP MEASUREMENT" tokens have already been consumed.
+func (p *Parser) parseDropMeasurementStatement() (*DropMeasurementStatement, error) {
+	stmt := &DropMeasurementStatement{}
 
-	// Read the name of the series to drop.
+	// Parse the name of the measurement to be dropped.
 	lit, err := p.parseIdent()
 	if err != nil {
 		return nil, err
 	}
 	stmt.Name = lit
 
+	return stmt, nil
+}
+
+// parseDropSeriesStatement parses a string and returns a DropSeriesStatement.
+// This function assumes the "DROP SERIES" tokens have already been consumed.
+func (p *Parser) parseDropSeriesStatement() (*DropSeriesStatement, error) {
+	stmt := &DropSeriesStatement{}
+	var err error
+
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == FROM {
+		// Parse source.
+		if stmt.Source, err = p.parseSource(); err != nil {
+			return nil, err
+		}
+	} else {
+		p.unscan()
+	}
+
+	// Parse condition: "WHERE EXPR".
+	if stmt.Condition, err = p.parseCondition(); err != nil {
+		return nil, err
+	}
+
+	// If they didn't provide a FROM or a WHERE, they need to provide the SeriesID
+	if stmt.Condition == nil && stmt.Source == nil {
+		id, err := p.parseUInt32()
+		if err != nil {
+			return nil, err
+		}
+		stmt.SeriesID = id
+	}
 	return stmt, nil
 }
 
@@ -1412,6 +1461,8 @@ func (p *Parser) parseSortField() (*SortField, error) {
 
 // ParseExpr parses an expression.
 func (p *Parser) ParseExpr() (Expr, error) {
+	var err error
+
 	// Parse a non-binary expression type to start.
 	// This variable will always be the root of the expression tree.
 	expr, err := p.parseUnaryExpr()
@@ -1428,10 +1479,18 @@ func (p *Parser) ParseExpr() (Expr, error) {
 			return expr, nil
 		}
 
-		// Otherwise parse the next unary expression.
-		rhs, err := p.parseUnaryExpr()
-		if err != nil {
-			return nil, err
+		// Otherwise parse the next expression.
+		var rhs Expr
+		if IsRegexOp(op) {
+			// RHS of a regex operator must be a regular expression.
+			p.consumeWhitespace()
+			if rhs, err = p.parseRegex(); err != nil {
+				return nil, err
+			}
+		} else {
+			if rhs, err = p.parseUnaryExpr(); err != nil {
+				return nil, err
+			}
 		}
 
 		// Assign the new root based on the precendence of the LHS and RHS operators.
@@ -1508,9 +1567,39 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 	case DURATION_VAL:
 		v, _ := ParseDuration(lit)
 		return &DurationLiteral{Val: v}, nil
+	case MUL:
+		return &Wildcard{}, nil
+	case REGEX:
+		re, err := regexp.Compile(lit)
+		if err != nil {
+			return nil, &ParseError{Message: err.Error(), Pos: pos}
+		}
+		return &RegexLiteral{Val: re}, nil
 	default:
 		return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string", "number", "bool"}, pos)
 	}
+}
+
+// parseRegex parses a regular expression.
+func (p *Parser) parseRegex() (Expr, error) {
+	tok, pos, lit := p.s.s.ScanRegex()
+
+	if tok == BADESCAPE {
+		msg := fmt.Sprintf("bad escape: %s", lit)
+		return nil, &ParseError{Message: msg, Pos: pos}
+	} else if tok == BADREGEX {
+		msg := fmt.Sprintf("bad regex: %s", lit)
+		return nil, &ParseError{Message: msg, Pos: pos}
+	} else if tok != REGEX {
+		return nil, newParseError(tokstr(tok, lit), []string{"regex"}, pos)
+	}
+
+	re, err := regexp.Compile(lit)
+	if err != nil {
+		return nil, &ParseError{Message: err.Error(), Pos: pos}
+	}
+
+	return &RegexLiteral{Val: re}, nil
 }
 
 // parseCall parses a function call.

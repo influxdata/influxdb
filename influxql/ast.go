@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -64,6 +65,7 @@ func (*CreateUserStatement) node()            {}
 func (*DeleteStatement) node()                {}
 func (*DropContinuousQueryStatement) node()   {}
 func (*DropDatabaseStatement) node()          {}
+func (*DropMeasurementStatement) node()       {}
 func (*DropRetentionPolicyStatement) node()   {}
 func (*DropSeriesStatement) node()            {}
 func (*DropUserStatement) node()              {}
@@ -95,6 +97,7 @@ func (*nilLiteral) node()      {}
 func (*Merge) node()           {}
 func (*NumberLiteral) node()   {}
 func (*ParenExpr) node()       {}
+func (*RegexLiteral) node()    {}
 func (*SortField) node()       {}
 func (SortFields) node()       {}
 func (*StringLiteral) node()   {}
@@ -152,6 +155,7 @@ func (*CreateUserStatement) stmt()            {}
 func (*DeleteStatement) stmt()                {}
 func (*DropContinuousQueryStatement) stmt()   {}
 func (*DropDatabaseStatement) stmt()          {}
+func (*DropMeasurementStatement) stmt()       {}
 func (*DropRetentionPolicyStatement) stmt()   {}
 func (*DropSeriesStatement) stmt()            {}
 func (*DropUserStatement) stmt()              {}
@@ -181,6 +185,7 @@ func (*DurationLiteral) expr() {}
 func (*nilLiteral) expr()      {}
 func (*NumberLiteral) expr()   {}
 func (*ParenExpr) expr()       {}
+func (*RegexLiteral) expr()    {}
 func (*StringLiteral) expr()   {}
 func (*TimeLiteral) expr()     {}
 func (*VarRef) expr()          {}
@@ -551,6 +556,9 @@ type SelectStatement struct {
 
 	// memoize the group by interval
 	groupByInterval time.Duration
+
+	// if it's a query for raw data values (i.e. not an aggregate)
+	RawQuery bool
 }
 
 // Clone returns a deep copy of the statement.
@@ -562,6 +570,7 @@ func (s *SelectStatement) Clone() *SelectStatement {
 		SortFields: make(SortFields, len(s.SortFields)),
 		Condition:  CloneExpr(s.Condition),
 		Limit:      s.Limit,
+		Offset:     s.Offset,
 	}
 	if s.Target != nil {
 		other.Target = &Target{Measurement: s.Target.Measurement, Database: s.Target.Database}
@@ -602,6 +611,39 @@ func cloneSource(s Source) Source {
 	default:
 		panic("unreachable")
 	}
+}
+
+// RewriteWildcards returns the re-written form of the select statement. Any wildcard query
+// fields are replaced with the supplied fields, and any wildcard GROUP BY fields are replaced
+// with the supplied dimensions.
+func (s *SelectStatement) RewriteWildcards(fields Fields, dimensions Dimensions) *SelectStatement {
+	other := s.Clone()
+
+	// Rewrite all wildcard query fields
+	rwFields := make(Fields, 0, len(s.Fields))
+	for _, f := range s.Fields {
+		switch f.Expr.(type) {
+		case *Wildcard:
+			rwFields = append(rwFields, fields...)
+		default:
+			rwFields = append(rwFields, f)
+		}
+	}
+	other.Fields = rwFields
+
+	// Rewrite all wildcard GROUP BY fields
+	rwDimensions := make(Dimensions, 0, len(s.Dimensions))
+	for _, d := range s.Dimensions {
+		switch d.Expr.(type) {
+		case *Wildcard:
+			rwDimensions = append(rwDimensions, dimensions...)
+		default:
+			rwDimensions = append(rwDimensions, d)
+		}
+	}
+	other.Dimensions = rwDimensions
+
+	return other
 }
 
 // String returns a string representation of the select statement.
@@ -683,6 +725,25 @@ func (s *SelectStatement) walkForTime(node Node) bool {
 	default:
 		return false
 	}
+}
+
+// HasWildcard returns whether or not the select statement has at least 1 wildcard
+func (s *SelectStatement) HasWildcard() bool {
+	for _, f := range s.Fields {
+		_, ok := f.Expr.(*Wildcard)
+		if ok {
+			return true
+		}
+	}
+
+	for _, d := range s.Dimensions {
+		_, ok := d.Expr.(*Wildcard)
+		if ok {
+			return true
+		}
+	}
+
+	return false
 }
 
 // GroupByIterval extracts the time interval, if specified.
@@ -794,6 +855,7 @@ func (s *SelectStatement) Substatement(ref *VarRef) (*SelectStatement, error) {
 		Fields:     Fields{{Expr: ref}},
 		Dimensions: s.Dimensions,
 		Limit:      s.Limit,
+		Offset:     s.Offset,
 		SortFields: s.SortFields,
 	}
 
@@ -1057,11 +1119,37 @@ func (s *ShowSeriesStatement) RequiredPrivileges() ExecutionPrivileges {
 
 // DropSeriesStatement represents a command for removing a series from the database.
 type DropSeriesStatement struct {
-	Name string
+	// The Id of the series being dropped (optional)
+	SeriesID uint32
+
+	// Data source that fields are extracted from (optional)
+	Source Source
+
+	// An expression evaluated on data point (optional)
+	Condition Expr
 }
 
 // String returns a string representation of the drop series statement.
-func (s *DropSeriesStatement) String() string { return fmt.Sprintf("DROP SERIES %s", s.Name) }
+func (s *DropSeriesStatement) String() string {
+	var buf bytes.Buffer
+	i, _ := buf.WriteString("DROP SERIES")
+
+	if s.Source != nil {
+		_, _ = buf.WriteString(" FROM ")
+		_, _ = buf.WriteString(s.Source.String())
+	}
+	if s.Condition != nil {
+		_, _ = buf.WriteString(" WHERE ")
+		_, _ = buf.WriteString(s.Condition.String())
+	}
+
+	// If we haven't written any data since the initial statement, then this was a SeriesID statement
+	if len(buf.String()) == i {
+		_, _ = buf.WriteString(fmt.Sprintf(" %d", s.SeriesID))
+	}
+
+	return buf.String()
+}
 
 // RequiredPrivileges returns the privilige reqired to execute a DropSeriesStatement.
 func (s DropSeriesStatement) RequiredPrivileges() ExecutionPrivileges {
@@ -1185,6 +1273,25 @@ func (s *ShowMeasurementsStatement) String() string {
 // RequiredPrivileges returns the privilege(s) required to execute a ShowMeasurementsStatement
 func (s *ShowMeasurementsStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Name: "", Privilege: ReadPrivilege}}
+}
+
+// DropMeasurmentStatement represents a command to drop a measurement.
+type DropMeasurementStatement struct {
+	// Name of the measurement to be dropped.
+	Name string
+}
+
+// String returns a string representation of the drop measurement statement.
+func (s *DropMeasurementStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("DROP MEASUREMENT ")
+	_, _ = buf.WriteString(s.Name)
+	return buf.String()
+}
+
+// RequiredPrivileges returns the privilege(s) required to execute a DropMeasurementStatement
+func (s *DropMeasurementStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
 }
 
 // ShowRetentionPoliciesStatement represents a command for listing retention policies.
@@ -1331,9 +1438,6 @@ type ShowFieldKeysStatement struct {
 	// Data source that fields are extracted from.
 	Source Source
 
-	// An expression evaluated on data point.
-	Condition Expr
-
 	// Fields to sort results by
 	SortFields SortFields
 
@@ -1353,10 +1457,6 @@ func (s *ShowFieldKeysStatement) String() string {
 	if s.Source != nil {
 		_, _ = buf.WriteString(" FROM ")
 		_, _ = buf.WriteString(s.Source.String())
-	}
-	if s.Condition != nil {
-		_, _ = buf.WriteString(" WHERE ")
-		_, _ = buf.WriteString(s.Condition.String())
 	}
 	if len(s.SortFields) > 0 {
 		_, _ = buf.WriteString(" ORDER BY ")
@@ -1635,6 +1735,14 @@ type ParenExpr struct {
 // String returns a string representation of the parenthesized expression.
 func (e *ParenExpr) String() string { return fmt.Sprintf("(%s)", e.Expr.String()) }
 
+// RegexLiteral represents a regular expression.
+type RegexLiteral struct {
+	Val *regexp.Regexp
+}
+
+// String returns a string representation of the literal.
+func (r *RegexLiteral) String() string { return r.Val.String() }
+
 // Wildcard represents a wild card expression.
 type Wildcard struct{}
 
@@ -1663,6 +1771,8 @@ func CloneExpr(expr Expr) Expr {
 		return &NumberLiteral{Val: expr.Val}
 	case *ParenExpr:
 		return &ParenExpr{Expr: CloneExpr(expr.Expr)}
+	case *RegexLiteral:
+		return &RegexLiteral{Val: expr.Val}
 	case *StringLiteral:
 		return &StringLiteral{Val: expr.Val}
 	case *TimeLiteral:

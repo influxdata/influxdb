@@ -211,7 +211,7 @@ func TestUnmarshal_Points(t *testing.T) {
 		{
 			name: "single value",
 			points: []influxdb.Point{
-				{Name: "disk_read", Values: map[string]interface{}{"disk_read": float64(1)}},
+				{Name: "disk_read", Fields: map[string]interface{}{"disk_read": float64(1)}},
 			},
 			packet: gollectd.Packet{
 				Plugin: "disk",
@@ -223,8 +223,8 @@ func TestUnmarshal_Points(t *testing.T) {
 		{
 			name: "multi value",
 			points: []influxdb.Point{
-				{Name: "disk_read", Values: map[string]interface{}{"disk_read": float64(1)}},
-				{Name: "disk_write", Values: map[string]interface{}{"disk_write": float64(5)}},
+				{Name: "disk_read", Fields: map[string]interface{}{"disk_read": float64(1)}},
+				{Name: "disk_write", Fields: map[string]interface{}{"disk_write": float64(5)}},
 			},
 			packet: gollectd.Packet{
 				Plugin: "disk",
@@ -240,7 +240,7 @@ func TestUnmarshal_Points(t *testing.T) {
 				{
 					Name:   "disk_read",
 					Tags:   map[string]string{"host": "server01", "instance": "sdk", "type": "disk_octets", "type_instance": "single"},
-					Values: map[string]interface{}{"disk_read": float64(1)},
+					Fields: map[string]interface{}{"disk_read": float64(1)},
 				},
 			},
 			packet: gollectd.Packet{
@@ -269,7 +269,7 @@ func TestUnmarshal_Points(t *testing.T) {
 				t.Errorf("point name mismatch. expected %q, got %q", name, m.Name)
 			}
 			// test value
-			mv := m.Values[m.Name].(float64)
+			mv := m.Fields[m.Name].(float64)
 			pv := test.packet.Values[i].Value
 			if mv != pv {
 				t.Errorf("point value mismatch. expected %v, got %v", pv, mv)
