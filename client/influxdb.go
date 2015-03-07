@@ -12,6 +12,11 @@ import (
 	"github.com/influxdb/influxdb/influxql"
 )
 
+// These variables are populated via the Go linker.
+var (
+	version string = "0.9"
+)
+
 type Query struct {
 	Command  string
 	Database string
@@ -40,6 +45,9 @@ func NewClient(c Config) (*Client, error) {
 		httpClient: &http.Client{},
 		userAgent:  c.UserAgent,
 	}
+	if client.userAgent == "" {
+		client.userAgent = "InfluxDBClient/" + version
+	}
 	return &client, nil
 }
 
@@ -59,9 +67,7 @@ func (c *Client) Query(q Query) (*Results, error) {
 	if err != nil {
 		return nil, err
 	}
-	if c.userAgent != "" {
-		req.Header.Set("User-Agent", c.userAgent)
-	}
+	req.Header.Set("User-Agent", c.userAgent)
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err
@@ -91,9 +97,7 @@ func (c *Client) Write(bp BatchPoints) (*Results, error) {
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	if c.userAgent != "" {
-		req.Header.Set("User-Agent", c.userAgent)
-	}
+	req.Header.Set("User-Agent", c.userAgent)
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err
@@ -124,9 +128,7 @@ func (c *Client) Ping() (time.Duration, string, error) {
 	if err != nil {
 		return 0, "", err
 	}
-	if c.userAgent != "" {
-		req.Header.Set("User-Agent", c.userAgent)
-	}
+	req.Header.Set("User-Agent", c.userAgent)
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return 0, "", err
