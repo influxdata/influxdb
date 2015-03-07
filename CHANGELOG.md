@@ -1,4 +1,5 @@
 ## v0.9.0-rc10 [Unreleased]
+- [#1862](https://github.com/influxdb/influxdb/pull/1862): Fix memory leak in `httpd.serveWait`
 
 ### Bugfixes
 - [#1867](https://github.com/influxdb/influxdb/pull/1867): Fix race accessing topic replicas map
