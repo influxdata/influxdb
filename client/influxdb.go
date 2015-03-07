@@ -130,6 +130,8 @@ func (c *Client) Write(bp BatchPoints) (*Results, error) {
 	return nil, nil
 }
 
+// Ping will check to see if the server is up
+// Ping returns how long the requeset took, the version of the server it connected to, and an error if one occured.
 func (c *Client) Ping() (time.Duration, string, error) {
 	now := time.Now()
 	u := c.url
@@ -250,6 +252,9 @@ func (a Results) Error() error {
 }
 
 // Point defines the fields that will be written to the database
+// Name, Timestamp, and Fields are required
+// Precision can be specified if the timestamp is in epoch format (integer).
+// Valid values for Precision are n, u, ms, s, m, and h
 type Point struct {
 	Name      string
 	Tags      map[string]string
@@ -357,6 +362,12 @@ func normalizeFields(fields map[string]interface{}) map[string]interface{} {
 }
 
 // BatchPoints is used to send batched data in a single write.
+// Database and Points are required
+// If no retention policy is specified, it will use the databases default retention policy.
+// If tags are specified, they will be "merged" with all points.  If a point already has that tag, it is ignored.
+// If timestamp is specified, it will be applied to any point with an empty timestamp.
+// Precision can be specified if the timestamp is in epoch format (integer).
+// Valid values for Precision are n, u, ms, s, m, and h
 type BatchPoints struct {
 	Points          []Point           `json:"points,omitempty"`
 	Database        string            `json:"database,omitempty"`
@@ -425,6 +436,7 @@ func (bp *BatchPoints) UnmarshalJSON(b []byte) error {
 
 // utility functions
 
+// Addr provides the current url as a string of the server the client is connected to.
 func (c *Client) Addr() string {
 	return c.url.String()
 }

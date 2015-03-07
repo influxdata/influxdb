@@ -1,4 +1,7 @@
 InfluxDB Go Client Library
 ============
 
-# TODO Add links to the godoc and examples when they are written
+# 
+# Examples
+
+You can see a use of the client libray in the [InfluxDB CLI](https://github.com/influxdb/influxdb/blob/master/cmd/influx/main.go).
