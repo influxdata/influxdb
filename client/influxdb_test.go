@@ -14,8 +14,7 @@ import (
 )
 
 func TestNewClient(t *testing.T) {
-	config := client.Config{}
-	_, err := client.NewClient(config)
+	_, err := client.NewClient()
 	if err != nil {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
 	}
@@ -26,8 +25,7 @@ func TestClient_Ping(t *testing.T) {
 	defer ts.Close()
 
 	u, _ := url.Parse(ts.URL)
-	config := client.Config{URL: *u}
-	c, err := client.NewClient(config)
+	c, err := client.NewClient(client.URL(*u))
 	if err != nil {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
 	}
@@ -52,8 +50,7 @@ func TestClient_Query(t *testing.T) {
 	defer ts.Close()
 
 	u, _ := url.Parse(ts.URL)
-	config := client.Config{URL: *u}
-	c, err := client.NewClient(config)
+	c, err := client.NewClient(client.URL(*u))
 	if err != nil {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
 	}
@@ -84,8 +81,7 @@ func TestClient_BasicAuth(t *testing.T) {
 
 	u, _ := url.Parse(ts.URL)
 	u.User = url.UserPassword("username", "password")
-	config := client.Config{URL: *u, Username: "username", Password: "password"}
-	c, err := client.NewClient(config)
+	c, err := client.NewClient(client.URL(*u), client.Username("username"), client.Password("password"))
 	if err != nil {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
 	}
@@ -105,8 +101,7 @@ func TestClient_Write(t *testing.T) {
 	defer ts.Close()
 
 	u, _ := url.Parse(ts.URL)
-	config := client.Config{URL: *u}
-	c, err := client.NewClient(config)
+	c, err := client.NewClient(client.URL(*u))
 	if err != nil {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
 	}
@@ -155,8 +150,7 @@ func TestClient_UserAgent(t *testing.T) {
 
 	for _, test := range tests {
 		u, _ := url.Parse(ts.URL)
-		config := client.Config{URL: *u, UserAgent: test.userAgent}
-		c, err := client.NewClient(config)
+		c, err := client.NewClient(client.URL(*u), client.Useragent(test.userAgent))
 		if err != nil {
 			t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
 		}
