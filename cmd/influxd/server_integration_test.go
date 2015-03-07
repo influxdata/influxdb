@@ -9,14 +9,12 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/influxdb/influxdb"
-	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/messaging"
 
 	"github.com/influxdb/influxdb/client"
@@ -682,18 +680,18 @@ func TestClientLibrary(t *testing.T) {
 		bp                           client.BatchPoints
 		results                      client.Results
 		query                        client.Query
-		writeExpected, queryExpected *client.Results
+		writeExpected, queryExpected string
 		writeErr, queryErr           string
 	}{
 		{
 			name:          "empty batchpoint",
-			writeExpected: &client.Results{Err: fmt.Errorf("database is required")},
 			writeErr:      "database is required",
+			writeExpected: `{"error":"database is required"}`,
 		},
 		{
 			name:          "no points",
+			writeExpected: `{}`,
 			bp:            client.BatchPoints{Database: "mydb"},
-			writeExpected: &client.Results{},
 		},
 		{
 			name: "one point",
@@ -703,17 +701,9 @@ func TestClientLibrary(t *testing.T) {
 					{Name: "cpu", Fields: map[string]interface{}{"value": 1.1}, Timestamp: now},
 				},
 			},
-			writeExpected: &client.Results{},
+			writeExpected: `{}`,
 			query:         client.Query{Command: `select * from "mydb"."myrp".cpu`},
-			queryExpected: &client.Results{
-				Results: []client.Result{
-					{
-						Series: []influxql.Row{
-							{Name: "cpu", Columns: []string{"time", "value"}, Values: [][]interface{}{{now.Format(time.RFC3339Nano), json.Number("1.1")}}},
-						},
-					},
-				},
-			},
+			queryExpected: fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",1.1]]}]}]}`, now.Format(time.RFC3339Nano)),
 		},
 	}
 
@@ -725,34 +715,46 @@ func TestClientLibrary(t *testing.T) {
 	for _, test := range tests {
 		t.Logf("testing %s - %s\n", testName, test.name)
 		writeResult, err := c.Write(test.bp)
-		if test.writeErr == "" && err != nil {
-			t.Errorf("unexpected error %v", err)
-		} else if test.writeErr != "" && err == nil {
-			t.Errorf("expected error %s, got <nil>", test.writeErr)
-		} else if e != nil && test.writeErr != err.Error() {
+		if test.writeErr != errToString(err) {
 			t.Errorf("unexpected error. expected: %s, got %v", test.writeErr, err)
 		}
-		if !reflect.DeepEqual(test.writeExpected, writeResult) {
-			t.Logf("write expected result: %+v\n", test.writeExpected)
-			t.Logf("write got result:      %+v\n", writeResult)
+		jsonResult := mustMarshalJSON(writeResult)
+		if test.writeExpected != jsonResult {
+			t.Logf("write expected result: %s\n", test.writeExpected)
+			t.Logf("write got result:      %s\n", jsonResult)
 			t.Error("unexpected results")
 		}
 
 		if test.query.Command != "" {
 			time.Sleep(50 * time.Millisecond)
 			queryResult, err := c.Query(test.query)
-			if test.queryErr == "" && err != nil {
-				t.Errorf("unexpected error %v", err)
-			} else if test.queryErr != "" && err == nil {
-				t.Errorf("expected error %s, got <nil>", test.queryErr)
-			} else if e != nil && test.queryErr != err.Error() {
+			if test.queryErr != errToString(err) {
 				t.Errorf("unexpected error. expected: %s, got %v", test.queryErr, err)
 			}
-			if !reflect.DeepEqual(test.queryExpected, queryResult) {
-				t.Logf("query expected result: %+v\n", test.queryExpected)
-				t.Logf("query got result:      %+v\n", queryResult)
+			jsonResult := mustMarshalJSON(queryResult)
+			if test.queryExpected != jsonResult {
+				t.Logf("query expected result: %s\n", test.queryExpected)
+				t.Logf("query got result:      %s\n", jsonResult)
 				t.Error("unexpected results")
 			}
+
 		}
 	}
+}
+
+// helper funcs
+
+func errToString(err error) string {
+	if err != nil {
+		return err.Error()
+	}
+	return ""
+}
+
+func mustMarshalJSON(v interface{}) string {
+	b, e := json.Marshal(v)
+	if e != nil {
+		panic(e)
+	}
+	return string(b)
 }
