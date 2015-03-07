@@ -53,7 +53,7 @@ func (m *MapReduceJob) Key() []byte {
 	return m.key
 }
 
-func (m *MapReduceJob) Execute(out chan *Row) {
+func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 	warn("Execute0")
 	aggregates := m.stmt.AggregateCalls()
 	reduceFuncs := make([]ReduceFunc, len(aggregates))
@@ -118,16 +118,31 @@ func (m *MapReduceJob) Execute(out chan *Row) {
 	}
 
 	if isRaw {
-		out <- m.processRawResults(resultValues)
+		row := m.processRawResults(resultValues)
+		if filterEmptyResults && m.resultsEmpty(row.Values) {
+			return
+		}
+		// do any post processing like math and stuff
+		row.Values = m.processResults(row.Values)
+
+		out <- row
+		return
+	}
+
+	// filter out empty results
+	if filterEmptyResults && m.resultsEmpty(resultValues) {
 		return
 	}
 
 	// put together the row to return
-	columnNames := make([]string, len(aggregates)+1)
+	columnNames := make([]string, len(m.stmt.Fields)+1)
 	columnNames[0] = "time"
-	for i, a := range aggregates {
-		columnNames[i+1] = a.Name
+	for i, f := range m.stmt.Fields {
+		columnNames[i+1] = f.Name()
 	}
+
+	// processes the result values if there's any math in there
+	resultValues = m.processResults(resultValues)
 
 	row := &Row{
 		Name:    m.MeasurementName,
@@ -140,12 +155,179 @@ func (m *MapReduceJob) Execute(out chan *Row) {
 	out <- row
 }
 
+func (m *MapReduceJob) processResults(results [][]interface{}) [][]interface{} {
+	hasMath := false
+	for _, f := range m.stmt.Fields {
+		if _, ok := f.Expr.(*BinaryExpr); ok {
+			hasMath = true
+		} else if _, ok := f.Expr.(*ParenExpr); ok {
+			hasMath = true
+		}
+	}
+
+	if !hasMath {
+		return results
+	}
+
+	processors := make([]processor, len(m.stmt.Fields))
+	startIndex := 1
+	for i, f := range m.stmt.Fields {
+		warn("START: ", startIndex)
+		processors[i], startIndex = getProcessor(f.Expr, startIndex)
+	}
+
+	mathResults := make([][]interface{}, len(results))
+	for i, _ := range mathResults {
+		mathResults[i] = make([]interface{}, len(m.stmt.Fields)+1)
+		// put the time in
+		mathResults[i][0] = results[i][0]
+		for j, p := range processors {
+			mathResults[i][j+1] = p(results[i])
+		}
+	}
+
+	return mathResults
+}
+
+func getProcessor(expr Expr, startIndex int) (processor, int) {
+	switch expr := expr.(type) {
+	case *VarRef:
+		return newEchoProcessor(startIndex), startIndex + 1
+	case *Call:
+		return newEchoProcessor(startIndex), startIndex + 1
+	case *BinaryExpr:
+		return getBinaryProcessor(expr, startIndex)
+	case *ParenExpr:
+		return getProcessor(expr.Expr, startIndex)
+	case *NumberLiteral:
+		return newLiteralProcessor(expr.Val), startIndex
+	case *StringLiteral:
+		return newLiteralProcessor(expr.Val), startIndex
+	case *BooleanLiteral:
+		return newLiteralProcessor(expr.Val), startIndex
+	case *TimeLiteral:
+		return newLiteralProcessor(expr.Val), startIndex
+	case *DurationLiteral:
+		return newLiteralProcessor(expr.Val), startIndex
+	}
+	panic("unreachable")
+}
+
+type processor func(values []interface{}) interface{}
+
+func newEchoProcessor(index int) processor {
+	warn("NEW: ", index)
+	return func(values []interface{}) interface{} {
+		warn("ECHO ", index)
+		return values[index]
+	}
+}
+
+func newLiteralProcessor(val interface{}) processor {
+	return func(values []interface{}) interface{} {
+		return val
+	}
+}
+
+func getBinaryProcessor(expr *BinaryExpr, startIndex int) (processor, int) {
+	warn("| ", startIndex)
+	lhs, index := getProcessor(expr.LHS, startIndex)
+	warn("| ", index)
+	rhs, index := getProcessor(expr.RHS, index)
+	warn("| ", index)
+
+	return newBinaryExprEvaluator(expr.Op, lhs, rhs), index
+}
+
+func newBinaryExprEvaluator(op Token, lhs, rhs processor) processor {
+	switch op {
+	case ADD:
+		return func(values []interface{}) interface{} {
+			l := lhs(values)
+			r := rhs(values)
+			if lv, ok := l.(float64); ok {
+				if rv, ok := r.(float64); ok {
+					if rv != 0 {
+						return lv + rv
+					}
+				}
+			}
+			return nil
+		}
+	case SUB:
+		return func(values []interface{}) interface{} {
+			l := lhs(values)
+			r := rhs(values)
+			if lv, ok := l.(float64); ok {
+				if rv, ok := r.(float64); ok {
+					if rv != 0 {
+						return lv - rv
+					}
+				}
+			}
+			return nil
+		}
+	case MUL:
+		return func(values []interface{}) interface{} {
+			l := lhs(values)
+			r := rhs(values)
+			if lv, ok := l.(float64); ok {
+				if rv, ok := r.(float64); ok {
+					if rv != 0 {
+						return lv * rv
+					}
+				}
+			}
+			return nil
+		}
+	case DIV:
+		return func(values []interface{}) interface{} {
+			l := lhs(values)
+			r := rhs(values)
+			if lv, ok := l.(float64); ok {
+				if rv, ok := r.(float64); ok {
+					if rv != 0 {
+						return lv / rv
+					}
+				}
+			}
+			return nil
+		}
+	default:
+		// we shouldn't get here, but give them back nils if it goes this way
+		return func(values []interface{}) interface{} {
+			return nil
+		}
+	}
+}
+
+func (m *MapReduceJob) resultsEmpty(resultValues [][]interface{}) bool {
+	warn("resultsEmtpy")
+	for _, vals := range resultValues {
+		for i := 1; i < len(vals); i++ {
+			warn(". ", vals[i])
+			if vals[i] != nil {
+				warn(". not nil")
+				return false
+			}
+		}
+	}
+	return true
+}
+
 // processRawResults will handle converting the reduce results from a raw query into a Row
 func (m *MapReduceJob) processRawResults(resultValues [][]interface{}) *Row {
 	selectNames := m.stmt.NamesInSelect()
+
+	// ensure that time is in the select names and in the first position
 	hasTime := false
-	for _, n := range selectNames {
+	for i, n := range selectNames {
 		if n == "time" {
+			if i != 0 {
+				tmp := selectNames[0]
+				selectNames[0] = "time"
+				selectNames[i] = tmp
+			}
 			hasTime = true
 		}
 	}
@@ -182,12 +364,13 @@ func (m *MapReduceJob) processRawResults(resultValues [][]interface{}) *Row {
 			vals[1] = v.values.(interface{})
 		} else {
 			fields := v.values.(map[string]interface{})
-			for i, n := range selectNames {
-				if n == "time" {
-					vals[i] = time.Unix(0, v.timestamp).UTC()
-				} else {
-					vals[i] = fields[n]
-				}
+
+			// time is always the first value
+			vals[0] = time.Unix(0, v.timestamp).UTC()
+
+			// populate the other values
+			for i := 1; i < len(selectNames); i++ {
+				vals[i] = fields[selectNames[i]]
 			}
 		}
 
@@ -201,7 +384,7 @@ func (m *MapReduceJob) processAggregate(c *Call, reduceFunc ReduceFunc, resultVa
 	warn("processAggregate0")
 	mapperOutputs := make([]interface{}, len(m.Mappers))
 
-	warn("processAggregate1")
+	warn("processAggregate1", m.TMin, m.TMax, m.interval, len(resultValues), resultValues[0])
 	// intialize the mappers
 	for _, mm := range m.Mappers {
 		if err := mm.Begin(c, m.TMin); err != nil {
@@ -351,9 +534,13 @@ func (e *Executor) execute(out chan *Row) {
 	// Ensure the the MRJobs close after execution.
 	defer e.close()
 
+	// If we have multiple tag sets we'll want to filter out the empty ones
+	filterEmptyResults := len(e.jobs) > 1
+
+	warn("should filter: ", filterEmptyResults)
 	// Execute each MRJob serially
 	for _, j := range e.jobs {
-		j.Execute(out)
+		j.Execute(out, filterEmptyResults)
 	}
 
 	// Mark the end of the output channel.

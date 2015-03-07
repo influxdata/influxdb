@@ -128,26 +128,36 @@ func MapCount(itr Iterator) interface{} {
 func MapSum(itr Iterator) interface{} {
 	warn("MapSum")
 	n := float64(0)
+	count := 0
 	for id, k, v := itr.Next(); k != 0; id, k, v = itr.Next() {
 		warn("MapSum: ", id, k, v)
 
+		count++
 		n += v.(float64)
 	}
-	return n
+	if count > 0 {
+		return n
+	}
+	return nil
 }
 
 // ReduceSum computes the sum of values for each key.
 func ReduceSum(values []interface{}) interface{} {
 	warn("ReduceSum")
 	var n float64
+	count := 0
 	for _, v := range values {
 		warn("ReduceSum: ", v)
 		if v == nil {
 			continue
 		}
+		count++
 		n += v.(float64)
 	}
-	return n
+	if count > 0 {
+		return n
+	}
+	return nil
 }
 
 // MapMean computes the count and sum of values in an iterator to be combined by the reducer.

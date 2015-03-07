@@ -98,6 +98,9 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 	if tmax.IsZero() {
 		tmax = tx.now
 	}
+	if tmin.IsZero() {
+		tmin = time.Unix(0, 0)
+	}
 
 	// Find shard groups within time range.
 	var shardGroups []*ShardGroup

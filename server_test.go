@@ -1282,9 +1282,8 @@ func TestServer_ExecuteQuery(t *testing.T) {
 	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: mustParseTime("2000-01-01T00:00:10Z"), Fields: map[string]interface{}{"value": float64(30)}}})
 	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-west"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(100)}}})
 
-	fmt.Println("test1")
 	// Select data from the server.
-	expected := `{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","sum"],"values":[["2000-01-01T00:00:00Z",20],["2000-01-01T00:00:10Z",30]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","sum"],"values":[["2000-01-01T00:00:00Z",100],["2000-01-01T00:00:10Z",0]]}]}`
+	expected := `{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","sum"],"values":[["2000-01-01T00:00:00Z",20],["2000-01-01T00:00:10Z",30]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","sum"],"values":[["2000-01-01T00:00:00Z",100],["2000-01-01T00:00:10Z",null]]}]}`
 	results := s.ExecuteQuery(MustParseQuery(`SELECT sum(value) FROM cpu where time >= '2000-01-01T00:00:00Z' AND time < '2000-01-01T00:00:20Z' GROUP BY time(10s), region`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error: %s", res.Err)
@@ -1294,23 +1293,26 @@ func TestServer_ExecuteQuery(t *testing.T) {
 		t.Fatalf("unexpected row(0):\nexp: %s\ngot: %s", expected, s)
 	}
 
-	fmt.Println("---------------------    test2")
 	// Simple non-aggregation.
+	expected = `{"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:10Z",30]]}]}`
 	results = s.ExecuteQuery(MustParseQuery(`SELECT value FROM cpu WHERE time >= '2000-01-01 00:00:05'`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error during simple SELECT: %s", res.Err)
-	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:10Z",30]]}]}` {
-		t.Fatalf("unexpected row(0) during simple SELECT: %s", s)
+	} else if s := mustMarshalJSON(res); s != expected {
+		t.Fatalf("unexpected row(0):\nexp: %s\ngot: %s", expected, s)
 	}
 
+	fmt.Println("1 --------------------------------------------------------------------------------")
 	// Sum aggregation.
-	results = s.ExecuteQuery(MustParseQuery(`SELECT sum(value) FROM cpu WHERE time >= '2000-01-01 00:00:05' GROUP BY time(10s), region`), "foo", nil)
+	expected = `{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","sum"],"values":[["2000-01-01T00:00:05Z",30]]}]}`
+	results = s.ExecuteQuery(MustParseQuery(`SELECT sum(value) FROM cpu WHERE time >= '2000-01-01 00:00:05' AND time <= '2000-01-01T00:00:10Z' GROUP BY time(10s), region`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error during SUM: %s", res.Err)
-	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","sum"],"values":[["2000-01-01T00:00:10Z",30]]}]}` {
-		t.Fatalf("unexpected row(0) during SUM: %s", s)
+	} else if s := mustMarshalJSON(res); s != expected {
+		t.Fatalf("unexpected row(0):\nexp: %s\ngot: %s", expected, s)
 	}
 
+	fmt.Println("2 --------------------------------------------------------------------------------")
 	// Aggregation with a null field value
 	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: mustParseTime("2000-01-01T00:00:03Z"), Fields: map[string]interface{}{"otherVal": float64(20)}}})
 	// Sum aggregation.
@@ -1321,21 +1323,23 @@ func TestServer_ExecuteQuery(t *testing.T) {
 		t.Fatalf("unexpected row(0) during SUM: %s", s)
 	}
 
+	fmt.Println("3 --------------------------------------------------------------------------------")
 	// Multiple aggregations
-	exp := `{"rows":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","sum","mean"],"values":[["1970-01-01T00:00:00Z",50,25]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","sum","mean"],"values":[["1970-01-01T00:00:00Z",100,100]]}]}`
+	expected = `{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","sum","mean"],"values":[["1970-01-01T00:00:00Z",50,25]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","sum","mean"],"values":[["1970-01-01T00:00:00Z",100,100]]}]}`
 	results = s.ExecuteQuery(MustParseQuery(`SELECT sum(value), mean(value) FROM cpu GROUP BY region`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error during multiple aggregation: %s", res.Err)
-	} else if s := mustMarshalJSON(res); s != exp {
-		t.Fatalf("unexpected row(0) during multiple aggregation:\n  exp: %s\n  got: %s", exp, s)
+	} else if s := mustMarshalJSON(res); s != expected {
+		t.Fatalf("unexpected row(0) during multiple aggregation:\n  exp: %s\n  got: %s", expected, s)
 	}
 
-	exp = `{"rows":[{"tags":{"region":"us-east"},"columns":["time","div"],"values":[["1970-01-01T00:00:00Z",2]]},{"tags":{"region":"us-west"},"columns":["time","div"],"values":[["1970-01-01T00:00:00Z",1]]}]}`
+	fmt.Println("4 --------------------------------------------------------------------------------")
+	expected = `{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","div"],"values":[["1970-01-01T00:00:00Z",2]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","div"],"values":[["1970-01-01T00:00:00Z",1]]}]}`
 	results = s.ExecuteQuery(MustParseQuery(`SELECT sum(value) / mean(value) as div FROM cpu GROUP BY region`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error during multiple aggregation: %s", res.Err)
-	} else if s := mustMarshalJSON(res); s != exp {
-		t.Fatalf("unexpected row(0) during multiple aggregation:\n  exp: %s\n  got: %s", exp, s)
+	} else if s := mustMarshalJSON(res); s != expected {
+		t.Fatalf("unexpected row(0) during multiple aggregation:\n  exp: %s\n  got: %s", expected, s)
 	}
 
 	// Group by multiple dimensions
@@ -1343,16 +1347,19 @@ func TestServer_ExecuteQuery(t *testing.T) {
 	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "load", Tags: map[string]string{"region": "us-east", "host": "serverB"}, Timestamp: mustParseTime("2000-01-01T00:00:10Z"), Fields: map[string]interface{}{"value": float64(30)}}})
 	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "load", Tags: map[string]string{"region": "us-west", "host": "serverC"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(100)}}})
 
+	fmt.Println("5 --------------------------------------------------------------------------------")
 	// Multiple group by dimensions
+	expected = `{"series":[{"name":"load","tags":{"host":"serverA","region":"us-east"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",20]]},{"name":"load","tags":{"host":"serverB","region":"us-east"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",30]]},{"name":"load","tags":{"host":"serverC","region":"us-west"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",100]]}]}`
 	results = s.ExecuteQuery(MustParseQuery(`SELECT sum(value) FROM load GROUP BY time(10s), region, host`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error: %s", res.Err)
 	} else if len(res.Series) != 3 {
 		t.Fatalf("unexpected row count: %d", len(res.Series))
-	} else if s := mustMarshalJSON(res); s != `{"rows":[{"name":"load","tags":{"host":"serverA","region":"us-east"},"columns":["time","sum"],"values":[["2000-01-01T00:00:00Z",20]]},{"name":"load","tags":{"host":"serverB","region":"us-east"},"columns":["time","sum"],"values":[["2000-01-01T00:00:10Z",30]]},{"name":"load","tags":{"host":"serverC","region":"us-west"},"columns":["time","sum"],"values":[["2000-01-01T00:00:00Z",100]]}]}` {
-		t.Fatalf("unexpected row(0): %s", s)
+	} else if s := mustMarshalJSON(res); s != expected {
+		t.Fatalf("unexpected row(0) during multiple aggregation:\n  exp: %s\n  got: %s", expected, s)
 	}
 
+	fmt.Println("6 --------------------------------------------------------------------------------")
 	// WHERE with AND
 	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "uk", "host": "serverZ", "service": "redis"}, Timestamp: mustParseTime("2000-01-01T00:00:03Z"), Fields: map[string]interface{}{"value": float64(20)}}})
 	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "uk", "host": "serverZ", "service": "mysql"}, Timestamp: mustParseTime("2000-01-01T00:00:03Z"), Fields: map[string]interface{}{"value": float64(30)}}})
@@ -1372,6 +1379,7 @@ func TestServer_ExecuteQuery(t *testing.T) {
 	//t.Fatalf("unexpected row(0) during SUM AND: %s", s)
 	//}
 
+	fmt.Println("7 --------------------------------------------------------------------------------")
 	// Select that should return an empty result.
 	results = s.ExecuteQuery(MustParseQuery(`SELECT value FROM cpu WHERE time >= '3000-01-01 00:00:05'`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
