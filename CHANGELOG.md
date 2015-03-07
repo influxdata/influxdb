@@ -6,7 +6,7 @@
 - [#1753](https://github.com/influxdb/influxdb/pull/1874): Do Not Panic on Missing Dirs
 - [#1877](https://github.com/influxdb/influxdb/pull/1877): Broker clients track broker leader
 - [#1862](https://github.com/influxdb/influxdb/pull/1862): Fix memory leak in `httpd.serveWait`. Thanks @mountkin
-- [#1868](https://github.com/influxdb/influxdb/pull/1868): Use `BatchPoints` for `client.Write` method.
+- [#1868](https://github.com/influxdb/influxdb/pull/1868): Use `BatchPoints` for `client.Write` method. Thanks @vladlopes, @georgmu, @d2g, @evanphx, @akolosov.
 
 ## v0.9.0-rc9 [2015-03-06]
 
