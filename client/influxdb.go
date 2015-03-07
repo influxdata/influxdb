@@ -17,11 +17,16 @@ var (
 	version string = "0.9"
 )
 
+// Query is used to send a command to the server. Both Command and Database are required.
 type Query struct {
 	Command  string
 	Database string
 }
 
+// Config is used to specify what server to connect to.
+// URL: The URL of the server connecting to.
+// Username/Password are optional.  They will be passed via basic auth if provided.
+// UserAgent: If not provided, will default "InfluxDBClient/" + version,
 type Config struct {
 	URL       url.URL
 	Username  string
@@ -29,6 +34,7 @@ type Config struct {
 	UserAgent string
 }
 
+// Client is used to make calls to the server.
 type Client struct {
 	url        url.URL
 	username   string
@@ -37,6 +43,7 @@ type Client struct {
 	userAgent  string
 }
 
+// NewClient will instantiate and return a connected client to issue commands to the server.
 func NewClient(c Config) (*Client, error) {
 	client := Client{
 		url:        c.URL,
@@ -51,6 +58,7 @@ func NewClient(c Config) (*Client, error) {
 	return &client, nil
 }
 
+// Query sends a command to the server and returns the Results
 func (c *Client) Query(q Query) (*Results, error) {
 	u := c.url
 
@@ -84,6 +92,9 @@ func (c *Client) Query(q Query) (*Results, error) {
 	return &results, nil
 }
 
+// Write takes BatchPoints and allows for writing of multiple points with defaults
+// If successful, error is nil and Results is nil
+// If an error occurs, Results may contain additional information if populated.
 func (c *Client) Write(bp BatchPoints) (*Results, error) {
 	c.url.Path = "write"
 
@@ -116,7 +127,7 @@ func (c *Client) Write(bp BatchPoints) (*Results, error) {
 		return &results, results.Error()
 	}
 
-	return &results, nil
+	return nil, nil
 }
 
 func (c *Client) Ping() (time.Duration, string, error) {

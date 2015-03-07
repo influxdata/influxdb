@@ -690,7 +690,7 @@ func TestClientLibrary(t *testing.T) {
 		},
 		{
 			name:          "no points",
-			writeExpected: `{}`,
+			writeExpected: `null`,
 			bp:            client.BatchPoints{Database: "mydb"},
 		},
 		{
@@ -701,7 +701,7 @@ func TestClientLibrary(t *testing.T) {
 					{Name: "cpu", Fields: map[string]interface{}{"value": 1.1}, Timestamp: now},
 				},
 			},
-			writeExpected: `{}`,
+			writeExpected: `null`,
 			query:         client.Query{Command: `select * from "mydb"."myrp".cpu`},
 			queryExpected: fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",1.1]]}]}]}`, now.Format(time.RFC3339Nano)),
 		},
@@ -726,7 +726,7 @@ func TestClientLibrary(t *testing.T) {
 		}
 
 		if test.query.Command != "" {
-			time.Sleep(50 * time.Millisecond)
+			time.Sleep(100 * time.Millisecond)
 			queryResult, err := c.Query(test.query)
 			if test.queryErr != errToString(err) {
 				t.Errorf("unexpected error. expected: %s, got %v", test.queryErr, err)
