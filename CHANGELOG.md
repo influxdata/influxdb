@@ -6,6 +6,7 @@
 - [#1753](https://github.com/influxdb/influxdb/pull/1874): Do Not Panic on Missing Dirs
 - [#1877](https://github.com/influxdb/influxdb/pull/1877): Broker clients track broker leader
 - [#1862](https://github.com/influxdb/influxdb/pull/1862): Fix memory leak in `httpd.serveWait`. Thanks @mountkin
+- [#1868](https://github.com/influxdb/influxdb/pull/1868): Use `BatchPoints` for `client.Write` method.
 
 ## v0.9.0-rc9 [2015-03-06]
 
@@ -13,7 +14,6 @@
 - [#1872](https://github.com/influxdb/influxdb/pull/1872): Fix "stale term" errors with raft
 
 ## v0.9.0-rc8 [2015-03-05]
-- [#1868](https://github.com/influxdb/influxdb/pull/1868): Use `BatchPoints` for `client.Write` method.
 
 ### Bugfixes
 - [#1836](https://github.com/influxdb/influxdb/pull/1836): Store each parsed shell command in history file.
