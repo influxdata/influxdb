@@ -35,17 +35,13 @@ func NewClientConfig(u []*url.URL) *ClientConfig {
 }
 
 // Client represents a client for the broker's HTTP API.
-// Once opened, the client will stream down all messages that
 type Client struct {
-	mu        sync.Mutex
-	replicaID uint64       // the replica that the client is connecting as.
-	config    ClientConfig // The Client state that must be persisted to disk.
+	mu     sync.Mutex
+	conns  []*Conn
+	config ClientConfig // The Client state that must be persisted to disk.
 
 	opened bool
 	done   chan chan struct{} // disconnection notification
-
-	c     chan *Message // channel streams messages from the broker.
-	index uint64        // highest index sent over the channel
 
 	// The amount of time to wait before reconnecting to a broker stream.
 	ReconnectTimeout time.Duration
@@ -54,28 +50,13 @@ type Client struct {
 	Logger *log.Logger
 }
 
-// NewClient returns a new instance of Client.
-func NewClient(replicaID uint64) *Client {
-	return &Client{
-		replicaID:        replicaID,
+// NewClient returns a new instance of Client with defaults set.
+func NewClient() *Client {
+	c := &Client{
 		ReconnectTimeout: DefaultReconnectTimeout,
-		Logger:           log.New(os.Stderr, "[messaging] ", log.LstdFlags),
 	}
-}
-
-// ReplicaID returns the replica id that the client was opened with.
-func (c *Client) ReplicaID() uint64 { return c.replicaID }
-
-// C returns streaming channel.
-// Messages can be duplicated so it is important to check the index
-// of the incoming message index to make sure it has not been processed.
-func (c *Client) C() <-chan *Message { return c.c }
-
-// Index returns the highest index sent over the channel.
-func (c *Client) Index() uint64 {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.index
+	c.SetLogOutput(os.Stderr)
+	return c
 }
 
 // URLs returns a list of broker URLs to connect to.
@@ -232,22 +213,77 @@ func (c *Client) Publish(m *Message) (uint64, error) {
 	return index, nil
 }
 
+// Conn represents a stream over the client for a single topic.
+type Conn struct {
+	topicID uint64  // topic identifier
+	index   uint64  // highest index sent over the channel
+	url     url.URL // current broker url
+
+	c         chan *Message // channel streams messages from the broker.
+	reconnect chan struct{} // notification channel for broker change.
+}
+
+// NewConn returns a new connection to the broker for a topic.
+func NewConn(topicID uint64, index uint64) *Conn {
+	return &Conn{
+		topicID: topicID,
+		index:   index,
+	}
+}
+
+// TopicID returns the connection's topic id.
+func (c *Conn) TopicID() uint64 { return c.topicID }
+
+// C returns streaming channel for the connection.
+func (c *Conn) C() <-chan *Message { return c.c }
+
+// Index returns the highest index sent over the channel.
+func (c *Conn) Index() uint64 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.index
+}
+
+// URL returns the current URL of the connection.
+func (c *Conn) URL() url.URL {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.url
+}
+
+// SetURL sets the current URL of the connection.
+func (c *Conn) SetURL(u url.URL) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.url = u
+
+	// Notify streamer of change.
+	select {
+	case c.reconnect <- struct{}{}:
+	default:
+	}
+}
+
+// Open opens a streaming connection to the broker.
+func (c *Conn) Open() error {
+}
+
 // Heartbeat sends a heartbeat back to the broker with the client's index.
-func (c *Client) Heartbeat() error {
+func (c *Conn) Heartbeat() error {
 	var resp *http.Response
 	var err error
 
 	// Retrieve the parameters under lock.
 	c.mu.Lock()
-	replicaID, index := c.replicaID, c.index
+	topicID, index, u := c.topicID, c.index, c.url
 	c.mu.Unlock()
 
-	u := *c.LeaderURL()
 	// Send the message to the messages endpoint.
 	u.Path = "/messaging/heartbeat"
 	u.RawQuery = url.Values{
-		"replicaID": {strconv.FormatUint(replicaID, 10)},
-		"index":     {strconv.FormatUint(index, 10)},
+		"topicID": {strconv.FormatUint(topicID, 10)},
+		"index":   {strconv.FormatUint(index, 10)},
 	}.Encode()
 	resp, err = http.Post(u.String(), "application/octet-stream", nil)
 	if err != nil {
@@ -268,151 +304,8 @@ func (c *Client) Heartbeat() error {
 	return nil
 }
 
-// CreateReplica creates a replica on the broker.
-func (c *Client) CreateReplica(id uint64, u *url.URL) error {
-	var resp *http.Response
-	var err error
-
-	leaderURL := *c.LeaderURL()
-	for {
-		leaderURL.Path = "/messaging/replicas"
-		leaderURL.RawQuery = url.Values{
-			"id":  {strconv.FormatUint(id, 10)},
-			"url": {u.String()},
-		}.Encode()
-		resp, err = http.Post(leaderURL.String(), "application/octet-stream", nil)
-		if err != nil {
-			return err
-		}
-		defer func() { _ = resp.Body.Close() }()
-
-		// If a temporary redirect occurs then update the leader and retry.
-		// If a non-201 status is returned then an error occurred.
-		if resp.StatusCode == http.StatusTemporaryRedirect {
-			redirectURL, err := url.Parse(resp.Header.Get("Location"))
-			if err != nil {
-				return fmt.Errorf("bad redirect: %s", resp.Header.Get("Location"))
-			}
-			leaderURL = *redirectURL
-			continue
-		} else if resp.StatusCode != http.StatusCreated {
-			return errors.New(resp.Header.Get("X-Broker-Error"))
-		}
-		break
-	}
-
-	return nil
-}
-
-// DeleteReplica removes a replica on the broker.
-func (c *Client) DeleteReplica(id uint64) error {
-	var resp *http.Response
-	var err error
-
-	u := *c.LeaderURL()
-	for {
-		u.Path = "/messaging/replicas"
-		u.RawQuery = url.Values{"id": {strconv.FormatUint(id, 10)}}.Encode()
-		req, _ := http.NewRequest("DELETE", u.String(), nil)
-		resp, err = http.DefaultClient.Do(req)
-		if err != nil {
-			return err
-		}
-		defer func() { _ = resp.Body.Close() }()
-
-		// If a temporary redirect occurs then update the leader and retry.
-		// If a non-204 status is returned then an error occurred.
-		if resp.StatusCode == http.StatusTemporaryRedirect {
-			redirectURL, err := url.Parse(resp.Header.Get("Location"))
-			if err != nil {
-				return fmt.Errorf("bad redirect: %s", resp.Header.Get("Location"))
-			}
-			u = *redirectURL
-			continue
-		} else if resp.StatusCode != http.StatusNoContent {
-			return errors.New(resp.Header.Get("X-Broker-Error"))
-		}
-		break
-	}
-
-	return nil
-}
-
-// Subscribe subscribes a replica to a topic on the broker.
-func (c *Client) Subscribe(replicaID, topicID uint64) error {
-	var resp *http.Response
-	var err error
-
-	u := *c.LeaderURL()
-	for {
-		u.Path = "/messaging/subscriptions"
-		u.RawQuery = url.Values{
-			"replicaID": {strconv.FormatUint(replicaID, 10)},
-			"topicID":   {strconv.FormatUint(topicID, 10)},
-		}.Encode()
-		resp, err = http.Post(u.String(), "application/octet-stream", nil)
-		if err != nil {
-			return err
-		}
-		defer func() { _ = resp.Body.Close() }()
-
-		// If a temporary redirect occurs then update the leader and retry.
-		// If a non-201 status is returned then an error occurred.
-		if resp.StatusCode == http.StatusTemporaryRedirect {
-			redirectURL, err := url.Parse(resp.Header.Get("Location"))
-			if err != nil {
-				return fmt.Errorf("bad redirect: %s", resp.Header.Get("Location"))
-			}
-			u = *redirectURL
-			continue
-		} else if resp.StatusCode != http.StatusCreated {
-			return errors.New(resp.Header.Get("X-Broker-Error"))
-		}
-		break
-	}
-
-	return nil
-}
-
-// Unsubscribe unsubscribes a replica from a topic on the broker.
-func (c *Client) Unsubscribe(replicaID, topicID uint64) error {
-	var resp *http.Response
-	var err error
-
-	u := *c.LeaderURL()
-	for {
-		u.Path = "/messaging/subscriptions"
-		u.RawQuery = url.Values{
-			"replicaID": {strconv.FormatUint(replicaID, 10)},
-			"topicID":   {strconv.FormatUint(topicID, 10)},
-		}.Encode()
-		req, _ := http.NewRequest("DELETE", u.String(), nil)
-		resp, err = http.DefaultClient.Do(req)
-		if err != nil {
-			return err
-		}
-		defer func() { _ = resp.Body.Close() }()
-
-		// If a temporary redirect occurs then update the leader and retry.
-		// If a non-204 status is returned then an error occurred.
-		if resp.StatusCode == http.StatusTemporaryRedirect {
-			redirectURL, err := url.Parse(resp.Header.Get("Location"))
-			if err != nil {
-				return fmt.Errorf("bad redirect: %s", resp.Header.Get("Location"))
-			}
-			u = *redirectURL
-			continue
-		} else if resp.StatusCode != http.StatusNoContent {
-			return errors.New(resp.Header.Get("X-Broker-Error"))
-		}
-		break
-	}
-
-	return nil
-}
-
 // streamer connects to a broker server and streams the replica's messages.
-func (c *Client) streamer(done chan chan struct{}) {
+func (c *Conn) streamer(done chan chan struct{}) {
 	for {
 		// Check for the client disconnection.
 		select {
@@ -424,11 +317,8 @@ func (c *Client) streamer(done chan chan struct{}) {
 
 		// TODO: Validate that there is at least one broker URL.
 
-		// Choose a random broker URL.
-		urls := c.URLs()
-		u := *urls[rand.Intn(len(urls))]
-
 		// Connect to broker and stream.
+		u := c.URL()
 		u.Path = "/messaging/messages"
 		if err := c.streamFromURL(&u, done); err == errDone {
 			return

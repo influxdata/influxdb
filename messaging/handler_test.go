@@ -1,119 +1,219 @@
 package messaging_test
 
 import (
+	"bytes"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"reflect"
+	"strings"
 	"testing"
-	"time"
 
 	"github.com/influxdb/influxdb/messaging"
 )
 
 // Ensure a topic can be streamed from an index.
 func TestHandler_getMessages(t *testing.T) {
-	s := NewServer()
+	var hb HandlerBroker
+	hb.TopicReaderFunc = func(topicID, index uint64, streaming bool) io.ReadCloser {
+		if topicID != 2000 {
+			t.Fatalf("unexpected topic id: %d", topicID)
+		} else if index != 10 {
+			t.Fatalf("unexpected index: %d", index)
+		} else if !streaming {
+			t.Fatalf("unexpected streaming value: %v", streaming)
+		}
+
+		// Return a reader with one message.
+		var buf bytes.Buffer
+		(&messaging.Message{Index: 10, Data: []byte{0, 0, 0, 0}}).WriteTo(&buf)
+
+		return &bytesBufferCloser{buf}
+	}
+	s := httptest.NewServer(&messaging.Handler{Broker: &hb})
 	defer s.Close()
 
 	// Send request to stream the replica.
-	resp, err := http.Get(s.URL + `/messaging/messages?topicID=2000`)
-	defer resp.Body.Close()
+	resp, err := http.Get(s.URL + `/messaging/messages?topicID=2000&index=10&streaming=true`)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	} else if resp.StatusCode != http.StatusOK {
 		t.Fatalf("unexpected status: %d: %s", resp.StatusCode, resp.Header.Get("X-Broker-Error"))
 	}
-	time.Sleep(10 * time.Millisecond)
+	defer resp.Body.Close()
 
-	// TODO: Decode from body.
+	// Decode from body.
+	var m messaging.Message
+	if err := messaging.NewMessageDecoder(resp.Body).Decode(&m); err != nil {
+		t.Fatalf("message decode error: %s", err)
+	} else if !reflect.DeepEqual(&m, &messaging.Message{Index: 10, Data: []byte{0, 0, 0, 0}}) {
+		t.Fatalf("unexpected message: %#v", &m)
+	}
 }
 
-// Ensure an error is returned when requesting a stream with the wrong HTTP method.
-func TestHandler_stream_ErrMethodNotAllowed(t *testing.T) {
-	s := NewServer()
+// Ensure a handler returns an error when streaming messages without a topic id.
+func TestHandler_getMessages_ErrTopicRequired(t *testing.T) {
+	s := httptest.NewServer(&messaging.Handler{})
 	defer s.Close()
 
-	resp, _ := http.Head(s.URL + `/messaging/messages`)
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusMethodNotAllowed {
+	// Send request to the broker.
+	resp, err := http.Get(s.URL + `/messaging/messages?index=10`)
+	if err != nil {
+		t.Fatal(err)
+	} else if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", resp.StatusCode)
+	} else if resp.Header.Get("X-Broker-Error") != "topic required" {
+		t.Fatalf("unexpected error: %s", resp.Header.Get("X-Broker-Error"))
 	}
+	resp.Body.Close()
+}
+
+// Ensure a handler returns an error when streaming messages without an index.
+func TestHandler_getMessages_ErrIndexRequired(t *testing.T) {
+	s := httptest.NewServer(&messaging.Handler{})
+	defer s.Close()
+
+	// Send request to the broker.
+	resp, err := http.Get(s.URL + `/messaging/messages?topicID=10`)
+	if err != nil {
+		t.Fatal(err)
+	} else if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("unexpected status: %d", resp.StatusCode)
+	} else if resp.Header.Get("X-Broker-Error") != "index required" {
+		t.Fatalf("unexpected error: %s", resp.Header.Get("X-Broker-Error"))
+	}
+	resp.Body.Close()
 }
 
 // Ensure a handler can receive a message.
 func TestHandler_postMessages(t *testing.T) {
-	t.Skip("pending")
-	/*
-		s := NewServer()
-		defer s.Close()
-
-		// Send request to the broker.
-		resp, _ := http.Post(s.URL+`/messaging/messages?type=100&topicID=200`, "application/octet-stream", strings.NewReader(`abc`))
-		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			t.Fatalf("unexpected status: %d: %s", resp.StatusCode, resp.Header.Get("X-Broker-Error"))
+	var hb HandlerBroker
+	hb.PublishFunc = func(m *messaging.Message) (uint64, error) {
+		if !reflect.DeepEqual(m, &messaging.Message{Type: 100, TopicID: 200, Data: []byte(`abc`)}) {
+			t.Fatalf("unexpected message: %#v", m)
 		}
-		s.Handler.Broker().Sync(4)
+		return 1, nil
+	}
+	s := httptest.NewServer(&messaging.Handler{Broker: &hb})
+	defer s.Close()
 
-		// Check if the last message received is our new message.
-		time.Sleep(10 * time.Millisecond)
-		if !reflect.DeepEqual(&m, &messaging.Message{Type: 100, Index: 4, TopicID: 200, Data: []byte("abc")}) {
-			t.Fatalf("unexpected message: %#v", &m)
-		}
-	*/
+	// Send request to the broker.
+	resp, err := http.Post(s.URL+`/messaging/messages?type=100&topicID=200`, "application/octet-stream", strings.NewReader(`abc`))
+	if err != nil {
+		t.Fatal(err)
+	} else if resp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected status: %d: %s", resp.StatusCode, resp.Header.Get("X-Broker-Error"))
+	}
+	resp.Body.Close()
 }
 
 // Ensure a handler returns an error when publishing a message without a type.
-func TestHandler_publish_ErrMessageTypeRequired(t *testing.T) {
-	t.Skip("pending")
-	/*
-		s := NewServer()
-		defer s.Close()
+func TestHandler_postMessages_ErrMessageTypeRequired(t *testing.T) {
+	s := httptest.NewServer(&messaging.Handler{})
+	defer s.Close()
 
-		// Send request to the broker.
-		resp, _ := http.Post(s.URL+`/messaging/messages?topicID=200`, "application/octet-stream", strings.NewReader(`foo`))
-		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusBadRequest {
-			t.Fatalf("unexpected status: %d", resp.StatusCode)
-		} else if resp.Header.Get("X-Broker-Error") != "message type required" {
-			t.Fatalf("unexpected error: %s", resp.Header.Get("X-Broker-Error"))
-		}
-	*/
+	// Send request to the broker.
+	resp, err := http.Post(s.URL+`/messaging/messages?topicID=200`, "application/octet-stream", strings.NewReader(`foo`))
+	if err != nil {
+		t.Fatal(err)
+	} else if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("unexpected status: %d", resp.StatusCode)
+	} else if resp.Header.Get("X-Broker-Error") != "message type required" {
+		t.Fatalf("unexpected error: %s", resp.Header.Get("X-Broker-Error"))
+	}
+	resp.Body.Close()
 }
 
 // Ensure a handler returns an error when publishing a message without a topic.
-func TestHandler_publish_ErrTopicRequired(t *testing.T) {
-	t.Skip("pending")
+func TestHandler_postMessages_ErrTopicRequired(t *testing.T) {
+	s := httptest.NewServer(&messaging.Handler{})
+	defer s.Close()
 
-	/*
-		s := NewServer()
-		defer s.Close()
+	// Send request to the broker.
+	resp, err := http.Post(s.URL+`/messaging/messages?type=100`, "application/octet-stream", strings.NewReader(`foo`))
+	if err != nil {
+		t.Fatal(err)
+	} else if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("unexpected status: %d", resp.StatusCode)
+	} else if resp.Header.Get("X-Broker-Error") != "topic required" {
+		t.Fatalf("unexpected error: %s", resp.Header.Get("X-Broker-Error"))
+	}
+	resp.Body.Close()
+}
 
-		// Send request to the broker.
-		resp, _ := http.Post(s.URL+`/messaging/messages?type=100`, "application/octet-stream", strings.NewReader(`foo`))
-		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusBadRequest {
-			t.Fatalf("unexpected status: %d", resp.StatusCode)
-		} else if resp.Header.Get("X-Broker-Error") != "topic required" {
-			t.Fatalf("unexpected error: %s", resp.Header.Get("X-Broker-Error"))
+// Ensure an error is returned when requesting a stream with the wrong HTTP method.
+func TestHandler_messages_ErrMethodNotAllowed(t *testing.T) {
+	s := httptest.NewServer(&messaging.Handler{})
+	defer s.Close()
+
+	// Send request to stream the replica.
+	resp, err := http.Head(s.URL + `/messaging/messages?topicID=2000&index=10&streaming=true`)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if resp.StatusCode != http.StatusMethodNotAllowed {
+		t.Fatalf("unexpected status: %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+}
+
+// Ensure a handler can receive a heartbeats.
+func TestHandler_postHeartbeat(t *testing.T) {
+	var hb HandlerBroker
+	hb.SetTopicMaxIndexFunc = func(topicID, index uint64) error {
+		if topicID != 1 {
+			t.Fatalf("unexpected topic id: %d", topicID)
+		} else if index != 2 {
+			t.Fatalf("unexpected index: %d", index)
 		}
-	*/
+		return nil
+	}
+	s := httptest.NewServer(&messaging.Handler{Broker: &hb})
+	defer s.Close()
+
+	// Send request to the broker.
+	resp, err := http.Post(s.URL+`/messaging/heartbeat?topicID=1&index=2`, "application/octet-stream", nil)
+	if err != nil {
+		t.Fatal(err)
+	} else if resp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected status: %d: %s", resp.StatusCode, resp.Header.Get("X-Broker-Error"))
+	}
+	resp.Body.Close()
+}
+
+// Ensure an error is returned when heartbeating with the wrong HTTP method.
+func heartbeat_ErrMethodNotAllowed(t *testing.T) {
+	s := httptest.NewServer(&messaging.Handler{})
+	defer s.Close()
+
+	resp, err := http.Head(s.URL + `/messaging/heartbeat`)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if resp.StatusCode != http.StatusMethodNotAllowed {
+		t.Fatalf("unexpected status: %d", resp.StatusCode)
+	}
+	resp.Body.Close()
 }
 
 // Ensure the handler routes raft requests to the raft handler.
 func TestHandler_raft(t *testing.T) {
-	s := NewServer()
+	var h messaging.Handler
+	h.RaftHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+	})
+	s := httptest.NewServer(&h)
 	defer s.Close()
+
 	resp, _ := http.Get(s.URL + `/raft/ping`)
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusAccepted {
 		t.Fatalf("unexpected status: %d", resp.StatusCode)
 	}
 }
 
 // Ensure the handler returns an error for an invalid path.
 func TestHandler_ErrNotFound(t *testing.T) {
-	s := NewServer()
+	s := httptest.NewServer(&messaging.Handler{})
 	defer s.Close()
 	resp, _ := http.Get(s.URL + `/no_such_path`)
 	defer resp.Body.Close()
@@ -122,36 +222,22 @@ func TestHandler_ErrNotFound(t *testing.T) {
 	}
 }
 
-// Server is an test HTTP server that wraps a handler and broker.
-type Server struct {
-	*httptest.Server
-	Handler *messaging.Handler
+// HandlerBroker is a mockable type that implements Handler.Broker.
+type HandlerBroker struct {
+	LeaderURLFunc        func() *url.URL
+	PublishFunc          func(m *messaging.Message) (uint64, error)
+	TopicReaderFunc      func(topicID, index uint64, streaming bool) io.ReadCloser
+	SetTopicMaxIndexFunc func(topicID, index uint64) error
 }
 
-// NewServer returns a test server.
-func NewServer() *Server {
-	h := messaging.NewHandler(nil)
-	s := httptest.NewServer(h)
-	h.SetBroker(NewBroker(MustParseURL(s.URL)).Broker)
-	return &Server{s, h}
+func (b *HandlerBroker) LeaderURL() *url.URL                          { return b.LeaderURLFunc() }
+func (b *HandlerBroker) Publish(m *messaging.Message) (uint64, error) { return b.PublishFunc(m) }
+func (b *HandlerBroker) TopicReader(topicID, index uint64, streaming bool) io.ReadCloser {
+	return b.TopicReaderFunc(topicID, index, streaming)
 }
-
-// NewUninitializedServer returns a test server with an uninitialized broker.
-func NewUninitializedServer() *Server {
-	h := messaging.NewHandler(nil)
-	s := httptest.NewServer(h)
-	h.SetBroker(NewUninitializedBroker(MustParseURL(s.URL)).Broker)
-	return &Server{s, h}
+func (b *HandlerBroker) SetTopicMaxIndex(topicID, index uint64) error {
+	return b.SetTopicMaxIndexFunc(topicID, index)
 }
-
-// Close stops the server and broker and removes all temp data.
-func (s *Server) Close() {
-	s.Broker().Close()
-	s.Server.Close()
-}
-
-// Broker returns a reference to the broker attached to the handler.
-func (s *Server) Broker() *Broker { return &Broker{s.Handler.Broker()} }
 
 // MustParseURL parses a string into a URL. Panic on error.
 func MustParseURL(s string) *url.URL {
@@ -161,3 +247,9 @@ func MustParseURL(s string) *url.URL {
 	}
 	return u
 }
+
+type bytesBufferCloser struct {
+	bytes.Buffer
+}
+
+func (*bytesBufferCloser) Close() error { return nil }

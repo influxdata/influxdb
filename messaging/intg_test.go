@@ -1,8 +1,8 @@
 package messaging_test
 
 import (
-	"fmt"
-	"net/url"
+	// "fmt"
+	// "net/url"
 	"testing"
 
 	//"github.com/influxdb/influxdb/messaging"
@@ -93,6 +93,7 @@ func BenchmarkCluster_Publish(b *testing.B) {
 	*/
 }
 
+/*
 // Cluster represents a set of joined Servers.
 type Cluster struct {
 	Servers []*Server
@@ -134,3 +135,4 @@ func (c *Cluster) Close() {
 		s.Close()
 	}
 }
+*/

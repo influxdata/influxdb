@@ -4,6 +4,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -12,38 +13,21 @@ import (
 
 // Handler represents an HTTP handler by the broker.
 type Handler struct {
-	raftHandler *raft.Handler
-	broker      *Broker
-}
-
-// NewHandler returns a new instance of Handler.
-func NewHandler(b *Broker) *Handler {
-	h := &Handler{}
-	h.SetBroker(b)
-	return h
-}
-
-// Broker returns the broker on the handler.
-func (h *Handler) Broker() *Broker { return h.broker }
-
-// SetBroker sets the broker on the handler.
-func (h *Handler) SetBroker(b *Broker) {
-	h.broker = b
-
-	if b != nil {
-		h.raftHandler = &raft.Handler{Log: b.log}
-	} else {
-		h.raftHandler = nil
+	Broker interface {
+		LeaderURL() *url.URL
+		TopicReader(topicID, index uint64, streaming bool) io.ReadCloser
+		Publish(m *Message) (uint64, error)
+		SetTopicMaxIndex(topicID, index uint64) error
 	}
+
+	RaftHandler http.Handler
 }
 
 // ServeHTTP serves an HTTP request.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// h.broker.Logger.Printf("%s %s", r.Method, r.URL.String())
-
 	// Delegate raft requests to its own handler.
 	if strings.HasPrefix(r.URL.Path, "/raft") {
-		h.raftHandler.ServeHTTP(w, r)
+		h.RaftHandler.ServeHTTP(w, r)
 		return
 	}
 
@@ -88,7 +72,7 @@ func (h *Handler) getMessages(w http.ResponseWriter, req *http.Request) {
 	streaming := (req.URL.Query().Get("streaming") == "true")
 
 	// Create a topic reader.
-	r := NewTopicReader(h.broker.TopicPath(topicID), index, streaming)
+	r := h.Broker.TopicReader(topicID, index, streaming)
 	defer r.Close()
 
 	// Ensure we close the topic reader if the connection is disconnected.
@@ -128,7 +112,7 @@ func (h *Handler) postMessages(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Publish message to the broker.
-	index, err := h.broker.Publish(&Message{Type: MessageType(typ), TopicID: topicID, Data: data})
+	index, err := h.Broker.Publish(&Message{Type: MessageType(typ), TopicID: topicID, Data: data})
 	if err == raft.ErrNotLeader {
 		h.redirectToLeader(w, r)
 		return
@@ -159,7 +143,7 @@ func (h *Handler) postHeartbeat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update the topic's highest replicated index.
-	if err := h.broker.SetTopicMaxIndex(topicID, index); err == raft.ErrNotLeader {
+	if err := h.Broker.SetTopicMaxIndex(topicID, index); err == raft.ErrNotLeader {
 		h.redirectToLeader(w, r)
 		return
 	} else if err != nil {
@@ -178,7 +162,7 @@ func (h *Handler) error(w http.ResponseWriter, err error, code int) {
 // redirects to the current known leader.
 // If no leader is found then returns a 500.
 func (h *Handler) redirectToLeader(w http.ResponseWriter, r *http.Request) {
-	if u := h.broker.LeaderURL(); u != nil {
+	if u := h.Broker.LeaderURL(); u != nil {
 		redirectURL := *r.URL
 		redirectURL.Scheme = u.Scheme
 		redirectURL.Host = u.Host
