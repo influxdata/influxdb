@@ -94,7 +94,6 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 
 	// Grab time range from statement.
 	tmin, tmax := influxql.TimeRange(stmt.Condition)
-	warn("tx: ", tmin, tmax, tmin.UnixNano())
 	if tmax.IsZero() {
 		tmax = tx.now
 	}
@@ -307,7 +306,6 @@ func (l *LocalMapper) Begin(c *influxql.Call, startingTime int64) error {
 // NextInterval will get the time ordered next interval of the given interval size from the mapper. This is a
 // forward only operation from the start time passed into Begin. Will return nil when there is no more data to be read.
 func (l *LocalMapper) NextInterval(interval int64) (interface{}, error) {
-	warn("NextInterval ", l.tmin, l.tmax, interval)
 	if l.cursorsEmpty || l.tmin > l.job.TMax {
 		return nil, nil
 	}
@@ -336,7 +334,6 @@ func (l *LocalMapper) NextInterval(interval int64) (interface{}, error) {
 }
 
 func (l *LocalMapper) Next() (seriesID uint32, timestamp int64, value interface{}) {
-	warn("Next0")
 	for {
 		// find the minimum timestamp
 		min := -1
@@ -347,7 +344,6 @@ func (l *LocalMapper) Next() (seriesID uint32, timestamp int64, value interface{
 				minKey = k
 			}
 		}
-		warn("Next1 ", min, minKey)
 
 		// return if there is no more data in this group by interval
 		if min == -1 {
@@ -404,7 +400,6 @@ func (l *LocalMapper) Next() (seriesID uint32, timestamp int64, value interface{
 			continue
 		}
 
-		warn("Next4 ", seriesID, timestamp, value)
 		return seriesID, timestamp, value
 	}
 }

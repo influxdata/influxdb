@@ -54,11 +54,9 @@ func (m *MapReduceJob) Key() []byte {
 }
 
 func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
-	warn("Execute0")
 	aggregates := m.stmt.AggregateCalls()
 	reduceFuncs := make([]ReduceFunc, len(aggregates))
 	for i, c := range aggregates {
-		warn("Execute0.1 ", c.String())
 		reduceFunc, err := InitializeReduceFunc(c)
 		if err != nil {
 			out <- &Row{Err: err}
@@ -76,7 +74,6 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 		reduceFuncs = append(reduceFuncs, r)
 	}
 
-	warn("Execute1: ", len(m.Mappers))
 	// we'll have a fixed number of points with timestamps in buckets. Initialize those times and a slice to hold the associated values
 	var pointCountInResult int
 
@@ -87,11 +84,8 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 		pointCountInResult = 1
 	} else {
 		intervalTop := m.TMax/m.interval*m.interval + m.interval
-		warn("ex: ", intervalTop, intervalTop-m.TMax, m.interval)
 		pointCountInResult = int((intervalTop - m.TMin) / m.interval)
 	}
-
-	warn("Execute1.1 ", pointCountInResult, m.TMin, m.TMax)
 
 	// initialize the times of the aggregate points
 	resultTimes := make([]int64, pointCountInResult)
@@ -103,7 +97,6 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 		resultValues[i] = append(vals, time.Unix(0, t).UTC())
 	}
 
-	warn("Execute2")
 	// now loop through the aggregate functions and populate everything
 	for i, c := range aggregates {
 		if err := m.processAggregate(c, reduceFuncs[i], resultValues); err != nil {
@@ -172,7 +165,6 @@ func (m *MapReduceJob) processResults(results [][]interface{}) [][]interface{} {
 	processors := make([]processor, len(m.stmt.Fields))
 	startIndex := 1
 	for i, f := range m.stmt.Fields {
-		warn("START: ", startIndex)
 		processors[i], startIndex = getProcessor(f.Expr, startIndex)
 	}
 
@@ -216,9 +208,7 @@ func getProcessor(expr Expr, startIndex int) (processor, int) {
 type processor func(values []interface{}) interface{}
 
 func newEchoProcessor(index int) processor {
-	warn("NEW: ", index)
 	return func(values []interface{}) interface{} {
-		warn("ECHO ", index)
 		return values[index]
 	}
 }
@@ -230,11 +220,8 @@ func newLiteralProcessor(val interface{}) processor {
 }
 
 func getBinaryProcessor(expr *BinaryExpr, startIndex int) (processor, int) {
-	warn("| ", startIndex)
 	lhs, index := getProcessor(expr.LHS, startIndex)
-	warn("| ", index)
 	rhs, index := getProcessor(expr.RHS, index)
-	warn("| ", index)
 
 	return newBinaryExprEvaluator(expr.Op, lhs, rhs), index
 }
@@ -302,12 +289,9 @@ func newBinaryExprEvaluator(op Token, lhs, rhs processor) processor {
 }
 
 func (m *MapReduceJob) resultsEmpty(resultValues [][]interface{}) bool {
-	warn("resultsEmtpy")
 	for _, vals := range resultValues {
 		for i := 1; i < len(vals); i++ {
-			warn(". ", vals[i])
 			if vals[i] != nil {
-				warn(". not nil")
 				return false
 			}
 		}
@@ -340,7 +324,6 @@ func (m *MapReduceJob) processRawResults(resultValues [][]interface{}) *Row {
 	// if they've selected only a single value we have to handle things a little differently
 	singleValue := len(selectNames) == 2
 
-	warn("0> ", selectNames)
 	row := &Row{
 		Name:    m.MeasurementName,
 		Tags:    m.TagSet.Tags,
@@ -349,17 +332,14 @@ func (m *MapReduceJob) processRawResults(resultValues [][]interface{}) *Row {
 
 	// return an empty row if there are no results
 	if len(resultValues) == 0 || len(resultValues[0]) != 2 {
-		warn("1> empty resaults ", len(resultValues[0]))
 		return row
 	}
 
 	// the results will hav all of the raw mapper results, convert into the row
 	for _, v := range resultValues[0][1].([]*rawQueryMapOutput) {
-		warn("2> ", v)
 		vals := make([]interface{}, len(selectNames))
 
 		if singleValue {
-			warn("3> ")
 			vals[0] = time.Unix(0, v.timestamp).UTC()
 			vals[1] = v.values.(interface{})
 		} else {
@@ -381,10 +361,8 @@ func (m *MapReduceJob) processRawResults(resultValues [][]interface{}) *Row {
 }
 
 func (m *MapReduceJob) processAggregate(c *Call, reduceFunc ReduceFunc, resultValues [][]interface{}) error {
-	warn("processAggregate0")
 	mapperOutputs := make([]interface{}, len(m.Mappers))
 
-	warn("processAggregate1", m.TMin, m.TMax, m.interval, len(resultValues), resultValues[0])
 	// intialize the mappers
 	for _, mm := range m.Mappers {
 		if err := mm.Begin(c, m.TMin); err != nil {
@@ -394,7 +372,6 @@ func (m *MapReduceJob) processAggregate(c *Call, reduceFunc ReduceFunc, resultVa
 
 	// populate the result values for each interval of time
 	for i, _ := range resultValues {
-		warn("processAggregate2 ", i, len(m.Mappers))
 		// collect the results from each mapper
 		for j, mm := range m.Mappers {
 			res, err := mm.NextInterval(m.interval)
@@ -403,7 +380,6 @@ func (m *MapReduceJob) processAggregate(c *Call, reduceFunc ReduceFunc, resultVa
 			}
 			mapperOutputs[j] = res
 		}
-		warn("processAggregate2 ", i)
 		resultValues[i] = append(resultValues[i], reduceFunc(mapperOutputs))
 	}
 
@@ -489,6 +465,21 @@ func (p *Planner) Plan(stmt *SelectStatement) (*Executor, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// LIMIT and OFFSET the unique series
+	if stmt.Limit > 0 || stmt.Offset > 0 {
+		if stmt.Offset > len(jobs) {
+			jobs = nil
+		} else {
+			if stmt.Offset+stmt.Limit > len(jobs) {
+				stmt.Limit = len(jobs) - stmt.Offset
+			}
+
+			jobs = jobs[stmt.Offset : stmt.Offset+stmt.Limit]
+
+		}
+	}
+
 	for _, j := range jobs {
 		j.interval = interval.Nanoseconds()
 		j.stmt = stmt
@@ -537,7 +528,6 @@ func (e *Executor) execute(out chan *Row) {
 	// If we have multiple tag sets we'll want to filter out the empty ones
 	filterEmptyResults := len(e.jobs) > 1
 
-	warn("should filter: ", filterEmptyResults)
 	// Execute each MRJob serially
 	for _, j := range e.jobs {
 		j.Execute(out, filterEmptyResults)

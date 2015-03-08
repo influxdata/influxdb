@@ -126,12 +126,9 @@ func MapCount(itr Iterator) interface{} {
 
 // MapSum computes the summation of values in an iterator.
 func MapSum(itr Iterator) interface{} {
-	warn("MapSum")
 	n := float64(0)
 	count := 0
-	for id, k, v := itr.Next(); k != 0; id, k, v = itr.Next() {
-		warn("MapSum: ", id, k, v)
-
+	for _, k, v := itr.Next(); k != 0; _, k, v = itr.Next() {
 		count++
 		n += v.(float64)
 	}
@@ -143,11 +140,9 @@ func MapSum(itr Iterator) interface{} {
 
 // ReduceSum computes the sum of values for each key.
 func ReduceSum(values []interface{}) interface{} {
-	warn("ReduceSum")
 	var n float64
 	count := 0
 	for _, v := range values {
-		warn("ReduceSum: ", v)
 		if v == nil {
 			continue
 		}
@@ -523,10 +518,8 @@ func MapRawQuery(itr Iterator) interface{} {
 	var values []interface{}
 	for _, k, v := itr.Next(); k != 0; _, k, v = itr.Next() {
 		val := &rawQueryMapOutput{k, v}
-		warn("Map0: ", k, v)
 		values = append(values, val)
 	}
-	warn("Map1: ", values)
 	return values
 }
 
@@ -545,16 +538,13 @@ func (a rawOutputs) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func ReduceRawQuery(values []interface{}) interface{} {
 	allValues := make([]*rawQueryMapOutput, 0)
 	for _, v := range values {
-		warn("Red0: ", v)
 		if v == nil {
 			continue
 		}
 		for _, raw := range v.([]interface{}) {
-			warn("Red1: ", raw)
 			allValues = append(allValues, raw.(*rawQueryMapOutput))
 		}
 	}
 	sort.Sort(rawOutputs(allValues))
-	warn("Red2: ", allValues)
 	return allValues
 }
