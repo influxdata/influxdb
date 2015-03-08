@@ -37,6 +37,15 @@ var (
 	// ErrClientClosed is returned when closing an already closed client.
 	ErrClientClosed = errors.New("client closed")
 
+	// ErrConnOpen is returned when opening an already open connection.
+	ErrConnOpen = errors.New("connection already open")
+
+	// ErrConnClosed is returned when closing an already closed connection.
+	ErrConnClosed = errors.New("connection closed")
+
+	// ErrConnCannotReuse is returned when opening a previously closed connection.
+	ErrConnCannotReuse = errors.New("cannot reuse connection")
+
 	// ErrBrokerURLRequired is returned when opening a broker without URLs.
 	ErrBrokerURLRequired = errors.New("broker url required")
 

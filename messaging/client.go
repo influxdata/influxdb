@@ -21,24 +21,12 @@ import (
 // stream disconnects and another connection is retried.
 const DefaultReconnectTimeout = 100 * time.Millisecond
 
-// ClientConfig represents the Client configuration that must be persisted
-// across restarts.
-type ClientConfig struct {
-	Brokers []*url.URL `json:"brokers"`
-}
-
-// NewClientConfig returns a new instance of ClientConfig.
-func NewClientConfig(u []*url.URL) *ClientConfig {
-	return &ClientConfig{
-		Brokers: u,
-	}
-}
-
 // Client represents a client for the broker's HTTP API.
 type Client struct {
-	mu     sync.Mutex
-	conns  []*Conn
-	config ClientConfig // The Client state that must be persisted to disk.
+	mu    sync.Mutex
+	conns []*Conn
+	url   url.URL   // current known leader URL
+	urls  []url.URL // list of available broker URLs
 
 	opened bool
 	done   chan chan struct{} // disconnection notification
@@ -59,21 +47,45 @@ func NewClient() *Client {
 	return c
 }
 
-// URLs returns a list of broker URLs to connect to.
-func (c *Client) URLs() []*url.URL {
+// URL returns the current broker leader's URL.
+func (c *Client) URL() url.URL {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.config.Brokers
+	return c.url
 }
 
-// LeaderURL returns the URL of the broker leader.
-func (c *Client) LeaderURL() *url.URL {
+// SetURL sets the current URL to connect to for the client and its connections.
+func (c *Client) SetURL(u url.URL) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.setURL(u)
+}
 
-	// TODO(benbjohnson): Actually keep track of the leader.
-	// HACK(benbjohnson): For testing, just grab a url.
-	return c.config.Brokers[0]
+func (c *Client) setURL(u url.URL) {
+	// Set the client URL.
+	c.url = u
+
+	// Update all connections.
+	for _, conn := range c.conns {
+		conn.SetURL(u)
+	}
+}
+
+// RandomizeURL sets a random URL from the configuration.
+func (c *Client) RandomizeURL() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.randomizeURL()
+}
+
+func (c *Client) randomizeURL() {
+	// Clear URL if no brokers exist.
+	if len(c.urls) == 0 {
+		return
+	}
+
+	// Otherwise randomly select a URL.
+	c.setURL(c.urls[rand.Intn(len(c.urls))])
 }
 
 // SetLogOutput sets writer for all Client log output.
@@ -81,13 +93,8 @@ func (c *Client) SetLogOutput(w io.Writer) {
 	c.Logger = log.New(w, "[messaging] ", log.LstdFlags)
 }
 
-// Open initializes and opens the connection to the cluster. The
-// URLs used to contact the cluster are either those supplied to
-// the function, or if none are supplied, are read from the file
-// at "path". These URLs do need to be URLs of actual Brokers.
-// Regardless of URL source, at least 1 URL must be available
-// for the client to be successfully opened.
-func (c *Client) Open(path string, urls []*url.URL) error {
+// Open reads the configuration from the specified path or uses the URLs provided.
+func (c *Client) Open(path string, urls []url.URL) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -98,38 +105,27 @@ func (c *Client) Open(path string, urls []*url.URL) error {
 
 	// Read URLs from file if no URLs are provided.
 	if len(urls) == 0 {
-		// Read URLs from config file. There is no guarantee
-		// that the Brokers URLs in the config file are still
-		// the Brokers, so we're going to double-check.
-		b, err := ioutil.ReadFile(path)
-		if os.IsNotExist(err) {
+		if b, err := ioutil.ReadFile(path); os.IsNotExist(err) {
 			// nop
 		} else if err != nil {
 			return err
 		} else {
-			if err := json.Unmarshal(b, &c.config); err != nil {
+			var config ClientConfig
+			if err := json.Unmarshal(b, &config); err != nil {
 				return err
 			}
-			urls = c.config.Brokers
+			c.urls = config.Brokers
 		}
 	}
 
+	// Ensure we have at least one URL.
 	if len(urls) < 1 {
 		return ErrBrokerURLRequired
 	}
 
-	// Now that we have the seed URLs, actually use these to
-	// get the actual Broker URLs. Do that here.
-	c.config.Brokers = urls // Let's pretend they are the same
-
-	// Create a channel for streaming messages.
-	c.c = make(chan *Message, 0)
-
-	// Open the streamer if there's an ID set.
-	if c.replicaID != 0 {
-		c.done = make(chan chan struct{})
-		go c.streamer(c.done)
-	}
+	// Set the URLs whether they're from the config or passed in.
+	c.urls = urls
+	c.randomizeURL()
 
 	// Set open flag.
 	c.opened = true
@@ -147,18 +143,11 @@ func (c *Client) Close() error {
 		return ErrClientClosed
 	}
 
-	// Shutdown streamer.
-	if c.done != nil {
-		ch := make(chan struct{})
-		c.done <- ch
-		<-ch
-		c.done = nil
+	// Close all connections.
+	for _, conn := range c.conns {
+		_ = conn.Close()
 	}
-
-	// Close message stream & clear index.
-	close(c.c)
-	c.c = nil
-	c.index = 0
+	c.conns = nil
 
 	// Unset open flag.
 	c.opened = false
@@ -168,41 +157,16 @@ func (c *Client) Close() error {
 
 // Publish sends a message to the broker and returns an index or error.
 func (c *Client) Publish(m *Message) (uint64, error) {
-	var resp *http.Response
-	var err error
-
-	u := *c.LeaderURL()
-	for {
-		// Send the message to the messages endpoint.
-		u.Path = "/messaging/messages"
-		u.RawQuery = url.Values{
-			"type":    {strconv.FormatUint(uint64(m.Type), 10)},
-			"topicID": {strconv.FormatUint(m.TopicID, 10)},
-		}.Encode()
-		resp, err = http.Post(u.String(), "application/octet-stream", bytes.NewReader(m.Data))
-		if err != nil {
-			return 0, err
-		}
-		defer resp.Body.Close()
-
-		// If a temporary redirect occurs then update the leader and retry.
-		// If a non-200 status is returned then an error occurred.
-		if resp.StatusCode == http.StatusTemporaryRedirect {
-			redirectURL, err := url.Parse(resp.Header.Get("Location"))
-			if err != nil {
-				return 0, fmt.Errorf("bad redirect: %s", resp.Header.Get("Location"))
-			}
-			u = *redirectURL
-			continue
-		} else if resp.StatusCode != http.StatusOK {
-			if errstr := resp.Header.Get("X-Broker-Error"); errstr != "" {
-				return 0, errors.New(errstr)
-			}
-			return 0, fmt.Errorf("cannot publish(%d)", resp.StatusCode)
-		} else {
-			break
-		}
+	// Post message to broker.
+	values := url.Values{
+		"type":    {strconv.FormatUint(uint64(m.Type), 10)},
+		"topicID": {strconv.FormatUint(m.TopicID, 10)},
 	}
+	resp, err := c.do("POST", "/messaging/messages", values, "application/octet-stream", bytes.NewReader(m.Data))
+	if err != nil {
+		return 0, fmt.Errorf("do: %s", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
 
 	// Parse broker index.
 	index, err := strconv.ParseUint(resp.Header.Get("X-Broker-Index"), 10, 64)
@@ -213,14 +177,102 @@ func (c *Client) Publish(m *Message) (uint64, error) {
 	return index, nil
 }
 
+// do sends an HTTP request to the given path with the current leader URL.
+// This will automatically retry the request if it is redirected.
+func (c *Client) do(method, path string, values url.Values, contentType string, body io.Reader) (*http.Response, error) {
+	for {
+		// Generate URL.
+		u := c.URL()
+		u.Path = path
+		u.RawQuery = values.Encode()
+
+		// Create request.
+		req, err := http.NewRequest(method, u.String(), body)
+		if err != nil {
+			return nil, fmt.Errorf("new request: %s", err)
+		}
+
+		// Send HTTP request.
+		// If it cannot connect then select a different URL from the config.
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			c.randomizeURL()
+			return nil, err
+		}
+
+		// If a temporary redirect occurs then update the leader and retry.
+		// If a non-200 status is returned then an error occurred.
+		if resp.StatusCode == http.StatusTemporaryRedirect {
+			redirectURL, err := url.Parse(resp.Header.Get("Location"))
+			if err != nil {
+				resp.Body.Close()
+				return nil, fmt.Errorf("invalid redirect location: %s", resp.Header.Get("Location"))
+			}
+			c.SetURL(*redirectURL)
+			continue
+		} else if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			if errstr := resp.Header.Get("X-Broker-Error"); errstr != "" {
+				return nil, errors.New(errstr)
+			}
+			return nil, fmt.Errorf("cannot publish(%d)", resp.StatusCode)
+		}
+
+		return resp, nil
+	}
+
+}
+
+// Conn returns an open connection to the broker for a given topic.
+func (c *Client) Conn(topicID, index uint64) (*Conn, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Create connection and set current URL.
+	conn := NewConn(topicID, index)
+	conn.SetURL(c.url)
+
+	// Open connection.
+	if err := conn.Open(); err != nil {
+		return nil, err
+	}
+
+	// Add to list of client connections.
+	c.conns = append(c.conns, conn)
+
+	return conn, nil
+}
+
+// ClientConfig represents the configuration that must be persisted across restarts.
+type ClientConfig struct {
+	Brokers []url.URL `json:"brokers"`
+}
+
+// NewClientConfig returns a new instance of ClientConfig.
+func NewClientConfig(u []url.URL) *ClientConfig {
+	return &ClientConfig{
+		Brokers: u,
+	}
+}
+
 // Conn represents a stream over the client for a single topic.
 type Conn struct {
+	mu      sync.Mutex
 	topicID uint64  // topic identifier
 	index   uint64  // highest index sent over the channel
 	url     url.URL // current broker url
 
-	c         chan *Message // channel streams messages from the broker.
-	reconnect chan struct{} // notification channel for broker change.
+	opened bool
+	c      chan *Message // channel streams messages from the broker.
+
+	wg      sync.WaitGroup
+	closing chan struct{}
+
+	// The amount of time to wait before reconnecting to a broker stream.
+	ReconnectTimeout time.Duration
+
+	// The logging interface used by the connection for out-of-band errors.
+	Logger *log.Logger
 }
 
 // NewConn returns a new connection to the broker for a topic.
@@ -228,6 +280,9 @@ func NewConn(topicID uint64, index uint64) *Conn {
 	return &Conn{
 		topicID: topicID,
 		index:   index,
+
+		ReconnectTimeout: DefaultReconnectTimeout,
+		Logger:           log.New(os.Stderr, "", log.LstdFlags),
 	}
 }
 
@@ -237,11 +292,18 @@ func (c *Conn) TopicID() uint64 { return c.topicID }
 // C returns streaming channel for the connection.
 func (c *Conn) C() <-chan *Message { return c.c }
 
-// Index returns the highest index sent over the channel.
+// Index returns the highest index replicated to the caller.
 func (c *Conn) Index() uint64 {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.index
+}
+
+// SetIndex sets the highest index replicated to the caller.
+func (c *Conn) SetIndex(index uint64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.index = index
 }
 
 // URL returns the current URL of the connection.
@@ -255,18 +317,63 @@ func (c *Conn) URL() url.URL {
 func (c *Conn) SetURL(u url.URL) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
 	c.url = u
-
-	// Notify streamer of change.
-	select {
-	case c.reconnect <- struct{}{}:
-	default:
-	}
 }
 
 // Open opens a streaming connection to the broker.
 func (c *Conn) Open() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Exit if aleady open or previously closed.
+	if c.opened {
+		return ErrConnOpen
+	} else if c.c != nil {
+		return ErrConnCannotReuse
+	}
+	c.opened = true
+
+	// Create streaming channel.
+	c.c = make(chan *Message, 0)
+
+	// Start goroutines.
+	c.wg.Add(1)
+	c.closing = make(chan struct{})
+	go c.streamer(c.closing)
+
+	return nil
+}
+
+// Close closes a connection.
+func (c *Conn) Close() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.close()
+}
+
+func (c *Conn) close() error {
+	if !c.opened {
+		return ErrConnClosed
+	}
+
+	// Notify goroutines that the connection is closing.
+	if c.closing != nil {
+		close(c.closing)
+		c.closing = nil
+	}
+
+	// Wait for goroutines to finish.
+	c.mu.Unlock()
+	c.wg.Wait()
+	c.mu.Lock()
+
+	// Close channel.
+	close(c.c)
+
+	// Mark connection as closed.
+	c.opened = false
+
+	return nil
 }
 
 // Heartbeat sends a heartbeat back to the broker with the client's index.
@@ -305,95 +412,89 @@ func (c *Conn) Heartbeat() error {
 }
 
 // streamer connects to a broker server and streams the replica's messages.
-func (c *Conn) streamer(done chan chan struct{}) {
-	for {
-		// Check for the client disconnection.
-		select {
-		case ch := <-done:
-			close(ch)
-			return
-		default:
-		}
+func (c *Conn) streamer(closing <-chan struct{}) {
+	defer c.wg.Done()
 
-		// TODO: Validate that there is at least one broker URL.
+	// Continually connect and retry streaming from server.
+	var req *http.Request
+	var reqlock sync.Mutex
 
-		// Connect to broker and stream.
-		u := c.URL()
-		u.Path = "/messaging/messages"
-		if err := c.streamFromURL(&u, done); err == errDone {
-			return
-		} else if err != nil {
-			c.Logger.Print(err)
+	c.wg.Add(1)
+	go func() {
+		defer c.wg.Done()
+		for {
+			// Check that the connection is not closing.
+			select {
+			case <-closing:
+				return
+			default:
+			}
+
+			// Create URL.
+			u := c.URL()
+			u.Path = "/messaging/messages"
+			u.RawQuery = url.Values{
+				"topicID": {strconv.FormatUint(c.topicID, 10)},
+				"index":   {strconv.FormatUint(c.Index(), 10)},
+			}.Encode()
+
+			// Create request.
+			reqlock.Lock()
+			req, _ = http.NewRequest("GET", u.String(), nil)
+			reqlock.Unlock()
+
+			// Begin streaming request.
+			if err := c.stream(req, closing); err != nil {
+				c.Logger.Printf("reconnecting to broker: url=%s, err=%s", u, err)
+				time.Sleep(c.ReconnectTimeout)
+			}
 		}
+	}()
+
+	// Wait for the connection to close or the request to close.
+	<-closing
+
+	// Close in-flight request.
+	reqlock.Lock()
+	if req != nil {
+		http.DefaultTransport.(*http.Transport).CancelRequest(req)
 	}
+	reqlock.Unlock()
 }
 
-// streamFromURL connects to a broker server and streams the replica's messages.
-func (c *Client) streamFromURL(u *url.URL, done chan chan struct{}) error {
-	// Set the replica id on the URL and open the stream.
-	u.RawQuery = url.Values{"replicaID": {strconv.FormatUint(c.replicaID, 10)}}.Encode()
-	resp, err := http.Get(u.String())
+// stream connects to a broker server and streams the topic messages.
+func (c *Conn) stream(req *http.Request, closing <-chan struct{}) error {
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		time.Sleep(c.ReconnectTimeout)
-		return nil
+		return err
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	// Ensure that we received a 200 OK from the server before streaming.
 	if resp.StatusCode != http.StatusOK {
-		time.Sleep(c.ReconnectTimeout)
-		c.Logger.Printf("reconnecting to broker: %s (status=%d)", u, resp.StatusCode)
-		return nil
+		return fmt.Errorf("invalid stream status code: %d", resp.StatusCode)
 	}
 
-	c.Logger.Printf("connected to broker: %s", u)
+	c.Logger.Printf("connected to broker: %s", req.URL.String())
 
 	// Continuously decode messages from request body in a separate goroutine.
-	errNotify := make(chan error, 0)
-	go func() {
-		dec := NewMessageDecoder(resp.Body)
-		for {
-			// Decode message from the stream.
-			m := &Message{}
-			if err := dec.Decode(m); err != nil {
-				errNotify <- err
-				return
-			}
-
-			// TODO: Write broker set updates, do not passthrough to channel.
-
-			// Write message to streaming channel.
-			c.c <- m
-
-			// Update the index on the client.
-			c.mu.Lock()
-			if m.Index > c.index {
-				c.index = m.Index
-			}
-			c.mu.Unlock()
+	dec := NewMessageDecoder(resp.Body)
+	for {
+		// Decode message from the stream.
+		m := &Message{}
+		if err := dec.Decode(m); err == io.EOF {
+			return nil
+		} else if err != nil {
+			return fmt.Errorf("decode: %s", err)
 		}
-	}()
 
-	// Check for the client disconnect or error from the stream.
-	select {
-	case ch := <-done:
-		// Close body.
-		_ = resp.Body.Close()
+		// TODO: Write broker set updates, do not passthrough to channel.
 
-		// Clear message buffer.
+		// Write message to streaming channel.
 		select {
-		case <-c.c:
-		default:
+		case <-closing:
+			return nil
+		case c.c <- m:
 		}
-
-		// Notify the close function and return marker error.
-		close(ch)
-		return errDone
-
-	case err := <-errNotify:
-		return err
 	}
 }
-
-// marker error for the streamer.
-var errDone = errors.New("done")
