@@ -96,8 +96,9 @@ type Config struct {
 	} `toml:"cluster"`
 
 	Logging struct {
-		File              string `toml:"file"`
-		WriteTraceEnabled bool   `toml:"write-tracing"`
+		File         string `toml:"file"`
+		WriteTracing bool   `toml:"write-tracing"`
+		RaftTracing  bool   `toml:"raft-tracing"`
 	} `toml:"logging"`
 
 	ContinuousQuery struct {

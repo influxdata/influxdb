@@ -8,6 +8,9 @@
 - [#1862](https://github.com/influxdb/influxdb/pull/1862): Fix memory leak in `httpd.serveWait`. Thanks @mountkin
 - [#1868](https://github.com/influxdb/influxdb/pull/1868): Use `BatchPoints` for `client.Write` method. Thanks @vladlopes, @georgmu, @d2g, @evanphx, @akolosov.
 
+### Features
+- [#1875](https://github.com/influxdb/influxdb/pull/1875): Support trace logging of Raft.
+
 ## v0.9.0-rc9 [2015-03-06]
 
 ### Bugfixes

@@ -53,6 +53,9 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 	// Open broker, initialize or join as necessary.
 	b := openBroker(config.BrokerDir(), config.BrokerURL(), initBroker, joinURLs, logWriter)
 
+	// Configure debug of Raft module.
+	b.EnableRaftDebug(config.Logging.RaftTracing)
+
 	// Start the broker handler.
 	var h *Handler
 	if b != nil {
@@ -90,7 +93,7 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 	if s != nil {
 		sh := httpd.NewHandler(s, config.Authentication.Enabled, version)
 		sh.SetLogOutput(logWriter)
-		sh.WriteTrace = config.Logging.WriteTraceEnabled
+		sh.WriteTrace = config.Logging.WriteTracing
 
 		if h != nil && config.BrokerAddr() == config.DataAddr() {
 			h.serverHandler = sh
@@ -267,7 +270,7 @@ func openServer(config *Config, b *influxdb.Broker, initServer, initBroker, conf
 	// Create and open the server.
 	s := influxdb.NewServer()
 	s.SetLogOutput(w)
-	s.WriteTrace = config.Logging.WriteTraceEnabled
+	s.WriteTrace = config.Logging.WriteTracing
 	s.RecomputePreviousN = config.ContinuousQuery.RecomputePreviousN
 	s.RecomputeNoOlderThan = time.Duration(config.ContinuousQuery.RecomputeNoOlderThan)
 	s.ComputeRunsPerInterval = config.ContinuousQuery.ComputeRunsPerInterval
