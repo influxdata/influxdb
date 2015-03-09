@@ -72,6 +72,9 @@ port = 8086
   dir = "/tmp/influxdb/development/db"
   port = 8086
 
+  # Auto-create a retention policy when a database is created. Defaults to true.
+  retention-auto-create = true
+
   # Control whether retention policies are enforced and how long the system waits between
   # enforcing those policies.
   retention-check-enabled = true
