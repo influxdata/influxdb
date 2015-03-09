@@ -143,7 +143,7 @@ func TestClient_UserAgent(t *testing.T) {
 		{
 			name:      "Empty user agent",
 			userAgent: "",
-			expected:  "InfluxDBClient/",
+			expected:  "InfluxDBClient",
 		},
 		{
 			name:      "Custom user agent",
@@ -185,7 +185,7 @@ func TestClient_UserAgent(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
 		}
-		if !strings.HasPrefix(receivedUserAgent, test.expected) {
+		if receivedUserAgent != test.expected {
 			t.Fatalf("Unexpected user agent. expected %v, actual %v", test.expected, receivedUserAgent)
 		}
 	}

@@ -12,11 +12,6 @@ import (
 	"github.com/influxdb/influxdb/influxql"
 )
 
-// These variables are populated via the Go linker.
-var (
-	version string = "0.9"
-)
-
 // Query is used to send a command to the server. Both Command and Database are required.
 type Query struct {
 	Command  string
@@ -26,7 +21,7 @@ type Query struct {
 // Config is used to specify what server to connect to.
 // URL: The URL of the server connecting to.
 // Username/Password are optional.  They will be passed via basic auth if provided.
-// UserAgent: If not provided, will default "InfluxDBClient/" + version,
+// UserAgent: If not provided, will default "InfluxDBClient",
 type Config struct {
 	URL       url.URL
 	Username  string
@@ -53,7 +48,7 @@ func NewClient(c Config) (*Client, error) {
 		userAgent:  c.UserAgent,
 	}
 	if client.userAgent == "" {
-		client.userAgent = "InfluxDBClient/" + version
+		client.userAgent = "InfluxDBClient"
 	}
 	return &client, nil
 }
