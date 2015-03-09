@@ -343,7 +343,8 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			expected: `{"results":[{}]}`,
 		},
 		{
-			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "logs", "timestamp": "2009-11-10T23:00:02Z","fields": {"event": "disk full"}}]}`,
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "logs", "timestamp": "2009-11-10T23:00:02Z","fields": {"event": "disk full"}},
+			                                                                        {"name": "logs", "timestamp": "2009-11-10T23:02:02Z","fields": {"event": "disk not full"}}]}`,
 			query:    `select event from "%DB%"."%RP%".logs where event = 'disk full'`,
 			expected: `{"results":[{"series":[{"name":"logs","columns":["time","event"],"values":[["2009-11-10T23:00:02Z","disk full"]]}]}]}`,
 		},
