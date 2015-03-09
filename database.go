@@ -138,7 +138,7 @@ func NewMeasurement(name string) *Measurement {
 	}
 }
 
-// HasTagKey returns true if at least on series in this measurement has written a value for the passed in tag key
+// HasTagKey returns true if at least one eries in this measurement has written a value for the passed in tag key
 func (m *Measurement) HasTagKey(k string) bool {
 	return m.seriesByTagKeyValue[k] != nil
 }
@@ -928,7 +928,7 @@ func (f *FieldCodec) DecodeFieldsWithNames(b []byte) map[string]interface{} {
 	return m
 }
 
-// FieldIDByName returns the field id by the name of the field. It will return a zero if not found
+// FieldByName returns the field by its name. It will return a nil if not found
 func (f *FieldCodec) FieldByName(name string) *Field {
 	return f.fieldsByName[name]
 }

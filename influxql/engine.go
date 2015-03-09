@@ -13,9 +13,18 @@ type DB interface {
 	Begin() (Tx, error)
 }
 
-// Return an error if the user is trying to select more than this number of points in a group by statement.
-// Most likely they specified a group by interval without time boundaries.
-const MaxGroupByPoints = 100000
+const (
+	// Return an error if the user is trying to select more than this number of points in a group by statement.
+	// Most likely they specified a group by interval without time boundaries.
+	MaxGroupByPoints = 100000
+
+	// All queries that return raw non-aggregated data, will have 2 results returned from the ouptut of a reduce run.
+	// The first element will be a time that we ignore, and the second element will be an array of []*rawMapOutput
+	ResultCountInRawResults = 2
+
+	// Since time is always selected, the column count when selecting only a single other value will be 2
+	SelectColumnCountWithOneValue = 2
+)
 
 // Tx represents a transaction.
 // The Tx must be opened before being used.
@@ -107,6 +116,7 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 	for i, _ := range resultTimes {
 		t := m.TMin + (int64(i) * m.interval)
 		resultTimes[i] = t
+		// we always include time so we need one more column than we have aggregates
 		vals := make([]interface{}, 0, len(aggregates)+1)
 		resultValues[i] = append(vals, time.Unix(0, t).UTC())
 	}
@@ -304,6 +314,7 @@ func newBinaryExprEvaluator(op Token, lhs, rhs processor) processor {
 
 func (m *MapReduceJob) resultsEmpty(resultValues [][]interface{}) bool {
 	for _, vals := range resultValues {
+		// start the loop at 1 because we want to skip over the time value
 		for i := 1; i < len(vals); i++ {
 			if vals[i] != nil {
 				return false
@@ -336,7 +347,7 @@ func (m *MapReduceJob) processRawResults(resultValues [][]interface{}) *Row {
 	}
 
 	// if they've selected only a single value we have to handle things a little differently
-	singleValue := len(selectNames) == 2
+	singleValue := len(selectNames) == SelectColumnCountWithOneValue
 
 	row := &Row{
 		Name:    m.MeasurementName,
@@ -345,11 +356,13 @@ func (m *MapReduceJob) processRawResults(resultValues [][]interface{}) *Row {
 	}
 
 	// return an empty row if there are no results
-	if len(resultValues) == 0 || len(resultValues[0]) != 2 {
+	// resultValues should have exactly 1 array of interface. And for that array, the first element
+	// will be a time that we ignore, and the second element will be an array of []*rawMapOutput
+	if len(resultValues) == 0 || len(resultValues[0]) != ResultCountInRawResults {
 		return row
 	}
 
-	// the results will hav all of the raw mapper results, convert into the row
+	// the results will have all of the raw mapper results, convert into the row
 	for _, v := range resultValues[0][1].([]*rawQueryMapOutput) {
 		vals := make([]interface{}, len(selectNames))
 
