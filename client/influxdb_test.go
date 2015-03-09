@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -134,8 +135,6 @@ func TestClient_UserAgent(t *testing.T) {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
 	}
 
-	defaultUserAgent := receivedUserAgent
-
 	tests := []struct {
 		name      string
 		userAgent string
@@ -144,7 +143,7 @@ func TestClient_UserAgent(t *testing.T) {
 		{
 			name:      "Empty user agent",
 			userAgent: "",
-			expected:  defaultUserAgent,
+			expected:  "InfluxDBClient",
 		},
 		{
 			name:      "Custom user agent",
@@ -167,7 +166,7 @@ func TestClient_UserAgent(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
 		}
-		if receivedUserAgent != test.expected {
+		if !strings.HasPrefix(receivedUserAgent, test.expected) {
 			t.Fatalf("Unexpected user agent. expected %v, actual %v", test.expected, receivedUserAgent)
 		}
 
@@ -177,7 +176,7 @@ func TestClient_UserAgent(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
 		}
-		if receivedUserAgent != test.expected {
+		if !strings.HasPrefix(receivedUserAgent, test.expected) {
 			t.Fatalf("Unexpected user agent. expected %v, actual %v", test.expected, receivedUserAgent)
 		}
 

@@ -12,11 +12,16 @@ import (
 	"github.com/influxdb/influxdb/influxql"
 )
 
+// Query is used to send a command to the server. Both Command and Database are required.
 type Query struct {
 	Command  string
 	Database string
 }
 
+// Config is used to specify what server to connect to.
+// URL: The URL of the server connecting to.
+// Username/Password are optional.  They will be passed via basic auth if provided.
+// UserAgent: If not provided, will default "InfluxDBClient",
 type Config struct {
 	URL       url.URL
 	Username  string
@@ -24,6 +29,7 @@ type Config struct {
 	UserAgent string
 }
 
+// Client is used to make calls to the server.
 type Client struct {
 	url        url.URL
 	username   string
@@ -32,6 +38,7 @@ type Client struct {
 	userAgent  string
 }
 
+// NewClient will instantiate and return a connected client to issue commands to the server.
 func NewClient(c Config) (*Client, error) {
 	client := Client{
 		url:        c.URL,
@@ -40,13 +47,20 @@ func NewClient(c Config) (*Client, error) {
 		httpClient: &http.Client{},
 		userAgent:  c.UserAgent,
 	}
+	if client.userAgent == "" {
+		client.userAgent = "InfluxDBClient"
+	}
 	return &client, nil
 }
 
+// Query sends a command to the server and returns the Results
 func (c *Client) Query(q Query) (*Results, error) {
 	u := c.url
 
 	u.Path = "query"
+	if c.username != "" {
+		u.User = url.UserPassword(c.username, c.password)
+	}
 	values := u.Query()
 	values.Set("q", q.Command)
 	values.Set("db", q.Database)
@@ -56,9 +70,7 @@ func (c *Client) Query(q Query) (*Results, error) {
 	if err != nil {
 		return nil, err
 	}
-	if c.userAgent != "" {
-		req.Header.Set("User-Agent", c.userAgent)
-	}
+	req.Header.Set("User-Agent", c.userAgent)
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err
@@ -75,6 +87,9 @@ func (c *Client) Query(q Query) (*Results, error) {
 	return &results, nil
 }
 
+// Write takes BatchPoints and allows for writing of multiple points with defaults
+// If successful, error is nil and Results is nil
+// If an error occurs, Results may contain additional information if populated.
 func (c *Client) Write(bp BatchPoints) (*Results, error) {
 	c.url.Path = "write"
 
@@ -88,9 +103,7 @@ func (c *Client) Write(bp BatchPoints) (*Results, error) {
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	if c.userAgent != "" {
-		req.Header.Set("User-Agent", c.userAgent)
-	}
+	req.Header.Set("User-Agent", c.userAgent)
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err
@@ -109,9 +122,11 @@ func (c *Client) Write(bp BatchPoints) (*Results, error) {
 		return &results, results.Error()
 	}
 
-	return &results, nil
+	return nil, nil
 }
 
+// Ping will check to see if the server is up
+// Ping returns how long the requeset took, the version of the server it connected to, and an error if one occured.
 func (c *Client) Ping() (time.Duration, string, error) {
 	now := time.Now()
 	u := c.url
@@ -121,9 +136,7 @@ func (c *Client) Ping() (time.Duration, string, error) {
 	if err != nil {
 		return 0, "", err
 	}
-	if c.userAgent != "" {
-		req.Header.Set("User-Agent", c.userAgent)
-	}
+	req.Header.Set("User-Agent", c.userAgent)
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return 0, "", err
@@ -183,7 +196,8 @@ type Results struct {
 	Err     error
 }
 
-func (r Results) MarshalJSON() ([]byte, error) {
+// MarshalJSON encodes the result into JSON.
+func (r *Results) MarshalJSON() ([]byte, error) {
 	// Define a struct that outputs "error" as a string.
 	var o struct {
 		Results []Result `json:"results,omitempty"`
@@ -234,6 +248,9 @@ func (a Results) Error() error {
 }
 
 // Point defines the fields that will be written to the database
+// Name, Timestamp, and Fields are required
+// Precision can be specified if the timestamp is in epoch format (integer).
+// Valid values for Precision are n, u, ms, s, m, and h
 type Point struct {
 	Name      string
 	Tags      map[string]string
@@ -341,6 +358,12 @@ func normalizeFields(fields map[string]interface{}) map[string]interface{} {
 }
 
 // BatchPoints is used to send batched data in a single write.
+// Database and Points are required
+// If no retention policy is specified, it will use the databases default retention policy.
+// If tags are specified, they will be "merged" with all points.  If a point already has that tag, it is ignored.
+// If timestamp is specified, it will be applied to any point with an empty timestamp.
+// Precision can be specified if the timestamp is in epoch format (integer).
+// Valid values for Precision are n, u, ms, s, m, and h
 type BatchPoints struct {
 	Points          []Point           `json:"points,omitempty"`
 	Database        string            `json:"database,omitempty"`
@@ -409,6 +432,7 @@ func (bp *BatchPoints) UnmarshalJSON(b []byte) error {
 
 // utility functions
 
+// Addr provides the current url as a string of the server the client is connected to.
 func (c *Client) Addr() string {
 	return c.url.String()
 }
