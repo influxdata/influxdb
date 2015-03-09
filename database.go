@@ -298,6 +298,13 @@ func (m *Measurement) filters(stmt *influxql.SelectStatement) map[uint32]influxq
 		}
 	}
 
+	// ensure every id is in the map
+	for _, id := range ids {
+		if _, ok := seriesIdsToExpr[id]; !ok {
+			seriesIdsToExpr[id] = nil
+		}
+	}
+
 	return seriesIdsToExpr
 }
 
@@ -362,7 +369,7 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (seriesIDs, bool, influ
 	}
 
 	// ignore time literals
-	if _, ok := value.(*influxql.TimeLiteral); ok {
+	if _, ok := value.(*influxql.TimeLiteral); ok || name.Val == "time" {
 		return nil, false, nil
 	}
 

@@ -161,6 +161,8 @@ func write(t *testing.T, node *Node, data string) {
 	if err != nil {
 		t.Fatalf("Couldn't write data: %s", err)
 	}
+	body, _ := ioutil.ReadAll(resp.Body)
+	fmt.Println("BODY: ", string(body))
 	if resp.StatusCode != http.StatusOK {
 		body, _ := ioutil.ReadAll(resp.Body)
 		t.Fatalf("Write to database failed.  Unexpected status code.  expected: %d, actual %d, %s", http.StatusOK, resp.StatusCode, string(body))
@@ -356,6 +358,17 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			name:     "missing measurement with `GROUP BY *`",
 			query:    `select load from "%DB%"."%RP%".missing group by *`,
 			expected: `{"results":[{"error":"measurement not found: \"mydb\".\"myrp\".\"missing\""}]}`,
+		},
+		{
+			name: "where on a tag, field and time",
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+				{"name": "where_events", "timestamp": "2009-11-10T23:00:02Z","fields": {"foo": "bar"}, "tags": {"tennant": "paul"}},
+				{"name": "where_events", "timestamp": "2009-11-10T23:00:03Z","fields": {"foo": "baz"}, "tags": {"tennant": "paul"}},
+				{"name": "where_events", "timestamp": "2009-11-10T23:00:04Z","fields": {"foo": "bat"}, "tags": {"tennant": "paul"}},
+				{"name": "where_events", "timestamp": "2009-11-10T23:00:05Z","fields": {"foo": "bar"}, "tags": {"tennant": "todd"}}
+			]}`,
+			query:    `select foo from "%DB%"."%RP%".where_events where tennant = 'paul' AND time > 1s AND (foo = 'bar' OR foo = 'baz')`,
+			expected: `{"results":[{"series":[{"name":"where_events","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z","bar"],["2009-11-10T23:00:03Z","baz"]]}]}]}`,
 		},
 
 		// Metadata display tests
