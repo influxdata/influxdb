@@ -47,11 +47,12 @@ const (
 
 // Server represents a collection of metadata and raw metric data.
 type Server struct {
-	mu     sync.RWMutex
-	id     uint64
-	path   string
-	done   chan struct{} // goroutine close notification
-	rpDone chan struct{} // retention policies goroutine close notification
+	mu       sync.RWMutex
+	id       uint64
+	path     string
+	done     chan struct{} // goroutine close notification
+	rpDone   chan struct{} // retention policies goroutine close notification
+	sgpcDone chan struct{} // shard group pre-create goroutine close notification
 
 	client MessagingClient  // broker client
 	index  uint64           // highest broadcast index seen
@@ -332,6 +333,54 @@ func (s *Server) EnforceRetentionPolicies() {
 	for _, g := range groups {
 		if err := s.DeleteShardGroup(g.Database, g.Retention, g.ID); err != nil {
 			log.Printf("failed to request deletion of shard group %d: %s", g.ID, err.Error())
+		}
+	}
+}
+
+// StartShardGroupsPreCreate launches shard group pre-create to avoid write bottlenecks.
+func (s *Server) StartShardGroupsPreCreate(checkInterval time.Duration) error {
+	if checkInterval == 0 {
+		return fmt.Errorf("shard group pre-create check interval must be non-zero")
+	}
+	sgpcDone := make(chan struct{}, 0)
+	s.sgpcDone = sgpcDone
+	go func() {
+		for {
+			select {
+			case <-sgpcDone:
+				return
+			case <-time.After(checkInterval):
+				s.ShardGroupPreCreate(checkInterval)
+			}
+		}
+	}()
+	return nil
+}
+
+// ShardGroupPreCreate ensures that future shard groups and shards are created and ready for writing
+// is removed from the server.
+func (s *Server) ShardGroupPreCreate(checkInterval time.Duration) {
+	log.Println("shard group pre-create check commencing")
+
+	// For safety, we double the check interval to ensure we have enough time to create all shard groups
+	// before they are needed, but as close to needed as possible.
+	// This is a complete punt on optimization
+	cutoff := time.Now().Add(checkInterval * 2).UTC()
+
+	// Check all shard groups.
+	// See if they have a "future" shard group ready to write to
+	// If not, create the next shard group, as well as each shard for the shardGroup
+	for _, db := range s.databases {
+		for _, rp := range db.policies {
+			for _, g := range rp.shardGroups {
+				// Check to see if it is going to end before our interval
+				if g.EndTime.Before(cutoff) {
+					log.Printf("pre-creating shard group for %d, retention policy %s, database %s", g.ID, rp.Name, db.name)
+					if err := s.PreCreateShardGroupIfNotExists(db.name, rp.Name, g.ID); err != nil {
+						log.Printf("failed to request pre-creation of shard group %d: %s", g.ID, err.Error())
+					}
+				}
+			}
 		}
 	}
 }
@@ -770,38 +819,16 @@ func (s *Server) ShardGroups(database string) ([]*ShardGroup, error) {
 	return a, nil
 }
 
-// CreateShardGroupIfNotExists creates the shard group for a retention policy for the interval a timestamp falls into.
-func (s *Server) CreateShardGroupIfNotExists(database, policy string, timestamp time.Time) error {
-	c := &createShardGroupIfNotExistsCommand{Database: database, Policy: policy, Timestamp: timestamp}
-	_, err := s.broadcast(createShardGroupIfNotExistsMessageType, c)
-	return err
-}
-
-func (s *Server) applyCreateShardGroupIfNotExists(m *messaging.Message) (err error) {
-	var c createShardGroupIfNotExistsCommand
-	mustUnmarshalJSON(m.Data, &c)
-
-	// Retrieve database.
-	db := s.databases[c.Database]
-	if s.databases[c.Database] == nil {
-		return ErrDatabaseNotFound
-	}
-
-	// Validate retention policy.
-	rp := db.policies[c.Policy]
-	if rp == nil {
-		return ErrRetentionPolicyNotFound
-	}
-
+func (s *Server) createShardGroupIfNotExists(index uint64, db *database, rp *RetentionPolicy, timestamp time.Time) (err error) {
 	// If we can match to an existing shard group date range then just ignore request.
-	if g := rp.shardGroupByTimestamp(c.Timestamp); g != nil {
+	if g := rp.shardGroupByTimestamp(timestamp); g != nil {
 		return nil
 	}
 
 	// If no shards match then create a new one.
 	g := newShardGroup()
-	g.StartTime = c.Timestamp.Truncate(rp.Duration).UTC()
-	g.EndTime = g.StartTime.Add(rp.Duration).UTC()
+	g.StartTime = timestamp.Truncate(rp.ShardGroupDuration).UTC()
+	g.EndTime = g.StartTime.Add(rp.ShardGroupDuration).UTC()
 
 	// Sort nodes so they're consistently assigned to the shards.
 	nodes := make([]*DataNode, 0, len(s.dataNodes))
@@ -830,7 +857,7 @@ func (s *Server) applyCreateShardGroupIfNotExists(m *messaging.Message) (err err
 	}
 
 	// Persist to metastore if a shard was created.
-	if err = s.meta.mustUpdate(m.Index, func(tx *metatx) error {
+	if err = s.meta.mustUpdate(index, func(tx *metatx) error {
 		// Generate an ID for the group.
 		g.ID = tx.nextShardGroupID()
 
@@ -841,7 +868,7 @@ func (s *Server) applyCreateShardGroupIfNotExists(m *messaging.Message) (err err
 
 		// Assign data nodes to shards via round robin.
 		// Start from a repeatably "random" place in the node list.
-		nodeIndex := int(m.Index % uint64(len(nodes)))
+		nodeIndex := int(index % uint64(len(nodes)))
 		for _, sh := range g.Shards {
 			for i := 0; i < replicaN; i++ {
 				node := nodes[nodeIndex%len(nodes)]
@@ -893,6 +920,68 @@ func (s *Server) applyCreateShardGroupIfNotExists(m *messaging.Message) (err err
 	}
 
 	return
+
+}
+
+// CreateShardGroupIfNotExists creates the shard group for a retention policy for the interval a timestamp falls into.
+func (s *Server) CreateShardGroupIfNotExists(database, policy string, timestamp time.Time) error {
+	c := &createShardGroupIfNotExistsCommand{Database: database, Policy: policy, Timestamp: timestamp}
+	_, err := s.broadcast(createShardGroupIfNotExistsMessageType, c)
+	return err
+}
+
+func (s *Server) applyCreateShardGroupIfNotExists(m *messaging.Message) (err error) {
+	var c createShardGroupIfNotExistsCommand
+	mustUnmarshalJSON(m.Data, &c)
+
+	// Retrieve database.
+	db := s.databases[c.Database]
+	if s.databases[c.Database] == nil {
+		return ErrDatabaseNotFound
+	}
+
+	// Validate retention policy.
+	rp := db.policies[c.Policy]
+	if rp == nil {
+		return ErrRetentionPolicyNotFound
+	}
+
+	return s.createShardGroupIfNotExists(m.Index, db, rp, c.Timestamp)
+}
+
+// PreCreateShardGroupIfNotExists creates the shard group for a retention policy for the interval a timestamp falls into.
+func (s *Server) PreCreateShardGroupIfNotExists(database, policy string, shardID uint64) error {
+	c := &preCreateShardGroupIfNotExistsCommand{Database: database, Policy: policy, ID: shardID}
+	_, err := s.broadcast(preCreateShardGroupIfNotExistsMessageType, c)
+	return err
+}
+
+// applyPreCreateShardGroupIfNotExists deletes shard data from disk and updates the metastore.
+func (s *Server) applyPreCreateShardGroupIfNotExists(m *messaging.Message) (err error) {
+	var c preCreateShardGroupIfNotExistsCommand
+	mustUnmarshalJSON(m.Data, &c)
+
+	// Retrieve database.
+	db := s.databases[c.Database]
+	if s.databases[c.Database] == nil {
+		return ErrDatabaseNotFound
+	}
+
+	// Validate retention policy.
+	rp := db.policies[c.Policy]
+	if rp == nil {
+		return ErrRetentionPolicyNotFound
+	}
+
+	// If shard group no longer exists, then ignore request. This can occur if data
+	// was deleted/dropped
+	g := rp.shardGroupByID(c.ID)
+	if g == nil {
+		return nil
+	}
+
+	// Create the next shard group
+	return s.createShardGroupIfNotExists(m.Index, db, rp, g.EndTime.Add(time.Nanosecond*1))
 }
 
 // DeleteShardGroup deletes the shard group identified by shardID.
@@ -1197,11 +1286,27 @@ func (s *Server) RetentionPolicies(database string) ([]*RetentionPolicy, error) 
 
 // CreateRetentionPolicy creates a retention policy for a database.
 func (s *Server) CreateRetentionPolicy(database string, rp *RetentionPolicy) error {
+	const (
+		day   = time.Hour * 24
+		month = day * 30
+	)
+
+	var sgd time.Duration
+	switch {
+	case rp.Duration > 6*month || rp.Duration == 0:
+		sgd = 7 * day
+	case rp.Duration > 2*day:
+		sgd = 1 * day
+	default:
+		sgd = 1 * time.Hour
+	}
+
 	c := &createRetentionPolicyCommand{
-		Database: database,
-		Name:     rp.Name,
-		Duration: rp.Duration,
-		ReplicaN: rp.ReplicaN,
+		Database:           database,
+		Name:               rp.Name,
+		Duration:           rp.Duration,
+		ShardGroupDuration: sgd,
+		ReplicaN:           rp.ReplicaN,
 	}
 	_, err := s.broadcast(createRetentionPolicyMessageType, c)
 	return err
@@ -1223,9 +1328,10 @@ func (s *Server) applyCreateRetentionPolicy(m *messaging.Message) error {
 
 	// Add policy to the database.
 	db.policies[c.Name] = &RetentionPolicy{
-		Name:     c.Name,
-		Duration: c.Duration,
-		ReplicaN: c.ReplicaN,
+		Name:               c.Name,
+		Duration:           c.Duration,
+		ShardGroupDuration: c.ShardGroupDuration,
+		ReplicaN:           c.ReplicaN,
 	}
 
 	// Persist to metastore.
@@ -2762,6 +2868,8 @@ func (s *Server) processor(client MessagingClient, done chan struct{}) {
 				err = s.applyDeleteRetentionPolicy(m)
 			case createShardGroupIfNotExistsMessageType:
 				err = s.applyCreateShardGroupIfNotExists(m)
+			case preCreateShardGroupIfNotExistsMessageType:
+				err = s.applyPreCreateShardGroupIfNotExists(m)
 			case deleteShardGroupMessageType:
 				err = s.applyDeleteShardGroup(m)
 			case setDefaultRetentionPolicyMessageType:

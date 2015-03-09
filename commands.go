@@ -28,8 +28,9 @@ const (
 	deleteUserMessageType = messaging.MessageType(0x32)
 
 	// Shard messages
-	createShardGroupIfNotExistsMessageType = messaging.MessageType(0x40)
-	deleteShardGroupMessageType            = messaging.MessageType(0x41)
+	createShardGroupIfNotExistsMessageType    = messaging.MessageType(0x40)
+	deleteShardGroupMessageType               = messaging.MessageType(0x41)
+	preCreateShardGroupIfNotExistsMessageType = messaging.MessageType(0x42)
 
 	// Series messages
 	dropSeriesMessageType = messaging.MessageType(0x50)
@@ -69,11 +70,19 @@ type createShardGroupIfNotExistsCommand struct {
 	Policy    string    `json:"policy"`
 	Timestamp time.Time `json:"timestamp"`
 }
+
 type deleteShardGroupCommand struct {
 	Database string `json:"database"`
 	Policy   string `json:"policy"`
 	ID       uint64 `json:"id"`
 }
+
+type preCreateShardGroupIfNotExistsCommand struct {
+	Database string `json:"database"`
+	Policy   string `json:"policy"`
+	ID       uint64 `json:"id"`
+}
+
 type createUserCommand struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
@@ -94,11 +103,12 @@ type setPrivilegeCommand struct {
 	Database  string             `json:"database"`
 }
 type createRetentionPolicyCommand struct {
-	Database string        `json:"database"`
-	Name     string        `json:"name"`
-	Duration time.Duration `json:"duration"`
-	ReplicaN uint32        `json:"replicaN"`
-	SplitN   uint32        `json:"splitN"`
+	Database           string        `json:"database"`
+	Name               string        `json:"name"`
+	Duration           time.Duration `json:"duration"`
+	ShardGroupDuration time.Duration `json:"shardGroupDuration"`
+	ReplicaN           uint32        `json:"replicaN"`
+	SplitN             uint32        `json:"splitN"`
 }
 type updateRetentionPolicyCommand struct {
 	Database string                 `json:"database"`
