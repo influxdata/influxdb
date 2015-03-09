@@ -111,8 +111,8 @@ func TestClient_Write(t *testing.T) {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
 	}
 
-	write := client.Write{}
-	_, err = c.Write(write)
+	bp := client.BatchPoints{}
+	_, err = c.Write(bp)
 	if err != nil {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
 	}
@@ -172,8 +172,8 @@ func TestClient_UserAgent(t *testing.T) {
 		}
 
 		receivedUserAgent = ""
-		write := client.Write{}
-		_, err = c.Write(write)
+		bp := client.BatchPoints{}
+		_, err = c.Write(bp)
 		if err != nil {
 			t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
 		}
@@ -259,8 +259,8 @@ func TestPoint_UnmarshalEpoch(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error.  exptected: %v, actual: %v", nil, err)
 		}
-		if !p.Timestamp.Time().Equal(test.expected) {
-			t.Fatalf("Unexpected time.  expected: %v, actual: %v", test.expected, p.Timestamp.Time())
+		if !p.Timestamp.Equal(test.expected) {
+			t.Fatalf("Unexpected time.  expected: %v, actual: %v", test.expected, p.Timestamp)
 		}
 	}
 }
@@ -297,8 +297,54 @@ func TestPoint_UnmarshalRFC(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error.  exptected: %v, actual: %v", nil, err)
 		}
-		if !p.Timestamp.Time().Equal(test.expected) {
-			t.Fatalf("Unexpected time.  expected: %v, actual: %v", test.expected, p.Timestamp.Time())
+		if !p.Timestamp.Equal(test.expected) {
+			t.Fatalf("Unexpected time.  expected: %v, actual: %v", test.expected, p.Timestamp)
+		}
+	}
+}
+
+func TestPoint_MarshalOmitempty(t *testing.T) {
+	now := time.Now().UTC()
+	tests := []struct {
+		name     string
+		point    client.Point
+		now      time.Time
+		expected string
+	}{
+		{
+			name:     "all empty",
+			point:    client.Point{Name: "cpu", Fields: map[string]interface{}{"value": 1.1}},
+			now:      now,
+			expected: `{"name":"cpu","fields":{"value":1.1}}`,
+		},
+		{
+			name:     "with time",
+			point:    client.Point{Name: "cpu", Fields: map[string]interface{}{"value": 1.1}, Timestamp: now},
+			now:      now,
+			expected: fmt.Sprintf(`{"name":"cpu","timestamp":"%s","fields":{"value":1.1}}`, now.Format(time.RFC3339Nano)),
+		},
+		{
+			name:     "with tags",
+			point:    client.Point{Name: "cpu", Fields: map[string]interface{}{"value": 1.1}, Tags: map[string]string{"foo": "bar"}},
+			now:      now,
+			expected: `{"name":"cpu","tags":{"foo":"bar"},"fields":{"value":1.1}}`,
+		},
+		{
+			name:     "with precision",
+			point:    client.Point{Name: "cpu", Fields: map[string]interface{}{"value": 1.1}, Precision: "ms"},
+			now:      now,
+			expected: `{"name":"cpu","fields":{"value":1.1}}`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Logf("testing %q\n", test.name)
+		b, err := json.Marshal(&test.point)
+		if err != nil {
+			t.Fatalf("unexpected error.  exptected: %v, actual: %v", nil, err)
+		}
+		if test.expected != string(b) {
+			t.Fatalf("Unexpected result.  expected: %v, actual: %v", test.expected, string(b))
 		}
 	}
 }
@@ -339,4 +385,43 @@ func emptyTestServer() *httptest.Server {
 		w.Header().Set("X-Influxdb-Version", "x.x")
 		return
 	}))
+}
+
+// Ensure that data with epoch timestamps can be decoded.
+func TestBatchPoints_Normal(t *testing.T) {
+	var bp client.BatchPoints
+	data := []byte(`
+{                                                                                                                                                       
+    "database": "foo",                                                                                                                                    
+    "retentionPolicy": "bar",                                                                                                                              
+    "points": [                                                                                                                                            
+        {                                                                                                                                                   
+            "name": "cpu",                                                                                                                                   
+            "tags": {                                                                                                                                         
+                "host": "server01"                                                                                                                            
+            },
+            "timestamp": 14244733039069373,
+            "precision": "n",
+            "values": {
+                    "value": 4541770385657154000
+            }
+        },
+        {
+            "name": "cpu",
+             "tags": {
+                "host": "server01"
+            },
+            "timestamp": 14244733039069380,
+            "precision": "n",
+            "values": {
+                    "value": 7199311900554737000
+            }
+        }
+    ]
+}
+`)
+
+	if err := json.Unmarshal(data, &bp); err != nil {
+		t.Errorf("failed to unmarshal nanosecond data: %s", err.Error())
+	}
 }

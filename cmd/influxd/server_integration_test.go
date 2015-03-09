@@ -2,6 +2,7 @@ package main_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/messaging"
 
+	"github.com/influxdb/influxdb/client"
 	main "github.com/influxdb/influxdb/cmd/influxd"
 )
 
@@ -653,4 +655,106 @@ func Test3NodeServer(t *testing.T) {
 	nodes := createCombinedNodeCluster(t, testName, dir, 3, 8190)
 
 	runTestsData(t, testName, nodes, "mydb", "myrp")
+}
+
+func TestClientLibrary(t *testing.T) {
+	testName := "single server integration via client library"
+	if testing.Short() {
+		t.Skip(fmt.Sprintf("skipping '%s'", testName))
+	}
+	dir := tempfile()
+	defer func() {
+		os.RemoveAll(dir)
+	}()
+
+	database := "mydb"
+	retentionPolicy := "myrp"
+	now := time.Now().UTC()
+
+	nodes := createCombinedNodeCluster(t, testName, dir, 1, 8290)
+	createDatabase(t, testName, nodes, database)
+	createRetentionPolicy(t, testName, nodes, database, retentionPolicy)
+
+	tests := []struct {
+		name                         string
+		bp                           client.BatchPoints
+		results                      client.Results
+		query                        client.Query
+		writeExpected, queryExpected string
+		writeErr, queryErr           string
+	}{
+		{
+			name:          "empty batchpoint",
+			writeErr:      "database is required",
+			writeExpected: `{"error":"database is required"}`,
+		},
+		{
+			name:          "no points",
+			writeExpected: `{}`,
+			bp:            client.BatchPoints{Database: "mydb"},
+		},
+		{
+			name: "one point",
+			bp: client.BatchPoints{
+				Database: "mydb",
+				Points: []client.Point{
+					{Name: "cpu", Fields: map[string]interface{}{"value": 1.1}, Timestamp: now},
+				},
+			},
+			writeExpected: `{}`,
+			query:         client.Query{Command: `select * from "mydb"."myrp".cpu`},
+			queryExpected: fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",1.1]]}]}]}`, now.Format(time.RFC3339Nano)),
+		},
+	}
+
+	c, e := client.NewClient(client.Config{URL: *nodes[0].url})
+	if e != nil {
+		t.Fatalf("error creating client: %s", e)
+	}
+
+	for _, test := range tests {
+		t.Logf("testing %s - %s\n", testName, test.name)
+		writeResult, err := c.Write(test.bp)
+		if test.writeErr != errToString(err) {
+			t.Errorf("unexpected error. expected: %s, got %v", test.writeErr, err)
+		}
+		jsonResult := mustMarshalJSON(writeResult)
+		if test.writeExpected != jsonResult {
+			t.Logf("write expected result: %s\n", test.writeExpected)
+			t.Logf("write got result:      %s\n", jsonResult)
+			t.Error("unexpected results")
+		}
+
+		if test.query.Command != "" {
+			time.Sleep(50 * time.Millisecond)
+			queryResult, err := c.Query(test.query)
+			if test.queryErr != errToString(err) {
+				t.Errorf("unexpected error. expected: %s, got %v", test.queryErr, err)
+			}
+			jsonResult := mustMarshalJSON(queryResult)
+			if test.queryExpected != jsonResult {
+				t.Logf("query expected result: %s\n", test.queryExpected)
+				t.Logf("query got result:      %s\n", jsonResult)
+				t.Error("unexpected results")
+			}
+
+		}
+	}
+}
+
+// helper funcs
+
+func errToString(err error) string {
+	if err != nil {
+		return err.Error()
+	}
+	return ""
+}
+
+func mustMarshalJSON(v interface{}) string {
+	b, e := json.Marshal(v)
+	if e != nil {
+		panic(e)
+	}
+	return string(b)
 }
