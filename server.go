@@ -208,6 +208,10 @@ func (s *Server) Close() error {
 		close(s.rpDone)
 	}
 
+	if s.sgpcDone != nil {
+		close(s.sgpcDone)
+	}
+
 	// Remove path.
 	s.path = ""
 	s.index = 0
