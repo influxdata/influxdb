@@ -39,19 +39,13 @@ For those adventurous enough, you can
 curl -G 'http://localhost:8086/query' \
 --data-urlencode "q=CREATE DATABASE mydb"
 ```
-### Setting up the database's retention policy
 
-```JSON
-curl -G 'http://localhost:8086/query' \
---data-urlencode "q=CREATE RETENTION POLICY mypolicy \
-ON mydb DURATION 7d REPLICATION 1 DEFAULT"
-```
 ### Insert some data
 ```JSON
 curl -H "Content-Type: application/json" http://localhost:8086/write -d '
 {
     "database": "mydb",
-    "retentionPolicy": "mypolicy",
+    "retentionPolicy": "default",
     "points": [
         {
             "timestamp": "2014-11-10T23:00:00Z",
