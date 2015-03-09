@@ -70,6 +70,9 @@ type Server struct {
 
 	authenticationEnabled bool
 
+	// Retention policy settings
+	RetentionAutoCreate bool
+
 	// continuous query settings
 	RecomputePreviousN     int
 	RecomputeNoOlderThan   time.Duration
@@ -685,6 +688,17 @@ func (s *Server) applyCreateDatabase(m *messaging.Message) (err error) {
 	// Create database entry.
 	db := newDatabase()
 	db.name = c.Name
+
+	if s.RetentionAutoCreate {
+		// Create the default retention policy.
+		db.policies[c.Name] = &RetentionPolicy{
+			Name:     DefaultRetentionPolicyName,
+			Duration: 0,
+			ReplicaN: 1,
+		}
+		db.defaultRetentionPolicy = DefaultRetentionPolicyName
+		s.Logger.Printf("retention policy '%s' auto-created for database '%s'", DefaultRetentionPolicyName, c.Name)
+	}
 
 	// Persist to metastore.
 	err = s.meta.mustUpdate(m.Index, func(tx *metatx) error { return tx.saveDatabase(db) })

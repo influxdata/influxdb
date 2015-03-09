@@ -512,6 +512,24 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["fieldKey"],"values":[["field1"],["field2"],["field3"]]}]}]}`,
 		},
 
+		// Database control tests
+		{
+			reset:    true,
+			name:     "Create database for default retention policy tests",
+			query:    `CREATE DATABASE mydatabase`,
+			expected: `{"results":[{}]}`,
+		},
+		{
+			name:     "Check for default retention policy",
+			query:    `SHOW RETENTION POLICIES mydatabase`,
+			expected: `{"results":[{"series":[{"columns":["name","duration","replicaN"],"values":[["default","0",1]]}]}]}`,
+		},
+		{
+			name:     "Ensure database with default retention policy can be deleted",
+			query:    `DROP DATABASE mydatabase`,
+			expected: `{"results":[{}]}`,
+		},
+
 		// User control tests
 		{
 			name:     "show users, no actual users",

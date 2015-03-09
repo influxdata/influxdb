@@ -87,6 +87,7 @@ type Config struct {
 	Data struct {
 		Dir                   string   `toml:"dir"`
 		Port                  int      `toml:"port"`
+		RetentionAutoCreate   bool     `toml:"retention-auto-create"`
 		RetentionCheckEnabled bool     `toml:"retention-check-enabled"`
 		RetentionCheckPeriod  Duration `toml:"retention-check-period"`
 	} `toml:"data"`
@@ -144,6 +145,7 @@ func NewConfig() *Config {
 	c.Broker.Timeout = Duration(1 * time.Second)
 	c.Data.Dir = filepath.Join(u.HomeDir, ".influxdb/data")
 	c.Data.Port = DefaultDataPort
+	c.Data.RetentionAutoCreate = true
 	c.Data.RetentionCheckEnabled = true
 	c.Data.RetentionCheckPeriod = Duration(10 * time.Minute)
 	c.Admin.Enabled = true
