@@ -75,6 +75,11 @@ func (b *Broker) SetLogOutput(w io.Writer) {
 	b.log.SetLogOutput(w)
 }
 
+// EnableRaftDebug controls debugging functionality in the Raft concensus module.
+func (b *Broker) EnableRaftDebug(enable bool) {
+	b.log.DebugEnabled = enable
+}
+
 // Open initializes the log.
 // The broker then must be initialized or join a cluster before it can be used.
 func (b *Broker) Open(path string, u *url.URL) error {
@@ -785,7 +790,7 @@ func (t *topic) open() error {
 	assert(t.file == nil, "topic already open: %d", t.id)
 
 	// Ensure the parent directory exists.
-	if err := os.MkdirAll(filepath.Dir(t.path), 0700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(t.path), 0755); err != nil {
 		return err
 	}
 

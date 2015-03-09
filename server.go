@@ -165,10 +165,10 @@ func (s *Server) Open(path string) error {
 	s.path = path
 
 	// Create required directories.
-	if err := os.MkdirAll(path, 0700); err != nil {
+	if err := os.MkdirAll(path, 0755); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Join(path, "shards"), 0700); err != nil {
+	if err := os.MkdirAll(filepath.Join(path, "shards"), 0755); err != nil {
 		return err
 	}
 

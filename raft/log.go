@@ -230,7 +230,7 @@ func (l *Log) Open(path string) error {
 	}
 
 	// Create directory, if not exists.
-	if err := os.MkdirAll(path, 0700); err != nil {
+	if err := os.MkdirAll(path, 0755); err != nil {
 		return err
 	}
 	l.path = path

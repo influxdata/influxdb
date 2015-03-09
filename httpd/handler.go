@@ -13,6 +13,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"compress/gzip"
@@ -21,6 +22,7 @@ import (
 
 	"github.com/bmizerany/pat"
 	"github.com/influxdb/influxdb"
+	"github.com/influxdb/influxdb/client"
 	"github.com/influxdb/influxdb/influxql"
 )
 
@@ -175,7 +177,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *influ
 
 // serveWrite receives incoming series data and writes it to the database.
 func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *influxdb.User) {
-	var bp influxdb.BatchPoints
+	var bp client.BatchPoints
 	var dec *json.Decoder
 
 	if h.WriteTrace {
@@ -188,6 +190,7 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *influ
 		dec = json.NewDecoder(strings.NewReader(string(b)))
 	} else {
 		dec = json.NewDecoder(r.Body)
+		defer r.Body.Close()
 	}
 
 	var writeError = func(result influxdb.Result, statusCode int) {
@@ -302,40 +305,38 @@ func (h *Handler) serveWait(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var d time.Duration
-	if timeout == 0 {
-		d = math.MaxInt64
-	} else {
-		d = time.Duration(timeout) * time.Millisecond
+	var (
+		timedOut int32
+		aborted  int32
+		timer    = time.NewTimer(time.Duration(math.MaxInt64))
+	)
+	defer timer.Stop()
+	if timeout > 0 {
+		timer.Reset(time.Duration(timeout) * time.Millisecond)
+		go func() {
+			<-timer.C
+			atomic.StoreInt32(&timedOut, 1)
+		}()
 	}
-	err := h.pollForIndex(index, d)
-	if err != nil {
-		w.WriteHeader(http.StatusRequestTimeout)
-		return
+
+	if notify, ok := w.(http.CloseNotifier); ok {
+		go func() {
+			<-notify.CloseNotify()
+			atomic.StoreInt32(&aborted, 1)
+		}()
 	}
-	w.Write([]byte(fmt.Sprintf("%d", h.server.Index())))
-}
-
-// pollForIndex will poll until either the index is met or it times out
-// timeout is in milliseconds
-func (h *Handler) pollForIndex(index uint64, timeout time.Duration) error {
-	done := make(chan struct{})
-
-	go func() {
-		for {
-			if h.server.Index() >= index {
-				done <- struct{}{}
-			}
-			time.Sleep(10 * time.Millisecond)
-		}
-	}()
 
 	for {
-		select {
-		case <-done:
-			return nil
-		case <-time.After(timeout):
-			return fmt.Errorf("timed out")
+		if idx := h.server.Index(); idx >= index {
+			w.Write([]byte(fmt.Sprintf("%d", idx)))
+			break
+		} else if atomic.LoadInt32(&aborted) == 1 {
+			break
+		} else if atomic.LoadInt32(&timedOut) == 1 {
+			w.WriteHeader(http.StatusRequestTimeout)
+			break
+		} else {
+			time.Sleep(10 * time.Millisecond)
 		}
 	}
 }

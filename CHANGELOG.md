@@ -1,10 +1,20 @@
+## v0.9.0-rc10 [Unreleased]
+
+### Bugfixes
+- [#1867](https://github.com/influxdb/influxdb/pull/1867): Fix race accessing topic replicas map
+- [#1864](https://github.com/influxdb/influxdb/pull/1864): fix race in startStateLoop
+- [#1753](https://github.com/influxdb/influxdb/pull/1874): Do Not Panic on Missing Dirs
+- [#1877](https://github.com/influxdb/influxdb/pull/1877): Broker clients track broker leader
+- [#1862](https://github.com/influxdb/influxdb/pull/1862): Fix memory leak in `httpd.serveWait`. Thanks @mountkin
+- [#1868](https://github.com/influxdb/influxdb/pull/1868): Use `BatchPoints` for `client.Write` method. Thanks @vladlopes, @georgmu, @d2g, @evanphx, @akolosov.
+
+### Features
+- [#1875](https://github.com/influxdb/influxdb/pull/1875): Support trace logging of Raft.
+
 ## v0.9.0-rc9 [2015-03-06]
 
 ### Bugfixes
-
-- [1872](https://github.com/influxdb/influxdb/pull/1872): Fix "stale term" errors with raft
-- [#1867](https://github.com/influxdb/influxdb/pull/1867): Fix race accessing topic replicas map
-- [#1864](https://github.com/influxdb/influxdb/pull/1864): fix race in startStateLoop
+- [#1872](https://github.com/influxdb/influxdb/pull/1872): Fix "stale term" errors with raft
 
 ## v0.9.0-rc8 [2015-03-05]
 

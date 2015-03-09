@@ -12,6 +12,11 @@ import (
 	"github.com/influxdb/influxdb/influxql"
 )
 
+type Query struct {
+	Command  string
+	Database string
+}
+
 type Config struct {
 	URL       url.URL
 	Username  string
@@ -25,17 +30,6 @@ type Client struct {
 	password   string
 	httpClient *http.Client
 	userAgent  string
-}
-
-type Query struct {
-	Command  string
-	Database string
-}
-
-type Write struct {
-	Database        string
-	RetentionPolicy string
-	Points          []Point
 }
 
 func NewClient(c Config) (*Client, error) {
@@ -81,21 +75,13 @@ func (c *Client) Query(q Query) (*Results, error) {
 	return &results, nil
 }
 
-func (c *Client) Write(writes ...Write) (*Results, error) {
+func (c *Client) Write(bp BatchPoints) (*Results, error) {
 	c.url.Path = "write"
-	type data struct {
-		Points          []Point `json:"points"`
-		Database        string  `json:"database"`
-		RetentionPolicy string  `json:"retentionPolicy"`
-	}
 
-	d := []data{}
-	for _, write := range writes {
-		d = append(d, data{Points: write.Points, Database: write.Database, RetentionPolicy: write.RetentionPolicy})
+	b, err := json.Marshal(&bp)
+	if err != nil {
+		return nil, err
 	}
-
-	b := []byte{}
-	err := json.Unmarshal(b, &d)
 
 	req, err := http.NewRequest("POST", c.url.String(), bytes.NewBuffer(b))
 	if err != nil {
@@ -115,10 +101,14 @@ func (c *Client) Write(writes ...Write) (*Results, error) {
 	dec := json.NewDecoder(resp.Body)
 	dec.UseNumber()
 	err = dec.Decode(&results)
-
-	if err != nil {
+	if err != nil && err.Error() != "EOF" {
 		return nil, err
 	}
+
+	if resp.StatusCode != http.StatusOK {
+		return &results, results.Error()
+	}
+
 	return &results, nil
 }
 
@@ -243,28 +233,34 @@ func (a Results) Error() error {
 	return nil
 }
 
-// Timestamp is a custom type so we marshal JSON properly into UTC nanosecond time
-type Timestamp time.Time
-
-// Time returns the time represented by the Timestamp
-func (t Timestamp) Time() time.Time {
-	return time.Time(t)
-}
-
-// MarshalJSON returns time in UTC with nanoseconds
-func (t Timestamp) MarshalJSON() ([]byte, error) {
-	// Always send back in UTC with nanoseconds
-	s := t.Time().UTC().Format(time.RFC3339Nano)
-	return []byte(`"` + s + `"`), nil
-}
-
 // Point defines the fields that will be written to the database
 type Point struct {
-	Name      string                 `json:"name"`
-	Tags      map[string]string      `json:"tags"`
-	Timestamp Timestamp              `json:"timestamp"`
-	Fields    map[string]interface{} `json:"fields"`
-	Precision string                 `json:"precision"`
+	Name      string
+	Tags      map[string]string
+	Timestamp time.Time
+	Fields    map[string]interface{}
+	Precision string
+}
+
+// MarshalJSON will format the time in RFC3339Nano
+// Precision is also ignored as it is only used for writing, not reading
+// Or another way to say it is we always send back in nanosecond precision
+func (p *Point) MarshalJSON() ([]byte, error) {
+	point := struct {
+		Name      string                 `json:"name,omitempty"`
+		Tags      map[string]string      `json:"tags,omitempty"`
+		Timestamp string                 `json:"timestamp,omitempty"`
+		Fields    map[string]interface{} `json:"fields,omitempty"`
+	}{
+		Name:   p.Name,
+		Tags:   p.Tags,
+		Fields: p.Fields,
+	}
+	// Let it omit empty if it's really zero
+	if !p.Timestamp.IsZero() {
+		point.Timestamp = p.Timestamp.UTC().Format(time.RFC3339Nano)
+	}
+	return json.Marshal(&point)
 }
 
 // UnmarshalJSON decodes the data into the Point struct
@@ -302,7 +298,7 @@ func (p *Point) UnmarshalJSON(b []byte) error {
 		}
 		p.Name = epoch.Name
 		p.Tags = epoch.Tags
-		p.Timestamp = Timestamp(ts)
+		p.Timestamp = ts
 		p.Precision = epoch.Precision
 		p.Fields = normalizeFields(epoch.Fields)
 		return nil
@@ -318,7 +314,7 @@ func (p *Point) UnmarshalJSON(b []byte) error {
 	normal.Timestamp = SetPrecision(normal.Timestamp, normal.Precision)
 	p.Name = normal.Name
 	p.Tags = normal.Tags
-	p.Timestamp = Timestamp(normal.Timestamp)
+	p.Timestamp = normal.Timestamp
 	p.Precision = normal.Precision
 	p.Fields = normalizeFields(normal.Fields)
 
@@ -342,6 +338,73 @@ func normalizeFields(fields map[string]interface{}) map[string]interface{} {
 		}
 	}
 	return newFields
+}
+
+// BatchPoints is used to send batched data in a single write.
+type BatchPoints struct {
+	Points          []Point           `json:"points,omitempty"`
+	Database        string            `json:"database,omitempty"`
+	RetentionPolicy string            `json:"retentionPolicy,omitempty"`
+	Tags            map[string]string `json:"tags,omitempty"`
+	Timestamp       time.Time         `json:"timestamp,omitempty"`
+	Precision       string            `json:"precision,omitempty"`
+}
+
+// UnmarshalJSON decodes the data into the BatchPoints struct
+func (bp *BatchPoints) UnmarshalJSON(b []byte) error {
+	var normal struct {
+		Points          []Point           `json:"points"`
+		Database        string            `json:"database"`
+		RetentionPolicy string            `json:"retentionPolicy"`
+		Tags            map[string]string `json:"tags"`
+		Timestamp       time.Time         `json:"timestamp"`
+		Precision       string            `json:"precision"`
+	}
+	var epoch struct {
+		Points          []Point           `json:"points"`
+		Database        string            `json:"database"`
+		RetentionPolicy string            `json:"retentionPolicy"`
+		Tags            map[string]string `json:"tags"`
+		Timestamp       *int64            `json:"timestamp"`
+		Precision       string            `json:"precision"`
+	}
+
+	if err := func() error {
+		var err error
+		if err = json.Unmarshal(b, &epoch); err != nil {
+			return err
+		}
+		// Convert from epoch to time.Time
+		var ts time.Time
+		if epoch.Timestamp != nil {
+			ts, err = EpochToTime(*epoch.Timestamp, epoch.Precision)
+			if err != nil {
+				return err
+			}
+		}
+		bp.Points = epoch.Points
+		bp.Database = epoch.Database
+		bp.RetentionPolicy = epoch.RetentionPolicy
+		bp.Tags = epoch.Tags
+		bp.Timestamp = ts
+		bp.Precision = epoch.Precision
+		return nil
+	}(); err == nil {
+		return nil
+	}
+
+	if err := json.Unmarshal(b, &normal); err != nil {
+		return err
+	}
+	normal.Timestamp = SetPrecision(normal.Timestamp, normal.Precision)
+	bp.Points = normal.Points
+	bp.Database = normal.Database
+	bp.RetentionPolicy = normal.RetentionPolicy
+	bp.Tags = normal.Tags
+	bp.Timestamp = normal.Timestamp
+	bp.Precision = normal.Precision
+
+	return nil
 }
 
 // utility functions

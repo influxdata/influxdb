@@ -98,6 +98,45 @@ func TestClient_Close(t *testing.T) {
 	}
 }
 
+// Ensure a client's Leader URL can be set correctly.
+func TestClient_SetLeaderURL(t *testing.T) {
+	c := messaging.NewClient(100)
+
+	// Nil shouldn't blow up.
+	var u *url.URL
+	c.SetLeaderURL(u)
+
+	tests := []struct {
+		leader   string
+		expected string
+	}{
+		{
+			leader:   "http://localhost",
+			expected: "http://localhost",
+		},
+		{
+			leader:   "https://localhost",
+			expected: "https://localhost",
+		},
+		{
+			leader:   "http://localhost:8045",
+			expected: "http://localhost:8045",
+		},
+		{
+			leader:   "http://127.0.0.1:46684/messaging/messages?replicaID=100",
+			expected: "http://127.0.0.1:46684",
+		},
+	}
+
+	for _, tt := range tests {
+		c.SetLeaderURL(MustParseURL(tt.leader))
+		if c.LeaderURL().String() != tt.expected {
+			t.Errorf("Setting client leader URL failed, expected: %s, got: %s", tt.expected, c.LeaderURL().String())
+		}
+	}
+
+}
+
 // Ensure that a client can publish messages to the broker.
 func TestClient_Publish(t *testing.T) {
 	c := OpenClient(1000)
