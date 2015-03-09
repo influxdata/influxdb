@@ -289,6 +289,12 @@ func (l *LocalMapper) Begin(c *influxql.Call, startingTime int64) error {
 
 	// seek the bolt cursors and fill the buffers
 	for i, c := range l.cursors {
+		// this series may have never been written in this shard group (time range) so the cursor would be nil
+		if c == nil {
+			l.keyBuffer[i] = 0
+			l.valueBuffer[i] = nil
+			continue
+		}
 		k, v := c.Seek(u64tob(uint64(l.job.TMin)))
 		if k == nil {
 			l.keyBuffer[i] = 0

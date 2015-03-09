@@ -229,7 +229,7 @@ func TestSelect_NamesInWhere(t *testing.T) {
 	s := MustParseSelectStatement("select * from cpu where time > 23s AND (asdf = 'jkl' OR (foo = 'bar' AND baz = 'bar'))")
 	a := s.NamesInWhere()
 	if !reflect.DeepEqual(a, []string{"time", "asdf", "foo", "baz"}) {
-		t.Fatal("exp: time,asdf,foo,baz\ngot: %s", strings.Join(a, ","))
+		t.Fatalf("exp: time,asdf,foo,baz\ngot: %s\n", strings.Join(a, ","))
 	}
 }
 

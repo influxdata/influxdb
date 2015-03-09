@@ -894,7 +894,7 @@ func (f *FieldCodec) DecodeFields(b []byte) map[uint8]interface{} {
 			b = b[2:]
 		case influxql.String:
 			size := binary.BigEndian.Uint16(b[1:3])
-			value = string(b[3:size])
+			value = string(b[3 : size+3])
 			// Move bytes forward.
 			b = b[size+3:]
 		default:

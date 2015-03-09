@@ -2,6 +2,7 @@ package influxql
 
 import (
 	"bytes"
+	"errors"
 	"hash/fnv"
 	"sort"
 	"time"
@@ -11,6 +12,10 @@ import (
 type DB interface {
 	Begin() (Tx, error)
 }
+
+// Return an error if the user is trying to select more than this number of points in a group by statement.
+// Most likely they specified a group by interval without time boundaries.
+const MaxGroupByPoints = 100000
 
 // Tx represents a transaction.
 // The Tx must be opened before being used.
@@ -85,6 +90,15 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 	} else {
 		intervalTop := m.TMax/m.interval*m.interval + m.interval
 		pointCountInResult = int((intervalTop - m.TMin) / m.interval)
+	}
+
+	if m.TMin == 0 && pointCountInResult > MaxGroupByPoints {
+		out <- &Row{
+			Name: m.MeasurementName,
+			Tags: m.TagSet.Tags,
+			Err:  errors.New("too many points in the group by interval. maybe you forgot to specify a where time clause?"),
+		}
+		return
 	}
 
 	// initialize the times of the aggregate points
@@ -476,7 +490,6 @@ func (p *Planner) Plan(stmt *SelectStatement) (*Executor, error) {
 			}
 
 			jobs = jobs[stmt.Offset : stmt.Offset+stmt.Limit]
-
 		}
 	}
 
