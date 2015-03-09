@@ -19,6 +19,7 @@ events, and performing analytics.
   should return in < 100ms.
 
 ## Getting Started
+*The following directions apply only to the 0.9.0 release or building from the source on master.*
 
 ### Building
 

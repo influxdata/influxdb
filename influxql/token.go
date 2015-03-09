@@ -23,6 +23,8 @@ const (
 	BADESCAPE    // \q
 	TRUE         // true
 	FALSE        // false
+	REGEX        // Regular expressions
+	BADREGEX     // `.*
 	literal_end
 
 	operator_beg
@@ -77,6 +79,7 @@ const (
 	GROUP
 	IF
 	IN
+	INF
 	INNER
 	INSERT
 	INTO
@@ -125,6 +128,7 @@ var tokens = [...]string{
 	BADESCAPE:    "BADESCAPE",
 	TRUE:         "TRUE",
 	FALSE:        "FALSE",
+	REGEX:        "REGEX",
 
 	ADD: "+",
 	SUB: "-",
@@ -173,6 +177,7 @@ var tokens = [...]string{
 	GROUP:        "GROUP",
 	IF:           "IF",
 	IN:           "IN",
+	INF:          "INF",
 	INNER:        "INNER",
 	INSERT:       "INSERT",
 	INTO:         "INTO",
@@ -238,7 +243,7 @@ func (tok Token) Precedence() int {
 		return 1
 	case AND:
 		return 2
-	case EQ, NEQ, LT, LTE, GT, GTE:
+	case EQ, NEQ, EQREGEX, NEQREGEX, LT, LTE, GT, GTE:
 		return 3
 	case ADD, SUB:
 		return 4

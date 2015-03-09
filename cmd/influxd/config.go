@@ -72,18 +72,11 @@ type Config struct {
 	Graphites []Graphite `toml:"graphite"`
 	Collectd  Collectd   `toml:"collectd"`
 
-	InputPlugins struct {
-		UDPInput struct {
-			Enabled  bool   `toml:"enabled"`
-			Port     int    `toml:"port"`
-			Database string `toml:"database"`
-		} `toml:"udp"`
-		UDPServersInput []struct {
-			Enabled  bool   `toml:"enabled"`
-			Port     int    `toml:"port"`
-			Database string `toml:"database"`
-		} `toml:"udp_servers"`
-	} `toml:"input_plugins"`
+	UDP struct {
+		Enabled     bool   `toml:"enabled"`
+		BindAddress string `toml:"bind-address"`
+		Port        int    `toml:"port"`
+	} `toml:"udp"`
 
 	Broker struct {
 		Port    int      `toml:"port"`
@@ -103,7 +96,8 @@ type Config struct {
 	} `toml:"cluster"`
 
 	Logging struct {
-		File string `toml:"file"`
+		File              string `toml:"file"`
+		WriteTraceEnabled bool   `toml:"write-tracing"`
 	} `toml:"logging"`
 
 	ContinuousQuery struct {
@@ -175,9 +169,14 @@ func NewConfig() *Config {
 	return c
 }
 
-// DataAddr returns the binding address the data server
+// DataAddr returns the TCP binding address for the data server.
 func (c *Config) DataAddr() string {
 	return net.JoinHostPort(c.BindAddress, strconv.Itoa(c.Data.Port))
+}
+
+// DataAddrUDP returns the UDP address for the series listener.
+func (c *Config) DataAddrUDP() string {
+	return net.JoinHostPort(c.UDP.BindAddress, strconv.Itoa(c.UDP.Port))
 }
 
 // DataURL returns the URL required to contact the data server.

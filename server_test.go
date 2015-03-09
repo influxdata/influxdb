@@ -1035,7 +1035,7 @@ func TestServer_DropMeasurementSeriesTagsPreserved(t *testing.T) {
 	}
 
 	results = s.ExecuteQuery(MustParseQuery(`SELECT * FROM cpu`), "foo", nil)
-	if res := results.Results[0]; res.Err.Error() != `measurement "foo"."raw"."cpu" does not exist.` {
+	if res := results.Results[0]; res.Err.Error() != `measurement not found: "foo"."raw"."cpu"` {
 		t.Fatalf("unexpected error: %s", res.Err)
 	} else if len(res.Series) != 0 {
 		t.Fatalf("unexpected row count: %d", len(res.Series))

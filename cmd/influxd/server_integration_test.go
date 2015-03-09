@@ -2,23 +2,18 @@ package main_test
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strconv"
-	"sync"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/influxdb/influxdb"
-	"github.com/influxdb/influxdb/client"
-	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/messaging"
 
 	main "github.com/influxdb/influxdb/cmd/influxd"
@@ -30,6 +25,15 @@ const (
 	batchSize = 4217
 )
 
+// tempfile returns a temporary path.
+func tempfile() string {
+	f, _ := ioutil.TempFile("", "influxdb-")
+	path := f.Name()
+	f.Close()
+	os.Remove(path)
+	return path
+}
+
 // urlFor returns a URL with the path and query params correctly appended and set.
 func urlFor(u *url.URL, path string, params url.Values) *url.URL {
 	v, _ := url.Parse(u.String())
@@ -38,60 +42,36 @@ func urlFor(u *url.URL, path string, params url.Values) *url.URL {
 	return v
 }
 
-// node represents a node under test, which is both a broker and data node.
-type node struct {
+// rewriteDbRp returns a copy of old with occurrences of %DB% with the given database,
+// and occurences of %RP with the given retention
+func rewriteDbRp(old, database, retention string) string {
+	return strings.Replace(strings.Replace(old, "%DB%", database, -1), "%RP%", retention, -1)
+}
+
+// Node represents a node under test, which is both a broker and data node.
+type Node struct {
 	broker *messaging.Broker
 	server *influxdb.Server
 	url    *url.URL
 	leader bool
 }
 
-// cluster represents a multi-node cluster.
-type cluster []*node
-
-// createBatch returns a JSON string, representing the request body for a batch write. The timestamp
-// simply increases and the value is a random integer.
-func createBatch(nPoints int, database, retention, measurement string, tags map[string]string) string {
-	type Point struct {
-		Name      string            `json:"name"`
-		Tags      map[string]string `json:"tags"`
-		Timestamp int64             `json:"timestamp"`
-		Precision string            `json:"precision"`
-		Fields    map[string]int    `json:"fields"`
-	}
-	type PointBatch struct {
-		Database        string  `json:"database"`
-		RetentionPolicy string  `json:"retentionPolicy"`
-		Points          []Point `json:"points"`
-	}
-
-	rand.Seed(time.Now().UTC().UnixNano())
-	points := make([]Point, 0)
-	for i := 0; i < nPoints; i++ {
-		fields := map[string]int{"value": rand.Int()}
-		point := Point{Name: measurement, Tags: tags, Timestamp: time.Now().UTC().UnixNano(), Precision: "n", Fields: fields}
-		points = append(points, point)
-	}
-	batch := PointBatch{Database: database, RetentionPolicy: retention, Points: points}
-
-	buf, _ := json.Marshal(batch)
-	return string(buf)
-}
+// Cluster represents a multi-node cluster.
+type Cluster []*Node
 
 // createCombinedNodeCluster creates a cluster of nServers nodes, each of which
 // runs as both a Broker and Data node. If any part cluster creation fails,
 // the testing is marked as failed.
 //
 // This function returns a slice of nodes, the first of which will be the leader.
-func createCombinedNodeCluster(t *testing.T, testName string, nNodes, basePort int) cluster {
+func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes, basePort int) Cluster {
 	t.Logf("Creating cluster of %d nodes for test %s", nNodes, testName)
 	if nNodes < 1 {
 		t.Fatalf("Test %s: asked to create nonsense cluster", testName)
 	}
 
-	nodes := make([]*node, 0)
+	nodes := make([]*Node, 0)
 
-	tmpDir := os.TempDir()
 	tmpBrokerDir := filepath.Join(tmpDir, "broker-integration-test")
 	tmpDataDir := filepath.Join(tmpDir, "data-integration-test")
 	t.Logf("Test %s: using tmp directory %q for brokers\n", testName, tmpBrokerDir)
@@ -118,7 +98,7 @@ func createCombinedNodeCluster(t *testing.T, testName string, nNodes, basePort i
 	if s == nil {
 		t.Fatalf("Test %s: failed to create leader data node on port %d", testName, basePort)
 	}
-	nodes = append(nodes, &node{
+	nodes = append(nodes, &Node{
 		broker: b,
 		server: s,
 		url:    &url.URL{Scheme: "http", Host: "localhost:" + strconv.Itoa(basePort)},
@@ -141,7 +121,7 @@ func createCombinedNodeCluster(t *testing.T, testName string, nNodes, basePort i
 			t.Fatalf("Test %s: failed to create following data node on port %d", testName, basePort)
 		}
 
-		nodes = append(nodes, &node{
+		nodes = append(nodes, &Node{
 			broker: b,
 			server: s,
 			url:    &url.URL{Scheme: "http", Host: "localhost:" + strconv.Itoa(nextPort)},
@@ -152,456 +132,525 @@ func createCombinedNodeCluster(t *testing.T, testName string, nNodes, basePort i
 }
 
 // createDatabase creates a database, and verifies that the creation was successful.
-func createDatabase(t *testing.T, testName string, nodes cluster, database string) {
+func createDatabase(t *testing.T, testName string, nodes Cluster, database string) {
 	t.Logf("Test: %s: creating database %s", testName, database)
-	serverURL := nodes[0].url
-
-	u := urlFor(serverURL, "query", url.Values{"q": []string{"CREATE DATABASE " + database}})
-	resp, err := http.Get(u.String())
-	if err != nil {
-		t.Fatalf("Couldn't create database: %s", err)
-	}
-	defer resp.Body.Close()
-
-	var results client.Results
-	err = json.NewDecoder(resp.Body).Decode(&results)
-	if err != nil {
-		t.Fatalf("Couldn't decode results: %v", err)
-	}
-
-	if results.Error() != nil {
-		t.Logf("results.Error(): %q", results.Error().Error())
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("Create database failed.  Unexpected status code.  expected: %d, actual %d", http.StatusOK, resp.StatusCode)
-	}
-
-	if len(results.Results) != 1 {
-		t.Fatalf("Create database failed.  Unexpected results length.  expected: %d, actual %d", 1, len(results.Results))
-	}
-
-	// Query the database exists
-	u = urlFor(serverURL, "query", url.Values{"q": []string{"SHOW DATABASES"}})
-	resp, err = http.Get(u.String())
-	if err != nil {
-		t.Fatalf("Couldn't query databases: %s", err)
-	}
-	defer resp.Body.Close()
-
-	err = json.NewDecoder(resp.Body).Decode(&results)
-	if err != nil {
-		t.Fatalf("Couldn't decode results: %v", err)
-	}
-
-	if results.Error() != nil {
-		t.Logf("results.Error(): %q", results.Error().Error())
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("show databases failed.  Unexpected status code.  expected: %d, actual %d", http.StatusOK, resp.StatusCode)
-	}
-
-	expectedResults := client.Results{
-		Results: []client.Result{
-			{Series: []influxql.Row{
-				{
-					Columns: []string{"name"},
-					Values:  [][]interface{}{{database}},
-				},
-			}},
-		},
-	}
-	if !reflect.DeepEqual(results, expectedResults) {
-		t.Fatalf("show databases failed.  Unexpected results.  expected: %+v, actual %+v", expectedResults, results)
-	}
+	query(t, nodes[:1], "", "CREATE DATABASE "+database, `{"results":[{}]}`)
 }
 
 // createRetentionPolicy creates a retetention policy and verifies that the creation was successful.
-func createRetentionPolicy(t *testing.T, testName string, nodes cluster, database, retention string) {
-	t.Log("Creating retention policy")
-	serverURL := nodes[0].url
-	replication := fmt.Sprintf("CREATE RETENTION POLICY %s ON %s DURATION 1h REPLICATION %d DEFAULT", retention, database, len(nodes))
+// Replication factor is set to equal the number nodes in the cluster.
+func createRetentionPolicy(t *testing.T, testName string, nodes Cluster, database, retention string) {
+	t.Logf("Creating retention policy %s for database %s", retention, database)
+	command := fmt.Sprintf("CREATE RETENTION POLICY %s ON %s DURATION 1h REPLICATION %d DEFAULT", retention, database, len(nodes))
+	query(t, nodes[:1], "", command, `{"results":[{}]}`)
+}
 
-	u := urlFor(serverURL, "query", url.Values{"q": []string{replication}})
-	resp, err := http.Get(u.String())
-	if err != nil {
-		t.Fatalf("Couldn't create retention policy: %s", err)
-	}
-	defer resp.Body.Close()
-
-	var results client.Results
-	err = json.NewDecoder(resp.Body).Decode(&results)
-	if err != nil {
-		t.Fatalf("Couldn't decode results: %v", err)
-	}
-
-	if results.Error() != nil {
-		t.Logf("results.Error(): %q", results.Error().Error())
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("Create retention policy failed.  Unexpected status code.  expected: %d, actual %d", http.StatusOK, resp.StatusCode)
-	}
-
-	if len(results.Results) != 1 {
-		t.Fatalf("Create retention policy failed.  Unexpected results length.  expected: %d, actual %d", 1, len(results.Results))
-	}
+// deleteDatabase delete a database, and verifies that the deletion was successful.
+func deleteDatabase(t *testing.T, testName string, nodes Cluster, database string) {
+	t.Logf("Test: %s: deleting database %s", testName, database)
+	query(t, nodes[:1], "", "DROP DATABASE "+database, `{"results":[{}]}`)
 }
 
 // writes writes the provided data to the cluster. It verfies that a 200 OK is returned by the server.
-func write(t *testing.T, testName string, nodes cluster, data string) {
-	t.Logf("Test %s: writing data", testName)
-	serverURL := nodes[0].url
-	u := urlFor(serverURL, "write", url.Values{})
+func write(t *testing.T, node *Node, data string) {
+	u := urlFor(node.url, "write", url.Values{})
 
-	buf := []byte(data)
-	resp, err := http.Post(u.String(), "application/json", bytes.NewReader(buf))
+	resp, err := http.Post(u.String(), "application/json", bytes.NewReader([]byte(data)))
 	if err != nil {
 		t.Fatalf("Couldn't write data: %s", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("Write to database failed.  Unexpected status code.  expected: %d, actual %d", http.StatusOK, resp.StatusCode)
+		body, _ := ioutil.ReadAll(resp.Body)
+		t.Fatalf("Write to database failed.  Unexpected status code.  expected: %d, actual %d, %s", http.StatusOK, resp.StatusCode, string(body))
 	}
 
-	index, err := strconv.ParseInt(resp.Header.Get("X-InfluxDB-Index"), 10, 64)
-	if err != nil {
-		t.Fatalf("Couldn't get index. header: %s,  err: %s.", resp.Header.Get("X-InfluxDB-Index"), err)
-	}
-	wait(t, testName, nodes, index)
-	t.Log("Finished writing and waiting")
+	// Until races are solved.
+	time.Sleep(3 * time.Second)
 }
 
-// simpleQuery executes the given query against all nodes in the cluster, and verify the
-// returned results are as expected.
-func simpleQuery(t *testing.T, testName string, nodes cluster, query string, expected client.Results) {
-	var results client.Results
+// query executes the given query against all nodes in the cluster, and verifies no errors occured, and
+// ensures the returned data is as expected
+func query(t *testing.T, nodes Cluster, urlDb, query, expected string) (string, bool) {
+	v := url.Values{"q": []string{query}}
+	if urlDb != "" {
+		v.Set("db", urlDb)
+	}
 
 	// Query the data exists
 	for _, n := range nodes {
-		t.Logf("Test name %s: query data on node %s", testName, n.url)
-		u := urlFor(n.url, "query", url.Values{"q": []string{query}})
+		u := urlFor(n.url, "query", v)
 		resp, err := http.Get(u.String())
 		if err != nil {
-			t.Fatalf("Couldn't query databases: %s", err)
+			t.Fatalf("Failed to execute query '%s': %s", query, err.Error())
 		}
 		defer resp.Body.Close()
 
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			t.Fatalf("Couldn't read body of response: %s", err)
-		}
-		t.Logf("resp.Body: %s\n", string(body))
-
-		dec := json.NewDecoder(bytes.NewReader(body))
-		dec.UseNumber()
-		err = dec.Decode(&results)
-		if err != nil {
-			t.Fatalf("Couldn't decode results: %v", err)
+			t.Fatalf("Couldn't read body of response: %s", err.Error())
 		}
 
-		if results.Error() != nil {
-			t.Logf("results.Error(): %q", results.Error().Error())
-		}
-
-		if resp.StatusCode != http.StatusOK {
-			t.Fatalf("query databases failed.  Unexpected status code.  expected: %d, actual %d", http.StatusOK, resp.StatusCode)
-		}
-
-		if !reflect.DeepEqual(results, expected) {
-			t.Logf("Expected: %#v\n", expected)
-			t.Logf("Actual: %#v\n", results)
-			t.Fatalf("query databases failed.  Unexpected results.")
+		if expected != string(body) {
+			return string(body), false
 		}
 	}
+
+	return "", true
 }
 
-func wait(t *testing.T, testName string, nodes cluster, index int64) {
-	// Wait for the index to sync up
-	var wg sync.WaitGroup
-	wg.Add(len(nodes))
-	for _, n := range nodes {
-		go func(t *testing.T, testName string, nodes cluster, u *url.URL, index int64) {
-			u = urlFor(u, fmt.Sprintf("wait/%d", index), nil)
-			t.Logf("Test name %s: wait on node %s for index %d", testName, u, index)
-			resp, err := http.Get(u.String())
-			if err != nil {
-				t.Fatalf("Couldn't wait: %s", err)
-			}
+// runTests_Errors tests some basic error cases.
+func runTests_Errors(t *testing.T, nodes Cluster) {
+	t.Logf("Running tests against %d-node cluster", len(nodes))
 
-			if resp.StatusCode != http.StatusOK {
-				t.Fatalf("query databases failed.  Unexpected status code.  expected: %d, actual %d", http.StatusOK, resp.StatusCode)
-			}
-
-			defer resp.Body.Close()
-			body, err := ioutil.ReadAll(resp.Body)
-			if err != nil {
-				t.Fatalf("Couldn't read body of response: %s", err)
-			}
-			t.Logf("resp.Body: %s\n", string(body))
-
-			i, _ := strconv.Atoi(string(body))
-			if i == 0 {
-				t.Fatalf("Unexpected body: %s", string(body))
-			}
-
-			wg.Done()
-
-		}(t, testName, nodes, n.url, index)
-	}
-	wg.Wait()
-}
-
-// simpleCountQuery executes the given query against all nodes in the cluster, and verify the
-// the count for the given field is as expected.
-func simpleCountQuery(t *testing.T, testName string, nodes cluster, query, field string, expected int64) {
-	var results client.Results
-
-	// Query the data exists
-	for _, n := range nodes {
-		t.Logf("Test name %s: query data on node %s", testName, n.url)
-		u := urlFor(n.url, "query", url.Values{"q": []string{query}})
-		resp, err := http.Get(u.String())
-		if err != nil {
-			t.Fatalf("Couldn't query databases: %s", err)
-		}
-		defer resp.Body.Close()
-
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			t.Fatalf("Couldn't read body of response: %s", err)
-		}
-		t.Logf("resp.Body: %s\n", string(body))
-
-		dec := json.NewDecoder(bytes.NewReader(body))
-		dec.UseNumber()
-		err = dec.Decode(&results)
-		if err != nil {
-			t.Fatalf("Couldn't decode results: %v", err)
-		}
-
-		if results.Error() != nil {
-			t.Logf("results.Error(): %q", results.Error().Error())
-		}
-
-		if resp.StatusCode != http.StatusOK {
-			t.Fatalf("query databases failed.  Unexpected status code.  expected: %d, actual %d", http.StatusOK, resp.StatusCode)
-		}
-
-		if len(results.Results) != 1 || len(results.Results[0].Series) != 1 {
-			t.Fatal("results object returned has insufficient entries")
-		}
-		j, ok := results.Results[0].Series[0].Values[0][1].(json.Number)
-		if !ok {
-			t.Fatalf("count is not a JSON number")
-		}
-		count, err := j.Int64()
-		if err != nil {
-			t.Fatalf("failed to convert count to int64")
-		}
-		if count != expected {
-			t.Fatalf("count value is wrong, expected %d, go %d", expected, count)
-		}
-	}
-}
-
-func Test_ServerSingleIntegration(t *testing.T) {
-	nNodes := 1
-	basePort := 8090
-	testName := "single node"
-	now := time.Now().UTC()
-	nodes := createCombinedNodeCluster(t, "single node", nNodes, basePort)
-
-	createDatabase(t, testName, nodes, "foo")
-	createRetentionPolicy(t, testName, nodes, "foo", "bar")
-	write(t, testName, nodes, fmt.Sprintf(`
-{
-	"database": "foo",
-    "retentionPolicy": "bar",
-    "points":
-    [{
-        "name": "cpu",
-        "tags": {
-            "host": "server01"
-        },
-        "timestamp": %d,
-        "precision": "n",
-        "fields":{
-            "value": 100
-        }
-    }]
-}
-`, now.UnixNano()))
-	expectedResults := client.Results{
-		Results: []client.Result{
-			{Series: []influxql.Row{
-				{
-					Name:    "cpu",
-					Columns: []string{"time", "value"},
-					Values: [][]interface{}{
-						{now.Format(time.RFC3339Nano), json.Number("100")},
-					},
-				}}},
+	tests := []struct {
+		name     string
+		write    string // If equal to the empty string, no data is written.
+		query    string // If equal to the blank string, no query is executed.
+		expected string // If 'query' is equal to the blank string, this is ignored.
+	}{
+		{
+			name:     "simple SELECT from non-existent database",
+			write:    "",
+			query:    `SELECT * FROM "qux"."bar".cpu`,
+			expected: `{"results":[{"error":"database not found: qux"}]}`,
 		},
 	}
-	simpleQuery(t, testName, nodes[:1], `select value from "foo"."bar".cpu`, expectedResults)
+
+	for _, tt := range tests {
+		if tt.write != "" {
+			write(t, nodes[0], tt.write)
+		}
+
+		if tt.query != "" {
+			got, ok := query(t, nodes, "", tt.query, tt.expected)
+			if !ok {
+				t.Errorf("Test '%s' failed, expected: %s, got: %s", tt.name, tt.expected, got)
+			}
+		}
+	}
 }
 
-func Test_Server3NodeIntegration(t *testing.T) {
+// runTests tests write and query of data. Setting testNumbers allows only a subset of tests to be run.
+func runTestsData(t *testing.T, testName string, nodes Cluster, database, retention string, testNums ...int) {
+	t.Logf("Running tests against %d-node cluster", len(nodes))
+
+	// Start by ensuring database and retention policy exist.
+	createDatabase(t, testName, nodes, database)
+	createRetentionPolicy(t, testName, nodes, database, retention)
+
+	// The tests. Within these tests %DB% and %RP% will be replaced with the database and retention passed into
+	// this function.
+	tests := []struct {
+		reset    bool   // Delete and recreate the database.
+		name     string // Test name, for easy-to-read test log output.
+		write    string // If equal to the empty string, no data is written.
+		query    string // If equal to the blank string, no query is executed.
+		queryDb  string // If set, is used as the "db" query param.
+		expected string // If 'query' is equal to the blank string, this is ignored.
+	}{
+		// Data read and write tests
+		{
+			reset:    true,
+			name:     "single point with timestamp",
+			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "timestamp": "2015-02-28T01:03:36.703820946Z", "tags": {"host": "server01"}, "fields": {"value": 100}}]}`,
+			query:    `SELECT * FROM "%DB%"."%RP%".cpu`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",100]]}]}]}`,
+		},
+		{
+			name:     "single string point with timestamp",
+			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "logs", "timestamp": "2015-02-28T01:03:36.703820946Z", "tags": {"host": "server01"}, "fields": {"value": "disk full"}}]}`,
+			query:    `SELECT * FROM "%DB%"."%RP%".logs`,
+			expected: `{"results":[{"series":[{"name":"logs","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z","disk full"]]}]}]}`,
+		},
+		{
+			name:     "single bool point with timestamp",
+			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "status", "timestamp": "2015-02-28T01:03:36.703820946Z", "tags": {"host": "server01"}, "fields": {"value": "true"}}]}`,
+			query:    `SELECT * FROM "%DB%"."%RP%".status`,
+			expected: `{"results":[{"series":[{"name":"status","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z","true"]]}]}]}`,
+		},
+
+		{
+			name:     "single point, select with now()",
+			query:    `SELECT * FROM "%DB%"."%RP%".cpu WHERE time < now()`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",100]]}]}]}`,
+		},
+
+		{
+			name:     "measurement not found",
+			query:    `SELECT value FROM "%DB%"."%RP%".foobarbaz`,
+			expected: `{"results":[{"error":"measurement not found"}]}`,
+		},
+		{
+			name:     "field not found",
+			query:    `SELECT abc FROM "%DB%"."%RP%".cpu WHERE time < now()`,
+			expected: `{"results":[{"error":"field not found: abc"}]}`,
+		},
+
+		// WHERE fields queries
+		{
+			reset:    true,
+			name:     "WHERE fields",
+			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "timestamp": "2015-02-28T01:03:36.703820946Z", "fields": {"alert_id": "alert", "tenant_id": "tenant"}}]}`,
+			query:    `SELECT alert_id FROM "%DB%"."%RP%".cpu WHERE alert_id='alert'`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","alert_id"],"values":[["2015-02-28T01:03:36.703820946Z","alert"]]}]}]}`,
+		},
+		{
+			name:     "WHERE fields with AND query, all fields in SELECT",
+			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "timestamp": "2015-02-28T01:03:36.703820946Z", "fields": {"alert_id": "alert", "tenant_id": "tenant"}}]}`,
+			query:    `SELECT alert_id,tenant_id FROM "%DB%"."%RP%".cpu WHERE alert_id='alert' AND tenant_id='tenant'`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","alert_id","tenant_id"],"values":[["2015-02-28T01:03:36.703820946Z","alert","tenant"]]}]}]}`,
+		},
+		{
+			name:     "WHERE fields with AND query, all fields in SELECT, one in parenthesis",
+			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "timestamp": "2015-02-28T01:03:36.703820946Z", "fields": {"alert_id": "alert", "tenant_id": "tenant"}}]}`,
+			query:    `SELECT alert_id,tenant_id FROM "%DB%"."%RP%".cpu WHERE alert_id='alert' AND (tenant_id='tenant')`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","alert_id","tenant_id"],"values":[["2015-02-28T01:03:36.703820946Z","alert","tenant"]]}]}]}`,
+		},
+		{
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "timestamp": "2009-11-10T23:00:02Z", "fields": {"load": 100}},
+			                                                                      {"name": "cpu", "timestamp": "2009-11-10T23:01:02Z", "fields": {"load": 80}}]}`,
+			query:    `select load from "%DB%"."%RP%".cpu where load > 100`,
+			expected: `{"results":[{}]}`,
+		},
+		{
+			query:    `select load from "%DB%"."%RP%".cpu where load >= 100`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","load"],"values":[["2009-11-10T23:00:02Z",100]]}]}]}`,
+		},
+		{
+			query:    `select load from "%DB%"."%RP%".cpu where load = 100`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","load"],"values":[["2009-11-10T23:00:02Z",100]]}]}]}`,
+		},
+		{
+			query:    `select load from "%DB%"."%RP%".cpu where load <= 100`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","load"],"values":[["2009-11-10T23:00:02Z",100],["2009-11-10T23:01:02Z",80]]}]}]}`,
+		},
+		{
+			query:    `select load from "%DB%"."%RP%".cpu where load > 99`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","load"],"values":[["2009-11-10T23:00:02Z",100]]}]}]}`,
+		},
+		{
+			query:    `select load from "%DB%"."%RP%".cpu where load = 99`,
+			expected: `{"results":[{}]}`,
+		},
+		{
+			query:    `select load from "%DB%"."%RP%".cpu where load < 99`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","load"],"values":[["2009-11-10T23:01:02Z",80]]}]}]}`,
+		},
+		{
+			query:    `select load from "%DB%"."%RP%".cpu where load < 80`,
+			expected: `{"results":[{}]}`,
+		},
+		{
+			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "logs", "timestamp": "2009-11-10T23:00:02Z","fields": {"event": "disk full"}}]}`,
+			query:    `select event from "%DB%"."%RP%".logs where event = 'disk full'`,
+			expected: `{"results":[{"series":[{"name":"logs","columns":["time","event"],"values":[["2009-11-10T23:00:02Z","disk full"]]}]}]}`,
+		},
+		{
+			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "logs", "timestamp": "2009-11-10T23:00:02Z","fields": {"event": "disk full"}}]}`,
+			query:    `select event from "%DB%"."%RP%".logs where event = 'nonsense'`,
+			expected: `{"results":[{}]}`,
+		},
+		{
+			name:     "missing measurement with `GROUP BY *`",
+			query:    `select load from "%DB%"."%RP%".missing group by *`,
+			expected: `{"results":[{"error":"measurement not found: \"mydb\".\"myrp\".\"missing\""}]}`,
+		},
+
+		// Metadata display tests
+
+		{
+			reset: true,
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+		{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "uswest"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "gpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "gpu", "tags": {"host": "server03", "region": "caeast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}}
+		]}`,
+			query:    "SHOW SERIES",
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["id","host","region"],"values":[[1,"server01",""],[2,"server01","uswest"],[3,"server01","useast"],[4,"server02","useast"]]},{"name":"gpu","columns":["id","host","region"],"values":[[5,"server02","useast"],[6,"server03","caeast"]]}]}]}`,
+		},
+		{
+			query:    "SHOW SERIES FROM cpu",
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["id","host","region"],"values":[[1,"server01",""],[2,"server01","uswest"],[3,"server01","useast"],[4,"server02","useast"]]}]}]}`,
+		},
+		{
+			query:    "SHOW SERIES WHERE region = 'uswest'",
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["id","host","region"],"values":[[2,"server01","uswest"]]}]}]}`,
+		},
+		{
+			query:    "SHOW SERIES WHERE region =~ /ca.*/",
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"gpu","columns":["id","host","region"],"values":[[6,"server03","caeast"]]}]}]}`,
+		},
+		{
+			query:    "SHOW SERIES WHERE host !~ /server0[12]/",
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"gpu","columns":["id","host","region"],"values":[[6,"server03","caeast"]]}]}]}`,
+		},
+		{
+			query:    "SHOW SERIES FROM cpu WHERE region = 'useast'",
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["id","host","region"],"values":[[3,"server01","useast"],[4,"server02","useast"]]}]}]}`,
+		},
+
+		{
+			reset: true,
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+		{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "uswest"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "gpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "gpu", "tags": {"host": "server02", "region": "caeast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "other", "tags": {"host": "server03", "region": "caeast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}}
+		]}`,
+			query:    "SHOW MEASUREMENTS LIMIT 2",
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"measurements","columns":["name"],"values":[["cpu"],["gpu"]]}]}]}`,
+		},
+		{
+			query:    "SHOW MEASUREMENTS WHERE region =~ /ca.*/",
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"measurements","columns":["name"],"values":[["gpu"],["other"]]}]}]}`,
+		},
+		{
+			query:    "SHOW MEASUREMENTS WHERE region !~ /ca.*/",
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"measurements","columns":["name"],"values":[["cpu"]]}]}]}`,
+		},
+
+		{
+			reset: true,
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+		{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "uswest"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "gpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "gpu", "tags": {"host": "server03", "region": "caeast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}}
+		]}`,
+			query:    "SHOW TAG KEYS",
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["tagKey"],"values":[["host"],["region"]]},{"name":"gpu","columns":["tagKey"],"values":[["host"],["region"]]}]}]}`,
+		},
+		{
+			query:    "SHOW TAG KEYS FROM cpu",
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["tagKey"],"values":[["host"],["region"]]}]}]}`,
+		},
+		{
+			query:    "SHOW TAG KEYS FROM bad",
+			queryDb:  "%DB%",
+			expected: `{"results":[{"error":"measurement \"bad\" not found"}]}`,
+		},
+
+		{
+			reset: true,
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+		{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "uswest"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "gpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "gpu", "tags": {"host": "server03", "region": "caeast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}}
+		]}`,
+			query:    "SHOW TAG VALUES WITH KEY = host",
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"hostTagValues","columns":["host"],"values":[["server01"],["server02"],["server03"]]}]}]}`,
+		},
+		{
+			query:    `SHOW TAG VALUES WITH KEY = "host"`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"hostTagValues","columns":["host"],"values":[["server01"],["server02"],["server03"]]}]}]}`,
+		},
+		{
+			query:    `SHOW TAG VALUES FROM cpu WITH KEY = host WHERE region = 'uswest'`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"hostTagValues","columns":["host"],"values":[["server01"]]}]}]}`,
+		},
+		{
+			query:    `SHOW TAG VALUES WITH KEY = host WHERE region =~ /ca.*/`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"hostTagValues","columns":["host"],"values":[["server03"]]}]}]}`,
+		},
+		{
+			query:    `SHOW TAG VALUES WITH KEY = region WHERE host !~ /server0[12]/`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"regionTagValues","columns":["region"],"values":[["caeast"]]}]}]}`,
+		},
+		{
+			query:    `SHOW TAG VALUES FROM cpu WITH KEY IN (host, region) WHERE region = 'uswest'`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"hostTagValues","columns":["host"],"values":[["server01"]]},{"name":"regionTagValues","columns":["region"],"values":[["uswest"]]}]}]}`,
+		},
+
+		{
+			reset: true,
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+		{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"field1": 100}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "uswest"},"timestamp": "2009-11-10T23:00:00Z","fields": {"field1": 200, "field2": 300, "field3": 400}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"field1": 200, "field2": 300, "field3": 400}},
+		{"name": "cpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"field1": 200, "field2": 300, "field3": 400}},
+		{"name": "gpu", "tags": {"host": "server01", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"field4": 200, "field5": 300}},
+		{"name": "gpu", "tags": {"host": "server03", "region": "caeast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"field6": 200, "field7": 300}}
+		]}`,
+			query:    `SHOW FIELD KEYS`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["fieldKey"],"values":[["field1"],["field2"],["field3"]]},{"name":"gpu","columns":["fieldKey"],"values":[["field4"],["field5"],["field6"],["field7"]]}]}]}`,
+		},
+		{
+			query:    `SHOW FIELD KEYS FROM cpu`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["fieldKey"],"values":[["field1"],["field2"],["field3"]]}]}]}`,
+		},
+
+		// User control tests
+		{
+			name:     "show users, no actual users",
+			query:    `SHOW USERS`,
+			expected: `{"results":[{"series":[{"columns":["user","admin"]}]}]}`,
+		},
+		{
+			query:    `CREATE USER jdoe WITH PASSWORD '1337'`,
+			expected: `{"results":[{}]}`,
+		},
+		{
+			name:     "show users, 1 existing user",
+			query:    `SHOW USERS`,
+			expected: `{"results":[{"series":[{"columns":["user","admin"],"values":[["jdoe",false]]}]}]}`,
+		},
+		{
+			query:    `GRANT ALL PRIVILEGES TO jdoe`,
+			expected: `{"results":[{}]}`,
+		},
+		{
+			name:     "show users, existing user as admin",
+			query:    `SHOW USERS`,
+			expected: `{"results":[{"series":[{"columns":["user","admin"],"values":[["jdoe",true]]}]}]}`,
+		},
+		{
+			name:     "grant DB privileges to user",
+			query:    `GRANT READ ON %DB% TO jdoe`,
+			expected: `{"results":[{}]}`,
+		},
+		{
+			query:    `REVOKE ALL PRIVILEGES FROM jdoe`,
+			expected: `{"results":[{}]}`,
+		},
+		{
+			name:     "bad create user request",
+			query:    `CREATE USER 0xBAD WITH PASSWORD pwd1337`,
+			expected: `{"error":"error parsing query: found 0, expected identifier at line 1, char 13"}`,
+		},
+		{
+			name:     "bad create user request, no name",
+			query:    `CREATE USER WITH PASSWORD pwd1337`,
+			expected: `{"error":"error parsing query: found WITH, expected identifier at line 1, char 13"}`,
+		},
+		{
+			name:     "bad create user request, no password",
+			query:    `CREATE USER jdoe`,
+			expected: `{"error":"error parsing query: found EOF, expected WITH at line 1, char 18"}`,
+		},
+		{
+			query:    `DROP USER jdoe`,
+			expected: `{"results":[{}]}`,
+		},
+		{
+			name:     "delete non existing user",
+			query:    `DROP USER noone`,
+			expected: `{"results":[{"error":"user not found"}]}`,
+		},
+
+		// Continuous query control.
+		{
+			name:     "create continuous query",
+			query:    `CREATE CONTINUOUS QUERY myquery ON %DB% BEGIN SELECT count() INTO measure1 FROM myseries GROUP BY time(10m) END`,
+			expected: `{"results":[{}]}`,
+		},
+		{
+			query:    `SHOW CONTINUOUS QUERIES`,
+			expected: `{"results":[{"series":[{"name":"%DB%","columns":["name","query"],"values":[["myquery","CREATE CONTINUOUS QUERY myquery ON %DB% BEGIN SELECT count() INTO measure1 FROM myseries GROUP BY time(10m) END"]]}]}]}`,
+		},
+	}
+
+	for i, tt := range tests {
+		// If tests were explicitly requested, only run those tests.
+		if len(testNums) > 0 {
+			var found bool
+			for _, t := range testNums {
+				if i == t {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
+
+		name := tt.name
+		if name == "" {
+			name = tt.query
+		}
+		t.Logf("Running test %d: %s", i, name)
+
+		if tt.reset {
+			t.Logf(`reseting for test "%s"`, name)
+			deleteDatabase(t, testName, nodes, database)
+			createDatabase(t, testName, nodes, database)
+			createRetentionPolicy(t, testName, nodes, database, retention)
+		}
+
+		if tt.write != "" {
+			write(t, nodes[0], rewriteDbRp(tt.write, database, retention))
+		}
+
+		if tt.query != "" {
+			urlDb := ""
+			if tt.queryDb != "" {
+				urlDb = tt.queryDb
+			}
+			got, ok := query(t, nodes, rewriteDbRp(urlDb, database, retention), rewriteDbRp(tt.query, database, retention), rewriteDbRp(tt.expected, database, retention))
+			if !ok {
+				t.Errorf(`Test "%s" failed, expected: %s, got: %s`, name, rewriteDbRp(tt.expected, database, retention), got)
+			}
+		}
+	}
+}
+
+func TestSingleServer(t *testing.T) {
+	testName := "single server integration"
 	if testing.Short() {
-		t.Skip()
+		t.Skip(fmt.Sprintf("skipping '%s'", testName))
 	}
-	nNodes := 3
-	basePort := 8190
-	testName := "3 node"
-	now := time.Now().UTC()
-	nodes := createCombinedNodeCluster(t, testName, nNodes, basePort)
+	dir := tempfile()
+	defer func() {
+		os.RemoveAll(dir)
+	}()
 
-	createDatabase(t, testName, nodes, "foo")
-	createRetentionPolicy(t, testName, nodes, "foo", "bar")
-	write(t, testName, nodes, fmt.Sprintf(`
-{
-	"database": "foo",
-	"retentionPolicy": "bar",
-	"points":
-	[{
-		"name": "cpu",
-		"tags": {
-			"host": "server01"
-		},
-		"timestamp": %d,
-		"precision": "n",
-		"fields":{
-			"value": 100
-		}
-	}]
-}
-`, now.UnixNano()))
-	expectedResults := client.Results{
-		Results: []client.Result{
-			{Series: []influxql.Row{
-				{
-					Name:    "cpu",
-					Columns: []string{"time", "value"},
-					Values: [][]interface{}{
-						{now.Format(time.RFC3339Nano), json.Number("100")},
-					},
-				}}},
-		},
-	}
+	nodes := createCombinedNodeCluster(t, testName, dir, 1, 8090)
 
-	simpleQuery(t, testName, nodes[:1], `select value from "foo"."bar".cpu`, expectedResults)
+	runTestsData(t, testName, nodes, "mydb", "myrp")
 }
 
-func Test_Server5NodeIntegration(t *testing.T) {
+func Test3NodeServer(t *testing.T) {
 	t.Skip()
+	testName := "3-node server integration"
 	if testing.Short() {
-		t.Skip()
+		t.Skip(fmt.Sprintf("skipping '%s'", testName))
 	}
-	nNodes := 5
-	basePort := 8290
-	testName := "5 node"
-	now := time.Now().UTC()
-	nodes := createCombinedNodeCluster(t, testName, nNodes, basePort)
+	dir := tempfile()
+	defer func() {
+		os.RemoveAll(dir)
+	}()
 
-	createDatabase(t, testName, nodes, "foo")
-	createRetentionPolicy(t, testName, nodes, "foo", "bar")
-	write(t, testName, nodes, fmt.Sprintf(`
-{
-	"database": "foo",
-    "retentionPolicy": "bar",
-    "points":
-    [{
-        "name": "cpu",
-        "tags": {
-            "host": "server01"
-        },
-        "timestamp": %d,
-        "precision": "n",
-        "fields":{
-            "value": 100
-        }
-    }]
-}
-`, now.UnixNano()))
+	nodes := createCombinedNodeCluster(t, testName, dir, 3, 8190)
 
-	expectedResults := client.Results{
-		Results: []client.Result{
-			{Series: []influxql.Row{
-				{
-					Name:    "cpu",
-					Columns: []string{"time", "value"},
-					Values: [][]interface{}{
-						{now.Format(time.RFC3339Nano), json.Number("100")},
-					},
-				}}},
-		},
-	}
-
-	simpleQuery(t, testName, nodes[:1], `select value from "foo"."bar".cpu`, expectedResults)
-}
-
-func Test_ServerSingleLargeBatchIntegration(t *testing.T) {
-	if testing.Short() {
-		t.Skip()
-	}
-	nNodes := 1
-	basePort := 8390
-	testName := "single node large batch"
-	nodes := createCombinedNodeCluster(t, testName, nNodes, basePort)
-
-	createDatabase(t, testName, nodes, "foo")
-	createRetentionPolicy(t, testName, nodes, "foo", "bar")
-	write(t, testName, nodes, createBatch(batchSize, "foo", "bar", "cpu", map[string]string{"host": "server01"}))
-	simpleCountQuery(t, testName, nodes, `select count(value) from "foo"."bar".cpu`, "value", batchSize)
-}
-
-func Test_Server3NodeLargeBatchIntegration(t *testing.T) {
-	if testing.Short() {
-		t.Skip()
-	}
-	nNodes := 3
-	basePort := 8490
-	testName := "3 node large batch"
-	nodes := createCombinedNodeCluster(t, testName, nNodes, basePort)
-
-	createDatabase(t, testName, nodes, "foo")
-	createRetentionPolicy(t, testName, nodes, "foo", "bar")
-	write(t, testName, nodes, createBatch(batchSize, "foo", "bar", "cpu", map[string]string{"host": "server01"}))
-	simpleCountQuery(t, testName, nodes, `select count(value) from "foo"."bar".cpu`, "value", batchSize)
-}
-
-func Test_Server5NodeLargeBatchIntegration(t *testing.T) {
-	t.Skip()
-	if testing.Short() {
-		t.Skip()
-	}
-	nNodes := 5
-	basePort := 8590
-	testName := "5 node large batch"
-	nodes := createCombinedNodeCluster(t, testName, nNodes, basePort)
-
-	createDatabase(t, testName, nodes, "foo")
-	createRetentionPolicy(t, testName, nodes, "foo", "bar")
-	write(t, testName, nodes, createBatch(batchSize, "foo", "bar", "cpu", map[string]string{"host": "server01"}))
-	simpleCountQuery(t, testName, nodes, `select count(value) from "foo"."bar".cpu`, "value", batchSize)
-}
-
-func Test_ServerMultiLargeBatchIntegration(t *testing.T) {
-	t.Skip()
-	if testing.Short() {
-		t.Skip()
-	}
-	nNodes := 1
-	nBatches := 5
-	basePort := 8690
-	testName := "single node multi batch"
-	nodes := createCombinedNodeCluster(t, testName, nNodes, basePort)
-
-	createDatabase(t, testName, nodes, "foo")
-	createRetentionPolicy(t, testName, nodes, "foo", "bar")
-	for i := 0; i < nBatches; i++ {
-		write(t, testName, nodes, createBatch(batchSize, "foo", "bar", "cpu", map[string]string{"host": "server01"}))
-	}
-	simpleCountQuery(t, testName, nodes, `select count(value) from "foo"."bar".cpu`, "value", batchSize*int64(nBatches))
+	runTestsData(t, testName, nodes, "mydb", "myrp")
 }

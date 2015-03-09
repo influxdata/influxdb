@@ -1,8 +1,31 @@
-## v0.9.0-rc7 [Unreleased]
+## v0.9.0-rc9 [2015-03-??]
+
+### Bugfixes
+
+- [#1867](https://github.com/influxdb/influxdb/pull/1867): Fix race accessing topic replicas map
+
+## v0.9.0-rc8 [2015-03-05]
+
+### Bugfixes
+- [#1836](https://github.com/influxdb/influxdb/pull/1836): Store each parsed shell command in history file.
+- [#1789](https://github.com/influxdb/influxdb/pull/1789): add --config-files option to fpm command. Thanks @kylezh
+- [#1859](https://github.com/influxdb/influxdb/pull/1859): Queries with a `GROUP BY *` clause were returning a 500 if done against a measurement that didn't exist
+
+### Features
+- [#1755](https://github.com/influxdb/influxdb/pull/1848): Support JSON data ingest over UDP
+- [#1857](https://github.com/influxdb/influxdb/pull/1857): Support retention policies with infinite duration
+- [#1858](https://github.com/influxdb/influxdb/pull/1858): Enable detailed tracing of write path
+
+## v0.9.0-rc7 [2015-03-02]
+
+### Features
+- [#1813](https://github.com/influxdb/influxdb/pull/1813): Queries for missing measurements or fields now return a 200 with an error message in the series JSON.
+- [#1826](https://github.com/influxdb/influxdb/pull/1826), [#1827](https://github.com/influxdb/influxdb/pull/1827): Fixed queries with `WHERE` clauses against fields.
 
 ### Bugfixes
 
 - [#1744](https://github.com/influxdb/influxdb/pull/1744): Allow retention policies to be modified without specifying replication factor. Thanks @kylezh
+- [#1809](https://github.com/influxdb/influxdb/pull/1809): Packaging post-install script unconditionally removes init.d symlink. Thanks @sineos
 
 ## v0.9.0-rc6 [2015-02-27]
 
@@ -60,6 +83,7 @@
 - [#1644](https://github.com/influxdb/influxdb/pull/1644): Add batching support for significantly improved write performance
 - [#1704](https://github.com/influxdb/influxdb/pull/1704): Fix queries that pull back raw data (i.e. ones without aggregate functions)
 - [#1718](https://github.com/influxdb/influxdb/pull/1718): Return an error on write if any of the points are don't have at least one field
+- [#1806](https://github.com/influxdb/influxdb/pull/1806): Fix regex parsing.  Change regex syntax to use / delimiters.
 
 
 ## v0.9.0-rc1,2 [no public release]

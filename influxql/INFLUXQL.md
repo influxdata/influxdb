@@ -162,6 +162,12 @@ time_lit            = "2006-01-02 15:04:05.999999" | "2006-01-02"
 bool_lit            = TRUE | FALSE .
 ```
 
+### Regular Expressions
+
+```
+regex_lit           = "/" { unicode_char } "/" .
+```
+
 ## Queries
 
 A query is composed of one or more statements separated by a semicolon.
@@ -602,7 +608,7 @@ binary_op        = "+" | "-" | "*" | "/" | "AND" | "OR" | "=" | "!=" | "<" |
 expr             = unary_expr { binary_op unary_expr } .
 
 unary_expr       = "(" expr ")" | var_ref | time_lit | string_lit |
-                   number_lit | bool_lit | duration_lit .
+                   number_lit | bool_lit | duration_lit | regex_lit .
 ```
 
 ## Other

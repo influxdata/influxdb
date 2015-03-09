@@ -136,6 +136,28 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// SELECT * FROM cpu WHERE host = 'serverC' AND region =~ /.*west.*/
+		{
+			s: `SELECT * FROM cpu WHERE host = 'serverC' AND region =~ /.*west.*/`,
+			stmt: &influxql.SelectStatement{
+				Fields: []*influxql.Field{{Expr: &influxql.Wildcard{}}},
+				Source: &influxql.Measurement{Name: "cpu"},
+				Condition: &influxql.BinaryExpr{
+					Op: influxql.AND,
+					LHS: &influxql.BinaryExpr{
+						Op:  influxql.EQ,
+						LHS: &influxql.VarRef{Val: "host"},
+						RHS: &influxql.StringLiteral{Val: "serverC"},
+					},
+					RHS: &influxql.BinaryExpr{
+						Op:  influxql.EQREGEX,
+						LHS: &influxql.VarRef{Val: "region"},
+						RHS: &influxql.RegexLiteral{Val: regexp.MustCompile(".*west.*")},
+					},
+				},
+			},
+		},
+
 		// DELETE statement
 		{
 			s: `DELETE FROM myseries WHERE host = 'hosta.influxdb.org'`,
@@ -615,6 +637,17 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// CREATE RETENTION POLICY with infinite retention
+		{
+			s: `CREATE RETENTION POLICY policy1 ON testdb DURATION INF REPLICATION 2`,
+			stmt: &influxql.CreateRetentionPolicyStatement{
+				Name:        "policy1",
+				Database:    "testdb",
+				Duration:    0,
+				Replication: 2,
+			},
+		},
+
 		// CREATE RETENTION POLICY ... DEFAULT
 		{
 			s: `CREATE RETENTION POLICY policy1 ON testdb DURATION 2m REPLICATION 4 DEFAULT`,
@@ -637,6 +670,12 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s:    `ALTER RETENTION POLICY policy1 ON testdb DEFAULT REPLICATION 4 DURATION 1m`,
 			stmt: newAlterRetentionPolicyStatement("policy1", "testdb", time.Minute, 4, true),
+		},
+
+		// ALTER RETENTION POLICY with infinite retention
+		{
+			s:    `ALTER RETENTION POLICY policy1 ON testdb DEFAULT REPLICATION 4 DURATION INF`,
+			stmt: newAlterRetentionPolicyStatement("policy1", "testdb", 0, 4, true),
 		},
 
 		// ALTER RETENTION POLICY without optional DURATION
@@ -746,6 +785,7 @@ func TestParser_ParseStatement(t *testing.T) {
 				tt.stmt.(*influxql.CreateContinuousQueryStatement).Source.GroupByInterval()
 			}
 		} else if tt.err == "" && !reflect.DeepEqual(tt.stmt, stmt) {
+			t.Logf("exp=%s\ngot=%s\n", mustMarshalJSON(tt.stmt), mustMarshalJSON(stmt))
 			t.Errorf("%d. %q\n\nstmt mismatch:\n\nexp=%#v\n\ngot=%#v\n\n", i, tt.s, tt.stmt, stmt)
 		}
 	}
@@ -838,23 +878,13 @@ func TestParser_ParseExpr(t *testing.T) {
 			},
 		},
 
-		// Binary expression with regex on right.
+		// Binary expression with regex.
 		{
-			s: `region =~ 'us.*'`,
+			s: "region =~ /us.*/",
 			expr: &influxql.BinaryExpr{
 				Op:  influxql.EQREGEX,
 				LHS: &influxql.VarRef{Val: "region"},
 				RHS: &influxql.RegexLiteral{Val: regexp.MustCompile(`us.*`)},
-			},
-		},
-
-		// Binary expression with NEQ regex on left.
-		{
-			s: `'us.*' !~ region`,
-			expr: &influxql.BinaryExpr{
-				Op:  influxql.NEQREGEX,
-				RHS: &influxql.VarRef{Val: "region"},
-				LHS: &influxql.RegexLiteral{Val: regexp.MustCompile(`us.*`)},
 			},
 		},
 

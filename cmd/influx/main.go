@@ -98,15 +98,18 @@ func main() {
 		if e != nil {
 			break
 		}
-		if !c.ParseCommand(l) {
+		if c.ParseCommand(l) {
 			// write out the history
-			if f, err := os.Create(historyFile); err == nil {
-				c.Line.WriteHistory(f)
-				f.Close()
+			if len(historyFile) > 0 {
+				c.Line.AppendHistory(l)
+				if f, err := os.Create(historyFile); err == nil {
+					c.Line.WriteHistory(f)
+					f.Close()
+				}
 			}
-			break
+		} else {
+			break // exit main loop
 		}
-		c.Line.AppendHistory(l)
 	}
 }
 

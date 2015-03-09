@@ -68,7 +68,8 @@ type Server struct {
 
 	shards map[uint64]*Shard // shards by shard id
 
-	Logger *log.Logger
+	Logger     *log.Logger
+	WriteTrace bool // Detailed logging of write path
 
 	authenticationEnabled bool
 
@@ -305,7 +306,7 @@ func (s *Server) EnforceRetentionPolicies() {
 	for _, db := range s.databases {
 		for _, rp := range db.policies {
 			for _, g := range rp.shardGroups {
-				if g.EndTime.Add(rp.Duration).Before(time.Now().UTC()) {
+				if rp.Duration != 0 && g.EndTime.Add(rp.Duration).Before(time.Now().UTC()) {
 					log.Printf("shard group %d, retention policy %s, database %s due for deletion",
 						g.ID, rp.Name, db.name)
 					if err := s.DeleteShardGroup(db.name, rp.Name, g.ID); err != nil {
@@ -1372,6 +1373,11 @@ type Point struct {
 // WriteSeries writes series data to the database.
 // Returns the messaging index the data was written to.
 func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (uint64, error) {
+	if s.WriteTrace {
+		log.Printf("received write for database '%s', retention policy '%s', with %d points",
+			database, retentionPolicy, len(points))
+	}
+
 	// Make sure every point has at least one field.
 	for _, p := range points {
 		if len(p.Fields) == 0 {
@@ -1394,10 +1400,16 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 	if err := s.createMeasurementsIfNotExists(database, retentionPolicy, points); err != nil {
 		return 0, err
 	}
+	if s.WriteTrace {
+		log.Printf("measurements and series created on database '%s'", database)
+	}
 
 	// Ensure all the required shard groups exist. TODO: this should be done async.
 	if err := s.createShardGroupsIfNotExists(database, retentionPolicy, points); err != nil {
 		return 0, err
+	}
+	if s.WriteTrace {
+		log.Printf("shard groups created for database '%s'", database)
 	}
 
 	// Build writeRawSeriesMessageType publish commands.
@@ -1423,9 +1435,15 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 			if err != nil {
 				return err
 			}
+			if s.WriteTrace {
+				log.Printf("shard group located: %v", g)
+			}
 
 			// Find appropriate shard within the shard group.
 			sh := g.ShardBySeriesID(series.ID)
+			if s.WriteTrace {
+				log.Printf("shard located: %v", sh)
+			}
 
 			// Many points are likely to have the same Measurement name. Re-use codecs if possible.
 			var codec *FieldCodec
@@ -1448,6 +1466,9 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 				shardData[sh.ID] = make([]byte, 0)
 			}
 			shardData[sh.ID] = append(shardData[sh.ID], data...)
+			if s.WriteTrace {
+				log.Printf("data appended to buffer for shard %d", sh.ID)
+			}
 		}
 
 		return nil
@@ -1470,6 +1491,9 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 		if index > maxIndex {
 			maxIndex = index
 		}
+		if s.WriteTrace {
+			log.Printf("write series message published successfully for topic %d", i)
+		}
 	}
 
 	return maxIndex, err
@@ -1484,9 +1508,15 @@ func (s *Server) applyWriteRawSeries(m *messaging.Message) error {
 	if sh == nil {
 		return ErrShardNotFound
 	}
+	if s.WriteTrace {
+		log.Printf("received write message for application, shard %d", sh.ID)
+	}
 
 	if err := sh.writeSeries(m.Data); err != nil {
 		return err
+	}
+	if s.WriteTrace {
+		log.Printf("write message successfully applied to shard %d", sh.ID)
 	}
 
 	return nil
@@ -1579,7 +1609,7 @@ func (s *Server) applyCreateMeasurementsIfNotExists(m *messaging.Message) error 
 			// Create each new field.
 			mm := db.measurements[cm.Name]
 			if mm == nil {
-				panic(fmt.Sprintf("Measurement %s does not exist", cm.Name))
+				panic(fmt.Sprintf("measurement not found: %s", cm.Name))
 			}
 			for _, f := range cm.Fields {
 				if err := mm.createFieldIfNotExists(f.Name, f.Type); err != nil {
@@ -1876,7 +1906,7 @@ func (s *Server) rewriteSelectStatement(stmt *influxql.SelectStatement) (*influx
 
 		mm := s.databases[db].measurements[m]
 		if mm == nil {
-			return nil, fmt.Errorf("measurement %s does not exist.", measurement.Name)
+			return nil, fmt.Errorf("measurement not found: %s", measurement.Name)
 		}
 
 		for _, f := range mm.Fields {
