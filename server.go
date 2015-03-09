@@ -254,12 +254,16 @@ func (s *Server) load() error {
 			}
 		}
 
-		// Open all shards.
+		// Open all shards owned by server.
 		for _, db := range s.databases {
 			for _, rp := range db.policies {
 				for _, g := range rp.shardGroups {
 					for _, sh := range g.Shards {
-						if err := sh.open(s.shardPath(sh.ID)); err != nil {
+						if !sh.HasDataNodeID(s.id) {
+							continue
+						}
+
+						if err := sh.open(s.shardPath(sh.ID), s.client.Conn(sh.ID)); err != nil {
 							return fmt.Errorf("cannot open shard store: id=%d, err=%s", sh.ID, err)
 						}
 					}
@@ -347,11 +351,18 @@ func (s *Server) setClient(client MessagingClient) error {
 	// Set the messaging client.
 	s.client = client
 
-	// Start goroutine to read messages from the broker.
+	// Start goroutine to read messages from the broadcast channel.
 	if client != nil {
+		// Create connection for broadcast channel.
+		conn := client.Conn(BroadcastTopicID)
+		if err := conn.Open(s.index); err != nil {
+			return fmt.Errorf("open conn: %s", err)
+		}
+
+		// Stream messages
 		done := make(chan struct{}, 0)
 		s.done = done
-		go s.processor(client, done)
+		go s.processor(conn, done)
 	}
 
 	return nil
@@ -370,7 +381,7 @@ func (s *Server) broadcast(typ messaging.MessageType, c interface{}) (uint64, er
 	// Publish the message.
 	m := &messaging.Message{
 		Type:    typ,
-		TopicID: messaging.BroadcastTopicID,
+		TopicID: BroadcastTopicID,
 		Data:    data,
 	}
 	index, err := s.client.Publish(m)
@@ -838,7 +849,7 @@ func (s *Server) applyCreateShardGroupIfNotExists(m *messaging.Message) (err err
 		}
 
 		// Open shard store. Panic if an error occurs and we can retry.
-		if err := sh.open(s.shardPath(sh.ID)); err != nil {
+		if err := sh.open(s.shardPath(sh.ID), s.client.Conn(sh.ID)); err != nil {
 			panic("unable to open shard: " + err.Error())
 		}
 	}
@@ -846,21 +857,6 @@ func (s *Server) applyCreateShardGroupIfNotExists(m *messaging.Message) (err err
 	// Add to lookups.
 	for _, sh := range g.Shards {
 		s.shards[sh.ID] = sh
-	}
-
-	// Subscribe to shard if it matches the server's index.
-	// TODO: Move subscription outside of command processing.
-	// TODO: Retry subscriptions on failure.
-	for _, sh := range g.Shards {
-		// Ignore if this server is not assigned.
-		if !sh.HasDataNodeID(s.id) {
-			continue
-		}
-
-		// Subscribe on the broker.
-		if err := s.client.Subscribe(s.id, sh.ID); err != nil {
-			log.Printf("unable to subscribe: replica=%d, topic=%d, err=%s", s.id, sh.ID, err)
-		}
 	}
 
 	return
@@ -1497,29 +1493,6 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 	}
 
 	return maxIndex, err
-}
-
-// applyWriteRawSeries writes raw series data to the database.
-// Raw series data has already converted field names to ids so the
-// representation is fast and compact.
-func (s *Server) applyWriteRawSeries(m *messaging.Message) error {
-	// Retrieve the shard.
-	sh := s.Shard(m.TopicID)
-	if sh == nil {
-		return ErrShardNotFound
-	}
-	if s.WriteTrace {
-		log.Printf("received write message for application, shard %d", sh.ID)
-	}
-
-	if err := sh.writeSeries(m.Data); err != nil {
-		return err
-	}
-	if s.WriteTrace {
-		log.Printf("write message successfully applied to shard %d", sh.ID)
-	}
-
-	return nil
 }
 
 // createMeasurementsIfNotExists walks the "points" and ensures that all new Series are created, and all
@@ -2667,7 +2640,7 @@ func (s *Server) normalizeMeasurement(name string, defaultDatabase string) (stri
 }
 
 // processor runs in a separate goroutine and processes all incoming broker messages.
-func (s *Server) processor(client MessagingClient, done chan struct{}) {
+func (s *Server) processor(conn MessagingConn, done chan struct{}) {
 	for {
 		// Read incoming message.
 		var m *messaging.Message
@@ -2675,25 +2648,10 @@ func (s *Server) processor(client MessagingClient, done chan struct{}) {
 		select {
 		case <-done:
 			return
-		case m, ok = <-client.C():
+		case m, ok = <-conn.C():
 			if !ok {
 				return
 			}
-		}
-
-		// Handle write series separately so we don't lock server during shard writes.
-		if m.Type == writeRawSeriesMessageType {
-			// Write series to shard without lock.
-			err := s.applyWriteRawSeries(m)
-
-			// Set index & error under lock.
-			s.mu.Lock()
-			s.index = m.Index
-			if err != nil {
-				s.errors[m.Index] = err
-			}
-			s.mu.Unlock()
-			continue
 		}
 
 		// All other messages must be processed under lock.
@@ -2747,6 +2705,8 @@ func (s *Server) processor(client MessagingClient, done chan struct{}) {
 				err = s.applyCreateContinuousQueryCommand(m)
 			case dropSeriesMessageType:
 				err = s.applyDropSeries(m)
+			case writeRawSeriesMessageType:
+				panic("write series not allowed in broadcast topic")
 			}
 
 			// Sync high water mark and errors.
@@ -2854,24 +2814,18 @@ func (r *Results) Error() error {
 	return nil
 }
 
-// MessagingClient represents the client used to receive messages from brokers.
+// MessagingClient represents the client used to connect to brokers.
 type MessagingClient interface {
 	// Publishes a message to the broker.
 	Publish(m *messaging.Message) (index uint64, err error)
 
-	// Creates a new replica with a given ID on the broker.
-	CreateReplica(replicaID uint64, connectURL *url.URL) error
+	// Conn returns an open, streaming connection to a topic.
+	Conn(topicID uint64) MessagingConn
+}
 
-	// Deletes an existing replica with a given ID from the broker.
-	DeleteReplica(replicaID uint64) error
-
-	// Creates a subscription for a replica to a topic.
-	Subscribe(replicaID, topicID uint64) error
-
-	// Removes a subscription from the replica for a topic.
-	Unsubscribe(replicaID, topicID uint64) error
-
-	// The streaming channel for all subscribed messages.
+// MessagingConn represents a streaming connection to a single broker topic.
+type MessagingConn interface {
+	Open(index uint64) error
 	C() <-chan *messaging.Message
 }
 

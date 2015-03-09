@@ -223,24 +223,19 @@ func (c *Client) do(method, path string, values url.Values, contentType string, 
 
 }
 
-// Conn returns an open connection to the broker for a given topic.
-func (c *Client) Conn(topicID, index uint64) (*Conn, error) {
+// Conn returns a connection to the broker for a given topic.
+func (c *Client) Conn(topicID uint64) *Conn {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	// Create connection and set current URL.
-	conn := NewConn(topicID, index)
+	conn := NewConn(topicID)
 	conn.SetURL(c.url)
-
-	// Open connection.
-	if err := conn.Open(); err != nil {
-		return nil, err
-	}
 
 	// Add to list of client connections.
 	c.conns = append(c.conns, conn)
 
-	return conn, nil
+	return conn
 }
 
 // ClientConfig represents the configuration that must be persisted across restarts.
@@ -276,11 +271,9 @@ type Conn struct {
 }
 
 // NewConn returns a new connection to the broker for a topic.
-func NewConn(topicID uint64, index uint64) *Conn {
+func NewConn(topicID uint64) *Conn {
 	return &Conn{
-		topicID: topicID,
-		index:   index,
-
+		topicID:          topicID,
 		ReconnectTimeout: DefaultReconnectTimeout,
 		Logger:           log.New(os.Stderr, "", log.LstdFlags),
 	}
@@ -321,7 +314,7 @@ func (c *Conn) SetURL(u url.URL) {
 }
 
 // Open opens a streaming connection to the broker.
-func (c *Conn) Open() error {
+func (c *Conn) Open(index uint64) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -332,6 +325,9 @@ func (c *Conn) Open() error {
 		return ErrConnCannotReuse
 	}
 	c.opened = true
+
+	// Set starting index.
+	c.index = index
 
 	// Create streaming channel.
 	c.c = make(chan *Message, 0)

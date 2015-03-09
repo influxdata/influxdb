@@ -1,5 +1,6 @@
 package influxdb
 
+/*
 import (
 	"fmt"
 	"log"
@@ -7,6 +8,20 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb/messaging"
+)
+
+const (
+	// DefaultContinuousQueryCheckTime is how frequently the broker will ask a data node
+	// in the cluster to run any continuous queries that should be run.
+	DefaultContinuousQueryCheckTime = 1 * time.Second
+
+	// DefaultDataNodeTimeout is how long the broker will wait before timing out on a data node
+	// that it has requested process continuous queries.
+	DefaultDataNodeTimeout = 1 * time.Second
+
+	// DefaultFailureSleep is how long the broker will sleep before trying the next data node in
+	// the cluster if the current data node failed to respond
+	DefaultFailureSleep = 100 * time.Millisecond
 )
 
 // Broker represents an InfluxDB specific messaging broker.
@@ -24,29 +39,14 @@ type Broker struct {
 	TriggerFailurePause time.Duration
 }
 
-const (
-	// DefaultContinuousQueryCheckTime is how frequently the broker will ask a data node
-	// in the cluster to run any continuous queries that should be run.
-	DefaultContinuousQueryCheckTime = 1 * time.Second
-
-	// DefaultDataNodeTimeout is how long the broker will wait before timing out on a data node
-	// that it has requested process continuous queries.
-	DefaultDataNodeTimeout = 1 * time.Second
-
-	// DefaultFailureSleep is how long the broker will sleep before trying the next data node in
-	// the cluster if the current data node failed to respond
-	DefaultFailureSleep = 100 * time.Millisecond
-)
-
 // NewBroker returns a new instance of a Broker with default values.
 func NewBroker() *Broker {
-	b := &Broker{
+	return &Broker{
+		Broker:              messaging.NewBroker(),
 		TriggerInterval:     5 * time.Second,
 		TriggerTimeout:      20 * time.Second,
 		TriggerFailurePause: 1 * time.Second,
 	}
-	b.Broker = messaging.NewBroker()
-	return b
 }
 
 // RunContinuousQueryLoop starts running continuous queries on a background goroutine.
@@ -128,3 +128,5 @@ func (b *Broker) requestContinuousQueryProcessing() error {
 
 	return nil
 }
+
+*/

@@ -17,6 +17,9 @@ type ShardGroup struct {
 	Shards    []*Shard  `json:"shards,omitempty"`
 }
 
+// newShardGroup returns a new initialized ShardGroup instance.
+func newShardGroup() *ShardGroup { return &ShardGroup{} }
+
 // close closes all shards.
 func (g *ShardGroup) close() {
 	for _, sh := range g.Shards {
@@ -28,19 +31,6 @@ func (g *ShardGroup) close() {
 func (g *ShardGroup) ShardBySeriesID(seriesID uint32) *Shard {
 	return g.Shards[int(seriesID)%len(g.Shards)]
 }
-
-// Shard represents the logical storage for a given time range.
-// The instance on a local server may contain the raw data in "store" if the
-// shard is assigned to the server's data node id.
-type Shard struct {
-	ID          uint64   `json:"id,omitempty"`
-	DataNodeIDs []uint64 `json:"nodeIDs,omitempty"` // owners
-
-	store *bolt.DB
-}
-
-// newShardGroup returns a new initialized ShardGroup instance.
-func newShardGroup() *ShardGroup { return &ShardGroup{} }
 
 // Duration returns the duration between the shard group's start and end time.
 func (g *ShardGroup) Duration() time.Duration { return g.EndTime.Sub(g.StartTime) }
@@ -63,11 +53,23 @@ func (g *ShardGroup) dropSeries(seriesID uint32) error {
 	return nil
 }
 
+// Shard represents the logical storage for a given time range.
+// The instance on a local server may contain the raw data in "store" if the
+// shard is assigned to the server's data node id.
+type Shard struct {
+	ID          uint64   `json:"id,omitempty"`
+	DataNodeIDs []uint64 `json:"nodeIDs,omitempty"` // owners
+
+	index uint64        // highest replicated index
+	store *bolt.DB      // underlying data store
+	conn  MessagingConn // streaming connection to broker
+}
+
 // newShard returns a new initialized Shard instance.
 func newShard() *Shard { return &Shard{} }
 
 // open initializes and opens the shard's store.
-func (s *Shard) open(path string) error {
+func (s *Shard) open(path string, conn MessagingConn) error {
 	// Return an error if the shard is already open.
 	if s.store != nil {
 		return errors.New("shard already open")
@@ -81,23 +83,40 @@ func (s *Shard) open(path string) error {
 	s.store = store
 
 	// Initialize store.
+	s.index = 0
 	if err := s.store.Update(func(tx *bolt.Tx) error {
 		_, _ = tx.CreateBucketIfNotExists([]byte("values"))
+
+		// Find highest replicated index.
+		b, _ := tx.CreateBucketIfNotExists([]byte("meta"))
+		if buf := b.Get([]byte("index")); len(buf) > 0 {
+			s.index = btou64(buf)
+		}
+
 		return nil
 	}); err != nil {
 		_ = s.close()
 		return fmt.Errorf("init: %s", err)
 	}
 
+	// Open connection.
+	if err := conn.Open(s.index); err != nil {
+		_ = s.close()
+		return fmt.Errorf("open shard conn: id=%d, idx=%d, err=%s", s.ID, s.index, err)
+	}
+
+	// Start importing from connection.
+	go s.processor(conn)
+
 	return nil
 }
 
 // close shuts down the shard's store.
 func (s *Shard) close() error {
-	if s.store == nil {
-		return nil
+	if s.store != nil {
+		_ = s.store.Close()
 	}
-	return s.store.Close()
+	return nil
 }
 
 // HasDataNodeID return true if the data node owns the shard.
@@ -127,7 +146,7 @@ func (s *Shard) readSeries(seriesID uint32, timestamp int64) (values []byte, err
 }
 
 // writeSeries writes series batch to a shard.
-func (s *Shard) writeSeries(batch []byte) error {
+func (s *Shard) writeSeries(index uint64, batch []byte) error {
 	return s.store.Update(func(tx *bolt.Tx) error {
 		for {
 			if pointHeaderSize > len(batch) {
@@ -159,6 +178,11 @@ func (s *Shard) writeSeries(batch []byte) error {
 			}
 		}
 
+		// Set index.
+		if err := tx.Bucket([]byte("meta")).Put([]byte("index"), u64tob(index)); err != nil {
+			return fmt.Errorf("write shard index: %s", err)
+		}
+
 		return nil
 	})
 }
@@ -174,6 +198,36 @@ func (s *Shard) dropSeries(seriesID uint32) error {
 		}
 		return nil
 	})
+}
+
+// processor runs in a separate goroutine and processes all incoming broker messages.
+func (s *Shard) processor(conn MessagingConn) {
+	for {
+		// Read incoming message.
+		// Exit if the connection has been closed.
+		m, ok := <-conn.C()
+		if !ok {
+			return
+		}
+
+		// Ignore any writes that are from an old index.
+		if m.Index < s.index {
+			continue
+		}
+
+		// Handle write series separately so we don't lock server during shard writes.
+		switch m.Type {
+		case writeRawSeriesMessageType:
+			if err := s.writeSeries(m.Index, m.Data); err != nil {
+				panic(fmt.Errorf("apply shard: id=%d, idx=%d, err=%s", s.ID, m.Index, err))
+			}
+		default:
+			panic(fmt.Sprintf("invalid shard message type: %d", m.Type))
+		}
+
+		// Track last index.
+		s.index = m.Index
+	}
 }
 
 // Shards represents a list of shards.
