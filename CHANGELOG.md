@@ -7,6 +7,7 @@
 - [#1877](https://github.com/influxdb/influxdb/pull/1877): Broker clients track broker leader
 - [#1862](https://github.com/influxdb/influxdb/pull/1862): Fix memory leak in `httpd.serveWait`. Thanks @mountkin
 - [#1868](https://github.com/influxdb/influxdb/pull/1868): Use `BatchPoints` for `client.Write` method. Thanks @vladlopes, @georgmu, @d2g, @evanphx, @akolosov.
+- [#1881](https://github.com/influxdb/influxdb/pull/1881): Update documentation for `client` package.  Misc library tweaks.
 
 ## v0.9.0-rc9 [2015-03-06]
 
