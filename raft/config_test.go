@@ -14,8 +14,8 @@ import (
 func TestConfig_NodeByID(t *testing.T) {
 	c := &raft.Config{
 		Nodes: []*raft.ConfigNode{
-			{ID: 1, URL: &url.URL{Host: "localhost:8000"}},
-			{ID: 2, URL: &url.URL{Host: "localhost:9000"}},
+			{ID: 1, URL: url.URL{Host: "localhost:8000"}},
+			{ID: 2, URL: url.URL{Host: "localhost:9000"}},
 		},
 	}
 
@@ -34,18 +34,18 @@ func TestConfig_NodeByID(t *testing.T) {
 func TestConfig_NodeByURL(t *testing.T) {
 	c := &raft.Config{
 		Nodes: []*raft.ConfigNode{
-			{ID: 1, URL: &url.URL{Host: "localhost:8000"}},
-			{ID: 2, URL: &url.URL{Host: "localhost:9000"}},
+			{ID: 1, URL: url.URL{Host: "localhost:8000"}},
+			{ID: 2, URL: url.URL{Host: "localhost:9000"}},
 		},
 	}
 
 	// Matching nodes should return the correct node.
-	if n := c.NodeByURL(&url.URL{Host: "localhost:8000"}); n != c.Nodes[0] {
+	if n := c.NodeByURL(url.URL{Host: "localhost:8000"}); n != c.Nodes[0] {
 		t.Fatalf("unexpected node: %#v", n)
 	}
 
 	// Non-existent nodes should return nil.
-	if n := c.NodeByURL(&url.URL{Scheme: "http", Host: "localhost:8000"}); n != nil {
+	if n := c.NodeByURL(url.URL{Scheme: "http", Host: "localhost:8000"}); n != nil {
 		t.Fatalf("expected nil node: %#v", n)
 	}
 }
@@ -53,11 +53,11 @@ func TestConfig_NodeByURL(t *testing.T) {
 // Ensure that the config can add nodes.
 func TestConfig_AddNode(t *testing.T) {
 	var c raft.Config
-	c.AddNode(1, &url.URL{Host: "localhost:8000"})
-	c.AddNode(2, &url.URL{Host: "localhost:9000"})
-	if n := c.Nodes[0]; !reflect.DeepEqual(n, &raft.ConfigNode{ID: 1, URL: &url.URL{Host: "localhost:8000"}}) {
+	c.AddNode(1, url.URL{Host: "localhost:8000"})
+	c.AddNode(2, url.URL{Host: "localhost:9000"})
+	if n := c.Nodes[0]; !reflect.DeepEqual(n, &raft.ConfigNode{ID: 1, URL: url.URL{Host: "localhost:8000"}}) {
 		t.Fatalf("unexpected node(0): %#v", n)
-	} else if n = c.Nodes[1]; !reflect.DeepEqual(n, &raft.ConfigNode{ID: 2, URL: &url.URL{Host: "localhost:9000"}}) {
+	} else if n = c.Nodes[1]; !reflect.DeepEqual(n, &raft.ConfigNode{ID: 2, URL: url.URL{Host: "localhost:9000"}}) {
 		t.Fatalf("unexpected node(1): %#v", n)
 	}
 }
@@ -65,8 +65,8 @@ func TestConfig_AddNode(t *testing.T) {
 // Ensure that the config can remove nodes.
 func TestConfig_RemoveNode(t *testing.T) {
 	var c raft.Config
-	c.AddNode(1, &url.URL{Host: "localhost:8000"})
-	c.AddNode(2, &url.URL{Host: "localhost:9000"})
+	c.AddNode(1, url.URL{Host: "localhost:8000"})
+	c.AddNode(2, url.URL{Host: "localhost:9000"})
 	if err := c.RemoveNode(1); err != nil {
 		t.Fatalf("unexpected error(0): %s", err)
 	} else if err = c.RemoveNode(2); err != nil {
@@ -83,8 +83,8 @@ func TestConfigEncoder_Encode(t *testing.T) {
 		Index:     20,
 		MaxNodeID: 3,
 		Nodes: []*raft.ConfigNode{
-			{ID: 1, URL: &url.URL{Host: "localhost:8000"}},
-			{ID: 2, URL: &url.URL{Host: "localhost:9000"}},
+			{ID: 1, URL: url.URL{Host: "localhost:8000"}},
+			{ID: 2, URL: url.URL{Host: "localhost:9000"}},
 		},
 	}
 
@@ -103,8 +103,8 @@ func TestConfigDecoder_Decode(t *testing.T) {
 		Index:     20,
 		MaxNodeID: 3,
 		Nodes: []*raft.ConfigNode{
-			{ID: 1, URL: &url.URL{Host: "localhost:8000"}},
-			{ID: 2, URL: &url.URL{Host: "localhost:9000"}},
+			{ID: 1, URL: url.URL{Host: "localhost:8000"}},
+			{ID: 2, URL: url.URL{Host: "localhost:9000"}},
 		},
 	}
 

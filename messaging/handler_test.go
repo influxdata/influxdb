@@ -224,13 +224,13 @@ func TestHandler_ErrNotFound(t *testing.T) {
 
 // HandlerBroker is a mockable type that implements Handler.Broker.
 type HandlerBroker struct {
-	LeaderURLFunc        func() *url.URL
+	LeaderURLFunc        func() url.URL
 	PublishFunc          func(m *messaging.Message) (uint64, error)
 	TopicReaderFunc      func(topicID, index uint64, streaming bool) io.ReadCloser
 	SetTopicMaxIndexFunc func(topicID, index uint64) error
 }
 
-func (b *HandlerBroker) LeaderURL() *url.URL                          { return b.LeaderURLFunc() }
+func (b *HandlerBroker) LeaderURL() url.URL                           { return b.LeaderURLFunc() }
 func (b *HandlerBroker) Publish(m *messaging.Message) (uint64, error) { return b.PublishFunc(m) }
 func (b *HandlerBroker) TopicReader(topicID, index uint64, streaming bool) io.ReadCloser {
 	return b.TopicReaderFunc(topicID, index, streaming)

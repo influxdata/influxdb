@@ -252,10 +252,11 @@ func NewClientConfig(u []url.URL) *ClientConfig {
 
 // Conn represents a stream over the client for a single topic.
 type Conn struct {
-	mu      sync.Mutex
-	topicID uint64  // topic identifier
-	index   uint64  // highest index sent over the channel
-	url     url.URL // current broker url
+	mu        sync.Mutex
+	topicID   uint64  // topic identifier
+	index     uint64  // highest index sent over the channel
+	streaming bool    // use streaming reader, if true
+	url       url.URL // current broker url
 
 	opened bool
 	c      chan *Message // channel streams messages from the broker.
@@ -299,6 +300,13 @@ func (c *Conn) SetIndex(index uint64) {
 	c.index = index
 }
 
+// Streaming returns true if the connection streams messages continuously.
+func (c *Conn) Streaming() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.streaming
+}
+
 // URL returns the current URL of the connection.
 func (c *Conn) URL() url.URL {
 	c.mu.Lock()
@@ -314,7 +322,7 @@ func (c *Conn) SetURL(u url.URL) {
 }
 
 // Open opens a streaming connection to the broker.
-func (c *Conn) Open(index uint64) error {
+func (c *Conn) Open(index uint64, streaming bool) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -328,6 +336,7 @@ func (c *Conn) Open(index uint64) error {
 
 	// Set starting index.
 	c.index = index
+	c.streaming = streaming
 
 	// Create streaming channel.
 	c.c = make(chan *Message, 0)
@@ -430,8 +439,9 @@ func (c *Conn) streamer(closing <-chan struct{}) {
 			u := c.URL()
 			u.Path = "/messaging/messages"
 			u.RawQuery = url.Values{
-				"topicID": {strconv.FormatUint(c.topicID, 10)},
-				"index":   {strconv.FormatUint(c.Index(), 10)},
+				"topicID":   {strconv.FormatUint(c.topicID, 10)},
+				"index":     {strconv.FormatUint(c.Index(), 10)},
+				"streaming": {strconv.FormatBool(c.Streaming())},
 			}.Encode()
 
 			// Create request.
@@ -479,6 +489,7 @@ func (c *Conn) stream(req *http.Request, closing <-chan struct{}) error {
 		// Decode message from the stream.
 		m := &Message{}
 		if err := dec.Decode(m); err == io.EOF {
+			warn("EOF!!!")
 			return nil
 		} else if err != nil {
 			return fmt.Errorf("decode: %s", err)

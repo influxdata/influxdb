@@ -355,7 +355,7 @@ func (s *Server) setClient(client MessagingClient) error {
 	if client != nil {
 		// Create connection for broadcast channel.
 		conn := client.Conn(BroadcastTopicID)
-		if err := conn.Open(s.index); err != nil {
+		if err := conn.Open(s.index, true); err != nil {
 			return fmt.Errorf("open conn: %s", err)
 		}
 
@@ -417,16 +417,16 @@ func (s *Server) Sync(index uint64) error {
 }
 
 // Initialize creates a new data node and initializes the server's id to 1.
-func (s *Server) Initialize(u *url.URL) error {
+func (s *Server) Initialize(u url.URL) error {
 	// Create a new data node.
-	if err := s.CreateDataNode(u); err != nil {
+	if err := s.CreateDataNode(&u); err != nil {
 		return err
 	}
 
 	// Ensure the data node returns with an ID of 1.
 	// If it doesn't then something went really wrong. We have to panic because
 	// the messaging client relies on the first server being assigned ID 1.
-	n := s.DataNodeByURL(u)
+	n := s.DataNodeByURL(&u)
 	assert(n != nil && n.ID == 1, "invalid initial server id: %d", n.ID)
 
 	// Set the ID on the metastore.
@@ -2816,16 +2816,33 @@ func (r *Results) Error() error {
 
 // MessagingClient represents the client used to connect to brokers.
 type MessagingClient interface {
+	Open(path string, urls []url.URL) error
+	Close() error
+
 	// Publishes a message to the broker.
 	Publish(m *messaging.Message) (index uint64, err error)
 
 	// Conn returns an open, streaming connection to a topic.
 	Conn(topicID uint64) MessagingConn
+
+	// Sets the logging destination.
+	SetLogOutput(w io.Writer)
 }
+
+type messagingClient struct {
+	*messaging.Client
+}
+
+// NewMessagingClient returns an instance of MessagingClient.
+func NewMessagingClient() MessagingClient {
+	return &messagingClient{messaging.NewClient()}
+}
+
+func (c *messagingClient) Conn(topicID uint64) MessagingConn { return c.Client.Conn(topicID) }
 
 // MessagingConn represents a streaming connection to a single broker topic.
 type MessagingConn interface {
-	Open(index uint64) error
+	Open(index uint64, streaming bool) error
 	C() <-chan *messaging.Message
 }
 

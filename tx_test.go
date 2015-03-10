@@ -7,12 +7,15 @@ import (
 
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/influxql"
+	"github.com/influxdb/influxdb/test"
 )
 
 // Ensure a transaction can retrieve a list of iterators for a simple SELECT statement.
 func TestTx_CreateIterators(t *testing.T) {
 	t.Skip()
-	s := OpenDefaultServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenDefaultServer(c)
 	defer s.Close()
 
 	// Write to us-east

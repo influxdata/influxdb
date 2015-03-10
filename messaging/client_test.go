@@ -31,7 +31,7 @@ func TestClient_Conn(t *testing.T) {
 
 	// Connect on topic #1.
 	conn1 := c.Conn(1)
-	if err := conn1.Open(0); err != nil {
+	if err := conn1.Open(0, false); err != nil {
 		t.Fatal(err)
 	} else if m := <-conn1.C(); !reflect.DeepEqual(m, &messaging.Message{Index: 1, Data: []byte{100}}) {
 		t.Fatalf("unexpected message(1): %#v", m)
@@ -39,7 +39,7 @@ func TestClient_Conn(t *testing.T) {
 
 	// Connect on topic #2.
 	conn2 := c.Conn(2)
-	if err := conn2.Open(0); err != nil {
+	if err := conn2.Open(0, false); err != nil {
 		t.Fatal(err)
 	} else if m := <-conn2.C(); !reflect.DeepEqual(m, &messaging.Message{Index: 2, Data: []byte{200}}) {
 		t.Fatalf("unexpected message(2): %#v", m)
@@ -54,9 +54,9 @@ func TestClient_Conn(t *testing.T) {
 // Ensure that an error is returned when opening an opened connection.
 func TestConn_Open_ErrConnOpen(t *testing.T) {
 	c := messaging.NewConn(1)
-	c.Open(0)
+	c.Open(0, false)
 	defer c.Close()
-	if err := c.Open(0); err != messaging.ErrConnOpen {
+	if err := c.Open(0, false); err != messaging.ErrConnOpen {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }
@@ -64,9 +64,9 @@ func TestConn_Open_ErrConnOpen(t *testing.T) {
 // Ensure that an error is returned when opening a previously closed connection.
 func TestConn_Open_ErrConnCannotReuse(t *testing.T) {
 	c := messaging.NewConn(1)
-	c.Open(0)
+	c.Open(0, false)
 	c.Close()
-	if err := c.Open(0); err != messaging.ErrConnCannotReuse {
+	if err := c.Open(0, false); err != messaging.ErrConnCannotReuse {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }
@@ -74,7 +74,7 @@ func TestConn_Open_ErrConnCannotReuse(t *testing.T) {
 // Ensure that an error is returned when closing a closed connection.
 func TestConn_Close_ErrConnClosed(t *testing.T) {
 	c := messaging.NewConn(1)
-	c.Open(0)
+	c.Open(0, false)
 	c.Close()
 	if err := c.Close(); err != messaging.ErrConnClosed {
 		t.Fatalf("unexpected error: %s", err)
@@ -102,7 +102,7 @@ func TestConn_Open(t *testing.T) {
 	// Create and open connection to server.
 	c := messaging.NewConn(100)
 	c.SetURL(*MustParseURL(s.URL))
-	if err := c.Open(200); err != nil {
+	if err := c.Open(200, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -139,7 +139,7 @@ func TestConn_Open_Reconnect(t *testing.T) {
 	// Create and open connection to server.
 	c := messaging.NewConn(100)
 	c.SetURL(*MustParseURL(s.URL))
-	if err := c.Open(0); err != nil {
+	if err := c.Open(0, false); err != nil {
 		t.Fatal(err)
 	}
 
@@ -178,124 +178,6 @@ func TestConn_Heartbeat(t *testing.T) {
 		t.Fatal(err)
 	}
 }
-
-/*
-// Ensure that a client can open a connect to the broker.
-func TestClient_Open(t *testing.T) {
-	c := NewClient()
-	defer c.Close()
-
-	// Create replica on broker.
-	c.Server.Handler.Broker().PublishSync()
-
-	// Open client to broker.
-	f := NewTempFile()
-	defer os.Remove(f)
-	u, _ := url.Parse(c.Server.URL)
-	if err := c.Open(f, []*url.URL{u}); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
-
-	// Receive messages from the stream.
-	if m := <-c.C(); m.Type != messaging.InternalMessageType {
-		t.Fatalf("message type mismatch(internal): %x", m.Type)
-	} else if m = <-c.C(); m.Type != messaging.CreateReplicaMessageType {
-		t.Fatalf("message type mismatch(create replica): %x", m.Type)
-	}
-
-	// Close connection to the broker.
-	if err := c.Client.Close(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
-}
-
-// Ensure that opening an already open client returns an error.
-func TestClient_Open_ErrClientOpen(t *testing.T) {
-	c := NewClient(1000)
-	defer c.Close()
-
-	// Open client to broker.
-	f := NewTempFile()
-	defer os.Remove(f)
-	u, _ := url.Parse(c.Server.URL)
-	c.Open(f, []*url.URL{u})
-	if err := c.Open(f, []*url.URL{u}); err != messaging.ErrClientOpen {
-		t.Fatalf("unexpected error: %s", err)
-	}
-}
-
-// Ensure that opening a client without a broker URL returns an error.
-func TestClient_Open_ErrBrokerURLRequired(t *testing.T) {
-	t.Skip()
-	c := NewClient(1000)
-	defer c.Close()
-	f := NewTempFile()
-	defer os.Remove(f)
-	if err := c.Open(f, []*url.URL{}); err != messaging.ErrBrokerURLRequired {
-		t.Fatalf("unexpected error: %s", err)
-	}
-}
-
-// Ensure that a client can close while a message is pending.
-func TestClient_Close(t *testing.T) {
-	c := NewClient(1000)
-	defer c.Close()
-
-	// Create replica on broker.
-	c.Server.Handler.Broker().CreateReplica(1000, &url.URL{Host: "localhost"})
-
-	// Open client to broker.
-	f := NewTempFile()
-	defer os.Remove(f)
-	u, _ := url.Parse(c.Server.URL)
-	if err := c.Open(f, []*url.URL{u}); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
-	time.Sleep(10 * time.Millisecond)
-
-	// Close connection to the broker.
-	if err := c.Client.Close(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	}
-}
-
-// Ensure that a client can publish messages to the broker.
-func TestClient_Publish(t *testing.T) {
-	c := OpenClient(1000)
-	defer c.Close()
-
-	// Publish message to the broker.
-	if index, err := c.Publish(&messaging.Message{Type: 100, TopicID: messaging.BroadcastTopicID, Data: []byte{0}}); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	} else if index != 3 {
-		t.Fatalf("unexpected index: %d", index)
-	}
-}
-
-// Ensure that a client receives an error when publishing to a stopped server.
-func TestClient_Publish_ErrConnectionRefused(t *testing.T) {
-	c := OpenClient(1000)
-	c.Server.Close()
-	defer c.Close()
-
-	// Publish message to the broker.
-	if _, err := c.Publish(&messaging.Message{Type: 100, TopicID: 0, Data: []byte{0}}); err == nil || !strings.Contains(err.Error(), "connection refused") {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
-// Ensure that a client receives an error when publishing to a closed broker.
-func TestClient_Publish_ErrLogClosed(t *testing.T) {
-	c := OpenClient(1000)
-	c.Server.Handler.Broker().Close()
-	defer c.Close()
-
-	// Publish message to the broker.
-	if _, err := c.Publish(&messaging.Message{Type: 100, TopicID: 0, Data: []byte{0}}); err == nil || err.Error() != "log closed" {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-*/
 
 // Client represents a test wrapper for the broker client.
 type Client struct {

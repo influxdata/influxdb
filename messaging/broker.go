@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -34,6 +35,9 @@ type Broker struct {
 
 	// Log is the distributed raft log that commands are applied to.
 	Log interface {
+		URL() url.URL
+		Leader() (uint64, url.URL)
+		ClusterID() uint64
 		Apply(data []byte) (index uint64, err error)
 	}
 
@@ -61,6 +65,18 @@ func (b *Broker) metaPath() string {
 	return filepath.Join(b.path, "meta")
 }
 
+// URL returns the URL of the broker.
+func (b *Broker) URL() url.URL { return b.Log.URL() }
+
+// LeaderURL returns the URL to the leader broker.
+func (b *Broker) LeaderURL() url.URL {
+	_, u := b.Log.Leader()
+	return u
+}
+
+// ClusterID returns the identifier for the cluster.
+func (b *Broker) ClusterID() uint64 { return b.Log.ClusterID() }
+
 // TopicPath returns the file path to a topic's data.
 // Returns a blank string if the broker is closed.
 func (b *Broker) TopicPath(id uint64) string {
@@ -86,10 +102,10 @@ func (b *Broker) Topic(id uint64) *Topic {
 
 // Index returns the highest index seen by the broker across all topics.
 // Returns 0 if the broker is closed.
-func (b *Broker) Index() uint64 {
+func (b *Broker) Index() (uint64, error) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
-	return b.index
+	return b.index, nil
 }
 
 // opened returns true if the broker is in an open and running state.
@@ -268,7 +284,7 @@ func (b *Broker) createSnapshotHeader() (*snapshotHeader, error) {
 
 		// Read segments from disk, not topic.
 		segments, err := ReadSegments(t.path)
-		if err != nil {
+		if err != nil && !os.IsNotExist(err) {
 			return nil, fmt.Errorf("read segments: %s", err)
 		}
 
@@ -401,7 +417,7 @@ func (b *Broker) Publish(m *Message) (uint64, error) {
 }
 
 // TopicReader returns a new topic reader for a topic starting from a given index.
-func (b *Broker) TopicReader(topicID, index uint64, streaming bool) *TopicReader {
+func (b *Broker) TopicReader(topicID, index uint64, streaming bool) io.ReadCloser {
 	return NewTopicReader(b.TopicPath(topicID), index, streaming)
 }
 
@@ -617,7 +633,7 @@ func (t *Topic) Open() error {
 
 	// Read available segments.
 	segments, err := ReadSegments(t.path)
-	if err != nil {
+	if err != nil && !os.IsNotExist(err) {
 		t.close()
 		return fmt.Errorf("read segments: %s", err)
 	}
@@ -669,7 +685,7 @@ func (t *Topic) close() error {
 func (t *Topic) ReadIndex() (uint64, error) {
 	// Read a list of all segments.
 	segments, err := ReadSegments(t.path)
-	if err != nil {
+	if err != nil && !os.IsNotExist(err) {
 		return 0, fmt.Errorf("read segments: %s", err)
 	}
 
@@ -839,7 +855,9 @@ func ReadSegments(path string) (Segments, error) {
 func ReadSegmentByIndex(path string, index uint64) (*Segment, error) {
 	// Find a list of all segments.
 	segments, err := ReadSegments(path)
-	if err != nil {
+	if os.IsNotExist(err) {
+		return nil, err
+	} else if err != nil {
 		return nil, fmt.Errorf("read segments: %s", err)
 	}
 
@@ -869,7 +887,9 @@ func ReadSegmentByIndex(path string, index uint64) (*Segment, error) {
 func ReadSegmentMaxIndex(path string) (uint64, error) {
 	// Open segment file.
 	f, err := os.Open(path)
-	if err != nil {
+	if os.IsNotExist(err) {
+		return 0, err
+	} else if err != nil {
 		return 0, fmt.Errorf("open: %s", err)
 	}
 	defer func() { _ = f.Close() }()
@@ -966,9 +986,11 @@ func (r *TopicReader) File() (*os.File, error) {
 	// If the first file hasn't been opened then open it and seek.
 	if r.file == nil {
 		// Find the segment containing the index.
-		// Exit if no segments are available.
+		// Exit if no segments are available or if path not found.
 		segment, err := ReadSegmentByIndex(r.path, r.index)
-		if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		} else if err != nil {
 			return nil, fmt.Errorf("segment by index: %s", err)
 		} else if segment == nil {
 			return nil, nil
@@ -1032,7 +1054,9 @@ func (r *TopicReader) nextSegment() error {
 	// If no segments exist then exit.
 	// If current segment is the last segment then ignore.
 	segments, err := ReadSegments(r.path)
-	if err != nil {
+	if os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
 		return fmt.Errorf("read segments: %s", err)
 	} else if len(segments) == 0 {
 		return nil

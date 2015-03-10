@@ -3,6 +3,7 @@ package messaging
 import (
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -14,7 +15,7 @@ import (
 // Handler represents an HTTP handler by the broker.
 type Handler struct {
 	Broker interface {
-		LeaderURL() *url.URL
+		LeaderURL() url.URL
 		TopicReader(topicID, index uint64, streaming bool) io.ReadCloser
 		Publish(m *Message) (uint64, error)
 		SetTopicMaxIndex(topicID, index uint64) error
@@ -76,16 +77,24 @@ func (h *Handler) getMessages(w http.ResponseWriter, req *http.Request) {
 	defer r.Close()
 
 	// Ensure we close the topic reader if the connection is disconnected.
+	done := make(chan struct{}, 0)
+	defer close(done)
 	if w, ok := w.(http.CloseNotifier); ok {
 		go func() {
 			select {
 			case <-w.CloseNotify():
+				_ = r.Close()
+			case <-done:
+				return
 			}
 		}()
 	}
 
 	// Write out all data from the topic reader.
-	io.Copy(w, r)
+	// Automatically flush as reads come in.
+	if _, err := CopyFlush(w, r); err != nil {
+		log.Printf("message stream error: %s", err)
+	}
 }
 
 // postMessages publishes a message to the broker.
@@ -162,7 +171,7 @@ func (h *Handler) error(w http.ResponseWriter, err error, code int) {
 // redirects to the current known leader.
 // If no leader is found then returns a 500.
 func (h *Handler) redirectToLeader(w http.ResponseWriter, r *http.Request) {
-	if u := h.Broker.LeaderURL(); u != nil {
+	if u := h.Broker.LeaderURL(); u.Host != "" {
 		redirectURL := *r.URL
 		redirectURL.Scheme = u.Scheme
 		redirectURL.Host = u.Host
@@ -171,4 +180,40 @@ func (h *Handler) redirectToLeader(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.error(w, raft.ErrNotLeader, http.StatusInternalServerError)
+}
+
+// CopyFlush copies from src to dst until EOF or an error occurs.
+// Each write is proceeded by a flush, if the writer implements http.Flusher.
+//
+// This implementation is copied from io.Copy().
+func CopyFlush(dst io.Writer, src io.Reader) (written int64, err error) {
+	buf := make([]byte, 32*1024)
+	for {
+		nr, er := src.Read(buf)
+		if nr > 0 {
+			nw, ew := dst.Write(buf[0:nr])
+			if nw > 0 {
+				written += int64(nw)
+			}
+
+			// Flush after write.
+			if dst, ok := dst.(http.Flusher); ok {
+				dst.Flush()
+			}
+
+			if ew != nil {
+				err = ew
+				break
+			} else if nr != nw {
+				err = io.ErrShortWrite
+				break
+			}
+		} else if er == io.EOF {
+			break
+		} else if er != nil {
+			err = er
+			break
+		}
+	}
+	return written, err
 }

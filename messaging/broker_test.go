@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/ioutil"
 	"math/rand"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -17,6 +18,11 @@ import (
 	"github.com/influxdb/influxdb/messaging"
 	"github.com/influxdb/influxdb/raft"
 )
+
+func init() {
+	// Ensure the broker matches the handler's interface.
+	_ = messaging.Handler{Broker: messaging.NewBroker()}
+}
 
 // Ensure that opening a broker without a path returns an error.
 func TestBroker_Open_ErrPathRequired(t *testing.T) {
@@ -97,7 +103,7 @@ func TestBroker_Apply(t *testing.T) {
 	}
 
 	// Verify broker high water mark.
-	if index := b.Index(); index != 4 {
+	if index, _ := b.Index(); index != 4 {
 		t.Fatalf("unexpected broker index: %d", index)
 	}
 }
@@ -152,7 +158,7 @@ func TestBroker_Reopen(t *testing.T) {
 	}
 
 	// Verify broker high water mark.
-	if index := b.Index(); index != 4 {
+	if index, _ := b.Index(); index != 4 {
 		t.Fatalf("unexpected broker index: %d", index)
 	}
 
@@ -218,7 +224,7 @@ func TestBroker_Snapshot(t *testing.T) {
 	}
 
 	// Verify broker high water mark.
-	if index := b1.Index(); index != 4 {
+	if index, _ := b1.Index(); index != 4 {
 		t.Fatalf("unexpected broker index: %d", index)
 	}
 }
@@ -710,10 +716,16 @@ func (b *Broker) MustReadAllTopic(topicID uint64) (a []*messaging.Message) {
 
 // BrokerLog is a mockable object that implements Broker.Log.
 type BrokerLog struct {
-	ApplyFunc func(data []byte) (uint64, error)
+	ApplyFunc     func(data []byte) (uint64, error)
+	ClusterIDFunc func() uint64
+	LeaderFunc    func() (uint64, url.URL)
+	URLFunc       func() url.URL
 }
 
 func (l *BrokerLog) Apply(data []byte) (uint64, error) { return l.ApplyFunc(data) }
+func (l *BrokerLog) ClusterID() uint64                 { return l.ClusterIDFunc() }
+func (l *BrokerLog) Leader() (uint64, url.URL)         { return l.LeaderFunc() }
+func (l *BrokerLog) URL() url.URL                      { return l.URLFunc() }
 
 // Messages represents a collection of messages.
 // This type provides helper functions.

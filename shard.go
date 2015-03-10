@@ -100,7 +100,7 @@ func (s *Shard) open(path string, conn MessagingConn) error {
 	}
 
 	// Open connection.
-	if err := conn.Open(s.index); err != nil {
+	if err := conn.Open(s.index, true); err != nil {
 		_ = s.close()
 		return fmt.Errorf("open shard conn: id=%d, idx=%d, err=%s", s.ID, s.index, err)
 	}

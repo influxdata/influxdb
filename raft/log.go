@@ -104,18 +104,18 @@ type Log struct {
 	closing chan struct{}  // close notification
 
 	// Network address to the reach the log.
-	URL *url.URL
+	url url.URL
 
 	// The state machine that log entries will be applied to.
 	FSM FSM
 
 	// The transport used to communicate with other nodes in the cluster.
 	Transport interface {
-		Join(u *url.URL, nodeURL *url.URL) (id uint64, leaderID uint64, config *Config, err error)
-		Leave(u *url.URL, id uint64) error
-		Heartbeat(u *url.URL, term, commitIndex, leaderID uint64) (lastIndex uint64, err error)
-		ReadFrom(u *url.URL, id, term, index uint64) (io.ReadCloser, error)
-		RequestVote(u *url.URL, term, candidateID, lastLogIndex, lastLogTerm uint64) error
+		Join(u url.URL, nodeURL url.URL) (id uint64, leaderID uint64, config *Config, err error)
+		Leave(u url.URL, id uint64) error
+		Heartbeat(u url.URL, term, commitIndex, leaderID uint64) (lastIndex uint64, err error)
+		ReadFrom(u url.URL, id, term, index uint64) (io.ReadCloser, error)
+		RequestVote(u url.URL, term, candidateID, lastLogIndex, lastLogTerm uint64) error
 	}
 
 	// Clock is an abstraction of time.
@@ -153,6 +153,25 @@ func NewLog() *Log {
 // Path returns the data path of the Raft log.
 // Returns an empty string if the log is closed.
 func (l *Log) Path() string { return l.path }
+
+// URL returns the URL for the log.
+func (l *Log) URL() url.URL {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.url
+}
+
+// SetURL sets the URL for the log. This must be set before opening.
+func (l *Log) SetURL(u url.URL) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if l.opened() {
+		panic("url cannot be set while log is open")
+	}
+
+	l.url = u
+}
 
 func (l *Log) idPath() string     { return filepath.Join(l.path, "id") }
 func (l *Log) termPath() string   { return filepath.Join(l.path, "term") }
@@ -459,7 +478,7 @@ func (l *Log) Initialize() error {
 
 		// Generate a new configuration with one node.
 		config = &Config{MaxNodeID: id}
-		config.AddNode(id, l.URL)
+		config.AddNode(id, l.url)
 
 		// Generate new 8-hex digit cluster identifier.
 		config.ClusterID = uint64(l.Rand())
@@ -511,8 +530,8 @@ func (l *Log) SetLogOutput(w io.Writer) {
 
 func (l *Log) updateLogPrefix() {
 	var host string
-	if l.URL != nil {
-		host = l.URL.Host
+	if l.url.Host != "" {
+		host = l.url.Host
 	}
 	l.Logger.SetPrefix(fmt.Sprintf("[raft] %s ", host))
 }
@@ -533,13 +552,24 @@ func (l *Log) tracef(msg string, v ...interface{}) {
 
 // Leader returns the id and URL associated with the current leader.
 // Returns zero if there is no current leader.
-func (l *Log) Leader() (id uint64, u *url.URL) {
+func (l *Log) Leader() (id uint64, u url.URL) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.leader()
 }
 
-func (l *Log) leader() (id uint64, u *url.URL) {
+// ClusterID returns the identifier for the cluster.
+// Returns zero if the cluster has not been initialized yet.
+func (l *Log) ClusterID() uint64 {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.config == nil {
+		return 0
+	}
+	return l.config.ClusterID
+}
+
+func (l *Log) leader() (id uint64, u url.URL) {
 	// Ignore if there's no configuration set.
 	if l.config == nil {
 		return
@@ -556,9 +586,9 @@ func (l *Log) leader() (id uint64, u *url.URL) {
 
 // Join contacts a node in the cluster to request membership.
 // A log cannot join a cluster if it has already been initialized.
-func (l *Log) Join(u *url.URL) error {
+func (l *Log) Join(u url.URL) error {
 	// Validate under lock.
-	var nodeURL *url.URL
+	var nodeURL url.URL
 	if err := func() error {
 		l.mu.Lock()
 		defer l.mu.Unlock()
@@ -567,11 +597,11 @@ func (l *Log) Join(u *url.URL) error {
 			return ErrClosed
 		} else if l.id != 0 {
 			return ErrInitialized
-		} else if l.URL == nil {
+		} else if l.url.Host == "" {
 			return ErrURLRequired
 		}
 
-		nodeURL = l.URL
+		nodeURL = l.url
 		return nil
 	}(); err != nil {
 		return err
@@ -727,7 +757,7 @@ func (l *Log) readFromLeader(wg *sync.WaitGroup, transitioning <-chan struct{}) 
 		l.mu.Unlock()
 
 		// If no leader exists then wait momentarily and retry.
-		if u == nil {
+		if u.Host == "" {
 			l.tracef("readFromLeader: no leader")
 			time.Sleep(100 * time.Millisecond)
 			continue
@@ -1309,9 +1339,9 @@ func (l *Log) mustApplyRemovePeer(e *LogEntry) error {
 
 // AddPeer creates a new peer in the cluster.
 // Returns the new peer's identifier and the current configuration.
-func (l *Log) AddPeer(u *url.URL) (uint64, uint64, *Config, error) {
+func (l *Log) AddPeer(u url.URL) (uint64, uint64, *Config, error) {
 	// Validate URL.
-	if u == nil {
+	if u.Host == "" {
 		return 0, 0, nil, fmt.Errorf("peer url required")
 	}
 
