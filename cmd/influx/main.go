@@ -140,6 +140,8 @@ func (c *CommandLine) ParseCommand(cmd string) bool {
 		}
 	case strings.HasPrefix(lcmd, "use"):
 		c.use(cmd)
+	case strings.HasPrefix(lcmd, "dump"):
+		c.dump()
 	case lcmd == "":
 		break
 	default:
@@ -248,6 +250,31 @@ func (c *CommandLine) SetFormat(cmd string) {
 	}
 }
 
+func (c *CommandLine) dump() {
+	query := "show measurements"
+	results, err := c.Client.Query(client.Query{Command: query, Database: c.Database})
+	if err != nil {
+		fmt.Printf("ERR: %s\n", err)
+		return
+	}
+	measurements := fetchRows(results)
+	for _, i := range measurements {
+		query = fmt.Sprintf("select * from %s group by *", i[2])
+		results, err = c.Client.Query(client.Query{Command: query, Database: c.Database})
+		if err != nil {
+			fmt.Printf("ERR: %s\n", err)
+			return
+		}
+		selectStar := fetchRows(results)
+		for _, j := range selectStar {
+			for _, k := range j {
+				fmt.Printf("%s ", k)
+			}
+			fmt.Println()
+		}
+	}
+}
+
 func (c *CommandLine) executeQuery(query string) {
 	results, err := c.Client.Query(client.Query{Command: query, Database: c.Database})
 	if err != nil {
@@ -315,6 +342,31 @@ func WriteColumns(results *client.Results, w io.Writer) {
 		}
 		w.Flush()
 	}
+}
+
+func fetchRows(results *client.Results) [][]string {
+	var rows [][]string
+	for _, result := range results.Results {
+		for _, row := range result.Series {
+			// gather tags
+			tags := []string{}
+			for k, v := range row.Tags {
+				tags = append(tags, fmt.Sprintf("%s=%s", k, v))
+			}
+			thisRow := []string{}
+			for _, v := range row.Values {
+				thisRow = append(thisRow, row.Name)
+				thisRow = append(thisRow, strings.Join(tags, ","))
+
+				for _, vv := range v {
+					thisRow = append(thisRow, interfaceToString(vv))
+				}
+				rows = append(rows, thisRow)
+				thisRow = []string{}
+			}
+		}
+	}
+	return rows
 }
 
 func resultToCSV(result client.Result, seperator string, headerLines bool) []string {
