@@ -89,6 +89,13 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 		log.Printf("broker enforcing retention policies with check interval of %s", interval)
 	}
 
+	// Start shard group pre-create
+	interval := config.ShardGroupPreCreateCheckPeriod()
+	if err := s.StartShardGroupsPreCreate(interval); err != nil {
+		log.Fatalf("shard group pre-create failed: %s", err.Error())
+	}
+	log.Printf("shard group pre-create with check interval of %s", interval)
+
 	// Start the server handler. Attach to broker if listening on the same port.
 	if s != nil {
 		sh := httpd.NewHandler(s, config.Authentication.Enabled, version)

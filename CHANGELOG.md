@@ -13,6 +13,7 @@
 ### Features
 - [#1875](https://github.com/influxdb/influxdb/pull/1875): Support trace logging of Raft.
 - [#1895](https://github.com/influxdb/influxdb/pull/1895): Auto-create a retention policy when a database is created.
+- [#1897](https://github.com/influxdb/influxdb/pull/1897): Pre-create shard groups.
 
 ## v0.9.0-rc9 [2015-03-06]
 

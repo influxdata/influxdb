@@ -39,6 +39,10 @@ const (
 
 	// DefaultJoinURLs represents the default URLs for joining a cluster.
 	DefaultJoinURLs = ""
+
+	// DefaultRetentionCreatePeriod represents how often the server will check to see if new
+	// shard groups need to be created in advance for writing
+	DefaultRetentionCreatePeriod = 45 * time.Minute
 )
 
 // Config represents the configuration format for the influxd binary.
@@ -90,6 +94,7 @@ type Config struct {
 		RetentionAutoCreate   bool     `toml:"retention-auto-create"`
 		RetentionCheckEnabled bool     `toml:"retention-check-enabled"`
 		RetentionCheckPeriod  Duration `toml:"retention-check-period"`
+		RetentionCreatePeriod Duration `toml:"retention-create-period"`
 	} `toml:"data"`
 
 	Cluster struct {
@@ -148,6 +153,7 @@ func NewConfig() *Config {
 	c.Data.RetentionAutoCreate = true
 	c.Data.RetentionCheckEnabled = true
 	c.Data.RetentionCheckPeriod = Duration(10 * time.Minute)
+	c.Data.RetentionCreatePeriod = Duration(DefaultRetentionCreatePeriod)
 	c.Admin.Enabled = true
 	c.Admin.Port = 8083
 	c.ContinuousQuery.RecomputePreviousN = 2
@@ -227,6 +233,15 @@ func (c *Config) JoinURLs() string {
 	} else {
 		return c.Initialization.JoinURLs
 	}
+}
+
+// ShardGroupPreCreateCheckPeriod returns the check interval to pre-create shard groups.
+// If it was not defined in the config, it defaults to DefaultShardGroupPreCreatePeriod
+func (c *Config) ShardGroupPreCreateCheckPeriod() time.Duration {
+	if c.Data.RetentionCreatePeriod != 0 {
+		return time.Duration(c.Data.RetentionCreatePeriod)
+	}
+	return DefaultRetentionCreatePeriod
 }
 
 // Size represents a TOML parseable file size.

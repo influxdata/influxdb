@@ -1064,6 +1064,9 @@ type RetentionPolicy struct {
 	// Length of time to keep data around. A zero duration means keep the data forever.
 	Duration time.Duration `json:"duration"`
 
+	// Length of time to create shard groups in.
+	ShardGroupDuration time.Duration `json:"shardGroupDuration"`
+
 	// The number of copies to make of each shard.
 	ReplicaN uint32 `json:"replicaN"`
 
@@ -1160,6 +1163,7 @@ func (rp *RetentionPolicy) MarshalJSON() ([]byte, error) {
 	var o retentionPolicyJSON
 	o.Name = rp.Name
 	o.Duration = rp.Duration
+	o.ShardGroupDuration = rp.ShardGroupDuration
 	o.ReplicaN = rp.ReplicaN
 	for _, g := range rp.shardGroups {
 		o.ShardGroups = append(o.ShardGroups, g)
@@ -1179,6 +1183,7 @@ func (rp *RetentionPolicy) UnmarshalJSON(data []byte) error {
 	rp.Name = o.Name
 	rp.ReplicaN = o.ReplicaN
 	rp.Duration = o.Duration
+	rp.ShardGroupDuration = o.ShardGroupDuration
 	rp.shardGroups = o.ShardGroups
 
 	return nil
@@ -1186,11 +1191,11 @@ func (rp *RetentionPolicy) UnmarshalJSON(data []byte) error {
 
 // retentionPolicyJSON represents an intermediate struct for JSON marshaling.
 type retentionPolicyJSON struct {
-	Name        string        `json:"name"`
-	ReplicaN    uint32        `json:"replicaN,omitempty"`
-	SplitN      uint32        `json:"splitN,omitempty"`
-	Duration    time.Duration `json:"duration,omitempty"`
-	ShardGroups []*ShardGroup `json:"shardGroups,omitempty"`
+	Name               string        `json:"name"`
+	ReplicaN           uint32        `json:"replicaN,omitempty"`
+	Duration           time.Duration `json:"duration,omitempty"`
+	ShardGroupDuration time.Duration `json:"shardGroupDuration"`
+	ShardGroups        []*ShardGroup `json:"shardGroups,omitempty"`
 }
 
 // TagFilter represents a tag filter when looking up other tags or measurements.
