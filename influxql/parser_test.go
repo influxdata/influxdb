@@ -1,6 +1,7 @@
 package influxql_test
 
 import (
+	"encoding/json"
 	"reflect"
 	"regexp"
 	"strings"
@@ -133,6 +134,17 @@ func TestParser_ParseStatement(t *testing.T) {
 					{Name: "field2"},
 				},
 				Limit: 10,
+			},
+		},
+
+		// SELECT statement with SLIMIT and SOFFSET
+		{
+			s: `SELECT field1 FROM myseries SLIMIT 10 SOFFSET 5`,
+			stmt: &influxql.SelectStatement{
+				Fields:  []*influxql.Field{{Expr: &influxql.VarRef{Val: "field1"}}},
+				Source:  &influxql.Measurement{Name: "myseries"},
+				SLimit:  10,
+				SOffset: 5,
 			},
 		},
 
@@ -1154,4 +1166,13 @@ func newAlterRetentionPolicyStatement(name string, DB string, d time.Duration, r
 	}
 
 	return stmt
+}
+
+// mustMarshalJSON encodes a value to JSON.
+func mustMarshalJSON(v interface{}) []byte {
+	b, err := json.Marshal(v)
+	if err != nil {
+		panic("marshal json: " + err.Error())
+	}
+	return b
 }

@@ -12,6 +12,16 @@ import (
 	"github.com/influxdb/influxdb/influxql"
 )
 
+// Query is used to send a command to the server. Both Command and Database are required.
+type Query struct {
+	Command  string
+	Database string
+}
+
+// Config is used to specify what server to connect to.
+// URL: The URL of the server connecting to.
+// Username/Password are optional.  They will be passed via basic auth if provided.
+// UserAgent: If not provided, will default "InfluxDBClient",
 type Config struct {
 	URL       url.URL
 	Username  string
@@ -19,6 +29,7 @@ type Config struct {
 	UserAgent string
 }
 
+// Client is used to make calls to the server.
 type Client struct {
 	url        url.URL
 	username   string
@@ -27,17 +38,7 @@ type Client struct {
 	userAgent  string
 }
 
-type Query struct {
-	Command  string
-	Database string
-}
-
-type Write struct {
-	Database        string
-	RetentionPolicy string
-	Points          []Point
-}
-
+// NewClient will instantiate and return a connected client to issue commands to the server.
 func NewClient(c Config) (*Client, error) {
 	client := Client{
 		url:        c.URL,
@@ -46,13 +47,20 @@ func NewClient(c Config) (*Client, error) {
 		httpClient: &http.Client{},
 		userAgent:  c.UserAgent,
 	}
+	if client.userAgent == "" {
+		client.userAgent = "InfluxDBClient"
+	}
 	return &client, nil
 }
 
+// Query sends a command to the server and returns the Results
 func (c *Client) Query(q Query) (*Results, error) {
 	u := c.url
 
 	u.Path = "query"
+	if c.username != "" {
+		u.User = url.UserPassword(c.username, c.password)
+	}
 	values := u.Query()
 	values.Set("q", q.Command)
 	values.Set("db", q.Database)
@@ -62,9 +70,7 @@ func (c *Client) Query(q Query) (*Results, error) {
 	if err != nil {
 		return nil, err
 	}
-	if c.userAgent != "" {
-		req.Header.Set("User-Agent", c.userAgent)
-	}
+	req.Header.Set("User-Agent", c.userAgent)
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err
@@ -81,30 +87,23 @@ func (c *Client) Query(q Query) (*Results, error) {
 	return &results, nil
 }
 
-func (c *Client) Write(writes ...Write) (*Results, error) {
+// Write takes BatchPoints and allows for writing of multiple points with defaults
+// If successful, error is nil and Results is nil
+// If an error occurs, Results may contain additional information if populated.
+func (c *Client) Write(bp BatchPoints) (*Results, error) {
 	c.url.Path = "write"
-	type data struct {
-		Points          []Point `json:"points"`
-		Database        string  `json:"database"`
-		RetentionPolicy string  `json:"retentionPolicy"`
-	}
 
-	d := []data{}
-	for _, write := range writes {
-		d = append(d, data{Points: write.Points, Database: write.Database, RetentionPolicy: write.RetentionPolicy})
+	b, err := json.Marshal(&bp)
+	if err != nil {
+		return nil, err
 	}
-
-	b := []byte{}
-	err := json.Unmarshal(b, &d)
 
 	req, err := http.NewRequest("POST", c.url.String(), bytes.NewBuffer(b))
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	if c.userAgent != "" {
-		req.Header.Set("User-Agent", c.userAgent)
-	}
+	req.Header.Set("User-Agent", c.userAgent)
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err
@@ -115,13 +114,19 @@ func (c *Client) Write(writes ...Write) (*Results, error) {
 	dec := json.NewDecoder(resp.Body)
 	dec.UseNumber()
 	err = dec.Decode(&results)
-
-	if err != nil {
+	if err != nil && err.Error() != "EOF" {
 		return nil, err
 	}
-	return &results, nil
+
+	if resp.StatusCode != http.StatusOK {
+		return &results, results.Error()
+	}
+
+	return nil, nil
 }
 
+// Ping will check to see if the server is up
+// Ping returns how long the requeset took, the version of the server it connected to, and an error if one occured.
 func (c *Client) Ping() (time.Duration, string, error) {
 	now := time.Now()
 	u := c.url
@@ -131,9 +136,7 @@ func (c *Client) Ping() (time.Duration, string, error) {
 	if err != nil {
 		return 0, "", err
 	}
-	if c.userAgent != "" {
-		req.Header.Set("User-Agent", c.userAgent)
-	}
+	req.Header.Set("User-Agent", c.userAgent)
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return 0, "", err
@@ -193,7 +196,8 @@ type Results struct {
 	Err     error
 }
 
-func (r Results) MarshalJSON() ([]byte, error) {
+// MarshalJSON encodes the result into JSON.
+func (r *Results) MarshalJSON() ([]byte, error) {
 	// Define a struct that outputs "error" as a string.
 	var o struct {
 		Results []Result `json:"results,omitempty"`
@@ -243,28 +247,37 @@ func (a Results) Error() error {
 	return nil
 }
 
-// Timestamp is a custom type so we marshal JSON properly into UTC nanosecond time
-type Timestamp time.Time
-
-// Time returns the time represented by the Timestamp
-func (t Timestamp) Time() time.Time {
-	return time.Time(t)
-}
-
-// MarshalJSON returns time in UTC with nanoseconds
-func (t Timestamp) MarshalJSON() ([]byte, error) {
-	// Always send back in UTC with nanoseconds
-	s := t.Time().UTC().Format(time.RFC3339Nano)
-	return []byte(`"` + s + `"`), nil
-}
-
 // Point defines the fields that will be written to the database
+// Name, Timestamp, and Fields are required
+// Precision can be specified if the timestamp is in epoch format (integer).
+// Valid values for Precision are n, u, ms, s, m, and h
 type Point struct {
-	Name      string                 `json:"name"`
-	Tags      map[string]string      `json:"tags"`
-	Timestamp Timestamp              `json:"timestamp"`
-	Fields    map[string]interface{} `json:"fields"`
-	Precision string                 `json:"precision"`
+	Name      string
+	Tags      map[string]string
+	Timestamp time.Time
+	Fields    map[string]interface{}
+	Precision string
+}
+
+// MarshalJSON will format the time in RFC3339Nano
+// Precision is also ignored as it is only used for writing, not reading
+// Or another way to say it is we always send back in nanosecond precision
+func (p *Point) MarshalJSON() ([]byte, error) {
+	point := struct {
+		Name      string                 `json:"name,omitempty"`
+		Tags      map[string]string      `json:"tags,omitempty"`
+		Timestamp string                 `json:"timestamp,omitempty"`
+		Fields    map[string]interface{} `json:"fields,omitempty"`
+	}{
+		Name:   p.Name,
+		Tags:   p.Tags,
+		Fields: p.Fields,
+	}
+	// Let it omit empty if it's really zero
+	if !p.Timestamp.IsZero() {
+		point.Timestamp = p.Timestamp.UTC().Format(time.RFC3339Nano)
+	}
+	return json.Marshal(&point)
 }
 
 // UnmarshalJSON decodes the data into the Point struct
@@ -302,7 +315,7 @@ func (p *Point) UnmarshalJSON(b []byte) error {
 		}
 		p.Name = epoch.Name
 		p.Tags = epoch.Tags
-		p.Timestamp = Timestamp(ts)
+		p.Timestamp = ts
 		p.Precision = epoch.Precision
 		p.Fields = normalizeFields(epoch.Fields)
 		return nil
@@ -318,7 +331,7 @@ func (p *Point) UnmarshalJSON(b []byte) error {
 	normal.Timestamp = SetPrecision(normal.Timestamp, normal.Precision)
 	p.Name = normal.Name
 	p.Tags = normal.Tags
-	p.Timestamp = Timestamp(normal.Timestamp)
+	p.Timestamp = normal.Timestamp
 	p.Precision = normal.Precision
 	p.Fields = normalizeFields(normal.Fields)
 
@@ -344,8 +357,82 @@ func normalizeFields(fields map[string]interface{}) map[string]interface{} {
 	return newFields
 }
 
+// BatchPoints is used to send batched data in a single write.
+// Database and Points are required
+// If no retention policy is specified, it will use the databases default retention policy.
+// If tags are specified, they will be "merged" with all points.  If a point already has that tag, it is ignored.
+// If timestamp is specified, it will be applied to any point with an empty timestamp.
+// Precision can be specified if the timestamp is in epoch format (integer).
+// Valid values for Precision are n, u, ms, s, m, and h
+type BatchPoints struct {
+	Points          []Point           `json:"points,omitempty"`
+	Database        string            `json:"database,omitempty"`
+	RetentionPolicy string            `json:"retentionPolicy,omitempty"`
+	Tags            map[string]string `json:"tags,omitempty"`
+	Timestamp       time.Time         `json:"timestamp,omitempty"`
+	Precision       string            `json:"precision,omitempty"`
+}
+
+// UnmarshalJSON decodes the data into the BatchPoints struct
+func (bp *BatchPoints) UnmarshalJSON(b []byte) error {
+	var normal struct {
+		Points          []Point           `json:"points"`
+		Database        string            `json:"database"`
+		RetentionPolicy string            `json:"retentionPolicy"`
+		Tags            map[string]string `json:"tags"`
+		Timestamp       time.Time         `json:"timestamp"`
+		Precision       string            `json:"precision"`
+	}
+	var epoch struct {
+		Points          []Point           `json:"points"`
+		Database        string            `json:"database"`
+		RetentionPolicy string            `json:"retentionPolicy"`
+		Tags            map[string]string `json:"tags"`
+		Timestamp       *int64            `json:"timestamp"`
+		Precision       string            `json:"precision"`
+	}
+
+	if err := func() error {
+		var err error
+		if err = json.Unmarshal(b, &epoch); err != nil {
+			return err
+		}
+		// Convert from epoch to time.Time
+		var ts time.Time
+		if epoch.Timestamp != nil {
+			ts, err = EpochToTime(*epoch.Timestamp, epoch.Precision)
+			if err != nil {
+				return err
+			}
+		}
+		bp.Points = epoch.Points
+		bp.Database = epoch.Database
+		bp.RetentionPolicy = epoch.RetentionPolicy
+		bp.Tags = epoch.Tags
+		bp.Timestamp = ts
+		bp.Precision = epoch.Precision
+		return nil
+	}(); err == nil {
+		return nil
+	}
+
+	if err := json.Unmarshal(b, &normal); err != nil {
+		return err
+	}
+	normal.Timestamp = SetPrecision(normal.Timestamp, normal.Precision)
+	bp.Points = normal.Points
+	bp.Database = normal.Database
+	bp.RetentionPolicy = normal.RetentionPolicy
+	bp.Tags = normal.Tags
+	bp.Timestamp = normal.Timestamp
+	bp.Precision = normal.Precision
+
+	return nil
+}
+
 // utility functions
 
+// Addr provides the current url as a string of the server the client is connected to.
 func (c *Client) Addr() string {
 	return c.url.String()
 }

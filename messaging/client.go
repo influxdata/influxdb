@@ -241,6 +241,7 @@ func (c *Client) Conn(topicID uint64) *Conn {
 // ClientConfig represents the configuration that must be persisted across restarts.
 type ClientConfig struct {
 	Brokers []url.URL `json:"brokers"`
+	Leader  url.URL   `json:"leader"`
 }
 
 // NewClientConfig returns a new instance of ClientConfig.

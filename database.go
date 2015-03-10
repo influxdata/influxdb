@@ -138,6 +138,11 @@ func NewMeasurement(name string) *Measurement {
 	}
 }
 
+// HasTagKey returns true if at least one eries in this measurement has written a value for the passed in tag key
+func (m *Measurement) HasTagKey(k string) bool {
+	return m.seriesByTagKeyValue[k] != nil
+}
+
 // createFieldIfNotExists creates a new field with an autoincrementing ID.
 // Returns an error if 255 fields have already been created on the measurement or
 // the fields already exists with a different type.
@@ -274,19 +279,26 @@ func (m *Measurement) seriesByTags(tags map[string]string) *Series {
 	return m.series[string(marshalTags(tags))]
 }
 
-func (m *Measurement) seriesIDsAndFilters(stmt *influxql.SelectStatement) (seriesIDs, map[uint32]influxql.Expr) {
+// filters walks the where clause of a select statement and returns a map with all series ids
+// matching the where clause and any filter expression that should be applied to each
+func (m *Measurement) filters(stmt *influxql.SelectStatement) map[uint32]influxql.Expr {
 	seriesIdsToExpr := make(map[uint32]influxql.Expr)
-	if stmt.Condition == nil {
-		return m.seriesIDs, nil
+	if stmt.Condition == nil || stmt.OnlyTimeDimensions() {
+		for _, id := range m.seriesIDs {
+			seriesIdsToExpr[id] = nil
+		}
+		return seriesIdsToExpr
 	}
 	ids, _, _ := m.walkWhereForSeriesIds(stmt.Condition, seriesIdsToExpr)
 
-	// ids will be empty if all they had was a time in the where clause. so return all measurement series ids
-	if len(ids) == 0 && stmt.OnlyTimeDimensions() {
-		return m.seriesIDs, nil
+	// ensure every id is in the map
+	for _, id := range ids {
+		if _, ok := seriesIdsToExpr[id]; !ok {
+			seriesIdsToExpr[id] = nil
+		}
 	}
 
-	return ids, seriesIdsToExpr
+	return seriesIdsToExpr
 }
 
 // tagSets returns the unique tag sets that exist for the given tag keys. This is used to determine
@@ -294,13 +306,16 @@ func (m *Measurement) seriesIDsAndFilters(stmt *influxql.SelectStatement) (serie
 // {"region":"uswest"}, {"region":"useast"}
 // or region, service returns
 // {"region": "uswest", "service": "redis"}, {"region": "uswest", "service": "mysql"}, etc...
-func (m *Measurement) tagSets(stmt *influxql.SelectStatement, dimensions []string) map[string]map[uint32]influxql.Expr {
+// This will also populate the TagSet objects with the series IDs that match each tagset and any
+// influx filter expression that goes with the series
+func (m *Measurement) tagSets(stmt *influxql.SelectStatement, dimensions []string) []*influxql.TagSet {
 	// get the unique set of series ids and the filters that should be applied to each
-	seriesIDs, filters := m.seriesIDsAndFilters(stmt)
+	filters := m.filters(stmt)
 
 	// build the tag sets
-	tagSets := make(map[string]map[uint32]influxql.Expr)
-	for _, id := range seriesIDs {
+	tagStrings := make([]string, 0)
+	tagSets := make(map[string]*influxql.TagSet)
+	for id, filter := range filters {
 		// get the series and set the tag values for the dimensions we care about
 		s := m.seriesByID[id]
 		tags := make([]string, len(dimensions))
@@ -309,16 +324,31 @@ func (m *Measurement) tagSets(stmt *influxql.SelectStatement, dimensions []strin
 		}
 
 		// marshal it into a string and put this series and its expr into the tagSets map
-		t := string(influxql.MarshalStrings(tags))
+		t := strings.Join(tags, "")
 		set, ok := tagSets[t]
 		if !ok {
-			set = make(map[uint32]influxql.Expr)
+			tagStrings = append(tagStrings, t)
+			set = &influxql.TagSet{}
+			// set the tags for this set
+			tagsForSet := make(map[string]string)
+			for i, dim := range dimensions {
+				tagsForSet[dim] = tags[i]
+			}
+			set.Tags = tagsForSet
+			set.Key = marshalTags(tagsForSet)
 		}
-		set[id] = filters[id]
+		set.AddFilter(id, filter)
 		tagSets[t] = set
 	}
 
-	return tagSets
+	// return the tag sets in sorted order
+	a := make([]*influxql.TagSet, 0, len(tagSets))
+	sort.Strings(tagStrings)
+	for _, s := range tagStrings {
+		a = append(a, tagSets[s])
+	}
+
+	return a
 }
 
 // idsForExpr will return a collection of series ids, a bool indicating if the result should be
@@ -332,7 +362,7 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (seriesIDs, bool, influ
 	}
 
 	// ignore time literals
-	if _, ok := value.(*influxql.TimeLiteral); ok {
+	if _, ok := value.(*influxql.TimeLiteral); ok || name.Val == "time" {
 		return nil, false, nil
 	}
 
@@ -864,7 +894,7 @@ func (f *FieldCodec) DecodeFields(b []byte) map[uint8]interface{} {
 			b = b[2:]
 		case influxql.String:
 			size := binary.BigEndian.Uint16(b[1:3])
-			value = string(b[3:size])
+			value = string(b[3 : size+3])
 			// Move bytes forward.
 			b = b[size+3:]
 		default:
@@ -876,6 +906,24 @@ func (f *FieldCodec) DecodeFields(b []byte) map[uint8]interface{} {
 	}
 
 	return values
+}
+
+// DecodeFieldsWithNames decodes a byte slice into a set of field names and values
+func (f *FieldCodec) DecodeFieldsWithNames(b []byte) map[string]interface{} {
+	fields := f.DecodeFields(b)
+	m := make(map[string]interface{})
+	for id, v := range fields {
+		field := f.fieldsByID[id]
+		if field != nil {
+			m[field.Name] = v
+		}
+	}
+	return m
+}
+
+// FieldByName returns the field by its name. It will return a nil if not found
+func (f *FieldCodec) FieldByName(name string) *Field {
+	return f.fieldsByName[name]
 }
 
 // Series belong to a Measurement and represent unique time series in a database
@@ -1016,6 +1064,9 @@ type RetentionPolicy struct {
 	// Length of time to keep data around. A zero duration means keep the data forever.
 	Duration time.Duration `json:"duration"`
 
+	// Length of time to create shard groups in.
+	ShardGroupDuration time.Duration `json:"shardGroupDuration"`
+
 	// The number of copies to make of each shard.
 	ReplicaN uint32 `json:"replicaN"`
 
@@ -1112,6 +1163,7 @@ func (rp *RetentionPolicy) MarshalJSON() ([]byte, error) {
 	var o retentionPolicyJSON
 	o.Name = rp.Name
 	o.Duration = rp.Duration
+	o.ShardGroupDuration = rp.ShardGroupDuration
 	o.ReplicaN = rp.ReplicaN
 	for _, g := range rp.shardGroups {
 		o.ShardGroups = append(o.ShardGroups, g)
@@ -1131,6 +1183,7 @@ func (rp *RetentionPolicy) UnmarshalJSON(data []byte) error {
 	rp.Name = o.Name
 	rp.ReplicaN = o.ReplicaN
 	rp.Duration = o.Duration
+	rp.ShardGroupDuration = o.ShardGroupDuration
 	rp.shardGroups = o.ShardGroups
 
 	return nil
@@ -1138,11 +1191,11 @@ func (rp *RetentionPolicy) UnmarshalJSON(data []byte) error {
 
 // retentionPolicyJSON represents an intermediate struct for JSON marshaling.
 type retentionPolicyJSON struct {
-	Name        string        `json:"name"`
-	ReplicaN    uint32        `json:"replicaN,omitempty"`
-	SplitN      uint32        `json:"splitN,omitempty"`
-	Duration    time.Duration `json:"duration,omitempty"`
-	ShardGroups []*ShardGroup `json:"shardGroups,omitempty"`
+	Name               string        `json:"name"`
+	ReplicaN           uint32        `json:"replicaN,omitempty"`
+	Duration           time.Duration `json:"duration,omitempty"`
+	ShardGroupDuration time.Duration `json:"shardGroupDuration"`
+	ShardGroups        []*ShardGroup `json:"shardGroups,omitempty"`
 }
 
 // TagFilter represents a tag filter when looking up other tags or measurements.

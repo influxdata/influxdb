@@ -86,7 +86,6 @@ const (
 	KEY
 	KEYS
 	LIMIT
-	SHOW
 	MEASUREMENT
 	MEASUREMENTS
 	OFFSET
@@ -104,6 +103,9 @@ const (
 	REVOKE
 	SELECT
 	SERIES
+	SHOW
+	SLIMIT
+	SOFFSET
 	TAG
 	TO
 	USER
@@ -184,7 +186,6 @@ var tokens = [...]string{
 	KEY:          "KEY",
 	KEYS:         "KEYS",
 	LIMIT:        "LIMIT",
-	SHOW:         "SHOW",
 	MEASUREMENT:  "MEASUREMENT",
 	MEASUREMENTS: "MEASUREMENTS",
 	OFFSET:       "OFFSET",
@@ -202,6 +203,9 @@ var tokens = [...]string{
 	REVOKE:       "REVOKE",
 	SELECT:       "SELECT",
 	SERIES:       "SERIES",
+	SHOW:         "SHOW",
+	SLIMIT:       "SLIMIT",
+	SOFFSET:      "SOFFSET",
 	TAG:          "TAG",
 	TO:           "TO",
 	USER:         "USER",

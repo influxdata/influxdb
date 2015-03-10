@@ -566,6 +566,16 @@ func (p *Parser) parseSelectStatement(tr targetRequirement) (*SelectStatement, e
 		return nil, err
 	}
 
+	// Parse series limit: "SLIMIT <n>".
+	if stmt.SLimit, err = p.parseOptionalTokenAndInt(SLIMIT); err != nil {
+		return nil, err
+	}
+
+	// Parse series offset: "SOFFSET <n>".
+	if stmt.SOffset, err = p.parseOptionalTokenAndInt(SOFFSET); err != nil {
+		return nil, err
+	}
+
 	return stmt, nil
 }
 

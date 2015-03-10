@@ -196,15 +196,6 @@ func (c *Client) Close() {
 	c.Client.Close()
 }
 
-// MustPublish publishes a message. Panic on error.
-func (c *Client) MustPublish(m *messaging.Message) uint64 {
-	index, err := c.Publish(m)
-	if err != nil {
-		panic(err.Error())
-	}
-	return index
-}
-
 // NewTempFile returns the path of a new temporary file.
 // It is up to the caller to remove it when finished.
 func NewTempFile() string {

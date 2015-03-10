@@ -32,7 +32,16 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 	if config == nil {
 		config = NewConfig()
 	}
-	initializing := !fileExists(config.BrokerDir()) && !fileExists(config.DataDir())
+
+	var initBroker, initServer bool
+	if initBroker = !fileExists(config.BrokerDir()); initBroker {
+		log.Printf("Broker directory missing. Need to create a broker.")
+	}
+
+	if initServer = !fileExists(config.DataDir()); initServer {
+		log.Printf("Data directory missing. Need to create data directory.")
+	}
+	initServer = initServer || initBroker
 
 	// Parse join urls from the --join flag.
 	var joinURLs []url.URL
@@ -43,7 +52,7 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 	}
 
 	// Open broker & raft log, initialize or join as necessary.
-	b, l := openBroker(config.BrokerDir(), config.BrokerURL(), initializing, joinURLs, logWriter)
+	b, l := openBroker(config.BrokerDir(), config.BrokerURL(), initBroker, joinURLs, logWriter, config.Logging.RaftTracing)
 
 	// Start the broker handler.
 	var h *Handler
@@ -72,7 +81,7 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 	}
 
 	// Open server, initialize or join as necessary.
-	s := openServer(config, b, initializing, configExists, joinURLs, logWriter)
+	s := openServer(config, b, initServer, initBroker, configExists, joinURLs, logWriter)
 	s.SetAuthenticationEnabled(config.Authentication.Enabled)
 
 	// Enable retention policy enforcement if requested.
@@ -84,11 +93,18 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 		log.Printf("broker enforcing retention policies with check interval of %s", interval)
 	}
 
+	// Start shard group pre-create
+	interval := config.ShardGroupPreCreateCheckPeriod()
+	if err := s.StartShardGroupsPreCreate(interval); err != nil {
+		log.Fatalf("shard group pre-create failed: %s", err.Error())
+	}
+	log.Printf("shard group pre-create with check interval of %s", interval)
+
 	// Start the server handler. Attach to broker if listening on the same port.
 	if s != nil {
 		sh := httpd.NewHandler(s, config.Authentication.Enabled, version)
 		sh.SetLogOutput(logWriter)
-		sh.WriteTrace = config.Logging.WriteTraceEnabled
+		sh.WriteTrace = config.Logging.WriteTracing
 
 		if h != nil && config.BrokerAddr() == config.DataAddr() {
 			h.serverHandler = sh
@@ -165,8 +181,10 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 
 	// unless disabled, start the loop to report anonymous usage stats every 24h
 	if !config.ReportingDisabled {
-		clusterID := b.Broker.ClusterID()
-		go s.StartReportingLoop(version, clusterID)
+		// Make sure we have a config object b4 we try to use it.
+		if clusterID := b.Broker.ClusterID(); clusterID != 0 {
+			go s.StartReportingLoop(version, clusterID)
+		}
 	}
 
 	return b.Broker, s
@@ -179,7 +197,7 @@ func writePIDFile(path string) {
 	}
 
 	// Ensure the required directory structure exists.
-	err := os.MkdirAll(filepath.Dir(path), 0700)
+	err := os.MkdirAll(filepath.Dir(path), 0755)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -213,16 +231,12 @@ func parseConfig(path, hostname string) *Config {
 }
 
 // creates and initializes a broker.
-func openBroker(path string, u url.URL, initializing bool, joinURLs []url.URL, w io.Writer) (*influxdb.Broker, *raft.Log) {
-	// Ignore if there's no existing broker and we're not initializing or joining.
-	if !fileExists(path) && !initializing && len(joinURLs) == 0 {
-		return nil, nil
-	}
-
+func openBroker(path string, u url.URL, initializing bool, joinURLs []url.URL, w io.Writer, raftTracing bool) (*influxdb.Broker, *raft.Log) {
 	// Create raft log.
 	l := raft.NewLog()
 	l.SetURL(u)
 	l.SetLogOutput(w)
+	l.DebugEnabled = raftTracing
 
 	// Create broker.
 	b := influxdb.NewBroker()
@@ -242,7 +256,7 @@ func openBroker(path string, u url.URL, initializing bool, joinURLs []url.URL, w
 		log.Fatalf("raft: %s", err)
 	}
 
-	// If this is a new raft log then we can initialie two ways:
+	// If this is a new broker then we can initialize two ways:
 	//   1) Start a brand new cluster.
 	//   2) Join an existing cluster.
 	if initializing {
@@ -273,16 +287,12 @@ func joinLog(l *raft.Log, joinURLs []url.URL) {
 }
 
 // creates and initializes a server.
-func openServer(config *Config, b *influxdb.Broker, initializing, configExists bool, joinURLs []url.URL, w io.Writer) *influxdb.Server {
-	// Ignore if there's no existing server and we're not initializing or joining.
-	if !fileExists(config.Data.Dir) && !initializing && len(joinURLs) == 0 {
-		return nil
-	}
-
+func openServer(config *Config, b *influxdb.Broker, initServer, initBroker, configExists bool, joinURLs []url.URL, w io.Writer) *influxdb.Server {
 	// Create and open the server.
 	s := influxdb.NewServer()
 	s.SetLogOutput(w)
-	s.WriteTrace = config.Logging.WriteTraceEnabled
+	s.WriteTrace = config.Logging.WriteTracing
+	s.RetentionAutoCreate = config.Data.RetentionAutoCreate
 	s.RecomputePreviousN = config.ContinuousQuery.RecomputePreviousN
 	s.RecomputeNoOlderThan = time.Duration(config.ContinuousQuery.RecomputeNoOlderThan)
 	s.ComputeRunsPerInterval = config.ContinuousQuery.ComputeRunsPerInterval
@@ -293,14 +303,15 @@ func openServer(config *Config, b *influxdb.Broker, initializing, configExists b
 	}
 
 	// If the server is uninitialized then initialize or join it.
-	if initializing {
+	if initServer {
 		if len(joinURLs) == 0 {
-			initializeServer(config.DataURL(), s, b, w)
+			initializeServer(config.DataURL(), s, b, w, initBroker)
 		} else {
 			joinServer(s, config.DataURL(), joinURLs)
-			openServerClient(s, joinURLs, w)
 		}
-	} else if !configExists {
+	}
+
+	if !configExists {
 		// We are spining up a server that has no config,
 		// but already has an initialized data directory
 		joinURLs = []url.URL{b.URL()}
@@ -318,9 +329,7 @@ func openServer(config *Config, b *influxdb.Broker, initializing, configExists b
 }
 
 // initializes a new server that does not yet have an ID.
-func initializeServer(u url.URL, s *influxdb.Server, b *influxdb.Broker, w io.Writer) {
-	// TODO: Create replica using the messaging client.
-
+func initializeServer(u url.URL, s *influxdb.Server, b *influxdb.Broker, w io.Writer, initBroker bool) {
 	// Create messaging client.
 	c := influxdb.NewMessagingClient()
 	c.SetLogOutput(w)
@@ -331,9 +340,11 @@ func initializeServer(u url.URL, s *influxdb.Server, b *influxdb.Broker, w io.Wr
 		log.Fatalf("set client error: %s", err)
 	}
 
-	// Initialize the server.
-	if err := s.Initialize(b.URL()); err != nil {
-		log.Fatalf("server initialization error: %s", err)
+	if initBroker {
+		// Initialize the server.
+		if err := s.Initialize(b.URL()); err != nil {
+			log.Fatalf("server initialization error: %s", err)
+		}
 	}
 }
 

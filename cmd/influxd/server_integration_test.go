@@ -2,6 +2,7 @@ package main_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/messaging"
 
+	"github.com/influxdb/influxdb/client"
 	main "github.com/influxdb/influxdb/cmd/influxd"
 )
 
@@ -159,6 +161,8 @@ func write(t *testing.T, node *Node, data string) {
 	if err != nil {
 		t.Fatalf("Couldn't write data: %s", err)
 	}
+	body, _ := ioutil.ReadAll(resp.Body)
+	fmt.Println("BODY: ", string(body))
 	if resp.StatusCode != http.StatusOK {
 		body, _ := ioutil.ReadAll(resp.Body)
 		t.Fatalf("Write to database failed.  Unexpected status code.  expected: %d, actual %d, %s", http.StatusOK, resp.StatusCode, string(body))
@@ -283,7 +287,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		{
 			name:     "field not found",
 			query:    `SELECT abc FROM "%DB%"."%RP%".cpu WHERE time < now()`,
-			expected: `{"results":[{"error":"field not found: abc"}]}`,
+			expected: `{"results":[{"error":"unknown field or tag name in select clause: abc"}]}`,
 		},
 
 		// WHERE fields queries
@@ -310,7 +314,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "timestamp": "2009-11-10T23:00:02Z", "fields": {"load": 100}},
 			                                                                      {"name": "cpu", "timestamp": "2009-11-10T23:01:02Z", "fields": {"load": 80}}]}`,
 			query:    `select load from "%DB%"."%RP%".cpu where load > 100`,
-			expected: `{"results":[{}]}`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","load"]}]}]}`,
 		},
 		{
 			query:    `select load from "%DB%"."%RP%".cpu where load >= 100`,
@@ -330,7 +334,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		},
 		{
 			query:    `select load from "%DB%"."%RP%".cpu where load = 99`,
-			expected: `{"results":[{}]}`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","load"]}]}]}`,
 		},
 		{
 			query:    `select load from "%DB%"."%RP%".cpu where load < 99`,
@@ -338,22 +342,93 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		},
 		{
 			query:    `select load from "%DB%"."%RP%".cpu where load < 80`,
-			expected: `{"results":[{}]}`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","load"]}]}]}`,
 		},
 		{
-			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "logs", "timestamp": "2009-11-10T23:00:02Z","fields": {"event": "disk full"}}]}`,
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "logs", "timestamp": "2009-11-10T23:00:02Z","fields": {"event": "disk full"}},
+			                                                                        {"name": "logs", "timestamp": "2009-11-10T23:02:02Z","fields": {"event": "disk not full"}}]}`,
 			query:    `select event from "%DB%"."%RP%".logs where event = 'disk full'`,
 			expected: `{"results":[{"series":[{"name":"logs","columns":["time","event"],"values":[["2009-11-10T23:00:02Z","disk full"]]}]}]}`,
 		},
 		{
 			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "logs", "timestamp": "2009-11-10T23:00:02Z","fields": {"event": "disk full"}}]}`,
 			query:    `select event from "%DB%"."%RP%".logs where event = 'nonsense'`,
-			expected: `{"results":[{}]}`,
+			expected: `{"results":[{"series":[{"name":"logs","columns":["time","event"]}]}]}`,
 		},
 		{
 			name:     "missing measurement with `GROUP BY *`",
 			query:    `select load from "%DB%"."%RP%".missing group by *`,
-			expected: `{"results":[{"error":"measurement not found: \"mydb\".\"myrp\".\"missing\""}]}`,
+			expected: `{"results":[{"error":"measurement not found: \"%DB%\".\"%RP%\".\"missing\""}]}`,
+		},
+		{
+			name: "where on a tag, field and time",
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+				{"name": "where_events", "timestamp": "2009-11-10T23:00:02Z","fields": {"foo": "bar"}, "tags": {"tennant": "paul"}},
+				{"name": "where_events", "timestamp": "2009-11-10T23:00:03Z","fields": {"foo": "baz"}, "tags": {"tennant": "paul"}},
+				{"name": "where_events", "timestamp": "2009-11-10T23:00:04Z","fields": {"foo": "bat"}, "tags": {"tennant": "paul"}},
+				{"name": "where_events", "timestamp": "2009-11-10T23:00:05Z","fields": {"foo": "bar"}, "tags": {"tennant": "todd"}}
+			]}`,
+			query:    `select foo from "%DB%"."%RP%".where_events where tennant = 'paul' AND time > 1s AND (foo = 'bar' OR foo = 'baz')`,
+			expected: `{"results":[{"series":[{"name":"where_events","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z","bar"],["2009-11-10T23:00:03Z","baz"]]}]}]}`,
+		},
+
+		// LIMIT and OFFSET tests
+
+		{
+			name: "limit on points",
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+				{"name": "limit", "timestamp": "2009-11-10T23:00:02Z","fields": {"foo": "bar"}, "tags": {"tennant": "paul"}},
+				{"name": "limit", "timestamp": "2009-11-10T23:00:03Z","fields": {"foo": "baz"}, "tags": {"tennant": "paul"}},
+				{"name": "limit", "timestamp": "2009-11-10T23:00:04Z","fields": {"foo": "bat"}, "tags": {"tennant": "paul"}},
+				{"name": "limit", "timestamp": "2009-11-10T23:00:05Z","fields": {"foo": "bar"}, "tags": {"tennant": "todd"}}
+			]}`,
+			query:    `select foo from "%DB%"."%RP%".limit LIMIT 2`,
+			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z","bar"],["2009-11-10T23:00:03Z","baz"]]}]}]}`,
+		},
+		{
+			name:     "limit higher than the number of data points",
+			query:    `select foo from "%DB%"."%RP%".limit LIMIT 20`,
+			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z","bar"],["2009-11-10T23:00:03Z","baz"],["2009-11-10T23:00:04Z","bat"],["2009-11-10T23:00:05Z","bar"]]}]}]}`,
+		},
+		{
+			name:     "limit and offset",
+			query:    `select foo from "%DB%"."%RP%".limit LIMIT 2 OFFSET 1`,
+			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:03Z","baz"],["2009-11-10T23:00:04Z","bat"]]}]}]}`,
+		},
+		{
+			name:     "limit + offset higher than number of points",
+			query:    `select foo from "%DB%"."%RP%".limit LIMIT 3 OFFSET 3`,
+			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:05Z","bar"]]}]}]}`,
+		},
+		{
+			name:     "offset higher than number of points",
+			query:    `select foo from "%DB%"."%RP%".limit LIMIT 2 OFFSET 20`,
+			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"]}]}]}`,
+		},
+		{
+			name:     "limit on points with group by time",
+			query:    `select foo from "%DB%"."%RP%".limit WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY time(1s) LIMIT 2`,
+			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z","bar"],["2009-11-10T23:00:03Z","baz"]]}]}]}`,
+		},
+		{
+			name:     "limit higher than the number of data points with group by time",
+			query:    `select foo from "%DB%"."%RP%".limit WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY time(1s) LIMIT 20`,
+			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z","bar"],["2009-11-10T23:00:03Z","baz"],["2009-11-10T23:00:04Z","bat"],["2009-11-10T23:00:05Z","bar"]]}]}]}`,
+		},
+		{
+			name:     "limit and offset with group by time",
+			query:    `select foo from "%DB%"."%RP%".limit WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY time(1s) LIMIT 2 OFFSET 1`,
+			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:03Z","baz"],["2009-11-10T23:00:04Z","bat"]]}]}]}`,
+		},
+		{
+			name:     "limit + offset higher than number of points with group by time",
+			query:    `select foo from "%DB%"."%RP%".limit WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY time(1s) LIMIT 3 OFFSET 3`,
+			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:05Z","bar"]]}]}]}`,
+		},
+		{
+			name:     "offset higher than number of points with group by time",
+			query:    `select foo from "%DB%"."%RP%".limit WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY time(1s) LIMIT 2 OFFSET 20`,
+			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"]}]}]}`,
 		},
 
 		// Metadata display tests
@@ -509,6 +584,24 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["fieldKey"],"values":[["field1"],["field2"],["field3"]]}]}]}`,
 		},
 
+		// Database control tests
+		{
+			reset:    true,
+			name:     "Create database for default retention policy tests",
+			query:    `CREATE DATABASE mydatabase`,
+			expected: `{"results":[{}]}`,
+		},
+		{
+			name:     "Check for default retention policy",
+			query:    `SHOW RETENTION POLICIES mydatabase`,
+			expected: `{"results":[{"series":[{"columns":["name","duration","replicaN"],"values":[["default","0",1]]}]}]}`,
+		},
+		{
+			name:     "Ensure database with default retention policy can be deleted",
+			query:    `DROP DATABASE mydatabase`,
+			expected: `{"results":[{}]}`,
+		},
+
 		// User control tests
 		{
 			name:     "show users, no actual users",
@@ -598,6 +691,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		if name == "" {
 			name = tt.query
 		}
+		fmt.Printf("TEST: %d: %s\n", i, name)
 		t.Logf("Running test %d: %s", i, name)
 
 		if tt.reset {
@@ -618,7 +712,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			}
 			got, ok := query(t, nodes, rewriteDbRp(urlDb, database, retention), rewriteDbRp(tt.query, database, retention), rewriteDbRp(tt.expected, database, retention))
 			if !ok {
-				t.Errorf(`Test "%s" failed, expected: %s, got: %s`, name, rewriteDbRp(tt.expected, database, retention), got)
+				t.Errorf("Test \"%s\" failed\n  exp: %s\n  got: %s\n", name, rewriteDbRp(tt.expected, database, retention), got)
 			}
 		}
 	}
@@ -653,4 +747,106 @@ func Test3NodeServer(t *testing.T) {
 	nodes := createCombinedNodeCluster(t, testName, dir, 3, 8190)
 
 	runTestsData(t, testName, nodes, "mydb", "myrp")
+}
+
+func TestClientLibrary(t *testing.T) {
+	testName := "single server integration via client library"
+	if testing.Short() {
+		t.Skip(fmt.Sprintf("skipping '%s'", testName))
+	}
+	dir := tempfile()
+	defer func() {
+		os.RemoveAll(dir)
+	}()
+
+	database := "mydb"
+	retentionPolicy := "myrp"
+	now := time.Now().UTC()
+
+	nodes := createCombinedNodeCluster(t, testName, dir, 1, 8290)
+	createDatabase(t, testName, nodes, database)
+	createRetentionPolicy(t, testName, nodes, database, retentionPolicy)
+
+	tests := []struct {
+		name                         string
+		bp                           client.BatchPoints
+		results                      client.Results
+		query                        client.Query
+		writeExpected, queryExpected string
+		writeErr, queryErr           string
+	}{
+		{
+			name:          "empty batchpoint",
+			writeErr:      "database is required",
+			writeExpected: `{"error":"database is required"}`,
+		},
+		{
+			name:          "no points",
+			writeExpected: `null`,
+			bp:            client.BatchPoints{Database: "mydb"},
+		},
+		{
+			name: "one point",
+			bp: client.BatchPoints{
+				Database: "mydb",
+				Points: []client.Point{
+					{Name: "cpu", Fields: map[string]interface{}{"value": 1.1}, Timestamp: now},
+				},
+			},
+			writeExpected: `null`,
+			query:         client.Query{Command: `select * from "mydb"."myrp".cpu`},
+			queryExpected: fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",1.1]]}]}]}`, now.Format(time.RFC3339Nano)),
+		},
+	}
+
+	c, e := client.NewClient(client.Config{URL: *nodes[0].url})
+	if e != nil {
+		t.Fatalf("error creating client: %s", e)
+	}
+
+	for _, test := range tests {
+		t.Logf("testing %s - %s\n", testName, test.name)
+		writeResult, err := c.Write(test.bp)
+		if test.writeErr != errToString(err) {
+			t.Errorf("unexpected error. expected: %s, got %v", test.writeErr, err)
+		}
+		jsonResult := mustMarshalJSON(writeResult)
+		if test.writeExpected != jsonResult {
+			t.Logf("write expected result: %s\n", test.writeExpected)
+			t.Logf("write got result:      %s\n", jsonResult)
+			t.Error("unexpected results")
+		}
+
+		if test.query.Command != "" {
+			time.Sleep(500 * time.Millisecond)
+			queryResult, err := c.Query(test.query)
+			if test.queryErr != errToString(err) {
+				t.Errorf("unexpected error. expected: %s, got %v", test.queryErr, err)
+			}
+			jsonResult := mustMarshalJSON(queryResult)
+			if test.queryExpected != jsonResult {
+				t.Logf("query expected result: %s\n", test.queryExpected)
+				t.Logf("query got result:      %s\n", jsonResult)
+				t.Error("unexpected results")
+			}
+
+		}
+	}
+}
+
+// helper funcs
+
+func errToString(err error) string {
+	if err != nil {
+		return err.Error()
+	}
+	return ""
+}
+
+func mustMarshalJSON(v interface{}) string {
+	b, e := json.Marshal(v)
+	if e != nil {
+		panic(e)
+	}
+	return string(b)
 }

@@ -175,6 +175,7 @@ enabled = true
 [logging]
 file   = "influxdb.log"
 write-tracing = true
+raft-tracing = true
 
 # Configure the admin server
 [admin]
@@ -236,6 +237,7 @@ dir  = "/tmp/influxdb/development/broker"
 
 [data]
 dir = "/tmp/influxdb/development/db"
+retention-auto-create = false
 retention-check-enabled = true
 retention-check-period = "5m"
 

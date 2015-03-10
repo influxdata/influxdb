@@ -215,6 +215,24 @@ func TestSelectStatement_SetTimeRange(t *testing.T) {
 	}
 }
 
+// Ensure the idents from the select clause can come out
+func TestSelect_NamesInSelect(t *testing.T) {
+	s := MustParseSelectStatement("select count(asdf), bar from cpu")
+	a := s.NamesInSelect()
+	if !reflect.DeepEqual(a, []string{"asdf", "bar"}) {
+		t.Fatal("expected names asdf and bar")
+	}
+}
+
+// Ensure the idents from the where clause can come out
+func TestSelect_NamesInWhere(t *testing.T) {
+	s := MustParseSelectStatement("select * from cpu where time > 23s AND (asdf = 'jkl' OR (foo = 'bar' AND baz = 'bar'))")
+	a := s.NamesInWhere()
+	if !reflect.DeepEqual(a, []string{"time", "asdf", "foo", "baz"}) {
+		t.Fatalf("exp: time,asdf,foo,baz\ngot: %s\n", strings.Join(a, ","))
+	}
+}
+
 func TestSelectStatement_HasWildcard(t *testing.T) {
 	var tests = []struct {
 		stmt     string
@@ -637,4 +655,13 @@ type Valuer map[string]interface{}
 func (o Valuer) Value(key string) (v interface{}, ok bool) {
 	v, ok = o[key]
 	return
+}
+
+// mustParseTime parses an IS0-8601 string. Panic on error.
+func mustParseTime(s string) time.Time {
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		panic(err.Error())
+	}
+	return t
 }

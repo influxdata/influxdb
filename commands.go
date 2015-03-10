@@ -69,11 +69,13 @@ type createShardGroupIfNotExistsCommand struct {
 	Policy    string    `json:"policy"`
 	Timestamp time.Time `json:"timestamp"`
 }
+
 type deleteShardGroupCommand struct {
 	Database string `json:"database"`
 	Policy   string `json:"policy"`
 	ID       uint64 `json:"id"`
 }
+
 type createUserCommand struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
@@ -94,11 +96,12 @@ type setPrivilegeCommand struct {
 	Database  string             `json:"database"`
 }
 type createRetentionPolicyCommand struct {
-	Database string        `json:"database"`
-	Name     string        `json:"name"`
-	Duration time.Duration `json:"duration"`
-	ReplicaN uint32        `json:"replicaN"`
-	SplitN   uint32        `json:"splitN"`
+	Database           string        `json:"database"`
+	Name               string        `json:"name"`
+	Duration           time.Duration `json:"duration"`
+	ShardGroupDuration time.Duration `json:"shardGroupDuration"`
+	ReplicaN           uint32        `json:"replicaN"`
+	SplitN             uint32        `json:"splitN"`
 }
 type updateRetentionPolicyCommand struct {
 	Database string                 `json:"database"`

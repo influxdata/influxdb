@@ -688,15 +688,6 @@ func (b *Broker) Log() *BrokerLog {
 	return b.Broker.Log.(*BrokerLog)
 }
 
-// MustPublish publishes a message to the broker. Panic on error.
-func (b *Broker) MustPublish(m *messaging.Message) uint64 {
-	index, err := b.Publish(&messaging.Message{Type: 100, TopicID: 20, Data: []byte("0000")})
-	if err != nil {
-		panic(err.Error())
-	}
-	return index
-}
-
 // MustReadAllTopic reads all messages on a topic. Panic on error.
 func (b *Broker) MustReadAllTopic(topicID uint64) (a []*messaging.Message) {
 	r := b.TopicReader(topicID, 0, false)

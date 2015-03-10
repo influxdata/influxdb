@@ -39,6 +39,10 @@ const (
 
 	// DefaultJoinURLs represents the default URLs for joining a cluster.
 	DefaultJoinURLs = ""
+
+	// DefaultRetentionCreatePeriod represents how often the server will check to see if new
+	// shard groups need to be created in advance for writing
+	DefaultRetentionCreatePeriod = 45 * time.Minute
 )
 
 // Config represents the configuration format for the influxd binary.
@@ -87,8 +91,10 @@ type Config struct {
 	Data struct {
 		Dir                   string   `toml:"dir"`
 		Port                  int      `toml:"port"`
+		RetentionAutoCreate   bool     `toml:"retention-auto-create"`
 		RetentionCheckEnabled bool     `toml:"retention-check-enabled"`
 		RetentionCheckPeriod  Duration `toml:"retention-check-period"`
+		RetentionCreatePeriod Duration `toml:"retention-create-period"`
 	} `toml:"data"`
 
 	Cluster struct {
@@ -96,8 +102,9 @@ type Config struct {
 	} `toml:"cluster"`
 
 	Logging struct {
-		File              string `toml:"file"`
-		WriteTraceEnabled bool   `toml:"write-tracing"`
+		File         string `toml:"file"`
+		WriteTracing bool   `toml:"write-tracing"`
+		RaftTracing  bool   `toml:"raft-tracing"`
 	} `toml:"logging"`
 
 	ContinuousQuery struct {
@@ -143,8 +150,10 @@ func NewConfig() *Config {
 	c.Broker.Timeout = Duration(1 * time.Second)
 	c.Data.Dir = filepath.Join(u.HomeDir, ".influxdb/data")
 	c.Data.Port = DefaultDataPort
+	c.Data.RetentionAutoCreate = true
 	c.Data.RetentionCheckEnabled = true
 	c.Data.RetentionCheckPeriod = Duration(10 * time.Minute)
+	c.Data.RetentionCreatePeriod = Duration(DefaultRetentionCreatePeriod)
 	c.Admin.Enabled = true
 	c.Admin.Port = 8083
 	c.ContinuousQuery.RecomputePreviousN = 2
@@ -224,6 +233,15 @@ func (c *Config) JoinURLs() string {
 	} else {
 		return c.Initialization.JoinURLs
 	}
+}
+
+// ShardGroupPreCreateCheckPeriod returns the check interval to pre-create shard groups.
+// If it was not defined in the config, it defaults to DefaultShardGroupPreCreatePeriod
+func (c *Config) ShardGroupPreCreateCheckPeriod() time.Duration {
+	if c.Data.RetentionCreatePeriod != 0 {
+		return time.Duration(c.Data.RetentionCreatePeriod)
+	}
+	return DefaultRetentionCreatePeriod
 }
 
 // Size represents a TOML parseable file size.
