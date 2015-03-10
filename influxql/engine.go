@@ -68,7 +68,7 @@ func (m *MapReduceJob) Key() []byte {
 }
 
 func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
-	aggregates := m.stmt.AggregateCalls()
+	aggregates := m.stmt.FunctionCalls()
 	reduceFuncs := make([]ReduceFunc, len(aggregates))
 	for i, c := range aggregates {
 		reduceFunc, err := InitializeReduceFunc(c)

@@ -928,17 +928,17 @@ func walkNames(exp Expr) []string {
 	return nil
 }
 
-// AggregateCalls returns the Call objects from the query
-func (s *SelectStatement) AggregateCalls() []*Call {
+// FunctionCalls returns the Call objects from the query
+func (s *SelectStatement) FunctionCalls() []*Call {
 	var a []*Call
 	for _, f := range s.Fields {
-		a = append(a, s.walkAggregateCalls(f.Expr)...)
+		a = append(a, walkFunctionCalls(f.Expr)...)
 	}
 	return a
 }
 
-// walkAggregateCalls walks the Field of a query for any aggregate calls made
-func (s *SelectStatement) walkAggregateCalls(exp Expr) []*Call {
+// walkFunctionCalls walks the Field of a query for any function calls made
+func walkFunctionCalls(exp Expr) []*Call {
 	switch expr := exp.(type) {
 	case *VarRef:
 		return nil
@@ -946,11 +946,11 @@ func (s *SelectStatement) walkAggregateCalls(exp Expr) []*Call {
 		return []*Call{expr}
 	case *BinaryExpr:
 		var ret []*Call
-		ret = append(ret, s.walkAggregateCalls(expr.LHS)...)
-		ret = append(ret, s.walkAggregateCalls(expr.RHS)...)
+		ret = append(ret, walkFunctionCalls(expr.LHS)...)
+		ret = append(ret, walkFunctionCalls(expr.RHS)...)
 		return ret
 	case *ParenExpr:
-		return s.walkAggregateCalls(expr.Expr)
+		return walkFunctionCalls(expr.Expr)
 	}
 
 	return nil
