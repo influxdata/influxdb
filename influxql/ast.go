@@ -885,7 +885,7 @@ func (s *SelectStatement) Substatement(ref *VarRef) (*SelectStatement, error) {
 func (s *SelectStatement) NamesInWhere() []string {
 	var a []string
 	if s.Condition != nil {
-		a = s.walkNames(s.Condition)
+		a = walkNames(s.Condition)
 	}
 	return a
 }
@@ -895,14 +895,14 @@ func (s *SelectStatement) NamesInSelect() []string {
 	var a []string
 
 	for _, f := range s.Fields {
-		a = append(a, s.walkNames(f.Expr)...)
+		a = append(a, walkNames(f.Expr)...)
 	}
 
 	return a
 }
 
-// walkFieldNames will walk the Expr and return the database fields
-func (s *SelectStatement) walkNames(exp Expr) []string {
+// walkNames will walk the Expr and return the database fields
+func walkNames(exp Expr) []string {
 	switch expr := exp.(type) {
 	case *VarRef:
 		return []string{expr.Val}
@@ -918,27 +918,27 @@ func (s *SelectStatement) walkNames(exp Expr) []string {
 		return []string{lit.Val}
 	case *BinaryExpr:
 		var ret []string
-		ret = append(ret, s.walkNames(expr.LHS)...)
-		ret = append(ret, s.walkNames(expr.RHS)...)
+		ret = append(ret, walkNames(expr.LHS)...)
+		ret = append(ret, walkNames(expr.RHS)...)
 		return ret
 	case *ParenExpr:
-		return s.walkNames(expr.Expr)
+		return walkNames(expr.Expr)
 	}
 
 	return nil
 }
 
-// AggregateCalls returns the Call objects from the query
-func (s *SelectStatement) AggregateCalls() []*Call {
+// FunctionCalls returns the Call objects from the query
+func (s *SelectStatement) FunctionCalls() []*Call {
 	var a []*Call
 	for _, f := range s.Fields {
-		a = append(a, s.walkAggregateCalls(f.Expr)...)
+		a = append(a, walkFunctionCalls(f.Expr)...)
 	}
 	return a
 }
 
-// walkAggregateCalls walks the Field of a query for any aggregate calls made
-func (s *SelectStatement) walkAggregateCalls(exp Expr) []*Call {
+// walkFunctionCalls walks the Field of a query for any function calls made
+func walkFunctionCalls(exp Expr) []*Call {
 	switch expr := exp.(type) {
 	case *VarRef:
 		return nil
@@ -946,11 +946,11 @@ func (s *SelectStatement) walkAggregateCalls(exp Expr) []*Call {
 		return []*Call{expr}
 	case *BinaryExpr:
 		var ret []*Call
-		ret = append(ret, s.walkAggregateCalls(expr.LHS)...)
-		ret = append(ret, s.walkAggregateCalls(expr.RHS)...)
+		ret = append(ret, walkFunctionCalls(expr.LHS)...)
+		ret = append(ret, walkFunctionCalls(expr.RHS)...)
 		return ret
 	case *ParenExpr:
-		return s.walkAggregateCalls(expr.Expr)
+		return walkFunctionCalls(expr.Expr)
 	}
 
 	return nil
