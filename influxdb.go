@@ -10,6 +10,10 @@ import (
 	"github.com/influxdb/influxdb/client"
 )
 
+const (
+	retentionPolicyMinDuration = time.Hour
+)
+
 var (
 	// ErrServerOpen is returned when opening an already open server.
 	ErrServerOpen = errors.New("server already open")
@@ -73,6 +77,9 @@ var (
 
 	// ErrRetentionPolicyNameRequired is returned using a blank shard space name.
 	ErrRetentionPolicyNameRequired = errors.New("retention policy name required")
+
+	// ErrRetentionPolicyMinDuration is returned when creating replicaiton policy with a duration smaller than RetenionPolicyMinDuration.
+	ErrRetentionPolicyMinDuration = fmt.Errorf("retention policy duration needs to be at least %s", retentionPolicyMinDuration)
 
 	// ErrDefaultRetentionPolicyNotFound is returned when using the default
 	// policy on a database but the default has not been set.
