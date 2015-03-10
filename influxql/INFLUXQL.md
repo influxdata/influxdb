@@ -97,8 +97,8 @@ INNER        INSERT       INTO         KEY          KEYS         LIMIT
 SHOW         MEASUREMENT  MEASUREMENTS OFFSET       ON           ORDER
 PASSWORD     POLICY       POLICIES     PRIVILEGES   QUERIES      QUERY
 READ         REPLICATION  RETENTION    REVOKE       SELECT       SERIES
-TAG          TO           USER         USERS        VALUES       WHERE
-WITH         WRITE
+SLIMIT       SOFFSET      TAG          TO           USER         USERS
+VALUES       WHERE        WITH         WRITE
 ```
 
 ## Literals
@@ -569,7 +569,7 @@ REVOKE READ ON mydb FROM jdoe;
 ```
 select_stmt = fields from_clause [ into_clause ] [ where_clause ]
               [ group_by_clause ] [ order_by_clause ] [ limit_clause ]
-              [ offset_clause ] .
+              [ offset_clause ] [ slimit_clause ] [ soffset_clause ].
 ```
 
 #### Examples:
@@ -589,6 +589,10 @@ group_by_clause = "GROUP BY" dimensions .
 limit_clause    = "LIMIT" int_lit .
 
 offset_clause   = "OFFSET" int_lit .
+
+slimit_clause    = "SLIMIT" int_lit .
+
+soffset_clause   = "SOFFSET" int_lit .
 
 on_clause       = db_name .
 

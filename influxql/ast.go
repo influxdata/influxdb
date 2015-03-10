@@ -547,12 +547,17 @@ type SelectStatement struct {
 	// Fields to sort results by
 	SortFields SortFields
 
-	// Maximum number of rows to be returned.
-	// Unlimited if zero.
+	// Maximum number of rows to be returned. Unlimited if zero.
 	Limit int
 
 	// Returns rows starting at an offset from the first row.
 	Offset int
+
+	// Maxiumum number of series to be returned. Unlimited if zero.
+	SLimit int
+
+	// Returns series starting at an offset from the first one.
+	SOffset int
 
 	// memoize the group by interval
 	groupByInterval time.Duration
@@ -571,6 +576,8 @@ func (s *SelectStatement) Clone() *SelectStatement {
 		Condition:  CloneExpr(s.Condition),
 		Limit:      s.Limit,
 		Offset:     s.Offset,
+		SLimit:     s.SLimit,
+		SOffset:    s.SOffset,
 	}
 	if s.Target != nil {
 		other.Target = &Target{Measurement: s.Target.Measurement, Database: s.Target.Database}

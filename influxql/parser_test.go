@@ -137,6 +137,17 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// SELECT statement with SLIMIT and SOFFSET
+		{
+			s: `SELECT field1 FROM myseries SLIMIT 10 SOFFSET 5`,
+			stmt: &influxql.SelectStatement{
+				Fields:  []*influxql.Field{{Expr: &influxql.VarRef{Val: "field1"}}},
+				Source:  &influxql.Measurement{Name: "myseries"},
+				SLimit:  10,
+				SOffset: 5,
+			},
+		},
+
 		// SELECT * FROM cpu WHERE host = 'serverC' AND region =~ /.*west.*/
 		{
 			s: `SELECT * FROM cpu WHERE host = 'serverC' AND region =~ /.*west.*/`,

@@ -372,6 +372,65 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			expected: `{"results":[{"series":[{"name":"where_events","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z","bar"],["2009-11-10T23:00:03Z","baz"]]}]}]}`,
 		},
 
+		// LIMIT and OFFSET tests
+
+		{
+			name: "limit on points",
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+				{"name": "limit", "timestamp": "2009-11-10T23:00:02Z","fields": {"foo": "bar"}, "tags": {"tennant": "paul"}},
+				{"name": "limit", "timestamp": "2009-11-10T23:00:03Z","fields": {"foo": "baz"}, "tags": {"tennant": "paul"}},
+				{"name": "limit", "timestamp": "2009-11-10T23:00:04Z","fields": {"foo": "bat"}, "tags": {"tennant": "paul"}},
+				{"name": "limit", "timestamp": "2009-11-10T23:00:05Z","fields": {"foo": "bar"}, "tags": {"tennant": "todd"}}
+			]}`,
+			query:    `select foo from "%DB%"."%RP%".limit LIMIT 2`,
+			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z","bar"],["2009-11-10T23:00:03Z","baz"]]}]}]}`,
+		},
+		{
+			name:     "limit higher than the number of data points",
+			query:    `select foo from "%DB%"."%RP%".limit LIMIT 20`,
+			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z","bar"],["2009-11-10T23:00:03Z","baz"],["2009-11-10T23:00:04Z","bat"],["2009-11-10T23:00:05Z","bar"]]}]}]}`,
+		},
+		{
+			name:     "limit and offset",
+			query:    `select foo from "%DB%"."%RP%".limit LIMIT 2 OFFSET 1`,
+			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:03Z","baz"],["2009-11-10T23:00:04Z","bat"]]}]}]}`,
+		},
+		{
+			name:     "limit + offset higher than number of points",
+			query:    `select foo from "%DB%"."%RP%".limit LIMIT 3 OFFSET 3`,
+			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:05Z","bar"]]}]}]}`,
+		},
+		{
+			name:     "offset higher than number of points",
+			query:    `select foo from "%DB%"."%RP%".limit LIMIT 2 OFFSET 20`,
+			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"]}]}]}`,
+		},
+		{
+			name:     "limit on points with group by time",
+			query:    `select foo from "%DB%"."%RP%".limit WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY time(1s) LIMIT 2`,
+			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z","bar"],["2009-11-10T23:00:03Z","baz"]]}]}]}`,
+		},
+		{
+			name:     "limit higher than the number of data points with group by time",
+			query:    `select foo from "%DB%"."%RP%".limit WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY time(1s) LIMIT 20`,
+			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z","bar"],["2009-11-10T23:00:03Z","baz"],["2009-11-10T23:00:04Z","bat"],["2009-11-10T23:00:05Z","bar"]]}]}]}`,
+		},
+		{
+			name:     "limit and offset with group by time",
+			query:    `select foo from "%DB%"."%RP%".limit WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY time(1s) LIMIT 2 OFFSET 1`,
+			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:03Z","baz"],["2009-11-10T23:00:04Z","bat"]]}]}]}`,
+		},
+		{
+			name:     "limit + offset higher than number of points with group by time",
+			query:    `select foo from "%DB%"."%RP%".limit WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY time(1s) LIMIT 3 OFFSET 3`,
+			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:05Z","bar"]]}]}]}`,
+		},
+		{
+			name:     "offset higher than number of points with group by time",
+			query:    `select foo from "%DB%"."%RP%".limit WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY time(1s) LIMIT 2 OFFSET 20`,
+			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"]}]}]}`,
+		},
+
 		// Metadata display tests
 
 		{

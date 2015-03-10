@@ -121,6 +121,27 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 		resultValues[i] = append(vals, time.Unix(0, t).UTC())
 	}
 
+	// now limit the number of data points returned by the limit and offset
+	if pointCountInResult > 1 && (m.stmt.Limit > 0 || m.stmt.Offset > 0) {
+		if m.stmt.Offset > len(resultValues) {
+			out <- &Row{
+				Name: m.MeasurementName,
+				Tags: m.TagSet.Tags,
+			}
+
+			return
+		} else {
+			limit := m.stmt.Limit
+			if m.stmt.Offset+m.stmt.Limit > len(resultValues) {
+				limit = len(resultValues) - m.stmt.Offset
+			}
+
+			resultTimes = resultTimes[m.stmt.Offset : m.stmt.Offset+limit]
+			resultValues = resultValues[m.stmt.Offset : m.stmt.Offset+limit]
+		}
+		m.TMin = resultTimes[0]
+	}
+
 	// now loop through the aggregate functions and populate everything
 	for i, c := range aggregates {
 		if err := m.processAggregate(c, reduceFuncs[i], resultValues); err != nil {
@@ -384,6 +405,21 @@ func (m *MapReduceJob) processRawResults(resultValues [][]interface{}) *Row {
 		row.Values = append(row.Values, vals)
 	}
 
+	// apply limit and offset, if applicable
+	// TODO: make this so it doesn't read the whole result set into memory
+	if m.stmt.Limit > 0 || m.stmt.Offset > 0 {
+		if m.stmt.Offset > len(row.Values) {
+			row.Values = nil
+		} else {
+			limit := m.stmt.Limit
+			if m.stmt.Offset+m.stmt.Limit > len(row.Values) {
+				limit = len(row.Values) - m.stmt.Offset
+			}
+
+			row.Values = row.Values[m.stmt.Offset : m.stmt.Offset+limit]
+		}
+	}
+
 	return row
 }
 
@@ -494,15 +530,15 @@ func (p *Planner) Plan(stmt *SelectStatement) (*Executor, error) {
 	}
 
 	// LIMIT and OFFSET the unique series
-	if stmt.Limit > 0 || stmt.Offset > 0 {
-		if stmt.Offset > len(jobs) {
+	if stmt.SLimit > 0 || stmt.SOffset > 0 {
+		if stmt.SOffset > len(jobs) {
 			jobs = nil
 		} else {
-			if stmt.Offset+stmt.Limit > len(jobs) {
-				stmt.Limit = len(jobs) - stmt.Offset
+			if stmt.SOffset+stmt.SLimit > len(jobs) {
+				stmt.SLimit = len(jobs) - stmt.SOffset
 			}
 
-			jobs = jobs[stmt.Offset : stmt.Offset+stmt.Limit]
+			jobs = jobs[stmt.SOffset : stmt.SOffset+stmt.SLimit]
 		}
 	}
 
