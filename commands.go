@@ -28,9 +28,8 @@ const (
 	deleteUserMessageType = messaging.MessageType(0x32)
 
 	// Shard messages
-	createShardGroupIfNotExistsMessageType    = messaging.MessageType(0x40)
-	deleteShardGroupMessageType               = messaging.MessageType(0x41)
-	preCreateShardGroupIfNotExistsMessageType = messaging.MessageType(0x42)
+	createShardGroupIfNotExistsMessageType = messaging.MessageType(0x40)
+	deleteShardGroupMessageType            = messaging.MessageType(0x41)
 
 	// Series messages
 	dropSeriesMessageType = messaging.MessageType(0x50)
@@ -72,12 +71,6 @@ type createShardGroupIfNotExistsCommand struct {
 }
 
 type deleteShardGroupCommand struct {
-	Database string `json:"database"`
-	Policy   string `json:"policy"`
-	ID       uint64 `json:"id"`
-}
-
-type preCreateShardGroupIfNotExistsCommand struct {
 	Database string `json:"database"`
 	Policy   string `json:"policy"`
 	ID       uint64 `json:"id"`
