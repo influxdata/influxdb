@@ -320,16 +320,32 @@ func WriteColumns(results *client.Results, w io.Writer) {
 func resultToCSV(result client.Result, seperator string, headerLines bool) []string {
 	rows := []string{}
 	// Create a tabbed writer for each result a they won't always line up
-	columnNames := []string{"name", "tags"}
+	columnNames := []string{}
+	var hasTags bool
 
 	for i, row := range result.Series {
+		// gather tags
+		tags := []string{}
+		for k, v := range row.Tags {
+			hasTags = true
+			tags = append(tags, fmt.Sprintf("%s=%s", k, v))
+		}
+
 		// Output the column headings
 		if i == 0 {
+			if hasTags {
+				columnNames = append([]string{"tags"}, columnNames...)
+			}
+
+			if row.Name != "" {
+				columnNames = append([]string{"name"}, columnNames...)
+			}
 			for _, column := range row.Columns {
 				columnNames = append(columnNames, column)
 			}
-			rows = append(rows, strings.Join(columnNames, seperator))
 		}
+		rows = append(rows, strings.Join(columnNames, seperator))
+
 		if headerLines {
 			// create column underscores
 			lines := []string{}
@@ -338,14 +354,15 @@ func resultToCSV(result client.Result, seperator string, headerLines bool) []str
 			}
 			rows = append(rows, strings.Join(lines, seperator))
 		}
-		// gather tags
-		tags := []string{}
-		for k, v := range row.Tags {
-			tags = append(tags, fmt.Sprintf("%s=%s", k, v))
-		}
+
 		for _, v := range row.Values {
-			values := []string{row.Name}
-			values = append(values, strings.Join(tags, ","))
+			var values []string
+			if row.Name != "" {
+				values = append(values, row.Name)
+			}
+			if len(tags) > 0 {
+				values = append(values, strings.Join(tags, ","))
+			}
 
 			for _, vv := range v {
 				values = append(values, interfaceToString(vv))
