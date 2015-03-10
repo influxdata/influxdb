@@ -49,6 +49,10 @@ const (
 	retentionPolicyMinDuration = time.Hour
 )
 
+var (
+	serverMetrics = expvar.NewMap("server")
+)
+
 // Server represents a collection of metadata and raw metric data.
 type Server struct {
 	mu       sync.RWMutex
@@ -70,7 +74,6 @@ type Server struct {
 
 	shards map[uint64]*Shard // shards by shard id
 
-	metrics    *expvar.Map
 	Logger     *log.Logger
 	WriteTrace bool // Detailed logging of write path
 
@@ -103,11 +106,8 @@ func NewServer() *Server {
 		users:     make(map[string]*User),
 
 		shards: make(map[uint64]*Shard),
-
-		metrics: expvar.NewMap("server"),
-		Logger:  log.New(os.Stderr, "[server] ", log.LstdFlags),
+		Logger: log.New(os.Stderr, "[server] ", log.LstdFlags),
 	}
-
 	// Server will always return with authentication enabled.
 	// This ensures that disabling authentication must be an explicit decision.
 	// To set the server to 'authless mode', call server.SetAuthenticationEnabled(false).
@@ -459,7 +459,7 @@ func (s *Server) setClient(client MessagingClient) error {
 // This function waits until the message has been processed by the server.
 // Returns the broker log index of the message or an error.
 func (s *Server) broadcast(typ messaging.MessageType, c interface{}) (uint64, error) {
-	s.metrics.Add("broadcastMessageTx", 1)
+	serverMetrics.Add("broadcastMessageTx", 1)
 	// Encode the command.
 	data, err := json.Marshal(c)
 	if err != nil {
@@ -930,7 +930,7 @@ func (s *Server) applyCreateShardGroupIfNotExists(m *messaging.Message) (err err
 				nodeIndex++
 			}
 		}
-		s.metrics.Add("shardsCreated", int64(len(g.Shards)))
+		serverMetrics.Add("shardsCreated", int64(len(g.Shards)))
 
 		// Retention policy has a new shard group, so update the policy.
 		rp.shardGroups = append(rp.shardGroups, g)
@@ -1026,7 +1026,7 @@ func (s *Server) applyDeleteShardGroup(m *messaging.Message) (err error) {
 	// Remove from metastore.
 	rp.removeShardGroupByID(c.ID)
 	err = s.meta.mustUpdate(m.Index, func(tx *metatx) error {
-		s.metrics.Add("shardsDeleted", int64(len(g.Shards)))
+		serverMetrics.Add("shardsDeleted", int64(len(g.Shards)))
 		return tx.saveDatabase(db)
 	})
 	return
@@ -1512,8 +1512,8 @@ type Point struct {
 // WriteSeries writes series data to the database.
 // Returns the messaging index the data was written to.
 func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (uint64, error) {
-	s.metrics.Add("batchWriteRx", 1)
-	s.metrics.Add("pointWriteRx", int64(len(points)))
+	serverMetrics.Add("batchWriteRx", 1)
+	serverMetrics.Add("pointWriteRx", int64(len(points)))
 
 	if s.WriteTrace {
 		log.Printf("received write for database '%s', retention policy '%s', with %d points",
@@ -1523,7 +1523,7 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 	// Make sure every point has at least one field.
 	for _, p := range points {
 		if len(p.Fields) == 0 {
-			s.metrics.Add("batchWriteRxError", 1)
+			serverMetrics.Add("batchWriteRxError", 1)
 			return 0, ErrFieldsRequired
 		}
 	}
@@ -1532,10 +1532,10 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 	if retentionPolicy == "" {
 		rp, err := s.DefaultRetentionPolicy(database)
 		if err != nil {
-			s.metrics.Add("batchWriteRxError", 1)
+			serverMetrics.Add("batchWriteRxError", 1)
 			return 0, fmt.Errorf("failed to determine default retention policy: %s", err.Error())
 		} else if rp == nil {
-			s.metrics.Add("batchWriteRxError", 1)
+			serverMetrics.Add("batchWriteRxError", 1)
 			return 0, ErrDefaultRetentionPolicyNotFound
 		}
 		retentionPolicy = rp.Name
@@ -1543,7 +1543,7 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 
 	// Ensure all required Series and Measurement Fields are created cluster-wide.
 	if err := s.createMeasurementsIfNotExists(database, retentionPolicy, points); err != nil {
-		s.metrics.Add("batchWriteRxError", 1)
+		serverMetrics.Add("batchWriteRxError", 1)
 		return 0, err
 	}
 	if s.WriteTrace {
@@ -1552,7 +1552,7 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 
 	// Ensure all the required shard groups exist. TODO: this should be done async.
 	if err := s.createShardGroupsIfNotExists(database, retentionPolicy, points); err != nil {
-		s.metrics.Add("batchWriteRxError", 1)
+		serverMetrics.Add("batchWriteRxError", 1)
 		return 0, err
 	}
 	if s.WriteTrace {
@@ -1620,7 +1620,7 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 
 		return nil
 	}(); err != nil {
-		s.metrics.Add("batchWriteRxError", 1)
+		serverMetrics.Add("batchWriteRxError", 1)
 		return 0, err
 	}
 
@@ -1633,10 +1633,10 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 			Data:    d,
 		})
 		if err != nil {
-			s.metrics.Add("batchWriteRxError", 1)
+			serverMetrics.Add("batchWriteRxError", 1)
 			return maxIndex, err
 		}
-		s.metrics.Add("writeSeriesMessageTx", 1)
+		serverMetrics.Add("writeSeriesMessageTx", 1)
 		if index > maxIndex {
 			maxIndex = index
 		}
@@ -1671,8 +1671,8 @@ func (s *Server) applyWriteRawSeries(m *messaging.Message) error {
 		log.Printf("write message successfully applied to shard %d", sh.ID)
 	}
 
-	s.metrics.Add("shardWriteByte", int64(len(m.Data)))
-	s.metrics.Add("shardWriteTime", time.Since(startTime).Nanoseconds())
+	serverMetrics.Add("shardWriteByte", int64(len(m.Data)))
+	serverMetrics.Add("shardWriteTime", time.Since(startTime).Nanoseconds())
 	return nil
 }
 
@@ -1924,8 +1924,8 @@ func (s *Server) ReadSeries(database, retentionPolicy, name string, tags map[str
 // Returns a resultset for each statement in the query.
 // Stops on first execution error that occurs.
 func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Results {
-	s.metrics.Add("queryRx", 1)
-	s.metrics.Add("queryStatementRx", int64(len(q.Statements)))
+	serverMetrics.Add("queryRx", 1)
+	serverMetrics.Add("queryStatementRx", int64(len(q.Statements)))
 
 	// Authorize user to execute the query.
 	if s.authenticationEnabled {
@@ -1998,7 +1998,7 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 		default:
 			panic(fmt.Sprintf("unsupported statement type: %T", stmt))
 		}
-		s.metrics.Add("rowsReturned", int64(len(res.Series)))
+		serverMetrics.Add("rowsReturned", int64(len(res.Series)))
 
 		// If an error occurs then stop processing remaining statements.
 		results.Results[i] = res
@@ -2477,7 +2477,7 @@ func (s *Server) executeShowContinuousQueriesStatement(stmt *influxql.ShowContin
 
 func (s *Server) executeShowStatsStatement(stmt *influxql.ShowStatsStatement, user *User) *Result {
 	row := &influxql.Row{Columns: []string{}}
-	s.metrics.Do(func(kv expvar.KeyValue) {
+	serverMetrics.Do(func(kv expvar.KeyValue) {
 		row.Columns = append(row.Columns, kv.Key)
 		if v, err := strconv.Atoi(kv.Value.String()); err == nil {
 			row.Values = append(row.Values, []interface{}{v})
@@ -2855,7 +2855,7 @@ func (s *Server) processor(client MessagingClient, done chan struct{}) {
 
 		// Handle write series separately so we don't lock server during shard writes.
 		if m.Type == writeRawSeriesMessageType {
-			s.metrics.Add("writeSeriesMessageRx", 1)
+			serverMetrics.Add("writeSeriesMessageRx", 1)
 			// Write series to shard without lock.
 			err := s.applyWriteRawSeries(m)
 
@@ -2871,7 +2871,7 @@ func (s *Server) processor(client MessagingClient, done chan struct{}) {
 
 		// All other messages must be processed under lock.
 		func() {
-			s.metrics.Add("broadcastMessageRx", 1)
+			serverMetrics.Add("broadcastMessageRx", 1)
 			s.mu.Lock()
 			defer s.mu.Unlock()
 
@@ -3318,7 +3318,7 @@ func (s *Server) shouldRunContinuousQuery(cq *ContinuousQuery) bool {
 // runContinuousQuery will execute a continuous query
 // TODO: make this fan out to the cluster instead of running all the queries on this single data node
 func (s *Server) runContinuousQuery(cq *ContinuousQuery) {
-	s.metrics.Add("continuousQueryExecuted", 1)
+	serverMetrics.Add("continuousQueryExecuted", 1)
 
 	cq.mu.Lock()
 	defer cq.mu.Unlock()
