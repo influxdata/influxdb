@@ -1,6 +1,7 @@
 package influxql_test
 
 import (
+	"encoding/json"
 	"reflect"
 	"regexp"
 	"strings"
@@ -1154,4 +1155,13 @@ func newAlterRetentionPolicyStatement(name string, DB string, d time.Duration, r
 	}
 
 	return stmt
+}
+
+// mustMarshalJSON encodes a value to JSON.
+func mustMarshalJSON(v interface{}) []byte {
+	b, err := json.Marshal(v)
+	if err != nil {
+		panic("marshal json: " + err.Error())
+	}
+	return b
 }

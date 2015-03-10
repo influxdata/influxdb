@@ -161,6 +161,8 @@ func write(t *testing.T, node *Node, data string) {
 	if err != nil {
 		t.Fatalf("Couldn't write data: %s", err)
 	}
+	body, _ := ioutil.ReadAll(resp.Body)
+	fmt.Println("BODY: ", string(body))
 	if resp.StatusCode != http.StatusOK {
 		body, _ := ioutil.ReadAll(resp.Body)
 		t.Fatalf("Write to database failed.  Unexpected status code.  expected: %d, actual %d, %s", http.StatusOK, resp.StatusCode, string(body))
@@ -285,7 +287,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		{
 			name:     "field not found",
 			query:    `SELECT abc FROM "%DB%"."%RP%".cpu WHERE time < now()`,
-			expected: `{"results":[{"error":"field not found: abc"}]}`,
+			expected: `{"results":[{"error":"unknown field or tag name in select clause: abc"}]}`,
 		},
 
 		// WHERE fields queries
@@ -312,7 +314,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "timestamp": "2009-11-10T23:00:02Z", "fields": {"load": 100}},
 			                                                                      {"name": "cpu", "timestamp": "2009-11-10T23:01:02Z", "fields": {"load": 80}}]}`,
 			query:    `select load from "%DB%"."%RP%".cpu where load > 100`,
-			expected: `{"results":[{}]}`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","load"]}]}]}`,
 		},
 		{
 			query:    `select load from "%DB%"."%RP%".cpu where load >= 100`,
@@ -332,7 +334,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		},
 		{
 			query:    `select load from "%DB%"."%RP%".cpu where load = 99`,
-			expected: `{"results":[{}]}`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","load"]}]}]}`,
 		},
 		{
 			query:    `select load from "%DB%"."%RP%".cpu where load < 99`,
@@ -340,7 +342,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		},
 		{
 			query:    `select load from "%DB%"."%RP%".cpu where load < 80`,
-			expected: `{"results":[{}]}`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","load"]}]}]}`,
 		},
 		{
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "logs", "timestamp": "2009-11-10T23:00:02Z","fields": {"event": "disk full"}},
@@ -351,12 +353,23 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		{
 			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "logs", "timestamp": "2009-11-10T23:00:02Z","fields": {"event": "disk full"}}]}`,
 			query:    `select event from "%DB%"."%RP%".logs where event = 'nonsense'`,
-			expected: `{"results":[{}]}`,
+			expected: `{"results":[{"series":[{"name":"logs","columns":["time","event"]}]}]}`,
 		},
 		{
 			name:     "missing measurement with `GROUP BY *`",
 			query:    `select load from "%DB%"."%RP%".missing group by *`,
 			expected: `{"results":[{"error":"measurement not found: \"%DB%\".\"%RP%\".\"missing\""}]}`,
+		},
+		{
+			name: "where on a tag, field and time",
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+				{"name": "where_events", "timestamp": "2009-11-10T23:00:02Z","fields": {"foo": "bar"}, "tags": {"tennant": "paul"}},
+				{"name": "where_events", "timestamp": "2009-11-10T23:00:03Z","fields": {"foo": "baz"}, "tags": {"tennant": "paul"}},
+				{"name": "where_events", "timestamp": "2009-11-10T23:00:04Z","fields": {"foo": "bat"}, "tags": {"tennant": "paul"}},
+				{"name": "where_events", "timestamp": "2009-11-10T23:00:05Z","fields": {"foo": "bar"}, "tags": {"tennant": "todd"}}
+			]}`,
+			query:    `select foo from "%DB%"."%RP%".where_events where tennant = 'paul' AND time > 1s AND (foo = 'bar' OR foo = 'baz')`,
+			expected: `{"results":[{"series":[{"name":"where_events","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z","bar"],["2009-11-10T23:00:03Z","baz"]]}]}]}`,
 		},
 
 		// Metadata display tests
@@ -619,6 +632,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		if name == "" {
 			name = tt.query
 		}
+		fmt.Printf("TEST: %d: %s\n", i, name)
 		t.Logf("Running test %d: %s", i, name)
 
 		if tt.reset {
@@ -639,7 +653,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			}
 			got, ok := query(t, nodes, rewriteDbRp(urlDb, database, retention), rewriteDbRp(tt.query, database, retention), rewriteDbRp(tt.expected, database, retention))
 			if !ok {
-				t.Errorf(`Test "%s" failed, expected: %s, got: %s`, name, rewriteDbRp(tt.expected, database, retention), got)
+				t.Errorf("Test \"%s\" failed\n  exp: %s\n  got: %s\n", name, rewriteDbRp(tt.expected, database, retention), got)
 			}
 		}
 	}

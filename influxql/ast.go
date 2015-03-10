@@ -881,6 +881,81 @@ func (s *SelectStatement) Substatement(ref *VarRef) (*SelectStatement, error) {
 	return other, nil
 }
 
+// NamesInWhere returns the field and tag names (idents) referenced in the where clause
+func (s *SelectStatement) NamesInWhere() []string {
+	var a []string
+	if s.Condition != nil {
+		a = walkNames(s.Condition)
+	}
+	return a
+}
+
+// NamesInSelect returns the field and tag names (idents) in the select clause
+func (s *SelectStatement) NamesInSelect() []string {
+	var a []string
+
+	for _, f := range s.Fields {
+		a = append(a, walkNames(f.Expr)...)
+	}
+
+	return a
+}
+
+// walkNames will walk the Expr and return the database fields
+func walkNames(exp Expr) []string {
+	switch expr := exp.(type) {
+	case *VarRef:
+		return []string{expr.Val}
+	case *Call:
+		if len(expr.Args) == 0 {
+			return nil
+		}
+		lit, ok := expr.Args[0].(*VarRef)
+		if !ok {
+			return nil
+		}
+
+		return []string{lit.Val}
+	case *BinaryExpr:
+		var ret []string
+		ret = append(ret, walkNames(expr.LHS)...)
+		ret = append(ret, walkNames(expr.RHS)...)
+		return ret
+	case *ParenExpr:
+		return walkNames(expr.Expr)
+	}
+
+	return nil
+}
+
+// FunctionCalls returns the Call objects from the query
+func (s *SelectStatement) FunctionCalls() []*Call {
+	var a []*Call
+	for _, f := range s.Fields {
+		a = append(a, walkFunctionCalls(f.Expr)...)
+	}
+	return a
+}
+
+// walkFunctionCalls walks the Field of a query for any function calls made
+func walkFunctionCalls(exp Expr) []*Call {
+	switch expr := exp.(type) {
+	case *VarRef:
+		return nil
+	case *Call:
+		return []*Call{expr}
+	case *BinaryExpr:
+		var ret []*Call
+		ret = append(ret, walkFunctionCalls(expr.LHS)...)
+		ret = append(ret, walkFunctionCalls(expr.RHS)...)
+		return ret
+	case *ParenExpr:
+		return walkFunctionCalls(expr.Expr)
+	}
+
+	return nil
+}
+
 // filters an expression to exclude expressions unrelated to a source.
 func filterExprBySource(name string, expr Expr) Expr {
 	switch expr := expr.(type) {
