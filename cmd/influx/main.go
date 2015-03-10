@@ -320,29 +320,25 @@ func WriteColumns(results *client.Results, w io.Writer) {
 func resultToCSV(result client.Result, seperator string, headerLines bool) []string {
 	rows := []string{}
 	// Create a tabbed writer for each result a they won't always line up
-	columnNames := []string{}
-	var hasTags bool
-
-	for i, row := range result.Series {
+	for _, row := range result.Series {
 		// gather tags
+		var hasTags bool
 		tags := []string{}
 		for k, v := range row.Tags {
 			hasTags = true
 			tags = append(tags, fmt.Sprintf("%s=%s", k, v))
 		}
 
-		// Output the column headings
-		if i == 0 {
-			if hasTags {
-				columnNames = append([]string{"tags"}, columnNames...)
-			}
+		columnNames := []string{}
+		if hasTags {
+			columnNames = append([]string{"tags"}, columnNames...)
+		}
 
-			if row.Name != "" {
-				columnNames = append([]string{"name"}, columnNames...)
-			}
-			for _, column := range row.Columns {
-				columnNames = append(columnNames, column)
-			}
+		if row.Name != "" {
+			columnNames = append([]string{"name"}, columnNames...)
+		}
+		for _, column := range row.Columns {
+			columnNames = append(columnNames, column)
 		}
 		rows = append(rows, strings.Join(columnNames, seperator))
 
