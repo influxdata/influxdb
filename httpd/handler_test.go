@@ -371,7 +371,7 @@ func TestHandler_UpdateRetentionPolicy(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	query := map[string]string{"q": "ALTER RETENTION POLICY bar ON foo REPLICATION 42 DURATION 1m DEFAULT"}
+	query := map[string]string{"q": "ALTER RETENTION POLICY bar ON foo REPLICATION 42 DURATION 2h DEFAULT"}
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 
 	// Verify updated policy.
