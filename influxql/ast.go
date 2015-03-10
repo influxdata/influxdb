@@ -554,10 +554,10 @@ type SelectStatement struct {
 	Offset int
 
 	// Maxiumum number of series to be returned. Unlimited if zero.
-	Slimit int
+	SLimit int
 
 	// Returns series starting at an offset from the first one.
-	Soffset int
+	SOffset int
 
 	// memoize the group by interval
 	groupByInterval time.Duration
@@ -576,8 +576,8 @@ func (s *SelectStatement) Clone() *SelectStatement {
 		Condition:  CloneExpr(s.Condition),
 		Limit:      s.Limit,
 		Offset:     s.Offset,
-		Slimit:     s.Slimit,
-		Soffset:    s.Soffset,
+		SLimit:     s.SLimit,
+		SOffset:    s.SOffset,
 	}
 	if s.Target != nil {
 		other.Target = &Target{Measurement: s.Target.Measurement, Database: s.Target.Database}
