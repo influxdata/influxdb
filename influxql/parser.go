@@ -101,6 +101,8 @@ func (p *Parser) parseShowStatement() (Statement, error) {
 		return p.parseShowContinuousQueriesStatement()
 	case DATABASES:
 		return p.parseShowDatabasesStatement()
+	case SERVERS:
+		return p.parseShowServersStatement()
 	case FIELD:
 		tok, pos, lit := p.scanIgnoreWhitespace()
 		if tok == KEYS {
@@ -129,7 +131,7 @@ func (p *Parser) parseShowStatement() (Statement, error) {
 		return p.parseShowUsersStatement()
 	}
 
-	return nil, newParseError(tokstr(tok, lit), []string{"CONTINUOUS", "DATABASES", "FIELD", "MEASUREMENTS", "RETENTION", "SERIES", "TAG", "USERS"}, pos)
+	return nil, newParseError(tokstr(tok, lit), []string{"CONTINUOUS", "DATABASES", "FIELD", "MEASUREMENTS", "RETENTION", "SERIES", "SERVERS", "TAG", "USERS"}, pos)
 }
 
 // parseCreateStatement parses a string and returns a create statement.
@@ -944,6 +946,13 @@ func (p *Parser) parseShowContinuousQueriesStatement() (*ShowContinuousQueriesSt
 		return nil, newParseError(tokstr(tok, lit), []string{"QUERIES"}, pos)
 	}
 
+	return stmt, nil
+}
+
+// parseShowServersStatement parses a string and returns a ShowServersStatement.
+// This function assumes the "SHOW SERVERS" tokens have already been consumed.
+func (p *Parser) parseShowServersStatement() (*ShowServersStatement, error) {
+	stmt := &ShowServersStatement{}
 	return stmt, nil
 }
 

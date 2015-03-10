@@ -71,6 +71,7 @@ func (*DropSeriesStatement) node()            {}
 func (*DropUserStatement) node()              {}
 func (*GrantStatement) node()                 {}
 func (*ShowContinuousQueriesStatement) node() {}
+func (*ShowServersStatement) node()           {}
 func (*ShowDatabasesStatement) node()         {}
 func (*ShowFieldKeysStatement) node()         {}
 func (*ShowRetentionPoliciesStatement) node() {}
@@ -161,6 +162,7 @@ func (*DropSeriesStatement) stmt()            {}
 func (*DropUserStatement) stmt()              {}
 func (*GrantStatement) stmt()                 {}
 func (*ShowContinuousQueriesStatement) stmt() {}
+func (*ShowServersStatement) stmt()           {}
 func (*ShowDatabasesStatement) stmt()         {}
 func (*ShowFieldKeysStatement) stmt()         {}
 func (*ShowMeasurementsStatement) stmt()      {}
@@ -1172,6 +1174,17 @@ func (s *ShowContinuousQueriesStatement) String() string { return "SHOW CONTINUO
 // RequiredPrivileges returns the privilege required to execute a ShowContinuousQueriesStatement.
 func (s *ShowContinuousQueriesStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Name: "", Privilege: ReadPrivilege}}
+}
+
+// ShowServersStatement represents a command for listing all servers.
+type ShowServersStatement struct{}
+
+// String returns a string representation of the show servers command.
+func (s *ShowServersStatement) String() string { return "SHOW SERVERS" }
+
+// RequiredPrivileges returns the privilege required to execute a ShowServersStatement
+func (s *ShowServersStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
 }
 
 // ShowDatabasesStatement represents a command for listing all databases in the cluster.
