@@ -143,8 +143,8 @@ func TestParser_ParseStatement(t *testing.T) {
 			stmt: &influxql.SelectStatement{
 				Fields:  []*influxql.Field{{Expr: &influxql.VarRef{Val: "field1"}}},
 				Source:  &influxql.Measurement{Name: "myseries"},
-				Slimit:  10,
-				Soffset: 5,
+				SLimit:  10,
+				SOffset: 5,
 			},
 		},
 
