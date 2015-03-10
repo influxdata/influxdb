@@ -320,7 +320,7 @@ func WriteColumns(results *client.Results, w io.Writer) {
 func resultToCSV(result client.Result, seperator string, headerLines bool) []string {
 	rows := []string{}
 	// Create a tabbed writer for each result a they won't always line up
-	for _, row := range result.Series {
+	for i, row := range result.Series {
 		// gather tags
 		var hasTags bool
 		tags := []string{}
@@ -339,6 +339,10 @@ func resultToCSV(result client.Result, seperator string, headerLines bool) []str
 		}
 		for _, column := range row.Columns {
 			columnNames = append(columnNames, column)
+		}
+		// Output a line seperator if we have more than one set or results
+		if i > 0 {
+			rows = append(rows, "")
 		}
 		rows = append(rows, strings.Join(columnNames, seperator))
 
