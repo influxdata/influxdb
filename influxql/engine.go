@@ -494,15 +494,15 @@ func (p *Planner) Plan(stmt *SelectStatement) (*Executor, error) {
 	}
 
 	// LIMIT and OFFSET the unique series
-	if stmt.Limit > 0 || stmt.Offset > 0 {
-		if stmt.Offset > len(jobs) {
+	if stmt.Slimit > 0 || stmt.Soffset > 0 {
+		if stmt.Soffset > len(jobs) {
 			jobs = nil
 		} else {
-			if stmt.Offset+stmt.Limit > len(jobs) {
-				stmt.Limit = len(jobs) - stmt.Offset
+			if stmt.Soffset+stmt.Slimit > len(jobs) {
+				stmt.Slimit = len(jobs) - stmt.Soffset
 			}
 
-			jobs = jobs[stmt.Offset : stmt.Offset+stmt.Limit]
+			jobs = jobs[stmt.Soffset : stmt.Soffset+stmt.Slimit]
 		}
 	}
 
