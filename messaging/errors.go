@@ -69,4 +69,7 @@ var (
 
 	// ErrStaleWrite is returned when writing a message with an old index to a topic.
 	ErrStaleWrite = errors.New("stale write")
+
+	// ErrReaderClosed is returned when reading from a closed topic reader.
+	ErrReaderClosed = errors.New("reader closed")
 )

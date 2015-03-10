@@ -5,11 +5,14 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/influxdb/influxdb/messaging"
 	"github.com/influxdb/influxdb/raft"
@@ -500,7 +503,138 @@ func TestTopicReader(t *testing.T) {
 			t.Fatalf("%d. %v: result mismatch:\n\nexp=%#v\n\ngot=%#v", i, tt.index, tt.results, results)
 		}
 	}
+}
 
+// Ensure a topic reader can stream new messages.
+func TestTopicReader_streaming(t *testing.T) {
+	path, _ := ioutil.TempDir("", "")
+	defer os.RemoveAll(path)
+
+	// Start topic reader from the beginning.
+	r := messaging.NewTopicReader(path, 0, true)
+	r.PollInterval = 1 * time.Millisecond
+
+	// Write a segments with delays.
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		time.Sleep(2 * time.Millisecond)
+		MustWriteFile(filepath.Join(path, "6"),
+			MustMarshalMessages([]*messaging.Message{
+				{Index: 6},
+				{Index: 7},
+				{Index: 10},
+			}),
+		)
+
+		// Write two more segments.
+		time.Sleep(5 * time.Millisecond)
+		MustWriteFile(filepath.Join(path, "12"),
+			MustMarshalMessages([]*messaging.Message{
+				{Index: 12},
+			}),
+		)
+
+		MustWriteFile(filepath.Join(path, "13"),
+			MustMarshalMessages([]*messaging.Message{
+				{Index: 13},
+				{Index: 14},
+			}),
+		)
+
+		// Close reader.
+		time.Sleep(5 * time.Millisecond)
+		r.Close()
+	}()
+
+	// Slurp all message ids from the reader.
+	indices := make([]uint64, 0)
+	dec := messaging.NewMessageDecoder(r)
+	for {
+		m := &messaging.Message{}
+		if err := dec.Decode(m); err == io.EOF {
+			break
+		} else if err != nil {
+			t.Fatalf("decode error: %s", err)
+		} else {
+			indices = append(indices, m.Index)
+		}
+	}
+
+	// Verify we received the correct indices.
+	if !reflect.DeepEqual(indices, []uint64{6, 7, 10, 12, 13, 14}) {
+		t.Fatalf("unexpected indices: %#v", indices)
+	}
+
+	wg.Wait()
+}
+
+// Ensure multiple topic readers can read from the same topic directory.
+func BenchmarkTopicReaderStreaming(b *testing.B) {
+	path, _ := ioutil.TempDir("", "")
+	defer os.RemoveAll(path)
+
+	// Configurable settings.
+	readerN := 10   // number of readers
+	messageN := b.N // total message count
+	dataSize := 50  // per message data size
+	pollInterval := 1 * time.Millisecond
+
+	// Create a topic to write into.
+	topic := messaging.NewTopic(1, path)
+	topic.MaxSegmentSize = 64 * 1024 // 64KB
+	if err := topic.Open(); err != nil {
+		b.Fatal(err)
+	}
+	defer topic.Close()
+
+	// Stream from multiple readers in parallel.
+	var wg sync.WaitGroup
+	wg.Add(readerN)
+	readers := make([]*messaging.TopicReader, readerN)
+	for i := range readers {
+		r := messaging.NewTopicReader(path, 0, true)
+		r.PollInterval = pollInterval
+		readers[i] = r
+
+		// Read messages in sequence.
+		go func(r *messaging.TopicReader) {
+			defer r.Close()
+			defer wg.Done()
+
+			var index uint64
+			dec := messaging.NewMessageDecoder(r)
+			for {
+				var m messaging.Message
+				if err := dec.Decode(&m); err == io.EOF {
+					b.Fatalf("unexpected EOF")
+				} else if err != nil {
+					b.Fatalf("decode error: %s", err)
+				} else if index+1 != m.Index {
+					b.Fatalf("out of order: %d..%d", index, m.Index)
+				}
+				index = m.Index
+
+				if index == uint64(messageN) {
+					break
+				}
+			}
+		}(r)
+	}
+
+	// Write messages into topic but stagger them by small, random intervals.
+	for i := 0; i < messageN; i++ {
+		time.Sleep(time.Duration(rand.Intn(int(pollInterval))))
+
+		index := uint64(i) + 1
+		if err := topic.WriteMessage(&messaging.Message{Index: index, Data: make([]byte, dataSize)}); err != nil {
+			b.Fatalf("write message error: %s", err)
+		}
+	}
+
+	wg.Wait()
 }
 
 // Broker is a wrapper for broker.Broker that creates the broker in a temporary location.
