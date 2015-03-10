@@ -43,9 +43,6 @@ const (
 
 	// DefaultShardRetention is the length of time before a shard is dropped.
 	DefaultShardRetention = 7 * (24 * time.Hour)
-
-	// Defines the minimum duration allowed for all retention policies
-	retentionPolicyMinDuration = time.Hour
 )
 
 // Server represents a collection of metadata and raw metric data.
@@ -1272,11 +1269,6 @@ func (s *Server) RetentionPolicies(database string) ([]*RetentionPolicy, error) 
 
 // CreateRetentionPolicy creates a retention policy for a database.
 func (s *Server) CreateRetentionPolicy(database string, rp *RetentionPolicy) error {
-	// Enforce duration of at least retentionPolicyMinDuration
-	if rp.Duration < retentionPolicyMinDuration {
-		return ErrRetentionPolicyMinDuration
-	}
-
 	const (
 		day   = time.Hour * 24
 		month = day * 30
@@ -1343,11 +1335,6 @@ type RetentionPolicyUpdate struct {
 
 // UpdateRetentionPolicy updates an existing retention policy on a database.
 func (s *Server) UpdateRetentionPolicy(database, name string, rpu *RetentionPolicyUpdate) error {
-	// Enforce duration of at least retentionPolicyMinDuration
-	if *rpu.Duration < retentionPolicyMinDuration {
-		return ErrRetentionPolicyMinDuration
-	}
-
 	c := &updateRetentionPolicyCommand{Database: database, Name: name, Policy: rpu}
 	_, err := s.broadcast(updateRetentionPolicyMessageType, c)
 	return err
@@ -2571,20 +2558,20 @@ func (s *Server) executeShowUsersStatement(q *influxql.ShowUsersStatement, user 
 	return &Result{Series: []*influxql.Row{row}}
 }
 
-func (s *Server) executeCreateRetentionPolicyStatement(stmt *influxql.CreateRetentionPolicyStatement, user *User) *Result {
-	rp := NewRetentionPolicy(stmt.Name)
-	rp.Duration = stmt.Duration
-	rp.ReplicaN = uint32(stmt.Replication)
+func (s *Server) executeCreateRetentionPolicyStatement(q *influxql.CreateRetentionPolicyStatement, user *User) *Result {
+	rp := NewRetentionPolicy(q.Name)
+	rp.Duration = q.Duration
+	rp.ReplicaN = uint32(q.Replication)
 
 	// Create new retention policy.
-	err := s.CreateRetentionPolicy(stmt.Database, rp)
+	err := s.CreateRetentionPolicy(q.Database, rp)
 	if err != nil {
 		return &Result{Err: err}
 	}
 
 	// If requested, set new policy as the default.
-	if stmt.Default {
-		err = s.SetDefaultRetentionPolicy(stmt.Database, stmt.Name)
+	if q.Default {
+		err = s.SetDefaultRetentionPolicy(q.Database, q.Name)
 	}
 
 	return &Result{Err: err}
