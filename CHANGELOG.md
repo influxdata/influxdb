@@ -1,4 +1,4 @@
-## v0.9.0-rc10 [Unreleased]
+## v0.9.0-rc10 [2015-03-09]
 
 ### Bugfixes
 - [#1867](https://github.com/influxdb/influxdb/pull/1867): Fix race accessing topic replicas map
@@ -9,11 +9,13 @@
 - [#1883](https://github.com/influxdb/influxdb/pull/1883): RLock server during retention policy enforcement. Thanks @grisha
 - [#1868](https://github.com/influxdb/influxdb/pull/1868): Use `BatchPoints` for `client.Write` method. Thanks @vladlopes, @georgmu, @d2g, @evanphx, @akolosov.
 - [#1881](https://github.com/influxdb/influxdb/pull/1881): Update documentation for `client` package.  Misc library tweaks.
+- Fix queries with multiple where clauses on tags, times and fields. Fix queries that have where clauses on fields not in the select
 
 ### Features
 - [#1875](https://github.com/influxdb/influxdb/pull/1875): Support trace logging of Raft.
 - [#1895](https://github.com/influxdb/influxdb/pull/1895): Auto-create a retention policy when a database is created.
 - [#1897](https://github.com/influxdb/influxdb/pull/1897): Pre-create shard groups.
+- [#1900](https://github.com/influxdb/influxdb/pull/1900): Change `LIMIT` to `SLIMIT` and implement `LIMIT` and `OFFSET`
 
 ## v0.9.0-rc9 [2015-03-06]
 
