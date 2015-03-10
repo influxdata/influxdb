@@ -1929,6 +1929,8 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 			res = s.executeDropDatabaseStatement(stmt, user)
 		case *influxql.ShowDatabasesStatement:
 			res = s.executeShowDatabasesStatement(stmt, user)
+		case *influxql.ShowServersStatement:
+			res = s.executeShowServersStatement(stmt, user)
 		case *influxql.CreateUserStatement:
 			res = s.executeCreateUserStatement(stmt, user)
 		case *influxql.DropUserStatement:
@@ -2074,6 +2076,14 @@ func (s *Server) executeShowDatabasesStatement(q *influxql.ShowDatabasesStatemen
 	row := &influxql.Row{Columns: []string{"name"}}
 	for _, name := range s.Databases() {
 		row.Values = append(row.Values, []interface{}{name})
+	}
+	return &Result{Series: []*influxql.Row{row}}
+}
+
+func (s *Server) executeShowServersStatement(q *influxql.ShowServersStatement, user *User) *Result {
+	row := &influxql.Row{Columns: []string{"id", "url"}}
+	for _, node := range s.DataNodes() {
+		row.Values = append(row.Values, []interface{}{node.ID, node.URL.String()})
 	}
 	return &Result{Series: []*influxql.Row{row}}
 }
