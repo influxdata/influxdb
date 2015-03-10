@@ -1993,6 +1993,8 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 			continue
 		case *influxql.ShowContinuousQueriesStatement:
 			res = s.executeShowContinuousQueriesStatement(stmt, database, user)
+		case *influxql.ShowStatsStatement:
+			res = s.executeShowStatsStatement(stmt, user)
 		default:
 			panic(fmt.Sprintf("unsupported statement type: %T", stmt))
 		}
@@ -2471,6 +2473,18 @@ func (s *Server) executeShowContinuousQueriesStatement(stmt *influxql.ShowContin
 		rows = append(rows, row)
 	}
 	return &Result{Series: rows}
+}
+
+func (s *Server) executeShowStatsStatement(stmt *influxql.ShowStatsStatement, user *User) *Result {
+	row := &influxql.Row{Columns: []string{}}
+	s.metrics.Do(func(kv expvar.KeyValue) {
+		row.Columns = append(row.Columns, kv.Key)
+		if v, err := strconv.Atoi(kv.Value.String()); err == nil {
+			row.Values = append(row.Values, []interface{}{v})
+		}
+	})
+
+	return &Result{Series: []*influxql.Row{row}}
 }
 
 // filterMeasurementsByExpr filters a list of measurements by a tags expression.
