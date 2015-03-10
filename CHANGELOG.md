@@ -2,6 +2,7 @@
 
 ### Features
 - [#1902](https://github.com/influxdb/influxdb/pull/1902): Enforce retention policies to have a minimum duraton.
+- [#1907](https://github.com/influxdb/influxdb/pull/1907): New query SHOW STATS returns basic statics about data nodes.
 
 ## v0.9.0-rc10 [2015-03-09]
 
