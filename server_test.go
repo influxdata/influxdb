@@ -765,7 +765,7 @@ func TestServer_PreCreateRetentionPolices(t *testing.T) {
 		t.Fatalf("expected 1 shard group but found %d", len(g))
 	}
 
-	// Run retention enforcement.
+	// Run shard group pre-create.
 	s.ShardGroupPreCreate(time.Hour)
 
 	// Ensure enforcement is in effect across restarts.
