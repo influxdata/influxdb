@@ -289,7 +289,7 @@ func (m *Measurement) filters(stmt *influxql.SelectStatement) map[uint32]influxq
 		}
 		return seriesIdsToExpr
 	}
-	_, _, _ = m.walkWhereForSeriesIds(stmt.Condition, seriesIdsToExpr)
+	ids, _, _ := m.walkWhereForSeriesIds(stmt.Condition, seriesIdsToExpr)
 
 	// ensure every id is in the map
 	for _, id := range ids {
