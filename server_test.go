@@ -771,7 +771,7 @@ func TestServer_PreCreateRetentionPolices(t *testing.T) {
 	// Ensure enforcement is in effect across restarts.
 	s.Restart()
 
-	// First shard group should have been removed.
+	// Second shard group should now be created.
 	g, err = s.ShardGroups("foo")
 	if err != nil {
 		t.Fatal(err)
