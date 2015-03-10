@@ -43,6 +43,9 @@ const (
 
 	// DefaultShardRetention is the length of time before a shard is dropped.
 	DefaultShardRetention = 7 * (24 * time.Hour)
+
+	// Defines the minimum duration allowed for all retention policies
+	retentionPolicyMinDuration = time.Hour
 )
 
 // Server represents a collection of metadata and raw metric data.

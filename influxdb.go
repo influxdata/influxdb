@@ -10,10 +10,6 @@ import (
 	"github.com/influxdb/influxdb/client"
 )
 
-const (
-	retentionPolicyMinDuration = time.Hour
-)
-
 var (
 	// ErrServerOpen is returned when opening an already open server.
 	ErrServerOpen = errors.New("server already open")
