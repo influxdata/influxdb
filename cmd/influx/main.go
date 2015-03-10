@@ -309,7 +309,7 @@ func WriteColumns(results *client.Results, w io.Writer) {
 		// Create a tabbed writer for each result a they won't always line up
 		w := new(tabwriter.Writer)
 		w.Init(os.Stdout, 0, 8, 1, '\t', 0)
-		csv := resultToCSV(result, "\t", true)
+		csv := resultToCSV(result, "\t", false)
 		for _, r := range csv {
 			fmt.Fprintln(w, r)
 		}
