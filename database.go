@@ -1145,7 +1145,6 @@ func (rp *RetentionPolicy) UnmarshalJSON(data []byte) error {
 type retentionPolicyJSON struct {
 	Name               string        `json:"name"`
 	ReplicaN           uint32        `json:"replicaN,omitempty"`
-	SplitN             uint32        `json:"splitN,omitempty"`
 	Duration           time.Duration `json:"duration,omitempty"`
 	ShardGroupDuration time.Duration `json:"shardGroupDuration"`
 	ShardGroups        []*ShardGroup `json:"shardGroups,omitempty"`
