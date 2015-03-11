@@ -1164,26 +1164,15 @@ func (p *Parser) parseRetentionPolicy() (name string, dfault bool, err error) {
 // This function assumes the "SHOW STATS" tokens have already been consumed.
 func (p *Parser) parseShowStatsStatement() (*ShowStatsStatement, error) {
 	stmt := &ShowStatsStatement{}
+	var err error
 
-	tok, pos, lit := p.scanIgnoreWhitespace()
-	if tok == EOF {
-		// No more to do.
-		return stmt, nil
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == ON {
+		stmt.Host, err = p.parseString()
+	} else {
+		p.unscan()
 	}
 
-	// Look for the optional ON.
-	if tok == ON {
-		// Parse the host
-		ident, err := p.parseString()
-		if err != nil {
-			return nil, err
-		}
-		stmt.Host = ident
-		return stmt, err
-	}
-
-	// Anything else is an error.
-	return nil, newParseError(tokstr(tok, lit), []string{"ON"}, pos)
+	return stmt, err
 }
 
 // parseDropContinuousQueriesStatement parses a string and returns a DropContinuousQueryStatement.
