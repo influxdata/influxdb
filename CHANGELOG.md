@@ -1,8 +1,3 @@
-## v0.9.0-rc11 [unreleased]
-
-### Features
-- [#1902](https://github.com/influxdb/influxdb/pull/1902): Enforce retention policies to have a minimum duraton.
-
 ## v0.9.0-rc10 [2015-03-09]
 
 ### Bugfixes

@@ -43,9 +43,6 @@ const (
 
 	// DefaultShardRetention is the length of time before a shard is dropped.
 	DefaultShardRetention = 7 * (24 * time.Hour)
-
-	// Defines the minimum duration allowed for all retention policies
-	retentionPolicyMinDuration = time.Hour
 )
 
 // Server represents a collection of metadata and raw metric data.
@@ -53,7 +50,7 @@ type Server struct {
 	mu       sync.RWMutex
 	id       uint64
 	path     string
-	done     chan struct{} // goroutine close notification
+	procDone chan struct{} // goroutine close notification
 	rpDone   chan struct{} // retention policies goroutine close notification
 	sgpcDone chan struct{} // shard group pre-create goroutine close notification
 
@@ -189,6 +186,11 @@ func (s *Server) Open(path string) error {
 		return fmt.Errorf("load: %s", err)
 	}
 
+	// Open required channels.
+	s.procDone = make(chan struct{}, 0)
+	s.rpDone = make(chan struct{}, 0)
+	s.sgpcDone = make(chan struct{}, 0)
+
 	// TODO: Open shard data stores.
 	// TODO: Associate series ids with shards.
 
@@ -205,6 +207,10 @@ func (s *Server) Close() error {
 
 	if !s.opened() {
 		return ErrServerClosed
+	}
+
+	if s.procDone != nil {
+		close(s.procDone)
 	}
 
 	if s.rpDone != nil {
@@ -349,12 +355,10 @@ func (s *Server) StartShardGroupsPreCreate(checkInterval time.Duration) error {
 	if checkInterval == 0 {
 		return fmt.Errorf("shard group pre-create check interval must be non-zero")
 	}
-	sgpcDone := make(chan struct{}, 0)
-	s.sgpcDone = sgpcDone
 	go func() {
 		for {
 			select {
-			case <-sgpcDone:
+			case <-s.sgpcDone:
 				return
 			case <-time.After(checkInterval):
 				s.ShardGroupPreCreate(checkInterval)
@@ -431,20 +435,12 @@ func (s *Server) setClient(client MessagingClient) error {
 		return ErrServerClosed
 	}
 
-	// Stop previous processor, if running.
-	if s.done != nil {
-		close(s.done)
-		s.done = nil
-	}
-
 	// Set the messaging client.
 	s.client = client
 
 	// Start goroutine to read messages from the broker.
 	if client != nil {
-		done := make(chan struct{}, 0)
-		s.done = done
-		go s.processor(client, done)
+		go s.processor(client, s.procDone)
 	}
 
 	return nil
@@ -1272,11 +1268,6 @@ func (s *Server) RetentionPolicies(database string) ([]*RetentionPolicy, error) 
 
 // CreateRetentionPolicy creates a retention policy for a database.
 func (s *Server) CreateRetentionPolicy(database string, rp *RetentionPolicy) error {
-	// Enforce duration of at least retentionPolicyMinDuration
-	if rp.Duration < retentionPolicyMinDuration {
-		return ErrRetentionPolicyMinDuration
-	}
-
 	const (
 		day   = time.Hour * 24
 		month = day * 30
@@ -1343,11 +1334,6 @@ type RetentionPolicyUpdate struct {
 
 // UpdateRetentionPolicy updates an existing retention policy on a database.
 func (s *Server) UpdateRetentionPolicy(database, name string, rpu *RetentionPolicyUpdate) error {
-	// Enforce duration of at least retentionPolicyMinDuration
-	if *rpu.Duration < retentionPolicyMinDuration {
-		return ErrRetentionPolicyMinDuration
-	}
-
 	c := &updateRetentionPolicyCommand{Database: database, Name: name, Policy: rpu}
 	_, err := s.broadcast(updateRetentionPolicyMessageType, c)
 	return err
@@ -2571,20 +2557,20 @@ func (s *Server) executeShowUsersStatement(q *influxql.ShowUsersStatement, user 
 	return &Result{Series: []*influxql.Row{row}}
 }
 
-func (s *Server) executeCreateRetentionPolicyStatement(stmt *influxql.CreateRetentionPolicyStatement, user *User) *Result {
-	rp := NewRetentionPolicy(stmt.Name)
-	rp.Duration = stmt.Duration
-	rp.ReplicaN = uint32(stmt.Replication)
+func (s *Server) executeCreateRetentionPolicyStatement(q *influxql.CreateRetentionPolicyStatement, user *User) *Result {
+	rp := NewRetentionPolicy(q.Name)
+	rp.Duration = q.Duration
+	rp.ReplicaN = uint32(q.Replication)
 
 	// Create new retention policy.
-	err := s.CreateRetentionPolicy(stmt.Database, rp)
+	err := s.CreateRetentionPolicy(q.Database, rp)
 	if err != nil {
 		return &Result{Err: err}
 	}
 
 	// If requested, set new policy as the default.
-	if stmt.Default {
-		err = s.SetDefaultRetentionPolicy(stmt.Database, stmt.Name)
+	if q.Default {
+		err = s.SetDefaultRetentionPolicy(q.Database, q.Name)
 	}
 
 	return &Result{Err: err}
