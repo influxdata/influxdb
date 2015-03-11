@@ -4,8 +4,8 @@
 - [#1917](https://github.com/influxdb/influxdb/pull/1902): Creating Infinite Retention Policy Failed.
 
 ### Features
-- [#1902](https://github.com/influxdb/influxdb/pull/1902): Enforce retention policies to have a minimum duraton.
-- [#1906](https://github.com/influxdb/influxdb/pull/1906):Add show servers to query language.
+- [#1902](https://github.com/influxdb/influxdb/pull/1902): Enforce retention policies to have a minimum duration.
+- [#1906](https://github.com/influxdb/influxdb/pull/1906): Add show servers to query language.
 
 ## v0.9.0-rc10 [2015-03-09]
 
