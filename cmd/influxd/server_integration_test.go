@@ -232,7 +232,7 @@ func queryAndWait(t *testing.T, nodes Cluster, urlDb, q, expected string, timeou
 		} else if atomic.LoadInt32(&timedOut) == 1 {
 			return fmt.Sprintf("timed out before expected result was found: got: %s", got), false
 		} else {
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(10 * time.Millisecond)
 		}
 	}
 }
