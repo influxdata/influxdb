@@ -597,6 +597,21 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			expected: `{"results":[{"series":[{"columns":["name","duration","replicaN"],"values":[["default","0",1]]}]}]}`,
 		},
 		{
+			name:     "Ensure retention policy with infinite retention can be created",
+			query:    `CREATE RETENTION POLICY rp1 ON mydatabase DURATION INF REPLICATION 1`,
+			expected: `{"results":[{}]}`,
+		},
+		{
+			name:     "Ensure retention policy with acceptable retention can be created",
+			query:    `CREATE RETENTION POLICY rp2 ON mydatabase DURATION 30d REPLICATION 1`,
+			expected: `{"results":[{}]}`,
+		},
+		{
+			name:     "Ensure retention policy with unacceptable retention cannot be created",
+			query:    `CREATE RETENTION POLICY rp3 ON mydatabase DURATION 1s REPLICATION 1`,
+			expected: `{"results":[{"error":"retention policy duration needs to be at least 1h0m0s"}]}`,
+		},
+		{
 			name:     "Ensure database with default retention policy can be deleted",
 			query:    `DROP DATABASE mydatabase`,
 			expected: `{"results":[{}]}`,
