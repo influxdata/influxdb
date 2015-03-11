@@ -290,6 +290,25 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			expected: `{"results":[{"error":"unknown field or tag name in select clause: abc"}]}`,
 		},
 
+		{
+			name:     "single string point with second precision timestamp",
+			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu_s_precision", "timestamp": 1, "precision": "s", "fields": {"value": 100}}]}`,
+			query:    `SELECT * FROM "%DB%"."%RP%".cpu_s_precision`,
+			expected: `{"results":[{"series":[{"name":"cpu_s_precision","columns":["time","value"],"values":[["1970-01-01T00:00:01Z",100]]}]}]}`,
+		},
+		{
+			name:     "single string point with millisecond precision timestamp",
+			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu_ms_precision", "timestamp": 1000, "precision": "ms", "fields": {"value": 100}}]}`,
+			query:    `SELECT * FROM "%DB%"."%RP%".cpu_ms_precision`,
+			expected: `{"results":[{"series":[{"name":"cpu_ms_precision","columns":["time","value"],"values":[["1970-01-01T00:00:01Z",100]]}]}]}`,
+		},
+		{
+			name:     "single string point with nanosecond precision timestamp",
+			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu_n_precision", "timestamp": 2000000000, "precision": "n", "fields": {"value": 100}}]}`,
+			query:    `SELECT * FROM "%DB%"."%RP%".cpu_n_precision`,
+			expected: `{"results":[{"series":[{"name":"cpu_n_precision","columns":["time","value"],"values":[["1970-01-01T00:00:02Z",100]]}]}]}`,
+		},
+
 		// WHERE fields queries
 		{
 			reset:    true,
