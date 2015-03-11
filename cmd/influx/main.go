@@ -350,7 +350,7 @@ func (c *CommandLine) formatResults(result client.Result, separator string) []st
 			rows = append(rows, "")
 		}
 
-		// If we are column format, we breka out the name/tag to seperate lines
+		// If we are column format, we break out the name/tag to seperate lines
 		if c.Format == "column" {
 			if row.Name != "" {
 				rows = append(rows, row.Name)
