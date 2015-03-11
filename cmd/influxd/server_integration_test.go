@@ -261,6 +261,11 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",100]]}]}]}`,
 		},
 		{
+			name:     "single point count query with timestamp",
+			query:    `SELECT count(value) FROM "%DB%"."%RP%".cpu`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]}]}]}`,
+		},
+		{
 			name:     "single string point with timestamp",
 			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "logs", "timestamp": "2015-02-28T01:03:36.703820946Z", "tags": {"host": "server01"}, "fields": {"value": "disk full"}}]}`,
 			query:    `SELECT * FROM "%DB%"."%RP%".logs`,
@@ -307,6 +312,11 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu_n_precision", "timestamp": 2000000000, "precision": "n", "fields": {"value": 100}}]}`,
 			query:    `SELECT * FROM "%DB%"."%RP%".cpu_n_precision`,
 			expected: `{"results":[{"series":[{"name":"cpu_n_precision","columns":["time","value"],"values":[["1970-01-01T00:00:02Z",100]]}]}]}`,
+		},
+		{
+			name:     "single point count query with nanosecond precision timestamp",
+			query:    `SELECT count(value) FROM "%DB%"."%RP%".cpu_n_precision`,
+			expected: `{"results":[{"series":[{"name":"cpu_n_precision","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]}]}]}`,
 		},
 
 		// WHERE fields queries
