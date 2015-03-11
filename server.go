@@ -1273,7 +1273,7 @@ func (s *Server) RetentionPolicies(database string) ([]*RetentionPolicy, error) 
 // CreateRetentionPolicy creates a retention policy for a database.
 func (s *Server) CreateRetentionPolicy(database string, rp *RetentionPolicy) error {
 	// Enforce duration of at least retentionPolicyMinDuration
-	if rp.Duration < retentionPolicyMinDuration {
+	if rp.Duration < retentionPolicyMinDuration && rp.Duration != 0 {
 		return ErrRetentionPolicyMinDuration
 	}
 
@@ -1344,7 +1344,7 @@ type RetentionPolicyUpdate struct {
 // UpdateRetentionPolicy updates an existing retention policy on a database.
 func (s *Server) UpdateRetentionPolicy(database, name string, rpu *RetentionPolicyUpdate) error {
 	// Enforce duration of at least retentionPolicyMinDuration
-	if *rpu.Duration < retentionPolicyMinDuration {
+	if *rpu.Duration < retentionPolicyMinDuration && *rpu.Duration != 0 {
 		return ErrRetentionPolicyMinDuration
 	}
 

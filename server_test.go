@@ -552,6 +552,39 @@ func TestServer_CreateRetentionPolicy(t *testing.T) {
 	}
 }
 
+// Ensure the database can create a new retention policy with infinite duration.
+func TestServer_CreateRetentionPolicyInfinite(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// Create a database.
+	if err := s.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a retention policy on the database.
+	rp := &influxdb.RetentionPolicy{
+		Name:               "bar",
+		Duration:           0,
+		ShardGroupDuration: time.Hour * 24 * 7,
+		ReplicaN:           2,
+	}
+	if err := s.CreateRetentionPolicy("foo", rp); err != nil {
+		t.Fatal(err)
+	}
+	s.Restart()
+
+	// Verify that the policy exists.
+	if o, err := s.RetentionPolicy("foo", "bar"); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if o == nil {
+		t.Fatalf("retention policy not found")
+	} else if !reflect.DeepEqual(rp, o) {
+		t.Logf("expected: %#v\n", rp)
+		t.Fatalf("retention policy mismatch: %#v", o)
+	}
+}
+
 // Ensure the server returns an error when creating a retention policy with an invalid db.
 func TestServer_CreateRetentionPolicy_ErrDatabaseNotFound(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
@@ -654,6 +687,25 @@ func TestServer_AlterRetentionPolicy(t *testing.T) {
 	} else if o.ReplicaN != *rp2.ReplicaN {
 		t.Fatalf("retention policy mismatch:\n\texp ReplicaN = %d\n\tgot ReplicaN = %d\n", rp2.ReplicaN, o.ReplicaN)
 	}
+
+	// set duration to infinite to catch edge case.
+	duration = 0
+	results = s.ExecuteQuery(MustParseQuery(`ALTER RETENTION POLICY bar ON foo DURATION INF`), "foo", nil)
+	if results.Error() != nil {
+		t.Fatalf("unexpected error: %s", results.Error())
+	}
+
+	// Verify results
+	if o, err := s.RetentionPolicy("foo", "bar"); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if o == nil {
+		t.Fatalf("retention policy not found")
+	} else if o.Duration != duration {
+		t.Fatalf("retention policy mismatch:\n\texp Duration = %s\n\tgot Duration = %s\n", duration, o.Duration)
+	} else if o.ReplicaN != *rp2.ReplicaN {
+		t.Fatalf("retention policy mismatch:\n\texp ReplicaN = %d\n\tgot ReplicaN = %d\n", rp2.ReplicaN, o.ReplicaN)
+	}
+
 }
 
 // Ensure the server an error is returned if trying to alter a retention policy with a duration too small.
