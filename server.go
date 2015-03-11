@@ -53,7 +53,7 @@ type Server struct {
 	mu       sync.RWMutex
 	id       uint64
 	path     string
-	done     chan struct{} // goroutine close notification
+	procDone chan struct{} // goroutine close notification
 	rpDone   chan struct{} // retention policies goroutine close notification
 	sgpcDone chan struct{} // shard group pre-create goroutine close notification
 
@@ -189,6 +189,11 @@ func (s *Server) Open(path string) error {
 		return fmt.Errorf("load: %s", err)
 	}
 
+	// Open required channels.
+	s.procDone = make(chan struct{}, 0)
+	s.rpDone = make(chan struct{}, 0)
+	s.sgpcDone = make(chan struct{}, 0)
+
 	// TODO: Open shard data stores.
 	// TODO: Associate series ids with shards.
 
@@ -207,12 +212,19 @@ func (s *Server) Close() error {
 		return ErrServerClosed
 	}
 
+	if s.procDone != nil {
+		close(s.procDone)
+		s.procDone = nil
+	}
+
 	if s.rpDone != nil {
 		close(s.rpDone)
+		s.rpDone = nil
 	}
 
 	if s.sgpcDone != nil {
 		close(s.sgpcDone)
+		s.sgpcDone = nil
 	}
 
 	// Remove path.
@@ -349,12 +361,10 @@ func (s *Server) StartShardGroupsPreCreate(checkInterval time.Duration) error {
 	if checkInterval == 0 {
 		return fmt.Errorf("shard group pre-create check interval must be non-zero")
 	}
-	sgpcDone := make(chan struct{}, 0)
-	s.sgpcDone = sgpcDone
 	go func() {
 		for {
 			select {
-			case <-sgpcDone:
+			case <-s.sgpcDone:
 				return
 			case <-time.After(checkInterval):
 				s.ShardGroupPreCreate(checkInterval)
@@ -431,20 +441,12 @@ func (s *Server) setClient(client MessagingClient) error {
 		return ErrServerClosed
 	}
 
-	// Stop previous processor, if running.
-	if s.done != nil {
-		close(s.done)
-		s.done = nil
-	}
-
 	// Set the messaging client.
 	s.client = client
 
 	// Start goroutine to read messages from the broker.
 	if client != nil {
-		done := make(chan struct{}, 0)
-		s.done = done
-		go s.processor(client, done)
+		go s.processor(client, s.procDone)
 	}
 
 	return nil
