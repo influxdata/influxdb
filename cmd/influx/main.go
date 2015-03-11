@@ -13,8 +13,10 @@ import (
 	"strconv"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/influxdb/influxdb/client"
+	//	"github.com/influxdb/influxdb/influxql"
 	"github.com/peterh/liner"
 )
 
@@ -250,27 +252,85 @@ func (c *CommandLine) SetFormat(cmd string) {
 	}
 }
 
+type Point struct {
+	Name      string                 `json:"name"`
+	Timestamp time.Time              `json:"timestamp"`
+	Tags      map[string]string      `json:"tags"`
+	Fields    map[string]interface{} `json:"fields"`
+}
+
+type Batch struct {
+	Database        string  `json:"database"`
+	RetentionPolicy string  `json:"retentionPolicy"`
+	Points          []Point `json:"points"`
+}
+
+// Output each point in the database in JSON.
+// To get all points:
+// Find all measurements (show measurements).
+// For each measurement do select * from <measurement> group by *
 func (c *CommandLine) dump() {
+	// Make our list of measurements
+	var measurements []string
 	query := "show measurements"
 	results, err := c.Client.Query(client.Query{Command: query, Database: c.Database})
 	if err != nil {
 		fmt.Printf("ERR: %s\n", err)
 		return
 	}
-	measurements := fetchRows(results)
-	for _, i := range measurements {
-		query = fmt.Sprintf("select * from %s group by *", i[2])
+	for _, measurementResult := range results.Results {
+		for _, measurementRow := range measurementResult.Series {
+			for _, measurementTuple := range measurementRow.Values {
+				for _, measurementCell := range measurementTuple {
+					measurements = append(measurements, interfaceToString(measurementCell))
+				}
+			}
+		}
+	}
+	// Fetch all the points for each measurement found above.
+	// From the 'select' query below, we get:
+	//
+	// columns:[col1, col2, col3, ...]
+	// - and -
+	// values:[[val1, val2, val3, ...], [val1, val2, val3, ...], [val1, val2, val3, ...]...]
+	//
+	// We need to turn that into multiple rows like so...
+	// fields:{col1 : values[0][0], col2 : values[0][1], col3 : values[0][2]}
+	// fields:{col1 : values[1][0], col2 : values[1][1], col3 : values[1][2]}
+	// fields:{col1 : values[2][0], col2 : values[2][1], col3 : values[2][2]}
+	//
+	for _, measurement := range measurements {
+		query = fmt.Sprintf("select * from %s group by *", measurement)
 		results, err = c.Client.Query(client.Query{Command: query, Database: c.Database})
 		if err != nil {
 			fmt.Printf("ERR: %s\n", err)
 			return
 		}
-		selectStar := fetchRows(results)
-		for _, j := range selectStar {
-			for _, k := range j {
-				fmt.Printf("%s ", k)
+		for _, result := range results.Results {
+			for _, row := range result.Series {
+				points := make([]Point, 1)
+				var point Point
+				point.Name = row.Name
+				point.Tags = row.Tags
+				point.Fields = make(map[string]interface{})
+				for _, tuple := range row.Values {
+					for subscript, cell := range tuple {
+						if row.Columns[subscript] == "time" {
+							point.Timestamp, _ = time.Parse(time.RFC3339, interfaceToString(cell))
+							continue
+						}
+						point.Fields[row.Columns[subscript]] = cell
+					}
+					points[0] = point
+					batch := &Batch{
+						Database:        "db",
+						RetentionPolicy: "raw",
+						Points:          points,
+					}
+					buf, _ := json.Marshal(&batch)
+					fmt.Printf("%s\n", buf)
+				}
 			}
-			fmt.Println()
 		}
 	}
 }
@@ -342,31 +402,6 @@ func WriteColumns(results *client.Results, w io.Writer) {
 		}
 		w.Flush()
 	}
-}
-
-func fetchRows(results *client.Results) [][]string {
-	var rows [][]string
-	for _, result := range results.Results {
-		for _, row := range result.Series {
-			// gather tags
-			tags := []string{}
-			for k, v := range row.Tags {
-				tags = append(tags, fmt.Sprintf("%s=%s", k, v))
-			}
-			thisRow := []string{}
-			for _, v := range row.Values {
-				thisRow = append(thisRow, row.Name)
-				thisRow = append(thisRow, strings.Join(tags, ","))
-
-				for _, vv := range v {
-					thisRow = append(thisRow, interfaceToString(vv))
-				}
-				rows = append(rows, thisRow)
-				thisRow = []string{}
-			}
-		}
-	}
-	return rows
 }
 
 func resultToCSV(result client.Result, seperator string, headerLines bool) []string {
