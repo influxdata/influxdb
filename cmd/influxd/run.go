@@ -288,6 +288,19 @@ func joinLog(l *raft.Log, joinURLs []url.URL) {
 
 // creates and initializes a server.
 func openServer(config *Config, b *influxdb.Broker, initServer, initBroker, configExists bool, joinURLs []url.URL, w io.Writer) *influxdb.Server {
+	// Use broker URL is there is no config and there are no join URLs passed.
+	clientJoinURLs := joinURLs
+	if !configExists || len(joinURLs) == 0 {
+		clientJoinURLs = []url.URL{b.URL()}
+	}
+
+	// Create messaging client to the brokers.
+	c := influxdb.NewMessagingClient()
+	c.SetLogOutput(w)
+	if err := c.Open(filepath.Join(config.Data.Dir, messagingClientFile), clientJoinURLs); err != nil {
+		log.Fatalf("messaging client error: %s", err)
+	}
+
 	// Create and open the server.
 	s := influxdb.NewServer()
 	s.SetLogOutput(w)
@@ -298,54 +311,25 @@ func openServer(config *Config, b *influxdb.Broker, initServer, initBroker, conf
 	s.ComputeRunsPerInterval = config.ContinuousQuery.ComputeRunsPerInterval
 	s.ComputeNoMoreThan = time.Duration(config.ContinuousQuery.ComputeNoMoreThan)
 
-	if err := s.Open(config.Data.Dir); err != nil {
+	// Open server with data directory and broker client.
+	if err := s.Open(config.Data.Dir, c); err != nil {
 		log.Fatalf("failed to open data server: %v", err.Error())
 	}
 
 	// If the server is uninitialized then initialize or join it.
 	if initServer {
 		if len(joinURLs) == 0 {
-			initializeServer(config.DataURL(), s, b, w, initBroker)
+			if initBroker {
+				if err := s.Initialize(b.URL()); err != nil {
+					log.Fatalf("server initialization error: %s", err)
+				}
+			}
 		} else {
 			joinServer(s, config.DataURL(), joinURLs)
 		}
 	}
 
-	if !configExists {
-		// We are spining up a server that has no config,
-		// but already has an initialized data directory
-		joinURLs = []url.URL{b.URL()}
-		openServerClient(s, joinURLs, w)
-	} else {
-		if len(joinURLs) == 0 {
-			// If a config exists, but no joinUrls are specified, fall back to the broker URL
-			// TODO: Make sure we have a leader, and then spin up the server
-			joinURLs = []url.URL{b.URL()}
-		}
-		openServerClient(s, joinURLs, w)
-	}
-
 	return s
-}
-
-// initializes a new server that does not yet have an ID.
-func initializeServer(u url.URL, s *influxdb.Server, b *influxdb.Broker, w io.Writer, initBroker bool) {
-	// Create messaging client.
-	c := influxdb.NewMessagingClient()
-	c.SetLogOutput(w)
-	if err := c.Open(filepath.Join(s.Path(), messagingClientFile), []url.URL{b.URL()}); err != nil {
-		log.Fatalf("messaging client error: %s", err)
-	}
-	if err := s.SetClient(c); err != nil {
-		log.Fatalf("set client error: %s", err)
-	}
-
-	if initBroker {
-		// Initialize the server.
-		if err := s.Initialize(b.URL()); err != nil {
-			log.Fatalf("server initialization error: %s", err)
-		}
-	}
 }
 
 // joins a server to an existing cluster.
@@ -362,18 +346,6 @@ func joinServer(s *influxdb.Server, u url.URL, joinURLs []url.URL) {
 		}
 	}
 	log.Fatalf("join: failed to connect data node to any specified server")
-}
-
-// opens the messaging client and attaches it to the server.
-func openServerClient(s *influxdb.Server, joinURLs []url.URL, w io.Writer) {
-	c := influxdb.NewMessagingClient()
-	c.SetLogOutput(w)
-	if err := c.Open(filepath.Join(s.Path(), messagingClientFile), joinURLs); err != nil {
-		log.Fatalf("messaging client error: %s", err)
-	}
-	if err := s.SetClient(c); err != nil {
-		log.Fatalf("set client error: %s", err)
-	}
 }
 
 // parses a comma-delimited list of URLs.

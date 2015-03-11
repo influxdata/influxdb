@@ -163,7 +163,7 @@ func (s *Server) SetLogOutput(w io.Writer) {
 }
 
 // Open initializes the server from a given path.
-func (s *Server) Open(path string) error {
+func (s *Server) Open(path string, client MessagingClient) error {
 	// Ensure the server isn't already open and there's a path provided.
 	if s.opened() {
 		return ErrServerOpen
@@ -176,23 +176,41 @@ func (s *Server) Open(path string) error {
 
 	// Create required directories.
 	if err := os.MkdirAll(path, 0755); err != nil {
+		_ = s.close()
 		return err
 	}
 	if err := os.MkdirAll(filepath.Join(path, "shards"), 0755); err != nil {
+		_ = s.close()
 		return err
 	}
 
+	// Set the messaging client.
+	s.client = client
+
 	// Open metadata store.
 	if err := s.meta.open(s.metaPath()); err != nil {
+		_ = s.close()
 		return fmt.Errorf("meta: %s", err)
 	}
 
 	// Load state from metastore.
 	if err := s.load(); err != nil {
+		_ = s.close()
 		return fmt.Errorf("load: %s", err)
 	}
 
-	// TODO: Open shard data stores.
+	// Create connection for broadcast topic.
+	conn := client.Conn(BroadcastTopicID)
+	if err := conn.Open(s.index, true); err != nil {
+		_ = s.close()
+		return fmt.Errorf("open conn: %s", err)
+	}
+
+	// Begin streaming messages from broadcast topic.
+	done := make(chan struct{}, 0)
+	s.done = done
+	go s.processor(conn, done)
+
 	// TODO: Associate series ids with shards.
 
 	return nil
@@ -205,25 +223,36 @@ func (s *Server) opened() bool { return s.path != "" }
 func (s *Server) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.close()
+}
 
+func (s *Server) close() error {
 	if !s.opened() {
 		return ErrServerClosed
 	}
 
 	if s.rpDone != nil {
 		close(s.rpDone)
+		s.rpDone = nil
 	}
 
 	if s.sgpcDone != nil {
 		close(s.sgpcDone)
+		s.sgpcDone = nil
 	}
 
 	// Remove path.
 	s.path = ""
 	s.index = 0
 
-	// Close message processing.
-	s.setClient(nil)
+	// Stop broadcast topic processing.
+	if s.done != nil {
+		close(s.done)
+		s.done = nil
+	}
+
+	// Remove client.
+	s.client = nil
 
 	// Close metastore.
 	_ = s.meta.close()
@@ -423,45 +452,6 @@ func (s *Server) Client() MessagingClient {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.client
-}
-
-// SetClient sets the messaging client on the server.
-func (s *Server) SetClient(client MessagingClient) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.setClient(client)
-}
-
-func (s *Server) setClient(client MessagingClient) error {
-	// Ensure the server is open.
-	if !s.opened() {
-		return ErrServerClosed
-	}
-
-	// Stop previous processor, if running.
-	if s.done != nil {
-		close(s.done)
-		s.done = nil
-	}
-
-	// Set the messaging client.
-	s.client = client
-
-	// Start goroutine to read messages from the broadcast channel.
-	if client != nil {
-		// Create connection for broadcast channel.
-		conn := client.Conn(BroadcastTopicID)
-		if err := conn.Open(s.index, true); err != nil {
-			return fmt.Errorf("open conn: %s", err)
-		}
-
-		// Stream messages
-		done := make(chan struct{}, 0)
-		s.done = done
-		go s.processor(conn, done)
-	}
-
-	return nil
 }
 
 // broadcast encodes a message as JSON and send it to the broker's broadcast topic.

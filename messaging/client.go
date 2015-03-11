@@ -19,7 +19,10 @@ import (
 
 // DefaultReconnectTimeout is the default time to wait between when a broker
 // stream disconnects and another connection is retried.
-const DefaultReconnectTimeout = 100 * time.Millisecond
+const DefaultReconnectTimeout = 1000 * time.Millisecond
+
+// DefaultPingInterval is the default time to wait between checks to the broker.
+const DefaultPingInterval = 1000 * time.Millisecond
 
 // Client represents a client for the broker's HTTP API.
 type Client struct {
@@ -29,10 +32,15 @@ type Client struct {
 	urls  []url.URL // list of available broker URLs
 
 	opened bool
-	done   chan chan struct{} // disconnection notification
+
+	wg      sync.WaitGroup
+	closing chan struct{}
 
 	// The amount of time to wait before reconnecting to a broker stream.
 	ReconnectTimeout time.Duration
+
+	// The amount of time between pings to verify the broker is alive.
+	PingInterval time.Duration
 
 	// The logging interface used by the client for out-of-band errors.
 	Logger *log.Logger
@@ -42,6 +50,7 @@ type Client struct {
 func NewClient() *Client {
 	c := &Client{
 		ReconnectTimeout: DefaultReconnectTimeout,
+		PingInterval:     DefaultPingInterval,
 	}
 	c.SetLogOutput(os.Stderr)
 	return c
@@ -130,6 +139,11 @@ func (c *Client) Open(path string, urls []url.URL) error {
 	// Set open flag.
 	c.opened = true
 
+	// Start background ping.
+	c.closing = make(chan struct{}, 0)
+	c.wg.Add(1)
+	go c.pinger(c.closing)
+
 	return nil
 }
 
@@ -148,6 +162,17 @@ func (c *Client) Close() error {
 		_ = conn.Close()
 	}
 	c.conns = nil
+
+	// Close goroutines.
+	if c.closing != nil {
+		close(c.closing)
+		c.closing = nil
+	}
+
+	// Wait for goroutines to finish.
+	c.mu.Unlock()
+	c.wg.Wait()
+	c.mu.Lock()
 
 	// Unset open flag.
 	c.opened = false
@@ -168,6 +193,14 @@ func (c *Client) Publish(m *Message) (uint64, error) {
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	// Check response code.
+	if resp.StatusCode != http.StatusOK {
+		if errstr := resp.Header.Get("X-Broker-Error"); errstr != "" {
+			return 0, errors.New(errstr)
+		}
+		return 0, fmt.Errorf("cannot publish(%d)", resp.StatusCode)
+	}
+
 	// Parse broker index.
 	index, err := strconv.ParseUint(resp.Header.Get("X-Broker-Index"), 10, 64)
 	if err != nil {
@@ -175,6 +208,18 @@ func (c *Client) Publish(m *Message) (uint64, error) {
 	}
 
 	return index, nil
+}
+
+// Ping sends a request to the current broker to check if it is alive.
+// If the broker is down then a new URL is tried.
+func (c *Client) Ping() error {
+	// Post message to broker.
+	resp, err := c.do("POST", "/messaging/ping", nil, "application/octet-stream", nil)
+	if err != nil {
+		return err
+	}
+	resp.Body.Close()
+	return nil
 }
 
 // do sends an HTTP request to the given path with the current leader URL.
@@ -210,12 +255,6 @@ func (c *Client) do(method, path string, values url.Values, contentType string, 
 			}
 			c.SetURL(*redirectURL)
 			continue
-		} else if resp.StatusCode != http.StatusOK {
-			resp.Body.Close()
-			if errstr := resp.Header.Get("X-Broker-Error"); errstr != "" {
-				return nil, errors.New(errstr)
-			}
-			return nil, fmt.Errorf("cannot publish(%d)", resp.StatusCode)
 		}
 
 		return resp, nil
@@ -236,6 +275,20 @@ func (c *Client) Conn(topicID uint64) *Conn {
 	c.conns = append(c.conns, conn)
 
 	return conn
+}
+
+// pinger periodically pings the broker to check that it is alive.
+func (c *Client) pinger(closing chan struct{}) {
+	defer c.wg.Done()
+
+	for {
+		select {
+		case <-closing:
+			return
+		case <-time.After(c.PingInterval):
+			c.Ping()
+		}
+	}
 }
 
 // ClientConfig represents the configuration that must be persisted across restarts.
@@ -490,7 +543,6 @@ func (c *Conn) stream(req *http.Request, closing <-chan struct{}) error {
 		// Decode message from the stream.
 		m := &Message{}
 		if err := dec.Decode(m); err == io.EOF {
-			warn("EOF!!!")
 			return nil
 		} else if err != nil {
 			return fmt.Errorf("decode: %s", err)

@@ -182,7 +182,7 @@ func TestHandler_postHeartbeat(t *testing.T) {
 }
 
 // Ensure an error is returned when heartbeating with the wrong HTTP method.
-func heartbeat_ErrMethodNotAllowed(t *testing.T) {
+func TestHandler_postHeartbeat_ErrMethodNotAllowed(t *testing.T) {
 	s := httptest.NewServer(&messaging.Handler{})
 	defer s.Close()
 
@@ -191,6 +191,21 @@ func heartbeat_ErrMethodNotAllowed(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	} else if resp.StatusCode != http.StatusMethodNotAllowed {
 		t.Fatalf("unexpected status: %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+}
+
+// Ensure a handler can respond to a ping.
+func TestHandler_servePing(t *testing.T) {
+	s := httptest.NewServer(&messaging.Handler{})
+	defer s.Close()
+
+	// Send request to the broker.
+	resp, err := http.Post(s.URL+`/messaging/ping`, "application/octet-stream", nil)
+	if err != nil {
+		t.Fatal(err)
+	} else if resp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected status: %d: %s", resp.StatusCode, resp.Header.Get("X-Broker-Error"))
 	}
 	resp.Body.Close()
 }

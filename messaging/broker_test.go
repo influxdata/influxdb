@@ -524,8 +524,6 @@ func TestTopicReader_streaming(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
-		defer wg.Done()
-
 		time.Sleep(2 * time.Millisecond)
 		MustWriteFile(filepath.Join(path, "6"),
 			MustMarshalMessages([]*messaging.Message{
@@ -549,10 +547,6 @@ func TestTopicReader_streaming(t *testing.T) {
 				{Index: 14},
 			}),
 		)
-
-		// Close reader.
-		time.Sleep(5 * time.Millisecond)
-		r.Close()
 	}()
 
 	// Slurp all message ids from the reader.
@@ -561,11 +555,15 @@ func TestTopicReader_streaming(t *testing.T) {
 	for {
 		m := &messaging.Message{}
 		if err := dec.Decode(m); err == io.EOF {
-			break
+			t.Fatalf("unexpected EOF")
 		} else if err != nil {
 			t.Fatalf("decode error: %s", err)
 		} else {
 			indices = append(indices, m.Index)
+		}
+
+		if m.Index == 14 {
+			break
 		}
 	}
 
@@ -574,7 +572,7 @@ func TestTopicReader_streaming(t *testing.T) {
 		t.Fatalf("unexpected indices: %#v", indices)
 	}
 
-	wg.Wait()
+	r.Close()
 }
 
 // Ensure multiple topic readers can read from the same topic directory.

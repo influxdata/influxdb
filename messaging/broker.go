@@ -228,9 +228,23 @@ func (b *Broker) closeTopics() {
 // SetMaxIndex sets the highest index seen by the broker.
 // This is only used for internal log messages and topics may have a higher index.
 func (b *Broker) SetMaxIndex(index uint64) error {
-	return b.meta.Update(func(tx *bolt.Tx) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.setMaxIndex(index)
+}
+
+func (b *Broker) setMaxIndex(index uint64) error {
+	// Update index in meta database.
+	if err := b.meta.Update(func(tx *bolt.Tx) error {
 		return tx.Bucket([]byte("meta")).Put([]byte("index"), u64tob(index))
-	})
+	}); err != nil {
+		return err
+	}
+
+	// Set in-memory index.
+	b.index = index
+
+	return nil
 }
 
 // Snapshot streams the current state of the broker and returns the index.
@@ -335,8 +349,8 @@ func (b *Broker) Restore(r io.Reader) error {
 	defer b.mu.Unlock()
 
 	// Remove and recreate broker path.
-	if err := os.RemoveAll(b.path); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("remove all: %s", err)
+	if err := b.reset(); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("reset: %s", err)
 	} else if err = os.MkdirAll(b.path, 0700); err != nil {
 		return fmt.Errorf("mkdir: %s", err)
 	}
@@ -400,10 +414,39 @@ func (b *Broker) Restore(r io.Reader) error {
 	}
 
 	// Set the highest seen index.
-	if err := b.SetMaxIndex(sh.Index); err != nil {
+	if err := b.setMaxIndex(sh.Index); err != nil {
 		return fmt.Errorf("set max index: %s", err)
 	}
 	b.index = sh.Index
+
+	return nil
+}
+
+// reset removes all files in the broker directory besides the raft directory.
+func (b *Broker) reset() error {
+	// Open handle to directory.
+	f, err := os.Open(b.path)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = f.Close() }()
+
+	// Read directory items.
+	fis, err := f.Readdir(0)
+	if err != nil {
+		return err
+	}
+
+	// Remove all files & directories besides raft.
+	for _, fi := range fis {
+		if fi.Name() == "raft" {
+			continue
+		}
+
+		if err := os.RemoveAll(fi.Name()); err != nil {
+			return fmt.Errorf("remove: %s", fi.Name())
+		}
+	}
 
 	return nil
 }

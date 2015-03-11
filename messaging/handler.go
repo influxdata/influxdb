@@ -48,6 +48,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else {
 			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		}
+	case "/messaging/ping":
+		h.servePing(w, r)
 	default:
 		http.NotFound(w, r)
 	}
@@ -159,6 +161,11 @@ func (h *Handler) postHeartbeat(w http.ResponseWriter, r *http.Request) {
 		h.error(w, err, http.StatusInternalServerError)
 		return
 	}
+}
+
+// servePing returns a status 200.
+func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
 }
 
 // error writes an error to the client and sets the status code.

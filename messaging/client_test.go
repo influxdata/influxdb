@@ -11,6 +11,32 @@ import (
 	"github.com/influxdb/influxdb/messaging"
 )
 
+// Ensure a client can check if the server is alive.
+func TestClient_Ping(t *testing.T) {
+	var pinged bool
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.URL.Path != "/messaging/ping" {
+			t.Fatalf("unexpected path: %s", req.URL.Path)
+		}
+		pinged = true
+	}))
+	defer s.Close()
+
+	// Create client.
+	c := messaging.NewClient()
+	if err := c.Open("", []url.URL{*MustParseURL(s.URL)}); err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	// Ping server.
+	if err := c.Ping(); err != nil {
+		t.Fatal(err)
+	} else if !pinged {
+		t.Fatal("ping not received")
+	}
+}
+
 // Ensure a client can be opened and connections can be created.
 func TestClient_Conn(t *testing.T) {
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {

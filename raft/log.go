@@ -1554,18 +1554,11 @@ func (l *Log) advanceWriter(writer *logWriter, snapshotIndex uint64) error {
 	default:
 	}
 
-	// Determine the highest snapshot index. The writer's snapshot index can
-	// be higher if non-command entries have been applied.
-	if writer.snapshotIndex > snapshotIndex {
-		snapshotIndex = writer.snapshotIndex
-	}
-	snapshotIndex++
-
 	// Write pending entries.
 	if len(l.entries) > 0 {
 		startIndex := l.entries[0].Index
 		enc := NewLogEntryEncoder(writer.Writer)
-		for _, e := range l.entries[snapshotIndex-startIndex:] {
+		for _, e := range l.entries[snapshotIndex-startIndex+1:] {
 			if err := enc.Encode(e); err != nil {
 				return err
 			}

@@ -21,9 +21,11 @@ import (
 
 // Ensure the server can be successfully opened and closed.
 func TestServer_Open(t *testing.T) {
+	c := test.NewMessagingClient()
+	defer c.Close()
 	s := NewServer()
 	defer s.Close()
-	if err := s.Server.Open(tempfile()); err != nil {
+	if err := s.Server.Open(tempfile(), c); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.Server.Close(); err != nil {
@@ -2170,10 +2172,7 @@ func OpenServer(client influxdb.MessagingClient) *Server {
 // OpenUninitializedServer returns a new, uninitialized, open test server instance.
 func OpenUninitializedServer(client influxdb.MessagingClient) *Server {
 	s := NewServer()
-	if err := s.Open(tempfile()); err != nil {
-		panic(err.Error())
-	}
-	if err := s.SetClient(client); err != nil {
+	if err := s.Open(tempfile(), client); err != nil {
 		panic(err.Error())
 	}
 	return s
@@ -2202,11 +2201,8 @@ func (s *Server) Restart() {
 	}
 
 	// Open and reset the client.
-	if err := s.Server.Open(path); err != nil {
+	if err := s.Server.Open(path, client); err != nil {
 		panic("open: " + err.Error())
-	}
-	if err := s.Server.SetClient(client); err != nil {
-		panic("client: " + err.Error())
 	}
 }
 
