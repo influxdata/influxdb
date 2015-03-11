@@ -355,18 +355,16 @@ func (c *CommandLine) formatResults(result client.Result, separator string) []st
 		// If we are column format, we break out the name/tag to seperate lines
 		if c.Format == "column" {
 			if row.Name != "" {
-				rows = append(rows, row.Name)
+				n := fmt.Sprintf("name: %s", row.Name)
+				rows = append(rows, n)
 				if len(tags) == 0 {
-					l := strings.Repeat("-", len(row.Name))
+					l := strings.Repeat("-", len(n))
 					rows = append(rows, l)
 				}
 			}
 			if len(tags) > 0 {
 				t := fmt.Sprintf("tags: %s", (strings.Join(tags, ", ")))
-				l := strings.Repeat("-", len(t))
-				rows = append(rows, l)
 				rows = append(rows, t)
-				rows = append(rows, l)
 			}
 		}
 
