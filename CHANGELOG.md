@@ -1,5 +1,8 @@
 ## v0.9.0-rc11 [unreleased]
 
+### Bugfixes
+- [#1917](https://github.com/influxdb/influxdb/pull/1902): Creating Infinite Retention Policy Failed.
+
 ### Features
 - [#1902](https://github.com/influxdb/influxdb/pull/1902): Enforce retention policies to have a minimum duraton.
 
