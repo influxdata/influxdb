@@ -170,7 +170,7 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 					log.Printf("failed to start UDP Graphite Server: %v\n", err.Error())
 				}
 			} else {
-				log.Fatalf("unrecognized Graphite Server prototcol %s", c.Protocol)
+				log.Fatalf("unrecognized Graphite Server protocol %s", c.Protocol)
 			}
 		}
 	}
