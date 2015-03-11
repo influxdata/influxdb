@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -326,6 +327,7 @@ func (c *CommandLine) formatResults(result client.Result, separator string) []st
 		tags := []string{}
 		for k, v := range row.Tags {
 			tags = append(tags, fmt.Sprintf("%s=%s", k, v))
+			sort.Strings(tags)
 		}
 
 		columnNames := []string{}
