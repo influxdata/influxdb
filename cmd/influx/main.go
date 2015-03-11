@@ -267,7 +267,7 @@ func (c *CommandLine) executeQuery(query string) {
 func (c *CommandLine) FormatResults(results *client.Results, w io.Writer) {
 	switch c.Format {
 	case "json":
-		c.writeJSON(results, c.Pretty, w)
+		c.writeJSON(results, w)
 	case "csv":
 		c.writeCSV(results, w)
 	case "column":
@@ -277,10 +277,10 @@ func (c *CommandLine) FormatResults(results *client.Results, w io.Writer) {
 	}
 }
 
-func (c *CommandLine) writeJSON(results *client.Results, pretty bool, w io.Writer) {
+func (c *CommandLine) writeJSON(results *client.Results, w io.Writer) {
 	var data []byte
 	var err error
-	if pretty {
+	if c.Pretty {
 		data, err = json.MarshalIndent(results, "", "    ")
 	} else {
 		data, err = json.Marshal(results)
