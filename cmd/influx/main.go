@@ -396,10 +396,10 @@ func (c *CommandLine) formatResults(result client.Result, separator string) []st
 				values = append(values, interfaceToString(vv))
 			}
 			rows = append(rows, strings.Join(values, separator))
-			// Outout a line separator if in column format
-			if c.Format == "column" {
-				rows = append(rows, "")
-			}
+		}
+		// Outout a line separator if in column format
+		if c.Format == "column" {
+			rows = append(rows, "")
 		}
 	}
 	return rows
