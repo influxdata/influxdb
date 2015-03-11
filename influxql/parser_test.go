@@ -759,7 +759,6 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `SHOW RETENTION`, err: `found EOF, expected POLICIES at line 1, char 16`},
 		{s: `SHOW RETENTION POLICIES`, err: `found EOF, expected identifier at line 1, char 25`},
 		{s: `SHOW STATS ON`, err: `found EOF, expected string at line 1, char 15`},
-		{s: `SHOW STATS XXX`, err: `found XXX, expected ON at line 1, char 12`},
 		{s: `SHOW FOO`, err: `found FOO, expected CONTINUOUS, DATABASES, FIELD, MEASUREMENTS, RETENTION, SERIES, TAG, USERS at line 1, char 6`},
 		{s: `DROP CONTINUOUS`, err: `found EOF, expected QUERY at line 1, char 17`},
 		{s: `DROP CONTINUOUS QUERY`, err: `found EOF, expected identifier at line 1, char 23`},
