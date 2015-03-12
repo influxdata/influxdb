@@ -72,6 +72,7 @@ type Server struct {
 
 	shards map[uint64]*Shard // shards by shard id
 
+	metrics    *Stats
 	Logger     *log.Logger
 	WriteTrace bool // Detailed logging of write path
 
@@ -103,8 +104,9 @@ func NewServer() *Server {
 		databases: make(map[string]*database),
 		users:     make(map[string]*User),
 
-		shards: make(map[uint64]*Shard),
-		Logger: log.New(os.Stderr, "[server] ", log.LstdFlags),
+		shards:  make(map[uint64]*Shard),
+		metrics: NewStats(),
+		Logger:  log.New(os.Stderr, "[server] ", log.LstdFlags),
 	}
 	// Server will always return with authentication enabled.
 	// This ensures that disabling authentication must be an explicit decision.
@@ -458,6 +460,8 @@ func (s *Server) Client() MessagingClient {
 // This function waits until the message has been processed by the server.
 // Returns the broker log index of the message or an error.
 func (s *Server) broadcast(typ messaging.MessageType, c interface{}) (uint64, error) {
+	s.metrics.Add("broadcastMessageTx", 1)
+
 	// Encode the command.
 	data, err := json.Marshal(c)
 	if err != nil {
@@ -943,6 +947,7 @@ func (s *Server) applyCreateShardGroupIfNotExists(m *messaging.Message) (err err
 				nodeIndex++
 			}
 		}
+		s.metrics.Add("shardsCreated", int64(len(g.Shards)))
 
 		// Retention policy has a new shard group, so update the policy.
 		rp.shardGroups = append(rp.shardGroups, g)
@@ -1023,6 +1028,7 @@ func (s *Server) applyDeleteShardGroup(m *messaging.Message) (err error) {
 	// Remove from metastore.
 	rp.removeShardGroupByID(c.ID)
 	err = s.meta.mustUpdate(m.Index, func(tx *metatx) error {
+		s.metrics.Add("shardsDeleted", int64(len(g.Shards)))
 		return tx.saveDatabase(db)
 	})
 	return
@@ -1508,7 +1514,15 @@ type Point struct {
 
 // WriteSeries writes series data to the database.
 // Returns the messaging index the data was written to.
-func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (uint64, error) {
+func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (idx uint64, err error) {
+	s.metrics.Add("batchWriteRx", 1)
+	s.metrics.Add("pointWriteRx", int64(len(points)))
+	defer func() {
+		if err != nil {
+			s.metrics.Add("batchWriteRxError", 1)
+		}
+	}()
+
 	if s.WriteTrace {
 		log.Printf("received write for database '%s', retention policy '%s', with %d points",
 			database, retentionPolicy, len(points))
@@ -1626,6 +1640,7 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 		if err != nil {
 			return maxIndex, err
 		}
+		s.metrics.Add("writeSeriesMessageTx", 1)
 		if index > maxIndex {
 			maxIndex = index
 		}
@@ -2816,6 +2831,7 @@ func (s *Server) processor(conn MessagingConn, done chan struct{}) {
 
 		// All messages must be processed under lock.
 		func() {
+			s.metrics.Add("broadcastMessageRx", 1)
 			s.mu.Lock()
 			defer s.mu.Unlock()
 
@@ -3279,6 +3295,7 @@ func (s *Server) shouldRunContinuousQuery(cq *ContinuousQuery) bool {
 // runContinuousQuery will execute a continuous query
 // TODO: make this fan out to the cluster instead of running all the queries on this single data node
 func (s *Server) runContinuousQuery(cq *ContinuousQuery) {
+	s.metrics.Add("continuousQueryExecuted", 1)
 	cq.mu.Lock()
 	defer cq.mu.Unlock()
 
