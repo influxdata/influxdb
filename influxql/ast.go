@@ -536,7 +536,7 @@ const (
 	NullFill FillOption = iota
 	// NoFill means that empty aggregate windows will be purged from the result.
 	NoFill
-	// NumberFill means that empty aggregate windwos will be filled with the given number
+	// NumberFill means that empty aggregate windows will be filled with the given number
 	NumberFill
 	// PreviousFill means that empty aggregate windows will be filled with whatever the previous aggregate window had
 	PreviousFill
