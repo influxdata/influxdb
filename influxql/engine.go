@@ -182,6 +182,9 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 	// processes the result values if there's any math in there
 	resultValues = m.processResults(resultValues)
 
+	// handle any fill options
+	resultValues = m.processFill(resultValues)
+
 	row := &Row{
 		Name:    m.MeasurementName,
 		Tags:    m.TagSet.Tags,
@@ -224,6 +227,52 @@ func (m *MapReduceJob) processResults(results [][]interface{}) [][]interface{} {
 	}
 
 	return mathResults
+}
+
+// processFill will take the results and return new reaults (or the same if no fill modifications are needed) with whatever fill options the query has.
+func (m *MapReduceJob) processFill(results [][]interface{}) [][]interface{} {
+	// don't do anything if it's raw query results or we're supposed to leave the nulls
+	if m.stmt.RawQuery || m.stmt.Fill == NullFill {
+		return results
+	}
+
+	if m.stmt.Fill == NoFill {
+		// remove any rows that have even one nil value. This one is tricky because they could have multiple
+		// aggregates, but this option means that any row that has even one nil gets purged.
+		newResults := make([][]interface{}, 0, len(results))
+		for _, vals := range results {
+			hasNil := false
+			// start at 1 because the first value is always time
+			for j := 1; j < len(vals); j++ {
+				if vals[j] == nil {
+					hasNil = true
+					break
+				}
+			}
+			if !hasNil {
+				newResults = append(newResults, vals)
+			}
+		}
+		return newResults
+	}
+
+	// they're either filling with previous values or a specific number
+	for i, vals := range results {
+		// start at 1 because the first value is always time
+		for j := 1; j < len(vals); j++ {
+			if vals[j] == nil {
+				switch m.stmt.Fill {
+				case PreviousFill:
+					if i != 0 {
+						vals[j] = results[i-1][j]
+					}
+				case NumberFill:
+					vals[j] = m.stmt.FillValue
+				}
+			}
+		}
+	}
+	return results
 }
 
 func getProcessor(expr Expr, startIndex int) (processor, int) {

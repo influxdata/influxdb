@@ -529,6 +529,19 @@ func (s *AlterRetentionPolicyStatement) RequiredPrivileges() ExecutionPrivileges
 	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
 }
 
+type FillOption int
+
+const (
+	// NullFill means that empty aggregate windows will just have null values.
+	NullFill FillOption = iota
+	// NoFill means that empty aggregate windows will be purged from the result.
+	NoFill
+	// NumberFill means that empty aggregate windows will be filled with the given number
+	NumberFill
+	// PreviousFill means that empty aggregate windows will be filled with whatever the previous aggregate window had
+	PreviousFill
+)
+
 // SelectStatement represents a command for extracting data from the database.
 type SelectStatement struct {
 	// Expressions returned from the selection.
@@ -566,6 +579,12 @@ type SelectStatement struct {
 
 	// if it's a query for raw data values (i.e. not an aggregate)
 	RawQuery bool
+
+	// What fill option the select statement uses, if any
+	Fill FillOption
+
+	// The value to fill empty aggregate buckets with, if any
+	FillValue interface{}
 }
 
 // Clone returns a deep copy of the statement.
@@ -580,6 +599,8 @@ func (s *SelectStatement) Clone() *SelectStatement {
 		Offset:     s.Offset,
 		SLimit:     s.SLimit,
 		SOffset:    s.SOffset,
+		Fill:       s.Fill,
+		FillValue:  s.FillValue,
 	}
 	if s.Target != nil {
 		other.Target = &Target{Measurement: s.Target.Measurement, Database: s.Target.Database}
@@ -674,6 +695,14 @@ func (s *SelectStatement) String() string {
 	if len(s.Dimensions) > 0 {
 		_, _ = buf.WriteString(" GROUP BY ")
 		_, _ = buf.WriteString(s.Dimensions.String())
+	}
+	switch s.Fill {
+	case NoFill:
+		_, _ = buf.WriteString(" fill(none)")
+	case NumberFill:
+		_, _ = buf.WriteString(fmt.Sprintf(" fill(%v)", s.FillValue))
+	case PreviousFill:
+		_, _ = buf.WriteString(" fill(previous)")
 	}
 	if len(s.SortFields) > 0 {
 		_, _ = buf.WriteString(" ORDER BY ")

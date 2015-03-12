@@ -576,7 +576,7 @@ select_stmt = fields from_clause [ into_clause ] [ where_clause ]
 
 ```sql
 -- select mean value from the cpu measurement where region = 'uswest' grouped by 10 minute intervals
-SELECT mean(value) FROM cpu WHERE region = 'uswest' GROUP BY time(10m);
+SELECT mean(value) FROM cpu WHERE region = 'uswest' GROUP BY time(10m) fill(0);
 ```
 
 ## Clauses
@@ -584,7 +584,7 @@ SELECT mean(value) FROM cpu WHERE region = 'uswest' GROUP BY time(10m);
 ```
 from_clause     = "FROM" measurements .
 
-group_by_clause = "GROUP BY" dimensions .
+group_by_clause = "GROUP BY" dimensions fill(<option>).
 
 limit_clause    = "LIMIT" int_lit .
 
