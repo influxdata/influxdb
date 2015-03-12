@@ -170,6 +170,49 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// SELECT statement with fill
+		{
+			s: `SELECT mean(value) FROM cpu GROUP BY time(5m) fill(1)`,
+			stmt: &influxql.SelectStatement{
+				Fields: []*influxql.Field{{
+					Expr: &influxql.Call{
+						Name: "mean",
+						Args: []influxql.Expr{&influxql.VarRef{Val: "value"}}}}},
+				Source: &influxql.Measurement{Name: "cpu"},
+				Dimensions: []*influxql.Dimension{
+					{Expr: &influxql.Call{
+						Name: "time",
+						Args: []influxql.Expr{
+							&influxql.DurationLiteral{Val: 5 * time.Minute},
+						},
+					}},
+				},
+				Fill:      influxql.NumberFill,
+				FillValue: float64(1),
+			},
+		},
+
+		// SELECT statement with previous fill
+		{
+			s: `SELECT mean(value) FROM cpu GROUP BY time(5m) fill(previous)`,
+			stmt: &influxql.SelectStatement{
+				Fields: []*influxql.Field{{
+					Expr: &influxql.Call{
+						Name: "mean",
+						Args: []influxql.Expr{&influxql.VarRef{Val: "value"}}}}},
+				Source: &influxql.Measurement{Name: "cpu"},
+				Dimensions: []*influxql.Dimension{
+					{Expr: &influxql.Call{
+						Name: "time",
+						Args: []influxql.Expr{
+							&influxql.DurationLiteral{Val: 5 * time.Minute},
+						},
+					}},
+				},
+				Fill: influxql.PreviousFill,
+			},
+		},
+
 		// DELETE statement
 		{
 			s: `DELETE FROM myseries WHERE host = 'hosta.influxdb.org'`,
@@ -181,6 +224,12 @@ func TestParser_ParseStatement(t *testing.T) {
 					RHS: &influxql.StringLiteral{Val: "hosta.influxdb.org"},
 				},
 			},
+		},
+
+		// SHOW SERVERS
+		{
+			s:    `SHOW SERVERS`,
+			stmt: &influxql.ShowServersStatement{},
 		},
 
 		// SHOW DATABASES
@@ -738,7 +787,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `SHOW CONTINUOUS`, err: `found EOF, expected QUERIES at line 1, char 17`},
 		{s: `SHOW RETENTION`, err: `found EOF, expected POLICIES at line 1, char 16`},
 		{s: `SHOW RETENTION POLICIES`, err: `found EOF, expected identifier at line 1, char 25`},
-		{s: `SHOW FOO`, err: `found FOO, expected CONTINUOUS, DATABASES, FIELD, MEASUREMENTS, RETENTION, SERIES, TAG, USERS at line 1, char 6`},
+		{s: `SHOW FOO`, err: `found FOO, expected CONTINUOUS, DATABASES, FIELD, MEASUREMENTS, RETENTION, SERIES, SERVERS, TAG, USERS at line 1, char 6`},
 		{s: `DROP CONTINUOUS`, err: `found EOF, expected QUERY at line 1, char 17`},
 		{s: `DROP CONTINUOUS QUERY`, err: `found EOF, expected identifier at line 1, char 23`},
 		{s: `CREATE CONTINUOUS`, err: `found EOF, expected QUERY at line 1, char 19`},

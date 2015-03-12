@@ -1,6 +1,8 @@
 package graphite
 
 import (
+	"io"
+	"log"
 	"net"
 	"strings"
 
@@ -13,19 +15,25 @@ const (
 
 // UDPerver processes Graphite data received via UDP.
 type UDPServer struct {
-	writer SeriesWriter
+	server Server
 	parser *Parser
 
 	Database string
+	Logger   *log.Logger
 }
 
 // NewUDPServer returns a new instance of a UDPServer
-func NewUDPServer(p *Parser, w SeriesWriter) *UDPServer {
+func NewUDPServer(p *Parser, s Server) *UDPServer {
 	u := UDPServer{
 		parser: p,
-		writer: w,
+		server: s,
 	}
 	return &u
+}
+
+// SetLogOutput sets writer for all Graphite log output.
+func (s *UDPServer) SetLogOutput(w io.Writer) {
+	s.Logger = log.New(w, "[graphite] ", log.LstdFlags)
 }
 
 // ListenAndServer instructs the UDPServer to start processing Graphite data
@@ -34,7 +42,14 @@ func (u *UDPServer) ListenAndServe(iface string) error {
 	if iface == "" { // Make sure we have an address
 		return ErrBindAddressRequired
 	} else if u.Database == "" { // Make sure they have a database
-		return ErrDatabaseNotSpecified
+		// If they didn't specify a database, create one and set a default retention policy.
+		if !u.server.DatabaseExists(DefaultDatabaseName) {
+			u.Logger.Printf("default database %q does not exist.  creating.\n", DefaultDatabaseName)
+			if e := u.server.CreateDatabase(DefaultDatabaseName); e != nil {
+				return e
+			}
+			u.Database = DefaultDatabaseName
+		}
 	}
 
 	addr, err := net.ResolveUDPAddr("udp", iface)
@@ -61,7 +76,10 @@ func (u *UDPServer) ListenAndServe(iface string) error {
 				}
 
 				// Send the data to database
-				u.writer.WriteSeries(u.Database, "", []influxdb.Point{point})
+				_, e := u.server.WriteSeries(u.Database, "", []influxdb.Point{point})
+				if e != nil {
+					u.Logger.Printf("failed to write data point: %s\n", e)
+				}
 			}
 		}
 	}()

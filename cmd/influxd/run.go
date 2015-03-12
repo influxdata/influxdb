@@ -67,9 +67,14 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 		// We want to make sure we are spun up before we exit this function, so we manually listen and serve
 		listener, err := net.Listen("tcp", config.BrokerAddr())
 		if err != nil {
-			log.Fatal(err)
+			log.Fatalf("Broker failed to listen on %s. %s ", config.BrokerAddr(), err)
 		}
-		go func() { log.Fatal(http.Serve(listener, h)) }()
+		go func() {
+			err := http.Serve(listener, h)
+			if err != nil {
+				log.Fatalf("Broker failed to server on %s.: %s", config.BrokerAddr(), err)
+			}
+		}()
 		log.Printf("broker listening on %s", config.BrokerAddr())
 
 		// have it occasionally tell a data node in the cluster to run continuous queries
@@ -162,6 +167,7 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 			if strings.ToLower(c.Protocol) == "tcp" {
 				g := graphite.NewTCPServer(parser, s)
 				g.Database = c.Database
+				g.SetLogOutput(logWriter)
 				err := g.ListenAndServe(c.ConnectionString(config.BindAddress))
 				if err != nil {
 					log.Printf("failed to start TCP Graphite Server: %v\n", err.Error())
@@ -169,12 +175,13 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 			} else if strings.ToLower(c.Protocol) == "udp" {
 				g := graphite.NewUDPServer(parser, s)
 				g.Database = c.Database
+				g.SetLogOutput(logWriter)
 				err := g.ListenAndServe(c.ConnectionString(config.BindAddress))
 				if err != nil {
 					log.Printf("failed to start UDP Graphite Server: %v\n", err.Error())
 				}
 			} else {
-				log.Fatalf("unrecognized Graphite Server prototcol %s", c.Protocol)
+				log.Fatalf("unrecognized Graphite Server protocol %s", c.Protocol)
 			}
 		}
 	}
