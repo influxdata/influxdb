@@ -599,6 +599,8 @@ func (s *SelectStatement) Clone() *SelectStatement {
 		Offset:     s.Offset,
 		SLimit:     s.SLimit,
 		SOffset:    s.SOffset,
+		Fill:       s.Fill,
+		FillValue:  s.FillValue,
 	}
 	if s.Target != nil {
 		other.Target = &Target{Measurement: s.Target.Measurement, Database: s.Target.Database}
@@ -693,6 +695,14 @@ func (s *SelectStatement) String() string {
 	if len(s.Dimensions) > 0 {
 		_, _ = buf.WriteString(" GROUP BY ")
 		_, _ = buf.WriteString(s.Dimensions.String())
+	}
+	switch s.Fill {
+	case NoFill:
+		_, _ = buf.WriteString(" fill(none)")
+	case NumberFill:
+		_, _ = buf.WriteString(fmt.Sprintf(" fill(%v)", s.FillValue))
+	case PreviousFill:
+		_, _ = buf.WriteString(" fill(previous)")
 	}
 	if len(s.SortFields) > 0 {
 		_, _ = buf.WriteString(" ORDER BY ")
