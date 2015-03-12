@@ -36,6 +36,16 @@ func (s *UDPServer) SetLogOutput(w io.Writer) {
 	s.Logger = log.New(w, "[graphite] ", log.LstdFlags)
 }
 
+// SetDatabase sets database for all Graphite log output.
+func (s *UDPServer) SetDatabase(database string) {
+	s.Database = database
+}
+
+// Protocol returns a string version of the supported protocol.
+func (s *UDPServer) Protocol() string {
+	return "udp"
+}
+
 // ListenAndServer instructs the UDPServer to start processing Graphite data
 // on the given interface. iface must be in the form host:port.
 func (u *UDPServer) ListenAndServe(iface string) error {

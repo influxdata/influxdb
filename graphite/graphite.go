@@ -3,6 +3,7 @@ package graphite
 import (
 	"errors"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 	"time"
@@ -39,6 +40,26 @@ type SeriesWriter interface {
 	CreateDatabase(string) error
 	CreateRetentionPolicy(string, *influxdb.RetentionPolicy) error
 	DatabaseExists(string) bool
+}
+
+// Server defines the interface all Graphite servers support.
+type Server interface {
+	SetLogOutput(w io.Writer)
+	SetDatabase(string)
+	ListenAndServe(iface string) error
+	Protocol() string
+}
+
+// NewServer return a Graphite server for the given protocol, using the given parser
+// and series writer.
+func NewServer(protocol string, p *Parser, s SeriesWriter) (Server, error) {
+	if strings.ToLower(protocol) == "tcp" {
+		return NewTCPServer(p, s), nil
+	} else if strings.ToLower(protocol) == "udp" {
+		return NewUDPServer(p, s), nil
+	} else {
+		return nil, fmt.Errorf("unrecognized Graphite Server protocol %s", protocol)
+	}
 }
 
 // Parser encapulates a Graphite Parser.
