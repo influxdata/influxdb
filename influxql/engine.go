@@ -110,20 +110,12 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 		return
 	}
 
-	// initialize the times of the aggregate points
-	resultTimes := make([]int64, pointCountInResult)
-	resultValues := make([][]interface{}, pointCountInResult)
-	for i, _ := range resultTimes {
-		t := m.TMin + (int64(i) * m.interval)
-		resultTimes[i] = t
-		// we always include time so we need one more column than we have aggregates
-		vals := make([]interface{}, 0, len(aggregates)+1)
-		resultValues[i] = append(vals, time.Unix(0, t).UTC())
-	}
-
+	// check limits
 	// now limit the number of data points returned by the limit and offset
+	setLimit := false
 	if pointCountInResult > 1 && (m.stmt.Limit > 0 || m.stmt.Offset > 0) {
-		if m.stmt.Offset > len(resultValues) {
+		setLimit = true
+		if m.stmt.Offset > pointCountInResult {
 			out <- &Row{
 				Name: m.MeasurementName,
 				Tags: m.TagSet.Tags,
@@ -131,14 +123,31 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 
 			return
 		} else {
-			limit := m.stmt.Limit
-			if m.stmt.Offset+m.stmt.Limit > len(resultValues) {
-				limit = len(resultValues) - m.stmt.Offset
+			pointCountInResult = m.stmt.Limit
+			if m.stmt.Offset+m.stmt.Limit > pointCountInResult {
+				pointCountInResult = pointCountInResult - m.stmt.Offset
 			}
-
-			resultTimes = resultTimes[m.stmt.Offset : m.stmt.Offset+limit]
-			resultValues = resultValues[m.stmt.Offset : m.stmt.Offset+limit]
 		}
+	}
+
+	// initialize the times of the aggregate points
+	resultTimes := make([]int64, pointCountInResult)
+	resultValues := make([][]interface{}, pointCountInResult)
+
+	// ensure that the start time for the results is on the start of the window
+	startTimeBucket := m.TMin / m.interval * m.interval
+
+	for i, _ := range resultTimes {
+		t := startTimeBucket + (int64(i) * m.interval * int64(m.stmt.Offset+1))
+		resultTimes[i] = t
+		// we always include time so we need one more column than we have aggregates
+		vals := make([]interface{}, 0, len(aggregates)+1)
+		resultValues[i] = append(vals, time.Unix(0, t).UTC())
+	}
+
+	// This just makes sure that if they specify a start time less than what the start time would be with the offset,
+	// we just reset the start time to the later time to avoid going over data that won't show up in the result.
+	if setLimit && m.stmt.Offset > 0 {
 		m.TMin = resultTimes[0]
 	}
 
