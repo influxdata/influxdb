@@ -15,7 +15,7 @@ const (
 
 // UDPerver processes Graphite data received via UDP.
 type UDPServer struct {
-	server Server
+	server SeriesWriter
 	parser *Parser
 
 	Database string
@@ -23,7 +23,7 @@ type UDPServer struct {
 }
 
 // NewUDPServer returns a new instance of a UDPServer
-func NewUDPServer(p *Parser, s Server) *UDPServer {
+func NewUDPServer(p *Parser, s SeriesWriter) *UDPServer {
 	u := UDPServer{
 		parser: p,
 		server: s,

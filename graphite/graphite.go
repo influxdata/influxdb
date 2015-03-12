@@ -34,7 +34,7 @@ var (
 )
 
 // SeriesWriter defines the interface for the destination of the data.
-type Server interface {
+type SeriesWriter interface {
 	WriteSeries(string, string, []influxdb.Point) (uint64, error)
 	CreateDatabase(string) error
 	CreateRetentionPolicy(string, *influxdb.RetentionPolicy) error

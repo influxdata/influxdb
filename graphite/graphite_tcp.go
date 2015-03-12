@@ -12,7 +12,7 @@ import (
 
 // TCPServer processes Graphite data received over TCP connections.
 type TCPServer struct {
-	server Server
+	server SeriesWriter
 	parser *Parser
 
 	Database string
@@ -20,7 +20,7 @@ type TCPServer struct {
 }
 
 // NewTCPServer returns a new instance of a TCPServer.
-func NewTCPServer(p *Parser, s Server) *TCPServer {
+func NewTCPServer(p *Parser, s SeriesWriter) *TCPServer {
 	return &TCPServer{
 		parser: p,
 		server: s,
