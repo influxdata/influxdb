@@ -17,9 +17,6 @@ const (
 
 	// DefaultGraphiteNameSeparator represents the default Graphite field separator.
 	DefaultGraphiteNameSeparator = "."
-
-	// DefaultDatabaseName is the default database that is created if none is specified
-	DefaultDatabaseName = "graphite"
 )
 
 var (
@@ -37,26 +34,21 @@ var (
 // SeriesWriter defines the interface for the destination of the data.
 type SeriesWriter interface {
 	WriteSeries(string, string, []influxdb.Point) (uint64, error)
-	CreateDatabase(string) error
-	CreateRetentionPolicy(string, *influxdb.RetentionPolicy) error
-	DatabaseExists(string) bool
 }
 
 // Server defines the interface all Graphite servers support.
 type Server interface {
 	SetLogOutput(w io.Writer)
-	SetDatabase(string)
 	ListenAndServe(iface string) error
-	Protocol() string
 }
 
 // NewServer return a Graphite server for the given protocol, using the given parser
-// and series writer.
-func NewServer(protocol string, p *Parser, s SeriesWriter) (Server, error) {
+// series writer, and database.
+func NewServer(protocol string, p *Parser, s SeriesWriter, db string) (Server, error) {
 	if strings.ToLower(protocol) == "tcp" {
-		return NewTCPServer(p, s), nil
+		return NewTCPServer(p, s, db), nil
 	} else if strings.ToLower(protocol) == "udp" {
-		return NewUDPServer(p, s), nil
+		return NewUDPServer(p, s, db), nil
 	} else {
 		return nil, fmt.Errorf("unrecognized Graphite Server protocol %s", protocol)
 	}

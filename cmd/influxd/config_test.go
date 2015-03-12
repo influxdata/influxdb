@@ -104,8 +104,8 @@ func TestParseConfig(t *testing.T) {
 		t.Fatalf("graphite udp address mismatch: expected %v, got  %v", "192.168.0.2", udpGraphite.Addr)
 	case udpGraphite.Port != 2005:
 		t.Fatalf("graphite udp port mismatch: expected %v, got %v", 2005, udpGraphite.Port)
-	case udpGraphite.Database != "graphite_udp":
-		t.Fatalf("graphite database mismatch: expected %v, got %v", "graphite_udp", udpGraphite.Database)
+	case udpGraphite.DatabaseString() != "graphite":
+		t.Fatalf("graphite database mismatch: expected %v, got %v", "graphite", udpGraphite.Database)
 	case strings.ToLower(udpGraphite.Protocol) != "udp":
 		t.Fatalf("graphite udp protocol mismatch: expected %v, got %v", "udp", strings.ToLower(udpGraphite.Protocol))
 	}
@@ -214,7 +214,6 @@ protocol = "udP"
 enabled = true
 address = "192.168.0.2"
 port = 2005
-database = "graphite_udp"  # store graphite data in this database
 
 # Configure collectd server
 [collectd]
