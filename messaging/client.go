@@ -187,7 +187,7 @@ func (c *Client) Publish(m *Message) (uint64, error) {
 		"type":    {strconv.FormatUint(uint64(m.Type), 10)},
 		"topicID": {strconv.FormatUint(m.TopicID, 10)},
 	}
-	resp, err := c.do("POST", "/messaging/messages", values, "application/octet-stream", bytes.NewReader(m.Data))
+	resp, err := c.do("POST", "/messaging/messages", values, "application/octet-stream", m.Data)
 	if err != nil {
 		return 0, fmt.Errorf("do: %s", err)
 	}
@@ -224,7 +224,7 @@ func (c *Client) Ping() error {
 
 // do sends an HTTP request to the given path with the current leader URL.
 // This will automatically retry the request if it is redirected.
-func (c *Client) do(method, path string, values url.Values, contentType string, body io.Reader) (*http.Response, error) {
+func (c *Client) do(method, path string, values url.Values, contentType string, body []byte) (*http.Response, error) {
 	for {
 		// Generate URL.
 		u := c.URL()
@@ -232,7 +232,7 @@ func (c *Client) do(method, path string, values url.Values, contentType string, 
 		u.RawQuery = values.Encode()
 
 		// Create request.
-		req, err := http.NewRequest(method, u.String(), body)
+		req, err := http.NewRequest(method, u.String(), bytes.NewReader(body))
 		if err != nil {
 			return nil, fmt.Errorf("new request: %s", err)
 		}
