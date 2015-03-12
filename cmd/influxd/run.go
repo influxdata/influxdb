@@ -180,6 +180,12 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 				log.Fatalf("failed to start %s Graphite server: %s", c.Protocol, err.Error())
 			}
 		}
+
+		// Start up self-monitoring if enabled.
+		if config.Statistics.Enabled {
+			// XXX create database and retention period
+			s.StartSelfMonitoring(interval)
+		}
 	}
 
 	// unless disabled, start the loop to report anonymous usage stats every 24h

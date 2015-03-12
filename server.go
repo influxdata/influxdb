@@ -323,6 +323,29 @@ func (s *Server) load() error {
 	})
 }
 
+func (s *Server) StartSelfMonitoring(interval time.Duration) error {
+	if interval == 0 {
+		return fmt.Errorf("statistics check interval must be non-zero")
+	}
+
+	// Grab the initial stats.
+	prev := NewStats()
+
+	for {
+		time.Sleep(interval)
+
+		// Grab the current stats and diff them.
+		stats := s.metrics
+		diff := stats.Diff(prev)
+		var _ = diff
+
+		// XXX write diff to itself. Tag with server hostname and ID.
+
+		// Save stats for the next loop.
+		prev = stats
+	}
+}
+
 // StartRetentionPolicyEnforcement launches retention policy enforcement.
 func (s *Server) StartRetentionPolicyEnforcement(checkInterval time.Duration) error {
 	if checkInterval == 0 {
