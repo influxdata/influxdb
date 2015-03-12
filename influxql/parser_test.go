@@ -170,6 +170,49 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// SELECT statement with fill
+		{
+			s: `SELECT mean(value) FROM cpu GROUP BY time(5m) fill(1)`,
+			stmt: &influxql.SelectStatement{
+				Fields: []*influxql.Field{{
+					Expr: &influxql.Call{
+						Name: "mean",
+						Args: []influxql.Expr{&influxql.VarRef{Val: "value"}}}}},
+				Source: &influxql.Measurement{Name: "cpu"},
+				Dimensions: []*influxql.Dimension{
+					{Expr: &influxql.Call{
+						Name: "time",
+						Args: []influxql.Expr{
+							&influxql.DurationLiteral{Val: 5 * time.Minute},
+						},
+					}},
+				},
+				Fill:      influxql.NumberFill,
+				FillValue: float64(1),
+			},
+		},
+
+		// SELECT statement with previous fill
+		{
+			s: `SELECT mean(value) FROM cpu GROUP BY time(5m) fill(previous)`,
+			stmt: &influxql.SelectStatement{
+				Fields: []*influxql.Field{{
+					Expr: &influxql.Call{
+						Name: "mean",
+						Args: []influxql.Expr{&influxql.VarRef{Val: "value"}}}}},
+				Source: &influxql.Measurement{Name: "cpu"},
+				Dimensions: []*influxql.Dimension{
+					{Expr: &influxql.Call{
+						Name: "time",
+						Args: []influxql.Expr{
+							&influxql.DurationLiteral{Val: 5 * time.Minute},
+						},
+					}},
+				},
+				Fill: influxql.PreviousFill,
+			},
+		},
+
 		// DELETE statement
 		{
 			s: `DELETE FROM myseries WHERE host = 'hosta.influxdb.org'`,

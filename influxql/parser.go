@@ -553,6 +553,11 @@ func (p *Parser) parseSelectStatement(tr targetRequirement) (*SelectStatement, e
 		return nil, err
 	}
 
+	// Parse fill options: "fill(<option>)"
+	if stmt.Fill, stmt.FillValue, err = p.parseFill(); err != nil {
+		return nil, err
+	}
+
 	// Parse sort: "ORDER BY FIELD+".
 	if stmt.SortFields, err = p.parseOrderBy(); err != nil {
 		return nil, err
@@ -1368,6 +1373,42 @@ func (p *Parser) parseDimension() (*Dimension, error) {
 	p.consumeWhitespace()
 
 	return &Dimension{Expr: expr}, nil
+}
+
+// parseFill parses the fill call and its optios.
+func (p *Parser) parseFill() (FillOption, interface{}, error) {
+	// Parse the expression first.
+	expr, err := p.ParseExpr()
+	if err != nil {
+		p.unscan()
+		return NullFill, nil, nil
+	}
+	if lit, ok := expr.(*Call); !ok {
+		p.unscan()
+		return NullFill, nil, nil
+	} else {
+		if lit.Name != "fill" {
+			p.unscan()
+			return NullFill, nil, nil
+		}
+		if len(lit.Args) != 1 {
+			return NullFill, nil, errors.New("fill requires an argument, e.g.: 0, null, none, previous")
+		}
+		switch lit.Args[0].String() {
+		case "null":
+			return NullFill, nil, nil
+		case "none":
+			return NoFill, nil, nil
+		case "previous":
+			return PreviousFill, nil, nil
+		default:
+			num, ok := lit.Args[0].(*NumberLiteral)
+			if !ok {
+				return NullFill, nil, fmt.Errorf("expected number argument in fill()")
+			}
+			return NumberFill, num.Val, nil
+		}
+	}
 }
 
 // parseOptionalTokenAndInt parses the specified token followed
