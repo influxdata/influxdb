@@ -145,7 +145,8 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 		resultValues[i] = append(vals, time.Unix(0, t).UTC())
 	}
 
-	// set the minimum time if we should set the limit and the offset is greater than 0. This way we don't range over data we don't need to
+	// This just makes sure that if they specify a start time less than what the start time would be with the offset,
+	// we just reset the start time to the later time to avoid going over data that won't show up in the result.
 	if setLimit && m.stmt.Offset > 0 {
 		m.TMin = resultTimes[0]
 	}
