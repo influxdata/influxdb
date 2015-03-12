@@ -219,7 +219,7 @@ func queryAndWait(t *testing.T, nodes Cluster, urlDb, q, expected string, timeou
 	)
 	defer timer.Stop()
 	if timeout > 0 {
-		timer.Reset(time.Duration(timeout) * time.Millisecond)
+		timer.Reset(time.Duration(timeout))
 		go func() {
 			<-timer.C
 			atomic.StoreInt32(&timedOut, 1)
@@ -986,6 +986,67 @@ func Test_ServerSingleGraphiteIntegration(t *testing.T) {
 
 	// query and wait for results
 	got, ok := queryAndWait(t, nodes, "graphite", `select * from "graphite"."raw".cpu`, expected, 2*time.Second)
+	if !ok {
+		t.Errorf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
+	}
+}
+
+func Test_ServerSingleGraphiteIntegration_NoDatabase(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+	nNodes := 1
+	basePort := 8490
+	testName := "graphite integration"
+	dir := tempfile()
+	now := time.Now().UTC().Round(time.Millisecond)
+	c := main.NewConfig()
+	g := main.Graphite{
+		Enabled:  true,
+		Port:     2103,
+		Protocol: "TCP",
+	}
+	c.Graphites = append(c.Graphites, g)
+	c.Logging.WriteTracing = true
+
+	t.Logf("Graphite Connection String: %s\n", g.ConnectionString(c.BindAddress))
+	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, basePort, c)
+
+	// Connect to the graphite endpoint we just spun up
+	conn, err := net.Dial("tcp", g.ConnectionString(c.BindAddress))
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	// Need to wait for the database to be created
+	expected := `{"results":[{"series":[{"columns":["name"],"values":[["graphite"]]}]}]}`
+	got, ok := queryAndWait(t, nodes, "graphite", `show databases`, expected, 2*time.Second)
+	if !ok {
+		t.Errorf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
+	}
+
+	// Need to wait for the database to get a default retention policy
+	expected = `{"results":[{"series":[{"columns":["name","duration","replicaN"],"values":[["default","0",1]]}]}]}`
+	got, ok = queryAndWait(t, nodes, "graphite", `show retention policies graphite`, expected, 2*time.Second)
+	if !ok {
+		t.Errorf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
+	}
+
+	t.Log("Writing data")
+	data := []byte(`cpu 23.456 `)
+	data = append(data, []byte(fmt.Sprintf("%d", now.UnixNano()/1000000))...)
+	data = append(data, '\n')
+	_, err = conn.Write(data)
+	conn.Close()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	// Wait for data to show up
+	expected = fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","cpu"],"values":[["%s",23.456]]}]}]}`, now.Format(time.RFC3339Nano))
+	got, ok = queryAndWait(t, nodes, "graphite", `select * from "graphite"."default".cpu`, expected, 2*time.Second)
 	if !ok {
 		t.Errorf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
 	}
