@@ -16,6 +16,9 @@ const (
 
 	// DefaultGraphiteNameSeparator represents the default Graphite field separator.
 	DefaultGraphiteNameSeparator = "."
+
+	// DefaultDatabaseName is the default database that is created if none is specified
+	DefaultDatabaseName = "graphite"
 )
 
 var (
@@ -26,16 +29,16 @@ var (
 	// ErrServerClosed return when closing an already closed graphite server.
 	ErrServerClosed = errors.New("server already closed")
 
-	// ErrDatabaseNotSpecified retuned when no database was specified in the config file
-	ErrDatabaseNotSpecified = errors.New("database was not specified in config")
-
 	// ErrServerNotSpecified returned when Server is not specified.
 	ErrServerNotSpecified = errors.New("server not present")
 )
 
 // SeriesWriter defines the interface for the destination of the data.
-type SeriesWriter interface {
-	WriteSeries(database, retentionPolicy string, points []influxdb.Point) (uint64, error)
+type Server interface {
+	WriteSeries(string, string, []influxdb.Point) (uint64, error)
+	CreateDatabase(string) error
+	CreateRetentionPolicy(string, *influxdb.RetentionPolicy) error
+	DatabaseExists(string) bool
 }
 
 // Parser encapulates a Graphite Parser.

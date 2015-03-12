@@ -163,6 +163,7 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 			if strings.ToLower(c.Protocol) == "tcp" {
 				g := graphite.NewTCPServer(parser, s)
 				g.Database = c.Database
+				g.SetLogOutput(logWriter)
 				err := g.ListenAndServe(c.ConnectionString(config.BindAddress))
 				if err != nil {
 					log.Printf("failed to start TCP Graphite Server: %v\n", err.Error())
@@ -170,6 +171,7 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 			} else if strings.ToLower(c.Protocol) == "udp" {
 				g := graphite.NewUDPServer(parser, s)
 				g.Database = c.Database
+				g.SetLogOutput(logWriter)
 				err := g.ListenAndServe(c.ConnectionString(config.BindAddress))
 				if err != nil {
 					log.Printf("failed to start UDP Graphite Server: %v\n", err.Error())

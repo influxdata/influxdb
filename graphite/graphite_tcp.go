@@ -2,6 +2,7 @@ package graphite
 
 import (
 	"bufio"
+	"io"
 	"log"
 	"net"
 	"strings"
@@ -11,18 +12,24 @@ import (
 
 // TCPServer processes Graphite data received over TCP connections.
 type TCPServer struct {
-	writer SeriesWriter
+	server Server
 	parser *Parser
 
 	Database string
+	Logger   *log.Logger
 }
 
 // NewTCPServer returns a new instance of a TCPServer.
-func NewTCPServer(p *Parser, w SeriesWriter) *TCPServer {
+func NewTCPServer(p *Parser, s Server) *TCPServer {
 	return &TCPServer{
 		parser: p,
-		writer: w,
+		server: s,
 	}
+}
+
+// SetLogOutput sets writer for all Graphite log output.
+func (s *TCPServer) SetLogOutput(w io.Writer) {
+	s.Logger = log.New(w, "[graphite] ", log.LstdFlags)
 }
 
 // ListenAndServe instructs the TCPServer to start processing Graphite data
@@ -30,8 +37,15 @@ func NewTCPServer(p *Parser, w SeriesWriter) *TCPServer {
 func (t *TCPServer) ListenAndServe(iface string) error {
 	if iface == "" { // Make sure we have an address
 		return ErrBindAddressRequired
-	} else if t.Database == "" { // Make sure they have a database
-		return ErrDatabaseNotSpecified
+	} else if t.Database == "" {
+		// If they didn't specify a database, create one and set a default retention policy.
+		if !t.server.DatabaseExists(DefaultDatabaseName) {
+			t.Logger.Printf("default database %q does not exist.  creating.\n", DefaultDatabaseName)
+			if e := t.server.CreateDatabase(DefaultDatabaseName); e != nil {
+				return e
+			}
+			t.Database = DefaultDatabaseName
+		}
 	}
 
 	ln, err := net.Listen("tcp", iface)
@@ -42,7 +56,7 @@ func (t *TCPServer) ListenAndServe(iface string) error {
 		for {
 			conn, err := ln.Accept()
 			if err != nil {
-				log.Println("error accepting TCP connection", err.Error())
+				t.Logger.Println("error accepting TCP connection", err.Error())
 				continue
 			}
 			go t.handleConnection(conn)
@@ -69,11 +83,14 @@ func (t *TCPServer) handleConnection(conn net.Conn) {
 		// Parse it.
 		point, err := t.parser.Parse(line)
 		if err != nil {
-			log.Printf("unable to parse data: %s", err)
+			t.Logger.Printf("unable to parse data: %s", err)
 			continue
 		}
 
 		// Send the data to database
-		t.writer.WriteSeries(t.Database, "", []influxdb.Point{point})
+		_, e := t.server.WriteSeries(t.Database, "", []influxdb.Point{point})
+		if e != nil {
+			t.Logger.Printf("failed to write data point to database %q: %s\n", t.Database, e)
+		}
 	}
 }
