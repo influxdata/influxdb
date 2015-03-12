@@ -12,18 +12,19 @@ import (
 
 // TCPServer processes Graphite data received over TCP connections.
 type TCPServer struct {
-	server Server
-	parser *Parser
+	writer   SeriesWriter
+	parser   *Parser
+	database string
 
-	Database string
-	Logger   *log.Logger
+	Logger *log.Logger
 }
 
 // NewTCPServer returns a new instance of a TCPServer.
-func NewTCPServer(p *Parser, s Server) *TCPServer {
+func NewTCPServer(p *Parser, w SeriesWriter, db string) *TCPServer {
 	return &TCPServer{
-		parser: p,
-		server: s,
+		parser:   p,
+		writer:   w,
+		database: db,
 	}
 }
 
@@ -37,15 +38,6 @@ func (s *TCPServer) SetLogOutput(w io.Writer) {
 func (t *TCPServer) ListenAndServe(iface string) error {
 	if iface == "" { // Make sure we have an address
 		return ErrBindAddressRequired
-	} else if t.Database == "" {
-		// If they didn't specify a database, create one and set a default retention policy.
-		if !t.server.DatabaseExists(DefaultDatabaseName) {
-			t.Logger.Printf("default database %q does not exist.  creating.\n", DefaultDatabaseName)
-			if e := t.server.CreateDatabase(DefaultDatabaseName); e != nil {
-				return e
-			}
-			t.Database = DefaultDatabaseName
-		}
 	}
 
 	ln, err := net.Listen("tcp", iface)
@@ -87,10 +79,10 @@ func (t *TCPServer) handleConnection(conn net.Conn) {
 			continue
 		}
 
-		// Send the data to database
-		_, e := t.server.WriteSeries(t.Database, "", []influxdb.Point{point})
+		// Send the data to the writer.
+		_, e := t.writer.WriteSeries(t.database, "", []influxdb.Point{point})
 		if e != nil {
-			t.Logger.Printf("failed to write data point to database %q: %s\n", t.Database, e)
+			t.Logger.Printf("failed to write data point to database %q: %s\n", t.database, e)
 		}
 	}
 }

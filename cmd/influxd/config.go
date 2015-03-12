@@ -43,6 +43,9 @@ const (
 	// DefaultRetentionCreatePeriod represents how often the server will check to see if new
 	// shard groups need to be created in advance for writing
 	DefaultRetentionCreatePeriod = 45 * time.Minute
+
+	// DefaultGraphiteDatabaseName is the default Graphite database if none is specified
+	DefaultGraphiteDatabaseName = "graphite"
 )
 
 // Config represents the configuration format for the influxd binary.
@@ -377,6 +380,13 @@ func (g *Graphite) NameSeparatorString() string {
 		return graphite.DefaultGraphiteNameSeparator
 	}
 	return g.NameSeparator
+}
+
+func (g *Graphite) DatabaseString() string {
+	if g.Database == "" {
+		return DefaultGraphiteDatabaseName
+	}
+	return g.Database
 }
 
 // LastEnabled returns whether the Graphite Server shoudl intepret the last field as "name".

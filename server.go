@@ -756,6 +756,14 @@ func (s *Server) CreateDatabase(name string) error {
 	return err
 }
 
+// CreateDatabaseIfNotExists creates a new database if, and only if, it does not exist already.
+func (s *Server) CreateDatabaseIfNotExists(name string) error {
+	if s.DatabaseExists(name) {
+		return nil
+	}
+	return s.CreateDatabase(name)
+}
+
 func (s *Server) applyCreateDatabase(m *messaging.Message) (err error) {
 	var c createDatabaseCommand
 	mustUnmarshalJSON(m.Data, &c)

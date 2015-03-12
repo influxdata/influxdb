@@ -163,25 +163,21 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 			parser.Separator = c.NameSeparatorString()
 			parser.LastEnabled = c.LastEnabled()
 
-			// Start the relevant server.
-			if strings.ToLower(c.Protocol) == "tcp" {
-				g := graphite.NewTCPServer(parser, s)
-				g.Database = c.Database
-				g.SetLogOutput(logWriter)
-				err := g.ListenAndServe(c.ConnectionString(config.BindAddress))
-				if err != nil {
-					log.Printf("failed to start TCP Graphite Server: %v\n", err.Error())
-				}
-			} else if strings.ToLower(c.Protocol) == "udp" {
-				g := graphite.NewUDPServer(parser, s)
-				g.Database = c.Database
-				g.SetLogOutput(logWriter)
-				err := g.ListenAndServe(c.ConnectionString(config.BindAddress))
-				if err != nil {
-					log.Printf("failed to start UDP Graphite Server: %v\n", err.Error())
-				}
-			} else {
-				log.Fatalf("unrecognized Graphite Server protocol %s", c.Protocol)
+			if err := s.CreateDatabaseIfNotExists(c.DatabaseString()); err != nil {
+				log.Fatalf("failed to create database for %s Graphite server: %s", c.Protocol, err.Error())
+			}
+
+			// Spin up the server.
+			var g graphite.Server
+			g, err := graphite.NewServer(c.Protocol, parser, s, c.DatabaseString())
+			if err != nil {
+				log.Fatalf("failed to initialize %s Graphite server: %s", c.Protocol, err.Error())
+			}
+			g.SetLogOutput(logWriter)
+
+			err = g.ListenAndServe(c.ConnectionString(config.BindAddress))
+			if err != nil {
+				log.Fatalf("failed to start %s Graphite server: %s", c.Protocol, err.Error())
 			}
 		}
 	}
