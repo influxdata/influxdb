@@ -6,6 +6,7 @@
 ### Features
 - [#1902](https://github.com/influxdb/influxdb/pull/1902): Enforce retention policies to have a minimum duration.
 - [#1906](https://github.com/influxdb/influxdb/pull/1906): Add show servers to query language.
+- [#1925](https://github.com/influxdb/influxdb/pull/1925): Add `fill(none)`, `fill(previous)`, and `fill(<num>)` to queries.
 
 ## v0.9.0-rc10 [2015-03-09]
 
