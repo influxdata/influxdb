@@ -686,7 +686,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		{
 			name:     "Check for default retention policy",
 			query:    `SHOW RETENTION POLICIES mydatabase`,
-			expected: `{"results":[{"series":[{"columns":["name","duration","replicaN"],"values":[["default","0",1]]}]}]}`,
+			expected: `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["default","0",1,true]]}]}]}`,
 		},
 		{
 			name:     "Ensure retention policy with infinite retention can be created",
@@ -1027,7 +1027,7 @@ func Test_ServerSingleGraphiteIntegration_NoDatabase(t *testing.T) {
 	}
 
 	// Need to wait for the database to get a default retention policy
-	expected = `{"results":[{"series":[{"columns":["name","duration","replicaN"],"values":[["default","0",1]]}]}]}`
+	expected = `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["default","0",1,true]]}]}]}`
 	got, ok = queryAndWait(t, nodes, "graphite", `show retention policies graphite`, expected, 2*time.Second)
 	if !ok {
 		t.Errorf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
