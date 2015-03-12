@@ -1248,7 +1248,6 @@ func (s *Server) DefaultRetentionPolicy(database string) (*RetentionPolicy, erro
 		return nil, ErrDatabaseNotFound
 	}
 
-	log.Printf("db.defaultRetentionPolicy: %q\n", db.defaultRetentionPolicy)
 	return db.policies[db.defaultRetentionPolicy], nil
 }
 
@@ -1521,9 +1520,6 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 
 	// If the retention policy is not set, use the default for this database.
 	if retentionPolicy == "" {
-		if s.WriteTrace {
-			log.Printf("no retention policy specified.  looking up default retention policy.\n")
-		}
 		rp, err := s.DefaultRetentionPolicy(database)
 		if err != nil {
 			return 0, fmt.Errorf("failed to determine default retention policy: %s", err.Error())
@@ -1531,9 +1527,6 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 			return 0, ErrDefaultRetentionPolicyNotFound
 		}
 		retentionPolicy = rp.Name
-		if s.WriteTrace {
-			log.Printf("found default retention policy: %s.\n", rp.Name)
-		}
 	}
 
 	// Ensure all required Series and Measurement Fields are created cluster-wide.
