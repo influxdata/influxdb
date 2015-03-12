@@ -119,6 +119,8 @@ func (p *Parser) parseShowStatement() (Statement, error) {
 		return nil, newParseError(tokstr(tok, lit), []string{"POLICIES"}, pos)
 	case SERIES:
 		return p.parseShowSeriesStatement()
+	case STATS:
+		return p.parseShowStatsStatement()
 	case TAG:
 		tok, pos, lit := p.scanIgnoreWhitespace()
 		if tok == KEYS {
@@ -1170,6 +1172,21 @@ func (p *Parser) parseRetentionPolicy() (name string, dfault bool, err error) {
 	}
 
 	return
+}
+
+// parseShowStatsStatement parses a string and returns a ShowStatsStatement.
+// This function assumes the "SHOW STATS" tokens have already been consumed.
+func (p *Parser) parseShowStatsStatement() (*ShowStatsStatement, error) {
+	stmt := &ShowStatsStatement{}
+	var err error
+
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == ON {
+		stmt.Host, err = p.parseString()
+	} else {
+		p.unscan()
+	}
+
+	return stmt, err
 }
 
 // parseDropContinuousQueriesStatement parses a string and returns a DropContinuousQueryStatement.
