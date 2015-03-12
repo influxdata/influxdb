@@ -13,7 +13,7 @@ const (
 	udpBufferSize = 65536
 )
 
-// UDPerver processes Graphite data received via UDP.
+// UDPServer processes Graphite data received via UDP.
 type UDPServer struct {
 	server SeriesWriter
 	parser *Parser
@@ -36,7 +36,7 @@ func (s *UDPServer) SetLogOutput(w io.Writer) {
 	s.Logger = log.New(w, "[graphite] ", log.LstdFlags)
 }
 
-// SetDatabase sets database for all Graphite log output.
+// SetDatabase sets the database for all Graphite log output.
 func (s *UDPServer) SetDatabase(database string) {
 	s.Database = database
 }
