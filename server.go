@@ -1602,6 +1602,8 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 	var err error
 	var maxIndex uint64
 	for i, d := range shardData {
+		assert(len(d) > 0, "raw series data required: topic=%d", i)
+
 		index, err := s.client.Publish(&messaging.Message{
 			Type:    writeRawSeriesMessageType,
 			TopicID: i,

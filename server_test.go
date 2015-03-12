@@ -596,7 +596,9 @@ func TestServer_CreateRetentionPolicy(t *testing.T) {
 
 // Ensure the database can create a new retention policy with infinite duration.
 func TestServer_CreateRetentionPolicyInfinite(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 
 	// Create a database.
@@ -629,7 +631,9 @@ func TestServer_CreateRetentionPolicyInfinite(t *testing.T) {
 
 // Ensure the database can creates a default retention policy.
 func TestServer_CreateRetentionPolicyDefault(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 
 	s.RetentionAutoCreate = true

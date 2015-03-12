@@ -116,9 +116,13 @@ func (h *Handler) postMessages(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Read the request body.
+	// Exit if there is no message data provided.
 	data, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		h.error(w, err, http.StatusInternalServerError)
+		return
+	} else if len(data) == 0 {
+		h.error(w, ErrMessageDataRequired, http.StatusBadRequest)
 		return
 	}
 

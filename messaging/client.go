@@ -548,6 +548,11 @@ func (c *Conn) stream(req *http.Request, closing <-chan struct{}) error {
 			return fmt.Errorf("decode: %s", err)
 		}
 
+		// Panic if we received no data.
+		if len(m.Data) == 0 {
+			panic("messaging conn no data recv")
+		}
+
 		// TODO: Write broker set updates, do not passthrough to channel.
 
 		// Write message to streaming channel.
