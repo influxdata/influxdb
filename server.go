@@ -2639,9 +2639,11 @@ func (s *Server) executeShowRetentionPoliciesStatement(q *influxql.ShowRetention
 		return &Result{Err: err}
 	}
 
-	row := &influxql.Row{Columns: []string{"name", "duration", "replicaN"}}
+	d := s.databases[q.Database]
+
+	row := &influxql.Row{Columns: []string{"name", "duration", "replicaN", "default"}}
 	for _, rp := range a {
-		row.Values = append(row.Values, []interface{}{rp.Name, rp.Duration.String(), rp.ReplicaN})
+		row.Values = append(row.Values, []interface{}{rp.Name, rp.Duration.String(), rp.ReplicaN, d.defaultRetentionPolicy == rp.Name})
 	}
 	return &Result{Series: []*influxql.Row{row}}
 }

@@ -6,6 +6,7 @@
 - [#1929](https://github.com/influxdb/influxdb/pull/1929): Default Retention Policy incorrectly auto created.
 - [#1930](https://github.com/influxdb/influxdb/pull/1930): Auto create database for graphite if not specified.
 - [#1908](https://github.com/influxdb/influxdb/pull/1908): Cosmetic CLI output fixes.
+- [#1931](https://github.com/influxdb/influxdb/pull/1931): Add default column to SHOW RETENTION POLICIES.
 
 ### Features
 - [#1902](https://github.com/influxdb/influxdb/pull/1902): Enforce retention policies to have a minimum duration.
