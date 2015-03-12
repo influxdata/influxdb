@@ -585,6 +585,38 @@ func TestServer_CreateRetentionPolicyInfinite(t *testing.T) {
 	}
 }
 
+// Ensure the database can creates a default retention policy.
+func TestServer_CreateRetentionPolicyDefault(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	s.RetentionAutoCreate = true
+
+	// Create a database.
+	if err := s.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+
+	s.Restart()
+
+	rp := &influxdb.RetentionPolicy{
+		Name:               "default",
+		Duration:           0,
+		ShardGroupDuration: time.Hour * 24 * 7,
+		ReplicaN:           1,
+	}
+
+	// Verify that the policy exists.
+	if o, err := s.RetentionPolicy("foo", "default"); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if o == nil {
+		t.Fatalf("retention policy not found")
+	} else if !reflect.DeepEqual(rp, o) {
+		t.Logf("expected: %#v\n", rp)
+		t.Fatalf("retention policy mismatch: %#v", o)
+	}
+}
+
 // Ensure the server returns an error when creating a retention policy with an invalid db.
 func TestServer_CreateRetentionPolicy_ErrDatabaseNotFound(t *testing.T) {
 	s := OpenServer(NewMessagingClient())

@@ -766,10 +766,11 @@ func (s *Server) applyCreateDatabase(m *messaging.Message) (err error) {
 
 	if s.RetentionAutoCreate {
 		// Create the default retention policy.
-		db.policies[c.Name] = &RetentionPolicy{
-			Name:     DefaultRetentionPolicyName,
-			Duration: 0,
-			ReplicaN: 1,
+		db.policies[DefaultRetentionPolicyName] = &RetentionPolicy{
+			Name:               DefaultRetentionPolicyName,
+			Duration:           0,
+			ShardGroupDuration: calculateShardGroupDuration(0),
+			ReplicaN:           1,
 		}
 		db.defaultRetentionPolicy = DefaultRetentionPolicyName
 		s.Logger.Printf("retention policy '%s' auto-created for database '%s'", DefaultRetentionPolicyName, c.Name)
@@ -1277,30 +1278,31 @@ func (s *Server) CreateRetentionPolicy(database string, rp *RetentionPolicy) err
 		return ErrRetentionPolicyMinDuration
 	}
 
+	c := &createRetentionPolicyCommand{
+		Database:           database,
+		Name:               rp.Name,
+		Duration:           rp.Duration,
+		ShardGroupDuration: calculateShardGroupDuration(rp.Duration),
+		ReplicaN:           rp.ReplicaN,
+	}
+	_, err := s.broadcast(createRetentionPolicyMessageType, c)
+	return err
+}
+
+func calculateShardGroupDuration(d time.Duration) time.Duration {
 	const (
 		day   = time.Hour * 24
 		month = day * 30
 	)
 
-	var sgd time.Duration
 	switch {
-	case rp.Duration > 6*month || rp.Duration == 0:
-		sgd = 7 * day
-	case rp.Duration > 2*day:
-		sgd = 1 * day
+	case d > 6*month || d == 0:
+		return 7 * day
+	case d > 2*day:
+		return 1 * day
 	default:
-		sgd = 1 * time.Hour
+		return 1 * time.Hour
 	}
-
-	c := &createRetentionPolicyCommand{
-		Database:           database,
-		Name:               rp.Name,
-		Duration:           rp.Duration,
-		ShardGroupDuration: sgd,
-		ReplicaN:           rp.ReplicaN,
-	}
-	_, err := s.broadcast(createRetentionPolicyMessageType, c)
-	return err
 }
 
 func (s *Server) applyCreateRetentionPolicy(m *messaging.Message) error {
