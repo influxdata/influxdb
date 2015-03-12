@@ -1627,7 +1627,6 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 	}
 
 	// Write data for each shard to the Broker.
-	var err error
 	var maxIndex uint64
 	for i, d := range shardData {
 		assert(len(d) > 0, "raw series data required: topic=%d", i)
@@ -1649,7 +1648,7 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 		}
 	}
 
-	return maxIndex, err
+	return maxIndex, nil
 }
 
 // createMeasurementsIfNotExists walks the "points" and ensures that all new Series are created, and all
