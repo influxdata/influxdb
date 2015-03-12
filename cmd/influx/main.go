@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -267,20 +268,20 @@ func (c *CommandLine) executeQuery(query string) {
 func (c *CommandLine) FormatResults(results *client.Results, w io.Writer) {
 	switch c.Format {
 	case "json":
-		WriteJSON(results, c.Pretty, w)
+		c.writeJSON(results, w)
 	case "csv":
-		WriteCSV(results, w)
+		c.writeCSV(results, w)
 	case "column":
-		WriteColumns(results, w)
+		c.writeColumns(results, w)
 	default:
 		fmt.Fprintf(w, "Unknown output format %q.\n", c.Format)
 	}
 }
 
-func WriteJSON(results *client.Results, pretty bool, w io.Writer) {
+func (c *CommandLine) writeJSON(results *client.Results, w io.Writer) {
 	var data []byte
 	var err error
-	if pretty {
+	if c.Pretty {
 		data, err = json.MarshalIndent(results, "", "    ")
 	} else {
 		data, err = json.Marshal(results)
@@ -292,11 +293,11 @@ func WriteJSON(results *client.Results, pretty bool, w io.Writer) {
 	fmt.Fprintln(w, string(data))
 }
 
-func WriteCSV(results *client.Results, w io.Writer) {
+func (c *CommandLine) writeCSV(results *client.Results, w io.Writer) {
 	csvw := csv.NewWriter(w)
 	for _, result := range results.Results {
 		// Create a tabbed writer for each result as they won't always line up
-		rows := resultToCSV(result, "\t", false)
+		rows := c.formatResults(result, "\t")
 		for _, r := range rows {
 			csvw.Write(strings.Split(r, "\t"))
 		}
@@ -304,12 +305,12 @@ func WriteCSV(results *client.Results, w io.Writer) {
 	}
 }
 
-func WriteColumns(results *client.Results, w io.Writer) {
+func (c *CommandLine) writeColumns(results *client.Results, w io.Writer) {
 	for _, result := range results.Results {
 		// Create a tabbed writer for each result a they won't always line up
 		w := new(tabwriter.Writer)
 		w.Init(os.Stdout, 0, 8, 1, '\t', 0)
-		csv := resultToCSV(result, "\t", true)
+		csv := c.formatResults(result, "\t")
 		for _, r := range csv {
 			fmt.Fprintln(w, r)
 		}
@@ -317,40 +318,86 @@ func WriteColumns(results *client.Results, w io.Writer) {
 	}
 }
 
-func resultToCSV(result client.Result, seperator string, headerLines bool) []string {
+// formatResults will behave differently if you are formatting for columns or csv
+func (c *CommandLine) formatResults(result client.Result, separator string) []string {
 	rows := []string{}
 	// Create a tabbed writer for each result a they won't always line up
-	columnNames := []string{"name", "tags"}
-
 	for i, row := range result.Series {
-		// Output the column headings
-		if i == 0 {
-			for _, column := range row.Columns {
-				columnNames = append(columnNames, column)
-			}
-			rows = append(rows, strings.Join(columnNames, seperator))
-		}
-		if headerLines {
-			// create column underscores
-			lines := []string{}
-			for _, columnName := range columnNames {
-				lines = append(lines, strings.Repeat("-", len(columnName)))
-			}
-			rows = append(rows, strings.Join(lines, seperator))
-		}
 		// gather tags
 		tags := []string{}
 		for k, v := range row.Tags {
 			tags = append(tags, fmt.Sprintf("%s=%s", k, v))
+			sort.Strings(tags)
 		}
+
+		columnNames := []string{}
+
+		// Only put name/tags in a column if format is csv
+		if c.Format == "csv" {
+			if len(tags) > 0 {
+				columnNames = append([]string{"tags"}, columnNames...)
+			}
+
+			if row.Name != "" {
+				columnNames = append([]string{"name"}, columnNames...)
+			}
+		}
+
+		for _, column := range row.Columns {
+			columnNames = append(columnNames, column)
+		}
+
+		// Output a line separator if we have more than one set or results and format is column
+		if i > 0 && c.Format == "column" {
+			rows = append(rows, "")
+		}
+
+		// If we are column format, we break out the name/tag to seperate lines
+		if c.Format == "column" {
+			if row.Name != "" {
+				n := fmt.Sprintf("name: %s", row.Name)
+				rows = append(rows, n)
+				if len(tags) == 0 {
+					l := strings.Repeat("-", len(n))
+					rows = append(rows, l)
+				}
+			}
+			if len(tags) > 0 {
+				t := fmt.Sprintf("tags: %s", (strings.Join(tags, ", ")))
+				rows = append(rows, t)
+			}
+		}
+
+		rows = append(rows, strings.Join(columnNames, separator))
+
+		// if format is column, break tags to their own line/format
+		if c.Format == "column" && len(tags) > 0 {
+			lines := []string{}
+			for _, columnName := range columnNames {
+				lines = append(lines, strings.Repeat("-", len(columnName)))
+			}
+			rows = append(rows, strings.Join(lines, separator))
+		}
+
 		for _, v := range row.Values {
-			values := []string{row.Name}
-			values = append(values, strings.Join(tags, ","))
+			var values []string
+			if c.Format == "csv" {
+				if row.Name != "" {
+					values = append(values, row.Name)
+				}
+				if len(tags) > 0 {
+					values = append(values, strings.Join(tags, ","))
+				}
+			}
 
 			for _, vv := range v {
 				values = append(values, interfaceToString(vv))
 			}
-			rows = append(rows, strings.Join(values, seperator))
+			rows = append(rows, strings.Join(values, separator))
+		}
+		// Outout a line separator if in column format
+		if c.Format == "column" {
+			rows = append(rows, "")
 		}
 	}
 	return rows
