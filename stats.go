@@ -4,11 +4,13 @@ import (
 	"sync"
 )
 
+// Int representes a 64-bit signed integer which can be updated atomically.
 type Int struct {
 	mu sync.RWMutex
 	i  int64
 }
 
+// NewInt returns a new Int
 func NewInt(v int64) *Int {
 	return &Int{i: v}
 }
@@ -21,12 +23,14 @@ func (i *Int) Add(delta int64) {
 
 }
 
+// Stats represents a collection of metrics, as key-value pairs.
 type Stats struct {
 	name string
 	m    map[string]*Int
 	mu   sync.RWMutex
 }
 
+// NewStats returns a Stats object with the given name.
 func NewStats(name string) *Stats {
 	return &Stats{
 		name: name,
@@ -58,18 +62,21 @@ func (s *Stats) Inc(key string) {
 	s.Add(key, 1)
 }
 
+// Get returns a value for a given key.
 func (s *Stats) Get(key string) int64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.m[key].i
 }
 
+// Set sets a value for the given key.
 func (s *Stats) Set(key string, v int64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.m[key] = NewInt(v)
 }
 
+// Name returns the name of the Stats object.
 func (s *Stats) Name() string {
 	return s.name
 }
