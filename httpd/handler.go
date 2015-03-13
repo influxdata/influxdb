@@ -1,6 +1,7 @@
 package httpd
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -113,6 +114,10 @@ func NewHandler(s *influxdb.Server, requireAuthentication bool, version string) 
 			"index", // Index.
 			"GET", "/", true, true, h.serveIndex,
 		},
+		route{
+			"dump", // export all points in the given db.
+			"GET", "/dump", true, true, h.serveDump,
+		},
 	)
 
 	for _, r := range h.routes {
@@ -173,6 +178,116 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *influ
 
 	// Send results to client.
 	httpResults(w, results, pretty)
+}
+
+type Point struct {
+	Name      string                 `json:"name"`
+	Timestamp time.Time              `json:"timestamp"`
+	Tags      map[string]string      `json:"tags"`
+	Fields    map[string]interface{} `json:"fields"`
+}
+
+type Batch struct {
+	Database        string  `json:"database"`
+	RetentionPolicy string  `json:"retentionPolicy"`
+	Points          []Point `json:"points"`
+}
+
+func interfaceToString(v interface{}) string {
+	switch t := v.(type) {
+	case nil:
+		return ""
+	case bool:
+		return fmt.Sprintf("%v", v)
+	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, uintptr:
+		return fmt.Sprintf("%d", t)
+	case float32, float64:
+		return fmt.Sprintf("%v", t)
+	default:
+		return fmt.Sprintf("%v", t)
+	}
+}
+
+// serveDump returns all points in the given database as a plaintext list of JSON structs.
+// To get all points:
+// Find all measurements (show measurements).
+// For each measurement do select * from <measurement> group by *
+func (h *Handler) serveDump(w http.ResponseWriter, r *http.Request, user *influxdb.User) {
+	q := r.URL.Query()
+	db := q.Get("db")
+	pretty := q.Get("pretty") == "true"
+	var httpOut bytes.Buffer
+
+	// Make our list of measurements
+	var measurements []string
+	queryString := "show measurements"
+	p := influxql.NewParser(strings.NewReader(queryString))
+	query, err := p.ParseQuery()
+	if err != nil {
+		httpError(w, "error parsing query: "+err.Error(), pretty, http.StatusBadRequest)
+		return
+	}
+	results := h.server.ExecuteQuery(query, db, user)
+	for _, measurementResult := range results.Results {
+		for _, measurementRow := range measurementResult.Series {
+			for _, measurementTuple := range (*measurementRow).Values {
+				for _, measurementCell := range measurementTuple {
+					measurements = append(measurements, interfaceToString(measurementCell))
+				}
+			}
+		}
+	}
+	// Fetch all the points for each measurement found above.
+	// From the 'select' query below, we get:
+	//
+	// columns:[col1, col2, col3, ...]
+	// - and -
+	// values:[[val1, val2, val3, ...], [val1, val2, val3, ...], [val1, val2, val3, ...]...]
+	//
+	// We need to turn that into multiple rows like so...
+	// fields:{col1 : values[0][0], col2 : values[0][1], col3 : values[0][2]}
+	// fields:{col1 : values[1][0], col2 : values[1][1], col3 : values[1][2]}
+	// fields:{col1 : values[2][0], col2 : values[2][1], col3 : values[2][2]}
+	//
+	for _, measurement := range measurements {
+		queryString = fmt.Sprintf("select * from %s group by *", measurement)
+		p := influxql.NewParser(strings.NewReader(queryString))
+		query, err := p.ParseQuery()
+		if err != nil {
+			httpError(w, "error parsing query: "+err.Error(), pretty, http.StatusBadRequest)
+			return
+		}
+		results := h.server.ExecuteQuery(query, db, user)
+		for _, result := range results.Results {
+			for _, row := range result.Series {
+				points := make([]Point, 1)
+				var point Point
+				point.Name = row.Name
+				point.Tags = row.Tags
+				point.Fields = make(map[string]interface{})
+				for _, tuple := range row.Values {
+					for subscript, cell := range tuple {
+						if row.Columns[subscript] == "time" {
+							point.Timestamp, _ = time.Parse(time.RFC3339, interfaceToString(cell))
+							continue
+						}
+						point.Fields[row.Columns[subscript]] = cell
+					}
+					points[0] = point
+					batch := &Batch{
+						Database:        db,
+						RetentionPolicy: "default",
+						Points:          points,
+					}
+					buf, _ := json.Marshal(&batch)
+					httpOut.Write(buf)
+					httpOut.Write([]byte("\n"))
+				}
+			}
+		}
+	}
+	w.Header().Add("content-type", "text/plain")
+	w.Write(httpOut.Bytes())
 }
 
 // serveWrite receives incoming series data and writes it to the database.
