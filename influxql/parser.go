@@ -564,22 +564,22 @@ func (p *Parser) parseSelectStatement(tr targetRequirement) (*SelectStatement, e
 	}
 
 	// Parse limit: "LIMIT <n>".
-	if stmt.Limit, err = p.parseOptionalTokenAndInt(LIMIT, false); err != nil {
+	if stmt.Limit, err = p.parseOptionalTokenAndInt(LIMIT); err != nil {
 		return nil, err
 	}
 
 	// Parse offset: "OFFSET <n>".
-	if stmt.Offset, err = p.parseOptionalTokenAndInt(OFFSET, false); err != nil {
+	if stmt.Offset, err = p.parseOptionalTokenAndInt(OFFSET); err != nil {
 		return nil, err
 	}
 
 	// Parse series limit: "SLIMIT <n>".
-	if stmt.SLimit, err = p.parseOptionalTokenAndInt(SLIMIT, false); err != nil {
+	if stmt.SLimit, err = p.parseOptionalTokenAndInt(SLIMIT); err != nil {
 		return nil, err
 	}
 
 	// Parse series offset: "SOFFSET <n>".
-	if stmt.SOffset, err = p.parseOptionalTokenAndInt(SOFFSET, false); err != nil {
+	if stmt.SOffset, err = p.parseOptionalTokenAndInt(SOFFSET); err != nil {
 		return nil, err
 	}
 
@@ -679,12 +679,12 @@ func (p *Parser) parseShowSeriesStatement() (*ShowSeriesStatement, error) {
 	}
 
 	// Parse limit: "LIMIT <n>".
-	if stmt.Limit, err = p.parseOptionalTokenAndInt(LIMIT, false); err != nil {
+	if stmt.Limit, err = p.parseOptionalTokenAndInt(LIMIT); err != nil {
 		return nil, err
 	}
 
 	// Parse offset: "OFFSET <n>".
-	if stmt.Offset, err = p.parseOptionalTokenAndInt(OFFSET, true); err != nil {
+	if stmt.Offset, err = p.parseOptionalTokenAndInt(OFFSET); err != nil {
 		return nil, err
 	}
 
@@ -708,12 +708,12 @@ func (p *Parser) parseShowMeasurementsStatement() (*ShowMeasurementsStatement, e
 	}
 
 	// Parse limit: "LIMIT <n>".
-	if stmt.Limit, err = p.parseOptionalTokenAndInt(LIMIT, false); err != nil {
+	if stmt.Limit, err = p.parseOptionalTokenAndInt(LIMIT); err != nil {
 		return nil, err
 	}
 
 	// Parse offset: "OFFSET <n>".
-	if stmt.Offset, err = p.parseOptionalTokenAndInt(OFFSET, false); err != nil {
+	if stmt.Offset, err = p.parseOptionalTokenAndInt(OFFSET); err != nil {
 		return nil, err
 	}
 
@@ -760,12 +760,12 @@ func (p *Parser) parseShowTagKeysStatement() (*ShowTagKeysStatement, error) {
 	}
 
 	// Parse limit: "LIMIT <n>".
-	if stmt.Limit, err = p.parseOptionalTokenAndInt(LIMIT, false); err != nil {
+	if stmt.Limit, err = p.parseOptionalTokenAndInt(LIMIT); err != nil {
 		return nil, err
 	}
 
 	// Parse offset: "OFFSET <n>".
-	if stmt.Offset, err = p.parseOptionalTokenAndInt(OFFSET, false); err != nil {
+	if stmt.Offset, err = p.parseOptionalTokenAndInt(OFFSET); err != nil {
 		return nil, err
 	}
 
@@ -803,12 +803,12 @@ func (p *Parser) parseShowTagValuesStatement() (*ShowTagValuesStatement, error) 
 	}
 
 	// Parse limit: "LIMIT <n>".
-	if stmt.Limit, err = p.parseOptionalTokenAndInt(LIMIT, false); err != nil {
+	if stmt.Limit, err = p.parseOptionalTokenAndInt(LIMIT); err != nil {
 		return nil, err
 	}
 
 	// Parse offset: "OFFSET <n>".
-	if stmt.Offset, err = p.parseOptionalTokenAndInt(OFFSET, false); err != nil {
+	if stmt.Offset, err = p.parseOptionalTokenAndInt(OFFSET); err != nil {
 		return nil, err
 	}
 
@@ -883,12 +883,12 @@ func (p *Parser) parseShowFieldKeysStatement() (*ShowFieldKeysStatement, error) 
 	}
 
 	// Parse limit: "LIMIT <n>".
-	if stmt.Limit, err = p.parseOptionalTokenAndInt(LIMIT, false); err != nil {
+	if stmt.Limit, err = p.parseOptionalTokenAndInt(LIMIT); err != nil {
 		return nil, err
 	}
 
 	// Parse offset: "OFFSET <n>".
-	if stmt.Offset, err = p.parseOptionalTokenAndInt(OFFSET, false); err != nil {
+	if stmt.Offset, err = p.parseOptionalTokenAndInt(OFFSET); err != nil {
 		return nil, err
 	}
 
@@ -1413,7 +1413,7 @@ func (p *Parser) parseFill() (FillOption, interface{}, error) {
 
 // parseOptionalTokenAndInt parses the specified token followed
 // by an int, if it exists.
-func (p *Parser) parseOptionalTokenAndInt(t Token, allowZero bool) (int, error) {
+func (p *Parser) parseOptionalTokenAndInt(t Token) (int, error) {
 	// Check if the token exists.
 	if tok, _, _ := p.scanIgnoreWhitespace(); tok != t {
 		p.unscan()
@@ -1435,8 +1435,8 @@ func (p *Parser) parseOptionalTokenAndInt(t Token, allowZero bool) (int, error) 
 	// Parse number.
 	n, _ := strconv.ParseInt(lit, 10, 64)
 
-	if n < 1 && !allowZero {
-		msg := fmt.Sprintf("%s must be > 0", t.String())
+	if n < 0 {
+		msg := fmt.Sprintf("%s must be >= 0", t.String())
 		return 0, &ParseError{Message: msg, Pos: pos}
 	}
 
