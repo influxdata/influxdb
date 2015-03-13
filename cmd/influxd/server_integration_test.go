@@ -866,43 +866,79 @@ func TestClientLibrary(t *testing.T) {
 		os.RemoveAll(dir)
 	}()
 
-	database := "mydb"
-	retentionPolicy := "myrp"
 	now := time.Now().UTC()
 
 	nodes := createCombinedNodeCluster(t, testName, dir, 1, 8290, nil)
-	createDatabase(t, testName, nodes, database)
-	createRetentionPolicy(t, testName, nodes, database, retentionPolicy)
+	type write struct {
+		bp       client.BatchPoints
+		expected string
+		err      string
+	}
+	type query struct {
+		query    client.Query
+		expected string
+		err      string
+	}
+	type test struct {
+		name    string
+		db      string
+		rp      string
+		writes  []write
+		queries []query
+	}
 
-	tests := []struct {
-		name                         string
-		bp                           client.BatchPoints
-		results                      client.Results
-		query                        client.Query
-		writeExpected, queryExpected string
-		writeErr, queryErr           string
-	}{
+	tests := []test{
 		{
-			name:          "empty batchpoint",
-			writeErr:      "database is required",
-			writeExpected: `{"error":"database is required"}`,
+			name: "empty batchpoint",
+			writes: []write{
+				{
+					err:      "database is required",
+					expected: `{"error":"database is required"}`,
+				},
+			},
 		},
 		{
-			name:          "no points",
-			writeExpected: `null`,
-			bp:            client.BatchPoints{Database: "mydb"},
+			name: "no points",
+			writes: []write{
+				{
+					expected: `null`,
+					bp:       client.BatchPoints{Database: "mydb"},
+				},
+			},
 		},
 		{
 			name: "one point",
-			bp: client.BatchPoints{
-				Database: "mydb",
-				Points: []client.Point{
-					{Name: "cpu", Fields: map[string]interface{}{"value": 1.1}, Timestamp: now},
+			writes: []write{
+				{
+					bp: client.BatchPoints{
+						Database: "mydb",
+						Points: []client.Point{
+							{Name: "cpu", Fields: map[string]interface{}{"value": 1.1}, Timestamp: now},
+						},
+					},
+					expected: `null`,
 				},
 			},
-			writeExpected: `null`,
-			query:         client.Query{Command: `select * from "mydb"."myrp".cpu`},
-			queryExpected: fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",1.1]]}]}]}`, now.Format(time.RFC3339Nano)),
+			queries: []query{
+				{
+					query:    client.Query{Command: `select * from "mydb"."myrp".cpu`},
+					expected: fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",1.1]]}]}]}`, now.Format(time.RFC3339Nano)),
+				},
+			},
+		},
+		{
+			name: "mulitple points, multiple values",
+			writes: []write{
+				{bp: client.BatchPoints{Database: "mydb", Points: []client.Point{{Name: "network", Fields: map[string]interface{}{"rx": 1.1, "tx": 2.1}, Timestamp: now}}}, expected: `null`},
+				{bp: client.BatchPoints{Database: "mydb", Points: []client.Point{{Name: "network", Fields: map[string]interface{}{"rx": 1.2, "tx": 2.2}, Timestamp: now.Add(time.Nanosecond)}}}, expected: `null`},
+				{bp: client.BatchPoints{Database: "mydb", Points: []client.Point{{Name: "network", Fields: map[string]interface{}{"rx": 1.3, "tx": 2.3}, Timestamp: now.Add(2 * time.Nanosecond)}}}, expected: `null`},
+			},
+			queries: []query{
+				{
+					query:    client.Query{Command: `select * from "mydb"."myrp".network`},
+					expected: fmt.Sprintf(`{"results":[{"series":[{"name":"network","columns":["time","rx","tx"],"values":[["%s",1.1,2.1],["%s",1.2,2.2],["%s",1.3,2.3]]}]}]}`, now.Format(time.RFC3339Nano), now.Add(time.Nanosecond).Format(time.RFC3339Nano), now.Add(2*time.Nanosecond).Format(time.RFC3339Nano)),
+				},
+			},
 		},
 	}
 
@@ -912,32 +948,44 @@ func TestClientLibrary(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		if test.db == "" {
+			test.db = "mydb"
+		}
+		if test.rp == "" {
+			test.rp = "myrp"
+		}
+		createDatabase(t, testName, nodes, test.db)
+		createRetentionPolicy(t, testName, nodes, test.db, test.rp)
 		t.Logf("testing %s - %s\n", testName, test.name)
-		writeResult, err := c.Write(test.bp)
-		if test.writeErr != errToString(err) {
-			t.Errorf("unexpected error. expected: %s, got %v", test.writeErr, err)
-		}
-		jsonResult := mustMarshalJSON(writeResult)
-		if test.writeExpected != jsonResult {
-			t.Logf("write expected result: %s\n", test.writeExpected)
-			t.Logf("write got result:      %s\n", jsonResult)
-			t.Error("unexpected results")
-		}
-
-		if test.query.Command != "" {
-			time.Sleep(100 * time.Millisecond)
-			queryResult, err := c.Query(test.query)
-			if test.queryErr != errToString(err) {
-				t.Errorf("unexpected error. expected: %s, got %v", test.queryErr, err)
+		for _, w := range test.writes {
+			writeResult, err := c.Write(w.bp)
+			if w.err != errToString(err) {
+				t.Errorf("unexpected error. expected: %s, got %v", w.err, err)
 			}
-			jsonResult := mustMarshalJSON(queryResult)
-			if test.queryExpected != jsonResult {
-				t.Logf("query expected result: %s\n", test.queryExpected)
-				t.Logf("query got result:      %s\n", jsonResult)
+			jsonResult := mustMarshalJSON(writeResult)
+			if w.expected != jsonResult {
+				t.Logf("write expected result: %s\n", w.expected)
+				t.Logf("write got result:      %s\n", jsonResult)
 				t.Error("unexpected results")
 			}
-
 		}
+
+		for _, q := range test.queries {
+			if q.query.Command != "" {
+				time.Sleep(100 * time.Millisecond)
+				queryResult, err := c.Query(q.query)
+				if q.err != errToString(err) {
+					t.Errorf("unexpected error. expected: %s, got %v", q.err, err)
+				}
+				jsonResult := mustMarshalJSON(queryResult)
+				if q.expected != jsonResult {
+					t.Logf("query expected result: %s\n", q.expected)
+					t.Logf("query got result:      %s\n", jsonResult)
+					t.Error("unexpected results")
+				}
+			}
+		}
+		deleteDatabase(t, testName, nodes, test.db)
 	}
 }
 
