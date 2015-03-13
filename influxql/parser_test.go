@@ -244,6 +244,18 @@ func TestParser_ParseStatement(t *testing.T) {
 			stmt: &influxql.ShowSeriesStatement{},
 		},
 
+		// SHOW SERIES with OFFSET 0
+		{
+			s:    `SHOW SERIES OFFSET 0`,
+			stmt: &influxql.ShowSeriesStatement{Offset: 0},
+		},
+
+		// SHOW SERIES with LIMIT 2 OFFSET 0
+		{
+			s:    `SHOW SERIES LIMIT 2 OFFSET 0`,
+			stmt: &influxql.ShowSeriesStatement{Offset: 0, Limit: 2},
+		},
+
 		// SHOW SERIES WHERE with ORDER BY and LIMIT
 		{
 			s: `SHOW SERIES WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
