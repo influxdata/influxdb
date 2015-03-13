@@ -192,6 +192,7 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 					config.Statistics.Database, err.Error())
 			}
 			s.StartSelfMonitoring(database, policy, time.Duration(interval))
+			log.Printf("started self-monitoring at interval of %s", interval)
 		}
 	}
 
