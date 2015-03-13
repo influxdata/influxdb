@@ -51,6 +51,11 @@ func (s *Stats) Add(key string, delta int64) {
 	i.Add(delta)
 }
 
+// Inc simply increments the given key by 1.
+func (s *Stats) Inc(key string) {
+	s.Add(key, 1)
+}
+
 func (s *Stats) Get(key string) int64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

@@ -24,6 +24,21 @@ func TestStats_Add(t *testing.T) {
 	}
 }
 
+func TestStats_Inc(t *testing.T) {
+	s := influxdb.NewStats()
+
+	s.Set("a", 100)
+	s.Inc("a")
+	if s.Get("a") != 101 {
+		t.Fatalf("stats Inc failed, expected 101, got %d", s.Get("a"))
+	}
+
+	s.Inc("b")
+	if s.Get("b") != 1 {
+		t.Fatalf("stats Inc failed, expected 1, got %d", s.Get("b"))
+	}
+}
+
 func TestStats_AddNegative(t *testing.T) {
 	s := influxdb.NewStats()
 
