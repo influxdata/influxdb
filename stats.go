@@ -94,3 +94,14 @@ func (s *Stats) Diff(other *Stats) *Stats {
 	})
 	return diff
 }
+
+// Snapshot returns a copy of the stats object. Addition and removal of stats keys
+// is blocked during the created of the snapshot, but existing entries may be
+// concurrently updated.
+func (s *Stats) Snapshot() *Stats {
+	snap := NewStats(s.name)
+	s.Walk(func(k string, v int64) {
+		snap.Set(k, s.m[k].i)
+	})
+	return snap
+}

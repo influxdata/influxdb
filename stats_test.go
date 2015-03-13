@@ -72,6 +72,17 @@ func TestStats_Diff(t *testing.T) {
 		t.Fatalf("stats diff has unexpected name: %s", qux.Name())
 	}
 	if qux.Get("a") != 350 || qux.Get("b") != -75 {
-		t.Fatalf("stats diff returned unexpedted result: %s", qux)
+		t.Fatalf("stats diff returned unexpected result: %s", qux)
+	}
+}
+
+func TestStats_Snapshot(t *testing.T) {
+	foo := influxdb.NewStats("server")
+	foo.Set("a", 100)
+	foo.Set("b", 600)
+
+	bar := foo.Snapshot()
+	if bar.Name() != "server" || bar.Get("a") != 100 || bar.Get("b") != 600 {
+		t.Fatalf("stats snapshot returned unexpected result: %s", bar)
 	}
 }
