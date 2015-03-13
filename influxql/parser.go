@@ -1435,8 +1435,8 @@ func (p *Parser) parseOptionalTokenAndInt(t Token) (int, error) {
 	// Parse number.
 	n, _ := strconv.ParseInt(lit, 10, 64)
 
-	if n < 1 {
-		msg := fmt.Sprintf("%s must be > 0", t.String())
+	if n < 0 {
+		msg := fmt.Sprintf("%s must be >= 0", t.String())
 		return 0, &ParseError{Message: msg, Pos: pos}
 	}
 

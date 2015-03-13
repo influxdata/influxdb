@@ -1610,6 +1610,14 @@ func TestServer_ShowSeriesLimitOffset(t *testing.T) {
 	}
 
 	// Select data from the server.
+	results = s.ExecuteQuery(MustParseQuery(`SHOW SERIES LIMIT 4 OFFSET 0`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 2 {
+		t.Fatalf("unexpected row count: %d", len(res.Series))
+	}
+
+	// Select data from the server.
 	results = s.ExecuteQuery(MustParseQuery(`SHOW SERIES LIMIT 20`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error: %s", res.Err)
