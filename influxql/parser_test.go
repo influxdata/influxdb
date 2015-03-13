@@ -22,38 +22,8 @@ func TestParser_ParseQuery(t *testing.T) {
 	}
 }
 
-func TestParser_ParseQuery2(t *testing.T) {
-	s := `SELECT value FROM /cpu.*/ WHERE retion = 'uswest'`
-	q, err := influxql.NewParser(strings.NewReader(s)).ParseQuery()
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if len(q.Statements) != 1 {
-		t.Fatalf("unexpected statement count: %d", len(q.Statements))
-	}
-}
-
-func TestParser_ParseQuery3(t *testing.T) {
+func TestParser_ParseQuery_TrailingSemicolon(t *testing.T) {
 	s := `SELECT value FROM cpu;`
-	q, err := influxql.NewParser(strings.NewReader(s)).ParseQuery()
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if len(q.Statements) != 1 {
-		t.Fatalf("unexpected statement count: %d", len(q.Statements))
-	}
-}
-
-func TestParser_ParseQuery4(t *testing.T) {
-	s := `SELECT value FROM db../cpu.*/`
-	q, err := influxql.NewParser(strings.NewReader(s)).ParseQuery()
-	if err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if len(q.Statements) != 1 {
-		t.Fatalf("unexpected statement count: %d", len(q.Statements))
-	}
-}
-
-func TestParser_ParseQuery5(t *testing.T) {
-	s := `SELECT value FROM db."1h.cpu"./cpu.*/;`
 	q, err := influxql.NewParser(strings.NewReader(s)).ParseQuery()
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
@@ -181,6 +151,16 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// SELECT * FROM /<regex>/
+		{
+			s: `SELECT * FROM /cpu.*/`,
+			stmt: &influxql.SelectStatement{
+				Fields: []*influxql.Field{{Expr: &influxql.Wildcard{}}},
+				Sources: []influxql.Source{&influxql.Measurement{
+					Regex: &influxql.RegexLiteral{Val: regexp.MustCompile("cpu.*")}}},
+			},
+		},
+
 		// SELECT statement with fill
 		{
 			s: `SELECT mean(value) FROM cpu GROUP BY time(5m) fill(1)`,
@@ -189,7 +169,7 @@ func TestParser_ParseStatement(t *testing.T) {
 					Expr: &influxql.Call{
 						Name: "mean",
 						Args: []influxql.Expr{&influxql.VarRef{Val: "value"}}}}},
-				Source: &influxql.Measurement{Name: "cpu"},
+				Sources: []influxql.Source{&influxql.Measurement{Name: "cpu"}},
 				Dimensions: []*influxql.Dimension{
 					{Expr: &influxql.Call{
 						Name: "time",
@@ -211,7 +191,7 @@ func TestParser_ParseStatement(t *testing.T) {
 					Expr: &influxql.Call{
 						Name: "mean",
 						Args: []influxql.Expr{&influxql.VarRef{Val: "value"}}}}},
-				Source: &influxql.Measurement{Name: "cpu"},
+				Sources: []influxql.Source{&influxql.Measurement{Name: "cpu"}},
 				Dimensions: []*influxql.Dimension{
 					{Expr: &influxql.Call{
 						Name: "time",

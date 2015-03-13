@@ -329,6 +329,19 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			query:    `SELECT abc FROM "%DB%"."%RP%".cpu WHERE time < now()`,
 			expected: `{"results":[{"error":"unknown field or tag name in select clause: abc"}]}`,
 		},
+		// FROM /regex/
+		{
+			reset: true,
+			name:  "FROM regex",
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+				{"name": "cpu1", "timestamp": "2015-02-28T01:03:36.703820946Z", "tags": {"host": "server01"}, "fields": {"value": 10}},
+				{"name": "cpu2", "timestamp": "2015-02-28T01:03:36.703820946Z", "tags": {"host": "server01"}, "fields": {"value": 20}},
+				{"name": "cpu3", "timestamp": "2015-02-28T01:03:36.703820946Z", "tags": {"host": "server01"}, "fields": {"value": 30}}
+			]}`,
+			query:    `SELECT * FROM /cpu[13]/`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu1","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",10]]},{"name":"cpu3","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",30]]}]}]}`,
+		},
 
 		{
 			name:     "single string point with second precision timestamp",
@@ -819,7 +832,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			}
 			got, ok := queryAndWait(t, nodes, rewriteDbRp(urlDb, database, retention), rewriteDbRp(tt.query, database, retention), rewriteDbRp(tt.expected, database, retention), 3*time.Second)
 			if !ok {
-				t.Errorf("Test \"%s\" failed\n  exp: %s\n  got: %s\n", name, rewriteDbRp(tt.expected, database, retention), got)
+				t.Errorf("Test #%d: \"%s\" failed\n  exp: %s\n  got: %s\n", i, name, rewriteDbRp(tt.expected, database, retention), got)
 			}
 		}
 	}
@@ -837,7 +850,7 @@ func TestSingleServer(t *testing.T) {
 
 	nodes := createCombinedNodeCluster(t, testName, dir, 1, 8090, nil)
 
-	runTestsData(t, testName, nodes, "mydb", "myrp")
+	runTestsData(t, testName, nodes, "mydb", "myrp", 7)
 }
 
 func Test3NodeServer(t *testing.T) {

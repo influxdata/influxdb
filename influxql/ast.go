@@ -2002,6 +2002,11 @@ func Walk(v Visitor, node Node) {
 		Walk(v, n.Condition)
 		Walk(v, n.SortFields)
 
+	case Sources:
+		for _, s := range n {
+			Walk(v, s)
+		}
+
 	case Fields:
 		for _, c := range n {
 			Walk(v, c)
