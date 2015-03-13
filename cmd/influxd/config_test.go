@@ -181,7 +181,6 @@ raft-tracing = true
 enabled = true
 database = "_internal"
 retention-policy = "default"
-retention-period = "168h"
 write-interval = "1m"
 
 # Configure the admin server

@@ -114,7 +114,6 @@ type Config struct {
 		Enabled         bool     `toml:"enabled"`
 		Database        string   `toml:"database"`
 		RetentionPolicy string   `toml:"retention-policy"`
-		RetentionPeriod Duration `toml:"retention-period"`
 		WriteInterval   Duration `toml:"write-interval"`
 	}
 
@@ -177,7 +176,6 @@ func NewConfig() *Config {
 	c.Statistics.Enabled = false
 	c.Statistics.Database = "_internal"
 	c.Statistics.RetentionPolicy = "default"
-	c.Statistics.RetentionPeriod = Duration(7 * 24 * time.Hour)
 	c.Statistics.WriteInterval = Duration(1 * time.Minute)
 
 	// Detect hostname (or set to localhost).

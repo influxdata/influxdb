@@ -1311,6 +1311,13 @@ func (s *Server) RetentionPolicies(database string) ([]*RetentionPolicy, error) 
 	return a, nil
 }
 
+// RetentionPolicyExists returns true if a retention policy exists for a given database.
+func (s *Server) RetentionPolicyExists(database, retention string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.DatabaseExists(database) && s.databases[database].policies[retention] != nil
+}
+
 // CreateRetentionPolicy creates a retention policy for a database.
 func (s *Server) CreateRetentionPolicy(database string, rp *RetentionPolicy) error {
 	// Enforce duration of at least retentionPolicyMinDuration
@@ -1327,6 +1334,18 @@ func (s *Server) CreateRetentionPolicy(database string, rp *RetentionPolicy) err
 	}
 	_, err := s.broadcast(createRetentionPolicyMessageType, c)
 	return err
+}
+
+// CreateRetentionPolicy creates a retention policy for a database.
+func (s *Server) CreateRetentionPolicyIfNotExists(database string, rp *RetentionPolicy) error {
+	// Ensure retention policy exists.
+	if !s.RetentionPolicyExists(database, rp.Name) {
+		// Small chance retention policy could be created after it didn't exist when checked.
+		if err := s.CreateRetentionPolicy(database, rp); err != nil && err != ErrRetentionPolicyExists {
+			return err
+		}
+	}
+	return nil
 }
 
 func calculateShardGroupDuration(d time.Duration) time.Duration {

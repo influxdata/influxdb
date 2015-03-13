@@ -185,12 +185,18 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 		if config.Statistics.Enabled {
 			database := config.Statistics.Database
 			policy := config.Statistics.RetentionPolicy
-			interval := time.Duration(config.Statistics.WriteInterval)
 
+			// Ensure database exists.
 			if err := s.CreateDatabaseIfNotExists(database); err != nil {
-				log.Fatalf("failed to create database %s for internal statistics: %s",
-					config.Statistics.Database, err.Error())
+				log.Fatalf("failed to create database %s for internal statistics: %s", database, err.Error())
 			}
+
+			// Ensure retention policy exists.
+			rp := influxdb.NewRetentionPolicy(policy)
+			if err := s.CreateRetentionPolicyIfNotExists(database, rp); err != nil {
+				log.Fatalf("failed to create retention policy for internal statistics: %s", err.Error())
+			}
+
 			s.StartSelfMonitoring(database, policy, interval)
 			log.Printf("started self-monitoring at interval of %s", interval)
 		}
