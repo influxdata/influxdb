@@ -94,7 +94,7 @@ raft-tracing = false # If true, enables detailed logging of Raft consensus.
 # as any other data.
 [statistics]
 enabled = false
-database = "_internal"
-retention-policy = "default"
-duration = "168h"
-check-interval = "1m"
+database = "_internal"         # The database to which the data is written.
+retention-policy = "default"   # The retention policy within the database.
+duration = "168h"              # How long the data is kept around for.
+check-interval = "1m"          # Period between writing the data.
