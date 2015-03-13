@@ -17,7 +17,6 @@ import (
 	"text/tabwriter"
 
 	"github.com/influxdb/influxdb/client"
-	//	"github.com/influxdb/influxdb/influxql"
 	"github.com/peterh/liner"
 )
 
