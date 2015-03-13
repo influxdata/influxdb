@@ -1,3 +1,27 @@
+## v0.9.0-rc12 [unreleased]
+
+### Bugfixes
+- [#1942](https://github.com/influxdb/influxdb/pull/1942): Sort wildcard names.
+
+### Features
+- [#1909](https://github.com/influxdb/influxdb/pull/1909): Implement a dump command.
+
+## v0.9.0-rc11 [2015-03-13]
+
+### Bugfixes
+- [#1917](https://github.com/influxdb/influxdb/pull/1902): Creating Infinite Retention Policy Failed.
+- [#1758](https://github.com/influxdb/influxdb/pull/1758): Add Graphite Integration Test.
+- [#1929](https://github.com/influxdb/influxdb/pull/1929): Default Retention Policy incorrectly auto created.
+- [#1930](https://github.com/influxdb/influxdb/pull/1930): Auto create database for graphite if not specified.
+- [#1908](https://github.com/influxdb/influxdb/pull/1908): Cosmetic CLI output fixes.
+- [#1931](https://github.com/influxdb/influxdb/pull/1931): Add default column to SHOW RETENTION POLICIES.
+- [#1937](https://github.com/influxdb/influxdb/pull/1937): OFFSET should be allowed to be 0.
+
+### Features
+- [#1902](https://github.com/influxdb/influxdb/pull/1902): Enforce retention policies to have a minimum duration.
+- [#1906](https://github.com/influxdb/influxdb/pull/1906): Add show servers to query language.
+- [#1925](https://github.com/influxdb/influxdb/pull/1925): Add `fill(none)`, `fill(previous)`, and `fill(<num>)` to queries.
+
 ## v0.9.0-rc10 [2015-03-09]
 
 ### Bugfixes

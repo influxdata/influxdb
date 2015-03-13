@@ -43,6 +43,9 @@ const (
 
 	// DefaultShardRetention is the length of time before a shard is dropped.
 	DefaultShardRetention = 7 * (24 * time.Hour)
+
+	// Defines the minimum duration allowed for all retention policies
+	retentionPolicyMinDuration = time.Hour
 )
 
 // Server represents a collection of metadata and raw metric data.
@@ -749,6 +752,14 @@ func (s *Server) CreateDatabase(name string) error {
 	return err
 }
 
+// CreateDatabaseIfNotExists creates a new database if, and only if, it does not exist already.
+func (s *Server) CreateDatabaseIfNotExists(name string) error {
+	if s.DatabaseExists(name) {
+		return nil
+	}
+	return s.CreateDatabase(name)
+}
+
 func (s *Server) applyCreateDatabase(m *messaging.Message) (err error) {
 	var c createDatabaseCommand
 	mustUnmarshalJSON(m.Data, &c)
@@ -763,10 +774,11 @@ func (s *Server) applyCreateDatabase(m *messaging.Message) (err error) {
 
 	if s.RetentionAutoCreate {
 		// Create the default retention policy.
-		db.policies[c.Name] = &RetentionPolicy{
-			Name:     DefaultRetentionPolicyName,
-			Duration: 0,
-			ReplicaN: 1,
+		db.policies[DefaultRetentionPolicyName] = &RetentionPolicy{
+			Name:               DefaultRetentionPolicyName,
+			Duration:           0,
+			ShardGroupDuration: calculateShardGroupDuration(0),
+			ReplicaN:           1,
 		}
 		db.defaultRetentionPolicy = DefaultRetentionPolicyName
 		s.Logger.Printf("retention policy '%s' auto-created for database '%s'", DefaultRetentionPolicyName, c.Name)
@@ -1269,30 +1281,36 @@ func (s *Server) RetentionPolicies(database string) ([]*RetentionPolicy, error) 
 
 // CreateRetentionPolicy creates a retention policy for a database.
 func (s *Server) CreateRetentionPolicy(database string, rp *RetentionPolicy) error {
-	const (
-		day   = time.Hour * 24
-		month = day * 30
-	)
-
-	var sgd time.Duration
-	switch {
-	case rp.Duration > 6*month || rp.Duration == 0:
-		sgd = 7 * day
-	case rp.Duration > 2*day:
-		sgd = 1 * day
-	default:
-		sgd = 1 * time.Hour
+	// Enforce duration of at least retentionPolicyMinDuration
+	if rp.Duration < retentionPolicyMinDuration && rp.Duration != 0 {
+		return ErrRetentionPolicyMinDuration
 	}
 
 	c := &createRetentionPolicyCommand{
 		Database:           database,
 		Name:               rp.Name,
 		Duration:           rp.Duration,
-		ShardGroupDuration: sgd,
+		ShardGroupDuration: calculateShardGroupDuration(rp.Duration),
 		ReplicaN:           rp.ReplicaN,
 	}
 	_, err := s.broadcast(createRetentionPolicyMessageType, c)
 	return err
+}
+
+func calculateShardGroupDuration(d time.Duration) time.Duration {
+	const (
+		day   = time.Hour * 24
+		month = day * 30
+	)
+
+	switch {
+	case d > 6*month || d == 0:
+		return 7 * day
+	case d > 2*day:
+		return 1 * day
+	default:
+		return 1 * time.Hour
+	}
 }
 
 func (s *Server) applyCreateRetentionPolicy(m *messaging.Message) error {
@@ -1335,6 +1353,11 @@ type RetentionPolicyUpdate struct {
 
 // UpdateRetentionPolicy updates an existing retention policy on a database.
 func (s *Server) UpdateRetentionPolicy(database, name string, rpu *RetentionPolicyUpdate) error {
+	// Enforce duration of at least retentionPolicyMinDuration
+	if *rpu.Duration < retentionPolicyMinDuration && *rpu.Duration != 0 {
+		return ErrRetentionPolicyMinDuration
+	}
+
 	c := &updateRetentionPolicyCommand{Database: database, Name: name, Policy: rpu}
 	_, err := s.broadcast(updateRetentionPolicyMessageType, c)
 	return err
@@ -1916,6 +1939,8 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 			res = s.executeDropDatabaseStatement(stmt, user)
 		case *influxql.ShowDatabasesStatement:
 			res = s.executeShowDatabasesStatement(stmt, user)
+		case *influxql.ShowServersStatement:
+			res = s.executeShowServersStatement(stmt, user)
 		case *influxql.CreateUserStatement:
 			res = s.executeCreateUserStatement(stmt, user)
 		case *influxql.DropUserStatement:
@@ -2061,6 +2086,14 @@ func (s *Server) executeShowDatabasesStatement(q *influxql.ShowDatabasesStatemen
 	row := &influxql.Row{Columns: []string{"name"}}
 	for _, name := range s.Databases() {
 		row.Values = append(row.Values, []interface{}{name})
+	}
+	return &Result{Series: []*influxql.Row{row}}
+}
+
+func (s *Server) executeShowServersStatement(q *influxql.ShowServersStatement, user *User) *Result {
+	row := &influxql.Row{Columns: []string{"id", "url"}}
+	for _, node := range s.DataNodes() {
+		row.Values = append(row.Values, []interface{}{node.ID, node.URL.String()})
 	}
 	return &Result{Series: []*influxql.Row{row}}
 }
@@ -2558,20 +2591,20 @@ func (s *Server) executeShowUsersStatement(q *influxql.ShowUsersStatement, user 
 	return &Result{Series: []*influxql.Row{row}}
 }
 
-func (s *Server) executeCreateRetentionPolicyStatement(q *influxql.CreateRetentionPolicyStatement, user *User) *Result {
-	rp := NewRetentionPolicy(q.Name)
-	rp.Duration = q.Duration
-	rp.ReplicaN = uint32(q.Replication)
+func (s *Server) executeCreateRetentionPolicyStatement(stmt *influxql.CreateRetentionPolicyStatement, user *User) *Result {
+	rp := NewRetentionPolicy(stmt.Name)
+	rp.Duration = stmt.Duration
+	rp.ReplicaN = uint32(stmt.Replication)
 
 	// Create new retention policy.
-	err := s.CreateRetentionPolicy(q.Database, rp)
+	err := s.CreateRetentionPolicy(stmt.Database, rp)
 	if err != nil {
 		return &Result{Err: err}
 	}
 
 	// If requested, set new policy as the default.
-	if q.Default {
-		err = s.SetDefaultRetentionPolicy(q.Database, q.Name)
+	if stmt.Default {
+		err = s.SetDefaultRetentionPolicy(stmt.Database, stmt.Name)
 	}
 
 	return &Result{Err: err}
@@ -2614,9 +2647,11 @@ func (s *Server) executeShowRetentionPoliciesStatement(q *influxql.ShowRetention
 		return &Result{Err: err}
 	}
 
-	row := &influxql.Row{Columns: []string{"name", "duration", "replicaN"}}
+	d := s.databases[q.Database]
+
+	row := &influxql.Row{Columns: []string{"name", "duration", "replicaN", "default"}}
 	for _, rp := range a {
-		row.Values = append(row.Values, []interface{}{rp.Name, rp.Duration.String(), rp.ReplicaN})
+		row.Values = append(row.Values, []interface{}{rp.Name, rp.Duration.String(), rp.ReplicaN, d.defaultRetentionPolicy == rp.Name})
 	}
 	return &Result{Series: []*influxql.Row{row}}
 }

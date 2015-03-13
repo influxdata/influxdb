@@ -103,6 +103,7 @@ const (
 	REVOKE
 	SELECT
 	SERIES
+	SERVERS
 	SHOW
 	SLIMIT
 	SOFFSET
@@ -203,6 +204,7 @@ var tokens = [...]string{
 	REVOKE:       "REVOKE",
 	SELECT:       "SELECT",
 	SERIES:       "SERIES",
+	SERVERS:      "SERVERS",
 	SHOW:         "SHOW",
 	SLIMIT:       "SLIMIT",
 	SOFFSET:      "SOFFSET",

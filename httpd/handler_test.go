@@ -263,7 +263,7 @@ func TestHandler_RetentionPolicies(t *testing.T) {
 
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"results":[{"series":[{"columns":["name","duration","replicaN"],"values":[["bar","168h0m0s",1]]}]}]}` {
+	} else if body != `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["bar","168h0m0s",1,false]]}]}]}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -371,7 +371,7 @@ func TestHandler_UpdateRetentionPolicy(t *testing.T) {
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	query := map[string]string{"q": "ALTER RETENTION POLICY bar ON foo REPLICATION 42 DURATION 1m DEFAULT"}
+	query := map[string]string{"q": "ALTER RETENTION POLICY bar ON foo REPLICATION 42 DURATION 2h DEFAULT"}
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 
 	// Verify updated policy.

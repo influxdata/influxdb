@@ -5,12 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -66,7 +69,7 @@ type Cluster []*Node
 // the testing is marked as failed.
 //
 // This function returns a slice of nodes, the first of which will be the leader.
-func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes, basePort int) Cluster {
+func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes, basePort int, baseConfig *main.Config) Cluster {
 	t.Logf("Creating cluster of %d nodes for test %s", nNodes, testName)
 	if nNodes < 1 {
 		t.Fatalf("Test %s: asked to create nonsense cluster", testName)
@@ -85,7 +88,10 @@ func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes, ba
 	_ = os.RemoveAll(tmpDataDir)
 
 	// Create the first node, special case.
-	c := main.NewConfig()
+	c := baseConfig
+	if c == nil {
+		c = main.NewConfig()
+	}
 	c.Broker.Dir = filepath.Join(tmpBrokerDir, strconv.Itoa(basePort))
 	c.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(basePort))
 	c.Broker.Port = basePort
@@ -167,9 +173,6 @@ func write(t *testing.T, node *Node, data string) {
 		body, _ := ioutil.ReadAll(resp.Body)
 		t.Fatalf("Write to database failed.  Unexpected status code.  expected: %d, actual %d, %s", http.StatusOK, resp.StatusCode, string(body))
 	}
-
-	// Until races are solved.
-	time.Sleep(3 * time.Second)
 }
 
 // query executes the given query against all nodes in the cluster, and verifies no errors occured, and
@@ -200,6 +203,38 @@ func query(t *testing.T, nodes Cluster, urlDb, query, expected string) (string, 
 	}
 
 	return "", true
+}
+
+// queryAndWait executes the given query against all nodes in the cluster, and verifies no errors occured, and
+// ensures the returned data is as expected until the timeout occurs
+func queryAndWait(t *testing.T, nodes Cluster, urlDb, q, expected string, timeout time.Duration) (string, bool) {
+	v := url.Values{"q": []string{q}}
+	if urlDb != "" {
+		v.Set("db", urlDb)
+	}
+
+	var (
+		timedOut int32
+		timer    = time.NewTimer(time.Duration(math.MaxInt64))
+	)
+	defer timer.Stop()
+	if timeout > 0 {
+		timer.Reset(time.Duration(timeout))
+		go func() {
+			<-timer.C
+			atomic.StoreInt32(&timedOut, 1)
+		}()
+	}
+
+	for {
+		if got, ok := query(t, nodes, urlDb, q, expected); ok {
+			return got, ok
+		} else if atomic.LoadInt32(&timedOut) == 1 {
+			return fmt.Sprintf("timed out before expected result was found: got: %s", got), false
+		} else {
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
 }
 
 // runTests_Errors tests some basic error cases.
@@ -261,6 +296,11 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",100]]}]}]}`,
 		},
 		{
+			name:     "single point count query with timestamp",
+			query:    `SELECT count(value) FROM "%DB%"."%RP%".cpu`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]}]}]}`,
+		},
+		{
 			name:     "single string point with timestamp",
 			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "logs", "timestamp": "2015-02-28T01:03:36.703820946Z", "tags": {"host": "server01"}, "fields": {"value": "disk full"}}]}`,
 			query:    `SELECT * FROM "%DB%"."%RP%".logs`,
@@ -288,6 +328,30 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			name:     "field not found",
 			query:    `SELECT abc FROM "%DB%"."%RP%".cpu WHERE time < now()`,
 			expected: `{"results":[{"error":"unknown field or tag name in select clause: abc"}]}`,
+		},
+
+		{
+			name:     "single string point with second precision timestamp",
+			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu_s_precision", "timestamp": 1, "precision": "s", "fields": {"value": 100}}]}`,
+			query:    `SELECT * FROM "%DB%"."%RP%".cpu_s_precision`,
+			expected: `{"results":[{"series":[{"name":"cpu_s_precision","columns":["time","value"],"values":[["1970-01-01T00:00:01Z",100]]}]}]}`,
+		},
+		{
+			name:     "single string point with millisecond precision timestamp",
+			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu_ms_precision", "timestamp": 1000, "precision": "ms", "fields": {"value": 100}}]}`,
+			query:    `SELECT * FROM "%DB%"."%RP%".cpu_ms_precision`,
+			expected: `{"results":[{"series":[{"name":"cpu_ms_precision","columns":["time","value"],"values":[["1970-01-01T00:00:01Z",100]]}]}]}`,
+		},
+		{
+			name:     "single string point with nanosecond precision timestamp",
+			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu_n_precision", "timestamp": 2000000000, "precision": "n", "fields": {"value": 100}}]}`,
+			query:    `SELECT * FROM "%DB%"."%RP%".cpu_n_precision`,
+			expected: `{"results":[{"series":[{"name":"cpu_n_precision","columns":["time","value"],"values":[["1970-01-01T00:00:02Z",100]]}]}]}`,
+		},
+		{
+			name:     "single point count query with nanosecond precision timestamp",
+			query:    `SELECT count(value) FROM "%DB%"."%RP%".cpu_n_precision`,
+			expected: `{"results":[{"series":[{"name":"cpu_n_precision","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]}]}]}`,
 		},
 
 		// WHERE fields queries
@@ -429,6 +493,34 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			name:     "offset higher than number of points with group by time",
 			query:    `select foo from "%DB%"."%RP%".limit WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY time(1s) LIMIT 2 OFFSET 20`,
 			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"]}]}]}`,
+		},
+
+		// Fill tests
+		{
+			name: "fill with value",
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+				{"name": "fills", "timestamp": "2009-11-10T23:00:02Z","fields": {"val": 3}},
+				{"name": "fills", "timestamp": "2009-11-10T23:00:03Z","fields": {"val": 5}},
+				{"name": "fills", "timestamp": "2009-11-10T23:00:06Z","fields": {"val": 4}},
+				{"name": "fills", "timestamp": "2009-11-10T23:00:16Z","fields": {"val": 10}}
+			]}`,
+			query:    `select mean(val) from "%DB%"."%RP%".fills where time >= '2009-11-10T23:00:00Z' and time < '2009-11-10T23:00:20Z' group by time(5s) fill(1)`,
+			expected: `{"results":[{"series":[{"name":"fills","columns":["time","mean"],"values":[["2009-11-10T23:00:00Z",4],["2009-11-10T23:00:05Z",4],["2009-11-10T23:00:10Z",1],["2009-11-10T23:00:15Z",10]]}]}]}`,
+		},
+		{
+			name:     "fill with previous",
+			query:    `select mean(val) from "%DB%"."%RP%".fills where time >= '2009-11-10T23:00:00Z' and time < '2009-11-10T23:00:20Z' group by time(5s) fill(previous)`,
+			expected: `{"results":[{"series":[{"name":"fills","columns":["time","mean"],"values":[["2009-11-10T23:00:00Z",4],["2009-11-10T23:00:05Z",4],["2009-11-10T23:00:10Z",4],["2009-11-10T23:00:15Z",10]]}]}]}`,
+		},
+		{
+			name:     "fill with none, i.e. clear out nulls",
+			query:    `select mean(val) from "%DB%"."%RP%".fills where time >= '2009-11-10T23:00:00Z' and time < '2009-11-10T23:00:20Z' group by time(5s) fill(none)`,
+			expected: `{"results":[{"series":[{"name":"fills","columns":["time","mean"],"values":[["2009-11-10T23:00:00Z",4],["2009-11-10T23:00:05Z",4],["2009-11-10T23:00:15Z",10]]}]}]}`,
+		},
+		{
+			name:     "fill defaults to null",
+			query:    `select mean(val) from "%DB%"."%RP%".fills where time >= '2009-11-10T23:00:00Z' and time < '2009-11-10T23:00:20Z' group by time(5s)`,
+			expected: `{"results":[{"series":[{"name":"fills","columns":["time","mean"],"values":[["2009-11-10T23:00:00Z",4],["2009-11-10T23:00:05Z",4],["2009-11-10T23:00:10Z",null],["2009-11-10T23:00:15Z",10]]}]}]}`,
 		},
 
 		// Metadata display tests
@@ -594,7 +686,22 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		{
 			name:     "Check for default retention policy",
 			query:    `SHOW RETENTION POLICIES mydatabase`,
-			expected: `{"results":[{"series":[{"columns":["name","duration","replicaN"],"values":[["default","0",1]]}]}]}`,
+			expected: `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["default","0",1,true]]}]}]}`,
+		},
+		{
+			name:     "Ensure retention policy with infinite retention can be created",
+			query:    `CREATE RETENTION POLICY rp1 ON mydatabase DURATION INF REPLICATION 1`,
+			expected: `{"results":[{}]}`,
+		},
+		{
+			name:     "Ensure retention policy with acceptable retention can be created",
+			query:    `CREATE RETENTION POLICY rp2 ON mydatabase DURATION 30d REPLICATION 1`,
+			expected: `{"results":[{}]}`,
+		},
+		{
+			name:     "Ensure retention policy with unacceptable retention cannot be created",
+			query:    `CREATE RETENTION POLICY rp3 ON mydatabase DURATION 1s REPLICATION 1`,
+			expected: `{"results":[{"error":"retention policy duration needs to be at least 1h0m0s"}]}`,
 		},
 		{
 			name:     "Ensure database with default retention policy can be deleted",
@@ -710,7 +817,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			if tt.queryDb != "" {
 				urlDb = tt.queryDb
 			}
-			got, ok := query(t, nodes, rewriteDbRp(urlDb, database, retention), rewriteDbRp(tt.query, database, retention), rewriteDbRp(tt.expected, database, retention))
+			got, ok := queryAndWait(t, nodes, rewriteDbRp(urlDb, database, retention), rewriteDbRp(tt.query, database, retention), rewriteDbRp(tt.expected, database, retention), 3*time.Second)
 			if !ok {
 				t.Errorf("Test \"%s\" failed\n  exp: %s\n  got: %s\n", name, rewriteDbRp(tt.expected, database, retention), got)
 			}
@@ -728,7 +835,7 @@ func TestSingleServer(t *testing.T) {
 		os.RemoveAll(dir)
 	}()
 
-	nodes := createCombinedNodeCluster(t, testName, dir, 1, 8090)
+	nodes := createCombinedNodeCluster(t, testName, dir, 1, 8090, nil)
 
 	runTestsData(t, testName, nodes, "mydb", "myrp")
 }
@@ -744,7 +851,7 @@ func Test3NodeServer(t *testing.T) {
 		os.RemoveAll(dir)
 	}()
 
-	nodes := createCombinedNodeCluster(t, testName, dir, 3, 8190)
+	nodes := createCombinedNodeCluster(t, testName, dir, 3, 8190, nil)
 
 	runTestsData(t, testName, nodes, "mydb", "myrp")
 }
@@ -763,7 +870,7 @@ func TestClientLibrary(t *testing.T) {
 	retentionPolicy := "myrp"
 	now := time.Now().UTC()
 
-	nodes := createCombinedNodeCluster(t, testName, dir, 1, 8290)
+	nodes := createCombinedNodeCluster(t, testName, dir, 1, 8290, nil)
 	createDatabase(t, testName, nodes, database)
 	createRetentionPolicy(t, testName, nodes, database, retentionPolicy)
 
@@ -834,6 +941,117 @@ func TestClientLibrary(t *testing.T) {
 	}
 }
 
+func Test_ServerSingleGraphiteIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+	nNodes := 1
+	basePort := 8390
+	testName := "graphite integration"
+	dir := tempfile()
+	now := time.Now().UTC().Round(time.Millisecond)
+	c := main.NewConfig()
+	g := main.Graphite{
+		Enabled:  true,
+		Database: "graphite",
+		Protocol: "TCP",
+	}
+	c.Graphites = append(c.Graphites, g)
+
+	t.Logf("Graphite Connection String: %s\n", g.ConnectionString(c.BindAddress))
+	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, basePort, c)
+
+	createDatabase(t, testName, nodes, "graphite")
+	createRetentionPolicy(t, testName, nodes, "graphite", "raw")
+
+	// Connect to the graphite endpoint we just spun up
+	conn, err := net.Dial("tcp", g.ConnectionString(c.BindAddress))
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	t.Log("Writing data")
+	data := []byte(`cpu 23.456 `)
+	data = append(data, []byte(fmt.Sprintf("%d", now.UnixNano()/1000000))...)
+	data = append(data, '\n')
+	_, err = conn.Write(data)
+	conn.Close()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	expected := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","cpu"],"values":[["%s",23.456]]}]}]}`, now.Format(time.RFC3339Nano))
+
+	// query and wait for results
+	got, ok := queryAndWait(t, nodes, "graphite", `select * from "graphite"."raw".cpu`, expected, 2*time.Second)
+	if !ok {
+		t.Errorf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
+	}
+}
+
+func Test_ServerSingleGraphiteIntegration_NoDatabase(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+	nNodes := 1
+	basePort := 8490
+	testName := "graphite integration"
+	dir := tempfile()
+	now := time.Now().UTC().Round(time.Millisecond)
+	c := main.NewConfig()
+	g := main.Graphite{
+		Enabled:  true,
+		Port:     2103,
+		Protocol: "TCP",
+	}
+	c.Graphites = append(c.Graphites, g)
+	c.Logging.WriteTracing = true
+
+	t.Logf("Graphite Connection String: %s\n", g.ConnectionString(c.BindAddress))
+	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, basePort, c)
+
+	// Connect to the graphite endpoint we just spun up
+	conn, err := net.Dial("tcp", g.ConnectionString(c.BindAddress))
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	// Need to wait for the database to be created
+	expected := `{"results":[{"series":[{"columns":["name"],"values":[["graphite"]]}]}]}`
+	got, ok := queryAndWait(t, nodes, "graphite", `show databases`, expected, 2*time.Second)
+	if !ok {
+		t.Errorf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
+	}
+
+	// Need to wait for the database to get a default retention policy
+	expected = `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["default","0",1,true]]}]}]}`
+	got, ok = queryAndWait(t, nodes, "graphite", `show retention policies graphite`, expected, 2*time.Second)
+	if !ok {
+		t.Errorf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
+	}
+
+	t.Log("Writing data")
+	data := []byte(`cpu 23.456 `)
+	data = append(data, []byte(fmt.Sprintf("%d", now.UnixNano()/1000000))...)
+	data = append(data, '\n')
+	_, err = conn.Write(data)
+	conn.Close()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	// Wait for data to show up
+	expected = fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","cpu"],"values":[["%s",23.456]]}]}]}`, now.Format(time.RFC3339Nano))
+	got, ok = queryAndWait(t, nodes, "graphite", `select * from "graphite"."default".cpu`, expected, 2*time.Second)
+	if !ok {
+		t.Errorf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
+	}
+}
+
 // helper funcs
 
 func errToString(err error) string {
@@ -849,4 +1067,5 @@ func mustMarshalJSON(v interface{}) string {
 		panic(e)
 	}
 	return string(b)
+
 }

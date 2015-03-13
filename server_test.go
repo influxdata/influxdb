@@ -552,11 +552,76 @@ func TestServer_CreateRetentionPolicy(t *testing.T) {
 	}
 }
 
+// Ensure the database can create a new retention policy with infinite duration.
+func TestServer_CreateRetentionPolicyInfinite(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// Create a database.
+	if err := s.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a retention policy on the database.
+	rp := &influxdb.RetentionPolicy{
+		Name:               "bar",
+		Duration:           0,
+		ShardGroupDuration: time.Hour * 24 * 7,
+		ReplicaN:           2,
+	}
+	if err := s.CreateRetentionPolicy("foo", rp); err != nil {
+		t.Fatal(err)
+	}
+	s.Restart()
+
+	// Verify that the policy exists.
+	if o, err := s.RetentionPolicy("foo", "bar"); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if o == nil {
+		t.Fatalf("retention policy not found")
+	} else if !reflect.DeepEqual(rp, o) {
+		t.Logf("expected: %#v\n", rp)
+		t.Fatalf("retention policy mismatch: %#v", o)
+	}
+}
+
+// Ensure the database can creates a default retention policy.
+func TestServer_CreateRetentionPolicyDefault(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	s.RetentionAutoCreate = true
+
+	// Create a database.
+	if err := s.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+
+	s.Restart()
+
+	rp := &influxdb.RetentionPolicy{
+		Name:               "default",
+		Duration:           0,
+		ShardGroupDuration: time.Hour * 24 * 7,
+		ReplicaN:           1,
+	}
+
+	// Verify that the policy exists.
+	if o, err := s.RetentionPolicy("foo", "default"); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if o == nil {
+		t.Fatalf("retention policy not found")
+	} else if !reflect.DeepEqual(rp, o) {
+		t.Logf("expected: %#v\n", rp)
+		t.Fatalf("retention policy mismatch: %#v", o)
+	}
+}
+
 // Ensure the server returns an error when creating a retention policy with an invalid db.
 func TestServer_CreateRetentionPolicy_ErrDatabaseNotFound(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
-	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "bar"}); err != influxdb.ErrDatabaseNotFound {
+	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "bar", Duration: time.Hour}); err != influxdb.ErrDatabaseNotFound {
 		t.Fatal(err)
 	}
 }
@@ -566,7 +631,7 @@ func TestServer_CreateRetentionPolicy_ErrRetentionPolicyNameRequired(t *testing.
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 	s.CreateDatabase("foo")
-	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: ""}); err != influxdb.ErrRetentionPolicyNameRequired {
+	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "", Duration: time.Hour}); err != influxdb.ErrRetentionPolicyNameRequired {
 		t.Fatal(err)
 	}
 }
@@ -576,8 +641,18 @@ func TestServer_CreateRetentionPolicy_ErrRetentionPolicyExists(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 	s.CreateDatabase("foo")
-	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "bar"})
-	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "bar"}); err != influxdb.ErrRetentionPolicyExists {
+	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "bar", Duration: time.Hour})
+	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "bar", Duration: time.Hour}); err != influxdb.ErrRetentionPolicyExists {
+		t.Fatal(err)
+	}
+}
+
+// Ensure the server returns an error when creating a retention policy with a duration less than one hour.
+func TestServer_CreateRetentionPolicy_ErrRetentionPolicyMinDuration(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+	s.CreateDatabase("foo")
+	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "bar", Duration: time.Minute}); err != influxdb.ErrRetentionPolicyMinDuration {
 		t.Fatal(err)
 	}
 }
@@ -603,7 +678,7 @@ func TestServer_AlterRetentionPolicy(t *testing.T) {
 	}
 
 	// Alter the retention policy.
-	duration := time.Minute
+	duration := 2 * time.Hour
 	replicaN := uint32(3)
 	rp2 := &influxdb.RetentionPolicyUpdate{
 		Duration: &duration,
@@ -644,6 +719,78 @@ func TestServer_AlterRetentionPolicy(t *testing.T) {
 	} else if o.ReplicaN != *rp2.ReplicaN {
 		t.Fatalf("retention policy mismatch:\n\texp ReplicaN = %d\n\tgot ReplicaN = %d\n", rp2.ReplicaN, o.ReplicaN)
 	}
+
+	// set duration to infinite to catch edge case.
+	duration = 0
+	results = s.ExecuteQuery(MustParseQuery(`ALTER RETENTION POLICY bar ON foo DURATION INF`), "foo", nil)
+	if results.Error() != nil {
+		t.Fatalf("unexpected error: %s", results.Error())
+	}
+
+	// Verify results
+	if o, err := s.RetentionPolicy("foo", "bar"); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if o == nil {
+		t.Fatalf("retention policy not found")
+	} else if o.Duration != duration {
+		t.Fatalf("retention policy mismatch:\n\texp Duration = %s\n\tgot Duration = %s\n", duration, o.Duration)
+	} else if o.ReplicaN != *rp2.ReplicaN {
+		t.Fatalf("retention policy mismatch:\n\texp ReplicaN = %d\n\tgot ReplicaN = %d\n", rp2.ReplicaN, o.ReplicaN)
+	}
+
+}
+
+// Ensure the server an error is returned if trying to alter a retention policy with a duration too small.
+func TestServer_AlterRetentionPolicy_Minduration(t *testing.T) {
+	s := OpenServer(NewMessagingClient())
+	defer s.Close()
+
+	// Create a database.
+	if err := s.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a retention policy on the database.
+	rp := &influxdb.RetentionPolicy{
+		Name:     "bar",
+		Duration: time.Hour,
+		ReplicaN: 2,
+	}
+	if err := s.CreateRetentionPolicy("foo", rp); err != nil {
+		t.Fatal(err)
+	}
+
+	// Alter the retention policy.
+	duration := 2 * time.Hour
+	replicaN := uint32(3)
+	rp2 := &influxdb.RetentionPolicyUpdate{
+		Duration: &duration,
+		ReplicaN: &replicaN,
+	}
+	if err := s.UpdateRetentionPolicy("foo", "bar", rp2); err != nil {
+		t.Fatal(err)
+	}
+
+	// Restart the server to make sure the changes persist afterwards.
+	s.Restart()
+
+	// Verify that the policy exists.
+	if o, err := s.RetentionPolicy("foo", "bar"); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if o == nil {
+		t.Fatalf("retention policy not found")
+	} else if o.Duration != *rp2.Duration {
+		t.Fatalf("retention policy mismatch:\n\texp Duration = %s\n\tgot Duration = %s\n", rp2.Duration, o.Duration)
+	} else if o.ReplicaN != *rp2.ReplicaN {
+		t.Fatalf("retention policy mismatch:\n\texp ReplicaN = %d\n\tgot ReplicaN = %d\n", rp2.ReplicaN, o.ReplicaN)
+	}
+
+	// Test update duration only.
+	duration = time.Hour
+	results := s.ExecuteQuery(MustParseQuery(`ALTER RETENTION POLICY bar ON foo DURATION 1m`), "foo", nil)
+	if results.Error() == nil {
+		t.Fatalf("unexpected error: %s", results.Error())
+	}
 }
 
 // Ensure the server can delete an existing retention policy.
@@ -653,7 +800,7 @@ func TestServer_DeleteRetentionPolicy(t *testing.T) {
 
 	// Create a database and retention policy.
 	s.CreateDatabase("foo")
-	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "bar"}); err != nil {
+	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "bar", Duration: time.Hour}); err != nil {
 		t.Fatal(err)
 	} else if rp, _ := s.RetentionPolicy("foo", "bar"); rp == nil {
 		t.Fatal("retention policy not created")
@@ -707,7 +854,7 @@ func TestServer_SetDefaultRetentionPolicy(t *testing.T) {
 	defer s.Close()
 	s.CreateDatabase("foo")
 
-	rp := &influxdb.RetentionPolicy{Name: "bar", ShardGroupDuration: 7 * time.Hour * 24}
+	rp := &influxdb.RetentionPolicy{Name: "bar", ShardGroupDuration: time.Hour, Duration: time.Hour}
 	if err := s.CreateRetentionPolicy("foo", rp); err != nil {
 		t.Fatal(err)
 	} else if rp, _ := s.RetentionPolicy("foo", "bar"); rp == nil {
@@ -1340,7 +1487,7 @@ func TestServer_ExecuteQuery(t *testing.T) {
 	}
 
 	// Sum aggregation.
-	expected = `{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","sum"],"values":[["2000-01-01T00:00:05Z",30]]}]}`
+	expected = `{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","sum"],"values":[["2000-01-01T00:00:00Z",30]]}]}`
 	results = s.ExecuteQuery(MustParseQuery(`SELECT sum(value) FROM cpu WHERE time >= '2000-01-01 00:00:05' AND time <= '2000-01-01T00:00:10Z' GROUP BY time(10s), region`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error during SUM: %s", res.Err)
@@ -1459,6 +1606,14 @@ func TestServer_ShowSeriesLimitOffset(t *testing.T) {
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error: %s", res.Err)
 	} else if len(res.Series) != 0 {
+		t.Fatalf("unexpected row count: %d", len(res.Series))
+	}
+
+	// Select data from the server.
+	results = s.ExecuteQuery(MustParseQuery(`SHOW SERIES LIMIT 4 OFFSET 0`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 2 {
 		t.Fatalf("unexpected row count: %d", len(res.Series))
 	}
 
@@ -1586,7 +1741,8 @@ func TestServer_ExecuteWildcardQuery(t *testing.T) {
 	results := s.ExecuteQuery(MustParseQuery(`SELECT * FROM cpu`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error during SELECT *: %s", res.Err)
-	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["time","value","val-x"],"values":[["2000-01-01T00:00:00Z",10,null],["2000-01-01T00:00:10Z",null,20],["2000-01-01T00:00:20Z",30,40]]}]}` {
+	} else if s, e := mustMarshalJSON(res), `{"series":[{"name":"cpu","columns":["time","val-x","value"],"values":[["2000-01-01T00:00:00Z",null,10],["2000-01-01T00:00:10Z",20,null],["2000-01-01T00:00:20Z",40,30]]}]}`; s != e {
+		t.Logf("expected                            %s\n", e)
 		t.Fatalf("unexpected results during SELECT *: %s", s)
 	}
 }
@@ -1630,7 +1786,7 @@ func TestServer_CreateShardGroupIfNotExist(t *testing.T) {
 	defer s.Close()
 	s.CreateDatabase("foo")
 
-	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "bar"}); err != nil {
+	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "bar", Duration: time.Hour}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1653,7 +1809,7 @@ func TestServer_DeleteShardGroup(t *testing.T) {
 	defer s.Close()
 	s.CreateDatabase("foo")
 
-	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "bar"}); err != nil {
+	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "bar", Duration: time.Hour}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1759,13 +1915,13 @@ func TestServer_NormalizeMeasurement(t *testing.T) {
 
 	// Default database with one policy.
 	s.CreateDatabase("db0")
-	s.CreateRetentionPolicy("db0", &influxdb.RetentionPolicy{Name: "rp0"})
+	s.CreateRetentionPolicy("db0", &influxdb.RetentionPolicy{Name: "rp0", Duration: time.Hour})
 	s.SetDefaultRetentionPolicy("db0", "rp0")
 
 	// Another database with two policies.
 	s.CreateDatabase("db1")
-	s.CreateRetentionPolicy("db1", &influxdb.RetentionPolicy{Name: "rp1"})
-	s.CreateRetentionPolicy("db1", &influxdb.RetentionPolicy{Name: "rp2"})
+	s.CreateRetentionPolicy("db1", &influxdb.RetentionPolicy{Name: "rp1", Duration: time.Hour})
+	s.CreateRetentionPolicy("db1", &influxdb.RetentionPolicy{Name: "rp2", Duration: time.Hour})
 	s.SetDefaultRetentionPolicy("db1", "rp1")
 
 	// Another database with no policies.
@@ -1804,7 +1960,7 @@ func TestServer_NormalizeQuery(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 	s.CreateDatabase("db0")
-	s.CreateRetentionPolicy("db0", &influxdb.RetentionPolicy{Name: "rp0"})
+	s.CreateRetentionPolicy("db0", &influxdb.RetentionPolicy{Name: "rp0", Duration: time.Hour})
 	s.SetDefaultRetentionPolicy("db0", "rp0")
 
 	// Execute the tests
@@ -1828,7 +1984,7 @@ func TestServer_CreateContinuousQuery(t *testing.T) {
 	if err := s.CreateDatabase("foo"); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "bar"}); err != nil {
+	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "bar", Duration: time.Hour}); err != nil {
 		t.Fatal(err)
 	}
 	s.SetDefaultRetentionPolicy("foo", "bar")

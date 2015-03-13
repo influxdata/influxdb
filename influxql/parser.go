@@ -101,6 +101,8 @@ func (p *Parser) parseShowStatement() (Statement, error) {
 		return p.parseShowContinuousQueriesStatement()
 	case DATABASES:
 		return p.parseShowDatabasesStatement()
+	case SERVERS:
+		return p.parseShowServersStatement()
 	case FIELD:
 		tok, pos, lit := p.scanIgnoreWhitespace()
 		if tok == KEYS {
@@ -129,7 +131,7 @@ func (p *Parser) parseShowStatement() (Statement, error) {
 		return p.parseShowUsersStatement()
 	}
 
-	return nil, newParseError(tokstr(tok, lit), []string{"CONTINUOUS", "DATABASES", "FIELD", "MEASUREMENTS", "RETENTION", "SERIES", "TAG", "USERS"}, pos)
+	return nil, newParseError(tokstr(tok, lit), []string{"CONTINUOUS", "DATABASES", "FIELD", "MEASUREMENTS", "RETENTION", "SERIES", "SERVERS", "TAG", "USERS"}, pos)
 }
 
 // parseCreateStatement parses a string and returns a create statement.
@@ -551,6 +553,11 @@ func (p *Parser) parseSelectStatement(tr targetRequirement) (*SelectStatement, e
 		return nil, err
 	}
 
+	// Parse fill options: "fill(<option>)"
+	if stmt.Fill, stmt.FillValue, err = p.parseFill(); err != nil {
+		return nil, err
+	}
+
 	// Parse sort: "ORDER BY FIELD+".
 	if stmt.SortFields, err = p.parseOrderBy(); err != nil {
 		return nil, err
@@ -944,6 +951,13 @@ func (p *Parser) parseShowContinuousQueriesStatement() (*ShowContinuousQueriesSt
 		return nil, newParseError(tokstr(tok, lit), []string{"QUERIES"}, pos)
 	}
 
+	return stmt, nil
+}
+
+// parseShowServersStatement parses a string and returns a ShowServersStatement.
+// This function assumes the "SHOW SERVERS" tokens have already been consumed.
+func (p *Parser) parseShowServersStatement() (*ShowServersStatement, error) {
+	stmt := &ShowServersStatement{}
 	return stmt, nil
 }
 
@@ -1361,6 +1375,42 @@ func (p *Parser) parseDimension() (*Dimension, error) {
 	return &Dimension{Expr: expr}, nil
 }
 
+// parseFill parses the fill call and its optios.
+func (p *Parser) parseFill() (FillOption, interface{}, error) {
+	// Parse the expression first.
+	expr, err := p.ParseExpr()
+	if err != nil {
+		p.unscan()
+		return NullFill, nil, nil
+	}
+	if lit, ok := expr.(*Call); !ok {
+		p.unscan()
+		return NullFill, nil, nil
+	} else {
+		if lit.Name != "fill" {
+			p.unscan()
+			return NullFill, nil, nil
+		}
+		if len(lit.Args) != 1 {
+			return NullFill, nil, errors.New("fill requires an argument, e.g.: 0, null, none, previous")
+		}
+		switch lit.Args[0].String() {
+		case "null":
+			return NullFill, nil, nil
+		case "none":
+			return NoFill, nil, nil
+		case "previous":
+			return PreviousFill, nil, nil
+		default:
+			num, ok := lit.Args[0].(*NumberLiteral)
+			if !ok {
+				return NullFill, nil, fmt.Errorf("expected number argument in fill()")
+			}
+			return NumberFill, num.Val, nil
+		}
+	}
+}
+
 // parseOptionalTokenAndInt parses the specified token followed
 // by an int, if it exists.
 func (p *Parser) parseOptionalTokenAndInt(t Token) (int, error) {
@@ -1385,8 +1435,8 @@ func (p *Parser) parseOptionalTokenAndInt(t Token) (int, error) {
 	// Parse number.
 	n, _ := strconv.ParseInt(lit, 10, 64)
 
-	if n < 1 {
-		msg := fmt.Sprintf("%s must be > 0", t.String())
+	if n < 0 {
+		msg := fmt.Sprintf("%s must be >= 0", t.String())
 		return 0, &ParseError{Message: msg, Pos: pos}
 	}
 

@@ -373,6 +373,12 @@ func TestSelectStatement_RewriteWildcards(t *testing.T) {
 			rewrite: `SELECT value FROM cpu GROUP BY host, region, time(1m)`,
 		},
 
+		// GROUP BY wildarde with fill
+		{
+			stmt:    `SELECT value FROM cpu GROUP BY *,time(1m) fill(0)`,
+			rewrite: `SELECT value FROM cpu GROUP BY host, region, time(1m) fill(0)`,
+		},
+
 		// GROUP BY wildcard with explicit
 		{
 			stmt:    `SELECT value FROM cpu GROUP BY *,host`,

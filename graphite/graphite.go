@@ -3,6 +3,7 @@ package graphite
 import (
 	"errors"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 	"time"
@@ -26,16 +27,31 @@ var (
 	// ErrServerClosed return when closing an already closed graphite server.
 	ErrServerClosed = errors.New("server already closed")
 
-	// ErrDatabaseNotSpecified retuned when no database was specified in the config file
-	ErrDatabaseNotSpecified = errors.New("database was not specified in config")
-
 	// ErrServerNotSpecified returned when Server is not specified.
 	ErrServerNotSpecified = errors.New("server not present")
 )
 
 // SeriesWriter defines the interface for the destination of the data.
 type SeriesWriter interface {
-	WriteSeries(database, retentionPolicy string, points []influxdb.Point) (uint64, error)
+	WriteSeries(string, string, []influxdb.Point) (uint64, error)
+}
+
+// Server defines the interface all Graphite servers support.
+type Server interface {
+	SetLogOutput(w io.Writer)
+	ListenAndServe(iface string) error
+}
+
+// NewServer return a Graphite server for the given protocol, using the given parser
+// series writer, and database.
+func NewServer(protocol string, p *Parser, s SeriesWriter, db string) (Server, error) {
+	if strings.ToLower(protocol) == "tcp" {
+		return NewTCPServer(p, s, db), nil
+	} else if strings.ToLower(protocol) == "udp" {
+		return NewUDPServer(p, s, db), nil
+	} else {
+		return nil, fmt.Errorf("unrecognized Graphite Server protocol %s", protocol)
+	}
 }
 
 // Parser encapulates a Graphite Parser.

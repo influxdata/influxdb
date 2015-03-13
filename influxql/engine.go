@@ -110,20 +110,12 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 		return
 	}
 
-	// initialize the times of the aggregate points
-	resultTimes := make([]int64, pointCountInResult)
-	resultValues := make([][]interface{}, pointCountInResult)
-	for i, _ := range resultTimes {
-		t := m.TMin + (int64(i) * m.interval)
-		resultTimes[i] = t
-		// we always include time so we need one more column than we have aggregates
-		vals := make([]interface{}, 0, len(aggregates)+1)
-		resultValues[i] = append(vals, time.Unix(0, t).UTC())
-	}
-
+	// check limits
 	// now limit the number of data points returned by the limit and offset
+	setLimit := false
 	if pointCountInResult > 1 && (m.stmt.Limit > 0 || m.stmt.Offset > 0) {
-		if m.stmt.Offset > len(resultValues) {
+		setLimit = true
+		if m.stmt.Offset > pointCountInResult {
 			out <- &Row{
 				Name: m.MeasurementName,
 				Tags: m.TagSet.Tags,
@@ -131,14 +123,31 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 
 			return
 		} else {
-			limit := m.stmt.Limit
-			if m.stmt.Offset+m.stmt.Limit > len(resultValues) {
-				limit = len(resultValues) - m.stmt.Offset
+			pointCountInResult = m.stmt.Limit
+			if m.stmt.Offset+m.stmt.Limit > pointCountInResult {
+				pointCountInResult = pointCountInResult - m.stmt.Offset
 			}
-
-			resultTimes = resultTimes[m.stmt.Offset : m.stmt.Offset+limit]
-			resultValues = resultValues[m.stmt.Offset : m.stmt.Offset+limit]
 		}
+	}
+
+	// initialize the times of the aggregate points
+	resultTimes := make([]int64, pointCountInResult)
+	resultValues := make([][]interface{}, pointCountInResult)
+
+	// ensure that the start time for the results is on the start of the window
+	startTimeBucket := m.TMin / m.interval * m.interval
+
+	for i, _ := range resultTimes {
+		t := startTimeBucket + (int64(i) * m.interval * int64(m.stmt.Offset+1))
+		resultTimes[i] = t
+		// we always include time so we need one more column than we have aggregates
+		vals := make([]interface{}, 0, len(aggregates)+1)
+		resultValues[i] = append(vals, time.Unix(0, t).UTC())
+	}
+
+	// This just makes sure that if they specify a start time less than what the start time would be with the offset,
+	// we just reset the start time to the later time to avoid going over data that won't show up in the result.
+	if setLimit && m.stmt.Offset > 0 {
 		m.TMin = resultTimes[0]
 	}
 
@@ -182,6 +191,9 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 	// processes the result values if there's any math in there
 	resultValues = m.processResults(resultValues)
 
+	// handle any fill options
+	resultValues = m.processFill(resultValues)
+
 	row := &Row{
 		Name:    m.MeasurementName,
 		Tags:    m.TagSet.Tags,
@@ -224,6 +236,52 @@ func (m *MapReduceJob) processResults(results [][]interface{}) [][]interface{} {
 	}
 
 	return mathResults
+}
+
+// processFill will take the results and return new reaults (or the same if no fill modifications are needed) with whatever fill options the query has.
+func (m *MapReduceJob) processFill(results [][]interface{}) [][]interface{} {
+	// don't do anything if it's raw query results or we're supposed to leave the nulls
+	if m.stmt.RawQuery || m.stmt.Fill == NullFill {
+		return results
+	}
+
+	if m.stmt.Fill == NoFill {
+		// remove any rows that have even one nil value. This one is tricky because they could have multiple
+		// aggregates, but this option means that any row that has even one nil gets purged.
+		newResults := make([][]interface{}, 0, len(results))
+		for _, vals := range results {
+			hasNil := false
+			// start at 1 because the first value is always time
+			for j := 1; j < len(vals); j++ {
+				if vals[j] == nil {
+					hasNil = true
+					break
+				}
+			}
+			if !hasNil {
+				newResults = append(newResults, vals)
+			}
+		}
+		return newResults
+	}
+
+	// they're either filling with previous values or a specific number
+	for i, vals := range results {
+		// start at 1 because the first value is always time
+		for j := 1; j < len(vals); j++ {
+			if vals[j] == nil {
+				switch m.stmt.Fill {
+				case PreviousFill:
+					if i != 0 {
+						vals[j] = results[i-1][j]
+					}
+				case NumberFill:
+					vals[j] = m.stmt.FillValue
+				}
+			}
+		}
+	}
+	return results
 }
 
 func getProcessor(expr Expr, startIndex int) (processor, int) {

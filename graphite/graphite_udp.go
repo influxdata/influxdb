@@ -1,6 +1,8 @@
 package graphite
 
 import (
+	"io"
+	"log"
 	"net"
 	"strings"
 
@@ -11,21 +13,28 @@ const (
 	udpBufferSize = 65536
 )
 
-// UDPerver processes Graphite data received via UDP.
+// UDPServer processes Graphite data received via UDP.
 type UDPServer struct {
-	writer SeriesWriter
-	parser *Parser
+	writer   SeriesWriter
+	parser   *Parser
+	database string
 
-	Database string
+	Logger *log.Logger
 }
 
 // NewUDPServer returns a new instance of a UDPServer
-func NewUDPServer(p *Parser, w SeriesWriter) *UDPServer {
+func NewUDPServer(p *Parser, w SeriesWriter, db string) *UDPServer {
 	u := UDPServer{
-		parser: p,
-		writer: w,
+		parser:   p,
+		writer:   w,
+		database: db,
 	}
 	return &u
+}
+
+// SetLogOutput sets writer for all Graphite log output.
+func (s *UDPServer) SetLogOutput(w io.Writer) {
+	s.Logger = log.New(w, "[graphite] ", log.LstdFlags)
 }
 
 // ListenAndServer instructs the UDPServer to start processing Graphite data
@@ -33,8 +42,6 @@ func NewUDPServer(p *Parser, w SeriesWriter) *UDPServer {
 func (u *UDPServer) ListenAndServe(iface string) error {
 	if iface == "" { // Make sure we have an address
 		return ErrBindAddressRequired
-	} else if u.Database == "" { // Make sure they have a database
-		return ErrDatabaseNotSpecified
 	}
 
 	addr, err := net.ResolveUDPAddr("udp", iface)
@@ -60,8 +67,11 @@ func (u *UDPServer) ListenAndServe(iface string) error {
 					continue
 				}
 
-				// Send the data to database
-				u.writer.WriteSeries(u.Database, "", []influxdb.Point{point})
+				// Send the data to the writer.
+				_, e := u.writer.WriteSeries(u.database, "", []influxdb.Point{point})
+				if e != nil {
+					u.Logger.Printf("failed to write data point: %s\n", e)
+				}
 			}
 		}
 	}()
