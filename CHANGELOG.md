@@ -1,3 +1,8 @@
+## v0.9.0-rc12 [unreleased]
+
+### Bugfixes
+- [#1942](https://github.com/influxdb/influxdb/pull/1942): Sort wildcard names.
+
 ## v0.9.0-rc11 [2015-03-13]
 
 ### Bugfixes
