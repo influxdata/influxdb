@@ -483,7 +483,7 @@ func (s *Server) Client() MessagingClient {
 // This function waits until the message has been processed by the server.
 // Returns the broker log index of the message or an error.
 func (s *Server) broadcast(typ messaging.MessageType, c interface{}) (uint64, error) {
-	s.metrics.Add("broadcastMessageTx", 1)
+	s.metrics.Inc("broadcastMessageTx")
 
 	// Encode the command.
 	data, err := json.Marshal(c)
@@ -1538,11 +1538,11 @@ type Point struct {
 // WriteSeries writes series data to the database.
 // Returns the messaging index the data was written to.
 func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (idx uint64, err error) {
-	s.metrics.Add("batchWriteRx", 1)
+	s.metrics.Inc("batchWriteRx")
 	s.metrics.Add("pointWriteRx", int64(len(points)))
 	defer func() {
 		if err != nil {
-			s.metrics.Add("batchWriteRxError", 1)
+			s.metrics.Inc("batchWriteRxError")
 		}
 	}()
 
@@ -1662,7 +1662,7 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 		if err != nil {
 			return maxIndex, err
 		}
-		s.metrics.Add("writeSeriesMessageTx", 1)
+		s.metrics.Inc("writeSeriesMessageTx")
 		if index > maxIndex {
 			maxIndex = index
 		}
@@ -2853,7 +2853,7 @@ func (s *Server) processor(conn MessagingConn, done chan struct{}) {
 
 		// All messages must be processed under lock.
 		func() {
-			s.metrics.Add("broadcastMessageRx", 1)
+			s.metrics.Inc("broadcastMessageRx")
 			s.mu.Lock()
 			defer s.mu.Unlock()
 
@@ -3317,7 +3317,7 @@ func (s *Server) shouldRunContinuousQuery(cq *ContinuousQuery) bool {
 // runContinuousQuery will execute a continuous query
 // TODO: make this fan out to the cluster instead of running all the queries on this single data node
 func (s *Server) runContinuousQuery(cq *ContinuousQuery) {
-	s.metrics.Add("continuousQueryExecuted", 1)
+	s.metrics.Inc("continuousQueryExecuted")
 	cq.mu.Lock()
 	defer cq.mu.Unlock()
 
