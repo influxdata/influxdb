@@ -331,27 +331,31 @@ func (s *Server) StartSelfMonitoring(database, retention string, interval time.D
 	// Grab the initial stats.
 	prev := s.stats.Snapshot()
 
-	for {
-		time.Sleep(interval)
+	go func() {
+		for {
+			time.Sleep(interval)
 
-		// Grab the current stats and diff them.
-		stats := s.stats.Snapshot()
-		diff := stats.Diff(prev)
+			// Grab the current stats and diff them.
+			stats := s.stats.Snapshot()
+			diff := stats.Diff(prev)
 
-		// Create the data point and write it.
-		point := Point{
-			Name:   diff.Name(),
-			Tags:   map[string]string{"id": strconv.FormatUint(s.id, 10)},
-			Fields: make(map[string]interface{}),
+			// Create the data point and write it.
+			point := Point{
+				Name:   diff.Name(),
+				Tags:   map[string]string{"id": strconv.FormatUint(s.id, 10)},
+				Fields: make(map[string]interface{}),
+			}
+			diff.Walk(func(k string, v int64) {
+				point.Fields[k] = v
+			})
+			s.WriteSeries(database, retention, []Point{point})
+
+			// Save stats for the next loop.
+			prev = stats
 		}
-		diff.Walk(func(k string, v int64) {
-			point.Fields[k] = v
-		})
-		s.WriteSeries(database, retention, []Point{point})
+	}()
 
-		// Save stats for the next loop.
-		prev = stats
-	}
+	return nil
 }
 
 // StartRetentionPolicyEnforcement launches retention policy enforcement.
