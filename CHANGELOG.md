@@ -1,4 +1,6 @@
-## v0.9.0-rc11 [unreleased]
+## v0.9.0-rc12 [unreleased]
+
+## v0.9.0-rc11 [2015-03-12]
 
 ### Bugfixes
 - [#1917](https://github.com/influxdb/influxdb/pull/1902): Creating Infinite Retention Policy Failed.
