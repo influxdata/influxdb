@@ -1,7 +1,6 @@
 package httpd
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -208,26 +207,20 @@ func interfaceToString(v interface{}) string {
 	}
 }
 
-// serveDump returns all points in the given database as a plaintext list of JSON structs.
-// To get all points:
-// Find all measurements (show measurements).
-// For each measurement do select * from <measurement> group by *
-func (h *Handler) serveDump(w http.ResponseWriter, r *http.Request, user *influxdb.User) {
-	q := r.URL.Query()
-	db := q.Get("db")
-	pretty := q.Get("pretty") == "true"
-	var httpOut bytes.Buffer
-
-	// Make our list of measurements
+// Return all the measurements from the given DB
+func (h *Handler) showMeasurements(db string, user *influxdb.User) (error, []string) {
 	var measurements []string
 	queryString := "show measurements"
 	p := influxql.NewParser(strings.NewReader(queryString))
 	query, err := p.ParseQuery()
 	if err != nil {
-		httpError(w, "error parsing query: "+err.Error(), pretty, http.StatusBadRequest)
-		return
+		return err, measurements
 	}
 	results := h.server.ExecuteQuery(query, db, user)
+	if results.Err != nil {
+		return results.Err, measurements
+
+	}
 	for _, measurementResult := range results.Results {
 		for _, measurementRow := range measurementResult.Series {
 			for _, measurementTuple := range (*measurementRow).Values {
@@ -237,7 +230,25 @@ func (h *Handler) serveDump(w http.ResponseWriter, r *http.Request, user *influx
 			}
 		}
 	}
-	// Fetch all the points for each measurement found above.
+	return nil, measurements
+}
+
+// serveDump returns all points in the given database as a plaintext list of JSON structs.
+// To get all points:
+// Find all measurements (show measurements).
+// For each measurement do select * from <measurement> group by *
+func (h *Handler) serveDump(w http.ResponseWriter, r *http.Request, user *influxdb.User) {
+	q := r.URL.Query()
+	db := q.Get("db")
+	delim := []byte("\n")
+	pretty := q.Get("pretty") == "true"
+	err, measurements := h.showMeasurements(db, user)
+	if err != nil {
+		httpError(w, "error with dump: "+err.Error(), pretty, http.StatusBadRequest)
+		return
+	}
+
+	// Fetch all the points for each measurement.
 	// From the 'select' query below, we get:
 	//
 	// columns:[col1, col2, col3, ...]
@@ -250,13 +261,14 @@ func (h *Handler) serveDump(w http.ResponseWriter, r *http.Request, user *influx
 	// fields:{col1 : values[2][0], col2 : values[2][1], col3 : values[2][2]}
 	//
 	for _, measurement := range measurements {
-		queryString = fmt.Sprintf("select * from %s group by *", measurement)
+		queryString := fmt.Sprintf("select * from %s group by *", measurement)
 		p := influxql.NewParser(strings.NewReader(queryString))
 		query, err := p.ParseQuery()
 		if err != nil {
-			httpError(w, "error parsing query: "+err.Error(), pretty, http.StatusBadRequest)
+			httpError(w, "error with dump: "+err.Error(), pretty, http.StatusBadRequest)
 			return
 		}
+		//
 		results := h.server.ExecuteQuery(query, db, user)
 		for _, result := range results.Results {
 			for _, row := range result.Series {
@@ -280,14 +292,12 @@ func (h *Handler) serveDump(w http.ResponseWriter, r *http.Request, user *influx
 						Points:          points,
 					}
 					buf, _ := json.Marshal(&batch)
-					httpOut.Write(buf)
-					httpOut.Write([]byte("\n"))
+					w.Write(buf)
+					w.Write(delim)
 				}
 			}
 		}
 	}
-	w.Header().Add("content-type", "text/plain")
-	w.Write(httpOut.Bytes())
 }
 
 // serveWrite receives incoming series data and writes it to the database.

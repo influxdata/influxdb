@@ -145,6 +145,27 @@ func (c *Client) Ping() (time.Duration, string, error) {
 	return time.Since(now), version, nil
 }
 
+func (c *Client) Dump(db string) (*http.Response, error) {
+	u := c.url
+	u.Path = "dump"
+	values := u.Query()
+	values.Set("db", db)
+	values.Set("user", c.username)
+	values.Set("password", c.password)
+	u.RawQuery = values.Encode()
+
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", c.userAgent)
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
 // Structs
 
 // Result represents a resultset returned from a single statement.

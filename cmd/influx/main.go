@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/csv"
 	"encoding/json"
 	"flag"
@@ -13,7 +14,6 @@ import (
 	"strconv"
 	"strings"
 	"text/tabwriter"
-	"time"
 
 	"github.com/influxdb/influxdb/client"
 	//	"github.com/influxdb/influxdb/influxql"
@@ -42,6 +42,7 @@ type CommandLine struct {
 	Version  string
 	Pretty   bool   // controls pretty print for json
 	Format   string // controls the output format.  Valid values are json, csv, or column
+	Dump     bool
 }
 
 func main() {
@@ -54,7 +55,13 @@ func main() {
 	fs.StringVar(&c.Password, "password", c.Password, `password to connect to the server.  Leaving blank will prompt for password (--password="")`)
 	fs.StringVar(&c.Database, "database", c.Database, "database to connect to the server.")
 	fs.StringVar(&c.Format, "output", default_format, "format specifies the format of the server responses:  json, csv, or column")
+	fs.BoolVar(&c.Dump, "dump", false, "dump the contents of the given database to stdout")
 	fs.Parse(os.Args[1:])
+
+	if c.Dump {
+		c.connect("")
+		c.dump()
+	}
 
 	var promptForPassword bool
 	// determine if they set the password flag but provided no value
@@ -142,8 +149,6 @@ func (c *CommandLine) ParseCommand(cmd string) bool {
 		}
 	case strings.HasPrefix(lcmd, "use"):
 		c.use(cmd)
-	case strings.HasPrefix(lcmd, "dump"):
-		c.dump()
 	case lcmd == "":
 		break
 	default:
@@ -208,7 +213,9 @@ func (c *CommandLine) connect(cmd string) {
 		fmt.Printf("Failed to connect to %s\n", c.Client.Addr())
 	} else {
 		c.Version = v
-		fmt.Printf("Connected to %s version %s\n", c.Client.Addr(), c.Version)
+		if !c.Dump {
+			fmt.Printf("Connected to %s version %s\n", c.Client.Addr(), c.Version)
+		}
 	}
 }
 
@@ -252,87 +259,24 @@ func (c *CommandLine) SetFormat(cmd string) {
 	}
 }
 
-type Point struct {
-	Name      string                 `json:"name"`
-	Timestamp time.Time              `json:"timestamp"`
-	Tags      map[string]string      `json:"tags"`
-	Fields    map[string]interface{} `json:"fields"`
-}
-
-type Batch struct {
-	Database        string  `json:"database"`
-	RetentionPolicy string  `json:"retentionPolicy"`
-	Points          []Point `json:"points"`
-}
-
-// Output each point in the database in JSON.
-// To get all points:
-// Find all measurements (show measurements).
-// For each measurement do select * from <measurement> group by *
 func (c *CommandLine) dump() {
-	// Make our list of measurements
-	var measurements []string
-	query := "show measurements"
-	results, err := c.Client.Query(client.Query{Command: query, Database: c.Database})
+	fmt.Printf("db is %s\n", c.Database)
+	response, err := c.Client.Dump(c.Database)
+	defer response.Body.Close()
 	if err != nil {
-		fmt.Printf("ERR: %s\n", err)
-		return
-	}
-	for _, measurementResult := range results.Results {
-		for _, measurementRow := range measurementResult.Series {
-			for _, measurementTuple := range measurementRow.Values {
-				for _, measurementCell := range measurementTuple {
-					measurements = append(measurements, interfaceToString(measurementCell))
-				}
-			}
+		fmt.Fprintf(os.Stderr, "Failed to dump database %s from %s\n", c.Database, c.Client.Addr())
+		os.Exit(1)
+	} else {
+		scanner := bufio.NewScanner(response.Body)
+		for scanner.Scan() {
+			fmt.Println(scanner.Text())
+		}
+		if err := scanner.Err(); err != nil {
+			fmt.Fprintln(os.Stderr, "Failed to dump database %s", err)
+			os.Exit(1)
 		}
 	}
-	// Fetch all the points for each measurement found above.
-	// From the 'select' query below, we get:
-	//
-	// columns:[col1, col2, col3, ...]
-	// - and -
-	// values:[[val1, val2, val3, ...], [val1, val2, val3, ...], [val1, val2, val3, ...]...]
-	//
-	// We need to turn that into multiple rows like so...
-	// fields:{col1 : values[0][0], col2 : values[0][1], col3 : values[0][2]}
-	// fields:{col1 : values[1][0], col2 : values[1][1], col3 : values[1][2]}
-	// fields:{col1 : values[2][0], col2 : values[2][1], col3 : values[2][2]}
-	//
-	for _, measurement := range measurements {
-		query = fmt.Sprintf("select * from %s group by *", measurement)
-		results, err = c.Client.Query(client.Query{Command: query, Database: c.Database})
-		if err != nil {
-			fmt.Printf("ERR: %s\n", err)
-			return
-		}
-		for _, result := range results.Results {
-			for _, row := range result.Series {
-				points := make([]Point, 1)
-				var point Point
-				point.Name = row.Name
-				point.Tags = row.Tags
-				point.Fields = make(map[string]interface{})
-				for _, tuple := range row.Values {
-					for subscript, cell := range tuple {
-						if row.Columns[subscript] == "time" {
-							point.Timestamp, _ = time.Parse(time.RFC3339, interfaceToString(cell))
-							continue
-						}
-						point.Fields[row.Columns[subscript]] = cell
-					}
-					points[0] = point
-					batch := &Batch{
-						Database:        "db",
-						RetentionPolicy: "raw",
-						Points:          points,
-					}
-					buf, _ := json.Marshal(&batch)
-					fmt.Printf("%s\n", buf)
-				}
-			}
-		}
-	}
+	os.Exit(0)
 }
 
 func (c *CommandLine) executeQuery(query string) {
