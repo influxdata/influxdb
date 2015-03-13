@@ -188,7 +188,7 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 			interval := config.Statistics.WriteInterval
 
 			if err := s.CreateDatabaseIfNotExists(database); err != nil {
-				log.Fatalf("failed to create database % for internal statistics: %s",
+				log.Fatalf("failed to create database %s for internal statistics: %s",
 					config.Statistics.Database, err.Error())
 			}
 			s.StartSelfMonitoring(database, policy, time.Duration(interval))

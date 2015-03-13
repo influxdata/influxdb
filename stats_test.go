@@ -72,7 +72,7 @@ func TestStats_Diff(t *testing.T) {
 		t.Fatalf("stats diff has unexpected name: %s", qux.Name())
 	}
 	if qux.Get("a") != 350 || qux.Get("b") != -75 {
-		t.Fatalf("stats diff returned unexpected result: %s", qux)
+		t.Fatalf("stats diff returned unexpected result: %v", qux)
 	}
 }
 
