@@ -799,7 +799,12 @@ func (s *Server) CreateDatabaseIfNotExists(name string) error {
 	if s.DatabaseExists(name) {
 		return nil
 	}
-	return s.CreateDatabase(name)
+
+	// Small chance database could have been created even though the check above said it didn't.
+	if err := s.CreateDatabase(name); err != nil && err != ErrDatabaseExists {
+		return err
+	}
+	return nil
 }
 
 func (s *Server) applyCreateDatabase(m *messaging.Message) (err error) {
