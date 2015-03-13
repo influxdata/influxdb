@@ -1576,7 +1576,7 @@ func (f *Field) String() string {
 	return fmt.Sprintf("%s AS %s", f.Expr.String(), f.Alias)
 }
 
-// Sort Interface for Field
+// Sort Interface for Fields
 func (f Fields) Len() int           { return len(f) }
 func (f Fields) Less(i, j int) bool { return f[i].Name() < f[j].Name() }
 func (f Fields) Swap(i, j int)      { f[i], f[j] = f[j], f[i] }
