@@ -7,7 +7,7 @@ import (
 )
 
 func TestStats_SetAndGet(t *testing.T) {
-	s := influxdb.NewStats()
+	s := influxdb.NewStats("foo")
 
 	s.Set("a", 100)
 	if s.Get("a") != 100 {
@@ -16,7 +16,7 @@ func TestStats_SetAndGet(t *testing.T) {
 }
 
 func TestStats_Add(t *testing.T) {
-	s := influxdb.NewStats()
+	s := influxdb.NewStats("foo")
 
 	s.Add("a", 200)
 	if s.Get("a") != 200 {
@@ -40,7 +40,7 @@ func TestStats_Inc(t *testing.T) {
 }
 
 func TestStats_AddNegative(t *testing.T) {
-	s := influxdb.NewStats()
+	s := influxdb.NewStats("foo")
 
 	s.Add("a", -200)
 	if s.Get("a") != -200 {
@@ -49,7 +49,7 @@ func TestStats_AddNegative(t *testing.T) {
 }
 
 func TestStats_SetAndAdd(t *testing.T) {
-	s := influxdb.NewStats()
+	s := influxdb.NewStats("foo")
 
 	s.Set("a", 100)
 	s.Add("a", 200)
@@ -59,8 +59,8 @@ func TestStats_SetAndAdd(t *testing.T) {
 }
 
 func TestStats_Diff(t *testing.T) {
-	foo := influxdb.NewStats()
-	bar := influxdb.NewStats()
+	foo := influxdb.NewStats("server")
+	bar := influxdb.NewStats("server")
 
 	foo.Set("a", 100)
 	foo.Set("b", 600)
@@ -68,6 +68,9 @@ func TestStats_Diff(t *testing.T) {
 	bar.Set("b", 525)
 
 	qux := bar.Diff(foo)
+	if qux.Name() != "server" {
+		t.Fatalf("stats diff has unexpected name: %s", qux.Name())
+	}
 	if qux.Get("a") != 350 || qux.Get("b") != -75 {
 		t.Fatalf("stats diff returned unexpedted result: %s", qux)
 	}

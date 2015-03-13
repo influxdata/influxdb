@@ -105,7 +105,7 @@ func NewServer() *Server {
 		users:     make(map[string]*User),
 
 		shards:  make(map[uint64]*Shard),
-		metrics: NewStats(),
+		metrics: NewStats("server"),
 		Logger:  log.New(os.Stderr, "[server] ", log.LstdFlags),
 	}
 	// Server will always return with authentication enabled.
@@ -329,7 +329,7 @@ func (s *Server) StartSelfMonitoring(interval time.Duration) error {
 	}
 
 	// Grab the initial stats.
-	prev := NewStats()
+	prev := NewStats("")
 
 	for {
 		time.Sleep(interval)
@@ -1974,6 +1974,8 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 			res = s.executeShowTagValuesStatement(stmt, database, user)
 		case *influxql.ShowFieldKeysStatement:
 			res = s.executeShowFieldKeysStatement(stmt, database, user)
+		case *influxql.ShowStatsStatement:
+			res = s.executeShowStatsStatement(stmt, user)
 		case *influxql.GrantStatement:
 			res = s.executeGrantStatement(stmt, user)
 		case *influxql.RevokeStatement:
@@ -2477,6 +2479,17 @@ func (s *Server) executeShowContinuousQueriesStatement(stmt *influxql.ShowContin
 		rows = append(rows, row)
 	}
 	return &Result{Series: rows}
+}
+
+func (s *Server) executeShowStatsStatement(stmt *influxql.ShowStatsStatement, user *User) *Result {
+	row := &influxql.Row{Columns: []string{}}
+	row.Name = s.metrics.Name()
+	s.metrics.Walk(func(k string, v int64) {
+		row.Columns = append(row.Columns, k)
+		row.Values = append(row.Values, []interface{}{v})
+	})
+
+	return &Result{Series: []*influxql.Row{row}}
 }
 
 // filterMeasurementsByExpr filters a list of measurements by a tags expression.

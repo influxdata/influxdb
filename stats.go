@@ -22,13 +22,15 @@ func (i *Int) Add(delta int64) {
 }
 
 type Stats struct {
-	m  map[string]*Int
-	mu sync.RWMutex
+	name string
+	m    map[string]*Int
+	mu   sync.RWMutex
 }
 
-func NewStats() *Stats {
+func NewStats(name string) *Stats {
 	return &Stats{
-		m: make(map[string]*Int),
+		name: name,
+		m:    make(map[string]*Int),
 	}
 }
 
@@ -68,6 +70,10 @@ func (s *Stats) Set(key string, v int64) {
 	s.m[key] = NewInt(v)
 }
 
+func (s *Stats) Name() string {
+	return s.name
+}
+
 // Walk calls f for each entry in the stats. The stats are locked
 // during the walk but existing entries may be concurrently updated.
 func (s *Stats) Walk(f func(string, int64)) {
@@ -82,7 +88,7 @@ func (s *Stats) Walk(f func(string, int64)) {
 // Diff returns the difference between two sets of stats. The result is undefined
 // if the two Stats objects do not contain the same keys.
 func (s *Stats) Diff(other *Stats) *Stats {
-	diff := NewStats()
+	diff := NewStats(s.name)
 	s.Walk(func(k string, v int64) {
 		diff.Set(k, v-other.Get(k))
 	})
