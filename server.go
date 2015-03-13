@@ -323,23 +323,32 @@ func (s *Server) load() error {
 	})
 }
 
-func (s *Server) StartSelfMonitoring(interval time.Duration) error {
+func (s *Server) StartSelfMonitoring(database, retention string, interval time.Duration) error {
 	if interval == 0 {
 		return fmt.Errorf("statistics check interval must be non-zero")
 	}
 
 	// Grab the initial stats.
-	prev := NewStats("")
+	prev := s.metrics.Snapshot()
 
 	for {
 		time.Sleep(interval)
 
 		// Grab the current stats and diff them.
-		stats := s.metrics
+		stats := s.metrics.Snapshot()
 		diff := stats.Diff(prev)
-		var _ = diff
+
+		point := Point{
+			Name:   diff.Name(),
+			Tags:   map[string]string{"id": strconv.FormatUint(s.id, 10)},
+			Fields: make(map[string]interface{}),
+		}
+		diff.Walk(func(k string, v int64) {
+			point.Fields[k] = v
+		})
 
 		// XXX write diff to itself. Tag with server hostname and ID.
+		s.WriteSeries(database, retention, []Point{point})
 
 		// Save stats for the next loop.
 		prev = stats

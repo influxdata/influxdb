@@ -183,8 +183,15 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 
 		// Start up self-monitoring if enabled.
 		if config.Statistics.Enabled {
-			// XXX create database and retention period
-			s.StartSelfMonitoring(interval)
+			database := config.Statistics.Database
+			policy := config.Statistics.RetentionPolicy
+			interval := config.Statistics.WriteInterval
+
+			if err := s.CreateDatabaseIfNotExists(database); err != nil {
+				log.Fatalf("failed to create database % for internal statistics: %s",
+					config.Statistics.Database, err.Error())
+			}
+			s.StartSelfMonitoring(database, policy, time.Duration(interval))
 		}
 	}
 
