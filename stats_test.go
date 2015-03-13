@@ -25,7 +25,7 @@ func TestStats_Add(t *testing.T) {
 }
 
 func TestStats_Inc(t *testing.T) {
-	s := influxdb.NewStats()
+	s := influxdb.NewStats("foo")
 
 	s.Set("a", 100)
 	s.Inc("a")
