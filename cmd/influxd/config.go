@@ -114,8 +114,8 @@ type Config struct {
 		Enabled         bool     `toml:"enabled"`
 		Database        string   `toml:"database"`
 		RetentionPolicy string   `toml:"retention-policy"`
-		Duration        Duration `toml:"duration"`
-		Interval        Duration `toml:"check-interval"`
+		RetentionPeriod Duration `toml:"retention-period"`
+		WriteInterval   Duration `toml:"write-interval"`
 	}
 
 	ContinuousQuery struct {
@@ -177,8 +177,8 @@ func NewConfig() *Config {
 	c.Statistics.Enabled = false
 	c.Statistics.Database = "_internal"
 	c.Statistics.RetentionPolicy = "default"
-	c.Statistics.Duration = Duration(7 * 24 * time.Hour)
-	c.Statistics.Interval = Duration(1 * time.Minute)
+	c.Statistics.RetentionPeriod = Duration(7 * 24 * time.Hour)
+	c.Statistics.WriteInterval = Duration(1 * time.Minute)
 
 	// Detect hostname (or set to localhost).
 	if c.Hostname, _ = os.Hostname(); c.Hostname == "" {
