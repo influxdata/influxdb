@@ -81,10 +81,6 @@ func (db *database) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	if o.Name == "" {
-		return ErrDatabaseNameRequired
-	}
-
 	// Copy over properties from intermediate type.
 	db.name = o.Name
 	db.defaultRetentionPolicy = o.DefaultRetentionPolicy
