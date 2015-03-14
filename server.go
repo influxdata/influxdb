@@ -747,6 +747,9 @@ func (s *Server) Databases() (a []string) {
 
 // CreateDatabase creates a new database.
 func (s *Server) CreateDatabase(name string) error {
+	if name == "" {
+		return ErrDatabaseNameRequired
+	}
 	c := &createDatabaseCommand{Name: name}
 	_, err := s.broadcast(createDatabaseMessageType, c)
 	return err
@@ -795,6 +798,9 @@ func (s *Server) applyCreateDatabase(m *messaging.Message) (err error) {
 
 // DropDatabase deletes an existing database.
 func (s *Server) DropDatabase(name string) error {
+	if name == "" {
+		return ErrDatabaseNameRequired
+	}
 	c := &dropDatabaseCommand{Name: name}
 	_, err := s.broadcast(dropDatabaseMessageType, c)
 	return err
