@@ -335,7 +335,7 @@ func (s *Server) StartSelfMonitoring(database, retention string, interval time.D
 			// Create the data point and write it.
 			point := Point{
 				Name:   s.stats.Name(),
-				Tags:   map[string]string{"id": strconv.FormatUint(s.id, 10)},
+				Tags:   map[string]string{"raftID": strconv.FormatUint(s.id, 10)},
 				Fields: make(map[string]interface{}),
 			}
 			s.stats.Walk(func(k string, v int64) {
