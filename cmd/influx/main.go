@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/csv"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"net/url"
@@ -15,6 +14,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/codegangsta/cli"
 	"github.com/influxdb/influxdb/client"
 	"github.com/peterh/liner"
 )
@@ -44,74 +44,53 @@ type CommandLine struct {
 }
 
 func main() {
-	c := CommandLine{}
-
-	fs := flag.NewFlagSet("default", flag.ExitOnError)
-	fs.StringVar(&c.Host, "host", default_host, "influxdb host to connect to")
-	fs.IntVar(&c.Port, "port", default_port, "influxdb port to connect to")
-	fs.StringVar(&c.Username, "username", c.Username, "username to connect to the server.")
-	fs.StringVar(&c.Password, "password", c.Password, `password to connect to the server.  Leaving blank will prompt for password (--password="")`)
-	fs.StringVar(&c.Database, "database", c.Database, "database to connect to the server.")
-	fs.StringVar(&c.Format, "output", default_format, "format specifies the format of the server responses:  json, csv, or column")
-	fs.Parse(os.Args[1:])
-
-	var promptForPassword bool
-	// determine if they set the password flag but provided no value
-	for _, v := range os.Args {
-		v = strings.ToLower(v)
-		if (strings.HasPrefix(v, "-password") || strings.HasPrefix(v, "--password")) && c.Password == "" {
-			promptForPassword = true
-			break
-		}
+	app := cli.NewApp()
+	app.Name = "influx"
+	app.Version = version
+	app.Flags = []cli.Flag{
+		cli.StringFlag{
+			Name:  "host",
+			Value: default_host,
+			Usage: "influxdb host to connect to",
+		},
+		cli.IntFlag{
+			Name:  "port",
+			Value: default_port,
+			Usage: "influxdb port to connect to",
+		},
+		cli.StringFlag{
+			Name:  "username, u",
+			Value: "",
+			Usage: "username to connect to the server",
+		},
+		cli.StringFlag{
+			Name:  "password, p",
+			Value: "",
+			Usage: "password to connect to the server (Promts if left blank)",
+		},
+		cli.StringFlag{
+			Name:  "database, d",
+			Value: "",
+			Usage: "database to connect to the server",
+		},
+		cli.StringFlag{
+			Name:  "output, o",
+			Value: default_format,
+			Usage: "format specifies the format of the server responses:  json, csv, or column",
+		},
 	}
 
-	// TODO Determine if we are an ineractive shell or running commands
-	fmt.Println("InfluxDB shell " + version)
+	app.Action = run
+	app.Run(os.Args)
+}
 
-	c.Line = liner.NewLiner()
-	defer c.Line.Close()
+func run(c *cli.Context) {
+	commandLine := setupCommandLine(c)
+	defer commandLine.Line.Close()
 
-	if promptForPassword {
-		p, e := c.Line.PasswordPrompt("password: ")
-		if e != nil {
-			fmt.Println("Unable to parse password.")
-		} else {
-			c.Password = p
-		}
-	}
-
-	c.connect("")
-
-	var historyFile string
-	usr, err := user.Current()
-	// Only load history if we can get the user
-	if err == nil {
-		historyFile = filepath.Join(usr.HomeDir, ".influx_history")
-
-		if f, err := os.Open(historyFile); err == nil {
-			c.Line.ReadHistory(f)
-			f.Close()
-		}
-	}
-
-	for {
-		l, e := c.Line.Prompt("> ")
-		if e != nil {
-			break
-		}
-		if c.ParseCommand(l) {
-			// write out the history
-			if len(historyFile) > 0 {
-				c.Line.AppendHistory(l)
-				if f, err := os.Create(historyFile); err == nil {
-					c.Line.WriteHistory(f)
-					f.Close()
-				}
-			}
-		} else {
-			break // exit main loop
-		}
-	}
+	commandLine.connect("")
+	historyFile := loadHistoryFile(*commandLine)
+	runInteractiveMode(*commandLine, historyFile)
 }
 
 func (c *CommandLine) ParseCommand(cmd string) bool {
@@ -147,6 +126,66 @@ func (c *CommandLine) ParseCommand(cmd string) bool {
 		c.executeQuery(cmd)
 	}
 	return true
+}
+
+func setupCommandLine(c *cli.Context) *CommandLine {
+	commandLine := CommandLine{}
+
+	if len(c.String("username")) > 0 && c.String("password") == "" {
+		commandLine.Password = promptForPassword(commandLine)
+	}
+
+	commandLine.Line = liner.NewLiner()
+	commandLine.Host = c.String("host")
+	commandLine.Port = c.Int("port")
+	commandLine.Username = c.String("username")
+	commandLine.Password = c.String("password")
+	commandLine.Database = c.String("database")
+	commandLine.Format = c.String("output")
+	return &commandLine
+}
+
+func runInteractiveMode(commandLine CommandLine, historyFile string) {
+	for {
+		line, err := commandLine.Line.Prompt("> ")
+		if err != nil || !commandLine.ParseCommand(line) {
+			return
+		}
+		writeHistory(commandLine, line, historyFile)
+	}
+}
+
+func writeHistory(commandLine CommandLine, line, historyFile string) {
+	if len(historyFile) > 0 {
+		commandLine.Line.AppendHistory(line)
+		if f, err := os.Create(historyFile); err == nil {
+			commandLine.Line.WriteHistory(f)
+			f.Close()
+		}
+	}
+}
+
+func promptForPassword(commandLine CommandLine) string {
+	p, e := commandLine.Line.PasswordPrompt("password: ")
+	if e != nil {
+		fmt.Println("Unable to parse password.")
+		return ""
+	}
+	return p
+}
+
+func loadHistoryFile(commandLine CommandLine) string {
+	var historyFile string
+	usr, err := user.Current()
+	if err == nil {
+		historyFile = filepath.Join(usr.HomeDir, ".influx_history")
+
+		if f, err := os.Open(historyFile); err == nil {
+			commandLine.Line.ReadHistory(f)
+			f.Close()
+		}
+	}
+	return historyFile
 }
 
 func (c *CommandLine) connect(cmd string) {
