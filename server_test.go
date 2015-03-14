@@ -290,6 +290,11 @@ func TestServer_CreateDatabase(t *testing.T) {
 	s := OpenServer(NewMessagingClient())
 	defer s.Close()
 
+	// Attempt creating empty name database.
+	if err := s.CreateDatabase(""); err != influxdb.ErrDatabaseNameRequired {
+		t.Fatal("expected error on empty database name")
+	}
+
 	// Create the "foo" database.
 	if err := s.CreateDatabase("foo"); err != nil {
 		t.Fatal(err)
