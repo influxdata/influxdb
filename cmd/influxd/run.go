@@ -185,6 +185,7 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 		if config.Statistics.Enabled {
 			database := config.Statistics.Database
 			policy := config.Statistics.RetentionPolicy
+			interval := time.Duration(config.Statistics.WriteInterval)
 
 			// Ensure database exists.
 			if err := s.CreateDatabaseIfNotExists(database); err != nil {

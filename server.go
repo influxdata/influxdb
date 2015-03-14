@@ -328,30 +328,20 @@ func (s *Server) StartSelfMonitoring(database, retention string, interval time.D
 		return fmt.Errorf("statistics check interval must be non-zero")
 	}
 
-	// Grab the initial stats.
-	prev := s.stats.Snapshot()
-
 	go func() {
 		for {
 			time.Sleep(interval)
 
-			// Grab the current stats and diff them.
-			stats := s.stats.Snapshot()
-			diff := stats.Diff(prev)
-
 			// Create the data point and write it.
 			point := Point{
-				Name:   diff.Name(),
+				Name:   s.stats.Name(),
 				Tags:   map[string]string{"id": strconv.FormatUint(s.id, 10)},
 				Fields: make(map[string]interface{}),
 			}
-			diff.Walk(func(k string, v int64) {
-				point.Fields[k] = v
+			s.stats.Walk(func(k string, v int64) {
+				point.Fields[k] = int(v)
 			})
 			s.WriteSeries(database, retention, []Point{point})
-
-			// Save stats for the next loop.
-			prev = stats
 		}
 	}()
 
