@@ -1943,6 +1943,8 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 			res = s.executeShowServersStatement(stmt, user)
 		case *influxql.CreateUserStatement:
 			res = s.executeCreateUserStatement(stmt, user)
+		case *influxql.DeleteStatement:
+			res = s.executeDeleteStatement()
 		case *influxql.DropUserStatement:
 			res = s.executeDropUserStatement(stmt, user)
 		case *influxql.ShowUsersStatement:
@@ -2635,6 +2637,10 @@ func (s *Server) executeAlterRetentionPolicyStatement(stmt *influxql.AlterRetent
 	}
 
 	return &Result{Err: err}
+}
+
+func (s *Server) executeDeleteStatement() *Result {
+	return &Result{Err: ErrInvalidQuery}
 }
 
 func (s *Server) executeDropRetentionPolicyStatement(q *influxql.DropRetentionPolicyStatement, user *User) *Result {
