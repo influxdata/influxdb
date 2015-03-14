@@ -86,12 +86,7 @@ func (p *Parser) Parse(line string) (influxdb.Point, error) {
 	}
 
 	fieldValues := make(map[string]interface{})
-	// Determine if value is a float or an int.
-	if i := int64(v); float64(i) == v {
-		fieldValues[name] = int64(v)
-	} else {
-		fieldValues[name] = v
-	}
+	fieldValues[name] = v
 
 	// Parse timestamp.
 	unixTime, err := strconv.ParseInt(fields[2], 10, 64)
