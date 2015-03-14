@@ -244,6 +244,18 @@ func TestParser_ParseStatement(t *testing.T) {
 			stmt: &influxql.ShowSeriesStatement{},
 		},
 
+		// SHOW SERIES with OFFSET 0
+		{
+			s:    `SHOW SERIES OFFSET 0`,
+			stmt: &influxql.ShowSeriesStatement{Offset: 0},
+		},
+
+		// SHOW SERIES with LIMIT 2 OFFSET 0
+		{
+			s:    `SHOW SERIES LIMIT 2 OFFSET 0`,
+			stmt: &influxql.ShowSeriesStatement{Offset: 0, Limit: 2},
+		},
+
 		// SHOW SERIES WHERE with ORDER BY and LIMIT
 		{
 			s: `SHOW SERIES WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
@@ -766,10 +778,8 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `SELECT field1 FROM myseries GROUP`, err: `found EOF, expected BY at line 1, char 35`},
 		{s: `SELECT field1 FROM myseries LIMIT`, err: `found EOF, expected number at line 1, char 35`},
 		{s: `SELECT field1 FROM myseries LIMIT 10.5`, err: `fractional parts not allowed in LIMIT at line 1, char 35`},
-		{s: `SELECT field1 FROM myseries LIMIT 0`, err: `LIMIT must be > 0 at line 1, char 35`},
 		{s: `SELECT field1 FROM myseries OFFSET`, err: `found EOF, expected number at line 1, char 36`},
 		{s: `SELECT field1 FROM myseries OFFSET 10.5`, err: `fractional parts not allowed in OFFSET at line 1, char 36`},
-		{s: `SELECT field1 FROM myseries OFFSET 0`, err: `OFFSET must be > 0 at line 1, char 36`},
 		{s: `SELECT field1 FROM myseries ORDER`, err: `found EOF, expected BY at line 1, char 35`},
 		{s: `SELECT field1 FROM myseries ORDER BY /`, err: `found /, expected identifier, ASC, or DESC at line 1, char 38`},
 		{s: `SELECT field1 FROM myseries ORDER BY 1`, err: `found 1, expected identifier, ASC, or DESC at line 1, char 38`},

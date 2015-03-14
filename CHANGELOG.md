@@ -1,6 +1,11 @@
 ## v0.9.0-rc12 [unreleased]
 
-## v0.9.0-rc11 [2015-03-12]
+### Bugfixes
+- [#1942](https://github.com/influxdb/influxdb/pull/1942): Sort wildcard names.
+- [#1957](https://github.com/influxdb/influxdb/pull/1957): Graphite numbers are always float64.
+- [#1955](https://github.com/influxdb/influxdb/pull/1955): Prohibit creation of databases with no name. Thanks @dullgiulio
+
+## v0.9.0-rc11 [2015-03-13]
 
 ### Bugfixes
 - [#1917](https://github.com/influxdb/influxdb/pull/1902): Creating Infinite Retention Policy Failed.
@@ -9,6 +14,7 @@
 - [#1930](https://github.com/influxdb/influxdb/pull/1930): Auto create database for graphite if not specified.
 - [#1908](https://github.com/influxdb/influxdb/pull/1908): Cosmetic CLI output fixes.
 - [#1931](https://github.com/influxdb/influxdb/pull/1931): Add default column to SHOW RETENTION POLICIES.
+- [#1937](https://github.com/influxdb/influxdb/pull/1937): OFFSET should be allowed to be 0.
 
 ### Features
 - [#1902](https://github.com/influxdb/influxdb/pull/1902): Enforce retention policies to have a minimum duration.

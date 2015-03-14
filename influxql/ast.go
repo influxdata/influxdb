@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -654,6 +655,8 @@ func (s *SelectStatement) RewriteWildcards(fields Fields, dimensions Dimensions)
 	for _, f := range s.Fields {
 		switch f.Expr.(type) {
 		case *Wildcard:
+			// Sort wildcard fields for consistent output
+			sort.Sort(fields)
 			rwFields = append(rwFields, fields...)
 		default:
 			rwFields = append(rwFields, f)
@@ -1572,6 +1575,11 @@ func (f *Field) String() string {
 	}
 	return fmt.Sprintf("%s AS %s", f.Expr.String(), f.Alias)
 }
+
+// Sort Interface for Fields
+func (f Fields) Len() int           { return len(f) }
+func (f Fields) Less(i, j int) bool { return f[i].Name() < f[j].Name() }
+func (f Fields) Swap(i, j int)      { f[i], f[j] = f[j], f[i] }
 
 // Dimensions represents a list of dimensions.
 type Dimensions []*Dimension

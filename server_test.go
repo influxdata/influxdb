@@ -308,6 +308,11 @@ func TestServer_CreateDatabase(t *testing.T) {
 	s := OpenServer(c)
 	defer s.Close()
 
+	// Attempt creating database without a name
+	if err := s.CreateDatabase(""); err != influxdb.ErrDatabaseNameRequired {
+		t.Fatal("expected error on empty database name")
+	}
+
 	// Create the "foo" database.
 	if err := s.CreateDatabase("foo"); err != nil {
 		t.Fatal(err)
@@ -342,6 +347,11 @@ func TestServer_DropDatabase(t *testing.T) {
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
+
+	// Attempt dropping a database without a name.
+	if err := s.DropDatabase(""); err != influxdb.ErrDatabaseNameRequired {
+		t.Fatal("expected error on empty database name")
+	}
 
 	// Create the "foo" database and verify it exists.
 	if err := s.CreateDatabase("foo"); err != nil {
@@ -1665,6 +1675,14 @@ func TestServer_ShowSeriesLimitOffset(t *testing.T) {
 	}
 
 	// Select data from the server.
+	results = s.ExecuteQuery(MustParseQuery(`SHOW SERIES LIMIT 4 OFFSET 0`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 2 {
+		t.Fatalf("unexpected row count: %d", len(res.Series))
+	}
+
+	// Select data from the server.
 	results = s.ExecuteQuery(MustParseQuery(`SHOW SERIES LIMIT 20`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error: %s", res.Err)
@@ -1794,7 +1812,8 @@ func TestServer_ExecuteWildcardQuery(t *testing.T) {
 	results := s.ExecuteQuery(MustParseQuery(`SELECT * FROM cpu`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error during SELECT *: %s", res.Err)
-	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["time","value","val-x"],"values":[["2000-01-01T00:00:00Z",10,null],["2000-01-01T00:00:10Z",null,20],["2000-01-01T00:00:20Z",30,40]]}]}` {
+	} else if s, e := mustMarshalJSON(res), `{"series":[{"name":"cpu","columns":["time","val-x","value"],"values":[["2000-01-01T00:00:00Z",null,10],["2000-01-01T00:00:10Z",20,null],["2000-01-01T00:00:20Z",40,30]]}]}`; s != e {
+		t.Logf("expected                            %s\n", e)
 		t.Fatalf("unexpected results during SELECT *: %s", s)
 	}
 }

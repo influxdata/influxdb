@@ -61,9 +61,7 @@ func Test_DecodeMetric(t *testing.T) {
 		line                string
 		name                string
 		tags                map[string]string
-		isInt               bool
-		iv                  int64
-		fv                  float64
+		value               float64
 		timestamp           time.Time
 		position, separator string
 		err                 string
@@ -73,8 +71,7 @@ func Test_DecodeMetric(t *testing.T) {
 			line:      `cpu.foo.bar 50 ` + strTime,
 			name:      "cpu",
 			tags:      map[string]string{"foo": "bar"},
-			isInt:     true,
-			iv:        50,
+			value:     50,
 			timestamp: testTime,
 		},
 		{
@@ -83,8 +80,7 @@ func Test_DecodeMetric(t *testing.T) {
 			line:      `cpu.foo.bar 50 ` + strTime,
 			name:      "cpu",
 			tags:      map[string]string{"foo": "bar"},
-			isInt:     true,
-			iv:        50,
+			value:     50,
 			timestamp: testTime,
 		},
 		{
@@ -93,8 +89,7 @@ func Test_DecodeMetric(t *testing.T) {
 			line:      `foo.bar.cpu 50 ` + strTime,
 			name:      "cpu",
 			tags:      map[string]string{"foo": "bar"},
-			isInt:     true,
-			iv:        50,
+			value:     50,
 			timestamp: testTime,
 		},
 		{
@@ -103,8 +98,7 @@ func Test_DecodeMetric(t *testing.T) {
 			line:      `cpu 50 ` + strTime,
 			name:      "cpu",
 			tags:      map[string]string{},
-			isInt:     true,
-			iv:        50,
+			value:     50,
 			timestamp: testTime,
 		},
 		{
@@ -113,8 +107,7 @@ func Test_DecodeMetric(t *testing.T) {
 			line:      `cpu 50 ` + strTime,
 			name:      "cpu",
 			tags:      map[string]string{},
-			isInt:     true,
-			iv:        50,
+			value:     50,
 			timestamp: testTime,
 		},
 		{
@@ -122,8 +115,7 @@ func Test_DecodeMetric(t *testing.T) {
 			line:      `cpu.foo.bar 50 ` + strTime,
 			name:      "cpu",
 			tags:      map[string]string{"foo": "bar"},
-			isInt:     true,
-			iv:        50,
+			value:     50,
 			timestamp: testTime,
 		},
 		{
@@ -132,8 +124,7 @@ func Test_DecodeMetric(t *testing.T) {
 			line:      `cpu.foo.bar 50 ` + strTime,
 			name:      "cpu",
 			tags:      map[string]string{"foo": "bar"},
-			isInt:     true,
-			iv:        50,
+			value:     50,
 			timestamp: testTime,
 		},
 		{
@@ -142,8 +133,7 @@ func Test_DecodeMetric(t *testing.T) {
 			line:      `cpu-foo-bar 50 ` + strTime,
 			name:      "cpu",
 			tags:      map[string]string{"foo": "bar"},
-			isInt:     true,
-			iv:        50,
+			value:     50,
 			timestamp: testTime,
 		},
 		{
@@ -152,8 +142,7 @@ func Test_DecodeMetric(t *testing.T) {
 			line:      `cpuboofooboobar 50 ` + strTime,
 			name:      "cpu",
 			tags:      map[string]string{"foo": "bar"},
-			isInt:     true,
-			iv:        50,
+			value:     50,
 			timestamp: testTime,
 		},
 
@@ -162,16 +151,14 @@ func Test_DecodeMetric(t *testing.T) {
 			line:      `cpu.foo.bar 50 ` + strTime,
 			name:      "cpu",
 			tags:      map[string]string{"foo": "bar"},
-			isInt:     true,
-			iv:        50,
+			value:     50,
 			timestamp: testTime,
 		},
 		{
 			test:      "metric only with float value",
 			line:      `cpu 50.554 ` + strTime,
 			name:      "cpu",
-			isInt:     false,
-			fv:        50.554,
+			value:     50.554,
 			timestamp: testTime,
 		},
 		{
@@ -224,16 +211,9 @@ func Test_DecodeMetric(t *testing.T) {
 		if len(point.Tags) != len(test.tags) {
 			t.Fatalf("tags len mismatch.  expected %d, got %d", len(test.tags), len(point.Tags))
 		}
-		if test.isInt {
-			i := point.Fields[point.Name].(int64)
-			if i != test.iv {
-				t.Fatalf("integerValue value mismatch.  expected %v, got %v", test.iv, point.Fields[point.Name])
-			}
-		} else {
-			f := point.Fields[point.Name].(float64)
-			if point.Fields[point.Name] != f {
-				t.Fatalf("floatValue value mismatch.  expected %v, got %v", test.fv, f)
-			}
+		f := point.Fields[point.Name].(float64)
+		if point.Fields[point.Name] != f {
+			t.Fatalf("floatValue value mismatch.  expected %v, got %v", test.value, f)
 		}
 		if point.Timestamp.UnixNano()/1000000 != test.timestamp.UnixNano()/1000000 {
 			t.Fatalf("timestamp value mismatch.  expected %v, got %v", test.timestamp.UnixNano(), point.Timestamp.UnixNano())
