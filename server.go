@@ -329,8 +329,9 @@ func (s *Server) StartSelfMonitoring(database, retention string, interval time.D
 	}
 
 	go func() {
+		tick := time.NewTicker(interval)
 		for {
-			time.Sleep(interval)
+			<-tick.C
 
 			// Create the data point and write it.
 			point := Point{
