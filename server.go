@@ -747,6 +747,9 @@ func (s *Server) Databases() (a []string) {
 
 // CreateDatabase creates a new database.
 func (s *Server) CreateDatabase(name string) error {
+	if name == "" {
+		return ErrDatabaseNameRequired
+	}
 	c := &createDatabaseCommand{Name: name}
 	_, err := s.broadcast(createDatabaseMessageType, c)
 	return err
