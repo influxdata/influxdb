@@ -76,7 +76,7 @@ func (s *Shard) open(path string, conn MessagingConn) error {
 	}
 
 	// Open store on shard.
-	store, err := bolt.Open(path, 0600, &bolt.Options{Timeout: 1 * time.Second})
+	store, err := bolt.Open(path, 0666, &bolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
 		return err
 	}

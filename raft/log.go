@@ -407,7 +407,7 @@ func (l *Log) readID() (uint64, error) {
 // writeID writes the log identifier to file.
 func (l *Log) writeID(id uint64) error {
 	b := []byte(strconv.FormatUint(id, 10))
-	return ioutil.WriteFile(l.idPath(), b, 0600)
+	return ioutil.WriteFile(l.idPath(), b, 0666)
 }
 
 // readTerm reads the log term from file.
@@ -432,7 +432,7 @@ func (l *Log) readTerm() (uint64, error) {
 // writeTerm writes the current log term to file.
 func (l *Log) writeTerm(term uint64) error {
 	b := []byte(strconv.FormatUint(term, 10))
-	return ioutil.WriteFile(l.termPath(), b, 0600)
+	return ioutil.WriteFile(l.termPath(), b, 0666)
 }
 
 // readConfig reads the configuration from disk.

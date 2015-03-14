@@ -16,7 +16,7 @@ type metastore struct {
 // open initializes the metastore.
 func (m *metastore) open(path string) error {
 	// Open the bolt-backed database.
-	db, err := bolt.Open(path, 0600, &bolt.Options{Timeout: 1 * time.Second})
+	db, err := bolt.Open(path, 0666, &bolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
 		return err
 	}

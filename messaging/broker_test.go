@@ -751,10 +751,10 @@ func tempfile() string {
 
 // MustWriteFile writes data to a file. Panic on error.
 func MustWriteFile(filename string, data []byte) {
-	if err := os.MkdirAll(filepath.Dir(filename), 0700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(filename), 0777); err != nil {
 		panic(err.Error())
 	}
-	if err := ioutil.WriteFile(filename, data, 0600); err != nil {
+	if err := ioutil.WriteFile(filename, data, 0666); err != nil {
 		panic(err.Error())
 	}
 }

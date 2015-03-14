@@ -135,13 +135,13 @@ func (b *Broker) Open(path string) error {
 	b.path = path
 
 	// Ensure root directory exists.
-	if err := os.MkdirAll(path, 0700); err != nil {
+	if err := os.MkdirAll(path, 0777); err != nil {
 		b.close()
 		return fmt.Errorf("mkdir: %s", err)
 	}
 
 	// Open meta file.
-	meta, err := bolt.Open(b.metaPath(), 0600, &bolt.Options{Timeout: 1 * time.Second})
+	meta, err := bolt.Open(b.metaPath(), 0666, &bolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
 		b.close()
 		return fmt.Errorf("open meta: %s", err)
@@ -359,7 +359,7 @@ func (b *Broker) Restore(r io.Reader) error {
 	// Remove and recreate broker path.
 	if err := b.reset(); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("reset: %s", err)
-	} else if err = os.MkdirAll(b.path, 0700); err != nil {
+	} else if err = os.MkdirAll(b.path, 0777); err != nil {
 		return fmt.Errorf("mkdir: %s", err)
 	}
 
@@ -387,7 +387,7 @@ func (b *Broker) Restore(r io.Reader) error {
 		t := NewTopic(st.ID, b.topicPath(st.ID))
 
 		// Create topic directory.
-		if err := os.MkdirAll(t.Path(), 0700); err != nil {
+		if err := os.MkdirAll(t.Path(), 0777); err != nil {
 			return fmt.Errorf("make topic dir: %s", err)
 		}
 
@@ -677,7 +677,7 @@ func (t *Topic) Open() error {
 	t.opened = true
 
 	// Ensure the parent directory exists.
-	if err := os.MkdirAll(t.path, 0700); err != nil {
+	if err := os.MkdirAll(t.path, 0777); err != nil {
 		t.close()
 		return err
 	}
@@ -702,7 +702,7 @@ func (t *Topic) Open() error {
 		t.index = index
 
 		// Open file handle on the segment.
-		f, err := os.OpenFile(s.Path, os.O_RDWR|os.O_APPEND, 0600)
+		f, err := os.OpenFile(s.Path, os.O_RDWR|os.O_APPEND, 0666)
 		if err != nil {
 			t.close()
 			return fmt.Errorf("open segment: %s", err)
@@ -776,7 +776,7 @@ func (t *Topic) WriteMessage(m *Message) error {
 
 	// Create a new segment if we have no handle.
 	if t.file == nil {
-		f, err := os.OpenFile(t.segmentPath(m.Index), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+		f, err := os.OpenFile(t.segmentPath(m.Index), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
 		if err != nil {
 			return fmt.Errorf("create segment file: %s", err)
 		}
