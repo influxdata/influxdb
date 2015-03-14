@@ -2,6 +2,7 @@
 
 ### Bugfixes
 - [#1942](https://github.com/influxdb/influxdb/pull/1942): Sort wildcard names.
+- [#1957](https://github.com/influxdb/influxdb/pull/1957): Graphite numbers are always float64.
 
 ## v0.9.0-rc11 [2015-03-13]
 
