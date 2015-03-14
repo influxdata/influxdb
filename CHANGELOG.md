@@ -3,6 +3,7 @@
 ### Bugfixes
 - [#1942](https://github.com/influxdb/influxdb/pull/1942): Sort wildcard names.
 - [#1957](https://github.com/influxdb/influxdb/pull/1957): Graphite numbers are always float64.
+- [#1955](https://github.com/influxdb/influxdb/pull/1955): Prohibit creation of databases with no name. Thanks @dullgiulio
 
 ## v0.9.0-rc11 [2015-03-13]
 
