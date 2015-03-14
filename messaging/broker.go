@@ -36,7 +36,9 @@ type Broker struct {
 	// Log is the distributed raft log that commands are applied to.
 	Log interface {
 		URL() url.URL
+		URLs() []url.URL
 		Leader() (uint64, url.URL)
+		IsLeader() bool
 		ClusterID() uint64
 		Apply(data []byte) (index uint64, err error)
 	}
@@ -67,6 +69,12 @@ func (b *Broker) metaPath() string {
 
 // URL returns the URL of the broker.
 func (b *Broker) URL() url.URL { return b.Log.URL() }
+
+// URLs returns a list of all broker URLs in the cluster.
+func (b *Broker) URLs() []url.URL { return b.Log.URLs() }
+
+// IsLeader returns true if the broker is the current cluster leader.
+func (b *Broker) IsLeader() bool { return b.Log.IsLeader() }
 
 // LeaderURL returns the URL to the leader broker.
 func (b *Broker) LeaderURL() url.URL {

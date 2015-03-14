@@ -172,6 +172,23 @@ func (l *Log) SetURL(u url.URL) {
 	l.url = u
 }
 
+// URLs returns a list of all URLs in the cluster.
+func (l *Log) URLs() []url.URL {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if l.config == nil {
+		return nil
+	}
+
+	var a []url.URL
+	for _, n := range l.config.Nodes {
+		a = append(a, n.URL)
+	}
+
+	return a
+}
+
 func (l *Log) idPath() string     { return filepath.Join(l.path, "id") }
 func (l *Log) termPath() string   { return filepath.Join(l.path, "term") }
 func (l *Log) configPath() string { return filepath.Join(l.path, "config") }
@@ -549,23 +566,19 @@ func (l *Log) tracef(msg string, v ...interface{}) {
 	}
 }
 
+// IsLeader returns true if the log is the current leader.
+func (l *Log) IsLeader() bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.id != 0 && l.id == l.leaderID
+}
+
 // Leader returns the id and URL associated with the current leader.
 // Returns zero if there is no current leader.
 func (l *Log) Leader() (id uint64, u url.URL) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.leader()
-}
-
-// ClusterID returns the identifier for the cluster.
-// Returns zero if the cluster has not been initialized yet.
-func (l *Log) ClusterID() uint64 {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if l.config == nil {
-		return 0
-	}
-	return l.config.ClusterID
 }
 
 func (l *Log) leader() (id uint64, u url.URL) {
@@ -581,6 +594,17 @@ func (l *Log) leader() (id uint64, u url.URL) {
 	}
 
 	return n.ID, n.URL
+}
+
+// ClusterID returns the identifier for the cluster.
+// Returns zero if the cluster has not been initialized yet.
+func (l *Log) ClusterID() uint64 {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.config == nil {
+		return 0
+	}
+	return l.config.ClusterID
 }
 
 // Join contacts a node in the cluster to request membership.

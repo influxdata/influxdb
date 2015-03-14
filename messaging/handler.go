@@ -1,6 +1,7 @@
 package messaging
 
 import (
+	"encoding/json"
 	"io"
 	"io/ioutil"
 	"log"
@@ -15,6 +16,8 @@ import (
 // Handler represents an HTTP handler by the broker.
 type Handler struct {
 	Broker interface {
+		URLs() []url.URL
+		IsLeader() bool
 		LeaderURL() url.URL
 		TopicReader(topicID, index uint64, streaming bool) io.ReadCloser
 		Publish(m *Message) (uint64, error)
@@ -169,6 +172,20 @@ func (h *Handler) postHeartbeat(w http.ResponseWriter, r *http.Request) {
 
 // servePing returns a status 200.
 func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
+	// Redirect if not leader.
+	if !h.Broker.IsLeader() {
+		h.redirectToLeader(w, r)
+		return
+	}
+
+	// Write out client configuration.
+	var config ClientConfig
+	config.URLs = h.Broker.URLs()
+	if err := json.NewEncoder(w).Encode(&config); err != nil {
+		log.Printf("unable to write client config: %s", err)
+		return
+	}
+
 	w.WriteHeader(http.StatusOK)
 }
 

@@ -46,9 +46,6 @@ var (
 	// ErrConnCannotReuse is returned when opening a previously closed connection.
 	ErrConnCannotReuse = errors.New("cannot reuse connection")
 
-	// ErrBrokerURLRequired is returned when opening a broker without URLs.
-	ErrBrokerURLRequired = errors.New("broker url required")
-
 	// ErrMessageTypeRequired is returned publishing a message without a type.
 	ErrMessageTypeRequired = errors.New("message type required")
 

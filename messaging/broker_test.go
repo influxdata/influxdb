@@ -707,14 +707,18 @@ func (b *Broker) MustReadAllTopic(topicID uint64) (a []*messaging.Message) {
 type BrokerLog struct {
 	ApplyFunc     func(data []byte) (uint64, error)
 	ClusterIDFunc func() uint64
+	IsLeaderFunc  func() bool
 	LeaderFunc    func() (uint64, url.URL)
 	URLFunc       func() url.URL
+	URLsFunc      func() []url.URL
 }
 
 func (l *BrokerLog) Apply(data []byte) (uint64, error) { return l.ApplyFunc(data) }
 func (l *BrokerLog) ClusterID() uint64                 { return l.ClusterIDFunc() }
+func (l *BrokerLog) IsLeader() bool                    { return l.IsLeaderFunc() }
 func (l *BrokerLog) Leader() (uint64, url.URL)         { return l.LeaderFunc() }
 func (l *BrokerLog) URL() url.URL                      { return l.URLFunc() }
+func (l *BrokerLog) URLs() []url.URL                   { return l.URLsFunc() }
 
 // Messages represents a collection of messages.
 // This type provides helper functions.

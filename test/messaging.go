@@ -32,7 +32,7 @@ func NewMessagingClient() *MessagingClient {
 	return c
 }
 
-func (c *MessagingClient) Open(path string, urls []url.URL) error { return nil }
+func (c *MessagingClient) Open(path string) error { return nil }
 
 // Close closes all open connections.
 func (c *MessagingClient) Close() error {
@@ -45,6 +45,9 @@ func (c *MessagingClient) Close() error {
 
 	return nil
 }
+
+func (c *MessagingClient) URLs() []url.URL   { return []url.URL{{Host: "local"}} }
+func (c *MessagingClient) SetURLs([]url.URL) {}
 
 func (c *MessagingClient) Publish(m *messaging.Message) (uint64, error) { return c.PublishFunc(m) }
 

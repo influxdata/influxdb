@@ -2964,8 +2964,12 @@ func (r *Results) Error() error {
 
 // MessagingClient represents the client used to connect to brokers.
 type MessagingClient interface {
-	Open(path string, urls []url.URL) error
+	Open(path string) error
 	Close() error
+
+	// Retrieves or sets the current list of broker URLs.
+	URLs() []url.URL
+	SetURLs([]url.URL)
 
 	// Publishes a message to the broker.
 	Publish(m *messaging.Message) (index uint64, err error)

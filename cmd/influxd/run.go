@@ -300,8 +300,18 @@ func openServer(config *Config, b *influxdb.Broker, initServer, initBroker, conf
 	// Create messaging client to the brokers.
 	c := influxdb.NewMessagingClient()
 	c.SetLogOutput(w)
-	if err := c.Open(filepath.Join(config.Data.Dir, messagingClientFile), clientJoinURLs); err != nil {
+	if err := c.Open(filepath.Join(config.Data.Dir, messagingClientFile)); err != nil {
 		log.Fatalf("messaging client error: %s", err)
+	}
+
+	// If join URLs were passed in then use them to override the client's URLs.
+	if len(clientJoinURLs) > 0 {
+		c.SetURLs(clientJoinURLs)
+	}
+
+	// If no URLs exist on the client the return an error since we cannot reach a broker.
+	if len(c.URLs()) == 0 {
+		log.Fatal("messaging client has no broker URLs")
 	}
 
 	// Create and open the server.

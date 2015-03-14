@@ -3,6 +3,7 @@ package messaging_test
 import (
 	"bytes"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -195,19 +196,48 @@ func TestHandler_postHeartbeat_ErrMethodNotAllowed(t *testing.T) {
 	resp.Body.Close()
 }
 
-// Ensure a handler can respond to a ping.
+// Ensure a handler can respond to a ping with the current cluster configuration.
 func TestHandler_servePing(t *testing.T) {
-	s := httptest.NewServer(&messaging.Handler{})
+	var hb HandlerBroker
+	hb.IsLeaderFunc = func() bool { return true }
+	hb.URLsFunc = func() []url.URL { return []url.URL{{Host: "hostA"}, {Host: "hostB"}} }
+	s := httptest.NewServer(&messaging.Handler{Broker: &hb})
 	defer s.Close()
 
 	// Send request to the broker.
 	resp, err := http.Post(s.URL+`/messaging/ping`, "application/octet-stream", nil)
 	if err != nil {
 		t.Fatal(err)
-	} else if resp.StatusCode != http.StatusOK {
-		t.Fatalf("unexpected status: %d: %s", resp.StatusCode, resp.Header.Get("X-Broker-Error"))
 	}
-	resp.Body.Close()
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected status: %d: %s", resp.StatusCode, resp.Header.Get("X-Broker-Error"))
+	} else if b, _ := ioutil.ReadAll(resp.Body); string(b) != `{"urls":["//hostA","//hostB"]}`+"\n" {
+		t.Fatalf("unexpected body: %s", b)
+	}
+}
+
+// Ensure a handler can respond to a ping with the current cluster configuration.
+func TestHandler_servePing_NotLeader(t *testing.T) {
+	var hb HandlerBroker
+	hb.IsLeaderFunc = func() bool { return false }
+	hb.LeaderURLFunc = func() url.URL { return url.URL{Scheme: "http", Host: "other"} }
+	s := httptest.NewServer(&messaging.Handler{Broker: &hb})
+	defer s.Close()
+
+	// Send request to the broker.
+	resp, err := http.Post(s.URL+`/messaging/ping`, "application/octet-stream", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusTemporaryRedirect {
+		t.Fatalf("unexpected status: %d: %s", resp.StatusCode, resp.Header.Get("X-Broker-Error"))
+	} else if loc := resp.Header.Get("Location"); loc != "http://other/messaging/ping" {
+		t.Fatalf("unexpected redirect location: %s", loc)
+	}
 }
 
 // Ensure the handler routes raft requests to the raft handler.
@@ -239,12 +269,16 @@ func TestHandler_ErrNotFound(t *testing.T) {
 
 // HandlerBroker is a mockable type that implements Handler.Broker.
 type HandlerBroker struct {
+	URLsFunc             func() []url.URL
+	IsLeaderFunc         func() bool
 	LeaderURLFunc        func() url.URL
 	PublishFunc          func(m *messaging.Message) (uint64, error)
 	TopicReaderFunc      func(topicID, index uint64, streaming bool) io.ReadCloser
 	SetTopicMaxIndexFunc func(topicID, index uint64) error
 }
 
+func (b *HandlerBroker) URLs() []url.URL                              { return b.URLsFunc() }
+func (b *HandlerBroker) IsLeader() bool                               { return b.IsLeaderFunc() }
 func (b *HandlerBroker) LeaderURL() url.URL                           { return b.LeaderURLFunc() }
 func (b *HandlerBroker) Publish(m *messaging.Message) (uint64, error) { return b.PublishFunc(m) }
 func (b *HandlerBroker) TopicReader(topicID, index uint64, streaming bool) io.ReadCloser {
