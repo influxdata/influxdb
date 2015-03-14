@@ -2802,7 +2802,7 @@ func (s *Server) processor(conn MessagingConn, done chan struct{}) {
 			}
 		}
 
-		// All other messages must be processed under lock.
+		// All messages must be processed under lock.
 		func() {
 			s.mu.Lock()
 			defer s.mu.Unlock()

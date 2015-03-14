@@ -176,7 +176,7 @@ func (b *Broker) Open(path string) error {
 	return nil
 }
 
-// loadTopics reads all topic metadata into memory.
+// openTopics reads all topic metadata into memory.
 func (b *Broker) openTopics() error {
 	// Read all topics from the broker directory.
 	topics, err := ReadTopics(b.path)
@@ -237,8 +237,8 @@ func (b *Broker) closeTopics() {
 	b.topics = make(map[uint64]*Topic)
 }
 
-// SetMaxIndex sets the highest index seen by the broker.
-// This is only used for internal log messages and topics may have a higher index.
+// SetMaxIndex sets the highest index applied by the broker.
+// This is only used for internal log messages. Topics may have a higher index.
 func (b *Broker) SetMaxIndex(index uint64) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -308,7 +308,7 @@ func (b *Broker) createSnapshotHeader() (*snapshotHeader, error) {
 		// Create snapshot topic.
 		st := &snapshotTopic{ID: t.id}
 
-		// Read segments from disk, not topic.
+		// Read segments from disk.
 		segments, err := ReadSegments(t.path)
 		if err != nil && !os.IsNotExist(err) {
 			return nil, fmt.Errorf("read segments: %s", err)
@@ -418,7 +418,7 @@ func (b *Broker) Restore(r io.Reader) error {
 			}
 		}
 
-		// Open new empty topic file.
+		// Open topic.
 		if err := t.Open(); err != nil {
 			return fmt.Errorf("open topic: %s", err)
 		}

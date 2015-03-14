@@ -105,7 +105,7 @@ func (h *Handler) getMessages(w http.ResponseWriter, req *http.Request) {
 // postMessages publishes a message to the broker.
 func (h *Handler) postMessages(w http.ResponseWriter, r *http.Request) {
 	// Read the message type.
-	typ, err := strconv.ParseUint(r.URL.Query().Get("type"), 10, 16)
+	typ, err := strconv.ParseUint(r.URL.Query().Get("type"), 10, 64)
 	if err != nil {
 		h.error(w, ErrMessageTypeRequired, http.StatusBadRequest)
 		return
@@ -147,14 +147,14 @@ func (h *Handler) postMessages(w http.ResponseWriter, r *http.Request) {
 // replicated index for a given topic.
 func (h *Handler) postHeartbeat(w http.ResponseWriter, r *http.Request) {
 	// Read the topic id.
-	topicID, err := strconv.ParseUint(r.URL.Query().Get("topicID"), 10, 16)
+	topicID, err := strconv.ParseUint(r.URL.Query().Get("topicID"), 10, 64)
 	if err != nil {
 		h.error(w, ErrTopicRequired, http.StatusBadRequest)
 		return
 	}
 
 	// Read the index.
-	index, err := strconv.ParseUint(r.URL.Query().Get("index"), 10, 16)
+	index, err := strconv.ParseUint(r.URL.Query().Get("index"), 10, 64)
 	if err != nil {
 		h.error(w, ErrIndexRequired, http.StatusBadRequest)
 		return
