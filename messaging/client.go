@@ -132,15 +132,21 @@ func (c *Client) Open(path string) error {
 		return ErrClientOpen
 	}
 
-	// Read URLs from file if no URLs are provided.
-	c.path = path
-	if err := c.loadConfig(); err != nil {
-		_ = c.close()
-		return fmt.Errorf("load config: %s", err)
-	}
+	if err := func() error {
+		// Read URLs from file if no URLs are provided.
+		c.path = path
+		if err := c.loadConfig(); err != nil {
+			return fmt.Errorf("load config: %s", err)
+		}
 
-	// Set open flag.
-	c.opened = true
+		// Set open flag.
+		c.opened = true
+
+		return nil
+	}(); err != nil {
+		_ = c.close()
+		return err
+	}
 
 	// Start background ping.
 	c.closing = make(chan struct{}, 0)
