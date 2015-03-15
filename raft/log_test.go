@@ -19,7 +19,7 @@ import (
 
 // Ensure that opening an already open log returns an error.
 func TestLog_Open_ErrOpen(t *testing.T) {
-	l := NewInitializedLog(&url.URL{Host: "log0"})
+	l := NewInitializedLog(url.URL{Host: "log0"})
 	defer l.Close()
 	if err := l.Open(tempfile()); err != raft.ErrOpen {
 		t.Fatal("expected error")
@@ -28,7 +28,7 @@ func TestLog_Open_ErrOpen(t *testing.T) {
 
 // Ensure that a log can be checked for being open.
 func TestLog_Opened(t *testing.T) {
-	l := NewInitializedLog(&url.URL{Host: "log0"})
+	l := NewInitializedLog(url.URL{Host: "log0"})
 	if l.Opened() != true {
 		t.Fatalf("expected open")
 	}
@@ -40,7 +40,7 @@ func TestLog_Opened(t *testing.T) {
 
 // Ensure that reopening an existing log will restore its ID.
 func TestLog_Reopen(t *testing.T) {
-	l := NewInitializedLog(&url.URL{Host: "log0"})
+	l := NewInitializedLog(url.URL{Host: "log0"})
 	if l.ID() != 1 {
 		t.Fatalf("expected id == 1")
 	}
@@ -64,7 +64,7 @@ func TestLog_Reopen(t *testing.T) {
 
 // Ensure that a single node-cluster can apply a log entry.
 func TestLog_Apply(t *testing.T) {
-	l := NewInitializedLog(&url.URL{Host: "log0"})
+	l := NewInitializedLog(url.URL{Host: "log0"})
 	defer l.Close()
 
 	// Apply a command.
@@ -87,7 +87,7 @@ func TestLog_Apply(t *testing.T) {
 
 // Ensure that a node has no configuration after it's closed.
 func TestLog_Config_Closed(t *testing.T) {
-	l := NewInitializedLog(&url.URL{Host: "log0"})
+	l := NewInitializedLog(url.URL{Host: "log0"})
 	defer l.Close()
 	l.Log.Close()
 	if l.Config() != nil {
@@ -353,12 +353,13 @@ func NewCluster(fsmFn func() raft.FSM) *Cluster {
 
 	logN := 3
 	for i := 0; i < logN; i++ {
-		l := NewLog(&url.URL{Host: fmt.Sprintf("log%d", i)})
+		l := NewLog(url.URL{Host: fmt.Sprintf("log%d", i)})
 		l.Log.FSM = fsmFn()
 		l.Transport = t
 		c.Logs = append(c.Logs, l)
 		t.register(l.Log)
-		warnf("Log %s: %p", l.URL.String(), l.Log)
+		u := l.URL()
+		warnf("Log %s: %p", u.String(), l.Log)
 	}
 	warn("")
 
@@ -372,7 +373,7 @@ func NewCluster(fsmFn func() raft.FSM) *Cluster {
 		c.Logs[0].MustWaitUncommitted(2)
 		c.Logs[0].Clock.apply()
 	}()
-	if err := c.Logs[1].Join(c.Logs[0].URL); err != nil {
+	if err := c.Logs[1].Join(c.Logs[0].URL()); err != nil {
 		panic("join: " + err.Error())
 	}
 	c.Logs[0].Clock.heartbeat()
@@ -390,7 +391,7 @@ func NewCluster(fsmFn func() raft.FSM) *Cluster {
 		c.Logs[1].Clock.apply()
 		c.Logs[2].Clock.apply()
 	}()
-	if err := c.Logs[2].Log.Join(c.Logs[0].Log.URL); err != nil {
+	if err := c.Logs[2].Log.Join(c.Logs[0].Log.URL()); err != nil {
 		panic("join: " + err.Error())
 	}
 
@@ -409,14 +410,15 @@ func NewRealTimeCluster(logN int, fsmFn func() raft.FSM) *Cluster {
 	t := NewTransport()
 
 	for i := 0; i < logN; i++ {
-		l := NewLog(&url.URL{Host: fmt.Sprintf("log%d", i)})
+		l := NewLog(url.URL{Host: fmt.Sprintf("log%d", i)})
 		l.Log.FSM = fsmFn()
 		l.Clock = nil
 		l.Log.Clock = raft.NewClock()
 		l.Transport = t
 		c.Logs = append(c.Logs, l)
 		t.register(l.Log)
-		warnf("Log %s: %p", l.URL.String(), l.Log)
+		u := l.URL()
+		warnf("Log %s: %p", u.String(), l.Log)
 	}
 	warn("")
 
@@ -427,7 +429,7 @@ func NewRealTimeCluster(logN int, fsmFn func() raft.FSM) *Cluster {
 	// Join remaining nodes.
 	for i := 1; i < logN; i++ {
 		c.Logs[i].MustOpen()
-		c.Logs[i].MustJoin(c.Logs[0].URL)
+		c.Logs[i].MustJoin(c.Logs[0].URL())
 	}
 
 	// Ensure nodes are ready.
@@ -494,9 +496,9 @@ type Log struct {
 }
 
 // NewLog returns a new instance of Log.
-func NewLog(u *url.URL) *Log {
+func NewLog(u url.URL) *Log {
 	l := &Log{Log: raft.NewLog(), Clock: NewClock()}
-	l.URL = u
+	l.SetURL(u)
 	l.Log.Clock = l.Clock
 	l.Rand = seq()
 	l.DebugEnabled = true
@@ -507,7 +509,7 @@ func NewLog(u *url.URL) *Log {
 }
 
 // NewInitializedLog returns a new initialized Node.
-func NewInitializedLog(u *url.URL) *Log {
+func NewInitializedLog(u url.URL) *Log {
 	l := NewLog(u)
 	l.Log.FSM = &FSM{}
 	l.MustOpen()
@@ -536,7 +538,7 @@ func (l *Log) MustInitialize() {
 }
 
 // MustJoin joins the log to another log. Panic on error.
-func (l *Log) MustJoin(u *url.URL) {
+func (l *Log) MustJoin(u url.URL) {
 	if err := l.Join(u); err != nil {
 		panic("join: " + err.Error())
 	}
@@ -552,21 +554,24 @@ func (l *Log) Close() error {
 // MustWaits waits for at least a given applied index. Panic on error.
 func (l *Log) MustWait(index uint64) {
 	if err := l.Log.Wait(index); err != nil {
-		panic(l.URL.String() + " wait: " + err.Error())
+		u := l.URL()
+		panic(u.String() + " wait: " + err.Error())
 	}
 }
 
 // MustCommitted waits for at least a given committed index. Panic on error.
 func (l *Log) MustWaitCommitted(index uint64) {
 	if err := l.Log.WaitCommitted(index); err != nil {
-		panic(l.URL.String() + " wait committed: " + err.Error())
+		u := l.URL()
+		panic(u.String() + " wait committed: " + err.Error())
 	}
 }
 
 // MustWaitUncommitted waits for at least a given uncommitted index. Panic on error.
 func (l *Log) MustWaitUncommitted(index uint64) {
 	if err := l.Log.WaitUncommitted(index); err != nil {
-		panic(l.URL.String() + " wait uncommitted: " + err.Error())
+		u := l.URL()
+		panic(u.String() + " wait uncommitted: " + err.Error())
 	}
 }
 

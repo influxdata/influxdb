@@ -1,7 +1,6 @@
 package messaging
 
 import (
-	"bufio"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -13,23 +12,36 @@ import (
 	"sort"
 	"strconv"
 	"sync"
+	"time"
 
+	"github.com/boltdb/bolt"
 	"github.com/influxdb/influxdb/raft"
 )
 
-// BroadcastTopicID is the topic used to communicate with all replicas.
-const BroadcastTopicID = uint64(0)
+// DefaultPollInterval is the default amount of time a topic reader will wait
+// between checks for new segments or new data on an existing segment. This
+// only occurs when the reader is at the end of all the data.
+const DefaultPollInterval = 100 * time.Millisecond
 
 // Broker represents distributed messaging system segmented into topics.
 // Each topic represents a linear series of events.
 type Broker struct {
 	mu    sync.RWMutex
-	path  string    // data directory
-	index uint64    // highest applied index
-	log   *raft.Log // internal raft log
+	path  string // data directory
+	index uint64 // highest applied index
 
-	replicas map[uint64]*Replica // replica by id
-	topics   map[uint64]*topic   // topics by id
+	meta   *bolt.DB          // metadata
+	topics map[uint64]*Topic // topics by id
+
+	// Log is the distributed raft log that commands are applied to.
+	Log interface {
+		URL() url.URL
+		URLs() []url.URL
+		Leader() (uint64, url.URL)
+		IsLeader() bool
+		ClusterID() uint64
+		Apply(data []byte) (index uint64, err error)
+	}
 
 	Logger *log.Logger
 }
@@ -37,12 +49,9 @@ type Broker struct {
 // NewBroker returns a new instance of a Broker with default values.
 func NewBroker() *Broker {
 	b := &Broker{
-		log:      raft.NewLog(),
-		replicas: make(map[uint64]*Replica),
-		topics:   make(map[uint64]*topic),
-		Logger:   log.New(os.Stderr, "[broker] ", log.LstdFlags),
+		topics: make(map[uint64]*Topic),
 	}
-	b.log.FSM = (*brokerFSM)(b)
+	b.SetLogOutput(os.Stderr)
 	return b
 }
 
@@ -50,8 +59,7 @@ func NewBroker() *Broker {
 // Returns empty string if the broker is not open.
 func (b *Broker) Path() string { return b.path }
 
-func (b *Broker) Log() *raft.Log { return b.log }
-
+// metaPath returns the file path to the broker's metadata file.
 func (b *Broker) metaPath() string {
 	if b.path == "" {
 		return ""
@@ -59,30 +67,64 @@ func (b *Broker) metaPath() string {
 	return filepath.Join(b.path, "meta")
 }
 
-// Index returns the highest index seen by the broker across all topics.
-// Returns 0 if the broker is closed.
-func (b *Broker) Index() uint64 {
-	b.mu.Lock()
-	b.mu.Unlock()
-	return b.index
+// URL returns the URL of the broker.
+func (b *Broker) URL() url.URL { return b.Log.URL() }
+
+// URLs returns a list of all broker URLs in the cluster.
+func (b *Broker) URLs() []url.URL { return b.Log.URLs() }
+
+// IsLeader returns true if the broker is the current cluster leader.
+func (b *Broker) IsLeader() bool { return b.Log.IsLeader() }
+
+// LeaderURL returns the URL to the leader broker.
+func (b *Broker) LeaderURL() url.URL {
+	_, u := b.Log.Leader()
+	return u
 }
 
+// ClusterID returns the identifier for the cluster.
+func (b *Broker) ClusterID() uint64 { return b.Log.ClusterID() }
+
+// TopicPath returns the file path to a topic's data.
+// Returns a blank string if the broker is closed.
+func (b *Broker) TopicPath(id uint64) string {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.topicPath(id)
+}
+
+func (b *Broker) topicPath(id uint64) string {
+	if b.path == "" {
+		return ""
+	}
+	return filepath.Join(b.path, strconv.FormatUint(id, 10))
+}
+
+// Topic returns a topic on a broker by id.
+// Returns nil if the topic doesn't exist or the broker is closed.
+func (b *Broker) Topic(id uint64) *Topic {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.topics[id]
+}
+
+// Index returns the highest index seen by the broker across all topics.
+// Returns 0 if the broker is closed.
+func (b *Broker) Index() (uint64, error) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.index, nil
+}
+
+// opened returns true if the broker is in an open and running state.
 func (b *Broker) opened() bool { return b.path != "" }
 
 // SetLogOutput sets writer for all Broker log output.
-func (b *Broker) SetLogOutput(w io.Writer) {
-	b.Logger = log.New(w, "[broker] ", log.LstdFlags)
-	b.log.SetLogOutput(w)
-}
-
-// EnableRaftDebug controls debugging functionality in the Raft concensus module.
-func (b *Broker) EnableRaftDebug(enable bool) {
-	b.log.DebugEnabled = enable
-}
+func (b *Broker) SetLogOutput(w io.Writer) { b.Logger = log.New(w, "[broker] ", log.LstdFlags) }
 
 // Open initializes the log.
 // The broker then must be initialized or join a cluster before it can be used.
-func (b *Broker) Open(path string, u *url.URL) error {
+func (b *Broker) Open(path string) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -90,27 +132,73 @@ func (b *Broker) Open(path string, u *url.URL) error {
 	if path == "" {
 		return ErrPathRequired
 	}
-	b.path = path
 
-	// Require a non-blank connection address.
-	if u == nil {
-		return ErrConnectionAddressRequired
-	}
+	if err := func() error {
+		b.path = path
 
-	// Read meta data from snapshot.
-	if err := b.load(); err != nil {
+		// Ensure root directory exists.
+		if err := os.MkdirAll(path, 0777); err != nil {
+			return fmt.Errorf("mkdir: %s", err)
+		}
+
+		// Open meta file.
+		meta, err := bolt.Open(b.metaPath(), 0666, &bolt.Options{Timeout: 1 * time.Second})
+		if err != nil {
+			return fmt.Errorf("open meta: %s", err)
+		}
+		b.meta = meta
+
+		// Initialize data from meta store.
+		if err := b.meta.Update(func(tx *bolt.Tx) error {
+			tx.CreateBucketIfNotExists([]byte("meta"))
+
+			// Read in index from meta store, if set.
+			if v := tx.Bucket([]byte("meta")).Get([]byte("index")); v != nil {
+				b.index = btou64(v)
+			}
+
+			return nil
+		}); err != nil {
+			return err
+		}
+
+		// Read all topic metadata into memory.
+		if err := b.openTopics(); err != nil {
+			return fmt.Errorf("open topics: %s", err)
+		}
+
+		return nil
+	}(); err != nil {
 		_ = b.close()
 		return err
 	}
 
-	// Open underlying raft log.
-	if err := b.log.Open(filepath.Join(path, "raft")); err != nil {
-		return fmt.Errorf("raft: %s", err)
+	return nil
+}
+
+// openTopics reads all topic metadata into memory.
+func (b *Broker) openTopics() error {
+	// Read all topics from the broker directory.
+	topics, err := ReadTopics(b.path)
+	if err != nil {
+		return fmt.Errorf("read topics: %s", err)
 	}
 
-	// Copy connection URL.
-	b.log.URL = &url.URL{}
-	*b.log.URL = *u
+	// Open each topic and append to the map.
+	b.topics = make(map[uint64]*Topic)
+	for _, t := range topics {
+		if err := t.Open(); err != nil {
+			return fmt.Errorf("open topic: id=%d, err=%s", t.id, err)
+		}
+		b.topics[t.id] = t
+	}
+
+	// Retrieve the highest index across all topics.
+	for _, t := range b.topics {
+		if t.index > b.index {
+			b.index = t.index
+		}
+	}
 
 	return nil
 }
@@ -129,12 +217,14 @@ func (b *Broker) close() error {
 	}
 	b.path = ""
 
-	// Close all topics & replicas.
-	b.closeTopics()
-	b.closeReplicas()
+	// Close meta data.
+	if b.meta != nil {
+		_ = b.meta.Close()
+		b.meta = nil
+	}
 
-	// Close raft log.
-	_ = b.log.Close()
+	// Close all topics.
+	b.closeTopics()
 
 	return nil
 }
@@ -144,473 +234,33 @@ func (b *Broker) closeTopics() {
 	for _, t := range b.topics {
 		_ = t.Close()
 	}
-	b.topics = make(map[uint64]*topic)
+	b.topics = make(map[uint64]*Topic)
 }
 
-// closeReplicas closes all replica writers and clears the replica map.
-func (b *Broker) closeReplicas() {
-	for _, r := range b.replicas {
-		r.closeWriter()
-	}
-	b.replicas = make(map[uint64]*Replica)
-}
-
-// load reads the broker metadata from disk.
-func (b *Broker) load() error {
-	// Read snapshot header from disk.
-	// Ignore if no snapshot exists.
-	f, err := os.Open(b.metaPath())
-	if os.IsNotExist(err) {
-		return nil
-	} else if err != nil {
-		return err
-	}
-	defer func() { _ = f.Close() }()
-
-	// Read snapshot header from disk.
-	hdr := &snapshotHeader{}
-	if err := json.NewDecoder(f).Decode(&hdr); err != nil {
-		return err
-	}
-
-	// Copy topic files from snapshot to local disk.
-	for _, st := range hdr.Topics {
-		t := b.createTopic(st.ID)
-		t.index = st.Index
-
-		// Open new empty topic file.
-		if err := t.open(); err != nil {
-			return fmt.Errorf("open topic: %s", err)
-		}
-	}
-
-	// Update the replicas.
-	for _, sr := range hdr.Replicas {
-		// Create replica.
-		r := newReplica(b, sr.ID, sr.URL)
-		b.replicas[r.id] = r
-
-		// Append replica's topics.
-		for _, srt := range sr.Topics {
-			r.topics[srt.TopicID] = srt.Index
-		}
-	}
-
-	// Read the highest index from each of the topic files.
-	if err := b.loadIndex(); err != nil {
-		return fmt.Errorf("load index: %s", err)
-	}
-
-	return nil
-}
-
-// loadIndex reads through all topics to find the highest known index.
-func (b *Broker) loadIndex() error {
-	for _, t := range b.topics {
-		if err := t.loadIndex(); err != nil {
-			return fmt.Errorf("topic(%d): %s", t.id, err)
-		} else if t.index > b.index {
-			b.index = t.index
-		}
-	}
-	return nil
-}
-
-// save persists the broker metadata to disk.
-func (b *Broker) save() error {
-	if b.path == "" {
-		return ErrClosed
-	}
-
-	// Calculate header under lock.
-	hdr, err := b.createSnapshotHeader()
-	if err != nil {
-		return fmt.Errorf("create snapshot: %s", err)
-	}
-
-	// Write snapshot to disk.
-	f, err := os.Create(b.metaPath())
-	if err != nil {
-		return err
-	}
-	defer func() { _ = f.Close() }()
-
-	// Write snapshot to disk.
-	if err := json.NewEncoder(f).Encode(&hdr); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// mustSave persists the broker metadata to disk. Panic on error.
-func (b *Broker) mustSave() {
-	if err := b.save(); err != nil && err != ErrClosed {
-		panic(err.Error())
-	}
-}
-
-// createSnapshotHeader creates a snapshot header.
-func (b *Broker) createSnapshotHeader() (*snapshotHeader, error) {
-	// Create parent header.
-	s := &snapshotHeader{}
-
-	// Append topics.
-	for _, t := range b.topics {
-		// Retrieve current topic file size.
-		var sz int64
-		if t.file != nil {
-			fi, err := t.file.Stat()
-			if err != nil {
-				return nil, err
-			}
-			sz = fi.Size()
-		}
-
-		// Append topic to the snapshot.
-		s.Topics = append(s.Topics, &snapshotTopic{
-			ID:    t.id,
-			Index: t.index,
-			Size:  sz,
-			path:  t.path,
-		})
-	}
-
-	// Append replicas and the current index for each topic.
-	for _, r := range b.replicas {
-		sr := &snapshotReplica{ID: r.id, URL: r.URL.String()}
-
-		for topicID, index := range r.topics {
-			sr.Topics = append(sr.Topics, &snapshotReplicaTopic{
-				TopicID: topicID,
-				Index:   index,
-			})
-		}
-
-		s.Replicas = append(s.Replicas, sr)
-	}
-
-	return s, nil
-}
-
-// URL returns the connection url for the broker.
-func (b *Broker) URL() *url.URL {
-	return b.log.URL
-}
-
-// LeaderURL returns the connection url for the leader broker.
-func (b *Broker) LeaderURL() *url.URL {
-	_, u := b.log.Leader()
-	return u
-}
-
-// IsLeader returns true if the broker is the current leader.
-func (b *Broker) IsLeader() bool { return b.log.State() == raft.Leader }
-
-// Initialize creates a new cluster.
-func (b *Broker) Initialize() error {
-	if err := b.log.Initialize(); err != nil {
-		return fmt.Errorf("raft: %s", err)
-	}
-	return nil
-}
-
-// Join joins an existing cluster.
-func (b *Broker) Join(u *url.URL) error {
-	if err := b.log.Join(u); err != nil {
-		return fmt.Errorf("raft: %s", err)
-	}
-	return nil
-}
-
-// Publish writes a message.
-// Returns the index of the message. Otherwise returns an error.
-func (b *Broker) Publish(m *Message) (uint64, error) {
-	buf, _ := m.MarshalBinary()
-	return b.log.Apply(buf)
-}
-
-// PublishSync writes a message and waits until the change is applied.
-func (b *Broker) PublishSync(m *Message) error {
-	// Publish message.
-	index, err := b.Publish(m)
-	if err != nil {
-		return err
-	}
-
-	// Wait for message to apply.
-	if err := b.Sync(index); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// Sync pauses until the given index has been applied.
-func (b *Broker) Sync(index uint64) error {
-	return b.log.Wait(index)
-}
-
-// Replica returns a replica by id.
-func (b *Broker) Replica(id uint64) *Replica {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
-	return b.replicas[id]
-}
-
-// Replicas returns a list of the replicas in the system
-func (b *Broker) Replicas() []*Replica {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
-	a := make([]*Replica, 0, len(b.replicas))
-	for _, r := range b.replicas {
-		a = append(a, r)
-	}
-	sort.Sort(replicas(a))
-	return a
-}
-
-// initializes a new topic object.
-func (b *Broker) createTopic(id uint64) *topic {
-	t := &topic{
-		id:       id,
-		path:     filepath.Join(b.path, strconv.FormatUint(uint64(id), 10)),
-		replicas: make(map[uint64]*Replica),
-	}
-	b.topics[t.id] = t
-	return t
-}
-
-func (b *Broker) createTopicIfNotExists(id uint64) *topic {
-	if t := b.topics[id]; t != nil {
-		return t
-	}
-
-	t := b.createTopic(id)
-	b.mustSave()
-	return t
-}
-
-// CreateReplica creates a new named replica.
-func (b *Broker) CreateReplica(id uint64, connectURL *url.URL) error {
+// SetMaxIndex sets the highest index applied by the broker.
+// This is only used for internal log messages. Topics may have a higher index.
+func (b *Broker) SetMaxIndex(index uint64) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-
-	// Ensure replica doesn't already exist.
-	s := b.replicas[id]
-	if s != nil {
-		return ErrReplicaExists
-	}
-
-	// Add command to create replica.
-	return b.PublishSync(&Message{
-		Type: CreateReplicaMessageType,
-		Data: mustMarshalJSON(&CreateReplicaCommand{ID: id, URL: connectURL.String()}),
-	})
+	return b.setMaxIndex(index)
 }
 
-func (b *Broker) mustApplyCreateReplica(m *Message) {
-	var c CreateReplicaCommand
-	mustUnmarshalJSON(m.Data, &c)
-
-	// Create replica.
-	r := newReplica(b, c.ID, c.URL)
-
-	// Automatically subscribe to the config topic.
-	t := b.createTopicIfNotExists(BroadcastTopicID)
-	r.topics[BroadcastTopicID] = t.index
-
-	// Add replica to the broker.
-	b.replicas[c.ID] = r
-
-	b.mustSave()
-}
-
-// DeleteReplica deletes an existing replica by id.
-func (b *Broker) DeleteReplica(id uint64) error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	// Ensure replica exists.
-	if s := b.replicas[id]; s == nil {
-		return ErrReplicaNotFound
+func (b *Broker) setMaxIndex(index uint64) error {
+	// Update index in meta database.
+	if err := b.meta.Update(func(tx *bolt.Tx) error {
+		return tx.Bucket([]byte("meta")).Put([]byte("index"), u64tob(index))
+	}); err != nil {
+		return err
 	}
 
-	// Issue command to remove replica.
-	return b.PublishSync(&Message{
-		Type: DeleteReplicaMessageType,
-		Data: mustMarshalJSON(&DeleteReplicaCommand{ID: id}),
-	})
-}
+	// Set in-memory index.
+	b.index = index
 
-func (b *Broker) mustApplyDeleteReplica(m *Message) {
-	var c DeleteReplicaCommand
-	mustUnmarshalJSON(m.Data, &c)
-
-	// Find replica.
-	r := b.replicas[c.ID]
-	if r == nil {
-		return
-	}
-
-	// Remove replica from all subscribed topics.
-	for topicID := range r.topics {
-		if t := b.topics[topicID]; t != nil {
-			delete(t.replicas, r.id)
-		}
-	}
-	r.topics = make(map[uint64]uint64)
-
-	// Close replica's writer.
-	r.closeWriter()
-
-	// Remove replica from broker.
-	delete(b.replicas, c.ID)
-
-	b.mustSave()
-}
-
-// Subscribe adds a subscription to a topic from a replica.
-func (b *Broker) Subscribe(replicaID, topicID uint64) error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	// TODO: Allow non-zero starting index.
-
-	// Ensure replica & topic exist.
-	if b.replicas[replicaID] == nil {
-		return ErrReplicaNotFound
-	}
-
-	// Issue command to subscribe to topic.
-	return b.PublishSync(&Message{
-		Type: SubscribeMessageType,
-		Data: mustMarshalJSON(&SubscribeCommand{ReplicaID: replicaID, TopicID: topicID}),
-	})
-}
-
-func (b *Broker) mustApplySubscribe(m *Message) {
-	var c SubscribeCommand
-	mustUnmarshalJSON(m.Data, &c)
-
-	// Retrieve replica.
-	r := b.replicas[c.ReplicaID]
-	if r == nil {
-		return
-	}
-
-	// Save current index on topic.
-	t := b.createTopicIfNotExists(c.TopicID)
-
-	// Ensure topic is not already subscribed to.
-	if _, ok := r.topics[c.TopicID]; ok {
-		b.Logger.Printf("already subscribed to topic: replica=%d, topic=%d", r.id, c.TopicID)
-		return
-	}
-
-	// Add subscription to replica.
-	r.topics[c.TopicID] = c.Index
-	t.replicas[c.ReplicaID] = r
-
-	// Catch up replica.
-	_, _ = t.writeTo(r, c.Index)
-
-	b.mustSave()
-}
-
-// Unsubscribe removes a subscription for a topic from a replica.
-func (b *Broker) Unsubscribe(replicaID, topicID uint64) error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	// Ensure replica & topic exist.
-	if b.replicas[replicaID] == nil {
-		return ErrReplicaNotFound
-	}
-
-	// Issue command to unsubscribe from topic.
-	return b.PublishSync(&Message{
-		Type: UnsubscribeMessageType,
-		Data: mustMarshalJSON(&UnsubscribeCommand{ReplicaID: replicaID, TopicID: topicID}),
-	})
-}
-
-func (b *Broker) mustApplyUnsubscribe(m *Message) {
-	var c UnsubscribeCommand
-	mustUnmarshalJSON(m.Data, &c)
-
-	// Remove topic from replica.
-	if r := b.replicas[c.ReplicaID]; r != nil {
-		delete(r.topics, c.TopicID)
-	}
-
-	// Remove replica from topic.
-	if t := b.topics[c.TopicID]; t != nil {
-		delete(t.replicas, c.ReplicaID)
-	}
-
-	b.mustSave()
-}
-
-// brokerFSM implements the raft.FSM interface for the broker.
-// This is implemented as a separate type because it is not meant to be exported.
-type brokerFSM Broker
-
-// MustApply executes a raft log entry against the broker.
-// Non-repeatable errors such as system or disk errors must panic.
-func (fsm *brokerFSM) MustApply(e *raft.LogEntry) {
-	b := (*Broker)(fsm)
-
-	// Create a message with the same index as Raft.
-	m := &Message{}
-
-	// Decode commands into messages.
-	// Convert internal raft entries to no-ops to move the index forward.
-	if e.Type == raft.LogEntryCommand {
-		// Decode the message from the raft log.
-		err := m.UnmarshalBinary(e.Data)
-		assert(err == nil, "message unmarshal: %s", err)
-
-		// Update the broker configuration.
-		switch m.Type {
-		case CreateReplicaMessageType:
-			b.mustApplyCreateReplica(m)
-		case DeleteReplicaMessageType:
-			b.mustApplyDeleteReplica(m)
-		case SubscribeMessageType:
-			b.mustApplySubscribe(m)
-		case UnsubscribeMessageType:
-			b.mustApplyUnsubscribe(m)
-		}
-	} else {
-		// Internal raft commands should be broadcast out as no-ops.
-		m.TopicID = BroadcastTopicID
-		m.Type = InternalMessageType
-	}
-
-	// Set the raft index.
-	m.Index = e.Index
-
-	// Write to the topic.
-	t := b.createTopicIfNotExists(m.TopicID)
-	if err := t.encode(m); err != nil {
-		panic("encode: " + err.Error())
-	}
-
-	// Save highest applied index.
-	b.index = e.Index
-}
-
-// Index returns the highest index that the broker has seen.
-func (fsm *brokerFSM) Index() (uint64, error) {
-	b := (*Broker)(fsm)
-	return b.index, nil
+	return nil
 }
 
 // Snapshot streams the current state of the broker and returns the index.
-func (fsm *brokerFSM) Snapshot(w io.Writer) (uint64, error) {
-	b := (*Broker)(fsm)
-
+func (b *Broker) Snapshot(w io.Writer) (uint64, error) {
 	// TODO: Prevent truncation during snapshot.
 
 	// Calculate header under lock.
@@ -637,76 +287,59 @@ func (fsm *brokerFSM) Snapshot(w io.Writer) (uint64, error) {
 
 	// Stream each topic sequentially.
 	for _, t := range hdr.Topics {
-		if _, err := copyFileN(w, t.path, t.Size); err != nil {
-			return 0, err
+		for _, s := range t.Segments {
+			if _, err := copyFileN(w, s.path, s.Size); err != nil {
+				return 0, err
+			}
 		}
 	}
 
 	// Return the snapshot and its last applied index.
-	return hdr.maxIndex(), nil
+	return hdr.Index, nil
 }
 
-// Restore reads the broker state.
-func (fsm *brokerFSM) Restore(r io.Reader) error {
-	b := (*Broker)(fsm)
+// createSnapshotHeader creates a snapshot header.
+func (b *Broker) createSnapshotHeader() (*snapshotHeader, error) {
+	// Create parent header.
+	sh := &snapshotHeader{Index: b.index}
 
-	b.mu.Lock()
-	defer b.mu.Unlock()
+	// Append topics.
+	for _, t := range b.topics {
+		// Create snapshot topic.
+		st := &snapshotTopic{ID: t.id}
 
-	// Read header frame.
-	var sz uint32
-	if err := binary.Read(r, binary.BigEndian, &sz); err != nil {
-		return fmt.Errorf("read header size: %s", err)
-	}
-	buf := make([]byte, sz)
-	if _, err := io.ReadFull(r, buf); err != nil {
-		return fmt.Errorf("read header: %s", err)
-	}
-
-	// Decode header.
-	s := &snapshotHeader{}
-	if err := json.Unmarshal(buf, &s); err != nil {
-		return fmt.Errorf("decode header: %s", err)
-	}
-
-	// Close any topics and replicas which might be open and clear them out.
-	b.closeTopics()
-	b.closeReplicas()
-
-	// Copy topic files from snapshot to local disk.
-	for _, st := range s.Topics {
-		t := b.createTopic(st.ID)
-		t.index = st.Index
-
-		// Remove existing file if it exists.
-		if err := os.Remove(t.path); err != nil && !os.IsNotExist(err) {
-			return err
+		// Read segments from disk.
+		segments, err := ReadSegments(t.path)
+		if err != nil && !os.IsNotExist(err) {
+			return nil, fmt.Errorf("read segments: %s", err)
 		}
 
-		// Open new empty topic file.
-		if err := t.open(); err != nil {
-			return fmt.Errorf("open topic: %s", err)
+		// Add segments to topic.
+		for _, s := range segments {
+			// Retrieve current segment file size from disk.
+			var size int64
+			fi, err := os.Stat(s.Path)
+			if os.IsNotExist(err) {
+				size = 0
+			} else if err == nil {
+				size = fi.Size()
+			} else {
+				return nil, fmt.Errorf("stat segment: %s", err)
+			}
+
+			// Append segment.
+			st.Segments = append(st.Segments, &snapshotTopicSegment{
+				Index: s.Index,
+				Size:  size,
+				path:  s.Path,
+			})
 		}
 
-		// Copy data from snapshot into file.
-		if _, err := io.CopyN(t.file, r, st.Size); err != nil {
-			return fmt.Errorf("copy topic: %s", err)
-		}
+		// Append topic to the snapshot.
+		sh.Topics = append(sh.Topics, st)
 	}
 
-	// Update the replicas.
-	for _, sr := range s.Replicas {
-		// Create replica.
-		r := newReplica(b, sr.ID, sr.URL)
-		b.replicas[r.id] = r
-
-		// Append replica's topics.
-		for _, srt := range sr.Topics {
-			r.topics[srt.TopicID] = srt.Index
-		}
-	}
-
-	return nil
+	return sh, nil
 }
 
 // copyFileN copies n bytes from a path to a writer.
@@ -722,365 +355,827 @@ func copyFileN(w io.Writer, path string, n int64) (int64, error) {
 	return io.CopyN(w, f, n)
 }
 
-// snapshotHeader represents the header of a snapshot.
-type snapshotHeader struct {
-	Replicas []*snapshotReplica `json:"replicas"`
-	Topics   []*snapshotTopic   `json:"topics"`
+// Restore reads the broker state.
+func (b *Broker) Restore(r io.Reader) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	// Remove and recreate broker path.
+	if err := b.reset(); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("reset: %s", err)
+	} else if err = os.MkdirAll(b.path, 0777); err != nil {
+		return fmt.Errorf("mkdir: %s", err)
+	}
+
+	// Read header frame.
+	var sz uint32
+	if err := binary.Read(r, binary.BigEndian, &sz); err != nil {
+		return fmt.Errorf("read header size: %s", err)
+	}
+	buf := make([]byte, sz)
+	if _, err := io.ReadFull(r, buf); err != nil {
+		return fmt.Errorf("read header: %s", err)
+	}
+
+	// Decode header.
+	sh := &snapshotHeader{}
+	if err := json.Unmarshal(buf, &sh); err != nil {
+		return fmt.Errorf("decode header: %s", err)
+	}
+
+	// Close any topics which might be open and clear them out.
+	b.closeTopics()
+
+	// Copy topic files from snapshot to local disk.
+	for _, st := range sh.Topics {
+		t := NewTopic(st.ID, b.topicPath(st.ID))
+
+		// Create topic directory.
+		if err := os.MkdirAll(t.Path(), 0777); err != nil {
+			return fmt.Errorf("make topic dir: %s", err)
+		}
+
+		// Copy data from snapshot into segment files.
+		// We don't instantiate the segments because that will be done
+		// automatically when calling Open() on the topic.
+		for _, ss := range st.Segments {
+			if err := func() error {
+				// Create a new file with the starting index.
+				f, err := os.Create(t.segmentPath(ss.Index))
+				if err != nil {
+					return fmt.Errorf("open segment: %s", err)
+				}
+				defer func() { _ = f.Close() }()
+
+				// Copy from stream into file.
+				if _, err := io.CopyN(f, r, ss.Size); err != nil {
+					return fmt.Errorf("copy segment: %s", err)
+				}
+
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+
+		// Open topic.
+		if err := t.Open(); err != nil {
+			return fmt.Errorf("open topic: %s", err)
+		}
+		b.topics[t.id] = t
+	}
+
+	// Set the highest seen index.
+	if err := b.setMaxIndex(sh.Index); err != nil {
+		return fmt.Errorf("set max index: %s", err)
+	}
+	b.index = sh.Index
+
+	return nil
 }
 
-// maxIndex returns the highest applied index across all topics.
-func (s *snapshotHeader) maxIndex() uint64 {
-	var idx uint64
-	for _, t := range s.Topics {
-		if t.Index > idx {
-			idx = t.Index
+// reset removes all files in the broker directory besides the raft directory.
+func (b *Broker) reset() error {
+	// Open handle to directory.
+	f, err := os.Open(b.path)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = f.Close() }()
+
+	// Read directory items.
+	fis, err := f.Readdir(0)
+	if err != nil {
+		return err
+	}
+
+	// Remove all files & directories besides raft.
+	for _, fi := range fis {
+		if fi.Name() == "raft" {
+			continue
+		}
+
+		if err := os.RemoveAll(fi.Name()); err != nil {
+			return fmt.Errorf("remove: %s", fi.Name())
 		}
 	}
-	return idx
+
+	return nil
 }
 
-type snapshotReplica struct {
-	ID     uint64                  `json:"id"`
-	Topics []*snapshotReplicaTopic `json:"topics"`
-	URL    string                  `json:"url"`
+// Publish writes a message.
+// Returns the index of the message. Otherwise returns an error.
+func (b *Broker) Publish(m *Message) (uint64, error) {
+	buf, err := m.MarshalBinary()
+	assert(err == nil, "marshal binary error: %s", err)
+	return b.Log.Apply(buf)
+}
+
+// TopicReader returns a new topic reader for a topic starting from a given index.
+func (b *Broker) TopicReader(topicID, index uint64, streaming bool) io.ReadCloser {
+	return NewTopicReader(b.TopicPath(topicID), index, streaming)
+}
+
+// SetTopicMaxIndex updates the highest replicated index for a topic.
+// If a higher index is already set on the topic then the call is ignored.
+// This index is only held in memory and is used for topic segment reclamation.
+func (b *Broker) SetTopicMaxIndex(topicID, index uint64) error {
+	_, err := b.Publish(&Message{
+		Type: SetTopicMaxIndexMessageType,
+		Data: marshalTopicIndex(topicID, index),
+	})
+	return err
+}
+
+func (b *Broker) applySetTopicMaxIndex(m *Message) {
+	topicID, index := unmarshalTopicIndex(m.Data)
+
+	// Set index if it's not already set higher.
+	t := b.topics[topicID]
+	if t != nil && t.index < index {
+		t.index = index
+	}
+}
+
+func marshalTopicIndex(topicID, index uint64) []byte {
+	b := make([]byte, 16)
+	binary.BigEndian.PutUint64(b[0:8], topicID)
+	binary.BigEndian.PutUint64(b[8:16], index)
+	return b
+}
+
+func unmarshalTopicIndex(b []byte) (topicID, index uint64) {
+	topicID = binary.BigEndian.Uint64(b[0:8])
+	index = binary.BigEndian.Uint64(b[8:16])
+	return
+}
+
+// Apply executes a message against the broker.
+func (b *Broker) Apply(m *Message) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	// Exit if broker isn't open.
+	if !b.opened() {
+		return ErrClosed
+	}
+
+	// Ensure messages with old indexes aren't re-applied.
+	assert(m.Index > b.index, "stale apply: msg=%d, broker=%d", m.Index, b.index)
+
+	// Process internal commands separately than the topic writes.
+	switch m.Type {
+	case SetTopicMaxIndexMessageType:
+		b.applySetTopicMaxIndex(m)
+	default:
+		// Create topic if not exists.
+		t := b.topics[m.TopicID]
+		if t == nil {
+			t = NewTopic(m.TopicID, b.topicPath(m.TopicID))
+			if err := t.Open(); err != nil {
+				return fmt.Errorf("open topic: %s", err)
+			}
+			b.topics[t.id] = t
+		}
+
+		// Write message to topic.
+		if err := t.WriteMessage(m); err != nil {
+			return fmt.Errorf("write message: %s", err)
+		}
+	}
+
+	// Save highest applied index in memory.
+	// Only internal messages need to have their indexes saved to disk.
+	b.index = m.Index
+
+	return nil
+}
+
+// snapshotHeader represents the header of a snapshot.
+type snapshotHeader struct {
+	Topics []*snapshotTopic `json:"topics"`
+	Index  uint64           `json:"index"`
 }
 
 type snapshotTopic struct {
-	ID    uint64 `json:"id"`
+	ID       uint64                  `json:"id"`
+	Segments []*snapshotTopicSegment `json:"segments"`
+}
+
+type snapshotTopicSegment struct {
 	Index uint64 `json:"index"`
 	Size  int64  `json:"size"`
 
 	path string
 }
 
-type snapshotReplicaTopic struct {
-	TopicID uint64 `json:"topicID"`
-	Index   uint64 `json:"index"`
+// RaftFSM is a wrapper struct around the broker that implements the raft.FSM interface.
+// It will panic for any errors that occur during Apply.
+type RaftFSM struct {
+	Broker interface {
+		Apply(m *Message) error
+		Index() (uint64, error)
+		SetMaxIndex(uint64) error
+		Snapshot(w io.Writer) (uint64, error)
+		Restore(r io.Reader) error
+	}
 }
+
+func (fsm *RaftFSM) Index() (uint64, error)               { return fsm.Broker.Index() }
+func (fsm *RaftFSM) Snapshot(w io.Writer) (uint64, error) { return fsm.Broker.Snapshot(w) }
+func (fsm *RaftFSM) Restore(r io.Reader) error            { return fsm.Broker.Restore(r) }
+
+// MustApply applies a raft command to the broker. Panic on error.
+func (fsm *RaftFSM) MustApply(e *raft.LogEntry) {
+	switch e.Type {
+	case raft.LogEntryCommand:
+		// Decode message.
+		m := &Message{}
+		if err := m.UnmarshalBinary(e.Data); err != nil {
+			panic("message unmarshal: " + err.Error())
+		}
+		m.Index = e.Index
+
+		// Apply message.
+		if err := fsm.Broker.Apply(m); err != nil {
+			panic(err.Error())
+		}
+
+	default:
+		// Move internal index forward if it's an internal raft comand.
+		if err := fsm.Broker.SetMaxIndex(e.Index); err != nil {
+			panic(fmt.Sprintf("set max index: idx=%d, err=%s", e.Index, err))
+		}
+	}
+}
+
+// DefaultMaxSegmentSize is the largest a segment can get before starting a new segment.
+const DefaultMaxSegmentSize = 10 * 1024 * 1024 // 10MB
 
 // topic represents a single named queue of messages.
 // Each topic is identified by a unique path.
-type topic struct {
+//
+// Topics write their entries to segmented log files which contain a
+// contiguous range of entries.
+type Topic struct {
+	mu    sync.Mutex
 	id    uint64 // unique identifier
-	index uint64 // highest index written
+	index uint64 // highest index replicated
 	path  string // on-disk path
 
-	file *os.File // on-disk representation
+	file   *os.File // last segment writer
+	opened bool
 
-	mu       sync.RWMutex
-	replicas map[uint64]*Replica // replicas subscribed to topic
+	// The largest a segment can get before splitting into a new segment.
+	MaxSegmentSize int64
 }
 
-// addReplica adds a replica to the topic.
-func (t *topic) addReplica(r *Replica) {
+// NewTopic returns a new instance of Topic.
+func NewTopic(id uint64, path string) *Topic {
+	return &Topic{
+		id:   id,
+		path: path,
+
+		MaxSegmentSize: DefaultMaxSegmentSize,
+	}
+}
+
+// ID returns the topic identifier.
+func (t *Topic) ID() uint64 { return t.id }
+
+// Path returns the topic path.
+func (t *Topic) Path() string { return t.path }
+
+// Index returns the highest replicated index for the topic.
+func (t *Topic) Index() uint64 {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	t.replicas[r.id] = r
+	return t.index
 }
 
-// replica returns the replica with the specified ID.
-func (t *topic) replica(id uint64) *Replica {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	return t.replicas[id]
+// SegmentPath returns the path to a segment starting with a given log index.
+func (t *Topic) SegmentPath(index uint64) string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.segmentPath(index)
 }
 
-// open opens a topic for writing.
-func (t *topic) open() error {
-	assert(t.file == nil, "topic already open: %d", t.id)
+func (t *Topic) segmentPath(index uint64) string {
+	if t.path == "" {
+		return ""
+	}
+	return filepath.Join(t.path, strconv.FormatUint(index, 10))
+}
 
-	// Ensure the parent directory exists.
-	if err := os.MkdirAll(filepath.Dir(t.path), 0755); err != nil {
-		return err
+// Open opens a topic for writing.
+func (t *Topic) Open() error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	// Ensure topic is not already open and it has a path.
+	if t.opened {
+		return ErrTopicOpen
+	} else if t.path == "" {
+		return ErrPathRequired
 	}
 
-	// Open the writer to the on-disk file.
-	f, err := os.OpenFile(t.path, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0600)
-	if err != nil {
+	if err := func() error {
+		t.opened = true
+
+		// Ensure the parent directory exists.
+		if err := os.MkdirAll(t.path, 0777); err != nil {
+			return err
+		}
+
+		// Read available segments.
+		segments, err := ReadSegments(t.path)
+		if err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("read segments: %s", err)
+		}
+
+		// Read max index and open file handle if we have segments.
+		if len(segments) > 0 {
+			s := segments.Last()
+
+			// Read the last segment and extract the last message index.
+			index, err := ReadSegmentMaxIndex(s.Path)
+			if err != nil {
+				return fmt.Errorf("read segment max index: %s", err)
+			}
+			t.index = index
+
+			// Open file handle on the segment.
+			f, err := os.OpenFile(s.Path, os.O_RDWR|os.O_APPEND, 0666)
+			if err != nil {
+				return fmt.Errorf("open segment: %s", err)
+			}
+			t.file = f
+		}
+
+		return nil
+	}(); err != nil {
+		_ = t.close()
 		return err
 	}
-	t.file = f
 
 	return nil
 }
 
-// close closes the underlying file.
-func (t *topic) Close() error {
-	// Close file.
+// Close closes the topic and segment writer.
+func (t *Topic) Close() error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.close()
+}
+
+func (t *Topic) close() error {
 	if t.file != nil {
 		_ = t.file.Close()
 		t.file = nil
 	}
+
+	t.opened = false
+	t.index = 0
+
 	return nil
 }
 
-// loadIndex reads the highest available index for a topic from disk.
-func (t *topic) loadIndex() error {
-	// Open topic file for reading.
-	f, err := os.Open(t.path)
-	if os.IsNotExist(err) {
-		return nil
-	} else if err != nil {
-		return err
+// ReadIndex reads the highest available index for a topic from disk.
+func (t *Topic) ReadIndex() (uint64, error) {
+	// Read a list of all segments.
+	segments, err := ReadSegments(t.path)
+	if err != nil && !os.IsNotExist(err) {
+		return 0, fmt.Errorf("read segments: %s", err)
 	}
-	defer func() { _ = f.Close() }()
 
-	// Read all messages.
-	dec := NewMessageDecoder(bufio.NewReader(f))
-	for {
-		// Decode message.
-		var m Message
-		if err := dec.Decode(&m); err == io.EOF {
-			return nil
-		} else if err != nil {
-			return fmt.Errorf("decode: %s", err)
-		}
-
-		// Update the topic's highest index.
-		t.index = m.Index
-	}
-}
-
-// writeTo writes the topic to a replica since a given index.
-// Returns an error if the starting index is unavailable.
-func (t *topic) writeTo(r *Replica, index uint64) (int64, error) {
-	// TODO: If index is too old then return an error.
-
-	// Open topic file for reading.
-	// If it doesn't exist then just exit immediately.
-	f, err := os.Open(t.path)
-	if os.IsNotExist(err) {
+	// Ignore if there are no available segments.
+	if len(segments) == 0 {
 		return 0, nil
-	} else if err != nil {
-		return 0, err
-	}
-	defer func() { _ = f.Close() }()
-
-	// Stream out all messages until EOF.
-	var total int64
-	dec := NewMessageDecoder(bufio.NewReader(f))
-	for {
-		// Decode message.
-		var m Message
-		if err := dec.Decode(&m); err == io.EOF {
-			break
-		} else if err != nil {
-			return total, fmt.Errorf("decode: %s", err)
-		}
-
-		// Ignore message if it's on or before high water mark.
-		if m.Index <= index {
-			continue
-		}
-
-		// Write message out to stream.
-		n, err := m.WriteTo(r)
-		if err != nil {
-			return total, fmt.Errorf("write to: %s", err)
-		}
-		total += n
 	}
 
-	return total, nil
+	// Read highest index on the last segment.
+	index, err := ReadSegmentMaxIndex(segments.Last().Path)
+	if err != nil {
+		return 0, fmt.Errorf("read segment max index: %s", err)
+	}
+
+	return index, nil
 }
 
-// encode writes a message to the end of the topic.
-func (t *topic) encode(m *Message) error {
-	// Ensure the topic is open and ready for writing.
-	if t.file == nil {
-		if err := t.open(); err != nil {
-			return fmt.Errorf("open: %s", err)
+// WriteMessage writes a message to the end of the topic.
+func (t *Topic) WriteMessage(m *Message) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	// Return error if message index is lower than the topic's highest index.
+	if m.Index <= t.index {
+		return ErrStaleWrite
+	}
+
+	// Close the current file handle if it's too large.
+	if t.file != nil {
+		if fi, err := t.file.Stat(); err != nil {
+			return fmt.Errorf("stat: %s", err)
+		} else if fi.Size() > t.MaxSegmentSize {
+			_ = t.file.Close()
+			t.file = nil
 		}
 	}
 
-	// Ensure message is in-order.
-	assert(m.Index > t.index, "topic message out of order: %d -> %d", t.index, m.Index)
+	// Create a new segment if we have no handle.
+	if t.file == nil {
+		f, err := os.OpenFile(t.segmentPath(m.Index), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
+		if err != nil {
+			return fmt.Errorf("create segment file: %s", err)
+		}
+		t.file = f
+	}
 
 	// Encode message.
 	b := make([]byte, messageHeaderSize+len(m.Data))
 	copy(b, m.marshalHeader())
 	copy(b[messageHeaderSize:], m.Data)
 
-	// Write to topic file.
+	// Write to last segment.
 	if _, err := t.file.Write(b); err != nil {
-		return fmt.Errorf("encode header: %s", err)
+		return fmt.Errorf("write segment: %s", err)
 	}
-
-	// Move up high water mark on the topic.
-	t.index = m.Index
-
-	// Write message out to all replicas.
-	func() {
-		t.mu.Lock()
-		defer t.mu.Unlock()
-		for _, r := range t.replicas {
-			_, _ = r.Write(b)
-		}
-	}()
 
 	return nil
 }
 
-type replicas []*Replica
+// Topics represents a list of topics sorted by id.
+type Topics []*Topic
 
-func (a replicas) Len() int           { return len(a) }
-func (a replicas) Less(i, j int) bool { return a[i].id < a[j].id }
-func (a replicas) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a Topics) Len() int           { return len(a) }
+func (a Topics) Less(i, j int) bool { return a[i].id < a[j].id }
+func (a Topics) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
-// Replica represents a collection of subscriptions to topics on the broker.
-// The replica maintains the highest index read for each topic so that the
-// broker can use this high water mark for trimming the topic logs.
-type Replica struct {
-	URL *url.URL
-
-	id     uint64
-	broker *Broker
-
-	writer io.Writer     // currently attached writer
-	done   chan struct{} // notify when current writer is removed
-
-	topics map[uint64]uint64 // current index for each subscribed topic
-}
-
-// newReplica returns a new Replica instance associated with a broker.
-func newReplica(b *Broker, id uint64, urlstr string) *Replica {
-	// get the url of the replica
-	u, err := url.Parse(urlstr)
+// ReadTopics reads all topics from a directory path.
+func ReadTopics(path string) (Topics, error) {
+	// Open handle to directory.
+	f, err := os.Open(path)
 	if err != nil {
-		panic(err.Error())
+		return nil, err
 	}
+	defer func() { _ = f.Close() }()
 
-	return &Replica{
-		URL:    u,
-		broker: b,
-		id:     id,
-		topics: make(map[uint64]uint64),
-	}
-}
-
-// closeWriter removes the writer on the replica and closes the notify channel.
-func (r *Replica) closeWriter() {
-	if r.writer != nil {
-		r.writer = nil
-		close(r.done)
-		r.done = nil
-	}
-}
-
-// Topics returns a list of topic names that the replica is subscribed to.
-func (r *Replica) Topics() []uint64 {
-	a := make([]uint64, 0, len(r.topics))
-	for topicID := range r.topics {
-		a = append(a, topicID)
-	}
-	sort.Sort(uint64Slice(a))
-	return a
-}
-
-// Write writes a byte slice to the underlying writer.
-// If no writer is available then ErrReplicaUnavailable is returned.
-func (r *Replica) Write(p []byte) (int, error) {
-	// Check if there's a replica available.
-	if r.writer == nil {
-		return 0, errReplicaUnavailable
-	}
-
-	// If an error occurs on the write then remove the writer.
-	n, err := r.writer.Write(p)
+	// Read directory items.
+	fis, err := f.Readdir(0)
 	if err != nil {
-		r.closeWriter()
-		return n, errReplicaUnavailable
+		return nil, err
 	}
 
-	// If the writer has a flush method then call it.
-	if w, ok := r.writer.(flusher); ok {
-		w.Flush()
-	}
-
-	return n, nil
-}
-
-// WriteTo begins writing messages to a named stream.
-// Only one writer is allowed on a stream at a time.
-func (r *Replica) WriteTo(w io.Writer) (int64, error) {
-	// Close previous writer, if set.
-	r.closeWriter()
-
-	// Set a new writer on the replica.
-	r.writer = w
-	done := make(chan struct{})
-	r.done = done
-
-	// Create a topic list with the "config" topic first.
-	// Configuration changes need to be propagated to make sure topics exist.
-	ids := make([]uint64, 0, len(r.topics))
-	for topicID := range r.topics {
-		ids = append(ids, topicID)
-	}
-	sort.Sort(uint64Slice(ids))
-
-	// Catch up and attach replica to all subscribed topics.
-	for _, topicID := range ids {
-		// Find topic.
-		t := r.broker.topics[topicID]
-		assert(t != nil, "topic missing: %s", topicID)
-
-		// Write topic messages from last known index.
-		// Replica machine can ignore messages it already seen.
-		index := r.topics[topicID]
-		if _, err := t.writeTo(r, index); err != nil {
-			r.closeWriter()
-			return 0, fmt.Errorf("add stream writer: %s", err)
+	// Create a topic for each directory with a numeric name.
+	var a Topics
+	for _, fi := range fis {
+		// Skip non-directory paths.
+		if !fi.IsDir() {
+			continue
 		}
 
-		// Attach replica to topic to tail new messages.
-		t.addReplica(r)
+		topicID, err := strconv.ParseUint(fi.Name(), 10, 64)
+		if err != nil {
+			continue
+		}
+
+		a = append(a, NewTopic(topicID, filepath.Join(path, fi.Name())))
+	}
+	sort.Sort(a)
+
+	return a, nil
+}
+
+// Segment represents a contiguous section of a topic log.
+type Segment struct {
+	Index uint64 // starting index of the segment and name
+	Path  string // path to the segment file.
+}
+
+// Size returns the file size of the segment.
+func (s *Segment) Size() (int64, error) {
+	fi, err := os.Stat(s.Path)
+	if err != nil {
+		return 0, err
+	}
+	return fi.Size(), nil
+}
+
+// Segments represents a list of segments sorted by index.
+type Segments []*Segment
+
+// Last returns the last segment in the slice.
+// Returns nil if there are no segments.
+func (a Segments) Last() *Segment {
+	if len(a) == 0 {
+		return nil
+	}
+	return a[len(a)-1]
+}
+
+func (a Segments) Len() int           { return len(a) }
+func (a Segments) Less(i, j int) bool { return a[i].Index < a[j].Index }
+func (a Segments) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+
+// ReadSegments reads all segments from a directory path.
+func ReadSegments(path string) (Segments, error) {
+	// Open handle to directory.
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = f.Close() }()
+
+	// Read directory items.
+	fis, err := f.Readdir(0)
+	if err != nil {
+		return nil, err
 	}
 
-	// Wait for writer to close and then return.
-	<-done
-	return 0, nil
+	// Create a segment for each file with a numeric name.
+	var a Segments
+	for _, fi := range fis {
+		index, err := strconv.ParseUint(fi.Name(), 10, 64)
+		if err != nil {
+			continue
+		}
+
+		a = append(a, &Segment{
+			Index: index,
+			Path:  filepath.Join(path, fi.Name()),
+		})
+	}
+	sort.Sort(a)
+
+	return a, nil
 }
 
-// CreateReplica creates a new replica.
-type CreateReplicaCommand struct {
-	ID  uint64 `json:"id"`
-	URL string `json:"url"`
+// ReadSegmentByIndex returns the segment that contains a given index.
+func ReadSegmentByIndex(path string, index uint64) (*Segment, error) {
+	// Find a list of all segments.
+	segments, err := ReadSegments(path)
+	if os.IsNotExist(err) {
+		return nil, err
+	} else if err != nil {
+		return nil, fmt.Errorf("read segments: %s", err)
+	}
+
+	// If there are no segments then ignore.
+	// If index is zero then start from the first segment.
+	// If index is less than the first segment range then return error.
+	if len(segments) == 0 {
+		return nil, nil
+	} else if index == 0 {
+		return segments[0], nil
+	} else if index < segments[0].Index {
+		return nil, ErrSegmentReclaimed
+	}
+
+	// Find segment that contains index.
+	for i := range segments[:len(segments)-1] {
+		if index >= segments[i].Index && index < segments[i+1].Index {
+			return segments[i], nil
+		}
+	}
+
+	// If no segment ranged matched then return the last segment.
+	return segments[len(segments)-1], nil
 }
 
-// DeleteReplicaCommand removes a replica.
-type DeleteReplicaCommand struct {
-	ID uint64 `json:"id"`
+// ReadSegmentMaxIndex returns the highest index recorded in a segment.
+func ReadSegmentMaxIndex(path string) (uint64, error) {
+	// Open segment file.
+	f, err := os.Open(path)
+	if os.IsNotExist(err) {
+		return 0, err
+	} else if err != nil {
+		return 0, fmt.Errorf("open: %s", err)
+	}
+	defer func() { _ = f.Close() }()
+
+	// Read all messages until the end.
+	dec := NewMessageDecoder(f)
+	index := uint64(0)
+	for {
+		var m Message
+		if err := dec.Decode(&m); err == io.EOF {
+			return index, nil
+		} else if err != nil {
+			return 0, fmt.Errorf("decode: %s", err)
+		}
+		index = m.Index
+	}
 }
 
-// SubscribeCommand subscribes a replica to a new topic.
-type SubscribeCommand struct {
-	ReplicaID uint64 `json:"replicaID"` // replica id
-	TopicID   uint64 `json:"topicID"`   // topic id
-	Index     uint64 `json:"index"`     // index
+// TopicReader reads data on a single topic from a given index.
+type TopicReader struct {
+	mu        sync.Mutex
+	path      string // topic directory path
+	index     uint64 // starting index
+	streaming bool   // true if reader should hang and wait for new messages
+
+	file   *os.File // current segment file handler
+	closed bool
+
+	// The time between file system polling to check for new segments.
+	PollInterval time.Duration
 }
 
-// UnsubscribeCommand removes a subscription for a topic from a replica.
-type UnsubscribeCommand struct {
-	ReplicaID uint64 `json:"replicaID"` // replica id
-	TopicID   uint64 `json:"topicID"`   // topic id
+// NewTopicReader returns a new instance of TopicReader that reads segments
+// from a path starting from a given index.
+func NewTopicReader(path string, index uint64, streaming bool) *TopicReader {
+	return &TopicReader{
+		path:      path,
+		index:     index,
+		streaming: streaming,
+
+		PollInterval: DefaultPollInterval,
+	}
+}
+
+// Read reads the next bytes from the reader into the buffer.
+func (r *TopicReader) Read(p []byte) (int, error) {
+	for {
+		// Retrieve current segment file handle.
+		// If the reader is closed then return EOF.
+		// If we don't have a file and we're streaming then sleep and retry.
+		f, err := r.File()
+		if err == ErrReaderClosed {
+			return 0, io.EOF
+		} else if err != nil {
+			return 0, fmt.Errorf("file: %s", err)
+		} else if f == nil {
+			if r.streaming {
+				time.Sleep(r.PollInterval)
+				continue
+			}
+			return 0, io.EOF
+		}
+
+		// Read under lock so the underlying file cannot be closed.
+		r.mu.Lock()
+		n, err := f.Read(p)
+		r.mu.Unlock()
+
+		// Read into buffer.
+		// If no more data is available, then retry with the next segment.
+		if err == io.EOF {
+			if err := r.nextSegment(); err != nil {
+				return 0, fmt.Errorf("next segment: %s", err)
+			}
+			time.Sleep(r.PollInterval)
+			continue
+		} else {
+			return n, err
+		}
+	}
+}
+
+// File returns the current segment file handle.
+// Returns nil when there is no more data left.
+func (r *TopicReader) File() (*os.File, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Exit if closed.
+	if r.closed {
+		return nil, ErrReaderClosed
+	}
+
+	// If the first file hasn't been opened then open it and seek.
+	if r.file == nil {
+		// Find the segment containing the index.
+		// Exit if no segments are available or if path not found.
+		segment, err := ReadSegmentByIndex(r.path, r.index)
+		if os.IsNotExist(err) {
+			return nil, nil
+		} else if err != nil {
+			return nil, fmt.Errorf("segment by index: %s", err)
+		} else if segment == nil {
+			return nil, nil
+		}
+
+		// Open that segment file.
+		f, err := os.Open(segment.Path)
+		if err != nil {
+			return nil, fmt.Errorf("open: %s", err)
+		}
+
+		// Seek to index.
+		if err := r.seekAfterIndex(f, r.index); err != nil {
+			_ = f.Close()
+			return nil, fmt.Errorf("seek to index: %s", err)
+		}
+
+		// Save file handle and segment name.
+		r.file = f
+	}
+
+	return r.file, nil
+}
+
+// seekAfterIndex moves a segment file to the message after a given index.
+func (r *TopicReader) seekAfterIndex(f *os.File, seek uint64) error {
+	dec := NewMessageDecoder(f)
+	for {
+		var m Message
+		if err := dec.Decode(&m); err == io.EOF {
+			return nil
+		} else if err != nil {
+			return err
+		} else if m.Index >= seek {
+			// Seek to message start.
+			if _, err := f.Seek(-int64(messageHeaderSize+len(m.Data)), os.SEEK_CUR); err != nil {
+				return fmt.Errorf("seek: %s", err)
+			}
+			return nil
+		}
+	}
+}
+
+// nextSegment closes the current segment's file handle and opens the next segment.
+func (r *TopicReader) nextSegment() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Skip if the reader is closed.
+	if r.closed {
+		return nil
+	}
+
+	// Find current segment index.
+	index, err := strconv.ParseUint(filepath.Base(r.file.Name()), 10, 64)
+	if err != nil {
+		return fmt.Errorf("parse current segment index: %s", err)
+	}
+
+	// Read current segment list.
+	// If no segments exist then exit.
+	// If current segment is the last segment then ignore.
+	segments, err := ReadSegments(r.path)
+	if os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("read segments: %s", err)
+	} else if len(segments) == 0 {
+		return nil
+	} else if segments[len(segments)-1].Index == index {
+		if !r.streaming {
+			r.closed = true
+		}
+		return nil
+	}
+
+	// Loop over segments and find the next one.
+	for i := range segments[:len(segments)-1] {
+		if segments[i].Index == index {
+			// Clear current file.
+			if r.file != nil {
+				r.file.Close()
+				r.file = nil
+			}
+
+			// Open next segment.
+			f, err := os.Open(segments[i+1].Path)
+			if err != nil {
+				return fmt.Errorf("open next segment: %s", err)
+			}
+			r.file = f
+			return nil
+		}
+	}
+
+	// This should only occur if our current segment was deleted.
+	r.closed = true
+	return nil
+}
+
+// Close closes the reader.
+func (r *TopicReader) Close() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Close current handle.
+	if r.file != nil {
+		_ = r.file.Close()
+		r.file = nil
+	}
+
+	// Mark reader as closed.
+	r.closed = true
+
+	return nil
 }
 
 // MessageType represents the type of message.
 type MessageType uint16
 
-const (
-	BrokerMessageType = 0x8000
-)
+// BrokerMessageType is a flag set on broker messages to prevent them
+// from being passed through to topics.
+const BrokerMessageType = 0x8000
 
 const (
-	InternalMessageType = BrokerMessageType | MessageType(0x00)
-
-	CreateReplicaMessageType = BrokerMessageType | MessageType(0x10)
-	DeleteReplicaMessageType = BrokerMessageType | MessageType(0x11)
-
-	SubscribeMessageType   = BrokerMessageType | MessageType(0x20)
-	UnsubscribeMessageType = BrokerMessageType | MessageType(0x21)
+	SetTopicMaxIndexMessageType = BrokerMessageType | MessageType(0x00)
 )
 
 // The size of the encoded message header, in bytes.
@@ -1158,17 +1253,28 @@ func NewMessageDecoder(r io.Reader) *MessageDecoder {
 func (dec *MessageDecoder) Decode(m *Message) error {
 	// Read header bytes.
 	var b [messageHeaderSize]byte
-	if _, err := io.ReadFull(dec.r, b[:]); err != nil {
+	if _, err := io.ReadFull(dec.r, b[:]); err == io.EOF {
 		return err
+	} else if err != nil {
+		return fmt.Errorf("read header: %s", err)
 	}
 	m.unmarshalHeader(b[:])
 
 	// Read data.
 	if _, err := io.ReadFull(dec.r, m.Data); err != nil {
-		return err
+		return fmt.Errorf("read body: %s", err)
 	}
 
 	return nil
+}
+
+// UnmarshalMessage decodes a byte slice into a message.
+func UnmarshalMessage(data []byte) (*Message, error) {
+	m := &Message{}
+	if err := m.UnmarshalBinary(data); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 type flusher interface {
@@ -1208,6 +1314,16 @@ func assert(condition bool, msg string, v ...interface{}) {
 		panic(fmt.Sprintf("assert failed: "+msg, v...))
 	}
 }
+
+// u64tob converts a uint64 into an 8-byte slice.
+func u64tob(v uint64) []byte {
+	b := make([]byte, 8)
+	binary.BigEndian.PutUint64(b, v)
+	return b
+}
+
+// btou64 converts an 8-byte slice into an uint64.
+func btou64(b []byte) uint64 { return binary.BigEndian.Uint64(b) }
 
 func warn(v ...interface{})              { fmt.Fprintln(os.Stderr, v...) }
 func warnf(msg string, v ...interface{}) { fmt.Fprintf(os.Stderr, msg+"\n", v...) }

@@ -1,28 +1,10 @@
 package influxdb
 
 import (
-	"fmt"
-	"log"
-	"net/http"
 	"time"
 
 	"github.com/influxdb/influxdb/messaging"
 )
-
-// Broker represents an InfluxDB specific messaging broker.
-type Broker struct {
-	*messaging.Broker
-
-	done chan struct{}
-
-	// send CQ processing requests to the same data node
-	currentCQProcessingNode *messaging.Replica
-
-	// variables to control when to trigger processing and when to timeout
-	TriggerInterval     time.Duration
-	TriggerTimeout      time.Duration
-	TriggerFailurePause time.Duration
-}
 
 const (
 	// DefaultContinuousQueryCheckTime is how frequently the broker will ask a data node
@@ -38,22 +20,40 @@ const (
 	DefaultFailureSleep = 100 * time.Millisecond
 )
 
+// Broker represents an InfluxDB specific messaging broker.
+type Broker struct {
+	*messaging.Broker
+
+	done chan struct{}
+
+	// send CQ processing requests to the same data node
+	// currentCQProcessingNode *messaging.Replica // FIX(benbjohnson)
+
+	// variables to control when to trigger processing and when to timeout
+	TriggerInterval     time.Duration
+	TriggerTimeout      time.Duration
+	TriggerFailurePause time.Duration
+}
+
 // NewBroker returns a new instance of a Broker with default values.
 func NewBroker() *Broker {
-	b := &Broker{
+	return &Broker{
+		Broker:              messaging.NewBroker(),
 		TriggerInterval:     5 * time.Second,
 		TriggerTimeout:      20 * time.Second,
 		TriggerFailurePause: 1 * time.Second,
 	}
-	b.Broker = messaging.NewBroker()
-	return b
 }
 
 // RunContinuousQueryLoop starts running continuous queries on a background goroutine.
 func (b *Broker) RunContinuousQueryLoop() {
-	b.done = make(chan struct{})
-	go b.continuousQueryLoop(b.done)
+	// FIX(benbjohnson)
+	// b.done = make(chan struct{})
+	// go b.continuousQueryLoop(b.done)
 }
+
+/*
+
 
 // Close closes the broker.
 func (b *Broker) Close() error {
@@ -128,3 +128,5 @@ func (b *Broker) requestContinuousQueryProcessing() error {
 
 	return nil
 }
+
+*/

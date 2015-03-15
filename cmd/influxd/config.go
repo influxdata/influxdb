@@ -192,8 +192,8 @@ func (c *Config) DataAddrUDP() string {
 }
 
 // DataURL returns the URL required to contact the data server.
-func (c *Config) DataURL() *url.URL {
-	return &url.URL{
+func (c *Config) DataURL() url.URL {
+	return url.URL{
 		Scheme: "http",
 		Host:   net.JoinHostPort(c.Hostname, strconv.Itoa(c.Data.Port)),
 	}
@@ -205,8 +205,8 @@ func (c *Config) BrokerAddr() string {
 }
 
 // BrokerURL returns the URL required to contact the Broker server.
-func (c *Config) BrokerURL() *url.URL {
-	return &url.URL{
+func (c *Config) BrokerURL() url.URL {
+	return url.URL{
 		Scheme: "http",
 		Host:   net.JoinHostPort(c.Hostname, strconv.Itoa(c.Broker.Port)),
 	}

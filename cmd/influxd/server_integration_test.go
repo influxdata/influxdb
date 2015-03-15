@@ -841,7 +841,8 @@ func TestSingleServer(t *testing.T) {
 }
 
 func Test3NodeServer(t *testing.T) {
-	t.Skip()
+	t.Skip("")
+
 	testName := "3-node server integration"
 	if testing.Short() {
 		t.Skip(fmt.Sprintf("skipping '%s'", testName))
@@ -972,7 +973,7 @@ func TestClientLibrary(t *testing.T) {
 
 		for _, q := range test.queries {
 			if q.query.Command != "" {
-				time.Sleep(100 * time.Millisecond)
+				time.Sleep(500 * time.Millisecond)
 				queryResult, err := c.Query(q.query)
 				if q.err != errToString(err) {
 					t.Errorf("unexpected error. expected: %s, got %v", q.err, err)

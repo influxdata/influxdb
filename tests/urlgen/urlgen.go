@@ -11,17 +11,17 @@ func main() {
 	intervalN := flag.Int("interval", 10, "interval")
 	seriesN := flag.Int("series", 1, "Number of unique series to generate.")
 	clientN := flag.Int("clients", 10, "Number of clients to simulate.")
-	startDate := flag.String("start", time.Now().Format(time.RFC3339), "Date to start with.")
 	flag.Parse()
 
-	t, _ := time.Parse(time.RFC3339, *startDate)
-	oneSecond := 1 * time.Second
+	// Calculate time so that the last point ends now.
+	n := (*clientN) * (*seriesN) * (*intervalN)
+	t := time.Now().UTC().Add(-time.Duration(n) * time.Second)
 
 	for i := 0; i < *clientN; i++ {
 		for j := 0; j < *seriesN; j++ {
 			points := make([]*Point, 0)
 			for k := 0; k < *intervalN; k++ {
-				t = t.Add(oneSecond)
+				t = t.Add(1 * time.Second)
 				points = append(points, &Point{
 					Name:      "cpu",
 					Timestamp: t,

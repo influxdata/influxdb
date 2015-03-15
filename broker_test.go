@@ -1,5 +1,6 @@
 package influxdb_test
 
+/*
 import (
 	"net/http"
 	"net/http/httptest"
@@ -93,3 +94,4 @@ func (h *BrokerTestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 	}
 }
+*/

@@ -33,7 +33,7 @@ func (c *Config) NodeByID(id uint64) *ConfigNode {
 }
 
 // NodeByURL returns a node by URL.
-func (c *Config) NodeByURL(u *url.URL) *ConfigNode {
+func (c *Config) NodeByURL(u url.URL) *ConfigNode {
 	for _, n := range c.Nodes {
 		if n.URL.String() == u.String() {
 			return n
@@ -43,11 +43,11 @@ func (c *Config) NodeByURL(u *url.URL) *ConfigNode {
 }
 
 // AddNode adds a new node to the config.
-func (c *Config) AddNode(id uint64, u *url.URL) error {
+func (c *Config) AddNode(id uint64, u url.URL) error {
 	// Validate that the id is non-zero and the url exists.
 	if id == 0 {
 		return ErrInvalidNodeID
-	} else if u == nil {
+	} else if u.Host == "" {
 		return ErrNodeURLRequired
 	}
 
@@ -97,13 +97,13 @@ func (c *Config) Clone() *Config {
 // ConfigNode represents a single machine in the raft configuration.
 type ConfigNode struct {
 	ID  uint64
-	URL *url.URL
+	URL url.URL
 }
 
 // clone returns a deep copy of the node.
 func (n *ConfigNode) clone() *ConfigNode {
-	other := &ConfigNode{ID: n.ID, URL: &url.URL{}}
-	*other.URL = *n.URL
+	other := &ConfigNode{ID: n.ID}
+	other.URL = n.URL
 	return other
 }
 
@@ -162,11 +162,11 @@ func (dec *ConfigDecoder) Decode(c *Config) error {
 		if err != nil {
 			return err
 		} else if n.URL == "" {
-			u = nil
+			u = &url.URL{}
 		}
 
 		// Append node to config.
-		if err := c.AddNode(n.ID, u); err != nil {
+		if err := c.AddNode(n.ID, *u); err != nil {
 			return err
 		}
 	}
