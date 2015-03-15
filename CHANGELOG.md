@@ -1,9 +1,13 @@
 ## v0.9.0-rc12 [unreleased]
 
+### Features
+- [#1935](https://github.com/influxdb/influxdb/pull/1935): Implement stateless broker for Raft.
+
 ### Bugfixes
 - [#1942](https://github.com/influxdb/influxdb/pull/1942): Sort wildcard names.
 - [#1957](https://github.com/influxdb/influxdb/pull/1957): Graphite numbers are always float64.
 - [#1955](https://github.com/influxdb/influxdb/pull/1955): Prohibit creation of databases with no name. Thanks @dullgiulio
+- [#1952](https://github.com/influxdb/influxdb/pull/1952): Handle delete statement with an error. Thanks again to @dullgiulio
 
 ## v0.9.0-rc11 [2015-03-13]
 
