@@ -157,7 +157,7 @@ func execConfig(args []string) {
 
 	config := parseConfig(*configPath, *hostname)
 
-	WriteConfigFile(config, os.Stdout)
+	config.Write(os.Stdout)
 }
 
 // execHelp runs the "help" command.

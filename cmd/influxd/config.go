@@ -260,6 +260,11 @@ func (c *Config) ShardGroupPreCreateCheckPeriod() time.Duration {
 	return DefaultRetentionCreatePeriod
 }
 
+// WriteConfigFile writes the config to the specified writer
+func (c *Config) Write(w io.Writer) error {
+	return toml.NewEncoder(w).Encode(c)
+}
+
 // Size represents a TOML parseable file size.
 // Users can specify size using "m" for megabytes and "g" for gigabytes.
 type Size int
@@ -311,11 +316,6 @@ func (d *Duration) UnmarshalText(text []byte) error {
 	// Set duration and return.
 	*d = Duration(duration)
 	return nil
-}
-
-// WriteConfigFile writes the config to the specified writer
-func WriteConfigFile(c *Config, w io.Writer) error {
-	return toml.NewEncoder(w).Encode(c)
 }
 
 // ParseConfigFile parses a configuration file at a given path.
