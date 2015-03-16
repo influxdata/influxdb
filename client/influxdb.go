@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"time"
@@ -145,7 +146,7 @@ func (c *Client) Ping() (time.Duration, string, error) {
 	return time.Since(now), version, nil
 }
 
-func (c *Client) Dump(db string) (*http.Response, error) {
+func (c *Client) Dump(db string) (io.ReadCloser, error) {
 	u := c.url
 	u.Path = "dump"
 	values := u.Query()
@@ -163,7 +164,7 @@ func (c *Client) Dump(db string) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	return resp, nil
+	return resp.Body, nil
 }
 
 // Structs
@@ -273,11 +274,11 @@ func (a Results) Error() error {
 // Precision can be specified if the timestamp is in epoch format (integer).
 // Valid values for Precision are n, u, ms, s, m, and h
 type Point struct {
-	Name      string
-	Tags      map[string]string
-	Timestamp time.Time
-	Fields    map[string]interface{}
-	Precision string
+	Name      string                 `json:"name,omitempty"`
+	Tags      map[string]string      `json:"tags,omitempty"`
+	Timestamp time.Time              `json:"timestamp,omitempty"` //XXX omitempty doesn't work on time.Time
+	Fields    map[string]interface{} `json:"fields,omitempty"`
+	Precision string                 `json:"precision,omitempty"`
 }
 
 // MarshalJSON will format the time in RFC3339Nano

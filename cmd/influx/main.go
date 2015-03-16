@@ -58,11 +58,6 @@ func main() {
 	fs.BoolVar(&c.Dump, "dump", false, "dump the contents of the given database to stdout")
 	fs.Parse(os.Args[1:])
 
-	if c.Dump {
-		c.connect("")
-		c.dump()
-	}
-
 	var promptForPassword bool
 	// determine if they set the password flag but provided no value
 	for _, v := range os.Args {
@@ -89,6 +84,11 @@ func main() {
 	}
 
 	c.connect("")
+
+	if c.Dump {
+		c.dump()
+		return
+	}
 
 	var historyFile string
 	usr, err := user.Current()
@@ -260,23 +260,19 @@ func (c *CommandLine) SetFormat(cmd string) {
 }
 
 func (c *CommandLine) dump() {
-	fmt.Printf("db is %s\n", c.Database)
 	response, err := c.Client.Dump(c.Database)
-	defer response.Body.Close()
+	defer response.Close()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to dump database %s from %s\n", c.Database, c.Client.Addr())
-		os.Exit(1)
+		fmt.Printf("Dump failed. %s\n", err)
 	} else {
-		scanner := bufio.NewScanner(response.Body)
+		scanner := bufio.NewScanner(response)
 		for scanner.Scan() {
 			fmt.Println(scanner.Text())
 		}
 		if err := scanner.Err(); err != nil {
-			fmt.Fprintln(os.Stderr, "Failed to dump database %s", err)
-			os.Exit(1)
+			fmt.Printf("Dump failed. %s\n", err)
 		}
 	}
-	os.Exit(0)
 }
 
 func (c *CommandLine) executeQuery(query string) {

@@ -1,6 +1,7 @@
 package httpd
 
 import (
+	"compress/gzip"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,8 +16,6 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
-
-	"compress/gzip"
 
 	"code.google.com/p/go-uuid/uuid"
 
@@ -179,19 +178,6 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *influ
 	httpResults(w, results, pretty)
 }
 
-type Point struct {
-	Name      string                 `json:"name"`
-	Timestamp time.Time              `json:"timestamp"`
-	Tags      map[string]string      `json:"tags"`
-	Fields    map[string]interface{} `json:"fields"`
-}
-
-type Batch struct {
-	Database        string  `json:"database"`
-	RetentionPolicy string  `json:"retentionPolicy"`
-	Points          []Point `json:"points"`
-}
-
 func interfaceToString(v interface{}) string {
 	switch t := v.(type) {
 	case nil:
@@ -207,30 +193,37 @@ func interfaceToString(v interface{}) string {
 	}
 }
 
-// Return all the measurements from the given DB
-func (h *Handler) showMeasurements(db string, user *influxdb.User) (error, []string) {
-	var measurements []string
-	queryString := "show measurements"
-	p := influxql.NewParser(strings.NewReader(queryString))
-	query, err := p.ParseQuery()
-	if err != nil {
-		return err, measurements
-	}
-	results := h.server.ExecuteQuery(query, db, user)
-	if results.Err != nil {
-		return results.Err, measurements
+type Point struct {
+	Name      string                 `json:"name"`
+	Timestamp time.Time              `json:"timestamp"`
+	Tags      map[string]string      `json:"tags"`
+	Fields    map[string]interface{} `json:"fields"`
+}
 
+type Batch struct {
+	Database        string  `json:"database"`
+	RetentionPolicy string  `json:"retentionPolicy"`
+	Points          []Point `json:"points"`
+}
+
+// Return all the measurements from the given DB
+func (h *Handler) showMeasurements(db string, user *influxdb.User) ([]string, error) {
+	var measurements []string
+	results := h.server.ExecuteQuery(&influxql.Query{[]influxql.Statement{&influxql.ShowMeasurementsStatement{}}}, db, user)
+	if results.Err != nil {
+		return measurements, results.Err
 	}
-	for _, measurementResult := range results.Results {
-		for _, measurementRow := range measurementResult.Series {
-			for _, measurementTuple := range (*measurementRow).Values {
-				for _, measurementCell := range measurementTuple {
-					measurements = append(measurements, interfaceToString(measurementCell))
+
+	for _, result := range results.Results {
+		for _, row := range result.Series {
+			for _, tuple := range (*row).Values {
+				for _, cell := range tuple {
+					measurements = append(measurements, interfaceToString(cell))
 				}
 			}
 		}
 	}
-	return nil, measurements
+	return measurements, nil
 }
 
 // serveDump returns all points in the given database as a plaintext list of JSON structs.
@@ -242,9 +235,9 @@ func (h *Handler) serveDump(w http.ResponseWriter, r *http.Request, user *influx
 	db := q.Get("db")
 	delim := []byte("\n")
 	pretty := q.Get("pretty") == "true"
-	err, measurements := h.showMeasurements(db, user)
+	measurements, err := h.showMeasurements(db, user)
 	if err != nil {
-		httpError(w, "error with dump: "+err.Error(), pretty, http.StatusBadRequest)
+		httpError(w, "error with dump: "+err.Error(), pretty, http.StatusInternalServerError)
 		return
 	}
 
@@ -265,7 +258,7 @@ func (h *Handler) serveDump(w http.ResponseWriter, r *http.Request, user *influx
 		p := influxql.NewParser(strings.NewReader(queryString))
 		query, err := p.ParseQuery()
 		if err != nil {
-			httpError(w, "error with dump: "+err.Error(), pretty, http.StatusBadRequest)
+			httpError(w, "error with dump: "+err.Error(), pretty, http.StatusInternalServerError)
 			return
 		}
 		//
@@ -280,18 +273,23 @@ func (h *Handler) serveDump(w http.ResponseWriter, r *http.Request, user *influx
 				for _, tuple := range row.Values {
 					for subscript, cell := range tuple {
 						if row.Columns[subscript] == "time" {
-							point.Timestamp, _ = time.Parse(time.RFC3339, interfaceToString(cell))
+							point.Timestamp, _ = cell.(time.Time)
 							continue
 						}
 						point.Fields[row.Columns[subscript]] = cell
 					}
 					points[0] = point
 					batch := &Batch{
+						Points:          points,
 						Database:        db,
 						RetentionPolicy: "default",
-						Points:          points,
 					}
-					buf, _ := json.Marshal(&batch)
+					buf, err := json.Marshal(&batch)
+
+					if err != nil {
+						httpError(w, "error with dump: "+err.Error(), pretty, http.StatusInternalServerError)
+						return
+					}
 					w.Write(buf)
 					w.Write(delim)
 				}
