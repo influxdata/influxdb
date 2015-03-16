@@ -8,9 +8,12 @@ import (
 )
 
 func main() {
-	intervalN := flag.Int("interval", 10, "interval")
-	seriesN := flag.Int("series", 1, "Number of unique series to generate.")
-	clientN := flag.Int("clients", 10, "Number of clients to simulate.")
+	var (
+		intervalN = flag.Int("interval", 10, "interval")
+		seriesN   = flag.Int("series", 1, "Number of unique series to generate.")
+		clientN   = flag.Int("clients", 10, "Number of clients to simulate.")
+		host      = flag.String("host", "localhost:8086", "Target host")
+	)
 	flag.Parse()
 
 	// Calculate time so that the last point ends now.
@@ -36,7 +39,7 @@ func main() {
 			}
 			buf, _ := json.Marshal(batch)
 
-			fmt.Printf("http://localhost:8086/write POST %s\n", buf)
+			fmt.Printf("http://%s/write POST %s\n", *host, buf)
 		}
 	}
 }
