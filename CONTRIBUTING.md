@@ -128,7 +128,11 @@ go get -u -f ./...
 go build ./...
 ```
 
-Once compilation completes, the binaries can be found in `$GOPATH/bin`. Please note that the InfluxDB binary is named `influxd`, not `influxdb`.
+To install the binaries, run the following command. They can be found in `$GOPATH/bin`. Please note that the InfluxDB binary is named `influxd`, not `influxdb`.
+
+```bash
+go install ./...
+```
 
 To set the version and commit flags during the build pass the following to the build command:
 
