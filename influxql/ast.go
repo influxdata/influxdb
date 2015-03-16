@@ -203,8 +203,7 @@ type Source interface {
 	source()
 }
 
-func (*Measurement) source()  {}
-func (*RegexLiteral) source() {}
+func (*Measurement) source() {}
 
 // Sources represents a list of sources.
 type Sources []Source
@@ -658,9 +657,6 @@ func cloneSource(s Source) Source {
 			m.Regex = &RegexLiteral{Val: regexp.MustCompile(s.Regex.Val.String())}
 		}
 		return m
-	case *RegexLiteral:
-		re, _ := regexp.Compile(s.Val.String())
-		return &RegexLiteral{Val: re}
 	default:
 		panic("unreachable")
 	}
