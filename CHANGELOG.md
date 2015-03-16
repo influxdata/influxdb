@@ -1,7 +1,6 @@
-## v0.9.0-rc12 [unreleased]
+## v0.9.0-rc13 [unreleased]
 
-### Features
-- [#1935](https://github.com/influxdb/influxdb/pull/1935): Implement stateless broker for Raft.
+## v0.9.0-rc12 [2015-03-15]
 
 ### Bugfixes
 - [#1942](https://github.com/influxdb/influxdb/pull/1942): Sort wildcard names.
@@ -10,6 +9,7 @@
 - [#1952](https://github.com/influxdb/influxdb/pull/1952): Handle delete statement with an error. Thanks again to @dullgiulio
 
 ### Features
+- [#1935](https://github.com/influxdb/influxdb/pull/1935): Implement stateless broker for Raft.
 - [#1936](https://github.com/influxdb/influxdb/pull/1936): Implement "SHOW STATS" and self-monitoring
 
 ## v0.9.0-rc11 [2015-03-13]
