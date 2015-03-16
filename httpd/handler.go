@@ -157,9 +157,17 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // serveQuery parses an incoming query and, if valid, executes the query.
 func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *influxdb.User) {
 	q := r.URL.Query()
-	p := influxql.NewParser(strings.NewReader(q.Get("q")))
-	db := q.Get("db")
+
 	pretty := q.Get("pretty") == "true"
+
+	qp := strings.TrimSpace(q.Get("q"))
+	if qp == "" {
+		httpError(w, `missing required parameter "q"`, pretty, http.StatusBadRequest)
+		return
+	}
+
+	p := influxql.NewParser(strings.NewReader(qp))
+	db := q.Get("db")
 
 	// Parse query from query string.
 	query, err := p.ParseQuery()

@@ -904,6 +904,21 @@ func TestHandler_AuthenticatedDatabases_Unauthorized(t *testing.T) {
 	}
 }
 
+func TestHandler_QueryParamenterMissing(t *testing.T) {
+	c := test.NewMessagingClient()
+	defer c.Close()
+	srvr := OpenAuthlessServer(c)
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, body := MustHTTP("GET", s.URL+`/query`, nil, nil, "")
+	if status != http.StatusBadRequest {
+		t.Fatalf("unexpected status: %d", status)
+	} else if body != `{"error":"missing required parameter \"q\""}` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
 func TestHandler_AuthenticatedDatabases_AuthorizedQueryParams(t *testing.T) {
 	c := test.NewMessagingClient()
 	defer c.Close()
