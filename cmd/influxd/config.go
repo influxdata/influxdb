@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/url"
@@ -310,6 +311,11 @@ func (d *Duration) UnmarshalText(text []byte) error {
 	// Set duration and return.
 	*d = Duration(duration)
 	return nil
+}
+
+// WriteConfigFile writes the config to the specified writer
+func WriteConfigFile(c *Config, w io.Writer) error {
+	return toml.NewEncoder(w).Encode(c)
 }
 
 // ParseConfigFile parses a configuration file at a given path.

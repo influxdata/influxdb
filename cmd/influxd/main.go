@@ -70,6 +70,8 @@ func main() {
 		execRun(args)
 	case "version":
 		execVersion(args[1:])
+	case "config":
+		execConfig(args[1:])
 	case "help":
 		execHelp(args[1:])
 	default:
@@ -102,6 +104,9 @@ func execRun(args []string) {
 	log.SetFlags(log.LstdFlags)
 	writePIDFile(*pidPath)
 
+	if configPath != nil {
+		log.Println("No config provided, using default settings")
+	}
 	config := parseConfig(*configPath, *hostname)
 
 	// Create a logging writer.
@@ -138,6 +143,21 @@ func execVersion(args []string) {
 		s += fmt.Sprintf(" (git: %s)", commit)
 	}
 	log.Print(s)
+}
+
+// execConfig parses and prints the current config loaded.
+func execConfig(args []string) {
+	// Parse command flags.
+	fs := flag.NewFlagSet("", flag.ExitOnError)
+	var (
+		configPath = fs.String("config", "", "")
+		hostname   = fs.String("hostname", "", "")
+	)
+	fs.Parse(args)
+
+	config := parseConfig(*configPath, *hostname)
+
+	WriteConfigFile(config, os.Stdout)
 }
 
 // execHelp runs the "help" command.

@@ -236,7 +236,6 @@ func writePIDFile(path string) {
 // parses the configuration from a given path. Sets overrides as needed.
 func parseConfig(path, hostname string) *Config {
 	if path == "" {
-		log.Println("No config provided, using default settings")
 		return NewConfig()
 	}
 
