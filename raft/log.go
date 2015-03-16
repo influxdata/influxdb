@@ -513,6 +513,7 @@ func (l *Log) Initialize() error {
 		l.term = term
 		l.votedFor = 0
 		l.lastLogTerm = term
+		l.leaderID = l.id
 
 		// Begin state loop as leader.
 		l.startStateLoop(l.closing, Leader)

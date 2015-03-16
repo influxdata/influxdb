@@ -185,8 +185,6 @@ func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
 		log.Printf("unable to write client config: %s", err)
 		return
 	}
-
-	w.WriteHeader(http.StatusOK)
 }
 
 // error writes an error to the client and sets the status code.
