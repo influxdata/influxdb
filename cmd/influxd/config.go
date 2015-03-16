@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/url"
@@ -257,6 +258,11 @@ func (c *Config) ShardGroupPreCreateCheckPeriod() time.Duration {
 		return time.Duration(c.Data.RetentionCreatePeriod)
 	}
 	return DefaultRetentionCreatePeriod
+}
+
+// WriteConfigFile writes the config to the specified writer
+func (c *Config) Write(w io.Writer) error {
+	return toml.NewEncoder(w).Encode(c)
 }
 
 // Size represents a TOML parseable file size.
