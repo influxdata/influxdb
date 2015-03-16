@@ -83,6 +83,6 @@ func TestStats_Snapshot(t *testing.T) {
 
 	bar := foo.Snapshot()
 	if bar.Name() != "server" || bar.Get("a") != 100 || bar.Get("b") != 600 {
-		t.Fatalf("stats snapshot returned unexpected result: %s", bar)
+		t.Fatalf("stats snapshot returned unexpected result: %#v", bar)
 	}
 }
