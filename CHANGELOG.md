@@ -1,5 +1,8 @@
 ## v0.9.0-rc13 [unreleased]
 
+### Features
+- [#1974](https://github.com/influxdb/influxdb/pull/1974): Add time taken for request to the http server logs.
+
 ## v0.9.0-rc12 [2015-03-15]
 
 ### Bugfixes
