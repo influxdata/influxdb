@@ -78,6 +78,7 @@ func (*ShowFieldKeysStatement) node()         {}
 func (*ShowRetentionPoliciesStatement) node() {}
 func (*ShowMeasurementsStatement) node()      {}
 func (*ShowSeriesStatement) node()            {}
+func (*ShowStatsStatement) node()             {}
 func (*ShowTagKeysStatement) node()           {}
 func (*ShowTagValuesStatement) node()         {}
 func (*ShowUsersStatement) node()             {}
@@ -169,6 +170,7 @@ func (*ShowFieldKeysStatement) stmt()         {}
 func (*ShowMeasurementsStatement) stmt()      {}
 func (*ShowRetentionPoliciesStatement) stmt() {}
 func (*ShowSeriesStatement) stmt()            {}
+func (*ShowStatsStatement) stmt()             {}
 func (*ShowTagKeysStatement) stmt()           {}
 func (*ShowTagValuesStatement) stmt()         {}
 func (*ShowUsersStatement) stmt()             {}
@@ -1363,6 +1365,27 @@ func (s *ShowRetentionPoliciesStatement) String() string {
 // RequiredPrivileges returns the privilege(s) required to execute a ShowRetentionPoliciesStatement
 func (s *ShowRetentionPoliciesStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Name: "", Privilege: ReadPrivilege}}
+}
+
+// ShowRetentionPoliciesStatement represents a command for displaying stats for a given server.
+type ShowStatsStatement struct {
+	// Hostname or IP of the server for stats.
+	Host string
+}
+
+// String returns a string representation of a ShowStatsStatement.
+func (s *ShowStatsStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("SHOW STATS ")
+	if s.Host != "" {
+		_, _ = buf.WriteString(s.Host)
+	}
+	return buf.String()
+}
+
+// RequiredPrivileges returns the privilege(s) required to execute a ShowStatsStatement
+func (s *ShowStatsStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
 }
 
 // ShowTagKeysStatement represents a command for listing tag keys.

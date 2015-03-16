@@ -72,6 +72,7 @@ type Server struct {
 
 	shards map[uint64]*Shard // shards by shard id
 
+	stats      *Stats
 	Logger     *log.Logger
 	WriteTrace bool // Detailed logging of write path
 
@@ -104,6 +105,7 @@ func NewServer() *Server {
 		users:     make(map[string]*User),
 
 		shards: make(map[uint64]*Shard),
+		stats:  NewStats("server"),
 		Logger: log.New(os.Stderr, "[server] ", log.LstdFlags),
 	}
 	// Server will always return with authentication enabled.
@@ -321,6 +323,32 @@ func (s *Server) load() error {
 	})
 }
 
+func (s *Server) StartSelfMonitoring(database, retention string, interval time.Duration) error {
+	if interval == 0 {
+		return fmt.Errorf("statistics check interval must be non-zero")
+	}
+
+	go func() {
+		tick := time.NewTicker(interval)
+		for {
+			<-tick.C
+
+			// Create the data point and write it.
+			point := Point{
+				Name:   s.stats.Name(),
+				Tags:   map[string]string{"raftID": strconv.FormatUint(s.id, 10)},
+				Fields: make(map[string]interface{}),
+			}
+			s.stats.Walk(func(k string, v int64) {
+				point.Fields[k] = int(v)
+			})
+			s.WriteSeries(database, retention, []Point{point})
+		}
+	}()
+
+	return nil
+}
+
 // StartRetentionPolicyEnforcement launches retention policy enforcement.
 func (s *Server) StartRetentionPolicyEnforcement(checkInterval time.Duration) error {
 	if checkInterval == 0 {
@@ -458,6 +486,8 @@ func (s *Server) Client() MessagingClient {
 // This function waits until the message has been processed by the server.
 // Returns the broker log index of the message or an error.
 func (s *Server) broadcast(typ messaging.MessageType, c interface{}) (uint64, error) {
+	s.stats.Inc("broadcastMessageTx")
+
 	// Encode the command.
 	data, err := json.Marshal(c)
 	if err != nil {
@@ -764,7 +794,12 @@ func (s *Server) CreateDatabaseIfNotExists(name string) error {
 	if s.DatabaseExists(name) {
 		return nil
 	}
-	return s.CreateDatabase(name)
+
+	// Small chance database could have been created even though the check above said it didn't.
+	if err := s.CreateDatabase(name); err != nil && err != ErrDatabaseExists {
+		return err
+	}
+	return nil
 }
 
 func (s *Server) applyCreateDatabase(m *messaging.Message) (err error) {
@@ -943,6 +978,7 @@ func (s *Server) applyCreateShardGroupIfNotExists(m *messaging.Message) (err err
 				nodeIndex++
 			}
 		}
+		s.stats.Add("shardsCreated", int64(len(g.Shards)))
 
 		// Retention policy has a new shard group, so update the policy.
 		rp.shardGroups = append(rp.shardGroups, g)
@@ -1023,6 +1059,7 @@ func (s *Server) applyDeleteShardGroup(m *messaging.Message) (err error) {
 	// Remove from metastore.
 	rp.removeShardGroupByID(c.ID)
 	err = s.meta.mustUpdate(m.Index, func(tx *metatx) error {
+		s.stats.Add("shardsDeleted", int64(len(g.Shards)))
 		return tx.saveDatabase(db)
 	})
 	return
@@ -1274,6 +1311,13 @@ func (s *Server) RetentionPolicies(database string) ([]*RetentionPolicy, error) 
 	return a, nil
 }
 
+// RetentionPolicyExists returns true if a retention policy exists for a given database.
+func (s *Server) RetentionPolicyExists(database, retention string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.DatabaseExists(database) && s.databases[database].policies[retention] != nil
+}
+
 // CreateRetentionPolicy creates a retention policy for a database.
 func (s *Server) CreateRetentionPolicy(database string, rp *RetentionPolicy) error {
 	// Enforce duration of at least retentionPolicyMinDuration
@@ -1290,6 +1334,18 @@ func (s *Server) CreateRetentionPolicy(database string, rp *RetentionPolicy) err
 	}
 	_, err := s.broadcast(createRetentionPolicyMessageType, c)
 	return err
+}
+
+// CreateRetentionPolicy creates a retention policy for a database.
+func (s *Server) CreateRetentionPolicyIfNotExists(database string, rp *RetentionPolicy) error {
+	// Ensure retention policy exists.
+	if !s.RetentionPolicyExists(database, rp.Name) {
+		// Small chance retention policy could be created after it didn't exist when checked.
+		if err := s.CreateRetentionPolicy(database, rp); err != nil && err != ErrRetentionPolicyExists {
+			return err
+		}
+	}
+	return nil
 }
 
 func calculateShardGroupDuration(d time.Duration) time.Duration {
@@ -1508,7 +1564,15 @@ type Point struct {
 
 // WriteSeries writes series data to the database.
 // Returns the messaging index the data was written to.
-func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (uint64, error) {
+func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (idx uint64, err error) {
+	s.stats.Inc("batchWriteRx")
+	s.stats.Add("pointWriteRx", int64(len(points)))
+	defer func() {
+		if err != nil {
+			s.stats.Inc("batchWriteRxError")
+		}
+	}()
+
 	if s.WriteTrace {
 		log.Printf("received write for database '%s', retention policy '%s', with %d points",
 			database, retentionPolicy, len(points))
@@ -1613,7 +1677,6 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 	}
 
 	// Write data for each shard to the Broker.
-	var err error
 	var maxIndex uint64
 	for i, d := range shardData {
 		assert(len(d) > 0, "raw series data required: topic=%d", i)
@@ -1626,6 +1689,7 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 		if err != nil {
 			return maxIndex, err
 		}
+		s.stats.Inc("writeSeriesMessageTx")
 		if index > maxIndex {
 			maxIndex = index
 		}
@@ -1634,7 +1698,7 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 		}
 	}
 
-	return maxIndex, err
+	return maxIndex, nil
 }
 
 // createMeasurementsIfNotExists walks the "points" and ensures that all new Series are created, and all
@@ -1937,6 +2001,8 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 			res = s.executeShowTagValuesStatement(stmt, database, user)
 		case *influxql.ShowFieldKeysStatement:
 			res = s.executeShowFieldKeysStatement(stmt, database, user)
+		case *influxql.ShowStatsStatement:
+			res = s.executeShowStatsStatement(stmt, user)
 		case *influxql.GrantStatement:
 			res = s.executeGrantStatement(stmt, user)
 		case *influxql.RevokeStatement:
@@ -2442,6 +2508,17 @@ func (s *Server) executeShowContinuousQueriesStatement(stmt *influxql.ShowContin
 	return &Result{Series: rows}
 }
 
+func (s *Server) executeShowStatsStatement(stmt *influxql.ShowStatsStatement, user *User) *Result {
+	row := &influxql.Row{Columns: []string{}}
+	row.Name = s.stats.Name()
+	s.stats.Walk(func(k string, v int64) {
+		row.Columns = append(row.Columns, k)
+		row.Values = append(row.Values, []interface{}{v})
+	})
+
+	return &Result{Series: []*influxql.Row{row}}
+}
+
 // filterMeasurementsByExpr filters a list of measurements by a tags expression.
 func filterMeasurementsByExpr(measurements Measurements, expr influxql.Expr) (Measurements, error) {
 	// Create a list to hold result measurements.
@@ -2816,6 +2893,7 @@ func (s *Server) processor(conn MessagingConn, done chan struct{}) {
 
 		// All messages must be processed under lock.
 		func() {
+			s.stats.Inc("broadcastMessageRx")
 			s.mu.Lock()
 			defer s.mu.Unlock()
 
@@ -3279,6 +3357,7 @@ func (s *Server) shouldRunContinuousQuery(cq *ContinuousQuery) bool {
 // runContinuousQuery will execute a continuous query
 // TODO: make this fan out to the cluster instead of running all the queries on this single data node
 func (s *Server) runContinuousQuery(cq *ContinuousQuery) {
+	s.stats.Inc("continuousQueryExecuted")
 	cq.mu.Lock()
 	defer cq.mu.Unlock()
 

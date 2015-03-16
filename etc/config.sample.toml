@@ -88,3 +88,12 @@ dir = "/tmp/influxdb/development/state"
 file   = "/var/log/influxdb/influxd.log" # Leave blank to redirect logs to stderr.
 write-tracing = false # If true, enables detailed logging of the write system.
 raft-tracing = false # If true, enables detailed logging of Raft consensus.
+
+# InfluxDB can store statistics about itself. This is useful for monitoring purposes.
+# This feature is disabled by default, but if enabled, these statistics can be queried
+# as any other data.
+[statistics]
+enabled = false
+database = "_internal"         # The database to which the data is written.
+retention-policy = "default"   # The retention policy within the database.
+write-interval = "1m"          # Period between writing the data.

@@ -9,6 +9,9 @@
 - [#1955](https://github.com/influxdb/influxdb/pull/1955): Prohibit creation of databases with no name. Thanks @dullgiulio
 - [#1952](https://github.com/influxdb/influxdb/pull/1952): Handle delete statement with an error. Thanks again to @dullgiulio
 
+### Features
+- [#1936](https://github.com/influxdb/influxdb/pull/1936): Implement "SHOW STATS" and self-monitoring
+
 ## v0.9.0-rc11 [2015-03-13]
 
 ### Bugfixes
