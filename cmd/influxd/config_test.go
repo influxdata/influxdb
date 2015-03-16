@@ -177,6 +177,12 @@ file   = "influxdb.log"
 write-tracing = true
 raft-tracing = true
 
+[statistics]
+enabled = true
+database = "_internal"
+retention-policy = "default"
+write-interval = "1m"
+
 # Configure the admin server
 [admin]
 enabled = true

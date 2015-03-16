@@ -11,10 +11,15 @@ import (
 	"github.com/influxdb/influxdb/raft"
 )
 
+func init() {
+	// Ensure Log implements the Handler.Log interface.
+	_ = raft.Handler{Log: raft.NewLog()}
+}
+
 // Ensure a node can join a cluster over HTTP.
 func TestHandler_HandleJoin(t *testing.T) {
 	h := NewHandler()
-	h.AddPeerFunc = func(u *url.URL) (uint64, uint64, *raft.Config, error) {
+	h.AddPeerFunc = func(u url.URL) (uint64, uint64, *raft.Config, error) {
 		if u.String() != "http://localhost:1000" {
 			t.Fatalf("unexpected url: %s", u)
 		}
@@ -42,7 +47,7 @@ func TestHandler_HandleJoin(t *testing.T) {
 // Ensure that joining with an invalid query string with return an error.
 func TestHandler_HandleJoin_Error(t *testing.T) {
 	h := NewHandler()
-	h.AddPeerFunc = func(u *url.URL) (uint64, uint64, *raft.Config, error) {
+	h.AddPeerFunc = func(u url.URL) (uint64, uint64, *raft.Config, error) {
 		return 0, 0, nil, raft.ErrClosed
 	}
 	s := httptest.NewServer(h)
@@ -364,7 +369,7 @@ func TestHandler_Ping(t *testing.T) {
 // Handler represents a test wrapper for the raft.Handler.
 type Handler struct {
 	*raft.Handler
-	AddPeerFunc        func(u *url.URL) (uint64, uint64, *raft.Config, error)
+	AddPeerFunc        func(u url.URL) (uint64, uint64, *raft.Config, error)
 	RemovePeerFunc     func(id uint64) error
 	HeartbeatFunc      func(term, commitIndex, leaderID uint64) (currentIndex uint64, err error)
 	WriteEntriesToFunc func(w io.Writer, id, term, index uint64) error
@@ -378,8 +383,8 @@ func NewHandler() *Handler {
 	return h
 }
 
-func (h *Handler) AddPeer(u *url.URL) (uint64, uint64, *raft.Config, error) { return h.AddPeerFunc(u) }
-func (h *Handler) RemovePeer(id uint64) error                               { return h.RemovePeerFunc(id) }
+func (h *Handler) AddPeer(u url.URL) (uint64, uint64, *raft.Config, error) { return h.AddPeerFunc(u) }
+func (h *Handler) RemovePeer(id uint64) error                              { return h.RemovePeerFunc(id) }
 
 func (h *Handler) Heartbeat(term, commitIndex, leaderID uint64) (currentIndex uint64, err error) {
 	return h.HeartbeatFunc(term, commitIndex, leaderID)

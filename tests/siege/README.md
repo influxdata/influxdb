@@ -17,7 +17,7 @@ You can do this with the following commands:
 
 ```sh
 $ curl -G http://localhost:8086/query --data-urlencode "q=CREATE DATABASE db"
-$ curl -G http://localhost:8086/query --data-urlencode "q=CREATE RETENTION POLICY raw ON db DURATION 1h REPLICATION 1 DEFAULT"
+$ curl -G http://localhost:8086/query --data-urlencode "q=CREATE RETENTION POLICY raw ON db DURATION 30d REPLICATION 3 DEFAULT"
 ```
 
 

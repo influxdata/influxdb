@@ -2,7 +2,6 @@
 src/
 
 config.json
-/test
 /bin/
 
 /pkg/

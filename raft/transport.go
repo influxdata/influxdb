@@ -15,9 +15,9 @@ import (
 type HTTPTransport struct{}
 
 // Join requests membership into a node's cluster.
-func (t *HTTPTransport) Join(uri *url.URL, nodeURL *url.URL) (uint64, uint64, *Config, error) {
+func (t *HTTPTransport) Join(uri url.URL, nodeURL url.URL) (uint64, uint64, *Config, error) {
 	// Construct URL.
-	u := *uri
+	u := uri
 	u.Path = path.Join(u.Path, "raft/join")
 	u.RawQuery = (&url.Values{"url": {nodeURL.String()}}).Encode()
 
@@ -55,9 +55,9 @@ func (t *HTTPTransport) Join(uri *url.URL, nodeURL *url.URL) (uint64, uint64, *C
 }
 
 // Leave removes a node from a cluster's membership.
-func (t *HTTPTransport) Leave(uri *url.URL, id uint64) error {
+func (t *HTTPTransport) Leave(uri url.URL, id uint64) error {
 	// Construct URL.
-	u := *uri
+	u := uri
 	u.Path = path.Join(u.Path, "raft/leave")
 	u.RawQuery = (&url.Values{"id": {strconv.FormatUint(id, 10)}}).Encode()
 
@@ -77,9 +77,9 @@ func (t *HTTPTransport) Leave(uri *url.URL, id uint64) error {
 }
 
 // Heartbeat checks the status of a follower.
-func (t *HTTPTransport) Heartbeat(uri *url.URL, term, commitIndex, leaderID uint64) (uint64, error) {
+func (t *HTTPTransport) Heartbeat(uri url.URL, term, commitIndex, leaderID uint64) (uint64, error) {
 	// Construct URL.
-	u := *uri
+	u := uri
 	u.Path = path.Join(u.Path, "raft/heartbeat")
 
 	// Set URL parameters.
@@ -112,9 +112,9 @@ func (t *HTTPTransport) Heartbeat(uri *url.URL, term, commitIndex, leaderID uint
 }
 
 // ReadFrom streams the log from a leader.
-func (t *HTTPTransport) ReadFrom(uri *url.URL, id, term, index uint64) (io.ReadCloser, error) {
+func (t *HTTPTransport) ReadFrom(uri url.URL, id, term, index uint64) (io.ReadCloser, error) {
 	// Construct URL.
-	u := *uri
+	u := uri
 	u.Path = path.Join(u.Path, "raft/stream")
 
 	// Set URL parameters.
@@ -140,9 +140,9 @@ func (t *HTTPTransport) ReadFrom(uri *url.URL, id, term, index uint64) (io.ReadC
 }
 
 // RequestVote requests a vote for a candidate in a given term.
-func (t *HTTPTransport) RequestVote(uri *url.URL, term, candidateID, lastLogIndex, lastLogTerm uint64) error {
+func (t *HTTPTransport) RequestVote(uri url.URL, term, candidateID, lastLogIndex, lastLogTerm uint64) error {
 	// Construct URL.
-	u := *uri
+	u := uri
 	u.Path = path.Join(u.Path, "raft/vote")
 
 	// Set URL parameters.

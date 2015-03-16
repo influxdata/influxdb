@@ -15,15 +15,17 @@ import (
 
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/influxql"
-	"github.com/influxdb/influxdb/messaging"
+	"github.com/influxdb/influxdb/test"
 	"golang.org/x/crypto/bcrypt"
 )
 
 // Ensure the server can be successfully opened and closed.
 func TestServer_Open(t *testing.T) {
+	c := test.NewMessagingClient()
+	defer c.Close()
 	s := NewServer()
 	defer s.Close()
-	if err := s.Server.Open(tempfile()); err != nil {
+	if err := s.Server.Open(tempfile(), c); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.Server.Close(); err != nil {
@@ -39,7 +41,9 @@ func TestServer_Open_ErrPathRequired(t *testing.T) { t.Skip("pending") }
 
 // Ensure the server can create a new data node.
 func TestServer_CreateDataNode(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 
 	// Create a new node.
@@ -61,7 +65,9 @@ func TestServer_CreateDataNode(t *testing.T) {
 
 // Ensure the server returns an error when creating a duplicate node.
 func TestServer_CreateDatabase_ErrDataNodeExists(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 
 	// Create a node with the same URL twice.
@@ -76,7 +82,9 @@ func TestServer_CreateDatabase_ErrDataNodeExists(t *testing.T) {
 
 // Ensure the server can delete a node.
 func TestServer_DeleteDataNode(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 
 	// Create a data node and verify it exists.
@@ -99,7 +107,9 @@ func TestServer_DeleteDataNode(t *testing.T) {
 
 // Test unuathorized requests logging
 func TestServer_UnauthorizedRequests(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 
 	s.SetAuthenticationEnabled(true)
@@ -140,7 +150,9 @@ func TestServer_UnauthorizedRequests(t *testing.T) {
 
 // Test user privilege authorization.
 func TestServer_UserPrivilegeAuthorization(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 
 	// Create cluster admin.
@@ -175,7 +187,9 @@ func TestServer_UserPrivilegeAuthorization(t *testing.T) {
 
 // Test single statement query authorization.
 func TestServer_SingleStatementQueryAuthorization(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 
 	// Create cluster admin.
@@ -242,7 +256,9 @@ func TestServer_SingleStatementQueryAuthorization(t *testing.T) {
 
 // Test multiple statement query authorization.
 func TestServer_MultiStatementQueryAuthorization(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 
 	// Create cluster admin.
@@ -287,8 +303,15 @@ func TestServer_MultiStatementQueryAuthorization(t *testing.T) {
 
 // Ensure the server can create a database.
 func TestServer_CreateDatabase(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
+
+	// Attempt creating database without a name
+	if err := s.CreateDatabase(""); err != influxdb.ErrDatabaseNameRequired {
+		t.Fatal("expected error on empty database name")
+	}
 
 	// Create the "foo" database.
 	if err := s.CreateDatabase("foo"); err != nil {
@@ -304,7 +327,9 @@ func TestServer_CreateDatabase(t *testing.T) {
 
 // Ensure the server returns an error when creating a duplicate database.
 func TestServer_CreateDatabase_ErrDatabaseExists(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 
 	// Create the "foo" database twice.
@@ -318,8 +343,15 @@ func TestServer_CreateDatabase_ErrDatabaseExists(t *testing.T) {
 
 // Ensure the server can drop a database.
 func TestServer_DropDatabase(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
+
+	// Attempt dropping a database without a name.
+	if err := s.DropDatabase(""); err != influxdb.ErrDatabaseNameRequired {
+		t.Fatal("expected error on empty database name")
+	}
 
 	// Create the "foo" database and verify it exists.
 	if err := s.CreateDatabase("foo"); err != nil {
@@ -339,7 +371,9 @@ func TestServer_DropDatabase(t *testing.T) {
 
 // Ensure the server returns an error when dropping a database that doesn't exist.
 func TestServer_DropDatabase_ErrDatabaseNotFound(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 
 	// Drop a database that doesn't exist.
@@ -350,7 +384,9 @@ func TestServer_DropDatabase_ErrDatabaseNotFound(t *testing.T) {
 
 // Ensure the server can return a list of all databases.
 func TestServer_Databases(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 
 	// Create some databases.
@@ -370,7 +406,9 @@ func TestServer_Databases(t *testing.T) {
 
 // Ensure the server can create a new user.
 func TestServer_CreateUser(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 
 	// Create a user.
@@ -406,7 +444,9 @@ func TestServer_CreateUser(t *testing.T) {
 
 // Ensure the server correctly detects when there is an admin user.
 func TestServer_AdminUserExists(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 
 	// A server should start up without any admin user.
@@ -435,7 +475,9 @@ func TestServer_AdminUserExists(t *testing.T) {
 
 // Ensure the server returns an error when creating an user without a name.
 func TestServer_CreateUser_ErrUsernameRequired(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 	if err := s.CreateUser("", "pass", false); err != influxdb.ErrUsernameRequired {
 		t.Fatal(err)
@@ -444,7 +486,9 @@ func TestServer_CreateUser_ErrUsernameRequired(t *testing.T) {
 
 // Ensure the server returns an error when creating a duplicate user.
 func TestServer_CreateUser_ErrUserExists(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 	if err := s.CreateUser("susy", "pass", false); err != nil {
 		t.Fatal(err)
@@ -456,7 +500,9 @@ func TestServer_CreateUser_ErrUserExists(t *testing.T) {
 
 // Ensure the server can delete an existing user.
 func TestServer_DeleteUser(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 
 	// Create a user.
@@ -481,7 +527,9 @@ func TestServer_DeleteUser(t *testing.T) {
 
 // Ensure the server can return a list of all users.
 func TestServer_Users(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 
 	// Create some users.
@@ -501,7 +549,9 @@ func TestServer_Users(t *testing.T) {
 
 // Ensure the server does not return non-existent users
 func TestServer_NonExistingUsers(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 
 	// Create some users.
@@ -522,7 +572,9 @@ func TestServer_NonExistingUsers(t *testing.T) {
 
 // Ensure the database can create a new retention policy.
 func TestServer_CreateRetentionPolicy(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 
 	// Create a database.
@@ -554,7 +606,9 @@ func TestServer_CreateRetentionPolicy(t *testing.T) {
 
 // Ensure the database can create a new retention policy with infinite duration.
 func TestServer_CreateRetentionPolicyInfinite(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 
 	// Create a database.
@@ -587,7 +641,9 @@ func TestServer_CreateRetentionPolicyInfinite(t *testing.T) {
 
 // Ensure the database can creates a default retention policy.
 func TestServer_CreateRetentionPolicyDefault(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 
 	s.RetentionAutoCreate = true
@@ -619,7 +675,9 @@ func TestServer_CreateRetentionPolicyDefault(t *testing.T) {
 
 // Ensure the server returns an error when creating a retention policy with an invalid db.
 func TestServer_CreateRetentionPolicy_ErrDatabaseNotFound(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "bar", Duration: time.Hour}); err != influxdb.ErrDatabaseNotFound {
 		t.Fatal(err)
@@ -628,7 +686,9 @@ func TestServer_CreateRetentionPolicy_ErrDatabaseNotFound(t *testing.T) {
 
 // Ensure the server returns an error when creating a retention policy without a name.
 func TestServer_CreateRetentionPolicy_ErrRetentionPolicyNameRequired(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 	s.CreateDatabase("foo")
 	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "", Duration: time.Hour}); err != influxdb.ErrRetentionPolicyNameRequired {
@@ -638,7 +698,9 @@ func TestServer_CreateRetentionPolicy_ErrRetentionPolicyNameRequired(t *testing.
 
 // Ensure the server returns an error when creating a duplicate retention policy.
 func TestServer_CreateRetentionPolicy_ErrRetentionPolicyExists(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 	s.CreateDatabase("foo")
 	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "bar", Duration: time.Hour})
@@ -649,7 +711,9 @@ func TestServer_CreateRetentionPolicy_ErrRetentionPolicyExists(t *testing.T) {
 
 // Ensure the server returns an error when creating a retention policy with a duration less than one hour.
 func TestServer_CreateRetentionPolicy_ErrRetentionPolicyMinDuration(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 	s.CreateDatabase("foo")
 	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "bar", Duration: time.Minute}); err != influxdb.ErrRetentionPolicyMinDuration {
@@ -659,7 +723,9 @@ func TestServer_CreateRetentionPolicy_ErrRetentionPolicyMinDuration(t *testing.T
 
 // Ensure the database can alter an existing retention policy.
 func TestServer_AlterRetentionPolicy(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 
 	// Create a database.
@@ -742,7 +808,9 @@ func TestServer_AlterRetentionPolicy(t *testing.T) {
 
 // Ensure the server an error is returned if trying to alter a retention policy with a duration too small.
 func TestServer_AlterRetentionPolicy_Minduration(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 
 	// Create a database.
@@ -795,7 +863,9 @@ func TestServer_AlterRetentionPolicy_Minduration(t *testing.T) {
 
 // Ensure the server can delete an existing retention policy.
 func TestServer_DeleteRetentionPolicy(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 
 	// Create a database and retention policy.
@@ -821,7 +891,9 @@ func TestServer_DeleteRetentionPolicy(t *testing.T) {
 
 // Ensure the server returns an error when deleting a retention policy on invalid db.
 func TestServer_DeleteRetentionPolicy_ErrDatabaseNotFound(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 	if err := s.DeleteRetentionPolicy("foo", "bar"); err != influxdb.ErrDatabaseNotFound {
 		t.Fatal(err)
@@ -830,7 +902,9 @@ func TestServer_DeleteRetentionPolicy_ErrDatabaseNotFound(t *testing.T) {
 
 // Ensure the server returns an error when deleting a retention policy without a name.
 func TestServer_DeleteRetentionPolicy_ErrRetentionPolicyNameRequired(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 	s.CreateDatabase("foo")
 	if err := s.DeleteRetentionPolicy("foo", ""); err != influxdb.ErrRetentionPolicyNameRequired {
@@ -840,7 +914,9 @@ func TestServer_DeleteRetentionPolicy_ErrRetentionPolicyNameRequired(t *testing.
 
 // Ensure the server returns an error when deleting a non-existent retention policy.
 func TestServer_DeleteRetentionPolicy_ErrRetentionPolicyNotFound(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 	s.CreateDatabase("foo")
 	if err := s.DeleteRetentionPolicy("foo", "no_such_policy"); err != influxdb.ErrRetentionPolicyNotFound {
@@ -850,7 +926,9 @@ func TestServer_DeleteRetentionPolicy_ErrRetentionPolicyNotFound(t *testing.T) {
 
 // Ensure the server can set the default retention policy
 func TestServer_SetDefaultRetentionPolicy(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 	s.CreateDatabase("foo")
 
@@ -883,7 +961,9 @@ func TestServer_SetDefaultRetentionPolicy(t *testing.T) {
 
 // Ensure the server returns an error when setting the default retention policy to a non-existant one.
 func TestServer_SetDefaultRetentionPolicy_ErrRetentionPolicyNotFound(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 	s.CreateDatabase("foo")
 	if err := s.SetDefaultRetentionPolicy("foo", "no_such_policy"); err != influxdb.ErrRetentionPolicyNotFound {
@@ -893,7 +973,8 @@ func TestServer_SetDefaultRetentionPolicy_ErrRetentionPolicyNotFound(t *testing.
 
 // Ensure the server pre-creates shard groups as needed.
 func TestServer_PreCreateRetentionPolices(t *testing.T) {
-	c := NewMessagingClient()
+	c := test.NewMessagingClient()
+	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
 	s.CreateDatabase("foo")
@@ -929,7 +1010,9 @@ func TestServer_PreCreateRetentionPolices(t *testing.T) {
 
 // Ensure the server prohibits a zero check interval for retention policy enforcement.
 func TestServer_StartRetentionPolicyEnforcement_ErrZeroInterval(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 	if err := s.StartRetentionPolicyEnforcement(time.Duration(0)); err == nil {
 		t.Fatal("failed to prohibit retention policies zero check interval")
@@ -937,7 +1020,7 @@ func TestServer_StartRetentionPolicyEnforcement_ErrZeroInterval(t *testing.T) {
 }
 
 func TestServer_EnforceRetentionPolices(t *testing.T) {
-	c := NewMessagingClient()
+	c := test.NewMessagingClient()
 	s := OpenServer(c)
 	defer s.Close()
 	s.CreateDatabase("foo")
@@ -974,41 +1057,27 @@ func TestServer_EnforceRetentionPolices(t *testing.T) {
 
 // Ensure the database can write data to the database.
 func TestServer_WriteSeries(t *testing.T) {
-	c := NewMessagingClient()
+	c := test.NewMessagingClient()
 	s := OpenServer(c)
 	defer s.Close()
 	s.CreateDatabase("foo")
 	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "mypolicy", Duration: 1 * time.Hour})
 	s.CreateUser("susy", "pass", false)
 
-	// Check if a topic is being subscribed to.
-	var subscribed bool
-	c.SubscribeFunc = func(replicaID, topicID uint64) error {
-		subscribed = true
-		return nil
-	}
-
 	// Write series with one point to the database.
 	tags := map[string]string{"host": "servera.influx.com", "region": "uswest"}
 	index, err := s.WriteSeries("foo", "mypolicy", []influxdb.Point{{Name: "cpu_load", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
 	if err != nil {
 		t.Fatal(err)
-	} else if err = s.Sync(index); err != nil {
-		t.Fatalf("sync error: %s", err)
 	}
+	c.Sync(index)
 
 	// Write another point 10 seconds later so it goes through "raw series".
 	index, err = s.WriteSeries("foo", "mypolicy", []influxdb.Point{{Name: "cpu_load", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:10Z"), Fields: map[string]interface{}{"value": float64(100)}}})
 	if err != nil {
 		t.Fatal(err)
-	} else if err = s.Sync(index); err != nil {
-		t.Fatalf("sync error: %s", err)
 	}
-
-	// Verify a subscription was made.
-	if !subscribed {
-		t.Fatal("expected subscription")
-	}
+	c.Sync(index)
 
 	// Retrieve first series data point.
 	if v, err := s.ReadSeries("foo", "mypolicy", "cpu_load", tags, mustParseTime("2000-01-01T00:00:00Z")); err != nil {
@@ -1034,7 +1103,7 @@ func TestServer_WriteSeries(t *testing.T) {
 
 // Ensure the server can drop a measurement.
 func TestServer_DropMeasurement(t *testing.T) {
-	c := NewMessagingClient()
+	c := test.NewMessagingClient()
 	s := OpenServer(c)
 	defer s.Close()
 	s.CreateDatabase("foo")
@@ -1047,9 +1116,8 @@ func TestServer_DropMeasurement(t *testing.T) {
 	index, err := s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
 	if err != nil {
 		t.Fatal(err)
-	} else if err = s.Sync(index); err != nil {
-		t.Fatalf("sync error: %s", err)
 	}
+	c.Sync(index)
 
 	// Ensure measurement exists
 	results := s.ExecuteQuery(MustParseQuery(`SHOW MEASUREMENTS`), "foo", nil)
@@ -1098,7 +1166,7 @@ func TestServer_DropMeasurement(t *testing.T) {
 
 // Ensure the server can handles drop measurement if none exists.
 func TestServer_DropMeasurementNoneExists(t *testing.T) {
-	c := NewMessagingClient()
+	c := test.NewMessagingClient()
 	s := OpenServer(c)
 	defer s.Close()
 	s.CreateDatabase("foo")
@@ -1117,9 +1185,8 @@ func TestServer_DropMeasurementNoneExists(t *testing.T) {
 	index, err := s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
 	if err != nil {
 		t.Fatal(err)
-	} else if err = s.Sync(index); err != nil {
-		t.Fatalf("sync error: %s", err)
 	}
+	c.Sync(index)
 
 	// Drop measurement after writing data to ensure we still get the same error
 	results = s.ExecuteQuery(MustParseQuery(`DROP MEASUREMENT bar`), "foo", nil)
@@ -1139,7 +1206,7 @@ func TestServer_DropMeasurementNoneExists(t *testing.T) {
 //    select * from memory where host=serverb
 //    select * from memory where region=uswest
 func TestServer_DropMeasurementSeriesTagsPreserved(t *testing.T) {
-	c := NewMessagingClient()
+	c := test.NewMessagingClient()
 	s := OpenServer(c)
 	defer s.Close()
 	s.CreateDatabase("foo")
@@ -1152,17 +1219,15 @@ func TestServer_DropMeasurementSeriesTagsPreserved(t *testing.T) {
 	index, err := s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
 	if err != nil {
 		t.Fatal(err)
-	} else if err = s.Sync(index); err != nil {
-		t.Fatalf("sync error: %s", err)
 	}
+	c.Sync(index)
 
 	tags = map[string]string{"host": "serverB", "region": "uswest"}
 	index, err = s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "memory", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:01Z"), Fields: map[string]interface{}{"value": float64(33.2)}}})
 	if err != nil {
 		t.Fatal(err)
-	} else if err = s.Sync(index); err != nil {
-		t.Fatalf("sync error: %s", err)
 	}
+	c.Sync(index)
 
 	// Ensure measurement exists
 	results := s.ExecuteQuery(MustParseQuery(`SHOW MEASUREMENTS`), "foo", nil)
@@ -1255,7 +1320,7 @@ func TestServer_DropMeasurementSeriesTagsPreserved(t *testing.T) {
 
 // Ensure the server can drop a series.
 func TestServer_DropSeries(t *testing.T) {
-	c := NewMessagingClient()
+	c := test.NewMessagingClient()
 	s := OpenServer(c)
 	defer s.Close()
 	s.CreateDatabase("foo")
@@ -1268,9 +1333,8 @@ func TestServer_DropSeries(t *testing.T) {
 	index, err := s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
 	if err != nil {
 		t.Fatal(err)
-	} else if err = s.Sync(index); err != nil {
-		t.Fatalf("sync error: %s", err)
 	}
+	c.Sync(index)
 
 	// Ensure series exists
 	results := s.ExecuteQuery(MustParseQuery(`SHOW SERIES`), "foo", nil)
@@ -1300,7 +1364,7 @@ func TestServer_DropSeries(t *testing.T) {
 
 // Ensure the server can drop a series from measurement when more than one shard exists.
 func TestServer_DropSeriesFromMeasurement(t *testing.T) {
-	c := NewMessagingClient()
+	c := test.NewMessagingClient()
 	s := OpenServer(c)
 	defer s.Close()
 	s.CreateDatabase("foo")
@@ -1313,16 +1377,15 @@ func TestServer_DropSeriesFromMeasurement(t *testing.T) {
 	index, err := s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
 	if err != nil {
 		t.Fatal(err)
-	} else if err = s.Sync(index); err != nil {
-		t.Fatalf("sync error: %s", err)
 	}
+	c.Sync(index)
+
 	tags = map[string]string{"host": "serverb", "region": "useast"}
 	index, err = s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "memory", Tags: tags, Timestamp: mustParseTime("2000-01-02T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23465432423)}}})
 	if err != nil {
 		t.Fatal(err)
-	} else if err = s.Sync(index); err != nil {
-		t.Fatalf("sync error: %s", err)
 	}
+	c.Sync(index)
 
 	// Drop series
 	results := s.ExecuteQuery(MustParseQuery(`DROP SERIES FROM memory`), "foo", nil)
@@ -1343,7 +1406,7 @@ func TestServer_DropSeriesFromMeasurement(t *testing.T) {
 // Ensure that when merging many series together and some of them have a different number of points than others
 // in a group by interval the results are correct
 func TestServer_MergeManySeries(t *testing.T) {
-	c := NewMessagingClient()
+	c := test.NewMessagingClient()
 	s := OpenServer(c)
 	defer s.Close()
 	s.CreateDatabase("foo")
@@ -1353,11 +1416,11 @@ func TestServer_MergeManySeries(t *testing.T) {
 	for i := 1; i < 11; i++ {
 		for j := 1; j < 5+i%3; j++ {
 			tags := map[string]string{"host": fmt.Sprintf("server_%d", i)}
-			if index, err := s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Timestamp: time.Unix(int64(j), int64(0)), Fields: map[string]interface{}{"value": float64(22)}}}); err != nil {
+			index, err := s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Timestamp: time.Unix(int64(j), int64(0)), Fields: map[string]interface{}{"value": float64(22)}}})
+			if err != nil {
 				t.Fatalf("unexpected error: %s", err.Error())
-			} else if err = s.Sync(index); err != nil {
-				t.Fatalf("sync error: %s", err)
 			}
+			c.Sync(index)
 		}
 	}
 
@@ -1378,7 +1441,7 @@ func TestServer_MergeManySeries(t *testing.T) {
 // ensure that the dropped series is gone
 // ensure that we can still query: select value from cpu where region=uswest
 func TestServer_DropSeriesTagsPreserved(t *testing.T) {
-	c := NewMessagingClient()
+	c := test.NewMessagingClient()
 	s := OpenServer(c)
 	defer s.Close()
 	s.CreateDatabase("foo")
@@ -1391,17 +1454,15 @@ func TestServer_DropSeriesTagsPreserved(t *testing.T) {
 	index, err := s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
 	if err != nil {
 		t.Fatal(err)
-	} else if err = s.Sync(index); err != nil {
-		t.Fatalf("sync error: %s", err)
 	}
+	c.Sync(index)
 
 	tags = map[string]string{"host": "serverB", "region": "uswest"}
 	index, err = s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:01Z"), Fields: map[string]interface{}{"value": float64(33.2)}}})
 	if err != nil {
 		t.Fatal(err)
-	} else if err = s.Sync(index); err != nil {
-		t.Fatalf("sync error: %s", err)
 	}
+	c.Sync(index)
 
 	results := s.ExecuteQuery(MustParseQuery(`SHOW SERIES`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
@@ -1454,7 +1515,9 @@ func TestServer_DropSeriesTagsPreserved(t *testing.T) {
 
 // Ensure the server can execute a query and return the data correctly.
 func TestServer_ExecuteQuery(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 	s.CreateDatabase("foo")
 	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "raw", Duration: 1 * time.Hour})
@@ -1568,7 +1631,9 @@ func TestServer_ExecuteQuery(t *testing.T) {
 
 // Ensure the server respects limit and offset in show series queries
 func TestServer_ShowSeriesLimitOffset(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 	s.CreateDatabase("foo")
 	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "raw", Duration: 1 * time.Hour})
@@ -1630,7 +1695,9 @@ func TestServer_ShowSeriesLimitOffset(t *testing.T) {
 
 // Ensure that when querying for raw data values that they return in time order
 func TestServer_RawDataReturnsInOrder(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 	s.CreateDatabase("foo")
 	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "raw", Duration: 1 * time.Hour})
@@ -1675,7 +1742,9 @@ func TestServer_RawDataReturnsInOrder(t *testing.T) {
 
 // Ensure that limit and offset work
 func TestServer_LimitAndOffset(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 	s.CreateDatabase("foo")
 	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "raw", Duration: 1 * time.Hour})
@@ -1724,7 +1793,9 @@ func TestServer_LimitAndOffset(t *testing.T) {
 
 // Ensure the server can execute a wildcard query and return the data correctly.
 func TestServer_ExecuteWildcardQuery(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 	s.CreateDatabase("foo")
 	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "raw", Duration: 1 * time.Hour})
@@ -1749,7 +1820,9 @@ func TestServer_ExecuteWildcardQuery(t *testing.T) {
 
 // Ensure the server can execute a wildcard GROUP BY
 func TestServer_ExecuteWildcardGroupBy(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 	s.CreateDatabase("foo")
 	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "raw", Duration: 1 * time.Hour})
@@ -1782,7 +1855,9 @@ func TestServer_ExecuteWildcardGroupBy(t *testing.T) {
 }
 
 func TestServer_CreateShardGroupIfNotExist(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 	s.CreateDatabase("foo")
 
@@ -1805,7 +1880,9 @@ func TestServer_CreateShardGroupIfNotExist(t *testing.T) {
 }
 
 func TestServer_DeleteShardGroup(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 	s.CreateDatabase("foo")
 
@@ -1841,7 +1918,9 @@ func TestServer_DeleteShardGroup(t *testing.T) {
 
 /* TODO(benbjohnson): Change test to not expose underlying series ids directly.
 func TestServer_Measurements(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 	s.CreateDatabase("foo")
 	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "mypolicy", Duration: 1 * time.Hour})
@@ -1910,7 +1989,9 @@ func TestServer_NormalizeMeasurement(t *testing.T) {
 	}
 
 	// Create server with a variety of databases, retention policies, and measurements
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 
 	// Default database with one policy.
@@ -1957,7 +2038,9 @@ func TestServer_NormalizeQuery(t *testing.T) {
 	}
 
 	// Start server with database & retention policy.
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 	s.CreateDatabase("db0")
 	s.CreateRetentionPolicy("db0", &influxdb.RetentionPolicy{Name: "rp0", Duration: time.Hour})
@@ -1977,7 +2060,9 @@ func TestServer_NormalizeQuery(t *testing.T) {
 
 // Ensure the server can create a continuous query
 func TestServer_CreateContinuousQuery(t *testing.T) {
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 
 	// Create the "foo" database.
@@ -2037,7 +2122,9 @@ func TestServer_CreateContinuousQuery_ErrInfinteLoop(t *testing.T) {
 // Ensure
 func TestServer_RunContinuousQueries(t *testing.T) {
 	t.Skip()
-	s := OpenServer(NewMessagingClient())
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
 	defer s.Close()
 
 	// Create the "foo" database.
@@ -2168,40 +2255,6 @@ func TestbatchWrite_UnmarshalEpoch(t *testing.T) {
 
 }
 
-// Ensure the server will skip over replayed log entries and not blow up.
-func TestServer_Replay(t *testing.T) {
-	c := NewMessagingClient()
-	s := OpenServer(c)
-	defer s.Close()
-
-	// Record all messages through the client.
-	var messages []*messaging.Message
-	c.PublishFunc = func(m *messaging.Message) (uint64, error) {
-		messages = append(messages, m)
-		c.c <- m
-		return m.Index, nil
-	}
-
-	// Create a new node.
-	u, _ := url.Parse("http://localhost:80000")
-	if err := s.CreateDataNode(u); err != nil {
-		t.Fatal(err)
-	}
-	s.Restart()
-
-	// Replay messages through client.
-	for _, m := range messages {
-		c.c <- m
-	}
-
-	// Sleep so it has a moment to process & ignore.
-	time.Sleep(100 * time.Millisecond)
-
-	// NOTE: There is no way to introspect into the server to see that
-	// messages are being dropped. This test exists to make sure the server
-	// doesn't crash on retry.
-}
-
 // Server is a wrapping test struct for influxdb.Server.
 type Server struct {
 	*influxdb.Server
@@ -2217,7 +2270,7 @@ func NewServer() *Server {
 // OpenServer returns a new, open test server instance.
 func OpenServer(client influxdb.MessagingClient) *Server {
 	s := OpenUninitializedServer(client)
-	if err := s.Initialize(&url.URL{Host: "127.0.0.1:8080"}); err != nil {
+	if err := s.Initialize(url.URL{Host: "127.0.0.1:8080"}); err != nil {
 		panic(err.Error())
 	}
 	return s
@@ -2226,10 +2279,7 @@ func OpenServer(client influxdb.MessagingClient) *Server {
 // OpenUninitializedServer returns a new, uninitialized, open test server instance.
 func OpenUninitializedServer(client influxdb.MessagingClient) *Server {
 	s := NewServer()
-	if err := s.Open(tempfile()); err != nil {
-		panic(err.Error())
-	}
-	if err := s.SetClient(client); err != nil {
+	if err := s.Open(tempfile(), client); err != nil {
 		panic(err.Error())
 	}
 	return s
@@ -2258,11 +2308,8 @@ func (s *Server) Restart() {
 	}
 
 	// Open and reset the client.
-	if err := s.Server.Open(path); err != nil {
+	if err := s.Server.Open(path, client); err != nil {
 		panic("open: " + err.Error())
-	}
-	if err := s.Server.SetClient(client); err != nil {
-		panic("client: " + err.Error())
 	}
 }
 
@@ -2278,72 +2325,10 @@ func (s *Server) MustWriteSeries(database, retentionPolicy string, points []infl
 	index, err := s.WriteSeries(database, retentionPolicy, points)
 	if err != nil {
 		panic(err.Error())
-	} else if err = s.Sync(index); err != nil {
-		panic("sync error: " + err.Error())
 	}
+	s.Client().(*test.MessagingClient).Sync(index)
 	return index
 }
-
-// MessagingClient represents a test client for the messaging broker.
-type MessagingClient struct {
-	index uint64
-	c     chan *messaging.Message
-
-	PublishFunc       func(*messaging.Message) (uint64, error)
-	CreateReplicaFunc func(replicaID uint64, connectURL *url.URL) error
-	DeleteReplicaFunc func(replicaID uint64) error
-	SubscribeFunc     func(replicaID, topicID uint64) error
-	UnsubscribeFunc   func(replicaID, topicID uint64) error
-}
-
-// NewMessagingClient returns a new instance of MessagingClient.
-func NewMessagingClient() *MessagingClient {
-	c := &MessagingClient{c: make(chan *messaging.Message, 1)}
-	c.PublishFunc = c.send
-	c.CreateReplicaFunc = func(replicaID uint64, connectURL *url.URL) error { return nil }
-	c.DeleteReplicaFunc = func(replicaID uint64) error { return nil }
-	c.SubscribeFunc = func(replicaID, topicID uint64) error { return nil }
-	c.UnsubscribeFunc = func(replicaID, topicID uint64) error { return nil }
-	return c
-}
-
-// Publish attaches an autoincrementing index to the message.
-// This function also execute's the client's PublishFunc mock function.
-func (c *MessagingClient) Publish(m *messaging.Message) (uint64, error) {
-	c.index++
-	m.Index = c.index
-	return c.PublishFunc(m)
-}
-
-// send sends the message through to the channel.
-// This is the default value of PublishFunc.
-func (c *MessagingClient) send(m *messaging.Message) (uint64, error) {
-	c.c <- m
-	return m.Index, nil
-}
-
-// Creates a new replica with a given ID on the broker.
-func (c *MessagingClient) CreateReplica(replicaID uint64, connectURL *url.URL) error {
-	return c.CreateReplicaFunc(replicaID, connectURL)
-}
-
-// Deletes an existing replica with a given ID from the broker.
-func (c *MessagingClient) DeleteReplica(replicaID uint64) error {
-	return c.DeleteReplicaFunc(replicaID)
-}
-
-// Subscribe adds a subscription to a replica for a topic on the broker.
-func (c *MessagingClient) Subscribe(replicaID, topicID uint64) error {
-	return c.SubscribeFunc(replicaID, topicID)
-}
-
-// Unsubscribe removes a subscrition from a replica for a topic on the broker.
-func (c *MessagingClient) Unsubscribe(replicaID, topicID uint64) error {
-	return c.UnsubscribeFunc(replicaID, topicID)
-}
-
-// C returns a channel for streaming message.
-func (c *MessagingClient) C() <-chan *messaging.Message { return c.c }
 
 // tempfile returns a temporary path.
 func tempfile() string {

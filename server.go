@@ -44,6 +44,9 @@ const (
 	// DefaultShardRetention is the length of time before a shard is dropped.
 	DefaultShardRetention = 7 * (24 * time.Hour)
 
+	// BroadcastTopicID is the topic used for all metadata.
+	BroadcastTopicID = uint64(0)
+
 	// Defines the minimum duration allowed for all retention policies
 	retentionPolicyMinDuration = time.Hour
 )
@@ -69,6 +72,7 @@ type Server struct {
 
 	shards map[uint64]*Shard // shards by shard id
 
+	stats      *Stats
 	Logger     *log.Logger
 	WriteTrace bool // Detailed logging of write path
 
@@ -101,6 +105,7 @@ func NewServer() *Server {
 		users:     make(map[string]*User),
 
 		shards: make(map[uint64]*Shard),
+		stats:  NewStats("server"),
 		Logger: log.New(os.Stderr, "[server] ", log.LstdFlags),
 	}
 	// Server will always return with authentication enabled.
@@ -160,7 +165,7 @@ func (s *Server) SetLogOutput(w io.Writer) {
 }
 
 // Open initializes the server from a given path.
-func (s *Server) Open(path string) error {
+func (s *Server) Open(path string, client MessagingClient) error {
 	// Ensure the server isn't already open and there's a path provided.
 	if s.opened() {
 		return ErrServerOpen
@@ -173,23 +178,41 @@ func (s *Server) Open(path string) error {
 
 	// Create required directories.
 	if err := os.MkdirAll(path, 0755); err != nil {
+		_ = s.close()
 		return err
 	}
 	if err := os.MkdirAll(filepath.Join(path, "shards"), 0755); err != nil {
+		_ = s.close()
 		return err
 	}
 
+	// Set the messaging client.
+	s.client = client
+
 	// Open metadata store.
 	if err := s.meta.open(s.metaPath()); err != nil {
+		_ = s.close()
 		return fmt.Errorf("meta: %s", err)
 	}
 
 	// Load state from metastore.
 	if err := s.load(); err != nil {
+		_ = s.close()
 		return fmt.Errorf("load: %s", err)
 	}
 
-	// TODO: Open shard data stores.
+	// Create connection for broadcast topic.
+	conn := client.Conn(BroadcastTopicID)
+	if err := conn.Open(s.index, true); err != nil {
+		_ = s.close()
+		return fmt.Errorf("open conn: %s", err)
+	}
+
+	// Begin streaming messages from broadcast topic.
+	done := make(chan struct{}, 0)
+	s.done = done
+	go s.processor(conn, done)
+
 	// TODO: Associate series ids with shards.
 
 	return nil
@@ -202,25 +225,36 @@ func (s *Server) opened() bool { return s.path != "" }
 func (s *Server) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.close()
+}
 
+func (s *Server) close() error {
 	if !s.opened() {
 		return ErrServerClosed
 	}
 
 	if s.rpDone != nil {
 		close(s.rpDone)
+		s.rpDone = nil
 	}
 
 	if s.sgpcDone != nil {
 		close(s.sgpcDone)
+		s.sgpcDone = nil
 	}
 
 	// Remove path.
 	s.path = ""
 	s.index = 0
 
-	// Close message processing.
-	s.setClient(nil)
+	// Stop broadcast topic processing.
+	if s.done != nil {
+		close(s.done)
+		s.done = nil
+	}
+
+	// Remove client.
+	s.client = nil
 
 	// Close metastore.
 	_ = s.meta.close()
@@ -262,12 +296,16 @@ func (s *Server) load() error {
 			}
 		}
 
-		// Open all shards.
+		// Open all shards owned by server.
 		for _, db := range s.databases {
 			for _, rp := range db.policies {
 				for _, g := range rp.shardGroups {
 					for _, sh := range g.Shards {
-						if err := sh.open(s.shardPath(sh.ID)); err != nil {
+						if !sh.HasDataNodeID(s.id) {
+							continue
+						}
+
+						if err := sh.open(s.shardPath(sh.ID), s.client.Conn(sh.ID)); err != nil {
 							return fmt.Errorf("cannot open shard store: id=%d, err=%s", sh.ID, err)
 						}
 					}
@@ -283,6 +321,32 @@ func (s *Server) load() error {
 
 		return nil
 	})
+}
+
+func (s *Server) StartSelfMonitoring(database, retention string, interval time.Duration) error {
+	if interval == 0 {
+		return fmt.Errorf("statistics check interval must be non-zero")
+	}
+
+	go func() {
+		tick := time.NewTicker(interval)
+		for {
+			<-tick.C
+
+			// Create the data point and write it.
+			point := Point{
+				Name:   s.stats.Name(),
+				Tags:   map[string]string{"raftID": strconv.FormatUint(s.id, 10)},
+				Fields: make(map[string]interface{}),
+			}
+			s.stats.Walk(func(k string, v int64) {
+				point.Fields[k] = int(v)
+			})
+			s.WriteSeries(database, retention, []Point{point})
+		}
+	}()
+
+	return nil
 }
 
 // StartRetentionPolicyEnforcement launches retention policy enforcement.
@@ -418,42 +482,12 @@ func (s *Server) Client() MessagingClient {
 	return s.client
 }
 
-// SetClient sets the messaging client on the server.
-func (s *Server) SetClient(client MessagingClient) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.setClient(client)
-}
-
-func (s *Server) setClient(client MessagingClient) error {
-	// Ensure the server is open.
-	if !s.opened() {
-		return ErrServerClosed
-	}
-
-	// Stop previous processor, if running.
-	if s.done != nil {
-		close(s.done)
-		s.done = nil
-	}
-
-	// Set the messaging client.
-	s.client = client
-
-	// Start goroutine to read messages from the broker.
-	if client != nil {
-		done := make(chan struct{}, 0)
-		s.done = done
-		go s.processor(client, done)
-	}
-
-	return nil
-}
-
 // broadcast encodes a message as JSON and send it to the broker's broadcast topic.
 // This function waits until the message has been processed by the server.
 // Returns the broker log index of the message or an error.
 func (s *Server) broadcast(typ messaging.MessageType, c interface{}) (uint64, error) {
+	s.stats.Inc("broadcastMessageTx")
+
 	// Encode the command.
 	data, err := json.Marshal(c)
 	if err != nil {
@@ -463,7 +497,7 @@ func (s *Server) broadcast(typ messaging.MessageType, c interface{}) (uint64, er
 	// Publish the message.
 	m := &messaging.Message{
 		Type:    typ,
-		TopicID: messaging.BroadcastTopicID,
+		TopicID: BroadcastTopicID,
 		Data:    data,
 	}
 	index, err := s.client.Publish(m)
@@ -499,16 +533,16 @@ func (s *Server) Sync(index uint64) error {
 }
 
 // Initialize creates a new data node and initializes the server's id to 1.
-func (s *Server) Initialize(u *url.URL) error {
+func (s *Server) Initialize(u url.URL) error {
 	// Create a new data node.
-	if err := s.CreateDataNode(u); err != nil {
+	if err := s.CreateDataNode(&u); err != nil {
 		return err
 	}
 
 	// Ensure the data node returns with an ID of 1.
 	// If it doesn't then something went really wrong. We have to panic because
 	// the messaging client relies on the first server being assigned ID 1.
-	n := s.DataNodeByURL(u)
+	n := s.DataNodeByURL(&u)
 	assert(n != nil && n.ID == 1, "invalid initial server id: %d", n.ID)
 
 	// Set the ID on the metastore.
@@ -747,6 +781,9 @@ func (s *Server) Databases() (a []string) {
 
 // CreateDatabase creates a new database.
 func (s *Server) CreateDatabase(name string) error {
+	if name == "" {
+		return ErrDatabaseNameRequired
+	}
 	c := &createDatabaseCommand{Name: name}
 	_, err := s.broadcast(createDatabaseMessageType, c)
 	return err
@@ -757,7 +794,12 @@ func (s *Server) CreateDatabaseIfNotExists(name string) error {
 	if s.DatabaseExists(name) {
 		return nil
 	}
-	return s.CreateDatabase(name)
+
+	// Small chance database could have been created even though the check above said it didn't.
+	if err := s.CreateDatabase(name); err != nil && err != ErrDatabaseExists {
+		return err
+	}
+	return nil
 }
 
 func (s *Server) applyCreateDatabase(m *messaging.Message) (err error) {
@@ -795,6 +837,9 @@ func (s *Server) applyCreateDatabase(m *messaging.Message) (err error) {
 
 // DropDatabase deletes an existing database.
 func (s *Server) DropDatabase(name string) error {
+	if name == "" {
+		return ErrDatabaseNameRequired
+	}
 	c := &dropDatabaseCommand{Name: name}
 	_, err := s.broadcast(dropDatabaseMessageType, c)
 	return err
@@ -933,6 +978,7 @@ func (s *Server) applyCreateShardGroupIfNotExists(m *messaging.Message) (err err
 				nodeIndex++
 			}
 		}
+		s.stats.Add("shardsCreated", int64(len(g.Shards)))
 
 		// Retention policy has a new shard group, so update the policy.
 		rp.shardGroups = append(rp.shardGroups, g)
@@ -951,7 +997,7 @@ func (s *Server) applyCreateShardGroupIfNotExists(m *messaging.Message) (err err
 		}
 
 		// Open shard store. Panic if an error occurs and we can retry.
-		if err := sh.open(s.shardPath(sh.ID)); err != nil {
+		if err := sh.open(s.shardPath(sh.ID), s.client.Conn(sh.ID)); err != nil {
 			panic("unable to open shard: " + err.Error())
 		}
 	}
@@ -959,21 +1005,6 @@ func (s *Server) applyCreateShardGroupIfNotExists(m *messaging.Message) (err err
 	// Add to lookups.
 	for _, sh := range g.Shards {
 		s.shards[sh.ID] = sh
-	}
-
-	// Subscribe to shard if it matches the server's index.
-	// TODO: Move subscription outside of command processing.
-	// TODO: Retry subscriptions on failure.
-	for _, sh := range g.Shards {
-		// Ignore if this server is not assigned.
-		if !sh.HasDataNodeID(s.id) {
-			continue
-		}
-
-		// Subscribe on the broker.
-		if err := s.client.Subscribe(s.id, sh.ID); err != nil {
-			log.Printf("unable to subscribe: replica=%d, topic=%d, err=%s", s.id, sh.ID, err)
-		}
 	}
 
 	return
@@ -1028,6 +1059,7 @@ func (s *Server) applyDeleteShardGroup(m *messaging.Message) (err error) {
 	// Remove from metastore.
 	rp.removeShardGroupByID(c.ID)
 	err = s.meta.mustUpdate(m.Index, func(tx *metatx) error {
+		s.stats.Add("shardsDeleted", int64(len(g.Shards)))
 		return tx.saveDatabase(db)
 	})
 	return
@@ -1279,6 +1311,13 @@ func (s *Server) RetentionPolicies(database string) ([]*RetentionPolicy, error) 
 	return a, nil
 }
 
+// RetentionPolicyExists returns true if a retention policy exists for a given database.
+func (s *Server) RetentionPolicyExists(database, retention string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.DatabaseExists(database) && s.databases[database].policies[retention] != nil
+}
+
 // CreateRetentionPolicy creates a retention policy for a database.
 func (s *Server) CreateRetentionPolicy(database string, rp *RetentionPolicy) error {
 	// Enforce duration of at least retentionPolicyMinDuration
@@ -1295,6 +1334,18 @@ func (s *Server) CreateRetentionPolicy(database string, rp *RetentionPolicy) err
 	}
 	_, err := s.broadcast(createRetentionPolicyMessageType, c)
 	return err
+}
+
+// CreateRetentionPolicy creates a retention policy for a database.
+func (s *Server) CreateRetentionPolicyIfNotExists(database string, rp *RetentionPolicy) error {
+	// Ensure retention policy exists.
+	if !s.RetentionPolicyExists(database, rp.Name) {
+		// Small chance retention policy could be created after it didn't exist when checked.
+		if err := s.CreateRetentionPolicy(database, rp); err != nil && err != ErrRetentionPolicyExists {
+			return err
+		}
+	}
+	return nil
 }
 
 func calculateShardGroupDuration(d time.Duration) time.Duration {
@@ -1513,7 +1564,15 @@ type Point struct {
 
 // WriteSeries writes series data to the database.
 // Returns the messaging index the data was written to.
-func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (uint64, error) {
+func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (idx uint64, err error) {
+	s.stats.Inc("batchWriteRx")
+	s.stats.Add("pointWriteRx", int64(len(points)))
+	defer func() {
+		if err != nil {
+			s.stats.Inc("batchWriteRxError")
+		}
+	}()
+
 	if s.WriteTrace {
 		log.Printf("received write for database '%s', retention policy '%s', with %d points",
 			database, retentionPolicy, len(points))
@@ -1618,9 +1677,10 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 	}
 
 	// Write data for each shard to the Broker.
-	var err error
 	var maxIndex uint64
 	for i, d := range shardData {
+		assert(len(d) > 0, "raw series data required: topic=%d", i)
+
 		index, err := s.client.Publish(&messaging.Message{
 			Type:    writeRawSeriesMessageType,
 			TopicID: i,
@@ -1629,6 +1689,7 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 		if err != nil {
 			return maxIndex, err
 		}
+		s.stats.Inc("writeSeriesMessageTx")
 		if index > maxIndex {
 			maxIndex = index
 		}
@@ -1637,30 +1698,7 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 		}
 	}
 
-	return maxIndex, err
-}
-
-// applyWriteRawSeries writes raw series data to the database.
-// Raw series data has already converted field names to ids so the
-// representation is fast and compact.
-func (s *Server) applyWriteRawSeries(m *messaging.Message) error {
-	// Retrieve the shard.
-	sh := s.Shard(m.TopicID)
-	if sh == nil {
-		return ErrShardNotFound
-	}
-	if s.WriteTrace {
-		log.Printf("received write message for application, shard %d", sh.ID)
-	}
-
-	if err := sh.writeSeries(m.Data); err != nil {
-		return err
-	}
-	if s.WriteTrace {
-		log.Printf("write message successfully applied to shard %d", sh.ID)
-	}
-
-	return nil
+	return maxIndex, nil
 }
 
 // createMeasurementsIfNotExists walks the "points" and ensures that all new Series are created, and all
@@ -1943,6 +1981,8 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 			res = s.executeShowServersStatement(stmt, user)
 		case *influxql.CreateUserStatement:
 			res = s.executeCreateUserStatement(stmt, user)
+		case *influxql.DeleteStatement:
+			res = s.executeDeleteStatement()
 		case *influxql.DropUserStatement:
 			res = s.executeDropUserStatement(stmt, user)
 		case *influxql.ShowUsersStatement:
@@ -1961,6 +2001,8 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 			res = s.executeShowTagValuesStatement(stmt, database, user)
 		case *influxql.ShowFieldKeysStatement:
 			res = s.executeShowFieldKeysStatement(stmt, database, user)
+		case *influxql.ShowStatsStatement:
+			res = s.executeShowStatsStatement(stmt, user)
 		case *influxql.GrantStatement:
 			res = s.executeGrantStatement(stmt, user)
 		case *influxql.RevokeStatement:
@@ -2466,6 +2508,17 @@ func (s *Server) executeShowContinuousQueriesStatement(stmt *influxql.ShowContin
 	return &Result{Series: rows}
 }
 
+func (s *Server) executeShowStatsStatement(stmt *influxql.ShowStatsStatement, user *User) *Result {
+	row := &influxql.Row{Columns: []string{}}
+	row.Name = s.stats.Name()
+	s.stats.Walk(func(k string, v int64) {
+		row.Columns = append(row.Columns, k)
+		row.Values = append(row.Values, []interface{}{v})
+	})
+
+	return &Result{Series: []*influxql.Row{row}}
+}
+
 // filterMeasurementsByExpr filters a list of measurements by a tags expression.
 func filterMeasurementsByExpr(measurements Measurements, expr influxql.Expr) (Measurements, error) {
 	// Create a list to hold result measurements.
@@ -2635,6 +2688,10 @@ func (s *Server) executeAlterRetentionPolicyStatement(stmt *influxql.AlterRetent
 	}
 
 	return &Result{Err: err}
+}
+
+func (s *Server) executeDeleteStatement() *Result {
+	return &Result{Err: ErrInvalidQuery}
 }
 
 func (s *Server) executeDropRetentionPolicyStatement(q *influxql.DropRetentionPolicyStatement, user *User) *Result {
@@ -2820,7 +2877,7 @@ func (s *Server) normalizeMeasurement(name string, defaultDatabase string) (stri
 }
 
 // processor runs in a separate goroutine and processes all incoming broker messages.
-func (s *Server) processor(client MessagingClient, done chan struct{}) {
+func (s *Server) processor(conn MessagingConn, done chan struct{}) {
 	for {
 		// Read incoming message.
 		var m *messaging.Message
@@ -2828,29 +2885,15 @@ func (s *Server) processor(client MessagingClient, done chan struct{}) {
 		select {
 		case <-done:
 			return
-		case m, ok = <-client.C():
+		case m, ok = <-conn.C():
 			if !ok {
 				return
 			}
 		}
 
-		// Handle write series separately so we don't lock server during shard writes.
-		if m.Type == writeRawSeriesMessageType {
-			// Write series to shard without lock.
-			err := s.applyWriteRawSeries(m)
-
-			// Set index & error under lock.
-			s.mu.Lock()
-			s.index = m.Index
-			if err != nil {
-				s.errors[m.Index] = err
-			}
-			s.mu.Unlock()
-			continue
-		}
-
-		// All other messages must be processed under lock.
+		// All messages must be processed under lock.
 		func() {
+			s.stats.Inc("broadcastMessageRx")
 			s.mu.Lock()
 			defer s.mu.Unlock()
 
@@ -2900,6 +2943,8 @@ func (s *Server) processor(client MessagingClient, done chan struct{}) {
 				err = s.applyCreateContinuousQueryCommand(m)
 			case dropSeriesMessageType:
 				err = s.applyDropSeries(m)
+			case writeRawSeriesMessageType:
+				panic("write series not allowed in broadcast topic")
 			}
 
 			// Sync high water mark and errors.
@@ -3007,24 +3052,39 @@ func (r *Results) Error() error {
 	return nil
 }
 
-// MessagingClient represents the client used to receive messages from brokers.
+// MessagingClient represents the client used to connect to brokers.
 type MessagingClient interface {
+	Open(path string) error
+	Close() error
+
+	// Retrieves or sets the current list of broker URLs.
+	URLs() []url.URL
+	SetURLs([]url.URL)
+
 	// Publishes a message to the broker.
 	Publish(m *messaging.Message) (index uint64, err error)
 
-	// Creates a new replica with a given ID on the broker.
-	CreateReplica(replicaID uint64, connectURL *url.URL) error
+	// Conn returns an open, streaming connection to a topic.
+	Conn(topicID uint64) MessagingConn
 
-	// Deletes an existing replica with a given ID from the broker.
-	DeleteReplica(replicaID uint64) error
+	// Sets the logging destination.
+	SetLogOutput(w io.Writer)
+}
 
-	// Creates a subscription for a replica to a topic.
-	Subscribe(replicaID, topicID uint64) error
+type messagingClient struct {
+	*messaging.Client
+}
 
-	// Removes a subscription from the replica for a topic.
-	Unsubscribe(replicaID, topicID uint64) error
+// NewMessagingClient returns an instance of MessagingClient.
+func NewMessagingClient() MessagingClient {
+	return &messagingClient{messaging.NewClient()}
+}
 
-	// The streaming channel for all subscribed messages.
+func (c *messagingClient) Conn(topicID uint64) MessagingConn { return c.Client.Conn(topicID) }
+
+// MessagingConn represents a streaming connection to a single broker topic.
+type MessagingConn interface {
+	Open(index uint64, streaming bool) error
 	C() <-chan *messaging.Message
 }
 
@@ -3297,6 +3357,7 @@ func (s *Server) shouldRunContinuousQuery(cq *ContinuousQuery) bool {
 // runContinuousQuery will execute a continuous query
 // TODO: make this fan out to the cluster instead of running all the queries on this single data node
 func (s *Server) runContinuousQuery(cq *ContinuousQuery) {
+	s.stats.Inc("continuousQueryExecuted")
 	cq.mu.Lock()
 	defer cq.mu.Unlock()
 

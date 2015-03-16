@@ -103,18 +103,18 @@ type Log struct {
 	closing chan struct{}  // close notification
 
 	// Network address to the reach the log.
-	URL *url.URL
+	url url.URL
 
 	// The state machine that log entries will be applied to.
 	FSM FSM
 
 	// The transport used to communicate with other nodes in the cluster.
 	Transport interface {
-		Join(u *url.URL, nodeURL *url.URL) (id uint64, leaderID uint64, config *Config, err error)
-		Leave(u *url.URL, id uint64) error
-		Heartbeat(u *url.URL, term, commitIndex, leaderID uint64) (lastIndex uint64, err error)
-		ReadFrom(u *url.URL, id, term, index uint64) (io.ReadCloser, error)
-		RequestVote(u *url.URL, term, candidateID, lastLogIndex, lastLogTerm uint64) error
+		Join(u url.URL, nodeURL url.URL) (id uint64, leaderID uint64, config *Config, err error)
+		Leave(u url.URL, id uint64) error
+		Heartbeat(u url.URL, term, commitIndex, leaderID uint64) (lastIndex uint64, err error)
+		ReadFrom(u url.URL, id, term, index uint64) (io.ReadCloser, error)
+		RequestVote(u url.URL, term, candidateID, lastLogIndex, lastLogTerm uint64) error
 	}
 
 	// Clock is an abstraction of time.
@@ -152,6 +152,42 @@ func NewLog() *Log {
 // Path returns the data path of the Raft log.
 // Returns an empty string if the log is closed.
 func (l *Log) Path() string { return l.path }
+
+// URL returns the URL for the log.
+func (l *Log) URL() url.URL {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.url
+}
+
+// SetURL sets the URL for the log. This must be set before opening.
+func (l *Log) SetURL(u url.URL) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if l.opened() {
+		panic("url cannot be set while log is open")
+	}
+
+	l.url = u
+}
+
+// URLs returns a list of all URLs in the cluster.
+func (l *Log) URLs() []url.URL {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if l.config == nil {
+		return nil
+	}
+
+	var a []url.URL
+	for _, n := range l.config.Nodes {
+		a = append(a, n.URL)
+	}
+
+	return a
+}
 
 func (l *Log) idPath() string     { return filepath.Join(l.path, "id") }
 func (l *Log) termPath() string   { return filepath.Join(l.path, "term") }
@@ -371,7 +407,7 @@ func (l *Log) readID() (uint64, error) {
 // writeID writes the log identifier to file.
 func (l *Log) writeID(id uint64) error {
 	b := []byte(strconv.FormatUint(id, 10))
-	return ioutil.WriteFile(l.idPath(), b, 0600)
+	return ioutil.WriteFile(l.idPath(), b, 0666)
 }
 
 // readTerm reads the log term from file.
@@ -396,7 +432,7 @@ func (l *Log) readTerm() (uint64, error) {
 // writeTerm writes the current log term to file.
 func (l *Log) writeTerm(term uint64) error {
 	b := []byte(strconv.FormatUint(term, 10))
-	return ioutil.WriteFile(l.termPath(), b, 0600)
+	return ioutil.WriteFile(l.termPath(), b, 0666)
 }
 
 // readConfig reads the configuration from disk.
@@ -458,7 +494,7 @@ func (l *Log) Initialize() error {
 
 		// Generate a new configuration with one node.
 		config = &Config{MaxNodeID: id}
-		config.AddNode(id, l.URL)
+		config.AddNode(id, l.url)
 
 		// Generate new 8-hex digit cluster identifier.
 		config.ClusterID = uint64(l.Rand())
@@ -477,6 +513,7 @@ func (l *Log) Initialize() error {
 		l.term = term
 		l.votedFor = 0
 		l.lastLogTerm = term
+		l.leaderID = l.id
 
 		// Begin state loop as leader.
 		l.startStateLoop(l.closing, Leader)
@@ -510,8 +547,8 @@ func (l *Log) SetLogOutput(w io.Writer) {
 
 func (l *Log) updateLogPrefix() {
 	var host string
-	if l.URL != nil {
-		host = l.URL.Host
+	if l.url.Host != "" {
+		host = l.url.Host
 	}
 	l.Logger.SetPrefix(fmt.Sprintf("[raft] %s ", host))
 }
@@ -530,15 +567,22 @@ func (l *Log) tracef(msg string, v ...interface{}) {
 	}
 }
 
+// IsLeader returns true if the log is the current leader.
+func (l *Log) IsLeader() bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.id != 0 && l.id == l.leaderID
+}
+
 // Leader returns the id and URL associated with the current leader.
 // Returns zero if there is no current leader.
-func (l *Log) Leader() (id uint64, u *url.URL) {
+func (l *Log) Leader() (id uint64, u url.URL) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.leader()
 }
 
-func (l *Log) leader() (id uint64, u *url.URL) {
+func (l *Log) leader() (id uint64, u url.URL) {
 	// Ignore if there's no configuration set.
 	if l.config == nil {
 		return
@@ -553,11 +597,22 @@ func (l *Log) leader() (id uint64, u *url.URL) {
 	return n.ID, n.URL
 }
 
+// ClusterID returns the identifier for the cluster.
+// Returns zero if the cluster has not been initialized yet.
+func (l *Log) ClusterID() uint64 {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.config == nil {
+		return 0
+	}
+	return l.config.ClusterID
+}
+
 // Join contacts a node in the cluster to request membership.
 // A log cannot join a cluster if it has already been initialized.
-func (l *Log) Join(u *url.URL) error {
+func (l *Log) Join(u url.URL) error {
 	// Validate under lock.
-	var nodeURL *url.URL
+	var nodeURL url.URL
 	if err := func() error {
 		l.mu.Lock()
 		defer l.mu.Unlock()
@@ -566,11 +621,11 @@ func (l *Log) Join(u *url.URL) error {
 			return ErrClosed
 		} else if l.id != 0 {
 			return ErrInitialized
-		} else if l.URL == nil {
+		} else if l.url.Host == "" {
 			return ErrURLRequired
 		}
 
-		nodeURL = l.URL
+		nodeURL = l.url
 		return nil
 	}(); err != nil {
 		return err
@@ -727,7 +782,7 @@ func (l *Log) readFromLeader(wg *sync.WaitGroup, transitioning <-chan struct{}) 
 		l.mu.Unlock()
 
 		// If no leader exists then wait momentarily and retry.
-		if u == nil {
+		if u.Host == "" {
 			l.tracef("readFromLeader: no leader")
 			time.Sleep(100 * time.Millisecond)
 			continue
@@ -1309,9 +1364,9 @@ func (l *Log) mustApplyRemovePeer(e *LogEntry) error {
 
 // AddPeer creates a new peer in the cluster.
 // Returns the new peer's identifier and the current configuration.
-func (l *Log) AddPeer(u *url.URL) (uint64, uint64, *Config, error) {
+func (l *Log) AddPeer(u url.URL) (uint64, uint64, *Config, error) {
 	// Validate URL.
-	if u == nil {
+	if u.Host == "" {
 		return 0, 0, nil, fmt.Errorf("peer url required")
 	}
 
@@ -1524,18 +1579,11 @@ func (l *Log) advanceWriter(writer *logWriter, snapshotIndex uint64) error {
 	default:
 	}
 
-	// Determine the highest snapshot index. The writer's snapshot index can
-	// be higher if non-command entries have been applied.
-	if writer.snapshotIndex > snapshotIndex {
-		snapshotIndex = writer.snapshotIndex
-	}
-	snapshotIndex++
-
 	// Write pending entries.
 	if len(l.entries) > 0 {
 		startIndex := l.entries[0].Index
 		enc := NewLogEntryEncoder(writer.Writer)
-		for _, e := range l.entries[snapshotIndex-startIndex:] {
+		for _, e := range l.entries[snapshotIndex-startIndex+1:] {
 			if err := enc.Encode(e); err != nil {
 				return err
 			}

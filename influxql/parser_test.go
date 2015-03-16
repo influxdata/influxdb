@@ -769,6 +769,26 @@ func TestParser_ParseStatement(t *testing.T) {
 			stmt: newAlterRetentionPolicyStatement("policy1", "testdb", -1, 4, false),
 		},
 
+		// SHOW STATS
+		{
+			s: `SHOW STATS`,
+			stmt: &influxql.ShowStatsStatement{
+				Host: "",
+			},
+		},
+		{
+			s: `SHOW STATS ON 'servera'`,
+			stmt: &influxql.ShowStatsStatement{
+				Host: "servera",
+			},
+		},
+		{
+			s: `SHOW STATS ON '192.167.1.44'`,
+			stmt: &influxql.ShowStatsStatement{
+				Host: "192.167.1.44",
+			},
+		},
+
 		// Errors
 		{s: ``, err: `found EOF, expected SELECT at line 1, char 1`},
 		{s: `SELECT`, err: `found EOF, expected identifier, string, number, bool at line 1, char 8`},
@@ -798,6 +818,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `SHOW RETENTION`, err: `found EOF, expected POLICIES at line 1, char 16`},
 		{s: `SHOW RETENTION POLICIES`, err: `found EOF, expected identifier at line 1, char 25`},
 		{s: `SHOW FOO`, err: `found FOO, expected CONTINUOUS, DATABASES, FIELD, MEASUREMENTS, RETENTION, SERIES, SERVERS, TAG, USERS at line 1, char 6`},
+		{s: `SHOW STATS ON`, err: `found EOF, expected string at line 1, char 15`},
 		{s: `DROP CONTINUOUS`, err: `found EOF, expected QUERY at line 1, char 17`},
 		{s: `DROP CONTINUOUS QUERY`, err: `found EOF, expected identifier at line 1, char 23`},
 		{s: `CREATE CONTINUOUS`, err: `found EOF, expected QUERY at line 1, char 19`},

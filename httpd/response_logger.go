@@ -82,6 +82,7 @@ func buildLogLine(l *responseLogger, r *http.Request, start time.Time) string {
 		detect(referer, "-"),
 		detect(userAgent, "-"),
 		r.Header.Get("Request-Id"),
+		fmt.Sprintf("%s", time.Since(start)),
 	}
 
 	return strings.Join(fields, " ")

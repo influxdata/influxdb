@@ -12,7 +12,7 @@ import (
 // Handler represents an HTTP endpoint for Raft to communicate over.
 type Handler struct {
 	Log interface {
-		AddPeer(u *url.URL) (id uint64, leaderID uint64, config *Config, err error)
+		AddPeer(u url.URL) (id uint64, leaderID uint64, config *Config, err error)
 		RemovePeer(id uint64) error
 		Heartbeat(term, commitIndex, leaderID uint64) (currentIndex uint64, err error)
 		WriteEntriesTo(w io.Writer, id, term, index uint64) error
@@ -60,7 +60,7 @@ func (h *Handler) serveJoin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Add peer to the log.
-	id, leaderID, config, err := h.Log.AddPeer(u)
+	id, leaderID, config, err := h.Log.AddPeer(*u)
 	if err != nil {
 		w.Header().Set("X-Raft-Error", err.Error())
 		w.WriteHeader(http.StatusInternalServerError)

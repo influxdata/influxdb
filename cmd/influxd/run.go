@@ -20,6 +20,7 @@ import (
 	"github.com/influxdb/influxdb/graphite"
 	"github.com/influxdb/influxdb/httpd"
 	"github.com/influxdb/influxdb/messaging"
+	"github.com/influxdb/influxdb/raft"
 	"github.com/influxdb/influxdb/udp"
 )
 
@@ -43,23 +44,26 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 	initServer = initServer || initBroker
 
 	// Parse join urls from the --join flag.
-	var joinURLs []*url.URL
+	var joinURLs []url.URL
 	if join == "" {
 		joinURLs = parseURLs(config.JoinURLs())
 	} else {
 		joinURLs = parseURLs(join)
 	}
 
-	// Open broker, initialize or join as necessary.
-	b := openBroker(config.BrokerDir(), config.BrokerURL(), initBroker, joinURLs, logWriter)
-
-	// Configure debug of Raft module.
-	b.EnableRaftDebug(config.Logging.RaftTracing)
+	// Open broker & raft log, initialize or join as necessary.
+	b, l := openBroker(config.BrokerDir(), config.BrokerURL(), initBroker, joinURLs, logWriter, config.Logging.RaftTracing)
 
 	// Start the broker handler.
 	var h *Handler
 	if b != nil {
-		h = &Handler{brokerHandler: messaging.NewHandler(b.Broker)}
+		h = &Handler{
+			brokerHandler: &messaging.Handler{
+				Broker:      b.Broker,
+				RaftHandler: &raft.Handler{Log: l},
+			},
+		}
+
 		// We want to make sure we are spun up before we exit this function, so we manually listen and serve
 		listener, err := net.Listen("tcp", config.BrokerAddr())
 		if err != nil {
@@ -176,13 +180,33 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 				log.Fatalf("failed to start %s Graphite server: %s", c.Protocol, err.Error())
 			}
 		}
+
+		// Start up self-monitoring if enabled.
+		if config.Statistics.Enabled {
+			database := config.Statistics.Database
+			policy := config.Statistics.RetentionPolicy
+			interval := time.Duration(config.Statistics.WriteInterval)
+
+			// Ensure database exists.
+			if err := s.CreateDatabaseIfNotExists(database); err != nil {
+				log.Fatalf("failed to create database %s for internal statistics: %s", database, err.Error())
+			}
+
+			// Ensure retention policy exists.
+			rp := influxdb.NewRetentionPolicy(policy)
+			if err := s.CreateRetentionPolicyIfNotExists(database, rp); err != nil {
+				log.Fatalf("failed to create retention policy for internal statistics: %s", err.Error())
+			}
+
+			s.StartSelfMonitoring(database, policy, interval)
+			log.Printf("started self-monitoring at interval of %s", interval)
+		}
 	}
 
 	// unless disabled, start the loop to report anonymous usage stats every 24h
 	if !config.ReportingDisabled {
 		// Make sure we have a config object b4 we try to use it.
-		if configObj := b.Broker.Log().Config(); configObj != nil {
-			clusterID := configObj.ClusterID
+		if clusterID := b.Broker.ClusterID(); clusterID != 0 {
 			go s.StartReportingLoop(version, clusterID)
 		}
 	}
@@ -212,7 +236,6 @@ func writePIDFile(path string) {
 // parses the configuration from a given path. Sets overrides as needed.
 func parseConfig(path, hostname string) *Config {
 	if path == "" {
-		log.Println("No config provided, using default settings")
 		return NewConfig()
 	}
 
@@ -231,13 +254,29 @@ func parseConfig(path, hostname string) *Config {
 }
 
 // creates and initializes a broker.
-func openBroker(path string, u *url.URL, initializing bool, joinURLs []*url.URL, w io.Writer) *influxdb.Broker {
+func openBroker(path string, u url.URL, initializing bool, joinURLs []url.URL, w io.Writer, raftTracing bool) (*influxdb.Broker, *raft.Log) {
+	// Create raft log.
+	l := raft.NewLog()
+	l.SetURL(u)
+	l.SetLogOutput(w)
+	l.DebugEnabled = raftTracing
+
 	// Create broker.
 	b := influxdb.NewBroker()
+	b.Log = l
 	b.SetLogOutput(w)
 
-	if err := b.Open(path, u); err != nil {
+	// Open broker so it can feed last index data to the log.
+	if err := b.Open(path); err != nil {
 		log.Fatalf("failed to open broker: %s", err)
+	}
+
+	// Attach the broker as the finite state machine of the raft log.
+	l.FSM = &messaging.RaftFSM{Broker: b}
+
+	// Open raft log inside broker directory.
+	if err := l.Open(filepath.Join(path, "raft")); err != nil {
+		log.Fatalf("raft: %s", err)
 	}
 
 	// If this is a new broker then we can initialize two ways:
@@ -245,38 +284,56 @@ func openBroker(path string, u *url.URL, initializing bool, joinURLs []*url.URL,
 	//   2) Join an existing cluster.
 	if initializing {
 		if len(joinURLs) == 0 {
-			initializeBroker(b)
+			if err := l.Initialize(); err != nil {
+				log.Fatalf("initialize raft log: %s", err)
+			}
 		} else {
-			joinBroker(b, joinURLs)
+			joinLog(l, joinURLs)
 		}
 	}
 
-	return b
+	return b, l
 }
 
-// initializes a new broker.
-func initializeBroker(b *influxdb.Broker) {
-	if err := b.Initialize(); err != nil {
-		log.Fatalf("initialize: %s", err)
-	}
-}
-
-// joins a broker to an existing cluster.
-func joinBroker(b *influxdb.Broker, joinURLs []*url.URL) {
+// joins a raft log to an existing cluster.
+func joinLog(l *raft.Log, joinURLs []url.URL) {
 	// Attempts to join each server until successful.
 	for _, u := range joinURLs {
-		if err := b.Join(u); err != nil {
-			log.Printf("join: failed to connect to broker: %s: %s", u, err)
+		if err := l.Join(u); err != nil {
+			log.Printf("join: failed to connect to raft cluster: %s: %s", u, err)
 		} else {
-			log.Printf("join: connected broker to %s", u)
+			log.Printf("join: connected raft log to %s", u)
 			return
 		}
 	}
-	log.Fatalf("join: failed to connect broker to any specified server")
+	log.Fatalf("join: failed to connect raft log to any specified server")
 }
 
 // creates and initializes a server.
-func openServer(config *Config, b *influxdb.Broker, initServer, initBroker, configExists bool, joinURLs []*url.URL, w io.Writer) *influxdb.Server {
+func openServer(config *Config, b *influxdb.Broker, initServer, initBroker, configExists bool, joinURLs []url.URL, w io.Writer) *influxdb.Server {
+	// Use broker URL is there is no config and there are no join URLs passed.
+	clientJoinURLs := joinURLs
+	if !configExists || len(joinURLs) == 0 {
+		clientJoinURLs = []url.URL{b.URL()}
+	}
+
+	// Create messaging client to the brokers.
+	c := influxdb.NewMessagingClient()
+	c.SetLogOutput(w)
+	if err := c.Open(filepath.Join(config.Data.Dir, messagingClientFile)); err != nil {
+		log.Fatalf("messaging client error: %s", err)
+	}
+
+	// If join URLs were passed in then use them to override the client's URLs.
+	if len(clientJoinURLs) > 0 {
+		c.SetURLs(clientJoinURLs)
+	}
+
+	// If no URLs exist on the client the return an error since we cannot reach a broker.
+	if len(c.URLs()) == 0 {
+		log.Fatal("messaging client has no broker URLs")
+	}
+
 	// Create and open the server.
 	s := influxdb.NewServer()
 	s.SetLogOutput(w)
@@ -287,72 +344,34 @@ func openServer(config *Config, b *influxdb.Broker, initServer, initBroker, conf
 	s.ComputeRunsPerInterval = config.ContinuousQuery.ComputeRunsPerInterval
 	s.ComputeNoMoreThan = time.Duration(config.ContinuousQuery.ComputeNoMoreThan)
 
-	if err := s.Open(config.Data.Dir); err != nil {
+	// Open server with data directory and broker client.
+	if err := s.Open(config.Data.Dir, c); err != nil {
 		log.Fatalf("failed to open data server: %v", err.Error())
 	}
 
 	// If the server is uninitialized then initialize or join it.
 	if initServer {
 		if len(joinURLs) == 0 {
-			initializeServer(config.DataURL(), s, b, w, initBroker)
+			if initBroker {
+				if err := s.Initialize(b.URL()); err != nil {
+					log.Fatalf("server initialization error: %s", err)
+				}
+			}
 		} else {
 			joinServer(s, config.DataURL(), joinURLs)
 		}
 	}
 
-	if !configExists {
-		// We are spining up a server that has no config,
-		// but already has an initialized data directory
-		joinURLs = []*url.URL{b.URL()}
-		openServerClient(s, joinURLs, w)
-	} else {
-		if len(joinURLs) == 0 {
-			// If a config exists, but no joinUrls are specified, fall back to the broker URL
-			// TODO: Make sure we have a leader, and then spin up the server
-			joinURLs = []*url.URL{b.URL()}
-		}
-		openServerClient(s, joinURLs, w)
-	}
-
 	return s
 }
 
-// initializes a new server that does not yet have an ID.
-func initializeServer(u *url.URL, s *influxdb.Server, b *influxdb.Broker, w io.Writer, initBroker bool) {
-	// TODO: Create replica using the messaging client.
-
-	if initBroker {
-		// Create replica on broker.
-		if err := b.CreateReplica(1, u); err != nil {
-			log.Fatalf("replica creation error: %s", err)
-		}
-	}
-
-	// Create messaging client.
-	c := messaging.NewClient(1)
-	c.SetLogOutput(w)
-	if err := c.Open(filepath.Join(s.Path(), messagingClientFile), []*url.URL{b.URL()}); err != nil {
-		log.Fatalf("messaging client error: %s", err)
-	}
-	if err := s.SetClient(c); err != nil {
-		log.Fatalf("set client error: %s", err)
-	}
-
-	if initBroker {
-		// Initialize the server.
-		if err := s.Initialize(b.URL()); err != nil {
-			log.Fatalf("server initialization error: %s", err)
-		}
-	}
-}
-
 // joins a server to an existing cluster.
-func joinServer(s *influxdb.Server, u *url.URL, joinURLs []*url.URL) {
+func joinServer(s *influxdb.Server, u url.URL, joinURLs []url.URL) {
 	// TODO: Use separate broker and data join urls.
 
 	// Create data node on an existing data node.
 	for _, joinURL := range joinURLs {
-		if err := s.Join(u, joinURL); err != nil {
+		if err := s.Join(&u, &joinURL); err != nil {
 			log.Printf("join: failed to connect data node: %s: %s", u, err)
 		} else {
 			log.Printf("join: connected data node to %s", u)
@@ -362,20 +381,8 @@ func joinServer(s *influxdb.Server, u *url.URL, joinURLs []*url.URL) {
 	log.Fatalf("join: failed to connect data node to any specified server")
 }
 
-// opens the messaging client and attaches it to the server.
-func openServerClient(s *influxdb.Server, joinURLs []*url.URL, w io.Writer) {
-	c := messaging.NewClient(s.ID())
-	c.SetLogOutput(w)
-	if err := c.Open(filepath.Join(s.Path(), messagingClientFile), joinURLs); err != nil {
-		log.Fatalf("messaging client error: %s", err)
-	}
-	if err := s.SetClient(c); err != nil {
-		log.Fatalf("set client error: %s", err)
-	}
-}
-
 // parses a comma-delimited list of URLs.
-func parseURLs(s string) (a []*url.URL) {
+func parseURLs(s string) (a []url.URL) {
 	if s == "" {
 		return nil
 	}
@@ -385,7 +392,7 @@ func parseURLs(s string) (a []*url.URL) {
 		if err != nil {
 			log.Fatalf("cannot parse urls: %s", err)
 		}
-		a = append(a, u)
+		a = append(a, *u)
 	}
 	return
 }

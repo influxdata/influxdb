@@ -9,3 +9,4 @@ curl -d '{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cp
 
 echo "querying data"
 curl -G http://localhost:8086/query --data-urlencode "db=foo" --data-urlencode "q=SELECT sum(value) FROM \"foo\".\"bar\".cpu GROUP BY time(1h)"
+

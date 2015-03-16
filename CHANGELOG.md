@@ -1,7 +1,24 @@
-## v0.9.0-rc12 [unreleased]
+## v0.9.0-rc13 [unreleased]
+
+### Features
+- [#1974](https://github.com/influxdb/influxdb/pull/1974): Add time taken for request to the http server logs.
+
+### Bugfixes
+- [#1971](https://github.com/influxdb/influxdb/pull/1971): Fix leader id initialization.
+- [#1975](https://github.com/influxdb/influxdb/pull/1975): Require `q` parameter for query endpoint.
+- [#1969](https://github.com/influxdb/influxdb/pull/1969): Print loaded config.
+
+## v0.9.0-rc12 [2015-03-15]
 
 ### Bugfixes
 - [#1942](https://github.com/influxdb/influxdb/pull/1942): Sort wildcard names.
+- [#1957](https://github.com/influxdb/influxdb/pull/1957): Graphite numbers are always float64.
+- [#1955](https://github.com/influxdb/influxdb/pull/1955): Prohibit creation of databases with no name. Thanks @dullgiulio
+- [#1952](https://github.com/influxdb/influxdb/pull/1952): Handle delete statement with an error. Thanks again to @dullgiulio
+
+### Features
+- [#1935](https://github.com/influxdb/influxdb/pull/1935): Implement stateless broker for Raft.
+- [#1936](https://github.com/influxdb/influxdb/pull/1936): Implement "SHOW STATS" and self-monitoring
 
 ### Features
 - [#1909](https://github.com/influxdb/influxdb/pull/1909): Implement a dump command.
