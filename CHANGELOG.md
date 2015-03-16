@@ -5,7 +5,7 @@
 
 ### Bugfixes
 - [#1971](https://github.com/influxdb/influxdb/pull/1971): Fix leader id initialization.
-- [#1975](https://github.com/influxdb/influxdb/pull/1975): Require parameter for query endpoint.
+- [#1975](https://github.com/influxdb/influxdb/pull/1975): Require `q` parameter for query endpoint.
 
 ## v0.9.0-rc12 [2015-03-15]
 
