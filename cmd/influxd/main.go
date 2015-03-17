@@ -104,7 +104,7 @@ func execRun(args []string) {
 	log.SetFlags(log.LstdFlags)
 	writePIDFile(*pidPath)
 
-	if configPath != nil {
+	if *configPath == "" {
 		log.Println("No config provided, using default settings")
 	}
 	config := parseConfig(*configPath, *hostname)
