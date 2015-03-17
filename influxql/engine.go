@@ -513,8 +513,11 @@ func (m *MapReduceJob) processAggregate(c *Call, reduceFunc ReduceFunc, filterEm
 		}
 
 		// collect the results from each mapper
+		var ts int64
+		var err error
+		var res interface{}
 		for j, mm := range m.Mappers {
-			res, err := mm.NextInterval(m.interval)
+			res, ts, err = mm.NextInterval(m.interval)
 			if err != nil {
 				return err
 			}
@@ -524,6 +527,7 @@ func (m *MapReduceJob) processAggregate(c *Call, reduceFunc ReduceFunc, filterEm
 		if filterEmpty && reducedVal == nil {
 			continue
 		}
+		resultValues[i][0] = ts
 		resultValues[i] = append(resultValues[i], reduceFunc(mapperOutputs))
 		i++
 	}
@@ -555,7 +559,7 @@ type Mapper interface {
 	// forward only operation from the start time passed into Begin. Will return nil when there is no more data to be read.
 	// We pass the interval in here so that it can be varied over the period of the query. This is useful for the raw
 	// data queries where we'd like to gradually adjust the amount of time we scan over.
-	NextInterval(interval int64) (interface{}, error)
+	NextInterval(interval int64) (interface{}, int64, error)
 
 	// Done returns whether the mapper has any more data,
 	Done() bool

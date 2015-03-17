@@ -319,9 +319,9 @@ func (l *LocalMapper) Done() bool {
 
 // NextInterval will get the time ordered next interval of the given interval size from the mapper. This is a
 // forward only operation from the start time passed into Begin. Will return nil when there is no more data to be read.
-func (l *LocalMapper) NextInterval(interval int64) (interface{}, error) {
+func (l *LocalMapper) NextInterval(interval int64) (interface{}, int64, error) {
 	if l.Done() {
-		return nil, nil
+		return nil, 0, nil
 	}
 
 	// Set the upper bound of the interval.
@@ -342,9 +342,10 @@ func (l *LocalMapper) NextInterval(interval int64) (interface{}, error) {
 	}
 
 	// Move the interval forward.
+	ts := l.tmin
 	l.tmin += interval
 
-	return val, nil
+	return val, ts, nil
 }
 
 func (l *LocalMapper) Next() (seriesID uint32, timestamp int64, value interface{}) {
