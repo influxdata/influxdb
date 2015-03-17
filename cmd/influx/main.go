@@ -68,9 +68,6 @@ func main() {
 		}
 	}
 
-	// TODO Determine if we are an ineractive shell or running commands
-	fmt.Println("InfluxDB shell " + version)
-
 	c.Line = liner.NewLiner()
 	defer c.Line.Close()
 
@@ -89,6 +86,8 @@ func main() {
 		c.dump()
 		return
 	}
+
+	fmt.Println("InfluxDB shell " + version)
 
 	var historyFile string
 	usr, err := user.Current()
@@ -213,7 +212,9 @@ func (c *CommandLine) connect(cmd string) {
 		fmt.Printf("Failed to connect to %s\n", c.Client.Addr())
 	} else {
 		c.Version = v
-		fmt.Printf("Connected to %s version %s\n", c.Client.Addr(), c.Version)
+		if !c.Dump {
+			fmt.Printf("Connected to %s version %s\n", c.Client.Addr(), c.Version)
+		}
 	}
 }
 
