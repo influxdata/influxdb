@@ -213,9 +213,7 @@ func (c *CommandLine) connect(cmd string) {
 		fmt.Printf("Failed to connect to %s\n", c.Client.Addr())
 	} else {
 		c.Version = v
-		if !c.Dump {
-			fmt.Printf("Connected to %s version %s\n", c.Client.Addr(), c.Version)
-		}
+		fmt.Printf("Connected to %s version %s\n", c.Client.Addr(), c.Version)
 	}
 }
 
