@@ -8,6 +8,7 @@
 - [#1975](https://github.com/influxdb/influxdb/pull/1975): Require `q` parameter for query endpoint.
 - [#1969](https://github.com/influxdb/influxdb/pull/1969): Print loaded config.
 - [#1987](https://github.com/influxdb/influxdb/pull/1987): Fix config print startup statement for when no config is provided.
+- [#1990](https://github.com/influxdb/influxdb/pull/1990): Drop measurement was taking to long due to transactions.
 
 ## v0.9.0-rc12 [2015-03-15]
 
