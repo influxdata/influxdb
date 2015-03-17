@@ -1158,6 +1158,7 @@ func TestHandler_serveDump(t *testing.T) {
 		t.Fatalf("unexpected status for get: %d", status)
 	}
 
+	time.Sleep(500 * time.Millisecond) // Shouldn't committed data be readable?
 	query = map[string]string{"db": "foo"}
 	status, body = MustHTTP("GET", s.URL+`/dump`, query, nil, "")
 	if status != http.StatusOK {
