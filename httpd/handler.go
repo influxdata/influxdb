@@ -202,8 +202,8 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *influ
 	}
 
 	var writeError = func(result influxdb.Result, statusCode int) {
-		w.WriteHeader(statusCode)
 		w.Header().Add("content-type", "application/json")
+		w.WriteHeader(statusCode)
 		_ = json.NewEncoder(w).Encode(&result)
 		return
 	}
@@ -393,8 +393,8 @@ func (h *Handler) serveCreateDataNode(w http.ResponseWriter, r *http.Request) {
 	node := h.server.DataNodeByURL(u)
 
 	// Write new node back to client.
-	w.WriteHeader(http.StatusCreated)
 	w.Header().Add("content-type", "application/json")
+	w.WriteHeader(http.StatusCreated)
 	_ = json.NewEncoder(w).Encode(&dataNodeJSON{ID: node.ID, URL: node.URL.String()})
 }
 
@@ -449,6 +449,8 @@ func isFieldNotFoundError(err error) bool {
 
 // httpResult writes a Results array to the client.
 func httpResults(w http.ResponseWriter, results influxdb.Results, pretty bool) {
+	w.Header().Add("content-type", "application/json")
+
 	if results.Error() != nil {
 		if isAuthorizationError(results.Error()) {
 			w.WriteHeader(http.StatusUnauthorized)
@@ -461,7 +463,7 @@ func httpResults(w http.ResponseWriter, results influxdb.Results, pretty bool) {
 			w.WriteHeader(http.StatusInternalServerError)
 		}
 	}
-	w.Header().Add("content-type", "application/json")
+
 	var b []byte
 	if pretty {
 		b, _ = json.MarshalIndent(results, "", "    ")
