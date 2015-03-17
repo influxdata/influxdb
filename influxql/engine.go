@@ -153,7 +153,7 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 
 	// now loop through the aggregate functions and populate everything
 	for i, c := range aggregates {
-		if err := m.processAggregate(c, reduceFuncs[i], resultValues); err != nil {
+		if err := m.processAggregate(c, reduceFuncs[i], filterEmptyResults, resultValues); err != nil {
 			out <- &Row{
 				Name: m.MeasurementName,
 				Tags: m.TagSet.Tags,
@@ -258,7 +258,9 @@ func (m *MapReduceJob) processFill(results [][]interface{}) [][]interface{} {
 					break
 				}
 			}
-			if !hasNil {
+			// If the vals has more than just a time value *and* none of those vals are nil,
+			// keep it.
+			if len(vals) > 1 && !hasNil {
 				newResults = append(newResults, vals)
 			}
 		}
@@ -481,7 +483,7 @@ func (m *MapReduceJob) processRawResults(resultValues [][]interface{}) *Row {
 	return row
 }
 
-func (m *MapReduceJob) processAggregate(c *Call, reduceFunc ReduceFunc, resultValues [][]interface{}) error {
+func (m *MapReduceJob) processAggregate(c *Call, reduceFunc ReduceFunc, filterEmpty bool, resultValues [][]interface{}) error {
 	mapperOutputs := make([]interface{}, len(m.Mappers))
 
 	// intialize the mappers
@@ -491,8 +493,25 @@ func (m *MapReduceJob) processAggregate(c *Call, reduceFunc ReduceFunc, resultVa
 		}
 	}
 
-	// populate the result values for each interval of time
-	for i, _ := range resultValues {
+	i := 0
+	for {
+		// If the results slice is full, return with what has been inserted.
+		if i == len(resultValues) {
+			return nil
+		}
+
+		// If all mappers are done, return.
+		mappersDone := true
+		for _, mm := range m.Mappers {
+			if !mm.Done() {
+				mappersDone = false
+				break
+			}
+		}
+		if mappersDone {
+			return nil
+		}
+
 		// collect the results from each mapper
 		for j, mm := range m.Mappers {
 			res, err := mm.NextInterval(m.interval)
@@ -501,7 +520,12 @@ func (m *MapReduceJob) processAggregate(c *Call, reduceFunc ReduceFunc, resultVa
 			}
 			mapperOutputs[j] = res
 		}
+		reducedVal := reduceFunc(mapperOutputs)
+		if filterEmpty && reducedVal == nil {
+			continue
+		}
 		resultValues[i] = append(resultValues[i], reduceFunc(mapperOutputs))
+		i++
 	}
 
 	return nil
@@ -532,6 +556,9 @@ type Mapper interface {
 	// We pass the interval in here so that it can be varied over the period of the query. This is useful for the raw
 	// data queries where we'd like to gradually adjust the amount of time we scan over.
 	NextInterval(interval int64) (interface{}, error)
+
+	// Done returns whether the mapper has any more data,
+	Done() bool
 }
 
 type TagSet struct {

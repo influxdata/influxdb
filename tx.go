@@ -309,10 +309,18 @@ func (l *LocalMapper) Begin(c *influxql.Call, startingTime int64) error {
 	return nil
 }
 
+// Done returns whether the Mapper has processed all data.
+func (l *LocalMapper) Done() bool {
+	if l.cursorsEmpty || l.tmin > l.job.TMax {
+		return true
+	}
+	return false
+}
+
 // NextInterval will get the time ordered next interval of the given interval size from the mapper. This is a
 // forward only operation from the start time passed into Begin. Will return nil when there is no more data to be read.
 func (l *LocalMapper) NextInterval(interval int64) (interface{}, error) {
-	if l.cursorsEmpty || l.tmin > l.job.TMax {
+	if l.Done() {
 		return nil, nil
 	}
 
