@@ -201,11 +201,12 @@ func (c *CommandLine) connect(cmd string) {
 		return
 	}
 	c.Client = cl
+	displayUrl := fmt.Sprintf("%s@%s:%d", c.Username, c.Host, c.Port)
 	if _, v, e := c.Client.Ping(); e != nil {
-		fmt.Printf("Failed to connect to %s\n", c.Client.Addr())
+		fmt.Printf("Failed to connect to %s\n", displayUrl)
 	} else {
 		c.Version = v
-		fmt.Printf("Connected to %s version %s\n", c.Client.Addr(), c.Version)
+		fmt.Printf("Connected to %s version %s\n", displayUrl, c.Version)
 	}
 }
 
