@@ -274,11 +274,11 @@ func (a Results) Error() error {
 // Precision can be specified if the timestamp is in epoch format (integer).
 // Valid values for Precision are n, u, ms, s, m, and h
 type Point struct {
-	Name      string                 `json:"name,omitempty"`
-	Tags      map[string]string      `json:"tags,omitempty"`
-	Timestamp time.Time              `json:"timestamp,omitempty"` //XXX omitempty doesn't work on time.Time
-	Fields    map[string]interface{} `json:"fields,omitempty"`
-	Precision string                 `json:"precision,omitempty"`
+	Name      string
+	Tags      map[string]string
+	Timestamp time.Time
+	Fields    map[string]interface{}
+	Precision string
 }
 
 // MarshalJSON will format the time in RFC3339Nano
