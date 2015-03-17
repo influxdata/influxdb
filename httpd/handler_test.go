@@ -278,8 +278,8 @@ func TestHandler_RetentionPolicies(t *testing.T) {
 
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["bar","168h0m0s",1,false]]}]}]}` {
-		t.Fatalf("unexpected body: %s", body)
+	} else if !strings.Contains(body, `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["default","0",1,true],["bar","168h0m0s",1,false]]}]}]}`) {
+		t.Fatalf("Missing retention policy: %s", body)
 	}
 }
 
@@ -1118,16 +1118,53 @@ func TestHandler_DropSeries(t *testing.T) {
 func TestHandler_serveWriteSeries(t *testing.T) {
 	c := test.NewMessagingClient()
 	defer c.Close()
-	srvr := OpenAuthenticatedServer(c)
+	srvr := OpenAuthlessServer(c)
 	srvr.CreateDatabase("foo")
-	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
 	s := NewHTTPServer(srvr)
 	defer s.Close()
 
-	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
+	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "default", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
 
 	if status != http.StatusOK {
-		t.Fatalf("unexpected status: %d", status)
+		t.Fatalf("unexpected status for post: %d", status)
+	}
+	query := map[string]string{"db": "foo", "q": "select * from cpu"}
+	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status for get: %d", status)
+	}
+	if !strings.Contains(body, `"name":"cpu"`) {
+		t.Fatalf("Write doesn't match query results. Response body is %s.", body)
+	}
+}
+
+func TestHandler_serveDump(t *testing.T) {
+	c := test.NewMessagingClient()
+	defer c.Close()
+	srvr := OpenAuthlessServer(c)
+	srvr.CreateDatabase("foo")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "default", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
+
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status for post: %d", status)
+
+	}
+	query := map[string]string{"db": "foo", "q": "select * from cpu"}
+	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status for get: %d", status)
+	}
+
+	query = map[string]string{"db": "foo"}
+	status, body = MustHTTP("GET", s.URL+`/dump`, query, nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status for get: %d", status)
+	}
+	if !strings.Contains(body, `"name":"cpu"`) {
+		t.Fatalf("Write doesn't match query results. Response body is %s.", body)
 	}
 }
 
@@ -1501,6 +1538,7 @@ func MustHTTP(verb, path string, params, headers map[string]string, body string)
 
 	b, err := ioutil.ReadAll(resp.Body)
 	return resp.StatusCode, strings.TrimRight(string(b), "\n")
+
 }
 
 // MustParseURL parses a string into a URL. Panic on error.
@@ -1539,7 +1577,9 @@ type Server struct {
 
 // NewServer returns a new test server instance.
 func NewServer() *Server {
-	return &Server{influxdb.NewServer()}
+	s := &Server{influxdb.NewServer()}
+	s.RetentionAutoCreate = true
+	return s
 }
 
 // OpenAuthenticatedServer returns a new, open test server instance with authentication enabled.

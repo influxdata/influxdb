@@ -241,8 +241,8 @@ func (h *Handler) showMeasurements(db string, user *influxdb.User) ([]string, er
 func (h *Handler) serveDump(w http.ResponseWriter, r *http.Request, user *influxdb.User) {
 	q := r.URL.Query()
 	db := q.Get("db")
-	delim := []byte("\n")
 	pretty := q.Get("pretty") == "true"
+	delim := []byte("\n")
 	measurements, err := h.showMeasurements(db, user)
 	if err != nil {
 		httpError(w, "error with dump: "+err.Error(), pretty, http.StatusInternalServerError)
