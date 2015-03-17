@@ -1,6 +1,8 @@
 package main_test
 
 import (
+	"strconv"
+	"strings"
 	"testing"
 
 	main "github.com/influxdb/influxdb/cmd/influx"
@@ -73,5 +75,51 @@ func TestParseCommand_Use(t *testing.T) {
 		if !c.ParseCommand(test.cmd) {
 			t.Fatalf(`Command "use" failed for %q.`, test.cmd)
 		}
+	}
+}
+
+func TestDisplayUrlWithUsernamePassword(t *testing.T) {
+	c := main.CommandLine{}
+	c.Host = "some-host"
+	c.Port = 1234
+	c.Username = "someuser"
+	c.Password = "somepass"
+
+	output := c.DisplayUrl()
+
+	if !strings.Contains(output, c.Username) {
+		t.Fatalf(`DisplayUrl() [%s] should show the username`, output)
+	}
+
+	if !strings.Contains(output, c.Host) {
+		t.Fatalf(`DisplayUrl() [%s] should show the host`, output)
+	}
+
+	if !strings.Contains(output, strconv.Itoa(c.Port)) {
+		t.Fatalf(`DisplayUrl() [%s] should show the port`, output)
+	}
+
+	if strings.Contains(output, c.Password) {
+		t.Fatalf(`DisplayUrl() [%s] should not reveal the password`, output)
+	}
+}
+
+func TestDisplayUrlWithOutUsernamePassword(t *testing.T) {
+	c := main.CommandLine{}
+	c.Host = "some-host"
+	c.Port = 1234
+
+	output := c.DisplayUrl()
+
+	if strings.Contains(output, "@") {
+		t.Fatalf(`DisplayUrl() [%s] should not include a '@' without a username/password`, output)
+	}
+
+	if !strings.Contains(output, c.Host) {
+		t.Fatalf(`DisplayUrl() [%s] should show the host`, output)
+	}
+
+	if !strings.Contains(output, strconv.Itoa(c.Port)) {
+		t.Fatalf(`DisplayUrl() [%s] should show the port`, output)
 	}
 }

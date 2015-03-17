@@ -201,12 +201,11 @@ func (c *CommandLine) connect(cmd string) {
 		return
 	}
 	c.Client = cl
-	displayUrl := fmt.Sprintf("%s@%s:%d", c.Username, c.Host, c.Port)
 	if _, v, e := c.Client.Ping(); e != nil {
-		fmt.Printf("Failed to connect to %s\n", displayUrl)
+		fmt.Printf("Failed to connect to %s\n", c.DisplayUrl())
 	} else {
 		c.Version = v
-		fmt.Printf("Connected to %s version %s\n", displayUrl, c.Version)
+		fmt.Printf("Connected to %s version %s\n", c.DisplayUrl(), c.Version)
 	}
 }
 
@@ -417,6 +416,14 @@ func interfaceToString(v interface{}) string {
 	default:
 		return fmt.Sprintf("%v", t)
 	}
+}
+
+func (c *CommandLine) DisplayUrl() string {
+	if len(c.Username) > 0 {
+		return fmt.Sprintf("%s@%s:%d", c.Username, c.Host, c.Port)
+	}
+
+	return fmt.Sprintf("%s:%d", c.Host, c.Port)
 }
 
 func (c *CommandLine) Settings() {
