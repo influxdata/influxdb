@@ -1128,10 +1128,8 @@ func (db *database) dropMeasurement(name string) error {
 
 	// remove series data from shards
 	for _, rp := range db.policies {
-		for _, id := range ids {
-			if err := rp.dropSeries(id); err != nil {
-				return err
-			}
+		if err := rp.dropSeries(ids...); err != nil {
+			return err
 		}
 	}
 
@@ -1139,9 +1137,9 @@ func (db *database) dropMeasurement(name string) error {
 }
 
 // dropSeries will delete all data with the seriesID
-func (rp *RetentionPolicy) dropSeries(seriesID uint32) error {
+func (rp *RetentionPolicy) dropSeries(seriesIDs ...uint32) error {
 	for _, g := range rp.shardGroups {
-		err := g.dropSeries(seriesID)
+		err := g.dropSeries(seriesIDs...)
 		if err != nil {
 			return err
 		}

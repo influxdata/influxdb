@@ -45,9 +45,9 @@ func (g *ShardGroup) Contains(min, max time.Time) bool {
 }
 
 // dropSeries will delete all data with the seriesID
-func (g *ShardGroup) dropSeries(seriesID uint32) error {
+func (g *ShardGroup) dropSeries(seriesIDs ...uint32) error {
 	for _, s := range g.Shards {
-		err := s.dropSeries(seriesID)
+		err := s.dropSeries(seriesIDs...)
 		if err != nil {
 			return err
 		}
@@ -201,14 +201,16 @@ func (s *Shard) writeSeries(index uint64, batch []byte) error {
 	})
 }
 
-func (s *Shard) dropSeries(seriesID uint32) error {
+func (s *Shard) dropSeries(seriesIDs ...uint32) error {
 	if s.store == nil {
 		return nil
 	}
 	return s.store.Update(func(tx *bolt.Tx) error {
-		err := tx.DeleteBucket(u32tob(seriesID))
-		if err != bolt.ErrBucketNotFound {
-			return err
+		for _, seriesID := range seriesIDs {
+			err := tx.DeleteBucket(u32tob(seriesID))
+			if err != bolt.ErrBucketNotFound {
+				return err
+			}
 		}
 		return nil
 	})
