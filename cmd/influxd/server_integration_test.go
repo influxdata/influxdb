@@ -343,6 +343,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			expected: `{"results":[{"series":[{"name":"cpu1","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",10]]},{"name":"cpu3","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",30]]}]}]}`,
 		},
 
+		// Precision-specified writes
 		{
 			name:     "single string point with second precision timestamp",
 			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu_s_precision", "timestamp": 1, "precision": "s", "fields": {"value": 100}}]}`,
