@@ -329,6 +329,13 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			query:    `SELECT abc FROM "%DB%"."%RP%".cpu WHERE time < now()`,
 			expected: `{"results":[{"error":"unknown field or tag name in select clause: abc"}]}`,
 		},
+		{
+			name:     "empty result",
+			query:    `SELECT value FROM cpu WHERE time >= '3000-01-01 00:00:05'`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{}]}`,
+		},
+
 		// FROM /regex/
 		{
 			reset: true,
@@ -341,6 +348,67 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			query:    `SELECT * FROM /cpu[13]/`,
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"cpu1","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",10]]},{"name":"cpu3","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",30]]}]}]}`,
+		},
+
+		// Aggregations
+		{
+			reset: true,
+			name:  "aggregations",
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+				{"name": "cpu", "timestamp": "2000-01-01T00:00:00Z", "tags": {"region": "us-east"}, "fields": {"value": 20}},
+				{"name": "cpu", "timestamp": "2000-01-01T00:00:10Z", "tags": {"region": "us-east"}, "fields": {"value": 30}},
+				{"name": "cpu", "timestamp": "2000-01-01T00:00:00Z", "tags": {"region": "us-west"}, "fields": {"value": 100}}
+			]}`,
+			query:    `SELECT value FROM cpu WHERE time >= '2000-01-01 00:00:05'`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:10Z",30]]}]}]}`,
+		},
+		{
+			name:     "sum aggregation",
+			query:    `SELECT sum(value) FROM cpu WHERE time >= '2000-01-01 00:00:05' AND time <= '2000-01-01T00:00:10Z' GROUP BY time(10s), region`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","sum"],"values":[["2000-01-01T00:00:00Z",30]]}]}]}`,
+		},
+		{
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+				{"name": "cpu", "timestamp": "2000-01-01T00:00:03Z", "tags": {"region": "us-east"}, "fields": {"otherVal": 20}}
+			]}`,
+			name:     "aggregation with a null field value",
+			query:    `SELECT sum(value) FROM cpu GROUP BY region`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",50]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",100]]}]}]}`,
+		},
+		{
+			name:     "multiple aggregations",
+			query:    `SELECT sum(value), mean(value) FROM cpu GROUP BY region`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","sum","mean"],"values":[["1970-01-01T00:00:00Z",50,25]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","sum","mean"],"values":[["1970-01-01T00:00:00Z",100,100]]}]}]}`,
+		},
+		{
+			query:    `SELECT sum(value) / mean(value) as div FROM cpu GROUP BY region`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","div"],"values":[["1970-01-01T00:00:00Z",2]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","div"],"values":[["1970-01-01T00:00:00Z",1]]}]}]}`,
+		},
+		{
+			name: "group by multiple dimensions",
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+				{"name": "load", "timestamp": "2000-01-01T00:00:00Z", "tags": {"region": "us-east", "host": "serverA"}, "fields": {"value": 20}},
+				{"name": "load", "timestamp": "2000-01-01T00:00:10Z", "tags": {"region": "us-east", "host": "serverB"}, "fields": {"value": 30}},
+				{"name": "load", "timestamp": "2000-01-01T00:00:00Z", "tags": {"region": "us-west", "host": "serverC"}, "fields": {"value": 100}}
+			]}`,
+			query:    `SELECT sum(value) FROM load GROUP BY time(10s), region, host`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"load","tags":{"host":"serverA","region":"us-east"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",20]]},{"name":"load","tags":{"host":"serverB","region":"us-east"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",30]]},{"name":"load","tags":{"host":"serverC","region":"us-west"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",100]]}]}]}`,
+		},
+		{
+			name: "WHERE with AND",
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+				{"name": "cpu", "timestamp": "2000-01-01T00:00:03Z", "tags": {"region": "uk", "host": "serverZ", "service": "redis"}, "fields": {"value": 20}},
+				{"name": "cpu", "timestamp": "2000-01-01T00:00:03Z", "tags": {"region": "uk", "host": "serverZ", "service": "mysql"}, "fields": {"value": 30}}
+			]}`,
+			query:    `SELECT sum(value) FROM cpu WHERE region='uk' AND host='serverZ'`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",50]]}]}]}`,
 		},
 
 		// Precision-specified writes
