@@ -2,6 +2,9 @@
 ### Features
 - [#2000](https://github.com/influxdb/influxdb/pull/2000): Log broker path when broker fails to start. Thanks @gst.
 
+### Bugfixes
+- [#2001](https://github.com/influxdb/influxdb/pull/2001): Ensure measurement not found returns status code 200.
+
 ## v0.9.0-rc14 [2015-03-18]
 
 ### Bugfixes

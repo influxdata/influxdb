@@ -153,6 +153,12 @@ func TestHandler_ShowMeasurementsNotFound(t *testing.T) {
 	} else if body != `{"results":[{"error":"measurement \"bin\" not found"}]}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
+	status, body = MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "SELECT * FROM bin", "db": "foo"}, nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	} else if body != `{"results":[{"error":"measurement not found: \"foo\".\"bar\".\"bin\""}]}` {
+		t.Fatalf("unexpected body: %s", body)
+	}
 }
 
 func TestHandler_Databases(t *testing.T) {
