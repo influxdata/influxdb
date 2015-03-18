@@ -1,6 +1,7 @@
 ## v0.9.0-rc15 [unreleased]
 ### Features
 - [#2000](https://github.com/influxdb/influxdb/pull/2000): Log broker path when broker fails to start. Thanks @gst.
+- [#2007](https://github.com/influxdb/influxdb/pull/2007): Track shard-level stats.
 
 ### Bugfixes
 - [#2001](https://github.com/influxdb/influxdb/pull/2001): Ensure measurement not found returns status code 200.
