@@ -1192,6 +1192,93 @@ func TestHandler_serveWriteSeries_noDatabaseExists(t *testing.T) {
 	}
 }
 
+func TestHandler_serveWriteSeries_errorHasJsonContentType(t *testing.T) {
+	c := test.NewMessagingClient()
+	defer c.Close()
+	srvr := OpenAuthlessServer(c)
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	client := &http.Client{}
+
+	req, err := http.NewRequest("POST", s.URL+`/write`, bytes.NewBufferString("{}"))
+	if err != nil {
+		panic(err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept-Encoding", "gzip")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		panic(err)
+	}
+
+	if ct := resp.Header.Get("Content-Type"); ct != "application/json" {
+		t.Fatalf("unexpected Content-Type.  expected %q, actual: %q", "application/json", ct)
+	}
+}
+
+func TestHandler_serveWriteSeries_queryHasJsonContentType(t *testing.T) {
+	c := test.NewMessagingClient()
+	defer c.Close()
+	srvr := OpenAuthlessServer(c)
+	srvr.CreateDatabase("foo")
+	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
+	srvr.SetDefaultRetentionPolicy("foo", "bar")
+
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z", "fields": {"value": 100}}]}`)
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	time.Sleep(100 * time.Millisecond) // Ensure data node picks up write.
+
+	srvr.Restart() // Ensure data is queryable across restarts.
+
+	client := &http.Client{}
+
+	params := url.Values{}
+	params.Add("db", "foo")
+	params.Add("q", "select * from cpu")
+	req, err := http.NewRequest("GET", s.URL+`/query?`+params.Encode(), bytes.NewBufferString(""))
+	if err != nil {
+		panic(err)
+	}
+
+	req.Header.Set("Accept-Encoding", "gzip")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		panic(err)
+	}
+
+	if ct := resp.Header.Get("Content-Type"); ct != "application/json" {
+		t.Fatalf("unexpected Content-Type.  expected %q, actual: %q", "application/json", ct)
+	}
+
+	// now test a query error
+	params.Del("db")
+
+	req_error, err := http.NewRequest("GET", s.URL+`/query?`+params.Encode(), bytes.NewBufferString(""))
+	if err != nil {
+		panic(err)
+	}
+
+	req_error.Header.Set("Accept-Encoding", "gzip")
+
+	resp_error, err := client.Do(req_error)
+	if err != nil {
+		panic(err)
+	}
+
+	if cte := resp_error.Header.Get("Content-Type"); cte != "application/json" {
+		t.Fatalf("unexpected Content-Type.  expected %q, actual: %q", "application/json", cte)
+	}
+}
+
 func TestHandler_serveWriteSeries_invalidJSON(t *testing.T) {
 	c := test.NewMessagingClient()
 	defer c.Close()
