@@ -101,7 +101,7 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 		pointCountInResult = int((intervalTop - m.TMin) / m.interval)
 	}
 
-	if m.TMin == 0 && pointCountInResult > MaxGroupByPoints {
+	if !m.stmt.RawQuery && pointCountInResult > MaxGroupByPoints {
 		out <- &Row{
 			Name: m.MeasurementName,
 			Tags: m.TagSet.Tags,

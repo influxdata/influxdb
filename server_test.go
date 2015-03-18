@@ -1506,6 +1506,30 @@ func TestServer_LimitAndOffset(t *testing.T) {
 	}
 }
 
+// Ensure the server can execute a group by with a fill(0) and very large limit
+// that results in a grouping of over 100,000 points returns an error
+func TestServer_ExecuteGroupByFillLimit(t *testing.T) {
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+	s.CreateDatabase("foo")
+	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "raw", Duration: 1 * time.Hour})
+	s.SetDefaultRetentionPolicy("foo", "raw")
+	s.CreateUser("susy", "pass", false)
+
+	// Write series with one point to the database.
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(10)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: mustParseTime("2000-01-01T00:00:10Z"), Fields: map[string]interface{}{"value": 20}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-west"}, Timestamp: mustParseTime("2000-01-01T00:00:20Z"), Fields: map[string]interface{}{"value": 30}}})
+
+	// GROUP BY * (wildcard) with fill(0) and large limit.
+	results := s.ExecuteQuery(MustParseQuery(`select mean(value)  from cpu where  region='us-west'  and time > '2000-01-01T00:00:00Z' group by time(300s), * fill(0)  limit 2147483647 slimit 1`), "foo", nil)
+	if results.Error() == nil {
+		t.Fatal("expected error: received nil")
+	}
+}
+
 func TestServer_CreateShardGroupIfNotExist(t *testing.T) {
 	c := test.NewMessagingClient()
 	defer c.Close()

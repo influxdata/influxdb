@@ -3136,6 +3136,20 @@ func (r *Result) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// Error returns the first error from any statement.
+// Returns nil if no errors occurred on any rows.
+func (r *Result) Error() error {
+	if r.Err != nil {
+		return r.Err
+	}
+	for _, s := range r.Series {
+		if s.Err != nil {
+			return s.Err
+		}
+	}
+	return nil
+}
+
 // Results represents a list of statement results.
 type Results struct {
 	Results []*Result
@@ -3184,8 +3198,9 @@ func (r *Results) Error() error {
 		return r.Err
 	}
 	for _, rr := range r.Results {
-		if rr.Err != nil {
-			return rr.Err
+		e := rr.Error()
+		if e != nil {
+			return e
 		}
 	}
 	return nil
