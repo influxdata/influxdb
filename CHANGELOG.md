@@ -4,6 +4,7 @@
 
 ### Bugfixes
 - [#2001](https://github.com/influxdb/influxdb/pull/2001): Ensure measurement not found returns status code 200.
+- [#1985](https://github.com/influxdb/influxdb/pull/1985): Set content-type JSON header before actually writing header. Thanks @dstrek.
 
 ## v0.9.0-rc14 [2015-03-18]
 
