@@ -175,7 +175,7 @@ func NewConfig() *Config {
 	c.ReportingDisabled = false
 
 	c.Statistics.Enabled = false
-	c.Statistics.Database = "_internal"
+	c.Statistics.Database = "internal"
 	c.Statistics.RetentionPolicy = "default"
 	c.Statistics.WriteInterval = Duration(1 * time.Minute)
 
