@@ -70,8 +70,6 @@ type Server struct {
 	databases map[string]*database // databases by name
 	users     map[string]*User     // user by name
 
-	shards map[uint64]*Shard // shards by shard id
-
 	stats      *Stats
 	Logger     *log.Logger
 	WriteTrace bool // Detailed logging of write path
@@ -104,7 +102,6 @@ func NewServer() *Server {
 		databases: make(map[string]*database),
 		users:     make(map[string]*User),
 
-		shards: make(map[uint64]*Shard),
 		stats:  NewStats("server"),
 		Logger: log.New(os.Stderr, "[server] ", log.LstdFlags),
 	}
@@ -258,11 +255,6 @@ func (s *Server) close() error {
 
 	// Close metastore.
 	_ = s.meta.close()
-
-	// Close shards.
-	for _, sh := range s.shards {
-		_ = sh.close()
-	}
 
 	return nil
 }
@@ -862,13 +854,6 @@ func (s *Server) applyDropDatabase(m *messaging.Message) (err error) {
 	return
 }
 
-// Shard returns a shard by ID.
-func (s *Server) Shard(id uint64) *Shard {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.shards[id]
-}
-
 // shardGroupByTimestamp returns a group for a database, policy & timestamp.
 func (s *Server) shardGroupByTimestamp(database, policy string, timestamp time.Time) (*ShardGroup, error) {
 	db := s.databases[database]
@@ -1001,11 +986,6 @@ func (s *Server) applyCreateShardGroupIfNotExists(m *messaging.Message) (err err
 		if err := sh.open(s.shardPath(sh.ID), s.client.Conn(sh.ID)); err != nil {
 			panic("unable to open shard: " + err.Error())
 		}
-	}
-
-	// Add to lookups.
-	for _, sh := range g.Shards {
-		s.shards[sh.ID] = sh
 	}
 
 	return
