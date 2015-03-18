@@ -268,7 +268,7 @@ func openBroker(path string, u url.URL, initializing bool, joinURLs []url.URL, w
 
 	// Open broker so it can feed last index data to the log.
 	if err := b.Open(path); err != nil {
-		log.Fatalf("failed to open broker: %s", err)
+		log.Fatalf("failed to open broker at %s : %s", path, err)
 	}
 
 	// Attach the broker as the finite state machine of the raft log.
