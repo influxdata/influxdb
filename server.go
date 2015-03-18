@@ -328,22 +328,40 @@ func (s *Server) StartSelfMonitoring(database, retention string, interval time.D
 		return fmt.Errorf("statistics check interval must be non-zero")
 	}
 
+	// Function for local use turns stats into a point. Automatically tags all points with the
+	// server's Raft ID.
+	pointFromStats := func(st *Stats) Point {
+		point := Point{
+			Timestamp: time.Now(),
+			Name:      st.Name(),
+			Tags:      map[string]string{"raftID": strconv.FormatUint(s.id, 10)},
+			Fields:    make(map[string]interface{}),
+		}
+		st.Walk(func(k string, v int64) {
+			point.Fields[k] = int(v)
+		})
+		return point
+	}
+
 	go func() {
 		tick := time.NewTicker(interval)
 		for {
 			<-tick.C
 
 			// Create the data point and write it.
-			point := Point{
-				Timestamp: time.Now(),
-				Name:      s.stats.Name(),
-				Tags:      map[string]string{"raftID": strconv.FormatUint(s.id, 10)},
-				Fields:    make(map[string]interface{}),
+			batch := make([]Point, 0)
+
+			// Server stats.
+			batch = append(batch, pointFromStats(s.stats))
+
+			// Shard-level stats.
+			for _, sh := range s.shards {
+				point := pointFromStats(sh.stats)
+				point.Tags["shardID"] = strconv.FormatUint(s.id, 10)
+				batch = append(batch, point)
 			}
-			s.stats.Walk(func(k string, v int64) {
-				point.Fields[k] = int(v)
-			})
-			s.WriteSeries(database, retention, []Point{point})
+
+			s.WriteSeries(database, retention, batch)
 		}
 	}()
 
@@ -2606,14 +2624,28 @@ func (s *Server) executeShowContinuousQueriesStatement(stmt *influxql.ShowContin
 }
 
 func (s *Server) executeShowStatsStatement(stmt *influxql.ShowStatsStatement, user *User) *Result {
-	row := &influxql.Row{Columns: []string{}}
-	row.Name = s.stats.Name()
+	rows := make([]*influxql.Row, 0)
+	// Server stats.
+	serverRow := &influxql.Row{Columns: []string{}}
+	serverRow.Name = s.stats.Name()
 	s.stats.Walk(func(k string, v int64) {
-		row.Columns = append(row.Columns, k)
-		row.Values = append(row.Values, []interface{}{v})
+		serverRow.Columns = append(serverRow.Columns, k)
+		serverRow.Values = append(serverRow.Values, []interface{}{v})
 	})
+	rows = append(rows, serverRow)
 
-	return &Result{Series: []*influxql.Row{row}}
+	// Shard-level stats.
+	for _, sh := range s.shards {
+		row := &influxql.Row{Columns: []string{}}
+		row.Name = sh.stats.Name()
+		sh.stats.Walk(func(k string, v int64) {
+			row.Columns = append(row.Columns, k)
+			row.Values = append(row.Values, []interface{}{v})
+		})
+		rows = append(rows, row)
+	}
+
+	return &Result{Series: rows}
 }
 
 // filterMeasurementsByExpr filters a list of measurements by a tags expression.
