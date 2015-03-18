@@ -1055,52 +1055,6 @@ func TestServer_EnforceRetentionPolices(t *testing.T) {
 	}
 }
 
-// Ensure the database can write data to the database.
-func TestServer_WriteSeries(t *testing.T) {
-	c := test.NewMessagingClient()
-	s := OpenServer(c)
-	defer s.Close()
-	s.CreateDatabase("foo")
-	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "mypolicy", Duration: 1 * time.Hour})
-	s.CreateUser("susy", "pass", false)
-
-	// Write series with one point to the database.
-	tags := map[string]string{"host": "servera.influx.com", "region": "uswest"}
-	index, err := s.WriteSeries("foo", "mypolicy", []influxdb.Point{{Name: "cpu_load", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	c.Sync(index)
-
-	// Write another point 10 seconds later so it goes through "raw series".
-	index, err = s.WriteSeries("foo", "mypolicy", []influxdb.Point{{Name: "cpu_load", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:10Z"), Fields: map[string]interface{}{"value": float64(100)}}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	c.Sync(index)
-
-	// Retrieve first series data point.
-	if v, err := s.ReadSeries("foo", "mypolicy", "cpu_load", tags, mustParseTime("2000-01-01T00:00:00Z")); err != nil {
-		t.Fatal(err)
-	} else if !reflect.DeepEqual(v, map[string]interface{}{"value": float64(23.2)}) {
-		t.Fatalf("values mismatch: %#v", v)
-	}
-
-	// Retrieve second series data point.
-	if v, err := s.ReadSeries("foo", "mypolicy", "cpu_load", tags, mustParseTime("2000-01-01T00:00:10Z")); err != nil {
-		t.Fatal(err)
-	} else if mustMarshalJSON(v) != mustMarshalJSON(map[string]interface{}{"value": float64(100)}) {
-		t.Fatalf("values mismatch: %#v", v)
-	}
-
-	// Retrieve non-existent series data point.
-	if v, err := s.ReadSeries("foo", "mypolicy", "cpu_load", tags, mustParseTime("2000-01-01T00:01:00Z")); err != nil {
-		t.Fatal(err)
-	} else if v != nil {
-		t.Fatalf("expected nil values: %#v", v)
-	}
-}
-
 // Ensure the server can drop a measurement.
 func TestServer_DropMeasurement(t *testing.T) {
 	c := test.NewMessagingClient()
