@@ -1,4 +1,5 @@
 ## v0.9.0-rc15 [unreleased]
+
 ### Features
 - [#2000](https://github.com/influxdb/influxdb/pull/2000): Log broker path when broker fails to start. Thanks @gst.
 - [#2007](https://github.com/influxdb/influxdb/pull/2007): Track shard-level stats.
@@ -7,6 +8,7 @@
 - [#2001](https://github.com/influxdb/influxdb/pull/2001): Ensure measurement not found returns status code 200.
 - [#1985](https://github.com/influxdb/influxdb/pull/1985): Set content-type JSON header before actually writing header. Thanks @dstrek.
 - [#2003](https://github.com/influxdb/influxdb/pull/2003): Set timestamp when writing monitoring stats.
+- [#2004](https://github.com/influxdb/influxdb/pull/2004): Limit group by to MaxGroupByPoints (currently 100,000).
 
 ## v0.9.0-rc14 [2015-03-18]
 
