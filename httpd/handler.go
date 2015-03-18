@@ -295,7 +295,8 @@ func (h *Handler) serveDump(w http.ResponseWriter, r *http.Request, user *influx
 					buf, err := json.Marshal(&batch)
 
 					if err != nil {
-						httpError(w, "error with dump: "+err.Error(), pretty, http.StatusInternalServerError)
+						w.Write([]byte("*** SERVER-SIDE ERROR. MISSING DATA ***"))
+						w.Write(delim)
 						return
 					}
 					w.Write(buf)

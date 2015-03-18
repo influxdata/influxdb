@@ -32,17 +32,17 @@ const (
 )
 
 type CommandLine struct {
-	Client   *client.Client
-	Line     *liner.State
-	Host     string
-	Port     int
-	Username string
-	Password string
-	Database string
-	Version  string
-	Pretty   bool   // controls pretty print for json
-	Format   string // controls the output format.  Valid values are json, csv, or column
-	Dump     bool
+	Client          *client.Client
+	Line            *liner.State
+	Host            string
+	Port            int
+	Username        string
+	Password        string
+	Database        string
+	Version         string
+	Pretty          bool   // controls pretty print for json
+	Format          string // controls the output format.  Valid values are json, csv, or column
+	DumpTheDatabase bool
 }
 
 func main() {
@@ -55,7 +55,7 @@ func main() {
 	fs.StringVar(&c.Password, "password", c.Password, `password to connect to the server.  Leaving blank will prompt for password (--password="")`)
 	fs.StringVar(&c.Database, "database", c.Database, "database to connect to the server.")
 	fs.StringVar(&c.Format, "output", default_format, "format specifies the format of the server responses:  json, csv, or column")
-	fs.BoolVar(&c.Dump, "dump", false, "dump the contents of the given database to stdout")
+	fs.BoolVar(&c.DumpTheDatabase, "dump-the-database", false, "dump the contents of the given database to stdout")
 	fs.Parse(os.Args[1:])
 
 	var promptForPassword bool
@@ -82,7 +82,7 @@ func main() {
 
 	c.connect("")
 
-	if c.Dump {
+	if c.DumpTheDatabase {
 		c.dump()
 		return
 	}
@@ -212,7 +212,7 @@ func (c *CommandLine) connect(cmd string) {
 		fmt.Printf("Failed to connect to %s\n", c.Client.Addr())
 	} else {
 		c.Version = v
-		if !c.Dump {
+		if !c.DumpTheDatabase {
 			fmt.Printf("Connected to %s version %s\n", c.Client.Addr(), c.Version)
 		}
 	}

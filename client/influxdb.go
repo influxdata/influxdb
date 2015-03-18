@@ -164,6 +164,9 @@ func (c *Client) Dump(db string) (io.ReadCloser, error) {
 	if err != nil {
 		return nil, err
 	}
+	if resp.StatusCode != http.StatusOK {
+		return resp.Body, fmt.Errorf("HTTP Protocol error %d", resp.StatusCode)
+	}
 	return resp.Body, nil
 }
 
