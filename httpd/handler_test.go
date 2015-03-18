@@ -136,6 +136,25 @@ func TestBatchWrite_UnmarshalRFC(t *testing.T) {
 	}
 }
 
+// Ensure that even if a measurement is not found, that the status code is still 200
+func TestHandler_ShowMeasurementsNotFound(t *testing.T) {
+	c := test.NewMessagingClient()
+	defer c.Close()
+	srvr := OpenAuthlessServer(c)
+	srvr.CreateDatabase("foo")
+	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
+	srvr.SetDefaultRetentionPolicy("foo", "bar")
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "SHOW SERIES from bin", "db": "foo"}, nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	} else if body != `{"results":[{"error":"measurement \"bin\" not found"}]}` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
 func TestHandler_Databases(t *testing.T) {
 	c := test.NewMessagingClient()
 	defer c.Close()

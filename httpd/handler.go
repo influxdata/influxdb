@@ -440,7 +440,8 @@ func isAuthorizationError(err error) bool {
 }
 
 func isMeasurementNotFoundError(err error) bool {
-	return (err.Error() == "measurement not found")
+	s := err.Error()
+	return strings.HasPrefix(s, "measurement") && strings.HasSuffix(s, "not found")
 }
 
 func isFieldNotFoundError(err error) bool {
