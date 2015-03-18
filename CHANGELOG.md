@@ -1,4 +1,6 @@
-## v0.9.0-rc14 [unreleased]
+## v0.9.0-rc15 [unreleased]
+
+## v0.9.0-rc14 [2015-03-18]
 
 ### Bugfixes
 - [#1999](https://github.com/influxdb/influxdb/pull/1999): Return status code 200 for measurement not found errors on show series.
