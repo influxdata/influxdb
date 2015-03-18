@@ -34,125 +34,130 @@ func (tx *tx) SetNow(now time.Time) { tx.now = now }
 
 // CreateMappers will create a set of mappers that need to be run to execute the map phase of a MapReduceJob.
 func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []string) ([]*influxql.MapReduceJob, error) {
-	// Parse the source segments.
-	database, policyName, measurement, err := splitIdent(stmt.Source.(*influxql.Measurement).Name)
-	if err != nil {
-		return nil, err
-	}
+	jobs := []*influxql.MapReduceJob{}
+	for _, src := range stmt.Sources {
+		measurementName := src.(*influxql.Measurement).Name
 
-	// Find database and retention policy.
-	db := tx.server.databases[database]
-	if db == nil {
-		return nil, ErrDatabaseNotFound
-	}
-	rp := db.policies[policyName]
-	if rp == nil {
-		return nil, ErrRetentionPolicyNotFound
-	}
-
-	// Find measurement.
-	m, err := tx.server.measurement(database, measurement)
-	if err != nil {
-		return nil, err
-	}
-	if m == nil {
-		return nil, ErrMeasurementNotFound
-	}
-
-	tx.measurement = m
-	tx.decoder = NewFieldCodec(m)
-
-	// Validate the fields and tags asked for exist and keep track of which are in the select vs the where
-	var selectFields []*Field
-	var whereFields []*Field
-	var selectTags []string
-
-	for _, n := range stmt.NamesInSelect() {
-		f := m.FieldByName(n)
-		if f != nil {
-			selectFields = append(selectFields, f)
-			continue
-		}
-		if !m.HasTagKey(n) {
-			return nil, fmt.Errorf("unknown field or tag name in select clause: %s", n)
-		}
-		selectTags = append(selectTags, n)
-	}
-	for _, n := range stmt.NamesInWhere() {
-		if n == "time" {
-			continue
-		}
-		f := m.FieldByName(n)
-		if f != nil {
-			whereFields = append(whereFields, f)
-			continue
-		}
-		if !m.HasTagKey(n) {
-			return nil, fmt.Errorf("unknown field or tag name in where clause: %s", n)
-		}
-	}
-
-	// Grab time range from statement.
-	tmin, tmax := influxql.TimeRange(stmt.Condition)
-	if tmax.IsZero() {
-		tmax = tx.now
-	}
-	if tmin.IsZero() {
-		tmin = time.Unix(0, 0)
-	}
-
-	// Find shard groups within time range.
-	var shardGroups []*ShardGroup
-	for _, group := range rp.shardGroups {
-		if group.Contains(tmin, tmax) {
-			shardGroups = append(shardGroups, group)
-		}
-	}
-	if len(shardGroups) == 0 {
-		return nil, nil
-	}
-
-	// get the sorted unique tag sets for this query.
-	tagSets := m.tagSets(stmt, tagKeys)
-
-	jobs := make([]*influxql.MapReduceJob, 0, len(tagSets))
-	for _, t := range tagSets {
-		// make a job for each tagset
-		job := &influxql.MapReduceJob{
-			MeasurementName: m.Name,
-			TagSet:          t,
-			TMin:            tmin.UnixNano(),
-			TMax:            tmax.UnixNano(),
+		// Parse the source segments.
+		database, policyName, measurement, err := splitIdent(measurementName)
+		if err != nil {
+			return nil, err
 		}
 
-		// make a mapper for each shard that must be hit. We may need to hit multiple shards within a shard group
-		mappers := make([]influxql.Mapper, 0)
+		// Find database and retention policy.
+		db := tx.server.databases[database]
+		if db == nil {
+			return nil, ErrDatabaseNotFound
+		}
+		rp := db.policies[policyName]
+		if rp == nil {
+			return nil, ErrRetentionPolicyNotFound
+		}
 
-		// create mappers for each shard we need to hit
-		for _, sg := range shardGroups {
-			if len(sg.Shards) != 1 { // we'll only have more than 1 shard in a group when RF < # servers in cluster
-				// TODO: implement distributed queries.
-				panic("distributed queries not implemented yet and there are too many shards in this group")
+		// Find measurement.
+		m, err := tx.server.measurement(database, measurement)
+		if err != nil {
+			return nil, err
+		}
+		if m == nil {
+			return nil, ErrMeasurementNotFound
+		}
+
+		tx.measurement = m
+		tx.decoder = NewFieldCodec(m)
+
+		// Validate the fields and tags asked for exist and keep track of which are in the select vs the where
+		var selectFields []*Field
+		var whereFields []*Field
+		var selectTags []string
+
+		for _, n := range stmt.NamesInSelect() {
+			f := m.FieldByName(n)
+			if f != nil {
+				selectFields = append(selectFields, f)
+				continue
+			}
+			if !m.HasTagKey(n) {
+				return nil, fmt.Errorf("unknown field or tag name in select clause: %s", n)
+			}
+			selectTags = append(selectTags, n)
+		}
+		for _, n := range stmt.NamesInWhere() {
+			if n == "time" {
+				continue
+			}
+			f := m.FieldByName(n)
+			if f != nil {
+				whereFields = append(whereFields, f)
+				continue
+			}
+			if !m.HasTagKey(n) {
+				return nil, fmt.Errorf("unknown field or tag name in where clause: %s", n)
+			}
+		}
+
+		// Grab time range from statement.
+		tmin, tmax := influxql.TimeRange(stmt.Condition)
+		if tmax.IsZero() {
+			tmax = tx.now
+		}
+		if tmin.IsZero() {
+			tmin = time.Unix(0, 0)
+		}
+
+		// Find shard groups within time range.
+		var shardGroups []*ShardGroup
+		for _, group := range rp.shardGroups {
+			if group.Contains(tmin, tmax) {
+				shardGroups = append(shardGroups, group)
+			}
+		}
+		if len(shardGroups) == 0 {
+			return nil, nil
+		}
+
+		// get the sorted unique tag sets for this query.
+		tagSets := m.tagSets(stmt, tagKeys)
+
+		//jobs := make([]*influxql.MapReduceJob, 0, len(tagSets))
+		for _, t := range tagSets {
+			// make a job for each tagset
+			job := &influxql.MapReduceJob{
+				MeasurementName: m.Name,
+				TagSet:          t,
+				TMin:            tmin.UnixNano(),
+				TMax:            tmax.UnixNano(),
 			}
 
-			shard := sg.Shards[0]
-			mapper := &LocalMapper{
-				seriesIDs:    t.SeriesIDs,
-				db:           shard.store,
-				job:          job,
-				decoder:      NewFieldCodec(m),
-				filters:      t.Filters,
-				whereFields:  whereFields,
-				selectFields: selectFields,
-				selectTags:   selectTags,
+			// make a mapper for each shard that must be hit. We may need to hit multiple shards within a shard group
+			mappers := make([]influxql.Mapper, 0)
+
+			// create mappers for each shard we need to hit
+			for _, sg := range shardGroups {
+				if len(sg.Shards) != 1 { // we'll only have more than 1 shard in a group when RF < # servers in cluster
+					// TODO: implement distributed queries.
+					panic("distributed queries not implemented yet and there are too many shards in this group")
+				}
+
+				shard := sg.Shards[0]
+				mapper := &LocalMapper{
+					seriesIDs:    t.SeriesIDs,
+					db:           shard.store,
+					job:          job,
+					decoder:      NewFieldCodec(m),
+					filters:      t.Filters,
+					whereFields:  whereFields,
+					selectFields: selectFields,
+					selectTags:   selectTags,
+				}
+
+				mappers = append(mappers, mapper)
 			}
 
-			mappers = append(mappers, mapper)
+			job.Mappers = mappers
+
+			jobs = append(jobs, job)
 		}
-
-		job.Mappers = mappers
-
-		jobs = append(jobs, job)
 	}
 
 	// always return them in sorted order so the results from running the jobs are returned in a deterministic order

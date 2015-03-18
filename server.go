@@ -2073,36 +2073,132 @@ func (s *Server) executeSelectStatement(stmt *influxql.SelectStatement, database
 
 // rewriteSelectStatement performs any necessary query re-writing.
 func (s *Server) rewriteSelectStatement(stmt *influxql.SelectStatement) (*influxql.SelectStatement, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var err error
+
+	// Expand regex expressions in the FROM clause.
+	sources, err := s.expandSources(stmt.Sources)
+	if err != nil {
+		return nil, err
+	}
+	stmt.Sources = sources
+
+	// Expand wildcards in the fields or GROUP BY.
+	if stmt.HasWildcard() {
+		stmt, err = s.expandWildcards(stmt)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return stmt, nil
+}
+
+// expandWildcards returns a new SelectStatement with wildcards in the fields
+// and/or GROUP BY exapnded with actual field names.
+func (s *Server) expandWildcards(stmt *influxql.SelectStatement) (*influxql.SelectStatement, error) {
+	// If there are no wildcards in the statement, return it as-is.
 	if !stmt.HasWildcard() {
 		return stmt, nil
 	}
 
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	// Use sets to avoid duplicate field names.
+	fieldSet := map[string]struct{}{}
+	dimensionSet := map[string]struct{}{}
 
 	var fields influxql.Fields
 	var dimensions influxql.Dimensions
-	if measurement, ok := stmt.Source.(*influxql.Measurement); ok {
-		segments, err := influxql.SplitIdent(measurement.Name)
-		if err != nil {
-			return nil, fmt.Errorf("unable to parse measurement %s", measurement.Name)
-		}
-		db, m := segments[0], segments[2]
 
-		mm := s.databases[db].measurements[m]
-		if mm == nil {
-			return nil, fmt.Errorf("measurement not found: %s", measurement.Name)
-		}
+	// Iterate measurements in the FROM clause getting the fields & dimensions for each.
+	for _, src := range stmt.Sources {
+		if measurement, ok := src.(*influxql.Measurement); ok {
+			// Split the measurement name into its pieces (db, rp, & measurement).
+			segments, err := influxql.SplitIdent(measurement.Name)
+			if err != nil {
+				return nil, fmt.Errorf("unable to parse measurement %s", measurement.Name)
+			}
+			db, m := segments[0], segments[2]
 
-		for _, f := range mm.Fields {
-			fields = append(fields, &influxql.Field{Expr: &influxql.VarRef{Val: f.Name}})
-		}
-		for _, t := range mm.tagKeys() {
-			dimensions = append(dimensions, &influxql.Dimension{Expr: &influxql.VarRef{Val: t}})
+			// Lookup the measurement in the database.
+			mm := s.databases[db].measurements[m]
+			if mm == nil {
+				return nil, fmt.Errorf("measurement not found: %s", measurement.Name)
+			}
+
+			// Get the fields for this measurement.
+			for _, f := range mm.Fields {
+				if _, ok := fieldSet[f.Name]; ok {
+					continue
+				}
+				fieldSet[f.Name] = struct{}{}
+				fields = append(fields, &influxql.Field{Expr: &influxql.VarRef{Val: f.Name}})
+			}
+
+			// Get the dimensions for this measurement.
+			for _, t := range mm.tagKeys() {
+				if _, ok := dimensionSet[t]; ok {
+					continue
+				}
+				dimensionSet[t] = struct{}{}
+				dimensions = append(dimensions, &influxql.Dimension{Expr: &influxql.VarRef{Val: t}})
+			}
 		}
 	}
 
+	// Return a new SelectStatement with the wild cards rewritten.
 	return stmt.RewriteWildcards(fields, dimensions), nil
+}
+
+// expandSources expands regex sources and removes duplicates.
+func (s *Server) expandSources(sources influxql.Sources) (influxql.Sources, error) {
+	// Use a map as a set to prevent duplicates. Two regexes might produce
+	// duplicates when expanded.
+	set := map[string]influxql.Source{}
+
+	// Iterate all sources, expanding regexes when they're found.
+	for _, source := range sources {
+		switch src := source.(type) {
+		case *influxql.Measurement:
+			if src.Regex == nil {
+				set[src.Name] = src
+				continue
+			}
+
+			// Split out the database & retention policy names.
+			segments, err := influxql.SplitIdent(src.Name)
+			if err != nil {
+				return nil, err
+			}
+
+			// Lookup the database.
+			db := s.databases[segments[0]]
+			if db == nil {
+				return nil, ErrDatabaseNotFound
+			}
+
+			// Get measurements from the database that match the regex.
+			measurements := db.measurementsByRegex(src.Regex.Val)
+
+			// Add those measurments to the set.
+			for _, m := range measurements {
+				name := strings.Join([]string{src.Name, influxql.QuoteIdent([]string{m.Name})}, ".")
+				set[name] = &influxql.Measurement{Name: name}
+			}
+
+		default:
+			return nil, fmt.Errorf("expandSources: unsuported source type: %T", source)
+		}
+	}
+
+	// Convert set to a list of Sources.
+	expanded := make(influxql.Sources, 0, len(set))
+	for _, src := range set {
+		expanded = append(expanded, src)
+	}
+
+	return expanded, nil
 }
 
 // plans a selection statement under lock.
@@ -2750,20 +2846,6 @@ func (s *Server) MeasurementNames(database string) []string {
 	return db.names
 }
 
-/*
-func (s *Server) MeasurementSeriesIDs(database, measurement string) []uint32 {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	db := s.databases[database]
-	if db == nil {
-		return nil
-	}
-
-	return []uint32(db.SeriesIDs([]string{measurement}, nil))
-}
-*/
-
 // measurement returns a measurement by database and name.
 func (s *Server) measurement(database, name string) (*Measurement, error) {
 	db := s.databases[database]
@@ -2795,13 +2877,14 @@ func (s *Server) normalizeStatement(stmt influxql.Statement, defaultDatabase str
 		}
 		switch n := n.(type) {
 		case *influxql.Measurement:
-			name, e := s.normalizeMeasurement(n.Name, defaultDatabase)
+			nm, e := s.normalizeMeasurement(n, defaultDatabase)
 			if e != nil {
 				err = e
 				return
 			}
-			prefixes[n.Name] = name
-			n.Name = name
+			prefixes[n.Name] = nm.Name
+			n.Name = nm.Name
+			n.Regex = nm.Regex
 		}
 	})
 	if err != nil {
@@ -2824,17 +2907,35 @@ func (s *Server) normalizeStatement(stmt influxql.Statement, defaultDatabase str
 }
 
 // NormalizeMeasurement inserts the default database or policy into all measurement names.
-func (s *Server) NormalizeMeasurement(name string, defaultDatabase string) (string, error) {
+func (s *Server) NormalizeMeasurement(m *influxql.Measurement, defaultDatabase string) (*influxql.Measurement, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.normalizeMeasurement(name, defaultDatabase)
+	return s.normalizeMeasurement(m, defaultDatabase)
 }
 
-func (s *Server) normalizeMeasurement(name string, defaultDatabase string) (string, error) {
-	// Split name into segments.
-	segments, err := influxql.SplitIdent(name)
-	if err != nil {
-		return "", fmt.Errorf("invalid measurement: %s", name)
+func (s *Server) normalizeMeasurement(m *influxql.Measurement, defaultDatabase string) (*influxql.Measurement, error) {
+	if m.Name == "" && m.Regex == nil {
+		return nil, errors.New("invalid measurement")
+	}
+
+	var segments []string
+	var err error
+
+	if m.Name != "" {
+		// Split measurement name into segments.
+		segments, err = influxql.SplitIdent(m.Name)
+		if err != nil {
+			return nil, fmt.Errorf("invalid measurement: %s", m.Name)
+		}
+	}
+
+	// Number of segments.
+	n := 3
+
+	// If there's a regex, add a placeholder segment
+	if m.Regex != nil {
+		segments = append(segments, "")
+		n = 2
 	}
 
 	// Normalize to 3 segments.
@@ -2846,34 +2947,39 @@ func (s *Server) normalizeMeasurement(name string, defaultDatabase string) (stri
 	case 3:
 		// nop
 	default:
-		return "", fmt.Errorf("invalid measurement: %s", name)
+		return nil, fmt.Errorf("measurement has too many segments: %s", m.String())
 	}
 
 	// Set database if unset.
-	if segment := segments[0]; segment == `` {
+	if segments[0] == `` {
 		segments[0] = defaultDatabase
 	}
 
 	// Find database.
 	db := s.databases[segments[0]]
 	if db == nil {
-		return "", fmt.Errorf("database not found: %s", segments[0])
+		return nil, fmt.Errorf("database not found: %s", segments[0])
 	}
 
 	// Set retention policy if unset.
-	if segment := segments[1]; segment == `` {
+	if segments[1] == `` {
 		if db.defaultRetentionPolicy == "" {
-			return "", fmt.Errorf("default retention policy not set for: %s", db.name)
+			return nil, fmt.Errorf("default retention policy not set for: %s", db.name)
 		}
 		segments[1] = db.defaultRetentionPolicy
 	}
 
 	// Check if retention policy exists.
 	if _, ok := db.policies[segments[1]]; !ok {
-		return "", fmt.Errorf("retention policy does not exist: %s.%s", segments[0], segments[1])
+		return nil, fmt.Errorf("retention policy does not exist: %s.%s", segments[0], segments[1])
 	}
 
-	return influxql.QuoteIdent(segments), nil
+	nm := &influxql.Measurement{
+		Name:  influxql.QuoteIdent(segments[:n]),
+		Regex: m.Regex,
+	}
+
+	return nm, nil
 }
 
 // processor runs in a separate goroutine and processes all incoming broker messages.

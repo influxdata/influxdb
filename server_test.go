@@ -217,9 +217,9 @@ func TestServer_SingleStatementQueryAuthorization(t *testing.T) {
 				Name:     "myquery",
 				Database: "foo",
 				Source: &influxql.SelectStatement{
-					Fields: []*influxql.Field{{Expr: &influxql.Call{Name: "count"}}},
-					Target: &influxql.Target{Measurement: "measure1", Database: "bar"},
-					Source: &influxql.Measurement{Name: "myseries"},
+					Fields:  []*influxql.Field{{Expr: &influxql.Call{Name: "count"}}},
+					Target:  &influxql.Target{Measurement: "measure1", Database: "bar"},
+					Sources: []influxql.Source{&influxql.Measurement{Name: "myseries"}},
 				},
 			},
 		},
@@ -277,15 +277,15 @@ func TestServer_MultiStatementQueryAuthorization(t *testing.T) {
 		Statements: []influxql.Statement{
 			// Statement that requires read.
 			&influxql.SelectStatement{
-				Fields: []*influxql.Field{{Expr: &influxql.Call{Name: "count"}}},
-				Source: &influxql.Measurement{Name: "cpu"},
+				Fields:  []*influxql.Field{{Expr: &influxql.Call{Name: "count"}}},
+				Sources: []influxql.Source{&influxql.Measurement{Name: "cpu"}},
 			},
 
 			// Statement that requires write.
 			&influxql.SelectStatement{
-				Fields: []*influxql.Field{{Expr: &influxql.Call{Name: "count"}}},
-				Source: &influxql.Measurement{Name: "cpu"},
-				Target: &influxql.Target{Measurement: "tmp"},
+				Fields:  []*influxql.Field{{Expr: &influxql.Call{Name: "count"}}},
+				Sources: []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+				Target:  &influxql.Target{Measurement: "tmp"},
 			},
 		},
 	}
@@ -1981,8 +1981,8 @@ func TestServer_NormalizeMeasurement(t *testing.T) {
 		{in: `"db1"."rp1".cpu`, db: `db0`, out: `"db1"."rp1"."cpu"`},
 		{in: `"db1"."rp2".cpu`, db: `db0`, out: `"db1"."rp2"."cpu"`},
 
-		{in: ``, err: `invalid measurement: `},
-		{in: `"foo"."bar"."baz"."bat"`, err: `invalid measurement: "foo"."bar"."baz"."bat"`},
+		{in: ``, err: `invalid measurement`},
+		{in: `"foo"."bar"."baz"."bat"`, err: `measurement has too many segments: "foo"."bar"."baz"."bat"`},
 		{in: `"no_db"..cpu`, db: ``, err: `database not found: no_db`},
 		{in: `"db2"..cpu`, db: ``, err: `default retention policy not set for: db2`},
 		{in: `"db2"."no_policy".cpu`, db: ``, err: `retention policy does not exist: db2.no_policy`},
@@ -2010,11 +2010,13 @@ func TestServer_NormalizeMeasurement(t *testing.T) {
 
 	// Execute the tests
 	for i, tt := range tests {
-		out, err := s.NormalizeMeasurement(tt.in, tt.db)
+		in := &influxql.Measurement{Name: tt.in}
+		expectedOut := &influxql.Measurement{Name: tt.out}
+		out, err := s.NormalizeMeasurement(in, tt.db)
 		if tt.err != errstr(err) {
-			t.Errorf("%d. %s/%s: error: exp: %s, got: %s", i, tt.db, tt.in, tt.err, errstr(err))
-		} else if tt.out != out {
-			t.Errorf("%d. %s/%s: out: exp: %s, got: %s", i, tt.db, tt.in, tt.out, out)
+			t.Errorf("%d. %s/%s: error: exp: %s, got: %s\n", i, tt.db, tt.in, tt.err, errstr(err))
+		} else if tt.err == "" && !reflect.DeepEqual(expectedOut, out) {
+			t.Errorf("%d. %s/%s: out: exp: %s, got: %s\n", i, tt.db, tt.in, tt.out, out.Name)
 		}
 	}
 }

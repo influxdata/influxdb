@@ -103,6 +103,7 @@ func (*ParenExpr) node()       {}
 func (*RegexLiteral) node()    {}
 func (*SortField) node()       {}
 func (SortFields) node()       {}
+func (Sources) node()          {}
 func (*StringLiteral) node()   {}
 func (*Target) node()          {}
 func (*TimeLiteral) node()     {}
@@ -202,9 +203,25 @@ type Source interface {
 	source()
 }
 
-func (*Join) source()        {}
 func (*Measurement) source() {}
-func (*Merge) source()       {}
+
+// Sources represents a list of sources.
+type Sources []Source
+
+// String returns a string representation of a Sources array.
+func (a Sources) String() string {
+	var buf bytes.Buffer
+
+	ubound := len(a) - 1
+	for i, src := range a {
+		_, _ = buf.WriteString(src.String())
+		if i < ubound {
+			_, _ = buf.WriteString(", ")
+		}
+	}
+
+	return buf.String()
+}
 
 // SortField represents a field to sort results by.
 type SortField struct {
@@ -556,8 +573,8 @@ type SelectStatement struct {
 	// Expressions used for grouping the selection.
 	Dimensions Dimensions
 
-	// Data source that fields are extracted from.
-	Source Source
+	// Data sources that fields are extracted from.
+	Sources Sources
 
 	// An expression evaluated on data point.
 	Condition Expr
@@ -592,11 +609,11 @@ type SelectStatement struct {
 
 // Clone returns a deep copy of the statement.
 func (s *SelectStatement) Clone() *SelectStatement {
-	other := &SelectStatement{
-		Fields:     make(Fields, len(s.Fields)),
-		Dimensions: make(Dimensions, len(s.Dimensions)),
-		Source:     cloneSource(s.Source),
-		SortFields: make(SortFields, len(s.SortFields)),
+	clone := &SelectStatement{
+		Fields:     make(Fields, 0, len(s.Fields)),
+		Dimensions: make(Dimensions, 0, len(s.Dimensions)),
+		Sources:    cloneSources(s.Sources),
+		SortFields: make(SortFields, 0, len(s.SortFields)),
 		Condition:  CloneExpr(s.Condition),
 		Limit:      s.Limit,
 		Offset:     s.Offset,
@@ -606,19 +623,26 @@ func (s *SelectStatement) Clone() *SelectStatement {
 		FillValue:  s.FillValue,
 	}
 	if s.Target != nil {
-		other.Target = &Target{Measurement: s.Target.Measurement, Database: s.Target.Database}
+		clone.Target = &Target{Measurement: s.Target.Measurement, Database: s.Target.Database}
 	}
-	for i, f := range s.Fields {
-		other.Fields[i] = &Field{Expr: CloneExpr(f.Expr), Alias: f.Alias}
+	for _, f := range s.Fields {
+		clone.Fields = append(clone.Fields, &Field{Expr: CloneExpr(f.Expr), Alias: f.Alias})
 	}
-	for i, d := range s.Dimensions {
-		other.Dimensions[i] = &Dimension{Expr: CloneExpr(d.Expr)}
+	for _, d := range s.Dimensions {
+		clone.Dimensions = append(clone.Dimensions, &Dimension{Expr: CloneExpr(d.Expr)})
 	}
-	// TODO: Copy sources.
-	for i, f := range s.SortFields {
-		other.SortFields[i] = &SortField{Name: f.Name, Ascending: f.Ascending}
+	for _, f := range s.SortFields {
+		clone.SortFields = append(clone.SortFields, &SortField{Name: f.Name, Ascending: f.Ascending})
 	}
-	return other
+	return clone
+}
+
+func cloneSources(sources Sources) Sources {
+	clone := make(Sources, 0, len(sources))
+	for _, s := range sources {
+		clone = append(clone, cloneSource(s))
+	}
+	return clone
 }
 
 func cloneSource(s Source) Source {
@@ -628,19 +652,11 @@ func cloneSource(s Source) Source {
 
 	switch s := s.(type) {
 	case *Measurement:
-		return &Measurement{Name: s.Name}
-	case *Join:
-		other := &Join{Measurements: make(Measurements, len(s.Measurements))}
-		for i, m := range s.Measurements {
-			other.Measurements[i] = &Measurement{Name: m.Name}
+		m := &Measurement{Name: s.Name}
+		if s.Regex != nil {
+			m.Regex = &RegexLiteral{Val: regexp.MustCompile(s.Regex.Val.String())}
 		}
-		return other
-	case *Merge:
-		other := &Merge{Measurements: make(Measurements, len(s.Measurements))}
-		for i, m := range s.Measurements {
-			other.Measurements[i] = &Measurement{Name: m.Name}
-		}
-		return other
+		return m
 	default:
 		panic("unreachable")
 	}
@@ -691,8 +707,10 @@ func (s *SelectStatement) String() string {
 		_, _ = buf.WriteString(" ")
 		_, _ = buf.WriteString(s.Target.String())
 	}
-	_, _ = buf.WriteString(" FROM ")
-	_, _ = buf.WriteString(s.Source.String())
+	if len(s.Sources) > 0 {
+		_, _ = buf.WriteString(" FROM ")
+		_, _ = buf.WriteString(s.Sources.String())
+	}
 	if s.Condition != nil {
 		_, _ = buf.WriteString(" WHERE ")
 		_, _ = buf.WriteString(s.Condition.String())
@@ -903,18 +921,18 @@ func (s *SelectStatement) Substatement(ref *VarRef) (*SelectStatement, error) {
 	}
 
 	// If there is only one series source then return it with the whole condition.
-	if _, ok := s.Source.(*Measurement); ok {
-		other.Source = s.Source
+	if len(s.Sources) == 1 {
+		other.Sources = s.Sources
 		other.Condition = s.Condition
 		return other, nil
 	}
 
 	// Find the matching source.
-	name := MatchSource(s.Source, ref.Val)
+	name := MatchSource(s.Sources, ref.Val)
 	if name == "" {
 		return nil, fmt.Errorf("field source not found: %s", ref.Val)
 	}
-	other.Source = &Measurement{Name: name}
+	other.Sources = append(other.Sources, &Measurement{Name: name})
 
 	// Filter out conditions.
 	if s.Condition != nil {
@@ -1040,22 +1058,12 @@ func filterExprBySource(name string, expr Expr) Expr {
 
 // MatchSource returns the source name that matches a field name.
 // Returns a blank string if no sources match.
-func MatchSource(src Source, name string) string {
-	switch src := src.(type) {
-	case *Measurement:
-		if strings.HasPrefix(name, src.Name) {
-			return src.Name
-		}
-	case *Join:
-		for _, m := range src.Measurements {
-			if strings.HasPrefix(name, m.Name) {
-				return m.Name
-			}
-		}
-	case *Merge:
-		for _, m := range src.Measurements {
-			if strings.HasPrefix(name, m.Name) {
-				return m.Name
+func MatchSource(sources Sources, name string) string {
+	for _, src := range sources {
+		switch src := src.(type) {
+		case *Measurement:
+			if strings.HasPrefix(name, src.Name) {
+				return src.Name
 			}
 		}
 	}
@@ -1673,11 +1681,21 @@ func (a Measurements) String() string {
 
 // Measurement represents a single measurement used as a datasource.
 type Measurement struct {
-	Name string
+	Name  string
+	Regex *RegexLiteral
 }
 
 // String returns a string representation of the measurement.
-func (m *Measurement) String() string { return m.Name }
+func (m *Measurement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString(m.Name)
+
+	if m.Regex != nil {
+		_, _ = buf.WriteString(m.Regex.String())
+	}
+
+	return buf.String()
+}
 
 // Join represents two datasources joined together.
 type Join struct {
@@ -1821,7 +1839,12 @@ type RegexLiteral struct {
 }
 
 // String returns a string representation of the literal.
-func (r *RegexLiteral) String() string { return r.Val.String() }
+func (r *RegexLiteral) String() string {
+	if r.Val != nil {
+		return fmt.Sprintf("/%s/", r.Val.String())
+	}
+	return ""
+}
 
 // Wildcard represents a wild card expression.
 type Wildcard struct{}
@@ -1958,7 +1981,7 @@ func Walk(v Visitor, node Node) {
 	case *SelectStatement:
 		Walk(v, n.Fields)
 		Walk(v, n.Dimensions)
-		Walk(v, n.Source)
+		Walk(v, n.Sources)
 		Walk(v, n.Condition)
 
 	case *ShowSeriesStatement:
@@ -1974,6 +1997,11 @@ func Walk(v Visitor, node Node) {
 		Walk(v, n.Source)
 		Walk(v, n.Condition)
 		Walk(v, n.SortFields)
+
+	case Sources:
+		for _, s := range n {
+			Walk(v, s)
+		}
 
 	case Fields:
 		for _, c := range n {
@@ -2035,7 +2063,7 @@ func Rewrite(r Rewriter, node Node) Node {
 	case *SelectStatement:
 		n.Fields = Rewrite(r, n.Fields).(Fields)
 		n.Dimensions = Rewrite(r, n.Dimensions).(Dimensions)
-		n.Source = Rewrite(r, n.Source).(Source)
+		n.Sources = Rewrite(r, n.Sources).(Sources)
 		n.Condition = Rewrite(r, n.Condition).(Expr)
 
 	case Fields:

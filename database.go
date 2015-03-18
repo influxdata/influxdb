@@ -1436,6 +1436,17 @@ func (db *database) measurementsByTagFilters(filters []*TagFilter) Measurements 
 	return measurements
 }
 
+// measurementsByRegex returns the measurements that match the regex.
+func (db *database) measurementsByRegex(re *regexp.Regexp) Measurements {
+	var matches Measurements
+	for _, m := range db.measurements {
+		if re.MatchString(m.Name) {
+			matches = append(matches, m)
+		}
+	}
+	return matches
+}
+
 // Measurements returns a list of all measurements.
 func (db *database) Measurements() Measurements {
 	measurements := make(Measurements, 0, len(db.measurements))
