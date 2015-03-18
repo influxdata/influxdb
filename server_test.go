@@ -1519,8 +1519,6 @@ func TestServer_ExecuteGroupByFillLimit(t *testing.T) {
 	s.CreateUser("susy", "pass", false)
 
 	// Write series with one point to the database.
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(10)}}})
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Timestamp: mustParseTime("2000-01-01T00:00:10Z"), Fields: map[string]interface{}{"value": 20}}})
 	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-west"}, Timestamp: mustParseTime("2000-01-01T00:00:20Z"), Fields: map[string]interface{}{"value": 30}}})
 
 	// GROUP BY * (wildcard) with fill(0) and large limit.
