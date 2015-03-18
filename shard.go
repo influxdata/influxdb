@@ -66,6 +66,8 @@ type Shard struct {
 	store *bolt.DB      // underlying data store
 	conn  MessagingConn // streaming connection to broker
 
+	stats *Stats // In-memory stats
+
 	wg      sync.WaitGroup // pending goroutines
 	closing chan struct{}  // close notification
 }
@@ -78,6 +80,10 @@ func (s *Shard) open(path string, conn MessagingConn) error {
 	// Return an error if the shard is already open.
 	if s.store != nil {
 		return errors.New("shard already open")
+	}
+
+	if s.stats == nil {
+		s.stats = NewStats("shard")
 	}
 
 	// Open store on shard.
@@ -184,6 +190,8 @@ func (s *Shard) writeSeries(index uint64, batch []byte) error {
 			if err := b.Put(u64tob(uint64(timestamp)), data); err != nil {
 				return err
 			}
+			s.stats.Add("shardBytes", int64(len(data))+8) // Payload plus timestamp
+			s.stats.Inc("shardWrite")
 
 			// Push the buffer forward and check if we're done.
 			batch = batch[payloadLength:]
@@ -242,6 +250,7 @@ func (s *Shard) processor(conn MessagingConn, closing <-chan struct{}) {
 		// Handle write series separately so we don't lock server during shard writes.
 		switch m.Type {
 		case writeRawSeriesMessageType:
+			s.stats.Inc("writeSeriesMessageRx")
 			if err := s.writeSeries(m.Index, m.Data); err != nil {
 				panic(fmt.Errorf("apply shard: id=%d, idx=%d, err=%s", s.ID, m.Index, err))
 			}
