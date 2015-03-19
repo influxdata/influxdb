@@ -449,6 +449,24 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","val-x","value"],"values":[["2000-01-01T00:00:00Z",null,10],["2000-01-01T00:00:10Z",20,null],["2000-01-01T00:00:20Z",40,30]]}]}]}`,
 		},
+		{
+			reset: true,
+			name:  "wildcard GROUP BY queries",
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+				{"name": "cpu", "timestamp": "2000-01-01T00:00:00Z", "tags": {"region": "us-east"}, "fields": {"value": 10}},
+				{"name": "cpu", "timestamp": "2000-01-01T00:00:10Z", "tags": {"region": "us-east"}, "fields": {"value": 20}},
+				{"name": "cpu", "timestamp": "2000-01-01T00:00:20Z", "tags": {"region": "us-west"}, "fields": {"value": 30}}
+			]}`,
+			query:    `SELECT mean(value) FROM cpu GROUP BY *`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",15]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",30]]}]}]}`,
+		},
+		{
+			name:     "wildcard GROUP BY queries with time",
+			query:    `SELECT mean(value) FROM cpu GROUP BY *,time(1m)`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",15]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",30]]}]}]}`,
+		},
 
 		// WHERE fields queries
 		{
