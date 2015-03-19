@@ -6,7 +6,6 @@ import (
 	"hash/fnv"
 	"sort"
 	"time"
-	"fmt"
 )
 
 // DB represents an interface for creating transactions.
