@@ -73,6 +73,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SELECT field1, field2 ,field3 AS field_x FROM myseries WHERE host = 'hosta.influxdb.org' GROUP BY time(10h) ORDER BY ASC LIMIT 20 OFFSET 10;`,
 			stmt: &influxql.SelectStatement{
+				IsRawQuery: true,
 				Fields: []*influxql.Field{
 					{Expr: &influxql.VarRef{Val: "field1"}},
 					{Expr: &influxql.VarRef{Val: "field2"}},
