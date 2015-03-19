@@ -1506,37 +1506,6 @@ func TestServer_LimitAndOffset(t *testing.T) {
 	}
 }
 
-// Ensure the server can execute a group by with a fill(0) and very large limit
-// that results in a grouping of over 100,000 points returns an error
-func TestServer_ExecuteGroupByFillLimit(t *testing.T) {
-	c := test.NewMessagingClient()
-	defer c.Close()
-	s := OpenServer(c)
-	defer s.Close()
-	s.CreateDatabase("foo")
-	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "raw", Duration: 1 * time.Hour})
-	s.SetDefaultRetentionPolicy("foo", "raw")
-
-	// Write series with one point to the database.
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-west"}, Timestamp: mustParseTime("2000-01-01T00:00:20Z"), Fields: map[string]interface{}{"value": 30}}})
-
-	// GROUP BY * (wildcard) with fill(0) and large limit.
-	results := s.ExecuteQuery(MustParseQuery(`select mean(value)  from cpu where  region='us-west'  and time > '2000-01-01T00:00:00Z' group by time(300s), * fill(0)  limit 2147483647 slimit 1`), "foo", nil)
-	if results.Error() == nil {
-		t.Fatal("expected error: received nil")
-	}
-
-	// If the actual calculated points are less than max, this should be ok.
-	results = s.ExecuteQuery(MustParseQuery(`select mean(value)  from cpu where  region='us-west'  and time > '2000-01-01T00:00:00Z' and time < '2000-01-01T00:10:00Z'group by time(300s), * fill(0)  limit 2147483647`), "foo", nil)
-	if results.Error() != nil {
-		t.Fatal("expected error: received nil")
-	} else if s, e := mustMarshalJSON(results), `{"results":[{"series":[{"name":"cpu","tags":{"region":"us-west"},"columns":["time","mean"],"values":[["2000-01-01T00:00:00Z",30]]}]}]}`; s != e {
-		t.Logf("expected                            %s\n", e)
-		t.Fatalf("unexpected results during SELECT *: %s", s)
-	}
-
-}
-
 func TestServer_CreateShardGroupIfNotExist(t *testing.T) {
 	c := test.NewMessagingClient()
 	defer c.Close()

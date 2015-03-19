@@ -460,7 +460,6 @@ func httpResults(w http.ResponseWriter, results influxdb.Results, pretty bool) {
 		} else if isFieldNotFoundError(results.Error()) {
 			w.WriteHeader(http.StatusOK)
 		} else {
-			fmt.Println(results.Error())
 			w.WriteHeader(http.StatusInternalServerError)
 		}
 	}

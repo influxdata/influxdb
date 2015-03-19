@@ -119,9 +119,7 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 	// If we are exceeding our MaxGroupByPoints and we aren't a raw query, error out
 	if !m.stmt.IsRawQuery && pointCountInResult > MaxGroupByPoints {
 		out <- &Row{
-			Name: m.MeasurementName,
-			Tags: m.TagSet.Tags,
-			Err:  errors.New("too many points in the group by interval. maybe you forgot to specify a where time clause?"),
+			Err: errors.New("too many points in the group by interval. maybe you forgot to specify a where time clause?"),
 		}
 		return
 	}

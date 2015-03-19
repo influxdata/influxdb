@@ -562,7 +562,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		// LIMIT and OFFSET tests
 
 		{
-			name: "limit on points",
+			name: "limit1 on points",
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
 				{"name": "limit", "timestamp": "2009-11-10T23:00:02Z","fields": {"foo": 2}, "tags": {"tennant": "paul"}},
 				{"name": "limit", "timestamp": "2009-11-10T23:00:03Z","fields": {"foo": 3}, "tags": {"tennant": "paul"}},
@@ -616,6 +616,16 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			name:     "limit - offset higher than number of points with group by time",
 			query:    `select mean(foo) from "%DB%"."%RP%".limit WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY time(1s) LIMIT 2 OFFSET 20`,
 			expected: `{"results":[{}]}`,
+		},
+		{
+			name:     "limit higher than the number of data points should error",
+			query:    `select mean(foo)  from "%DB%"."%RP%".limit  where  time > '2000-01-01T00:00:00Z' group by time(1s), * fill(0)  limit 2147483647`,
+			expected: `{"results":[{"error":"too many points in the group by interval. maybe you forgot to specify a where time clause?"}]}`,
+		},
+		{
+			name:     "limit1 higher than MaxGroupBy but the number of data points is less than MaxGroupBy",
+			query:    `select mean(foo)  from "%DB%"."%RP%".limit  where  time >= '2009-11-10T23:00:02Z' and time < '2009-11-10T23:00:03Z' group by time(1s), * fill(0)  limit 2147483647`,
+			expected: `{"results":[{"series":[{"name":"limit","tags":{"tennant":"paul"},"columns":["time","mean"],"values":[["2009-11-10T23:00:02Z",2]]}]}]}`,
 		},
 
 		// Fill tests
