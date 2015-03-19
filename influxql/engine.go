@@ -125,13 +125,12 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 	}
 
 	// initialize the times of the aggregate points
-	resultTimes := make([]int64, pointCountInResult)
 	resultValues := make([][]interface{}, pointCountInResult)
 
 	// ensure that the start time for the results is on the start of the window
 	startTimeBucket := m.TMin / m.interval * m.interval
 
-	for i, _ := range resultTimes {
+	for i, _ := range resultValues {
 		var t int64
 		if m.stmt.Offset > 0 {
 			t = startTimeBucket + (int64(i+1) * m.interval * int64(m.stmt.Offset))
@@ -144,7 +143,7 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 			resultValues = resultValues[:i]
 			break
 		}
-		resultTimes[i] = t
+
 		// we always include time so we need one more column than we have aggregates
 		vals := make([]interface{}, 0, len(aggregates)+1)
 		resultValues[i] = append(vals, time.Unix(0, t).UTC())
@@ -153,7 +152,7 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 	// This just makes sure that if they specify a start time less than what the start time would be with the offset,
 	// we just reset the start time to the later time to avoid going over data that won't show up in the result.
 	if m.stmt.Offset > 0 && !m.stmt.IsRawQuery {
-		m.TMin = resultTimes[0]
+		m.TMin = resultValues[0][0].(time.Time).UnixNano()
 	}
 
 	// now loop through the aggregate functions and populate everything
