@@ -3472,7 +3472,7 @@ func (s *Server) RunContinuousQueries() error {
 // if this CQ should be run
 func (s *Server) shouldRunContinuousQuery(cq *ContinuousQuery) bool {
 	// if it's not aggregated we don't run it
-	if !cq.cq.Source.IsRawQuery {
+	if cq.cq.Source.IsRawQuery {
 		return false
 	}
 
