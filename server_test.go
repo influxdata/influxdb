@@ -1525,6 +1525,16 @@ func TestServer_ExecuteGroupByFillLimit(t *testing.T) {
 	if results.Error() == nil {
 		t.Fatal("expected error: received nil")
 	}
+
+	// If the actual calculated points are less than max, this should be ok.
+	results = s.ExecuteQuery(MustParseQuery(`select mean(value)  from cpu where  region='us-west'  and time > '2000-01-01T00:00:00Z' and time < '2000-01-01T00:10:00Z'group by time(300s), * fill(0)  limit 2147483647`), "foo", nil)
+	if results.Error() != nil {
+		t.Fatal("expected error: received nil")
+	} else if s, e := mustMarshalJSON(results), `{"results":[{"series":[{"name":"cpu","tags":{"region":"us-west"},"columns":["time","mean"],"values":[["2000-01-01T00:00:00Z",30]]}]}]}`; s != e {
+		t.Logf("expected                            %s\n", e)
+		t.Fatalf("unexpected results during SELECT *: %s", s)
+	}
+
 }
 
 func TestServer_CreateShardGroupIfNotExist(t *testing.T) {

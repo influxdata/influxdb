@@ -101,15 +101,6 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 		pointCountInResult = int((intervalTop - m.TMin) / m.interval)
 	}
 
-	if !m.stmt.RawQuery && pointCountInResult > MaxGroupByPoints {
-		out <- &Row{
-			Name: m.MeasurementName,
-			Tags: m.TagSet.Tags,
-			Err:  errors.New("too many points in the group by interval. maybe you forgot to specify a where time clause?"),
-		}
-		return
-	}
-
 	// check limits
 	// now limit the number of data points returned by the limit and offset
 	setLimit := false
@@ -120,14 +111,24 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 				Name: m.MeasurementName,
 				Tags: m.TagSet.Tags,
 			}
-
 			return
 		} else {
-			pointCountInResult = m.stmt.Limit
-			if m.stmt.Offset+m.stmt.Limit > pointCountInResult {
-				pointCountInResult = pointCountInResult - m.stmt.Offset
+			if m.stmt.Offset+m.stmt.Limit > m.stmt.Limit {
+				if m.stmt.Limit-m.stmt.Offset < pointCountInResult {
+					pointCountInResult = m.stmt.Limit - m.stmt.Offset
+				}
 			}
 		}
+	}
+
+	// If we are exceeding our MaxGroupByPoints and we aren't a raw query, error out
+	if !m.stmt.RawQuery && pointCountInResult > MaxGroupByPoints {
+		out <- &Row{
+			Name: m.MeasurementName,
+			Tags: m.TagSet.Tags,
+			Err:  errors.New("too many points in the group by interval. maybe you forgot to specify a where time clause?"),
+		}
+		return
 	}
 
 	// initialize the times of the aggregate points
