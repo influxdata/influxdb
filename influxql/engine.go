@@ -6,6 +6,7 @@ import (
 	"hash/fnv"
 	"sort"
 	"time"
+	"fmt"
 )
 
 // DB represents an interface for creating transactions.
@@ -98,7 +99,8 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 		pointCountInResult = 1
 	} else {
 		intervalTop := m.TMax/m.interval*m.interval + m.interval
-		pointCountInResult = int((intervalTop - m.TMin) / m.interval)
+		intervalBottom := m.TMin/m.interval*m.interval
+		pointCountInResult = int((intervalTop - intervalBottom) / m.interval)
 	}
 
 	if m.TMin == 0 && pointCountInResult > MaxGroupByPoints {
