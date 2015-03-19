@@ -420,13 +420,45 @@ func TestSelectStatement_RewriteWildcards(t *testing.T) {
 
 // Ensure that the IsRawQuery flag gets set properly
 func TestSelectStatement_IsRawQuerySet(t *testing.T) {
-	s := MustParseSelectStatement("select * from foo")
-	if !s.IsRawQuery {
-		t.Error("IsRawQuery should be false")
+	var tests = []struct {
+		stmt  string
+		isRaw bool
+	}{
+		{
+			stmt:  "select * from foo",
+			isRaw: true,
+		},
+		{
+			stmt:  "select value1,value2 from foo",
+			isRaw: true,
+		},
+		{
+			stmt:  "select value1,value2 from foo, time(10m)",
+			isRaw: true,
+		},
+		{
+			stmt:  "select mean(value) from foo group by time(5m)",
+			isRaw: false,
+		},
+		{
+			stmt:  "select mean(value) from foo group by bar",
+			isRaw: false,
+		},
+		{
+			stmt:  "select mean(value) from foo group by *",
+			isRaw: false,
+		},
+		{
+			stmt:  "select mean(*) from foo group by *",
+			isRaw: false,
+		},
 	}
-	s = MustParseSelectStatement("select mean(value) from foo group by time(5m)")
-	if s.IsRawQuery {
-		t.Error("IsRawQuery should be true")
+
+	for _, tt := range tests {
+		s := MustParseSelectStatement(tt.stmt)
+		if s.IsRawQuery != tt.isRaw {
+			t.Errorf("'%s', IsRawQuery should be %v", tt.stmt, tt.isRaw)
+		}
 	}
 }
 

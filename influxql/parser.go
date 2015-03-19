@@ -579,8 +579,8 @@ func (p *Parser) parseSelectStatement(tr targetRequirement) (*SelectStatement, e
 
 	// Set if the query is a raw data query or one with an aggregate
 	stmt.IsRawQuery = true
-	for _, d := range stmt.Dimensions {
-		if call, ok := d.Expr.(*Call); ok && strings.ToLower(call.Name) == "time" {
+	for _, d := range stmt.Fields {
+		if _, ok := d.Expr.(*Call); ok {
 			stmt.IsRawQuery = false
 			break
 		}
