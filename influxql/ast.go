@@ -621,6 +621,7 @@ func (s *SelectStatement) Clone() *SelectStatement {
 		SOffset:    s.SOffset,
 		Fill:       s.Fill,
 		FillValue:  s.FillValue,
+		IsRawQuery: s.IsRawQuery,
 	}
 	if s.Target != nil {
 		clone.Target = &Target{Measurement: s.Target.Measurement, Database: s.Target.Database}
