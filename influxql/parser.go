@@ -1012,7 +1012,7 @@ func (p *Parser) parseCreateContinuousQueryStatement() (*CreateContinuousQuerySt
 	stmt.Source = source
 
 	// validate that the statement has a non-zero group by interval if it is aggregated
-	if source.Aggregated() {
+	if source.IsRawQuery {
 		d, err := source.GroupByInterval()
 		if d == 0 || err != nil {
 			// rewind so we can output an error with some info

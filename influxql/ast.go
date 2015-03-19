@@ -753,17 +753,6 @@ func (s *SelectStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ep
 }
 
-// Aggregated returns true if the statement uses aggregate functions.
-func (s *SelectStatement) Aggregated() bool {
-	var v bool
-	WalkFunc(s.Fields, func(n Node) {
-		if _, ok := n.(*Call); ok {
-			v = true
-		}
-	})
-	return v
-}
-
 // OnlyTimeDimensions returns true if the statement has a where clause with only time constraints
 func (s *SelectStatement) OnlyTimeDimensions() bool {
 	return s.walkForTime(s.Condition)
