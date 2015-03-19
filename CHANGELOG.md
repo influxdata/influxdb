@@ -9,6 +9,7 @@
 - [#1985](https://github.com/influxdb/influxdb/pull/1985): Set content-type JSON header before actually writing header. Thanks @dstrek.
 - [#2003](https://github.com/influxdb/influxdb/pull/2003): Set timestamp when writing monitoring stats.
 - [#2004](https://github.com/influxdb/influxdb/pull/2004): Limit group by to MaxGroupByPoints (currently 100,000).
+- [#2016](https://github.com/influxdb/influxdb/pull/2016): Fixing bucket alignment for group by. Thanks @jnutzmann
 
 ## v0.9.0-rc14 [2015-03-18]
 
@@ -38,6 +39,9 @@
 ### Features
 - [#1935](https://github.com/influxdb/influxdb/pull/1935): Implement stateless broker for Raft.
 - [#1936](https://github.com/influxdb/influxdb/pull/1936): Implement "SHOW STATS" and self-monitoring
+
+### Features
+- [#1909](https://github.com/influxdb/influxdb/pull/1909): Implement a dump command.
 
 ## v0.9.0-rc11 [2015-03-13]
 

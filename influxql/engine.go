@@ -98,7 +98,8 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 		pointCountInResult = 1
 	} else {
 		intervalTop := m.TMax/m.interval*m.interval + m.interval
-		pointCountInResult = int((intervalTop - m.TMin) / m.interval)
+		intervalBottom := m.TMin/m.interval*m.interval
+		pointCountInResult = int((intervalTop - intervalBottom) / m.interval)
 	}
 
 	// For group by time queries, limit the number of data points returned by the limit and offset

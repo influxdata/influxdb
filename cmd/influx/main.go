@@ -31,16 +31,17 @@ const (
 )
 
 type CommandLine struct {
-	Client   *client.Client
-	Line     *liner.State
-	Host     string
-	Port     int
-	Username string
-	Password string
-	Database string
-	Version  string
-	Pretty   bool   // controls pretty print for json
-	Format   string // controls the output format.  Valid values are json, csv, or column
+	Client     *client.Client
+	Line       *liner.State
+	Host       string
+	Port       int
+	Username   string
+	Password   string
+	Database   string
+	Version    string
+	Pretty     bool   // controls pretty print for json
+	Format     string // controls the output format.  Valid values are json, csv, or column
+	ShouldDump bool
 }
 
 func main() {
@@ -53,6 +54,7 @@ func main() {
 	fs.StringVar(&c.Password, "password", c.Password, `password to connect to the server.  Leaving blank will prompt for password (--password="")`)
 	fs.StringVar(&c.Database, "database", c.Database, "database to connect to the server.")
 	fs.StringVar(&c.Format, "output", default_format, "format specifies the format of the server responses:  json, csv, or column")
+	fs.BoolVar(&c.ShouldDump, "dump", false, "dump the contents of the given database to stdout")
 	fs.Parse(os.Args[1:])
 
 	var promptForPassword bool
@@ -64,9 +66,6 @@ func main() {
 			break
 		}
 	}
-
-	// TODO Determine if we are an ineractive shell or running commands
-	fmt.Println("InfluxDB shell " + version)
 
 	c.Line = liner.NewLiner()
 	defer c.Line.Close()
@@ -81,6 +80,13 @@ func main() {
 	}
 
 	c.connect("")
+
+	if c.ShouldDump {
+		c.dump()
+		return
+	}
+
+	fmt.Println("InfluxDB shell " + version)
 
 	var historyFile string
 	usr, err := user.Current()
@@ -205,7 +211,9 @@ func (c *CommandLine) connect(cmd string) {
 		fmt.Printf("Failed to connect to %s\n", c.Client.Addr())
 	} else {
 		c.Version = v
-		fmt.Printf("Connected to %s version %s\n", c.Client.Addr(), c.Version)
+		if !c.ShouldDump {
+			fmt.Printf("Connected to %s version %s\n", c.Client.Addr(), c.Version)
+		}
 	}
 }
 
@@ -246,6 +254,19 @@ func (c *CommandLine) SetFormat(cmd string) {
 		c.Format = cmd
 	default:
 		fmt.Printf("Unknown format %q. Please use json, csv, or column.\n", cmd)
+	}
+}
+
+func (c *CommandLine) dump() {
+	response, err := c.Client.Dump(c.Database)
+	defer response.Close()
+	if err != nil {
+		fmt.Printf("Dump failed. %s\n", err)
+	} else {
+		_, err := io.Copy(os.Stdout, response)
+		if err != nil {
+			fmt.Printf("Dump failed. %s\n", err)
+		}
 	}
 }
 
