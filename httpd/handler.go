@@ -294,6 +294,11 @@ func (h *Handler) serveDump(w http.ResponseWriter, r *http.Request, user *influx
 					}
 					buf, err := json.Marshal(&batch)
 
+					// TODO: Make this more legit in the future
+					// Since we're streaming data as chunked responses, this error could
+					// be in the middle of an already-started data stream. Until Go 1.5,
+					// we can't really support proper trailer headers, so we'll just
+					// wait until then: https://code.google.com/p/go/issues/detail?id=7759
 					if err != nil {
 						w.Write([]byte("*** SERVER-SIDE ERROR. MISSING DATA ***"))
 						w.Write(delim)

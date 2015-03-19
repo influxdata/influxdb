@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"encoding/csv"
 	"encoding/json"
 	"flag"
@@ -32,17 +31,17 @@ const (
 )
 
 type CommandLine struct {
-	Client          *client.Client
-	Line            *liner.State
-	Host            string
-	Port            int
-	Username        string
-	Password        string
-	Database        string
-	Version         string
-	Pretty          bool   // controls pretty print for json
-	Format          string // controls the output format.  Valid values are json, csv, or column
-	DumpTheDatabase bool
+	Client     *client.Client
+	Line       *liner.State
+	Host       string
+	Port       int
+	Username   string
+	Password   string
+	Database   string
+	Version    string
+	Pretty     bool   // controls pretty print for json
+	Format     string // controls the output format.  Valid values are json, csv, or column
+	ShouldDump bool
 }
 
 func main() {
@@ -55,7 +54,7 @@ func main() {
 	fs.StringVar(&c.Password, "password", c.Password, `password to connect to the server.  Leaving blank will prompt for password (--password="")`)
 	fs.StringVar(&c.Database, "database", c.Database, "database to connect to the server.")
 	fs.StringVar(&c.Format, "output", default_format, "format specifies the format of the server responses:  json, csv, or column")
-	fs.BoolVar(&c.DumpTheDatabase, "dump-the-database", false, "dump the contents of the given database to stdout")
+	fs.BoolVar(&c.ShouldDump, "dump", false, "dump the contents of the given database to stdout")
 	fs.Parse(os.Args[1:])
 
 	var promptForPassword bool
@@ -82,7 +81,7 @@ func main() {
 
 	c.connect("")
 
-	if c.DumpTheDatabase {
+	if c.ShouldDump {
 		c.dump()
 		return
 	}
@@ -212,7 +211,7 @@ func (c *CommandLine) connect(cmd string) {
 		fmt.Printf("Failed to connect to %s\n", c.Client.Addr())
 	} else {
 		c.Version = v
-		if !c.DumpTheDatabase {
+		if !c.ShouldDump {
 			fmt.Printf("Connected to %s version %s\n", c.Client.Addr(), c.Version)
 		}
 	}
@@ -264,11 +263,8 @@ func (c *CommandLine) dump() {
 	if err != nil {
 		fmt.Printf("Dump failed. %s\n", err)
 	} else {
-		scanner := bufio.NewScanner(response)
-		for scanner.Scan() {
-			fmt.Println(scanner.Text())
-		}
-		if err := scanner.Err(); err != nil {
+		_, err := io.Copy(os.Stdout, response)
+		if err != nil {
 			fmt.Printf("Dump failed. %s\n", err)
 		}
 	}
