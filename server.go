@@ -1748,7 +1748,7 @@ func (s *Server) createMeasurementsIfNotExists(database, retentionPolicy string,
 					if f := measurement.FieldByName(k); f != nil {
 						// Field present in Metastore, make sure there is no type conflict.
 						if f.Type != influxql.InspectDataType(v) {
-							return fmt.Errorf(fmt.Sprintf("field \"%s\" is type %T, mapped as type %s", k, v, f.Type))
+							return fmt.Errorf("field \"%s\" is type %T, mapped as type %s", k, v, f.Type)
 						}
 						continue // Field is present, and it's of the same type. Nothing more to do.
 					}
