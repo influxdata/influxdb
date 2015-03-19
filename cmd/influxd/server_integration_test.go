@@ -605,6 +605,65 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			expected: `{"results":[{"series":[{"name":"fills","columns":["time","mean"],"values":[["2009-11-10T23:00:00Z",4],["2009-11-10T23:00:05Z",4],["2009-11-10T23:00:10Z",null],["2009-11-10T23:00:15Z",10]]}]}]}`,
 		},
 
+		// Drop Measurement, series tags preserved tests
+		{
+			reset: true,
+			name:  "Drop Measurement, series tags preserved tests",
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+				{"name": "cpu", "timestamp": "2000-01-01T00:00:00Z", "tags": {"host": "serverA", "region": "uswest"}, "fields": {"val": 23.2}},
+				{"name": "memory", "timestamp": "2000-01-01T00:00:01Z", "tags": {"host": "serverB", "region": "uswest"}, "fields": {"val": 33.2}}
+			]}`,
+			query:    `SHOW MEASUREMENTS`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"measurements","columns":["name"],"values":[["cpu"],["memory"]]}]}]}`,
+		},
+		{
+			query:    `SHOW SERIES`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["id","host","region"],"values":[[1,"serverA","uswest"]]},{"name":"memory","columns":["id","host","region"],"values":[[2,"serverB","uswest"]]}]}]}`,
+		},
+		{
+			name:     "ensure we can query for memory with both tags",
+			query:    `SELECT * FROM memory where region='uswest' and host='serverB'`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"memory","columns":["time","val"],"values":[["2000-01-01T00:00:01Z",33.2]]}]}]}`,
+		},
+		{
+			query:    `DROP MEASUREMENT cpu`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{}]}`,
+		},
+		{
+			query:    `SHOW MEASUREMENTS`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"measurements","columns":["name"],"values":[["memory"]]}]}]}`,
+		},
+		{
+			query:    `SHOW SERIES`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"memory","columns":["id","host","region"],"values":[[2,"serverB","uswest"]]}]}]}`,
+		},
+		{
+			query:    `SELECT * FROM cpu`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"error":"measurement not found: \"mydb\".\"myrp\".\"cpu\""}]}`,
+		},
+		{
+			query:    `SELECT * FROM memory where host='serverB'`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"memory","columns":["time","val"],"values":[["2000-01-01T00:00:01Z",33.2]]}]}]}`,
+		},
+		{
+			query:    `SELECT * FROM memory where region='uswest'`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"memory","columns":["time","val"],"values":[["2000-01-01T00:00:01Z",33.2]]}]}]}`,
+		},
+		{
+			query:    `SELECT * FROM memory where region='uswest' and host='serverB'`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"memory","columns":["time","val"],"values":[["2000-01-01T00:00:01Z",33.2]]}]}]}`,
+		},
+
 		// Metadata display tests
 
 		{
