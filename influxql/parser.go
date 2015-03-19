@@ -579,12 +579,11 @@ func (p *Parser) parseSelectStatement(tr targetRequirement) (*SelectStatement, e
 
 	// Set if the query is a raw data query or one with an aggregate
 	stmt.IsRawQuery = true
-	for _, d := range stmt.Fields {
-		if _, ok := d.Expr.(*Call); ok {
+	WalkFunc(stmt.Fields, func(n Node) {
+		if _, ok := n.(*Call); ok {
 			stmt.IsRawQuery = false
-			break
 		}
-	}
+	})
 
 	return stmt, nil
 }
