@@ -84,7 +84,7 @@ func TestParser_ParseStatement(t *testing.T) {
 					LHS: &influxql.VarRef{Val: "host"},
 					RHS: &influxql.StringLiteral{Val: "hosta.influxdb.org"},
 				},
-				Dimensions: influxql.Dimensions{{Expr: &influxql.Call{Name: "time", Args: []influxql.Expr{&influxql.DurationLiteral{Val: 10 * time.Hour}}}}},
+				Dimensions: []*influxql.Dimension{{Expr: &influxql.Call{Name: "time", Args: []influxql.Expr{&influxql.DurationLiteral{Val: 10 * time.Hour}}}}},
 				SortFields: []*influxql.SortField{
 					{Ascending: true},
 				},
