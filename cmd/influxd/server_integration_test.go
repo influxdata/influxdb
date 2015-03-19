@@ -230,7 +230,7 @@ func queryAndWait(t *testing.T, nodes Cluster, urlDb, q, expected string, timeou
 		if got, ok := query(t, nodes, urlDb, q, expected); ok {
 			return got, ok
 		} else if atomic.LoadInt32(&timedOut) == 1 {
-			return fmt.Sprintf("timed out before expected result was found: got: %s", got), false
+			return got, false
 		} else {
 			time.Sleep(10 * time.Millisecond)
 		}
@@ -555,28 +555,28 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		{
 			name: "limit on points",
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
-				{"name": "limit", "timestamp": "2009-11-10T23:00:02Z","fields": {"foo": "bar"}, "tags": {"tennant": "paul"}},
-				{"name": "limit", "timestamp": "2009-11-10T23:00:03Z","fields": {"foo": "baz"}, "tags": {"tennant": "paul"}},
-				{"name": "limit", "timestamp": "2009-11-10T23:00:04Z","fields": {"foo": "bat"}, "tags": {"tennant": "paul"}},
-				{"name": "limit", "timestamp": "2009-11-10T23:00:05Z","fields": {"foo": "bar"}, "tags": {"tennant": "todd"}}
+				{"name": "limit", "timestamp": "2009-11-10T23:00:02Z","fields": {"foo": 2}, "tags": {"tennant": "paul"}},
+				{"name": "limit", "timestamp": "2009-11-10T23:00:03Z","fields": {"foo": 3}, "tags": {"tennant": "paul"}},
+				{"name": "limit", "timestamp": "2009-11-10T23:00:04Z","fields": {"foo": 4}, "tags": {"tennant": "paul"}},
+				{"name": "limit", "timestamp": "2009-11-10T23:00:05Z","fields": {"foo": 5}, "tags": {"tennant": "todd"}}
 			]}`,
 			query:    `select foo from "%DB%"."%RP%".limit LIMIT 2`,
-			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z","bar"],["2009-11-10T23:00:03Z","baz"]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z",2],["2009-11-10T23:00:03Z",3]]}]}]}`,
 		},
 		{
 			name:     "limit higher than the number of data points",
 			query:    `select foo from "%DB%"."%RP%".limit LIMIT 20`,
-			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z","bar"],["2009-11-10T23:00:03Z","baz"],["2009-11-10T23:00:04Z","bat"],["2009-11-10T23:00:05Z","bar"]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z",2],["2009-11-10T23:00:03Z",3],["2009-11-10T23:00:04Z",4],["2009-11-10T23:00:05Z",5]]}]}]}`,
 		},
 		{
 			name:     "limit and offset",
 			query:    `select foo from "%DB%"."%RP%".limit LIMIT 2 OFFSET 1`,
-			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:03Z","baz"],["2009-11-10T23:00:04Z","bat"]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:03Z",3],["2009-11-10T23:00:04Z",4]]}]}]}`,
 		},
 		{
 			name:     "limit + offset higher than number of points",
 			query:    `select foo from "%DB%"."%RP%".limit LIMIT 3 OFFSET 3`,
-			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:05Z","bar"]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:05Z",5]]}]}]}`,
 		},
 		{
 			name:     "offset higher than number of points",
@@ -585,28 +585,28 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		},
 		{
 			name:     "limit on points with group by time",
-			query:    `select foo from "%DB%"."%RP%".limit WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY time(1s) LIMIT 2`,
-			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z","bar"],["2009-11-10T23:00:03Z","baz"]]}]}]}`,
+			query:    `select mean(foo) from "%DB%"."%RP%".limit WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY time(1s) LIMIT 2`,
+			expected: `{"results":[{"series":[{"name":"limit","columns":["time","mean"],"values":[["2009-11-10T23:00:02Z",2],["2009-11-10T23:00:03Z",3]]}]}]}`,
 		},
 		{
 			name:     "limit higher than the number of data points with group by time",
-			query:    `select foo from "%DB%"."%RP%".limit WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY time(1s) LIMIT 20`,
-			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z","bar"],["2009-11-10T23:00:03Z","baz"],["2009-11-10T23:00:04Z","bat"],["2009-11-10T23:00:05Z","bar"]]}]}]}`,
+			query:    `select mean(foo) from "%DB%"."%RP%".limit WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY time(1s) LIMIT 20`,
+			expected: `{"results":[{"series":[{"name":"limit","columns":["time","mean"],"values":[["2009-11-10T23:00:02Z",2],["2009-11-10T23:00:03Z",3],["2009-11-10T23:00:04Z",4],["2009-11-10T23:00:05Z",5]]}]}]}`,
 		},
 		{
 			name:     "limit and offset with group by time",
-			query:    `select foo from "%DB%"."%RP%".limit WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY time(1s) LIMIT 2 OFFSET 1`,
-			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:03Z","baz"],["2009-11-10T23:00:04Z","bat"]]}]}]}`,
+			query:    `select mean(foo) from "%DB%"."%RP%".limit WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY time(1s) LIMIT 2 OFFSET 1`,
+			expected: `{"results":[{"series":[{"name":"limit","columns":["time","mean"],"values":[["2009-11-10T23:00:03Z",3],["2009-11-10T23:00:04Z",4]]}]}]}`,
 		},
 		{
 			name:     "limit + offset higher than number of points with group by time",
-			query:    `select foo from "%DB%"."%RP%".limit WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY time(1s) LIMIT 3 OFFSET 3`,
-			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:05Z","bar"]]}]}]}`,
+			query:    `select mean(foo) from "%DB%"."%RP%".limit WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY time(1s) LIMIT 3 OFFSET 3`,
+			expected: `{"results":[{"series":[{"name":"limit","columns":["time","mean"],"values":[["2009-11-10T23:00:05Z",5]]}]}]}`,
 		},
 		{
 			name:     "offset higher than number of points with group by time",
-			query:    `select foo from "%DB%"."%RP%".limit WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY time(1s) LIMIT 2 OFFSET 20`,
-			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"]}]}]}`,
+			query:    `select mean(foo) from "%DB%"."%RP%".limit WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY time(1s) LIMIT 2 OFFSET 20`,
+			expected: `{"results":[{"series":[{"name":"limit","columns":["time","mean"]}]}]}`,
 		},
 
 		// Fill tests

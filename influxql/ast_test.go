@@ -418,6 +418,18 @@ func TestSelectStatement_RewriteWildcards(t *testing.T) {
 	}
 }
 
+// Ensure that the IsRawQuery flag gets set properly
+func TestSelectStatement_IsRawQuerySet(t *testing.T) {
+	s := MustParseSelectStatement("select * from foo")
+	if !s.IsRawQuery {
+		t.Error("IsRawQuery should be false")
+	}
+	s = MustParseSelectStatement("select mean(value) from foo group by time(5m)")
+	if s.IsRawQuery {
+		t.Error("IsRawQuery should be true")
+	}
+}
+
 // Ensure the time range of an expression can be extracted.
 func TestTimeRange(t *testing.T) {
 	for i, tt := range []struct {

@@ -598,7 +598,7 @@ type SelectStatement struct {
 	groupByInterval time.Duration
 
 	// if it's a query for raw data values (i.e. not an aggregate)
-	RawQuery bool
+	IsRawQuery bool
 
 	// What fill option the select statement uses, if any
 	Fill FillOption

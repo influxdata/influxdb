@@ -101,28 +101,29 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 		pointCountInResult = int((intervalTop - m.TMin) / m.interval)
 	}
 
-	// check limits
-	// now limit the number of data points returned by the limit and offset
-	setLimit := false
-	if pointCountInResult > 1 && (m.stmt.Limit > 0 || m.stmt.Offset > 0) {
-		setLimit = true
+	// For group by time queries, limit the number of data points returned by the limit and offset
+	// raw query limits are handled elsewhere
+	warn("> ", m.stmt.IsRawQuery, pointCountInResult)
+	if !m.stmt.IsRawQuery && (m.stmt.Limit > 0 || m.stmt.Offset > 0) {
+		// ensure that the offset isn't higher than the number of points we'd get
 		if m.stmt.Offset > pointCountInResult {
 			out <- &Row{
 				Name: m.MeasurementName,
 				Tags: m.TagSet.Tags,
 			}
 			return
-		} else {
-			if m.stmt.Offset+m.stmt.Limit > m.stmt.Limit {
-				if m.stmt.Limit-m.stmt.Offset < pointCountInResult {
-					pointCountInResult = m.stmt.Limit - m.stmt.Offset
-				}
-			}
+		}
+
+		// take the lesser of either the pre computed number of group by buckets that
+		// will be in the result or the limit passed in by the user
+		if m.stmt.Limit < pointCountInResult {
+			pointCountInResult = m.stmt.Limit
 		}
 	}
+	warn("< ", m.stmt.Limit)
 
 	// If we are exceeding our MaxGroupByPoints and we aren't a raw query, error out
-	if !m.stmt.RawQuery && pointCountInResult > MaxGroupByPoints {
+	if !m.stmt.IsRawQuery && pointCountInResult > MaxGroupByPoints {
 		out <- &Row{
 			Name: m.MeasurementName,
 			Tags: m.TagSet.Tags,
@@ -139,7 +140,7 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 	startTimeBucket := m.TMin / m.interval * m.interval
 
 	for i, _ := range resultTimes {
-		t := startTimeBucket + (int64(i) * m.interval * int64(m.stmt.Offset+1))
+		t := startTimeBucket + (int64(i+1) * m.interval * int64(m.stmt.Offset+1)) - m.interval
 		resultTimes[i] = t
 		// we always include time so we need one more column than we have aggregates
 		vals := make([]interface{}, 0, len(aggregates)+1)
@@ -148,7 +149,8 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 
 	// This just makes sure that if they specify a start time less than what the start time would be with the offset,
 	// we just reset the start time to the later time to avoid going over data that won't show up in the result.
-	if setLimit && m.stmt.Offset > 0 {
+	if m.stmt.Offset > 0 && !m.stmt.IsRawQuery {
+		warn(". setting tmin: ", resultTimes[0])
 		m.TMin = resultTimes[0]
 	}
 
@@ -242,7 +244,7 @@ func (m *MapReduceJob) processResults(results [][]interface{}) [][]interface{} {
 // processFill will take the results and return new reaults (or the same if no fill modifications are needed) with whatever fill options the query has.
 func (m *MapReduceJob) processFill(results [][]interface{}) [][]interface{} {
 	// don't do anything if it's raw query results or we're supposed to leave the nulls
-	if m.stmt.RawQuery || m.stmt.Fill == NullFill {
+	if m.stmt.IsRawQuery || m.stmt.Fill == NullFill {
 		return results
 	}
 
