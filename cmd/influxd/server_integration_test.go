@@ -367,7 +367,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			name:     "sum aggregation",
 			query:    `SELECT sum(value) FROM cpu WHERE time >= '2000-01-01 00:00:05' AND time <= '2000-01-01T00:00:10Z' GROUP BY time(10s), region`,
 			queryDb:  "%DB%",
-			expected: `{"results":[{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","sum"],"values":[["2000-01-01T00:00:00Z",30]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","sum"],"values":[["2000-01-01T00:00:00Z",null],["2000-01-01T00:00:10Z",30]]}]}]}`,
 		},
 		{
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
