@@ -37,6 +37,9 @@
 - [#1935](https://github.com/influxdb/influxdb/pull/1935): Implement stateless broker for Raft.
 - [#1936](https://github.com/influxdb/influxdb/pull/1936): Implement "SHOW STATS" and self-monitoring
 
+### Features
+- [#1909](https://github.com/influxdb/influxdb/pull/1909): Implement a dump command.
+
 ## v0.9.0-rc11 [2015-03-13]
 
 ### Bugfixes

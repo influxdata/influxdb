@@ -1,6 +1,7 @@
 package httpd
 
 import (
+	"compress/gzip"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,8 +16,6 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
-
-	"compress/gzip"
 
 	"code.google.com/p/go-uuid/uuid"
 
@@ -113,6 +112,10 @@ func NewHandler(s *influxdb.Server, requireAuthentication bool, version string) 
 			"index", // Index.
 			"GET", "/", true, true, h.serveIndex,
 		},
+		route{
+			"dump", // export all points in the given db.
+			"GET", "/dump", true, true, h.serveDump,
+		},
 	)
 
 	for _, r := range h.routes {
@@ -181,6 +184,132 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *influ
 
 	// Send results to client.
 	httpResults(w, results, pretty)
+}
+
+func interfaceToString(v interface{}) string {
+	switch t := v.(type) {
+	case nil:
+		return ""
+	case bool:
+		return fmt.Sprintf("%v", v)
+	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, uintptr:
+		return fmt.Sprintf("%d", t)
+	case float32, float64:
+		return fmt.Sprintf("%v", t)
+	default:
+		return fmt.Sprintf("%v", t)
+	}
+}
+
+type Point struct {
+	Name      string                 `json:"name"`
+	Timestamp time.Time              `json:"timestamp"`
+	Tags      map[string]string      `json:"tags"`
+	Fields    map[string]interface{} `json:"fields"`
+}
+
+type Batch struct {
+	Database        string  `json:"database"`
+	RetentionPolicy string  `json:"retentionPolicy"`
+	Points          []Point `json:"points"`
+}
+
+// Return all the measurements from the given DB
+func (h *Handler) showMeasurements(db string, user *influxdb.User) ([]string, error) {
+	var measurements []string
+	results := h.server.ExecuteQuery(&influxql.Query{[]influxql.Statement{&influxql.ShowMeasurementsStatement{}}}, db, user)
+	if results.Err != nil {
+		return measurements, results.Err
+	}
+
+	for _, result := range results.Results {
+		for _, row := range result.Series {
+			for _, tuple := range (*row).Values {
+				for _, cell := range tuple {
+					measurements = append(measurements, interfaceToString(cell))
+				}
+			}
+		}
+	}
+	return measurements, nil
+}
+
+// serveDump returns all points in the given database as a plaintext list of JSON structs.
+// To get all points:
+// Find all measurements (show measurements).
+// For each measurement do select * from <measurement> group by *
+func (h *Handler) serveDump(w http.ResponseWriter, r *http.Request, user *influxdb.User) {
+	q := r.URL.Query()
+	db := q.Get("db")
+	pretty := q.Get("pretty") == "true"
+	delim := []byte("\n")
+	measurements, err := h.showMeasurements(db, user)
+	if err != nil {
+		httpError(w, "error with dump: "+err.Error(), pretty, http.StatusInternalServerError)
+		return
+	}
+
+	// Fetch all the points for each measurement.
+	// From the 'select' query below, we get:
+	//
+	// columns:[col1, col2, col3, ...]
+	// - and -
+	// values:[[val1, val2, val3, ...], [val1, val2, val3, ...], [val1, val2, val3, ...]...]
+	//
+	// We need to turn that into multiple rows like so...
+	// fields:{col1 : values[0][0], col2 : values[0][1], col3 : values[0][2]}
+	// fields:{col1 : values[1][0], col2 : values[1][1], col3 : values[1][2]}
+	// fields:{col1 : values[2][0], col2 : values[2][1], col3 : values[2][2]}
+	//
+	for _, measurement := range measurements {
+		queryString := fmt.Sprintf("select * from %s group by *", measurement)
+		p := influxql.NewParser(strings.NewReader(queryString))
+		query, err := p.ParseQuery()
+		if err != nil {
+			httpError(w, "error with dump: "+err.Error(), pretty, http.StatusInternalServerError)
+			return
+		}
+		//
+		results := h.server.ExecuteQuery(query, db, user)
+		for _, result := range results.Results {
+			for _, row := range result.Series {
+				points := make([]Point, 1)
+				var point Point
+				point.Name = row.Name
+				point.Tags = row.Tags
+				point.Fields = make(map[string]interface{})
+				for _, tuple := range row.Values {
+					for subscript, cell := range tuple {
+						if row.Columns[subscript] == "time" {
+							point.Timestamp, _ = cell.(time.Time)
+							continue
+						}
+						point.Fields[row.Columns[subscript]] = cell
+					}
+					points[0] = point
+					batch := &Batch{
+						Points:          points,
+						Database:        db,
+						RetentionPolicy: "default",
+					}
+					buf, err := json.Marshal(&batch)
+
+					// TODO: Make this more legit in the future
+					// Since we're streaming data as chunked responses, this error could
+					// be in the middle of an already-started data stream. Until Go 1.5,
+					// we can't really support proper trailer headers, so we'll just
+					// wait until then: https://code.google.com/p/go/issues/detail?id=7759
+					if err != nil {
+						w.Write([]byte("*** SERVER-SIDE ERROR. MISSING DATA ***"))
+						w.Write(delim)
+						return
+					}
+					w.Write(buf)
+					w.Write(delim)
+				}
+			}
+		}
+	}
 }
 
 // serveWrite receives incoming series data and writes it to the database.
