@@ -7,6 +7,7 @@
 - [#2001](https://github.com/influxdb/influxdb/pull/2001): Ensure measurement not found returns status code 200.
 - [#1985](https://github.com/influxdb/influxdb/pull/1985): Set content-type JSON header before actually writing header. Thanks @dstrek.
 - [#2003](https://github.com/influxdb/influxdb/pull/2003): Set timestamp when writing monitoring stats.
+- [#2016](https://github.com/influxdb/influxdb/pull/2016): Fixing bucket alignment for group by. Thanks @jnutzmann
 
 ## v0.9.0-rc14 [2015-03-18]
 
