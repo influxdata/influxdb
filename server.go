@@ -2084,7 +2084,12 @@ func (s *Server) executeSelectStatement(stmt *influxql.SelectStatement, database
 	// Read all rows from channel.
 	res := &Result{Series: make([]*influxql.Row, 0)}
 	for row := range ch {
-		res.Series = append(res.Series, row)
+		if row.Err != nil {
+			res.Err = row.Err
+			return res
+		} else {
+			res.Series = append(res.Series, row)
+		}
 	}
 
 	return res
@@ -3467,7 +3472,7 @@ func (s *Server) RunContinuousQueries() error {
 // if this CQ should be run
 func (s *Server) shouldRunContinuousQuery(cq *ContinuousQuery) bool {
 	// if it's not aggregated we don't run it
-	if !cq.cq.Source.Aggregated() {
+	if cq.cq.Source.IsRawQuery {
 		return false
 	}
 

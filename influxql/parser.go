@@ -577,6 +577,14 @@ func (p *Parser) parseSelectStatement(tr targetRequirement) (*SelectStatement, e
 		return nil, err
 	}
 
+	// Set if the query is a raw data query or one with an aggregate
+	stmt.IsRawQuery = true
+	WalkFunc(stmt.Fields, func(n Node) {
+		if _, ok := n.(*Call); ok {
+			stmt.IsRawQuery = false
+		}
+	})
+
 	return stmt, nil
 }
 
@@ -1003,7 +1011,7 @@ func (p *Parser) parseCreateContinuousQueryStatement() (*CreateContinuousQuerySt
 	stmt.Source = source
 
 	// validate that the statement has a non-zero group by interval if it is aggregated
-	if source.Aggregated() {
+	if !source.IsRawQuery {
 		d, err := source.GroupByInterval()
 		if d == 0 || err != nil {
 			// rewind so we can output an error with some info

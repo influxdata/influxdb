@@ -598,7 +598,7 @@ type SelectStatement struct {
 	groupByInterval time.Duration
 
 	// if it's a query for raw data values (i.e. not an aggregate)
-	RawQuery bool
+	IsRawQuery bool
 
 	// What fill option the select statement uses, if any
 	Fill FillOption
@@ -621,6 +621,7 @@ func (s *SelectStatement) Clone() *SelectStatement {
 		SOffset:    s.SOffset,
 		Fill:       s.Fill,
 		FillValue:  s.FillValue,
+		IsRawQuery: s.IsRawQuery,
 	}
 	if s.Target != nil {
 		clone.Target = &Target{Measurement: s.Target.Measurement, Database: s.Target.Database}
@@ -750,17 +751,6 @@ func (s *SelectStatement) RequiredPrivileges() ExecutionPrivileges {
 		ep = append(ep, p)
 	}
 	return ep
-}
-
-// Aggregated returns true if the statement uses aggregate functions.
-func (s *SelectStatement) Aggregated() bool {
-	var v bool
-	WalkFunc(s.Fields, func(n Node) {
-		if _, ok := n.(*Call); ok {
-			v = true
-		}
-	})
-	return v
 }
 
 // OnlyTimeDimensions returns true if the statement has a where clause with only time constraints
