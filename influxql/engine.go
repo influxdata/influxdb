@@ -6,6 +6,8 @@ import (
 	"hash/fnv"
 	"sort"
 	"time"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
 // DB represents an interface for creating transactions.
@@ -103,14 +105,9 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 
 	// For group by time queries, limit the number of data points returned by the limit and offset
 	// raw query limits are handled elsewhere
-	warn("> ", m.stmt.IsRawQuery, pointCountInResult)
 	if !m.stmt.IsRawQuery && (m.stmt.Limit > 0 || m.stmt.Offset > 0) {
 		// ensure that the offset isn't higher than the number of points we'd get
 		if m.stmt.Offset > pointCountInResult {
-			out <- &Row{
-				Name: m.MeasurementName,
-				Tags: m.TagSet.Tags,
-			}
 			return
 		}
 
@@ -120,7 +117,6 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 			pointCountInResult = m.stmt.Limit
 		}
 	}
-	warn("< ", m.stmt.Limit)
 
 	// If we are exceeding our MaxGroupByPoints and we aren't a raw query, error out
 	if !m.stmt.IsRawQuery && pointCountInResult > MaxGroupByPoints {
@@ -140,17 +136,28 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 	startTimeBucket := m.TMin / m.interval * m.interval
 
 	for i, _ := range resultTimes {
-		t := startTimeBucket + (int64(i+1) * m.interval * int64(m.stmt.Offset+1)) - m.interval
+		var t int64
+		if m.stmt.Offset > 0 {
+			t = startTimeBucket + (int64(i+1) * m.interval * int64(m.stmt.Offset))
+		} else {
+			t = startTimeBucket + (int64(i+1) * m.interval) - m.interval
+		}
+
+		// If we start getting out of our max time range, then truncate values and return
+		if t > m.TMax && !isRaw {
+			resultValues = resultValues[:i]
+			break
+		}
 		resultTimes[i] = t
 		// we always include time so we need one more column than we have aggregates
 		vals := make([]interface{}, 0, len(aggregates)+1)
 		resultValues[i] = append(vals, time.Unix(0, t).UTC())
 	}
+	spew.Dump(resultValues)
 
 	// This just makes sure that if they specify a start time less than what the start time would be with the offset,
 	// we just reset the start time to the later time to avoid going over data that won't show up in the result.
 	if m.stmt.Offset > 0 && !m.stmt.IsRawQuery {
-		warn(". setting tmin: ", resultTimes[0])
 		m.TMin = resultTimes[0]
 	}
 

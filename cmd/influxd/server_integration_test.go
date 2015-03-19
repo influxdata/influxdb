@@ -218,6 +218,15 @@ func queryAndWait(t *testing.T, nodes Cluster, urlDb, q, expected string, timeou
 		timer    = time.NewTimer(time.Duration(math.MaxInt64))
 	)
 	defer timer.Stop()
+
+	// Check to see if they set the env for duration sleep
+	sleep := 10 * time.Millisecond
+	if d, e := time.ParseDuration(os.Getenv("TEST_SLEEP")); e == nil {
+		// this will limit the http log noise in the test output
+		sleep = d
+		timeout = d + 1
+	}
+
 	if timeout > 0 {
 		timer.Reset(time.Duration(timeout))
 		go func() {
@@ -232,7 +241,7 @@ func queryAndWait(t *testing.T, nodes Cluster, urlDb, q, expected string, timeou
 		} else if atomic.LoadInt32(&timedOut) == 1 {
 			return got, false
 		} else {
-			time.Sleep(10 * time.Millisecond)
+			time.Sleep(sleep)
 		}
 	}
 }
@@ -270,7 +279,7 @@ func runTests_Errors(t *testing.T, nodes Cluster) {
 }
 
 // runTests tests write and query of data. Setting testNumbers allows only a subset of tests to be run.
-func runTestsData(t *testing.T, testName string, nodes Cluster, database, retention string, testNums ...int) {
+func runTestsData(t *testing.T, testName string, nodes Cluster, database, retention string) {
 	t.Logf("Running tests against %d-node cluster", len(nodes))
 
 	// Start by ensuring database and retention policy exist.
@@ -574,12 +583,12 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:03Z",3],["2009-11-10T23:00:04Z",4]]}]}]}`,
 		},
 		{
-			name:     "limit + offset higher than number of points",
+			name:     "limit + offset equal to total number of points",
 			query:    `select foo from "%DB%"."%RP%".limit LIMIT 3 OFFSET 3`,
 			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:05Z",5]]}]}]}`,
 		},
 		{
-			name:     "offset higher than number of points",
+			name:     "limit - offset higher than number of points",
 			query:    `select foo from "%DB%"."%RP%".limit LIMIT 2 OFFSET 20`,
 			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"]}]}]}`,
 		},
@@ -599,14 +608,14 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			expected: `{"results":[{"series":[{"name":"limit","columns":["time","mean"],"values":[["2009-11-10T23:00:03Z",3],["2009-11-10T23:00:04Z",4]]}]}]}`,
 		},
 		{
-			name:     "limit + offset higher than number of points with group by time",
+			name:     "limit + offset equal to the  number of points with group by time",
 			query:    `select mean(foo) from "%DB%"."%RP%".limit WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY time(1s) LIMIT 3 OFFSET 3`,
 			expected: `{"results":[{"series":[{"name":"limit","columns":["time","mean"],"values":[["2009-11-10T23:00:05Z",5]]}]}]}`,
 		},
 		{
-			name:     "offset higher than number of points with group by time",
+			name:     "limit - offset higher than number of points with group by time",
 			query:    `select mean(foo) from "%DB%"."%RP%".limit WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY time(1s) LIMIT 2 OFFSET 20`,
-			expected: `{"results":[{"series":[{"name":"limit","columns":["time","mean"]}]}]}`,
+			expected: `{"results":[{}]}`,
 		},
 
 		// Fill tests
@@ -952,25 +961,23 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		},
 	}
 
+	// See if we should run a subset of this test
+	testPrefix := os.Getenv("TEST_PREFIX")
+	if testPrefix != "" {
+		t.Logf("Skipping all tests that do not match the prefix of %q\n", testPrefix)
+	}
+
 	for i, tt := range tests {
-		// If tests were explicitly requested, only run those tests.
-		if len(testNums) > 0 {
-			var found bool
-			for _, t := range testNums {
-				if i == t {
-					found = true
-					break
-				}
-			}
-			if !found {
-				continue
-			}
-		}
 
 		name := tt.name
 		if name == "" {
 			name = tt.query
 		}
+
+		if testPrefix != "" && !strings.HasPrefix(name, testPrefix) {
+			continue
+		}
+
 		fmt.Printf("TEST: %d: %s\n", i, name)
 		t.Logf("Running test %d: %s", i, name)
 
