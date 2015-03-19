@@ -436,6 +436,20 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			expected: `{"results":[{"series":[{"name":"cpu_n_precision","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]}]}]}`,
 		},
 
+		// Wildcard queries
+		{
+			reset: true,
+			name:  "wildcard queries",
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+				{"name": "cpu", "timestamp": "2000-01-01T00:00:00Z", "tags": {"region": "us-east"}, "fields": {"value": 10}},
+				{"name": "cpu", "timestamp": "2000-01-01T00:00:10Z", "tags": {"region": "us-east"}, "fields": {"val-x": 20}},
+				{"name": "cpu", "timestamp": "2000-01-01T00:00:20Z", "tags": {"region": "us-east"}, "fields": {"value": 30, "val-x": 40}}
+			]}`,
+			query:    `SELECT * FROM cpu`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","val-x","value"],"values":[["2000-01-01T00:00:00Z",null,10],["2000-01-01T00:00:10Z",20,null],["2000-01-01T00:00:20Z",40,30]]}]}]}`,
+		},
+
 		// WHERE fields queries
 		{
 			reset:    true,
