@@ -10,6 +10,8 @@
 - [#2003](https://github.com/influxdb/influxdb/pull/2003): Set timestamp when writing monitoring stats.
 - [#2004](https://github.com/influxdb/influxdb/pull/2004): Limit group by to MaxGroupByPoints (currently 100,000).
 - [#2016](https://github.com/influxdb/influxdb/pull/2016): Fixing bucket alignment for group by. Thanks @jnutzmann
+- [#2021](https://github.com/influxdb/influxdb/pull/2021): Remove unnecessary formatting from log message. Thanks @simonkern
+
 
 ## v0.9.0-rc14 [2015-03-18]
 
