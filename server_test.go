@@ -1234,37 +1234,6 @@ func TestServer_DropSeriesFromMeasurement(t *testing.T) {
 	}
 }
 
-// Ensure that when merging many series together and some of them have a different number of points than others
-// in a group by interval the results are correct
-func TestServer_MergeManySeries(t *testing.T) {
-	c := test.NewMessagingClient()
-	s := OpenServer(c)
-	defer s.Close()
-	s.CreateDatabase("foo")
-	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "raw", Duration: 1 * time.Hour})
-	s.SetDefaultRetentionPolicy("foo", "raw")
-
-	for i := 1; i < 11; i++ {
-		for j := 1; j < 5+i%3; j++ {
-			tags := map[string]string{"host": fmt.Sprintf("server_%d", i)}
-			index, err := s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Timestamp: time.Unix(int64(j), int64(0)), Fields: map[string]interface{}{"value": float64(22)}}})
-			if err != nil {
-				t.Fatalf("unexpected error: %s", err.Error())
-			}
-			c.Sync(index)
-		}
-	}
-
-	results := s.ExecuteQuery(MustParseQuery(`select count(value) from cpu where time >= '1970-01-01T00:00:01Z' AND time <= '1970-01-01T00:00:06Z' group by time(1s)`), "foo", nil)
-	if res := results.Results[0]; res.Err != nil {
-		t.Fatalf("unexpected error: %s", res.Err)
-	} else if len(res.Series) != 1 {
-		t.Fatalf("unexpected row count: %d", len(res.Series))
-	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["time","count"],"values":[["1970-01-01T00:00:01Z",10],["1970-01-01T00:00:02Z",10],["1970-01-01T00:00:03Z",10],["1970-01-01T00:00:04Z",10],["1970-01-01T00:00:05Z",7],["1970-01-01T00:00:06Z",3]]}]}` {
-		t.Fatalf("unexpected row(0): %s", s)
-	}
-}
-
 // Ensure Drop Series can:
 // write to measurement cpu with tags region=uswest host=serverA
 // write to measurement cpu with tags region=uswest host=serverB
