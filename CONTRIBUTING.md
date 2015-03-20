@@ -41,8 +41,8 @@ Contributing to the source code
 ---------------
 
 InfluxDB follows standard Go project structure. This means that all
-your go development are done in $GOPATH/src. GOPATH can be any
-directory under which InfluxDB and all it's dependencies will be
+your go development are done in `$GOPATH/src`. GOPATH can be any
+directory under which InfluxDB and all its dependencies will be
 cloned. For more details on recommended go project's structure, see
 [How to Write Go Code](http://golang.org/doc/code.html) and
 [Go: Best Practices for Production Environments](http://peter.bourgon.org/go-in-production/), or you can just follow
@@ -65,7 +65,7 @@ Signing the CLA
 
 If you are going to be contributing back to InfluxDB please take a
 second to sign our CLA, which can be found
-[on our website](http://influxdb.com/community/cla.html)
+[on our website](http://influxdb.com/community/cla.html).
 
 Installing go
 -------------
@@ -152,7 +152,7 @@ To set the version and commit flags during the build pass the following to the b
 -ldflags="-X main.version $VERSION -X main.commit $COMMIT"
 ```
 
-where $VERSION is the version, and $COMMIT is the git commit hash.
+where `$VERSION` is the version, and `$COMMIT` is the git commit hash.
 
 To run the tests, execute the following command:
 
