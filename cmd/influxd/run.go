@@ -264,6 +264,7 @@ func openBroker(path string, u url.URL, initializing bool, joinURLs []url.URL, w
 	if err := b.Open(path); err != nil {
 		log.Fatalf("failed to open broker at %s : %s", path, err)
 	}
+	log.Printf("broker opened successfully at %s", path)
 
 	// Attach the broker as the finite state machine of the raft log.
 	l.FSM = &messaging.RaftFSM{Broker: b}
@@ -342,6 +343,7 @@ func openServer(config *Config, b *influxdb.Broker, initServer, initBroker bool,
 	if err := s.Open(config.Data.Dir, c); err != nil {
 		log.Fatalf("failed to open data server: %v", err.Error())
 	}
+	log.Printf("data server opened successfully at %s", config.Data.Dir)
 
 	// If the server is uninitialized then initialize or join it.
 	if initServer {
