@@ -90,7 +90,7 @@ func main() {
 	fmt.Println("InfluxDB shell " + version)
 
 	var historyFile string
-	userHomeDir, _ := homedir.Dir()
+	userHomeDir, err := homedir.Dir()
 
 	// Only load history if we can get the user
 	if err == nil {
