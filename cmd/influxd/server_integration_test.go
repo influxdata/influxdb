@@ -90,7 +90,7 @@ func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes, ba
 	// Create the first node, special case.
 	c := baseConfig
 	if c == nil {
-		c = main.NewConfig()
+		c, _ = main.NewConfig()
 	}
 	c.Broker.Dir = filepath.Join(tmpBrokerDir, strconv.Itoa(basePort))
 	c.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(basePort))
@@ -1189,7 +1189,7 @@ func Test_ServerSingleGraphiteIntegration(t *testing.T) {
 	testName := "graphite integration"
 	dir := tempfile()
 	now := time.Now().UTC().Round(time.Millisecond)
-	c := main.NewConfig()
+	c, _ := main.NewConfig()
 	g := main.Graphite{
 		Enabled:  true,
 		Database: "graphite",
@@ -1239,7 +1239,7 @@ func Test_ServerSingleGraphiteIntegration_ZeroDataPoint(t *testing.T) {
 	testName := "graphite integration"
 	dir := tempfile()
 	now := time.Now().UTC().Round(time.Millisecond)
-	c := main.NewConfig()
+	c, _ := main.NewConfig()
 	g := main.Graphite{
 		Enabled:  true,
 		Database: "graphite",
@@ -1290,7 +1290,7 @@ func Test_ServerSingleGraphiteIntegration_NoDatabase(t *testing.T) {
 	testName := "graphite integration"
 	dir := tempfile()
 	now := time.Now().UTC().Round(time.Millisecond)
-	c := main.NewConfig()
+	c, _ := main.NewConfig()
 	g := main.Graphite{
 		Enabled:  true,
 		Port:     2203,

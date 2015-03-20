@@ -230,7 +230,12 @@ func writePIDFile(path string) {
 // parses the configuration from a given path. Sets overrides as needed.
 func parseConfig(path, hostname string) *Config {
 	if path == "" {
-		return NewConfig()
+		c, err := NewConfig()
+		if err != nil {
+			log.Fatalf("failed to generate default config: %s. Please supply an explicit configuration file",
+				err.Error())
+		}
+		return c
 	}
 
 	// Parse configuration.
