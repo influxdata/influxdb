@@ -8,7 +8,7 @@ import (
 	"io"
 	"net/url"
 	"os"
-	"os/user"
+
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -16,6 +16,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/influxdb/influxdb/client"
+	"github.com/mitchellh/go-homedir"
 	"github.com/peterh/liner"
 )
 
@@ -89,10 +90,11 @@ func main() {
 	fmt.Println("InfluxDB shell " + version)
 
 	var historyFile string
-	usr, err := user.Current()
+	userHomeDir, _ := homedir.Dir()
+
 	// Only load history if we can get the user
 	if err == nil {
-		historyFile = filepath.Join(usr.HomeDir, ".influx_history")
+		historyFile = filepath.Join(userHomeDir, ".influx_history")
 
 		if f, err := os.Open(historyFile); err == nil {
 			c.Line.ReadHistory(f)
