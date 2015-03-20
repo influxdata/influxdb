@@ -1454,6 +1454,33 @@ func TestHandler_ProcessContinousQueries(t *testing.T) {
 	}
 }
 
+// Ensure the backup handler can write a snapshot as a tar archive over HTTP.
+func TestBackupHandler(t *testing.T) {
+	// Mock the snapshot.
+	var snapshotter BackupHandlerSnapshotter
+	snapshotter.SnapshotFunc = func() (*influxdb.Snapshot, error) {
+
+	}
+
+	//
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+	}))
+	defer s.Close()
+
+	status, _ := MustHTTP("POST", s.URL+`/process_continuous_queries`, nil, nil, "")
+	if status != http.StatusAccepted {
+		t.Fatalf("unexpected status: %d", status)
+	}
+}
+
+// BackupHandlerSnapshotter is a mock type for the BackupHandler.Snapshotter interface.
+type BackupHandlerSnapshotter struct {
+	SnapshotFunc func() (*influxdb.Snapshot, error)
+}
+
+func (s *BackupHandlerSnapshotter) Snapshot(*influxdb.Snapshot, error) { return s.SnapshotFunc() }
+
 // batchWrite JSON Unmarshal tests
 
 // Utility functions for this test suite.

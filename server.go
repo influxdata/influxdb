@@ -3517,3 +3517,10 @@ func (s *Server) reportStats(version string, clusterID uint64) {
 	client := http.Client{Timeout: time.Duration(5 * time.Second)}
 	go client.Post("http://m.influxdb.com:8086/db/reporting/series?u=reporter&p=influxdb", "application/json", data)
 }
+
+// CreateSnapshotWriter returns a writer for the current snapshot.
+func (s *Server) CreateSnapshotWriter() (*SnapshotWriter, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return createServerSnapshotWriter(s)
+}

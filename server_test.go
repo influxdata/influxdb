@@ -2200,6 +2200,50 @@ func TestServer_RunContinuousQueries(t *testing.T) {
 	verify(3, `{"series":[{"name":"cpu_region","tags":{"region":"us-east"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",25]]},{"name":"cpu_region","tags":{"region":"us-west"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",75]]}]}`)
 }
 
+// Ensure the server can create a snapshot writer.
+func TestServer_CreateSnapshotWriter(t *testing.T) {
+	c := test.NewMessagingClient()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Write metadata.
+	s.CreateDatabase("db")
+	s.CreateRetentionPolicy("db", &influxdb.RetentionPolicy{Name: "raw", Duration: 1 * time.Hour})
+	s.CreateUser("susy", "pass", false)
+
+	// Write one point.
+	index, err := s.WriteSeries("db", "raw", []influxdb.Point{{Name: "cpu", Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(100)}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(1 * time.Second) // FIX: Sync on shard.
+
+	// Create snapshot writer.
+	sw, err := s.CreateSnapshotWriter()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sw.Close()
+
+	// Verify snapshot is correct.
+	//
+	// NOTE: Sizes and indices here are subject to change.
+	// They are tracked here so that we can see when they change over time.
+	if len(sw.Snapshot.Files) != 2 {
+		t.Fatalf("unexpected file count: %d", len(sw.Snapshot.Files))
+	} else if !reflect.DeepEqual(sw.Snapshot.Files[0], influxdb.SnapshotFile{Name: "meta", Size: 45056, Index: 6}) {
+		t.Fatalf("unexpected file(0): %#v", sw.Snapshot.Files[0])
+	} else if !reflect.DeepEqual(sw.Snapshot.Files[1], influxdb.SnapshotFile{Name: "shards/1", Size: 24576, Index: index}) {
+		t.Fatalf("unexpected file(1): %#v", sw.Snapshot.Files[1])
+	}
+
+	// Write to buffer to verify that it does not error or panic.
+	var buf bytes.Buffer
+	if _, err := sw.WriteTo(&buf); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func mustMarshalJSON(v interface{}) string {
 	b, err := json.Marshal(v)
 	if err != nil {
