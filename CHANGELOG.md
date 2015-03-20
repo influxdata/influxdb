@@ -1,5 +1,8 @@
 ## v0.9.0-rc16 [unreleased]
 
+### Bugfixes
+- [#2036](https://github.com/influxdb/influxdb/pull/2036): Don't panic if default storage directory cannot be created.
+
 ## v0.9.0-rc15 [2015-03-19]
 
 ### Features
