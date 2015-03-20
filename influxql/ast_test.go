@@ -258,7 +258,7 @@ func TestSelectStatement_HasWildcard(t *testing.T) {
 
 		// No GROUP BY wildcards, time only
 		{
-			stmt:     `SELECT value FROM cpu GROUP BY time(5ms)`,
+			stmt:     `SELECT mean(value) FROM cpu GROUP BY time(5ms)`,
 			wildcard: false,
 		},
 
@@ -270,7 +270,7 @@ func TestSelectStatement_HasWildcard(t *testing.T) {
 
 		// GROUP BY wildcard with time
 		{
-			stmt:     `SELECT value FROM cpu GROUP BY *,time(1m)`,
+			stmt:     `SELECT mean(value) FROM cpu GROUP BY *,time(1m)`,
 			wildcard: true,
 		},
 
@@ -357,8 +357,8 @@ func TestSelectStatement_RewriteWildcards(t *testing.T) {
 
 		// No GROUP BY wildcards, time only
 		{
-			stmt:    `SELECT value FROM cpu GROUP BY time(5ms)`,
-			rewrite: `SELECT value FROM cpu GROUP BY time(5ms)`,
+			stmt:    `SELECT mean(value) FROM cpu GROUP BY time(5ms)`,
+			rewrite: `SELECT mean(value) FROM cpu GROUP BY time(5ms)`,
 		},
 
 		// GROUP BY wildcard
@@ -369,14 +369,14 @@ func TestSelectStatement_RewriteWildcards(t *testing.T) {
 
 		// GROUP BY wildcard with time
 		{
-			stmt:    `SELECT value FROM cpu GROUP BY *,time(1m)`,
-			rewrite: `SELECT value FROM cpu GROUP BY host, region, time(1m)`,
+			stmt:    `SELECT mean(value) FROM cpu GROUP BY *,time(1m)`,
+			rewrite: `SELECT mean(value) FROM cpu GROUP BY host, region, time(1m)`,
 		},
 
 		// GROUP BY wildarde with fill
 		{
-			stmt:    `SELECT value FROM cpu GROUP BY *,time(1m) fill(0)`,
-			rewrite: `SELECT value FROM cpu GROUP BY host, region, time(1m) fill(0)`,
+			stmt:    `SELECT mean(value) FROM cpu GROUP BY *,time(1m) fill(0)`,
+			rewrite: `SELECT mean(value) FROM cpu GROUP BY host, region, time(1m) fill(0)`,
 		},
 
 		// GROUP BY wildcard with explicit

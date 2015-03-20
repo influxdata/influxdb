@@ -217,7 +217,7 @@ type Batch struct {
 // Return all the measurements from the given DB
 func (h *Handler) showMeasurements(db string, user *influxdb.User) ([]string, error) {
 	var measurements []string
-	results := h.server.ExecuteQuery(&influxql.Query{[]influxql.Statement{&influxql.ShowMeasurementsStatement{}}}, db, user)
+	results := h.server.ExecuteQuery(&influxql.Query{Statements: []influxql.Statement{&influxql.ShowMeasurementsStatement{}}}, db, user)
 	if results.Err != nil {
 		return measurements, results.Err
 	}

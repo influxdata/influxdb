@@ -1,8 +1,9 @@
 ## v0.9.0-rc16 [unreleased]
 
-## Bugfixes
-- [#2037](https://github.com/influxdb/influxdb/pull/2037) Don't check 'configExists' at Run() level
-- [#2039](https://github.com/influxdb/influxdb/pull/2039) Don't panic if getting current use fails
+### Bugfixes
+- [#2037](https://github.com/influxdb/influxdb/pull/2037): Don't check 'configExists' at Run() level
+- [#2039](https://github.com/influxdb/influxdb/pull/2039): Don't panic if getting current use fails
+- [#2034](https://github.com/influxdb/influxdb/pull/2034): Group by should require an aggregate.
 
 ## v0.9.0-rc15 [2015-03-19]
 
