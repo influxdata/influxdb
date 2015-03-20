@@ -2391,7 +2391,7 @@ func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, 
 			}
 		}
 		// make the id the first column
-		r.Columns = append([]string{"id"}, r.Columns...)
+		r.Columns = append([]string{"_id"}, r.Columns...)
 
 		// Append the row to the result.
 		result.Series = append(result.Series, r)

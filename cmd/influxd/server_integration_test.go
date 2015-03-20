@@ -671,7 +671,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		{
 			query:    `SHOW SERIES`,
 			queryDb:  "%DB%",
-			expected: `{"results":[{"series":[{"name":"cpu","columns":["id","host","region"],"values":[[1,"serverA","uswest"]]},{"name":"memory","columns":["id","host","region"],"values":[[2,"serverB","uswest"]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["_id","host","region"],"values":[[1,"serverA","uswest"]]},{"name":"memory","columns":["_id","host","region"],"values":[[2,"serverB","uswest"]]}]}]}`,
 		},
 		{
 			name:     "ensure we can query for memory with both tags",
@@ -692,7 +692,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		{
 			query:    `SHOW SERIES`,
 			queryDb:  "%DB%",
-			expected: `{"results":[{"series":[{"name":"memory","columns":["id","host","region"],"values":[[2,"serverB","uswest"]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"memory","columns":["_id","host","region"],"values":[[2,"serverB","uswest"]]}]}]}`,
 		},
 		{
 			query:    `SELECT * FROM cpu`,
@@ -729,32 +729,32 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		]}`,
 			query:    "SHOW SERIES",
 			queryDb:  "%DB%",
-			expected: `{"results":[{"series":[{"name":"cpu","columns":["id","host","region"],"values":[[1,"server01",""],[2,"server01","uswest"],[3,"server01","useast"],[4,"server02","useast"]]},{"name":"gpu","columns":["id","host","region"],"values":[[5,"server02","useast"],[6,"server03","caeast"]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["_id","host","region"],"values":[[1,"server01",""],[2,"server01","uswest"],[3,"server01","useast"],[4,"server02","useast"]]},{"name":"gpu","columns":["_id","host","region"],"values":[[5,"server02","useast"],[6,"server03","caeast"]]}]}]}`,
 		},
 		{
 			query:    "SHOW SERIES FROM cpu",
 			queryDb:  "%DB%",
-			expected: `{"results":[{"series":[{"name":"cpu","columns":["id","host","region"],"values":[[1,"server01",""],[2,"server01","uswest"],[3,"server01","useast"],[4,"server02","useast"]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["_id","host","region"],"values":[[1,"server01",""],[2,"server01","uswest"],[3,"server01","useast"],[4,"server02","useast"]]}]}]}`,
 		},
 		{
 			query:    "SHOW SERIES WHERE region = 'uswest'",
 			queryDb:  "%DB%",
-			expected: `{"results":[{"series":[{"name":"cpu","columns":["id","host","region"],"values":[[2,"server01","uswest"]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["_id","host","region"],"values":[[2,"server01","uswest"]]}]}]}`,
 		},
 		{
 			query:    "SHOW SERIES WHERE region =~ /ca.*/",
 			queryDb:  "%DB%",
-			expected: `{"results":[{"series":[{"name":"gpu","columns":["id","host","region"],"values":[[6,"server03","caeast"]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"gpu","columns":["_id","host","region"],"values":[[6,"server03","caeast"]]}]}]}`,
 		},
 		{
 			query:    "SHOW SERIES WHERE host !~ /server0[12]/",
 			queryDb:  "%DB%",
-			expected: `{"results":[{"series":[{"name":"gpu","columns":["id","host","region"],"values":[[6,"server03","caeast"]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"gpu","columns":["_id","host","region"],"values":[[6,"server03","caeast"]]}]}]}`,
 		},
 		{
 			query:    "SHOW SERIES FROM cpu WHERE region = 'useast'",
 			queryDb:  "%DB%",
-			expected: `{"results":[{"series":[{"name":"cpu","columns":["id","host","region"],"values":[[3,"server01","useast"],[4,"server02","useast"]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["_id","host","region"],"values":[[3,"server01","useast"],[4,"server02","useast"]]}]}]}`,
 		},
 
 		{
