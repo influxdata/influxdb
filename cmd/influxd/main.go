@@ -149,6 +149,13 @@ func execVersion(args []string) {
 func execConfig(args []string) {
 	// Parse command flags.
 	fs := flag.NewFlagSet("", flag.ExitOnError)
+	fs.Usage = func() {
+		log.Println(`usage: config
+
+	config displays the default configiguration
+						    `)
+	}
+
 	var (
 		configPath = fs.String("config", "", "")
 		hostname   = fs.String("hostname", "", "")
@@ -171,6 +178,7 @@ Usage:
 
 The commands are:
 
+    config               display the default configuration
     join-cluster         create a new node that will join an existing cluster
     run                  run node with existing configuration
     version              displays the InfluxDB version
