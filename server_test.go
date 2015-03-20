@@ -1089,7 +1089,7 @@ func TestServer_DropMeasurement(t *testing.T) {
 		t.Fatalf("unexpected error: %s", res.Err)
 	} else if len(res.Series) != 1 {
 		t.Fatalf("unexpected row count: %d", len(res.Series))
-	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["id","host","region"],"values":[[1,"serverA","uswest"]]}]}` {
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["_id","host","region"],"values":[[1,"serverA","uswest"]]}]}` {
 		t.Fatalf("unexpected row(0): %s", s)
 	}
 
@@ -1173,7 +1173,7 @@ func TestServer_DropSeries(t *testing.T) {
 		t.Fatalf("unexpected error: %s", res.Err)
 	} else if len(res.Series) != 1 {
 		t.Fatalf("unexpected row count: %d", len(res.Series))
-	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["id","host","region"],"values":[[1,"serverA","uswest"]]}]}` {
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["_id","host","region"],"values":[[1,"serverA","uswest"]]}]}` {
 		t.Fatalf("unexpected row(0): %s", s)
 	}
 
@@ -1229,7 +1229,7 @@ func TestServer_DropSeriesFromMeasurement(t *testing.T) {
 		t.Fatalf("unexpected error: %s", res.Err)
 	} else if len(res.Series) != 1 {
 		t.Fatalf("unexpected row count: %d", len(res.Series))
-	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["id","host","region"],"values":[[1,"serverA","uswest"]]}]}` {
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["_id","host","region"],"values":[[1,"serverA","uswest"]]}]}` {
 		t.Fatalf("unexpected row(0): %s", s)
 	}
 }
@@ -1300,7 +1300,7 @@ func TestServer_DropSeriesTagsPreserved(t *testing.T) {
 		t.Fatalf("unexpected error: %s", res.Err)
 	} else if len(res.Series) != 1 {
 		t.Fatalf("unexpected row count: %d", len(res.Series))
-	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["id","host","region"],"values":[[1,"serverA","uswest"],[2,"serverB","uswest"]]}]}` {
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["_id","host","region"],"values":[[1,"serverA","uswest"],[2,"serverB","uswest"]]}]}` {
 		t.Fatalf("unexpected row(0): %s", s)
 	}
 
@@ -1314,7 +1314,7 @@ func TestServer_DropSeriesTagsPreserved(t *testing.T) {
 		t.Fatalf("unexpected error: %s", res.Err)
 	} else if len(res.Series) != 1 {
 		t.Fatalf("unexpected row count: %d", len(res.Series))
-	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["id","host","region"],"values":[[2,"serverB","uswest"]]}]}` {
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["_id","host","region"],"values":[[2,"serverB","uswest"]]}]}` {
 		t.Fatalf("unexpected row(0): %s", s)
 	}
 
@@ -1367,7 +1367,7 @@ func TestServer_ShowSeriesLimitOffset(t *testing.T) {
 		t.Fatalf("unexpected error: %s", res.Err)
 	} else if len(res.Series) != 2 {
 		t.Fatalf("unexpected row count: %d", len(res.Series))
-	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["id","host","region"],"values":[[2,"serverB","us-east"],[3,"serverC","us-west"]]},{"name":"memory","columns":["id","host","region"],"values":[[4,"serverB","us-west"]]}]}` {
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["_id","host","region"],"values":[[2,"serverB","us-east"],[3,"serverC","us-west"]]},{"name":"memory","columns":["_id","host","region"],"values":[[4,"serverB","us-west"]]}]}` {
 		t.Fatalf("unexpected row(0): %s", s)
 	}
 
@@ -1377,7 +1377,7 @@ func TestServer_ShowSeriesLimitOffset(t *testing.T) {
 		t.Fatalf("unexpected error: %s", res.Err)
 	} else if len(res.Series) != 1 {
 		t.Fatalf("unexpected row count: %d", len(res.Series))
-	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"memory","columns":["id","host","region"],"values":[[5,"serverA","us-east"]]}]}` {
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"memory","columns":["_id","host","region"],"values":[[5,"serverA","us-east"]]}]}` {
 		t.Fatalf("unexpected row(0): %s", s)
 	}
 
@@ -1403,7 +1403,7 @@ func TestServer_ShowSeriesLimitOffset(t *testing.T) {
 		t.Fatalf("unexpected error: %s", res.Err)
 	} else if len(res.Series) != 2 {
 		t.Fatalf("unexpected row count: %d", len(res.Series))
-	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["id","host","region"],"values":[[1,"serverA","us-east"],[2,"serverB","us-east"],[3,"serverC","us-west"]]},{"name":"memory","columns":["id","host","region"],"values":[[4,"serverB","us-west"],[5,"serverA","us-east"]]}]}` {
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["_id","host","region"],"values":[[1,"serverA","us-east"],[2,"serverB","us-east"],[3,"serverC","us-west"]]},{"name":"memory","columns":["_id","host","region"],"values":[[4,"serverB","us-west"],[5,"serverA","us-east"]]}]}` {
 		t.Fatalf("unexpected row(0): %s", s)
 	}
 }
