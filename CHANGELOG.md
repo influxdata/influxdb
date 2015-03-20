@@ -1,4 +1,6 @@
-## v0.9.0-rc15 [unreleased]
+## v0.9.0-rc16 [unreleased]
+
+## v0.9.0-rc15 [2015-03-19]
 
 ### Features
 - [#2000](https://github.com/influxdb/influxdb/pull/2000): Log broker path when broker fails to start. Thanks @gst.
