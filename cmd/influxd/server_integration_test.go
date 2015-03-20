@@ -30,6 +30,8 @@ const (
 	batchSize = 4217
 )
 
+type writeFn func(database, retention string) error
+
 // tempfile returns a temporary path.
 func tempfile() string {
 	f, _ := ioutil.TempFile("", "influxdb-")
@@ -289,12 +291,13 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 	// The tests. Within these tests %DB% and %RP% will be replaced with the database and retention passed into
 	// this function.
 	tests := []struct {
-		reset    bool   // Delete and recreate the database.
-		name     string // Test name, for easy-to-read test log output.
-		write    string // If equal to the empty string, no data is written.
-		query    string // If equal to the blank string, no query is executed.
-		queryDb  string // If set, is used as the "db" query param.
-		expected string // If 'query' is equal to the blank string, this is ignored.
+		reset    bool    // Delete and recreate the database.
+		name     string  // Test name, for easy-to-read test log output.
+		write    string  // If equal to the empty string, no data is written.
+		writeFn  writeFn // If non-nil, called after 'write' data (if any) is written.
+		query    string  // If equal to the blank string, no query is executed.
+		queryDb  string  // If set, is used as the "db" query param.
+		expected string  // If 'query' is equal to the blank string, this is ignored.
 	}{
 		// Data read and write tests
 		{
@@ -1000,6 +1003,13 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 
 		if tt.write != "" {
 			write(t, nodes[0], rewriteDbRp(tt.write, database, retention))
+		}
+
+		if tt.writeFn != nil {
+			err := tt.writeFn(database, retention)
+			if err != nil {
+				t.Errorf("Test %d: \"%s\" failed to write data via function: %s\n", i, name, err.Error())
+			}
 		}
 
 		if tt.query != "" {
