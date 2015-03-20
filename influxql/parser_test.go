@@ -71,13 +71,13 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// SELECT statement
 		{
-			s: `SELECT field1, field2 ,field3 AS field_x FROM myseries WHERE host = 'hosta.influxdb.org' GROUP BY time(10h) ORDER BY ASC LIMIT 20 OFFSET 10;`,
+			s: `SELECT mean(field1), sum(field2) ,count(field3) AS field_x FROM myseries WHERE host = 'hosta.influxdb.org' GROUP BY time(10h) ORDER BY ASC LIMIT 20 OFFSET 10;`,
 			stmt: &influxql.SelectStatement{
-				IsRawQuery: true,
+				IsRawQuery: false,
 				Fields: []*influxql.Field{
-					{Expr: &influxql.VarRef{Val: "field1"}},
-					{Expr: &influxql.VarRef{Val: "field2"}},
-					{Expr: &influxql.VarRef{Val: "field3"}, Alias: "field_x"},
+					{Expr: &influxql.Call{Name: "mean", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}}}},
+					{Expr: &influxql.Call{Name: "sum", Args: []influxql.Expr{&influxql.VarRef{Val: "field2"}}}},
+					{Expr: &influxql.Call{Name: "count", Args: []influxql.Expr{&influxql.VarRef{Val: "field3"}}}, Alias: "field_x"},
 				},
 				Sources: []influxql.Source{&influxql.Measurement{Name: "myseries"}},
 				Condition: &influxql.BinaryExpr{
@@ -853,7 +853,7 @@ func TestParser_ParseStatement(t *testing.T) {
 	for i, tt := range tests {
 		stmt, err := influxql.NewParser(strings.NewReader(tt.s)).ParseStatement()
 
-		// We are memoizing a field and we should using sync.Once so for testing we need to...
+		// We are memoizing a field so for testing we need to...
 		if s, ok := tt.stmt.(*influxql.SelectStatement); ok {
 			s.GroupByInterval()
 		}

@@ -585,6 +585,10 @@ func (p *Parser) parseSelectStatement(tr targetRequirement) (*SelectStatement, e
 		}
 	})
 
+	if d, _ := stmt.GroupByInterval(); stmt.IsRawQuery && d > 0 {
+		return nil, fmt.Errorf("group by needs at least one aggregate function")
+	}
+
 	return stmt, nil
 }
 
@@ -690,9 +694,6 @@ func (p *Parser) parseShowSeriesStatement() (*ShowSeriesStatement, error) {
 		return nil, err
 	}
 
-	if d, e := stmt.GroupByInterval(); !stmt.Aggregated() && d > 0 && e == nil {
-		return nil, fmt.Errorf("group by needs at least one aggregate function")
-	}
 	return stmt, nil
 }
 
