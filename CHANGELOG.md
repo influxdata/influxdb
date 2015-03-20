@@ -2,6 +2,7 @@
 
 ## Bugfixes
 - [#2037](https://github.com/influxdb/influxdb/pull/2037) Don't check 'configExists' at Run() level
+- [#2038](https://github.com/influxdb/influxdb/pull/2038) Use current working directory for default storage
 
 ## v0.9.0-rc15 [2015-03-19]
 
