@@ -28,9 +28,12 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 	log.Printf("influxdb started, version %s, commit %s", version, commit)
 
 	// Parse the configuration and determine if a broker and/or server exist.
+	var err error
 	configExists := config != nil
 	if config == nil {
-		config = NewConfig()
+		if config, err = NewConfig(); err != nil {
+			log.Fatalf("Failed to determine configuration: %s", err.Error())
+		}
 	}
 
 	var initBroker, initServer bool
@@ -234,9 +237,13 @@ func writePIDFile(path string) {
 }
 
 // parses the configuration from a given path. Sets overrides as needed.
-func parseConfig(path, hostname string) *Config {
+func parseConfig(path, hostname string) (*Config, error) {
 	if path == "" {
-		return NewConfig()
+		c, err := NewConfig()
+		if err != nil {
+			return nil, err
+		}
+		return c, nil
 	}
 
 	// Parse configuration.
@@ -250,7 +257,7 @@ func parseConfig(path, hostname string) *Config {
 		config.Hostname = hostname
 	}
 
-	return config
+	return config, nil
 }
 
 // creates and initializes a broker.

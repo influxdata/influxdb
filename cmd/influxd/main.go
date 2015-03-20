@@ -107,7 +107,10 @@ func execRun(args []string) {
 	if *configPath == "" {
 		log.Println("No config provided, using default settings")
 	}
-	config := parseConfig(*configPath, *hostname)
+	config, err := parseConfig(*configPath, *hostname)
+	if err != nil {
+		log.Fatalf("failed to parse config: %s", err.Error())
+	}
 
 	// Create a logging writer.
 	logWriter := os.Stderr
@@ -155,7 +158,10 @@ func execConfig(args []string) {
 	)
 	fs.Parse(args)
 
-	config := parseConfig(*configPath, *hostname)
+	config, err := parseConfig(*configPath, *hostname)
+	if err != nil {
+		log.Fatalf("failed to parse config: %s", err.Error())
+	}
 
 	config.Write(os.Stdout)
 }
