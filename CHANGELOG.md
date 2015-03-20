@@ -1,5 +1,8 @@
 ## v0.9.0-rc16 [unreleased]
 
+## Bugfixes
+- [#2037](https://github.com/influxdb/influxdb/pull/2037) Don't check 'configExists' at Run() level
+
 ## v0.9.0-rc15 [2015-03-19]
 
 ### Features
