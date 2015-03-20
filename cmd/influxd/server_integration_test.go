@@ -255,7 +255,6 @@ var mergeMany = func(t *testing.T, node *Node, database, retention string) {
 		for j := 1; j < 5+i%3; j++ {
 			data := fmt.Sprintf(`{"database": "%s", "retentionPolicy": "%s", "points": [{"name": "cpu", "timestamp": "%s", "tags": {"host": "server_%d"}, "fields": {"value": 22}}]}`,
 				database, retention, time.Unix(int64(j), int64(0)).Format(time.RFC3339), i)
-			fmt.Println(data)
 			write(t, node, data)
 		}
 
