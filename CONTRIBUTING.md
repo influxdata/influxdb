@@ -48,6 +48,18 @@ cloned. For more details on recommended go project's structure, see
 [Go: Best Practices for Production Environments](http://peter.bourgon.org/go-in-production/), or you can just follow
 the steps below.
 
+Submitting a pull request
+------------
+To submit a pull request you should fork the InfluxDB repository, and make your change on a feature branch of your fork. Then generate a pull request from your branch against *master* of the InfluxDB repository. Include in your pull request details of your change -- the why *and* the how -- as well as the testing your performed. Also, be sure to run the test suite with your change in place. Changes that cause tests to fail cannot be merged.
+
+There will usually be some back and forth as we finalize the change, but once that completes it may be merged.
+
+Use of third-party packages
+------------
+A third-party package is defined as one that is not part of the standard Go distribution. Generally speaking we prefer to minimize our use of third-party packages, and avoid them unless absolutely necessarly. We'll often write a little bit of code rather than pull in a third-party package. Of course, we do use some third-party packages -- most importantly we use [BoltDB](https://github.com/boltdb/bolt) as the storage engine. So to maximise the chance your change will be accepted by us, use only the standard libaries, or the third-party packages we have decided to use.
+
+For rationale, check out the post [The Case Against Third Party Libraries](http://blog.gopheracademy.com/advent-2014/case-against-3pl/)
+
 Signing the CLA
 ---------------
 
@@ -159,12 +171,6 @@ To install go cover, run the following command:
 ```
 go get golang.org/x/tools/cmd/cover
 ```
-
-Submitting a pull request
-------------
-To submit a pull request you should fork the InfluxDB repository, and make your change on a feature branch of your fork. Then generate a pull request from your branch against *master* of the InfluxDB repository. Include in your pull request details of your change -- the why *and* the how -- as well as the testing your performed. Also, be sure to run the test suite with your change in place. Changes that cause tests to fail cannot be merged.
-
-There will usually be some back and forth as we finalize the change, but once that completes it may be merged.
 
 Useful links
 ------------
