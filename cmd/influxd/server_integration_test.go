@@ -30,7 +30,7 @@ const (
 	batchSize = 4217
 )
 
-type writeFn func(database, retention string) error
+type writeFn func(t *testing.T, node *Node, database, retention string)
 
 // tempfile returns a temporary path.
 func tempfile() string {
@@ -248,6 +248,20 @@ func queryAndWait(t *testing.T, nodes Cluster, urlDb, q, expected string, timeou
 	}
 }
 
+// mergeMany ensures that when merging many series together and some of them have a different number
+// of points than others in a group by interval the results are correct
+var mergeMany = func(t *testing.T, node *Node, database, retention string) {
+	for i := 1; i < 11; i++ {
+		for j := 1; j < 5+i%3; j++ {
+			data := fmt.Sprintf(`{"database": "%s", "retentionPolicy": "%s", "points": [{"name": "cpu", "timestamp": "%s", "tags": {"host": "server_%d"}, "fields": {"value": 22}}]}`,
+				database, retention, time.Unix(int64(j), int64(0)).Format(time.RFC3339), i)
+			fmt.Println(data)
+			write(t, node, data)
+		}
+
+	}
+}
+
 // runTests_Errors tests some basic error cases.
 func runTests_Errors(t *testing.T, nodes Cluster) {
 	t.Logf("Running tests against %d-node cluster", len(nodes))
@@ -346,6 +360,16 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			query:    `SELECT value FROM cpu WHERE time >= '3000-01-01 00:00:05'`,
 			queryDb:  "%DB%",
 			expected: `{"results":[{}]}`,
+		},
+
+		// Merge tests.
+		{
+			reset:    true,
+			name:     "merge many",
+			writeFn:  mergeMany,
+			query:    `SELECT count(value) FROM cpu WHERE time >= '1970-01-01T00:00:01Z' AND time <= '1970-01-01T00:00:06Z' GROUP BY time(1s)`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","count"],"values":[["1970-01-01T00:00:01Z",10],["1970-01-01T00:00:02Z",10],["1970-01-01T00:00:03Z",10],["1970-01-01T00:00:04Z",10],["1970-01-01T00:00:05Z",7],["1970-01-01T00:00:06Z",3]]}]}]}`,
 		},
 
 		// FROM /regex/
@@ -1006,10 +1030,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		}
 
 		if tt.writeFn != nil {
-			err := tt.writeFn(database, retention)
-			if err != nil {
-				t.Errorf("Test %d: \"%s\" failed to write data via function: %s\n", i, name, err.Error())
-			}
+			tt.writeFn(t, nodes[0], database, retention)
 		}
 
 		if tt.query != "" {
