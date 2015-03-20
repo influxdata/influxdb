@@ -4,7 +4,7 @@ import (
 	"sync"
 )
 
-// Int representes a 64-bit signed integer which can be updated atomically.
+// Int representes a 64-bit signed integer which can be updated automically.
 type Int struct {
 	mu sync.RWMutex
 	i  int64
