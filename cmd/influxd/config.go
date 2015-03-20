@@ -7,7 +7,6 @@ import (
 	"net"
 	"net/url"
 	"os"
-	"os/user"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -16,6 +15,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/influxdb/influxdb/collectd"
 	"github.com/influxdb/influxdb/graphite"
+	"github.com/mitchellh/go-homedir"
 )
 
 const (
@@ -153,13 +153,13 @@ type Config struct {
 
 // NewConfig returns an instance of Config with reasonable defaults.
 func NewConfig() *Config {
-	u, _ := user.Current()
+	userHomeDir, _ := homedir.Dir()
 
 	c := &Config{}
-	c.Broker.Dir = filepath.Join(u.HomeDir, ".influxdb/broker")
+	c.Broker.Dir = filepath.Join(userHomeDir, ".influxdb/broker")
 	c.Broker.Port = DefaultBrokerPort
 	c.Broker.Timeout = Duration(1 * time.Second)
-	c.Data.Dir = filepath.Join(u.HomeDir, ".influxdb/data")
+	c.Data.Dir = filepath.Join(userHomeDir, ".influxdb/data")
 	c.Data.Port = DefaultDataPort
 	c.Data.RetentionAutoCreate = true
 	c.Data.RetentionCheckEnabled = true
