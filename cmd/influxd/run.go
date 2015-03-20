@@ -27,12 +27,6 @@ import (
 func Run(config *Config, join, version string, logWriter *os.File) (*messaging.Broker, *influxdb.Server) {
 	log.Printf("influxdb started, version %s, commit %s", version, commit)
 
-	// Parse the configuration and determine if a broker and/or server exist.
-	configExists := config != nil
-	if config == nil {
-		config = NewConfig()
-	}
-
 	var initBroker, initServer bool
 	if initBroker = !fileExists(config.BrokerDir()); initBroker {
 		log.Printf("Broker directory missing. Need to create a broker.")
@@ -86,7 +80,7 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 	}
 
 	// Open server, initialize or join as necessary.
-	s := openServer(config, b, initServer, initBroker, configExists, joinURLs, logWriter)
+	s := openServer(config, b, initServer, initBroker, joinURLs, logWriter)
 	s.SetAuthenticationEnabled(config.Authentication.Enabled)
 
 	// Enable retention policy enforcement if requested.
@@ -310,10 +304,10 @@ func joinLog(l *raft.Log, joinURLs []url.URL) {
 }
 
 // creates and initializes a server.
-func openServer(config *Config, b *influxdb.Broker, initServer, initBroker, configExists bool, joinURLs []url.URL, w io.Writer) *influxdb.Server {
-	// Use broker URL is there is no config and there are no join URLs passed.
+func openServer(config *Config, b *influxdb.Broker, initServer, initBroker bool, joinURLs []url.URL, w io.Writer) *influxdb.Server {
+	// Use broker URL if there are no join URLs passed.
 	clientJoinURLs := joinURLs
-	if !configExists || len(joinURLs) == 0 {
+	if len(joinURLs) == 0 {
 		clientJoinURLs = []url.URL{b.URL()}
 	}
 
