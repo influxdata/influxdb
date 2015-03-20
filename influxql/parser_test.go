@@ -787,6 +787,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `SELECT field1 FROM myseries ORDER BY 1`, err: `found 1, expected identifier, ASC, or DESC at line 1, char 38`},
 		{s: `SELECT field1 AS`, err: `found EOF, expected identifier at line 1, char 18`},
 		{s: `SELECT field1 FROM 12`, err: `found 12, expected identifier, regex at line 1, char 20`},
+		{s: `SELECT field1 FROM foo group by time(1s)`, err: `group by needs at least one aggregate function`},
 		{s: `SELECT 1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 FROM myseries`, err: `unable to parse number at line 1, char 8`},
 		{s: `SELECT 10.5h FROM myseries`, err: `found h, expected FROM at line 1, char 12`},
 		{s: `DELETE`, err: `found EOF, expected FROM at line 1, char 8`},
@@ -852,6 +853,10 @@ func TestParser_ParseStatement(t *testing.T) {
 	for i, tt := range tests {
 		stmt, err := influxql.NewParser(strings.NewReader(tt.s)).ParseStatement()
 
+		// We are memoizing a field and we should using sync.Once so for testing we need to...
+		if s, ok := tt.stmt.(*influxql.SelectStatement); ok {
+			s.GroupByInterval()
+		}
 		if !reflect.DeepEqual(tt.err, errstring(err)) {
 			t.Errorf("%d. %q: error mismatch:\n  exp=%s\n  got=%s\n\n", i, tt.s, tt.err, err)
 		} else if st, ok := stmt.(*influxql.CreateContinuousQueryStatement); ok { // if it's a CQ, there is a non-exported field that gets memoized during parsing that needs to be set

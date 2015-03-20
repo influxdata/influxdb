@@ -258,7 +258,7 @@ func TestSelectStatement_HasWildcard(t *testing.T) {
 
 		// No GROUP BY wildcards, time only
 		{
-			stmt:     `SELECT value FROM cpu GROUP BY time(5ms)`,
+			stmt:     `SELECT mean(value) FROM cpu GROUP BY time(5ms)`,
 			wildcard: false,
 		},
 
@@ -357,8 +357,8 @@ func TestSelectStatement_RewriteWildcards(t *testing.T) {
 
 		// No GROUP BY wildcards, time only
 		{
-			stmt:    `SELECT value FROM cpu GROUP BY time(5ms)`,
-			rewrite: `SELECT value FROM cpu GROUP BY time(5ms)`,
+			stmt:    `SELECT mean(value) FROM cpu GROUP BY time(5ms)`,
+			rewrite: `SELECT mean(value) FROM cpu GROUP BY time(5ms)`,
 		},
 
 		// GROUP BY wildcard
