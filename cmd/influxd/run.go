@@ -230,7 +230,12 @@ func writePIDFile(path string) {
 // parses the configuration from a given path. Sets overrides as needed.
 func parseConfig(path, hostname string) *Config {
 	if path == "" {
-		return NewConfig()
+		c, err := NewConfig()
+		if err != nil {
+			log.Fatalf("failed to generate default config: %s. Please supply an explicit configuration file",
+				err.Error())
+		}
+		return c
 	}
 
 	// Parse configuration.
@@ -264,6 +269,7 @@ func openBroker(path string, u url.URL, initializing bool, joinURLs []url.URL, w
 	if err := b.Open(path); err != nil {
 		log.Fatalf("failed to open broker at %s : %s", path, err)
 	}
+	log.Printf("broker opened at %s", path)
 
 	// Attach the broker as the finite state machine of the raft log.
 	l.FSM = &messaging.RaftFSM{Broker: b}
@@ -342,6 +348,7 @@ func openServer(config *Config, b *influxdb.Broker, initServer, initBroker bool,
 	if err := s.Open(config.Data.Dir, c); err != nil {
 		log.Fatalf("failed to open data server: %v", err.Error())
 	}
+	log.Printf("data server opened at %s", config.Data.Dir)
 
 	// If the server is uninitialized then initialize or join it.
 	if initServer {

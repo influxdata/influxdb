@@ -2,6 +2,7 @@
 
 ## Bugfixes
 - [#2037](https://github.com/influxdb/influxdb/pull/2037) Don't check 'configExists' at Run() level
+- [#2039](https://github.com/influxdb/influxdb/pull/2039) Don't panic if getting current use fails
 
 ## v0.9.0-rc15 [2015-03-19]
 
