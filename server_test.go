@@ -1424,57 +1424,6 @@ func TestServer_RawDataReturnsInOrder(t *testing.T) {
 	}
 }
 
-// Ensure that limit and offset work
-func TestServer_LimitAndOffset(t *testing.T) {
-	c := test.NewMessagingClient()
-	defer c.Close()
-	s := OpenServer(c)
-	defer s.Close()
-	s.CreateDatabase("foo")
-	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "raw", Duration: 1 * time.Hour})
-	s.SetDefaultRetentionPolicy("foo", "raw")
-
-	for i := 1; i < 10; i++ {
-		host := fmt.Sprintf("server-%d", i)
-		s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east", "host": host}, Timestamp: time.Unix(int64(i), 0), Fields: map[string]interface{}{"value": float64(i)}}})
-	}
-
-	results := s.ExecuteQuery(MustParseQuery(`SELECT count(value) FROM cpu GROUP BY * SLIMIT 20`), "foo", nil)
-	if res := results.Results[0]; res.Err != nil {
-		t.Fatalf("unexpected error during COUNT: %s", res.Err)
-	} else if len(res.Series) != 9 {
-		t.Fatalf("unexpected 9 series back but got %d", len(res.Series))
-	}
-
-	results = s.ExecuteQuery(MustParseQuery(`SELECT count(value) FROM cpu GROUP BY * SLIMIT 2 SOFFSET 1`), "foo", nil)
-	expected := `{"series":[{"name":"cpu","tags":{"host":"server-2","region":"us-east"},"columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]},{"name":"cpu","tags":{"host":"server-3","region":"us-east"},"columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]}]}`
-	if res := results.Results[0]; res.Err != nil {
-		t.Fatalf("unexpected error during COUNT: %s", res.Err)
-	} else if s := mustMarshalJSON(res); s != expected {
-		t.Fatalf("unexpected row(0) during COUNT:\n  exp: %s\n  got: %s", expected, s)
-	}
-
-	results = s.ExecuteQuery(MustParseQuery(`SELECT count(value) FROM cpu GROUP BY * SLIMIT 2 SOFFSET 3`), "foo", nil)
-	expected = `{"series":[{"name":"cpu","tags":{"host":"server-4","region":"us-east"},"columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]},{"name":"cpu","tags":{"host":"server-5","region":"us-east"},"columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]}]}`
-	if res := results.Results[0]; res.Err != nil {
-		t.Fatalf("unexpected error during COUNT: %s", res.Err)
-	} else if s := mustMarshalJSON(res); s != expected {
-		t.Fatalf("unexpected row(0) during COUNT:\n  exp: %s\n  got: %s", expected, s)
-	}
-
-	results = s.ExecuteQuery(MustParseQuery(`SELECT count(value) FROM cpu GROUP BY * SLIMIT 3 SOFFSET 8`), "foo", nil)
-	if res := results.Results[0]; res.Err != nil {
-		t.Fatalf("unexpected error during COUNT: %s", res.Err)
-	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","tags":{"host":"server-9","region":"us-east"},"columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]}]}` {
-		t.Fatalf("unexpected row(0) during COUNT: %s", s)
-	}
-
-	results = s.ExecuteQuery(MustParseQuery(`SELECT count(value) FROM cpu GROUP BY * SLIMIT 3 SOFFSET 20`), "foo", nil)
-	if res := results.Results[0]; res.Err != nil {
-		t.Fatalf("unexpected error during COUNT: %s", res.Err)
-	}
-}
-
 func TestServer_CreateShardGroupIfNotExist(t *testing.T) {
 	c := test.NewMessagingClient()
 	defer c.Close()
