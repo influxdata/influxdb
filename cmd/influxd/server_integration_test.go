@@ -261,6 +261,14 @@ var mergeMany = func(t *testing.T, node *Node, database, retention string) {
 	}
 }
 
+var limitAndOffset = func(t *testing.T, node *Node, database, retention string) {
+	for i := 1; i < 10; i++ {
+		data := fmt.Sprintf(`{"database": "%s", "retentionPolicy": "%s", "points": [{"name": "cpu", "timestamp": "%s", "tags": {"region": "us-east", "host": "server-%d"}, "fields": {"value": %d}}]}`,
+			database, retention, time.Unix(int64(i), int64(0)).Format(time.RFC3339), i, i)
+		write(t, node, data)
+	}
+}
+
 // runTests_Errors tests some basic error cases.
 func runTests_Errors(t *testing.T, nodes Cluster) {
 	t.Logf("Running tests against %d-node cluster", len(nodes))
@@ -369,6 +377,26 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			query:    `SELECT count(value) FROM cpu WHERE time >= '1970-01-01T00:00:01Z' AND time <= '1970-01-01T00:00:06Z' GROUP BY time(1s)`,
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","count"],"values":[["1970-01-01T00:00:01Z",10],["1970-01-01T00:00:02Z",10],["1970-01-01T00:00:03Z",10],["1970-01-01T00:00:04Z",10],["1970-01-01T00:00:05Z",7],["1970-01-01T00:00:06Z",3]]}]}]}`,
+		},
+
+		// Limit and offset
+		{
+			reset:    true,
+			name:     "limit and offset",
+			writeFn:  limitAndOffset,
+			query:    `SELECT count(value) FROM cpu GROUP BY * SLIMIT 2 SOFFSET 1`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","tags":{"host":"server-2","region":"us-east"},"columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]},{"name":"cpu","tags":{"host":"server-3","region":"us-east"},"columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]}]}]}`,
+		},
+		{
+			query:    `SELECT count(value) FROM cpu GROUP BY * SLIMIT 2 SOFFSET 3`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","tags":{"host":"server-4","region":"us-east"},"columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]},{"name":"cpu","tags":{"host":"server-5","region":"us-east"},"columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]}]}]}`,
+		},
+		{
+			query:    `SELECT count(value) FROM cpu GROUP BY * SLIMIT 3 SOFFSET 8`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","tags":{"host":"server-9","region":"us-east"},"columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]}]}]}`,
 		},
 
 		// FROM /regex/
