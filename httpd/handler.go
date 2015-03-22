@@ -1,7 +1,6 @@
 package httpd
 
 import (
-	"archive/tar"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -634,12 +633,12 @@ func recovery(inner http.Handler, name string, weblog *log.Logger) http.Handler 
 	})
 }
 
-// BackupHandler streams out the metastore and all shard databases as a tar archive.
-type BackupHandler struct {
-	CreateSnapshotWriterFunc func(*influxdb.SnapshotWriter, error)
+// SnapshotHandler streams out a snapshot from the server.
+type SnapshotHandler struct {
+	CreateSnapshotWriter func() (*influxdb.SnapshotWriter, error)
 }
 
-func (h *BackupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *SnapshotHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Retrieve a snapshot from the server.
 	sw, err := h.CreateSnapshotWriter()
 	if err != nil {
@@ -651,7 +650,6 @@ func (h *BackupHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// TODO: Subtract existing snapshot from writer.
 
 	// Write to response.
-	w.Header().Set("Content-Length", strconv.FormatInt(sw.Size(), 10))
 	if _, err := sw.WriteTo(w); err != nil {
 		httpError(w, "error writing snapshot: "+err.Error(), false, http.StatusInternalServerError)
 		return

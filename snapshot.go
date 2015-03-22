@@ -7,6 +7,7 @@ import (
 	"io"
 	"path"
 	"path/filepath"
+	"time"
 
 	"github.com/boltdb/bolt"
 )
@@ -14,6 +15,32 @@ import (
 // Snapshot represents the state of the Server at a given time.
 type Snapshot struct {
 	Files []SnapshotFile `json:"files"`
+}
+
+// Diff returns a Snapshot of files that are newer in s than other.
+func (s *Snapshot) Diff(other *Snapshot) *Snapshot {
+	diff := &Snapshot{}
+
+	// Find versions of files that are newer in s.
+loop:
+	for _, a := range s.Files {
+		// Try to find a newer version of the file in other.
+		// If found then don't append this file and move to the next file.
+		for _, b := range other.Files {
+			if a.Name != b.Name {
+				continue
+			} else if a.Index <= b.Index {
+				continue loop
+			} else {
+				break
+			}
+		}
+
+		// Append the newest version.
+		diff.Files = append(diff.Files, a)
+	}
+
+	return diff
 }
 
 // SnapshotFile represents a single file in a Snapshot.
@@ -108,7 +135,12 @@ func (sw *SnapshotWriter) writeManifestTo(tw *tar.Writer) error {
 	}
 
 	// Write header & file.
-	if err := tw.WriteHeader(&tar.Header{Name: "manifest", Size: int64(len(b))}); err != nil {
+	if err := tw.WriteHeader(&tar.Header{
+		Name:    "manifest",
+		Size:    int64(len(b)),
+		Mode:    0666,
+		ModTime: time.Now(),
+	}); err != nil {
 		return fmt.Errorf("write header: %s", err)
 	}
 	if _, err := tw.Write(b); err != nil {
@@ -128,8 +160,10 @@ func (sw *SnapshotWriter) writeFileTo(tw *tar.Writer, f *SnapshotFile) error {
 
 	// Write file header.
 	if err := tw.WriteHeader(&tar.Header{
-		Name: f.Name,
-		Size: f.Size,
+		Name:    f.Name,
+		Size:    f.Size,
+		Mode:    0666,
+		ModTime: time.Now(),
 	}); err != nil {
 		return fmt.Errorf("write header: file=%s, err=%s", f.Name, err)
 	}
@@ -160,39 +194,22 @@ func createServerSnapshotWriter(s *Server) (*SnapshotWriter, error) {
 	sw := NewSnapshotWriter()
 
 	if err := func() error {
-		// Create snapshot file for metastore.
-		tx, err := s.meta.db.Begin(false)
+		f, fw, err := createMetaSnapshotFile(s.meta)
 		if err != nil {
-			return fmt.Errorf("metastore begin: %s", err)
+			return fmt.Errorf("create meta snapshot file: %s", err)
 		}
-		name := "meta"
-		sw.Snapshot.Files = append(sw.Snapshot.Files, SnapshotFile{
-			Name:  name,
-			Size:  tx.Size(),
-			Index: (&metatx{tx}).index(),
-		})
-		sw.FileWriters[name] = &boltTxCloser{tx}
+		sw.Snapshot.Files = append(sw.Snapshot.Files, *f)
+		sw.FileWriters[f.Name] = fw
 
 		// Create files for each shard.
 		for _, sh := range s.shards {
-			// Ignore shard if it's not owned by the server.
-			if sh.store == nil {
-				continue
-			}
-
-			// Begin transaction and create snapshot file.
-			tx, err := sh.store.Begin(false)
+			f, fw, err := createShardSnapshotFile(sh)
 			if err != nil {
-				return fmt.Errorf("shard begin: id=%d, err=%s", sh.ID, err)
+				return fmt.Errorf("create meta snapshot file: id=%d, err=%s", sh.ID, err)
+			} else if f != nil {
+				sw.Snapshot.Files = append(sw.Snapshot.Files, *f)
+				sw.FileWriters[f.Name] = fw
 			}
-
-			name := path.Join("shards", filepath.Base(sh.store.Path()))
-			sw.Snapshot.Files = append(sw.Snapshot.Files, SnapshotFile{
-				Name:  name,
-				Size:  tx.Size(),
-				Index: shardMetaIndex(tx),
-			})
-			sw.FileWriters[name] = &boltTxCloser{tx}
 		}
 
 		return nil
@@ -202,6 +219,43 @@ func createServerSnapshotWriter(s *Server) (*SnapshotWriter, error) {
 	}
 
 	return sw, nil
+}
+
+func createMetaSnapshotFile(meta *metastore) (*SnapshotFile, SnapshotFileWriter, error) {
+	// Begin transaction.
+	tx, err := meta.db.Begin(false)
+	if err != nil {
+		return nil, nil, fmt.Errorf("begin: %s", err)
+	}
+
+	// Create and return file and writer.
+	f := &SnapshotFile{
+		Name:  "meta",
+		Size:  tx.Size(),
+		Index: (&metatx{tx}).index(),
+	}
+	return f, &boltTxCloser{tx}, nil
+}
+
+func createShardSnapshotFile(sh *Shard) (*SnapshotFile, SnapshotFileWriter, error) {
+	// Ignore shard if it's not owned by the server.
+	if sh.store == nil {
+		return nil, nil, nil
+	}
+
+	// Begin transaction.
+	tx, err := sh.store.Begin(false)
+	if err != nil {
+		return nil, nil, fmt.Errorf("begin: %s", err)
+	}
+
+	// Create and return file and writer.
+	f := &SnapshotFile{
+		Name:  path.Join("shards", filepath.Base(sh.store.Path())),
+		Size:  tx.Size(),
+		Index: shardMetaIndex(tx),
+	}
+	return f, &boltTxCloser{tx}, nil
 }
 
 // SnapshotFileWriter is the interface used for writing a file to a snapshot.
@@ -217,3 +271,17 @@ type boltTxCloser struct {
 
 // Close rollsback the transaction.
 func (tx *boltTxCloser) Close() error { return tx.Rollback() }
+
+// NopWriteToCloser returns an io.WriterTo that implements io.Closer.
+func NopWriteToCloser(w io.WriterTo) interface {
+	io.WriterTo
+	io.Closer
+} {
+	return &nopWriteToCloser{w}
+}
+
+type nopWriteToCloser struct {
+	io.WriterTo
+}
+
+func (w *nopWriteToCloser) Close() error { return nil }

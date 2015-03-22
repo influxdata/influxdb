@@ -1,10 +1,12 @@
 package httpd_test
 
 import (
+	"archive/tar"
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -1454,32 +1456,45 @@ func TestHandler_ProcessContinousQueries(t *testing.T) {
 	}
 }
 
-// Ensure the backup handler can write a snapshot as a tar archive over HTTP.
-func TestBackupHandler(t *testing.T) {
-	// Mock the snapshot.
-	var snapshotter BackupHandlerSnapshotter
-	snapshotter.SnapshotFunc = func() (*influxdb.Snapshot, error) {
-
+// Ensure the snapshot handler can write a snapshot as a tar archive over HTTP.
+func TestSnapshotHandler(t *testing.T) {
+	// Create handler and mock the snapshot creator.
+	var h httpd.SnapshotHandler
+	h.CreateSnapshotWriter = func() (*influxdb.SnapshotWriter, error) {
+		return &influxdb.SnapshotWriter{
+			Snapshot: &influxdb.Snapshot{
+				Files: []influxdb.SnapshotFile{{Name: "meta", Size: 5, Index: 12}},
+			},
+			FileWriters: map[string]influxdb.SnapshotFileWriter{
+				"meta": influxdb.NopWriteToCloser(bytes.NewBufferString("55555")),
+			},
+		}, nil
 	}
 
-	//
-	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// Execute handler.
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, nil)
 
-	}))
-	defer s.Close()
+	// Verify snapshot was to response.
+	if w.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", w.Code)
+	} else if w.Body == nil {
+		t.Fatal("body not written")
+	}
 
-	status, _ := MustHTTP("POST", s.URL+`/process_continuous_queries`, nil, nil, "")
-	if status != http.StatusAccepted {
-		t.Fatalf("unexpected status: %d", status)
+	// Read snapshot.
+	tr := tar.NewReader(w.Body)
+	if hdr, err := tr.Next(); err != nil {
+		t.Fatal(err)
+	} else if hdr.Name != "manifest" {
+		t.Fatalf("unexpected snapshot file: %s", hdr.Name)
+	}
+	if b, err := ioutil.ReadAll(tr); err != nil {
+		t.Fatal(err)
+	} else if string(b) != `{"files":[{"name":"meta","size":5,"index":12}]}` {
+		t.Fatalf("unexpected manifest: %s", b)
 	}
 }
-
-// BackupHandlerSnapshotter is a mock type for the BackupHandler.Snapshotter interface.
-type BackupHandlerSnapshotter struct {
-	SnapshotFunc func() (*influxdb.Snapshot, error)
-}
-
-func (s *BackupHandlerSnapshotter) Snapshot(*influxdb.Snapshot, error) { return s.SnapshotFunc() }
 
 // batchWrite JSON Unmarshal tests
 

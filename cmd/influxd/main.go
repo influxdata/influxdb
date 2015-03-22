@@ -69,7 +69,10 @@ func main() {
 	case "":
 		execRun(args)
 	case "backup":
-		execBackup(args[1:])
+		cmd := NewBackupCommand()
+		if err := cmd.Run(args[1:]...); err != nil {
+			log.Fatalf("backup: %s", err)
+		}
 	case "restore":
 		execRestore(args[1:])
 	case "version":
@@ -123,20 +126,6 @@ func execRun(args []string) {
 
 	// Wait indefinitely.
 	<-(chan struct{})(nil)
-}
-
-// execBackup connects to a data node and downloads a snapshot.
-func execBackup(args []string) {
-	// Parse command line arguments.
-	fs := flag.NewFlagSet("", flag.ExitOnError)
-	var (
-		host = fs.String("host", "", "")
-		path = fs.String("output", "", "")
-	)
-	fs.Usage = printBackupUsage
-	fs.Parse(args)
-
-	Backup(*host, *path)
 }
 
 // execRestore restores a backup archive to the data directory and bootstraps the broker.

@@ -5,10 +5,77 @@ import (
 	"bytes"
 	"io"
 	"io/ioutil"
+	"reflect"
 	"testing"
 
 	"github.com/influxdb/influxdb"
 )
+
+// Ensure a snapshot can be diff'd so that only newer files are retrieved.
+func TestSnapshot_Diff(t *testing.T) {
+	for i, tt := range []struct {
+		s      *influxdb.Snapshot
+		other  *influxdb.Snapshot
+		result *influxdb.Snapshot
+	}{
+		// 0. Mixed higher, lower, equal indices.
+		{
+			s: &influxdb.Snapshot{Files: []influxdb.SnapshotFile{
+				{Name: "a", Index: 1},  // remove: lower index
+				{Name: "b", Index: 10}, // remove: equal index
+				{Name: "c", Index: 21}, // keep: higher index
+				{Name: "d", Index: 15}, // keep: higher index
+			}},
+			other: &influxdb.Snapshot{Files: []influxdb.SnapshotFile{
+				{Name: "a", Index: 2},
+				{Name: "b", Index: 10},
+				{Name: "c", Index: 11},
+				{Name: "d", Index: 14},
+			}},
+			result: &influxdb.Snapshot{Files: []influxdb.SnapshotFile{
+				{Name: "c", Index: 21},
+				{Name: "d", Index: 15},
+			}},
+		},
+
+		// 1. Files in other-only should not be added to diff.
+		{
+			s: &influxdb.Snapshot{Files: []influxdb.SnapshotFile{
+				{Name: "a", Index: 2},
+			}},
+			other: &influxdb.Snapshot{Files: []influxdb.SnapshotFile{
+				{Name: "a", Index: 1},
+				{Name: "b", Index: 10},
+			}},
+			result: &influxdb.Snapshot{Files: []influxdb.SnapshotFile{
+				{Name: "a", Index: 2},
+			}},
+		},
+
+		// 2. Files in s-only should be added to diff.
+		{
+			s: &influxdb.Snapshot{Files: []influxdb.SnapshotFile{
+				{Name: "a", Index: 2},
+			}},
+			other: &influxdb.Snapshot{Files: []influxdb.SnapshotFile{}},
+			result: &influxdb.Snapshot{Files: []influxdb.SnapshotFile{
+				{Name: "a", Index: 2},
+			}},
+		},
+
+		// 3. Empty snapshots should return empty diffs.
+		{
+			s:      &influxdb.Snapshot{Files: []influxdb.SnapshotFile{}},
+			other:  &influxdb.Snapshot{Files: []influxdb.SnapshotFile{}},
+			result: &influxdb.Snapshot{Files: nil},
+		},
+	} {
+		result := tt.s.Diff(tt.other)
+		if !reflect.DeepEqual(tt.result, result) {
+			t.Errorf("%d. mismatch:\n\nexp=%#v\n\ngot=%#v", i, tt.result, result)
+		}
+	}
+}
 
 // Ensure a snapshot writer can write a set of files to an archive
 func TestSnapshotWriter(t *testing.T) {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -12,65 +13,117 @@ import (
 // BackupSuffix is a suffix added to the backup while it's in-process.
 const BackupSuffix = ".pending"
 
-func Backup(host, path string) {
-	log.Printf("influxdb backup, version %s, commit %s", version, commit)
+// BackupCommand represents the program execution for "influxd backup".
+type BackupCommand struct {
+	// The logger passed to the ticker during execution.
+	Logger *log.Logger
 
-	// Parse host and generate URL.
-	u, err := url.Parse(host)
+	// Standard input/output, overridden for testing.
+	Stderr io.Writer
+}
+
+// NewBackupCommand returns a new instance of BackupCommand with default settings.
+func NewBackupCommand() *BackupCommand {
+	return &BackupCommand{
+		Stderr: os.Stderr,
+	}
+}
+
+// Run excutes the program.
+func (cmd *BackupCommand) Run(args ...string) error {
+	// Set up logger.
+	cmd.Logger = log.New(cmd.Stderr, "", log.LstdFlags)
+	cmd.Logger.Printf("influxdb backup, version %s, commit %s", version, commit)
+
+	// Parse command line arguments.
+	u, path, err := cmd.parseFlags(args)
 	if err != nil {
-		log.Fatalf("host url parse error: %s", err)
+		return err
 	}
 
 	// TODO: Check highest index from local version.
 
-	// Create local file to write to.
+	// Determine temporary path to download to.
 	tmppath := path + BackupSuffix
-	f, err := os.Create(tmppath)
+
+	// Retrieve snapshot.
+	if err := cmd.download(u, tmppath); err != nil {
+		return fmt.Errorf("download: %s", err)
+	}
+
+	// Rename temporary file to final path.
+	if err := os.Rename(tmppath, path); err != nil {
+		return fmt.Errorf("rename: %s", err)
+	}
+
+	// TODO: Check file integrity.
+
+	// Notify user of completion.
+	cmd.Logger.Println("backup complete")
+
+	return nil
+}
+
+// parseFlags parses and validates the command line arguments.
+func (cmd *BackupCommand) parseFlags(args []string) (url.URL, string, error) {
+	fs := flag.NewFlagSet("", flag.ContinueOnError)
+	var (
+		host = fs.String("host", DefaultSnapshotURL.String(), "")
+		path = fs.String("output", "", "")
+	)
+	fs.SetOutput(cmd.Stderr)
+	fs.Usage = cmd.printUsage
+	if err := fs.Parse(args); err != nil {
+		return url.URL{}, "", err
+	}
+
+	// Parse host.
+	u, err := url.Parse(*host)
 	if err != nil {
-		log.Fatalf("create temp file: %s", err)
+		return url.URL{}, "", fmt.Errorf("parse host url: %s", err)
+	}
+
+	// Require output path.
+	if *path == "" {
+		return url.URL{}, "", fmt.Errorf("output path required")
+	}
+
+	return *u, *path, nil
+}
+
+// download downloads a snapshot from a host to a given path.
+func (cmd *BackupCommand) download(u url.URL, path string) error {
+	// Create local file to write to.
+	f, err := os.Create(path)
+	if err != nil {
+		return fmt.Errorf("open temp file: %s", err)
 	}
 	defer f.Close()
 
-	// Download snapshot to temp location.
-	if err := downloadBackup(*u, f); err != nil {
-		log.Fatalf("download backup: %s", err)
-	}
-
-	// Rename the archive to its final location.
-	f.Close()
-	if err := os.Rename(tmppath, path); err != nil {
-		log.Fatalf("rename: %s", err)
-	}
-
-	// Notify user of completion.
-	log.Print("backup complete")
-}
-
-// downloadBackup downloads a snapshot from a host to a given path.
-func downloadBackup(u url.URL, f *os.File) error {
 	// Fetch the archive from the server.
-	u.Path = "/backup"
+	u.Path = "/snapshot"
 	resp, err := http.Get(u.String())
 	if err != nil {
-		return fmt.Errorf("get backup: %s", err)
+		return fmt.Errorf("get: %s", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	// Check the status code.
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("backup error: status=%d", resp.StatusCode)
+		return fmt.Errorf("snapshot error: status=%d", resp.StatusCode)
 	}
 
 	// Write the archive to disk.
 	if _, err := io.Copy(f, resp.Body); err != nil {
-		fmt.Errorf("write backup: %s", err)
+		fmt.Errorf("write snapshot: %s", err)
 	}
 
 	return nil
 }
 
-func printBackupUsage() {
-	log.Printf(`usage: influxd backup [flags]
+// printUsage prints the usage message to STDERR.
+func (cmd *BackupCommand) printUsage() {
+	fmt.Fprintf(cmd.Stderr, `usage: influxd backup [flags]
 
 backup downloads a snapshot of a data node and saves it to disk.
 

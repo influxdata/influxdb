@@ -123,6 +123,17 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 		}
 		log.Printf("data node #%d listening on %s", s.ID(), config.DataAddr())
 
+		// Start snapshot handler.
+		go func() {
+			log.Fatal(http.ListenAndServe(
+				config.SnapshotAddr(),
+				&httpd.SnapshotHandler{
+					CreateSnapshotWriter: s.CreateSnapshotWriter,
+				},
+			))
+		}()
+		log.Printf("snapshot endpoint listening on %s", config.SnapshotAddr())
+
 		// Start the admin interface on the default port
 		if config.Admin.Enabled {
 			port := fmt.Sprintf(":%d", config.Admin.Port)
