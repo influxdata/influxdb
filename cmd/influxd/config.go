@@ -41,7 +41,7 @@ const (
 	DefaultSnapshotBindAddress = "127.0.0.1"
 
 	// DefaultSnapshotPort is the default port to serve snapshots from.
-	DefaultSnapshotPort = 8086
+	DefaultSnapshotPort = 8087
 
 	// DefaultJoinURLs represents the default URLs for joining a cluster.
 	DefaultJoinURLs = ""

@@ -4,11 +4,13 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math/rand"
 	"os"
 	"os/signal"
 	"runtime"
 	"runtime/pprof"
 	"strings"
+	"time"
 )
 
 const logo = `
@@ -36,6 +38,7 @@ const (
 
 func main() {
 	log.SetFlags(0)
+	rand.Seed(time.Now().UnixNano())
 
 	// If commit not set, make that clear.
 	if commit == "" {
@@ -74,7 +77,10 @@ func main() {
 			log.Fatalf("backup: %s", err)
 		}
 	case "restore":
-		execRestore(args[1:])
+		cmd := NewRestoreCommand()
+		if err := cmd.Run(args[1:]...); err != nil {
+			log.Fatalf("restore: %s", err)
+		}
 	case "version":
 		execVersion(args[1:])
 	case "help":
@@ -109,7 +115,13 @@ func execRun(args []string) {
 	log.SetFlags(log.LstdFlags)
 	writePIDFile(*pidPath)
 
-	config := parseConfig(*configPath, *hostname)
+	// Parse configuration file from disk.
+	config, err := parseConfig(*configPath, *hostname)
+	if err != nil {
+		log.Fatal(err)
+	} else if *configPath == "" {
+		log.Println("No config provided, using default settings")
+	}
 
 	// Create a logging writer.
 	logWriter := os.Stderr
@@ -126,20 +138,6 @@ func execRun(args []string) {
 
 	// Wait indefinitely.
 	<-(chan struct{})(nil)
-}
-
-// execRestore restores a backup archive to the data directory and bootstraps the broker.
-func execRestore(args []string) {
-	// Parse command line arguments.
-	fs := flag.NewFlagSet("", flag.ExitOnError)
-	configPath := fs.String("config", "", "")
-	fs.Usage = printRestoreUsage
-	fs.Parse(args)
-
-	// Path to the archive is the first argument.
-	path := fs.Arg(0)
-
-	Restore(path, *configPath)
 }
 
 // execVersion runs the "version" command.
@@ -233,3 +231,6 @@ func stopProfiling() {
 		prof.mem.Close()
 	}
 }
+
+func warn(v ...interface{})              { fmt.Fprintln(os.Stderr, v...) }
+func warnf(msg string, v ...interface{}) { fmt.Fprintf(os.Stderr, msg+"\n", v...) }

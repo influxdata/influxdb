@@ -1,7 +1,6 @@
 package influxdb_test
 
 import (
-	"archive/tar"
 	"bytes"
 	"io"
 	"io/ioutil"
@@ -106,44 +105,36 @@ func TestSnapshotWriter(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Read archive from buffer.
-	tr := tar.NewReader(&buf)
+	// Read snapshot from buffer.
+	sr := influxdb.NewSnapshotReader(&buf)
 
-	// First file should be the manifest.
-	if hdr, err := tr.Next(); err != nil {
-		t.Fatalf("unexpected error(manifest): %s", err)
-	} else if hdr.Name != "manifest" {
-		t.Fatalf("unexpected header name(manifest): %s", hdr.Name)
-	} else if hdr.Size != 87 {
-		t.Fatalf("unexpected header size(manifest): %d", hdr.Size)
-	} else if b := MustReadAll(tr); string(b) != `{"files":[{"name":"meta","size":3,"index":12},{"name":"shards/1","size":5,"index":15}]}` {
-		t.Fatalf("unexpected file(manifest): %s", b)
+	// Read the manifest.
+	if ss, err := sr.Snapshot(); err != nil {
+		t.Fatalf("unexpected error(snapshot): %s", err)
+	} else if !reflect.DeepEqual(sw.Snapshot, ss) {
+		t.Fatalf("snapshot mismatch:\n\nexp=%#v\n\ngot=%#v", sw.Snapshot, ss)
 	}
 
 	// Next should be the meta file.
-	if hdr, err := tr.Next(); err != nil {
+	if f, err := sr.Next(); err != nil {
 		t.Fatalf("unexpected error(meta): %s", err)
-	} else if hdr.Name != "meta" {
-		t.Fatalf("unexpected header name(meta): %s", hdr.Name)
-	} else if hdr.Size != 3 {
-		t.Fatalf("unexpected header size(meta): %d", hdr.Size)
-	} else if b := MustReadAll(tr); string(b) != `foo` {
+	} else if !reflect.DeepEqual(f, influxdb.SnapshotFile{Name: "meta", Size: 3, Index: 12}) {
+		t.Fatalf("file mismatch(meta): %#v", f)
+	} else if b := MustReadAll(sr); string(b) != `foo` {
 		t.Fatalf("unexpected file(meta): %s", b)
 	}
 
 	// Next should be the shard file.
-	if hdr, err := tr.Next(); err != nil {
+	if f, err := sr.Next(); err != nil {
 		t.Fatalf("unexpected error(shards/1): %s", err)
-	} else if hdr.Name != "shards/1" {
-		t.Fatalf("unexpected header name(shards/1): %s", hdr.Name)
-	} else if hdr.Size != 5 {
-		t.Fatalf("unexpected header size(shards/1): %d", hdr.Size)
-	} else if b := MustReadAll(tr); string(b) != `55555` {
+	} else if !reflect.DeepEqual(f, influxdb.SnapshotFile{Name: "shards/1", Size: 5, Index: 15}) {
+		t.Fatalf("file mismatch(shards/1): %#v", f)
+	} else if b := MustReadAll(sr); string(b) != `55555` {
 		t.Fatalf("unexpected file(shards/1): %s", b)
 	}
 
-	// Check for end of archive.
-	if _, err := tr.Next(); err != io.EOF {
+	// Check for end of snapshot.
+	if _, err := sr.Next(); err != io.EOF {
 		t.Fatalf("expected EOF: %s", err)
 	}
 }

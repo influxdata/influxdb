@@ -67,10 +67,7 @@ func (cmd *BackupCommand) Run(args ...string) error {
 // parseFlags parses and validates the command line arguments.
 func (cmd *BackupCommand) parseFlags(args []string) (url.URL, string, error) {
 	fs := flag.NewFlagSet("", flag.ContinueOnError)
-	var (
-		host = fs.String("host", DefaultSnapshotURL.String(), "")
-		path = fs.String("output", "", "")
-	)
+	host := fs.String("host", DefaultSnapshotURL.String(), "")
 	fs.SetOutput(cmd.Stderr)
 	fs.Usage = cmd.printUsage
 	if err := fs.Parse(args); err != nil {
@@ -84,11 +81,12 @@ func (cmd *BackupCommand) parseFlags(args []string) (url.URL, string, error) {
 	}
 
 	// Require output path.
-	if *path == "" {
-		return url.URL{}, "", fmt.Errorf("output path required")
+	path := fs.Arg(0)
+	if path == "" {
+		return url.URL{}, "", fmt.Errorf("snapshot path required")
 	}
 
-	return *u, *path, nil
+	return *u, path, nil
 }
 
 // download downloads a snapshot from a host to a given path.
@@ -123,14 +121,12 @@ func (cmd *BackupCommand) download(u url.URL, path string) error {
 
 // printUsage prints the usage message to STDERR.
 func (cmd *BackupCommand) printUsage() {
-	fmt.Fprintf(cmd.Stderr, `usage: influxd backup [flags]
+	fmt.Fprintf(cmd.Stderr, `usage: influxd backup [flags] PATH
 
 backup downloads a snapshot of a data node and saves it to disk.
 
         -host <url>
                           The host to connect to snapshot.
-
-        -output <path>
-                          Path to where the snapshot will be saved.
+                          Defaults to 127.0.0.1:8086.
 `)
 }

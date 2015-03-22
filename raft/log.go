@@ -293,7 +293,7 @@ func (l *Log) Open(path string) error {
 	c, err := l.readConfig()
 	if err != nil {
 		_ = l.close()
-		return err
+		return fmt.Errorf("read config: %s", err)
 	}
 	l.config = c
 
@@ -439,18 +439,17 @@ func (l *Log) writeTerm(term uint64) error {
 func (l *Log) readConfig() (*Config, error) {
 	// Read config from disk.
 	f, err := os.Open(l.configPath())
-	if err != nil && !os.IsNotExist(err) {
+	if os.IsNotExist(err) {
+		return nil, nil
+	} else if err != nil {
 		return nil, err
 	}
 	defer func() { _ = f.Close() }()
 
 	// Marshal file to a config type.
-	var config *Config
-	if f != nil {
-		config = &Config{}
-		if err := NewConfigDecoder(f).Decode(config); err != nil {
-			return nil, err
-		}
+	config := &Config{}
+	if err := NewConfigDecoder(f).Decode(config); err != nil {
+		return nil, err
 	}
 	return config, nil
 }

@@ -244,17 +244,16 @@ func writePIDFile(path string) {
 	}
 }
 
-// parses the configuration from a given path. Sets overrides as needed.
-func parseConfig(path, hostname string) *Config {
+// parseConfig parses the configuration from a given path. Sets overrides as needed.
+func parseConfig(path, hostname string) (*Config, error) {
 	if path == "" {
-		log.Println("No config provided, using default settings")
-		return NewConfig()
+		return NewConfig(), nil
 	}
 
 	// Parse configuration.
 	config, err := ParseConfigFile(path)
 	if err != nil {
-		log.Fatalf("config: %s", err)
+		return nil, fmt.Errorf("config: %s", err)
 	}
 
 	// Override config properties.
@@ -262,7 +261,7 @@ func parseConfig(path, hostname string) *Config {
 		config.Hostname = hostname
 	}
 
-	return config
+	return config, nil
 }
 
 // creates and initializes a broker.

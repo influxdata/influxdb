@@ -12,9 +12,23 @@ import (
 	"github.com/boltdb/bolt"
 )
 
+// manifestName is the name of the manifest file in the snapshot.
+const manifestName = "manifest"
+
 // Snapshot represents the state of the Server at a given time.
 type Snapshot struct {
 	Files []SnapshotFile `json:"files"`
+}
+
+// Index returns the highest index across all files.
+func (s *Snapshot) Index() uint64 {
+	var index uint64
+	for _, f := range s.Files {
+		if f.Index > index {
+			index = f.Index
+		}
+	}
+	return index
 }
 
 // Diff returns a Snapshot of files that are newer in s than other.
@@ -50,8 +64,90 @@ type SnapshotFile struct {
 	Index uint64 `json:"index"` // highest index applied
 }
 
-// SnapshotWriter writes a snapshot and the underlying files to disk as a tar archive.
+// SnapshotReader reads a snapshot from a Reader.
 // This type is not safe for concurrent use.
+type SnapshotReader struct {
+	tr       *tar.Reader
+	snapshot *Snapshot
+}
+
+// NewSnapshotReader returns a new SnapshotReader reading from r.
+func NewSnapshotReader(r io.Reader) *SnapshotReader {
+	return &SnapshotReader{
+		tr: tar.NewReader(r),
+	}
+}
+
+// Snapshot returns the snapshot meta data.
+func (sr *SnapshotReader) Snapshot() (*Snapshot, error) {
+	if err := sr.readSnapshot(); err != nil {
+		return nil, err
+	}
+	return sr.snapshot, nil
+}
+
+// readSnapshot reads the first entry from the snapshot and materializes the snapshot.
+// This is skipped if the snapshot manifest has already been read.
+func (sr *SnapshotReader) readSnapshot() error {
+	// Already read, ignore.
+	if sr.snapshot != nil {
+		return nil
+	}
+
+	// Read manifest header.
+	hdr, err := sr.tr.Next()
+	if err != nil {
+		return fmt.Errorf("snapshot header: %s", err)
+	} else if hdr.Name != manifestName {
+		return fmt.Errorf("invalid snapshot header: expected manifest")
+	}
+
+	// Materialize snapshot.
+	var snapshot Snapshot
+	if err := json.NewDecoder(sr.tr).Decode(&snapshot); err != nil {
+		return fmt.Errorf("decode manifest: %s", err)
+	}
+	sr.snapshot = &snapshot
+
+	return nil
+}
+
+// Next returns the next file in the snapshot.
+func (sr *SnapshotReader) Next() (SnapshotFile, error) {
+	// Read snapshot if it hasn't been read yet.
+	if err := sr.readSnapshot(); err != nil {
+		return SnapshotFile{}, err
+	}
+
+	// Read next header.
+	hdr, err := sr.tr.Next()
+	if err != nil {
+		return SnapshotFile{}, err
+	}
+
+	// Match header to file in snapshot.
+	for i := range sr.snapshot.Files {
+		if sr.snapshot.Files[i].Name == hdr.Name {
+			return sr.snapshot.Files[i], nil
+		}
+	}
+
+	// Return error if file is not in the snapshot.
+	return SnapshotFile{}, fmt.Errorf("snapshot entry not found in manifest: %s", hdr.Name)
+}
+
+// Read reads the current entry in the snapshot.
+func (sr *SnapshotReader) Read(b []byte) (n int, err error) {
+	// Read snapshot if it hasn't been read yet.
+	if err := sr.readSnapshot(); err != nil {
+		return 0, err
+	}
+
+	// Pass read through to the tar reader.
+	return sr.tr.Read(b)
+}
+
+// SnapshotWriter writes a snapshot and the underlying files to disk as a tar archive.
 type SnapshotWriter struct {
 	// The snapshot to write from.
 	// Removing files from the snapshot after creation will cause those files to be ignored.
@@ -136,7 +232,7 @@ func (sw *SnapshotWriter) writeManifestTo(tw *tar.Writer) error {
 
 	// Write header & file.
 	if err := tw.WriteHeader(&tar.Header{
-		Name:    "manifest",
+		Name:    manifestName,
 		Size:    int64(len(b)),
 		Mode:    0666,
 		ModTime: time.Now(),

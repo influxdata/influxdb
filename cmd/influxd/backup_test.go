@@ -35,7 +35,7 @@ func TestBackupCommand(t *testing.T) {
 	// Execute the backup against the mock server.
 	path := tempfile()
 	defer os.Remove(path)
-	if err := NewBackupCommand().Run("-host", s.URL, "-output", path); err != nil {
+	if err := NewBackupCommand().Run("-host", s.URL, path); err != nil {
 		t.Fatal(err)
 	}
 
@@ -64,7 +64,7 @@ func TestBackupCommand_ErrInvalidHostURL(t *testing.T) {
 
 // Ensure the backup command returns an error if the output path is not specified.
 func TestBackupCommand_ErrPathRequired(t *testing.T) {
-	if err := NewBackupCommand().Run("-host", "//localhost"); err == nil || err.Error() != `output path required` {
+	if err := NewBackupCommand().Run("-host", "//localhost"); err == nil || err.Error() != `snapshot path required` {
 		t.Fatal(err)
 	}
 }
@@ -78,7 +78,7 @@ func TestBackupCommand_ErrConnectionRefused(t *testing.T) {
 	// Execute the backup command.
 	path := tempfile()
 	defer os.Remove(path)
-	if err := NewBackupCommand().Run("-host", s.URL, "-output", path); err == nil || !strings.Contains(err.Error(), `connection refused`) {
+	if err := NewBackupCommand().Run("-host", s.URL, path); err == nil || !strings.Contains(err.Error(), `connection refused`) {
 		t.Fatal(err)
 	}
 }
@@ -93,7 +93,7 @@ func TestBackupCommand_ErrServerError(t *testing.T) {
 	// Execute the backup command.
 	path := tempfile()
 	defer os.Remove(path)
-	if err := NewBackupCommand().Run("-host", s.URL, "-output", path); err == nil || err.Error() != `download: snapshot error: status=500` {
+	if err := NewBackupCommand().Run("-host", s.URL, path); err == nil || err.Error() != `download: snapshot error: status=500` {
 		t.Fatal(err)
 	}
 }

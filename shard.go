@@ -139,6 +139,19 @@ func (s *Shard) close() error {
 	return nil
 }
 
+// sync returns after a given index has been reached.
+func (s *Shard) sync(index uint64) error {
+	for {
+		// Check if index has occurred.
+		if s.index >= index {
+			return nil
+		}
+
+		// Otherwise wait momentarily and check again.
+		time.Sleep(1 * time.Millisecond)
+	}
+}
+
 // HasDataNodeID return true if the data node owns the shard.
 func (s *Shard) HasDataNodeID(id uint64) bool {
 	for _, dataNodeID := range s.DataNodeIDs {
