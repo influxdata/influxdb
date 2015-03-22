@@ -30,6 +30,8 @@ const (
 	batchSize = 4217
 )
 
+type writeFn func(t *testing.T, node *Node, database, retention string)
+
 // tempfile returns a temporary path.
 func tempfile() string {
 	f, _ := ioutil.TempFile("", "influxdb-")
@@ -90,7 +92,7 @@ func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes, ba
 	// Create the first node, special case.
 	c := baseConfig
 	if c == nil {
-		c = main.NewConfig()
+		c, _ = main.NewConfig()
 	}
 	c.Broker.Dir = filepath.Join(tmpBrokerDir, strconv.Itoa(basePort))
 	c.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(basePort))
@@ -219,6 +221,15 @@ func queryAndWait(t *testing.T, nodes Cluster, urlDb, q, expected string, timeou
 		timer    = time.NewTimer(time.Duration(math.MaxInt64))
 	)
 	defer timer.Stop()
+
+	// Check to see if they set the env for duration sleep
+	sleep := 10 * time.Millisecond
+	if d, e := time.ParseDuration(os.Getenv("TEST_SLEEP")); e == nil {
+		// this will limit the http log noise in the test output
+		sleep = d
+		timeout = d + 1
+	}
+
 	if timeout > 0 {
 		timer.Reset(time.Duration(timeout))
 		go func() {
@@ -231,10 +242,31 @@ func queryAndWait(t *testing.T, nodes Cluster, urlDb, q, expected string, timeou
 		if got, ok := query(t, nodes, urlDb, q, expected); ok {
 			return got, ok
 		} else if atomic.LoadInt32(&timedOut) == 1 {
-			return fmt.Sprintf("timed out before expected result was found: got: %s", got), false
+			return got, false
 		} else {
-			time.Sleep(10 * time.Millisecond)
+			time.Sleep(sleep)
 		}
+	}
+}
+
+// mergeMany ensures that when merging many series together and some of them have a different number
+// of points than others in a group by interval the results are correct
+var mergeMany = func(t *testing.T, node *Node, database, retention string) {
+	for i := 1; i < 11; i++ {
+		for j := 1; j < 5+i%3; j++ {
+			data := fmt.Sprintf(`{"database": "%s", "retentionPolicy": "%s", "points": [{"name": "cpu", "timestamp": "%s", "tags": {"host": "server_%d"}, "fields": {"value": 22}}]}`,
+				database, retention, time.Unix(int64(j), int64(0)).Format(time.RFC3339), i)
+			write(t, node, data)
+		}
+
+	}
+}
+
+var limitAndOffset = func(t *testing.T, node *Node, database, retention string) {
+	for i := 1; i < 10; i++ {
+		data := fmt.Sprintf(`{"database": "%s", "retentionPolicy": "%s", "points": [{"name": "cpu", "timestamp": "%s", "tags": {"region": "us-east", "host": "server-%d"}, "fields": {"value": %d}}]}`,
+			database, retention, time.Unix(int64(i), int64(0)).Format(time.RFC3339), i, i)
+		write(t, node, data)
 	}
 }
 
@@ -271,7 +303,7 @@ func runTests_Errors(t *testing.T, nodes Cluster) {
 }
 
 // runTests tests write and query of data. Setting testNumbers allows only a subset of tests to be run.
-func runTestsData(t *testing.T, testName string, nodes Cluster, database, retention string, testNums ...int) {
+func runTestsData(t *testing.T, testName string, nodes Cluster, database, retention string) {
 	t.Logf("Running tests against %d-node cluster", len(nodes))
 
 	// Start by ensuring database and retention policy exist.
@@ -281,12 +313,13 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 	// The tests. Within these tests %DB% and %RP% will be replaced with the database and retention passed into
 	// this function.
 	tests := []struct {
-		reset    bool   // Delete and recreate the database.
-		name     string // Test name, for easy-to-read test log output.
-		write    string // If equal to the empty string, no data is written.
-		query    string // If equal to the blank string, no query is executed.
-		queryDb  string // If set, is used as the "db" query param.
-		expected string // If 'query' is equal to the blank string, this is ignored.
+		reset    bool    // Delete and recreate the database.
+		name     string  // Test name, for easy-to-read test log output.
+		write    string  // If equal to the empty string, no data is written.
+		writeFn  writeFn // If non-nil, called after 'write' data (if any) is written.
+		query    string  // If equal to the blank string, no query is executed.
+		queryDb  string  // If set, is used as the "db" query param.
+		expected string  // If 'query' is equal to the blank string, this is ignored.
 	}{
 		// Data read and write tests
 		{
@@ -330,7 +363,119 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			query:    `SELECT abc FROM "%DB%"."%RP%".cpu WHERE time < now()`,
 			expected: `{"results":[{"error":"unknown field or tag name in select clause: abc"}]}`,
 		},
+		{
+			name:     "empty result",
+			query:    `SELECT value FROM cpu WHERE time >= '3000-01-01 00:00:05'`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{}]}`,
+		},
 
+		// Merge tests.
+		{
+			reset:    true,
+			name:     "merge many",
+			writeFn:  mergeMany,
+			query:    `SELECT count(value) FROM cpu WHERE time >= '1970-01-01T00:00:01Z' AND time <= '1970-01-01T00:00:06Z' GROUP BY time(1s)`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","count"],"values":[["1970-01-01T00:00:01Z",10],["1970-01-01T00:00:02Z",10],["1970-01-01T00:00:03Z",10],["1970-01-01T00:00:04Z",10],["1970-01-01T00:00:05Z",7],["1970-01-01T00:00:06Z",3]]}]}]}`,
+		},
+
+		// Limit and offset
+		{
+			reset:    true,
+			name:     "limit and offset",
+			writeFn:  limitAndOffset,
+			query:    `SELECT count(value) FROM cpu GROUP BY * SLIMIT 2 SOFFSET 1`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","tags":{"host":"server-2","region":"us-east"},"columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]},{"name":"cpu","tags":{"host":"server-3","region":"us-east"},"columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]}]}]}`,
+		},
+		{
+			query:    `SELECT count(value) FROM cpu GROUP BY * SLIMIT 2 SOFFSET 3`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","tags":{"host":"server-4","region":"us-east"},"columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]},{"name":"cpu","tags":{"host":"server-5","region":"us-east"},"columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]}]}]}`,
+		},
+		{
+			query:    `SELECT count(value) FROM cpu GROUP BY * SLIMIT 3 SOFFSET 8`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","tags":{"host":"server-9","region":"us-east"},"columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]}]}]}`,
+		},
+
+		// FROM /regex/
+		{
+			reset: true,
+			name:  "FROM regex",
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+				{"name": "cpu1", "timestamp": "2015-02-28T01:03:36.703820946Z", "tags": {"host": "server01"}, "fields": {"value": 10}},
+				{"name": "cpu2", "timestamp": "2015-02-28T01:03:36.703820946Z", "tags": {"host": "server01"}, "fields": {"value": 20}},
+				{"name": "cpu3", "timestamp": "2015-02-28T01:03:36.703820946Z", "tags": {"host": "server01"}, "fields": {"value": 30}}
+			]}`,
+			query:    `SELECT * FROM /cpu[13]/`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu1","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",10]]},{"name":"cpu3","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",30]]}]}]}`,
+		},
+
+		// Aggregations
+		{
+			reset: true,
+			name:  "aggregations",
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+				{"name": "cpu", "timestamp": "2000-01-01T00:00:00Z", "tags": {"region": "us-east"}, "fields": {"value": 20}},
+				{"name": "cpu", "timestamp": "2000-01-01T00:00:10Z", "tags": {"region": "us-east"}, "fields": {"value": 30}},
+				{"name": "cpu", "timestamp": "2000-01-01T00:00:00Z", "tags": {"region": "us-west"}, "fields": {"value": 100}}
+			]}`,
+			query:    `SELECT value FROM cpu WHERE time >= '2000-01-01 00:00:05'`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:10Z",30]]}]}]}`,
+		},
+		{
+			name:     "sum aggregation",
+			query:    `SELECT sum(value) FROM cpu WHERE time >= '2000-01-01 00:00:05' AND time <= '2000-01-01T00:00:10Z' GROUP BY time(10s), region`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","sum"],"values":[["2000-01-01T00:00:00Z",null],["2000-01-01T00:00:10Z",30]]}]}]}`,
+		},
+		{
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+				{"name": "cpu", "timestamp": "2000-01-01T00:00:03Z", "tags": {"region": "us-east"}, "fields": {"otherVal": 20}}
+			]}`,
+			name:     "aggregation with a null field value",
+			query:    `SELECT sum(value) FROM cpu GROUP BY region`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",50]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",100]]}]}]}`,
+		},
+		{
+			name:     "multiple aggregations",
+			query:    `SELECT sum(value), mean(value) FROM cpu GROUP BY region`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","sum","mean"],"values":[["1970-01-01T00:00:00Z",50,25]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","sum","mean"],"values":[["1970-01-01T00:00:00Z",100,100]]}]}]}`,
+		},
+		{
+			query:    `SELECT sum(value) / mean(value) as div FROM cpu GROUP BY region`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","div"],"values":[["1970-01-01T00:00:00Z",2]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","div"],"values":[["1970-01-01T00:00:00Z",1]]}]}]}`,
+		},
+		{
+			name: "group by multiple dimensions",
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+				{"name": "load", "timestamp": "2000-01-01T00:00:00Z", "tags": {"region": "us-east", "host": "serverA"}, "fields": {"value": 20}},
+				{"name": "load", "timestamp": "2000-01-01T00:00:10Z", "tags": {"region": "us-east", "host": "serverB"}, "fields": {"value": 30}},
+				{"name": "load", "timestamp": "2000-01-01T00:00:00Z", "tags": {"region": "us-west", "host": "serverC"}, "fields": {"value": 100}}
+			]}`,
+			query:    `SELECT sum(value) FROM load GROUP BY time(10s), region, host`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"load","tags":{"host":"serverA","region":"us-east"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",20]]},{"name":"load","tags":{"host":"serverB","region":"us-east"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",30]]},{"name":"load","tags":{"host":"serverC","region":"us-west"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",100]]}]}]}`,
+		},
+		{
+			name: "WHERE with AND",
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+				{"name": "cpu", "timestamp": "2000-01-01T00:00:03Z", "tags": {"region": "uk", "host": "serverZ", "service": "redis"}, "fields": {"value": 20}},
+				{"name": "cpu", "timestamp": "2000-01-01T00:00:03Z", "tags": {"region": "uk", "host": "serverZ", "service": "mysql"}, "fields": {"value": 30}}
+			]}`,
+			query:    `SELECT sum(value) FROM cpu WHERE region='uk' AND host='serverZ'`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",50]]}]}]}`,
+		},
+
+		// Precision-specified writes
 		{
 			name:     "single string point with second precision timestamp",
 			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu_s_precision", "timestamp": 1, "precision": "s", "fields": {"value": 100}}]}`,
@@ -353,6 +498,38 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			name:     "single point count query with nanosecond precision timestamp",
 			query:    `SELECT count(value) FROM "%DB%"."%RP%".cpu_n_precision`,
 			expected: `{"results":[{"series":[{"name":"cpu_n_precision","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]}]}]}`,
+		},
+
+		// Wildcard queries
+		{
+			reset: true,
+			name:  "wildcard queries",
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+				{"name": "cpu", "timestamp": "2000-01-01T00:00:00Z", "tags": {"region": "us-east"}, "fields": {"value": 10}},
+				{"name": "cpu", "timestamp": "2000-01-01T00:00:10Z", "tags": {"region": "us-east"}, "fields": {"val-x": 20}},
+				{"name": "cpu", "timestamp": "2000-01-01T00:00:20Z", "tags": {"region": "us-east"}, "fields": {"value": 30, "val-x": 40}}
+			]}`,
+			query:    `SELECT * FROM cpu`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","val-x","value"],"values":[["2000-01-01T00:00:00Z",null,10],["2000-01-01T00:00:10Z",20,null],["2000-01-01T00:00:20Z",40,30]]}]}]}`,
+		},
+		{
+			reset: true,
+			name:  "wildcard GROUP BY queries",
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+				{"name": "cpu", "timestamp": "2000-01-01T00:00:00Z", "tags": {"region": "us-east"}, "fields": {"value": 10}},
+				{"name": "cpu", "timestamp": "2000-01-01T00:00:10Z", "tags": {"region": "us-east"}, "fields": {"value": 20}},
+				{"name": "cpu", "timestamp": "2000-01-01T00:00:20Z", "tags": {"region": "us-west"}, "fields": {"value": 30}}
+			]}`,
+			query:    `SELECT mean(value) FROM cpu GROUP BY *`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",15]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",30]]}]}]}`,
+		},
+		{
+			name:     "wildcard GROUP BY queries with time",
+			query:    `SELECT mean(value) FROM cpu GROUP BY *,time(1m)`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",15]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",30]]}]}]}`,
 		},
 
 		// WHERE fields queries
@@ -440,60 +617,70 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		// LIMIT and OFFSET tests
 
 		{
-			name: "limit on points",
+			name: "limit1 on points",
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
-				{"name": "limit", "timestamp": "2009-11-10T23:00:02Z","fields": {"foo": "bar"}, "tags": {"tennant": "paul"}},
-				{"name": "limit", "timestamp": "2009-11-10T23:00:03Z","fields": {"foo": "baz"}, "tags": {"tennant": "paul"}},
-				{"name": "limit", "timestamp": "2009-11-10T23:00:04Z","fields": {"foo": "bat"}, "tags": {"tennant": "paul"}},
-				{"name": "limit", "timestamp": "2009-11-10T23:00:05Z","fields": {"foo": "bar"}, "tags": {"tennant": "todd"}}
+				{"name": "limit", "timestamp": "2009-11-10T23:00:02Z","fields": {"foo": 2}, "tags": {"tennant": "paul"}},
+				{"name": "limit", "timestamp": "2009-11-10T23:00:03Z","fields": {"foo": 3}, "tags": {"tennant": "paul"}},
+				{"name": "limit", "timestamp": "2009-11-10T23:00:04Z","fields": {"foo": 4}, "tags": {"tennant": "paul"}},
+				{"name": "limit", "timestamp": "2009-11-10T23:00:05Z","fields": {"foo": 5}, "tags": {"tennant": "todd"}}
 			]}`,
 			query:    `select foo from "%DB%"."%RP%".limit LIMIT 2`,
-			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z","bar"],["2009-11-10T23:00:03Z","baz"]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z",2],["2009-11-10T23:00:03Z",3]]}]}]}`,
 		},
 		{
 			name:     "limit higher than the number of data points",
 			query:    `select foo from "%DB%"."%RP%".limit LIMIT 20`,
-			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z","bar"],["2009-11-10T23:00:03Z","baz"],["2009-11-10T23:00:04Z","bat"],["2009-11-10T23:00:05Z","bar"]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z",2],["2009-11-10T23:00:03Z",3],["2009-11-10T23:00:04Z",4],["2009-11-10T23:00:05Z",5]]}]}]}`,
 		},
 		{
 			name:     "limit and offset",
 			query:    `select foo from "%DB%"."%RP%".limit LIMIT 2 OFFSET 1`,
-			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:03Z","baz"],["2009-11-10T23:00:04Z","bat"]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:03Z",3],["2009-11-10T23:00:04Z",4]]}]}]}`,
 		},
 		{
-			name:     "limit + offset higher than number of points",
+			name:     "limit + offset equal to total number of points",
 			query:    `select foo from "%DB%"."%RP%".limit LIMIT 3 OFFSET 3`,
-			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:05Z","bar"]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:05Z",5]]}]}]}`,
 		},
 		{
-			name:     "offset higher than number of points",
+			name:     "limit - offset higher than number of points",
 			query:    `select foo from "%DB%"."%RP%".limit LIMIT 2 OFFSET 20`,
 			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"]}]}]}`,
 		},
 		{
 			name:     "limit on points with group by time",
-			query:    `select foo from "%DB%"."%RP%".limit WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY time(1s) LIMIT 2`,
-			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z","bar"],["2009-11-10T23:00:03Z","baz"]]}]}]}`,
+			query:    `select mean(foo) from "%DB%"."%RP%".limit WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY time(1s) LIMIT 2`,
+			expected: `{"results":[{"series":[{"name":"limit","columns":["time","mean"],"values":[["2009-11-10T23:00:02Z",2],["2009-11-10T23:00:03Z",3]]}]}]}`,
 		},
 		{
 			name:     "limit higher than the number of data points with group by time",
-			query:    `select foo from "%DB%"."%RP%".limit WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY time(1s) LIMIT 20`,
-			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z","bar"],["2009-11-10T23:00:03Z","baz"],["2009-11-10T23:00:04Z","bat"],["2009-11-10T23:00:05Z","bar"]]}]}]}`,
+			query:    `select mean(foo) from "%DB%"."%RP%".limit WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY time(1s) LIMIT 20`,
+			expected: `{"results":[{"series":[{"name":"limit","columns":["time","mean"],"values":[["2009-11-10T23:00:02Z",2],["2009-11-10T23:00:03Z",3],["2009-11-10T23:00:04Z",4],["2009-11-10T23:00:05Z",5]]}]}]}`,
 		},
 		{
 			name:     "limit and offset with group by time",
-			query:    `select foo from "%DB%"."%RP%".limit WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY time(1s) LIMIT 2 OFFSET 1`,
-			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:03Z","baz"],["2009-11-10T23:00:04Z","bat"]]}]}]}`,
+			query:    `select mean(foo) from "%DB%"."%RP%".limit WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY time(1s) LIMIT 2 OFFSET 1`,
+			expected: `{"results":[{"series":[{"name":"limit","columns":["time","mean"],"values":[["2009-11-10T23:00:03Z",3],["2009-11-10T23:00:04Z",4]]}]}]}`,
 		},
 		{
-			name:     "limit + offset higher than number of points with group by time",
-			query:    `select foo from "%DB%"."%RP%".limit WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY time(1s) LIMIT 3 OFFSET 3`,
-			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:05Z","bar"]]}]}]}`,
+			name:     "limit + offset equal to the  number of points with group by time",
+			query:    `select mean(foo) from "%DB%"."%RP%".limit WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY time(1s) LIMIT 3 OFFSET 3`,
+			expected: `{"results":[{"series":[{"name":"limit","columns":["time","mean"],"values":[["2009-11-10T23:00:05Z",5]]}]}]}`,
 		},
 		{
-			name:     "offset higher than number of points with group by time",
-			query:    `select foo from "%DB%"."%RP%".limit WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY time(1s) LIMIT 2 OFFSET 20`,
-			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"]}]}]}`,
+			name:     "limit - offset higher than number of points with group by time",
+			query:    `select mean(foo) from "%DB%"."%RP%".limit WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY time(1s) LIMIT 2 OFFSET 20`,
+			expected: `{"results":[{}]}`,
+		},
+		{
+			name:     "limit higher than the number of data points should error",
+			query:    `select mean(foo)  from "%DB%"."%RP%".limit  where  time > '2000-01-01T00:00:00Z' group by time(1s), * fill(0)  limit 2147483647`,
+			expected: `{"results":[{"error":"too many points in the group by interval. maybe you forgot to specify a where time clause?"}]}`,
+		},
+		{
+			name:     "limit1 higher than MaxGroupBy but the number of data points is less than MaxGroupBy",
+			query:    `select mean(foo)  from "%DB%"."%RP%".limit  where  time >= '2009-11-10T23:00:02Z' and time < '2009-11-10T23:00:03Z' group by time(1s), * fill(0)  limit 2147483647`,
+			expected: `{"results":[{"series":[{"name":"limit","tags":{"tennant":"paul"},"columns":["time","mean"],"values":[["2009-11-10T23:00:02Z",2]]}]}]}`,
 		},
 
 		// Fill tests
@@ -524,6 +711,65 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			expected: `{"results":[{"series":[{"name":"fills","columns":["time","mean"],"values":[["2009-11-10T23:00:00Z",4],["2009-11-10T23:00:05Z",4],["2009-11-10T23:00:10Z",null],["2009-11-10T23:00:15Z",10]]}]}]}`,
 		},
 
+		// Drop Measurement, series tags preserved tests
+		{
+			reset: true,
+			name:  "Drop Measurement, series tags preserved tests",
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+				{"name": "cpu", "timestamp": "2000-01-01T00:00:00Z", "tags": {"host": "serverA", "region": "uswest"}, "fields": {"val": 23.2}},
+				{"name": "memory", "timestamp": "2000-01-01T00:00:01Z", "tags": {"host": "serverB", "region": "uswest"}, "fields": {"val": 33.2}}
+			]}`,
+			query:    `SHOW MEASUREMENTS`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"measurements","columns":["name"],"values":[["cpu"],["memory"]]}]}]}`,
+		},
+		{
+			query:    `SHOW SERIES`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["_id","host","region"],"values":[[1,"serverA","uswest"]]},{"name":"memory","columns":["_id","host","region"],"values":[[2,"serverB","uswest"]]}]}]}`,
+		},
+		{
+			name:     "ensure we can query for memory with both tags",
+			query:    `SELECT * FROM memory where region='uswest' and host='serverB'`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"memory","columns":["time","val"],"values":[["2000-01-01T00:00:01Z",33.2]]}]}]}`,
+		},
+		{
+			query:    `DROP MEASUREMENT cpu`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{}]}`,
+		},
+		{
+			query:    `SHOW MEASUREMENTS`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"measurements","columns":["name"],"values":[["memory"]]}]}]}`,
+		},
+		{
+			query:    `SHOW SERIES`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"memory","columns":["_id","host","region"],"values":[[2,"serverB","uswest"]]}]}]}`,
+		},
+		{
+			query:    `SELECT * FROM cpu`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"error":"measurement not found: \"mydb\".\"myrp\".\"cpu\""}]}`,
+		},
+		{
+			query:    `SELECT * FROM memory where host='serverB'`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"memory","columns":["time","val"],"values":[["2000-01-01T00:00:01Z",33.2]]}]}]}`,
+		},
+		{
+			query:    `SELECT * FROM memory where region='uswest'`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"memory","columns":["time","val"],"values":[["2000-01-01T00:00:01Z",33.2]]}]}]}`,
+		},
+		{
+			query:    `SELECT * FROM memory where region='uswest' and host='serverB'`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"memory","columns":["time","val"],"values":[["2000-01-01T00:00:01Z",33.2]]}]}]}`,
+		},
+
 		// Metadata display tests
 
 		{
@@ -538,32 +784,32 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		]}`,
 			query:    "SHOW SERIES",
 			queryDb:  "%DB%",
-			expected: `{"results":[{"series":[{"name":"cpu","columns":["id","host","region"],"values":[[1,"server01",""],[2,"server01","uswest"],[3,"server01","useast"],[4,"server02","useast"]]},{"name":"gpu","columns":["id","host","region"],"values":[[5,"server02","useast"],[6,"server03","caeast"]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["_id","host","region"],"values":[[1,"server01",""],[2,"server01","uswest"],[3,"server01","useast"],[4,"server02","useast"]]},{"name":"gpu","columns":["_id","host","region"],"values":[[5,"server02","useast"],[6,"server03","caeast"]]}]}]}`,
 		},
 		{
 			query:    "SHOW SERIES FROM cpu",
 			queryDb:  "%DB%",
-			expected: `{"results":[{"series":[{"name":"cpu","columns":["id","host","region"],"values":[[1,"server01",""],[2,"server01","uswest"],[3,"server01","useast"],[4,"server02","useast"]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["_id","host","region"],"values":[[1,"server01",""],[2,"server01","uswest"],[3,"server01","useast"],[4,"server02","useast"]]}]}]}`,
 		},
 		{
 			query:    "SHOW SERIES WHERE region = 'uswest'",
 			queryDb:  "%DB%",
-			expected: `{"results":[{"series":[{"name":"cpu","columns":["id","host","region"],"values":[[2,"server01","uswest"]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["_id","host","region"],"values":[[2,"server01","uswest"]]}]}]}`,
 		},
 		{
 			query:    "SHOW SERIES WHERE region =~ /ca.*/",
 			queryDb:  "%DB%",
-			expected: `{"results":[{"series":[{"name":"gpu","columns":["id","host","region"],"values":[[6,"server03","caeast"]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"gpu","columns":["_id","host","region"],"values":[[6,"server03","caeast"]]}]}]}`,
 		},
 		{
 			query:    "SHOW SERIES WHERE host !~ /server0[12]/",
 			queryDb:  "%DB%",
-			expected: `{"results":[{"series":[{"name":"gpu","columns":["id","host","region"],"values":[[6,"server03","caeast"]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"gpu","columns":["_id","host","region"],"values":[[6,"server03","caeast"]]}]}]}`,
 		},
 		{
 			query:    "SHOW SERIES FROM cpu WHERE region = 'useast'",
 			queryDb:  "%DB%",
-			expected: `{"results":[{"series":[{"name":"cpu","columns":["id","host","region"],"values":[[3,"server01","useast"],[4,"server02","useast"]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["_id","host","region"],"values":[[3,"server01","useast"],[4,"server02","useast"]]}]}]}`,
 		},
 
 		{
@@ -780,25 +1026,23 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		},
 	}
 
+	// See if we should run a subset of this test
+	testPrefix := os.Getenv("TEST_PREFIX")
+	if testPrefix != "" {
+		t.Logf("Skipping all tests that do not match the prefix of %q\n", testPrefix)
+	}
+
 	for i, tt := range tests {
-		// If tests were explicitly requested, only run those tests.
-		if len(testNums) > 0 {
-			var found bool
-			for _, t := range testNums {
-				if i == t {
-					found = true
-					break
-				}
-			}
-			if !found {
-				continue
-			}
-		}
 
 		name := tt.name
 		if name == "" {
 			name = tt.query
 		}
+
+		if testPrefix != "" && !strings.HasPrefix(name, testPrefix) {
+			continue
+		}
+
 		fmt.Printf("TEST: %d: %s\n", i, name)
 		t.Logf("Running test %d: %s", i, name)
 
@@ -813,6 +1057,10 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			write(t, nodes[0], rewriteDbRp(tt.write, database, retention))
 		}
 
+		if tt.writeFn != nil {
+			tt.writeFn(t, nodes[0], database, retention)
+		}
+
 		if tt.query != "" {
 			urlDb := ""
 			if tt.queryDb != "" {
@@ -820,7 +1068,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			}
 			got, ok := queryAndWait(t, nodes, rewriteDbRp(urlDb, database, retention), rewriteDbRp(tt.query, database, retention), rewriteDbRp(tt.expected, database, retention), 3*time.Second)
 			if !ok {
-				t.Errorf("Test \"%s\" failed\n  exp: %s\n  got: %s\n", name, rewriteDbRp(tt.expected, database, retention), got)
+				t.Errorf("Test #%d: \"%s\" failed\n  exp: %s\n  got: %s\n", i, name, rewriteDbRp(tt.expected, database, retention), got)
 			}
 		}
 	}
@@ -1000,7 +1248,7 @@ func Test_ServerSingleGraphiteIntegration(t *testing.T) {
 	testName := "graphite integration"
 	dir := tempfile()
 	now := time.Now().UTC().Round(time.Millisecond)
-	c := main.NewConfig()
+	c, _ := main.NewConfig()
 	g := main.Graphite{
 		Enabled:  true,
 		Database: "graphite",
@@ -1050,7 +1298,7 @@ func Test_ServerSingleGraphiteIntegration_ZeroDataPoint(t *testing.T) {
 	testName := "graphite integration"
 	dir := tempfile()
 	now := time.Now().UTC().Round(time.Millisecond)
-	c := main.NewConfig()
+	c, _ := main.NewConfig()
 	g := main.Graphite{
 		Enabled:  true,
 		Database: "graphite",
@@ -1101,7 +1349,7 @@ func Test_ServerSingleGraphiteIntegration_NoDatabase(t *testing.T) {
 	testName := "graphite integration"
 	dir := tempfile()
 	now := time.Now().UTC().Round(time.Millisecond)
-	c := main.NewConfig()
+	c, _ := main.NewConfig()
 	g := main.Graphite{
 		Enabled:  true,
 		Port:     2203,

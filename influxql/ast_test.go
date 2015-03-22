@@ -42,35 +42,35 @@ func TestSelectStatement_Substatement(t *testing.T) {
 
 		// 1. Simple join
 		{
-			stmt: `SELECT sum(aa.value) + sum(bb.value) FROM join(aa,bb)`,
+			stmt: `SELECT sum(aa.value) + sum(bb.value) FROM aa, bb`,
 			expr: &influxql.VarRef{Val: "aa.value"},
 			sub:  `SELECT aa.value FROM aa`,
 		},
 
 		// 2. Simple merge
 		{
-			stmt: `SELECT sum(aa.value) + sum(bb.value) FROM merge(aa, bb)`,
+			stmt: `SELECT sum(aa.value) + sum(bb.value) FROM aa, bb`,
 			expr: &influxql.VarRef{Val: "bb.value"},
 			sub:  `SELECT bb.value FROM bb`,
 		},
 
 		// 3. Join with condition
 		{
-			stmt: `SELECT sum(aa.value) + sum(bb.value) FROM join(aa, bb) WHERE aa.host = 'servera' AND bb.host = 'serverb'`,
+			stmt: `SELECT sum(aa.value) + sum(bb.value) FROM aa, bb WHERE aa.host = 'servera' AND bb.host = 'serverb'`,
 			expr: &influxql.VarRef{Val: "bb.value"},
 			sub:  `SELECT bb.value FROM bb WHERE bb.host = 'serverb'`,
 		},
 
 		// 4. Join with complex condition
 		{
-			stmt: `SELECT sum(aa.value) + sum(bb.value) FROM join(aa, bb) WHERE aa.host = 'servera' AND (bb.host = 'serverb' OR bb.host = 'serverc') AND 1 = 2`,
+			stmt: `SELECT sum(aa.value) + sum(bb.value) FROM aa, bb WHERE aa.host = 'servera' AND (bb.host = 'serverb' OR bb.host = 'serverc') AND 1 = 2`,
 			expr: &influxql.VarRef{Val: "bb.value"},
 			sub:  `SELECT bb.value FROM bb WHERE (bb.host = 'serverb' OR bb.host = 'serverc') AND 1.000 = 2.000`,
 		},
 
 		// 5. 4 with different condition order
 		{
-			stmt: `SELECT sum(aa.value) + sum(bb.value) FROM join(aa, bb) WHERE ((bb.host = 'serverb' OR bb.host = 'serverc') AND aa.host = 'servera') AND 1 = 2`,
+			stmt: `SELECT sum(aa.value) + sum(bb.value) FROM aa, bb WHERE ((bb.host = 'serverb' OR bb.host = 'serverc') AND aa.host = 'servera') AND 1 = 2`,
 			expr: &influxql.VarRef{Val: "bb.value"},
 			sub:  `SELECT bb.value FROM bb WHERE ((bb.host = 'serverb' OR bb.host = 'serverc')) AND 1.000 = 2.000`,
 		},
@@ -258,7 +258,7 @@ func TestSelectStatement_HasWildcard(t *testing.T) {
 
 		// No GROUP BY wildcards, time only
 		{
-			stmt:     `SELECT value FROM cpu GROUP BY time(5ms)`,
+			stmt:     `SELECT mean(value) FROM cpu GROUP BY time(5ms)`,
 			wildcard: false,
 		},
 
@@ -270,7 +270,7 @@ func TestSelectStatement_HasWildcard(t *testing.T) {
 
 		// GROUP BY wildcard with time
 		{
-			stmt:     `SELECT value FROM cpu GROUP BY *,time(1m)`,
+			stmt:     `SELECT mean(value) FROM cpu GROUP BY *,time(1m)`,
 			wildcard: true,
 		},
 
@@ -357,8 +357,8 @@ func TestSelectStatement_RewriteWildcards(t *testing.T) {
 
 		// No GROUP BY wildcards, time only
 		{
-			stmt:    `SELECT value FROM cpu GROUP BY time(5ms)`,
-			rewrite: `SELECT value FROM cpu GROUP BY time(5ms)`,
+			stmt:    `SELECT mean(value) FROM cpu GROUP BY time(5ms)`,
+			rewrite: `SELECT mean(value) FROM cpu GROUP BY time(5ms)`,
 		},
 
 		// GROUP BY wildcard
@@ -369,14 +369,14 @@ func TestSelectStatement_RewriteWildcards(t *testing.T) {
 
 		// GROUP BY wildcard with time
 		{
-			stmt:    `SELECT value FROM cpu GROUP BY *,time(1m)`,
-			rewrite: `SELECT value FROM cpu GROUP BY host, region, time(1m)`,
+			stmt:    `SELECT mean(value) FROM cpu GROUP BY *,time(1m)`,
+			rewrite: `SELECT mean(value) FROM cpu GROUP BY host, region, time(1m)`,
 		},
 
 		// GROUP BY wildarde with fill
 		{
-			stmt:    `SELECT value FROM cpu GROUP BY *,time(1m) fill(0)`,
-			rewrite: `SELECT value FROM cpu GROUP BY host, region, time(1m) fill(0)`,
+			stmt:    `SELECT mean(value) FROM cpu GROUP BY *,time(1m) fill(0)`,
+			rewrite: `SELECT mean(value) FROM cpu GROUP BY host, region, time(1m) fill(0)`,
 		},
 
 		// GROUP BY wildcard with explicit
@@ -414,6 +414,50 @@ func TestSelectStatement_RewriteWildcards(t *testing.T) {
 		if rw := rw.String(); tt.rewrite != rw {
 			t.Errorf("%d. %q: unexpected rewrite:\n\nexp=%s\n\ngot=%s\n\n", i, tt.stmt, tt.rewrite, rw)
 			continue
+		}
+	}
+}
+
+// Ensure that the IsRawQuery flag gets set properly
+func TestSelectStatement_IsRawQuerySet(t *testing.T) {
+	var tests = []struct {
+		stmt  string
+		isRaw bool
+	}{
+		{
+			stmt:  "select * from foo",
+			isRaw: true,
+		},
+		{
+			stmt:  "select value1,value2 from foo",
+			isRaw: true,
+		},
+		{
+			stmt:  "select value1,value2 from foo, time(10m)",
+			isRaw: true,
+		},
+		{
+			stmt:  "select mean(value) from foo group by time(5m)",
+			isRaw: false,
+		},
+		{
+			stmt:  "select mean(value) from foo group by bar",
+			isRaw: false,
+		},
+		{
+			stmt:  "select mean(value) from foo group by *",
+			isRaw: false,
+		},
+		{
+			stmt:  "select mean(*) from foo group by *",
+			isRaw: false,
+		},
+	}
+
+	for _, tt := range tests {
+		s := MustParseSelectStatement(tt.stmt)
+		if s.IsRawQuery != tt.isRaw {
+			t.Errorf("'%s', IsRawQuery should be %v", tt.stmt, tt.isRaw)
 		}
 	}
 }

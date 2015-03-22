@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/url"
@@ -166,8 +167,11 @@ type Config struct {
 }
 
 // NewConfig returns an instance of Config with reasonable defaults.
-func NewConfig() *Config {
-	u, _ := user.Current()
+func NewConfig() (*Config, error) {
+	u, err := user.Current()
+	if err != nil {
+		return nil, fmt.Errorf("failed to determine current user for storage")
+	}
 
 	c := &Config{}
 	c.Broker.Dir = filepath.Join(u.HomeDir, ".influxdb/broker")
@@ -191,7 +195,7 @@ func NewConfig() *Config {
 	c.ReportingDisabled = false
 
 	c.Statistics.Enabled = false
-	c.Statistics.Database = "_internal"
+	c.Statistics.Database = "internal"
 	c.Statistics.RetentionPolicy = "default"
 	c.Statistics.WriteInterval = Duration(1 * time.Minute)
 
@@ -207,7 +211,7 @@ func NewConfig() *Config {
 	// 	Port:     tomlConfiguration.InputPlugins.UDPInput.Port,
 	// })
 
-	return c
+	return c, nil
 }
 
 // DataAddr returns the TCP binding address for the data server.
@@ -281,6 +285,11 @@ func (c *Config) ShardGroupPreCreateCheckPeriod() time.Duration {
 	return DefaultRetentionCreatePeriod
 }
 
+// WriteConfigFile writes the config to the specified writer
+func (c *Config) Write(w io.Writer) error {
+	return toml.NewEncoder(w).Encode(c)
+}
+
 // Size represents a TOML parseable file size.
 // Users can specify size using "m" for megabytes and "g" for gigabytes.
 type Size int
@@ -336,7 +345,10 @@ func (d *Duration) UnmarshalText(text []byte) error {
 
 // ParseConfigFile parses a configuration file at a given path.
 func ParseConfigFile(path string) (*Config, error) {
-	c := NewConfig()
+	c, err := NewConfig()
+	if err != nil {
+		return nil, err
+	}
 	if _, err := toml.DecodeFile(path, &c); err != nil {
 		return nil, err
 	}
@@ -345,7 +357,10 @@ func ParseConfigFile(path string) (*Config, error) {
 
 // ParseConfig parses a configuration string into a config object.
 func ParseConfig(s string) (*Config, error) {
-	c := NewConfig()
+	c, err := NewConfig()
+	if err != nil {
+		return nil, err
+	}
 	if _, err := toml.Decode(s, &c); err != nil {
 		return nil, err
 	}

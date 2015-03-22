@@ -1,10 +1,42 @@
-## v0.9.0-rc13 [unreleased]
+## v0.9.0-rc16 [unreleased]
+
+### Bugfixes
+- [#2037](https://github.com/influxdb/influxdb/pull/2037): Don't check 'configExists' at Run() level
+- [#2039](https://github.com/influxdb/influxdb/pull/2039): Don't panic if getting current use fails
+- [#2034](https://github.com/influxdb/influxdb/pull/2034): Group by should require an aggregate.
+- [#2040](https://github.com/influxdb/influxdb/pull/2040): Add missing top-level help for config command
+
+## v0.9.0-rc15 [2015-03-19]
+
+### Features
+- [#2000](https://github.com/influxdb/influxdb/pull/2000): Log broker path when broker fails to start. Thanks @gst.
+- [#2007](https://github.com/influxdb/influxdb/pull/2007): Track shard-level stats.
+
+### Bugfixes
+- [#2001](https://github.com/influxdb/influxdb/pull/2001): Ensure measurement not found returns status code 200.
+- [#1985](https://github.com/influxdb/influxdb/pull/1985): Set content-type JSON header before actually writing header. Thanks @dstrek.
+- [#2003](https://github.com/influxdb/influxdb/pull/2003): Set timestamp when writing monitoring stats.
+- [#2004](https://github.com/influxdb/influxdb/pull/2004): Limit group by to MaxGroupByPoints (currently 100,000).
+- [#2016](https://github.com/influxdb/influxdb/pull/2016): Fixing bucket alignment for group by. Thanks @jnutzmann
+- [#2021](https://github.com/influxdb/influxdb/pull/2021): Remove unnecessary formatting from log message. Thanks @simonkern
+
+
+## v0.9.0-rc14 [2015-03-18]
+
+### Bugfixes
+- [#1999](https://github.com/influxdb/influxdb/pull/1999): Return status code 200 for measurement not found errors on show series.
+
+## v0.9.0-rc13 [2015-03-17]
 
 ### Features
 - [#1974](https://github.com/influxdb/influxdb/pull/1974): Add time taken for request to the http server logs.
 
 ### Bugfixes
 - [#1971](https://github.com/influxdb/influxdb/pull/1971): Fix leader id initialization.
+- [#1975](https://github.com/influxdb/influxdb/pull/1975): Require `q` parameter for query endpoint.
+- [#1969](https://github.com/influxdb/influxdb/pull/1969): Print loaded config.
+- [#1987](https://github.com/influxdb/influxdb/pull/1987): Fix config print startup statement for when no config is provided.
+- [#1990](https://github.com/influxdb/influxdb/pull/1990): Drop measurement was taking too long due to transactions.
 
 ## v0.9.0-rc12 [2015-03-15]
 
@@ -17,6 +49,9 @@
 ### Features
 - [#1935](https://github.com/influxdb/influxdb/pull/1935): Implement stateless broker for Raft.
 - [#1936](https://github.com/influxdb/influxdb/pull/1936): Implement "SHOW STATS" and self-monitoring
+
+### Features
+- [#1909](https://github.com/influxdb/influxdb/pull/1909): Implement a dump command.
 
 ## v0.9.0-rc11 [2015-03-13]
 

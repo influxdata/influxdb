@@ -27,12 +27,6 @@ import (
 func Run(config *Config, join, version string, logWriter *os.File) (*messaging.Broker, *influxdb.Server) {
 	log.Printf("influxdb started, version %s, commit %s", version, commit)
 
-	// Parse the configuration and determine if a broker and/or server exist.
-	configExists := config != nil
-	if config == nil {
-		config = NewConfig()
-	}
-
 	var initBroker, initServer bool
 	if initBroker = !fileExists(config.BrokerDir()); initBroker {
 		log.Printf("Broker directory missing. Need to create a broker.")
@@ -86,7 +80,7 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 	}
 
 	// Open server, initialize or join as necessary.
-	s := openServer(config, b, initServer, initBroker, configExists, joinURLs, logWriter)
+	s := openServer(config, b, initServer, initBroker, joinURLs, logWriter)
 	s.SetAuthenticationEnabled(config.Authentication.Enabled)
 
 	// Enable retention policy enforcement if requested.
@@ -247,7 +241,11 @@ func writePIDFile(path string) {
 // parseConfig parses the configuration from a given path. Sets overrides as needed.
 func parseConfig(path, hostname string) (*Config, error) {
 	if path == "" {
-		return NewConfig(), nil
+		c, err := NewConfig()
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate default config: %s. Please supply an explicit configuration file", err.Error())
+		}
+		return c, nil
 	}
 
 	// Parse configuration.
@@ -279,8 +277,9 @@ func openBroker(path string, u url.URL, initializing bool, joinURLs []url.URL, w
 
 	// Open broker so it can feed last index data to the log.
 	if err := b.Open(path); err != nil {
-		log.Fatalf("failed to open broker: %s", err)
+		log.Fatalf("failed to open broker at %s : %s", path, err)
 	}
+	log.Printf("broker opened at %s", path)
 
 	// Attach the broker as the finite state machine of the raft log.
 	l.FSM = &messaging.RaftFSM{Broker: b}
@@ -321,10 +320,10 @@ func joinLog(l *raft.Log, joinURLs []url.URL) {
 }
 
 // creates and initializes a server.
-func openServer(config *Config, b *influxdb.Broker, initServer, initBroker, configExists bool, joinURLs []url.URL, w io.Writer) *influxdb.Server {
-	// Use broker URL is there is no config and there are no join URLs passed.
+func openServer(config *Config, b *influxdb.Broker, initServer, initBroker bool, joinURLs []url.URL, w io.Writer) *influxdb.Server {
+	// Use broker URL if there are no join URLs passed.
 	clientJoinURLs := joinURLs
-	if !configExists || len(joinURLs) == 0 {
+	if len(joinURLs) == 0 {
 		clientJoinURLs = []url.URL{b.URL()}
 	}
 
@@ -359,6 +358,7 @@ func openServer(config *Config, b *influxdb.Broker, initServer, initBroker, conf
 	if err := s.Open(config.Data.Dir, c); err != nil {
 		log.Fatalf("failed to open data server: %v", err.Error())
 	}
+	log.Printf("data server opened at %s", config.Data.Dir)
 
 	// If the server is uninitialized then initialize or join it.
 	if initServer {

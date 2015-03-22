@@ -38,32 +38,24 @@ func ParseExpr(s string) (Expr, error) { return NewParser(strings.NewReader(s)).
 
 // ParseQuery parses an InfluxQL string and returns a Query AST object.
 func (p *Parser) ParseQuery() (*Query, error) {
-	// If there's only whitespace then return no statements.
-	if tok, _, _ := p.scanIgnoreWhitespace(); tok == EOF {
-		return &Query{}, nil
-	}
-	p.unscan()
-
-	// Otherwise parse statements until EOF.
 	var statements Statements
+	var semi bool
+
 	for {
-
-		// Read the next statement.
-		s, err := p.ParseStatement()
-		if err != nil {
-			return nil, err
-		}
-		statements = append(statements, s)
-
-		// Expect a semicolon or EOF after the statement.
-		if tok, pos, lit := p.scanIgnoreWhitespace(); tok != SEMICOLON && tok != EOF {
-			return nil, newParseError(tokstr(tok, lit), []string{";", "EOF"}, pos)
-		} else if tok == EOF {
-			break
+		if tok, _, _ := p.scanIgnoreWhitespace(); tok == EOF {
+			return &Query{Statements: statements}, nil
+		} else if !semi && tok == SEMICOLON {
+			semi = true
+		} else {
+			p.unscan()
+			s, err := p.ParseStatement()
+			if err != nil {
+				return nil, err
+			}
+			statements = append(statements, s)
+			semi = false
 		}
 	}
-
-	return &Query{Statements: statements}, nil
 }
 
 // ParseStatement parses an InfluxQL string and returns a Statement AST object.
@@ -88,7 +80,7 @@ func (p *Parser) ParseStatement() (Statement, error) {
 	case ALTER:
 		return p.parseAlterStatement()
 	default:
-		return nil, newParseError(tokstr(tok, lit), []string{"SELECT"}, pos)
+		return nil, newParseError(tokstr(tok, lit), []string{"SELECT", "DELETE", "SHOW", "CREATE", "DROP", "GRANT", "REVOKE", "ALTER"}, pos)
 	}
 }
 
@@ -537,11 +529,11 @@ func (p *Parser) parseSelectStatement(tr targetRequirement) (*SelectStatement, e
 		return nil, err
 	}
 
-	// Parse source.
+	// Parse source: "FROM".
 	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != FROM {
 		return nil, newParseError(tokstr(tok, lit), []string{"FROM"}, pos)
 	}
-	if stmt.Source, err = p.parseSource(); err != nil {
+	if stmt.Sources, err = p.parseSources(); err != nil {
 		return nil, err
 	}
 
@@ -583,6 +575,18 @@ func (p *Parser) parseSelectStatement(tr targetRequirement) (*SelectStatement, e
 	// Parse series offset: "SOFFSET <n>".
 	if stmt.SOffset, err = p.parseOptionalTokenAndInt(SOFFSET); err != nil {
 		return nil, err
+	}
+
+	// Set if the query is a raw data query or one with an aggregate
+	stmt.IsRawQuery = true
+	WalkFunc(stmt.Fields, func(n Node) {
+		if _, ok := n.(*Call); ok {
+			stmt.IsRawQuery = false
+		}
+	})
+
+	if d, _ := stmt.GroupByInterval(); stmt.IsRawQuery && d > 0 {
+		return nil, fmt.Errorf("GROUP BY requires at least one aggregate function")
 	}
 
 	return stmt, nil
@@ -1011,7 +1015,7 @@ func (p *Parser) parseCreateContinuousQueryStatement() (*CreateContinuousQuerySt
 	stmt.Source = source
 
 	// validate that the statement has a non-zero group by interval if it is aggregated
-	if source.Aggregated() {
+	if !source.IsRawQuery {
 		d, err := source.GroupByInterval()
 		if d == 0 || err != nil {
 			// rewind so we can output an error with some info
@@ -1279,53 +1283,72 @@ func (p *Parser) parseAlias() (string, error) {
 	return lit, nil
 }
 
-// parseSource parses the "FROM" clause of the query.
-func (p *Parser) parseSource() (Source, error) {
-	// The first token can either be the series name or a join/merge call.
-	tok, pos, lit := p.scanIgnoreWhitespace()
-	if tok != IDENT {
-		return nil, newParseError(tokstr(tok, lit), []string{"identifier"}, pos)
-	}
+// parseSources parses a comma delimited list of sources.
+func (p *Parser) parseSources() (Sources, error) {
+	var sources Sources
 
-	// If the token is a string or the next token is not an LPAREN then return a measurement.
-	if next, _, _ := p.scan(); tok == STRING || (tok == IDENT && next != LPAREN) {
-		p.unscan()
-		return &Measurement{Name: lit}, nil
-	}
-
-	// Verify the source type is join/merge.
-	sourceType := strings.ToLower(lit)
-	if sourceType != "join" && sourceType != "merge" {
-		return nil, &ParseError{Message: "unknown merge type: " + sourceType, Pos: pos}
-	}
-
-	// Parse measurement list.
-	var measurements []*Measurement
 	for {
-		// Scan the measurement name.
-		tok, pos, lit := p.scanIgnoreWhitespace()
-		if tok != IDENT {
-			return nil, newParseError(tokstr(tok, lit), []string{"measurement name"}, pos)
+		s, err := p.parseSource()
+		if err != nil {
+			return nil, err
 		}
-		measurements = append(measurements, &Measurement{Name: lit})
+		sources = append(sources, s)
 
-		// If there's not a comma next then stop parsing measurements.
-		if tok, _, _ := p.scan(); tok != COMMA {
+		if tok, _, _ := p.scanIgnoreWhitespace(); tok != COMMA {
 			p.unscan()
 			break
 		}
 	}
 
-	// Expect a closing right paren.
-	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != RPAREN {
-		return nil, newParseError(tokstr(tok, lit), []string{")"}, pos)
+	return sources, nil
+}
+
+// peekRune returns the next rune that would be read by the scanner.
+func (p *Parser) peekRune() rune {
+	r, _, _ := p.s.s.r.ReadRune()
+	if r != eof {
+		_ = p.s.s.r.UnreadRune()
 	}
 
-	// Return the appropriate source type.
-	if sourceType == "join" {
-		return &Join{Measurements: measurements}, nil
+	return r
+}
+
+// parseSource parses a single source.
+func (p *Parser) parseSource() (Source, error) {
+	m := &Measurement{}
+
+	for {
+		nextRune := p.peekRune()
+		if isWhitespace(nextRune) {
+			p.consumeWhitespace()
+		}
+
+		// If the next character is a '/', then parse a regex.
+		nextRune = p.peekRune()
+		if nextRune == '/' {
+			re, err := p.parseRegex()
+			if err != nil {
+				return nil, err
+			}
+			m.Regex = re.(*RegexLiteral)
+
+			// A regex is always the last part of the source so return. E.g.,
+			// db.rp./cpu.*/.  Regex not supported in database or retention
+			// policy names.
+			return m, nil
+		}
+
+		// Next character wasn't a '/' so parse a non-regex identifier.
+		if tok, pos, lit := p.scanIgnoreWhitespace(); tok == IDENT {
+			m.Name = lit
+		} else {
+			if m.Name == "" && m.Regex == nil {
+				return nil, newParseError(tokstr(tok, lit), []string{"identifier", "regex"}, pos)
+			}
+			p.unscan()
+			return m, nil
+		}
 	}
-	return &Merge{Measurements: measurements}, nil
 }
 
 // parseCondition parses the "WHERE" clause of the query, if it exists.
@@ -1659,7 +1682,7 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 
 // parseRegex parses a regular expression.
 func (p *Parser) parseRegex() (Expr, error) {
-	tok, pos, lit := p.s.s.ScanRegex()
+	tok, pos, lit := p.s.ScanRegex()
 
 	if tok == BADESCAPE {
 		msg := fmt.Sprintf("bad escape: %s", lit)

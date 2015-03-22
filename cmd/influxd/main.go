@@ -83,6 +83,8 @@ func main() {
 		}
 	case "version":
 		execVersion(args[1:])
+	case "config":
+		execConfig(args[1:])
 	case "help":
 		execHelp(args[1:])
 	default:
@@ -159,6 +161,31 @@ func execVersion(args []string) {
 	log.Print(s)
 }
 
+// execConfig parses and prints the current config loaded.
+func execConfig(args []string) {
+	// Parse command flags.
+	fs := flag.NewFlagSet("", flag.ExitOnError)
+	fs.Usage = func() {
+		log.Println(`usage: config
+
+	config displays the default configiguration
+						    `)
+	}
+
+	var (
+		configPath = fs.String("config", "", "")
+		hostname   = fs.String("hostname", "", "")
+	)
+	fs.Parse(args)
+
+	config, err := parseConfig(*configPath, *hostname)
+	if err != nil {
+		log.Fatalf("parse config: %s", err)
+	}
+
+	config.Write(os.Stdout)
+}
+
 // execHelp runs the "help" command.
 func execHelp(args []string) {
 	fmt.Println(`
@@ -170,6 +197,7 @@ Usage:
 
 The commands are:
 
+    config               display the default configuration
     join-cluster         create a new node that will join an existing cluster
     run                  run node with existing configuration
     version              displays the InfluxDB version
