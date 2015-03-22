@@ -243,22 +243,23 @@ query_name                   = identifier .
 #### Examples:
 
 ```sql
-CREATE CONTINUOUS QUERY 10m_event_count
+-- selects from default retention policy and writes into 6_months retention policy
+CREATE CONTINUOUS QUERY "10m_event_count"
 ON db_name
 BEGIN
   SELECT count(value)
-  INTO 10m.events
+  INTO "6_months".events
   FROM events
   GROUP BY time(10m)
 END;
 
--- this selects from the output of one continuous query and outputs to another series
-CREATE CONTINUOUS QUERY 1h_event_count
+-- this selects from the output of one continuous query in one retention policy and outputs to another series in another retention policy
+CREATE CONTINUOUS QUERY "1h_event_count"
 ON db_name
 BEGIN
   SELECT sum(count) as count
-  INTO 1h.events
-  FROM events
+  INTO "2_years".events
+  FROM "6_months".events
   GROUP BY time(1h)
 END;
 ```
