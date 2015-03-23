@@ -24,6 +24,10 @@ influxd
 **/influxd
 !**/influxd/
 
+influx
+**/influx
+!**/influx/
+
 influxdb
 **/influxdb
 !**/influxdb/
