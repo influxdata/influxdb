@@ -185,6 +185,7 @@ func query(t *testing.T, nodes Cluster, urlDb, query, expected string) (string, 
 		v.Set("db", urlDb)
 	}
 
+	var actual string
 	// Query the data exists
 	for _, n := range nodes {
 		u := urlFor(n.url, "query", v)
@@ -198,13 +199,14 @@ func query(t *testing.T, nodes Cluster, urlDb, query, expected string) (string, 
 		if err != nil {
 			t.Fatalf("Couldn't read body of response: %s", err.Error())
 		}
+		actual = string(body)
 
-		if expected != string(body) {
-			return string(body), false
+		if expected != actual {
+			return actual, false
 		}
 	}
 
-	return "", true
+	return actual, true
 }
 
 // queryAndWait executes the given query against all nodes in the cluster, and verifies no errors occured, and
@@ -266,6 +268,39 @@ var limitAndOffset = func(t *testing.T, node *Node, database, retention string) 
 		data := fmt.Sprintf(`{"database": "%s", "retentionPolicy": "%s", "points": [{"name": "cpu", "timestamp": "%s", "tags": {"region": "us-east", "host": "server-%d"}, "fields": {"value": %d}}]}`,
 			database, retention, time.Unix(int64(i), int64(0)).Format(time.RFC3339), i, i)
 		write(t, node, data)
+	}
+}
+
+func runTest_rawDataReturnsInOrder(t *testing.T, testName string, nodes Cluster, database, retention string) {
+	t.Logf("Running %s against %d-node cluster", testName, len(nodes))
+
+	// Start by ensuring database and retention policy exist.
+	createDatabase(t, testName, nodes, database)
+	createRetentionPolicy(t, testName, nodes, database, retention)
+	numPoints := 500
+	var expected string
+
+	for i := 1; i < numPoints; i++ {
+		data := fmt.Sprintf(`{"database": "%s", "retentionPolicy": "%s", "points": [{"name": "cpu", "timestamp": "%s", "tags": {"region": "us-east", "host": "server-%d"}, "fields": {"value": %d}}]}`,
+			database, retention, time.Unix(int64(i), int64(0)).Format(time.RFC3339), i%10, i)
+		write(t, nodes[0], data)
+	}
+
+	expected = fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",%d]]}]}]}`, numPoints-1)
+	_, ok := queryAndWait(t, nodes, database, `SELECT count(value) FROM cpu`, expected, 30*time.Second)
+	if !ok {
+		t.Errorf("test %s failed, SELECT count() query returned unexpected data", testName)
+	}
+
+	// Create expected JSON string dynamically.
+	expectedValues := make([]string, 0)
+	for i := 1; i < numPoints; i++ {
+		expectedValues = append(expectedValues, fmt.Sprintf(`["%s",%d]`, time.Unix(int64(i), int64(0)).UTC().Format(time.RFC3339), i))
+	}
+	expected = fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[%s]}]}]}`, strings.Join(expectedValues, ","))
+	_, ok = query(t, nodes, database, `SELECT value FROM cpu`, expected)
+	if !ok {
+		t.Errorf("test %s failed, SELECT query returned unexpected data", testName)
 	}
 }
 
@@ -1086,6 +1121,7 @@ func TestSingleServer(t *testing.T) {
 	nodes := createCombinedNodeCluster(t, testName, dir, 1, 8090, nil)
 
 	runTestsData(t, testName, nodes, "mydb", "myrp")
+	runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp")
 }
 
 func Test3NodeServer(t *testing.T) {
@@ -1103,6 +1139,8 @@ func Test3NodeServer(t *testing.T) {
 	nodes := createCombinedNodeCluster(t, testName, dir, 3, 8190, nil)
 
 	runTestsData(t, testName, nodes, "mydb", "myrp")
+	runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp")
+
 }
 
 func TestClientLibrary(t *testing.T) {

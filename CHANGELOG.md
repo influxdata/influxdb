@@ -5,6 +5,7 @@
 - [#2039](https://github.com/influxdb/influxdb/pull/2039): Don't panic if getting current use fails
 - [#2034](https://github.com/influxdb/influxdb/pull/2034): Group by should require an aggregate.
 - [#2040](https://github.com/influxdb/influxdb/pull/2040): Add missing top-level help for config command
+- [#2057](https://github.com/influxdb/influxdb/pull/2057): Move racy "in order" test to integration test suite.
 
 ## v0.9.0-rc15 [2015-03-19]
 
