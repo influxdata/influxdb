@@ -328,15 +328,19 @@ func (s *Server) StartSelfMonitoring(database, retention string, interval time.D
 		return fmt.Errorf("statistics check interval must be non-zero")
 	}
 
-	// Function for local use turns stats into a point. Automatically tags all points with the
-	// server's Raft ID.
-	pointFromStats := func(st *Stats) Point {
+	// Function for local use turns stats into a point.
+	pointFromStats := func(st *Stats, tags map[string]string) Point {
 		point := Point{
 			Timestamp: time.Now(),
 			Name:      st.Name(),
-			Tags:      map[string]string{"raftID": strconv.FormatUint(s.id, 10)},
+			Tags:      make(map[string]string),
 			Fields:    make(map[string]interface{}),
 		}
+		// Specifically create a new map.
+		for k, v := range tags {
+			point.Tags[k] = v
+		}
+
 		st.Walk(func(k string, v int64) {
 			point.Fields[k] = int(v)
 		})
@@ -348,15 +352,19 @@ func (s *Server) StartSelfMonitoring(database, retention string, interval time.D
 		for {
 			<-tick.C
 
-			// Create the data point and write it.
+			// Create the batch and tags
 			batch := make([]Point, 0)
+			tags := map[string]string{"serverID": strconv.FormatUint(s.ID(), 10)}
+			if h, err := os.Hostname(); err == nil {
+				tags["host"] = h
+			}
 
 			// Server stats.
-			batch = append(batch, pointFromStats(s.stats))
+			batch = append(batch, pointFromStats(s.stats, tags))
 
 			// Shard-level stats.
 			for _, sh := range s.shards {
-				point := pointFromStats(sh.stats)
+				point := pointFromStats(sh.stats, tags)
 				point.Tags["shardID"] = strconv.FormatUint(s.id, 10)
 				batch = append(batch, point)
 			}
@@ -1977,6 +1985,7 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 
 	// Build empty resultsets.
 	results := Results{Results: make([]*Result, len(q.Statements))}
+	s.stats.Add("queriesRx", int64(len(q.Statements)))
 
 	// Execute each statement.
 	for i, stmt := range q.Statements {
@@ -2049,6 +2058,7 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 		if res.Err != nil {
 			break
 		}
+		s.stats.Inc("queriesExecuted")
 	}
 
 	// Fill any empty results after error.
