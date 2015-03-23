@@ -1985,6 +1985,7 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 
 	// Build empty resultsets.
 	results := Results{Results: make([]*Result, len(q.Statements))}
+	s.stats.Add("queriesRx", int64(len(q.Statements)))
 
 	// Execute each statement.
 	for i, stmt := range q.Statements {
@@ -2057,6 +2058,7 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 		if res.Err != nil {
 			break
 		}
+		s.stats.Inc("queriesExecuted")
 	}
 
 	// Fill any empty results after error.
