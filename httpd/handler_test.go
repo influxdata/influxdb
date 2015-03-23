@@ -1639,7 +1639,7 @@ func TestSnapshotHandler(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, nil)
 
-	// Verify snapshot was to response.
+	// Verify status code is successful and the snapshot was written.
 	if w.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d", w.Code)
 	} else if w.Body == nil {
