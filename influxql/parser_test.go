@@ -771,6 +771,12 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// SHOW DIAGNOSTICS
+		{
+			s:    `SHOW DIAGNOSTICS`,
+			stmt: &influxql.ShowDiagnosticsStatement{},
+		},
+
 		// Errors
 		{s: ``, err: `found EOF, expected SELECT, DELETE, SHOW, CREATE, DROP, GRANT, REVOKE, ALTER at line 1, char 1`},
 		{s: `SELECT`, err: `found EOF, expected identifier, string, number, bool at line 1, char 8`},

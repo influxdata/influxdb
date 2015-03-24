@@ -79,6 +79,7 @@ func (*ShowRetentionPoliciesStatement) node() {}
 func (*ShowMeasurementsStatement) node()      {}
 func (*ShowSeriesStatement) node()            {}
 func (*ShowStatsStatement) node()             {}
+func (*ShowDiagnosticsStatement) node()       {}
 func (*ShowTagKeysStatement) node()           {}
 func (*ShowTagValuesStatement) node()         {}
 func (*ShowUsersStatement) node()             {}
@@ -172,6 +173,7 @@ func (*ShowMeasurementsStatement) stmt()      {}
 func (*ShowRetentionPoliciesStatement) stmt() {}
 func (*ShowSeriesStatement) stmt()            {}
 func (*ShowStatsStatement) stmt()             {}
+func (*ShowDiagnosticsStatement) stmt()       {}
 func (*ShowTagKeysStatement) stmt()           {}
 func (*ShowTagValuesStatement) stmt()         {}
 func (*ShowUsersStatement) stmt()             {}
@@ -1383,6 +1385,17 @@ func (s *ShowStatsStatement) String() string {
 
 // RequiredPrivileges returns the privilege(s) required to execute a ShowStatsStatement
 func (s *ShowStatsStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
+}
+
+// ShowDiagnosticsStatement represents a command for show node diagnostics.
+type ShowDiagnosticsStatement struct{}
+
+// String returns a string representation of the ShowDiagnosticsStatement.
+func (s *ShowDiagnosticsStatement) String() string { return "SHOW DIAGNOSTICS" }
+
+// RequiredPrivileges returns the privilege required to execute a ShowDiagnosticsStatement
+func (s *ShowDiagnosticsStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
 }
 
