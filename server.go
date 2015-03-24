@@ -264,6 +264,12 @@ func (s *Server) close() error {
 		_ = sh.close()
 	}
 
+	// Server is closing, empty maps which should be reloaded on open.
+	s.shards = nil
+	s.dataNodes = nil
+	s.databases = nil
+	s.users = nil
+
 	return nil
 }
 
@@ -296,11 +302,16 @@ func (s *Server) load() error {
 			}
 		}
 
-		// Open all shards owned by server.
+		// Load shards.
+		s.shards = make(map[uint64]*Shard)
 		for _, db := range s.databases {
 			for _, rp := range db.policies {
 				for _, g := range rp.shardGroups {
 					for _, sh := range g.Shards {
+						// Add to lookups.
+						s.shards[sh.ID] = sh
+
+						// Only open shards owned by the server.
 						if !sh.HasDataNodeID(s.id) {
 							continue
 						}
