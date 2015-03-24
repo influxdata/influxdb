@@ -51,6 +51,12 @@ const (
 	retentionPolicyMinDuration = time.Hour
 )
 
+var startTime time.Time
+
+func init() {
+	startTime = time.Now().UTC()
+}
+
 // Server represents a collection of metadata and raw metric data.
 type Server struct {
 	mu       sync.RWMutex
@@ -93,6 +99,10 @@ type Server struct {
 	// is just getting the request after being off duty for running CQs then
 	// it will recompute all of them
 	lastContinuousQueryRun time.Time
+
+	// Build information.
+	Version    string
+	CommitHash string
 }
 
 // NewServer returns a new instance of Server.
@@ -264,6 +274,12 @@ func (s *Server) close() error {
 		_ = sh.close()
 	}
 
+	// Server is closing, empty maps which should be reloaded on open.
+	s.shards = nil
+	s.dataNodes = nil
+	s.databases = nil
+	s.users = nil
+
 	return nil
 }
 
@@ -296,11 +312,16 @@ func (s *Server) load() error {
 			}
 		}
 
-		// Open all shards owned by server.
+		// Load shards.
+		s.shards = make(map[uint64]*Shard)
 		for _, db := range s.databases {
 			for _, rp := range db.policies {
 				for _, g := range rp.shardGroups {
 					for _, sh := range g.Shards {
+						// Add to lookups.
+						s.shards[sh.ID] = sh
+
+						// Only open shards owned by the server.
 						if !sh.HasDataNodeID(s.id) {
 							continue
 						}
@@ -308,6 +329,7 @@ func (s *Server) load() error {
 						if err := sh.open(s.shardPath(sh.ID), s.client.Conn(sh.ID)); err != nil {
 							return fmt.Errorf("cannot open shard store: id=%d, err=%s", sh.ID, err)
 						}
+						s.stats.Inc("shardsOpen")
 					}
 				}
 			}
@@ -328,15 +350,19 @@ func (s *Server) StartSelfMonitoring(database, retention string, interval time.D
 		return fmt.Errorf("statistics check interval must be non-zero")
 	}
 
-	// Function for local use turns stats into a point. Automatically tags all points with the
-	// server's Raft ID.
-	pointFromStats := func(st *Stats) Point {
+	// Function for local use turns stats into a point.
+	pointFromStats := func(st *Stats, tags map[string]string) Point {
 		point := Point{
 			Timestamp: time.Now(),
 			Name:      st.Name(),
-			Tags:      map[string]string{"raftID": strconv.FormatUint(s.id, 10)},
+			Tags:      make(map[string]string),
 			Fields:    make(map[string]interface{}),
 		}
+		// Specifically create a new map.
+		for k, v := range tags {
+			point.Tags[k] = v
+		}
+
 		st.Walk(func(k string, v int64) {
 			point.Fields[k] = int(v)
 		})
@@ -348,15 +374,19 @@ func (s *Server) StartSelfMonitoring(database, retention string, interval time.D
 		for {
 			<-tick.C
 
-			// Create the data point and write it.
+			// Create the batch and tags
 			batch := make([]Point, 0)
+			tags := map[string]string{"serverID": strconv.FormatUint(s.ID(), 10)}
+			if h, err := os.Hostname(); err == nil {
+				tags["host"] = h
+			}
 
 			// Server stats.
-			batch = append(batch, pointFromStats(s.stats))
+			batch = append(batch, pointFromStats(s.stats, tags))
 
 			// Shard-level stats.
 			for _, sh := range s.shards {
-				point := pointFromStats(sh.stats)
+				point := pointFromStats(sh.stats, tags)
 				point.Tags["shardID"] = strconv.FormatUint(s.id, 10)
 				batch = append(batch, point)
 			}
@@ -1343,10 +1373,11 @@ func (s *Server) RetentionPolicies(database string) ([]*RetentionPolicy, error) 
 	}
 
 	// Retrieve the policies.
-	a := make([]*RetentionPolicy, 0, len(db.policies))
+	a := make(RetentionPolicies, 0, len(db.policies))
 	for _, p := range db.policies {
 		a = append(a, p)
 	}
+	sort.Sort(a)
 	return a, nil
 }
 
@@ -1997,6 +2028,7 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 
 	// Build empty resultsets.
 	results := Results{Results: make([]*Result, len(q.Statements))}
+	s.stats.Add("queriesRx", int64(len(q.Statements)))
 
 	// Execute each statement.
 	for i, stmt := range q.Statements {
@@ -2042,6 +2074,8 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 			res = s.executeShowFieldKeysStatement(stmt, database, user)
 		case *influxql.ShowStatsStatement:
 			res = s.executeShowStatsStatement(stmt, user)
+		case *influxql.ShowDiagnosticsStatement:
+			res = s.executeShowDiagnosticsStatement(stmt, user)
 		case *influxql.GrantStatement:
 			res = s.executeGrantStatement(stmt, user)
 		case *influxql.RevokeStatement:
@@ -2069,6 +2103,7 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Re
 		if res.Err != nil {
 			break
 		}
+		s.stats.Inc("queriesExecuted")
 	}
 
 	// Fill any empty results after error.
@@ -2669,6 +2704,143 @@ func (s *Server) executeShowStatsStatement(stmt *influxql.ShowStatsStatement, us
 		})
 		rows = append(rows, row)
 	}
+
+	return &Result{Series: rows}
+}
+
+func (s *Server) executeShowDiagnosticsStatement(stmt *influxql.ShowDiagnosticsStatement, user *User) *Result {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	rows := make([]*influxql.Row, 0)
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		hostname = "unknown"
+	}
+
+	diags := []struct {
+		name   string
+		fields map[string]interface{}
+	}{
+		{
+			name: "build",
+			fields: map[string]interface{}{
+				"version":    s.Version,
+				"commitHash": s.CommitHash,
+			},
+		},
+		{
+			name: "server",
+			fields: map[string]interface{}{
+				"id":                  s.id,
+				"path":                s.path,
+				"authEnabled":         s.authenticationEnabled,
+				"index":               s.index,
+				"retentionAutoCreate": s.RetentionAutoCreate,
+				"numShards":           len(s.shards),
+			},
+		},
+		{
+			name: "cq",
+			fields: map[string]interface{}{
+				"lastRun": s.lastContinuousQueryRun,
+			},
+		},
+		{
+			name: "system",
+			fields: map[string]interface{}{
+				"startTime": startTime,
+				"uptime":    time.Since(startTime).String(),
+				"hostname":  hostname,
+				"pid":       os.Getpid(),
+				"os":        runtime.GOOS,
+				"arch":      runtime.GOARCH,
+				"numcpu":    runtime.NumCPU(),
+			},
+		},
+		{
+			name: "memory",
+			fields: map[string]interface{}{
+				"alloc":        m.Alloc,
+				"totalAlloc":   m.TotalAlloc,
+				"sys":          m.Sys,
+				"lookups":      m.Lookups,
+				"mallocs":      m.Mallocs,
+				"frees":        m.Frees,
+				"heapAlloc":    m.HeapAlloc,
+				"heapSys":      m.HeapSys,
+				"heapIdle":     m.HeapIdle,
+				"heapInUse":    m.HeapInuse,
+				"heapReleased": m.HeapReleased,
+				"heapObjects":  m.HeapObjects,
+				"pauseTotalNs": m.PauseTotalNs,
+				"numGC":        m.NumGC,
+			},
+		},
+		{
+			name: "go",
+			fields: map[string]interface{}{
+				"goMaxProcs":   runtime.GOMAXPROCS(0),
+				"numGoroutine": runtime.NumGoroutine(),
+				"version":      runtime.Version(),
+			},
+		},
+	}
+
+	for _, d := range diags {
+		row := &influxql.Row{Columns: []string{"time"}}
+		row.Name = d.name
+
+		// Get sorted list of keys.
+		sortedKeys := make([]string, 0, len(d.fields))
+		for k, _ := range d.fields {
+			sortedKeys = append(sortedKeys, k)
+		}
+		sort.Strings(sortedKeys)
+
+		values := []interface{}{now}
+		for _, k := range sortedKeys {
+			row.Columns = append(row.Columns, k)
+			values = append(values, d.fields[k])
+		}
+		row.Values = append(row.Values, values)
+		rows = append(rows, row)
+	}
+
+	// Shard groups.
+	shardGroupsRow := &influxql.Row{Columns: []string{}}
+	shardGroupsRow.Name = "shardGroups"
+	shardGroupsRow.Columns = append(shardGroupsRow.Columns, "time", "database", "retentionPolicy", "id",
+		"startTime", "endTime", "duration", "numShards")
+	// Check all shard groups.
+	for _, db := range s.databases {
+		for _, rp := range db.policies {
+			for _, g := range rp.shardGroups {
+				shardGroupsRow.Values = append(shardGroupsRow.Values, []interface{}{now, db.name, rp.Name,
+					g.ID, g.StartTime, g.EndTime, g.Duration().String(), len(g.Shards)})
+			}
+		}
+	}
+	rows = append(rows, shardGroupsRow)
+
+	// Shards
+	shardsRow := &influxql.Row{Columns: []string{}}
+	shardsRow.Name = "shards"
+	shardsRow.Columns = append(shardsRow.Columns, "time", "id", "dataNodes", "index", "path")
+	for _, sh := range s.shards {
+		var nodes []string
+		for _, n := range sh.DataNodeIDs {
+			nodes = append(nodes, strconv.FormatUint(n, 10))
+			shardsRow.Values = append(shardsRow.Values, []interface{}{now, sh.ID, strings.Join(nodes, ","),
+				sh.index, sh.store.Path()})
+		}
+	}
+	rows = append(rows, shardsRow)
 
 	return &Result{Series: rows}
 }
@@ -3643,19 +3815,19 @@ func copyURL(u *url.URL) *url.URL {
 	return other
 }
 
-func (s *Server) StartReportingLoop(version string, clusterID uint64) chan struct{} {
-	s.reportStats(version, clusterID)
+func (s *Server) StartReportingLoop(clusterID uint64) chan struct{} {
+	s.reportStats(clusterID)
 
 	ticker := time.NewTicker(24 * time.Hour)
 	for {
 		select {
 		case <-ticker.C:
-			s.reportStats(version, clusterID)
+			s.reportStats(clusterID)
 		}
 	}
 }
 
-func (s *Server) reportStats(version string, clusterID uint64) {
+func (s *Server) reportStats(clusterID uint64) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -3672,7 +3844,7 @@ func (s *Server) reportStats(version string, clusterID uint64) {
     "name":"reports",
     "columns":["os", "arch", "version", "server_id", "id", "num_series", "num_measurements", "num_databases"],
     "points":[["%s", "%s", "%s", "%x", "%x", "%d", "%d", "%d"]]
-  }]`, runtime.GOOS, runtime.GOARCH, version, s.ID(), clusterID, numSeries, numMeasurements, numDatabases)
+  }]`, runtime.GOOS, runtime.GOARCH, s.Version, s.ID(), clusterID, numSeries, numMeasurements, numDatabases)
 
 	data := bytes.NewBufferString(json)
 

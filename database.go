@@ -1073,6 +1073,12 @@ type RetentionPolicy struct {
 	shardGroups []*ShardGroup
 }
 
+type RetentionPolicies []*RetentionPolicy
+
+func (a RetentionPolicies) Len() int           { return len(a) }
+func (a RetentionPolicies) Less(i, j int) bool { return a[i].Name < a[j].Name }
+func (a RetentionPolicies) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+
 // NewRetentionPolicy returns a new instance of RetentionPolicy with defaults set.
 func NewRetentionPolicy(name string) *RetentionPolicy {
 	return &RetentionPolicy{

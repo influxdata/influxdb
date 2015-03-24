@@ -150,9 +150,13 @@ case $1 in
         fi
         ;;
 
+    version)
+        $daemon version
+        ;;
+
     *)
         # For invalid arguments, print the usage message.
-        echo "Usage: $0 {start|stop|restart|status}"
+        echo "Usage: $0 {start|stop|restart|status|version}"
         exit 2
         ;;
 esac

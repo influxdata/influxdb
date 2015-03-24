@@ -36,8 +36,7 @@ For those adventurous enough, you can
 ### Creating your first database
 
 ```JSON
-curl -G 'http://localhost:8086/query' \
---data-urlencode "q=CREATE DATABASE mydb"
+curl -G 'http://localhost:8086/query' --data-urlencode "q=CREATE DATABASE mydb"
 ```
 
 ### Insert some data
