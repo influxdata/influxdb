@@ -318,6 +318,7 @@ func (s *Server) load() error {
 						if err := sh.open(s.shardPath(sh.ID), s.client.Conn(sh.ID)); err != nil {
 							return fmt.Errorf("cannot open shard store: id=%d, err=%s", sh.ID, err)
 						}
+						s.stats.Inc("shardsOpen")
 					}
 				}
 			}
