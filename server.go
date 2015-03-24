@@ -2682,6 +2682,7 @@ func (s *Server) executeShowDiagnosticsStatement(stmt *influxql.ShowDiagnosticsS
 	defer s.mu.RUnlock()
 
 	rows := make([]*influxql.Row, 0)
+	now := time.Now().UTC().Format(time.RFC3339Nano)
 
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
@@ -2761,7 +2762,7 @@ func (s *Server) executeShowDiagnosticsStatement(stmt *influxql.ShowDiagnosticsS
 	}
 
 	for _, d := range diags {
-		row := &influxql.Row{Columns: []string{}}
+		row := &influxql.Row{Columns: []string{"time"}}
 		row.Name = d.name
 
 		// Get sorted list of keys.
@@ -2771,24 +2772,26 @@ func (s *Server) executeShowDiagnosticsStatement(stmt *influxql.ShowDiagnosticsS
 		}
 		sort.Strings(sortedKeys)
 
+		values := []interface{}{now}
 		for _, k := range sortedKeys {
 			row.Columns = append(row.Columns, k)
-			row.Values = append(row.Values, []interface{}{d.fields[k]})
+			values = append(values, d.fields[k])
 		}
+		row.Values = append(row.Values, values)
 		rows = append(rows, row)
 	}
 
 	// Shard groups.
 	shardGroupsRow := &influxql.Row{Columns: []string{}}
 	shardGroupsRow.Name = "shardGroups"
-	shardGroupsRow.Columns = append(shardGroupsRow.Columns, "database", "retentionPolicy", "id",
+	shardGroupsRow.Columns = append(shardGroupsRow.Columns, "time", "database", "retentionPolicy", "id",
 		"startTime", "endTime", "duration", "numShards")
 	// Check all shard groups.
 	for _, db := range s.databases {
 		for _, rp := range db.policies {
 			for _, g := range rp.shardGroups {
-				shardGroupsRow.Values = append(shardGroupsRow.Values, []interface{}{db.name, rp.Name, g.ID,
-					g.StartTime, g.EndTime, g.Duration().String(), len(g.Shards)})
+				shardGroupsRow.Values = append(shardGroupsRow.Values, []interface{}{now, db.name, rp.Name,
+					g.ID, g.StartTime, g.EndTime, g.Duration().String(), len(g.Shards)})
 			}
 		}
 	}
@@ -2797,12 +2800,12 @@ func (s *Server) executeShowDiagnosticsStatement(stmt *influxql.ShowDiagnosticsS
 	// Shards
 	shardsRow := &influxql.Row{Columns: []string{}}
 	shardsRow.Name = "shards"
-	shardsRow.Columns = append(shardsRow.Columns, "id", "dataNodes", "index", "path")
+	shardsRow.Columns = append(shardsRow.Columns, "time", "id", "dataNodes", "index", "path")
 	for _, sh := range s.shards {
 		var nodes []string
 		for _, n := range sh.DataNodeIDs {
 			nodes = append(nodes, strconv.FormatUint(n, 10))
-			shardsRow.Values = append(shardsRow.Values, []interface{}{sh.ID, strings.Join(nodes, ","),
+			shardsRow.Values = append(shardsRow.Values, []interface{}{now, sh.ID, strings.Join(nodes, ","),
 				sh.index, sh.store.Path()})
 		}
 	}
