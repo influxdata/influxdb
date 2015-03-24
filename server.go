@@ -93,6 +93,10 @@ type Server struct {
 	// is just getting the request after being off duty for running CQs then
 	// it will recompute all of them
 	lastContinuousQueryRun time.Time
+
+	// Build information.
+	Version    string
+	CommitHash string
 }
 
 // NewServer returns a new instance of Server.
@@ -3634,19 +3638,19 @@ func copyURL(u *url.URL) *url.URL {
 	return other
 }
 
-func (s *Server) StartReportingLoop(version string, clusterID uint64) chan struct{} {
-	s.reportStats(version, clusterID)
+func (s *Server) StartReportingLoop(clusterID uint64) chan struct{} {
+	s.reportStats(clusterID)
 
 	ticker := time.NewTicker(24 * time.Hour)
 	for {
 		select {
 		case <-ticker.C:
-			s.reportStats(version, clusterID)
+			s.reportStats(clusterID)
 		}
 	}
 }
 
-func (s *Server) reportStats(version string, clusterID uint64) {
+func (s *Server) reportStats(clusterID uint64) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 

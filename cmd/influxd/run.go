@@ -201,7 +201,7 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 	if !config.ReportingDisabled {
 		// Make sure we have a config object b4 we try to use it.
 		if clusterID := b.Broker.ClusterID(); clusterID != 0 {
-			go s.StartReportingLoop(version, clusterID)
+			go s.StartReportingLoop(clusterID)
 		}
 	}
 
@@ -343,6 +343,8 @@ func openServer(config *Config, b *influxdb.Broker, initServer, initBroker bool,
 	s.RecomputeNoOlderThan = time.Duration(config.ContinuousQuery.RecomputeNoOlderThan)
 	s.ComputeRunsPerInterval = config.ContinuousQuery.ComputeRunsPerInterval
 	s.ComputeNoMoreThan = time.Duration(config.ContinuousQuery.ComputeNoMoreThan)
+	s.Version = version
+	s.CommitHash = commit
 
 	// Open server with data directory and broker client.
 	if err := s.Open(config.Data.Dir, c); err != nil {
