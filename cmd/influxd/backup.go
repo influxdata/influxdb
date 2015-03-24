@@ -177,6 +177,6 @@ backup downloads a snapshot of a data node and saves it to disk.
 
         -host <url>
                           The host to connect to snapshot.
-                          Defaults to 127.0.0.1:8087.
+                          Defaults to http://127.0.0.1:8087.
 `)
 }

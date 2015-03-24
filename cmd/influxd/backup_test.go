@@ -81,7 +81,7 @@ func TestBackupCommand_ErrPathRequired(t *testing.T) {
 
 // Ensure the backup returns an error if it cannot connect to the server.
 func TestBackupCommand_ErrConnectionRefused(t *testing.T) {
-	// Start and immediate stop a server so we have a dead port.
+	// Start and immediately stop a server so we have a dead port.
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	s.Close()
 

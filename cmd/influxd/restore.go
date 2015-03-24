@@ -77,7 +77,7 @@ func (cmd *RestoreCommand) Run(args ...string) error {
 	}
 
 	// Notify user of completion.
-	cmd.Logger.Println("restore complete")
+	cmd.Logger.Printf("restore complete using %s", path)
 
 	return nil
 }
@@ -131,6 +131,9 @@ func (cmd *RestoreCommand) unpack(path string, ssr *influxdb.SnapshotsReader) er
 		} else if err != nil {
 			return fmt.Errorf("next: entry=%s, err=%s", sf.Name, err)
 		}
+
+		// Log progress.
+		cmd.Logger.Printf("unpacking: %s / idx=%d (%d bytes)", sf.Name, sf.Index, sf.Size)
 
 		// Create parent directory for output file.
 		if err := os.MkdirAll(filepath.Dir(filepath.Join(path, sf.Name)), 0777); err != nil {
