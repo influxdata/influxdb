@@ -107,6 +107,7 @@ const (
 	SHOW
 	SLIMIT
 	STATS
+	DIAGNOSTICS
 	SOFFSET
 	TAG
 	TO
@@ -210,6 +211,7 @@ var tokens = [...]string{
 	SLIMIT:       "SLIMIT",
 	SOFFSET:      "SOFFSET",
 	STATS:        "STATS",
+	DIAGNOSTICS:  "DIAGNOSTICS",
 	TAG:          "TAG",
 	TO:           "TO",
 	USER:         "USER",

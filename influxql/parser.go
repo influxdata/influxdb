@@ -113,6 +113,8 @@ func (p *Parser) parseShowStatement() (Statement, error) {
 		return p.parseShowSeriesStatement()
 	case STATS:
 		return p.parseShowStatsStatement()
+	case DIAGNOSTICS:
+		return p.parseShowDiagnosticsStatement()
 	case TAG:
 		tok, pos, lit := p.scanIgnoreWhitespace()
 		if tok == KEYS {
@@ -1191,6 +1193,12 @@ func (p *Parser) parseShowStatsStatement() (*ShowStatsStatement, error) {
 	}
 
 	return stmt, err
+}
+
+// parseShowDiagnostics parses a string and returns a ShowDiagnosticsStatement.
+func (p *Parser) parseShowDiagnosticsStatement() (*ShowDiagnosticsStatement, error) {
+	stmt := &ShowDiagnosticsStatement{}
+	return stmt, nil
 }
 
 // parseDropContinuousQueriesStatement parses a string and returns a DropContinuousQueryStatement.
