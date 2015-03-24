@@ -2,6 +2,7 @@
 
 ### Features
 - [#2058](https://github.com/influxdb/influxdb/pull/2058): Track number of queries executed in stats.
+- [#2059](https://github.com/influxdb/influxdb/pull/2059): Retention policies sorted by name on return to client.
 
 ### Bugfixes
 - [#2037](https://github.com/influxdb/influxdb/pull/2037): Don't check 'configExists' at Run() level

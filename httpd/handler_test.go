@@ -303,7 +303,7 @@ func TestHandler_RetentionPolicies(t *testing.T) {
 
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if !strings.Contains(body, `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["default","0",1,true],["bar","168h0m0s",1,false]]}]}]}`) {
+	} else if !strings.Contains(body, `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["bar","168h0m0s",1,false],["default","0",1,true]]}]}]}`) {
 		t.Fatalf("Missing retention policy: %s", body)
 	}
 }
