@@ -264,6 +264,12 @@ func (s *Server) close() error {
 		_ = sh.close()
 	}
 
+	// Server is closing, empty maps which should be reloaded on open.
+	s.shards = nil
+	s.dataNodes = nil
+	s.databases = nil
+	s.users = nil
+
 	return nil
 }
 
