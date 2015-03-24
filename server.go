@@ -1331,10 +1331,11 @@ func (s *Server) RetentionPolicies(database string) ([]*RetentionPolicy, error) 
 	}
 
 	// Retrieve the policies.
-	a := make([]*RetentionPolicy, 0, len(db.policies))
+	a := make(RetentionPolicies, 0, len(db.policies))
 	for _, p := range db.policies {
 		a = append(a, p)
 	}
+	sort.Sort(a)
 	return a, nil
 }
 
