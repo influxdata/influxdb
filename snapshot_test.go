@@ -76,6 +76,44 @@ func TestSnapshot_Diff(t *testing.T) {
 	}
 }
 
+// Ensure a snapshot can be merged so that the newest files from the two snapshots are returned.
+func TestSnapshot_Merge(t *testing.T) {
+	for i, tt := range []struct {
+		s      *influxdb.Snapshot
+		other  *influxdb.Snapshot
+		result *influxdb.Snapshot
+	}{
+		// 0. Mixed higher, lower, equal indices.
+		{
+			s: &influxdb.Snapshot{Files: []influxdb.SnapshotFile{
+				{Name: "a", Size: 10, Index: 1},
+				{Name: "b", Size: 10, Index: 10}, // keep: same, first
+				{Name: "c", Size: 10, Index: 21}, // keep: higher
+				{Name: "e", Size: 10, Index: 15}, // keep: higher
+			}},
+			other: &influxdb.Snapshot{Files: []influxdb.SnapshotFile{
+				{Name: "a", Size: 20, Index: 2}, // keep: higher
+				{Name: "b", Size: 20, Index: 10},
+				{Name: "c", Size: 20, Index: 11},
+				{Name: "d", Size: 20, Index: 14}, // keep: new
+				{Name: "e", Size: 20, Index: 12},
+			}},
+			result: &influxdb.Snapshot{Files: []influxdb.SnapshotFile{
+				{Name: "a", Size: 20, Index: 2},
+				{Name: "b", Size: 10, Index: 10},
+				{Name: "c", Size: 10, Index: 21},
+				{Name: "d", Size: 20, Index: 14},
+				{Name: "e", Size: 10, Index: 15},
+			}},
+		},
+	} {
+		result := tt.s.Merge(tt.other)
+		if !reflect.DeepEqual(tt.result, result) {
+			t.Errorf("%d. mismatch:\n\nexp=%#v\n\ngot=%#v", i, tt.result, result)
+		}
+	}
+}
+
 // Ensure a snapshot writer can write a set of files to an archive
 func TestSnapshotWriter(t *testing.T) {
 	// Create a new writer with a snapshot and file writers.
@@ -160,6 +198,75 @@ func TestSnapshotWriter_CloseUnused(t *testing.T) {
 	// to wait until the close of the whole writer.
 	if !sw.FileWriters["other"].(*bufCloser).closed {
 		t.Fatal("'other' file writer not closed")
+	}
+}
+
+// Ensure a SnapshotsReader can read from multiple snapshots.
+func TestSnapshotsReader(t *testing.T) {
+	var sw *influxdb.SnapshotWriter
+	bufs := make([]bytes.Buffer, 2)
+
+	// Snapshot #1
+	sw = influxdb.NewSnapshotWriter()
+	sw.Snapshot.Files = []influxdb.SnapshotFile{
+		{Name: "meta", Size: 3, Index: 12},
+		{Name: "shards/1", Size: 5, Index: 15},
+	}
+	sw.FileWriters["meta"] = &bufCloser{Buffer: *bytes.NewBufferString("foo")}
+	sw.FileWriters["shards/1"] = &bufCloser{Buffer: *bytes.NewBufferString("55555")}
+	if _, err := sw.WriteTo(&bufs[0]); err != nil {
+		t.Fatal(err)
+	} else if err = sw.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Snapshot #2
+	sw = influxdb.NewSnapshotWriter()
+	sw.Snapshot.Files = []influxdb.SnapshotFile{
+		{Name: "meta", Size: 3, Index: 20},
+		{Name: "shards/2", Size: 6, Index: 30},
+	}
+	sw.FileWriters["meta"] = &bufCloser{Buffer: *bytes.NewBufferString("bar")}
+	sw.FileWriters["shards/2"] = &bufCloser{Buffer: *bytes.NewBufferString("666666")}
+	if _, err := sw.WriteTo(&bufs[1]); err != nil {
+		t.Fatal(err)
+	} else if err = sw.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Read and merge snapshots.
+	ssr := influxdb.NewSnapshotsReader(&bufs[0], &bufs[1])
+
+	// Next should be the second meta file.
+	if f, err := ssr.Next(); err != nil {
+		t.Fatalf("unexpected error(meta): %s", err)
+	} else if !reflect.DeepEqual(f, influxdb.SnapshotFile{Name: "meta", Size: 3, Index: 20}) {
+		t.Fatalf("file mismatch(meta): %#v", f)
+	} else if b := MustReadAll(ssr); string(b) != `bar` {
+		t.Fatalf("unexpected file(meta): %s", b)
+	}
+
+	// Next should be shards/1.
+	if f, err := ssr.Next(); err != nil {
+		t.Fatalf("unexpected error(shards/1): %s", err)
+	} else if !reflect.DeepEqual(f, influxdb.SnapshotFile{Name: "shards/1", Size: 5, Index: 15}) {
+		t.Fatalf("file mismatch(shards/1): %#v", f)
+	} else if b := MustReadAll(ssr); string(b) != `55555` {
+		t.Fatalf("unexpected file(shards/1): %s", b)
+	}
+
+	// Next should be shards/2.
+	if f, err := ssr.Next(); err != nil {
+		t.Fatalf("unexpected error(shards/2): %s", err)
+	} else if !reflect.DeepEqual(f, influxdb.SnapshotFile{Name: "shards/2", Size: 6, Index: 30}) {
+		t.Fatalf("file mismatch(shards/2): %#v", f)
+	} else if b := MustReadAll(ssr); string(b) != `666666` {
+		t.Fatalf("unexpected file(shards/2): %s", b)
+	}
+
+	// Check for end of snapshot.
+	if _, err := ssr.Next(); err != io.EOF {
+		t.Fatalf("expected EOF: %s", err)
 	}
 }
 

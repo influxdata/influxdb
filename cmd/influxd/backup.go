@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -8,6 +10,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+
+	"github.com/influxdb/influxdb"
 )
 
 // BackupSuffix is a suffix added to the backup while it's in-process.
@@ -41,13 +45,25 @@ func (cmd *BackupCommand) Run(args ...string) error {
 		return err
 	}
 
-	// TODO: Check highest index from local version.
+	// Retrieve snapshot from local file.
+	ss, err := influxdb.ReadFileSnapshot(path)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("read file snapshot: %s", err)
+	}
 
 	// Determine temporary path to download to.
 	tmppath := path + BackupSuffix
 
+	// Calculate path of next backup file.
+	// This uses the path if it doesn't exist.
+	// Otherwise it appends an autoincrementing number.
+	path, err = cmd.nextPath(path)
+	if err != nil {
+		return fmt.Errorf("next path: %s", err)
+	}
+
 	// Retrieve snapshot.
-	if err := cmd.download(u, tmppath); err != nil {
+	if err := cmd.download(u, ss, tmppath); err != nil {
 		return fmt.Errorf("download: %s", err)
 	}
 
@@ -89,8 +105,28 @@ func (cmd *BackupCommand) parseFlags(args []string) (url.URL, string, error) {
 	return *u, path, nil
 }
 
+// nextPath returns the next file to write to.
+func (cmd *BackupCommand) nextPath(path string) (string, error) {
+	// Use base path if it doesn't exist.
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return path, nil
+	} else if err != nil {
+		return "", err
+	}
+
+	// Otherwise iterate through incremental files until one is available.
+	for i := 0; ; i++ {
+		s := fmt.Sprintf(path+".%d", i)
+		if _, err := os.Stat(s); os.IsNotExist(err) {
+			return s, nil
+		} else if err != nil {
+			return "", err
+		}
+	}
+}
+
 // download downloads a snapshot from a host to a given path.
-func (cmd *BackupCommand) download(u url.URL, path string) error {
+func (cmd *BackupCommand) download(u url.URL, ss *influxdb.Snapshot, path string) error {
 	// Create local file to write to.
 	f, err := os.Create(path)
 	if err != nil {
@@ -98,9 +134,23 @@ func (cmd *BackupCommand) download(u url.URL, path string) error {
 	}
 	defer f.Close()
 
-	// Fetch the archive from the server.
+	// Encode snapshot.
+	var buf bytes.Buffer
+	if ss != nil {
+		if err := json.NewEncoder(&buf).Encode(ss); err != nil {
+			return fmt.Errorf("encode snapshot: %s", err)
+		}
+	}
+
+	// Create request with existing snapshot as the body.
 	u.Path = "/snapshot"
-	resp, err := http.Get(u.String())
+	req, err := http.NewRequest("GET", u.String(), &buf)
+	if err != nil {
+		return fmt.Errorf("new request: %s", err)
+	}
+
+	// Fetch the archive from the server.
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("get: %s", err)
 	}

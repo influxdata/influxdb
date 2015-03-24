@@ -32,16 +32,26 @@ func TestBackupCommand(t *testing.T) {
 	}))
 	defer s.Close()
 
-	// Execute the backup against the mock server.
+	// Create a temp path and remove incremental backups at the end.
 	path := tempfile()
 	defer os.Remove(path)
-	if err := NewBackupCommand().Run("-host", s.URL, path); err != nil {
-		t.Fatal(err)
+	defer os.Remove(path)
+	defer os.Remove(path)
+
+	// Execute the backup against the mock server.
+	for i := 0; i < 3; i++ {
+		if err := NewBackupCommand().Run("-host", s.URL, path); err != nil {
+			t.Fatal(err)
+		}
 	}
 
-	// Verify snapshot was written to path.
+	// Verify snapshot and two incremental snapshots were written.
 	if _, err := os.Stat(path); err != nil {
 		t.Fatalf("snapshot not found: %s", err)
+	} else if _, err = os.Stat(path + ".0"); err != nil {
+		t.Fatalf("incremental snapshot(0) not found: %s", err)
+	} else if _, err = os.Stat(path + ".1"); err != nil {
+		t.Fatalf("incremental snapshot(1) not found: %s", err)
 	}
 }
 

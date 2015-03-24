@@ -53,22 +53,21 @@ func (cmd *RestoreCommand) Run(args ...string) error {
 		return fmt.Errorf("remove data dir: %s", err)
 	}
 
-	// Open snapshot file.
-	f, err := os.Open(path)
+	// Open snapshot file and all incremental backups.
+	ssr, files, err := influxdb.OpenFileSnapshotsReader(path)
 	if err != nil {
 		return fmt.Errorf("open: %s", err)
 	}
-	defer f.Close()
+	defer closeAll(files)
 
-	// Create reader and extract manifest.
-	sr := influxdb.NewSnapshotReader(f)
-	ss, err := sr.Snapshot()
+	// Extract manifest.
+	ss, err := ssr.Snapshot()
 	if err != nil {
 		return fmt.Errorf("snapshot: %s", err)
 	}
 
 	// Unpack snapshot files into data directory.
-	if err := cmd.unpack(config.DataDir(), sr); err != nil {
+	if err := cmd.unpack(config.DataDir(), ssr); err != nil {
 		return fmt.Errorf("unpack: %s", err)
 	}
 
@@ -110,8 +109,14 @@ func (cmd *RestoreCommand) parseFlags(args []string) (*Config, string, error) {
 	return config, path, nil
 }
 
+func closeAll(a []io.Closer) {
+	for _, c := range a {
+		_ = c.Close()
+	}
+}
+
 // unpack expands the files in the snapshot archive into a directory.
-func (cmd *RestoreCommand) unpack(path string, sr *influxdb.SnapshotReader) error {
+func (cmd *RestoreCommand) unpack(path string, ssr *influxdb.SnapshotsReader) error {
 	// Create root directory.
 	if err := os.MkdirAll(path, 0777); err != nil {
 		return fmt.Errorf("mkdir: err=%s", err)
@@ -120,7 +125,7 @@ func (cmd *RestoreCommand) unpack(path string, sr *influxdb.SnapshotReader) erro
 	// Loop over files and extract.
 	for {
 		// Read entry header.
-		sf, err := sr.Next()
+		sf, err := ssr.Next()
 		if err == io.EOF {
 			break
 		} else if err != nil {
@@ -141,7 +146,7 @@ func (cmd *RestoreCommand) unpack(path string, sr *influxdb.SnapshotReader) erro
 			defer f.Close()
 
 			// Copy contents from reader.
-			if _, err := io.CopyN(f, sr, sf.Size); err != nil {
+			if _, err := io.CopyN(f, ssr, sf.Size); err != nil {
 				return fmt.Errorf("copy: entry=%s, err=%s", sf.Name, err)
 			}
 

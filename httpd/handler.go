@@ -778,6 +778,13 @@ type SnapshotHandler struct {
 }
 
 func (h *SnapshotHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Read in previous snapshot from request body.
+	var prev influxdb.Snapshot
+	if err := json.NewDecoder(r.Body).Decode(&prev); err != nil && err != io.EOF {
+		httpError(w, "error reading previous snapshot: "+err.Error(), false, http.StatusBadRequest)
+		return
+	}
+
 	// Retrieve a snapshot from the server.
 	sw, err := h.CreateSnapshotWriter()
 	if err != nil {
@@ -786,7 +793,8 @@ func (h *SnapshotHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	defer sw.Close()
 
-	// TODO: Subtract existing snapshot from writer.
+	// Subtract existing snapshot from writer.
+	sw.Snapshot = sw.Snapshot.Diff(&prev)
 
 	// Write to response.
 	if _, err := sw.WriteTo(w); err != nil {

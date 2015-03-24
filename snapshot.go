@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"time"
 
 	"github.com/boltdb/bolt"
@@ -54,7 +56,43 @@ loop:
 		diff.Files = append(diff.Files, a)
 	}
 
+	// Sort files.
+	sort.Sort(SnapshotFiles(diff.Files))
+
 	return diff
+}
+
+// Merge returns a Snapshot that combines s with other.
+// Only the newest file between the two snapshots is returned.
+func (s *Snapshot) Merge(other *Snapshot) *Snapshot {
+	ret := &Snapshot{}
+	ret.Files = make([]SnapshotFile, len(s.Files))
+	copy(ret.Files, s.Files)
+
+	// Update/insert versions of files that are newer in other.
+loop:
+	for _, a := range other.Files {
+		for i, b := range ret.Files {
+			// Ignore if it doesn't match.
+			if a.Name != b.Name {
+				continue
+			}
+
+			// Update if it's newer and then start the next file.
+			if a.Index > b.Index {
+				ret.Files[i] = a
+			}
+			continue loop
+		}
+
+		// If the file wasn't found then append it.
+		ret.Files = append(ret.Files, a)
+	}
+
+	// Sort files.
+	sort.Sort(SnapshotFiles(ret.Files))
+
+	return ret
 }
 
 // SnapshotFile represents a single file in a Snapshot.
@@ -63,6 +101,13 @@ type SnapshotFile struct {
 	Size  int64  `json:"size"`  // file size
 	Index uint64 `json:"index"` // highest index applied
 }
+
+// SnapshotFiles represents a sortable list of snapshot files.
+type SnapshotFiles []SnapshotFile
+
+func (p SnapshotFiles) Len() int           { return len(p) }
+func (p SnapshotFiles) Less(i, j int) bool { return p[i].Name < p[j].Name }
+func (p SnapshotFiles) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
 // SnapshotReader reads a snapshot from a Reader.
 // This type is not safe for concurrent use.
@@ -147,6 +192,215 @@ func (sr *SnapshotReader) Read(b []byte) (n int, err error) {
 	return sr.tr.Read(b)
 }
 
+// SnapshotsReader reads from a collection of snapshots.
+// Only files with the highest index are read from the reader.
+// This type is not safe for concurrent use.
+type SnapshotsReader struct {
+	readers []*SnapshotReader // underlying snapshot readers
+	files   []*SnapshotFile   // current file for each reader
+
+	snapshot *Snapshot       // combined snapshot from all readers
+	index    int             // index of file in snapshot to read
+	curr     *SnapshotReader // current reader
+}
+
+// NewSnapshotsReader returns a new SnapshotsReader reading from a list of readers.
+func NewSnapshotsReader(readers ...io.Reader) *SnapshotsReader {
+	r := &SnapshotsReader{
+		readers: make([]*SnapshotReader, len(readers)),
+		files:   make([]*SnapshotFile, len(readers)),
+		index:   -1,
+	}
+	for i := range readers {
+		r.readers[i] = NewSnapshotReader(readers[i])
+	}
+	return r
+}
+
+// Snapshot returns the combined snapshot from all readers.
+func (ssr *SnapshotsReader) Snapshot() (*Snapshot, error) {
+	// Use snapshot if it's already been calculated.
+	if ssr.snapshot != nil {
+		return ssr.snapshot, nil
+	}
+
+	// Build snapshot from other readers.
+	ss := &Snapshot{}
+	for i, sr := range ssr.readers {
+		other, err := sr.Snapshot()
+		if err != nil {
+			return nil, fmt.Errorf("snapshot: idx=%d, err=%s", i, err)
+		}
+		ss = ss.Merge(other)
+	}
+
+	// Cache snapshot and return.
+	ssr.snapshot = ss
+	return ss, nil
+}
+
+// Next returns the next file in the reader.
+func (ssr *SnapshotsReader) Next() (SnapshotFile, error) {
+	ss, err := ssr.Snapshot()
+	if err != nil {
+		return SnapshotFile{}, fmt.Errorf("snapshot: %s", err)
+	}
+
+	// Return EOF if there are no more files in snapshot.
+	if ssr.index == len(ss.Files)-1 {
+		ssr.curr = nil
+		return SnapshotFile{}, io.EOF
+	}
+
+	// Queue up next files.
+	if err := ssr.nextFiles(); err != nil {
+		return SnapshotFile{}, fmt.Errorf("next files: %s", err)
+	}
+
+	// Increment the file index.
+	ssr.index++
+	sf := ss.Files[ssr.index]
+
+	// Find the matching reader. Clear other readers.
+	var sr *SnapshotReader
+	for i, f := range ssr.files {
+		if f == nil || f.Name != sf.Name {
+			continue
+		}
+
+		// Set reader to the first match.
+		if sr == nil && *f == sf {
+			sr = ssr.readers[i]
+		}
+		ssr.files[i] = nil
+	}
+
+	// Return an error if file doesn't match.
+	// This shouldn't happen unless the underlying snapshot is altered.
+	if sr == nil {
+		return SnapshotFile{}, fmt.Errorf("snaphot file not found in readers: %s", sf.Name)
+	}
+
+	// Set current reader.
+	ssr.curr = sr
+
+	// Return file.
+	return sf, nil
+}
+
+// nextFiles queues up a next file for all readers.
+func (ssr *SnapshotsReader) nextFiles() error {
+	for i, sr := range ssr.readers {
+		if ssr.files[i] == nil {
+			// Read next file.
+			sf, err := sr.Next()
+			if err == io.EOF {
+				ssr.files[i] = nil
+				continue
+			} else if err != nil {
+				return fmt.Errorf("next: reader=%d, err=%s", i, err)
+			}
+
+			// Cache file.
+			ssr.files[i] = &sf
+		}
+	}
+
+	return nil
+}
+
+// nextIndex returns the index of the next reader to read from.
+// Returns -1 if all readers are at EOF.
+func (ssr *SnapshotsReader) nextIndex() int {
+	// Find the next file by name and lowest index.
+	index := -1
+	for i, f := range ssr.files {
+		if f == nil {
+			continue
+		} else if index == -1 {
+			index = i
+		} else if f.Name < ssr.files[index].Name {
+			index = i
+		} else if f.Name == ssr.files[index].Name && f.Index > ssr.files[index].Index {
+			index = i
+		}
+	}
+	return index
+}
+
+// Read reads the current entry in the reader.
+func (ssr *SnapshotsReader) Read(b []byte) (n int, err error) {
+	if ssr.curr == nil {
+		return 0, io.EOF
+	}
+	return ssr.curr.Read(b)
+}
+
+// OpenFileSnapshotsReader returns a SnapshotsReader based on the path of the base snapshot.
+// Returns the underlying files which need to be closed separately.
+func OpenFileSnapshotsReader(path string) (*SnapshotsReader, []io.Closer, error) {
+	var readers []io.Reader
+	var closers []io.Closer
+	if err := func() error {
+		// Open original snapshot file.
+		f, err := os.Open(path)
+		if os.IsNotExist(err) {
+			return err
+		} else if err != nil {
+			return fmt.Errorf("open snapshot: %s", err)
+		}
+		readers = append(readers, f)
+		closers = append(closers, f)
+
+		// Open all incremental snapshots.
+		for i := 0; ; i++ {
+			filename := path + fmt.Sprintf(".%d", i)
+			f, err := os.Open(filename)
+			if os.IsNotExist(err) {
+				break
+			} else if err != nil {
+				return fmt.Errorf("open incremental snapshot: file=%s, err=%s", filename, err)
+			}
+			readers = append(readers, f)
+			closers = append(closers, f)
+		}
+
+		return nil
+	}(); err != nil {
+		closeAll(closers)
+		return nil, nil, err
+	}
+
+	return NewSnapshotsReader(readers...), nil, nil
+}
+
+// ReadFileSnapshot returns a Snapshot for a given base snapshot path.
+// This snapshot merges all incremental backup snapshots as well.
+func ReadFileSnapshot(path string) (*Snapshot, error) {
+	// Open a multi-snapshot reader.
+	ssr, files, err := OpenFileSnapshotsReader(path)
+	if os.IsNotExist(err) {
+		return nil, err
+	} else if err != nil {
+		return nil, fmt.Errorf("open file snapshots reader: %s", err)
+	}
+	defer closeAll(files)
+
+	// Read snapshot.
+	ss, err := ssr.Snapshot()
+	if err != nil {
+		return nil, fmt.Errorf("snapshot: %s", err)
+	}
+
+	return ss, nil
+}
+
+func closeAll(a []io.Closer) {
+	for _, c := range a {
+		_ = c.Close()
+	}
+}
+
 // SnapshotWriter writes a snapshot and the underlying files to disk as a tar archive.
 type SnapshotWriter struct {
 	// The snapshot to write from.
@@ -197,6 +451,10 @@ loop:
 func (sw *SnapshotWriter) WriteTo(w io.Writer) (n int64, err error) {
 	// Close any file writers that aren't required.
 	sw.closeUnusedWriters()
+
+	// Sort snapshot files.
+	// This is required for combining multiple snapshots together.
+	sort.Sort(SnapshotFiles(sw.Snapshot.Files))
 
 	// Begin writing a tar file to the output.
 	tw := tar.NewWriter(w)

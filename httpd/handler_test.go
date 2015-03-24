@@ -1627,17 +1627,26 @@ func TestSnapshotHandler(t *testing.T) {
 	h.CreateSnapshotWriter = func() (*influxdb.SnapshotWriter, error) {
 		return &influxdb.SnapshotWriter{
 			Snapshot: &influxdb.Snapshot{
-				Files: []influxdb.SnapshotFile{{Name: "meta", Size: 5, Index: 12}},
+				Files: []influxdb.SnapshotFile{
+					{Name: "meta", Size: 5, Index: 12},
+					{Name: "shards/1", Size: 6, Index: 15},
+				},
 			},
 			FileWriters: map[string]influxdb.SnapshotFileWriter{
-				"meta": influxdb.NopWriteToCloser(bytes.NewBufferString("55555")),
+				"meta":     influxdb.NopWriteToCloser(bytes.NewBufferString("55555")),
+				"shards/1": influxdb.NopWriteToCloser(bytes.NewBufferString("666666")),
 			},
 		}, nil
 	}
 
-	// Execute handler.
+	// Execute handler with an existing snapshot to diff.
+	// The "shards/1" has a higher index in the diff so it won't be included in the snapshot.
 	w := httptest.NewRecorder()
-	h.ServeHTTP(w, nil)
+	r, _ := http.NewRequest(
+		"GET", "http://localhost/snapshot",
+		strings.NewReader(`{"files":[{"name":"meta","index":10},{"name":"shards/1","index":20}]}`),
+	)
+	h.ServeHTTP(w, r)
 
 	// Verify status code is successful and the snapshot was written.
 	if w.Code != http.StatusOK {
