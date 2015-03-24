@@ -2678,6 +2678,9 @@ func (s *Server) executeShowStatsStatement(stmt *influxql.ShowStatsStatement, us
 }
 
 func (s *Server) executeShowDiagnosticsStatement(stmt *influxql.ShowDiagnosticsStatement, user *User) *Result {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	rows := make([]*influxql.Row, 0)
 
 	var m runtime.MemStats
@@ -2774,6 +2777,36 @@ func (s *Server) executeShowDiagnosticsStatement(stmt *influxql.ShowDiagnosticsS
 		}
 		rows = append(rows, row)
 	}
+
+	// Shard groups.
+	shardGroupsRow := &influxql.Row{Columns: []string{}}
+	shardGroupsRow.Name = "shardGroups"
+	shardGroupsRow.Columns = append(shardGroupsRow.Columns, "database", "retentionPolicy", "id",
+		"startTime", "endTime", "duration", "numShards")
+	// Check all shard groups.
+	for _, db := range s.databases {
+		for _, rp := range db.policies {
+			for _, g := range rp.shardGroups {
+				shardGroupsRow.Values = append(shardGroupsRow.Values, []interface{}{db.name, rp.Name, g.ID,
+					g.StartTime, g.EndTime, g.Duration().String(), len(g.Shards)})
+			}
+		}
+	}
+	rows = append(rows, shardGroupsRow)
+
+	// Shards
+	shardsRow := &influxql.Row{Columns: []string{}}
+	shardsRow.Name = "shards"
+	shardsRow.Columns = append(shardsRow.Columns, "id", "dataNodes", "index", "path")
+	for _, sh := range s.shards {
+		var nodes []string
+		for _, n := range sh.DataNodeIDs {
+			nodes = append(nodes, strconv.FormatUint(n, 10))
+			shardsRow.Values = append(shardsRow.Values, []interface{}{sh.ID, strings.Join(nodes, ","),
+				sh.index, sh.store.Path()})
+		}
+	}
+	rows = append(rows, shardsRow)
 
 	return &Result{Series: rows}
 }
