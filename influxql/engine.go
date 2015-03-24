@@ -496,11 +496,19 @@ func (m *MapReduceJob) processAggregate(c *Call, reduceFunc ReduceFunc, resultVa
 		}
 	}
 
+	firstInterval := m.interval
+	if !m.stmt.IsRawQuery {
+		firstInterval = (m.TMin/m.interval*m.interval + m.interval) - m.TMin
+	}
 	// populate the result values for each interval of time
 	for i, _ := range resultValues {
 		// collect the results from each mapper
 		for j, mm := range m.Mappers {
-			res, err := mm.NextInterval(m.interval)
+			interval := m.interval
+			if i == 0 {
+				interval = firstInterval
+			}
+			res, err := mm.NextInterval(interval)
 			if err != nil {
 				return err
 			}
@@ -569,7 +577,7 @@ func NewPlanner(db DB) *Planner {
 
 // Plan creates an execution plan for the given SelectStatement and returns an Executor.
 func (p *Planner) Plan(stmt *SelectStatement) (*Executor, error) {
-	now := p.Now()
+	now := p.Now().UTC()
 
 	// Replace instances of "now()" with the current time.
 	stmt.Condition = Reduce(stmt.Condition, &nowValuer{Now: now})

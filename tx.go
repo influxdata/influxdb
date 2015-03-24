@@ -317,17 +317,15 @@ func (l *LocalMapper) Begin(c *influxql.Call, startingTime int64) error {
 // NextInterval will get the time ordered next interval of the given interval size from the mapper. This is a
 // forward only operation from the start time passed into Begin. Will return nil when there is no more data to be read.
 func (l *LocalMapper) NextInterval(interval int64) (interface{}, error) {
+	warn("> ", time.Unix(0, l.tmin).UTC(), time.Unix(0, l.tmax).UTC())
 	if l.cursorsEmpty || l.tmin > l.job.TMax {
 		return nil, nil
 	}
 
-	intervalBottom := l.tmin
-
 	// Set the upper bound of the interval.
 	if interval > 0 {
 		// Make sure the bottom of the interval lands on a natural boundary.
-		intervalBottom = intervalBottom / interval * interval
-		l.tmax = intervalBottom + interval - 1
+		l.tmax = l.tmin + interval - 1
 	}
 
 	// Execute the map function. This local mapper acts as the iterator
@@ -343,7 +341,7 @@ func (l *LocalMapper) NextInterval(interval int64) (interface{}, error) {
 	}
 
 	// Move the interval forward.
-	l.tmin = intervalBottom + interval
+	l.tmin += interval
 
 	return val, nil
 }

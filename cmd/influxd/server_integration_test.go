@@ -340,6 +340,9 @@ func runTests_Errors(t *testing.T, nodes Cluster) {
 func runTestsData(t *testing.T, testName string, nodes Cluster, database, retention string) {
 	t.Logf("Running tests against %d-node cluster", len(nodes))
 
+	yesterday := time.Now().Add(-1 * time.Hour * 24).UTC()
+	now := time.Now().UTC()
+
 	// Start by ensuring database and retention policy exist.
 	createDatabase(t, testName, nodes, database)
 	createRetentionPolicy(t, testName, nodes, database, retention)
@@ -402,6 +405,22 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			query:    `SELECT value FROM cpu WHERE time >= '3000-01-01 00:00:05'`,
 			queryDb:  "%DB%",
 			expected: `{"results":[{}]}`,
+		},
+
+		// Data read and write tests using relative time
+		{
+			reset:    true,
+			name:     "single point with timestamp pre-calculated for relative time queries yesterday",
+			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "timestamp": "` + yesterday.Format(time.RFC3339Nano) + `", "tags": {"host": "server01"}, "fields": {"value": 100}}]}`,
+			query:    `SELECT * FROM "%DB%"."%RP%".cpu where time >= '` + yesterday.Add(-1*time.Minute).Format(time.RFC3339Nano) + `'`,
+			expected: fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",100]]}]}]}`, yesterday.Format(time.RFC3339Nano)),
+		},
+		{
+			reset:    true,
+			name:     "single point with timestamp pre-calculated for relative time queries now",
+			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "timestamp": "` + now.Format(time.RFC3339Nano) + `", "tags": {"host": "server01"}, "fields": {"value": 100}}]}`,
+			query:    `SELECT * FROM "%DB%"."%RP%".cpu where time >= now() - 1m`,
+			expected: fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",100]]}]}]}`, now.Format(time.RFC3339Nano)),
 		},
 
 		// Merge tests.
