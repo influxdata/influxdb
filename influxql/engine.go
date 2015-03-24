@@ -497,9 +497,7 @@ func (m *MapReduceJob) processAggregate(c *Call, reduceFunc ReduceFunc, resultVa
 	}
 
 	firstInterval := m.interval
-	if !m.stmt.IsRawQuery {
-		firstInterval = (m.TMin/m.interval*m.interval + m.interval) - m.TMin
-	}
+	firstInterval = (m.TMin/m.interval*m.interval + m.interval) - m.TMin
 	// populate the result values for each interval of time
 	for i, _ := range resultValues {
 		// collect the results from each mapper
