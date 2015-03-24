@@ -3,6 +3,7 @@
 ### Features
 - [#2058](https://github.com/influxdb/influxdb/pull/2058): Track number of queries executed in stats.
 - [#2059](https://github.com/influxdb/influxdb/pull/2059): Retention policies sorted by name on return to client.
+- [#2061](https://github.com/influxdb/influxdb/pull/2061): Implement SHOW DIAGNOSTICS.
 - [#2064](https://github.com/influxdb/influxdb/pull/2064): Allow init.d script to return influxd version.
 
 ### Bugfixes
