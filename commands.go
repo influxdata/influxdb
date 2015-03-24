@@ -198,7 +198,7 @@ func (c *createMeasurementsIfNotExistsCommand) addFieldIfNotExists(measurement, 
 }
 
 type dropSeriesCommand struct {
-	Database            string              `json:"datbase"`
+	Database            string              `json:"database"`
 	SeriesByMeasurement map[string][]uint32 `json:"seriesIds"`
 }
 
