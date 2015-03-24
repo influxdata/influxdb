@@ -146,6 +146,8 @@ func (c *Client) Ping() (time.Duration, string, error) {
 	return time.Since(now), version, nil
 }
 
+// Dump connects to server and retrieves all data stored for specified database.
+// If successful, Dump returns the entire response body, which is an io.ReadCloser
 func (c *Client) Dump(db string) (io.ReadCloser, error) {
 	u := c.url
 	u.Path = "dump"
@@ -260,13 +262,13 @@ func (r *Results) UnmarshalJSON(b []byte) error {
 
 // Error returns the first error from any statement.
 // Returns nil if no errors occurred on any statements.
-func (a Results) Error() error {
-	if a.Err != nil {
-		return a.Err
+func (r Results) Error() error {
+	if r.Err != nil {
+		return r.Err
 	}
-	for _, r := range a.Results {
-		if r.Err != nil {
-			return r.Err
+	for _, result := range r.Results {
+		if result.Err != nil {
+			return result.Err
 		}
 	}
 	return nil
