@@ -317,7 +317,6 @@ func (l *LocalMapper) Begin(c *influxql.Call, startingTime int64) error {
 // NextInterval will get the time ordered next interval of the given interval size from the mapper. This is a
 // forward only operation from the start time passed into Begin. Will return nil when there is no more data to be read.
 func (l *LocalMapper) NextInterval(interval int64) (interface{}, error) {
-	warn("> ", time.Unix(0, l.tmin).UTC(), time.Unix(0, l.tmax).UTC())
 	if l.cursorsEmpty || l.tmin > l.job.TMax {
 		return nil, nil
 	}
