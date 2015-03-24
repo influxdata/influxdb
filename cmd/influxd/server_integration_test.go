@@ -410,7 +410,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		// Data read and write tests using relative time
 		{
 			reset:    true,
-			name:     "single point with timestamp pre-calculated for relative time queries yesterday",
+			name:     "single point with timestamp pre-calculated for past time queries yesterday",
 			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "timestamp": "` + yesterday.Format(time.RFC3339Nano) + `", "tags": {"host": "server01"}, "fields": {"value": 100}}]}`,
 			query:    `SELECT * FROM "%DB%"."%RP%".cpu where time >= '` + yesterday.Add(-1*time.Minute).Format(time.RFC3339Nano) + `'`,
 			expected: fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",100]]}]}]}`, yesterday.Format(time.RFC3339Nano)),
