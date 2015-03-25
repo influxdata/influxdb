@@ -393,8 +393,8 @@ func ParseConfig(s string) (*Config, error) {
 }
 
 type Collectd struct {
-	Addr string `toml:"address"`
-	Port uint16 `toml:"port"`
+	BindAddress string `toml:"bind-address"`
+	Port        uint16 `toml:"port"`
 
 	Database string `toml:"database"`
 	Enabled  bool   `toml:"enabled"`
@@ -403,7 +403,7 @@ type Collectd struct {
 
 // ConnnectionString returns the connection string for this collectd config in the form host:port.
 func (c *Collectd) ConnectionString(defaultBindAddr string) string {
-	addr := c.Addr
+	addr := c.BindAddress
 	// If no address specified, use default.
 	if addr == "" {
 		addr = defaultBindAddr
@@ -419,8 +419,8 @@ func (c *Collectd) ConnectionString(defaultBindAddr string) string {
 }
 
 type Graphite struct {
-	Addr string `toml:"address"`
-	Port uint16 `toml:"port"`
+	BindAddress string `toml:"bind-address"`
+	Port        uint16 `toml:"port"`
 
 	Database      string `toml:"database"`
 	Enabled       bool   `toml:"enabled"`
@@ -432,7 +432,7 @@ type Graphite struct {
 // ConnnectionString returns the connection string for this Graphite config in the form host:port.
 func (g *Graphite) ConnectionString(defaultBindAddr string) string {
 
-	addr := g.Addr
+	addr := g.BindAddress
 	// If no address specified, use default.
 	if addr == "" {
 		addr = defaultBindAddr
