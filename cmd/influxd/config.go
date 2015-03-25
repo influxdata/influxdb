@@ -174,7 +174,7 @@ type Config struct {
 		ComputeNoMoreThan Duration `toml:"compute-no-more-than"`
 
 		// If this flag is set to true, both the brokers and data nodes should ignore any CQ processing.
-		Disable bool `toml:"disable"`
+		Disabled bool `toml:"disabled"`
 	} `toml:"continuous_queries"`
 }
 
@@ -206,7 +206,7 @@ func NewConfig() (*Config, error) {
 	c.ContinuousQuery.RecomputeNoOlderThan = Duration(10 * time.Minute)
 	c.ContinuousQuery.ComputeRunsPerInterval = 10
 	c.ContinuousQuery.ComputeNoMoreThan = Duration(2 * time.Minute)
-	c.ContinuousQuery.Disable = false
+	c.ContinuousQuery.Disabled = false
 	c.ReportingDisabled = false
 
 	c.Statistics.Enabled = false
