@@ -9,6 +9,110 @@ import (
 	main "github.com/influxdb/influxdb/cmd/influxd"
 )
 
+// Testing configuration file.
+const testFile = `
+# Welcome to the InfluxDB configuration file.
+
+# If hostname (on the OS) doesn't return a name that can be resolved by the other
+# systems in the cluster, you'll have to set the hostname to an IP or something
+# that can be resolved here.
+hostname = "myserver.com"
+
+# Controls certain parameters that only take effect until an initial successful
+# start-up has occurred.
+[initialization]
+join-urls = "http://127.0.0.1:8086"
+
+# Control authentication
+[authentication]
+enabled = true
+
+[logging]
+write-tracing = true
+raft-tracing = true
+
+[statistics]
+enabled = true
+database = "_internal"
+retention-policy = "default"
+write-interval = "1m"
+
+# Configure the admin server
+[admin]
+enabled = true
+port = 8083
+
+# Configure the http api
+[api]
+ssl-port = 8087    # Ssl support is enabled if you set a port and cert
+ssl-cert = "../cert.pem"
+
+# connections will timeout after this amount of time. Ensures that clients that misbehave
+# and keep alive connections they don't use won't end up connection a million times.
+# However, if a request is taking longer than this to complete, could be a problem.
+read-timeout = "5s"
+
+[input_plugins]
+
+  [input_plugins.udp]
+  enabled = true
+  port = 4444
+  database = "test"
+
+# Configure the Graphite servers
+[[graphite]]
+protocol = "TCP"
+enabled = true
+address = "192.168.0.1"
+port = 2003
+database = "graphite_tcp"  # store graphite data in this database
+name-position = "last"
+name-separator = "-"
+
+[[graphite]]
+protocol = "udP"
+enabled = true
+address = "192.168.0.2"
+port = 2005
+
+# Configure collectd server
+[collectd]
+enabled = true
+address = "192.168.0.3"
+port = 25827
+database = "collectd_database"
+typesdb = "foo-db-type"
+
+# Broker configuration
+[broker]
+# The broker port should be open between all servers in a cluster.
+# However, this port shouldn't be accessible from the internet.
+port = 8086
+enabled = false
+
+# Where the broker logs are stored. The user running InfluxDB will need read/write access.
+dir  = "/tmp/influxdb/development/broker"
+
+# election-timeout = "2s"
+
+[data]
+dir = "/tmp/influxdb/development/db"
+retention-auto-create = false
+retention-check-enabled = true
+retention-check-period = "5m"
+enabled = false
+
+[continuous_queries]
+disabled = true
+
+[cluster]
+dir = "/tmp/influxdb/development/cluster"
+
+[snapshot]
+bind-address = "1.2.3.4"
+port = 9999
+`
+
 // Ensure that megabyte sizes can be parsed.
 func TestSize_UnmarshalText_MB(t *testing.T) {
 	var s main.Size
@@ -149,6 +253,13 @@ func TestParseConfig(t *testing.T) {
 		t.Fatalf("cluster dir mismatch: %v", c.Cluster.Dir)
 	}
 
+	if exp := "1.2.3.4"; c.Snapshot.BindAddress != exp {
+		t.Fatalf("snapshot bind-address mismatch: %v, got %v", exp, c.Snapshot.BindAddress)
+	}
+
+	if exp := 9999; c.Snapshot.Port != exp {
+		t.Fatalf("snapshot port mismatch: %v, got %v", exp, c.Snapshot.Port)
+	}
 	// TODO: UDP Servers testing.
 	/*
 		c.Assert(config.UdpServers, HasLen, 1)
@@ -157,106 +268,6 @@ func TestParseConfig(t *testing.T) {
 		c.Assert(config.UdpServers[0].Database, Equals, "test")
 	*/
 }
-
-// Testing configuration file.
-const testFile = `
-# Welcome to the InfluxDB configuration file.
-
-# If hostname (on the OS) doesn't return a name that can be resolved by the other
-# systems in the cluster, you'll have to set the hostname to an IP or something
-# that can be resolved here.
-hostname = "myserver.com"
-
-# Controls certain parameters that only take effect until an initial successful
-# start-up has occurred.
-[initialization]
-join-urls = "http://127.0.0.1:8086"
-
-# Control authentication
-[authentication]
-enabled = true
-
-[logging]
-write-tracing = true
-raft-tracing = true
-
-[statistics]
-enabled = true
-database = "_internal"
-retention-policy = "default"
-write-interval = "1m"
-
-# Configure the admin server
-[admin]
-enabled = true
-port = 8083
-
-# Configure the http api
-[api]
-ssl-port = 8087    # Ssl support is enabled if you set a port and cert
-ssl-cert = "../cert.pem"
-
-# connections will timeout after this amount of time. Ensures that clients that misbehave
-# and keep alive connections they don't use won't end up connection a million times.
-# However, if a request is taking longer than this to complete, could be a problem.
-read-timeout = "5s"
-
-[input_plugins]
-
-  [input_plugins.udp]
-  enabled = true
-  port = 4444
-  database = "test"
-
-# Configure the Graphite servers
-[[graphite]]
-protocol = "TCP"
-enabled = true
-address = "192.168.0.1"
-port = 2003
-database = "graphite_tcp"  # store graphite data in this database
-name-position = "last"
-name-separator = "-"
-
-[[graphite]]
-protocol = "udP"
-enabled = true
-address = "192.168.0.2"
-port = 2005
-
-# Configure collectd server
-[collectd]
-enabled = true
-address = "192.168.0.3"
-port = 25827
-database = "collectd_database"
-typesdb = "foo-db-type"
-
-# Broker configuration
-[broker]
-# The broker port should be open between all servers in a cluster.
-# However, this port shouldn't be accessible from the internet.
-port = 8086
-enabled = false
-
-# Where the broker logs are stored. The user running InfluxDB will need read/write access.
-dir  = "/tmp/influxdb/development/broker"
-
-# election-timeout = "2s"
-
-[data]
-dir = "/tmp/influxdb/development/db"
-retention-auto-create = false
-retention-check-enabled = true
-retention-check-period = "5m"
-enabled = false
-
-[continuous_queries]
-disabled = true
-
-[cluster]
-dir = "/tmp/influxdb/development/cluster"
-`
 
 func TestCollectd_ConnectionString(t *testing.T) {
 	var tests = []struct {
