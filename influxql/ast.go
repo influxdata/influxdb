@@ -1271,7 +1271,8 @@ func (s *CreateContinuousQueryStatement) RequiredPrivileges() ExecutionPrivilege
 
 // DropContinuousQueryStatement represents a command for removing a continuous query.
 type DropContinuousQueryStatement struct {
-	Name string
+	Name     string
+	Database string
 }
 
 // String returns a string representation of the statement.

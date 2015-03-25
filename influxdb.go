@@ -131,6 +131,9 @@ var (
 
 	// ErrContinuousQueryExists is returned when creating a duplicate continuous query.
 	ErrContinuousQueryExists = errors.New("continuous query already exists")
+
+	// ErrContinuousQueryNotFound is returned when dropping a nonexistent continuous query.
+	ErrContinuousQueryNotFound = errors.New("continuous query not found")
 )
 
 // ErrAuthorize represents an authorization error.
