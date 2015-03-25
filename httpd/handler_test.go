@@ -1,6 +1,7 @@
 package httpd_test
 
 import (
+	"archive/tar"
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
@@ -1616,6 +1617,55 @@ func TestHandler_ProcessContinousQueries(t *testing.T) {
 	status, _ := MustHTTP("POST", s.URL+`/process_continuous_queries`, nil, nil, "")
 	if status != http.StatusAccepted {
 		t.Fatalf("unexpected status: %d", status)
+	}
+}
+
+// Ensure the snapshot handler can write a snapshot as a tar archive over HTTP.
+func TestSnapshotHandler(t *testing.T) {
+	// Create handler and mock the snapshot creator.
+	var h httpd.SnapshotHandler
+	h.CreateSnapshotWriter = func() (*influxdb.SnapshotWriter, error) {
+		return &influxdb.SnapshotWriter{
+			Snapshot: &influxdb.Snapshot{
+				Files: []influxdb.SnapshotFile{
+					{Name: "meta", Size: 5, Index: 12},
+					{Name: "shards/1", Size: 6, Index: 15},
+				},
+			},
+			FileWriters: map[string]influxdb.SnapshotFileWriter{
+				"meta":     influxdb.NopWriteToCloser(bytes.NewBufferString("55555")),
+				"shards/1": influxdb.NopWriteToCloser(bytes.NewBufferString("666666")),
+			},
+		}, nil
+	}
+
+	// Execute handler with an existing snapshot to diff.
+	// The "shards/1" has a higher index in the diff so it won't be included in the snapshot.
+	w := httptest.NewRecorder()
+	r, _ := http.NewRequest(
+		"GET", "http://localhost/snapshot",
+		strings.NewReader(`{"files":[{"name":"meta","index":10},{"name":"shards/1","index":20}]}`),
+	)
+	h.ServeHTTP(w, r)
+
+	// Verify status code is successful and the snapshot was written.
+	if w.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", w.Code)
+	} else if w.Body == nil {
+		t.Fatal("body not written")
+	}
+
+	// Read snapshot.
+	tr := tar.NewReader(w.Body)
+	if hdr, err := tr.Next(); err != nil {
+		t.Fatal(err)
+	} else if hdr.Name != "manifest" {
+		t.Fatalf("unexpected snapshot file: %s", hdr.Name)
+	}
+	if b, err := ioutil.ReadAll(tr); err != nil {
+		t.Fatal(err)
+	} else if string(b) != `{"files":[{"name":"meta","size":5,"index":12}]}` {
+		t.Fatalf("unexpected manifest: %s", b)
 	}
 }
 

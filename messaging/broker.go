@@ -928,7 +928,7 @@ func ReadSegmentByIndex(path string, index uint64) (*Segment, error) {
 	} else if index == 0 {
 		return segments[0], nil
 	} else if index < segments[0].Index {
-		return nil, ErrSegmentReclaimed
+		return segments[0], nil
 	}
 
 	// Find segment that contains index.

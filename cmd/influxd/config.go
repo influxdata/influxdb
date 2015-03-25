@@ -38,6 +38,12 @@ const (
 	// DefaultDataPort represents the default port the data server runs on.
 	DefaultDataPort = 8086
 
+	// DefaultSnapshotBindAddress is the default bind address to serve snapshots from.
+	DefaultSnapshotBindAddress = "127.0.0.1"
+
+	// DefaultSnapshotPort is the default port to serve snapshots from.
+	DefaultSnapshotPort = 8087
+
 	// DefaultJoinURLs represents the default URLs for joining a cluster.
 	DefaultJoinURLs = ""
 
@@ -48,6 +54,11 @@ const (
 	// DefaultGraphiteDatabaseName is the default Graphite database if none is specified
 	DefaultGraphiteDatabaseName = "graphite"
 )
+
+var DefaultSnapshotURL = url.URL{
+	Scheme: "http",
+	Host:   net.JoinHostPort(DefaultSnapshotBindAddress, strconv.Itoa(DefaultSnapshotPort)),
+}
 
 // Config represents the configuration format for the influxd binary.
 type Config struct {
@@ -101,6 +112,10 @@ type Config struct {
 		RetentionCreatePeriod Duration `toml:"retention-create-period"`
 	} `toml:"data"`
 
+	Snapshot struct {
+		BindAddress string `toml:"bind-address"`
+		Port        int    `toml:"port"`
+	}
 	Cluster struct {
 		Dir string `toml:"dir"`
 	} `toml:"cluster"`
@@ -168,6 +183,8 @@ func NewConfig() (*Config, error) {
 	c.Data.RetentionCheckEnabled = true
 	c.Data.RetentionCheckPeriod = Duration(10 * time.Minute)
 	c.Data.RetentionCreatePeriod = Duration(DefaultRetentionCreatePeriod)
+	c.Snapshot.BindAddress = DefaultSnapshotBindAddress
+	c.Snapshot.Port = DefaultSnapshotPort
 	c.Admin.Enabled = true
 	c.Admin.Port = 8083
 	c.ContinuousQuery.RecomputePreviousN = 2
@@ -213,6 +230,11 @@ func (c *Config) DataURL() url.URL {
 		Scheme: "http",
 		Host:   net.JoinHostPort(c.Hostname, strconv.Itoa(c.Data.Port)),
 	}
+}
+
+// SnapshotAddr returns the TCP binding address for the snapshot handler.
+func (c *Config) SnapshotAddr() string {
+	return net.JoinHostPort(c.Snapshot.BindAddress, strconv.Itoa(c.Snapshot.Port))
 }
 
 // BrokerAddr returns the binding address the Broker server

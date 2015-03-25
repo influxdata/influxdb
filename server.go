@@ -555,14 +555,34 @@ func (s *Server) broadcast(typ messaging.MessageType, c interface{}) (uint64, er
 	}
 
 	// Wait for the server to receive the message.
-	err = s.Sync(index)
+	err = s.Sync(BroadcastTopicID, index)
 
 	return index, err
 }
 
 // Sync blocks until a given index (or a higher index) has been applied.
 // Returns any error associated with the command.
-func (s *Server) Sync(index uint64) error {
+func (s *Server) Sync(topicID, index uint64) error {
+	// Sync to the broadcast topic if specified.
+	if topicID == 0 {
+		return s.syncBroadcast(index)
+	}
+
+	// Otherwise retrieve shard by id.
+	s.mu.RLock()
+	sh := s.shards[topicID]
+	s.mu.RUnlock()
+
+	// Return error if there is no shard.
+	if sh == nil || sh.store == nil {
+		return errors.New("shard not owned")
+	}
+
+	return sh.sync(index)
+}
+
+// syncBroadcast syncs the broadcast topic.
+func (s *Server) syncBroadcast(index uint64) error {
 	for {
 		// Check if index has occurred. If so, retrieve the error and return.
 		s.mu.RLock()
@@ -3832,4 +3852,11 @@ func (s *Server) reportStats(clusterID uint64) {
 
 	client := http.Client{Timeout: time.Duration(5 * time.Second)}
 	go client.Post("http://m.influxdb.com:8086/db/reporting/series?u=reporter&p=influxdb", "application/json", data)
+}
+
+// CreateSnapshotWriter returns a writer for the current snapshot.
+func (s *Server) CreateSnapshotWriter() (*SnapshotWriter, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return createServerSnapshotWriter(s)
 }

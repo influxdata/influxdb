@@ -94,15 +94,12 @@ func (s *Shard) open(path string, conn MessagingConn) error {
 	s.store = store
 
 	// Initialize store.
-	s.index = 0
 	if err := s.store.Update(func(tx *bolt.Tx) error {
+		_, _ = tx.CreateBucketIfNotExists([]byte("meta"))
 		_, _ = tx.CreateBucketIfNotExists([]byte("values"))
 
 		// Find highest replicated index.
-		b, _ := tx.CreateBucketIfNotExists([]byte("meta"))
-		if buf := b.Get([]byte("index")); len(buf) > 0 {
-			s.index = btou64(buf)
-		}
+		s.index = shardMetaIndex(tx)
 
 		// Open connection.
 		if err := conn.Open(s.index, true); err != nil {
@@ -123,6 +120,15 @@ func (s *Shard) open(path string, conn MessagingConn) error {
 	return nil
 }
 
+// shardMetaIndex returns the index from the "meta" bucket on a transaction.
+func shardMetaIndex(tx *bolt.Tx) uint64 {
+	var index uint64
+	if buf := tx.Bucket([]byte("meta")).Get([]byte("index")); len(buf) > 0 {
+		index = btou64(buf)
+	}
+	return index
+}
+
 // close shuts down the shard's store.
 func (s *Shard) close() error {
 	// Wait for goroutines to stop.
@@ -137,6 +143,19 @@ func (s *Shard) close() error {
 		_ = s.store.Close()
 	}
 	return nil
+}
+
+// sync returns after a given index has been reached.
+func (s *Shard) sync(index uint64) error {
+	for {
+		// Check if index has occurred.
+		if s.index >= index {
+			return nil
+		}
+
+		// Otherwise wait momentarily and check again.
+		time.Sleep(1 * time.Millisecond)
+	}
 }
 
 // HasDataNodeID return true if the data node owns the shard.

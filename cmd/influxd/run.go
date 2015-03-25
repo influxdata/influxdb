@@ -117,6 +117,17 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 		}
 		log.Printf("data node #%d listening on %s", s.ID(), config.DataAddr())
 
+		// Start snapshot handler.
+		go func() {
+			log.Fatal(http.ListenAndServe(
+				config.SnapshotAddr(),
+				&httpd.SnapshotHandler{
+					CreateSnapshotWriter: s.CreateSnapshotWriter,
+				},
+			))
+		}()
+		log.Printf("snapshot endpoint listening on %s", config.SnapshotAddr())
+
 		// Start the admin interface on the default port
 		if config.Admin.Enabled {
 			port := fmt.Sprintf(":%d", config.Admin.Port)
@@ -227,21 +238,20 @@ func writePIDFile(path string) {
 	}
 }
 
-// parses the configuration from a given path. Sets overrides as needed.
-func parseConfig(path, hostname string) *Config {
+// parseConfig parses the configuration from a given path. Sets overrides as needed.
+func parseConfig(path, hostname string) (*Config, error) {
 	if path == "" {
 		c, err := NewConfig()
 		if err != nil {
-			log.Fatalf("failed to generate default config: %s. Please supply an explicit configuration file",
-				err.Error())
+			return nil, fmt.Errorf("failed to generate default config: %s. Please supply an explicit configuration file", err.Error())
 		}
-		return c
+		return c, nil
 	}
 
 	// Parse configuration.
 	config, err := ParseConfigFile(path)
 	if err != nil {
-		log.Fatalf("config: %s", err)
+		return nil, fmt.Errorf("config: %s", err)
 	}
 
 	// Override config properties.
@@ -249,7 +259,7 @@ func parseConfig(path, hostname string) *Config {
 		config.Hostname = hostname
 	}
 
-	return config
+	return config, nil
 }
 
 // creates and initializes a broker.

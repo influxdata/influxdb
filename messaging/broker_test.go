@@ -407,7 +407,6 @@ func TestReadSegmentByIndex(t *testing.T) {
 		{index: 19, segmentIndex: 12},
 		{index: 20, segmentIndex: 20},
 		{index: 21, segmentIndex: 20},
-		{index: 5, segmentIndex: 6, err: messaging.ErrSegmentReclaimed},
 	} {
 		segment, err := messaging.ReadSegmentByIndex(path, tt.index)
 		if tt.err != nil {

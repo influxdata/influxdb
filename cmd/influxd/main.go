@@ -4,11 +4,13 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math/rand"
 	"os"
 	"os/signal"
 	"runtime"
 	"runtime/pprof"
 	"strings"
+	"time"
 )
 
 const logo = `
@@ -36,6 +38,7 @@ const (
 
 func main() {
 	log.SetFlags(0)
+	rand.Seed(time.Now().UnixNano())
 
 	// If commit not set, make that clear.
 	if commit == "" {
@@ -68,6 +71,16 @@ func main() {
 		execRun(args[1:])
 	case "":
 		execRun(args)
+	case "backup":
+		cmd := NewBackupCommand()
+		if err := cmd.Run(args[1:]...); err != nil {
+			log.Fatalf("backup: %s", err)
+		}
+	case "restore":
+		cmd := NewRestoreCommand()
+		if err := cmd.Run(args[1:]...); err != nil {
+			log.Fatalf("restore: %s", err)
+		}
 	case "version":
 		execVersion(args[1:])
 	case "config":
@@ -104,10 +117,13 @@ func execRun(args []string) {
 	log.SetFlags(log.LstdFlags)
 	writePIDFile(*pidPath)
 
-	if *configPath == "" {
+	// Parse configuration file from disk.
+	config, err := parseConfig(*configPath, *hostname)
+	if err != nil {
+		log.Fatal(err)
+	} else if *configPath == "" {
 		log.Println("No config provided, using default settings")
 	}
-	config := parseConfig(*configPath, *hostname)
 
 	// Create a logging writer.
 	logWriter := os.Stderr
@@ -162,7 +178,10 @@ func execConfig(args []string) {
 	)
 	fs.Parse(args)
 
-	config := parseConfig(*configPath, *hostname)
+	config, err := parseConfig(*configPath, *hostname)
+	if err != nil {
+		log.Fatalf("parse config: %s", err)
+	}
 
 	config.Write(os.Stdout)
 }
@@ -240,3 +259,6 @@ func stopProfiling() {
 		prof.mem.Close()
 	}
 }
+
+func warn(v ...interface{})              { fmt.Fprintln(os.Stderr, v...) }
+func warnf(msg string, v ...interface{}) { fmt.Fprintf(os.Stderr, msg+"\n", v...) }
