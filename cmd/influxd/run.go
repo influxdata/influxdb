@@ -27,13 +27,18 @@ import (
 )
 
 type RunCommand struct {
+	// The logger passed to the ticker during execution.
+	Logger *log.Logger
 }
 
 func NewRunCommand() *RunCommand {
 	return &RunCommand{}
 }
 
-func (r *RunCommand) Run(args ...string) error {
+func (cmd *RunCommand) Run(args ...string) error {
+	// Set up logger.
+	cmd.Logger = log.New(os.Stderr, "", log.LstdFlags)
+
 	// Parse command flags.
 	fs := flag.NewFlagSet("", flag.ExitOnError)
 	var (
@@ -62,9 +67,9 @@ func (r *RunCommand) Run(args ...string) error {
 	// Parse configuration file from disk.
 	config, err := parseConfig(*configPath, *hostname)
 	if err != nil {
-		log.Fatal(err)
+		cmd.Logger.Fatal(err)
 	} else if *configPath == "" {
-		log.Println("No config provided, using default settings")
+		cmd.Logger.Println("No config provided, using default settings")
 	}
 
 	Run(config, *join, version)
