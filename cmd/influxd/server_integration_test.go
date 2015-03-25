@@ -1304,7 +1304,7 @@ func Test_ServerSingleGraphiteIntegration(t *testing.T) {
 	basePort := 8390
 	testName := "graphite integration"
 	dir := tempfile()
-	now := time.Now().UTC().Round(time.Millisecond)
+	now := time.Now().UTC().Round(time.Second)
 	c, _ := main.NewConfig()
 	g := main.Graphite{
 		Enabled:  true,
@@ -1328,7 +1328,7 @@ func Test_ServerSingleGraphiteIntegration(t *testing.T) {
 
 	t.Log("Writing data")
 	data := []byte(`cpu 23.456 `)
-	data = append(data, []byte(fmt.Sprintf("%d", now.UnixNano()/1000000))...)
+	data = append(data, []byte(fmt.Sprintf("%d", now.Unix()))...)
 	data = append(data, '\n')
 	_, err = conn.Write(data)
 	conn.Close()
@@ -1354,7 +1354,7 @@ func Test_ServerSingleGraphiteIntegration_ZeroDataPoint(t *testing.T) {
 	basePort := 8490
 	testName := "graphite integration"
 	dir := tempfile()
-	now := time.Now().UTC().Round(time.Millisecond)
+	now := time.Now().UTC().Round(time.Second)
 	c, _ := main.NewConfig()
 	g := main.Graphite{
 		Enabled:  true,
@@ -1379,7 +1379,7 @@ func Test_ServerSingleGraphiteIntegration_ZeroDataPoint(t *testing.T) {
 
 	t.Log("Writing data")
 	data := []byte(`cpu 0.000 `)
-	data = append(data, []byte(fmt.Sprintf("%d", now.UnixNano()/1000000))...)
+	data = append(data, []byte(fmt.Sprintf("%d", now.Unix()))...)
 	data = append(data, '\n')
 	_, err = conn.Write(data)
 	conn.Close()
@@ -1405,7 +1405,7 @@ func Test_ServerSingleGraphiteIntegration_NoDatabase(t *testing.T) {
 	basePort := 8590
 	testName := "graphite integration"
 	dir := tempfile()
-	now := time.Now().UTC().Round(time.Millisecond)
+	now := time.Now().UTC().Round(time.Second)
 	c, _ := main.NewConfig()
 	g := main.Graphite{
 		Enabled:  true,
@@ -1441,7 +1441,7 @@ func Test_ServerSingleGraphiteIntegration_NoDatabase(t *testing.T) {
 
 	t.Log("Writing data")
 	data := []byte(`cpu 23.456 `)
-	data = append(data, []byte(fmt.Sprintf("%d", now.UnixNano()/1000000))...)
+	data = append(data, []byte(fmt.Sprintf("%d", now.Unix()))...)
 	data = append(data, '\n')
 	_, err = conn.Write(data)
 	conn.Close()

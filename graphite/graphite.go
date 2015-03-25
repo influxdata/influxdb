@@ -92,7 +92,7 @@ func (p *Parser) Parse(line string) (influxdb.Point, error) {
 		return influxdb.Point{}, err
 	}
 
-	timestamp := time.Unix(0, unixTime*int64(time.Millisecond))
+	timestamp := time.Unix(unixTime, 0)
 
 	point := influxdb.Point{
 		Name:      name,

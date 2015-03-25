@@ -52,8 +52,8 @@ func Test_DecodeNameAndTags(t *testing.T) {
 }
 
 func Test_DecodeMetric(t *testing.T) {
-	testTime := time.Now()
-	epochTime := testTime.UnixNano() / 1000000 // nanos to milliseconds
+	testTime := time.Now().Round(time.Second)
+	epochTime := testTime.Unix()
 	strTime := strconv.FormatInt(epochTime, 10)
 
 	var tests = []struct {
