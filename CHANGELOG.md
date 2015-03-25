@@ -1,3 +1,9 @@
+## v0.9.0-rc17 [Unreleased]
+
+## Features
+- [#2076](https://github.com/influxdb/influxdb/pull/2076): Seperate stdout and stderr output in init.d script
+
+
 ## v0.9.0-rc16 [2015-03-24]
 
 ### Features
