@@ -552,8 +552,8 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// DROP CONTINUOUS QUERY statement
 		{
-			s:    `DROP CONTINUOUS QUERY myquery`,
-			stmt: &influxql.DropContinuousQueryStatement{Name: "myquery"},
+			s:    `DROP CONTINUOUS QUERY myquery ON foo`,
+			stmt: &influxql.DropContinuousQueryStatement{Name: "myquery", Database: "foo"},
 		},
 
 		// DROP DATABASE statement
@@ -810,6 +810,8 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `SHOW STATS ON`, err: `found EOF, expected string at line 1, char 15`},
 		{s: `DROP CONTINUOUS`, err: `found EOF, expected QUERY at line 1, char 17`},
 		{s: `DROP CONTINUOUS QUERY`, err: `found EOF, expected identifier at line 1, char 23`},
+		{s: `DROP CONTINUOUS QUERY myquery`, err: `found EOF, expected ON at line 1, char 31`},
+		{s: `DROP CONTINUOUS QUERY myquery ON`, err: `found EOF, expected identifier at line 1, char 34`},
 		{s: `CREATE CONTINUOUS`, err: `found EOF, expected QUERY at line 1, char 19`},
 		{s: `CREATE CONTINUOUS QUERY`, err: `found EOF, expected identifier at line 1, char 25`},
 		{s: `DROP FOO`, err: `found FOO, expected SERIES, CONTINUOUS, MEASUREMENT at line 1, char 6`},

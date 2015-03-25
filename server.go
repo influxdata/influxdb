@@ -3050,6 +3050,17 @@ func (s *Server) CreateContinuousQuery(q *influxql.CreateContinuousQueryStatemen
 	return err
 }
 
+func (s *Server) executeDropContinuousQueryStatement(q *influxql.DropContinuousQueryStatement, user *User) *Result {
+	return &Result{Err: s.DropContinuousQuery(q)}
+}
+
+// DropContinuousQuery dropsoa continuous query.
+func (s *Server) DropContinuousQuery(q *influxql.DropContinuousQueryStatement) error {
+	c := &dropContinuousQueryCommand{Name: q.Name, Database: q.Database}
+	_, err := s.broadcast(dropContinuousQueryMessageType, c)
+	return err
+}
+
 // ContinuousQueries returns a list of all continuous queries.
 func (s *Server) ContinuousQueries(database string) []*ContinuousQuery {
 	s.mu.RLock()
@@ -3277,6 +3288,8 @@ func (s *Server) processor(conn MessagingConn, done chan struct{}) {
 				err = s.applySetPrivilege(m)
 			case createContinuousQueryMessageType:
 				err = s.applyCreateContinuousQueryCommand(m)
+			case dropContinuousQueryMessageType:
+				err = s.applyDropContinuousQueryCommand(m)
 			case dropSeriesMessageType:
 				err = s.applyDropSeries(m)
 			case writeRawSeriesMessageType:
@@ -3566,7 +3579,7 @@ func NewContinuousQuery(q string) (*ContinuousQuery, error) {
 
 	cq, ok := stmt.(*influxql.CreateContinuousQueryStatement)
 	if !ok {
-		return nil, errors.New("query isn't a continuous query")
+		return nil, errors.New("query isn't a valie continuous query")
 	}
 
 	cquery := &ContinuousQuery{
@@ -3629,6 +3642,44 @@ func (s *Server) applyCreateContinuousQueryCommand(m *messaging.Message) error {
 	db.continuousQueries = append(db.continuousQueries, cq)
 
 	// Persist to metastore.
+	s.meta.mustUpdate(m.Index, func(tx *metatx) error {
+		return tx.saveDatabase(db)
+	})
+
+	return nil
+}
+
+// applyDropContinuousQueryCommand removes the continuous query from the database object and saves it to the metastore
+func (s *Server) applyDropContinuousQueryCommand(m *messaging.Message) error {
+	var c dropContinuousQueryCommand
+
+	mustUnmarshalJSON(m.Data, &c)
+
+	// retrieve the database and ensure that it exists
+	db := s.databases[c.Database]
+	if db == nil {
+		return ErrDatabaseNotFound
+	}
+
+	// loop through continuous queries and find the match
+	cqIndex := -1
+	for n, continuousQuery := range db.continuousQueries {
+		if continuousQuery.cq.Name == c.Name {
+			cqIndex = n
+			break
+		}
+	}
+
+	if cqIndex == -1 {
+		return ErrContinuousQueryNotFound
+	}
+
+	// delete the relevant continuous query
+	copy(db.continuousQueries[cqIndex:], db.continuousQueries[cqIndex+1:])
+	db.continuousQueries[len(db.continuousQueries)-1] = nil
+	db.continuousQueries = db.continuousQueries[:len(db.continuousQueries)-1]
+
+	// persist to metastore
 	s.meta.mustUpdate(m.Index, func(tx *metatx) error {
 		return tx.saveDatabase(db)
 	})

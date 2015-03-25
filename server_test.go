@@ -1644,6 +1644,63 @@ func TestServer_CreateContinuousQuery_ErrInfinteLoop(t *testing.T) {
 	t.Skip("pending")
 }
 
+func TestServer_DropContinuousQuery(t *testing.T) {
+	c := test.NewMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Create the "foo" database.
+	if err := s.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "bar", Duration: time.Hour}); err != nil {
+		t.Fatal(err)
+	}
+	s.SetDefaultRetentionPolicy("foo", "bar")
+
+	// create and check
+	q := "CREATE CONTINUOUS QUERY myquery ON foo BEGIN SELECT count() INTO measure1 FROM myseries GROUP BY time(10m) END"
+	stmt, err := influxql.NewParser(strings.NewReader(q)).ParseStatement()
+	if err != nil {
+		t.Fatalf("error parsing query %s", err.Error())
+	}
+	ccq := stmt.(*influxql.CreateContinuousQueryStatement)
+	if err := s.CreateContinuousQuery(ccq); err != nil {
+		t.Fatalf("error creating continuous query %s", err.Error())
+	}
+
+	queries := s.ContinuousQueries("foo")
+	cqObj, _ := influxdb.NewContinuousQuery(q)
+	expected := []*influxdb.ContinuousQuery{cqObj}
+	if mustMarshalJSON(expected) != mustMarshalJSON(queries) {
+		t.Fatalf("query not saved:\n\texp: %s\n\tgot: %s", mustMarshalJSON(expected), mustMarshalJSON(queries))
+	}
+	s.Restart()
+
+	// check again
+	queries = s.ContinuousQueries("foo")
+	if !reflect.DeepEqual(queries, expected) {
+		t.Fatalf("query not saved:\n\texp: %s\ngot: %s", mustMarshalJSON(expected), mustMarshalJSON(queries))
+	}
+
+	// drop and check
+	q = "DROP CONTINUOUS QUERY myquery ON foo"
+	stmt, err = influxql.NewParser(strings.NewReader(q)).ParseStatement()
+	if err != nil {
+		t.Fatalf("error parsing query %s", err.Error())
+	}
+	dcq := stmt.(*influxql.DropContinuousQueryStatement)
+	if err := s.DropContinuousQuery(dcq); err != nil {
+		t.Fatalf("error dropping continuous query %s", err.Error())
+	}
+
+	queries = s.ContinuousQueries("foo")
+	if len(queries) != 0 {
+		t.Fatalf("continuous query didn't get dropped")
+	}
+}
+
 // Ensure
 func TestServer_RunContinuousQueries(t *testing.T) {
 	t.Skip()

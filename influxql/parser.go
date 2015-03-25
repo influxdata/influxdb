@@ -1212,11 +1212,22 @@ func (p *Parser) parseDropContinuousQueryStatement() (*DropContinuousQueryStatem
 	}
 
 	// Read the id of the query to drop.
-	lit, err := p.parseIdent()
+	ident, err := p.parseIdent()
 	if err != nil {
 		return nil, err
 	}
-	stmt.Name = lit
+	stmt.Name = ident
+
+	// Expect an "ON" keyword.
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != ON {
+		return nil, newParseError(tokstr(tok, lit), []string{"ON"}, pos)
+	}
+
+	// Read the name of the database to remove the query from.
+	if ident, err = p.parseIdent(); err != nil {
+		return nil, err
+	}
+	stmt.Database = ident
 
 	return stmt, nil
 }
