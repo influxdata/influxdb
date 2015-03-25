@@ -92,7 +92,10 @@ func main() {
 	case "config":
 		execConfig(args[1:])
 	case "help":
-		execHelp(args[1:])
+		cmd := NewHelpCommand()
+		if err := cmd.Run(args[1:]...); err != nil {
+			log.Fatalf("help: %s", err)
+		}
 	default:
 		log.Fatalf(`influxd: unknown command "%s"`+"\n"+`Run 'influxd help' for usage`+"\n\n", cmd)
 	}
@@ -177,28 +180,6 @@ func execConfig(args []string) {
 	}
 
 	config.Write(os.Stdout)
-}
-
-// execHelp runs the "help" command.
-func execHelp(args []string) {
-	fmt.Println(`
-Configure and start an InfluxDB server.
-
-Usage:
-
-	influxd [[command] [arguments]]
-
-The commands are:
-
-    config               display the default configuration
-    join-cluster         create a new node that will join an existing cluster
-    run                  run node with existing configuration
-    version              displays the InfluxDB version
-
-"run" is the default command.
-
-Use "influxd help [command]" for more information about a command.
-`)
 }
 
 type Stopper interface {
