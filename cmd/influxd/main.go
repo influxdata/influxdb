@@ -73,10 +73,11 @@ func main() {
 
 	// Extract name from args.
 	switch cmd {
-	case "run":
-		execRun(args[1:])
-	case "":
-		execRun(args)
+	case "run", "":
+		cmd := NewRunCommand()
+		if err := cmd.Run(args[1:]...); err != nil {
+			log.Fatalf("run: %s", err)
+		}
 	case "backup":
 		cmd := NewBackupCommand()
 		if err := cmd.Run(args[1:]...); err != nil {
@@ -99,43 +100,6 @@ func main() {
 	default:
 		log.Fatalf(`influxd: unknown command "%s"`+"\n"+`Run 'influxd help' for usage`+"\n\n", cmd)
 	}
-}
-
-// execRun runs the "run" command.
-func execRun(args []string) {
-	// Parse command flags.
-	fs := flag.NewFlagSet("", flag.ExitOnError)
-	var (
-		configPath = fs.String("config", "", "")
-		pidPath    = fs.String("pidfile", "", "")
-		hostname   = fs.String("hostname", "", "")
-		join       = fs.String("join", "", "")
-		cpuprofile = fs.String("cpuprofile", "", "")
-		memprofile = fs.String("memprofile", "", "")
-	)
-	fs.Usage = printRunUsage
-	fs.Parse(args)
-
-	// Start profiling, if set.
-	startProfiling(*cpuprofile, *memprofile)
-	defer stopProfiling()
-
-	// Print sweet InfluxDB logo and write the process id to file.
-	fmt.Print(logo)
-	writePIDFile(*pidPath)
-
-	// Parse configuration file from disk.
-	config, err := parseConfig(*configPath, *hostname)
-	if err != nil {
-		log.Fatal(err)
-	} else if *configPath == "" {
-		log.Println("No config provided, using default settings")
-	}
-
-	Run(config, *join, version)
-
-	// Wait indefinitely.
-	<-(chan struct{})(nil)
 }
 
 // execVersion runs the "version" command.

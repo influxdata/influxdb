@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -22,6 +23,50 @@ import (
 	"github.com/influxdb/influxdb/raft"
 	"github.com/influxdb/influxdb/udp"
 )
+
+type RunCommand struct {
+}
+
+func NewRunCommand() *RunCommand {
+	return &RunCommand{}
+}
+
+func (r *RunCommand) Run(args ...string) error {
+	// Parse command flags.
+	fs := flag.NewFlagSet("", flag.ExitOnError)
+	var (
+		configPath = fs.String("config", "", "")
+		pidPath    = fs.String("pidfile", "", "")
+		hostname   = fs.String("hostname", "", "")
+		join       = fs.String("join", "", "")
+		cpuprofile = fs.String("cpuprofile", "", "")
+		memprofile = fs.String("memprofile", "", "")
+	)
+	fs.Usage = printRunUsage
+	fs.Parse(args)
+
+	// Start profiling, if set.
+	startProfiling(*cpuprofile, *memprofile)
+	defer stopProfiling()
+
+	// Print sweet InfluxDB logo and write the process id to file.
+	log.Print(logo)
+	writePIDFile(*pidPath)
+
+	// Parse configuration file from disk.
+	config, err := parseConfig(*configPath, *hostname)
+	if err != nil {
+		log.Fatal(err)
+	} else if *configPath == "" {
+		log.Println("No config provided, using default settings")
+	}
+
+	Run(config, *join, version)
+
+	// Wait indefinitely.
+	<-(chan struct{})(nil)
+	return nil
+}
 
 func Run(config *Config, join, version string) (*messaging.Broker, *influxdb.Server) {
 	log.Printf("influxdb started, version %s, commit %s", version, commit)
