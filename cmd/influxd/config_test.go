@@ -63,7 +63,7 @@ read-timeout = "5s"
 [[graphite]]
 protocol = "TCP"
 enabled = true
-address = "192.168.0.1"
+bind-address = "192.168.0.1"
 port = 2003
 database = "graphite_tcp"  # store graphite data in this database
 name-position = "last"
@@ -72,13 +72,13 @@ name-separator = "-"
 [[graphite]]
 protocol = "udP"
 enabled = true
-address = "192.168.0.2"
+bind-address = "192.168.0.2"
 port = 2005
 
 # Configure collectd server
 [collectd]
 enabled = true
-address = "192.168.0.3"
+bind-address = "192.168.0.3"
 port = 25827
 database = "collectd_database"
 typesdb = "foo-db-type"
@@ -182,8 +182,8 @@ func TestParseConfig(t *testing.T) {
 	switch {
 	case tcpGraphite.Enabled != true:
 		t.Fatalf("graphite tcp enabled mismatch: expected: %v, got %v", true, tcpGraphite.Enabled)
-	case tcpGraphite.Addr != "192.168.0.1":
-		t.Fatalf("graphite tcp address mismatch: expected %v, got  %v", "192.168.0.1", tcpGraphite.Addr)
+	case tcpGraphite.BindAddress != "192.168.0.1":
+		t.Fatalf("graphite tcp address mismatch: expected %v, got  %v", "192.168.0.1", tcpGraphite.BindAddress)
 	case tcpGraphite.Port != 2003:
 		t.Fatalf("graphite tcp port mismatch: expected %v, got %v", 2003, tcpGraphite.Port)
 	case tcpGraphite.Database != "graphite_tcp":
@@ -200,8 +200,8 @@ func TestParseConfig(t *testing.T) {
 	switch {
 	case udpGraphite.Enabled != true:
 		t.Fatalf("graphite udp enabled mismatch: expected: %v, got %v", true, udpGraphite.Enabled)
-	case udpGraphite.Addr != "192.168.0.2":
-		t.Fatalf("graphite udp address mismatch: expected %v, got  %v", "192.168.0.2", udpGraphite.Addr)
+	case udpGraphite.BindAddress != "192.168.0.2":
+		t.Fatalf("graphite udp address mismatch: expected %v, got  %v", "192.168.0.2", udpGraphite.BindAddress)
 	case udpGraphite.Port != 2005:
 		t.Fatalf("graphite udp port mismatch: expected %v, got %v", 2005, udpGraphite.Port)
 	case udpGraphite.DatabaseString() != "graphite":
@@ -213,8 +213,8 @@ func TestParseConfig(t *testing.T) {
 	switch {
 	case c.Collectd.Enabled != true:
 		t.Errorf("collectd enabled mismatch: expected: %v, got %v", true, c.Collectd.Enabled)
-	case c.Collectd.Addr != "192.168.0.3":
-		t.Errorf("collectd address mismatch: expected %v, got  %v", "192.168.0.3", c.Collectd.Addr)
+	case c.Collectd.BindAddress != "192.168.0.3":
+		t.Errorf("collectd address mismatch: expected %v, got  %v", "192.168.0.3", c.Collectd.BindAddress)
 	case c.Collectd.Port != 25827:
 		t.Errorf("collectd port mismatch: expected %v, got %v", 2005, c.Collectd.Port)
 	case c.Collectd.Database != "collectd_database":
@@ -286,7 +286,7 @@ func TestCollectd_ConnectionString(t *testing.T) {
 			name:             "address provided, no port provided from config",
 			defaultBindAddr:  "192.168.0.1",
 			connectionString: "192.168.0.2:25826",
-			config:           main.Collectd{Addr: "192.168.0.2"},
+			config:           main.Collectd{BindAddress: "192.168.0.2"},
 		},
 		{
 			name:             "no address provided, port provided from config",
@@ -298,7 +298,7 @@ func TestCollectd_ConnectionString(t *testing.T) {
 			name:             "both address and port provided from config",
 			defaultBindAddr:  "192.168.0.1",
 			connectionString: "192.168.0.2:25827",
-			config:           main.Collectd{Addr: "192.168.0.2", Port: 25827},
+			config:           main.Collectd{BindAddress: "192.168.0.2", Port: 25827},
 		},
 	}
 
