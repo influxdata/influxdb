@@ -60,6 +60,30 @@ var DefaultSnapshotURL = url.URL{
 	Host:   net.JoinHostPort(DefaultSnapshotBindAddress, strconv.Itoa(DefaultSnapshotPort)),
 }
 
+// Broker represents the configuration for a broker node
+type Broker struct {
+	Port    int      `toml:"port"`
+	Dir     string   `toml:"dir"`
+	Timeout Duration `toml:"election-timeout"`
+}
+
+// Snapshot represents the configuration for a snapshot service
+type Snapshot struct {
+	Enabled     bool   `toml:"enabled"`
+	BindAddress string `toml:"bind-address"`
+	Port        int    `toml:"port"`
+}
+
+// Data represents the configuration for a data node
+type Data struct {
+	Dir                   string   `toml:"dir"`
+	Port                  int      `toml:"port"`
+	RetentionAutoCreate   bool     `toml:"retention-auto-create"`
+	RetentionCheckEnabled bool     `toml:"retention-check-enabled"`
+	RetentionCheckPeriod  Duration `toml:"retention-check-period"`
+	RetentionCreatePeriod Duration `toml:"retention-create-period"`
+}
+
 // Config represents the configuration format for the influxd binary.
 type Config struct {
 	Hostname          string `toml:"hostname"`
@@ -97,26 +121,12 @@ type Config struct {
 		Port        int    `toml:"port"`
 	} `toml:"udp"`
 
-	Broker struct {
-		Port    int      `toml:"port"`
-		Dir     string   `toml:"dir"`
-		Timeout Duration `toml:"election-timeout"`
-	} `toml:"broker"`
+	Broker Broker `toml:"broker"`
 
-	Data struct {
-		Dir                   string   `toml:"dir"`
-		Port                  int      `toml:"port"`
-		RetentionAutoCreate   bool     `toml:"retention-auto-create"`
-		RetentionCheckEnabled bool     `toml:"retention-check-enabled"`
-		RetentionCheckPeriod  Duration `toml:"retention-check-period"`
-		RetentionCreatePeriod Duration `toml:"retention-create-period"`
-	} `toml:"data"`
+	Data Data `toml:"data"`
 
-	Snapshot struct {
-		Enabled     bool   `toml:"enabled"`
-		BindAddress string `toml:"bind-address"`
-		Port        int    `toml:"port"`
-	}
+	Snapshot Snapshot `toml:"snapshot"`
+
 	Cluster struct {
 		Dir string `toml:"dir"`
 	} `toml:"cluster"`
