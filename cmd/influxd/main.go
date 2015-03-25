@@ -112,7 +112,7 @@ func execRun(args []string) {
 	defer stopProfiling()
 
 	// Print sweet InfluxDB logo and write the process id to file.
-	log.Print(logo)
+	fmt.Print(logo)
 	log.SetPrefix(`[srvr] `)
 	log.SetFlags(log.LstdFlags)
 	writePIDFile(*pidPath)
