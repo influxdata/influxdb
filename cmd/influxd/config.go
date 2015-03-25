@@ -64,6 +64,7 @@ var DefaultSnapshotURL = url.URL{
 type Broker struct {
 	Port    int      `toml:"port"`
 	Dir     string   `toml:"dir"`
+	Enabled bool     `toml:"enabled"`
 	Timeout Duration `toml:"election-timeout"`
 }
 
@@ -77,6 +78,7 @@ type Snapshot struct {
 // Data represents the configuration for a data node
 type Data struct {
 	Dir                   string   `toml:"dir"`
+	Enabled               bool     `toml:"enabled"`
 	Port                  int      `toml:"port"`
 	RetentionAutoCreate   bool     `toml:"retention-auto-create"`
 	RetentionCheckEnabled bool     `toml:"retention-check-enabled"`
@@ -184,9 +186,11 @@ func NewConfig() (*Config, error) {
 	}
 
 	c := &Config{}
+	c.Broker.Enabled = true
 	c.Broker.Dir = filepath.Join(u.HomeDir, ".influxdb/broker")
 	c.Broker.Port = DefaultBrokerPort
 	c.Broker.Timeout = Duration(1 * time.Second)
+	c.Data.Enabled = true
 	c.Data.Dir = filepath.Join(u.HomeDir, ".influxdb/data")
 	c.Data.Port = DefaultDataPort
 	c.Data.RetentionAutoCreate = true
