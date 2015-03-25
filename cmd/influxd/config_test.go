@@ -127,6 +127,10 @@ func TestParseConfig(t *testing.T) {
 		t.Fatalf("broker duration mismatch: %v", c.Broker.Timeout)
 	}
 
+	if c.Broker.Enabled != false {
+		t.Fatalf("broker disabled mismatch: %v, got: %v", false, c.Broker.Enabled)
+	}
+
 	if c.Data.Dir != "/tmp/influxdb/development/db" {
 		t.Fatalf("data dir mismatch: %v", c.Data.Dir)
 	}
@@ -135,6 +139,10 @@ func TestParseConfig(t *testing.T) {
 	}
 	if c.Data.RetentionCheckPeriod != main.Duration(5*time.Minute) {
 		t.Fatalf("Retention check period mismatch: %v", c.Data.RetentionCheckPeriod)
+	}
+
+	if c.Data.Enabled != false {
+		t.Fatalf("data disabled mismatch: %v, got: %v", false, c.Data.Enabled)
 	}
 
 	if c.Cluster.Dir != "/tmp/influxdb/development/cluster" {
@@ -229,6 +237,7 @@ typesdb = "foo-db-type"
 # The broker port should be open between all servers in a cluster.
 # However, this port shouldn't be accessible from the internet.
 port = 8086
+enabled = false
 
 # Where the broker logs are stored. The user running InfluxDB will need read/write access.
 dir  = "/tmp/influxdb/development/broker"
@@ -240,6 +249,7 @@ dir = "/tmp/influxdb/development/db"
 retention-auto-create = false
 retention-check-enabled = true
 retention-check-period = "5m"
+enabled = false
 
 [continuous_queries]
 disabled = true
