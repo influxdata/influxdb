@@ -1,10 +1,11 @@
-## v0.9.0-rc16 [unreleased]
+## v0.9.0-rc16 [2015-03-24]
 
 ### Features
 - [#2058](https://github.com/influxdb/influxdb/pull/2058): Track number of queries executed in stats.
 - [#2059](https://github.com/influxdb/influxdb/pull/2059): Retention policies sorted by name on return to client.
 - [#2061](https://github.com/influxdb/influxdb/pull/2061): Implement SHOW DIAGNOSTICS.
 - [#2064](https://github.com/influxdb/influxdb/pull/2064): Allow init.d script to return influxd version.
+- [#2053](https://github.com/influxdb/influxdb/pull/2053): Implment backup and restore.
 
 ### Bugfixes
 - [#2037](https://github.com/influxdb/influxdb/pull/2037): Don't check 'configExists' at Run() level.
@@ -14,7 +15,7 @@
 - [#2057](https://github.com/influxdb/influxdb/pull/2057): Move racy "in order" test to integration test suite.
 - [#2060](https://github.com/influxdb/influxdb/pull/2060): Reload server shard map on restart.
 - [#2068](https://github.com/influxdb/influxdb/pull/2068): Fix misspelled JSON field.
-- [#2067](https://github.com/influxdb/influxdb/pull/2067): Fixing intervals for GROUP BY.
+- [#2067](https://github.com/influxdb/influxdb/pull/2067): Fixed issue where some queries didn't properly pull back data (introduced in RC15). Fixing intervals for GROUP BY.
 
 ## v0.9.0-rc15 [2015-03-19]
 
