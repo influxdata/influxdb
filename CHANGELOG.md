@@ -14,6 +14,7 @@
 - [#2057](https://github.com/influxdb/influxdb/pull/2057): Move racy "in order" test to integration test suite.
 - [#2060](https://github.com/influxdb/influxdb/pull/2060): Reload server shard map on restart.
 - [#2068](https://github.com/influxdb/influxdb/pull/2068): Fix misspelled JSON field.
+- [#2067](https://github.com/influxdb/influxdb/pull/2067): Fixing intervals for GROUP BY.
 
 ## v0.9.0-rc15 [2015-03-19]
 

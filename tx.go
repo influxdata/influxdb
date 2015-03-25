@@ -321,13 +321,10 @@ func (l *LocalMapper) NextInterval(interval int64) (interface{}, error) {
 		return nil, nil
 	}
 
-	intervalBottom := l.tmin
-
 	// Set the upper bound of the interval.
 	if interval > 0 {
 		// Make sure the bottom of the interval lands on a natural boundary.
-		intervalBottom = intervalBottom / interval * interval
-		l.tmax = intervalBottom + interval - 1
+		l.tmax = l.tmin + interval - 1
 	}
 
 	// Execute the map function. This local mapper acts as the iterator
@@ -343,7 +340,7 @@ func (l *LocalMapper) NextInterval(interval int64) (interface{}, error) {
 	}
 
 	// Move the interval forward.
-	l.tmin = intervalBottom + interval
+	l.tmin += interval
 
 	return val, nil
 }
