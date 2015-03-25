@@ -44,25 +44,26 @@ func (cmd *RunCommand) Run(args ...string) error {
 
 	// Parse command flags.
 	fs := flag.NewFlagSet("", flag.ExitOnError)
-	var (
-		configPath = fs.String("config", "", "")
-		pidPath    = fs.String("pidfile", "", "")
-		hostname   = fs.String("hostname", "", "")
-		join       = fs.String("join", "", "")
-		cpuprofile = fs.String("cpuprofile", "", "")
-		memprofile = fs.String("memprofile", "", "")
-	)
+	var configPath, pidfile, hostname, join, cpuprofile, memprofile string
+
+	fs.StringVar(&configPath, "config", "", "")
+	fs.StringVar(&pidfile, "pidfile", "", "")
+	fs.StringVar(&hostname, "hostname", "", "")
+	fs.StringVar(&join, "join", "", "")
+	fs.StringVar(&cpuprofile, "cpuprofile", "", "")
+	fs.StringVar(&memprofile, "memprofile", "", "")
+
 	fs.Usage = printRunUsage
 	fs.Parse(args)
-	cmd.hostname = *hostname
+	cmd.hostname = hostname
 
 	// Start profiling, if set.
-	startProfiling(*cpuprofile, *memprofile)
+	startProfiling(cpuprofile, memprofile)
 	defer stopProfiling()
 
 	// Print sweet InfluxDB logo and write the process id to file.
 	fmt.Print(logo)
-	writePIDFile(*pidPath)
+	writePIDFile(pidfile)
 
 	// Set parallelism.
 	runtime.GOMAXPROCS(runtime.NumCPU())
@@ -70,14 +71,14 @@ func (cmd *RunCommand) Run(args ...string) error {
 
 	var err error
 	// Parse configuration file from disk.
-	cmd.config, err = parseConfig(*configPath, *hostname)
+	cmd.config, err = parseConfig(configPath, hostname)
 	if err != nil {
 		cmd.Logger.Fatal(err)
-	} else if *configPath == "" {
+	} else if configPath == "" {
 		cmd.Logger.Println("No config provided, using default settings")
 	}
 
-	cmd.Open(cmd.config, *join)
+	cmd.Open(cmd.config, join)
 
 	// Wait indefinitely.
 	<-(chan struct{})(nil)
