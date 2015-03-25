@@ -28,7 +28,10 @@ import (
 
 type RunCommand struct {
 	// The logger passed to the ticker during execution.
-	Logger *log.Logger
+	Logger    *log.Logger
+	logWriter *os.File
+	config    *Config
+	hostname  string
 }
 
 func NewRunCommand() *RunCommand {
@@ -51,6 +54,7 @@ func (cmd *RunCommand) Run(args ...string) error {
 	)
 	fs.Usage = printRunUsage
 	fs.Parse(args)
+	cmd.hostname = *hostname
 
 	// Start profiling, if set.
 	startProfiling(*cpuprofile, *memprofile)
@@ -64,30 +68,36 @@ func (cmd *RunCommand) Run(args ...string) error {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	log.Printf("GOMAXPROCS set to %d", runtime.GOMAXPROCS(0))
 
+	var err error
 	// Parse configuration file from disk.
-	config, err := parseConfig(*configPath, *hostname)
+	cmd.config, err = parseConfig(*configPath, *hostname)
 	if err != nil {
 		cmd.Logger.Fatal(err)
 	} else if *configPath == "" {
 		cmd.Logger.Println("No config provided, using default settings")
 	}
 
-	Run(config, *join, version)
+	cmd.Open(cmd.config, *join)
 
 	// Wait indefinitely.
 	<-(chan struct{})(nil)
 	return nil
 }
 
-func Run(config *Config, join, version string) (*messaging.Broker, *influxdb.Server, *raft.Log) {
+func (cmd *RunCommand) Open(config *Config, join string) (*messaging.Broker, *influxdb.Server, *raft.Log) {
+
+	if config != nil {
+		cmd.config = config
+	}
+
 	log.Printf("influxdb started, version %s, commit %s", version, commit)
 
 	var initBroker, initServer bool
-	if initBroker = !fileExists(config.BrokerDir()); initBroker {
+	if initBroker = !fileExists(cmd.config.BrokerDir()); initBroker {
 		log.Printf("Broker directory missing. Need to create a broker.")
 	}
 
-	if initServer = !fileExists(config.DataDir()); initServer {
+	if initServer = !fileExists(cmd.config.DataDir()); initServer {
 		log.Printf("Data directory missing. Need to create data directory.")
 	}
 	initServer = initServer || initBroker
@@ -95,13 +105,13 @@ func Run(config *Config, join, version string) (*messaging.Broker, *influxdb.Ser
 	// Parse join urls from the --join flag.
 	var joinURLs []url.URL
 	if join == "" {
-		joinURLs = parseURLs(config.JoinURLs())
+		joinURLs = parseURLs(cmd.config.JoinURLs())
 	} else {
 		joinURLs = parseURLs(join)
 	}
 
 	// Open broker & raft log, initialize or join as necessary.
-	b, l := openBroker(config.BrokerDir(), config.BrokerURL(), initBroker, joinURLs, config.Logging.RaftTracing)
+	b, l := openBroker(cmd.config.BrokerDir(), cmd.config.BrokerURL(), initBroker, joinURLs, cmd.config.Logging.RaftTracing)
 
 	// Start the broker handler.
 	h := &Handler{
@@ -111,32 +121,32 @@ func Run(config *Config, join, version string) (*messaging.Broker, *influxdb.Ser
 	}
 
 	// We want to make sure we are spun up before we exit this function, so we manually listen and serve
-	listener, err := net.Listen("tcp", config.BrokerAddr())
+	listener, err := net.Listen("tcp", cmd.config.BrokerAddr())
 	if err != nil {
-		log.Fatalf("TCP server failed to listen on %s. %s ", config.BrokerAddr(), err)
+		log.Fatalf("TCP server failed to listen on %s. %s ", cmd.config.BrokerAddr(), err)
 	}
 	go func() {
 		err := http.Serve(listener, h)
 		if err != nil {
-			log.Fatalf("TCP server failed to server on %s: %s", config.BrokerAddr(), err)
+			log.Fatalf("TCP server failed to server on %s: %s", cmd.config.BrokerAddr(), err)
 		}
 	}()
-	log.Printf("TCP server listening on %s", config.BrokerAddr())
+	log.Printf("TCP server listening on %s", cmd.config.BrokerAddr())
 
 	// have it occasionally tell a data node in the cluster to run continuous queries
-	if config.ContinuousQuery.Disable {
+	if cmd.config.ContinuousQuery.Disable {
 		log.Printf("Not running continuous queries. [continuous_queries].disable is set to true.")
 	} else {
 		b.RunContinuousQueryLoop()
 	}
 
 	// Open server, initialize or join as necessary.
-	s := openServer(config, b, initServer, initBroker, joinURLs)
-	s.SetAuthenticationEnabled(config.Authentication.Enabled)
+	s := cmd.openServer(b, initServer, initBroker, joinURLs)
+	s.SetAuthenticationEnabled(cmd.config.Authentication.Enabled)
 
 	// Enable retention policy enforcement if requested.
-	if config.Data.RetentionCheckEnabled {
-		interval := time.Duration(config.Data.RetentionCheckPeriod)
+	if cmd.config.Data.RetentionCheckEnabled {
+		interval := time.Duration(cmd.config.Data.RetentionCheckPeriod)
 		if err := s.StartRetentionPolicyEnforcement(interval); err != nil {
 			log.Fatalf("retention policy enforcement failed: %s", err.Error())
 		}
@@ -144,7 +154,7 @@ func Run(config *Config, join, version string) (*messaging.Broker, *influxdb.Ser
 	}
 
 	// Start shard group pre-create
-	interval := config.ShardGroupPreCreateCheckPeriod()
+	interval := cmd.config.ShardGroupPreCreateCheckPeriod()
 	if err := s.StartShardGroupsPreCreate(interval); err != nil {
 		log.Fatalf("shard group pre-create failed: %s", err.Error())
 	}
@@ -153,52 +163,53 @@ func Run(config *Config, join, version string) (*messaging.Broker, *influxdb.Ser
 	// Start the server handler. Attach to broker if listening on the same port.
 	if s != nil {
 		h.Server = s
+
 		if config.Snapshot.Enabled {
 			// Start snapshot handler.
 			go func() {
 				log.Fatal(http.ListenAndServe(
-					config.SnapshotAddr(),
+					cmd.config.SnapshotAddr(),
 					&httpd.SnapshotHandler{
 						CreateSnapshotWriter: s.CreateSnapshotWriter,
 					},
 				))
 			}()
-			log.Printf("snapshot endpoint listening on %s", config.SnapshotAddr())
+			log.Printf("snapshot endpoint listening on %s", cmd.config.SnapshotAddr())
 		} else {
 			log.Println("snapshot endpoint disabled")
 		}
 
 		// Start the admin interface on the default port
-		if config.Admin.Enabled {
-			port := fmt.Sprintf(":%d", config.Admin.Port)
+		if cmd.config.Admin.Enabled {
+			port := fmt.Sprintf(":%d", cmd.config.Admin.Port)
 			log.Printf("starting admin server on %s", port)
 			a := admin.NewServer(port)
 			go a.ListenAndServe()
 		}
 
 		// Spin up the collectd server
-		if config.Collectd.Enabled {
-			c := config.Collectd
+		if cmd.config.Collectd.Enabled {
+			c := cmd.config.Collectd
 			cs := collectd.NewServer(s, c.TypesDB)
 			cs.Database = c.Database
-			err := collectd.ListenAndServe(cs, c.ConnectionString(config.BindAddress))
+			err := collectd.ListenAndServe(cs, c.ConnectionString(cmd.config.BindAddress))
 			if err != nil {
 				log.Printf("failed to start collectd Server: %v\n", err.Error())
 			}
 		}
 
 		// Start the server bound to a UDP listener
-		if config.UDP.Enabled {
-			log.Printf("Starting UDP listener on %s", config.DataAddrUDP())
+		if cmd.config.UDP.Enabled {
+			log.Printf("Starting UDP listener on %s", cmd.config.DataAddrUDP())
 			u := udp.NewUDPServer(s)
-			if err := u.ListenAndServe(config.DataAddrUDP()); err != nil {
-				log.Printf("Failed to start UDP listener on %s: %s", config.DataAddrUDP(), err)
+			if err := u.ListenAndServe(cmd.config.DataAddrUDP()); err != nil {
+				log.Printf("Failed to start UDP listener on %s: %s", cmd.config.DataAddrUDP(), err)
 			}
 
 		}
 
 		// Spin up any Graphite servers
-		for _, c := range config.Graphites {
+		for _, c := range cmd.config.Graphites {
 			if !c.Enabled {
 				continue
 			}
@@ -219,7 +230,7 @@ func Run(config *Config, join, version string) (*messaging.Broker, *influxdb.Ser
 				log.Fatalf("failed to initialize %s Graphite server: %s", c.Protocol, err.Error())
 			}
 
-			err = g.ListenAndServe(c.ConnectionString(config.BindAddress))
+			err = g.ListenAndServe(c.ConnectionString(cmd.config.BindAddress))
 			if err != nil {
 				log.Fatalf("failed to start %s Graphite server: %s", c.Protocol, err.Error())
 			}
@@ -251,10 +262,10 @@ func Run(config *Config, join, version string) (*messaging.Broker, *influxdb.Ser
 		}
 
 		// Start up self-monitoring if enabled.
-		if config.Monitoring.Enabled {
+		if cmd.config.Monitoring.Enabled {
 			database := monitoringDatabase
 			policy := monitoringRetentionPolicy
-			interval := time.Duration(config.Monitoring.WriteInterval)
+			interval := time.Duration(cmd.config.Monitoring.WriteInterval)
 
 			// Ensure database exists.
 			if err := s.CreateDatabaseIfNotExists(database); err != nil {
@@ -273,7 +284,7 @@ func Run(config *Config, join, version string) (*messaging.Broker, *influxdb.Ser
 	}
 
 	// unless disabled, start the loop to report anonymous usage stats every 24h
-	if !config.ReportingDisabled {
+	if !cmd.config.ReportingDisabled {
 		// Make sure we have a config object b4 we try to use it.
 		if clusterID := b.Broker.ClusterID(); clusterID != 0 {
 			go s.StartReportingLoop(clusterID)
@@ -382,7 +393,7 @@ func joinLog(l *raft.Log, joinURLs []url.URL) {
 }
 
 // creates and initializes a server.
-func openServer(config *Config, b *influxdb.Broker, initServer, initBroker bool, joinURLs []url.URL) *influxdb.Server {
+func (cmd *RunCommand) openServer(b *influxdb.Broker, initServer, initBroker bool, joinURLs []url.URL) *influxdb.Server {
 	// Use broker URL if there are no join URLs passed.
 	clientJoinURLs := joinURLs
 	if len(joinURLs) == 0 {
@@ -390,10 +401,10 @@ func openServer(config *Config, b *influxdb.Broker, initServer, initBroker bool,
 	}
 
 	// Create messaging client to the brokers.
-	c := influxdb.NewMessagingClient(config.DataURL())
+	c := influxdb.NewMessagingClient(cmd.config.DataURL())
 	c.SetURLs(clientJoinURLs)
 
-	if err := c.Open(filepath.Join(config.Data.Dir, messagingClientFile)); err != nil {
+	if err := c.Open(filepath.Join(cmd.config.Data.Dir, messagingClientFile)); err != nil {
 		log.Fatalf("messaging client error: %s", err)
 	}
 
@@ -404,20 +415,21 @@ func openServer(config *Config, b *influxdb.Broker, initServer, initBroker bool,
 
 	// Create and open the server.
 	s := influxdb.NewServer()
-	s.WriteTrace = config.Logging.WriteTracing
-	s.RetentionAutoCreate = config.Data.RetentionAutoCreate
-	s.RecomputePreviousN = config.ContinuousQuery.RecomputePreviousN
-	s.RecomputeNoOlderThan = time.Duration(config.ContinuousQuery.RecomputeNoOlderThan)
-	s.ComputeRunsPerInterval = config.ContinuousQuery.ComputeRunsPerInterval
-	s.ComputeNoMoreThan = time.Duration(config.ContinuousQuery.ComputeNoMoreThan)
+
+	s.WriteTrace = cmd.config.Logging.WriteTracing
+	s.RetentionAutoCreate = cmd.config.Data.RetentionAutoCreate
+	s.RecomputePreviousN = cmd.config.ContinuousQuery.RecomputePreviousN
+	s.RecomputeNoOlderThan = time.Duration(cmd.config.ContinuousQuery.RecomputeNoOlderThan)
+	s.ComputeRunsPerInterval = cmd.config.ContinuousQuery.ComputeRunsPerInterval
+	s.ComputeNoMoreThan = time.Duration(cmd.config.ContinuousQuery.ComputeNoMoreThan)
 	s.Version = version
 	s.CommitHash = commit
 
 	// Open server with data directory and broker client.
-	if err := s.Open(config.Data.Dir, c); err != nil {
+	if err := s.Open(cmd.config.Data.Dir, c); err != nil {
 		log.Fatalf("failed to open data server: %v", err.Error())
 	}
-	log.Printf("data server opened at %s", config.Data.Dir)
+	log.Printf("data server opened at %s", cmd.config.Data.Dir)
 
 	// If the server is uninitialized then initialize or join it.
 	if initServer {
@@ -428,7 +440,7 @@ func openServer(config *Config, b *influxdb.Broker, initServer, initBroker bool,
 				}
 			}
 		} else {
-			joinServer(s, config.DataURL(), joinURLs)
+			joinServer(s, cmd.config.DataURL(), joinURLs)
 		}
 	}
 
