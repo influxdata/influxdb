@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -9,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -23,6 +25,54 @@ import (
 	"github.com/influxdb/influxdb/raft"
 	"github.com/influxdb/influxdb/udp"
 )
+
+type RunCommand struct {
+}
+
+func NewRunCommand() *RunCommand {
+	return &RunCommand{}
+}
+
+func (r *RunCommand) Run(args ...string) error {
+	// Parse command flags.
+	fs := flag.NewFlagSet("", flag.ExitOnError)
+	var (
+		configPath = fs.String("config", "", "")
+		pidPath    = fs.String("pidfile", "", "")
+		hostname   = fs.String("hostname", "", "")
+		join       = fs.String("join", "", "")
+		cpuprofile = fs.String("cpuprofile", "", "")
+		memprofile = fs.String("memprofile", "", "")
+	)
+	fs.Usage = printRunUsage
+	fs.Parse(args)
+
+	// Start profiling, if set.
+	startProfiling(*cpuprofile, *memprofile)
+	defer stopProfiling()
+
+	// Print sweet InfluxDB logo and write the process id to file.
+	fmt.Print(logo)
+	writePIDFile(*pidPath)
+
+	// Set parallelism.
+	runtime.GOMAXPROCS(runtime.NumCPU())
+	log.Printf("GOMAXPROCS set to %d", runtime.GOMAXPROCS(0))
+
+	// Parse configuration file from disk.
+	config, err := parseConfig(*configPath, *hostname)
+	if err != nil {
+		log.Fatal(err)
+	} else if *configPath == "" {
+		log.Println("No config provided, using default settings")
+	}
+
+	Run(config, *join, version)
+
+	// Wait indefinitely.
+	<-(chan struct{})(nil)
+	return nil
+}
 
 func Run(config *Config, join, version string) (*messaging.Broker, *influxdb.Server, *raft.Log) {
 	log.Printf("influxdb started, version %s, commit %s", version, commit)
