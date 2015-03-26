@@ -58,6 +58,7 @@ func TestScanner_Scan(t *testing.T) {
 
 		// Identifiers
 		{s: `foo`, tok: influxql.IDENT, lit: `foo`},
+		{s: `_foo`, tok: influxql.IDENT, lit: `_foo`},
 		{s: `Zx12_3U_-`, tok: influxql.IDENT, lit: `Zx12_3U_`},
 		{s: `"foo".bar`, tok: influxql.IDENT, lit: `"foo".bar`},
 		{s: `"foo\\bar"`, tok: influxql.IDENT, lit: `"foo\bar"`},
