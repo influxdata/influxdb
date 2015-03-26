@@ -343,7 +343,7 @@ func (s *Server) StartSelfMonitoring(database, retention string, interval time.D
 	pointFromStats := func(st *Stats, tags map[string]string) Point {
 		point := Point{
 			Timestamp: time.Now(),
-			Name:      st.Name(),
+			Name:      "stat_" + st.Name(),
 			Tags:      make(map[string]string),
 			Fields:    make(map[string]interface{}),
 		}
@@ -382,7 +382,7 @@ func (s *Server) StartSelfMonitoring(database, retention string, interval time.D
 
 			// Server diagnostics.
 			for _, row := range s.DiagnosticsAsRows() {
-				points, err := s.convertRowToPoints(row.Name, row)
+				points, err := s.convertRowToPoints("diag_"+row.Name, row)
 				if err != nil {
 					s.Logger.Printf("failed to write diagnostic row for %s: %s", row.Name, err.Error())
 					continue
@@ -3120,8 +3120,8 @@ func (s *Server) DiagnosticsAsRows() []*influxql.Row {
 		Name: "server",
 		Columns: []string{"time", "startTime", "uptime", "id",
 			"path", "authEnabled", "index", "retentionAutoCreate", "numShards", "cqLastRun"},
-		Values: [][]interface{}{[]interface{}{now, startTime, time.Since(startTime).String(), strconv.FormatUint(s.id, 10),
-			s.path, s.authenticationEnabled, s.index, s.RetentionAutoCreate, len(s.shards), s.lastContinuousQueryRun}},
+		Values: [][]interface{}{[]interface{}{now, startTime.String(), time.Since(startTime).String(), strconv.FormatUint(s.id, 10),
+			s.path, s.authenticationEnabled, int(s.index), s.RetentionAutoCreate, len(s.shards), s.lastContinuousQueryRun.String()}},
 	}
 
 	// Shard groups.
@@ -3134,7 +3134,7 @@ func (s *Server) DiagnosticsAsRows() []*influxql.Row {
 		for _, rp := range db.policies {
 			for _, g := range rp.shardGroups {
 				shardGroupsRow.Values = append(shardGroupsRow.Values, []interface{}{now, db.name, rp.Name,
-					strconv.FormatUint(g.ID, 10), g.StartTime, g.EndTime, g.Duration().String(), len(g.Shards)})
+					strconv.FormatUint(g.ID, 10), g.StartTime.String(), g.EndTime.String(), g.Duration().String(), len(g.Shards)})
 			}
 		}
 	}
@@ -3148,7 +3148,7 @@ func (s *Server) DiagnosticsAsRows() []*influxql.Row {
 		for _, n := range sh.DataNodeIDs {
 			nodes = append(nodes, strconv.FormatUint(n, 10))
 			shardsRow.Values = append(shardsRow.Values, []interface{}{now, strconv.FormatUint(sh.ID, 10), strings.Join(nodes, ","),
-				sh.index, sh.store.Path()})
+				strconv.FormatUint(sh.index, 10), sh.store.Path()})
 		}
 	}
 
