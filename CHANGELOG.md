@@ -3,6 +3,8 @@
 ## Features
 - [#2076](https://github.com/influxdb/influxdb/pull/2076): Seperate stdout and stderr output in init.d script
 
+## Bugfixes
+- [#2084](https://github.com/influxdb/influxdb/pull/2084): Allowing leading underscores in identifiers.
 
 ## v0.9.0-rc16 [2015-03-24]
 
