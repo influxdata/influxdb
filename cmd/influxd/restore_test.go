@@ -27,7 +27,7 @@ func TestRestoreCommand(t *testing.T) {
 		[broker]
 		port=%%d
 		dir=%q
-		
+
 		[data]
 		port=%%d
 		dir = %q
@@ -51,7 +51,7 @@ func TestRestoreCommand(t *testing.T) {
 	}
 
 	// Start server.
-	b, s := main.Run(c, "", "x.x", os.Stderr)
+	b, s := main.Run(c, "", "x.x")
 	if b == nil {
 		t.Fatal("cannot run broker")
 	} else if s == nil {
@@ -105,7 +105,7 @@ func TestRestoreCommand(t *testing.T) {
 	}
 
 	// Restart server.
-	b, s = main.Run(c, "", "x.x", os.Stderr)
+	b, s = main.Run(c, "", "x.x")
 	if b == nil {
 		t.Fatal("cannot run broker")
 	} else if s == nil {

@@ -125,18 +125,7 @@ func execRun(args []string) {
 		log.Println("No config provided, using default settings")
 	}
 
-	// Create a logging writer.
-	logWriter := os.Stderr
-	if config.Logging.File != "" {
-		var err error
-		logWriter, err = os.OpenFile(config.Logging.File, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0660)
-		if err != nil {
-			log.Fatalf("unable to open log file %s: %s", config.Logging.File, err.Error())
-		}
-	}
-	log.SetOutput(logWriter)
-
-	Run(config, *join, version, logWriter)
+	Run(config, *join, version)
 
 	// Wait indefinitely.
 	<-(chan struct{})(nil)

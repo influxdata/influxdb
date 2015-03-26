@@ -1,9 +1,9 @@
 package graphite
 
 import (
-	"io"
 	"log"
 	"net"
+	"os"
 	"strings"
 
 	"github.com/influxdb/influxdb"
@@ -28,13 +28,9 @@ func NewUDPServer(p *Parser, w SeriesWriter, db string) *UDPServer {
 		parser:   p,
 		writer:   w,
 		database: db,
+		Logger:   log.New(os.Stderr, "[graphite] ", log.LstdFlags),
 	}
 	return &u
-}
-
-// SetLogOutput sets writer for all Graphite log output.
-func (s *UDPServer) SetLogOutput(w io.Writer) {
-	s.Logger = log.New(w, "[graphite] ", log.LstdFlags)
 }
 
 // ListenAndServer instructs the UDPServer to start processing Graphite data

@@ -55,7 +55,6 @@ func NewClient() *Client {
 		ReconnectTimeout: DefaultReconnectTimeout,
 		PingInterval:     DefaultPingInterval,
 	}
-	c.SetLogOutput(os.Stderr)
 	return c
 }
 
@@ -115,11 +114,6 @@ func (c *Client) randomizeURL() {
 
 	// Otherwise randomly select a URL.
 	c.setURL(c.urls[rand.Intn(len(c.urls))])
-}
-
-// SetLogOutput sets writer for all Client log output.
-func (c *Client) SetLogOutput(w io.Writer) {
-	c.Logger = log.New(w, "[messaging] ", log.LstdFlags)
 }
 
 // Open opens the client and reads the configuration from the specified path.
@@ -432,7 +426,7 @@ func NewConn(topicID uint64) *Conn {
 	return &Conn{
 		topicID:          topicID,
 		ReconnectTimeout: DefaultReconnectTimeout,
-		Logger:           log.New(os.Stderr, "", log.LstdFlags),
+		Logger:           log.New(os.Stderr, "[messaging] ", log.LstdFlags),
 	}
 }
 

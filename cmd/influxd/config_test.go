@@ -46,10 +46,6 @@ func TestParseConfig(t *testing.T) {
 		t.Fatalf("JoinURLs mistmatch: %v", c.JoinURLs())
 	}
 
-	if c.Logging.File != "influxdb.log" {
-		t.Fatalf("logging file mismatch: %v", c.Logging.File)
-	}
-
 	if !c.Authentication.Enabled {
 		t.Fatalf("authentication enabled mismatch: %v", c.Authentication.Enabled)
 	}
@@ -173,7 +169,6 @@ join-urls = "http://127.0.0.1:8086"
 enabled = true
 
 [logging]
-file   = "influxdb.log"
 write-tracing = true
 raft-tracing = true
 

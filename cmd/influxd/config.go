@@ -121,9 +121,8 @@ type Config struct {
 	} `toml:"cluster"`
 
 	Logging struct {
-		File         string `toml:"file"`
-		WriteTracing bool   `toml:"write-tracing"`
-		RaftTracing  bool   `toml:"raft-tracing"`
+		WriteTracing bool `toml:"write-tracing"`
+		RaftTracing  bool `toml:"raft-tracing"`
 	} `toml:"logging"`
 
 	Statistics struct {

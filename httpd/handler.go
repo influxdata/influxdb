@@ -147,11 +147,6 @@ func NewHandler(s *influxdb.Server, requireAuthentication bool, version string) 
 	return h
 }
 
-// SetLogOutput sets writer for all handler log output.
-func (h *Handler) SetLogOutput(w io.Writer) {
-	h.Logger = log.New(w, "[http] ", log.LstdFlags)
-}
-
 // ServeHTTP responds to HTTP request to the handler.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.mux.ServeHTTP(w, r)

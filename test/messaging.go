@@ -1,7 +1,6 @@
 package test
 
 import (
-	"io"
 	"net/url"
 	"sync"
 	"time"
@@ -106,8 +105,6 @@ func (c *MessagingClient) Sync(index uint64) {
 		time.Sleep(1 * time.Millisecond)
 	}
 }
-
-func (c *MessagingClient) SetLogOutput(_ io.Writer) {}
 
 // MessagingConn represents a mockable connection implementing influxdb.MessagingConn.
 type MessagingConn struct {

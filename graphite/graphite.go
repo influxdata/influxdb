@@ -3,7 +3,6 @@ package graphite
 import (
 	"errors"
 	"fmt"
-	"io"
 	"strconv"
 	"strings"
 	"time"
@@ -38,7 +37,6 @@ type SeriesWriter interface {
 
 // Server defines the interface all Graphite servers support.
 type Server interface {
-	SetLogOutput(w io.Writer)
 	ListenAndServe(iface string) error
 }
 

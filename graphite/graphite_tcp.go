@@ -2,9 +2,9 @@ package graphite
 
 import (
 	"bufio"
-	"io"
 	"log"
 	"net"
+	"os"
 	"strings"
 
 	"github.com/influxdb/influxdb"
@@ -25,12 +25,8 @@ func NewTCPServer(p *Parser, w SeriesWriter, db string) *TCPServer {
 		parser:   p,
 		writer:   w,
 		database: db,
+		Logger:   log.New(os.Stderr, "[graphite] ", log.LstdFlags),
 	}
-}
-
-// SetLogOutput sets writer for all Graphite log output.
-func (s *TCPServer) SetLogOutput(w io.Writer) {
-	s.Logger = log.New(w, "[graphite] ", log.LstdFlags)
 }
 
 // ListenAndServe instructs the TCPServer to start processing Graphite data

@@ -102,7 +102,7 @@ func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes, ba
 	c.Admin.Enabled = false
 	c.ReportingDisabled = true
 
-	b, s := main.Run(c, "", "x.x", os.Stderr)
+	b, s := main.Run(c, "", "x.x")
 	if b == nil {
 		t.Fatalf("Test %s: failed to create broker on port %d", testName, basePort)
 	}
@@ -124,7 +124,7 @@ func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes, ba
 		c.Broker.Port = nextPort
 		c.Data.Port = nextPort
 
-		b, s := main.Run(c, "http://localhost:"+strconv.Itoa(basePort), "x.x", os.Stderr)
+		b, s := main.Run(c, "http://localhost:"+strconv.Itoa(basePort), "x.x")
 		if b == nil {
 			t.Fatalf("Test %s: failed to create following broker on port %d", testName, basePort)
 		}

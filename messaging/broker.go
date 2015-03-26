@@ -50,8 +50,8 @@ type Broker struct {
 func NewBroker() *Broker {
 	b := &Broker{
 		topics: make(map[uint64]*Topic),
+		Logger: log.New(os.Stderr, "[broker] ", log.LstdFlags),
 	}
-	b.SetLogOutput(os.Stderr)
 	return b
 }
 
@@ -118,9 +118,6 @@ func (b *Broker) Index() (uint64, error) {
 
 // opened returns true if the broker is in an open and running state.
 func (b *Broker) opened() bool { return b.path != "" }
-
-// SetLogOutput sets writer for all Broker log output.
-func (b *Broker) SetLogOutput(w io.Writer) { b.Logger = log.New(w, "[broker] ", log.LstdFlags) }
 
 // Open initializes the log.
 // The broker then must be initialized or join a cluster before it can be used.
