@@ -2034,7 +2034,7 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User, ch
 	// Authorize user to execute the query.
 	if s.authenticationEnabled {
 		if err := s.Authorize(user, q, database); err != nil {
-			return Results{Err: err}
+			return nil, err
 		}
 	}
 
