@@ -10,24 +10,17 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb"
-	"github.com/influxdb/influxdb/cmd/influxd"
+	main "github.com/influxdb/influxdb/cmd/influxd"
 )
 
 func newConfig(path string, brokerPort, dataPort, snapshotPort int) main.Config {
-	return main.Config{
-		Broker: main.Broker{
-			Port: brokerPort,
-			Dir:  filepath.Join(path, "broker"),
-		},
-		Data: main.Data{
-			Port:                dataPort,
-			Dir:                 filepath.Join(path, "data"),
-			RetentionAutoCreate: true,
-		},
-		Snapshot: main.Snapshot{
-			Port: snapshotPort,
-		},
-	}
+	config := main.NewConfig()
+	config.Broker.Port = brokerPort
+	config.Broker.Dir = filepath.Join(path, "broker")
+	config.Data.Port = dataPort
+	config.Data.Dir = filepath.Join(path, "data")
+	config.Snapshot.Port = snapshotPort
+	return *config
 }
 
 // Ensure the restore command can expand a snapshot and bootstrap a broker.
