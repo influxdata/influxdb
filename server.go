@@ -634,6 +634,13 @@ type dataNodeJSON struct {
 	URL string `json:"url"`
 }
 
+// copyURL returns a copy of the the URL.
+func copyURL(u *url.URL) *url.URL {
+	other := &url.URL{}
+	*other = *u
+	return other
+}
+
 // Join creates a new data node in an existing cluster, copies the metastore,
 // and initializes the ID.
 func (s *Server) Join(u *url.URL, joinURL *url.URL) error {
@@ -3857,13 +3864,6 @@ func (s *Server) convertRowToPoints(measurementName string, row *influxql.Row) (
 	}
 
 	return points, nil
-}
-
-// copyURL returns a copy of the the URL.
-func copyURL(u *url.URL) *url.URL {
-	other := &url.URL{}
-	*other = *u
-	return other
 }
 
 func (s *Server) StartReportingLoop(clusterID uint64) chan struct{} {
