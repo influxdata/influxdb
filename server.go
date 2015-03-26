@@ -3867,18 +3867,18 @@ func (s *Server) convertRowToPoints(measurementName string, row *influxql.Row) (
 }
 
 func (s *Server) StartReportingLoop(clusterID uint64) chan struct{} {
-	s.reportStats(clusterID)
+	s.reportServer(clusterID)
 
 	ticker := time.NewTicker(24 * time.Hour)
 	for {
 		select {
 		case <-ticker.C:
-			s.reportStats(clusterID)
+			s.reportServer(clusterID)
 		}
 	}
 }
 
-func (s *Server) reportStats(clusterID uint64) {
+func (s *Server) reportServer(clusterID uint64) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
