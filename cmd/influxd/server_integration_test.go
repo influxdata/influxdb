@@ -357,6 +357,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		writeFn  writeFn // If non-nil, called after 'write' data (if any) is written.
 		query    string  // If equal to the blank string, no query is executed.
 		queryDb  string  // If set, is used as the "db" query param.
+		queryOne bool    // If set, only 1 node is queried.
 		expected string  // If 'query' is equal to the blank string, this is ignored.
 	}{
 		// Data read and write tests
@@ -794,6 +795,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		{
 			query:    `DROP MEASUREMENT cpu`,
 			queryDb:  "%DB%",
+			queryOne: true,
 			expected: `{"results":[{}]}`,
 		},
 		{
@@ -1010,6 +1012,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		{
 			name:     "Ensure database with default retention policy can be deleted",
 			query:    `DROP DATABASE mydatabase`,
+			queryOne: true,
 			expected: `{"results":[{}]}`,
 		},
 
@@ -1063,6 +1066,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		},
 		{
 			query:    `DROP USER jdoe`,
+			queryOne: true,
 			expected: `{"results":[{}]}`,
 		},
 		{
@@ -1119,6 +1123,11 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		}
 
 		if tt.query != "" {
+			qNodes := nodes
+			if tt.queryOne {
+				qNodes = qNodes[:1]
+			}
+
 			urlDb := ""
 			if tt.queryDb != "" {
 				urlDb = tt.queryDb
