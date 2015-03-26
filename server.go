@@ -51,12 +51,6 @@ const (
 	retentionPolicyMinDuration = time.Hour
 )
 
-var startTime time.Time
-
-func init() {
-	startTime = time.Now().UTC()
-}
-
 // Server represents a collection of metadata and raw metric data.
 type Server struct {
 	mu       sync.RWMutex
@@ -2714,137 +2708,7 @@ func (s *Server) executeShowDiagnosticsStatement(stmt *influxql.ShowDiagnosticsS
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	rows := make([]*influxql.Row, 0)
-	now := time.Now().UTC().Format(time.RFC3339Nano)
-
-	var m runtime.MemStats
-	runtime.ReadMemStats(&m)
-
-	hostname, err := os.Hostname()
-	if err != nil {
-		hostname = "unknown"
-	}
-
-	diags := []struct {
-		name   string
-		fields map[string]interface{}
-	}{
-		{
-			name: "build",
-			fields: map[string]interface{}{
-				"version":    s.Version,
-				"commitHash": s.CommitHash,
-			},
-		},
-		{
-			name: "server",
-			fields: map[string]interface{}{
-				"id":                  s.id,
-				"path":                s.path,
-				"authEnabled":         s.authenticationEnabled,
-				"index":               s.index,
-				"retentionAutoCreate": s.RetentionAutoCreate,
-				"numShards":           len(s.shards),
-			},
-		},
-		{
-			name: "cq",
-			fields: map[string]interface{}{
-				"lastRun": s.lastContinuousQueryRun,
-			},
-		},
-		{
-			name: "system",
-			fields: map[string]interface{}{
-				"startTime": startTime,
-				"uptime":    time.Since(startTime).String(),
-				"hostname":  hostname,
-				"pid":       os.Getpid(),
-				"os":        runtime.GOOS,
-				"arch":      runtime.GOARCH,
-				"numcpu":    runtime.NumCPU(),
-			},
-		},
-		{
-			name: "memory",
-			fields: map[string]interface{}{
-				"alloc":        m.Alloc,
-				"totalAlloc":   m.TotalAlloc,
-				"sys":          m.Sys,
-				"lookups":      m.Lookups,
-				"mallocs":      m.Mallocs,
-				"frees":        m.Frees,
-				"heapAlloc":    m.HeapAlloc,
-				"heapSys":      m.HeapSys,
-				"heapIdle":     m.HeapIdle,
-				"heapInUse":    m.HeapInuse,
-				"heapReleased": m.HeapReleased,
-				"heapObjects":  m.HeapObjects,
-				"pauseTotalNs": m.PauseTotalNs,
-				"numGC":        m.NumGC,
-			},
-		},
-		{
-			name: "go",
-			fields: map[string]interface{}{
-				"goMaxProcs":   runtime.GOMAXPROCS(0),
-				"numGoroutine": runtime.NumGoroutine(),
-				"version":      runtime.Version(),
-			},
-		},
-	}
-
-	for _, d := range diags {
-		row := &influxql.Row{Columns: []string{"time"}}
-		row.Name = d.name
-
-		// Get sorted list of keys.
-		sortedKeys := make([]string, 0, len(d.fields))
-		for k, _ := range d.fields {
-			sortedKeys = append(sortedKeys, k)
-		}
-		sort.Strings(sortedKeys)
-
-		values := []interface{}{now}
-		for _, k := range sortedKeys {
-			row.Columns = append(row.Columns, k)
-			values = append(values, d.fields[k])
-		}
-		row.Values = append(row.Values, values)
-		rows = append(rows, row)
-	}
-
-	// Shard groups.
-	shardGroupsRow := &influxql.Row{Columns: []string{}}
-	shardGroupsRow.Name = "shardGroups"
-	shardGroupsRow.Columns = append(shardGroupsRow.Columns, "time", "database", "retentionPolicy", "id",
-		"startTime", "endTime", "duration", "numShards")
-	// Check all shard groups.
-	for _, db := range s.databases {
-		for _, rp := range db.policies {
-			for _, g := range rp.shardGroups {
-				shardGroupsRow.Values = append(shardGroupsRow.Values, []interface{}{now, db.name, rp.Name,
-					g.ID, g.StartTime, g.EndTime, g.Duration().String(), len(g.Shards)})
-			}
-		}
-	}
-	rows = append(rows, shardGroupsRow)
-
-	// Shards
-	shardsRow := &influxql.Row{Columns: []string{}}
-	shardsRow.Name = "shards"
-	shardsRow.Columns = append(shardsRow.Columns, "time", "id", "dataNodes", "index", "path")
-	for _, sh := range s.shards {
-		var nodes []string
-		for _, n := range sh.DataNodeIDs {
-			nodes = append(nodes, strconv.FormatUint(n, 10))
-			shardsRow.Values = append(shardsRow.Values, []interface{}{now, sh.ID, strings.Join(nodes, ","),
-				sh.index, sh.store.Path()})
-		}
-	}
-	rows = append(rows, shardsRow)
-
-	return &Result{Series: rows}
+	return &Result{Series: s.DiagnosticsAsRows()}
 }
 
 // filterMeasurementsByExpr filters a list of measurements by a tags expression.
@@ -3223,6 +3087,67 @@ func (s *Server) normalizeMeasurement(m *influxql.Measurement, defaultDatabase s
 	}
 
 	return nm, nil
+}
+
+// DiagnosticsAsRows returns diagnostic information about the server, as a slice of
+// InfluxQL rows.
+func (s *Server) DiagnosticsAsRows() []*influxql.Row {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	now := time.Now().UTC()
+
+	// Common rows.
+	gd := NewGoDiagnostics()
+	sd := NewSystemDiagnostics()
+	md := NewMemoryDiagnostics()
+	bd := BuildDiagnostics{Version: s.Version, CommitHash: s.CommitHash}
+
+	// Server row.
+	serverRow := &influxql.Row{
+		Name: "server",
+		Columns: []string{"time", "startTime", "uptime", "id",
+			"path", "authEnabled", "index", "retentionAutoCreate", "numShards", "cqLastRun"},
+		Values: [][]interface{}{[]interface{}{now, startTime, time.Since(startTime).String(), strconv.FormatUint(s.id, 10),
+			s.path, s.authenticationEnabled, s.index, s.RetentionAutoCreate, len(s.shards), s.lastContinuousQueryRun}},
+	}
+
+	// Shard groups.
+	shardGroupsRow := &influxql.Row{Columns: []string{}}
+	shardGroupsRow.Name = "shardGroups"
+	shardGroupsRow.Columns = append(shardGroupsRow.Columns, "time", "database", "retentionPolicy", "id",
+		"startTime", "endTime", "duration", "numShards")
+	// Check all shard groups.
+	for _, db := range s.databases {
+		for _, rp := range db.policies {
+			for _, g := range rp.shardGroups {
+				shardGroupsRow.Values = append(shardGroupsRow.Values, []interface{}{now, db.name, rp.Name,
+					strconv.FormatUint(g.ID, 10), g.StartTime, g.EndTime, g.Duration().String(), len(g.Shards)})
+			}
+		}
+	}
+
+	// Shards
+	shardsRow := &influxql.Row{Columns: []string{}}
+	shardsRow.Name = "shards"
+	shardsRow.Columns = append(shardsRow.Columns, "time", "id", "dataNodes", "index", "path")
+	for _, sh := range s.shards {
+		var nodes []string
+		for _, n := range sh.DataNodeIDs {
+			nodes = append(nodes, strconv.FormatUint(n, 10))
+			shardsRow.Values = append(shardsRow.Values, []interface{}{now, strconv.FormatUint(sh.ID, 10), strings.Join(nodes, ","),
+				sh.index, sh.store.Path()})
+		}
+	}
+
+	return []*influxql.Row{
+		gd.AsRow(),
+		sd.AsRow(),
+		md.AsRow(),
+		bd.AsRow(),
+		serverRow,
+		shardGroupsRow,
+		shardsRow,
+	}
 }
 
 // processor runs in a separate goroutine and processes all incoming broker messages.

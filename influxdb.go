@@ -10,6 +10,12 @@ import (
 	"github.com/influxdb/influxdb/client"
 )
 
+var startTime time.Time
+
+func init() {
+	startTime = time.Now().UTC()
+}
+
 var (
 	// ErrServerOpen is returned when opening an already open server.
 	ErrServerOpen = errors.New("server already open")
