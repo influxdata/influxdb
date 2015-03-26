@@ -380,6 +380,19 @@ func (s *Server) StartSelfMonitoring(database, retention string, interval time.D
 				batch = append(batch, point)
 			}
 
+			// Server diagnostics.
+			for _, row := range s.DiagnosticsAsRows() {
+				points, err := s.convertRowToPoints(row.Name, row)
+				if err != nil {
+					s.Logger.Printf("failed to write diagnostic row for %s: %s", row.Name, err.Error())
+					continue
+				}
+				for _, p := range points {
+					p.Tags = map[string]string{"serverID": strconv.FormatUint(s.ID(), 10)}
+				}
+				batch = append(batch, points...)
+			}
+
 			s.WriteSeries(database, retention, batch)
 		}
 	}()
