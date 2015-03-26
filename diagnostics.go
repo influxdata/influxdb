@@ -25,10 +25,11 @@ func NewGoDiagnostics() *GoDiagnostics {
 }
 
 // AsRow returns the GoDiagnostic object as an InfluxQL row.
-func (g *GoDiagnostics) AsRow() *influxql.Row {
+func (g *GoDiagnostics) AsRow(measurement string, tags map[string]string) *influxql.Row {
 	return &influxql.Row{
-		Name:    "go",
+		Name:    measurement,
 		Columns: []string{"time", "goMaxProcs", "numGoRoutine", "version"},
+		Tags:    tags,
 		Values: [][]interface{}{[]interface{}{time.Now().UTC(),
 			g.GoMaxProcs, g.NumGoroutine, g.Version}},
 	}
@@ -60,10 +61,11 @@ func NewSystemDiagnostics() *SystemDiagnostics {
 }
 
 // AsRow returns the GoDiagnostic object as an InfluxQL row.
-func (s *SystemDiagnostics) AsRow() *influxql.Row {
+func (s *SystemDiagnostics) AsRow(measurement string, tags map[string]string) *influxql.Row {
 	return &influxql.Row{
-		Name:    "system",
+		Name:    measurement,
 		Columns: []string{"time", "hostname", "pid", "os", "arch", "numCPU"},
+		Tags:    tags,
 		Values: [][]interface{}{[]interface{}{time.Now().UTC(),
 			s.Hostname, s.PID, s.OS, s.Arch, s.NumCPU}},
 	}
@@ -111,11 +113,12 @@ func NewMemoryDiagnostics() *MemoryDiagnostics {
 }
 
 // AsRow returns the MemoryDiagnostics object as an InfluxQL row.
-func (m *MemoryDiagnostics) AsRow() *influxql.Row {
+func (m *MemoryDiagnostics) AsRow(measurement string, tags map[string]string) *influxql.Row {
 	return &influxql.Row{
-		Name: "memory",
+		Name: measurement,
 		Columns: []string{"time", "alloc", "totalAlloc", "sys", "lookups", "mallocs", "frees", "heapAlloc",
 			"heapSys", "heapIdle", "heapInUse", "heapReleased", "heapObjects", "pauseTotalNs", "numGG"},
+		Tags: tags,
 		Values: [][]interface{}{[]interface{}{time.Now().UTC(),
 			m.Alloc, m.TotalAlloc, m.Sys, m.Lookups, m.Mallocs, m.Frees, m.HeapAlloc,
 			m.HeapSys, m.HeapIdle, m.HeapInUse, m.HeapReleased, m.HeapObjects, m.PauseTotalNs, m.NumGC}},
@@ -129,10 +132,11 @@ type BuildDiagnostics struct {
 }
 
 // AsRow returns the BuildDiagnostics object as an InfluxQL row.
-func (b *BuildDiagnostics) AsRow() *influxql.Row {
+func (b *BuildDiagnostics) AsRow(measurement string, tags map[string]string) *influxql.Row {
 	return &influxql.Row{
-		Name:    "build",
+		Name:    measurement,
 		Columns: []string{"time", "version", "commitHash"},
+		Tags:    tags,
 		Values: [][]interface{}{[]interface{}{time.Now().UTC(),
 			b.Version, b.CommitHash}},
 	}

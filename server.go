@@ -339,23 +339,26 @@ func (s *Server) StartSelfMonitoring(database, retention string, interval time.D
 		return fmt.Errorf("statistics check interval must be non-zero")
 	}
 
-	// Function for local use turns stats into a point.
-	pointFromStats := func(st *Stats, tags map[string]string) Point {
-		point := Point{
-			Timestamp: time.Now(),
-			Name:      "stat_" + st.Name(),
-			Tags:      make(map[string]string),
-			Fields:    make(map[string]interface{}),
-		}
-		// Specifically create a new map.
-		for k, v := range tags {
-			point.Tags[k] = v
-		}
+	// Function for local use turns stats into a slice of points
+	pointsFromStats := func(st *Stats, tags map[string]string) []Point {
 
+		points := make([]Point, 0)
+		now := time.Now()
 		st.Walk(func(k string, v int64) {
-			point.Fields[k] = int(v)
+			point := Point{
+				Timestamp: now,
+				Name:      st.name + "_" + k,
+				Tags:      make(map[string]string),
+				Fields:    map[string]interface{}{"value": int(v)},
+			}
+			// Specifically create a new map.
+			for k, v := range tags {
+				point.Tags[k] = v
+			}
+			points = append(points, point)
 		})
-		return point
+
+		return points
 	}
 
 	go func() {
@@ -364,25 +367,21 @@ func (s *Server) StartSelfMonitoring(database, retention string, interval time.D
 			<-tick.C
 
 			// Create the batch and tags
-			batch := make([]Point, 0)
 			tags := map[string]string{"serverID": strconv.FormatUint(s.ID(), 10)}
 			if h, err := os.Hostname(); err == nil {
 				tags["host"] = h
 			}
-
-			// Server stats.
-			batch = append(batch, pointFromStats(s.stats, tags))
+			batch := pointsFromStats(s.stats, tags)
 
 			// Shard-level stats.
+			tags["shardID"] = strconv.FormatUint(s.id, 10)
 			for _, sh := range s.shards {
-				point := pointFromStats(sh.stats, tags)
-				point.Tags["shardID"] = strconv.FormatUint(s.id, 10)
-				batch = append(batch, point)
+				batch = append(batch, pointsFromStats(sh.stats, tags)...)
 			}
 
 			// Server diagnostics.
 			for _, row := range s.DiagnosticsAsRows() {
-				points, err := s.convertRowToPoints("diag_"+row.Name, row)
+				points, err := s.convertRowToPoints(row.Name, row)
 				if err != nil {
 					s.Logger.Printf("failed to write diagnostic row for %s: %s", row.Name, err.Error())
 					continue
@@ -3115,20 +3114,25 @@ func (s *Server) DiagnosticsAsRows() []*influxql.Row {
 	md := NewMemoryDiagnostics()
 	bd := BuildDiagnostics{Version: s.Version, CommitHash: s.CommitHash}
 
+	// Common tagset.
+	tags := map[string]string{"serverID": strconv.FormatUint(s.id, 10)}
+
 	// Server row.
 	serverRow := &influxql.Row{
-		Name: "server",
+		Name: "server_diag",
 		Columns: []string{"time", "startTime", "uptime", "id",
 			"path", "authEnabled", "index", "retentionAutoCreate", "numShards", "cqLastRun"},
+		Tags: tags,
 		Values: [][]interface{}{[]interface{}{now, startTime.String(), time.Since(startTime).String(), strconv.FormatUint(s.id, 10),
 			s.path, s.authenticationEnabled, int(s.index), s.RetentionAutoCreate, len(s.shards), s.lastContinuousQueryRun.String()}},
 	}
 
 	// Shard groups.
 	shardGroupsRow := &influxql.Row{Columns: []string{}}
-	shardGroupsRow.Name = "shardGroups"
+	shardGroupsRow.Name = "shardGroups_diag"
 	shardGroupsRow.Columns = append(shardGroupsRow.Columns, "time", "database", "retentionPolicy", "id",
 		"startTime", "endTime", "duration", "numShards")
+	shardGroupsRow.Tags = tags
 	// Check all shard groups.
 	for _, db := range s.databases {
 		for _, rp := range db.policies {
@@ -3141,8 +3145,9 @@ func (s *Server) DiagnosticsAsRows() []*influxql.Row {
 
 	// Shards
 	shardsRow := &influxql.Row{Columns: []string{}}
-	shardsRow.Name = "shards"
+	shardsRow.Name = "shards_diag"
 	shardsRow.Columns = append(shardsRow.Columns, "time", "id", "dataNodes", "index", "path")
+	shardsRow.Tags = tags
 	for _, sh := range s.shards {
 		var nodes []string
 		for _, n := range sh.DataNodeIDs {
@@ -3153,10 +3158,10 @@ func (s *Server) DiagnosticsAsRows() []*influxql.Row {
 	}
 
 	return []*influxql.Row{
-		gd.AsRow(),
-		sd.AsRow(),
-		md.AsRow(),
-		bd.AsRow(),
+		gd.AsRow("server_go", tags),
+		sd.AsRow("server_system", tags),
+		md.AsRow("server_memory", tags),
+		bd.AsRow("server_build", tags),
 		serverRow,
 		shardGroupsRow,
 		shardsRow,
