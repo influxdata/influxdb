@@ -1312,6 +1312,9 @@ func TestSingleServer(t *testing.T) {
 
 func Test3NodeServer(t *testing.T) {
 	testName := "3-node server integration"
+
+	t.Skip("disabling until #1934 is complete")
+
 	if testing.Short() {
 		t.Skip(fmt.Sprintf("skipping '%s'", testName))
 	}
@@ -1828,6 +1831,51 @@ func Test_ServerOpenTSDBIntegration_BadData(t *testing.T) {
 	if !ok {
 		t.Errorf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
 	}
+}
+
+func TestSeparateBrokerDataNode(t *testing.T) {
+
+	testName := "TestSeparateBrokerDataNode"
+	tmpDir := tempfile()
+	tmpBrokerDir := filepath.Join(tmpDir, "broker-integration-test")
+	tmpDataDir := filepath.Join(tmpDir, "data-integration-test")
+	t.Logf("Test %s: using tmp directory %q for brokers\n", testName, tmpBrokerDir)
+	t.Logf("Test %s: using tmp directory %q for data nodes\n", testName, tmpDataDir)
+	// Sometimes if a test fails, it's because of a log.Fatal() in the program.
+	// This prevents the defer from cleaning up directories.
+	// To be safe, nuke them always before starting
+	_ = os.RemoveAll(tmpBrokerDir)
+	_ = os.RemoveAll(tmpDataDir)
+
+	brokerConfig := main.NewConfig()
+	brokerConfig.Broker.Enabled = true
+	brokerConfig.Broker.Port = 9000
+	brokerConfig.Broker.Dir = filepath.Join(tmpBrokerDir, strconv.Itoa(brokerConfig.Broker.Port))
+	brokerConfig.ReportingDisabled = true
+
+	dataConfig := main.NewConfig()
+	dataConfig.Data.Enabled = true
+	dataConfig.Data.Port = 9001
+	dataConfig.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(dataConfig.Data.Port))
+	dataConfig.ReportingDisabled = true
+
+	brokerCmd := main.NewRunCommand()
+	b, _, _ := brokerCmd.Open(brokerConfig, "")
+	if b == nil {
+		t.Fatalf("Test %s: failed to create broker on port %d", testName, brokerConfig.Broker.Port)
+	}
+
+	u := b.URL()
+	dataConfig.Initialization.JoinURLs = (&u).String()
+	dataCmd := main.NewRunCommand()
+
+	_, s, _ := dataCmd.Open(dataConfig, "")
+	if s == nil {
+		t.Fatalf("Test %s: failed to create leader data node on port %d", testName, dataConfig.Data.Port)
+	}
+	brokerCmd.Close()
+	dataCmd.Close()
+
 }
 
 // helper funcs
