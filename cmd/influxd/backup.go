@@ -53,6 +53,7 @@ func (cmd *BackupCommand) Run(args ...string) error {
 
 	// Determine temporary path to download to.
 	tmppath := path + BackupSuffix
+	defer os.Remove(tmppath) // Be sure to clean up in case of error.
 
 	// Calculate path of next backup file.
 	// This uses the path if it doesn't exist.
