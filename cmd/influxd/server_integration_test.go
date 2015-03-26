@@ -98,9 +98,9 @@ func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes, ba
 	c.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(basePort))
 	c.Broker.Port = basePort
 	c.Data.Port = basePort
-	c.Snapshot.Port = basePort + 1
 	c.Admin.Enabled = false
 	c.ReportingDisabled = true
+	c.Snapshot.Enabled = false
 
 	b, s := main.Run(c, "", "x.x")
 	if b == nil {
