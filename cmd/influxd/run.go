@@ -30,10 +30,19 @@ type RunCommand struct {
 	logWriter *os.File
 	config    *Config
 	hostname  string
+	server    *Server
 }
 
 func NewRunCommand() *RunCommand {
-	return &RunCommand{}
+	return &RunCommand{
+		server: &Server{},
+	}
+}
+
+type Server struct {
+	broker   *influxdb.Broker
+	dataNode *influxdb.DataNode
+	raftLog  *raft.Log
 }
 
 func (cmd *RunCommand) Run(args ...string) error {
@@ -87,16 +96,6 @@ func (cmd *RunCommand) Open(config *Config, join string) (*messaging.Broker, *in
 
 	log.Printf("influxdb started, version %s, commit %s", version, commit)
 
-	var initBroker, initServer bool
-	if initBroker = !fileExists(cmd.config.BrokerDir()); initBroker {
-		log.Printf("Broker directory missing. Need to create a broker.")
-	}
-
-	if initServer = !fileExists(cmd.config.DataDir()); initServer {
-		log.Printf("Data directory missing. Need to create data directory.")
-	}
-	initServer = initServer || initBroker
-
 	// Parse join urls from the --join flag.
 	var joinURLs []url.URL
 	if join == "" {
@@ -106,15 +105,15 @@ func (cmd *RunCommand) Open(config *Config, join string) (*messaging.Broker, *in
 	}
 
 	// Open broker & raft log, initialize or join as necessary.
-	b, l := cmd.openBroker(joinURLs)
+	cmd.openBroker(joinURLs)
 
 	// Start the broker handler.
 	var h *Handler
-	if b != nil {
+	if cmd.server.broker != nil {
 		h = &Handler{
 			brokerHandler: &messaging.Handler{
-				Broker:      b.Broker,
-				RaftHandler: &raft.Handler{Log: l},
+				Broker:      cmd.server.broker,
+				RaftHandler: &raft.Handler{Log: cmd.server.raftLog},
 			},
 		}
 
@@ -135,12 +134,12 @@ func (cmd *RunCommand) Open(config *Config, join string) (*messaging.Broker, *in
 		if cmd.config.ContinuousQuery.Disabled {
 			log.Printf("Not running continuous queries. [continuous_queries].disable is set to true.")
 		} else {
-			b.RunContinuousQueryLoop()
+			cmd.server.broker.RunContinuousQueryLoop()
 		}
 	}
 
 	// Open server, initialize or join as necessary.
-	s := cmd.openServer(b, initServer, initBroker, joinURLs)
+	s := cmd.openServer(joinURLs)
 	s.SetAuthenticationEnabled(cmd.config.Authentication.Enabled)
 
 	// Enable retention policy enforcement if requested.
@@ -273,12 +272,12 @@ func (cmd *RunCommand) Open(config *Config, join string) (*messaging.Broker, *in
 	// unless disabled, start the loop to report anonymous usage stats every 24h
 	if !cmd.config.ReportingDisabled {
 		// Make sure we have a config object b4 we try to use it.
-		if clusterID := b.Broker.ClusterID(); clusterID != 0 {
+		if clusterID := cmd.server.broker.Broker.ClusterID(); clusterID != 0 {
 			go s.StartReportingLoop(clusterID)
 		}
 	}
 
-	return b.Broker, s
+	return cmd.server.broker.Broker, s
 }
 
 // write the current process id to a file specified by path.
@@ -325,19 +324,21 @@ func parseConfig(path, hostname string) (*Config, error) {
 }
 
 // creates and initializes a broker.
-func (cmd *RunCommand) openBroker(joinURLs []url.URL) (*influxdb.Broker, *raft.Log) {
+func (cmd *RunCommand) openBroker(joinURLs []url.URL) {
 	path := cmd.config.BrokerDir()
 	u := cmd.config.BrokerURL()
 	raftTracing := cmd.config.Logging.RaftTracing
+
+	// Create broker
+	b := influxdb.NewBroker()
+	cmd.server.broker = b
 
 	// Create raft log.
 	l := raft.NewLog()
 	l.SetURL(u)
 	l.DebugEnabled = raftTracing
-
-	// Create broker.
-	b := influxdb.NewBroker()
 	b.Log = l
+	cmd.server.raftLog = l
 
 	// Open broker so it can feed last index data to the log.
 	if err := b.Open(path); err != nil {
@@ -345,7 +346,7 @@ func (cmd *RunCommand) openBroker(joinURLs []url.URL) (*influxdb.Broker, *raft.L
 	}
 	log.Printf("broker opened at %s", path)
 
-	// Attach the broker as the finite state machine of the raft log.
+	// Attach the broker as the f	inite state machine of the raft log.
 	l.FSM = &messaging.RaftFSM{Broker: b}
 
 	// Open raft log inside broker directory.
@@ -359,15 +360,15 @@ func (cmd *RunCommand) openBroker(joinURLs []url.URL) (*influxdb.Broker, *raft.L
 		if err := l.Initialize(); err != nil {
 			log.Fatalf("initialize raft log: %s", err)
 		}
-		return b, l
+		u := b.Broker.URL()
+		log.Printf("initialized broker: %s\n", (&u).String())
+		return
 	}
 
 	// If we have join URLs, attemp to join an existing cluster
 	if len(joinURLs) > 0 {
 		joinLog(l, joinURLs)
 	}
-
-	return b, l
 }
 
 // joins a raft log to an existing cluster.
@@ -385,12 +386,7 @@ func joinLog(l *raft.Log, joinURLs []url.URL) {
 }
 
 // creates and initializes a server.
-func (cmd *RunCommand) openServer(b *influxdb.Broker, initServer, initBroker bool, joinURLs []url.URL) *influxdb.Server {
-	// Use broker URL if there are no join URLs passed.
-	clientJoinURLs := joinURLs
-	if len(joinURLs) == 0 {
-		clientJoinURLs = []url.URL{b.URL()}
-	}
+func (cmd *RunCommand) openServer(joinURLs []url.URL) *influxdb.Server {
 
 	// Create messaging client to the brokers.
 	c := influxdb.NewMessagingClient()
@@ -399,8 +395,10 @@ func (cmd *RunCommand) openServer(b *influxdb.Broker, initServer, initBroker boo
 	}
 
 	// If join URLs were passed in then use them to override the client's URLs.
-	if len(clientJoinURLs) > 0 {
-		c.SetURLs(clientJoinURLs)
+	if len(joinURLs) > 0 {
+		c.SetURLs(joinURLs)
+	} else if cmd.server.broker != nil {
+		c.SetURLs([]url.URL{cmd.server.broker.URL()})
 	}
 
 	// If no URLs exist on the client the return an error since we cannot reach a broker.
@@ -426,17 +424,19 @@ func (cmd *RunCommand) openServer(b *influxdb.Broker, initServer, initBroker boo
 	}
 	log.Printf("data server opened at %s", cmd.config.Data.Dir)
 
-	// If the server is uninitialized then initialize or join it.
-	if initServer {
-		if len(joinURLs) == 0 {
-			if initBroker {
-				if err := s.Initialize(b.URL()); err != nil {
-					log.Fatalf("server initialization error: %s", err)
-				}
-			}
-		} else {
-			joinServer(s, cmd.config.DataURL(), joinURLs)
+	dataNodeIndex := s.Index()
+	if dataNodeIndex == 0 && len(joinURLs) == 0 && cmd.server.broker != nil {
+		if err := s.Initialize(cmd.server.broker.URL()); err != nil {
+			log.Fatalf("server initialization error: %s", err)
 		}
+		u := cmd.config.DataURL()
+		log.Printf("initialized data node: %s\n", (&u).String())
+		return s
+	}
+
+	if len(joinURLs) > 0 {
+		joinServer(s, cmd.config.DataURL(), joinURLs)
+		return s
 	}
 
 	return s
