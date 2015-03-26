@@ -92,7 +92,7 @@ func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes, ba
 	// Create the first node, special case.
 	c := baseConfig
 	if c == nil {
-		c, _ = main.NewConfig()
+		c, _ = main.NewTestConfig()
 	}
 	c.Broker.Dir = filepath.Join(tmpBrokerDir, strconv.Itoa(basePort))
 	c.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(basePort))
@@ -1352,7 +1352,7 @@ func Test_ServerSingleGraphiteIntegration(t *testing.T) {
 	testName := "graphite integration"
 	dir := tempfile()
 	now := time.Now().UTC().Round(time.Second)
-	c, _ := main.NewConfig()
+	c, _ := main.NewTestConfig()
 	g := main.Graphite{
 		Enabled:  true,
 		Database: "graphite",
@@ -1402,7 +1402,7 @@ func Test_ServerSingleGraphiteIntegration_FractionalTime(t *testing.T) {
 	testName := "graphite integration fractional time"
 	dir := tempfile()
 	now := time.Now().UTC().Round(time.Second).Add(500 * time.Millisecond)
-	c, _ := main.NewConfig()
+	c, _ := main.NewTestConfig()
 	g := main.Graphite{
 		Enabled:  true,
 		Database: "graphite",
@@ -1454,7 +1454,7 @@ func Test_ServerSingleGraphiteIntegration_ZeroDataPoint(t *testing.T) {
 	testName := "graphite integration"
 	dir := tempfile()
 	now := time.Now().UTC().Round(time.Second)
-	c, _ := main.NewConfig()
+	c, _ := main.NewTestConfig()
 	g := main.Graphite{
 		Enabled:  true,
 		Database: "graphite",
@@ -1505,7 +1505,7 @@ func Test_ServerSingleGraphiteIntegration_NoDatabase(t *testing.T) {
 	testName := "graphite integration"
 	dir := tempfile()
 	now := time.Now().UTC().Round(time.Second)
-	c, _ := main.NewConfig()
+	c, _ := main.NewTestConfig()
 	g := main.Graphite{
 		Enabled:  true,
 		Port:     2303,
@@ -1513,7 +1513,6 @@ func Test_ServerSingleGraphiteIntegration_NoDatabase(t *testing.T) {
 	}
 	c.Graphites = append(c.Graphites, g)
 	c.Logging.WriteTracing = true
-
 	t.Logf("Graphite Connection String: %s\n", g.ConnectionString(c.BindAddress))
 	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, basePort, c)
 

@@ -53,6 +53,39 @@ const (
 
 	// DefaultGraphiteDatabaseName is the default Graphite database if none is specified
 	DefaultGraphiteDatabaseName = "graphite"
+
+	// DefaultRetentionAutoCreate is the default for auto-creating retention policies
+	DefaultRetentionAutoCreate = true
+
+	// DefaultRetentionCheckEnabled is the default for checking for retention policy enforcement
+	DefaultRetentionCheckEnabled = true
+
+	// DefaultRetentionCheckPeriod is the period of time between retention policy checks are run
+	DefaultRetentionCheckPeriod = 10 * time.Minute
+
+	// DefaultRecomputePreviousN is ???
+	DefaultContinuousQueryRecomputePreviousN = 2
+
+	// DefaultContinuousQueryRecomputeNoOlderThan is ???
+	DefaultContinuousQueryRecomputeNoOlderThan = 10 * time.Minute
+
+	// DefaultContinuousQueryComputeRunsPerInterval is ???
+	DefaultContinuousQueryComputeRunsPerInterval = 10
+
+	// DefaultContinousQueryComputeNoMoreThan is ???
+	DefaultContinousQueryComputeNoMoreThan = 2 * time.Minute
+
+	// DefaultStatisticsEnabled is the default setting for whether internal statistics are collected
+	DefaultStatisticsEnabled = false
+
+	// DefaultStatisticsDatabase is the default database internal statistics are written
+	DefaultStatisticsDatabase = "_internal"
+
+	// DefaultStatisticsRetentionPolicy is he default internal statistics rentention policy name
+	DefaultStatisticsRetentionPolicy = "default"
+
+	// DefaultStatisticsWriteInterval is the interval of time between internal stats are written
+	DefaultStatisticsWriteInterval = 1 * time.Minute
 )
 
 var DefaultSnapshotURL = url.URL{
@@ -179,40 +212,30 @@ type Config struct {
 }
 
 // NewConfig returns an instance of Config with reasonable defaults.
-func NewConfig() (*Config, error) {
-	u, err := user.Current()
-	if err != nil {
-		return nil, fmt.Errorf("failed to determine current user for storage")
-	}
-
+func NewConfig() *Config {
 	c := &Config{}
-	c.Broker.Enabled = true
-	c.Broker.Dir = filepath.Join(u.HomeDir, ".influxdb/broker")
-	c.Broker.Port = DefaultBrokerPort
 	c.Broker.Timeout = Duration(1 * time.Second)
-	c.Data.Enabled = true
-	c.Data.Dir = filepath.Join(u.HomeDir, ".influxdb/data")
+	c.Broker.Port = DefaultBrokerPort
+
 	c.Data.Port = DefaultDataPort
-	c.Data.RetentionAutoCreate = true
-	c.Data.RetentionCheckEnabled = true
-	c.Data.RetentionCheckPeriod = Duration(10 * time.Minute)
+
+	c.Data.RetentionAutoCreate = DefaultRetentionAutoCreate
+	c.Data.RetentionCheckEnabled = DefaultRetentionCheckEnabled
+	c.Data.RetentionCheckPeriod = Duration(DefaultRetentionCheckPeriod)
 	c.Data.RetentionCreatePeriod = Duration(DefaultRetentionCreatePeriod)
-	c.Snapshot.Enabled = true
+
 	c.Snapshot.BindAddress = DefaultSnapshotBindAddress
 	c.Snapshot.Port = DefaultSnapshotPort
-	c.Admin.Enabled = true
-	c.Admin.Port = 8083
-	c.ContinuousQuery.RecomputePreviousN = 2
-	c.ContinuousQuery.RecomputeNoOlderThan = Duration(10 * time.Minute)
-	c.ContinuousQuery.ComputeRunsPerInterval = 10
-	c.ContinuousQuery.ComputeNoMoreThan = Duration(2 * time.Minute)
-	c.ContinuousQuery.Disabled = false
-	c.ReportingDisabled = false
 
-	c.Statistics.Enabled = false
-	c.Statistics.Database = "_internal"
-	c.Statistics.RetentionPolicy = "default"
-	c.Statistics.WriteInterval = Duration(1 * time.Minute)
+	c.ContinuousQuery.RecomputePreviousN = DefaultContinuousQueryRecomputePreviousN
+	c.ContinuousQuery.RecomputeNoOlderThan = Duration(DefaultContinuousQueryRecomputeNoOlderThan)
+	c.ContinuousQuery.ComputeRunsPerInterval = DefaultContinuousQueryComputeRunsPerInterval
+	c.ContinuousQuery.ComputeNoMoreThan = Duration(DefaultContinousQueryComputeNoMoreThan)
+
+	c.Statistics.Enabled = DefaultStatisticsEnabled
+	c.Statistics.Database = DefaultStatisticsDatabase
+	c.Statistics.RetentionPolicy = DefaultStatisticsRetentionPolicy
+	c.Statistics.WriteInterval = Duration(DefaultStatisticsWriteInterval)
 
 	// Detect hostname (or set to localhost).
 	if c.Hostname, _ = os.Hostname(); c.Hostname == "" {
@@ -225,6 +248,32 @@ func NewConfig() (*Config, error) {
 	// 	Database: tomlConfiguration.InputPlugins.UDPInput.Database,
 	// 	Port:     tomlConfiguration.InputPlugins.UDPInput.Port,
 	// })
+
+	return c
+}
+
+// NewTestConfig returns an instance of Config with reasonable defaults suitable
+// for testing a local server w/ broker and data nodes active
+func NewTestConfig() (*Config, error) {
+	c := NewConfig()
+
+	// By default, store broker and data files in current users home directory
+	u, err := user.Current()
+	if err != nil {
+		return nil, fmt.Errorf("failed to determine current user for storage")
+	}
+
+	c.Broker.Enabled = true
+	c.Broker.Dir = filepath.Join(u.HomeDir, ".influxdb/broker")
+
+	c.Data.Enabled = true
+	c.Data.Dir = filepath.Join(u.HomeDir, ".influxdb/data")
+
+	c.Admin.Enabled = true
+	c.Admin.Port = 8083
+
+	c.Statistics.Enabled = false
+	c.Snapshot.Enabled = true
 
 	return c, nil
 }
@@ -360,10 +409,8 @@ func (d *Duration) UnmarshalText(text []byte) error {
 
 // ParseConfigFile parses a configuration file at a given path.
 func ParseConfigFile(path string) (*Config, error) {
-	c, err := NewConfig()
-	if err != nil {
-		return nil, err
-	}
+	c := NewConfig()
+
 	if _, err := toml.DecodeFile(path, &c); err != nil {
 		return nil, err
 	}
@@ -372,10 +419,8 @@ func ParseConfigFile(path string) (*Config, error) {
 
 // ParseConfig parses a configuration string into a config object.
 func ParseConfig(s string) (*Config, error) {
-	c, err := NewConfig()
-	if err != nil {
-		return nil, err
-	}
+	c := NewConfig()
+
 	if _, err := toml.Decode(s, &c); err != nil {
 		return nil, err
 	}

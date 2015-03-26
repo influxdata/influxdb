@@ -303,7 +303,7 @@ func writePIDFile(path string) {
 // parseConfig parses the configuration from a given path. Sets overrides as needed.
 func parseConfig(path, hostname string) (*Config, error) {
 	if path == "" {
-		c, err := NewConfig()
+		c, err := NewTestConfig()
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate default config: %s. Please supply an explicit configuration file", err.Error())
 		}
