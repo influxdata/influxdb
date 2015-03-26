@@ -70,8 +70,14 @@ func (cmd *RunCommand) Run(args ...string) error {
 	log.Printf("GOMAXPROCS set to %d", runtime.GOMAXPROCS(0))
 
 	var err error
+
 	// Parse configuration file from disk.
-	cmd.config, err = parseConfig(configPath, hostname)
+	if configPath != "" {
+		cmd.config, err = parseConfig(configPath, hostname)
+	} else {
+		cmd.config, err = NewTestConfig()
+	}
+
 	if err != nil {
 		cmd.Logger.Fatal(err)
 	} else if configPath == "" {
@@ -317,11 +323,7 @@ func writePIDFile(path string) {
 // parseConfig parses the configuration from a given path. Sets overrides as needed.
 func parseConfig(path, hostname string) (*Config, error) {
 	if path == "" {
-		c, err := NewConfig()
-		if err != nil {
-			return nil, fmt.Errorf("failed to generate default config: %s. Please supply an explicit configuration file", err.Error())
-		}
-		return c, nil
+		return NewConfig(), nil
 	}
 
 	// Parse configuration.
