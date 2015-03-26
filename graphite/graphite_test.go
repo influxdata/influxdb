@@ -184,7 +184,7 @@ func Test_DecodeMetric(t *testing.T) {
 		{
 			test: "should fail parsing invalid time",
 			line: `cpu 50.554 14199724z57825`,
-			err:  `strconv.ParseInt: parsing "14199724z57825": invalid syntax`,
+			err:  `strconv.ParseFloat: parsing "14199724z57825": invalid syntax`,
 		},
 	}
 
