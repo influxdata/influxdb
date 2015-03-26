@@ -576,7 +576,7 @@ func NewPlanner(db DB) *Planner {
 }
 
 // Plan creates an execution plan for the given SelectStatement and returns an Executor.
-func (p *Planner) Plan(stmt *SelectStatement) (*Executor, error) {
+func (p *Planner) Plan(stmt *SelectStatement, chunkSize int) (*Executor, error) {
 	now := p.Now().UTC()
 
 	// Replace instances of "now()" with the current time.

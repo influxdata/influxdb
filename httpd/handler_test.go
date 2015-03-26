@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -1615,9 +1616,72 @@ func TestSnapshotHandler(t *testing.T) {
 	}
 }
 
+// Ensure that the server will stream out results if a chunked response is requested
+func TestHandler_ChunkedResponses(t *testing.T) {
+	c := test.NewMessagingClient()
+	defer c.Close()
+	srvr := OpenAuthlessServer(c)
+	srvr.CreateDatabase("foo")
+	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
+	srvr.SetDefaultRetentionPolicy("foo", "bar")
+
+	s := NewHTTPServer(srvr)
+	defer s.Close()
+
+	status, errString := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [
+			{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z", "fields": {"value": 100}},
+			{"name": "cpu", "tags": {"host": "server02"},"timestamp": "2009-11-10T23:30:00Z", "fields": {"value": 25}}]}`)
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d - %s", status, errString)
+	}
+	time.Sleep(100 * time.Millisecond) // Ensure data node picks up write.
+
+	resp, err := chunkedQuery(s.URL, "foo", "select value from cpu")
+	if err != nil {
+		t.Fatalf("error making request: %s", err.Error())
+	}
+	defer resp.Body.Close()
+	for i := 0; i < 2; i++ {
+		chunk := make([]byte, 2048, 2048)
+		n, err := resp.Body.Read(chunk)
+		if err != nil {
+			t.Fatalf("error reading response: %s", err.Error())
+		}
+		results := &influxdb.Results{}
+		err = json.Unmarshal(chunk[0:n], results)
+		if err != nil {
+			t.Fatalf("error unmarshaling resultsz: %s", err.Error())
+		}
+		if len(results.Results) != 1 {
+			t.Fatalf("didn't get 1 result: %s\n", mustMarshalJSON(results))
+		}
+		if len(results.Results[0].Series) != 1 {
+			t.Fatalf("didn't get 1 series: %s\n", mustMarshalJSON(results))
+		}
+		var vals [][]interface{}
+		if i == 0 {
+			vals = [][]interface{}{{"2009-11-10T23:00:00Z", 100}}
+		} else {
+			vals = [][]interface{}{{"2009-11-10T23:30:00Z", 25}}
+		}
+		if !reflect.DeepEqual(results.Results[0].Series[0].Values, vals) {
+			t.Fatalf("values weren't what was expected:\n  exp: %s\n  got: %s", mustMarshalJSON(vals), mustMarshalJSON(results.Results[0].Series[0].Values))
+		}
+	}
+}
+
 // batchWrite JSON Unmarshal tests
 
 // Utility functions for this test suite.
+
+func chunkedQuery(host, db, q string) (*http.Response, error) {
+	params := map[string]string{"db": db, "q": q, "chunked": "true", "chunk_size": "1"}
+	query := url.Values{}
+	for k, v := range params {
+		query.Set(k, v)
+	}
+	return http.Get(host + "/query?" + query.Encode())
+}
 
 func MustHTTP(verb, path string, params, headers map[string]string, body string) (int, string) {
 	req, err := http.NewRequest(verb, path, bytes.NewBuffer([]byte(body)))
