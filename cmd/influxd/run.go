@@ -115,16 +115,20 @@ func Run(config *Config, join, version string) (*messaging.Broker, *influxdb.Ser
 		}
 		log.Printf("data node #%d listening on %s", s.ID(), config.DataAddr())
 
-		// Start snapshot handler.
-		go func() {
-			log.Fatal(http.ListenAndServe(
-				config.SnapshotAddr(),
-				&httpd.SnapshotHandler{
-					CreateSnapshotWriter: s.CreateSnapshotWriter,
-				},
-			))
-		}()
-		log.Printf("snapshot endpoint listening on %s", config.SnapshotAddr())
+		if config.Snapshot.Enabled {
+			// Start snapshot handler.
+			go func() {
+				log.Fatal(http.ListenAndServe(
+					config.SnapshotAddr(),
+					&httpd.SnapshotHandler{
+						CreateSnapshotWriter: s.CreateSnapshotWriter,
+					},
+				))
+			}()
+			log.Printf("snapshot endpoint listening on %s", config.SnapshotAddr())
+		} else {
+			log.Println("snapshot endpoint disabled")
+		}
 
 		// Start the admin interface on the default port
 		if config.Admin.Enabled {
