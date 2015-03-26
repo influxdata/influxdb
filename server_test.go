@@ -114,9 +114,6 @@ func TestServer_UnauthorizedRequests(t *testing.T) {
 
 	s.SetAuthenticationEnabled(true)
 
-	var b bytes.Buffer
-	s.SetLogOutput(&b)
-
 	adminOnlyQuery := &influxql.Query{
 		Statements: []influxql.Statement{
 			&influxql.DropDatabaseStatement{Name: "foo"},
@@ -127,12 +124,6 @@ func TestServer_UnauthorizedRequests(t *testing.T) {
 	if _, ok := e.(influxdb.ErrAuthorize); !ok {
 		t.Fatalf("unexpected error.  expected %v, actual: %v", influxdb.ErrAuthorize{}, e)
 	}
-	if !strings.Contains(b.String(), "unauthorized request") {
-		t.Log(b.String())
-		t.Fatalf(`log should contain "unuathorized request"`)
-	}
-
-	b.Reset()
 
 	// Create normal database user.
 	s.CreateUser("user1", "user1", false)
@@ -141,10 +132,6 @@ func TestServer_UnauthorizedRequests(t *testing.T) {
 	e = s.Authorize(user1, adminOnlyQuery, "foo")
 	if _, ok := e.(influxdb.ErrAuthorize); !ok {
 		t.Fatalf("unexpected error.  expected %v, actual: %v", influxdb.ErrAuthorize{}, e)
-	}
-	if !strings.Contains(b.String(), "unauthorized request") {
-		t.Log(b.String())
-		t.Fatalf(`log should contain "unuathorized request"`)
 	}
 }
 

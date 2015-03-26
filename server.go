@@ -169,11 +169,6 @@ func (s *Server) metaPath() string {
 	return filepath.Join(s.path, "meta")
 }
 
-// SetLogOutput sets writer for all Server log output.
-func (s *Server) SetLogOutput(w io.Writer) {
-	s.Logger = log.New(w, "[server] ", log.LstdFlags)
-}
-
 // Open initializes the server from a given path.
 func (s *Server) Open(path string, client MessagingClient) error {
 	// Ensure the server isn't already open and there's a path provided.
@@ -3422,9 +3417,6 @@ type MessagingClient interface {
 
 	// Conn returns an open, streaming connection to a topic.
 	Conn(topicID uint64) MessagingConn
-
-	// Sets the logging destination.
-	SetLogOutput(w io.Writer)
 }
 
 type messagingClient struct {

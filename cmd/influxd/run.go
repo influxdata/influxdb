@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"net"
@@ -24,7 +23,7 @@ import (
 	"github.com/influxdb/influxdb/udp"
 )
 
-func Run(config *Config, join, version string, logWriter *os.File) (*messaging.Broker, *influxdb.Server) {
+func Run(config *Config, join, version string) (*messaging.Broker, *influxdb.Server) {
 	log.Printf("influxdb started, version %s, commit %s", version, commit)
 
 	var initBroker, initServer bool
@@ -46,7 +45,7 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 	}
 
 	// Open broker & raft log, initialize or join as necessary.
-	b, l := openBroker(config.BrokerDir(), config.BrokerURL(), initBroker, joinURLs, logWriter, config.Logging.RaftTracing)
+	b, l := openBroker(config.BrokerDir(), config.BrokerURL(), initBroker, joinURLs, config.Logging.RaftTracing)
 
 	// Start the broker handler.
 	var h *Handler
@@ -80,7 +79,7 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 	}
 
 	// Open server, initialize or join as necessary.
-	s := openServer(config, b, initServer, initBroker, joinURLs, logWriter)
+	s := openServer(config, b, initServer, initBroker, joinURLs)
 	s.SetAuthenticationEnabled(config.Authentication.Enabled)
 
 	// Enable retention policy enforcement if requested.
@@ -102,7 +101,6 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 	// Start the server handler. Attach to broker if listening on the same port.
 	if s != nil {
 		sh := httpd.NewHandler(s, config.Authentication.Enabled, version)
-		sh.SetLogOutput(logWriter)
 		sh.WriteTrace = config.Logging.WriteTracing
 
 		if h != nil && config.BrokerAddr() == config.DataAddr() {
@@ -178,7 +176,6 @@ func Run(config *Config, join, version string, logWriter *os.File) (*messaging.B
 			if err != nil {
 				log.Fatalf("failed to initialize %s Graphite server: %s", c.Protocol, err.Error())
 			}
-			g.SetLogOutput(logWriter)
 
 			err = g.ListenAndServe(c.ConnectionString(config.BindAddress))
 			if err != nil {
@@ -263,17 +260,15 @@ func parseConfig(path, hostname string) (*Config, error) {
 }
 
 // creates and initializes a broker.
-func openBroker(path string, u url.URL, initializing bool, joinURLs []url.URL, w io.Writer, raftTracing bool) (*influxdb.Broker, *raft.Log) {
+func openBroker(path string, u url.URL, initializing bool, joinURLs []url.URL, raftTracing bool) (*influxdb.Broker, *raft.Log) {
 	// Create raft log.
 	l := raft.NewLog()
 	l.SetURL(u)
-	l.SetLogOutput(w)
 	l.DebugEnabled = raftTracing
 
 	// Create broker.
 	b := influxdb.NewBroker()
 	b.Log = l
-	b.SetLogOutput(w)
 
 	// Open broker so it can feed last index data to the log.
 	if err := b.Open(path); err != nil {
@@ -320,7 +315,7 @@ func joinLog(l *raft.Log, joinURLs []url.URL) {
 }
 
 // creates and initializes a server.
-func openServer(config *Config, b *influxdb.Broker, initServer, initBroker bool, joinURLs []url.URL, w io.Writer) *influxdb.Server {
+func openServer(config *Config, b *influxdb.Broker, initServer, initBroker bool, joinURLs []url.URL) *influxdb.Server {
 	// Use broker URL if there are no join URLs passed.
 	clientJoinURLs := joinURLs
 	if len(joinURLs) == 0 {
@@ -329,7 +324,6 @@ func openServer(config *Config, b *influxdb.Broker, initServer, initBroker bool,
 
 	// Create messaging client to the brokers.
 	c := influxdb.NewMessagingClient()
-	c.SetLogOutput(w)
 	if err := c.Open(filepath.Join(config.Data.Dir, messagingClientFile)); err != nil {
 		log.Fatalf("messaging client error: %s", err)
 	}
@@ -346,7 +340,6 @@ func openServer(config *Config, b *influxdb.Broker, initServer, initBroker bool,
 
 	// Create and open the server.
 	s := influxdb.NewServer()
-	s.SetLogOutput(w)
 	s.WriteTrace = config.Logging.WriteTracing
 	s.RetentionAutoCreate = config.Data.RetentionAutoCreate
 	s.RecomputePreviousN = config.ContinuousQuery.RecomputePreviousN

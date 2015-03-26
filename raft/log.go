@@ -144,8 +144,9 @@ func NewLog() *Log {
 		Rand:       rand.NewSource(time.Now().UnixNano()).Int63,
 		heartbeats: make(chan heartbeat, 1),
 		terms:      make(chan uint64, 1),
+		Logger:     log.New(os.Stderr, "[raft] ", log.LstdFlags),
 	}
-	l.SetLogOutput(os.Stderr)
+	l.updateLogPrefix()
 	return l
 }
 
@@ -536,12 +537,6 @@ func (l *Log) Initialize() error {
 
 	// Wait until entry is applied.
 	return l.Wait(index)
-}
-
-// SetLogOutput sets writer for all Raft output.
-func (l *Log) SetLogOutput(w io.Writer) {
-	l.Logger = log.New(w, "", log.LstdFlags)
-	l.updateLogPrefix()
 }
 
 func (l *Log) updateLogPrefix() {
