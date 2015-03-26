@@ -227,8 +227,6 @@ func TestParseConfig(t *testing.T) {
 		t.Fatalf("broker port mismatch: %v", c.Broker.Port)
 	} else if c.Broker.Dir != "/tmp/influxdb/development/broker" {
 		t.Fatalf("broker dir mismatch: %v", c.Broker.Dir)
-	} else if time.Duration(c.Broker.Timeout) != time.Second {
-		t.Fatalf("broker duration mismatch: %v", c.Broker.Timeout)
 	}
 
 	if c.Broker.Enabled != false {

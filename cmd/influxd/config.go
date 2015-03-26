@@ -214,7 +214,6 @@ type Config struct {
 // NewConfig returns an instance of Config with reasonable defaults.
 func NewConfig() *Config {
 	c := &Config{}
-	c.Broker.Timeout = Duration(1 * time.Second)
 	c.Broker.Port = DefaultBrokerPort
 
 	c.Data.Port = DefaultDataPort
