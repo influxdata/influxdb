@@ -1304,7 +1304,7 @@ func Test_ServerSingleGraphiteIntegration(t *testing.T) {
 	basePort := 8390
 	testName := "graphite integration"
 	dir := tempfile()
-	now := time.Now().UTC().Round(time.Millisecond)
+	now := time.Now().UTC().Round(time.Second)
 	c, _ := main.NewConfig()
 	g := main.Graphite{
 		Enabled:  true,
@@ -1328,7 +1328,7 @@ func Test_ServerSingleGraphiteIntegration(t *testing.T) {
 
 	t.Log("Writing data")
 	data := []byte(`cpu 23.456 `)
-	data = append(data, []byte(fmt.Sprintf("%d", now.UnixNano()/1000000))...)
+	data = append(data, []byte(fmt.Sprintf("%d", now.Unix()))...)
 	data = append(data, '\n')
 	_, err = conn.Write(data)
 	conn.Close()
@@ -1346,15 +1346,15 @@ func Test_ServerSingleGraphiteIntegration(t *testing.T) {
 	}
 }
 
-func Test_ServerSingleGraphiteIntegration_ZeroDataPoint(t *testing.T) {
+func Test_ServerSingleGraphiteIntegration_FractionalTime(t *testing.T) {
 	if testing.Short() {
 		t.Skip()
 	}
 	nNodes := 1
 	basePort := 8490
-	testName := "graphite integration"
+	testName := "graphite integration fractional time"
 	dir := tempfile()
-	now := time.Now().UTC().Round(time.Millisecond)
+	now := time.Now().UTC().Round(time.Second).Add(500 * time.Millisecond)
 	c, _ := main.NewConfig()
 	g := main.Graphite{
 		Enabled:  true,
@@ -1378,8 +1378,60 @@ func Test_ServerSingleGraphiteIntegration_ZeroDataPoint(t *testing.T) {
 	}
 
 	t.Log("Writing data")
+	data := []byte(`cpu 23.456 `)
+	data = append(data, []byte(fmt.Sprintf("%d", now.Unix()))...)
+	data = append(data, []byte(".5")...)
+	data = append(data, '\n')
+	_, err = conn.Write(data)
+	conn.Close()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	expected := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","cpu"],"values":[["%s",23.456]]}]}]}`, now.Format(time.RFC3339Nano))
+
+	// query and wait for results
+	got, ok := queryAndWait(t, nodes, "graphite", `select * from "graphite"."raw".cpu`, expected, 2*time.Second)
+	if !ok {
+		t.Errorf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
+	}
+}
+
+func Test_ServerSingleGraphiteIntegration_ZeroDataPoint(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+	nNodes := 1
+	basePort := 8590
+	testName := "graphite integration"
+	dir := tempfile()
+	now := time.Now().UTC().Round(time.Second)
+	c, _ := main.NewConfig()
+	g := main.Graphite{
+		Enabled:  true,
+		Database: "graphite",
+		Protocol: "TCP",
+		Port:     2203,
+	}
+	c.Graphites = append(c.Graphites, g)
+
+	t.Logf("Graphite Connection String: %s\n", g.ConnectionString(c.BindAddress))
+	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, basePort, c)
+
+	createDatabase(t, testName, nodes, "graphite")
+	createRetentionPolicy(t, testName, nodes, "graphite", "raw")
+
+	// Connect to the graphite endpoint we just spun up
+	conn, err := net.Dial("tcp", g.ConnectionString(c.BindAddress))
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	t.Log("Writing data")
 	data := []byte(`cpu 0.000 `)
-	data = append(data, []byte(fmt.Sprintf("%d", now.UnixNano()/1000000))...)
+	data = append(data, []byte(fmt.Sprintf("%d", now.Unix()))...)
 	data = append(data, '\n')
 	_, err = conn.Write(data)
 	conn.Close()
@@ -1402,14 +1454,14 @@ func Test_ServerSingleGraphiteIntegration_NoDatabase(t *testing.T) {
 		t.Skip()
 	}
 	nNodes := 1
-	basePort := 8590
+	basePort := 8690
 	testName := "graphite integration"
 	dir := tempfile()
-	now := time.Now().UTC().Round(time.Millisecond)
+	now := time.Now().UTC().Round(time.Second)
 	c, _ := main.NewConfig()
 	g := main.Graphite{
 		Enabled:  true,
-		Port:     2203,
+		Port:     2303,
 		Protocol: "TCP",
 	}
 	c.Graphites = append(c.Graphites, g)
@@ -1441,7 +1493,7 @@ func Test_ServerSingleGraphiteIntegration_NoDatabase(t *testing.T) {
 
 	t.Log("Writing data")
 	data := []byte(`cpu 23.456 `)
-	data = append(data, []byte(fmt.Sprintf("%d", now.UnixNano()/1000000))...)
+	data = append(data, []byte(fmt.Sprintf("%d", now.Unix()))...)
 	data = append(data, '\n')
 	_, err = conn.Write(data)
 	conn.Close()
