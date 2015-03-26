@@ -2,6 +2,7 @@
 
 ### Features
 - [#2076](https://github.com/influxdb/influxdb/pull/2076): Seperate stdout and stderr output in init.d script
+- [#2091](https://github.com/influxdb/influxdb/pull/2091): Support disabling snapshot endpoint.
 
 ### Bugfixes
 - [#2084](https://github.com/influxdb/influxdb/pull/2084): Allowing leading underscores in identifiers.

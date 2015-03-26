@@ -113,6 +113,7 @@ type Config struct {
 	} `toml:"data"`
 
 	Snapshot struct {
+		Enabled     bool   `toml:"enabled"`
 		BindAddress string `toml:"bind-address"`
 		Port        int    `toml:"port"`
 	}
@@ -182,6 +183,7 @@ func NewConfig() (*Config, error) {
 	c.Data.RetentionCheckEnabled = true
 	c.Data.RetentionCheckPeriod = Duration(10 * time.Minute)
 	c.Data.RetentionCreatePeriod = Duration(DefaultRetentionCreatePeriod)
+	c.Snapshot.Enabled = true
 	c.Snapshot.BindAddress = DefaultSnapshotBindAddress
 	c.Snapshot.Port = DefaultSnapshotPort
 	c.Admin.Enabled = true
