@@ -15,8 +15,11 @@ import (
 
 func newConfig(path string, brokerPort, dataPort, snapshotPort int) main.Config {
 	config := main.NewConfig()
+	config.Broker.Enabled = true
 	config.Broker.Port = brokerPort
 	config.Broker.Dir = filepath.Join(path, "broker")
+
+	config.Data.Enabled = true
 	config.Data.Port = dataPort
 	config.Data.Dir = filepath.Join(path, "data")
 	config.Snapshot.Port = snapshotPort
