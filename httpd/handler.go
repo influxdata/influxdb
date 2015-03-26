@@ -18,11 +18,14 @@ import (
 	"time"
 
 	"code.google.com/p/go-uuid/uuid"
-
 	"github.com/bmizerany/pat"
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/client"
 	"github.com/influxdb/influxdb/influxql"
+)
+
+const (
+	DefaultChunkSize = 10000
 )
 
 // TODO: Standard response headers (see: HeaderHandler)
@@ -173,12 +176,91 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *influ
 		httpError(w, "error parsing query: "+err.Error(), pretty, http.StatusBadRequest)
 		return
 	}
-
-	// Execute query. One result will return for each statement.
-	results := h.server.ExecuteQuery(query, db, user)
+	chunked := q.Get("chunked") == "true"
+	chunkSize := influxdb.NoChunkingSize
+	if chunked {
+		cs, err := strconv.ParseInt(q.Get("chunk_size"), 10, 64)
+		if err != nil {
+			chunkSize = DefaultChunkSize
+		} else {
+			chunkSize = int(cs)
+		}
+	}
 
 	// Send results to client.
-	httpResults(w, results, pretty)
+	w.Header().Add("content-type", "application/json")
+	results, err := h.server.ExecuteQuery(query, db, user, chunkSize)
+	if err != nil {
+		if isAuthorizationError(err) {
+			w.WriteHeader(http.StatusUnauthorized)
+		} else {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		return
+	}
+
+	res := influxdb.Results{Results: make([]*influxdb.Result, 0)}
+
+	statusWritten := false
+
+	for r := range results {
+		// write the status header based on the first result returned in the channel
+		if !statusWritten {
+			if r != nil && r.Err != nil {
+				if isAuthorizationError(r.Err) {
+					w.WriteHeader(http.StatusUnauthorized)
+				} else if isMeasurementNotFoundError(r.Err) {
+					w.WriteHeader(http.StatusOK)
+				} else if isFieldNotFoundError(r.Err) {
+					w.WriteHeader(http.StatusOK)
+				} else {
+					w.WriteHeader(http.StatusInternalServerError)
+				}
+			} else {
+				w.WriteHeader(http.StatusOK)
+			}
+			statusWritten = true
+		}
+
+		if r == nil {
+			continue
+		}
+
+		// if chunked we write out this result and flush
+		if chunked {
+			w.Write(marshalPretty(r, pretty))
+			continue
+			//w.(http.Flusher).Flush()
+		}
+
+		// it's not chunked so buffer results in memory.
+		// results for statements need to be combined together. We need to check if this new result is
+		// for the same statement as the last result, or for the next statement
+		l := len(res.Results)
+		if l == 0 {
+			res.Results = append(res.Results, r)
+		} else if res.Results[l-1].StatementID == r.StatementID {
+			cr := res.Results[l-1]
+			cr.Series = append(cr.Series, r.Series...)
+		} else {
+			res.Results = append(res.Results, r)
+		}
+	}
+
+	// if it's not chunked we buffered everything in memory, so write it out
+	if !chunked {
+		w.Write(marshalPretty(res, pretty))
+	}
+}
+
+func marshalPretty(r interface{}, pretty bool) []byte {
+	var b []byte
+	if pretty {
+		b, _ = json.MarshalIndent(r, "", "    ")
+	} else {
+		b, _ = json.Marshal(r)
+	}
+	return b
 }
 
 func interfaceToString(v interface{}) string {
@@ -212,9 +294,14 @@ type Batch struct {
 // Return all the measurements from the given DB
 func (h *Handler) showMeasurements(db string, user *influxdb.User) ([]string, error) {
 	var measurements []string
-	results := h.server.ExecuteQuery(&influxql.Query{Statements: []influxql.Statement{&influxql.ShowMeasurementsStatement{}}}, db, user)
-	if results.Err != nil {
-		return measurements, results.Err
+	c, err := h.server.ExecuteQuery(&influxql.Query{Statements: []influxql.Statement{&influxql.ShowMeasurementsStatement{}}}, db, user, 0)
+	if err != nil {
+		return measurements, err
+	}
+	results := influxdb.Results{}
+
+	for r := range c {
+		results.Results = append(results.Results, r)
 	}
 
 	for _, result := range results.Results {
@@ -264,9 +351,14 @@ func (h *Handler) serveDump(w http.ResponseWriter, r *http.Request, user *influx
 			httpError(w, "error with dump: "+err.Error(), pretty, http.StatusInternalServerError)
 			return
 		}
-		//
-		results := h.server.ExecuteQuery(query, db, user)
-		for _, result := range results.Results {
+
+		res, err := h.server.ExecuteQuery(query, db, user, DefaultChunkSize)
+		if err != nil {
+			w.Write([]byte("*** SERVER-SIDE ERROR. MISSING DATA ***"))
+			w.Write(delim)
+			return
+		}
+		for result := range res {
 			for _, row := range result.Series {
 				points := make([]Point, 1)
 				var point Point
@@ -570,31 +662,6 @@ func isMeasurementNotFoundError(err error) bool {
 
 func isFieldNotFoundError(err error) bool {
 	return (strings.HasPrefix(err.Error(), "field not found"))
-}
-
-// httpResult writes a Results array to the client.
-func httpResults(w http.ResponseWriter, results influxdb.Results, pretty bool) {
-	w.Header().Add("content-type", "application/json")
-
-	if results.Error() != nil {
-		if isAuthorizationError(results.Error()) {
-			w.WriteHeader(http.StatusUnauthorized)
-		} else if isMeasurementNotFoundError(results.Error()) {
-			w.WriteHeader(http.StatusOK)
-		} else if isFieldNotFoundError(results.Error()) {
-			w.WriteHeader(http.StatusOK)
-		} else {
-			w.WriteHeader(http.StatusInternalServerError)
-		}
-	}
-
-	var b []byte
-	if pretty {
-		b, _ = json.MarshalIndent(results, "", "    ")
-	} else {
-		b, _ = json.Marshal(results)
-	}
-	w.Write(b)
 }
 
 // httpError writes an error to the client in a standard format.
