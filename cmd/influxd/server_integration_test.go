@@ -351,6 +351,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 	// The tests. Within these tests %DB% and %RP% will be replaced with the database and retention passed into
 	// this function.
 	tests := []struct {
+		skip     bool    // Skip the test.
 		reset    bool    // Delete and recreate the database.
 		name     string  // Test name, for easy-to-read test log output.
 		write    string  // If equal to the empty string, no data is written.
@@ -1108,6 +1109,10 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 
 		if testPrefix != "" && !strings.HasPrefix(name, testPrefix) {
 			continue
+		}
+
+		if tt.skip {
+			t.Logf("SKIPPING TEST %s", tt.name)
 		}
 
 		fmt.Printf("TEST: %d: %s\n", i, name)
