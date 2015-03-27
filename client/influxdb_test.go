@@ -332,7 +332,7 @@ func TestPoint_MarshalOmitempty(t *testing.T) {
 			name:     "with precision",
 			point:    client.Point{Name: "cpu", Fields: map[string]interface{}{"value": 1.1}, Precision: "ms"},
 			now:      now,
-			expected: `{"name":"cpu","fields":{"value":1.1}}`,
+			expected: `{"name":"cpu","fields":{"value":1.1},"precision":"ms"}`,
 		},
 	}
 
@@ -390,14 +390,14 @@ func emptyTestServer() *httptest.Server {
 func TestBatchPoints_Normal(t *testing.T) {
 	var bp client.BatchPoints
 	data := []byte(`
-{                                                                                                                                                       
-    "database": "foo",                                                                                                                                    
-    "retentionPolicy": "bar",                                                                                                                              
-    "points": [                                                                                                                                            
-        {                                                                                                                                                   
-            "name": "cpu",                                                                                                                                   
-            "tags": {                                                                                                                                         
-                "host": "server01"                                                                                                                            
+{
+    "database": "foo",
+    "retentionPolicy": "bar",
+    "points": [
+        {
+            "name": "cpu",
+            "tags": {
+                "host": "server01"
             },
             "timestamp": 14244733039069373,
             "precision": "n",

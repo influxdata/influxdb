@@ -295,10 +295,12 @@ func (p *Point) MarshalJSON() ([]byte, error) {
 		Tags      map[string]string      `json:"tags,omitempty"`
 		Timestamp string                 `json:"timestamp,omitempty"`
 		Fields    map[string]interface{} `json:"fields,omitempty"`
+		Precision string                 `json:"precision,omitempty"`
 	}{
-		Name:   p.Name,
-		Tags:   p.Tags,
-		Fields: p.Fields,
+		Name:      p.Name,
+		Tags:      p.Tags,
+		Fields:    p.Fields,
+		Precision: p.Precision,
 	}
 	// Let it omit empty if it's really zero
 	if !p.Timestamp.IsZero() {
