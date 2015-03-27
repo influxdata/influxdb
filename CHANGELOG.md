@@ -4,6 +4,7 @@
 - [#2076](https://github.com/influxdb/influxdb/pull/2076): Seperate stdout and stderr output in init.d script
 - [#2091](https://github.com/influxdb/influxdb/pull/2091): Support disabling snapshot endpoint.
 - [#2081](https://github.com/influxdb/influxdb/pull/2081): Support writing diagnostic data into the internal database.
+- [#2095](https://github.com/influxdb/influxdb/pull/2095): Improved InfluxDB client docs. Thanks @derailed
 
 ### Bugfixes
 - [#2084](https://github.com/influxdb/influxdb/pull/2084): Allowing leading underscores in identifiers.
