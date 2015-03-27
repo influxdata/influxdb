@@ -5,6 +5,7 @@ import (
 	"log"
 	"math/rand"
 	"net/url"
+	"os"
 	"strconv"
 	"time"
 
@@ -17,10 +18,12 @@ func ExampleNewClient() {
 		log.Fatal(err)
 	}
 
+	// NOTE: this assumes you've setup a user and have setup shell env variables,
+	// namely INFLUX_USER/INFLUX_PWD. If not just ommit Username/Password below.
 	conf := client.Config{
 		URL:      *host,
-		Username: "root",
-		Password: "root",
+		Username: os.Getenv("INFLUX_USER"),
+		Password: os.Getenv("INFLUX_PWD"),
 	}
 	con, err := client.NewClient(conf)
 	if err != nil {
@@ -34,14 +37,7 @@ func ExampleClient_Ping() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	con, err := client.NewClient(
-		client.Config{
-			URL:      *host,
-			Username: "root",
-			Password: "root",
-		},
-	)
+	con, err := client.NewClient(client.Config{URL: *host})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -58,11 +54,7 @@ func ExampleClient_Query() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	con, err := client.NewClient(client.Config{
-		URL:      *host,
-		Username: "root",
-		Password: "root",
-	})
+	con, err := client.NewClient(client.Config{URL: *host})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -81,11 +73,7 @@ func ExampleClient_Write() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	con, err := client.NewClient(client.Config{
-		URL:      *host,
-		Username: "root",
-		Password: "root",
-	})
+	con, err := client.NewClient(client.Config{URL: *host})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -116,7 +104,7 @@ func ExampleClient_Write() {
 	bps := client.BatchPoints{
 		Points:          pts,
 		Database:        "BumbeBeeTuna",
-		RetentionPolicy: "default", // ie forevar!
+		RetentionPolicy: "default",
 	}
 	_, err = con.Write(bps)
 	if err != nil {

@@ -2,7 +2,7 @@
 
 ## Description
 
-A Go client library written and maintain by the **InfluxDB** team.
+A Go client library written and maintained by the **InfluxDB** team.
 This package provides convenience functions to read and write time series data.
 It uses the HTTP protocol to communicate with your **InfluxDB** cluster.
 
@@ -11,10 +11,33 @@ It uses the HTTP protocol to communicate with your **InfluxDB** cluster.
 
 ### Connecting To Your Database
 
-Connecting to an **InfluxDB** database is straight forward. You will need a host
-name, a port and the cluster credentials. The default port is 8086 and the default
-credentials is root for both username and password. You can customize these settings
-to your specific installation via the **InfluxDB** configuration file.
+Connecting to an **InfluxDB** database is straightforward. You will need a host
+name, a port and the cluster user credentials if applicable. The default port is 8086.
+You can customize these settings to your specific installation via the
+**InfluxDB** configuration file.
+
+Thought not necessary for experimentation, you may want to create a new user
+and authenticate the connection to your database.
+
+For more information please check out the
+[Cluster Admin Docs](http://influxdb.com/docs/v0.9/query_language/database_administration.html).
+
+For the impatients, you can create a new admin user _bubba_ by firing off the
+[InfluxDB CLI](https://github.com/influxdb/influxdb/blob/master/cmd/influx/main.go).
+
+```shell
+influx
+> create user bubba with password 'bumblebeetuna'
+> grant all privileges to bubba
+```
+
+And now for good measure set the credentials in you shell environment.
+In the example below we will use $INFLUX_USER and $INFLUX_PWD
+
+Now with the "admintrivia" out of the way, let's connect to our database.
+
+NOTE: If you've opt out of creating a user, you can ommit Username/Password out
+of the configuration below.
 
 ```go
 package main
@@ -26,8 +49,6 @@ const (
 	MyPort        = 8086
 	MyDB          = "square_holes"
 	MyMeasurement = "shapes"
-	MyUser        = "root"
-	MyPwd         = "root"
 )
 
 func main() {
@@ -35,10 +56,12 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	// NOTE: If you haven't created a user yet, you can leave out Username/Password
 	conf := client.Config{
 		URL:      *u,
-		Username: MyUser,
-		Password: MyPwd,
+		Username: os.Getenv("INFLUX_USER"),
+		Password: os.Getenv("INFLUX_PWD"),
 	}
 
 	con, err := client.NewClient(conf)
@@ -68,11 +91,12 @@ to a database called _square_holes_ using a measurement named _shapes_.
 
 NOTE: In this example, we are specifically assigning time, tags and precision
 to each point. Alternately, you can specify a timestamp, tags and precision at
-the batch point level that coulld be used as defaults if an associated point
+the batch point level that could be used as defaults if an associated point
 does not provide these metrics.
 
-NOTE: You can specify a RetententionPolicy as part of the batch. If not
-provided it will use the database _default_ retention policy.
+NOTE: You can specify a RetentionPolicy as part of the batch points. If not
+provided it will use the database _default_ retention policy. If you did not
+set a retention policy the default is forever (0).
 
 ```go
 func writePoints(con *client.Client) {
@@ -102,7 +126,7 @@ func writePoints(con *client.Client) {
 	bps := client.BatchPoints{
 		Points:          pts,
 		Database:        MyDB,
-		RetentionPolicy: "default", // ie forevar!
+		RetentionPolicy: "default",
 	}
 	_, err := con.Write(bps)
 	if err != nil {
