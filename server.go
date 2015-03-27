@@ -3846,3 +3846,12 @@ func (s *Server) CreateSnapshotWriter() (*SnapshotWriter, error) {
 	defer s.mu.RUnlock()
 	return createServerSnapshotWriter(s)
 }
+
+func (s *Server) URL() url.URL {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if n := s.dataNodes[s.id]; n != nil {
+		return *n.URL
+	}
+	return url.URL{}
+}

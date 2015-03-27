@@ -101,6 +101,7 @@ retention-auto-create = false
 retention-check-enabled = true
 retention-check-period = "5m"
 enabled = false
+join-urls = "http://127.0.0.1:8087"
 
 [continuous_queries]
 disabled = true
@@ -245,6 +246,10 @@ func TestParseConfig(t *testing.T) {
 
 	if c.Data.Enabled != false {
 		t.Fatalf("data disabled mismatch: %v, got: %v", false, c.Data.Enabled)
+	}
+
+	if exp := "http://127.0.0.1:8087"; c.Data.JoinURLs != exp {
+		t.Fatalf("data join urls mismatch: %v, got: %v", exp, c.Data.JoinURLs)
 	}
 
 	if c.Cluster.Dir != "/tmp/influxdb/development/cluster" {

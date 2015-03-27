@@ -117,6 +117,7 @@ type Data struct {
 	RetentionCheckEnabled bool     `toml:"retention-check-enabled"`
 	RetentionCheckPeriod  Duration `toml:"retention-check-period"`
 	RetentionCreatePeriod Duration `toml:"retention-create-period"`
+	JoinURLs              string   `toml:"join-urls"`
 }
 
 // Config represents the configuration format for the influxd binary.
