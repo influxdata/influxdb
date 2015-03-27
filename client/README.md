@@ -102,7 +102,7 @@ func writePoints(con *client.Client) {
 	bps := client.BatchPoints{
 		Points:          pts,
 		Database:        MyDB,
-		RetentionPolicy: "default", // ie for evar!
+		RetentionPolicy: "default", // ie forevar!
 	}
 	_, err := con.Write(bps)
 	if err != nil {
