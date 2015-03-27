@@ -1181,7 +1181,22 @@ func Test3NodeServer(t *testing.T) {
 
 	runTestsData(t, testName, nodes, "mydb", "myrp")
 	runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp")
+}
 
+func Test5NodeServer(t *testing.T) {
+	testName := "5-node server integration"
+	if testing.Short() {
+		t.Skip(fmt.Sprintf("skipping '%s'", testName))
+	}
+	dir := tempfile()
+	defer func() {
+		os.RemoveAll(dir)
+	}()
+
+	nodes := createCombinedNodeCluster(t, testName, dir, 5, 8290, nil)
+
+	runTestsData(t, testName, nodes, "mydb", "myrp")
+	runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp")
 }
 
 func TestClientLibrary(t *testing.T) {
