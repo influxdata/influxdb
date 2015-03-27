@@ -1151,6 +1151,8 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 	}
 }
 
+var rr = 0
+
 func TestSingleServer(t *testing.T) {
 	testName := "single server integration"
 	if testing.Short() {
@@ -1163,8 +1165,28 @@ func TestSingleServer(t *testing.T) {
 
 	nodes := createCombinedNodeCluster(t, testName, dir, 1, 8090, nil)
 
+	go func() {
+		for {
+			rr = 1
+			if rr == 1 {
+				fmt.Println(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>rr is 1")
+			}
+			time.Sleep(2 * time.Second)
+		}
+	}()
+
+	go func() {
+		for {
+			rr = 2
+			if rr == 2 {
+				fmt.Println(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>rr is 222222222222222222222222222222222222222")
+			}
+			time.Sleep(1 * time.Second)
+		}
+	}()
+
 	runTestsData(t, testName, nodes, "mydb", "myrp")
-	runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp")
+	//	runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp")
 }
 
 func Test3NodeServer(t *testing.T) {
