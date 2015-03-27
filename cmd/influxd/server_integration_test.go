@@ -1834,7 +1834,6 @@ func Test_ServerOpenTSDBIntegration_BadData(t *testing.T) {
 }
 
 func TestSeparateBrokerDataNode(t *testing.T) {
-
 	testName := "TestSeparateBrokerDataNode"
 	tmpDir := tempfile()
 	tmpBrokerDir := filepath.Join(tmpDir, "broker-integration-test")
@@ -1854,6 +1853,7 @@ func TestSeparateBrokerDataNode(t *testing.T) {
 	brokerConfig.ReportingDisabled = true
 
 	dataConfig := main.NewConfig()
+	dataConfig.Broker.Port = 9001
 	dataConfig.Data.Enabled = true
 	dataConfig.Data.Port = 9001
 	dataConfig.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(dataConfig.Data.Port))
@@ -1875,6 +1875,74 @@ func TestSeparateBrokerDataNode(t *testing.T) {
 	}
 	brokerCmd.Close()
 	dataCmd.Close()
+}
+
+func TestSeparateBrokerTwoDataNodes(t *testing.T) {
+	testName := "TestSeparateBrokerTwoDataNodes"
+	tmpDir := tempfile()
+	tmpBrokerDir := filepath.Join(tmpDir, "broker-integration-test")
+	tmpDataDir := filepath.Join(tmpDir, "data-integration-test")
+	t.Logf("Test %s: using tmp directory %q for brokers\n", testName, tmpBrokerDir)
+	t.Logf("Test %s: using tmp directory %q for data nodes\n", testName, tmpDataDir)
+	// Sometimes if a test fails, it's because of a log.Fatal() in the program.
+	// This prevents the defer from cleaning up directories.
+	// To be safe, nuke them always before starting
+	_ = os.RemoveAll(tmpBrokerDir)
+	_ = os.RemoveAll(tmpDataDir)
+
+	// Start a single broker node
+	brokerConfig := main.NewConfig()
+	brokerConfig.Broker.Enabled = true
+	brokerConfig.Broker.Port = 9010
+	brokerConfig.Broker.Dir = filepath.Join(tmpBrokerDir, strconv.Itoa(brokerConfig.Broker.Port))
+	brokerConfig.ReportingDisabled = true
+
+	brokerCmd := main.NewRunCommand()
+	b, _, _ := brokerCmd.Open(brokerConfig, "")
+	if b == nil {
+		t.Fatalf("Test %s: failed to create broker on port %d", testName, brokerConfig.Broker.Port)
+	}
+
+	u := b.URL()
+	brokerURL := (&u).String()
+
+	// Star the first data node and join the broker
+	dataConfig1 := main.NewConfig()
+	dataConfig1.Broker.Port = 9011
+	dataConfig1.Data.Enabled = true
+	dataConfig1.Data.Port = 9011
+	dataConfig1.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(dataConfig1.Data.Port))
+	dataConfig1.ReportingDisabled = true
+
+	dataConfig1.Initialization.JoinURLs = brokerURL
+	dataCmd1 := main.NewRunCommand()
+
+	_, s1, _ := dataCmd1.Open(dataConfig1, "")
+	if s1 == nil {
+		t.Fatalf("Test %s: failed to create leader data node on port %d", testName, dataConfig1.Data.Port)
+	}
+
+	// Join data node 2 to single broker and first data node
+	dataConfig2 := main.NewConfig()
+	dataConfig2.Broker.Port = 9012
+	dataConfig2.Data.Enabled = true
+	dataConfig2.Data.Port = 9012
+	dataConfig2.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(dataConfig2.Data.Port))
+	dataConfig2.ReportingDisabled = true
+
+	dataNode1Url := s1.URL()
+	dataConfig2.Data.JoinURLs = (&dataNode1Url).String()
+	dataConfig2.Initialization.JoinURLs = brokerURL
+	dataCmd2 := main.NewRunCommand()
+
+	_, s2, _ := dataCmd2.Open(dataConfig2, "")
+	if s2 == nil {
+		t.Fatalf("Test %s: failed to create leader data node on port %d", testName, dataConfig2.Data.Port)
+	}
+
+	brokerCmd.Close()
+	dataCmd1.Close()
+	dataCmd2.Close()
 
 }
 

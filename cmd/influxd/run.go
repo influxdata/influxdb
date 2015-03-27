@@ -137,6 +137,8 @@ func (cmd *RunCommand) Open(config *Config, join string) (*messaging.Broker, *in
 		brokerURLs = parseURLs(join)
 	}
 
+	dataURLs := parseURLs(cmd.config.Data.JoinURLs)
+
 	// Open broker & raft log, initialize or join as necessary.
 	if cmd.config.Broker.Enabled {
 		cmd.openBroker(brokerURLs)
@@ -172,8 +174,9 @@ func (cmd *RunCommand) Open(config *Config, join string) (*messaging.Broker, *in
 	var s *influxdb.Server
 	// Open server, initialize or join as necessary.
 	if cmd.config.Data.Enabled {
+
 		//FIXME: Need to also pass in dataURLs to bootstrap a data node
-		s = cmd.openServer(brokerURLs, []url.URL{})
+		s = cmd.openServer(brokerURLs, dataURLs)
 		s.SetAuthenticationEnabled(cmd.config.Authentication.Enabled)
 
 		// Enable retention policy enforcement if requested.
@@ -481,18 +484,18 @@ func (cmd *RunCommand) openServer(brokerURLs []url.URL, dataURLs []url.URL) *inf
 	}
 	log.Printf("data server opened at %s", cmd.config.Data.Dir)
 
+	if len(dataURLs) > 0 {
+		joinServer(s, cmd.config.DataURL(), dataURLs)
+		return s
+	}
+
 	dataNodeIndex := s.Index()
-	if dataNodeIndex == 0 && len(dataURLs) == 0 && cmd.server.broker != nil {
-		if err := s.Initialize(cmd.server.broker.URL()); err != nil {
+	if dataNodeIndex == 0 && len(dataURLs) == 0 {
+		if err := s.Initialize(cmd.config.DataURL()); err != nil {
 			log.Fatalf("server initialization error: %s", err)
 		}
 		u := cmd.config.DataURL()
 		log.Printf("initialized data node: %s\n", (&u).String())
-		return s
-	}
-
-	if len(dataURLs) > 0 {
-		joinServer(s, cmd.config.DataURL(), dataURLs)
 		return s
 	}
 

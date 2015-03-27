@@ -3876,11 +3876,11 @@ func (s *Server) CreateSnapshotWriter() (*SnapshotWriter, error) {
 	return createServerSnapshotWriter(s)
 }
 
-func (s *Server) URL() *url.URL {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+func (s *Server) URL() url.URL {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if n := s.dataNodes[s.id]; n != nil {
-		return n.URL
+		return *n.URL
 	}
-	return &url.URL{}
+	return url.URL{}
 }
