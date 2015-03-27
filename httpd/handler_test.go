@@ -162,60 +162,6 @@ func TestHandler_ShowMeasurementsNotFound(t *testing.T) {
 	}
 }
 
-func TestHandler_Databases(t *testing.T) {
-	c := test.NewMessagingClient()
-	defer c.Close()
-	srvr := OpenAuthlessServer(c)
-	srvr.CreateDatabase("foo")
-	srvr.CreateDatabase("bar")
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "SHOW DATABASES"}, nil, "")
-	if status != http.StatusOK {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"results":[{"series":[{"columns":["name"],"values":[["bar"],["foo"]]}]}]}` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
-func TestHandler_DatabasesPrettyPrinted(t *testing.T) {
-	c := test.NewMessagingClient()
-	defer c.Close()
-	srvr := OpenAuthlessServer(c)
-	srvr.CreateDatabase("foo")
-	srvr.CreateDatabase("bar")
-	s := NewHTTPServer(srvr)
-	defer s.Close()
-
-	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "SHOW DATABASES", "pretty": "true"}, nil, "")
-	if status != http.StatusOK {
-		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{
-    "results": [
-        {
-            "series": [
-                {
-                    "columns": [
-                        "name"
-                    ],
-                    "values": [
-                        [
-                            "bar"
-                        ],
-                        [
-                            "foo"
-                        ]
-                    ]
-                }
-            ]
-        }
-    ]
-}` {
-		t.Fatalf("unexpected body: %s", body)
-	}
-}
-
 func TestHandler_CreateDatabase(t *testing.T) {
 	c := test.NewMessagingClient()
 	defer c.Close()
