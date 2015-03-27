@@ -57,7 +57,6 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// NOTE: If you haven't created a user yet, you can leave out Username/Password
 	conf := client.Config{
 		URL:      *u,
 		Username: os.Getenv("INFLUX_USER"),
