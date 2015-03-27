@@ -25,19 +25,15 @@ import (
 // FSM represents the state machine that the log is applied to.
 // The FSM must maintain the highest index that it has seen.
 type FSM interface {
+	io.WriterTo
+	io.ReaderFrom
+
 	// Executes a log entry against the state machine.
 	// Non-repeatable errors such as system and disk errors must panic.
-	MustApply(*LogEntry)
+	Apply(*LogEntry) error
 
-	// Returns the highest index saved to the state machine.
-	Index() (uint64, error)
-
-	// Writes a snapshot of the entire state machine to a writer.
-	// Returns the index at the point in time of the snapshot.
-	Snapshot(w io.Writer) (index uint64, err error)
-
-	// Reads a snapshot of the entire state machine.
-	Restore(r io.Reader) error
+	// Returns the applied index saved to the state machine.
+	Index() uint64
 }
 
 const logEntryHeaderSize = 8 + 8 + 8 // sz+index+term
@@ -91,8 +87,7 @@ type Log struct {
 	votedFor    uint64    // candidate voted for in current election term
 	lastContact time.Time // last contact from the leader
 
-	commitIndex  uint64 // highest entry to be committed
-	appliedIndex uint64 // highest entry to applied to state machine
+	commitIndex uint64 // highest entry to be committed
 
 	reader  io.ReadCloser // incoming stream from leader
 	writers []*logWriter  // outgoing streams to followers
@@ -231,13 +226,6 @@ func (l *Log) CommitIndex() uint64 {
 	return l.commitIndex
 }
 
-// AppliedIndex returns the highest applied index.
-func (l *Log) AppliedIndex() uint64 {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.appliedIndex
-}
-
 // Term returns the current term.
 func (l *Log) Term() uint64 {
 	l.mu.Lock()
@@ -299,13 +287,9 @@ func (l *Log) Open(path string) error {
 	l.config = c
 
 	// Determine last applied index from FSM.
-	index, err := l.FSM.Index()
-	if err != nil {
-		return err
-	}
+	index := l.FSM.Index()
 	l.tracef("Open: fsm: index=%d", index)
 	l.lastLogIndex = index
-	l.appliedIndex = index
 	l.commitIndex = index
 
 	// Start goroutine to apply logs.
@@ -1095,18 +1079,18 @@ func (l *Log) internalApply(typ LogEntryType, command []byte) (index uint64, err
 }
 
 // Wait blocks until a given index is applied.
-func (l *Log) Wait(index uint64) error {
+func (l *Log) Wait(idx uint64) error {
 	// TODO(benbjohnson): Check for leadership change (?).
 	// TODO(benbjohnson): Add timeout.
 
 	for {
 		l.mu.Lock()
-		state, appliedIndex := l.state, l.appliedIndex
+		state, index := l.state, l.FSM.Index()
 		l.mu.Unlock()
 
 		if state == Stopped {
 			return ErrClosed
-		} else if appliedIndex >= index {
+		} else if index >= idx {
 			return nil
 		}
 		time.Sleep(WaitInterval)
@@ -1192,109 +1176,100 @@ func (l *Log) applier(closing <-chan struct{}) {
 
 		//l.tracef("applier")
 
-		// Apply all entries committed since the previous apply.
-		err := func() error {
-			l.mu.Lock()
-			defer l.mu.Unlock()
-
-			// Verify, under lock, that we're not closing.
-			select {
-			case <-closing:
-				return nil
-			default:
+		// Keep applying the next entry until there are no more committed
+		// entries that have not been applied to the state machine.
+		for {
+			if err := l.applyNextUnappliedEntry(closing); err == errDone {
+				break
+			} else if err != nil {
+				panic(err.Error())
 			}
-
-			// Ignore if there are no pending entries.
-			// Ignore if all entries are applied.
-			if len(l.entries) == 0 {
-				//l.tracef("applier: no entries")
-				return nil
-			} else if l.appliedIndex == l.commitIndex {
-				//l.tracef("applier: up to date")
-				return nil
-			}
-
-			// Determine the available range of indices on the log.
-			entmin, entmax := l.entries[0].Index, l.entries[len(l.entries)-1].Index
-			assert(entmin <= entmax, "apply: log out of order: min=%d, max=%d", entmin, entmax)
-			assert(uint64(len(l.entries)) == (entmax-entmin+1), "apply: missing entries: min=%d, max=%d, len=%d", entmin, entmax, len(l.entries))
-
-			// Determine the range of indices that should be processed.
-			// This should be the entry after the last applied index through to
-			// the committed index.
-			nextUnappliedIndex, commitIndex := l.appliedIndex+1, l.commitIndex
-			l.tracef("applier: entries: available=%d-%d, [next,commit]=%d-%d", entmin, entmax, nextUnappliedIndex, commitIndex)
-			assert(nextUnappliedIndex <= commitIndex, "next unapplied index after commit index: next=%d, commit=%d", nextUnappliedIndex, commitIndex)
-
-			// Determine the lowest index to start from.
-			// This should be the next entry after the last applied entry.
-			// Ignore if we don't have any entries after the last applied yet.
-			assert(entmin <= nextUnappliedIndex, "apply: missing entries: min=%d, next=%d", entmin, nextUnappliedIndex)
-			if nextUnappliedIndex > entmax {
-				return nil
-			}
-			imin := nextUnappliedIndex
-
-			// Determine the highest index to go to.
-			// This should be the committed index.
-			// If we haven't yet received the committed index then go to the last available.
-			var imax uint64
-			if commitIndex <= entmax {
-				imax = commitIndex
-			} else {
-				imax = entmax
-			}
-
-			// Determine entries to apply.
-			l.tracef("applier: entries: available=%d-%d, applying=%d-%d", entmin, entmax, imin, imax)
-			entries := l.entries[imin-entmin : imax-entmin+1]
-
-			// Determine low water mark for entries to cut off.
-			for _, w := range l.writers {
-				if w.snapshotIndex > 0 && w.snapshotIndex < imax {
-					imax = w.snapshotIndex
-				}
-			}
-			l.entries = l.entries[imax-entmin:]
-
-			// Iterate over each entry and apply it.
-			for _, e := range entries {
-				// l.tracef("applier: entry: idx=%d", e.Index)
-
-				switch e.Type {
-				case LogEntryCommand, LogEntryNop:
-				case LogEntryInitialize:
-					l.mustApplyInitialize(e)
-				case LogEntryAddPeer:
-					l.mustApplyAddPeer(e)
-				case LogEntryRemovePeer:
-					l.mustApplyRemovePeer(e)
-				default:
-					panic("unsupported command type: " + strconv.Itoa(int(e.Type)))
-				}
-
-				// Apply to FSM.
-				if e.Index > 0 {
-					l.FSM.MustApply(e)
-				}
-
-				// Increment applied index.
-				l.appliedIndex++
-			}
-
-			return nil
-		}()
-
-		// If error occurred then log it.
-		// The log will retry after a given timeout.
-		if err != nil {
-			l.Logger.Printf("apply error: %s", err)
-			// TODO(benbjohnson): Longer timeout before retry?
 		}
+
+		// Trim entries.
+		l.mu.Lock()
+		l.trim()
+		l.mu.Unlock()
 
 		// Signal clock that apply is done.
 		close(confirm)
 	}
+}
+
+// applyNextUnappliedEntry applies the next committed entry that has not yet been applied.
+func (l *Log) applyNextUnappliedEntry(closing <-chan struct{}) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	// Verify, under lock, that we're not closing.
+	select {
+	case <-closing:
+		return errDone
+	default:
+	}
+
+	// Ignore if there are no entries in the log.
+	if len(l.entries) == 0 {
+		return errDone
+	}
+
+	// Determine next index to apply.
+	// Ignore if next index is after the commit index.
+	// Ignore if the entry is not streamed to the log yet.
+	index := l.FSM.Index() + 1
+	if index > l.commitIndex {
+		return errDone
+	} else if index > l.entries[len(l.entries)-1].Index {
+		return errDone
+	}
+
+	// Retrieve next entry.
+	e := l.entries[index-l.entries[0].Index]
+	assert(e.Index == index, "apply: index mismatch: %d != %d", e.Index, index)
+
+	// Special handling for internal log entries.
+	switch e.Type {
+	case LogEntryCommand, LogEntryNop:
+	case LogEntryInitialize:
+		l.mustApplyInitialize(e)
+	case LogEntryAddPeer:
+		l.mustApplyAddPeer(e)
+	case LogEntryRemovePeer:
+		l.mustApplyRemovePeer(e)
+	default:
+		return fmt.Errorf("unsupported command type: %d", e.Type)
+	}
+
+	// Apply to FSM.
+	if err := l.FSM.Apply(e); err != nil {
+		return fmt.Errorf("apply: %s", err)
+	}
+
+	return nil
+}
+
+// trim truncates the log based on the applied index and pending writers.
+func (l *Log) trim() {
+	if len(l.entries) == 0 {
+		return
+	}
+
+	// Determine lowest index to trim to.
+	index := l.FSM.Index()
+	for _, w := range l.writers {
+		if w.snapshotIndex > 0 && w.snapshotIndex < index {
+			index = w.snapshotIndex
+		}
+	}
+
+	// Ignore if the index is lower than the first entry.
+	// This can occur on a new snapshot.
+	if index < l.entries[0].Index {
+		return
+	}
+
+	// Reslice entries list.
+	l.entries = l.entries[index-l.entries[0].Index:]
 }
 
 // mustApplyInitialize a log initialization command by parsing and setting the configuration.
@@ -1492,19 +1467,18 @@ func (l *Log) writeTo(writer *logWriter, id, term, index uint64) error {
 	}
 
 	// Begin streaming the snapshot.
-	snapshotIndex, err := l.FSM.Snapshot(w)
-	if err != nil {
+	if _, err := l.FSM.WriteTo(w); err != nil {
 		return err
-	}
-
-	// Write snapshot index at the end and flush.
-	if err := binary.Write(w, binary.BigEndian, snapshotIndex); err != nil {
-		return fmt.Errorf("write snapshot index: %s", err)
 	}
 	flushWriter(w)
 
+	// // Write snapshot index at the end and flush.
+	// if err := binary.Write(w, binary.BigEndian, snapshotIndex); err != nil {
+	// 	return fmt.Errorf("write snapshot index: %s", err)
+	// }
+
 	// Write entries since the snapshot occurred and begin tailing writer.
-	if err := l.advanceWriter(writer, snapshotIndex); err != nil {
+	if err := l.advanceWriter(writer); err != nil {
 		return err
 	}
 
@@ -1553,7 +1527,7 @@ func (l *Log) initWriter(w io.Writer, id, term, index uint64) (*logWriter, error
 	writer := &logWriter{
 		Writer:        w,
 		id:            id,
-		snapshotIndex: l.appliedIndex,
+		snapshotIndex: l.FSM.Index(),
 		done:          make(chan struct{}),
 	}
 	l.writers = append(l.writers, writer)
@@ -1562,7 +1536,7 @@ func (l *Log) initWriter(w io.Writer, id, term, index uint64) (*logWriter, error
 }
 
 // replays entries since the snapshot's index and begins tailing the log.
-func (l *Log) advanceWriter(writer *logWriter, snapshotIndex uint64) error {
+func (l *Log) advanceWriter(writer *logWriter) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -1575,9 +1549,8 @@ func (l *Log) advanceWriter(writer *logWriter, snapshotIndex uint64) error {
 
 	// Write pending entries.
 	if len(l.entries) > 0 {
-		startIndex := l.entries[0].Index
 		enc := NewLogEntryEncoder(writer.Writer)
-		for _, e := range l.entries[snapshotIndex-startIndex+1:] {
+		for _, e := range l.entries[writer.snapshotIndex-l.entries[0].Index+1:] {
 			if err := enc.Encode(e); err != nil {
 				return err
 			}
@@ -1663,25 +1636,34 @@ func (l *Log) ReadFrom(r io.ReadCloser) error {
 		if e.Type == logEntrySnapshot {
 			l.tracef("ReadFrom: snapshot")
 
-			if err := l.FSM.Restore(r); err != nil {
+			if err := func() error {
+				l.mu.Lock()
+				defer l.mu.Unlock()
+
+				if _, err := l.FSM.ReadFrom(r); err != nil {
+					return err
+				}
+
+				// Update the indicies & clear the entries.
+				index := l.FSM.Index()
+				l.lastLogIndex = index
+				l.commitIndex = index
+				l.entries = nil
+
+				return nil
+			}(); err != nil {
+				l.tracef("ReadFrom: restore error: %s", err)
 				return err
 			}
+
 			l.tracef("ReadFrom: snapshot: restored")
 
-			// Read the snapshot index off the end of the snapshot.
-			var index uint64
-			if err := binary.Read(r, binary.BigEndian, &index); err != nil {
-				return fmt.Errorf("read snapshot index: %s", err)
-			}
-			l.tracef("ReadFrom: snapshot: index=%d", index)
-
-			// Update the indicies & clear the entries.
-			l.mu.Lock()
-			l.lastLogIndex = index
-			l.commitIndex = index
-			l.appliedIndex = index
-			l.entries = nil
-			l.mu.Unlock()
+			// // Read the snapshot index off the end of the snapshot.
+			// var index uint64
+			// if err := binary.Read(r, binary.BigEndian, &index); err != nil {
+			// 	return fmt.Errorf("read snapshot index: %s", err)
+			// }
+			// l.tracef("ReadFrom: snapshot: index=%d", index)
 
 			continue
 		}

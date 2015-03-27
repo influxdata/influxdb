@@ -249,7 +249,7 @@ func TestCluster_Elect_RealTime(t *testing.T) {
 
 	// Create a cluster with a real-time clock.
 	c := NewRealTimeCluster(3, indexFSMFunc)
-	minIndex := c.Logs[0].AppliedIndex()
+	minIndex := c.Logs[0].FSM.Index()
 	commandN := uint64(1000) - minIndex
 
 	// Run a loop to continually apply commands.
@@ -297,7 +297,7 @@ func TestCluster_Elect_RealTime(t *testing.T) {
 
 	// Verify FSM indicies match.
 	for i, l := range c.Logs {
-		fsmIndex, _ := l.FSM.(*raft.IndexFSM).Index()
+		fsmIndex := l.FSM.Index()
 		if exp := commandN + minIndex; exp != fsmIndex {
 			t.Errorf("fsm index mismatch(%d): exp=%d, got=%d", i, exp, fsmIndex)
 		}
@@ -334,7 +334,7 @@ func benchmarkClusterApply(b *testing.B, logN int) {
 
 	// Verify FSM indicies match.
 	for i, l := range c.Logs {
-		fsmIndex, _ := l.FSM.(*raft.IndexFSM).Index()
+		fsmIndex := l.FSM.Index()
 		if index != fsmIndex {
 			b.Errorf("fsm index mismatch(%d): exp=%d, got=%d", i, index, fsmIndex)
 		}
@@ -592,39 +592,40 @@ type FSM struct {
 	Commands [][]byte
 }
 
-// MustApply updates the max index and appends the command.
-func (fsm *FSM) MustApply(entry *raft.LogEntry) {
+// Apply updates the max index and appends the command.
+func (fsm *FSM) Apply(entry *raft.LogEntry) error {
 	fsm.MaxIndex = entry.Index
 	if entry.Type == raft.LogEntryCommand {
 		fsm.Commands = append(fsm.Commands, entry.Data)
 	}
+	return nil
 }
 
 // Index returns the highest applied index.
-func (fsm *FSM) Index() (uint64, error) { return fsm.MaxIndex, nil }
+func (fsm *FSM) Index() uint64 { return fsm.MaxIndex }
 
-// Snapshot begins writing the FSM to a writer.
-func (fsm *FSM) Snapshot(w io.Writer) (uint64, error) {
+// WriteTo writes a snapshot of the FSM to w.
+func (fsm *FSM) WriteTo(w io.Writer) (n int64, err error) {
 	b, _ := json.Marshal(fsm)
 	binary.Write(w, binary.BigEndian, uint64(len(b)))
-	_, err := w.Write(b)
-	return fsm.MaxIndex, err
+	_, err = w.Write(b)
+	return 0, err
 }
 
-// Restore reads the snapshot from the reader.
-func (fsm *FSM) Restore(r io.Reader) error {
+// ReadFrom reads an FSM snapshot from r.
+func (fsm *FSM) ReadFrom(r io.Reader) (n int64, err error) {
 	var sz uint64
 	if err := binary.Read(r, binary.BigEndian, &sz); err != nil {
-		return err
+		return 0, err
 	}
 	buf := make([]byte, sz)
 	if _, err := io.ReadFull(r, buf); err != nil {
-		return err
+		return 0, err
 	}
 	if err := json.Unmarshal(buf, &fsm); err != nil {
-		return err
+		return 0, err
 	}
-	return nil
+	return 0, nil
 }
 
 func fsmFunc() raft.FSM      { return &FSM{} }
