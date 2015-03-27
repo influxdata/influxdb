@@ -22,7 +22,7 @@ and authenticate the connection to your database.
 For more information please check out the
 [Cluster Admin Docs](http://influxdb.com/docs/v0.9/query_language/database_administration.html).
 
-For the impatients, you can create a new admin user _bubba_ by firing off the
+For the impatient, you can create a new admin user _bubba_ by firing off the
 [InfluxDB CLI](https://github.com/influxdb/influxdb/blob/master/cmd/influx/main.go).
 
 ```shell
@@ -34,10 +34,10 @@ influx
 And now for good measure set the credentials in you shell environment.
 In the example below we will use $INFLUX_USER and $INFLUX_PWD
 
-Now with the "admintrivia" out of the way, let's connect to our database.
+Now with the administrivia out of the way, let's connect to our database.
 
-NOTE: If you've opt out of creating a user, you can ommit Username/Password out
-of the configuration below.
+NOTE: If you've opted out of creating a user, you can omit Username and Password in
+the configuration below.
 
 ```go
 package main
@@ -84,18 +84,18 @@ The mechanism is to create one or more points and then create a batch aka *batch
 and write these to a given database and series. A series is a combination of a
 measurement (time/values) and a set of tags.
 
-In this sample we will create a batch of a 1k points. Each point as a timestamp and
+In this sample we will create a batch of a 1,000 points. Each point has a timestamp and
 a single value as well as 2 tags indicating a shape and color. We write these points
 to a database called _square_holes_ using a measurement named _shapes_.
 
-NOTE: In this example, we are specifically assigning time, tags and precision
+NOTE: In this example, we are specifically assigning timestamp, tags and precision
 to each point. Alternately, you can specify a timestamp, tags and precision at
 the batch point level that could be used as defaults if an associated point
 does not provide these metrics.
 
 NOTE: You can specify a RetentionPolicy as part of the batch points. If not
-provided it will use the database _default_ retention policy. If you did not
-set a retention policy the default is forever (0).
+provided InfluxDB will use the database _default_ retention policy. By default, the _default_
+retention policy never deletes any data it contains.
 
 ```go
 func writePoints(con *client.Client) {
@@ -137,12 +137,12 @@ func writePoints(con *client.Client) {
 
 ### Querying Data
 
-One nice advantage of using **InfluxDB** is having the ability to query your data
-using familiar SQL constructs. In this example we are providing a convenience
-function to query the database as follows:
+One nice advantage of using **InfluxDB** the ability to query your data using familiar
+SQL constructs. In this example we can create a convenience function to query the database
+as follows:
 
 ```go
-// queryDB convenience to query the database
+// queryDB convenience function to query the database
 func queryDB(con *client.Client, cmd string) (res []client.Result, err error) {
 	q := client.Query{
 		Command:  cmd,
@@ -158,7 +158,7 @@ func queryDB(con *client.Client, cmd string) (res []client.Result, err error) {
 }
 ```
 
-#### Creating A Database
+#### Creating a Database
 ```go
 _, err := queryDB(con, fmt.Sprintf("create database %s", MyDB))
 if err != nil {
@@ -197,15 +197,13 @@ for i, row := range res[0].Series[0].Values {
 }
 ```
 
-
 ## Go Docs
 
 Please refer to
 [http://godoc.org/github.com/influxdb/influxdb/client](http://godoc.org/github.com/influxdb/influxdb/client)
 for documentation.
 
-
 ## See Also
 
-You can see a use of the client libray in the
+You can also examine how the client library is used by the
 [InfluxDB CLI](https://github.com/influxdb/influxdb/blob/master/cmd/influx/main.go).
