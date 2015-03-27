@@ -992,6 +992,11 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			expected: `{"results":[{}]}`,
 		},
 		{
+			name:     "show databases",
+			query:    `SHOW DATABASES`,
+			expected: `{"results":[{"series":[{"name":"databases","columns":["name"],"values":[["mydatabase"],["mydb"]]}]}]}`,
+		},
+		{
 			name:     "Check for default retention policy",
 			query:    `SHOW RETENTION POLICIES mydatabase`,
 			expected: `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["default","0",1,true]]}]}]}`,
@@ -1499,7 +1504,7 @@ func Test_ServerSingleGraphiteIntegration_NoDatabase(t *testing.T) {
 	}
 
 	// Need to wait for the database to be created
-	expected := `{"results":[{"series":[{"columns":["name"],"values":[["graphite"]]}]}]}`
+	expected := `{"results":[{"series":[{"name":"databases","columns":["name"],"values":[["graphite"]]}]}]}`
 	got, ok := queryAndWait(t, nodes, "graphite", `show databases`, expected, 2*time.Second)
 	if !ok {
 		t.Errorf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
