@@ -7,5 +7,4 @@ test:
     override:
     # Put each test command on its own line.
     #- go tool vet .
-    #- go test -timeout 300s -v ./...
-        - go test -timeout 600s -v -race ./..
+    - go test -timeout 300s -v ./...
