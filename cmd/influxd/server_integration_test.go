@@ -273,7 +273,7 @@ var limitAndOffset = func(t *testing.T, node *Node, database, retention string) 
 }
 
 func runTest_rawDataReturnsInOrder(t *testing.T, testName string, nodes Cluster, database, retention string) {
-	t.Logf("Running %s against %d-node cluster", testName, len(nodes))
+	t.Logf("Running %s:rawDataReturnsInOrder against %d-node cluster", testName, len(nodes))
 
 	// Start by ensuring database and retention policy exist.
 	createDatabase(t, testName, nodes, database)
@@ -288,9 +288,9 @@ func runTest_rawDataReturnsInOrder(t *testing.T, testName string, nodes Cluster,
 	}
 
 	expected = fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",%d]]}]}]}`, numPoints-1)
-	_, ok := queryAndWait(t, nodes, database, `SELECT count(value) FROM cpu`, expected, 30*time.Second)
+	got, ok := queryAndWait(t, nodes, database, `SELECT count(value) FROM cpu`, expected, 60*time.Second)
 	if !ok {
-		t.Errorf("test %s failed, SELECT count() query returned unexpected data", testName)
+		t.Errorf("test %s:rawDataReturnsInOrder failed, SELECT count() query returned unexpected data\nexp: %s\n, got: %s", testName, expected, got)
 	}
 
 	// Create expected JSON string dynamically.
@@ -299,9 +299,9 @@ func runTest_rawDataReturnsInOrder(t *testing.T, testName string, nodes Cluster,
 		expectedValues = append(expectedValues, fmt.Sprintf(`["%s",%d]`, time.Unix(int64(i), int64(0)).UTC().Format(time.RFC3339), i))
 	}
 	expected = fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[%s]}]}]}`, strings.Join(expectedValues, ","))
-	_, ok = query(t, nodes, database, `SELECT value FROM cpu`, expected)
+	got, ok = query(t, nodes, database, `SELECT value FROM cpu`, expected)
 	if !ok {
-		t.Errorf("test %s failed, SELECT query returned unexpected data", testName)
+		t.Errorf("test %s failed, SELECT query returned unexpected data\nexp: %s\ngot: %s", testName, expected, got)
 	}
 }
 
@@ -987,6 +987,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			reset:    true,
 			name:     "Create database for default retention policy tests",
 			query:    `CREATE DATABASE mydatabase`,
+			queryOne: true,
 			expected: `{"results":[{}]}`,
 		},
 		{
@@ -997,16 +998,19 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		{
 			name:     "Ensure retention policy with infinite retention can be created",
 			query:    `CREATE RETENTION POLICY rp1 ON mydatabase DURATION INF REPLICATION 1`,
+			queryOne: true,
 			expected: `{"results":[{}]}`,
 		},
 		{
 			name:     "Ensure retention policy with acceptable retention can be created",
 			query:    `CREATE RETENTION POLICY rp2 ON mydatabase DURATION 30d REPLICATION 1`,
+			queryOne: true,
 			expected: `{"results":[{}]}`,
 		},
 		{
 			name:     "Ensure retention policy with unacceptable retention cannot be created",
 			query:    `CREATE RETENTION POLICY rp3 ON mydatabase DURATION 1s REPLICATION 1`,
+			queryOne: true,
 			expected: `{"results":[{"error":"retention policy duration needs to be at least 1h0m0s"}]}`,
 		},
 		{
@@ -1024,6 +1028,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		},
 		{
 			query:    `CREATE USER jdoe WITH PASSWORD '1337'`,
+			queryOne: true,
 			expected: `{"results":[{}]}`,
 		},
 		{
@@ -1079,6 +1084,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		{
 			name:     "create continuous query",
 			query:    `CREATE CONTINUOUS QUERY myquery ON %DB% BEGIN SELECT count() INTO measure1 FROM myseries GROUP BY time(10m) END`,
+			queryOne: true,
 			expected: `{"results":[{}]}`,
 		},
 		{
@@ -1132,7 +1138,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			if tt.queryDb != "" {
 				urlDb = tt.queryDb
 			}
-			got, ok := queryAndWait(t, nodes, rewriteDbRp(urlDb, database, retention), rewriteDbRp(tt.query, database, retention), rewriteDbRp(tt.expected, database, retention), 3*time.Second)
+			got, ok := queryAndWait(t, qNodes, rewriteDbRp(urlDb, database, retention), rewriteDbRp(tt.query, database, retention), rewriteDbRp(tt.expected, database, retention), 3*time.Second)
 			if !ok {
 				t.Errorf("Test #%d: \"%s\" failed\n  exp: %s\n  got: %s\n", i, name, rewriteDbRp(tt.expected, database, retention), got)
 			}
@@ -1157,8 +1163,6 @@ func TestSingleServer(t *testing.T) {
 }
 
 func Test3NodeServer(t *testing.T) {
-	t.Skip("")
-
 	testName := "3-node server integration"
 	if testing.Short() {
 		t.Skip(fmt.Sprintf("skipping '%s'", testName))
