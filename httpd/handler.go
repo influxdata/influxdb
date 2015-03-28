@@ -25,6 +25,7 @@ import (
 )
 
 const (
+	// With raw data queries, mappers will read up to this amount before sending results back to the engine
 	DefaultChunkSize = 10000
 )
 
@@ -176,13 +177,13 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *influ
 		httpError(w, "error parsing query: "+err.Error(), pretty, http.StatusBadRequest)
 		return
 	}
+
+	// get the chunking settings
 	chunked := q.Get("chunked") == "true"
-	chunkSize := influxdb.NoChunkingSize
+	// even if we're not chunking, the engine will chunk at this size and then the handler will combine results
+	chunkSize := DefaultChunkSize
 	if chunked {
-		cs, err := strconv.ParseInt(q.Get("chunk_size"), 10, 64)
-		if err != nil {
-			chunkSize = DefaultChunkSize
-		} else {
+		if cs, err := strconv.ParseInt(q.Get("chunk_size"), 10, 64); err == nil {
 			chunkSize = int(cs)
 		}
 	}
@@ -199,10 +200,11 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *influ
 		return
 	}
 
+	// if we're not chunking, this will be the in memory buffer for all results before sending to client
 	res := influxdb.Results{Results: make([]*influxdb.Result, 0)}
-
 	statusWritten := false
 
+	// pull all results from the channel
 	for r := range results {
 		// write the status header based on the first result returned in the channel
 		if !statusWritten {
@@ -222,15 +224,17 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *influ
 			statusWritten = true
 		}
 
+		// ignore nils
 		if r == nil {
 			continue
 		}
 
 		// if chunked we write out this result and flush
 		if chunked {
-			w.Write(marshalPretty(r, pretty))
+			res.Results = []*influxdb.Result{r}
+			w.Write(marshalPretty(res, pretty))
+			w.(http.Flusher).Flush()
 			continue
-			//w.(http.Flusher).Flush()
 		}
 
 		// it's not chunked so buffer results in memory.
@@ -253,6 +257,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *influ
 	}
 }
 
+// marshalPretty will marshal the interface to json either pretty printed or not
 func marshalPretty(r interface{}, pretty bool) []byte {
 	var b []byte
 	if pretty {
@@ -742,6 +747,10 @@ type gzipResponseWriter struct {
 
 func (w gzipResponseWriter) Write(b []byte) (int, error) {
 	return w.Writer.Write(b)
+}
+
+func (w gzipResponseWriter) Flush() {
+	w.Writer.(*gzip.Writer).Flush()
 }
 
 // determines if the client can accept compressed responses, and encodes accordingly
