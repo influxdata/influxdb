@@ -1946,7 +1946,7 @@ func (s *Server) MustWriteSeries(database, retentionPolicy string, points []infl
 }
 
 func (s *Server) executeQuery(q *influxql.Query, db string, user *influxdb.User) influxdb.Results {
-	results, err := s.ExecuteQuery(q, db, user, influxdb.NoChunkingSize)
+	results, err := s.ExecuteQuery(q, db, user, 10000)
 	if err != nil {
 		return influxdb.Results{Err: err}
 	}

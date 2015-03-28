@@ -50,7 +50,7 @@ const (
 	// Defines the minimum duration allowed for all retention policies
 	retentionPolicyMinDuration = time.Hour
 
-	// When planning a select statement, passing zero tells it not to chunk results
+	// When planning a select statement, passing zero tells it not to chunk results. Only applies to raw queries
 	NoChunkingSize = 0
 )
 

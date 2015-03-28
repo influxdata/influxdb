@@ -11,7 +11,6 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -1664,7 +1663,7 @@ func TestHandler_ChunkedResponses(t *testing.T) {
 		} else {
 			vals = [][]interface{}{{"2009-11-10T23:30:00Z", 25}}
 		}
-		if !reflect.DeepEqual(results.Results[0].Series[0].Values, vals) {
+		if mustMarshalJSON(vals) != mustMarshalJSON(results.Results[0].Series[0].Values) {
 			t.Fatalf("values weren't what was expected:\n  exp: %s\n  got: %s", mustMarshalJSON(vals), mustMarshalJSON(results.Results[0].Series[0].Values))
 		}
 	}
