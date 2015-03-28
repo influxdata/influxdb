@@ -376,9 +376,17 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (seriesIDs, bool, influ
 		return nil, true, nil
 	}
 
-	// if we're looking for series with a specific tag value
+	// if we're looking for series with specific tag values
 	if str, ok := value.(*influxql.StringLiteral); ok {
-		return tagVals[str.Val], true, nil
+		var ids seriesIDs
+
+		if n.Op == influxql.EQ {
+			// return series that have a tag of specific value.
+			ids = tagVals[str.Val]
+		} else if n.Op == influxql.NEQ {
+			ids = m.seriesIDs.reject(tagVals[str.Val])
+		}
+		return ids, true, nil
 	}
 
 	// if we're looking for series with tag values that match a regex

@@ -593,7 +593,8 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			reset: true,
 			name:  "WHERE tags SELECT single field (EQ tag value1)",
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "timestamp": "2015-02-28T01:03:36.703820946Z", "tags": {"host": "server01"}, "fields": {"value": 100}},
-			                                                                     {"name": "cpu", "timestamp": "2010-02-28T01:03:37.703820946Z", "tags": {"host": "server02"}, "fields": {"value": 200}}]}`,
+			                                                                     {"name": "cpu", "timestamp": "2010-02-28T01:03:37.703820946Z", "tags": {"host": "server02"}, "fields": {"value": 200}},
+			                                                                     {"name": "cpu", "timestamp": "2012-02-28T01:03:38.703820946Z", "tags": {"host": "server03"}, "fields": {"value": 300}}]}`,
 			query:    `SELECT value FROM "%DB%"."%RP%".cpu WHERE host = 'server01'`,
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",100]]}]}]}`,
 		},
@@ -601,6 +602,34 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			name:     "WHERE tags SELECT single field (EQ tag value2)",
 			query:    `SELECT value FROM "%DB%"."%RP%".cpu WHERE host = 'server02'`,
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2010-02-28T01:03:37.703820946Z",200]]}]}]}`,
+		},
+		{
+			name:     "WHERE tags SELECT single field (NEQ tag value1)",
+			query:    `SELECT value FROM "%DB%"."%RP%".cpu WHERE host != 'server01'`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2010-02-28T01:03:37.703820946Z",200],["2012-02-28T01:03:38.703820946Z",300]]}]}]}`,
+		},
+		{
+			name:     "WHERE tags SELECT single field (NEQ tag value1 AND NEQ tag value2)",
+			query:    `SELECT value FROM "%DB%"."%RP%".cpu WHERE host != 'server01' AND host != 'server02'`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2012-02-28T01:03:38.703820946Z",300]]}]}]}`,
+		},
+		{
+			name:     "WHERE tags SELECT single field (NEQ tag value1 OR NEQ tag value2)",
+			query:    `SELECT value FROM "%DB%"."%RP%".cpu WHERE host != 'server01' OR host != 'server02'`, // Yes, this is always true, but that's the point.
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2010-02-28T01:03:37.703820946Z",200],["2012-02-28T01:03:38.703820946Z",300],["2015-02-28T01:03:36.703820946Z",100]]}]}]}`,
+		},
+		{
+			name:     "WHERE tags SELECT single field (NEQ tag value1 AND NEQ tag value2 AND NEQ tag value3)",
+			query:    `SELECT value FROM "%DB%"."%RP%".cpu WHERE host != 'server01' AND host != 'server02' AND host != 'server03'`,
+			expected: `{"results":[{}]}`,
+		},
+		{
+			reset: true,
+			name:  "WHERE tags SELECT single field (NEQ tag value1, point without any tags)",
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "timestamp": "2015-02-28T01:03:36.703820946Z", "tags": {"host": "server01"}, "fields": {"value": 100}},
+                                                                                 {"name": "cpu", "timestamp": "2012-02-28T01:03:38.703820946Z", "fields": {"value": 200}}]}`,
+			query:    `SELECT value FROM "%DB%"."%RP%".cpu WHERE host != 'server01'`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2012-02-28T01:03:38.703820946Z",200]]}]}]}`,
 		},
 
 		// WHERE fields queries
