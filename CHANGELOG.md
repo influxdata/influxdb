@@ -7,6 +7,7 @@
 - [#2095](https://github.com/influxdb/influxdb/pull/2095): Improved InfluxDB client docs. Thanks @derailed
 
 ### Bugfixes
+- [#2093](https://github.com/influxdb/influxdb/pull/2093): Point precision not marshalled correctly. Thanks @derailed
 - [#2084](https://github.com/influxdb/influxdb/pull/2084): Allowing leading underscores in identifiers.
 - [#2080](https://github.com/influxdb/influxdb/pull/2080): Graphite logs in seconds, not milliseconds.
 - [#2101](https://github.com/influxdb/influxdb/pull/2101): SHOW DATABASES should name returned series "databases".
