@@ -31,6 +31,7 @@ const (
 )
 
 const (
+	// With raw data queries, mappers will read up to this amount before sending results back to the engine
 	DefaultChunkSize = 10000
 )
 

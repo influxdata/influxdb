@@ -303,6 +303,7 @@ func (m *MapReduceJob) processRawQuery(out chan *Row, filterEmptyResults bool) {
 			}
 			valuesSent += len(values)
 		}
+
 		valuesToReturn = append(valuesToReturn, values...)
 
 		// hit the chunk size? Send out what has been accumulated, but keep
