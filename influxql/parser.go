@@ -438,6 +438,48 @@ func (p *Parser) parseIdentList() ([]string, error) {
 	}
 }
 
+// parseSegmentedIdents parses a segmented identifiers.
+// e.g.,  "db"."rp".measurement  or  "db"..measurement
+func (p *Parser) parseSegmentedIdents() ([]string, error) {
+	ident, err := p.parseIdent()
+	if err != nil {
+		return nil, err
+	}
+	idents := []string{ident}
+
+	// Parse remaining (optional) identifiers.
+	for {
+		if tok, _, _ := p.scan(); tok != DOT {
+			// No more segments so we're done.
+			p.unscan()
+			break
+		}
+
+		if ch := p.peekRune(); ch == '/' {
+			// Next segment is a regex so we're done.
+			break
+		} else if ch == '.' {
+			// Add an empty identifier.
+			idents = append(idents, "")
+			continue
+		}
+
+		// Parse the next identifier.
+		if ident, err = p.parseIdent(); err != nil {
+			return nil, err
+		}
+
+		idents = append(idents, ident)
+	}
+
+	if len(idents) > 3 {
+		msg := fmt.Sprintf("too many segments in %s", QuoteIdent(idents...))
+		return nil, &ParseError{Message: msg}
+	}
+
+	return idents, nil
+}
+
 // parserString parses a string.
 func (p *Parser) parseString() (string, error) {
 	tok, pos, lit := p.scanIgnoreWhitespace()
@@ -651,28 +693,27 @@ func (p *Parser) parseTarget(tr targetRequirement) (*Target, error) {
 		return nil, nil
 	}
 
-	// Parse identifier.  Could be policy or measurement name.
-	ident, err := p.parseIdent()
+	// db, rp, and / or measurement
+	idents, err := p.parseSegmentedIdents()
 	if err != nil {
 		return nil, err
 	}
 
-	target := &Target{}
-	target.Measurement = ident
+	t := &Target{Measurement: &Measurement{}}
 
-	// Parse optional ON.
-	if tok, _, _ := p.scanIgnoreWhitespace(); tok != ON {
-		p.unscan()
-		return target, nil
+	switch len(idents) {
+	case 1:
+		t.Measurement.Name = idents[0]
+	case 2:
+		t.Measurement.RetentionPolicy = idents[0]
+		t.Measurement.Name = idents[1]
+	case 3:
+		t.Measurement.Database = idents[0]
+		t.Measurement.RetentionPolicy = idents[1]
+		t.Measurement.Name = idents[2]
 	}
 
-	// Found an ON token so parse required identifier.
-	if ident, err = p.parseIdent(); err != nil {
-		return nil, err
-	}
-	target.Database = ident
-
-	return target, nil
+	return t, nil
 }
 
 // parseDeleteStatement parses a delete string and returns a DeleteStatement.
@@ -1371,42 +1412,55 @@ func (p *Parser) peekRune() rune {
 	return r
 }
 
-// parseSource parses a single source.
 func (p *Parser) parseSource() (Source, error) {
 	m := &Measurement{}
 
-	for {
-		nextRune := p.peekRune()
-		if isWhitespace(nextRune) {
-			p.consumeWhitespace()
-		}
+	// Attempt to parse a regex.
+	re, err := p.parseRegex()
+	if err != nil {
+		return nil, err
+	} else if re != nil {
+		m.Regex = re
+		// Regex is always last so we're done.
+		return m, nil
+	}
 
-		// If the next character is a '/', then parse a regex.
-		nextRune = p.peekRune()
-		if nextRune == '/' {
-			re, err := p.parseRegex()
-			if err != nil {
-				return nil, err
-			}
-			m.Regex = re.(*RegexLiteral)
+	// Didn't find a regex so parse segmented identifiers.
+	idents, err := p.parseSegmentedIdents()
+	if err != nil {
+		return nil, err
+	}
 
-			// A regex is always the last part of the source so return. E.g.,
-			// db.rp./cpu.*/.  Regex not supported in database or retention
-			// policy names.
-			return m, nil
-		}
+	// If we already have the max allowed idents, we're done.
+	if len(idents) == 3 {
+		m.Database, m.RetentionPolicy, m.Name = idents[0], idents[1], idents[2]
+		return m, nil
+	}
+	// Check again for regex.
+	re, err = p.parseRegex()
+	if err != nil {
+		return nil, err
+	} else if re != nil {
+		m.Regex = re
+	}
 
-		// Next character wasn't a '/' so parse a non-regex identifier.
-		if tok, pos, lit := p.scanIgnoreWhitespace(); tok == IDENT {
-			m.Name = lit
+	// Assign identifiers to their proper locations.
+	switch len(idents) {
+	case 1:
+		if re != nil {
+			m.RetentionPolicy = idents[0]
 		} else {
-			if m.Name == "" && m.Regex == nil {
-				return nil, newParseError(tokstr(tok, lit), []string{"identifier", "regex"}, pos)
-			}
-			p.unscan()
-			return m, nil
+			m.Name = idents[0]
+		}
+	case 2:
+		if re != nil {
+			m.Database, m.RetentionPolicy = idents[0], idents[1]
+		} else {
+			m.RetentionPolicy, m.Name = idents[0], idents[1]
 		}
 	}
+
+	return m, nil
 }
 
 // parseCondition parses the "WHERE" clause of the query, if it exists.
@@ -1617,6 +1671,19 @@ func (p *Parser) parseSortField() (*SortField, error) {
 	return field, nil
 }
 
+// parseVarRef parses a reference to a measurement or field.
+func (p *Parser) parseVarRef() (*VarRef, error) {
+	// Parse the segments of the variable ref.
+	segments, err := p.parseSegmentedIdents()
+	if err != nil {
+		return nil, err
+	}
+
+	vr := &VarRef{Val: strings.Join(segments, ".")}
+
+	return vr, nil
+}
+
 // ParseExpr parses an expression.
 func (p *Parser) ParseExpr() (Expr, error) {
 	var err error
@@ -1691,8 +1758,12 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 		if tok0, _, _ := p.scan(); tok0 == LPAREN {
 			return p.parseCall(lit)
 		}
-		p.unscan()
-		return &VarRef{Val: lit}, nil
+
+		p.unscan() // unscan the last token (wasn't an LPAREN)
+		p.unscan() // unscan the IDENT token
+
+		// Parse it as a VarRef.
+		return p.parseVarRef()
 	case STRING:
 		// If literal looks like a date time then parse it as a time literal.
 		if isDateTimeString(lit) {
@@ -1739,7 +1810,18 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 }
 
 // parseRegex parses a regular expression.
-func (p *Parser) parseRegex() (Expr, error) {
+func (p *Parser) parseRegex() (*RegexLiteral, error) {
+	nextRune := p.peekRune()
+	if isWhitespace(nextRune) {
+		p.consumeWhitespace()
+	}
+
+	// If the next character is not a '/', then return nils.
+	nextRune = p.peekRune()
+	if nextRune != '/' {
+		return nil, nil
+	}
+
 	tok, pos, lit := p.s.ScanRegex()
 
 	if tok == BADESCAPE {
@@ -1910,19 +1992,41 @@ func QuoteString(s string) string {
 }
 
 // QuoteIdent returns a quoted identifier from multiple bare identifiers.
-func QuoteIdent(segments []string) string {
+func QuoteIdent(segments ...string) string {
 	r := strings.NewReplacer("\n", `\n`, `\`, `\\`, `"`, `\"`)
 
 	var buf bytes.Buffer
 	for i, segment := range segments {
-		_ = buf.WriteByte('"')
+		needQuote := IdentNeedsQuotes(segment) ||
+			((i < len(segments)-1) && segment != "") // not last segment && not ""
+
+		if needQuote {
+			_ = buf.WriteByte('"')
+		}
+
 		_, _ = buf.WriteString(r.Replace(segment))
-		_ = buf.WriteByte('"')
+
+		if needQuote {
+			_ = buf.WriteByte('"')
+		}
+
 		if i < len(segments)-1 {
 			_ = buf.WriteByte('.')
 		}
 	}
 	return buf.String()
+}
+
+// IdentNeedsQuotes returns true if the ident string given would require quotes.
+func IdentNeedsQuotes(ident string) bool {
+	for i, r := range ident {
+		if i == 0 && !isIdentFirstChar(r) {
+			return true
+		} else if i > 0 && !isIdentChar(r) {
+			return true
+		}
+	}
+	return false
 }
 
 // split splits a string into a slice of runes.

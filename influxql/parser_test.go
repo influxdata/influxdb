@@ -265,6 +265,43 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// SELECT * FROM "db"."rp"./<regex>/
+		{
+			s: `SELECT * FROM "db"."rp"./cpu.*/`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: true,
+				Fields:     []*influxql.Field{{Expr: &influxql.Wildcard{}}},
+				Sources: []influxql.Source{&influxql.Measurement{
+					Database:        `db`,
+					RetentionPolicy: `rp`,
+					Regex:           &influxql.RegexLiteral{Val: regexp.MustCompile("cpu.*")}}},
+			},
+		},
+
+		// SELECT * FROM "db"../<regex>/
+		{
+			s: `SELECT * FROM "db"../cpu.*/`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: true,
+				Fields:     []*influxql.Field{{Expr: &influxql.Wildcard{}}},
+				Sources: []influxql.Source{&influxql.Measurement{
+					Database: `db`,
+					Regex:    &influxql.RegexLiteral{Val: regexp.MustCompile("cpu.*")}}},
+			},
+		},
+
+		// SELECT * FROM "rp"./<regex>/
+		{
+			s: `SELECT * FROM "rp"./cpu.*/`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: true,
+				Fields:     []*influxql.Field{{Expr: &influxql.Wildcard{}}},
+				Sources: []influxql.Source{&influxql.Measurement{
+					RetentionPolicy: `rp`,
+					Regex:           &influxql.RegexLiteral{Val: regexp.MustCompile("cpu.*")}}},
+			},
+		},
+
 		// SELECT statement with fill
 		{
 			s: `SELECT mean(value) FROM cpu GROUP BY time(5m) fill(1)`,
@@ -473,7 +510,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SHOW TAG VALUES WITH KEY = "host" WHERE region = 'uswest'`,
 			stmt: &influxql.ShowTagValuesStatement{
-				TagKeys: []string{`"host"`},
+				TagKeys: []string{`host`},
 				Condition: &influxql.BinaryExpr{
 					Op:  influxql.EQ,
 					LHS: &influxql.VarRef{Val: "region"},
@@ -547,7 +584,7 @@ func TestParser_ParseStatement(t *testing.T) {
 				Database: "testdb",
 				Source: &influxql.SelectStatement{
 					Fields:  []*influxql.Field{{Expr: &influxql.Call{Name: "count"}}},
-					Target:  &influxql.Target{Measurement: "measure1"},
+					Target:  &influxql.Target{Measurement: &influxql.Measurement{Name: "measure1"}},
 					Sources: []influxql.Source{&influxql.Measurement{Name: "myseries"}},
 					Dimensions: []*influxql.Dimension{
 						{
@@ -572,7 +609,7 @@ func TestParser_ParseStatement(t *testing.T) {
 				Source: &influxql.SelectStatement{
 					Fields: []*influxql.Field{{Expr: &influxql.Call{Name: "count"}}},
 					Target: &influxql.Target{
-						Measurement: `"1h.policy1"."cpu.load"`,
+						Measurement: &influxql.Measurement{RetentionPolicy: "1h.policy1", Name: "cpu.load"},
 					},
 					Sources: []influxql.Source{&influxql.Measurement{Name: "myseries"}},
 					Dimensions: []*influxql.Dimension{
@@ -598,7 +635,7 @@ func TestParser_ParseStatement(t *testing.T) {
 				Source: &influxql.SelectStatement{
 					Fields: []*influxql.Field{{Expr: &influxql.Call{Name: "value"}}},
 					Target: &influxql.Target{
-						Measurement: `"policy1"."value"`,
+						Measurement: &influxql.Measurement{RetentionPolicy: "policy1", Name: "value"},
 					},
 					Sources: []influxql.Source{&influxql.Measurement{Name: "myseries"}},
 				},
@@ -615,7 +652,7 @@ func TestParser_ParseStatement(t *testing.T) {
 					Fields: []*influxql.Field{{Expr: &influxql.Call{Name: "transmit_rx"}},
 						{Expr: &influxql.Call{Name: "transmit_tx"}}},
 					Target: &influxql.Target{
-						Measurement: `"policy1"."network"`,
+						Measurement: &influxql.Measurement{RetentionPolicy: "policy1", Name: "network"},
 					},
 					Sources: []influxql.Source{&influxql.Measurement{Name: "myseries"}},
 				},
@@ -680,7 +717,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `DROP RETENTION POLICY "1h.cpu" ON mydb`,
 			stmt: &influxql.DropRetentionPolicyStatement{
-				Name:     `"1h.cpu"`,
+				Name:     `1h.cpu`,
 				Database: `mydb`,
 			},
 		},
@@ -900,16 +937,16 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `SELECT field1 FROM myseries ORDER BY /`, err: `found /, expected identifier, ASC, or DESC at line 1, char 38`},
 		{s: `SELECT field1 FROM myseries ORDER BY 1`, err: `found 1, expected identifier, ASC, or DESC at line 1, char 38`},
 		{s: `SELECT field1 AS`, err: `found EOF, expected identifier at line 1, char 18`},
-		{s: `SELECT field1 FROM 12`, err: `found 12, expected identifier, regex at line 1, char 20`},
 		{s: `SELECT field1 FROM foo group by time(1s)`, err: `GROUP BY requires at least one aggregate function`},
+		{s: `SELECT field1 FROM 12`, err: `found 12, expected identifier at line 1, char 20`},
 		{s: `SELECT 1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 FROM myseries`, err: `unable to parse number at line 1, char 8`},
 		{s: `SELECT 10.5h FROM myseries`, err: `found h, expected FROM at line 1, char 12`},
 		{s: `DELETE`, err: `found EOF, expected FROM at line 1, char 8`},
-		{s: `DELETE FROM`, err: `found EOF, expected identifier, regex at line 1, char 13`},
+		{s: `DELETE FROM`, err: `found EOF, expected identifier at line 1, char 13`},
 		{s: `DELETE FROM myseries WHERE`, err: `found EOF, expected identifier, string, number, bool at line 1, char 28`},
 		{s: `DROP MEASUREMENT`, err: `found EOF, expected identifier at line 1, char 18`},
 		{s: `DROP SERIES`, err: `found EOF, expected number at line 1, char 13`},
-		{s: `DROP SERIES FROM`, err: `found EOF, expected identifier, regex at line 1, char 18`},
+		{s: `DROP SERIES FROM`, err: `found EOF, expected identifier at line 1, char 18`},
 		{s: `DROP SERIES FROM src WHERE`, err: `found EOF, expected identifier, string, number, bool at line 1, char 28`},
 		{s: `SHOW CONTINUOUS`, err: `found EOF, expected QUERIES at line 1, char 17`},
 		{s: `SHOW RETENTION`, err: `found EOF, expected POLICIES at line 1, char 16`},
@@ -926,7 +963,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `DROP DATABASE`, err: `found EOF, expected identifier at line 1, char 15`},
 		{s: `DROP RETENTION`, err: `found EOF, expected POLICY at line 1, char 16`},
 		{s: `DROP RETENTION POLICY`, err: `found EOF, expected identifier at line 1, char 23`},
-		{s: `DROP RETENTION POLICY "1h.cpu"`, err: `found EOF, expected ON at line 1, char 32`},
+		{s: `DROP RETENTION POLICY "1h.cpu"`, err: `found EOF, expected ON at line 1, char 31`},
 		{s: `DROP RETENTION POLICY "1h.cpu" ON`, err: `found EOF, expected identifier at line 1, char 35`},
 		{s: `DROP USER`, err: `found EOF, expected identifier at line 1, char 11`},
 		{s: `CREATE USER testuser`, err: `found EOF, expected WITH at line 1, char 22`},
@@ -1233,12 +1270,15 @@ func TestQuoteIdent(t *testing.T) {
 		ident []string
 		s     string
 	}{
-		{[]string{``}, `""`},
-		{[]string{`foo`, `bar`}, `"foo"."bar"`},
-		{[]string{`foo bar`, `baz`}, `"foo bar"."baz"`},
-		{[]string{`foo.bar`, `baz`}, `"foo.bar"."baz"`},
+		{[]string{``}, ``},
+		{[]string{`foo`, `bar`}, `"foo".bar`},
+		{[]string{`foo`, ``, `bar`}, `"foo"..bar`},
+		{[]string{`foo bar`, `baz`}, `"foo bar".baz`},
+		{[]string{`foo.bar`, `baz`}, `"foo.bar".baz`},
+		{[]string{`foo.bar`, `rp`, `baz`}, `"foo.bar"."rp".baz`},
+		{[]string{`foo.bar`, `rp`, `1baz`}, `"foo.bar"."rp"."1baz"`},
 	} {
-		if s := influxql.QuoteIdent(tt.ident); tt.s != s {
+		if s := influxql.QuoteIdent(tt.ident...); tt.s != s {
 			t.Errorf("%d. %s: mismatch: %s != %s", i, tt.ident, tt.s, s)
 		}
 	}

@@ -125,26 +125,21 @@ func (s *Scanner) scanWhitespace() (tok Token, pos Pos, lit string) {
 	return WS, pos, buf.String()
 }
 
-// scanIdent a fully qualified identifier.
 func (s *Scanner) scanIdent() (tok Token, pos Pos, lit string) {
+	// Save the starting position of the identifier.
 	_, pos = s.r.read()
 	s.r.unread()
 
 	var buf bytes.Buffer
 	for {
-		ch, _ := s.r.read()
-		if ch == eof {
+		if ch, _ := s.r.read(); ch == eof {
 			break
-		} else if ch == '.' {
-			buf.WriteRune(ch)
 		} else if ch == '"' {
-			if tok0, pos0, lit0 := s.scanString(); tok0 == BADSTRING || tok0 == BADESCAPE {
+			tok0, pos0, lit0 := s.scanString()
+			if tok0 == BADSTRING || tok0 == BADESCAPE {
 				return tok0, pos0, lit0
-			} else {
-				_ = buf.WriteByte('"')
-				_, _ = buf.WriteString(lit0)
-				_ = buf.WriteByte('"')
 			}
+			return IDENT, pos, lit0
 		} else if isIdentChar(ch) {
 			s.r.unread()
 			buf.WriteString(ScanBareIdent(s.r))
@@ -297,8 +292,11 @@ func isLetter(ch rune) bool { return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && c
 // isDigit returns true if the rune is a digit.
 func isDigit(ch rune) bool { return (ch >= '0' && ch <= '9') }
 
-// isIdentChar returns true if the rune that be used in a bare identifier.
+// isIdentChar returns true if the rune can be used in an unquoted identifier.
 func isIdentChar(ch rune) bool { return isLetter(ch) || isDigit(ch) || ch == '_' }
+
+// isIdentFirstChar returns true if the rune can be used as the first char in an unquoted identifer.
+func isIdentFirstChar(ch rune) bool { return isLetter(ch) || ch == '_' }
 
 // bufScanner represents a wrapper for scanner to add a buffer.
 // It provides a fixed-length circular buffer that can be unread.
@@ -539,78 +537,6 @@ func ScanBareIdent(r io.RuneScanner) string {
 		}
 	}
 	return buf.String()
-}
-
-// SplitIdent splits an identifier into quoted & unquoted segments.
-func SplitIdent(s string) (segments []string, err error) {
-	var isBareIdent bool
-
-	// Scan over buffered rune reader.
-	r := strings.NewReader(s)
-	for {
-		// If next character is EOF, return an error.
-		// If next character is a dot then add an empty segment.
-		// If next character is a quote then parse quoted string.
-		// Otherwise parse as a bare ident.
-		if ch, _, err := r.ReadRune(); err == io.EOF {
-			return nil, errInvalidIdentifier
-
-		} else if ch == '.' {
-			// Disallow a starting dot.
-			if len(segments) == 0 {
-				return nil, errInvalidIdentifier
-			}
-			// Otherwise append blank segment and continue.
-			segments = append(segments, "")
-			isBareIdent = false
-			continue
-
-		} else if ch == '"' {
-			_ = r.UnreadRune()
-			segment, err := ScanString(r)
-			if err != nil {
-				return nil, err
-			}
-			segments = append(segments, segment)
-			isBareIdent = false
-
-		} else if isIdentChar(ch) {
-			_ = r.UnreadRune()
-			segment := ScanBareIdent(r)
-
-			// Append to previous segment if it was a bare ident.
-			// Otherwise add new segment.
-			if isBareIdent {
-				segments[len(segments)-1] = segments[len(segments)-1] + "." + segment
-			} else {
-				segments = append(segments, segment)
-			}
-			isBareIdent = true
-
-		} else {
-			return nil, errInvalidIdentifier
-		}
-
-		// If next character is EOF, return.
-		// If next character is a dot, continue.
-		// Otherwise return an error.
-		if ch, _, err := r.ReadRune(); err != nil {
-			return segments, nil
-		} else if ch == '.' {
-			continue
-		} else {
-			return nil, errInvalidIdentifier
-		}
-	}
-}
-
-// lastIdent returns the last identifier.
-func lastIdent(s string) string {
-	a, _ := SplitIdent(s)
-	if len(a) == 0 {
-		return ""
-	}
-	return a[len(a)-1]
 }
 
 var errInvalidIdentifier = errors.New("invalid identifier")

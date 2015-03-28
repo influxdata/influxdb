@@ -60,10 +60,10 @@ func TestScanner_Scan(t *testing.T) {
 		{s: `foo`, tok: influxql.IDENT, lit: `foo`},
 		{s: `_foo`, tok: influxql.IDENT, lit: `_foo`},
 		{s: `Zx12_3U_-`, tok: influxql.IDENT, lit: `Zx12_3U_`},
-		{s: `"foo".bar`, tok: influxql.IDENT, lit: `"foo".bar`},
-		{s: `"foo\\bar"`, tok: influxql.IDENT, lit: `"foo\bar"`},
+		{s: `"foo"`, tok: influxql.IDENT, lit: `foo`},
+		{s: `"foo\\bar"`, tok: influxql.IDENT, lit: `foo\bar`},
 		{s: `"foo\bar"`, tok: influxql.BADESCAPE, lit: `\b`, pos: influxql.Pos{Line: 0, Char: 5}},
-		{s: `"foo\"bar\""`, tok: influxql.IDENT, lit: `"foo"bar""`},
+		{s: `"foo\"bar\""`, tok: influxql.IDENT, lit: `foo"bar"`},
 		{s: `test"`, tok: influxql.BADSTRING, lit: "", pos: influxql.Pos{Line: 0, Char: 3}},
 		{s: `"test`, tok: influxql.BADSTRING, lit: `test`},
 
@@ -251,39 +251,6 @@ func TestScanString(t *testing.T) {
 		if tt.err != errstring(err) {
 			t.Errorf("%d. %s: error: exp=%s, got=%s", i, tt.in, tt.err, err)
 		} else if tt.out != out {
-			t.Errorf("%d. %s: out: exp=%s, got=%s", i, tt.in, tt.out, out)
-		}
-	}
-}
-
-// Ensure identifiers can be split into multiple quoted and unquoted parts.
-func TestSplitIdent(t *testing.T) {
-	var tests = []struct {
-		in  string
-		out []string
-		err string
-	}{
-		{in: `"db"."rp"."measurement"`, out: []string{`db`, `rp`, `measurement`}},
-		{in: `"db"."rp".measurement`, out: []string{`db`, `rp`, `measurement`}},
-		{in: `cpu.load.total`, out: []string{`cpu.load.total`}},
-		{in: `"rp".cpu.load.total`, out: []string{`rp`, `cpu.load.total`}},
-		{in: `"db"..cpu.load.total`, out: []string{`db`, ``, `cpu.load.total`}},
-		{in: `db."rp".cpu.total`, out: []string{`db`, `rp`, `cpu.total`}},
-		{in: `db...cpu`, out: []string{`db`, ``, ``, `cpu`}},
-		{in: `"db.rp".cpu`, out: []string{`db.rp`, `cpu`}},
-
-		{in: ``, err: "invalid identifier"},
-		{in: `.`, err: "invalid identifier"},
-		{in: `.cpu`, err: "invalid identifier"},
-		{in: `db.`, err: "invalid identifier"},
-		{in: `hello world`, err: "invalid identifier"},
-	}
-
-	for i, tt := range tests {
-		out, err := influxql.SplitIdent(tt.in)
-		if tt.err != errstring(err) {
-			t.Errorf("%d. %s: error: exp=%s, got=%s", i, tt.in, tt.err, err)
-		} else if !reflect.DeepEqual(tt.out, out) {
 			t.Errorf("%d. %s: out: exp=%s, got=%s", i, tt.in, tt.out, out)
 		}
 	}
