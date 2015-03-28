@@ -25,7 +25,8 @@ import (
 )
 
 const (
-	// With raw data queries, mappers will read up to this amount before sending results back to the engine
+	// With raw data queries, mappers will read up to this amount before sending results back to the engine.
+	// This is the default size in the number of values returned in a raw query. Could be many more bytes depending on fields returned.
 	DefaultChunkSize = 10000
 )
 
@@ -260,11 +261,27 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *influ
 // marshalPretty will marshal the interface to json either pretty printed or not
 func marshalPretty(r interface{}, pretty bool) []byte {
 	var b []byte
+	var err error
 	if pretty {
-		b, _ = json.MarshalIndent(r, "", "    ")
+		b, err = json.MarshalIndent(r, "", "    ")
 	} else {
-		b, _ = json.Marshal(r)
+		b, err = json.Marshal(r)
 	}
+
+	// if for some reason there was an error, convert to a result object with the error
+	if err != nil {
+		if pretty {
+			b, err = json.MarshalIndent(&influxdb.Result{Err: err}, "", "    ")
+		} else {
+			b, err = json.Marshal(&influxdb.Result{Err: err})
+		}
+	}
+
+	// if there's still an error, json is out and a straight up error string is in
+	if err != nil {
+		return []byte(err.Error())
+	}
+
 	return b
 }
 
