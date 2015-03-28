@@ -1305,7 +1305,7 @@ func TestSingleServer(t *testing.T) {
 	defer nodes.Close()
 
 	runTestsData(t, testName, nodes, "mydb", "myrp")
-	//runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp")
+	runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp")
 }
 
 func Test3NodeServer(t *testing.T) {
