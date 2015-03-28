@@ -588,6 +588,21 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			expected: `{"results":[{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",15]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",30]]}]}]}`,
 		},
 
+		// WHERE tag queries
+		{
+			reset: true,
+			name:  "WHERE tags SELECT single field (EQ tag value1)",
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "timestamp": "2015-02-28T01:03:36.703820946Z", "tags": {"host": "server01"}, "fields": {"value": 100}},
+			                                                                     {"name": "cpu", "timestamp": "2010-02-28T01:03:37.703820946Z", "tags": {"host": "server02"}, "fields": {"value": 200}}]}`,
+			query:    `SELECT value FROM "%DB%"."%RP%".cpu WHERE host = 'server01'`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",100]]}]}]}`,
+		},
+		{
+			name:     "WHERE tags SELECT single field (EQ tag value2)",
+			query:    `SELECT value FROM "%DB%"."%RP%".cpu WHERE host = 'server02'`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2010-02-28T01:03:37.703820946Z",200]]}]}]}`,
+		},
+
 		// WHERE fields queries
 		{
 			reset:    true,
@@ -644,6 +659,10 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		{
 			query:    `select load from "%DB%"."%RP%".cpu where load < 80`,
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","load"]}]}]}`,
+		},
+		{
+			query:    `select load from "%DB%"."%RP%".cpu where load != 100`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","load"],"values":[["2009-11-10T23:01:02Z",80]]}]}]}`,
 		},
 		{
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "logs", "timestamp": "2009-11-10T23:00:02Z","fields": {"event": "disk full"}},
