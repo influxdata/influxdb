@@ -13,6 +13,9 @@
 - [#2101](https://github.com/influxdb/influxdb/pull/2101): SHOW DATABASES should name returned series "databases".
 - [#2104](https://github.com/influxdb/influxdb/pull/2104): Include NEQ when calculating field filters.
 
+### Bugfixes
+- [#2112](https://github.com/influxdb/influxdb/pull/2112): Set GOMAXPROCS on startup. This may have been causing extra leader elections, which would cause a number of other bugs or instability.
+
 ## v0.9.0-rc16 [2015-03-24]
 
 ### Features
