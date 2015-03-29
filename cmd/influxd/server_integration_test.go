@@ -98,9 +98,9 @@ func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes, ba
 	c.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(basePort))
 	c.Broker.Port = basePort
 	c.Data.Port = basePort
-	c.Snapshot.Port = basePort + 1
 	c.Admin.Enabled = false
 	c.ReportingDisabled = true
+	c.Snapshot.Enabled = false
 
 	b, s := main.Run(c, "", "x.x")
 	if b == nil {
@@ -273,7 +273,7 @@ var limitAndOffset = func(t *testing.T, node *Node, database, retention string) 
 }
 
 func runTest_rawDataReturnsInOrder(t *testing.T, testName string, nodes Cluster, database, retention string) {
-	t.Logf("Running %s against %d-node cluster", testName, len(nodes))
+	t.Logf("Running %s:rawDataReturnsInOrder against %d-node cluster", testName, len(nodes))
 
 	// Start by ensuring database and retention policy exist.
 	createDatabase(t, testName, nodes, database)
@@ -288,9 +288,9 @@ func runTest_rawDataReturnsInOrder(t *testing.T, testName string, nodes Cluster,
 	}
 
 	expected = fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",%d]]}]}]}`, numPoints-1)
-	_, ok := queryAndWait(t, nodes, database, `SELECT count(value) FROM cpu`, expected, 30*time.Second)
+	got, ok := queryAndWait(t, nodes, database, `SELECT count(value) FROM cpu`, expected, 60*time.Second)
 	if !ok {
-		t.Errorf("test %s failed, SELECT count() query returned unexpected data", testName)
+		t.Errorf("test %s:rawDataReturnsInOrder failed, SELECT count() query returned unexpected data\nexp: %s\n, got: %s", testName, expected, got)
 	}
 
 	// Create expected JSON string dynamically.
@@ -299,9 +299,9 @@ func runTest_rawDataReturnsInOrder(t *testing.T, testName string, nodes Cluster,
 		expectedValues = append(expectedValues, fmt.Sprintf(`["%s",%d]`, time.Unix(int64(i), int64(0)).UTC().Format(time.RFC3339), i))
 	}
 	expected = fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[%s]}]}]}`, strings.Join(expectedValues, ","))
-	_, ok = query(t, nodes, database, `SELECT value FROM cpu`, expected)
+	got, ok = query(t, nodes, database, `SELECT value FROM cpu`, expected)
 	if !ok {
-		t.Errorf("test %s failed, SELECT query returned unexpected data", testName)
+		t.Errorf("test %s failed, SELECT query returned unexpected data\nexp: %s\ngot: %s", testName, expected, got)
 	}
 }
 
@@ -351,12 +351,14 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 	// The tests. Within these tests %DB% and %RP% will be replaced with the database and retention passed into
 	// this function.
 	tests := []struct {
+		skip     bool    // Skip the test.
 		reset    bool    // Delete and recreate the database.
 		name     string  // Test name, for easy-to-read test log output.
 		write    string  // If equal to the empty string, no data is written.
 		writeFn  writeFn // If non-nil, called after 'write' data (if any) is written.
 		query    string  // If equal to the blank string, no query is executed.
 		queryDb  string  // If set, is used as the "db" query param.
+		queryOne bool    // If set, only 1 node is queried.
 		expected string  // If 'query' is equal to the blank string, this is ignored.
 	}{
 		// Data read and write tests
@@ -586,25 +588,43 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			expected: `{"results":[{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",15]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",30]]}]}]}`,
 		},
 
+		// WHERE tag queries
+		{
+			reset: true,
+			name:  "WHERE tags SELECT single field (EQ tag value1)",
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "timestamp": "2015-02-28T01:03:36.703820946Z", "tags": {"host": "server01"}, "fields": {"value": 100}},
+			                                                                     {"name": "cpu", "timestamp": "2010-02-28T01:03:37.703820946Z", "tags": {"host": "server02"}, "fields": {"value": 200}}]}`,
+			query:    `SELECT value FROM "%DB%"."%RP%".cpu WHERE host = 'server01'`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",100]]}]}]}`,
+		},
+		{
+			name:     "WHERE tags SELECT single field (EQ tag value2)",
+			query:    `SELECT value FROM "%DB%"."%RP%".cpu WHERE host = 'server02'`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2010-02-28T01:03:37.703820946Z",200]]}]}]}`,
+		},
+
 		// WHERE fields queries
 		{
 			reset:    true,
-			name:     "WHERE fields",
-			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "timestamp": "2015-02-28T01:03:36.703820946Z", "fields": {"alert_id": "alert", "tenant_id": "tenant"}}]}`,
+			name:     "WHERE fields SELECT single field",
+			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "timestamp": "2015-02-28T01:03:36.703820946Z", "fields": {"alert_id": "alert", "tenant_id": "tenant", "_cust": "acme"}}]}`,
 			query:    `SELECT alert_id FROM "%DB%"."%RP%".cpu WHERE alert_id='alert'`,
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","alert_id"],"values":[["2015-02-28T01:03:36.703820946Z","alert"]]}]}]}`,
 		},
 		{
 			name:     "WHERE fields with AND query, all fields in SELECT",
-			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "timestamp": "2015-02-28T01:03:36.703820946Z", "fields": {"alert_id": "alert", "tenant_id": "tenant"}}]}`,
-			query:    `SELECT alert_id,tenant_id FROM "%DB%"."%RP%".cpu WHERE alert_id='alert' AND tenant_id='tenant'`,
-			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","alert_id","tenant_id"],"values":[["2015-02-28T01:03:36.703820946Z","alert","tenant"]]}]}]}`,
+			query:    `SELECT alert_id,tenant_id,_cust FROM "%DB%"."%RP%".cpu WHERE alert_id='alert' AND tenant_id='tenant'`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","alert_id","tenant_id","_cust"],"values":[["2015-02-28T01:03:36.703820946Z","alert","tenant","acme"]]}]}]}`,
 		},
 		{
 			name:     "WHERE fields with AND query, all fields in SELECT, one in parenthesis",
-			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "timestamp": "2015-02-28T01:03:36.703820946Z", "fields": {"alert_id": "alert", "tenant_id": "tenant"}}]}`,
 			query:    `SELECT alert_id,tenant_id FROM "%DB%"."%RP%".cpu WHERE alert_id='alert' AND (tenant_id='tenant')`,
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","alert_id","tenant_id"],"values":[["2015-02-28T01:03:36.703820946Z","alert","tenant"]]}]}]}`,
+		},
+		{
+			name:     "WHERE fields with underscored field",
+			query:    `SELECT alert_id FROM "%DB%"."%RP%".cpu WHERE _cust='acme'`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","alert_id"],"values":[["2015-02-28T01:03:36.703820946Z","alert"]]}]}]}`,
 		},
 		{
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "timestamp": "2009-11-10T23:00:02Z", "fields": {"load": 100}},
@@ -639,6 +659,10 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		{
 			query:    `select load from "%DB%"."%RP%".cpu where load < 80`,
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","load"]}]}]}`,
+		},
+		{
+			query:    `select load from "%DB%"."%RP%".cpu where load != 100`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","load"],"values":[["2009-11-10T23:01:02Z",80]]}]}]}`,
 		},
 		{
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "logs", "timestamp": "2009-11-10T23:00:02Z","fields": {"event": "disk full"}},
@@ -791,6 +815,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		{
 			query:    `DROP MEASUREMENT cpu`,
 			queryDb:  "%DB%",
+			queryOne: true,
 			expected: `{"results":[{}]}`,
 		},
 		{
@@ -982,7 +1007,13 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			reset:    true,
 			name:     "Create database for default retention policy tests",
 			query:    `CREATE DATABASE mydatabase`,
+			queryOne: true,
 			expected: `{"results":[{}]}`,
+		},
+		{
+			name:     "show databases",
+			query:    `SHOW DATABASES`,
+			expected: `{"results":[{"series":[{"name":"databases","columns":["name"],"values":[["mydatabase"],["mydb"]]}]}]}`,
 		},
 		{
 			name:     "Check for default retention policy",
@@ -992,21 +1023,25 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		{
 			name:     "Ensure retention policy with infinite retention can be created",
 			query:    `CREATE RETENTION POLICY rp1 ON mydatabase DURATION INF REPLICATION 1`,
+			queryOne: true,
 			expected: `{"results":[{}]}`,
 		},
 		{
 			name:     "Ensure retention policy with acceptable retention can be created",
 			query:    `CREATE RETENTION POLICY rp2 ON mydatabase DURATION 30d REPLICATION 1`,
+			queryOne: true,
 			expected: `{"results":[{}]}`,
 		},
 		{
 			name:     "Ensure retention policy with unacceptable retention cannot be created",
 			query:    `CREATE RETENTION POLICY rp3 ON mydatabase DURATION 1s REPLICATION 1`,
+			queryOne: true,
 			expected: `{"results":[{"error":"retention policy duration needs to be at least 1h0m0s"}]}`,
 		},
 		{
 			name:     "Ensure database with default retention policy can be deleted",
 			query:    `DROP DATABASE mydatabase`,
+			queryOne: true,
 			expected: `{"results":[{}]}`,
 		},
 
@@ -1018,6 +1053,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		},
 		{
 			query:    `CREATE USER jdoe WITH PASSWORD '1337'`,
+			queryOne: true,
 			expected: `{"results":[{}]}`,
 		},
 		{
@@ -1060,6 +1096,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		},
 		{
 			query:    `DROP USER jdoe`,
+			queryOne: true,
 			expected: `{"results":[{}]}`,
 		},
 		{
@@ -1072,6 +1109,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		{
 			name:     "create continuous query",
 			query:    `CREATE CONTINUOUS QUERY myquery ON %DB% BEGIN SELECT count() INTO measure1 FROM myseries GROUP BY time(10m) END`,
+			queryOne: true,
 			expected: `{"results":[{}]}`,
 		},
 		{
@@ -1097,6 +1135,10 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			continue
 		}
 
+		if tt.skip {
+			t.Logf("SKIPPING TEST %s", tt.name)
+		}
+
 		fmt.Printf("TEST: %d: %s\n", i, name)
 		t.Logf("Running test %d: %s", i, name)
 
@@ -1116,11 +1158,16 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		}
 
 		if tt.query != "" {
+			qNodes := nodes
+			if tt.queryOne {
+				qNodes = qNodes[:1]
+			}
+
 			urlDb := ""
 			if tt.queryDb != "" {
 				urlDb = tt.queryDb
 			}
-			got, ok := queryAndWait(t, nodes, rewriteDbRp(urlDb, database, retention), rewriteDbRp(tt.query, database, retention), rewriteDbRp(tt.expected, database, retention), 3*time.Second)
+			got, ok := queryAndWait(t, qNodes, rewriteDbRp(urlDb, database, retention), rewriteDbRp(tt.query, database, retention), rewriteDbRp(tt.expected, database, retention), 3*time.Second)
 			if !ok {
 				t.Errorf("Test #%d: \"%s\" failed\n  exp: %s\n  got: %s\n", i, name, rewriteDbRp(tt.expected, database, retention), got)
 			}
@@ -1145,8 +1192,6 @@ func TestSingleServer(t *testing.T) {
 }
 
 func Test3NodeServer(t *testing.T) {
-	t.Skip("")
-
 	testName := "3-node server integration"
 	if testing.Short() {
 		t.Skip(fmt.Sprintf("skipping '%s'", testName))
@@ -1304,7 +1349,7 @@ func Test_ServerSingleGraphiteIntegration(t *testing.T) {
 	basePort := 8390
 	testName := "graphite integration"
 	dir := tempfile()
-	now := time.Now().UTC().Round(time.Millisecond)
+	now := time.Now().UTC().Round(time.Second)
 	c, _ := main.NewConfig()
 	g := main.Graphite{
 		Enabled:  true,
@@ -1328,7 +1373,7 @@ func Test_ServerSingleGraphiteIntegration(t *testing.T) {
 
 	t.Log("Writing data")
 	data := []byte(`cpu 23.456 `)
-	data = append(data, []byte(fmt.Sprintf("%d", now.UnixNano()/1000000))...)
+	data = append(data, []byte(fmt.Sprintf("%d", now.Unix()))...)
 	data = append(data, '\n')
 	_, err = conn.Write(data)
 	conn.Close()
@@ -1346,15 +1391,15 @@ func Test_ServerSingleGraphiteIntegration(t *testing.T) {
 	}
 }
 
-func Test_ServerSingleGraphiteIntegration_ZeroDataPoint(t *testing.T) {
+func Test_ServerSingleGraphiteIntegration_FractionalTime(t *testing.T) {
 	if testing.Short() {
 		t.Skip()
 	}
 	nNodes := 1
 	basePort := 8490
-	testName := "graphite integration"
+	testName := "graphite integration fractional time"
 	dir := tempfile()
-	now := time.Now().UTC().Round(time.Millisecond)
+	now := time.Now().UTC().Round(time.Second).Add(500 * time.Millisecond)
 	c, _ := main.NewConfig()
 	g := main.Graphite{
 		Enabled:  true,
@@ -1378,8 +1423,60 @@ func Test_ServerSingleGraphiteIntegration_ZeroDataPoint(t *testing.T) {
 	}
 
 	t.Log("Writing data")
+	data := []byte(`cpu 23.456 `)
+	data = append(data, []byte(fmt.Sprintf("%d", now.Unix()))...)
+	data = append(data, []byte(".5")...)
+	data = append(data, '\n')
+	_, err = conn.Write(data)
+	conn.Close()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	expected := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","cpu"],"values":[["%s",23.456]]}]}]}`, now.Format(time.RFC3339Nano))
+
+	// query and wait for results
+	got, ok := queryAndWait(t, nodes, "graphite", `select * from "graphite"."raw".cpu`, expected, 2*time.Second)
+	if !ok {
+		t.Errorf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
+	}
+}
+
+func Test_ServerSingleGraphiteIntegration_ZeroDataPoint(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+	nNodes := 1
+	basePort := 8590
+	testName := "graphite integration"
+	dir := tempfile()
+	now := time.Now().UTC().Round(time.Second)
+	c, _ := main.NewConfig()
+	g := main.Graphite{
+		Enabled:  true,
+		Database: "graphite",
+		Protocol: "TCP",
+		Port:     2203,
+	}
+	c.Graphites = append(c.Graphites, g)
+
+	t.Logf("Graphite Connection String: %s\n", g.ConnectionString(c.BindAddress))
+	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, basePort, c)
+
+	createDatabase(t, testName, nodes, "graphite")
+	createRetentionPolicy(t, testName, nodes, "graphite", "raw")
+
+	// Connect to the graphite endpoint we just spun up
+	conn, err := net.Dial("tcp", g.ConnectionString(c.BindAddress))
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	t.Log("Writing data")
 	data := []byte(`cpu 0.000 `)
-	data = append(data, []byte(fmt.Sprintf("%d", now.UnixNano()/1000000))...)
+	data = append(data, []byte(fmt.Sprintf("%d", now.Unix()))...)
 	data = append(data, '\n')
 	_, err = conn.Write(data)
 	conn.Close()
@@ -1402,14 +1499,14 @@ func Test_ServerSingleGraphiteIntegration_NoDatabase(t *testing.T) {
 		t.Skip()
 	}
 	nNodes := 1
-	basePort := 8590
+	basePort := 8690
 	testName := "graphite integration"
 	dir := tempfile()
-	now := time.Now().UTC().Round(time.Millisecond)
+	now := time.Now().UTC().Round(time.Second)
 	c, _ := main.NewConfig()
 	g := main.Graphite{
 		Enabled:  true,
-		Port:     2203,
+		Port:     2303,
 		Protocol: "TCP",
 	}
 	c.Graphites = append(c.Graphites, g)
@@ -1426,7 +1523,7 @@ func Test_ServerSingleGraphiteIntegration_NoDatabase(t *testing.T) {
 	}
 
 	// Need to wait for the database to be created
-	expected := `{"results":[{"series":[{"columns":["name"],"values":[["graphite"]]}]}]}`
+	expected := `{"results":[{"series":[{"name":"databases","columns":["name"],"values":[["graphite"]]}]}]}`
 	got, ok := queryAndWait(t, nodes, "graphite", `show databases`, expected, 2*time.Second)
 	if !ok {
 		t.Errorf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
@@ -1441,7 +1538,7 @@ func Test_ServerSingleGraphiteIntegration_NoDatabase(t *testing.T) {
 
 	t.Log("Writing data")
 	data := []byte(`cpu 23.456 `)
-	data = append(data, []byte(fmt.Sprintf("%d", now.UnixNano()/1000000))...)
+	data = append(data, []byte(fmt.Sprintf("%d", now.Unix()))...)
 	data = append(data, '\n')
 	_, err = conn.Write(data)
 	conn.Close()

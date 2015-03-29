@@ -1,8 +1,17 @@
 ## v0.9.0-rc17 [Unreleased]
 
-## Features
-- [#2076](https://github.com/influxdb/influxdb/pull/2076): Seperate stdout and stderr output in init.d script
+### Features
+- [#2076](https://github.com/influxdb/influxdb/pull/2076): Separate stdout and stderr output in init.d script
+- [#2091](https://github.com/influxdb/influxdb/pull/2091): Support disabling snapshot endpoint.
+- [#2081](https://github.com/influxdb/influxdb/pull/2081): Support writing diagnostic data into the internal database.
+- [#2095](https://github.com/influxdb/influxdb/pull/2095): Improved InfluxDB client docs. Thanks @derailed
 
+### Bugfixes
+- [#2093](https://github.com/influxdb/influxdb/pull/2093): Point precision not marshalled correctly. Thanks @derailed
+- [#2084](https://github.com/influxdb/influxdb/pull/2084): Allowing leading underscores in identifiers.
+- [#2080](https://github.com/influxdb/influxdb/pull/2080): Graphite logs in seconds, not milliseconds.
+- [#2101](https://github.com/influxdb/influxdb/pull/2101): SHOW DATABASES should name returned series "databases".
+- [#2104](https://github.com/influxdb/influxdb/pull/2104): Include NEQ when calculating field filters.
 
 ## v0.9.0-rc16 [2015-03-24]
 

@@ -35,8 +35,8 @@ func TestBackupCommand(t *testing.T) {
 	// Create a temp path and remove incremental backups at the end.
 	path := tempfile()
 	defer os.Remove(path)
-	defer os.Remove(path)
-	defer os.Remove(path)
+	defer os.Remove(path + ".0")
+	defer os.Remove(path + ".1")
 
 	// Execute the backup against the mock server.
 	for i := 0; i < 3; i++ {

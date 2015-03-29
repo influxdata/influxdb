@@ -155,6 +155,86 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// SELECT * FROM WHERE field comparisons
+		{
+			s: `SELECT * FROM cpu WHERE load > 100`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: true,
+				Fields:     []*influxql.Field{{Expr: &influxql.Wildcard{}}},
+				Sources:    []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+				Condition: &influxql.BinaryExpr{
+					Op:  influxql.GT,
+					LHS: &influxql.VarRef{Val: "load"},
+					RHS: &influxql.NumberLiteral{Val: 100},
+				},
+			},
+		},
+		{
+			s: `SELECT * FROM cpu WHERE load >= 100`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: true,
+				Fields:     []*influxql.Field{{Expr: &influxql.Wildcard{}}},
+				Sources:    []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+				Condition: &influxql.BinaryExpr{
+					Op:  influxql.GTE,
+					LHS: &influxql.VarRef{Val: "load"},
+					RHS: &influxql.NumberLiteral{Val: 100},
+				},
+			},
+		},
+		{
+			s: `SELECT * FROM cpu WHERE load = 100`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: true,
+				Fields:     []*influxql.Field{{Expr: &influxql.Wildcard{}}},
+				Sources:    []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+				Condition: &influxql.BinaryExpr{
+					Op:  influxql.EQ,
+					LHS: &influxql.VarRef{Val: "load"},
+					RHS: &influxql.NumberLiteral{Val: 100},
+				},
+			},
+		},
+		{
+			s: `SELECT * FROM cpu WHERE load <= 100`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: true,
+				Fields:     []*influxql.Field{{Expr: &influxql.Wildcard{}}},
+				Sources:    []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+				Condition: &influxql.BinaryExpr{
+					Op:  influxql.LTE,
+					LHS: &influxql.VarRef{Val: "load"},
+					RHS: &influxql.NumberLiteral{Val: 100},
+				},
+			},
+		},
+		{
+			s: `SELECT * FROM cpu WHERE load < 100`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: true,
+				Fields:     []*influxql.Field{{Expr: &influxql.Wildcard{}}},
+				Sources:    []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+				Condition: &influxql.BinaryExpr{
+					Op:  influxql.LT,
+					LHS: &influxql.VarRef{Val: "load"},
+					RHS: &influxql.NumberLiteral{Val: 100},
+				},
+			},
+		},
+		{
+			s: `SELECT * FROM cpu WHERE load != 100`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: true,
+				Fields:     []*influxql.Field{{Expr: &influxql.Wildcard{}}},
+				Sources:    []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+				Condition: &influxql.BinaryExpr{
+					Op:  influxql.NEQ,
+					LHS: &influxql.VarRef{Val: "load"},
+					RHS: &influxql.NumberLiteral{Val: 100},
+				},
+			},
+		},
+
 		// SELECT * FROM /<regex>/
 		{
 			s: `SELECT * FROM /cpu.*/`,

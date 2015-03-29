@@ -84,6 +84,12 @@ port = 8086
 # Location for cluster state storage. For storing state persistently across restarts.
 dir = "/tmp/influxdb/development/state"
 
+# Configuration for snapshot endpoint.
+[snapshot]
+enabled = true # Enabled by default if not set.
+bind-address = "127.0.0.1"
+port = 8087
+
 [logging]
 write-tracing = false # If true, enables detailed logging of the write system.
 raft-tracing = false # If true, enables detailed logging of Raft consensus.
@@ -93,6 +99,6 @@ raft-tracing = false # If true, enables detailed logging of Raft consensus.
 # as any other data.
 [statistics]
 enabled = false
-database = "internal"         # The database to which the data is written.
+database = "_internal"         # The database to which the data is written.
 retention-policy = "default"   # The retention policy within the database.
 write-interval = "1m"          # Period between writing the data.

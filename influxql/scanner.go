@@ -28,10 +28,11 @@ func (s *Scanner) Scan() (tok Token, pos Pos, lit string) {
 	ch0, pos := s.r.read()
 
 	// If we see whitespace then consume all contiguous whitespace.
-	// If we see a letter then consume as an ident or reserved word.
+	// If we see a letter, or certain acceptable special characters, then consume
+	// as an ident or reserved word.
 	if isWhitespace(ch0) {
 		return s.scanWhitespace()
-	} else if isLetter(ch0) {
+	} else if isLetter(ch0) || ch0 == '_' {
 		s.r.unread()
 		return s.scanIdent()
 	} else if isDigit(ch0) {
