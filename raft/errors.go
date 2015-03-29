@@ -28,10 +28,6 @@ var (
 	// ErrOutOfDateLog is returned when a candidate's log is not up to date.
 	ErrOutOfDateLog = errors.New("out of date log")
 
-	// ErrUncommittedIndex is returned when a stream is started from an
-	// uncommitted log index.
-	ErrUncommittedIndex = errors.New("uncommitted index")
-
 	// ErrAlreadyVoted is returned when a vote has already been cast for
 	// a different candidate in the same election term.
 	ErrAlreadyVoted = errors.New("already voted")
@@ -50,4 +46,14 @@ var (
 
 	// ErrDuplicateNodeURL is returned when adding a node with an existing URL.
 	ErrDuplicateNodeURL = errors.New("duplicate node url")
+
+	// ErrSnapshotRequired returned when reading from an out-of-order log.
+	// The snapshot will be retrieved on the next reader request.
+	ErrSnapshotRequired = errors.New("snapshot required")
+)
+
+// Internal marker errors.
+var (
+	errClosing       = errors.New("closing marker")
+	errTransitioning = errors.New("transitioning marker")
 )

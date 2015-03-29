@@ -48,19 +48,22 @@ type IndexFSM struct {
 }
 
 // MustApply updates the index.
-func (fsm *IndexFSM) MustApply(entry *LogEntry) { fsm.index = entry.Index }
-
-// Index returns the highest applied index.
-func (fsm *IndexFSM) Index() (uint64, error) { return fsm.index, nil }
-
-// Snapshot writes the FSM's index as the snapshot.
-func (fsm *IndexFSM) Snapshot(w io.Writer) (uint64, error) {
-	return fsm.index, binary.Write(w, binary.BigEndian, fsm.index)
+func (fsm *IndexFSM) Apply(entry *LogEntry) error {
+	fsm.index = entry.Index
+	return nil
 }
 
-// Restore reads the snapshot from the reader.
-func (fsm *IndexFSM) Restore(r io.Reader) error {
-	return binary.Read(r, binary.BigEndian, &fsm.index)
+// Index returns the highest applied index.
+func (fsm *IndexFSM) Index() uint64 { return fsm.index }
+
+// WriteTo writes a snapshot of the FSM to w.
+func (fsm *IndexFSM) WriteTo(w io.Writer) (n int64, err error) {
+	return 0, binary.Write(w, binary.BigEndian, fsm.index)
+}
+
+// ReadFrom reads an FSM snapshot from r.
+func (fsm *IndexFSM) ReadFrom(r io.Reader) (n int64, err error) {
+	return 0, binary.Read(r, binary.BigEndian, &fsm.index)
 }
 
 // tempfile returns the path to a non-existent file in the temp directory.

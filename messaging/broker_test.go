@@ -103,7 +103,7 @@ func TestBroker_Apply(t *testing.T) {
 	}
 
 	// Verify broker high water mark.
-	if index, _ := b.Index(); index != 4 {
+	if index := b.Index(); index != 4 {
 		t.Fatalf("unexpected broker index: %d", index)
 	}
 }
@@ -158,7 +158,7 @@ func TestBroker_Reopen(t *testing.T) {
 	}
 
 	// Verify broker high water mark.
-	if index, _ := b.Index(); index != 4 {
+	if index := b.Index(); index != 4 {
 		t.Fatalf("unexpected broker index: %d", index)
 	}
 
@@ -188,16 +188,14 @@ func TestBroker_Snapshot(t *testing.T) {
 
 	// Snapshot the first broker.
 	var buf bytes.Buffer
-	if index, err := b0.Snapshot(&buf); err != nil {
+	if _, err := b0.WriteTo(&buf); err != nil {
 		t.Fatalf("snapshot error: %s", err)
-	} else if index != 4 {
-		t.Fatalf("unexpected snapshot index: %d", index)
 	}
 
 	// Restore to the second broker.
 	b1 := OpenBroker()
 	defer b1.Close()
-	if err := b1.Restore(&buf); err != nil {
+	if _, err := b1.ReadFrom(&buf); err != nil {
 		t.Fatalf("restore error: %s", err)
 	}
 
@@ -224,7 +222,7 @@ func TestBroker_Snapshot(t *testing.T) {
 	}
 
 	// Verify broker high water mark.
-	if index, _ := b1.Index(); index != 4 {
+	if index := b1.Index(); index != 4 {
 		t.Fatalf("unexpected broker index: %d", index)
 	}
 }
@@ -268,8 +266,9 @@ func TestRaftFSM_MustApply_Message(t *testing.T) {
 	// Encode message and apply it as a log entry.
 	m := messaging.Message{TopicID: 20}
 	data, _ := m.MarshalBinary()
-	fsm.MustApply(&raft.LogEntry{Index: 2, Data: data})
-	if !called {
+	if err := fsm.Apply(&raft.LogEntry{Index: 2, Data: data}); err != nil {
+		t.Fatal(err)
+	} else if !called {
 		t.Fatal("Apply() not called")
 	}
 }
@@ -289,8 +288,9 @@ func TestRaftFSM_MustApply_Internal(t *testing.T) {
 	}
 
 	// Encode message and apply it as a log entry.
-	fsm.MustApply(&raft.LogEntry{Type: raft.LogEntryAddPeer, Index: 2})
-	if !called {
+	if err := fsm.Apply(&raft.LogEntry{Type: raft.LogEntryAddPeer, Index: 2}); err != nil {
+		t.Fatal(err)
+	} else if !called {
 		t.Fatal("Apply() not called")
 	}
 }
@@ -318,9 +318,9 @@ type RaftFSMBroker struct {
 func (b *RaftFSMBroker) Apply(m *messaging.Message) error { return b.ApplyFunc(m) }
 func (b *RaftFSMBroker) SetMaxIndex(index uint64) error   { return b.SetMaxIndexFunc(index) }
 
-func (b *RaftFSMBroker) Index() (uint64, error)               { return 0, nil }
-func (b *RaftFSMBroker) Snapshot(w io.Writer) (uint64, error) { return 0, nil }
-func (b *RaftFSMBroker) Restore(r io.Reader) error            { return nil }
+func (b *RaftFSMBroker) Index() uint64                             { return 0 }
+func (b *RaftFSMBroker) WriteTo(w io.Writer) (n int64, err error)  { return 0, nil }
+func (b *RaftFSMBroker) ReadFrom(r io.Reader) (n int64, err error) { return 0, nil }
 
 // Ensure a list of topics can be read from a directory.
 func TestReadTopics(t *testing.T) {
