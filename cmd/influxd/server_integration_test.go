@@ -1672,6 +1672,163 @@ func Test_ServerSingleGraphiteIntegration_NoDatabase(t *testing.T) {
 	}
 }
 
+func Test_ServerOpenTSDBIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+	nNodes := 1
+	basePort := 8790
+	testName := "opentsdb integration"
+	dir := tempfile()
+	now := time.Now().UTC().Round(time.Second)
+	c, _ := main.NewConfig()
+	o := main.OpenTSDB{
+		Port:            4242,
+		Enabled:         true,
+		Database:        "opentsdb",
+		RetentionPolicy: "raw",
+	}
+	c.OpenTSDB = o
+
+	t.Logf("OpenTSDB Connection String: %s\n", o.ListenAddress(c.BindAddress))
+	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, basePort, c)
+
+	createDatabase(t, testName, nodes, "opentsdb")
+	createRetentionPolicy(t, testName, nodes, "opentsdb", "raw")
+
+	// Connect to the graphite endpoint we just spun up
+	conn, err := net.Dial("tcp", o.ListenAddress(c.BindAddress))
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	t.Log("Writing data")
+	data := []byte(`put cpu `)
+	data = append(data, []byte(fmt.Sprintf("%d", now.Unix()))...)
+	data = append(data, []byte(" 10\n")...)
+	_, err = conn.Write(data)
+	conn.Close()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	expected := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","cpu"],"values":[["%s",10]]}]}]}`, now.Format(time.RFC3339Nano))
+
+	// query and wait for results
+	got, ok := queryAndWait(t, nodes, "opentsdb", `select * from "opentsdb"."raw".cpu`, expected, 2*time.Second)
+	if !ok {
+		t.Errorf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
+	}
+}
+
+func Test_ServerOpenTSDBIntegration_WithTags(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+	nNodes := 1
+	basePort := 8791
+	testName := "opentsdb integration"
+	dir := tempfile()
+	now := time.Now().UTC().Round(time.Second)
+	c, _ := main.NewConfig()
+	o := main.OpenTSDB{
+		Port:            4243,
+		Enabled:         true,
+		Database:        "opentsdb",
+		RetentionPolicy: "raw",
+	}
+	c.OpenTSDB = o
+
+	t.Logf("OpenTSDB Connection String: %s\n", o.ListenAddress(c.BindAddress))
+	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, basePort, c)
+
+	createDatabase(t, testName, nodes, "opentsdb")
+	createRetentionPolicy(t, testName, nodes, "opentsdb", "raw")
+
+	// Connect to the graphite endpoint we just spun up
+	conn, err := net.Dial("tcp", o.ListenAddress(c.BindAddress))
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	t.Log("Writing data")
+	data := []byte(`put cpu `)
+	data = append(data, []byte(fmt.Sprintf("%d", now.Unix()))...)
+	data = append(data, []byte(" 10 tag1=val1 tag2=val2\n")...)
+	data = append(data, `put cpu `...)
+	data = append(data, []byte(fmt.Sprintf("%d", now.Unix()))...)
+	data = append(data, []byte(" 20 tag1=val3 tag2=val4\n")...)
+	_, err = conn.Write(data)
+	conn.Close()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	expected := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","cpu"],"values":[["%s",20]]}]}]}`, now.Format(time.RFC3339Nano))
+
+	// query and wait for results
+	got, ok := queryAndWait(t, nodes, "opentsdb", `select * from "opentsdb"."raw".cpu where tag1='val3'`, expected, 2*time.Second)
+	if !ok {
+		t.Errorf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
+	}
+}
+
+func Test_ServerOpenTSDBIntegration_BadData(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+	nNodes := 1
+	basePort := 8792
+	testName := "opentsdb integration"
+	dir := tempfile()
+	now := time.Now().UTC().Round(time.Second)
+	c, _ := main.NewConfig()
+	o := main.OpenTSDB{
+		Port:            4244,
+		Enabled:         true,
+		Database:        "opentsdb",
+		RetentionPolicy: "raw",
+	}
+	c.OpenTSDB = o
+
+	t.Logf("OpenTSDB Connection String: %s\n", o.ListenAddress(c.BindAddress))
+	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, basePort, c)
+
+	createDatabase(t, testName, nodes, "opentsdb")
+	createRetentionPolicy(t, testName, nodes, "opentsdb", "raw")
+
+	// Connect to the graphite endpoint we just spun up
+	conn, err := net.Dial("tcp", o.ListenAddress(c.BindAddress))
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	t.Log("Writing data")
+	data := []byte("This is bad and invalid input\n")
+	data = append(data, `put cpu `...)
+	data = append(data, []byte(fmt.Sprintf("%d", now.Unix()))...)
+	data = append(data, []byte(" 10 tag1=val1 tag2=val2\n")...)
+	_, err = conn.Write(data)
+	conn.Close()
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	expected := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","cpu"],"values":[["%s",10]]}]}]}`, now.Format(time.RFC3339Nano))
+
+	// query and wait for results
+	got, ok := queryAndWait(t, nodes, "opentsdb", `select * from "opentsdb"."raw".cpu`, expected, 2*time.Second)
+	if !ok {
+		t.Errorf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
+	}
+}
+
 // helper funcs
 
 func errToString(err error) string {

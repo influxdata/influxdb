@@ -16,6 +16,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/influxdb/influxdb/collectd"
 	"github.com/influxdb/influxdb/graphite"
+	"github.com/influxdb/influxdb/opentsdb"
 )
 
 const (
@@ -53,6 +54,9 @@ const (
 
 	// DefaultGraphiteDatabaseName is the default Graphite database if none is specified
 	DefaultGraphiteDatabaseName = "graphite"
+
+	// DefaultOpenTSDBDatabaseName is the default OpenTSDB database if none is specified
+	DefaultOpenTSDBDatabaseName = "opentsdb"
 )
 
 var DefaultSnapshotURL = url.URL{
@@ -90,6 +94,7 @@ type Config struct {
 
 	Graphites []Graphite `toml:"graphite"`
 	Collectd  Collectd   `toml:"collectd"`
+	OpenTSDB  OpenTSDB   `toml:"opentsdb"`
 
 	UDP struct {
 		Enabled     bool   `toml:"enabled"`
@@ -451,3 +456,34 @@ func (g *Graphite) LastEnabled() bool {
 
 // maxInt is the largest integer representable by a word (architeture dependent).
 const maxInt = int64(^uint(0) >> 1)
+
+type OpenTSDB struct {
+	Addr string `toml:"address"`
+	Port int    `toml:"port"`
+
+	Enabled         bool   `toml:"enabled"`
+	Database        string `toml:"database"`
+	RetentionPolicy string `toml:"retention-policy"`
+}
+
+func (o OpenTSDB) DatabaseString() string {
+	if o.Database == "" {
+		return DefaultOpenTSDBDatabaseName
+	}
+	return o.Database
+}
+
+func (o OpenTSDB) ListenAddress(defaultBindAddr string) string {
+	addr := o.Addr
+	// If no address specified, use default.
+	if addr == "" {
+		addr = defaultBindAddr
+	}
+
+	port := o.Port
+	// If no port specified, use default.
+	if port == 0 {
+		port = opentsdb.DefaultPort
+	}
+	return net.JoinHostPort(addr, strconv.Itoa(port))
+}

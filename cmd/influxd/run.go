@@ -19,6 +19,7 @@ import (
 	"github.com/influxdb/influxdb/graphite"
 	"github.com/influxdb/influxdb/httpd"
 	"github.com/influxdb/influxdb/messaging"
+	"github.com/influxdb/influxdb/opentsdb"
 	"github.com/influxdb/influxdb/raft"
 	"github.com/influxdb/influxdb/udp"
 )
@@ -167,6 +168,31 @@ func Run(config *Config, join, version string) (*messaging.Broker, *influxdb.Ser
 			if err != nil {
 				log.Fatalf("failed to start %s Graphite server: %s", c.Protocol, err.Error())
 			}
+		}
+
+		// Spin up any OpenTSDB servers
+		if config.OpenTSDB.Enabled {
+			o := config.OpenTSDB
+			db := o.DatabaseString()
+			laddr := o.ListenAddress(config.BindAddress)
+			policy := o.RetentionPolicy
+
+			if err := s.CreateDatabaseIfNotExists(db); err != nil {
+				log.Fatalf("failed to create database for OpenTSDB server: %s", err.Error())
+			}
+
+			if policy != "" {
+				// Ensure retention policy exists.
+				rp := influxdb.NewRetentionPolicy(policy)
+				if err := s.CreateRetentionPolicyIfNotExists(db, rp); err != nil {
+					log.Fatalf("failed to create retention policy for OpenTSDB: %s", err.Error())
+				}
+			}
+
+			os := opentsdb.NewServer(s, policy, db)
+
+			log.Println("Starting OpenTSDB service on ", laddr)
+			go os.ListenAndServe(laddr)
 		}
 
 		// Start up self-monitoring if enabled.
