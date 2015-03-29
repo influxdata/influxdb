@@ -599,7 +599,8 @@ func (c *Cluster) Apply(data []byte) (uint64, error) {
 			}
 			return index, err
 		}
-		time.Sleep(1 * time.Millisecond)
+		warn("no leader found in cluster, retrying in 100ms...")
+		time.Sleep(100 * time.Millisecond)
 	}
 }
 

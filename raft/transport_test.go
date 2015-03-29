@@ -477,7 +477,7 @@ func (b *streamingBuffer) Read(p []byte) (n int, err error) {
 			}
 
 			// If not closed then wait a bit and try again.
-			time.Sleep(1 * time.Millisecond)
+			time.Sleep(10 * time.Millisecond)
 			continue
 		}
 
@@ -489,6 +489,11 @@ func (b *streamingBuffer) Read(p []byte) (n int, err error) {
 func (b *streamingBuffer) Write(p []byte) (n int, err error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+
+	if b.closed {
+		return 0, fmt.Errorf("streaming buffer closed")
+	}
+
 	return b.buf.Write(p)
 }
 
