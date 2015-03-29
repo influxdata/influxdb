@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/boltdb/bolt"
+	// "github.com/davecgh/go-spew/spew"
 	"github.com/influxdb/influxdb/influxql"
 )
 
@@ -140,15 +141,40 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 				}
 
 				shard := sg.Shards[0]
-				mapper := &LocalMapper{
-					seriesIDs:    t.SeriesIDs,
-					db:           shard.store,
-					job:          job,
-					decoder:      NewFieldCodec(m),
-					filters:      t.Filters,
-					whereFields:  whereFields,
-					selectFields: selectFields,
-					selectTags:   selectTags,
+
+				var mapper influxql.Mapper
+
+				// create either a remote or local mapper for this shard
+				if shard.store == nil {
+					nodes := tx.server.DataNodesByID(shard.DataNodeIDs)
+					if len(nodes) == 0 {
+						return nil, ErrShardNotFound
+					}
+
+					mapper = &RemoteMapper{
+						dataNodes:       nodes,
+						Database:        database,
+						MeasurementName: m.Name,
+						TMin:            tmin.UnixNano(),
+						TMax:            tmax.UnixNano(),
+						SeriesIDs:       t.SeriesIDs,
+						ShardID:         shard.ID,
+						WhereFields:     whereFields,
+						SelectFields:    selectFields,
+						SelectTags:      selectTags,
+					}
+					mapper.(*RemoteMapper).SetFilters(t.Filters)
+				} else {
+					mapper = &LocalMapper{
+						seriesIDs:    t.SeriesIDs,
+						db:           shard.store,
+						job:          job,
+						decoder:      NewFieldCodec(m),
+						filters:      t.Filters,
+						whereFields:  whereFields,
+						selectFields: selectFields,
+						selectTags:   selectTags,
+					}
 				}
 
 				mappers = append(mappers, mapper)
@@ -207,7 +233,6 @@ func (tx *tx) fieldNames(fields []*influxql.Field) []string {
 type LocalMapper struct {
 	cursorsEmpty    bool                   // boolean that lets us know if the cursors are empty
 	decoder         fieldDecoder           // decoder for the raw data bytes
-	tagSet          *influxql.TagSet       // filters to be applied to each series
 	filters         []influxql.Expr        // filters for each series
 	cursors         []*bolt.Cursor         // bolt cursors for each series id
 	seriesIDs       []uint32               // seriesIDs to be read from this shard
@@ -259,7 +284,7 @@ func (l *LocalMapper) Close() {
 }
 
 // Begin will set up the mapper to run the map function for a given aggregate call starting at the passed in time
-func (l *LocalMapper) Begin(c *influxql.Call, startingTime int64) error {
+func (l *LocalMapper) Begin(c *influxql.Call, startingTime int64, limit int) error {
 	// set up the buffers. These ensure that we return data in time order
 	mapFunc, err := influxql.InitializeMapFunc(c)
 	if err != nil {
@@ -269,6 +294,7 @@ func (l *LocalMapper) Begin(c *influxql.Call, startingTime int64) error {
 	l.keyBuffer = make([]int64, len(l.cursors))
 	l.valueBuffer = make([][]byte, len(l.cursors))
 	l.tmin = startingTime
+	l.limit = limit
 
 	// determine if this is a raw data query with a single field, multiple fields, or an aggregate
 	var fieldName string
@@ -353,16 +379,12 @@ func (l *LocalMapper) NextInterval(interval int64) (interface{}, error) {
 	return val, nil
 }
 
-// SetLimit will tell the mapper to only yield that number of points (or to the max time) to Next
-func (l *LocalMapper) SetLimit(limit int) {
-	l.limit = limit
-}
-
 // Next returns the next matching timestamped value for the LocalMapper.
 func (l *LocalMapper) Next() (seriesID uint32, timestamp int64, value interface{}) {
+	limit := l.limit
 	for {
 		// if it's a raw query and we've hit the limit of the number of points to read in, bail
-		if l.isRaw && l.limit == 0 {
+		if l.isRaw && limit == 0 {
 			return uint32(0), int64(0), nil
 		}
 
@@ -434,7 +456,7 @@ func (l *LocalMapper) Next() (seriesID uint32, timestamp int64, value interface{
 
 		// if it's a raw query, we always limit the amount we read in
 		if l.isRaw {
-			l.limit--
+			limit--
 		}
 
 		return seriesID, timestamp, value

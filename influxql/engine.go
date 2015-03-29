@@ -21,6 +21,9 @@ const (
 
 	// Since time is always selected, the column count when selecting only a single other value will be 2
 	SelectColumnCountWithOneValue = 2
+
+	// IgnoredChunkSize is what gets passed into Mapper.Begin for aggregate queries as they don't chunk points out
+	IgnoredChunkSize = 0
 )
 
 // Tx represents a transaction.
@@ -66,6 +69,13 @@ func (m *MapReduceJob) Key() []byte {
 }
 
 func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
+	if err := m.Open(); err != nil {
+		out <- &Row{Err: err}
+		m.Close()
+		return
+	}
+	defer m.Close()
+
 	// if it's a raw query we handle processing differently
 	if m.stmt.IsRawQuery {
 		m.processRawQuery(out, filterEmptyResults)
@@ -199,7 +209,7 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 func (m *MapReduceJob) processRawQuery(out chan *Row, filterEmptyResults bool) {
 	// initialize the mappers
 	for _, mm := range m.Mappers {
-		if err := mm.Begin(nil, m.TMin); err != nil {
+		if err := mm.Begin(nil, m.TMin, m.chunkSize); err != nil {
 			out <- &Row{Err: err}
 			return
 		}
@@ -224,7 +234,6 @@ func (m *MapReduceJob) processRawQuery(out chan *Row, filterEmptyResults bool) {
 				continue
 			}
 
-			mm.SetLimit(m.chunkSize)
 			res, err := mm.NextInterval(m.TMax)
 			if err != nil {
 				out <- &Row{Err: err}
@@ -246,7 +255,7 @@ func (m *MapReduceJob) processRawQuery(out chan *Row, filterEmptyResults bool) {
 			}
 
 			// find the min of the last point in each mapper
-			t := o[len(o)-1].timestamp
+			t := o[len(o)-1].Timestamp
 			if t < min {
 				min = t
 			}
@@ -258,7 +267,7 @@ func (m *MapReduceJob) processRawQuery(out chan *Row, filterEmptyResults bool) {
 			// find the index of the point up to the min
 			ind := len(o)
 			for i, mo := range o {
-				if mo.timestamp > min {
+				if mo.Timestamp > min {
 					ind = i
 					break
 				}
@@ -575,13 +584,13 @@ func (m *MapReduceJob) processRawResults(values []*rawQueryMapOutput) *Row {
 		vals := make([]interface{}, len(selectNames))
 
 		if singleValue {
-			vals[0] = time.Unix(0, v.timestamp).UTC()
-			vals[1] = v.values.(interface{})
+			vals[0] = time.Unix(0, v.Timestamp).UTC()
+			vals[1] = v.Values.(interface{})
 		} else {
-			fields := v.values.(map[string]interface{})
+			fields := v.Values.(map[string]interface{})
 
 			// time is always the first value
-			vals[0] = time.Unix(0, v.timestamp).UTC()
+			vals[0] = time.Unix(0, v.Timestamp).UTC()
 
 			// populate the other values
 			for i := 1; i < len(selectNames); i++ {
@@ -600,7 +609,7 @@ func (m *MapReduceJob) processAggregate(c *Call, reduceFunc ReduceFunc, resultVa
 
 	// intialize the mappers
 	for _, mm := range m.Mappers {
-		if err := mm.Begin(c, m.TMin); err != nil {
+		if err := mm.Begin(c, m.TMin, IgnoredChunkSize); err != nil {
 			return err
 		}
 	}
@@ -646,8 +655,9 @@ type Mapper interface {
 	// Close will close the mapper (either the bolt transaction or the request)
 	Close()
 
-	// Begin will set up the mapper to run the map function for a given aggregate call starting at the passed in time
-	Begin(*Call, int64) error
+	// Begin will set up the mapper to run the map function for a given aggregate call starting at the passed in time.
+	// For raw data queries it will yield to the mapper no more than limit number of points.
+	Begin(aggregate *Call, startingTime int64, limit int) error
 
 	// NextInterval will get the time ordered next interval of the given interval size from the mapper. This is a
 	// forward only operation from the start time passed into Begin. Will return nil when there is no more data to be read.
@@ -655,10 +665,6 @@ type Mapper interface {
 	// must respect natural time boundaries like months or queries that span daylight savings time borders. Note that if
 	// a limit is set on the mapper, the interval passed here should represent the MaxTime in a nano epoch.
 	NextInterval(interval int64) (interface{}, error)
-
-	// Set limit will limit the number of data points yielded on the next interval. If a limit is set, the interval
-	// passed into NextInterval will be used as the MaxTime to scan until.
-	SetLimit(limit int)
 }
 
 type TagSet struct {
@@ -696,6 +702,7 @@ func (p *Planner) Plan(stmt *SelectStatement, chunkSize int) (*Executor, error) 
 	// Replace instances of "now()" with the current time.
 	stmt.Condition = Reduce(stmt.Condition, &nowValuer{Now: now})
 
+	warn("--- ", stmt.String())
 	// Begin an unopened transaction.
 	tx, err := p.DB.Begin()
 	if err != nil {
@@ -746,20 +753,12 @@ type Executor struct {
 }
 
 // Execute begins execution of the query and returns a channel to receive rows.
-func (e *Executor) Execute() (<-chan *Row, error) {
-	// Open transaction.
-	for _, j := range e.jobs {
-		if err := j.Open(); err != nil {
-			e.close()
-			return nil, err
-		}
-	}
-
+func (e *Executor) Execute() <-chan *Row {
 	// Create output channel and stream data in a separate goroutine.
 	out := make(chan *Row, 0)
 	go e.execute(out)
 
-	return out, nil
+	return out
 }
 
 func (e *Executor) close() {

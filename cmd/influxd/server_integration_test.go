@@ -174,9 +174,9 @@ func createDatabase(t *testing.T, testName string, nodes Cluster, database strin
 
 // createRetentionPolicy creates a retetention policy and verifies that the creation was successful.
 // Replication factor is set to equal the number nodes in the cluster.
-func createRetentionPolicy(t *testing.T, testName string, nodes Cluster, database, retention string) {
+func createRetentionPolicy(t *testing.T, testName string, nodes Cluster, database, retention string, replicationFactor int) {
 	t.Logf("Creating retention policy %s for database %s", retention, database)
-	command := fmt.Sprintf("CREATE RETENTION POLICY %s ON %s DURATION 1h REPLICATION %d DEFAULT", retention, database, len(nodes))
+	command := fmt.Sprintf("CREATE RETENTION POLICY %s ON %s DURATION 1h REPLICATION %d DEFAULT", retention, database, replicationFactor)
 	query(t, nodes[:1], "", command, `{"results":[{}]}`)
 }
 
@@ -296,12 +296,12 @@ var limitAndOffset = func(t *testing.T, node *Node, database, retention string) 
 	}
 }
 
-func runTest_rawDataReturnsInOrder(t *testing.T, testName string, nodes Cluster, database, retention string) {
+func runTest_rawDataReturnsInOrder(t *testing.T, testName string, nodes Cluster, database, retention string, replicationFactor int) {
 	t.Logf("Running %s:rawDataReturnsInOrder against %d-node cluster", testName, len(nodes))
 
 	// Start by ensuring database and retention policy exist.
 	createDatabase(t, testName, nodes, database)
-	createRetentionPolicy(t, testName, nodes, database, retention)
+	createRetentionPolicy(t, testName, nodes, database, retention, replicationFactor)
 	numPoints := 500
 	var expected string
 
@@ -362,7 +362,7 @@ func runTests_Errors(t *testing.T, nodes Cluster) {
 }
 
 // runTests tests write and query of data. Setting testNumbers allows only a subset of tests to be run.
-func runTestsData(t *testing.T, testName string, nodes Cluster, database, retention string) {
+func runTestsData(t *testing.T, testName string, nodes Cluster, database, retention string, replicationFactor int) {
 	t.Logf("Running tests against %d-node cluster", len(nodes))
 
 	yesterday := time.Now().Add(-1 * time.Hour * 24).UTC()
@@ -370,7 +370,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 
 	// Start by ensuring database and retention policy exist.
 	createDatabase(t, testName, nodes, database)
-	createRetentionPolicy(t, testName, nodes, database, retention)
+	createRetentionPolicy(t, testName, nodes, database, retention, replicationFactor)
 
 	// The tests. Within these tests %DB% and %RP% will be replaced with the database and retention passed into
 	// this function.
@@ -511,7 +511,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		// Aggregations
 		{
 			reset: true,
-			name:  "aggregations",
+			name:  "xxx aggregations",
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
 				{"name": "cpu", "timestamp": "2000-01-01T00:00:00Z", "tags": {"region": "us-east"}, "fields": {"value": 20}},
 				{"name": "cpu", "timestamp": "2000-01-01T00:00:10Z", "tags": {"region": "us-east"}, "fields": {"value": 30}},
@@ -522,7 +522,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:10Z",30]]}]}]}`,
 		},
 		{
-			name:     "sum aggregation",
+			name:     "xxx sum aggregation",
 			query:    `SELECT sum(value) FROM cpu WHERE time >= '2000-01-01 00:00:05' AND time <= '2000-01-01T00:00:10Z' GROUP BY time(10s), region`,
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","sum"],"values":[["2000-01-01T00:00:00Z",null],["2000-01-01T00:00:10Z",30]]}]}]}`,
@@ -531,13 +531,13 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
 				{"name": "cpu", "timestamp": "2000-01-01T00:00:03Z", "tags": {"region": "us-east"}, "fields": {"otherVal": 20}}
 			]}`,
-			name:     "aggregation with a null field value",
+			name:     "xxx aggregation with a null field value",
 			query:    `SELECT sum(value) FROM cpu GROUP BY region`,
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",50]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",100]]}]}]}`,
 		},
 		{
-			name:     "multiple aggregations",
+			name:     "xxx multiple aggregations",
 			query:    `SELECT sum(value), mean(value) FROM cpu GROUP BY region`,
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","sum","mean"],"values":[["1970-01-01T00:00:00Z",50,25]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","sum","mean"],"values":[["1970-01-01T00:00:00Z",100,100]]}]}]}`,
@@ -1262,7 +1262,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			t.Logf(`reseting for test "%s"`, name)
 			deleteDatabase(t, testName, nodes, database)
 			createDatabase(t, testName, nodes, database)
-			createRetentionPolicy(t, testName, nodes, database, retention)
+			createRetentionPolicy(t, testName, nodes, database, retention, replicationFactor)
 		}
 
 		if tt.write != "" {
@@ -1304,8 +1304,8 @@ func TestSingleServer(t *testing.T) {
 	nodes := createCombinedNodeCluster(t, testName, dir, 1, 8090, nil)
 	defer nodes.Close()
 
-	runTestsData(t, testName, nodes, "mydb", "myrp")
-	runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp")
+	runTestsData(t, testName, nodes, "mydb", "myrp", 1)
+	runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp", 1)
 }
 
 func Test3NodeServer(t *testing.T) {
@@ -1321,9 +1321,26 @@ func Test3NodeServer(t *testing.T) {
 
 	nodes := createCombinedNodeCluster(t, testName, dir, 3, 8190, nil)
 
-	runTestsData(t, testName, nodes, "mydb", "myrp")
-	runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp")
+	runTestsData(t, testName, nodes, "mydb", "myrp", 3)
+	runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp", 3)
 
+}
+
+// ensure that all queries work if there are more nodes in a cluster than the replication factor
+func Test3NodeClusterPartiallyReplicated(t *testing.T) {
+	testName := "3-node server integration"
+	if testing.Short() {
+		t.Skip(fmt.Sprintf("skipping '%s'", testName))
+	}
+	dir := tempfile()
+	defer func() {
+		os.RemoveAll(dir)
+	}()
+
+	nodes := createCombinedNodeCluster(t, testName, dir, 3, 8190, nil)
+
+	runTestsData(t, testName, nodes, "mydb", "myrp", 2)
+	//runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp", 2)
 }
 
 func TestClientLibrary(t *testing.T) {
@@ -1425,7 +1442,7 @@ func TestClientLibrary(t *testing.T) {
 			test.rp = "myrp"
 		}
 		createDatabase(t, testName, nodes, test.db)
-		createRetentionPolicy(t, testName, nodes, test.db, test.rp)
+		createRetentionPolicy(t, testName, nodes, test.db, test.rp, len(nodes))
 		t.Logf("testing %s - %s\n", testName, test.name)
 		for _, w := range test.writes {
 			writeResult, err := c.Write(w.bp)
@@ -1480,7 +1497,7 @@ func Test_ServerSingleGraphiteIntegration(t *testing.T) {
 	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, basePort, c)
 
 	createDatabase(t, testName, nodes, "graphite")
-	createRetentionPolicy(t, testName, nodes, "graphite", "raw")
+	createRetentionPolicy(t, testName, nodes, "graphite", "raw", len(nodes))
 
 	// Connect to the graphite endpoint we just spun up
 	conn, err := net.Dial("tcp", g.ConnectionString(c.BindAddress))
@@ -1531,7 +1548,7 @@ func Test_ServerSingleGraphiteIntegration_FractionalTime(t *testing.T) {
 	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, basePort, c)
 
 	createDatabase(t, testName, nodes, "graphite")
-	createRetentionPolicy(t, testName, nodes, "graphite", "raw")
+	createRetentionPolicy(t, testName, nodes, "graphite", "raw", len(nodes))
 
 	// Connect to the graphite endpoint we just spun up
 	conn, err := net.Dial("tcp", g.ConnectionString(c.BindAddress))
@@ -1583,7 +1600,7 @@ func Test_ServerSingleGraphiteIntegration_ZeroDataPoint(t *testing.T) {
 	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, basePort, c)
 
 	createDatabase(t, testName, nodes, "graphite")
-	createRetentionPolicy(t, testName, nodes, "graphite", "raw")
+	createRetentionPolicy(t, testName, nodes, "graphite", "raw", len(nodes))
 
 	// Connect to the graphite endpoint we just spun up
 	conn, err := net.Dial("tcp", g.ConnectionString(c.BindAddress))
