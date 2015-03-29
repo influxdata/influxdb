@@ -67,35 +67,96 @@ const (
 	Leader
 )
 
-// Log represents a replicated log of commands.
+// Log represents a replicated log of commands based on the Raft protocol.
+//
+// The log can exist in one of four states that transition based on the following rules:
+//
+//            ┌───────────┐
+//         ┌─▶│  Stopped  │
+//         │  └───────────┘
+//         │        │
+//         │        ▼
+//         │  ┌───────────┐
+//         ├──│ Follower  │◀─┐
+//         │  └───────────┘  │
+//   close │        │        │
+//    log  │        ▼        │
+//         │  ┌───────────┐  │
+//         ├──│ Candidate │──┤ higher
+//         │  └───────────┘  │  term
+//         │        │        │
+//         │        ▼        │
+//         │  ┌───────────┐  │
+//         └──│  Leader   │──┘
+//            └───────────┘
+//
+//   - Stopped moves to Follower when initialized or joined.
+//   - Follower moves to Candidate after election timeout.
+//   - Candidate moves to Leader after a quorum of votes.
+//   - Leader or Candidate moves to Follower if higher term seen.
+//   - Any state moves to Stopped if log is closed.
 type Log struct {
 	mu sync.Mutex
 
-	id     uint64  // log identifier
-	path   string  // data directory
-	config *Config // cluster configuration
+	// The directory where the id, term and config are written to.
+	path string
 
-	state      State          // current node state
-	heartbeats chan heartbeat // incoming heartbeat channel
-	terms      chan uint64    // incoming channel of newer terms
+	// The log identifier. This is set when the log initializes
+	// or when the log joins to another cluster.
+	id uint64
 
-	lastLogTerm  uint64 // highest term in the log
-	lastLogIndex uint64 // highest index in the log
+	// Config stores all nodes in the cluster.
+	config *Config
 
-	term        uint64    // current election term
-	leaderID    uint64    // the current leader
-	votedFor    uint64    // candidate voted for in current election term
-	lastContact time.Time // last contact from the leader
+	// The ID of the current leader.
+	leaderID uint64
 
-	commitIndex uint64 // highest entry to be committed
+	// Current state of the log.
+	// The following state transitions can occur:
+	state State
 
-	reader  io.ReadCloser // incoming stream from leader
-	writers []*logWriter  // outgoing streams to followers
-
+	// In-memory log entries.
+	// Followers replicate these entries from the Leader.
+	// Leader appends to the end of these entries.
+	// Truncated and trimmed as needed.
 	entries []*LogEntry
 
-	wg      sync.WaitGroup // pending goroutines
-	closing chan struct{}  // close notification
+	// Highest term & index in the log.
+	// These are initialially read from the id/term files but otherwise
+	// should always match the index/term of the last 'entries' element.
+	lastLogTerm  uint64
+	lastLogIndex uint64
+
+	// Highest entry to be committed.
+	// An entry can be committed once a quorum of nodes have received the entry.
+	// Because streaming raft asyncronously replicates entries, the lastLogIndex
+	// may be lower than the commitIndex. The commitIndex is always higher than
+	// or equal to the FSM.Index().
+	commitIndex uint64
+
+	// The current term the log is in. This increases when the log starts a
+	// new election term or when the log sees a higher election term.
+	term uint64
+
+	// The node this log voted for in the current term.
+	votedFor uint64
+
+	// Incoming stream from the leader.
+	// This is disconnected when the leader is deposed or the log changes state.
+	reader io.ReadCloser
+
+	// Outgoing streams to the followers to replicate the log.
+	// These are closed when the leader is deposed.
+	writers []*logWriter // outgoing streams to followers
+
+	// Incoming heartbeats and term changes go to these channels
+	// and are picked up by the current state.
+	heartbeats chan heartbeat
+	terms      chan uint64
+
+	// Close notification and wait.
+	wg      sync.WaitGroup
+	closing chan struct{}
 
 	// Network address to the reach the log.
 	url url.URL
@@ -147,7 +208,11 @@ func NewLog() *Log {
 
 // Path returns the data path of the Raft log.
 // Returns an empty string if the log is closed.
-func (l *Log) Path() string { return l.path }
+func (l *Log) Path() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.path
+}
 
 // URL returns the URL for the log.
 func (l *Log) URL() url.URL {
@@ -160,11 +225,7 @@ func (l *Log) URL() url.URL {
 func (l *Log) SetURL(u url.URL) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-
-	if l.opened() {
-		panic("url cannot be set while log is open")
-	}
-
+	assert(!l.opened(), "url cannot be set while log is open")
 	l.url = u
 }
 
@@ -246,69 +307,82 @@ func (l *Log) Config() *Config {
 // Open initializes the log from a path.
 // If the path does not exist then it is created.
 func (l *Log) Open(path string) error {
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	var closing chan struct{}
+	var config *Config
+	if err := func() error {
+		l.mu.Lock()
+		defer l.mu.Unlock()
 
-	// Validate initial log state.
-	if l.opened() {
-		return ErrOpen
-	}
+		// Validate initial log state.
+		if l.opened() {
+			return ErrOpen
+		}
 
-	// Create directory, if not exists.
-	if err := os.MkdirAll(path, 0755); err != nil {
+		// Create directory, if not exists.
+		if err := os.MkdirAll(path, 0755); err != nil {
+			return err
+		}
+		l.path = path
+
+		// Initialize log identifier.
+		id, err := l.readID()
+		if err != nil {
+			return fmt.Errorf("read id: %s", err)
+		}
+		l.setID(id)
+
+		// Initialize log term.
+		term, err := l.readTerm()
+		if err != nil {
+			return fmt.Errorf("read term: %s", err)
+		}
+		l.term = term
+		l.votedFor = 0
+		l.lastLogTerm = term
+
+		// Read config.
+		c, err := l.readConfig()
+		if err != nil {
+			return fmt.Errorf("read config: %s", err)
+		}
+		l.config = c
+
+		// Determine last applied index from FSM.
+		index := l.FSM.Index()
+		l.tracef("Open: fsm: index=%d", index)
+		l.lastLogIndex = index
+		l.commitIndex = index
+
+		// Start goroutine to apply logs.
+		l.wg.Add(1)
+		l.closing = make(chan struct{})
+		go l.applier(l.closing)
+
+		if l.config != nil {
+			l.Logger.Printf("log open: created at %s, with ID %d, term %d, last applied index of %d", path, l.id, l.term, l.lastLogIndex)
+		}
+
+		// Retrieve variables to use while starting state loop.
+		config = l.config
+		closing = l.closing
+
+		return nil
+	}(); err == ErrOpen {
 		return err
-	}
-	l.path = path
-
-	// Initialize log identifier.
-	id, err := l.readID()
-	if err != nil {
+	} else if err != nil {
 		_ = l.close()
 		return err
 	}
-	l.setID(id)
-
-	// Initialize log term.
-	term, err := l.readTerm()
-	if err != nil {
-		_ = l.close()
-		return err
-	}
-	l.term = term
-	l.votedFor = 0
-	l.lastLogTerm = term
-
-	// Read config.
-	c, err := l.readConfig()
-	if err != nil {
-		_ = l.close()
-		return fmt.Errorf("read config: %s", err)
-	}
-	l.config = c
-
-	// Determine last applied index from FSM.
-	index := l.FSM.Index()
-	l.tracef("Open: fsm: index=%d", index)
-	l.lastLogIndex = index
-	l.commitIndex = index
-
-	// Start goroutine to apply logs.
-	l.wg.Add(1)
-	l.closing = make(chan struct{})
-	go l.applier(l.closing)
 
 	// If a log exists then start the state loop.
-	if c != nil {
-		l.Logger.Printf("log open: created at %s, with ID %d, term %d, last applied index of %d",
-			path, l.id, l.term, l.lastLogIndex)
-
+	if config != nil {
 		// If the config only has one node then start it as the leader.
 		// Otherwise start as a follower.
-		if len(c.Nodes) == 1 && c.Nodes[0].ID == l.id {
+		if len(config.Nodes) == 1 && config.Nodes[0].ID == l.ID() {
 			l.Logger.Println("log open: promoting to leader immediately")
-			l.startStateLoop(l.closing, Leader)
+			l.startStateLoop(closing, Leader)
 		} else {
-			l.startStateLoop(l.closing, Follower)
+			l.startStateLoop(closing, Follower)
 		}
 	} else {
 		l.Logger.Printf("log pending: waiting for initialization or join")
@@ -462,7 +536,7 @@ func (l *Log) writeConfig(config *Config) error {
 // Returns an error if log data already exists.
 func (l *Log) Initialize() error {
 	var config *Config
-	err := func() error {
+	if err := func() error {
 		l.mu.Lock()
 		defer l.mu.Unlock()
 
@@ -499,17 +573,16 @@ func (l *Log) Initialize() error {
 		l.lastLogTerm = term
 		l.leaderID = l.id
 
-		// Begin state loop as leader.
-		l.startStateLoop(l.closing, Leader)
-
-		l.Logger.Printf("log initialize: promoted to 'leader' with cluster ID %d, log ID %d, term %d",
-			config.ClusterID, l.id, l.term)
-
 		return nil
-	}()
-	if err != nil {
+	}(); err != nil {
 		return err
 	}
+
+	// Begin state loop as leader.
+	l.startStateLoop(l.closing, Leader)
+
+	l.Logger.Printf("log initialize: promoted to 'leader' with cluster ID %d, log ID %d, term %d",
+		config.ClusterID, l.id, l.term)
 
 	// Set initial configuration.
 	var buf bytes.Buffer
@@ -621,20 +694,26 @@ func (l *Log) Join(u url.URL) error {
 	l.tracef("Join: confirmed")
 
 	// Lock once the join request is returned.
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	if err := func() error {
+		l.mu.Lock()
+		defer l.mu.Unlock()
 
-	// Write identifier.
-	if err := l.writeID(id); err != nil {
+		// Write identifier.
+		if err := l.writeID(id); err != nil {
+			return err
+		}
+		l.setID(id)
+
+		// Write config.
+		if err := l.writeConfig(config); err != nil {
+			return err
+		}
+		l.config = config
+
+		return nil
+	}(); err != nil {
 		return err
 	}
-	l.setID(id)
-
-	// Write config.
-	if err := l.writeConfig(config); err != nil {
-		return err
-	}
-	l.config = config
 
 	// Begin state loop as follower.
 	l.startStateLoop(l.closing, Follower)
@@ -672,14 +751,18 @@ func (l *Log) startStateLoop(closing <-chan struct{}, state State) {
 func (l *Log) stateLoop(closing <-chan struct{}, state State, stateChanged chan struct{}) {
 	defer l.wg.Done()
 
-	l.Logger.Printf("log state change: %s => %s", l.state, state)
-	l.state = state
-	close(stateChanged)
-
 	for {
 		// Transition to new state.
 		l.Logger.Printf("log state change: %s => %s", l.state, state)
+		l.mu.Lock()
 		l.state = state
+		l.mu.Unlock()
+
+		// Notify caller on first state changes.
+		if stateChanged != nil {
+			close(stateChanged)
+			stateChanged = nil
+		}
 
 		// Remove previous reader, if one exists.
 		if l.reader != nil {
@@ -753,9 +836,9 @@ func (l *Log) readFromLeader(wg *sync.WaitGroup, transitioning <-chan struct{}) 
 		default:
 		}
 
-		// Retrieve the term, last commit index, & leader URL.
+		// Retrieve the term, last log index, & leader URL.
 		l.mu.Lock()
-		id, commitIndex, term := l.id, l.commitIndex, l.term
+		id, lastLogIndex, term := l.id, l.lastLogIndex, l.term
 		_, u := l.leader()
 		l.mu.Unlock()
 
@@ -767,8 +850,8 @@ func (l *Log) readFromLeader(wg *sync.WaitGroup, transitioning <-chan struct{}) 
 		}
 
 		// Connect to leader.
-		l.tracef("readFromLeader: read from: %s, id=%d, term=%d, index=%d", u.String(), id, term, commitIndex)
-		r, err := l.Transport.ReadFrom(u, id, term, commitIndex)
+		l.tracef("readFromLeader: read from: %s, id=%d, term=%d, index=%d", u.String(), id, term, lastLogIndex)
+		r, err := l.Transport.ReadFrom(u, id, term, lastLogIndex)
 		if err != nil {
 			l.Logger.Printf("connect stream: %s", err)
 		}
@@ -787,8 +870,9 @@ func (l *Log) truncate() {
 	}
 
 	entmin := l.entries[0].Index
+	l.tracef("trunc: min=%d, commit=%d", l.commitIndex, entmin)
 	assert(l.commitIndex >= entmin, "commit index before lowest entry: commit=%d, entmin=%d", l.commitIndex, entmin)
-	l.entries = l.entries[:l.commitIndex-entmin]
+	l.entries = l.entries[:l.commitIndex-entmin-1]
 	l.lastLogIndex = l.commitIndex
 }
 
@@ -953,7 +1037,7 @@ func (l *Log) leaderLoop(closing <-chan struct{}) State {
 	}
 }
 
-// heartbeater continuoally sends heartbeats to all peers.
+// heartbeater continually sends heartbeats to all peers.
 func (l *Log) heartbeater(term uint64, committed chan uint64, wg *sync.WaitGroup, transitioning <-chan struct{}) {
 	defer wg.Done()
 
@@ -973,7 +1057,7 @@ func (l *Log) heartbeater(term uint64, committed chan uint64, wg *sync.WaitGroup
 		return
 	}
 
-	l.tracef("heartbeater: start: n=%d", len(config.Nodes))
+	l.tracef("send heartbeat: start: n=%d", len(config.Nodes))
 
 	// Send heartbeats to all peers.
 	peerIndices := make(chan uint64, len(config.Nodes))
@@ -982,11 +1066,9 @@ func (l *Log) heartbeater(term uint64, committed chan uint64, wg *sync.WaitGroup
 			continue
 		}
 		go func(n *ConfigNode) {
-			//l.tracef("heartbeater: send: url=%s, term=%d, commit=%d, leaderID=%d", n.URL, term, commitIndex, leaderID)
 			peerIndex, err := l.Transport.Heartbeat(n.URL, term, commitIndex, leaderID)
-			//l.tracef("heartbeater: recv: url=%s, peerIndex=%d, err=%s", n.URL, peerIndex, err)
 			if err != nil {
-				l.Logger.Printf("heartbeater: error: %s", err)
+				l.Logger.Printf("send heartbeat: error: %s", err)
 				return
 			}
 			peerIndices <- peerIndex
@@ -1000,10 +1082,10 @@ func (l *Log) heartbeater(term uint64, committed chan uint64, wg *sync.WaitGroup
 	for {
 		select {
 		case <-transitioning:
-			l.tracef("heartbeater: transitioning")
+			l.tracef("send heartbeat: transitioning")
 			return
 		case peerIndex := <-peerIndices:
-			l.tracef("heartbeater: index: idx=%d, idxs=%+v", peerIndex, indexes)
+			l.tracef("send heartbeat: index: idx=%d, idxs=%+v", peerIndex, indexes)
 			indexes = append(indexes, peerIndex) // collect responses
 		case ch := <-after:
 			// Once we have enough indices then return the lowest index
@@ -1013,9 +1095,9 @@ func (l *Log) heartbeater(term uint64, committed chan uint64, wg *sync.WaitGroup
 				// Return highest index reported by quorum.
 				sort.Sort(sort.Reverse(uint64Slice(indexes)))
 				committed <- indexes[quorumN-1]
-				l.tracef("heartbeater: commit: idx=%d, idxs=%+v", commitIndex, indexes)
+				l.tracef("send heartbeat: commit: idx=%d, idxs=%+v", commitIndex, indexes)
 			} else {
-				l.tracef("heartbeater: no quorum: idxs=%+v", indexes)
+				l.tracef("send heartbeat: no quorum: idxs=%+v", indexes)
 				close(committed)
 			}
 			close(ch)
@@ -1050,16 +1132,13 @@ func (l *Log) internalApply(typ LogEntryType, command []byte) (index uint64, err
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	// Do not apply if this node is closed.
 	// Do not apply if this node is not the leader.
-	if l.state == Stopped {
-		return 0, ErrClosed
-	} else if l.state != Leader {
+	if l.state != Leader {
 		return 0, ErrNotLeader
 	}
 
 	// Create log entry.
-	e := LogEntry{
+	e := &LogEntry{
 		Type:  typ,
 		Index: l.lastLogIndex + 1,
 		Term:  l.term,
@@ -1068,7 +1147,9 @@ func (l *Log) internalApply(typ LogEntryType, command []byte) (index uint64, err
 	index = e.Index
 
 	// Append to the log.
-	l.append(&e)
+	if err := l.append(e); err != nil {
+		return 0, fmt.Errorf("append: %s", err)
+	}
 
 	// If there is no config or only one node then move commit index forward.
 	if l.config == nil || len(l.config.Nodes) <= 1 {
@@ -1129,9 +1210,16 @@ func (l *Log) waitUncommitted(index uint64) error {
 }
 
 // append adds a log entry to the list of entries.
-func (l *Log) append(e *LogEntry) {
-	//l.tracef("append: idx=%d, prev=%d", e.Index, l.lastLogIndex)
-	assert(e.Index == l.lastLogIndex+1, "non-contiguous log index(%d): idx=%d, prev=%d", l.id, e.Index, l.lastLogIndex)
+func (l *Log) append(e *LogEntry) error {
+	// Exit if log is not in a running state.
+	// Ignore replayed entries.
+	if l.state == Stopped {
+		return ErrClosed
+	} else if e.Index <= l.lastLogIndex {
+		return nil
+	}
+
+	assert(e.Index == l.lastLogIndex+1, "log entry skipped(%d): idx=%d, prev=%d", l.id, e.Index, l.lastLogIndex)
 
 	// Encode entry to a byte slice.
 	buf := make([]byte, logEntryHeaderSize+len(e.Data))
@@ -1144,6 +1232,13 @@ func (l *Log) append(e *LogEntry) {
 	l.lastLogTerm = e.Term
 
 	// Write to tailing writers.
+	l.appendToWriters(buf)
+
+	return nil
+}
+
+// appendToWriters writes a byte slice to all attached writers.
+func (l *Log) appendToWriters(buf []byte) {
 	for i := 0; i < len(l.writers); i++ {
 		w := l.writers[i]
 
@@ -1380,13 +1475,13 @@ func (l *Log) Heartbeat(term, commitIndex, leaderID uint64) (currentIndex uint64
 
 	// Check if log is closed.
 	if !l.opened() || l.state == Stopped {
-		l.tracef("Heartbeat: closed")
+		l.tracef("recv heartbeat: closed")
 		return 0, ErrClosed
 	}
 
 	// Ignore if the incoming term is less than the log's term.
 	if term < l.term {
-		l.tracef("HB: stale term, ignore: %d < %d", term, l.term)
+		l.tracef("recv heartbeat: stale term, ignore: %d < %d", term, l.term)
 		return l.lastLogIndex, ErrStaleTerm
 	}
 
@@ -1396,7 +1491,7 @@ func (l *Log) Heartbeat(term, commitIndex, leaderID uint64) (currentIndex uint64
 	default:
 	}
 
-	l.tracef("HB: (term=%d, commit=%d, leaderID: %d) (index=%d, term=%d)", term, commitIndex, leaderID, l.lastLogIndex, l.term)
+	l.tracef("recv heartbeat: (term=%d, commit=%d, leaderID: %d) (index=%d, term=%d)", term, commitIndex, leaderID, l.lastLogIndex, l.term)
 	return l.lastLogIndex, nil
 }
 
@@ -1457,6 +1552,54 @@ func (l *Log) WriteEntriesTo(w io.Writer, id, term, index uint64) error {
 	return nil
 }
 
+// validates writer and adds it to the list of writers.
+func (l *Log) initWriter(w io.Writer, id, term, index uint64) (*logWriter, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	// Check if log is closed.
+	if !l.opened() {
+		return nil, ErrClosed
+	}
+
+	// Do not begin streaming if:
+	//   1. Node is not the leader.
+	//   2. Term is after current term.
+	//   3. Index is after the last entry's index.
+	if l.state != Leader {
+		return nil, ErrNotLeader
+	} else if term > l.term {
+		select {
+		case l.terms <- term:
+		default:
+		}
+		return nil, ErrNotLeader
+	} else if index > l.lastLogIndex {
+		return nil, fmt.Errorf("entry not found: follower=%d, leader=%d", index, l.lastLogIndex)
+	}
+
+	// Write configuration.
+	var buf bytes.Buffer
+	err := NewConfigEncoder(&buf).Encode(l.config)
+	assert(err == nil, "marshal config error: %s", err)
+	enc := NewLogEntryEncoder(w)
+	if err := enc.Encode(&LogEntry{Type: logEntryConfig, Data: buf.Bytes()}); err != nil {
+		return nil, err
+	}
+	flushWriter(w)
+
+	// Wrap writer and append to log to tail.
+	writer := &logWriter{
+		Writer:        w,
+		id:            id,
+		snapshotIndex: l.FSM.Index(),
+		done:          make(chan struct{}),
+	}
+	l.writers = append(l.writers, writer)
+
+	return writer, nil
+}
+
 func (l *Log) writeTo(writer *logWriter, id, term, index uint64) error {
 	// Extract the underlying writer.
 	w := writer.Writer
@@ -1483,56 +1626,6 @@ func (l *Log) writeTo(writer *logWriter, id, term, index uint64) error {
 	}
 
 	return nil
-}
-
-// validates writer and adds it to the list of writers.
-func (l *Log) initWriter(w io.Writer, id, term, index uint64) (*logWriter, error) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	// Check if log is closed.
-	if !l.opened() {
-		return nil, ErrClosed
-	}
-
-	// Do not begin streaming if:
-	//   1. Node is not the leader.
-	//   2. Term is after current term.
-	//   3. Index is after the commit index.
-	if l.state != Leader {
-		return nil, ErrNotLeader
-	} else if term > l.term {
-		select {
-		case l.terms <- term:
-		default:
-		}
-		return nil, ErrNotLeader
-	} else if index > l.lastLogIndex {
-		return nil, ErrUncommittedIndex
-	}
-
-	// OPTIMIZE(benbjohnson): Create buffered output to prevent blocking.
-
-	// Write configuration.
-	var buf bytes.Buffer
-	err := NewConfigEncoder(&buf).Encode(l.config)
-	assert(err == nil, "marshal config error: %s", err)
-	enc := NewLogEntryEncoder(w)
-	if err := enc.Encode(&LogEntry{Type: logEntryConfig, Data: buf.Bytes()}); err != nil {
-		return nil, err
-	}
-	flushWriter(w)
-
-	// Wrap writer and append to log to tail.
-	writer := &logWriter{
-		Writer:        w,
-		id:            id,
-		snapshotIndex: l.FSM.Index(),
-		done:          make(chan struct{}),
-	}
-	l.writers = append(l.writers, writer)
-
-	return writer, nil
 }
 
 // replays entries since the snapshot's index and begins tailing the log.
@@ -1606,78 +1699,80 @@ func (l *Log) ReadFrom(r io.ReadCloser) error {
 	dec := NewLogEntryDecoder(r)
 	for {
 		// Decode single entry.
-		var e LogEntry
-		if err := dec.Decode(&e); err == io.EOF {
+		e := &LogEntry{}
+		if err := dec.Decode(e); err == io.EOF {
 			return nil
 		} else if err != nil {
 			return err
 		}
 
-		// If this is a config entry then update the config.
-		if e.Type == logEntryConfig {
+		// Apply special config & snapshot entries immediately.
+		// All other entries get appended to the log.
+		switch e.Type {
+		case logEntryConfig:
 			l.tracef("ReadFrom: config")
-
-			config := &Config{}
-			if err := NewConfigDecoder(bytes.NewReader(e.Data)).Decode(config); err != nil {
-				return err
+			if err := l.applyConfigLogEntry(e); err != nil {
+				return fmt.Errorf("apply config log entry: %s", err)
 			}
 
-			l.mu.Lock()
-			if err := l.writeConfig(config); err != nil {
-				l.mu.Unlock()
-				return err
+		case logEntrySnapshot:
+			if err := l.applySnapshotLogEntry(e, r); err != nil {
+				return fmt.Errorf("apply snapshot log entry: %s", err)
 			}
-			l.config = config
-			l.mu.Unlock()
-			continue
-		}
 
-		// If this is a snapshot then load it.
-		if e.Type == logEntrySnapshot {
-			l.tracef("ReadFrom: snapshot")
-
+		default:
+			// Append entry to the log.
 			if err := func() error {
 				l.mu.Lock()
 				defer l.mu.Unlock()
-
-				if _, err := l.FSM.ReadFrom(r); err != nil {
-					return err
+				if err := l.append(e); err != nil {
+					return fmt.Errorf("append: %s", err)
 				}
-
-				// Update the indicies & clear the entries.
-				index := l.FSM.Index()
-				l.lastLogIndex = index
-				l.commitIndex = index
-				l.entries = nil
 
 				return nil
 			}(); err != nil {
-				l.tracef("ReadFrom: restore error: %s", err)
 				return err
 			}
-
-			l.tracef("ReadFrom: snapshot: restored")
-
-			// // Read the snapshot index off the end of the snapshot.
-			// var index uint64
-			// if err := binary.Read(r, binary.BigEndian, &index); err != nil {
-			// 	return fmt.Errorf("read snapshot index: %s", err)
-			// }
-			// l.tracef("ReadFrom: snapshot: index=%d", index)
-
-			continue
 		}
-
-		// Append entry to the log.
-		l.mu.Lock()
-		if l.state == Stopped {
-			l.mu.Unlock()
-			return nil
-		}
-		//l.tracef("ReadFrom: entry: index=%d / prev=%d / commit=%d", e.Index, l.lastLogIndex, l.commitIndex)
-		l.append(&e)
-		l.mu.Unlock()
 	}
+}
+
+// applyConfigLogEntry updates the config for a config log entry.
+func (l *Log) applyConfigLogEntry(e *LogEntry) error {
+	// Parse configuration from the log entry.
+	config := &Config{}
+	if err := NewConfigDecoder(bytes.NewReader(e.Data)).Decode(config); err != nil {
+		return fmt.Errorf("decode config: %s", err)
+	}
+
+	// Write the configuration to disk.
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if err := l.writeConfig(config); err != nil {
+		return fmt.Errorf("write config: %s", err)
+	}
+	l.config = config
+
+	return nil
+}
+
+// applySnapshotLogEntry restores a snapshot log entry.
+func (l *Log) applySnapshotLogEntry(e *LogEntry, r io.Reader) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	// Let the FSM rebuild its state from the data in r.
+	if _, err := l.FSM.ReadFrom(r); err != nil {
+		return fmt.Errorf("fsm restore: %s", err)
+	}
+
+	// Update the indicies & clear the entries.
+	index := l.FSM.Index()
+	l.lastLogIndex = index
+	l.commitIndex = index
+	l.entries = nil
+
+	return nil
 }
 
 // Initializes the ReadFrom() call under a lock and swaps out the readers.

@@ -10,6 +10,8 @@ import (
 	"math/rand"
 	"net/url"
 	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -23,6 +25,121 @@ func TestLog_Open_ErrOpen(t *testing.T) {
 	defer l.Close()
 	if err := l.Open(tempfile()); err != raft.ErrOpen {
 		t.Fatal("expected error")
+	}
+}
+
+// Ensure that opening a log to an invalid path returns an error.
+func TestLog_Open_ErrMkdir(t *testing.T) {
+	path := tempfile()
+	os.MkdirAll(path, 0)
+	defer os.Remove(path)
+
+	l := NewLog(url.URL{Host: "log0"})
+	l.Log.FSM = &FSM{}
+	defer l.Close()
+	if err := l.Open(filepath.Join(path, "x")); err == nil || !strings.Contains(err.Error(), `permission denied`) {
+		t.Fatal(err)
+	}
+}
+
+// Ensure that opening a log with an inaccessible ID path returns an error.
+func TestLog_Open_ErrInaccessibleID(t *testing.T) {
+	path := tempfile()
+	MustWriteFile(filepath.Join(path, "id"), []byte(`1`))
+	MustChmod(filepath.Join(path, "id"), 0)
+	defer os.Remove(path)
+
+	l := NewLog(url.URL{Host: "log0"})
+	l.Log.FSM = &FSM{}
+	defer l.Close()
+	if err := l.Open(path); err == nil || !strings.Contains(err.Error(), `permission denied`) {
+		t.Fatal(err)
+	}
+}
+
+// Ensure that opening a log with an invalid ID returns an error.
+func TestLog_Open_ErrInvalidID(t *testing.T) {
+	path := tempfile()
+	MustWriteFile(filepath.Join(path, "id"), []byte(`X`))
+	defer os.Remove(path)
+
+	l := NewLog(url.URL{Host: "log0"})
+	l.Log.FSM = &FSM{}
+	defer l.Close()
+	if err := l.Open(path); err == nil || err.Error() != `read id: strconv.ParseUint: parsing "X": invalid syntax` {
+		t.Fatal(err)
+	}
+}
+
+// Ensure that opening a log with an inaccesible term path returns an error.
+func TestLog_Open_ErrInaccessibleTerm(t *testing.T) {
+	path := tempfile()
+	MustWriteFile(filepath.Join(path, "id"), []byte(`1`))
+	MustWriteFile(filepath.Join(path, "term"), []byte(`1`))
+	MustChmod(filepath.Join(path, "term"), 0)
+	defer os.Remove(path)
+
+	l := NewLog(url.URL{Host: "log0"})
+	l.Log.FSM = &FSM{}
+	defer l.Close()
+	if err := l.Open(path); err == nil || !strings.Contains(err.Error(), `permission denied`) {
+		t.Fatal(err)
+	}
+}
+
+// Ensure that opening a log with an invalid term returns an error.
+func TestLog_Open_ErrInvalidTerm(t *testing.T) {
+	path := tempfile()
+	MustWriteFile(filepath.Join(path, "id"), []byte(`1`))
+	MustWriteFile(filepath.Join(path, "term"), []byte(`X`))
+	defer os.Remove(path)
+
+	l := NewLog(url.URL{Host: "log0"})
+	l.Log.FSM = &FSM{}
+	defer l.Close()
+	if err := l.Open(path); err == nil || err.Error() != `read term: strconv.ParseUint: parsing "X": invalid syntax` {
+		t.Fatal(err)
+	}
+}
+
+// Ensure that opening an inaccessible config path returns an error.
+func TestLog_Open_ErrInaccessibleConfig(t *testing.T) {
+	path := tempfile()
+	MustWriteFile(filepath.Join(path, "id"), []byte(`1`))
+	MustWriteFile(filepath.Join(path, "term"), []byte(`1`))
+	MustWriteFile(filepath.Join(path, "config"), []byte(`{}`))
+	MustChmod(filepath.Join(path, "config"), 0)
+	defer os.Remove(path)
+
+	l := NewLog(url.URL{Host: "log0"})
+	l.Log.FSM = &FSM{}
+	defer l.Close()
+	if err := l.Open(path); err == nil || !strings.Contains(err.Error(), `permission denied`) {
+		t.Fatal(err)
+	}
+}
+
+// Ensure that opening an invalid config returns an error.
+func TestLog_Open_ErrInvalidConfig(t *testing.T) {
+	path := tempfile()
+	MustWriteFile(filepath.Join(path, "id"), []byte(`1`))
+	MustWriteFile(filepath.Join(path, "term"), []byte(`1`))
+	MustWriteFile(filepath.Join(path, "config"), []byte(`{`))
+	defer os.Remove(path)
+
+	l := NewLog(url.URL{Host: "log0"})
+	l.Log.FSM = &FSM{}
+	defer l.Close()
+	if err := l.Open(path); err == nil || err.Error() != `read config: unexpected EOF` {
+		t.Fatal(err)
+	}
+}
+
+// Ensure that initializing a closed log returns an error.
+func TestLog_Initialize_ErrClosed(t *testing.T) {
+	l := NewLog(url.URL{Host: "log0"})
+	if err := l.Initialize(); err != raft.ErrClosed {
+		t.Fatal(err)
 	}
 }
 
@@ -103,6 +220,29 @@ func TestCluster_ID_Sequential(t *testing.T) {
 		if l.ID() != uint64(i+1) {
 			t.Fatalf("expected id: %d, got: %d", i+1, l.ID())
 		}
+	}
+}
+
+// Ensure that all the URLs for a cluster can be returned.
+func TestServer_URLs(t *testing.T) {
+	c := NewCluster(fsmFunc)
+	defer c.Close()
+	if a := c.Logs[0].URLs(); len(a) != 3 {
+		t.Fatalf("unexpected url count: %d", len(a))
+	} else if a[0] != (url.URL{Host: "log0"}) {
+		t.Fatalf("unexpected url(0): %s", a[0])
+	} else if a[1] != (url.URL{Host: "log1"}) {
+		t.Fatalf("unexpected url(1): %s", a[1])
+	} else if a[2] != (url.URL{Host: "log2"}) {
+		t.Fatalf("unexpected url(2): %s", a[2])
+	}
+}
+
+// Ensure that no URLs are returned for a server that has no config.
+func TestServer_URLs_NoConfig(t *testing.T) {
+	l := NewLog(url.URL{Host: "log0"})
+	if a := l.URLs(); len(a) != 0 {
+		t.Fatalf("unexpected url count: %d", len(a))
 	}
 }
 
@@ -508,11 +648,17 @@ func NewLog(u url.URL) *Log {
 	return l
 }
 
-// NewInitializedLog returns a new initialized Node.
-func NewInitializedLog(u url.URL) *Log {
+// OpenLog returns a new open Log.
+func OpenLog(u url.URL) *Log {
 	l := NewLog(u)
 	l.Log.FSM = &FSM{}
 	l.MustOpen()
+	return l
+}
+
+// NewInitializedLog returns a new initialized Log.
+func NewInitializedLog(u url.URL) *Log {
+	l := OpenLog(u)
 	l.MustInitialize()
 	return l
 }
@@ -642,6 +788,23 @@ func seq() func() int64 {
 
 		i++
 		return i
+	}
+}
+
+// MustWriteFile writes data to a file. Panic on error.
+func MustWriteFile(filename string, data []byte) {
+	if err := os.MkdirAll(filepath.Dir(filename), 0777); err != nil {
+		panic(err.Error())
+	}
+	if err := ioutil.WriteFile(filename, data, 0666); err != nil {
+		panic(err.Error())
+	}
+}
+
+// MustChmod changes mode on a file. Panic on error.
+func MustChmod(name string, mode os.FileMode) {
+	if err := os.Chmod(name, mode); err != nil {
+		panic(err.Error())
 	}
 }
 

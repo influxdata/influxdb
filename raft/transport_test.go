@@ -70,6 +70,23 @@ func TestHTTPTransport_Join_ErrInvalidID(t *testing.T) {
 	}
 }
 
+// Ensure the response from a join contains a valid leader id.
+func TestHTTPTransport_Join_ErrInvalidLeaderID(t *testing.T) {
+	// Start mock HTTP server.
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Raft-ID", "1")
+		w.Header().Set("X-Raft-Leader-ID", "xxx")
+	}))
+	defer s.Close()
+
+	// Execute join against test server.
+	u, _ := url.Parse(s.URL)
+	_, _, _, err := (&raft.HTTPTransport{}).Join(*u, url.URL{Host: "local"})
+	if err == nil || err.Error() != `invalid leader id: "xxx"` {
+		t.Fatalf("unexpected error: %s", err)
+	}
+}
+
 // Ensure the response from a join contains a valid config.
 func TestHTTPTransport_Join_ErrInvalidConfig(t *testing.T) {
 	// Start mock HTTP server.
