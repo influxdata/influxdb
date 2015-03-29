@@ -14,6 +14,7 @@
 - [#2104](https://github.com/influxdb/influxdb/pull/2104): Include NEQ when calculating field filters.
 - [#2112](https://github.com/influxdb/influxdb/pull/2112): Set GOMAXPROCS on startup. This may have been causing extra leader elections, which would cause a number of other bugs or instability.
 - [#2111](https://github.com/influxdb/influxdb/pull/2111) and [#2025](https://github.com/influxdb/influxdb/issues/2025): Raft stability fixes. Non-contiguous log error and others.
+- [#2114](https://github.com/influxdb/influxdb/pull/2114): Correctly start influxd on platforms without start-stop-daemon.
 
 ## v0.9.0-rc16 [2015-03-24]
 
