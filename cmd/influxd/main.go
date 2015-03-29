@@ -38,6 +38,8 @@ const (
 
 func main() {
 	log.SetFlags(0)
+	log.SetPrefix(`[srvr] `)
+	log.SetFlags(log.LstdFlags)
 	rand.Seed(time.Now().UnixNano())
 
 	// If commit not set, make that clear.
@@ -47,6 +49,7 @@ func main() {
 
 	// Set parallelism.
 	runtime.GOMAXPROCS(runtime.NumCPU())
+	log.Printf("GOMAXPROCS set to %d", runtime.GOMAXPROCS(0))
 
 	// Shift binary name off argument list.
 	args := os.Args[1:]
@@ -116,8 +119,6 @@ func execRun(args []string) {
 
 	// Print sweet InfluxDB logo and write the process id to file.
 	fmt.Print(logo)
-	log.SetPrefix(`[srvr] `)
-	log.SetFlags(log.LstdFlags)
 	writePIDFile(*pidPath)
 
 	// Parse configuration file from disk.
