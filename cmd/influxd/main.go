@@ -45,6 +45,9 @@ func main() {
 		commit = "unknown"
 	}
 
+	// Set parallelism.
+	runtime.GOMAXPROCS(runtime.NumCPU())
+
 	// Shift binary name off argument list.
 	args := os.Args[1:]
 
