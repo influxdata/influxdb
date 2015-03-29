@@ -40,7 +40,7 @@ const logEntryHeaderSize = 8 + 8 + 8 // sz+index+term
 
 // WaitInterval represents the amount of time between checks to the applied index.
 // This is used by clients wanting to wait until a given index is processed.
-const WaitInterval = 100 * time.Millisecond
+const WaitInterval = 1 * time.Millisecond
 
 // State represents whether the log is a follower, candidate, or leader.
 type State int
@@ -1227,7 +1227,6 @@ func (l *Log) Wait(idx uint64) error {
 	for {
 		l.mu.Lock()
 		state, index := l.state, l.FSM.Index()
-		l.tracef("WAIT> I=%d, Aⁱ=%d, Cⁱ=%d, LLⁱ=%d", idx, index, l.commitIndex, l.lastLogIndex)
 		l.mu.Unlock()
 
 		if state == Stopped {
@@ -1700,11 +1699,6 @@ func (l *Log) writeTo(writer *logWriter, id, term, index uint64) error {
 		return err
 	}
 	flushWriter(w)
-
-	// // Write snapshot index at the end and flush.
-	// if err := binary.Write(w, binary.BigEndian, snapshotIndex); err != nil {
-	// 	return fmt.Errorf("write snapshot index: %s", err)
-	// }
 
 	// Write entries since the snapshot occurred and begin tailing writer.
 	if err := l.advanceWriter(writer); err != nil {
