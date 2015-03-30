@@ -25,6 +25,7 @@ import (
 // FSM represents the state machine that the log is applied to.
 // The FSM must maintain the highest index that it has seen.
 type FSM interface {
+	// These implement the snapshot and restore.
 	io.WriterTo
 	io.ReaderFrom
 
@@ -523,7 +524,7 @@ func (l *Log) writeTerm(term uint64) error {
 	return ioutil.WriteFile(l.termPath(), b, 0666)
 }
 
-// setTerm sets the current term if it's higher.
+// setTerm sets the current term and clears the vote.
 func (l *Log) setTerm(term uint64) {
 	l.term = term
 	l.votedFor = 0
@@ -1279,7 +1280,7 @@ func (l *Log) append(e *LogEntry) error {
 		return nil
 	}
 
-	// If the entry is not the next then it may have changed leaders.
+	// If the entry is not the next then the cluster may have changed leaders.
 	// Attempt to trim the log to the index if it is not committed yet.
 	if e.Index > l.lastLogIndex+1 {
 		if e.Index >= l.commitIndex {
