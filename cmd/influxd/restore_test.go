@@ -2,7 +2,6 @@ package main_test
 
 import (
 	"bytes"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -11,8 +10,21 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb"
-	"github.com/influxdb/influxdb/cmd/influxd"
+	main "github.com/influxdb/influxdb/cmd/influxd"
 )
+
+func newConfig(path string, brokerPort, dataPort, snapshotPort int) main.Config {
+	config := main.NewConfig()
+	config.Broker.Enabled = true
+	config.Broker.Port = brokerPort
+	config.Broker.Dir = filepath.Join(path, "broker")
+
+	config.Data.Enabled = true
+	config.Data.Port = dataPort
+	config.Data.Dir = filepath.Join(path, "data")
+	config.Snapshot.Port = snapshotPort
+	return *config
+}
 
 // Ensure the restore command can expand a snapshot and bootstrap a broker.
 func TestRestoreCommand(t *testing.T) {
@@ -22,36 +34,12 @@ func TestRestoreCommand(t *testing.T) {
 	path := tempfile()
 	defer os.Remove(path)
 
-	// Create a config template that can use different ports.
-	var configString = fmt.Sprintf(`
-		[broker]
-		port=%%d
-		dir=%q
-
-		[data]
-		port=%%d
-		dir = %q
-
-		[snapshot]
-		port=%%d
-		`,
-		filepath.Join(path, "broker"),
-		filepath.Join(path, "data"),
-	)
-
-	// Create configuration file.
-	configPath := tempfile()
-	defer os.Remove(configPath)
-
 	// Parse configuration.
-	MustWriteFile(configPath, []byte(fmt.Sprintf(configString, 8900, 8900, 8901)))
-	c, err := main.ParseConfigFile(configPath)
-	if err != nil {
-		t.Fatalf("parse config: %s", err)
-	}
+	config := newConfig(path, 8900, 8900, 8901)
 
 	// Start server.
-	b, s := main.Run(c, "", "x.x")
+	cmd := main.NewRunCommand()
+	b, s := cmd.Open(&config, "")
 	if b == nil {
 		t.Fatal("cannot run broker")
 	} else if s == nil {
@@ -92,20 +80,17 @@ func TestRestoreCommand(t *testing.T) {
 		t.Fatalf("remove: %s", err)
 	}
 
-	// Rewrite config to a new port and re-parse.
-	MustWriteFile(configPath, []byte(fmt.Sprintf(configString, 8910, 8910, 8911)))
-	c, err = main.ParseConfigFile(configPath)
-	if err != nil {
-		t.Fatalf("parse config: %s", err)
-	}
-
 	// Execute the restore.
-	if err := NewRestoreCommand().Run("-config", configPath, sspath); err != nil {
+	if err := NewRestoreCommand().Restore(&config, sspath); err != nil {
 		t.Fatal(err)
 	}
 
+	// Rewrite config to a new port and re-parse.
+	config = newConfig(path, 8910, 8910, 8911)
+
 	// Restart server.
-	b, s = main.Run(c, "", "x.x")
+	cmd = main.NewRunCommand()
+	b, s = cmd.Open(&config, "")
 	if b == nil {
 		t.Fatal("cannot run broker")
 	} else if s == nil {
@@ -157,14 +142,4 @@ func MustReadFile(filename string) []byte {
 		panic(err.Error())
 	}
 	return b
-}
-
-// MustWriteFile writes data to a file. Panic on error.
-func MustWriteFile(filename string, data []byte) {
-	if err := os.MkdirAll(filepath.Dir(filename), 0777); err != nil {
-		panic(err.Error())
-	}
-	if err := ioutil.WriteFile(filename, data, 0666); err != nil {
-		panic(err.Error())
-	}
 }

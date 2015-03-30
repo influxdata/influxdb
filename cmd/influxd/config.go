@@ -53,11 +53,71 @@ const (
 
 	// DefaultGraphiteDatabaseName is the default Graphite database if none is specified
 	DefaultGraphiteDatabaseName = "graphite"
+
+	// DefaultRetentionAutoCreate is the default for auto-creating retention policies
+	DefaultRetentionAutoCreate = true
+
+	// DefaultRetentionCheckEnabled is the default for checking for retention policy enforcement
+	DefaultRetentionCheckEnabled = true
+
+	// DefaultRetentionCheckPeriod is the period of time between retention policy checks are run
+	DefaultRetentionCheckPeriod = 10 * time.Minute
+
+	// DefaultRecomputePreviousN is ???
+	DefaultContinuousQueryRecomputePreviousN = 2
+
+	// DefaultContinuousQueryRecomputeNoOlderThan is ???
+	DefaultContinuousQueryRecomputeNoOlderThan = 10 * time.Minute
+
+	// DefaultContinuousQueryComputeRunsPerInterval is ???
+	DefaultContinuousQueryComputeRunsPerInterval = 10
+
+	// DefaultContinousQueryComputeNoMoreThan is ???
+	DefaultContinousQueryComputeNoMoreThan = 2 * time.Minute
+
+	// DefaultStatisticsEnabled is the default setting for whether internal statistics are collected
+	DefaultStatisticsEnabled = false
+
+	// DefaultStatisticsDatabase is the default database internal statistics are written
+	DefaultStatisticsDatabase = "_internal"
+
+	// DefaultStatisticsRetentionPolicy is he default internal statistics rentention policy name
+	DefaultStatisticsRetentionPolicy = "default"
+
+	// DefaultStatisticsWriteInterval is the interval of time between internal stats are written
+	DefaultStatisticsWriteInterval = 1 * time.Minute
 )
 
 var DefaultSnapshotURL = url.URL{
 	Scheme: "http",
 	Host:   net.JoinHostPort(DefaultSnapshotBindAddress, strconv.Itoa(DefaultSnapshotPort)),
+}
+
+// Broker represents the configuration for a broker node
+type Broker struct {
+	Port    int      `toml:"port"`
+	Dir     string   `toml:"dir"`
+	Enabled bool     `toml:"enabled"`
+	Timeout Duration `toml:"election-timeout"`
+}
+
+// Snapshot represents the configuration for a snapshot service
+type Snapshot struct {
+	Enabled     bool   `toml:"enabled"`
+	BindAddress string `toml:"bind-address"`
+	Port        int    `toml:"port"`
+}
+
+// Data represents the configuration for a data node
+type Data struct {
+	Dir                   string   `toml:"dir"`
+	Enabled               bool     `toml:"enabled"`
+	Port                  int      `toml:"port"`
+	RetentionAutoCreate   bool     `toml:"retention-auto-create"`
+	RetentionCheckEnabled bool     `toml:"retention-check-enabled"`
+	RetentionCheckPeriod  Duration `toml:"retention-check-period"`
+	RetentionCreatePeriod Duration `toml:"retention-create-period"`
+	JoinURLs              string   `toml:"join-urls"`
 }
 
 // Config represents the configuration format for the influxd binary.
@@ -97,26 +157,12 @@ type Config struct {
 		Port        int    `toml:"port"`
 	} `toml:"udp"`
 
-	Broker struct {
-		Port    int      `toml:"port"`
-		Dir     string   `toml:"dir"`
-		Timeout Duration `toml:"election-timeout"`
-	} `toml:"broker"`
+	Broker Broker `toml:"broker"`
 
-	Data struct {
-		Dir                   string   `toml:"dir"`
-		Port                  int      `toml:"port"`
-		RetentionAutoCreate   bool     `toml:"retention-auto-create"`
-		RetentionCheckEnabled bool     `toml:"retention-check-enabled"`
-		RetentionCheckPeriod  Duration `toml:"retention-check-period"`
-		RetentionCreatePeriod Duration `toml:"retention-create-period"`
-	} `toml:"data"`
+	Data Data `toml:"data"`
 
-	Snapshot struct {
-		Enabled     bool   `toml:"enabled"`
-		BindAddress string `toml:"bind-address"`
-		Port        int    `toml:"port"`
-	}
+	Snapshot Snapshot `toml:"snapshot"`
+
 	Cluster struct {
 		Dir string `toml:"dir"`
 	} `toml:"cluster"`
@@ -162,43 +208,34 @@ type Config struct {
 		ComputeNoMoreThan Duration `toml:"compute-no-more-than"`
 
 		// If this flag is set to true, both the brokers and data nodes should ignore any CQ processing.
-		Disable bool `toml:"disable"`
+		Disabled bool `toml:"disabled"`
 	} `toml:"continuous_queries"`
 }
 
 // NewConfig returns an instance of Config with reasonable defaults.
-func NewConfig() (*Config, error) {
-	u, err := user.Current()
-	if err != nil {
-		return nil, fmt.Errorf("failed to determine current user for storage")
-	}
-
+func NewConfig() *Config {
 	c := &Config{}
-	c.Broker.Dir = filepath.Join(u.HomeDir, ".influxdb/broker")
 	c.Broker.Port = DefaultBrokerPort
-	c.Broker.Timeout = Duration(1 * time.Second)
-	c.Data.Dir = filepath.Join(u.HomeDir, ".influxdb/data")
+
 	c.Data.Port = DefaultDataPort
-	c.Data.RetentionAutoCreate = true
-	c.Data.RetentionCheckEnabled = true
-	c.Data.RetentionCheckPeriod = Duration(10 * time.Minute)
+
+	c.Data.RetentionAutoCreate = DefaultRetentionAutoCreate
+	c.Data.RetentionCheckEnabled = DefaultRetentionCheckEnabled
+	c.Data.RetentionCheckPeriod = Duration(DefaultRetentionCheckPeriod)
 	c.Data.RetentionCreatePeriod = Duration(DefaultRetentionCreatePeriod)
-	c.Snapshot.Enabled = true
+
 	c.Snapshot.BindAddress = DefaultSnapshotBindAddress
 	c.Snapshot.Port = DefaultSnapshotPort
-	c.Admin.Enabled = true
-	c.Admin.Port = 8083
-	c.ContinuousQuery.RecomputePreviousN = 2
-	c.ContinuousQuery.RecomputeNoOlderThan = Duration(10 * time.Minute)
-	c.ContinuousQuery.ComputeRunsPerInterval = 10
-	c.ContinuousQuery.ComputeNoMoreThan = Duration(2 * time.Minute)
-	c.ContinuousQuery.Disable = false
-	c.ReportingDisabled = false
 
-	c.Statistics.Enabled = false
-	c.Statistics.Database = "_internal"
-	c.Statistics.RetentionPolicy = "default"
-	c.Statistics.WriteInterval = Duration(1 * time.Minute)
+	c.ContinuousQuery.RecomputePreviousN = DefaultContinuousQueryRecomputePreviousN
+	c.ContinuousQuery.RecomputeNoOlderThan = Duration(DefaultContinuousQueryRecomputeNoOlderThan)
+	c.ContinuousQuery.ComputeRunsPerInterval = DefaultContinuousQueryComputeRunsPerInterval
+	c.ContinuousQuery.ComputeNoMoreThan = Duration(DefaultContinousQueryComputeNoMoreThan)
+
+	c.Statistics.Enabled = DefaultStatisticsEnabled
+	c.Statistics.Database = DefaultStatisticsDatabase
+	c.Statistics.RetentionPolicy = DefaultStatisticsRetentionPolicy
+	c.Statistics.WriteInterval = Duration(DefaultStatisticsWriteInterval)
 
 	// Detect hostname (or set to localhost).
 	if c.Hostname, _ = os.Hostname(); c.Hostname == "" {
@@ -211,6 +248,32 @@ func NewConfig() (*Config, error) {
 	// 	Database: tomlConfiguration.InputPlugins.UDPInput.Database,
 	// 	Port:     tomlConfiguration.InputPlugins.UDPInput.Port,
 	// })
+
+	return c
+}
+
+// NewTestConfig returns an instance of Config with reasonable defaults suitable
+// for testing a local server w/ broker and data nodes active
+func NewTestConfig() (*Config, error) {
+	c := NewConfig()
+
+	// By default, store broker and data files in current users home directory
+	u, err := user.Current()
+	if err != nil {
+		return nil, fmt.Errorf("failed to determine current user for storage")
+	}
+
+	c.Broker.Enabled = true
+	c.Broker.Dir = filepath.Join(u.HomeDir, ".influxdb/broker")
+
+	c.Data.Enabled = true
+	c.Data.Dir = filepath.Join(u.HomeDir, ".influxdb/data")
+
+	c.Admin.Enabled = true
+	c.Admin.Port = 8083
+
+	c.Statistics.Enabled = false
+	c.Snapshot.Enabled = true
 
 	return c, nil
 }
@@ -346,10 +409,8 @@ func (d *Duration) UnmarshalText(text []byte) error {
 
 // ParseConfigFile parses a configuration file at a given path.
 func ParseConfigFile(path string) (*Config, error) {
-	c, err := NewConfig()
-	if err != nil {
-		return nil, err
-	}
+	c := NewConfig()
+
 	if _, err := toml.DecodeFile(path, &c); err != nil {
 		return nil, err
 	}
@@ -358,10 +419,8 @@ func ParseConfigFile(path string) (*Config, error) {
 
 // ParseConfig parses a configuration string into a config object.
 func ParseConfig(s string) (*Config, error) {
-	c, err := NewConfig()
-	if err != nil {
-		return nil, err
-	}
+	c := NewConfig()
+
 	if _, err := toml.Decode(s, &c); err != nil {
 		return nil, err
 	}
@@ -369,8 +428,8 @@ func ParseConfig(s string) (*Config, error) {
 }
 
 type Collectd struct {
-	Addr string `toml:"address"`
-	Port uint16 `toml:"port"`
+	BindAddress string `toml:"bind-address"`
+	Port        uint16 `toml:"port"`
 
 	Database string `toml:"database"`
 	Enabled  bool   `toml:"enabled"`
@@ -379,7 +438,7 @@ type Collectd struct {
 
 // ConnnectionString returns the connection string for this collectd config in the form host:port.
 func (c *Collectd) ConnectionString(defaultBindAddr string) string {
-	addr := c.Addr
+	addr := c.BindAddress
 	// If no address specified, use default.
 	if addr == "" {
 		addr = defaultBindAddr
@@ -395,8 +454,8 @@ func (c *Collectd) ConnectionString(defaultBindAddr string) string {
 }
 
 type Graphite struct {
-	Addr string `toml:"address"`
-	Port uint16 `toml:"port"`
+	BindAddress string `toml:"bind-address"`
+	Port        uint16 `toml:"port"`
 
 	Database      string `toml:"database"`
 	Enabled       bool   `toml:"enabled"`
@@ -408,7 +467,7 @@ type Graphite struct {
 // ConnnectionString returns the connection string for this Graphite config in the form host:port.
 func (g *Graphite) ConnectionString(defaultBindAddr string) string {
 
-	addr := g.Addr
+	addr := g.BindAddress
 	// If no address specified, use default.
 	if addr == "" {
 		addr = defaultBindAddr
