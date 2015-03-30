@@ -16,6 +16,10 @@ import (
 
 // Ensure the restore command can expand a snapshot and bootstrap a broker.
 func TestRestoreCommand(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping TestRestoreCommand")
+	}
+
 	now := time.Now()
 
 	// Create root path to server.
