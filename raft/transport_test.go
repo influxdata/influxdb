@@ -502,7 +502,9 @@ func (b *streamingBuffer) Write(p []byte) (n int, err error) {
 func TestStreamingBuffer(t *testing.T) {
 	// Write some data to buffer.
 	buf := newStreamingBuffer()
-	buf.buf.WriteString("foo")
+	if _, err := buf.Write([]byte("foo")); err != nil {
+		t.Fatalf("unexpected error when writing string: %s:", err)
+	}
 
 	// Read all data out in separate goroutine.
 	start := make(chan struct{}, 0)
@@ -520,7 +522,9 @@ func TestStreamingBuffer(t *testing.T) {
 	<-start
 
 	// Write some more data and then close.
-	buf.buf.WriteString("bar")
+	if _, err := buf.Write([]byte("bar")); err != nil {
+		t.Fatalf("unexpected error when writing string: %s:", err)
+	}
 	buf.Close()
 
 	// Verify all data was read.
