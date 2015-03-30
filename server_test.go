@@ -21,7 +21,7 @@ import (
 
 // Ensure the server can be successfully opened and closed.
 func TestServer_Open(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := NewServer()
 	defer s.Close()
@@ -41,7 +41,7 @@ func TestServer_Open_ErrPathRequired(t *testing.T) { t.Skip("pending") }
 
 // Ensure the server can create a new data node.
 func TestServer_CreateDataNode(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -65,7 +65,7 @@ func TestServer_CreateDataNode(t *testing.T) {
 
 // Ensure the server returns an error when creating a duplicate node.
 func TestServer_CreateDatabase_ErrDataNodeExists(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -82,7 +82,7 @@ func TestServer_CreateDatabase_ErrDataNodeExists(t *testing.T) {
 
 // Ensure the server can delete a node.
 func TestServer_DeleteDataNode(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -107,7 +107,7 @@ func TestServer_DeleteDataNode(t *testing.T) {
 
 // Test unuathorized requests logging
 func TestServer_UnauthorizedRequests(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -137,7 +137,7 @@ func TestServer_UnauthorizedRequests(t *testing.T) {
 
 // Test user privilege authorization.
 func TestServer_UserPrivilegeAuthorization(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -174,7 +174,7 @@ func TestServer_UserPrivilegeAuthorization(t *testing.T) {
 
 // Test single statement query authorization.
 func TestServer_SingleStatementQueryAuthorization(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -243,7 +243,7 @@ func TestServer_SingleStatementQueryAuthorization(t *testing.T) {
 
 // Test multiple statement query authorization.
 func TestServer_MultiStatementQueryAuthorization(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -290,7 +290,7 @@ func TestServer_MultiStatementQueryAuthorization(t *testing.T) {
 
 // Ensure the server can create a database.
 func TestServer_CreateDatabase(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -314,7 +314,7 @@ func TestServer_CreateDatabase(t *testing.T) {
 
 // Ensure the server returns an error when creating a duplicate database.
 func TestServer_CreateDatabase_ErrDatabaseExists(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -330,7 +330,7 @@ func TestServer_CreateDatabase_ErrDatabaseExists(t *testing.T) {
 
 // Ensure the server can drop a database.
 func TestServer_DropDatabase(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -358,7 +358,7 @@ func TestServer_DropDatabase(t *testing.T) {
 
 // Ensure the server returns an error when dropping a database that doesn't exist.
 func TestServer_DropDatabase_ErrDatabaseNotFound(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -371,7 +371,7 @@ func TestServer_DropDatabase_ErrDatabaseNotFound(t *testing.T) {
 
 // Ensure the server can return a list of all databases.
 func TestServer_Databases(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -393,7 +393,7 @@ func TestServer_Databases(t *testing.T) {
 
 // Ensure the server can create a new user.
 func TestServer_CreateUser(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -431,7 +431,7 @@ func TestServer_CreateUser(t *testing.T) {
 
 // Ensure the server correctly detects when there is an admin user.
 func TestServer_AdminUserExists(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -462,7 +462,7 @@ func TestServer_AdminUserExists(t *testing.T) {
 
 // Ensure the server returns an error when creating an user without a name.
 func TestServer_CreateUser_ErrUsernameRequired(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -473,7 +473,7 @@ func TestServer_CreateUser_ErrUsernameRequired(t *testing.T) {
 
 // Ensure the server returns an error when creating a duplicate user.
 func TestServer_CreateUser_ErrUserExists(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -487,7 +487,7 @@ func TestServer_CreateUser_ErrUserExists(t *testing.T) {
 
 // Ensure the server can delete an existing user.
 func TestServer_DeleteUser(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -514,7 +514,7 @@ func TestServer_DeleteUser(t *testing.T) {
 
 // Ensure the server can return a list of all users.
 func TestServer_Users(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -536,7 +536,7 @@ func TestServer_Users(t *testing.T) {
 
 // Ensure the server does not return non-existent users
 func TestServer_NonExistingUsers(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -559,7 +559,7 @@ func TestServer_NonExistingUsers(t *testing.T) {
 
 // Ensure the database can create a new retention policy.
 func TestServer_CreateRetentionPolicy(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -593,7 +593,7 @@ func TestServer_CreateRetentionPolicy(t *testing.T) {
 
 // Ensure the database can create a new retention policy with infinite duration.
 func TestServer_CreateRetentionPolicyInfinite(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -628,7 +628,7 @@ func TestServer_CreateRetentionPolicyInfinite(t *testing.T) {
 
 // Ensure the database can creates a default retention policy.
 func TestServer_CreateRetentionPolicyDefault(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -662,7 +662,7 @@ func TestServer_CreateRetentionPolicyDefault(t *testing.T) {
 
 // Ensure the server returns an error when creating a retention policy with an invalid db.
 func TestServer_CreateRetentionPolicy_ErrDatabaseNotFound(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -673,7 +673,7 @@ func TestServer_CreateRetentionPolicy_ErrDatabaseNotFound(t *testing.T) {
 
 // Ensure the server returns an error when creating a retention policy without a name.
 func TestServer_CreateRetentionPolicy_ErrRetentionPolicyNameRequired(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -685,7 +685,7 @@ func TestServer_CreateRetentionPolicy_ErrRetentionPolicyNameRequired(t *testing.
 
 // Ensure the server returns an error when creating a duplicate retention policy.
 func TestServer_CreateRetentionPolicy_ErrRetentionPolicyExists(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -698,7 +698,7 @@ func TestServer_CreateRetentionPolicy_ErrRetentionPolicyExists(t *testing.T) {
 
 // Ensure the server returns an error when creating a retention policy with a duration less than one hour.
 func TestServer_CreateRetentionPolicy_ErrRetentionPolicyMinDuration(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -710,7 +710,7 @@ func TestServer_CreateRetentionPolicy_ErrRetentionPolicyMinDuration(t *testing.T
 
 // Ensure the database can alter an existing retention policy.
 func TestServer_AlterRetentionPolicy(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -795,7 +795,7 @@ func TestServer_AlterRetentionPolicy(t *testing.T) {
 
 // Ensure the server an error is returned if trying to alter a retention policy with a duration too small.
 func TestServer_AlterRetentionPolicy_Minduration(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -850,7 +850,7 @@ func TestServer_AlterRetentionPolicy_Minduration(t *testing.T) {
 
 // Ensure the server can delete an existing retention policy.
 func TestServer_DeleteRetentionPolicy(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -878,7 +878,7 @@ func TestServer_DeleteRetentionPolicy(t *testing.T) {
 
 // Ensure the server returns an error when deleting a retention policy on invalid db.
 func TestServer_DeleteRetentionPolicy_ErrDatabaseNotFound(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -889,7 +889,7 @@ func TestServer_DeleteRetentionPolicy_ErrDatabaseNotFound(t *testing.T) {
 
 // Ensure the server returns an error when deleting a retention policy without a name.
 func TestServer_DeleteRetentionPolicy_ErrRetentionPolicyNameRequired(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -901,7 +901,7 @@ func TestServer_DeleteRetentionPolicy_ErrRetentionPolicyNameRequired(t *testing.
 
 // Ensure the server returns an error when deleting a non-existent retention policy.
 func TestServer_DeleteRetentionPolicy_ErrRetentionPolicyNotFound(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -913,7 +913,7 @@ func TestServer_DeleteRetentionPolicy_ErrRetentionPolicyNotFound(t *testing.T) {
 
 // Ensure the server can set the default retention policy
 func TestServer_SetDefaultRetentionPolicy(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -948,7 +948,7 @@ func TestServer_SetDefaultRetentionPolicy(t *testing.T) {
 
 // Ensure the server returns an error when setting the default retention policy to a non-existant one.
 func TestServer_SetDefaultRetentionPolicy_ErrRetentionPolicyNotFound(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -960,7 +960,7 @@ func TestServer_SetDefaultRetentionPolicy_ErrRetentionPolicyNotFound(t *testing.
 
 // Ensure the server pre-creates shard groups as needed.
 func TestServer_PreCreateRetentionPolices(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -997,7 +997,7 @@ func TestServer_PreCreateRetentionPolices(t *testing.T) {
 
 // Ensure the server prohibits a zero check interval for retention policy enforcement.
 func TestServer_StartRetentionPolicyEnforcement_ErrZeroInterval(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -1007,7 +1007,7 @@ func TestServer_StartRetentionPolicyEnforcement_ErrZeroInterval(t *testing.T) {
 }
 
 func TestServer_EnforceRetentionPolices(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	s := OpenServer(c)
 	defer s.Close()
 	s.CreateDatabase("foo")
@@ -1044,7 +1044,7 @@ func TestServer_EnforceRetentionPolices(t *testing.T) {
 
 // Ensure the server can drop a measurement.
 func TestServer_DropMeasurement(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	s := OpenServer(c)
 	defer s.Close()
 	s.CreateDatabase("foo")
@@ -1107,7 +1107,7 @@ func TestServer_DropMeasurement(t *testing.T) {
 
 // Ensure the server can handles drop measurement if none exists.
 func TestServer_DropMeasurementNoneExists(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	s := OpenServer(c)
 	defer s.Close()
 	s.CreateDatabase("foo")
@@ -1138,7 +1138,7 @@ func TestServer_DropMeasurementNoneExists(t *testing.T) {
 
 // Ensure the server can drop a series.
 func TestServer_DropSeries(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	s := OpenServer(c)
 	defer s.Close()
 	s.CreateDatabase("foo")
@@ -1182,7 +1182,7 @@ func TestServer_DropSeries(t *testing.T) {
 
 // Ensure the server can drop a series from measurement when more than one shard exists.
 func TestServer_DropSeriesFromMeasurement(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	s := OpenServer(c)
 	defer s.Close()
 	s.CreateDatabase("foo")
@@ -1228,7 +1228,7 @@ func TestServer_DropSeriesFromMeasurement(t *testing.T) {
 // ensure that the dropped series is gone
 // ensure that we can still query: select value from cpu where region=uswest
 func TestServer_DropSeriesTagsPreserved(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	s := OpenServer(c)
 	defer s.Close()
 	s.CreateDatabase("foo")
@@ -1302,7 +1302,7 @@ func TestServer_DropSeriesTagsPreserved(t *testing.T) {
 
 // Ensure the server respects limit and offset in show series queries
 func TestServer_ShowSeriesLimitOffset(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -1365,7 +1365,7 @@ func TestServer_ShowSeriesLimitOffset(t *testing.T) {
 }
 
 func TestServer_CreateShardGroupIfNotExist(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -1390,7 +1390,7 @@ func TestServer_CreateShardGroupIfNotExist(t *testing.T) {
 }
 
 func TestServer_DeleteShardGroup(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -1428,7 +1428,7 @@ func TestServer_DeleteShardGroup(t *testing.T) {
 
 /* TODO(benbjohnson): Change test to not expose underlying series ids directly.
 func TestServer_Measurements(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -1499,7 +1499,7 @@ func TestServer_NormalizeMeasurement(t *testing.T) {
 	}
 
 	// Create server with a variety of databases, retention policies, and measurements
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -1550,7 +1550,7 @@ func TestServer_NormalizeQuery(t *testing.T) {
 	}
 
 	// Start server with database & retention policy.
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -1572,7 +1572,7 @@ func TestServer_NormalizeQuery(t *testing.T) {
 
 // Ensure the server can create a continuous query
 func TestServer_CreateContinuousQuery(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -1632,7 +1632,7 @@ func TestServer_CreateContinuousQuery_ErrInfinteLoop(t *testing.T) {
 }
 
 func TestServer_DropContinuousQuery(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -1691,7 +1691,7 @@ func TestServer_DropContinuousQuery(t *testing.T) {
 // Ensure
 func TestServer_RunContinuousQueries(t *testing.T) {
 	t.Skip()
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
@@ -1771,7 +1771,7 @@ func TestServer_RunContinuousQueries(t *testing.T) {
 
 // Ensure the server can create a snapshot writer.
 func TestServer_CreateSnapshotWriter(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	s := OpenServer(c)
 	defer s.Close()
 

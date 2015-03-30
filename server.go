@@ -3368,8 +3368,8 @@ type messagingClient struct {
 }
 
 // NewMessagingClient returns an instance of MessagingClient.
-func NewMessagingClient() MessagingClient {
-	return &messagingClient{messaging.NewClient()}
+func NewMessagingClient(dataURL url.URL) MessagingClient {
+	return &messagingClient{messaging.NewClient(dataURL)}
 }
 
 func (c *messagingClient) Conn(topicID uint64) MessagingConn { return c.Client.Conn(topicID) }
@@ -3848,4 +3848,13 @@ func (s *Server) CreateSnapshotWriter() (*SnapshotWriter, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return createServerSnapshotWriter(s)
+}
+
+func (s *Server) URL() *url.URL {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if n := s.dataNodes[s.id]; n != nil {
+		return n.URL
+	}
+	return &url.URL{}
 }

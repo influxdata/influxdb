@@ -55,7 +55,7 @@ func TestRestoreCommand(t *testing.T) {
 	}
 
 	// Start server.
-	b, s := main.Run(c, "", "x.x")
+	b, s, l := main.Run(c, "", "x.x")
 	if b == nil {
 		t.Fatal("cannot run broker")
 	} else if s == nil {
@@ -88,6 +88,7 @@ func TestRestoreCommand(t *testing.T) {
 	f.Close()
 
 	// Stop server.
+	l.Close()
 	s.Close()
 	b.Close()
 
@@ -109,7 +110,7 @@ func TestRestoreCommand(t *testing.T) {
 	}
 
 	// Restart server.
-	b, s = main.Run(c, "", "x.x")
+	b, s, l = main.Run(c, "", "x.x")
 	if b == nil {
 		t.Fatal("cannot run broker")
 	} else if s == nil {
@@ -139,6 +140,11 @@ func TestRestoreCommand(t *testing.T) {
 	} else if !reflect.DeepEqual(v, map[string]interface{}{"value": float64(1000)}) {
 		t.Fatalf("read series(1) mismatch: %#v", v)
 	}
+
+	// Stop server.
+	l.Close()
+	s.Close()
+	b.Close()
 }
 
 // RestoreCommand is a test wrapper for main.RestoreCommand.

@@ -24,15 +24,20 @@ const (
 
 	// DefaultPingInterval is the default time to wait between checks to the broker.
 	DefaultPingInterval = 1000 * time.Millisecond
+
+	// DefaultHeartbeatInterval is the default time that a topic subscriber heartbeats
+	// with a broker
+	DefaultHeartbeatInterval = 1000 * time.Millisecond
 )
 
 // Client represents a client for the broker's HTTP API.
 type Client struct {
-	mu    sync.Mutex
-	path  string    // config file path
-	conns []*Conn   // all connections opened by client
-	url   url.URL   // current known leader URL
-	urls  []url.URL // list of available broker URLs
+	mu      sync.Mutex
+	path    string    // config file path
+	conns   []*Conn   // all connections opened by client
+	url     url.URL   // current known leader URL
+	urls    []url.URL // list of available broker URLs
+	dataURL url.URL   // URL of the client's data node
 
 	opened bool
 
@@ -50,10 +55,11 @@ type Client struct {
 }
 
 // NewClient returns a new instance of Client with defaults set.
-func NewClient() *Client {
+func NewClient(dataURL url.URL) *Client {
 	c := &Client{
 		ReconnectTimeout: DefaultReconnectTimeout,
 		PingInterval:     DefaultPingInterval,
+		dataURL:          dataURL,
 	}
 	return c
 }
@@ -340,7 +346,7 @@ func (c *Client) Conn(topicID uint64) *Conn {
 	defer c.mu.Unlock()
 
 	// Create connection and set current URL.
-	conn := NewConn(topicID)
+	conn := NewConn(topicID, &c.dataURL)
 	conn.SetURL(c.url)
 
 	// Add to list of client connections.
@@ -353,11 +359,13 @@ func (c *Client) Conn(topicID uint64) *Conn {
 func (c *Client) pinger(closing chan struct{}) {
 	defer c.wg.Done()
 
+	t := time.NewTicker(c.PingInterval)
+	defer t.Stop()
 	for {
 		select {
 		case <-closing:
 			return
-		case <-time.After(c.PingInterval):
+		case <-t.C:
 			c.Ping()
 		}
 	}
@@ -407,6 +415,7 @@ type Conn struct {
 	index     uint64  // highest index sent over the channel
 	streaming bool    // use streaming reader, if true
 	url       url.URL // current broker url
+	dataURL   url.URL // url for the data node or this caller
 
 	opened bool
 	c      chan *Message // channel streams messages from the broker.
@@ -417,16 +426,21 @@ type Conn struct {
 	// The amount of time to wait before reconnecting to a broker stream.
 	ReconnectTimeout time.Duration
 
+	// The amount of time between heartbeats from data nodes to brokers
+	HeartbeatInterval time.Duration
+
 	// The logging interface used by the connection for out-of-band errors.
 	Logger *log.Logger
 }
 
 // NewConn returns a new connection to the broker for a topic.
-func NewConn(topicID uint64) *Conn {
+func NewConn(topicID uint64, dataURL *url.URL) *Conn {
 	return &Conn{
-		topicID:          topicID,
-		ReconnectTimeout: DefaultReconnectTimeout,
-		Logger:           log.New(os.Stderr, "[messaging] ", log.LstdFlags),
+		topicID:           topicID,
+		dataURL:           *dataURL,
+		ReconnectTimeout:  DefaultReconnectTimeout,
+		HeartbeatInterval: DefaultHeartbeatInterval,
+		Logger:            log.New(os.Stderr, "[messaging] ", log.LstdFlags),
 	}
 }
 
@@ -492,10 +506,10 @@ func (c *Conn) Open(index uint64, streaming bool) error {
 	c.c = make(chan *Message, 0)
 
 	// Start goroutines.
-	c.wg.Add(1)
+	c.wg.Add(2)
 	c.closing = make(chan struct{})
 	go c.streamer(c.closing)
-
+	go c.heartbeater(c.closing)
 	return nil
 }
 
@@ -531,6 +545,22 @@ func (c *Conn) close() error {
 	return nil
 }
 
+// heartbeater periodically heartbeats the broker its index
+func (c *Conn) heartbeater(closing chan struct{}) {
+	defer c.wg.Done()
+
+	t := time.NewTicker(c.HeartbeatInterval)
+	defer t.Stop()
+	for {
+		select {
+		case <-closing:
+			return
+		case <-t.C:
+			c.Heartbeat()
+		}
+	}
+}
+
 // Heartbeat sends a heartbeat back to the broker with the client's index.
 func (c *Conn) Heartbeat() error {
 	var resp *http.Response
@@ -546,6 +576,7 @@ func (c *Conn) Heartbeat() error {
 	u.RawQuery = url.Values{
 		"topicID": {strconv.FormatUint(topicID, 10)},
 		"index":   {strconv.FormatUint(index, 10)},
+		"url":     {c.dataURL.String()},
 	}.Encode()
 	resp, err = http.Post(u.String(), "application/octet-stream", nil)
 	if err != nil {
