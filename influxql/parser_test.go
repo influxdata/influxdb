@@ -2,6 +2,7 @@ package influxql_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"regexp"
 	"strings"
@@ -52,6 +53,9 @@ func TestParser_ParseQuery_ParseError(t *testing.T) {
 
 // Ensure the parser can parse strings into Statement ASTs.
 func TestParser_ParseStatement(t *testing.T) {
+	// For use in various tests.
+	now := time.Now()
+
 	var tests = []struct {
 		s    string
 		stmt influxql.Statement
@@ -151,6 +155,21 @@ func TestParser_ParseStatement(t *testing.T) {
 						LHS: &influxql.VarRef{Val: "region"},
 						RHS: &influxql.RegexLiteral{Val: regexp.MustCompile(".*west.*")},
 					},
+				},
+			},
+		},
+
+		// SELECT * FROM WHERE time
+		{
+			s: fmt.Sprintf(`SELECT * FROM cpu WHERE time > '%s'`, now.UTC().Format(time.RFC3339Nano)),
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: true,
+				Fields:     []*influxql.Field{{Expr: &influxql.Wildcard{}}},
+				Sources:    []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+				Condition: &influxql.BinaryExpr{
+					Op:  influxql.GT,
+					LHS: &influxql.VarRef{Val: "time"},
+					RHS: &influxql.TimeLiteral{Val: now.UTC()},
 				},
 			},
 		},
