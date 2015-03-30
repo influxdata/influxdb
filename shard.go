@@ -62,6 +62,7 @@ type Shard struct {
 	ID          uint64   `json:"id,omitempty"`
 	DataNodeIDs []uint64 `json:"nodeIDs,omitempty"` // owners
 
+	mu    sync.RWMutex
 	index uint64        // highest replicated index
 	store *bolt.DB      // underlying data store
 	conn  MessagingConn // streaming connection to broker
@@ -77,6 +78,9 @@ func newShard() *Shard { return &Shard{} }
 
 // open initializes and opens the shard's store.
 func (s *Shard) open(path string, conn MessagingConn) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	// Return an error if the shard is already open.
 	if s.store != nil {
 		return errors.New("shard already open")
@@ -149,7 +153,10 @@ func (s *Shard) close() error {
 func (s *Shard) sync(index uint64) error {
 	for {
 		// Check if index has occurred.
-		if s.index >= index {
+		s.mu.RLock()
+		i := s.index
+		s.mu.RUnlock()
+		if i >= index {
 			return nil
 		}
 
@@ -262,7 +269,10 @@ func (s *Shard) processor(conn MessagingConn, closing <-chan struct{}) {
 		}
 
 		// Ignore any writes that are from an old index.
-		if m.Index < s.index {
+		s.mu.RLock()
+		i := s.index
+		s.mu.RUnlock()
+		if m.Index < i {
 			continue
 		}
 
@@ -278,7 +288,9 @@ func (s *Shard) processor(conn MessagingConn, closing <-chan struct{}) {
 		}
 
 		// Track last index.
+		s.mu.Lock()
 		s.index = m.Index
+		s.mu.Unlock()
 	}
 }
 
