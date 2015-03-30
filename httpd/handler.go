@@ -17,12 +17,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"code.google.com/p/go-uuid/uuid"
-
 	"github.com/bmizerany/pat"
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/client"
 	"github.com/influxdb/influxdb/influxql"
+	"github.com/influxdb/influxdb/uuid"
 )
 
 // TODO: Standard response headers (see: HeaderHandler)
@@ -736,7 +735,7 @@ func cors(inner http.Handler) http.Handler {
 
 func requestID(inner http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		uid := uuid.NewUUID()
+		uid := uuid.TimeUUID()
 		r.Header.Set("Request-Id", uid.String())
 		w.Header().Set("Request-Id", r.Header.Get("Request-Id"))
 
