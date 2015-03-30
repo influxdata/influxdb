@@ -79,11 +79,6 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 
 // InitializeReduceFunc takes an aggregate call from the query and returns the ReduceFunc
 func InitializeReduceFunc(c *Call) (ReduceFunc, error) {
-	// see if it's a query for raw data
-	if c == nil {
-		return ReduceRawQuery, nil
-	}
-
 	// Retrieve reduce function by name.
 	switch strings.ToLower(c.Name) {
 	case "count":
@@ -515,7 +510,7 @@ func ReducePercentile(percentile float64) ReduceFunc {
 
 // MapRawQuery is for queries without aggregates
 func MapRawQuery(itr Iterator) interface{} {
-	var values []interface{}
+	var values []*rawQueryMapOutput
 	for _, k, v := itr.Next(); k != 0; _, k, v = itr.Next() {
 		val := &rawQueryMapOutput{k, v}
 		values = append(values, val)
@@ -533,18 +528,3 @@ type rawOutputs []*rawQueryMapOutput
 func (a rawOutputs) Len() int           { return len(a) }
 func (a rawOutputs) Less(i, j int) bool { return a[i].timestamp < a[j].timestamp }
 func (a rawOutputs) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-
-// ReduceRawQuery is for queries without aggregates
-func ReduceRawQuery(values []interface{}) interface{} {
-	allValues := make([]*rawQueryMapOutput, 0)
-	for _, v := range values {
-		if v == nil {
-			continue
-		}
-		for _, raw := range v.([]interface{}) {
-			allValues = append(allValues, raw.(*rawQueryMapOutput))
-		}
-	}
-	sort.Sort(rawOutputs(allValues))
-	return allValues
-}

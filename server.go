@@ -49,6 +49,9 @@ const (
 
 	// Defines the minimum duration allowed for all retention policies
 	retentionPolicyMinDuration = time.Hour
+
+	// When planning a select statement, passing zero tells it not to chunk results. Only applies to raw queries
+	NoChunkingSize = 0
 )
 
 // Server represents a collection of metadata and raw metric data.
@@ -2024,138 +2027,153 @@ func (s *Server) ReadSeries(database, retentionPolicy, name string, tags map[str
 }
 
 // ExecuteQuery executes an InfluxQL query against the server.
-// Returns a resultset for each statement in the query.
-// Stops on first execution error that occurs.
-func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User) Results {
+// If the user isn't authorized to access the database an error will be returned.
+// It sends results down the passed in chan and closes it when done. It will close the chan
+// on the first statement that throws an error.
+func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User, chunkSize int) (chan *Result, error) {
 	// Authorize user to execute the query.
 	if s.authenticationEnabled {
 		if err := s.Authorize(user, q, database); err != nil {
-			return Results{Err: err}
+			return nil, err
 		}
 	}
 
-	// Build empty resultsets.
-	results := Results{Results: make([]*Result, len(q.Statements))}
 	s.stats.Add("queriesRx", int64(len(q.Statements)))
 
-	// Execute each statement.
-	for i, stmt := range q.Statements {
-		// Set default database and policy on the statement.
-		if err := s.NormalizeStatement(stmt, database); err != nil {
-			results.Results[i] = &Result{Err: err}
-			break
+	// Execute each statement. Keep the iterator external so we can
+	// track how many of the statements were executed
+	results := make(chan *Result)
+	go func() {
+		var i int
+		var stmt influxql.Statement
+		for i, stmt = range q.Statements {
+			// Set default database and policy on the statement.
+			if err := s.NormalizeStatement(stmt, database); err != nil {
+				results <- &Result{Err: err}
+				break
+			}
+
+			var res *Result
+			switch stmt := stmt.(type) {
+			case *influxql.SelectStatement:
+				if err := s.executeSelectStatement(i, stmt, database, user, results, chunkSize); err != nil {
+					results <- &Result{Err: err}
+					break
+				}
+			case *influxql.CreateDatabaseStatement:
+				res = s.executeCreateDatabaseStatement(stmt, user)
+			case *influxql.DropDatabaseStatement:
+				res = s.executeDropDatabaseStatement(stmt, user)
+			case *influxql.ShowDatabasesStatement:
+				res = s.executeShowDatabasesStatement(stmt, user)
+			case *influxql.ShowServersStatement:
+				res = s.executeShowServersStatement(stmt, user)
+			case *influxql.CreateUserStatement:
+				res = s.executeCreateUserStatement(stmt, user)
+			case *influxql.DeleteStatement:
+				res = s.executeDeleteStatement()
+			case *influxql.DropUserStatement:
+				res = s.executeDropUserStatement(stmt, user)
+			case *influxql.ShowUsersStatement:
+				res = s.executeShowUsersStatement(stmt, user)
+			case *influxql.DropSeriesStatement:
+				res = s.executeDropSeriesStatement(stmt, database, user)
+			case *influxql.ShowSeriesStatement:
+				res = s.executeShowSeriesStatement(stmt, database, user)
+			case *influxql.DropMeasurementStatement:
+				res = s.executeDropMeasurementStatement(stmt, database, user)
+			case *influxql.ShowMeasurementsStatement:
+				res = s.executeShowMeasurementsStatement(stmt, database, user)
+			case *influxql.ShowTagKeysStatement:
+				res = s.executeShowTagKeysStatement(stmt, database, user)
+			case *influxql.ShowTagValuesStatement:
+				res = s.executeShowTagValuesStatement(stmt, database, user)
+			case *influxql.ShowFieldKeysStatement:
+				res = s.executeShowFieldKeysStatement(stmt, database, user)
+			case *influxql.ShowStatsStatement:
+				res = s.executeShowStatsStatement(stmt, user)
+			case *influxql.GrantStatement:
+				res = s.executeGrantStatement(stmt, user)
+			case *influxql.RevokeStatement:
+				res = s.executeRevokeStatement(stmt, user)
+			case *influxql.CreateRetentionPolicyStatement:
+				res = s.executeCreateRetentionPolicyStatement(stmt, user)
+			case *influxql.AlterRetentionPolicyStatement:
+				res = s.executeAlterRetentionPolicyStatement(stmt, user)
+			case *influxql.DropRetentionPolicyStatement:
+				res = s.executeDropRetentionPolicyStatement(stmt, user)
+			case *influxql.ShowRetentionPoliciesStatement:
+				res = s.executeShowRetentionPoliciesStatement(stmt, user)
+			case *influxql.CreateContinuousQueryStatement:
+				res = s.executeCreateContinuousQueryStatement(stmt, user)
+			case *influxql.DropContinuousQueryStatement:
+				continue
+			case *influxql.ShowContinuousQueriesStatement:
+				res = s.executeShowContinuousQueriesStatement(stmt, database, user)
+			default:
+				panic(fmt.Sprintf("unsupported statement type: %T", stmt))
+			}
+
+			if res != nil {
+				// set the StatementID for the handler on the other side to combine results
+				res.StatementID = i
+
+				// If an error occurs then stop processing remaining statements.
+				results <- res
+				if res.Err != nil {
+					break
+				}
+			}
 		}
 
-		var res *Result
-		switch stmt := stmt.(type) {
-		case *influxql.SelectStatement:
-			res = s.executeSelectStatement(stmt, database, user)
-		case *influxql.CreateDatabaseStatement:
-			res = s.executeCreateDatabaseStatement(stmt, user)
-		case *influxql.DropDatabaseStatement:
-			res = s.executeDropDatabaseStatement(stmt, user)
-		case *influxql.ShowDatabasesStatement:
-			res = s.executeShowDatabasesStatement(stmt, user)
-		case *influxql.ShowServersStatement:
-			res = s.executeShowServersStatement(stmt, user)
-		case *influxql.CreateUserStatement:
-			res = s.executeCreateUserStatement(stmt, user)
-		case *influxql.DeleteStatement:
-			res = s.executeDeleteStatement()
-		case *influxql.DropUserStatement:
-			res = s.executeDropUserStatement(stmt, user)
-		case *influxql.ShowUsersStatement:
-			res = s.executeShowUsersStatement(stmt, user)
-		case *influxql.DropSeriesStatement:
-			res = s.executeDropSeriesStatement(stmt, database, user)
-		case *influxql.ShowSeriesStatement:
-			res = s.executeShowSeriesStatement(stmt, database, user)
-		case *influxql.DropMeasurementStatement:
-			res = s.executeDropMeasurementStatement(stmt, database, user)
-		case *influxql.ShowMeasurementsStatement:
-			res = s.executeShowMeasurementsStatement(stmt, database, user)
-		case *influxql.ShowTagKeysStatement:
-			res = s.executeShowTagKeysStatement(stmt, database, user)
-		case *influxql.ShowTagValuesStatement:
-			res = s.executeShowTagValuesStatement(stmt, database, user)
-		case *influxql.ShowFieldKeysStatement:
-			res = s.executeShowFieldKeysStatement(stmt, database, user)
-		case *influxql.ShowStatsStatement:
-			res = s.executeShowStatsStatement(stmt, user)
-		case *influxql.ShowDiagnosticsStatement:
-			res = s.executeShowDiagnosticsStatement(stmt, user)
-		case *influxql.GrantStatement:
-			res = s.executeGrantStatement(stmt, user)
-		case *influxql.RevokeStatement:
-			res = s.executeRevokeStatement(stmt, user)
-		case *influxql.CreateRetentionPolicyStatement:
-			res = s.executeCreateRetentionPolicyStatement(stmt, user)
-		case *influxql.AlterRetentionPolicyStatement:
-			res = s.executeAlterRetentionPolicyStatement(stmt, user)
-		case *influxql.DropRetentionPolicyStatement:
-			res = s.executeDropRetentionPolicyStatement(stmt, user)
-		case *influxql.ShowRetentionPoliciesStatement:
-			res = s.executeShowRetentionPoliciesStatement(stmt, user)
-		case *influxql.CreateContinuousQueryStatement:
-			res = s.executeCreateContinuousQueryStatement(stmt, user)
-		case *influxql.DropContinuousQueryStatement:
-			continue
-		case *influxql.ShowContinuousQueriesStatement:
-			res = s.executeShowContinuousQueriesStatement(stmt, database, user)
-		default:
-			panic(fmt.Sprintf("unsupported statement type: %T", stmt))
+		// if there was an error send results that the remaining statements weren't executed
+		for ; i < len(q.Statements)-1; i++ {
+			results <- &Result{Err: ErrNotExecuted}
 		}
 
-		// If an error occurs then stop processing remaining statements.
-		results.Results[i] = res
-		if res.Err != nil {
-			break
-		}
 		s.stats.Inc("queriesExecuted")
-	}
+		close(results)
+	}()
 
-	// Fill any empty results after error.
-	for i, res := range results.Results {
-		if res == nil {
-			results.Results[i] = &Result{Err: ErrNotExecuted}
-		}
-	}
-
-	return results
+	return results, nil
 }
 
 // executeSelectStatement plans and executes a select statement against a database.
-func (s *Server) executeSelectStatement(stmt *influxql.SelectStatement, database string, user *User) *Result {
+func (s *Server) executeSelectStatement(statementID int, stmt *influxql.SelectStatement, database string, user *User, results chan *Result, chunkSize int) error {
 	// Perform any necessary query re-writing.
 	stmt, err := s.rewriteSelectStatement(stmt)
 	if err != nil {
-		return &Result{Err: err}
+		return err
 	}
 
 	// Plan statement execution.
-	e, err := s.planSelectStatement(stmt)
+	e, err := s.planSelectStatement(stmt, chunkSize)
 	if err != nil {
-		return &Result{Err: err}
+		return err
 	}
 
 	// Execute plan.
 	ch, err := e.Execute()
 	if err != nil {
-		return &Result{Err: err}
+		return err
 	}
 
-	// Read all rows from channel.
-	res := &Result{Series: make([]*influxql.Row, 0)}
+	// Stream results from the channel. We should send an empty result if nothing comes through.
+	resultSent := false
 	for row := range ch {
 		if row.Err != nil {
-			res.Err = row.Err
-			return res
+			return row.Err
 		} else {
-			res.Series = append(res.Series, row)
+			resultSent = true
+			results <- &Result{StatementID: statementID, Series: []*influxql.Row{row}}
 		}
 	}
 
-	return res
+	if !resultSent {
+		results <- &Result{StatementID: statementID, Series: make([]*influxql.Row, 0)}
+	}
+
+	return nil
 }
 
 // rewriteSelectStatement performs any necessary query re-writing.
@@ -2289,14 +2307,14 @@ func (s *Server) expandSources(sources influxql.Sources) (influxql.Sources, erro
 }
 
 // plans a selection statement under lock.
-func (s *Server) planSelectStatement(stmt *influxql.SelectStatement) (*influxql.Executor, error) {
+func (s *Server) planSelectStatement(stmt *influxql.SelectStatement, chunkSize int) (*influxql.Executor, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	// Plan query.
 	p := influxql.NewPlanner(s)
 
-	return p.Plan(stmt)
+	return p.Plan(stmt, chunkSize)
 }
 
 func (s *Server) executeCreateDatabaseStatement(q *influxql.CreateDatabaseStatement, user *User) *Result {
@@ -3252,8 +3270,11 @@ func (s *Server) processor(conn MessagingConn, done chan struct{}) {
 
 // Result represents a resultset returned from a single statement.
 type Result struct {
-	Series influxql.Rows
-	Err    error
+	// StatementID is just the statement's position in the query. It's used
+	// to combine statement results if they're being buffered in memory.
+	StatementID int `json:"-"`
+	Series      influxql.Rows
+	Err         error
 }
 
 // MarshalJSON encodes the result into JSON.
@@ -3732,7 +3753,7 @@ func (s *Server) runContinuousQuery(cq *ContinuousQuery) {
 
 // runContinuousQueryAndWriteResult will run the query against the cluster and write the results back in
 func (s *Server) runContinuousQueryAndWriteResult(cq *ContinuousQuery) error {
-	e, err := s.planSelectStatement(cq.cq.Source)
+	e, err := s.planSelectStatement(cq.cq.Source, NoChunkingSize)
 
 	if err != nil {
 		return err
