@@ -1311,6 +1311,8 @@ func TestSingleServer(t *testing.T) {
 }
 
 func Test3NodeServer(t *testing.T) {
+	t.Skip("temporarily disabling while #1934 is in progress")
+
 	testName := "3-node server integration"
 
 	t.Skip("disabling until #1934 is complete")
