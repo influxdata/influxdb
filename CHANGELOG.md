@@ -1,3 +1,8 @@
+## v0.9.0-rc18 [Unreleased]
+
+### Bugfixes
+- [#2100](https://github.com/influxdb/influxdb/pull/2100): Use channel to synchronize collectd shutdown.
+
 ## v0.9.0-rc17 [2015-03-29]
 
 ### Features
