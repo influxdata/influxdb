@@ -334,6 +334,8 @@ func (s *Server) load() error {
 	})
 }
 
+// StartSelfMonitoring starts a goroutine which monitors the InfluxDB server
+// itself and stores the results in the specified database at a given interval.
 func (s *Server) StartSelfMonitoring(database, retention string, interval time.Duration) error {
 	if interval == 0 {
 		return fmt.Errorf("statistics check interval must be non-zero")
@@ -342,7 +344,7 @@ func (s *Server) StartSelfMonitoring(database, retention string, interval time.D
 	// Function for local use turns stats into a slice of points
 	pointsFromStats := func(st *Stats, tags map[string]string) []Point {
 
-		points := make([]Point, 0)
+		var points []Point
 		now := time.Now()
 		st.Walk(func(k string, v int64) {
 			point := Point{
@@ -430,7 +432,7 @@ func (s *Server) EnforceRetentionPolicies() {
 		ID        uint64
 	}
 
-	groups := make([]group, 0)
+	var groups []group
 	// Only keep the lock while walking the shard groups, so the lock is not held while
 	// any deletions take place across the cluster.
 	func() {
@@ -495,7 +497,7 @@ func (s *Server) ShardGroupPreCreate(checkInterval time.Duration) {
 		Timestamp time.Time
 	}
 
-	groups := make([]group, 0)
+	var groups []group
 	// Only keep the lock while walking the shard groups, so the lock is not held while
 	// any deletions take place across the cluster.
 	func() {
@@ -1414,7 +1416,7 @@ func (s *Server) CreateRetentionPolicy(database string, rp *RetentionPolicy) err
 	return err
 }
 
-// CreateRetentionPolicy creates a retention policy for a database.
+// CreateRetentionPolicyIfNotExists creates a retention policy for a database.
 func (s *Server) CreateRetentionPolicyIfNotExists(database string, rp *RetentionPolicy) error {
 	// Ensure retention policy exists.
 	if !s.RetentionPolicyExists(database, rp.Name) {
@@ -1896,6 +1898,7 @@ func (s *Server) applyCreateMeasurementsIfNotExists(m *messaging.Message) error 
 	return nil
 }
 
+// DropMeasurement drops a given measurement from a database.
 func (s *Server) DropMeasurement(database, name string) error {
 	c := &dropMeasurementCommand{Database: database, Name: name}
 	_, err := s.broadcast(dropMeasurementMessageType, c)
@@ -2150,9 +2153,8 @@ func (s *Server) executeSelectStatement(stmt *influxql.SelectStatement, database
 		if row.Err != nil {
 			res.Err = row.Err
 			return res
-		} else {
-			res.Series = append(res.Series, row)
 		}
+		res.Series = append(res.Series, row)
 	}
 
 	return res
@@ -2692,7 +2694,7 @@ func (s *Server) executeShowContinuousQueriesStatement(stmt *influxql.ShowContin
 }
 
 func (s *Server) executeShowStatsStatement(stmt *influxql.ShowStatsStatement, user *User) *Result {
-	rows := make([]*influxql.Row, 0)
+	var rows []*influxql.Row
 	// Server stats.
 	serverRow := &influxql.Row{Columns: []string{}}
 	serverRow.Name = s.stats.Name()
@@ -2873,10 +2875,9 @@ func (s *Server) executeAlterRetentionPolicyStatement(stmt *influxql.AlterRetent
 		ReplicaN: func() *uint32 {
 			if stmt.Replication == nil {
 				return nil
-			} else {
-				n := uint32(*stmt.Replication)
-				return &n
 			}
+			n := uint32(*stmt.Replication)
+			return &n
 		}(),
 	}
 
@@ -3801,6 +3802,8 @@ func (s *Server) convertRowToPoints(measurementName string, row *influxql.Row) (
 	return points, nil
 }
 
+// StartReportingLoop starts the anonymous usage reporting loop for a given
+// cluster ID.
 func (s *Server) StartReportingLoop(clusterID uint64) chan struct{} {
 	s.reportServer(clusterID)
 
