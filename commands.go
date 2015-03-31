@@ -125,9 +125,10 @@ type dropMeasurementCommand struct {
 }
 
 type createMeasurementSubcommand struct {
-	Name   string              `json:"name"`
-	Tags   []map[string]string `json:"tags"`
-	Fields []*Field            `json:"fields"`
+	Name          string              `json:"name"`
+	Tags          []map[string]string `json:"tags"`
+	MarshaledTags []string            `json:"marshaledTags"`
+	Fields        []*Field            `json:"fields"`
 }
 
 type createMeasurementsIfNotExistsCommand struct {
@@ -165,14 +166,15 @@ func (c *createMeasurementsIfNotExistsCommand) addSeriesIfNotExists(measurement 
 	m := c.addMeasurementIfNotExists(measurement)
 
 	tagset := string(marshalTags(tags))
-	for _, t := range m.Tags {
-		if string(marshalTags(t)) == tagset {
+	for _, t := range m.MarshaledTags {
+		if t == tagset {
 			// Series already present in subcommand, nothing to do.
 			return
 		}
 	}
 	// Tag-set needs to added to subcommand.
 	m.Tags = append(m.Tags, tags)
+	m.MarshaledTags = append(m.MarshaledTags, tagset)
 
 	return
 }
