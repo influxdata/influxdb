@@ -604,6 +604,11 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",100]]}]}]}`,
 		},
 		{
+			name:     "WHERE tags SELECT single field (1 EQ and 1 NEQ tag)",
+			query:    `SELECT value FROM "%DB%"."%RP%".cpu WHERE host = 'server01' AND region != 'us-west'`,
+			expected: `{"results":[{}]}`,
+		},
+		{
 			name:     "WHERE tags SELECT single field (EQ tag value2)",
 			query:    `SELECT value FROM "%DB%"."%RP%".cpu WHERE host = 'server02'`,
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2010-02-28T01:03:37.703820946Z",200]]}]}]}`,
