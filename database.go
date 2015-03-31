@@ -376,19 +376,36 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (seriesIDs, bool, influ
 		return nil, true, nil
 	}
 
-	// if we're looking for series with a specific tag value
+	// if we're looking for series with specific tag values
 	if str, ok := value.(*influxql.StringLiteral); ok {
-		return tagVals[str.Val], true, nil
+		var ids seriesIDs
+
+		if n.Op == influxql.EQ {
+			// return series that have a tag of specific value.
+			ids = tagVals[str.Val]
+		} else if n.Op == influxql.NEQ {
+			ids = m.seriesIDs.reject(tagVals[str.Val])
+		}
+		return ids, true, nil
 	}
 
 	// if we're looking for series with tag values that match a regex
 	if re, ok := value.(*influxql.RegexLiteral); ok {
 		var ids seriesIDs
+
+		// The operation is a NEQREGEX, code must start by assuming all match, even
+		// series without any tags.
+		if n.Op == influxql.NEQREGEX {
+			ids = m.seriesIDs
+		}
+
 		for k := range tagVals {
 			match := re.Val.MatchString(k)
 
 			if (match && n.Op == influxql.EQREGEX) || (!match && n.Op == influxql.NEQREGEX) {
 				ids = ids.union(tagVals[k])
+			} else if match && n.Op == influxql.NEQREGEX {
+				ids = ids.reject(tagVals[k])
 			}
 		}
 		return ids, true, nil

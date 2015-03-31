@@ -5,6 +5,8 @@
 - [#2100](https://github.com/influxdb/influxdb/pull/2100): Synchronize access to shard index.
 - [#2131](https://github.com/influxdb/influxdb/pull/2131): Optimize marshalTags().
 - [#2130](https://github.com/influxdb/influxdb/pull/2130): Make fewer calls to marshalTags().
+- [#2105](https://github.com/influxdb/influxdb/pull/2105): Support != for tag values. Fix issue #2097, thanks to @smonkewitz for bug report.
+- [#2105](https://github.com/influxdb/influxdb/pull/2105): Support !~ tags values.
 
 ## v0.9.0-rc17 [2015-03-29]
 
