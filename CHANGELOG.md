@@ -3,6 +3,8 @@
 ### Bugfixes
 - [#2100](https://github.com/influxdb/influxdb/pull/2100): Use channel to synchronize collectd shutdown.
 - [#2100](https://github.com/influxdb/influxdb/pull/2100): Synchronize access to shard index.
+- [#2131](https://github.com/influxdb/influxdb/pull/2131): Optimize marshalTags().
+- [#2130](https://github.com/influxdb/influxdb/pull/2130): Make fewer calls to marshalTags().
 
 ## v0.9.0-rc17 [2015-03-29]
 
