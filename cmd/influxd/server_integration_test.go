@@ -641,6 +641,24 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			query:    `SELECT value FROM "%DB%"."%RP%".cpu WHERE host != 'server01'`,
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2012-02-28T01:03:38.703820946Z",200]]}]}]}`,
 		},
+		{
+			reset: true,
+			name:  "WHERE tags SELECT single field (regex tag no match)",
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "timestamp": "2015-02-28T01:03:36.703820946Z", "tags": {"host": "server01"}, "fields": {"value": 100}},
+                                                                                 {"name": "cpu", "timestamp": "2012-02-28T01:03:38.703820946Z", "fields": {"value": 200}}]}`,
+			query:    `SELECT value FROM "%DB%"."%RP%".cpu WHERE host !~ /server01/`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2012-02-28T01:03:38.703820946Z",200]]}]}]}`,
+		},
+		{
+			name:     "WHERE tags SELECT single field (regex tag match)",
+			query:    `SELECT value FROM "%DB%"."%RP%".cpu WHERE host =~ /server01/`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",100]]}]}]}`,
+		},
+		{
+			name:     "WHERE tags SELECT single field (regex tag match)",
+			query:    `SELECT value FROM "%DB%"."%RP%".cpu WHERE host !~ /server[23]/`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2012-02-28T01:03:38.703820946Z",200],["2015-02-28T01:03:36.703820946Z",100]]}]}]}`,
+		},
 
 		// WHERE fields queries
 		{
