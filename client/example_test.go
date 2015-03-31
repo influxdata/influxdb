@@ -63,8 +63,8 @@ func ExampleClient_Query() {
 		Command:  "select count(value) from shapes",
 		Database: "square_holes",
 	}
-	if results, err := con.Query(q); err == nil && results.Error() == nil {
-		log.Println(results.Results)
+	if response, err := con.Query(q); err == nil && response.Error() == nil {
+		log.Println(response.Results)
 	}
 }
 

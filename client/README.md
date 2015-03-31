@@ -148,11 +148,11 @@ func queryDB(con *client.Client, cmd string) (res []client.Result, err error) {
 		Command:  cmd,
 		Database: MyDB,
 	}
-	if results, err := con.Query(q); err == nil {
-		if results.Error() != nil {
-			return res, results.Error()
+	if response, err := con.Query(q); err == nil {
+		if response.Error() != nil {
+			return res, response.Error()
 		}
-		res = results.Results
+		res = response.Results
 	}
 	return
 }
