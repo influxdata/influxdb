@@ -3,6 +3,8 @@ package influxdb
 // This file is run within the "influxdb" package and allows for internal unit tests.
 
 import (
+	"bytes"
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -307,6 +309,53 @@ func TestShardGroup_Contains(t *testing.T) {
 
 	if g.Contains(g.StartTime.Add(24*time.Hour), g.EndTime.Add(25*time.Hour)) {
 		t.Fatal("shard group selected when both min and max after shard times")
+	}
+}
+
+// Ensure tags can be marshaled into a byte slice.
+func TestMarshalTags(t *testing.T) {
+	for i, tt := range []struct {
+		tags   map[string]string
+		result []byte
+	}{
+		{
+			tags:   nil,
+			result: nil,
+		},
+		{
+			tags:   map[string]string{"foo": "bar"},
+			result: []byte(`foo|bar`),
+		},
+		{
+			tags:   map[string]string{"foo": "bar", "baz": "battttt"},
+			result: []byte(`baz|foo|battttt|bar`),
+		},
+	} {
+		result := marshalTags(tt.tags)
+		if !bytes.Equal(result, tt.result) {
+			t.Fatalf("%d. unexpected result: exp=%s, got=%s", i, tt.result, result)
+		}
+	}
+}
+
+func BenchmarkMarshalTags_KeyN1(b *testing.B)  { benchmarkMarshalTags(b, 1) }
+func BenchmarkMarshalTags_KeyN3(b *testing.B)  { benchmarkMarshalTags(b, 3) }
+func BenchmarkMarshalTags_KeyN5(b *testing.B)  { benchmarkMarshalTags(b, 5) }
+func BenchmarkMarshalTags_KeyN10(b *testing.B) { benchmarkMarshalTags(b, 10) }
+
+func benchmarkMarshalTags(b *testing.B, keyN int) {
+	const keySize, valueSize = 8, 15
+
+	// Generate tag map.
+	tags := make(map[string]string)
+	for i := 0; i < keyN; i++ {
+		tags[fmt.Sprintf("%0*d", keySize, i)] = fmt.Sprintf("%0*d", valueSize, i)
+	}
+
+	// Unmarshal map into byte slice.
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		marshalTags(tags)
 	}
 }
 
