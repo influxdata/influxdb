@@ -313,7 +313,7 @@ func (m *Measurement) tagSets(stmt *influxql.SelectStatement, dimensions []strin
 	filters := m.filters(stmt)
 
 	// build the tag sets
-	tagStrings := make([]string, 0)
+	var tagStrings []string
 	tagSets := make(map[string]*influxql.TagSet)
 	for id, filter := range filters {
 		// get the series and set the tag values for the dimensions we care about
@@ -1074,6 +1074,7 @@ type RetentionPolicy struct {
 	shardGroups []*ShardGroup
 }
 
+// RetentionPolicies represents a list of retention policies.
 type RetentionPolicies []*RetentionPolicy
 
 func (a RetentionPolicies) Len() int           { return len(a) }

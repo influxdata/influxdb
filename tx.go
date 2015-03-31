@@ -130,7 +130,7 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 			}
 
 			// make a mapper for each shard that must be hit. We may need to hit multiple shards within a shard group
-			mappers := make([]influxql.Mapper, 0)
+			var mappers []influxql.Mapper
 
 			// create mappers for each shard we need to hit
 			for _, sg := range shardGroups {
@@ -228,6 +228,7 @@ type LocalMapper struct {
 	isRaw           bool                   // if the query is a non-aggregate query
 }
 
+// Open opens the LocalMapper.
 func (l *LocalMapper) Open() error {
 	// Open the data store
 	txn, err := l.db.Begin(false)
@@ -251,6 +252,7 @@ func (l *LocalMapper) Open() error {
 	return nil
 }
 
+// Close closes the LocalMapper.
 func (l *LocalMapper) Close() {
 	_ = l.txn.Rollback()
 }
@@ -345,6 +347,7 @@ func (l *LocalMapper) NextInterval(interval int64) (interface{}, error) {
 	return val, nil
 }
 
+// Next returns the next matching timestamped value for the LocalMapper.
 func (l *LocalMapper) Next() (seriesID uint32, timestamp int64, value interface{}) {
 	for {
 		// find the minimum timestamp
