@@ -48,34 +48,30 @@ func Run(config *Config, join, version string) (*messaging.Broker, *influxdb.Ser
 	b, l := openBroker(config.BrokerDir(), config.BrokerURL(), initBroker, joinURLs, config.Logging.RaftTracing)
 
 	// Start the broker handler.
-	var h *Handler
-	if b != nil {
-		h = &Handler{
-			brokerHandler: &messaging.Handler{
-				Broker:      b.Broker,
-				RaftHandler: &raft.Handler{Log: l},
-			},
-		}
+	h := &Handler{
+		Config: config,
+		Broker: b,
+		Log:    l,
+	}
 
-		// We want to make sure we are spun up before we exit this function, so we manually listen and serve
-		listener, err := net.Listen("tcp", config.BrokerAddr())
+	// We want to make sure we are spun up before we exit this function, so we manually listen and serve
+	listener, err := net.Listen("tcp", config.BrokerAddr())
+	if err != nil {
+		log.Fatalf("TCP server failed to listen on %s. %s ", config.BrokerAddr(), err)
+	}
+	go func() {
+		err := http.Serve(listener, h)
 		if err != nil {
-			log.Fatalf("Broker failed to listen on %s. %s ", config.BrokerAddr(), err)
+			log.Fatalf("TCP server failed to server on %s: %s", config.BrokerAddr(), err)
 		}
-		go func() {
-			err := http.Serve(listener, h)
-			if err != nil {
-				log.Fatalf("Broker failed to server on %s.: %s", config.BrokerAddr(), err)
-			}
-		}()
-		log.Printf("broker listening on %s", config.BrokerAddr())
+	}()
+	log.Printf("TCP server listening on %s", config.BrokerAddr())
 
-		// have it occasionally tell a data node in the cluster to run continuous queries
-		if config.ContinuousQuery.Disable {
-			log.Printf("Not running continuous queries. [continuous_queries].disable is set to true.")
-		} else {
-			b.RunContinuousQueryLoop()
-		}
+	// have it occasionally tell a data node in the cluster to run continuous queries
+	if config.ContinuousQuery.Disable {
+		log.Printf("Not running continuous queries. [continuous_queries].disable is set to true.")
+	} else {
+		b.RunContinuousQueryLoop()
 	}
 
 	// Open server, initialize or join as necessary.
@@ -100,21 +96,7 @@ func Run(config *Config, join, version string) (*messaging.Broker, *influxdb.Ser
 
 	// Start the server handler. Attach to broker if listening on the same port.
 	if s != nil {
-		sh := httpd.NewHandler(s, config.Authentication.Enabled, version)
-		sh.WriteTrace = config.Logging.WriteTracing
-
-		if h != nil && config.BrokerAddr() == config.DataAddr() {
-			h.serverHandler = sh
-		} else {
-			// We want to make sure we are spun up before we exit this function, so we manually listen and serve
-			listener, err := net.Listen("tcp", config.DataAddr())
-			if err != nil {
-				log.Fatal(err)
-			}
-			go func() { log.Fatal(http.Serve(listener, sh)) }()
-		}
-		log.Printf("data node #%d listening on %s", s.ID(), config.DataAddr())
-
+		h.Server = s
 		if config.Snapshot.Enabled {
 			// Start snapshot handler.
 			go func() {

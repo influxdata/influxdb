@@ -670,6 +670,17 @@ func (t *Topic) Index() uint64 {
 	return t.index
 }
 
+// DataURLs returns the data node URLs subscribed to this topic
+func (t *Topic) DataURLs() []url.URL {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	var urls []url.URL
+	for u, _ := range t.indexByURL {
+		urls = append(urls, u)
+	}
+	return urls
+}
+
 // IndexForURL returns the highest index replicated for a given data URL.
 func (t *Topic) IndexForURL(u url.URL) uint64 {
 	t.mu.Lock()

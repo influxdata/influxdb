@@ -122,6 +122,10 @@ func NewServer() *Server {
 	return &s
 }
 
+func (s *Server) BrokerURLs() []url.URL {
+	return s.client.URLs()
+}
+
 // SetAuthenticationEnabled turns on or off server authentication
 func (s *Server) SetAuthenticationEnabled(enabled bool) {
 	s.authenticationEnabled = enabled
