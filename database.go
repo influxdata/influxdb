@@ -1308,18 +1308,37 @@ func (db *database) continuousQueryByName(name string) *ContinuousQuery {
 
 // used to convert the tag set to bytes for use as a lookup key
 func marshalTags(tags map[string]string) []byte {
-	s := make([]string, 0, len(tags))
-	// pull out keys to sort
-	for k := range tags {
-		s = append(s, k)
+	// Empty maps marshal to empty bytes.
+	if len(tags) == 0 {
+		return nil
 	}
-	sort.Strings(s)
 
-	// now append on the key values in key sorted order
-	for _, k := range s {
-		s = append(s, tags[k])
+	// Extract keys and determine final size.
+	sz := (len(tags) * 2) - 1 // separators
+	keys := make([]string, 0, len(tags))
+	for k, v := range tags {
+		keys = append(keys, k)
+		sz += len(k) + len(v)
 	}
-	return []byte(strings.Join(s, "|"))
+	sort.Strings(keys)
+
+	// Generate marshaled bytes.
+	b := make([]byte, sz)
+	buf := b
+	for _, k := range keys {
+		copy(buf, k)
+		buf[len(k)] = '|'
+		buf = buf[len(k)+1:]
+	}
+	for i, k := range keys {
+		v := tags[k]
+		copy(buf, v)
+		if i < len(keys)-1 {
+			buf[len(v)] = '|'
+			buf = buf[len(v)+1:]
+		}
+	}
+	return b
 }
 
 // timeBetweenInclusive returns true if t is between min and max, inclusive.
