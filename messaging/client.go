@@ -20,14 +20,14 @@ import (
 const (
 	// DefaultReconnectTimeout is the default time to wait between when a broker
 	// stream disconnects and another connection is retried.
-	DefaultReconnectTimeout = 1000 * time.Millisecond
+	DefaultReconnectTimeout = 1 * time.Second
 
 	// DefaultPingInterval is the default time to wait between checks to the broker.
-	DefaultPingInterval = 1000 * time.Millisecond
+	DefaultPingInterval = 1 * time.Second
 
 	// DefaultHeartbeatInterval is the default time that a topic subscriber heartbeats
 	// with a broker
-	DefaultHeartbeatInterval = 1000 * time.Millisecond
+	DefaultHeartbeatInterval = 1 * time.Second
 )
 
 // Client represents a client for the broker's HTTP API.
