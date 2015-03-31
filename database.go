@@ -402,7 +402,7 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (seriesIDs, bool, influ
 		for k := range tagVals {
 			match := re.Val.MatchString(k)
 
-			if (match && n.Op == influxql.EQREGEX) || (!match && n.Op == influxql.NEQREGEX) {
+			if match && n.Op == influxql.EQREGEX {
 				ids = ids.union(tagVals[k])
 			} else if match && n.Op == influxql.NEQREGEX {
 				ids = ids.reject(tagVals[k])
