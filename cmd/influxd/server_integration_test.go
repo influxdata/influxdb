@@ -592,10 +592,15 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		{
 			reset: true,
 			name:  "WHERE tags SELECT single field (EQ tag value1)",
-			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "timestamp": "2015-02-28T01:03:36.703820946Z", "tags": {"host": "server01"}, "fields": {"value": 100}},
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "timestamp": "2015-02-28T01:03:36.703820946Z", "tags": {"host": "server01", "region": "us-west"}, "fields": {"value": 100}},
 			                                                                     {"name": "cpu", "timestamp": "2010-02-28T01:03:37.703820946Z", "tags": {"host": "server02"}, "fields": {"value": 200}},
 			                                                                     {"name": "cpu", "timestamp": "2012-02-28T01:03:38.703820946Z", "tags": {"host": "server03"}, "fields": {"value": 300}}]}`,
 			query:    `SELECT value FROM "%DB%"."%RP%".cpu WHERE host = 'server01'`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",100]]}]}]}`,
+		},
+		{
+			name:     "WHERE tags SELECT single field (2 EQ tags)",
+			query:    `SELECT value FROM "%DB%"."%RP%".cpu WHERE host = 'server01' AND region = 'us-west'`,
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",100]]}]}]}`,
 		},
 		{
