@@ -2165,13 +2165,11 @@ func (s *Server) executeSelectStatement(statementID int, stmt *influxql.SelectSt
 	resultSent := false
 	for row := range ch {
 		if row.Err != nil {
-			res.Err = row.Err
 			return row.Err
 		} else {
 			resultSent = true
 			results <- &Result{StatementID: statementID, Series: []*influxql.Row{row}}
 		}
-		res.Series = append(res.Series, row)
 	}
 
 	if !resultSent {
