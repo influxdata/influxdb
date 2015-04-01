@@ -197,7 +197,6 @@ func (c *Client) loadConfig() error {
 	// Open config file for reading.
 	f, err := os.Open(c.path)
 	if os.IsNotExist(err) {
-		c.urls = nil
 		return nil
 	} else if err != nil {
 		return fmt.Errorf("open config: %s", err)
