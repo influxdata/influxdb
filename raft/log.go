@@ -526,6 +526,7 @@ func (l *Log) writeTerm(term uint64) error {
 
 // setTerm sets the current term and clears the vote.
 func (l *Log) setTerm(term uint64) {
+	l.Logger.Printf("changing term: %d => %d", l.term, term)
 	l.term = term
 	l.votedFor = 0
 }
@@ -793,7 +794,7 @@ func (l *Log) stateLoop(closing <-chan struct{}, state State, stateChanged chan 
 			l.mu.Lock()
 			defer l.mu.Unlock()
 
-			l.Logger.Printf("log state change: %s => %s", l.state, state)
+			l.Logger.Printf("log state change: %s => %s (term=%d)", l.state, state, l.term)
 			l.state = state
 			l.transitioning = make(chan struct{}, 0)
 			transitioning = l.transitioning
@@ -1547,13 +1548,13 @@ func (l *Log) Heartbeat(term, commitIndex, leaderID uint64) (currentIndex uint64
 
 	// Check if log is closed.
 	if !l.opened() || l.state == Stopped {
-		l.tracef("recv heartbeat: closed")
+		l.Logger.Printf("recv heartbeat: closed")
 		return 0, ErrClosed
 	}
 
 	// Ignore if the incoming term is less than the log's term.
 	if term < l.term {
-		l.tracef("recv heartbeat: stale term, ignore: %d < %d", term, l.term)
+		l.Logger.Printf("recv heartbeat: stale term, ignore: %d < %d", term, l.term)
 		return l.lastLogIndex, ErrStaleTerm
 	}
 
