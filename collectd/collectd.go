@@ -20,6 +20,8 @@ type SeriesWriter interface {
 	WriteSeries(database, retentionPolicy string, points []influxdb.Point) (uint64, error)
 }
 
+// Server represents a UDP server which receives metrics in collectd's binary
+// protocol and stores them in InfluxDB.
 type Server struct {
 	wg   sync.WaitGroup
 	done chan struct{}
@@ -32,6 +34,7 @@ type Server struct {
 	typesdbpath string
 }
 
+// NewServer constructs a new Server.
 func NewServer(w SeriesWriter, typesDBPath string) *Server {
 	s := Server{
 		done:        make(chan struct{}),
@@ -43,6 +46,10 @@ func NewServer(w SeriesWriter, typesDBPath string) *Server {
 	return &s
 }
 
+// ListenAndServe starts starts receiving collectd metrics via UDP and writes
+// the received data points into the server's SeriesWriter. The serving
+// goroutine is only stopped when s.Close() is called, but ListenAndServe
+// returns immediately.
 func ListenAndServe(s *Server, iface string) error {
 	if iface == "" { // Make sure we have an address
 		return errors.New("bind address required")
@@ -142,6 +149,7 @@ func (s *Server) Close() error {
 	return nil
 }
 
+// Unmarshal translates a collectd packet into InfluxDB data points.
 func Unmarshal(data *gollectd.Packet) []influxdb.Point {
 	// Prefer high resolution timestamp.
 	var timestamp time.Time
