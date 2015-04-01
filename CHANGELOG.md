@@ -1,4 +1,4 @@
-## v0.9.0-rc18 [Unreleased]
+## v0.9.0-rc18 [2015-03-31]
 
 ### Bugfixes
 - [#2100](https://github.com/influxdb/influxdb/pull/2100): Use channel to synchronize collectd shutdown.
@@ -7,6 +7,7 @@
 - [#2130](https://github.com/influxdb/influxdb/pull/2130): Make fewer calls to marshalTags().
 - [#2105](https://github.com/influxdb/influxdb/pull/2105): Support != for tag values. Fix issue #2097, thanks to @smonkewitz for bug report.
 - [#2105](https://github.com/influxdb/influxdb/pull/2105): Support !~ tags values.
+- [#2138](https://github.com/influxdb/influxdb/pull/2136): Use map for marshaledTags cache.
 
 ## v0.9.0-rc17 [2015-03-29]
 
