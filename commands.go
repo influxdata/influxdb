@@ -127,7 +127,7 @@ type dropMeasurementCommand struct {
 type createMeasurementSubcommand struct {
 	Name          string              `json:"name"`
 	Tags          []map[string]string `json:"tags"`
-	marshaledTags []string            // local cache...don't marshal
+	marshaledTags map[string]struct{} // local cache...don't marshal
 	Fields        []*Field            `json:"fields"`
 }
 
@@ -152,9 +152,10 @@ func (c *createMeasurementsIfNotExistsCommand) addMeasurementIfNotExists(name st
 		}
 	}
 	m := &createMeasurementSubcommand{
-		Name:   name,
-		Tags:   make([]map[string]string, 0),
-		Fields: make([]*Field, 0),
+		Name:          name,
+		Tags:          make([]map[string]string, 0),
+		marshaledTags: make(map[string]struct{}, 0),
+		Fields:        make([]*Field, 0),
 	}
 	c.Measurements = append(c.Measurements, m)
 	return m
@@ -166,16 +167,13 @@ func (c *createMeasurementsIfNotExistsCommand) addSeriesIfNotExists(measurement 
 	m := c.addMeasurementIfNotExists(measurement)
 
 	tagset := string(marshalTags(tags))
-	for _, t := range m.marshaledTags {
-		if t == tagset {
-			// Series already present in subcommand, nothing to do.
-			return
-		}
+	if _, ok := m.marshaledTags[tagset]; ok {
+		return
 	}
 	// Tag-set needs to added to subcommand.
 	m.Tags = append(m.Tags, tags)
 	// Store marshaled tags in local cache for performance.
-	m.marshaledTags = append(m.marshaledTags, tagset)
+	m.marshaledTags[tagset] = struct{}{}
 
 	return
 }
