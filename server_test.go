@@ -1945,12 +1945,12 @@ func (s *Server) MustWriteSeries(database, retentionPolicy string, points []infl
 	return index
 }
 
-func (s *Server) executeQuery(q *influxql.Query, db string, user *influxdb.User) influxdb.Results {
+func (s *Server) executeQuery(q *influxql.Query, db string, user *influxdb.User) influxdb.Response {
 	results, err := s.ExecuteQuery(q, db, user, 10000)
 	if err != nil {
-		return influxdb.Results{Err: err}
+		return influxdb.Response{Err: err}
 	}
-	res := influxdb.Results{}
+	res := influxdb.Response{}
 	for r := range results {
 		l := len(res.Results)
 		if l == 0 {

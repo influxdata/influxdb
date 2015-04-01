@@ -1354,7 +1354,7 @@ func TestHandler_serveWriteSeriesNonZeroTime(t *testing.T) {
 		t.Errorf("unexpected status: %d", status)
 	}
 
-	r := &influxdb.Results{}
+	r := &influxdb.Response{}
 	if err := json.Unmarshal([]byte(body), r); err != nil {
 		t.Logf("query : %s\n", query)
 		t.Log(body)
@@ -1401,7 +1401,7 @@ func TestHandler_serveWriteSeriesZeroTime(t *testing.T) {
 		t.Errorf("unexpected status: %d", status)
 	}
 
-	r := &influxdb.Results{}
+	r := &influxdb.Response{}
 	if err := json.Unmarshal([]byte(body), r); err != nil {
 		t.Logf("query : %s\n", query)
 		t.Log(body)
@@ -1489,7 +1489,7 @@ func TestHandler_serveWriteSeriesBatch(t *testing.T) {
 		t.Errorf("unexpected status: %d", status)
 	}
 
-	r := &influxdb.Results{}
+	r := &influxdb.Response{}
 	if err := json.Unmarshal([]byte(body), r); err != nil {
 		t.Logf("query : %s\n", query)
 		t.Log(body)
@@ -1531,7 +1531,7 @@ func TestHandler_serveWriteSeriesFieldTypeConflict(t *testing.T) {
 		t.Errorf("unexpected status: %d", status)
 	}
 
-	r := &influxdb.Results{}
+	r := &influxdb.Response{}
 	if err := json.Unmarshal([]byte(body), r); err != nil {
 		t.Log(body)
 		t.Error(err)
@@ -1646,16 +1646,16 @@ func TestHandler_ChunkedResponses(t *testing.T) {
 		if err != nil {
 			t.Fatalf("error reading response: %s", err.Error())
 		}
-		results := &influxdb.Results{}
-		err = json.Unmarshal(chunk[0:n], results)
+		response := &influxdb.Response{}
+		err = json.Unmarshal(chunk[0:n], response)
 		if err != nil {
 			t.Fatalf("error unmarshaling resultsz: %s", err.Error())
 		}
-		if len(results.Results) != 1 {
-			t.Fatalf("didn't get 1 result: %s\n", mustMarshalJSON(results))
+		if len(response.Results) != 1 {
+			t.Fatalf("didn't get 1 result: %s\n", mustMarshalJSON(response))
 		}
-		if len(results.Results[0].Series) != 1 {
-			t.Fatalf("didn't get 1 series: %s\n", mustMarshalJSON(results))
+		if len(response.Results[0].Series) != 1 {
+			t.Fatalf("didn't get 1 series: %s\n", mustMarshalJSON(response))
 		}
 		var vals [][]interface{}
 		if i == 0 {
@@ -1663,8 +1663,8 @@ func TestHandler_ChunkedResponses(t *testing.T) {
 		} else {
 			vals = [][]interface{}{{"2009-11-10T23:30:00Z", 25}}
 		}
-		if mustMarshalJSON(vals) != mustMarshalJSON(results.Results[0].Series[0].Values) {
-			t.Fatalf("values weren't what was expected:\n  exp: %s\n  got: %s", mustMarshalJSON(vals), mustMarshalJSON(results.Results[0].Series[0].Values))
+		if mustMarshalJSON(vals) != mustMarshalJSON(response.Results[0].Series[0].Values) {
+			t.Fatalf("values weren't what was expected:\n  exp: %s\n  got: %s", mustMarshalJSON(vals), mustMarshalJSON(response.Results[0].Series[0].Values))
 		}
 	}
 }

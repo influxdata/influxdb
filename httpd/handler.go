@@ -202,7 +202,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *influ
 	}
 
 	// if we're not chunking, this will be the in memory buffer for all results before sending to client
-	res := influxdb.Results{Results: make([]*influxdb.Result, 0)}
+	res := influxdb.Response{Results: make([]*influxdb.Result, 0)}
 	statusWritten := false
 
 	// pull all results from the channel
@@ -320,7 +320,7 @@ func (h *Handler) showMeasurements(db string, user *influxdb.User) ([]string, er
 	if err != nil {
 		return measurements, err
 	}
-	results := influxdb.Results{}
+	results := influxdb.Response{}
 
 	for r := range c {
 		results.Results = append(results.Results, r)
@@ -691,12 +691,12 @@ func httpError(w http.ResponseWriter, error string, pretty bool, code int) {
 	w.Header().Add("content-type", "application/json")
 	w.WriteHeader(code)
 
-	results := influxdb.Results{Err: errors.New(error)}
+	response := influxdb.Response{Err: errors.New(error)}
 	var b []byte
 	if pretty {
-		b, _ = json.MarshalIndent(results, "", "    ")
+		b, _ = json.MarshalIndent(response, "", "    ")
 	} else {
-		b, _ = json.Marshal(results)
+		b, _ = json.Marshal(response)
 	}
 	w.Write(b)
 }
