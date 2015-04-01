@@ -125,10 +125,11 @@ type dropMeasurementCommand struct {
 }
 
 type createMeasurementSubcommand struct {
-	Name          string              `json:"name"`
-	Tags          []map[string]string `json:"tags"`
+	Name   string              `json:"name"`
+	Tags   []map[string]string `json:"tags"`
+	Fields []*Field            `json:"fields"`
+
 	marshaledTags map[string]struct{} // local cache...don't marshal
-	Fields        []*Field            `json:"fields"`
 }
 
 type createMeasurementsIfNotExistsCommand struct {
