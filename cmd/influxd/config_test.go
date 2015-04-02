@@ -19,6 +19,7 @@ const testFile = `
 # systems in the cluster, you'll have to set the hostname to an IP or something
 # that can be resolved here.
 hostname = "myserver.com"
+port = 8086
 
 # Controls certain parameters that only take effect until an initial successful
 # start-up has occurred.
@@ -150,6 +151,10 @@ func TestParseConfig(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	} else if c.Hostname != "myserver.com" {
 		t.Fatalf("hostname mismatch: %v", c.Hostname)
+	}
+
+	if exp := 8086; c.Port != exp {
+		t.Fatalf("port mismatch. got %v, exp %v", c.Port, exp)
 	}
 
 	if c.JoinURLs() != "http://127.0.0.1:8086" {

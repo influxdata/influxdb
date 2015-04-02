@@ -33,6 +33,9 @@ const (
 	// DefaultAPIReadTimeout represents the duration before an API request times out.
 	DefaultAPIReadTimeout = 5 * time.Second
 
+	// DefaultClusterPort represents the default port the cluster runs ons.
+	DefaultClusterPort = 8086
+
 	// DefaultBrokerPort represents the default port the broker runs on.
 	DefaultBrokerPort = 8086
 
@@ -128,6 +131,7 @@ type Data struct {
 type Config struct {
 	Hostname          string `toml:"hostname"`
 	BindAddress       string `toml:"bind-address"`
+	Port              int    `toml:"port"`
 	ReportingDisabled bool   `toml:"reporting-disabled"`
 	Version           string `toml:"-"`
 	InfluxDBVersion   string `toml:"-"`
@@ -214,8 +218,8 @@ type Config struct {
 // NewConfig returns an instance of Config with reasonable defaults.
 func NewConfig() *Config {
 	c := &Config{}
+	c.Port = DefaultClusterPort
 	c.Broker.Port = DefaultBrokerPort
-
 	c.Data.Port = DefaultDataPort
 
 	c.Data.RetentionAutoCreate = DefaultRetentionAutoCreate
