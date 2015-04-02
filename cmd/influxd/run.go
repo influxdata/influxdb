@@ -152,17 +152,17 @@ func (cmd *RunCommand) Open(config *Config, join string) (*messaging.Broker, *in
 	}
 
 	// We want to make sure we are spun up before we exit this function, so we manually listen and serve
-	listener, err := net.Listen("tcp", cmd.config.BrokerAddr())
+	listener, err := net.Listen("tcp", cmd.config.ClusterAddr())
 	if err != nil {
-		log.Fatalf("TCP server failed to listen on %s. %s ", cmd.config.BrokerAddr(), err)
+		log.Fatalf("TCP server failed to listen on %s. %s ", cmd.config.ClusterAddr(), err)
 	}
 	go func() {
 		err := http.Serve(listener, h)
 		if err != nil {
-			log.Fatalf("TCP server failed to server on %s: %s", cmd.config.BrokerAddr(), err)
+			log.Fatalf("TCP server failed to server on %s: %s", cmd.config.ClusterAddr(), err)
 		}
 	}()
-	log.Printf("TCP server listening on %s", cmd.config.BrokerAddr())
+	log.Printf("TCP server listening on %s", cmd.config.ClusterAddr())
 
 	// have it occasionally tell a data node in the cluster to run continuous queries
 	if cmd.config.ContinuousQuery.Disabled {

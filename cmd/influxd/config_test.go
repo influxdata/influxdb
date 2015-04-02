@@ -96,7 +96,6 @@ retention-policy = "raw"
 [broker]
 # The broker port should be open between all servers in a cluster.
 # However, this port shouldn't be accessible from the internet.
-port = 8086
 enabled = false
 
 # Where the broker logs are stored. The user running InfluxDB will need read/write access.
@@ -181,7 +180,7 @@ func TestParseConfig(t *testing.T) {
 		t.Fatalf("continuous query disable mismatch: %v", c.ContinuousQuery.Disabled)
 	}
 
-	if c.Data.Port != main.DefaultBrokerPort {
+	if c.Data.Port != main.DefaultDataPort {
 		t.Fatalf("data port mismatch: %v", c.Data.Port)
 	}
 
@@ -245,9 +244,7 @@ func TestParseConfig(t *testing.T) {
 		t.Errorf("collectd retention-policy mismatch: expected %v, got %v", "foo-db-type", c.OpenTSDB.RetentionPolicy)
 	}
 
-	if c.Broker.Port != 8086 {
-		t.Fatalf("broker port mismatch: %v", c.Broker.Port)
-	} else if c.Broker.Dir != "/tmp/influxdb/development/broker" {
+	if c.Broker.Dir != "/tmp/influxdb/development/broker" {
 		t.Fatalf("broker dir mismatch: %v", c.Broker.Dir)
 	}
 

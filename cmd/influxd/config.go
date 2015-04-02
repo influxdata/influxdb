@@ -36,9 +36,6 @@ const (
 	// DefaultClusterPort represents the default port the cluster runs ons.
 	DefaultClusterPort = 8086
 
-	// DefaultBrokerPort represents the default port the broker runs on.
-	DefaultBrokerPort = 8086
-
 	// DefaultDataPort represents the default port the data server runs on.
 	DefaultDataPort = 8086
 
@@ -102,7 +99,6 @@ var DefaultSnapshotURL = url.URL{
 
 // Broker represents the configuration for a broker node
 type Broker struct {
-	Port    int      `toml:"port"`
 	Dir     string   `toml:"dir"`
 	Enabled bool     `toml:"enabled"`
 	Timeout Duration `toml:"election-timeout"`
@@ -219,7 +215,6 @@ type Config struct {
 func NewConfig() *Config {
 	c := &Config{}
 	c.Port = DefaultClusterPort
-	c.Broker.Port = DefaultBrokerPort
 	c.Data.Port = DefaultDataPort
 
 	c.Data.RetentionAutoCreate = DefaultRetentionAutoCreate
@@ -301,16 +296,16 @@ func (c *Config) SnapshotAddr() string {
 	return net.JoinHostPort(c.Snapshot.BindAddress, strconv.Itoa(c.Snapshot.Port))
 }
 
-// BrokerAddr returns the binding address the Broker server
-func (c *Config) BrokerAddr() string {
-	return fmt.Sprintf("%s:%d", c.BindAddress, c.Broker.Port)
+// ClusterAddr returns the binding address for the cluster
+func (c *Config) ClusterAddr() string {
+	return net.JoinHostPort(c.BindAddress, strconv.Itoa(c.Port))
 }
 
 // BrokerURL returns the URL required to contact the Broker server.
 func (c *Config) BrokerURL() url.URL {
 	return url.URL{
 		Scheme: "http",
-		Host:   net.JoinHostPort(c.Hostname, strconv.Itoa(c.Broker.Port)),
+		Host:   net.JoinHostPort(c.Hostname, strconv.Itoa(c.Port)),
 	}
 }
 

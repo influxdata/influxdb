@@ -118,7 +118,7 @@ func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes, ba
 	}
 	c.Broker.Dir = filepath.Join(tmpBrokerDir, strconv.Itoa(basePort))
 	c.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(basePort))
-	c.Broker.Port = basePort
+	c.Port = basePort
 	c.Data.Port = basePort
 	c.Admin.Enabled = false
 	c.ReportingDisabled = true
@@ -145,7 +145,7 @@ func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes, ba
 		nextPort := basePort + i
 		c.Broker.Dir = filepath.Join(tmpBrokerDir, strconv.Itoa(nextPort))
 		c.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(nextPort))
-		c.Broker.Port = nextPort
+		c.Port = nextPort
 		c.Data.Port = nextPort
 
 		cmd := main.NewRunCommand()
@@ -1850,12 +1850,12 @@ func TestSeparateBrokerDataNode(t *testing.T) {
 
 	brokerConfig := main.NewConfig()
 	brokerConfig.Broker.Enabled = true
-	brokerConfig.Broker.Port = 9000
-	brokerConfig.Broker.Dir = filepath.Join(tmpBrokerDir, strconv.Itoa(brokerConfig.Broker.Port))
+	brokerConfig.Port = 9000
+	brokerConfig.Broker.Dir = filepath.Join(tmpBrokerDir, strconv.Itoa(brokerConfig.Port))
 	brokerConfig.ReportingDisabled = true
 
 	dataConfig := main.NewConfig()
-	dataConfig.Broker.Port = 9001
+	dataConfig.Port = 9001
 	dataConfig.Data.Enabled = true
 	dataConfig.Data.Port = 9001
 	dataConfig.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(dataConfig.Data.Port))
@@ -1864,7 +1864,7 @@ func TestSeparateBrokerDataNode(t *testing.T) {
 	brokerCmd := main.NewRunCommand()
 	b, _, _ := brokerCmd.Open(brokerConfig, "")
 	if b == nil {
-		t.Fatalf("Test %s: failed to create broker on port %d", testName, brokerConfig.Broker.Port)
+		t.Fatalf("Test %s: failed to create broker on port %d", testName, brokerConfig.Port)
 	}
 
 	u := b.URL()
@@ -1895,14 +1895,14 @@ func TestSeparateBrokerTwoDataNodes(t *testing.T) {
 	// Start a single broker node
 	brokerConfig := main.NewConfig()
 	brokerConfig.Broker.Enabled = true
-	brokerConfig.Broker.Port = 9010
-	brokerConfig.Broker.Dir = filepath.Join(tmpBrokerDir, strconv.Itoa(brokerConfig.Broker.Port))
+	brokerConfig.Port = 9010
+	brokerConfig.Broker.Dir = filepath.Join(tmpBrokerDir, strconv.Itoa(brokerConfig.Port))
 	brokerConfig.ReportingDisabled = true
 
 	brokerCmd := main.NewRunCommand()
 	b, _, _ := brokerCmd.Open(brokerConfig, "")
 	if b == nil {
-		t.Fatalf("Test %s: failed to create broker on port %d", testName, brokerConfig.Broker.Port)
+		t.Fatalf("Test %s: failed to create broker on port %d", testName, brokerConfig.Port)
 	}
 
 	u := b.URL()
@@ -1910,7 +1910,7 @@ func TestSeparateBrokerTwoDataNodes(t *testing.T) {
 
 	// Star the first data node and join the broker
 	dataConfig1 := main.NewConfig()
-	dataConfig1.Broker.Port = 9011
+	dataConfig1.Port = 9011
 	dataConfig1.Data.Enabled = true
 	dataConfig1.Data.Port = 9011
 	dataConfig1.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(dataConfig1.Data.Port))
@@ -1926,7 +1926,7 @@ func TestSeparateBrokerTwoDataNodes(t *testing.T) {
 
 	// Join data node 2 to single broker and first data node
 	dataConfig2 := main.NewConfig()
-	dataConfig2.Broker.Port = 9012
+	dataConfig2.Port = 9012
 	dataConfig2.Data.Enabled = true
 	dataConfig2.Data.Port = 9012
 	dataConfig2.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(dataConfig2.Data.Port))
