@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"hash/fnv"
+	"math"
 	"sort"
 	"time"
 )
@@ -17,10 +18,6 @@ const (
 	// Return an error if the user is trying to select more than this number of points in a group by statement.
 	// Most likely they specified a group by interval without time boundaries.
 	MaxGroupByPoints = 100000
-
-	// All queries that return raw non-aggregated data, will have 2 results returned from the ouptut of a reduce run.
-	// The first element will be a time that we ignore, and the second element will be an array of []*rawMapOutput
-	ResultCountInRawResults = 2
 
 	// Since time is always selected, the column count when selecting only a single other value will be 2
 	SelectColumnCountWithOneValue = 2
@@ -42,6 +39,7 @@ type MapReduceJob struct {
 	key             []byte           // a key that identifies the MRJob so it can be sorted
 	interval        int64            // the group by interval of the query
 	stmt            *SelectStatement // the select statement this job was created for
+	chunkSize       int              // the number of points to buffer in raw queries before returning a chunked response
 }
 
 func (m *MapReduceJob) Open() error {
@@ -68,6 +66,13 @@ func (m *MapReduceJob) Key() []byte {
 }
 
 func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
+	// if it's a raw query we handle processing differently
+	if m.stmt.IsRawQuery {
+		m.processRawQuery(out, filterEmptyResults)
+		return
+	}
+
+	// get the aggregates and the associated reduce functions
 	aggregates := m.stmt.FunctionCalls()
 	reduceFuncs := make([]ReduceFunc, len(aggregates))
 	for i, c := range aggregates {
@@ -79,20 +84,11 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 		reduceFuncs[i] = reduceFunc
 	}
 
-	isRaw := false
-	// modify if it's a raw data query
-	if len(aggregates) == 0 {
-		isRaw = true
-		aggregates = []*Call{nil}
-		r, _ := InitializeReduceFunc(nil)
-		reduceFuncs = append(reduceFuncs, r)
-	}
-
 	// we'll have a fixed number of points with timestamps in buckets. Initialize those times and a slice to hold the associated values
 	var pointCountInResult int
 
 	// if the user didn't specify a start time or a group by interval, we're returning a single point that describes the entire range
-	if m.TMin == 0 || m.interval == 0 || isRaw {
+	if m.TMin == 0 || m.interval == 0 {
 		// they want a single aggregate point for the entire time range
 		m.interval = m.TMax - m.TMin
 		pointCountInResult = 1
@@ -104,7 +100,7 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 
 	// For group by time queries, limit the number of data points returned by the limit and offset
 	// raw query limits are handled elsewhere
-	if !m.stmt.IsRawQuery && (m.stmt.Limit > 0 || m.stmt.Offset > 0) {
+	if m.stmt.Limit > 0 || m.stmt.Offset > 0 {
 		// ensure that the offset isn't higher than the number of points we'd get
 		if m.stmt.Offset > pointCountInResult {
 			return
@@ -118,7 +114,7 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 	}
 
 	// If we are exceeding our MaxGroupByPoints and we aren't a raw query, error out
-	if !m.stmt.IsRawQuery && pointCountInResult > MaxGroupByPoints {
+	if pointCountInResult > MaxGroupByPoints {
 		out <- &Row{
 			Err: errors.New("too many points in the group by interval. maybe you forgot to specify a where time clause?"),
 		}
@@ -140,7 +136,7 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 		}
 
 		// If we start getting out of our max time range, then truncate values and return
-		if t > m.TMax && !isRaw {
+		if t > m.TMax {
 			resultValues = resultValues[:i]
 			break
 		}
@@ -152,7 +148,7 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 
 	// This just makes sure that if they specify a start time less than what the start time would be with the offset,
 	// we just reset the start time to the later time to avoid going over data that won't show up in the result.
-	if m.stmt.Offset > 0 && !m.stmt.IsRawQuery {
+	if m.stmt.Offset > 0 {
 		m.TMin = resultValues[0][0].(time.Time).UnixNano()
 	}
 
@@ -167,18 +163,6 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 
 			return
 		}
-	}
-
-	if isRaw {
-		row := m.processRawResults(resultValues)
-		if filterEmptyResults && m.resultsEmpty(row.Values) {
-			return
-		}
-		// do any post processing like math and stuff
-		row.Values = m.processResults(row.Values)
-
-		out <- row
-		return
 	}
 
 	// filter out empty results
@@ -210,6 +194,146 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 	out <- row
 }
 
+// processRawQuery will handle running the mappers and then reducing their output
+// for queries that pull back raw data values without computing any kind of aggregates.
+func (m *MapReduceJob) processRawQuery(out chan *Row, filterEmptyResults bool) {
+	// initialize the mappers
+	for _, mm := range m.Mappers {
+		if err := mm.Begin(nil, m.TMin); err != nil {
+			out <- &Row{Err: err}
+			return
+		}
+	}
+
+	mapperOutputs := make([][]*rawQueryMapOutput, len(m.Mappers))
+	// markers for which mappers have been completely emptied
+	mapperComplete := make([]bool, len(m.Mappers))
+
+	// for limit and offset we need to track how many values we've swalloed for the offset and how many we've already set for the limit.
+	// we track the number set for the limit because they could be getting chunks. For instance if your limit is 10k, but chunk size is 1k
+	valuesSent := 0
+	valuesOffset := 0
+	valuesToReturn := make([]*rawQueryMapOutput, 0)
+
+	// loop until we've emptied out all the mappers and sent everything out
+	for {
+		// collect up to the limit for each mapper
+		for j, mm := range m.Mappers {
+			// only pull from mappers that potentially have more data and whose last output has been completely sent out.
+			if mapperOutputs[j] != nil || mapperComplete[j] {
+				continue
+			}
+
+			mm.SetLimit(m.chunkSize)
+			res, err := mm.NextInterval(m.TMax)
+			if err != nil {
+				out <- &Row{Err: err}
+				return
+			}
+			if res != nil {
+				mapperOutputs[j] = res.([]*rawQueryMapOutput)
+			} else { // if we got a nil from the mapper it means that we've emptied all data from it
+				mapperComplete[j] = true
+			}
+		}
+
+		// process the mapper outputs. we can send out everything up to the min of the last time in the mappers
+		min := int64(math.MaxInt64)
+		for _, o := range mapperOutputs {
+			// some of the mappers could empty out before others so ignore them because they'll be nil
+			if o == nil {
+				continue
+			}
+
+			// find the min of the last point in each mapper
+			t := o[len(o)-1].timestamp
+			if t < min {
+				min = t
+			}
+		}
+
+		// now empty out all the mapper outputs up to the min time
+		var values []*rawQueryMapOutput
+		for j, o := range mapperOutputs {
+			// find the index of the point up to the min
+			ind := len(o)
+			for i, mo := range o {
+				if mo.timestamp > min {
+					ind = i
+					break
+				}
+			}
+
+			// add up to the index to the values
+			values = append(values, o[:ind]...)
+
+			// if we emptied out all the values, set this output to nil so that the mapper will get run again on the next loop
+			if ind == len(o) {
+				mapperOutputs[j] = nil
+			}
+		}
+
+		// if we didn't pull out any values, we're done here
+		if values == nil {
+			break
+		}
+
+		// sort the values by time first so we can then handle offset and limit
+		sort.Sort(rawOutputs(values))
+
+		// get rid of any points that need to be offset
+		if valuesOffset < m.stmt.Offset {
+			offset := m.stmt.Offset - valuesOffset
+
+			// if offset is bigger than the number of values we have, move to the next batch from the mappers
+			if offset > len(values) {
+				valuesOffset += len(values)
+				continue
+			}
+
+			values = values[offset:]
+			valuesOffset += offset
+		}
+
+		// ensure we don't send more than the limit
+		if valuesSent < m.stmt.Limit {
+			limit := m.stmt.Limit - valuesSent
+			if len(values) > limit {
+				values = values[:limit]
+			}
+			valuesSent += len(values)
+		}
+		valuesToReturn = append(valuesToReturn, values...)
+
+		// hit the chunk size? Send out what has been accumulated, but keep
+		// processing.
+		if len(valuesToReturn) >= m.chunkSize {
+			row := m.processRawResults(valuesToReturn)
+			// perform post-processing, such as math.
+			row.Values = m.processResults(row.Values)
+			out <- row
+			valuesToReturn = make([]*rawQueryMapOutput, 0)
+		}
+
+		// stop processing if we've hit the limit
+		if m.stmt.Limit != 0 && valuesSent >= m.stmt.Limit {
+			break
+		}
+	}
+
+	if len(valuesToReturn) == 0 {
+		if !filterEmptyResults {
+			out <- m.processRawResults(nil)
+		}
+	} else {
+		row := m.processRawResults(valuesToReturn)
+		// perform post-processing, such as math.
+		row.Values = m.processResults(row.Values)
+		out <- row
+	}
+}
+
+// processsResults will apply any math that was specified in the select statement against the passed in results
 func (m *MapReduceJob) processResults(results [][]interface{}) [][]interface{} {
 	hasMath := false
 	for _, f := range m.stmt.Fields {
@@ -245,8 +369,8 @@ func (m *MapReduceJob) processResults(results [][]interface{}) [][]interface{} {
 
 // processFill will take the results and return new reaults (or the same if no fill modifications are needed) with whatever fill options the query has.
 func (m *MapReduceJob) processFill(results [][]interface{}) [][]interface{} {
-	// don't do anything if it's raw query results or we're supposed to leave the nulls
-	if m.stmt.IsRawQuery || m.stmt.Fill == NullFill {
+	// don't do anything if we're supposed to leave the nulls
+	if m.stmt.Fill == NullFill {
 		return results
 	}
 
@@ -396,6 +520,7 @@ func newBinaryExprEvaluator(op Token, lhs, rhs processor) processor {
 	}
 }
 
+// resultsEmpty will return true if the all the result values are empty or contain only nulls
 func (m *MapReduceJob) resultsEmpty(resultValues [][]interface{}) bool {
 	for _, vals := range resultValues {
 		// start the loop at 1 because we want to skip over the time value
@@ -409,7 +534,7 @@ func (m *MapReduceJob) resultsEmpty(resultValues [][]interface{}) bool {
 }
 
 // processRawResults will handle converting the reduce results from a raw query into a Row
-func (m *MapReduceJob) processRawResults(resultValues [][]interface{}) *Row {
+func (m *MapReduceJob) processRawResults(values []*rawQueryMapOutput) *Row {
 	selectNames := m.stmt.NamesInSelect()
 
 	// ensure that time is in the select names and in the first position
@@ -440,14 +565,12 @@ func (m *MapReduceJob) processRawResults(resultValues [][]interface{}) *Row {
 	}
 
 	// return an empty row if there are no results
-	// resultValues should have exactly 1 array of interface. And for that array, the first element
-	// will be a time that we ignore, and the second element will be an array of []*rawMapOutput
-	if len(resultValues) == 0 || len(resultValues[0]) != ResultCountInRawResults {
+	if len(values) == 0 {
 		return row
 	}
 
 	// the results will have all of the raw mapper results, convert into the row
-	for _, v := range resultValues[0][1].([]*rawQueryMapOutput) {
+	for _, v := range values {
 		vals := make([]interface{}, len(selectNames))
 
 		if singleValue {
@@ -468,21 +591,6 @@ func (m *MapReduceJob) processRawResults(resultValues [][]interface{}) *Row {
 		row.Values = append(row.Values, vals)
 	}
 
-	// apply limit and offset, if applicable
-	// TODO: make this so it doesn't read the whole result set into memory
-	if m.stmt.Limit > 0 || m.stmt.Offset > 0 {
-		if m.stmt.Offset > len(row.Values) {
-			row.Values = nil
-		} else {
-			limit := m.stmt.Limit
-			if m.stmt.Offset+m.stmt.Limit > len(row.Values) {
-				limit = len(row.Values) - m.stmt.Offset
-			}
-
-			row.Values = row.Values[m.stmt.Offset : m.stmt.Offset+limit]
-		}
-	}
-
 	return row
 }
 
@@ -496,10 +604,10 @@ func (m *MapReduceJob) processAggregate(c *Call, reduceFunc ReduceFunc, resultVa
 		}
 	}
 
-	firstInterval := m.interval
-	if !m.stmt.IsRawQuery {
-		firstInterval = (m.TMin/m.interval*m.interval + m.interval) - m.TMin
-	}
+	// the first interval in a query with a group by may be smaller than the others. This happens when they have a
+	// where time > clause that is in the middle of the bucket that the group by time creates
+	firstInterval := (m.TMin/m.interval*m.interval + m.interval) - m.TMin
+
 	// populate the result values for each interval of time
 	for i, _ := range resultValues {
 		// collect the results from each mapper
@@ -542,9 +650,14 @@ type Mapper interface {
 
 	// NextInterval will get the time ordered next interval of the given interval size from the mapper. This is a
 	// forward only operation from the start time passed into Begin. Will return nil when there is no more data to be read.
-	// We pass the interval in here so that it can be varied over the period of the query. This is useful for the raw
-	// data queries where we'd like to gradually adjust the amount of time we scan over.
+	// We pass the interval in here so that it can be varied over the period of the query. This is useful for queries that
+	// must respect natural time boundaries like months or queries that span daylight savings time borders. Note that if
+	// a limit is set on the mapper, the interval passed here should represent the MaxTime in a nano epoch.
 	NextInterval(interval int64) (interface{}, error)
+
+	// Set limit will limit the number of data points yielded on the next interval. If a limit is set, the interval
+	// passed into NextInterval will be used as the MaxTime to scan until.
+	SetLimit(limit int)
 }
 
 type TagSet struct {
@@ -576,7 +689,7 @@ func NewPlanner(db DB) *Planner {
 }
 
 // Plan creates an execution plan for the given SelectStatement and returns an Executor.
-func (p *Planner) Plan(stmt *SelectStatement) (*Executor, error) {
+func (p *Planner) Plan(stmt *SelectStatement, chunkSize int) (*Executor, error) {
 	now := p.Now().UTC()
 
 	// Replace instances of "now()" with the current time.
@@ -616,6 +729,7 @@ func (p *Planner) Plan(stmt *SelectStatement) (*Executor, error) {
 	for _, j := range jobs {
 		j.interval = interval.Nanoseconds()
 		j.stmt = stmt
+		j.chunkSize = chunkSize
 	}
 
 	return &Executor{tx: tx, stmt: stmt, jobs: jobs, interval: interval.Nanoseconds()}, nil

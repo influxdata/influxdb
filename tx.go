@@ -226,6 +226,7 @@ type LocalMapper struct {
 	selectFields    []*Field               // field names that occur in the select clause
 	selectTags      []string               // tag keys that occur in the select clause
 	isRaw           bool                   // if the query is a non-aggregate query
+	limit           int                    // used for raw queries to limit the amount of data read in before pushing out to client
 }
 
 // Open opens the LocalMapper.
@@ -318,13 +319,16 @@ func (l *LocalMapper) Begin(c *influxql.Call, startingTime int64) error {
 
 // NextInterval will get the time ordered next interval of the given interval size from the mapper. This is a
 // forward only operation from the start time passed into Begin. Will return nil when there is no more data to be read.
+// If this is a raw query, interval should be the max time to hit in the query
 func (l *LocalMapper) NextInterval(interval int64) (interface{}, error) {
 	if l.cursorsEmpty || l.tmin > l.job.TMax {
 		return nil, nil
 	}
 
 	// Set the upper bound of the interval.
-	if interval > 0 {
+	if l.isRaw {
+		l.tmax = interval
+	} else if interval > 0 {
 		// Make sure the bottom of the interval lands on a natural boundary.
 		l.tmax = l.tmin + interval - 1
 	}
@@ -341,15 +345,27 @@ func (l *LocalMapper) NextInterval(interval int64) (interface{}, error) {
 		}
 	}
 
-	// Move the interval forward.
-	l.tmin += interval
+	// Move the interval forward if it's not a raw query. For raw queries we use the limit to advance intervals.
+	if !l.isRaw {
+		l.tmin += interval
+	}
 
 	return val, nil
+}
+
+// SetLimit will tell the mapper to only yield that number of points (or to the max time) to Next
+func (l *LocalMapper) SetLimit(limit int) {
+	l.limit = limit
 }
 
 // Next returns the next matching timestamped value for the LocalMapper.
 func (l *LocalMapper) Next() (seriesID uint32, timestamp int64, value interface{}) {
 	for {
+		// if it's a raw query and we've hit the limit of the number of points to read in, bail
+		if l.isRaw && l.limit == 0 {
+			return uint32(0), int64(0), nil
+		}
+
 		// find the minimum timestamp
 		min := -1
 		minKey := int64(math.MaxInt64)
@@ -413,6 +429,11 @@ func (l *LocalMapper) Next() (seriesID uint32, timestamp int64, value interface{
 		// if the value didn't match our filter or if we didn't find the field keep iterating
 		if err != nil || value == nil {
 			continue
+		}
+
+		// if it's a raw query, we always limit the amount we read in
+		if l.isRaw {
+			l.limit--
 		}
 
 		return seriesID, timestamp, value

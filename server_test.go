@@ -757,7 +757,7 @@ func TestServer_AlterRetentionPolicy(t *testing.T) {
 
 	// Test update duration only.
 	duration = time.Hour
-	results := s.ExecuteQuery(MustParseQuery(`ALTER RETENTION POLICY bar ON foo DURATION 1h`), "foo", nil)
+	results := s.executeQuery(MustParseQuery(`ALTER RETENTION POLICY bar ON foo DURATION 1h`), "foo", nil)
 	if results.Error() != nil {
 		t.Fatalf("unexpected error: %s", results.Error())
 	}
@@ -775,7 +775,7 @@ func TestServer_AlterRetentionPolicy(t *testing.T) {
 
 	// set duration to infinite to catch edge case.
 	duration = 0
-	results = s.ExecuteQuery(MustParseQuery(`ALTER RETENTION POLICY bar ON foo DURATION INF`), "foo", nil)
+	results = s.executeQuery(MustParseQuery(`ALTER RETENTION POLICY bar ON foo DURATION INF`), "foo", nil)
 	if results.Error() != nil {
 		t.Fatalf("unexpected error: %s", results.Error())
 	}
@@ -842,7 +842,7 @@ func TestServer_AlterRetentionPolicy_Minduration(t *testing.T) {
 
 	// Test update duration only.
 	duration = time.Hour
-	results := s.ExecuteQuery(MustParseQuery(`ALTER RETENTION POLICY bar ON foo DURATION 1m`), "foo", nil)
+	results := s.executeQuery(MustParseQuery(`ALTER RETENTION POLICY bar ON foo DURATION 1m`), "foo", nil)
 	if results.Error() == nil {
 		t.Fatalf("unexpected error: %s", results.Error())
 	}
@@ -1061,7 +1061,7 @@ func TestServer_DropMeasurement(t *testing.T) {
 	c.Sync(index)
 
 	// Ensure measurement exists
-	results := s.ExecuteQuery(MustParseQuery(`SHOW MEASUREMENTS`), "foo", nil)
+	results := s.executeQuery(MustParseQuery(`SHOW MEASUREMENTS`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error: %s", res.Err)
 	} else if len(res.Series) != 1 {
@@ -1071,7 +1071,7 @@ func TestServer_DropMeasurement(t *testing.T) {
 	}
 
 	// Ensure series exists
-	results = s.ExecuteQuery(MustParseQuery(`SHOW SERIES`), "foo", nil)
+	results = s.executeQuery(MustParseQuery(`SHOW SERIES`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error: %s", res.Err)
 	} else if len(res.Series) != 1 {
@@ -1081,12 +1081,12 @@ func TestServer_DropMeasurement(t *testing.T) {
 	}
 
 	// Drop measurement
-	results = s.ExecuteQuery(MustParseQuery(`DROP MEASUREMENT cpu`), "foo", nil)
+	results = s.executeQuery(MustParseQuery(`DROP MEASUREMENT cpu`), "foo", nil)
 	if results.Error() != nil {
 		t.Fatalf("unexpected error: %s", results.Error())
 	}
 
-	results = s.ExecuteQuery(MustParseQuery(`SHOW MEASUREMENTS`), "foo", nil)
+	results = s.executeQuery(MustParseQuery(`SHOW MEASUREMENTS`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error: %s", res.Err)
 	} else if len(res.Series) != 0 {
@@ -1095,7 +1095,7 @@ func TestServer_DropMeasurement(t *testing.T) {
 		t.Fatalf("unexpected row(0): %s", s)
 	}
 
-	results = s.ExecuteQuery(MustParseQuery(`SHOW SERIES`), "foo", nil)
+	results = s.executeQuery(MustParseQuery(`SHOW SERIES`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error: %s", res.Err)
 	} else if len(res.Series) != 0 {
@@ -1116,7 +1116,7 @@ func TestServer_DropMeasurementNoneExists(t *testing.T) {
 	s.CreateUser("susy", "pass", false)
 
 	// Drop measurement
-	results := s.ExecuteQuery(MustParseQuery(`DROP MEASUREMENT bar`), "foo", nil)
+	results := s.executeQuery(MustParseQuery(`DROP MEASUREMENT bar`), "foo", nil)
 	if results.Error().Error() != `measurement not found` {
 		t.Fatalf("unexpected error: %s", results.Error())
 	}
@@ -1130,7 +1130,7 @@ func TestServer_DropMeasurementNoneExists(t *testing.T) {
 	c.Sync(index)
 
 	// Drop measurement after writing data to ensure we still get the same error
-	results = s.ExecuteQuery(MustParseQuery(`DROP MEASUREMENT bar`), "foo", nil)
+	results = s.executeQuery(MustParseQuery(`DROP MEASUREMENT bar`), "foo", nil)
 	if results.Error().Error() != `measurement not found` {
 		t.Fatalf("unexpected error: %s", results.Error())
 	}
@@ -1155,7 +1155,7 @@ func TestServer_DropSeries(t *testing.T) {
 	c.Sync(index)
 
 	// Ensure series exists
-	results := s.ExecuteQuery(MustParseQuery(`SHOW SERIES`), "foo", nil)
+	results := s.executeQuery(MustParseQuery(`SHOW SERIES`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error: %s", res.Err)
 	} else if len(res.Series) != 1 {
@@ -1165,12 +1165,12 @@ func TestServer_DropSeries(t *testing.T) {
 	}
 
 	// Drop series
-	results = s.ExecuteQuery(MustParseQuery(`DROP SERIES FROM cpu`), "foo", nil)
+	results = s.executeQuery(MustParseQuery(`DROP SERIES FROM cpu`), "foo", nil)
 	if results.Error() != nil {
 		t.Fatalf("unexpected error: %s", results.Error())
 	}
 
-	results = s.ExecuteQuery(MustParseQuery(`SHOW SERIES`), "foo", nil)
+	results = s.executeQuery(MustParseQuery(`SHOW SERIES`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error: %s", res.Err)
 	} else if len(res.Series) != 0 {
@@ -1206,12 +1206,12 @@ func TestServer_DropSeriesFromMeasurement(t *testing.T) {
 	c.Sync(index)
 
 	// Drop series
-	results := s.ExecuteQuery(MustParseQuery(`DROP SERIES FROM memory`), "foo", nil)
+	results := s.executeQuery(MustParseQuery(`DROP SERIES FROM memory`), "foo", nil)
 	if results.Error() != nil {
 		t.Fatalf("unexpected error: %s", results.Error())
 	}
 
-	results = s.ExecuteQuery(MustParseQuery(`SHOW SERIES`), "foo", nil)
+	results = s.executeQuery(MustParseQuery(`SHOW SERIES`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error: %s", res.Err)
 	} else if len(res.Series) != 1 {
@@ -1251,7 +1251,7 @@ func TestServer_DropSeriesTagsPreserved(t *testing.T) {
 	}
 	c.Sync(index)
 
-	results := s.ExecuteQuery(MustParseQuery(`SHOW SERIES`), "foo", nil)
+	results := s.executeQuery(MustParseQuery(`SHOW SERIES`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error: %s", res.Err)
 	} else if len(res.Series) != 1 {
@@ -1260,12 +1260,12 @@ func TestServer_DropSeriesTagsPreserved(t *testing.T) {
 		t.Fatalf("unexpected row(0): %s", s)
 	}
 
-	results = s.ExecuteQuery(MustParseQuery(`DROP SERIES FROM cpu where host='serverA'`), "foo", nil)
+	results = s.executeQuery(MustParseQuery(`DROP SERIES FROM cpu where host='serverA'`), "foo", nil)
 	if results.Error() != nil {
 		t.Fatalf("unexpected error: %s", results.Error())
 	}
 
-	results = s.ExecuteQuery(MustParseQuery(`SHOW SERIES`), "foo", nil)
+	results = s.executeQuery(MustParseQuery(`SHOW SERIES`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error: %s", res.Err)
 	} else if len(res.Series) != 1 {
@@ -1274,14 +1274,16 @@ func TestServer_DropSeriesTagsPreserved(t *testing.T) {
 		t.Fatalf("unexpected row(0): %s", s)
 	}
 
-	results = s.ExecuteQuery(MustParseQuery(`SELECT * FROM cpu where host='serverA'`), "foo", nil)
-	if res := results.Results[0]; res.Err != nil {
+	results = s.executeQuery(MustParseQuery(`SELECT * FROM cpu where host='serverA'`), "foo", nil)
+	if len(results.Results) == 0 {
+		t.Fatal("expected results to be non-empty")
+	} else if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error: %s", res.Err)
 	} else if len(res.Series) != 0 {
 		t.Fatalf("unexpected row count: %d", len(res.Series))
 	}
 
-	results = s.ExecuteQuery(MustParseQuery(`SELECT * FROM cpu where host='serverB'`), "foo", nil)
+	results = s.executeQuery(MustParseQuery(`SELECT * FROM cpu where host='serverB'`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error: %s", res.Err)
 	} else if len(res.Series) != 1 {
@@ -1290,7 +1292,7 @@ func TestServer_DropSeriesTagsPreserved(t *testing.T) {
 		t.Fatalf("unexpected row(0): %s", s)
 	}
 
-	results = s.ExecuteQuery(MustParseQuery(`SELECT * FROM cpu where region='uswest'`), "foo", nil)
+	results = s.executeQuery(MustParseQuery(`SELECT * FROM cpu where region='uswest'`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error: %s", res.Err)
 	} else if len(res.Series) != 1 {
@@ -1318,7 +1320,7 @@ func TestServer_ShowSeriesLimitOffset(t *testing.T) {
 	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "memory", Tags: map[string]string{"region": "us-east", "host": "serverA"}, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(100)}}})
 
 	// Select data from the server.
-	results := s.ExecuteQuery(MustParseQuery(`SHOW SERIES LIMIT 3 OFFSET 1`), "foo", nil)
+	results := s.executeQuery(MustParseQuery(`SHOW SERIES LIMIT 3 OFFSET 1`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error: %s", res.Err)
 	} else if len(res.Series) != 2 {
@@ -1328,7 +1330,7 @@ func TestServer_ShowSeriesLimitOffset(t *testing.T) {
 	}
 
 	// Select data from the server.
-	results = s.ExecuteQuery(MustParseQuery(`SHOW SERIES LIMIT 2 OFFSET 4`), "foo", nil)
+	results = s.executeQuery(MustParseQuery(`SHOW SERIES LIMIT 2 OFFSET 4`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error: %s", res.Err)
 	} else if len(res.Series) != 1 {
@@ -1338,7 +1340,7 @@ func TestServer_ShowSeriesLimitOffset(t *testing.T) {
 	}
 
 	// Select data from the server.
-	results = s.ExecuteQuery(MustParseQuery(`SHOW SERIES LIMIT 2 OFFSET 20`), "foo", nil)
+	results = s.executeQuery(MustParseQuery(`SHOW SERIES LIMIT 2 OFFSET 20`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error: %s", res.Err)
 	} else if len(res.Series) != 0 {
@@ -1346,7 +1348,7 @@ func TestServer_ShowSeriesLimitOffset(t *testing.T) {
 	}
 
 	// Select data from the server.
-	results = s.ExecuteQuery(MustParseQuery(`SHOW SERIES LIMIT 4 OFFSET 0`), "foo", nil)
+	results = s.executeQuery(MustParseQuery(`SHOW SERIES LIMIT 4 OFFSET 0`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error: %s", res.Err)
 	} else if len(res.Series) != 2 {
@@ -1354,7 +1356,7 @@ func TestServer_ShowSeriesLimitOffset(t *testing.T) {
 	}
 
 	// Select data from the server.
-	results = s.ExecuteQuery(MustParseQuery(`SHOW SERIES LIMIT 20`), "foo", nil)
+	results = s.executeQuery(MustParseQuery(`SHOW SERIES LIMIT 20`), "foo", nil)
 	if res := results.Results[0]; res.Err != nil {
 		t.Fatalf("unexpected error: %s", res.Err)
 	} else if len(res.Series) != 2 {
@@ -1742,7 +1744,7 @@ func TestServer_RunContinuousQueries(t *testing.T) {
 	time.Sleep(time.Millisecond * 100)
 
 	verify := func(num int, exp string) {
-		results := s.ExecuteQuery(MustParseQuery(`SELECT mean(mean) FROM cpu_region GROUP BY region`), "foo", nil)
+		results := s.executeQuery(MustParseQuery(`SELECT mean(mean) FROM cpu_region GROUP BY region`), "foo", nil)
 		if res := results.Results[0]; res.Err != nil {
 			t.Fatalf("unexpected error verify %d: %s", num, res.Err)
 		} else if len(res.Series) != 2 {
@@ -1941,6 +1943,25 @@ func (s *Server) MustWriteSeries(database, retentionPolicy string, points []infl
 	}
 	s.Client().(*test.MessagingClient).Sync(index)
 	return index
+}
+
+func (s *Server) executeQuery(q *influxql.Query, db string, user *influxdb.User) influxdb.Results {
+	results, err := s.ExecuteQuery(q, db, user, 10000)
+	if err != nil {
+		return influxdb.Results{Err: err}
+	}
+	res := influxdb.Results{}
+	for r := range results {
+		l := len(res.Results)
+		if l == 0 {
+			res.Results = append(res.Results, r)
+		} else if res.Results[l-1].StatementID == r.StatementID {
+			res.Results[l-1].Series = append(res.Results[l-1].Series, r.Series...)
+		} else {
+			res.Results = append(res.Results, r)
+		}
+	}
+	return res
 }
 
 // tempfile returns a temporary path.

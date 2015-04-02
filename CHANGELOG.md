@@ -2,6 +2,7 @@
 
 ### Features
 - [#2128](https://github.com/influxdb/influxdb/pull/2128): Data node discovery from brokers
+- [#2142](https://github.com/influxdb/influxdb/pull/2142): Support chunked queries
 
 ### Bugfixes
 - [#2147](https://github.com/influxdb/influxdb/pull/2147): Set Go Max procs in a better location
