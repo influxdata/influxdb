@@ -19,6 +19,7 @@ import (
 
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/messaging"
+	"github.com/influxdb/influxdb/raft"
 
 	"github.com/influxdb/influxdb/client"
 	main "github.com/influxdb/influxdb/cmd/influxd"
@@ -59,12 +60,33 @@ func rewriteDbRp(old, database, retention string) string {
 type Node struct {
 	broker *messaging.Broker
 	server *influxdb.Server
+	log    *raft.Log
 	url    *url.URL
 	leader bool
 }
 
 // Cluster represents a multi-node cluster.
 type Cluster []*Node
+
+func (c *Cluster) Close() {
+	for _, n := range *c {
+		if n.log != nil {
+			n.log.Close()
+			n.log = nil
+		}
+
+		if n.server != nil {
+			n.server.Close()
+			n.server = nil
+		}
+
+		if n.broker != nil {
+			n.broker.Close()
+			n.broker = nil
+		}
+
+	}
+}
 
 // createCombinedNodeCluster creates a cluster of nServers nodes, each of which
 // runs as both a Broker and Data node. If any part cluster creation fails,
@@ -102,7 +124,7 @@ func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes, ba
 	c.ReportingDisabled = true
 	c.Snapshot.Enabled = false
 
-	b, s := main.Run(c, "", "x.x")
+	b, s, l := main.Run(c, "", "x.x")
 	if b == nil {
 		t.Fatalf("Test %s: failed to create broker on port %d", testName, basePort)
 	}
@@ -112,6 +134,7 @@ func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes, ba
 	nodes = append(nodes, &Node{
 		broker: b,
 		server: s,
+		log:    l,
 		url:    &url.URL{Scheme: "http", Host: "localhost:" + strconv.Itoa(basePort)},
 		leader: true,
 	})
@@ -124,7 +147,7 @@ func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes, ba
 		c.Broker.Port = nextPort
 		c.Data.Port = nextPort
 
-		b, s := main.Run(c, "http://localhost:"+strconv.Itoa(basePort), "x.x")
+		b, s, l := main.Run(c, "http://localhost:"+strconv.Itoa(basePort), "x.x")
 		if b == nil {
 			t.Fatalf("Test %s: failed to create following broker on port %d", testName, basePort)
 		}
@@ -135,6 +158,7 @@ func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes, ba
 		nodes = append(nodes, &Node{
 			broker: b,
 			server: s,
+			log:    l,
 			url:    &url.URL{Scheme: "http", Host: "localhost:" + strconv.Itoa(nextPort)},
 		})
 	}
@@ -1243,6 +1267,7 @@ func TestSingleServer(t *testing.T) {
 	}()
 
 	nodes := createCombinedNodeCluster(t, testName, dir, 1, 8090, nil)
+	defer nodes.Close()
 
 	runTestsData(t, testName, nodes, "mydb", "myrp")
 	runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp")

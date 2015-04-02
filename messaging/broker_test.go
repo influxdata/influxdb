@@ -120,16 +120,25 @@ func TestBroker_Apply_SetMaxTopicIndex(t *testing.T) {
 		t.Fatal("topic not created")
 	}
 
+	testDataURL, _ := url.Parse("http://localhost:1234/data")
+	data := []byte{0, 0, 0, 0, 0, 0, 0, 20, 0, 0, 0, 0, 0, 0, 0, 5}    // topicID=20, index=5,
+	data = append(data, []byte{0, byte(len(testDataURL.String()))}...) // len= <url length>
+	data = append(data, []byte(testDataURL.String())...)
+
 	// Set topic #1's index to "2".
 	if err := b.Apply(&messaging.Message{
 		Index: 2,
 		Type:  messaging.SetTopicMaxIndexMessageType,
-		Data:  []byte{0, 0, 0, 0, 0, 0, 0, 20, 0, 0, 0, 0, 0, 0, 0, 5}, // topicID=20, index=5
+		Data:  data,
 	}); err != nil {
 		t.Fatalf("apply error: %s", err)
 	}
+
 	if topic := b.Topic(20); topic.Index() != 5 {
 		t.Fatalf("unexpected topic index: %d", topic.Index())
+	}
+	if topic := b.Topic(20); topic.IndexForURL(*testDataURL) != 5 {
+		t.Fatalf("unexpected topic url index: %d", topic.IndexForURL(*testDataURL))
 	}
 }
 
@@ -232,6 +241,9 @@ func TestBroker_SetTopicMaxIndex(t *testing.T) {
 	b := OpenBroker()
 	defer b.Close()
 
+	testDataURL, _ := url.Parse("http://localhost:1234/data")
+	urlData := []byte{0, byte(len(testDataURL.String()))} // len=26
+	urlData = append(urlData, []byte(testDataURL.String())...)
 	// Ensure the appropriate message is sent to the log.
 	b.Log().ApplyFunc = func(data []byte) (uint64, error) {
 		m, _ := messaging.UnmarshalMessage(data)
@@ -239,12 +251,14 @@ func TestBroker_SetTopicMaxIndex(t *testing.T) {
 			t.Fatalf("unexpected topic id data: %x", data[0:8])
 		} else if !bytes.Equal(m.Data[8:16], []byte{0, 0, 0, 0, 0, 0, 0, 2}) {
 			t.Fatalf("unexpected index data: %x", data[8:16])
+		} else if !bytes.Equal(m.Data[16:44], urlData) {
+			t.Fatalf("unexpected url data: %v", m.Data[16:44])
 		}
 		return 1, nil
 	}
 
 	// Set the highest replicated topic index.
-	if err := b.SetTopicMaxIndex(1, 2); err != nil {
+	if err := b.SetTopicMaxIndex(1, 2, *testDataURL); err != nil {
 		t.Fatal(err)
 	}
 }

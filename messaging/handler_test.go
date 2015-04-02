@@ -161,7 +161,7 @@ func TestHandler_messages_ErrMethodNotAllowed(t *testing.T) {
 // Ensure a handler can receive a heartbeats.
 func TestHandler_postHeartbeat(t *testing.T) {
 	var hb HandlerBroker
-	hb.SetTopicMaxIndexFunc = func(topicID, index uint64) error {
+	hb.SetTopicMaxIndexFunc = func(topicID, index uint64, dataURL url.URL) error {
 		if topicID != 1 {
 			t.Fatalf("unexpected topic id: %d", topicID)
 		} else if index != 2 {
@@ -274,7 +274,7 @@ type HandlerBroker struct {
 	LeaderURLFunc        func() url.URL
 	PublishFunc          func(m *messaging.Message) (uint64, error)
 	TopicReaderFunc      func(topicID, index uint64, streaming bool) io.ReadCloser
-	SetTopicMaxIndexFunc func(topicID, index uint64) error
+	SetTopicMaxIndexFunc func(topicID, index uint64, dataURL url.URL) error
 }
 
 func (b *HandlerBroker) URLs() []url.URL                              { return b.URLsFunc() }
@@ -284,8 +284,8 @@ func (b *HandlerBroker) Publish(m *messaging.Message) (uint64, error) { return b
 func (b *HandlerBroker) TopicReader(topicID, index uint64, streaming bool) io.ReadCloser {
 	return b.TopicReaderFunc(topicID, index, streaming)
 }
-func (b *HandlerBroker) SetTopicMaxIndex(topicID, index uint64) error {
-	return b.SetTopicMaxIndexFunc(topicID, index)
+func (b *HandlerBroker) SetTopicMaxIndex(topicID, index uint64, dataURL url.URL) error {
+	return b.SetTopicMaxIndexFunc(topicID, index, dataURL)
 }
 
 // MustParseURL parses a string into a URL. Panic on error.

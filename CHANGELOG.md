@@ -1,8 +1,11 @@
 ## v0.9.0-rc20 [unreleased]
 
+### Features
+- [#2128](https://github.com/influxdb/influxdb/pull/2128): Data node discovery from brokers
+
 ### Bugfixes
 - [#2147](https://github.com/influxdb/influxdb/pull/2147): Set Go Max procs in a better location
-- 
+-
 ## v0.9.0-rc19 [2015-04-01]
 
 ### Features

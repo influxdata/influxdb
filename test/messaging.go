@@ -9,11 +9,17 @@ import (
 	"github.com/influxdb/influxdb/messaging"
 )
 
+func init() {
+	// Ensure the broker matches the handler's interface.
+	_ = messaging.Handler{Broker: messaging.NewBroker()}
+}
+
 // MessagingClient represents a test client for the messaging broker.
 type MessagingClient struct {
-	mu    sync.Mutex
-	index uint64           // highest index
-	conns []*MessagingConn // list of all connections
+	mu      sync.Mutex
+	index   uint64           // highest index
+	conns   []*MessagingConn // list of all connections
+	dataURL url.URL          // clients data node URL
 
 	messagesByTopicID map[uint64][]*messaging.Message // message by topic
 
@@ -22,13 +28,20 @@ type MessagingClient struct {
 }
 
 // NewMessagingClient returns a new instance of MessagingClient.
-func NewMessagingClient() *MessagingClient {
+func NewMessagingClient(dataURL url.URL) *MessagingClient {
 	c := &MessagingClient{
 		messagesByTopicID: make(map[uint64][]*messaging.Message),
+		dataURL:           dataURL,
 	}
 	c.PublishFunc = c.DefaultPublishFunc
 	c.ConnFunc = c.DefaultConnFunc
 	return c
+}
+
+// NewMessagingClient returns a new instance of MessagingClient.
+func NewDefaultMessagingClient() *MessagingClient {
+	testDataURL, _ := url.Parse("http://localhost:1234/data")
+	return NewMessagingClient(*testDataURL)
 }
 
 func (c *MessagingClient) Open(path string) error { return nil }
@@ -82,7 +95,7 @@ func (c *MessagingClient) DefaultConnFunc(topicID uint64) influxdb.MessagingConn
 	defer c.mu.Unlock()
 
 	// Create new connection.
-	conn := NewMessagingConn(topicID)
+	conn := NewMessagingConn(topicID, c.dataURL)
 
 	// Track connections.
 	c.conns = append(c.conns, conn)
@@ -111,13 +124,15 @@ type MessagingConn struct {
 	mu      sync.Mutex
 	topicID uint64
 	index   uint64
+	dataURL url.URL
 	c       chan *messaging.Message
 }
 
 // NewMessagingConn returns a new instance of MessagingConn.
-func NewMessagingConn(topicID uint64) *MessagingConn {
+func NewMessagingConn(topicID uint64, dataURL url.URL) *MessagingConn {
 	return &MessagingConn{
 		topicID: topicID,
+		dataURL: dataURL,
 	}
 }
 
