@@ -70,6 +70,9 @@ var (
 	// ErrReaderClosed is returned when reading from a closed topic reader.
 	ErrReaderClosed = errors.New("reader closed")
 
+	// ErrURLRequired is returned when making a call without a url parameter
+	ErrURLRequired = errors.New("url required")
+
 	// ErrMessageDataRequired is returned when publishing a message without data.
 	ErrMessageDataRequired = errors.New("message data required")
 )

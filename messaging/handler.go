@@ -21,7 +21,7 @@ type Handler struct {
 		LeaderURL() url.URL
 		TopicReader(topicID, index uint64, streaming bool) io.ReadCloser
 		Publish(m *Message) (uint64, error)
-		SetTopicMaxIndex(topicID, index uint64) error
+		SetTopicMaxIndex(topicID, index uint64, u url.URL) error
 	}
 
 	RaftHandler http.Handler
@@ -160,8 +160,13 @@ func (h *Handler) postHeartbeat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	u, err := url.Parse(r.URL.Query().Get("url"))
+	if err != nil {
+		h.error(w, ErrURLRequired, http.StatusBadRequest)
+	}
+
 	// Update the topic's highest replicated index.
-	if err := h.Broker.SetTopicMaxIndex(topicID, index); err == raft.ErrNotLeader {
+	if err := h.Broker.SetTopicMaxIndex(topicID, index, *u); err == raft.ErrNotLeader {
 		h.redirectToLeader(w, r)
 		return
 	} else if err != nil {
