@@ -76,8 +76,11 @@ func (m *metastore) mustView(fn func(*metatx) error) (err error) {
 // Panics if a disk or system error occurs. Return error from the fn for validation errors.
 func (m *metastore) mustUpdate(index uint64, fn func(*metatx) error) (err error) {
 	if e := m.update(func(tx *metatx) error {
+		// Ignore replayed commands.
 		curr := tx.index()
-		assert(index == 0 || index > curr, "metastore index replay: meta=%d, index=%d", curr, index)
+		if index > 0 && index <= curr {
+			return nil
+		}
 
 		// Execute function passed in.
 		err = fn(tx)
