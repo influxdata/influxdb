@@ -1617,7 +1617,7 @@ func TestSnapshotHandler(t *testing.T) {
 
 // Ensure that the server will stream out results if a chunked response is requested
 func TestHandler_ChunkedResponses(t *testing.T) {
-	c := test.NewMessagingClient()
+	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	srvr := OpenAuthlessServer(c)
 	srvr.CreateDatabase("foo")
