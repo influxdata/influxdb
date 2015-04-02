@@ -47,10 +47,6 @@ func main() {
 		commit = "unknown"
 	}
 
-	// Set parallelism.
-	runtime.GOMAXPROCS(runtime.NumCPU())
-	log.Printf("GOMAXPROCS set to %d", runtime.GOMAXPROCS(0))
-
 	// Shift binary name off argument list.
 	args := os.Args[1:]
 
@@ -120,6 +116,10 @@ func execRun(args []string) {
 	// Print sweet InfluxDB logo and write the process id to file.
 	fmt.Print(logo)
 	writePIDFile(*pidPath)
+
+	// Set parallelism.
+	runtime.GOMAXPROCS(runtime.NumCPU())
+	log.Printf("GOMAXPROCS set to %d", runtime.GOMAXPROCS(0))
 
 	// Parse configuration file from disk.
 	config, err := parseConfig(*configPath, *hostname)
