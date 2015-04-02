@@ -20,6 +20,10 @@ func init() {
 	testDataURL, _ = url.Parse("http://localhost:1234/data")
 }
 
+func is_connection_refused(err error) bool {
+	return strings.Contains(err.Error(), `connection refused`) || strings.Contains(err.Error(), `No connection could be made`)
+}
+
 // Ensure a client can open the configuration file, if it exists.
 func TestClient_Open_WithConfig(t *testing.T) {
 	// Write configuration file.
@@ -260,7 +264,7 @@ func TestClient_Publish_ErrConnectionRefused(t *testing.T) {
 	defer c.Close()
 
 	// Publish message to server.
-	if _, err := c.Publish(&messaging.Message{}); err == nil || !strings.Contains(err.Error(), `connection refused`) {
+	if _, err := c.Publish(&messaging.Message{}); err == nil || !is_connection_refused(err) {
 		t.Fatal(err)
 	}
 }
@@ -361,7 +365,7 @@ func TestClient_Ping_ErrConnectionRefused(t *testing.T) {
 	defer c.Close()
 
 	// Ping server.
-	if err := c.Ping(); err == nil || !strings.Contains(err.Error(), `connection refused`) {
+	if err := c.Ping(); err == nil || !is_connection_refused(err) {
 		t.Fatal(err)
 	}
 }
@@ -619,7 +623,7 @@ func TestConn_Heartbeat_ErrConnectionRefused(t *testing.T) {
 	// Create connection and heartbeat.
 	c := messaging.NewConn(0, testDataURL)
 	c.SetURL(*MustParseURL(s.URL))
-	if err := c.Heartbeat(); err == nil || !strings.Contains(err.Error(), `connection refused`) {
+	if err := c.Heartbeat(); err == nil || !is_connection_refused(err) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }

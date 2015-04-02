@@ -88,7 +88,8 @@ func TestBackupCommand_ErrConnectionRefused(t *testing.T) {
 	// Execute the backup command.
 	path := tempfile()
 	defer os.Remove(path)
-	if err := NewBackupCommand().Run("-host", s.URL, path); err == nil || !strings.Contains(err.Error(), `connection refused`) {
+	if err := NewBackupCommand().Run("-host", s.URL, path); err == nil ||
+		!(strings.Contains(err.Error(), `connection refused`) || strings.Contains(err.Error(), `No connection could be made`)) {
 		t.Fatal(err)
 	}
 }
