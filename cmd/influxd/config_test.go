@@ -1,11 +1,13 @@
 package main_test
 
 import (
+	"bytes"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/BurntSushi/toml"
 	main "github.com/influxdb/influxdb/cmd/influxd"
 )
 
@@ -141,6 +143,10 @@ func TestParseConfig(t *testing.T) {
 		t.Fatalf("cluster dir mismatch: %v", c.Cluster.Dir)
 	}
 
+	if c.Statistics.WriteInterval.String() != "1m0s" {
+		t.Fatalf("Statistics.WriteInterval mismatch: %v", c.Statistics.WriteInterval)
+	}
+
 	// TODO: UDP Servers testing.
 	/*
 		c.Assert(config.UdpServers, HasLen, 1)
@@ -148,6 +154,19 @@ func TestParseConfig(t *testing.T) {
 		c.Assert(config.UdpServers[0].Port, Equals, 4444)
 		c.Assert(config.UdpServers[0].Database, Equals, "test")
 	*/
+}
+
+func TestEncodeConfig(t *testing.T) {
+	c := main.Config{}
+	c.Statistics.WriteInterval = main.Duration(time.Minute)
+	buf := new(bytes.Buffer)
+	if err := toml.NewEncoder(buf).Encode(&c); err != nil {
+		t.Fatal("Failed to encode: ", err)
+	}
+	got, search := buf.String(), `write-interval = "1m0s"`
+	if !strings.Contains(got, search) {
+		t.Fatalf("Encoding config failed.\nfailed to find %s in:\n%s\n", search, got)
+	}
 }
 
 // Testing configuration file.
