@@ -47,10 +47,6 @@ func main() {
 		commit = "unknown"
 	}
 
-	// Set parallelism.
-	runtime.GOMAXPROCS(runtime.NumCPU())
-	log.Printf("GOMAXPROCS set to %d", runtime.GOMAXPROCS(0))
-
 	// Shift binary name off argument list.
 	args := os.Args[1:]
 
@@ -78,11 +74,13 @@ func main() {
 	case "":
 		execRun(args)
 	case "backup":
+		setGoMaxProcs()
 		cmd := NewBackupCommand()
 		if err := cmd.Run(args[1:]...); err != nil {
 			log.Fatalf("backup: %s", err)
 		}
 	case "restore":
+		setGoMaxProcs()
 		cmd := NewRestoreCommand()
 		if err := cmd.Run(args[1:]...); err != nil {
 			log.Fatalf("restore: %s", err)
@@ -96,6 +94,12 @@ func main() {
 	default:
 		log.Fatalf(`influxd: unknown command "%s"`+"\n"+`Run 'influxd help' for usage`+"\n\n", cmd)
 	}
+}
+
+func setGoMaxProcs() {
+	// Set parallelism.
+	runtime.GOMAXPROCS(runtime.NumCPU())
+	log.Printf("GOMAXPROCS set to %d", runtime.GOMAXPROCS(0))
 }
 
 // execRun runs the "run" command.
@@ -120,6 +124,8 @@ func execRun(args []string) {
 	// Print sweet InfluxDB logo and write the process id to file.
 	fmt.Print(logo)
 	writePIDFile(*pidPath)
+
+	setGoMaxProcs()
 
 	// Parse configuration file from disk.
 	config, err := parseConfig(*configPath, *hostname)
