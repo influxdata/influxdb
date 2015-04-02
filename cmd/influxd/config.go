@@ -168,10 +168,6 @@ type Config struct {
 
 	Snapshot Snapshot `toml:"snapshot"`
 
-	Cluster struct {
-		Dir string `toml:"dir"`
-	} `toml:"cluster"`
-
 	Logging struct {
 		WriteTracing bool `toml:"write-tracing"`
 		RaftTracing  bool `toml:"raft-tracing"`

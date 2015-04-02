@@ -114,9 +114,6 @@ join-urls = "http://127.0.0.1:8087"
 [continuous_queries]
 disabled = true
 
-[cluster]
-dir = "/tmp/influxdb/development/cluster"
-
 [snapshot]
 bind-address = "1.2.3.4"
 port = 9999
@@ -269,10 +266,6 @@ func TestParseConfig(t *testing.T) {
 
 	if exp := "http://127.0.0.1:8087"; c.Data.JoinURLs != exp {
 		t.Fatalf("data join urls mismatch: %v, got: %v", exp, c.Data.JoinURLs)
-	}
-
-	if c.Cluster.Dir != "/tmp/influxdb/development/cluster" {
-		t.Fatalf("cluster dir mismatch: %v", c.Cluster.Dir)
 	}
 
 	if c.Monitoring.WriteInterval.String() != "1m0s" {
