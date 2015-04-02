@@ -410,11 +410,15 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			query:    `SELECT * FROM "%DB%"."%RP%".status`,
 			expected: `{"results":[{"series":[{"name":"status","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z","true"]]}]}]}`,
 		},
-
 		{
 			name:     "single point, select with now()",
 			query:    `SELECT * FROM "%DB%"."%RP%".cpu WHERE time < now()`,
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",100]]}]}]}`,
+		},
+		{
+			name:     "single point, select with now(), two queries",
+			query:    `SELECT * FROM "%DB%"."%RP%".cpu WHERE time < now();SELECT * FROM "%DB%"."%RP%".cpu WHERE time < now()`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",100]]}]},{"series":[{"name":"cpu","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",100]]}]}]}`,
 		},
 
 		{
@@ -432,6 +436,16 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			query:    `SELECT value FROM cpu WHERE time >= '3000-01-01 00:00:05'`,
 			queryDb:  "%DB%",
 			expected: `{"results":[{}]}`,
+		},
+
+		{
+			reset: true,
+			name:  "two points with timestamp",
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "timestamp": "2015-02-28T01:04:36.703820946Z", "fields": {"value": 100}},
+		                                                                         {"name": "cpu", "timestamp": "2015-02-28T01:03:36.703820946Z", "fields": {"value": 100}}
+		                                                                        ]}`,
+			query:    `SELECT * FROM "%DB%"."%RP%".cpu`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",100],["2015-02-28T01:04:36.703820946Z",100]]}]}]}`,
 		},
 
 		// Data read and write tests using relative time
