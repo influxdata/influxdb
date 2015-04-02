@@ -1,4 +1,7 @@
-## v0.9.0-rc19 [unreleased]
+## v0.9.0-rc19 [2015-04-01]
+
+### Features
+- [#2143](https://github.com/influxdb/influxdb/pull/2143): Add raft term logging.
 
 ### Bugfixes
 - [#2145](https://github.com/influxdb/influxdb/pull/2145): Encode toml durations correctly which fixes default configuration generation `influxd config`.
