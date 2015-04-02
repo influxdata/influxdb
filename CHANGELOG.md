@@ -2,7 +2,8 @@
 
 ### Bugfixes
 - [#2147](https://github.com/influxdb/influxdb/pull/2147): Set Go Max procs in a better location
-- 
+- [#2151](https://github.com/influxdb/influxdb/pull/2151): Ignore replay commands on the metastore.
+
 ## v0.9.0-rc19 [2015-04-01]
 
 ### Features
