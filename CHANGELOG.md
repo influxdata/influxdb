@@ -1,3 +1,8 @@
+## v0.9.0-rc19 [unreleased]
+
+### Bugfixes
+- [#2145](https://github.com/influxdb/influxdb/pull/2145): Encode toml durations correctly.
+
 ## v0.9.0-rc18 [2015-03-31]
 
 ### Bugfixes
