@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -73,6 +74,9 @@ func TestClient_Open_WithInvalidConfig(t *testing.T) {
 
 // Ensure a client can return an error if the configuration file has non-readable permissions.
 func TestClient_Open_WithBadPermConfig(t *testing.T) {
+	if "windows" == runtime.GOOS {
+		t.Skip("skip it on the windows")
+	}
 	// Write inaccessible configuration file.
 	path := NewTempFile()
 	defer os.Remove(path)
@@ -82,7 +86,7 @@ func TestClient_Open_WithBadPermConfig(t *testing.T) {
 	// Open new client against path.
 	c := NewClient()
 	if err := c.Open(path); err == nil || !strings.Contains(err.Error(), `permission denied`) {
-		t.Fatalf("unexpected error: %s", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 	defer c.Close()
 }
