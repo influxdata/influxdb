@@ -280,8 +280,8 @@ func (c *Config) APIAddr() string {
 	return net.JoinHostPort(ba, strconv.Itoa(c.HTTPAPI.Port))
 }
 
-// DataAddrUDP returns the UDP address for the series listener.
-func (c *Config) DataAddrUDP() string {
+// APIAddrUDP returns the UDP address for the series listener.
+func (c *Config) APIAddrUDP() string {
 	return net.JoinHostPort(c.UDP.BindAddress, strconv.Itoa(c.UDP.Port))
 }
 

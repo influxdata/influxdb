@@ -236,10 +236,10 @@ func (cmd *RunCommand) Open(config *Config, join string) (*messaging.Broker, *in
 
 		// Start the server bound to a UDP listener
 		if cmd.config.UDP.Enabled {
-			log.Printf("Starting UDP listener on %s", cmd.config.DataAddrUDP())
+			log.Printf("Starting UDP listener on %s", cmd.config.APIAddrUDP())
 			u := udp.NewUDPServer(s)
-			if err := u.ListenAndServe(cmd.config.DataAddrUDP()); err != nil {
-				log.Printf("Failed to start UDP listener on %s: %s", cmd.config.DataAddrUDP(), err)
+			if err := u.ListenAndServe(cmd.config.APIAddrUDP()); err != nil {
+				log.Printf("Failed to start UDP listener on %s: %s", cmd.config.APIAddrUDP(), err)
 			}
 
 		}
