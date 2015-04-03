@@ -36,9 +36,6 @@ const (
 	// DefaultClusterPort represents the default port the cluster runs ons.
 	DefaultClusterPort = 8086
 
-	// DefaultDataPort represents the default port the data server runs on.
-	DefaultDataPort = 8086
-
 	// DefaultSnapshotBindAddress is the default bind address to serve snapshots from.
 	DefaultSnapshotBindAddress = "127.0.0.1"
 
@@ -115,7 +112,6 @@ type Snapshot struct {
 type Data struct {
 	Dir                   string   `toml:"dir"`
 	Enabled               bool     `toml:"enabled"`
-	Port                  int      `toml:"port"`
 	RetentionAutoCreate   bool     `toml:"retention-auto-create"`
 	RetentionCheckEnabled bool     `toml:"retention-check-enabled"`
 	RetentionCheckPeriod  Duration `toml:"retention-check-period"`
@@ -146,6 +142,7 @@ type Config struct {
 	} `toml:"admin"`
 
 	HTTPAPI struct {
+		BindAddress string   `toml:"bind-address"`
 		Port        int      `toml:"port"`
 		SSLPort     int      `toml:"ssl-port"`
 		SSLCertPath string   `toml:"ssl-cert"`
@@ -215,7 +212,8 @@ type Config struct {
 func NewConfig() *Config {
 	c := &Config{}
 	c.Port = DefaultClusterPort
-	c.Data.Port = DefaultDataPort
+
+	c.HTTPAPI.Port = DefaultClusterPort
 
 	c.Data.RetentionAutoCreate = DefaultRetentionAutoCreate
 	c.Data.RetentionCheckEnabled = DefaultRetentionCheckEnabled
@@ -273,22 +271,18 @@ func NewTestConfig() (*Config, error) {
 	return c, nil
 }
 
-// DataAddr returns the TCP binding address for the data server.
-func (c *Config) DataAddr() string {
-	return net.JoinHostPort(c.BindAddress, strconv.Itoa(c.Data.Port))
+// APIAddr returns the TCP binding address for the API server.
+func (c *Config) APIAddr() string {
+	ba := c.BindAddress
+	if c.HTTPAPI.BindAddress != "" {
+		ba = c.HTTPAPI.BindAddress
+	}
+	return net.JoinHostPort(ba, strconv.Itoa(c.HTTPAPI.Port))
 }
 
 // DataAddrUDP returns the UDP address for the series listener.
 func (c *Config) DataAddrUDP() string {
 	return net.JoinHostPort(c.UDP.BindAddress, strconv.Itoa(c.UDP.Port))
-}
-
-// DataURL returns the URL required to contact the data server.
-func (c *Config) DataURL() url.URL {
-	return url.URL{
-		Scheme: "http",
-		Host:   net.JoinHostPort(c.Hostname, strconv.Itoa(c.Data.Port)),
-	}
 }
 
 // SnapshotAddr returns the TCP binding address for the snapshot handler.
@@ -299,6 +293,14 @@ func (c *Config) SnapshotAddr() string {
 // ClusterAddr returns the binding address for the cluster
 func (c *Config) ClusterAddr() string {
 	return net.JoinHostPort(c.BindAddress, strconv.Itoa(c.Port))
+}
+
+// ClusterURL returns the URL required to contact the server cluster endpoints.
+func (c *Config) ClusterURL() url.URL {
+	return url.URL{
+		Scheme: "http",
+		Host:   net.JoinHostPort(c.Hostname, strconv.Itoa(c.Port)),
+	}
 }
 
 // BrokerURL returns the URL required to contact the Broker server.

@@ -45,6 +45,7 @@ port = 8083
 
 # Configure the http api
 [api]
+bind-address = "10.1.2.3"
 ssl-port = 8087    # Ssl support is enabled if you set a port and cert
 ssl-cert = "../cert.pem"
 
@@ -164,6 +165,10 @@ func TestParseConfig(t *testing.T) {
 		t.Fatalf("authentication enabled mismatch: %v", c.Authentication.Enabled)
 	}
 
+	if exp := "10.1.2.3"; c.HTTPAPI.BindAddress != exp {
+		t.Fatalf("http api bind-address mismatch: got %v, exp %v", c.HTTPAPI.BindAddress, exp)
+	}
+
 	if c.UDP.Enabled {
 		t.Fatalf("udp enabled mismatch: %v", c.UDP.Enabled)
 	}
@@ -178,10 +183,6 @@ func TestParseConfig(t *testing.T) {
 
 	if c.ContinuousQuery.Disabled != true {
 		t.Fatalf("continuous query disable mismatch: %v", c.ContinuousQuery.Disabled)
-	}
-
-	if c.Data.Port != main.DefaultDataPort {
-		t.Fatalf("data port mismatch: %v", c.Data.Port)
 	}
 
 	if len(c.Graphites) != 2 {

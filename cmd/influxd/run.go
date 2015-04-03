@@ -448,7 +448,7 @@ func joinLog(l *raft.Log, brokerURLs []url.URL) {
 func (cmd *RunCommand) openServer(brokerURLs []url.URL, dataURLs []url.URL) *influxdb.Server {
 
 	// Create messaging client to the brokers.
-	c := influxdb.NewMessagingClient(cmd.config.DataURL())
+	c := influxdb.NewMessagingClient(cmd.config.ClusterURL())
 	// If join URLs were passed in then use them to override the client's URLs.
 	if len(brokerURLs) > 0 {
 		c.SetURLs(brokerURLs)
@@ -485,16 +485,16 @@ func (cmd *RunCommand) openServer(brokerURLs []url.URL, dataURLs []url.URL) *inf
 	log.Printf("data server opened at %s", cmd.config.Data.Dir)
 
 	if len(dataURLs) > 0 {
-		joinServer(s, cmd.config.DataURL(), dataURLs)
+		joinServer(s, cmd.config.ClusterURL(), dataURLs)
 		return s
 	}
 
 	dataNodeIndex := s.Index()
 	if dataNodeIndex == 0 && len(dataURLs) == 0 {
-		if err := s.Initialize(cmd.config.DataURL()); err != nil {
+		if err := s.Initialize(cmd.config.ClusterURL()); err != nil {
 			log.Fatalf("server initialization error: %s", err)
 		}
-		u := cmd.config.DataURL()
+		u := cmd.config.ClusterURL()
 		log.Printf("initialized data node: %s\n", (&u).String())
 		return s
 	}

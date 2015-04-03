@@ -119,7 +119,6 @@ func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes, ba
 	c.Broker.Dir = filepath.Join(tmpBrokerDir, strconv.Itoa(basePort))
 	c.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(basePort))
 	c.Port = basePort
-	c.Data.Port = basePort
 	c.Admin.Enabled = false
 	c.ReportingDisabled = true
 	c.Snapshot.Enabled = false
@@ -146,7 +145,6 @@ func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes, ba
 		c.Broker.Dir = filepath.Join(tmpBrokerDir, strconv.Itoa(nextPort))
 		c.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(nextPort))
 		c.Port = nextPort
-		c.Data.Port = nextPort
 
 		cmd := main.NewRunCommand()
 		b, s, l := cmd.Open(c, "http://localhost:"+strconv.Itoa(basePort))
@@ -1837,6 +1835,10 @@ func Test_ServerOpenTSDBIntegration_BadData(t *testing.T) {
 
 func TestSeparateBrokerDataNode(t *testing.T) {
 	testName := "TestSeparateBrokerDataNode"
+	if testing.Short() {
+		t.Skip("Skipping", testName)
+	}
+
 	tmpDir := tempfile()
 	tmpBrokerDir := filepath.Join(tmpDir, "broker-integration-test")
 	tmpDataDir := filepath.Join(tmpDir, "data-integration-test")
@@ -1855,10 +1857,8 @@ func TestSeparateBrokerDataNode(t *testing.T) {
 	brokerConfig.ReportingDisabled = true
 
 	dataConfig := main.NewConfig()
-	dataConfig.Port = 9001
 	dataConfig.Data.Enabled = true
-	dataConfig.Data.Port = 9001
-	dataConfig.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(dataConfig.Data.Port))
+	dataConfig.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(dataConfig.Port))
 	dataConfig.ReportingDisabled = true
 
 	brokerCmd := main.NewRunCommand()
@@ -1873,14 +1873,19 @@ func TestSeparateBrokerDataNode(t *testing.T) {
 
 	_, s, _ := dataCmd.Open(dataConfig, "")
 	if s == nil {
-		t.Fatalf("Test %s: failed to create leader data node on port %d", testName, dataConfig.Data.Port)
+		t.Fatalf("Test %s: failed to create leader data node on port %d", testName, dataConfig.Port)
 	}
 	brokerCmd.Close()
 	dataCmd.Close()
 }
 
 func TestSeparateBrokerTwoDataNodes(t *testing.T) {
+
 	testName := "TestSeparateBrokerTwoDataNodes"
+	if testing.Short() {
+		t.Skip("Skipping", testName)
+	}
+
 	tmpDir := tempfile()
 	tmpBrokerDir := filepath.Join(tmpDir, "broker-integration-test")
 	tmpDataDir := filepath.Join(tmpDir, "data-integration-test")
@@ -1912,8 +1917,7 @@ func TestSeparateBrokerTwoDataNodes(t *testing.T) {
 	dataConfig1 := main.NewConfig()
 	dataConfig1.Port = 9011
 	dataConfig1.Data.Enabled = true
-	dataConfig1.Data.Port = 9011
-	dataConfig1.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(dataConfig1.Data.Port))
+	dataConfig1.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(dataConfig1.Port))
 	dataConfig1.ReportingDisabled = true
 
 	dataConfig1.Initialization.JoinURLs = brokerURL
@@ -1921,15 +1925,14 @@ func TestSeparateBrokerTwoDataNodes(t *testing.T) {
 
 	_, s1, _ := dataCmd1.Open(dataConfig1, "")
 	if s1 == nil {
-		t.Fatalf("Test %s: failed to create leader data node on port %d", testName, dataConfig1.Data.Port)
+		t.Fatalf("Test %s: failed to create leader data node on port %d", testName, dataConfig1.Port)
 	}
 
 	// Join data node 2 to single broker and first data node
 	dataConfig2 := main.NewConfig()
 	dataConfig2.Port = 9012
 	dataConfig2.Data.Enabled = true
-	dataConfig2.Data.Port = 9012
-	dataConfig2.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(dataConfig2.Data.Port))
+	dataConfig2.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(dataConfig2.Port))
 	dataConfig2.ReportingDisabled = true
 
 	dataNode1Url := s1.URL()
@@ -1939,7 +1942,7 @@ func TestSeparateBrokerTwoDataNodes(t *testing.T) {
 
 	_, s2, _ := dataCmd2.Open(dataConfig2, "")
 	if s2 == nil {
-		t.Fatalf("Test %s: failed to create leader data node on port %d", testName, dataConfig2.Data.Port)
+		t.Fatalf("Test %s: failed to create leader data node on port %d", testName, dataConfig2.Port)
 	}
 
 	brokerCmd.Close()
