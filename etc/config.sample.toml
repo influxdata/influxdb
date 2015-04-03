@@ -94,10 +94,10 @@ port = 8087
 write-tracing = false # If true, enables detailed logging of the write system.
 raft-tracing = false # If true, enables detailed logging of Raft consensus.
 
-# InfluxDB can store statistics about itself. This is useful for monitoring purposes.
-# This feature is disabled by default, but if enabled, these statistics can be queried
-# as any other data.
-[statistics]
+# InfluxDB can store statistical and diagnostic information about itself. This is useful for
+# monitoring purposes. This feature is disabled by default, but if enabled, these data can be
+# queried like any other data.
+[monitoring]
 enabled = false
 database = "_internal"         # The database to which the data is written.
 retention-policy = "default"   # The retention policy within the database.
