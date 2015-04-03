@@ -17,7 +17,10 @@ import (
 // Ensure a topic can be streamed from an index.
 func TestHandler_getMessages(t *testing.T) {
 	var hb HandlerBroker
-	hb.TopicReaderFunc = func(topicID, index uint64, streaming bool) io.ReadCloser {
+	hb.TopicReaderFunc = func(topicID, index uint64, streaming bool) interface {
+		io.ReadCloser
+		io.Seeker
+	} {
 		if topicID != 2000 {
 			t.Fatalf("unexpected topic id: %d", topicID)
 		} else if index != 10 {
@@ -30,7 +33,7 @@ func TestHandler_getMessages(t *testing.T) {
 		var buf bytes.Buffer
 		(&messaging.Message{Index: 10, Data: []byte{0, 0, 0, 0}}).WriteTo(&buf)
 
-		return &bytesBufferCloser{buf}
+		return &nopSeekCloser{&buf}
 	}
 	s := httptest.NewServer(&messaging.Handler{Broker: &hb})
 	defer s.Close()
@@ -46,7 +49,7 @@ func TestHandler_getMessages(t *testing.T) {
 
 	// Decode from body.
 	var m messaging.Message
-	if err := messaging.NewMessageDecoder(resp.Body).Decode(&m); err != nil {
+	if err := messaging.NewMessageDecoder(&nopSeeker{resp.Body}).Decode(&m); err != nil {
 		t.Fatalf("message decode error: %s", err)
 	} else if !reflect.DeepEqual(&m, &messaging.Message{Index: 10, Data: []byte{0, 0, 0, 0}}) {
 		t.Fatalf("unexpected message: %#v", &m)
@@ -269,11 +272,14 @@ func TestHandler_ErrNotFound(t *testing.T) {
 
 // HandlerBroker is a mockable type that implements Handler.Broker.
 type HandlerBroker struct {
-	URLsFunc             func() []url.URL
-	IsLeaderFunc         func() bool
-	LeaderURLFunc        func() url.URL
-	PublishFunc          func(m *messaging.Message) (uint64, error)
-	TopicReaderFunc      func(topicID, index uint64, streaming bool) io.ReadCloser
+	URLsFunc        func() []url.URL
+	IsLeaderFunc    func() bool
+	LeaderURLFunc   func() url.URL
+	PublishFunc     func(m *messaging.Message) (uint64, error)
+	TopicReaderFunc func(topicID, index uint64, streaming bool) interface {
+		io.ReadCloser
+		io.Seeker
+	}
 	SetTopicMaxIndexFunc func(topicID, index uint64, dataURL url.URL) error
 }
 
@@ -281,7 +287,10 @@ func (b *HandlerBroker) URLs() []url.URL                              { return b
 func (b *HandlerBroker) IsLeader() bool                               { return b.IsLeaderFunc() }
 func (b *HandlerBroker) LeaderURL() url.URL                           { return b.LeaderURLFunc() }
 func (b *HandlerBroker) Publish(m *messaging.Message) (uint64, error) { return b.PublishFunc(m) }
-func (b *HandlerBroker) TopicReader(topicID, index uint64, streaming bool) io.ReadCloser {
+func (b *HandlerBroker) TopicReader(topicID, index uint64, streaming bool) interface {
+	io.ReadCloser
+	io.Seeker
+} {
 	return b.TopicReaderFunc(topicID, index, streaming)
 }
 func (b *HandlerBroker) SetTopicMaxIndex(topicID, index uint64, dataURL url.URL) error {
@@ -297,8 +306,15 @@ func MustParseURL(s string) *url.URL {
 	return u
 }
 
-type bytesBufferCloser struct {
-	bytes.Buffer
+type nopSeeker struct {
+	io.Reader
 }
 
-func (*bytesBufferCloser) Close() error { return nil }
+func (*nopSeeker) Seek(offset int64, whence int) (int64, error) { return 0, nil }
+
+type nopSeekCloser struct {
+	io.Reader
+}
+
+func (*nopSeekCloser) Seek(offset int64, whence int) (int64, error) { return 0, nil }
+func (*nopSeekCloser) Close() error                                 { return nil }

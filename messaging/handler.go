@@ -19,7 +19,10 @@ type Handler struct {
 		URLs() []url.URL
 		IsLeader() bool
 		LeaderURL() url.URL
-		TopicReader(topicID, index uint64, streaming bool) io.ReadCloser
+		TopicReader(topicID, index uint64, streaming bool) interface {
+			io.ReadCloser
+			io.Seeker
+		}
 		Publish(m *Message) (uint64, error)
 		SetTopicMaxIndex(topicID, index uint64, u url.URL) error
 	}

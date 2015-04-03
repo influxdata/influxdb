@@ -665,7 +665,7 @@ func (c *Conn) stream(req *http.Request, closing <-chan struct{}) error {
 	c.Logger.Printf("connected to broker: %s", req.URL.String())
 
 	// Continuously decode messages from request body in a separate goroutine.
-	dec := NewMessageDecoder(resp.Body)
+	dec := NewMessageDecoder(&nopSeeker{resp.Body})
 	for {
 		// Decode message from the stream.
 		m := &Message{}
@@ -703,3 +703,9 @@ func urlsEqual(a, b []url.URL) bool {
 	}
 	return true
 }
+
+type nopSeeker struct {
+	io.Reader
+}
+
+func (*nopSeeker) Seek(offset int64, whence int) (int64, error) { return 0, nil }

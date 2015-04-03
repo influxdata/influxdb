@@ -336,6 +336,77 @@ func (b *RaftFSMBroker) Index() uint64                             { return 0 }
 func (b *RaftFSMBroker) WriteTo(w io.Writer) (n int64, err error)  { return 0, nil }
 func (b *RaftFSMBroker) ReadFrom(r io.Reader) (n int64, err error) { return 0, nil }
 
+// Ensure a topic can recover if it has a partial message.
+func TestTopic_Recover(t *testing.T) {
+	topic := OpenTopic()
+	defer topic.Close()
+
+	// Write a messages.
+	if err := topic.WriteMessage(&messaging.Message{Index: 1, Data: make([]byte, 10)}); err != nil {
+		t.Fatal(err)
+	} else if err = topic.WriteMessage(&messaging.Message{Index: 2, Data: make([]byte, 10)}); err != nil {
+		t.Fatal(err)
+	} else if err = topic.WriteMessage(&messaging.Message{Index: 3, Data: make([]byte, 10)}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Close topic and trim the file by a few bytes.
+	topic.Topic.Close()
+	if fi, err := os.Stat(filepath.Join(topic.Path(), "1")); err != nil {
+		t.Fatal(err)
+	} else if err = os.Truncate(filepath.Join(topic.Path(), "1"), fi.Size()-5); err != nil {
+		t.Fatal(err)
+	}
+
+	// Reopen topic.
+	if err := topic.Open(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Rewrite the third message with a different data size.
+	if err := topic.WriteMessage(&messaging.Message{Index: 3, Data: make([]byte, 20)}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Read all messages.
+	a := MustDecodeAllMessages(messaging.NewTopicReader(topic.Path(), 0, false))
+	if len(a) != 3 {
+		t.Fatalf("unexpected message count: %d", len(a))
+	} else if !reflect.DeepEqual(a[0], &messaging.Message{Index: 1, Data: make([]byte, 10)}) {
+		t.Fatalf("unexpected message(0): %#v", a[0])
+	} else if !reflect.DeepEqual(a[1], &messaging.Message{Index: 2, Data: make([]byte, 10)}) {
+		t.Fatalf("unexpected message(1): %#v", a[1])
+	} else if !reflect.DeepEqual(a[2], &messaging.Message{Index: 3, Data: make([]byte, 20)}) {
+		t.Fatalf("unexpected message(2): %#v", a[2])
+	}
+
+}
+
+// Topic is a wrapper for messaging.Topic that creates the topic in a temporary location.
+type Topic struct {
+	*messaging.Topic
+}
+
+// NewTopic returns a new Topic instance.
+func NewTopic() *Topic {
+	return &Topic{messaging.NewTopic(1, tempfile())}
+}
+
+// OpenTopic returns a new, open Topic instance.
+func OpenTopic() *Topic {
+	t := NewTopic()
+	if err := t.Open(); err != nil {
+		panic("open: " + err.Error())
+	}
+	return t
+}
+
+// Close closes and deletes the temporary topic.
+func (t *Topic) Close() {
+	defer os.RemoveAll(t.Path())
+	t.Topic.Close()
+}
+
 // Ensure a list of topics can be read from a directory.
 func TestReadTopics(t *testing.T) {
 	path, _ := ioutil.TempDir("", "")
@@ -700,20 +771,10 @@ func (b *Broker) Log() *BrokerLog {
 }
 
 // MustReadAllTopic reads all messages on a topic. Panic on error.
-func (b *Broker) MustReadAllTopic(topicID uint64) (a []*messaging.Message) {
+func (b *Broker) MustReadAllTopic(topicID uint64) []*messaging.Message {
 	r := b.TopicReader(topicID, 0, false)
 	defer r.Close()
-
-	dec := messaging.NewMessageDecoder(r)
-	for {
-		m := &messaging.Message{}
-		if err := dec.Decode(m); err == io.EOF {
-			return
-		} else if err != nil {
-			panic("read all topic: " + err.Error())
-		}
-		a = append(a, m)
-	}
+	return MustDecodeAllMessages(r)
 }
 
 // BrokerLog is a mockable object that implements Broker.Log.
@@ -769,6 +830,23 @@ func MustWriteFile(filename string, data []byte) {
 	}
 	if err := ioutil.WriteFile(filename, data, 0666); err != nil {
 		panic(err.Error())
+	}
+}
+
+// MustDecodeAllMessages reads all messages on a reader.
+func MustDecodeAllMessages(r interface {
+	io.ReadCloser
+	io.Seeker
+}) (a []*messaging.Message) {
+	dec := messaging.NewMessageDecoder(r)
+	for {
+		m := &messaging.Message{}
+		if err := dec.Decode(m); err == io.EOF {
+			return
+		} else if err != nil {
+			panic("read all: " + err.Error())
+		}
+		a = append(a, m)
 	}
 }
 
