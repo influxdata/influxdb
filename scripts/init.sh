@@ -117,9 +117,9 @@ case $1 in
 
         log_success_msg "Starting the process" "$name"
         if which start-stop-daemon > /dev/null 2>&1; then
-            start-stop-daemon --chuid influxdb:influxdb --start --quiet --pidfile $pidfile --exec $daemon -- -pidfile $pidfile -config $config >$STDOUT 2>$STDERR &
+            start-stop-daemon --chuid influxdb:influxdb --start --quiet --pidfile $pidfile --exec $daemon -- -pidfile $pidfile -config $config >>$STDOUT 2>>$STDERR &
         else
-            nohup $daemon -pidfile $pidfile -config $config >$STDOUT 2>$STDERR &
+            nohup $daemon -pidfile $pidfile -config $config >>$STDOUT 2>>$STDERR &
         fi
         log_success_msg "$name process was started"
         ;;
