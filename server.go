@@ -2015,8 +2015,8 @@ func (s *Server) ReadSeries(database, retentionPolicy, name string, tags map[str
 
 	// Decode into a raw value map.
 	codec := NewFieldCodec(mm)
-	rawFields := codec.DecodeFields(data)
-	if rawFields == nil {
+	rawFields, err := codec.DecodeFields(data)
+	if err != nil || rawFields == nil {
 		return nil, nil
 	}
 

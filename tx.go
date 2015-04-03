@@ -389,13 +389,14 @@ func (l *LocalMapper) Next() (seriesID uint32, timestamp int64, value interface{
 		var value interface{}
 		var err error
 		if l.isRaw && len(l.selectFields) > 1 {
-			fieldsWithNames := l.decoder.DecodeFieldsWithNames(l.valueBuffer[min])
-			value = fieldsWithNames
+			if fieldsWithNames, err := l.decoder.DecodeFieldsWithNames(l.valueBuffer[min]); err == nil {
+				value = fieldsWithNames
 
-			// if there's a where clause, make sure we don't need to filter this value
-			if l.filters[min] != nil {
-				if !matchesWhere(l.filters[min], fieldsWithNames) {
-					value = nil
+				// if there's a where clause, make sure we don't need to filter this value
+				if l.filters[min] != nil {
+					if !matchesWhere(l.filters[min], fieldsWithNames) {
+						value = nil
+					}
 				}
 			}
 		} else {
@@ -409,8 +410,8 @@ func (l *LocalMapper) Next() (seriesID uint32, timestamp int64, value interface{
 						value = nil
 					}
 				} else { // decode everything
-					fieldsWithNames := l.decoder.DecodeFieldsWithNames(l.valueBuffer[min])
-					if !matchesWhere(l.filters[min], fieldsWithNames) {
+					fieldsWithNames, err := l.decoder.DecodeFieldsWithNames(l.valueBuffer[min])
+					if err != nil || !matchesWhere(l.filters[min], fieldsWithNames) {
 						value = nil
 					}
 				}
@@ -462,5 +463,5 @@ func splitIdent(s string) (db, rp, m string, err error) {
 type fieldDecoder interface {
 	DecodeByID(fieldID uint8, b []byte) (interface{}, error)
 	FieldByName(name string) *Field
-	DecodeFieldsWithNames(b []byte) map[string]interface{}
+	DecodeFieldsWithNames(b []byte) (map[string]interface{}, error)
 }
