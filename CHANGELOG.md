@@ -9,7 +9,7 @@
 - [#2151](https://github.com/influxdb/influxdb/pull/2151): Ignore replay commands on the metastore.
 - [#2156](https://github.com/influxdb/influxdb/pull/2156): Propagate error when resolving UDP address in Graphite UDP server.
 - [#2163](https://github.com/influxdb/influxdb/pull/2163): Fix up paths for default data and run storage.
-- [#2164](https://github.com/influxdb/influxdb/pull/2164): Append STDOUT/STDERR in initscript.
+- [#2164](https://github.com/influxdb/influxdb/pull/2164): Append STDOUT/STDERR in init script.
 - [#2165](https://github.com/influxdb/influxdb/pull/2165): Better name for config section for stats and diags.
 - [#2165](https://github.com/influxdb/influxdb/pull/2165): Monitoring database and retention policy are not configurable.
 
