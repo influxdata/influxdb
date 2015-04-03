@@ -649,6 +649,15 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// SET PASSWORD FOR USER
+		{
+			s: `SET PASSWORD FOR testuser = 'pwd1337'`,
+			stmt: &influxql.SetPasswordUserStatement{
+				Name:      "testuser",
+				Password:  "pwd1337",
+			},
+		},
+
 		// DROP CONTINUOUS QUERY statement
 		{
 			s:    `DROP CONTINUOUS QUERY myquery ON foo`,
@@ -877,9 +886,9 @@ func TestParser_ParseStatement(t *testing.T) {
 		},
 
 		// Errors
-		{s: ``, err: `found EOF, expected SELECT, DELETE, SHOW, CREATE, DROP, GRANT, REVOKE, ALTER at line 1, char 1`},
+		{s: ``, err: `found EOF, expected SELECT, DELETE, SHOW, CREATE, DROP, GRANT, REVOKE, ALTER, SET at line 1, char 1`},
 		{s: `SELECT`, err: `found EOF, expected identifier, string, number, bool at line 1, char 8`},
-		{s: `blah blah`, err: `found blah, expected SELECT, DELETE, SHOW, CREATE, DROP, GRANT, REVOKE, ALTER at line 1, char 1`},
+		{s: `blah blah`, err: `found blah, expected SELECT, DELETE, SHOW, CREATE, DROP, GRANT, REVOKE, ALTER, SET at line 1, char 1`},
 		{s: `SELECT field1 X`, err: `found X, expected FROM at line 1, char 15`},
 		{s: `SELECT field1 FROM "series" WHERE X +;`, err: `found ;, expected identifier, string, number, bool at line 1, char 38`},
 		{s: `SELECT field1 FROM myseries GROUP`, err: `found EOF, expected BY at line 1, char 35`},
@@ -955,6 +964,13 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `ALTER RETENTION POLICY`, err: `found EOF, expected identifier at line 1, char 24`},
 		{s: `ALTER RETENTION POLICY policy1`, err: `found EOF, expected ON at line 1, char 32`}, {s: `ALTER RETENTION POLICY policy1 ON`, err: `found EOF, expected identifier at line 1, char 35`},
 		{s: `ALTER RETENTION POLICY policy1 ON testdb`, err: `found EOF, expected DURATION, RETENTION, DEFAULT at line 1, char 42`},
+		{s: `SET`, err: `found EOF, expected PASSWORD at line 1, char 5`},
+		{s: `SET PASSWORD`, err: `found EOF, expected FOR at line 1, char 14`},
+		{s: `SET PASSWORD something`, err: `found something, expected FOR at line 1, char 14`},
+		{s: `SET PASSWORD FOR`, err: `found EOF, expected identifier at line 1, char 18`},
+		{s: `SET PASSWORD FOR dejan`, err: `found EOF, expected = at line 1, char 24`},
+		{s: `SET PASSWORD FOR dejan =`, err: `found EOF, expected string at line 1, char 25`},
+		{s: `SET PASSWORD FOR dejan = bla`, err: `found bla, expected string at line 1, char 26`},
 	}
 
 	for i, tt := range tests {
