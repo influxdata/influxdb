@@ -8,6 +8,7 @@
 - [#2147](https://github.com/influxdb/influxdb/pull/2147): Set Go Max procs in a better location
 - [#2151](https://github.com/influxdb/influxdb/pull/2151): Ignore replay commands on the metastore.
 - [#2156](https://github.com/influxdb/influxdb/pull/2156): Propagate error when resolving UDP address in Graphite UDP server.
+- [#2163](https://github.com/influxdb/influxdb/pull/2163): Fix up paths for default data and run storage.
 
 ## v0.9.0-rc19 [2015-04-01]
 

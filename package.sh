@@ -33,8 +33,9 @@
 AWS_FILE=~/aws.conf
 
 INSTALL_ROOT_DIR=/opt/influxdb
-INFLUXDB_RUN_DIR=/var/opt/influxdb
+INFLUXDB_RUN_DIR=/var/run/influxdb
 INFLUXDB_LOG_DIR=/var/log/influxdb
+INFLUXDB_DATA_DIR=/var/opt/influxdb
 CONFIG_ROOT_DIR=/etc/opt/influxdb
 
 SAMPLE_CONFIGURATION=etc/config.sample.toml
@@ -186,6 +187,8 @@ mkdir -p $INFLUXDB_RUN_DIR
 chown -R -L influxdb:influxdb $INFLUXDB_RUN_DIR
 mkdir -p $INFLUXDB_LOG_DIR
 chown -R -L influxdb:influxdb $INFLUXDB_LOG_DIR
+mkdir -p $INFLUXDB_DATA_DIR
+chown -R -L influxdb:influxdb $INFLUXDB_DATA_DIR
 EOF
     echo "Post-install script created successfully at $POST_INSTALL_PATH"
 }

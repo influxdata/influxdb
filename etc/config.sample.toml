@@ -63,13 +63,13 @@ enabled = false
 # consensus.
 [broker]
 # Where the Raft logs are stored. The user running InfluxDB will need read/write access.
-dir  = "/tmp/influxdb/development/raft"
+dir  = "/var/opt/influxdb/raft"
 port = 8086
 
 # Data node configuration. Data nodes are where the time-series data, in the form of
 # shards, is stored.
 [data]
-  dir = "/tmp/influxdb/development/db"
+  dir = "/var/opt/influxdb/db"
   port = 8086
 
   # Auto-create a retention policy when a database is created. Defaults to true.
@@ -82,7 +82,7 @@ port = 8086
 
 [cluster]
 # Location for cluster state storage. For storing state persistently across restarts.
-dir = "/tmp/influxdb/development/state"
+dir = "/var/opt/influxdb/state"
 
 # Configuration for snapshot endpoint.
 [snapshot]

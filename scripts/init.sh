@@ -88,7 +88,7 @@ name=influxd
 daemon=/opt/influxdb/influxd
 
 # pid file for the daemon
-pidfile=/var/opt/influxdb/run/influxd.pid
+pidfile=/var/run/influxdb/influxd.pid
 
 # Configuration file
 config=/etc/opt/influxdb/influxdb.conf
