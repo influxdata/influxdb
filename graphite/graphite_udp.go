@@ -42,7 +42,7 @@ func (u *UDPServer) ListenAndServe(iface string) error {
 
 	addr, err := net.ResolveUDPAddr("udp", iface)
 	if err != nil {
-		return nil
+		return err
 	}
 
 	conn, err := net.ListenUDP("udp", addr)
