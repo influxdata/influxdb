@@ -385,7 +385,7 @@ func parseConfig(path, hostname string) (*Config, error) {
 // creates and initializes a broker.
 func (cmd *RunCommand) openBroker(brokerURLs []url.URL) {
 	path := cmd.config.BrokerDir()
-	u := cmd.config.BrokerURL()
+	u := cmd.config.ClusterURL()
 	raftTracing := cmd.config.Logging.RaftTracing
 
 	// Create broker

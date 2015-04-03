@@ -78,7 +78,7 @@ func (cmd *RestoreCommand) Restore(config *Config, path string) error {
 	}
 
 	// Generate broker & raft directories from manifest.
-	if err := cmd.materialize(config.BrokerDir(), ss, config.BrokerURL()); err != nil {
+	if err := cmd.materialize(config.BrokerDir(), ss, config.ClusterURL()); err != nil {
 		return fmt.Errorf("materialize: %s", err)
 	}
 

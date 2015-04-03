@@ -303,14 +303,6 @@ func (c *Config) ClusterURL() url.URL {
 	}
 }
 
-// BrokerURL returns the URL required to contact the Broker server.
-func (c *Config) BrokerURL() url.URL {
-	return url.URL{
-		Scheme: "http",
-		Host:   net.JoinHostPort(c.Hostname, strconv.Itoa(c.Port)),
-	}
-}
-
 // BrokerDir returns the data directory to start up in and does home directory expansion if necessary.
 func (c *Config) BrokerDir() string {
 	p, e := filepath.Abs(c.Broker.Dir)
