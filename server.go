@@ -691,6 +691,14 @@ func (s *Server) Join(u *url.URL, joinURL *url.URL) error {
 		}
 		defer resp.Body.Close()
 
+		// If we get a service unavailable, the other data nodes may still be booting
+		// so retry again
+		if resp.StatusCode == http.StatusServiceUnavailable {
+			retries += 1
+			time.Sleep(1 * time.Second)
+			continue
+		}
+
 		// We likely tried to join onto a broker which cannot handle this request.  It
 		// has given us the address of a known data node to join instead.
 		if resp.StatusCode == http.StatusTemporaryRedirect {

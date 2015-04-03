@@ -1922,10 +1922,6 @@ func TestSeparateBrokerTwoDataNodes(t *testing.T) {
 		t.Fatalf("Test %s: failed to create leader data node on port %d", testName, dataConfig1.Port)
 	}
 
-	// FIXME: This is needed for now because cmd.Open() will return before the server
-	// is actually ready to handle requests.
-	time.Sleep(1 * time.Second)
-
 	// Join data node 2 to single broker and first data node
 	dataConfig2 := main.NewConfig()
 	dataConfig2.Port = 9012
