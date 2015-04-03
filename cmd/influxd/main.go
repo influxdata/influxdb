@@ -33,7 +33,9 @@ var (
 
 // Various constants used by the main package.
 const (
-	messagingClientFile string = "messaging"
+	messagingClientFile       string = "messaging"
+	monitoringDatabase        string = "_influxdb"
+	monitoringRetentionPolicy string = "default"
 )
 
 func main() {

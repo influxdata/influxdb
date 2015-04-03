@@ -11,6 +11,7 @@
 - [#2163](https://github.com/influxdb/influxdb/pull/2163): Fix up paths for default data and run storage.
 - [#2164](https://github.com/influxdb/influxdb/pull/2164): Append STDOUT/STDERR in initscript.
 - [#2165](https://github.com/influxdb/influxdb/pull/2165): Better name for config section for stats and diags.
+- [#2165](https://github.com/influxdb/influxdb/pull/2165): Monitoring database and retention policy are not configurable.
 
 ## v0.9.0-rc19 [2015-04-01]
 

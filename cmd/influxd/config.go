@@ -127,10 +127,8 @@ type Config struct {
 	} `toml:"logging"`
 
 	Monitoring struct {
-		Enabled         bool     `toml:"enabled"`
-		Database        string   `toml:"database"`
-		RetentionPolicy string   `toml:"retention-policy"`
-		WriteInterval   Duration `toml:"write-interval"`
+		Enabled       bool     `toml:"enabled"`
+		WriteInterval Duration `toml:"write-interval"`
 	} `toml:"monitoring"`
 
 	ContinuousQuery struct {
@@ -196,8 +194,6 @@ func NewConfig() (*Config, error) {
 	c.ReportingDisabled = false
 
 	c.Monitoring.Enabled = false
-	c.Monitoring.Database = "_internal"
-	c.Monitoring.RetentionPolicy = "default"
 	c.Monitoring.WriteInterval = Duration(1 * time.Minute)
 
 	// Detect hostname (or set to localhost).

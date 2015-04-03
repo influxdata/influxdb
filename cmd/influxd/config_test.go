@@ -191,10 +191,8 @@ enabled = true
 write-tracing = true
 raft-tracing = true
 
-[statistics]
+[monitoring]
 enabled = true
-database = "_internal"
-retention-policy = "default"
 write-interval = "1m"
 
 # Configure the admin server

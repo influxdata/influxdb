@@ -189,8 +189,8 @@ func Run(config *Config, join, version string) (*messaging.Broker, *influxdb.Ser
 
 		// Start up self-monitoring if enabled.
 		if config.Monitoring.Enabled {
-			database := config.Monitoring.Database
-			policy := config.Monitoring.RetentionPolicy
+			database := monitoringDatabase
+			policy := monitoringRetentionPolicy
 			interval := time.Duration(config.Monitoring.WriteInterval)
 
 			// Ensure database exists.
