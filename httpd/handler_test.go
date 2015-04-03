@@ -145,7 +145,7 @@ func TestHandler_ShowMeasurementsNotFound(t *testing.T) {
 	srvr.CreateDatabase("foo")
 	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
 	srvr.SetDefaultRetentionPolicy("foo", "bar")
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "SHOW SERIES from bin", "db": "foo"}, nil, "")
@@ -166,7 +166,7 @@ func TestHandler_CreateDatabase(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	srvr := OpenAuthlessServer(c)
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "CREATE DATABASE foo"}, nil, "")
@@ -181,7 +181,7 @@ func TestHandler_CreateDatabase_BadRequest_NoName(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	srvr := OpenAuthlessServer(c)
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	status, _ := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "CREATE DATABASE"}, nil, "")
@@ -195,7 +195,7 @@ func TestHandler_CreateDatabase_Conflict(t *testing.T) {
 	defer c.Close()
 	srvr := OpenAuthlessServer(c)
 	srvr.CreateDatabase("foo")
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "CREATE DATABASE foo"}, nil, "")
@@ -211,7 +211,7 @@ func TestHandler_DropDatabase(t *testing.T) {
 	defer c.Close()
 	srvr := OpenAuthlessServer(c)
 	srvr.CreateDatabase("foo")
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "DROP DATABASE foo"}, nil, "")
@@ -226,7 +226,7 @@ func TestHandler_DropDatabase_NotFound(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	srvr := OpenAuthlessServer(c)
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "DROP DATABASE bar"}, nil, "")
@@ -243,7 +243,7 @@ func TestHandler_RetentionPolicies(t *testing.T) {
 	srvr := OpenAuthlessServer(c)
 	srvr.CreateDatabase("foo")
 	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "SHOW RETENTION POLICIES foo"}, nil, "")
@@ -259,7 +259,7 @@ func TestHandler_RetentionPolicies_DatabaseNotFound(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	srvr := OpenAuthlessServer(c)
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "SHOW RETENTION POLICIES foo"}, nil, "")
@@ -276,7 +276,7 @@ func TestHandler_CreateRetentionPolicy(t *testing.T) {
 	defer c.Close()
 	srvr := OpenAuthlessServer(c)
 	srvr.CreateDatabase("foo")
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	query := map[string]string{"q": "CREATE RETENTION POLICY bar ON foo DURATION 1h REPLICATION 1"}
@@ -294,7 +294,7 @@ func TestHandler_CreateRetentionPolicyAsDefault(t *testing.T) {
 	defer c.Close()
 	srvr := OpenAuthlessServer(c)
 	srvr.CreateDatabase("foo")
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	query := map[string]string{"q": "CREATE RETENTION POLICY bar ON foo DURATION 1h REPLICATION 1 DEFAULT"}
@@ -318,7 +318,7 @@ func TestHandler_CreateRetentionPolicy_DatabaseNotFound(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	srvr := OpenAuthlessServer(c)
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	query := map[string]string{"q": "CREATE RETENTION POLICY bar ON foo DURATION 1h REPLICATION 1"}
@@ -334,7 +334,7 @@ func TestHandler_CreateRetentionPolicy_Conflict(t *testing.T) {
 	defer c.Close()
 	srvr := OpenAuthlessServer(c)
 	srvr.CreateDatabase("foo")
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	query := map[string]string{"q": "CREATE RETENTION POLICY bar ON foo DURATION 1h REPLICATION 1"}
@@ -352,7 +352,7 @@ func TestHandler_CreateRetentionPolicy_BadRequest(t *testing.T) {
 	defer c.Close()
 	srvr := OpenAuthlessServer(c)
 	srvr.CreateDatabase("foo")
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	query := map[string]string{"q": "CREATE RETENTION POLICY bar ON foo DURATION ***BAD*** REPLICATION 1"}
@@ -369,7 +369,7 @@ func TestHandler_UpdateRetentionPolicy(t *testing.T) {
 	srvr := OpenAuthlessServer(c)
 	srvr.CreateDatabase("foo")
 	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	query := map[string]string{"q": "ALTER RETENTION POLICY bar ON foo REPLICATION 42 DURATION 2h DEFAULT"}
@@ -401,7 +401,7 @@ func TestHandler_UpdateRetentionPolicy_BadRequest(t *testing.T) {
 	srvr := OpenAuthlessServer(c)
 	srvr.CreateDatabase("foo")
 	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	query := map[string]string{"q": "ALTER RETENTION POLICY bar ON foo DURATION ***BAD*** REPLICATION 1"}
@@ -417,7 +417,7 @@ func TestHandler_UpdateRetentionPolicy_DatabaseNotFound(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	srvr := OpenAuthlessServer(c)
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	query := map[string]string{"q": "ALTER RETENTION POLICY bar ON foo DURATION 1h REPLICATION 1"}
@@ -435,7 +435,7 @@ func TestHandler_UpdateRetentionPolicy_NotFound(t *testing.T) {
 	srvr := OpenAuthlessServer(c)
 	srvr.CreateDatabase("foo")
 	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	query := map[string]string{"q": "ALTER RETENTION POLICY qux ON foo DURATION 1h REPLICATION 1"}
@@ -453,7 +453,7 @@ func TestHandler_DeleteRetentionPolicy(t *testing.T) {
 	srvr := OpenAuthlessServer(c)
 	srvr.CreateDatabase("foo")
 	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	query := map[string]string{"q": "DROP RETENTION POLICY bar ON foo"}
@@ -470,7 +470,7 @@ func TestHandler_DeleteRetentionPolicy_DatabaseNotFound(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	srvr := OpenAuthlessServer(c)
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	query := map[string]string{"q": "DROP RETENTION POLICY bar ON qux"}
@@ -488,7 +488,7 @@ func TestHandler_DeleteRetentionPolicy_NotFound(t *testing.T) {
 	defer c.Close()
 	srvr := OpenAuthlessServer(c)
 	srvr.CreateDatabase("foo")
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	query := map[string]string{"q": "DROP RETENTION POLICY bar ON foo"}
@@ -505,7 +505,7 @@ func TestHandler_GzipEnabled(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	srvr := OpenAuthlessServer(c)
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	req, err := http.NewRequest("GET", s.URL+`/ping`, bytes.NewBuffer([]byte{}))
@@ -531,7 +531,7 @@ func TestHandler_GzipDisabled(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	srvr := OpenAuthlessServer(c)
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	req, err := http.NewRequest("GET", s.URL+`/ping`, bytes.NewBuffer([]byte{}))
@@ -557,7 +557,7 @@ func TestHandler_Index(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	srvr := OpenAuthlessServer(c)
-	s := NewHTTPServer(srvr)
+	s := NewClusterServer(srvr)
 	defer s.Close()
 
 	status, body := MustHTTP("GET", s.URL, nil, nil, "")
@@ -575,7 +575,7 @@ func TestHandler_Wait(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	srvr := OpenAuthlessServer(c)
-	s := NewHTTPServer(srvr)
+	s := NewClusterServer(srvr)
 	defer s.Close()
 
 	status, body := MustHTTP("GET", s.URL+`/wait/1`, map[string]string{"timeout": "1"}, nil, "")
@@ -596,7 +596,7 @@ func TestHandler_WaitIncrement(t *testing.T) {
 	srvr.CreateDatabase("foo")
 	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
 
-	s := NewHTTPServer(srvr)
+	s := NewClusterServer(srvr)
 	defer s.Close()
 
 	status, _ := MustHTTP("GET", s.URL+`/wait/2`, map[string]string{"timeout": "200"}, nil, "")
@@ -613,7 +613,7 @@ func TestHandler_WaitNoIndexSpecified(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	srvr := OpenAuthlessServer(c)
-	s := NewHTTPServer(srvr)
+	s := NewClusterServer(srvr)
 	defer s.Close()
 
 	status, _ := MustHTTP("GET", s.URL+`/wait`, nil, nil, "")
@@ -627,7 +627,7 @@ func TestHandler_WaitInvalidIndexSpecified(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	srvr := OpenAuthlessServer(c)
-	s := NewHTTPServer(srvr)
+	s := NewClusterServer(srvr)
 	defer s.Close()
 
 	status, _ := MustHTTP("GET", s.URL+`/wait/foo`, nil, nil, "")
@@ -641,7 +641,7 @@ func TestHandler_WaitExpectTimeout(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	srvr := OpenAuthlessServer(c)
-	s := NewHTTPServer(srvr)
+	s := NewClusterServer(srvr)
 	defer s.Close()
 
 	status, _ := MustHTTP("GET", s.URL+`/wait/2`, map[string]string{"timeout": "1"}, nil, "")
@@ -655,7 +655,7 @@ func TestHandler_Ping(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	srvr := OpenAuthlessServer(c)
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	status, _ := MustHTTP("GET", s.URL+`/ping`, nil, nil, "")
@@ -669,7 +669,7 @@ func TestHandler_PingHead(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	srvr := OpenAuthlessServer(c)
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	status, _ := MustHTTP("HEAD", s.URL+`/ping`, nil, nil, "")
@@ -686,7 +686,7 @@ func TestHandler_Users_MultipleUsers(t *testing.T) {
 	srvr.CreateUser("jdoe", "1337", false)
 	srvr.CreateUser("mclark", "1337", true)
 	srvr.CreateUser("csmith", "1337", false)
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	query := map[string]string{"q": "SHOW USERS"}
@@ -704,7 +704,7 @@ func TestHandler_UpdateUser(t *testing.T) {
 	defer c.Close()
 	srvr := OpenAuthlessServer(c)
 	srvr.CreateUser("jdoe", "1337", false)
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	// Save original password hash.
@@ -727,7 +727,7 @@ func TestHandler_UpdateUser_PasswordBadRequest(t *testing.T) {
 	defer c.Close()
 	srvr := OpenAuthlessServer(c)
 	srvr.CreateUser("jdoe", "1337", false)
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	status, body := MustHTTP("PUT", s.URL+`/users/jdoe`, nil, nil, `{"password": 10}`)
@@ -746,7 +746,7 @@ func TestHandler_DataNodes(t *testing.T) {
 	srvr.CreateDataNode(MustParseURL("http://localhost:1000"))
 	srvr.CreateDataNode(MustParseURL("http://localhost:2000"))
 	srvr.CreateDataNode(MustParseURL("http://localhost:3000"))
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	status, body := MustHTTP("GET", s.URL+`/data_nodes`, nil, nil, "")
@@ -762,7 +762,7 @@ func TestHandler_CreateDataNode(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	srvr := OpenUninitializedServer(c)
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	status, body := MustHTTP("POST", s.URL+`/data_nodes`, nil, nil, `{"url":"http://localhost:1000"}`)
@@ -778,7 +778,7 @@ func TestHandler_CreateDataNode_BadRequest(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	srvr := OpenAuthlessServer(c)
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	status, body := MustHTTP("POST", s.URL+`/data_nodes`, nil, nil, `{"name":`)
@@ -794,7 +794,7 @@ func TestHandler_CreateDataNode_InternalServerError(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	srvr := OpenAuthlessServer(c)
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	status, body := MustHTTP("POST", s.URL+`/data_nodes`, nil, nil, `{"url":""}`)
@@ -811,7 +811,7 @@ func TestHandler_DeleteDataNode(t *testing.T) {
 	defer c.Close()
 	srvr := OpenAuthlessServer(c)
 	srvr.CreateDataNode(MustParseURL("http://localhost:1000"))
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	status, body := MustHTTP("DELETE", s.URL+`/data_nodes/1`, nil, nil, "")
@@ -827,7 +827,7 @@ func TestHandler_DeleteUser_DataNodeNotFound(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	srvr := OpenAuthlessServer(c)
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	status, body := MustHTTP("DELETE", s.URL+`/data_nodes/10000`, nil, nil, "")
@@ -844,7 +844,7 @@ func TestHandler_AuthenticatedCreateAdminUser(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	srvr := OpenAuthenticatedServer(c)
-	s := NewAuthenticatedHTTPServer(srvr)
+	s := NewAuthenticatedAPIServer(srvr)
 	defer s.Close()
 
 	// Attempting to create a non-admin user should fail.
@@ -867,7 +867,7 @@ func TestHandler_AuthenticatedDatabases_Unauthorized(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	srvr := OpenAuthenticatedServer(c)
-	s := NewAuthenticatedHTTPServer(srvr)
+	s := NewAuthenticatedAPIServer(srvr)
 	defer s.Close()
 
 	status, _ := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "SHOW DATABASES"}, nil, "")
@@ -880,7 +880,7 @@ func TestHandler_QueryParamenterMissing(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	srvr := OpenAuthlessServer(c)
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	status, body := MustHTTP("GET", s.URL+`/query`, nil, nil, "")
@@ -896,7 +896,7 @@ func TestHandler_AuthenticatedDatabases_AuthorizedQueryParams(t *testing.T) {
 	defer c.Close()
 	srvr := OpenAuthenticatedServer(c)
 	srvr.CreateUser("lisa", "password", true)
-	s := NewAuthenticatedHTTPServer(srvr)
+	s := NewAuthenticatedAPIServer(srvr)
 	defer s.Close()
 
 	query := map[string]string{"q": "SHOW DATABASES", "u": "lisa", "p": "password"}
@@ -911,7 +911,7 @@ func TestHandler_AuthenticatedDatabases_UnauthorizedQueryParams(t *testing.T) {
 	defer c.Close()
 	srvr := OpenAuthenticatedServer(c)
 	srvr.CreateUser("lisa", "password", true)
-	s := NewAuthenticatedHTTPServer(srvr)
+	s := NewAuthenticatedAPIServer(srvr)
 	defer s.Close()
 
 	query := map[string]string{"q": "SHOW DATABASES", "u": "lisa", "p": "wrong"}
@@ -926,7 +926,7 @@ func TestHandler_AuthenticatedDatabases_AuthorizedBasicAuth(t *testing.T) {
 	defer c.Close()
 	srvr := OpenAuthenticatedServer(c)
 	srvr.CreateUser("lisa", "password", true)
-	s := NewAuthenticatedHTTPServer(srvr)
+	s := NewAuthenticatedAPIServer(srvr)
 	defer s.Close()
 
 	auth := make(map[string]string)
@@ -943,7 +943,7 @@ func TestHandler_AuthenticatedDatabases_UnauthorizedBasicAuth(t *testing.T) {
 	defer c.Close()
 	srvr := OpenAuthenticatedServer(c)
 	srvr.CreateUser("lisa", "password", true)
-	s := NewAuthenticatedHTTPServer(srvr)
+	s := NewAuthenticatedAPIServer(srvr)
 	defer s.Close()
 
 	auth := make(map[string]string)
@@ -963,7 +963,7 @@ func TestHandler_GrantDBPrivilege(t *testing.T) {
 	srvr.CreateUser("lisa", "password", true)
 	// Create user that will be granted a privilege.
 	srvr.CreateUser("john", "password", false)
-	s := NewAuthenticatedHTTPServer(srvr)
+	s := NewAuthenticatedAPIServer(srvr)
 	defer s.Close()
 
 	auth := make(map[string]string)
@@ -1002,7 +1002,7 @@ func TestHandler_RevokeAdmin(t *testing.T) {
 	srvr.CreateUser("lisa", "password", true)
 	// Create user that will have cluster admin revoked.
 	srvr.CreateUser("john", "password", true)
-	s := NewAuthenticatedHTTPServer(srvr)
+	s := NewAuthenticatedAPIServer(srvr)
 	defer s.Close()
 
 	auth := make(map[string]string)
@@ -1038,7 +1038,7 @@ func TestHandler_RevokeDBPrivilege(t *testing.T) {
 	srvr.CreateUser("john", "password", false)
 	u := srvr.User("john")
 	u.Privileges["foo"] = influxql.ReadPrivilege
-	s := NewAuthenticatedHTTPServer(srvr)
+	s := NewAuthenticatedAPIServer(srvr)
 	defer s.Close()
 
 	auth := make(map[string]string)
@@ -1070,7 +1070,7 @@ func TestHandler_DropSeries(t *testing.T) {
 	srvr := OpenAuthlessServer(c)
 	srvr.CreateDatabase("foo")
 	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
@@ -1092,7 +1092,7 @@ func TestHandler_serveWriteSeries(t *testing.T) {
 	defer c.Close()
 	srvr := OpenAuthlessServer(c)
 	srvr.CreateDatabase("foo")
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "default", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
@@ -1115,7 +1115,7 @@ func TestHandler_serveDump(t *testing.T) {
 	defer c.Close()
 	srvr := OpenAuthlessServer(c)
 	srvr.CreateDatabase("foo")
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "default", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
@@ -1147,7 +1147,7 @@ func TestHandler_serveWriteSeriesWithNoFields(t *testing.T) {
 	srvr := OpenAuthenticatedServer(c)
 	srvr.CreateDatabase("foo")
 	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z"}]}`)
@@ -1167,7 +1167,7 @@ func TestHandler_serveWriteSeriesWithAuthNilUser(t *testing.T) {
 	srvr := OpenAuthenticatedServer(c)
 	srvr.CreateDatabase("foo")
 	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
-	s := NewAuthenticatedHTTPServer(srvr)
+	s := NewAuthenticatedAPIServer(srvr)
 	defer s.Close()
 
 	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
@@ -1186,7 +1186,7 @@ func TestHandler_serveWriteSeries_noDatabaseExists(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	srvr := OpenAuthenticatedServer(c)
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
@@ -1206,7 +1206,7 @@ func TestHandler_serveWriteSeries_errorHasJsonContentType(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	srvr := OpenAuthlessServer(c)
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	client := &http.Client{}
@@ -1237,7 +1237,7 @@ func TestHandler_serveWriteSeries_queryHasJsonContentType(t *testing.T) {
 	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
 	srvr.SetDefaultRetentionPolicy("foo", "bar")
 
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z", "fields": {"value": 100}}]}`)
@@ -1293,7 +1293,7 @@ func TestHandler_serveWriteSeries_invalidJSON(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	srvr := OpenAuthenticatedServer(c)
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
@@ -1312,7 +1312,7 @@ func TestHandler_serveWriteSeries_noDatabaseSpecified(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	srvr := OpenAuthenticatedServer(c)
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{}`)
@@ -1335,7 +1335,7 @@ func TestHandler_serveWriteSeriesNonZeroTime(t *testing.T) {
 	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
 	srvr.SetDefaultRetentionPolicy("foo", "bar")
 
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z", "fields": {"value": 100}}]}`)
@@ -1378,7 +1378,7 @@ func TestHandler_serveWriteSeriesZeroTime(t *testing.T) {
 	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
 	srvr.SetDefaultRetentionPolicy("foo", "bar")
 
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	now := time.Now()
@@ -1433,7 +1433,7 @@ func TestHandler_serveWriteSeriesBatch(t *testing.T) {
 	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
 	srvr.SetDefaultRetentionPolicy("foo", "bar")
 
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	batch := `
@@ -1518,7 +1518,7 @@ func TestHandler_serveWriteSeriesFieldTypeConflict(t *testing.T) {
 	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
 	srvr.SetDefaultRetentionPolicy("foo", "bar")
 
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"fields": {"value": 100}}]}`)
@@ -1556,8 +1556,8 @@ func str2iface(strs []string) []interface{} {
 func TestHandler_ProcessContinousQueries(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
-	srvr := OpenAuthenticatedServer(c)
-	s := NewAuthenticatedHTTPServer(srvr)
+	srvr := OpenAuthlessServer(c)
+	s := NewClusterServer(srvr)
 	defer s.Close()
 
 	status, _ := MustHTTP("POST", s.URL+`/process_continuous_queries`, nil, nil, "")
@@ -1624,7 +1624,7 @@ func TestHandler_ChunkedResponses(t *testing.T) {
 	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
 	srvr.SetDefaultRetentionPolicy("foo", "bar")
 
-	s := NewHTTPServer(srvr)
+	s := NewAPIServer(srvr)
 	defer s.Close()
 
 	status, errString := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [
@@ -1728,13 +1728,23 @@ type HTTPServer struct {
 	Handler *httpd.Handler
 }
 
-func NewHTTPServer(s *Server) *HTTPServer {
-	h := httpd.NewHandler(s.Server, false, "X.X")
+func NewAPIServer(s *Server) *HTTPServer {
+	h := httpd.NewAPIHandler(s.Server, false, "X.X")
 	return &HTTPServer{httptest.NewServer(h), h}
 }
 
-func NewAuthenticatedHTTPServer(s *Server) *HTTPServer {
-	h := httpd.NewHandler(s.Server, true, "X.X")
+func NewClusterServer(s *Server) *HTTPServer {
+	h := httpd.NewClusterHandler(s.Server, false, "X.X")
+	return &HTTPServer{httptest.NewServer(h), h}
+}
+
+func NewAuthenticatedClusterServer(s *Server) *HTTPServer {
+	h := httpd.NewClusterHandler(s.Server, true, "X.X")
+	return &HTTPServer{httptest.NewServer(h), h}
+}
+
+func NewAuthenticatedAPIServer(s *Server) *HTTPServer {
+	h := httpd.NewAPIHandler(s.Server, true, "X.X")
 	return &HTTPServer{httptest.NewServer(h), h}
 }
 
