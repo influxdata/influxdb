@@ -143,8 +143,8 @@ func TestParseConfig(t *testing.T) {
 		t.Fatalf("cluster dir mismatch: %v", c.Cluster.Dir)
 	}
 
-	if c.Statistics.WriteInterval.String() != "1m0s" {
-		t.Fatalf("Statistics.WriteInterval mismatch: %v", c.Statistics.WriteInterval)
+	if c.Monitoring.WriteInterval.String() != "1m0s" {
+		t.Fatalf("Monitoring.WriteInterval mismatch: %v", c.Monitoring.WriteInterval)
 	}
 
 	// TODO: UDP Servers testing.
@@ -158,7 +158,7 @@ func TestParseConfig(t *testing.T) {
 
 func TestEncodeConfig(t *testing.T) {
 	c := main.Config{}
-	c.Statistics.WriteInterval = main.Duration(time.Minute)
+	c.Monitoring.WriteInterval = main.Duration(time.Minute)
 	buf := new(bytes.Buffer)
 	if err := toml.NewEncoder(buf).Encode(&c); err != nil {
 		t.Fatal("Failed to encode: ", err)
@@ -191,10 +191,8 @@ enabled = true
 write-tracing = true
 raft-tracing = true
 
-[statistics]
+[monitoring]
 enabled = true
-database = "_internal"
-retention-policy = "default"
 write-interval = "1m"
 
 # Configure the admin server

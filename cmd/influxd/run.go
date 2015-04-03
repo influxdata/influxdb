@@ -188,20 +188,20 @@ func Run(config *Config, join, version string) (*messaging.Broker, *influxdb.Ser
 		}
 
 		// Start up self-monitoring if enabled.
-		if config.Statistics.Enabled {
-			database := config.Statistics.Database
-			policy := config.Statistics.RetentionPolicy
-			interval := time.Duration(config.Statistics.WriteInterval)
+		if config.Monitoring.Enabled {
+			database := monitoringDatabase
+			policy := monitoringRetentionPolicy
+			interval := time.Duration(config.Monitoring.WriteInterval)
 
 			// Ensure database exists.
 			if err := s.CreateDatabaseIfNotExists(database); err != nil {
-				log.Fatalf("failed to create database %s for internal statistics: %s", database, err.Error())
+				log.Fatalf("failed to create database %s for internal monitoring: %s", database, err.Error())
 			}
 
 			// Ensure retention policy exists.
 			rp := influxdb.NewRetentionPolicy(policy)
 			if err := s.CreateRetentionPolicyIfNotExists(database, rp); err != nil {
-				log.Fatalf("failed to create retention policy for internal statistics: %s", err.Error())
+				log.Fatalf("failed to create retention policy for internal monitoring: %s", err.Error())
 			}
 
 			s.StartSelfMonitoring(database, policy, interval)

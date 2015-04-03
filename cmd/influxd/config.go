@@ -126,12 +126,10 @@ type Config struct {
 		RaftTracing  bool `toml:"raft-tracing"`
 	} `toml:"logging"`
 
-	Statistics struct {
-		Enabled         bool     `toml:"enabled"`
-		Database        string   `toml:"database"`
-		RetentionPolicy string   `toml:"retention-policy"`
-		WriteInterval   Duration `toml:"write-interval"`
-	}
+	Monitoring struct {
+		Enabled       bool     `toml:"enabled"`
+		WriteInterval Duration `toml:"write-interval"`
+	} `toml:"monitoring"`
 
 	ContinuousQuery struct {
 		// when continuous queries are run we'll automatically recompute previous intervals
@@ -195,10 +193,8 @@ func NewConfig() (*Config, error) {
 	c.ContinuousQuery.Disable = false
 	c.ReportingDisabled = false
 
-	c.Statistics.Enabled = false
-	c.Statistics.Database = "_internal"
-	c.Statistics.RetentionPolicy = "default"
-	c.Statistics.WriteInterval = Duration(1 * time.Minute)
+	c.Monitoring.Enabled = false
+	c.Monitoring.WriteInterval = Duration(1 * time.Minute)
 
 	// Detect hostname (or set to localhost).
 	if c.Hostname, _ = os.Hostname(); c.Hostname == "" {
