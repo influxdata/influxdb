@@ -1868,10 +1868,9 @@ func TestSeparateBrokerDataNode(t *testing.T) {
 	}
 
 	u := b.URL()
-	dataConfig.Initialization.JoinURLs = (&u).String()
 	dataCmd := main.NewRunCommand()
 
-	_, s, _ := dataCmd.Open(dataConfig, "")
+	_, s, _ := dataCmd.Open(dataConfig, (&u).String())
 	if s == nil {
 		t.Fatalf("Test %s: failed to create leader data node on port %d", testName, dataConfig.Port)
 	}
@@ -1920,13 +1919,16 @@ func TestSeparateBrokerTwoDataNodes(t *testing.T) {
 	dataConfig1.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(dataConfig1.Port))
 	dataConfig1.ReportingDisabled = true
 
-	dataConfig1.Initialization.JoinURLs = brokerURL
 	dataCmd1 := main.NewRunCommand()
 
-	_, s1, _ := dataCmd1.Open(dataConfig1, "")
+	_, s1, _ := dataCmd1.Open(dataConfig1, brokerURL)
 	if s1 == nil {
 		t.Fatalf("Test %s: failed to create leader data node on port %d", testName, dataConfig1.Port)
 	}
+
+	// FIXME: This is needed for now because cmd.Open() will return before the server
+	// is actually ready to handle requests.
+	time.Sleep(1 * time.Second)
 
 	// Join data node 2 to single broker and first data node
 	dataConfig2 := main.NewConfig()
@@ -1935,12 +1937,9 @@ func TestSeparateBrokerTwoDataNodes(t *testing.T) {
 	dataConfig2.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(dataConfig2.Port))
 	dataConfig2.ReportingDisabled = true
 
-	dataNode1Url := s1.URL()
-	dataConfig2.Data.JoinURLs = (&dataNode1Url).String()
-	dataConfig2.Initialization.JoinURLs = brokerURL
 	dataCmd2 := main.NewRunCommand()
 
-	_, s2, _ := dataCmd2.Open(dataConfig2, "")
+	_, s2, _ := dataCmd2.Open(dataConfig2, brokerURL)
 	if s2 == nil {
 		t.Fatalf("Test %s: failed to create leader data node on port %d", testName, dataConfig2.Port)
 	}

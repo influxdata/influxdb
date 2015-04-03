@@ -70,7 +70,7 @@ func (h *Handler) serveMessaging(w http.ResponseWriter, r *http.Request) {
 	h.redirect(h.Server.BrokerURLs(), w, r)
 }
 
-// serverMetadata responds to broker requests
+// serveMetadata responds to broker requests
 func (h *Handler) serveMetadata(w http.ResponseWriter, r *http.Request) {
 	if h.Broker == nil && h.Server == nil {
 		log.Println("no broker or server configured to handle messaging endpoints")
@@ -128,6 +128,12 @@ func (h *Handler) serveData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	t := h.Broker.Topic(influxdb.BroadcastTopicID)
+	if t == nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+
 	// Redirect to a valid data URL to handle the request
 	h.redirect(h.Broker.Topic(influxdb.BroadcastTopicID).DataURLs(), w, r)
 }
@@ -145,5 +151,5 @@ func (h *Handler) redirect(u []url.URL, w http.ResponseWriter, r *http.Request) 
 	// this is happening frequently, the clients are using a suboptimal endpoint
 
 	// Redirect the client to a valid data node that can handle the request
-	http.Redirect(w, r, u[0].String()+r.RequestURI, http.StatusSeeOther)
+	http.Redirect(w, r, u[0].String()+r.RequestURI, http.StatusTemporaryRedirect)
 }

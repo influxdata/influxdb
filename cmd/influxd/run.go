@@ -130,18 +130,11 @@ func (cmd *RunCommand) Open(config *Config, join string) (*messaging.Broker, *in
 	log.Printf("influxdb started, version %s, commit %s", version, commit)
 
 	// Parse join urls from the --join flag.
-	var brokerURLs []url.URL
-	if join == "" {
-		brokerURLs = parseURLs(cmd.config.JoinURLs())
-	} else {
-		brokerURLs = parseURLs(join)
-	}
-
-	dataURLs := parseURLs(cmd.config.Data.JoinURLs)
+	joinURLs := parseURLs(join)
 
 	// Open broker & raft log, initialize or join as necessary.
 	if cmd.config.Broker.Enabled {
-		cmd.openBroker(brokerURLs)
+		cmd.openBroker(joinURLs)
 	}
 
 	// Start the broker handler.
@@ -176,7 +169,7 @@ func (cmd *RunCommand) Open(config *Config, join string) (*messaging.Broker, *in
 	if cmd.config.Data.Enabled {
 
 		//FIXME: Need to also pass in dataURLs to bootstrap a data node
-		s = cmd.openServer(brokerURLs, dataURLs)
+		s = cmd.openServer(joinURLs)
 		s.SetAuthenticationEnabled(cmd.config.Authentication.Enabled)
 
 		// Enable retention policy enforcement if requested.
@@ -445,13 +438,13 @@ func joinLog(l *raft.Log, brokerURLs []url.URL) {
 }
 
 // creates and initializes a server.
-func (cmd *RunCommand) openServer(brokerURLs []url.URL, dataURLs []url.URL) *influxdb.Server {
+func (cmd *RunCommand) openServer(joinURLs []url.URL) *influxdb.Server {
 
 	// Create messaging client to the brokers.
 	c := influxdb.NewMessagingClient(cmd.config.ClusterURL())
 	// If join URLs were passed in then use them to override the client's URLs.
-	if len(brokerURLs) > 0 {
-		c.SetURLs(brokerURLs)
+	if len(joinURLs) > 0 {
+		c.SetURLs(joinURLs)
 	} else if cmd.server.broker != nil {
 		c.SetURLs([]url.URL{cmd.server.broker.URL()})
 	}
@@ -484,13 +477,12 @@ func (cmd *RunCommand) openServer(brokerURLs []url.URL, dataURLs []url.URL) *inf
 	}
 	log.Printf("data server opened at %s", cmd.config.Data.Dir)
 
-	if len(dataURLs) > 0 {
-		joinServer(s, cmd.config.ClusterURL(), dataURLs)
-		return s
+	if len(joinURLs) > 0 {
+		joinServer(s, cmd.config.ClusterURL(), joinURLs)
 	}
 
 	dataNodeIndex := s.Index()
-	if dataNodeIndex == 0 && len(dataURLs) == 0 {
+	if dataNodeIndex == 0 {
 		if err := s.Initialize(cmd.config.ClusterURL()); err != nil {
 			log.Fatalf("server initialization error: %s", err)
 		}
@@ -509,6 +501,10 @@ func joinServer(s *influxdb.Server, u url.URL, joinURLs []url.URL) {
 	// Create data node on an existing data node.
 	for _, joinURL := range joinURLs {
 		if err := s.Join(&u, &joinURL); err != nil {
+			// No data nodes could be found to join.  We're the first.
+			if err == influxdb.ErrDataNodeNotFound {
+				return
+			}
 			log.Printf("join: failed to connect data node: %s: %s", u, err)
 		} else {
 			log.Printf("join: connected data node to %s", u)

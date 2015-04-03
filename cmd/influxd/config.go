@@ -42,9 +42,6 @@ const (
 	// DefaultSnapshotPort is the default port to serve snapshots from.
 	DefaultSnapshotPort = 8087
 
-	// DefaultJoinURLs represents the default URLs for joining a cluster.
-	DefaultJoinURLs = ""
-
 	// DefaultRetentionCreatePeriod represents how often the server will check to see if new
 	// shard groups need to be created in advance for writing
 	DefaultRetentionCreatePeriod = 45 * time.Minute
@@ -116,7 +113,6 @@ type Data struct {
 	RetentionCheckEnabled bool     `toml:"retention-check-enabled"`
 	RetentionCheckPeriod  Duration `toml:"retention-check-period"`
 	RetentionCreatePeriod Duration `toml:"retention-create-period"`
-	JoinURLs              string   `toml:"join-urls"`
 }
 
 // Config represents the configuration format for the influxd binary.
@@ -127,10 +123,6 @@ type Config struct {
 	ReportingDisabled bool   `toml:"reporting-disabled"`
 	Version           string `toml:"-"`
 	InfluxDBVersion   string `toml:"-"`
-
-	Initialization struct {
-		JoinURLs string `toml:"join-urls"`
-	} `toml:"initialization"`
 
 	Authentication struct {
 		Enabled bool `toml:"enabled"`
@@ -319,14 +311,6 @@ func (c *Config) DataDir() string {
 		log.Fatalf("Unable to get absolute path for Data Directory: %q", c.Data.Dir)
 	}
 	return p
-}
-
-func (c *Config) JoinURLs() string {
-	if c.Initialization.JoinURLs == "" {
-		return DefaultJoinURLs
-	} else {
-		return c.Initialization.JoinURLs
-	}
 }
 
 // ShardGroupPreCreateCheckPeriod returns the check interval to pre-create shard groups.

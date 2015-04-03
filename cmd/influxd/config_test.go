@@ -21,10 +21,6 @@ const testFile = `
 hostname = "myserver.com"
 port = 8086
 
-# Controls certain parameters that only take effect until an initial successful
-# start-up has occurred.
-[initialization]
-join-urls = "http://127.0.0.1:8086"
 
 # Control authentication
 [authentication]
@@ -110,7 +106,6 @@ retention-auto-create = false
 retention-check-enabled = true
 retention-check-period = "5m"
 enabled = false
-join-urls = "http://127.0.0.1:8087"
 
 [continuous_queries]
 disabled = true
@@ -155,10 +150,6 @@ func TestParseConfig(t *testing.T) {
 
 	if exp := 8086; c.Port != exp {
 		t.Fatalf("port mismatch. got %v, exp %v", c.Port, exp)
-	}
-
-	if c.JoinURLs() != "http://127.0.0.1:8086" {
-		t.Fatalf("JoinURLs mistmatch: %v", c.JoinURLs())
 	}
 
 	if !c.Authentication.Enabled {
@@ -265,10 +256,6 @@ func TestParseConfig(t *testing.T) {
 
 	if c.Data.Enabled != false {
 		t.Fatalf("data disabled mismatch: %v, got: %v", false, c.Data.Enabled)
-	}
-
-	if exp := "http://127.0.0.1:8087"; c.Data.JoinURLs != exp {
-		t.Fatalf("data join urls mismatch: %v, got: %v", exp, c.Data.JoinURLs)
 	}
 
 	if c.Monitoring.WriteInterval.String() != "1m0s" {
