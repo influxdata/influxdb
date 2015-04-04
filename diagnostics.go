@@ -73,20 +73,20 @@ func (s *SystemDiagnostics) AsRow(measurement string, tags map[string]string) *i
 
 // MemoryDiagnostics captures Go memory stats.
 type MemoryDiagnostics struct {
-	Alloc        int
-	TotalAlloc   int
-	Sys          int
-	Lookups      int
-	Mallocs      int
-	Frees        int
-	HeapAlloc    int
-	HeapSys      int
-	HeapIdle     int
-	HeapInUse    int
-	HeapReleased int
-	HeapObjects  int
-	PauseTotalNs int
-	NumGC        int
+	Alloc        int64
+	TotalAlloc   int64
+	Sys          int64
+	Lookups      int64
+	Mallocs      int64
+	Frees        int64
+	HeapAlloc    int64
+	HeapSys      int64
+	HeapIdle     int64
+	HeapInUse    int64
+	HeapReleased int64
+	HeapObjects  int64
+	PauseTotalNs int64
+	NumGC        int64
 }
 
 // NewMemoryDiagnostics returns a MemoryDiagnostics object.
@@ -95,20 +95,20 @@ func NewMemoryDiagnostics() *MemoryDiagnostics {
 	runtime.ReadMemStats(&m)
 
 	return &MemoryDiagnostics{
-		Alloc:        int(m.Alloc),
-		TotalAlloc:   int(m.TotalAlloc),
-		Sys:          int(m.Sys),
-		Lookups:      int(m.Lookups),
-		Mallocs:      int(m.Mallocs),
-		Frees:        int(m.Frees),
-		HeapAlloc:    int(m.HeapAlloc),
-		HeapSys:      int(m.HeapSys),
-		HeapIdle:     int(m.HeapIdle),
-		HeapInUse:    int(m.HeapInuse),
-		HeapReleased: int(m.HeapReleased),
-		HeapObjects:  int(m.HeapObjects),
-		PauseTotalNs: int(m.PauseTotalNs),
-		NumGC:        int(m.NumGC),
+		Alloc:        int64(m.Alloc),
+		TotalAlloc:   int64(m.TotalAlloc),
+		Sys:          int64(m.Sys),
+		Lookups:      int64(m.Lookups),
+		Mallocs:      int64(m.Mallocs),
+		Frees:        int64(m.Frees),
+		HeapAlloc:    int64(m.HeapAlloc),
+		HeapSys:      int64(m.HeapSys),
+		HeapIdle:     int64(m.HeapIdle),
+		HeapInUse:    int64(m.HeapInuse),
+		HeapReleased: int64(m.HeapReleased),
+		HeapObjects:  int64(m.HeapObjects),
+		PauseTotalNs: int64(m.PauseTotalNs),
+		NumGC:        int64(m.NumGC),
 	}
 }
 
