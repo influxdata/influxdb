@@ -276,7 +276,7 @@ func TestHandler_HandleStream_Error(t *testing.T) {
 // Ensure a vote request can be sent over HTTP.
 func TestHandler_HandleRequestVote(t *testing.T) {
 	h := NewHandler()
-	h.RequestVoteFunc = func(term, candidateID, lastLogIndex, lastLogTerm uint64) error {
+	h.RequestVoteFunc = func(term, candidateID, lastLogIndex, lastLogTerm uint64) (uint64, error) {
 		if term != 1 {
 			t.Fatalf("unexpected term: %d", term)
 		} else if candidateID != 2 {
@@ -286,7 +286,7 @@ func TestHandler_HandleRequestVote(t *testing.T) {
 		} else if lastLogTerm != 4 {
 			t.Fatalf("unexpected last log term: %d", lastLogTerm)
 		}
-		return nil
+		return 5, nil
 	}
 	s := httptest.NewServer(h)
 	defer s.Close()
@@ -298,6 +298,8 @@ func TestHandler_HandleRequestVote(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	} else if resp.StatusCode != http.StatusOK {
 		t.Fatalf("unexpected status: %d", resp.StatusCode)
+	} else if term := resp.Header.Get("X-Raft-Term"); term != "5" {
+		t.Fatalf("unexpected raft term: %s", term)
 	} else if s := resp.Header.Get("X-Raft-Error"); s != "" {
 		t.Fatalf("unexpected raft error: %s", s)
 	}
@@ -306,8 +308,8 @@ func TestHandler_HandleRequestVote(t *testing.T) {
 // Ensure sending invalid parameters in a vote request returns an error.
 func TestHandler_HandleRequestVote_Error(t *testing.T) {
 	h := NewHandler()
-	h.RequestVoteFunc = func(term, candidateID, lastLogIndex, lastLogTerm uint64) error {
-		return raft.ErrStaleTerm
+	h.RequestVoteFunc = func(term, candidateID, lastLogIndex, lastLogTerm uint64) (uint64, error) {
+		return 100, raft.ErrStaleTerm
 	}
 	s := httptest.NewServer(h)
 	defer s.Close()
@@ -373,7 +375,7 @@ type Handler struct {
 	RemovePeerFunc     func(id uint64) error
 	HeartbeatFunc      func(term, commitIndex, leaderID uint64) (currentIndex uint64, err error)
 	WriteEntriesToFunc func(w io.Writer, id, term, index uint64) error
-	RequestVoteFunc    func(term, candidateID, lastLogIndex, lastLogTerm uint64) error
+	RequestVoteFunc    func(term, candidateID, lastLogIndex, lastLogTerm uint64) (peerTerm uint64, err error)
 }
 
 // NewHandler returns a new instance of Handler.
@@ -394,6 +396,6 @@ func (h *Handler) WriteEntriesTo(w io.Writer, id, term, index uint64) error {
 	return h.WriteEntriesToFunc(w, id, term, index)
 }
 
-func (h *Handler) RequestVote(term, candidateID, lastLogIndex, lastLogTerm uint64) error {
+func (h *Handler) RequestVote(term, candidateID, lastLogIndex, lastLogTerm uint64) (uint64, error) {
 	return h.RequestVoteFunc(term, candidateID, lastLogIndex, lastLogTerm)
 }
