@@ -15,6 +15,7 @@
 - [#2165](https://github.com/influxdb/influxdb/pull/2165): Better name for config section for stats and diags.
 - [#2165](https://github.com/influxdb/influxdb/pull/2165): Monitoring database and retention policy are not configurable.
 - [#2167](https://github.com/influxdb/influxdb/pull/2167): Add broker log recovery.
+- [#2050](https://github.com/influxdb/influxdb/issues/2050): Refactor `results` to `response`. Breaking Go Client change.
 
 ## v0.9.0-rc19 [2015-04-01]
 
