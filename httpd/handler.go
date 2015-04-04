@@ -31,11 +31,6 @@ const (
 	DefaultChunkSize = 10000
 )
 
-const (
-	// With raw data queries, mappers will read up to this amount before sending results back to the engine
-	DefaultChunkSize = 10000
-)
-
 // TODO: Standard response headers (see: HeaderHandler)
 // TODO: Compression (see: CompressionHeaderHandler)
 
@@ -211,9 +206,9 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *influ
 	chunkSize := DefaultChunkSize
 	if chunked {
 		if cs, err := strconv.ParseInt(q.Get("chunk_size"), 10, 64); err == nil {
-			chunkSize = DefaultChunkSize
-		} else {
 			chunkSize = int(cs)
+		} else {
+			chunkSize = DefaultChunkSize
 		}
 	}
 

@@ -162,6 +162,7 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 						WhereFields:     whereFields,
 						SelectFields:    selectFields,
 						SelectTags:      selectTags,
+						Limit:           stmt.Limit,
 					}
 					mapper.(*RemoteMapper).SetFilters(t.Filters)
 				} else {
@@ -174,6 +175,10 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 						whereFields:  whereFields,
 						selectFields: selectFields,
 						selectTags:   selectTags,
+						// multiple mappers may need to be merged together to get the results
+						// for a raw query. So each mapper will have to read at least the
+						// limit plus the offset in data points to ensure we've hit our mark
+						limit: uint64(stmt.Limit) + uint64(stmt.Offset),
 					}
 				}
 
@@ -231,27 +236,29 @@ func (tx *tx) fieldNames(fields []*influxql.Field) []string {
 
 // LocalMapper implements the influxql.Mapper interface for running map tasks over a shard that is local to this server
 type LocalMapper struct {
-	cursorsEmpty    bool                   // boolean that lets us know if the cursors are empty
-	decoder         fieldDecoder           // decoder for the raw data bytes
-	filters         []influxql.Expr        // filters for each series
-	cursors         []*bolt.Cursor         // bolt cursors for each series id
-	seriesIDs       []uint32               // seriesIDs to be read from this shard
-	db              *bolt.DB               // bolt store for the shard accessed by this mapper
-	txn             *bolt.Tx               // read transactions by shard id
-	job             *influxql.MapReduceJob // the MRJob this mapper belongs to
-	mapFunc         influxql.MapFunc       // the map func
-	fieldID         uint8                  // the field ID associated with the mapFunc curently being run
-	fieldName       string                 // the field name associated with the mapFunc currently being run
-	keyBuffer       []int64                // the current timestamp key for each cursor
-	valueBuffer     [][]byte               // the current value for each cursor
-	tmin            int64                  // the min of the current group by interval being iterated over
-	tmax            int64                  // the max of the current group by interval being iterated over
-	additionalNames []string               // additional field or tag names that might be requested from the map function
-	whereFields     []*Field               // field names that occur in the where clause
-	selectFields    []*Field               // field names that occur in the select clause
-	selectTags      []string               // tag keys that occur in the select clause
-	isRaw           bool                   // if the query is a non-aggregate query
-	limit           int                    // used for raw queries to limit the amount of data read in before pushing out to client
+	cursorsEmpty     bool                   // boolean that lets us know if the cursors are empty
+	decoder          fieldDecoder           // decoder for the raw data bytes
+	filters          []influxql.Expr        // filters for each series
+	cursors          []*bolt.Cursor         // bolt cursors for each series id
+	seriesIDs        []uint32               // seriesIDs to be read from this shard
+	db               *bolt.DB               // bolt store for the shard accessed by this mapper
+	txn              *bolt.Tx               // read transactions by shard id
+	job              *influxql.MapReduceJob // the MRJob this mapper belongs to
+	mapFunc          influxql.MapFunc       // the map func
+	fieldID          uint8                  // the field ID associated with the mapFunc curently being run
+	fieldName        string                 // the field name associated with the mapFunc currently being run
+	keyBuffer        []int64                // the current timestamp key for each cursor
+	valueBuffer      [][]byte               // the current value for each cursor
+	tmin             int64                  // the min of the current group by interval being iterated over
+	tmax             int64                  // the max of the current group by interval being iterated over
+	additionalNames  []string               // additional field or tag names that might be requested from the map function
+	whereFields      []*Field               // field names that occur in the where clause
+	selectFields     []*Field               // field names that occur in the select clause
+	selectTags       []string               // tag keys that occur in the select clause
+	isRaw            bool                   // if the query is a non-aggregate query
+	limit            uint64                 // used for raw queries for LIMIT
+	perIntervalLimit int                    // used for raw queries to determine how far into a chunk we are
+	chunkSize        int                    // used for raw queries to determine how much data to read before flushing to client
 }
 
 // Open opens the LocalMapper.
@@ -284,7 +291,7 @@ func (l *LocalMapper) Close() {
 }
 
 // Begin will set up the mapper to run the map function for a given aggregate call starting at the passed in time
-func (l *LocalMapper) Begin(c *influxql.Call, startingTime int64, limit int) error {
+func (l *LocalMapper) Begin(c *influxql.Call, startingTime int64, chunkSize int) error {
 	// set up the buffers. These ensure that we return data in time order
 	mapFunc, err := influxql.InitializeMapFunc(c)
 	if err != nil {
@@ -294,7 +301,7 @@ func (l *LocalMapper) Begin(c *influxql.Call, startingTime int64, limit int) err
 	l.keyBuffer = make([]int64, len(l.cursors))
 	l.valueBuffer = make([][]byte, len(l.cursors))
 	l.tmin = startingTime
-	l.limit = limit
+	l.chunkSize = chunkSize
 
 	// determine if this is a raw data query with a single field, multiple fields, or an aggregate
 	var fieldName string
@@ -302,6 +309,11 @@ func (l *LocalMapper) Begin(c *influxql.Call, startingTime int64, limit int) err
 		l.isRaw = true
 		if len(l.selectFields) == 1 {
 			fieldName = l.selectFields[0].Name
+		}
+
+		// if they haven't set a limit, just set it to the max int size
+		if l.limit == 0 {
+			l.limit = math.MaxUint64
 		}
 	} else {
 		lit, ok := c.Args[0].(*influxql.VarRef)
@@ -354,6 +366,7 @@ func (l *LocalMapper) NextInterval(interval int64) (interface{}, error) {
 	// Set the upper bound of the interval.
 	if l.isRaw {
 		l.tmax = interval
+		l.perIntervalLimit = l.chunkSize
 	} else if interval > 0 {
 		// Make sure the bottom of the interval lands on a natural boundary.
 		l.tmax = l.tmin + interval - 1
@@ -381,10 +394,10 @@ func (l *LocalMapper) NextInterval(interval int64) (interface{}, error) {
 
 // Next returns the next matching timestamped value for the LocalMapper.
 func (l *LocalMapper) Next() (seriesID uint32, timestamp int64, value interface{}) {
-	limit := l.limit
 	for {
-		// if it's a raw query and we've hit the limit of the number of points to read in, bail
-		if l.isRaw && limit == 0 {
+		// if it's a raw query and we've hit the limit of the number of points to read in
+		// for either this chunk or for the absolute query, bail
+		if l.isRaw && (l.limit == 0 || l.perIntervalLimit == 0) {
 			return uint32(0), int64(0), nil
 		}
 
@@ -456,7 +469,8 @@ func (l *LocalMapper) Next() (seriesID uint32, timestamp int64, value interface{
 
 		// if it's a raw query, we always limit the amount we read in
 		if l.isRaw {
-			limit--
+			l.limit--
+			l.perIntervalLimit--
 		}
 
 		return seriesID, timestamp, value
