@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -464,7 +463,7 @@ func TestReadSegments_ENOENT(t *testing.T) {
 	os.RemoveAll(path)
 
 	_, err := messaging.ReadSegments(path)
-	if err == nil || !strings.Contains(err.Error(), "no such file or directory") {
+	if err == nil || !os.IsNotExist(err) {
 		t.Fatal(err)
 	}
 }
@@ -525,7 +524,7 @@ func TestReadSegmentByIndex_ENOENT(t *testing.T) {
 	os.RemoveAll(path)
 
 	_, err := messaging.ReadSegmentByIndex(path, 0)
-	if err == nil || !strings.Contains(err.Error(), "no such file or directory") {
+	if err == nil || !os.IsNotExist(err) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }

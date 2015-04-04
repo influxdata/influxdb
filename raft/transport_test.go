@@ -16,6 +16,10 @@ import (
 	"github.com/influxdb/influxdb/raft"
 )
 
+func is_connection_refused(err error) bool {
+	return strings.Contains(err.Error(), `connection refused`) || strings.Contains(err.Error(), `No connection could be made`)
+}
+
 // Ensure a join over HTTP can be read and responded to.
 func TestHTTPTransport_Join(t *testing.T) {
 	// Start mock HTTP server.
@@ -49,7 +53,7 @@ func TestHTTPTransport_Join(t *testing.T) {
 // Ensure that joining a server that doesn't exist returns an error.
 func TestHTTPTransport_Join_ErrConnectionRefused(t *testing.T) {
 	_, _, _, err := (&raft.HTTPTransport{}).Join(url.URL{Scheme: "http", Host: "localhost:27322"}, url.URL{Host: "local"})
-	if err == nil || !strings.Contains(err.Error(), "connection refused") {
+	if err == nil || !is_connection_refused(err) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }
@@ -144,7 +148,7 @@ func TestHTTPTransport_Leave(t *testing.T) {
 // Ensure that leaving a server that doesn't exist returns an error.
 func TestHTTPTransport_Leave_ErrConnectionRefused(t *testing.T) {
 	err := (&raft.HTTPTransport{}).Leave(url.URL{Scheme: "http", Host: "localhost:27322"}, 1)
-	if err == nil || !strings.Contains(err.Error(), "connection refused") {
+	if err == nil || !is_connection_refused(err) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }
@@ -231,7 +235,7 @@ func TestHTTPTransport_Heartbeat_ErrConnectionRefused(t *testing.T) {
 	_, err := (&raft.HTTPTransport{}).Heartbeat(*u, 0, 0, 0)
 	if err == nil {
 		t.Fatal("expected error")
-	} else if !strings.Contains(err.Error(), `connection refused`) {
+	} else if !is_connection_refused(err) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }
@@ -294,7 +298,7 @@ func TestHTTPTransport_ReadFrom_ErrConnectionRefused(t *testing.T) {
 	_, err := (&raft.HTTPTransport{}).ReadFrom(*u, 0, 0, 0)
 	if err == nil {
 		t.Fatal("expected error")
-	} else if !strings.Contains(err.Error(), `connection refused`) {
+	} else if !is_connection_refused(err) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }
@@ -351,7 +355,7 @@ func TestHTTPTransport_RequestVote_ErrConnectionRefused(t *testing.T) {
 	u, _ := url.Parse("http://localhost:41932")
 	if err := (&raft.HTTPTransport{}).RequestVote(*u, 0, 0, 0, 0); err == nil {
 		t.Fatal("expected error")
-	} else if !strings.Contains(err.Error(), `connection refused`) {
+	} else if !is_connection_refused(err) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }
