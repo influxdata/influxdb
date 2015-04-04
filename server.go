@@ -3318,14 +3318,14 @@ func (r *Result) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-// Results represents a list of statement results.
-type Results struct {
+// Response represents a list of statement results.
+type Response struct {
 	Results []*Result
 	Err     error
 }
 
-// MarshalJSON encodes a Results struct into JSON.
-func (r Results) MarshalJSON() ([]byte, error) {
+// MarshalJSON encodes a Response struct into JSON.
+func (r Response) MarshalJSON() ([]byte, error) {
 	// Define a struct that outputs "error" as a string.
 	var o struct {
 		Results []*Result `json:"results,omitempty"`
@@ -3341,8 +3341,8 @@ func (r Results) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&o)
 }
 
-// UnmarshalJSON decodes the data into the Results struct
-func (r *Results) UnmarshalJSON(b []byte) error {
+// UnmarshalJSON decodes the data into the Response struct
+func (r *Response) UnmarshalJSON(b []byte) error {
 	var o struct {
 		Results []*Result `json:"results,omitempty"`
 		Err     string    `json:"error,omitempty"`
@@ -3361,7 +3361,7 @@ func (r *Results) UnmarshalJSON(b []byte) error {
 
 // Error returns the first error from any statement.
 // Returns nil if no errors occurred on any statements.
-func (r *Results) Error() error {
+func (r *Response) Error() error {
 	if r.Err != nil {
 		return r.Err
 	}

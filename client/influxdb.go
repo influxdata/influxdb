@@ -54,8 +54,8 @@ func NewClient(c Config) (*Client, error) {
 	return &client, nil
 }
 
-// Query sends a command to the server and returns the Results
-func (c *Client) Query(q Query) (*Results, error) {
+// Query sends a command to the server and returns the Response
+func (c *Client) Query(q Query) (*Response, error) {
 	u := c.url
 
 	u.Path = "query"
@@ -78,20 +78,20 @@ func (c *Client) Query(q Query) (*Results, error) {
 	}
 	defer resp.Body.Close()
 
-	var results Results
+	var response Response
 	dec := json.NewDecoder(resp.Body)
 	dec.UseNumber()
-	err = dec.Decode(&results)
+	err = dec.Decode(&response)
 	if err != nil {
 		return nil, err
 	}
-	return &results, nil
+	return &response, nil
 }
 
 // Write takes BatchPoints and allows for writing of multiple points with defaults
-// If successful, error is nil and Results is nil
-// If an error occurs, Results may contain additional information if populated.
-func (c *Client) Write(bp BatchPoints) (*Results, error) {
+// If successful, error is nil and Response is nil
+// If an error occurs, Response may contain additional information if populated.
+func (c *Client) Write(bp BatchPoints) (*Response, error) {
 	c.url.Path = "write"
 
 	b, err := json.Marshal(&bp)
@@ -111,16 +111,16 @@ func (c *Client) Write(bp BatchPoints) (*Results, error) {
 	}
 	defer resp.Body.Close()
 
-	var results Results
+	var response Response
 	dec := json.NewDecoder(resp.Body)
 	dec.UseNumber()
-	err = dec.Decode(&results)
+	err = dec.Decode(&response)
 	if err != nil && err.Error() != "EOF" {
 		return nil, err
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return &results, results.Error()
+		return &response, response.Error()
 	}
 
 	return nil, nil
@@ -217,14 +217,14 @@ func (r *Result) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-// Results represents a list of statement results.
-type Results struct {
+// Response represents a list of statement results.
+type Response struct {
 	Results []Result
 	Err     error
 }
 
-// MarshalJSON encodes the result into JSON.
-func (r *Results) MarshalJSON() ([]byte, error) {
+// MarshalJSON encodes the response into JSON.
+func (r *Response) MarshalJSON() ([]byte, error) {
 	// Define a struct that outputs "error" as a string.
 	var o struct {
 		Results []Result `json:"results,omitempty"`
@@ -240,8 +240,8 @@ func (r *Results) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&o)
 }
 
-// UnmarshalJSON decodes the data into the Results struct
-func (r *Results) UnmarshalJSON(b []byte) error {
+// UnmarshalJSON decodes the data into the Response struct
+func (r *Response) UnmarshalJSON(b []byte) error {
 	var o struct {
 		Results []Result `json:"results,omitempty"`
 		Err     string   `json:"error,omitempty"`
@@ -262,7 +262,7 @@ func (r *Results) UnmarshalJSON(b []byte) error {
 
 // Error returns the first error from any statement.
 // Returns nil if no errors occurred on any statements.
-func (r Results) Error() error {
+func (r Response) Error() error {
 	if r.Err != nil {
 		return r.Err
 	}

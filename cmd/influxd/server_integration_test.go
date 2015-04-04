@@ -1442,11 +1442,11 @@ func TestClientLibrary(t *testing.T) {
 		for _, q := range test.queries {
 			if q.query.Command != "" {
 				time.Sleep(500 * time.Millisecond)
-				queryResult, err := c.Query(q.query)
+				queryResponse, err := c.Query(q.query)
 				if q.err != errToString(err) {
 					t.Errorf("unexpected error. expected: %s, got %v", q.err, err)
 				}
-				jsonResult := mustMarshalJSON(queryResult)
+				jsonResult := mustMarshalJSON(queryResponse)
 				if q.expected != jsonResult {
 					t.Logf("query expected result: %s\n", q.expected)
 					t.Logf("query got result:      %s\n", jsonResult)
