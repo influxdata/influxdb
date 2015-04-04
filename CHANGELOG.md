@@ -3,10 +3,12 @@
 ### Features
 - [#2128](https://github.com/influxdb/influxdb/pull/2128): Data node discovery from brokers
 - [#2142](https://github.com/influxdb/influxdb/pull/2142): Support chunked queries
+- [#2154](https://github.com/influxdb/influxdb/pull/2154): Node redirection
 
 ### Bugfixes
 - [#2147](https://github.com/influxdb/influxdb/pull/2147): Set Go Max procs in a better location
 - [#2151](https://github.com/influxdb/influxdb/pull/2151): Ignore replay commands on the metastore.
+- [#2152](https://github.com/influxdb/influxdb/issues/2152): Influxd process with stats enabled crashing with 'Unsuported protocol scheme for ""'
 - [#2156](https://github.com/influxdb/influxdb/pull/2156): Propagate error when resolving UDP address in Graphite UDP server.
 - [#2163](https://github.com/influxdb/influxdb/pull/2163): Fix up paths for default data and run storage.
 - [#2164](https://github.com/influxdb/influxdb/pull/2164): Append STDOUT/STDERR in init script.
