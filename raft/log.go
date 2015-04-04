@@ -172,7 +172,7 @@ type Log struct {
 		Leave(u url.URL, id uint64) error
 		Heartbeat(u url.URL, term, commitIndex, leaderID uint64) (lastIndex uint64, err error)
 		ReadFrom(u url.URL, id, term, index uint64) (io.ReadCloser, error)
-		RequestVote(u url.URL, term, candidateID, lastLogIndex, lastLogTerm uint64) error
+		RequestVote(u url.URL, term, candidateID, lastLogIndex, lastLogTerm uint64) (peerTerm uint64, err error)
 	}
 
 	// Clock is an abstraction of time.
@@ -200,8 +200,8 @@ func NewLog() *Log {
 		Clock:      NewClock(),
 		Transport:  &HTTPTransport{},
 		Rand:       rand.NewSource(time.Now().UnixNano()).Int63,
-		heartbeats: make(chan heartbeat, 1),
-		terms:      make(chan uint64, 1),
+		heartbeats: make(chan heartbeat, 10),
+		terms:      make(chan uint64, 10),
 		Logger:     log.New(os.Stderr, "[raft] ", log.LstdFlags),
 	}
 	l.updateLogPrefix()
@@ -525,10 +525,23 @@ func (l *Log) writeTerm(term uint64) error {
 }
 
 // setTerm sets the current term and clears the vote.
-func (l *Log) setTerm(term uint64) {
+func (l *Log) setTerm(term uint64) error {
 	l.Logger.Printf("changing term: %d => %d", l.term, term)
+
+	if err := l.writeTerm(term); err != nil {
+		return err
+	}
+
 	l.term = term
 	l.votedFor = 0
+	return nil
+}
+
+// mustSetTerm sets the current term and clears the vote. Panic on error.
+func (l *Log) mustSetTerm(term uint64) {
+	if err := l.setTerm(term); err != nil {
+		panic("unable to set term: " + err.Error())
+	}
 }
 
 // readConfig reads the configuration from disk.
@@ -602,10 +615,9 @@ func (l *Log) Initialize() error {
 
 		// Automatically promote to leader.
 		term := uint64(1)
-		if err := l.writeTerm(term); err != nil {
-			return fmt.Errorf("write term: %s", err)
+		if err := l.setTerm(term); err != nil {
+			return fmt.Errorf("set term: %s", err)
 		}
-		l.setTerm(term)
 		l.lastLogTerm = term
 		l.leaderID = l.id
 
@@ -851,7 +863,7 @@ func (l *Log) followerLoop(closing <-chan struct{}) State {
 			// Update term, commit index & leader.
 			l.mu.Lock()
 			if hb.term > l.term {
-				l.setTerm(hb.term)
+				l.mustSetTerm(hb.term)
 			}
 			if hb.commitIndex > l.commitIndex {
 				l.commitIndex = hb.commitIndex
@@ -862,7 +874,7 @@ func (l *Log) followerLoop(closing <-chan struct{}) State {
 		case term := <-l.terms:
 			l.mu.Lock()
 			if term > l.term {
-				l.setTerm(term)
+				l.mustSetTerm(term)
 			}
 			l.mu.Unlock()
 		}
@@ -969,7 +981,7 @@ func (l *Log) candidateLoop(closing <-chan struct{}) State {
 		case hb := <-l.heartbeats:
 			l.mu.Lock()
 			if hb.term >= term {
-				l.setTerm(hb.term)
+				l.mustSetTerm(hb.term)
 				l.leaderID = hb.leaderID
 				l.mu.Unlock()
 				return Follower
@@ -984,7 +996,7 @@ func (l *Log) candidateLoop(closing <-chan struct{}) State {
 			// Check against the current term since that may have changed.
 			l.mu.Lock()
 			if newTerm >= l.term {
-				l.setTerm(newTerm)
+				l.mustSetTerm(newTerm)
 				l.mu.Unlock()
 				return Follower
 			}
@@ -1018,8 +1030,15 @@ func (l *Log) elect(term uint64, elected chan struct{}, wg *sync.WaitGroup) {
 			continue
 		}
 		go func(n *ConfigNode) {
-			if err := l.Transport.RequestVote(n.URL, term, id, lastLogIndex, lastLogTerm); err != nil {
-				l.tracef("sendVoteRequests: %s: %s", n.URL.String(), err)
+			peerTerm, err := l.Transport.RequestVote(n.URL, term, id, lastLogIndex, lastLogTerm)
+			l.Logger.Printf("send req vote(term=%d, candidateID=%d, lastLogIndex=%d, lastLogTerm=%d) (term=%d, err=%v)", term, id, lastLogIndex, lastLogTerm, peerTerm, err)
+
+			// If an error occured then send the peer's term.
+			if err != nil {
+				select {
+				case l.terms <- peerTerm:
+				default:
+				}
 				return
 			}
 			votes <- struct{}{}
@@ -1075,7 +1094,7 @@ func (l *Log) leaderLoop(closing <-chan struct{}) State {
 		case newTerm := <-l.terms: // step down on higher term
 			if newTerm > term {
 				l.mu.Lock()
-				l.setTerm(newTerm)
+				l.mustSetTerm(newTerm)
 				l.truncateTo(l.commitIndex)
 				l.mu.Unlock()
 				return Follower
@@ -1085,7 +1104,7 @@ func (l *Log) leaderLoop(closing <-chan struct{}) State {
 		case hb := <-l.heartbeats: // step down on higher term
 			if hb.term > term {
 				l.mu.Lock()
-				l.setTerm(hb.term)
+				l.mustSetTerm(hb.term)
 				l.truncateTo(l.commitIndex)
 				l.mu.Unlock()
 				return Follower
@@ -1570,17 +1589,17 @@ func (l *Log) Heartbeat(term, commitIndex, leaderID uint64) (currentIndex uint64
 }
 
 // RequestVote requests a vote from the log.
-func (l *Log) RequestVote(term, candidateID, lastLogIndex, lastLogTerm uint64) (err error) {
+func (l *Log) RequestVote(term, candidateID, lastLogIndex, lastLogTerm uint64) (peerTerm uint64, err error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
 	// Check if log is closed.
 	if !l.opened() {
-		return ErrClosed
+		return l.term, ErrClosed
 	}
 
 	defer func() {
-		l.tracef("RV(term=%d, candidateID=%d, lastLogIndex=%d, lastLogTerm=%d) (err=%v)", term, candidateID, lastLogIndex, lastLogTerm, err)
+		l.Logger.Printf("recv req vote(term=%d, candidateID=%d, lastLogIndex=%d, lastLogTerm=%d) (err=%v)", term, candidateID, lastLogIndex, lastLogTerm, err)
 	}()
 
 	// Deny vote if:
@@ -1588,13 +1607,13 @@ func (l *Log) RequestVote(term, candidateID, lastLogIndex, lastLogTerm uint64) (
 	//   2. Already voted for a different candidate in this term. (§5.2)
 	//   3. Candidate log is less up-to-date than local log. (§5.4)
 	if term < l.term {
-		return ErrStaleTerm
+		return l.term, ErrStaleTerm
 	} else if term == l.term && l.votedFor != 0 && l.votedFor != candidateID {
-		return ErrAlreadyVoted
+		return l.term, ErrAlreadyVoted
 	} else if lastLogTerm < l.lastLogTerm {
-		return ErrOutOfDateLog
+		return l.term, ErrOutOfDateLog
 	} else if lastLogTerm == l.lastLogTerm && lastLogIndex < l.lastLogIndex {
-		return ErrOutOfDateLog
+		return l.term, ErrOutOfDateLog
 	}
 
 	// Notify term change.
@@ -1609,7 +1628,7 @@ func (l *Log) RequestVote(term, candidateID, lastLogIndex, lastLogTerm uint64) (
 	l.term = term
 	l.votedFor = candidateID
 
-	return nil
+	return l.term, nil
 }
 
 // WriteEntriesTo attaches a writer to the log from a given index.

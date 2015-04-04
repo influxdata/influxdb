@@ -16,7 +16,7 @@ type Handler struct {
 		RemovePeer(id uint64) error
 		Heartbeat(term, commitIndex, leaderID uint64) (currentIndex uint64, err error)
 		WriteEntriesTo(w io.Writer, id, term, index uint64) error
-		RequestVote(term, candidateID, lastLogIndex, lastLogTerm uint64) error
+		RequestVote(term, candidateID, lastLogIndex, lastLogTerm uint64) (peerTerm uint64, err error)
 	}
 }
 
@@ -123,7 +123,7 @@ func (h *Handler) serveHeartbeat(w http.ResponseWriter, r *http.Request) {
 	// Execute heartbeat on the log.
 	currentIndex, err := h.Log.Heartbeat(term, commitIndex, leaderID)
 
-	// Return current term and index.
+	// Return current index.
 	w.Header().Set("X-Raft-Index", strconv.FormatUint(currentIndex, 10))
 
 	// Write error, if applicable.
@@ -201,8 +201,14 @@ func (h *Handler) serveRequestVote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Request vote from log.
+	peerTerm, err := h.Log.RequestVote(term, candidateID, lastLogIndex, lastLogTerm)
+
+	// Write current term.
+	w.Header().Set("X-Raft-Term", strconv.FormatUint(peerTerm, 10))
+
 	// Write error, if applicable.
-	if err := h.Log.RequestVote(term, candidateID, lastLogIndex, lastLogTerm); err != nil {
+	if err != nil {
 		w.Header().Set("X-Raft-Error", err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
 		return

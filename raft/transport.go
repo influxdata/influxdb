@@ -140,7 +140,7 @@ func (t *HTTPTransport) ReadFrom(uri url.URL, id, term, index uint64) (io.ReadCl
 }
 
 // RequestVote requests a vote for a candidate in a given term.
-func (t *HTTPTransport) RequestVote(uri url.URL, term, candidateID, lastLogIndex, lastLogTerm uint64) error {
+func (t *HTTPTransport) RequestVote(uri url.URL, term, candidateID, lastLogIndex, lastLogTerm uint64) (uint64, error) {
 	// Construct URL.
 	u := uri
 	u.Path = path.Join(u.Path, "raft/vote")
@@ -156,14 +156,20 @@ func (t *HTTPTransport) RequestVote(uri url.URL, term, candidateID, lastLogIndex
 	// Send HTTP request.
 	resp, err := http.Get(u.String())
 	if err != nil {
-		return err
+		return 0, err
 	}
 	_ = resp.Body.Close()
 
-	// Parse returned error.
-	if s := resp.Header.Get("X-Raft-Error"); s != "" {
-		return errors.New(s)
+	// Parse returned term.
+	peerTerm, err := strconv.ParseUint(resp.Header.Get("X-Raft-Term"), 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid returned term: %q", resp.Header.Get("X-Raft-Term"))
 	}
 
-	return nil
+	// Parse returned error.
+	if s := resp.Header.Get("X-Raft-Error"); s != "" {
+		return peerTerm, errors.New(s)
+	}
+
+	return peerTerm, nil
 }
