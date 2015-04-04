@@ -49,16 +49,21 @@ func TestClient_Open_WithConfig(t *testing.T) {
 func TestClient_Open_WithMissingConfig(t *testing.T) {
 	path := NewTempFile()
 	c := NewClient()
-	c.SetURLs([]url.URL{{Host: "//hostA"}})
+	c.SetURLs([]url.URL{{Host: "hostA"}})
 	if err := c.Open(path); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
 	defer c.Close()
 
 	// Verify that urls were cleared.
-	if a := c.URLs(); len(a) != 0 {
-		t.Fatalf("unexpected urls: %#v", a)
+	if a := c.URLs(); len(a) != 1 {
+		t.Fatalf("unexpected urls: exp 1, got: %d", len(a))
 	}
+
+	if exp, got := "//hostA", c.URLs()[0].String(); exp != got {
+		t.Fatalf("unexpected urls: exp %q, got: %v", got, exp)
+	}
+
 }
 
 // Ensure a client can return an error if the configuration file is corrupt.
