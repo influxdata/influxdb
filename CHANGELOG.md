@@ -16,6 +16,7 @@
 - [#2165](https://github.com/influxdb/influxdb/pull/2165): Monitoring database and retention policy are not configurable.
 - [#2167](https://github.com/influxdb/influxdb/pull/2167): Add broker log recovery.
 - [#2050](https://github.com/influxdb/influxdb/issues/2050): Refactor `results` to `response`. Breaking Go Client change.
+- [#2166](https://github.com/influxdb/influxdb/pull/2166): Don't panic if presented with a field of unknown type.
 
 ## v0.9.0-rc19 [2015-04-01]
 

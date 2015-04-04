@@ -121,6 +121,10 @@ var (
 	// ErrFieldNotFound is returned when a field cannot be found.
 	ErrFieldNotFound = errors.New("field not found")
 
+	// ErrFieldUnmappedID is returned when the system is presented, during decode, with a field ID
+	// there is no mapping for.
+	ErrFieldUnmappedID = errors.New("field ID not mapped")
+
 	// ErrSeriesNotFound is returned when looking up a non-existent series by database, name and tags
 	ErrSeriesNotFound = errors.New("series not found")
 
