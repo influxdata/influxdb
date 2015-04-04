@@ -615,6 +615,7 @@ func (m *MapReduceJob) processAggregate(c *Call, reduceFunc ReduceFunc, resultVa
 
 	// the first interval in a query with a group by may be smaller than the others. This happens when they have a
 	// where time > clause that is in the middle of the bucket that the group by time creates
+
 	if !m.stmt.IsRawQuery && m.stmt.groupByInterval > 0 {
 		firstInterval = (m.TMin/m.interval*m.interval + m.interval) - m.TMin
 	}
