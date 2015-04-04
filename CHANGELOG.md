@@ -1,12 +1,14 @@
-## v0.9.0-rc20 [unreleased]
+## v0.9.0-rc20 [2015-04-04]
 
 ### Features
 - [#2128](https://github.com/influxdb/influxdb/pull/2128): Data node discovery from brokers
 - [#2142](https://github.com/influxdb/influxdb/pull/2142): Support chunked queries
 - [#2154](https://github.com/influxdb/influxdb/pull/2154): Node redirection
+- [#2168](https://github.com/influxdb/influxdb/pull/2168): Return raft term from vote, add term logging
 
 ### Bugfixes
 - [#2147](https://github.com/influxdb/influxdb/pull/2147): Set Go Max procs in a better location
+- [#2137](https://github.com/influxdb/influxdb/pull/2137): Refactor `results` to `response`. Breaking Go Client change.
 - [#2151](https://github.com/influxdb/influxdb/pull/2151): Ignore replay commands on the metastore.
 - [#2152](https://github.com/influxdb/influxdb/issues/2152): Influxd process with stats enabled crashing with 'Unsuported protocol scheme for ""'
 - [#2156](https://github.com/influxdb/influxdb/pull/2156): Propagate error when resolving UDP address in Graphite UDP server.
@@ -15,8 +17,9 @@
 - [#2165](https://github.com/influxdb/influxdb/pull/2165): Better name for config section for stats and diags.
 - [#2165](https://github.com/influxdb/influxdb/pull/2165): Monitoring database and retention policy are not configurable.
 - [#2167](https://github.com/influxdb/influxdb/pull/2167): Add broker log recovery.
-- [#2050](https://github.com/influxdb/influxdb/issues/2050): Refactor `results` to `response`. Breaking Go Client change.
 - [#2166](https://github.com/influxdb/influxdb/pull/2166): Don't panic if presented with a field of unknown type.
+- [#2149](https://github.com/influxdb/influxdb/pull/2149): Fix unit tests for win32 when directory doesn't exist.
+- [#2150](https://github.com/influxdb/influxdb/pull/2150): Fix unit tests for win32 when a connection is refused.
 
 ## v0.9.0-rc19 [2015-04-01]
 
