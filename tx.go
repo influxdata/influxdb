@@ -117,6 +117,14 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 			return nil, nil
 		}
 
+		// get the group by interval, if there is one
+		var interval int64
+		if d, err := stmt.GroupByInterval(); err != nil {
+			return nil, err
+		} else {
+			interval = d.Nanoseconds()
+		}
+
 		// get the sorted unique tag sets for this query.
 		tagSets := m.tagSets(stmt, tagKeys)
 
@@ -162,7 +170,8 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 						WhereFields:     whereFields,
 						SelectFields:    selectFields,
 						SelectTags:      selectTags,
-						Limit:           stmt.Limit,
+						Limit:           stmt.Limit + stmt.Offset,
+						Interval:        interval,
 					}
 					mapper.(*RemoteMapper).SetFilters(t.Filters)
 				} else {
@@ -175,6 +184,8 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 						whereFields:  whereFields,
 						selectFields: selectFields,
 						selectTags:   selectTags,
+						tmax:         tmax.UnixNano(),
+						interval:     interval,
 						// multiple mappers may need to be merged together to get the results
 						// for a raw query. So each mapper will have to read at least the
 						// limit plus the offset in data points to ensure we've hit our mark
@@ -256,6 +267,7 @@ type LocalMapper struct {
 	selectFields     []*Field               // field names that occur in the select clause
 	selectTags       []string               // tag keys that occur in the select clause
 	isRaw            bool                   // if the query is a non-aggregate query
+	interval         int64                  // the group by interval of the query, if any
 	limit            uint64                 // used for raw queries for LIMIT
 	perIntervalLimit int                    // used for raw queries to determine how far into a chunk we are
 	chunkSize        int                    // used for raw queries to determine how much data to read before flushing to client
@@ -300,8 +312,8 @@ func (l *LocalMapper) Begin(c *influxql.Call, startingTime int64, chunkSize int)
 	l.mapFunc = mapFunc
 	l.keyBuffer = make([]int64, len(l.cursors))
 	l.valueBuffer = make([][]byte, len(l.cursors))
-	l.tmin = startingTime
 	l.chunkSize = chunkSize
+	l.tmin = startingTime
 
 	// determine if this is a raw data query with a single field, multiple fields, or an aggregate
 	var fieldName string
@@ -358,18 +370,28 @@ func (l *LocalMapper) Begin(c *influxql.Call, startingTime int64, chunkSize int)
 // NextInterval will get the time ordered next interval of the given interval size from the mapper. This is a
 // forward only operation from the start time passed into Begin. Will return nil when there is no more data to be read.
 // If this is a raw query, interval should be the max time to hit in the query
-func (l *LocalMapper) NextInterval(interval int64) (interface{}, error) {
+func (l *LocalMapper) NextInterval() (interface{}, error) {
 	if l.cursorsEmpty || l.tmin > l.job.TMax {
 		return nil, nil
 	}
 
+	// after we call to the mapper, this will be the tmin for the next interval.
+	nextMin := l.tmin + l.interval
+
 	// Set the upper bound of the interval.
 	if l.isRaw {
-		l.tmax = interval
 		l.perIntervalLimit = l.chunkSize
-	} else if interval > 0 {
-		// Make sure the bottom of the interval lands on a natural boundary.
-		l.tmax = l.tmin + interval - 1
+	} else if l.interval > 0 {
+		// Set tmax to ensure that the interval lands on the boundary of the interval
+		if l.tmin%l.interval != 0 {
+			// the first interval in a query with a group by may be smaller than the others. This happens when they have a
+			// where time > clause that is in the middle of the bucket that the group by time creates. That will be the
+			// case on the first interval when the tmin % the interval isn't equal to zero
+			nextMin = l.tmin/l.interval*l.interval + l.interval
+			l.tmax = nextMin - 1
+		} else {
+			l.tmax = l.tmin + l.interval - 1
+		}
 	}
 
 	// Execute the map function. This local mapper acts as the iterator
@@ -386,7 +408,7 @@ func (l *LocalMapper) NextInterval(interval int64) (interface{}, error) {
 
 	// Move the interval forward if it's not a raw query. For raw queries we use the limit to advance intervals.
 	if !l.isRaw {
-		l.tmin += interval
+		l.tmin = nextMin
 	}
 
 	return val, nil

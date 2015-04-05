@@ -3100,6 +3100,7 @@ func (s *Server) StartLocalMapper(rm *RemoteMapper) (*LocalMapper, error) {
 		whereFields:  rm.WhereFields,
 		selectFields: rm.SelectFields,
 		selectTags:   rm.SelectTags,
+		interval:     rm.Interval,
 	}
 
 	return lm, nil

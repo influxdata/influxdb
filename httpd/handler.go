@@ -736,7 +736,7 @@ func (h *Handler) serveRunMapper(w http.ResponseWriter, r *http.Request) {
 	// write results to the client until the next interval is empty
 	for {
 		fmt.Println("start interval")
-		v, err := lm.NextInterval(m.TMax)
+		v, err := lm.NextInterval()
 		if err != nil {
 			mapError(w, err)
 			return
@@ -746,7 +746,7 @@ func (h *Handler) serveRunMapper(w http.ResponseWriter, r *http.Request) {
 		// see if we're done
 		if v == nil {
 			fmt.Println("DONE")
-			return
+			break
 		}
 
 		// marshal and write out
@@ -763,6 +763,14 @@ func (h *Handler) serveRunMapper(w http.ResponseWriter, r *http.Request) {
 		}
 		fmt.Println("> ", string(b))
 		w.Write(b)
+		w.(http.Flusher).Flush()
+	}
+
+	d, err := json.Marshal(&influxdb.MapResponse{Completed: true})
+	if err != nil {
+		mapError(w, err)
+	} else {
+		w.Write(d)
 		w.(http.Flusher).Flush()
 	}
 }
@@ -788,6 +796,7 @@ func isFieldNotFoundError(err error) bool {
 
 // mapError writes an error result after trying to start a mapper
 func mapError(w http.ResponseWriter, err error) {
+	fmt.Println("mapError: ", err.Error())
 	b, _ := json.Marshal(&influxdb.MapResponse{Err: err.Error()})
 	w.Write(b)
 }
