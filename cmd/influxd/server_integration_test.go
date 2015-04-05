@@ -625,9 +625,9 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		},
 		{
 			name:     "wildcard GROUP BY queries with time",
-			query:    `SELECT mean(value) FROM cpu GROUP BY *,time(1m)`,
+			query:    `SELECT mean(value) FROM cpu WHERE time >= '2000-01-01T00:00:00Z' AND time < '2000-01-01T00:01:00Z' GROUP BY *,time(1m)`,
 			queryDb:  "%DB%",
-			expected: `{"results":[{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",15]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",30]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","mean"],"values":[["2000-01-01T00:00:00Z",15]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","mean"],"values":[["2000-01-01T00:00:00Z",30]]}]}]}`,
 		},
 
 		// WHERE tag queries
