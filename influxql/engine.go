@@ -234,7 +234,7 @@ func (m *MapReduceJob) processRawQuery(out chan *Row, filterEmptyResults bool) {
 				continue
 			}
 
-			res, err := mm.NextInterval(m.TMax)
+			res, err := mm.NextInterval()
 			if err != nil {
 				out <- &Row{Err: err}
 				return
@@ -614,19 +614,11 @@ func (m *MapReduceJob) processAggregate(c *Call, reduceFunc ReduceFunc, resultVa
 		}
 	}
 
-	// the first interval in a query with a group by may be smaller than the others. This happens when they have a
-	// where time > clause that is in the middle of the bucket that the group by time creates
-	firstInterval := (m.TMin/m.interval*m.interval + m.interval) - m.TMin
-
 	// populate the result values for each interval of time
 	for i, _ := range resultValues {
 		// collect the results from each mapper
 		for j, mm := range m.Mappers {
-			interval := m.interval
-			if i == 0 {
-				interval = firstInterval
-			}
-			res, err := mm.NextInterval(interval)
+			res, err := mm.NextInterval()
 			if err != nil {
 				return err
 			}
@@ -661,10 +653,8 @@ type Mapper interface {
 
 	// NextInterval will get the time ordered next interval of the given interval size from the mapper. This is a
 	// forward only operation from the start time passed into Begin. Will return nil when there is no more data to be read.
-	// We pass the interval in here so that it can be varied over the period of the query. This is useful for queries that
-	// must respect natural time boundaries like months or queries that span daylight savings time borders. Note that if
-	// a limit is set on the mapper, the interval passed here should represent the MaxTime in a nano epoch.
-	NextInterval(interval int64) (interface{}, error)
+	// Interval periods can be different based on time boundaries (months, daylight savings, etc) of the query.
+	NextInterval() (interface{}, error)
 }
 
 type TagSet struct {

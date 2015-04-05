@@ -21,6 +21,7 @@ type RemoteMapper struct {
 	resp      *http.Response
 	results   chan interface{}
 	unmarshal influxql.UnmarshalFunc
+	complete  bool
 
 	Call            string
 	Database        string
@@ -34,11 +35,13 @@ type RemoteMapper struct {
 	SelectFields    []*Field
 	SelectTags      []string
 	Limit           int
+	Interval        int64
 }
 
 type MapResponse struct {
-	Err  string
-	Data []byte
+	Err       string `json:",omitempty"`
+	Data      []byte
+	Completed bool `json:",omitempty"`
 }
 
 // Open is a no op, real work is done starting with Being
@@ -80,10 +83,15 @@ func (m *RemoteMapper) Begin(c *influxql.Call, startingTime int64, limit int) er
 	return nil
 }
 
-func (m *RemoteMapper) NextInterval(interval int64) (interface{}, error) {
+func (m *RemoteMapper) NextInterval() (interface{}, error) {
+	if m.complete {
+		return nil, nil
+	}
+
 	chunk := make([]byte, MAX_MAP_RESPONSE_SIZE, MAX_MAP_RESPONSE_SIZE)
 	n, err := m.resp.Body.Read(chunk)
 	if err != nil {
+		warn("NextInterval err:", n, err.Error())
 		return nil, err
 	}
 	if n == 0 {
@@ -97,6 +105,10 @@ func (m *RemoteMapper) NextInterval(interval int64) (interface{}, error) {
 	}
 	if mr.Err != "" {
 		return nil, errors.New(mr.Err)
+	}
+	if mr.Completed {
+		m.complete = true
+		return nil, nil
 	}
 	v, err := m.unmarshal(mr.Data)
 	if err != nil {
