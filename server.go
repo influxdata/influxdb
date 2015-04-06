@@ -623,6 +623,7 @@ func (s *Server) Initialize(u url.URL) error {
 	// the messaging client relies on the first server being assigned ID 1.
 	n := s.DataNodeByURL(&u)
 	assert(n != nil, "node not created: %s", u.String())
+	assert(n.ID > 0, "invalid node id: %d", n.ID)
 
 	// Set the ID on the metastore.
 	if err := s.meta.mustUpdate(0, func(tx *metatx) error {

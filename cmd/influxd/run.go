@@ -406,20 +406,26 @@ func (cmd *RunCommand) openBroker(brokerURLs []url.URL) {
 		log.Fatalf("raft: %s", err)
 	}
 
+	index, _ := l.LastLogIndexTerm()
+
+	// If we have join URLs and log is not initialized, attempt to join an existing cluster
+	if len(brokerURLs) > 0 {
+		if index == 0 {
+			joinLog(l, brokerURLs)
+			return
+		}
+		log.Printf("Node previously joined to a cluster. Ignoring -join urls flag")
+	}
+
 	// Checks to see if the raft index is 0.  If it's 0, it's the first
 	// node in the cluster and must initialize
-	if i, _ := l.LastLogIndexTerm(); i == 0 {
+	if index == 0 {
 		if err := l.Initialize(); err != nil {
 			log.Fatalf("initialize raft log: %s", err)
 		}
 		u := b.Broker.URL()
 		log.Printf("initialized broker: %s\n", (&u).String())
 		return
-	}
-
-	// If we have join URLs, attemp to join an existing cluster
-	if len(brokerURLs) > 0 {
-		joinLog(l, brokerURLs)
 	}
 }
 
@@ -477,11 +483,16 @@ func (cmd *RunCommand) openServer(joinURLs []url.URL) *influxdb.Server {
 	}
 	log.Printf("data server opened at %s", cmd.config.Data.Dir)
 
-	if len(joinURLs) > 0 {
-		joinServer(s, cmd.config.ClusterURL(), joinURLs)
+	dataNodeIndex := s.Index()
+	if dataNodeIndex == 0 {
+		if len(joinURLs) > 0 {
+			joinServer(s, cmd.config.ClusterURL(), joinURLs)
+			return s
+		}
+		log.Printf("Node previously joined to a cluster. Ignoring -join urls flag")
+
 	}
 
-	dataNodeIndex := s.Index()
 	if dataNodeIndex == 0 {
 		if err := s.Initialize(cmd.config.ClusterURL()); err != nil {
 			log.Fatalf("server initialization error: %s", err)
@@ -503,6 +514,10 @@ func joinServer(s *influxdb.Server, u url.URL, joinURLs []url.URL) {
 		if err := s.Join(&u, &joinURL); err != nil {
 			// No data nodes could be found to join.  We're the first.
 			if err == influxdb.ErrDataNodeNotFound {
+				if err := s.Initialize(u); err != nil {
+					log.Fatalf("server initialization error: %s", err)
+				}
+				log.Printf("initialized data node: %s\n", (&u).String())
 				return
 			}
 			log.Printf("join: failed to connect data node: %s: %s", u, err)
