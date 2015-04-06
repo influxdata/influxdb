@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/bmizerany/pat"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/client"
 	"github.com/influxdb/influxdb/influxql"
@@ -715,21 +714,13 @@ func (h *Handler) serveRunMapper(w http.ResponseWriter, r *http.Request) {
 
 	// Read in the mapper info from the request body
 	var m influxdb.RemoteMapper
-	b, _ := ioutil.ReadAll(r.Body)
-	fmt.Println("RunMapper", string(b))
 
-	if err := json.Unmarshal(b, &m); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&m); err != nil {
 		mapError(w, err)
 		return
 	}
 
-	// if err := json.NewDecoder(r.Body).Decode(&m); err != nil {
-	// 	mapError(w, err)
-	// 	return
-	// }
-
 	// create a local mapper and chunk out the reulsts to the other server
-	spew.Dump(m)
 	lm, err := h.server.StartLocalMapper(&m)
 	if err != nil {
 		mapError(w, err)
@@ -745,24 +736,29 @@ func (h *Handler) serveRunMapper(w http.ResponseWriter, r *http.Request) {
 		mapError(w, err)
 		return
 	}
-	if err := lm.Begin(call, m.TMin, m.Limit); err != nil {
+
+	if err := lm.Begin(call, m.TMin, m.ChunkSize); err != nil {
 		mapError(w, err)
 		return
 	}
 
+	// see if this is an aggregate query or not
+	isRaw := true
+	if call != nil {
+		isRaw = false
+	}
+
 	// write results to the client until the next interval is empty
 	for {
-		fmt.Println("start interval")
 		v, err := lm.NextInterval()
 		if err != nil {
 			mapError(w, err)
 			return
 		}
-		spew.Dump(v)
 
-		// see if we're done
-		if v == nil {
-			fmt.Println("DONE")
+		// see if we're done. only bail if v is nil and we're empty. v could be nil for
+		// group by intervals that don't have data. We should keep iterating to get to the next interval.
+		if v == nil && lm.IsEmpty(m.TMax) {
 			break
 		}
 
@@ -772,15 +768,26 @@ func (h *Handler) serveRunMapper(w http.ResponseWriter, r *http.Request) {
 			mapError(w, err)
 			return
 		}
-		fmt.Println("> ", string(d))
 		b, err := json.Marshal(&influxdb.MapResponse{Data: d})
 		if err != nil {
 			mapError(w, err)
 			return
 		}
-		fmt.Println("> ", string(b))
 		w.Write(b)
 		w.(http.Flusher).Flush()
+
+		// if this is an aggregate query, we should only call next interval as many times as the chunk size
+		if !isRaw {
+			m.ChunkSize--
+			if m.ChunkSize == 0 {
+				break
+			}
+		}
+
+		// bail out if we're empty
+		if lm.IsEmpty(m.TMax) {
+			break
+		}
 	}
 
 	d, err := json.Marshal(&influxdb.MapResponse{Completed: true})
@@ -817,7 +824,6 @@ func isFieldNotFoundError(err error) bool {
 
 // mapError writes an error result after trying to start a mapper
 func mapError(w http.ResponseWriter, err error) {
-	fmt.Println("mapError: ", err.Error())
 	b, _ := json.Marshal(&influxdb.MapResponse{Err: err.Error()})
 	w.Write(b)
 }

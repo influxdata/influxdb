@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -3122,6 +3123,14 @@ func (s *Server) StartLocalMapper(rm *RemoteMapper) (*LocalMapper, error) {
 		TMax:            rm.TMax,
 	}
 
+	// limits and offsets can't be evaluated at the local mapper so we need to read
+	// limit + offset points to be sure that the reducer will be able to correctly put things together
+	limit := uint64(rm.Limit) + uint64(rm.Offset)
+	// if limit is zero, just set to the max number since we use limit == 0 later to determine if the mapper is empty
+	if limit == 0 {
+		limit = math.MaxUint64
+	}
+
 	// now create and start the local mapper
 	lm := &LocalMapper{
 		seriesIDs:    rm.SeriesIDs,
@@ -3133,6 +3142,8 @@ func (s *Server) StartLocalMapper(rm *RemoteMapper) (*LocalMapper, error) {
 		selectFields: rm.SelectFields,
 		selectTags:   rm.SelectTags,
 		interval:     rm.Interval,
+		tmax:         rm.TMax,
+		limit:        limit,
 	}
 
 	return lm, nil

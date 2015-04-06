@@ -609,7 +609,9 @@ func (m *MapReduceJob) processAggregate(c *Call, reduceFunc ReduceFunc, resultVa
 
 	// intialize the mappers
 	for _, mm := range m.Mappers {
-		if err := mm.Begin(c, m.TMin, IgnoredChunkSize); err != nil {
+		// for agggregate queries, we use the chunk size to determine how many times NextInterval should be called.
+		// This is the number of buckets that we need to fill.
+		if err := mm.Begin(c, m.TMin, len(resultValues)); err != nil {
 			return err
 		}
 	}
