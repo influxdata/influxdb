@@ -53,6 +53,13 @@ enabled = false
 #database = "collectd_database"
 #typesdb = "types.db"
 
+# Configure the OpenTSDB input.
+[opentsdb]
+enabled = false
+#address = "0.0.0.0" # If not set, is actually set to bind-address.
+#port = 4242
+#database = "opentsdb_database"
+
 # Configure UDP listener for series data.
 [udp]
 enabled = false
