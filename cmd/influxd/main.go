@@ -142,7 +142,7 @@ func execRun(args []string) {
 func execVersion(args []string) {
 	fs := flag.NewFlagSet("", flag.ExitOnError)
 	fs.Usage = func() {
-		log.Println(`usage: version
+		fmt.Println(`usage: version
 
 	version displays the InfluxDB version and build git commit hash
 	`)
@@ -161,9 +161,9 @@ func execConfig(args []string) {
 	// Parse command flags.
 	fs := flag.NewFlagSet("", flag.ExitOnError)
 	fs.Usage = func() {
-		log.Println(`usage: config
+		fmt.Println(`usage: config
 
-	config displays the default configiguration
+	config displays the default configuration
 						    `)
 	}
 
