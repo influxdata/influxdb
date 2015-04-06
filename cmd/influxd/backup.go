@@ -163,7 +163,7 @@ func (cmd *BackupCommand) download(u url.URL, ss *influxdb.Snapshot, path string
 
 	// Write the archive to disk.
 	if _, err := io.Copy(f, resp.Body); err != nil {
-		fmt.Errorf("write snapshot: %s", err)
+		return fmt.Errorf("write snapshot: %s", err)
 	}
 
 	return nil
