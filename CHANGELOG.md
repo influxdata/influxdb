@@ -1,3 +1,8 @@
+## v0.9.0-rc21 [unreleased]
+
+### Features
+- [#870](https://github.com/influxdb/influxdb/pull/870): Add a OpenTSDB telnet input protocol. Thanks @tcolgate
+
 ## v0.9.0-rc20 [2015-04-04]
 
 ### Features
