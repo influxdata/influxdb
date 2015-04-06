@@ -167,7 +167,8 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 						WhereFields:     whereFields,
 						SelectFields:    selectFields,
 						SelectTags:      selectTags,
-						Limit:           stmt.Limit + stmt.Offset,
+						Limit:           stmt.Limit,
+						Offset:          stmt.Offset,
 						Interval:        interval,
 					}
 					mapper.(*RemoteMapper).SetFilters(t.Filters)
@@ -385,10 +386,8 @@ func (l *LocalMapper) NextInterval() (interface{}, error) {
 			// where time > clause that is in the middle of the bucket that the group by time creates. That will be the
 			// case on the first interval when the tmin % the interval isn't equal to zero
 			nextMin = l.tmin/l.interval*l.interval + l.interval
-			l.tmax = nextMin - 1
-		} else {
-			l.tmax = l.tmin + l.interval - 1
 		}
+		l.tmax = nextMin - 1
 	}
 
 	// Execute the map function. This local mapper acts as the iterator
@@ -494,6 +493,23 @@ func (l *LocalMapper) Next() (seriesID uint32, timestamp int64, value interface{
 
 		return seriesID, timestamp, value
 	}
+}
+
+// IsEmpty returns true if either all cursors are nil or all cursors are past the passed in max time
+func (l *LocalMapper) IsEmpty(tmax int64) bool {
+	if l.cursorsEmpty || l.limit == 0 {
+		return true
+	}
+
+	// look at the next time for each cursor
+	for _, t := range l.keyBuffer {
+		// if the time is less than the max, we haven't emptied this mapper yet
+		if t != 0 && t <= tmax {
+			return false
+		}
+	}
+
+	return true
 }
 
 // matchesFilter returns true if the value matches the where clause
