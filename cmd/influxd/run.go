@@ -191,7 +191,7 @@ func Run(config *Config, join, version string) (*messaging.Broker, *influxdb.Ser
 
 			os := opentsdb.NewServer(s, policy, db)
 
-			log.Println("Starting OpenTSDB service on ", laddr)
+			log.Println("Starting OpenTSDB service on", laddr)
 			go os.ListenAndServe(laddr)
 		}
 
