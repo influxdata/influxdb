@@ -32,22 +32,22 @@ type RunCommand struct {
 	logWriter *os.File
 	config    *Config
 	hostname  string
-	server    *Server
+	node      *Node
 }
 
 func NewRunCommand() *RunCommand {
 	return &RunCommand{
-		server: &Server{},
+		node: &Node{},
 	}
 }
 
-type Server struct {
+type Node struct {
 	broker   *influxdb.Broker
 	dataNode *influxdb.Server
 	raftLog  *raft.Log
 }
 
-func (s *Server) Close() {
+func (s *Node) Close() {
 	if s.broker != nil {
 		if err := s.broker.Close(); err != nil {
 			log.Fatalf("error closing broker: %s", err)
@@ -140,8 +140,8 @@ func (cmd *RunCommand) Open(config *Config, join string) (*messaging.Broker, *in
 	// Start the broker handler.
 	h := &Handler{
 		Config: config,
-		Broker: cmd.server.broker,
-		Log:    cmd.server.raftLog,
+		Broker: cmd.node.broker,
+		Log:    cmd.node.raftLog,
 	}
 
 	// We want to make sure we are spun up before we exit this function, so we manually listen and serve
@@ -161,7 +161,7 @@ func (cmd *RunCommand) Open(config *Config, join string) (*messaging.Broker, *in
 	if cmd.config.ContinuousQuery.Disabled {
 		log.Printf("Not running continuous queries. [continuous_queries].disabled is set to true.")
 	} else {
-		cmd.server.broker.RunContinuousQueryLoop()
+		cmd.node.broker.RunContinuousQueryLoop()
 	}
 
 	var s *influxdb.Server
@@ -317,7 +317,7 @@ func (cmd *RunCommand) Open(config *Config, join string) (*messaging.Broker, *in
 
 		if cmd.config.Broker.Enabled && cmd.config.Data.Enabled {
 			// Make sure we have a config object b4 we try to use it.
-			if clusterID := cmd.server.broker.Broker.ClusterID(); clusterID != 0 {
+			if clusterID := cmd.node.broker.Broker.ClusterID(); clusterID != 0 {
 				go s.StartReportingLoop(clusterID)
 			}
 		} else {
@@ -326,14 +326,14 @@ func (cmd *RunCommand) Open(config *Config, join string) (*messaging.Broker, *in
 	}
 
 	var b *messaging.Broker
-	if cmd.server.broker != nil {
-		b = cmd.server.broker.Broker
+	if cmd.node.broker != nil {
+		b = cmd.node.broker.Broker
 	}
-	return b, s, cmd.server.raftLog
+	return b, s, cmd.node.raftLog
 }
 
 func (cmd *RunCommand) Close() {
-	cmd.server.Close()
+	cmd.node.Close()
 }
 
 // write the current process id to a file specified by path.
@@ -383,14 +383,14 @@ func (cmd *RunCommand) openBroker(brokerURLs []url.URL) {
 
 	// Create broker
 	b := influxdb.NewBroker()
-	cmd.server.broker = b
+	cmd.node.broker = b
 
 	// Create raft log.
 	l := raft.NewLog()
 	l.SetURL(u)
 	l.DebugEnabled = raftTracing
 	b.Log = l
-	cmd.server.raftLog = l
+	cmd.node.raftLog = l
 
 	// Open broker so it can feed last index data to the log.
 	if err := b.Open(path); err != nil {
@@ -451,8 +451,8 @@ func (cmd *RunCommand) openServer(joinURLs []url.URL) *influxdb.Server {
 	// If join URLs were passed in then use them to override the client's URLs.
 	if len(joinURLs) > 0 {
 		c.SetURLs(joinURLs)
-	} else if cmd.server.broker != nil {
-		c.SetURLs([]url.URL{cmd.server.broker.URL()})
+	} else if cmd.node.broker != nil {
+		c.SetURLs([]url.URL{cmd.node.broker.URL()})
 	}
 
 	if err := c.Open(filepath.Join(cmd.config.Data.Dir, messagingClientFile)); err != nil {
@@ -475,7 +475,7 @@ func (cmd *RunCommand) openServer(joinURLs []url.URL) *influxdb.Server {
 	s.ComputeNoMoreThan = time.Duration(cmd.config.ContinuousQuery.ComputeNoMoreThan)
 	s.Version = version
 	s.CommitHash = commit
-	cmd.server.dataNode = s
+	cmd.node.dataNode = s
 
 	// Open server with data directory and broker client.
 	if err := s.Open(cmd.config.Data.Dir, c); err != nil {
