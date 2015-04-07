@@ -243,21 +243,15 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *influ
 	for r := range results {
 		// write the status header based on the first result returned in the channel
 		if !statusWritten {
+			status := http.StatusOK
+
 			if r != nil && r.Err != nil {
 				if isAuthorizationError(r.Err) {
-					w.WriteHeader(http.StatusUnauthorized)
-				} else if isMeasurementNotFoundError(r.Err) {
-					w.WriteHeader(http.StatusOK)
-				} else if isTagNotFoundError(r.Err) {
-					w.WriteHeader(http.StatusOK)
-				} else if isFieldNotFoundError(r.Err) {
-					w.WriteHeader(http.StatusOK)
-				} else {
-					w.WriteHeader(http.StatusInternalServerError)
+					status = http.StatusUnauthorized
 				}
-			} else {
-				w.WriteHeader(http.StatusOK)
 			}
+
+			w.WriteHeader(status)
 			statusWritten = true
 		}
 
