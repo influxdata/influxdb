@@ -833,19 +833,6 @@ func isAuthorizationError(err error) bool {
 	return ok
 }
 
-func isMeasurementNotFoundError(err error) bool {
-	s := err.Error()
-	return strings.HasPrefix(s, "measurement") && strings.HasSuffix(s, "not found") || strings.Contains(s, "measurement not found")
-}
-
-func isTagNotFoundError(err error) bool {
-	return (strings.HasPrefix(err.Error(), "unknown field or tag name"))
-}
-
-func isFieldNotFoundError(err error) bool {
-	return (strings.HasPrefix(err.Error(), "field not found"))
-}
-
 // mapError writes an error result after trying to start a mapper
 func mapError(w http.ResponseWriter, err error) {
 	b, _ := json.Marshal(&influxdb.MapResponse{Err: err.Error()})
