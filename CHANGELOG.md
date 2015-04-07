@@ -7,6 +7,7 @@
 
 ### Bugfixes
 - [#2181](https://github.com/influxdb/influxdb/pull/2181): Fix panic on "SHOW DIAGNOSTICS".
+- [#2170](https://github.com/influxdb/influxdb/pull/2170): Make sure queries on missing tags return 200 status.
 
 ## v0.9.0-rc20 [2015-04-04]
 
