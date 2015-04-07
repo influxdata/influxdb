@@ -162,6 +162,30 @@ func TestHandler_ShowMeasurementsNotFound(t *testing.T) {
 	}
 }
 
+// Ensure that if a tag is not found, that the status code is 200
+func TestHandler_SelectTagNotFound(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	srvr := OpenAuthlessServer(c)
+	srvr.CreateDatabase("foo")
+	s := NewAPIServer(srvr)
+	defer s.Close()
+
+	// Write some data
+	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "default", "points": [{"name": "bin", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+
+	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "SELECT * FROM bin WHERE region='regionA'", "db": "foo"}, nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("unexpected status: %d", status)
+	}
+	if body != `{"results":[{"error":"unknown field or tag name in where clause: region"}]}` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
 func TestHandler_CreateDatabase(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
