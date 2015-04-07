@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"log"
 	"net/url"
@@ -809,13 +810,8 @@ func (t *Topic) WriteMessage(m *Message) error {
 		t.file = f
 	}
 
-	// Encode message.
-	b := make([]byte, MessageHeaderSize+len(m.Data))
-	copy(b, m.marshalHeader())
-	copy(b[MessageHeaderSize:], m.Data)
-
 	// Write to last segment.
-	if _, err := t.file.Write(b); err != nil {
+	if _, err := m.WriteTo(t.file); err != nil {
 		return fmt.Errorf("write segment: %s", err)
 	}
 
@@ -979,7 +975,7 @@ func RecoverSegment(path string) (uint64, error) {
 		var m Message
 		if err := dec.Decode(&m); err == io.EOF {
 			return index, nil
-		} else if err == io.ErrUnexpectedEOF {
+		} else if err == io.ErrUnexpectedEOF || err == ErrChecksum {
 			// The decoder will unread any partially read data so we can
 			// simply truncate at current position.
 			if n, err := f.Seek(0, os.SEEK_CUR); err != nil {
@@ -1127,7 +1123,7 @@ func (r *TopicReader) seekAfterIndex(f *os.File, seek uint64) error {
 			return err
 		} else if m.Index >= seek {
 			// Seek to message start.
-			if _, err := f.Seek(-int64(MessageHeaderSize+len(m.Data)), os.SEEK_CUR); err != nil {
+			if _, err := f.Seek(-int64(MessageChecksumSize+MessageHeaderSize+len(m.Data)), os.SEEK_CUR); err != nil {
 				return fmt.Errorf("seek: %s", err)
 			}
 			return nil
@@ -1220,8 +1216,13 @@ const (
 	SetTopicMaxIndexMessageType = BrokerMessageType | MessageType(0x00)
 )
 
-// The size of the encoded message header, in bytes.
-const MessageHeaderSize = 2 + 8 + 8 + 4
+const (
+	// MessageChecksumSize is the size of the encoded message checksum, in bytes.
+	MessageChecksumSize = 4
+
+	// MessageHeaderSize is the size of the encoded message header, in bytes.
+	MessageHeaderSize = 2 + 8 + 8 + 4
+)
 
 // Message represents a single item in a topic.
 type Message struct {
@@ -1232,33 +1233,59 @@ type Message struct {
 }
 
 // WriteTo encodes and writes the message to a writer. Implements io.WriterTo.
-func (m *Message) WriteTo(w io.Writer) (n int64, err error) {
-	if n, err := w.Write(m.marshalHeader()); err != nil {
-		return int64(n), err
+func (m *Message) WriteTo(w io.Writer) (int64, error) {
+	b, err := m.MarshalBinary()
+	if err != nil {
+		return 0, err
 	}
-	if n, err := w.Write(m.Data); err != nil {
-		return int64(MessageHeaderSize + n), err
-	}
-	return int64(MessageHeaderSize + len(m.Data)), nil
+	n, err := w.Write(b)
+	return int64(n), err
 }
 
 // MarshalBinary returns a binary representation of the message.
 // This implements encoding.BinaryMarshaler. An error cannot be returned.
 func (m *Message) MarshalBinary() ([]byte, error) {
-	b := make([]byte, MessageHeaderSize+len(m.Data))
-	copy(b, m.marshalHeader())
-	copy(b[MessageHeaderSize:], m.Data)
+	// Encode message.
+	b := make([]byte, MessageChecksumSize+MessageHeaderSize+len(m.Data))
+	copy(b[MessageChecksumSize:], m.marshalHeader())
+	copy(b[MessageChecksumSize+MessageHeaderSize:], m.Data)
+
+	// Calculate and write the checksum.
+	h := fnv.New32a()
+	h.Write(b[MessageChecksumSize:])
+	binary.BigEndian.PutUint32(b, h.Sum32())
+
 	return b, nil
 }
 
 // UnmarshalBinary reads a message from a binary encoded slice.
 // This implements encoding.BinaryUnmarshaler.
 func (m *Message) UnmarshalBinary(b []byte) error {
-	m.unmarshalHeader(b)
-	if len(b[MessageHeaderSize:]) < len(m.Data) {
-		return fmt.Errorf("message data too short: %d < %d", len(b[MessageHeaderSize:]), len(m.Data))
+	// Read checksum.
+	if len(b) < MessageChecksumSize {
+		return fmt.Errorf("message checksum too short: %d < %d", len(b), MessageChecksumSize)
 	}
-	copy(m.Data, b[MessageHeaderSize:])
+	sum := binary.BigEndian.Uint32(b)
+
+	// Read header.
+	if len(b)-MessageChecksumSize < MessageHeaderSize {
+		return fmt.Errorf("message header too short: %d < %d", len(b)-MessageChecksumSize, MessageHeaderSize)
+	}
+	m.unmarshalHeader(b[MessageChecksumSize:])
+
+	// Read data.
+	if len(b)-MessageChecksumSize-MessageHeaderSize < len(m.Data) {
+		return fmt.Errorf("message data too short: %d < %d", len(b)-MessageChecksumSize-MessageHeaderSize, len(m.Data))
+	}
+	copy(m.Data, b[MessageChecksumSize+MessageHeaderSize:])
+
+	// Verify checksum.
+	h := fnv.New32a()
+	h.Write(b[MessageChecksumSize:])
+	if h.Sum32() != sum {
+		return ErrChecksum
+	}
+
 	return nil
 }
 
@@ -1295,29 +1322,45 @@ func NewMessageDecoder(r io.ReadSeeker) *MessageDecoder {
 func (dec *MessageDecoder) Decode(m *Message) error {
 	// Read header bytes.
 	// Unread if there is a partial read.
-	var b [MessageHeaderSize]byte
+	var b [MessageChecksumSize + MessageHeaderSize]byte
 	if n, err := io.ReadFull(dec.r, b[:]); err == io.EOF {
 		return err
 	} else if err == io.ErrUnexpectedEOF {
 		if _, err := dec.r.Seek(-int64(n), os.SEEK_CUR); err != nil {
 			return fmt.Errorf("cannot unread header: n=%d, err=%s", n, err)
 		}
-		warnf("unexpected eof(0): len=%d, n=%d, err=%s", len(b), n, err)
+		warnf("unexpected eof(0): len=%d, n=%d, err=%s", len(b[:]), n, err)
 		return err
 	} else if err != nil {
 		return fmt.Errorf("read header: %s", err)
 	}
-	m.unmarshalHeader(b[:])
+
+	// Read checksum.
+	sum := binary.BigEndian.Uint32(b[:])
+
+	// Read header.
+	m.unmarshalHeader(b[MessageChecksumSize:])
 
 	// Read data.
 	if n, err := io.ReadFull(dec.r, m.Data); err == io.EOF || err == io.ErrUnexpectedEOF {
-		if _, err := dec.r.Seek(-int64(MessageHeaderSize+n), os.SEEK_CUR); err != nil {
+		if _, err := dec.r.Seek(-int64(len(b)+n), os.SEEK_CUR); err != nil {
 			return fmt.Errorf("cannot unread header+data: n=%d, err=%s", n, err)
 		}
 		warnf("unexpected eof(1): len=%d, n=%d, err=%s", len(m.Data), n, err)
 		return io.ErrUnexpectedEOF
 	} else if err != nil {
 		return fmt.Errorf("read data: %s", err)
+	}
+
+	// Verify checksum.
+	h := fnv.New32a()
+	h.Write(b[MessageChecksumSize:])
+	h.Write(m.Data)
+	if h.Sum32() != sum {
+		if _, err := dec.r.Seek(-int64(len(b)+len(m.Data)), os.SEEK_CUR); err != nil {
+			return fmt.Errorf("cannot unread after checksum: err=%s", err)
+		}
+		return ErrChecksum
 	}
 
 	return nil
@@ -1330,37 +1373,6 @@ func UnmarshalMessage(data []byte) (*Message, error) {
 		return nil, err
 	}
 	return m, nil
-}
-
-type flusher interface {
-	Flush()
-}
-
-// uint64Slice attaches the methods of Interface to []int, sorting in increasing order.
-type uint64Slice []uint64
-
-func (p uint64Slice) Len() int           { return len(p) }
-func (p uint64Slice) Less(i, j int) bool { return p[i] < p[j] }
-func (p uint64Slice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
-
-// mustMarshalJSON encodes a value to JSON.
-// This will panic if an error occurs. This should only be used internally when
-// an invalid marshal will cause corruption and a panic is appropriate.
-func mustMarshalJSON(v interface{}) []byte {
-	b, err := json.Marshal(v)
-	if err != nil {
-		panic("marshal: " + err.Error())
-	}
-	return b
-}
-
-// mustUnmarshalJSON decodes a value from JSON.
-// This will panic if an error occurs. This should only be used internally when
-// an invalid unmarshal will cause corruption and a panic is appropriate.
-func mustUnmarshalJSON(b []byte, v interface{}) {
-	if err := json.Unmarshal(b, v); err != nil {
-		panic("unmarshal: " + err.Error())
-	}
 }
 
 // assert will panic with a given formatted message if the given condition is false.
