@@ -1949,7 +1949,7 @@ func Test_ServerOpenTSDBIntegration(t *testing.T) {
 		t.Skip()
 	}
 	nNodes := 1
-	testName := "opentsdb integration"
+	testName := "ServerOpenTSDBIntegration"
 	dir := tempfile()
 	now := time.Now().UTC().Round(time.Second)
 	c, _ := main.NewTestConfig()
@@ -2003,7 +2003,7 @@ func Test_ServerOpenTSDBIntegration_WithTags(t *testing.T) {
 		t.Skip()
 	}
 	nNodes := 1
-	testName := "opentsdb integration"
+	testName := "ServerOpenTSDBIntegration_WithTags"
 	dir := tempfile()
 	now := time.Now().UTC().Round(time.Second)
 	c, _ := main.NewTestConfig()
@@ -2062,7 +2062,7 @@ func Test_ServerOpenTSDBIntegration_BadData(t *testing.T) {
 		t.Skip()
 	}
 	nNodes := 1
-	testName := "opentsdb integration"
+	testName := "ServerOpenTSDBIntegration_BadData"
 	dir := tempfile()
 	now := time.Now().UTC().Round(time.Second)
 	c, _ := main.NewTestConfig()
@@ -2105,6 +2105,101 @@ func Test_ServerOpenTSDBIntegration_BadData(t *testing.T) {
 	}
 
 	expected := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",10]]}]}]}`, now.Format(time.RFC3339Nano))
+
+	// query and wait for results
+	got, ok, _ := queryAndWait(t, nodes, "opentsdb", `select * from "opentsdb"."raw".cpu`, expected, "", openTSDBTestTimeout)
+	if !ok {
+		t.Errorf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
+	}
+}
+
+func Test_ServerOpenTSDBIntegrationHTTPSingle(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+	nNodes := 1
+	testName := "ServerOpenTSDBIntegrationHTTPSingle"
+	dir := tempfile()
+	now := time.Now().UTC().Round(time.Second)
+	c, _ := main.NewTestConfig()
+	o := main.OpenTSDB{
+		Addr:            "127.0.0.1",
+		Port:            0,
+		Enabled:         true,
+		Database:        "opentsdb",
+		RetentionPolicy: "raw",
+	}
+	c.OpenTSDB = o
+
+	t.Logf("OpenTSDB Connection String: %s\n", o.ListenAddress())
+	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, c)
+	defer nodes.Close()
+
+	createDatabase(t, testName, nodes, "opentsdb")
+	createRetentionPolicy(t, testName, nodes, "opentsdb", "raw", len(nodes))
+
+	ts := fmt.Sprintf("%d", now.Unix())
+	data := bytes.NewBufferString(`{"metric":"cpu","timestamp":` + ts + `,"value":10,"tags":{"tag1":"val1","tag2":"val2"}}`)
+	host := nodes[0].node.OpenTSDBServer.Addr().String()
+	url := "http://" + host + "/api/put"
+
+	resp, err := http.Post(url, "text/json", data)
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	resp.Body.Close()
+
+	expected := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",10]]}]}]}`, now.Format(time.RFC3339Nano))
+
+	// query and wait for results
+	got, ok, _ := queryAndWait(t, nodes, "opentsdb", `select * from "opentsdb"."raw".cpu`, expected, "", openTSDBTestTimeout)
+	if !ok {
+		t.Errorf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
+	}
+}
+
+func Test_ServerOpenTSDBIntegrationHTTPMulti(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+	nNodes := 1
+	testName := "ServerOpenTSDBIntegrationHTTPMulti"
+	dir := tempfile()
+	now := time.Now().UTC().Round(time.Second)
+	c, _ := main.NewTestConfig()
+	o := main.OpenTSDB{
+		Addr:            "127.0.0.1",
+		Port:            0,
+		Enabled:         true,
+		Database:        "opentsdb",
+		RetentionPolicy: "raw",
+	}
+	c.OpenTSDB = o
+
+	t.Logf("OpenTSDB Connection String: %s\n", o.ListenAddress())
+	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, c)
+	defer nodes.Close()
+
+	createDatabase(t, testName, nodes, "opentsdb")
+	createRetentionPolicy(t, testName, nodes, "opentsdb", "raw", len(nodes))
+
+	ts := fmt.Sprintf("%d", now.Unix())
+	data := bytes.NewBufferString(`[{"metric":"cpu","timestamp":` + ts + `,"value":10,"tags":{"tag1":"val1","tag2":"val2"}},{"metric":"cpu","timestamp":` + ts + `,"value":20,"tags":{"tag1":"val3","tag2":"val4"}}]`)
+	host := nodes[0].node.OpenTSDBServer.Addr().String()
+	url := "http://" + host + "/api/put"
+
+	resp, err := http.Post(url, "text/json", data)
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	resp.Body.Close()
+
+	expts := now.Format(time.RFC3339Nano)
+	expected := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",10],["%s",20]]}]}]}`, expts, expts)
 
 	// query and wait for results
 	got, ok, _ := queryAndWait(t, nodes, "opentsdb", `select * from "opentsdb"."raw".cpu`, expected, "", openTSDBTestTimeout)
