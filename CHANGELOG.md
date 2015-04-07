@@ -3,6 +3,9 @@
 ### Features
 - [#870](https://github.com/influxdb/influxdb/pull/870): Add support for OpenTSDB telnet input protocol. Thanks @tcolgate
 
+### Bugfixes
+- [#2181](https://github.com/influxdb/influxdb/pull/2181): Fix panic on "SHOW DIAGNOSTICS".
+
 ## v0.9.0-rc20 [2015-04-04]
 
 ### Features
