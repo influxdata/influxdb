@@ -36,6 +36,12 @@ const (
 	// DefaultClusterPort represents the default port the cluster runs ons.
 	DefaultClusterPort = 8086
 
+	// DefaultBrokerEnabled is the default for starting a node as a broker
+	DefaultBrokerEnabled = true
+
+	// DefaultDataEnabled is the default for starting a node as a data node
+	DefaultDataEnabled = true
+
 	// DefaultSnapshotBindAddress is the default bind address to serve snapshots from.
 	DefaultSnapshotBindAddress = "127.0.0.1"
 
@@ -207,6 +213,9 @@ func NewConfig() *Config {
 	c.Port = DefaultClusterPort
 
 	c.HTTPAPI.Port = DefaultClusterPort
+
+	c.Data.Enabled = DefaultDataEnabled
+	c.Broker.Enabled = DefaultBrokerEnabled
 
 	c.Data.RetentionAutoCreate = DefaultRetentionAutoCreate
 	c.Data.RetentionCheckEnabled = DefaultRetentionCheckEnabled
