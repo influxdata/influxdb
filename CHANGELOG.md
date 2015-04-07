@@ -2,6 +2,7 @@
 
 ### Features
 - [#870](https://github.com/influxdb/influxdb/pull/870): Add support for OpenTSDB telnet input protocol. Thanks @tcolgate
+- [#2175](https://github.com/influxdb/influxdb/pull/2175): Separate broker and data nodes
 
 ## v0.9.0-rc20 [2015-04-04]
 
