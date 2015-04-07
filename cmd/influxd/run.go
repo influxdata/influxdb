@@ -45,9 +45,21 @@ type Node struct {
 	Broker   *influxdb.Broker
 	DataNode *influxdb.Server
 	raftLog  *raft.Log
+
+	clusterListener net.Listener // The cluster TCP listener
 }
 
 func (s *Node) Close() {
+	if err := s.closeClusterListener(); err != nil {
+		log.Fatalf("error closing cluster listener: %s", err)
+	}
+
+	if s.DataNode != nil {
+		if err := s.DataNode.Close(); err != nil {
+			log.Fatalf("error data broker: %s", err)
+		}
+	}
+
 	if s.Broker != nil {
 		if err := s.Broker.Close(); err != nil {
 			log.Fatalf("error closing broker: %s", err)
@@ -59,13 +71,38 @@ func (s *Node) Close() {
 			log.Fatalf("error closing raft log: %s", err)
 		}
 	}
+}
 
-	if s.DataNode != nil {
-		if err := s.DataNode.Close(); err != nil {
-			log.Fatalf("error data broker: %s", err)
-		}
+func (s *Node) openClusterListener(addr string, h http.Handler) error {
+	var err error
+	// We want to make sure we are spun up before we exit this function, so we manually listen and serve
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
 	}
+	s.clusterListener = listener
+	go func() {
+		err := http.Serve(s.clusterListener, h)
 
+		// The listener was closed so exit
+		// See https://github.com/golang/go/issues/4373
+		if operr, ok := err.(*net.OpError); ok && strings.Contains(operr.Err.Error(), "closed network connection") {
+			return
+		}
+		if err != nil {
+			log.Fatalf("TCP server failed to server on %s: %s", addr, err)
+		}
+	}()
+	return nil
+}
+
+func (s *Node) closeClusterListener() error {
+	var err error
+	if s.clusterListener != nil {
+		err = s.clusterListener.Close()
+		s.clusterListener = nil
+	}
+	return err
 }
 
 func (cmd *RunCommand) Run(args ...string) error {
@@ -169,17 +206,10 @@ func (cmd *RunCommand) Open(config *Config, join string) *Node {
 		Log:    cmd.node.raftLog,
 	}
 
-	// We want to make sure we are spun up before we exit this function, so we manually listen and serve
-	listener, err := net.Listen("tcp", cmd.config.ClusterAddr())
+	err := cmd.node.openClusterListener(cmd.config.ClusterAddr(), h)
 	if err != nil {
 		log.Fatalf("TCP server failed to listen on %s. %s ", cmd.config.ClusterAddr(), err)
 	}
-	go func() {
-		err := http.Serve(listener, h)
-		if err != nil {
-			log.Fatalf("TCP server failed to server on %s: %s", cmd.config.ClusterAddr(), err)
-		}
-	}()
 	log.Printf("TCP server listening on %s", cmd.config.ClusterAddr())
 
 	var s *influxdb.Server
