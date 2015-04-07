@@ -492,6 +492,8 @@ func (b *Broker) applySetTopicMaxIndex(m *Message) {
 
 	// Set index if it's not already set higher.
 	if t := b.topics[topicID]; t != nil {
+		t.mu.Lock()
+		defer t.mu.Unlock()
 		// Track the highest replicated index per data node URL
 		t.indexByURL[u] = index
 

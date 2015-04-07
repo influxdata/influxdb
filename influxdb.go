@@ -35,7 +35,8 @@ var (
 	// ErrDataNodeExists is returned when creating a duplicate data node.
 	ErrDataNodeExists = errors.New("data node exists")
 
-	// ErrDataNodeNotFound is returned when dropping a non-existent data node.
+	// ErrDataNodeNotFound is returned when dropping a non-existent data node or
+	// attempting to join another data node when no data nodes exist yet
 	ErrDataNodeNotFound = errors.New("data node not found")
 
 	// ErrDataNodeRequired is returned when using a blank data node id.

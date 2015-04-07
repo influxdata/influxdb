@@ -28,15 +28,23 @@ func NewHandler() *Handler {
 
 // ServeHTTP responds to HTTP request to the handler.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// FIXME: This is very brittle.  Refactor to have common path prefix
 	if strings.HasPrefix(r.URL.Path, "/raft") {
 		h.serveRaft(w, r)
 		return
 	}
+
 	if strings.HasPrefix(r.URL.Path, "/messaging") {
 		h.serveMessaging(w, r)
 		return
 	}
 
+	if strings.HasPrefix(r.URL.Path, "/data_nodes") ||
+		strings.HasPrefix(r.URL.Path, "/process_continuous_queries") ||
+		strings.HasPrefix(r.URL.Path, "/metastore") {
+		h.serveMetadata(w, r)
+		return
+	}
 	h.serveData(w, r)
 }
 
@@ -60,6 +68,31 @@ func (h *Handler) serveMessaging(w http.ResponseWriter, r *http.Request) {
 
 	// Redirect to a valid broker to handle the request
 	h.redirect(h.Server.BrokerURLs(), w, r)
+}
+
+// serveMetadata responds to broker requests
+func (h *Handler) serveMetadata(w http.ResponseWriter, r *http.Request) {
+	if h.Broker == nil && h.Server == nil {
+		log.Println("no broker or server configured to handle messaging endpoints")
+		http.Error(w, "server unavailable", http.StatusServiceUnavailable)
+		return
+	}
+
+	if h.Server != nil {
+		sh := httpd.NewClusterHandler(h.Server, h.Config.Authentication.Enabled, version)
+		sh.WriteTrace = h.Config.Logging.WriteTracing
+		sh.ServeHTTP(w, r)
+		return
+	}
+
+	t := h.Broker.Topic(influxdb.BroadcastTopicID)
+	if t == nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+
+	// Redirect to a valid data URL to handle the request
+	h.redirect(h.Broker.Topic(influxdb.BroadcastTopicID).DataURLs(), w, r)
 }
 
 // serveRaft responds to raft requests.
@@ -89,9 +122,15 @@ func (h *Handler) serveData(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.Server != nil {
-		sh := httpd.NewHandler(h.Server, h.Config.Authentication.Enabled, version)
+		sh := httpd.NewAPIHandler(h.Server, h.Config.Authentication.Enabled, version)
 		sh.WriteTrace = h.Config.Logging.WriteTracing
 		sh.ServeHTTP(w, r)
+		return
+	}
+
+	t := h.Broker.Topic(influxdb.BroadcastTopicID)
+	if t == nil {
+		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
 

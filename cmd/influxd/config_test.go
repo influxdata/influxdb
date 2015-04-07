@@ -11,6 +11,110 @@ import (
 	main "github.com/influxdb/influxdb/cmd/influxd"
 )
 
+// Testing configuration file.
+const testFile = `
+# Welcome to the InfluxDB configuration file.
+
+# If hostname (on the OS) doesn't return a name that can be resolved by the other
+# systems in the cluster, you'll have to set the hostname to an IP or something
+# that can be resolved here.
+hostname = "myserver.com"
+port = 8086
+
+
+# Control authentication
+[authentication]
+enabled = true
+
+[logging]
+write-tracing = true
+raft-tracing = true
+
+[monitoring]
+enabled = true
+write-interval = "1m"
+
+# Configure the admin server
+[admin]
+enabled = true
+port = 8083
+
+# Configure the http api
+[api]
+bind-address = "10.1.2.3"
+ssl-port = 8087    # Ssl support is enabled if you set a port and cert
+ssl-cert = "../cert.pem"
+
+# connections will timeout after this amount of time. Ensures that clients that misbehave
+# and keep alive connections they don't use won't end up connection a million times.
+# However, if a request is taking longer than this to complete, could be a problem.
+read-timeout = "5s"
+
+[input_plugins]
+
+  [input_plugins.udp]
+  enabled = true
+  port = 4444
+  database = "test"
+
+# Configure the Graphite servers
+[[graphite]]
+protocol = "TCP"
+enabled = true
+bind-address = "192.168.0.1"
+port = 2003
+database = "graphite_tcp"  # store graphite data in this database
+name-position = "last"
+name-separator = "-"
+
+[[graphite]]
+protocol = "udP"
+enabled = true
+bind-address = "192.168.0.2"
+port = 2005
+
+# Configure collectd server
+[collectd]
+enabled = true
+bind-address = "192.168.0.3"
+port = 25827
+database = "collectd_database"
+typesdb = "foo-db-type"
+
+# Configure OpenTSDB server
+[opentsdb]
+enabled = true
+address = "192.168.0.3"
+port = 4242
+database = "opentsdb_database"
+retention-policy = "raw"
+
+# Broker configuration
+[broker]
+# The broker port should be open between all servers in a cluster.
+# However, this port shouldn't be accessible from the internet.
+enabled = false
+
+# Where the broker logs are stored. The user running InfluxDB will need read/write access.
+dir  = "/tmp/influxdb/development/broker"
+
+# election-timeout = "2s"
+
+[data]
+dir = "/tmp/influxdb/development/db"
+retention-auto-create = false
+retention-check-enabled = true
+retention-check-period = "5m"
+enabled = false
+
+[continuous_queries]
+disabled = true
+
+[snapshot]
+bind-address = "1.2.3.4"
+port = 9999
+`
+
 // Ensure that megabyte sizes can be parsed.
 func TestSize_UnmarshalText_MB(t *testing.T) {
 	var s main.Size
@@ -44,12 +148,16 @@ func TestParseConfig(t *testing.T) {
 		t.Fatalf("hostname mismatch: %v", c.Hostname)
 	}
 
-	if c.JoinURLs() != "http://127.0.0.1:8086" {
-		t.Fatalf("JoinURLs mistmatch: %v", c.JoinURLs())
+	if exp := 8086; c.Port != exp {
+		t.Fatalf("port mismatch. got %v, exp %v", c.Port, exp)
 	}
 
 	if !c.Authentication.Enabled {
 		t.Fatalf("authentication enabled mismatch: %v", c.Authentication.Enabled)
+	}
+
+	if exp := "10.1.2.3"; c.HTTPAPI.BindAddress != exp {
+		t.Fatalf("http api bind-address mismatch: got %v, exp %v", c.HTTPAPI.BindAddress, exp)
 	}
 
 	if c.UDP.Enabled {
@@ -64,12 +172,8 @@ func TestParseConfig(t *testing.T) {
 		t.Fatalf("admin port mismatch: %v", c.Admin.Port)
 	}
 
-	if c.ContinuousQuery.Disable == true {
-		t.Fatalf("continuous query disable mismatch: %v", c.ContinuousQuery.Disable)
-	}
-
-	if c.Data.Port != main.DefaultBrokerPort {
-		t.Fatalf("data port mismatch: %v", c.Data.Port)
+	if c.ContinuousQuery.Disabled != true {
+		t.Fatalf("continuous query disable mismatch: %v", c.ContinuousQuery.Disabled)
 	}
 
 	if len(c.Graphites) != 2 {
@@ -80,8 +184,8 @@ func TestParseConfig(t *testing.T) {
 	switch {
 	case tcpGraphite.Enabled != true:
 		t.Fatalf("graphite tcp enabled mismatch: expected: %v, got %v", true, tcpGraphite.Enabled)
-	case tcpGraphite.Addr != "192.168.0.1":
-		t.Fatalf("graphite tcp address mismatch: expected %v, got  %v", "192.168.0.1", tcpGraphite.Addr)
+	case tcpGraphite.BindAddress != "192.168.0.1":
+		t.Fatalf("graphite tcp address mismatch: expected %v, got  %v", "192.168.0.1", tcpGraphite.BindAddress)
 	case tcpGraphite.Port != 2003:
 		t.Fatalf("graphite tcp port mismatch: expected %v, got %v", 2003, tcpGraphite.Port)
 	case tcpGraphite.Database != "graphite_tcp":
@@ -98,8 +202,8 @@ func TestParseConfig(t *testing.T) {
 	switch {
 	case udpGraphite.Enabled != true:
 		t.Fatalf("graphite udp enabled mismatch: expected: %v, got %v", true, udpGraphite.Enabled)
-	case udpGraphite.Addr != "192.168.0.2":
-		t.Fatalf("graphite udp address mismatch: expected %v, got  %v", "192.168.0.2", udpGraphite.Addr)
+	case udpGraphite.BindAddress != "192.168.0.2":
+		t.Fatalf("graphite udp address mismatch: expected %v, got  %v", "192.168.0.2", udpGraphite.BindAddress)
 	case udpGraphite.Port != 2005:
 		t.Fatalf("graphite udp port mismatch: expected %v, got %v", 2005, udpGraphite.Port)
 	case udpGraphite.DatabaseString() != "graphite":
@@ -111,8 +215,8 @@ func TestParseConfig(t *testing.T) {
 	switch {
 	case c.Collectd.Enabled != true:
 		t.Errorf("collectd enabled mismatch: expected: %v, got %v", true, c.Collectd.Enabled)
-	case c.Collectd.Addr != "192.168.0.3":
-		t.Errorf("collectd address mismatch: expected %v, got  %v", "192.168.0.3", c.Collectd.Addr)
+	case c.Collectd.BindAddress != "192.168.0.3":
+		t.Errorf("collectd address mismatch: expected %v, got  %v", "192.168.0.3", c.Collectd.BindAddress)
 	case c.Collectd.Port != 25827:
 		t.Errorf("collectd port mismatch: expected %v, got %v", 2005, c.Collectd.Port)
 	case c.Collectd.Database != "collectd_database":
@@ -132,12 +236,12 @@ func TestParseConfig(t *testing.T) {
 		t.Errorf("collectd retention-policy mismatch: expected %v, got %v", "foo-db-type", c.OpenTSDB.RetentionPolicy)
 	}
 
-	if c.Broker.Port != 8086 {
-		t.Fatalf("broker port mismatch: %v", c.Broker.Port)
-	} else if c.Broker.Dir != "/tmp/influxdb/development/broker" {
+	if c.Broker.Dir != "/tmp/influxdb/development/broker" {
 		t.Fatalf("broker dir mismatch: %v", c.Broker.Dir)
-	} else if time.Duration(c.Broker.Timeout) != time.Second {
-		t.Fatalf("broker duration mismatch: %v", c.Broker.Timeout)
+	}
+
+	if c.Broker.Enabled != false {
+		t.Fatalf("broker disabled mismatch: %v, got: %v", false, c.Broker.Enabled)
 	}
 
 	if c.Data.Dir != "/tmp/influxdb/development/db" {
@@ -150,14 +254,21 @@ func TestParseConfig(t *testing.T) {
 		t.Fatalf("Retention check period mismatch: %v", c.Data.RetentionCheckPeriod)
 	}
 
-	if c.Cluster.Dir != "/tmp/influxdb/development/cluster" {
-		t.Fatalf("cluster dir mismatch: %v", c.Cluster.Dir)
+	if c.Data.Enabled != false {
+		t.Fatalf("data disabled mismatch: %v, got: %v", false, c.Data.Enabled)
 	}
 
 	if c.Monitoring.WriteInterval.String() != "1m0s" {
 		t.Fatalf("Monitoring.WriteInterval mismatch: %v", c.Monitoring.WriteInterval)
 	}
 
+	if exp := "1.2.3.4"; c.Snapshot.BindAddress != exp {
+		t.Fatalf("snapshot bind-address mismatch: %v, got %v", exp, c.Snapshot.BindAddress)
+	}
+
+	if exp := 9999; c.Snapshot.Port != exp {
+		t.Fatalf("snapshot port mismatch: %v, got %v", exp, c.Snapshot.Port)
+	}
 	// TODO: UDP Servers testing.
 	/*
 		c.Assert(config.UdpServers, HasLen, 1)
@@ -180,110 +291,6 @@ func TestEncodeConfig(t *testing.T) {
 	}
 }
 
-// Testing configuration file.
-const testFile = `
-# Welcome to the InfluxDB configuration file.
-
-# If hostname (on the OS) doesn't return a name that can be resolved by the other
-# systems in the cluster, you'll have to set the hostname to an IP or something
-# that can be resolved here.
-hostname = "myserver.com"
-
-# Controls certain parameters that only take effect until an initial successful
-# start-up has occurred.
-[initialization]
-join-urls = "http://127.0.0.1:8086"
-
-# Control authentication
-[authentication]
-enabled = true
-
-[logging]
-write-tracing = true
-raft-tracing = true
-
-[monitoring]
-enabled = true
-write-interval = "1m"
-
-# Configure the admin server
-[admin]
-enabled = true
-port = 8083
-
-# Configure the http api
-[api]
-ssl-port = 8087    # Ssl support is enabled if you set a port and cert
-ssl-cert = "../cert.pem"
-
-# connections will timeout after this amount of time. Ensures that clients that misbehave
-# and keep alive connections they don't use won't end up connection a million times.
-# However, if a request is taking longer than this to complete, could be a problem.
-read-timeout = "5s"
-
-[input_plugins]
-
-  [input_plugins.udp]
-  enabled = true
-  port = 4444
-  database = "test"
-
-# Configure the Graphite servers
-[[graphite]]
-protocol = "TCP"
-enabled = true
-address = "192.168.0.1"
-port = 2003
-database = "graphite_tcp"  # store graphite data in this database
-name-position = "last"
-name-separator = "-"
-
-[[graphite]]
-protocol = "udP"
-enabled = true
-address = "192.168.0.2"
-port = 2005
-
-# Configure collectd server
-[collectd]
-enabled = true
-address = "192.168.0.3"
-port = 25827
-database = "collectd_database"
-typesdb = "foo-db-type"
-
-# Configure OpenTSDB server
-[opentsdb]
-enabled = true
-address = "192.168.0.3"
-port = 4242
-database = "opentsdb_database"
-retention-policy = "raw"
-
-# Broker configuration
-[broker]
-# The broker port should be open between all servers in a cluster.
-# However, this port shouldn't be accessible from the internet.
-port = 8086
-
-# Where the broker logs are stored. The user running InfluxDB will need read/write access.
-dir  = "/tmp/influxdb/development/broker"
-
-# election-timeout = "2s"
-
-[data]
-dir = "/tmp/influxdb/development/db"
-retention-auto-create = false
-retention-check-enabled = true
-retention-check-period = "5m"
-
-[continuous_queries]
-disable = false
-
-[cluster]
-dir = "/tmp/influxdb/development/cluster"
-`
-
 func TestCollectd_ConnectionString(t *testing.T) {
 	var tests = []struct {
 		name             string
@@ -301,7 +308,7 @@ func TestCollectd_ConnectionString(t *testing.T) {
 			name:             "address provided, no port provided from config",
 			defaultBindAddr:  "192.168.0.1",
 			connectionString: "192.168.0.2:25826",
-			config:           main.Collectd{Addr: "192.168.0.2"},
+			config:           main.Collectd{BindAddress: "192.168.0.2"},
 		},
 		{
 			name:             "no address provided, port provided from config",
@@ -313,7 +320,7 @@ func TestCollectd_ConnectionString(t *testing.T) {
 			name:             "both address and port provided from config",
 			defaultBindAddr:  "192.168.0.1",
 			connectionString: "192.168.0.2:25827",
-			config:           main.Collectd{Addr: "192.168.0.2", Port: 25827},
+			config:           main.Collectd{BindAddress: "192.168.0.2", Port: 25827},
 		},
 	}
 

@@ -611,18 +611,19 @@ func (s *Server) syncBroadcast(index uint64) error {
 	}
 }
 
-// Initialize creates a new data node and initializes the server's id to 1.
+// Initialize creates a new data node and initializes the server's id to the latest.
 func (s *Server) Initialize(u url.URL) error {
 	// Create a new data node.
 	if err := s.CreateDataNode(&u); err != nil {
 		return err
 	}
 
-	// Ensure the data node returns with an ID of 1.
+	// Ensure the data node returns with an ID.
 	// If it doesn't then something went really wrong. We have to panic because
 	// the messaging client relies on the first server being assigned ID 1.
 	n := s.DataNodeByURL(&u)
-	assert(n != nil && n.ID == 1, "invalid initial server id: %d", n.ID)
+	assert(n != nil, "node not created: %s", u.String())
+	assert(n.ID > 0, "invalid node id: %d", n.ID)
 
 	// Set the ID on the metastore.
 	if err := s.meta.mustUpdate(0, func(tx *metatx) error {
@@ -632,7 +633,7 @@ func (s *Server) Initialize(u url.URL) error {
 	}
 
 	// Set the ID on the server.
-	s.id = 1
+	s.id = n.ID
 
 	return nil
 }
@@ -657,20 +658,66 @@ func (s *Server) Join(u *url.URL, joinURL *url.URL) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Encode data node request.
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(&dataNodeJSON{URL: u.String()}); err != nil {
-		return err
-	}
-
-	// Send request.
+	// Create the initial request. Might get a redirect though depending on
+	// the nodes role
 	joinURL = copyURL(joinURL)
 	joinURL.Path = "/data_nodes"
-	resp, err := http.Post(joinURL.String(), "application/octet-stream", &buf)
-	if err != nil {
-		return err
+
+	var retries int
+	var resp *http.Response
+	var err error
+
+	// When POSTing the to the join endpoint, we are manually following redirects
+	// and not relying on the Go http client redirect policy. The Go http client will convert
+	// POSTs to GETSs when following redirects which is not what we want when joining.
+	// (i.e. we want to join a node, not list the nodes) If we receive a redirect response,
+	// the Location header is where we should resend the POST.  We also need to re-encode
+	// body since the buf was already read.
+	for {
+
+		// Should never get here but bail to avoid a infinite redirect loop to be safe
+		if retries >= 3 {
+			return ErrUnableToJoin
+		}
+
+		// Encode data node request.
+		var buf bytes.Buffer
+		if err := json.NewEncoder(&buf).Encode(&dataNodeJSON{URL: u.String()}); err != nil {
+			return err
+		}
+
+		resp, err = http.Post(joinURL.String(), "application/octet-stream", &buf)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+
+		// If we get a service unavailable, the other data nodes may still be booting
+		// so retry again
+		if resp.StatusCode == http.StatusServiceUnavailable {
+			retries += 1
+			time.Sleep(1 * time.Second)
+			continue
+		}
+
+		// We likely tried to join onto a broker which cannot handle this request.  It
+		// has given us the address of a known data node to join instead.
+		if resp.StatusCode == http.StatusTemporaryRedirect {
+			joinURL, err = url.Parse(resp.Header.Get("Location"))
+			if err != nil {
+				return err
+			}
+			retries += 1
+			resp.Body.Close()
+			continue
+		}
+
+		// If we are first data node, we can't join anyone and need to initialize
+		if resp.StatusCode == http.StatusNotFound {
+			return ErrDataNodeNotFound
+		}
+		break
 	}
-	defer resp.Body.Close()
 
 	// Check if created.
 	if resp.StatusCode != http.StatusCreated {
@@ -3876,11 +3923,11 @@ func (s *Server) CreateSnapshotWriter() (*SnapshotWriter, error) {
 	return createServerSnapshotWriter(s)
 }
 
-func (s *Server) URL() *url.URL {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+func (s *Server) URL() url.URL {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if n := s.dataNodes[s.id]; n != nil {
-		return n.URL
+		return *n.URL
 	}
-	return &url.URL{}
+	return url.URL{}
 }

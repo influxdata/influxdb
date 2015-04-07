@@ -29,23 +29,29 @@ type RestoreCommand struct {
 
 // NewRestoreCommand returns a new instance of RestoreCommand with default settings.
 func NewRestoreCommand() *RestoreCommand {
-	return &RestoreCommand{
+	cmd := RestoreCommand{
 		Stderr: os.Stderr,
 	}
+
+	// Set up logger.
+	cmd.Logger = log.New(cmd.Stderr, "", log.LstdFlags)
+	return &cmd
 }
 
 // Run excutes the program.
 func (cmd *RestoreCommand) Run(args ...string) error {
-	// Set up logger.
-	cmd.Logger = log.New(cmd.Stderr, "", log.LstdFlags)
-	cmd.Logger.Printf("influxdb restore, version %s, commit %s", version, commit)
 
+	cmd.Logger.Printf("influxdb restore, version %s, commit %s", version, commit)
 	// Parse command line arguments.
 	config, path, err := cmd.parseFlags(args)
 	if err != nil {
 		return err
 	}
 
+	return cmd.Restore(config, path)
+}
+
+func (cmd *RestoreCommand) Restore(config *Config, path string) error {
 	// Remove broker & data directories.
 	if err := os.RemoveAll(config.BrokerDir()); err != nil {
 		return fmt.Errorf("remove broker dir: %s", err)
@@ -72,13 +78,12 @@ func (cmd *RestoreCommand) Run(args ...string) error {
 	}
 
 	// Generate broker & raft directories from manifest.
-	if err := cmd.materialize(config.BrokerDir(), ss, config.BrokerURL()); err != nil {
+	if err := cmd.materialize(config.BrokerDir(), ss, config.ClusterURL()); err != nil {
 		return fmt.Errorf("materialize: %s", err)
 	}
 
 	// Notify user of completion.
 	cmd.Logger.Printf("restore complete using %s", path)
-
 	return nil
 }
 

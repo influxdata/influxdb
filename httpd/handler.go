@@ -50,33 +50,16 @@ type Handler struct {
 	routes                []route
 	mux                   *pat.PatternServeMux
 	requireAuthentication bool
+	version               string
 
 	Logger     *log.Logger
 	WriteTrace bool // Detailed logging of write path
 }
 
-// NewHandler returns a new instance of Handler.
-func NewHandler(s *influxdb.Server, requireAuthentication bool, version string) *Handler {
-	h := &Handler{
-		server: s,
-		mux:    pat.New(),
-		requireAuthentication: requireAuthentication,
-		Logger:                log.New(os.Stderr, "[http] ", log.LstdFlags),
-	}
-
-	h.routes = append(h.routes,
-		route{
-			"query", // Query serving route.
-			"GET", "/query", true, true, h.serveQuery,
-		},
-		route{
-			"write", // Data-ingest route.
-			"OPTIONS", "/write", true, true, h.serveOptions,
-		},
-		route{
-			"write", // Data-ingest route.
-			"POST", "/write", true, true, h.serveWrite,
-		},
+// NewClusterHandler is the http handler for cluster communcation endpoints
+func NewClusterHandler(s *influxdb.Server, requireAuthentication bool, version string) *Handler {
+	h := newHandler(s, requireAuthentication, version)
+	h.SetRoutes([]route{
 		route{ // List data nodes
 			"data_nodes_index",
 			"GET", "/data_nodes", true, false, h.serveDataNodes,
@@ -93,6 +76,38 @@ func NewHandler(s *influxdb.Server, requireAuthentication bool, version string) 
 			"metastore",
 			"GET", "/metastore", false, false, h.serveMetastore,
 		},
+		route{ // Tell data node to run CQs that should be run
+			"process_continuous_queries",
+			"POST", "/process_continuous_queries", false, false, h.serveProcessContinuousQueries,
+		},
+		route{
+			"index", // Index.
+			"GET", "/", true, true, h.serveIndex,
+		},
+		route{
+			"wait", // Wait.
+			"GET", "/wait/:index", true, true, h.serveWait,
+		},
+	})
+	return h
+}
+
+// NewAPIHandler is the http handler for api endpoints
+func NewAPIHandler(s *influxdb.Server, requireAuthentication bool, version string) *Handler {
+	h := newHandler(s, requireAuthentication, version)
+	h.SetRoutes([]route{
+		route{
+			"query", // Query serving route.
+			"GET", "/query", true, true, h.serveQuery,
+		},
+		route{
+			"write", // Data-ingest route.
+			"OPTIONS", "/write", true, true, h.serveOptions,
+		},
+		route{
+			"write", // Data-ingest route.
+			"POST", "/write", true, true, h.serveWrite,
+		},
 		route{ // Status
 			"status",
 			"GET", "/status", true, true, h.serveStatus,
@@ -105,30 +120,33 @@ func NewHandler(s *influxdb.Server, requireAuthentication bool, version string) 
 			"ping-head",
 			"HEAD", "/ping", true, true, h.servePing,
 		},
-		route{ // Tell data node to run CQs that should be run
-			"process_continuous_queries",
-			"POST", "/process_continuous_queries", false, false, h.serveProcessContinuousQueries,
-		},
-		route{
-			"wait", // Wait.
-			"GET", "/wait/:index", true, true, h.serveWait,
-		},
-		route{
-			"index", // Index.
-			"GET", "/", true, true, h.serveIndex,
-		},
 		route{
 			"dump", // export all points in the given db.
 			"GET", "/dump", true, true, h.serveDump,
-		},
-	)
+		}})
+	return h
+}
+
+// newHandler returns a new instance of Handler.
+func newHandler(s *influxdb.Server, requireAuthentication bool, version string) *Handler {
+	return &Handler{
+		server: s,
+		mux:    pat.New(),
+		requireAuthentication: requireAuthentication,
+		Logger:                log.New(os.Stderr, "[http] ", log.LstdFlags),
+		version:               version,
+	}
+}
+
+func (h *Handler) SetRoutes(routes []route) {
+	h.routes = routes
 
 	for _, r := range h.routes {
 		var handler http.Handler
 
 		// If it's a handler func that requires authorization, wrap it in authorization
 		if hf, ok := r.handlerFunc.(func(http.ResponseWriter, *http.Request, *influxdb.User)); ok {
-			handler = authenticate(hf, h, requireAuthentication)
+			handler = authenticate(hf, h, h.requireAuthentication)
 		}
 		// This is a normal handler signature and does not require authorization
 		if hf, ok := r.handlerFunc.(func(http.ResponseWriter, *http.Request)); ok {
@@ -138,7 +156,7 @@ func NewHandler(s *influxdb.Server, requireAuthentication bool, version string) 
 		if r.gzipped {
 			handler = gzipFilter(handler)
 		}
-		handler = versionHeader(handler, version)
+		handler = versionHeader(handler, h.version)
 		handler = cors(handler)
 		handler = requestID(handler)
 		if r.log {
@@ -148,8 +166,6 @@ func NewHandler(s *influxdb.Server, requireAuthentication bool, version string) 
 
 		h.mux.Add(r.method, r.pattern, handler)
 	}
-
-	return h
 }
 
 // ServeHTTP responds to HTTP request to the handler.
