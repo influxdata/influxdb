@@ -71,4 +71,7 @@ var (
 
 	// ErrMessageDataRequired is returned when publishing a message without data.
 	ErrMessageDataRequired = errors.New("message data required")
+
+	// ErrChecksum is returned when decoding a message with corrupt data.
+	ErrChecksum = errors.New("checksum error")
 )

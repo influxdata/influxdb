@@ -336,7 +336,7 @@ func (b *RaftFSMBroker) WriteTo(w io.Writer) (n int64, err error)  { return 0, n
 func (b *RaftFSMBroker) ReadFrom(r io.Reader) (n int64, err error) { return 0, nil }
 
 // Ensure a topic can recover if it has a partial message.
-func TestTopic_Recover(t *testing.T) {
+func TestTopic_Recover_UnexpectedEOF(t *testing.T) {
 	topic := OpenTopic()
 	defer topic.Close()
 
@@ -379,6 +379,43 @@ func TestTopic_Recover(t *testing.T) {
 		t.Fatalf("unexpected message(2): %#v", a[2])
 	}
 
+}
+
+// Ensure a topic can recover if it has a corrupt message.
+func TestTopic_Recover_Checksum(t *testing.T) {
+	topic := OpenTopic()
+	defer topic.Close()
+
+	// Write a message.
+	if err := topic.WriteMessage(&messaging.Message{Index: 1, Data: make([]byte, 10)}); err != nil {
+		t.Fatal(err)
+	} else if err = topic.WriteMessage(&messaging.Message{Index: 2, Data: make([]byte, 10)}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Close topic and change a few bytes.
+	topic.Topic.Close()
+	f, err := os.OpenFile(filepath.Join(topic.Path(), "1"), os.O_RDWR, 0666)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.WriteAt([]byte{100}, (2*(messaging.MessageChecksumSize+messaging.MessageHeaderSize))+15); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+
+	// Reopen topic.
+	if err := topic.Open(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Second message should be truncated.
+	a := MustDecodeAllMessages(messaging.NewTopicReader(topic.Path(), 0, false))
+	if len(a) != 1 {
+		t.Fatalf("unexpected message count: %d", len(a))
+	} else if !reflect.DeepEqual(a[0], &messaging.Message{Index: 1, Data: make([]byte, 10)}) {
+		t.Fatalf("unexpected message(0): %#v", a[0])
+	}
 }
 
 // Topic is a wrapper for messaging.Topic that creates the topic in a temporary location.
