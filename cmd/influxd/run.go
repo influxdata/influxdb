@@ -314,7 +314,6 @@ func (cmd *RunCommand) Open(config *Config, join string) (*messaging.Broker, *in
 
 	// unless disabled, start the loop to report anonymous usage stats every 24h
 	if !cmd.config.ReportingDisabled {
-
 		if cmd.config.Broker.Enabled && cmd.config.Data.Enabled {
 			// Make sure we have a config object b4 we try to use it.
 			if clusterID := cmd.node.broker.Broker.ClusterID(); clusterID != 0 {
@@ -398,7 +397,7 @@ func (cmd *RunCommand) openBroker(brokerURLs []url.URL) {
 	}
 	log.Printf("broker opened at %s", path)
 
-	// Attach the broker as the f	inite state machine of the raft log.
+	// Attach the broker as the finite state machine of the raft log.
 	l.FSM = &messaging.RaftFSM{Broker: b}
 
 	// Open raft log inside broker directory.

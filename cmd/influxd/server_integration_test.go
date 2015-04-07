@@ -1875,7 +1875,6 @@ func TestSeparateBrokerDataNode(t *testing.T) {
 }
 
 func TestSeparateBrokerTwoDataNodes(t *testing.T) {
-
 	testName := "TestSeparateBrokerTwoDataNodes"
 	if testing.Short() {
 		t.Skip("Skipping", testName)

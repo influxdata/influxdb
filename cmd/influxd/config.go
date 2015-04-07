@@ -98,7 +98,8 @@ type Broker struct {
 	Timeout Duration `toml:"election-timeout"`
 }
 
-// Snapshot represents the configuration for a snapshot service
+// Snapshot represents the configuration for a snapshot service. Snapshot configuration
+// is only valid for data nodes.
 type Snapshot struct {
 	Enabled     bool   `toml:"enabled"`
 	BindAddress string `toml:"bind-address"`

@@ -667,10 +667,10 @@ func (s *Server) Join(u *url.URL, joinURL *url.URL) error {
 	var resp *http.Response
 	var err error
 
-	// When POSTing the to the join endoinpoint, we are manually following redirects
+	// When POSTing the to the join endpoint, we are manually following redirects
 	// and not relying on the Go http client redirect policy. The Go http client will convert
 	// POSTs to GETSs when following redirects which is not what we want when joining.
-	// (i.e. we want to join a node, not list the nodes) If we recieve a redirect response,
+	// (i.e. we want to join a node, not list the nodes) If we receive a redirect response,
 	// the Location header is where we should resend the POST.  We also need to re-encode
 	// body since the buf was already read.
 	for {
