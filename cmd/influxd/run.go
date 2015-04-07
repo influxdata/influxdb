@@ -114,11 +114,27 @@ func (cmd *RunCommand) Run(args ...string) error {
 		cmd.Logger.Println("No config provided, using default settings")
 	}
 
+	cmd.CheckConfig()
 	cmd.Open(cmd.config, join)
 
 	// Wait indefinitely.
 	<-(chan struct{})(nil)
 	return nil
+}
+
+// CheckConfig validates the configuration
+func (cmd *RunCommand) CheckConfig() {
+	if !(cmd.config.Data.Enabled || cmd.config.Broker.Enabled) {
+		cmd.Logger.Fatal("Node must be configured as a broker node, data node, or as both.  Run `influxd config` to generate a valid configuration.")
+	}
+
+	if cmd.config.Broker.Enabled && cmd.config.Broker.Dir == "" {
+		cmd.Logger.Fatal("Broker.Dir must be specified.  Run `influxd config` to generate a valid configuration.")
+	}
+
+	if cmd.config.Data.Enabled && cmd.config.Data.Dir == "" {
+		cmd.Logger.Fatal("Data.Dir must be specified.  Run `influxd config` to generate a valid configuration.")
+	}
 }
 
 func (cmd *RunCommand) Open(config *Config, join string) (*messaging.Broker, *influxdb.Server, *raft.Log) {
