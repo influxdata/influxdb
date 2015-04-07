@@ -230,6 +230,8 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *influ
 					w.WriteHeader(http.StatusUnauthorized)
 				} else if isMeasurementNotFoundError(r.Err) {
 					w.WriteHeader(http.StatusOK)
+				} else if isTagNotFoundError(r.Err) {
+					w.WriteHeader(http.StatusOK)
 				} else if isFieldNotFoundError(r.Err) {
 					w.WriteHeader(http.StatusOK)
 				} else {
@@ -711,6 +713,10 @@ func isAuthorizationError(err error) bool {
 func isMeasurementNotFoundError(err error) bool {
 	s := err.Error()
 	return strings.HasPrefix(s, "measurement") && strings.HasSuffix(s, "not found") || strings.Contains(s, "measurement not found")
+}
+
+func isTagNotFoundError(err error) bool {
+	return (strings.HasPrefix(err.Error(), "unknown field or tag name"))
 }
 
 func isFieldNotFoundError(err error) bool {
