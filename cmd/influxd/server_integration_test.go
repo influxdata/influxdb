@@ -1769,7 +1769,7 @@ func Test_ServerOpenTSDBIntegration(t *testing.T) {
 	defer nodes.Close()
 
 	createDatabase(t, testName, nodes, "opentsdb")
-	createRetentionPolicy(t, testName, nodes, "opentsdb", "raw")
+	createRetentionPolicy(t, testName, nodes, "opentsdb", "raw", len(nodes))
 
 	// Connect to the graphite endpoint we just spun up
 	conn, err := net.Dial("tcp", o.ListenAddress(c.BindAddress))
@@ -1820,7 +1820,7 @@ func Test_ServerOpenTSDBIntegration_WithTags(t *testing.T) {
 	defer nodes.Close()
 
 	createDatabase(t, testName, nodes, "opentsdb")
-	createRetentionPolicy(t, testName, nodes, "opentsdb", "raw")
+	createRetentionPolicy(t, testName, nodes, "opentsdb", "raw", len(nodes))
 
 	// Connect to the graphite endpoint we just spun up
 	conn, err := net.Dial("tcp", o.ListenAddress(c.BindAddress))
@@ -1874,7 +1874,7 @@ func Test_ServerOpenTSDBIntegration_BadData(t *testing.T) {
 	defer nodes.Close()
 
 	createDatabase(t, testName, nodes, "opentsdb")
-	createRetentionPolicy(t, testName, nodes, "opentsdb", "raw")
+	createRetentionPolicy(t, testName, nodes, "opentsdb", "raw", len(nodes))
 
 	// Connect to the graphite endpoint we just spun up
 	conn, err := net.Dial("tcp", o.ListenAddress(c.BindAddress))
