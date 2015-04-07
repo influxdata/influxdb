@@ -42,14 +42,14 @@ func NewRunCommand() *RunCommand {
 }
 
 type Node struct {
-	broker   *influxdb.Broker
-	dataNode *influxdb.Server
+	Broker   *influxdb.Broker
+	DataNode *influxdb.Server
 	raftLog  *raft.Log
 }
 
 func (s *Node) Close() {
-	if s.broker != nil {
-		if err := s.broker.Close(); err != nil {
+	if s.Broker != nil {
+		if err := s.Broker.Close(); err != nil {
 			log.Fatalf("error closing broker: %s", err)
 		}
 	}
@@ -60,8 +60,8 @@ func (s *Node) Close() {
 		}
 	}
 
-	if s.dataNode != nil {
-		if err := s.dataNode.Close(); err != nil {
+	if s.DataNode != nil {
+		if err := s.DataNode.Close(); err != nil {
 			log.Fatalf("error data broker: %s", err)
 		}
 	}
@@ -144,8 +144,7 @@ func (cmd *RunCommand) CheckConfig() {
 	}
 }
 
-func (cmd *RunCommand) Open(config *Config, join string) (*messaging.Broker, *influxdb.Server, *raft.Log) {
-
+func (cmd *RunCommand) Open(config *Config, join string) *Node {
 	if config != nil {
 		cmd.config = config
 	}
@@ -160,13 +159,13 @@ func (cmd *RunCommand) Open(config *Config, join string) (*messaging.Broker, *in
 		cmd.openBroker(joinURLs)
 		// If were running as a broker locally, always connect to it since it must
 		// be ready before we can start the data node.
-		joinURLs = []url.URL{cmd.node.broker.URL()}
+		joinURLs = []url.URL{cmd.node.Broker.URL()}
 	}
 
 	// Start the broker handler.
 	h := &Handler{
 		Config: config,
-		Broker: cmd.node.broker,
+		Broker: cmd.node.Broker,
 		Log:    cmd.node.raftLog,
 	}
 
@@ -335,7 +334,7 @@ func (cmd *RunCommand) Open(config *Config, join string) (*messaging.Broker, *in
 	if !cmd.config.ReportingDisabled {
 		if cmd.config.Broker.Enabled && cmd.config.Data.Enabled {
 			// Make sure we have a config object b4 we try to use it.
-			if clusterID := cmd.node.broker.Broker.ClusterID(); clusterID != 0 {
+			if clusterID := cmd.node.Broker.Broker.ClusterID(); clusterID != 0 {
 				go s.StartReportingLoop(clusterID)
 			}
 		} else {
@@ -343,19 +342,16 @@ func (cmd *RunCommand) Open(config *Config, join string) (*messaging.Broker, *in
 		}
 	}
 
-	var b *messaging.Broker
-	if cmd.node.broker != nil {
-		b = cmd.node.broker.Broker
-
+	if cmd.node.Broker != nil {
 		// have it occasionally tell a data node in the cluster to run continuous queries
 		if cmd.config.ContinuousQuery.Disabled {
 			log.Printf("Not running continuous queries. [continuous_queries].disabled is set to true.")
 		} else {
-			cmd.node.broker.RunContinuousQueryLoop()
+			cmd.node.Broker.RunContinuousQueryLoop()
 		}
 	}
 
-	return b, s, cmd.node.raftLog
+	return cmd.node
 }
 
 func (cmd *RunCommand) Close() {
@@ -409,7 +405,7 @@ func (cmd *RunCommand) openBroker(brokerURLs []url.URL) {
 
 	// Create broker
 	b := influxdb.NewBroker()
-	cmd.node.broker = b
+	cmd.node.Broker = b
 
 	// Create raft log.
 	l := raft.NewLog()
@@ -494,7 +490,7 @@ func (cmd *RunCommand) openServer(joinURLs []url.URL) *influxdb.Server {
 	s.ComputeNoMoreThan = time.Duration(cmd.config.ContinuousQuery.ComputeNoMoreThan)
 	s.Version = version
 	s.CommitHash = commit
-	cmd.node.dataNode = s
+	cmd.node.DataNode = s
 
 	// Open server with data directory and broker client.
 	if err := s.Open(cmd.config.Data.Dir, c); err != nil {

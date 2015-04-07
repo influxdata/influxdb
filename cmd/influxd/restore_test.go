@@ -42,12 +42,14 @@ func TestRestoreCommand(t *testing.T) {
 
 	// Start server.
 	cmd := main.NewRunCommand()
-	b, s, l := cmd.Open(&config, "")
-	if b == nil {
+	node := cmd.Open(&config, "")
+	if node.Broker == nil {
 		t.Fatal("cannot run broker")
-	} else if s == nil {
+	} else if node.DataNode == nil {
 		t.Fatal("cannot run server")
 	}
+	b := node.Broker
+	s := node.DataNode
 
 	// Create data.
 	if err := s.CreateDatabase("db"); err != nil {
@@ -75,9 +77,7 @@ func TestRestoreCommand(t *testing.T) {
 	f.Close()
 
 	// Stop server.
-	l.Close()
-	s.Close()
-	b.Close()
+	node.Close()
 
 	// Remove data & broker directories.
 	if err := os.RemoveAll(path); err != nil {
@@ -94,12 +94,14 @@ func TestRestoreCommand(t *testing.T) {
 
 	// Restart server.
 	cmd = main.NewRunCommand()
-	b, s, l = cmd.Open(&config, "")
+	node = cmd.Open(&config, "")
 	if b == nil {
 		t.Fatal("cannot run broker")
 	} else if s == nil {
 		t.Fatal("cannot run server")
 	}
+	b = node.Broker
+	s = node.DataNode
 
 	// Write new data.
 	if err := s.CreateDatabase("newdb"); err != nil {
@@ -126,9 +128,7 @@ func TestRestoreCommand(t *testing.T) {
 	}
 
 	// Stop server.
-	l.Close()
-	s.Close()
-	b.Close()
+	node.Close()
 }
 
 // RestoreCommand is a test wrapper for main.RestoreCommand.
