@@ -439,11 +439,32 @@ func (h *Handler) serveDump(w http.ResponseWriter, r *http.Request, user *influx
 
 // serveWrite receives incoming series data and writes it to the database.
 func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *influxdb.User) {
+	var writeError = func(result influxdb.Result, statusCode int) {
+		w.Header().Add("content-type", "application/json")
+		w.WriteHeader(statusCode)
+		_ = json.NewEncoder(w).Encode(&result)
+		return
+	}
+
+	// Check to see if we have a gzip'd post
+	var body io.ReadCloser
+	if r.Header.Get("Content-encoding") == "gzip" {
+		b, err := gzip.NewReader(r.Body)
+		if err != nil {
+			writeError(influxdb.Result{Err: err}, http.StatusBadRequest)
+			return
+		}
+		body = b
+		defer r.Body.Close()
+	} else {
+		body = r.Body
+	}
+
 	var bp client.BatchPoints
 	var dec *json.Decoder
 
 	if h.WriteTrace {
-		b, err := ioutil.ReadAll(r.Body)
+		b, err := ioutil.ReadAll(body)
 		if err != nil {
 			h.Logger.Print("write handler failed to read bytes from request body")
 		} else {
@@ -451,15 +472,8 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *influ
 		}
 		dec = json.NewDecoder(strings.NewReader(string(b)))
 	} else {
-		dec = json.NewDecoder(r.Body)
-		defer r.Body.Close()
-	}
-
-	var writeError = func(result influxdb.Result, statusCode int) {
-		w.Header().Add("content-type", "application/json")
-		w.WriteHeader(statusCode)
-		_ = json.NewEncoder(w).Encode(&result)
-		return
+		dec = json.NewDecoder(body)
+		defer body.Close()
 	}
 
 	if err := dec.Decode(&bp); err != nil {
@@ -501,6 +515,7 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *influ
 		writeError(influxdb.Result{Err: err}, http.StatusInternalServerError)
 		return
 	} else {
+		w.WriteHeader(http.StatusOK)
 		w.Header().Add("X-InfluxDB-Index", fmt.Sprintf("%d", index))
 	}
 }
