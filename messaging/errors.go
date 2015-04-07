@@ -27,10 +27,6 @@ var (
 	// ErrReplicaIDRequired is returned when creating a replica without an id.
 	ErrReplicaIDRequired = errors.New("replica id required")
 
-	// errReplicaUnavailable is returned when writing bytes to a replica when
-	// there is no writer attached to the replica.
-	errReplicaUnavailable = errors.New("replica unavailable")
-
 	// ErrClientOpen is returned when opening an already open client.
 	ErrClientOpen = errors.New("client already open")
 
