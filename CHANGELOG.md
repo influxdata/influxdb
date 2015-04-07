@@ -5,6 +5,9 @@
 - [#2180](https://github.com/influxdb/influxdb/pull/2180): Allow http write handler to decode gzipped body
 - [#2175](https://github.com/influxdb/influxdb/pull/2175): Separate broker and data nodes
 
+### Bugfixes
+- [#2181](https://github.com/influxdb/influxdb/pull/2181): Fix panic on "SHOW DIAGNOSTICS".
+
 ## v0.9.0-rc20 [2015-04-04]
 
 ### Features

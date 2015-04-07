@@ -2146,6 +2146,8 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User, ch
 				res = s.executeShowFieldKeysStatement(stmt, database, user)
 			case *influxql.ShowStatsStatement:
 				res = s.executeShowStatsStatement(stmt, user)
+			case *influxql.ShowDiagnosticsStatement:
+				res = s.executeShowDiagnosticsStatement(stmt, user)
 			case *influxql.GrantStatement:
 				res = s.executeGrantStatement(stmt, user)
 			case *influxql.RevokeStatement:
