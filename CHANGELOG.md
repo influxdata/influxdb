@@ -4,6 +4,7 @@
 - [#870](https://github.com/influxdb/influxdb/pull/870): Add support for OpenTSDB telnet input protocol. Thanks @tcolgate
 - [#2180](https://github.com/influxdb/influxdb/pull/2180): Allow http write handler to decode gzipped body
 - [#2175](https://github.com/influxdb/influxdb/pull/2175): Separate broker and data nodes
+- [#2158](https://github.com/influxdb/influxdb/pull/2158): Allow user password to be changed. Thanks @n1tr0g
 
 ### Bugfixes
 - [#2181](https://github.com/influxdb/influxdb/pull/2181): Fix panic on "SHOW DIAGNOSTICS".
