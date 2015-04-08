@@ -172,6 +172,9 @@ func (s *Server) metaPath() string {
 
 // Open initializes the server from a given path.
 func (s *Server) Open(path string, client MessagingClient) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	// Ensure the server isn't already open and there's a path provided.
 	if s.opened() {
 		return ErrServerOpen
@@ -224,7 +227,7 @@ func (s *Server) Open(path string, client MessagingClient) error {
 	return nil
 }
 
-// opened returns true when the server is open.
+// opened returns true when the server is open. Must be called under lock.
 func (s *Server) opened() bool { return s.path != "" }
 
 // Close shuts down the server.
