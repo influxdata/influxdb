@@ -495,12 +495,12 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *influ
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-		writeError(influxdb.Result{Err: err}, http.StatusInternalServerError)
+		writeError(influxdb.Result{Err: err}, http.StatusBadRequest)
 		return
 	}
 
 	if bp.Database == "" {
-		writeError(influxdb.Result{Err: fmt.Errorf("database is required")}, http.StatusInternalServerError)
+		writeError(influxdb.Result{Err: fmt.Errorf("database is required")}, http.StatusBadRequest)
 		return
 	}
 
@@ -526,7 +526,11 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *influ
 	}
 
 	if index, err := h.server.WriteSeries(bp.Database, bp.RetentionPolicy, points); err != nil {
-		writeError(influxdb.Result{Err: err}, http.StatusInternalServerError)
+		if influxdb.IsClientError(err) {
+			writeError(influxdb.Result{Err: err}, http.StatusBadRequest)
+		} else {
+			writeError(influxdb.Result{Err: err}, http.StatusInternalServerError)
+		}
 		return
 	} else {
 		w.WriteHeader(http.StatusOK)
