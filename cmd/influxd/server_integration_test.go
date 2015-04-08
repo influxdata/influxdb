@@ -1306,6 +1306,7 @@ func Test3NodeServer(t *testing.T) {
 	}()
 
 	nodes := createCombinedNodeCluster(t, testName, dir, 3, 8190, nil)
+	defer nodes.Close()
 
 	runTestsData(t, testName, nodes, "mydb", "myrp")
 	runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp")
@@ -1325,6 +1326,8 @@ func TestClientLibrary(t *testing.T) {
 	now := time.Now().UTC()
 
 	nodes := createCombinedNodeCluster(t, testName, dir, 1, 8290, nil)
+	defer nodes.Close()
+
 	type write struct {
 		bp       client.BatchPoints
 		expected string
@@ -1464,6 +1467,7 @@ func Test_ServerSingleGraphiteIntegration(t *testing.T) {
 
 	t.Logf("Graphite Connection String: %s\n", g.ConnectionString(c.BindAddress))
 	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, basePort, c)
+	defer nodes.Close()
 
 	createDatabase(t, testName, nodes, "graphite")
 	createRetentionPolicy(t, testName, nodes, "graphite", "raw")
@@ -1515,6 +1519,7 @@ func Test_ServerSingleGraphiteIntegration_FractionalTime(t *testing.T) {
 
 	t.Logf("Graphite Connection String: %s\n", g.ConnectionString(c.BindAddress))
 	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, basePort, c)
+	defer nodes.Close()
 
 	createDatabase(t, testName, nodes, "graphite")
 	createRetentionPolicy(t, testName, nodes, "graphite", "raw")
@@ -1567,6 +1572,7 @@ func Test_ServerSingleGraphiteIntegration_ZeroDataPoint(t *testing.T) {
 
 	t.Logf("Graphite Connection String: %s\n", g.ConnectionString(c.BindAddress))
 	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, basePort, c)
+	defer nodes.Close()
 
 	createDatabase(t, testName, nodes, "graphite")
 	createRetentionPolicy(t, testName, nodes, "graphite", "raw")
@@ -1617,6 +1623,7 @@ func Test_ServerSingleGraphiteIntegration_NoDatabase(t *testing.T) {
 	c.Logging.WriteTracing = true
 	t.Logf("Graphite Connection String: %s\n", g.ConnectionString(c.BindAddress))
 	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, basePort, c)
+	defer nodes.Close()
 
 	// Connect to the graphite endpoint we just spun up
 	conn, err := net.Dial("tcp", g.ConnectionString(c.BindAddress))
@@ -1678,6 +1685,7 @@ func Test_ServerOpenTSDBIntegration(t *testing.T) {
 
 	t.Logf("OpenTSDB Connection String: %s\n", o.ListenAddress(c.BindAddress))
 	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, basePort, c)
+	defer nodes.Close()
 
 	createDatabase(t, testName, nodes, "opentsdb")
 	createRetentionPolicy(t, testName, nodes, "opentsdb", "raw")
@@ -1729,6 +1737,7 @@ func Test_ServerOpenTSDBIntegration_WithTags(t *testing.T) {
 
 	t.Logf("OpenTSDB Connection String: %s\n", o.ListenAddress(c.BindAddress))
 	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, basePort, c)
+	defer nodes.Close()
 
 	createDatabase(t, testName, nodes, "opentsdb")
 	createRetentionPolicy(t, testName, nodes, "opentsdb", "raw")
@@ -1783,6 +1792,7 @@ func Test_ServerOpenTSDBIntegration_BadData(t *testing.T) {
 
 	t.Logf("OpenTSDB Connection String: %s\n", o.ListenAddress(c.BindAddress))
 	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, basePort, c)
+	defer nodes.Close()
 
 	createDatabase(t, testName, nodes, "opentsdb")
 	createRetentionPolicy(t, testName, nodes, "opentsdb", "raw")
