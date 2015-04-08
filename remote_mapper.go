@@ -142,7 +142,7 @@ func (m *RemoteMapper) CallExpr() (*influxql.Call, error) {
 	call, ok := c.(*influxql.Call)
 
 	if !ok {
-		return nil, errors.New("Could't marshal aggregate call")
+		return nil, errors.New("unable to marshal aggregate call")
 	}
 	return call, nil
 }
