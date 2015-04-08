@@ -158,6 +158,9 @@ func (cmd *RunCommand) Open(config *Config, join string) (*messaging.Broker, *in
 	// Open broker & raft log, initialize or join as necessary.
 	if cmd.config.Broker.Enabled {
 		cmd.openBroker(joinURLs)
+		// If were running as a broker locally, always connect to it since it must
+		// be ready before we can start the data node.
+		joinURLs = []url.URL{cmd.node.broker.URL()}
 	}
 
 	// Start the broker handler.
@@ -471,12 +474,7 @@ func (cmd *RunCommand) openServer(joinURLs []url.URL) *influxdb.Server {
 
 	// Create messaging client to the brokers.
 	c := influxdb.NewMessagingClient(cmd.config.ClusterURL())
-	// If join URLs were passed in then use them to override the client's URLs.
-	if len(joinURLs) > 0 {
-		c.SetURLs(joinURLs)
-	} else if cmd.node.broker != nil {
-		c.SetURLs([]url.URL{cmd.node.broker.URL()})
-	}
+	c.SetURLs(joinURLs)
 
 	if err := c.Open(filepath.Join(cmd.config.Data.Dir, messagingClientFile)); err != nil {
 		log.Fatalf("messaging client error: %s", err)
