@@ -703,7 +703,7 @@ func (h *Handler) serveRunMapper(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// create a local mapper and chunk out the reulsts to the other server
+	// create a local mapper and chunk out the results to the other server
 	lm, err := h.server.StartLocalMapper(&m)
 	if err != nil {
 		mapError(w, err)
