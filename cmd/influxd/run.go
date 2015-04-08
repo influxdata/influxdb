@@ -114,8 +114,15 @@ func (cmd *RunCommand) Run(args ...string) error {
 		cmd.Logger.Println("No config provided, using default settings")
 	}
 
+	// Use the config JoinURLs by default
+	joinURLs := cmd.config.Initialization.JoinURLs
+
+	// If a -join flag was passed, these should override the config
+	if join != "" {
+		joinURLs = join
+	}
 	cmd.CheckConfig()
-	cmd.Open(cmd.config, join)
+	cmd.Open(cmd.config, joinURLs)
 
 	// Wait indefinitely.
 	<-(chan struct{})(nil)

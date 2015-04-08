@@ -39,6 +39,11 @@ write-interval = "1m"
 enabled = true
 port = 8083
 
+# Controls certain parameters that only take effect until an initial successful
+# start-up has occurred.
+[initialization]
+join-urls = "http://127.0.0.1:8086"
+
 # Configure the http api
 [api]
 bind-address = "10.1.2.3"
@@ -150,6 +155,10 @@ func TestParseConfig(t *testing.T) {
 
 	if exp := 8086; c.Port != exp {
 		t.Fatalf("port mismatch. got %v, exp %v", c.Port, exp)
+	}
+
+	if c.Initialization.JoinURLs != "http://127.0.0.1:8086" {
+		t.Fatalf("JoinURLs mistmatch: %v", c.Initialization.JoinURLs)
 	}
 
 	if !c.Authentication.Enabled {
