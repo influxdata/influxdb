@@ -73,7 +73,7 @@ func (h *Handler) serveMessaging(w http.ResponseWriter, r *http.Request) {
 // serveMetadata responds to broker requests
 func (h *Handler) serveMetadata(w http.ResponseWriter, r *http.Request) {
 	if h.Broker == nil && h.Server == nil {
-		log.Println("no broker or server configured to handle messaging endpoints")
+		log.Println("no broker or server configured to handle metadata endpoints")
 		http.Error(w, "server unavailable", http.StatusServiceUnavailable)
 		return
 	}
@@ -98,7 +98,7 @@ func (h *Handler) serveMetadata(w http.ResponseWriter, r *http.Request) {
 // serveRaft responds to raft requests.
 func (h *Handler) serveRaft(w http.ResponseWriter, r *http.Request) {
 	if h.Log == nil && h.Server == nil {
-		log.Println("no broker or server configured to handle messaging endpoints")
+		log.Println("no broker or server configured to handle raft endpoints")
 		http.Error(w, "server unavailable", http.StatusServiceUnavailable)
 		return
 	}
@@ -116,7 +116,7 @@ func (h *Handler) serveRaft(w http.ResponseWriter, r *http.Request) {
 // serveData responds to data requests
 func (h *Handler) serveData(w http.ResponseWriter, r *http.Request) {
 	if h.Broker == nil && h.Server == nil {
-		log.Println("no broker or server configured to handle messaging endpoints")
+		log.Println("no broker or server configured to handle data endpoints")
 		http.Error(w, "server unavailable", http.StatusServiceUnavailable)
 		return
 	}
