@@ -51,9 +51,7 @@ func NewBroker() *Broker {
 
 // RunContinuousQueryLoop starts running continuous queries on a background goroutine.
 func (b *Broker) RunContinuousQueryLoop() {
-	log.Println("and...")
 	b.done = make(chan struct{})
-	log.Println("boom!")
 	go b.continuousQueryLoop(b.done)
 }
 
