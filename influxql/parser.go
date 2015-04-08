@@ -1446,7 +1446,7 @@ func (p *Parser) parseFill() (FillOption, interface{}, error) {
 		p.unscan()
 		return NullFill, nil, nil
 	} else {
-		if lit.Name != "fill" {
+		if strings.ToLower(lit.Name) != "fill" {
 			p.unscan()
 			return NullFill, nil, nil
 		}
