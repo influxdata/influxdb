@@ -433,25 +433,23 @@ func (cmd *RunCommand) openBroker(brokerURLs []url.URL) {
 	}
 
 	index, _ := l.LastLogIndexTerm()
-
-	// If we have join URLs and log is not initialized, attempt to join an existing cluster
-	if len(brokerURLs) > 0 {
-		if index == 0 {
+	// Checks to see if the raft index is 0.  If it's 0, it might be the first
+	// node in the cluster and must initialize or join
+	if index == 0 {
+		// If we have join URLs, then attemp to join the cluster
+		if len(brokerURLs) > 0 {
 			joinLog(l, brokerURLs)
 			return
 		}
-		log.Printf("Node previously joined to a cluster. Ignoring -join urls flag")
-	}
 
-	// Checks to see if the raft index is 0.  If it's 0, it's the first
-	// node in the cluster and must initialize
-	if index == 0 {
 		if err := l.Initialize(); err != nil {
 			log.Fatalf("initialize raft log: %s", err)
 		}
+
 		u := b.Broker.URL()
 		log.Printf("initialized broker: %s\n", (&u).String())
-		return
+	} else {
+		log.Printf("broker already member of cluster.  Using existing state and ignoring join URLs")
 	}
 }
 
@@ -460,9 +458,9 @@ func joinLog(l *raft.Log, brokerURLs []url.URL) {
 	// Attempts to join each server until successful.
 	for _, u := range brokerURLs {
 		if err := l.Join(u); err != nil {
-			log.Printf("join: failed to connect to raft cluster: %s: %s", u, err)
+			log.Printf("join: failed to connect to raft cluster: %s: %s", (&u).String(), err)
 		} else {
-			log.Printf("join: connected raft log to %s", u)
+			log.Printf("join: connected raft log to %s", (&u).String())
 			return
 		}
 	}
@@ -500,9 +498,9 @@ func (cmd *RunCommand) openServer(joinURLs []url.URL) *influxdb.Server {
 
 	// Open server with data directory and broker client.
 	if err := s.Open(cmd.config.Data.Dir, c); err != nil {
-		log.Fatalf("failed to open data server: %v", err.Error())
+		log.Fatalf("failed to open data node: %v", err.Error())
 	}
-	log.Printf("data server opened at %s", cmd.config.Data.Dir)
+	log.Printf("data node opened at %s", cmd.config.Data.Dir)
 
 	dataNodeIndex := s.Index()
 	if dataNodeIndex == 0 {
@@ -510,17 +508,16 @@ func (cmd *RunCommand) openServer(joinURLs []url.URL) *influxdb.Server {
 			joinServer(s, cmd.config.ClusterURL(), joinURLs)
 			return s
 		}
-		log.Printf("Node previously joined to a cluster. Ignoring -join urls flag")
 
-	}
-
-	if dataNodeIndex == 0 {
 		if err := s.Initialize(cmd.config.ClusterURL()); err != nil {
 			log.Fatalf("server initialization error: %s", err)
 		}
+
 		u := cmd.config.ClusterURL()
 		log.Printf("initialized data node: %s\n", (&u).String())
 		return s
+	} else {
+		log.Printf("data node already member of cluster. Using existing state and ignoring join URLs")
 	}
 
 	return s
@@ -541,7 +538,7 @@ func joinServer(s *influxdb.Server, u url.URL, joinURLs []url.URL) {
 				log.Printf("initialized data node: %s\n", (&u).String())
 				return
 			}
-			log.Printf("join: failed to connect data node: %s: %s", u, err)
+			log.Printf("join: failed to connect data node: %s: %s", (&u).String(), err)
 		} else {
 			log.Printf("join: connected data node to %s", u)
 			return
