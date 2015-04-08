@@ -88,12 +88,12 @@ func (b *Broker) runContinuousQueries() {
 			topic := b.Broker.Topic(BroadcastTopicID)
 			if topic == nil {
 				log.Println("broker cq: no topics currently available.")
-				return // don't have any nodes to try, give it up
+				return // don't have any topics to get data urls from, give it up
 			}
 			dataURLs := topic.DataURLs()
 			if len(dataURLs) == 0 {
 				log.Println("broker cq: no data nodes currently available.")
-				return // don't have any nodes to try, give it up
+				return // don't have any data urls to try, give it up
 			}
 			next = next % len(dataURLs)
 			u := dataURLs[next]
