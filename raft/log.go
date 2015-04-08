@@ -769,7 +769,8 @@ func (l *Log) Join(u url.URL) error {
 	// Change to a follower state.
 	l.Logger.Println("log join: entered 'follower' state for cluster at", u, " with log ID", l.id)
 
-	return nil
+	// Wait for anything to be applied.
+	return l.Wait(1)
 }
 
 // Leave removes the log from cluster membership and removes the log data.
