@@ -11,6 +11,7 @@
 - [#2170](https://github.com/influxdb/influxdb/pull/2170): Make sure queries on missing tags return 200 status.
 - [#2197](https://github.com/influxdb/influxdb/pull/2197): Lock server during Open().
 - [#2200](https://github.com/influxdb/influxdb/pull/2200): Re-enable Continuous Queries.
+- [#2203](https://github.com/influxdb/influxdb/pull/2203): Fix race condition on continuous queries.
 
 ## v0.9.0-rc20 [2015-04-04]
 
