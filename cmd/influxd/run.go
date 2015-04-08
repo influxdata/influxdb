@@ -173,13 +173,6 @@ func (cmd *RunCommand) Open(config *Config, join string) (*messaging.Broker, *in
 	}()
 	log.Printf("TCP server listening on %s", cmd.config.ClusterAddr())
 
-	// have it occasionally tell a data node in the cluster to run continuous queries
-	if cmd.config.ContinuousQuery.Disabled {
-		log.Printf("Not running continuous queries. [continuous_queries].disabled is set to true.")
-	} else if cmd.node.broker != nil {
-		cmd.node.broker.RunContinuousQueryLoop()
-	}
-
 	var s *influxdb.Server
 	// Open server, initialize or join as necessary.
 	if cmd.config.Data.Enabled {
@@ -343,7 +336,15 @@ func (cmd *RunCommand) Open(config *Config, join string) (*messaging.Broker, *in
 	var b *messaging.Broker
 	if cmd.node.broker != nil {
 		b = cmd.node.broker.Broker
+
+		// have it occasionally tell a data node in the cluster to run continuous queries
+		if cmd.config.ContinuousQuery.Disabled {
+			log.Printf("Not running continuous queries. [continuous_queries].disabled is set to true.")
+		} else {
+			cmd.node.broker.RunContinuousQueryLoop()
+		}
 	}
+
 	return b, s, cmd.node.raftLog
 }
 
