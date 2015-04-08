@@ -124,8 +124,15 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 	// initialize the times of the aggregate points
 	resultValues := make([][]interface{}, pointCountInResult)
 
-	// ensure that the start time for the results is on the start of the window
-	startTimeBucket := m.TMin / m.interval * m.interval
+	var startTimeBucket int64
+
+	// If we have a group by query, specify the start times using normalization.  If we have a different,
+	// aggregate query with no buckets, set the start time as the TMin called out.
+	if m.stmt.groupByInterval > 0 {
+		startTimeBucket = m.TMin / m.interval * m.interval
+	} else {
+		startTimeBucket = m.TMin
+	}
 
 	for i, _ := range resultValues {
 		var t int64
@@ -604,9 +611,14 @@ func (m *MapReduceJob) processAggregate(c *Call, reduceFunc ReduceFunc, resultVa
 		}
 	}
 
+	firstInterval := m.interval
+
 	// the first interval in a query with a group by may be smaller than the others. This happens when they have a
 	// where time > clause that is in the middle of the bucket that the group by time creates
-	firstInterval := (m.TMin/m.interval*m.interval + m.interval) - m.TMin
+
+	if !m.stmt.IsRawQuery && m.stmt.groupByInterval > 0 {
+		firstInterval = (m.TMin/m.interval*m.interval + m.interval) - m.TMin
+	}
 
 	// populate the result values for each interval of time
 	for i, _ := range resultValues {
