@@ -81,7 +81,7 @@ func (b *Broker) continuousQueryLoop(done chan struct{}) {
 func (b *Broker) runContinuousQueries() {
 	topic := b.Broker.Topic(BroadcastTopicID)
 	if topic == nil {
-		log.Println("broker cq: no topics currently available.")
+		log.Println("broker cq: no broadcast topic currently available.")
 		return // don't have any topics to get data urls from, give it up
 	}
 	dataURLs := topic.DataURLs()
