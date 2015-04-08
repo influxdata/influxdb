@@ -3808,7 +3808,7 @@ func (s *Server) runContinuousQuery(cq *ContinuousQuery) {
 		}
 
 		if err := s.runContinuousQueryAndWriteResult(cq); err != nil {
-			log.Printf("cq error: %s. running: %s\n", err.Error(), cq.cq.String())
+			log.Printf("cq error during recompute previous: %s. running: %s\n", err.Error(), cq.cq.String())
 		}
 
 		startTime = newStartTime
@@ -3838,6 +3838,15 @@ func (s *Server) runContinuousQueryAndWriteResult(cq *ContinuousQuery) error {
 		}
 
 		if len(points) > 0 {
+			for _, p := range points {
+				for _, v := range p.Fields {
+					if v == nil {
+						// If we have any nil values, we can't write the data
+						// This happens the CQ is created and running before we write data to the measurement
+						return nil
+					}
+				}
+			}
 			_, err = s.WriteSeries(cq.intoDB, cq.intoRP, points)
 			if err != nil {
 				log.Printf("[cq] err: %s", err)

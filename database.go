@@ -813,7 +813,7 @@ func (f *FieldCodec) EncodeFields(values map[string]interface{}) ([]byte, error)
 				buf[i+3] = byte(c)
 			}
 		default:
-			panic(fmt.Sprintf("unsupported value type: %T", v))
+			panic(fmt.Sprintf("unsupported value type during encode fields: %T", v))
 		}
 
 		// Always set the field ID as the leading byte.
@@ -868,7 +868,7 @@ func (f *FieldCodec) DecodeByID(targetID uint8, b []byte) (interface{}, error) {
 			// Move bytes forward.
 			b = b[size+3:]
 		default:
-			panic(fmt.Sprintf("unsupported value type: %T", field.Type))
+			panic(fmt.Sprintf("unsupported value type during decode by id: %T", field.Type))
 		}
 
 		if field.ID == targetID {
@@ -922,7 +922,7 @@ func (f *FieldCodec) DecodeFields(b []byte) (map[uint8]interface{}, error) {
 			// Move bytes forward.
 			b = b[size+3:]
 		default:
-			panic(fmt.Sprintf("unsupported value type: %T", f.fieldsByID[fieldID]))
+			panic(fmt.Sprintf("unsupported value type during decode fields: %T", f.fieldsByID[fieldID]))
 		}
 
 		values[fieldID] = value
