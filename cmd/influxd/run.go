@@ -176,7 +176,7 @@ func (cmd *RunCommand) Open(config *Config, join string) (*messaging.Broker, *in
 	// have it occasionally tell a data node in the cluster to run continuous queries
 	if cmd.config.ContinuousQuery.Disabled {
 		log.Printf("Not running continuous queries. [continuous_queries].disabled is set to true.")
-	} else {
+	} else if cmd.node.broker != nil {
 		cmd.node.broker.RunContinuousQueryLoop()
 	}
 

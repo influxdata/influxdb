@@ -1,6 +1,10 @@
 package influxdb
 
 import (
+	"fmt"
+	"log"
+	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/influxdb/influxdb/messaging"
@@ -27,7 +31,7 @@ type Broker struct {
 	done chan struct{}
 
 	// send CQ processing requests to the same data node
-	// currentCQProcessingNode *messaging.Replica // FIX(benbjohnson)
+	currentCQProcessingNode *url.URL
 
 	// variables to control when to trigger processing and when to timeout
 	TriggerInterval     time.Duration
@@ -47,13 +51,11 @@ func NewBroker() *Broker {
 
 // RunContinuousQueryLoop starts running continuous queries on a background goroutine.
 func (b *Broker) RunContinuousQueryLoop() {
-	// FIX(benbjohnson)
-	// b.done = make(chan struct{})
-	// go b.continuousQueryLoop(b.done)
+	log.Println("and...")
+	b.done = make(chan struct{})
+	log.Println("boom!")
+	go b.continuousQueryLoop(b.done)
 }
-
-/*
-
 
 // Close closes the broker.
 func (b *Broker) Close() error {
@@ -85,12 +87,19 @@ func (b *Broker) runContinuousQueries() {
 	for {
 		// if the current node hasn't been set it's our first time or we're reset. move to the next one
 		if b.currentCQProcessingNode == nil {
-			dataNodes := b.Broker.Replicas()
-			if len(dataNodes) == 0 {
+			topic := b.Broker.Topic(BroadcastTopicID)
+			if topic == nil {
+				log.Println("broker cq: no topics currently available.")
 				return // don't have any nodes to try, give it up
 			}
-			next = next % len(dataNodes)
-			b.currentCQProcessingNode = dataNodes[next]
+			dataURLs := topic.DataURLs()
+			if len(dataURLs) == 0 {
+				log.Println("broker cq: no data nodes currently available.")
+				return // don't have any nodes to try, give it up
+			}
+			next = next % len(dataURLs)
+			u := dataURLs[next]
+			b.currentCQProcessingNode = &u
 			next++
 		}
 
@@ -99,7 +108,7 @@ func (b *Broker) runContinuousQueries() {
 		if err == nil {
 			return
 		}
-		log.Printf("broker cq: error hitting data node: %s: %s\n", b.currentCQProcessingNode.URL, err.Error())
+		log.Printf("broker cq: error hitting data node: %s: %s\n", b.currentCQProcessingNode, err.Error())
 
 		// reset and let the loop try the next data node in the cluster
 		b.currentCQProcessingNode = nil
@@ -109,7 +118,7 @@ func (b *Broker) runContinuousQueries() {
 
 func (b *Broker) requestContinuousQueryProcessing() error {
 	// Send request.
-	cqURL := copyURL(b.currentCQProcessingNode.URL)
+	cqURL := copyURL(b.currentCQProcessingNode)
 	cqURL.Path = "/process_continuous_queries"
 	cqURL.Scheme = "http"
 	client := &http.Client{
@@ -128,5 +137,3 @@ func (b *Broker) requestContinuousQueryProcessing() error {
 
 	return nil
 }
-
-*/
