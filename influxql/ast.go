@@ -85,6 +85,7 @@ func (*ShowTagValuesStatement) node()         {}
 func (*ShowUsersStatement) node()             {}
 func (*RevokeStatement) node()                {}
 func (*SelectStatement) node()                {}
+func (*SetPasswordUserStatement) node()       {}
 
 func (*BinaryExpr) node()      {}
 func (*BooleanLiteral) node()  {}
@@ -179,6 +180,7 @@ func (*ShowTagValuesStatement) stmt()         {}
 func (*ShowUsersStatement) stmt()             {}
 func (*RevokeStatement) stmt()                {}
 func (*SelectStatement) stmt()                {}
+func (*SetPasswordUserStatement) stmt()       {}
 
 // Expr represents an expression that can be evaluated to a value.
 type Expr interface {
@@ -429,6 +431,30 @@ func (s *GrantStatement) String() string {
 
 // RequiredPrivileges returns the privilege required to execute a GrantStatement.
 func (s *GrantStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
+}
+
+// SetPasswordUserStatement represents a command for chaning user password.
+type SetPasswordUserStatement struct {
+	// Plain Password
+	Password string
+
+	// Who to grant the privilege to.
+	Name string
+}
+
+// String returns a string representation of the set password statement.
+func (s *SetPasswordUserStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("SET PASSWORD FOR ")
+	_, _ = buf.WriteString(s.Name)
+	_, _ = buf.WriteString(" = ")
+	_, _ = buf.WriteString(s.Password)
+	return buf.String()
+}
+
+// RequiredPrivileges returns the privilege required to execute a GrantStatement.
+func (s *SetPasswordUserStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
 }
 

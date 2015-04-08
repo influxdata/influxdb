@@ -79,8 +79,10 @@ func (p *Parser) ParseStatement() (Statement, error) {
 		return p.parseRevokeStatement()
 	case ALTER:
 		return p.parseAlterStatement()
+	case SET:
+		return p.parseSetStatement()
 	default:
-		return nil, newParseError(tokstr(tok, lit), []string{"SELECT", "DELETE", "SHOW", "CREATE", "DROP", "GRANT", "REVOKE", "ALTER"}, pos)
+		return nil, newParseError(tokstr(tok, lit), []string{"SELECT", "DELETE", "SHOW", "CREATE", "DROP", "GRANT", "REVOKE", "ALTER", "SET"}, pos)
 	}
 }
 
@@ -187,6 +189,43 @@ func (p *Parser) parseAlterStatement() (Statement, error) {
 	}
 
 	return nil, newParseError(tokstr(tok, lit), []string{"RETENTION"}, pos)
+}
+
+// parseSetStatement parses a string and returns a set statement.
+// This function assumes the SET token has already been consumed.
+func (p *Parser) parseSetStatement() (*SetPasswordUserStatement, error) {
+	stmt := &SetPasswordUserStatement{}
+
+	// Consume the required PASSWORD token.
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != PASSWORD {
+		return nil, newParseError(tokstr(tok, lit), []string{"PASSWORD"}, pos)
+	}
+
+	// Consume the required FOR token.
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != FOR {
+		return nil, newParseError(tokstr(tok, lit), []string{"FOR"}, pos)
+	}
+
+	// Parse username
+	ident, err := p.parseIdent()
+
+	if err != nil {
+		return nil, err
+	}
+	stmt.Name = ident
+
+	// Consume the required = token.
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != EQ {
+		return nil, newParseError(tokstr(tok, lit), []string{"="}, pos)
+	}
+
+	// Parse new user's password
+	if ident, err = p.parseString(); err != nil {
+		return nil, err
+	}
+	stmt.Password = ident
+
+	return stmt, nil
 }
 
 // parseCreateRetentionPolicyStatement parses a string and returns a create retention policy statement.

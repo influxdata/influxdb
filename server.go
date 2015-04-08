@@ -2124,6 +2124,8 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User, ch
 				res = s.executeShowServersStatement(stmt, user)
 			case *influxql.CreateUserStatement:
 				res = s.executeCreateUserStatement(stmt, user)
+			case *influxql.SetPasswordUserStatement:
+				res = s.executeSetPasswordUserStatement(stmt, user)
 			case *influxql.DeleteStatement:
 				res = s.executeDeleteStatement()
 			case *influxql.DropUserStatement:
@@ -2403,6 +2405,10 @@ func (s *Server) executeCreateUserStatement(q *influxql.CreateUserStatement, use
 		isAdmin = *q.Privilege == influxql.AllPrivileges
 	}
 	return &Result{Err: s.CreateUser(q.Name, q.Password, isAdmin)}
+}
+
+func (s *Server) executeSetPasswordUserStatement(q *influxql.SetPasswordUserStatement, user *User) *Result {
+	return &Result{Err: s.UpdateUser(q.Name, q.Password)}
 }
 
 func (s *Server) executeDropUserStatement(q *influxql.DropUserStatement, user *User) *Result {

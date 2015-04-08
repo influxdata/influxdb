@@ -74,6 +74,7 @@ const (
 	EXISTS
 	EXPLAIN
 	FIELD
+	FOR
 	FROM
 	GRANT
 	GROUP
@@ -104,6 +105,7 @@ const (
 	SELECT
 	SERIES
 	SERVERS
+	SET
 	SHOW
 	SLIMIT
 	STATS
@@ -177,6 +179,7 @@ var tokens = [...]string{
 	EXISTS:       "EXISTS",
 	EXPLAIN:      "EXPLAIN",
 	FIELD:        "FIELD",
+	FOR:          "FOR",
 	FROM:         "FROM",
 	GRANT:        "GRANT",
 	GROUP:        "GROUP",
@@ -207,6 +210,7 @@ var tokens = [...]string{
 	SELECT:       "SELECT",
 	SERIES:       "SERIES",
 	SERVERS:      "SERVERS",
+	SET:          "SET",
 	SHOW:         "SHOW",
 	SLIMIT:       "SLIMIT",
 	SOFFSET:      "SOFFSET",
