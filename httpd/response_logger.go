@@ -43,6 +43,10 @@ func (l *responseLogger) WriteHeader(s int) {
 }
 
 func (l *responseLogger) Status() int {
+	if l.status == 0 {
+		// This can happen if we never actually write data, but only set response headers.
+		l.status = http.StatusOK
+	}
 	return l.status
 }
 
