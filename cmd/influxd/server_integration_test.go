@@ -1383,7 +1383,6 @@ func Test3NodeServer(t *testing.T) {
 
 // ensure that all queries work if there are more nodes in a cluster than the replication factor
 func Test3NodeClusterPartiallyReplicated(t *testing.T) {
-	t.Skip("...")
 	testName := "3-node server integration"
 	if testing.Short() {
 		t.Skip(fmt.Sprintf("skipping '%s'", testName))
@@ -1396,7 +1395,7 @@ func Test3NodeClusterPartiallyReplicated(t *testing.T) {
 	nodes := createCombinedNodeCluster(t, testName, dir, 3, 8190, nil)
 
 	runTestsData(t, testName, nodes, "mydb", "myrp", 2)
-	//runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp", 2)
+	runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp", 2)
 }
 
 func TestClientLibrary(t *testing.T) {
