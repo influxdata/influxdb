@@ -1690,7 +1690,7 @@ func TestServer_DropContinuousQuery(t *testing.T) {
 	}
 }
 
-// Ensure
+// Ensure continuous queries run
 func TestServer_RunContinuousQueries(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
