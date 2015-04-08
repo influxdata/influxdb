@@ -256,18 +256,25 @@ func queryAndWait(t *testing.T, nodes Cluster, urlDb, q, expected string, timeou
 		timeout = d + 1
 	}
 
+	done := make(chan struct{})
 	if timeout > 0 {
 		timer.Reset(time.Duration(timeout))
 		go func() {
-			<-timer.C
-			atomic.StoreInt32(&timedOut, 1)
+			select {
+			case <-done:
+				return
+			case <-timer.C:
+				atomic.StoreInt32(&timedOut, 1)
+			}
 		}()
 	}
 
 	for {
 		if got, ok := query(t, nodes, urlDb, q, expected); ok {
+			close(done)
 			return got, ok
 		} else if atomic.LoadInt32(&timedOut) == 1 {
+			close(done)
 			return got, false
 		} else {
 			time.Sleep(sleep)
