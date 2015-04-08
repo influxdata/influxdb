@@ -677,9 +677,8 @@ func (s *Server) Join(u *url.URL, joinURL *url.URL) error {
 	// the Location header is where we should resend the POST.  We also need to re-encode
 	// body since the buf was already read.
 	for {
-
 		// Should never get here but bail to avoid a infinite redirect loop to be safe
-		if retries >= 3 {
+		if retries >= 60 {
 			return ErrUnableToJoin
 		}
 
