@@ -1706,7 +1706,7 @@ func (s *Server) applyDropSeries(m *messaging.Message) error {
 }
 
 // DropSeries deletes from an existing series.
-func (s *Server) DropSeries(database string, seriesByMeasurement map[string][]uint32) error {
+func (s *Server) DropSeries(database string, seriesByMeasurement map[string][]uint64) error {
 	c := dropSeriesCommand{Database: database, SeriesByMeasurement: seriesByMeasurement}
 	_, err := s.broadcast(dropSeriesMessageType, c)
 	return err
@@ -2464,13 +2464,13 @@ func (s *Server) executeDropMeasurementStatement(stmt *influxql.DropMeasurementS
 func (s *Server) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, database string, user *User) *Result {
 	s.mu.RLock()
 
-	seriesByMeasurement := make(map[string][]uint32)
+	seriesByMeasurement := make(map[string][]uint64)
 	// Handle the simple `DROP SERIES <id>` case.
 	if stmt.Source == nil && stmt.Condition == nil {
 		for _, db := range s.databases {
 			for _, m := range db.measurements {
 				if m.seriesByID[stmt.SeriesID] != nil {
-					seriesByMeasurement[m.Name] = []uint32{stmt.SeriesID}
+					seriesByMeasurement[m.Name] = []uint64{stmt.SeriesID}
 				}
 			}
 		}
@@ -2499,7 +2499,7 @@ func (s *Server) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, 
 		var ids seriesIDs
 		if stmt.Condition != nil {
 			// Get series IDs that match the WHERE clause.
-			filters := map[uint32]influxql.Expr{}
+			filters := map[uint64]influxql.Expr{}
 			ids, _, _ = m.walkWhereForSeriesIds(stmt.Condition, filters)
 
 			// TODO: check return of walkWhereForSeriesIds for fields
@@ -2542,7 +2542,7 @@ func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, 
 
 		if stmt.Condition != nil {
 			// Get series IDs that match the WHERE clause.
-			filters := map[uint32]influxql.Expr{}
+			filters := map[uint64]influxql.Expr{}
 			ids, _, _ = m.walkWhereForSeriesIds(stmt.Condition, filters)
 
 			// If no series matched, then go to the next measurement.
@@ -2757,7 +2757,7 @@ func (s *Server) executeShowTagValuesStatement(stmt *influxql.ShowTagValuesState
 
 		if stmt.Condition != nil {
 			// Get series IDs that match the WHERE clause.
-			filters := map[uint32]influxql.Expr{}
+			filters := map[uint64]influxql.Expr{}
 			ids, _, _ = m.walkWhereForSeriesIds(stmt.Condition, filters)
 
 			// If no series matched, then go to the next measurement.

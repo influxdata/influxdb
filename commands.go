@@ -202,7 +202,7 @@ func (c *createMeasurementsIfNotExistsCommand) addFieldIfNotExists(measurement, 
 
 type dropSeriesCommand struct {
 	Database            string              `json:"database"`
-	SeriesByMeasurement map[string][]uint32 `json:"seriesIds"`
+	SeriesByMeasurement map[string][]uint64 `json:"seriesIds"`
 }
 
 // createContinuousQueryCommand is the raft command for creating a continuous query on a database

@@ -27,7 +27,7 @@ type RemoteMapper struct {
 	MeasurementName string   `json:",omitempty"`
 	TMin            int64    `json:",omitempty"`
 	TMax            int64    `json:",omitempty"`
-	SeriesIDs       []uint32 `json:",omitempty"`
+	SeriesIDs       []uint64 `json:",omitempty"`
 	ShardID         uint64   `json:",omitempty"`
 	Filters         []string `json:",omitempty"`
 	WhereFields     []*Field `json:",omitempty"`

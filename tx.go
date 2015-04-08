@@ -249,7 +249,7 @@ type LocalMapper struct {
 	decoder          fieldDecoder           // decoder for the raw data bytes
 	filters          []influxql.Expr        // filters for each series
 	cursors          []*bolt.Cursor         // bolt cursors for each series id
-	seriesIDs        []uint32               // seriesIDs to be read from this shard
+	seriesIDs        []uint64               // seriesIDs to be read from this shard
 	db               *bolt.DB               // bolt store for the shard accessed by this mapper
 	txn              *bolt.Tx               // read transactions by shard id
 	job              *influxql.MapReduceJob // the MRJob this mapper belongs to
@@ -284,7 +284,7 @@ func (l *LocalMapper) Open() error {
 	l.cursors = make([]*bolt.Cursor, len(l.seriesIDs))
 
 	for i, id := range l.seriesIDs {
-		b := l.txn.Bucket(u32tob(id))
+		b := l.txn.Bucket(u64tob(id))
 		if b == nil {
 			continue
 		}
@@ -411,12 +411,12 @@ func (l *LocalMapper) NextInterval() (interface{}, error) {
 }
 
 // Next returns the next matching timestamped value for the LocalMapper.
-func (l *LocalMapper) Next() (seriesID uint32, timestamp int64, value interface{}) {
+func (l *LocalMapper) Next() (seriesID uint64, timestamp int64, value interface{}) {
 	for {
 		// if it's a raw query and we've hit the limit of the number of points to read in
 		// for either this chunk or for the absolute query, bail
 		if l.isRaw && (l.limit == 0 || l.perIntervalLimit == 0) {
-			return uint32(0), int64(0), nil
+			return uint64(0), int64(0), nil
 		}
 
 		// find the minimum timestamp
