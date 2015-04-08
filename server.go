@@ -3206,7 +3206,7 @@ func (s *Server) DiagnosticsAsRows() []*influxql.Row {
 			"path", "authEnabled", "index", "retentionAutoCreate", "numShards", "cqLastRun"},
 		Tags: tags,
 		Values: [][]interface{}{[]interface{}{now, startTime.String(), time.Since(startTime).String(), strconv.FormatUint(s.id, 10),
-			s.path, s.authenticationEnabled, int(s.index), s.RetentionAutoCreate, len(s.shards), s.lastContinuousQueryRun.String()}},
+			s.path, s.authenticationEnabled, int64(s.index), s.RetentionAutoCreate, len(s.shards), s.lastContinuousQueryRun.String()}},
 	}
 
 	// Shard groups.
