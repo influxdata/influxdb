@@ -1749,6 +1749,8 @@ func TestServer_RunContinuousQueries(t *testing.T) {
 		} else if len(res.Series) != 2 {
 			t.Fatalf("unexpected row count on verify %d: %d", num, len(res.Series))
 		} else if s := mustMarshalJSON(res); s != exp {
+			t.Log("exp: ", exp)
+			t.Log("got: ", s)
 			t.Fatalf("unexpected row(0) on verify %d: %s", num, s)
 		}
 	}
