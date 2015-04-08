@@ -17,6 +17,10 @@
 # In the third case we have to define our own functions which are very dumb
 # and expect the args to be positioned correctly.
 
+# Command-line options that can be set in /etc/default/influxdb.  These will override
+# any config file values. Example: "-join http://1.2.3.4:8086"
+INFLUXD_OPTS=
+
 if [ -r /lib/lsb/init-functions ]; then
     source /lib/lsb/init-functions
 fi
@@ -117,9 +121,9 @@ case $1 in
 
         log_success_msg "Starting the process" "$name"
         if which start-stop-daemon > /dev/null 2>&1; then
-            start-stop-daemon --chuid influxdb:influxdb --start --quiet --pidfile $pidfile --exec $daemon -- -pidfile $pidfile -config $config >>$STDOUT 2>>$STDERR &
+            start-stop-daemon --chuid influxdb:influxdb --start --quiet --pidfile $pidfile --exec $daemon -- -pidfile $pidfile -config $config $INFLUXD_OPTS >>$STDOUT 2>>$STDERR &
         else
-            nohup $daemon -pidfile $pidfile -config $config >>$STDOUT 2>>$STDERR &
+            nohup $daemon -pidfile $pidfile -config $config $INFLUXD_OPTS >>$STDOUT 2>>$STDERR &
         fi
         log_success_msg "$name process was started"
         ;;
