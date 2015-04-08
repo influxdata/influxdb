@@ -653,8 +653,8 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SET PASSWORD FOR testuser = 'pwd1337'`,
 			stmt: &influxql.SetPasswordUserStatement{
-				Name:      "testuser",
-				Password:  "pwd1337",
+				Name:     "testuser",
+				Password: "pwd1337",
 			},
 		},
 
