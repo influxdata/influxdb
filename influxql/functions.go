@@ -17,7 +17,7 @@ import (
 // Iterator represents a forward-only iterator over a set of points.
 // These are used by the MapFunctions in this file
 type Iterator interface {
-	Next() (seriesID uint32, timestamp int64, value interface{})
+	Next() (seriesID uint64, timestamp int64, value interface{})
 }
 
 // MapFunc represents a function used for mapping over a sequential series of data.

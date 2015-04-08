@@ -662,11 +662,11 @@ type Mapper interface {
 type TagSet struct {
 	Tags      map[string]string
 	Filters   []Expr
-	SeriesIDs []uint32
+	SeriesIDs []uint64
 	Key       []byte
 }
 
-func (t *TagSet) AddFilter(id uint32, filter Expr) {
+func (t *TagSet) AddFilter(id uint64, filter Expr) {
 	t.SeriesIDs = append(t.SeriesIDs, id)
 	t.Filters = append(t.Filters, filter)
 }
