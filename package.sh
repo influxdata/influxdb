@@ -60,7 +60,7 @@ BINS=(
 
 # usage prints simple usage information.
 usage() {
-    echo -e "$0 [<version>] [-h]\n"
+    echo -e "$0 [<version>] [-h] [-notag] -[noupload] [-notreeupdate]\n"
     cleanup_exit $1
 }
 
@@ -196,19 +196,51 @@ EOF
 ###########################################################################
 # Start the packaging process.
 
-if [ $# -ne 1 ]; then
-    usage 1
-elif [ $1 == "-h" ]; then
-    usage 0
-else
-    VERSION=$1
+if [ $# -eq 0 ]; then
+    usage
+    exit
 fi
 
-echo -e "\nStarting package process...\n"
+while [ $# -gt 0 ]
+do
+    case "$1" in
+
+    -h)
+        usage
+        exit 0
+        ;;
+
+    -notag)
+        notag="y"
+        shift
+        ;;
+
+    -noupload)
+        noupload="y"
+        shift
+        ;;
+
+    -notreeupdate)
+        notreeupdate="y"
+        shift
+        ;;
+
+    *)
+        VERSION=$1
+        shift
+        ;;
+
+    esac
+done
+
+echo "Platform details: `uname -a`"
+echo -e "\nStarting package process for release $VERSION...\n"
 
 check_gopath
 check_clean_tree
-update_tree
+if [ "$notreeupdate" != "y" ]; then
+    update_tree
+fi
 check_tag_exists $VERSION
 do_build $VERSION
 make_dir_tree $TMP_WORK_DIR $VERSION
@@ -282,58 +314,69 @@ echo "Debian package created successfully."
 ###########################################################################
 # Offer to tag the repo.
 
-echo -n "Tag source tree with v$VERSION and push to repo? [y/N] "
-read response
-response=`echo $response | tr 'A-Z' 'a-z'`
-if [ "x$response" == "xy" ]; then
-    echo "Creating tag v$VERSION and pushing to repo"
-    git tag v$VERSION
-    if [ $? -ne 0 ]; then
-        echo "Failed to create tag v$VERSION -- aborting"
-        cleanup_exit 1
+if [ "$notag" != "y" ]; then
+    echo -n "Tag source tree with v$VERSION and push to repo? [y/N] "
+    read response
+    response=`echo $response | tr 'A-Z' 'a-z'`
+    if [ "x$response" == "xy" ]; then
+        echo "Creating tag v$VERSION and pushing to repo"
+        git tag v$VERSION
+        if [ $? -ne 0 ]; then
+            echo "Failed to create tag v$VERSION -- aborting"
+            cleanup_exit 1
+        fi
+        git push origin v$VERSION
+        if [ $? -ne 0 ]; then
+            echo "Failed to push tag v$VERSION to repo -- aborting"
+            cleanup_exit 1
+        fi
+    else
+        echo "Not creating tag v$VERSION."
     fi
-    git push origin v$VERSION
-    if [ $? -ne 0 ]; then
-        echo "Failed to push tag v$VERSION to repo -- aborting"
-        cleanup_exit 1
-    fi
-else
-    echo "Not creating tag v$VERSION."
 fi
-
 
 ###########################################################################
 # Offer to publish the packages.
 
-echo -n "Publish packages to S3? [y/N] "
-read response
-response=`echo $response | tr 'A-Z' 'a-z'`
-if [ "x$response" == "xy" ]; then
-    echo "Publishing packages to S3."
-    if [ ! -e "$AWS_FILE" ]; then
-        echo "$AWS_FILE does not exist -- aborting."
-        cleanup_exit 1
-    fi
+if [ "$noupload" != "y" ]; then
+    echo -n "Publish packages to S3? [y/N] "
+    read response
+    response=`echo $response | tr 'A-Z' 'a-z'`
+    if [ "x$response" == "xy" ]; then
+        echo "Publishing packages to S3."
+        if [ ! -e "$AWS_FILE" ]; then
+            echo "$AWS_FILE does not exist -- aborting."
+            cleanup_exit 1
+        fi
 
-    for filepath in `ls *.{deb,rpm}`; do
-        echo "Uploading $filepath to S3"
-        filename=`basename $filepath`
-        bucket=influxdb
-        echo "Uploading $filename to s3://influxdb/$filename"
-        AWS_CONFIG_FILE=$AWS_FILE aws s3 cp $filepath s3://influxdb/$filename --acl public-read --region us-east-1
-        if [ $? -ne 0 ]; then
-            echo "Upload failed -- aborting".
-            cleanup_exit 1
-        fi
-        echo "Uploading $filename to s3://get.influxdb.org/$filename"
-        AWS_CONFIG_FILE=$AWS_FILE aws s3 cp $filepath s3://get.influxdb.org/$filename --acl public-read --region us-east-1
-        if [ $? -ne 0 ]; then
-            echo "Upload failed -- aborting".
-            cleanup_exit 1
-        fi
-    done
-else
-    echo "Not publishing packages to S3."
+        for filepath in `ls *.{deb,rpm}`; do
+            echo "Uploading $filepath to S3"
+            filename=`basename $filepath`
+            bucket=influxdb
+            echo "Uploading $filename to s3://influxdb/$filename"
+            AWS_CONFIG_FILE=$AWS_FILE aws s3 cp $filepath s3://influxdb/$filename --acl public-read --region us-east-1
+            if [ $? -ne 0 ]; then
+                echo "Upload failed -- aborting".
+                cleanup_exit 1
+            fi
+            echo "Uploading $filename to s3://get.influxdb.org/$filename"
+            AWS_CONFIG_FILE=$AWS_FILE aws s3 cp $filepath s3://get.influxdb.org/$filename --acl public-read --region us-east-1
+            if [ $? -ne 0 ]; then
+                echo "Upload failed -- aborting".
+                cleanup_exit 1
+            fi
+        done
+    else
+        echo "Not publishing packages to S3."
+    fi
+fi
+
+###########################################################################
+# If CircleCI environment is set, copy the packages.
+
+if [ -n "$CIRCLE_ARTIFACTS" ]; then
+    cp $rpm_package $CIRCLE_ARTIFACTS
+    cp $debian_package $CIRCLE_ARTIFACTS
 fi
 
 ###########################################################################
