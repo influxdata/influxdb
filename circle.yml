@@ -1,6 +1,7 @@
 dependencies:
     pre:
         - go get -u golang.org/x/tools/cmd/vet;
+        - gem install fpm
 
 
 test:
