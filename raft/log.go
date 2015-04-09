@@ -1611,13 +1611,11 @@ func (l *Log) RequestVote(term, candidateID, lastLogIndex, lastLogTerm uint64) (
 		return l.term, ErrStaleTerm
 	} else if term == l.term && l.votedFor != 0 && l.votedFor != candidateID {
 		return l.term, ErrAlreadyVoted
-	} else if lastLogTerm < l.lastLogTerm {
-		return l.term, ErrOutOfDateLog
-	} else if lastLogTerm == l.lastLogTerm && lastLogIndex < l.lastLogIndex {
-		return l.term, ErrOutOfDateLog
 	}
 
 	// Notify term change.
+	l.term = term
+	l.votedFor = 0
 	if term > l.term {
 		select {
 		case l.terms <- term:
@@ -1625,8 +1623,14 @@ func (l *Log) RequestVote(term, candidateID, lastLogIndex, lastLogTerm uint64) (
 		}
 	}
 
-	// Vote for candidate & increase term.
-	l.term = term
+	// Reject request if log is out of date.
+	if lastLogTerm < l.lastLogTerm {
+		return l.term, ErrOutOfDateLog
+	} else if lastLogTerm == l.lastLogTerm && lastLogIndex < l.lastLogIndex {
+		return l.term, ErrOutOfDateLog
+	}
+
+	// Vote for candidate.
 	l.votedFor = candidateID
 
 	return l.term, nil
