@@ -122,6 +122,14 @@ type Data struct {
 	RetentionCreatePeriod Duration `toml:"retention-create-period"`
 }
 
+// Initialization contains configuration options for the first time a node boots
+type Initialization struct {
+	// JoinURLs are cluster URLs to use when joining a node to a cluster the first time it boots.  After,
+	// a node is joined to a cluster, these URLS are ignored.  These will be overriden at runtime if
+	// the node is started with the `-join` flag.
+	JoinURLs string `toml:"join-urls"`
+}
+
 // Config represents the configuration format for the influxd binary.
 type Config struct {
 	Hostname          string `toml:"hostname"`
@@ -130,6 +138,8 @@ type Config struct {
 	ReportingDisabled bool   `toml:"reporting-disabled"`
 	Version           string `toml:"-"`
 	InfluxDBVersion   string `toml:"-"`
+
+	Initialization Initialization `toml:"initialization"`
 
 	Authentication struct {
 		Enabled bool `toml:"enabled"`

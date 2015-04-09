@@ -1860,6 +1860,7 @@ func TestSeparateBrokerDataNode(t *testing.T) {
 	brokerConfig.ReportingDisabled = true
 
 	dataConfig := main.NewConfig()
+	dataConfig.Port = 9001
 	dataConfig.Broker.Enabled = false
 	dataConfig.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(dataConfig.Port))
 	dataConfig.ReportingDisabled = true
