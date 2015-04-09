@@ -46,8 +46,9 @@ type Node struct {
 	DataNode *influxdb.Server
 	raftLog  *raft.Log
 
-	adminServer     *admin.Server
-	clusterListener net.Listener // The cluster TCP listener
+	adminServer      *admin.Server
+	clusterListener  net.Listener // The cluster TCP listener
+	snapshotListener net.Listener
 }
 
 func (s *Node) Close() {
@@ -57,6 +58,10 @@ func (s *Node) Close() {
 
 	if err := s.closeAdminServer(); err != nil {
 		log.Fatalf("error closing admin server: %s", err)
+	}
+
+	if err := s.closeSnapshotListener(); err != nil {
+		log.Fatalf("error closing snapshot listener: %s", err)
 	}
 
 	if s.DataNode != nil {
@@ -120,6 +125,36 @@ func (s *Node) closeClusterListener() error {
 	if s.clusterListener != nil {
 		err = s.clusterListener.Close()
 		s.clusterListener = nil
+	}
+	return err
+}
+
+func (s *Node) openSnapshotListener(addr string) error {
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
+	}
+	s.snapshotListener = listener
+
+	// Start snapshot handler.
+	go func() {
+		err := http.Serve(s.snapshotListener,
+			&httpd.SnapshotHandler{
+				CreateSnapshotWriter: s.DataNode.CreateSnapshotWriter,
+			},
+		)
+		if !strings.Contains(err.Error(), "closed") {
+			log.Fatalf("snapshot server failed to serve on %s: %s", addr, err)
+		}
+	}()
+	return nil
+}
+
+func (s *Node) closeSnapshotListener() error {
+	var err error
+	if s.snapshotListener != nil {
+		err = s.snapshotListener.Close()
+		s.snapshotListener = nil
 	}
 	return err
 }
@@ -261,18 +296,12 @@ func (cmd *RunCommand) Open(config *Config, join string) *Node {
 		h.Server = s
 
 		if config.Snapshot.Enabled {
-			// Start snapshot handler.
-			go func() {
-				log.Fatal(http.ListenAndServe(
-					cmd.config.SnapshotAddr(),
-					&httpd.SnapshotHandler{
-						CreateSnapshotWriter: s.CreateSnapshotWriter,
-					},
-				))
-			}()
-			log.Printf("snapshot endpoint listening on %s", cmd.config.SnapshotAddr())
+			if err := cmd.node.openSnapshotListener(cmd.config.SnapshotAddr()); err != nil {
+				log.Fatalf("snapshot server failed to listen on %s: %s", cmd.config.SnapshotAddr(), err)
+			}
+			log.Printf("snapshot server listening on %s", cmd.config.SnapshotAddr())
 		} else {
-			log.Println("snapshot endpoint disabled")
+			log.Println("snapshot server disabled")
 		}
 
 		if cmd.config.Admin.Enabled {
