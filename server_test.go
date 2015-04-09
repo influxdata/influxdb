@@ -1692,6 +1692,7 @@ func TestServer_DropContinuousQuery(t *testing.T) {
 
 // Ensure continuous queries run
 func TestServer_RunContinuousQueries(t *testing.T) {
+	t.Skip("skipped pending fix for issue #2218")
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
