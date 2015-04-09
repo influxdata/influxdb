@@ -6,6 +6,7 @@
 - [#2175](https://github.com/influxdb/influxdb/pull/2175): Separate broker and data nodes
 - [#2158](https://github.com/influxdb/influxdb/pull/2158): Allow user password to be changed. Thanks @n1tr0g
 - [#2201](https://github.com/influxdb/influxdb/pull/2201): Bring back config join URLs
+- [#2121](https://github.com/influxdb/influxdb/pull/2121): Parser refactor
 
 ### Bugfixes
 - [#2181](https://github.com/influxdb/influxdb/pull/2181): Fix panic on "SHOW DIAGNOSTICS".
