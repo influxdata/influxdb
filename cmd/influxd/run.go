@@ -46,12 +46,17 @@ type Node struct {
 	DataNode *influxdb.Server
 	raftLog  *raft.Log
 
+	adminServer     *admin.Server
 	clusterListener net.Listener // The cluster TCP listener
 }
 
 func (s *Node) Close() {
 	if err := s.closeClusterListener(); err != nil {
 		log.Fatalf("error closing cluster listener: %s", err)
+	}
+
+	if err := s.closeAdminServer(); err != nil {
+		log.Fatalf("error closing admin server: %s", err)
 	}
 
 	if s.DataNode != nil {
@@ -71,6 +76,20 @@ func (s *Node) Close() {
 			log.Fatalf("error closing raft log: %s", err)
 		}
 	}
+}
+
+func (s *Node) openAdminServer(port int) error {
+	// Start the admin interface on the default port
+	addr := net.JoinHostPort("", strconv.Itoa(port))
+	s.adminServer = admin.NewServer(addr)
+	return s.adminServer.ListenAndServe()
+}
+
+func (s *Node) closeAdminServer() error {
+	if s.adminServer != nil {
+		return s.adminServer.Close()
+	}
+	return nil
 }
 
 func (s *Node) openClusterListener(addr string, h http.Handler) error {
@@ -256,12 +275,11 @@ func (cmd *RunCommand) Open(config *Config, join string) *Node {
 			log.Println("snapshot endpoint disabled")
 		}
 
-		// Start the admin interface on the default port
 		if cmd.config.Admin.Enabled {
-			port := fmt.Sprintf(":%d", cmd.config.Admin.Port)
-			log.Printf("starting admin server on %s", port)
-			a := admin.NewServer(port)
-			go a.ListenAndServe()
+			if err := cmd.node.openAdminServer(cmd.config.Admin.Port); err != nil {
+				log.Fatalf("admin server failed to listen on :%d: %s", cmd.config.Admin.Port, err)
+			}
+			log.Printf("admin server listening on :%d", cmd.config.Admin.Port)
 		}
 
 		// Spin up the collectd server
