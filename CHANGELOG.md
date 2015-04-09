@@ -15,6 +15,7 @@
 - [#2200](https://github.com/influxdb/influxdb/pull/2200): Re-enable Continuous Queries.
 - [#2203](https://github.com/influxdb/influxdb/pull/2203): Fix race condition on continuous queries.
 - [#2217](https://github.com/influxdb/influxdb/pull/2217): Only revert to follower if new term is greater.
+- [#2219](https://github.com/influxdb/influxdb/pull/2219): Persist term change to disk when candidate. Thanks @cannium
 
 ## v0.9.0-rc20 [2015-04-04]
 

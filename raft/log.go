@@ -960,7 +960,7 @@ func (l *Log) candidateLoop(closing <-chan struct{}) State {
 
 	// Increment term and request votes.
 	l.mu.Lock()
-	l.term++
+	l.mustSetTerm(l.term + 1)
 	l.votedFor = l.id
 	term := l.term
 	l.mu.Unlock()
