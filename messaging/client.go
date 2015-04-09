@@ -176,6 +176,10 @@ func (c *Client) close() error {
 	}
 	c.conns = nil
 
+	// Shutdown any "keep-alive" connections held open
+	// by the default transport.
+	http.DefaultTransport.(*http.Transport).CloseIdleConnections()
+
 	// Close goroutines.
 	if c.closing != nil {
 		close(c.closing)
