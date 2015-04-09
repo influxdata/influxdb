@@ -1,4 +1,4 @@
-## v0.9.0-rc22 [unreleased]
+## v0.9.0-rc22 [2015-04-09]
 
 ### Bugfixes
 - [#2225](https://github.com/influxdb/influxdb/pull/2225): Make keywords completely case insensitive
