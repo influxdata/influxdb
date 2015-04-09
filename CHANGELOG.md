@@ -1,5 +1,8 @@
 ## v0.9.0-rc22 [unreleased]
 
+### Bugfixes
+- [#2225](https://github.com/influxdb/influxdb/pull/2225): Make keywords completely case insensitive
+
 ### Features
 - [#2214](https://github.com/influxdb/influxdb/pull/2214): Added the option to influx CLI to execute single command and exit. Thanks @n1tr0g
 
