@@ -1392,7 +1392,8 @@ func Test3NodeClusterPartiallyReplicated(t *testing.T) {
 		os.RemoveAll(dir)
 	}()
 
-	nodes := createCombinedNodeCluster(t, testName, dir, 3, 8190, nil)
+	nodes := createCombinedNodeCluster(t, testName, dir, 3, nil)
+	defer nodes.Close()
 
 	runTestsData(t, testName, nodes, "mydb", "myrp", 2)
 	runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp", 2)
