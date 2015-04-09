@@ -895,6 +895,11 @@ func TestParser_ParseStatement(t *testing.T) {
 			s:    `ALTER RETENTION POLICY policy1 ON testdb REPLICATION 4`,
 			stmt: newAlterRetentionPolicyStatement("policy1", "testdb", -1, 4, false),
 		},
+		// ALTER default retention policy unquoted
+		{
+			s:    `ALTER RETENTION POLICY default ON testdb REPLICATION 4`,
+			stmt: newAlterRetentionPolicyStatement("default", "testdb", -1, 4, false),
+		},
 
 		// SHOW STATS
 		{

@@ -293,19 +293,22 @@ func (p *Parser) parseAlterRetentionPolicyStatement() (*AlterRetentionPolicyStat
 	stmt := &AlterRetentionPolicyStatement{}
 
 	// Parse the retention policy name.
-	ident, err := p.parseIdent()
-	if err != nil {
-		return nil, err
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	if tok == DEFAULT {
+		stmt.Name = "default"
+	} else if tok == IDENT {
+		stmt.Name = lit
+	} else {
+		return nil, newParseError(tokstr(tok, lit), []string{"identifier"}, pos)
 	}
-	stmt.Name = ident
 
 	// Consume the required ON token.
-	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != ON {
+	if tok, pos, lit = p.scanIgnoreWhitespace(); tok != ON {
 		return nil, newParseError(tokstr(tok, lit), []string{"ON"}, pos)
 	}
 
 	// Parse the database name.
-	ident, err = p.parseIdent()
+	ident, err := p.parseIdent()
 	if err != nil {
 		return nil, err
 	}
