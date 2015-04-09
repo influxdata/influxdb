@@ -157,7 +157,7 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 
 					mapper = &RemoteMapper{
 						dataNodes:       nodes,
-						Database:        database,
+						Database:        mm.Database,
 						MeasurementName: m.Name,
 						TMin:            tmin.UnixNano(),
 						TMax:            tmax.UnixNano(),
