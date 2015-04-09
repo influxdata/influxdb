@@ -705,7 +705,15 @@ func (s *Server) Join(u *url.URL, joinURL *url.URL) error {
 		// We likely tried to join onto a broker which cannot handle this request.  It
 		// has given us the address of a known data node to join instead.
 		if resp.StatusCode == http.StatusTemporaryRedirect {
-			joinURL, err = url.Parse(resp.Header.Get("Location"))
+			redirectURL, err := url.Parse(resp.Header.Get("Location"))
+
+			// if we happen to get redirected back to ourselves then we'll never join.  This
+			// may because the heartbeater could have already fired once, registering our endpoints
+			// as a data node and the broker is redirecting data node requests back to us.  In
+			// this case, just re-request the original URL again util we get a different node.
+			if redirectURL.Host != u.Host {
+				joinURL = redirectURL
+			}
 			if err != nil {
 				return err
 			}

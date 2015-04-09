@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"strings"
@@ -151,5 +152,5 @@ func (h *Handler) redirect(u []url.URL, w http.ResponseWriter, r *http.Request) 
 	// this is happening frequently, the clients are using a suboptimal endpoint
 
 	// Redirect the client to a valid data node that can handle the request
-	http.Redirect(w, r, u[0].String()+r.RequestURI, http.StatusTemporaryRedirect)
+	http.Redirect(w, r, u[rand.Intn(len(u))].String()+r.RequestURI, http.StatusTemporaryRedirect)
 }
