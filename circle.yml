@@ -8,4 +8,5 @@ test:
     override:
     # Put each test command on its own line.
         - go tool vet .
+        - go env
         - bash -x package.sh ${CIRCLE_BRANCH}_${CIRCLE_BUILD_NUM} -notag -noupload -notreeupdate -y
