@@ -60,7 +60,7 @@ BINS=(
 
 # usage prints simple usage information.
 usage() {
-    echo -e "$0 [<version>] [-h] [-notag] -[noupload] [-notreeupdate]\n"
+    echo -e "$0 [<version>] [-h] [-notag] -[noupload] [-notreeupdate] [-y]\n"
     cleanup_exit $1
 }
 
@@ -225,6 +225,11 @@ do
         shift
         ;;
 
+    -y)
+        defaulty="y"
+        shift
+        ;;
+
     *)
         VERSION=$1
         shift
@@ -233,8 +238,8 @@ do
     esac
 done
 
-echo "Platform details: `uname -a`"
-echo -e "\nStarting package process for release $VERSION...\n"
+echo -e "\nPlatform details: `uname -a`"
+echo -e "Starting package process for release $VERSION...\n"
 
 check_gopath
 check_clean_tree
@@ -275,12 +280,14 @@ generate_postinstall_script $VERSION
 ###########################################################################
 # Create the actual packages.
 
-echo -n "Commence creation of $ARCH packages, version $VERSION? [Y/n] "
-read response
-response=`echo $response | tr 'A-Z' 'a-z'`
-if [ "x$response" == "xn" ]; then
-    echo "Packaging aborted."
-    cleanup_exit 1
+if [ "$defaulty" != "y" ]; then
+    echo -n "Commence creation of $ARCH packages, version $VERSION? [Y/n] "
+    read response
+    response=`echo $response | tr 'A-Z' 'a-z'`
+    if [ "x$response" == "xn" ]; then
+        echo "Packaging aborted."
+        cleanup_exit 1
+    fi
 fi
 
 if [ $ARCH == "i386" ]; then
