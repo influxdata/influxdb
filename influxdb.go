@@ -145,6 +145,9 @@ var (
 
 	// ErrContinuousQueryNotFound is returned when dropping a nonexistent continuous query.
 	ErrContinuousQueryNotFound = errors.New("continuous query not found")
+
+	// ErrShardNotLocal is thrown whan a server attempts to run a mapper against a shard it doesn't have a copy of.
+	ErrShardNotLocal = errors.New("shard not local")
 )
 
 // ErrAuthorize represents an authorization error.

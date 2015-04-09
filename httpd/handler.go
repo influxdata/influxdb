@@ -88,6 +88,10 @@ func NewClusterHandler(s *influxdb.Server, requireAuthentication bool, version s
 			"wait", // Wait.
 			"GET", "/wait/:index", true, true, h.serveWait,
 		},
+		route{
+			"run_mapper",
+			"POST", "/run_mapper", true, true, h.serveRunMapper,
+		},
 	})
 	return h
 }
@@ -202,6 +206,8 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *influ
 	if chunked {
 		if cs, err := strconv.ParseInt(q.Get("chunk_size"), 10, 64); err == nil {
 			chunkSize = int(cs)
+		} else {
+			chunkSize = DefaultChunkSize
 		}
 	}
 
@@ -700,6 +706,99 @@ func (h *Handler) serveProcessContinuousQueries(w http.ResponseWriter, r *http.R
 	w.WriteHeader(http.StatusAccepted)
 }
 
+func (h *Handler) serveRunMapper(w http.ResponseWriter, r *http.Request) {
+	// we always return a 200, even if there's an error because we always include an error object
+	// that can be passed on
+	w.Header().Add("content-type", "application/json")
+	w.WriteHeader(200)
+
+	// Read in the mapper info from the request body
+	var m influxdb.RemoteMapper
+
+	if err := json.NewDecoder(r.Body).Decode(&m); err != nil {
+		mapError(w, err)
+		return
+	}
+
+	// create a local mapper and chunk out the results to the other server
+	lm, err := h.server.StartLocalMapper(&m)
+	if err != nil {
+		mapError(w, err)
+		return
+	}
+	if err := lm.Open(); err != nil {
+		mapError(w, err)
+		return
+	}
+	defer lm.Close()
+	call, err := m.CallExpr()
+	if err != nil {
+		mapError(w, err)
+		return
+	}
+
+	if err := lm.Begin(call, m.TMin, m.ChunkSize); err != nil {
+		mapError(w, err)
+		return
+	}
+
+	// see if this is an aggregate query or not
+	isRaw := true
+	if call != nil {
+		isRaw = false
+	}
+
+	// write results to the client until the next interval is empty
+	for {
+		v, err := lm.NextInterval()
+		if err != nil {
+			mapError(w, err)
+			return
+		}
+
+		// see if we're done. only bail if v is nil and we're empty. v could be nil for
+		// group by intervals that don't have data. We should keep iterating to get to the next interval.
+		if v == nil && lm.IsEmpty(m.TMax) {
+			break
+		}
+
+		// marshal and write out
+		d, err := json.Marshal(&v)
+		if err != nil {
+			mapError(w, err)
+			return
+		}
+		b, err := json.Marshal(&influxdb.MapResponse{Data: d})
+		if err != nil {
+			mapError(w, err)
+			return
+		}
+		w.Write(b)
+		w.(http.Flusher).Flush()
+
+		// if this is an aggregate query, we should only call next interval as many times as the chunk size
+		if !isRaw {
+			m.ChunkSize--
+			if m.ChunkSize == 0 {
+				break
+			}
+		}
+
+		// bail out if we're empty
+		if lm.IsEmpty(m.TMax) {
+			break
+		}
+	}
+
+	d, err := json.Marshal(&influxdb.MapResponse{Completed: true})
+	if err != nil {
+		mapError(w, err)
+	} else {
+		w.Write(d)
+		w.(http.Flusher).Flush()
+	}
+}
+
 type dataNodeJSON struct {
 	ID  uint64 `json:"id"`
 	URL string `json:"url"`
@@ -721,6 +820,12 @@ func isTagNotFoundError(err error) bool {
 
 func isFieldNotFoundError(err error) bool {
 	return (strings.HasPrefix(err.Error(), "field not found"))
+}
+
+// mapError writes an error result after trying to start a mapper
+func mapError(w http.ResponseWriter, err error) {
+	b, _ := json.Marshal(&influxdb.MapResponse{Err: err.Error()})
+	w.Write(b)
 }
 
 // httpError writes an error to the client in a standard format.
