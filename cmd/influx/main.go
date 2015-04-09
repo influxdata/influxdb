@@ -42,6 +42,7 @@ type CommandLine struct {
 	Pretty     bool   // controls pretty print for json
 	Format     string // controls the output format.  Valid values are json, csv, or column
 	ShouldDump bool
+	Execute    string
 }
 
 func main() {
@@ -55,6 +56,7 @@ func main() {
 	fs.StringVar(&c.Database, "database", c.Database, "database to connect to the server.")
 	fs.StringVar(&c.Format, "output", default_format, "format specifies the format of the server responses:  json, csv, or column")
 	fs.BoolVar(&c.ShouldDump, "dump", false, "dump the contents of the given database to stdout")
+	fs.StringVar(&c.Execute, "execute", c.Execute, "Execute command and quit.")
 	fs.Parse(os.Args[1:])
 
 	var promptForPassword bool
@@ -83,6 +85,11 @@ func main() {
 
 	if c.ShouldDump {
 		c.dump()
+		return
+	}
+
+	if c.Execute != "" {
+		c.executeQuery(c.Execute)
 		return
 	}
 
@@ -211,7 +218,7 @@ func (c *CommandLine) connect(cmd string) {
 		fmt.Printf("Failed to connect to %s\n", c.Client.Addr())
 	} else {
 		c.Version = v
-		if !c.ShouldDump {
+		if !c.ShouldDump && c.Execute == "" {
 			fmt.Printf("Connected to %s version %s\n", c.Client.Addr(), c.Version)
 		}
 	}
