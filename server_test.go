@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -204,8 +205,12 @@ func TestServer_SingleStatementQueryAuthorization(t *testing.T) {
 				Name:     "myquery",
 				Database: "foo",
 				Source: &influxql.SelectStatement{
-					Fields:  []*influxql.Field{{Expr: &influxql.Call{Name: "count"}}},
-					Target:  &influxql.Target{Measurement: "measure1", Database: "bar"},
+					Fields: []*influxql.Field{{Expr: &influxql.Call{Name: "count"}}},
+					Target: &influxql.Target{Measurement: &influxql.Measurement{
+						Database: "bar",
+						Name:     "measure1",
+					},
+					},
 					Sources: []influxql.Source{&influxql.Measurement{Name: "myseries"}},
 				},
 			},
@@ -272,7 +277,7 @@ func TestServer_MultiStatementQueryAuthorization(t *testing.T) {
 			&influxql.SelectStatement{
 				Fields:  []*influxql.Field{{Expr: &influxql.Call{Name: "count"}}},
 				Sources: []influxql.Source{&influxql.Measurement{Name: "cpu"}},
-				Target:  &influxql.Target{Measurement: "tmp"},
+				Target:  &influxql.Target{Measurement: &influxql.Measurement{Name: "tmp"}},
 			},
 		},
 	}
@@ -353,19 +358,6 @@ func TestServer_DropDatabase(t *testing.T) {
 		t.Fatal(err)
 	} else if s.DatabaseExists("foo") {
 		t.Fatalf("database not actually dropped")
-	}
-}
-
-// Ensure the server returns an error when dropping a database that doesn't exist.
-func TestServer_DropDatabase_ErrDatabaseNotFound(t *testing.T) {
-	c := test.NewDefaultMessagingClient()
-	defer c.Close()
-	s := OpenServer(c)
-	defer s.Close()
-
-	// Drop a database that doesn't exist.
-	if err := s.DropDatabase("no_such_db"); err != influxdb.ErrDatabaseNotFound {
-		t.Fatal(err)
 	}
 }
 
@@ -660,17 +652,6 @@ func TestServer_CreateRetentionPolicyDefault(t *testing.T) {
 	}
 }
 
-// Ensure the server returns an error when creating a retention policy with an invalid db.
-func TestServer_CreateRetentionPolicy_ErrDatabaseNotFound(t *testing.T) {
-	c := test.NewDefaultMessagingClient()
-	defer c.Close()
-	s := OpenServer(c)
-	defer s.Close()
-	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "bar", Duration: time.Hour}); err != influxdb.ErrDatabaseNotFound {
-		t.Fatal(err)
-	}
-}
-
 // Ensure the server returns an error when creating a retention policy without a name.
 func TestServer_CreateRetentionPolicy_ErrRetentionPolicyNameRequired(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
@@ -873,17 +854,6 @@ func TestServer_DeleteRetentionPolicy(t *testing.T) {
 
 	if rp, _ := s.RetentionPolicy("foo", "bar"); rp != nil {
 		t.Fatal("retention policy not deleted after restart")
-	}
-}
-
-// Ensure the server returns an error when deleting a retention policy on invalid db.
-func TestServer_DeleteRetentionPolicy_ErrDatabaseNotFound(t *testing.T) {
-	c := test.NewDefaultMessagingClient()
-	defer c.Close()
-	s := OpenServer(c)
-	defer s.Close()
-	if err := s.DeleteRetentionPolicy("foo", "bar"); err != influxdb.ErrDatabaseNotFound {
-		t.Fatal(err)
 	}
 }
 
@@ -1102,37 +1072,6 @@ func TestServer_DropMeasurement(t *testing.T) {
 		t.Fatalf("unexpected row count: %d", len(res.Series))
 	} else if s := mustMarshalJSON(res); s != `{}` {
 		t.Fatalf("unexpected row(0): %s", s)
-	}
-}
-
-// Ensure the server can handles drop measurement if none exists.
-func TestServer_DropMeasurementNoneExists(t *testing.T) {
-	c := test.NewDefaultMessagingClient()
-	s := OpenServer(c)
-	defer s.Close()
-	s.CreateDatabase("foo")
-	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "raw", Duration: 1 * time.Hour})
-	s.SetDefaultRetentionPolicy("foo", "raw")
-	s.CreateUser("susy", "pass", false)
-
-	// Drop measurement
-	results := s.executeQuery(MustParseQuery(`DROP MEASUREMENT bar`), "foo", nil)
-	if results.Error().Error() != `measurement not found` {
-		t.Fatalf("unexpected error: %s", results.Error())
-	}
-
-	// Write series with one point to the database.
-	tags := map[string]string{"host": "serverA", "region": "uswest"}
-	index, err := s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	c.Sync(index)
-
-	// Drop measurement after writing data to ensure we still get the same error
-	results = s.executeQuery(MustParseQuery(`DROP MEASUREMENT bar`), "foo", nil)
-	if results.Error().Error() != `measurement not found` {
-		t.Fatalf("unexpected error: %s", results.Error())
 	}
 }
 
@@ -1478,26 +1417,21 @@ func TestServer_Measurements(t *testing.T) {
 // Ensure the server can convert a measurement into its normalized form.
 func TestServer_NormalizeMeasurement(t *testing.T) {
 	var tests = []struct {
-		in  string // input string
-		db  string // current database
-		out string // normalized string
-		err string // error, if any
+		in         *influxql.Measurement
+		db         string // current database
+		out        string // normalized string
+		err        string // error, if any
+		errPattern string // regex pattern
 	}{
-		{in: `cpu`, db: `db0`, out: `"db0"."rp0"."cpu"`},
-		{in: `"".cpu`, db: `db0`, out: `"db0"."rp0"."cpu"`},
-		{in: `"rp0".cpu`, db: `db0`, out: `"db0"."rp0"."cpu"`},
-		{in: `""."".cpu`, db: `db0`, out: `"db0"."rp0"."cpu"`},
-		{in: `""..cpu`, db: `db0`, out: `"db0"."rp0"."cpu"`},
+		{in: &influxql.Measurement{Name: `cpu`}, db: `db0`, out: `"db0"."rp0".cpu`},
+		{in: &influxql.Measurement{RetentionPolicy: `rp0`, Name: `cpu`}, db: `db0`, out: `"db0"."rp0".cpu`},
+		{in: &influxql.Measurement{Database: `db0`, RetentionPolicy: `rp0`, Name: `cpu`}, db: `db0`, out: `"db0"."rp0".cpu`},
+		{in: &influxql.Measurement{Database: `db0`, Name: `cpu`}, db: `db0`, out: `"db0"."rp0".cpu`},
 
-		{in: `"db1"..cpu`, db: `db0`, out: `"db1"."rp1"."cpu"`},
-		{in: `"db1"."rp1".cpu`, db: `db0`, out: `"db1"."rp1"."cpu"`},
-		{in: `"db1"."rp2".cpu`, db: `db0`, out: `"db1"."rp2"."cpu"`},
-
-		{in: ``, err: `invalid measurement`},
-		{in: `"foo"."bar"."baz"."bat"`, err: `measurement has too many segments: "foo"."bar"."baz"."bat"`},
-		{in: `"no_db"..cpu`, db: ``, err: `database not found: no_db`},
-		{in: `"db2"..cpu`, db: ``, err: `default retention policy not set for: db2`},
-		{in: `"db2"."no_policy".cpu`, db: ``, err: `retention policy does not exist: db2.no_policy`},
+		{in: &influxql.Measurement{}, db: `db0`, err: `invalid measurement`},
+		{in: &influxql.Measurement{Database: `no_db`, Name: `cpu`}, db: `db0`, errPattern: `database not found: no_db.*`},
+		{in: &influxql.Measurement{Database: `db2`, Name: `cpu`}, db: `db0`, err: `default retention policy not set for: db2`},
+		{in: &influxql.Measurement{Database: `db2`, RetentionPolicy: `no_policy`, Name: `cpu`}, db: `db0`, err: `retention policy does not exist: db2.no_policy`},
 	}
 
 	// Create server with a variety of databases, retention policies, and measurements
@@ -1522,13 +1456,18 @@ func TestServer_NormalizeMeasurement(t *testing.T) {
 
 	// Execute the tests
 	for i, tt := range tests {
-		in := &influxql.Measurement{Name: tt.in}
-		expectedOut := &influxql.Measurement{Name: tt.out}
-		out, err := s.NormalizeMeasurement(in, tt.db)
-		if tt.err != errstr(err) {
-			t.Errorf("%d. %s/%s: error: exp: %s, got: %s\n", i, tt.db, tt.in, tt.err, errstr(err))
-		} else if tt.err == "" && !reflect.DeepEqual(expectedOut, out) {
-			t.Errorf("%d. %s/%s: out: exp: %s, got: %s\n", i, tt.db, tt.in, tt.out, out.Name)
+		var re *regexp.Regexp
+		if tt.errPattern != "" {
+			re = regexp.MustCompile(tt.errPattern)
+		}
+
+		err := s.NormalizeMeasurement(tt.in, tt.db)
+		if tt.err != "" && tt.err != errstr(err) {
+			t.Errorf("%d. error:\n  exp: %s\n  got: %s\n", i, tt.err, errstr(err))
+		} else if re != nil && !re.MatchString(err.Error()) {
+			t.Errorf("%d. error:\n  exp: %s\n  got: %s\n", i, tt.errPattern, tt.in.String())
+		} else if tt.err == "" && re == nil && tt.in.String() != tt.out {
+			t.Errorf("%d. error:\n  exp: %s\n  got: %s\n", i, tt.out, tt.in.String())
 		}
 	}
 }
@@ -1536,18 +1475,19 @@ func TestServer_NormalizeMeasurement(t *testing.T) {
 // Ensure the server can normalize all statements in query.
 func TestServer_NormalizeQuery(t *testing.T) {
 	var tests = []struct {
-		in  string // input query
-		db  string // default database
-		out string // output query
-		err string // error, if any
+		in         string // input query
+		db         string // default database
+		out        string // output query
+		err        string // error, if any
+		errPattern string // regex pattern
 	}{
 		{
-			in: `SELECT cpu.value FROM cpu`, db: `db0`,
-			out: `SELECT "db0"."rp0"."cpu"."value" FROM "db0"."rp0"."cpu"`,
+			in: `SELECT value FROM cpu`, db: `db0`,
+			out: `SELECT value FROM "db0"."rp0".cpu`,
 		},
 
 		{
-			in: `SELECT value FROM cpu`, db: `no_db`, err: `database not found: no_db`,
+			in: `SELECT value FROM cpu`, db: `no_db`, errPattern: `database not found: no_db.*`,
 		},
 	}
 
@@ -1562,12 +1502,19 @@ func TestServer_NormalizeQuery(t *testing.T) {
 
 	// Execute the tests
 	for i, tt := range tests {
+		var re *regexp.Regexp
+		if tt.errPattern != "" {
+			re = regexp.MustCompile(tt.errPattern)
+		}
+
 		out := MustParseQuery(tt.in)
 		err := s.NormalizeStatement(out.Statements[0], tt.db)
-		if tt.err != errstr(err) {
-			t.Errorf("%d. %s/%s: error: exp: %s, got: %s", i, tt.db, tt.in, tt.err, errstr(err))
-		} else if err == nil && tt.out != out.String() {
-			t.Errorf("%d. %s/%s:\n\nexp: %s\n\ngot: %s\n\n", i, tt.db, tt.in, tt.out, out.String())
+		if tt.err != "" && tt.err != errstr(err) {
+			t.Errorf("%d. error:\n  exp: %s\n  got: %s\n", i, tt.err, errstr(err))
+		} else if re != nil && !re.MatchString(err.Error()) {
+			t.Errorf("%d. error:\n  exp: %s\n  got: %s\n", i, tt.errPattern, tt.in)
+		} else if err == nil && re == nil && tt.out != out.String() {
+			t.Errorf("%d. error:\n  exp: %s\n  got: %s\n", i, tt.out, out.String())
 		}
 	}
 }

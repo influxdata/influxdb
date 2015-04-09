@@ -95,11 +95,9 @@ func (Dimensions) node()       {}
 func (*DurationLiteral) node() {}
 func (*Field) node()           {}
 func (Fields) node()           {}
-func (*Join) node()            {}
 func (*Measurement) node()     {}
 func (Measurements) node()     {}
 func (*nilLiteral) node()      {}
-func (*Merge) node()           {}
 func (*NumberLiteral) node()   {}
 func (*ParenExpr) node()       {}
 func (*RegexLiteral) node()    {}
@@ -137,6 +135,13 @@ type Statement interface {
 	Node
 	stmt()
 	RequiredPrivileges() ExecutionPrivileges
+}
+
+// HasDefaultDatabase provides an interface to get the default database from a Statement.
+type HasDefaultDatabase interface {
+	Node
+	stmt()
+	DefaultDatabase() string
 }
 
 // ExecutionPrivilege is a privilege required for a user to execute
@@ -652,7 +657,14 @@ func (s *SelectStatement) Clone() *SelectStatement {
 		IsRawQuery: s.IsRawQuery,
 	}
 	if s.Target != nil {
-		clone.Target = &Target{Measurement: s.Target.Measurement, Database: s.Target.Database}
+		clone.Target = &Target{
+			Measurement: &Measurement{
+				Database:        s.Target.Measurement.Database,
+				RetentionPolicy: s.Target.Measurement.RetentionPolicy,
+				Name:            s.Target.Measurement.Name,
+				Regex:           CloneRegexLiteral(s.Target.Measurement.Regex),
+			},
+		}
 	}
 	for _, f := range s.Fields {
 		clone.Fields = append(clone.Fields, &Field{Expr: CloneExpr(f.Expr), Alias: f.Alias})
@@ -681,7 +693,7 @@ func cloneSource(s Source) Source {
 
 	switch s := s.(type) {
 	case *Measurement:
-		m := &Measurement{Name: s.Name}
+		m := &Measurement{Database: s.Database, RetentionPolicy: s.RetentionPolicy, Name: s.Name}
 		if s.Regex != nil {
 			m.Regex = &RegexLiteral{Val: regexp.MustCompile(s.Regex.Val.String())}
 		}
@@ -775,7 +787,7 @@ func (s *SelectStatement) RequiredPrivileges() ExecutionPrivileges {
 	ep := ExecutionPrivileges{{Name: "", Privilege: ReadPrivilege}}
 
 	if s.Target != nil {
-		p := ExecutionPrivilege{Name: s.Target.Database, Privilege: WritePrivilege}
+		p := ExecutionPrivilege{Name: s.Target.Measurement.Database, Privilege: WritePrivilege}
 		ep = append(ep, p)
 	}
 	return ep
@@ -1088,26 +1100,21 @@ func MatchSource(sources Sources, name string) string {
 	return ""
 }
 
-// TODO pauldix: Target should actually have a Database, RetentionPolicy, and Measurement. These should be set based on the ON part of the query, and the SplitIdent of the INTO name
 // Target represents a target (destination) policy, measurment, and DB.
 type Target struct {
 	// Measurement to write into.
-	Measurement string
-
-	// Database to write into.
-	Database string
+	Measurement *Measurement
 }
 
 // String returns a string representation of the Target.
 func (t *Target) String() string {
+	if t == nil {
+		return ""
+	}
+
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("INTO ")
-	_, _ = buf.WriteString(t.Measurement)
-
-	if t.Database != "" {
-		_, _ = buf.WriteString(" ON ")
-		_, _ = buf.WriteString(t.Database)
-	}
+	_, _ = buf.WriteString(t.Measurement.String())
 
 	return buf.String()
 }
@@ -1275,18 +1282,23 @@ func (s *CreateContinuousQueryStatement) String() string {
 	return fmt.Sprintf("CREATE CONTINUOUS QUERY %s ON %s BEGIN %s END", s.Name, s.Database, s.Source.String())
 }
 
+// DefaultDatabase returns the default database from the statement.
+func (s *CreateContinuousQueryStatement) DefaultDatabase() string {
+	return s.Database
+}
+
 // RequiredPrivileges returns the privilege required to execute a CreateContinuousQueryStatement.
 func (s *CreateContinuousQueryStatement) RequiredPrivileges() ExecutionPrivileges {
 	ep := ExecutionPrivileges{{Name: s.Database, Privilege: ReadPrivilege}}
 
 	// Selecting into a database that's different from the source?
-	if s.Source.Target.Database != "" {
+	if s.Source.Target.Measurement.Database != "" {
 		// Change source database privilege requirement to read.
 		ep[0].Privilege = ReadPrivilege
 
 		// Add destination database privilege requirement and set it to write.
 		p := ExecutionPrivilege{
-			Name:      s.Source.Target.Database,
+			Name:      s.Source.Target.Measurement.Database,
 			Privilege: WritePrivilege,
 		}
 		ep = append(ep, p)
@@ -1711,40 +1723,38 @@ func (a Measurements) String() string {
 
 // Measurement represents a single measurement used as a datasource.
 type Measurement struct {
-	Name  string
-	Regex *RegexLiteral
+	Database        string
+	RetentionPolicy string
+	Name            string
+	Regex           *RegexLiteral
 }
 
 // String returns a string representation of the measurement.
 func (m *Measurement) String() string {
 	var buf bytes.Buffer
-	_, _ = buf.WriteString(m.Name)
+	if m.Database != "" {
+		_, _ = buf.WriteString(`"`)
+		_, _ = buf.WriteString(m.Database)
+		_, _ = buf.WriteString(`".`)
+	}
 
-	if m.Regex != nil {
+	if m.RetentionPolicy != "" {
+		_, _ = buf.WriteString(`"`)
+		_, _ = buf.WriteString(m.RetentionPolicy)
+		_, _ = buf.WriteString(`"`)
+	}
+
+	if m.Database != "" || m.RetentionPolicy != "" {
+		_, _ = buf.WriteString(`.`)
+	}
+
+	if m.Name != "" {
+		_, _ = buf.WriteString(QuoteIdent(m.Name))
+	} else if m.Regex != nil {
 		_, _ = buf.WriteString(m.Regex.String())
 	}
 
 	return buf.String()
-}
-
-// Join represents two datasources joined together.
-type Join struct {
-	Measurements Measurements
-}
-
-// String returns a string representation of the join.
-func (j *Join) String() string {
-	return fmt.Sprintf("join(%s)", j.Measurements.String())
-}
-
-// Merge represents a datasource created by merging two datasources.
-type Merge struct {
-	Measurements Measurements
-}
-
-// String returns a string representation of the merge.
-func (m *Merge) String() string {
-	return fmt.Sprintf("merge(%s)", m.Measurements.String())
 }
 
 // VarRef represents a reference to a variable.
@@ -1876,6 +1886,20 @@ func (r *RegexLiteral) String() string {
 	return ""
 }
 
+// CloneRegexLiteral returns a clone of the RegexLiteral.
+func CloneRegexLiteral(r *RegexLiteral) *RegexLiteral {
+	if r == nil {
+		return nil
+	}
+
+	clone := &RegexLiteral{}
+	if r.Val != nil {
+		clone.Val = regexp.MustCompile(r.Val.String())
+	}
+
+	return clone
+}
+
 // Wildcard represents a wild card expression.
 type Wildcard struct{}
 
@@ -1995,24 +2019,56 @@ type Visitor interface {
 
 // Walk traverses a node hierarchy in depth-first order.
 func Walk(v Visitor, node Node) {
+	if node == nil {
+		return
+	}
+
 	if v = v.Visit(node); v == nil {
 		return
 	}
 
 	switch n := node.(type) {
+	case *BinaryExpr:
+		Walk(v, n.LHS)
+		Walk(v, n.RHS)
+
+	case *Call:
+		for _, expr := range n.Args {
+			Walk(v, expr)
+		}
+
+	case *CreateContinuousQueryStatement:
+		Walk(v, n.Source)
+
+	case *Dimension:
+		Walk(v, n.Expr)
+
+	case Dimensions:
+		for _, c := range n {
+			Walk(v, c)
+		}
+
+	case *Field:
+		Walk(v, n.Expr)
+
+	case Fields:
+		for _, c := range n {
+			Walk(v, c)
+		}
+
+	case *ParenExpr:
+		Walk(v, n.Expr)
+
 	case *Query:
 		Walk(v, n.Statements)
 
-	case Statements:
-		for _, s := range n {
-			Walk(v, s)
-		}
-
 	case *SelectStatement:
 		Walk(v, n.Fields)
+		Walk(v, n.Target)
 		Walk(v, n.Dimensions)
 		Walk(v, n.Sources)
 		Walk(v, n.Condition)
+		Walk(v, n.SortFields)
 
 	case *ShowSeriesStatement:
 		Walk(v, n.Source)
@@ -2028,37 +2084,24 @@ func Walk(v Visitor, node Node) {
 		Walk(v, n.Condition)
 		Walk(v, n.SortFields)
 
+	case SortFields:
+		for _, sf := range n {
+			Walk(v, sf)
+		}
+
 	case Sources:
 		for _, s := range n {
 			Walk(v, s)
 		}
 
-	case Fields:
-		for _, c := range n {
-			Walk(v, c)
+	case Statements:
+		for _, s := range n {
+			Walk(v, s)
 		}
 
-	case *Field:
-		Walk(v, n.Expr)
-
-	case Dimensions:
-		for _, c := range n {
-			Walk(v, c)
-		}
-
-	case *Dimension:
-		Walk(v, n.Expr)
-
-	case *BinaryExpr:
-		Walk(v, n.LHS)
-		Walk(v, n.RHS)
-
-	case *ParenExpr:
-		Walk(v, n.Expr)
-
-	case *Call:
-		for _, expr := range n.Args {
-			Walk(v, expr)
+	case *Target:
+		if n != nil {
+			Walk(v, n.Measurement)
 		}
 	}
 }

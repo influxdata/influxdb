@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"runtime"
 	"time"
 
 	"github.com/influxdb/influxdb/client"
@@ -47,9 +48,6 @@ var (
 
 	// ErrDatabaseExists is returned when creating a duplicate database.
 	ErrDatabaseExists = errors.New("database exists")
-
-	// ErrDatabaseNotFound is returned when dropping a non-existent database.
-	ErrDatabaseNotFound = errors.New("database not found")
 
 	// ErrDatabaseRequired is returned when using a blank database name.
 	ErrDatabaseRequired = errors.New("database required")
@@ -107,9 +105,6 @@ var (
 	// ErrMeasurementNameRequired is returned when a point does not contain a name.
 	ErrMeasurementNameRequired = errors.New("measurement name required")
 
-	// ErrMeasurementNotFound is returned when a measurement does not exist.
-	ErrMeasurementNotFound = errors.New("measurement not found")
-
 	// ErrFieldsRequired is returned when a point does not any fields.
 	ErrFieldsRequired = errors.New("fields required")
 
@@ -146,6 +141,20 @@ var (
 	// ErrContinuousQueryNotFound is returned when dropping a nonexistent continuous query.
 	ErrContinuousQueryNotFound = errors.New("continuous query not found")
 )
+
+func ErrDatabaseNotFound(name string) error { return Errorf("database not found: %s", name) }
+
+func ErrMeasurementNotFound(name string) error { return Errorf("measurement not found: %s", name) }
+
+func Errorf(format string, a ...interface{}) (err error) {
+	if _, file, line, ok := runtime.Caller(2); ok {
+		a = append(a, file, line)
+		err = fmt.Errorf(format+" (%s:%d)", a...)
+	} else {
+		err = fmt.Errorf(format, a...)
+	}
+	return
+}
 
 // ErrAuthorize represents an authorization error.
 type ErrAuthorize struct {

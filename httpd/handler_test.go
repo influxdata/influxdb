@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -151,13 +152,13 @@ func TestHandler_ShowMeasurementsNotFound(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "SHOW SERIES from bin", "db": "foo"}, nil, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"results":[{"error":"measurement \"bin\" not found"}]}` {
+	} else if !matchRegex(`measurement not found: .*bin`, body) {
 		t.Fatalf("unexpected body: %s", body)
 	}
 	status, body = MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "SELECT * FROM bin", "db": "foo"}, nil, "")
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"results":[{"error":"measurement not found: \"foo\".\"bar\".\"bin\""}]}` {
+	} else if !matchRegex(`measurement not found: .*bin`, body) {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -256,7 +257,7 @@ func TestHandler_DropDatabase_NotFound(t *testing.T) {
 	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "DROP DATABASE bar"}, nil, "")
 	if status != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"results":[{"error":"database not found"}]}` {
+	} else if !matchRegex(`database not found: bar.*`, body) {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -290,7 +291,7 @@ func TestHandler_RetentionPolicies_DatabaseNotFound(t *testing.T) {
 
 	if status != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"results":[{"error":"database not found"}]}` {
+	} else if !matchRegex(`database not found: foo.*`, body) {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -502,7 +503,7 @@ func TestHandler_DeleteRetentionPolicy_DatabaseNotFound(t *testing.T) {
 
 	if status != http.StatusInternalServerError {
 		t.Fatalf("unexpected status: %d", status)
-	} else if body != `{"results":[{"error":"database not found"}]}` {
+	} else if !matchRegex(`database not found: .*qux.*`, body) {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -1858,4 +1859,9 @@ func mustMarshalJSON(i interface{}) string {
 		panic(err)
 	}
 	return string(b)
+}
+
+// matchRegex tests that the string matches the pattern
+func matchRegex(pattern, s string) bool {
+	return regexp.MustCompile(pattern).MatchString(s)
 }
