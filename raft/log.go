@@ -996,7 +996,7 @@ func (l *Log) candidateLoop(closing <-chan struct{}) State {
 
 			// Check against the current term since that may have changed.
 			l.mu.Lock()
-			if newTerm >= l.term {
+			if newTerm > l.term {
 				l.mustSetTerm(newTerm)
 				l.mu.Unlock()
 				return Follower
