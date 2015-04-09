@@ -21,6 +21,11 @@ reporting-disabled = false
 [authentication]
 enabled = false
 
+# Controls certain parameters that only take effect until an initial successful
+# start-up has occurred.
+[initialization]
+join-urls = "http://127.0.0.1:8086"
+
 # Configure the admin server
 [admin]
 enabled = true
