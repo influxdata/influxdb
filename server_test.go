@@ -1749,6 +1749,8 @@ func TestServer_RunContinuousQueries(t *testing.T) {
 		} else if len(res.Series) != 2 {
 			t.Fatalf("unexpected row count on verify %d: %d", num, len(res.Series))
 		} else if s := mustMarshalJSON(res); s != exp {
+			t.Log("exp: ", exp)
+			t.Log("got: ", s)
 			t.Fatalf("unexpected row(0) on verify %d: %s", num, s)
 		}
 	}
@@ -1765,7 +1767,7 @@ func TestServer_RunContinuousQueries(t *testing.T) {
 	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-west"}, Timestamp: testTime.Add(-time.Millisecond), Fields: map[string]interface{}{"value": float64(50)}}})
 	s.RunContinuousQueries()
 	// give CQs time to run
-	time.Sleep(time.Millisecond * 50)
+	time.Sleep(time.Millisecond * 100)
 
 	verify(3, `{"series":[{"name":"cpu_region","tags":{"region":"us-east"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",25]]},{"name":"cpu_region","tags":{"region":"us-west"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",75]]}]}`)
 }
