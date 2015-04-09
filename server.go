@@ -3109,12 +3109,12 @@ func (s *Server) StartLocalMapper(rm *RemoteMapper) (*LocalMapper, error) {
 
 	db := s.databases[rm.Database]
 	if db == nil {
-		return nil, ErrDatabaseNotFound
+		return nil, ErrDatabaseNotFound(rm.Database)
 	}
 
 	m := db.measurements[rm.MeasurementName]
 	if m == nil {
-		return nil, ErrMeasurementNotFound
+		return nil, ErrMeasurementNotFound(rm.MeasurementName)
 	}
 
 	// create a job, it's only used as a container for a few variables
