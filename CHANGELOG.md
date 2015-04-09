@@ -2,7 +2,7 @@
 
 ### Features
 - [#2214](https://github.com/influxdb/influxdb/pull/2214): Added the option to influx CLI to execute single command and exit. Thanks @n1tr0g
-- 
+
 ### Bugfixes
 - [#2223](https://github.com/influxdb/influxdb/pull/2223): Always notify term change on RequestVote
 
