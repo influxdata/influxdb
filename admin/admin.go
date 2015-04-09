@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/rakyll/statik/fs"
 
@@ -14,6 +15,7 @@ import (
 
 // Server manages InfluxDB's admin web server.
 type Server struct {
+	mu       sync.Mutex
 	addr     string
 	listener net.Listener
 	closed   bool
@@ -28,6 +30,8 @@ func NewServer(addr string) *Server {
 // ListenAndServe starts the admin web server and serves requests until
 // s.Close() is called.
 func (s *Server) ListenAndServe() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.addr == "" {
 		return nil
 	}
@@ -52,6 +56,8 @@ func (s *Server) ListenAndServe() error {
 
 // Close stops the admin web server.
 func (s *Server) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.closed {
 		return nil
 	}
