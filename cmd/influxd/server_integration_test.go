@@ -73,7 +73,8 @@ func (c *Cluster) Close() {
 // the testing is marked as failed.
 //
 // This function returns a slice of nodes, the first of which will be the leader.
-func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes, basePort int, baseConfig *main.Config) Cluster {
+func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes int, baseConfig *main.Config) Cluster {
+	basePort := 8086
 	t.Logf("Creating cluster of %d nodes for test %s", nNodes, testName)
 	if nNodes < 1 {
 		t.Fatalf("Test %s: asked to create nonsense cluster", testName)
@@ -1287,7 +1288,7 @@ func TestSingleServer(t *testing.T) {
 		os.RemoveAll(dir)
 	}()
 
-	nodes := createCombinedNodeCluster(t, testName, dir, 1, 8090, nil)
+	nodes := createCombinedNodeCluster(t, testName, dir, 1, nil)
 	defer nodes.Close()
 
 	runTestsData(t, testName, nodes, "mydb", "myrp")
@@ -1305,7 +1306,7 @@ func Test3NodeServer(t *testing.T) {
 		os.RemoveAll(dir)
 	}()
 
-	nodes := createCombinedNodeCluster(t, testName, dir, 3, 8190, nil)
+	nodes := createCombinedNodeCluster(t, testName, dir, 3, nil)
 	defer nodes.Close()
 
 	runTestsData(t, testName, nodes, "mydb", "myrp")
@@ -1325,7 +1326,7 @@ func TestClientLibrary(t *testing.T) {
 
 	now := time.Now().UTC()
 
-	nodes := createCombinedNodeCluster(t, testName, dir, 1, 8290, nil)
+	nodes := createCombinedNodeCluster(t, testName, dir, 1, nil)
 	defer nodes.Close()
 
 	type write struct {
@@ -1453,7 +1454,6 @@ func Test_ServerSingleGraphiteIntegration(t *testing.T) {
 		t.Skip()
 	}
 	nNodes := 1
-	basePort := 8390
 	testName := "graphite integration"
 	dir := tempfile()
 	now := time.Now().UTC().Round(time.Second)
@@ -1466,7 +1466,7 @@ func Test_ServerSingleGraphiteIntegration(t *testing.T) {
 	c.Graphites = append(c.Graphites, g)
 
 	t.Logf("Graphite Connection String: %s\n", g.ConnectionString(c.BindAddress))
-	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, basePort, c)
+	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, c)
 	defer nodes.Close()
 
 	createDatabase(t, testName, nodes, "graphite")
@@ -1504,7 +1504,6 @@ func Test_ServerSingleGraphiteIntegration_FractionalTime(t *testing.T) {
 		t.Skip()
 	}
 	nNodes := 1
-	basePort := 8490
 	testName := "graphite integration fractional time"
 	dir := tempfile()
 	now := time.Now().UTC().Round(time.Second).Add(500 * time.Millisecond)
@@ -1518,7 +1517,7 @@ func Test_ServerSingleGraphiteIntegration_FractionalTime(t *testing.T) {
 	c.Graphites = append(c.Graphites, g)
 
 	t.Logf("Graphite Connection String: %s\n", g.ConnectionString(c.BindAddress))
-	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, basePort, c)
+	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, c)
 	defer nodes.Close()
 
 	createDatabase(t, testName, nodes, "graphite")
@@ -1557,7 +1556,6 @@ func Test_ServerSingleGraphiteIntegration_ZeroDataPoint(t *testing.T) {
 		t.Skip()
 	}
 	nNodes := 1
-	basePort := 8590
 	testName := "graphite integration"
 	dir := tempfile()
 	now := time.Now().UTC().Round(time.Second)
@@ -1571,7 +1569,7 @@ func Test_ServerSingleGraphiteIntegration_ZeroDataPoint(t *testing.T) {
 	c.Graphites = append(c.Graphites, g)
 
 	t.Logf("Graphite Connection String: %s\n", g.ConnectionString(c.BindAddress))
-	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, basePort, c)
+	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, c)
 	defer nodes.Close()
 
 	createDatabase(t, testName, nodes, "graphite")
@@ -1609,7 +1607,6 @@ func Test_ServerSingleGraphiteIntegration_NoDatabase(t *testing.T) {
 		t.Skip()
 	}
 	nNodes := 1
-	basePort := 8690
 	testName := "graphite integration"
 	dir := tempfile()
 	now := time.Now().UTC().Round(time.Second)
@@ -1622,7 +1619,7 @@ func Test_ServerSingleGraphiteIntegration_NoDatabase(t *testing.T) {
 	c.Graphites = append(c.Graphites, g)
 	c.Logging.WriteTracing = true
 	t.Logf("Graphite Connection String: %s\n", g.ConnectionString(c.BindAddress))
-	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, basePort, c)
+	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, c)
 	defer nodes.Close()
 
 	// Connect to the graphite endpoint we just spun up
@@ -1670,7 +1667,6 @@ func Test_ServerOpenTSDBIntegration(t *testing.T) {
 		t.Skip()
 	}
 	nNodes := 1
-	basePort := 8790
 	testName := "opentsdb integration"
 	dir := tempfile()
 	now := time.Now().UTC().Round(time.Second)
@@ -1684,7 +1680,7 @@ func Test_ServerOpenTSDBIntegration(t *testing.T) {
 	c.OpenTSDB = o
 
 	t.Logf("OpenTSDB Connection String: %s\n", o.ListenAddress(c.BindAddress))
-	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, basePort, c)
+	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, c)
 	defer nodes.Close()
 
 	createDatabase(t, testName, nodes, "opentsdb")
@@ -1722,7 +1718,6 @@ func Test_ServerOpenTSDBIntegration_WithTags(t *testing.T) {
 		t.Skip()
 	}
 	nNodes := 1
-	basePort := 8791
 	testName := "opentsdb integration"
 	dir := tempfile()
 	now := time.Now().UTC().Round(time.Second)
@@ -1736,7 +1731,7 @@ func Test_ServerOpenTSDBIntegration_WithTags(t *testing.T) {
 	c.OpenTSDB = o
 
 	t.Logf("OpenTSDB Connection String: %s\n", o.ListenAddress(c.BindAddress))
-	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, basePort, c)
+	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, c)
 	defer nodes.Close()
 
 	createDatabase(t, testName, nodes, "opentsdb")
@@ -1777,7 +1772,6 @@ func Test_ServerOpenTSDBIntegration_BadData(t *testing.T) {
 		t.Skip()
 	}
 	nNodes := 1
-	basePort := 8792
 	testName := "opentsdb integration"
 	dir := tempfile()
 	now := time.Now().UTC().Round(time.Second)
@@ -1791,7 +1785,7 @@ func Test_ServerOpenTSDBIntegration_BadData(t *testing.T) {
 	c.OpenTSDB = o
 
 	t.Logf("OpenTSDB Connection String: %s\n", o.ListenAddress(c.BindAddress))
-	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, basePort, c)
+	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, c)
 	defer nodes.Close()
 
 	createDatabase(t, testName, nodes, "opentsdb")
@@ -1844,12 +1838,11 @@ func TestSeparateBrokerDataNode(t *testing.T) {
 
 	brokerConfig := main.NewConfig()
 	brokerConfig.Data.Enabled = false
-	brokerConfig.Port = 9000
 	brokerConfig.Broker.Dir = filepath.Join(tmpBrokerDir, strconv.Itoa(brokerConfig.Port))
 	brokerConfig.ReportingDisabled = true
 
 	dataConfig := main.NewConfig()
-	dataConfig.Port = 9001
+	dataConfig.Port = 9086
 	dataConfig.Broker.Enabled = false
 	dataConfig.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(dataConfig.Port))
 	dataConfig.ReportingDisabled = true
@@ -1893,7 +1886,6 @@ func TestSeparateBrokerTwoDataNodes(t *testing.T) {
 	// Start a single broker node
 	brokerConfig := main.NewConfig()
 	brokerConfig.Data.Enabled = false
-	brokerConfig.Port = 9010
 	brokerConfig.Broker.Dir = filepath.Join(tmpBrokerDir, strconv.Itoa(brokerConfig.Port))
 	brokerConfig.ReportingDisabled = true
 
@@ -1910,7 +1902,7 @@ func TestSeparateBrokerTwoDataNodes(t *testing.T) {
 
 	// Star the first data node and join the broker
 	dataConfig1 := main.NewConfig()
-	dataConfig1.Port = 9011
+	dataConfig1.Port = 9086
 	dataConfig1.Broker.Enabled = false
 	dataConfig1.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(dataConfig1.Port))
 	dataConfig1.ReportingDisabled = true
@@ -1926,7 +1918,7 @@ func TestSeparateBrokerTwoDataNodes(t *testing.T) {
 
 	// Join data node 2 to single broker and first data node
 	dataConfig2 := main.NewConfig()
-	dataConfig2.Port = 9012
+	dataConfig2.Port = 10086
 	dataConfig2.Broker.Enabled = false
 	dataConfig2.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(dataConfig2.Port))
 	dataConfig2.ReportingDisabled = true
