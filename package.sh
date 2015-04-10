@@ -50,6 +50,7 @@ MAINTAINER=support@influxdb.com
 VENDOR=Influxdb
 DESCRIPTION="Distributed time-series database"
 
+GOPATH_INSTALL=
 BINS=(
     influxd
     influx
@@ -72,11 +73,14 @@ cleanup_exit() {
     exit $1
 }
 
-# check_gopath sanity checks the value of the GOPATH env variable.
+# check_gopath sanity checks the value of the GOPATH env variable, and determines
+# the path where build artifacts are installed. GOPATH may be a colon-delimited
+# list of directories.
 check_gopath() {
     [ -z "$GOPATH" ] && echo "GOPATH is not set." && cleanup_exit 1
-    [ ! -d "$GOPATH" ] && echo "GOPATH is not a directory." && cleanup_exit 1
-    echo "GOPATH ($GOPATH) looks sane."
+    GOPATH_INSTALL=`echo $GOPATH | cut -d ':' -f 1`
+    [ ! -d "$GOPATH_INSTALL" ] && echo "GOPATH_INSTALL is not a directory." && cleanup_exit 1
+    echo "GOPATH ($GOPATH) looks sane, using $GOPATH_INSTALL for installation."
 }
 
 # check_clean_tree ensures that no source file is locally modified.
@@ -141,7 +145,7 @@ do_build() {
     fi
 
     for b in ${BINS[*]}; do
-        rm -f $GOPATH/bin/$b
+        rm -f $GOPATH_INSTALL/bin/$b
     done
     go get -u -f ./...
     if [ $? -ne 0 ]; then
@@ -217,7 +221,7 @@ make_dir_tree $TMP_WORK_DIR $VERSION
 # Copy the assets to the installation directories.
 
 for b in ${BINS[*]}; do
-    cp $GOPATH/bin/$b $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/$VERSION
+    cp $GOPATH_INSTALL/bin/$b $TMP_WORK_DIR/$INSTALL_ROOT_DIR/versions/$VERSION
     if [ $? -ne 0 ]; then
         echo "Failed to copy binaries to packaging directory -- aborting."
         cleanup_exit 1
