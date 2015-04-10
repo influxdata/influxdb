@@ -7,22 +7,29 @@ package influxql
 // When adding an aggregate function, define a mapper, a reducer, and add them in the switch statement in the MapReduceFuncs function
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"sort"
 	"strings"
 )
 
-// Iterator represents a forward-only iterator over a set of points. These are used by the MapFunctions in this file
+// Iterator represents a forward-only iterator over a set of points.
+// These are used by the MapFunctions in this file
 type Iterator interface {
-	Next() (seriesID uint32, timestamp int64, value interface{})
+	Next() (seriesID uint64, timestamp int64, value interface{})
 }
 
-// MapFunc represents a function used for mapping over a sequential series of data. The iterator represents a single group by interval
+// MapFunc represents a function used for mapping over a sequential series of data.
+// The iterator represents a single group by interval
 type MapFunc func(Iterator) interface{}
 
 // ReduceFunc represents a function used for reducing mapper output.
 type ReduceFunc func([]interface{}) interface{}
+
+// UnmarshalFunc represents a function that can take bytes from a mapper from remote
+// server and marshal it into an interface the reduer can use
+type UnmarshalFunc func([]byte) (interface{}, error)
 
 // InitializeMapFunc takes an aggregate call from the query and returns the MapFunc
 func InitializeMapFunc(c *Call) (MapFunc, error) {
@@ -107,6 +114,52 @@ func InitializeReduceFunc(c *Call) (ReduceFunc, error) {
 		return ReducePercentile(lit.Val), nil
 	default:
 		return nil, fmt.Errorf("function not found: %q", c.Name)
+	}
+}
+
+func InitializeUnmarshaller(c *Call) (UnmarshalFunc, error) {
+	// if c is nil it's a raw data query
+	if c == nil {
+		return func(b []byte) (interface{}, error) {
+			warn("MARSHAL OUTPUT: ", string(b))
+			a := make([]*rawQueryMapOutput, 0)
+			err := json.Unmarshal(b, &a)
+			return a, err
+		}, nil
+	}
+
+	// Retrieve marshal function by name
+	switch strings.ToLower(c.Name) {
+	case "mean":
+		return func(b []byte) (interface{}, error) {
+			var o meanMapOutput
+			err := json.Unmarshal(b, &o)
+			return &o, err
+		}, nil
+	case "spread":
+		return func(b []byte) (interface{}, error) {
+			var o spreadMapOutput
+			err := json.Unmarshal(b, &o)
+			return &o, err
+		}, nil
+	case "first":
+		return func(b []byte) (interface{}, error) {
+			var o firstLastMapOutput
+			err := json.Unmarshal(b, &o)
+			return &o, err
+		}, nil
+	case "last":
+		return func(b []byte) (interface{}, error) {
+			var o firstLastMapOutput
+			err := json.Unmarshal(b, &o)
+			return &o, err
+		}, nil
+	default:
+		return func(b []byte) (interface{}, error) {
+			var val interface{}
+			err := json.Unmarshal(b, &val)
+			return val, err
+		}, nil
 	}
 }
 
@@ -519,12 +572,12 @@ func MapRawQuery(itr Iterator) interface{} {
 }
 
 type rawQueryMapOutput struct {
-	timestamp int64
-	values    interface{}
+	Timestamp int64
+	Values    interface{}
 }
 
 type rawOutputs []*rawQueryMapOutput
 
 func (a rawOutputs) Len() int           { return len(a) }
-func (a rawOutputs) Less(i, j int) bool { return a[i].timestamp < a[j].timestamp }
+func (a rawOutputs) Less(i, j int) bool { return a[i].Timestamp < a[j].Timestamp }
 func (a rawOutputs) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }

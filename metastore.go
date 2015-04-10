@@ -238,8 +238,8 @@ func (tx *metatx) createSeries(database, name string, tags map[string]string) (*
 	id, _ := t.NextSequence()
 
 	// store the tag map for the series
-	s := &Series{ID: uint32(id), Tags: tags}
-	idBytes := u32tob(uint32(id))
+	s := &Series{ID: uint64(id), Tags: tags}
+	idBytes := u64tob(uint64(id))
 
 	if err := b.Put(idBytes, mustMarshalJSON(s)); err != nil {
 		return nil, err
@@ -248,12 +248,12 @@ func (tx *metatx) createSeries(database, name string, tags map[string]string) (*
 }
 
 // dropSeries removes all seriesIDS for a given database/measurement
-func (tx *metatx) dropSeries(database string, seriesByMeasurement map[string][]uint32) error {
+func (tx *metatx) dropSeries(database string, seriesByMeasurement map[string][]uint64) error {
 	for measurement, ids := range seriesByMeasurement {
 		b := tx.Bucket([]byte("Databases")).Bucket([]byte(database)).Bucket([]byte("Series")).Bucket([]byte(measurement))
 		if b != nil {
 			for _, id := range ids {
-				if err := b.Delete(u32tob(id)); err != nil {
+				if err := b.Delete(u64tob(id)); err != nil {
 					return err
 				}
 			}

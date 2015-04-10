@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -816,6 +817,17 @@ func (s *Server) DataNode(id uint64) *DataNode {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.dataNodes[id]
+}
+
+// DataNodesByID returns the data nodes matching the passed ids
+func (s *Server) DataNodesByID(ids []uint64) []*DataNode {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var a []*DataNode
+	for _, id := range ids {
+		a = append(a, s.dataNodes[id])
+	}
+	return a
 }
 
 // DataNodeByURL returns a data node by url.
@@ -1694,7 +1706,7 @@ func (s *Server) applyDropSeries(m *messaging.Message) error {
 }
 
 // DropSeries deletes from an existing series.
-func (s *Server) DropSeries(database string, seriesByMeasurement map[string][]uint32) error {
+func (s *Server) DropSeries(database string, seriesByMeasurement map[string][]uint64) error {
 	c := dropSeriesCommand{Database: database, SeriesByMeasurement: seriesByMeasurement}
 	_, err := s.broadcast(dropSeriesMessageType, c)
 	return err
@@ -1773,6 +1785,7 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 		for _, p := range points {
 			measurement, series := db.MeasurementAndSeries(p.Name, p.Tags)
 			if series == nil {
+				s.Logger.Printf("series not found: name=%s, tags=%#v", p.Name, p.Tags)
 				return ErrSeriesNotFound
 			}
 
@@ -2235,10 +2248,7 @@ func (s *Server) executeSelectStatement(statementID int, stmt *influxql.SelectSt
 	}
 
 	// Execute plan.
-	ch, err := e.Execute()
-	if err != nil {
-		return err
-	}
+	ch := e.Execute()
 
 	// Stream results from the channel. We should send an empty result if nothing comes through.
 	resultSent := false
@@ -2455,13 +2465,13 @@ func (s *Server) executeDropMeasurementStatement(stmt *influxql.DropMeasurementS
 func (s *Server) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, database string, user *User) *Result {
 	s.mu.RLock()
 
-	seriesByMeasurement := make(map[string][]uint32)
+	seriesByMeasurement := make(map[string][]uint64)
 	// Handle the simple `DROP SERIES <id>` case.
 	if stmt.Source == nil && stmt.Condition == nil {
 		for _, db := range s.databases {
 			for _, m := range db.measurements {
 				if m.seriesByID[stmt.SeriesID] != nil {
-					seriesByMeasurement[m.Name] = []uint32{stmt.SeriesID}
+					seriesByMeasurement[m.Name] = []uint64{stmt.SeriesID}
 				}
 			}
 		}
@@ -2490,7 +2500,7 @@ func (s *Server) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, 
 		var ids seriesIDs
 		if stmt.Condition != nil {
 			// Get series IDs that match the WHERE clause.
-			filters := map[uint32]influxql.Expr{}
+			filters := map[uint64]influxql.Expr{}
 			ids, _, _ = m.walkWhereForSeriesIds(stmt.Condition, filters)
 
 			// TODO: check return of walkWhereForSeriesIds for fields
@@ -2533,7 +2543,7 @@ func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, 
 
 		if stmt.Condition != nil {
 			// Get series IDs that match the WHERE clause.
-			filters := map[uint32]influxql.Expr{}
+			filters := map[uint64]influxql.Expr{}
 			ids, _, _ = m.walkWhereForSeriesIds(stmt.Condition, filters)
 
 			// If no series matched, then go to the next measurement.
@@ -2748,7 +2758,7 @@ func (s *Server) executeShowTagValuesStatement(stmt *influxql.ShowTagValuesState
 
 		if stmt.Condition != nil {
 			// Get series IDs that match the WHERE clause.
-			filters := map[uint32]influxql.Expr{}
+			filters := map[uint64]influxql.Expr{}
 			ids, _, _ = m.walkWhereForSeriesIds(stmt.Condition, filters)
 
 			// If no series matched, then go to the next measurement.
@@ -3080,6 +3090,65 @@ func (s *Server) measurement(database, name string) (*Measurement, error) {
 
 // Begin returns an unopened transaction associated with the server.
 func (s *Server) Begin() (influxql.Tx, error) { return newTx(s), nil }
+
+// StartLocalMapper will create a local mapper for the passed in remote mapper
+func (s *Server) StartLocalMapper(rm *RemoteMapper) (*LocalMapper, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	// get everything we need to run the local mapper
+	shard := s.shards[rm.ShardID]
+	if shard == nil {
+		return nil, ErrShardNotFound
+	}
+
+	// this should never be the case, but we have to be sure
+	if shard.store == nil {
+		return nil, ErrShardNotLocal
+	}
+
+	db := s.databases[rm.Database]
+	if db == nil {
+		return nil, ErrDatabaseNotFound(rm.Database)
+	}
+
+	m := db.measurements[rm.MeasurementName]
+	if m == nil {
+		return nil, ErrMeasurementNotFound(rm.MeasurementName)
+	}
+
+	// create a job, it's only used as a container for a few variables
+	job := &influxql.MapReduceJob{
+		MeasurementName: rm.MeasurementName,
+		TMin:            rm.TMin,
+		TMax:            rm.TMax,
+	}
+
+	// limits and offsets can't be evaluated at the local mapper so we need to read
+	// limit + offset points to be sure that the reducer will be able to correctly put things together
+	limit := uint64(rm.Limit) + uint64(rm.Offset)
+	// if limit is zero, just set to the max number since we use limit == 0 later to determine if the mapper is empty
+	if limit == 0 {
+		limit = math.MaxUint64
+	}
+
+	// now create and start the local mapper
+	lm := &LocalMapper{
+		seriesIDs:    rm.SeriesIDs,
+		job:          job,
+		db:           shard.store,
+		decoder:      NewFieldCodec(m),
+		filters:      rm.FilterExprs(),
+		whereFields:  rm.WhereFields,
+		selectFields: rm.SelectFields,
+		selectTags:   rm.SelectTags,
+		interval:     rm.Interval,
+		tmax:         rm.TMax,
+		limit:        limit,
+	}
+
+	return lm, nil
+}
 
 // NormalizeStatement adds a default database and policy to the measurements in statement.
 func (s *Server) NormalizeStatement(stmt influxql.Statement, defaultDatabase string) (err error) {
@@ -3790,10 +3859,7 @@ func (s *Server) runContinuousQueryAndWriteResult(cq *ContinuousQuery) error {
 	}
 
 	// Execute plan.
-	ch, err := e.Execute()
-	if err != nil {
-		return err
-	}
+	ch := e.Execute()
 
 	// Read all rows from channel and write them in
 	for row := range ch {

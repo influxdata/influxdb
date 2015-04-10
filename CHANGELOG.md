@@ -3,6 +3,7 @@
 ### Bugfixes
 - [#2225](https://github.com/influxdb/influxdb/pull/2225): Make keywords completely case insensitive
 - [#2228](https://github.com/influxdb/influxdb/pull/2228): Accept keyword default unquoted in ALTER RETENTION POLICY statement
+- [#2236](https://github.com/influxdb/influxdb/pull/2236): Immediate term changes, fix stale write issue, net/http/pprof 
 
 ## v0.9.0-rc22 [2015-04-09]
 
@@ -38,6 +39,7 @@
 - [#2142](https://github.com/influxdb/influxdb/pull/2142): Support chunked queries
 - [#2154](https://github.com/influxdb/influxdb/pull/2154): Node redirection
 - [#2168](https://github.com/influxdb/influxdb/pull/2168): Return raft term from vote, add term logging
+- [#2116](https://github.com/influxdb/influxdb/pull/2116): Wire up the distributed query engine (still a few things to do, but the framework is there)
 
 ### Bugfixes
 - [#2147](https://github.com/influxdb/influxdb/pull/2147): Set Go Max procs in a better location
