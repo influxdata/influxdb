@@ -18,6 +18,13 @@ const (
 
 	// DateTimeFormat represents the format for date time literals.
 	DateTimeFormat = "2006-01-02 15:04:05.999999"
+
+	// Number bases
+	base10 = 10
+
+	// Bit sizes
+	bits32 = 32
+	bits64 = 64
 )
 
 // Parser represents an InfluxQL parser.
@@ -1060,10 +1067,7 @@ func (p *Parser) parseDropServerStatement() (*DropServerStatement, error) {
 	var err error
 
 	// Parse the server's ID.
-	const (
-		base, bitSize = 10, 64
-	)
-	if s.NodeID, err = p.parseUInt(base, bitSize); err != nil {
+	if s.NodeID, err = p.parseUInt(base10, bits64); err != nil {
 		return nil, err
 	}
 
