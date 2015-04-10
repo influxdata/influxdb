@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	MAX_MAP_RESPONSE_SIZE = 1024 * 1024 * 1024
+	MAX_MAP_RESPONSE_SIZE = 1024 * 1024
 )
 
 // RemoteMapper implements the influxql.Mapper interface. The engine uses the remote mapper
