@@ -184,6 +184,10 @@ type Config struct {
 		WriteInterval Duration `toml:"write-interval"`
 	} `toml:"monitoring"`
 
+	Debugging struct {
+		PprofEnabled bool `toml:"pprof-enabled"`
+	} `toml:"debugging"`
+
 	ContinuousQuery struct {
 		// when continuous queries are run we'll automatically recompute previous intervals
 		// in case lagged data came in. Set to zero if you never have lagged data. We do
