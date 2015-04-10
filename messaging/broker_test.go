@@ -133,9 +133,6 @@ func TestBroker_Apply_SetMaxTopicIndex(t *testing.T) {
 		t.Fatalf("apply error: %s", err)
 	}
 
-	if topic := b.Topic(20); topic.Index() != 5 {
-		t.Fatalf("unexpected topic index: %d", topic.Index())
-	}
 	if topic := b.Topic(20); topic.IndexForURL(*testDataURL) != 5 {
 		t.Fatalf("unexpected topic url index: %d", topic.IndexForURL(*testDataURL))
 	}

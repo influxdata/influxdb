@@ -4,6 +4,7 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"net/http/pprof"
 	"net/url"
 	"strings"
 
@@ -29,6 +30,21 @@ func NewHandler() *Handler {
 
 // ServeHTTP responds to HTTP request to the handler.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Debug routes.
+	if h.Config.Debugging.PprofEnabled && strings.HasPrefix(r.URL.Path, "/debug/pprof") {
+		switch r.URL.Path {
+		case "/debug/pprof/cmdline":
+			pprof.Cmdline(w, r)
+		case "/debug/pprof/profile":
+			pprof.Profile(w, r)
+		case "/debug/pprof/symbol":
+			pprof.Symbol(w, r)
+		default:
+			pprof.Index(w, r)
+		}
+		return
+	}
+
 	// FIXME: This is very brittle.  Refactor to have common path prefix
 	if strings.HasPrefix(r.URL.Path, "/raft") {
 		h.serveRaft(w, r)

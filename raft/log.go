@@ -546,6 +546,12 @@ func (l *Log) mustSetTermIfHigher(term uint64) {
 	if err := l.setTerm(term); err != nil {
 		panic("unable to set term: " + err.Error())
 	}
+
+	// Signal term change.
+	select {
+	case l.terms <- struct{}{}:
+	default:
+	}
 }
 
 // readConfig reads the configuration from disk.
