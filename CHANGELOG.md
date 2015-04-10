@@ -4,6 +4,7 @@
 - [#2225](https://github.com/influxdb/influxdb/pull/2225): Make keywords completely case insensitive
 - [#2228](https://github.com/influxdb/influxdb/pull/2228): Accept keyword default unquoted in ALTER RETENTION POLICY statement
 - [#2236](https://github.com/influxdb/influxdb/pull/2236): Immediate term changes, fix stale write issue, net/http/pprof 
+- [#2213](https://github.com/influxdb/influxdb/pull/2213): Seed random number generator for election timeout. Thanks @cannium.
 
 ## v0.9.0-rc22 [2015-04-09]
 
