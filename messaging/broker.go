@@ -495,12 +495,9 @@ func (b *Broker) applySetTopicMaxIndex(m *Message) {
 	if t := b.topics[topicID]; t != nil {
 		t.mu.Lock()
 		defer t.mu.Unlock()
+
 		// Track the highest replicated index per data node URL
 		t.indexByURL[u] = index
-
-		if t.index < index {
-			t.index = index
-		}
 	}
 }
 
@@ -814,6 +811,9 @@ func (t *Topic) WriteMessage(m *Message) error {
 	if _, err := m.WriteTo(t.file); err != nil {
 		return fmt.Errorf("write segment: %s", err)
 	}
+
+	// Update index.
+	t.index = m.Index
 
 	return nil
 }

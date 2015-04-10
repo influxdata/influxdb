@@ -1785,6 +1785,7 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 		for _, p := range points {
 			measurement, series := db.MeasurementAndSeries(p.Name, p.Tags)
 			if series == nil {
+				s.Logger.Printf("series not found: name=%s, tags=%#v", p.Name, p.Tags)
 				return ErrSeriesNotFound
 			}
 
