@@ -172,6 +172,8 @@ func (p *Parser) parseDropStatement() (Statement, error) {
 		return p.parseDropRetentionPolicyStatement()
 	} else if tok == USER {
 		return p.parseDropUserStatement()
+	} else if tok == SERVER {
+		return p.parseDropServerStatement()
 	}
 
 	return nil, newParseError(tokstr(tok, lit), []string{"SERIES", "CONTINUOUS", "MEASUREMENT"}, pos)
@@ -372,20 +374,20 @@ func (p *Parser) parseInt(min, max int) (int, error) {
 	return n, nil
 }
 
-// parseUInt32 parses a string and returns a 32-bit unsigned integer literal.
-func (p *Parser) parseUInt32() (uint32, error) {
+// parseUInt parses a string and returns a 64-bit unsigned integer.
+func (p *Parser) parseUInt(base int, bitSize int) (uint64, error) {
 	tok, pos, lit := p.scanIgnoreWhitespace()
 	if tok != NUMBER {
 		return 0, newParseError(tokstr(tok, lit), []string{"number"}, pos)
 	}
 
-	// Convert string to unsigned 32-bit integer
-	n, err := strconv.ParseUint(lit, 10, 32)
+	// Convert string to unsigned 64-bit integer
+	n, err := strconv.ParseUint(lit, base, 64)
 	if err != nil {
 		return 0, &ParseError{Message: err.Error(), Pos: pos}
 	}
 
-	return uint32(n), nil
+	return n, nil
 }
 
 // parseUInt64 parses a string and returns a 64-bit unsigned integer literal.
@@ -1039,13 +1041,33 @@ func (p *Parser) parseDropSeriesStatement() (*DropSeriesStatement, error) {
 
 	// If they didn't provide a FROM or a WHERE, they need to provide the SeriesID
 	if stmt.Condition == nil && stmt.Source == nil {
-		id, err := p.parseUInt64()
+		const (
+			base, bitSize = 10, 64
+		)
+		id, err := p.parseUInt(base, bitSize)
 		if err != nil {
 			return nil, err
 		}
 		stmt.SeriesID = id
 	}
 	return stmt, nil
+}
+
+// parseDropServerStatement parses a string and returns a DropServerStatement.
+// This function assumes the "DROP SERVER" tokens have already been consumed.
+func (p *Parser) parseDropServerStatement() (*DropServerStatement, error) {
+	s := &DropServerStatement{}
+	var err error
+
+	// Parse the server's ID.
+	const (
+		base, bitSize = 10, 64
+	)
+	if s.NodeID, err = p.parseUInt(base, bitSize); err != nil {
+		return nil, err
+	}
+
+	return s, nil
 }
 
 // parseShowContinuousQueriesStatement parses a string and returns a ShowContinuousQueriesStatement.

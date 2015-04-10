@@ -71,6 +71,7 @@ func (*DropDatabaseStatement) node()          {}
 func (*DropMeasurementStatement) node()       {}
 func (*DropRetentionPolicyStatement) node()   {}
 func (*DropSeriesStatement) node()            {}
+func (*DropServerStatement) node()            {}
 func (*DropUserStatement) node()              {}
 func (*GrantStatement) node()                 {}
 func (*ShowContinuousQueriesStatement) node() {}
@@ -171,6 +172,7 @@ func (*DropDatabaseStatement) stmt()          {}
 func (*DropMeasurementStatement) stmt()       {}
 func (*DropRetentionPolicyStatement) stmt()   {}
 func (*DropSeriesStatement) stmt()            {}
+func (*DropServerStatement) stmt()            {}
 func (*DropUserStatement) stmt()              {}
 func (*GrantStatement) stmt()                 {}
 func (*ShowContinuousQueriesStatement) stmt() {}
@@ -1232,6 +1234,22 @@ func (s *DropSeriesStatement) String() string {
 // RequiredPrivileges returns the privilige reqired to execute a DropSeriesStatement.
 func (s DropSeriesStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Name: "", Privilege: WritePrivilege}}
+}
+
+// DropServerStatement represents a command for removing a server from the cluster.
+type DropServerStatement struct {
+	// ID of the node to be dropped.
+	NodeID uint64
+}
+
+// String returns a string representation of the drop series statement.
+func (s *DropServerStatement) String() string {
+	return fmt.Sprintf("DROP SERVER %d", s.NodeID)
+}
+
+// RequiredPrivileges returns the privilege required to execute a DropServerStatement.
+func (s *DropServerStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
 }
 
 // ShowContinuousQueriesStatement represents a command for listing continuous queries.
