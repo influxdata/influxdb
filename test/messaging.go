@@ -54,6 +54,7 @@ func (c *MessagingClient) Close() error {
 	for _, conn := range c.conns {
 		conn.Close()
 	}
+	c.conns = nil
 
 	return nil
 }

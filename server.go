@@ -262,8 +262,10 @@ func (s *Server) close() error {
 		s.done = nil
 	}
 
-	// Remove client.
-	s.client = nil
+	if s.client != nil {
+		s.client.Close()
+		s.client = nil
+	}
 
 	// Close metastore.
 	_ = s.meta.close()

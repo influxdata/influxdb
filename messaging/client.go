@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -174,6 +175,10 @@ func (c *Client) close() error {
 		_ = conn.Close()
 	}
 	c.conns = nil
+
+	// Shutdown any "keep-alive" connections held open
+	// by the default transport.
+	http.DefaultTransport.(*http.Transport).CloseIdleConnections()
 
 	// Close goroutines.
 	if c.closing != nil {
@@ -631,6 +636,16 @@ func (c *Conn) streamer(closing <-chan struct{}) {
 
 			// Begin streaming request.
 			if err := c.stream(req, closing); err != nil {
+				// See https://github.com/golang/go/issues/4373
+				if strings.Contains(err.Error(), "closed network connection") {
+					// check if we're closing to avoid the reconnect log message
+					// and sleep
+					select {
+					case <-closing:
+						return
+					default:
+					}
+				}
 				c.Logger.Printf("reconnecting to broker: url=%s, err=%s", u, err)
 				time.Sleep(c.ReconnectTimeout)
 			}

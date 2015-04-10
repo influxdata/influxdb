@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"math"
 	"net"
 	"net/http"
@@ -18,10 +19,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdb/influxdb"
-	"github.com/influxdb/influxdb/messaging"
-	"github.com/influxdb/influxdb/raft"
-
 	"github.com/influxdb/influxdb/client"
 	main "github.com/influxdb/influxdb/cmd/influxd"
 )
@@ -32,7 +29,7 @@ const (
 	batchSize = 4217
 )
 
-type writeFn func(t *testing.T, node *Node, database, retention string)
+type writeFn func(t *testing.T, node *TestNode, database, retention string)
 
 // tempfile returns a temporary path.
 func tempfile() string {
@@ -58,34 +55,20 @@ func rewriteDbRp(old, database, retention string) string {
 }
 
 // Node represents a node under test, which is both a broker and data node.
-type Node struct {
-	broker *messaging.Broker
-	server *influxdb.Server
-	log    *raft.Log
+type TestNode struct {
+	node   *main.Node
 	url    *url.URL
 	leader bool
 }
 
 // Cluster represents a multi-node cluster.
-type Cluster []*Node
+type Cluster []*TestNode
 
 func (c *Cluster) Close() {
 	for _, n := range *c {
-		if n.log != nil {
-			n.log.Close()
-			n.log = nil
+		if err := n.node.Close(); err != nil {
+			log.Fatalf("failed to close node: %s", err)
 		}
-
-		if n.server != nil {
-			n.server.Close()
-			n.server = nil
-		}
-
-		if n.broker != nil {
-			n.broker.Close()
-			n.broker = nil
-		}
-
 	}
 }
 
@@ -94,13 +77,14 @@ func (c *Cluster) Close() {
 // the testing is marked as failed.
 //
 // This function returns a slice of nodes, the first of which will be the leader.
-func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes, basePort int, baseConfig *main.Config) Cluster {
+func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes int, baseConfig *main.Config) Cluster {
+	basePort := 8086
 	t.Logf("Creating cluster of %d nodes for test %s", nNodes, testName)
 	if nNodes < 1 {
 		t.Fatalf("Test %s: asked to create nonsense cluster", testName)
 	}
 
-	nodes := make([]*Node, 0)
+	nodes := make([]*TestNode, 0)
 
 	tmpBrokerDir := filepath.Join(tmpDir, "broker-integration-test")
 	tmpDataDir := filepath.Join(tmpDir, "data-integration-test")
@@ -125,17 +109,18 @@ func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes, ba
 	c.Snapshot.Enabled = false
 
 	cmd := main.NewRunCommand()
-	b, s, l := cmd.Open(c, "")
+	node := cmd.Open(c, "")
+	b := node.Broker
+	s := node.DataNode
+
 	if b == nil {
 		t.Fatalf("Test %s: failed to create broker on port %d", testName, basePort)
 	}
 	if s == nil {
 		t.Fatalf("Test %s: failed to create leader data node on port %d", testName, basePort)
 	}
-	nodes = append(nodes, &Node{
-		broker: b,
-		server: s,
-		log:    l,
+	nodes = append(nodes, &TestNode{
+		node:   node,
 		url:    &url.URL{Scheme: "http", Host: "localhost:" + strconv.Itoa(basePort)},
 		leader: true,
 	})
@@ -148,19 +133,17 @@ func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes, ba
 		c.Port = nextPort
 
 		cmd := main.NewRunCommand()
-		b, s, l := cmd.Open(c, "http://localhost:"+strconv.Itoa(basePort))
-		if b == nil {
+		node := cmd.Open(c, "http://localhost:"+strconv.Itoa(basePort))
+		if node.Broker == nil {
 			t.Fatalf("Test %s: failed to create following broker on port %d", testName, nextPort)
 		}
-		if s == nil {
+		if node.DataNode == nil {
 			t.Fatalf("Test %s: failed to create following data node on port %d", testName, nextPort)
 		}
 
-		nodes = append(nodes, &Node{
-			broker: b,
-			server: s,
-			log:    l,
-			url:    &url.URL{Scheme: "http", Host: "localhost:" + strconv.Itoa(nextPort)},
+		nodes = append(nodes, &TestNode{
+			node: node,
+			url:  &url.URL{Scheme: "http", Host: "localhost:" + strconv.Itoa(nextPort)},
 		})
 	}
 
@@ -188,7 +171,7 @@ func deleteDatabase(t *testing.T, testName string, nodes Cluster, database strin
 }
 
 // writes writes the provided data to the cluster. It verfies that a 200 OK is returned by the server.
-func write(t *testing.T, node *Node, data string) {
+func write(t *testing.T, node *TestNode, data string) {
 	u := urlFor(node.url, "write", url.Values{})
 
 	resp, err := http.Post(u.String(), "application/json", bytes.NewReader([]byte(data)))
@@ -290,7 +273,7 @@ func queryAndWait(t *testing.T, nodes Cluster, urlDb, q, expected, expectPattern
 
 // mergeMany ensures that when merging many series together and some of them have a different number
 // of points than others in a group by interval the results are correct
-var mergeMany = func(t *testing.T, node *Node, database, retention string) {
+var mergeMany = func(t *testing.T, node *TestNode, database, retention string) {
 	for i := 1; i < 11; i++ {
 		for j := 1; j < 5+i%3; j++ {
 			data := fmt.Sprintf(`{"database": "%s", "retentionPolicy": "%s", "points": [{"name": "cpu", "timestamp": "%s", "tags": {"host": "server_%d"}, "fields": {"value": 22}}]}`,
@@ -300,7 +283,7 @@ var mergeMany = func(t *testing.T, node *Node, database, retention string) {
 	}
 }
 
-var limitAndOffset = func(t *testing.T, node *Node, database, retention string) {
+var limitAndOffset = func(t *testing.T, node *TestNode, database, retention string) {
 	for i := 1; i < 10; i++ {
 		data := fmt.Sprintf(`{"database": "%s", "retentionPolicy": "%s", "points": [{"name": "cpu", "timestamp": "%s", "tags": {"region": "us-east", "host": "server-%d"}, "fields": {"value": %d}}]}`,
 			database, retention, time.Unix(int64(i), int64(0)).Format(time.RFC3339), i, i)
@@ -1378,7 +1361,7 @@ func TestSingleServer(t *testing.T) {
 		os.RemoveAll(dir)
 	}()
 
-	nodes := createCombinedNodeCluster(t, testName, dir, 1, 8090, nil)
+	nodes := createCombinedNodeCluster(t, testName, dir, 1, nil)
 	defer nodes.Close()
 
 	runTestsData(t, testName, nodes, "mydb", "myrp")
@@ -1396,7 +1379,8 @@ func Test3NodeServer(t *testing.T) {
 		os.RemoveAll(dir)
 	}()
 
-	nodes := createCombinedNodeCluster(t, testName, dir, 3, 8190, nil)
+	nodes := createCombinedNodeCluster(t, testName, dir, 3, nil)
+	defer nodes.Close()
 
 	runTestsData(t, testName, nodes, "mydb", "myrp")
 	runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp")
@@ -1415,7 +1399,9 @@ func TestClientLibrary(t *testing.T) {
 
 	now := time.Now().UTC()
 
-	nodes := createCombinedNodeCluster(t, testName, dir, 1, 8290, nil)
+	nodes := createCombinedNodeCluster(t, testName, dir, 1, nil)
+	defer nodes.Close()
+
 	type write struct {
 		bp       client.BatchPoints
 		expected string
@@ -1541,7 +1527,6 @@ func Test_ServerSingleGraphiteIntegration(t *testing.T) {
 		t.Skip()
 	}
 	nNodes := 1
-	basePort := 8390
 	testName := "graphite integration"
 	dir := tempfile()
 	now := time.Now().UTC().Round(time.Second)
@@ -1554,7 +1539,8 @@ func Test_ServerSingleGraphiteIntegration(t *testing.T) {
 	c.Graphites = append(c.Graphites, g)
 
 	t.Logf("Graphite Connection String: %s\n", g.ConnectionString(c.BindAddress))
-	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, basePort, c)
+	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, c)
+	defer nodes.Close()
 
 	createDatabase(t, testName, nodes, "graphite")
 	createRetentionPolicy(t, testName, nodes, "graphite", "raw")
@@ -1591,7 +1577,6 @@ func Test_ServerSingleGraphiteIntegration_FractionalTime(t *testing.T) {
 		t.Skip()
 	}
 	nNodes := 1
-	basePort := 8490
 	testName := "graphite integration fractional time"
 	dir := tempfile()
 	now := time.Now().UTC().Round(time.Second).Add(500 * time.Millisecond)
@@ -1605,7 +1590,8 @@ func Test_ServerSingleGraphiteIntegration_FractionalTime(t *testing.T) {
 	c.Graphites = append(c.Graphites, g)
 
 	t.Logf("Graphite Connection String: %s\n", g.ConnectionString(c.BindAddress))
-	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, basePort, c)
+	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, c)
+	defer nodes.Close()
 
 	createDatabase(t, testName, nodes, "graphite")
 	createRetentionPolicy(t, testName, nodes, "graphite", "raw")
@@ -1643,7 +1629,6 @@ func Test_ServerSingleGraphiteIntegration_ZeroDataPoint(t *testing.T) {
 		t.Skip()
 	}
 	nNodes := 1
-	basePort := 8590
 	testName := "graphite integration"
 	dir := tempfile()
 	now := time.Now().UTC().Round(time.Second)
@@ -1657,7 +1642,8 @@ func Test_ServerSingleGraphiteIntegration_ZeroDataPoint(t *testing.T) {
 	c.Graphites = append(c.Graphites, g)
 
 	t.Logf("Graphite Connection String: %s\n", g.ConnectionString(c.BindAddress))
-	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, basePort, c)
+	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, c)
+	defer nodes.Close()
 
 	createDatabase(t, testName, nodes, "graphite")
 	createRetentionPolicy(t, testName, nodes, "graphite", "raw")
@@ -1694,7 +1680,6 @@ func Test_ServerSingleGraphiteIntegration_NoDatabase(t *testing.T) {
 		t.Skip()
 	}
 	nNodes := 1
-	basePort := 8690
 	testName := "graphite integration"
 	dir := tempfile()
 	now := time.Now().UTC().Round(time.Second)
@@ -1707,7 +1692,8 @@ func Test_ServerSingleGraphiteIntegration_NoDatabase(t *testing.T) {
 	c.Graphites = append(c.Graphites, g)
 	c.Logging.WriteTracing = true
 	t.Logf("Graphite Connection String: %s\n", g.ConnectionString(c.BindAddress))
-	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, basePort, c)
+	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, c)
+	defer nodes.Close()
 
 	// Connect to the graphite endpoint we just spun up
 	conn, err := net.Dial("tcp", g.ConnectionString(c.BindAddress))
@@ -1754,7 +1740,6 @@ func Test_ServerOpenTSDBIntegration(t *testing.T) {
 		t.Skip()
 	}
 	nNodes := 1
-	basePort := 8790
 	testName := "opentsdb integration"
 	dir := tempfile()
 	now := time.Now().UTC().Round(time.Second)
@@ -1768,7 +1753,8 @@ func Test_ServerOpenTSDBIntegration(t *testing.T) {
 	c.OpenTSDB = o
 
 	t.Logf("OpenTSDB Connection String: %s\n", o.ListenAddress(c.BindAddress))
-	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, basePort, c)
+	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, c)
+	defer nodes.Close()
 
 	createDatabase(t, testName, nodes, "opentsdb")
 	createRetentionPolicy(t, testName, nodes, "opentsdb", "raw")
@@ -1805,7 +1791,6 @@ func Test_ServerOpenTSDBIntegration_WithTags(t *testing.T) {
 		t.Skip()
 	}
 	nNodes := 1
-	basePort := 8791
 	testName := "opentsdb integration"
 	dir := tempfile()
 	now := time.Now().UTC().Round(time.Second)
@@ -1819,7 +1804,8 @@ func Test_ServerOpenTSDBIntegration_WithTags(t *testing.T) {
 	c.OpenTSDB = o
 
 	t.Logf("OpenTSDB Connection String: %s\n", o.ListenAddress(c.BindAddress))
-	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, basePort, c)
+	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, c)
+	defer nodes.Close()
 
 	createDatabase(t, testName, nodes, "opentsdb")
 	createRetentionPolicy(t, testName, nodes, "opentsdb", "raw")
@@ -1859,7 +1845,6 @@ func Test_ServerOpenTSDBIntegration_BadData(t *testing.T) {
 		t.Skip()
 	}
 	nNodes := 1
-	basePort := 8792
 	testName := "opentsdb integration"
 	dir := tempfile()
 	now := time.Now().UTC().Round(time.Second)
@@ -1873,7 +1858,8 @@ func Test_ServerOpenTSDBIntegration_BadData(t *testing.T) {
 	c.OpenTSDB = o
 
 	t.Logf("OpenTSDB Connection String: %s\n", o.ListenAddress(c.BindAddress))
-	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, basePort, c)
+	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, c)
+	defer nodes.Close()
 
 	createDatabase(t, testName, nodes, "opentsdb")
 	createRetentionPolicy(t, testName, nodes, "opentsdb", "raw")
@@ -1925,31 +1911,32 @@ func TestSeparateBrokerDataNode(t *testing.T) {
 
 	brokerConfig := main.NewConfig()
 	brokerConfig.Data.Enabled = false
-	brokerConfig.Port = 9000
 	brokerConfig.Broker.Dir = filepath.Join(tmpBrokerDir, strconv.Itoa(brokerConfig.Port))
 	brokerConfig.ReportingDisabled = true
 
 	dataConfig := main.NewConfig()
-	dataConfig.Port = 9001
+	dataConfig.Port = 9086
 	dataConfig.Broker.Enabled = false
 	dataConfig.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(dataConfig.Port))
 	dataConfig.ReportingDisabled = true
 
 	brokerCmd := main.NewRunCommand()
-	b, _, _ := brokerCmd.Open(brokerConfig, "")
-	if b == nil {
+	broker := brokerCmd.Open(brokerConfig, "")
+	defer broker.Close()
+
+	if broker.Broker == nil {
 		t.Fatalf("Test %s: failed to create broker on port %d", testName, brokerConfig.Port)
 	}
 
-	u := b.URL()
+	u := broker.Broker.URL()
 	dataCmd := main.NewRunCommand()
 
-	_, s, _ := dataCmd.Open(dataConfig, (&u).String())
-	if s == nil {
+	data := dataCmd.Open(dataConfig, (&u).String())
+	defer data.Close()
+
+	if data.DataNode == nil {
 		t.Fatalf("Test %s: failed to create leader data node on port %d", testName, dataConfig.Port)
 	}
-	brokerCmd.Close()
-	dataCmd.Close()
 }
 
 func TestSeparateBrokerTwoDataNodes(t *testing.T) {
@@ -1972,51 +1959,51 @@ func TestSeparateBrokerTwoDataNodes(t *testing.T) {
 	// Start a single broker node
 	brokerConfig := main.NewConfig()
 	brokerConfig.Data.Enabled = false
-	brokerConfig.Port = 9010
 	brokerConfig.Broker.Dir = filepath.Join(tmpBrokerDir, strconv.Itoa(brokerConfig.Port))
 	brokerConfig.ReportingDisabled = true
 
 	brokerCmd := main.NewRunCommand()
-	b, _, _ := brokerCmd.Open(brokerConfig, "")
-	if b == nil {
+	broker := brokerCmd.Open(brokerConfig, "")
+	defer broker.Close()
+
+	if broker.Broker == nil {
 		t.Fatalf("Test %s: failed to create broker on port %d", testName, brokerConfig.Port)
 	}
 
-	u := b.URL()
+	u := broker.Broker.URL()
 	brokerURL := (&u).String()
 
 	// Star the first data node and join the broker
 	dataConfig1 := main.NewConfig()
-	dataConfig1.Port = 9011
+	dataConfig1.Port = 9086
 	dataConfig1.Broker.Enabled = false
 	dataConfig1.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(dataConfig1.Port))
 	dataConfig1.ReportingDisabled = true
 
 	dataCmd1 := main.NewRunCommand()
 
-	_, s1, _ := dataCmd1.Open(dataConfig1, brokerURL)
-	if s1 == nil {
+	data1 := dataCmd1.Open(dataConfig1, brokerURL)
+	defer data1.Close()
+
+	if data1.DataNode == nil {
 		t.Fatalf("Test %s: failed to create leader data node on port %d", testName, dataConfig1.Port)
 	}
 
 	// Join data node 2 to single broker and first data node
 	dataConfig2 := main.NewConfig()
-	dataConfig2.Port = 9012
+	dataConfig2.Port = 10086
 	dataConfig2.Broker.Enabled = false
 	dataConfig2.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(dataConfig2.Port))
 	dataConfig2.ReportingDisabled = true
 
 	dataCmd2 := main.NewRunCommand()
 
-	_, s2, _ := dataCmd2.Open(dataConfig2, brokerURL)
-	if s2 == nil {
+	data2 := dataCmd2.Open(dataConfig2, brokerURL)
+
+	defer data2.Close()
+	if data2.DataNode == nil {
 		t.Fatalf("Test %s: failed to create leader data node on port %d", testName, dataConfig2.Port)
 	}
-
-	brokerCmd.Close()
-	dataCmd1.Close()
-	dataCmd2.Close()
-
 }
 
 // helper funcs

@@ -42,30 +42,122 @@ func NewRunCommand() *RunCommand {
 }
 
 type Node struct {
-	broker   *influxdb.Broker
-	dataNode *influxdb.Server
+	Broker   *influxdb.Broker
+	DataNode *influxdb.Server
 	raftLog  *raft.Log
+
+	adminServer      *admin.Server
+	clusterListener  net.Listener // The cluster TCP listener
+	snapshotListener net.Listener
 }
 
-func (s *Node) Close() {
-	if s.broker != nil {
-		if err := s.broker.Close(); err != nil {
-			log.Fatalf("error closing broker: %s", err)
+func (s *Node) Close() error {
+	if err := s.closeClusterListener(); err != nil {
+		return err
+	}
+
+	if err := s.closeAdminServer(); err != nil {
+		return err
+	}
+
+	if err := s.closeSnapshotListener(); err != nil {
+		return err
+	}
+
+	if s.DataNode != nil {
+		if err := s.DataNode.Close(); err != nil {
+			return err
+		}
+	}
+
+	if s.Broker != nil {
+		if err := s.Broker.Close(); err != nil {
+			return err
 		}
 	}
 
 	if s.raftLog != nil {
 		if err := s.raftLog.Close(); err != nil {
-			log.Fatalf("error closing raft log: %s", err)
+			return err
 		}
 	}
+	return nil
+}
 
-	if s.dataNode != nil {
-		if err := s.dataNode.Close(); err != nil {
-			log.Fatalf("error data broker: %s", err)
-		}
+func (s *Node) openAdminServer(port int) error {
+	// Start the admin interface on the default port
+	addr := net.JoinHostPort("", strconv.Itoa(port))
+	s.adminServer = admin.NewServer(addr)
+	return s.adminServer.ListenAndServe()
+}
+
+func (s *Node) closeAdminServer() error {
+	if s.adminServer != nil {
+		return s.adminServer.Close()
 	}
+	return nil
+}
 
+func (s *Node) openClusterListener(addr string, h http.Handler) error {
+	var err error
+	// We want to make sure we are spun up before we exit this function, so we manually listen and serve
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
+	}
+	s.clusterListener = listener
+	go func() {
+		err := http.Serve(s.clusterListener, h)
+
+		// The listener was closed so exit
+		// See https://github.com/golang/go/issues/4373
+		if operr, ok := err.(*net.OpError); ok && strings.Contains(operr.Err.Error(), "closed network connection") {
+			return
+		}
+		if err != nil {
+			log.Fatalf("TCP server failed to server on %s: %s", addr, err)
+		}
+	}()
+	return nil
+}
+
+func (s *Node) closeClusterListener() error {
+	var err error
+	if s.clusterListener != nil {
+		err = s.clusterListener.Close()
+		s.clusterListener = nil
+	}
+	return err
+}
+
+func (s *Node) openSnapshotListener(addr string) error {
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
+	}
+	s.snapshotListener = listener
+
+	// Start snapshot handler.
+	go func() {
+		err := http.Serve(s.snapshotListener,
+			&httpd.SnapshotHandler{
+				CreateSnapshotWriter: s.DataNode.CreateSnapshotWriter,
+			},
+		)
+		if !strings.Contains(err.Error(), "closed") {
+			log.Fatalf("snapshot server failed to serve on %s: %s", addr, err)
+		}
+	}()
+	return nil
+}
+
+func (s *Node) closeSnapshotListener() error {
+	var err error
+	if s.snapshotListener != nil {
+		err = s.snapshotListener.Close()
+		s.snapshotListener = nil
+	}
+	return err
 }
 
 func (cmd *RunCommand) Run(args ...string) error {
@@ -144,8 +236,7 @@ func (cmd *RunCommand) CheckConfig() {
 	}
 }
 
-func (cmd *RunCommand) Open(config *Config, join string) (*messaging.Broker, *influxdb.Server, *raft.Log) {
-
+func (cmd *RunCommand) Open(config *Config, join string) *Node {
 	if config != nil {
 		cmd.config = config
 	}
@@ -160,27 +251,20 @@ func (cmd *RunCommand) Open(config *Config, join string) (*messaging.Broker, *in
 		cmd.openBroker(joinURLs)
 		// If were running as a broker locally, always connect to it since it must
 		// be ready before we can start the data node.
-		joinURLs = []url.URL{cmd.node.broker.URL()}
+		joinURLs = []url.URL{cmd.node.Broker.URL()}
 	}
 
 	// Start the broker handler.
 	h := &Handler{
 		Config: config,
-		Broker: cmd.node.broker,
+		Broker: cmd.node.Broker,
 		Log:    cmd.node.raftLog,
 	}
 
-	// We want to make sure we are spun up before we exit this function, so we manually listen and serve
-	listener, err := net.Listen("tcp", cmd.config.ClusterAddr())
+	err := cmd.node.openClusterListener(cmd.config.ClusterAddr(), h)
 	if err != nil {
 		log.Fatalf("TCP server failed to listen on %s. %s ", cmd.config.ClusterAddr(), err)
 	}
-	go func() {
-		err := http.Serve(listener, h)
-		if err != nil {
-			log.Fatalf("TCP server failed to server on %s: %s", cmd.config.ClusterAddr(), err)
-		}
-	}()
 	log.Printf("TCP server listening on %s", cmd.config.ClusterAddr())
 
 	var s *influxdb.Server
@@ -213,26 +297,19 @@ func (cmd *RunCommand) Open(config *Config, join string) (*messaging.Broker, *in
 		h.Server = s
 
 		if config.Snapshot.Enabled {
-			// Start snapshot handler.
-			go func() {
-				log.Fatal(http.ListenAndServe(
-					cmd.config.SnapshotAddr(),
-					&httpd.SnapshotHandler{
-						CreateSnapshotWriter: s.CreateSnapshotWriter,
-					},
-				))
-			}()
-			log.Printf("snapshot endpoint listening on %s", cmd.config.SnapshotAddr())
+			if err := cmd.node.openSnapshotListener(cmd.config.SnapshotAddr()); err != nil {
+				log.Fatalf("snapshot server failed to listen on %s: %s", cmd.config.SnapshotAddr(), err)
+			}
+			log.Printf("snapshot server listening on %s", cmd.config.SnapshotAddr())
 		} else {
-			log.Println("snapshot endpoint disabled")
+			log.Println("snapshot server disabled")
 		}
 
-		// Start the admin interface on the default port
 		if cmd.config.Admin.Enabled {
-			port := fmt.Sprintf(":%d", cmd.config.Admin.Port)
-			log.Printf("starting admin server on %s", port)
-			a := admin.NewServer(port)
-			go a.ListenAndServe()
+			if err := cmd.node.openAdminServer(cmd.config.Admin.Port); err != nil {
+				log.Fatalf("admin server failed to listen on :%d: %s", cmd.config.Admin.Port, err)
+			}
+			log.Printf("admin server listening on :%d", cmd.config.Admin.Port)
 		}
 
 		// Spin up the collectd server
@@ -335,7 +412,7 @@ func (cmd *RunCommand) Open(config *Config, join string) (*messaging.Broker, *in
 	if !cmd.config.ReportingDisabled {
 		if cmd.config.Broker.Enabled && cmd.config.Data.Enabled {
 			// Make sure we have a config object b4 we try to use it.
-			if clusterID := cmd.node.broker.Broker.ClusterID(); clusterID != 0 {
+			if clusterID := cmd.node.Broker.Broker.ClusterID(); clusterID != 0 {
 				go s.StartReportingLoop(clusterID)
 			}
 		} else {
@@ -343,19 +420,16 @@ func (cmd *RunCommand) Open(config *Config, join string) (*messaging.Broker, *in
 		}
 	}
 
-	var b *messaging.Broker
-	if cmd.node.broker != nil {
-		b = cmd.node.broker.Broker
-
+	if cmd.node.Broker != nil {
 		// have it occasionally tell a data node in the cluster to run continuous queries
 		if cmd.config.ContinuousQuery.Disabled {
 			log.Printf("Not running continuous queries. [continuous_queries].disabled is set to true.")
 		} else {
-			cmd.node.broker.RunContinuousQueryLoop()
+			cmd.node.Broker.RunContinuousQueryLoop()
 		}
 	}
 
-	return b, s, cmd.node.raftLog
+	return cmd.node
 }
 
 func (cmd *RunCommand) Close() {
@@ -409,7 +483,7 @@ func (cmd *RunCommand) openBroker(brokerURLs []url.URL) {
 
 	// Create broker
 	b := influxdb.NewBroker()
-	cmd.node.broker = b
+	cmd.node.Broker = b
 
 	// Create raft log.
 	l := raft.NewLog()
@@ -494,7 +568,7 @@ func (cmd *RunCommand) openServer(joinURLs []url.URL) *influxdb.Server {
 	s.ComputeNoMoreThan = time.Duration(cmd.config.ContinuousQuery.ComputeNoMoreThan)
 	s.Version = version
 	s.CommitHash = commit
-	cmd.node.dataNode = s
+	cmd.node.DataNode = s
 
 	// Open server with data directory and broker client.
 	if err := s.Open(cmd.config.Data.Dir, c); err != nil {
