@@ -42,6 +42,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if strings.HasPrefix(r.URL.Path, "/data_nodes") ||
 		strings.HasPrefix(r.URL.Path, "/process_continuous_queries") ||
+		strings.HasPrefix(r.URL.Path, "/run_mapper") ||
 		strings.HasPrefix(r.URL.Path, "/metastore") {
 		h.serveMetadata(w, r)
 		return
