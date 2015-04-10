@@ -382,7 +382,7 @@ func (p *Parser) parseUInt(base int, bitSize int) (uint64, error) {
 	}
 
 	// Convert string to unsigned 64-bit integer
-	n, err := strconv.ParseUint(lit, base, 64)
+	n, err := strconv.ParseUint(lit, base, bitSize)
 	if err != nil {
 		return 0, &ParseError{Message: err.Error(), Pos: pos}
 	}
