@@ -1,5 +1,9 @@
 ## v0.9.0-rc23 [Unreleased]
 
+### Features
+- [#2202](https://github.com/influxdb/influxdb/pull/2202): Initial implementation of Distributed Queries
+- [#2202](https://github.com/influxdb/influxdb/pull/2202): 64-bit Series IDs. INCOMPATIBLE WITH PREVIOUS DATASTORES.
+
 ### Bugfixes
 - [#2225](https://github.com/influxdb/influxdb/pull/2225): Make keywords completely case insensitive
 - [#2228](https://github.com/influxdb/influxdb/pull/2228): Accept keyword default unquoted in ALTER RETENTION POLICY statement
@@ -40,7 +44,6 @@
 - [#2142](https://github.com/influxdb/influxdb/pull/2142): Support chunked queries
 - [#2154](https://github.com/influxdb/influxdb/pull/2154): Node redirection
 - [#2168](https://github.com/influxdb/influxdb/pull/2168): Return raft term from vote, add term logging
-- [#2116](https://github.com/influxdb/influxdb/pull/2116): Wire up the distributed query engine (still a few things to do, but the framework is there)
 
 ### Bugfixes
 - [#2147](https://github.com/influxdb/influxdb/pull/2147): Set Go Max procs in a better location
