@@ -1358,8 +1358,8 @@ func TestSingleServer(t *testing.T) {
 	nodes := createCombinedNodeCluster(t, testName, dir, 1, nil)
 	defer nodes.Close()
 
-	runTestsData(t, testName, nodes, "mydb", "myrp", 1)
-	runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp", 1)
+	runTestsData(t, testName, nodes, "mydb", "myrp", len(nodes))
+	runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp", len(nodes))
 }
 
 func Test3NodeServer(t *testing.T) {
@@ -1376,8 +1376,8 @@ func Test3NodeServer(t *testing.T) {
 	nodes := createCombinedNodeCluster(t, testName, dir, 3, nil)
 	defer nodes.Close()
 
-	runTestsData(t, testName, nodes, "mydb", "myrp", 3)
-	runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp", 3)
+	runTestsData(t, testName, nodes, "mydb", "myrp", len(nodes))
+	runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp", len(nodes))
 
 }
 
@@ -1395,8 +1395,8 @@ func Test3NodeClusterPartiallyReplicated(t *testing.T) {
 	nodes := createCombinedNodeCluster(t, testName, dir, 3, nil)
 	defer nodes.Close()
 
-	runTestsData(t, testName, nodes, "mydb", "myrp", 2)
-	runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp", 2)
+	runTestsData(t, testName, nodes, "mydb", "myrp", len(nodes)-1)
+	runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp", len(nodes)-1)
 }
 
 func TestClientLibrary(t *testing.T) {
