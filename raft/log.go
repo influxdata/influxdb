@@ -138,6 +138,8 @@ type Log struct {
 
 	// The current term the log is in. This increases when the log starts a
 	// new election term or when the log sees a higher election term.
+	// NOTE that any change to `term` should use function `mustSetTerm` to
+	// ensure the change is written to disk.
 	term uint64
 
 	// The node this log voted for in the current term.
@@ -1614,7 +1616,7 @@ func (l *Log) RequestVote(term, candidateID, lastLogIndex, lastLogTerm uint64) (
 	}
 
 	// Notify term change.
-	l.term = term
+	l.mustSetTerm(term)
 	l.votedFor = 0
 	if term > l.term {
 		select {
