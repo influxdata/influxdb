@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"math"
 	"net"
 	"net/http"
@@ -64,7 +65,9 @@ type Cluster []*TestNode
 
 func (c *Cluster) Close() {
 	for _, n := range *c {
-		n.node.Close()
+		if err := n.node.Close(); err != nil {
+			log.Fatalf("failed to close node: %s", err)
+		}
 	}
 }
 

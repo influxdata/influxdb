@@ -51,36 +51,37 @@ type Node struct {
 	snapshotListener net.Listener
 }
 
-func (s *Node) Close() {
+func (s *Node) Close() error {
 	if err := s.closeClusterListener(); err != nil {
-		log.Fatalf("error closing cluster listener: %s", err)
+		return err
 	}
 
 	if err := s.closeAdminServer(); err != nil {
-		log.Fatalf("error closing admin server: %s", err)
+		return err
 	}
 
 	if err := s.closeSnapshotListener(); err != nil {
-		log.Fatalf("error closing snapshot listener: %s", err)
+		return err
 	}
 
 	if s.DataNode != nil {
 		if err := s.DataNode.Close(); err != nil {
-			log.Fatalf("error data broker: %s", err)
+			return err
 		}
 	}
 
 	if s.Broker != nil {
 		if err := s.Broker.Close(); err != nil {
-			log.Fatalf("error closing broker: %s", err)
+			return err
 		}
 	}
 
 	if s.raftLog != nil {
 		if err := s.raftLog.Close(); err != nil {
-			log.Fatalf("error closing raft log: %s", err)
+			return err
 		}
 	}
+	return nil
 }
 
 func (s *Node) openAdminServer(port int) error {
