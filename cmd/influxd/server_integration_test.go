@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"math"
 	"net"
 	"net/http"
 	"net/url"
@@ -15,7 +14,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -231,42 +229,34 @@ func queryAndWait(t *testing.T, nodes Cluster, urlDb, q, expected, expectPattern
 		v.Set("db", urlDb)
 	}
 
-	var (
-		timedOut int32
-		timer    = time.NewTimer(time.Duration(math.MaxInt64))
-	)
-	defer timer.Stop()
-
-	// Check to see if they set the env for duration sleep
 	sleep := 10 * time.Millisecond
-	if d, e := time.ParseDuration(os.Getenv("TEST_SLEEP")); e == nil {
+	// Check to see if they set the env for duration sleep
+	if sleepRaw := os.Getenv("TEST_SLEEP"); sleepRaw != "" {
+		d, err := time.ParseDuration(sleepRaw)
+		if err != nil {
+			t.Fatal("Invalid TEST_SLEEP value:", err)
+		}
 		// this will limit the http log noise in the test output
 		sleep = d
 		timeout = d + 1
 	}
 
-	done := make(chan struct{})
+	var done <-chan time.Time
 	if timeout > 0 {
-		timer.Reset(time.Duration(timeout))
-		go func() {
-			select {
-			case <-done:
-				return
-			case <-timer.C:
-				atomic.StoreInt32(&timedOut, 1)
-			}
-		}()
+		timer := time.NewTimer(timeout)
+		done = timer.C
+		defer timer.Stop()
 	}
 
 	for {
-		if got, ok := query(t, nodes, urlDb, q, expected, expectPattern); ok {
-			close(done)
+		got, ok := query(t, nodes, urlDb, q, expected, expectPattern)
+		if ok {
 			return got, ok
-		} else if atomic.LoadInt32(&timedOut) == 1 {
-			close(done)
+		}
+		select {
+		case <-done:
 			return got, false
-		} else {
-			time.Sleep(sleep)
+		case <-time.After(sleep):
 		}
 	}
 }
