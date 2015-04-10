@@ -381,15 +381,15 @@ func (p *Parser) parseInt(min, max int) (int, error) {
 	return n, nil
 }
 
-// parseUInt parses a string and returns a 64-bit unsigned integer.
-func (p *Parser) parseUInt(base int, bitSize int) (uint64, error) {
+// parseUint parses a string and returns a 64-bit unsigned integer.
+func (p *Parser) parseUint(bitSize int) (uint64, error) {
 	tok, pos, lit := p.scanIgnoreWhitespace()
 	if tok != NUMBER {
 		return 0, newParseError(tokstr(tok, lit), []string{"number"}, pos)
 	}
 
 	// Convert string to unsigned 64-bit integer
-	n, err := strconv.ParseUint(lit, base, bitSize)
+	n, err := strconv.ParseUint(lit, base10, bitSize)
 	if err != nil {
 		return 0, &ParseError{Message: err.Error(), Pos: pos}
 	}
@@ -1048,10 +1048,7 @@ func (p *Parser) parseDropSeriesStatement() (*DropSeriesStatement, error) {
 
 	// If they didn't provide a FROM or a WHERE, they need to provide the SeriesID
 	if stmt.Condition == nil && stmt.Source == nil {
-		const (
-			base, bitSize = 10, 64
-		)
-		id, err := p.parseUInt(base, bitSize)
+		id, err := p.parseUint(bits64)
 		if err != nil {
 			return nil, err
 		}
@@ -1067,7 +1064,7 @@ func (p *Parser) parseDropServerStatement() (*DropServerStatement, error) {
 	var err error
 
 	// Parse the server's ID.
-	if s.NodeID, err = p.parseUInt(base10, bits64); err != nil {
+	if s.NodeID, err = p.parseUint(bits64); err != nil {
 		return nil, err
 	}
 
