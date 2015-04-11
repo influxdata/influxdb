@@ -1,4 +1,4 @@
-## v0.9.0-rc23 [2015-04-10]
+## v0.9.0-rc23 [2015-04-11]
 
 ### Features
 - [#2202](https://github.com/influxdb/influxdb/pull/2202): Initial implementation of Distributed Queries
