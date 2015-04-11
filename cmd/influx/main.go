@@ -84,13 +84,19 @@ func main() {
 	c.connect("")
 
 	if c.ShouldDump {
-		c.dump()
-		return
+		if err := c.dump(); err != nil {
+			os.Exit(1)
+		} else {
+			os.Exit(0)
+		}
 	}
 
 	if c.Execute != "" {
-		c.executeQuery(c.Execute)
-		return
+		if err := c.executeQuery(c.Execute); err != nil {
+			os.Exit(1)
+		} else {
+			os.Exit(0)
+		}
 	}
 
 	fmt.Println("InfluxDB shell " + version)
@@ -264,33 +270,38 @@ func (c *CommandLine) SetFormat(cmd string) {
 	}
 }
 
-func (c *CommandLine) dump() {
+func (c *CommandLine) dump() error {
 	response, err := c.Client.Dump(c.Database)
 	defer response.Close()
 	if err != nil {
 		fmt.Printf("Dump failed. %s\n", err)
+		return err
 	} else {
 		_, err := io.Copy(os.Stdout, response)
 		if err != nil {
 			fmt.Printf("Dump failed. %s\n", err)
+			return err
 		}
 	}
+	return nil
 }
 
-func (c *CommandLine) executeQuery(query string) {
+func (c *CommandLine) executeQuery(query string) error {
 	response, err := c.Client.Query(client.Query{Command: query, Database: c.Database})
 	if err != nil {
 		fmt.Printf("ERR: %s\n", err)
-		return
+		return err
 	}
 	c.FormatResponse(response, os.Stdout)
-	if response.Error() != nil {
+	if err := response.Error(); err != nil {
 		fmt.Printf("ERR: %s\n", response.Error())
 		if c.Database == "" {
 			fmt.Println("Warning: It is possible this error is due to not setting a database.")
 			fmt.Println(`Please set a database with the command "use <database>".`)
 		}
+		return err
 	}
+	return nil
 }
 
 func (c *CommandLine) FormatResponse(response *client.Response, w io.Writer) {
