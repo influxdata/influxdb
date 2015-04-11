@@ -105,6 +105,7 @@ func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes int
 	c.Admin.Enabled = false
 	c.ReportingDisabled = true
 	c.Snapshot.Enabled = false
+	c.Logging.HTTPAccess = false
 
 	cmd := main.NewRunCommand()
 	node := cmd.Open(c, "")
@@ -177,7 +178,9 @@ func write(t *testing.T, node *TestNode, data string) {
 		t.Fatalf("Couldn't write data: %s", err)
 	}
 	body, _ := ioutil.ReadAll(resp.Body)
-	fmt.Println("BODY: ", string(body))
+	if string(body) != "" {
+		t.Log("BODY: ", string(body))
+	}
 	if resp.StatusCode != http.StatusOK {
 		body, _ := ioutil.ReadAll(resp.Body)
 		t.Fatalf("Write to database failed.  Unexpected status code.  expected: %d, actual %d, %s", http.StatusOK, resp.StatusCode, string(body))
