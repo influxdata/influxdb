@@ -31,7 +31,7 @@ type database struct {
 
 	// in memory indexing structures
 	measurements map[string]*Measurement // measurement name to object and index
-	series       map[uint32]*Series      // map series id to the Series object
+	series       map[uint64]*Series      // map series id to the Series object
 	names        []string                // sorted list of the measurement names
 }
 
@@ -41,7 +41,7 @@ func newDatabase() *database {
 		policies:          make(map[string]*RetentionPolicy),
 		continuousQueries: make([]*ContinuousQuery, 0),
 		measurements:      make(map[string]*Measurement),
-		series:            make(map[uint32]*Series),
+		series:            make(map[uint64]*Series),
 		names:             make([]string, 0),
 	}
 }
@@ -56,7 +56,7 @@ func (db *database) shardGroupByTimestamp(policy string, timestamp time.Time) (*
 }
 
 // Series takes a series ID and returns a series.
-func (db *database) Series(id uint32) *Series {
+func (db *database) Series(id uint64) *Series {
 	return db.series[id]
 }
 
@@ -119,7 +119,7 @@ type Measurement struct {
 
 	// in-memory index fields
 	series              map[string]*Series // sorted tagset string to the series object
-	seriesByID          map[uint32]*Series // lookup table for series by their id
+	seriesByID          map[uint64]*Series // lookup table for series by their id
 	measurement         *Measurement
 	seriesByTagKeyValue map[string]map[string]seriesIDs // map from tag key to value to sorted set of series ids
 	seriesIDs           seriesIDs                       // sorted list of series IDs in this measurement
@@ -132,7 +132,7 @@ func NewMeasurement(name string) *Measurement {
 		Fields: make([]*Field, 0),
 
 		series:              make(map[string]*Series),
-		seriesByID:          make(map[uint32]*Series),
+		seriesByID:          make(map[uint64]*Series),
 		seriesByTagKeyValue: make(map[string]map[string]seriesIDs),
 		seriesIDs:           make(seriesIDs, 0),
 	}
@@ -227,7 +227,7 @@ func (m *Measurement) addSeries(s *Series) bool {
 }
 
 // dropSeries will remove a series from the measurementIndex. Returns true if already removed
-func (m *Measurement) dropSeries(seriesID uint32) bool {
+func (m *Measurement) dropSeries(seriesID uint64) bool {
 	if _, ok := m.seriesByID[seriesID]; !ok {
 		return true
 	}
@@ -237,7 +237,7 @@ func (m *Measurement) dropSeries(seriesID uint32) bool {
 	delete(m.series, tagset)
 	delete(m.seriesByID, seriesID)
 
-	var ids []uint32
+	var ids []uint64
 	for _, id := range m.seriesIDs {
 		if id != seriesID {
 			ids = append(ids, id)
@@ -250,7 +250,7 @@ func (m *Measurement) dropSeries(seriesID uint32) bool {
 	for k, v := range m.seriesByTagKeyValue {
 		values := v
 		for kk, vv := range values {
-			var ids []uint32
+			var ids []uint64
 			for _, id := range vv {
 				if id != seriesID {
 					ids = append(ids, id)
@@ -281,8 +281,8 @@ func (m *Measurement) seriesByTags(tags map[string]string) *Series {
 
 // filters walks the where clause of a select statement and returns a map with all series ids
 // matching the where clause and any filter expression that should be applied to each
-func (m *Measurement) filters(stmt *influxql.SelectStatement) map[uint32]influxql.Expr {
-	seriesIdsToExpr := make(map[uint32]influxql.Expr)
+func (m *Measurement) filters(stmt *influxql.SelectStatement) map[uint64]influxql.Expr {
+	seriesIdsToExpr := make(map[uint64]influxql.Expr)
 	if stmt.Condition == nil || stmt.OnlyTimeDimensions() {
 		for _, id := range m.seriesIDs {
 			seriesIdsToExpr[id] = nil
@@ -418,7 +418,7 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (seriesIDs, bool, influ
 // value should be included in the resulting set, and an expression if the return is a field expression.
 // The map that it takes maps each series id to the field expression that should be used to evaluate it when iterating over its cursor.
 // Series that have no field expressions won't be in the map
-func (m *Measurement) walkWhereForSeriesIds(expr influxql.Expr, filters map[uint32]influxql.Expr) (seriesIDs, bool, influxql.Expr) {
+func (m *Measurement) walkWhereForSeriesIds(expr influxql.Expr, filters map[uint64]influxql.Expr) (seriesIDs, bool, influxql.Expr) {
 	switch n := expr.(type) {
 	case *influxql.BinaryExpr:
 		switch n.Op {
@@ -573,7 +573,7 @@ func (m *Measurement) seriesIDsAllOrByExpr(expr influxql.Expr) (seriesIDs, error
 	}
 
 	// Get series IDs that match the WHERE clause.
-	filters := map[uint32]influxql.Expr{}
+	filters := map[uint64]influxql.Expr{}
 	ids, _, _ := m.walkWhereForSeriesIds(expr, filters)
 
 	return ids, nil
@@ -955,7 +955,7 @@ func (f *FieldCodec) FieldByName(name string) *Field {
 
 // Series belong to a Measurement and represent unique time series in a database
 type Series struct {
-	ID   uint32
+	ID   uint64
 	Tags map[string]string
 
 	measurement *Measurement
@@ -973,7 +973,7 @@ func (s *Series) match(tags map[string]string) bool {
 
 // seriesIDs is a convenience type for sorting, checking equality, and doing
 // union and intersection of collections of series ids.
-type seriesIDs []uint32
+type seriesIDs []uint64
 
 func (a seriesIDs) Len() int           { return len(a) }
 func (a seriesIDs) Less(i, j int) bool { return a[i] < a[j] }
@@ -1008,7 +1008,7 @@ func (a seriesIDs) intersect(other seriesIDs) seriesIDs {
 	// That is, don't run comparisons against lower values that we've already passed
 	var i, j int
 
-	ids := make([]uint32, 0, len(l))
+	ids := make([]uint64, 0, len(l))
 	for i < len(l) && j < len(r) {
 		if l[i] == r[j] {
 			ids = append(ids, l[i])
@@ -1029,7 +1029,7 @@ func (a seriesIDs) intersect(other seriesIDs) seriesIDs {
 func (a seriesIDs) union(other seriesIDs) seriesIDs {
 	l := a
 	r := other
-	ids := make([]uint32, 0, len(l)+len(r))
+	ids := make([]uint64, 0, len(l)+len(r))
 	var i, j int
 	for i < len(l) && j < len(r) {
 		if l[i] == r[j] {
@@ -1062,7 +1062,7 @@ func (a seriesIDs) reject(other seriesIDs) seriesIDs {
 	r := other
 	var i, j int
 
-	ids := make([]uint32, 0, len(l))
+	ids := make([]uint64, 0, len(l))
 	for i < len(l) && j < len(r) {
 		if l[i] == r[j] {
 			i++
@@ -1150,7 +1150,7 @@ func (db *database) dropMeasurement(name string) error {
 	delete(db.measurements, name)
 
 	// collect the series ids to remove
-	var ids []uint32
+	var ids []uint64
 
 	// remove series from in memory map
 	for id, series := range db.series {
@@ -1171,7 +1171,7 @@ func (db *database) dropMeasurement(name string) error {
 }
 
 // dropSeries will delete all data with the seriesID
-func (rp *RetentionPolicy) dropSeries(seriesIDs ...uint32) error {
+func (rp *RetentionPolicy) dropSeries(seriesIDs ...uint64) error {
 	for _, g := range rp.shardGroups {
 		err := g.dropSeries(seriesIDs...)
 		if err != nil {
@@ -1257,7 +1257,7 @@ func (db *database) addSeriesToIndex(measurementName string, s *Series) bool {
 }
 
 // dropSeries removes the series from the in memory references
-func (db *database) dropSeries(seriesByMeasurement map[string][]uint32) error {
+func (db *database) dropSeries(seriesByMeasurement map[string][]uint64) error {
 	for measurement, ids := range seriesByMeasurement {
 		for _, id := range ids {
 			// if the series is already gone, return
@@ -1304,7 +1304,7 @@ func (db *database) MeasurementAndSeries(name string, tags map[string]string) (*
 }
 
 // SeriesByID returns the Series that has the given id.
-func (db *database) SeriesByID(id uint32) *Series {
+func (db *database) SeriesByID(id uint64) *Series {
 	return db.series[id]
 }
 
@@ -1314,7 +1314,7 @@ func (db *database) MeasurementNames() []string {
 }
 
 // DropSeries will clear the index of all references to a series.
-func (db *database) DropSeries(id uint32) {
+func (db *database) DropSeries(id uint64) {
 	panic("not implemented")
 }
 

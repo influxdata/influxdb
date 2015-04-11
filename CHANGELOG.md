@@ -1,5 +1,9 @@
 ## v0.9.0-rc23 [Unreleased]
 
+### Features
+- [#2202](https://github.com/influxdb/influxdb/pull/2202): Initial implementation of Distributed Queries
+- [#2202](https://github.com/influxdb/influxdb/pull/2202): 64-bit Series IDs. INCOMPATIBLE WITH PREVIOUS DATASTORES.
+
 ### Bugfixes
 - [#2225](https://github.com/influxdb/influxdb/pull/2225): Make keywords completely case insensitive
 - [#2228](https://github.com/influxdb/influxdb/pull/2228): Accept keyword default unquoted in ALTER RETENTION POLICY statement

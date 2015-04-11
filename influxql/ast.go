@@ -1196,7 +1196,7 @@ func (s *ShowSeriesStatement) RequiredPrivileges() ExecutionPrivileges {
 // DropSeriesStatement represents a command for removing a series from the database.
 type DropSeriesStatement struct {
 	// The Id of the series being dropped (optional)
-	SeriesID uint32
+	SeriesID uint64
 
 	// Data source that fields are extracted from (optional)
 	Source Source

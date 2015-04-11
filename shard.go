@@ -30,7 +30,7 @@ func (g *ShardGroup) close() {
 }
 
 // ShardBySeriesID returns the shard that a series is assigned to in the group.
-func (g *ShardGroup) ShardBySeriesID(seriesID uint32) *Shard {
+func (g *ShardGroup) ShardBySeriesID(seriesID uint64) *Shard {
 	return g.Shards[int(seriesID)%len(g.Shards)]
 }
 
@@ -45,7 +45,7 @@ func (g *ShardGroup) Contains(min, max time.Time) bool {
 }
 
 // dropSeries will delete all data with the seriesID
-func (g *ShardGroup) dropSeries(seriesIDs ...uint32) error {
+func (g *ShardGroup) dropSeries(seriesIDs ...uint64) error {
 	for _, s := range g.Shards {
 		err := s.dropSeries(seriesIDs...)
 		if err != nil {
@@ -176,10 +176,10 @@ func (s *Shard) HasDataNodeID(id uint64) bool {
 }
 
 // readSeries reads encoded series data from a shard.
-func (s *Shard) readSeries(seriesID uint32, timestamp int64) (values []byte, err error) {
+func (s *Shard) readSeries(seriesID uint64, timestamp int64) (values []byte, err error) {
 	err = s.store.View(func(tx *bolt.Tx) error {
 		// Find series bucket.
-		b := tx.Bucket(u32tob(seriesID))
+		b := tx.Bucket(u64tob(seriesID))
 		if b == nil {
 			return nil
 		}
@@ -207,7 +207,7 @@ func (s *Shard) writeSeries(index uint64, batch []byte) error {
 			data := batch[:payloadLength]
 
 			// Create a bucket for the series.
-			b, err := tx.CreateBucketIfNotExists(u32tob(seriesID))
+			b, err := tx.CreateBucketIfNotExists(u64tob(seriesID))
 			if err != nil {
 				return err
 			}
@@ -235,13 +235,13 @@ func (s *Shard) writeSeries(index uint64, batch []byte) error {
 	})
 }
 
-func (s *Shard) dropSeries(seriesIDs ...uint32) error {
+func (s *Shard) dropSeries(seriesIDs ...uint64) error {
 	if s.store == nil {
 		return nil
 	}
 	return s.store.Update(func(tx *bolt.Tx) error {
 		for _, seriesID := range seriesIDs {
-			err := tx.DeleteBucket(u32tob(seriesID))
+			err := tx.DeleteBucket(u64tob(seriesID))
 			if err != bolt.ErrBucketNotFound {
 				return err
 			}
@@ -298,22 +298,22 @@ func (s *Shard) processor(conn MessagingConn, closing <-chan struct{}) {
 type Shards []*Shard
 
 // pointHeaderSize represents the size of a point header, in bytes.
-const pointHeaderSize = 4 + 4 + 8 // seriesID + payload length + timestamp
+const pointHeaderSize = 8 + 4 + 8 // seriesID + payload length + timestamp
 
 // marshalPointHeader encodes a series id, payload length, timestamp, & flagset into a byte slice.
-func marshalPointHeader(seriesID uint32, payloadLength uint32, timestamp int64) []byte {
+func marshalPointHeader(seriesID uint64, payloadLength uint32, timestamp int64) []byte {
 	b := make([]byte, pointHeaderSize)
-	binary.BigEndian.PutUint32(b[0:4], seriesID)
-	binary.BigEndian.PutUint32(b[4:8], payloadLength)
-	binary.BigEndian.PutUint64(b[8:16], uint64(timestamp))
+	binary.BigEndian.PutUint64(b[0:8], seriesID)
+	binary.BigEndian.PutUint32(b[8:12], payloadLength)
+	binary.BigEndian.PutUint64(b[12:20], uint64(timestamp))
 	return b
 }
 
 // unmarshalPointHeader decodes a byte slice into a series id, timestamp & flagset.
-func unmarshalPointHeader(b []byte) (seriesID uint32, payloadLength uint32, timestamp int64) {
-	seriesID = binary.BigEndian.Uint32(b[0:4])
-	payloadLength = binary.BigEndian.Uint32(b[4:8])
-	timestamp = int64(binary.BigEndian.Uint64(b[8:16]))
+func unmarshalPointHeader(b []byte) (seriesID uint64, payloadLength uint32, timestamp int64) {
+	seriesID = binary.BigEndian.Uint64(b[0:8])
+	payloadLength = binary.BigEndian.Uint32(b[8:12])
+	timestamp = int64(binary.BigEndian.Uint64(b[12:20]))
 	return
 }
 
