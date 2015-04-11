@@ -121,7 +121,6 @@ func InitializeUnmarshaller(c *Call) (UnmarshalFunc, error) {
 	// if c is nil it's a raw data query
 	if c == nil {
 		return func(b []byte) (interface{}, error) {
-			warn("MARSHAL OUTPUT: ", string(b))
 			a := make([]*rawQueryMapOutput, 0)
 			err := json.Unmarshal(b, &a)
 			return a, err
