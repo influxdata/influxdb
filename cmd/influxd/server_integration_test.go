@@ -1357,7 +1357,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 				urlDb = tt.queryDb
 			}
 			qry := rewriteDbRp(tt.query, database, retention)
-			got, ok := queryAndWait(t, qNodes, rewriteDbRp(urlDb, database, retention), qry, rewriteDbRp(tt.expected, database, retention), rewriteDbRp(tt.expectPattern, database, retention), 60*time.Second)
+			got, ok := queryAndWait(t, qNodes, rewriteDbRp(urlDb, database, retention), qry, rewriteDbRp(tt.expected, database, retention), rewriteDbRp(tt.expectPattern, database, retention), 10*time.Second)
 			if !ok {
 				if tt.expected != "" {
 					t.Errorf("Test #%d: \"%s\" failed\n  query: %s\n  exp: %s\n  got: %s\n", i, name, qry, rewriteDbRp(tt.expected, database, retention), got)
