@@ -1383,7 +1383,8 @@ func Test3NodeServer(t *testing.T) {
 
 // ensure that all queries work if there are more nodes in a cluster than the replication factor
 func Test3NodeClusterPartiallyReplicated(t *testing.T) {
-	testName := "3-node server integration"
+	t.Skip("Skipping due to instability")
+	testName := "3-node server integration partial replication"
 	if testing.Short() {
 		t.Skip(fmt.Sprintf("skipping '%s'", testName))
 	}
