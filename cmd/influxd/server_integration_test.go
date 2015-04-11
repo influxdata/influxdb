@@ -76,7 +76,7 @@ func (c *Cluster) Close() {
 //
 // This function returns a slice of nodes, the first of which will be the leader.
 func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes int, baseConfig *main.Config) Cluster {
-	basePort := 8086
+	basePort := 10000
 	t.Logf("Creating cluster of %d nodes for test %s", nNodes, testName)
 	if nNodes < 1 {
 		t.Fatalf("Test %s: asked to create nonsense cluster", testName)
@@ -232,7 +232,7 @@ func queryAndWait(t *testing.T, nodes Cluster, urlDb, q, expected, expectPattern
 		v.Set("db", urlDb)
 	}
 
-	sleep := 10 * time.Millisecond
+	sleep := 1 * time.Second
 	// Check to see if they set the env for duration sleep
 	if sleepRaw := os.Getenv("TEST_SLEEP"); sleepRaw != "" {
 		d, err := time.ParseDuration(sleepRaw)
