@@ -275,14 +275,6 @@ func (b *Broker) WriteTo(w io.Writer) (int64, error) {
 		return 0, fmt.Errorf("encode snapshot header: %s", err)
 	}
 
-	// Calculate total size.
-	size := int64(4 + len(buf)) // header size
-	for _, t := range hdr.Topics {
-		for _, s := range t.Segments {
-			size += s.Size
-		}
-	}
-
 	// Write header frame.
 	if err := binary.Write(w, binary.BigEndian, uint32(len(buf))); err != nil {
 		return 0, fmt.Errorf("write header size: %s", err)

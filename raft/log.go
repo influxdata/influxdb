@@ -70,6 +70,11 @@ const (
 	Leader
 )
 
+const (
+	// DefaultLogEntryCacheSize is the default number of entries to keep before trimming.
+	DefaultLogEntryCacheSize = 1000
+)
+
 // Log represents a replicated log of commands based on the Raft protocol.
 //
 // The log can exist in one of four states that transition based on the following rules:
@@ -171,6 +176,11 @@ type Log struct {
 	// The state machine that log entries will be applied to.
 	FSM FSM
 
+	// LogEntryCacheSize is the minimum number of log entries to keep before
+	// trimming the log. These entries are kept in case a node disconnects
+	// momentarily. Otherwise a reconnecting node would have to resnapshot.
+	LogEntryCacheSize int
+
 	// The transport used to communicate with other nodes in the cluster.
 	Transport interface {
 		Join(u url.URL, nodeURL url.URL) (id uint64, leaderID uint64, config *Config, err error)
@@ -208,6 +218,8 @@ func NewLog() *Log {
 		heartbeats: make(chan heartbeat, 10),
 		terms:      make(chan struct{}, 1),
 		Logger:     log.New(os.Stderr, "[raft] ", log.LstdFlags),
+
+		LogEntryCacheSize: DefaultLogEntryCacheSize,
 	}
 	l.Logger.SetPrefix("[raft] ")
 	return l
@@ -1456,8 +1468,14 @@ func (l *Log) trim() {
 		return
 	}
 
+	// Ignore if trimming would cause the entries to fall below the min cache size.
+	offset := int(index-l.entries[0].Index) - l.LogEntryCacheSize
+	if offset <= 0 {
+		return
+	}
+
 	// Reslice entries list.
-	l.entries = l.entries[index-l.entries[0].Index:]
+	l.entries = l.entries[offset:]
 }
 
 // mustApplyInitialize a log initialization command by parsing and setting the configuration.
@@ -1692,12 +1710,13 @@ func (l *Log) initWriter(w io.Writer, id, term, index uint64) (*logWriter, error
 		index = l.lastLogIndex
 	}
 
-	// Write configuration.
+	// Encode configuration.
 	var buf bytes.Buffer
 	err := NewConfigEncoder(&buf).Encode(l.config)
 	assert(err == nil, "marshal config error: %s", err)
-	enc := NewLogEntryEncoder(w)
-	if err := enc.Encode(&LogEntry{Type: logEntryConfig, Data: buf.Bytes()}); err != nil {
+
+	// Write configuration.
+	if err := NewLogEntryEncoder(w).Encode(&LogEntry{Type: logEntryConfig, Data: buf.Bytes()}); err != nil {
 		return nil, err
 	}
 	flushWriter(w)
@@ -1718,15 +1737,19 @@ func (l *Log) writeTo(writer *logWriter, id, term, index uint64) error {
 	// Extract the underlying writer.
 	w := writer.Writer
 
-	// Write snapshot marker byte.
-	if _, err := w.Write([]byte{logEntrySnapshot}); err != nil {
-		return err
+	// Write snapshot if the requested index is less than the snapshot index.
+	if index < writer.snapshotIndex {
+		// Write snapshot marker byte.
+		if _, err := w.Write([]byte{logEntrySnapshot}); err != nil {
+			return err
+		}
+
+		// Begin streaming the snapshot.
+		if _, err := l.FSM.WriteTo(w); err != nil {
+			return err
+		}
 	}
 
-	// Begin streaming the snapshot.
-	if _, err := l.FSM.WriteTo(w); err != nil {
-		return err
-	}
 	flushWriter(w)
 
 	// Write entries since the snapshot occurred and begin tailing writer.
