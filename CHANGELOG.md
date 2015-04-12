@@ -1,3 +1,11 @@
+## v0.9.0-rc24 [unreleased]
+
+### Features
+
+### Bugfixes
+- [#2255](https://github.com/influxdb/influxdb/pull/2255): Fix panic when changing default retention policy.
+- [#2257](https://github.com/influxdb/influxdb/pull/2257): Add "snapshotting" pseudo state & log entry cache.
+
 ## v0.9.0-rc23 [2015-04-11]
 
 ### Features

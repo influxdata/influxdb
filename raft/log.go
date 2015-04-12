@@ -1425,7 +1425,7 @@ func (l *Log) applyNextUnappliedEntry(closing <-chan struct{}) error {
 
 	// Retrieve next entry.
 	e := l.entries[index-l.entries[0].Index]
-	assert(e.Index == index, "apply: index mismatch: %d != %d", e.Index, index)
+	assert(e.Index == index, "apply: index mismatch: expected=%d, actual=%d (i=%d)", index, e.Index, index-l.entries[0].Index)
 
 	// Special handling for internal log entries.
 	switch e.Type {
@@ -1738,18 +1738,15 @@ func (l *Log) writeTo(writer *logWriter, id, term, index uint64) error {
 	w := writer.Writer
 
 	// Write snapshot if the requested index is less than the snapshot index.
-	if index < writer.snapshotIndex {
-		// Write snapshot marker byte.
-		if _, err := w.Write([]byte{logEntrySnapshot}); err != nil {
-			return err
-		}
-
-		// Begin streaming the snapshot.
-		if _, err := l.FSM.WriteTo(w); err != nil {
-			return err
-		}
+	// Write snapshot marker byte.
+	if _, err := w.Write([]byte{logEntrySnapshot}); err != nil {
+		return err
 	}
 
+	// Begin streaming the snapshot.
+	if _, err := l.FSM.WriteTo(w); err != nil {
+		return err
+	}
 	flushWriter(w)
 
 	// Write entries since the snapshot occurred and begin tailing writer.

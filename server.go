@@ -1563,7 +1563,7 @@ type RetentionPolicyUpdate struct {
 // UpdateRetentionPolicy updates an existing retention policy on a database.
 func (s *Server) UpdateRetentionPolicy(database, name string, rpu *RetentionPolicyUpdate) error {
 	// Enforce duration of at least retentionPolicyMinDuration
-	if *rpu.Duration < retentionPolicyMinDuration && *rpu.Duration != 0 {
+	if rpu.Duration != nil && *rpu.Duration < retentionPolicyMinDuration && *rpu.Duration != 0 {
 		return ErrRetentionPolicyMinDuration
 	}
 

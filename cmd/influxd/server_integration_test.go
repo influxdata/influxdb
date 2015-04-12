@@ -1161,6 +1161,17 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			expected: `{"results":[{}]}`,
 		},
 		{
+			name:     "Ensure default retention policy can be changed",
+			query:    `ALTER RETENTION POLICY rp1 ON mydatabase DEFAULT`,
+			queryOne: true,
+			expected: `{"results":[{}]}`,
+		},
+		{
+			name:     "Make sure default retention policy actually changed",
+			query:    `SHOW RETENTION POLICIES mydatabase`,
+			expected: `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["default","0",1,false],["rp1","0",1,true]]}]}]}`,
+		},
+		{
 			name:     "Ensure retention policy with acceptable retention can be created",
 			query:    `CREATE RETENTION POLICY rp2 ON mydatabase DURATION 30d REPLICATION 1`,
 			queryOne: true,
