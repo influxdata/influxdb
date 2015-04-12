@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -118,6 +119,9 @@ type Log struct {
 	state         State
 	transitioning chan struct{}
 
+	// An atomic flag stating if a snapshot is currently being loaded.
+	snapshotting uint32
+
 	// In-memory log entries.
 	// Followers replicate these entries from the Leader.
 	// Leader appends to the end of these entries.
@@ -205,7 +209,7 @@ func NewLog() *Log {
 		terms:      make(chan struct{}, 1),
 		Logger:     log.New(os.Stderr, "[raft] ", log.LstdFlags),
 	}
-	l.updateLogPrefix()
+	l.Logger.SetPrefix("[raft] ")
 	return l
 }
 
@@ -283,6 +287,9 @@ func (l *Log) State() State {
 	defer l.unlock()
 	return l.state
 }
+
+// isSnapshotting returns true if the log is currently restoring from snapshot.
+func (l *Log) isSnapshotting() bool { return atomic.LoadUint32(&l.snapshotting) != 0 }
 
 // LastLogIndexTerm returns the last index & term from the log.
 func (l *Log) LastLogIndexTerm() (index, term uint64) {
@@ -478,10 +485,7 @@ func (l *Log) setReader(r io.ReadCloser) error {
 	return nil
 }
 
-func (l *Log) setID(id uint64) {
-	l.id = id
-	l.updateLogPrefix()
-}
+func (l *Log) setID(id uint64) { l.id = id }
 
 // readID reads the log identifier from file.
 func (l *Log) readID() (uint64, error) {
@@ -661,14 +665,6 @@ func (l *Log) Initialize() error {
 
 	// Wait until entry is applied.
 	return l.Wait(index)
-}
-
-func (l *Log) updateLogPrefix() {
-	var host string
-	if l.url.Host != "" {
-		host = l.url.Host
-	}
-	l.Logger.SetPrefix(fmt.Sprintf("[raft] %s ", host))
 }
 
 // trace writes a log message if DebugEnabled is true.
@@ -876,6 +872,14 @@ func (l *Log) followerLoop(closing <-chan struct{}) State {
 			return Stopped
 		case ch := <-l.Clock.AfterElectionTimeout():
 			close(ch)
+
+			// Ignore timeout if we are snapshotting.
+			if l.isSnapshotting() {
+				continue
+			}
+
+			// TODO: Prevote before becoming candidate.
+
 			return Candidate
 		case hb := <-l.heartbeats:
 			l.tracef("followerLoop: heartbeat: term=%d, idx=%d", hb.term, hb.commitIndex)
@@ -1559,6 +1563,12 @@ func (l *Log) RemovePeer(id uint64) error {
 // Heartbeat establishes dominance by the current leader.
 // Returns the current term and highest written log entry index.
 func (l *Log) Heartbeat(term, commitIndex, leaderID uint64) (currentIndex uint64, err error) {
+	// Ignore if snapshotting.
+	if l.isSnapshotting() {
+		return 0, ErrSnapshotting
+	}
+
+	// Otherwise obtain lock and process heartbeat.
 	l.lock()
 	defer l.unlock()
 
@@ -1586,6 +1596,12 @@ func (l *Log) Heartbeat(term, commitIndex, leaderID uint64) (currentIndex uint64
 
 // RequestVote requests a vote from the log.
 func (l *Log) RequestVote(term, candidateID, lastLogIndex, lastLogTerm uint64) (peerTerm uint64, err error) {
+	// Ignore if snapshotting.
+	if l.isSnapshotting() {
+		return 0, ErrSnapshotting
+	}
+
+	// Otherwise obtain lock and process vote.
 	l.lock()
 	defer l.unlock()
 
@@ -1630,6 +1646,7 @@ func (l *Log) WriteEntriesTo(w io.Writer, id, term, index uint64) error {
 	// Validate and initialize the writer.
 	writer, err := l.initWriter(w, id, term, index)
 	if err != nil {
+		l.Logger.Printf("unable to init writer: %s", err)
 		return err
 	}
 
@@ -1639,6 +1656,7 @@ func (l *Log) WriteEntriesTo(w io.Writer, id, term, index uint64) error {
 		l.lock()
 		l.removeWriter(writer)
 		l.unlock()
+		l.Logger.Printf("unable to write entries: %s", err)
 		return err
 	}
 
@@ -1788,6 +1806,8 @@ func (l *Log) ReadFrom(r io.ReadCloser) error {
 		return nil
 	}
 
+	l.Logger.Printf("reading from stream")
+
 	// Continually decode entries.
 	dec := NewLogEntryDecoder(r)
 	for {
@@ -1805,11 +1825,13 @@ func (l *Log) ReadFrom(r io.ReadCloser) error {
 		case logEntryConfig:
 			l.tracef("ReadFrom: config")
 			if err := l.applyConfigLogEntry(e); err != nil {
+				l.Logger.Printf("error reading config from stream: %s", err)
 				return fmt.Errorf("apply config log entry: %s", err)
 			}
 
 		case logEntrySnapshot:
 			if err := l.applySnapshotLogEntry(e, r); err != nil {
+				l.Logger.Printf("error snapshotting from stream: %s", err)
 				return fmt.Errorf("apply snapshot log entry: %s", err)
 			}
 
@@ -1824,6 +1846,7 @@ func (l *Log) ReadFrom(r io.ReadCloser) error {
 
 				return nil
 			}(); err != nil {
+				l.Logger.Printf("error appending from stream: %s", err)
 				return err
 			}
 		}
@@ -1853,6 +1876,10 @@ func (l *Log) applyConfigLogEntry(e *LogEntry) error {
 func (l *Log) applySnapshotLogEntry(e *LogEntry, r io.Reader) error {
 	l.lock()
 	defer l.unlock()
+
+	// Flag the log as snapshotting.
+	atomic.StoreUint32(&l.snapshotting, 1)
+	defer atomic.StoreUint32(&l.snapshotting, 0)
 
 	// Log snapshotting time.
 	start := time.Now()
