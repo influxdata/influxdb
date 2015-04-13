@@ -1820,7 +1820,10 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 			//keep old values
 			for k, _ := range codec.fieldsByName {
 				if _, ok := p.Fields[k] ; !ok {
-					p.Fields[k] = values[k]
+					v, ok := values[k]
+					if ok {
+						p.Fields[k] = v
+					}
 				}
 			}
 			
