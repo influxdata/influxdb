@@ -116,8 +116,7 @@ enabled = false
 disabled = true
 
 [snapshot]
-bind-address = "1.2.3.4"
-port = 9999
+enabled = true
 `
 
 // Ensure that megabyte sizes can be parsed.
@@ -271,13 +270,10 @@ func TestParseConfig(t *testing.T) {
 		t.Fatalf("Monitoring.WriteInterval mismatch: %v", c.Monitoring.WriteInterval)
 	}
 
-	if exp := "1.2.3.4"; c.Snapshot.BindAddress != exp {
-		t.Fatalf("snapshot bind-address mismatch: %v, got %v", exp, c.Snapshot.BindAddress)
+	if !c.Snapshot.Enabled {
+		t.Fatalf("snapshot enabled mismatch: %v, got %v", true, c.Snapshot.Enabled)
 	}
 
-	if exp := 9999; c.Snapshot.Port != exp {
-		t.Fatalf("snapshot port mismatch: %v, got %v", exp, c.Snapshot.Port)
-	}
 	// TODO: UDP Servers testing.
 	/*
 		c.Assert(config.UdpServers, HasLen, 1)
