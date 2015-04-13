@@ -89,10 +89,8 @@ func TestQuery_NoAuth(t *testing.T) {
 	}
 
 	// Create root path to server.
-	// Remove it to clean up past failed panics
 	// Defer it to clean up for successful tests
 	path := tempfile()
-	os.Remove(path)
 	defer os.Remove(path)
 
 	config, _ := influxd.NewTestConfig()
@@ -135,10 +133,8 @@ func TestQuery_Auth(t *testing.T) {
 	}
 
 	// Create root path to server.
-	// Remove it to clean up past failed panics
 	// Defer it to clean up for successful tests
 	path := tempfile()
-	os.Remove(path)
 	defer os.Remove(path)
 
 	// Create the cli

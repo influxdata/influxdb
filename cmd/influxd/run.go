@@ -167,14 +167,14 @@ func (cmd *RunCommand) ParseConfig(path, hostname string) error {
 		cmd.config, err = ParseConfigFile(path)
 
 		if err != nil {
-			return fmt.Errorf("error parsing config %s - %s\n", path, err)
+			return fmt.Errorf("error parsing configuration %s - %s\n", path, err)
 		}
 		// Override config properties.
 		if hostname != "" {
 			cmd.config.Hostname = hostname
 		}
 
-		log.Printf("using config: %s\n", path)
+		log.Printf("using configuration at: %s\n", path)
 		return nil
 	}
 
@@ -182,7 +182,7 @@ func (cmd *RunCommand) ParseConfig(path, hostname string) error {
 	if err != nil {
 		return fmt.Errorf("error parsing default config: %s\n", err)
 	}
-	log.Println("no config provided, using default settings")
+	log.Println("no configuration provided, using default settings")
 	return nil
 }
 
