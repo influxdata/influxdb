@@ -1012,6 +1012,78 @@ func TestServer_EnforceRetentionPolices(t *testing.T) {
 	}
 }
 
+// Ensure that writing data at a timestamp already existing does not erase previous values
+func TestServer_UpdateSeries(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	s := OpenServer(c)
+	defer s.Close()
+	s.CreateDatabase("foo")
+	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "raw", Duration: 1 * time.Hour})
+	s.SetDefaultRetentionPolicy("foo", "raw")
+	s.CreateUser("susy", "pass", false)
+
+	// Write series with one point to the database.
+	tags := map[string]string{"host": "serverA", "region": "uswest"}
+	index, err := s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2), "value2": float64(23.3)}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Sync(index)
+		//Dirty: force sync
+	timer := time.NewTimer(time.Second * 1)
+	<- timer.C
+
+	//owerwrite measurement with new info
+	index, err = s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value2": float64(23.666)}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Sync(index) // sync does not work !
+	
+	//Dirty: force sync
+	timer = time.NewTimer(time.Second * 1)
+	<- timer.C
+
+	results := s.executeQuery(MustParseQuery(`SHOW SERIES`), "foo", nil)
+
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 1 {
+		t.Fatalf("unexpected row count: %d", len(res.Series))
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["_id","host","region"],"values":[[1,"serverA","uswest"]]}]}` {
+		t.Fatalf("unexpected row(0): %s", s)
+	}
+
+	results = s.executeQuery(MustParseQuery(`SHOW SERIES`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 1 {
+		t.Fatalf("unexpected row count: %d", len(res.Series))
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["_id","host","region"],"values":[[1,"serverA","uswest"]]}]}` {
+		t.Fatalf("unexpected row(0): %s", s)
+	}
+
+
+	results = s.executeQuery(MustParseQuery(`SELECT * FROM cpu where host='serverA' `), "foo", nil)
+	if len(results.Results) == 0 {
+		t.Fatal("expected results to be non-empty")
+	} else if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 1 {
+		t.Fatalf("unexpected row count: %d", len(res.Series))
+	}
+
+
+	results = s.executeQuery(MustParseQuery(`SELECT * FROM cpu where host='serverA'`), "foo", nil)
+	if res := results.Results[0]; res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 1 {
+		t.Fatalf("unexpected row count: %d", len(res.Series))
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["time","value","value2"],"values":[["2000-01-01T00:00:00Z",23.2,23.666]]}]}` {
+		t.Fatalf("unexpected row(1): %s", s)
+	}
+}
+
 // Ensure the server can drop a measurement.
 func TestServer_DropMeasurement(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
