@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -44,6 +45,10 @@ func TestLog_Open_ErrMkdir(t *testing.T) {
 
 // Ensure that opening a log with an inaccessible ID path returns an error.
 func TestLog_Open_ErrInaccessibleID(t *testing.T) {
+	if "windows" == runtime.GOOS {
+		t.Skip("skip it on the windows")
+	}
+
 	path := tempfile()
 	MustWriteFile(filepath.Join(path, "id"), []byte(`1`))
 	MustChmod(filepath.Join(path, "id"), 0)
@@ -73,6 +78,10 @@ func TestLog_Open_ErrInvalidID(t *testing.T) {
 
 // Ensure that opening a log with an inaccesible term path returns an error.
 func TestLog_Open_ErrInaccessibleTerm(t *testing.T) {
+	if "windows" == runtime.GOOS {
+		t.Skip("skip it on the windows")
+	}
+
 	path := tempfile()
 	MustWriteFile(filepath.Join(path, "id"), []byte(`1`))
 	MustWriteFile(filepath.Join(path, "term"), []byte(`1`))
@@ -104,6 +113,10 @@ func TestLog_Open_ErrInvalidTerm(t *testing.T) {
 
 // Ensure that opening an inaccessible config path returns an error.
 func TestLog_Open_ErrInaccessibleConfig(t *testing.T) {
+	if "windows" == runtime.GOOS {
+		t.Skip("skip it on the windows")
+	}
+
 	path := tempfile()
 	MustWriteFile(filepath.Join(path, "id"), []byte(`1`))
 	MustWriteFile(filepath.Join(path, "term"), []byte(`1`))
