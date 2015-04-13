@@ -218,8 +218,6 @@ func NewConfig() *Config {
 	c := &Config{}
 	c.Port = DefaultClusterPort
 
-	c.HTTPAPI.Port = DefaultClusterPort
-
 	c.Data.Enabled = DefaultDataEnabled
 	c.Broker.Enabled = DefaultBrokerEnabled
 
@@ -278,11 +276,18 @@ func NewTestConfig() (*Config, error) {
 
 // APIAddr returns the TCP binding address for the API server.
 func (c *Config) APIAddr() string {
+	// Default to cluster bind address if not overriden
 	ba := c.BindAddress
 	if c.HTTPAPI.BindAddress != "" {
 		ba = c.HTTPAPI.BindAddress
 	}
-	return net.JoinHostPort(ba, strconv.Itoa(c.HTTPAPI.Port))
+
+	// Default to cluster port if not overridden
+	bp := c.Port
+	if c.HTTPAPI.Port != 0 {
+		bp = c.HTTPAPI.Port
+	}
+	return net.JoinHostPort(ba, strconv.Itoa(bp))
 }
 
 // APIAddrUDP returns the UDP address for the series listener.
