@@ -54,14 +54,17 @@ func NewClient(c Config) (*Client, error) {
 	return &client, nil
 }
 
+// SetAuth will update the username and passwords
+func (c *Client) SetAuth(u, p string) {
+	c.username = u
+	c.password = p
+}
+
 // Query sends a command to the server and returns the Response
 func (c *Client) Query(q Query) (*Response, error) {
 	u := c.url
 
 	u.Path = "query"
-	if c.username != "" {
-		u.User = url.UserPassword(c.username, c.password)
-	}
 	values := u.Query()
 	values.Set("q", q.Command)
 	values.Set("db", q.Database)
@@ -72,6 +75,10 @@ func (c *Client) Query(q Query) (*Response, error) {
 		return nil, err
 	}
 	req.Header.Set("User-Agent", c.userAgent)
+	if c.username != "" {
+		req.SetBasicAuth(c.username, c.password)
+	}
+
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err
