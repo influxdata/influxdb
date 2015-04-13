@@ -1811,41 +1811,45 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 				codec = NewFieldCodec(measurement)
 				codecs[measurement.Name] = codec
 			}
+
 			// Read raw encoded series data.
 			data, err := sh.readSeries(series.ID, p.Timestamp.UnixNano())
 			if err != nil {
+				log.Printf("Failed to read serie: %s\n", err)
 				return err
 			}
-
-			// Decode into a raw value map.
-			rawFields, err := codec.DecodeFields(data)
-			if err != nil || rawFields == nil {
-				return err 
-			}
-
-			// Decode into a string-key value map.
-			values := make(map[string]interface{}, len(rawFields))
-			for fieldID, value := range rawFields {
-				f := measurement.Field(fieldID)
-				if f == nil {
-					continue
+			if len(data) > 0 {
+				// Decode into a raw value map.
+				rawFields, err := codec.DecodeFields(data)
+				if err != nil || rawFields == nil {
+					log.Printf("Failed to decode fields: %s \n", err)
+					return err 
 				}
-				values[f.Name] = value
-			}
 
-			//keep old values
-			for k, _ := range codec.fieldsByName {
-				if _, ok := p.Fields[k] ; !ok {
-					v, ok := values[k]
-					if ok {
-						p.Fields[k] = v
+				// Decode into a string-key value map.
+				values := make(map[string]interface{}, len(rawFields))
+				for fieldID, value := range rawFields {
+					f := measurement.Field(fieldID)
+					if f == nil {
+						continue
+					}
+					values[f.Name] = value
+				}
+
+				//keep old values
+				for k, _ := range codec.fieldsByName {
+					if _, ok := p.Fields[k] ; !ok {
+						v, ok := values[k]
+						if ok {
+							p.Fields[k] = v
+						}
 					}
 				}
 			}
-
 			// Convert string-key/values to encoded fields.
 			encodedFields, err := codec.EncodeFields(p.Fields)
 			if err != nil {
+				log.Printf("Failed to encode field :-> %s\n", err)
 				return err
 			}
 
