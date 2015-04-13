@@ -1811,6 +1811,19 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 				codec = NewFieldCodec(measurement)
 				codecs[measurement.Name] = codec
 			}
+			
+			values, err := s.ReadSeries(database, retentionPolicy, p.Name, p.Tags, p.Timestamp)
+			if err != nil {
+				s.Logger.Printf("database or series not found: dbname=%s, dbname=%s, tags=%#v", database, p.Name, p.Tags)
+				return err
+			}
+			//keep old values
+			for k, _ := range codec.fieldsByName {
+				if _, ok := p.Fields[k] ; !ok {
+					p.Fields[k] = values[k]
+				}
+			}
+			
 
 			// Convert string-key/values to encoded fields.
 			encodedFields, err := codec.EncodeFields(p.Fields)
