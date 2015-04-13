@@ -3536,7 +3536,7 @@ func (p dataNodes) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 // database can be "" for queries that do not require a database.
 // If u is nil, this means authorization is disabled.
 func (s *Server) Authorize(u *User, q *influxql.Query, database string) error {
-	const authErrLogFmt = `unauthorized request | user: %q | query: %q | database %q\n`
+	const authErrLogFmt = "unauthorized request | user: %q | query: %q | database %q\n"
 
 	if u == nil {
 		s.Logger.Printf(authErrLogFmt, "", q.String(), database)

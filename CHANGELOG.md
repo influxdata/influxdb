@@ -8,6 +8,7 @@
 - [#2261](https://github.com/influxdb/influxdb/pull/2261): Support int64 value types.
 - [#2191](https://github.com/influxdb/influxdb/pull/2191): Case-insensitive check for "fill"
 - [#2274](https://github.com/influxdb/influxdb/pull/2274): Snapshot and HTTP API endpoints
+- [#2265](https://github.com/influxdb/influxdb/pull/2265): Fix auth for CLI.
 
 ## v0.9.0-rc23 [2015-04-11]
 

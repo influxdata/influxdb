@@ -92,7 +92,7 @@ func main() {
 	}
 
 	if c.Execute != "" {
-		if err := c.executeQuery(c.Execute); err != nil {
+		if err := c.ExecuteQuery(c.Execute); err != nil {
 			os.Exit(1)
 		} else {
 			os.Exit(0)
@@ -140,13 +140,13 @@ func (c *CommandLine) ParseCommand(cmd string) bool {
 		// signal the program to exit
 		return false
 	case strings.HasPrefix(lcmd, "gopher"):
-		gopher()
+		c.gopher()
 	case strings.HasPrefix(lcmd, "connect"):
 		c.connect(cmd)
 	case strings.HasPrefix(lcmd, "auth"):
-		c.SetAuth()
+		c.SetAuth(cmd)
 	case strings.HasPrefix(lcmd, "help"):
-		help()
+		c.help()
 	case strings.HasPrefix(lcmd, "format"):
 		c.SetFormat(cmd)
 	case strings.HasPrefix(lcmd, "settings"):
@@ -163,7 +163,7 @@ func (c *CommandLine) ParseCommand(cmd string) bool {
 	case lcmd == "":
 		break
 	default:
-		c.executeQuery(cmd)
+		c.ExecuteQuery(cmd)
 	}
 	return true
 }
@@ -205,9 +205,6 @@ func (c *CommandLine) connect(cmd string) {
 	} else {
 		u.Host = c.Host
 	}
-	if c.Username != "" {
-		u.User = url.UserPassword(c.Username, c.Password)
-	}
 	cl, err := client.NewClient(
 		client.Config{
 			URL:       u,
@@ -230,19 +227,36 @@ func (c *CommandLine) connect(cmd string) {
 	}
 }
 
-func (c *CommandLine) SetAuth() {
-	u, e := c.Line.Prompt("username: ")
-	if e != nil {
-		fmt.Printf("Unable to process input: %s", e)
-		return
+func (c *CommandLine) SetAuth(cmd string) {
+	// If they pass in the entire command, we should parse it
+	// auth <username> <password>
+	args := strings.Fields(cmd)
+	if len(args) == 3 {
+		args = args[1:]
+	} else {
+		args = []string{}
 	}
-	c.Username = strings.TrimSpace(u)
-	p, e := c.Line.PasswordPrompt("password: ")
-	if e != nil {
-		fmt.Printf("Unable to process input: %s", e)
-		return
+
+	if len(args) == 2 {
+		c.Username = args[0]
+		c.Password = args[1]
+	} else {
+		u, e := c.Line.Prompt("username: ")
+		if e != nil {
+			fmt.Printf("Unable to process input: %s", e)
+			return
+		}
+		c.Username = strings.TrimSpace(u)
+		p, e := c.Line.PasswordPrompt("password: ")
+		if e != nil {
+			fmt.Printf("Unable to process input: %s", e)
+			return
+		}
+		c.Password = p
 	}
-	c.Password = p
+
+	// Update the client as well
+	c.Client.SetAuth(c.Username, c.Password)
 }
 
 func (c *CommandLine) use(cmd string) {
@@ -286,7 +300,7 @@ func (c *CommandLine) dump() error {
 	return nil
 }
 
-func (c *CommandLine) executeQuery(query string) error {
+func (c *CommandLine) ExecuteQuery(query string) error {
 	response, err := c.Client.Query(client.Query{Command: query, Database: c.Database})
 	if err != nil {
 		fmt.Printf("ERR: %s\n", err)
@@ -473,7 +487,7 @@ func (c *CommandLine) Settings() {
 	w.Flush()
 }
 
-func help() {
+func (c *CommandLine) help() {
 	fmt.Println(`Usage:
         connect <host:port>   connect to another node
         auth                  prompt for username and password
@@ -494,7 +508,7 @@ func help() {
 `)
 }
 
-func gopher() {
+func (c *CommandLine) gopher() {
 	fmt.Println(`
                                           .-::-::://:-::-    .:/++/'
                                      '://:-''/oo+//++o+/.://o-    ./+:
