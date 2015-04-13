@@ -136,14 +136,26 @@ func execConfig(args []string) {
 	}
 
 	var (
-		configPath = fs.String("config", "", "")
-		hostname   = fs.String("hostname", "", "")
+		configPath string
+		hostname   string
 	)
+	fs.StringVar(&configPath, "config", "", "")
+	fs.StringVar(&hostname, "hostname", "", "")
 	fs.Parse(args)
 
-	config, err := parseConfig(*configPath, *hostname)
+	var config *Config
+	var err error
+	if configPath == "" {
+		config, err = NewTestConfig()
+	} else {
+		config, err = ParseConfigFile(configPath)
+	}
 	if err != nil {
 		log.Fatalf("parse config: %s", err)
+	}
+	// Override config properties.
+	if hostname != "" {
+		config.Hostname = hostname
 	}
 
 	config.Write(os.Stdout)

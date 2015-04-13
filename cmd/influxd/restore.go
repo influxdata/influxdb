@@ -98,11 +98,16 @@ func (cmd *RestoreCommand) parseFlags(args []string) (*Config, string, error) {
 	}
 
 	// Parse configuration file from disk.
-	config, err := parseConfig(*configPath, "")
+	var config *Config
+	var err error
+	if *configPath == "" {
+		config, err = NewTestConfig()
+		log.Println("No config provided, using default settings")
+	} else {
+		config, err = ParseConfig(*configPath)
+	}
 	if err != nil {
 		log.Fatal(err)
-	} else if *configPath == "" {
-		log.Println("No config provided, using default settings")
 	}
 
 	// Require output path.

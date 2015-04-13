@@ -28,7 +28,6 @@ import (
 
 type RunCommand struct {
 	// The logger passed to the ticker during execution.
-	Logger    *log.Logger
 	logWriter *os.File
 	config    *Config
 	hostname  string
@@ -160,10 +159,34 @@ func (s *Node) closeSnapshotListener() error {
 	return err
 }
 
-func (cmd *RunCommand) Run(args ...string) error {
-	// Set up logger.
-	cmd.Logger = log.New(os.Stderr, "", log.LstdFlags)
+func (cmd *RunCommand) ParseConfig(path, hostname string) error {
+	var err error
 
+	// Parse configuration file from disk.
+	if path != "" {
+		cmd.config, err = ParseConfigFile(path)
+
+		if err != nil {
+			return fmt.Errorf("error parsing configuration %s - %s\n", path, err)
+		}
+		// Override config properties.
+		if hostname != "" {
+			cmd.config.Hostname = hostname
+		}
+
+		log.Printf("using configuration at: %s\n", path)
+		return nil
+	}
+
+	cmd.config, err = NewTestConfig()
+	if err != nil {
+		return fmt.Errorf("error parsing default config: %s\n", err)
+	}
+	log.Println("no configuration provided, using default settings")
+	return nil
+}
+
+func (cmd *RunCommand) Run(args ...string) error {
 	// Parse command flags.
 	fs := flag.NewFlagSet("", flag.ExitOnError)
 	var configPath, pidfile, hostname, join, cpuprofile, memprofile string
@@ -191,19 +214,9 @@ func (cmd *RunCommand) Run(args ...string) error {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	log.Printf("GOMAXPROCS set to %d", runtime.GOMAXPROCS(0))
 
-	var err error
-
-	// Parse configuration file from disk.
-	if configPath != "" {
-		cmd.config, err = parseConfig(configPath, hostname)
-	} else {
-		cmd.config, err = NewTestConfig()
-	}
-
-	if err != nil {
-		cmd.Logger.Fatal(err)
-	} else if configPath == "" {
-		cmd.Logger.Println("No config provided, using default settings")
+	// Parse config
+	if err := cmd.ParseConfig(configPath, hostname); err != nil {
+		log.Fatal(err)
 	}
 
 	// Use the config JoinURLs by default
@@ -224,15 +237,15 @@ func (cmd *RunCommand) Run(args ...string) error {
 // CheckConfig validates the configuration
 func (cmd *RunCommand) CheckConfig() {
 	if !(cmd.config.Data.Enabled || cmd.config.Broker.Enabled) {
-		cmd.Logger.Fatal("Node must be configured as a broker node, data node, or as both.  Run `influxd config` to generate a valid configuration.")
+		log.Fatal("Node must be configured as a broker node, data node, or as both.  Run `influxd config` to generate a valid configuration.")
 	}
 
 	if cmd.config.Broker.Enabled && cmd.config.Broker.Dir == "" {
-		cmd.Logger.Fatal("Broker.Dir must be specified.  Run `influxd config` to generate a valid configuration.")
+		log.Fatal("Broker.Dir must be specified.  Run `influxd config` to generate a valid configuration.")
 	}
 
 	if cmd.config.Data.Enabled && cmd.config.Data.Dir == "" {
-		cmd.Logger.Fatal("Data.Dir must be specified.  Run `influxd config` to generate a valid configuration.")
+		log.Fatal("Data.Dir must be specified.  Run `influxd config` to generate a valid configuration.")
 	}
 }
 
@@ -274,6 +287,7 @@ func (cmd *RunCommand) Open(config *Config, join string) *Node {
 		//FIXME: Need to also pass in dataURLs to bootstrap a data node
 		s = cmd.openServer(joinURLs)
 		s.SetAuthenticationEnabled(cmd.config.Authentication.Enabled)
+		log.Printf("authentication enabled: %v\n", cmd.config.Authentication.Enabled)
 
 		// Enable retention policy enforcement if requested.
 		if cmd.config.Data.RetentionCheckEnabled {
@@ -453,26 +467,6 @@ func writePIDFile(path string) {
 	if err := ioutil.WriteFile(path, []byte(pid), 0644); err != nil {
 		log.Fatal(err)
 	}
-}
-
-// parseConfig parses the configuration from a given path. Sets overrides as needed.
-func parseConfig(path, hostname string) (*Config, error) {
-	if path == "" {
-		return NewConfig(), nil
-	}
-
-	// Parse configuration.
-	config, err := ParseConfigFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("config: %s", err)
-	}
-
-	// Override config properties.
-	if hostname != "" {
-		config.Hostname = hostname
-	}
-
-	return config, nil
 }
 
 // creates and initializes a broker.
