@@ -78,7 +78,7 @@ func (m *RemoteMapper) Begin(c *influxql.Call, startingTime int64, chunkSize int
 	}
 
 	// request to start streaming results
-	resp, err := http.Post(m.dataNodes[0].URL.String()+"/run_mapper", "application/json", bytes.NewReader(b))
+	resp, err := http.Post(m.dataNodes[0].URL.String()+"/data/run_mapper", "application/json", bytes.NewReader(b))
 	if err != nil {
 		return err
 	}

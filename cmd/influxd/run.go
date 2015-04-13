@@ -19,7 +19,6 @@ import (
 	"github.com/influxdb/influxdb/admin"
 	"github.com/influxdb/influxdb/collectd"
 	"github.com/influxdb/influxdb/graphite"
-	"github.com/influxdb/influxdb/httpd"
 	"github.com/influxdb/influxdb/messaging"
 	"github.com/influxdb/influxdb/opentsdb"
 	"github.com/influxdb/influxdb/raft"
@@ -45,9 +44,9 @@ type Node struct {
 	DataNode *influxdb.Server
 	raftLog  *raft.Log
 
-	adminServer      *admin.Server
-	clusterListener  net.Listener // The cluster TCP listener
-	snapshotListener net.Listener
+	adminServer     *admin.Server
+	clusterListener net.Listener // The cluster TCP listener
+	apiListener     net.Listener // The API TCP listener
 }
 
 func (s *Node) Close() error {
@@ -55,11 +54,11 @@ func (s *Node) Close() error {
 		return err
 	}
 
-	if err := s.closeAdminServer(); err != nil {
+	if err := s.closeAPIListener(); err != nil {
 		return err
 	}
 
-	if err := s.closeSnapshotListener(); err != nil {
+	if err := s.closeAdminServer(); err != nil {
 		return err
 	}
 
@@ -97,16 +96,14 @@ func (s *Node) closeAdminServer() error {
 	return nil
 }
 
-func (s *Node) openClusterListener(addr string, h http.Handler) error {
+func (s *Node) openListener(desc, addr string, h http.Handler) (net.Listener, error) {
 	var err error
-	// We want to make sure we are spun up before we exit this function, so we manually listen and serve
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	s.clusterListener = listener
 	go func() {
-		err := http.Serve(s.clusterListener, h)
+		err := http.Serve(listener, h)
 
 		// The listener was closed so exit
 		// See https://github.com/golang/go/issues/4373
@@ -114,9 +111,37 @@ func (s *Node) openClusterListener(addr string, h http.Handler) error {
 			return
 		}
 		if err != nil {
-			log.Fatalf("TCP server failed to server on %s: %s", addr, err)
+			log.Fatalf("%s server failed to serve on %s: %s", desc, addr, err)
 		}
 	}()
+	return listener, nil
+
+}
+
+func (s *Node) openAPIListener(addr string, h http.Handler) error {
+	var err error
+	s.apiListener, err = s.openListener("API", addr, h)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Node) closeAPIListener() error {
+	var err error
+	if s.apiListener != nil {
+		err = s.apiListener.Close()
+		s.apiListener = nil
+	}
+	return err
+}
+
+func (s *Node) openClusterListener(addr string, h http.Handler) error {
+	var err error
+	s.clusterListener, err = s.openListener("Cluster", addr, h)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -125,36 +150,6 @@ func (s *Node) closeClusterListener() error {
 	if s.clusterListener != nil {
 		err = s.clusterListener.Close()
 		s.clusterListener = nil
-	}
-	return err
-}
-
-func (s *Node) openSnapshotListener(addr string) error {
-	listener, err := net.Listen("tcp", addr)
-	if err != nil {
-		return err
-	}
-	s.snapshotListener = listener
-
-	// Start snapshot handler.
-	go func() {
-		err := http.Serve(s.snapshotListener,
-			&httpd.SnapshotHandler{
-				CreateSnapshotWriter: s.DataNode.CreateSnapshotWriter,
-			},
-		)
-		if !strings.Contains(err.Error(), "closed") {
-			log.Fatalf("snapshot server failed to serve on %s: %s", addr, err)
-		}
-	}()
-	return nil
-}
-
-func (s *Node) closeSnapshotListener() error {
-	var err error
-	if s.snapshotListener != nil {
-		err = s.snapshotListener.Close()
-		s.snapshotListener = nil
 	}
 	return err
 }
@@ -276,9 +271,9 @@ func (cmd *RunCommand) Open(config *Config, join string) *Node {
 
 	err := cmd.node.openClusterListener(cmd.config.ClusterAddr(), h)
 	if err != nil {
-		log.Fatalf("TCP server failed to listen on %s. %s ", cmd.config.ClusterAddr(), err)
+		log.Fatalf("Cluster server failed to listen on %s. %s ", cmd.config.ClusterAddr(), err)
 	}
-	log.Printf("TCP server listening on %s", cmd.config.ClusterAddr())
+	log.Printf("Cluster server listening on %s", cmd.config.ClusterAddr())
 
 	var s *influxdb.Server
 	// Open server, initialize or join as necessary.
@@ -309,14 +304,10 @@ func (cmd *RunCommand) Open(config *Config, join string) *Node {
 	// Start the server handler. Attach to broker if listening on the same port.
 	if s != nil {
 		h.Server = s
-
 		if config.Snapshot.Enabled {
-			if err := cmd.node.openSnapshotListener(cmd.config.SnapshotAddr()); err != nil {
-				log.Fatalf("snapshot server failed to listen on %s: %s", cmd.config.SnapshotAddr(), err)
-			}
-			log.Printf("snapshot server listening on %s", cmd.config.SnapshotAddr())
+			log.Printf("snapshot server listening on %s", cmd.config.ClusterAddr())
 		} else {
-			log.Println("snapshot server disabled")
+			log.Printf("snapshot server disabled")
 		}
 
 		if cmd.config.Admin.Enabled {
@@ -442,6 +433,14 @@ func (cmd *RunCommand) Open(config *Config, join string) *Node {
 			cmd.node.Broker.RunContinuousQueryLoop()
 		}
 	}
+
+	if cmd.config.APIAddr() != cmd.config.ClusterAddr() {
+		err := cmd.node.openAPIListener(cmd.config.APIAddr(), h)
+		if err != nil {
+			log.Fatalf("API server failed to listen on %s. %s ", cmd.config.APIAddr(), err)
+		}
+	}
+	log.Printf("API server listening on %s", cmd.config.APIAddr())
 
 	return cmd.node
 }

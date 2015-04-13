@@ -16,7 +16,7 @@ import (
 func TestBackupCommand(t *testing.T) {
 	// Mock the backup endpoint.
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/snapshot" {
+		if r.URL.Path != "/data/snapshot" {
 			t.Fatalf("unexpected url path: %s", r.URL.Path)
 		}
 

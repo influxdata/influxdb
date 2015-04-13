@@ -13,7 +13,7 @@ import (
 	main "github.com/influxdb/influxdb/cmd/influxd"
 )
 
-func newConfig(path string, port, snapshotPort int) main.Config {
+func newConfig(path string, port int) main.Config {
 	config := main.NewConfig()
 	config.Port = port
 	config.Broker.Enabled = true
@@ -21,7 +21,6 @@ func newConfig(path string, port, snapshotPort int) main.Config {
 
 	config.Data.Enabled = true
 	config.Data.Dir = filepath.Join(path, "data")
-	config.Snapshot.Port = snapshotPort
 	return *config
 }
 
@@ -38,7 +37,7 @@ func TestRestoreCommand(t *testing.T) {
 	defer os.Remove(path)
 
 	// Parse configuration.
-	config := newConfig(path, 8900, 8901)
+	config := newConfig(path, 8900)
 
 	// Start server.
 	cmd := main.NewRunCommand()
@@ -90,7 +89,7 @@ func TestRestoreCommand(t *testing.T) {
 	}
 
 	// Rewrite config to a new port and re-parse.
-	config = newConfig(path, 8910, 8911)
+	config = newConfig(path, 8910)
 
 	// Restart server.
 	cmd = main.NewRunCommand()

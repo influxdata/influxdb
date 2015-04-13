@@ -50,47 +50,53 @@ type Handler struct {
 	routes                []route
 	mux                   *pat.PatternServeMux
 	requireAuthentication bool
+	snapshotEnabled       bool
 	version               string
 
 	Logger     *log.Logger
 	WriteTrace bool // Detailed logging of write path
 }
 
-// NewClusterHandler is the http handler for cluster communcation endpoints
-func NewClusterHandler(s *influxdb.Server, requireAuthentication bool, version string) *Handler {
+// NewClusterHandler is the http handler for cluster communication endpoints
+func NewClusterHandler(s *influxdb.Server, requireAuthentication, snapshotEnabled bool, version string) *Handler {
 	h := newHandler(s, requireAuthentication, version)
+	h.snapshotEnabled = snapshotEnabled
 	h.SetRoutes([]route{
 		route{ // List data nodes
 			"data_nodes_index",
-			"GET", "/data_nodes", true, false, h.serveDataNodes,
+			"GET", "/data/data_nodes", true, false, h.serveDataNodes,
 		},
 		route{ // Create data node
 			"data_nodes_create",
-			"POST", "/data_nodes", true, false, h.serveCreateDataNode,
+			"POST", "/data/data_nodes", true, false, h.serveCreateDataNode,
 		},
 		route{ // Delete data node
 			"data_nodes_delete",
-			"DELETE", "/data_nodes/:id", true, false, h.serveDeleteDataNode,
+			"DELETE", "/data/data_nodes/:id", true, false, h.serveDeleteDataNode,
 		},
 		route{ // Metastore
 			"metastore",
-			"GET", "/metastore", false, false, h.serveMetastore,
+			"GET", "/data/metastore", false, false, h.serveMetastore,
 		},
 		route{ // Tell data node to run CQs that should be run
 			"process_continuous_queries",
-			"POST", "/process_continuous_queries", false, false, h.serveProcessContinuousQueries,
+			"POST", "/data/process_continuous_queries", false, false, h.serveProcessContinuousQueries,
 		},
 		route{
 			"index", // Index.
-			"GET", "/", true, true, h.serveIndex,
+			"GET", "/data", true, true, h.serveIndex,
 		},
 		route{
 			"wait", // Wait.
-			"GET", "/wait/:index", true, true, h.serveWait,
+			"GET", "/data/wait/:index", true, true, h.serveWait,
 		},
 		route{
 			"run_mapper",
-			"POST", "/run_mapper", true, true, h.serveRunMapper,
+			"POST", "/data/run_mapper", true, true, h.serveRunMapper,
+		},
+		route{
+			"snapshot",
+			"GET", "/data/snapshot", true, true, h.serveSnapshot,
 		},
 	})
 	return h
@@ -1031,4 +1037,17 @@ func (h *SnapshotHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		httpError(w, "error writing snapshot: "+err.Error(), false, http.StatusInternalServerError)
 		return
 	}
+}
+
+// serveSnapshot streams out a snapshot from the server.
+func (h *Handler) serveSnapshot(w http.ResponseWriter, r *http.Request) {
+	if !h.snapshotEnabled {
+		httpError(w, "not found", false, http.StatusNotFound)
+		return
+	}
+	sh := SnapshotHandler{
+		CreateSnapshotWriter: h.server.CreateSnapshotWriter,
+	}
+	sh.ServeHTTP(w, r)
+
 }

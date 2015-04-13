@@ -109,7 +109,7 @@ func (b *Broker) runContinuousQueries() {
 
 func (b *Broker) requestContinuousQueryProcessing(cqURL url.URL) error {
 	// Send request.
-	cqURL.Path = "/process_continuous_queries"
+	cqURL.Path = "/data/process_continuous_queries"
 	cqURL.Scheme = "http"
 	client := &http.Client{
 		Timeout: DefaultDataNodeTimeout,

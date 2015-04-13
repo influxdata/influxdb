@@ -45,25 +45,29 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// FIXME: This is very brittle.  Refactor to have common path prefix
+	// Broker raft communication endpoints.  These are called and handled by brokers
+	// to coordinate changes to the raft log.
 	if strings.HasPrefix(r.URL.Path, "/raft") {
 		h.serveRaft(w, r)
 		return
 	}
 
+	// Broker messaging endpoints.  These are handled by brokers and called by data
+	// nodes to receive topic change and update replication status.
 	if strings.HasPrefix(r.URL.Path, "/messaging") {
 		h.serveMessaging(w, r)
 		return
 	}
 
-	if strings.HasPrefix(r.URL.Path, "/data_nodes") ||
-		strings.HasPrefix(r.URL.Path, "/process_continuous_queries") ||
-		strings.HasPrefix(r.URL.Path, "/run_mapper") ||
-		strings.HasPrefix(r.URL.Path, "/metastore") {
-		h.serveMetadata(w, r)
+	// Data node endpoints.  These are handled by data nodes and allow brokers and data
+	// nodes to transfer state, process queries, etc..
+	if strings.HasPrefix(r.URL.Path, "/data") {
+		h.serveData(w, r)
 		return
 	}
-	h.serveData(w, r)
+
+	// These are public API endpoints
+	h.serveAPI(w, r)
 }
 
 // serveMessaging responds to broker requests
@@ -88,8 +92,8 @@ func (h *Handler) serveMessaging(w http.ResponseWriter, r *http.Request) {
 	h.redirect(h.Server.BrokerURLs(), w, r)
 }
 
-// serveMetadata responds to broker requests
-func (h *Handler) serveMetadata(w http.ResponseWriter, r *http.Request) {
+// serveData responds to broker requests
+func (h *Handler) serveData(w http.ResponseWriter, r *http.Request) {
 	if h.Broker == nil && h.Server == nil {
 		log.Println("no broker or server configured to handle metadata endpoints")
 		http.Error(w, "server unavailable", http.StatusServiceUnavailable)
@@ -97,7 +101,8 @@ func (h *Handler) serveMetadata(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.Server != nil {
-		sh := httpd.NewClusterHandler(h.Server, h.Config.Authentication.Enabled, version)
+		sh := httpd.NewClusterHandler(h.Server, h.Config.Authentication.Enabled,
+			h.Config.Snapshot.Enabled, version)
 		sh.WriteTrace = h.Config.Logging.WriteTracing
 		sh.ServeHTTP(w, r)
 		return
@@ -131,8 +136,8 @@ func (h *Handler) serveRaft(w http.ResponseWriter, r *http.Request) {
 	h.redirect(h.Server.BrokerURLs(), w, r)
 }
 
-// serveData responds to data requests
-func (h *Handler) serveData(w http.ResponseWriter, r *http.Request) {
+// serveAPI responds to data requests
+func (h *Handler) serveAPI(w http.ResponseWriter, r *http.Request) {
 	if h.Broker == nil && h.Server == nil {
 		log.Println("no broker or server configured to handle data endpoints")
 		http.Error(w, "server unavailable", http.StatusServiceUnavailable)

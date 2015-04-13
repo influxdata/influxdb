@@ -667,7 +667,7 @@ func (s *Server) Join(u *url.URL, joinURL *url.URL) error {
 	// Create the initial request. Might get a redirect though depending on
 	// the nodes role
 	joinURL = copyURL(joinURL)
-	joinURL.Path = "/data_nodes"
+	joinURL.Path = "/data/data_nodes"
 
 	var retries int
 	var resp *http.Response
@@ -745,7 +745,7 @@ func (s *Server) Join(u *url.URL, joinURL *url.URL) error {
 	assert(n.ID > 0, "invalid join node id returned: %d", n.ID)
 
 	// Download the metastore from joining server.
-	joinURL.Path = "/metastore"
+	joinURL.Path = "/data/metastore"
 	resp, err = http.Get(joinURL.String())
 	if err != nil {
 		return err

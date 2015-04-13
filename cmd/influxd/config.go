@@ -42,12 +42,6 @@ const (
 	// DefaultDataEnabled is the default for starting a node as a data node
 	DefaultDataEnabled = true
 
-	// DefaultSnapshotBindAddress is the default bind address to serve snapshots from.
-	DefaultSnapshotBindAddress = "127.0.0.1"
-
-	// DefaultSnapshotPort is the default port to serve snapshots from.
-	DefaultSnapshotPort = 8087
-
 	// DefaultRetentionCreatePeriod represents how often the server will check to see if new
 	// shard groups need to be created in advance for writing
 	DefaultRetentionCreatePeriod = 45 * time.Minute
@@ -94,7 +88,7 @@ const (
 
 var DefaultSnapshotURL = url.URL{
 	Scheme: "http",
-	Host:   net.JoinHostPort(DefaultSnapshotBindAddress, strconv.Itoa(DefaultSnapshotPort)),
+	Host:   net.JoinHostPort("127.0.0.1", strconv.Itoa(DefaultClusterPort)),
 }
 
 // Broker represents the configuration for a broker node
@@ -107,9 +101,7 @@ type Broker struct {
 // Snapshot represents the configuration for a snapshot service. Snapshot configuration
 // is only valid for data nodes.
 type Snapshot struct {
-	Enabled     bool   `toml:"enabled"`
-	BindAddress string `toml:"bind-address"`
-	Port        int    `toml:"port"`
+	Enabled bool `toml:"enabled"`
 }
 
 // Data represents the configuration for a data node
@@ -226,8 +218,6 @@ func NewConfig() *Config {
 	c := &Config{}
 	c.Port = DefaultClusterPort
 
-	c.HTTPAPI.Port = DefaultClusterPort
-
 	c.Data.Enabled = DefaultDataEnabled
 	c.Broker.Enabled = DefaultBrokerEnabled
 
@@ -235,9 +225,6 @@ func NewConfig() *Config {
 	c.Data.RetentionCheckEnabled = DefaultRetentionCheckEnabled
 	c.Data.RetentionCheckPeriod = Duration(DefaultRetentionCheckPeriod)
 	c.Data.RetentionCreatePeriod = Duration(DefaultRetentionCreatePeriod)
-
-	c.Snapshot.BindAddress = DefaultSnapshotBindAddress
-	c.Snapshot.Port = DefaultSnapshotPort
 
 	c.Monitoring.Enabled = false
 	c.Monitoring.WriteInterval = Duration(DefaultStatisticsWriteInterval)
@@ -289,21 +276,23 @@ func NewTestConfig() (*Config, error) {
 
 // APIAddr returns the TCP binding address for the API server.
 func (c *Config) APIAddr() string {
+	// Default to cluster bind address if not overriden
 	ba := c.BindAddress
 	if c.HTTPAPI.BindAddress != "" {
 		ba = c.HTTPAPI.BindAddress
 	}
-	return net.JoinHostPort(ba, strconv.Itoa(c.HTTPAPI.Port))
+
+	// Default to cluster port if not overridden
+	bp := c.Port
+	if c.HTTPAPI.Port != 0 {
+		bp = c.HTTPAPI.Port
+	}
+	return net.JoinHostPort(ba, strconv.Itoa(bp))
 }
 
 // APIAddrUDP returns the UDP address for the series listener.
 func (c *Config) APIAddrUDP() string {
 	return net.JoinHostPort(c.UDP.BindAddress, strconv.Itoa(c.UDP.Port))
-}
-
-// SnapshotAddr returns the TCP binding address for the snapshot handler.
-func (c *Config) SnapshotAddr() string {
-	return net.JoinHostPort(c.Snapshot.BindAddress, strconv.Itoa(c.Snapshot.Port))
 }
 
 // ClusterAddr returns the binding address for the cluster
