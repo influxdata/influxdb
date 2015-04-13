@@ -67,7 +67,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// These are public API endpoints
-	h.serveData(w, r)
+	h.serveAPI(w, r)
 }
 
 // serveMessaging responds to broker requests
@@ -135,8 +135,8 @@ func (h *Handler) serveRaft(w http.ResponseWriter, r *http.Request) {
 	h.redirect(h.Server.BrokerURLs(), w, r)
 }
 
-// serveData responds to data requests
-func (h *Handler) serveData(w http.ResponseWriter, r *http.Request) {
+// serveAPI responds to data requests
+func (h *Handler) serveAPI(w http.ResponseWriter, r *http.Request) {
 	if h.Broker == nil && h.Server == nil {
 		log.Println("no broker or server configured to handle data endpoints")
 		http.Error(w, "server unavailable", http.StatusServiceUnavailable)
