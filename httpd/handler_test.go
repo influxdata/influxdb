@@ -1614,7 +1614,7 @@ func TestSnapshotHandler(t *testing.T) {
 	// The "shards/1" has a higher index in the diff so it won't be included in the snapshot.
 	w := httptest.NewRecorder()
 	r, _ := http.NewRequest(
-		"GET", "http://localhost/snapshot",
+		"GET", "http://localhost/data/snapshot",
 		strings.NewReader(`{"files":[{"name":"meta","index":10},{"name":"shards/1","index":20}]}`),
 	)
 	h.ServeHTTP(w, r)
@@ -1759,12 +1759,12 @@ func NewAPIServer(s *Server) *HTTPServer {
 }
 
 func NewClusterServer(s *Server) *HTTPServer {
-	h := httpd.NewClusterHandler(s.Server, false, "X.X")
+	h := httpd.NewClusterHandler(s.Server, false, true, "X.X")
 	return &HTTPServer{httptest.NewServer(h), h}
 }
 
 func NewAuthenticatedClusterServer(s *Server) *HTTPServer {
-	h := httpd.NewClusterHandler(s.Server, true, "X.X")
+	h := httpd.NewClusterHandler(s.Server, true, true, "X.X")
 	return &HTTPServer{httptest.NewServer(h), h}
 }
 

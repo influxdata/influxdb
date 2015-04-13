@@ -143,7 +143,7 @@ func (cmd *BackupCommand) download(u url.URL, ss *influxdb.Snapshot, path string
 	}
 
 	// Create request with existing snapshot as the body.
-	u.Path = "/snapshot"
+	u.Path = "/data/snapshot"
 	req, err := http.NewRequest("GET", u.String(), &buf)
 	if err != nil {
 		return fmt.Errorf("new request: %s", err)

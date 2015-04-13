@@ -101,7 +101,8 @@ func (h *Handler) serveData(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.Server != nil {
-		sh := httpd.NewClusterHandler(h.Server, h.Config.Authentication.Enabled, version)
+		sh := httpd.NewClusterHandler(h.Server, h.Config.Authentication.Enabled,
+			h.Config.Snapshot.Enabled, version)
 		sh.WriteTrace = h.Config.Logging.WriteTracing
 		sh.ServeHTTP(w, r)
 		return

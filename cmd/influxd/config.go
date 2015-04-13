@@ -94,7 +94,7 @@ const (
 
 var DefaultSnapshotURL = url.URL{
 	Scheme: "http",
-	Host:   net.JoinHostPort(DefaultSnapshotBindAddress, strconv.Itoa(DefaultSnapshotPort)),
+	Host:   net.JoinHostPort("127.0.0.1", strconv.Itoa(DefaultClusterPort)),
 }
 
 // Broker represents the configuration for a broker node

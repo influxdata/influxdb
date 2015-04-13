@@ -50,15 +50,17 @@ type Handler struct {
 	routes                []route
 	mux                   *pat.PatternServeMux
 	requireAuthentication bool
+	snapshotEnabled       bool
 	version               string
 
 	Logger     *log.Logger
 	WriteTrace bool // Detailed logging of write path
 }
 
-// NewClusterHandler is the http handler for cluster communcation endpoints
-func NewClusterHandler(s *influxdb.Server, requireAuthentication bool, version string) *Handler {
+// NewClusterHandler is the http handler for cluster communication endpoints
+func NewClusterHandler(s *influxdb.Server, requireAuthentication, snapshotEnabled bool, version string) *Handler {
 	h := newHandler(s, requireAuthentication, version)
+	h.snapshotEnabled = snapshotEnabled
 	h.SetRoutes([]route{
 		route{ // List data nodes
 			"data_nodes_index",
@@ -91,6 +93,10 @@ func NewClusterHandler(s *influxdb.Server, requireAuthentication bool, version s
 		route{
 			"run_mapper",
 			"POST", "/data/run_mapper", true, true, h.serveRunMapper,
+		},
+		route{
+			"snapshot",
+			"GET", "/data/snapshot", true, true, h.serveSnapshot,
 		},
 	})
 	return h
@@ -1031,4 +1037,17 @@ func (h *SnapshotHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		httpError(w, "error writing snapshot: "+err.Error(), false, http.StatusInternalServerError)
 		return
 	}
+}
+
+// serveSnapshot streams out a snapshot from the server.
+func (h *Handler) serveSnapshot(w http.ResponseWriter, r *http.Request) {
+	if !h.snapshotEnabled {
+		httpError(w, "not found", false, http.StatusNotFound)
+		return
+	}
+	sh := SnapshotHandler{
+		CreateSnapshotWriter: h.server.CreateSnapshotWriter,
+	}
+	sh.ServeHTTP(w, r)
+
 }
