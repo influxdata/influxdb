@@ -85,19 +85,23 @@ func (c *Client) Query(q Query) (*Response, error) {
 	}
 	defer resp.Body.Close()
 
-	// If the status code is not 200, this query failed
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("received status code %d from server", resp.StatusCode)
-	}
-
 	var response Response
 	dec := json.NewDecoder(resp.Body)
 	dec.UseNumber()
-	err = dec.Decode(&response)
-	if err != nil {
-		return nil, err
-	}
+	decErr := dec.Decode(&response)
 
+	// ignore this error if we got an invalid status code
+	if decErr != nil && decErr.Error() == "EOF" && resp.StatusCode != http.StatusOK {
+		decErr = nil
+	}
+	// If we got a valid decode error, send that back
+	if decErr != nil {
+		return nil, decErr
+	}
+	// If we don't have an error in our json response, and didn't get  statusOK, then send back an error
+	if resp.StatusCode != http.StatusOK && response.Error() == nil {
+		return &response, fmt.Errorf("received status code %d from server", resp.StatusCode)
+	}
 	return &response, nil
 }
 
