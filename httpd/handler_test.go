@@ -1564,7 +1564,7 @@ func TestHandler_serveWriteSeriesFieldTypeConflict(t *testing.T) {
 	if len(r.Results) != 0 {
 		t.Fatalf("unexpected results count")
 	}
-	if r.Err.Error() != "field \"value\" is type string, mapped as type number" {
+	if r.Err.Error() != "field \"value\" is type string, mapped as type float" {
 		t.Fatalf("unexpected error returned, actual: %s", r.Err.Error())
 	}
 }

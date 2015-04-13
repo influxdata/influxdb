@@ -976,6 +976,39 @@ func TestServer_StartRetentionPolicyEnforcement_ErrZeroInterval(t *testing.T) {
 	}
 }
 
+// Ensure the server can support writes of all data types.
+func TestServer_WriteAllDataTypes(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+	s.CreateDatabase("foo")
+	s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "raw", Duration: 1 * time.Hour})
+	s.SetDefaultRetentionPolicy("foo", "raw")
+
+	// Write series with one point to the database.
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "series1", Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(20)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "series2", Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": int64(30)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "series3", Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": "baz"}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "series4", Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": true}}})
+
+	f := func(t *testing.T, database, query, expected string) {
+		results := s.executeQuery(MustParseQuery(query), database, nil)
+		if res := results.Results[0]; res.Err != nil {
+			t.Errorf("unexpected error: %s", res.Err)
+		} else if len(res.Series) != 1 {
+			t.Errorf("unexpected row count: %d", len(res.Series))
+		} else if s := mustMarshalJSON(res); s != expected {
+			t.Errorf("unexpected row(0): \nexp: %s\ngot: %s", expected, s)
+		}
+	}
+
+	f(t, "foo", "SELECT * from series1", `{"series":[{"name":"series1","columns":["time","value"],"values":[["2000-01-01T00:00:00Z",20]]}]}`)
+	f(t, "foo", "SELECT * from series2", `{"series":[{"name":"series2","columns":["time","value"],"values":[["2000-01-01T00:00:00Z",30]]}]}`)
+	f(t, "foo", "SELECT * from series3", `{"series":[{"name":"series3","columns":["time","value"],"values":[["2000-01-01T00:00:00Z","baz"]]}]}`)
+	f(t, "foo", "SELECT * from series4", `{"series":[{"name":"series4","columns":["time","value"],"values":[["2000-01-01T00:00:00Z",true]]}]}`)
+}
+
 func TestServer_EnforceRetentionPolices(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	s := OpenServer(c)
