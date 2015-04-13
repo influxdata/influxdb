@@ -45,24 +45,28 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// FIXME: This is very brittle.  Refactor to have common path prefix
+	// Broker raft communication endpoints.  These are called and handled by brokers
+	// to coordinate changes to the raft log.
 	if strings.HasPrefix(r.URL.Path, "/raft") {
 		h.serveRaft(w, r)
 		return
 	}
 
+	// Broker messaging endpoints.  These are handled by brokers and called by data
+	// nodes to receive topic change and update replication status.
 	if strings.HasPrefix(r.URL.Path, "/messaging") {
 		h.serveMessaging(w, r)
 		return
 	}
 
-	if strings.HasPrefix(r.URL.Path, "/data_nodes") ||
-		strings.HasPrefix(r.URL.Path, "/process_continuous_queries") ||
-		strings.HasPrefix(r.URL.Path, "/run_mapper") ||
-		strings.HasPrefix(r.URL.Path, "/metastore") {
+	// Data node endpoints.  These are handled by data nodes and allow brokers and data
+	// nodes to transfer state, process queries, etc..
+	if strings.HasPrefix(r.URL.Path, "/data") {
 		h.serveMetadata(w, r)
 		return
 	}
+
+	// These are public API endpoints
 	h.serveData(w, r)
 }
 

@@ -83,7 +83,7 @@ func (h *BrokerTestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}
 	switch r.URL.Path {
-	case "/process_continuous_queries":
+	case "/data/process_continuous_queries":
 		if r.Method == "POST" {
 			h.processRequestCount++
 			w.WriteHeader(http.StatusAccepted)
