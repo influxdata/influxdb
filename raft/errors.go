@@ -50,6 +50,10 @@ var (
 	// ErrSnapshotRequired returned when reading from an out-of-order log.
 	// The snapshot will be retrieved on the next reader request.
 	ErrSnapshotRequired = errors.New("snapshot required")
+
+	// ErrSnapshotting is returned when an action cannot be performed because
+	// the log is in the middle of a snapshot.
+	ErrSnapshotting = errors.New("snapshotting")
 )
 
 // Internal marker errors.
