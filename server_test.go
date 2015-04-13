@@ -991,6 +991,7 @@ func TestServer_WriteAllDataTypes(t *testing.T) {
 	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "series2", Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": int64(30)}}})
 	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "series3", Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": "baz"}}})
 	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "series4", Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": true}}})
+	time.Sleep(time.Millisecond * 100)
 
 	f := func(t *testing.T, database, query, expected string) {
 		results := s.executeQuery(MustParseQuery(query), database, nil)
