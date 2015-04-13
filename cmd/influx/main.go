@@ -205,9 +205,6 @@ func (c *CommandLine) connect(cmd string) {
 	} else {
 		u.Host = c.Host
 	}
-	if c.Username != "" {
-		u.User = url.UserPassword(c.Username, c.Password)
-	}
 	cl, err := client.NewClient(
 		client.Config{
 			URL:       u,
@@ -243,6 +240,9 @@ func (c *CommandLine) SetAuth() {
 		return
 	}
 	c.Password = p
+
+	// Update the client as well
+	c.Client.SetAuth(c.Username, c.Password)
 }
 
 func (c *CommandLine) use(cmd string) {
