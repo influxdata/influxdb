@@ -5,6 +5,7 @@
 ### Bugfixes
 - [#2255](https://github.com/influxdb/influxdb/pull/2255): Fix panic when changing default retention policy.
 - [#2261](https://github.com/influxdb/influxdb/pull/2261): Support int64 value types.
+- [#2191](https://github.com/influxdb/influxdb/pull/2191): Case-insensitive check for "fill"
 
 ## v0.9.0-rc23 [2015-04-11]
 
