@@ -62,7 +62,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Data node endpoints.  These are handled by data nodes and allow brokers and data
 	// nodes to transfer state, process queries, etc..
 	if strings.HasPrefix(r.URL.Path, "/data") {
-		h.serveMetadata(w, r)
+		h.serveData(w, r)
 		return
 	}
 
@@ -92,8 +92,8 @@ func (h *Handler) serveMessaging(w http.ResponseWriter, r *http.Request) {
 	h.redirect(h.Server.BrokerURLs(), w, r)
 }
 
-// serveMetadata responds to broker requests
-func (h *Handler) serveMetadata(w http.ResponseWriter, r *http.Request) {
+// serveData responds to broker requests
+func (h *Handler) serveData(w http.ResponseWriter, r *http.Request) {
 	if h.Broker == nil && h.Server == nil {
 		log.Println("no broker or server configured to handle metadata endpoints")
 		http.Error(w, "server unavailable", http.StatusServiceUnavailable)
