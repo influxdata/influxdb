@@ -780,17 +780,14 @@ func (f *FieldCodec) EncodeFields(values map[string]interface{}) ([]byte, error)
 		var buf []byte
 
 		switch field.Type {
-		case influxql.Number:
-			var value float64
-			// Convert integers to floats.
-			if intval, ok := v.(int); ok {
-				value = float64(intval)
-			} else {
-				value = v.(float64)
-			}
-
+		case influxql.Float:
+			value := v.(float64)
 			buf = make([]byte, 9)
 			binary.BigEndian.PutUint64(buf[1:9], math.Float64bits(value))
+		case influxql.Integer:
+			value := v.(int64)
+			buf = make([]byte, 9)
+			binary.BigEndian.PutUint64(buf[1:9], uint64(value))
 		case influxql.Boolean:
 			value := v.(bool)
 
@@ -850,9 +847,12 @@ func (f *FieldCodec) DecodeByID(targetID uint8, b []byte) (interface{}, error) {
 
 		var value interface{}
 		switch field.Type {
-		case influxql.Number:
+		case influxql.Float:
 			// Move bytes forward.
 			value = math.Float64frombits(binary.BigEndian.Uint64(b[1:9]))
+			b = b[9:]
+		case influxql.Integer:
+			value = int64(binary.BigEndian.Uint64(b[1:9]))
 			b = b[9:]
 		case influxql.Boolean:
 			if b[1] == 1 {
@@ -904,8 +904,12 @@ func (f *FieldCodec) DecodeFields(b []byte) (map[uint8]interface{}, error) {
 
 		var value interface{}
 		switch field.Type {
-		case influxql.Number:
+		case influxql.Float:
 			value = math.Float64frombits(binary.BigEndian.Uint64(b[1:9]))
+			// Move bytes forward.
+			b = b[9:]
+		case influxql.Integer:
+			value = int64(binary.BigEndian.Uint64(b[1:9]))
 			// Move bytes forward.
 			b = b[9:]
 		case influxql.Boolean:
