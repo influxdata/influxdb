@@ -85,6 +85,11 @@ func (c *Client) Query(q Query) (*Response, error) {
 	}
 	defer resp.Body.Close()
 
+	// If the status code is not 200, this query failed
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("received status code %d from server", resp.StatusCode)
+	}
+
 	var response Response
 	dec := json.NewDecoder(resp.Body)
 	dec.UseNumber()
@@ -92,6 +97,7 @@ func (c *Client) Query(q Query) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return &response, nil
 }
 
