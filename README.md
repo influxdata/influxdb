@@ -6,7 +6,7 @@
 > please build against `master` or the most current RC instead of using v0.8.8.
 
 InfluxDB is an open source **distributed time series database** with
-**no external dependencies**. It's useful for recording metrics,
+**no external runtime dependencies**. It's useful for recording metrics,
 events, and performing analytics.
 
 ## Features
