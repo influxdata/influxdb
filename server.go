@@ -1811,12 +1811,28 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 				codec = NewFieldCodec(measurement)
 				codecs[measurement.Name] = codec
 			}
-			
-			values, err := s.ReadSeries(database, retentionPolicy, p.Name, p.Tags, p.Timestamp)
+			// Read raw encoded series data.
+			data, err := sh.readSeries(series.ID, p.Timestamp.UnixNano())
 			if err != nil {
-				s.Logger.Printf("database or series not found: dbname=%s, dbname=%s, tags=%#v", database, p.Name, p.Tags)
 				return err
 			}
+
+			// Decode into a raw value map.
+			rawFields, err := codec.DecodeFields(data)
+			if err != nil || rawFields == nil {
+				return err 
+			}
+
+			// Decode into a string-key value map.
+			values := make(map[string]interface{}, len(rawFields))
+			for fieldID, value := range rawFields {
+				f := measurement.Field(fieldID)
+				if f == nil {
+					continue
+				}
+				values[f.Name] = value
+			}
+
 			//keep old values
 			for k, _ := range codec.fieldsByName {
 				if _, ok := p.Fields[k] ; !ok {
@@ -1826,7 +1842,6 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 					}
 				}
 			}
-			
 
 			// Convert string-key/values to encoded fields.
 			encodedFields, err := codec.EncodeFields(p.Fields)
@@ -1835,7 +1850,7 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 			}
 
 			// Encode point header, followed by point data, and add to shard's batch.
-			data := marshalPointHeader(series.ID, uint32(len(encodedFields)), p.Timestamp.UnixNano())
+			data = marshalPointHeader(series.ID, uint32(len(encodedFields)), p.Timestamp.UnixNano())
 			data = append(data, encodedFields...)
 			if shardData[sh.ID] == nil {
 				shardData[sh.ID] = make([]byte, 0)
