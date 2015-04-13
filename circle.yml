@@ -1,11 +1,12 @@
 dependencies:
     pre:
         - go get -u golang.org/x/tools/cmd/vet;
+        - gem install fpm
 
 
 test:
     override:
     # Put each test command on its own line.
         - go tool vet .
-        - go test -timeout 300s -v ./...
-        - GORACE="halt_on_error=1" go test -race -timeout 600s -v ./...
+        - go env
+        - bash -x package.sh ${CIRCLE_BRANCH}_${CIRCLE_BUILD_NUM} -notag -noupload -notreeupdate -y
