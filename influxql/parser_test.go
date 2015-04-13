@@ -317,6 +317,20 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// SELECT statement with FILL(none) -- check case insensitivity
+		{
+			s: `SELECT mean(value) FROM cpu GROUP BY time(5m) FILL(none)`,
+			stmt: &influxql.SelectStatement{
+				Fields: []*influxql.Field{{
+					Expr: &influxql.Call{
+						Name: "mean",
+						Args: []influxql.Expr{&influxql.VarRef{Val: "value"}}}}},
+				Sources:    []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+				Dimensions: []*influxql.Dimension{{Expr: &influxql.Call{Name: "time", Args: []influxql.Expr{&influxql.DurationLiteral{Val: 5 * time.Minute}}}}},
+				Fill:       influxql.NoFill,
+			},
+		},
+
 		// SELECT statement with previous fill
 		{
 			s: `SELECT mean(value) FROM cpu GROUP BY time(5m) fill(previous)`,

@@ -16,7 +16,7 @@ import (
 func TestMeasurement_uniqueTagValues(t *testing.T) {
 	// Create a measurement to run against.
 	m := NewMeasurement("cpu")
-	m.createFieldIfNotExists("value", influxql.Number)
+	m.createFieldIfNotExists("value", influxql.Float)
 
 	for i, tt := range []struct {
 		expr   string
@@ -37,7 +37,7 @@ func TestMeasurement_uniqueTagValues(t *testing.T) {
 // Ensure a measurement can expand an expression for all possible tag values used.
 func TestMeasurement_expandExpr(t *testing.T) {
 	m := NewMeasurement("cpu")
-	m.createFieldIfNotExists("value", influxql.Number)
+	m.createFieldIfNotExists("value", influxql.Float)
 
 	type tagSetExprString struct {
 		tagExpr []tagExpr
@@ -129,13 +129,13 @@ func TestCreateMeasurementsCommand(t *testing.T) {
 	}
 
 	// Add a field.
-	err = c.addFieldIfNotExists("bar", "value", influxql.Number)
+	err = c.addFieldIfNotExists("bar", "value", influxql.Integer)
 	if err != nil {
 		t.Fatal("error adding field \"value\"")
 	}
 
 	// Add same field again.
-	err = c.addFieldIfNotExists("bar", "value", influxql.Number)
+	err = c.addFieldIfNotExists("bar", "value", influxql.Integer)
 	if err != nil {
 		t.Fatal("error re-adding field \"value\"")
 	}
@@ -167,7 +167,7 @@ func TestCreateMeasurementsCommand_Errors(t *testing.T) {
 	// Measurements should be created automatically.
 	c.addSeriesIfNotExists("bar", nil)
 
-	err = c.addFieldIfNotExists("bar", "value", influxql.Number)
+	err = c.addFieldIfNotExists("bar", "value", influxql.Float)
 	if err != nil {
 		t.Fatalf("unexpected error got %s", err.Error())
 	}
@@ -176,7 +176,7 @@ func TestCreateMeasurementsCommand_Errors(t *testing.T) {
 	c.addMeasurementIfNotExists("bar")
 
 	// Test type conflicts
-	err = c.addFieldIfNotExists("bar", "value", influxql.Number)
+	err = c.addFieldIfNotExists("bar", "value", influxql.Float)
 	if err != nil {
 		t.Fatal("error adding field \"value\"")
 	}

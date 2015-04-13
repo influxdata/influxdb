@@ -16,7 +16,7 @@ func TestInspectDataType(t *testing.T) {
 		v   interface{}
 		typ influxql.DataType
 	}{
-		{float64(100), influxql.Number},
+		{float64(100), influxql.Float},
 	} {
 		if typ := influxql.InspectDataType(tt.v); tt.typ != typ {
 			t.Errorf("%d. %v (%s): unexpected type: %s", i, tt.v, tt.typ, typ)
