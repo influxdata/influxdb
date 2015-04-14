@@ -2,6 +2,7 @@
 
 ### Bugfixes
 - [#2282](https://github.com/influxdb/influxdb/pull/2282): Use "value" as field name for OpenTSDB input.
+- [#2283](https://github.com/influxdb/influxdb/pull/2283): Fix bug when restarting an entire existing cluster.
 
 ## v0.9.0-rc24 [2015-04-13]
 

@@ -700,6 +700,7 @@ func (s *Server) Join(u *url.URL, joinURL *url.URL) error {
 		// If we get a service unavailable, the other data nodes may still be booting
 		// so retry again
 		if resp.StatusCode == http.StatusServiceUnavailable {
+			s.Logger.Printf("join unavailable, retrying")
 			retries += 1
 			time.Sleep(1 * time.Second)
 			continue
@@ -709,6 +710,7 @@ func (s *Server) Join(u *url.URL, joinURL *url.URL) error {
 		// has given us the address of a known data node to join instead.
 		if resp.StatusCode == http.StatusTemporaryRedirect {
 			redirectURL, err := url.Parse(resp.Header.Get("Location"))
+			s.Logger.Printf("redirect join: %s", redirectURL)
 
 			// if we happen to get redirected back to ourselves then we'll never join.  This
 			// may because the heartbeater could have already fired once, registering our endpoints
