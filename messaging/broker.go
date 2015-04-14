@@ -24,8 +24,10 @@ import (
 // only occurs when the reader is at the end of all the data.
 const DefaultPollInterval = 100 * time.Millisecond
 
+const DefaultTruncationInterval = 10 * time.Minute
+
 // DefaultMaxTopicSize is the largest a topic can get before truncation.
-const DefaultMaxTopicSize = 1024 * 1024 * 1024 // 10MB
+const DefaultMaxTopicSize = 1024 * 1024 * 1024 // 1GB
 
 // DefaultMaxSegmentSize is the largest a segment can get before starting a new segment.
 const DefaultMaxSegmentSize = 10 * 1024 * 1024 // 10MB
@@ -40,8 +42,13 @@ type Broker struct {
 	meta   *bolt.DB          // metadata
 	topics map[uint64]*Topic // topics by id
 
-	MaxTopicSize   int64 // Maximum size of a topic in bytes
-	MaxSegmentSize int64 // Maximum size of a segment in bytes
+	TruncationInterval time.Duration
+	MaxTopicSize       int64 // Maximum size of a topic in bytes
+	MaxSegmentSize     int64 // Maximum size of a segment in bytes
+
+	// Goroutinte shutdown
+	done chan struct{}
+	wg   sync.WaitGroup
 
 	// Log is the distributed raft log that commands are applied to.
 	Log interface {
@@ -59,11 +66,13 @@ type Broker struct {
 // NewBroker returns a new instance of a Broker with default values.
 func NewBroker() *Broker {
 	b := &Broker{
-		topics: make(map[uint64]*Topic),
-		Logger: log.New(os.Stderr, "[broker] ", log.LstdFlags),
+		topics:             make(map[uint64]*Topic),
+		Logger:             log.New(os.Stderr, "[broker] ", log.LstdFlags),
+		TruncationInterval: DefaultTruncationInterval,
+		MaxTopicSize:       DefaultMaxTopicSize,
+		MaxSegmentSize:     DefaultMaxSegmentSize,
+		done:               make(chan struct{}),
 	}
-	b.MaxTopicSize = DefaultMaxTopicSize
-	b.MaxSegmentSize = DefaultMaxSegmentSize
 	return b
 }
 
@@ -176,6 +185,17 @@ func (b *Broker) Open(path string) error {
 			return fmt.Errorf("open topics: %s", err)
 		}
 
+		// Start topic truncation.
+		b.wg.Add(1)
+		go func() {
+			defer b.wg.Done()
+			tick := time.NewTicker(b.TruncationInterval)
+			for {
+				<-tick.C
+				b.TruncateTopics()
+			}
+		}()
+
 		return nil
 	}(); err != nil {
 		_ = b.close()
@@ -236,6 +256,11 @@ func (b *Broker) close() error {
 	// Close all topics.
 	b.closeTopics()
 
+	// Shutdown all goroutines.
+	close(b.done)
+	b.wg.Wait()
+	b.done = nil
+
 	return nil
 }
 
@@ -245,6 +270,19 @@ func (b *Broker) closeTopics() {
 		_ = t.Close()
 	}
 	b.topics = make(map[uint64]*Topic)
+}
+
+// truncateTopics forces topics to truncate such that they are equal to
+// or less than the requested size, if possible.
+func (b *Broker) TruncateTopics() error {
+	for _, t := range b.topics {
+		if n, err := t.Truncate(b.MaxTopicSize); err != nil {
+			b.Logger.Printf("error truncating topic %s: %s", t.Path(), err.Error())
+		} else if n > 0 {
+			b.Logger.Printf("topic %s, %d bytes deleted", t.Path(), n)
+		}
+	}
+	return nil
 }
 
 // SetMaxIndex sets the highest index applied by the broker.
@@ -829,6 +867,52 @@ func (t *Topic) WriteMessage(m *Message) error {
 	return nil
 }
 
+// Truncate attempts to delete topic segments such that the total size of the topic on-disk
+// is equal to or less-than maxSize. Returns the number of bytes deleted, and error if any.
+// This function is not guaranteed to be performant.
+func (t *Topic) Truncate(maxSize int64) (nBytesDeleted int64, err error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	var segments Segments
+	segments, err = ReadSegments(t.Path())
+	if err != nil {
+		return
+	}
+
+	var totalSize int64
+	totalSize, err = segments.Size()
+	if err != nil {
+		return
+	}
+
+	var size int64
+	for {
+		if (totalSize - nBytesDeleted) <= maxSize {
+			return
+		}
+
+		if len(segments) < 2 {
+			// Always leave 1 segment around, for current writes.
+			break
+		}
+
+		// Delete the oldest segment in the topic.
+		s := segments[0]
+		size, err = s.Size()
+		if err != nil {
+			break
+		}
+		if err = os.Remove(s.Path); err != nil {
+			break
+		}
+		nBytesDeleted += size
+		segments = segments[1:]
+	}
+
+	return
+}
+
 // Topics represents a list of topics sorted by id.
 type Topics []*Topic
 
@@ -896,6 +980,18 @@ func (a Segments) Last() *Segment {
 		return nil
 	}
 	return a[len(a)-1]
+}
+
+func (a Segments) Size() (int64, error) {
+	var size int64
+	for _, s := range a {
+		sz, err := s.Size()
+		if err != nil {
+			return 0, nil
+		}
+		size += sz
+	}
+	return size, nil
 }
 
 func (a Segments) Len() int           { return len(a) }

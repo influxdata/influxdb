@@ -476,6 +476,7 @@ func (cmd *RunCommand) openBroker(brokerURLs []url.URL) {
 
 	// Create broker
 	b := influxdb.NewBroker()
+	b.TruncationInterval = time.Duration(cmd.config.Broker.TruncationInterval)
 	b.MaxTopicSize = cmd.config.Broker.MaxTopicSize
 	b.MaxSegmentSize = cmd.config.Broker.MaxSegmentSize
 	cmd.node.Broker = b

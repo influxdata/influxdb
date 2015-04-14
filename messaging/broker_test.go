@@ -415,6 +415,58 @@ func TestTopic_Recover_Checksum(t *testing.T) {
 	}
 }
 
+// Test that topics are correctly truncated.
+func TestTopic_Truncate(t *testing.T) {
+	topic := OpenTopic()
+	topic.MaxSegmentSize = 10
+
+	// Force creation of 2 segments.
+	if err := topic.WriteMessage(&messaging.Message{Index: 1, Data: make([]byte, 20)}); err != nil {
+		t.Fatal(err)
+	}
+	if err := topic.WriteMessage(&messaging.Message{Index: 2, Data: make([]byte, 20)}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Confirm segments.
+	segments := MustReadSegments(topic.Path())
+	if len(segments) != 2 {
+		t.Errorf("topic does not have correct number of segments, expected 2, got %d", len(segments))
+	}
+
+	// Test various truncation requests.
+
+	topic.Truncate(500) // no truncation required.
+	segments = MustReadSegments(topic.Path())
+	if len(MustReadSegments(topic.Path())) != 2 {
+		t.Errorf("topic does not have correct number of segments, expected 2, got %d", len(segments))
+	}
+
+	topic.Truncate(25) // drop 1 segment.
+	segments = MustReadSegments(topic.Path())
+	if len(MustReadSegments(topic.Path())) != 1 {
+		t.Errorf("topic does not have correct number of segments, expected 1, got %d", len(segments))
+	}
+	if segments[0].Index != 2 {
+		t.Errorf("wrong segment truncated, remaining segment has index %d", segments[0].Index)
+	}
+
+	topic.Truncate(5) // always leave 1 segment around, regardless of truncation size.
+	segments = MustReadSegments(topic.Path())
+	if len(MustReadSegments(topic.Path())) != 1 {
+		t.Fatalf("topic does not have correct number of segments, expected 1, got %d", len(segments))
+	}
+
+	// Test that adding a segment still works.
+	if err := topic.WriteMessage(&messaging.Message{Index: 3, Data: make([]byte, 20)}); err != nil {
+		t.Fatal(err)
+	}
+	segments = MustReadSegments(topic.Path())
+	if len(MustReadSegments(topic.Path())) != 2 {
+		t.Errorf("topic does not have correct number of segments, expected 2, got %d", len(segments))
+	}
+}
+
 // Topic is a wrapper for messaging.Topic that creates the topic in a temporary location.
 type Topic struct {
 	*messaging.Topic
@@ -892,6 +944,15 @@ func MustMarshalMessages(a []*messaging.Message) []byte {
 		}
 	}
 	return buf.Bytes()
+}
+
+// MustReadSegments returns the segments at the given path. Panic on error.
+func MustReadSegments(path string) messaging.Segments {
+	if segments, err := messaging.ReadSegments(path); err != nil {
+		panic(err.Error())
+	} else {
+		return segments
+	}
 }
 
 func warn(v ...interface{})              { fmt.Fprintln(os.Stderr, v...) }

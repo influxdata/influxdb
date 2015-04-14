@@ -46,6 +46,9 @@ const (
 	// shard groups need to be created in advance for writing
 	DefaultRetentionCreatePeriod = 45 * time.Minute
 
+	// DefaultBrokerTruncationInterval is the default period between truncating topics.
+	DefaultBrokerTruncationInterval = 10 * time.Minute
+
 	// DefaultMaxTopicSize is the default maximum size in bytes a topic can consume on disk of a broker.
 	DefaultBrokerMaxTopicSize = 1024 * 1024 * 1024
 
@@ -65,7 +68,7 @@ const (
 	DefaultRetentionCheckEnabled = true
 
 	// DefaultRetentionCheckPeriod is the period of time between retention policy checks are run
-	DefaultRetentionCheckPeriod = 10 * time.Minute
+	DefaultRetentionCheckPeriod = 30 * time.Minute
 
 	// DefaultRecomputePreviousN is ???
 	DefaultContinuousQueryRecomputePreviousN = 2
@@ -99,11 +102,12 @@ var DefaultSnapshotURL = url.URL{
 
 // Broker represents the configuration for a broker node
 type Broker struct {
-	Dir            string   `toml:"dir"`
-	Enabled        bool     `toml:"enabled"`
-	Timeout        Duration `toml:"election-timeout"`
-	MaxTopicSize   int64    `toml:"max-topic-size"`
-	MaxSegmentSize int64    `toml:"max-segment-size"`
+	Dir                string   `toml:"dir"`
+	Enabled            bool     `toml:"enabled"`
+	Timeout            Duration `toml:"election-timeout"`
+	TruncationInterval Duration `toml:"truncation-interval"`
+	MaxTopicSize       int64    `toml:"max-topic-size"`
+	MaxSegmentSize     int64    `toml:"max-segment-size"`
 }
 
 // Snapshot represents the configuration for a snapshot service. Snapshot configuration
@@ -241,6 +245,7 @@ func NewConfig() *Config {
 	c.ContinuousQuery.ComputeRunsPerInterval = DefaultContinuousQueryComputeRunsPerInterval
 	c.ContinuousQuery.ComputeNoMoreThan = Duration(DefaultContinousQueryComputeNoMoreThan)
 
+	c.Broker.TruncationInterval = Duration(DefaultBrokerTruncationInterval)
 	c.Broker.MaxTopicSize = DefaultBrokerMaxTopicSize
 	c.Broker.MaxSegmentSize = DefaultBrokerMaxSegmentSize
 
