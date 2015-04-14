@@ -466,7 +466,7 @@ func TestTopic_Truncate(t *testing.T) {
 	topic.Truncate(5) // always leave 2 segments around, regardless of truncation size and replication.
 	segments = MustReadSegments(topic.Path())
 	if len(MustReadSegments(topic.Path())) != 2 {
-		t.Fatalf("topic does not have correct number of segments, expected 1, got %d", len(segments))
+		t.Fatalf("topic does not have correct number of segments, expected 2, got %d", len(segments))
 	}
 
 	// Test that adding a segment still works.

@@ -684,6 +684,8 @@ type Topic struct {
 	index uint64 // current index
 	path  string // on-disk path
 
+	tombstone string // Where to create post-truncation tombstone.
+
 	// highest index replicated per data url.  The unique set of keys across all topics
 	// provides a snapshot of the addresses of every data node in a cluster.
 	indexByURL map[url.URL]uint64
@@ -700,6 +702,7 @@ func NewTopic(id uint64, path string) *Topic {
 	return &Topic{
 		id:             id,
 		path:           path,
+		tombstone:      filepath.Join(path, "tombstone"),
 		indexByURL:     make(map[url.URL]uint64),
 		MaxSegmentSize: DefaultMaxSegmentSize,
 	}
@@ -901,11 +904,11 @@ func (t *Topic) Truncate(maxSize int64) (nBytesDeleted int64, err error) {
 	var size int64
 	for {
 		if (totalSize - nBytesDeleted) <= maxSize {
-			return
+			break
 		}
 
-		if len(segments) < 3 {
-			// Always leave 2 segments around, for current writes and replication checks.
+		// More than 2 segments are needed for current writes and replication checks.
+		if len(segments) <= 2 {
 			break
 		}
 
@@ -932,6 +935,13 @@ func (t *Topic) Truncate(maxSize int64) (nBytesDeleted int64, err error) {
 		}
 		nBytesDeleted += size
 		segments = segments[1:]
+
+		// Create tombstone to indicate that the topic has been truncated at least once.
+		f, err := os.Create(t.tombstone)
+		if err != nil {
+			break
+		}
+		f.Close()
 	}
 
 	return
