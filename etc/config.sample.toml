@@ -94,8 +94,6 @@ retention-check-period = "10m"
 # Configuration for snapshot endpoint.
 [snapshot]
 enabled = true # Enabled by default if not set.
-bind-address = "127.0.0.1"
-port = 8087
 
 [logging]
 write-tracing = false # If true, enables detailed logging of the write system.
