@@ -24,6 +24,12 @@ import (
 // only occurs when the reader is at the end of all the data.
 const DefaultPollInterval = 100 * time.Millisecond
 
+// DefaultMaxTopicSize is the largest a topic can get before truncation.
+const DefaultMaxTopicSize = 1024 * 1024 * 1024 // 10MB
+
+// DefaultMaxSegmentSize is the largest a segment can get before starting a new segment.
+const DefaultMaxSegmentSize = 10 * 1024 * 1024 // 10MB
+
 // Broker represents distributed messaging system segmented into topics.
 // Each topic represents a linear series of events.
 type Broker struct {
@@ -33,6 +39,9 @@ type Broker struct {
 
 	meta   *bolt.DB          // metadata
 	topics map[uint64]*Topic // topics by id
+
+	MaxTopicSize   int64 // Maximum size of a topic in bytes
+	MaxSegmentSize int64 // Maximum size of a segment in bytes
 
 	// Log is the distributed raft log that commands are applied to.
 	Log interface {
@@ -53,6 +62,8 @@ func NewBroker() *Broker {
 		topics: make(map[uint64]*Topic),
 		Logger: log.New(os.Stderr, "[broker] ", log.LstdFlags),
 	}
+	b.MaxTopicSize = DefaultMaxTopicSize
+	b.MaxSegmentSize = DefaultMaxSegmentSize
 	return b
 }
 
@@ -189,6 +200,7 @@ func (b *Broker) openTopics() error {
 			return fmt.Errorf("open topic: id=%d, err=%s", t.id, err)
 		}
 		b.topics[t.id] = t
+		b.topics[t.id].MaxSegmentSize = b.MaxSegmentSize
 	}
 
 	// Retrieve the highest index across all topics.
@@ -386,6 +398,7 @@ func (b *Broker) ReadFrom(r io.Reader) (int64, error) {
 	// Copy topic files from snapshot to local disk.
 	for _, st := range sh.Topics {
 		t := NewTopic(st.ID, b.topicPath(st.ID))
+		t.MaxSegmentSize = b.MaxSegmentSize
 
 		// Create topic directory.
 		if err := os.MkdirAll(t.Path(), 0777); err != nil {
@@ -545,6 +558,7 @@ func (b *Broker) Apply(m *Message) error {
 		t := b.topics[m.TopicID]
 		if t == nil {
 			t = NewTopic(m.TopicID, b.topicPath(m.TopicID))
+			t.MaxSegmentSize = b.MaxSegmentSize
 			if err := t.Open(); err != nil {
 				return fmt.Errorf("open topic: %s", err)
 			}
@@ -624,9 +638,6 @@ func (fsm *RaftFSM) Apply(e *raft.LogEntry) error {
 
 	return nil
 }
-
-// DefaultMaxSegmentSize is the largest a segment can get before starting a new segment.
-const DefaultMaxSegmentSize = 10 * 1024 * 1024 // 10MB
 
 // topic represents a single named queue of messages.
 // Each topic is identified by a unique path.

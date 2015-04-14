@@ -46,6 +46,12 @@ const (
 	// shard groups need to be created in advance for writing
 	DefaultRetentionCreatePeriod = 45 * time.Minute
 
+	// DefaultMaxTopicSize is the default maximum size in bytes a topic can consume on disk of a broker.
+	DefaultBrokerMaxTopicSize = 1024 * 1024 * 1024
+
+	// DefaultMaxTopicSize is the default maximum size in bytes a segment can consume on disk of a broker.
+	DefaultBrokerMaxSegmentSize = 10 * 1024 * 1024
+
 	// DefaultGraphiteDatabaseName is the default Graphite database if none is specified
 	DefaultGraphiteDatabaseName = "graphite"
 
@@ -93,9 +99,11 @@ var DefaultSnapshotURL = url.URL{
 
 // Broker represents the configuration for a broker node
 type Broker struct {
-	Dir     string   `toml:"dir"`
-	Enabled bool     `toml:"enabled"`
-	Timeout Duration `toml:"election-timeout"`
+	Dir            string   `toml:"dir"`
+	Enabled        bool     `toml:"enabled"`
+	Timeout        Duration `toml:"election-timeout"`
+	MaxTopicSize   int64    `toml:"max-topic-size"`
+	MaxSegmentSize int64    `toml:"max-segment-size"`
 }
 
 // Snapshot represents the configuration for a snapshot service. Snapshot configuration
@@ -232,6 +240,9 @@ func NewConfig() *Config {
 	c.ContinuousQuery.RecomputeNoOlderThan = Duration(DefaultContinuousQueryRecomputeNoOlderThan)
 	c.ContinuousQuery.ComputeRunsPerInterval = DefaultContinuousQueryComputeRunsPerInterval
 	c.ContinuousQuery.ComputeNoMoreThan = Duration(DefaultContinousQueryComputeNoMoreThan)
+
+	c.Broker.MaxTopicSize = DefaultBrokerMaxTopicSize
+	c.Broker.MaxSegmentSize = DefaultBrokerMaxSegmentSize
 
 	// Detect hostname (or set to localhost).
 	if c.Hostname, _ = os.Hostname(); c.Hostname == "" {

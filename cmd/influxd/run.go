@@ -476,6 +476,8 @@ func (cmd *RunCommand) openBroker(brokerURLs []url.URL) {
 
 	// Create broker
 	b := influxdb.NewBroker()
+	b.MaxTopicSize = cmd.config.Broker.MaxTopicSize
+	b.MaxSegmentSize = cmd.config.Broker.MaxSegmentSize
 	cmd.node.Broker = b
 
 	// Create raft log.
