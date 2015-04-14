@@ -68,7 +68,7 @@ const (
 	DefaultRetentionCheckEnabled = true
 
 	// DefaultRetentionCheckPeriod is the period of time between retention policy checks are run
-	DefaultRetentionCheckPeriod = 30 * time.Minute
+	DefaultRetentionCheckPeriod = 10 * time.Minute
 
 	// DefaultRecomputePreviousN is ???
 	DefaultContinuousQueryRecomputePreviousN = 2
