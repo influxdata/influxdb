@@ -542,12 +542,11 @@ func (b *Broker) SetTopicMaxIndex(topicID, index uint64, u url.URL) error {
 func (b *Broker) applySetTopicMaxIndex(m *Message) {
 	topicID, index, u := unmarshalTopicIndex(m.Data)
 
-	// Set index if it's not already set higher.
+	// Track the highest replicated index for the topic, per data node URL.
 	if t := b.topics[topicID]; t != nil {
 		t.mu.Lock()
 		defer t.mu.Unlock()
 
-		// Track the highest replicated index per data node URL
 		t.indexByURL[u] = index
 	}
 }
