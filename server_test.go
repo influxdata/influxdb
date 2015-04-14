@@ -1024,7 +1024,7 @@ func TestServer_UpdateSeries(t *testing.T) {
 
 	// Write series with one point to the database.
 	tags := map[string]string{"host": "serverA", "region": "uswest"}
-	index, err := s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2), "value2": float64(23.3)}}})
+	index, err := s.UpdateSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2), "value2": float64(23.3)}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1034,7 +1034,7 @@ func TestServer_UpdateSeries(t *testing.T) {
 	<- timer.C
 
 	//owerwrite measurement with new info
-	index, err = s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value2": float64(23.666)}}})
+	index, err = s.UpdateSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value2": float64(23.666)}}})
 	if err != nil {
 		t.Fatal(err)
 	}

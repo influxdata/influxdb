@@ -79,6 +79,7 @@ type Server struct {
 	stats      *Stats
 	Logger     *log.Logger
 	WriteTrace bool // Detailed logging of write path
+	UpdateTrace bool // Detailed logging of write path
 
 	authenticationEnabled bool
 
@@ -1812,40 +1813,6 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 				codecs[measurement.Name] = codec
 			}
 
-			// Read raw encoded series data.
-			data, err := sh.readSeries(series.ID, p.Timestamp.UnixNano())
-			if err != nil {
-				log.Printf("Failed to read serie: %s\n", err)
-				return err
-			}
-			if len(data) > 0 {
-				// Decode into a raw value map.
-				rawFields, err := codec.DecodeFields(data)
-				if err != nil || rawFields == nil {
-					log.Printf("Failed to decode fields: %s \n", err)
-					return err 
-				}
-
-				// Decode into a string-key value map.
-				values := make(map[string]interface{}, len(rawFields))
-				for fieldID, value := range rawFields {
-					f := measurement.Field(fieldID)
-					if f == nil {
-						continue
-					}
-					values[f.Name] = value
-				}
-
-				//keep old values
-				for k, _ := range codec.fieldsByName {
-					if _, ok := p.Fields[k] ; !ok {
-						v, ok := values[k]
-						if ok {
-							p.Fields[k] = v
-						}
-					}
-				}
-			}
 			// Convert string-key/values to encoded fields.
 			encodedFields, err := codec.EncodeFields(p.Fields)
 			if err != nil {
@@ -1854,7 +1821,7 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 			}
 
 			// Encode point header, followed by point data, and add to shard's batch.
-			data = marshalPointHeader(series.ID, uint32(len(encodedFields)), p.Timestamp.UnixNano())
+			data := marshalPointHeader(series.ID, uint32(len(encodedFields)), p.Timestamp.UnixNano())
 			data = append(data, encodedFields...)
 			if shardData[sh.ID] == nil {
 				shardData[sh.ID] = make([]byte, 0)
@@ -1889,6 +1856,177 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 		}
 		if s.WriteTrace {
 			log.Printf("write series message published successfully for topic %d", i)
+		}
+	}
+
+	return maxIndex, nil
+}
+
+
+// UpdateSeries writes series data to the database.
+// Returns the messaging index the data was written to.
+func (s *Server) UpdateSeries(database, retentionPolicy string, points []Point) (idx uint64, err error) {
+	s.stats.Inc("batchUpdateRx")
+	s.stats.Add("pointUpdateRx", int64(len(points)))
+	defer func() {
+		if err != nil {
+			s.stats.Inc("batchUpdateRxError")
+		}
+	}()
+
+	if s.UpdateTrace {
+		log.Printf("received write for database '%s', retention policy '%s', with %d points",
+			database, retentionPolicy, len(points))
+	}
+
+	// Make sure every point has at least one field.
+	for _, p := range points {
+		if len(p.Fields) == 0 {
+			return 0, ErrFieldsRequired
+		}
+	}
+
+	// If the retention policy is not set, use the default for this database.
+	if retentionPolicy == "" {
+		rp, err := s.DefaultRetentionPolicy(database)
+		if err != nil {
+			return 0, fmt.Errorf("failed to determine default retention policy: %s", err.Error())
+		} else if rp == nil {
+			return 0, ErrDefaultRetentionPolicyNotFound
+		}
+		retentionPolicy = rp.Name
+	}
+
+	// Ensure all required Series and Measurement Fields are created cluster-wide.
+	if err := s.createMeasurementsIfNotExists(database, retentionPolicy, points); err != nil {
+		return 0, err
+	}
+	if s.UpdateTrace {
+		log.Printf("measurements and series created on database '%s'", database)
+	}
+
+	// Ensure all the required shard groups exist. TODO: this should be done async.
+	if err := s.createShardGroupsIfNotExists(database, retentionPolicy, points); err != nil {
+		return 0, err
+	}
+	if s.UpdateTrace {
+		log.Printf("shard groups created for database '%s'", database)
+	}
+
+	// Build writeRawSeriesMessageType publish commands.
+	shardData := make(map[uint64][]byte, 0)
+	codecs := make(map[string]*FieldCodec, 0)
+	if err := func() error {
+		// Local function makes lock management foolproof.
+		s.mu.RLock()
+		defer s.mu.RUnlock()
+
+		db := s.databases[database]
+		if db == nil {
+			return ErrDatabaseNotFound(database)
+		}
+		for _, p := range points {
+			measurement, series := db.MeasurementAndSeries(p.Name, p.Tags)
+			if series == nil {
+				s.Logger.Printf("series not found: name=%s, tags=%#v", p.Name, p.Tags)
+				return ErrSeriesNotFound
+			}
+
+			// Retrieve shard group.
+			g, err := s.shardGroupByTimestamp(database, retentionPolicy, p.Timestamp)
+			if err != nil {
+				return err
+			}
+			if s.UpdateTrace {
+				log.Printf("shard group located: %v", g)
+			}
+
+			// Find appropriate shard within the shard group.
+			sh := g.ShardBySeriesID(series.ID)
+			if s.UpdateTrace {
+				log.Printf("shard located: %v", sh)
+			}
+
+			// Many points are likely to have the same Measurement name. Re-use codecs if possible.
+			var codec *FieldCodec
+			codec, ok := codecs[measurement.Name]
+			if !ok {
+				codec = NewFieldCodec(measurement)
+				codecs[measurement.Name] = codec
+			}
+			// Read raw encoded series data.
+			data, err := sh.readSeries(series.ID, p.Timestamp.UnixNano())
+			if len(data) > 0 {
+				// Decode into a raw value map.
+				rawFields, err := codec.DecodeFields(data)
+				if err != nil || rawFields == nil {
+					log.Printf("Failed to decode fields: %s \n", err)
+					return err 
+				}
+				
+				// Decode into a string-key value map.
+				values := make(map[string]interface{}, len(rawFields))
+				for fieldID, value := range rawFields {
+					f := measurement.Field(fieldID)
+					if f == nil {
+						continue
+					}
+					values[f.Name] = value
+				}
+
+				//keep old values
+				for k, _ := range codec.fieldsByName {
+					if _, ok := p.Fields[k] ; !ok {
+						v, ok := values[k]
+						if ok {
+							p.Fields[k] = v
+						}
+					}
+				}
+			}
+			// Convert string-key/values to encoded fields.
+			encodedFields, err := codec.EncodeFields(p.Fields)
+			if err != nil {
+				log.Printf("Failed to encode field :-> %s\n", err)
+				return err
+			}
+			
+			// Encode point header, followed by point data, and add to shard's batch.
+			data = marshalPointHeader(series.ID, uint32(len(encodedFields)), p.Timestamp.UnixNano())
+			data = append(data, encodedFields...)
+			if shardData[sh.ID] == nil {
+				shardData[sh.ID] = make([]byte, 0)
+			}
+			shardData[sh.ID] = append(shardData[sh.ID], data...)
+			if s.UpdateTrace {
+				log.Printf("data appended to buffer for shard %d", sh.ID)
+			}
+		}
+
+		return nil
+	}(); err != nil {
+		return 0, err
+	}
+
+	// Write data for each shard to the Broker.
+	var maxIndex uint64
+	for i, d := range shardData {
+		assert(len(d) > 0, "raw series data required: topic=%d", i)
+
+		index, err := s.client.Publish(&messaging.Message{
+			Type:    writeRawSeriesMessageType,
+			TopicID: i,
+			Data:    d,
+		})
+		if err != nil {
+			return maxIndex, err
+		}
+		s.stats.Inc("updateSeriesMessageTx")
+		if index > maxIndex {
+			maxIndex = index
+		}
+		if s.UpdateTrace {
+			log.Printf("Update series message published successfully for topic %d", i)
 		}
 	}
 
