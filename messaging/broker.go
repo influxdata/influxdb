@@ -185,21 +185,8 @@ func (b *Broker) Open(path string) error {
 			return fmt.Errorf("open topics: %s", err)
 		}
 
-		// Start topic truncation.
-		b.wg.Add(1)
-		go func() {
-			defer b.wg.Done()
-			tick := time.NewTicker(b.TruncationInterval)
-			defer tick.Stop()
-			for {
-				select {
-				case <-tick.C:
-					b.TruncateTopics()
-				case <-b.done:
-					return
-				}
-			}
-		}()
+		// Start periodic deletion of replicated topic segments.
+		b.startTopicTruncation()
 
 		return nil
 	}(); err != nil {
@@ -277,7 +264,25 @@ func (b *Broker) closeTopics() {
 	b.topics = make(map[uint64]*Topic)
 }
 
-// truncateTopics forces topics to truncate such that they are equal to
+// startTopicTruncation starts periodic topic truncation.
+func (b *Broker) startTopicTruncation() {
+	b.wg.Add(1)
+	go func() {
+		defer b.wg.Done()
+		tick := time.NewTicker(b.TruncationInterval)
+		defer tick.Stop()
+		for {
+			select {
+			case <-tick.C:
+				b.TruncateTopics()
+			case <-b.done:
+				return
+			}
+		}
+	}()
+}
+
+// TruncateTopics forces topics to truncate such that they are equal to
 // or less than the requested size, if possible.
 func (b *Broker) TruncateTopics() {
 	for _, t := range b.topics {
@@ -689,8 +694,6 @@ type Topic struct {
 	index uint64 // current index
 	path  string // on-disk path
 
-	tombstone string // Where to create post-truncation tombstone.
-
 	// highest index replicated per data url.  The unique set of keys across all topics
 	// provides a snapshot of the addresses of every data node in a cluster.
 	indexByURL map[url.URL]uint64
@@ -707,7 +710,6 @@ func NewTopic(id uint64, path string) *Topic {
 	return &Topic{
 		id:             id,
 		path:           path,
-		tombstone:      filepath.Join(path, "tombstone"),
 		indexByURL:     make(map[url.URL]uint64),
 		MaxSegmentSize: DefaultMaxSegmentSize,
 	}
@@ -718,6 +720,9 @@ func (t *Topic) ID() uint64 { return t.id }
 
 // Path returns the topic path.
 func (t *Topic) Path() string { return t.path }
+
+// TombstonePath returns the path of the tomstone file.
+func (t *Topic) TombstonePath() string { return filepath.Join(t.path, "tombstone") }
 
 // Index returns the highest replicated index for the topic.
 func (t *Topic) Index() uint64 {
@@ -881,20 +886,19 @@ func (t *Topic) WriteMessage(m *Message) error {
 // Truncate attempts to delete topic segments such that the total size of the topic on-disk
 // is equal to or less-than maxSize. Returns the number of bytes deleted, and error if any.
 // This function is not guaranteed to be performant.
-func (t *Topic) Truncate(maxSize int64) (nBytesDeleted int64, err error) {
+func (t *Topic) Truncate(maxSize int64) (int64, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	var segments Segments
-	segments, err = ReadSegments(t.Path())
+	segments, err := ReadSegments(t.Path())
 	if err != nil {
-		return
+		return 0, err
 	}
 
 	var totalSize int64
 	totalSize, err = segments.Size()
 	if err != nil {
-		return
+		return 0, err
 	}
 
 	// Find the highest-replicated index, this is a condition for deletion of segments
@@ -906,7 +910,7 @@ func (t *Topic) Truncate(maxSize int64) (nBytesDeleted int64, err error) {
 		}
 	}
 
-	var size int64
+	var nBytesDeleted int64
 	for {
 		if (totalSize - nBytesDeleted) <= maxSize {
 			break
@@ -931,25 +935,25 @@ func (t *Topic) Truncate(maxSize int64) (nBytesDeleted int64, err error) {
 		}
 
 		// Deletion can proceed!
-		size, err = first.Size()
+		size, err := first.Size()
 		if err != nil {
-			break
+			return nBytesDeleted, err
 		}
 		if err = os.Remove(first.Path); err != nil {
-			break
+			return nBytesDeleted, err
 		}
 		nBytesDeleted += size
 		segments = segments[1:]
 
 		// Create tombstone to indicate that the topic has been truncated at least once.
-		f, err := os.Create(t.tombstone)
+		f, err := os.Create(t.TombstonePath())
 		if err != nil {
-			break
+			return nBytesDeleted, err
 		}
 		f.Close()
 	}
 
-	return
+	return nBytesDeleted, err
 }
 
 // Topics represents a list of topics sorted by id.
