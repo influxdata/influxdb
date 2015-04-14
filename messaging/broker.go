@@ -895,8 +895,7 @@ func (t *Topic) Truncate(maxSize int64) (int64, error) {
 		return 0, err
 	}
 
-	var totalSize int64
-	totalSize, err = segments.Size()
+	totalSize, err := segments.Size()
 	if err != nil {
 		return 0, err
 	}
