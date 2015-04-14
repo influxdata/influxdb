@@ -492,7 +492,7 @@ func (b *Broker) TopicReader(topicID, index uint64, streaming bool) interface {
 // SetTopicMaxIndex updates the highest replicated index for a topic and data URL.
 // If a higher index is already set on the topic then the call is ignored.
 // This index is only held in memory and is used for topic segment reclamation.
-// The higheset replciated index per data URL is tracked separately from the current index
+// The higheset replicated index per data URL is tracked separately from the current index
 func (b *Broker) SetTopicMaxIndex(topicID, index uint64, u url.URL) error {
 	_, err := b.Publish(&Message{
 		Type: SetTopicMaxIndexMessageType,
