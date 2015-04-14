@@ -256,14 +256,35 @@ func (s *Shard) sync(index uint64) error {
 	}
 }
 
-// HasDataNodeID return true if the data node owns the shard.
-func (s *Shard) HasDataNodeID(id uint64) bool {
-	for _, dataNodeID := range s.DataNodeIDs {
+func (s *Shard) dropDataNodeID(id uint64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var dataNodeIds []uint64
+
+	for _, dataNodeId := range s.DataNodeIDs {
+		if id != dataNodeId {
+			dataNodeIds = append(dataNodeIds, dataNodeId)
+		}
+	}
+
+	s.DataNodeIDs = dataNodeIds
+}
+
+func (s *Shard) hasDataNodeID(id uint64) bool {
+	for _, dataNodeID := range s.readDataNodeIDs() {
 		if dataNodeID == id {
 			return true
 		}
 	}
 	return false
+}
+
+func (s *Shard) readDataNodeIDs() []uint64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.DataNodeIDs
 }
 
 // readSeries reads encoded series data from a shard.

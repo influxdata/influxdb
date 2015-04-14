@@ -324,7 +324,7 @@ func (s *Server) load() error {
 						s.shards[sh.ID] = sh
 
 						// Only open shards owned by the server.
-						if !sh.HasDataNodeID(s.id) {
+						if !sh.hasDataNodeID(s.id) {
 							continue
 						}
 
@@ -1006,6 +1006,66 @@ func (s *Server) CreateDatabaseIfNotExists(name string) error {
 	if err := s.CreateDatabase(name); err != nil && err != ErrDatabaseExists {
 		return err
 	}
+
+	return nil
+}
+
+func (s *Server) applyDropServer(m *messaging.Message) error {
+	var c dropServerCommand
+	mustUnmarshalJSON(m.Data, &c)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// am I being deleted?
+
+	// don't drop the last data node...
+	if len(s.dataNodes) <= 1 {
+		return ErrDropServerConflict
+	}
+
+	// walk shards; track shards marked for deletion
+	var shardIDsToRemove []uint64
+	for _, shard := range s.shards {
+		if shard.hasDataNodeID(c.NodeID) {
+			shardIDsToRemove = append(shardIDsToRemove, c.NodeID)
+		}
+	}
+
+	// walk shard groups (via databases) and make sure we're not going to lose data
+	for _, database := range s.databases {
+		for _, policy := range database.policies {
+			if policy.ReplicaN > 1 {
+				continue
+			}
+
+			var matchedShardGroupCount int
+			for _, shardGroup := range policy.shardGroups {
+
+				var matchedShardCount int
+				// am i going to delete all of the shards in this group?
+				for _, shard := range shardGroup.Shards {
+					for _, shardID := range shardIDsToRemove {
+						if shard.ID == shardID {
+							matchedShardCount++
+						}
+					}
+				}
+
+				if matchedShardCount == len(shardGroup.Shards) {
+					matchedShardGroupCount++
+				}
+			}
+
+			if matchedShardGroupCount == len(policy.shardGroups) {
+				return ErrDropServerConflict
+			}
+		}
+	}
+
+	// finally, remove the dataNode from server memory
+	// TODO	delete(s.dataNodes, c.NodeID)
+
 	return nil
 }
 
@@ -1196,7 +1256,7 @@ func (s *Server) applyCreateShardGroupIfNotExists(m *messaging.Message) error {
 	// Open shards assigned to this server.
 	for _, sh := range g.Shards {
 		// Ignore if this server is not assigned.
-		if !sh.HasDataNodeID(s.id) {
+		if !sh.hasDataNodeID(s.id) {
 			continue
 		}
 
@@ -3446,6 +3506,8 @@ func (s *Server) processor(conn MessagingConn, done chan struct{}) {
 			// Process message.
 			var err error
 			switch m.Type {
+			case dropServerMessageType:
+				err = s.applyDropServer(m)
 			case createDataNodeMessageType:
 				err = s.applyCreateDataNode(m)
 			case deleteDataNodeMessageType:
