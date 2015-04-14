@@ -47,7 +47,14 @@ const (
 
 	// Privilege messages
 	setPrivilegeMessageType = messaging.MessageType(0x90)
+
+	// Server messages
+	dropServerMessageType = messaging.MessageType(0x100)
 )
+
+type dropServerCommand struct {
+	NodeID uint64 `json:"nodeid"`
+}
 
 type createDataNodeCommand struct {
 	URL string `json:"url"`

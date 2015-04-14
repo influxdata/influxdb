@@ -43,8 +43,8 @@ var (
 	// attempting to join another data node when no data nodes exist yet
 	ErrDataNodeNotFound = errors.New("data node not found")
 
-	// ErrDataNodeRequired is returned when using a blank data node id.
-	ErrDataNodeRequired = errors.New("data node required")
+	// ErrServerNodeIDRequired is returned when using a zero server node id.
+	ErrServerNodeIDRequired = errors.New("server node id must be greater than 0")
 
 	// ErrDatabaseNameRequired is returned when creating a database without a name.
 	ErrDatabaseNameRequired = errors.New("database name required")
