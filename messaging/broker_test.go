@@ -420,49 +420,61 @@ func TestTopic_Truncate(t *testing.T) {
 	topic := OpenTopic()
 	topic.MaxSegmentSize = 10
 
-	// Force creation of 2 segments.
-	if err := topic.WriteMessage(&messaging.Message{Index: 1, Data: make([]byte, 20)}); err != nil {
+	// Force creation of 3 segments.
+	if err := topic.WriteMessage(&messaging.Message{Index: 7, Data: make([]byte, topic.MaxSegmentSize+1)}); err != nil {
 		t.Fatal(err)
 	}
-	if err := topic.WriteMessage(&messaging.Message{Index: 2, Data: make([]byte, 20)}); err != nil {
+	if err := topic.WriteMessage(&messaging.Message{Index: 10, Data: make([]byte, topic.MaxSegmentSize+1)}); err != nil {
+		t.Fatal(err)
+	}
+	if err := topic.WriteMessage(&messaging.Message{Index: 15, Data: make([]byte, topic.MaxSegmentSize+1)}); err != nil {
 		t.Fatal(err)
 	}
 
 	// Confirm segments.
 	segments := MustReadSegments(topic.Path())
-	if len(segments) != 2 {
-		t.Errorf("topic does not have correct number of segments, expected 2, got %d", len(segments))
+	if len(segments) != 3 {
+		t.Errorf("topic does not have correct number of segments, expected 3, got %d", len(segments))
 	}
 
 	// Test various truncation requests.
 
 	topic.Truncate(500) // no truncation required.
 	segments = MustReadSegments(topic.Path())
+	if len(MustReadSegments(topic.Path())) != 3 {
+		t.Errorf("topic does not have correct number of segments, expected 3, got %d", len(segments))
+	}
+
+	topic.Truncate(5) // no replication has yet occurred.
+	segments = MustReadSegments(topic.Path())
+	if len(MustReadSegments(topic.Path())) != 3 {
+		t.Errorf("topic does not have correct number of segments, expected 3, got %d", len(segments))
+	}
+
+	// Simulate replication of first segment.
+	topic.SetIndexForURL(11, *MustParseURL("http://127.0.0.1:8086"))
+	topic.Truncate(25) // 1 segment should now be dropped.
+	segments = MustReadSegments(topic.Path())
 	if len(MustReadSegments(topic.Path())) != 2 {
 		t.Errorf("topic does not have correct number of segments, expected 2, got %d", len(segments))
 	}
-
-	topic.Truncate(25) // drop 1 segment.
-	segments = MustReadSegments(topic.Path())
-	if len(MustReadSegments(topic.Path())) != 1 {
-		t.Errorf("topic does not have correct number of segments, expected 1, got %d", len(segments))
-	}
-	if segments[0].Index != 2 {
+	if segments[0].Index != 10 {
 		t.Errorf("wrong segment truncated, remaining segment has index %d", segments[0].Index)
 	}
 
-	topic.Truncate(5) // always leave 1 segment around, regardless of truncation size.
+	topic.SetIndexForURL(100, *MustParseURL("http://127.0.0.1:8086"))
+	topic.Truncate(5) // always leave 2 segments around, regardless of truncation size and replication.
 	segments = MustReadSegments(topic.Path())
-	if len(MustReadSegments(topic.Path())) != 1 {
+	if len(MustReadSegments(topic.Path())) != 2 {
 		t.Fatalf("topic does not have correct number of segments, expected 1, got %d", len(segments))
 	}
 
 	// Test that adding a segment still works.
-	if err := topic.WriteMessage(&messaging.Message{Index: 3, Data: make([]byte, 20)}); err != nil {
+	if err := topic.WriteMessage(&messaging.Message{Index: 200, Data: make([]byte, 20)}); err != nil {
 		t.Fatal(err)
 	}
 	segments = MustReadSegments(topic.Path())
-	if len(MustReadSegments(topic.Path())) != 2 {
+	if len(MustReadSegments(topic.Path())) != 3 {
 		t.Errorf("topic does not have correct number of segments, expected 2, got %d", len(segments))
 	}
 }

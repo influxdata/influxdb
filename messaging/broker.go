@@ -544,10 +544,7 @@ func (b *Broker) applySetTopicMaxIndex(m *Message) {
 
 	// Track the highest replicated index for the topic, per data node URL.
 	if t := b.topics[topicID]; t != nil {
-		t.mu.Lock()
-		defer t.mu.Unlock()
-
-		t.indexByURL[u] = index
+		t.SetIndexForURL(index, u)
 	}
 }
 
@@ -739,6 +736,13 @@ func (t *Topic) IndexForURL(u url.URL) uint64 {
 	return t.indexByURL[u]
 }
 
+// SetIndexForURL sets the replicated index for a given data URL.
+func (t *Topic) SetIndexForURL(index uint64, u url.URL) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.indexByURL[u] = index
+}
+
 // SegmentPath returns the path to a segment starting with a given log index.
 func (t *Topic) SegmentPath(index uint64) string {
 	t.mu.Lock()
@@ -885,24 +889,45 @@ func (t *Topic) Truncate(maxSize int64) (nBytesDeleted int64, err error) {
 		return
 	}
 
+	// Find the highest-replicated index, this is a condition for deletion of segments
+	// within this topic.
+	var highestIndex uint64
+	for _, idx := range t.indexByURL {
+		if idx > highestIndex {
+			highestIndex = idx
+		}
+	}
+
 	var size int64
 	for {
 		if (totalSize - nBytesDeleted) <= maxSize {
 			return
 		}
 
-		if len(segments) < 2 {
-			// Always leave 1 segment around, for current writes.
+		if len(segments) < 3 {
+			// Always leave 2 segments around, for current writes and replication checks.
 			break
 		}
 
-		// Delete the oldest segment in the topic.
-		s := segments[0]
-		size, err = s.Size()
+		// Attempt deletion of oldest segment in topic. First and second segment needed
+		// for this operation.
+		first := segments[0]
+		second := segments[1]
+
+		// The first segment can only be deleted if the last index in that segment has
+		// been replicated. The most efficient way to check this is to ensure that the
+		// first index of the subsequent segment has been replicated.
+		if second.Index > highestIndex {
+			// No guarantee first segment has been replicated.
+			break
+		}
+
+		// Deletion can proceed!
+		size, err = first.Size()
 		if err != nil {
 			break
 		}
-		if err = os.Remove(s.Path); err != nil {
+		if err = os.Remove(first.Path); err != nil {
 			break
 		}
 		nBytesDeleted += size
