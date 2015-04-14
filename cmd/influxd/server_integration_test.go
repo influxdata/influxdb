@@ -176,6 +176,7 @@ func write(t *testing.T, node *TestNode, data string) {
 	if err != nil {
 		t.Fatalf("Couldn't write data: %s", err)
 	}
+	defer resp.Body.Close()
 	body, _ := ioutil.ReadAll(resp.Body)
 	fmt.Println("BODY: ", string(body))
 	if resp.StatusCode != http.StatusOK {
