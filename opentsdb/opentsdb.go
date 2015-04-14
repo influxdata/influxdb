@@ -138,7 +138,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 		}
 
 		fields := make(map[string]interface{})
-		fields[name], err = strconv.ParseFloat(valueStr, 64)
+		fields["value"], err = strconv.ParseFloat(valueStr, 64)
 		if err != nil {
 			log.Println("TSDBServer: could not parse value as float: ", valueStr)
 			continue
