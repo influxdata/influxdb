@@ -2204,7 +2204,7 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User, ch
 			case *influxql.CreateContinuousQueryStatement:
 				res = s.executeCreateContinuousQueryStatement(stmt, user)
 			case *influxql.DropContinuousQueryStatement:
-				continue
+				res = s.executeDropContinuousQueryStatement(stmt, user)
 			case *influxql.ShowContinuousQueriesStatement:
 				res = s.executeShowContinuousQueriesStatement(stmt, database, user)
 			default:
