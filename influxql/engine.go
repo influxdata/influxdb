@@ -692,7 +692,7 @@ func (p *Planner) Plan(stmt *SelectStatement, chunkSize int) (*Executor, error) 
 	now := p.Now().UTC()
 
 	// Replace instances of "now()" with the current time.
-	stmt.Condition = Reduce(stmt.Condition, &nowValuer{Now: now})
+	stmt.Condition = Reduce(stmt.Condition, &NowValuer{Now: now})
 
 	// Begin an unopened transaction.
 	tx, err := p.DB.Begin()
