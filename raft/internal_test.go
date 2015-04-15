@@ -5,6 +5,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"sync"
 	"testing"
 )
 
@@ -44,25 +45,36 @@ func CloseLog(l *Log) {
 
 // IndexFSM represents a state machine that only records the last applied index.
 type IndexFSM struct {
+	mu    sync.Mutex
 	index uint64
 }
 
 // MustApply updates the index.
 func (fsm *IndexFSM) Apply(entry *LogEntry) error {
+	fsm.mu.Lock()
 	fsm.index = entry.Index
+	fsm.mu.Unlock()
 	return nil
 }
 
 // Index returns the highest applied index.
-func (fsm *IndexFSM) Index() uint64 { return fsm.index }
+func (fsm *IndexFSM) Index() uint64 {
+	fsm.mu.Lock()
+	defer fsm.mu.Unlock()
+	return fsm.index
+}
 
 // WriteTo writes a snapshot of the FSM to w.
 func (fsm *IndexFSM) WriteTo(w io.Writer) (n int64, err error) {
+	fsm.mu.Lock()
+	defer fsm.mu.Unlock()
 	return 0, binary.Write(w, binary.BigEndian, fsm.index)
 }
 
 // ReadFrom reads an FSM snapshot from r.
 func (fsm *IndexFSM) ReadFrom(r io.Reader) (n int64, err error) {
+	fsm.mu.Lock()
+	defer fsm.mu.Unlock()
 	return 0, binary.Read(r, binary.BigEndian, &fsm.index)
 }
 

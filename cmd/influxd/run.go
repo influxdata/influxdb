@@ -493,7 +493,7 @@ func (cmd *RunCommand) openBroker(brokerURLs []url.URL, h *Handler) {
 		log.Fatalf("raft: %s", err)
 	}
 
-	// Attached broker and log to handler.
+	// Attach broker and log to handler.
 	h.Broker = b
 	h.Log = l
 
