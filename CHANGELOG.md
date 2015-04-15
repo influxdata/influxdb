@@ -1,3 +1,8 @@
+## v0.9.0-rc26 [unreleased]
+
+### Bugfixes
+- [#2297](https://github.com/influxdb/influxdb/pull/2297) -- create /var/run during startup. Thanks @neonstalwart.
+
 ## v0.9.0-rc25 [2015-04-15]
 
 ### Bugfixes
