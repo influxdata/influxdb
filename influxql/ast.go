@@ -2558,11 +2558,11 @@ type Valuer interface {
 }
 
 // nowValuer returns only the value for "now()".
-type nowValuer struct {
+type NowValuer struct {
 	Now time.Time
 }
 
-func (v *nowValuer) Value(key string) (interface{}, bool) {
+func (v *NowValuer) Value(key string) (interface{}, bool) {
 	if key == "now()" {
 		return v.Now, true
 	}
