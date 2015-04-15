@@ -1172,6 +1172,32 @@ func TestParser_ParseExpr(t *testing.T) {
 			},
 		},
 
+		// Complex binary expression.
+		{
+			s: `time > now() - 1d AND time < now() + 1d`,
+			expr: &influxql.BinaryExpr{
+				Op: influxql.AND,
+				LHS: &influxql.BinaryExpr{
+					Op:  influxql.GT,
+					LHS: &influxql.VarRef{Val: "time"},
+					RHS: &influxql.BinaryExpr{
+						Op:  influxql.SUB,
+						LHS: &influxql.Call{Name: "now"},
+						RHS: &influxql.DurationLiteral{Val: mustParseDuration("1d")},
+					},
+				},
+				RHS: &influxql.BinaryExpr{
+					Op:  influxql.LT,
+					LHS: &influxql.VarRef{Val: "time"},
+					RHS: &influxql.BinaryExpr{
+						Op:  influxql.ADD,
+						LHS: &influxql.Call{Name: "now"},
+						RHS: &influxql.DurationLiteral{Val: mustParseDuration("1d")},
+					},
+				},
+			},
+		},
+
 		// Function call (empty)
 		{
 			s: `my_func()`,
@@ -1375,18 +1401,14 @@ func BenchmarkParserParseStatement(b *testing.B) {
 // MustParseSelectStatement parses a select statement. Panic on error.
 func MustParseSelectStatement(s string) *influxql.SelectStatement {
 	stmt, err := influxql.NewParser(strings.NewReader(s)).ParseStatement()
-	if err != nil {
-		panic(err.Error())
-	}
+	panicIfErr(err)
 	return stmt.(*influxql.SelectStatement)
 }
 
 // MustParseExpr parses an expression. Panic on error.
 func MustParseExpr(s string) influxql.Expr {
 	expr, err := influxql.NewParser(strings.NewReader(s)).ParseExpr()
-	if err != nil {
-		panic(err.Error())
-	}
+	panicIfErr(err)
 	return expr
 }
 
@@ -1420,8 +1442,18 @@ func newAlterRetentionPolicyStatement(name string, DB string, d time.Duration, r
 // mustMarshalJSON encodes a value to JSON.
 func mustMarshalJSON(v interface{}) []byte {
 	b, err := json.Marshal(v)
-	if err != nil {
-		panic("marshal json: " + err.Error())
-	}
+	panicIfErr(err)
 	return b
+}
+
+func mustParseDuration(s string) time.Duration {
+	d, err := influxql.ParseDuration(s)
+	panicIfErr(err)
+	return d
+}
+
+func panicIfErr(err error) {
+	if err != nil {
+		panic(err)
+	}
 }
