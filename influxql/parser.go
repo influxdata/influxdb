@@ -1706,10 +1706,12 @@ func (p *Parser) parseVarRef() (*VarRef, error) {
 // ParseExpr parses an expression.
 func (p *Parser) ParseExpr() (Expr, error) {
 	var err error
+	// Dummy root node.
+	root := &BinaryExpr{}
 
 	// Parse a non-binary expression type to start.
 	// This variable will always be the root of the expression tree.
-	expr, err := p.parseUnaryExpr()
+	root.RHS, err = p.parseUnaryExpr()
 	if err != nil {
 		return nil, err
 	}
@@ -1720,7 +1722,7 @@ func (p *Parser) ParseExpr() (Expr, error) {
 		op, _, _ := p.scanIgnoreWhitespace()
 		if !op.isOperator() {
 			p.unscan()
-			return expr, nil
+			return root.RHS, nil
 		}
 
 		// Otherwise parse the next expression.
@@ -1741,40 +1743,14 @@ func (p *Parser) ParseExpr() (Expr, error) {
 		//   Descent the RHS of the expression tree until we reach the last
 		//   BinaryExpr OR a BinaryExpr who's RHS has an operator with
 		//   precedence >= the operator being added.
-		lhs := expr
-		isroot := true
-		for {
-			e, ok := lhs.(*BinaryExpr)
-			if !ok {
-				break
-			}
-
-			r, ok := e.RHS.(*BinaryExpr)
+		for node := root; ; {
+			r, ok := node.RHS.(*BinaryExpr)
 			if !ok || r.Op.Precedence() >= op.Precedence() {
+				node.RHS = &BinaryExpr{LHS: node.RHS, RHS: rhs, Op: op}
 				break
 			}
 
-			lhs = e.RHS
-			isroot = false
-		}
-
-		// Add the new expression to the tree.
-		if lhs2, ok := lhs.(*BinaryExpr); ok && lhs2.Op.Precedence() < op.Precedence() {
-			if isroot {
-				expr = &BinaryExpr{
-					LHS: lhs2.LHS,
-					RHS: &BinaryExpr{LHS: lhs2.RHS, RHS: rhs, Op: op},
-					Op:  lhs2.Op,
-				}
-			} else {
-				lhs2.RHS = &BinaryExpr{LHS: lhs2.RHS, RHS: rhs, Op: op}
-			}
-		} else {
-			if isroot {
-				expr = &BinaryExpr{LHS: lhs, RHS: rhs, Op: op}
-			} else {
-				lhs = &BinaryExpr{LHS: lhs, RHS: rhs, Op: op}
-			}
+			node = r
 		}
 	}
 }
