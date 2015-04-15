@@ -33,6 +33,9 @@ var (
 	// ErrDataNodeURLRequired is returned when creating a data node without a URL.
 	ErrDataNodeURLRequired = errors.New("data node url required")
 
+	// ErrNoDataNodeAvailable is returned when there are no data nodes available
+	ErrNoDataNodeAvailable = errors.New("data node not available")
+
 	// ErrDataNodeExists is returned when creating a duplicate data node.
 	ErrDataNodeExists = errors.New("data node exists")
 

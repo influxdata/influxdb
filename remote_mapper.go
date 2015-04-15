@@ -17,7 +17,7 @@ const (
 // RemoteMapper implements the influxql.Mapper interface. The engine uses the remote mapper
 // to pull map results from shards that only exist on other servers in the cluster.
 type RemoteMapper struct {
-	dataNodes []*DataNode
+	dataNodes Balancer
 	resp      *http.Response
 	results   chan interface{}
 	unmarshal influxql.UnmarshalFunc
@@ -79,11 +79,20 @@ func (m *RemoteMapper) Begin(c *influxql.Call, startingTime int64, chunkSize int
 		return err
 	}
 
+	node := m.dataNodes.Next()
+	if node == nil {
+		// no data nodes are available to service this query
+		return ErrNoDataNodeAvailable
+	}
+
 	// request to start streaming results
-	resp, err := http.Post(m.dataNodes[0].URL.String()+"/data/run_mapper", "application/json", bytes.NewReader(b))
+	resp, err := http.Post(node.URL.String()+"/data/run_mapper", "application/json", bytes.NewReader(b))
 	if err != nil {
+		node.Down()
 		return err
 	}
+	// Mark it as up
+	node.Up()
 	m.resp = resp
 	lr := io.LimitReader(m.resp.Body, MAX_MAP_RESPONSE_SIZE)
 	m.decoder = json.NewDecoder(lr)
