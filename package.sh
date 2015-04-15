@@ -33,7 +33,6 @@
 AWS_FILE=~/aws.conf
 
 INSTALL_ROOT_DIR=/opt/influxdb
-INFLUXDB_RUN_DIR=/var/run/influxdb
 INFLUXDB_LOG_DIR=/var/log/influxdb
 INFLUXDB_DATA_DIR=/var/opt/influxdb
 CONFIG_ROOT_DIR=/etc/opt/influxdb
@@ -187,8 +186,6 @@ fi
 chown -R -L influxdb:influxdb $INSTALL_ROOT_DIR
 chmod -R a+rX $INSTALL_ROOT_DIR
 
-mkdir -p $INFLUXDB_RUN_DIR
-chown -R -L influxdb:influxdb $INFLUXDB_RUN_DIR
 mkdir -p $INFLUXDB_LOG_DIR
 chown -R -L influxdb:influxdb $INFLUXDB_LOG_DIR
 mkdir -p $INFLUXDB_DATA_DIR

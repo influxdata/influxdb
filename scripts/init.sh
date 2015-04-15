@@ -21,6 +21,9 @@
 # any config file values. Example: "-join http://1.2.3.4:8086"
 INFLUXD_OPTS=
 
+USER=influxdb
+GROUP=influxdb
+
 if [ -r /lib/lsb/init-functions ]; then
     source /lib/lsb/init-functions
 fi
@@ -93,6 +96,12 @@ daemon=/opt/influxdb/influxd
 
 # pid file for the daemon
 pidfile=/var/run/influxdb/influxd.pid
+piddir=`dirname $pidfile`
+
+if [ ! -d "$piddir" ]; then
+    mkdir -p $piddir
+    chown $GROUP:$USER $piddir
+fi
 
 # Configuration file
 config=/etc/opt/influxdb/influxdb.conf
@@ -121,7 +130,7 @@ case $1 in
 
         log_success_msg "Starting the process" "$name"
         if which start-stop-daemon > /dev/null 2>&1; then
-            start-stop-daemon --chuid influxdb:influxdb --start --quiet --pidfile $pidfile --exec $daemon -- -pidfile $pidfile -config $config $INFLUXD_OPTS >>$STDOUT 2>>$STDERR &
+            start-stop-daemon --chuid $GROUP:$USER --start --quiet --pidfile $pidfile --exec $daemon -- -pidfile $pidfile -config $config $INFLUXD_OPTS >>$STDOUT 2>>$STDERR &
         else
             nohup $daemon -pidfile $pidfile -config $config $INFLUXD_OPTS >>$STDOUT 2>>$STDERR &
         fi
