@@ -231,7 +231,9 @@ func CopyFlush(dst io.Writer, src io.Reader) (written int64, err error) {
 			}
 
 			// Flush after write.
-			if dst, ok := dst.(http.Flusher); ok {
+			if dst, ok := dst.(interface {
+				Flush()
+			}); ok {
 				dst.Flush()
 			}
 
