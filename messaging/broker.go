@@ -24,6 +24,14 @@ import (
 // only occurs when the reader is at the end of all the data.
 const DefaultPollInterval = 100 * time.Millisecond
 
+const DefaultTruncationInterval = 10 * time.Minute
+
+// DefaultMaxTopicSize is the largest a topic can get before truncation.
+const DefaultMaxTopicSize = 1024 * 1024 * 1024 // 1GB
+
+// DefaultMaxSegmentSize is the largest a segment can get before starting a new segment.
+const DefaultMaxSegmentSize = 10 * 1024 * 1024 // 10MB
+
 // Broker represents distributed messaging system segmented into topics.
 // Each topic represents a linear series of events.
 type Broker struct {
@@ -33,6 +41,14 @@ type Broker struct {
 
 	meta   *bolt.DB          // metadata
 	topics map[uint64]*Topic // topics by id
+
+	TruncationInterval time.Duration
+	MaxTopicSize       int64 // Maximum size of a topic in bytes
+	MaxSegmentSize     int64 // Maximum size of a segment in bytes
+
+	// Goroutinte shutdown
+	done chan struct{}
+	wg   sync.WaitGroup
 
 	// Log is the distributed raft log that commands are applied to.
 	Log interface {
@@ -50,8 +66,12 @@ type Broker struct {
 // NewBroker returns a new instance of a Broker with default values.
 func NewBroker() *Broker {
 	b := &Broker{
-		topics: make(map[uint64]*Topic),
-		Logger: log.New(os.Stderr, "[broker] ", log.LstdFlags),
+		topics:             make(map[uint64]*Topic),
+		Logger:             log.New(os.Stderr, "[broker] ", log.LstdFlags),
+		TruncationInterval: DefaultTruncationInterval,
+		MaxTopicSize:       DefaultMaxTopicSize,
+		MaxSegmentSize:     DefaultMaxSegmentSize,
+		done:               make(chan struct{}),
 	}
 	return b
 }
@@ -165,6 +185,9 @@ func (b *Broker) Open(path string) error {
 			return fmt.Errorf("open topics: %s", err)
 		}
 
+		// Start periodic deletion of replicated topic segments.
+		b.startTopicTruncation()
+
 		return nil
 	}(); err != nil {
 		_ = b.close()
@@ -189,6 +212,7 @@ func (b *Broker) openTopics() error {
 			return fmt.Errorf("open topic: id=%d, err=%s", t.id, err)
 		}
 		b.topics[t.id] = t
+		b.topics[t.id].MaxSegmentSize = b.MaxSegmentSize
 	}
 
 	// Retrieve the highest index across all topics.
@@ -224,6 +248,11 @@ func (b *Broker) close() error {
 	// Close all topics.
 	b.closeTopics()
 
+	// Shutdown all goroutines.
+	close(b.done)
+	b.wg.Wait()
+	b.done = nil
+
 	return nil
 }
 
@@ -233,6 +262,37 @@ func (b *Broker) closeTopics() {
 		_ = t.Close()
 	}
 	b.topics = make(map[uint64]*Topic)
+}
+
+// startTopicTruncation starts periodic topic truncation.
+func (b *Broker) startTopicTruncation() {
+	b.wg.Add(1)
+	go func() {
+		defer b.wg.Done()
+		tick := time.NewTicker(b.TruncationInterval)
+		defer tick.Stop()
+		for {
+			select {
+			case <-tick.C:
+				b.TruncateTopics()
+			case <-b.done:
+				return
+			}
+		}
+	}()
+}
+
+// TruncateTopics forces topics to truncate such that they are equal to
+// or less than the requested size, if possible.
+func (b *Broker) TruncateTopics() {
+	for _, t := range b.topics {
+		if n, err := t.Truncate(b.MaxTopicSize); err != nil {
+			b.Logger.Printf("error truncating topic %s: %s", t.Path(), err.Error())
+		} else if n > 0 {
+			b.Logger.Printf("topic %s, %d bytes deleted", t.Path(), n)
+		}
+	}
+	return
 }
 
 // SetMaxIndex sets the highest index applied by the broker.
@@ -386,6 +446,7 @@ func (b *Broker) ReadFrom(r io.Reader) (int64, error) {
 	// Copy topic files from snapshot to local disk.
 	for _, st := range sh.Topics {
 		t := NewTopic(st.ID, b.topicPath(st.ID))
+		t.MaxSegmentSize = b.MaxSegmentSize
 
 		// Create topic directory.
 		if err := os.MkdirAll(t.Path(), 0777); err != nil {
@@ -479,7 +540,7 @@ func (b *Broker) TopicReader(topicID, index uint64, streaming bool) interface {
 // SetTopicMaxIndex updates the highest replicated index for a topic and data URL.
 // If a higher index is already set on the topic then the call is ignored.
 // This index is only held in memory and is used for topic segment reclamation.
-// The higheset replciated index per data URL is tracked separately from the current index
+// The higheset replicated index per data URL is tracked separately from the current index
 func (b *Broker) SetTopicMaxIndex(topicID, index uint64, u url.URL) error {
 	_, err := b.Publish(&Message{
 		Type: SetTopicMaxIndexMessageType,
@@ -491,13 +552,9 @@ func (b *Broker) SetTopicMaxIndex(topicID, index uint64, u url.URL) error {
 func (b *Broker) applySetTopicMaxIndex(m *Message) {
 	topicID, index, u := unmarshalTopicIndex(m.Data)
 
-	// Set index if it's not already set higher.
+	// Track the highest replicated index for the topic, per data node URL.
 	if t := b.topics[topicID]; t != nil {
-		t.mu.Lock()
-		defer t.mu.Unlock()
-
-		// Track the highest replicated index per data node URL
-		t.indexByURL[u] = index
+		t.SetIndexForURL(index, u)
 	}
 }
 
@@ -545,6 +602,7 @@ func (b *Broker) Apply(m *Message) error {
 		t := b.topics[m.TopicID]
 		if t == nil {
 			t = NewTopic(m.TopicID, b.topicPath(m.TopicID))
+			t.MaxSegmentSize = b.MaxSegmentSize
 			if err := t.Open(); err != nil {
 				return fmt.Errorf("open topic: %s", err)
 			}
@@ -625,9 +683,6 @@ func (fsm *RaftFSM) Apply(e *raft.LogEntry) error {
 	return nil
 }
 
-// DefaultMaxSegmentSize is the largest a segment can get before starting a new segment.
-const DefaultMaxSegmentSize = 10 * 1024 * 1024 // 10MB
-
 // topic represents a single named queue of messages.
 // Each topic is identified by a unique path.
 //
@@ -666,6 +721,9 @@ func (t *Topic) ID() uint64 { return t.id }
 // Path returns the topic path.
 func (t *Topic) Path() string { return t.path }
 
+// TombstonePath returns the path of the tomstone file.
+func (t *Topic) TombstonePath() string { return filepath.Join(t.path, "tombstone") }
+
 // Index returns the highest replicated index for the topic.
 func (t *Topic) Index() uint64 {
 	t.mu.Lock()
@@ -689,6 +747,13 @@ func (t *Topic) IndexForURL(u url.URL) uint64 {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return t.indexByURL[u]
+}
+
+// SetIndexForURL sets the replicated index for a given data URL.
+func (t *Topic) SetIndexForURL(index uint64, u url.URL) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.indexByURL[u] = index
 }
 
 // SegmentPath returns the path to a segment starting with a given log index.
@@ -818,6 +883,78 @@ func (t *Topic) WriteMessage(m *Message) error {
 	return nil
 }
 
+// Truncate attempts to delete topic segments such that the total size of the topic on-disk
+// is equal to or less-than maxSize. Returns the number of bytes deleted, and error if any.
+// This function is not guaranteed to be performant.
+func (t *Topic) Truncate(maxSize int64) (int64, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	segments, err := ReadSegments(t.Path())
+	if err != nil {
+		return 0, err
+	}
+
+	totalSize, err := segments.Size()
+	if err != nil {
+		return 0, err
+	}
+
+	// Find the highest-replicated index, this is a condition for deletion of segments
+	// within this topic.
+	var highestIndex uint64
+	for _, idx := range t.indexByURL {
+		if idx > highestIndex {
+			highestIndex = idx
+		}
+	}
+
+	var nBytesDeleted int64
+	for {
+		if (totalSize - nBytesDeleted) <= maxSize {
+			break
+		}
+
+		// More than 2 segments are needed for current writes and replication checks.
+		if len(segments) <= 2 {
+			break
+		}
+
+		// Attempt deletion of oldest segment in topic. First and second segment needed
+		// for this operation.
+		first := segments[0]
+		second := segments[1]
+
+		// The first segment can only be deleted if the last index in that segment has
+		// been replicated. The most efficient way to check this is to ensure that the
+		// first index of the subsequent segment has been replicated.
+		if second.Index > highestIndex {
+			// No guarantee first segment has been replicated.
+			break
+		}
+
+		// Deletion can proceed!
+		size, err := first.Size()
+		if err != nil {
+			return nBytesDeleted, err
+		}
+		if err = os.Remove(first.Path); err != nil {
+			return nBytesDeleted, err
+		}
+		nBytesDeleted += size
+		segments = segments[1:]
+
+		// Create tombstone to indicate that the topic has been truncated at least once.
+		f, err := os.Create(t.TombstonePath())
+		if err != nil {
+			return nBytesDeleted, err
+		}
+		f.Close()
+	}
+
+	return nBytesDeleted, err
+}
+
 // Topics represents a list of topics sorted by id.
 type Topics []*Topic
 
@@ -885,6 +1022,18 @@ func (a Segments) Last() *Segment {
 		return nil
 	}
 	return a[len(a)-1]
+}
+
+func (a Segments) Size() (int64, error) {
+	var size int64
+	for _, s := range a {
+		sz, err := s.Size()
+		if err != nil {
+			return 0, nil
+		}
+		size += sz
+	}
+	return size, nil
 }
 
 func (a Segments) Len() int           { return len(a) }

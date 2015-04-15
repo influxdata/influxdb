@@ -3018,6 +3018,9 @@ func (s *Server) executeDropRetentionPolicyStatement(q *influxql.DropRetentionPo
 }
 
 func (s *Server) executeShowRetentionPoliciesStatement(q *influxql.ShowRetentionPoliciesStatement, user *User) *Result {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	a, err := s.RetentionPolicies(q.Database)
 	if err != nil {
 		return &Result{Err: err}
