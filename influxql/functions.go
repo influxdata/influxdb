@@ -165,11 +165,14 @@ func InitializeUnmarshaller(c *Call) (UnmarshalFunc, error) {
 
 // MapCount computes the number of values in an iterator.
 func MapCount(itr Iterator) interface{} {
-	n := 0
+	n := float64(0)
 	for _, k, _ := itr.Next(); k != 0; _, k, _ = itr.Next() {
 		n++
 	}
-	return float64(n)
+	if n > 0 {
+		return n
+	}
+	return nil
 }
 
 // MapSum computes the summation of values in an iterator.
