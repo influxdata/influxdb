@@ -1400,7 +1400,28 @@ func Test3NodeServer(t *testing.T) {
 
 	runTestsData(t, testName, nodes, "mydb", "myrp", len(nodes))
 	runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp", len(nodes))
+}
 
+func Test3NodeServerFailover(t *testing.T) {
+	testName := "3-node server integration"
+
+	if testing.Short() {
+		t.Skip(fmt.Sprintf("skipping '%s'", testName))
+	}
+	dir := tempfile()
+	defer func() {
+		os.RemoveAll(dir)
+	}()
+
+	nodes := createCombinedNodeCluster(t, testName, dir, 3, nil)
+
+	// kill the last node, cluster should expect it to be there
+	nodes[2].node.Close()
+	nodes = nodes[:len(nodes)-1]
+
+	runTestsData(t, testName, nodes, "mydb", "myrp", len(nodes))
+	runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp", len(nodes))
+	nodes.Close()
 }
 
 // ensure that all queries work if there are more nodes in a cluster than the replication factor

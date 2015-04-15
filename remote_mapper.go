@@ -79,20 +79,25 @@ func (m *RemoteMapper) Begin(c *influxql.Call, startingTime int64, chunkSize int
 		return err
 	}
 
-	node := m.dataNodes.Next()
-	if node == nil {
-		// no data nodes are available to service this query
-		return ErrNoDataNodeAvailable
+	var resp *http.Response
+	for {
+		node := m.dataNodes.Next()
+		if node == nil {
+			// no data nodes are available to service this query
+			return ErrNoDataNodeAvailable
+		}
+
+		// request to start streaming results
+		resp, err = http.Post(node.URL.String()+"/data/run_mapper", "application/json", bytes.NewReader(b))
+		if err != nil {
+			node.Down()
+			continue
+		}
+		// Mark the node as up
+		node.Up()
+		break
 	}
 
-	// request to start streaming results
-	resp, err := http.Post(node.URL.String()+"/data/run_mapper", "application/json", bytes.NewReader(b))
-	if err != nil {
-		node.Down()
-		return err
-	}
-	// Mark it as up
-	node.Up()
 	m.resp = resp
 	lr := io.LimitReader(m.resp.Body, MAX_MAP_RESPONSE_SIZE)
 	m.decoder = json.NewDecoder(lr)

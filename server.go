@@ -3550,10 +3550,10 @@ func (d *DataNode) Down() {
 	d.OfflineUntil = time.Now().Add(time.Duration(t) * time.Second)
 	d.downCount += 1
 
-	log.Printf("data node %s is offline for %ds", d.URL.String(), t)
+	log.Printf("data node %s marked offline for %ds", d.URL.String(), t)
 }
 
-// Up marks this DataNode as online if was currently down
+// Up marks this DataNode as online if it was currently down
 func (d *DataNode) Up() {
 	d.mu.RLock()
 	if d.downCount != 0 {
@@ -3567,7 +3567,7 @@ func (d *DataNode) Up() {
 
 		d.mu.Unlock()
 
-		log.Printf("data node %s is online", d.URL.String())
+		log.Printf("data node %s marked online", d.URL.String())
 		return
 	}
 	d.mu.RUnlock()
