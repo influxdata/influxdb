@@ -9,6 +9,7 @@
 
 ## Features
 - [#2276](https://github.com/influxdb/influxdb/pull/2276): Broker topic truncation.
+- [#2292](https://github.com/influxdb/influxdb/pull/2292): Wire up drop CQ statement - thanks @neonstalwart!
 
 ## v0.9.0-rc24 [2015-04-13]
 
