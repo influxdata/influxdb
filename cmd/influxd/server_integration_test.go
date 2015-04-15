@@ -76,7 +76,6 @@ func (c *Cluster) Close() {
 //
 // This function returns a slice of nodes, the first of which will be the leader.
 func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes int, baseConfig *main.Config) Cluster {
-	basePort := 10000
 	t.Logf("Creating cluster of %d nodes for test %s", nNodes, testName)
 	if nNodes < 1 {
 		t.Fatalf("Test %s: asked to create nonsense cluster", testName)
@@ -99,9 +98,11 @@ func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes int
 	if c == nil {
 		c, _ = main.NewTestConfig()
 	}
+	basePort := newPort()
 	c.Broker.Dir = filepath.Join(tmpBrokerDir, strconv.Itoa(basePort))
 	c.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(basePort))
 	c.Port = basePort
+	c.Admin.Port = newPort()
 	c.Admin.Enabled = false
 	c.ReportingDisabled = true
 	c.Snapshot.Enabled = false
@@ -126,7 +127,7 @@ func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes int
 
 	// Create subsequent nodes, which join to first node.
 	for i := 1; i < nNodes; i++ {
-		nextPort := basePort + i
+		nextPort := newPort()
 		c.Broker.Dir = filepath.Join(tmpBrokerDir, strconv.Itoa(nextPort))
 		c.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(nextPort))
 		c.Port = nextPort
@@ -1371,6 +1372,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 }
 
 func TestSingleServer(t *testing.T) {
+	t.Parallel()
 	testName := "single server integration"
 	if testing.Short() {
 		t.Skip(fmt.Sprintf("skipping '%s'", testName))
@@ -1388,6 +1390,7 @@ func TestSingleServer(t *testing.T) {
 }
 
 func Test3NodeServer(t *testing.T) {
+	t.Parallel()
 	testName := "3-node server integration"
 
 	if testing.Short() {
@@ -1429,6 +1432,7 @@ func Test3NodeServerFailover(t *testing.T) {
 
 // ensure that all queries work if there are more nodes in a cluster than the replication factor
 func Test3NodeClusterPartiallyReplicated(t *testing.T) {
+	t.Parallel()
 	testName := "3-node server integration partial replication"
 	if testing.Short() {
 		t.Skip(fmt.Sprintf("skipping '%s'", testName))
@@ -1446,6 +1450,7 @@ func Test3NodeClusterPartiallyReplicated(t *testing.T) {
 }
 
 func TestClientLibrary(t *testing.T) {
+	t.Parallel()
 	testName := "single server integration via client library"
 	if testing.Short() {
 		t.Skip(fmt.Sprintf("skipping '%s'", testName))
@@ -1581,6 +1586,7 @@ func TestClientLibrary(t *testing.T) {
 }
 
 func Test_ServerSingleGraphiteIntegration(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip()
 	}
@@ -1589,10 +1595,13 @@ func Test_ServerSingleGraphiteIntegration(t *testing.T) {
 	dir := tempfile()
 	now := time.Now().UTC().Round(time.Second)
 	c, _ := main.NewTestConfig()
+	c.Port = newPort()
+	c.Admin.Port = newPort()
 	g := main.Graphite{
 		Enabled:  true,
 		Database: "graphite",
 		Protocol: "TCP",
+		Port:     uint16(newPort()),
 	}
 	c.Graphites = append(c.Graphites, g)
 
@@ -1631,6 +1640,7 @@ func Test_ServerSingleGraphiteIntegration(t *testing.T) {
 }
 
 func Test_ServerSingleGraphiteIntegration_FractionalTime(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip()
 	}
@@ -1639,11 +1649,13 @@ func Test_ServerSingleGraphiteIntegration_FractionalTime(t *testing.T) {
 	dir := tempfile()
 	now := time.Now().UTC().Round(time.Second).Add(500 * time.Millisecond)
 	c, _ := main.NewTestConfig()
+	c.Port = newPort()
+	c.Admin.Port = newPort()
 	g := main.Graphite{
 		Enabled:  true,
 		Database: "graphite",
 		Protocol: "TCP",
-		Port:     2103,
+		Port:     uint16(newPort()),
 	}
 	c.Graphites = append(c.Graphites, g)
 
@@ -1683,6 +1695,7 @@ func Test_ServerSingleGraphiteIntegration_FractionalTime(t *testing.T) {
 }
 
 func Test_ServerSingleGraphiteIntegration_ZeroDataPoint(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip()
 	}
@@ -1691,11 +1704,13 @@ func Test_ServerSingleGraphiteIntegration_ZeroDataPoint(t *testing.T) {
 	dir := tempfile()
 	now := time.Now().UTC().Round(time.Second)
 	c, _ := main.NewTestConfig()
+	c.Port = newPort()
+	c.Admin.Port = newPort()
 	g := main.Graphite{
 		Enabled:  true,
 		Database: "graphite",
 		Protocol: "TCP",
-		Port:     2203,
+		Port:     uint16(newPort()),
 	}
 	c.Graphites = append(c.Graphites, g)
 
@@ -1734,6 +1749,7 @@ func Test_ServerSingleGraphiteIntegration_ZeroDataPoint(t *testing.T) {
 }
 
 func Test_ServerSingleGraphiteIntegration_NoDatabase(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip()
 	}
@@ -1742,9 +1758,11 @@ func Test_ServerSingleGraphiteIntegration_NoDatabase(t *testing.T) {
 	dir := tempfile()
 	now := time.Now().UTC().Round(time.Second)
 	c, _ := main.NewTestConfig()
+	c.Port = newPort()
+	c.Admin.Port = newPort()
 	g := main.Graphite{
 		Enabled:  true,
-		Port:     2303,
+		Port:     uint16(newPort()),
 		Protocol: "TCP",
 	}
 	c.Graphites = append(c.Graphites, g)
@@ -1794,6 +1812,7 @@ func Test_ServerSingleGraphiteIntegration_NoDatabase(t *testing.T) {
 }
 
 func Test_ServerOpenTSDBIntegration(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip()
 	}
@@ -1845,6 +1864,7 @@ func Test_ServerOpenTSDBIntegration(t *testing.T) {
 }
 
 func Test_ServerOpenTSDBIntegration_WithTags(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip()
 	}
@@ -1853,8 +1873,10 @@ func Test_ServerOpenTSDBIntegration_WithTags(t *testing.T) {
 	dir := tempfile()
 	now := time.Now().UTC().Round(time.Second)
 	c, _ := main.NewTestConfig()
+	c.Port = newPort()
+	c.Admin.Port = newPort()
 	o := main.OpenTSDB{
-		Port:            4243,
+		Port:            newPort(),
 		Enabled:         true,
 		Database:        "opentsdb",
 		RetentionPolicy: "raw",
@@ -1899,6 +1921,7 @@ func Test_ServerOpenTSDBIntegration_WithTags(t *testing.T) {
 }
 
 func Test_ServerOpenTSDBIntegration_BadData(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip()
 	}
@@ -1907,8 +1930,10 @@ func Test_ServerOpenTSDBIntegration_BadData(t *testing.T) {
 	dir := tempfile()
 	now := time.Now().UTC().Round(time.Second)
 	c, _ := main.NewTestConfig()
+	c.Port = newPort()
+	c.Admin.Port = newPort()
 	o := main.OpenTSDB{
-		Port:            4244,
+		Port:            newPort(),
 		Enabled:         true,
 		Database:        "opentsdb",
 		RetentionPolicy: "raw",
@@ -1951,6 +1976,7 @@ func Test_ServerOpenTSDBIntegration_BadData(t *testing.T) {
 }
 
 func TestSeparateBrokerDataNode(t *testing.T) {
+	t.Parallel()
 	testName := "TestSeparateBrokerDataNode"
 	if testing.Short() {
 		t.Skip("Skipping", testName)
@@ -1968,12 +1994,15 @@ func TestSeparateBrokerDataNode(t *testing.T) {
 	_ = os.RemoveAll(tmpDataDir)
 
 	brokerConfig := main.NewConfig()
+	brokerConfig.Port = newPort()
+	brokerConfig.Admin.Port = newPort()
 	brokerConfig.Data.Enabled = false
 	brokerConfig.Broker.Dir = filepath.Join(tmpBrokerDir, strconv.Itoa(brokerConfig.Port))
 	brokerConfig.ReportingDisabled = true
 
 	dataConfig := main.NewConfig()
-	dataConfig.Port = 9086
+	dataConfig.Port = newPort()
+	dataConfig.Admin.Port = newPort()
 	dataConfig.Broker.Enabled = false
 	dataConfig.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(dataConfig.Port))
 	dataConfig.ReportingDisabled = true
@@ -1998,6 +2027,7 @@ func TestSeparateBrokerDataNode(t *testing.T) {
 }
 
 func TestSeparateBrokerTwoDataNodes(t *testing.T) {
+	t.Parallel()
 	testName := "TestSeparateBrokerTwoDataNodes"
 	if testing.Short() {
 		t.Skip("Skipping", testName)
@@ -2016,6 +2046,8 @@ func TestSeparateBrokerTwoDataNodes(t *testing.T) {
 
 	// Start a single broker node
 	brokerConfig := main.NewConfig()
+	brokerConfig.Port = newPort()
+	brokerConfig.Admin.Port = newPort()
 	brokerConfig.Data.Enabled = false
 	brokerConfig.Broker.Dir = filepath.Join(tmpBrokerDir, strconv.Itoa(brokerConfig.Port))
 	brokerConfig.ReportingDisabled = true
@@ -2033,7 +2065,8 @@ func TestSeparateBrokerTwoDataNodes(t *testing.T) {
 
 	// Star the first data node and join the broker
 	dataConfig1 := main.NewConfig()
-	dataConfig1.Port = 9086
+	dataConfig1.Port = newPort()
+	dataConfig1.Admin.Port = newPort()
 	dataConfig1.Broker.Enabled = false
 	dataConfig1.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(dataConfig1.Port))
 	dataConfig1.ReportingDisabled = true
@@ -2049,7 +2082,8 @@ func TestSeparateBrokerTwoDataNodes(t *testing.T) {
 
 	// Join data node 2 to single broker and first data node
 	dataConfig2 := main.NewConfig()
-	dataConfig2.Port = 10086
+	dataConfig1.Port = newPort()
+	dataConfig1.Admin.Port = newPort()
 	dataConfig2.Broker.Enabled = false
 	dataConfig2.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(dataConfig2.Port))
 	dataConfig2.ReportingDisabled = true
@@ -2065,6 +2099,21 @@ func TestSeparateBrokerTwoDataNodes(t *testing.T) {
 }
 
 // helper funcs
+func newPort() int {
+	l, e := net.Listen("tcp", ":0")
+	defer l.Close()
+	if e != nil {
+		panic(e)
+	}
+
+	parts := strings.Split(l.Addr().String(), ":")
+	p, err := strconv.Atoi(parts[len(parts)-1])
+	if err != nil {
+		panic(err)
+	}
+	return p
+
+}
 
 func errToString(err error) string {
 	if err != nil {
