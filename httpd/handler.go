@@ -533,7 +533,7 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *influ
 		}
 		return
 	} else {
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(http.StatusNoContent)
 		w.Header().Add("X-InfluxDB-Index", fmt.Sprintf("%d", index))
 	}
 }
