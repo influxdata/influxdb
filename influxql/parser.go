@@ -1739,17 +1739,17 @@ func (p *Parser) ParseExpr() (Expr, error) {
 			}
 		}
 
-		// Find the right spot in the tree to add the new expression:
-		//   Descent the RHS of the expression tree until we reach the last
-		//   BinaryExpr OR a BinaryExpr who's RHS has an operator with
-		//   precedence >= the operator being added.
+		// Find the right spot in the tree to add the new expression by
+		// descending the RHS of the expression tree until we reach the last
+		// BinaryExpr or a BinaryExpr whose RHS has an operator with
+		// precedence >= the operator being added.
 		for node := root; ; {
 			r, ok := node.RHS.(*BinaryExpr)
 			if !ok || r.Op.Precedence() >= op.Precedence() {
+				// Add the new expression here and break.
 				node.RHS = &BinaryExpr{LHS: node.RHS, RHS: rhs, Op: op}
 				break
 			}
-
 			node = r
 		}
 	}
