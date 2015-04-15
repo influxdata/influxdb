@@ -254,26 +254,20 @@ func (cmd *RunCommand) Open(config *Config, join string) *Node {
 	// Parse join urls from the --join flag.
 	joinURLs := parseURLs(join)
 
+	// Start the broker handler.
+	h := &Handler{Config: config}
+	if err := cmd.node.openClusterListener(cmd.config.ClusterAddr(), h); err != nil {
+		log.Fatalf("Cluster server failed to listen on %s. %s ", cmd.config.ClusterAddr(), err)
+	}
+	log.Printf("Cluster server listening on %s", cmd.config.ClusterAddr())
+
 	// Open broker & raft log, initialize or join as necessary.
 	if cmd.config.Broker.Enabled {
-		cmd.openBroker(joinURLs)
+		cmd.openBroker(joinURLs, h)
 		// If were running as a broker locally, always connect to it since it must
 		// be ready before we can start the data node.
 		joinURLs = []url.URL{cmd.node.Broker.URL()}
 	}
-
-	// Start the broker handler.
-	h := &Handler{
-		Config: config,
-		Broker: cmd.node.Broker,
-		Log:    cmd.node.raftLog,
-	}
-
-	err := cmd.node.openClusterListener(cmd.config.ClusterAddr(), h)
-	if err != nil {
-		log.Fatalf("Cluster server failed to listen on %s. %s ", cmd.config.ClusterAddr(), err)
-	}
-	log.Printf("Cluster server listening on %s", cmd.config.ClusterAddr())
 
 	var s *influxdb.Server
 	// Open server, initialize or join as necessary.
@@ -469,7 +463,7 @@ func writePIDFile(path string) {
 }
 
 // creates and initializes a broker.
-func (cmd *RunCommand) openBroker(brokerURLs []url.URL) {
+func (cmd *RunCommand) openBroker(brokerURLs []url.URL, h *Handler) {
 	path := cmd.config.BrokerDir()
 	u := cmd.config.ClusterURL()
 	raftTracing := cmd.config.Logging.RaftTracing
@@ -501,6 +495,10 @@ func (cmd *RunCommand) openBroker(brokerURLs []url.URL) {
 	if err := l.Open(filepath.Join(path, "raft")); err != nil {
 		log.Fatalf("raft: %s", err)
 	}
+
+	// Attach broker and log to handler.
+	h.Broker = b
+	h.Log = l
 
 	// Checks to see if the raft index is 0.  If it's 0, it might be the first
 	// node in the cluster and must initialize or join

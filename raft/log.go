@@ -886,7 +886,10 @@ func (l *Log) followerLoop(closing <-chan struct{}) State {
 			close(ch)
 
 			// Ignore timeout if we are snapshotting.
+			// Or if we haven't received confirmation of join.
 			if l.isSnapshotting() {
+				continue
+			} else if l.FSM.Index() == 0 {
 				continue
 			}
 
@@ -1349,6 +1352,7 @@ func (l *Log) appendToWriters(buf []byte) {
 
 		// If an error occurs then remove the writer and close it.
 		if _, err := w.Write(buf); err != nil {
+			l.Logger.Printf("append to writers error: %s", err)
 			l.removeWriter(w)
 			i--
 			continue
@@ -1797,6 +1801,7 @@ func (l *Log) removeWriter(writer *logWriter) {
 			l.writers[len(l.writers)-1] = nil
 			l.writers = l.writers[:len(l.writers)-1]
 			_ = w.Close()
+			l.Logger.Printf("writer removed: %#v", w)
 			break
 		}
 	}
