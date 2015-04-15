@@ -6,6 +6,7 @@
 - [#2293](https://github.com/influxdb/influxdb/pull/2293): Open cluster listener before starting broker.
 - [#2287](https://github.com/influxdb/influxdb/pull/2287): Fix data race during SHOW RETENTION POLICIES.
 - [#2288](https://github.com/influxdb/influxdb/pull/2288): Fix expression parsing bug.
+- [#2294](https://github.com/influxdb/influxdb/pull/2294): Fix async response flushing (invalid chunked response error).
 
 ## Features
 - [#2276](https://github.com/influxdb/influxdb/pull/2276): Broker topic truncation.

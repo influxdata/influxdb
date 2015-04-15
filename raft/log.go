@@ -1357,9 +1357,6 @@ func (l *Log) appendToWriters(buf []byte) {
 			i--
 			continue
 		}
-
-		// Flush, if possible.
-		flushWriter(w.Writer)
 	}
 }
 
@@ -1808,15 +1805,6 @@ func (l *Log) removeWriter(writer *logWriter) {
 	return
 }
 
-// Flush pushes out buffered data for all open writers.
-func (l *Log) Flush() {
-	l.lock()
-	defer l.unlock()
-	for _, w := range l.writers {
-		flushWriter(w.Writer)
-	}
-}
-
 // ReadFrom continually reads log entries from a reader.
 func (l *Log) ReadFrom(r io.ReadCloser) error {
 	l.tracef("ReadFrom")
@@ -1961,12 +1949,21 @@ type logWriter struct {
 }
 
 // Write writes bytes to the underlying writer.
-// The write is ignored if the writer is currently snapshotting.
 func (w *logWriter) Write(p []byte) (int, error) {
+	// Ignore if the writer is currently snapshotting.
 	if w.snapshotIndex != 0 {
 		return 0, nil
 	}
-	return w.Writer.Write(p)
+
+	// Write to underlying writer.
+	n, err := w.Writer.Write(p)
+	if err != nil {
+		return n, err
+	}
+
+	// Flush writer if successful.
+	flushWriter(w.Writer)
+	return n, err
 }
 
 func (w *logWriter) Close() error {
