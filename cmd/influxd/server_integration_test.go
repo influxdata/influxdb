@@ -221,9 +221,9 @@ func write(t *testing.T, node *TestNode, data string) {
 	if string(body) != "" {
 		t.Log("BODY: ", string(body))
 	}
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusNoContent {
 		body, _ := ioutil.ReadAll(resp.Body)
-		t.Fatalf("Write to database failed.  Unexpected status code.  expected: %d, actual %d, %s", http.StatusOK, resp.StatusCode, string(body))
+		t.Fatalf("Write to database failed.  Unexpected status code.  expected: %d, actual %d, %s", http.StatusNoContent, resp.StatusCode, string(body))
 	}
 }
 
@@ -617,24 +617,24 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","mean","stddev"],"values":[["2000-01-01T00:00:00Z",5,2.138089935299395]]}]}]}`,
 		},
-        {
-			reset: false,
-			name: "first value",
-			query: `SELECT FIRST(value) FROM cpu`,
+		{
+			reset:    false,
+			name:     "first value",
+			query:    `SELECT FIRST(value) FROM cpu`,
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","first"],"values":[["1970-01-01T00:00:00Z",2]]}]}]}`,
 		},
 		{
-			reset: false,
-			name: "last value",
-			query: `SELECT LAST(value) FROM cpu`,
+			reset:    false,
+			name:     "last value",
+			query:    `SELECT LAST(value) FROM cpu`,
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","last"],"values":[["1970-01-01T00:00:00Z",9]]}]}]}`,
 		},
 		{
-			reset: false,
-			name: "value spread",
-			query: `SELECT SPREAD(value) FROM cpu`,
+			reset:    false,
+			name:     "value spread",
+			query:    `SELECT SPREAD(value) FROM cpu`,
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","spread"],"values":[["1970-01-01T00:00:00Z",7]]}]}]}`,
 		},
