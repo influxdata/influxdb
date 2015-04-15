@@ -1,14 +1,13 @@
 package main_test
 
 import (
-	"io/ioutil"
-	"os"
 	"testing"
 
 	main "github.com/influxdb/influxdb/cmd/influx"
 )
 
 func TestParseCommand_CommandsExist(t *testing.T) {
+	t.Parallel()
 	c := main.CommandLine{}
 	tests := []struct {
 		cmd string
@@ -28,6 +27,7 @@ func TestParseCommand_CommandsExist(t *testing.T) {
 }
 
 func TestParseCommand_TogglePretty(t *testing.T) {
+	t.Parallel()
 	c := main.CommandLine{}
 	if c.Pretty {
 		t.Fatalf(`Pretty should be false.`)
@@ -43,6 +43,7 @@ func TestParseCommand_TogglePretty(t *testing.T) {
 }
 
 func TestParseCommand_Exit(t *testing.T) {
+	t.Parallel()
 	c := main.CommandLine{}
 	tests := []struct {
 		cmd string
@@ -61,6 +62,7 @@ func TestParseCommand_Exit(t *testing.T) {
 }
 
 func TestParseCommand_Use(t *testing.T) {
+	t.Parallel()
 	c := main.CommandLine{}
 	tests := []struct {
 		cmd string
@@ -76,13 +78,4 @@ func TestParseCommand_Use(t *testing.T) {
 			t.Fatalf(`Command "use" failed for %q.`, test.cmd)
 		}
 	}
-}
-
-// tempfile returns a temporary path.
-func tempfile() string {
-	f, _ := ioutil.TempFile("", "influxdb-")
-	path := f.Name()
-	f.Close()
-	os.Remove(path)
-	return path
 }
