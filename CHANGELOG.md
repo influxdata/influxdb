@@ -3,6 +3,7 @@
 ### Bugfixes
 - [#2282](https://github.com/influxdb/influxdb/pull/2282): Use "value" as field name for OpenTSDB input.
 - [#2283](https://github.com/influxdb/influxdb/pull/2283): Fix bug when restarting an entire existing cluster.
+- [#2287](https://github.com/influxdb/influxdb/pull/2287): Fix data race during SHOW RETENTION POLICIES.
 
 ## Features
 - [#2276](https://github.com/influxdb/influxdb/pull/2276): Broker topic truncation.
