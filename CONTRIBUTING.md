@@ -172,6 +172,10 @@ To install go cover, run the following command:
 go get golang.org/x/tools/cmd/cover
 ```
 
+Continuous Integration testing
+-----
+InfluxDB uses CirceCI for continuous integration testing. To see how the code is built and tested, check out [this file](https://github.com/influxdb/influxdb/blob/master/circle-test.sh). It closely follows the build and test process outlined above.
+
 Useful links
 ------------
 - [Useful techniques in Go](http://arslan.io/ten-useful-techniques-in-go)
