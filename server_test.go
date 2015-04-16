@@ -1006,7 +1006,7 @@ func TestServer_WriteAllDataTypes(t *testing.T) {
 
 	f(t, "foo", "SELECT * from series1", `{"series":[{"name":"series1","columns":["time","value"],"values":[["2000-01-01T00:00:00Z",20]]}]}`)
 	f(t, "foo", "SELECT * from series2", `{"series":[{"name":"series2","columns":["time","value"],"values":[["2000-01-01T00:00:00Z",30]]}]}`)
-	f(t, "foo", "SELECT * from series3", `{"series":[{"name":"series3","columns":["time","value"],"values":[["2000-01-01T00:00:00Z","baz"]]}]}`)
+	f(t, "foo", "SELECT * from series3", `{"series":[{"name":"series3","columns":["time","value"],"values":[["2000-01-01T00:00:00Z","basssz"]]}]}`)
 	f(t, "foo", "SELECT * from series4", `{"series":[{"name":"series4","columns":["time","value"],"values":[["2000-01-01T00:00:00Z",true]]}]}`)
 }
 
