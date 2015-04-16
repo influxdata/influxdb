@@ -35,6 +35,7 @@ type Server struct {
 	retentionpolicy string
 
 	listener *net.TCPListener
+	done     chan struct{}
 }
 
 func NewServer(w SeriesWriter, retpol string, db string) *Server {
@@ -43,6 +44,8 @@ func NewServer(w SeriesWriter, retpol string, db string) *Server {
 	s.writer = w
 	s.retentionpolicy = retpol
 	s.database = db
+
+	s.done = make(chan struct{})
 
 	return s
 }
@@ -68,8 +71,11 @@ func (s *Server) ListenAndServe(listenAddress string) {
 
 	go func() {
 		for {
-			if s.listener == nil {
+			select {
+			case <-s.done:
 				return
+			default:
+				// Keep processing.
 			}
 			conn, err := s.listener.Accept()
 			if err != nil {
@@ -82,6 +88,7 @@ func (s *Server) ListenAndServe(listenAddress string) {
 }
 
 func (s *Server) Close() error {
+	close(s.done)
 	if s.listener != nil {
 		err := s.listener.Close()
 		s.listener = nil
