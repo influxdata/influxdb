@@ -1813,6 +1813,7 @@ func Test_ServerOpenTSDBIntegration(t *testing.T) {
 	now := time.Now().UTC().Round(time.Second)
 	c, _ := main.NewTestConfig()
 	o := main.OpenTSDB{
+		Addr:            "127.0.0.1",
 		Port:            0,
 		Enabled:         true,
 		Database:        "opentsdb",
@@ -1868,6 +1869,7 @@ func Test_ServerOpenTSDBIntegration_WithTags(t *testing.T) {
 	c.Port = 0
 	c.Admin.Enabled = false
 	o := main.OpenTSDB{
+		Addr:            "127.0.0.1",
 		Port:            0,
 		Enabled:         true,
 		Database:        "opentsdb",
@@ -1926,6 +1928,7 @@ func Test_ServerOpenTSDBIntegration_BadData(t *testing.T) {
 	c.Port = 0
 	c.Admin.Enabled = false
 	o := main.OpenTSDB{
+		Addr:            "127.0.0.1",
 		Port:            0,
 		Enabled:         true,
 		Database:        "opentsdb",
