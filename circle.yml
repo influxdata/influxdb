@@ -7,5 +7,3 @@ test:
     override:
     # Put each test command on its own line.
         - go tool vet .
-        - case $CIRCLE_NODE_INDEX in 0) go test -p 1 -timeout 300s -v ./... ;; 1) GORACE="halt_on_error=1" go test -p 1 -race -timeout 300s -v ./... ;; esac:
-            parallel: true
