@@ -53,7 +53,6 @@ func (s *Server) Addr() net.Addr {
 
 func (s *Server) ListenAndServe(listenAddress string) {
 	var err error
-	log.Print(listenAddress)
 
 	addr, err := net.ResolveTCPAddr("tcp4", listenAddress)
 	if err != nil {
