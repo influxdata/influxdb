@@ -56,27 +56,10 @@ func (s *Node) ClusterAddr() net.Addr {
 }
 
 func (s *Node) ClusterURL() *url.URL {
-	h, p, e := net.SplitHostPort(s.ClusterAddr().String())
-	if e != nil {
-		panic(e)
+	return &url.URL{
+		Scheme: "http",
+		Host:   s.ClusterAddr().String(),
 	}
-	if h == "::" || h == "" {
-		// Detect hostname (or set to localhost).
-		if h, _ = os.Hostname(); h == "" {
-			h = "localhost"
-		}
-	}
-	h = "http://" + h
-
-	if p != "" {
-		h = fmt.Sprintf("%s:%s", h, p)
-	}
-
-	u, e := url.Parse(h)
-	if e != nil {
-		panic(e)
-	}
-	return u
 }
 
 func (s *Node) Close() error {
