@@ -2070,7 +2070,7 @@ func TestSeparateBrokerTwoDataNodes(t *testing.T) {
 	brokerConfig.Port = 0
 	brokerConfig.Admin.Enabled = false
 	brokerConfig.Data.Enabled = false
-	brokerConfig.Broker.Dir = filepath.Join(tmpBrokerDir, strconv.Itoa(brokerConfig.Port))
+	brokerConfig.Broker.Dir = filepath.Join(tmpBrokerDir, "1")
 	brokerConfig.ReportingDisabled = true
 
 	brokerCmd := main.NewRunCommand()
@@ -2089,7 +2089,7 @@ func TestSeparateBrokerTwoDataNodes(t *testing.T) {
 	dataConfig1.Port = 0
 	dataConfig1.Admin.Enabled = false
 	dataConfig1.Broker.Enabled = false
-	dataConfig1.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(dataConfig1.Port))
+	dataConfig1.Data.Dir = filepath.Join(tmpDataDir, "1")
 	dataConfig1.ReportingDisabled = true
 
 	dataCmd1 := main.NewRunCommand()
@@ -2103,10 +2103,10 @@ func TestSeparateBrokerTwoDataNodes(t *testing.T) {
 
 	// Join data node 2 to single broker and first data node
 	dataConfig2 := main.NewConfig()
-	dataConfig1.Port = 0
-	dataConfig1.Admin.Enabled = false
+	dataConfig2.Port = 0
+	dataConfig2.Admin.Enabled = false
 	dataConfig2.Broker.Enabled = false
-	dataConfig2.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(dataConfig2.Port))
+	dataConfig2.Data.Dir = filepath.Join(tmpDataDir, "2")
 	dataConfig2.ReportingDisabled = true
 
 	dataCmd2 := main.NewRunCommand()
