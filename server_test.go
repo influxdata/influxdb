@@ -211,7 +211,7 @@ func TestServer_SingleStatementQueryAuthorization(t *testing.T) {
 						Name:     "measure1",
 					},
 					},
-					Sources: []influxql.Source{&influxql.Measurement{Name: "myserdddies"}},
+					Sources: []influxql.Source{&influxql.Measurement{Name: "myseries"}},
 				},
 			},
 		},
