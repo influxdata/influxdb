@@ -481,21 +481,8 @@ type Graphite struct {
 }
 
 // ConnnectionString returns the connection string for this Graphite config in the form host:port.
-func (g *Graphite) ConnectionString(defaultBindAddr string) string {
-
-	addr := g.BindAddress
-	// If no address specified, use default.
-	if addr == "" {
-		addr = defaultBindAddr
-	}
-
-	port := g.Port
-	//If no port specified, use default.
-	//if port == 0 {
-	//port = graphite.DefaultGraphitePort
-	//}
-
-	return fmt.Sprintf("%s:%d", addr, port)
+func (g *Graphite) ConnectionString() string {
+	return fmt.Sprintf("%s:%d", g.BindAddress, g.Port)
 }
 
 // NameSeparatorString returns the character separating fields for Graphite data, or the default
