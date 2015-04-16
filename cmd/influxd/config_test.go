@@ -236,8 +236,8 @@ func TestParseConfig(t *testing.T) {
 	switch {
 	case c.OpenTSDB.Enabled != true:
 		t.Errorf("opentsdb enabled mismatch: expected: %v, got %v", true, c.OpenTSDB.Enabled)
-	case c.OpenTSDB.ListenAddress(c.BindAddress) != "192.168.0.3:4242":
-		t.Errorf("opentsdb listen address mismatch: expected %v, got  %v", "192.168.0.3:4242", c.OpenTSDB.ListenAddress(c.BindAddress))
+	case c.OpenTSDB.ListenAddress() != "192.168.0.3:4242":
+		t.Errorf("opentsdb listen address mismatch: expected %v, got  %v", "192.168.0.3:4242", c.OpenTSDB.ListenAddress())
 	case c.OpenTSDB.DatabaseString() != "opentsdb_database":
 		t.Errorf("opentsdb database mismatch: expected %v, got %v", "opentsdb_database", c.OpenTSDB.DatabaseString())
 	case c.OpenTSDB.RetentionPolicy != "raw":
