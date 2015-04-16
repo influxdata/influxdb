@@ -13,6 +13,7 @@
 - [#2324](https://github.com/influxdb/influxdb/issues/2324): Race in Broker.Close()/Broker.RunContinousQueryProcessing()
 - [#2325](https://github.com/influxdb/influxdb/pull/2325): Cluster open fixes
 - [#2326](https://github.com/influxdb/influxdb/pull/2326): Fix parse error in CREATE CONTINUOUS QUERY
+- [#2300](https://github.com/influxdb/influxdb/pull/2300): Refactor integration tests.  Properly close Graphite/OpenTSDB listeners.
 
 ## v0.9.0-rc25 [2015-04-15]
 
