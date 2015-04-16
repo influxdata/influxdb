@@ -18,6 +18,7 @@ type TCPServer struct {
 	listener *net.Listener
 
 	Logger *log.Logger
+	done   chan struct{}
 }
 
 // NewTCPServer returns a new instance of a TCPServer.
@@ -27,6 +28,7 @@ func NewTCPServer(p *Parser, w SeriesWriter, db string) *TCPServer {
 		writer:   w,
 		database: db,
 		Logger:   log.New(os.Stderr, "[graphite] ", log.LstdFlags),
+		done:     make(chan struct{}),
 	}
 }
 
@@ -46,8 +48,11 @@ func (t *TCPServer) ListenAndServe(iface string) error {
 	t.Logger.Println("listening on TCP connection", ln.Addr().String())
 	go func() {
 		for {
-			if t.listener == nil {
+			select {
+			case <-t.done:
 				return
+			default:
+				// Keep processing.
 			}
 			conn, err := ln.Accept()
 			if err != nil {
@@ -66,6 +71,7 @@ func (t *TCPServer) Host() string {
 }
 
 func (t *TCPServer) Close() error {
+	close(t.done)
 	if t.listener != nil {
 		l := *t.listener
 		err := l.Close()
