@@ -47,8 +47,13 @@ func NewServer(w SeriesWriter, retpol string, db string) *Server {
 	return s
 }
 
+func (s *Server) Addr() net.Addr {
+	return s.listener.Addr()
+}
+
 func (s *Server) ListenAndServe(listenAddress string) {
 	var err error
+	log.Print(listenAddress)
 
 	addr, err := net.ResolveTCPAddr("tcp4", listenAddress)
 	if err != nil {
@@ -62,19 +67,28 @@ func (s *Server) ListenAndServe(listenAddress string) {
 		return
 	}
 
-	defer s.listener.Close()
-	s.HandleListener(s.listener)
+	go func() {
+		for {
+			if s.listener == nil {
+				return
+			}
+			conn, err := s.listener.Accept()
+			if err != nil {
+				log.Println("Error accepting: ", err.Error())
+				continue
+			}
+			go s.HandleConnection(conn)
+		}
+	}()
 }
 
-func (s *Server) HandleListener(socket *net.TCPListener) {
-	for {
-		// Listen for an incoming connection.
-		conn, err := socket.Accept()
-		if err != nil {
-			log.Println("Error accepting: ", err.Error())
-		}
-		// Handle connections in a new goroutine.
-		go s.HandleConnection(conn)
+func (s *Server) Close() error {
+	if s.listener != nil {
+		err := s.listener.Close()
+		s.listener = nil
+		return err
+	} else {
+		return nil
 	}
 }
 

@@ -48,6 +48,7 @@ type Node struct {
 	clusterListener net.Listener      // The cluster TCP listener
 	apiListener     net.Listener      // The API TCP listener
 	GraphiteServers []graphite.Server // The Graphite Servers
+	OpenTSDBServer  *opentsdb.Server  // The OpenTSDB Server
 }
 
 func (s *Node) ClusterAddr() net.Addr {
@@ -93,6 +94,12 @@ func (s *Node) Close() error {
 
 	for _, g := range s.GraphiteServers {
 		if err := g.Close(); err != nil {
+			return err
+		}
+	}
+
+	if s.OpenTSDBServer != nil {
+		if err := s.OpenTSDBServer.Close(); err != nil {
 			return err
 		}
 	}
@@ -273,13 +280,24 @@ func (cmd *RunCommand) Run(args ...string) error {
 func (cmd *RunCommand) CheckConfig() {
 	// Set any defaults that aren't set
 	// TODO: bring more defaults in here instead of letting helpers do it
+
+	// Normalize Graphite configs
 	for i, _ := range cmd.config.Graphites {
-		if cmd.config.Graphites[i].Port == 0 {
-			cmd.config.Graphites[i].Port = graphite.DefaultGraphitePort
-		}
 		if cmd.config.Graphites[i].BindAddress == "" {
 			cmd.config.Graphites[i].BindAddress = cmd.config.BindAddress
 		}
+		if cmd.config.Graphites[i].Port == 0 {
+			cmd.config.Graphites[i].Port = graphite.DefaultGraphitePort
+		}
+	}
+
+	// Normalize openTSDB config
+	if cmd.config.OpenTSDB.Addr == "" {
+		cmd.config.OpenTSDB.Addr = cmd.config.BindAddress
+	}
+
+	if cmd.config.OpenTSDB.Port == 0 {
+		cmd.config.OpenTSDB.Port = opentsdb.DefaultPort
 	}
 
 	// Validate that we have a sane config
@@ -417,7 +435,7 @@ func (cmd *RunCommand) Open(config *Config, join string) *Node {
 		if config.OpenTSDB.Enabled {
 			o := config.OpenTSDB
 			db := o.DatabaseString()
-			laddr := o.ListenAddress(config.BindAddress)
+			laddr := o.ListenAddress()
 			policy := o.RetentionPolicy
 
 			if err := s.CreateDatabaseIfNotExists(db); err != nil {
@@ -436,6 +454,7 @@ func (cmd *RunCommand) Open(config *Config, join string) *Node {
 
 			log.Println("Starting OpenTSDB service on", laddr)
 			go os.ListenAndServe(laddr)
+			cmd.node.OpenTSDBServer = os
 		}
 
 		// Start up self-monitoring if enabled.
