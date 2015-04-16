@@ -56,9 +56,21 @@ func (s *Node) ClusterAddr() net.Addr {
 }
 
 func (s *Node) ClusterURL() *url.URL {
+	h, p, e := net.SplitHostPort(s.ClusterAddr().String())
+	if e != nil {
+		panic(e)
+	}
+	if h == "::" || h == "" {
+		// Detect hostname (or set to localhost).
+		if h, _ = os.Hostname(); h == "" {
+			h = "localhost"
+		}
+	}
+
+	h = net.JoinHostPort(h, p)
 	return &url.URL{
 		Scheme: "http",
-		Host:   s.ClusterAddr().String(),
+		Host:   h,
 	}
 }
 
