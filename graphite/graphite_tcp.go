@@ -15,6 +15,7 @@ type TCPServer struct {
 	writer   SeriesWriter
 	parser   *Parser
 	database string
+	listener *net.Listener
 
 	Logger *log.Logger
 }
@@ -40,8 +41,14 @@ func (t *TCPServer) ListenAndServe(iface string) error {
 	if err != nil {
 		return err
 	}
+	t.listener = &ln
+
+	t.Logger.Println("listening on TCP connection", ln.Addr().String())
 	go func() {
 		for {
+			if t.listener == nil {
+				return
+			}
 			conn, err := ln.Accept()
 			if err != nil {
 				t.Logger.Println("error accepting TCP connection", err.Error())
@@ -51,6 +58,22 @@ func (t *TCPServer) ListenAndServe(iface string) error {
 		}
 	}()
 	return nil
+}
+
+func (t *TCPServer) Host() string {
+	l := *t.listener
+	return l.Addr().String()
+}
+
+func (t *TCPServer) Close() error {
+	if t.listener != nil {
+		l := *t.listener
+		err := l.Close()
+		t.listener = nil
+		return err
+	} else {
+		return nil
+	}
 }
 
 // handleConnection services an individual TCP connection.

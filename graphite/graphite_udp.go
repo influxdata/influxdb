@@ -18,6 +18,8 @@ type UDPServer struct {
 	writer   SeriesWriter
 	parser   *Parser
 	database string
+	conn     *net.UDPConn
+	addr     *net.UDPAddr
 
 	Logger *log.Logger
 }
@@ -44,6 +46,8 @@ func (u *UDPServer) ListenAndServe(iface string) error {
 	if err != nil {
 		return err
 	}
+
+	u.addr = addr
 
 	conn, err := net.ListenUDP("udp", addr)
 	if err != nil {
@@ -72,4 +76,12 @@ func (u *UDPServer) ListenAndServe(iface string) error {
 		}
 	}()
 	return nil
+}
+
+func (u *UDPServer) Host() string {
+	return u.addr.String()
+}
+
+func (u *UDPServer) Close() error {
+	return u.Close()
 }

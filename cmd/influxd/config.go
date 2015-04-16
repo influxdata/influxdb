@@ -490,10 +490,10 @@ func (g *Graphite) ConnectionString(defaultBindAddr string) string {
 	}
 
 	port := g.Port
-	// If no port specified, use default.
-	if port == 0 {
-		port = graphite.DefaultGraphitePort
-	}
+	//If no port specified, use default.
+	//if port == 0 {
+	//port = graphite.DefaultGraphitePort
+	//}
 
 	return fmt.Sprintf("%s:%d", addr, port)
 }
