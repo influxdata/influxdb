@@ -470,7 +470,7 @@ func (c *Collectd) ConnectionString(defaultBindAddr string) string {
 
 type Graphite struct {
 	BindAddress string `toml:"bind-address"`
-	Port        uint16 `toml:"port"`
+	Port        int    `toml:"port"`
 
 	Database      string `toml:"database"`
 	Enabled       bool   `toml:"enabled"`
@@ -481,7 +481,7 @@ type Graphite struct {
 
 // ConnnectionString returns the connection string for this Graphite config in the form host:port.
 func (g *Graphite) ConnectionString() string {
-	return fmt.Sprintf("%s:%d", g.BindAddress, g.Port)
+	return net.JoinHostPort(g.BindAddress, strconv.Itoa(g.Port))
 }
 
 // NameSeparatorString returns the character separating fields for Graphite data, or the default
