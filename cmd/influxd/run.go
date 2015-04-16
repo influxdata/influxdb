@@ -271,6 +271,18 @@ func (cmd *RunCommand) Run(args ...string) error {
 
 // CheckConfig validates the configuration
 func (cmd *RunCommand) CheckConfig() {
+	// Set any defaults that aren't set
+	// TODO: bring more defaults in here instead of letting helpers do it
+	for i, _ := range cmd.config.Graphites {
+		if cmd.config.Graphites[i].Port == 0 {
+			cmd.config.Graphites[i].Port = graphite.DefaultGraphitePort
+		}
+		if cmd.config.Graphites[i].BindAddress == "" {
+			cmd.config.Graphites[i].BindAddress = cmd.config.BindAddress
+		}
+	}
+
+	// Validate that we have a sane config
 	if !(cmd.config.Data.Enabled || cmd.config.Broker.Enabled) {
 		log.Fatal("Node must be configured as a broker node, data node, or as both.  Run `influxd config` to generate a valid configuration.")
 	}
@@ -373,30 +385,30 @@ func (cmd *RunCommand) Open(config *Config, join string) *Node {
 		}
 
 		// Spin up any Graphite servers
-		for _, c := range cmd.config.Graphites {
-			if !c.Enabled {
+		for _, graphiteConfig := range cmd.config.Graphites {
+			if !graphiteConfig.Enabled {
 				continue
 			}
 
 			// Configure Graphite parsing.
 			parser := graphite.NewParser()
-			parser.Separator = c.NameSeparatorString()
-			parser.LastEnabled = c.LastEnabled()
+			parser.Separator = graphiteConfig.NameSeparatorString()
+			parser.LastEnabled = graphiteConfig.LastEnabled()
 
-			if err := s.CreateDatabaseIfNotExists(c.DatabaseString()); err != nil {
-				log.Fatalf("failed to create database for %s Graphite server: %s", c.Protocol, err.Error())
+			if err := s.CreateDatabaseIfNotExists(graphiteConfig.DatabaseString()); err != nil {
+				log.Fatalf("failed to create database for %s Graphite server: %s", graphiteConfig.Protocol, err.Error())
 			}
 
 			// Spin up the server.
 			var g graphite.Server
-			g, err := graphite.NewServer(c.Protocol, parser, s, c.DatabaseString())
+			g, err := graphite.NewServer(graphiteConfig.Protocol, parser, s, graphiteConfig.DatabaseString())
 			if err != nil {
-				log.Fatalf("failed to initialize %s Graphite server: %s", c.Protocol, err.Error())
+				log.Fatalf("failed to initialize %s Graphite server: %s", graphiteConfig.Protocol, err.Error())
 			}
 
-			err = g.ListenAndServe(c.ConnectionString(cmd.config.BindAddress))
+			err = g.ListenAndServe(graphiteConfig.ConnectionString())
 			if err != nil {
-				log.Fatalf("failed to start %s Graphite server: %s", c.Protocol, err.Error())
+				log.Fatalf("failed to start %s Graphite server: %s", graphiteConfig.Protocol, err.Error())
 			}
 			cmd.node.GraphiteServers = append(cmd.node.GraphiteServers, g)
 		}

@@ -1584,7 +1584,7 @@ func Test_ServerSingleGraphiteIntegration_Default(t *testing.T) {
 	}
 	c.Graphites = append(c.Graphites, g)
 
-	t.Logf("Graphite Connection String: %s\n", g.ConnectionString(c.BindAddress))
+	t.Logf("Graphite Connection String: %s\n", g.ConnectionString())
 	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, c)
 	defer nodes.Close()
 
@@ -1640,7 +1640,7 @@ func Test_ServerSingleGraphiteIntegration_FractionalTime(t *testing.T) {
 	}
 	c.Graphites = append(c.Graphites, g)
 
-	t.Logf("Graphite Connection String: %s\n", g.ConnectionString(c.BindAddress))
+	t.Logf("Graphite Connection String: %s\n", g.ConnectionString())
 	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, c)
 	defer nodes.Close()
 
@@ -1697,7 +1697,7 @@ func Test_ServerSingleGraphiteIntegration_ZeroDataPoint(t *testing.T) {
 	}
 	c.Graphites = append(c.Graphites, g)
 
-	t.Logf("Graphite Connection String: %s\n", g.ConnectionString(c.BindAddress))
+	t.Logf("Graphite Connection String: %s\n", g.ConnectionString())
 	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, c)
 	defer nodes.Close()
 
@@ -1752,7 +1752,7 @@ func Test_ServerSingleGraphiteIntegration_NoDatabase(t *testing.T) {
 	}
 	c.Graphites = append(c.Graphites, g)
 	c.Logging.WriteTracing = true
-	t.Logf("Graphite Connection String: %s\n", g.ConnectionString(c.BindAddress))
+	t.Logf("Graphite Connection String: %s\n", g.ConnectionString())
 	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, c)
 	defer nodes.Close()
 
