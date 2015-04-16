@@ -16,7 +16,6 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/influxdb/influxdb/collectd"
 	"github.com/influxdb/influxdb/graphite"
-	"github.com/influxdb/influxdb/opentsdb"
 )
 
 const (
@@ -525,17 +524,6 @@ func (o OpenTSDB) DatabaseString() string {
 	return o.Database
 }
 
-func (o OpenTSDB) ListenAddress(defaultBindAddr string) string {
-	addr := o.Addr
-	// If no address specified, use default.
-	if addr == "" {
-		addr = defaultBindAddr
-	}
-
-	port := o.Port
-	// If no port specified, use default.
-	if port == 0 {
-		port = opentsdb.DefaultPort
-	}
-	return net.JoinHostPort(addr, strconv.Itoa(port))
+func (o OpenTSDB) ListenAddress() string {
+	return net.JoinHostPort(o.Addr, strconv.Itoa(o.Port))
 }
