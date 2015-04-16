@@ -1577,10 +1577,11 @@ func Test_ServerSingleGraphiteIntegration_Default(t *testing.T) {
 	c.Port = 0
 	c.Admin.Enabled = false
 	g := main.Graphite{
-		Enabled:  true,
-		Database: "graphite",
-		Protocol: "TCP",
-		Port:     0,
+		Enabled:     true,
+		Database:    "graphite",
+		Protocol:    "TCP",
+		BindAddress: "127.0.0.1",
+		Port:        0,
 	}
 	c.Graphites = append(c.Graphites, g)
 
@@ -1633,10 +1634,11 @@ func Test_ServerSingleGraphiteIntegration_FractionalTime(t *testing.T) {
 	c.Port = 0
 	c.Admin.Enabled = false
 	g := main.Graphite{
-		Enabled:  true,
-		Database: "graphite",
-		Protocol: "TCP",
-		Port:     0,
+		Enabled:     true,
+		Database:    "graphite",
+		Protocol:    "TCP",
+		BindAddress: "127.0.0.1",
+		Port:        0,
 	}
 	c.Graphites = append(c.Graphites, g)
 
@@ -1690,10 +1692,11 @@ func Test_ServerSingleGraphiteIntegration_ZeroDataPoint(t *testing.T) {
 	c.Port = 0
 	c.Admin.Enabled = false
 	g := main.Graphite{
-		Enabled:  true,
-		Database: "graphite",
-		Protocol: "TCP",
-		Port:     0,
+		Enabled:     true,
+		Database:    "graphite",
+		Protocol:    "TCP",
+		BindAddress: "127.0.0.1",
+		Port:        0,
 	}
 	c.Graphites = append(c.Graphites, g)
 
@@ -1746,9 +1749,10 @@ func Test_ServerSingleGraphiteIntegration_NoDatabase(t *testing.T) {
 	c.Port = 0
 	c.Admin.Enabled = false
 	g := main.Graphite{
-		Enabled:  true,
-		Port:     0,
-		Protocol: "TCP",
+		Enabled:     true,
+		Protocol:    "TCP",
+		BindAddress: "127.0.0.1",
+		Port:        0,
 	}
 	c.Graphites = append(c.Graphites, g)
 	c.Logging.WriteTracing = true
