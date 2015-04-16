@@ -45,8 +45,37 @@ type Node struct {
 	raftLog  *raft.Log
 
 	adminServer     *admin.Server
-	clusterListener net.Listener // The cluster TCP listener
-	apiListener     net.Listener // The API TCP listener
+	clusterListener net.Listener      // The cluster TCP listener
+	apiListener     net.Listener      // The API TCP listener
+	GraphiteServers []graphite.Server // The Graphite Servers
+}
+
+func (s *Node) ClusterAddr() net.Addr {
+	return s.clusterListener.Addr()
+}
+
+func (s *Node) ClusterURL() *url.URL {
+	h, p, e := net.SplitHostPort(s.ClusterAddr().String())
+	if e != nil {
+		panic(e)
+	}
+	if h == "::" || h == "" {
+		// Detect hostname (or set to localhost).
+		if h, _ = os.Hostname(); h == "" {
+			h = "localhost"
+		}
+	}
+	h = "http://" + h
+
+	if p != "" {
+		h = fmt.Sprintf("%s:%s", h, p)
+	}
+
+	u, e := url.Parse(h)
+	if e != nil {
+		panic(e)
+	}
+	return u
 }
 
 func (s *Node) Close() error {
@@ -60,6 +89,12 @@ func (s *Node) Close() error {
 
 	if err := s.closeAdminServer(); err != nil {
 		return err
+	}
+
+	for _, g := range s.GraphiteServers {
+		if err := g.Close(); err != nil {
+			return err
+		}
 	}
 
 	if s.DataNode != nil {
@@ -79,6 +114,7 @@ func (s *Node) Close() error {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -263,14 +299,14 @@ func (cmd *RunCommand) Open(config *Config, join string) *Node {
 	if err := cmd.node.openClusterListener(cmd.config.ClusterAddr(), h); err != nil {
 		log.Fatalf("Cluster server failed to listen on %s. %s ", cmd.config.ClusterAddr(), err)
 	}
-	log.Printf("Cluster server listening on %s", cmd.config.ClusterAddr())
+	log.Printf("Cluster server listening on %s", cmd.node.ClusterURL().String())
 
 	// Open broker & raft log, initialize or join as necessary.
 	if cmd.config.Broker.Enabled {
 		cmd.openBroker(joinURLs, h)
 		// If were running as a broker locally, always connect to it since it must
 		// be ready before we can start the data node.
-		joinURLs = []url.URL{cmd.node.Broker.URL()}
+		joinURLs = []url.URL{*cmd.node.ClusterURL()}
 	}
 
 	var s *influxdb.Server
@@ -362,6 +398,7 @@ func (cmd *RunCommand) Open(config *Config, join string) *Node {
 			if err != nil {
 				log.Fatalf("failed to start %s Graphite server: %s", c.Protocol, err.Error())
 			}
+			cmd.node.GraphiteServers = append(cmd.node.GraphiteServers, g)
 		}
 
 		// Spin up any OpenTSDB servers
@@ -469,7 +506,7 @@ func writePIDFile(path string) {
 // creates and initializes a broker.
 func (cmd *RunCommand) openBroker(brokerURLs []url.URL, h *Handler) {
 	path := cmd.config.BrokerDir()
-	u := cmd.config.ClusterURL()
+	u := cmd.node.ClusterURL()
 	raftTracing := cmd.config.Logging.RaftTracing
 
 	// Create broker
@@ -481,7 +518,7 @@ func (cmd *RunCommand) openBroker(brokerURLs []url.URL, h *Handler) {
 
 	// Create raft log.
 	l := raft.NewLog()
-	l.SetURL(u)
+	l.SetURL(*u)
 	l.DebugEnabled = raftTracing
 	b.Log = l
 	cmd.node.raftLog = l
@@ -545,7 +582,7 @@ func joinLog(l *raft.Log, brokerURLs []url.URL) {
 func (cmd *RunCommand) openServer(joinURLs []url.URL) *influxdb.Server {
 
 	// Create messaging client to the brokers.
-	c := influxdb.NewMessagingClient(cmd.config.ClusterURL())
+	c := influxdb.NewMessagingClient(*cmd.node.ClusterURL())
 	c.SetURLs(joinURLs)
 
 	if err := c.Open(filepath.Join(cmd.config.Data.Dir, messagingClientFile)); err != nil {
@@ -581,16 +618,16 @@ func (cmd *RunCommand) openServer(joinURLs []url.URL) *influxdb.Server {
 
 	if s.ID() == 0 && s.Index() == 0 {
 		if len(joinURLs) > 0 {
-			joinServer(s, cmd.config.ClusterURL(), joinURLs)
+			joinServer(s, *cmd.node.ClusterURL(), joinURLs)
 			return s
 		}
 
-		if err := s.Initialize(cmd.config.ClusterURL()); err != nil {
+		if err := s.Initialize(*cmd.node.ClusterURL()); err != nil {
 			log.Fatalf("server initialization error(0): %s", err)
 		}
 
-		u := cmd.config.ClusterURL()
-		log.Printf("initialized data node: %s\n", (&u).String())
+		u := cmd.node.ClusterURL()
+		log.Printf("initialized data node: %s\n", u.String())
 		return s
 	} else {
 		log.Printf("data node already member of cluster. Using existing state and ignoring join URLs")
