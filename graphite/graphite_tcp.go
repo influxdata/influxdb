@@ -64,6 +64,8 @@ func (t *TCPServer) ListenAndServe(iface string) error {
 				t.Logger.Println("error accepting TCP connection", err.Error())
 				continue
 			}
+
+			t.wg.Add(1)
 			go t.handleConnection(conn)
 		}
 	}()
@@ -93,9 +95,17 @@ func (t *TCPServer) Close() error {
 // handleConnection services an individual TCP connection.
 func (t *TCPServer) handleConnection(conn net.Conn) {
 	defer conn.Close()
+	defer t.wg.Done()
 
 	reader := bufio.NewReader(conn)
 	for {
+		select {
+		case <-t.done:
+			log.Println("disconnecting", conn.RemoteAddr())
+			return
+		default:
+		}
+
 		// Read up to the next newline.
 		buf, err := reader.ReadBytes('\n')
 		if err != nil {

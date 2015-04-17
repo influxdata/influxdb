@@ -86,6 +86,7 @@ func (s *Server) ListenAndServe(listenAddress string) {
 				log.Println("Error accepting: ", err.Error())
 				continue
 			}
+			s.wg.Add(1)
 			go s.HandleConnection(conn)
 		}
 	}()
@@ -110,8 +111,16 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	tp := textproto.NewReader(reader)
 
 	defer conn.Close()
+	defer s.wg.Done()
 
 	for {
+		select {
+		case <-s.done:
+			log.Println("disconnecting", conn.RemoteAddr())
+			return
+		default:
+		}
+
 		line, err := tp.ReadLine()
 		if err != nil {
 			return
