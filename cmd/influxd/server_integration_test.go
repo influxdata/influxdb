@@ -1376,7 +1376,6 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 }
 
 func TestSingleServer(t *testing.T) {
-	t.Parallel()
 	testName := "single server integration"
 	if testing.Short() {
 		t.Skip(fmt.Sprintf("skipping '%s'", testName))
@@ -1394,7 +1393,6 @@ func TestSingleServer(t *testing.T) {
 }
 
 func Test3NodeServer(t *testing.T) {
-	t.Parallel()
 	testName := "3-node server integration"
 
 	if testing.Short() {
@@ -1436,7 +1434,6 @@ func Test3NodeServerFailover(t *testing.T) {
 
 // ensure that all queries work if there are more nodes in a cluster than the replication factor
 func Test3NodeClusterPartiallyReplicated(t *testing.T) {
-	t.Parallel()
 	testName := "3-node server integration partial replication"
 	if testing.Short() {
 		t.Skip(fmt.Sprintf("skipping '%s'", testName))
@@ -1454,7 +1451,6 @@ func Test3NodeClusterPartiallyReplicated(t *testing.T) {
 }
 
 func TestClientLibrary(t *testing.T) {
-	t.Parallel()
 	testName := "single server integration via client library"
 	if testing.Short() {
 		t.Skip(fmt.Sprintf("skipping '%s'", testName))
@@ -1590,7 +1586,6 @@ func TestClientLibrary(t *testing.T) {
 }
 
 func Test_ServerSingleGraphiteIntegration_Default(t *testing.T) {
-	t.Parallel()
 	if testing.Short() {
 		t.Skip()
 	}
@@ -1647,7 +1642,6 @@ func Test_ServerSingleGraphiteIntegration_Default(t *testing.T) {
 }
 
 func Test_ServerSingleGraphiteIntegration_FractionalTime(t *testing.T) {
-	t.Parallel()
 	if testing.Short() {
 		t.Skip()
 	}
@@ -1705,7 +1699,6 @@ func Test_ServerSingleGraphiteIntegration_FractionalTime(t *testing.T) {
 }
 
 func Test_ServerSingleGraphiteIntegration_ZeroDataPoint(t *testing.T) {
-	t.Parallel()
 	if testing.Short() {
 		t.Skip()
 	}
@@ -1762,7 +1755,6 @@ func Test_ServerSingleGraphiteIntegration_ZeroDataPoint(t *testing.T) {
 }
 
 func Test_ServerSingleGraphiteIntegration_NoDatabase(t *testing.T) {
-	t.Parallel()
 	if testing.Short() {
 		t.Skip()
 	}
@@ -1828,7 +1820,6 @@ func Test_ServerSingleGraphiteIntegration_NoDatabase(t *testing.T) {
 }
 
 func Test_ServerOpenTSDBIntegration(t *testing.T) {
-	t.Parallel()
 	if testing.Short() {
 		t.Skip()
 	}
@@ -1882,7 +1873,6 @@ func Test_ServerOpenTSDBIntegration(t *testing.T) {
 }
 
 func Test_ServerOpenTSDBIntegration_WithTags(t *testing.T) {
-	t.Parallel()
 	if testing.Short() {
 		t.Skip()
 	}
@@ -1941,7 +1931,6 @@ func Test_ServerOpenTSDBIntegration_WithTags(t *testing.T) {
 }
 
 func Test_ServerOpenTSDBIntegration_BadData(t *testing.T) {
-	t.Parallel()
 	if testing.Short() {
 		t.Skip()
 	}
@@ -1998,7 +1987,6 @@ func Test_ServerOpenTSDBIntegration_BadData(t *testing.T) {
 }
 
 func TestSeparateBrokerDataNode(t *testing.T) {
-	t.Parallel()
 	testName := "TestSeparateBrokerDataNode"
 	if testing.Short() {
 		t.Skip("Skipping", testName)
@@ -2049,7 +2037,6 @@ func TestSeparateBrokerDataNode(t *testing.T) {
 }
 
 func TestSeparateBrokerTwoDataNodes(t *testing.T) {
-	t.Parallel()
 	testName := "TestSeparateBrokerTwoDataNodes"
 	if testing.Short() {
 		t.Skip("Skipping", testName)
