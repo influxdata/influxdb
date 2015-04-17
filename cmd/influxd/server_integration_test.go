@@ -1282,13 +1282,13 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		// Continuous query control.
 		{
 			name:     "create continuous query",
-			query:    `CREATE CONTINUOUS QUERY myquery ON %DB% BEGIN SELECT count(value) INTO measure1 FROM myseries GROUP BY time(10m) END`,
+			query:    `CREATE CONTINUOUS QUERY "my.query" ON %DB% BEGIN SELECT count(value) INTO measure1 FROM myseries GROUP BY time(10m) END`,
 			queryOne: true,
 			expected: `{"results":[{}]}`,
 		},
 		{
 			query:    `SHOW CONTINUOUS QUERIES`,
-			expected: `{"results":[{"series":[{"name":"%DB%","columns":["name","query"],"values":[["myquery","CREATE CONTINUOUS QUERY myquery ON %DB% BEGIN SELECT count(value) INTO \"%DB%\".\"%RP%\".measure1 FROM \"%DB%\".\"%RP%\".myseries GROUP BY time(10m) END"]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"%DB%","columns":["name","query"],"values":[["my.query","CREATE CONTINUOUS QUERY \"my.query\" ON %DB% BEGIN SELECT count(value) INTO \"%DB%\".\"%RP%\".measure1 FROM \"%DB%\".\"%RP%\".myseries GROUP BY time(10m) END"]]}]}]}`,
 		},
 	}
 
