@@ -614,6 +614,20 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		{
+			s: `create continuous query "this.is-a.test" on segments begin select * into measure1 from cpu_load_short end`,
+			stmt: &influxql.CreateContinuousQueryStatement{
+				Name:     "this.is-a.test",
+				Database: "segments",
+				Source: &influxql.SelectStatement{
+					IsRawQuery: true,
+					Fields:     []*influxql.Field{{Expr: &influxql.Wildcard{}}},
+					Target:     &influxql.Target{Measurement: &influxql.Measurement{Name: "measure1"}},
+					Sources:    []influxql.Source{&influxql.Measurement{Name: "cpu_load_short"}},
+				},
+			},
+		},
+
 		// CREATE CONTINUOUS QUERY ... INTO <retention-policy>.<measurement>
 		{
 			s: `CREATE CONTINUOUS QUERY myquery ON testdb BEGIN SELECT count() INTO "1h.policy1"."cpu.load" FROM myseries GROUP BY time(5m) END`,
@@ -647,7 +661,8 @@ func TestParser_ParseStatement(t *testing.T) {
 				Name:     "myquery",
 				Database: "testdb",
 				Source: &influxql.SelectStatement{
-					Fields: []*influxql.Field{{Expr: &influxql.Call{Name: "value"}}},
+					IsRawQuery: true,
+					Fields:     []*influxql.Field{{Expr: &influxql.VarRef{Val: "value"}}},
 					Target: &influxql.Target{
 						Measurement: &influxql.Measurement{RetentionPolicy: "policy1", Name: "value"},
 					},
@@ -663,8 +678,9 @@ func TestParser_ParseStatement(t *testing.T) {
 				Name:     "myquery",
 				Database: "testdb",
 				Source: &influxql.SelectStatement{
-					Fields: []*influxql.Field{{Expr: &influxql.Call{Name: "transmit_rx"}},
-						{Expr: &influxql.Call{Name: "transmit_tx"}}},
+					IsRawQuery: true,
+					Fields: []*influxql.Field{{Expr: &influxql.VarRef{Val: "transmit_rx"}},
+						{Expr: &influxql.VarRef{Val: "transmit_tx"}}},
 					Target: &influxql.Target{
 						Measurement: &influxql.Measurement{RetentionPolicy: "policy1", Name: "network"},
 					},
@@ -1035,13 +1051,14 @@ func TestParser_ParseStatement(t *testing.T) {
 		// We are memoizing a field so for testing we need to...
 		if s, ok := tt.stmt.(*influxql.SelectStatement); ok {
 			s.GroupByInterval()
-		}
-		if !reflect.DeepEqual(tt.err, errstring(err)) {
-			t.Errorf("%d. %q: error mismatch:\n  exp=%s\n  got=%s\n\n", i, tt.s, tt.err, err)
 		} else if st, ok := stmt.(*influxql.CreateContinuousQueryStatement); ok { // if it's a CQ, there is a non-exported field that gets memoized during parsing that needs to be set
 			if st != nil && st.Source != nil {
 				tt.stmt.(*influxql.CreateContinuousQueryStatement).Source.GroupByInterval()
 			}
+		}
+
+		if !reflect.DeepEqual(tt.err, errstring(err)) {
+			t.Errorf("%d. %q: error mismatch:\n  exp=%s\n  got=%s\n\n", i, tt.s, tt.err, err)
 		} else if tt.err == "" && !reflect.DeepEqual(tt.stmt, stmt) {
 			t.Logf("exp=%s\ngot=%s\n", mustMarshalJSON(tt.stmt), mustMarshalJSON(stmt))
 			t.Errorf("%d. %q\n\nstmt mismatch:\n\nexp=%#v\n\ngot=%#v\n\n", i, tt.s, tt.stmt, stmt)
