@@ -10,6 +10,8 @@
 - [#2242](https://github.com/influxdb/influxdb/pull/2242): Distributed Query should balance requests
 - [#2243](https://github.com/influxdb/influxdb/pull/2243): Use Limit Reader instead of fixed 1MB/1GB slice for DQ
 - [#2190](https://github.com/influxdb/influxdb/pull/2190): Implement failover to other data nodes for distributed queries
+- [#2324](https://github.com/influxdb/influxdb/issues/2324): Race in Broker.Close()/Broker.RunContinousQueryProcessing()
+- [#2325](https://github.com/influxdb/influxdb/pull/2325): Cluster open fixes
 
 ## v0.9.0-rc25 [2015-04-15]
 
