@@ -7,6 +7,7 @@ import (
 	"net/textproto"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/influxdb/influxdb"
@@ -36,6 +37,7 @@ type Server struct {
 
 	listener *net.TCPListener
 	done     chan struct{}
+	wg       sync.WaitGroup
 }
 
 func NewServer(w SeriesWriter, retpol string, db string) *Server {
@@ -69,7 +71,9 @@ func (s *Server) ListenAndServe(listenAddress string) {
 		return
 	}
 
+	s.wg.Add(1)
 	go func() {
+		defer s.wg.Done()
 		for {
 			select {
 			case <-s.done:
@@ -89,6 +93,9 @@ func (s *Server) ListenAndServe(listenAddress string) {
 
 func (s *Server) Close() error {
 	close(s.done)
+	s.wg.Wait()
+	s.done = nil
+
 	if s.listener != nil {
 		err := s.listener.Close()
 		s.listener = nil
