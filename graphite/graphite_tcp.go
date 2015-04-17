@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/influxdb/influxdb"
 )
@@ -15,6 +16,10 @@ type TCPServer struct {
 	writer   SeriesWriter
 	parser   *Parser
 	database string
+	listener *net.Listener
+
+	done chan struct{}
+	wg   sync.WaitGroup
 
 	Logger *log.Logger
 }
@@ -26,6 +31,7 @@ func NewTCPServer(p *Parser, w SeriesWriter, db string) *TCPServer {
 		writer:   w,
 		database: db,
 		Logger:   log.New(os.Stderr, "[graphite] ", log.LstdFlags),
+		done:     make(chan struct{}),
 	}
 }
 
@@ -40,25 +46,66 @@ func (t *TCPServer) ListenAndServe(iface string) error {
 	if err != nil {
 		return err
 	}
+	t.listener = &ln
+
+	t.Logger.Println("listening on TCP connection", ln.Addr().String())
+	t.wg.Add(1)
 	go func() {
+		defer t.wg.Done()
 		for {
+			select {
+			case <-t.done:
+				return
+			default:
+				// Keep processing.
+			}
 			conn, err := ln.Accept()
 			if err != nil {
 				t.Logger.Println("error accepting TCP connection", err.Error())
 				continue
 			}
+
+			t.wg.Add(1)
 			go t.handleConnection(conn)
 		}
 	}()
 	return nil
 }
 
+func (t *TCPServer) Host() string {
+	l := *t.listener
+	return l.Addr().String()
+}
+
+func (t *TCPServer) Close() error {
+	close(t.done)
+	t.wg.Wait()
+	t.done = nil
+
+	if t.listener != nil {
+		l := *t.listener
+		err := l.Close()
+		t.listener = nil
+		return err
+	} else {
+		return nil
+	}
+}
+
 // handleConnection services an individual TCP connection.
 func (t *TCPServer) handleConnection(conn net.Conn) {
 	defer conn.Close()
+	defer t.wg.Done()
 
 	reader := bufio.NewReader(conn)
 	for {
+		select {
+		case <-t.done:
+			log.Println("disconnecting", conn.RemoteAddr())
+			return
+		default:
+		}
+
 		// Read up to the next newline.
 		buf, err := reader.ReadBytes('\n')
 		if err != nil {
