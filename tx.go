@@ -155,8 +155,10 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 						return nil, ErrShardNotFound
 					}
 
+					balancer := NewDataNodeBalancer(nodes)
+
 					mapper = &RemoteMapper{
-						dataNodes:       nodes,
+						dataNodes:       balancer,
 						Database:        mm.Database,
 						MeasurementName: m.Name,
 						TMin:            tmin.UnixNano(),

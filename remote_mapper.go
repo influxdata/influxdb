@@ -4,23 +4,25 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 
 	"github.com/influxdb/influxdb/influxql"
 )
 
 const (
-	MAX_MAP_RESPONSE_SIZE = 1024 * 1024
+	MAX_MAP_RESPONSE_SIZE = 1024 * 1024 * 1024
 )
 
 // RemoteMapper implements the influxql.Mapper interface. The engine uses the remote mapper
 // to pull map results from shards that only exist on other servers in the cluster.
 type RemoteMapper struct {
-	dataNodes []*DataNode
+	dataNodes Balancer
 	resp      *http.Response
 	results   chan interface{}
 	unmarshal influxql.UnmarshalFunc
 	complete  bool
+	decoder   *json.Decoder
 
 	Call            string   `json:",omitempty"`
 	Database        string   `json:",omitempty"`
@@ -77,12 +79,28 @@ func (m *RemoteMapper) Begin(c *influxql.Call, startingTime int64, chunkSize int
 		return err
 	}
 
-	// request to start streaming results
-	resp, err := http.Post(m.dataNodes[0].URL.String()+"/data/run_mapper", "application/json", bytes.NewReader(b))
-	if err != nil {
-		return err
+	var resp *http.Response
+	for {
+		node := m.dataNodes.Next()
+		if node == nil {
+			// no data nodes are available to service this query
+			return ErrNoDataNodeAvailable
+		}
+
+		// request to start streaming results
+		resp, err = http.Post(node.URL.String()+"/data/run_mapper", "application/json", bytes.NewReader(b))
+		if err != nil {
+			node.Down()
+			continue
+		}
+		// Mark the node as up
+		node.Up()
+		break
 	}
+
 	m.resp = resp
+	lr := io.LimitReader(m.resp.Body, MAX_MAP_RESPONSE_SIZE)
+	m.decoder = json.NewDecoder(lr)
 
 	return nil
 }
@@ -94,19 +112,8 @@ func (m *RemoteMapper) NextInterval() (interface{}, error) {
 		return nil, nil
 	}
 
-	// read the chunk
-	chunk := make([]byte, MAX_MAP_RESPONSE_SIZE, MAX_MAP_RESPONSE_SIZE)
-	n, err := m.resp.Body.Read(chunk)
-	if err != nil {
-		return nil, err
-	}
-	if n == 0 {
-		return nil, nil
-	}
-
-	// marshal the response
 	mr := &MapResponse{}
-	err = json.Unmarshal(chunk[:n], mr)
+	err := m.decoder.Decode(&mr)
 	if err != nil {
 		return nil, err
 	}

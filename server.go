@@ -3524,8 +3524,53 @@ type MessagingConn interface {
 
 // DataNode represents a data node in the cluster.
 type DataNode struct {
+	mu  sync.RWMutex
 	ID  uint64
 	URL *url.URL
+
+	// downCount is the number of times the DataNode has been marked as down
+	downCount uint
+
+	// OfflineUntil is the time when the DataNode will no longer be consider down
+	OfflineUntil time.Time
+}
+
+// Down marks the DataNode as offline for a period of time.  Each successive
+// call to Down will exponentially extend the offline time with a maximum
+// offline time of 5 minutes.
+func (d *DataNode) Down() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	// Clamp the timeout to 5 mins max
+	t := 2 << d.downCount
+	if t > 300 {
+		t = 300
+	}
+	d.OfflineUntil = time.Now().Add(time.Duration(t) * time.Second)
+	d.downCount += 1
+
+	log.Printf("data node %s marked offline for %ds", d.URL.String(), t)
+}
+
+// Up marks this DataNode as online if it was currently down
+func (d *DataNode) Up() {
+	d.mu.RLock()
+	if d.downCount != 0 {
+		// Upgrade to a write lock
+		d.mu.RUnlock()
+		d.mu.Lock()
+
+		// Reset state to online
+		d.downCount = 0
+		d.OfflineUntil = time.Now()
+
+		d.mu.Unlock()
+
+		log.Printf("data node %s marked online", d.URL.String())
+		return
+	}
+	d.mu.RUnlock()
 }
 
 // newDataNode returns an instance of DataNode.

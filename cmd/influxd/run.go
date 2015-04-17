@@ -279,6 +279,7 @@ func (cmd *RunCommand) Open(config *Config, join string) *Node {
 
 		//FIXME: Need to also pass in dataURLs to bootstrap a data node
 		s = cmd.openServer(joinURLs)
+		cmd.node.DataNode = s
 		s.SetAuthenticationEnabled(cmd.config.Authentication.Enabled)
 		log.Printf("authentication enabled: %v\n", cmd.config.Authentication.Enabled)
 
@@ -568,7 +569,6 @@ func (cmd *RunCommand) openServer(joinURLs []url.URL) *influxdb.Server {
 	s.ComputeNoMoreThan = time.Duration(cmd.config.ContinuousQuery.ComputeNoMoreThan)
 	s.Version = version
 	s.CommitHash = commit
-	cmd.node.DataNode = s
 
 	// Open server with data directory and broker client.
 	if err := s.Open(cmd.config.Data.Dir, c); err != nil {

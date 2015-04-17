@@ -1,9 +1,15 @@
 ## v0.9.0-rc26 [unreleased]
 
+### Features
+- [#2301](https://github.com/influxdb/influxdb/pull/2301): Distributed query load balancing and failover
+
 ### Bugfixes
 - [#2297](https://github.com/influxdb/influxdb/pull/2297): create /var/run during startup. Thanks @neonstalwart.
 - [#2312](https://github.com/influxdb/influxdb/pull/2312): Re-use httpclient for continuous queries
 - [#2318](https://github.com/influxdb/influxdb/pull/2318): Remove pointless use of 'done' channel for collectd.
+- [#2242](https://github.com/influxdb/influxdb/pull/2242): Distributed Query should balance requests
+- [#2243](https://github.com/influxdb/influxdb/pull/2243): Use Limit Reader instead of fixed 1MB/1GB slice for DQ
+- [#2190](https://github.com/influxdb/influxdb/pull/2190): Implement failover to other data nodes for distributed queries
 
 ## v0.9.0-rc25 [2015-04-15]
 
