@@ -76,7 +76,7 @@ func (c *Cluster) Close() {
 //
 // This function returns a slice of nodes, the first of which will be the leader.
 func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes int, baseConfig *main.Config) Cluster {
-	basePort := 8086
+	basePort := 10000
 	t.Logf("Creating cluster of %d nodes for test %s", nNodes, testName)
 	if nNodes < 1 {
 		t.Fatalf("Test %s: asked to create nonsense cluster", testName)
@@ -105,6 +105,7 @@ func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes int
 	c.Admin.Enabled = false
 	c.ReportingDisabled = true
 	c.Snapshot.Enabled = false
+	c.Logging.HTTPAccess = false
 
 	cmd := main.NewRunCommand()
 	node := cmd.Open(c, "")
@@ -177,7 +178,9 @@ func write(t *testing.T, node *TestNode, data string) {
 		t.Fatalf("Couldn't write data: %s", err)
 	}
 	body, _ := ioutil.ReadAll(resp.Body)
-	fmt.Println("BODY: ", string(body))
+	if string(body) != "" {
+		t.Log("BODY: ", string(body))
+	}
 	if resp.StatusCode != http.StatusOK {
 		body, _ := ioutil.ReadAll(resp.Body)
 		t.Fatalf("Write to database failed.  Unexpected status code.  expected: %d, actual %d, %s", http.StatusOK, resp.StatusCode, string(body))
@@ -229,7 +232,7 @@ func queryAndWait(t *testing.T, nodes Cluster, urlDb, q, expected, expectPattern
 		v.Set("db", urlDb)
 	}
 
-	sleep := 10 * time.Millisecond
+	sleep := 1 * time.Second
 	// Check to see if they set the env for duration sleep
 	if sleepRaw := os.Getenv("TEST_SLEEP"); sleepRaw != "" {
 		d, err := time.ParseDuration(sleepRaw)
@@ -1354,7 +1357,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 				urlDb = tt.queryDb
 			}
 			qry := rewriteDbRp(tt.query, database, retention)
-			got, ok := queryAndWait(t, qNodes, rewriteDbRp(urlDb, database, retention), qry, rewriteDbRp(tt.expected, database, retention), rewriteDbRp(tt.expectPattern, database, retention), 60*time.Second)
+			got, ok := queryAndWait(t, qNodes, rewriteDbRp(urlDb, database, retention), qry, rewriteDbRp(tt.expected, database, retention), rewriteDbRp(tt.expectPattern, database, retention), 10*time.Second)
 			if !ok {
 				if tt.expected != "" {
 					t.Errorf("Test #%d: \"%s\" failed\n  query: %s\n  exp: %s\n  got: %s\n", i, name, qry, rewriteDbRp(tt.expected, database, retention), got)
@@ -1404,7 +1407,6 @@ func Test3NodeServer(t *testing.T) {
 
 // ensure that all queries work if there are more nodes in a cluster than the replication factor
 func Test3NodeClusterPartiallyReplicated(t *testing.T) {
-	t.Skip("Skipping due to instability")
 	testName := "3-node server integration partial replication"
 	if testing.Short() {
 		t.Skip(fmt.Sprintf("skipping '%s'", testName))

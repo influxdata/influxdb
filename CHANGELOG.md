@@ -5,6 +5,9 @@
 - [#2312](https://github.com/influxdb/influxdb/pull/2312): Re-use httpclient for continuous queries
 - [#2318](https://github.com/influxdb/influxdb/pull/2318): Remove pointless use of 'done' channel for collectd.
 
+### Features
+- [#2246](https://github.com/influxdb/influxdb/pull/2246): Allow HTTP logging to be controlled.
+
 ## v0.9.0-rc25 [2015-04-15]
 
 ### Bugfixes
