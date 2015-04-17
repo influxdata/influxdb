@@ -179,6 +179,7 @@ type Config struct {
 	Snapshot Snapshot `toml:"snapshot"`
 
 	Logging struct {
+		HTTPAccess   bool `toml:"http-access"`
 		WriteTracing bool `toml:"write-tracing"`
 		RaftTracing  bool `toml:"raft-tracing"`
 	} `toml:"logging"`
@@ -237,6 +238,10 @@ func NewConfig() *Config {
 	c.Data.RetentionCheckEnabled = DefaultRetentionCheckEnabled
 	c.Data.RetentionCheckPeriod = Duration(DefaultRetentionCheckPeriod)
 	c.Data.RetentionCreatePeriod = Duration(DefaultRetentionCreatePeriod)
+
+	c.Logging.HTTPAccess = true
+	c.Logging.WriteTracing = false
+	c.Logging.RaftTracing = false
 
 	c.Monitoring.Enabled = false
 	c.Monitoring.WriteInterval = Duration(DefaultStatisticsWriteInterval)

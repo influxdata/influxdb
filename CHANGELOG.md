@@ -14,6 +14,9 @@
 - [#2325](https://github.com/influxdb/influxdb/pull/2325): Cluster open fixes
 - [#2326](https://github.com/influxdb/influxdb/pull/2326): Fix parse error in CREATE CONTINUOUS QUERY
 
+### Features
+- [#2246](https://github.com/influxdb/influxdb/pull/2246): Allow HTTP logging to be controlled.
+
 ## v0.9.0-rc25 [2015-04-15]
 
 ### Bugfixes
