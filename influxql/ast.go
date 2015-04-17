@@ -1281,7 +1281,7 @@ type CreateContinuousQueryStatement struct {
 
 // String returns a string representation of the statement.
 func (s *CreateContinuousQueryStatement) String() string {
-	return fmt.Sprintf("CREATE CONTINUOUS QUERY %s ON %s BEGIN %s END", s.Name, s.Database, s.Source.String())
+	return fmt.Sprintf("CREATE CONTINUOUS QUERY %s ON %s BEGIN %s END", QuoteIdent(s.Name), QuoteIdent(s.Database), s.Source.String())
 }
 
 // DefaultDatabase returns the default database from the statement.
