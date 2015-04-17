@@ -176,6 +176,15 @@ func deleteDatabase(t *testing.T, testName string, nodes Cluster, database strin
 	query(t, nodes[:1], "", "DROP DATABASE "+database, `{"results":[{}]}`, "")
 }
 
+// dumpClusterDiags dumps the diagnositcs of each node.
+func dumpClusterDiags(t *testing.T, testName string, nodes Cluster) {
+	t.Logf("Test: %s: dumping node diagnostics", testName)
+	for _, n := range nodes {
+		r, _, _ := query(t, Cluster{n}, "", "SHOW DIAGNOSTICS", "", "")
+		t.Log(r)
+	}
+}
+
 // writes writes the provided data to the cluster. It verfies that a 200 OK is returned by the server.
 func write(t *testing.T, node *TestNode, data string) {
 	u := urlFor(node.url, "write", url.Values{})
@@ -1377,6 +1386,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 				} else {
 					t.Errorf("Test #%d: \"%s:%s\" failed\n  query: %s\n  exp: %s\n  got: %s\n%d nodes responded correctly", i, testName, name, qry, rewriteDbRp(tt.expectPattern, database, retention), got, nOK)
 				}
+				dumpClusterDiags(t, name, nodes)
 			}
 		}
 	}
