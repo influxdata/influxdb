@@ -237,7 +237,7 @@ func queryAndWait(t *testing.T, nodes Cluster, urlDb, q, expected, expectPattern
 		v.Set("db", urlDb)
 	}
 
-	sleep := 1 * time.Second
+	sleep := 100 * time.Millisecond
 	// Check to see if they set the env for duration sleep
 	if sleepRaw := os.Getenv("TEST_SLEEP"); sleepRaw != "" {
 		d, err := time.ParseDuration(sleepRaw)
