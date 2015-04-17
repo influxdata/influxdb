@@ -541,8 +541,7 @@ func TestHandler_GzipEnabled(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept-Encoding", "gzip")
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		panic(err)
 	}
@@ -567,8 +566,7 @@ func TestHandler_GzipDisabled(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept-Encoding", "")
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		panic(err)
 	}
@@ -1234,8 +1232,6 @@ func TestHandler_serveWriteSeries_errorHasJsonContentType(t *testing.T) {
 	s := NewAPIServer(srvr)
 	defer s.Close()
 
-	client := &http.Client{}
-
 	req, err := http.NewRequest("POST", s.URL+`/write`, bytes.NewBufferString("{}"))
 	if err != nil {
 		panic(err)
@@ -1244,7 +1240,7 @@ func TestHandler_serveWriteSeries_errorHasJsonContentType(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept-Encoding", "gzip")
 
-	resp, err := client.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		panic(err)
 	}
@@ -1273,8 +1269,6 @@ func TestHandler_serveWriteSeries_queryHasJsonContentType(t *testing.T) {
 
 	srvr.Restart() // Ensure data is queryable across restarts.
 
-	client := &http.Client{}
-
 	params := url.Values{}
 	params.Add("db", "foo")
 	params.Add("q", "select * from cpu")
@@ -1285,7 +1279,7 @@ func TestHandler_serveWriteSeries_queryHasJsonContentType(t *testing.T) {
 
 	req.Header.Set("Accept-Encoding", "gzip")
 
-	resp, err := client.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		panic(err)
 	}
@@ -1304,7 +1298,7 @@ func TestHandler_serveWriteSeries_queryHasJsonContentType(t *testing.T) {
 
 	req_error.Header.Set("Accept-Encoding", "gzip")
 
-	resp_error, err := client.Do(req_error)
+	resp_error, err := http.DefaultClient.Do(req_error)
 	if err != nil {
 		panic(err)
 	}
@@ -1726,8 +1720,7 @@ func MustHTTP(verb, path string, params, headers map[string]string, body string)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		panic(err)
 	}

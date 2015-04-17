@@ -107,7 +107,7 @@ func (s *Node) openListener(desc, addr string, h http.Handler) (net.Listener, er
 
 		// The listener was closed so exit
 		// See https://github.com/golang/go/issues/4373
-		if operr, ok := err.(*net.OpError); ok && strings.Contains(operr.Err.Error(), "closed network connection") {
+		if strings.Contains(err.Error(), "closed") {
 			return
 		}
 		if err != nil {
