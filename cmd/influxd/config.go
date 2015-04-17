@@ -16,7 +16,6 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/influxdb/influxdb/collectd"
 	"github.com/influxdb/influxdb/graphite"
-	"github.com/influxdb/influxdb/opentsdb"
 )
 
 const (
@@ -471,7 +470,7 @@ func (c *Collectd) ConnectionString(defaultBindAddr string) string {
 
 type Graphite struct {
 	BindAddress string `toml:"bind-address"`
-	Port        uint16 `toml:"port"`
+	Port        int    `toml:"port"`
 
 	Database      string `toml:"database"`
 	Enabled       bool   `toml:"enabled"`
@@ -481,21 +480,8 @@ type Graphite struct {
 }
 
 // ConnnectionString returns the connection string for this Graphite config in the form host:port.
-func (g *Graphite) ConnectionString(defaultBindAddr string) string {
-
-	addr := g.BindAddress
-	// If no address specified, use default.
-	if addr == "" {
-		addr = defaultBindAddr
-	}
-
-	port := g.Port
-	// If no port specified, use default.
-	if port == 0 {
-		port = graphite.DefaultGraphitePort
-	}
-
-	return fmt.Sprintf("%s:%d", addr, port)
+func (g *Graphite) ConnectionString() string {
+	return net.JoinHostPort(g.BindAddress, strconv.Itoa(g.Port))
 }
 
 // NameSeparatorString returns the character separating fields for Graphite data, or the default
@@ -538,17 +524,6 @@ func (o OpenTSDB) DatabaseString() string {
 	return o.Database
 }
 
-func (o OpenTSDB) ListenAddress(defaultBindAddr string) string {
-	addr := o.Addr
-	// If no address specified, use default.
-	if addr == "" {
-		addr = defaultBindAddr
-	}
-
-	port := o.Port
-	// If no port specified, use default.
-	if port == 0 {
-		port = opentsdb.DefaultPort
-	}
-	return net.JoinHostPort(addr, strconv.Itoa(port))
+func (o OpenTSDB) ListenAddress() string {
+	return net.JoinHostPort(o.Addr, strconv.Itoa(o.Port))
 }

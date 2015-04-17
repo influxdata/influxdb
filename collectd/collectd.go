@@ -74,12 +74,12 @@ func ListenAndServe(s *Server, iface string) error {
 	s.conn = conn
 
 	s.wg.Add(1)
-	go s.serve(s.done)
+	go s.serve()
 
 	return nil
 }
 
-func (s *Server) serve(done chan struct{}) {
+func (s *Server) serve() {
 	defer s.wg.Done()
 
 	// From https://collectd.org/wiki/index.php/Binary_protocol

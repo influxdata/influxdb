@@ -1,9 +1,12 @@
-dependencies:
+machine:
     pre:
-        - go get -u golang.org/x/tools/cmd/vet;
+        - bash < <(curl -s -S -L https://raw.githubusercontent.com/moovweb/gvm/master/binscripts/gvm-installer)
+        - source $HOME/.gvm/scripts/gvm; gvm install go1.4
 
-
+dependencies:
+    override:
+        - echo "Dummy override, so no Circle dependencies execute"
 test:
     override:
-    # Put each test command on its own line.
-        - go tool vet .
+        - bash circle-test.sh:
+            parallel: true
