@@ -1586,6 +1586,7 @@ func TestClientLibrary(t *testing.T) {
 }
 
 func Test_ServerSingleGraphiteIntegration_Default(t *testing.T) {
+	t.Skip("skipping due to timeouts")
 	if testing.Short() {
 		t.Skip()
 	}
@@ -1642,6 +1643,7 @@ func Test_ServerSingleGraphiteIntegration_Default(t *testing.T) {
 }
 
 func Test_ServerSingleGraphiteIntegration_FractionalTime(t *testing.T) {
+	t.Skip("skipping due to timeouts")
 	if testing.Short() {
 		t.Skip()
 	}
@@ -1699,6 +1701,7 @@ func Test_ServerSingleGraphiteIntegration_FractionalTime(t *testing.T) {
 }
 
 func Test_ServerSingleGraphiteIntegration_ZeroDataPoint(t *testing.T) {
+	t.Skip("skipping due to timeouts")
 	if testing.Short() {
 		t.Skip()
 	}
@@ -1755,6 +1758,7 @@ func Test_ServerSingleGraphiteIntegration_ZeroDataPoint(t *testing.T) {
 }
 
 func Test_ServerSingleGraphiteIntegration_NoDatabase(t *testing.T) {
+	t.Skip("skipping due to timeouts")
 	if testing.Short() {
 		t.Skip()
 	}
