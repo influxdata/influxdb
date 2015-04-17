@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/influxdb/influxdb"
 )
@@ -17,8 +18,10 @@ type TCPServer struct {
 	database string
 	listener *net.Listener
 
+	done chan struct{}
+	wg   sync.WaitGroup
+
 	Logger *log.Logger
-	done   chan struct{}
 }
 
 // NewTCPServer returns a new instance of a TCPServer.
@@ -46,7 +49,9 @@ func (t *TCPServer) ListenAndServe(iface string) error {
 	t.listener = &ln
 
 	t.Logger.Println("listening on TCP connection", ln.Addr().String())
+	t.wg.Add(1)
 	go func() {
+		defer t.wg.Done()
 		for {
 			select {
 			case <-t.done:
@@ -72,6 +77,9 @@ func (t *TCPServer) Host() string {
 
 func (t *TCPServer) Close() error {
 	close(t.done)
+	t.wg.Wait()
+	t.done = nil
+
 	if t.listener != nil {
 		l := *t.listener
 		err := l.Close()
