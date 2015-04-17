@@ -5,13 +5,14 @@
 - [#2469](https://github.com/influxdb/influxdb/pull/2469): Reduce default max topic size from 1GB to 50MB.
 
 ### Bugfixes
-- [#2446] (https://github.com/influxdb/influxdb/pull/2446): Correctly count number of queries executed. Thanks @neonstalwart
+- [#2446](https://github.com/influxdb/influxdb/pull/2446): Correctly count number of queries executed. Thanks @neonstalwart
 - [#2452](https://github.com/influxdb/influxdb/issues/2452): Fix panic with shard stats on multiple clusters
 - [#2453](https://github.com/influxdb/influxdb/pull/2453): Do not require snapshot on Log.WriteEntriesTo().
 - [#2460](https://github.com/influxdb/influxdb/issues/2460): Collectd input should use "value" for fields values. Fixes 2412. Thanks @josh-padnick
 - [#2465](https://github.com/influxdb/influxdb/pull/2465): HTTP response logging paniced with chunked requests. Thanks @Jackkoz
 - [#2475](https://github.com/influxdb/influxdb/pull/2475): RLock server when checking if shards groups are required during write.
 - [#2471](https://github.com/influxdb/influxdb/issues/2471): Function calls normalized to be lower case. Fixes percentile not working when called uppercase. Thanks @neonstalwart
+- [#2281](https://github.com/influxdb/influxdb/issues/2281): Fix Bad Escape error when parsing regex
 
 ## v0.9.0-rc28 [04-27-2015]
 
