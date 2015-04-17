@@ -204,6 +204,50 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 	out <- row
 }
 
+// mergeOutputs merges two sorted slices of rawQueryMapOutput such that duplicate
+// timestamp entries, if they exists, are remove and the final output is sorted by time
+func (m *MapReduceJob) mergeOutputs(first, second []*rawQueryMapOutput) []*rawQueryMapOutput {
+	var i, j int
+	v := []*rawQueryMapOutput{}
+	for {
+
+		// indexes are past both slice maxes
+		if i >= len(first) && j >= len(second) {
+			break
+		}
+
+		// first slice is done, append the rest of second
+		if i >= len(first) {
+			v = append(v, second[j:]...)
+			break
+		}
+
+		// second slice is done, append the rest of first
+		if j >= len(second) {
+			v = append(v, first[i:]...)
+			break
+		}
+
+		f := first[i]
+		s := second[j]
+
+		// append the next smallest value to keep output sorted by time
+		if f.Timestamp < s.Timestamp {
+			v = append(v, f)
+			i += 1
+		} else if f.Timestamp > s.Timestamp {
+			v = append(v, s)
+			j += 1
+			// timestamps are the same so there is a dup, pick exiting and continue
+		} else {
+			v = append(v, f)
+			i += 1
+			j += 1
+		}
+	}
+	return v
+}
+
 // processRawQuery will handle running the mappers and then reducing their output
 // for queries that pull back raw data values without computing any kind of aggregates.
 func (m *MapReduceJob) processRawQuery(out chan *Row, filterEmptyResults bool) {
@@ -313,7 +357,8 @@ func (m *MapReduceJob) processRawQuery(out chan *Row, filterEmptyResults bool) {
 			valuesSent += len(values)
 		}
 
-		valuesToReturn = append(valuesToReturn, values...)
+		// merge the existing values with the new ones
+		valuesToReturn = m.mergeOutputs(valuesToReturn, values)
 
 		// hit the chunk size? Send out what has been accumulated, but keep
 		// processing.

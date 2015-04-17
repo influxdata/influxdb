@@ -139,60 +139,56 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 
 			// create mappers for each shard we need to hit
 			for _, sg := range shardGroups {
-				if len(sg.Shards) != 1 { // we'll only have more than 1 shard in a group when RF < # servers in cluster
-					// TODO: implement distributed queries.
-					panic("distributed queries not implemented yet and there are too many shards in this group")
+				for _, shard := range sg.Shards {
+					var mapper influxql.Mapper
+
+					// create either a remote or local mapper for this shard
+					if shard.store == nil {
+						nodes := tx.server.DataNodesByID(shard.DataNodeIDs)
+						if len(nodes) == 0 {
+							return nil, ErrShardNotFound
+						}
+
+						balancer := NewDataNodeBalancer(nodes)
+
+						mapper = &RemoteMapper{
+							dataNodes:       balancer,
+							Database:        mm.Database,
+							MeasurementName: m.Name,
+							TMin:            tmin.UnixNano(),
+							TMax:            tmax.UnixNano(),
+							SeriesIDs:       t.SeriesIDs,
+							ShardID:         shard.ID,
+							WhereFields:     whereFields,
+							SelectFields:    selectFields,
+							SelectTags:      selectTags,
+							Limit:           stmt.Limit,
+							Offset:          stmt.Offset,
+							Interval:        interval,
+						}
+						mapper.(*RemoteMapper).SetFilters(t.Filters)
+					} else {
+						mapper = &LocalMapper{
+							seriesIDs:    t.SeriesIDs,
+							db:           shard.store,
+							job:          job,
+							decoder:      NewFieldCodec(m),
+							filters:      t.Filters,
+							whereFields:  whereFields,
+							selectFields: selectFields,
+							selectTags:   selectTags,
+							tmax:         tmax.UnixNano(),
+							interval:     interval,
+							// multiple mappers may need to be merged together to get the results
+							// for a raw query. So each mapper will have to read at least the
+							// limit plus the offset in data points to ensure we've hit our mark
+							limit: uint64(stmt.Limit) + uint64(stmt.Offset),
+						}
+					}
+
+					mappers = append(mappers, mapper)
+
 				}
-
-				shard := sg.Shards[0]
-
-				var mapper influxql.Mapper
-
-				// create either a remote or local mapper for this shard
-				if shard.store == nil {
-					nodes := tx.server.DataNodesByID(shard.DataNodeIDs)
-					if len(nodes) == 0 {
-						return nil, ErrShardNotFound
-					}
-
-					balancer := NewDataNodeBalancer(nodes)
-
-					mapper = &RemoteMapper{
-						dataNodes:       balancer,
-						Database:        mm.Database,
-						MeasurementName: m.Name,
-						TMin:            tmin.UnixNano(),
-						TMax:            tmax.UnixNano(),
-						SeriesIDs:       t.SeriesIDs,
-						ShardID:         shard.ID,
-						WhereFields:     whereFields,
-						SelectFields:    selectFields,
-						SelectTags:      selectTags,
-						Limit:           stmt.Limit,
-						Offset:          stmt.Offset,
-						Interval:        interval,
-					}
-					mapper.(*RemoteMapper).SetFilters(t.Filters)
-				} else {
-					mapper = &LocalMapper{
-						seriesIDs:    t.SeriesIDs,
-						db:           shard.store,
-						job:          job,
-						decoder:      NewFieldCodec(m),
-						filters:      t.Filters,
-						whereFields:  whereFields,
-						selectFields: selectFields,
-						selectTags:   selectTags,
-						tmax:         tmax.UnixNano(),
-						interval:     interval,
-						// multiple mappers may need to be merged together to get the results
-						// for a raw query. So each mapper will have to read at least the
-						// limit plus the offset in data points to ensure we've hit our mark
-						limit: uint64(stmt.Limit) + uint64(stmt.Offset),
-					}
-				}
-
-				mappers = append(mappers, mapper)
 			}
 
 			job.Mappers = mappers
