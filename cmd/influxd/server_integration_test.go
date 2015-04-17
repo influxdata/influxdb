@@ -1333,8 +1333,8 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			continue
 		}
 
-		fmt.Printf("TEST: %d: %s\n", i, name)
-		t.Logf("Running test %d: %s", i, name)
+		fmt.Printf("TEST %d '%s:%s'\n", i, testName, name)
+		t.Logf("Running test %d '%s:%s'", i, testName, name)
 
 		if tt.reset {
 			t.Logf(`reseting for test "%s"`, name)
@@ -1365,9 +1365,9 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			got, ok := queryAndWait(t, qNodes, rewriteDbRp(urlDb, database, retention), qry, rewriteDbRp(tt.expected, database, retention), rewriteDbRp(tt.expectPattern, database, retention), 10*time.Second)
 			if !ok {
 				if tt.expected != "" {
-					t.Errorf("Test #%d: \"%s\" failed\n  query: %s\n  exp: %s\n  got: %s\n", i, name, qry, rewriteDbRp(tt.expected, database, retention), got)
+					t.Errorf("Test #%d: \"%s:%s\" failed\n  query: %s\n  exp: %s\n  got: %s\n", i, testName, name, qry, rewriteDbRp(tt.expected, database, retention), got)
 				} else {
-					t.Errorf("Test #%d: \"%s\" failed\n  query: %s\n  exp: %s\n  got: %s\n", i, name, qry, rewriteDbRp(tt.expectPattern, database, retention), got)
+					t.Errorf("Test #%d: \"%s:%s\" failed\n  query: %s\n  exp: %s\n  got: %s\n", i, testName, name, qry, rewriteDbRp(tt.expectPattern, database, retention), got)
 				}
 			}
 		}
