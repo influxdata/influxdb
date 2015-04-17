@@ -98,6 +98,17 @@ func (m *metastore) mustUpdate(index uint64, fn func(*metatx) error) (err error)
 	return
 }
 
+func (m *metastore) index() uint64 {
+	var index uint64
+	if e := m.view(func(tx *metatx) error {
+		index = tx.index()
+		return nil
+	}); e != nil {
+		panic("unable to fetch metastore index: " + e.Error())
+	}
+	return index
+}
+
 // metatx represents a metastore transaction.
 type metatx struct {
 	*bolt.Tx

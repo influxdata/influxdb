@@ -3261,10 +3261,12 @@ func (s *Server) DiagnosticsAsRows() []*influxql.Row {
 	serverRow := &influxql.Row{
 		Name: "server_diag",
 		Columns: []string{"time", "startTime", "uptime", "id",
-			"path", "authEnabled", "index", "retentionAutoCreate", "numShards", "cqLastRun"},
+			"path", "authEnabled", "index", "metaIndex", "retentionAutoCreate", "numShards",
+			"cqLastRun"},
 		Tags: tags,
 		Values: [][]interface{}{[]interface{}{now, startTime.String(), time.Since(startTime).String(), strconv.FormatUint(s.id, 10),
-			s.path, s.authenticationEnabled, int64(s.index), s.RetentionAutoCreate, len(s.shards), s.lastContinuousQueryRun.String()}},
+			s.path, s.authenticationEnabled, int64(s.index), int64(s.meta.index()), s.RetentionAutoCreate, len(s.shards),
+			s.lastContinuousQueryRun.String()}},
 	}
 
 	// Shard groups.
