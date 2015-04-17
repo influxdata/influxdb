@@ -4,6 +4,7 @@
 - [#2297](https://github.com/influxdb/influxdb/pull/2297): create /var/run during startup. Thanks @neonstalwart.
 - [#2312](https://github.com/influxdb/influxdb/pull/2312): Re-use httpclient for continuous queries
 - [#2318](https://github.com/influxdb/influxdb/pull/2318): Remove pointless use of 'done' channel for collectd.
+- [#2300](https://github.com/influxdb/influxdb/pull/2300): Refactor integration tests.  Properly close Graphite/OpenTSDB listeners.
 
 ## v0.9.0-rc25 [2015-04-15]
 

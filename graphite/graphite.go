@@ -39,6 +39,8 @@ type SeriesWriter interface {
 // Server defines the interface all Graphite servers support.
 type Server interface {
 	ListenAndServe(iface string) error
+	Host() string
+	Close() error
 }
 
 // NewServer return a Graphite server for the given protocol, using the given parser

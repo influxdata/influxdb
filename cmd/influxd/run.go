@@ -45,8 +45,33 @@ type Node struct {
 	raftLog  *raft.Log
 
 	adminServer     *admin.Server
-	clusterListener net.Listener // The cluster TCP listener
-	apiListener     net.Listener // The API TCP listener
+	clusterListener net.Listener      // The cluster TCP listener
+	apiListener     net.Listener      // The API TCP listener
+	GraphiteServers []graphite.Server // The Graphite Servers
+	OpenTSDBServer  *opentsdb.Server  // The OpenTSDB Server
+}
+
+func (s *Node) ClusterAddr() net.Addr {
+	return s.clusterListener.Addr()
+}
+
+func (s *Node) ClusterURL() *url.URL {
+	h, p, e := net.SplitHostPort(s.ClusterAddr().String())
+	if e != nil {
+		panic(e)
+	}
+	if h == "::" || h == "" {
+		// Detect hostname (or set to localhost).
+		if h, _ = os.Hostname(); h == "" {
+			h = "localhost"
+		}
+	}
+
+	h = net.JoinHostPort(h, p)
+	return &url.URL{
+		Scheme: "http",
+		Host:   h,
+	}
 }
 
 func (s *Node) Close() error {
@@ -60,6 +85,18 @@ func (s *Node) Close() error {
 
 	if err := s.closeAdminServer(); err != nil {
 		return err
+	}
+
+	for _, g := range s.GraphiteServers {
+		if err := g.Close(); err != nil {
+			return err
+		}
+	}
+
+	if s.OpenTSDBServer != nil {
+		if err := s.OpenTSDBServer.Close(); err != nil {
+			return err
+		}
 	}
 
 	if s.DataNode != nil {
@@ -79,6 +116,7 @@ func (s *Node) Close() error {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -235,6 +273,29 @@ func (cmd *RunCommand) Run(args ...string) error {
 
 // CheckConfig validates the configuration
 func (cmd *RunCommand) CheckConfig() {
+	// Set any defaults that aren't set
+	// TODO: bring more defaults in here instead of letting helpers do it
+
+	// Normalize Graphite configs
+	for i, _ := range cmd.config.Graphites {
+		if cmd.config.Graphites[i].BindAddress == "" {
+			cmd.config.Graphites[i].BindAddress = cmd.config.BindAddress
+		}
+		if cmd.config.Graphites[i].Port == 0 {
+			cmd.config.Graphites[i].Port = graphite.DefaultGraphitePort
+		}
+	}
+
+	// Normalize openTSDB config
+	if cmd.config.OpenTSDB.Addr == "" {
+		cmd.config.OpenTSDB.Addr = cmd.config.BindAddress
+	}
+
+	if cmd.config.OpenTSDB.Port == 0 {
+		cmd.config.OpenTSDB.Port = opentsdb.DefaultPort
+	}
+
+	// Validate that we have a sane config
 	if !(cmd.config.Data.Enabled || cmd.config.Broker.Enabled) {
 		log.Fatal("Node must be configured as a broker node, data node, or as both.  Run `influxd config` to generate a valid configuration.")
 	}
@@ -263,14 +324,14 @@ func (cmd *RunCommand) Open(config *Config, join string) *Node {
 	if err := cmd.node.openClusterListener(cmd.config.ClusterAddr(), h); err != nil {
 		log.Fatalf("Cluster server failed to listen on %s. %s ", cmd.config.ClusterAddr(), err)
 	}
-	log.Printf("Cluster server listening on %s", cmd.config.ClusterAddr())
+	log.Printf("Cluster server listening on %s", cmd.node.ClusterURL().String())
 
 	// Open broker & raft log, initialize or join as necessary.
 	if cmd.config.Broker.Enabled {
 		cmd.openBroker(joinURLs, h)
 		// If were running as a broker locally, always connect to it since it must
 		// be ready before we can start the data node.
-		joinURLs = []url.URL{cmd.node.Broker.URL()}
+		joinURLs = []url.URL{*cmd.node.ClusterURL()}
 	}
 
 	var s *influxdb.Server
@@ -337,38 +398,39 @@ func (cmd *RunCommand) Open(config *Config, join string) *Node {
 		}
 
 		// Spin up any Graphite servers
-		for _, c := range cmd.config.Graphites {
-			if !c.Enabled {
+		for _, graphiteConfig := range cmd.config.Graphites {
+			if !graphiteConfig.Enabled {
 				continue
 			}
 
 			// Configure Graphite parsing.
 			parser := graphite.NewParser()
-			parser.Separator = c.NameSeparatorString()
-			parser.LastEnabled = c.LastEnabled()
+			parser.Separator = graphiteConfig.NameSeparatorString()
+			parser.LastEnabled = graphiteConfig.LastEnabled()
 
-			if err := s.CreateDatabaseIfNotExists(c.DatabaseString()); err != nil {
-				log.Fatalf("failed to create database for %s Graphite server: %s", c.Protocol, err.Error())
+			if err := s.CreateDatabaseIfNotExists(graphiteConfig.DatabaseString()); err != nil {
+				log.Fatalf("failed to create database for %s Graphite server: %s", graphiteConfig.Protocol, err.Error())
 			}
 
 			// Spin up the server.
 			var g graphite.Server
-			g, err := graphite.NewServer(c.Protocol, parser, s, c.DatabaseString())
+			g, err := graphite.NewServer(graphiteConfig.Protocol, parser, s, graphiteConfig.DatabaseString())
 			if err != nil {
-				log.Fatalf("failed to initialize %s Graphite server: %s", c.Protocol, err.Error())
+				log.Fatalf("failed to initialize %s Graphite server: %s", graphiteConfig.Protocol, err.Error())
 			}
 
-			err = g.ListenAndServe(c.ConnectionString(cmd.config.BindAddress))
+			err = g.ListenAndServe(graphiteConfig.ConnectionString())
 			if err != nil {
-				log.Fatalf("failed to start %s Graphite server: %s", c.Protocol, err.Error())
+				log.Fatalf("failed to start %s Graphite server: %s", graphiteConfig.Protocol, err.Error())
 			}
+			cmd.node.GraphiteServers = append(cmd.node.GraphiteServers, g)
 		}
 
 		// Spin up any OpenTSDB servers
 		if config.OpenTSDB.Enabled {
 			o := config.OpenTSDB
 			db := o.DatabaseString()
-			laddr := o.ListenAddress(config.BindAddress)
+			laddr := o.ListenAddress()
 			policy := o.RetentionPolicy
 
 			if err := s.CreateDatabaseIfNotExists(db); err != nil {
@@ -387,6 +449,7 @@ func (cmd *RunCommand) Open(config *Config, join string) *Node {
 
 			log.Println("Starting OpenTSDB service on", laddr)
 			go os.ListenAndServe(laddr)
+			cmd.node.OpenTSDBServer = os
 		}
 
 		// Start up self-monitoring if enabled.
@@ -469,7 +532,7 @@ func writePIDFile(path string) {
 // creates and initializes a broker.
 func (cmd *RunCommand) openBroker(brokerURLs []url.URL, h *Handler) {
 	path := cmd.config.BrokerDir()
-	u := cmd.config.ClusterURL()
+	u := cmd.node.ClusterURL()
 	raftTracing := cmd.config.Logging.RaftTracing
 
 	// Create broker
@@ -481,7 +544,7 @@ func (cmd *RunCommand) openBroker(brokerURLs []url.URL, h *Handler) {
 
 	// Create raft log.
 	l := raft.NewLog()
-	l.SetURL(u)
+	l.SetURL(*u)
 	l.DebugEnabled = raftTracing
 	b.Log = l
 	cmd.node.raftLog = l
@@ -545,7 +608,7 @@ func joinLog(l *raft.Log, brokerURLs []url.URL) {
 func (cmd *RunCommand) openServer(joinURLs []url.URL) *influxdb.Server {
 
 	// Create messaging client to the brokers.
-	c := influxdb.NewMessagingClient(cmd.config.ClusterURL())
+	c := influxdb.NewMessagingClient(*cmd.node.ClusterURL())
 	c.SetURLs(joinURLs)
 
 	if err := c.Open(filepath.Join(cmd.config.Data.Dir, messagingClientFile)); err != nil {
@@ -581,16 +644,16 @@ func (cmd *RunCommand) openServer(joinURLs []url.URL) *influxdb.Server {
 
 	if s.ID() == 0 && s.Index() == 0 {
 		if len(joinURLs) > 0 {
-			joinServer(s, cmd.config.ClusterURL(), joinURLs)
+			joinServer(s, *cmd.node.ClusterURL(), joinURLs)
 			return s
 		}
 
-		if err := s.Initialize(cmd.config.ClusterURL()); err != nil {
+		if err := s.Initialize(*cmd.node.ClusterURL()); err != nil {
 			log.Fatalf("server initialization error(0): %s", err)
 		}
 
-		u := cmd.config.ClusterURL()
-		log.Printf("initialized data node: %s\n", (&u).String())
+		u := cmd.node.ClusterURL()
+		log.Printf("initialized data node: %s\n", u.String())
 		return s
 	} else {
 		log.Printf("data node already member of cluster. Using existing state and ignoring join URLs")
