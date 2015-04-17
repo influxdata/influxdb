@@ -1443,6 +1443,22 @@ func Test3NodeClusterPartiallyReplicated(t *testing.T) {
 	runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp", len(nodes)-1)
 }
 
+// ensure that all queries work if there are more nodes in a cluster than the replication factor
+func Test5NodeClusterPartiallyReplicated(t *testing.T) {
+	testName := "5-node server integration partial replication"
+	if testing.Short() {
+		t.Skip(fmt.Sprintf("skipping '%s'", testName))
+	}
+	dir := tempfile()
+	defer os.RemoveAll(dir)
+
+	nodes := createCombinedNodeCluster(t, testName, dir, 5, nil)
+	defer nodes.Close()
+
+	runTestsData(t, testName, nodes, "mydb", "myrp", 2)
+	runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp", 2)
+}
+
 func TestClientLibrary(t *testing.T) {
 	testName := "single server integration via client library"
 	if testing.Short() {
