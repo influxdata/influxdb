@@ -3295,14 +3295,19 @@ func (s *Server) DiagnosticsAsRows() []*influxql.Row {
 	// Shards
 	shardsRow := &influxql.Row{Columns: []string{}}
 	shardsRow.Name = "shards_diag"
-	shardsRow.Columns = append(shardsRow.Columns, "time", "id", "dataNodes", "index", "path")
+	shardsRow.Columns = append(shardsRow.Columns, "time", "id", "dataNodes", "index")
 	shardsRow.Tags = tags
 	for _, sh := range s.shards {
 		var nodes []string
 		for _, n := range sh.DataNodeIDs {
 			nodes = append(nodes, strconv.FormatUint(n, 10))
-			shardsRow.Values = append(shardsRow.Values, []interface{}{now, strconv.FormatUint(sh.ID, 10), strings.Join(nodes, ","),
-				strconv.FormatUint(sh.index, 10), sh.store.Path()})
+			shardsRow.Values = append(shardsRow.Values, []interface{}{now, strconv.FormatUint(sh.ID, 10),
+				strings.Join(nodes, ","), strconv.FormatUint(sh.index, 10)})
+		}
+		// Shard may not be local to this node.
+		if sh.store != nil {
+			shardsRow.Columns = append(shardsRow.Columns, "path")
+			shardsRow.Values = append(shardsRow.Values, []interface{}{sh.store.Path()})
 		}
 	}
 
