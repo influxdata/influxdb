@@ -52,9 +52,13 @@ func (t *TCPServer) ListenAndServe(iface string) error {
 		defer t.wg.Done()
 		for {
 			conn, err := ln.Accept()
+			if opErr, ok := err.(*net.OpError); ok && !opErr.Temporary() {
+				t.Logger.Println("graphite TCP listener closed")
+				return
+			}
 			if err != nil {
 				t.Logger.Println("error accepting TCP connection", err.Error())
-				return
+				continue
 			}
 
 			t.wg.Add(1)
