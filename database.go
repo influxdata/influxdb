@@ -283,14 +283,15 @@ func (m *Measurement) seriesByTags(tags map[string]string) *Series {
 // matching the where clause and any filter expression that should be applied to each
 func (m *Measurement) filters(stmt *influxql.SelectStatement) (map[uint64]influxql.Expr, error) {
 	seriesIdsToExpr := make(map[uint64]influxql.Expr)
+
 	if stmt.Condition == nil || stmt.OnlyTimeDimensions() {
 		for _, id := range m.seriesIDs {
 			seriesIdsToExpr[id] = nil
 		}
 		return seriesIdsToExpr, nil
 	}
-	ids, _, _, err := m.walkWhereForSeriesIds(stmt.Condition, seriesIdsToExpr)
 
+	ids, _, _, err := m.walkWhereForSeriesIds(stmt.Condition, seriesIdsToExpr)
 	if err != nil {
 		return nil, err
 	}
