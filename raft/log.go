@@ -1176,7 +1176,7 @@ func (l *Log) heartbeater(term uint64, committed chan uint64, wg *sync.WaitGroup
 		go func(n *ConfigNode) {
 			peerIndex, err := l.Transport.Heartbeat(n.URL, term, commitIndex, leaderID)
 			if err != nil {
-				l.Logger.Printf("send heartbeat: error: %s", err)
+				l.tracef("send heartbeat: error: %s", err)
 				return
 			}
 			peerIndices <- peerIndex

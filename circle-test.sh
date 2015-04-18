@@ -7,6 +7,8 @@
 GORACE="halt_on_error=1"
 BUILD_DIR=$HOME/influxdb-build
 GO_VERSION=go1.4
+PARALLELISM="-parallel 256"
+TIMEOUT="-timeout 300s"
 
 # Executes the given statement, and exits if the command returns a non-zero code.
 function exit_if_fail {
@@ -37,7 +39,7 @@ exit_if_fail git branch --set-upstream-to=origin/$CIRCLE_BRANCH $CIRCLE_BRANCH
 
 # Install the code.
 exit_if_fail cd $GOPATH/src/github.com/influxdb/influxdb
-exit_if_fail go get -f -u -v -t ./...
+exit_if_fail go get -f -u -v ./...
 exit_if_fail git checkout $CIRCLE_BRANCH # 'go get' switches to master. Who knew? Switch back.
 exit_if_fail go build -v ./...
 
@@ -45,10 +47,10 @@ exit_if_fail go build -v ./...
 exit_if_fail go tool vet .
 case $CIRCLE_NODE_INDEX in
     0)
-        exit_if_fail go test -p 1 -v -timeout 300s ./...
+        exit_if_fail go test $PARALLELISM $TIMEOUT ./...
         ;;
     1)
-        exit_if_fail go test -p 1 -v -race -timeout 300s ./...
+        exit_if_fail go test $PARALLELISM $TIMEOUT -race ./...
         ;;
 esac
 
