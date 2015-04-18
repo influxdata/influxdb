@@ -7,6 +7,8 @@
 GORACE="halt_on_error=1"
 BUILD_DIR=$HOME/influxdb-build
 GO_VERSION=go1.4
+PARALLELISM="-parallel 32"
+TIMEOUT="-timeout 300s"
 
 # Executes the given statement, and exits if the command returns a non-zero code.
 function exit_if_fail {
@@ -45,10 +47,10 @@ exit_if_fail go build -v ./...
 exit_if_fail go tool vet .
 case $CIRCLE_NODE_INDEX in
     0)
-        exit_if_fail go test -timeout 300s ./...
+        exit_if_fail go test $PARALLELISM $TIMEOUT ./...
         ;;
     1)
-        exit_if_fail go test -race -timeout 300s ./...
+        exit_if_fail go test $PARALLELISM $TIMEOUT -race ./...
         ;;
 esac
 
