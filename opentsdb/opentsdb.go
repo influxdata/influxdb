@@ -36,7 +36,6 @@ type Server struct {
 	retentionpolicy string
 
 	listener *net.TCPListener
-	done     chan struct{}
 	wg       sync.WaitGroup
 }
 
@@ -46,8 +45,6 @@ func NewServer(w SeriesWriter, retpol string, db string) *Server {
 	s.writer = w
 	s.retentionpolicy = retpol
 	s.database = db
-
-	s.done = make(chan struct{})
 
 	return s
 }
@@ -75,16 +72,10 @@ func (s *Server) ListenAndServe(listenAddress string) {
 	go func() {
 		defer s.wg.Done()
 		for {
-			select {
-			case <-s.done:
-				return
-			default:
-				// Keep processing.
-			}
 			conn, err := s.listener.Accept()
 			if err != nil {
-				log.Println("Error accepting: ", err.Error())
-				continue
+				log.Println("error accepting openTSDB: ", err.Error())
+				return
 			}
 			s.wg.Add(1)
 			go s.HandleConnection(conn)
@@ -93,17 +84,13 @@ func (s *Server) ListenAndServe(listenAddress string) {
 }
 
 func (s *Server) Close() error {
-	close(s.done)
-	s.wg.Wait()
-	s.done = nil
-
+	var err error
 	if s.listener != nil {
-		err := s.listener.Close()
-		s.listener = nil
-		return err
-	} else {
-		return nil
+		err = (*s.listener).Close()
 	}
+	s.wg.Wait()
+	s.listener = nil
+	return err
 }
 
 func (s *Server) HandleConnection(conn net.Conn) {
@@ -114,15 +101,9 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	defer s.wg.Done()
 
 	for {
-		select {
-		case <-s.done:
-			log.Println("disconnecting", conn.RemoteAddr())
-			return
-		default:
-		}
-
 		line, err := tp.ReadLine()
 		if err != nil {
+			log.Println("error reading from openTSDB connection", err.Error())
 			return
 		}
 
