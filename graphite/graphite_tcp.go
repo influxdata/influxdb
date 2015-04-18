@@ -18,8 +18,7 @@ type TCPServer struct {
 	database string
 	listener *net.Listener
 
-	done chan struct{}
-	wg   sync.WaitGroup
+	wg sync.WaitGroup
 
 	Logger *log.Logger
 }
@@ -31,7 +30,6 @@ func NewTCPServer(p *Parser, w SeriesWriter, db string) *TCPServer {
 		writer:   w,
 		database: db,
 		Logger:   log.New(os.Stderr, "[graphite] ", log.LstdFlags),
-		done:     make(chan struct{}),
 	}
 }
 
@@ -53,16 +51,10 @@ func (t *TCPServer) ListenAndServe(iface string) error {
 	go func() {
 		defer t.wg.Done()
 		for {
-			select {
-			case <-t.done:
-				return
-			default:
-				// Keep processing.
-			}
 			conn, err := ln.Accept()
 			if err != nil {
 				t.Logger.Println("error accepting TCP connection", err.Error())
-				continue
+				return
 			}
 
 			t.wg.Add(1)
@@ -78,18 +70,13 @@ func (t *TCPServer) Host() string {
 }
 
 func (t *TCPServer) Close() error {
-	close(t.done)
-	t.wg.Wait()
-	t.done = nil
-
+	var err error
 	if t.listener != nil {
-		l := *t.listener
-		err := l.Close()
-		t.listener = nil
-		return err
-	} else {
-		return nil
+		err = (*t.listener).Close()
 	}
+	t.wg.Wait()
+	t.listener = nil
+	return err
 }
 
 // handleConnection services an individual TCP connection.
@@ -99,13 +86,6 @@ func (t *TCPServer) handleConnection(conn net.Conn) {
 
 	reader := bufio.NewReader(conn)
 	for {
-		select {
-		case <-t.done:
-			log.Println("disconnecting", conn.RemoteAddr())
-			return
-		default:
-		}
-
 		// Read up to the next newline.
 		buf, err := reader.ReadBytes('\n')
 		if err != nil {
