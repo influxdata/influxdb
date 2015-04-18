@@ -122,7 +122,10 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 		}
 
 		// get the sorted unique tag sets for this query.
-		tagSets := m.tagSets(stmt, tagKeys)
+		tagSets, err := m.tagSets(stmt, tagKeys)
+		if err != nil {
+			return nil, err
+		}
 
 		//jobs := make([]*influxql.MapReduceJob, 0, len(tagSets))
 		for _, t := range tagSets {

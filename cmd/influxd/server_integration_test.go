@@ -838,6 +838,12 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			query:    `select foo from "%DB%"."%RP%".where_events where tennant = 'paul' AND time > 1s AND (foo = 'bar' OR foo = 'baz')`,
 			expected: `{"results":[{"series":[{"name":"where_events","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z","bar"],["2009-11-10T23:00:03Z","baz"]]}]}]}`,
 		},
+		{
+			name:          "where on tag that should be double quoted but isn't",
+			queryDb:       "%DB%",
+			query:         `show series where data-center = 'foo'`,
+			expectPattern: `invalid expression: .*`,
+		},
 
 		// LIMIT and OFFSET tests
 
