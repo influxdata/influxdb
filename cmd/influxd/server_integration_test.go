@@ -26,8 +26,8 @@ const (
 	// uses nice round batches, has to deal with leftover.
 	batchSize = 4217
 
-	openTSDBTestTimeout = 10 * time.Second
-	graphiteTestTimeout = 10 * time.Second
+	openTSDBTestTimeout = 5 * time.Second
+	graphiteTestTimeout = 5 * time.Second
 )
 
 type writeFn func(t *testing.T, node *TestNode, database, retention string)
