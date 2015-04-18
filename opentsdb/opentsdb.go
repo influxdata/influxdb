@@ -73,9 +73,13 @@ func (s *Server) ListenAndServe(listenAddress string) {
 		defer s.wg.Done()
 		for {
 			conn, err := s.listener.Accept()
+			if _, ok := err.(*net.OpError); ok && strings.Contains(err.Error(), "use of closed network connection") {
+				log.Println("openTSDB TCP listener closed")
+				return
+			}
 			if err != nil {
 				log.Println("error accepting openTSDB: ", err.Error())
-				return
+				continue
 			}
 			s.wg.Add(1)
 			go s.HandleConnection(conn)
