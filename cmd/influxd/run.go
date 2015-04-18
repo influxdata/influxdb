@@ -105,14 +105,14 @@ func (s *Node) Close() error {
 		}
 	}
 
-	if s.Broker != nil {
-		if err := s.Broker.Close(); err != nil {
+	if s.raftLog != nil {
+		if err := s.raftLog.Close(); err != nil {
 			return err
 		}
 	}
 
-	if s.raftLog != nil {
-		if err := s.raftLog.Close(); err != nil {
+	if s.Broker != nil {
+		if err := s.Broker.Close(); err != nil {
 			return err
 		}
 	}
