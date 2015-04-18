@@ -2503,7 +2503,10 @@ func (s *Server) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, 
 		if stmt.Condition != nil {
 			// Get series IDs that match the WHERE clause.
 			filters := map[uint64]influxql.Expr{}
-			ids, _, _ = m.walkWhereForSeriesIds(stmt.Condition, filters)
+			ids, _, _, err = m.walkWhereForSeriesIds(stmt.Condition, filters)
+			if err != nil {
+				return &Result{Err: err}
+			}
 
 			// TODO: check return of walkWhereForSeriesIds for fields
 		} else {
@@ -2546,7 +2549,10 @@ func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, 
 		if stmt.Condition != nil {
 			// Get series IDs that match the WHERE clause.
 			filters := map[uint64]influxql.Expr{}
-			ids, _, _ = m.walkWhereForSeriesIds(stmt.Condition, filters)
+			ids, _, _, err = m.walkWhereForSeriesIds(stmt.Condition, filters)
+			if err != nil {
+				return &Result{Err: err}
+			}
 
 			// If no series matched, then go to the next measurement.
 			if len(ids) == 0 {
@@ -2761,7 +2767,10 @@ func (s *Server) executeShowTagValuesStatement(stmt *influxql.ShowTagValuesState
 		if stmt.Condition != nil {
 			// Get series IDs that match the WHERE clause.
 			filters := map[uint64]influxql.Expr{}
-			ids, _, _ = m.walkWhereForSeriesIds(stmt.Condition, filters)
+			ids, _, _, err = m.walkWhereForSeriesIds(stmt.Condition, filters)
+			if err != nil {
+				return &Result{Err: err}
+			}
 
 			// If no series matched, then go to the next measurement.
 			if len(ids) == 0 {

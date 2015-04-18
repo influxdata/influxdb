@@ -14,6 +14,7 @@
 - [#2325](https://github.com/influxdb/influxdb/pull/2325): Cluster open fixes
 - [#2326](https://github.com/influxdb/influxdb/pull/2326): Fix parse error in CREATE CONTINUOUS QUERY
 - [#2300](https://github.com/influxdb/influxdb/pull/2300): Refactor integration tests.  Properly close Graphite/OpenTSDB listeners.
+- [#2338](https://github.com/influxdb/influxdb/pull/2338): Fix panic if tag key isn't double quoted when it should have been
 
 ## v0.9.0-rc25 [2015-04-15]
 
