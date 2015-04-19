@@ -1458,7 +1458,6 @@ func Test3NodeServerFailover(t *testing.T) {
 
 // ensure that all queries work if there are more nodes in a cluster than the replication factor
 func Test3NodeClusterPartiallyReplicated(t *testing.T) {
-	t.Skip("Skipping due to instability")
 	t.Parallel()
 	testName := "3-node server integration partial replication"
 	if testing.Short() {
