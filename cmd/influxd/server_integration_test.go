@@ -1435,7 +1435,8 @@ func Test3NodeServer(t *testing.T) {
 }
 
 func Test3NodeServerFailover(t *testing.T) {
-	testName := "3-node server integration"
+	t.Parallel()
+	testName := "3-node server failover integration"
 
 	if testing.Short() {
 		t.Skip(fmt.Sprintf("skipping '%s'", testName))
