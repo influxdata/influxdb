@@ -22,6 +22,21 @@ function exit_if_fail {
     fi
 }
 
+# 'go get' dependencies, will retry requested number of times.
+function go_get {
+    n=1
+    retry_count=$1
+
+    while [ $n -ne $retry_count ]; do
+        go get -f -u -v ./...
+        rc=$?
+        if [ $rc -eq 0 ]; then
+            break
+        fi
+        n=$((n + 1))
+    done
+    return $rc
+}
 
 source $HOME/.gvm/scripts/gvm
 exit_if_fail gvm use $GO_VERSION
@@ -39,7 +54,7 @@ exit_if_fail git branch --set-upstream-to=origin/$CIRCLE_BRANCH $CIRCLE_BRANCH
 
 # Install the code.
 exit_if_fail cd $GOPATH/src/github.com/influxdb/influxdb
-exit_if_fail go get -f -u -v ./...
+exit_if_fail go_get 5
 exit_if_fail git checkout $CIRCLE_BRANCH # 'go get' switches to master. Who knew? Switch back.
 exit_if_fail go build -v ./...
 
