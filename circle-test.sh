@@ -47,10 +47,12 @@ exit_if_fail go build -v ./...
 exit_if_fail go tool vet .
 case $CIRCLE_NODE_INDEX in
     0)
-        exit_if_fail go test $PARALLELISM $TIMEOUT ./...
+        go test $PARALLELISM $TIMEOUT -v ./... 2>&1 | tee $CIRCLE_ARTIFACTS/test_logs.txt
+        exit ${PIPESTATUS[0]}
         ;;
     1)
-        exit_if_fail go test $PARALLELISM $TIMEOUT -race ./...
+        go test $PARALLELISM $TIMEOUT -v -race ./... 2>&1 | tee $CIRCLE_ARTIFACTS/test_logs_race.txt
+        exit ${PIPESTATUS[0]}
         ;;
 esac
 
