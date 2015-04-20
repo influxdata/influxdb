@@ -642,19 +642,8 @@ func (cmd *RunCommand) openServer(joinURLs []url.URL) *influxdb.Server {
 	// Give brokers time to elect a leader if entire cluster is being restarted.
 	time.Sleep(1 * time.Second)
 
-	if s.ID() == 0 && s.Index() == 0 {
-		if len(joinURLs) > 0 {
-			joinServer(s, *cmd.node.ClusterURL(), joinURLs)
-			return s
-		}
-
-		if err := s.Initialize(*cmd.node.ClusterURL()); err != nil {
-			log.Fatalf("server initialization error(0): %s", err)
-		}
-
-		u := cmd.node.ClusterURL()
-		log.Printf("initialized data node: %s\n", u.String())
-		return s
+	if s.ID() == 0 {
+		joinOrInitializeServer(s, *cmd.node.ClusterURL(), joinURLs)
 	} else {
 		log.Printf("data node already member of cluster. Using existing state and ignoring join URLs")
 	}
@@ -662,10 +651,8 @@ func (cmd *RunCommand) openServer(joinURLs []url.URL) *influxdb.Server {
 	return s
 }
 
-// joins a server to an existing cluster.
-func joinServer(s *influxdb.Server, u url.URL, joinURLs []url.URL) {
-	// TODO: Use separate broker and data join urls.
-
+// joinOrInitializeServer a server to an existing cluster or initializes.
+func joinOrInitializeServer(s *influxdb.Server, u url.URL, joinURLs []url.URL) {
 	// Create data node on an existing data node.
 	for _, joinURL := range joinURLs {
 		if err := s.Join(&u, &joinURL); err == influxdb.ErrDataNodeNotFound {
@@ -682,6 +669,15 @@ func joinServer(s *influxdb.Server, u url.URL, joinURLs []url.URL) {
 			return
 		}
 	}
+
+	if len(joinURLs) == 0 {
+		if err := s.Initialize(u); err != nil {
+			log.Fatalf("server initialization error(2): %s", err)
+		}
+		log.Printf("initialized data node: %s\n", (&u).String())
+		return
+	}
+
 	log.Fatalf("join: failed to connect data node to any specified server")
 }
 
