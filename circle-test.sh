@@ -30,6 +30,7 @@ function go_get {
     while [ $n -ne $retry_count ]; do
         go get -f -u -v ./...
         rc=$?
+        echo "'go get -f -u -v' returned $rc on attempt #$n"
         if [ $rc -eq 0 ]; then
             break
         fi
@@ -63,13 +64,12 @@ exit_if_fail go tool vet .
 case $CIRCLE_NODE_INDEX in
     0)
         go test $PARALLELISM $TIMEOUT -v ./... 2>&1 | tee $CIRCLE_ARTIFACTS/test_logs.txt
-        exit ${PIPESTATUS[0]}
+        rc=${PIPESTATUS[0]}
         ;;
     1)
         go test $PARALLELISM $TIMEOUT -v -race ./... 2>&1 | tee $CIRCLE_ARTIFACTS/test_logs_race.txt
-        exit ${PIPESTATUS[0]}
+        rc=${PIPESTATUS[0]}
         ;;
 esac
 
-# Just to be nice.
-exit 0
+exit $rc
