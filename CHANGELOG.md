@@ -2,6 +2,7 @@
 
 ### Features
 - [#2301](https://github.com/influxdb/influxdb/pull/2301): Distributed query load balancing and failover
+- [#2336](https://github.com/influxdb/influxdb/pull/2336): Handle distributed queries when shards != data nodes
 
 ### Bugfixes
 - [#2297](https://github.com/influxdb/influxdb/pull/2297): create /var/run during startup. Thanks @neonstalwart.
@@ -16,6 +17,7 @@
 - [#2300](https://github.com/influxdb/influxdb/pull/2300): Refactor integration tests.  Properly close Graphite/OpenTSDB listeners.
 - [#2338](https://github.com/influxdb/influxdb/pull/2338): Fix panic if tag key isn't double quoted when it should have been
 - [#2338](https://github.com/influxdb/influxdb/pull/2338): Fix SHOW DIAGNOSTICS panic if any shard was non-local.
+
 
 ## v0.9.0-rc25 [2015-04-15]
 
