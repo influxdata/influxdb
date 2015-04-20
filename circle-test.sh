@@ -41,7 +41,6 @@ function go_get {
 
 source $HOME/.gvm/scripts/gvm
 exit_if_fail gvm use $GO_VERSION
-exit_if_fail go get golang.org/x/tools/cmd/vet
 
 # Set up the build directory, and then GOPATH.
 exit_if_fail mkdir $BUILD_DIR
