@@ -276,8 +276,11 @@ func (m *MapReduceJob) processRawQuery(out chan *Row, filterEmptyResults bool) {
 			// add up to the index to the values
 			values = append(values, o[:ind]...)
 
+			// clear out previously send mapper output data
+			mapperOutputs[j] = mapperOutputs[j][ind:]
+
 			// if we emptied out all the values, set this output to nil so that the mapper will get run again on the next loop
-			if ind == len(o) {
+			if len(mapperOutputs[j]) == 0 {
 				mapperOutputs[j] = nil
 			}
 		}

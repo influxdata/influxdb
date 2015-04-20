@@ -187,6 +187,7 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 							whereFields:  whereFields,
 							selectFields: selectFields,
 							selectTags:   selectTags,
+							tmin:         tmin.UnixNano(),
 							tmax:         tmax.UnixNano(),
 							interval:     interval,
 							// multiple mappers may need to be merged together to get the results

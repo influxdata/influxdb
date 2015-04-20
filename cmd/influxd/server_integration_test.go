@@ -1458,9 +1458,10 @@ func Test3NodeServerFailover(t *testing.T) {
 }
 
 // ensure that all queries work if there are more nodes in a cluster than the replication factor
-func Test3NodeClusterPartiallyReplicated(t *testing.T) {
+// and there is more than 1 shards
+func Test6NodeClusterPartiallyReplicated(t *testing.T) {
 	t.Parallel()
-	testName := "3-node server integration partial replication"
+	testName := "6-node server integration partial replication"
 	if testing.Short() {
 		t.Skip(fmt.Sprintf("skipping '%s'", testName))
 	}
@@ -1469,11 +1470,11 @@ func Test3NodeClusterPartiallyReplicated(t *testing.T) {
 		os.RemoveAll(dir)
 	}()
 
-	nodes := createCombinedNodeCluster(t, testName, dir, 3, nil)
+	nodes := createCombinedNodeCluster(t, testName, dir, 6, nil)
 	defer nodes.Close()
 
-	runTestsData(t, testName, nodes, "mydb", "myrp", len(nodes)-1)
-	runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp", len(nodes)-1)
+	runTestsData(t, testName, nodes, "mydb", "myrp", 3)
+	runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp", 3)
 }
 
 func TestClientLibrary(t *testing.T) {
