@@ -133,6 +133,14 @@ func shardMetaIndex(tx *bolt.Tx) uint64 {
 	return index
 }
 
+// Index returns the highest Raft index processed by this shard. Shard RLock
+// held during execution.
+func (s *Shard) Index() uint64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.index
+}
+
 // close shuts down the shard's store.
 func (s *Shard) close() error {
 	// Wait for goroutines to stop.
