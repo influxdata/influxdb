@@ -386,7 +386,7 @@ func MapStddev(itr Iterator) interface{} {
 		values = append(values, v.(float64))
 	}
 
-	return nil
+	return values
 }
 
 // ReduceStddev computes the stddev of values.
