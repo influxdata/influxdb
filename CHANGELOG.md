@@ -4,6 +4,7 @@
 - [#2370](https://github.com/influxdb/influxdb/pull/2370): Fix data race in openTSDB endpoint.
 - [#2371](https://github.com/influxdb/influxdb/pull/2371): Don't set client to nil when closing broker Fixes #2352
 - [#2372](https://github.com/influxdb/influxdb/pull/2372): Fix data race in graphite endpoint.
+- [#2373](https://github.com/influxdb/influxdb/pull/2373): Actually allow HTTP logging to be controlled.
 
 ## v0.9.0-rc26 [04-21-2015]
 

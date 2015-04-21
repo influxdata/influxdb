@@ -54,13 +54,13 @@ type Handler struct {
 	version               string
 
 	Logger         *log.Logger
-	LoggingEnabled bool // Log every HTTP access.
+	loggingEnabled bool // Log every HTTP access.
 	WriteTrace     bool // Detailed logging of write path
 }
 
 // NewClusterHandler is the http handler for cluster communication endpoints
-func NewClusterHandler(s *influxdb.Server, requireAuthentication, snapshotEnabled bool, version string) *Handler {
-	h := newHandler(s, requireAuthentication, version)
+func NewClusterHandler(s *influxdb.Server, requireAuthentication, snapshotEnabled, loggingEnabled bool, version string) *Handler {
+	h := newHandler(s, requireAuthentication, loggingEnabled, version)
 	h.snapshotEnabled = snapshotEnabled
 	h.SetRoutes([]route{
 		route{ // List data nodes
@@ -104,8 +104,8 @@ func NewClusterHandler(s *influxdb.Server, requireAuthentication, snapshotEnable
 }
 
 // NewAPIHandler is the http handler for api endpoints
-func NewAPIHandler(s *influxdb.Server, requireAuthentication bool, version string) *Handler {
-	h := newHandler(s, requireAuthentication, version)
+func NewAPIHandler(s *influxdb.Server, requireAuthentication, loggingEnabled bool, version string) *Handler {
+	h := newHandler(s, requireAuthentication, loggingEnabled, version)
 	h.SetRoutes([]route{
 		route{
 			"query", // Query serving route.
@@ -139,12 +139,13 @@ func NewAPIHandler(s *influxdb.Server, requireAuthentication bool, version strin
 }
 
 // newHandler returns a new instance of Handler.
-func newHandler(s *influxdb.Server, requireAuthentication bool, version string) *Handler {
+func newHandler(s *influxdb.Server, requireAuthentication, loggingEnabled bool, version string) *Handler {
 	return &Handler{
 		server: s,
 		mux:    pat.New(),
 		requireAuthentication: requireAuthentication,
 		Logger:                log.New(os.Stderr, "[http] ", log.LstdFlags),
+		loggingEnabled:        loggingEnabled,
 		version:               version,
 	}
 }
@@ -170,7 +171,7 @@ func (h *Handler) SetRoutes(routes []route) {
 		handler = versionHeader(handler, h.version)
 		handler = cors(handler)
 		handler = requestID(handler)
-		if h.LoggingEnabled && r.log {
+		if h.loggingEnabled && r.log {
 			handler = logging(handler, r.name, h.Logger)
 		}
 		handler = recovery(handler, r.name, h.Logger) // make sure recovery is always last

@@ -102,9 +102,7 @@ func (h *Handler) serveData(w http.ResponseWriter, r *http.Request) {
 
 	if h.Server != nil {
 		sh := httpd.NewClusterHandler(h.Server, h.Config.Authentication.Enabled,
-			h.Config.Snapshot.Enabled, version)
-		sh.WriteTrace = h.Config.Logging.WriteTracing
-		sh.LoggingEnabled = h.Config.Logging.HTTPAccess
+			h.Config.Snapshot.Enabled, h.Config.Logging.HTTPAccess, version)
 		sh.ServeHTTP(w, r)
 		return
 	}
@@ -146,7 +144,8 @@ func (h *Handler) serveAPI(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.Server != nil {
-		sh := httpd.NewAPIHandler(h.Server, h.Config.Authentication.Enabled, version)
+		sh := httpd.NewAPIHandler(h.Server, h.Config.Authentication.Enabled,
+			h.Config.Logging.HTTPAccess, version)
 		sh.WriteTrace = h.Config.Logging.WriteTracing
 		sh.ServeHTTP(w, r)
 		return
