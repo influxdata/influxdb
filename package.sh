@@ -49,6 +49,7 @@ MAINTAINER=support@influxdb.com
 VENDOR=Influxdb
 DESCRIPTION="Distributed time-series database"
 
+GO_VERSION="1.4.2"
 GOPATH_INSTALL=
 BINS=(
     influxd
@@ -80,6 +81,19 @@ check_gopath() {
     GOPATH_INSTALL=`echo $GOPATH | cut -d ':' -f 1`
     [ ! -d "$GOPATH_INSTALL" ] && echo "GOPATH_INSTALL is not a directory." && cleanup_exit 1
     echo "GOPATH ($GOPATH) looks sane, using $GOPATH_INSTALL for installation."
+}
+
+check_gvm() {
+    which gvm
+    if [ $? -ne 0 ]; then
+        echo "gvm not found -- aborting."
+        cleanup_exit $1
+    fi
+    gvm use $GO_VERSION
+    if [ $? -ne 0]; then
+        echo "gvm cannot find Go version $GO_VERSION -- aborting."
+        cleanup_exit $1
+    fi
 }
 
 # check_clean_tree ensures that no source file is locally modified.
@@ -207,6 +221,7 @@ fi
 
 echo -e "\nStarting package process...\n"
 
+check_gvm
 check_gopath
 check_clean_tree
 update_tree
