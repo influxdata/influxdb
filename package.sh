@@ -84,6 +84,7 @@ check_gopath() {
 }
 
 check_gvm() {
+    source $HOME/.gvm/scripts/gvm
     which gvm
     if [ $? -ne 0 ]; then
         echo "gvm not found -- aborting."
