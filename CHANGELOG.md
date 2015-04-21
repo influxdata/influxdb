@@ -3,6 +3,7 @@
 ### Features
 - [#2301](https://github.com/influxdb/influxdb/pull/2301): Distributed query load balancing and failover
 - [#2336](https://github.com/influxdb/influxdb/pull/2336): Handle distributed queries when shards != data nodes
+- [#2353](https://github.com/influxdb/influxdb/pull/2353): Distributed Query/Clustering Fixes
 
 ### Bugfixes
 - [#2297](https://github.com/influxdb/influxdb/pull/2297): create /var/run during startup. Thanks @neonstalwart.
@@ -18,6 +19,10 @@
 - [#2338](https://github.com/influxdb/influxdb/pull/2338): Fix panic if tag key isn't double quoted when it should have been
 - [#2340](https://github.com/influxdb/influxdb/pull/2340): Fix SHOW DIAGNOSTICS panic if any shard was non-local.
 - [#2351](https://github.com/influxdb/influxdb/pull/2351): Fix data race by rlocking shard during diagnostics.
+- [#2348](https://github.com/influxdb/influxdb/pull/2348): Data node fail to join cluster in 0.9.0rc25
+- [#2343](https://github.com/influxdb/influxdb/pull/2343): Node falls behind Metastore updates
+- [#2334](https://github.com/influxdb/influxdb/pull/2334): Test Partial replication is very problematic
+- [#2272](https://github.com/influxdb/influxdb/pull/2272): clustering: influxdb 0.9.0-rc23 panics when doing a GET with merge_metrics in a
 
 ## v0.9.0-rc25 [2015-04-15]
 
