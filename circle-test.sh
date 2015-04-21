@@ -26,6 +26,9 @@ function exit_if_fail {
 function go_get {
     n=1
     retry_count=$1
+    git status
+    git branch
+    git remote -av
 
     while [ $n -ne $retry_count ]; do
         go get -f -u -v ./...
