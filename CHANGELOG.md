@@ -1,3 +1,8 @@
+## v0.9.0-rc27 [unreleased]
+
+### Bugfixes
+- [#2370](https://github.com/influxdb/influxdb/pull/2370): Fix data race in openTSDB endpoint.
+
 ## v0.9.0-rc26 [04-21-2015]
 
 ### Features
