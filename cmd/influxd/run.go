@@ -651,7 +651,8 @@ func (cmd *RunCommand) openServer(joinURLs []url.URL) *influxdb.Server {
 	return s
 }
 
-// joinOrInitializeServer a server to an existing cluster or initializes.
+// joinOrInitializeServer joins a new server to an existing cluster or initializes it as the first
+// member of the cluster
 func joinOrInitializeServer(s *influxdb.Server, u url.URL, joinURLs []url.URL) {
 	// Create data node on an existing data node.
 	for _, joinURL := range joinURLs {
@@ -663,6 +664,7 @@ func joinOrInitializeServer(s *influxdb.Server, u url.URL, joinURLs []url.URL) {
 			log.Printf("initialized data node: %s\n", (&u).String())
 			return
 		} else if err != nil {
+			// does not return so that the next joinURL can be tried
 			log.Printf("join: failed to connect data node: %s: %s", (&u).String(), err)
 		} else {
 			log.Printf("join: connected data node to %s", u)
