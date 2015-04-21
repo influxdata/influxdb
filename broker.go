@@ -73,12 +73,9 @@ func (b *Broker) Close() error {
 		b.done = nil
 	}
 
-	if b.client != nil {
-		// since the client doesn't specify a Transport when created,
-		// it will use the DefaultTransport.
-		http.DefaultTransport.(*http.Transport).CloseIdleConnections()
-		b.client = nil
-	}
+	// since the client doesn't specify a Transport when created,
+	// it will use the DefaultTransport.
+	http.DefaultTransport.(*http.Transport).CloseIdleConnections()
 
 	return b.Broker.Close()
 }

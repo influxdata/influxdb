@@ -30,6 +30,7 @@
 - [#2272](https://github.com/influxdb/influxdb/pull/2272): clustering: influxdb 0.9.0-rc23 panics when doing a GET with merge_metrics in a
 - [#2350](https://github.com/influxdb/influxdb/pull/2350): Issue fix for :influxd -hostname localhost.
 - [#2367](https://github.com/influxdb/influxdb/pull/2367): PR for issue #2350 - Always use localhost, not host name.
+- [#2371](https://github.com/influxdb/influxdb/pull/2371): Don't set client to nil when closing broker Fixes #2352
 
 ## v0.9.0-rc25 [2015-04-15]
 
