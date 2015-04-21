@@ -6,7 +6,7 @@
 
 GORACE="halt_on_error=1"
 BUILD_DIR=$HOME/influxdb-build
-GO_VERSION=go1.4
+GO_VERSION=go1.4.2
 PARALLELISM="-parallel 256"
 TIMEOUT="-timeout 300s"
 
