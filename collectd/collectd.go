@@ -107,7 +107,7 @@ func (s *Server) serve() {
 			continue
 		}
 		if n > 0 {
-			//Make packaet processing in a separate goroutine so it prevents UDP packet loss
+			// Make packet processing in a separate goroutine so it prevents UDP packet loss
 			go s.handleMessage(buffer[:n])
 		}
 	}
