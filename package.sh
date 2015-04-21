@@ -49,7 +49,7 @@ MAINTAINER=support@influxdb.com
 VENDOR=Influxdb
 DESCRIPTION="Distributed time-series database"
 
-GO_VERSION="1.4.2"
+GO_VERSION="go1.4.2"
 GOPATH_INSTALL=
 BINS=(
     influxd
@@ -90,7 +90,7 @@ check_gvm() {
         cleanup_exit $1
     fi
     gvm use $GO_VERSION
-    if [ $? -ne 0]; then
+    if [ $? -ne 0 ]; then
         echo "gvm cannot find Go version $GO_VERSION -- aborting."
         cleanup_exit $1
     fi
