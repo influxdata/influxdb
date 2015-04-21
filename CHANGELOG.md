@@ -1,4 +1,4 @@
-## v0.9.0-rc26 [unreleased]
+## v0.9.0-rc26 [04-21-2015]
 
 ### Features
 - [#2301](https://github.com/influxdb/influxdb/pull/2301): Distributed query load balancing and failover
