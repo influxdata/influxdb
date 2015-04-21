@@ -1747,22 +1747,22 @@ type HTTPServer struct {
 }
 
 func NewAPIServer(s *Server) *HTTPServer {
-	h := httpd.NewAPIHandler(s.Server, false, "X.X")
+	h := httpd.NewAPIHandler(s.Server, false, false, "X.X")
 	return &HTTPServer{httptest.NewServer(h), h}
 }
 
 func NewClusterServer(s *Server) *HTTPServer {
-	h := httpd.NewClusterHandler(s.Server, false, true, "X.X")
+	h := httpd.NewClusterHandler(s.Server, false, true, false, "X.X")
 	return &HTTPServer{httptest.NewServer(h), h}
 }
 
 func NewAuthenticatedClusterServer(s *Server) *HTTPServer {
-	h := httpd.NewClusterHandler(s.Server, true, true, "X.X")
+	h := httpd.NewClusterHandler(s.Server, true, true, false, "X.X")
 	return &HTTPServer{httptest.NewServer(h), h}
 }
 
 func NewAuthenticatedAPIServer(s *Server) *HTTPServer {
-	h := httpd.NewAPIHandler(s.Server, true, "X.X")
+	h := httpd.NewAPIHandler(s.Server, true, false, "X.X")
 	return &HTTPServer{httptest.NewServer(h), h}
 }
 
