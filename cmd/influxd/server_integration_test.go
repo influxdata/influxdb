@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -20,6 +21,10 @@ import (
 	"github.com/influxdb/influxdb/client"
 	main "github.com/influxdb/influxdb/cmd/influxd"
 )
+
+func init() {
+	fmt.Printf("System Info: CPU=%d GOMAXPROCS=%d\n", runtime.NumCPU(), runtime.GOMAXPROCS(0))
+}
 
 const (
 	// Use a prime batch size, so that internal batching code, which most likely
