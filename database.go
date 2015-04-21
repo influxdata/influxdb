@@ -811,9 +811,19 @@ func (f *FieldCodec) EncodeFields(values map[string]interface{}) ([]byte, error)
 			buf = make([]byte, 9)
 			binary.BigEndian.PutUint64(buf[1:9], math.Float64bits(value))
 		case influxql.Integer:
-			value := v.(int64)
+			var value uint64
+			switch v.(type) {
+			case int:
+				value = uint64(v.(int))
+			case int32:
+				value = uint64(v.(int32))
+			case int64:
+				value = uint64(v.(int64))
+			default:
+				panic(fmt.Sprintf("invalid integer type: %T", v))
+			}
 			buf = make([]byte, 9)
-			binary.BigEndian.PutUint64(buf[1:9], uint64(value))
+			binary.BigEndian.PutUint64(buf[1:9], value)
 		case influxql.Boolean:
 			value := v.(bool)
 
