@@ -6,7 +6,6 @@ import (
 	"log"
 	"net"
 	"net/url"
-	"os"
 	"os/user"
 	"path/filepath"
 	"strconv"
@@ -252,11 +251,6 @@ func NewConfig() *Config {
 	c.Broker.TruncationInterval = Duration(DefaultBrokerTruncationInterval)
 	c.Broker.MaxTopicSize = DefaultBrokerMaxTopicSize
 	c.Broker.MaxSegmentSize = DefaultBrokerMaxSegmentSize
-
-	// Detect hostname (or set to localhost).
-	if c.Hostname, _ = os.Hostname(); c.Hostname == "" {
-		c.Hostname = "localhost"
-	}
 
 	// FIX(benbjohnson): Append where the udp servers are actually used.
 	// config.UDPServers = append(config.UDPServers, UDPInputConfig{
