@@ -51,7 +51,7 @@ exit_if_fail mkdir -p $GOPATH/src/github.com/influxdb
 # Move the checked-out source to a better location.
 exit_if_fail mv $HOME/influxdb $GOPATH/src/github.com/influxdb
 exit_if_fail cd $GOPATH/src/github.com/influxdb/influxdb
-exit_if_fail git branch --set-upstream-to=origin/$CIRCLE_BRANCH $CIRCLE_BRANCH
+exit_if_fail git branch --set-upstream-to=origin/master $CIRCLE_BRANCH
 
 # Install the code.
 exit_if_fail cd $GOPATH/src/github.com/influxdb/influxdb
