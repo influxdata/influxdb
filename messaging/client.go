@@ -34,11 +34,11 @@ const (
 // Client represents a client for the broker's HTTP API.
 type Client struct {
 	mu      sync.Mutex
-	path    string    // config file path
-	conns   []*Conn   // all connections opened by client
-	url     url.URL   // current known leader URL
-	urls    []url.URL // list of available broker URLs
-	dataURL url.URL   // URL of the client's data node
+	path    string           // config file path
+	conns   map[uint64]*Conn // all connections opened by client
+	url     url.URL          // current known leader URL
+	urls    []url.URL        // list of available broker URLs
+	dataURL url.URL          // URL of the client's data node
 
 	opened bool
 
@@ -61,6 +61,7 @@ func NewClient(dataURL url.URL) *Client {
 		ReconnectTimeout: DefaultReconnectTimeout,
 		PingInterval:     DefaultPingInterval,
 		dataURL:          dataURL,
+		conns:            map[uint64]*Conn{},
 	}
 	return c
 }
@@ -353,10 +354,29 @@ func (c *Client) Conn(topicID uint64) *Conn {
 	conn := NewConn(topicID, &c.dataURL)
 	conn.SetURL(c.url)
 
+	if _, ok := c.conns[topicID]; ok {
+		panic(fmt.Sprintf("connection for topic %d already exists", topicID))
+	}
 	// Add to list of client connections.
-	c.conns = append(c.conns, conn)
+	c.conns[topicID] = conn
 
 	return conn
+}
+
+// CloseConn closes the connection to the broker for a given topic
+func (c *Client) CloseConn(topicID uint64) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if conn, ok := c.conns[topicID]; ok && conn != nil {
+		if err := conn.Close(); err != nil {
+			return err
+		}
+
+		delete(c.conns, topicID)
+	}
+
+	return nil
 }
 
 // pinger periodically pings the broker to check that it is alive.

@@ -45,7 +45,7 @@ func NewClient(c Config) (*Client, error) {
 		url:        c.URL,
 		username:   c.Username,
 		password:   c.Password,
-		httpClient: &http.Client{},
+		httpClient: http.DefaultClient,
 		userAgent:  c.UserAgent,
 	}
 	if client.userAgent == "" {

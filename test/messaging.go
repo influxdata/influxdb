@@ -90,6 +90,24 @@ func (c *MessagingClient) Conn(topicID uint64) influxdb.MessagingConn {
 	return c.ConnFunc(topicID)
 }
 
+func (c *MessagingClient) CloseConn(topicID uint64) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	conns := []*MessagingConn{}
+	for _, conn := range c.conns {
+		if conn.topicID == topicID {
+			if err := conn.Close(); err != nil {
+				return err
+			}
+			continue
+		}
+		conns = append(conns, conn)
+	}
+	c.conns = conns
+	return nil
+}
+
 // DefaultConnFunc returns a connection for a specific topic.
 func (c *MessagingClient) DefaultConnFunc(topicID uint64) influxdb.MessagingConn {
 	c.mu.Lock()
