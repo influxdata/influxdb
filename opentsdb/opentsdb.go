@@ -37,6 +37,8 @@ type Server struct {
 
 	listener *net.TCPListener
 	wg       sync.WaitGroup
+
+	addr net.Addr
 }
 
 func NewServer(w SeriesWriter, retpol string, db string) *Server {
@@ -50,7 +52,7 @@ func NewServer(w SeriesWriter, retpol string, db string) *Server {
 }
 
 func (s *Server) Addr() net.Addr {
-	return s.listener.Addr()
+	return s.addr
 }
 
 func (s *Server) ListenAndServe(listenAddress string) {
@@ -67,6 +69,8 @@ func (s *Server) ListenAndServe(listenAddress string) {
 		log.Println("TSDBServer: Listen: ", err)
 		return
 	}
+
+	s.addr = s.listener.Addr()
 
 	s.wg.Add(1)
 	go func() {
