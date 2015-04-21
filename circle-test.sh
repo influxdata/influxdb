@@ -58,7 +58,7 @@ exit_if_fail git branch --set-upstream-to=origin/$CIRCLE_BRANCH $CIRCLE_BRANCH
 
 # Install the code.
 exit_if_fail cd $GOPATH/src/github.com/influxdb/influxdb
-exit_if_fail go_get 5
+exit_if_fail go_get 2
 exit_if_fail git checkout $CIRCLE_BRANCH # 'go get' switches to master. Who knew? Switch back.
 exit_if_fail go build -v ./...
 
