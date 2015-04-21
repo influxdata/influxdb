@@ -1402,6 +1402,27 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 	}
 }
 
+// Ensures that diagnostics can be written to the internal database.
+func TestSingleServerDiags(t *testing.T) {
+	t.Parallel()
+	testName := "single server integration diagnostics"
+	if testing.Short() {
+		t.Skip(fmt.Sprintf("skipping '%s'", testName))
+	}
+	dir := tempfile()
+	defer func() {
+		os.RemoveAll(dir)
+	}()
+
+	config := main.NewConfig()
+	config.Monitoring.Enabled = true
+	config.Monitoring.WriteInterval = main.Duration(100 * time.Millisecond)
+	nodes := createCombinedNodeCluster(t, testName, dir, 1, config)
+	defer nodes.Close()
+
+	time.Sleep(1 * time.Second)
+}
+
 func TestSingleServer(t *testing.T) {
 	t.Parallel()
 	testName := "single server integration"
