@@ -1015,8 +1015,38 @@ func (s *Server) applyDropDatabase(m *messaging.Message) (err error) {
 	// Remove from metastore.
 	err = s.meta.mustUpdate(m.Index, func(tx *metatx) error { return tx.dropDatabase(c.Name) })
 
+	db := s.databases[c.Name]
+	for _, rp := range db.policies {
+		for _, sg := range rp.shardGroups {
+			for _, sh := range sg.Shards {
+
+				// if we have this shard locally, close and remove it
+				if sh.store != nil {
+					// close topic readers/heartbeaters/etc. connections
+					err := s.client.CloseConn(sh.ID)
+					if err != nil {
+						panic(err)
+					}
+
+					err = sh.close()
+					if err != nil {
+						panic(err)
+					}
+
+					err = os.Remove(s.shardPath(sh.ID))
+					if err != nil {
+						panic(err)
+					}
+				}
+
+				delete(s.shards, sh.ID)
+			}
+		}
+	}
+
 	// Delete the database entry.
 	delete(s.databases, c.Name)
+
 	return
 }
 
@@ -3157,6 +3187,7 @@ func (s *Server) StartLocalMapper(rm *RemoteMapper) (*LocalMapper, error) {
 		selectFields: rm.SelectFields,
 		selectTags:   rm.SelectTags,
 		interval:     rm.Interval,
+		tmin:         rm.TMin,
 		tmax:         rm.TMax,
 		limit:        limit,
 	}
@@ -3517,6 +3548,7 @@ type MessagingClient interface {
 
 	// Conn returns an open, streaming connection to a topic.
 	Conn(topicID uint64) MessagingConn
+	CloseConn(topicID uint64) error
 }
 
 type messagingClient struct {
