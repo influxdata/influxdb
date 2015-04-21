@@ -26,6 +26,9 @@ function exit_if_fail {
 function go_get {
     n=1
     retry_count=$1
+    git status
+    git branch
+    git remote -v
 
     while [ $n -ne $retry_count ]; do
         go get -f -u -v ./...
@@ -55,7 +58,7 @@ exit_if_fail git branch --set-upstream-to=origin/master $CIRCLE_BRANCH
 
 # Install the code.
 exit_if_fail cd $GOPATH/src/github.com/influxdb/influxdb
-exit_if_fail go_get 5
+exit_if_fail go_get 2
 exit_if_fail git checkout $CIRCLE_BRANCH # 'go get' switches to master. Who knew? Switch back.
 exit_if_fail go build -v ./...
 
