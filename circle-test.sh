@@ -28,7 +28,7 @@ function go_get {
     retry_count=$1
     git status
     git branch
-    git remote -av
+    git remote -v
 
     while [ $n -ne $retry_count ]; do
         go get -f -u -v ./...
