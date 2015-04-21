@@ -28,9 +28,9 @@ function go_get {
     retry_count=$1
 
     while [ $n -ne $retry_count ]; do
-        go get -f -u -v ./...
+        go get -t -d -v ./...
         rc=$?
-        echo "'go get -f -u -v' returned $rc on attempt #$n"
+        echo "'go get -t -d -v' returned $rc on attempt #$n"
         if [ $rc -eq 0 ]; then
             break
         fi
@@ -50,7 +50,7 @@ exit_if_fail mkdir -p $GOPATH/src/github.com/influxdb
 # Move the checked-out source to a better location.
 exit_if_fail mv $HOME/influxdb $GOPATH/src/github.com/influxdb
 exit_if_fail cd $GOPATH/src/github.com/influxdb/influxdb
-exit_if_fail git branch --set-upstream-to=origin/master $CIRCLE_BRANCH
+exit_if_fail git branch --set-upstream-to=origin/$CIRCLE_BRANCH $CIRCLE_BRANCH
 
 # Install the code.
 exit_if_fail cd $GOPATH/src/github.com/influxdb/influxdb
@@ -59,7 +59,7 @@ exit_if_fail git checkout $CIRCLE_BRANCH # 'go get' switches to master. Who knew
 exit_if_fail go build -v ./...
 
 # Run the tests.
-exit_if_fail go tool vet .
+exit_if_fail go tool vet --composites=false .
 case $CIRCLE_NODE_INDEX in
     0)
         go test $PARALLELISM $TIMEOUT -v ./... 2>&1 | tee $CIRCLE_ARTIFACTS/test_logs.txt
