@@ -61,10 +61,7 @@ func (s *Node) ClusterURL() *url.URL {
 		panic(e)
 	}
 	if h == "::" || h == "" {
-		// Detect hostname (or set to localhost).
-		if h, _ = os.Hostname(); h == "" {
-			h = "localhost"
-		}
+		h = "localhost"
 	}
 
 	h = net.JoinHostPort(h, p)
