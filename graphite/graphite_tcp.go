@@ -21,6 +21,8 @@ type TCPServer struct {
 	wg sync.WaitGroup
 
 	Logger *log.Logger
+
+	host string
 }
 
 // NewTCPServer returns a new instance of a TCPServer.
@@ -45,6 +47,7 @@ func (t *TCPServer) ListenAndServe(iface string) error {
 		return err
 	}
 	t.listener = &ln
+	t.host = ln.Addr().String()
 
 	t.Logger.Println("listening on TCP connection", ln.Addr().String())
 	t.wg.Add(1)
@@ -69,8 +72,7 @@ func (t *TCPServer) ListenAndServe(iface string) error {
 }
 
 func (t *TCPServer) Host() string {
-	l := *t.listener
-	return l.Addr().String()
+	return t.host
 }
 
 func (t *TCPServer) Close() error {
