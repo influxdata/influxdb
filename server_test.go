@@ -1298,7 +1298,7 @@ func TestServer_ShowSeriesLimitOffset(t *testing.T) {
 		t.Fatalf("unexpected error: %s", res.Err)
 	} else if len(res.Series) != 2 {
 		t.Fatalf("unexpected row count: %d", len(res.Series))
-	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["_id","host","region"],"values":[[2,"serverB","us-east"],[3,"serverC","us-west"]]},{"name":"memory","columns":["_id","host","region"],"values":[[4,"serverB","us-west"]]}]}` {
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["_id","host","region"],"values":[[2,"serverB","us-east"],[3,"serverC","us-west"]]},{"name":"memory","columns":["_id","host","region"],"values":[[4,"serverB","us-wesxxxxt"]]}]}` {
 		t.Fatalf("unexpected row(0): %s", s)
 	}
 
