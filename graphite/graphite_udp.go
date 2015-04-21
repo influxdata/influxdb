@@ -24,6 +24,8 @@ type UDPServer struct {
 	wg       sync.WaitGroup
 
 	Logger *log.Logger
+
+	host string
 }
 
 // NewUDPServer returns a new instance of a UDPServer
@@ -56,6 +58,8 @@ func (u *UDPServer) ListenAndServe(iface string) error {
 		return err
 	}
 
+	u.host = u.addr.String()
+
 	buf := make([]byte, udpBufferSize)
 	u.wg.Add(1)
 	go func() {
@@ -83,7 +87,7 @@ func (u *UDPServer) ListenAndServe(iface string) error {
 }
 
 func (u *UDPServer) Host() string {
-	return u.addr.String()
+	return u.host
 }
 
 func (u *UDPServer) Close() error {
