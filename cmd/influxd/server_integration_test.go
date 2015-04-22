@@ -180,11 +180,20 @@ func deleteDatabase(t *testing.T, testName string, nodes Cluster, database strin
 	query(t, nodes[:1], "", "DROP DATABASE "+database, `{"results":[{}]}`, "")
 }
 
-// dumpClusterDiags dumps the diagnositcs of each node.
+// dumpClusterDiags dumps the diagnostics of each node.
 func dumpClusterDiags(t *testing.T, testName string, nodes Cluster) {
 	t.Logf("Test: %s: dumping node diagnostics", testName)
 	for _, n := range nodes {
 		r, _, _ := query(t, Cluster{n}, "", "SHOW DIAGNOSTICS", "", "")
+		t.Log(r)
+	}
+}
+
+// dumpClusterStats dumps the statistics of each node.
+func dumpClusterStats(t *testing.T, testName string, nodes Cluster) {
+	t.Logf("Test: %s: dumping node stats", testName)
+	for _, n := range nodes {
+		r, _, _ := query(t, Cluster{n}, "", "SHOW STATS", "", "")
 		t.Log(r)
 	}
 }
@@ -332,6 +341,8 @@ func runTest_rawDataReturnsInOrder(t *testing.T, testName string, nodes Cluster,
 	got, ok, nOK := queryAndWait(t, nodes, database, `SELECT count(value) FROM cpu`, expected, "", 120*time.Second)
 	if !ok {
 		t.Errorf("test %s:rawDataReturnsInOrder failed, SELECT count() query returned unexpected data\nexp: %s\n, got: %s\n%d nodes responded correctly", testName, expected, got, nOK)
+		dumpClusterDiags(t, testName, nodes)
+		dumpClusterStats(t, testName, nodes)
 	}
 
 	// Create expected JSON string dynamically.
@@ -343,6 +354,8 @@ func runTest_rawDataReturnsInOrder(t *testing.T, testName string, nodes Cluster,
 	got, ok, nOK = query(t, nodes, database, `SELECT value FROM cpu`, expected, "")
 	if !ok {
 		t.Errorf("test %s failed, SELECT query returned unexpected data\nexp: %s\ngot: %s\n%d nodes responded correctly", testName, expected, got, nOK)
+		dumpClusterDiags(t, testName, nodes)
+		dumpClusterStats(t, testName, nodes)
 	}
 }
 
@@ -1407,6 +1420,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 					t.Errorf("Test #%d: \"%s:%s\" failed\n  query: %s\n  exp: %s\n  got: %s\n%d nodes responded correctly", i, testName, name, qry, rewriteDbRp(tt.expectPattern, database, retention), got, nOK)
 				}
 				dumpClusterDiags(t, name, nodes)
+				dumpClusterStats(t, name, nodes)
 			}
 		}
 	}
