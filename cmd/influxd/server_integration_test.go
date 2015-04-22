@@ -466,6 +466,16 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",100],["2015-02-28T01:04:36.703820946Z",100]]}]}]}`,
 		},
 
+		{
+			reset: true,
+			name:  "two points with negative values",
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "timestamp": "2015-02-28T01:04:36.703820946Z", "fields": {"value": -200}},
+                                                                                 {"name": "cpu", "timestamp": "2015-02-28T01:03:36.703820946Z", "fields": {"value": -100}}
+                                                                                ]}`,
+			query:    `SELECT * FROM "%DB%"."%RP%".cpu`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",-100],["2015-02-28T01:04:36.703820946Z",-200]]}]}]}`,
+		},
+
 		// Data read and write tests using relative time
 		{
 			reset:    true,
