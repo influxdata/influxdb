@@ -8,6 +8,7 @@
 - [#2376](https://github.com/influxdb/influxdb/pull/2376): Encode all types of integers. Thanks @jtakkala.
 - [#2376](https://github.com/influxdb/influxdb/pull/2376): Add shard path to existing diags value. Fix issue #2369.
 - [#2386](https://github.com/influxdb/influxdb/pull/2386): Fix shard datanodes stats getting appended too many times
+- [#2393](https://github.com/influxdb/influxdb/pull/2393): Fix default hostname for connecting to cluster.
 
 ## v0.9.0-rc26 [04-21-2015]
 
