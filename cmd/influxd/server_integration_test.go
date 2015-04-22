@@ -581,14 +581,14 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		// Aggregations
 		{
 			reset: true,
-			name:  "large mean",
+			name:  "large mean and stddev",
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
 				{"name": "cpu", "timestamp": "2015-04-20T14:27:40Z", "fields": {"value": ` + string(maxFloat64) + `}},
 				{"name": "cpu", "timestamp": "2015-04-20T14:27:41Z", "fields": {"value": ` + string(maxFloat64) + `}}
 			]}`,
-			query:    `SELECT mean(value) FROM cpu`,
+			query:    `SELECT mean(value), stddev(value) FROM cpu`,
 			queryDb:  "%DB%",
-			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",` + string(maxFloat64) + `]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","mean","stddev"],"values":[["1970-01-01T00:00:00Z",` + string(maxFloat64) + `,0]]}]}]}`,
 		},
 		{
 			reset: true,

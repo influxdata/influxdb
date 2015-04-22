@@ -397,7 +397,9 @@ func ReduceStddev(values []interface{}) interface{} {
 		if value == nil {
 			continue
 		}
-		data = append(data, value.([]float64)...)
+		for _, val := range value.([]float64) {
+			data = append(data, val)
+		}
 	}
 
 	// If no data or we only have one point, it's nil or undefined
@@ -405,13 +407,13 @@ func ReduceStddev(values []interface{}) interface{} {
 		return nil
 	}
 
-	// Get the sum
-	var sum float64
-	for _, v := range data {
-		sum += v
-	}
 	// Get the mean
-	mean := sum / float64(len(data))
+	var mean float64
+	var count int
+	for _, v := range data {
+		count++
+		mean += (v - mean) / float64(count)
+	}
 	// Get the variance
 	var variance float64
 	for _, v := range data {
@@ -419,7 +421,7 @@ func ReduceStddev(values []interface{}) interface{} {
 		sq := math.Pow(dif, 2)
 		variance += sq
 	}
-	variance = variance / float64(len(data)-1)
+	variance = variance / float64(count-1)
 	stddev := math.Sqrt(variance)
 
 	return stddev
