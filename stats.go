@@ -2,6 +2,7 @@ package influxdb
 
 import (
 	"fmt"
+	"sort"
 	"sync"
 )
 
@@ -117,12 +118,18 @@ func (s *Stats) Snapshot() *Stats {
 func (s *Stats) String() string {
 	var out string
 	stat := s.Snapshot()
+	var keys []string
+	for k, _ := range stat.m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
 	out += `{"` + stat.name + `":[`
 	var j int
-	for k, v := range stat.m {
-		out += `{"` + k + `":` + fmt.Sprintf("%d", v.i) + `}`
+	for _, k := range keys {
+		v := stat.m[k].i
+		out += `{"` + k + `":` + fmt.Sprintf("%d", v) + `}`
 		j++
-		if j != len(stat.m) {
+		if j != len(keys) {
 			out += `,`
 		}
 	}

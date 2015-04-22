@@ -89,6 +89,7 @@ func (s *Shard) open(path string, conn MessagingConn) error {
 	if s.stats == nil {
 		s.stats = NewStats("shard")
 	}
+	s.stats.Inc("open")
 
 	// Return an error if the shard is already open.
 	if s.store != nil {
@@ -179,7 +180,9 @@ func (s *Shard) close() error {
 	if s.store != nil {
 		_ = s.store.Close()
 	}
-	s.stats.Inc("close")
+	if s.stats != nil {
+		s.stats.Inc("close")
+	}
 	return nil
 }
 
