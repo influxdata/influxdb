@@ -157,6 +157,15 @@ func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes int
 
 	}
 
+	// Sanity check that we created a cluster and data nodes have unique ids
+	ids := make(map[int]bool)
+	for _, n := range nodes {
+		ids[int(n.node.DataNode.ID())] = true
+	}
+	if len(ids) != len(nodes) {
+		t.Fatalf("failed to create valid cluster. some data nodes have the same id: %v", ids)
+	}
+
 	return nodes
 }
 
