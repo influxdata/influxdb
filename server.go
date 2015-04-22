@@ -2868,6 +2868,11 @@ func (s *Server) executeShowStatsStatement(stmt *influxql.ShowStatsStatement, us
 
 	// Shard-level stats.
 	for _, sh := range s.shards {
+		if sh.store == nil {
+			// No stats for non-local shards
+			continue
+		}
+
 		row := &influxql.Row{Columns: []string{}}
 		row.Name = sh.stats.Name()
 		sh.stats.Walk(func(k string, v int64) {
