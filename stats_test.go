@@ -86,3 +86,15 @@ func TestStats_Snapshot(t *testing.T) {
 		t.Fatalf("stats snapshot returned unexpected result: %#v", bar)
 	}
 }
+
+func TestStats_String(t *testing.T) {
+	foo := influxdb.NewStats("server")
+	foo.Set("a", 100)
+	foo.Set("b", 600)
+
+	if exp, got := `{"server":[{"a":100},{"b":600}]}`, foo.String(); exp != got {
+		t.Log("exp: ", exp)
+		t.Log("got: ", got)
+		t.Fatalf("failed to get string")
+	}
+}

@@ -600,7 +600,7 @@ func createShardSnapshotFile(sh *Shard) (*SnapshotFile, SnapshotFileWriter, erro
 	// Begin transaction.
 	tx, err := sh.store.Begin(false)
 	if err != nil {
-		return nil, nil, fmt.Errorf("begin: %s", err)
+		return nil, nil, fmt.Errorf("begin - stats %s, err %s", sh.stats, err)
 	}
 
 	// Create and return file and writer.

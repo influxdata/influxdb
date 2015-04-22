@@ -1,6 +1,7 @@
 package influxdb
 
 import (
+	"fmt"
 	"sync"
 )
 
@@ -111,4 +112,20 @@ func (s *Stats) Snapshot() *Stats {
 		snap.Set(k, s.m[k].i)
 	})
 	return snap
+}
+
+func (s *Stats) String() string {
+	var out string
+	stat := s.Snapshot()
+	out += `{"` + stat.name + `":[`
+	var j int
+	for k, v := range stat.m {
+		out += `{"` + k + `":` + fmt.Sprintf("%d", v.i) + `}`
+		j++
+		if j != len(stat.m) {
+			out += `,`
+		}
+	}
+	out += `]}`
+	return out
 }
