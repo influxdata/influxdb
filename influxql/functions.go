@@ -211,29 +211,31 @@ func MapMean(itr Iterator) interface{} {
 
 	for _, k, v := itr.Next(); k != 0; _, k, v = itr.Next() {
 		out.Count++
-		out.Sum += v.(float64)
+		out.Mean += (v.(float64) - out.Mean) / float64(out.Count)
 	}
 	return out
 }
 
 type meanMapOutput struct {
 	Count int
-	Sum   float64
+	Mean  float64
 }
 
 // ReduceMean computes the mean of values for each key.
 func ReduceMean(values []interface{}) interface{} {
 	out := &meanMapOutput{}
+	var countSum int
 	for _, v := range values {
 		if v == nil {
 			continue
 		}
 		val := v.(*meanMapOutput)
-		out.Count += val.Count
-		out.Sum += val.Sum
+		countSum = out.Count + val.Count
+		out.Mean = val.Mean*(float64(val.Count)/float64(countSum)) + out.Mean*(float64(out.Count)/float64(countSum))
+		out.Count = countSum
 	}
 	if out.Count > 0 {
-		return out.Sum / float64(out.Count)
+		return out.Mean
 	}
 	return nil
 }
