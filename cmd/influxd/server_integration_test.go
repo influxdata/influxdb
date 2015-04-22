@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math"
 	"net"
 	"net/http"
 	"net/url"
@@ -397,6 +398,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 
 	yesterday := time.Now().Add(-1 * time.Hour * 24).UTC()
 	now := time.Now().UTC()
+	maxFloat64, _ := json.Marshal(math.MaxFloat64)
 
 	// Start by ensuring database and retention policy exist.
 	createDatabase(t, testName, nodes, database)
@@ -568,6 +570,17 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		},
 
 		// Aggregations
+		{
+			reset: true,
+			name:  "large mean",
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+				{"name": "cpu", "timestamp": "2015-04-20T14:27:40Z", "fields": {"value": ` + string(maxFloat64) + `}},
+				{"name": "cpu", "timestamp": "2015-04-20T14:27:41Z", "fields": {"value": ` + string(maxFloat64) + `}}
+			]}`,
+			query:    `SELECT mean(value) FROM cpu`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",` + string(maxFloat64) + `]]}]}]}`,
+		},
 		{
 			reset: true,
 			name:  "aggregations",
