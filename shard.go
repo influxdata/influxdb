@@ -55,6 +55,11 @@ func (g *ShardGroup) dropSeries(seriesIDs ...uint64) error {
 	return nil
 }
 
+// shardtx represents a shard transaction.
+type shardtx struct {
+	*bolt.Tx
+}
+
 // Shard represents the logical storage for a given time range.
 // The instance on a local server may contain the raw data in "store" if the
 // shard is assigned to the server's data node id.
@@ -131,6 +136,23 @@ func shardMetaIndex(tx *bolt.Tx) uint64 {
 		index = btou64(buf)
 	}
 	return index
+}
+
+// view executes a function in the context of a read-only transaction.
+func (s *Shard) view(fn func(*shardtx) error) error {
+	return s.store.View(func(tx *bolt.Tx) error { return fn(&shardtx{tx}) })
+}
+
+// mustView executes a function in the context of a read-only transaction.
+// Panics if system error occurs. Return error from the fn for validation errors.
+func (s *Shard) mustView(fn func(*shardtx) error) (err error) {
+	if e := s.view(func(tx *shardtx) error {
+		err = fn(tx)
+		return nil
+	}); e != nil {
+		panic("shard view: " + e.Error())
+	}
+	return
 }
 
 // Index returns the highest Raft index processed by this shard. Shard RLock
