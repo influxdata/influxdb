@@ -5,6 +5,8 @@
 - [#2371](https://github.com/influxdb/influxdb/pull/2371): Don't set client to nil when closing broker Fixes #2352
 - [#2372](https://github.com/influxdb/influxdb/pull/2372): Fix data race in graphite endpoint.
 - [#2373](https://github.com/influxdb/influxdb/pull/2373): Actually allow HTTP logging to be controlled.
+- [#2376](https://github.com/influxdb/influxdb/pull/2376): Encode all types of integers. Thanks @jtakkala.
+- [#2376](https://github.com/influxdb/influxdb/pull/2376): Add shard path to existing diags value. Fix issue #2369.
 
 ## v0.9.0-rc26 [04-21-2015]
 

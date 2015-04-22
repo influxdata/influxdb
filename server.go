@@ -3338,7 +3338,7 @@ func (s *Server) DiagnosticsAsRows() []*influxql.Row {
 		// Shard may not be local to this node.
 		if sh.store != nil {
 			shardsRow.Columns = append(shardsRow.Columns, "path")
-			shardsRow.Values = append(shardsRow.Values, []interface{}{sh.store.Path()})
+			shardsRow.Values[0] = append(shardsRow.Values[0], sh.store.Path())
 		}
 	}
 

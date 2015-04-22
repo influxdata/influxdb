@@ -466,6 +466,16 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",100],["2015-02-28T01:04:36.703820946Z",100]]}]}]}`,
 		},
 
+		{
+			reset: true,
+			name:  "two points with negative values",
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "timestamp": "2015-02-28T01:04:36.703820946Z", "fields": {"value": -200}},
+                                                                                 {"name": "cpu", "timestamp": "2015-02-28T01:03:36.703820946Z", "fields": {"value": -100}}
+                                                                                ]}`,
+			query:    `SELECT * FROM "%DB%"."%RP%".cpu`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",-100],["2015-02-28T01:04:36.703820946Z",-200]]}]}]}`,
+		},
+
 		// Data read and write tests using relative time
 		{
 			reset:    true,
@@ -1400,6 +1410,27 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			}
 		}
 	}
+}
+
+// Ensures that diagnostics can be written to the internal database.
+func TestSingleServerDiags(t *testing.T) {
+	t.Parallel()
+	testName := "single server integration diagnostics"
+	if testing.Short() {
+		t.Skip(fmt.Sprintf("skipping '%s'", testName))
+	}
+	dir := tempfile()
+	defer func() {
+		os.RemoveAll(dir)
+	}()
+
+	config := main.NewConfig()
+	config.Monitoring.Enabled = true
+	config.Monitoring.WriteInterval = main.Duration(100 * time.Millisecond)
+	nodes := createCombinedNodeCluster(t, testName, dir, 1, config)
+	defer nodes.Close()
+
+	time.Sleep(1 * time.Second)
 }
 
 func TestSingleServer(t *testing.T) {
