@@ -1188,6 +1188,8 @@ func (s *Server) applyCreateShardGroupIfNotExists(m *messaging.Message) (err err
 		// Generate an ID for each shard.
 		for _, sh := range g.Shards {
 			sh.ID = tx.nextShardID()
+			sh.stats = NewStats(fmt.Sprintf("shard %d", sh.ID))
+			sh.stats.Inc("open")
 		}
 
 		// Assign data nodes to shards via round robin.
@@ -2893,10 +2895,12 @@ func (s *Server) executeShowStatsStatement(stmt *influxql.ShowStatsStatement, us
 	// Server stats.
 	serverRow := &influxql.Row{Columns: []string{}}
 	serverRow.Name = s.stats.Name()
+	var values []interface{}
 	s.stats.Walk(func(k string, v int64) {
 		serverRow.Columns = append(serverRow.Columns, k)
-		serverRow.Values = append(serverRow.Values, []interface{}{v})
+		values = append(values, v)
 	})
+	serverRow.Values = append(serverRow.Values, values)
 	rows = append(rows, serverRow)
 
 	// Shard-level stats.
@@ -2908,10 +2912,12 @@ func (s *Server) executeShowStatsStatement(stmt *influxql.ShowStatsStatement, us
 
 		row := &influxql.Row{Columns: []string{}}
 		row.Name = sh.stats.Name()
+		var values []interface{}
 		sh.stats.Walk(func(k string, v int64) {
 			row.Columns = append(row.Columns, k)
-			row.Values = append(row.Values, []interface{}{v})
+			values = append(values, v)
 		})
+		row.Values = append(row.Values, values)
 		rows = append(rows, row)
 	}
 

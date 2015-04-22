@@ -87,7 +87,7 @@ func (s *Shard) open(path string, conn MessagingConn) error {
 	defer s.mu.Unlock()
 
 	if s.stats == nil {
-		s.stats = NewStats("shard")
+		s.stats = NewStats(fmt.Sprintf("shard %d", s.ID))
 	}
 	s.stats.Inc("open")
 
