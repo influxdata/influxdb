@@ -1189,7 +1189,7 @@ func (s *Server) applyCreateShardGroupIfNotExists(m *messaging.Message) (err err
 		for _, sh := range g.Shards {
 			sh.ID = tx.nextShardID()
 			sh.stats = NewStats(fmt.Sprintf("shard %d", sh.ID))
-			sh.stats.Inc("open")
+			sh.stats.Inc("create")
 		}
 
 		// Assign data nodes to shards via round robin.
