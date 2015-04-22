@@ -44,6 +44,8 @@ type Node struct {
 	DataNode *influxdb.Server
 	raftLog  *raft.Log
 
+	hostname string
+
 	adminServer     *admin.Server
 	clusterListener net.Listener      // The cluster TCP listener
 	apiListener     net.Listener      // The API TCP listener
@@ -56,15 +58,13 @@ func (s *Node) ClusterAddr() net.Addr {
 }
 
 func (s *Node) ClusterURL() *url.URL {
-	h, p, e := net.SplitHostPort(s.ClusterAddr().String())
+	// Find out which port the cluster started on
+	_, p, e := net.SplitHostPort(s.ClusterAddr().String())
 	if e != nil {
 		panic(e)
 	}
-	if h == "::" || h == "" {
-		h = "localhost"
-	}
 
-	h = net.JoinHostPort(h, p)
+	h := net.JoinHostPort(s.hostname, p)
 	return &url.URL{
 		Scheme: "http",
 		Host:   h,
@@ -189,34 +189,31 @@ func (s *Node) closeClusterListener() error {
 	return err
 }
 
-func (cmd *RunCommand) ParseConfig(path, hostname string) error {
-	var err error
-
+func (cmd *RunCommand) ParseConfig(path string) error {
 	// Parse configuration file from disk.
 	if path != "" {
+		var err error
 		cmd.config, err = ParseConfigFile(path)
-
 		if err != nil {
 			return fmt.Errorf("error parsing configuration %s - %s\n", path, err)
 		}
-		// Override config properties.
-		if hostname != "" {
-			cmd.config.Hostname = hostname
+		log.Printf("using configuration at: %s\n", path)
+	} else {
+		var err error
+		cmd.config, err = NewTestConfig()
+
+		if err != nil {
+			return fmt.Errorf("error parsing default config: %s\n", err)
 		}
 
-		log.Printf("using configuration at: %s\n", path)
-		return nil
+		log.Println("no configuration provided, using default settings")
 	}
 
-	cmd.config, err = NewTestConfig()
-	if err != nil {
-		return fmt.Errorf("error parsing default config: %s\n", err)
-	}
 	// Override config properties.
-	if hostname != "" {
-		cmd.config.Hostname = hostname
+	if cmd.hostname != "" {
+		cmd.config.Hostname = cmd.hostname
 	}
-	log.Println("no configuration provided, using default settings")
+	cmd.node.hostname = cmd.config.Hostname
 	return nil
 }
 
@@ -249,7 +246,7 @@ func (cmd *RunCommand) Run(args ...string) error {
 	log.Printf("GOMAXPROCS set to %d", runtime.GOMAXPROCS(0))
 
 	// Parse config
-	if err := cmd.ParseConfig(configPath, hostname); err != nil {
+	if err := cmd.ParseConfig(configPath); err != nil {
 		log.Fatal(err)
 	}
 
@@ -321,7 +318,7 @@ func (cmd *RunCommand) Open(config *Config, join string) *Node {
 	if err := cmd.node.openClusterListener(cmd.config.ClusterAddr(), h); err != nil {
 		log.Fatalf("Cluster server failed to listen on %s. %s ", cmd.config.ClusterAddr(), err)
 	}
-	log.Printf("Cluster server listening on %s", cmd.node.ClusterURL().String())
+	log.Printf("Cluster server listening on %s", cmd.node.ClusterAddr().String())
 
 	// Open broker & raft log, initialize or join as necessary.
 	if cmd.config.Broker.Enabled {
