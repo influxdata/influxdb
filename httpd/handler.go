@@ -79,6 +79,10 @@ func NewClusterHandler(s *influxdb.Server, requireAuthentication, snapshotEnable
 			"metastore",
 			"GET", "/data/metastore", false, false, h.serveMetastore,
 		},
+		route{ // Shards for peer-to-peer replication
+			"shard",
+			"GET", "/data/shard/:id", false, false, h.serveShard,
+		},
 		route{ // Tell data node to run CQs that should be run
 			"process_continuous_queries",
 			"POST", "/data/process_continuous_queries", false, false, h.serveProcessContinuousQueries,
@@ -543,6 +547,24 @@ func (h *Handler) serveMetastore(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", `attachment; filename="meta"`)
 
 	if err := h.server.CopyMetastore(w); err != nil {
+		httpError(w, err.Error(), false, http.StatusInternalServerError)
+	}
+}
+
+// serveShard returns a copy of the requested shard.
+func (h *Handler) serveShard(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Query().Get(":id")
+	shardID, err := strconv.ParseUint(id, 10, 64)
+	if err != nil {
+		httpError(w, fmt.Sprintf("invalid shard ID %s: %s", id, err), false, http.StatusBadRequest)
+		return
+	}
+
+	// Set headers.
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, id))
+
+	if err := h.server.CopyShard(w, shardID); err != nil {
 		httpError(w, err.Error(), false, http.StatusInternalServerError)
 	}
 }

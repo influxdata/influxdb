@@ -89,8 +89,14 @@ var (
 	// policy on a database but the default has not been set.
 	ErrDefaultRetentionPolicyNotFound = errors.New("default retention policy not found")
 
-	// ErrShardNotFound is returned writing to a non-existent shard.
+	// ErrShardNotFound is returned when attempting to access a non-existent shard
 	ErrShardNotFound = errors.New("shard not found")
+
+	// ErrShardNotLocal is returned when a server attempts to access a shard that is not local
+	ErrShardNotLocal = errors.New("shard not local")
+
+	// ErrShardShortRead returned when the number of bytes read from a shard is less than expected.
+	ErrShardShortRead = errors.New("shard read returned insufficient data")
 
 	// ErrInvalidPointBuffer is returned when a buffer containing data for writing is invalid
 	ErrInvalidPointBuffer = errors.New("invalid point buffer")
@@ -143,9 +149,6 @@ var (
 
 	// ErrContinuousQueryNotFound is returned when dropping a nonexistent continuous query.
 	ErrContinuousQueryNotFound = errors.New("continuous query not found")
-
-	// ErrShardNotLocal is thrown whan a server attempts to run a mapper against a shard it doesn't have a copy of.
-	ErrShardNotLocal = errors.New("shard not local")
 )
 
 func ErrDatabaseNotFound(name string) error { return Errorf("database not found: %s", name) }

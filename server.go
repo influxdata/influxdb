@@ -814,6 +814,39 @@ func (s *Server) CopyMetastore(w io.Writer) error {
 	})
 }
 
+// CopyShard writes the requested shard to a writer.
+func (s *Server) CopyShard(w io.Writer, shardID uint64) error {
+	s.mu.RLock()
+
+	// Locate the shard.
+	sh, ok := s.shards[shardID]
+	if !ok {
+		s.mu.RUnlock()
+		return ErrShardNotFound
+	}
+	if sh.store == nil {
+		s.mu.RUnlock()
+		return ErrShardNotLocal
+	}
+
+	return sh.view(func(tx *shardtx) error {
+		s.mu.RUnlock() // Unlock so not held during long read.
+		sz := int(tx.Size())
+
+		// Set content length if this is a HTTP connection.
+		if w, ok := w.(http.ResponseWriter); ok {
+			w.Header().Set("Content-Length", strconv.Itoa(sz))
+		}
+
+		// Write entire shard to the writer.
+		n, err := tx.WriteTo(w)
+		if n != int64(sz) {
+			return ErrShardShortRead
+		}
+		return err
+	})
+}
+
 // DataNode returns a data node by id.
 func (s *Server) DataNode(id uint64) *DataNode {
 	s.mu.RLock()
