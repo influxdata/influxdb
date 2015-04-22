@@ -119,6 +119,10 @@ func NewAPIHandler(s *influxdb.Server, requireAuthentication, loggingEnabled boo
 			"write", // Data-ingest route.
 			"POST", "/write", true, true, h.serveWrite,
 		},
+		route{
+			"update", // Data-update route.
+			"POST", "/update", true, true, h.serveUpdate,
+		},
 		route{ // Status
 			"status",
 			"GET", "/status", true, true, h.serveStatus,
@@ -453,8 +457,10 @@ func (h *Handler) serveDump(w http.ResponseWriter, r *http.Request, user *influx
 	}
 }
 
+type opFunction func (db string, retentionPolicy string, points []influxdb.Point) (idx uint64, err error)
+
 // serveWrite receives incoming series data and writes it to the database.
-func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *influxdb.User) {
+func (h *Handler) doServeOp(w http.ResponseWriter, r *http.Request, user *influxdb.User, op opFunction) {
 	var writeError = func(result influxdb.Result, statusCode int) {
 		w.Header().Add("content-type", "application/json")
 		w.WriteHeader(statusCode)
@@ -527,7 +533,7 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *influ
 		return
 	}
 
-	if index, err := h.server.WriteSeries(bp.Database, bp.RetentionPolicy, points); err != nil {
+	if index, err := op(bp.Database, bp.RetentionPolicy, points); err != nil {
 		writeError(influxdb.Result{Err: err}, http.StatusInternalServerError)
 		return
 	} else {
@@ -546,6 +552,21 @@ func (h *Handler) serveMetastore(w http.ResponseWriter, r *http.Request) {
 		httpError(w, err.Error(), false, http.StatusInternalServerError)
 	}
 }
+
+func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *influxdb.User) {
+	var write = func(db string, retentionPolicy string, points []influxdb.Point) (idx uint64, err error) {
+		return h.server.WriteSeries(db, retentionPolicy, points)
+	}
+	h.doServeOp(w, r, user, write)
+}
+
+func (h *Handler) serveUpdate(w http.ResponseWriter, r *http.Request, user *influxdb.User) {
+	var write = func(db string, retentionPolicy string, points []influxdb.Point) (idx uint64, err error) {
+		return h.server.UpdateSeries(db, retentionPolicy, points)
+	}
+	h.doServeOp(w, r, user, write)
+}
+
 
 // serveStatus returns a set of states that the server is currently in.
 func (h *Handler) serveStatus(w http.ResponseWriter, r *http.Request) {
