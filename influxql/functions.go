@@ -107,6 +107,10 @@ func InitializeReduceFunc(c *Call) (ReduceFunc, error) {
 	case "last":
 		return ReduceLast, nil
 	case "percentile":
+		if len(c.Args) != 2 {
+			return nil, fmt.Errorf("expected float argument in percentile()")
+		}
+
 		lit, ok := c.Args[1].(*NumberLiteral)
 		if !ok {
 			return nil, fmt.Errorf("expected float argument in percentile()")
@@ -213,7 +217,12 @@ func MapMean(itr Iterator) interface{} {
 		out.Count++
 		out.Mean += (v.(float64) - out.Mean) / float64(out.Count)
 	}
-	return out
+
+	if out.Count > 0 {
+		return out
+	}
+
+	return nil
 }
 
 type meanMapOutput struct {
@@ -547,6 +556,10 @@ func ReducePercentile(percentile float64) ReduceFunc {
 		var allValues []float64
 
 		for _, v := range values {
+			if v == nil {
+				continue
+			}
+
 			vals := v.([]interface{})
 			for _, v := range vals {
 				allValues = append(allValues, v.(float64))

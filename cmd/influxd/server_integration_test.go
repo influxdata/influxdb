@@ -1456,9 +1456,7 @@ func TestSingleServerDiags(t *testing.T) {
 		t.Skip(fmt.Sprintf("skipping '%s'", testName))
 	}
 	dir := tempfile()
-	defer func() {
-		os.RemoveAll(dir)
-	}()
+	defer os.RemoveAll(dir)
 
 	config := main.NewConfig()
 	config.Monitoring.Enabled = true
@@ -1476,9 +1474,7 @@ func TestSingleServer(t *testing.T) {
 		t.Skip(fmt.Sprintf("skipping '%s'", testName))
 	}
 	dir := tempfile()
-	defer func() {
-		os.RemoveAll(dir)
-	}()
+	defer os.RemoveAll(dir)
 
 	nodes := createCombinedNodeCluster(t, testName, dir, 1, nil)
 	defer nodes.Close()
@@ -1495,9 +1491,7 @@ func Test3NodeServer(t *testing.T) {
 		t.Skip(fmt.Sprintf("skipping '%s'", testName))
 	}
 	dir := tempfile()
-	defer func() {
-		os.RemoveAll(dir)
-	}()
+	defer os.RemoveAll(dir)
 
 	nodes := createCombinedNodeCluster(t, testName, dir, 3, nil)
 	defer nodes.Close()
@@ -1514,9 +1508,7 @@ func Test3NodeServerFailover(t *testing.T) {
 		t.Skip(fmt.Sprintf("skipping '%s'", testName))
 	}
 	dir := tempfile()
-	defer func() {
-		os.RemoveAll(dir)
-	}()
+	defer os.RemoveAll(dir)
 
 	nodes := createCombinedNodeCluster(t, testName, dir, 3, nil)
 
@@ -1539,9 +1531,7 @@ func Test5NodeClusterPartiallyReplicated(t *testing.T) {
 		t.Skip(fmt.Sprintf("skipping '%s'", testName))
 	}
 	dir := tempfile()
-	defer func() {
-		os.RemoveAll(dir)
-	}()
+	defer os.RemoveAll(dir)
 
 	nodes := createCombinedNodeCluster(t, testName, dir, 5, nil)
 	defer nodes.Close()
@@ -1557,9 +1547,7 @@ func TestClientLibrary(t *testing.T) {
 		t.Skip(fmt.Sprintf("skipping '%s'", testName))
 	}
 	dir := tempfile()
-	defer func() {
-		os.RemoveAll(dir)
-	}()
+	defer os.RemoveAll(dir)
 
 	now := time.Now().UTC()
 
