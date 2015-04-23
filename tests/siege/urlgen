@@ -95,7 +95,7 @@ do
 			fi
 
 			# Append the point.
-			POINTS=$POINTS'{"name": "cpu", "tags": {"host": "server'$series'"}, "timestamp": "'$TIMESTAMP'","fields": {"value": 100}}'
+			POINTS=$POINTS'{"name": "cpu", "tags": {"host": "server'$series'"}, "time": "'$TIMESTAMP'","fields": {"value": 100}}'
 		done
 
 		# Write out point.

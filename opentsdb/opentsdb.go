@@ -189,7 +189,7 @@ func (s *Server) HandleTelnet(conn net.Conn) {
 		var t time.Time
 		ts, err := strconv.ParseInt(tsStr, 10, 64)
 		if err != nil {
-			log.Println("TSDBServer: malformed timestamp, skipping: ", tsStr)
+			log.Println("TSDBServer: malformed time, skipping: ", tsStr)
 		}
 
 		switch len(tsStr) {
@@ -200,7 +200,7 @@ func (s *Server) HandleTelnet(conn net.Conn) {
 			t = time.Unix(ts/1000, (ts%1000)*1000)
 			break
 		default:
-			log.Println("TSDBServer: timestamp must be 10 or 13 chars, skipping: ", tsStr)
+			log.Println("TSDBServer: time must be 10 or 13 chars, skipping: ", tsStr)
 			continue
 		}
 
@@ -224,10 +224,10 @@ func (s *Server) HandleTelnet(conn net.Conn) {
 		}
 
 		p := influxdb.Point{
-			Name:      name,
-			Tags:      tags,
-			Timestamp: t,
-			Fields:    fields,
+			Name:   name,
+			Tags:   tags,
+			Time:   t,
+			Fields: fields,
 		}
 
 		_, err = s.writer.WriteSeries(s.database, s.retentionpolicy, []influxdb.Point{p})
@@ -252,10 +252,10 @@ func (s *Server) HandleTelnet(conn net.Conn) {
  }
 */
 type tsdbDP struct {
-	Metric    string            `json:"metric"`
-	Timestamp int64             `json:"timestamp"`
-	Value     float64           `json:"value"`
-	Tags      map[string]string `json:"tags,omitempty"`
+	Metric string            `json:"metric"`
+	Time   int64             `json:"timestamp"`
+	Value  float64           `json:"value"`
+	Tags   map[string]string `json:"tags,omitempty"`
 }
 
 // ServeHTTP implements OpenTSDB's HTTP /api/put endpoint
@@ -321,10 +321,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		dp := dps[dpi]
 
 		var ts time.Time
-		if dp.Timestamp < 10000000000 {
-			ts = time.Unix(dp.Timestamp, 0)
+		if dp.Time < 10000000000 {
+			ts = time.Unix(dp.Time, 0)
 		} else {
-			ts = time.Unix(dp.Timestamp/1000, (dp.Timestamp%1000)*1000)
+			ts = time.Unix(dp.Time/1000, (dp.Time%1000)*1000)
 		}
 
 		fields := make(map[string]interface{})
@@ -333,10 +333,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		p := influxdb.Point{
-			Name:      dp.Metric,
-			Tags:      dp.Tags,
-			Timestamp: ts,
-			Fields:    fields,
+			Name:   dp.Metric,
+			Tags:   dp.Tags,
+			Time:   ts,
+			Fields: fields,
 		}
 		idps = append(idps, p)
 	}

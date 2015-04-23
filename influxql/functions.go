@@ -17,7 +17,7 @@ import (
 // Iterator represents a forward-only iterator over a set of points.
 // These are used by the MapFunctions in this file
 type Iterator interface {
-	Next() (seriesID uint64, timestamp int64, value interface{})
+	Next() (seriesID uint64, time int64, value interface{})
 }
 
 // MapFunc represents a function used for mapping over a sequential series of data.
@@ -760,12 +760,12 @@ func MapRawQuery(itr Iterator) interface{} {
 }
 
 type rawQueryMapOutput struct {
-	Timestamp int64
-	Values    interface{}
+	Time   int64
+	Values interface{}
 }
 
 type rawOutputs []*rawQueryMapOutput
 
 func (a rawOutputs) Len() int           { return len(a) }
-func (a rawOutputs) Less(i, j int) bool { return a[i].Timestamp < a[j].Timestamp }
+func (a rawOutputs) Less(i, j int) bool { return a[i].Time < a[j].Time }
 func (a rawOutputs) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }

@@ -54,7 +54,7 @@ func TestRestoreCommand(t *testing.T) {
 	if err := s.CreateDatabase("db"); err != nil {
 		t.Fatalf("cannot create database: %s", err)
 	}
-	if index, err := s.WriteSeries("db", "default", []influxdb.Point{{Name: "cpu", Timestamp: now, Fields: map[string]interface{}{"value": float64(100)}}}); err != nil {
+	if index, err := s.WriteSeries("db", "default", []influxdb.Point{{Name: "cpu", Time: now, Fields: map[string]interface{}{"value": float64(100)}}}); err != nil {
 		t.Fatalf("cannot write series: %s", err)
 	} else if err = s.Sync(1, index); err != nil {
 		t.Fatalf("shard sync: %s", err)
@@ -106,7 +106,7 @@ func TestRestoreCommand(t *testing.T) {
 	if err := s.CreateDatabase("newdb"); err != nil {
 		t.Fatalf("cannot create new database: %s", err)
 	}
-	if index, err := s.WriteSeries("newdb", "default", []influxdb.Point{{Name: "mem", Timestamp: now, Fields: map[string]interface{}{"value": float64(1000)}}}); err != nil {
+	if index, err := s.WriteSeries("newdb", "default", []influxdb.Point{{Name: "mem", Time: now, Fields: map[string]interface{}{"value": float64(1000)}}}); err != nil {
 		t.Fatalf("cannot write new series: %s", err)
 	} else if err = s.Sync(2, index); err != nil {
 		t.Fatalf("shard sync: %s", err)

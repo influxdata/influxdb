@@ -186,10 +186,10 @@ func Unmarshal(data *gollectd.Packet) []influxdb.Point {
 			tags["type_instance"] = data.TypeInstance
 		}
 		p := influxdb.Point{
-			Name:      name,
-			Tags:      tags,
-			Timestamp: timestamp,
-			Fields:    fields,
+			Name:   name,
+			Tags:   tags,
+			Time:   timestamp,
+			Fields: fields,
 		}
 
 		points = append(points, p)

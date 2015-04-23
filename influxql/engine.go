@@ -94,7 +94,7 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 		reduceFuncs[i] = reduceFunc
 	}
 
-	// we'll have a fixed number of points with timestamps in buckets. Initialize those times and a slice to hold the associated values
+	// we'll have a fixed number of points with times in buckets. Initialize those times and a slice to hold the associated values
 	var pointCountInResult int
 
 	// if the user didn't specify a start time or a group by interval, we're returning a single point that describes the entire range
@@ -255,7 +255,7 @@ func (m *MapReduceJob) processRawQuery(out chan *Row, filterEmptyResults bool) {
 			}
 
 			// find the min of the last point in each mapper
-			t := o[len(o)-1].Timestamp
+			t := o[len(o)-1].Time
 			if t < min {
 				min = t
 			}
@@ -267,7 +267,7 @@ func (m *MapReduceJob) processRawQuery(out chan *Row, filterEmptyResults bool) {
 			// find the index of the point up to the min
 			ind := len(o)
 			for i, mo := range o {
-				if mo.Timestamp > min {
+				if mo.Time > min {
 					ind = i
 					break
 				}
@@ -587,13 +587,13 @@ func (m *MapReduceJob) processRawResults(values []*rawQueryMapOutput) *Row {
 		vals := make([]interface{}, len(selectNames))
 
 		if singleValue {
-			vals[0] = time.Unix(0, v.Timestamp).UTC()
+			vals[0] = time.Unix(0, v.Time).UTC()
 			vals[1] = v.Values.(interface{})
 		} else {
 			fields := v.Values.(map[string]interface{})
 
 			// time is always the first value
-			vals[0] = time.Unix(0, v.Timestamp).UTC()
+			vals[0] = time.Unix(0, v.Time).UTC()
 
 			// populate the other values
 			for i := 1; i < len(selectNames); i++ {

@@ -4,9 +4,9 @@ import "testing"
 import "sort"
 
 type point struct {
-	seriesID  uint64
-	timestamp int64
-	value     interface{}
+	seriesID uint64
+	time     int64
+	value    interface{}
 }
 
 type testIterator struct {
@@ -17,7 +17,7 @@ func (t *testIterator) Next() (seriesID uint64, timestamp int64, value interface
 	if len(t.values) > 0 {
 		v := t.values[0]
 		t.values = t.values[1:]
-		return v.seriesID, v.timestamp, v.value
+		return v.seriesID, v.time, v.value
 	}
 	return 0, 0, nil
 }
