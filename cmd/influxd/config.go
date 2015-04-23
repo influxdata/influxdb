@@ -59,6 +59,9 @@ const (
 	// DefaultMaxTopicSize is the default maximum size in bytes a segment can consume on disk of a broker.
 	DefaultBrokerMaxSegmentSize = 10 * 1024 * 1024
 
+	// DefaultRaftElectionTimeout is the default Leader Election timeout.
+	DefaultRaftElectionTimeout = 1 * time.Second
+
 	// DefaultGraphiteDatabaseName is the default Graphite database if none is specified
 	DefaultGraphiteDatabaseName = "graphite"
 
@@ -108,10 +111,14 @@ var DefaultSnapshotURL = url.URL{
 type Broker struct {
 	Dir                string   `toml:"dir"`
 	Enabled            bool     `toml:"enabled"`
-	Timeout            Duration `toml:"election-timeout"`
 	TruncationInterval Duration `toml:"truncation-interval"`
 	MaxTopicSize       int64    `toml:"max-topic-size"`
 	MaxSegmentSize     int64    `toml:"max-segment-size"`
+}
+
+// Raft represents the Raft configuration for broker nodes.
+type Raft struct {
+	ElectionTimeout Duration `toml:"election-timeout"`
 }
 
 // Snapshot represents the configuration for a snapshot service. Snapshot configuration
@@ -177,6 +184,8 @@ type Config struct {
 	} `toml:"udp"`
 
 	Broker Broker `toml:"broker"`
+
+	Raft Raft `toml:"raft"`
 
 	Data Data `toml:"data"`
 
@@ -260,6 +269,8 @@ func NewConfig() *Config {
 	c.Broker.MaxTopicSize = DefaultBrokerMaxTopicSize
 	c.Broker.MaxSegmentSize = DefaultBrokerMaxSegmentSize
 
+	c.Raft.ElectionTimeout = Duration(DefaultRaftElectionTimeout)
+
 	// FIX(benbjohnson): Append where the udp servers are actually used.
 	// config.UDPServers = append(config.UDPServers, UDPInputConfig{
 	// 	Enabled:  tomlConfiguration.InputPlugins.UDPInput.Enabled,
@@ -283,6 +294,8 @@ func NewTestConfig() (*Config, error) {
 
 	c.Broker.Enabled = true
 	c.Broker.Dir = filepath.Join(u.HomeDir, ".influxdb/broker")
+
+	c.Raft.ElectionTimeout = Duration(DefaultRaftElectionTimeout)
 
 	c.Data.Enabled = true
 	c.Data.Dir = filepath.Join(u.HomeDir, ".influxdb/data")

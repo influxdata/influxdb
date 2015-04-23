@@ -544,6 +544,11 @@ func (cmd *RunCommand) openBroker(brokerURLs []url.URL, h *Handler) {
 	b.Log = l
 	cmd.node.raftLog = l
 
+	// Create Raft clock.
+	clk := raft.NewClock()
+	clk.ElectionTimeout = time.Duration(cmd.config.Raft.ElectionTimeout)
+	l.Clock = clk
+
 	// Open broker so it can feed last index data to the log.
 	if err := b.Open(path); err != nil {
 		log.Fatalf("failed to open broker at %s : %s", path, err)

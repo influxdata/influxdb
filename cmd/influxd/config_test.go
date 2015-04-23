@@ -103,7 +103,9 @@ enabled = false
 # Where the broker logs are stored. The user running InfluxDB will need read/write access.
 dir  = "/tmp/influxdb/development/broker"
 
-# election-timeout = "2s"
+# Raft distributed consensus
+[raft]
+election-timeout = "1s"
 
 [data]
 dir = "/tmp/influxdb/development/db"
