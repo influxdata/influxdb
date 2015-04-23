@@ -153,6 +153,12 @@ func InitializeUnmarshaller(c *Call) (UnmarshalFunc, error) {
 			err := json.Unmarshal(b, &o)
 			return &o, err
 		}, nil
+	case "stddev":
+		return func(b []byte) (interface{}, error) {
+			val := make([]float64, 0)
+			err := json.Unmarshal(b, &val)
+			return val, err
+		}, nil
 	default:
 		return func(b []byte) (interface{}, error) {
 			var val interface{}
@@ -397,9 +403,7 @@ func ReduceStddev(values []interface{}) interface{} {
 		if value == nil {
 			continue
 		}
-		for _, val := range value.([]float64) {
-			data = append(data, val)
-		}
+		data = append(data, value.([]float64)...)
 	}
 
 	// If no data or we only have one point, it's nil or undefined
