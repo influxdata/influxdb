@@ -1243,6 +1243,12 @@ func (s *Server) applyDeleteShardGroup(m *messaging.Message) (err error) {
 		s.stats.Add("shardsDeleted", int64(len(g.Shards)))
 		return tx.saveDatabase(db)
 	})
+
+	// remove from lookups.
+	for _, sh := range g.Shards {
+		delete(s.shards, sh.ID)
+	}
+
 	return
 }
 
