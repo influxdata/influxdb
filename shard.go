@@ -86,18 +86,21 @@ func (s *Shard) open(path string, conn MessagingConn) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.stats == nil {
+		s.stats = NewStats(fmt.Sprintf("shard %d", s.ID))
+	}
+	s.stats.Inc("open")
+
 	// Return an error if the shard is already open.
 	if s.store != nil {
+		s.stats.Inc("errAlreadyOpen")
 		return errors.New("shard already open")
-	}
-
-	if s.stats == nil {
-		s.stats = NewStats("shard")
 	}
 
 	// Open store on shard.
 	store, err := bolt.Open(path, 0666, &bolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
+		s.stats.Inc("errBoltOpenFailure")
 		return err
 	}
 	s.store = store
@@ -117,6 +120,7 @@ func (s *Shard) open(path string, conn MessagingConn) error {
 
 		return nil
 	}); err != nil {
+		s.stats.Inc("errBoltStoreUpdateFailure")
 		_ = s.close()
 		return fmt.Errorf("init: %s", err)
 	}
@@ -175,6 +179,9 @@ func (s *Shard) close() error {
 
 	if s.store != nil {
 		_ = s.store.Close()
+	}
+	if s.stats != nil {
+		s.stats.Inc("close")
 	}
 	return nil
 }
