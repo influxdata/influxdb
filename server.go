@@ -68,6 +68,8 @@ type Server struct {
 	index  uint64           // highest broadcast index seen
 	errors map[uint64]error // message errors
 
+	DropNode func() error // give reference to shut down the node
+
 	meta *metastore // metadata store
 
 	dataNodes map[uint64]*DataNode // data nodes by id
@@ -283,6 +285,18 @@ func (s *Server) close() error {
 	s.users = nil
 
 	return nil
+}
+
+// Drops the server and removes files
+func (s *Server) Drop() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.done != nil {
+		panic("server not closed")
+	}
+
+	return os.Remove(s.path)
 }
 
 // load reads the state of the server from the metastore.
@@ -1015,14 +1029,6 @@ func (s *Server) applyDropServer(m *messaging.Message) error {
 	mustUnmarshalJSON(m.Data, &c)
 
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	// am I being deleted?
-
-	// don't drop the last data node...
-	if len(s.dataNodes) <= 1 {
-		return ErrDropServerConflict
-	}
 
 	// walk shards; track shards marked for deletion
 	var shardIDsToRemove []uint64
@@ -1032,39 +1038,21 @@ func (s *Server) applyDropServer(m *messaging.Message) error {
 		}
 	}
 
-	// walk shard groups (via databases) and make sure we're not going to lose data
-	for _, database := range s.databases {
-		for _, policy := range database.policies {
-			if policy.ReplicaN > 1 {
-				continue
-			}
+	// Update top level data nodes that a server has been removed
+	// Remove data node from current server
+	// TODO	delete(s.dataNodes, c.NodeID)
 
-			var matchedShardGroupCount int
-			for _, shardGroup := range policy.shardGroups {
+	// Update the meta store for each shard that a datanode has been removed
 
-				var matchedShardCount int
-				// am i going to delete all of the shards in this group?
-				for _, shard := range shardGroup.Shards {
-					for _, shardID := range shardIDsToRemove {
-						if shard.ID == shardID {
-							matchedShardCount++
-						}
-					}
-				}
+	// Persist these changes to the meta store
 
-				if matchedShardCount == len(shardGroup.Shards) {
-					matchedShardGroupCount++
-				}
-			}
-
-			if matchedShardGroupCount == len(policy.shardGroups) {
-				return ErrDropServerConflict
-			}
-		}
+	// am I the one being deleted? If so, shut me down
+	if c.NodeID == s.id {
+		s.mu.Unlock()
+		return s.DropNode()
 	}
 
-	// finally, remove the dataNode from server memory
-	// TODO	delete(s.dataNodes, c.NodeID)
+	s.mu.Unlock()
 
 	return nil
 }
