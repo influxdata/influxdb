@@ -271,9 +271,8 @@ func Test_seriesIDs_reject(t *testing.T) {
 // Test shard group selection.
 func TestShardGroup_Contains(t *testing.T) {
 	// Make a shard group 1 hour in duration
-	g := newShardGroup()
-	g.StartTime, _ = time.Parse(time.RFC3339, "2000-01-01T00:00:00Z")
-	g.EndTime = g.StartTime.Add(time.Hour)
+	tm, _ := time.Parse(time.RFC3339, "2000-01-01T00:00:00Z")
+	g := newShardGroup(tm, time.Hour)
 
 	if !g.Contains(g.StartTime.Add(-time.Minute), g.EndTime) {
 		t.Fatal("shard group not selected when min before start time")
