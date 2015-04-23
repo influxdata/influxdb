@@ -6,7 +6,7 @@
 - [#2408](https://github.com/influxdb/influxdb/pull/2408): Fix snapshot 500 error
 
 ### Features
-- [#2410](https://github.com/influxdb/influxdb/pull/2410) Allow configuration Raft timers
+- [#2410](https://github.com/influxdb/influxdb/pull/2410) Allow configuration of Raft timers
 
 ## v0.9.0-rc27 [04-23-2015]
 
