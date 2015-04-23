@@ -556,6 +556,10 @@ func ReducePercentile(percentile float64) ReduceFunc {
 		var allValues []float64
 
 		for _, v := range values {
+			if v == nil {
+				continue
+			}
+
 			vals := v.([]interface{})
 			for _, v := range vals {
 				allValues = append(allValues, v.(float64))

@@ -98,3 +98,17 @@ func TestInitializeReduceFuncPercentile(t *testing.T) {
 		t.Errorf("InitializedReduceFunc(%v) mismatch. exp %v got %v", c, exp, err.Error())
 	}
 }
+
+func TestReducePercentileNil(t *testing.T) {
+
+	// ReducePercentile should ignore nil values when calculating the percentile
+	fn := ReducePercentile(100)
+	input := []interface{}{
+		nil,
+	}
+
+	got := fn(input)
+	if got != nil {
+		t.Fatalf("ReducePercentile(100) returned wrong type. exp nil got %v", got)
+	}
+}
