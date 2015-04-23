@@ -80,6 +80,13 @@ truncation-interval = "10m"
 max-topic-size = 1073741824
 max-segment-size = 10485760
 
+# Raft configuration. Controls the distributed consensus system.
+[raft]
+apply-interval = "10ms"
+election-timeout = "1s"
+heartbeat-interval = "100ms"
+reconnect-timeout = "10ms"
+
 # Data node configuration. Data nodes are where the time-series data, in the form of
 # shards, is stored.
 [data]
