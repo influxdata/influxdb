@@ -65,3 +65,36 @@ func TestMapMean(t *testing.T) {
 
 	}
 }
+
+func TestInitializeReduceFuncPercentile(t *testing.T) {
+	// No args
+	c := &Call{
+		Name: "percentile",
+		Args: []Expr{},
+	}
+	_, err := InitializeReduceFunc(c)
+	if err == nil {
+		t.Errorf("InitializedReduceFunc(%v) expected error. got nil", c)
+	}
+
+	if exp := "expected float argument in percentile()"; err.Error() != exp {
+		t.Errorf("InitializedReduceFunc(%v) mismatch. exp %v got %v", c, exp, err.Error())
+	}
+
+	// No percentile arg
+	c = &Call{
+		Name: "percentile",
+		Args: []Expr{
+			&VarRef{Val: "field1"},
+		},
+	}
+
+	_, err = InitializeReduceFunc(c)
+	if err == nil {
+		t.Errorf("InitializedReduceFunc(%v) expected error. got nil", c)
+	}
+
+	if exp := "expected float argument in percentile()"; err.Error() != exp {
+		t.Errorf("InitializedReduceFunc(%v) mismatch. exp %v got %v", c, exp, err.Error())
+	}
+}

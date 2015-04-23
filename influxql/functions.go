@@ -107,6 +107,10 @@ func InitializeReduceFunc(c *Call) (ReduceFunc, error) {
 	case "last":
 		return ReduceLast, nil
 	case "percentile":
+		if len(c.Args) != 2 {
+			return nil, fmt.Errorf("expected float argument in percentile()")
+		}
+
 		lit, ok := c.Args[1].(*NumberLiteral)
 		if !ok {
 			return nil, fmt.Errorf("expected float argument in percentile()")
