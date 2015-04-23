@@ -67,13 +67,12 @@ If you are going to be contributing back to InfluxDB please take a
 second to sign our CLA, which can be found
 [on our website](http://influxdb.com/community/cla.html).
 
-Installing go
+Installing Go
 -------------
+InfluxDB requires Go 1.4 or greater.
 
-We recommend using gvm, a Go version manager. For instructions
-on how to install see
-[the gvm page on github](https://github.com/moovweb/gvm). InfluxDB
-currently works with Go 1.4 and up.
+At InfluxDB we find gvm, a Go version manager, useful for installing Go. For instructions
+on how to install it see [the gvm page on github](https://github.com/moovweb/gvm).
 
 After installing gvm you can install and set the default go version by
 running the following:
@@ -83,7 +82,6 @@ running the following:
 
 Revision Control Systems
 ------
-
 Go has the ability to import remote packages via revision control systems with the `go get` command.  To ensure that you can retrieve any remote package, be sure to install the following rcs software to your system.
 Currently the project only depends on `git` and `mercurial`.
 
@@ -92,7 +90,6 @@ Currently the project only depends on `git` and `mercurial`.
 
 Project structure
 -----------------
-
 First you need to setup the project structure:
 
     export GOPATH=$HOME/gocodez
