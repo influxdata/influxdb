@@ -122,6 +122,10 @@ func (c *Client) Write(bp BatchPoints) (*Response, error) {
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", c.userAgent)
+	if c.username != "" {
+		req.SetBasicAuth(c.username, c.password)
+	}
+
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err
@@ -155,6 +159,10 @@ func (c *Client) Ping() (time.Duration, string, error) {
 		return 0, "", err
 	}
 	req.Header.Set("User-Agent", c.userAgent)
+	if c.username != "" {
+		req.SetBasicAuth(c.username, c.password)
+	}
+
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return 0, "", err
@@ -170,8 +178,6 @@ func (c *Client) Dump(db string) (io.ReadCloser, error) {
 	u.Path = "dump"
 	values := u.Query()
 	values.Set("db", db)
-	values.Set("user", c.username)
-	values.Set("password", c.password)
 	u.RawQuery = values.Encode()
 
 	req, err := http.NewRequest("GET", u.String(), nil)
@@ -179,6 +185,10 @@ func (c *Client) Dump(db string) (io.ReadCloser, error) {
 		return nil, err
 	}
 	req.Header.Set("User-Agent", c.userAgent)
+	if c.username != "" {
+		req.SetBasicAuth(c.username, c.password)
+	}
+
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err
