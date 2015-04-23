@@ -1128,7 +1128,7 @@ func (s *Server) CreateShardGroupIfNotExists(database, policy string, timestamp 
 	return err
 }
 
-func (s *Server) applyCreateShardGroupIfNotExists(m *messaging.Message) (err error) {
+func (s *Server) applyCreateShardGroupIfNotExists(m *messaging.Message) error {
 	var c createShardGroupIfNotExistsCommand
 	mustUnmarshalJSON(m.Data, &c)
 
@@ -1148,11 +1148,6 @@ func (s *Server) applyCreateShardGroupIfNotExists(m *messaging.Message) (err err
 	if g := rp.shardGroupByTimestamp(c.Timestamp); g != nil {
 		return nil
 	}
-
-	// If no shards match then create a new one.
-	g := newShardGroup()
-	g.StartTime = c.Timestamp.Truncate(rp.ShardGroupDuration).UTC()
-	g.EndTime = g.StartTime.Add(rp.ShardGroupDuration).UTC()
 
 	// Sort nodes so they're consistently assigned to the shards.
 	nodes := make([]*DataNode, 0, len(s.dataNodes))
@@ -1174,44 +1169,14 @@ func (s *Server) applyCreateShardGroupIfNotExists(m *messaging.Message) (err err
 	// replicated the correct number of times.
 	shardN := len(nodes) / replicaN
 
-	// Create a shard based on the node count and replication factor.
-	g.Shards = make([]*Shard, shardN)
-	for i := range g.Shards {
-		g.Shards[i] = newShard()
+	g := newShardGroup(c.Timestamp, rp.ShardGroupDuration)
+
+	// Create and intialize shards based on the node count and replication factor.
+	if err := g.initialize(m.Index, shardN, replicaN, db, rp, nodes, s.meta); err != nil {
+		g.close(s.id)
+		return err
 	}
-
-	// Persist to metastore if a shard was created.
-	if err = s.meta.mustUpdate(m.Index, func(tx *metatx) error {
-		// Generate an ID for the group.
-		g.ID = tx.nextShardGroupID()
-
-		// Generate an ID for each shard.
-		for _, sh := range g.Shards {
-			sh.ID = tx.nextShardID()
-			sh.stats = NewStats(fmt.Sprintf("shard %d", sh.ID))
-			sh.stats.Inc("create")
-		}
-
-		// Assign data nodes to shards via round robin.
-		// Start from a repeatably "random" place in the node list.
-		nodeIndex := int(m.Index % uint64(len(nodes)))
-		for _, sh := range g.Shards {
-			for i := 0; i < replicaN; i++ {
-				node := nodes[nodeIndex%len(nodes)]
-				sh.DataNodeIDs = append(sh.DataNodeIDs, node.ID)
-				nodeIndex++
-			}
-		}
-		s.stats.Add("shardsCreated", int64(len(g.Shards)))
-
-		// Retention policy has a new shard group, so update the policy.
-		rp.shardGroups = append(rp.shardGroups, g)
-
-		return tx.saveDatabase(db)
-	}); err != nil {
-		g.close()
-		return
-	}
+	s.stats.Add("shardsCreated", int64(shardN))
 
 	// Open shards assigned to this server.
 	for _, sh := range g.Shards {
@@ -1231,7 +1196,7 @@ func (s *Server) applyCreateShardGroupIfNotExists(m *messaging.Message) (err err
 		s.shards[sh.ID] = sh
 	}
 
-	return
+	return nil
 }
 
 // DeleteShardGroup deletes the shard group identified by shardID.
@@ -1265,19 +1230,11 @@ func (s *Server) applyDeleteShardGroup(m *messaging.Message) (err error) {
 		return nil
 	}
 
-	for _, shard := range g.Shards {
-		// Ignore shards not on this server.
-		if !shard.HasDataNodeID(s.id) {
-			continue
-		}
-
-		path := shard.store.Path()
-		shard.close()
-		if err := os.Remove(path); err != nil {
-			// Log, but keep going. This can happen if shards were deleted, but the server exited
-			// before it acknowledged the delete command.
-			log.Printf("error deleting shard %s, group ID %d, policy %s: %s", path, g.ID, rp.Name, err.Error())
-		}
+	// close the shard group
+	if err := g.close(s.id); err != nil {
+		// Log, but keep going. This can happen if shards were deleted, but the server exited
+		// before it acknowledged the delete command.
+		log.Printf("error deleting shard: policy %s, group ID %d, %s", rp.Name, g.ID, err)
 	}
 
 	// Remove from metastore.
