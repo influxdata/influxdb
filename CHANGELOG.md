@@ -1,5 +1,9 @@
 ## v0.9.0-rc28 [unreleased]
 
+### Bugfixes
+- [#2374](https://github.com/influxdb/influxdb/issues/2374): Two different panics during SELECT percentile
+- [#2404](https://github.com/influxdb/influxdb/pull/2404): Mean and percentile function fixes
+
 ## v0.9.0-rc27 [04-23-2015]
 
 ### Features
