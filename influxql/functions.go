@@ -213,7 +213,12 @@ func MapMean(itr Iterator) interface{} {
 		out.Count++
 		out.Mean += (v.(float64) - out.Mean) / float64(out.Count)
 	}
-	return out
+
+	if out.Count > 0 {
+		return out
+	}
+
+	return nil
 }
 
 type meanMapOutput struct {
