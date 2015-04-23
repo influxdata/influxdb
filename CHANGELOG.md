@@ -1,5 +1,8 @@
 ## v0.9.0-rc27 [unreleased]
 
+### Features
+- [#2398](https://github.com/influxdb/influxdb/pull/2398) Track more stats and report errors for shards.
+
 ### Bugfixes
 - [#2370](https://github.com/influxdb/influxdb/pull/2370): Fix data race in openTSDB endpoint.
 - [#2371](https://github.com/influxdb/influxdb/pull/2371): Don't set client to nil when closing broker Fixes #2352
