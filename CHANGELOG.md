@@ -5,11 +5,13 @@
 - [#2404](https://github.com/influxdb/influxdb/pull/2404): Mean and percentile function fixes
 - [#2408](https://github.com/influxdb/influxdb/pull/2408): Fix snapshot 500 error
 
+### Features
+- [#2410](https://github.com/influxdb/influxdb/pull/2410) Allow configuration Raft timers
+
 ## v0.9.0-rc27 [04-23-2015]
 
 ### Features
 - [#2398](https://github.com/influxdb/influxdb/pull/2398) Track more stats and report errors for shards.
-- [#2410](https://github.com/influxdb/influxdb/pull/2410) Allow Raft time configuration
 
 ### Bugfixes
 - [#2370](https://github.com/influxdb/influxdb/pull/2370): Fix data race in openTSDB endpoint.
