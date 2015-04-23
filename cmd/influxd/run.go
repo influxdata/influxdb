@@ -546,7 +546,10 @@ func (cmd *RunCommand) openBroker(brokerURLs []url.URL, h *Handler) {
 
 	// Create Raft clock.
 	clk := raft.NewClock()
+	clk.ApplyInterval = time.Duration(cmd.config.Raft.ApplyInterval)
 	clk.ElectionTimeout = time.Duration(cmd.config.Raft.ElectionTimeout)
+	clk.HeartbeatInterval = time.Duration(cmd.config.Raft.HeartbeatInterval)
+	clk.ReconnectTimeout = time.Duration(cmd.config.Raft.ReconnectTimeout)
 	l.Clock = clk
 
 	// Open broker so it can feed last index data to the log.

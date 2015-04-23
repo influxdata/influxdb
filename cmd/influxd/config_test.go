@@ -105,6 +105,7 @@ dir  = "/tmp/influxdb/development/broker"
 
 # Raft distributed consensus
 [raft]
+apply-interval = "10ms"
 election-timeout = "1s"
 
 [data]
@@ -252,6 +253,10 @@ func TestParseConfig(t *testing.T) {
 
 	if c.Broker.Enabled != false {
 		t.Fatalf("broker disabled mismatch: %v, got: %v", false, c.Broker.Enabled)
+	}
+
+	if c.Raft.ApplyInterval != main.Duration(10*time.Millisecond) {
+		t.Fatalf("Raft apply interval mismatch: %v, got %v", 10*time.Millisecond, c.Raft.ApplyInterval)
 	}
 
 	if c.Data.Dir != "/tmp/influxdb/development/db" {

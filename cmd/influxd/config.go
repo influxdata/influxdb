@@ -59,8 +59,17 @@ const (
 	// DefaultMaxTopicSize is the default maximum size in bytes a segment can consume on disk of a broker.
 	DefaultBrokerMaxSegmentSize = 10 * 1024 * 1024
 
+	// DefaultRaftApplyInterval is the period between applying commited Raft log entries.
+	DefaultRaftApplyInterval = 10 * time.Millisecond
+
 	// DefaultRaftElectionTimeout is the default Leader Election timeout.
 	DefaultRaftElectionTimeout = 1 * time.Second
+
+	// DefaultRaftHeartbeatInterval is the interval between leader heartbeats.
+	DefaultRaftHeartbeatInterval = 100 * time.Millisecond
+
+	// DefaultRaftReconnectTimeout is the default wait time between reconnections.
+	DefaultRaftReconnectTimeout = 10 * time.Millisecond
 
 	// DefaultGraphiteDatabaseName is the default Graphite database if none is specified
 	DefaultGraphiteDatabaseName = "graphite"
@@ -118,7 +127,10 @@ type Broker struct {
 
 // Raft represents the Raft configuration for broker nodes.
 type Raft struct {
-	ElectionTimeout Duration `toml:"election-timeout"`
+	ApplyInterval     Duration `toml:"apply-interval"`
+	ElectionTimeout   Duration `toml:"election-timeout"`
+	HeartbeatInterval Duration `toml:"heartbeat-interval"`
+	ReconnectTimeout  Duration `toml:"reconnect-timeout"`
 }
 
 // Snapshot represents the configuration for a snapshot service. Snapshot configuration
@@ -269,7 +281,10 @@ func NewConfig() *Config {
 	c.Broker.MaxTopicSize = DefaultBrokerMaxTopicSize
 	c.Broker.MaxSegmentSize = DefaultBrokerMaxSegmentSize
 
+	c.Raft.ApplyInterval = Duration(DefaultRaftApplyInterval)
 	c.Raft.ElectionTimeout = Duration(DefaultRaftElectionTimeout)
+	c.Raft.HeartbeatInterval = Duration(DefaultRaftHeartbeatInterval)
+	c.Raft.ReconnectTimeout = Duration(DefaultRaftReconnectTimeout)
 
 	// FIX(benbjohnson): Append where the udp servers are actually used.
 	// config.UDPServers = append(config.UDPServers, UDPInputConfig{
@@ -295,7 +310,10 @@ func NewTestConfig() (*Config, error) {
 	c.Broker.Enabled = true
 	c.Broker.Dir = filepath.Join(u.HomeDir, ".influxdb/broker")
 
+	c.Raft.ApplyInterval = Duration(DefaultRaftApplyInterval)
 	c.Raft.ElectionTimeout = Duration(DefaultRaftElectionTimeout)
+	c.Raft.HeartbeatInterval = Duration(DefaultRaftHeartbeatInterval)
+	c.Raft.ReconnectTimeout = Duration(DefaultRaftReconnectTimeout)
 
 	c.Data.Enabled = true
 	c.Data.Dir = filepath.Join(u.HomeDir, ".influxdb/data")
