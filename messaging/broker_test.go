@@ -418,6 +418,9 @@ func TestTopic_Recover_Checksum(t *testing.T) {
 // Test that topics are correctly truncated.
 func TestTopic_Truncate(t *testing.T) {
 	topic := OpenTopic()
+	if topic.Truncated() {
+		t.Errorf("topic reports truncated which should not be the case")
+	}
 	topic.MaxSegmentSize = 10
 
 	// Force creation of 3 segments.
@@ -444,11 +447,17 @@ func TestTopic_Truncate(t *testing.T) {
 	if len(MustReadSegments(topic.Path())) != 3 {
 		t.Errorf("topic does not have correct number of segments, expected 3, got %d", len(segments))
 	}
+	if topic.Truncated() {
+		t.Errorf("topic reports truncated which should not be the case")
+	}
 
 	topic.Truncate(5) // no replication has yet occurred.
 	segments = MustReadSegments(topic.Path())
 	if len(MustReadSegments(topic.Path())) != 3 {
 		t.Errorf("topic does not have correct number of segments, expected 3, got %d", len(segments))
+	}
+	if topic.Truncated() {
+		t.Errorf("topic reports truncated which should not be the case")
 	}
 
 	// Simulate replication of first segment.
@@ -460,6 +469,9 @@ func TestTopic_Truncate(t *testing.T) {
 	}
 	if segments[0].Index != 10 {
 		t.Errorf("wrong segment truncated, remaining segment has index %d", segments[0].Index)
+	}
+	if !topic.Truncated() {
+		t.Errorf("topic does not report as truncated")
 	}
 
 	topic.SetIndexForURL(100, *MustParseURL("http://127.0.0.1:8086"))

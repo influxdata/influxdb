@@ -724,6 +724,14 @@ func (t *Topic) Path() string { return t.path }
 // TombstonePath returns the path of the tomstone file.
 func (t *Topic) TombstonePath() string { return filepath.Join(t.path, "tombstone") }
 
+// Truncated returns whether the topic has even been truncated.
+func (t *Topic) Truncated() bool {
+	if _, err := os.Stat(t.TombstonePath()); os.IsNotExist(err) {
+		return false
+	}
+	return true
+}
+
 // Index returns the highest replicated index for the topic.
 func (t *Topic) Index() uint64 {
 	t.mu.Lock()
