@@ -1,4 +1,6 @@
-## v0.9.0-rc27 [unreleased]
+## v0.9.0-rc28 [unreleased]
+
+## v0.9.0-rc27 [04-23-2015]
 
 ### Features
 - [#2398](https://github.com/influxdb/influxdb/pull/2398) Track more stats and report errors for shards.
