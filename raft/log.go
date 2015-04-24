@@ -1035,6 +1035,9 @@ func (l *Log) candidateLoop(closing <-chan struct{}) State {
 		case <-l.terms:
 			return Follower
 		case <-elected:
+			l.lock()
+			l.leaderID = l.id
+			l.unlock()
 			return Leader
 		case ch := <-l.Clock.AfterElectionTimeout():
 			close(ch)
