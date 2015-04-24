@@ -396,7 +396,6 @@ func TestState_String(t *testing.T) {
 
 // Ensure a cluster of nodes can successfully re-elect while applying commands.
 func TestCluster_Elect_RealTime(t *testing.T) {
-	t.Skip("Skipping....issue #2303")
 	if testing.Short() {
 		t.Skip("skip: short mode")
 	}
