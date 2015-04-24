@@ -1176,9 +1176,10 @@ func (l *Log) heartbeater(term uint64, committed chan uint64, wg *sync.WaitGroup
 		go func(n *ConfigNode) {
 			peerIndex, err := l.Transport.Heartbeat(n.URL, term, commitIndex, leaderID)
 			if err != nil {
+				c := atomic.AddInt64(&n.HeartbeatErrorCount, 1)
 				// log heartbeat error once every 15 seconds to avoid flooding the logs
 				if time.Now().Unix()-atomic.LoadInt64(&n.LastHeartbeatError) > 15 {
-					l.Logger.Printf("send heartbeat: error: %s", err)
+					l.Logger.Printf("send heartbeat: error: cnt=%d %s", c, err)
 					atomic.StoreInt64(&n.LastHeartbeatError, time.Now().Unix())
 				}
 				return
@@ -1186,6 +1187,7 @@ func (l *Log) heartbeater(term uint64, committed chan uint64, wg *sync.WaitGroup
 			if atomic.LoadInt64(&n.LastHeartbeatError) != 0 {
 				l.Logger.Printf("send heartbeat: success url=%s", n.URL.String())
 				atomic.StoreInt64(&n.LastHeartbeatError, 0)
+				atomic.StoreInt64(&n.HeartbeatErrorCount, 0)
 			}
 			peerIndices <- peerIndex
 		}(n)
