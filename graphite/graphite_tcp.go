@@ -23,6 +23,7 @@ type TCPServer struct {
 	Logger *log.Logger
 
 	host string
+	mu   sync.Mutex
 }
 
 // NewTCPServer returns a new instance of a TCPServer.
@@ -47,7 +48,9 @@ func (t *TCPServer) ListenAndServe(iface string) error {
 		return err
 	}
 	t.listener = &ln
+	t.mu.Lock()
 	t.host = ln.Addr().String()
+	t.mu.Unlock()
 
 	t.Logger.Println("listening on TCP connection", ln.Addr().String())
 	t.wg.Add(1)
@@ -72,6 +75,8 @@ func (t *TCPServer) ListenAndServe(iface string) error {
 }
 
 func (t *TCPServer) Host() string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	return t.host
 }
 

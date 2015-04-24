@@ -8,6 +8,7 @@
 - [#2418](https://github.com/influxdb/influxdb/pull/2418): Fix raft node getting stuck in candidate state
 - [#2415](https://github.com/influxdb/influxdb/pull/2415): Raft leader ID now set on election after failover.
 - [#2426](https://github.com/influxdb/influxdb/pull/2426): Fix race condition around listener address in openTSDB server.
+- [#2426](https://github.com/influxdb/influxdb/pull/2426): Fix race condition around listener address in Graphite server.
 
 ### Features
 - [#2410](https://github.com/influxdb/influxdb/pull/2410) Allow configuration of Raft timers
