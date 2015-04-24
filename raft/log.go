@@ -1028,6 +1028,8 @@ func (l *Log) candidateLoop(closing <-chan struct{}) State {
 			if hb.term >= l.term {
 				l.tracef("candidateLoop: new leader: old=%d new=%d", l.leaderID, hb.leaderID)
 				l.leaderID = hb.leaderID
+				l.unlock()
+				return Follower
 			}
 			l.unlock()
 		case <-l.terms:
