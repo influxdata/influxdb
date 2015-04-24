@@ -96,8 +96,9 @@ func (c *Config) Clone() *Config {
 
 // ConfigNode represents a single machine in the raft configuration.
 type ConfigNode struct {
-	ID  uint64
-	URL url.URL
+	ID                 uint64
+	URL                url.URL
+	LastHeartbeatError int64 // the time a heartbeat returned an error
 }
 
 // clone returns a deep copy of the node.
