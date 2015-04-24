@@ -41,6 +41,10 @@ type FSM interface {
 
 const logEntryHeaderSize = 8 + 8 + 8 // sz+index+term
 
+// heartbeartErrorLogThreshold is the number of seconds to wait before logging
+// another heartbeat error
+const heartbeartErrorLogThreshold = 15
+
 // WaitInterval represents the amount of time between checks to the applied index.
 // This is used by clients wanting to wait until a given index is processed.
 const WaitInterval = 1 * time.Millisecond
@@ -1176,8 +1180,18 @@ func (l *Log) heartbeater(term uint64, committed chan uint64, wg *sync.WaitGroup
 		go func(n *ConfigNode) {
 			peerIndex, err := l.Transport.Heartbeat(n.URL, term, commitIndex, leaderID)
 			if err != nil {
-				l.Logger.Printf("send heartbeat: error: %s", err)
+				c := atomic.AddInt64(&n.HeartbeatErrorCount, 1)
+				// log heartbeat error once every 15 seconds to avoid flooding the logs
+				if time.Now().Unix()-atomic.LoadInt64(&n.LastHeartbeatError) > heartbeartErrorLogThreshold {
+					l.Logger.Printf("send heartbeat: error: cnt=%d %s", c, err)
+					atomic.StoreInt64(&n.LastHeartbeatError, time.Now().Unix())
+				}
 				return
+			}
+			if atomic.LoadInt64(&n.LastHeartbeatError) != 0 {
+				l.Logger.Printf("send heartbeat: success url=%s", n.URL.String())
+				atomic.StoreInt64(&n.LastHeartbeatError, 0)
+				atomic.StoreInt64(&n.HeartbeatErrorCount, 0)
 			}
 			peerIndices <- peerIndex
 		}(n)
