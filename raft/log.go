@@ -1183,6 +1183,10 @@ func (l *Log) heartbeater(term uint64, committed chan uint64, wg *sync.WaitGroup
 				}
 				return
 			}
+			if atomic.LoadInt64(&n.LastHeartbeatError) != 0 {
+				l.Logger.Printf("send heartbeat: success url=%s", n.URL.String())
+				atomic.StoreInt64(&n.LastHeartbeatError, 0)
+			}
 			peerIndices <- peerIndex
 		}(n)
 	}
