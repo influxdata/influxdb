@@ -4,13 +4,11 @@
 
 This is a reference for the Influx Query Language ("InfluxQL").
 
-InfluxQL is a SQL-like query language for interacting with InfluxDB.  It has been lovingly crafted to feel familiar to those coming from other
-SQL or SQL-like environments while providing features specific to storing
-and analyzing time series data.
+InfluxQL is a SQL-like query language for interacting with InfluxDB.  It has been lovingly crafted to feel familiar to those coming from other SQL or SQL-like environments while providing features specific to storing and analyzing time series data.
 
 ## Notation
 
-This specification uses the same notation used by Google's Go programming language, which can be found at http://golang.org.  The syntax is specified in Extended Backus-Naur Form ("EBNF"):
+The syntax is specified using Extended Backus-Naur Form ("EBNF").  EBNF is the same notation used in the [Go](http://golang.org) programming language specification, which can be found [here](https://golang.org/ref/spec).  Not so coincidentally, InfluxDB is written in Go.
 
 ```
 Production  = production_name "=" [ Expression ] "." .
@@ -36,45 +34,24 @@ Notation operators in order of increasing precedence:
 ```
 newline             = /* the Unicode code point U+000A */ .
 unicode_char        = /* an arbitrary Unicode code point except newline */ .
-ascii_letter        = "A" .. "Z" | "a" .. "z" .
-decimal_digit       = "0" .. "9" .
-```
-
-## Database name
-
-Database names are more limited than other identifiers because they appear in URLs.
-
-The rules:
-
-- must start with an upper or lowercase ASCII letter
-- may contain only ASCII leters, decimal digits, "_", and "-"
-
-```
-db_name             = ascii_letter { ascii_letter | decimal_digit | "_" | "-" } .
-```
-
-#### Examples:
-
-```
-mydb
-MyDB
-my-db_3
+ascii_letter        = "A" … "Z" | "a" … "z" .
+decimal_digit       = "0" … "9" .
 ```
 
 ## Identifiers
 
-Identifiers are things like measurement names, retention policy names, tag keys, etc.
+Identifiers are things like database names, measurement names, retention policy names, tag keys, etc.
 
 The rules:
 
-- double quoted identifiers can contain any unicode character other than a new
+- double quoted identifiers can contain any unicode character other than a new line
 - double quoted identifiers can contain escaped `"` characters (i.e., `\"`)
-- unquoted identifiers must start with an upper or lowercase ASCII character
-- unquoted identifiers may contain only ASCII letters, decimal digits, "_", and "."
+- unquoted identifiers must start with an upper or lowercase ASCII character or "_"
+- unquoted identifiers may contain only ASCII letters, decimal digits, and "_"
 
 ```
 identifier          = unquoted_identifier | quoted_identifier .
-unquoted_identifier = ascii_letter { ascii_letter | decimal_digit | "_" | "." } .
+unquoted_identifier = ( ascii_letter | "_" ) { ascii_letter | decimal_digit | "_" } .
 quoted_identifier   = `"` unicode_char { unicode_char } `"` .
 ```
 
@@ -82,8 +59,10 @@ quoted_identifier   = `"` unicode_char { unicode_char } `"` .
 
 ```
 cpu
-"1h.cpu"
-"1_Crazy-1337.identifer>NAME"
+_cpu_stats
+"1h"
+"anything really"
+"1_Crazy-1337.identifer>NAME👍"
 ```
 
 ## Keywords
@@ -110,7 +89,7 @@ currently supported.
 
 ```
 int_lit             = decimal_lit .
-decimal_lit         = ( "1" .. "9" ) { decimal_digit } .
+decimal_lit         = ( "1" … "9" ) { decimal_digit } .
 float_lit           = decimals "." decimals .
 ```
 
@@ -210,6 +189,8 @@ alter_retention_policy_stmt  = "ALTER RETENTION POLICY" policy_name "ON"
                                db_name retention_policy_option
                                [ retention_policy_option ]
                                [ retention_policy_option ] .
+
+db_name                      = identifier .
 
 policy_name                  = identifier .
 
