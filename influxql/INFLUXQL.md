@@ -62,7 +62,7 @@ cpu
 _cpu_stats
 "1h"
 "anything really"
-"1_Crazy-1337.identifer>NAME👍"
+"1_Crazy-1337.identifier>NAME👍"
 ```
 
 ## Keywords
@@ -82,15 +82,20 @@ VALUES       WHERE        WITH         WRITE
 
 ## Literals
 
-### Numbers
+### Integers
 
-InfluxQL supports decimal integer literals and float literals.  Hex, octal, etc. are not
-currently supported.
+InfluxQL supports decimal integer literals.  Hexadecimal and octal literals are not currently supported.
 
 ```
-int_lit             = decimal_lit .
-decimal_lit         = ( "1" … "9" ) { decimal_digit } .
-float_lit           = decimals "." decimals .
+int_lit             = decimal_digit { decimal_digit } .
+```
+
+### Floats
+
+InfluxQL supports floating-point literals.  Exponents are not currently supported.
+
+```
+float_lit           = int_lit "." int_lit .
 ```
 
 ### Strings
@@ -103,9 +108,11 @@ string_lit          = `'` { unicode_char } `'`' .
 
 ### Durations
 
-Duration literals specify a length of time and are specified by an integer
-followed by (without spaces) the duration units.
+Duration literals specify a length of time.  An integer literal followed immediately (with no spaces) by a duration unit listed below is interpreted as a duration literal.
 
+```
+Duration unit definitions
+-------------------------
 | Units  | Meaning                                 |
 |--------|-----------------------------------------|
 | u or µ | microseconds (1 millionth of a second)  |
@@ -115,27 +122,24 @@ followed by (without spaces) the duration units.
 | h      | hour                                    |
 | d      | day                                     |
 | w      | week                                    |
-
+```
 
 ```
-duration_lit        = decimals duration_unit .
+duration_lit        = int_lit duration_unit .
 duration_unit       = "u" | "µ" | "s" | "h" | "d" | "w" | "ms" .
 ```
 
 ### Dates & Times
 
-The date & time literal format is not specified in EBNF like the rest of this
-document.  It is specified using Go's date / time parsing format, which is
-a reference date written in the format required by InfluxQL.  The reference
-date time is:
+The date and time literal format is not specified in EBNF like the rest of this document.  It is specified using Go's date / time parsing format, which is a reference date written in the format required by InfluxQL.  The reference date time is:
 
-January 2nd, 2006 at 3:04:05 PM
+InfluxQL reference date time: January 2nd, 2006 at 3:04:05 PM
 
 ```
 time_lit            = "2006-01-02 15:04:05.999999" | "2006-01-02"
 ```
 
-### Boolean
+### Booleans
 
 ```
 bool_lit            = TRUE | FALSE .
@@ -493,7 +497,7 @@ SHOW TAG KEYS FROM cpu;
 -- show all tag keys from the cpu measurement where the region key = 'uswest'
 SHOW TAG KEYS FROM cpu WHERE region = 'uswest';
 
--- show sll tag keys where the host key = 'serverA'
+-- show all tag keys where the host key = 'serverA'
 SHOW TAG KEYS WHERE host = 'serverA';
 ```
 
@@ -594,14 +598,12 @@ binary_op        = "+" | "-" | "*" | "/" | "AND" | "OR" | "=" | "!=" | "<" |
 expr             = unary_expr { binary_op unary_expr } .
 
 unary_expr       = "(" expr ")" | var_ref | time_lit | string_lit |
-                   number_lit | bool_lit | duration_lit | regex_lit .
+                   float_lit | bool_lit | duration_lit | regex_lit .
 ```
 
 ## Other
 
 ```
-decimals          = decimal_digit { decimal_digit } .
-
 dimension         = expr .
 
 dimensions        = dimension { "," dimension } .
