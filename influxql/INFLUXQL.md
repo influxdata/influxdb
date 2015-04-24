@@ -29,18 +29,32 @@ Notation operators in order of increasing precedence:
 {}  repetition (0 to n times)
 ```
 
-## Characters & Digits
+## Query representation
+
+### Characters
+
+InfluxQL is Unicode text encoded in [UTF-8](http://en.wikipedia.org/wiki/UTF-8).
 
 ```
 newline             = /* the Unicode code point U+000A */ .
 unicode_char        = /* an arbitrary Unicode code point except newline */ .
+```
+
+## Letters and digits
+
+Letters are the set of ASCII characters plus the underscore character _ (U+005F) is considered a letter.
+
+Only decimal digits are supported.
+
+```
+letter              = ascii_letter | "_" .
 ascii_letter        = "A" … "Z" | "a" … "z" .
-decimal_digit       = "0" … "9" .
+digit               = "0" … "9" .
 ```
 
 ## Identifiers
 
-Identifiers are things like database names, measurement names, retention policy names, tag keys, etc.
+Identifiers are tokens which refer to database names, retention policy names, user names, measurement names, tag keys, and field names.
 
 The rules:
 
@@ -51,7 +65,7 @@ The rules:
 
 ```
 identifier          = unquoted_identifier | quoted_identifier .
-unquoted_identifier = ( ascii_letter | "_" ) { ascii_letter | decimal_digit | "_" } .
+unquoted_identifier = ( letter ) { letter | digit } .
 quoted_identifier   = `"` unicode_char { unicode_char } `"` .
 ```
 
@@ -87,7 +101,7 @@ VALUES       WHERE        WITH         WRITE
 InfluxQL supports decimal integer literals.  Hexadecimal and octal literals are not currently supported.
 
 ```
-int_lit             = decimal_digit { decimal_digit } .
+int_lit             = digit { digit } .
 ```
 
 ### Floats
