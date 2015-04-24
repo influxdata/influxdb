@@ -23,7 +23,7 @@
 - [#2376](https://github.com/influxdb/influxdb/pull/2376): Add shard path to existing diags value. Fix issue #2369.
 - [#2386](https://github.com/influxdb/influxdb/pull/2386): Fix shard datanodes stats getting appended too many times
 - [#2393](https://github.com/influxdb/influxdb/pull/2393): Fix default hostname for connecting to cluster.
-- [#2390](https://github.com/influxdb/influxdb/pull/2393): Handle large sums when calculating means - thanks @neonstalwart!
+- [#2390](https://github.com/influxdb/influxdb/pull/2390): Handle large sums when calculating means - thanks @neonstalwart!
 - [#2391](https://github.com/influxdb/influxdb/pull/2391): Unable to write points through Go client when authentication enabled
 - [#2400](https://github.com/influxdb/influxdb/pull/2400): Always send auth headers for client requests if present
 
