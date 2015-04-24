@@ -108,6 +108,7 @@ enabled = true # Enabled by default if not set.
 [logging]
 write-tracing = false # If true, enables detailed logging of the write system.
 raft-tracing = false # If true, enables detailed logging of Raft consensus.
+http-access = true # If true, logs each HTTP access to the system.
 
 # InfluxDB can store statistical and diagnostic information about itself. This is useful for
 # monitoring purposes. This feature is disabled by default, but if enabled, these data can be
