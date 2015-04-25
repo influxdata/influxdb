@@ -1260,7 +1260,7 @@ func (r *TopicReader) Read(p []byte) (int, error) {
 		if err == ErrReaderClosed {
 			return 0, io.EOF
 		} else if err != nil {
-			return 0, fmt.Errorf("file: %s", err)
+			return 0, err
 		} else if f == nil {
 			if r.streaming {
 				time.Sleep(r.PollInterval)
@@ -1306,6 +1306,8 @@ func (r *TopicReader) File() (*os.File, error) {
 		segment, err := ReadSegmentByIndex(r.path, r.index)
 		if os.IsNotExist(err) {
 			return nil, nil
+		} else if err == ErrTopicTruncated {
+			return nil, err
 		} else if err != nil {
 			return nil, fmt.Errorf("segment by index: %s", err)
 		} else if segment == nil {
@@ -1551,7 +1553,7 @@ func (dec *MessageDecoder) Decode(m *Message) error {
 		warnf("unexpected eof(0): len=%d, n=%d, err=%s", len(b[:]), n, err)
 		return err
 	} else if err != nil {
-		return fmt.Errorf("read header: %s", err)
+		return err
 	}
 
 	// Read checksum.
