@@ -39,6 +39,7 @@ type Server struct {
 	wg       sync.WaitGroup
 
 	addr net.Addr
+	mu   sync.Mutex
 }
 
 func NewServer(w SeriesWriter, retpol string, db string) *Server {
@@ -52,6 +53,8 @@ func NewServer(w SeriesWriter, retpol string, db string) *Server {
 }
 
 func (s *Server) Addr() net.Addr {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.addr
 }
 
@@ -70,7 +73,9 @@ func (s *Server) ListenAndServe(listenAddress string) {
 		return
 	}
 
+	s.mu.Lock()
 	s.addr = s.listener.Addr()
+	s.mu.Unlock()
 
 	s.wg.Add(1)
 	go func() {
