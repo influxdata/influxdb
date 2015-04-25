@@ -321,6 +321,21 @@ func (b *Broker) setMaxIndex(index uint64) error {
 	return nil
 }
 
+// URLsForTopic returns a slice of URLs from where previously replicaed
+// data for a given topic may be retrieved. The nodes at the URL will have
+// data up to at least the given index. These URLs are provided when a node
+// requests topic data that has been truncated.
+func (b *Broker) DataURLsForTopic(id, index uint64) []url.URL {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	t := b.topics[id]
+	if t == nil {
+		return nil
+	}
+	return t.DataURLsForIndex(index)
+}
+
 // WriteTo writes a snapshot of the broker to w.
 func (b *Broker) WriteTo(w io.Writer) (int64, error) {
 	// TODO: Prevent truncation during snapshot.
@@ -750,6 +765,20 @@ func (t *Topic) DataURLs() []url.URL {
 	var urls []url.URL
 	for u, _ := range t.indexByURL {
 		urls = append(urls, u)
+	}
+	return urls
+}
+
+// DataURLsForIndex returns the data node URLs subscribed to this topic that have
+// replicated at least up to the given index.
+func (t *Topic) DataURLsForIndex(index uint64) []url.URL {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	var urls []url.URL
+	for u, idx := range t.indexByURL {
+		if idx >= index {
+			urls = append(urls, u)
+		}
 	}
 	return urls
 }

@@ -107,7 +107,8 @@ func TestBroker_Apply(t *testing.T) {
 	}
 }
 
-// Ensure the broker can apply topic high water mark messages.
+// Ensure the broker can apply topic high water mark messages, and provide correct URLs
+// for subsequent topic peer replication.
 func TestBroker_Apply_SetMaxTopicIndex(t *testing.T) {
 	b := OpenBroker()
 	defer b.Close()
@@ -133,8 +134,36 @@ func TestBroker_Apply_SetMaxTopicIndex(t *testing.T) {
 		t.Fatalf("apply error: %s", err)
 	}
 
-	if topic := b.Topic(20); topic.IndexForURL(*testDataURL) != 5 {
+	topic := b.Topic(20)
+	if topic.IndexForURL(*testDataURL) != 5 {
 		t.Fatalf("unexpected topic url index: %d", topic.IndexForURL(*testDataURL))
+	}
+
+	// Ensure the URLs that can serve the topic are correct.
+	var urls []url.URL
+	urls = topic.DataURLsForIndex(10)
+	if urls != nil {
+		t.Fatalf("URLs unexpectedly available for index 10")
+	}
+	urls = topic.DataURLsForIndex(5)
+	if urls == nil {
+		t.Fatalf("no URLs available for index 5")
+	}
+	if urls[0].String() != "http://localhost:1234/data" {
+		t.Fatalf("unexpectedURL for topic index 5: %s", urls[0].String())
+	}
+
+	// Ensure the Broker can provide URLs for topics at a given index.
+	urls = b.DataURLsForTopic(20, 6)
+	if urls != nil {
+		t.Fatalf("Broker unexpectedly provided URLs for topic index 6")
+	}
+	urls = b.DataURLsForTopic(20, 5)
+	if urls == nil {
+		t.Fatalf("Broker failed to provide URLs for topic index 5")
+	}
+	if urls[0].String() != "http://localhost:1234/data" {
+		t.Fatalf("unexpected broker-provided URL for topic index 5: %s", urls[0].String())
 	}
 }
 
