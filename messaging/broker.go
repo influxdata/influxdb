@@ -285,6 +285,9 @@ func (b *Broker) startTopicTruncation() {
 // TruncateTopics forces topics to truncate such that they are equal to
 // or less than the requested size, if possible.
 func (b *Broker) TruncateTopics() {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
 	for _, t := range b.topics {
 		if n, err := t.Truncate(b.MaxTopicSize); err != nil {
 			b.Logger.Printf("error truncating topic %s: %s", t.Path(), err.Error())
