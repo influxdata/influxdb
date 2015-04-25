@@ -1464,6 +1464,11 @@ func TestSingleServerDiags(t *testing.T) {
 	nodes := createCombinedNodeCluster(t, testName, dir, 1, config)
 	defer nodes.Close()
 
+	// Ensure some data shards also exist.
+	createDatabase(t, testName, nodes, "mydb")
+	createRetentionPolicy(t, testName, nodes, "mydb", "myrp", len(nodes))
+	write(t, nodes[0], `{"database" : "mydb", "retentionPolicy" : "myrp", "points": [{"name": "cpu", "fields": {"value": 100}}]}`)
+
 	time.Sleep(1 * time.Second)
 }
 
