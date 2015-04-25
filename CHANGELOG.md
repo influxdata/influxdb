@@ -9,6 +9,7 @@
 - [#2415](https://github.com/influxdb/influxdb/pull/2415): Raft leader ID now set on election after failover. Thanks @xiaost
 - [#2426](https://github.com/influxdb/influxdb/pull/2426): Fix race condition around listener address in openTSDB server.
 - [#2426](https://github.com/influxdb/influxdb/pull/2426): Fix race condition around listener address in Graphite server.
+- [#2429](https://github.com/influxdb/influxdb/pull/2429): Ensure no field value is null.
 
 ### Features
 - [#2410](https://github.com/influxdb/influxdb/pull/2410) Allow configuration of Raft timers

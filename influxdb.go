@@ -117,6 +117,9 @@ var (
 	// ErrFieldsRequired is returned when a point does not any fields.
 	ErrFieldsRequired = errors.New("fields required")
 
+	// FieldIsNull is returned when one of a point's field is null.
+	ErrFieldIsNull = errors.New("field value is null")
+
 	// ErrFieldOverflow is returned when too many fields are created on a measurement.
 	ErrFieldOverflow = errors.New("field overflow")
 
