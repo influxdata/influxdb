@@ -3,6 +3,7 @@ package messaging
 import (
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"io"
@@ -31,6 +32,16 @@ const DefaultMaxTopicSize = 1024 * 1024 * 1024 // 1GB
 
 // DefaultMaxSegmentSize is the largest a segment can get before starting a new segment.
 const DefaultMaxSegmentSize = 10 * 1024 * 1024 // 10MB
+
+var (
+	// ErrTopicTruncated is returned when topic data is unavailable due to truncation.
+	ErrTopicTruncated = errors.New("topic truncated")
+
+	// ErrTopicNodesNotFound is returned when requested topic data has been truncated
+	// but there are no nodes in the cluster that can provide a replica. This is a system
+	// failure and should not occur on a healthy replicated system.
+	ErrTopicNodesNotFound = errors.New("topic nodes not found")
+)
 
 // Broker represents distributed messaging system segmented into topics.
 // Each topic represents a linear series of events.
@@ -1126,14 +1137,30 @@ func ReadSegmentByIndex(path string, index uint64) (*Segment, error) {
 		return nil, fmt.Errorf("read segments: %s", err)
 	}
 
-	// If there are no segments then ignore.
-	// If index is zero then start from the first segment.
-	// If index is less than the first segment range then return error.
+	// Determine if this topic has been truncated.
+	var truncated bool
+	if _, err := os.Stat(filepath.Join(path, "tombstone")); !os.IsNotExist(err) {
+		truncated = true
+	}
+
+	// If the requested index is less than that available, one of two things will
+	// happen. If the topic has been truncated it means that topic data may exist
+	// somewhere on the cluster that is not available here. Therefore this broker
+	// cannot provide the data. If truncation has never taken place however, then
+	// this broker can safely provide whatever data it has.
+
 	if len(segments) == 0 {
+		if truncated {
+			return nil, ErrTopicTruncated
+		}
 		return nil, nil
-	} else if index == 0 {
-		return segments[0], nil
-	} else if index < segments[0].Index {
+	}
+
+	// Is requested index lower than the broker can provide?
+	if index < segments[0].Index {
+		if truncated {
+			return nil, ErrTopicTruncated
+		}
 		return segments[0], nil
 	}
 
