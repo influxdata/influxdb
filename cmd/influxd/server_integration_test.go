@@ -1462,9 +1462,13 @@ func TestSingleServerDiags(t *testing.T) {
 	config.Monitoring.Enabled = true
 	config.Monitoring.WriteInterval = main.Duration(100 * time.Millisecond)
 	nodes := createCombinedNodeCluster(t, testName, dir, 1, config)
+	createDatabase(t, testName, nodes, "mydb")
+	createRetentionPolicy(t, testName, nodes, "mydb", "myrp", len(nodes))
 	defer nodes.Close()
 
-	time.Sleep(1 * time.Second)
+	// Write some data to create shards
+	mergeMany(t, nodes[0], "mydb", "myrp")
+
 }
 
 func TestSingleServer(t *testing.T) {
