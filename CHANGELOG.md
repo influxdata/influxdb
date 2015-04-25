@@ -6,7 +6,7 @@
 - [#2408](https://github.com/influxdb/influxdb/pull/2408): Fix snapshot 500 error
 - [#1896](https://github.com/influxdb/influxdb/issues/1896): Excessive heartbeater logging of "connection refused" on cluster node stop
 - [#2418](https://github.com/influxdb/influxdb/pull/2418): Fix raft node getting stuck in candidate state
-- [#2415](https://github.com/influxdb/influxdb/pull/2415): Raft leader ID now set on election after failover.
+- [#2415](https://github.com/influxdb/influxdb/pull/2415): Raft leader ID now set on election after failover. Thanks @xiaost
 - [#2426](https://github.com/influxdb/influxdb/pull/2426): Fix race condition around listener address in openTSDB server.
 - [#2426](https://github.com/influxdb/influxdb/pull/2426): Fix race condition around listener address in Graphite server.
 
