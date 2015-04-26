@@ -1184,6 +1184,26 @@ func TestHandler_serveWriteSeriesWithNoFields(t *testing.T) {
 	}
 }
 
+func TestHandler_serveWriteSeriesWithNullFields(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	srvr := OpenAuthenticatedServer(c)
+	srvr.CreateDatabase("foo")
+	srvr.CreateRetentionPolicy("foo", influxdb.NewRetentionPolicy("bar"))
+	s := NewAPIServer(srvr)
+	defer s.Close()
+
+	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "fields": {"country": null}}]}`)
+
+	expected := fmt.Sprintf(`{"error":"%s"}`, influxdb.ErrFieldIsNull.Error())
+
+	if status != http.StatusInternalServerError {
+		t.Fatalf("unexpected status: %d", status)
+	} else if body != expected {
+		t.Fatalf("result mismatch:\n\texp=%s\n\tgot=%s\n", expected, body)
+	}
+}
+
 func TestHandler_serveWriteSeriesWithAuthNilUser(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()

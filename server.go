@@ -1766,10 +1766,16 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 			database, retentionPolicy, len(points))
 	}
 
-	// Make sure every point has at least one field.
+	// Make sure every point is valid.
 	for _, p := range points {
 		if len(p.Fields) == 0 {
 			return 0, ErrFieldsRequired
+		}
+
+		for _, f := range p.Fields {
+			if f == nil {
+				return 0, ErrFieldIsNull
+			}
 		}
 	}
 
