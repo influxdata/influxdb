@@ -10,6 +10,7 @@
 - [#2426](https://github.com/influxdb/influxdb/pull/2426): Fix race condition around listener address in openTSDB server.
 - [#2426](https://github.com/influxdb/influxdb/pull/2426): Fix race condition around listener address in Graphite server.
 - [#2429](https://github.com/influxdb/influxdb/pull/2429): Ensure no field value is null.
+- [#2431](https://github.com/influxdb/influxdb/pull/2431): Always append shard path in diags. Thanks @marcosnils
 
 ### Features
 - [#2410](https://github.com/influxdb/influxdb/pull/2410) Allow configuration of Raft timers
