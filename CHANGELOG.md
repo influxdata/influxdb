@@ -14,6 +14,7 @@
 - [#2426](https://github.com/influxdb/influxdb/pull/2426): Fix race condition around listener address in Graphite server.
 - [#2429](https://github.com/influxdb/influxdb/pull/2429): Ensure no field value is null.
 - [#2431](https://github.com/influxdb/influxdb/pull/2431): Always append shard path in diags. Thanks @marcosnils
+- [#2441](https://github.com/influxdb/influxdb/pull/2441): Correctly release server RLock during "drop series".
 
 ## v0.9.0-rc27 [04-23-2015]
 
