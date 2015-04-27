@@ -1,5 +1,8 @@
 ## v0.9.0-rc28 [unreleased]
 
+### Features
+- [#2410](https://github.com/influxdb/influxdb/pull/2410) Allow configuration of Raft timers
+
 ### Bugfixes
 - [#2374](https://github.com/influxdb/influxdb/issues/2374): Two different panics during SELECT percentile
 - [#2404](https://github.com/influxdb/influxdb/pull/2404): Mean and percentile function fixes
@@ -11,9 +14,6 @@
 - [#2426](https://github.com/influxdb/influxdb/pull/2426): Fix race condition around listener address in Graphite server.
 - [#2429](https://github.com/influxdb/influxdb/pull/2429): Ensure no field value is null.
 - [#2431](https://github.com/influxdb/influxdb/pull/2431): Always append shard path in diags. Thanks @marcosnils
-
-### Features
-- [#2410](https://github.com/influxdb/influxdb/pull/2410) Allow configuration of Raft timers
 
 ## v0.9.0-rc27 [04-23-2015]
 
