@@ -288,11 +288,12 @@ func (b *Broker) TruncateTopics() {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
+	b.Logger.Printf("executing truncation check for %d topic(s)", len(b.topics))
 	for _, t := range b.topics {
-		if n, err := t.Truncate(b.MaxTopicSize); err != nil {
+		if s, d, err := t.Truncate(b.MaxTopicSize); err != nil {
 			b.Logger.Printf("error truncating topic %s: %s", t.Path(), err.Error())
-		} else if n > 0 {
-			b.Logger.Printf("topic %s, %d bytes deleted", t.Path(), n)
+		} else if s > 0 {
+			b.Logger.Printf("topic %s, %d segments, %d bytes, deleted", t.Path(), s, d)
 		}
 	}
 	return
@@ -895,20 +896,21 @@ func (t *Topic) WriteMessage(m *Message) error {
 }
 
 // Truncate attempts to delete topic segments such that the total size of the topic on-disk
-// is equal to or less-than maxSize. Returns the number of bytes deleted, and error if any.
-// This function is not guaranteed to be performant.
-func (t *Topic) Truncate(maxSize int64) (int64, error) {
+// is equal to or less-than maxSize. Returns the number of segments and bytes deleted, and
+// error if any. This function is not guaranteed to be performant.
+func (t *Topic) Truncate(maxSize int64) (int, int64, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	nSegmentsDeleted := 0
 
 	segments, err := ReadSegments(t.Path())
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 
 	totalSize, err := segments.Size()
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 
 	// Find the highest-replicated index, this is a condition for deletion of segments
@@ -947,23 +949,24 @@ func (t *Topic) Truncate(maxSize int64) (int64, error) {
 		// Deletion can proceed!
 		size, err := first.Size()
 		if err != nil {
-			return nBytesDeleted, err
+			return nSegmentsDeleted, nBytesDeleted, err
 		}
 		if err = os.Remove(first.Path); err != nil {
-			return nBytesDeleted, err
+			return nSegmentsDeleted, nBytesDeleted, err
 		}
+		nSegmentsDeleted += 1
 		nBytesDeleted += size
 		segments = segments[1:]
 
 		// Create tombstone to indicate that the topic has been truncated at least once.
 		f, err := os.Create(t.TombstonePath())
 		if err != nil {
-			return nBytesDeleted, err
+			return nSegmentsDeleted, nBytesDeleted, err
 		}
 		f.Close()
 	}
 
-	return nBytesDeleted, err
+	return nSegmentsDeleted, nBytesDeleted, err
 }
 
 // Topics represents a list of topics sorted by id.
