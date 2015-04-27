@@ -107,6 +107,13 @@ func (h *Handler) getMessages(w http.ResponseWriter, req *http.Request) {
 		if urls == nil {
 			h.error(w, ErrTopicNodesNotFound, http.StatusInternalServerError)
 		}
+
+		// Send back a list of URLs where the topic data can be fetched.
+		var redirects []string
+		for _, u := range urls {
+			redirects = append(redirects, u.String())
+		}
+		w.Header().Set("X-Broker-Truncated", strings.Join(redirects, ","))
 		http.Redirect(w, req, urls[0].String(), http.StatusTemporaryRedirect)
 	} else if err != nil {
 		log.Printf("message stream error: %s", err)
