@@ -2499,59 +2499,65 @@ func (s *Server) executeDropMeasurementStatement(stmt *influxql.DropMeasurementS
 }
 
 func (s *Server) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, database string, user *User) *Result {
-	s.mu.RLock()
+	seriesByMeasurement, err := func() (map[string][]uint64, error) {
+		// Using a local function makes lock management foolproof.
+		s.mu.RLock()
+		defer s.mu.RUnlock()
 
-	seriesByMeasurement := make(map[string][]uint64)
-	// Handle the simple `DROP SERIES <id>` case.
-	if stmt.Source == nil && stmt.Condition == nil {
-		for _, db := range s.databases {
-			for _, m := range db.measurements {
-				if m.seriesByID[stmt.SeriesID] != nil {
-					seriesByMeasurement[m.Name] = []uint64{stmt.SeriesID}
+		seriesByMeasurement := make(map[string][]uint64)
+		// Handle the simple `DROP SERIES <id>` case.
+		if stmt.Source == nil && stmt.Condition == nil {
+			for _, db := range s.databases {
+				for _, m := range db.measurements {
+					if m.seriesByID[stmt.SeriesID] != nil {
+						seriesByMeasurement[m.Name] = []uint64{stmt.SeriesID}
+					}
 				}
 			}
+
+			return seriesByMeasurement, nil
 		}
 
-		s.mu.RUnlock()
-		return &Result{Err: s.DropSeries(database, seriesByMeasurement)}
-	}
+		// Handle the more complicated `DROP SERIES` with sources and/or conditions...
 
-	// Handle the more complicated `DROP SERIES` with sources and/or conditions...
+		// Find the database.
+		db := s.databases[database]
+		if db == nil {
+			return nil, ErrDatabaseNotFound(database)
+		}
 
-	// Find the database.
-	db := s.databases[database]
-	if db == nil {
-		s.mu.RUnlock()
-		return &Result{Err: ErrDatabaseNotFound(database)}
-	}
+		// Get the list of measurements we're interested in.
+		measurements, err := measurementsFromSourceOrDB(stmt.Source, db)
+		if err != nil {
+			return nil, err
+		}
 
-	// Get the list of measurements we're interested in.
-	measurements, err := measurementsFromSourceOrDB(stmt.Source, db)
-	if err != nil {
-		s.mu.RUnlock()
-		return &Result{Err: err}
-	}
+		for _, m := range measurements {
+			var ids seriesIDs
+			if stmt.Condition != nil {
+				// Get series IDs that match the WHERE clause.
+				filters := map[uint64]influxql.Expr{}
+				ids, _, _, err = m.walkWhereForSeriesIds(stmt.Condition, filters)
+				if err != nil {
+					return nil, err
+				}
 
-	for _, m := range measurements {
-		var ids seriesIDs
-		if stmt.Condition != nil {
-			// Get series IDs that match the WHERE clause.
-			filters := map[uint64]influxql.Expr{}
-			ids, _, _, err = m.walkWhereForSeriesIds(stmt.Condition, filters)
-			if err != nil {
-				return &Result{Err: err}
+				// TODO: check return of walkWhereForSeriesIds for fields
+			} else {
+				// No WHERE clause so get all series IDs for this measurement.
+				ids = m.seriesIDs
 			}
 
-			// TODO: check return of walkWhereForSeriesIds for fields
-		} else {
-			// No WHERE clause so get all series IDs for this measurement.
-			ids = m.seriesIDs
+			seriesByMeasurement[m.Name] = ids
+
 		}
 
-		seriesByMeasurement[m.Name] = ids
-	}
-	s.mu.RUnlock()
+		return seriesByMeasurement, nil
+	}()
 
+	if err != nil {
+		return &Result{Err: err}
+	}
 	return &Result{Err: s.DropSeries(database, seriesByMeasurement)}
 }
 
