@@ -434,7 +434,7 @@ type clientConfigJSON struct {
 
 // Conn represents a stream over the client for a single topic.
 type Conn struct {
-	mu        sync.Mutex
+	mu        sync.RWMutex
 	topicID   uint64  // topic identifier
 	index     uint64  // highest index sent over the channel
 	streaming bool    // use streaming reader, if true
@@ -476,8 +476,8 @@ func (c *Conn) C() <-chan *Message { return c.c }
 
 // Index returns the highest index replicated to the caller.
 func (c *Conn) Index() uint64 {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.index
 }
 
@@ -490,15 +490,15 @@ func (c *Conn) SetIndex(index uint64) {
 
 // Streaming returns true if the connection streams messages continuously.
 func (c *Conn) Streaming() bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.streaming
 }
 
 // URL returns the current URL of the connection.
 func (c *Conn) URL() url.URL {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.url
 }
 
@@ -591,9 +591,9 @@ func (c *Conn) Heartbeat() error {
 	var err error
 
 	// Retrieve the parameters under lock.
-	c.mu.Lock()
+	c.mu.RLock()
 	topicID, index, u := c.topicID, c.index, c.url
-	c.mu.Unlock()
+	c.mu.RUnlock()
 
 	// Send the message to the messages endpoint.
 	u.Path = "/messaging/heartbeat"
