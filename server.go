@@ -4092,8 +4092,8 @@ func (s *Server) CreateSnapshotWriter() (*SnapshotWriter, error) {
 }
 
 func (s *Server) URL() url.URL {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	if n := s.dataNodes[s.id]; n != nil {
 		return *n.URL
 	}
