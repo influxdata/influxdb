@@ -2257,6 +2257,8 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User, ch
 					break
 				}
 			}
+
+			s.stats.Inc("queriesExecuted")
 		}
 
 		// if there was an error send results that the remaining statements weren't executed
@@ -2264,7 +2266,6 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User, ch
 			results <- &Result{Err: ErrNotExecuted}
 		}
 
-		s.stats.Inc("queriesExecuted")
 		close(results)
 	}()
 
