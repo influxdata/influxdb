@@ -1280,6 +1280,8 @@ func (s *Server) UserCount() int {
 
 // AdminUserExists returns whether at least 1 admin-level user exists.
 func (s *Server) AdminUserExists() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	for _, u := range s.users {
 		if u.Admin {
 			return true
