@@ -33,7 +33,7 @@ const (
 
 // Client represents a client for the broker's HTTP API.
 type Client struct {
-	mu      sync.Mutex
+	mu      sync.RWMutex
 	path    string           // config file path
 	conns   map[uint64]*Conn // all connections opened by client
 	url     url.URL          // current known leader URL
@@ -68,8 +68,8 @@ func NewClient(dataURL url.URL) *Client {
 
 // URL returns the current broker leader's URL.
 func (c *Client) URL() url.URL {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.url
 }
 
@@ -92,8 +92,8 @@ func (c *Client) setURL(u url.URL) {
 
 // URLs returns a list of possible broker URLs to connect to.
 func (c *Client) URLs() []url.URL {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.urls
 }
 
@@ -223,6 +223,9 @@ func (c *Client) loadConfig() error {
 
 // setConfig writes a new config to disk and updates urls on the client.
 func (c *Client) setConfig(config ClientConfig) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	// Only write to disk if we have a path.
 	if c.path != "" {
 		// Open config file for writing.
@@ -434,7 +437,7 @@ type clientConfigJSON struct {
 
 // Conn represents a stream over the client for a single topic.
 type Conn struct {
-	mu        sync.Mutex
+	mu        sync.RWMutex
 	topicID   uint64  // topic identifier
 	index     uint64  // highest index sent over the channel
 	streaming bool    // use streaming reader, if true
@@ -476,8 +479,8 @@ func (c *Conn) C() <-chan *Message { return c.c }
 
 // Index returns the highest index replicated to the caller.
 func (c *Conn) Index() uint64 {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.index
 }
 
@@ -490,15 +493,15 @@ func (c *Conn) SetIndex(index uint64) {
 
 // Streaming returns true if the connection streams messages continuously.
 func (c *Conn) Streaming() bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.streaming
 }
 
 // URL returns the current URL of the connection.
 func (c *Conn) URL() url.URL {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.url
 }
 
@@ -591,9 +594,9 @@ func (c *Conn) Heartbeat() error {
 	var err error
 
 	// Retrieve the parameters under lock.
-	c.mu.Lock()
+	c.mu.RLock()
 	topicID, index, u := c.topicID, c.index, c.url
-	c.mu.Unlock()
+	c.mu.RUnlock()
 
 	// Send the message to the messages endpoint.
 	u.Path = "/messaging/heartbeat"
