@@ -223,6 +223,9 @@ func (c *Client) loadConfig() error {
 
 // setConfig writes a new config to disk and updates urls on the client.
 func (c *Client) setConfig(config ClientConfig) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	// Only write to disk if we have a path.
 	if c.path != "" {
 		// Open config file for writing.
