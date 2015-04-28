@@ -1293,8 +1293,8 @@ func (s *Server) AdminUserExists() bool {
 // Authenticate returns an authenticated user by username. If any error occurs,
 // or the authentication credentials are invalid, an error is returned.
 func (s *Server) Authenticate(username, password string) (*User, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	u := s.users[username]
 
