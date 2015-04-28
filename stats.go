@@ -90,7 +90,9 @@ func (s *Stats) Walk(f func(string, int64)) {
 	defer s.mu.RUnlock()
 
 	for k, v := range s.m {
+		v.mu.RLock()
 		f(k, v.i)
+		v.mu.RUnlock()
 	}
 }
 

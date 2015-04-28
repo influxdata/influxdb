@@ -1255,8 +1255,8 @@ func (s *Server) applyDeleteShardGroup(m *messaging.Message) (err error) {
 // User returns a user by username
 // Returns nil if the user does not exist.
 func (s *Server) User(name string) *User {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.users[name]
 }
 
@@ -1280,6 +1280,8 @@ func (s *Server) UserCount() int {
 
 // AdminUserExists returns whether at least 1 admin-level user exists.
 func (s *Server) AdminUserExists() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	for _, u := range s.users {
 		if u.Admin {
 			return true
@@ -1291,8 +1293,8 @@ func (s *Server) AdminUserExists() bool {
 // Authenticate returns an authenticated user by username. If any error occurs,
 // or the authentication credentials are invalid, an error is returned.
 func (s *Server) Authenticate(username, password string) (*User, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	u := s.users[username]
 
@@ -1451,8 +1453,8 @@ func (s *Server) applySetPrivilege(m *messaging.Message) error {
 // RetentionPolicy returns a retention policy by name.
 // Returns an error if the database doesn't exist.
 func (s *Server) RetentionPolicy(database, name string) (*RetentionPolicy, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	// Lookup database.
 	db := s.databases[database]
@@ -3866,8 +3868,8 @@ func (s *Server) applyDropContinuousQueryCommand(m *messaging.Message) error {
 // RunContinuousQueries will run any continuous queries that are due to run and write the
 // results back into the database
 func (s *Server) RunContinuousQueries() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	for _, d := range s.databases {
 		for _, c := range d.continuousQueries {
@@ -4090,8 +4092,8 @@ func (s *Server) CreateSnapshotWriter() (*SnapshotWriter, error) {
 }
 
 func (s *Server) URL() url.URL {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	if n := s.dataNodes[s.id]; n != nil {
 		return *n.URL
 	}
