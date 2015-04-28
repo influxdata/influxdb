@@ -33,7 +33,7 @@ const (
 
 // Client represents a client for the broker's HTTP API.
 type Client struct {
-	mu      sync.Mutex
+	mu      sync.RWMutex
 	path    string           // config file path
 	conns   map[uint64]*Conn // all connections opened by client
 	url     url.URL          // current known leader URL
@@ -68,8 +68,8 @@ func NewClient(dataURL url.URL) *Client {
 
 // URL returns the current broker leader's URL.
 func (c *Client) URL() url.URL {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.url
 }
 
