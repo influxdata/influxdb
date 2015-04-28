@@ -1453,8 +1453,8 @@ func (s *Server) applySetPrivilege(m *messaging.Message) error {
 // RetentionPolicy returns a retention policy by name.
 // Returns an error if the database doesn't exist.
 func (s *Server) RetentionPolicy(database, name string) (*RetentionPolicy, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	// Lookup database.
 	db := s.databases[database]
