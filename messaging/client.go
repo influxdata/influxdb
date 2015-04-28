@@ -92,8 +92,8 @@ func (c *Client) setURL(u url.URL) {
 
 // URLs returns a list of possible broker URLs to connect to.
 func (c *Client) URLs() []url.URL {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.urls
 }
 
