@@ -3868,8 +3868,8 @@ func (s *Server) applyDropContinuousQueryCommand(m *messaging.Message) error {
 // RunContinuousQueries will run any continuous queries that are due to run and write the
 // results back into the database
 func (s *Server) RunContinuousQueries() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	for _, d := range s.databases {
 		for _, c := range d.continuousQueries {
