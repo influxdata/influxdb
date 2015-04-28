@@ -1255,8 +1255,8 @@ func (s *Server) applyDeleteShardGroup(m *messaging.Message) (err error) {
 // User returns a user by username
 // Returns nil if the user does not exist.
 func (s *Server) User(name string) *User {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.users[name]
 }
 
