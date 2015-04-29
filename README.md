@@ -2,8 +2,7 @@
 
 ## An Open-Source, Distributed, Time Series Database
 
-> InfluxDB v0.9.0 is now in the RC phase. If you're building a new project,
-> please build against `master` or the most current RC instead of using v0.8.8.
+> InfluxDB v0.9.0 is now in the alpha phase. Builds are currently tagged as RCs, but they're alpha stage at this point. We will update this document when the first stable RC is ready.
 
 InfluxDB is an open source **distributed time series database** with
 **no external dependencies**. It's useful for recording metrics,
