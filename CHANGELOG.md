@@ -10,6 +10,7 @@
 
 ### Features
 - [#2410](https://github.com/influxdb/influxdb/pull/2410) Allow configuration of Raft timers
+- [#2354](https://github.com/influxdb/influxdb/pull/2354) Wire up STDDEV
 
 ### Bugfixes
 - [#2374](https://github.com/influxdb/influxdb/issues/2374): Two different panics during SELECT percentile
