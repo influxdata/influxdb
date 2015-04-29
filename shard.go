@@ -234,7 +234,9 @@ func (s *Shard) close() error {
 	if s.store != nil {
 		_ = s.store.Close()
 	}
-	s.stats.Inc("close")
+	if s.stats != nil {
+		s.stats.Inc("close")
+	}
 	return nil
 }
 

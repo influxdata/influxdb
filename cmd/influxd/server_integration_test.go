@@ -1449,7 +1449,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 }
 
 // Ensures that diagnostics can be written to the internal database.
-func TestSingleServerDiags(t *testing.T) {
+func TestServerDiags(t *testing.T) {
 	t.Parallel()
 	testName := "single server integration diagnostics"
 	if testing.Short() {
@@ -1461,7 +1461,7 @@ func TestSingleServerDiags(t *testing.T) {
 	config := main.NewConfig()
 	config.Monitoring.Enabled = true
 	config.Monitoring.WriteInterval = main.Duration(100 * time.Millisecond)
-	nodes := createCombinedNodeCluster(t, testName, dir, 1, config)
+	nodes := createCombinedNodeCluster(t, testName, dir, 3, config)
 	defer nodes.Close()
 
 	// Ensure some data shards also exist.

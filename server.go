@@ -391,6 +391,10 @@ func (s *Server) StartSelfMonitoring(database, retention string, interval time.D
 			// Shard-level stats.
 			tags["shardID"] = strconv.FormatUint(s.id, 10)
 			for _, sh := range s.shards {
+				if !sh.HasDataNodeID(s.id) {
+					// No stats for non-local shards.
+					continue
+				}
 				batch = append(batch, pointsFromStats(sh.stats, tags)...)
 			}
 
@@ -3356,7 +3360,7 @@ func (s *Server) DiagnosticsAsRows() []*influxql.Row {
 			nodes = append(nodes, strconv.FormatUint(n, 10))
 		}
 		var path string
-		if sh.store != nil {
+		if sh.HasDataNodeID(s.id) {
 			path = sh.store.Path()
 		}
 		shardsRow.Values = append(shardsRow.Values, []interface{}{now, strconv.FormatUint(sh.ID, 10),
