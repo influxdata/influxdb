@@ -1,3 +1,10 @@
+## v0.9.0-rc29 [unreleased]
+
+### Features
+
+### Bugfixes
+- [#2446] (https://github.com/influxdb/influxdb/pull/2446): Correctly count number of queries executed. Thanks @neonstalwart
+
 ## v0.9.0-rc28 [04-27-2015]
 
 ### Features
