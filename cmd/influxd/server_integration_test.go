@@ -581,14 +581,41 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		// Aggregations
 		{
 			reset: true,
-			name:  "large mean",
+			name:  "stddev with just one point",
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+				{"name": "cpu", "timestamp": "2015-04-20T14:27:41Z", "fields": {"value": 45}}
+			]}`,
+			query:    `SELECT stddev(value) FROM cpu`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","stddev"],"values":[["1970-01-01T00:00:00Z",null]]}]}]}`,
+		},
+		{
+			reset: true,
+			name:  "large mean and stddev",
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
 				{"name": "cpu", "timestamp": "2015-04-20T14:27:40Z", "fields": {"value": ` + string(maxFloat64) + `}},
 				{"name": "cpu", "timestamp": "2015-04-20T14:27:41Z", "fields": {"value": ` + string(maxFloat64) + `}}
 			]}`,
-			query:    `SELECT mean(value) FROM cpu`,
+			query:    `SELECT mean(value), stddev(value) FROM cpu`,
 			queryDb:  "%DB%",
-			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",` + string(maxFloat64) + `]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","mean","stddev"],"values":[["1970-01-01T00:00:00Z",` + string(maxFloat64) + `,0]]}]}]}`,
+		},
+		{
+			reset: true,
+			name:  "mean and stddev",
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+				{"name": "cpu", "timestamp": "2000-01-01T00:00:00Z", "fields": {"value": 2}},
+				{"name": "cpu", "timestamp": "2000-01-01T00:00:10Z", "fields": {"value": 4}},
+				{"name": "cpu", "timestamp": "2000-01-01T00:00:20Z", "fields": {"value": 4}},
+				{"name": "cpu", "timestamp": "2000-01-01T00:00:30Z", "fields": {"value": 4}},
+				{"name": "cpu", "timestamp": "2000-01-01T00:00:40Z", "fields": {"value": 5}},
+				{"name": "cpu", "timestamp": "2000-01-01T00:00:50Z", "fields": {"value": 5}},
+				{"name": "cpu", "timestamp": "2000-01-01T00:01:00Z", "fields": {"value": 7}},
+				{"name": "cpu", "timestamp": "2000-01-01T00:01:10Z", "fields": {"value": 9}}
+			]}`,
+			query:    `SELECT mean(value), stddev(value) FROM cpu WHERE time >= '2000-01-01' AND time < '2000-01-01T00:02:00Z' GROUP BY time(10m)`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","mean","stddev"],"values":[["2000-01-01T00:00:00Z",5,2.138089935299395]]}]}]}`,
 		},
 		{
 			reset: true,

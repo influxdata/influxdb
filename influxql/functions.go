@@ -157,6 +157,12 @@ func InitializeUnmarshaller(c *Call) (UnmarshalFunc, error) {
 			err := json.Unmarshal(b, &o)
 			return &o, err
 		}, nil
+	case "stddev":
+		return func(b []byte) (interface{}, error) {
+			val := make([]float64, 0)
+			err := json.Unmarshal(b, &val)
+			return val, err
+		}, nil
 	default:
 		return func(b []byte) (interface{}, error) {
 			var val interface{}
@@ -395,7 +401,7 @@ func MapStddev(itr Iterator) interface{} {
 		values = append(values, v.(float64))
 	}
 
-	return nil
+	return values
 }
 
 // ReduceStddev computes the stddev of values.
@@ -414,13 +420,13 @@ func ReduceStddev(values []interface{}) interface{} {
 		return nil
 	}
 
-	// Get the sum
-	var sum float64
-	for _, v := range data {
-		sum += v
-	}
 	// Get the mean
-	mean := sum / float64(len(data))
+	var mean float64
+	var count int
+	for _, v := range data {
+		count++
+		mean += (v - mean) / float64(count)
+	}
 	// Get the variance
 	var variance float64
 	for _, v := range data {
@@ -428,7 +434,7 @@ func ReduceStddev(values []interface{}) interface{} {
 		sq := math.Pow(dif, 2)
 		variance += sq
 	}
-	variance = variance / float64(len(data)-1)
+	variance = variance / float64(count-1)
 	stddev := math.Sqrt(variance)
 
 	return stddev
