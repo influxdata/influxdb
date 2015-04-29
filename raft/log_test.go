@@ -1,6 +1,7 @@
 package raft_test
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -222,6 +223,76 @@ func TestLog_Config_Closed(t *testing.T) {
 	l.Log.Close()
 	if l.Config() != nil {
 		t.Fatal("expected nil config")
+	}
+}
+
+// Ensure that entries within the buffer can be streamed without a snapshot.
+func TestLog_WriteEntriesTo(t *testing.T) {
+	l := NewInitializedLog(url.URL{Host: "log0"})
+	defer l.Close()
+
+	// Apply a command.
+	index := l.MustApplySync([]byte("xxx"))
+
+	// Write entries since the previous index to a buffer.
+	var buf bytes.Buffer
+	go func() {
+		if err := l.WriteEntriesTo(&buf, 0, l.Term(), index-1); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	// Wait for buffer to be written to.
+	for buf.Len() == 0 {
+		runtime.Gosched()
+	}
+
+	// Verify that a snapshot is not sent.
+	entries := MustDecodeAllLogEntries(&buf)
+	if len(entries) != 2 {
+		t.Fatalf("unexpected entry count: %d", len(entries))
+	} else if entries[0].Type != 254 { // config
+		t.Fatalf("expected config entry: %x", entries[0].Type)
+	} else if entries[1].Type == 255 { // should not be snapshot
+		t.Fatalf("unexpected snapshot entry")
+	} else if entries[1].Index != index { // verify starting index
+		t.Fatalf("unexpected index: %#v", entries[1])
+	}
+}
+
+// Ensure that entries can be streamed with a snapshot when needed.
+func TestLog_WriteEntriesTo_Snapshot(t *testing.T) {
+	l := NewInitializedLog(url.URL{Host: "log0"})
+	l.LogEntryCacheSize = 5
+	defer l.Close()
+
+	// Apply enough commands to go past the cache.
+	var index uint64
+	for i := 0; i < 10; i++ {
+		index = l.MustApplySync([]byte("xxx"))
+	}
+
+	// Write entries since the previous index to a buffer.
+	var buf bytes.Buffer
+	go func() {
+		if err := l.WriteEntriesTo(&buf, 0, l.Term(), index-uint64(l.LogEntryCacheSize)-1); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	// Wait for buffer to be written to.
+	for buf.Len() == 0 {
+		runtime.Gosched()
+	}
+
+	// Verify that a snapshot is not sent.
+	entries := MustDecodeAllLogEntries(&buf)
+	if len(entries) < 2 {
+		t.Fatalf("unexpected entry count: %d", len(entries))
+	} else if entries[0].Type != 254 { // config
+		t.Fatalf("expected config entry: %x", entries[0].Type)
+	} else if entries[1].Type != 255 { // should be a snapshot
+		t.Fatalf("expected snapshot entry: %#v", entries[1])
 	}
 }
 
@@ -711,6 +782,19 @@ func (l *Log) Close() error {
 	return nil
 }
 
+// MustApplySync applies a command and syncs. Panic on error.
+func (l *Log) MustApplySync(command []byte) uint64 {
+	index, err := l.Apply(command)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	go func() { l.Clock.apply() }()
+	l.MustWait(index)
+
+	return index
+}
+
 // MustWaits waits for at least a given applied index. Panic on error.
 func (l *Log) MustWait(index uint64) {
 	if err := l.Log.Wait(index); err != nil {
@@ -803,6 +887,29 @@ func seq() func() int64 {
 		i++
 		return i
 	}
+}
+
+// MustDecodeAllLogEntries decodes all entries from a reader.
+func MustDecodeAllLogEntries(r io.Reader) []*raft.LogEntry {
+	var entries []*raft.LogEntry
+	dec := raft.NewLogEntryDecoder(r)
+	for {
+		e := &raft.LogEntry{}
+		if err := dec.Decode(e); err == io.EOF {
+			break
+		} else if err != nil {
+			panic(err.Error())
+		} else if e.Type == 255 { // read snapshot
+			var sz uint64
+			if err := binary.Read(r, binary.BigEndian, &sz); err != nil {
+				panic(err.Error())
+			} else if _, err = io.ReadFull(r, make([]byte, sz)); err != nil {
+				panic(err.Error())
+			}
+		}
+		entries = append(entries, e)
+	}
+	return entries
 }
 
 // MustWriteFile writes data to a file. Panic on error.
