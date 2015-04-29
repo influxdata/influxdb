@@ -581,6 +581,16 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		// Aggregations
 		{
 			reset: true,
+			name:  "stddev with just one point",
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+				{"name": "cpu", "timestamp": "2015-04-20T14:27:41Z", "fields": {"value": 45}}
+			]}`,
+			query:    `SELECT stddev(value) FROM cpu`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","stddev"],"values":[["1970-01-01T00:00:00Z",null]]}]}]}`,
+		},
+		{
+			reset: true,
 			name:  "large mean and stddev",
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
 				{"name": "cpu", "timestamp": "2015-04-20T14:27:40Z", "fields": {"value": ` + string(maxFloat64) + `}},
