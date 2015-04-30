@@ -756,10 +756,7 @@ func (t *Topic) TombstonePath() string { return filepath.Join(t.path, "tombstone
 
 // Truncated returns whether the topic has even been truncated.
 func (t *Topic) Truncated() bool {
-	if _, err := os.Stat(t.TombstonePath()); os.IsNotExist(err) {
-		return false
-	}
-	return true
+	return tombstoneExists(t.path)
 }
 
 // Index returns the highest replicated index for the topic.
@@ -1138,10 +1135,7 @@ func ReadSegmentByIndex(path string, index uint64) (*Segment, error) {
 	}
 
 	// Determine if this topic has been truncated.
-	var truncated bool
-	if _, err := os.Stat(filepath.Join(path, "tombstone")); !os.IsNotExist(err) {
-		truncated = true
-	}
+	truncated := tombstoneExists(path)
 
 	// If the requested index is less than that available, one of two things will
 	// happen. If the topic has been truncated it means that topic data may exist
@@ -1585,6 +1579,14 @@ func (dec *MessageDecoder) Decode(m *Message) error {
 	}
 
 	return nil
+}
+
+// tombstoneExists returns whether the given directory contains a tombstone
+func tombstoneExists(path string) bool {
+	if _, err := os.Stat(filepath.Join(path, "tombstone")); os.IsNotExist(err) {
+		return false
+	}
+	return true
 }
 
 // UnmarshalMessage decodes a byte slice into a message.
