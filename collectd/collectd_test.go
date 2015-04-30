@@ -221,6 +221,18 @@ func TestUnmarshal_Points(t *testing.T) {
 			},
 		},
 		{
+			name: "single value using 'value' for key name",
+			points: []influxdb.Point{
+				{Name: "disk_read", Fields: map[string]interface{}{"value": float64(1)	}},
+			},
+			packet: gollectd.Packet{
+				Plugin: "disk",
+				Values: []gollectd.Value{
+					{Name: "read", Value: 1},
+				},
+			},
+		},
+		{
 			name: "multi value",
 			points: []influxdb.Point{
 				{Name: "disk_read", Fields: map[string]interface{}{"disk_read": float64(1)}},
