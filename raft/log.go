@@ -1700,14 +1700,14 @@ func (l *Log) WriteEntriesTo(w io.Writer, id, term, index uint64) error {
 	if err := func() error {
 		// Validate and initialize the writer.
 		var err error
-		writer, err = l.initWriter(w, id, term, index)
+		writer, snapshotRequired, err := l.initWriter(w, id, term, index)
 		if err != nil {
 			l.printf("unable to init writer: %s", err)
 			return fmt.Errorf("init writer: %s", err)
 		}
 
 		// Write snapshot, if necessary.
-		if writer.snapshotIndex > 0 {
+		if snapshotRequired {
 			if err := l.writeSnapshotTo(writer, id, term, index); err != nil {
 				return fmt.Errorf("write snapshot to: %s", err)
 			}
@@ -1728,24 +1728,25 @@ func (l *Log) WriteEntriesTo(w io.Writer, id, term, index uint64) error {
 	return nil
 }
 
-// validates writer and adds it to the list of writers.
-func (l *Log) initWriter(w io.Writer, id, term, index uint64) (*logWriter, error) {
+// initWriter validates writer and adds it to the list of writers. It returns the writer,
+// and a bool indicating whether the writer requires a snapshot.
+func (l *Log) initWriter(w io.Writer, id, term, index uint64) (*logWriter, bool, error) {
 	l.lock()
 	defer l.unlock()
 
 	// Check if log is closed.
 	if !l.opened() {
-		return nil, ErrClosed
+		return nil, false, ErrClosed
 	}
 
 	// Do not begin streaming if:
 	//   1. Node is not the leader.
 	//   2. Term is after current term.
 	if l.state != Leader {
-		return nil, ErrNotLeader
+		return nil, false, ErrNotLeader
 	} else if term > l.term {
 		l.mustSetTermIfHigher(term)
-		return nil, ErrNotLeader
+		return nil, false, ErrNotLeader
 	}
 
 	// If the index is past the leader's log then reset and begin from the end.
@@ -1762,7 +1763,7 @@ func (l *Log) initWriter(w io.Writer, id, term, index uint64) (*logWriter, error
 
 	// Write configuration.
 	if err := NewLogEntryEncoder(w).Encode(&LogEntry{Type: logEntryConfig, Data: buf.Bytes()}); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	flushWriter(w)
 
@@ -1780,11 +1781,11 @@ func (l *Log) initWriter(w io.Writer, id, term, index uint64) (*logWriter, error
 	} else {
 		writer.snapshotIndex = index
 		if err := l.advanceWriter(writer); err != nil {
-			return nil, fmt.Errorf("advance writer: %s", err)
+			return nil, false, fmt.Errorf("advance writer: %s", err)
 		}
 	}
 
-	return writer, nil
+	return writer, writer.snapshotIndex > 0, nil
 }
 
 func (l *Log) writeSnapshotTo(writer *logWriter, id, term, index uint64) error {
