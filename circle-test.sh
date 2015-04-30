@@ -4,7 +4,6 @@
 # the environment in which the build and test is run, and matches the official
 # build process for InfluxDB.
 
-GORACE="halt_on_error=1"
 BUILD_DIR=$HOME/influxdb-build
 GO_VERSION=go1.4.2
 PARALLELISM="-parallel 256"
@@ -66,7 +65,7 @@ case $CIRCLE_NODE_INDEX in
         rc=${PIPESTATUS[0]}
         ;;
     1)
-        go test $PARALLELISM $TIMEOUT -v -race ./... 2>&1 | tee $CIRCLE_ARTIFACTS/test_logs_race.txt
+        GORACE="halt_on_error=1" go test $PARALLELISM $TIMEOUT -v -race ./... 2>&1 | tee $CIRCLE_ARTIFACTS/test_logs_race.txt
         rc=${PIPESTATUS[0]}
         ;;
 esac
