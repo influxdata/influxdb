@@ -171,7 +171,7 @@ func Unmarshal(data *gollectd.Packet) []influxdb.Point {
 		tags := make(map[string]string)
 		fields := make(map[string]interface{})
 
-		fields[name] = data.Values[i].Value
+		fields["value"] = data.Values[i].Value
 
 		if data.Hostname != "" {
 			tags["host"] = data.Hostname
