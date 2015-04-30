@@ -114,6 +114,13 @@ func (c *Client) setURLs(a []url.URL) {
 	c.randomizeURL()
 }
 
+// RandomizeURL randomly sets the current broker URL to a random selection of the known URLs.
+func (c *Client) RandomizeURL() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.randomizeURL()
+}
+
 func (c *Client) randomizeURL() {
 	// Clear URL if no brokers exist.
 	if len(c.urls) == 0 {
@@ -327,7 +334,7 @@ func (c *Client) do(method, path string, values url.Values, contentType string, 
 		// If it cannot connect then select a different URL from the config.
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
-			c.randomizeURL()
+			c.RandomizeURL()
 			return nil, err
 		}
 
