@@ -235,7 +235,7 @@ func TestLog_WriteEntriesTo(t *testing.T) {
 	index := l.MustApplySync([]byte("xxx"))
 
 	// Write entries since the previous index to a buffer.
-	var buf bytes.Buffer
+	var buf lockingBuffer
 	go func() {
 		if err := l.WriteEntriesTo(&buf, 0, l.Term(), index-1); err != nil {
 			t.Fatal(err)
@@ -273,7 +273,7 @@ func TestLog_WriteEntriesTo_Snapshot(t *testing.T) {
 	}
 
 	// Write entries since the previous index to a buffer.
-	var buf bytes.Buffer
+	var buf lockingBuffer
 	go func() {
 		if err := l.WriteEntriesTo(&buf, 0, l.Term(), index-uint64(l.LogEntryCacheSize)-1); err != nil {
 			t.Fatal(err)
@@ -746,6 +746,25 @@ func NewInitializedLog(u url.URL) *Log {
 	l := OpenLog(u)
 	l.MustInitialize()
 	return l
+}
+
+// lockingBuffer is a wrapper around a byte buffer that synchronizes
+// length checks and writing. Avoid races during testing.
+type lockingBuffer struct {
+	sync.Mutex
+	bytes.Buffer
+}
+
+func (buf *lockingBuffer) Write(p []byte) (int, error) {
+	buf.Lock()
+	defer buf.Unlock()
+	return buf.Buffer.Write(p)
+}
+
+func (buf *lockingBuffer) Len() int {
+	buf.Lock()
+	defer buf.Unlock()
+	return buf.Buffer.Len()
 }
 
 // MustOpen opens the log. Panic on error.
