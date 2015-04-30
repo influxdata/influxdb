@@ -3,6 +3,7 @@ package messaging
 import (
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"io"
@@ -31,6 +32,16 @@ const DefaultMaxTopicSize = 1024 * 1024 * 1024 // 1GB
 
 // DefaultMaxSegmentSize is the largest a segment can get before starting a new segment.
 const DefaultMaxSegmentSize = 10 * 1024 * 1024 // 10MB
+
+var (
+	// ErrTopicTruncated is returned when topic data is unavailable due to truncation.
+	ErrTopicTruncated = errors.New("topic truncated")
+
+	// ErrTopicNodesNotFound is returned when requested topic data has been truncated
+	// but there are no nodes in the cluster that can provide a replica. This is a system
+	// failure and should not occur on a healthy replicated system.
+	ErrTopicNodesNotFound = errors.New("topic nodes not found")
+)
 
 // Broker represents distributed messaging system segmented into topics.
 // Each topic represents a linear series of events.
@@ -319,6 +330,21 @@ func (b *Broker) setMaxIndex(index uint64) error {
 	b.index = index
 
 	return nil
+}
+
+// URLsForTopic returns a slice of URLs from where previously replicaed
+// data for a given topic may be retrieved. The nodes at the URL will have
+// data up to at least the given index. These URLs are provided when a node
+// requests topic data that has been truncated.
+func (b *Broker) DataURLsForTopic(id, index uint64) []url.URL {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	t := b.topics[id]
+	if t == nil {
+		return nil
+	}
+	return t.DataURLsForIndex(index)
 }
 
 // WriteTo writes a snapshot of the broker to w.
@@ -730,10 +756,7 @@ func (t *Topic) TombstonePath() string { return filepath.Join(t.path, "tombstone
 
 // Truncated returns whether the topic has even been truncated.
 func (t *Topic) Truncated() bool {
-	if _, err := os.Stat(t.TombstonePath()); os.IsNotExist(err) {
-		return false
-	}
-	return true
+	return tombstoneExists(t.path)
 }
 
 // Index returns the highest replicated index for the topic.
@@ -750,6 +773,20 @@ func (t *Topic) DataURLs() []url.URL {
 	var urls []url.URL
 	for u, _ := range t.indexByURL {
 		urls = append(urls, u)
+	}
+	return urls
+}
+
+// DataURLsForIndex returns the data node URLs subscribed to this topic that have
+// replicated at least up to the given index.
+func (t *Topic) DataURLsForIndex(index uint64) []url.URL {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	var urls []url.URL
+	for u, idx := range t.indexByURL {
+		if idx >= index {
+			urls = append(urls, u)
+		}
 	}
 	return urls
 }
@@ -1097,14 +1134,27 @@ func ReadSegmentByIndex(path string, index uint64) (*Segment, error) {
 		return nil, fmt.Errorf("read segments: %s", err)
 	}
 
-	// If there are no segments then ignore.
-	// If index is zero then start from the first segment.
-	// If index is less than the first segment range then return error.
+	// Determine if this topic has been truncated.
+	truncated := tombstoneExists(path)
+
+	// If the requested index is less than that available, one of two things will
+	// happen. If the topic has been truncated it means that topic data may exist
+	// somewhere on the cluster that is not available here. Therefore this broker
+	// cannot provide the data. If truncation has never taken place however, then
+	// this broker can safely provide whatever data it has.
+
 	if len(segments) == 0 {
+		if truncated {
+			return nil, ErrTopicTruncated
+		}
 		return nil, nil
-	} else if index == 0 {
-		return segments[0], nil
-	} else if index < segments[0].Index {
+	}
+
+	// Is requested index lower than the broker can provide?
+	if index < segments[0].Index {
+		if truncated {
+			return nil, ErrTopicTruncated
+		}
 		return segments[0], nil
 	}
 
@@ -1204,7 +1254,7 @@ func (r *TopicReader) Read(p []byte) (int, error) {
 		if err == ErrReaderClosed {
 			return 0, io.EOF
 		} else if err != nil {
-			return 0, fmt.Errorf("file: %s", err)
+			return 0, err
 		} else if f == nil {
 			if r.streaming {
 				time.Sleep(r.PollInterval)
@@ -1250,6 +1300,8 @@ func (r *TopicReader) File() (*os.File, error) {
 		segment, err := ReadSegmentByIndex(r.path, r.index)
 		if os.IsNotExist(err) {
 			return nil, nil
+		} else if err == ErrTopicTruncated {
+			return nil, err
 		} else if err != nil {
 			return nil, fmt.Errorf("segment by index: %s", err)
 		} else if segment == nil {
@@ -1495,7 +1547,7 @@ func (dec *MessageDecoder) Decode(m *Message) error {
 		warnf("unexpected eof(0): len=%d, n=%d, err=%s", len(b[:]), n, err)
 		return err
 	} else if err != nil {
-		return fmt.Errorf("read header: %s", err)
+		return err
 	}
 
 	// Read checksum.
@@ -1527,6 +1579,14 @@ func (dec *MessageDecoder) Decode(m *Message) error {
 	}
 
 	return nil
+}
+
+// tombstoneExists returns whether the given directory contains a tombstone
+func tombstoneExists(path string) bool {
+	if _, err := os.Stat(filepath.Join(path, "tombstone")); os.IsNotExist(err) {
+		return false
+	}
+	return true
 }
 
 // UnmarshalMessage decodes a byte slice into a message.

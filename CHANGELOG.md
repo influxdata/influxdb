@@ -1,6 +1,7 @@
 ## v0.9.0-rc29 [unreleased]
 
 ### Features
+- [#2410](https://github.com/influxdb/influxdb/pull/2410): If needed, brokers respond with data nodes for peer shard replication.
 
 ### Bugfixes
 - [#2446] (https://github.com/influxdb/influxdb/pull/2446): Correctly count number of queries executed. Thanks @neonstalwart
