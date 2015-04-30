@@ -27,6 +27,10 @@ func (l *responseLogger) Header() http.Header {
 	return l.w.Header()
 }
 
+func (l *responseLogger) Flush() {
+	l.w.(http.Flusher).Flush()
+}
+
 func (l *responseLogger) Write(b []byte) (int, error) {
 	if l.status == 0 {
 		// Set status if WriteHeader has not been called
