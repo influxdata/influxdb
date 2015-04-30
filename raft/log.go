@@ -386,6 +386,7 @@ func (l *Log) Open(path string) error {
 		l.tracef("Open: fsm: index=%d", index)
 		l.lastLogIndex = index
 		l.commitIndex = index
+		l.entries = nil
 
 		// Start goroutine to apply logs.
 		l.wg.Add(1)
@@ -458,6 +459,7 @@ func (l *Log) close() error {
 	l.setID(0)
 	l.path = ""
 	l.lastLogIndex, l.lastLogTerm = 0, 0
+	l.entries = nil
 	l.term, l.votedFor = 0, 0
 	l.config = nil
 
@@ -1353,16 +1355,20 @@ func (l *Log) append(e *LogEntry) error {
 	}
 
 	assert(e.Index == l.lastLogIndex+1, "log entry skipped(%d): idx=%d, prev=%d", l.id, e.Index, l.lastLogIndex)
-
-	// Encode entry to a byte slice.
-	buf := make([]byte, logEntryHeaderSize+len(e.Data))
-	copy(buf, e.encodedHeader())
-	copy(buf[logEntryHeaderSize:], e.Data)
+	if len(l.entries) > 0 {
+		lastEntry := l.entries[len(l.entries)-1]
+		assert(e.Index == lastEntry.Index+1, "non-contiguous log entry(%d): idx=%d, prev=%d", l.id, e.Index, lastEntry.Index)
+	}
 
 	// Add to pending entries list to wait to be applied.
 	l.entries = append(l.entries, e)
 	l.lastLogIndex = e.Index
 	l.lastLogTerm = e.Term
+
+	// Encode entry to a byte slice.
+	buf := make([]byte, logEntryHeaderSize+len(e.Data))
+	copy(buf, e.encodedHeader())
+	copy(buf[logEntryHeaderSize:], e.Data)
 
 	// Write to tailing writers.
 	l.appendToWriters(buf)
@@ -1688,16 +1694,30 @@ func (l *Log) RequestVote(term, candidateID, lastLogIndex, lastLogTerm uint64) (
 // WriteEntriesTo attaches a writer to the log from a given index.
 // The index specified must be a committed index.
 func (l *Log) WriteEntriesTo(w io.Writer, id, term, index uint64) error {
-	// Validate and initialize the writer.
-	writer, err := l.initWriter(w, id, term, index)
-	if err != nil {
-		l.printf("unable to init writer: %s", err)
-		return err
-	}
-
 	// Write the snapshot and advance the writer through the log.
 	// If an error occurs then remove the writer.
-	if err := l.writeTo(writer, id, term, index); err != nil {
+	var writer *logWriter
+	if err := func() error {
+		// Validate and initialize the writer.
+		var err error
+		writer, err = l.initWriter(w, id, term, index)
+		if err != nil {
+			l.printf("unable to init writer: %s", err)
+			return fmt.Errorf("init writer: %s", err)
+		}
+
+		// Write snapshot, if necessary.
+		if writer.snapshotIndex > 0 {
+			if err := l.writeSnapshotTo(writer, id, term, index); err != nil {
+				return fmt.Errorf("write snapshot to: %s", err)
+			}
+		}
+
+		// Wait for writer to finish.
+		<-writer.done
+
+		return nil
+	}(); err != nil {
 		l.lock()
 		l.removeWriter(writer)
 		l.unlock()
@@ -1705,8 +1725,6 @@ func (l *Log) WriteEntriesTo(w io.Writer, id, term, index uint64) error {
 		return err
 	}
 
-	// Wait for writer to finish.
-	<-writer.done
 	return nil
 }
 
@@ -1750,35 +1768,43 @@ func (l *Log) initWriter(w io.Writer, id, term, index uint64) (*logWriter, error
 
 	// Wrap writer and append to log to tail.
 	writer := &logWriter{
-		Writer:        w,
-		id:            id,
-		snapshotIndex: l.FSM.Index(),
-		done:          make(chan struct{}),
+		Writer: w,
+		id:     id,
+		done:   make(chan struct{}),
 	}
 	l.writers = append(l.writers, writer)
+
+	// If index is before first available entry, then require snapshot.
+	if len(l.entries) == 0 || index < l.entries[0].Index {
+		writer.snapshotIndex = l.FSM.Index()
+	} else {
+		writer.snapshotIndex = index
+		if err := l.advanceWriter(writer); err != nil {
+			return nil, fmt.Errorf("advance writer: %s", err)
+		}
+	}
 
 	return writer, nil
 }
 
-func (l *Log) writeTo(writer *logWriter, id, term, index uint64) error {
-	// Extract the underlying writer.
-	w := writer.Writer
-
+func (l *Log) writeSnapshotTo(writer *logWriter, id, term, index uint64) error {
 	// Write snapshot if the requested index is less than the snapshot index.
 	// Write snapshot marker byte.
-	if _, err := w.Write([]byte{logEntrySnapshot}); err != nil {
+	if _, err := writer.Writer.Write([]byte{logEntrySnapshot}); err != nil {
 		return err
 	}
 
 	// Begin streaming the snapshot.
-	if _, err := l.FSM.WriteTo(w); err != nil {
+	if _, err := l.FSM.WriteTo(writer.Writer); err != nil {
 		return err
 	}
-	flushWriter(w)
+	flushWriter(writer.Writer)
 
-	// Write entries since the snapshot occurred and begin tailing writer.
+	// Begin advancing writer from the snapshot.
+	l.lock()
+	defer l.unlock()
 	if err := l.advanceWriter(writer); err != nil {
-		return err
+		return fmt.Errorf("advance writer: %s", err)
 	}
 
 	return nil
@@ -1786,9 +1812,6 @@ func (l *Log) writeTo(writer *logWriter, id, term, index uint64) error {
 
 // replays entries since the snapshot's index and begins tailing the log.
 func (l *Log) advanceWriter(writer *logWriter) error {
-	l.lock()
-	defer l.unlock()
-
 	// Check if writer has been closed during snapshot.
 	select {
 	case <-writer.done:
@@ -1818,6 +1841,10 @@ func (l *Log) advanceWriter(writer *logWriter) error {
 // removeWriter removes a writer from the list of log writers.
 func (l *Log) removeWriter(writer *logWriter) {
 	l.tracef("removeWriter")
+	if writer == nil {
+		return
+	}
+
 	for i, w := range l.writers {
 		if w == writer {
 			copy(l.writers[i:], l.writers[i+1:])
