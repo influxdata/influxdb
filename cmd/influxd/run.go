@@ -143,10 +143,6 @@ func (cmd *RunCommand) CheckConfig() {
 	}
 }
 
-func (cmd *RunCommand) Close() {
-	cmd.node.Close()
-}
-
 // write the current process id to a file specified by path.
 func writePIDFile(path string) {
 	if path == "" {
