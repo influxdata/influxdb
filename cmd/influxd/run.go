@@ -16,9 +16,7 @@ import (
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/collectd"
 	"github.com/influxdb/influxdb/graphite"
-	"github.com/influxdb/influxdb/messaging"
 	"github.com/influxdb/influxdb/opentsdb"
-	"github.com/influxdb/influxdb/raft"
 	"github.com/influxdb/influxdb/udp"
 )
 
@@ -31,9 +29,7 @@ type RunCommand struct {
 }
 
 func NewRunCommand() *RunCommand {
-	return &RunCommand{
-		node: &Node{},
-	}
+	return &RunCommand{}
 }
 
 func (cmd *RunCommand) ParseConfig(path string) error {
@@ -155,6 +151,8 @@ func (cmd *RunCommand) Open(config *Config, join string) *Node {
 		cmd.config = config
 	}
 
+	cmd.node = NewNodeWithConfig(cmd.config)
+
 	log.Printf("influxdb started, version %s, commit %s", version, commit)
 
 	// Parse join urls from the --join flag.
@@ -169,7 +167,7 @@ func (cmd *RunCommand) Open(config *Config, join string) *Node {
 
 	// Open broker & raft log, initialize or join as necessary.
 	if cmd.config.Broker.Enabled {
-		cmd.openBroker(joinURLs, h)
+		cmd.node.openBroker(joinURLs, h)
 		// If were running as a broker locally, always connect to it since it must
 		// be ready before we can start the data node.
 		joinURLs = []url.URL{*cmd.node.ClusterURL()}
@@ -369,89 +367,6 @@ func writePIDFile(path string) {
 	if err := ioutil.WriteFile(path, []byte(pid), 0644); err != nil {
 		log.Fatal(err)
 	}
-}
-
-// creates and initializes a broker.
-func (cmd *RunCommand) openBroker(brokerURLs []url.URL, h *Handler) {
-	path := cmd.config.BrokerDir()
-	u := cmd.node.ClusterURL()
-	raftTracing := cmd.config.Logging.RaftTracing
-
-	// Create broker
-	b := influxdb.NewBroker()
-	b.TruncationInterval = time.Duration(cmd.config.Broker.TruncationInterval)
-	b.MaxTopicSize = cmd.config.Broker.MaxTopicSize
-	b.MaxSegmentSize = cmd.config.Broker.MaxSegmentSize
-	cmd.node.Broker = b
-
-	// Create raft log.
-	l := raft.NewLog()
-	l.SetURL(*u)
-	l.DebugEnabled = raftTracing
-	b.Log = l
-	cmd.node.raftLog = l
-
-	// Create Raft clock.
-	clk := raft.NewClock()
-	clk.ApplyInterval = time.Duration(cmd.config.Raft.ApplyInterval)
-	clk.ElectionTimeout = time.Duration(cmd.config.Raft.ElectionTimeout)
-	clk.HeartbeatInterval = time.Duration(cmd.config.Raft.HeartbeatInterval)
-	clk.ReconnectTimeout = time.Duration(cmd.config.Raft.ReconnectTimeout)
-	l.Clock = clk
-
-	// Open broker so it can feed last index data to the log.
-	if err := b.Open(path); err != nil {
-		log.Fatalf("failed to open broker at %s : %s", path, err)
-	}
-	log.Printf("broker opened at %s", path)
-
-	// Attach the broker as the finite state machine of the raft log.
-	l.FSM = &messaging.RaftFSM{Broker: b}
-
-	// Open raft log inside broker directory.
-	if err := l.Open(filepath.Join(path, "raft")); err != nil {
-		log.Fatalf("raft: %s", err)
-	}
-
-	// Attach broker and log to handler.
-	h.Broker = b
-	h.Log = l
-
-	// Checks to see if the raft index is 0.  If it's 0, it might be the first
-	// node in the cluster and must initialize or join
-	index, _ := l.LastLogIndexTerm()
-	if index == 0 {
-		// If we have join URLs, then attemp to join the cluster
-		if len(brokerURLs) > 0 {
-			joinLog(l, brokerURLs)
-			return
-		}
-
-		if err := l.Initialize(); err != nil {
-			log.Fatalf("initialize raft log: %s", err)
-		}
-
-		u := b.Broker.URL()
-		log.Printf("initialized broker: %s\n", (&u).String())
-	} else {
-		log.Printf("broker already member of cluster.  Using existing state and ignoring join URLs")
-	}
-}
-
-// joins a raft log to an existing cluster.
-func joinLog(l *raft.Log, brokerURLs []url.URL) {
-	// Attempts to join each server until successful.
-	for _, u := range brokerURLs {
-		if err := l.Join(u); err == raft.ErrInitialized {
-			return
-		} else if err != nil {
-			log.Printf("join: failed to connect to raft cluster: %s: %s", (&u).String(), err)
-		} else {
-			log.Printf("join: connected raft log to %s", (&u).String())
-			return
-		}
-	}
-	log.Fatalf("join: failed to connect raft log to any specified server")
 }
 
 // creates and initializes a server.

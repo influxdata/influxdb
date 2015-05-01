@@ -5,12 +5,15 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/admin"
 	"github.com/influxdb/influxdb/graphite"
+	"github.com/influxdb/influxdb/messaging"
 	"github.com/influxdb/influxdb/opentsdb"
 	"github.com/influxdb/influxdb/raft"
 )
@@ -21,6 +24,7 @@ type Node struct {
 	Broker   *influxdb.Broker
 	DataNode *influxdb.Server
 	raftLog  *raft.Log
+	config   *Config
 
 	hostname string
 
@@ -29,6 +33,10 @@ type Node struct {
 	apiListener     net.Listener      // The API TCP listener
 	GraphiteServers []graphite.Server // The Graphite Servers
 	OpenTSDBServer  *opentsdb.Server  // The OpenTSDB Server
+}
+
+func NewNodeWithConfig(config *Config) *Node {
+	return &Node{config: config}
 }
 
 // ClusterAddr returns the cluster listen address
@@ -49,6 +57,89 @@ func (s *Node) ClusterURL() *url.URL {
 		Scheme: "http",
 		Host:   h,
 	}
+}
+
+// creates and initializes a broker.
+func (s *Node) openBroker(brokerURLs []url.URL, h *Handler) {
+	path := s.config.BrokerDir()
+	u := s.ClusterURL()
+	raftTracing := s.config.Logging.RaftTracing
+
+	// Create broker
+	b := influxdb.NewBroker()
+	b.TruncationInterval = time.Duration(s.config.Broker.TruncationInterval)
+	b.MaxTopicSize = s.config.Broker.MaxTopicSize
+	b.MaxSegmentSize = s.config.Broker.MaxSegmentSize
+	s.Broker = b
+
+	// Create raft log.
+	l := raft.NewLog()
+	l.SetURL(*u)
+	l.DebugEnabled = raftTracing
+	b.Log = l
+	s.raftLog = l
+
+	// Create Raft clock.
+	clk := raft.NewClock()
+	clk.ApplyInterval = time.Duration(s.config.Raft.ApplyInterval)
+	clk.ElectionTimeout = time.Duration(s.config.Raft.ElectionTimeout)
+	clk.HeartbeatInterval = time.Duration(s.config.Raft.HeartbeatInterval)
+	clk.ReconnectTimeout = time.Duration(s.config.Raft.ReconnectTimeout)
+	l.Clock = clk
+
+	// Open broker so it can feed last index data to the log.
+	if err := b.Open(path); err != nil {
+		log.Fatalf("failed to open broker at %s : %s", path, err)
+	}
+	log.Printf("broker opened at %s", path)
+
+	// Attach the broker as the finite state machine of the raft log.
+	l.FSM = &messaging.RaftFSM{Broker: b}
+
+	// Open raft log inside broker directory.
+	if err := l.Open(filepath.Join(path, "raft")); err != nil {
+		log.Fatalf("raft: %s", err)
+	}
+
+	// Attach broker and log to handler.
+	h.Broker = b
+	h.Log = l
+
+	// Checks to see if the raft index is 0.  If it's 0, it might be the first
+	// node in the cluster and must initialize or join
+	index, _ := l.LastLogIndexTerm()
+	if index == 0 {
+		// If we have join URLs, then attemp to join the cluster
+		if len(brokerURLs) > 0 {
+			s.joinLog(l, brokerURLs)
+			return
+		}
+
+		if err := l.Initialize(); err != nil {
+			log.Fatalf("initialize raft log: %s", err)
+		}
+
+		u := b.Broker.URL()
+		log.Printf("initialized broker: %s\n", (&u).String())
+	} else {
+		log.Printf("broker already member of cluster.  Using existing state and ignoring join URLs")
+	}
+}
+
+// joins a raft log to an existing cluster.
+func (n *Node) joinLog(l *raft.Log, brokerURLs []url.URL) {
+	// Attempts to join each server until successful.
+	for _, u := range brokerURLs {
+		if err := l.Join(u); err == raft.ErrInitialized {
+			return
+		} else if err != nil {
+			log.Printf("join: failed to connect to raft cluster: %s: %s", (&u).String(), err)
+		} else {
+			log.Printf("join: connected raft log to %s", (&u).String())
+			return
+		}
+	}
+	log.Fatalf("join: failed to connect raft log to any specified server")
 }
 
 // Close stops all listeners and services on the node
