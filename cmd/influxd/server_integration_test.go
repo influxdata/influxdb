@@ -618,29 +618,27 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","mean","stddev"],"values":[["2000-01-01T00:00:00Z",5,2.138089935299395]]}]}]}`,
 		},
 		{
-			reset: true,
-			name:  "median - even sample size",
+			name: "median - even sample size",
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
-				{"name": "cpu", "timestamp": "2000-01-01T00:00:00Z", "tags": {"region": "us-east"}, "fields": {"value": 200}},
-				{"name": "cpu", "timestamp": "2000-01-01T00:00:10Z", "tags": {"region": "us-east"}, "fields": {"value": 30}},
-				{"name": "cpu", "timestamp": "2000-01-01T00:00:20Z", "tags": {"region": "us-east"}, "fields": {"value": 40}},
-				{"name": "cpu", "timestamp": "2000-01-01T00:00:30Z", "tags": {"region": "us-west"}, "fields": {"value": 100}}
+				{"name": "cpu-even", "timestamp": "2000-01-01T00:00:00Z", "tags": {"region": "us-east"}, "fields": {"value": 200}},
+				{"name": "cpu-even", "timestamp": "2000-01-01T00:00:10Z", "tags": {"region": "us-east"}, "fields": {"value": 30}},
+				{"name": "cpu-even", "timestamp": "2000-01-01T00:00:20Z", "tags": {"region": "us-east"}, "fields": {"value": 40}},
+				{"name": "cpu-even", "timestamp": "2000-01-01T00:00:30Z", "tags": {"region": "us-west"}, "fields": {"value": 100}}
 			]}`,
-			query:    `SELECT median(value) FROM cpu`,
+			query:    `SELECT median(value) FROM "cpu-even"`,
 			queryDb:  "%DB%",
-			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","median"],"values":[["1970-01-01T00:00:00Z",70]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"cpu-even","columns":["time","median"],"values":[["1970-01-01T00:00:00Z",70]]}]}]}`,
 		},
 		{
-			reset: true,
-			name:  "median - odd sample size",
+			name: "median - odd sample size",
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
-				{"name": "cpu", "timestamp": "2000-01-01T00:00:00Z", "tags": {"region": "us-east"}, "fields": {"value": 200}},
-				{"name": "cpu", "timestamp": "2000-01-01T00:00:10Z", "tags": {"region": "us-east"}, "fields": {"value": 30}},
-				{"name": "cpu", "timestamp": "2000-01-01T00:00:20Z", "tags": {"region": "us-west"}, "fields": {"value": 100}}
+				{"name": "cpu-odd", "timestamp": "2000-01-01T00:00:00Z", "tags": {"region": "us-east"}, "fields": {"value": 200}},
+				{"name": "cpu-odd", "timestamp": "2000-01-01T00:00:10Z", "tags": {"region": "us-east"}, "fields": {"value": 30}},
+				{"name": "cpu-odd", "timestamp": "2000-01-01T00:00:20Z", "tags": {"region": "us-west"}, "fields": {"value": 100}}
 			]}`,
-			query:    `SELECT median(value) FROM cpu`,
+			query:    `SELECT median(value) FROM "cpu-odd"`,
 			queryDb:  "%DB%",
-			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","median"],"values":[["1970-01-01T00:00:00Z",100]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"cpu-odd","columns":["time","median"],"values":[["1970-01-01T00:00:00Z",100]]}]}]}`,
 		},
 		{
 			reset: true,
