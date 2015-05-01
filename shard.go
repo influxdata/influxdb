@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"math/rand"
 	"net/http"
 	"os"
@@ -128,6 +129,8 @@ type Shard struct {
 
 	wg      sync.WaitGroup // pending goroutines
 	closing chan struct{}  // close notification
+
+	Logger *log.Logger
 }
 
 // newShard returns a new initialized Shard instance.
@@ -144,6 +147,10 @@ func newShard(id uint64) *Shard {
 func (s *Shard) open(path string, conn MessagingConn) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	// Set prefix on open, so all log messages correctly prefixed.
+	// newShard not universally used.
+	s.Logger = log.New(os.Stderr, "[shard] ", log.LstdFlags)
 
 	if s.stats == nil {
 		s.stats = NewStats(fmt.Sprintf("shard %d", s.ID))
@@ -380,9 +387,11 @@ func (s *Shard) processor(conn MessagingConn, closing <-chan struct{}) {
 		select {
 		case m, ok = <-conn.C():
 			if !ok {
+				s.printf("no more messages from broker, shard processing complete")
 				return
 			}
 		case <-closing:
+			s.printf("shard closing, shard processing complete")
 			return
 		}
 
@@ -398,6 +407,8 @@ func (s *Shard) processor(conn MessagingConn, closing <-chan struct{}) {
 		switch m.Type {
 		case messaging.FetchPeerShardMessageType:
 			s.stats.Inc("FetchPeerShardMessageRx")
+			s.printf("FetchPeerShardMessageType received, with data URLs %s", string(m.Data))
+
 			urls := strings.Split(string(m.Data), ",")
 			if len(urls) < 1 {
 				return
@@ -408,15 +419,18 @@ func (s *Shard) processor(conn MessagingConn, closing <-chan struct{}) {
 				url := fmt.Sprintf("%s/data/shard/%d", urls[rand.Intn(len(urls))], s.ID)
 				resp, err := http.Get(url)
 				if err != nil {
+					s.printf("failed to GET shard data at %s: %s", url, err.Error())
 					continue
 				}
 
 				// Check response & parse content length.
 				if resp.StatusCode != http.StatusOK {
+					s.printf("shard data endpoint %s returned %d", url, resp.StatusCode)
 					continue
 				}
 				sz, err := strconv.ParseInt(resp.Header.Get("Content-Length"), 10, 64)
 				if err != nil {
+					s.printf("failed to parse Content-Length: %s", err.Error())
 					continue
 				}
 
@@ -427,27 +441,33 @@ func (s *Shard) processor(conn MessagingConn, closing <-chan struct{}) {
 				// Overwrite the shard.
 				f, err := os.Create(path)
 				if err != nil {
+					s.printf("failed to create shard at %s: %s", path, err.Error())
 					return
 				}
 
 				// Copy and check size.
-				if _, err := io.CopyN(f, resp.Body, sz); err != nil {
+				nCopied, err := io.CopyN(f, resp.Body, sz)
+				if err != nil {
 					_ = f.Close()
+					s.printf("failed to write shard data to %s: %s", path, err.Error())
 					return
 				}
 				_ = f.Close()
 
 				// Reinitialize store and connection.
 				if err := s.initializeStore(path); err != nil {
+					s.printf("failed to re-initialize store at %s: %s", path, err.Error())
 					return
 				}
 
 				// Re-initialize connection for streaming to shard.
 				if err := s.initializeConn(conn); err != nil {
+					s.printf("failed to re-initialize broker connection: %s", err.Error())
 					return
 				}
 
 				// Successfully retrieved shard data.
+				s.printf("successfully copied %d bytes of shard data from %s to %s", nCopied, url, path)
 				break
 			}
 
@@ -465,6 +485,10 @@ func (s *Shard) processor(conn MessagingConn, closing <-chan struct{}) {
 		s.index = m.Index
 		s.mu.Unlock()
 	}
+}
+
+func (s *Shard) printf(msg string, v ...interface{}) {
+	s.Logger.Printf(fmt.Sprintf("[%d]: ", s.ID)+msg, v...)
 }
 
 // Shards represents a list of shards.
