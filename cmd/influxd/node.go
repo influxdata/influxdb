@@ -28,8 +28,6 @@ type Node struct {
 	raftLog  *raft.Log
 	config   *Config
 
-	hostname string
-
 	adminServer     *admin.Server
 	clusterListener net.Listener      // The cluster TCP listener
 	apiListener     net.Listener      // The API TCP listener
@@ -54,7 +52,7 @@ func (n *Node) ClusterURL() *url.URL {
 		panic(e)
 	}
 
-	h := net.JoinHostPort(n.hostname, p)
+	h := net.JoinHostPort(n.config.Hostname, p)
 	return &url.URL{
 		Scheme: "http",
 		Host:   h,

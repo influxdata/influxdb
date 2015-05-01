@@ -52,7 +52,6 @@ func (cmd *RunCommand) ParseConfig(path string) error {
 	if cmd.hostname != "" {
 		cmd.config.Hostname = cmd.hostname
 	}
-	cmd.node.hostname = cmd.config.Hostname
 	return nil
 }
 
