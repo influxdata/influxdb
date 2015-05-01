@@ -77,7 +77,7 @@ enabled = true
 # Where the Raft logs are stored. The user running InfluxDB will need read/write access.
 dir  = "/var/opt/influxdb/raft"
 truncation-interval = "10m"
-max-topic-size = 1073741824
+max-topic-size = 52428800
 max-segment-size = 10485760
 
 # Raft configuration. Controls the distributed consensus system.
