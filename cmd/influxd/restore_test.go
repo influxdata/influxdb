@@ -40,8 +40,8 @@ func TestRestoreCommand(t *testing.T) {
 	config := newConfig(path, 8900)
 
 	// Start server.
-	cmd := main.NewRunCommand()
-	node := cmd.Open(&config, "")
+	node := main.NewNodeWithConfig(&config)
+	node.Open("")
 	if node.Broker == nil {
 		t.Fatal("cannot run broker")
 	} else if node.DataNode == nil {
@@ -92,8 +92,9 @@ func TestRestoreCommand(t *testing.T) {
 	config = newConfig(path, 8910)
 
 	// Restart server.
-	cmd = main.NewRunCommand()
-	node = cmd.Open(&config, "")
+
+	node = main.NewNodeWithConfig(&config)
+	node.Open("")
 	if b == nil {
 		t.Fatal("cannot run broker")
 	} else if s == nil {

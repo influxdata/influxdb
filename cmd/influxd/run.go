@@ -97,7 +97,8 @@ func (cmd *RunCommand) Run(args ...string) error {
 		joinURLs = join
 	}
 	cmd.CheckConfig()
-	cmd.Open(cmd.config, joinURLs)
+	cmd.node = NewNodeWithConfig(cmd.config)
+	cmd.node.Open(joinURLs)
 
 	// Wait indefinitely.
 	<-(chan struct{})(nil)
@@ -140,15 +141,6 @@ func (cmd *RunCommand) CheckConfig() {
 	if cmd.config.Data.Enabled && cmd.config.Data.Dir == "" {
 		log.Fatal("Data.Dir must be specified.  Run `influxd config` to generate a valid configuration.")
 	}
-}
-
-func (cmd *RunCommand) Open(config *Config, join string) *Node {
-	if config != nil {
-		cmd.config = config
-	}
-
-	cmd.node = NewNodeWithConfig(cmd.config)
-	return cmd.node.Open(join)
 }
 
 func (cmd *RunCommand) Close() {
