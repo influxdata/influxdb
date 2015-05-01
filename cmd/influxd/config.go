@@ -53,11 +53,11 @@ const (
 	// DefaultBrokerTruncationInterval is the default period between truncating topics.
 	DefaultBrokerTruncationInterval = 10 * time.Minute
 
-	// DefaultMaxTopicSize is the default maximum size in bytes a topic can consume on disk of a broker.
-	DefaultBrokerMaxTopicSize = 1024 * 1024 * 1024
-
 	// DefaultMaxTopicSize is the default maximum size in bytes a segment can consume on disk of a broker.
 	DefaultBrokerMaxSegmentSize = 10 * 1024 * 1024
+
+	// DefaultMaxTopicSize is the default maximum size in bytes a topic can consume on disk of a broker.
+	DefaultBrokerMaxTopicSize = 5 * DefaultBrokerMaxSegmentSize
 
 	// DefaultRaftApplyInterval is the period between applying commited Raft log entries.
 	DefaultRaftApplyInterval = 10 * time.Millisecond
