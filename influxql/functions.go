@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"math"
 	"sort"
-	"strings"
 )
 
 // Iterator represents a forward-only iterator over a set of points.
@@ -54,7 +53,7 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 	}
 
 	// Retrieve map function by name.
-	switch strings.ToLower(c.Name) {
+	switch c.Name {
 	case "count":
 		return MapCount, nil
 	case "sum":
@@ -87,7 +86,7 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 // InitializeReduceFunc takes an aggregate call from the query and returns the ReduceFunc
 func InitializeReduceFunc(c *Call) (ReduceFunc, error) {
 	// Retrieve reduce function by name.
-	switch strings.ToLower(c.Name) {
+	switch c.Name {
 	case "count":
 		return ReduceSum, nil
 	case "sum":
@@ -132,7 +131,7 @@ func InitializeUnmarshaller(c *Call) (UnmarshalFunc, error) {
 	}
 
 	// Retrieve marshal function by name
-	switch strings.ToLower(c.Name) {
+	switch c.Name {
 	case "mean":
 		return func(b []byte) (interface{}, error) {
 			var o meanMapOutput

@@ -852,7 +852,7 @@ func (s *SelectStatement) GroupByInterval() (time.Duration, error) {
 	}
 
 	for _, d := range s.Dimensions {
-		if call, ok := d.Expr.(*Call); ok && strings.ToLower(call.Name) == "time" {
+		if call, ok := d.Expr.(*Call); ok && call.Name == "time" {
 			// Make sure there is exactly one argument.
 			if len(call.Args) != 1 {
 				return 0, errors.New("time dimension expected one argument")
@@ -1680,7 +1680,7 @@ func (a Dimensions) Normalize() (time.Duration, []string, error) {
 		case *Call:
 			// Ensure the call is time() and it only has one duration argument.
 			// If we already have a duration
-			if strings.ToLower(expr.Name) != "time" {
+			if expr.Name != "time" {
 				return 0, nil, errors.New("only time() calls allowed in dimensions")
 			} else if len(expr.Args) != 1 {
 				return 0, nil, errors.New("time dimension expected one argument")
@@ -2497,7 +2497,7 @@ func reduceBinaryExprTimeLHS(op Token, lhs *TimeLiteral, rhs Expr) Expr {
 
 func reduceCall(expr *Call, valuer Valuer) Expr {
 	// Evaluate "now()" if valuer is set.
-	if strings.ToLower(expr.Name) == "now" && len(expr.Args) == 0 && valuer != nil {
+	if expr.Name == "now" && len(expr.Args) == 0 && valuer != nil {
 		if v, ok := valuer.Value("now()"); ok {
 			v, _ := v.(time.Time)
 			return &TimeLiteral{Val: v}

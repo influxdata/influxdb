@@ -454,7 +454,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		},
 		{
 			name:     "single point, select with now()",
-			query:    `SELECT * FROM "%DB%"."%RP%".cpu WHERE time < now()`,
+			query:    `SELECT * FROM "%DB%"."%RP%".cpu WHERE time < NOW()`,
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",100]]}]}]}`,
 		},
 		{
@@ -585,7 +585,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
 				{"name": "cpu", "timestamp": "2015-04-20T14:27:41Z", "fields": {"value": 45}}
 			]}`,
-			query:    `SELECT stddev(value) FROM cpu`,
+			query:    `SELECT STDDEV(value) FROM cpu`,
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","stddev"],"values":[["1970-01-01T00:00:00Z",null]]}]}]}`,
 		},
@@ -596,7 +596,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 				{"name": "cpu", "timestamp": "2015-04-20T14:27:40Z", "fields": {"value": ` + string(maxFloat64) + `}},
 				{"name": "cpu", "timestamp": "2015-04-20T14:27:41Z", "fields": {"value": ` + string(maxFloat64) + `}}
 			]}`,
-			query:    `SELECT mean(value), stddev(value) FROM cpu`,
+			query:    `SELECT MEAN(value), STDDEV(value) FROM cpu`,
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","mean","stddev"],"values":[["1970-01-01T00:00:00Z",` + string(maxFloat64) + `,0]]}]}]}`,
 		},
@@ -613,7 +613,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 				{"name": "cpu", "timestamp": "2000-01-01T00:01:00Z", "fields": {"value": 7}},
 				{"name": "cpu", "timestamp": "2000-01-01T00:01:10Z", "fields": {"value": 9}}
 			]}`,
-			query:    `SELECT mean(value), stddev(value) FROM cpu WHERE time >= '2000-01-01' AND time < '2000-01-01T00:02:00Z' GROUP BY time(10m)`,
+			query:    `SELECT MEAN(value), STDDEV(value) FROM cpu WHERE time >= '2000-01-01' AND time < '2000-01-01T00:02:00Z' GROUP BY time(10m)`,
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","mean","stddev"],"values":[["2000-01-01T00:00:00Z",5,2.138089935299395]]}]}]}`,
 		},
@@ -631,7 +631,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		},
 		{
 			name:     "sum aggregation",
-			query:    `SELECT sum(value) FROM cpu WHERE time >= '2000-01-01 00:00:05' AND time <= '2000-01-01T00:00:10Z' GROUP BY time(10s), region`,
+			query:    `SELECT SUM(value) FROM cpu WHERE time >= '2000-01-01 00:00:05' AND time <= '2000-01-01T00:00:10Z' GROUP BY time(10s), region`,
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","sum"],"values":[["2000-01-01T00:00:00Z",null],["2000-01-01T00:00:10Z",30]]}]}]}`,
 		},
@@ -640,13 +640,13 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 				{"name": "cpu", "timestamp": "2000-01-01T00:00:03Z", "tags": {"region": "us-east"}, "fields": {"otherVal": 20}}
 			]}`,
 			name:     "aggregation with a null field value",
-			query:    `SELECT sum(value) FROM cpu GROUP BY region`,
+			query:    `SELECT SUM(value) FROM cpu GROUP BY region`,
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",50]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",100]]}]}]}`,
 		},
 		{
 			name:     "multiple aggregations",
-			query:    `SELECT sum(value), mean(value) FROM cpu GROUP BY region`,
+			query:    `SELECT SUM(value), MEAN(value) FROM cpu GROUP BY region`,
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","sum","mean"],"values":[["1970-01-01T00:00:00Z",50,25]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","sum","mean"],"values":[["1970-01-01T00:00:00Z",100,100]]}]}]}`,
 		},
@@ -729,7 +729,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		},
 		{
 			name:     "wildcard GROUP BY queries with time",
-			query:    `SELECT mean(value) FROM cpu WHERE time >= '2000-01-01T00:00:00Z' AND time < '2000-01-01T00:01:00Z' GROUP BY *,time(1m)`,
+			query:    `SELECT mean(value) FROM cpu WHERE time >= '2000-01-01T00:00:00Z' AND time < '2000-01-01T00:01:00Z' GROUP BY *,TIME(1m)`,
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","mean"],"values":[["2000-01-01T00:00:00Z",15]]},{"name":"cpu","tags":{"region":"us-west"},"columns":["time","mean"],"values":[["2000-01-01T00:00:00Z",30]]}]}]}`,
 		},
@@ -957,27 +957,27 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		},
 		{
 			name:     "limit on points with group by time",
-			query:    `select mean(foo) from "%DB%"."%RP%"."limit" WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY time(1s) LIMIT 2`,
+			query:    `select mean(foo) from "%DB%"."%RP%"."limit" WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY TIME(1s) LIMIT 2`,
 			expected: `{"results":[{"series":[{"name":"limit","columns":["time","mean"],"values":[["2009-11-10T23:00:02Z",2],["2009-11-10T23:00:03Z",3]]}]}]}`,
 		},
 		{
 			name:     "limit higher than the number of data points with group by time",
-			query:    `select mean(foo) from "%DB%"."%RP%"."limit" WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY time(1s) LIMIT 20`,
+			query:    `select mean(foo) from "%DB%"."%RP%"."limit" WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY TIME(1s) LIMIT 20`,
 			expected: `{"results":[{"series":[{"name":"limit","columns":["time","mean"],"values":[["2009-11-10T23:00:02Z",2],["2009-11-10T23:00:03Z",3],["2009-11-10T23:00:04Z",4],["2009-11-10T23:00:05Z",5]]}]}]}`,
 		},
 		{
 			name:     "limit and offset with group by time",
-			query:    `select mean(foo) from "%DB%"."%RP%"."limit" WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY time(1s) LIMIT 2 OFFSET 1`,
+			query:    `select mean(foo) from "%DB%"."%RP%"."limit" WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY TIME(1s) LIMIT 2 OFFSET 1`,
 			expected: `{"results":[{"series":[{"name":"limit","columns":["time","mean"],"values":[["2009-11-10T23:00:03Z",3],["2009-11-10T23:00:04Z",4]]}]}]}`,
 		},
 		{
 			name:     "limit + offset equal to the  number of points with group by time",
-			query:    `select mean(foo) from "%DB%"."%RP%"."limit" WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY time(1s) LIMIT 3 OFFSET 3`,
+			query:    `select mean(foo) from "%DB%"."%RP%"."limit" WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY TIME(1s) LIMIT 3 OFFSET 3`,
 			expected: `{"results":[{"series":[{"name":"limit","columns":["time","mean"],"values":[["2009-11-10T23:00:05Z",5]]}]}]}`,
 		},
 		{
 			name:     "limit - offset higher than number of points with group by time",
-			query:    `select mean(foo) from "%DB%"."%RP%"."limit" WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY time(1s) LIMIT 2 OFFSET 20`,
+			query:    `select mean(foo) from "%DB%"."%RP%"."limit" WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY TIME(1s) LIMIT 2 OFFSET 20`,
 			expected: `{"results":[{}]}`,
 		},
 		{
@@ -1000,17 +1000,17 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 				{"name": "fills", "timestamp": "2009-11-10T23:00:06Z","fields": {"val": 4}},
 				{"name": "fills", "timestamp": "2009-11-10T23:00:16Z","fields": {"val": 10}}
 			]}`,
-			query:    `select mean(val) from "%DB%"."%RP%".fills where time >= '2009-11-10T23:00:00Z' and time < '2009-11-10T23:00:20Z' group by time(5s) fill(1)`,
+			query:    `select mean(val) from "%DB%"."%RP%".fills where time >= '2009-11-10T23:00:00Z' and time < '2009-11-10T23:00:20Z' group by time(5s) FILL(1)`,
 			expected: `{"results":[{"series":[{"name":"fills","columns":["time","mean"],"values":[["2009-11-10T23:00:00Z",4],["2009-11-10T23:00:05Z",4],["2009-11-10T23:00:10Z",1],["2009-11-10T23:00:15Z",10]]}]}]}`,
 		},
 		{
 			name:     "fill with previous",
-			query:    `select mean(val) from "%DB%"."%RP%".fills where time >= '2009-11-10T23:00:00Z' and time < '2009-11-10T23:00:20Z' group by time(5s) fill(previous)`,
+			query:    `select mean(val) from "%DB%"."%RP%".fills where time >= '2009-11-10T23:00:00Z' and time < '2009-11-10T23:00:20Z' group by time(5s) FILL(previous)`,
 			expected: `{"results":[{"series":[{"name":"fills","columns":["time","mean"],"values":[["2009-11-10T23:00:00Z",4],["2009-11-10T23:00:05Z",4],["2009-11-10T23:00:10Z",4],["2009-11-10T23:00:15Z",10]]}]}]}`,
 		},
 		{
 			name:     "fill with none, i.e. clear out nulls",
-			query:    `select mean(val) from "%DB%"."%RP%".fills where time >= '2009-11-10T23:00:00Z' and time < '2009-11-10T23:00:20Z' group by time(5s) fill(none)`,
+			query:    `select mean(val) from "%DB%"."%RP%".fills where time >= '2009-11-10T23:00:00Z' and time < '2009-11-10T23:00:20Z' group by time(5s) FILL(none)`,
 			expected: `{"results":[{"series":[{"name":"fills","columns":["time","mean"],"values":[["2009-11-10T23:00:00Z",4],["2009-11-10T23:00:05Z",4],["2009-11-10T23:00:15Z",10]]}]}]}`,
 		},
 		{
