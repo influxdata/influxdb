@@ -38,8 +38,10 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 		return MapRawQuery, nil
 	}
 
+	name := strings.ToLower(c.Name)
+
 	// Ensure that there is either a single argument or if for percentile, two
-	if c.Name == "percentile" {
+	if name == "percentile" {
 		if len(c.Args) != 2 {
 			return nil, fmt.Errorf("expected two arguments for percentile()")
 		}
@@ -54,7 +56,7 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 	}
 
 	// Retrieve map function by name.
-	switch strings.ToLower(c.Name) {
+	switch name {
 	case "count":
 		return MapCount, nil
 	case "sum":
