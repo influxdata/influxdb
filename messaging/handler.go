@@ -115,7 +115,6 @@ func (h *Handler) getMessages(w http.ResponseWriter, req *http.Request) {
 			redirects = append(redirects, u.String())
 		}
 		w.Header().Set("X-Broker-DataURLs", strings.Join(redirects, ","))
-		http.Redirect(w, req, urls[0].String(), http.StatusTemporaryRedirect)
 	} else if err != nil {
 		log.Printf("message stream error: %s", err)
 	}

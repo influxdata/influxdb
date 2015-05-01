@@ -1429,6 +1429,7 @@ const BrokerMessageType = 0x8000
 
 const (
 	SetTopicMaxIndexMessageType = BrokerMessageType | MessageType(0x00)
+	FetchPeerShardMessageType   = BrokerMessageType | MessageType(0x10)
 )
 
 const (

@@ -3610,6 +3610,7 @@ func (c *messagingClient) Conn(topicID uint64) MessagingConn { return c.Client.C
 // MessagingConn represents a streaming connection to a single broker topic.
 type MessagingConn interface {
 	Open(index uint64, streaming bool) error
+	Close() error
 	C() <-chan *messaging.Message
 }
 

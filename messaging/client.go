@@ -701,7 +701,19 @@ func (c *Conn) stream(req *http.Request, closing <-chan struct{}) error {
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	// Ensure that we received a 200 OK from the server before streaming.
+	// If the response is directing the client to other nodes for direct
+	// replication, transform that response into a message for the channel.
+	dataURLs := resp.Header.Get("X-Broker-DataURLs")
+	if dataURLs != "" {
+		m := &Message{
+			Type: FetchPeerShardMessageType,
+			Data: []byte(dataURLs),
+		}
+		c.c <- m
+		return nil
+	}
+
+	// Otherwise ensure that we received a 200 OK from the server before streaming.
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("invalid stream status code: %d", resp.StatusCode)
 	}
