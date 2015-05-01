@@ -295,26 +295,38 @@ func ReduceMedian(values []interface{}) interface{} {
 	}
 }
 
+// getSortedRange returns a sorted subset of data. By using discardLowerRange and discardUpperRange to get the target
+// subset (unsorted) and then just sorting that subset, the work can be reduced from O(N lg N), where N is len(data), to
+// O(N + count lg count) for the average case
+// - O(N) to discard the unwanted items
+// - O(count lg count) to sort the count number of extracted items
+// This can be useful for:
+// - finding the median: getSortedRange(data, middle, 1)
+// - finding the top N: getSortedRange(data, len(data) - N, N)
+// - finding the bottom N: getSortedRange(data, 0, N)
 func getSortedRange(data []float64, start int, count int) []float64 {
 	out := discardLowerRange(data, start)
-	discards := len(out) - count
-	if discards > 0 {
-		out = discardUpperRange(out, discards)
+	k := len(out) - count
+	if k > 0 {
+		out = discardUpperRange(out, k)
 	}
 	sort.Float64s(out)
 
 	return out
 }
 
-func discardLowerRange(data []float64, discards int) []float64 {
+// discardLowerRange discards the lower k elements of the sorted data set without sorting all the data. Sorting all of
+// the data would take O(NlgN), where N is len(data), but partitioning to find the kth largest number is O(N) in the
+// average case. The remaining N-k unsorted elements are returned - no kind of ordering is guaranteed on these elements.
+func discardLowerRange(data []float64, k int) []float64 {
 	var out []float64
 
 	// discard values lower than the desired range
-	for discards > 0 {
+	for k > 0 {
 		lows, pivotValue, highs := partition(data)
 
 		lowLength := len(lows)
-		if lowLength > discards {
+		if lowLength > k {
 			// keep all the highs and the pivot
 			out = append(out, pivotValue)
 			out = append(out, highs...)
@@ -323,28 +335,31 @@ func discardLowerRange(data []float64, discards int) []float64 {
 		} else {
 			// discard all the lows
 			data = highs
-			discards -= lowLength
-			if discards == 0 {
+			k -= lowLength
+			if k == 0 {
 				// if discarded enough lows, keep the pivot
 				out = append(out, pivotValue)
 			} else {
 				// able to discard the pivot too
-				discards--
+				k--
 			}
 		}
 	}
 	return append(out, data...)
 }
 
-func discardUpperRange(data []float64, discards int) []float64 {
+// discardUpperRange discards the upper k elements of the sorted data set without sorting all the data. Sorting all of
+// the data would take O(NlgN), where N is len(data), but partitioning to find the kth largest number is O(N) in the
+// average case. The remaining N-k unsorted elements are returned - no kind of ordering is guaranteed on these elements.
+func discardUpperRange(data []float64, k int) []float64 {
 	var out []float64
 
 	// discard values higher than the desired range
-	for discards > 0 {
+	for k > 0 {
 		lows, pivotValue, highs := partition(data)
 
 		highLength := len(highs)
-		if highLength > discards {
+		if highLength > k {
 			// keep all the lows and the pivot
 			out = append(out, pivotValue)
 			out = append(out, lows...)
@@ -353,21 +368,25 @@ func discardUpperRange(data []float64, discards int) []float64 {
 		} else {
 			// discard all the highs
 			data = lows
-			discards -= highLength
-			if discards == 0 {
+			k -= highLength
+			if k == 0 {
 				// if discarded enough highs, keep the pivot
 				out = append(out, pivotValue)
 			} else {
 				// able to discard the pivot too
-				discards--
+				k--
 			}
 		}
 	}
 	return append(out, data...)
 }
 
+// partition takes a list of data, chooses a random pivot index and returns a list of elements lower than the
+// pivotValue, the pivotValue, and a list of elements higher than the pivotValue.
 func partition(data []float64) (lows []float64, pivotValue float64, highs []float64) {
 	length := len(data)
+	// there are better (more complex) ways to calculate pivotIndex (e.g. median of 3, median of 3 medians) if this
+	// proves to be inadequate.
 	pivotIndex := rand.Int() % length
 	pivotValue = data[pivotIndex]
 	// partition the data around the pivot
