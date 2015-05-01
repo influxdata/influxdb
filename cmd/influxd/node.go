@@ -61,14 +61,14 @@ func (n *Node) ClusterURL() *url.URL {
 	}
 }
 
-func (n *Node) Open(config *Config, join string) *Node {
+func (n *Node) Open(join string) *Node {
 	log.Printf("influxdb started, version %s, commit %s", version, commit)
 
 	// Parse join urls from the --join flag.
 	joinURLs := parseURLs(join)
 
 	// Start the broker handler.
-	h := &Handler{Config: config}
+	h := &Handler{Config: n.config}
 	if err := n.openClusterListener(n.config.ClusterAddr(), h); err != nil {
 		log.Fatalf("Cluster server failed to listen on %s. %s ", n.config.ClusterAddr(), err)
 	}
@@ -112,7 +112,7 @@ func (n *Node) Open(config *Config, join string) *Node {
 	// Start the server handler. Attach to broker if listening on the same port.
 	if s != nil {
 		h.Server = s
-		if config.Snapshot.Enabled {
+		if n.config.Snapshot.Enabled {
 			log.Printf("snapshot server listening on %s", n.config.ClusterAddr())
 		} else {
 			log.Printf("snapshot server disabled")
@@ -176,8 +176,8 @@ func (n *Node) Open(config *Config, join string) *Node {
 		}
 
 		// Spin up any OpenTSDB servers
-		if config.OpenTSDB.Enabled {
-			o := config.OpenTSDB
+		if n.config.OpenTSDB.Enabled {
+			o := n.config.OpenTSDB
 			db := o.DatabaseString()
 			laddr := o.ListenAddress()
 			policy := o.RetentionPolicy

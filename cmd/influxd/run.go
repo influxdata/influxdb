@@ -148,7 +148,7 @@ func (cmd *RunCommand) Open(config *Config, join string) *Node {
 	}
 
 	cmd.node = NewNodeWithConfig(cmd.config)
-	return cmd.node.Open(cmd.config, join)
+	return cmd.node.Open(join)
 }
 
 func (cmd *RunCommand) Close() {
