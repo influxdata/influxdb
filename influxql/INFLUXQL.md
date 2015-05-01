@@ -306,11 +306,11 @@ create_user_stmt = "CREATE USER" user_name "WITH PASSWORD" password
 
 ```sql
 -- Create a normal database user.
-CREATE USER jdoe WITH PASSWORD "1337password";
+CREATE USER jdoe WITH PASSWORD '1337password';
 
 -- Create a cluster admin.
 -- Note: Unlike the GRANT statement, the "PRIVILEGES" keyword is required here.
-CREATE USER jdoe WITH PASSWORD "1337password" WITH ALL PRIVILEGES;
+CREATE USER jdoe WITH PASSWORD '1337password' WITH ALL PRIVILEGES;
 ```
 
 ### DELETE
