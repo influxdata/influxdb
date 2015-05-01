@@ -452,7 +452,8 @@ type Conn struct {
 	dataURL   url.URL // url for the data node or this caller
 
 	opened bool
-	c      chan *Message // channel streams messages from the broker.
+	c      chan *Message   // channel streams messages from the broker.
+	r      chan []*url.URL // channel sends URLs from where shard data must be replicated.
 
 	wg      sync.WaitGroup
 	closing chan struct{}
@@ -483,6 +484,9 @@ func (c *Conn) TopicID() uint64 { return c.topicID }
 
 // C returns streaming channel for the connection.
 func (c *Conn) C() <-chan *Message { return c.c }
+
+// R returns channel over which replication URLs are transmitted.
+func (c *Conn) R() <-chan []*url.URL { return c.r }
 
 // Index returns the highest index replicated to the caller.
 func (c *Conn) Index() uint64 {
@@ -538,6 +542,7 @@ func (c *Conn) Open(index uint64, streaming bool) error {
 
 	// Create streaming channel.
 	c.c = make(chan *Message, 0)
+	c.r = make(chan []*url.URL, 0)
 
 	// Start goroutines.
 	c.wg.Add(2)
@@ -570,8 +575,9 @@ func (c *Conn) close() error {
 	c.wg.Wait()
 	c.mu.Lock()
 
-	// Close channel.
+	// Close channels.
 	close(c.c)
+	close(c.r)
 
 	// Mark connection as closed.
 	c.opened = false
@@ -701,24 +707,28 @@ func (c *Conn) stream(req *http.Request, closing <-chan struct{}) error {
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	// If the response is directing the client to other nodes for direct
-	// replication, transform that response into a message for the channel.
-	dataURLs := resp.Header.Get("X-Broker-DataURLs")
-	if dataURLs != "" {
-		m := &Message{
-			Type: FetchPeerShardMessageType,
-			Data: []byte(dataURLs),
-		}
-		c.c <- m
-		return nil
-	}
-
-	// Otherwise ensure that we received a 200 OK from the server before streaming.
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("invalid stream status code: %d", resp.StatusCode)
 	}
 
-	c.Logger.Printf("connected to broker: %s", req.URL.String())
+	// If the response is directing the client to other nodes for direct
+	// replication, transform that response into a message for the URLs channel.
+	dataURLs := strings.Split(resp.Header.Get("X-Broker-DataURLs"), ",")
+	if len(dataURLs) > 0 {
+		c.Logger.Printf("received peer replication directive: %v", dataURLs)
+		var urls []*url.URL
+		for _, du := range dataURLs {
+			u, err := url.Parse(du)
+			if err != nil {
+				continue
+			}
+			urls = append(urls, u)
+		}
+		c.r <- urls
+		return nil
+	}
+
+	c.Logger.Printf("streaming from broker: %s", req.URL.String())
 
 	// Continuously decode messages from request body in a separate goroutine.
 	dec := NewMessageDecoder(&nopSeeker{resp.Body})

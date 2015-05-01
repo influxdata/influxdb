@@ -3611,7 +3611,8 @@ func (c *messagingClient) Conn(topicID uint64) MessagingConn { return c.Client.C
 type MessagingConn interface {
 	Open(index uint64, streaming bool) error
 	Close() error
-	C() <-chan *messaging.Message
+	C() <-chan *messaging.Message // Data messages.
+	R() <-chan []*url.URL         // Replication URLs.
 }
 
 // DataNode represents a data node in the cluster.

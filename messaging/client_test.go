@@ -587,10 +587,10 @@ func TestConn_Truncated(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Receive messages from the stream.
-	m := <-c.C()
-	if !reflect.DeepEqual(m, &messaging.Message{Type: messaging.FetchPeerShardMessageType, Data: []byte("http://a:8086,http://b:8087")}) {
-		t.Fatalf("unexpected message(0): %#v", m)
+	// Receive URLs over redirection channel.
+	urls := <-c.R()
+	if len(urls) != 2 || urls[0].String() != "http://a:8086" || urls[1].String() != "http://b:8087" {
+		t.Fatalf("unexpected replication URLs received: %#v", urls)
 	}
 
 	// Close connection.
