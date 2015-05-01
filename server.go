@@ -2061,17 +2061,37 @@ func (s *Server) applyDropMeasurement(m *messaging.Message) error {
 
 // createShardGroupsIfNotExist walks the "points" and ensures that all required shards exist on the cluster.
 func (s *Server) createShardGroupsIfNotExists(database, retentionPolicy string, points []Point) error {
-	for _, p := range points {
-		// Check if shard group exists first.
-		g, err := s.shardGroupByTimestamp(database, retentionPolicy, p.Timestamp)
-		if err != nil {
-			return err
-		} else if g != nil {
-			continue
+	var commands = make([]*createShardGroupIfNotExistsCommand, 0)
+
+	err := func() error {
+		// Local function makes locking fool-proof.
+		s.mu.RLock()
+		defer s.mu.RUnlock()
+		for _, p := range points {
+			// Check if shard group exists first.
+			g, err := s.shardGroupByTimestamp(database, retentionPolicy, p.Timestamp)
+			if err != nil {
+				return err
+			} else if g != nil {
+				continue
+			}
+			commands = append(commands, &createShardGroupIfNotExistsCommand{
+				Database:  database,
+				Policy:    retentionPolicy,
+				Timestamp: p.Timestamp,
+			})
 		}
-		err = s.CreateShardGroupIfNotExists(database, retentionPolicy, p.Timestamp)
+		return nil
+	}()
+	if err != nil {
+		return err
+	}
+
+	// Create any required shard groups across the cluster. Must be done without holding the lock.
+	for _, c := range commands {
+		err = s.CreateShardGroupIfNotExists(c.Database, c.Policy, c.Timestamp)
 		if err != nil {
-			return fmt.Errorf("create shard(%s/%s): %s", retentionPolicy, p.Timestamp.Format(time.RFC3339Nano), err)
+			return fmt.Errorf("create shard(%s:%s/%s): %s", c.Database, c.Policy, c.Timestamp.Format(time.RFC3339Nano), err)
 		}
 	}
 
