@@ -40,19 +40,19 @@ func NewNodeWithConfig(config *Config) *Node {
 }
 
 // ClusterAddr returns the cluster listen address
-func (s *Node) ClusterAddr() net.Addr {
-	return s.clusterListener.Addr()
+func (n *Node) ClusterAddr() net.Addr {
+	return n.clusterListener.Addr()
 }
 
 // ClusterURL returns the URL where other members can reach this node
-func (s *Node) ClusterURL() *url.URL {
+func (n *Node) ClusterURL() *url.URL {
 	// Find out which port the cluster started on
-	_, p, e := net.SplitHostPort(s.ClusterAddr().String())
+	_, p, e := net.SplitHostPort(n.ClusterAddr().String())
 	if e != nil {
 		panic(e)
 	}
 
-	h := net.JoinHostPort(s.hostname, p)
+	h := net.JoinHostPort(n.hostname, p)
 	return &url.URL{
 		Scheme: "http",
 		Host:   h,
@@ -60,31 +60,31 @@ func (s *Node) ClusterURL() *url.URL {
 }
 
 // creates and initializes a broker.
-func (s *Node) openBroker(brokerURLs []url.URL, h *Handler) {
-	path := s.config.BrokerDir()
-	u := s.ClusterURL()
-	raftTracing := s.config.Logging.RaftTracing
+func (n *Node) openBroker(brokerURLs []url.URL, h *Handler) {
+	path := n.config.BrokerDir()
+	u := n.ClusterURL()
+	raftTracing := n.config.Logging.RaftTracing
 
 	// Create broker
 	b := influxdb.NewBroker()
-	b.TruncationInterval = time.Duration(s.config.Broker.TruncationInterval)
-	b.MaxTopicSize = s.config.Broker.MaxTopicSize
-	b.MaxSegmentSize = s.config.Broker.MaxSegmentSize
-	s.Broker = b
+	b.TruncationInterval = time.Duration(n.config.Broker.TruncationInterval)
+	b.MaxTopicSize = n.config.Broker.MaxTopicSize
+	b.MaxSegmentSize = n.config.Broker.MaxSegmentSize
+	n.Broker = b
 
 	// Create raft log.
 	l := raft.NewLog()
 	l.SetURL(*u)
 	l.DebugEnabled = raftTracing
 	b.Log = l
-	s.raftLog = l
+	n.raftLog = l
 
 	// Create Raft clock.
 	clk := raft.NewClock()
-	clk.ApplyInterval = time.Duration(s.config.Raft.ApplyInterval)
-	clk.ElectionTimeout = time.Duration(s.config.Raft.ElectionTimeout)
-	clk.HeartbeatInterval = time.Duration(s.config.Raft.HeartbeatInterval)
-	clk.ReconnectTimeout = time.Duration(s.config.Raft.ReconnectTimeout)
+	clk.ApplyInterval = time.Duration(n.config.Raft.ApplyInterval)
+	clk.ElectionTimeout = time.Duration(n.config.Raft.ElectionTimeout)
+	clk.HeartbeatInterval = time.Duration(n.config.Raft.HeartbeatInterval)
+	clk.ReconnectTimeout = time.Duration(n.config.Raft.ReconnectTimeout)
 	l.Clock = clk
 
 	// Open broker so it can feed last index data to the log.
@@ -111,7 +111,7 @@ func (s *Node) openBroker(brokerURLs []url.URL, h *Handler) {
 	if index == 0 {
 		// If we have join URLs, then attemp to join the cluster
 		if len(brokerURLs) > 0 {
-			s.joinLog(l, brokerURLs)
+			n.joinLog(l, brokerURLs)
 			return
 		}
 
@@ -143,45 +143,45 @@ func (n *Node) joinLog(l *raft.Log, brokerURLs []url.URL) {
 }
 
 // Close stops all listeners and services on the node
-func (s *Node) Close() error {
-	if err := s.closeClusterListener(); err != nil {
+func (n *Node) Close() error {
+	if err := n.closeClusterListener(); err != nil {
 		return err
 	}
 
-	if err := s.closeAPIListener(); err != nil {
+	if err := n.closeAPIListener(); err != nil {
 		return err
 	}
 
-	if err := s.closeAdminServer(); err != nil {
+	if err := n.closeAdminServer(); err != nil {
 		return err
 	}
 
-	for _, g := range s.GraphiteServers {
+	for _, g := range n.GraphiteServers {
 		if err := g.Close(); err != nil {
 			return err
 		}
 	}
 
-	if s.OpenTSDBServer != nil {
-		if err := s.OpenTSDBServer.Close(); err != nil {
+	if n.OpenTSDBServer != nil {
+		if err := n.OpenTSDBServer.Close(); err != nil {
 			return err
 		}
 	}
 
-	if s.DataNode != nil {
-		if err := s.DataNode.Close(); err != nil {
+	if n.DataNode != nil {
+		if err := n.DataNode.Close(); err != nil {
 			return err
 		}
 	}
 
-	if s.raftLog != nil {
-		if err := s.raftLog.Close(); err != nil {
+	if n.raftLog != nil {
+		if err := n.raftLog.Close(); err != nil {
 			return err
 		}
 	}
 
-	if s.Broker != nil {
-		if err := s.Broker.Close(); err != nil {
+	if n.Broker != nil {
+		if err := n.Broker.Close(); err != nil {
 			return err
 		}
 	}
@@ -190,13 +190,13 @@ func (s *Node) Close() error {
 }
 
 // creates and initializes a server.
-func (s *Node) openServer(joinURLs []url.URL) *influxdb.Server {
+func (n *Node) openServer(joinURLs []url.URL) *influxdb.Server {
 
 	// Create messaging client to the brokers.
-	c := influxdb.NewMessagingClient(*s.ClusterURL())
+	c := influxdb.NewMessagingClient(*n.ClusterURL())
 	c.SetURLs(joinURLs)
 
-	if err := c.Open(filepath.Join(s.config.Data.Dir, messagingClientFile)); err != nil {
+	if err := c.Open(filepath.Join(n.config.Data.Dir, messagingClientFile)); err != nil {
 		log.Fatalf("messaging client error: %s", err)
 	}
 
@@ -206,43 +206,43 @@ func (s *Node) openServer(joinURLs []url.URL) *influxdb.Server {
 	}
 
 	// Create and open the server.
-	n := influxdb.NewServer()
+	s := influxdb.NewServer()
 
-	n.WriteTrace = s.config.Logging.WriteTracing
-	n.RetentionAutoCreate = s.config.Data.RetentionAutoCreate
-	n.RecomputePreviousN = s.config.ContinuousQuery.RecomputePreviousN
-	n.RecomputeNoOlderThan = time.Duration(s.config.ContinuousQuery.RecomputeNoOlderThan)
-	n.ComputeRunsPerInterval = s.config.ContinuousQuery.ComputeRunsPerInterval
-	n.ComputeNoMoreThan = time.Duration(s.config.ContinuousQuery.ComputeNoMoreThan)
-	n.Version = version
-	n.CommitHash = commit
+	s.WriteTrace = n.config.Logging.WriteTracing
+	s.RetentionAutoCreate = n.config.Data.RetentionAutoCreate
+	s.RecomputePreviousN = n.config.ContinuousQuery.RecomputePreviousN
+	s.RecomputeNoOlderThan = time.Duration(n.config.ContinuousQuery.RecomputeNoOlderThan)
+	s.ComputeRunsPerInterval = n.config.ContinuousQuery.ComputeRunsPerInterval
+	s.ComputeNoMoreThan = time.Duration(n.config.ContinuousQuery.ComputeNoMoreThan)
+	s.Version = version
+	s.CommitHash = commit
 
 	// Open server with data directory and broker client.
-	if err := n.Open(s.config.Data.Dir, c); err != nil {
+	if err := s.Open(n.config.Data.Dir, c); err != nil {
 		log.Fatalf("failed to open data node: %v", err.Error())
 	}
-	log.Printf("data node(%d) opened at %s", n.ID(), s.config.Data.Dir)
+	log.Printf("data node(%d) opened at %s", s.ID(), n.config.Data.Dir)
 
 	// Give brokers time to elect a leader if entire cluster is being restarted.
 	time.Sleep(1 * time.Second)
 
-	if n.ID() == 0 {
-		s.joinOrInitializeServer(n, *s.ClusterURL(), joinURLs)
+	if s.ID() == 0 {
+		n.joinOrInitializeServer(s, *n.ClusterURL(), joinURLs)
 	} else {
 		log.Printf("data node already member of cluster. Using existing state and ignoring join URLs")
 	}
 
-	return n
+	return s
 }
 
 // joinOrInitializeServer joins a new server to an existing cluster or initializes it as the first
 // member of the cluster
-func (s *Node) joinOrInitializeServer(n *influxdb.Server, u url.URL, joinURLs []url.URL) {
+func (n *Node) joinOrInitializeServer(s *influxdb.Server, u url.URL, joinURLs []url.URL) {
 	// Create data node on an existing data node.
 	for _, joinURL := range joinURLs {
-		if err := n.Join(&u, &joinURL); err == influxdb.ErrDataNodeNotFound {
+		if err := s.Join(&u, &joinURL); err == influxdb.ErrDataNodeNotFound {
 			// No data nodes could be found to join.  We're the first.
-			if err := n.Initialize(u); err != nil {
+			if err := s.Initialize(u); err != nil {
 				log.Fatalf("server initialization error(1): %s", err)
 			}
 			log.Printf("initialized data node: %s\n", (&u).String())
@@ -257,7 +257,7 @@ func (s *Node) joinOrInitializeServer(n *influxdb.Server, u url.URL, joinURLs []
 	}
 
 	if len(joinURLs) == 0 {
-		if err := n.Initialize(u); err != nil {
+		if err := s.Initialize(u); err != nil {
 			log.Fatalf("server initialization error(2): %s", err)
 		}
 		log.Printf("initialized data node: %s\n", (&u).String())
@@ -267,21 +267,21 @@ func (s *Node) joinOrInitializeServer(n *influxdb.Server, u url.URL, joinURLs []
 	log.Fatalf("join: failed to connect data node to any specified server")
 }
 
-func (s *Node) openAdminServer(port int) error {
+func (n *Node) openAdminServer(port int) error {
 	// Start the admin interface on the default port
 	addr := net.JoinHostPort("", strconv.Itoa(port))
-	s.adminServer = admin.NewServer(addr)
-	return s.adminServer.ListenAndServe()
+	n.adminServer = admin.NewServer(addr)
+	return n.adminServer.ListenAndServe()
 }
 
-func (s *Node) closeAdminServer() error {
-	if s.adminServer != nil {
-		return s.adminServer.Close()
+func (n *Node) closeAdminServer() error {
+	if n.adminServer != nil {
+		return n.adminServer.Close()
 	}
 	return nil
 }
 
-func (s *Node) openListener(desc, addr string, h http.Handler) (net.Listener, error) {
+func (n *Node) openListener(desc, addr string, h http.Handler) (net.Listener, error) {
 	var err error
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -303,38 +303,38 @@ func (s *Node) openListener(desc, addr string, h http.Handler) (net.Listener, er
 
 }
 
-func (s *Node) openAPIListener(addr string, h http.Handler) error {
+func (n *Node) openAPIListener(addr string, h http.Handler) error {
 	var err error
-	s.apiListener, err = s.openListener("API", addr, h)
+	n.apiListener, err = n.openListener("API", addr, h)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (s *Node) closeAPIListener() error {
+func (n *Node) closeAPIListener() error {
 	var err error
-	if s.apiListener != nil {
-		err = s.apiListener.Close()
-		s.apiListener = nil
+	if n.apiListener != nil {
+		err = n.apiListener.Close()
+		n.apiListener = nil
 	}
 	return err
 }
 
-func (s *Node) openClusterListener(addr string, h http.Handler) error {
+func (n *Node) openClusterListener(addr string, h http.Handler) error {
 	var err error
-	s.clusterListener, err = s.openListener("Cluster", addr, h)
+	n.clusterListener, err = n.openListener("Cluster", addr, h)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (s *Node) closeClusterListener() error {
+func (n *Node) closeClusterListener() error {
 	var err error
-	if s.clusterListener != nil {
-		err = s.clusterListener.Close()
-		s.clusterListener = nil
+	if n.clusterListener != nil {
+		err = n.clusterListener.Close()
+		n.clusterListener = nil
 	}
 	return err
 }
