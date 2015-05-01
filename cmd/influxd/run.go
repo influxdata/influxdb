@@ -178,7 +178,7 @@ func (cmd *RunCommand) Open(config *Config, join string) *Node {
 	if cmd.config.Data.Enabled {
 
 		//FIXME: Need to also pass in dataURLs to bootstrap a data node
-		s = cmd.openServer(joinURLs)
+		s = cmd.node.openServer(joinURLs)
 		cmd.node.DataNode = s
 		s.SetAuthenticationEnabled(cmd.config.Authentication.Enabled)
 		log.Printf("authentication enabled: %v\n", cmd.config.Authentication.Enabled)
@@ -367,84 +367,6 @@ func writePIDFile(path string) {
 	if err := ioutil.WriteFile(path, []byte(pid), 0644); err != nil {
 		log.Fatal(err)
 	}
-}
-
-// creates and initializes a server.
-func (cmd *RunCommand) openServer(joinURLs []url.URL) *influxdb.Server {
-
-	// Create messaging client to the brokers.
-	c := influxdb.NewMessagingClient(*cmd.node.ClusterURL())
-	c.SetURLs(joinURLs)
-
-	if err := c.Open(filepath.Join(cmd.config.Data.Dir, messagingClientFile)); err != nil {
-		log.Fatalf("messaging client error: %s", err)
-	}
-
-	// If no URLs exist on the client the return an error since we cannot reach a broker.
-	if len(c.URLs()) == 0 {
-		log.Fatal("messaging client has no broker URLs")
-	}
-
-	// Create and open the server.
-	s := influxdb.NewServer()
-
-	s.WriteTrace = cmd.config.Logging.WriteTracing
-	s.RetentionAutoCreate = cmd.config.Data.RetentionAutoCreate
-	s.RecomputePreviousN = cmd.config.ContinuousQuery.RecomputePreviousN
-	s.RecomputeNoOlderThan = time.Duration(cmd.config.ContinuousQuery.RecomputeNoOlderThan)
-	s.ComputeRunsPerInterval = cmd.config.ContinuousQuery.ComputeRunsPerInterval
-	s.ComputeNoMoreThan = time.Duration(cmd.config.ContinuousQuery.ComputeNoMoreThan)
-	s.Version = version
-	s.CommitHash = commit
-
-	// Open server with data directory and broker client.
-	if err := s.Open(cmd.config.Data.Dir, c); err != nil {
-		log.Fatalf("failed to open data node: %v", err.Error())
-	}
-	log.Printf("data node(%d) opened at %s", s.ID(), cmd.config.Data.Dir)
-
-	// Give brokers time to elect a leader if entire cluster is being restarted.
-	time.Sleep(1 * time.Second)
-
-	if s.ID() == 0 {
-		joinOrInitializeServer(s, *cmd.node.ClusterURL(), joinURLs)
-	} else {
-		log.Printf("data node already member of cluster. Using existing state and ignoring join URLs")
-	}
-
-	return s
-}
-
-// joinOrInitializeServer joins a new server to an existing cluster or initializes it as the first
-// member of the cluster
-func joinOrInitializeServer(s *influxdb.Server, u url.URL, joinURLs []url.URL) {
-	// Create data node on an existing data node.
-	for _, joinURL := range joinURLs {
-		if err := s.Join(&u, &joinURL); err == influxdb.ErrDataNodeNotFound {
-			// No data nodes could be found to join.  We're the first.
-			if err := s.Initialize(u); err != nil {
-				log.Fatalf("server initialization error(1): %s", err)
-			}
-			log.Printf("initialized data node: %s\n", (&u).String())
-			return
-		} else if err != nil {
-			// does not return so that the next joinURL can be tried
-			log.Printf("join: failed to connect data node: %s: %s", (&u).String(), err)
-		} else {
-			log.Printf("join: connected data node to %s", u)
-			return
-		}
-	}
-
-	if len(joinURLs) == 0 {
-		if err := s.Initialize(u); err != nil {
-			log.Fatalf("server initialization error(2): %s", err)
-		}
-		log.Printf("initialized data node: %s\n", (&u).String())
-		return
-	}
-
-	log.Fatalf("join: failed to connect data node to any specified server")
 }
 
 // parses a comma-delimited list of URLs.

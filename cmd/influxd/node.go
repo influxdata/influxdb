@@ -189,6 +189,84 @@ func (s *Node) Close() error {
 	return nil
 }
 
+// creates and initializes a server.
+func (s *Node) openServer(joinURLs []url.URL) *influxdb.Server {
+
+	// Create messaging client to the brokers.
+	c := influxdb.NewMessagingClient(*s.ClusterURL())
+	c.SetURLs(joinURLs)
+
+	if err := c.Open(filepath.Join(s.config.Data.Dir, messagingClientFile)); err != nil {
+		log.Fatalf("messaging client error: %s", err)
+	}
+
+	// If no URLs exist on the client the return an error since we cannot reach a broker.
+	if len(c.URLs()) == 0 {
+		log.Fatal("messaging client has no broker URLs")
+	}
+
+	// Create and open the server.
+	n := influxdb.NewServer()
+
+	n.WriteTrace = s.config.Logging.WriteTracing
+	n.RetentionAutoCreate = s.config.Data.RetentionAutoCreate
+	n.RecomputePreviousN = s.config.ContinuousQuery.RecomputePreviousN
+	n.RecomputeNoOlderThan = time.Duration(s.config.ContinuousQuery.RecomputeNoOlderThan)
+	n.ComputeRunsPerInterval = s.config.ContinuousQuery.ComputeRunsPerInterval
+	n.ComputeNoMoreThan = time.Duration(s.config.ContinuousQuery.ComputeNoMoreThan)
+	n.Version = version
+	n.CommitHash = commit
+
+	// Open server with data directory and broker client.
+	if err := n.Open(s.config.Data.Dir, c); err != nil {
+		log.Fatalf("failed to open data node: %v", err.Error())
+	}
+	log.Printf("data node(%d) opened at %s", n.ID(), s.config.Data.Dir)
+
+	// Give brokers time to elect a leader if entire cluster is being restarted.
+	time.Sleep(1 * time.Second)
+
+	if n.ID() == 0 {
+		s.joinOrInitializeServer(n, *s.ClusterURL(), joinURLs)
+	} else {
+		log.Printf("data node already member of cluster. Using existing state and ignoring join URLs")
+	}
+
+	return n
+}
+
+// joinOrInitializeServer joins a new server to an existing cluster or initializes it as the first
+// member of the cluster
+func (s *Node) joinOrInitializeServer(n *influxdb.Server, u url.URL, joinURLs []url.URL) {
+	// Create data node on an existing data node.
+	for _, joinURL := range joinURLs {
+		if err := n.Join(&u, &joinURL); err == influxdb.ErrDataNodeNotFound {
+			// No data nodes could be found to join.  We're the first.
+			if err := n.Initialize(u); err != nil {
+				log.Fatalf("server initialization error(1): %s", err)
+			}
+			log.Printf("initialized data node: %s\n", (&u).String())
+			return
+		} else if err != nil {
+			// does not return so that the next joinURL can be tried
+			log.Printf("join: failed to connect data node: %s: %s", (&u).String(), err)
+		} else {
+			log.Printf("join: connected data node to %s", u)
+			return
+		}
+	}
+
+	if len(joinURLs) == 0 {
+		if err := n.Initialize(u); err != nil {
+			log.Fatalf("server initialization error(2): %s", err)
+		}
+		log.Printf("initialized data node: %s\n", (&u).String())
+		return
+	}
+
+	log.Fatalf("join: failed to connect data node to any specified server")
+}
+
 func (s *Node) openAdminServer(port int) error {
 	// Start the admin interface on the default port
 	addr := net.JoinHostPort("", strconv.Itoa(port))
