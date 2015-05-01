@@ -22,6 +22,9 @@ var (
 	// ErrNotLeader is returned performing leader operations on a non-leader.
 	ErrNotLeader = errors.New("not leader")
 
+	// ErrNoLeader is returned performing leader operations and no leader is elected.
+	ErrNoLeader = errors.New("no leader")
+
 	// ErrStaleTerm is returned when a term is before the current term.
 	ErrStaleTerm = errors.New("stale term")
 

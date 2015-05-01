@@ -376,6 +376,7 @@ type Handler struct {
 	HeartbeatFunc      func(term, commitIndex, leaderID uint64) (currentIndex uint64, err error)
 	WriteEntriesToFunc func(w io.Writer, id, term, index uint64) error
 	RequestVoteFunc    func(term, candidateID, lastLogIndex, lastLogTerm uint64) (peerTerm uint64, err error)
+	LeaderFunc         func() (id uint64, u url.URL)
 }
 
 // NewHandler returns a new instance of Handler.
@@ -398,4 +399,8 @@ func (h *Handler) WriteEntriesTo(w io.Writer, id, term, index uint64) error {
 
 func (h *Handler) RequestVote(term, candidateID, lastLogIndex, lastLogTerm uint64) (uint64, error) {
 	return h.RequestVoteFunc(term, candidateID, lastLogIndex, lastLogTerm)
+}
+
+func (h *Handler) Leader() (id uint64, u url.URL) {
+	return h.LeaderFunc()
 }

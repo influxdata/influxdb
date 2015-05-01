@@ -812,12 +812,43 @@ func (l *Log) Join(u url.URL) error {
 
 // Leave removes the log from cluster membership and removes the log data.
 func (l *Log) Leave() error {
-	l.lock()
-	defer l.unlock()
+	// Validate under lock.
+	var nodeURL url.URL
+	if err := func() error {
+		l.lock()
+		defer l.unlock()
 
-	// TODO(benbjohnson): Check if open.
-	// TODO(benbjohnson): Apply remove peer command.
-	// TODO(benbjohnson): Remove underlying data.
+		if !l.opened() {
+			return ErrClosed
+		}
+
+		// get our URL
+		nodeURL = l.config.NodeByID(l.id).URL
+		return nil
+	}(); err != nil {
+		return err
+	}
+
+	l.tracef("Leave: %s", nodeURL.String())
+
+	// Send leave request.
+	err := l.Transport.Leave(nodeURL, l.ID())
+	if err != nil {
+		return err
+	}
+
+	l.tracef("Leave: confirmed")
+
+	path := l.path
+	if err := l.Close(); err != nil {
+		return err
+	}
+
+	if err := os.RemoveAll(path); err != nil {
+		return err
+	}
+
+	l.Logger.Println("log leave: member left cluster at", nodeURL.String(), " with log ID", l.id)
 
 	return nil
 }
@@ -1562,10 +1593,29 @@ func (l *Log) mustApplyAddPeer(e *LogEntry) {
 
 // mustApplyRemovePeer removes a node from the cluster configuration.
 func (l *Log) mustApplyRemovePeer(e *LogEntry) error {
-	// TODO(benbjohnson): Clone configuration.
-	// TODO(benbjohnson): Remove node from configuration.
-	// TODO(benbjohnson): Set configuration index.
-	// TODO(benbjohnson): Write configuration.
+	// Unmarshal node from entry data.
+	var id uint64
+	if err := json.Unmarshal(e.Data, &id); err != nil {
+		panic("unmarshal: " + err.Error())
+	}
+
+	// Clone configuration.
+	config := l.config.Clone()
+
+	if err := config.RemoveNode(id); err != nil {
+		l.Logger.Panicf("apply: remove node: %s", err)
+	}
+
+	// Set configuration index.
+	config.Index = e.Index
+
+	// Write configuration.
+	if err := l.writeConfig(config); err != nil {
+		panic("write config: " + err.Error())
+	}
+
+	l.config = config
+
 	return nil
 }
 
@@ -1602,10 +1652,28 @@ func (l *Log) AddPeer(u url.URL) (uint64, uint64, *Config, error) {
 
 // RemovePeer removes an existing peer from the cluster by id.
 func (l *Log) RemovePeer(id uint64) error {
-	l.lock()
-	defer l.unlock()
+	if err := func() error {
+		l.lock()
+		defer l.unlock()
 
-	// TODO(benbjohnson): Apply removePeerCommand.
+		n := l.config.NodeByID(id)
+		if n == nil {
+			return fmt.Errorf("node not found")
+		}
+		return nil
+	}(); err != nil {
+		return err
+	}
+
+	// Apply command.
+	b, _ := json.Marshal(id)
+	index, err := l.internalApply(LogEntryRemovePeer, b)
+	if err != nil {
+		return err
+	}
+	if err := l.Wait(index); err != nil {
+		return err
+	}
 
 	return nil
 }
