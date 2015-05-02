@@ -63,7 +63,7 @@ func (sg *ShardGroup) initialize(index uint64, shardN, replicaN int, db *databas
 func (sg *ShardGroup) close(id uint64) error {
 	for _, shard := range sg.Shards {
 		// Ignore shards not on this server.
-		if !shard.HasDataNodeID(id) {
+		if !shard.hasDataNodeID(id) {
 			continue
 		}
 
