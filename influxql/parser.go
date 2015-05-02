@@ -1869,6 +1869,7 @@ func (p *Parser) parseRegex() (*RegexLiteral, error) {
 // parseCall parses a function call.
 // This function assumes the function name and LPAREN have been consumed.
 func (p *Parser) parseCall(name string) (*Call, error) {
+	name = strings.ToLower(name)
 	// If there's a right paren then just return immediately.
 	if tok, _, _ := p.scan(); tok == RPAREN {
 		return &Call{Name: name}, nil
