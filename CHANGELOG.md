@@ -11,7 +11,7 @@
 - [#2460](https://github.com/influxdb/influxdb/issues/2460): Collectd input should use "value" for fields values. Fixes 2412. Thanks @josh-padnick
 - [#2465](https://github.com/influxdb/influxdb/pull/2465): HTTP response logging paniced with chunked requests. Thanks @Jackkoz
 - [#2475](https://github.com/influxdb/influxdb/pull/2475): RLock server when checking if shards groups are required during write.
-- [#2471](https://github.com/influxdb/influxdb/issues/2471): Function calls normalized to be lower case. Fixes percentile not working when called uppercase.
+- [#2471](https://github.com/influxdb/influxdb/issues/2471): Function calls normalized to be lower case. Fixes percentile not working when called uppercase. Thanks @neonstalwart
 
 ## v0.9.0-rc28 [04-27-2015]
 
