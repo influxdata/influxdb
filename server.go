@@ -68,7 +68,7 @@ type Server struct {
 	index  uint64           // highest broadcast index seen
 	errors map[uint64]error // message errors
 
-	DropNode func() error // give reference to shut down the node
+	DropNode func() // give reference to shut down the node
 
 	meta *metastore // metadata store
 
@@ -266,7 +266,7 @@ func (s *Server) close() error {
 	}
 
 	if s.client != nil {
-		s.client.Close()
+		_ = s.client.Close()
 		s.client = nil
 	}
 
@@ -285,18 +285,6 @@ func (s *Server) close() error {
 	s.users = nil
 
 	return nil
-}
-
-// Drops the server and removes files
-func (s *Server) Drop() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.done != nil {
-		panic("server not closed")
-	}
-
-	return os.Remove(s.path)
 }
 
 // load reads the state of the server from the metastore.
@@ -405,7 +393,7 @@ func (s *Server) StartSelfMonitoring(database, retention string, interval time.D
 			// Shard-level stats.
 			tags["shardID"] = strconv.FormatUint(s.id, 10)
 			for _, sh := range s.shards {
-				if !sh.HasDataNodeID(s.id) {
+				if !sh.hasDataNodeID(s.id) {
 					// No stats for non-local shards.
 					continue
 				}
@@ -1028,15 +1016,15 @@ func (s *Server) applyDropServer(m *messaging.Message) error {
 	var c dropServerCommand
 	mustUnmarshalJSON(m.Data, &c)
 
-	s.mu.Lock()
+	log.Printf("LPC :: Server.applyDropServer :: running server %v -- dropping server %v -- %v", s.id, c.NodeID, s.id == c.NodeID)
 
-	// walk shards; track shards marked for deletion
-	var shardIDsToRemove []uint64
-	for _, shard := range s.shards {
-		if shard.hasDataNodeID(c.NodeID) {
-			shardIDsToRemove = append(shardIDsToRemove, c.NodeID)
-		}
-	}
+	//  // walk shards; track shards marked for deletion
+	//  var shardIDsToRemove []uint64
+	//  for _, shard := range s.shards {
+	//  	if shard.hasDataNodeID(c.NodeID) {
+	//  		shardIDsToRemove = append(shardIDsToRemove, c.NodeID)
+	//  	}
+	//  }
 
 	// Update top level data nodes that a server has been removed
 	// Remove data node from current server
@@ -1046,13 +1034,11 @@ func (s *Server) applyDropServer(m *messaging.Message) error {
 
 	// Persist these changes to the meta store
 
-	// am I the one being deleted? If so, shut me down
+	// am I the server being dropped? Then shut me down.
 	if c.NodeID == s.id {
-		s.mu.Unlock()
-		return s.DropNode()
+		log.Printf("LPC :: Server.applyDropServer :: entering DropNode")
+		go s.DropNode()
 	}
-
-	s.mu.Unlock()
 
 	return nil
 }
@@ -3445,7 +3431,7 @@ func (s *Server) DiagnosticsAsRows() []*influxql.Row {
 			nodes = append(nodes, strconv.FormatUint(n, 10))
 		}
 		var path string
-		if sh.HasDataNodeID(s.id) {
+		if sh.hasDataNodeID(s.id) {
 			path = sh.store.Path()
 		}
 		shardsRow.Values = append(shardsRow.Values, []interface{}{now, strconv.FormatUint(sh.ID, 10),

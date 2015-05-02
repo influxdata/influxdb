@@ -275,18 +275,6 @@ func (b *Broker) closeTopics() {
 	b.topics = make(map[uint64]*Topic)
 }
 
-// Drops the broker and removes files
-func (b *Broker) Drop() error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	if b.done != nil {
-		panic("broker not closed")
-	}
-
-	return os.Remove(b.path)
-}
-
 // startTopicTruncation starts periodic topic truncation.
 func (b *Broker) startTopicTruncation() {
 	b.wg.Add(1)
