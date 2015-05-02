@@ -72,6 +72,7 @@ func (s *Node) ClusterURL() *url.URL {
 }
 
 func (n *Node) Close() error {
+
 	if err := n.closeClusterListener(); err != nil {
 		return err
 	}
@@ -117,24 +118,25 @@ func (n *Node) Close() error {
 	return nil
 }
 
-func (n *Node) drop() error {
-	if err := n.Close(); err != nil {
-		return err
-	}
+func (n *Node) dropAndExit(config *Config) func() {
+	return func() {
 
-	if n.DataNode != nil {
-		if err := n.DataNode.Drop(); err != nil {
-			log.Printf("error dropping data node: %s", err)
+		if err := n.Close(); err != nil {
+			log.Printf("error closing node: %s", err)
 		}
-	}
 
-	if n.Broker != nil {
-		if err := n.Broker.Drop(); err != nil {
-			log.Printf("error dropping broker: %s", err)
+		if err := os.RemoveAll(config.Data.Dir); err != nil {
+			log.Printf("error removing %q: %s", config.Data.Dir, err)
 		}
-	}
 
-	return nil
+		if err := os.RemoveAll(config.Broker.Dir); err != nil {
+			log.Printf("error removing %q: %s", config.Broker.Dir, err)
+		}
+
+		log.Printf("dropped node: %q exiting", n.hostname)
+
+		os.Exit(0)
+	}
 }
 
 func (n *Node) openAdminServer(port int) error {
@@ -356,7 +358,7 @@ func (cmd *RunCommand) Open(config *Config, join string) *Node {
 		s = cmd.openServer(joinURLs)
 
 		// Give the server reference to close the node
-		s.DropNode = cmd.node.drop
+		s.DropNode = cmd.node.dropAndExit(config)
 
 		cmd.node.DataNode = s
 		s.SetAuthenticationEnabled(cmd.config.Authentication.Enabled)

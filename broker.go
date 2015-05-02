@@ -80,18 +80,6 @@ func (b *Broker) Close() error {
 	return b.Broker.Close()
 }
 
-// Drops the broker
-func (b *Broker) Drop() error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	if b.done != nil {
-		panic("broker not closed")
-	}
-
-	return b.Broker.Drop()
-}
-
 func (b *Broker) continuousQueryLoop(done chan struct{}) {
 	for {
 		// Check if broker is currently leader.
