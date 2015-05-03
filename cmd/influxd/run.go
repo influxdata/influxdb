@@ -64,10 +64,15 @@ func (s *Node) ClusterURL() *url.URL {
 		panic(e)
 	}
 
-	h := net.JoinHostPort(s.hostname, p)
+	var hp string
+	if len(s.hostname) > 0 {
+		hp = net.JoinHostPort(s.hostname, p)
+	} else {
+		hp = s.ClusterAddr().String()
+	}
 	return &url.URL{
 		Scheme: "http",
-		Host:   h,
+		Host:   hp,
 	}
 }
 
