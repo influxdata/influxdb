@@ -133,7 +133,7 @@ func (n *Node) dropAndExit(config *Config) func() {
 			log.Printf("error removing %q: %s", config.Broker.Dir, err)
 		}
 
-		log.Printf("dropped node: %q exiting", n.hostname)
+		log.Printf("successfully dropped node: %q exiting", n.hostname)
 
 		os.Exit(0)
 	}

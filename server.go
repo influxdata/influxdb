@@ -1016,28 +1016,34 @@ func (s *Server) applyDropServer(m *messaging.Message) error {
 	var c dropServerCommand
 	mustUnmarshalJSON(m.Data, &c)
 
-	log.Printf("LPC :: Server.applyDropServer :: running server %v -- dropping server %v -- %v", s.id, c.NodeID, s.id == c.NodeID)
+	// Remove data node reference from every shard.
+	for _, database := range s.databases {
+		for _, policy := range database.policies {
+			for _, shardGroup := range policy.shardGroups {
+				for _, shard := range shardGroup.Shards {
+					dataNodeIDs := []uint64{}
+					for _, dataNodeID := range shard.DataNodeIDs {
+						if dataNodeID != c.NodeID {
+							dataNodeIDs = append(dataNodeIDs, dataNodeID)
+						}
+					}
+					shard.DataNodeIDs = dataNodeIDs
+				}
+			}
+		}
+	}
 
-	//  // walk shards; track shards marked for deletion
-	//  var shardIDsToRemove []uint64
-	//  for _, shard := range s.shards {
-	//  	if shard.hasDataNodeID(c.NodeID) {
-	//  		shardIDsToRemove = append(shardIDsToRemove, c.NodeID)
-	//  	}
-	//  }
+	// Remove data node from the current server
+	delete(s.dataNodes, c.NodeID)
 
-	// Update top level data nodes that a server has been removed
-	// Remove data node from current server
-	// TODO	delete(s.dataNodes, c.NodeID)
+	// TODO: Update the meta store for each shard that a datanode has been removed
 
-	// Update the meta store for each shard that a datanode has been removed
+	// TODO: Persist these changes to the meta store
 
-	// Persist these changes to the meta store
-
-	// am I the server being dropped? Then shut me down.
+	// am I the server being dropped?
 	if c.NodeID == s.id {
-		log.Printf("LPC :: Server.applyDropServer :: entering DropNode")
 		go s.DropNode()
+		return nil
 	}
 
 	return nil
