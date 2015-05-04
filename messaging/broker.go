@@ -267,6 +267,21 @@ func (b *Broker) close() error {
 	return nil
 }
 
+// Remove removes all persistent state for the broker
+func (b *Broker) Remove() error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	path := b.path
+
+	if b.opened() {
+		if err := b.close(); err != nil {
+			return err
+		}
+	}
+
+	return os.RemoveAll(path)
+}
+
 // closeTopics closes all topic files and clears the topics map.
 func (b *Broker) closeTopics() {
 	for _, t := range b.topics {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -459,6 +460,40 @@ func (n *Node) joinOrInitializeServer(s *influxdb.Server, u url.URL, joinURLs []
 	}
 
 	log.Fatalf("join: failed to connect data node to any specified server")
+}
+
+// Leave removes the node from the cluster
+func (n *Node) Leave() error {
+	if err := n.WaitForLeader(10 * time.Second); err != nil {
+		return err
+	}
+
+	if err := n.raftLog.Leave(); err != nil {
+		return err
+	}
+
+	if err := n.Broker.Remove(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// WaitForLeader will block up til t until a leader is elected
+func (n *Node) WaitForLeader(t time.Duration) error {
+	start := time.Now()
+	// Make sure the node is
+	for {
+		if time.Now().Sub(start) > t {
+			return fmt.Errorf("no leader")
+		}
+
+		leaderID, _ := n.raftLog.Leader()
+		if leaderID != 0 {
+			break
+		}
+		time.Sleep(time.Second)
+	}
+	return nil
 }
 
 func (n *Node) openAdminServer(port int) error {
