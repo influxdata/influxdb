@@ -1,6 +1,7 @@
 package influxql
 
 import "testing"
+import "sort"
 
 type point struct {
 	seriesID  uint64
@@ -143,4 +144,63 @@ func TestReducePercentileNil(t *testing.T) {
 	if got != nil {
 		t.Fatalf("ReducePercentile(100) returned wrong type. exp nil got %v", got)
 	}
+}
+
+var getSortedRangeData = []float64{
+	60, 61, 62, 63, 64, 65, 66, 67, 68, 69,
+	20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
+	0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+	40, 41, 42, 43, 44, 45, 46, 47, 48, 49,
+	10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+	50, 51, 52, 53, 54, 55, 56, 57, 58, 59,
+	30, 31, 32, 33, 34, 35, 36, 37, 38, 39,
+}
+
+var getSortedRangeTests = []struct {
+	name     string
+	data     []float64
+	start    int
+	count    int
+	expected []float64
+}{
+	{"first 5", getSortedRangeData, 0, 5, []float64{0, 1, 2, 3, 4}},
+	{"0 length", getSortedRangeData, 8, 0, []float64{}},
+	{"past end of data", getSortedRangeData, len(getSortedRangeData) - 3, 5, []float64{67, 68, 69}},
+}
+
+func TestGetSortedRange(t *testing.T) {
+	for _, tt := range getSortedRangeTests {
+		results := getSortedRange(tt.data, tt.start, tt.count)
+		if len(results) != len(tt.expected) {
+			t.Errorf("Test %s failed.  Expected getSortedRange to return %v but got %v", tt.name, tt.expected, results)
+		}
+		for i, point := range tt.expected {
+			if point != results[i] {
+				t.Errorf("Test %s failed. getSortedRange returned wrong result for index %v.  Expected %v but got %v", tt.name, i, point, results[i])
+			}
+		}
+	}
+}
+
+var benchGetSortedRangeResults []float64
+
+func BenchmarkGetSortedRangeByPivot(b *testing.B) {
+	data := make([]float64, len(getSortedRangeData))
+	var results []float64
+	for i := 0; i < b.N; i++ {
+		copy(data, getSortedRangeData)
+		results = getSortedRange(data, 8, 15)
+	}
+	benchGetSortedRangeResults = results
+}
+
+func BenchmarkGetSortedRangeBySort(b *testing.B) {
+	data := make([]float64, len(getSortedRangeData))
+	var results []float64
+	for i := 0; i < b.N; i++ {
+		copy(data, getSortedRangeData)
+		sort.Float64s(data)
+		results = data[8:23]
+	}
+	benchGetSortedRangeResults = results
 }
