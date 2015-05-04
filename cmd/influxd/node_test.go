@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"net"
 	"testing"
 )
@@ -31,7 +30,6 @@ func TestNodeHostParse(t *testing.T) {
 	n.clusterListener = MockListener{config: c}
 
 	url := n.ClusterURL()
-	fmt.Println(url.Host, "LALALAL")
 
 	// If hostname is not set bind-address should be used
 	if url.Host != "192.168.0.1:12345" {
