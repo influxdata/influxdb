@@ -563,6 +563,42 @@ func TestConn_Open(t *testing.T) {
 	}
 }
 
+// Ensure that a connection correctly handles a broker with truncated data.
+func TestConn_Truncated(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		// Verify incoming parameters.
+		if req.URL.Path != "/messaging/messages" {
+			t.Fatalf("unexpected path: %s", req.URL.Path)
+		} else if topicID := req.URL.Query().Get("topicID"); topicID != "100" {
+			t.Fatalf("unexpected topic id: %s", topicID)
+		} else if index := req.URL.Query().Get("index"); index != "200" {
+			t.Fatalf("unexpected index: %s", index)
+		}
+
+		// Return the redirect.
+		w.Header().Set("X-Broker-DataURLs", "http://a:8086,http://b:8087")
+	}))
+	defer s.Close()
+
+	// Create and open connection to server.
+	c := messaging.NewConn(100, testDataURL)
+	c.SetURL(*MustParseURL(s.URL))
+	if err := c.Open(200, false); err != nil {
+		t.Fatal(err)
+	}
+
+	// Receive messages from the stream.
+	m := <-c.C()
+	if !reflect.DeepEqual(m, &messaging.Message{Type: messaging.FetchPeerShardMessageType, Data: []byte("http://a:8086,http://b:8087")}) {
+		t.Fatalf("unexpected message(0): %#v", m)
+	}
+
+	// Close connection.
+	if err := c.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // Ensure that a connection can reconnect.
 func TestConn_Open_Reconnect(t *testing.T) {
 	var requestN int

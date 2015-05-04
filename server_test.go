@@ -1426,6 +1426,14 @@ func TestServer_CopyShard(t *testing.T) {
 	}
 }
 
+func TestServer_ShardReplication(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+}
+
 /* TODO(benbjohnson): Change test to not expose underlying series ids directly.
 func TestServer_Measurements(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
