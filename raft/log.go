@@ -839,7 +839,6 @@ func (l *Log) stateLoop(closing <-chan struct{}, state State, stateChanged chan 
 
 	for {
 		// Transition to new state.
-		var transitioning chan struct{}
 		func() {
 			l.lock()
 			defer l.unlock()
@@ -847,7 +846,6 @@ func (l *Log) stateLoop(closing <-chan struct{}, state State, stateChanged chan 
 			l.tracef("log state change: %s => %s (term=%d)", l.state, state, l.term)
 			l.state = state
 			l.transitioning = make(chan struct{}, 0)
-			transitioning = l.transitioning
 
 			// Remove previous reader, if one exists.
 			_ = l.setReader(nil)
