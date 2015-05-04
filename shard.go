@@ -4,7 +4,13 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
+	"log"
+	"math/rand"
+	"net/http"
 	"os"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -123,6 +129,8 @@ type Shard struct {
 
 	wg      sync.WaitGroup // pending goroutines
 	closing chan struct{}  // close notification
+
+	Logger *log.Logger
 }
 
 // newShard returns a new initialized Shard instance.
@@ -140,6 +148,10 @@ func (s *Shard) open(path string, conn MessagingConn) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// Set prefix on open, so all log messages correctly prefixed.
+	// newShard not universally used.
+	s.Logger = log.New(os.Stderr, "[shard] ", log.LstdFlags)
+
 	if s.stats == nil {
 		s.stats = NewStats(fmt.Sprintf("shard %d", s.ID))
 	}
@@ -152,31 +164,13 @@ func (s *Shard) open(path string, conn MessagingConn) error {
 	}
 
 	// Open store on shard.
-	store, err := bolt.Open(path, 0666, &bolt.Options{Timeout: 1 * time.Second})
-	if err != nil {
-		s.stats.Inc("errBoltOpenFailure")
+	if err := s.initializeStore(path); err != nil {
 		return err
 	}
-	s.store = store
 
-	// Initialize store.
-	if err := s.store.Update(func(tx *bolt.Tx) error {
-		_, _ = tx.CreateBucketIfNotExists([]byte("meta"))
-		_, _ = tx.CreateBucketIfNotExists([]byte("values"))
-
-		// Find highest replicated index.
-		s.index = shardMetaIndex(tx)
-
-		// Open connection.
-		if err := conn.Open(s.index, true); err != nil {
-			return fmt.Errorf("open shard conn: id=%d, idx=%d, err=%s", s.ID, s.index, err)
-		}
-
-		return nil
-	}); err != nil {
-		s.stats.Inc("errBoltStoreUpdateFailure")
-		_ = s.close()
-		return fmt.Errorf("init: %s", err)
+	// Initialize connection for streaming to shard.
+	if err := s.initializeConn(conn); err != nil {
+		return err
 	}
 
 	// Start importing from connection.
@@ -184,6 +178,46 @@ func (s *Shard) open(path string, conn MessagingConn) error {
 	s.wg.Add(1)
 	go s.processor(conn, s.closing)
 
+	return nil
+}
+
+// initializeStore opens the store. If it is already open, it is first closed.
+func (s *Shard) initializeStore(path string) error {
+	if s.store != nil {
+		if err := s.store.Close(); err != nil {
+			return err
+		}
+	}
+	store, err := bolt.Open(path, 0666, &bolt.Options{Timeout: 1 * time.Second})
+	if err != nil {
+		s.stats.Inc("errBoltOpenFailure")
+		return err
+	}
+	s.store = store
+	if err := s.store.Update(func(tx *bolt.Tx) error {
+		_, _ = tx.CreateBucketIfNotExists([]byte("meta"))
+		_, _ = tx.CreateBucketIfNotExists([]byte("values"))
+
+		// Find highest replicated index.
+		s.index = shardMetaIndex(tx)
+		return nil
+	}); err != nil {
+		s.stats.Inc("errBoltStoreUpdateFailure")
+		_ = s.close()
+		return fmt.Errorf("init: %s", err)
+	}
+	return nil
+}
+
+// initalizeConn correctly initializes the connection. Attempts to close the connection
+// first.
+func (s *Shard) initializeConn(conn MessagingConn) error {
+	_ = conn.Close()
+
+	// Open connection.
+	if err := conn.Open(s.index, true); err != nil {
+		return fmt.Errorf("open shard conn: id=%d, idx=%d, err=%s", s.ID, s.index, err)
+	}
 	return nil
 }
 
@@ -353,9 +387,11 @@ func (s *Shard) processor(conn MessagingConn, closing <-chan struct{}) {
 		select {
 		case m, ok = <-conn.C():
 			if !ok {
+				s.printf("no more messages from broker, shard processing complete")
 				return
 			}
 		case <-closing:
+			s.printf("shard closing, shard processing complete")
 			return
 		}
 
@@ -369,6 +405,72 @@ func (s *Shard) processor(conn MessagingConn, closing <-chan struct{}) {
 
 		// Handle write series separately so we don't lock server during shard writes.
 		switch m.Type {
+		case messaging.FetchPeerShardMessageType:
+			s.stats.Inc("FetchPeerShardMessageRx")
+			s.printf("FetchPeerShardMessageType received, with data URLs %s", string(m.Data))
+
+			urls := strings.Split(string(m.Data), ",")
+			if len(urls) < 1 {
+				return
+			}
+
+			// Try each URL.
+			for {
+				url := fmt.Sprintf("%s/data/shard/%d", urls[rand.Intn(len(urls))], s.ID)
+				resp, err := http.Get(url)
+				if err != nil {
+					s.printf("failed to GET shard data at %s: %s", url, err.Error())
+					continue
+				}
+
+				// Check response & parse content length.
+				if resp.StatusCode != http.StatusOK {
+					s.printf("shard data endpoint %s returned %d", url, resp.StatusCode)
+					continue
+				}
+				sz, err := strconv.ParseInt(resp.Header.Get("Content-Length"), 10, 64)
+				if err != nil {
+					s.printf("failed to parse Content-Length: %s", err.Error())
+					continue
+				}
+
+				// Close the store.
+				path := s.store.Path()
+				_ = s.store.Close()
+
+				// Overwrite the shard.
+				f, err := os.Create(path)
+				if err != nil {
+					s.printf("failed to create shard at %s: %s", path, err.Error())
+					return
+				}
+
+				// Copy and check size.
+				nCopied, err := io.CopyN(f, resp.Body, sz)
+				if err != nil {
+					_ = f.Close()
+					s.printf("failed to write shard data to %s: %s", path, err.Error())
+					return
+				}
+				_ = f.Close()
+
+				// Reinitialize store and connection.
+				if err := s.initializeStore(path); err != nil {
+					s.printf("failed to re-initialize store at %s: %s", path, err.Error())
+					return
+				}
+
+				// Re-initialize connection for streaming to shard.
+				if err := s.initializeConn(conn); err != nil {
+					s.printf("failed to re-initialize broker connection: %s", err.Error())
+					return
+				}
+
+				// Successfully retrieved shard data.
+				s.printf("successfully copied %d bytes of shard data from %s to %s", nCopied, url, path)
+				break
+			}
+
 		case writeRawSeriesMessageType:
 			s.stats.Inc("writeSeriesMessageRx")
 			if err := s.writeSeries(m.Index, m.Data); err != nil {
@@ -383,6 +485,10 @@ func (s *Shard) processor(conn MessagingConn, closing <-chan struct{}) {
 		s.index = m.Index
 		s.mu.Unlock()
 	}
+}
+
+func (s *Shard) printf(msg string, v ...interface{}) {
+	s.Logger.Printf(fmt.Sprintf("[%d]: ", s.ID)+msg, v...)
 }
 
 // Shards represents a list of shards.
