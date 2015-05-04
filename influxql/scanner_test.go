@@ -152,6 +152,8 @@ func TestScanner_Scan(t *testing.T) {
 		{s: `REVOKE`, tok: influxql.REVOKE},
 		{s: `SELECT`, tok: influxql.SELECT},
 		{s: `SERIES`, tok: influxql.SERIES},
+		{s: `SERVER`, tok: influxql.SERVER},
+		{s: `SERVERS`, tok: influxql.SERVERS},
 		{s: `TAG`, tok: influxql.TAG},
 		{s: `TO`, tok: influxql.TO},
 		{s: `USER`, tok: influxql.USER},

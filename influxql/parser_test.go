@@ -584,6 +584,12 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// DROP SERVER statement
+		{
+			s:    `DROP SERVER 123`,
+			stmt: &influxql.DropServerStatement{NodeID: 123},
+		},
+
 		// SHOW CONTINUOUS QUERIES statement
 		{
 			s:    `SHOW CONTINUOUS QUERIES`,

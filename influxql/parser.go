@@ -18,6 +18,13 @@ const (
 
 	// DateTimeFormat represents the format for date time literals.
 	DateTimeFormat = "2006-01-02 15:04:05.999999"
+
+	// Number bases
+	base10 = 10
+
+	// Bit sizes
+	bits32 = 32
+	bits64 = 64
 )
 
 // Parser represents an InfluxQL parser.
@@ -172,6 +179,8 @@ func (p *Parser) parseDropStatement() (Statement, error) {
 		return p.parseDropRetentionPolicyStatement()
 	} else if tok == USER {
 		return p.parseDropUserStatement()
+	} else if tok == SERVER {
+		return p.parseDropServerStatement()
 	}
 
 	return nil, newParseError(tokstr(tok, lit), []string{"SERIES", "CONTINUOUS", "MEASUREMENT"}, pos)
@@ -372,20 +381,20 @@ func (p *Parser) parseInt(min, max int) (int, error) {
 	return n, nil
 }
 
-// parseUInt32 parses a string and returns a 32-bit unsigned integer literal.
-func (p *Parser) parseUInt32() (uint32, error) {
+// parseUint parses a string and returns a 64-bit unsigned integer.
+func (p *Parser) parseUint(bitSize int) (uint64, error) {
 	tok, pos, lit := p.scanIgnoreWhitespace()
 	if tok != NUMBER {
 		return 0, newParseError(tokstr(tok, lit), []string{"number"}, pos)
 	}
 
-	// Convert string to unsigned 32-bit integer
-	n, err := strconv.ParseUint(lit, 10, 32)
+	// Convert string to unsigned 64-bit integer
+	n, err := strconv.ParseUint(lit, base10, bitSize)
 	if err != nil {
 		return 0, &ParseError{Message: err.Error(), Pos: pos}
 	}
 
-	return uint32(n), nil
+	return n, nil
 }
 
 // parseUInt64 parses a string and returns a 64-bit unsigned integer literal.
@@ -1039,13 +1048,27 @@ func (p *Parser) parseDropSeriesStatement() (*DropSeriesStatement, error) {
 
 	// If they didn't provide a FROM or a WHERE, they need to provide the SeriesID
 	if stmt.Condition == nil && stmt.Source == nil {
-		id, err := p.parseUInt64()
+		id, err := p.parseUint(bits64)
 		if err != nil {
 			return nil, err
 		}
 		stmt.SeriesID = id
 	}
 	return stmt, nil
+}
+
+// parseDropServerStatement parses a string and returns a DropServerStatement.
+// This function assumes the "DROP SERVER" tokens have already been consumed.
+func (p *Parser) parseDropServerStatement() (*DropServerStatement, error) {
+	s := &DropServerStatement{}
+	var err error
+
+	// Parse the server's ID.
+	if s.NodeID, err = p.parseUint(bits64); err != nil {
+		return nil, err
+	}
+
+	return s, nil
 }
 
 // parseShowContinuousQueriesStatement parses a string and returns a ShowContinuousQueriesStatement.

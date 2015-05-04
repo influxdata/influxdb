@@ -53,8 +53,8 @@ type Node struct {
 	OpenTSDBServer  *opentsdb.Server  // The OpenTSDB Server
 }
 
-func (s *Node) ClusterAddr() net.Addr {
-	return s.clusterListener.Addr()
+func (n *Node) ClusterAddr() net.Addr {
+	return n.clusterListener.Addr()
 }
 
 func (s *Node) ClusterURL() *url.URL {
@@ -71,45 +71,46 @@ func (s *Node) ClusterURL() *url.URL {
 	}
 }
 
-func (s *Node) Close() error {
-	if err := s.closeClusterListener(); err != nil {
+func (n *Node) Close() error {
+
+	if err := n.closeClusterListener(); err != nil {
 		return err
 	}
 
-	if err := s.closeAPIListener(); err != nil {
+	if err := n.closeAPIListener(); err != nil {
 		return err
 	}
 
-	if err := s.closeAdminServer(); err != nil {
+	if err := n.closeAdminServer(); err != nil {
 		return err
 	}
 
-	for _, g := range s.GraphiteServers {
+	for _, g := range n.GraphiteServers {
 		if err := g.Close(); err != nil {
 			return err
 		}
 	}
 
-	if s.OpenTSDBServer != nil {
-		if err := s.OpenTSDBServer.Close(); err != nil {
+	if n.OpenTSDBServer != nil {
+		if err := n.OpenTSDBServer.Close(); err != nil {
 			return err
 		}
 	}
 
-	if s.DataNode != nil {
-		if err := s.DataNode.Close(); err != nil {
+	if n.DataNode != nil {
+		if err := n.DataNode.Close(); err != nil {
 			return err
 		}
 	}
 
-	if s.raftLog != nil {
-		if err := s.raftLog.Close(); err != nil {
+	if n.raftLog != nil {
+		if err := n.raftLog.Close(); err != nil {
 			return err
 		}
 	}
 
-	if s.Broker != nil {
-		if err := s.Broker.Close(); err != nil {
+	if n.Broker != nil {
+		if err := n.Broker.Close(); err != nil {
 			return err
 		}
 	}
@@ -117,21 +118,42 @@ func (s *Node) Close() error {
 	return nil
 }
 
-func (s *Node) openAdminServer(port int) error {
+func (n *Node) dropAndExit(config *Config) func() {
+	return func() {
+
+		if err := n.Close(); err != nil {
+			log.Printf("error closing node: %s", err)
+		}
+
+		if err := os.RemoveAll(config.Data.Dir); err != nil {
+			log.Printf("error removing %q: %s", config.Data.Dir, err)
+		}
+
+		if err := os.RemoveAll(config.Broker.Dir); err != nil {
+			log.Printf("error removing %q: %s", config.Broker.Dir, err)
+		}
+
+		log.Printf("successfully dropped node: %q exiting", n.hostname)
+
+		os.Exit(0)
+	}
+}
+
+func (n *Node) openAdminServer(port int) error {
 	// Start the admin interface on the default port
 	addr := net.JoinHostPort("", strconv.Itoa(port))
-	s.adminServer = admin.NewServer(addr)
-	return s.adminServer.ListenAndServe()
+	n.adminServer = admin.NewServer(addr)
+	return n.adminServer.ListenAndServe()
 }
 
-func (s *Node) closeAdminServer() error {
-	if s.adminServer != nil {
-		return s.adminServer.Close()
+func (n *Node) closeAdminServer() error {
+	if n.adminServer != nil {
+		return n.adminServer.Close()
 	}
 	return nil
 }
 
-func (s *Node) openListener(desc, addr string, h http.Handler) (net.Listener, error) {
+func (n *Node) openListener(desc, addr string, h http.Handler) (net.Listener, error) {
 	var err error
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -153,38 +175,38 @@ func (s *Node) openListener(desc, addr string, h http.Handler) (net.Listener, er
 
 }
 
-func (s *Node) openAPIListener(addr string, h http.Handler) error {
+func (n *Node) openAPIListener(addr string, h http.Handler) error {
 	var err error
-	s.apiListener, err = s.openListener("API", addr, h)
+	n.apiListener, err = n.openListener("API", addr, h)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (s *Node) closeAPIListener() error {
+func (n *Node) closeAPIListener() error {
 	var err error
-	if s.apiListener != nil {
-		err = s.apiListener.Close()
-		s.apiListener = nil
+	if n.apiListener != nil {
+		err = n.apiListener.Close()
+		n.apiListener = nil
 	}
 	return err
 }
 
-func (s *Node) openClusterListener(addr string, h http.Handler) error {
+func (n *Node) openClusterListener(addr string, h http.Handler) error {
 	var err error
-	s.clusterListener, err = s.openListener("Cluster", addr, h)
+	n.clusterListener, err = n.openListener("Cluster", addr, h)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (s *Node) closeClusterListener() error {
+func (n *Node) closeClusterListener() error {
 	var err error
-	if s.clusterListener != nil {
-		err = s.clusterListener.Close()
-		s.clusterListener = nil
+	if n.clusterListener != nil {
+		err = n.clusterListener.Close()
+		n.clusterListener = nil
 	}
 	return err
 }
@@ -334,6 +356,10 @@ func (cmd *RunCommand) Open(config *Config, join string) *Node {
 
 		//FIXME: Need to also pass in dataURLs to bootstrap a data node
 		s = cmd.openServer(joinURLs)
+
+		// Give the server reference to close the node
+		s.DropNode = cmd.node.dropAndExit(config)
+
 		cmd.node.DataNode = s
 		s.SetAuthenticationEnabled(cmd.config.Authentication.Enabled)
 		log.Printf("authentication enabled: %v\n", cmd.config.Authentication.Enabled)
