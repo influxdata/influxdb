@@ -3,9 +3,10 @@
 ### Features
 - [#2410](https://github.com/influxdb/influxdb/pull/2410): If needed, brokers respond with data nodes for peer shard replication.
 - [#2469](https://github.com/influxdb/influxdb/pull/2469): Reduce default max topic size from 1GB to 50MB.
+- [#2484](https://github.com/influxdb/influxdb/pull/2484): Broker removal support
 
 ### Bugfixes
-- [#2446] (https://github.com/influxdb/influxdb/pull/2446): Correctly count number of queries executed. Thanks @neonstalwart
+- [#2446](https://github.com/influxdb/influxdb/pull/2446): Correctly count number of queries executed. Thanks @neonstalwart
 - [#2452](https://github.com/influxdb/influxdb/issues/2452): Fix panic with shard stats on multiple clusters
 - [#2453](https://github.com/influxdb/influxdb/pull/2453): Do not require snapshot on Log.WriteEntriesTo().
 - [#2460](https://github.com/influxdb/influxdb/issues/2460): Collectd input should use "value" for fields values. Fixes 2412. Thanks @josh-padnick

@@ -117,8 +117,8 @@ func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes int
 	c.Snapshot.Enabled = false
 	c.Logging.HTTPAccess = false
 
-	cmd := main.NewRunCommand()
-	baseNode := cmd.Open(c, "")
+	baseNode := main.NewNodeWithConfig(c)
+	baseNode.Open("")
 	b := baseNode.Broker
 	s := baseNode.DataNode
 
@@ -141,8 +141,8 @@ func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes int
 		c.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(i))
 		c.Port = 0
 
-		cmd := main.NewRunCommand()
-		node := cmd.Open(c, baseNode.ClusterURL().String())
+		node := main.NewNodeWithConfig(c)
+		node.Open(baseNode.ClusterURL().String())
 		if node.Broker == nil {
 			t.Fatalf("Test %s: failed to create following broker on addr %s", testName, node.ClusterURL().String())
 		}
@@ -2145,8 +2145,8 @@ func TestSeparateBrokerDataNode(t *testing.T) {
 	dataConfig.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(dataConfig.Port))
 	dataConfig.ReportingDisabled = true
 
-	brokerCmd := main.NewRunCommand()
-	broker := brokerCmd.Open(brokerConfig, "")
+	broker := main.NewNodeWithConfig(brokerConfig)
+	broker.Open("")
 	defer broker.Close()
 
 	if broker.Broker == nil {
@@ -2154,9 +2154,8 @@ func TestSeparateBrokerDataNode(t *testing.T) {
 	}
 
 	u := broker.Broker.URL()
-	dataCmd := main.NewRunCommand()
-
-	data := dataCmd.Open(dataConfig, (&u).String())
+	data := main.NewNodeWithConfig(dataConfig)
+	data.Open((&u).String())
 	defer data.Close()
 
 	if data.DataNode == nil {
@@ -2190,8 +2189,8 @@ func TestSeparateBrokerTwoDataNodes(t *testing.T) {
 	brokerConfig.Broker.Dir = filepath.Join(tmpBrokerDir, "1")
 	brokerConfig.ReportingDisabled = true
 
-	brokerCmd := main.NewRunCommand()
-	broker := brokerCmd.Open(brokerConfig, "")
+	broker := main.NewNodeWithConfig(brokerConfig)
+	broker.Open("")
 	defer broker.Close()
 
 	if broker.Broker == nil {
@@ -2209,9 +2208,8 @@ func TestSeparateBrokerTwoDataNodes(t *testing.T) {
 	dataConfig1.Data.Dir = filepath.Join(tmpDataDir, "1")
 	dataConfig1.ReportingDisabled = true
 
-	dataCmd1 := main.NewRunCommand()
-
-	data1 := dataCmd1.Open(dataConfig1, brokerURL)
+	data1 := main.NewNodeWithConfig(dataConfig1)
+	data1.Open(brokerURL)
 	defer data1.Close()
 
 	if data1.DataNode == nil {
@@ -2226,9 +2224,8 @@ func TestSeparateBrokerTwoDataNodes(t *testing.T) {
 	dataConfig2.Data.Dir = filepath.Join(tmpDataDir, "2")
 	dataConfig2.ReportingDisabled = true
 
-	dataCmd2 := main.NewRunCommand()
-
-	data2 := dataCmd2.Open(dataConfig2, brokerURL)
+	data2 := main.NewNodeWithConfig(dataConfig2)
+	data2.Open(brokerURL)
 
 	defer data2.Close()
 	if data2.DataNode == nil {

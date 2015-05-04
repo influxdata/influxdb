@@ -17,6 +17,7 @@ type Handler struct {
 		Heartbeat(term, commitIndex, leaderID uint64) (currentIndex uint64, err error)
 		WriteEntriesTo(w io.Writer, id, term, index uint64) error
 		RequestVote(term, candidateID, lastLogIndex, lastLogTerm uint64) (peerTerm uint64, err error)
+		Leader() (id uint64, u url.URL)
 	}
 }
 
@@ -89,7 +90,31 @@ func (h *Handler) serveLeave(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Remove a peer from the log.
-	if err := h.Log.RemovePeer(id); err != nil {
+	err = h.Log.RemovePeer(id)
+	if err == ErrNotLeader {
+
+		// Find the leader
+		id, u := h.Log.Leader()
+
+		// If we don't know the leader than return an error
+		if id == 0 {
+			w.Header().Set("X-Raft-Error", ErrNoLeader.Error())
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		// redirect to the leader
+		redirect := r.URL
+		redirect.Host = u.Host
+
+		w.Header().Set("Location", redirect.String())
+		println(redirect.String())
+		w.WriteHeader(http.StatusTemporaryRedirect)
+
+		return
+	}
+
+	if err != nil {
 		w.Header().Set("X-Raft-Error", err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
 		return

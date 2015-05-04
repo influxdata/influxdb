@@ -23,7 +23,6 @@ Usage:
 The commands are:
 
     config               display the default configuration
-    join-cluster         create a new node that will join an existing cluster
     run                  run node with existing configuration
     version              displays the InfluxDB version
 
