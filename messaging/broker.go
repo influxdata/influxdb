@@ -33,6 +33,9 @@ const DefaultMaxTopicSize = 1024 * 1024 * 1024 // 1GB
 // DefaultMaxSegmentSize is the largest a segment can get before starting a new segment.
 const DefaultMaxSegmentSize = 10 * 1024 * 1024 // 10MB
 
+// DefaultMaxSegmentAge is the longest a stale segment can exist before removal.
+const DefaultMaxSegmentAge = 2 * 24 * time.Hour // 2 days
+
 var (
 	// ErrTopicTruncated is returned when topic data is unavailable due to truncation.
 	ErrTopicTruncated = errors.New("topic truncated")
@@ -54,8 +57,9 @@ type Broker struct {
 	topics map[uint64]*Topic // topics by id
 
 	TruncationInterval time.Duration
-	MaxTopicSize       int64 // Maximum size of a topic in bytes
-	MaxSegmentSize     int64 // Maximum size of a segment in bytes
+	MaxTopicSize       int64         // Maximum size of a topic in bytes
+	MaxSegmentSize     int64         // Maximum size of a segment in bytes
+	MaxSegmentAge      time.Duration // Maximum age of stale segments
 
 	// Goroutinte shutdown
 	done chan struct{}
@@ -82,6 +86,7 @@ func NewBroker() *Broker {
 		TruncationInterval: DefaultTruncationInterval,
 		MaxTopicSize:       DefaultMaxTopicSize,
 		MaxSegmentSize:     DefaultMaxSegmentSize,
+		MaxSegmentAge:      DefaultMaxSegmentAge,
 		done:               make(chan struct{}),
 	}
 	return b
@@ -224,6 +229,7 @@ func (b *Broker) openTopics() error {
 		}
 		b.topics[t.id] = t
 		b.topics[t.id].MaxSegmentSize = b.MaxSegmentSize
+		b.topics[t.id].MaxSegmentAge = b.MaxSegmentAge
 	}
 
 	// Retrieve the highest index across all topics.
@@ -477,6 +483,7 @@ func (b *Broker) ReadFrom(r io.Reader) (int64, error) {
 	for _, st := range sh.Topics {
 		t := NewTopic(st.ID, b.topicPath(st.ID))
 		t.MaxSegmentSize = b.MaxSegmentSize
+		t.MaxSegmentAge = b.MaxSegmentAge
 
 		// Create topic directory.
 		if err := os.MkdirAll(t.Path(), 0777); err != nil {
@@ -633,6 +640,7 @@ func (b *Broker) Apply(m *Message) error {
 		if t == nil {
 			t = NewTopic(m.TopicID, b.topicPath(m.TopicID))
 			t.MaxSegmentSize = b.MaxSegmentSize
+			t.MaxSegmentAge = b.MaxSegmentAge
 			if err := t.Open(); err != nil {
 				return fmt.Errorf("open topic: %s", err)
 			}
@@ -733,6 +741,9 @@ type Topic struct {
 
 	// The largest a segment can get before splitting into a new segment.
 	MaxSegmentSize int64
+
+	// Amount of time before a stale segment is removed.
+	MaxSegmentAge time.Duration
 }
 
 // NewTopic returns a new instance of Topic.
@@ -742,6 +753,7 @@ func NewTopic(id uint64, path string) *Topic {
 		path:           path,
 		indexByURL:     make(map[url.URL]uint64),
 		MaxSegmentSize: DefaultMaxSegmentSize,
+		MaxSegmentAge:  DefaultMaxSegmentAge,
 	}
 }
 
@@ -965,30 +977,34 @@ func (t *Topic) Truncate(maxSize int64) (int, int64, error) {
 			break
 		}
 
-		// More than 2 segments are needed for current writes and replication checks.
-		if len(segments) <= 2 {
-			break
-		}
+		// A segment can be deleted under two conditions:
+		//
+		//   1) the segment is too stale
+		//   2) the last entry has been replicated
+		//
+		// The most efficient way to see if the last entry has been replicated
+		// is to check if first entry of next segment has been replicated.
+		if len(segments) > 1 && t.MaxSegmentAge > 0 && time.Since(segments[0].ModTime) > t.MaxSegmentAge {
+			// continue, stale segment.
+		} else {
+			// More than 2 segments are needed for current writes and replication checks.
+			if len(segments) <= 2 {
+				break
+			}
 
-		// Attempt deletion of oldest segment in topic. First and second segment needed
-		// for this operation.
-		first := segments[0]
-		second := segments[1]
-
-		// The first segment can only be deleted if the last index in that segment has
-		// been replicated. The most efficient way to check this is to ensure that the
-		// first index of the subsequent segment has been replicated.
-		if second.Index > highestIndex {
-			// No guarantee first segment has been replicated.
-			break
+			// Find index of second segment to check if replicated.
+			if segments[1].Index > highestIndex {
+				// No guarantee first segment has been replicated.
+				break
+			}
 		}
 
 		// Deletion can proceed!
-		size, err := first.Size()
+		size, err := segments[0].Size()
 		if err != nil {
 			return nSegmentsDeleted, nBytesDeleted, err
 		}
-		if err = os.Remove(first.Path); err != nil {
+		if err = os.Remove(segments[0].Path); err != nil {
 			return nSegmentsDeleted, nBytesDeleted, err
 		}
 		nSegmentsDeleted += 1
@@ -1050,8 +1066,9 @@ func ReadTopics(path string) (Topics, error) {
 
 // Segment represents a contiguous section of a topic log.
 type Segment struct {
-	Index uint64 // starting index of the segment and name
-	Path  string // path to the segment file.
+	Index   uint64    // starting index of the segment and name
+	Path    string    // path to the segment file
+	ModTime time.Time // last modified time
 }
 
 // Size returns the file size of the segment.
@@ -1115,8 +1132,9 @@ func ReadSegments(path string) (Segments, error) {
 		}
 
 		a = append(a, &Segment{
-			Index: index,
-			Path:  filepath.Join(path, fi.Name()),
+			Index:   index,
+			Path:    filepath.Join(path, fi.Name()),
+			ModTime: fi.ModTime(),
 		})
 	}
 	sort.Sort(a)

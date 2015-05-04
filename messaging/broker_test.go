@@ -444,8 +444,8 @@ func TestTopic_Recover_Checksum(t *testing.T) {
 	}
 }
 
-// Test that topics are correctly truncated.
-func TestTopic_Truncate(t *testing.T) {
+// Test that topics are truncated when they exceed a maximum size.
+func TestTopic_Truncate_MaxSegmentSize(t *testing.T) {
 	topic := OpenTopic()
 	if topic.Truncated() {
 		t.Errorf("topic reports truncated which should not be the case")
@@ -520,6 +520,42 @@ func TestTopic_Truncate(t *testing.T) {
 	}
 }
 
+// Test that topics are truncated when they are too stale.
+func TestTopic_Truncate_MaxSegmentAge(t *testing.T) {
+	topic := OpenTopic()
+
+	// Force creation of 2 segments.
+	topic.MustWriteMessage(&messaging.Message{Index: 7, Data: make([]byte, topic.MaxSegmentSize+1)})
+	topic.MustWriteMessage(&messaging.Message{Index: 10, Data: make([]byte, 100)})
+	topic.MustWriteMessage(&messaging.Message{Index: 15, Data: make([]byte, 100)})
+
+	// Ensure segment was written.
+	if segments := MustReadSegments(topic.Path()); len(segments) != 2 {
+		t.Fatalf("unexpected segment count: %d", len(segments))
+	}
+
+	// Truncate with high age -- no truncation should occur.
+	topic.MaxSegmentAge = 1 * time.Hour
+	if n, _, err := topic.Truncate(0); err != nil {
+		t.Fatal(err)
+	} else if n != 0 {
+		t.Fatalf("unexpected segment deletion count: %d", n)
+	} else if segments := MustReadSegments(topic.Path()); len(segments) != 2 {
+		t.Fatalf("unexpected segment count: %d", len(segments))
+	}
+
+	// Truncate with low age -- should truncate segment.
+	topic.MaxSegmentAge = 1 * time.Second
+	time.Sleep(topic.MaxSegmentAge)
+	if n, _, err := topic.Truncate(0); err != nil {
+		t.Fatal(err)
+	} else if n != 1 {
+		t.Fatalf("unexpected segment deletion count: %d", n)
+	} else if segments := MustReadSegments(topic.Path()); len(segments) != 1 {
+		t.Fatalf("unexpected segment count: %d", len(segments))
+	}
+}
+
 // Topic is a wrapper for messaging.Topic that creates the topic in a temporary location.
 type Topic struct {
 	*messaging.Topic
@@ -543,6 +579,13 @@ func OpenTopic() *Topic {
 func (t *Topic) Close() {
 	defer os.RemoveAll(t.Path())
 	t.Topic.Close()
+}
+
+// MustWriteMessage writes a message to a topic. Panic on error.
+func (t *Topic) MustWriteMessage(m *messaging.Message) {
+	if err := t.WriteMessage(m); err != nil {
+		panic(err.Error())
+	}
 }
 
 // Ensure a list of topics can be read from a directory.
