@@ -1016,18 +1016,23 @@ func (s *Server) applyDropServer(m *messaging.Message) error {
 	var c dropServerCommand
 	mustUnmarshalJSON(m.Data, &c)
 
-	// Remove data node reference from every shard.
+	// Remove data node reference from every shard in meta store.
 	for _, database := range s.databases {
 		for _, policy := range database.policies {
 			for _, shardGroup := range policy.shardGroups {
 				for _, shard := range shardGroup.Shards {
-					dataNodeIDs := []uint64{}
-					for _, dataNodeID := range shard.DataNodeIDs {
-						if dataNodeID != c.NodeID {
-							dataNodeIDs = append(dataNodeIDs, dataNodeID)
-						}
+					shard.dropDataNodeID(c.NodeID)
+					// If there are no data nodes left, close the shard
+					if len(shard.DataNodeIDs) == 0 {
+						// TODO if this happens, we should replicate the data out or show a warning that we just lost data
+						// as this is a sign that no other data nodes have this shard
+						shard.close()
+						// Remove it from the top level map
+						delete(s.shards, shard.ID)
+					} else {
+						// Update the server reference
+						s.shards[shard.ID] = shard
 					}
-					shard.DataNodeIDs = dataNodeIDs
 				}
 			}
 		}
