@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb"
+	"github.com/influxdb/influxdb/data"
 )
 
 const (
@@ -31,11 +32,6 @@ var (
 	ErrServerNotSpecified = errors.New("server not present")
 )
 
-// SeriesWriter defines the interface for the destination of the data.
-type SeriesWriter interface {
-	WriteSeries(string, string, []influxdb.Point) (uint64, error)
-}
-
 // Server defines the interface all Graphite servers support.
 type Server interface {
 	ListenAndServe(iface string) error
@@ -45,11 +41,11 @@ type Server interface {
 
 // NewServer return a Graphite server for the given protocol, using the given parser
 // series writer, and database.
-func NewServer(protocol string, p *Parser, s SeriesWriter, db string) (Server, error) {
+func NewServer(protocol string, p *Parser, w data.SeriesWriter, db string) (Server, error) {
 	if strings.ToLower(protocol) == "tcp" {
-		return NewTCPServer(p, s, db), nil
+		return NewTCPServer(p, w, db), nil
 	} else if strings.ToLower(protocol) == "udp" {
-		return NewUDPServer(p, s, db), nil
+		return NewUDPServer(p, w, db), nil
 	} else {
 		return nil, fmt.Errorf("unrecognized Graphite Server protocol %s", protocol)
 	}

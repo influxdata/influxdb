@@ -411,7 +411,7 @@ func (s *Server) StartSelfMonitoring(database, retention string, interval time.D
 				batch = append(batch, points...)
 			}
 
-			s.WriteSeries(database, retention, batch)
+			s.Write(database, retention, batch)
 		}
 	}()
 
@@ -1756,16 +1756,17 @@ type Point struct {
 	Fields    map[string]interface{}
 }
 
-// WriteSeries writes series data to the database.
+// Write writes series data to the database.
 // Returns the messaging index the data was written to.
-func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (idx uint64, err error) {
+func (s *Server) Write(database, retentionPolicy string, points []Point) error {
+	var err error
 	s.stats.Inc("batchWriteRx")
 	s.stats.Add("pointWriteRx", int64(len(points)))
-	defer func() {
+	defer func(err error) {
 		if err != nil {
 			s.stats.Inc("batchWriteRxError")
 		}
-	}()
+	}(err)
 
 	if s.WriteTrace {
 		log.Printf("received write for database '%s', retention policy '%s', with %d points",
@@ -1775,12 +1776,12 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 	// Make sure every point is valid.
 	for _, p := range points {
 		if len(p.Fields) == 0 {
-			return 0, ErrFieldsRequired
+			return ErrFieldsRequired
 		}
 
 		for _, f := range p.Fields {
 			if f == nil {
-				return 0, ErrFieldIsNull
+				return ErrFieldIsNull
 			}
 		}
 	}
@@ -1789,16 +1790,16 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 	if retentionPolicy == "" {
 		rp, err := s.DefaultRetentionPolicy(database)
 		if err != nil {
-			return 0, fmt.Errorf("failed to determine default retention policy: %s", err.Error())
+			return fmt.Errorf("failed to determine default retention policy: %s", err.Error())
 		} else if rp == nil {
-			return 0, ErrDefaultRetentionPolicyNotFound
+			return ErrDefaultRetentionPolicyNotFound
 		}
 		retentionPolicy = rp.Name
 	}
 
 	// Ensure all required Series and Measurement Fields are created cluster-wide.
 	if err := s.createMeasurementsIfNotExists(database, retentionPolicy, points); err != nil {
-		return 0, err
+		return err
 	}
 	if s.WriteTrace {
 		log.Printf("measurements and series created on database '%s'", database)
@@ -1806,7 +1807,7 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 
 	// Ensure all the required shard groups exist. TODO: this should be done async.
 	if err := s.createShardGroupsIfNotExists(database, retentionPolicy, points); err != nil {
-		return 0, err
+		return err
 	}
 	if s.WriteTrace {
 		log.Printf("shard groups created for database '%s'", database)
@@ -1874,32 +1875,28 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 
 		return nil
 	}(); err != nil {
-		return 0, err
+		return err
 	}
 
 	// Write data for each shard to the Broker.
-	var maxIndex uint64
 	for i, d := range shardData {
 		assert(len(d) > 0, "raw series data required: topic=%d", i)
 
-		index, err := s.client.Publish(&messaging.Message{
+		_, err := s.client.Publish(&messaging.Message{
 			Type:    writeRawSeriesMessageType,
 			TopicID: i,
 			Data:    d,
 		})
 		if err != nil {
-			return maxIndex, err
+			return err
 		}
 		s.stats.Inc("writeSeriesMessageTx")
-		if index > maxIndex {
-			maxIndex = index
-		}
 		if s.WriteTrace {
 			log.Printf("write series message published successfully for topic %d", i)
 		}
 	}
 
-	return maxIndex, nil
+	return nil
 }
 
 // createMeasurementsIfNotExists walks the "points" and ensures that all new Series are created, and all
@@ -2167,11 +2164,11 @@ func (s *Server) ReadSeries(database, retentionPolicy, name string, tags map[str
 	return values, nil
 }
 
-// ExecuteQuery executes an InfluxQL query against the server.
+// Query executes an InfluxQL query against the server.
 // If the user isn't authorized to access the database an error will be returned.
 // It sends results down the passed in chan and closes it when done. It will close the chan
 // on the first statement that throws an error.
-func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User, chunkSize int) (chan *Result, error) {
+func (s *Server) Query(q *influxql.Query, database string, user *User, chunkSize int) (chan *Result, error) {
 	// Authorize user to execute the query.
 	if s.authenticationEnabled {
 		if err := s.Authorize(user, q, database); err != nil {
@@ -4020,7 +4017,7 @@ func (s *Server) runContinuousQueryAndWriteResult(cq *ContinuousQuery) error {
 					}
 				}
 			}
-			_, err = s.WriteSeries(cq.intoDB(), cq.intoRP(), points)
+			err = s.Write(cq.intoDB(), cq.intoRP(), points)
 			if err != nil {
 				log.Printf("[cq] err: %s", err)
 			}
