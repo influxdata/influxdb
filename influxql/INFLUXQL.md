@@ -101,7 +101,7 @@ VALUES       WHERE        WITH         WRITE
 InfluxQL supports decimal integer literals.  Hexadecimal and octal literals are not currently supported.
 
 ```
-int_lit             = digit { digit } .
+int_lit             = ( "1" … "9" ) { digit } .
 ```
 
 ### Floats
