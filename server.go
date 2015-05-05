@@ -1045,6 +1045,8 @@ func (s *Server) applyDropServer(m *messaging.Message) error {
 
 	// TODO: Persist these changes to the meta store
 
+	// TODO: Brokes need to expire data node
+
 	// am I the server being dropped?
 	if c.NodeID == s.id {
 		go s.DropNode()
