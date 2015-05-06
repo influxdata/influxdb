@@ -258,3 +258,29 @@ func TestScanString(t *testing.T) {
 		}
 	}
 }
+
+// Test scanning regex
+func TestScanRegex(t *testing.T) {
+	var tests = []struct {
+		in  string
+		tok influxql.Token
+		lit string
+		err string
+	}{
+		{in: `/^payments\./`, tok: influxql.REGEX, lit: `^payments\.`},
+		{in: `/foo\/bar/`, tok: influxql.REGEX, lit: `foo/bar`},
+		{in: `/foo\\/bar/`, tok: influxql.REGEX, lit: `foo\/bar`},
+		{in: `/foo\\bar/`, tok: influxql.REGEX, lit: `foo\\bar`},
+	}
+
+	for i, tt := range tests {
+		s := influxql.NewScanner(strings.NewReader(tt.in))
+		tok, _, lit := s.ScanRegex()
+		if tok != tt.tok {
+			t.Errorf("%d. %s: error:\n\texp=%s\n\tgot=%s\n", i, tt.in, tt.tok.String(), tok.String())
+		}
+		if lit != tt.lit {
+			t.Errorf("%d. %s: error:\n\texp=%s\n\tgot=%s\n", i, tt.in, tt.lit, lit)
+		}
+	}
+}

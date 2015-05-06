@@ -183,7 +183,7 @@ func (s *Scanner) ScanRegex() (tok Token, pos Pos, lit string) {
 	// Valid escape chars.
 	escapes := map[rune]rune{'/': '/'}
 
-	b, err := ScanDelimited(s.r, start, end, escapes)
+	b, err := ScanDelimited(s.r, start, end, escapes, true)
 
 	if err == errBadEscape {
 		_, pos = s.r.curr()
@@ -443,7 +443,7 @@ func (r *reader) curr() (ch rune, pos Pos) {
 // eof is a marker code point to signify that the reader can't read any more.
 const eof = rune(0)
 
-func ScanDelimited(r io.RuneScanner, start, end rune, escapes map[rune]rune) ([]byte, error) {
+func ScanDelimited(r io.RuneScanner, start, end rune, escapes map[rune]rune, escapesPassThru bool) ([]byte, error) {
 	// Scan start delimiter.
 	if ch, _, err := r.ReadRune(); err != nil {
 		return nil, err
@@ -468,15 +468,23 @@ func ScanDelimited(r io.RuneScanner, start, end rune, escapes map[rune]rune) ([]
 				return nil, err
 			}
 
-			r, ok := escapes[ch1]
+			c, ok := escapes[ch1]
 			if !ok {
-				buf.Reset()
-				_, _ = buf.WriteRune(ch0)
-				_, _ = buf.WriteRune(ch1)
-				return buf.Bytes(), errBadEscape
+				if escapesPassThru {
+					// Unread ch1 (char after the \)
+					_ = r.UnreadRune()
+					// Write ch0 (\) to the output buffer.
+					_, _ = buf.WriteRune(ch0)
+					continue
+				} else {
+					buf.Reset()
+					_, _ = buf.WriteRune(ch0)
+					_, _ = buf.WriteRune(ch1)
+					return buf.Bytes(), errBadEscape
+				}
 			}
 
-			_, _ = buf.WriteRune(r)
+			_, _ = buf.WriteRune(c)
 		} else {
 			_, _ = buf.WriteRune(ch0)
 		}
