@@ -68,6 +68,18 @@ func (r *replicator) WritePayload(p *Payload) error {
 	panic("unreachable or bad policy impl")
 }
 
+func newAckPolicyN(need int) ackPolicy {
+	return &policyNum{
+		need: need,
+	}
+}
+
+func newAckOwnerPolicy(ownerID int) ackPolicy {
+	return &policyOwner{
+		ownerID: ownerID,
+	}
+}
+
 type ackPolicy interface {
 	IsDone(writerID int, err error) bool
 }
@@ -91,7 +103,7 @@ type policyOwner struct {
 	ownerID int
 }
 
-func (p policyOwner) IsDone(writerID int, err error) bool {
+func (p *policyOwner) IsDone(writerID int, err error) bool {
 	return p.ownerID == writerID
 }
 
