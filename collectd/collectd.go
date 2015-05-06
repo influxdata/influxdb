@@ -9,16 +9,12 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb"
+	"github.com/influxdb/influxdb/data"
 	"github.com/kimor79/gollectd"
 )
 
 // DefaultPort for collectd is 25826
 const DefaultPort = 25826
-
-// SeriesWriter defines the interface for the destination of the data.
-type SeriesWriter interface {
-	WriteSeries(database, retentionPolicy string, points []influxdb.Point) (uint64, error)
-}
 
 // Server represents a UDP server which receives metrics in collectd's binary
 // protocol and stores them in InfluxDB.
@@ -28,14 +24,14 @@ type Server struct {
 
 	conn *net.UDPConn
 
-	writer      SeriesWriter
+	writer      data.PayloadWriter
 	Database    string
 	typesdb     gollectd.Types
 	typesdbpath string
 }
 
 // NewServer constructs a new Server.
-func NewServer(w SeriesWriter, typesDBPath string) *Server {
+func NewServer(w data.PayloadWriter, typesDBPath string) *Server {
 	s := Server{
 		done:        make(chan struct{}),
 		writer:      w,
@@ -47,7 +43,7 @@ func NewServer(w SeriesWriter, typesDBPath string) *Server {
 }
 
 // ListenAndServe starts starts receiving collectd metrics via UDP and writes
-// the received data points into the server's SeriesWriter. The serving
+// the received data points into the server's PayloadWriter. The serving
 // goroutine is only stopped when s.Close() is called, but ListenAndServe
 // returns immediately.
 func ListenAndServe(s *Server, iface string) error {
@@ -122,7 +118,7 @@ func (s *Server) handleMessage(buffer []byte) {
 	for _, packet := range *packets {
 		points := Unmarshal(&packet)
 		for _, p := range points {
-			_, err := s.writer.WriteSeries(s.Database, "", []influxdb.Point{p})
+			err := s.writer.WritePayload(&data.Payload{Database: s.Database, RetentionPolicy: "", Points: []influxdb.Point{p}})
 			if err != nil {
 				log.Printf("Collectd cannot write data: %s", err)
 				continue

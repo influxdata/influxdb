@@ -56,7 +56,6 @@ benchmark.log
 
 # config file
 config.toml
-/data/
 
 # test data files
 integration/migration_data/

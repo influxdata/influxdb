@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb"
+	"github.com/influxdb/influxdb/data"
 )
 
 const (
@@ -21,16 +22,11 @@ const (
 	DefaultDatabaseName = "opentsdb"
 )
 
-// SeriesWriter defines the interface for the destination of the data.
-type SeriesWriter interface {
-	WriteSeries(database, retentionPolicy string, points []influxdb.Point) (uint64, error)
-}
-
 // An InfluxDB input class to accept OpenTSDB's telnet protocol
 // Each telnet command consists of a line of the form:
 //   put sys.cpu.user 1356998400 42.5 host=webserver01 cpu=0
 type Server struct {
-	writer SeriesWriter
+	writer data.PayloadWriter
 
 	database        string
 	retentionpolicy string
@@ -42,7 +38,7 @@ type Server struct {
 	mu   sync.Mutex
 }
 
-func NewServer(w SeriesWriter, retpol string, db string) *Server {
+func NewServer(w data.PayloadWriter, retpol string, db string) *Server {
 	s := &Server{}
 
 	s.writer = w
@@ -181,7 +177,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 			Fields:    fields,
 		}
 
-		_, err = s.writer.WriteSeries(s.database, s.retentionpolicy, []influxdb.Point{p})
+		err = s.writer.WritePayload(&data.Payload{Database: s.database, RetentionPolicy: s.retentionpolicy, Points: []influxdb.Point{p}})
 		if err != nil {
 			log.Println("TSDB cannot write data: ", err)
 			continue

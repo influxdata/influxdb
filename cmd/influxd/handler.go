@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/influxdb/influxdb"
+	"github.com/influxdb/influxdb/data"
 	"github.com/influxdb/influxdb/httpd"
 	"github.com/influxdb/influxdb/messaging"
 	"github.com/influxdb/influxdb/raft"
@@ -19,8 +20,10 @@ import (
 type Handler struct {
 	Log    *raft.Log
 	Broker *influxdb.Broker
-	Server *influxdb.Server
-	Config *Config
+	//TODO get rid of server...
+	Server   *influxdb.Server
+	DataNode *data.Node
+	Config   *Config
 }
 
 // NewHandler returns a new instance of Handler.
@@ -100,12 +103,12 @@ func (h *Handler) serveData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.Server != nil {
-		sh := httpd.NewClusterHandler(h.Server, h.Config.Authentication.Enabled,
-			h.Config.Snapshot.Enabled, h.Config.Logging.HTTPAccess, version)
-		sh.ServeHTTP(w, r)
-		return
-	}
+	//if h.Server != nil {
+	//sh := httpd.NewClusterHandler(h.Server, h.Config.Authentication.Enabled,
+	//h.Config.Snapshot.Enabled, h.Config.Logging.HTTPAccess, version)
+	//sh.ServeHTTP(w, r)
+	//return
+	//}
 
 	t := h.Broker.Topic(influxdb.BroadcastTopicID)
 	if t == nil {
@@ -144,7 +147,7 @@ func (h *Handler) serveAPI(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.Server != nil {
-		sh := httpd.NewAPIHandler(h.Server, h.Config.Authentication.Enabled,
+		sh := httpd.NewAPIHandler(h.DataNode, h.Config.Authentication.Enabled,
 			h.Config.Logging.HTTPAccess, version)
 		sh.WriteTrace = h.Config.Logging.WriteTracing
 		sh.ServeHTTP(w, r)

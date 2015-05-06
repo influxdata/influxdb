@@ -18,6 +18,7 @@ import (
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/admin"
 	"github.com/influxdb/influxdb/collectd"
+	"github.com/influxdb/influxdb/data"
 	"github.com/influxdb/influxdb/graphite"
 	"github.com/influxdb/influxdb/messaging"
 	"github.com/influxdb/influxdb/opentsdb"
@@ -328,6 +329,8 @@ func (cmd *RunCommand) Open(config *Config, join string) *Node {
 		joinURLs = []url.URL{*cmd.node.ClusterURL()}
 	}
 
+	dn := data.NewDataNode()
+
 	var s *influxdb.Server
 	// Open server, initialize or join as necessary.
 	if cmd.config.Data.Enabled {
@@ -374,7 +377,7 @@ func (cmd *RunCommand) Open(config *Config, join string) *Node {
 		// Spin up the collectd server
 		if cmd.config.Collectd.Enabled {
 			c := cmd.config.Collectd
-			cs := collectd.NewServer(s, c.TypesDB)
+			cs := collectd.NewServer(dn, c.TypesDB)
 			cs.Database = c.Database
 			err := collectd.ListenAndServe(cs, c.ConnectionString(cmd.config.BindAddress))
 			if err != nil {
@@ -385,7 +388,7 @@ func (cmd *RunCommand) Open(config *Config, join string) *Node {
 		// Start the server bound to a UDP listener
 		if cmd.config.UDP.Enabled {
 			log.Printf("Starting UDP listener on %s", cmd.config.APIAddrUDP())
-			u := udp.NewUDPServer(s)
+			u := udp.NewUDPServer(dn)
 			if err := u.ListenAndServe(cmd.config.APIAddrUDP()); err != nil {
 				log.Printf("Failed to start UDP listener on %s: %s", cmd.config.APIAddrUDP(), err)
 			}
@@ -409,7 +412,7 @@ func (cmd *RunCommand) Open(config *Config, join string) *Node {
 
 			// Spin up the server.
 			var g graphite.Server
-			g, err := graphite.NewServer(graphiteConfig.Protocol, parser, s, graphiteConfig.DatabaseString())
+			g, err := graphite.NewServer(graphiteConfig.Protocol, parser, dn, graphiteConfig.DatabaseString())
 			if err != nil {
 				log.Fatalf("failed to initialize %s Graphite server: %s", graphiteConfig.Protocol, err.Error())
 			}
@@ -440,7 +443,7 @@ func (cmd *RunCommand) Open(config *Config, join string) *Node {
 				}
 			}
 
-			os := opentsdb.NewServer(s, policy, db)
+			os := opentsdb.NewServer(dn, policy, db)
 
 			log.Println("Starting OpenTSDB service on", laddr)
 			go os.ListenAndServe(laddr)
