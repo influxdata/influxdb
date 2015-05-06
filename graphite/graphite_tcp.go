@@ -14,7 +14,7 @@ import (
 
 // TCPServer processes Graphite data received over TCP connections.
 type TCPServer struct {
-	writer   data.SeriesWriter
+	writer   data.PayloadWriter
 	parser   *Parser
 	database string
 	listener *net.Listener
@@ -28,7 +28,7 @@ type TCPServer struct {
 }
 
 // NewTCPServer returns a new instance of a TCPServer.
-func NewTCPServer(p *Parser, w data.SeriesWriter, db string) *TCPServer {
+func NewTCPServer(p *Parser, w data.PayloadWriter, db string) *TCPServer {
 	return &TCPServer{
 		parser:   p,
 		writer:   w,
@@ -115,7 +115,7 @@ func (t *TCPServer) handleConnection(conn net.Conn) {
 		}
 
 		// Send the data to the writer.
-		e := t.writer.Write(t.database, "", []influxdb.Point{point})
+		e := t.writer.WritePayload(&data.Payload{Database: t.database, RetentionPolicy: "", Points: []influxdb.Point{point}})
 		if e != nil {
 			t.Logger.Printf("failed to write data point to database %q: %s\n", t.database, e)
 		}

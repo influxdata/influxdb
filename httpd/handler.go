@@ -43,9 +43,9 @@ type route struct {
 }
 
 type node interface {
-	data.SeriesWriter
-	data.Querier
-	data.Authenticater
+	data.PayloadWriter
+	data.Queryer
+	data.Authenticator
 }
 
 // Handler represents an HTTP handler for the InfluxDB server.
@@ -531,7 +531,7 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *influ
 		return
 	}
 
-	if err := h.dataNode.Write(bp.Database, bp.RetentionPolicy, points); err != nil {
+	if err := h.dataNode.WritePayload(&data.Payload{Database: bp.Database, RetentionPolicy: bp.RetentionPolicy, Points: points}); err != nil {
 		writeError(influxdb.Result{Err: err}, http.StatusInternalServerError)
 		return
 	} else {

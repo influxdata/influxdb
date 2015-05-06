@@ -17,11 +17,11 @@ const (
 
 // UDPServer
 type UDPServer struct {
-	writer data.SeriesWriter
+	writer data.PayloadWriter
 }
 
 // NewUDPServer returns a new instance of a UDPServer
-func NewUDPServer(w data.SeriesWriter) *UDPServer {
+func NewUDPServer(w data.PayloadWriter) *UDPServer {
 	u := UDPServer{
 		writer: w,
 	}
@@ -65,7 +65,7 @@ func (u *UDPServer) ListenAndServe(iface string) error {
 				continue
 			}
 
-			if err := u.writer.Write(bp.Database, bp.RetentionPolicy, points); err != nil {
+			if err := u.writer.WritePayload(&data.Payload{Database: bp.Database, RetentionPolicy: bp.RetentionPolicy, Points: points}); err != nil {
 				log.Printf("Server write failed. %s", err)
 			}
 		}

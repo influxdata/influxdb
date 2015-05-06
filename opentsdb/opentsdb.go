@@ -26,7 +26,7 @@ const (
 // Each telnet command consists of a line of the form:
 //   put sys.cpu.user 1356998400 42.5 host=webserver01 cpu=0
 type Server struct {
-	writer data.SeriesWriter
+	writer data.PayloadWriter
 
 	database        string
 	retentionpolicy string
@@ -38,7 +38,7 @@ type Server struct {
 	mu   sync.Mutex
 }
 
-func NewServer(w data.SeriesWriter, retpol string, db string) *Server {
+func NewServer(w data.PayloadWriter, retpol string, db string) *Server {
 	s := &Server{}
 
 	s.writer = w
@@ -177,7 +177,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 			Fields:    fields,
 		}
 
-		err = s.writer.Write(s.database, s.retentionpolicy, []influxdb.Point{p})
+		err = s.writer.WritePayload(&data.Payload{Database: s.database, RetentionPolicy: s.retentionpolicy, Points: []influxdb.Point{p}})
 		if err != nil {
 			log.Println("TSDB cannot write data: ", err)
 			continue

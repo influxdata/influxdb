@@ -17,7 +17,7 @@ const (
 
 // UDPServer processes Graphite data received via UDP.
 type UDPServer struct {
-	writer   data.SeriesWriter
+	writer   data.PayloadWriter
 	parser   *Parser
 	database string
 	conn     *net.UDPConn
@@ -30,7 +30,7 @@ type UDPServer struct {
 }
 
 // NewUDPServer returns a new instance of a UDPServer
-func NewUDPServer(p *Parser, w data.SeriesWriter, db string) *UDPServer {
+func NewUDPServer(p *Parser, w data.PayloadWriter, db string) *UDPServer {
 	u := UDPServer{
 		parser:   p,
 		writer:   w,
@@ -77,7 +77,7 @@ func (u *UDPServer) ListenAndServe(iface string) error {
 				}
 
 				// Send the data to the writer.
-				e := u.writer.Write(u.database, "", []influxdb.Point{point})
+				e := u.writer.WritePayload(&data.Payload{Database: u.database, RetentionPolicy: "", Points: []influxdb.Point{point}})
 				if e != nil {
 					u.Logger.Printf("failed to write data point: %s\n", e)
 				}
