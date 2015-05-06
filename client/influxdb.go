@@ -537,12 +537,3 @@ func SetPrecision(t time.Time, precision string) time.Time {
 	}
 	return t
 }
-
-func detect(values ...string) string {
-	for _, v := range values {
-		if v != "" {
-			return v
-		}
-	}
-	return ""
-}
