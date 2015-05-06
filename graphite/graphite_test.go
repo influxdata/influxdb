@@ -111,7 +111,7 @@ func Test_DecodeMetric(t *testing.T) {
 			timestamp: testTime,
 		},
 		{
-			test:      "sepeartor is . by default",
+			test:      "separator is . by default",
 			line:      `cpu.foo.bar 50 ` + strTime,
 			name:      "cpu",
 			tags:      map[string]string{"foo": "bar"},
@@ -119,7 +119,7 @@ func Test_DecodeMetric(t *testing.T) {
 			timestamp: testTime,
 		},
 		{
-			test:      "sepeartor is . if specified",
+			test:      "separator is . if specified",
 			separator: ".",
 			line:      `cpu.foo.bar 50 ` + strTime,
 			name:      "cpu",
@@ -128,7 +128,7 @@ func Test_DecodeMetric(t *testing.T) {
 			timestamp: testTime,
 		},
 		{
-			test:      "sepeartor is - if specified",
+			test:      "separator is - if specified",
 			separator: "-",
 			line:      `cpu-foo-bar 50 ` + strTime,
 			name:      "cpu",
@@ -137,7 +137,7 @@ func Test_DecodeMetric(t *testing.T) {
 			timestamp: testTime,
 		},
 		{
-			test:      "sepeartor is boo if specified",
+			test:      "separator is boo if specified",
 			separator: "boo",
 			line:      `cpuboofooboobar 50 ` + strTime,
 			name:      "cpu",
