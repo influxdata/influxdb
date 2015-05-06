@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"math/rand"
 	"sort"
 )
 
@@ -60,6 +61,8 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 		return MapSum, nil
 	case "mean":
 		return MapMean, nil
+	case "median":
+		return MapStddev, nil
 	case "min":
 		return MapMin, nil
 	case "max":
@@ -93,6 +96,8 @@ func InitializeReduceFunc(c *Call) (ReduceFunc, error) {
 		return ReduceSum, nil
 	case "mean":
 		return ReduceMean, nil
+	case "median":
+		return ReduceMedian, nil
 	case "min":
 		return ReduceMin, nil
 	case "max":
@@ -161,6 +166,12 @@ func InitializeUnmarshaller(c *Call) (UnmarshalFunc, error) {
 			val := make([]float64, 0)
 			err := json.Unmarshal(b, &val)
 			return val, err
+		}, nil
+	case "median":
+		return func(b []byte) (interface{}, error) {
+			a := make([]float64, 0)
+			err := json.Unmarshal(b, &a)
+			return a, err
 		}, nil
 	default:
 		return func(b []byte) (interface{}, error) {
@@ -252,6 +263,161 @@ func ReduceMean(values []interface{}) interface{} {
 		return out.Mean
 	}
 	return nil
+}
+
+// ReduceMedian computes the median of values
+func ReduceMedian(values []interface{}) interface{} {
+	var data []float64
+	// Collect all the data points
+	for _, value := range values {
+		if value == nil {
+			continue
+		}
+		data = append(data, value.([]float64)...)
+	}
+
+	length := len(data)
+	if length < 2 {
+		if length == 0 {
+			return nil
+		}
+		return data[0]
+	}
+	middle := length / 2
+	var sortedRange []float64
+	if length%2 == 0 {
+		sortedRange = getSortedRange(data, middle-1, 2)
+		var low, high = sortedRange[0], sortedRange[1]
+		return low + (high-low)/2
+	} else {
+		sortedRange = getSortedRange(data, middle, 1)
+		return sortedRange[0]
+	}
+}
+
+// getSortedRange returns a sorted subset of data. By using discardLowerRange and discardUpperRange to get the target
+// subset (unsorted) and then just sorting that subset, the work can be reduced from O(N lg N), where N is len(data), to
+// O(N + count lg count) for the average case
+// - O(N) to discard the unwanted items
+// - O(count lg count) to sort the count number of extracted items
+// This can be useful for:
+// - finding the median: getSortedRange(data, middle, 1)
+// - finding the top N: getSortedRange(data, len(data) - N, N)
+// - finding the bottom N: getSortedRange(data, 0, N)
+func getSortedRange(data []float64, start int, count int) []float64 {
+	out := discardLowerRange(data, start)
+	k := len(out) - count
+	if k > 0 {
+		out = discardUpperRange(out, k)
+	}
+	sort.Float64s(out)
+
+	return out
+}
+
+// discardLowerRange discards the lower k elements of the sorted data set without sorting all the data. Sorting all of
+// the data would take O(NlgN), where N is len(data), but partitioning to find the kth largest number is O(N) in the
+// average case. The remaining N-k unsorted elements are returned - no kind of ordering is guaranteed on these elements.
+func discardLowerRange(data []float64, k int) []float64 {
+	out := make([]float64, len(data)-k)
+	i := 0
+
+	// discard values lower than the desired range
+	for k > 0 {
+		lows, pivotValue, highs := partition(data)
+
+		lowLength := len(lows)
+		if lowLength > k {
+			// keep all the highs and the pivot
+			out[i] = pivotValue
+			i++
+			copy(out[i:], highs)
+			i += len(highs)
+			// iterate over the lows again
+			data = lows
+		} else {
+			// discard all the lows
+			data = highs
+			k -= lowLength
+			if k == 0 {
+				// if discarded enough lows, keep the pivot
+				out[i] = pivotValue
+				i++
+			} else {
+				// able to discard the pivot too
+				k--
+			}
+		}
+	}
+	copy(out[i:], data)
+	return out
+}
+
+// discardUpperRange discards the upper k elements of the sorted data set without sorting all the data. Sorting all of
+// the data would take O(NlgN), where N is len(data), but partitioning to find the kth largest number is O(N) in the
+// average case. The remaining N-k unsorted elements are returned - no kind of ordering is guaranteed on these elements.
+func discardUpperRange(data []float64, k int) []float64 {
+	out := make([]float64, len(data)-k)
+	i := 0
+
+	// discard values higher than the desired range
+	for k > 0 {
+		lows, pivotValue, highs := partition(data)
+
+		highLength := len(highs)
+		if highLength > k {
+			// keep all the lows and the pivot
+			out[i] = pivotValue
+			i++
+			copy(out[i:], lows)
+			i += len(lows)
+			// iterate over the highs again
+			data = highs
+		} else {
+			// discard all the highs
+			data = lows
+			k -= highLength
+			if k == 0 {
+				// if discarded enough highs, keep the pivot
+				out[i] = pivotValue
+				i++
+			} else {
+				// able to discard the pivot too
+				k--
+			}
+		}
+	}
+	copy(out[i:], data)
+	return out
+}
+
+// partition takes a list of data, chooses a random pivot index and returns a list of elements lower than the
+// pivotValue, the pivotValue, and a list of elements higher than the pivotValue.  partition mutates data.
+func partition(data []float64) (lows []float64, pivotValue float64, highs []float64) {
+	length := len(data)
+	// there are better (more complex) ways to calculate pivotIndex (e.g. median of 3, median of 3 medians) if this
+	// proves to be inadequate.
+	pivotIndex := rand.Int() % length
+	pivotValue = data[pivotIndex]
+	low, high := 1, length-1
+
+	// put the pivot in the first position
+	data[pivotIndex], data[0] = data[0], data[pivotIndex]
+
+	// partition the data around the pivot
+	for low <= high {
+		for low <= high && data[low] <= pivotValue {
+			low++
+		}
+		for high >= low && data[high] >= pivotValue {
+			high--
+		}
+		if low < high {
+			data[low], data[high] = data[high], data[low]
+		}
+	}
+
+	return data[1:low], pivotValue, data[high+1:]
 }
 
 // MapMin collects the values to pass to the reducer
