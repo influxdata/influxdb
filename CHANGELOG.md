@@ -1,8 +1,9 @@
-## v0.9.0-rc29 [unreleased]
+## v0.9.0-rc29 [2015-05-05]
 
 ### Features
 - [#2410](https://github.com/influxdb/influxdb/pull/2410): If needed, brokers respond with data nodes for peer shard replication.
 - [#2469](https://github.com/influxdb/influxdb/pull/2469): Reduce default max topic size from 1GB to 50MB.
+- [#1824](https://github.com/influxdb/influxdb/pull/1824): Wire up MEDIAN aggregate. Thanks @neonstalwart!
 
 ### Bugfixes
 - [#2446](https://github.com/influxdb/influxdb/pull/2446): Correctly count number of queries executed. Thanks @neonstalwart
@@ -14,7 +15,7 @@
 - [#2471](https://github.com/influxdb/influxdb/issues/2471): Function calls normalized to be lower case. Fixes percentile not working when called uppercase. Thanks @neonstalwart
 - [#2281](https://github.com/influxdb/influxdb/issues/2281): Fix Bad Escape error when parsing regex
 
-## v0.9.0-rc28 [04-27-2015]
+## v0.9.0-rc28 [2015-04-27]
 
 ### Features
 - [#2410](https://github.com/influxdb/influxdb/pull/2410) Allow configuration of Raft timers
