@@ -291,7 +291,7 @@ func (cmd *RunCommand) CheckConfig() {
 
 	// Validate that we have a sane config
 	if !(cmd.config.Data.Enabled || cmd.config.Broker.Enabled) {
-		log.Fatal("Node must be configured as a broker node, data node, or as both.  Run `influxd config` to generate a valid configuration.")
+		log.Fatal("Node must be configured as a broker node, data node, or as both.  Run `influxd config > /usr/local/etc/influxdb.conf` to generate a valid configuration.")
 	}
 
 	if cmd.config.Broker.Enabled && cmd.config.Broker.Dir == "" {
