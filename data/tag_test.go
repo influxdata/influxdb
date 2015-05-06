@@ -22,24 +22,3 @@ func BenchmarkMarshal(b *testing.B) {
 		tags.Marshal()
 	}
 }
-
-func TestHash(t *testing.T) {
-	got := tags.Hash()
-	if exp := uint64(16026309424388707645); exp != got {
-		t.Errorf("got: %d, exp: %d", got, exp)
-	}
-}
-
-func TestHash_EmptyTags(t *testing.T) {
-	tags := data.Tags{}
-	got := tags.Hash()
-	if exp := uint64(0); exp != got {
-		t.Errorf("got: %d, exp: %d", got, exp)
-	}
-}
-
-func BenchmarkHash(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		tags.Hash()
-	}
-}
