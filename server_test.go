@@ -35,10 +35,31 @@ func TestServer_Open(t *testing.T) {
 }
 
 // Ensure an error is returned when opening an already open server.
-func TestServer_Open_ErrServerOpen(t *testing.T) { t.Skip("pending") }
+func TestServer_Open_ErrServerOpen(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := NewServer()
+	defer s.Close()
+
+	if err := s.Server.Open(tempfile(), c); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Server.Open(tempfile(), c); err != influxdb.ErrServerOpen {
+		t.Fatal(err)
+	}
+}
 
 // Ensure an error is returned when opening a server without a path.
-func TestServer_Open_ErrPathRequired(t *testing.T) { t.Skip("pending") }
+func TestServer_Open_ErrPathRequired(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := NewServer()
+	defer s.Close()
+
+	if err := s.Server.Open("", c); err != influxdb.ErrPathRequired {
+		t.Fatal(err)
+	}
+}
 
 // Ensure the server can create a new data node.
 func TestServer_CreateDataNode(t *testing.T) {
