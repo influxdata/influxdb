@@ -1643,12 +1643,79 @@ func TestServer_CreateContinuousQuery(t *testing.T) {
 
 // Ensure the server prevents a duplicate named continuous query from being created
 func TestServer_CreateContinuousQuery_ErrContinuousQueryExists(t *testing.T) {
-	t.Skip("pending")
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Create the "foo" database.
+	if err := s.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "default", Duration: time.Hour}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetDefaultRetentionPolicy("foo", "default"); err != nil {
+		t.Fatal(err)
+	}
+
+	// create and check
+	q := "CREATE CONTINUOUS QUERY myquery ON foo BEGIN SELECT count() INTO measure1 FROM myseries GROUP BY time(10m) END"
+	stmt, err := influxql.NewParser(strings.NewReader(q)).ParseStatement()
+	if err != nil {
+		t.Fatalf("error parsing query %s", err.Error())
+	}
+	cq := stmt.(*influxql.CreateContinuousQueryStatement)
+	if err := s.CreateContinuousQuery(cq); err != nil {
+		t.Fatalf("error creating continuous query %s", err.Error())
+	}
+	if err := s.CreateContinuousQuery(cq); err != influxdb.ErrContinuousQueryExists {
+		t.Fatal(err)
+	}
 }
 
 // Ensure the server returns an error when creating a continuous query on a database that doesn't exist
 func TestServer_CreateContinuousQuery_ErrDatabaseNotFound(t *testing.T) {
-	t.Skip("pending")
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Create the "foo" database.
+	if err := s.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "default", Duration: time.Hour}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetDefaultRetentionPolicy("foo", "default"); err != nil {
+		t.Fatal(err)
+	}
+
+	// create and check
+	nonExistentDBName := "bar"
+	q := fmt.Sprintf(
+		"CREATE CONTINUOUS QUERY myquery ON %v BEGIN SELECT count() INTO measure1 FROM myseries GROUP BY time(10m) END",
+		nonExistentDBName,
+	)
+	stmt, err := influxql.NewParser(strings.NewReader(q)).ParseStatement()
+	if err != nil {
+		t.Fatalf("error parsing query %s", err.Error())
+	}
+	expectedErr := influxdb.ErrDatabaseNotFound(nonExistentDBName)
+
+	extractMessage := func(e error) string {
+		r, _ := regexp.Compile("(.+)\\(.+\\)")
+		match := r.FindStringSubmatch(e.Error())[1]
+		return match
+	}
+
+	expectedMessage := extractMessage(expectedErr)
+
+	cq := stmt.(*influxql.CreateContinuousQueryStatement)
+	if err := extractMessage(s.CreateContinuousQuery(cq)); err != expectedMessage {
+		t.Fatal(err)
+	}
 }
 
 // Ensure the server returns an error when creating a continuous query on a retention policy that doesn't exist
