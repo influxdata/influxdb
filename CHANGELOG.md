@@ -1,6 +1,7 @@
 ## v0.9.0-rc30 [unreleased]
 
 ### Features
+- [#2254](https://github.com/influxdb/influxdb/pull/2254): Add Support for OpenTSDB HTTP interface. Thanks @tcolgate
 
 ### Bugfixes
 - [#2521](https://github.com/influxdb/influxdb/pull/2521): Don't truncate topic data until fully replicated.
