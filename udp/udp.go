@@ -8,24 +8,20 @@ import (
 
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/client"
+	"github.com/influxdb/influxdb/data"
 )
 
 const (
 	udpBufferSize = 65536
 )
 
-// SeriesWriter defines the interface for the destination of the data.
-type SeriesWriter interface {
-	WriteSeries(database, retentionPolicy string, points []influxdb.Point) (uint64, error)
-}
-
 // UDPServer
 type UDPServer struct {
-	writer SeriesWriter
+	writer data.SeriesWriter
 }
 
 // NewUDPServer returns a new instance of a UDPServer
-func NewUDPServer(w SeriesWriter) *UDPServer {
+func NewUDPServer(w data.SeriesWriter) *UDPServer {
 	u := UDPServer{
 		writer: w,
 	}
@@ -69,8 +65,8 @@ func (u *UDPServer) ListenAndServe(iface string) error {
 				continue
 			}
 
-			if msgIndex, err := u.writer.WriteSeries(bp.Database, bp.RetentionPolicy, points); err != nil {
-				log.Printf("Server write failed. Message index was %d: %s", msgIndex, err)
+			if err := u.writer.Write(bp.Database, bp.RetentionPolicy, points); err != nil {
+				log.Printf("Server write failed. %s", err)
 			}
 		}
 	}()

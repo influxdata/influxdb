@@ -100,12 +100,12 @@ func (h *Handler) serveData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.Server != nil {
-		sh := httpd.NewClusterHandler(h.Server, h.Config.Authentication.Enabled,
-			h.Config.Snapshot.Enabled, h.Config.Logging.HTTPAccess, version)
-		sh.ServeHTTP(w, r)
-		return
-	}
+	//if h.Server != nil {
+	//sh := httpd.NewClusterHandler(h.Server, h.Config.Authentication.Enabled,
+	//h.Config.Snapshot.Enabled, h.Config.Logging.HTTPAccess, version)
+	//sh.ServeHTTP(w, r)
+	//return
+	//}
 
 	t := h.Broker.Topic(influxdb.BroadcastTopicID)
 	if t == nil {

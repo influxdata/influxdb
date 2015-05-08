@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/influxdb/influxdb"
+	"github.com/influxdb/influxdb/data"
 )
 
 const (
@@ -16,7 +17,7 @@ const (
 
 // UDPServer processes Graphite data received via UDP.
 type UDPServer struct {
-	writer   SeriesWriter
+	writer   data.SeriesWriter
 	parser   *Parser
 	database string
 	conn     *net.UDPConn
@@ -29,7 +30,7 @@ type UDPServer struct {
 }
 
 // NewUDPServer returns a new instance of a UDPServer
-func NewUDPServer(p *Parser, w SeriesWriter, db string) *UDPServer {
+func NewUDPServer(p *Parser, w data.SeriesWriter, db string) *UDPServer {
 	u := UDPServer{
 		parser:   p,
 		writer:   w,
@@ -76,7 +77,7 @@ func (u *UDPServer) ListenAndServe(iface string) error {
 				}
 
 				// Send the data to the writer.
-				_, e := u.writer.WriteSeries(u.database, "", []influxdb.Point{point})
+				e := u.writer.Write(u.database, "", []influxdb.Point{point})
 				if e != nil {
 					u.Logger.Printf("failed to write data point: %s\n", e)
 				}
