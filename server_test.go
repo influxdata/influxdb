@@ -1713,14 +1713,47 @@ func TestServer_CreateContinuousQuery_ErrDatabaseNotFound(t *testing.T) {
 	expectedMessage := extractMessage(expectedErr)
 
 	cq := stmt.(*influxql.CreateContinuousQueryStatement)
-	if err := extractMessage(s.CreateContinuousQuery(cq)); err != expectedMessage {
+	if err := s.CreateContinuousQuery(cq); extractMessage(err) != expectedMessage {
 		t.Fatal(err)
 	}
 }
 
 // Ensure the server returns an error when creating a continuous query on a retention policy that doesn't exist
 func TestServer_CreateContinuousQuery_ErrRetentionPolicyNotFound(t *testing.T) {
-	t.Skip("pending")
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Create the "foo" database.
+	if err := s.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "default", Duration: time.Hour}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetDefaultRetentionPolicy("foo", "default"); err != nil {
+		t.Fatal(err)
+	}
+
+	database := "foo"
+	retentionPolicy := "1h"
+	// create and check
+	q := fmt.Sprintf(
+		"CREATE CONTINUOUS QUERY myquery ON %v BEGIN SELECT count() INTO \"%v.\".\"measure1\" FROM myseries GROUP BY time(10m) END",
+		database,
+		retentionPolicy,
+	)
+	stmt, err := influxql.NewParser(strings.NewReader(q)).ParseStatement()
+	if err != nil {
+		t.Fatalf("error parsing query %s", err.Error())
+	}
+	expectedError := fmt.Errorf("retention policy does not exist: %s.%s.", database, retentionPolicy)
+
+	cq := stmt.(*influxql.CreateContinuousQueryStatement)
+	if err := s.CreateContinuousQuery(cq); err.Error() != expectedError.Error() {
+		t.Fatal(err)
+	}
 }
 
 func TestServer_CreateContinuousQuery_ErrInfinteLoop(t *testing.T) {
