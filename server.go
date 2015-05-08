@@ -90,6 +90,15 @@ type WritePointsRequest struct {
 	Points           []Point
 }
 
+func (t *WritePointsRequest) AddPoint(name string, value interface{}, timestamp time.Time, tags map[string]string) {
+	t.Points = append(t.Points, Point{
+		Name:   name,
+		Fields: map[string]interface{}{"value": value},
+		Time:   timestamp,
+		Tags:   tags,
+	})
+}
+
 // Server represents a collection of metadata and raw metric data.
 type Server struct {
 	mu       sync.RWMutex
@@ -1822,14 +1831,6 @@ func (s *Server) DropSeries(database string, seriesByMeasurement map[string][]ui
 	c := dropSeriesCommand{Database: database, SeriesByMeasurement: seriesByMeasurement}
 	_, err := s.broadcast(dropSeriesMessageType, c)
 	return err
-}
-
-// Point defines the values that will be written to the database
-type Point struct {
-	Name   string
-	Tags   map[string]string
-	Time   time.Time
-	Fields map[string]interface{}
 }
 
 // WriteSeries writes series data to the database.
