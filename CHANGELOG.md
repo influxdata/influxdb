@@ -4,6 +4,7 @@
 
 ### Bugfixes
 - [#2521](https://github.com/influxdb/influxdb/pull/2521): Don't truncate topic data until fully replicated.
+- [#2509](https://github.com/influxdb/influxdb/pull/2509): Parse config file correctly during restore. Thanks @neonstalwart
 
 ## v0.9.0-rc29 [2015-05-05]
 
