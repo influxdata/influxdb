@@ -266,6 +266,14 @@ func (s *Shard) HasDataNodeID(id uint64) bool {
 	return false
 }
 
+func (s *Shard) Write(r *WritePointsRequest) error {
+	return nil
+}
+
+func (s *Shard) Read(timestamp time.Time) ([]Point, error) {
+	return nil, nil
+}
+
 // readSeries reads encoded series data from a shard.
 func (s *Shard) readSeries(seriesID uint64, timestamp int64) (values []byte, err error) {
 	err = s.store.View(func(tx *bolt.Tx) error {
