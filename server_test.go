@@ -1929,7 +1929,7 @@ func TestServer_ShowContinuousQueriesStatement(t *testing.T) {
 
 	scq := "SHOW CONTINUOUS QUERIES"
 	results := s.executeQuery(MustParseQuery(scq), "foo", nil)
-	queries := s.ContinuousQueries("foo")
+
 	if results.Error() != nil {
 		t.Fatalf("unexpected error: %s", results.Error())
 	}
