@@ -8,6 +8,7 @@ import (
 	"hash/fnv"
 	"io"
 	"log"
+	"math"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -950,12 +951,15 @@ func (t *Topic) Truncate(maxSize int64) (int, int64, error) {
 		return 0, 0, err
 	}
 
-	// Find the highest-replicated index, this is a condition for deletion of segments
-	// within this topic.
-	var highestIndex uint64
-	for _, idx := range t.indexByURL {
-		if idx > highestIndex {
-			highestIndex = idx
+	// Find the index that has been fully replicated, this is a condition for deletion of
+	// segments within this topic.
+	var replicatedIndex uint64
+	if len(t.indexByURL) > 0 {
+		replicatedIndex = math.MaxUint64
+		for _, idx := range t.indexByURL {
+			if idx < replicatedIndex {
+				replicatedIndex = idx
+			}
 		}
 	}
 
@@ -978,8 +982,8 @@ func (t *Topic) Truncate(maxSize int64) (int, int64, error) {
 		// The first segment can only be deleted if the last index in that segment has
 		// been replicated. The most efficient way to check this is to ensure that the
 		// first index of the subsequent segment has been replicated.
-		if second.Index > highestIndex {
-			// No guarantee first segment has been replicated.
+		if second.Index > replicatedIndex {
+			// First segment has not been fully replicated.
 			break
 		}
 
