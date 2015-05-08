@@ -2,6 +2,7 @@
 
 ### Features
 - [#2254](https://github.com/influxdb/influxdb/pull/2254): Add Support for OpenTSDB HTTP interface. Thanks @tcolgate
+- [#2525](https://github.com/influxdb/influxdb/pull/2525): Serve broker diagnostics over HTTP
 
 ### Bugfixes
 - [#2521](https://github.com/influxdb/influxdb/pull/2521): Don't truncate topic data until fully replicated.

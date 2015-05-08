@@ -653,6 +653,37 @@ func (b *Broker) Apply(m *Message) error {
 	return nil
 }
 
+// Diagnostics returns the broker diagnostics.
+func (b *Broker) Diagnostics() interface{} {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	d := &BrokerDiagnostics{
+		IsLeader:     b.IsLeader(),
+		ClusterID:    b.ClusterID(),
+		Path:         b.path,
+		Index:        b.index,
+		Topics:       make(map[string]TopicDiagnostics, len(b.topics)),
+		MaxTopicSize: b.MaxTopicSize,
+	}
+
+	for _, t := range b.topics {
+		d.Topics[t.path] = t.Diagnostics()
+	}
+
+	return d
+}
+
+// BrokerDiagnostics represents diagnostic information for a broker.
+type BrokerDiagnostics struct {
+	IsLeader     bool                        `json:"isLeader"`
+	ClusterID    uint64                      `json:"clusterID"`
+	Path         string                      `json:"path"`
+	Index        uint64                      `json:"index"`
+	Topics       map[string]TopicDiagnostics `json:"topics"`
+	MaxTopicSize int64                       `json:"maxTopicSize"`
+}
+
 // snapshotHeader represents the header of a snapshot.
 type snapshotHeader struct {
 	Topics []*snapshotTopic `json:"topics"`
@@ -1008,6 +1039,39 @@ func (t *Topic) Truncate(maxSize int64) (int, int64, error) {
 	}
 
 	return nSegmentsDeleted, nBytesDeleted, err
+}
+
+// Diagnostics returns diagnostic information for the topic.
+func (t *Topic) Diagnostics() TopicDiagnostics {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
+	d := TopicDiagnostics{
+		ID:             t.id,
+		Path:           t.path,
+		Opened:         t.opened,
+		Truncated:      t.Truncated(),
+		Index:          t.index,
+		IndexByURL:     make(map[string]uint64, len(t.indexByURL)),
+		MaxSegmentSize: t.MaxSegmentSize,
+	}
+
+	for u, idx := range t.indexByURL {
+		d.IndexByURL[u.String()] = idx
+	}
+
+	return d
+}
+
+// TopicDiagnostics represents the diagnostic information for the topic.
+type TopicDiagnostics struct {
+	ID             uint64            `json:"id"`
+	Path           string            `json:"path"`
+	Opened         bool              `json:"open"`
+	Truncated      bool              `json:"truncated"`
+	Index          uint64            `json:"index"`
+	IndexByURL     map[string]uint64 `json:"indexByURL"`
+	MaxSegmentSize int64             `json:"maxSegmentSize"`
 }
 
 // Topics represents a list of topics sorted by id.

@@ -299,6 +299,9 @@ func (b *HandlerBroker) SetTopicMaxIndex(topicID, index uint64, dataURL url.URL)
 func (b *HandlerBroker) DataURLsForTopic(id, index uint64) []url.URL {
 	return nil
 }
+func (b *HandlerBroker) Diagnostics() interface{} {
+	return nil
+}
 
 // MustParseURL parses a string into a URL. Panic on error.
 func MustParseURL(s string) *url.URL {
