@@ -1900,6 +1900,50 @@ func TestServer_RunContinuousQueries(t *testing.T) {
 	verify(3, `{"series":[{"name":"cpu_region","tags":{"region":"us-east"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",25]]},{"name":"cpu_region","tags":{"region":"us-west"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",75]]}]}`)
 }
 
+// Ensure the server can return continuous queries.
+func TestServer_ShowContinuousQueriesStatement(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Create the "foo" database.
+	if err := s.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "bar", Duration: time.Hour}); err != nil {
+		t.Fatal(err)
+	}
+	s.SetDefaultRetentionPolicy("foo", "bar")
+
+	// create and check
+	q := "CREATE CONTINUOUS QUERY myquery ON foo BEGIN SELECT count() INTO measure1 FROM myseries GROUP BY time(10m) END"
+	stmt, err := influxql.NewParser(strings.NewReader(q)).ParseStatement()
+	if err != nil {
+		t.Fatalf("error parsing query %s", err.Error())
+	}
+	cq := stmt.(*influxql.CreateContinuousQueryStatement)
+	if err := s.CreateContinuousQuery(cq); err != nil {
+		t.Fatalf("error creating continuous query %s", err.Error())
+	}
+
+	scq := "SHOW CONTINUOUS QUERIES"
+	results := s.executeQuery(MustParseQuery(scq), "foo", nil)
+	queries := s.ContinuousQueries("foo")
+	if results.Error() != nil {
+		t.Fatalf("unexpected error: %s", results.Error())
+	}
+	expected := `{"series":[{"name":"foo","columns":["name","query"],"values":[["myquery","CREATE CONTINUOUS QUERY myquery ON foo BEGIN SELECT count() INTO measure1 FROM myseries GROUP BY time(10m) END"]]}]}`
+
+	if res := results.Results[0]; res.Err != nil {
+		t.Errorf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 1 {
+		t.Errorf("unexpected row count: %d", len(res.Series))
+	} else if s := mustMarshalJSON(res); s != expected {
+		t.Errorf("unexpected row(0): \nexp: %s\ngot: %s", expected, s)
+	}
+}
+
 // Ensure the server can create a snapshot writer.
 func TestServer_CreateSnapshotWriter(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
