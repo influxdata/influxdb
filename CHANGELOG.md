@@ -1,3 +1,10 @@
+## v0.9.0-rc30 [unreleased]
+
+### Features
+
+### Bugfixes
+- [#2521](https://github.com/influxdb/influxdb/pull/2521): Don't truncate topic data until fully replicated.
+
 ## v0.9.0-rc29 [2015-05-05]
 
 ### Features
