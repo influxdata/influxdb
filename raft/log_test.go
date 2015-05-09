@@ -257,9 +257,7 @@ func TestLog_WriteEntriesTo(t *testing.T) {
 	}()
 
 	// Wait for buffer to be written to.
-	for buf.Len() == 0 {
-		runtime.Gosched()
-	}
+	time.Sleep(1 * time.Second)
 
 	// Verify that a snapshot is not sent.
 	entries := MustDecodeAllLogEntries(&buf)
@@ -295,9 +293,7 @@ func TestLog_WriteEntriesTo_Snapshot(t *testing.T) {
 	}()
 
 	// Wait for buffer to be written to.
-	for buf.Len() == 0 {
-		runtime.Gosched()
-	}
+	time.Sleep(1 * time.Second)
 
 	// Verify that a snapshot is not sent.
 	entries := MustDecodeAllLogEntries(&buf)
