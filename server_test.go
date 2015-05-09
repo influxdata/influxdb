@@ -2003,7 +2003,7 @@ func measurementsEqual(l influxdb.Measurements, r influxdb.Measurements) bool {
 	return false
 }
 
-// Server returns empty result when no tags exist
+// Ensure server returns empty result when no tags exist
 func TestServer_ShowTagKeysStatement(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
@@ -2036,7 +2036,7 @@ func TestServer_ShowTagKeysStatement(t *testing.T) {
 	}
 }
 
-// ShowTagKeysStatement returns ErrDatabaseNotFound for nonexistent database
+// Ensure ShowTagKeysStatement returns ErrDatabaseNotFound for nonexistent database
 func TestServer_ShowTagKeysStatement_ErrDatabaseNotFound(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
@@ -2070,7 +2070,7 @@ func TestServer_ShowTagKeysStatement_ErrDatabaseNotFound(t *testing.T) {
 	}
 }
 
-// ShowTagKeysStatement returns ErrMeasurementNotFound for non existent measurement
+// Ensure ShowTagKeysStatement returns ErrMeasurementNotFound for non existent measurement
 func TestServer_ShowTagKeysStatement_ErrMeasurementNotFound(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
@@ -2108,7 +2108,7 @@ func TestServer_ShowTagKeysStatement_ErrMeasurementNotFound(t *testing.T) {
 	}
 }
 
-// ShowTagKeysStatement returns tag keys when tags exist
+// Ensure ShowTagKeysStatement returns tag keys when tags exist
 func TestServer_ShowTagKeysStatement_TagsExist(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
@@ -2149,7 +2149,7 @@ func TestServer_ShowTagKeysStatement_TagsExist(t *testing.T) {
 	}
 }
 
-// ShowTagValuesStatement returns tag values
+// Ensure ShowTagValuesStatement returns tag values
 func TestServer_ShowTagValuesStatement_TagsExist(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
@@ -2190,7 +2190,7 @@ func TestServer_ShowTagValuesStatement_TagsExist(t *testing.T) {
 	}
 }
 
-// ShowTagValuesStatement returns tag values when where clause specified
+// Ensure ShowTagValuesStatement returns tag values when where clause specified
 func TestServer_ShowTagValuesStatement_WhereClause(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
@@ -2237,7 +2237,7 @@ func TestServer_ShowTagValuesStatement_WhereClause(t *testing.T) {
 	}
 }
 
-// ShowTagValuesStatement returns ErrDatabaseNotFound for non existent database
+// Ensure ShowTagValuesStatement returns ErrDatabaseNotFound for non existent database
 func TestServer_ShowTagValuesStatement_ErrDatabaseNotFound(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
@@ -2279,7 +2279,7 @@ func TestServer_ShowTagValuesStatement_ErrDatabaseNotFound(t *testing.T) {
 	}
 }
 
-// ShowTagValuesStatement returns ErrMeasurementNotFound for non existent database
+// Ensure ShowTagValuesStatement returns ErrMeasurementNotFound for non existent database
 func TestServer_ShowTagValuesStatement_ErrMeasurementNotFound(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
@@ -2349,9 +2349,7 @@ func TestServer_CreateDatabaseIfNotExists(t *testing.T) {
 
 func TestServer_SeriesByTagNames(t *testing.T)  { t.Skip("pending") }
 func TestServer_SeriesByTagValues(t *testing.T) { t.Skip("pending") }
-func TestDatabase_TagNames(t *testing.T)        { t.Skip("pending") }
 func TestServer_TagNamesBySeries(t *testing.T)  { t.Skip("pending") }
-func TestServer_TagValues(t *testing.T)         { t.Skip("pending") }
 func TestServer_TagValuesBySeries(t *testing.T) { t.Skip("pending") }
 
 // Point JSON Unmarshal tests
