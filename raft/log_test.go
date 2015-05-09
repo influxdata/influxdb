@@ -781,6 +781,12 @@ func (buf *lockingBuffer) Len() int {
 	return buf.Buffer.Len()
 }
 
+func (buf *lockingBuffer) Read(p []byte) (n int, err error) {
+	buf.Lock()
+	defer buf.Unlock()
+	return buf.Buffer.Read(p)
+}
+
 // MustOpen opens the log. Panic on error.
 func (l *Log) MustOpen() {
 	if err := l.Open(tempfile()); err != nil {
