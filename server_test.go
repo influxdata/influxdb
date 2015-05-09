@@ -2325,6 +2325,28 @@ func TestServer_ShowTagValuesStatement_ErrMeasurementNotFound(t *testing.T) {
 	}
 }
 
+// Ensure database is created if it does not exist
+func TestServer_CreateDatabaseIfNotExists(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	result := s.CreateDatabaseIfNotExists("foo")
+	if result != nil {
+		t.Fatal(result.Error())
+	}
+
+	if a := s.Databases(); len(a) != 1 {
+		t.Fatalf("unexpected db count: %d", len(a))
+	}
+
+	err := s.CreateDatabaseIfNotExists("foo")
+	if err != nil {
+		t.Fatal("An error should be returned if the database already exists")
+	}
+}
+
 func TestServer_SeriesByTagNames(t *testing.T)  { t.Skip("pending") }
 func TestServer_SeriesByTagValues(t *testing.T) { t.Skip("pending") }
 func TestDatabase_TagNames(t *testing.T)        { t.Skip("pending") }
