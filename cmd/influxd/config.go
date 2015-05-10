@@ -165,6 +165,7 @@ type Config struct {
 	ReportingDisabled bool   `toml:"reporting-disabled"`
 	Version           string `toml:"-"`
 	InfluxDBVersion   string `toml:"-"`
+	SecretFile        string `toml:"secret-file"`
 
 	Initialization Initialization `toml:"initialization"`
 

@@ -1,6 +1,7 @@
 package influxdb
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -81,6 +82,9 @@ type Server struct {
 	WriteTrace bool // Detailed logging of write path
 
 	authenticationEnabled bool
+
+	// SecretFile location
+	SecretFile string
 
 	// Retention policy settings
 	RetentionAutoCreate bool
@@ -1316,6 +1320,32 @@ func (s *Server) Authenticate(username, password string) (*User, error) {
 		return nil, fmt.Errorf("invalid username or password")
 	}
 	return u, nil
+}
+
+// Authenticate by secret file
+func (s *Server) AuthenticateBySecret(secret string) (*User, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	// load content of the file (first line only)
+	file, err := os.Open(s.SecretFile)
+	if err != nil {
+		return nil, fmt.Errorf("Error while reading %s '%s'", s.SecretFile, err)
+	}
+
+	defer file.Close()
+	scanner := bufio.NewScanner(file)
+	if scanner.Scan() {
+		if secret != scanner.Text() {
+			return nil, fmt.Errorf("Invalid secret content")
+		} else {
+			user := User{Name: "SecretFileAuth", Admin: true}
+			return &user, nil
+		}
+	} else {
+		return nil, fmt.Errorf("Problem while reading the secret file")
+	}
+
 }
 
 // CreateUser creates a user on the server.
