@@ -16,6 +16,7 @@ This release has a breaking API change for writes -- the field previously called
 - [#2536](https://github.com/influxdb/influxdb/issues/2532): Set leader ID on restart of single-node cluster.
 - [#2448](https://github.com/influxdb/influxdb/pull/2448): Fix inconsistent data type - thanks @cannium!
 - [#2108](https://github.com/influxdb/influxdb/issues/2108): Change `timestamp` to `time` - thanks @neonstalwart!
+- [#2539](https://github.com/influxdb/influxdb/issues/2539): Add additional vote request logging.
 
 ## v0.9.0-rc29 [2015-05-05]
 

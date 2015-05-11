@@ -1073,7 +1073,7 @@ func (l *Log) elect(term uint64, elected chan struct{}, wg *sync.WaitGroup) {
 		}
 		go func(n *ConfigNode) {
 			peerTerm, err := l.Transport.RequestVote(n.URL, term, id, lastLogIndex, lastLogTerm)
-			l.tracef("send req vote(term=%d, candidateID=%d, lastLogIndex=%d, lastLogTerm=%d) (term=%d, err=%v)", term, id, lastLogIndex, lastLogTerm, peerTerm, err)
+			l.printf("send req vote(term=%d, candidateID=%d, lastLogIndex=%d, lastLogTerm=%d) (term=%d, err=%v)", term, id, lastLogIndex, lastLogTerm, peerTerm, err)
 
 			// If an error occured then update term.
 			if err != nil {
@@ -1665,7 +1665,7 @@ func (l *Log) RequestVote(term, candidateID, lastLogIndex, lastLogTerm uint64) (
 	}
 
 	defer func() {
-		l.tracef("recv req vote: (term=%d, candidateID=%d, lastLogIndex=%d, lastLogTerm=%d) (err=%v)",
+		l.printf("recv req vote: (term=%d, candidateID=%d, lastLogIndex=%d, lastLogTerm=%d) (err=%v)",
 			term, candidateID, lastLogIndex, lastLogTerm, err)
 	}()
 
