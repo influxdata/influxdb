@@ -189,6 +189,18 @@ func isAuthorizationError(err error) bool {
 	return ok
 }
 
+// IsClientError indicates whether an error is a known client error.
+func IsClientError(err error) bool {
+	if err == ErrFieldsRequired {
+		return true
+	}
+	if err == ErrFieldTypeConflict {
+		return true
+	}
+
+	return false
+}
+
 // mustMarshal encodes a value to JSON.
 // This will panic if an error occurs. This should only be used internally when
 // an invalid marshal will cause corruption and a panic is appropriate.

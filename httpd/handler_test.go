@@ -224,7 +224,7 @@ func TestHandler_CreateDatabase_Conflict(t *testing.T) {
 	defer s.Close()
 
 	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "CREATE DATABASE foo"}, nil, "")
-	if status != http.StatusInternalServerError {
+	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `{"results":[{"error":"database exists"}]}` {
 		t.Fatalf("unexpected body: %s", body)
@@ -255,7 +255,7 @@ func TestHandler_DropDatabase_NotFound(t *testing.T) {
 	defer s.Close()
 
 	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "DROP DATABASE bar"}, nil, "")
-	if status != http.StatusInternalServerError {
+	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	} else if !matchRegex(`database not found: bar.*`, body) {
 		t.Fatalf("unexpected body: %s", body)
@@ -289,7 +289,7 @@ func TestHandler_RetentionPolicies_DatabaseNotFound(t *testing.T) {
 
 	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "SHOW RETENTION POLICIES foo"}, nil, "")
 
-	if status != http.StatusInternalServerError {
+	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	} else if !matchRegex(`database not found: foo.*`, body) {
 		t.Fatalf("unexpected body: %s", body)
@@ -349,7 +349,7 @@ func TestHandler_CreateRetentionPolicy_DatabaseNotFound(t *testing.T) {
 	query := map[string]string{"q": "CREATE RETENTION POLICY bar ON foo DURATION 1h REPLICATION 1"}
 	status, _ := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 
-	if status != http.StatusInternalServerError {
+	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	}
 }
@@ -367,7 +367,7 @@ func TestHandler_CreateRetentionPolicy_Conflict(t *testing.T) {
 
 	status, _ := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 
-	if status != http.StatusInternalServerError {
+	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	}
 }
@@ -449,7 +449,7 @@ func TestHandler_UpdateRetentionPolicy_DatabaseNotFound(t *testing.T) {
 	status, _ := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 
 	// Verify response.
-	if status != http.StatusInternalServerError {
+	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	}
 }
@@ -467,7 +467,7 @@ func TestHandler_UpdateRetentionPolicy_NotFound(t *testing.T) {
 	status, _ := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 
 	// Verify response.
-	if status != http.StatusInternalServerError {
+	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	}
 }
@@ -501,7 +501,7 @@ func TestHandler_DeleteRetentionPolicy_DatabaseNotFound(t *testing.T) {
 	query := map[string]string{"q": "DROP RETENTION POLICY bar ON qux"}
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 
-	if status != http.StatusInternalServerError {
+	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	} else if !matchRegex(`database not found: .*qux.*`, body) {
 		t.Fatalf("unexpected body: %s", body)
@@ -519,7 +519,7 @@ func TestHandler_DeleteRetentionPolicy_NotFound(t *testing.T) {
 	query := map[string]string{"q": "DROP RETENTION POLICY bar ON foo"}
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 
-	if status != http.StatusInternalServerError {
+	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `{"results":[{"error":"retention policy not found"}]}` {
 		t.Fatalf("unexpected body: %s", body)
@@ -821,7 +821,7 @@ func TestHandler_CreateDataNode_InternalServerError(t *testing.T) {
 	defer s.Close()
 
 	status, body := MustHTTP("POST", s.URL+`/data/data_nodes`, nil, nil, `{"url":""}`)
-	if status != http.StatusInternalServerError {
+	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d, %s", status, body)
 	} else if body != `data node url required` {
 		t.Fatalf("unexpected body: %s", body)
@@ -1177,7 +1177,7 @@ func TestHandler_serveWriteSeriesWithNoFields(t *testing.T) {
 
 	expected := fmt.Sprintf(`{"error":"%s"}`, influxdb.ErrFieldsRequired.Error())
 
-	if status != http.StatusInternalServerError {
+	if status != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != expected {
 		t.Fatalf("result mismatch:\n\texp=%s\n\tgot=%s\n", expected, body)
@@ -1337,8 +1337,8 @@ func TestHandler_serveWriteSeries_invalidJSON(t *testing.T) {
 
 	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
 
-	if status != http.StatusInternalServerError {
-		t.Fatalf("unexpected status: expected: %d, actual: %d", http.StatusInternalServerError, status)
+	if status != http.StatusBadRequest {
+		t.Fatalf("unexpected status: expected: %d, actual: %d", http.StatusBadRequest, status)
 	}
 
 	response := `{"error":"invalid character 'o' in literal false (expecting 'a')"}`
@@ -1356,8 +1356,8 @@ func TestHandler_serveWriteSeries_noDatabaseSpecified(t *testing.T) {
 
 	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{}`)
 
-	if status != http.StatusInternalServerError {
-		t.Fatalf("unexpected status: expected: %d, actual: %d", http.StatusInternalServerError, status)
+	if status != http.StatusBadRequest {
+		t.Fatalf("unexpected status: expected: %d, actual: %d", http.StatusBadRequest, status)
 	}
 
 	response := `{"error":"database is required"}`
