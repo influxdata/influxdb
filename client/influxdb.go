@@ -10,6 +10,8 @@ import (
 	"net/url"
 	"time"
 
+	flatbuffers "github.com/google/flatbuffers/go"
+	flat "github.com/influxdb/influxdb/client/influxdb"
 	"github.com/influxdb/influxdb/influxql"
 )
 
@@ -122,6 +124,46 @@ func (c *Client) Write(bp BatchPoints) (*Response, error) {
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", c.userAgent)
+	if c.username != "" {
+		req.SetBasicAuth(c.username, c.password)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var response Response
+	dec := json.NewDecoder(resp.Body)
+	dec.UseNumber()
+	err = dec.Decode(&response)
+	if err != nil && err.Error() != "EOF" {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return &response, response.Error()
+	}
+
+	return nil, nil
+}
+
+func (c *Client) WriteBin(bp BatchPoints) (*Response, error) {
+	c.url.Path = "write"
+
+	b, offset, err := bp.MarshalFlatbuffer()
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", c.url.String(), bytes.NewBuffer(b))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/octet-stream")
+	req.Header.Set("User-Agent", c.userAgent)
+	req.Header.Set("InfluxDB-FlatbufferOffset", fmt.Sprintf("%d", offset))
 	if c.username != "" {
 		req.SetBasicAuth(c.username, c.password)
 	}
@@ -427,6 +469,97 @@ type BatchPoints struct {
 	Tags            map[string]string `json:"tags,omitempty"`
 	Timestamp       time.Time         `json:"timestamp,omitempty"`
 	Precision       string            `json:"precision,omitempty"`
+}
+
+func (bp *BatchPoints) MarshalFlatbuffer() ([]byte, flatbuffers.UOffsetT, error) {
+	bb := NewBatchBuilder()
+	bb.Database(bp.Database)
+	bb.RetentionPolicy(bp.RetentionPolicy)
+	bb.Timestamp(bp.Timestamp.UTC().UnixNano())
+	bb.Precision(bp.Precision)
+	bb.Tags(bp.Tags)
+	for _, p := range bp.Points {
+		for k, v := range p.Fields {
+			bb.ResetFields()
+			switch val := v.(type) {
+			case float64:
+				bb.AddFieldDouble(k, val)
+			default:
+				return nil, 0, fmt.Errorf("unsupported field type: %T", v)
+			}
+		}
+		bb.EndFields()
+		bb.AddPoint(p.Name, p.Tags, p.Timestamp.UTC().UnixNano(), p.Precision)
+	}
+	bb.Finish()
+
+	return bb.Bytes(), bb.builder.Head(), nil
+}
+
+func (bp *BatchPoints) UnmarshalFlatbuffer(b []byte, o flatbuffers.UOffsetT) error {
+	if bp.Tags == nil {
+		bp.Tags = map[string]string{}
+	}
+	fbp := flat.GetRootAsBatchPoints(b, o)
+
+	// Unmarshal simple batch level members.
+	bp.Database = fbp.Database()
+	bp.RetentionPolicy = fbp.RetentionPolicy()
+	bp.Timestamp = time.Unix(0, fbp.Timestamp())
+	bp.Precision = fbp.Precision()
+
+	// Unmarshal batch level tags.
+	var tag flat.KeyValStr
+	for i := 0; i < fbp.TagsLength(); i++ {
+		ok := fbp.Tags(&tag, i)
+		if !ok {
+			return fmt.Errorf("error unmarshaling batch tags")
+		}
+		bp.Tags[tag.Key()] = tag.Val()
+	}
+
+	// Unmarshal batch points.
+	var p flat.Point
+	for i := 0; i < fbp.PointsLength(); i++ {
+		ok := fbp.Points(&p, i)
+		if !ok {
+			return fmt.Errorf("error unmarshaling batch point")
+		}
+
+		point := &Point{
+			Name:      p.Name(),
+			Timestamp: time.Unix(0, p.Timestamp()),
+			Precision: p.Precision(),
+			Tags:      map[string]string{},
+			Fields:    map[string]interface{}{},
+		}
+		// Unmarshal point tags.
+		for i := 0; i < p.TagsLength(); i++ {
+			ok := p.Tags(&tag, i)
+			if !ok {
+				return fmt.Errorf("error unmarshaling point tags")
+			}
+			point.Tags[tag.Key()] = tag.Val()
+		}
+		// Unmarshal point fields.
+		var field flat.KeyVal
+		for j := 0; j < p.FieldsLength(); j++ {
+			ok := p.Fields(&field, j)
+			if !ok {
+				return fmt.Errorf("error unmarshaling batch point fields")
+			}
+			// Unmarshal field value.
+			val, err := GetValFloat64(&field)
+			if err != nil {
+				return err
+			}
+
+			point.Fields[field.Key()] = val
+		}
+		// Add the unmarshaled point to the batch.
+		bp.Points = append(bp.Points, *point)
+	}
+	return nil
 }
 
 // UnmarshalJSON decodes the data into the BatchPoints struct

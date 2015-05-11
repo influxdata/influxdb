@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/bmizerany/pat"
+	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/client"
 	"github.com/influxdb/influxdb/influxql"
@@ -481,28 +482,49 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *influ
 	}
 
 	var bp client.BatchPoints
-	var dec *json.Decoder
-
-	if h.WriteTrace {
+	contentType := r.Header.Get("Content-Type")
+	if contentType == "application/octet-stream" {
 		b, err := ioutil.ReadAll(body)
 		if err != nil {
 			h.Logger.Print("write handler failed to read bytes from request body")
-		} else {
-			h.Logger.Printf("write body received by handler: %s", string(b))
 		}
-		dec = json.NewDecoder(strings.NewReader(string(b)))
-	} else {
-		dec = json.NewDecoder(body)
-		defer body.Close()
-	}
 
-	if err := dec.Decode(&bp); err != nil {
-		if err.Error() == "EOF" {
-			w.WriteHeader(http.StatusOK)
+		o, err := strconv.Atoi(r.Header.Get("InfluxDB-FlatbufferOffset"))
+		if err != nil {
+			writeError(influxdb.Result{Err: err}, http.StatusInternalServerError)
 			return
 		}
-		writeError(influxdb.Result{Err: err}, http.StatusInternalServerError)
-		return
+
+		err = bp.UnmarshalFlatbuffer(b, flatbuffers.UOffsetT(o))
+		if err != nil {
+			h.Logger.Print(err.Error())
+			writeError(influxdb.Result{Err: err}, http.StatusInternalServerError)
+			return
+		}
+	} else if contentType == "application/json" {
+		var dec *json.Decoder
+
+		if h.WriteTrace {
+			b, err := ioutil.ReadAll(body)
+			if err != nil {
+				h.Logger.Print("write handler failed to read bytes from request body")
+			} else {
+				h.Logger.Printf("write body received by handler: %s", string(b))
+			}
+			dec = json.NewDecoder(strings.NewReader(string(b)))
+		} else {
+			dec = json.NewDecoder(body)
+			defer body.Close()
+		}
+
+		if err := dec.Decode(&bp); err != nil {
+			if err.Error() == "EOF" {
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+			writeError(influxdb.Result{Err: err}, http.StatusInternalServerError)
+			return
+		}
 	}
 
 	if bp.Database == "" {

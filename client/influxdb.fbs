@@ -1,0 +1,54 @@
+namespace influxdb;
+
+attribute "priority";
+
+table Double {
+	Val:double;
+}
+
+table Long {
+	Val:long;
+}
+
+table Bool {
+	Val:bool;
+}
+
+table String {
+	Val:string;
+}
+
+table Blob {
+	Val:[ubyte];
+}
+
+union Variant { Double, Long, Bool, String, Blob }
+
+table KeyVal {
+	Key:string;
+	Val:Variant;
+}
+
+table KeyValStr {
+	Key:string;
+	Val:string;
+}
+
+table Point {
+	Name:string;
+	Tags:[KeyValStr];
+	Timestamp:long;
+	Fields:[KeyVal];
+	Precision:string;
+}
+
+table BatchPoints {
+	Database:string;
+	RetentionPolicy:string;
+	Timestamp:long;
+	Precision:string;
+	Tags:[KeyValStr];
+	Points:[Point];
+}
+
+root_type BatchPoints;
