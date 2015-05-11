@@ -1,5 +1,9 @@
 ## v0.9.0-rc30 [unreleased]
 
+### Release Notes
+
+This release has a breaking API change for writes -- the field previously called `timestamp` has been renamed to `time`.
+
 ### Features
 - [#2254](https://github.com/influxdb/influxdb/pull/2254): Add Support for OpenTSDB HTTP interface. Thanks @tcolgate
 - [#2525](https://github.com/influxdb/influxdb/pull/2525): Serve broker diagnostics over HTTP
@@ -8,7 +12,9 @@
 - [2535](https://github.com/influxdb/influxdb/pull/2535): Return exit status 0 if influxd already running. Thanks @haim0n.
 - [#2521](https://github.com/influxdb/influxdb/pull/2521): Don't truncate topic data until fully replicated.
 - [#2509](https://github.com/influxdb/influxdb/pull/2509): Parse config file correctly during restore. Thanks @neonstalwart
-- [#2536](https://github.com/influxdb/influxdb/pull/2536): Set leader ID on restart of single-ndoe cluster.
+- [#2536](https://github.com/influxdb/influxdb/pull/2536): Set leader ID on restart of single-node cluster.
+- [#2448](https://github.com/influxdb/influxdb/pull/2448): Fix inconsistent data type - thanks @cannium!
+- [#2108](https://github.com/influxdb/influxdb/issues/2108): Change `timestamp` to `time` - thanks @neonstalwart!
 
 ## v0.9.0-rc29 [2015-05-05]
 
