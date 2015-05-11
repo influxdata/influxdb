@@ -8,6 +8,7 @@
 - [2535](https://github.com/influxdb/influxdb/pull/2535): Return exit status 0 if influxd already running. Thanks @haim0n.
 - [#2521](https://github.com/influxdb/influxdb/pull/2521): Don't truncate topic data until fully replicated.
 - [#2509](https://github.com/influxdb/influxdb/pull/2509): Parse config file correctly during restore. Thanks @neonstalwart
+- [#2536](https://github.com/influxdb/influxdb/pull/2536): Set leader ID on restart of single-ndoe cluster.
 
 ## v0.9.0-rc29 [2015-05-05]
 

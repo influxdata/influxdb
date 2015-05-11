@@ -381,6 +381,11 @@ func (l *Log) Open(path string) error {
 		}
 		l.config = c
 
+		// If only node in cluster, then promote to leader immediately.
+		if l.config == nil || len(l.config.Nodes) == 1 {
+			l.leaderID = l.id
+		}
+
 		// Determine last applied index from FSM.
 		index := l.FSM.Index()
 		l.tracef("Open: fsm: index=%d", index)
@@ -461,6 +466,7 @@ func (l *Log) close() error {
 	l.lastLogIndex, l.lastLogTerm = 0, 0
 	l.entries = nil
 	l.term, l.votedFor = 0, 0
+	l.leaderID = 0
 	l.config = nil
 
 	l.tracef("closed")
