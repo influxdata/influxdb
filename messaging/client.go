@@ -341,10 +341,9 @@ func (c *Client) do(method, path string, values url.Values, contentType string, 
 		// If a temporary redirect occurs then update the leader and retry.
 		// If a non-200 status is returned then an error occurred.
 		if resp.StatusCode == http.StatusTemporaryRedirect {
-			resp.Body.Close()
-
 			redirectURL, err := url.Parse(resp.Header.Get("Location"))
 			if err != nil {
+				resp.Body.Close()
 				return nil, fmt.Errorf("invalid redirect location: %s", resp.Header.Get("Location"))
 			}
 			c.SetURL(*redirectURL)

@@ -169,7 +169,7 @@ func TestLog_Opened(t *testing.T) {
 	}
 }
 
-// Ensure that reopening an existing log will restore its ID and leader ID.
+// Ensure that reopening an existing log will restore its ID.
 func TestLog_Reopen(t *testing.T) {
 	l := NewInitializedLog(url.URL{Host: "log0"})
 	if l.ID() != 1 {
@@ -177,18 +177,10 @@ func TestLog_Reopen(t *testing.T) {
 	}
 	path := l.Path()
 
-	if l.IsLeader() != true {
-		t.Fatalf("expected log to be leader")
-	}
-
-	// Close log and make sure id is cleared and it is no longer leader.
+	// Close log and make sure id is cleared.
 	l.Log.Close()
 	if l.ID() != 0 {
 		t.Fatalf("expected id == 0")
-	}
-
-	if l.IsLeader() != false {
-		t.Fatalf("expected log not to be leader")
 	}
 
 	// Re-open and ensure id is restored.
@@ -198,12 +190,6 @@ func TestLog_Reopen(t *testing.T) {
 	if id := l.ID(); id != 1 {
 		t.Fatalf("unexpected id: %d", id)
 	}
-
-	// Ensure node is leader again.
-	if l.IsLeader() != true {
-		t.Fatalf("expected log to be leader")
-	}
-
 	l.Close()
 }
 
@@ -211,9 +197,6 @@ func TestLog_Reopen(t *testing.T) {
 func TestLog_Apply(t *testing.T) {
 	l := NewInitializedLog(url.URL{Host: "log0"})
 	defer l.Close()
-
-	// Force apply cycle and then signal wait.
-	go func() { l.Clock.apply() }()
 
 	// Apply a command.
 	index, err := l.Apply([]byte("foo"))
@@ -223,7 +206,11 @@ func TestLog_Apply(t *testing.T) {
 		t.Fatalf("unexpected index: %d", index)
 	}
 
+	// Force apply cycle and then signal wait.
+	go func() { l.Clock.apply() }()
+
 	// Single node clusters should apply to FSM immediately.
+	l.Wait(index)
 	if n := len(l.FSM.(*FSM).Commands); n != 1 {
 		t.Fatalf("unexpected command count: %d", n)
 	}
@@ -245,7 +232,7 @@ func TestLog_WriteEntriesTo(t *testing.T) {
 	defer l.Close()
 
 	// Apply a command.
-	index := l.MustApply([]byte("xxx"))
+	index := l.MustApplySync([]byte("xxx"))
 
 	// Write entries since the previous index to a buffer.
 	var buf lockingBuffer
@@ -282,7 +269,7 @@ func TestLog_WriteEntriesTo_Snapshot(t *testing.T) {
 	// Apply enough commands to go past the cache.
 	var index uint64
 	for i := 0; i < 10; i++ {
-		index = l.MustApply([]byte("xxx"))
+		index = l.MustApplySync([]byte("xxx"))
 	}
 
 	// Write entries since the previous index to a buffer.
@@ -377,10 +364,6 @@ func TestCluster_Apply(t *testing.T) {
 
 	// Apply a command.
 	leader := c.Logs[0]
-	go func() {
-		c.Logs[0].HeartbeatUntil(4)
-		c.Logs[0].Clock.apply()
-	}()
 	index, err := leader.Apply([]byte("foo"))
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
@@ -390,8 +373,15 @@ func TestCluster_Apply(t *testing.T) {
 	c.Logs[1].MustWaitUncommitted(4)
 	c.Logs[2].MustWaitUncommitted(4)
 
+	// Should not apply immediately.
+	if n := len(leader.FSM.(*FSM).Commands); n != 0 {
+		t.Fatalf("unexpected pre-heartbeat command count: %d", n)
+	}
+
 	// Run the heartbeat on the leader and have all logs apply.
 	// Only the leader should have the changes applied.
+	c.Logs[0].HeartbeatUntil(4)
+	c.Logs[0].Clock.apply()
 	c.Logs[1].Clock.apply()
 	c.Logs[2].Clock.apply()
 	if n := len(c.Logs[0].FSM.(*FSM).Commands); n != 1 {
@@ -439,20 +429,20 @@ func TestLog_Elect(t *testing.T) {
 		t.Fatalf("expected node 0 to go to term 2: got term %d", term)
 	}
 
-	go func() {
-		index := c.Logs[1].CommitIndex() + 1
-		c.MustWaitUncommitted(index)
-		c.Logs[1].HeartbeatUntil(index)
-		c.Logs[1].Clock.heartbeat()
-		c.Logs[0].Clock.apply()
-		c.Logs[1].Clock.apply()
-		c.Logs[2].Clock.apply()
-	}()
-
 	// Apply a command and ensure it's replicated.
-	_, err := c.Logs[1].Log.Apply([]byte("abc"))
+	index, err := c.Logs[1].Log.Apply([]byte("abc"))
 	if err != nil {
 		t.Fatalf("unexpected apply error: %s", err)
+	}
+
+	c.MustWaitUncommitted(index)
+	c.Logs[1].HeartbeatUntil(index)
+	c.Logs[1].Clock.heartbeat()
+	c.Logs[0].Clock.apply()
+	c.Logs[1].Clock.apply()
+	c.Logs[2].Clock.apply()
+	if err := c.Logs[0].Wait(index); err != nil {
+		t.Fatalf("unexpected wait error: %s", err)
 	}
 }
 
@@ -484,7 +474,7 @@ func TestCluster_Elect_RealTime(t *testing.T) {
 	// Create a cluster with a real-time clock.
 	c := NewRealTimeCluster(3, indexFSMFunc)
 	minIndex := c.Logs[0].FSM.Index()
-	commandN := uint64(30) - minIndex
+	commandN := uint64(1000) - minIndex
 
 	// Run a loop to continually apply commands.
 	var wg sync.WaitGroup
@@ -811,13 +801,16 @@ func (l *Log) Close() error {
 	return nil
 }
 
-// MustApply applies a command and syncs. Panic on error.
-func (l *Log) MustApply(command []byte) uint64 {
-	go func() { l.Clock.apply() }()
+// MustApplySync applies a command and syncs. Panic on error.
+func (l *Log) MustApplySync(command []byte) uint64 {
 	index, err := l.Apply(command)
 	if err != nil {
 		panic(err.Error())
 	}
+
+	go func() { l.Clock.apply() }()
+	l.MustWait(index)
+
 	return index
 }
 
