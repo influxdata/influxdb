@@ -3476,6 +3476,9 @@ func (s *Server) processor(conn MessagingConn, done chan struct{}) {
 			if err != nil {
 				s.errors[m.Index] = err
 			}
+
+			// Update the connection with high water mark.
+			conn.SetIndex(s.index)
 		}()
 	}
 }
@@ -3611,6 +3614,7 @@ func (c *messagingClient) Conn(topicID uint64) MessagingConn { return c.Client.C
 type MessagingConn interface {
 	Open(index uint64, streaming bool) error
 	C() <-chan *messaging.Message
+	SetIndex(index uint64)
 }
 
 // DataNode represents a data node in the cluster.

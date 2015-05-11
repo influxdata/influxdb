@@ -171,6 +171,10 @@ func (c *MessagingConn) Close() error {
 // C returns a channel for streaming message.
 func (c *MessagingConn) C() <-chan *messaging.Message { return c.c }
 
+// SetIndex sets the most-recently replicated index on the connection.
+func (c *MessagingConn) SetIndex(index uint64) {
+}
+
 func (c *MessagingConn) Send(m *messaging.Message) {
 	// Ignore any old messages.
 	c.mu.Lock()
