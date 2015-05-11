@@ -1900,6 +1900,50 @@ func TestServer_RunContinuousQueries(t *testing.T) {
 	verify(3, `{"series":[{"name":"cpu_region","tags":{"region":"us-east"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",25]]},{"name":"cpu_region","tags":{"region":"us-west"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",75]]}]}`)
 }
 
+// Ensure the server can return continuous queries.
+func TestServer_ShowContinuousQueriesStatement(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Create the "foo" database.
+	if err := s.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "bar", Duration: time.Hour}); err != nil {
+		t.Fatal(err)
+	}
+	s.SetDefaultRetentionPolicy("foo", "bar")
+
+	// create and check
+	q := "CREATE CONTINUOUS QUERY myquery ON foo BEGIN SELECT count() INTO measure1 FROM myseries GROUP BY time(10m) END"
+	stmt, err := influxql.NewParser(strings.NewReader(q)).ParseStatement()
+	if err != nil {
+		t.Fatalf("error parsing query %s", err.Error())
+	}
+	cq := stmt.(*influxql.CreateContinuousQueryStatement)
+	if err := s.CreateContinuousQuery(cq); err != nil {
+		t.Fatalf("error creating continuous query %s", err.Error())
+	}
+
+	scq := "SHOW CONTINUOUS QUERIES"
+	results := s.executeQuery(MustParseQuery(scq), "foo", nil)
+
+	if results.Error() != nil {
+		t.Fatalf("unexpected error: %s", results.Error())
+	}
+	expected := `{"series":[{"name":"foo","columns":["name","query"],"values":[["myquery","CREATE CONTINUOUS QUERY myquery ON foo BEGIN SELECT count() INTO measure1 FROM myseries GROUP BY time(10m) END"]]}]}`
+
+	if res := results.Results[0]; res.Err != nil {
+		t.Errorf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 1 {
+		t.Errorf("unexpected row count: %d", len(res.Series))
+	} else if s := mustMarshalJSON(res); s != expected {
+		t.Errorf("unexpected row(0): \nexp: %s\ngot: %s", expected, s)
+	}
+}
+
 // Ensure the server can create a snapshot writer.
 func TestServer_CreateSnapshotWriter(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
@@ -1959,11 +2003,353 @@ func measurementsEqual(l influxdb.Measurements, r influxdb.Measurements) bool {
 	return false
 }
 
+// Ensure server returns empty result when no tags exist
+func TestServer_ShowTagKeysStatement(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Create the "foo" database.
+	if err := s.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "bar", Duration: time.Hour}); err != nil {
+		t.Fatal(err)
+	}
+	s.SetDefaultRetentionPolicy("foo", "bar")
+
+	q := "SHOW TAG KEYS"
+	results := s.executeQuery(MustParseQuery(q), "foo", nil)
+
+	if results.Error() != nil {
+		t.Fatalf("unexpected error: %s", results.Error())
+	}
+	expected := `{}`
+
+	if res := results.Results[0]; res.Err != nil {
+		t.Errorf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 0 {
+		t.Errorf("unexpected row count: %d", len(res.Series))
+	} else if s := mustMarshalJSON(res); s != expected {
+		t.Errorf("unexpected row(0): \nexp: %s\ngot: %s", expected, s)
+	}
+}
+
+// Ensure ShowTagKeysStatement returns ErrDatabaseNotFound for nonexistent database
+func TestServer_ShowTagKeysStatement_ErrDatabaseNotFound(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Create the "foo" database.
+	if err := s.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "bar", Duration: time.Hour}); err != nil {
+		t.Fatal(err)
+	}
+	s.SetDefaultRetentionPolicy("foo", "bar")
+
+	nonexistentDatabaseName := "baz"
+
+	q := "SHOW TAG KEYS"
+	results := s.executeQuery(MustParseQuery(q), nonexistentDatabaseName, nil)
+
+	expectedErr := influxdb.ErrDatabaseNotFound(nonexistentDatabaseName)
+
+	extractMessage := func(e error) string {
+		r, _ := regexp.Compile("(.+)\\(.+\\)")
+		match := r.FindStringSubmatch(e.Error())[1]
+		return match
+	}
+
+	if err := results.Error(); extractMessage(err) != extractMessage(expectedErr) {
+		t.Fatal(err)
+	}
+}
+
+// Ensure ShowTagKeysStatement returns ErrMeasurementNotFound for non existent measurement
+func TestServer_ShowTagKeysStatement_ErrMeasurementNotFound(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Create the "foo" database.
+	if err := s.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "bar", Duration: time.Hour}); err != nil {
+		t.Fatal(err)
+	}
+	s.SetDefaultRetentionPolicy("foo", "bar")
+
+	nonExistentMeasurement := "src"
+
+	q := fmt.Sprintf(
+		"SHOW TAG KEYS FROM %v",
+		nonExistentMeasurement,
+	)
+
+	results := s.executeQuery(MustParseQuery(q), "foo", nil)
+
+	expectedErr := influxdb.ErrMeasurementNotFound(nonExistentMeasurement)
+
+	extractMessage := func(e error) string {
+		r, _ := regexp.Compile("(.+)\\(.+\\)")
+		match := r.FindStringSubmatch(e.Error())[1]
+		return match
+	}
+
+	if err := results.Error(); extractMessage(err) != extractMessage(expectedErr) {
+		t.Fatal(err)
+	}
+}
+
+// Ensure ShowTagKeysStatement returns tag keys when tags exist
+func TestServer_ShowTagKeysStatement_TagsExist(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Create the "foo" database.
+	if err := s.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "bar", Duration: time.Hour}); err != nil {
+		t.Fatal(err)
+	}
+	s.SetDefaultRetentionPolicy("foo", "bar")
+
+	// Write series with one point to the database.
+	tags := map[string]string{"host": "serverA", "region": "uswest"}
+	index, err := s.WriteSeries("foo", "bar", []influxdb.Point{{Name: "cpu", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Sync(index)
+
+	q := "SHOW TAG KEYS FROM cpu"
+	results := s.executeQuery(MustParseQuery(q), "foo", nil)
+
+	if results.Error() != nil {
+		t.Fatalf("unexpected error: %s", results.Error())
+	}
+	expected := `{"series":[{"name":"cpu","columns":["tagKey"],"values":[["host"],["region"]]}]}`
+
+	if res := results.Results[0]; res.Err != nil {
+		t.Errorf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 1 {
+		t.Errorf("unexpected row count: %d", len(res.Series))
+	} else if s := mustMarshalJSON(res); s != expected {
+		t.Errorf("unexpected row(0): \nexp: %s\ngot: %s", expected, s)
+	}
+}
+
+// Ensure ShowTagValuesStatement returns tag values
+func TestServer_ShowTagValuesStatement_TagsExist(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Create the "foo" database.
+	if err := s.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "bar", Duration: time.Hour}); err != nil {
+		t.Fatal(err)
+	}
+	s.SetDefaultRetentionPolicy("foo", "bar")
+
+	// Write series with one point to the database.
+	tags := map[string]string{"host": "serverA", "region": "uswest"}
+	index, err := s.WriteSeries("foo", "bar", []influxdb.Point{{Name: "cpu", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Sync(index)
+
+	q := "SHOW TAG VALUES FROM cpu WITH KEY = region"
+	results := s.executeQuery(MustParseQuery(q), "foo", nil)
+
+	if results.Error() != nil {
+		t.Fatalf("unexpected error: %s", results.Error())
+	}
+	expected := `{"series":[{"name":"regionTagValues","columns":["region"],"values":[["uswest"]]}]}`
+
+	if res := results.Results[0]; res.Err != nil {
+		t.Errorf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 1 {
+		t.Errorf("unexpected row count: %d", len(res.Series))
+	} else if s := mustMarshalJSON(res); s != expected {
+		t.Errorf("unexpected row(0): \nexp: %s\ngot: %s", expected, s)
+	}
+}
+
+// Ensure ShowTagValuesStatement returns tag values when where clause specified
+func TestServer_ShowTagValuesStatement_WhereClause(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Create the "foo" database.
+	if err := s.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "bar", Duration: time.Hour}); err != nil {
+		t.Fatal(err)
+	}
+	s.SetDefaultRetentionPolicy("foo", "bar")
+
+	// Write series with one point to the database.
+	tags := map[string]string{"host": "serverA", "region": "uswest"}
+	index, err := s.WriteSeries("foo", "bar", []influxdb.Point{{Name: "cpu", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Sync(index)
+	tags2 := map[string]string{"host": "serverC", "region": "useast"}
+	index2, err := s.WriteSeries("foo", "bar", []influxdb.Point{{Name: "cpu", Tags: tags2, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Sync(index2)
+
+	q := "SHOW TAG VALUES FROM cpu WITH KEY = region WHERE region = 'useast'"
+	results := s.executeQuery(MustParseQuery(q), "foo", nil)
+
+	if results.Error() != nil {
+		t.Fatalf("unexpected error: %s", results.Error())
+	}
+	expected := `{"series":[{"name":"regionTagValues","columns":["region"],"values":[["useast"]]}]}`
+
+	if res := results.Results[0]; res.Err != nil {
+		t.Errorf("unexpected error: %s", res.Err)
+	} else if len(res.Series) != 1 {
+		t.Errorf("unexpected row count: %d", len(res.Series))
+	} else if s := mustMarshalJSON(res); s != expected {
+		t.Errorf("unexpected row(0): \nexp: %s\ngot: %s", expected, s)
+	}
+}
+
+// Ensure ShowTagValuesStatement returns ErrDatabaseNotFound for non existent database
+func TestServer_ShowTagValuesStatement_ErrDatabaseNotFound(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Create the "foo" database.
+	if err := s.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "bar", Duration: time.Hour}); err != nil {
+		t.Fatal(err)
+	}
+	s.SetDefaultRetentionPolicy("foo", "bar")
+
+	// Write series with one point to the database.
+	tags := map[string]string{"host": "serverA", "region": "uswest"}
+	index, err := s.WriteSeries("foo", "bar", []influxdb.Point{{Name: "cpu", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Sync(index)
+
+	nonexistentDatabaseName := "baz"
+
+	q := "SHOW TAG VALUES FROM cpu WITH KEY = region"
+	results := s.executeQuery(MustParseQuery(q), nonexistentDatabaseName, nil)
+
+	expectedErr := influxdb.ErrDatabaseNotFound(nonexistentDatabaseName)
+
+	extractMessage := func(e error) string {
+		r, _ := regexp.Compile("(.+)\\(.+\\)")
+		match := r.FindStringSubmatch(e.Error())[1]
+		return match
+	}
+
+	if err := results.Error(); extractMessage(err) != extractMessage(expectedErr) {
+		t.Fatal(err)
+	}
+}
+
+// Ensure ShowTagValuesStatement returns ErrMeasurementNotFound for non existent database
+func TestServer_ShowTagValuesStatement_ErrMeasurementNotFound(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Create the "foo" database.
+	if err := s.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CreateRetentionPolicy("foo", &influxdb.RetentionPolicy{Name: "bar", Duration: time.Hour}); err != nil {
+		t.Fatal(err)
+	}
+	s.SetDefaultRetentionPolicy("foo", "bar")
+
+	// Write series with one point to the database.
+	tags := map[string]string{"host": "serverA", "region": "uswest"}
+	index, err := s.WriteSeries("foo", "bar", []influxdb.Point{{Name: "cpu", Tags: tags, Timestamp: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Sync(index)
+
+	nonExistentMeasurement := "src"
+
+	q := fmt.Sprintf(
+		"SHOW TAG VALUES FROM %v WITH KEY = region",
+		nonExistentMeasurement,
+	)
+
+	results := s.executeQuery(MustParseQuery(q), "foo", nil)
+
+	expectedErr := influxdb.ErrMeasurementNotFound(nonExistentMeasurement)
+
+	extractMessage := func(e error) string {
+		r, _ := regexp.Compile("(.+)\\(.+\\)")
+		match := r.FindStringSubmatch(e.Error())[1]
+		return match
+	}
+
+	if err := results.Error(); extractMessage(err) != extractMessage(expectedErr) {
+		t.Fatal(err)
+	}
+}
+
+// Ensure database is created if it does not exist
+func TestServer_CreateDatabaseIfNotExists(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	result := s.CreateDatabaseIfNotExists("foo")
+	if result != nil {
+		t.Fatal(result.Error())
+	}
+
+	if a := s.Databases(); len(a) != 1 {
+		t.Fatalf("unexpected db count: %d", len(a))
+	}
+
+	err := s.CreateDatabaseIfNotExists("foo")
+	if err != nil {
+		t.Fatal("An error should be returned if the database already exists")
+	}
+}
+
 func TestServer_SeriesByTagNames(t *testing.T)  { t.Skip("pending") }
 func TestServer_SeriesByTagValues(t *testing.T) { t.Skip("pending") }
-func TestDatabase_TagNames(t *testing.T)        { t.Skip("pending") }
 func TestServer_TagNamesBySeries(t *testing.T)  { t.Skip("pending") }
-func TestServer_TagValues(t *testing.T)         { t.Skip("pending") }
 func TestServer_TagValuesBySeries(t *testing.T) { t.Skip("pending") }
 
 // Point JSON Unmarshal tests

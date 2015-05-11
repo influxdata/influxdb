@@ -3802,7 +3802,7 @@ func NewContinuousQuery(q string) (*ContinuousQuery, error) {
 
 	cq, ok := stmt.(*influxql.CreateContinuousQueryStatement)
 	if !ok {
-		return nil, errors.New("query isn't a valie continuous query")
+		return nil, errors.New("query isn't a valid continuous query")
 	}
 
 	cquery := &ContinuousQuery{
