@@ -337,10 +337,10 @@ func interfaceToString(v interface{}) string {
 }
 
 type Point struct {
-	Name      string                 `json:"name"`
-	Timestamp time.Time              `json:"timestamp"`
-	Tags      map[string]string      `json:"tags"`
-	Fields    map[string]interface{} `json:"fields"`
+	Name   string                 `json:"name"`
+	Time   time.Time              `json:"time"`
+	Tags   map[string]string      `json:"tags"`
+	Fields map[string]interface{} `json:"fields"`
 }
 
 type Batch struct {
@@ -426,7 +426,7 @@ func (h *Handler) serveDump(w http.ResponseWriter, r *http.Request, user *influx
 				for _, tuple := range row.Values {
 					for subscript, cell := range tuple {
 						if row.Columns[subscript] == "time" {
-							point.Timestamp, _ = cell.(time.Time)
+							point.Time, _ = cell.(time.Time)
 							continue
 						}
 						point.Fields[row.Columns[subscript]] = cell

@@ -96,7 +96,7 @@ func ExampleClient_Write() {
 			Fields: map[string]interface{}{
 				"value": rand.Intn(sampleSize),
 			},
-			Timestamp: time.Now(),
+			Time:      time.Now(),
 			Precision: "s",
 		}
 	}

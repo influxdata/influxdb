@@ -361,10 +361,10 @@ func (s *Server) StartSelfMonitoring(database, retention string, interval time.D
 		now := time.Now()
 		st.Walk(func(k string, v int64) {
 			point := Point{
-				Timestamp: now,
-				Name:      st.name + "_" + k,
-				Tags:      make(map[string]string),
-				Fields:    map[string]interface{}{"value": int(v)},
+				Time:   now,
+				Name:   st.name + "_" + k,
+				Tags:   make(map[string]string),
+				Fields: map[string]interface{}{"value": int(v)},
 			}
 			// Specifically create a new map.
 			for k, v := range tags {
@@ -511,7 +511,7 @@ func (s *Server) ShardGroupPreCreate(checkInterval time.Duration) {
 		Database  string
 		Retention string
 		ID        uint64
-		Timestamp time.Time
+		Time      time.Time
 	}
 
 	var groups []group
@@ -530,7 +530,7 @@ func (s *Server) ShardGroupPreCreate(checkInterval time.Duration) {
 					// Check to see if it is going to end before our interval
 					if g.EndTime.Before(cutoff) {
 						log.Printf("pre-creating shard group for %d, retention policy %s, database %s", g.ID, rp.Name, db.name)
-						groups = append(groups, group{Database: db.name, Retention: rp.Name, ID: g.ID, Timestamp: g.EndTime.Add(1 * time.Nanosecond)})
+						groups = append(groups, group{Database: db.name, Retention: rp.Name, ID: g.ID, Time: g.EndTime.Add(1 * time.Nanosecond)})
 					}
 				}
 			}
@@ -538,8 +538,8 @@ func (s *Server) ShardGroupPreCreate(checkInterval time.Duration) {
 	}()
 
 	for _, g := range groups {
-		if err := s.CreateShardGroupIfNotExists(g.Database, g.Retention, g.Timestamp); err != nil {
-			log.Printf("failed to request pre-creation of shard group %d for time %s: %s", g.ID, g.Timestamp, err.Error())
+		if err := s.CreateShardGroupIfNotExists(g.Database, g.Retention, g.Time); err != nil {
+			log.Printf("failed to request pre-creation of shard group %d for time %s: %s", g.ID, g.Time, err.Error())
 		}
 	}
 }
@@ -1127,7 +1127,7 @@ func (s *Server) ShardGroups(database string) ([]*ShardGroup, error) {
 
 // CreateShardGroupIfNotExists creates the shard group for a retention policy for the interval a timestamp falls into.
 func (s *Server) CreateShardGroupIfNotExists(database, policy string, timestamp time.Time) error {
-	c := &createShardGroupIfNotExistsCommand{Database: database, Policy: policy, Timestamp: timestamp}
+	c := &createShardGroupIfNotExistsCommand{Database: database, Policy: policy, Time: timestamp}
 	_, err := s.broadcast(createShardGroupIfNotExistsMessageType, c)
 	return err
 }
@@ -1149,7 +1149,7 @@ func (s *Server) applyCreateShardGroupIfNotExists(m *messaging.Message) error {
 	}
 
 	// If we can match to an existing shard group date range then just ignore request.
-	if g := rp.shardGroupByTimestamp(c.Timestamp); g != nil {
+	if g := rp.shardGroupByTimestamp(c.Time); g != nil {
 		return nil
 	}
 
@@ -1173,7 +1173,7 @@ func (s *Server) applyCreateShardGroupIfNotExists(m *messaging.Message) error {
 	// replicated the correct number of times.
 	shardN := len(nodes) / replicaN
 
-	g := newShardGroup(c.Timestamp, rp.ShardGroupDuration)
+	g := newShardGroup(c.Time, rp.ShardGroupDuration)
 
 	// Create and intialize shards based on the node count and replication factor.
 	if err := g.initialize(m.Index, shardN, replicaN, db, rp, nodes, s.meta); err != nil {
@@ -1750,10 +1750,10 @@ func (s *Server) DropSeries(database string, seriesByMeasurement map[string][]ui
 
 // Point defines the values that will be written to the database
 type Point struct {
-	Name      string
-	Tags      map[string]string
-	Timestamp time.Time
-	Fields    map[string]interface{}
+	Name   string
+	Tags   map[string]string
+	Time   time.Time
+	Fields map[string]interface{}
 }
 
 // WriteSeries writes series data to the database.
@@ -1832,7 +1832,7 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 			}
 
 			// Retrieve shard group.
-			g, err := s.shardGroupByTimestamp(database, retentionPolicy, p.Timestamp)
+			g, err := s.shardGroupByTimestamp(database, retentionPolicy, p.Time)
 			if err != nil {
 				return err
 			}
@@ -1861,7 +1861,7 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 			}
 
 			// Encode point header, followed by point data, and add to shard's batch.
-			data := marshalPointHeader(series.ID, uint32(len(encodedFields)), p.Timestamp.UnixNano())
+			data := marshalPointHeader(series.ID, uint32(len(encodedFields)), p.Time.UnixNano())
 			data = append(data, encodedFields...)
 			if shardData[sh.ID] == nil {
 				shardData[sh.ID] = make([]byte, 0)
@@ -2069,16 +2069,16 @@ func (s *Server) createShardGroupsIfNotExists(database, retentionPolicy string, 
 		defer s.mu.RUnlock()
 		for _, p := range points {
 			// Check if shard group exists first.
-			g, err := s.shardGroupByTimestamp(database, retentionPolicy, p.Timestamp)
+			g, err := s.shardGroupByTimestamp(database, retentionPolicy, p.Time)
 			if err != nil {
 				return err
 			} else if g != nil {
 				continue
 			}
 			commands = append(commands, &createShardGroupIfNotExistsCommand{
-				Database:  database,
-				Policy:    retentionPolicy,
-				Timestamp: p.Timestamp,
+				Database: database,
+				Policy:   retentionPolicy,
+				Time:     p.Time,
 			})
 		}
 		return nil
@@ -2089,9 +2089,9 @@ func (s *Server) createShardGroupsIfNotExists(database, retentionPolicy string, 
 
 	// Create any required shard groups across the cluster. Must be done without holding the lock.
 	for _, c := range commands {
-		err = s.CreateShardGroupIfNotExists(c.Database, c.Policy, c.Timestamp)
+		err = s.CreateShardGroupIfNotExists(c.Database, c.Policy, c.Time)
 		if err != nil {
-			return fmt.Errorf("create shard(%s:%s/%s): %s", c.Database, c.Policy, c.Timestamp.Format(time.RFC3339Nano), err)
+			return fmt.Errorf("create shard(%s:%s/%s): %s", c.Database, c.Policy, c.Time.Format(time.RFC3339Nano), err)
 		}
 	}
 
@@ -4056,10 +4056,10 @@ func (s *Server) convertRowToPoints(measurementName string, row *influxql.Row) (
 		}
 
 		p := &Point{
-			Name:      measurementName,
-			Tags:      row.Tags,
-			Timestamp: v[timeIndex].(time.Time),
-			Fields:    vals,
+			Name:   measurementName,
+			Tags:   row.Tags,
+			Time:   v[timeIndex].(time.Time),
+			Fields: vals,
 		}
 
 		points = append(points, *p)
