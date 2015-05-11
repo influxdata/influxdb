@@ -851,9 +851,9 @@ func (s *SelectStatement) hasCount() bool {
 	return false
 }
 
-// hasWhereTime returns whether or not the select statement has at least 1
+// hasTimeDimensions returns whether or not the select statement has at least 1
 // where condition with time as the condition
-func (s *SelectStatement) hasWhereTime(node Node) bool {
+func (s *SelectStatement) hasTimeDimensions(node Node) bool {
 	switch n := node.(type) {
 	case *BinaryExpr:
 		if n.Op == AND || n.Op == OR {
