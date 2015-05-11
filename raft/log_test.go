@@ -169,7 +169,7 @@ func TestLog_Opened(t *testing.T) {
 	}
 }
 
-// Ensure that reopening an existing log will restore its ID.
+// Ensure that reopening an existing log will restore its ID and leader ID.
 func TestLog_Reopen(t *testing.T) {
 	l := NewInitializedLog(url.URL{Host: "log0"})
 	if l.ID() != 1 {
@@ -177,10 +177,18 @@ func TestLog_Reopen(t *testing.T) {
 	}
 	path := l.Path()
 
-	// Close log and make sure id is cleared.
+	if l.IsLeader() != true {
+		t.Fatalf("expected log to be leader")
+	}
+
+	// Close log and make sure id is cleared and it is no longer leader.
 	l.Log.Close()
 	if l.ID() != 0 {
 		t.Fatalf("expected id == 0")
+	}
+
+	if l.IsLeader() != false {
+		t.Fatalf("expected log not to be leader")
 	}
 
 	// Re-open and ensure id is restored.
@@ -190,6 +198,12 @@ func TestLog_Reopen(t *testing.T) {
 	if id := l.ID(); id != 1 {
 		t.Fatalf("unexpected id: %d", id)
 	}
+
+	// Ensure node is leader again.
+	if l.IsLeader() != true {
+		t.Fatalf("expected log to be leader")
+	}
+
 	l.Close()
 }
 
