@@ -75,7 +75,7 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// SELECT statement
 		{
-			s: `SELECT mean(field1), sum(field2) ,count(field3) AS field_x FROM myseries WHERE host = 'hosta.influxdb.org' GROUP BY time(10h) ORDER BY ASC LIMIT 20 OFFSET 10;`,
+			s: fmt.Sprintf(`SELECT mean(field1), sum(field2) ,count(field3) AS field_x FROM myseries WHERE host = 'hosta.influxdb.org' and time > '%s' GROUP BY time(10h) ORDER BY ASC LIMIT 20 OFFSET 10;`, now.UTC().Format(time.RFC3339Nano)),
 			stmt: &influxql.SelectStatement{
 				IsRawQuery: false,
 				Fields: []*influxql.Field{
@@ -85,9 +85,17 @@ func TestParser_ParseStatement(t *testing.T) {
 				},
 				Sources: []influxql.Source{&influxql.Measurement{Name: "myseries"}},
 				Condition: &influxql.BinaryExpr{
-					Op:  influxql.EQ,
-					LHS: &influxql.VarRef{Val: "host"},
-					RHS: &influxql.StringLiteral{Val: "hosta.influxdb.org"},
+					Op: influxql.AND,
+					LHS: &influxql.BinaryExpr{
+						Op:  influxql.EQ,
+						LHS: &influxql.VarRef{Val: "host"},
+						RHS: &influxql.StringLiteral{Val: "hosta.influxdb.org"},
+					},
+					RHS: &influxql.BinaryExpr{
+						Op:  influxql.GT,
+						LHS: &influxql.VarRef{Val: "time"},
+						RHS: &influxql.TimeLiteral{Val: now.UTC()},
+					},
 				},
 				Dimensions: []*influxql.Dimension{{Expr: &influxql.Call{Name: "time", Args: []influxql.Expr{&influxql.DurationLiteral{Val: 10 * time.Hour}}}}},
 				SortFields: []*influxql.SortField{
@@ -973,6 +981,8 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `SELECT field1 FROM myseries ORDER BY 1`, err: `found 1, expected identifier, ASC, or DESC at line 1, char 38`},
 		{s: `SELECT field1 AS`, err: `found EOF, expected identifier at line 1, char 18`},
 		{s: `SELECT field1 FROM foo group by time(1s)`, err: `GROUP BY requires at least one aggregate function`},
+		{s: `SELECT count(value) FROM foo group by time(1s)`, err: `COUNT with GROUP BY time requires WHERE time claus`},
+		{s: `SELECT count(value) FROM foo group by time(1s) where host = 'hosta.influxdb.org'`, err: `COUNT with GROUP BY time requires WHERE time claus`},
 		{s: `SELECT field1 FROM 12`, err: `found 12, expected identifier at line 1, char 20`},
 		{s: `SELECT 1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 FROM myseries`, err: `unable to parse number at line 1, char 8`},
 		{s: `SELECT 10.5h FROM myseries`, err: `found h, expected FROM at line 1, char 12`},

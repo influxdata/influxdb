@@ -839,6 +839,38 @@ func (s *SelectStatement) HasWildcard() bool {
 	return false
 }
 
+// hasCount returns whether or not the select statement has at least 1 count aggregate function
+func (s *SelectStatement) hasCount() bool {
+	for _, f := range s.Fields {
+		c, ok := f.Expr.(*Call)
+		if ok && strings.ToLower(c.Name) == "count" {
+			return true
+		}
+	}
+
+	return false
+}
+
+// hasWhereTime returns whether or not the select statement has at least 1
+// where condition with time as the condition
+func (s *SelectStatement) hasWhereTime(node Node) bool {
+	switch n := node.(type) {
+	case *BinaryExpr:
+		if n.Op == AND || n.Op == OR {
+			return s.walkForTime(n.LHS) || s.walkForTime(n.RHS)
+		}
+		if ref, ok := n.LHS.(*VarRef); ok && strings.ToLower(ref.Val) == "time" {
+			return true
+		}
+		return false
+	case *ParenExpr:
+		// walk down the tree
+		return s.walkForTime(n.Expr)
+	default:
+		return false
+	}
+}
+
 // GroupByIterval extracts the time interval, if specified.
 func (s *SelectStatement) GroupByInterval() (time.Duration, error) {
 	// return if we've already pulled it out
