@@ -513,7 +513,7 @@ type spreadMapOutput struct {
 
 // MapSpread collects the values to pass to the reducer
 func MapSpread(itr Iterator) interface{} {
-	var out spreadMapOutput
+	out := &spreadMapOutput{}
 	pointsYielded := false
 
 	for _, k, v := itr.Next(); k != 0; _, k, v = itr.Next() {
@@ -535,14 +535,14 @@ func MapSpread(itr Iterator) interface{} {
 
 // ReduceSpread computes the spread of values.
 func ReduceSpread(values []interface{}) interface{} {
-	var result spreadMapOutput
+	result := &spreadMapOutput{}
 	pointsYielded := false
 
 	for _, v := range values {
 		if v == nil {
 			continue
 		}
-		val := v.(spreadMapOutput)
+		val := v.(*spreadMapOutput)
 		// Initialize
 		if !pointsYielded {
 			result.Max = val.Max
@@ -612,7 +612,7 @@ type firstLastMapOutput struct {
 
 // MapFirst collects the values to pass to the reducer
 func MapFirst(itr Iterator) interface{} {
-	out := firstLastMapOutput{}
+	out := &firstLastMapOutput{}
 	pointsYielded := false
 
 	for _, k, v := itr.Next(); k != 0; _, k, v = itr.Next() {
@@ -635,14 +635,14 @@ func MapFirst(itr Iterator) interface{} {
 
 // ReduceFirst computes the first of value.
 func ReduceFirst(values []interface{}) interface{} {
-	out := firstLastMapOutput{}
+	out := &firstLastMapOutput{}
 	pointsYielded := false
 
 	for _, v := range values {
 		if v == nil {
 			continue
 		}
-		val := v.(firstLastMapOutput)
+		val := v.(*firstLastMapOutput)
 		// Initialize first
 		if !pointsYielded {
 			out.Time = val.Time
@@ -662,7 +662,7 @@ func ReduceFirst(values []interface{}) interface{} {
 
 // MapLast collects the values to pass to the reducer
 func MapLast(itr Iterator) interface{} {
-	out := firstLastMapOutput{}
+	out := &firstLastMapOutput{}
 	pointsYielded := false
 
 	for _, k, v := itr.Next(); k != 0; _, k, v = itr.Next() {
@@ -685,7 +685,7 @@ func MapLast(itr Iterator) interface{} {
 
 // ReduceLast computes the last of value.
 func ReduceLast(values []interface{}) interface{} {
-	out := firstLastMapOutput{}
+	out := &firstLastMapOutput{}
 	pointsYielded := false
 
 	for _, v := range values {
@@ -693,7 +693,7 @@ func ReduceLast(values []interface{}) interface{} {
 			continue
 		}
 
-		val := v.(firstLastMapOutput)
+		val := v.(*firstLastMapOutput)
 		// Initialize last
 		if !pointsYielded {
 			out.Time = val.Time
