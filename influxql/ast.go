@@ -839,18 +839,6 @@ func (s *SelectStatement) HasWildcard() bool {
 	return false
 }
 
-// hasCount returns whether or not the select statement has at least 1 count aggregate function
-func (s *SelectStatement) hasCount() bool {
-	for _, f := range s.Fields {
-		c, ok := f.Expr.(*Call)
-		if ok && strings.ToLower(c.Name) == "count" {
-			return true
-		}
-	}
-
-	return false
-}
-
 // hasTimeDimensions returns whether or not the select statement has at least 1
 // where condition with time as the condition
 func (s *SelectStatement) hasTimeDimensions(node Node) bool {
