@@ -2347,6 +2347,256 @@ func TestServer_CreateDatabaseIfNotExists(t *testing.T) {
 	}
 }
 
+// Ensure session is always authenticated when authentication is disabled
+func TestServer_Authenticate_AuthenticationDisabled(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Create a user.
+	if err := s.CreateUser("susy", "pass", true); err != nil {
+		t.Fatal(err)
+	}
+	s.Restart()
+	s.SetAuthenticationEnabled(false)
+
+	u, err := s.Authenticate("sammy", "pass")
+	if u != nil || err != nil {
+		t.Fatalf("Authenticate should return nil when authentication is disabled and user does not exist")
+	}
+}
+
+// Ensure an error is raised for a non-existent user
+func TestServer_Authenticate_InvalidUsername(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Create a user.
+	if err := s.CreateUser("susy", "pass", true); err != nil {
+		t.Fatal(err)
+	}
+	s.Restart()
+	s.SetAuthenticationEnabled(true)
+
+	_, err := s.Authenticate("sammy", "pass")
+	if err == nil {
+		t.Fatalf("Authenticate should return an error when the user does not exist")
+	}
+}
+
+// Server should be able to update user's password
+func TestServer_UpdateUser_ChangePassword(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Create a user.
+	if err := s.CreateUser("susy", "pass", true); err != nil {
+		t.Fatal(err)
+	}
+	s.Restart()
+	s.SetAuthenticationEnabled(true)
+
+	// Can authenticate with existing password
+	if _, err := s.Authenticate("susy", "pass"); err != nil {
+		t.Errorf("unexpected error: %s", err)
+	}
+
+	// Can update password
+	if err := s.UpdateUser("susy", "updatedPass"); err != nil {
+		t.Errorf("unexpected error: %s", err)
+	}
+
+	// Can authenticate with new password
+	if _, err := s.Authenticate("susy", "updatedPass"); err != nil {
+		t.Errorf("unexpected error: %s", err)
+	}
+
+	// Can't authenticate with old password
+	if _, err := s.Authenticate("susy", "pass"); err == nil {
+		t.Errorf("The server should not allow users to authenticate with password that has been replaced.")
+	}
+}
+
+// Ensure error is returned when attempting to update a non-existent user
+func TestServer_UpdateUser_NonexistentUser(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Can't update non-existent user
+	if err := s.UpdateUser("susy", "updatedPass"); err != influxdb.ErrUserNotFound {
+		t.Fatal(err)
+	}
+}
+
+// Ensure error is returned when attempting to delete a non-existent user
+func TestServer_DeleteUser_NonexistentUser(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Can't update non-existent user
+	if err := s.DeleteUser("susy"); err != influxdb.ErrUserNotFound {
+		t.Fatal(err)
+	}
+}
+
+// Ensure error is returned when attempting to delete a blank username
+func TestServer_DeleteUser_BlankUser(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Can't update non-existent user
+	if err := s.DeleteUser(""); err != influxdb.ErrUsernameRequired {
+		t.Fatal(err)
+	}
+}
+
+// Ensure error is returned when attempting to set privileges for a blank username
+func TestServer_SetPrivilege_BlankUser(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Can't set privilege on blank username
+	if err := s.SetPrivilege(influxql.WritePrivilege, "", ""); err != influxdb.ErrUsernameRequired {
+		t.Fatal(err)
+	}
+}
+
+// Ensure error is returned when attempting to set privileges for a non-existent user
+func TestServer_SetPrivilege_NonexistentUser(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Can't set privilege on non existent user
+	if err := s.SetPrivilege(influxql.WritePrivilege, "susy", ""); err != influxdb.ErrUserNotFound {
+		t.Fatal(err)
+	}
+}
+
+// Ensure user admin flag updated when database name is blank
+func TestServer_SetPrivilege_BlankDatabaseName_Grant(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Create a user.
+	if err := s.CreateUser("susy", "pass", false); err != nil {
+		t.Fatal(err)
+	}
+	s.Restart()
+
+	if u := s.User("susy"); u.Admin != false {
+		t.Errorf("The user should not be an admin by default.")
+	}
+
+	// Set privileges with blank database name to update user admin flag
+	err := s.SetPrivilege(influxql.AllPrivileges, "susy", "")
+	if err != nil {
+		t.Errorf("unexpected error: %s", err)
+	}
+
+	if u := s.User("susy"); u.Admin != true {
+		t.Errorf("The user should be an admin as their privileges have been updated.")
+	}
+}
+
+// Ensure user admin flag updated when database name is blank
+func TestServer_SetPrivilege_BlankDatabaseName_Revoke(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Create a user.
+	if err := s.CreateUser("susy", "pass", true); err != nil {
+		t.Fatal(err)
+	}
+	s.Restart()
+
+	if u := s.User("susy"); u.Admin != true {
+		t.Errorf("The user should be an admin.")
+	}
+
+	// Set no privileges with blank database name to update user admin flag
+	err := s.SetPrivilege(influxql.NoPrivileges, "susy", "")
+	if err != nil {
+		t.Errorf("unexpected error: %s", err)
+	}
+
+	if u := s.User("susy"); u.Admin != false {
+		t.Errorf("The user should not be an admin as their privileges have been revoked.")
+	}
+}
+
+// Ensure user admin flag updated when database name is blank
+func TestServer_SetPrivilege_ExistingDatabase(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Create the "foo" database.
+	if err := s.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a user.
+	if err := s.CreateUser("susy", "pass", false); err != nil {
+		t.Fatal(err)
+	}
+	s.Restart()
+
+	u := s.User("susy")
+	if u.Privileges["foo"] != influxql.NoPrivileges {
+		t.Errorf("The user should have no privileges by default.")
+	}
+
+	// Set privileges with blank database name to update user admin flag
+	err := s.SetPrivilege(influxql.WritePrivilege, "susy", "foo")
+	if err != nil {
+		t.Errorf("unexpected error: %s", err)
+	}
+
+	if u := s.User("susy"); u.Privileges["foo"] != influxql.WritePrivilege {
+		t.Errorf("The user should have 'WRITE' privileges.")
+	}
+}
+
+// Ensure server returns error when attempting to grant granular privileges on blank database name
+func TestServer_SetPrivilege_WritePrivilegeBlankDatabase(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Create a user.
+	if err := s.CreateUser("susy", "pass", false); err != nil {
+		t.Fatal(err)
+	}
+	s.Restart()
+
+	// Can't set write privileges with blank database name
+	err := s.SetPrivilege(influxql.WritePrivilege, "susy", "")
+	if err != influxdb.ErrInvalidGrantRevoke {
+		t.Fatal(err)
+	}
+}
+
 func TestServer_SeriesByTagNames(t *testing.T)  { t.Skip("pending") }
 func TestServer_SeriesByTagValues(t *testing.T) { t.Skip("pending") }
 func TestServer_TagNamesBySeries(t *testing.T)  { t.Skip("pending") }
