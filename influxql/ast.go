@@ -893,6 +893,22 @@ func (s *SelectStatement) hasTimeDimensions(node Node) bool {
 
 // Validate checks certain edge conditions to determine if this is a valid select statment
 func (s *SelectStatement) Validate(tr targetRequirement) error {
+	if err := s.ValidateAggregates(tr); err != nil {
+		return err
+	}
+
+	if err := s.ValidateDistinct(); err != nil {
+		return err
+	}
+
+	if err := s.validateDerivative(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *SelectStatement) ValidateAggregates(tr targetRequirement) error {
 	// fetch the group by duration
 	groupByDuration, _ := s.GroupByInterval()
 
@@ -906,6 +922,21 @@ func (s *SelectStatement) Validate(tr targetRequirement) error {
 		if !s.IsRawQuery && groupByDuration > 0 && !s.hasTimeDimensions(s.Condition) {
 			return fmt.Errorf("aggregate functions with GROUP BY time require a WHERE time clause")
 		}
+	}
+	return nil
+}
+
+func (s *SelectStatement) ValidateDistinct() error {
+	if !s.Distinct {
+		return nil
+	}
+
+	if len(s.Fields) > 1 {
+		return fmt.Errorf("select DISTINCT may only have one field")
+	}
+
+	if !s.IsRawQuery {
+		return fmt.Errorf("select DISTINCT does not allow for aggregate functions")
 	}
 
 	if err := s.validateDerivative(); err != nil {
