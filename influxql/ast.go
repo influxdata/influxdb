@@ -642,6 +642,15 @@ type SelectStatement struct {
 	FillValue interface{}
 }
 
+func (s *SelectStatement) IsNonNestedDerivative() bool {
+	for _, f := range s.Fields {
+		if f.Name() == "derivative" {
+			return true
+		}
+	}
+	return false
+}
+
 // Clone returns a deep copy of the statement.
 func (s *SelectStatement) Clone() *SelectStatement {
 	clone := &SelectStatement{
@@ -874,6 +883,12 @@ func (s *SelectStatement) Validate(tr targetRequirement) error {
 		if !s.IsRawQuery && groupByDuration > 0 && !s.hasTimeDimensions(s.Condition) {
 			return fmt.Errorf("aggregate functions with GROUP BY time require a WHERE time clause")
 		}
+	}
+
+	// If a derivative is requested, it must be the only field in the query. We don't support
+	// multiple fields in combination w/ derivaties yet.
+	if s.IsNonNestedDerivative() && len(s.Fields) != 1 {
+		return fmt.Errorf("derivative cannot be used with other fields")
 	}
 
 	return nil
