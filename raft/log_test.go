@@ -397,10 +397,10 @@ func TestCluster_Apply(t *testing.T) {
 	if n := len(c.Logs[0].FSM.(*FSM).Commands); n != 1 {
 		t.Fatalf("unexpected command count(0): %d", n)
 	}
-	if n := len(c.Logs[1].FSM.(*FSM).Commands); n != 1 {
+	if n := len(c.Logs[1].FSM.(*FSM).Commands); n != 0 {
 		t.Fatalf("unexpected command count(1): %d", n)
 	}
-	if n := len(c.Logs[2].FSM.(*FSM).Commands); n != 1 {
+	if n := len(c.Logs[2].FSM.(*FSM).Commands); n != 0 {
 		t.Fatalf("unexpected command count(2): %d", n)
 	}
 }
