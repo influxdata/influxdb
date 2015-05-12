@@ -167,6 +167,8 @@ func (c *Client) Ping() (time.Duration, string, error) {
 	if err != nil {
 		return 0, "", err
 	}
+	defer resp.Body.Close()
+
 	version := resp.Header.Get("X-Influxdb-Version")
 	return time.Since(now), version, nil
 }
