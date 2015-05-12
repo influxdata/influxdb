@@ -221,9 +221,9 @@ func write(t *testing.T, node *TestNode, data string) {
 	if string(body) != "" {
 		t.Log("BODY: ", string(body))
 	}
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusNoContent {
 		body, _ := ioutil.ReadAll(resp.Body)
-		t.Fatalf("Write to database failed.  Unexpected status code.  expected: %d, actual %d, %s", http.StatusOK, resp.StatusCode, string(body))
+		t.Fatalf("Write to database failed.  Unexpected status code.  expected: %d, actual %d, %s", http.StatusNoContent, resp.StatusCode, string(body))
 	}
 }
 
@@ -1661,7 +1661,7 @@ func TestClientLibrary(t *testing.T) {
 			name: "no points",
 			writes: []write{
 				{
-					expected: `null`,
+					expected: `{}`,
 					bp:       client.BatchPoints{Database: "mydb"},
 				},
 			},
@@ -1676,7 +1676,7 @@ func TestClientLibrary(t *testing.T) {
 							{Name: "cpu", Fields: map[string]interface{}{"value": 1.1}, Time: now},
 						},
 					},
-					expected: `null`,
+					expected: `{}`,
 				},
 			},
 			queries: []query{
@@ -1689,9 +1689,9 @@ func TestClientLibrary(t *testing.T) {
 		{
 			name: "mulitple points, multiple values",
 			writes: []write{
-				{bp: client.BatchPoints{Database: "mydb", Points: []client.Point{{Name: "network", Fields: map[string]interface{}{"rx": 1.1, "tx": 2.1}, Time: now}}}, expected: `null`},
-				{bp: client.BatchPoints{Database: "mydb", Points: []client.Point{{Name: "network", Fields: map[string]interface{}{"rx": 1.2, "tx": 2.2}, Time: now.Add(time.Nanosecond)}}}, expected: `null`},
-				{bp: client.BatchPoints{Database: "mydb", Points: []client.Point{{Name: "network", Fields: map[string]interface{}{"rx": 1.3, "tx": 2.3}, Time: now.Add(2 * time.Nanosecond)}}}, expected: `null`},
+				{bp: client.BatchPoints{Database: "mydb", Points: []client.Point{{Name: "network", Fields: map[string]interface{}{"rx": 1.1, "tx": 2.1}, Time: now}}}, expected: `{}`},
+				{bp: client.BatchPoints{Database: "mydb", Points: []client.Point{{Name: "network", Fields: map[string]interface{}{"rx": 1.2, "tx": 2.2}, Time: now.Add(time.Nanosecond)}}}, expected: `{}`},
+				{bp: client.BatchPoints{Database: "mydb", Points: []client.Point{{Name: "network", Fields: map[string]interface{}{"rx": 1.3, "tx": 2.3}, Time: now.Add(2 * time.Nanosecond)}}}, expected: `{}`},
 			},
 			queries: []query{
 				{
