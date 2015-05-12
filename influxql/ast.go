@@ -629,6 +629,9 @@ type SelectStatement struct {
 	// Returns series starting at an offset from the first one.
 	SOffset int
 
+	// Distinct determines if the statement has a top level DISTINCT qualifier
+	Distinct bool
+
 	// memoize the group by interval
 	groupByInterval time.Duration
 
@@ -682,6 +685,7 @@ func (s *SelectStatement) Clone() *SelectStatement {
 		Fill:       s.Fill,
 		FillValue:  s.FillValue,
 		IsRawQuery: s.IsRawQuery,
+		Distinct:   s.Distinct,
 	}
 	if s.Target != nil {
 		clone.Target = &Target{
@@ -769,6 +773,9 @@ func (s *SelectStatement) RewriteWildcards(fields Fields, dimensions Dimensions)
 func (s *SelectStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("SELECT ")
+	if s.Distinct {
+		_, _ = buf.WriteString("DISTINCT ")
+	}
 	_, _ = buf.WriteString(s.Fields.String())
 
 	if s.Target != nil {
