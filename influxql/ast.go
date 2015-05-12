@@ -859,6 +859,23 @@ func (s *SelectStatement) hasTimeDimensions(node Node) bool {
 	}
 }
 
+// Validate checks certain edge conditions to determine if this is a valid select statment
+func (s *SelectStatement) Validate(tr targetRequirement) error {
+	// If we have a group by interval, but no aggregate function, it's an invalid statement
+	if d, _ := s.GroupByInterval(); s.IsRawQuery && d > 0 {
+		return fmt.Errorf("GROUP BY requires at least one aggregate function")
+	}
+
+	// If we have an aggregate function with a group by time without a where clause, it's an invalid statement
+	if tr == targetNotRequired { // ignore create continuous query statements
+		if d, _ := s.GroupByInterval(); !s.IsRawQuery && d > 0 && !s.hasTimeDimensions(s.Condition) {
+			return fmt.Errorf("aggregate functions with GROUP BY time require a WHERE time clause")
+		}
+	}
+
+	return nil
+}
+
 // GroupByIterval extracts the time interval, if specified.
 func (s *SelectStatement) GroupByInterval() (time.Duration, error) {
 	// return if we've already pulled it out

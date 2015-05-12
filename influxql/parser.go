@@ -687,16 +687,8 @@ func (p *Parser) parseSelectStatement(tr targetRequirement) (*SelectStatement, e
 		}
 	})
 
-	// If we have a group by interval, but no aggregate function, it's an invalid statement
-	if d, _ := stmt.GroupByInterval(); stmt.IsRawQuery && d > 0 {
-		return nil, fmt.Errorf("GROUP BY requires at least one aggregate function")
-	}
-
-	// If we have an aggregate function with a group by time without a where clause, it's an invalid statement
-	if tr == targetNotRequired { // ignore create continuous query statements
-		if d, _ := stmt.GroupByInterval(); !stmt.IsRawQuery && d > 0 && !stmt.hasTimeDimensions(stmt.Condition) {
-			return nil, fmt.Errorf("aggregate functions with GROUP BY time require a WHERE time clause")
-		}
+	if err := stmt.Validate(tr); err != nil {
+		return nil, err
 	}
 
 	return stmt, nil
