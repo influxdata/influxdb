@@ -674,6 +674,12 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:10Z",30]]}]}]}`,
 		},
 		{
+			name:     "aggregation with no interval",
+			query:    `SELECT count(value) FROM cpu WHERE time = '2000-01-01 00:00:00'`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","count"],"values":[["2000-01-01T00:00:00Z",2]]}]}]}`,
+		},
+		{
 			name:     "sum aggregation",
 			query:    `SELECT SUM(value) FROM cpu WHERE time >= '2000-01-01 00:00:05' AND time <= '2000-01-01T00:00:10Z' GROUP BY time(10s), region`,
 			queryDb:  "%DB%",
