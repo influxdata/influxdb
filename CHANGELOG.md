@@ -9,6 +9,7 @@ This release has a breaking API change for writes -- the field previously called
 - [#2525](https://github.com/influxdb/influxdb/pull/2525): Serve broker diagnostics over HTTP
 - [#2186](https://github.com/influxdb/influxdb/pull/2186): The default status code for queries is now `200 OK`
 - [#2298](https://github.com/influxdb/influxdb/pull/2298): Successful writes now return a status code of `204 No Content` - thanks @neonstalwart!
+- [#2549](https://github.com/influxdb/influxdb/pull/2549): Raft election timeout to 5 seconds, so system is more forgiving of CPU loads.
 
 ### Bugfixes
 - [#2535](https://github.com/influxdb/influxdb/pull/2535): Return exit status 0 if influxd already running. Thanks @haim0n.
