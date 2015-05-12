@@ -1,6 +1,9 @@
 package influxql
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 import "sort"
 
@@ -117,6 +120,7 @@ func TestInitializeMapFuncDerivative(t *testing.T) {
 		Name: "derivative",
 		Args: []Expr{
 			&VarRef{Val: " field1"},
+			&DurationLiteral{Val: time.Hour},
 		},
 	}
 
@@ -130,6 +134,7 @@ func TestInitializeMapFuncDerivative(t *testing.T) {
 		Name: "derivative",
 		Args: []Expr{
 			&Call{Name: "mean", Args: []Expr{&VarRef{Val: "field1"}}},
+			&DurationLiteral{Val: time.Hour},
 		},
 	}
 

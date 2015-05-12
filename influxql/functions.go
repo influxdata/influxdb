@@ -39,9 +39,9 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 	}
 
 	// Ensure that there is either a single argument or if for percentile, two
-	if c.Name == "percentile" {
+	if c.Name == "percentile" || c.Name == "derivative" {
 		if len(c.Args) != 2 {
-			return nil, fmt.Errorf("expected two arguments for percentile()")
+			return nil, fmt.Errorf("expected two arguments for %s()", c.Name)
 		}
 	} else if len(c.Args) != 1 {
 		return nil, fmt.Errorf("expected one argument for %s()", c.Name)
@@ -86,10 +86,6 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 		}
 		return MapEcho, nil
 	case "derivative":
-		if len(c.Args) == 0 {
-			return nil, fmt.Errorf("expected argument in derivative()")
-		}
-
 		// If the arg is another aggregate e.g. derivative(mean(value)), then
 		// use the map func for that nested aggregate
 		if fn, ok := c.Args[0].(*Call); ok {
@@ -136,10 +132,6 @@ func InitializeReduceFunc(c *Call) (ReduceFunc, error) {
 		}
 		return ReducePercentile(lit.Val), nil
 	case "derivative":
-		if len(c.Args) == 0 {
-			return nil, fmt.Errorf("expected argument in derivative()")
-		}
-
 		// If the arg is another aggregate e.g. derivative(mean(value)), then
 		// use the map func for that nested aggregate
 		if fn, ok := c.Args[0].(*Call); ok {
