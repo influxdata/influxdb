@@ -749,6 +749,16 @@ func ReducePercentile(percentile float64) ReduceFunc {
 	}
 }
 
+// IsNumeric returns whether a given aggregate can only be run on numeric fields.
+func IsNumeric(c *Call) bool {
+	switch c.Name {
+	case "count", "first", "last":
+		return false
+	default:
+		return true
+	}
+}
+
 // MapRawQuery is for queries without aggregates
 func MapRawQuery(itr Iterator) interface{} {
 	var values []*rawQueryMapOutput

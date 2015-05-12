@@ -720,6 +720,31 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",50]]}]}]}`,
 		},
+		{
+			reset: true,
+			name:  "numeric aggregates on non-numeric data.",
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+				{"name": "cpu", "time": "2015-04-20T14:27:41Z", "fields": {"value": "hello"}}
+			]}`,
+			query:    `SELECT STDDEV(value) FROM cpu`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"error":"aggregate 'stddev' requires numerical field values. Field 'value' is of type string"}]}`,
+		},
+		{
+			query:    `SELECT mean(value) FROM cpu`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"error":"aggregate 'mean' requires numerical field values. Field 'value' is of type string"}]}`,
+		},
+		{
+			query:    `SELECT median(value) FROM cpu`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"error":"aggregate 'median' requires numerical field values. Field 'value' is of type string"}]}`,
+		},
+		{
+			query:    `SELECT count(value) FROM cpu`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]}]}]}`,
+		},
 
 		// Precision-specified writes
 		{

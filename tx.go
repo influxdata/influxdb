@@ -93,6 +93,21 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 			}
 		}
 
+		// If a numerical aggregate is requested, ensure it is only performed on numeric data.
+		for _, a := range stmt.FunctionCalls() {
+			lit, ok := a.Args[0].(*influxql.VarRef)
+			if !ok {
+				return nil, fmt.Errorf("aggregate call didn't contain a field %s", a.String())
+			}
+			if influxql.IsNumeric(a) {
+				f := m.FieldByName(lit.Val)
+				if f.Type != influxql.Float && f.Type != influxql.Integer {
+					return nil, fmt.Errorf("aggregate '%s' requires numerical field values. Field '%s' is of type %s",
+						a.Name, f.Name, f.Type)
+				}
+			}
+		}
+
 		// Grab time range from statement.
 		tmin, tmax := influxql.TimeRange(stmt.Condition)
 		if tmax.IsZero() {
@@ -333,10 +348,7 @@ func (l *LocalMapper) Begin(c *influxql.Call, startingTime int64, chunkSize int)
 			l.limit = math.MaxUint64
 		}
 	} else {
-		lit, ok := c.Args[0].(*influxql.VarRef)
-		if !ok {
-			return fmt.Errorf("aggregate call didn't contain a field %s", c.String())
-		}
+		lit, _ := c.Args[0].(*influxql.VarRef)
 		fieldName = lit.Val
 	}
 
