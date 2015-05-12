@@ -295,7 +295,7 @@ func TestSelectStatement_HasWildcard(t *testing.T) {
 
 	for i, tt := range tests {
 		// Parse statement.
-		t.Logf("statement: %s", tt.stmt)
+		t.Logf("index: %d, statement: %s", i, tt.stmt)
 		stmt, err := influxql.NewParser(strings.NewReader(tt.stmt)).ParseStatement()
 		if err != nil {
 			t.Fatalf("invalid statement: %q: %s", tt.stmt, err)
@@ -400,7 +400,7 @@ func TestSelectStatement_RewriteWildcards(t *testing.T) {
 	}
 
 	for i, tt := range tests {
-		t.Logf("statement: %s", tt.stmt)
+		t.Logf("index: %d, statement: %s", i, tt.stmt)
 		// Parse statement.
 		stmt, err := influxql.NewParser(strings.NewReader(tt.stmt)).ParseStatement()
 		if err != nil {
@@ -456,8 +456,8 @@ func TestSelectStatement_IsRawQuerySet(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Logf("statment: %s", tt.stmt)
+	for i, tt := range tests {
+		t.Logf("index: %d, statement: %s", i, tt.stmt)
 		s := MustParseSelectStatement(tt.stmt)
 		if s.IsRawQuery != tt.isRaw {
 			t.Errorf("'%s', IsRawQuery should be %v", tt.stmt, tt.isRaw)
