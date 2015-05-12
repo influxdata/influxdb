@@ -24,6 +24,7 @@ This release has a breaking API change for writes -- the field previously called
 - [#2548](https://github.com/influxdb/influxdb/issues/2548): Return an error when numeric aggregate applied to non-numeric data.
 - [#2487](https://github.com/influxdb/influxdb/issues/2487): Aggregate query with exact timestamp causes panic. Thanks @neonstalwart!
 - [#2552](https://github.com/influxdb/influxdb/issues/2552): Run CQ that is actually passed into go-routine.
+- [#2553](https://github.com/influxdb/influxdb/issues/2553): Fix race condition during CQ execution.
 
 ## v0.9.0-rc29 [2015-05-05]
 
