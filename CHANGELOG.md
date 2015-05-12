@@ -1,4 +1,4 @@
-## v0.9.0-rc30 [unreleased]
+## v0.9.0-rc30 [2015-05-12]
 
 ### Release Notes
 
