@@ -604,6 +604,47 @@ func TestServer_CreateRetentionPolicy(t *testing.T) {
 	}
 }
 
+// Ensure the database only creates retention policy if it doesn't already exist.
+func TestServer_CreateRetentionPolicyIfNotExists(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Create a database.
+	if err := s.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a retention policy on the database.
+	rp := &influxdb.RetentionPolicy{
+		Name:               "bar",
+		Duration:           time.Hour,
+		ShardGroupDuration: time.Hour,
+		ReplicaN:           2,
+	}
+
+	// Verify nil returned if policy doesn't exist and succesfully created
+	if err := s.CreateRetentionPolicyIfNotExists("foo", rp); err != nil {
+		t.Fatal(err)
+	}
+	s.Restart()
+
+	// Verify that the policy exists.
+	if o, err := s.RetentionPolicy("foo", "bar"); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if o == nil {
+		t.Fatalf("retention policy not found")
+	} else if !reflect.DeepEqual(rp, o) {
+		t.Fatalf("retention policy mismatch: %#v", o)
+	}
+
+	// Verify nil returned if policy already exists
+	if err := s.CreateRetentionPolicyIfNotExists("foo", rp); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // Ensure the database can create a new retention policy with infinite duration.
 func TestServer_CreateRetentionPolicyInfinite(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
@@ -994,6 +1035,30 @@ func TestServer_StartRetentionPolicyEnforcement_ErrZeroInterval(t *testing.T) {
 	defer s.Close()
 	if err := s.StartRetentionPolicyEnforcement(time.Duration(0)); err == nil {
 		t.Fatal("failed to prohibit retention policies zero check interval")
+	}
+}
+
+// Ensure the server returns an error when attempting to look up
+// the retention policy on a non existent database
+func TestServer_RetentionPolicy_NonexistentDatabase(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	nonExistentDBName := "nonexistent_database"
+
+	expectedErr := influxdb.ErrDatabaseNotFound(nonExistentDBName)
+
+	extractMessage := func(e error) string {
+		r, _ := regexp.Compile("(.+)\\(.+\\)")
+		match := r.FindStringSubmatch(e.Error())[1]
+		return match
+	}
+
+	_, err := s.RetentionPolicy(nonExistentDBName, "rp")
+	if extractMessage(err) != extractMessage(expectedErr) {
+		t.Fatal(err)
 	}
 }
 
@@ -2543,8 +2608,8 @@ func TestServer_SetPrivilege_BlankDatabaseName_Revoke(t *testing.T) {
 	}
 }
 
-// Ensure user admin flag updated when database name is blank
-func TestServer_SetPrivilege_ExistingDatabase(t *testing.T) {
+// Ensure read privilege can be set for user
+func TestServer_SetPrivilege_Read(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
@@ -2566,7 +2631,6 @@ func TestServer_SetPrivilege_ExistingDatabase(t *testing.T) {
 		t.Errorf("The user should have no privileges by default.")
 	}
 
-	// Set privileges with blank database name to update user admin flag
 	err := s.SetPrivilege(influxql.WritePrivilege, "susy", "foo")
 	if err != nil {
 		t.Errorf("unexpected error: %s", err)
@@ -2574,6 +2638,39 @@ func TestServer_SetPrivilege_ExistingDatabase(t *testing.T) {
 
 	if u := s.User("susy"); u.Privileges["foo"] != influxql.WritePrivilege {
 		t.Errorf("The user should have 'WRITE' privileges.")
+	}
+}
+
+// Ensure all privileges can be set for user
+func TestServer_SetPrivilege_All(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Create the "foo" database.
+	if err := s.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a user.
+	if err := s.CreateUser("susy", "pass", false); err != nil {
+		t.Fatal(err)
+	}
+	s.Restart()
+
+	u := s.User("susy")
+	if u.Privileges["foo"] != influxql.NoPrivileges {
+		t.Errorf("The user should have no privileges by default.")
+	}
+
+	err := s.SetPrivilege(influxql.AllPrivileges, "susy", "foo")
+	if err != nil {
+		t.Errorf("unexpected error: %s", err)
+	}
+
+	if u := s.User("susy"); u.Privileges["foo"] != influxql.AllPrivileges {
+		t.Errorf("The user should have 'ALL' privileges.")
 	}
 }
 

@@ -1484,7 +1484,7 @@ func (s *Server) DefaultRetentionPolicy(database string) (*RetentionPolicy, erro
 	return db.policies[db.defaultRetentionPolicy], nil
 }
 
-// RetentionPolicies returns a list of retention polocies for a database.
+// RetentionPolicies returns a list of retention policies for a database.
 // Returns an error if the database doesn't exist.
 func (s *Server) RetentionPolicies(database string) ([]*RetentionPolicy, error) {
 	s.mu.RLock()
