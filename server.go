@@ -3908,7 +3908,7 @@ func (s *Server) RunContinuousQueries() error {
 					c.setIntoRP(d.defaultRetentionPolicy)
 				}
 				go func(cq *ContinuousQuery) {
-					s.runContinuousQuery(c)
+					s.runContinuousQuery(cq)
 				}(c)
 			}
 		}
