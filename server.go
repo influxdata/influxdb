@@ -3790,6 +3790,7 @@ type ContinuousQuery struct {
 	mu      sync.Mutex
 	cq      *influxql.CreateContinuousQueryStatement
 	lastRun time.Time
+	running bool // Currently running?
 }
 
 func (cq *ContinuousQuery) intoDB() string          { return cq.cq.Source.Target.Measurement.Database }
@@ -3921,6 +3922,13 @@ func (s *Server) RunContinuousQueries() error {
 // lastRunTime of the CQ and the rules for when to run set through the config to determine
 // if this CQ should be run
 func (s *Server) shouldRunContinuousQuery(cq *ContinuousQuery) bool {
+	cq.mu.Lock()
+	defer cq.mu.Unlock()
+
+	if cq.running {
+		return false
+	}
+
 	// if it's not aggregated we don't run it
 	if cq.cq.Source.IsRawQuery {
 		return false
@@ -3954,6 +3962,10 @@ func (s *Server) runContinuousQuery(cq *ContinuousQuery) {
 	s.stats.Inc("continuousQueryExecuted")
 	cq.mu.Lock()
 	defer cq.mu.Unlock()
+	cq.running = true
+	defer func() {
+		cq.running = false
+	}()
 
 	now := time.Now()
 	cq.lastRun = now
