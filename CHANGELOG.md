@@ -18,6 +18,7 @@ This release has a breaking API change for writes -- the field previously called
 - [#2108](https://github.com/influxdb/influxdb/issues/2108): Change `timestamp` to `time` - thanks @neonstalwart!
 - [#2539](https://github.com/influxdb/influxdb/issues/2539): Add additional vote request logging.
 - [#2541](https://github.com/influxdb/influxdb/issues/2541): Update messaging client connection index with every message.
+- [#2542](https://github.com/influxdb/influxdb/issues/2542): Throw parser error for invalid aggregate without where time.
 
 ## v0.9.0-rc29 [2015-05-05]
 
