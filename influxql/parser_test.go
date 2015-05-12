@@ -179,6 +179,17 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// select distinct statements
+		{
+			s: `select distinct field1 from cpu`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: true,
+				Distinct:   true,
+				Fields:     []*influxql.Field{{Expr: &influxql.VarRef{Val: "field1"}}},
+				Sources:    []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+			},
+		},
+
 		// SELECT * FROM WHERE time
 		{
 			s: fmt.Sprintf(`SELECT * FROM cpu WHERE time > '%s'`, now.UTC().Format(time.RFC3339Nano)),
