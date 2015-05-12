@@ -1,6 +1,7 @@
 package influxql
 
 import "testing"
+
 import "sort"
 
 type point struct {
@@ -96,6 +97,45 @@ func TestInitializeMapFuncPercentile(t *testing.T) {
 
 	if exp := "expected two arguments for percentile()"; err.Error() != exp {
 		t.Errorf("InitializeMapFunc(%v) mismatch. exp %v got %v", c, exp, err.Error())
+	}
+}
+
+func TestInitializeMapFuncDerivative(t *testing.T) {
+	// No args should fail
+	c := &Call{
+		Name: "derivative",
+		Args: []Expr{},
+	}
+
+	_, err := InitializeMapFunc(c)
+	if err == nil {
+		t.Errorf("InitializeMapFunc(%v) expected error.  got nil", c)
+	}
+
+	// Single field arg should return MapEcho
+	c = &Call{
+		Name: "derivative",
+		Args: []Expr{
+			&VarRef{Val: " field1"},
+		},
+	}
+
+	_, err = InitializeMapFunc(c)
+	if err != nil {
+		t.Errorf("InitializeMapFunc(%v) unexpected error.  got %v", c, err)
+	}
+
+	// Nested Aggregate func should return the map func for the nested aggregate
+	c = &Call{
+		Name: "derivative",
+		Args: []Expr{
+			&Call{Name: "mean", Args: []Expr{&VarRef{Val: "field1"}}},
+		},
+	}
+
+	_, err = InitializeMapFunc(c)
+	if err != nil {
+		t.Errorf("InitializeMapFunc(%v) unexpected error.  got %v", c, err)
 	}
 }
 

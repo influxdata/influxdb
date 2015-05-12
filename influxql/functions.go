@@ -47,10 +47,14 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 		return nil, fmt.Errorf("expected one argument for %s()", c.Name)
 	}
 
-	// Ensure the argument is a variable reference.
-	_, ok := c.Args[0].(*VarRef)
-	if !ok {
-		return nil, fmt.Errorf("expected field argument in %s()", c.Name)
+	// derivative can take a nested aggregate function, everything else expects
+	// a variable reference as the first arg
+	if c.Name != "derivative" {
+		// Ensure the argument is a variable reference.
+		_, ok := c.Args[0].(*VarRef)
+		if !ok {
+			return nil, fmt.Errorf("expected field argument in %s()", c.Name)
+		}
 	}
 
 	// Retrieve map function by name.
@@ -81,6 +85,17 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 			return nil, fmt.Errorf("expected float argument in percentile()")
 		}
 		return MapEcho, nil
+	case "derivative":
+		if len(c.Args) == 0 {
+			return nil, fmt.Errorf("expected argument in derivative()")
+		}
+
+		// If the arg is another aggregate e.g. derivative(mean(value)), then
+		// use the map func for that nested aggregate
+		if fn, ok := c.Args[0].(*Call); ok {
+			return InitializeMapFunc(fn)
+		}
+		return MapRawQuery, nil
 	default:
 		return nil, fmt.Errorf("function not found: %q", c.Name)
 	}
@@ -120,6 +135,17 @@ func InitializeReduceFunc(c *Call) (ReduceFunc, error) {
 			return nil, fmt.Errorf("expected float argument in percentile()")
 		}
 		return ReducePercentile(lit.Val), nil
+	case "derivative":
+		if len(c.Args) == 0 {
+			return nil, fmt.Errorf("expected argument in derivative()")
+		}
+
+		// If the arg is another aggregate e.g. derivative(mean(value)), then
+		// use the map func for that nested aggregate
+		if fn, ok := c.Args[0].(*Call); ok {
+			return InitializeReduceFunc(fn)
+		}
+		return nil, fmt.Errorf("expected function argument to derivative: %q", c.Name)
 	default:
 		return nil, fmt.Errorf("function not found: %q", c.Name)
 	}
