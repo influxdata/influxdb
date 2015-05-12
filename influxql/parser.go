@@ -692,7 +692,7 @@ func (p *Parser) parseSelectStatement(tr targetRequirement) (*SelectStatement, e
 		return nil, fmt.Errorf("GROUP BY requires at least one aggregate function")
 	}
 
-	// If we have a count function with a group by time without a where clause, it's an invalid statement
+	// If we have an aggregate function with a group by time without a where clause, it's an invalid statement
 	if tr == targetNotRequired { // ignore create continuous query statements
 		if d, _ := stmt.GroupByInterval(); !stmt.IsRawQuery && d > 0 && !stmt.hasTimeDimensions(stmt.Condition) {
 			return nil, fmt.Errorf("aggregate functions with GROUP BY time require a WHERE time clause")
