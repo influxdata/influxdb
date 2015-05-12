@@ -135,7 +135,10 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 	resultValues := make([][]interface{}, pointCountInResult)
 
 	// ensure that the start time for the results is on the start of the window
-	startTimeBucket := m.TMin / m.interval * m.interval
+	startTimeBucket := m.TMin
+	if m.interval > 0 {
+		startTimeBucket = startTimeBucket / m.interval * m.interval
+	}
 
 	for i, _ := range resultValues {
 		var t int64
