@@ -348,10 +348,7 @@ func (l *LocalMapper) Begin(c *influxql.Call, startingTime int64, chunkSize int)
 			l.limit = math.MaxUint64
 		}
 	} else {
-		lit, ok := c.Args[0].(*influxql.VarRef)
-		if !ok {
-			return fmt.Errorf("aggregate call didn't contain a field %s", c.String())
-		}
+		lit, _ := c.Args[0].(*influxql.VarRef)
 		fieldName = lit.Val
 	}
 
