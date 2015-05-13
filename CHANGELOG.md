@@ -1,8 +1,15 @@
 ## v0.9.0-rc31 [unreleased]
 
+### Features
+- [#1822](https://github.com/influxdb/influxdb/issues/1822): Wire up DERIVATIVE aggregate
+- [#1477](https://github.com/influxdb/influxdb/issues/1477): Wire up non_negative_derivative function
+
 ### Bugfixes
 - [#2545](https://github.com/influxdb/influxdb/pull/2545): Use "value" as the field name for graphite input. Thanks @cannium.
 - [#2558](https://github.com/influxdb/influxdb/pull/2558): Fix client response check - thanks @vladlopes!
+
+## PRs
+- [#2569](https://github.com/influxdb/influxdb/pull/2569): Add derivative functions
 
 ## v0.9.0-rc30 [2015-05-12]
 
