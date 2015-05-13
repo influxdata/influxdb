@@ -1,3 +1,8 @@
+## v0.9.0-rc31 [unreleased]
+
+### Features
+- [#2545](https://github.com/influxdb/influxdb/pull/2545): Use "value" as the field name for graphite input. Thanks @cannium.
+
 ## v0.9.0-rc30 [2015-05-12]
 
 ### Release Notes
