@@ -67,6 +67,8 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 	switch c.Name {
 	case "count":
 		return MapCount, nil
+	case "distinct":
+		return MapDistinct, nil
 	case "sum":
 		return MapSum, nil
 	case "mean":
@@ -109,6 +111,8 @@ func InitializeReduceFunc(c *Call) (ReduceFunc, error) {
 	switch c.Name {
 	case "count":
 		return ReduceSum, nil
+	case "distinct":
+		return ReduceDistinct, nil
 	case "sum":
 		return ReduceSum, nil
 	case "mean":
@@ -173,6 +177,12 @@ func InitializeUnmarshaller(c *Call) (UnmarshalFunc, error) {
 			err := json.Unmarshal(b, &o)
 			return &o, err
 		}, nil
+	case "distinct":
+		return func(b []byte) (interface{}, error) {
+			var val []interface{}
+			err := json.Unmarshal(b, &val)
+			return val, err
+		}, nil
 	case "first":
 		return func(b []byte) (interface{}, error) {
 			var o firstLastMapOutput
@@ -216,6 +226,38 @@ func MapCount(itr Iterator) interface{} {
 		return n
 	}
 	return nil
+}
+
+// MapDistinct computes the unique values in an iterator.
+func MapDistinct(itr Iterator) interface{} {
+	var distinct = make(map[interface{}]struct{})
+
+	for _, k, v := itr.Next(); k != 0; _, k, v = itr.Next() {
+		distinct[v] = struct{}{}
+	}
+	return distinct
+}
+
+// ReduceDistinct finds the unique values for each key.
+func ReduceDistinct(values []interface{}) interface{} {
+	var distinct = make(map[interface{}]struct{})
+
+	for _, v := range values {
+		d, ok := v.(map[interface{}]struct{})
+		if !ok {
+			panic("expected map[interface{}]struct{}")
+		}
+		for k, _ := range d {
+			distinct[k] = struct{}{}
+		}
+	}
+	results := make([]interface{}, len(distinct))
+	var i int
+	for k, _ := range distinct {
+		results[i] = k
+		i++
+	}
+	return results
 }
 
 // MapSum computes the summation of values in an iterator.
