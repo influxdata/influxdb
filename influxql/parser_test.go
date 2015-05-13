@@ -128,6 +128,16 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// SELECT statement (lowercase) with quoted field
+		{
+			s: `select 'my_field' from myseries`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: true,
+				Fields:     []*influxql.Field{{Expr: &influxql.StringLiteral{Val: "my_field"}}},
+				Sources:    []influxql.Source{&influxql.Measurement{Name: "myseries"}},
+			},
+		},
+
 		// SELECT statement with multiple ORDER BY fields
 		{
 			s: `SELECT field1 FROM myseries ORDER BY ASC, field1, field2 DESC LIMIT 10`,
