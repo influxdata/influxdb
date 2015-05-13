@@ -238,26 +238,94 @@ func MapDistinct(itr Iterator) interface{} {
 	return distinct
 }
 
+type distinctResults []interface{}
+
+func (d distinctResults) Len() int      { return len(d) }
+func (d distinctResults) Swap(i, j int) { d[i], d[j] = d[j], d[i] }
+func (d distinctResults) Less(i, j int) bool {
+	// sort all like types first
+	{
+		d1, ok1 := d[i].(float64)
+		d2, ok2 := d[j].(float64)
+		if ok1 && ok2 {
+			return d1 < d2
+		}
+	}
+
+	{
+		d1, ok1 := d[i].(uint64)
+		d2, ok2 := d[j].(uint64)
+		if ok1 && ok2 {
+			return d1 < d2
+		}
+	}
+
+	{
+		d1, ok1 := d[i].(string)
+		d2, ok2 := d[j].(string)
+		if ok1 && ok2 {
+			return d1 < d2
+		}
+	}
+
+	// if unable to match types, pick something that is larger
+	// we try to get numerics and cast them all to floats
+	// otherwise if it's not numeric, it's string and we don't care
+	infer := func(val interface{}) (int, float64) {
+		var tv int    // assing an arbitrary but deterministic weight for a type value
+		var f float64 // store the float value if we can convert it
+		switch v := d[i].(type) {
+		case uint64:
+			tv = 1
+			f = float64(v)
+		case float64:
+			tv = 1
+			f = v
+		case string:
+			tv = 2
+		default:
+			tv = 3
+		}
+		return tv, f
+	}
+	tv1, f1 := infer(d[i])
+	tv2, f2 := infer(d[j])
+
+	// If we had "numeric" data, us that for comparison
+	if tv1 == 1 && tv2 == 1 {
+		return f1 < f2
+	}
+	return tv1 < tv2
+}
+
 // ReduceDistinct finds the unique values for each key.
 func ReduceDistinct(values []interface{}) interface{} {
 	var distinct = make(map[interface{}]struct{})
 
 	for _, v := range values {
+		if v == nil {
+			continue
+		}
 		d, ok := v.(map[interface{}]struct{})
 		if !ok {
-			panic("expected map[interface{}]struct{}")
+			msg := fmt.Sprintf("expected map[interface{}]struct{}%T", v)
+			panic(msg)
 		}
 		for k, _ := range d {
 			distinct[k] = struct{}{}
 		}
 	}
-	results := make([]interface{}, len(distinct))
+	results := make(distinctResults, len(distinct))
 	var i int
 	for k, _ := range distinct {
 		results[i] = k
 		i++
 	}
-	return results
+	if len(results) > 0 {
+		sort.Sort(results)
+		return results
+	}
+	return nil
 }
 
 // MapSum computes the summation of values in an iterator.
@@ -818,7 +886,7 @@ func ReducePercentile(percentile float64) ReduceFunc {
 // IsNumeric returns whether a given aggregate can only be run on numeric fields.
 func IsNumeric(c *Call) bool {
 	switch c.Name {
-	case "count", "first", "last":
+	case "count", "first", "last", "distinct":
 		return false
 	default:
 		return true
