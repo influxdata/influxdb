@@ -87,7 +87,7 @@ func (p *Parser) Parse(line string) (influxdb.Point, error) {
 	}
 
 	fieldValues := make(map[string]interface{})
-	fieldValues[name] = v
+	fieldValues["value"] = v
 
 	// Parse timestamp.
 	unixTime, err := strconv.ParseFloat(fields[2], 64)
