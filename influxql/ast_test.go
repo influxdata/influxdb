@@ -309,6 +309,46 @@ func TestSelectStatement_HasWildcard(t *testing.T) {
 	}
 }
 
+// Test SELECT statement distinct rewrite.
+func TestSelectStatement_RewriteDistinct(t *testing.T) {
+	var tests = []struct {
+		stmt    string
+		rewrite string
+	}{
+		// No Distinct
+		{
+			stmt:    `SELECT value FROM cpu`,
+			rewrite: `SELECT value FROM cpu`,
+		},
+		// Distinct
+		{
+			stmt:    `SELECT DISTINCT value FROM cpu`,
+			rewrite: `SELECT distinct(value) FROM cpu`,
+		},
+	}
+
+	for i, tt := range tests {
+		t.Logf("index: %d, statement: %s", i, tt.stmt)
+		// Parse statement.
+		stmt, err := influxql.NewParser(strings.NewReader(tt.stmt)).ParseStatement()
+		if err != nil {
+			t.Fatalf("invalid statement: %q: %s", tt.stmt, err)
+		}
+
+		// Rewrite statement.
+		rw := stmt.(*influxql.SelectStatement).RewriteDistinct()
+		if rw == nil {
+			t.Errorf("%d. %q: unexpected nil statement", i, tt.stmt)
+			continue
+		}
+		if rw := rw.String(); tt.rewrite != rw {
+			t.Errorf("%d. %q: unexpected rewrite:\n\nexp=%s\n\ngot=%s\n\n", i, tt.stmt, tt.rewrite, rw)
+			continue
+		}
+	}
+
+}
+
 // Test SELECT statement wildcard rewrite.
 func TestSelectStatement_RewriteWildcards(t *testing.T) {
 	var fields = influxql.Fields{

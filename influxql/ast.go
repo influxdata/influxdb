@@ -769,6 +769,29 @@ func (s *SelectStatement) RewriteWildcards(fields Fields, dimensions Dimensions)
 	return other
 }
 
+// RewriteDistinct rewrites the expresion to be a call for map/reduce to work correctly
+// This method assumes all validation has passed
+func (s *SelectStatement) RewriteDistinct() *SelectStatement {
+	if !s.Distinct {
+		return s
+	}
+
+	other := s.Clone()
+
+	varRef, ok := other.Fields[0].Expr.(*VarRef)
+
+	if !ok {
+		panic("not a *influxql.VarRef")
+	}
+	field := &Field{Expr: &Call{Name: "distinct", Args: []Expr{&VarRef{Val: varRef.Val}}}}
+
+	other.Fields[0] = field
+	other.Distinct = false
+	other.IsRawQuery = false
+
+	return other
+}
+
 // String returns a string representation of the select statement.
 func (s *SelectStatement) String() string {
 	var buf bytes.Buffer
