@@ -113,9 +113,12 @@ func TestClient_Write(t *testing.T) {
 	}
 
 	bp := client.BatchPoints{}
-	_, err = c.Write(bp)
+	r, err := c.Write(bp)
 	if err != nil {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+	if r != nil {
+		t.Fatalf("unexpected response. expected %v, actual %v", nil, r)
 	}
 }
 
