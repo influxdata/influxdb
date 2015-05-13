@@ -12,6 +12,7 @@ import (
 	"math"
 	"math/rand"
 	"sort"
+	"strings"
 )
 
 // Iterator represents a forward-only iterator over a set of points.
@@ -39,7 +40,7 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 	}
 
 	// Ensure that there is either a single argument or if for percentile, two
-	if c.Name == "percentile" || c.Name == "derivative" {
+	if c.Name == "percentile" || strings.HasSuffix(c.Name, "derivative") {
 		if len(c.Args) != 2 {
 			return nil, fmt.Errorf("expected two arguments for %s()", c.Name)
 		}
@@ -49,7 +50,7 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 
 	// derivative can take a nested aggregate function, everything else expects
 	// a variable reference as the first arg
-	if c.Name != "derivative" {
+	if !strings.HasSuffix(c.Name, "derivative") {
 		// Ensure the argument is a variable reference.
 		_, ok := c.Args[0].(*VarRef)
 		if !ok {
@@ -85,7 +86,7 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 			return nil, fmt.Errorf("expected float argument in percentile()")
 		}
 		return MapEcho, nil
-	case "derivative":
+	case "derivative", "non_negative_derivative":
 		// If the arg is another aggregate e.g. derivative(mean(value)), then
 		// use the map func for that nested aggregate
 		if fn, ok := c.Args[0].(*Call); ok {
@@ -131,13 +132,13 @@ func InitializeReduceFunc(c *Call) (ReduceFunc, error) {
 			return nil, fmt.Errorf("expected float argument in percentile()")
 		}
 		return ReducePercentile(lit.Val), nil
-	case "derivative":
+	case "derivative", "non_negative_derivative":
 		// If the arg is another aggregate e.g. derivative(mean(value)), then
 		// use the map func for that nested aggregate
 		if fn, ok := c.Args[0].(*Call); ok {
 			return InitializeReduceFunc(fn)
 		}
-		return nil, fmt.Errorf("expected function argument to derivative: %q", c.Name)
+		return nil, fmt.Errorf("expected function argument to %s", c.Name)
 	default:
 		return nil, fmt.Errorf("function not found: %q", c.Name)
 	}
@@ -790,6 +791,10 @@ func MapRawQuery(itr Iterator) interface{} {
 type rawQueryMapOutput struct {
 	Time   int64
 	Values interface{}
+}
+
+func (r *rawQueryMapOutput) String() string {
+	return fmt.Sprintf("{%#v %#v}", r.Time, r.Values)
 }
 
 type rawOutputs []*rawQueryMapOutput

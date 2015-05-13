@@ -104,43 +104,46 @@ func TestInitializeMapFuncPercentile(t *testing.T) {
 }
 
 func TestInitializeMapFuncDerivative(t *testing.T) {
-	// No args should fail
-	c := &Call{
-		Name: "derivative",
-		Args: []Expr{},
-	}
 
-	_, err := InitializeMapFunc(c)
-	if err == nil {
-		t.Errorf("InitializeMapFunc(%v) expected error.  got nil", c)
-	}
+	for _, fn := range []string{"derivative", "non_negative_derivative"} {
+		// No args should fail
+		c := &Call{
+			Name: fn,
+			Args: []Expr{},
+		}
 
-	// Single field arg should return MapEcho
-	c = &Call{
-		Name: "derivative",
-		Args: []Expr{
-			&VarRef{Val: " field1"},
-			&DurationLiteral{Val: time.Hour},
-		},
-	}
+		_, err := InitializeMapFunc(c)
+		if err == nil {
+			t.Errorf("InitializeMapFunc(%v) expected error.  got nil", c)
+		}
 
-	_, err = InitializeMapFunc(c)
-	if err != nil {
-		t.Errorf("InitializeMapFunc(%v) unexpected error.  got %v", c, err)
-	}
+		// Single field arg should return MapEcho
+		c = &Call{
+			Name: fn,
+			Args: []Expr{
+				&VarRef{Val: " field1"},
+				&DurationLiteral{Val: time.Hour},
+			},
+		}
 
-	// Nested Aggregate func should return the map func for the nested aggregate
-	c = &Call{
-		Name: "derivative",
-		Args: []Expr{
-			&Call{Name: "mean", Args: []Expr{&VarRef{Val: "field1"}}},
-			&DurationLiteral{Val: time.Hour},
-		},
-	}
+		_, err = InitializeMapFunc(c)
+		if err != nil {
+			t.Errorf("InitializeMapFunc(%v) unexpected error.  got %v", c, err)
+		}
 
-	_, err = InitializeMapFunc(c)
-	if err != nil {
-		t.Errorf("InitializeMapFunc(%v) unexpected error.  got %v", c, err)
+		// Nested Aggregate func should return the map func for the nested aggregate
+		c = &Call{
+			Name: fn,
+			Args: []Expr{
+				&Call{Name: "mean", Args: []Expr{&VarRef{Val: "field1"}}},
+				&DurationLiteral{Val: time.Hour},
+			},
+		}
+
+		_, err = InitializeMapFunc(c)
+		if err != nil {
+			t.Errorf("InitializeMapFunc(%v) unexpected error.  got %v", c, err)
+		}
 	}
 }
 

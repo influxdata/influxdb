@@ -364,6 +364,10 @@ func (m *MapReduceJob) derivativeInterval() time.Duration {
 	return m.stmt.FunctionCalls()[0].Args[1].(*DurationLiteral).Val
 }
 
+func (m *MapReduceJob) isNonNegativeDerivative() bool {
+	return m.stmt.FunctionCalls()[0].Name == "non_negative_derivative"
+}
+
 func (m *MapReduceJob) processRawQueryDerivative(lastValueFromPreviousChunk *rawQueryMapOutput, valuesToReturn []*rawQueryMapOutput) []*rawQueryMapOutput {
 	// If we're called and do not have a derivative aggregate function, then return what was passed in
 	if !m.stmt.HasDerivative() {
@@ -389,24 +393,31 @@ func (m *MapReduceJob) processRawQueryDerivative(lastValueFromPreviousChunk *raw
 		lastValueFromPreviousChunk = valuesToReturn[0]
 	}
 
-	// The duration to normalize the derivative by.  This is so the derivative values
-	// can be expressed as "per second", etc.. within each time segment
-	interval := m.derivativeInterval()
+	// Determines whether to drop negative differences
+	isNonNegative := m.isNonNegativeDerivative()
 
-	derivativeValues := make([]*rawQueryMapOutput, len(valuesToReturn)-1)
+	derivativeValues := []*rawQueryMapOutput{}
 	for i := 1; i < len(valuesToReturn); i++ {
 		v := valuesToReturn[i]
 
-		// Calculate the derivate of successive points by dividing the difference
+		// Calculate the derivative of successive points by dividing the difference
 		// of each value by the elapsed time normalized to the interval
+		var value interface{}
 		diff := v.Values.(float64) - lastValueFromPreviousChunk.Values.(float64)
 		elapsed := v.Time - lastValueFromPreviousChunk.Time
+		value = diff / (float64(elapsed) / float64(m.derivativeInterval()))
 
-		derivativeValues[i-1] = &rawQueryMapOutput{
-			Time:   v.Time,
-			Values: diff / (float64(elapsed) / float64(interval)),
-		}
 		lastValueFromPreviousChunk = v
+
+		// Drop negative values for non-negative derivatives
+		if isNonNegative && diff < 0 {
+			continue
+		}
+
+		derivativeValues = append(derivativeValues, &rawQueryMapOutput{
+			Time:   v.Time,
+			Values: value,
+		})
 	}
 
 	return derivativeValues
@@ -433,27 +444,36 @@ func (m *MapReduceJob) processDerivative(results [][]interface{}) [][]interface{
 		}
 	}
 
+	// Determines whether to drop negative differences
+	isNonNegative := m.isNonNegativeDerivative()
+
 	// Otherwise calculate the derivatives as the difference between consequtive
 	// points divided by the elapsed time.  Then normalize to the requested
 	// interval.
-	derivatives := make([][]interface{}, len(results)-1)
+	derivatives := [][]interface{}{}
 	for i := 1; i < len(results); i++ {
 		prev := results[i-1]
 		cur := results[i]
 
 		if cur[1] == nil || prev[1] == nil {
-			derivatives[i-1] = cur
 			continue
 		}
 
+		var value interface{}
 		elapsed := cur[0].(time.Time).Sub(prev[0].(time.Time))
 		diff := cur[1].(float64) - prev[1].(float64)
+		value = float64(diff) / (float64(elapsed) / float64(m.derivativeInterval()))
+
+		// Drop negative values for non-negative derivatives
+		if isNonNegative && diff < 0 {
+			continue
+		}
 
 		val := []interface{}{
 			cur[0],
-			float64(diff) / (float64(elapsed) / float64(m.derivativeInterval())),
+			value,
 		}
-		derivatives[i-1] = val
+		derivatives = append(derivatives, val)
 	}
 
 	return derivatives

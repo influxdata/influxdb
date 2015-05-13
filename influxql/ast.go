@@ -646,7 +646,7 @@ type SelectStatement struct {
 // derivative aggregate
 func (s *SelectStatement) HasDerivative() bool {
 	for _, f := range s.Fields {
-		if f.Name() == "derivative" {
+		if strings.HasSuffix(f.Name(), "derivative") {
 			return true
 		}
 	}
@@ -657,7 +657,7 @@ func (s *SelectStatement) HasDerivative() bool {
 // variable ref as the first arg
 func (s *SelectStatement) IsSimpleDerivative() bool {
 	for _, f := range s.Fields {
-		if f.Name() == "derivative" {
+		if strings.HasSuffix(f.Name(), "derivative") {
 			// cast to derivative call
 			if d, ok := f.Expr.(*Call); ok {
 
