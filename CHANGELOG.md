@@ -2,6 +2,7 @@
 
 ### Bugfixes
 - [#2545](https://github.com/influxdb/influxdb/pull/2545): Use "value" as the field name for graphite input. Thanks @cannium.
+- [#2558](https://github.com/influxdb/influxdb/pull/2558): Fix client response check - thanks @vladlopes!
 
 ## v0.9.0-rc30 [2015-05-12]
 
