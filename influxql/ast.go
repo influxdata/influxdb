@@ -778,12 +778,16 @@ func (s *SelectStatement) RewriteDistinct() *SelectStatement {
 
 	other := s.Clone()
 
-	varRef, ok := other.Fields[0].Expr.(*VarRef)
-
-	if !ok {
-		panic("not a *influxql.VarRef")
+	var field *Field
+	switch varRef := other.Fields[0].Expr.(type) {
+	case *VarRef:
+		field = &Field{Expr: &Call{Name: "distinct", Args: []Expr{&VarRef{Val: varRef.Val}}}}
+	case *StringLiteral:
+		field = &Field{Expr: &Call{Name: "distinct", Args: []Expr{&VarRef{Val: varRef.Val}}}}
+	default:
+		msg := fmt.Sprintf("not a *influxql.VarRef or *influxql.StringLiteral, got %T", other.Fields[0].Expr)
+		panic(msg)
 	}
-	field := &Field{Expr: &Call{Name: "distinct", Args: []Expr{&VarRef{Val: varRef.Val}}}}
 
 	other.Fields[0] = field
 	other.Distinct = false
