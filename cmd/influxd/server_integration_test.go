@@ -1692,7 +1692,7 @@ func TestClientLibrary(t *testing.T) {
 			name: "no points",
 			writes: []write{
 				{
-					expected: `{}`,
+					expected: `null`,
 					bp:       client.BatchPoints{Database: "mydb"},
 				},
 			},
@@ -1707,7 +1707,7 @@ func TestClientLibrary(t *testing.T) {
 							{Name: "cpu", Fields: map[string]interface{}{"value": 1.1}, Time: now},
 						},
 					},
-					expected: `{}`,
+					expected: `null`,
 				},
 			},
 			queries: []query{
@@ -1720,9 +1720,9 @@ func TestClientLibrary(t *testing.T) {
 		{
 			name: "mulitple points, multiple values",
 			writes: []write{
-				{bp: client.BatchPoints{Database: "mydb", Points: []client.Point{{Name: "network", Fields: map[string]interface{}{"rx": 1.1, "tx": 2.1}, Time: now}}}, expected: `{}`},
-				{bp: client.BatchPoints{Database: "mydb", Points: []client.Point{{Name: "network", Fields: map[string]interface{}{"rx": 1.2, "tx": 2.2}, Time: now.Add(time.Nanosecond)}}}, expected: `{}`},
-				{bp: client.BatchPoints{Database: "mydb", Points: []client.Point{{Name: "network", Fields: map[string]interface{}{"rx": 1.3, "tx": 2.3}, Time: now.Add(2 * time.Nanosecond)}}}, expected: `{}`},
+				{bp: client.BatchPoints{Database: "mydb", Points: []client.Point{{Name: "network", Fields: map[string]interface{}{"rx": 1.1, "tx": 2.1}, Time: now}}}, expected: `null`},
+				{bp: client.BatchPoints{Database: "mydb", Points: []client.Point{{Name: "network", Fields: map[string]interface{}{"rx": 1.2, "tx": 2.2}, Time: now.Add(time.Nanosecond)}}}, expected: `null`},
+				{bp: client.BatchPoints{Database: "mydb", Points: []client.Point{{Name: "network", Fields: map[string]interface{}{"rx": 1.3, "tx": 2.3}, Time: now.Add(2 * time.Nanosecond)}}}, expected: `null`},
 			},
 			queries: []query{
 				{

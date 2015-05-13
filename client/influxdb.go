@@ -140,7 +140,7 @@ func (c *Client) Write(bp BatchPoints) (*Response, error) {
 		return nil, err
 	}
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusNoContent {
 		return &response, response.Error()
 	}
 
