@@ -307,6 +307,10 @@ func MapDistinct(itr Iterator) interface{} {
 		index[value] = struct{}{}
 	}
 
+	if len(index) == 0 {
+		return nil
+	}
+
 	results := make(distinctValues, len(index))
 	var i int
 	for value, _ := range index {
