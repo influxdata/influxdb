@@ -301,14 +301,14 @@ func (d distinctValues) Less(i, j int) bool {
 
 // MapDistinct computes the unique values in an iterator.
 func MapDistinct(itr Iterator) interface{} {
-	var distinct = make(map[interface{}]struct{})
+	var index = make(map[interface{}]struct{})
 
 	for _, k, v := itr.Next(); k != 0; _, k, v = itr.Next() {
-		distinct[v] = struct{}{}
+		index[v] = struct{}{}
 	}
-	results := make(distinctValues, len(distinct))
+	results := make(distinctValues, len(index))
 	var i int
-	for k, _ := range distinct {
+	for k, _ := range index {
 		results[i] = k
 		i++
 	}
@@ -317,8 +317,9 @@ func MapDistinct(itr Iterator) interface{} {
 
 // ReduceDistinct finds the unique values for each key.
 func ReduceDistinct(values []interface{}) interface{} {
-	var distinct = make(map[interface{}]struct{})
+	var index = make(map[interface{}]struct{})
 
+	// index distinct values from each mapper
 	for _, v := range values {
 		if v == nil {
 			continue
@@ -328,14 +329,15 @@ func ReduceDistinct(values []interface{}) interface{} {
 			msg := fmt.Sprintf("expected distinctValues, got: %T", v)
 			panic(msg)
 		}
-		for _, v := range d {
-			distinct[v] = struct{}{}
+		for _, distinctValue := range d {
+			index[distinctValue] = struct{}{}
 		}
 	}
+
 	// convert map keys to an array
-	results := make(distinctValues, len(distinct))
+	results := make(distinctValues, len(index))
 	var i int
-	for k, _ := range distinct {
+	for k, _ := range index {
 		results[i] = k
 		i++
 	}
