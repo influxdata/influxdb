@@ -29,7 +29,3 @@ curl -d '{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "na
 curl -d '{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "sensor", "time": "2015-05-01T00:00:00.000Z","fields": {"on": true, "off": false}}]}' -H "Content-Type: application/json" http://localhost:8086/write
 curl -d '{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "sensor", "time": "2015-05-01T08:00:00.000Z","fields": {"on": false, "off": true}}]}' -H "Content-Type: application/json" http://localhost:8086/write
 curl -d '{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "sensor", "time": "2015-05-01T16:00:00.000Z","fields": {"on": true, "off": false}}]}' -H "Content-Type: application/json" http://localhost:8086/write
-
-
-
-
