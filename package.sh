@@ -217,6 +217,7 @@ chown -R -L influxdb:influxdb $INFLUXDB_DATA_DIR
 EOF
     echo "Post-install script created successfully at $POST_INSTALL_PATH"
 }
+
 ###########################################################################
 # Start the packaging process.
 
