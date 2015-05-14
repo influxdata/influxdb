@@ -240,7 +240,83 @@ func TestMapDistinct(t *testing.T) {
 	}
 }
 
-func TestReduceDistinct(t *testing.T) {}
+func TestMapDistinctNil(t *testing.T) {
+	iter := &testIterator{
+		values: []point{},
+	}
+
+	values := MapDistinct(iter)
+
+	if values != nil {
+		t.Errorf("Wrong values. exp nil got %v", spew.Sdump(values))
+	}
+}
+
+func TestReduceDistinct(t *testing.T) {
+	v1 := distinctValues{
+		"2",
+		"1",
+		float64(2.0),
+		float64(1),
+		uint64(2),
+		uint64(1),
+		true,
+		false,
+	}
+
+	expect := distinctValues{
+		uint64(1),
+		float64(1),
+		uint64(2),
+		float64(2),
+		false,
+		true,
+		"1",
+		"2",
+	}
+
+	got := ReduceDistinct([]interface{}{v1, v1, expect})
+
+	if !reflect.DeepEqual(got, expect) {
+		t.Errorf("Wrong values. exp %v got %v", spew.Sdump(expect), spew.Sdump(got))
+	}
+}
+
+func TestReduceDistinctNil(t *testing.T) {
+	tests := []struct {
+		name   string
+		values []interface{}
+	}{
+		{
+			name:   "nil values",
+			values: nil,
+		},
+		{
+			name:   "nil mapper",
+			values: []interface{}{nil},
+		},
+		{
+			name:   "no mappers",
+			values: []interface{}{},
+		},
+		{
+			name:   "empty mappper (len 1)",
+			values: []interface{}{distinctValues{}},
+		},
+		{
+			name:   "empty mappper (len 2)",
+			values: []interface{}{distinctValues{}, distinctValues{}},
+		},
+	}
+
+	for _, test := range tests {
+		t.Log(test.name)
+		got := ReduceDistinct(test.values)
+		if got != nil {
+			t.Errorf("Wrong values. exp nil got %v", spew.Sdump(got))
+		}
+	}
+}
 
 func Test_distinctValues_Sort(t *testing.T) {
 	values := distinctValues{
