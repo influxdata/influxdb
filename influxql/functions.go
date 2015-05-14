@@ -291,7 +291,7 @@ func (d distinctValues) Less(i, j int) bool {
 	w1, n1 := infer(d[i])
 	w2, n2 := infer(d[j])
 
-	// If we had "numeric" data, us that for comparison
+	// If we had "numeric" data, use that for comparison
 	if n1 != n2 && (w1 == intWeight && w2 == floatWeight) || (w1 == floatWeight && w2 == intWeight) {
 		return n1 < n2
 	}
