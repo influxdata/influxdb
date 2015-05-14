@@ -280,7 +280,7 @@ func (d distinctResults) Less(i, j int) bool {
 	// we try to get numerics and cast them all to floats
 	// otherwise if it's not numeric, it's string and we don't care
 	infer := func(val interface{}) (int, float64) {
-		var tv int    // assing an arbitrary but deterministic weight for a type value
+		var tv int    // assign an arbitrary but deterministic weight for a type value
 		var f float64 // store the float value if we can convert it
 		switch v := d[i].(type) {
 		case uint64:
