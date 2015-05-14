@@ -261,6 +261,14 @@ func (d distinctResults) Less(i, j int) bool {
 	}
 
 	{
+		d1, ok1 := d[i].(bool)
+		d2, ok2 := d[j].(bool)
+		if ok1 && ok2 {
+			return d1 == false && d2 == true
+		}
+	}
+
+	{
 		d1, ok1 := d[i].(string)
 		d2, ok2 := d[j].(string)
 		if ok1 && ok2 {
@@ -281,10 +289,12 @@ func (d distinctResults) Less(i, j int) bool {
 		case float64:
 			tv = 1
 			f = v
-		case string:
+		case bool:
 			tv = 2
-		default:
+		case string:
 			tv = 3
+		default:
+			tv = 4
 		}
 		return tv, f
 	}
