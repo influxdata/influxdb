@@ -2,6 +2,7 @@ package influxql
 
 import (
 	"fmt"
+	"math"
 	"testing"
 	"time"
 )
@@ -18,6 +19,8 @@ func derivativeJob(t *testing.T, fn, interval string) *MapReduceJob {
 	return m
 }
 
+// TestProccessDerivative tests the processDerivative transformation function on the engine.
+// The is called for a query with a group by.
 func TestProcessDerivative(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -185,6 +188,8 @@ func TestProcessDerivative(t *testing.T) {
 	}
 }
 
+// TestProcessRawQueryDerivative tests the processRawQueryDerivative transformation function on the engine.
+// The is called for a queries that do not have a group by.
 func TestProcessRawQueryDerivative(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -243,7 +248,7 @@ func TestProcessRawQueryDerivative(t *testing.T) {
 			exp: []*rawQueryMapOutput{
 				&rawQueryMapOutput{
 					Time:   time.Unix(0, 0).Add(24 * time.Hour).UnixNano(),
-					Values: 2.0,
+					Values: 3.0,
 				},
 				&rawQueryMapOutput{
 					Time:   time.Unix(0, 0).Add(48 * time.Hour).UnixNano(),
@@ -375,7 +380,7 @@ func TestProcessRawQueryDerivative(t *testing.T) {
 		}
 
 		for i := 0; i < len(test.exp); i++ {
-			if test.exp[i].Time != got[i].Time || (test.exp[i].Values.(float64)-got[i].Values.(float64)) > 0.000000001 {
+			if test.exp[i].Time != got[i].Time || math.Abs((test.exp[i].Values.(float64)-got[i].Values.(float64))) > 0.0000001 {
 				t.Fatalf("processRawQueryDerivative - %s results mismatch:\ngot %v\nexp %v", test.name, got, test.exp)
 			}
 		}

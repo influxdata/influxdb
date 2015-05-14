@@ -379,7 +379,7 @@ func (m *MapReduceJob) processRawQueryDerivative(lastValueFromPreviousChunk *raw
 	}
 
 	// If we only have 1 value, then the value did not change, so return
-	// a single row w/ 0.0
+	// a single row with 0.0
 	if len(valuesToReturn) == 1 {
 		return []*rawQueryMapOutput{
 			&rawQueryMapOutput{
@@ -425,7 +425,6 @@ func (m *MapReduceJob) processRawQueryDerivative(lastValueFromPreviousChunk *raw
 
 // processDerivative returns the derivatives of the results
 func (m *MapReduceJob) processDerivative(results [][]interface{}) [][]interface{} {
-
 	// Return early if we're not supposed to process the derivatives
 	if !m.stmt.HasDerivative() {
 		return results
@@ -447,7 +446,7 @@ func (m *MapReduceJob) processDerivative(results [][]interface{}) [][]interface{
 	// Determines whether to drop negative differences
 	isNonNegative := m.isNonNegativeDerivative()
 
-	// Otherwise calculate the derivatives as the difference between consequtive
+	// Otherwise calculate the derivatives as the difference between consecutive
 	// points divided by the elapsed time.  Then normalize to the requested
 	// interval.
 	derivatives := [][]interface{}{}

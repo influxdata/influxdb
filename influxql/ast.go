@@ -642,31 +642,26 @@ type SelectStatement struct {
 	FillValue interface{}
 }
 
-// HasDerivative returns true if one of the field in the statement is a
+// HasDerivative returns true if one of the function calls in the statement is a
 // derivative aggregate
 func (s *SelectStatement) HasDerivative() bool {
-	for _, f := range s.Fields {
-		if strings.HasSuffix(f.Name(), "derivative") {
+	for _, f := range s.FunctionCalls() {
+		if strings.HasSuffix(f.Name, "derivative") {
 			return true
 		}
 	}
 	return false
 }
 
-// IsSimpleDerivative return true if a field is a derivative function with a
+// IsSimpleDerivative return true if one of the function call is a derivative function with a
 // variable ref as the first arg
 func (s *SelectStatement) IsSimpleDerivative() bool {
-	for _, f := range s.Fields {
-		if strings.HasSuffix(f.Name(), "derivative") {
-			// cast to derivative call
-			if d, ok := f.Expr.(*Call); ok {
-
-				// it's nested if the first argument is an aggregate function
-				if _, ok := d.Args[0].(*VarRef); ok {
-					return true
-				}
+	for _, f := range s.FunctionCalls() {
+		if strings.HasSuffix(f.Name, "derivative") {
+			// it's nested if the first argument is an aggregate function
+			if _, ok := f.Args[0].(*VarRef); ok {
+				return true
 			}
-			return false
 		}
 	}
 	return false
