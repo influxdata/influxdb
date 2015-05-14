@@ -1,8 +1,11 @@
 package influxql
 
 import (
+	"reflect"
 	"testing"
 	"time"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
 import "sort"
@@ -23,6 +26,7 @@ func (t *testIterator) Next() (seriesID uint64, timestamp int64, value interface
 		t.values = t.values[1:]
 		return v.seriesID, v.time, v.value
 	}
+
 	return 0, 0, nil
 }
 
@@ -40,9 +44,7 @@ func TestMapMean(t *testing.T) {
 		output *meanMapOutput
 	}{
 		{ // Single point
-			input: []point{
-				point{0, 1, 1.0},
-			},
+			input:  []point{point{0, 1, 1.0}},
 			output: &meanMapOutput{1, 1},
 		},
 		{ // Two points
@@ -67,7 +69,6 @@ func TestMapMean(t *testing.T) {
 		if got.(*meanMapOutput).Count != test.output.Count || got.(*meanMapOutput).Mean != test.output.Mean {
 			t.Errorf("output mismatch: exp %v got %v", test.output, got)
 		}
-
 	}
 }
 func TestInitializeMapFuncPercentile(t *testing.T) {
@@ -191,6 +192,83 @@ func TestReducePercentileNil(t *testing.T) {
 	got := fn(input)
 	if got != nil {
 		t.Fatalf("ReducePercentile(100) returned wrong type. exp nil got %v", got)
+	}
+}
+
+func TestMapDistinct(t *testing.T) {
+	const ( // prove that we're ignoring seriesID
+		seriesId1 = iota + 1
+		seriesId2
+	)
+
+	const ( // prove that we're ignoring time
+		timeId1 = iota + 1
+		timeId2
+		timeId3
+		timeId4
+		timeId5
+		timeId6
+	)
+
+	iter := &testIterator{
+		values: []point{
+			{seriesId1, timeId1, uint64(1)},
+			{seriesId1, timeId2, uint64(1)},
+			{seriesId1, timeId3, "1"},
+			{seriesId2, timeId4, uint64(1)},
+			{seriesId2, timeId5, float64(1.0)},
+			{seriesId2, timeId6, "1"},
+		},
+	}
+
+	values := MapDistinct(iter).(distinctValues)
+
+	if exp, got := 3, len(values); exp != got {
+		t.Errorf("Wrong number of values. exp %v got %v", exp, got)
+	}
+
+	sort.Sort(values)
+
+	exp := distinctValues{
+		uint64(1),
+		float64(1),
+		"1",
+	}
+
+	if !reflect.DeepEqual(values, exp) {
+		t.Errorf("Wrong values. exp %v got %v", spew.Sdump(exp), spew.Sdump(values))
+	}
+}
+
+func TestReduceDistinct(t *testing.T) {}
+
+func Test_distinctValues_Sort(t *testing.T) {
+	values := distinctValues{
+		"2",
+		"1",
+		float64(2.0),
+		float64(1),
+		uint64(2),
+		uint64(1),
+		true,
+		false,
+	}
+
+	expect := distinctValues{
+		uint64(1),
+		float64(1),
+		uint64(2),
+		float64(2),
+		false,
+		true,
+		"1",
+		"2",
+	}
+
+	sort.Sort(values)
+
+	if !reflect.DeepEqual(values, expect) {
+		t.Errorf("Wrong values. exp %v got %v", spew.Sdump(expect), spew.Sdump(values))
 	}
 }
 
