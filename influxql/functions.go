@@ -267,35 +267,35 @@ func (d distinctValues) Less(i, j int) bool {
 	}
 
 	// Types did not match, need to sort based on arbitrary weighting of type
-	infer := func(val interface{}) (int, float64) {
-		const (
-			numericWeight = iota
-			boolWeight
-			stringWeight
-			defaultWeight
-		)
+	const (
+		intWeight = iota
+		floatWeight
+		boolWeight
+		stringWeight
+	)
 
-		switch v := d[i].(type) {
+	infer := func(val interface{}) (int, float64) {
+		switch v := val.(type) {
 		case uint64:
-			return numericWeight, float64(v)
+			return intWeight, float64(v)
 		case float64:
-			return numericWeight, v
+			return floatWeight, v
 		case bool:
 			return boolWeight, 0
 		case string:
 			return stringWeight, 0
 		}
-
-		return defaultWeight, 0
+		panic("unreachable code")
 	}
 
 	w1, n1 := infer(d[i])
 	w2, n2 := infer(d[j])
 
 	// If we had "numeric" data, us that for comparison
-	if w1 == 1 && w2 == 1 {
+	if n1 != n2 && (w1 == intWeight && w2 == floatWeight) || (w1 == floatWeight && w2 == intWeight) {
 		return n1 < n2
 	}
+
 	return w1 < w2
 }
 
@@ -303,13 +303,14 @@ func (d distinctValues) Less(i, j int) bool {
 func MapDistinct(itr Iterator) interface{} {
 	var index = make(map[interface{}]struct{})
 
-	for _, k, v := itr.Next(); k != 0; _, k, v = itr.Next() {
-		index[v] = struct{}{}
+	for _, time, value := itr.Next(); time != 0; _, time, value = itr.Next() {
+		index[value] = struct{}{}
 	}
+
 	results := make(distinctValues, len(index))
 	var i int
-	for k, _ := range index {
-		results[i] = k
+	for value, _ := range index {
+		results[i] = value
 		i++
 	}
 	return results
