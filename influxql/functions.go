@@ -230,28 +230,10 @@ func MapCount(itr Iterator) interface{} {
 
 type distinctValues []interface{}
 
-// MapDistinct computes the unique values in an iterator.
-func MapDistinct(itr Iterator) interface{} {
-	var distinct = make(map[interface{}]struct{})
-
-	for _, k, v := itr.Next(); k != 0; _, k, v = itr.Next() {
-		distinct[v] = struct{}{}
-	}
-	results := make(distinctValues, len(distinct))
-	var i int
-	for k, _ := range distinct {
-		results[i] = k
-		i++
-	}
-	return results
-}
-
-type distinctResults []interface{}
-
-func (d distinctResults) Len() int      { return len(d) }
-func (d distinctResults) Swap(i, j int) { d[i], d[j] = d[j], d[i] }
-func (d distinctResults) Less(i, j int) bool {
-	// sort all like types first
+func (d distinctValues) Len() int      { return len(d) }
+func (d distinctValues) Swap(i, j int) { d[i], d[j] = d[j], d[i] }
+func (d distinctValues) Less(i, j int) bool {
+	// Sort by type if types match
 	{
 		d1, ok1 := d[i].(float64)
 		d2, ok2 := d[j].(float64)
@@ -284,36 +266,53 @@ func (d distinctResults) Less(i, j int) bool {
 		}
 	}
 
-	// if unable to match types, pick something that is larger
-	// we try to get numerics and cast them all to floats
-	// otherwise if it's not numeric, it's string and we don't care
+	// Types did not match, need to sort based on arbitrary weighting of type
 	infer := func(val interface{}) (int, float64) {
-		var tv int    // assign an arbitrary but deterministic weight for a type value
-		var f float64 // store the float value if we can convert it
+		const (
+			numericWeight = iota
+			boolWeight
+			stringWeight
+			defaultWeight
+		)
+
 		switch v := d[i].(type) {
 		case uint64:
-			tv = 1
-			f = float64(v)
+			return numericWeight, float64(v)
 		case float64:
-			tv = 1
-			f = v
+			return numericWeight, v
 		case bool:
-			tv = 2
+			return boolWeight, 0
 		case string:
-			tv = 3
-		default:
-			tv = 4
+			return stringWeight, 0
 		}
-		return tv, f
+
+		return defaultWeight, 0
 	}
-	tv1, f1 := infer(d[i])
-	tv2, f2 := infer(d[j])
+
+	w1, n1 := infer(d[i])
+	w2, n2 := infer(d[j])
 
 	// If we had "numeric" data, us that for comparison
-	if tv1 == 1 && tv2 == 1 {
-		return f1 < f2
+	if w1 == 1 && w2 == 1 {
+		return n1 < n2
 	}
-	return tv1 < tv2
+	return w1 < w2
+}
+
+// MapDistinct computes the unique values in an iterator.
+func MapDistinct(itr Iterator) interface{} {
+	var distinct = make(map[interface{}]struct{})
+
+	for _, k, v := itr.Next(); k != 0; _, k, v = itr.Next() {
+		distinct[v] = struct{}{}
+	}
+	results := make(distinctValues, len(distinct))
+	var i int
+	for k, _ := range distinct {
+		results[i] = k
+		i++
+	}
+	return results
 }
 
 // ReduceDistinct finds the unique values for each key.
@@ -334,7 +333,7 @@ func ReduceDistinct(values []interface{}) interface{} {
 		}
 	}
 	// convert map keys to an array
-	results := make(distinctResults, len(distinct))
+	results := make(distinctValues, len(distinct))
 	var i int
 	for k, _ := range distinct {
 		results[i] = k
