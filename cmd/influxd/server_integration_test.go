@@ -1646,6 +1646,7 @@ func Test3NodeServerFailover(t *testing.T) {
 // ensure that all queries work if there are more nodes in a cluster than the replication factor
 // and there is more than 1 shards
 func Test5NodeClusterPartiallyReplicated(t *testing.T) {
+	t.Skip("skipping Test5NodeClusterPartiallyReplicated")
 	t.Parallel()
 	testName := "5-node server integration partial replication"
 	if testing.Short() {
