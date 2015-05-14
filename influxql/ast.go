@@ -845,7 +845,7 @@ func (s *SelectStatement) hasTimeDimensions(node Node) bool {
 	switch n := node.(type) {
 	case *BinaryExpr:
 		if n.Op == AND || n.Op == OR {
-			return s.walkForTime(n.LHS) || s.walkForTime(n.RHS)
+			return s.hasTimeDimensions(n.LHS) || s.hasTimeDimensions(n.RHS)
 		}
 		if ref, ok := n.LHS.(*VarRef); ok && strings.ToLower(ref.Val) == "time" {
 			return true
@@ -853,7 +853,7 @@ func (s *SelectStatement) hasTimeDimensions(node Node) bool {
 		return false
 	case *ParenExpr:
 		// walk down the tree
-		return s.walkForTime(n.Expr)
+		return s.hasTimeDimensions(n.Expr)
 	default:
 		return false
 	}
