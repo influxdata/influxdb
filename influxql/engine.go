@@ -408,10 +408,13 @@ func (m *MapReduceJob) processRawQueryDerivative(lastValueFromPreviousChunk *raw
 
 		// Calculate the derivative of successive points by dividing the difference
 		// of each value by the elapsed time normalized to the interval
-		var value interface{}
 		diff := v.Values.(float64) - lastValueFromPreviousChunk.Values.(float64)
 		elapsed := v.Time - lastValueFromPreviousChunk.Time
-		value = diff / (float64(elapsed) / float64(m.derivativeInterval()))
+
+		value := 0.0
+		if elapsed > 0 {
+			value = diff / (float64(elapsed) / float64(m.derivativeInterval()))
+		}
 
 		lastValueFromPreviousChunk = v
 
@@ -464,10 +467,12 @@ func (m *MapReduceJob) processDerivative(results [][]interface{}) [][]interface{
 			continue
 		}
 
-		var value interface{}
 		elapsed := cur[0].(time.Time).Sub(prev[0].(time.Time))
 		diff := cur[1].(float64) - prev[1].(float64)
-		value = float64(diff) / (float64(elapsed) / float64(m.derivativeInterval()))
+		value := 0.0
+		if elapsed > 0 {
+			value = float64(diff) / (float64(elapsed) / float64(m.derivativeInterval()))
+		}
 
 		// Drop negative values for non-negative derivatives
 		if isNonNegative && diff < 0 {
