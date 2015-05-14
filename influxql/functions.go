@@ -179,7 +179,7 @@ func InitializeUnmarshaller(c *Call) (UnmarshalFunc, error) {
 		}, nil
 	case "distinct":
 		return func(b []byte) (interface{}, error) {
-			var val []interface{}
+			var val distinctValues
 			err := json.Unmarshal(b, &val)
 			return val, err
 		}, nil
@@ -228,6 +228,8 @@ func MapCount(itr Iterator) interface{} {
 	return nil
 }
 
+type distinctValues []interface{}
+
 // MapDistinct computes the unique values in an iterator.
 func MapDistinct(itr Iterator) interface{} {
 	var distinct = make(map[interface{}]struct{})
@@ -235,7 +237,13 @@ func MapDistinct(itr Iterator) interface{} {
 	for _, k, v := itr.Next(); k != 0; _, k, v = itr.Next() {
 		distinct[v] = struct{}{}
 	}
-	return distinct
+	results := make(distinctValues, len(distinct))
+	var i int
+	for k, _ := range distinct {
+		results[i] = k
+		i++
+	}
+	return results
 }
 
 type distinctResults []interface{}
@@ -316,15 +324,16 @@ func ReduceDistinct(values []interface{}) interface{} {
 		if v == nil {
 			continue
 		}
-		d, ok := v.(map[interface{}]struct{})
+		d, ok := v.(distinctValues)
 		if !ok {
-			msg := fmt.Sprintf("expected map[interface{}]struct{}%T", v)
+			msg := fmt.Sprintf("expected distinctValues, got: %T", v)
 			panic(msg)
 		}
-		for k, _ := range d {
-			distinct[k] = struct{}{}
+		for _, v := range d {
+			distinct[v] = struct{}{}
 		}
 	}
+	// convert map keys to an array
 	results := make(distinctResults, len(distinct))
 	var i int
 	for k, _ := range distinct {
