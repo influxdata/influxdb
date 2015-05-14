@@ -40,9 +40,14 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 	}
 
 	// Ensure that there is either a single argument or if for percentile, two
-	if c.Name == "percentile" || strings.HasSuffix(c.Name, "derivative") {
+	if c.Name == "percentile" {
 		if len(c.Args) != 2 {
 			return nil, fmt.Errorf("expected two arguments for %s()", c.Name)
+		}
+	} else if strings.HasSuffix(c.Name, "derivative") {
+		// derivatives require a field name and optional duration
+		if len(c.Args) == 0 {
+			return nil, fmt.Errorf("expected field name argument for %s()", c.Name)
 		}
 	} else if len(c.Args) != 1 {
 		return nil, fmt.Errorf("expected one argument for %s()", c.Name)

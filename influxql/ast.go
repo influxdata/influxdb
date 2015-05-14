@@ -926,8 +926,8 @@ func (s *SelectStatement) validateDerivative() error {
 
 	// Derivative requires two arguments
 	derivativeCall := aggr[0]
-	if len(derivativeCall.Args) != 2 {
-		return fmt.Errorf("derivative requires a field and duration argument")
+	if len(derivativeCall.Args) == 0 {
+		return fmt.Errorf("derivative requires a field argument")
 	}
 
 	// First arg must be a field or aggr over a field e.g. (mean(field))
@@ -938,9 +938,12 @@ func (s *SelectStatement) validateDerivative() error {
 		return fmt.Errorf("derivative requires a field argument")
 	}
 
-	// Second must be a duration .e.g (1h)
-	if _, ok := derivativeCall.Args[1].(*DurationLiteral); !ok {
-		return fmt.Errorf("derivative requires a duration argument")
+	// If a duration arg is pased, make sure it's a duration
+	if len(derivativeCall.Args) == 2 {
+		// Second must be a duration .e.g (1h)
+		if _, ok := derivativeCall.Args[1].(*DurationLiteral); !ok {
+			return fmt.Errorf("derivative requires a duration argument")
+		}
 	}
 
 	return nil

@@ -361,7 +361,13 @@ func (m *MapReduceJob) processRawQuery(out chan *Row, filterEmptyResults bool) {
 
 // derivativeInterval returns the time interval for the one (and only) derivative func
 func (m *MapReduceJob) derivativeInterval() time.Duration {
-	return m.stmt.FunctionCalls()[0].Args[1].(*DurationLiteral).Val
+	if len(m.stmt.FunctionCalls()[0].Args) == 2 {
+		return m.stmt.FunctionCalls()[0].Args[1].(*DurationLiteral).Val
+	}
+	if m.stmt.groupByInterval > 0 {
+		return m.stmt.groupByInterval
+	}
+	return time.Second
 }
 
 func (m *MapReduceJob) isNonNegativeDerivative() bool {

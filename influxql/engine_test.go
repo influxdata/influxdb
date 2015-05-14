@@ -8,7 +8,12 @@ import (
 )
 
 func derivativeJob(t *testing.T, fn, interval string) *MapReduceJob {
-	q, err := ParseQuery(fmt.Sprintf("SELECT %s(mean(value), %s) FROM foo", fn, interval))
+
+	if interval != "" {
+		interval = ", " + interval
+	}
+
+	q, err := ParseQuery(fmt.Sprintf("SELECT %s(mean(value)%s) FROM foo", fn, interval))
 	if err != nil {
 		t.Fatalf("failed to parse query: %s", err)
 	}
@@ -49,6 +54,36 @@ func TestProcessDerivative(t *testing.T) {
 			exp: [][]interface{}{
 				[]interface{}{
 					time.Unix(0, 0), 0.0,
+				},
+			},
+		},
+		{
+			name:     "derivative normalized to 1s by default",
+			fn:       "derivative",
+			interval: "",
+			in: [][]interface{}{
+				[]interface{}{
+					time.Unix(0, 0), 1.0,
+				},
+				[]interface{}{
+					time.Unix(0, 0).Add(24 * time.Hour), 3.0,
+				},
+				[]interface{}{
+					time.Unix(0, 0).Add(48 * time.Hour), 5.0,
+				},
+				[]interface{}{
+					time.Unix(0, 0).Add(72 * time.Hour), 9.0,
+				},
+			},
+			exp: [][]interface{}{
+				[]interface{}{
+					time.Unix(0, 0).Add(24 * time.Hour), 2.0 / 86400,
+				},
+				[]interface{}{
+					time.Unix(0, 0).Add(48 * time.Hour), 2.0 / 86400,
+				},
+				[]interface{}{
+					time.Unix(0, 0).Add(72 * time.Hour), 4.0 / 86400,
 				},
 			},
 		},
