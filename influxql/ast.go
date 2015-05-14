@@ -958,16 +958,12 @@ func (s *SelectStatement) ValidateDistinct() error {
 		return nil
 	}
 
-	if len(s.Fields) > 1 {
-		return fmt.Errorf("select DISTINCT may only have one field")
-	}
-
 	if !s.IsRawQuery {
 		return fmt.Errorf("select DISTINCT does not allow for aggregate functions")
 	}
 
-	if err := s.validateDerivative(); err != nil {
-		return err
+	if len(s.Fields) > 1 {
+		return fmt.Errorf("select DISTINCT may only have one field")
 	}
 
 	return nil
