@@ -336,17 +336,6 @@ func TestSelectStatement_RewriteWildcards(t *testing.T) {
 			rewrite: `SELECT value1, value2 FROM cpu`,
 		},
 
-		// DISTINCT
-		{
-			stmt:    `select distinct field1 from cpu`,
-			rewrite: `SELECT DISTINCT field1 FROM cpu`,
-		},
-
-		{
-			stmt:    `select distinct * from cpu`,
-			rewrite: `SELECT DISTINCT value1, value2 FROM cpu`,
-		},
-
 		// Parser fundamentally prohibits multiple query sources
 
 		// Query wildcard with explicit

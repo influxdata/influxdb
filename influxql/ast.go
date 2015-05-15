@@ -935,6 +935,18 @@ hasDistinct:
 		return fmt.Errorf("aggregate function distinct() can not be combined with other functions or fields")
 	}
 
+	c, ok := s.Fields[0].Expr.(*Call)
+	if !ok {
+		panic("unreachable code")
+	}
+	if len(c.Args) == 0 {
+		return fmt.Errorf("distinct function requires at least one argument")
+	}
+
+	if len(c.Args) != 1 {
+		return fmt.Errorf("distinct function can only have one argument")
+	}
+
 	return nil
 }
 
