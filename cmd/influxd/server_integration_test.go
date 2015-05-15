@@ -673,7 +673,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 				{"name": "cpu", "time": "2000-01-01T00:00:20Z", "fields": {"value": 30}},
 				{"name": "cpu", "time": "2000-01-01T00:00:30Z", "fields": {"value": 100}}
 			]}`,
-			query:    `SELECT DISTINCT value FROM cpu`,
+			query:    `SELECT distinct(value) FROM cpu`,
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","distinct"],"values":[["1970-01-01T00:00:00Z",[20,30,100]]]}]}]}`,
 		},
