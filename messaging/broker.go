@@ -28,6 +28,9 @@ const DefaultPollInterval = 100 * time.Millisecond
 
 const DefaultTruncationInterval = 10 * time.Minute
 
+// DefaultResetTimeout is the length of inactivity before a topic write handle is closed.
+const DefaultResetTimeout = 5 * time.Second
+
 // DefaultMaxTopicSize is the largest a topic can get before truncation.
 const DefaultMaxTopicSize = 1024 * 1024 * 1024 // 1GB
 
@@ -763,8 +766,13 @@ type Topic struct {
 	file   *os.File // last segment writer
 	opened bool
 
+	timer *time.Timer
+
 	// The largest a segment can get before splitting into a new segment.
 	MaxSegmentSize int64
+
+	// The length of inactivity before a topic write handle is closed.
+	ResetTimeout time.Duration
 }
 
 // NewTopic returns a new instance of Topic.
@@ -774,6 +782,7 @@ func NewTopic(id uint64, path string) *Topic {
 		path:           path,
 		indexByURL:     make(map[url.URL]uint64),
 		MaxSegmentSize: DefaultMaxSegmentSize,
+		ResetTimeout:   DefaultResetTimeout,
 	}
 }
 
@@ -871,36 +880,70 @@ func (t *Topic) Open() error {
 			return err
 		}
 
-		// Read available segments.
-		segments, err := ReadSegments(t.path)
-		if err != nil && !os.IsNotExist(err) {
-			return fmt.Errorf("read segments: %s", err)
+		// Open file handle for writing.
+		if err := t.openFile(); err != nil {
+			return fmt.Errorf("open file: %s", err)
 		}
 
-		// Read max index and open file handle if we have segments.
-		if len(segments) > 0 {
-			s := segments.Last()
-
-			// Read the last segment and extract the last message index.
-			index, err := RecoverSegment(s.Path)
-			if err != nil {
-				return fmt.Errorf("recover segment: %s", err)
-			}
-			t.index = index
-
-			// Open file handle on the segment.
-			f, err := os.OpenFile(s.Path, os.O_RDWR|os.O_APPEND, 0666)
-			if err != nil {
-				return fmt.Errorf("open segment: %s", err)
-			}
-			t.file = f
-		}
+		// Start a timer to close the file after inactivity.
+		t.resetTimer()
 
 		return nil
 	}(); err != nil {
 		_ = t.close()
 		return err
 	}
+
+	return nil
+}
+
+// resetTimer starts a timer to close the file after inactivity.
+func (t *Topic) resetTimer() {
+	if t.timer != nil {
+		t.timer.Stop()
+	}
+	t.timer = time.AfterFunc(t.ResetTimeout, t.reset)
+}
+
+// reset closes the write file handle due to inactivity.
+func (t *Topic) reset() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	// Close the handle here. It will be reopened by WriteMessage() if necessary.
+	if t.file != nil {
+		_ = t.file.Close()
+		t.file = nil
+	}
+}
+
+// openFile opens the last segment file for writing.
+func (t *Topic) openFile() error {
+	// Read available segments.
+	segments, err := ReadSegments(t.path)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("read segments: %s", err)
+	}
+
+	// Read max index and open file handle if we have segments.
+	if len(segments) == 0 {
+		return nil
+	}
+	s := segments.Last()
+
+	// Read the last segment and extract the last message index.
+	index, err := RecoverSegment(s.Path)
+	if err != nil {
+		return fmt.Errorf("recover segment: %s", err)
+	}
+	t.index = index
+
+	// Open file handle on the segment.
+	f, err := os.OpenFile(s.Path, os.O_RDWR|os.O_APPEND, 0666)
+	if err != nil {
+		return fmt.Errorf("open segment: %s", err)
+	}
+	t.file = f
 
 	return nil
 }
@@ -932,6 +975,13 @@ func (t *Topic) WriteMessage(m *Message) error {
 	// Return error if message index is lower than the topic's highest index.
 	if m.Index <= t.index {
 		return ErrStaleWrite
+	}
+
+	// Open the last segment if it's been closed due to inactivity.
+	if t.file == nil {
+		if err := t.openFile(); err != nil {
+			return fmt.Errorf("open file: %s", err)
+		}
 	}
 
 	// Close the current file handle if it's too large.
