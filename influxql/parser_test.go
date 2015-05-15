@@ -322,6 +322,44 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// SELECT statement with group by
+		{
+			s: `SELECT sum(value) FROM "kbps" WHERE time > now() - 120s AND deliveryservice='steam-dns' and cachegroup = 'total' GROUP BY time(60s)`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: false,
+				Fields: []*influxql.Field{
+					{Expr: &influxql.Call{Name: "sum", Args: []influxql.Expr{&influxql.VarRef{Val: "value"}}}},
+				},
+				Sources:    []influxql.Source{&influxql.Measurement{Name: "kbps"}},
+				Dimensions: []*influxql.Dimension{{Expr: &influxql.Call{Name: "time", Args: []influxql.Expr{&influxql.DurationLiteral{Val: 60 * time.Second}}}}},
+				Condition: &influxql.BinaryExpr{ // 1
+					Op: influxql.AND,
+					LHS: &influxql.BinaryExpr{ // 2
+						Op: influxql.AND,
+						LHS: &influxql.BinaryExpr{ //3
+							Op:  influxql.GT,
+							LHS: &influxql.VarRef{Val: "time"},
+							RHS: &influxql.BinaryExpr{
+								Op:  influxql.SUB,
+								LHS: &influxql.Call{Name: "now"},
+								RHS: &influxql.DurationLiteral{Val: mustParseDuration("120s")},
+							},
+						},
+						RHS: &influxql.BinaryExpr{
+							Op:  influxql.EQ,
+							LHS: &influxql.VarRef{Val: "deliveryservice"},
+							RHS: &influxql.StringLiteral{Val: "steam-dns"},
+						},
+					},
+					RHS: &influxql.BinaryExpr{
+						Op:  influxql.EQ,
+						LHS: &influxql.VarRef{Val: "cachegroup"},
+						RHS: &influxql.StringLiteral{Val: "total"},
+					},
+				},
+			},
+		},
+
 		// SELECT statement with fill
 		{
 			s: fmt.Sprintf(`SELECT mean(value) FROM cpu where time < '%s' GROUP BY time(5m) fill(1)`, now.UTC().Format(time.RFC3339Nano)),
