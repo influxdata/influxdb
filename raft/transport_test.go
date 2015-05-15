@@ -192,7 +192,7 @@ func TestHTTPTransport_Heartbeat(t *testing.T) {
 
 	// Execute heartbeat against test server.
 	u, _ := url.Parse(s.URL)
-	newIndex, err := (&raft.HTTPTransport{}).Heartbeat(*u, 1, 2, 3, make(chan struct{}))
+	newIndex, err := (&raft.HTTPTransport{}).Heartbeat(*u, 1, 2, 3)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	} else if newIndex != 4 {
@@ -219,7 +219,7 @@ func TestHTTPTransport_Heartbeat_Err(t *testing.T) {
 		}))
 
 		u, _ := url.Parse(s.URL)
-		_, err := (&raft.HTTPTransport{}).Heartbeat(*u, 1, 2, 3, make(chan struct{}))
+		_, err := (&raft.HTTPTransport{}).Heartbeat(*u, 1, 2, 3)
 		if err == nil {
 			t.Errorf("%d. expected error", i)
 		} else if tt.err != err.Error() {
@@ -232,7 +232,7 @@ func TestHTTPTransport_Heartbeat_Err(t *testing.T) {
 // Ensure an HTTP heartbeat to a stopped server returns an error.
 func TestHTTPTransport_Heartbeat_ErrConnectionRefused(t *testing.T) {
 	u, _ := url.Parse("http://localhost:41932")
-	_, err := (&raft.HTTPTransport{}).Heartbeat(*u, 0, 0, 0, make(chan struct{}))
+	_, err := (&raft.HTTPTransport{}).Heartbeat(*u, 0, 0, 0)
 	if err == nil {
 		t.Fatal("expected error")
 	} else if !is_connection_refused(err) {
@@ -406,7 +406,7 @@ func (t *Transport) Leave(u url.URL, id uint64) error {
 }
 
 // Heartbeat calls the Heartbeat method on the target log.
-func (t *Transport) Heartbeat(u url.URL, term, commitIndex, leaderID uint64, closing <-chan struct{}) (lastIndex uint64, err error) {
+func (t *Transport) Heartbeat(u url.URL, term, commitIndex, leaderID uint64) (lastIndex uint64, err error) {
 	l, err := t.log(u)
 	if err != nil {
 		return 0, err

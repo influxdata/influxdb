@@ -21,7 +21,7 @@ func TestClock_AfterApplyInterval(t *testing.T) {
 	c := raft.NewClock()
 	c.ApplyInterval = 10 * time.Millisecond
 	t0 := time.Now()
-	<-c.ApplyTimer().C()
+	<-c.AfterApplyInterval()
 	if d := time.Since(t0); d < c.ApplyInterval {
 		t.Fatalf("channel fired too soon: %v", d)
 	}
@@ -32,7 +32,7 @@ func TestClock_AfterElectionTimeout(t *testing.T) {
 	c := raft.NewClock()
 	c.ElectionTimeout = 10 * time.Millisecond
 	t0 := time.Now()
-	<-c.ElectionTimer().C()
+	<-c.AfterElectionTimeout()
 	if d := time.Since(t0); d < c.ElectionTimeout {
 		t.Fatalf("channel fired too soon: %v", d)
 	}
@@ -43,7 +43,7 @@ func TestClock_AfterHeartbeatInterval(t *testing.T) {
 	c := raft.NewClock()
 	c.HeartbeatInterval = 10 * time.Millisecond
 	t0 := time.Now()
-	<-c.HeartbeatTimer().C()
+	<-c.AfterHeartbeatInterval()
 	if d := time.Since(t0); d < c.HeartbeatInterval {
 		t.Fatalf("channel fired too soon: %v", d)
 	}
@@ -54,7 +54,7 @@ func TestClock_AfterReconnectTimeout(t *testing.T) {
 	c := raft.NewClock()
 	c.ReconnectTimeout = 10 * time.Millisecond
 	t0 := time.Now()
-	<-c.ReconnectTimer().C()
+	<-c.AfterReconnectTimeout()
 	if d := time.Since(t0); d < c.ReconnectTimeout {
 		t.Fatalf("channel fired too soon: %v", d)
 	}
@@ -76,11 +76,11 @@ type Clock struct {
 	heartbeatChan chan chan struct{}
 	reconnectChan chan chan struct{}
 
-	NowFunc            func() time.Time
-	ApplyTimerFunc     func() raft.Timer
-	ElectionTimerFunc  func() raft.Timer
-	HeartbeatTimerFunc func() raft.Timer
-	ReconnectTimerFunc func() raft.Timer
+	NowFunc                    func() time.Time
+	AfterApplyIntervalFunc     func() <-chan chan struct{}
+	AfterElectionTimeoutFunc   func() <-chan chan struct{}
+	AfterHeartbeatIntervalFunc func() <-chan chan struct{}
+	AfterReconnectTimeoutFunc  func() <-chan chan struct{}
 }
 
 // NewClock returns an instance of Clock with default.
@@ -95,10 +95,10 @@ func NewClock() *Clock {
 
 	// Set default functions.
 	c.NowFunc = func() time.Time { return c.now }
-	c.ApplyTimerFunc = func() raft.Timer { return &timer{c: c.applyChan} }
-	c.ElectionTimerFunc = func() raft.Timer { return &timer{c: c.electionChan} }
-	c.HeartbeatTimerFunc = func() raft.Timer { return &timer{c: c.heartbeatChan} }
-	c.ReconnectTimerFunc = func() raft.Timer { return &timer{c: c.reconnectChan} }
+	c.AfterApplyIntervalFunc = func() <-chan chan struct{} { return c.applyChan }
+	c.AfterElectionTimeoutFunc = func() <-chan chan struct{} { return c.electionChan }
+	c.AfterHeartbeatIntervalFunc = func() <-chan chan struct{} { return c.heartbeatChan }
+	c.AfterReconnectTimeoutFunc = func() <-chan chan struct{} { return c.reconnectChan }
 	return c
 }
 
@@ -126,20 +126,10 @@ func (c *Clock) reconnect() {
 	<-ch
 }
 
-func (c *Clock) Now() time.Time             { return c.NowFunc() }
-func (c *Clock) ApplyTimer() raft.Timer     { return c.ApplyTimerFunc() }
-func (c *Clock) ElectionTimer() raft.Timer  { return c.ElectionTimerFunc() }
-func (c *Clock) HeartbeatTimer() raft.Timer { return c.HeartbeatTimerFunc() }
-func (c *Clock) ReconnectTimer() raft.Timer { return c.ReconnectTimerFunc() }
-
-type timer struct {
-	c chan chan struct{}
-}
-
-func (t *timer) C() <-chan chan struct{} {
-	return t.c
-}
-
-func (t *timer) Stop() {}
+func (c *Clock) Now() time.Time                               { return c.NowFunc() }
+func (c *Clock) AfterApplyInterval() <-chan chan struct{}     { return c.AfterApplyIntervalFunc() }
+func (c *Clock) AfterElectionTimeout() <-chan chan struct{}   { return c.AfterElectionTimeoutFunc() }
+func (c *Clock) AfterHeartbeatInterval() <-chan chan struct{} { return c.AfterHeartbeatIntervalFunc() }
+func (c *Clock) AfterReconnectTimeout() <-chan chan struct{}  { return c.AfterReconnectTimeoutFunc() }
 
 func gosched() { time.Sleep(*goschedTimeout) }
