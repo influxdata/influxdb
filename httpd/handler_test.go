@@ -545,7 +545,6 @@ func TestHandler_GzipEnabled(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	defer resp.Body.Close()
 
 	if ce := resp.Header.Get("Content-Encoding"); ce != "gzip" {
 		t.Fatalf("unexpected Content-Encoding.  expected %q, actual: %q", "gzip", ce)
@@ -571,7 +570,6 @@ func TestHandler_GzipDisabled(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	defer resp.Body.Close()
 
 	if ce := resp.Header.Get("Content-Encoding"); ce == "gzip" {
 		t.Fatalf("unexpected Content-Encoding.  expected %q, actual: %q", "", ce)
@@ -1266,7 +1264,6 @@ func TestHandler_serveWriteSeries_errorHasJsonContentType(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	defer resp.Body.Close()
 
 	if ct := resp.Header.Get("Content-Type"); ct != "application/json" {
 		t.Fatalf("unexpected Content-Type.  expected %q, actual: %q", "application/json", ct)
@@ -1306,7 +1303,6 @@ func TestHandler_serveWriteSeries_queryHasJsonContentType(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	defer resp.Body.Close()
 
 	if ct := resp.Header.Get("Content-Type"); ct != "application/json" {
 		t.Fatalf("unexpected Content-Type.  expected %q, actual: %q", "application/json", ct)
@@ -1683,7 +1679,6 @@ func TestHandler_ChunkedResponses(t *testing.T) {
 		t.Fatalf("error making request: %s", err.Error())
 	}
 	defer resp.Body.Close()
-
 	for i := 0; i < 2; i++ {
 		chunk := make([]byte, 2048, 2048)
 		n, err := resp.Body.Read(chunk)

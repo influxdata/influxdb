@@ -77,7 +77,7 @@ func (t *HTTPTransport) Leave(uri url.URL, id uint64) error {
 }
 
 // Heartbeat checks the status of a follower.
-func (t *HTTPTransport) Heartbeat(uri url.URL, term, commitIndex, leaderID uint64, closing <-chan struct{}) (uint64, error) {
+func (t *HTTPTransport) Heartbeat(uri url.URL, term, commitIndex, leaderID uint64) (uint64, error) {
 	// Construct URL.
 	u := uri
 	u.Path = path.Join(u.Path, "raft/heartbeat")
@@ -89,25 +89,8 @@ func (t *HTTPTransport) Heartbeat(uri url.URL, term, commitIndex, leaderID uint6
 	v.Set("leaderID", strconv.FormatUint(leaderID, 10))
 	u.RawQuery = v.Encode()
 
-	// Create request.
-	req, err := http.NewRequest("GET", u.String(), nil)
-	if err != nil {
-		return 0, err
-	}
-
-	// Check for connection close request.
-	exiting := make(chan struct{})
-	defer close(exiting)
-	go func() {
-		select {
-		case <-exiting:
-		case <-closing:
-			http.DefaultTransport.(*http.Transport).CancelRequest(req)
-		}
-	}()
-
 	// Send HTTP request.
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := http.Get(u.String())
 	if err != nil {
 		return 0, err
 	}

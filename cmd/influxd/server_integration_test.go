@@ -117,8 +117,6 @@ func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes int
 	c.Snapshot.Enabled = false
 	c.Logging.HTTPAccess = false
 
-	// c.Raft.HeartbeatInterval = main.Duration(10 * time.Millisecond)
-
 	cmd := main.NewRunCommand()
 	baseNode := cmd.Open(c, "")
 	b := baseNode.Broker
@@ -2225,6 +2223,7 @@ func Test_ServerOpenTSDBIntegrationHTTPSingle(t *testing.T) {
 		t.Fatal(err)
 		return
 	}
+
 	resp.Body.Close()
 
 	expected := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",10]]}]}]}`, now.Format(time.RFC3339Nano))
