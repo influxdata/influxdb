@@ -1589,7 +1589,7 @@ func TestSingleServer(t *testing.T) {
 	defer nodes.Close()
 
 	runTestsData(t, testName, nodes, "mydb", "myrp", len(nodes))
-	runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp", len(nodes))
+	runTest_rawDataReturnsInOrder(t, testName, nodes, "inorderdb", "inorderrp", len(nodes))
 }
 
 func Test3NodeServer(t *testing.T) {
@@ -1606,7 +1606,7 @@ func Test3NodeServer(t *testing.T) {
 	defer nodes.Close()
 
 	runTestsData(t, testName, nodes, "mydb", "myrp", len(nodes))
-	runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp", len(nodes))
+	runTest_rawDataReturnsInOrder(t, testName, nodes, "inorderdb", "inorderrp", len(nodes))
 }
 
 func Test3NodeServerFailover(t *testing.T) {
@@ -1624,10 +1624,10 @@ func Test3NodeServerFailover(t *testing.T) {
 	// kill the last node, cluster should expect it to be there
 	nodes[2].node.Close()
 	nodes = nodes[:len(nodes)-1]
+	defer nodes.Close()
 
 	runTestsData(t, testName, nodes, "mydb", "myrp", len(nodes))
-	runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp", len(nodes))
-	nodes.Close()
+	runTest_rawDataReturnsInOrder(t, testName, nodes, "inorderdb", "inorderrp", len(nodes))
 }
 
 // ensure that all queries work if there are more nodes in a cluster than the replication factor
@@ -1645,7 +1645,7 @@ func Test5NodeClusterPartiallyReplicated(t *testing.T) {
 	defer nodes.Close()
 
 	runTestsData(t, testName, nodes, "mydb", "myrp", 2)
-	runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp", 2)
+	runTest_rawDataReturnsInOrder(t, testName, nodes, "inorderdb", "inorderrp", 2)
 }
 
 func TestClientLibrary(t *testing.T) {
