@@ -340,7 +340,7 @@ func runTest_rawDataReturnsInOrder(t *testing.T, testName string, nodes Cluster,
 	// Start by ensuring database and retention policy exist.
 	createDatabase(t, testName, nodes, database)
 	createRetentionPolicy(t, testName, nodes, database, retention, replicationFactor)
-	numPoints := 500
+	numPoints := 100
 	var expected string
 
 	for i := 1; i < numPoints; i++ {
