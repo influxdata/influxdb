@@ -245,9 +245,9 @@ func query(t *testing.T, nodes Cluster, urlDb, query, expected, expectPattern st
 		if err != nil {
 			t.Fatalf("Failed to execute query '%s': %s", query, err.Error())
 		}
-		defer resp.Body.Close()
 
 		body, err := ioutil.ReadAll(resp.Body)
+		resp.Body.Close()
 		if err != nil {
 			t.Fatalf("Couldn't read body of response: %s", err.Error())
 		}
