@@ -123,6 +123,8 @@ func (cmd *BackupCommand) nextPath(path string) (string, error) {
 			return "", err
 		}
 	}
+
+	return "", nil
 }
 
 // download downloads a snapshot from a host to a given path.
