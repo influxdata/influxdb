@@ -621,9 +621,6 @@ func (p *Parser) parseSelectStatement(tr targetRequirement) (*SelectStatement, e
 	stmt := &SelectStatement{}
 	var err error
 
-	// Parse "DISTINCT"
-	stmt.Distinct = p.parseDistinct()
-
 	// Parse fields: "FIELD+".
 	if stmt.Fields, err = p.parseFields(); err != nil {
 		return nil, err
@@ -1583,16 +1580,6 @@ func (p *Parser) parseFill() (FillOption, interface{}, error) {
 			return NumberFill, num.Val, nil
 		}
 	}
-}
-
-// parseDistinct parses the DISTINCT keyword if it exists
-func (p *Parser) parseDistinct() bool {
-	tok, _, _ := p.scanIgnoreWhitespace()
-	if tok == DISTINCT {
-		return true
-	}
-	p.unscan()
-	return false
 }
 
 // parseOptionalTokenAndInt parses the specified token followed

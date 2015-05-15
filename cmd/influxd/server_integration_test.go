@@ -672,7 +672,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 				{"name": "cpu", "time": "2000-01-01T00:00:20Z", "fields": {"value": 30}},
 				{"name": "cpu", "time": "2000-01-01T00:00:30Z", "fields": {"value": 100}}
 			]}`,
-			query:    `SELECT DISTINCT value FROM cpu`,
+			query:    `SELECT distinct(value) FROM cpu`,
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","distinct"],"values":[["1970-01-01T00:00:00Z",[20,30,100]]]}]}]}`,
 		},
@@ -1646,7 +1646,6 @@ func Test3NodeServerFailover(t *testing.T) {
 // ensure that all queries work if there are more nodes in a cluster than the replication factor
 // and there is more than 1 shards
 func Test5NodeClusterPartiallyReplicated(t *testing.T) {
-	t.Skip("skipping Test5NodeClusterPartiallyReplicated")
 	t.Parallel()
 	testName := "5-node server integration partial replication"
 	if testing.Short() {

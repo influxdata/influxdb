@@ -191,12 +191,13 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// select distinct statements
 		{
-			s: `select distinct field1 from cpu`,
+			s: `select distinct(field1) from cpu`,
 			stmt: &influxql.SelectStatement{
-				IsRawQuery: true,
-				Distinct:   true,
-				Fields:     []*influxql.Field{{Expr: &influxql.VarRef{Val: "field1"}}},
-				Sources:    []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+				IsRawQuery: false,
+				Fields: []*influxql.Field{
+					{Expr: &influxql.Call{Name: "distinct", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}}}},
+				},
+				Sources: []influxql.Source{&influxql.Measurement{Name: "cpu"}},
 			},
 		},
 
@@ -1073,11 +1074,8 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `SELECT 1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 FROM myseries`, err: `unable to parse number at line 1, char 8`},
 		{s: `SELECT 10.5h FROM myseries`, err: `found h, expected FROM at line 1, char 12`},
 		{s: `SELECT derivative(field1), field1 FROM myseries`, err: `derivative cannot be used with other fields`},
-		{s: `SELECT DISTINCT FROM myseries`, err: `found FROM, expected identifier, string, number, bool at line 1, char 17`},
-		{s: `SELECT DISTINCT field1, field2 FROM myseries`, err: `select DISTINCT may only have one field`},
-		{s: `SELECT DISTINCT field1, sum(field1) FROM myseries`, err: `select DISTINCT does not allow for aggregate functions`},
-		{s: `SELECT DISTINCT field1, count(field2) FROM myseries`, err: `select DISTINCT does not allow for aggregate functions`},
-		{s: `SELECT DISTINCT sum(field1) FROM myseries`, err: `select DISTINCT does not allow for aggregate functions`},
+		{s: `SELECT distinct(field1), sum(field1) FROM myseries`, err: `aggregate function distinct() can not be combined with other functions or fields`},
+		{s: `SELECT distinct(field1), field2 FROM myseries`, err: `aggregate function distinct() can not be combined with other functions or fields`},
 		{s: `DELETE`, err: `found EOF, expected FROM at line 1, char 8`},
 		{s: `DELETE FROM`, err: `found EOF, expected identifier at line 1, char 13`},
 		{s: `DELETE FROM myseries WHERE`, err: `found EOF, expected identifier, string, number, bool at line 1, char 28`},

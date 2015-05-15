@@ -629,9 +629,6 @@ type SelectStatement struct {
 	// Returns series starting at an offset from the first one.
 	SOffset int
 
-	// Distinct determines if the statement has a top level DISTINCT qualifier
-	Distinct bool
-
 	// memoize the group by interval
 	groupByInterval time.Duration
 
@@ -685,7 +682,6 @@ func (s *SelectStatement) Clone() *SelectStatement {
 		Fill:       s.Fill,
 		FillValue:  s.FillValue,
 		IsRawQuery: s.IsRawQuery,
-		Distinct:   s.Distinct,
 	}
 	if s.Target != nil {
 		clone.Target = &Target{
@@ -769,40 +765,10 @@ func (s *SelectStatement) RewriteWildcards(fields Fields, dimensions Dimensions)
 	return other
 }
 
-// RewriteDistinct rewrites the expresion to be a call for map/reduce to work correctly
-// This method assumes all validation has passed
-func (s *SelectStatement) RewriteDistinct() *SelectStatement {
-	if !s.Distinct {
-		return s
-	}
-
-	other := s.Clone()
-
-	var field *Field
-	switch varRef := other.Fields[0].Expr.(type) {
-	case *VarRef:
-		field = &Field{Expr: &Call{Name: "distinct", Args: []Expr{&VarRef{Val: varRef.Val}}}}
-	case *StringLiteral:
-		field = &Field{Expr: &Call{Name: "distinct", Args: []Expr{&VarRef{Val: varRef.Val}}}}
-	default:
-		msg := fmt.Sprintf("not a *influxql.VarRef or *influxql.StringLiteral, got %T", other.Fields[0].Expr)
-		panic(msg)
-	}
-
-	other.Fields[0] = field
-	other.Distinct = false
-	other.IsRawQuery = false
-
-	return other
-}
-
 // String returns a string representation of the select statement.
 func (s *SelectStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("SELECT ")
-	if s.Distinct {
-		_, _ = buf.WriteString("DISTINCT ")
-	}
 	_, _ = buf.WriteString(s.Fields.String())
 
 	if s.Target != nil {
@@ -920,11 +886,11 @@ func (s *SelectStatement) hasTimeDimensions(node Node) bool {
 
 // Validate checks certain edge conditions to determine if this is a valid select statment
 func (s *SelectStatement) Validate(tr targetRequirement) error {
-	if err := s.ValidateAggregates(tr); err != nil {
+	if err := s.ValidateDistinct(); err != nil {
 		return err
 	}
 
-	if err := s.ValidateDistinct(); err != nil {
+	if err := s.ValidateAggregates(tr); err != nil {
 		return err
 	}
 
@@ -940,13 +906,13 @@ func (s *SelectStatement) ValidateAggregates(tr targetRequirement) error {
 	groupByDuration, _ := s.GroupByInterval()
 
 	// If we have a group by interval, but no aggregate function, it's an invalid statement
-	if s.IsRawQuery && !s.Distinct && groupByDuration > 0 {
+	if s.IsRawQuery && groupByDuration > 0 {
 		return fmt.Errorf("GROUP BY requires at least one aggregate function")
 	}
 
 	// If we have an aggregate function with a group by time without a where clause, it's an invalid statement
 	if tr == targetNotRequired { // ignore create continuous query statements
-		if (!s.IsRawQuery || s.Distinct) && groupByDuration > 0 && !s.hasTimeDimensions(s.Condition) {
+		if !s.IsRawQuery && groupByDuration > 0 && !s.hasTimeDimensions(s.Condition) {
 			return fmt.Errorf("aggregate functions with GROUP BY time require a WHERE time clause")
 		}
 	}
@@ -954,16 +920,19 @@ func (s *SelectStatement) ValidateAggregates(tr targetRequirement) error {
 }
 
 func (s *SelectStatement) ValidateDistinct() error {
-	if !s.Distinct {
-		return nil
+	// determine if we have a call named distinct
+	for _, f := range s.Fields {
+		if c, ok := f.Expr.(*Call); ok {
+			if c.Name == "distinct" {
+				goto hasDistinct
+			}
+		}
 	}
+	return nil
 
-	if !s.IsRawQuery {
-		return fmt.Errorf("select DISTINCT does not allow for aggregate functions")
-	}
-
+hasDistinct:
 	if len(s.Fields) > 1 {
-		return fmt.Errorf("select DISTINCT may only have one field")
+		return fmt.Errorf("aggregate function distinct() can not be combined with other functions or fields")
 	}
 
 	return nil
