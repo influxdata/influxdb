@@ -3,6 +3,7 @@
 ### Features
 - [#1822](https://github.com/influxdb/influxdb/issues/1822): Wire up DERIVATIVE aggregate
 - [#1477](https://github.com/influxdb/influxdb/issues/1477): Wire up non_negative_derivative function
+- [#2557](https://github.com/influxdb/influxdb/issues/2557): Fix false positive error with `GROUP BY time`
 
 ### Bugfixes
 - [#2545](https://github.com/influxdb/influxdb/pull/2545): Use "value" as the field name for graphite input. Thanks @cannium.
