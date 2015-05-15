@@ -1076,6 +1076,8 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `SELECT derivative(field1), field1 FROM myseries`, err: `derivative cannot be used with other fields`},
 		{s: `SELECT distinct(field1), sum(field1) FROM myseries`, err: `aggregate function distinct() can not be combined with other functions or fields`},
 		{s: `SELECT distinct(field1), field2 FROM myseries`, err: `aggregate function distinct() can not be combined with other functions or fields`},
+		{s: `SELECT distinct(field1, field2) FROM myseries`, err: `distinct function can only have one argument`},
+		{s: `SELECT distinct() FROM myseries`, err: `distinct function requires at least one argument`},
 		{s: `DELETE`, err: `found EOF, expected FROM at line 1, char 8`},
 		{s: `DELETE FROM`, err: `found EOF, expected identifier at line 1, char 13`},
 		{s: `DELETE FROM myseries WHERE`, err: `found EOF, expected identifier, string, number, bool at line 1, char 28`},
