@@ -225,7 +225,7 @@ func (m *MapReduceJob) processRawQuery(out chan *Row, filterEmptyResults bool) {
 	// markers for which mappers have been completely emptied
 	mapperComplete := make([]bool, len(m.Mappers))
 
-	// for limit and offset we need to track how many values we've swalloed for the offset and how many we've already set for the limit.
+	// for limit and offset we need to track how many values we've swallowed for the offset and how many we've already set for the limit.
 	// we track the number set for the limit because they could be getting chunks. For instance if your limit is 10k, but chunk size is 1k
 	valuesSent := 0
 	valuesOffset := 0
