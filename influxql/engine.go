@@ -711,13 +711,25 @@ func (m *MapReduceJob) processRawResults(values []*rawQueryMapOutput) *Row {
 		selectNames = append([]string{"time"}, selectNames...)
 	}
 
-	// if they've selected only a single value we have to handle things a little differently
-	singleValue := len(selectNames) == SelectColumnCountWithOneValue
+	// since selectNames can contain tags, we need to strip them out
+	selectFields := make([]string, 0, len(selectNames))
+
+	for _, n := range selectNames {
+		found := false
+		for t, _ := range m.TagSet.Tags {
+			if n == t {
+				found = true
+			}
+		}
+		if !found {
+			selectFields = append(selectFields, n)
+		}
+	}
 
 	row := &Row{
 		Name:    m.MeasurementName,
 		Tags:    m.TagSet.Tags,
-		Columns: selectNames,
+		Columns: selectFields,
 	}
 
 	// return an empty row if there are no results
@@ -725,9 +737,12 @@ func (m *MapReduceJob) processRawResults(values []*rawQueryMapOutput) *Row {
 		return row
 	}
 
+	// if they've selected only a single value we have to handle things a little differently
+	singleValue := len(selectFields) == SelectColumnCountWithOneValue
+
 	// the results will have all of the raw mapper results, convert into the row
 	for _, v := range values {
-		vals := make([]interface{}, len(selectNames))
+		vals := make([]interface{}, len(selectFields))
 
 		if singleValue {
 			vals[0] = time.Unix(0, v.Time).UTC()
@@ -739,8 +754,8 @@ func (m *MapReduceJob) processRawResults(values []*rawQueryMapOutput) *Row {
 			vals[0] = time.Unix(0, v.Time).UTC()
 
 			// populate the other values
-			for i := 1; i < len(selectNames); i++ {
-				vals[i] = fields[selectNames[i]]
+			for i := 1; i < len(selectFields); i++ {
+				vals[i] = fields[selectFields[i]]
 			}
 		}
 

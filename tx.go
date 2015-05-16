@@ -78,6 +78,7 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 				return nil, fmt.Errorf("unknown field or tag name in select clause: %s", n)
 			}
 			selectTags = append(selectTags, n)
+			tagKeys = append(tagKeys, n)
 		}
 		for _, n := range stmt.NamesInWhere() {
 			if n == "time" {
@@ -91,6 +92,10 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 			if !m.HasTagKey(n) {
 				return nil, fmt.Errorf("unknown field or tag name in where clause: %s", n)
 			}
+		}
+
+		if len(selectFields) == 0 {
+			return nil, fmt.Errorf("select statement must include at least one field")
 		}
 
 		// Validate that group by is not a field
@@ -177,7 +182,6 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 			return nil, err
 		}
 
-		//jobs := make([]*influxql.MapReduceJob, 0, len(tagSets))
 		for _, t := range tagSets {
 			// make a job for each tagset
 			job := &influxql.MapReduceJob{
