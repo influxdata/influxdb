@@ -1788,6 +1788,21 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 
 		// Parse it as a VarRef.
 		return p.parseVarRef()
+	case DISTINCT:
+		// If the next immediate token is a left parentheses, parse as function call.
+		// Otherwise parse as a Distinct expression.
+		tok0, pos, lit := p.scan()
+		if tok0 == LPAREN {
+			return p.parseCall("distinct")
+		} else if tok0 == WS {
+			tok1, pos, lit := p.scanIgnoreWhitespace()
+			if tok1 != IDENT {
+				return nil, newParseError(tokstr(tok1, lit), []string{"identifier"}, pos)
+			}
+			return &Distinct{Val: lit}, nil
+		}
+
+		return nil, newParseError(tokstr(tok0, lit), []string{"(", "identifier"}, pos)
 	case STRING:
 		// If literal looks like a date time then parse it as a time literal.
 		if isDateTimeString(lit) {
@@ -1876,44 +1891,7 @@ func (p *Parser) parseCall(name string) (*Call, error) {
 	}
 	p.unscan()
 
-	// count is a special case, as it can have a distinct
-	// as such, we need to parse arguments differently for it
-	// count(distinct foo)
-	isCount := name == "count"
-
 	// Otherwise parse function call arguments.
-	var (
-		args []Expr
-		err  error
-	)
-	switch {
-	case isCount:
-		args, err = p.parseCallArguments([]Token{WS, COMMA})
-	default:
-		args, err = p.parseCallArguments([]Token{COMMA})
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	// There should be a right parentheses at the end.
-	if tok, pos, lit := p.scan(); tok != RPAREN {
-		return nil, newParseError(tokstr(tok, lit), []string{")"}, pos)
-	}
-
-	return &Call{Name: name, Args: args}, nil
-}
-
-func (p *Parser) parseCallArguments(separators []Token) ([]Expr, error) {
-	detect := func(tok Token) bool {
-		for _, t := range separators {
-			if t == tok {
-				return true
-			}
-		}
-		return false
-	}
-
 	var args []Expr
 	for {
 		// Parse an expression argument.
@@ -1923,13 +1901,19 @@ func (p *Parser) parseCallArguments(separators []Token) ([]Expr, error) {
 		}
 		args = append(args, arg)
 
-		// If there's not a valid separator next then stop parsing arguments.
-		if tok, _, _ := p.scan(); !detect(tok) {
+		// If there's not a comma next then stop parsing arguments.
+		if tok, _, _ := p.scan(); tok != COMMA {
 			p.unscan()
 			break
 		}
 	}
-	return args, nil
+
+	// There should be a right parentheses at the end.
+	if tok, pos, lit := p.scan(); tok != RPAREN {
+		return nil, newParseError(tokstr(tok, lit), []string{")"}, pos)
+	}
+
+	return &Call{Name: name, Args: args}, nil
 }
 
 // scan returns the next token from the underlying scanner.
