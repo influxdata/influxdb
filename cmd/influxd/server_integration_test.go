@@ -1593,6 +1593,7 @@ func TestSingleServer(t *testing.T) {
 }
 
 func Test3NodeServer(t *testing.T) {
+	t.Skip()
 	t.Parallel()
 	testName := "3-node server integration"
 
