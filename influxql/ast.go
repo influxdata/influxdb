@@ -770,6 +770,10 @@ func (s *SelectStatement) RewriteWildcards(fields Fields, dimensions Dimensions)
 // RewriteDistinct rewrites the expresion to be a call for map/reduce to work correctly
 // This method assumes all validation has passed
 func (s *SelectStatement) RewriteDistinct() *SelectStatement {
+	if !s.HasDistinct() {
+		return s
+	}
+
 	other := s.Clone()
 
 	// Rewrite any `distinct foo` as `distinct(foo)`
@@ -943,7 +947,26 @@ func (s *SelectStatement) ValidateAggregates(tr targetRequirement) error {
 	return nil
 }
 
+func (s *SelectStatement) HasDistinct() bool {
+	// determine if we have a call named distinct
+	for _, f := range s.Fields {
+		switch c := f.Expr.(type) {
+		case *Call:
+			if c.Name == "distinct" {
+				return true
+			}
+		case *Distinct:
+			return true
+		}
+	}
+	return false
+}
+
+// ValdiateDistinct ensures we have a properly constructed distinct statement
 func (s *SelectStatement) ValidateDistinct() error {
+	if !s.HasDistinct() {
+		return nil
+	}
 	// determine if we have a call named distinct
 	for _, f := range s.Fields {
 		switch c := f.Expr.(type) {
