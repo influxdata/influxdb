@@ -1957,6 +1957,7 @@ func Test_ServerSingleGraphiteIntegration_ZeroDataPoint(t *testing.T) {
 }
 
 func Test_ServerSingleGraphiteIntegration_NoDatabase(t *testing.T) {
+	t.Skip()
 	t.Parallel()
 	if testing.Short() {
 		t.Skip()
