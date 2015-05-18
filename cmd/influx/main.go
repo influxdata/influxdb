@@ -58,6 +58,42 @@ func main() {
 	fs.BoolVar(&c.Pretty, "pretty", false, "turns on pretty print for the json format")
 	fs.BoolVar(&c.ShouldDump, "dump", false, "dump the contents of the given database to stdout")
 	fs.StringVar(&c.Execute, "execute", c.Execute, "Execute command and quit.")
+
+	// Define our own custom usage to print
+	fs.Usage = func() {
+		fmt.Println(`Usage of influx:
+  -host 'host name'
+       Host to connect to.
+  -port
+       Port to connect to.
+  -database 'database name'
+       Database to connect to the server.
+  -password 'password'
+	     Password to connect to the server.  Leaving blank will prompt for password (--password '')
+  -username 'username'
+       Username to connect to the server.
+  -dump
+       Dump the contents of the given database to stdout.
+  -execute 'command'
+       Execute command and quit.
+  -format 'json|csv|column'
+       Format specifies the format of the server responses:  json, csv, or column.
+  -pretty 'true|false'
+       Turns on pretty print for the json format.
+
+Examples:
+
+	# Use influx in a non-interactive mode to query the database "metrics" and pretty print json
+	$ influx -database="metrics" -execute="select * from cpu" -format="json" -pretty="true"
+
+	# Dumping out your data
+	$ influx -dump=true -database="metrics"
+
+	# Connect to a specific database on startup and set database context
+	$ influx -database="metrics" -host="localhost" -port="8086
+`)
+
+	}
 	fs.Parse(os.Args[1:])
 
 	var promptForPassword bool
