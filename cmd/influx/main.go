@@ -93,8 +93,10 @@ func main() {
 
 	if c.Execute != "" {
 		if err := c.ExecuteQuery(c.Execute); err != nil {
+			c.Line.Close()
 			os.Exit(1)
 		} else {
+			c.Line.Close()
 			os.Exit(0)
 		}
 	}
