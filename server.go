@@ -390,6 +390,7 @@ func (s *Server) StartSelfMonitoring(database, retention string, interval time.D
 
 			// Shard-level stats.
 			tags["shardID"] = strconv.FormatUint(s.id, 10)
+			s.mu.RLock()
 			for _, sh := range s.shards {
 				if !sh.HasDataNodeID(s.id) {
 					// No stats for non-local shards.
@@ -397,6 +398,7 @@ func (s *Server) StartSelfMonitoring(database, retention string, interval time.D
 				}
 				batch = append(batch, pointsFromStats(sh.stats, tags)...)
 			}
+			s.mu.RUnlock()
 
 			// Server diagnostics.
 			for _, row := range s.DiagnosticsAsRows() {
