@@ -331,6 +331,7 @@ var limitAndOffset = func(t *testing.T, node *TestNode, database, retention stri
 }
 
 func runTest_rawDataReturnsInOrder(t *testing.T, testName string, nodes Cluster, database, retention string, replicationFactor int) {
+	t.Skip()
 	// skip this test if they're just looking to run some of thd data tests
 	if os.Getenv("TEST_PREFIX") != "" {
 		return
