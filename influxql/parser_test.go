@@ -206,7 +206,7 @@ func TestParser_ParseStatement(t *testing.T) {
 			stmt: &influxql.SelectStatement{
 				IsRawQuery: false,
 				Fields: []*influxql.Field{
-					{Expr: &influxql.Call{Name: "distinct", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}}}},
+					{Expr: &influxql.Call{Name: "count", Args: []influxql.Expr{&influxql.Distinct{Val: "field1"}}}},
 				},
 				Sources: []influxql.Source{&influxql.Measurement{Name: "cpu"}},
 			},
