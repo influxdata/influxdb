@@ -64,7 +64,7 @@ func main() {
 		fmt.Println(`Usage of influx:
   -host 'host name'
        Host to connect to.
-  -port
+  -port 'port #'
        Port to connect to.
   -database 'database name'
        Database to connect to the server.
@@ -78,19 +78,19 @@ func main() {
        Execute command and quit.
   -format 'json|csv|column'
        Format specifies the format of the server responses:  json, csv, or column.
-  -pretty 'true|false'
+  -pretty
        Turns on pretty print for the json format.
 
 Examples:
 
 	# Use influx in a non-interactive mode to query the database "metrics" and pretty print json
-	$ influx -database="metrics" -execute="select * from cpu" -format="json" -pretty="true"
+	$ influx -database 'metrics' -execute 'select * from cpu' -format 'json' -pretty
 
 	# Dumping out your data
-	$ influx -dump=true -database="metrics"
+	$ influx  -database 'metrics' -dump
 
 	# Connect to a specific database on startup and set database context
-	$ influx -database="metrics" -host="localhost" -port="8086
+	$ influx -database 'metrics' -host 'localhost' -port '8086'
 `)
 
 	}
