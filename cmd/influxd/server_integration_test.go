@@ -1654,6 +1654,7 @@ func Test5NodeClusterPartiallyReplicated(t *testing.T) {
 }
 
 func TestClientLibrary(t *testing.T) {
+	t.Skip()
 	t.Parallel()
 	testName := "single server integration via client library"
 	if testing.Short() {
