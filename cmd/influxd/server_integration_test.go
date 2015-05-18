@@ -1610,6 +1610,7 @@ func Test3NodeServer(t *testing.T) {
 }
 
 func Test3NodeServerFailover(t *testing.T) {
+	t.Skip()
 	t.Parallel()
 	testName := "3-node server failover integration"
 
