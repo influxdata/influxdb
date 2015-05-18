@@ -65,6 +65,7 @@ func (*CreateContinuousQueryStatement) node() {}
 func (*CreateDatabaseStatement) node()        {}
 func (*CreateRetentionPolicyStatement) node() {}
 func (*CreateUserStatement) node()            {}
+func (*Distinct) node()                       {}
 func (*DeleteStatement) node()                {}
 func (*DropContinuousQueryStatement) node()   {}
 func (*DropDatabaseStatement) node()          {}
@@ -198,6 +199,7 @@ type Expr interface {
 func (*BinaryExpr) expr()      {}
 func (*BooleanLiteral) expr()  {}
 func (*Call) expr()            {}
+func (*Distinct) expr()        {}
 func (*DurationLiteral) expr() {}
 func (*nilLiteral) expr()      {}
 func (*NumberLiteral) expr()   {}
@@ -765,6 +767,28 @@ func (s *SelectStatement) RewriteWildcards(fields Fields, dimensions Dimensions)
 	return other
 }
 
+// RewriteDistinct rewrites the expresion to be a call for map/reduce to work correctly
+// This method assumes all validation has passed
+func (s *SelectStatement) RewriteDistinct() *SelectStatement {
+	other := s.Clone()
+
+	// Rewrite any `distinct foo` as `distinct(foo)`
+	rwFields := make(Fields, 0, len(s.Fields))
+	for _, f := range s.Fields {
+		switch v := f.Expr.(type) {
+		case *Distinct:
+			field := &Field{Expr: &Call{Name: "distinct", Args: []Expr{&VarRef{Val: v.Val}}}}
+			rwFields = append(rwFields, field)
+		default:
+			rwFields = append(rwFields, f)
+		}
+	}
+	other.Fields = rwFields
+	other.IsRawQuery = false
+
+	return other
+}
+
 // String returns a string representation of the select statement.
 func (s *SelectStatement) String() string {
 	var buf bytes.Buffer
@@ -922,10 +946,13 @@ func (s *SelectStatement) ValidateAggregates(tr targetRequirement) error {
 func (s *SelectStatement) ValidateDistinct() error {
 	// determine if we have a call named distinct
 	for _, f := range s.Fields {
-		if c, ok := f.Expr.(*Call); ok {
+		switch c := f.Expr.(type) {
+		case *Call:
 			if c.Name == "distinct" {
 				goto hasDistinct
 			}
+		case *Distinct:
+			goto hasDistinct
 		}
 	}
 	return nil
@@ -935,18 +962,16 @@ hasDistinct:
 		return fmt.Errorf("aggregate function distinct() can not be combined with other functions or fields")
 	}
 
-	c, ok := s.Fields[0].Expr.(*Call)
-	if !ok {
-		panic("unreachable code")
-	}
-	if len(c.Args) == 0 {
-		return fmt.Errorf("distinct function requires at least one argument")
-	}
+	switch c := s.Fields[0].Expr.(type) {
+	case *Call:
+		if len(c.Args) == 0 {
+			return fmt.Errorf("distinct function requires at least one argument")
+		}
 
-	if len(c.Args) != 1 {
-		return fmt.Errorf("distinct function can only have one argument")
+		if len(c.Args) != 1 {
+			return fmt.Errorf("distinct function can only have one argument")
+		}
 	}
-
 	return nil
 }
 
@@ -1937,6 +1962,27 @@ func (c *Call) String() string {
 	return fmt.Sprintf("%s(%s)", c.Name, strings.Join(str, ", "))
 }
 
+// Distinct represents a DISTINCT expression.
+type Distinct struct {
+	// Identifier following DISTINCT
+	Val string
+}
+
+// String returns a string representation of the expression.
+func (d *Distinct) String() string {
+	return fmt.Sprintf("DISTINCT %s", d.Val)
+}
+
+// NewCall returns a new call expression from this expressions.
+func (d *Distinct) NewCall() *Call {
+	return &Call{
+		Name: "distinct",
+		Args: []Expr{
+			&VarRef{Val: d.Val},
+		},
+	}
+}
+
 // NumberLiteral represents a numeric literal.
 type NumberLiteral struct {
 	Val float64
@@ -2076,6 +2122,8 @@ func CloneExpr(expr Expr) Expr {
 			args[i] = CloneExpr(arg)
 		}
 		return &Call{Name: expr.Name, Args: args}
+	case *Distinct:
+		return &Distinct{Val: expr.Val}
 	case *DurationLiteral:
 		return &DurationLiteral{Val: expr.Val}
 	case *NumberLiteral:
