@@ -967,20 +967,7 @@ func (s *SelectStatement) ValidateDistinct() error {
 	if !s.HasDistinct() {
 		return nil
 	}
-	// determine if we have a call named distinct
-	for _, f := range s.Fields {
-		switch c := f.Expr.(type) {
-		case *Call:
-			if c.Name == "distinct" {
-				goto hasDistinct
-			}
-		case *Distinct:
-			goto hasDistinct
-		}
-	}
-	return nil
 
-hasDistinct:
 	if len(s.Fields) > 1 {
 		return fmt.Errorf("aggregate function distinct() can not be combined with other functions or fields")
 	}
