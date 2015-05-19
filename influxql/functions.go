@@ -56,11 +56,15 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 	// derivative can take a nested aggregate function, everything else expects
 	// a variable reference as the first arg
 	if !strings.HasSuffix(c.Name, "derivative") {
-		// Ensure the argument is a variable reference.
-		switch c.Args[0].(type) {
+		// Ensure the argument is appropriate for the aggregate function.
+		switch fc := c.Args[0].(type) {
 		case *VarRef:
 		case *Distinct:
 			if c.Name != "count" {
+				return nil, fmt.Errorf("expected field argument in %s()", c.Name)
+			}
+		case *Call:
+			if fc.Name != "distinct" {
 				return nil, fmt.Errorf("expected field argument in %s()", c.Name)
 			}
 		default:
@@ -73,6 +77,11 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 	case "count":
 		if _, ok := c.Args[0].(*Distinct); ok {
 			return MapCountDistinct, nil
+		}
+		if c, ok := c.Args[0].(*Call); ok {
+			if c.Name == "distinct" {
+				return MapCountDistinct, nil
+			}
 		}
 		return MapCount, nil
 	case "distinct":
@@ -120,6 +129,11 @@ func InitializeReduceFunc(c *Call) (ReduceFunc, error) {
 	case "count":
 		if _, ok := c.Args[0].(*Distinct); ok {
 			return ReduceCountDistinct, nil
+		}
+		if c, ok := c.Args[0].(*Call); ok {
+			if c.Name == "distinct" {
+				return ReduceCountDistinct, nil
+			}
 		}
 		return ReduceSum, nil
 	case "distinct":

@@ -223,6 +223,30 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		{
+			s: `select count(distinct field3), sum(field4) from metrics`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: false,
+				Fields: []*influxql.Field{
+					{Expr: &influxql.Call{Name: "count", Args: []influxql.Expr{&influxql.Distinct{Val: "field3"}}}},
+					{Expr: &influxql.Call{Name: "sum", Args: []influxql.Expr{&influxql.VarRef{Val: "field4"}}}},
+				},
+				Sources: []influxql.Source{&influxql.Measurement{Name: "metrics"}},
+			},
+		},
+
+		{
+			s: `select count(distinct(field3)), sum(field4) from metrics`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: false,
+				Fields: []*influxql.Field{
+					{Expr: &influxql.Call{Name: "count", Args: []influxql.Expr{&influxql.Call{Name: "distinct", Args: []influxql.Expr{&influxql.VarRef{Val: "field3"}}}}}},
+					{Expr: &influxql.Call{Name: "sum", Args: []influxql.Expr{&influxql.VarRef{Val: "field4"}}}},
+				},
+				Sources: []influxql.Source{&influxql.Measurement{Name: "metrics"}},
+			},
+		},
+
 		// SELECT * FROM WHERE time
 		{
 			s: fmt.Sprintf(`SELECT * FROM cpu WHERE time > '%s'`, now.UTC().Format(time.RFC3339Nano)),
