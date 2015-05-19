@@ -84,11 +84,14 @@ func (sg *ShardGroup) ShardBySeriesID(seriesID uint64) *Shard {
 // Duration returns the duration between the shard group's start and end time.
 func (sg *ShardGroup) Duration() time.Duration { return sg.EndTime.Sub(sg.StartTime) }
 
-// Contains return whether the shard group contains data for the time between min and max
-func (sg *ShardGroup) Contains(min, max time.Time) bool {
-	return timeBetweenInclusive(sg.StartTime, min, max) ||
-		timeBetweenInclusive(sg.EndTime, min, max) ||
-		(sg.StartTime.Before(min) && sg.EndTime.After(max))
+// Contains return whether the shard group contains data for the timestamp
+func (sg *ShardGroup) Contains(timestamp time.Time) bool {
+	return !sg.StartTime.After(timestamp) && sg.EndTime.After(timestamp)
+}
+
+// Overlaps return whether the shard group contains data for the time range between min and max
+func (sg *ShardGroup) Overlaps(min, max time.Time) bool {
+	return !sg.StartTime.After(max) && sg.EndTime.After(min)
 }
 
 // dropSeries will delete all data with the seriesID

@@ -10,6 +10,7 @@
 - [#2558](https://github.com/influxdb/influxdb/pull/2558): Fix client response check - thanks @vladlopes!
 - [#2566](https://github.com/influxdb/influxdb/pull/2566): Wait until each data write has been commited by the Raft cluster.
 - [#2602](https://github.com/influxdb/influxdb/pull/2602): CLI execute command exits without cleaning up liner package.
+- [#2610](https://github.com/influxdb/influxdb/pull/2610): Fix shard group creation
 
 ## PRs
 - [#2569](https://github.com/influxdb/influxdb/pull/2569): Add derivative functions
