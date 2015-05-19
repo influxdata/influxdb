@@ -158,6 +158,8 @@ func (c *Coordinator) Write(p *WritePointsRequest) error {
 		return err
 	}
 
+	// Write each shard in it's own goroutine and return as soon
+	// as one fails.
 	ch := make(chan error, len(shardMappings.Points))
 	for shardID, points := range shardMappings.Points {
 		go func(shard meta.ShardInfo, points []data.Point) {
@@ -184,16 +186,18 @@ func (c *Coordinator) writeToShards(shard meta.ShardInfo, consistency Consistenc
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
+	// Abort early if there are no writer configured yet
 	if len(c.shardWriters) == 0 {
 		return ErrWriteFailed
 	}
 
-	requiredResponses := len(shard.OwnerIDs)
+	// The required number of writes to achieve the requested consistency level
+	required := len(shard.OwnerIDs)
 	switch consistency {
 	case ConsistencyLevelAny, ConsistencyLevelOne:
-		requiredResponses = 1
+		required = 1
 	case ConsistencyLevelQuorum:
-		requiredResponses = requiredResponses/2 + 1
+		required = required/2 + 1
 	}
 
 	// holds the response to the ShardWriter.Write calls
@@ -231,7 +235,7 @@ func (c *Coordinator) writeToShards(shard meta.ShardInfo, consistency Consistenc
 			}
 
 			// We wrote the required consistency level
-			if wrote >= requiredResponses {
+			if wrote >= required {
 				return nil
 			}
 		}
