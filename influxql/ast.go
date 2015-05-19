@@ -902,6 +902,10 @@ func (s *SelectStatement) validate(tr targetRequirement) error {
 		return err
 	}
 
+	if err := s.validateCountDistinct(); err != nil {
+		return err
+	}
+
 	if err := s.validateAggregates(tr); err != nil {
 		return err
 	}
@@ -965,6 +969,53 @@ func (s *SelectStatement) validateDistinct() error {
 			return fmt.Errorf("distinct function can only have one argument")
 		}
 	}
+	return nil
+}
+
+func (s *SelectStatement) HasCountDistinct() bool {
+	for _, f := range s.Fields {
+		if c, ok := f.Expr.(*Call); ok {
+			if c.Name == "count" {
+				for _, a := range c.Args {
+					if _, ok := a.(*Distinct); ok {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
+func (s *SelectStatement) validateCountDistinct() error {
+	if !s.HasCountDistinct() {
+		return nil
+	}
+
+	getDistinct := func(e Expr) *Call {
+		c, ok := e.(*Call)
+		if !ok {
+			return nil
+		}
+		if c.Name != "count" {
+			return nil
+		}
+		for _, a := range c.Args {
+			if _, ok := a.(*Distinct); ok {
+				return c
+			}
+		}
+		return nil
+	}
+
+	for _, f := range s.Fields {
+		if cd := getDistinct(f.Expr); cd != nil {
+			if len(cd.Args) > 1 {
+				return fmt.Errorf("count(distinct <field>) can only have one argument")
+			}
+		}
+	}
+
 	return nil
 }
 

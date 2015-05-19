@@ -57,8 +57,13 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 	// a variable reference as the first arg
 	if !strings.HasSuffix(c.Name, "derivative") {
 		// Ensure the argument is a variable reference.
-		_, ok := c.Args[0].(*VarRef)
-		if !ok {
+		switch c.Args[0].(type) {
+		case *VarRef:
+		case *Distinct:
+			if c.Name != "count" {
+				return nil, fmt.Errorf("expected field argument in %s()", c.Name)
+			}
+		default:
 			return nil, fmt.Errorf("expected field argument in %s()", c.Name)
 		}
 	}
@@ -66,6 +71,9 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 	// Retrieve map function by name.
 	switch c.Name {
 	case "count":
+		if _, ok := c.Args[0].(*Distinct); ok {
+			return MapCountDistinct, nil
+		}
 		return MapCount, nil
 	case "distinct":
 		return MapDistinct, nil
@@ -110,6 +118,9 @@ func InitializeReduceFunc(c *Call) (ReduceFunc, error) {
 	// Retrieve reduce function by name.
 	switch c.Name {
 	case "count":
+		if _, ok := c.Args[0].(*Distinct); ok {
+			return ReduceCountDistinct, nil
+		}
 		return ReduceSum, nil
 	case "distinct":
 		return ReduceDistinct, nil
@@ -351,6 +362,43 @@ func ReduceDistinct(values []interface{}) interface{} {
 		return results
 	}
 	return nil
+}
+
+// MapCountDistinct computes the unique count of values in an iterator.
+func MapCountDistinct(itr Iterator) interface{} {
+	var index = make(map[interface{}]struct{})
+
+	for _, time, value := itr.Next(); time != 0; _, time, value = itr.Next() {
+		index[value] = struct{}{}
+	}
+
+	if len(index) == 0 {
+		return nil
+	}
+
+	return index
+}
+
+// ReduceCountDistinct finds the unique counts of values.
+func ReduceCountDistinct(values []interface{}) interface{} {
+	var index = make(map[interface{}]struct{})
+
+	// index distinct values from each mapper
+	for _, v := range values {
+		if v == nil {
+			continue
+		}
+		d, ok := v.(map[interface{}]struct{})
+		if !ok {
+			msg := fmt.Sprintf("expected map[interface{}]struct{}, got: %T", v)
+			panic(msg)
+		}
+		for distinctCountValue, _ := range d {
+			index[distinctCountValue] = struct{}{}
+		}
+	}
+
+	return len(index)
 }
 
 // MapSum computes the summation of values in an iterator.
