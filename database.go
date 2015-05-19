@@ -1160,7 +1160,7 @@ func NewRetentionPolicy(name string) *RetentionPolicy {
 // Returns nil group does not exist.
 func (rp *RetentionPolicy) shardGroupByTimestamp(timestamp time.Time) *ShardGroup {
 	for _, g := range rp.shardGroups {
-		if timeBetweenInclusive(timestamp, g.StartTime, g.EndTime) {
+		if (g.StartTime.Before(timestamp) || g.StartTime.Equal(timestamp)) && g.EndTime.After(timestamp) {
 			return g
 		}
 	}
