@@ -6,6 +6,7 @@
 - [#2557](https://github.com/influxdb/influxdb/issues/2557): Fix false positive error with `GROUP BY time`
 
 ### Bugfixes
+- [#2545](https://github.com/influxdb/influxdb/pull/2545): Don't continually re-request shard group creation.
 - [#2545](https://github.com/influxdb/influxdb/pull/2545): Use "value" as the field name for graphite input. Thanks @cannium.
 - [#2558](https://github.com/influxdb/influxdb/pull/2558): Fix client response check - thanks @vladlopes!
 - [#2566](https://github.com/influxdb/influxdb/pull/2566): Wait until each data write has been commited by the Raft cluster.

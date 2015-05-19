@@ -2069,6 +2069,11 @@ func (s *Server) createShardGroupsIfNotExists(database, retentionPolicy string, 
 		// Local function makes locking fool-proof.
 		s.mu.RLock()
 		defer s.mu.RUnlock()
+		rp, err := s.RetentionPolicy(database, retentionPolicy)
+		if err != nil {
+			return err
+		}
+
 		for _, p := range points {
 			// Check if shard group exists first.
 			g, err := s.shardGroupByTimestamp(database, retentionPolicy, p.Time)
@@ -2077,10 +2082,27 @@ func (s *Server) createShardGroupsIfNotExists(database, retentionPolicy string, 
 			} else if g != nil {
 				continue
 			}
+
+			// Only add the command if the equivalent command has not already been added. Point timestamp
+			// always result in shard groups with a starting time truncated to the nearest previous day.
+			sgRequested := false
+			for _, c := range commands {
+				if c.Database == database &&
+					c.Policy == retentionPolicy &&
+					c.Time == p.Time.Truncate(rp.Duration).UTC() {
+					sgRequested = true
+					break
+				}
+			}
+			if sgRequested {
+				continue
+			}
+
+			// Create shard-groups has not been already requested, so do it.
 			commands = append(commands, &createShardGroupIfNotExistsCommand{
 				Database: database,
 				Policy:   retentionPolicy,
-				Time:     p.Time,
+				Time:     p.Time.Truncate(rp.Duration).UTC(),
 			})
 		}
 		return nil
