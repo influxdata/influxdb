@@ -11,6 +11,24 @@ import (
 
 const defaultReadTimeout = 5 * time.Second
 
+// ConsistencyLevel represent a required replication criteria before a write can
+// be returned as successful
+type ConsistencyLevel int
+
+const (
+	// ConsistencyLevelAny allows for hinted hand off, potentially no write happened yet
+	ConsistencyLevelAny ConsistencyLevel = iota
+
+	// ConsistencyLevelOne requires at least one data node acknowledged a write
+	ConsistencyLevelOne
+
+	// ConsistencyLevelOne requires a quorum of data nodes to acknowledge a write
+	ConsistencyLevelQuorum
+
+	// ConsistencyLevelAll requires all data nodes to acknowledge a write
+	ConsistencyLevelAll
+)
+
 var (
 	// ErrTimeout is returned when a write times out
 	ErrTimeout = errors.New("timeout")
