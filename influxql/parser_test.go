@@ -709,12 +709,12 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// CREATE CONTINUOUS QUERY ... INTO <measurement>
 		{
-			s: `CREATE CONTINUOUS QUERY myquery ON testdb BEGIN SELECT count() INTO measure1 FROM myseries GROUP BY time(5m) END`,
+			s: `CREATE CONTINUOUS QUERY myquery ON testdb BEGIN SELECT count(field1) INTO measure1 FROM myseries GROUP BY time(5m) END`,
 			stmt: &influxql.CreateContinuousQueryStatement{
 				Name:     "myquery",
 				Database: "testdb",
 				Source: &influxql.SelectStatement{
-					Fields:  []*influxql.Field{{Expr: &influxql.Call{Name: "count"}}},
+					Fields:  []*influxql.Field{{Expr: &influxql.Call{Name: "count", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}}}}},
 					Target:  &influxql.Target{Measurement: &influxql.Measurement{Name: "measure1"}},
 					Sources: []influxql.Source{&influxql.Measurement{Name: "myseries"}},
 					Dimensions: []*influxql.Dimension{
@@ -747,12 +747,12 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// CREATE CONTINUOUS QUERY ... INTO <retention-policy>.<measurement>
 		{
-			s: `CREATE CONTINUOUS QUERY myquery ON testdb BEGIN SELECT count() INTO "1h.policy1"."cpu.load" FROM myseries GROUP BY time(5m) END`,
+			s: `CREATE CONTINUOUS QUERY myquery ON testdb BEGIN SELECT count(field1) INTO "1h.policy1"."cpu.load" FROM myseries GROUP BY time(5m) END`,
 			stmt: &influxql.CreateContinuousQueryStatement{
 				Name:     "myquery",
 				Database: "testdb",
 				Source: &influxql.SelectStatement{
-					Fields: []*influxql.Field{{Expr: &influxql.Call{Name: "count"}}},
+					Fields: []*influxql.Field{{Expr: &influxql.Call{Name: "count", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}}}}},
 					Target: &influxql.Target{
 						Measurement: &influxql.Measurement{RetentionPolicy: "1h.policy1", Name: "cpu.load"},
 					},
@@ -1104,6 +1104,8 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `SELECT distinct field1, field2 FROM myseries`, err: `aggregate function distinct() can not be combined with other functions or fields`},
 		{s: `SELECT count(distinct) FROM myseries`, err: `found ), expected (, identifier at line 1, char 22`},
 		{s: `SELECT count(distinct field1, field2) FROM myseries`, err: `count(distinct <field>) can only have one argument`},
+		{s: `select count(distinct(too, many, arguments))`, err: `found EOF, expected FROM at line 1, char 45`},
+		{s: `select count() from myseries`, err: `invalid number of arguments for count, expected 1, got 0`},
 		{s: `DELETE`, err: `found EOF, expected FROM at line 1, char 8`},
 		{s: `DELETE FROM`, err: `found EOF, expected identifier at line 1, char 13`},
 		{s: `DELETE FROM myseries WHERE`, err: `found EOF, expected identifier, string, number, bool at line 1, char 28`},

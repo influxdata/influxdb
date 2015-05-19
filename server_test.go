@@ -1616,7 +1616,7 @@ func TestServer_CreateContinuousQuery(t *testing.T) {
 	s.SetDefaultRetentionPolicy("foo", "bar")
 
 	// create and check
-	q := "CREATE CONTINUOUS QUERY myquery ON foo BEGIN SELECT count() INTO measure1 FROM myseries GROUP BY time(10m) END"
+	q := "CREATE CONTINUOUS QUERY myquery ON foo BEGIN SELECT count(*) INTO measure1 FROM myseries GROUP BY time(10m) END"
 	stmt, err := influxql.NewParser(strings.NewReader(q)).ParseStatement()
 	if err != nil {
 		t.Fatalf("error parsing query %s", err.Error())
@@ -1660,7 +1660,7 @@ func TestServer_CreateContinuousQuery_ErrContinuousQueryExists(t *testing.T) {
 	}
 
 	// create and check
-	q := "CREATE CONTINUOUS QUERY myquery ON foo BEGIN SELECT count() INTO measure1 FROM myseries GROUP BY time(10m) END"
+	q := "CREATE CONTINUOUS QUERY myquery ON foo BEGIN SELECT count(*) INTO measure1 FROM myseries GROUP BY time(10m) END"
 	stmt, err := influxql.NewParser(strings.NewReader(q)).ParseStatement()
 	if err != nil {
 		t.Fatalf("error parsing query %s", err.Error())
@@ -1695,7 +1695,7 @@ func TestServer_CreateContinuousQuery_ErrDatabaseNotFound(t *testing.T) {
 	// create and check
 	nonExistentDBName := "bar"
 	q := fmt.Sprintf(
-		"CREATE CONTINUOUS QUERY myquery ON %v BEGIN SELECT count() INTO measure1 FROM myseries GROUP BY time(10m) END",
+		"CREATE CONTINUOUS QUERY myquery ON %v BEGIN SELECT count(*) INTO measure1 FROM myseries GROUP BY time(10m) END",
 		nonExistentDBName,
 	)
 	stmt, err := influxql.NewParser(strings.NewReader(q)).ParseStatement()
@@ -1740,7 +1740,7 @@ func TestServer_CreateContinuousQuery_ErrRetentionPolicyNotFound(t *testing.T) {
 	retentionPolicy := "1h"
 	// create and check
 	q := fmt.Sprintf(
-		"CREATE CONTINUOUS QUERY myquery ON %v BEGIN SELECT count() INTO \"%v.\".\"measure1\" FROM myseries GROUP BY time(10m) END",
+		"CREATE CONTINUOUS QUERY myquery ON %v BEGIN SELECT count(*) INTO \"%v.\".\"measure1\" FROM myseries GROUP BY time(10m) END",
 		database,
 		retentionPolicy,
 	)
@@ -1776,7 +1776,7 @@ func TestServer_DropContinuousQuery(t *testing.T) {
 	s.SetDefaultRetentionPolicy("foo", "bar")
 
 	// create and check
-	q := "CREATE CONTINUOUS QUERY myquery ON foo BEGIN SELECT count() INTO measure1 FROM myseries GROUP BY time(10m) END"
+	q := "CREATE CONTINUOUS QUERY myquery ON foo BEGIN SELECT count(*) INTO measure1 FROM myseries GROUP BY time(10m) END"
 	stmt, err := influxql.NewParser(strings.NewReader(q)).ParseStatement()
 	if err != nil {
 		t.Fatalf("error parsing query %s", err.Error())
@@ -1917,7 +1917,7 @@ func TestServer_ShowContinuousQueriesStatement(t *testing.T) {
 	s.SetDefaultRetentionPolicy("foo", "bar")
 
 	// create and check
-	q := "CREATE CONTINUOUS QUERY myquery ON foo BEGIN SELECT count() INTO measure1 FROM myseries GROUP BY time(10m) END"
+	q := "CREATE CONTINUOUS QUERY myquery ON foo BEGIN SELECT count(*) INTO measure1 FROM myseries GROUP BY time(10m) END"
 	stmt, err := influxql.NewParser(strings.NewReader(q)).ParseStatement()
 	if err != nil {
 		t.Fatalf("error parsing query %s", err.Error())
@@ -1933,7 +1933,7 @@ func TestServer_ShowContinuousQueriesStatement(t *testing.T) {
 	if results.Error() != nil {
 		t.Fatalf("unexpected error: %s", results.Error())
 	}
-	expected := `{"series":[{"name":"foo","columns":["name","query"],"values":[["myquery","CREATE CONTINUOUS QUERY myquery ON foo BEGIN SELECT count() INTO measure1 FROM myseries GROUP BY time(10m) END"]]}]}`
+	expected := `{"series":[{"name":"foo","columns":["name","query"],"values":[["myquery","CREATE CONTINUOUS QUERY myquery ON foo BEGIN SELECT count(*) INTO measure1 FROM myseries GROUP BY time(10m) END"]]}]}`
 
 	if res := results.Results[0]; res.Err != nil {
 		t.Errorf("unexpected error: %s", res.Err)

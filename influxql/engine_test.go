@@ -13,9 +13,10 @@ func derivativeJob(t *testing.T, fn, interval string) *MapReduceJob {
 		interval = ", " + interval
 	}
 
-	q, err := ParseQuery(fmt.Sprintf("SELECT %s(mean(value)%s) FROM foo", fn, interval))
+	s := fmt.Sprintf("SELECT %s(mean(value)%s) FROM foo", fn, interval)
+	q, err := ParseQuery(s)
 	if err != nil {
-		t.Fatalf("failed to parse query: %s", err)
+		t.Fatalf("failed to parse query %q: %s", s, err)
 	}
 	m := &MapReduceJob{
 		stmt: q.Statements[0].(*SelectStatement),

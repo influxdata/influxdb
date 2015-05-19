@@ -918,6 +918,28 @@ func (s *SelectStatement) validate(tr targetRequirement) error {
 }
 
 func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
+	// First, determine if specific calls have at least one and only one argument
+	for _, f := range s.Fields {
+		if c, ok := f.Expr.(*Call); ok {
+			switch c.Name {
+			case "derivative", "non_negative_derivative":
+				if exp, got := 1, len(c.Args); got < exp {
+					return fmt.Errorf("invalid number of arguments for %s, expected at least %d, got %d", c.Name, exp, got)
+				}
+			case "percentile":
+				if exp, got := 2, len(c.Args); got != exp {
+					return fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", c.Name, exp, got)
+				}
+			default:
+				if exp, got := 1, len(c.Args); got != exp {
+					return fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", c.Name, exp, got)
+				}
+			}
+		}
+	}
+
+	// Now, check that we have valid duration and where clauses for aggregates
+
 	// fetch the group by duration
 	groupByDuration, _ := s.GroupByInterval()
 
