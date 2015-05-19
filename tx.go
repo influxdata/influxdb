@@ -93,6 +93,14 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 			}
 		}
 
+		validateType := func(aname, fname string, t influxql.DataType) error {
+			if t != influxql.Float && t != influxql.Integer {
+				return fmt.Errorf("aggregate '%s' requires numerical field values. Field '%s' is of type %s",
+					aname, fname, t)
+			}
+			return nil
+		}
+
 		// If a numerical aggregate is requested, ensure it is only performed on numeric data or on a
 		// nested aggregate on numeric data.
 		for _, a := range stmt.FunctionCalls() {
@@ -106,9 +114,8 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 			case *influxql.VarRef:
 				if influxql.IsNumeric(nested) {
 					f := m.FieldByName(lit.Val)
-					if f.Type != influxql.Float && f.Type != influxql.Integer {
-						return nil, fmt.Errorf("aggregate '%s' requires numerical field values. Field '%s' is of type %s",
-							a.Name, f.Name, f.Type)
+					if err := validateType(a.Name, f.Name, f.Type); err != nil {
+						return nil, err
 					}
 				}
 			case *influxql.Distinct:
@@ -117,9 +124,8 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 				}
 				if influxql.IsNumeric(nested) {
 					f := m.FieldByName(lit.Val)
-					if f.Type != influxql.Float && f.Type != influxql.Integer {
-						return nil, fmt.Errorf("aggregate '%s' requires numerical field values. Field '%s' is of type %s",
-							a.Name, f.Name, f.Type)
+					if err := validateType(a.Name, f.Name, f.Type); err != nil {
+						return nil, err
 					}
 				}
 			default:
