@@ -897,13 +897,12 @@ func (s *SelectStatement) hasTimeDimensions(node Node) bool {
 	}
 }
 
-// Validate checks certain edge conditions to determine if this is a valid select statment
-func (s *SelectStatement) Validate(tr targetRequirement) error {
-	if err := s.ValidateDistinct(); err != nil {
+func (s *SelectStatement) validate(tr targetRequirement) error {
+	if err := s.validateDistinct(); err != nil {
 		return err
 	}
 
-	if err := s.ValidateAggregates(tr); err != nil {
+	if err := s.validateAggregates(tr); err != nil {
 		return err
 	}
 
@@ -914,7 +913,7 @@ func (s *SelectStatement) Validate(tr targetRequirement) error {
 	return nil
 }
 
-func (s *SelectStatement) ValidateAggregates(tr targetRequirement) error {
+func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 	// fetch the group by duration
 	groupByDuration, _ := s.GroupByInterval()
 
@@ -947,8 +946,7 @@ func (s *SelectStatement) HasDistinct() bool {
 	return false
 }
 
-// ValdiateDistinct ensures we have a properly constructed distinct statement
-func (s *SelectStatement) ValidateDistinct() error {
+func (s *SelectStatement) validateDistinct() error {
 	if !s.HasDistinct() {
 		return nil
 	}
