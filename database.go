@@ -1160,7 +1160,7 @@ func NewRetentionPolicy(name string) *RetentionPolicy {
 // Returns nil group does not exist.
 func (rp *RetentionPolicy) shardGroupByTimestamp(timestamp time.Time) *ShardGroup {
 	for _, g := range rp.shardGroups {
-		if (g.StartTime.Before(timestamp) || g.StartTime.Equal(timestamp)) && g.EndTime.After(timestamp) {
+		if g.Contains(timestamp) {
 			return g
 		}
 	}
@@ -1405,11 +1405,6 @@ func marshalTags(tags map[string]string) []byte {
 		}
 	}
 	return b
-}
-
-// timeBetweenInclusive returns true if t is between min and max, inclusive.
-func timeBetweenInclusive(t, min, max time.Time) bool {
-	return (t.Equal(min) || t.After(min)) && (t.Equal(max) || t.Before(max))
 }
 
 // measurementsByExpr takes and expression containing only tags and returns

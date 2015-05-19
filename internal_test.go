@@ -269,46 +269,55 @@ func Test_seriesIDs_reject(t *testing.T) {
 }
 
 // Test shard group selection.
-func TestShardGroup_Contains(t *testing.T) {
+func TestShardGroup_Overlaps(t *testing.T) {
 	// Make a shard group 1 hour in duration
 	tm, _ := time.Parse(time.RFC3339, "2000-01-01T00:00:00Z")
 	g := newShardGroup(tm, time.Hour)
 
-	if !g.Contains(g.StartTime.Add(-time.Minute), g.EndTime) {
+	if !g.Overlaps(g.StartTime.Add(-time.Minute), g.EndTime) {
 		t.Fatal("shard group not selected when min before start time")
 	}
 
-	if !g.Contains(g.StartTime, g.EndTime.Add(time.Minute)) {
+	if !g.Overlaps(g.StartTime.Add(-time.Minute), g.StartTime) {
+		t.Fatal("shard group not selected when min before start time and max equals start time")
+	}
+
+	if !g.Overlaps(g.StartTime, g.EndTime.Add(time.Minute)) {
 		t.Fatal("shard group not selected when max after after end time")
 	}
 
-	if !g.Contains(g.StartTime.Add(-time.Minute), g.EndTime.Add(time.Minute)) {
+	if !g.Overlaps(g.StartTime.Add(-time.Minute), g.EndTime.Add(time.Minute)) {
 		t.Fatal("shard group not selected when min before start time and when max after end time")
 	}
 
-	if !g.Contains(g.StartTime.Add(time.Minute), g.EndTime.Add(-time.Minute)) {
+	if !g.Overlaps(g.StartTime.Add(time.Minute), g.EndTime.Add(-time.Minute)) {
 		t.Fatal("shard group not selected when min after start time and when max before end time")
 	}
 
-	if !g.Contains(g.StartTime, g.EndTime) {
+	if !g.Overlaps(g.StartTime, g.EndTime) {
 		t.Fatal("shard group not selected when min at start time and when max at end time")
 	}
 
-	if !g.Contains(g.StartTime, g.StartTime) {
+	if !g.Overlaps(g.StartTime, g.StartTime) {
 		t.Fatal("shard group not selected when min and max set to start time")
 	}
 
-	if !g.Contains(g.EndTime, g.EndTime) {
-		t.Fatal("shard group not selected when min and max set to end time")
+	if !g.Overlaps(g.StartTime.Add(1*time.Minute), g.EndTime.Add(24*time.Hour)) {
+		t.Fatal("shard group selected when both min in range")
 	}
 
-	if g.Contains(g.StartTime.Add(-10*time.Hour), g.EndTime.Add(-9*time.Hour)) {
+	if g.Overlaps(g.EndTime, g.EndTime) {
+		t.Fatal("shard group selected when min and max set to end time")
+	}
+
+	if g.Overlaps(g.StartTime.Add(-10*time.Hour), g.EndTime.Add(-9*time.Hour)) {
 		t.Fatal("shard group selected when both min and max before shard times")
 	}
 
-	if g.Contains(g.StartTime.Add(24*time.Hour), g.EndTime.Add(25*time.Hour)) {
+	if g.Overlaps(g.StartTime.Add(24*time.Hour), g.EndTime.Add(25*time.Hour)) {
 		t.Fatal("shard group selected when both min and max after shard times")
 	}
+
 }
 
 // Ensure tags can be marshaled into a byte slice.

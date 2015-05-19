@@ -127,7 +127,7 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 		// Find shard groups within time range.
 		var shardGroups []*ShardGroup
 		for _, group := range rp.shardGroups {
-			if group.Contains(tmin, tmax) {
+			if group.Overlaps(tmin, tmax) {
 				shardGroups = append(shardGroups, group)
 			}
 		}
