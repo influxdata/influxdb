@@ -333,6 +333,8 @@ func TestCoordinatorWrite(t *testing.T) {
 
 	for _, test := range tests {
 
+		// copy to prevent data race
+		theTest := test
 		sm := influxdb.NewShardMapping()
 		sm.MapPoint(
 			meta.ShardInfo{ID: uint64(1), OwnerIDs: []uint64{uint64(1)}},
@@ -345,14 +347,14 @@ func TestCoordinatorWrite(t *testing.T) {
 		// Local data.Node ShardWriter
 		dn := &fakeShardWriter{
 			ShardWriteFn: func(shardID uint64, points []data.Point) (int, error) {
-				return test.dnWrote, test.dnErr
+				return theTest.dnWrote, theTest.dnErr
 			},
 		}
 
 		// Cluster ShardWriter
 		cw := &fakeShardWriter{
 			ShardWriteFn: func(shardID uint64, points []data.Point) (int, error) {
-				return test.cwWrote, test.cwErr
+				return theTest.cwWrote, theTest.cwErr
 			},
 		}
 
