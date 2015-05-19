@@ -192,7 +192,7 @@ func TestCoordinatorWrite(t *testing.T) {
 			dnErr:       influxdb.ErrShardNotLocal,
 			cwWrote:     1,
 			cwErr:       influxdb.ErrShardNotFound,
-			expErr:      influxdb.ErrShardNotFound,
+			expErr:      influxdb.ErrPartialWrite,
 		},
 		// Consistency any
 		{
@@ -223,7 +223,7 @@ func TestCoordinatorWrite(t *testing.T) {
 			expErr:      influxdb.ErrWriteFailed,
 		},
 		{
-			name:        "write any not local, remote success",
+			name:        "write any local failed, remote success",
 			consistency: influxdb.ConsistencyLevelAny,
 			dnWrote:     0,
 			dnErr:       influxdb.ErrShardNotLocal,
@@ -232,13 +232,13 @@ func TestCoordinatorWrite(t *testing.T) {
 			expErr:      nil,
 		},
 		{
-			name:        "write any not local, remote success",
+			name:        "write any local failed, remote success",
 			consistency: influxdb.ConsistencyLevelAny,
 			dnWrote:     0,
 			dnErr:       influxdb.ErrShardNotLocal,
 			cwWrote:     1,
 			cwErr:       influxdb.ErrShardNotFound,
-			expErr:      influxdb.ErrShardNotFound,
+			expErr:      influxdb.ErrPartialWrite,
 		},
 
 		// Consistency all
@@ -256,6 +256,15 @@ func TestCoordinatorWrite(t *testing.T) {
 			consistency: influxdb.ConsistencyLevelAll,
 			dnWrote:     1,
 			dnErr:       nil,
+			cwWrote:     1,
+			cwErr:       nil,
+			expErr:      influxdb.ErrPartialWrite,
+		},
+		{
+			name:        "write all, one error, one success",
+			consistency: influxdb.ConsistencyLevelAll,
+			dnWrote:     0,
+			dnErr:       influxdb.ErrTimeout,
 			cwWrote:     1,
 			cwErr:       nil,
 			expErr:      influxdb.ErrPartialWrite,

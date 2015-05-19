@@ -229,9 +229,9 @@ func (c *Coordinator) writeToShards(shard meta.ShardInfo, consistency Consistenc
 		case res := <-ch:
 			wrote += res.wrote
 
-			// ErrShardNotLocal might be returned from a local writer. Ignore it.
-			if res.err != nil && res.err != ErrShardNotLocal {
-				return res.err
+			// If the write returned an error, continue to the next response
+			if res.err != nil {
+				continue
 			}
 
 			// We wrote the required consistency level
