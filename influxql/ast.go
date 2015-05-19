@@ -1002,6 +1002,11 @@ func (s *SelectStatement) HasCountDistinct() bool {
 					if _, ok := a.(*Distinct); ok {
 						return true
 					}
+					if c, ok := a.(*Call); ok {
+						if c.Name == "distinct" {
+							return true
+						}
+					}
 				}
 			}
 		}
@@ -1014,27 +1019,30 @@ func (s *SelectStatement) validateCountDistinct() error {
 		return nil
 	}
 
-	getDistinct := func(e Expr) *Call {
+	valid := func(e Expr) bool {
 		c, ok := e.(*Call)
 		if !ok {
-			return nil
+			return true
 		}
 		if c.Name != "count" {
-			return nil
+			return true
 		}
 		for _, a := range c.Args {
 			if _, ok := a.(*Distinct); ok {
-				return c
+				return len(c.Args) == 1
+			}
+			if d, ok := a.(*Call); ok {
+				if d.Name == "distinct" {
+					return len(d.Args) == 1
+				}
 			}
 		}
-		return nil
+		return true
 	}
 
 	for _, f := range s.Fields {
-		if cd := getDistinct(f.Expr); cd != nil {
-			if len(cd.Args) > 1 {
-				return fmt.Errorf("count(distinct <field>) can only have one argument")
-			}
+		if !valid(f.Expr) {
+			return fmt.Errorf("count(distinct <field>) can only have one argument")
 		}
 	}
 

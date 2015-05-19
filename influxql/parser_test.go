@@ -1104,7 +1104,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `SELECT distinct field1, field2 FROM myseries`, err: `aggregate function distinct() can not be combined with other functions or fields`},
 		{s: `SELECT count(distinct) FROM myseries`, err: `found ), expected (, identifier at line 1, char 22`},
 		{s: `SELECT count(distinct field1, field2) FROM myseries`, err: `count(distinct <field>) can only have one argument`},
-		{s: `select count(distinct(too, many, arguments))`, err: `found EOF, expected FROM at line 1, char 45`},
+		{s: `select count(distinct(too, many, arguments)) from myseries`, err: `count(distinct <field>) can only have one argument`},
 		{s: `select count() from myseries`, err: `invalid number of arguments for count, expected 1, got 0`},
 		{s: `DELETE`, err: `found EOF, expected FROM at line 1, char 8`},
 		{s: `DELETE FROM`, err: `found EOF, expected identifier at line 1, char 13`},
