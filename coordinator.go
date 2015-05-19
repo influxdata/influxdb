@@ -9,7 +9,7 @@ import (
 	"github.com/influxdb/influxdb/meta"
 )
 
-const defaultReadTimeout = 5 * time.Second
+const defaultWriteTimeout = 5 * time.Second
 
 // ConsistencyLevel represent a required replication criteria before a write can
 // be returned as successful
@@ -185,7 +185,7 @@ func (c *Coordinator) writeToShards(shard meta.ShardInfo, consistency Consistenc
 	}
 
 	var wrote int
-	timeout := time.After(defaultReadTimeout)
+	timeout := time.After(defaultWriteTimeout)
 	for range c.shardWriters {
 		select {
 		case <-timeout:
