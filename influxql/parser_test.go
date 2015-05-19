@@ -106,13 +106,35 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
-		// SELECT statement
+		// derivative
 		{
 			s: `SELECT derivative(field1, 1h) FROM myseries;`,
 			stmt: &influxql.SelectStatement{
 				IsRawQuery: false,
 				Fields: []*influxql.Field{
 					{Expr: &influxql.Call{Name: "derivative", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.DurationLiteral{Val: time.Hour}}}},
+				},
+				Sources: []influxql.Source{&influxql.Measurement{Name: "myseries"}},
+			},
+		},
+
+		{
+			s: `SELECT derivative(mean(field1), 1h) FROM myseries;`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: false,
+				Fields: []*influxql.Field{
+					{Expr: &influxql.Call{Name: "derivative", Args: []influxql.Expr{&influxql.Call{Name: "mean", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}}}, &influxql.DurationLiteral{Val: time.Hour}}}},
+				},
+				Sources: []influxql.Source{&influxql.Measurement{Name: "myseries"}},
+			},
+		},
+
+		{
+			s: `SELECT derivative(mean(field1)) FROM myseries;`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: false,
+				Fields: []*influxql.Field{
+					{Expr: &influxql.Call{Name: "derivative", Args: []influxql.Expr{&influxql.Call{Name: "mean", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}}}}}},
 				},
 				Sources: []influxql.Source{&influxql.Measurement{Name: "myseries"}},
 			},
@@ -1130,6 +1152,8 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `SELECT count(distinct field1, field2) FROM myseries`, err: `count(distinct <field>) can only have one argument`},
 		{s: `select count(distinct(too, many, arguments)) from myseries`, err: `count(distinct <field>) can only have one argument`},
 		{s: `select count() from myseries`, err: `invalid number of arguments for count, expected 1, got 0`},
+		{s: `select derivative() from myseries`, err: `invalid number of arguments for derivative, expected at least 1 but no more than 2, got 0`},
+		{s: `select derivative(mean(value), 1h, 3) from myseries`, err: `invalid number of arguments for derivative, expected at least 1 but no more than 2, got 3`},
 		{s: `DELETE`, err: `found EOF, expected FROM at line 1, char 8`},
 		{s: `DELETE FROM`, err: `found EOF, expected identifier at line 1, char 13`},
 		{s: `DELETE FROM myseries WHERE`, err: `found EOF, expected identifier, string, number, bool at line 1, char 28`},
