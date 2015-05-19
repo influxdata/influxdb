@@ -769,28 +769,13 @@ func (s *SelectStatement) RewriteWildcards(fields Fields, dimensions Dimensions)
 
 // RewriteDistinct rewrites the expresion to be a call for map/reduce to work correctly
 // This method assumes all validation has passed
-func (s *SelectStatement) RewriteDistinct() *SelectStatement {
-	if !s.HasDistinct() {
-		return s
-	}
-
-	other := s.Clone()
-
-	// Rewrite any `distinct foo` as `distinct(foo)`
-	rwFields := make(Fields, 0, len(s.Fields))
-	for _, f := range s.Fields {
-		switch v := f.Expr.(type) {
-		case *Distinct:
-			field := &Field{Expr: &Call{Name: "distinct", Args: []Expr{&VarRef{Val: v.Val}}}}
-			rwFields = append(rwFields, field)
-		default:
-			rwFields = append(rwFields, f)
+func (s *SelectStatement) RewriteDistinct() {
+	for i, f := range s.Fields {
+		if d, ok := f.Expr.(*Distinct); ok {
+			s.Fields[i].Expr = d.NewCall()
+			s.IsRawQuery = false
 		}
 	}
-	other.Fields = rwFields
-	other.IsRawQuery = false
-
-	return other
 }
 
 // String returns a string representation of the select statement.

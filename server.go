@@ -2355,7 +2355,7 @@ func (s *Server) rewriteSelectStatement(stmt *influxql.SelectStatement) (*influx
 		}
 	}
 
-	stmt = stmt.RewriteDistinct()
+	stmt.RewriteDistinct()
 
 	return stmt, nil
 }
