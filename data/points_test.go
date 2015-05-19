@@ -1,12 +1,8 @@
-package influxdb_test
+package data
 
-import (
-	"testing"
+import "testing"
 
-	"github.com/influxdb/influxdb"
-)
-
-var tags = influxdb.Tags{"foo": "bar", "apple": "orange", "host": "serverA", "region": "uswest"}
+var tags = Tags{"foo": "bar", "apple": "orange", "host": "serverA", "region": "uswest"}
 
 func TestMarshal(t *testing.T) {
 	got := tags.Marshal()

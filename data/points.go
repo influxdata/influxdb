@@ -1,4 +1,4 @@
-package influxdb
+package data
 
 import (
 	"hash/fnv"

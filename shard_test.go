@@ -4,6 +4,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/influxdb/influxdb/data"
 )
 
 func TestShardWrite(t *testing.T) {
@@ -13,7 +15,7 @@ func TestShardWrite(t *testing.T) {
 
 	sh := &Shard{ID: 1}
 
-	pt := Point{
+	pt := data.Point{
 		Name:   "cpu",
 		Tags:   map[string]string{"host": "server"},
 		Time:   time.Unix(1, 2),
@@ -22,7 +24,7 @@ func TestShardWrite(t *testing.T) {
 	pr := &WritePointsRequest{
 		Database:        "foo",
 		RetentionPolicy: "default",
-		Points: []Point{
+		Points: []data.Point{
 			pt},
 	}
 

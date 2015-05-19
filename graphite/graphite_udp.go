@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/influxdb/influxdb"
+	"github.com/influxdb/influxdb/data"
 )
 
 const (
@@ -76,7 +76,7 @@ func (u *UDPServer) ListenAndServe(iface string) error {
 				}
 
 				// Send the data to the writer.
-				_, e := u.writer.WriteSeries(u.database, "", []influxdb.Point{point})
+				_, e := u.writer.WriteSeries(u.database, "", []data.Point{point})
 				if e != nil {
 					u.Logger.Printf("failed to write data point: %s\n", e)
 				}

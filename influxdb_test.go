@@ -7,6 +7,7 @@ import (
 
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/client"
+	"github.com/influxdb/influxdb/data"
 )
 
 func TestNormalizeBatchPoints(t *testing.T) {
@@ -14,7 +15,7 @@ func TestNormalizeBatchPoints(t *testing.T) {
 	tests := []struct {
 		name string
 		bp   client.BatchPoints
-		p    []influxdb.Point
+		p    []data.Point
 		err  string
 	}{
 		{
@@ -24,7 +25,7 @@ func TestNormalizeBatchPoints(t *testing.T) {
 					{Name: "cpu", Tags: map[string]string{"region": "useast"}, Time: now, Fields: map[string]interface{}{"value": 1.0}},
 				},
 			},
-			p: []influxdb.Point{
+			p: []data.Point{
 				{Name: "cpu", Tags: map[string]string{"region": "useast"}, Time: now, Fields: map[string]interface{}{"value": 1.0}},
 			},
 		},
@@ -36,7 +37,7 @@ func TestNormalizeBatchPoints(t *testing.T) {
 					{Name: "cpu", Tags: map[string]string{"region": "useast"}, Fields: map[string]interface{}{"value": 1.0}},
 				},
 			},
-			p: []influxdb.Point{
+			p: []data.Point{
 				{Name: "cpu", Tags: map[string]string{"region": "useast"}, Time: now, Fields: map[string]interface{}{"value": 1.0}},
 			},
 		},
@@ -49,7 +50,7 @@ func TestNormalizeBatchPoints(t *testing.T) {
 					{Name: "memory", Time: now, Fields: map[string]interface{}{"value": 2.0}},
 				},
 			},
-			p: []influxdb.Point{
+			p: []data.Point{
 				{Name: "cpu", Tags: map[string]string{"day": "monday", "region": "useast"}, Time: now, Fields: map[string]interface{}{"value": 1.0}},
 				{Name: "memory", Tags: map[string]string{"day": "monday"}, Time: now, Fields: map[string]interface{}{"value": 2.0}},
 			},

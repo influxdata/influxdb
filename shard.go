@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/boltdb/bolt"
+	"github.com/influxdb/influxdb/data"
 	"github.com/influxdb/influxdb/messaging"
 )
 
@@ -273,7 +274,7 @@ func (s *Shard) Write(r *WritePointsRequest) error {
 	return nil
 }
 
-func (s *Shard) Read(timestamp time.Time) ([]Point, error) {
+func (s *Shard) Read(timestamp time.Time) ([]data.Point, error) {
 	return nil, nil
 }
 
