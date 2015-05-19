@@ -1,7 +1,6 @@
 package influxdb_test
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -38,26 +37,6 @@ func newTestMetaStore() meta.Store {
 		panic("should not get here")
 	}
 	return ms
-}
-
-func TestCoordinatorWriteOne(t *testing.T) {
-	t.Skip("later")
-	ms := test.MetaStore{}
-	ms.RetentionPolicyFn = func(db, rp string) (*meta.RetentionPolicyInfo, error) {
-		return nil, fmt.Errorf("boom!")
-	}
-	c := influxdb.Coordinator{MetaStore: ms}
-
-	pr := &influxdb.WritePointsRequest{
-		Database:         "mydb",
-		RetentionPolicy:  "myrp",
-		ConsistencyLevel: influxdb.ConsistencyLevelOne,
-	}
-	pr.AddPoint("cpu", 1.0, time.Now(), nil)
-
-	if err := c.Write(pr); err != nil {
-		t.Fatalf("Coordinator.Write() failed: %v", err)
-	}
 }
 
 // TestCoordinatorEnsureShardMappingOne tests that a single point maps to
