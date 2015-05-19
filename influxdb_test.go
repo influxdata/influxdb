@@ -21,23 +21,23 @@ func TestNormalizeBatchPoints(t *testing.T) {
 			name: "default",
 			bp: client.BatchPoints{
 				Points: []client.Point{
-					{Name: "cpu", Tags: map[string]string{"region": "useast"}, Timestamp: now, Fields: map[string]interface{}{"value": 1.0}},
+					{Name: "cpu", Tags: map[string]string{"region": "useast"}, Time: now, Fields: map[string]interface{}{"value": 1.0}},
 				},
 			},
 			p: []influxdb.Point{
-				{Name: "cpu", Tags: map[string]string{"region": "useast"}, Timestamp: now, Fields: map[string]interface{}{"value": 1.0}},
+				{Name: "cpu", Tags: map[string]string{"region": "useast"}, Time: now, Fields: map[string]interface{}{"value": 1.0}},
 			},
 		},
 		{
-			name: "merge timestamp",
+			name: "merge time",
 			bp: client.BatchPoints{
-				Timestamp: now,
+				Time: now,
 				Points: []client.Point{
 					{Name: "cpu", Tags: map[string]string{"region": "useast"}, Fields: map[string]interface{}{"value": 1.0}},
 				},
 			},
 			p: []influxdb.Point{
-				{Name: "cpu", Tags: map[string]string{"region": "useast"}, Timestamp: now, Fields: map[string]interface{}{"value": 1.0}},
+				{Name: "cpu", Tags: map[string]string{"region": "useast"}, Time: now, Fields: map[string]interface{}{"value": 1.0}},
 			},
 		},
 		{
@@ -45,13 +45,13 @@ func TestNormalizeBatchPoints(t *testing.T) {
 			bp: client.BatchPoints{
 				Tags: map[string]string{"day": "monday"},
 				Points: []client.Point{
-					{Name: "cpu", Tags: map[string]string{"region": "useast"}, Timestamp: now, Fields: map[string]interface{}{"value": 1.0}},
-					{Name: "memory", Timestamp: now, Fields: map[string]interface{}{"value": 2.0}},
+					{Name: "cpu", Tags: map[string]string{"region": "useast"}, Time: now, Fields: map[string]interface{}{"value": 1.0}},
+					{Name: "memory", Time: now, Fields: map[string]interface{}{"value": 2.0}},
 				},
 			},
 			p: []influxdb.Point{
-				{Name: "cpu", Tags: map[string]string{"day": "monday", "region": "useast"}, Timestamp: now, Fields: map[string]interface{}{"value": 1.0}},
-				{Name: "memory", Tags: map[string]string{"day": "monday"}, Timestamp: now, Fields: map[string]interface{}{"value": 2.0}},
+				{Name: "cpu", Tags: map[string]string{"day": "monday", "region": "useast"}, Time: now, Fields: map[string]interface{}{"value": 1.0}},
+				{Name: "memory", Tags: map[string]string{"day": "monday"}, Time: now, Fields: map[string]interface{}{"value": 2.0}},
 			},
 		},
 	}

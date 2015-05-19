@@ -76,8 +76,8 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 	}
 	defer m.Close()
 
-	// if it's a raw query we handle processing differently
-	if m.stmt.IsRawQuery {
+	// if it's a raw query or a non-nested derivative we handle processing differently
+	if m.stmt.IsRawQuery || m.stmt.IsSimpleDerivative() {
 		m.processRawQuery(out, filterEmptyResults)
 		return
 	}
@@ -94,7 +94,7 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 		reduceFuncs[i] = reduceFunc
 	}
 
-	// we'll have a fixed number of points with timestamps in buckets. Initialize those times and a slice to hold the associated values
+	// we'll have a fixed number of points with times in buckets. Initialize those times and a slice to hold the associated values
 	var pointCountInResult int
 
 	// if the user didn't specify a start time or a group by interval, we're returning a single point that describes the entire range
@@ -135,7 +135,10 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 	resultValues := make([][]interface{}, pointCountInResult)
 
 	// ensure that the start time for the results is on the start of the window
-	startTimeBucket := m.TMin / m.interval * m.interval
+	startTimeBucket := m.TMin
+	if m.interval > 0 {
+		startTimeBucket = startTimeBucket / m.interval * m.interval
+	}
 
 	for i, _ := range resultValues {
 		var t int64
@@ -193,6 +196,9 @@ func (m *MapReduceJob) Execute(out chan *Row, filterEmptyResults bool) {
 	// handle any fill options
 	resultValues = m.processFill(resultValues)
 
+	// process derivatives
+	resultValues = m.processDerivative(resultValues)
+
 	row := &Row{
 		Name:    m.MeasurementName,
 		Tags:    m.TagSet.Tags,
@@ -225,6 +231,7 @@ func (m *MapReduceJob) processRawQuery(out chan *Row, filterEmptyResults bool) {
 	valuesOffset := 0
 	valuesToReturn := make([]*rawQueryMapOutput, 0)
 
+	var lastValueFromPreviousChunk *rawQueryMapOutput
 	// loop until we've emptied out all the mappers and sent everything out
 	for {
 		// collect up to the limit for each mapper
@@ -255,7 +262,7 @@ func (m *MapReduceJob) processRawQuery(out chan *Row, filterEmptyResults bool) {
 			}
 
 			// find the min of the last point in each mapper
-			t := o[len(o)-1].Timestamp
+			t := o[len(o)-1].Time
 			if t < min {
 				min = t
 			}
@@ -267,7 +274,7 @@ func (m *MapReduceJob) processRawQuery(out chan *Row, filterEmptyResults bool) {
 			// find the index of the point up to the min
 			ind := len(o)
 			for i, mo := range o {
-				if mo.Timestamp > min {
+				if mo.Time > min {
 					ind = i
 					break
 				}
@@ -321,6 +328,10 @@ func (m *MapReduceJob) processRawQuery(out chan *Row, filterEmptyResults bool) {
 		// hit the chunk size? Send out what has been accumulated, but keep
 		// processing.
 		if len(valuesToReturn) >= m.chunkSize {
+			lastValueFromPreviousChunk = valuesToReturn[len(valuesToReturn)-1]
+
+			valuesToReturn = m.processRawQueryDerivative(lastValueFromPreviousChunk, valuesToReturn)
+
 			row := m.processRawResults(valuesToReturn)
 			// perform post-processing, such as math.
 			row.Values = m.processResults(row.Values)
@@ -339,11 +350,143 @@ func (m *MapReduceJob) processRawQuery(out chan *Row, filterEmptyResults bool) {
 			out <- m.processRawResults(nil)
 		}
 	} else {
+		valuesToReturn = m.processRawQueryDerivative(lastValueFromPreviousChunk, valuesToReturn)
+
 		row := m.processRawResults(valuesToReturn)
 		// perform post-processing, such as math.
 		row.Values = m.processResults(row.Values)
 		out <- row
 	}
+}
+
+// derivativeInterval returns the time interval for the one (and only) derivative func
+func (m *MapReduceJob) derivativeInterval() time.Duration {
+	if len(m.stmt.FunctionCalls()[0].Args) == 2 {
+		return m.stmt.FunctionCalls()[0].Args[1].(*DurationLiteral).Val
+	}
+	if m.stmt.groupByInterval > 0 {
+		return m.stmt.groupByInterval
+	}
+	return time.Second
+}
+
+func (m *MapReduceJob) isNonNegativeDerivative() bool {
+	return m.stmt.FunctionCalls()[0].Name == "non_negative_derivative"
+}
+
+func (m *MapReduceJob) processRawQueryDerivative(lastValueFromPreviousChunk *rawQueryMapOutput, valuesToReturn []*rawQueryMapOutput) []*rawQueryMapOutput {
+	// If we're called and do not have a derivative aggregate function, then return what was passed in
+	if !m.stmt.HasDerivative() {
+		return valuesToReturn
+	}
+
+	if len(valuesToReturn) == 0 {
+		return valuesToReturn
+	}
+
+	// If we only have 1 value, then the value did not change, so return
+	// a single row with 0.0
+	if len(valuesToReturn) == 1 {
+		return []*rawQueryMapOutput{
+			&rawQueryMapOutput{
+				Time:   valuesToReturn[0].Time,
+				Values: 0.0,
+			},
+		}
+	}
+
+	if lastValueFromPreviousChunk == nil {
+		lastValueFromPreviousChunk = valuesToReturn[0]
+	}
+
+	// Determines whether to drop negative differences
+	isNonNegative := m.isNonNegativeDerivative()
+
+	derivativeValues := []*rawQueryMapOutput{}
+	for i := 1; i < len(valuesToReturn); i++ {
+		v := valuesToReturn[i]
+
+		// Calculate the derivative of successive points by dividing the difference
+		// of each value by the elapsed time normalized to the interval
+		diff := v.Values.(float64) - lastValueFromPreviousChunk.Values.(float64)
+		elapsed := v.Time - lastValueFromPreviousChunk.Time
+
+		value := 0.0
+		if elapsed > 0 {
+			value = diff / (float64(elapsed) / float64(m.derivativeInterval()))
+		}
+
+		lastValueFromPreviousChunk = v
+
+		// Drop negative values for non-negative derivatives
+		if isNonNegative && diff < 0 {
+			continue
+		}
+
+		derivativeValues = append(derivativeValues, &rawQueryMapOutput{
+			Time:   v.Time,
+			Values: value,
+		})
+	}
+
+	return derivativeValues
+}
+
+// processDerivative returns the derivatives of the results
+func (m *MapReduceJob) processDerivative(results [][]interface{}) [][]interface{} {
+	// Return early if we're not supposed to process the derivatives
+	if !m.stmt.HasDerivative() {
+		return results
+	}
+
+	// Return early if we can't calculate derivatives
+	if len(results) == 0 {
+		return results
+	}
+
+	// If we only have 1 value, then the value did not change, so return
+	// a single row w/ 0.0
+	if len(results) == 1 {
+		return [][]interface{}{
+			[]interface{}{results[0][0], 0.0},
+		}
+	}
+
+	// Determines whether to drop negative differences
+	isNonNegative := m.isNonNegativeDerivative()
+
+	// Otherwise calculate the derivatives as the difference between consecutive
+	// points divided by the elapsed time.  Then normalize to the requested
+	// interval.
+	derivatives := [][]interface{}{}
+	for i := 1; i < len(results); i++ {
+		prev := results[i-1]
+		cur := results[i]
+
+		if cur[1] == nil || prev[1] == nil {
+			continue
+		}
+
+		elapsed := cur[0].(time.Time).Sub(prev[0].(time.Time))
+		diff := cur[1].(float64) - prev[1].(float64)
+		value := 0.0
+		if elapsed > 0 {
+			value = float64(diff) / (float64(elapsed) / float64(m.derivativeInterval()))
+		}
+
+		// Drop negative values for non-negative derivatives
+		if isNonNegative && diff < 0 {
+			continue
+		}
+
+		val := []interface{}{
+			cur[0],
+			value,
+		}
+		derivatives = append(derivatives, val)
+	}
+
+	return derivatives
 }
 
 // processsResults will apply any math that was specified in the select statement against the passed in results
@@ -587,13 +730,13 @@ func (m *MapReduceJob) processRawResults(values []*rawQueryMapOutput) *Row {
 		vals := make([]interface{}, len(selectNames))
 
 		if singleValue {
-			vals[0] = time.Unix(0, v.Timestamp).UTC()
+			vals[0] = time.Unix(0, v.Time).UTC()
 			vals[1] = v.Values.(interface{})
 		} else {
 			fields := v.Values.(map[string]interface{})
 
 			// time is always the first value
-			vals[0] = time.Unix(0, v.Timestamp).UTC()
+			vals[0] = time.Unix(0, v.Time).UTC()
 
 			// populate the other values
 			for i := 1; i < len(selectNames); i++ {

@@ -319,7 +319,7 @@ func TestUnmarshal_Time(t *testing.T) {
 				},
 			},
 			points: []influxdb.Point{
-				{Timestamp: testTime},
+				{Time: testTime},
 			},
 		},
 		{
@@ -333,7 +333,7 @@ func TestUnmarshal_Time(t *testing.T) {
 				},
 			},
 			points: []influxdb.Point{
-				{Timestamp: testTime.Round(time.Second)},
+				{Time: testTime.Round(time.Second)},
 			},
 		},
 	}
@@ -346,10 +346,10 @@ func TestUnmarshal_Time(t *testing.T) {
 		}
 		for _, p := range points {
 			if test.packet.TimeHR > 0 {
-				if p.Timestamp.Format(time.RFC3339Nano) != testTime.Format(time.RFC3339Nano) {
-					t.Errorf("timestamp mis-match, got %v, expected %v", p.Timestamp.Format(time.RFC3339Nano), testTime.Format(time.RFC3339Nano))
-				} else if p.Timestamp.Format(time.RFC3339) != testTime.Format(time.RFC3339) {
-					t.Errorf("timestamp mis-match, got %v, expected %v", p.Timestamp.Format(time.RFC3339), testTime.Format(time.RFC3339))
+				if p.Time.Format(time.RFC3339Nano) != testTime.Format(time.RFC3339Nano) {
+					t.Errorf("time mis-match, got %v, expected %v", p.Time.Format(time.RFC3339Nano), testTime.Format(time.RFC3339Nano))
+				} else if p.Time.Format(time.RFC3339) != testTime.Format(time.RFC3339) {
+					t.Errorf("time mis-match, got %v, expected %v", p.Time.Format(time.RFC3339), testTime.Format(time.RFC3339))
 				}
 			}
 		}

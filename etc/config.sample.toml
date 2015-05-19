@@ -83,7 +83,7 @@ max-segment-size = 10485760
 # Raft configuration. Controls the distributed consensus system.
 [raft]
 apply-interval = "10ms"
-election-timeout = "1s"
+election-timeout = "5s"
 heartbeat-interval = "100ms"
 reconnect-timeout = "10ms"
 

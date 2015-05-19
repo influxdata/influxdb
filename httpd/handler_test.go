@@ -87,15 +87,15 @@ func TestBatchWrite_UnmarshalEpoch(t *testing.T) {
 
 	for _, test := range tests {
 		t.Logf("testing %q\n", test.name)
-		data := []byte(fmt.Sprintf(`{"timestamp": %d, "precision":"%s"}`, test.epoch, test.precision))
+		data := []byte(fmt.Sprintf(`{"time": %d, "precision":"%s"}`, test.epoch, test.precision))
 		t.Logf("json: %s", string(data))
 		var bp client.BatchPoints
 		err := json.Unmarshal(data, &bp)
 		if err != nil {
 			t.Fatalf("unexpected error.  expected: %v, actual: %v", nil, err)
 		}
-		if !bp.Timestamp.Equal(test.expected) {
-			t.Fatalf("Unexpected time.  expected: %v, actual: %v", test.expected, bp.Timestamp)
+		if !bp.Time.Equal(test.expected) {
+			t.Fatalf("Unexpected time.  expected: %v, actual: %v", test.expected, bp.Time)
 		}
 	}
 }
@@ -125,15 +125,15 @@ func TestBatchWrite_UnmarshalRFC(t *testing.T) {
 	for _, test := range tests {
 		t.Logf("testing %q\n", test.name)
 		ts := test.now.Format(test.rfc)
-		data := []byte(fmt.Sprintf(`{"timestamp": %q}`, ts))
+		data := []byte(fmt.Sprintf(`{"time": %q}`, ts))
 		t.Logf("json: %s", string(data))
 		var bp client.BatchPoints
 		err := json.Unmarshal(data, &bp)
 		if err != nil {
 			t.Fatalf("unexpected error.  exptected: %v, actual: %v", nil, err)
 		}
-		if !bp.Timestamp.Equal(test.expected) {
-			t.Fatalf("Unexpected time.  expected: %v, actual: %v", test.expected, bp.Timestamp)
+		if !bp.Time.Equal(test.expected) {
+			t.Fatalf("Unexpected time.  expected: %v, actual: %v", test.expected, bp.Time)
 		}
 	}
 }
@@ -173,8 +173,8 @@ func TestHandler_SelectTagNotFound(t *testing.T) {
 	defer s.Close()
 
 	// Write some data
-	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "default", "points": [{"name": "bin", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
-	if status != http.StatusOK {
+	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "default", "points": [{"name": "bin", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
+	if status != http.StatusNoContent {
 		t.Fatalf("unexpected status: %d", status)
 	}
 
@@ -224,7 +224,7 @@ func TestHandler_CreateDatabase_Conflict(t *testing.T) {
 	defer s.Close()
 
 	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "CREATE DATABASE foo"}, nil, "")
-	if status != http.StatusInternalServerError {
+	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `{"results":[{"error":"database exists"}]}` {
 		t.Fatalf("unexpected body: %s", body)
@@ -255,7 +255,7 @@ func TestHandler_DropDatabase_NotFound(t *testing.T) {
 	defer s.Close()
 
 	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "DROP DATABASE bar"}, nil, "")
-	if status != http.StatusInternalServerError {
+	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	} else if !matchRegex(`database not found: bar.*`, body) {
 		t.Fatalf("unexpected body: %s", body)
@@ -289,7 +289,7 @@ func TestHandler_RetentionPolicies_DatabaseNotFound(t *testing.T) {
 
 	status, body := MustHTTP("GET", s.URL+`/query`, map[string]string{"q": "SHOW RETENTION POLICIES foo"}, nil, "")
 
-	if status != http.StatusInternalServerError {
+	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	} else if !matchRegex(`database not found: foo.*`, body) {
 		t.Fatalf("unexpected body: %s", body)
@@ -349,7 +349,7 @@ func TestHandler_CreateRetentionPolicy_DatabaseNotFound(t *testing.T) {
 	query := map[string]string{"q": "CREATE RETENTION POLICY bar ON foo DURATION 1h REPLICATION 1"}
 	status, _ := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 
-	if status != http.StatusInternalServerError {
+	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	}
 }
@@ -367,7 +367,7 @@ func TestHandler_CreateRetentionPolicy_Conflict(t *testing.T) {
 
 	status, _ := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 
-	if status != http.StatusInternalServerError {
+	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	}
 }
@@ -449,7 +449,7 @@ func TestHandler_UpdateRetentionPolicy_DatabaseNotFound(t *testing.T) {
 	status, _ := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 
 	// Verify response.
-	if status != http.StatusInternalServerError {
+	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	}
 }
@@ -467,7 +467,7 @@ func TestHandler_UpdateRetentionPolicy_NotFound(t *testing.T) {
 	status, _ := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 
 	// Verify response.
-	if status != http.StatusInternalServerError {
+	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	}
 }
@@ -501,7 +501,7 @@ func TestHandler_DeleteRetentionPolicy_DatabaseNotFound(t *testing.T) {
 	query := map[string]string{"q": "DROP RETENTION POLICY bar ON qux"}
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 
-	if status != http.StatusInternalServerError {
+	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	} else if !matchRegex(`database not found: .*qux.*`, body) {
 		t.Fatalf("unexpected body: %s", body)
@@ -519,7 +519,7 @@ func TestHandler_DeleteRetentionPolicy_NotFound(t *testing.T) {
 	query := map[string]string{"q": "DROP RETENTION POLICY bar ON foo"}
 	status, body := MustHTTP("GET", s.URL+`/query`, query, nil, "")
 
-	if status != http.StatusInternalServerError {
+	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != `{"results":[{"error":"retention policy not found"}]}` {
 		t.Fatalf("unexpected body: %s", body)
@@ -545,6 +545,7 @@ func TestHandler_GzipEnabled(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
+	defer resp.Body.Close()
 
 	if ce := resp.Header.Get("Content-Encoding"); ce != "gzip" {
 		t.Fatalf("unexpected Content-Encoding.  expected %q, actual: %q", "gzip", ce)
@@ -570,6 +571,7 @@ func TestHandler_GzipDisabled(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
+	defer resp.Body.Close()
 
 	if ce := resp.Header.Get("Content-Encoding"); ce == "gzip" {
 		t.Fatalf("unexpected Content-Encoding.  expected %q, actual: %q", "", ce)
@@ -625,7 +627,7 @@ func TestHandler_WaitIncrement(t *testing.T) {
 	status, _ := MustHTTP("GET", s.URL+`/data/wait/2`, map[string]string{"timeout": "200"}, nil, "")
 
 	// Write some data
-	_, _ = MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
+	_, _ = MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
 
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status, expected:  %d, actual: %d", http.StatusOK, status)
@@ -821,7 +823,7 @@ func TestHandler_CreateDataNode_InternalServerError(t *testing.T) {
 	defer s.Close()
 
 	status, body := MustHTTP("POST", s.URL+`/data/data_nodes`, nil, nil, `{"url":""}`)
-	if status != http.StatusInternalServerError {
+	if status != http.StatusOK {
 		t.Fatalf("unexpected status: %d, %s", status, body)
 	} else if body != `data node url required` {
 		t.Fatalf("unexpected body: %s", body)
@@ -1096,9 +1098,9 @@ func TestHandler_DropSeries(t *testing.T) {
 	s := NewAPIServer(srvr)
 	defer s.Close()
 
-	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
+	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
 
-	if status != http.StatusOK {
+	if status != http.StatusNoContent {
 		t.Fatalf("unexpected status: %d", status)
 	}
 
@@ -1118,9 +1120,9 @@ func TestHandler_serveWriteSeries(t *testing.T) {
 	s := NewAPIServer(srvr)
 	defer s.Close()
 
-	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "default", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
+	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "default", "points": [{"name": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
 
-	if status != http.StatusOK {
+	if status != http.StatusNoContent {
 		t.Fatalf("unexpected status for post: %d", status)
 	}
 	query := map[string]string{"db": "foo", "q": "select * from cpu"}
@@ -1141,9 +1143,9 @@ func TestHandler_serveDump(t *testing.T) {
 	s := NewAPIServer(srvr)
 	defer s.Close()
 
-	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "default", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
+	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "default", "points": [{"name": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
 
-	if status != http.StatusOK {
+	if status != http.StatusNoContent {
 		t.Fatalf("unexpected status for post: %d", status)
 
 	}
@@ -1173,11 +1175,11 @@ func TestHandler_serveWriteSeriesWithNoFields(t *testing.T) {
 	s := NewAPIServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z"}]}`)
+	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z"}]}`)
 
 	expected := fmt.Sprintf(`{"error":"%s"}`, influxdb.ErrFieldsRequired.Error())
 
-	if status != http.StatusInternalServerError {
+	if status != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", status)
 	} else if body != expected {
 		t.Fatalf("result mismatch:\n\texp=%s\n\tgot=%s\n", expected, body)
@@ -1213,7 +1215,7 @@ func TestHandler_serveWriteSeriesWithAuthNilUser(t *testing.T) {
 	s := NewAuthenticatedAPIServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
+	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
 
 	if status != http.StatusUnauthorized {
 		t.Fatalf("unexpected status: %d", status)
@@ -1232,7 +1234,7 @@ func TestHandler_serveWriteSeries_noDatabaseExists(t *testing.T) {
 	s := NewAPIServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
+	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
 
 	expectedStatus := http.StatusNotFound
 	if status != expectedStatus {
@@ -1264,6 +1266,7 @@ func TestHandler_serveWriteSeries_errorHasJsonContentType(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
+	defer resp.Body.Close()
 
 	if ct := resp.Header.Get("Content-Type"); ct != "application/json" {
 		t.Fatalf("unexpected Content-Type.  expected %q, actual: %q", "application/json", ct)
@@ -1281,8 +1284,8 @@ func TestHandler_serveWriteSeries_queryHasJsonContentType(t *testing.T) {
 	s := NewAPIServer(srvr)
 	defer s.Close()
 
-	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z", "fields": {"value": 100}}]}`)
-	if status != http.StatusOK {
+	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z", "fields": {"value": 100}}]}`)
+	if status != http.StatusNoContent {
 		t.Fatalf("unexpected status: %d", status)
 	}
 	time.Sleep(100 * time.Millisecond) // Ensure data node picks up write.
@@ -1303,6 +1306,7 @@ func TestHandler_serveWriteSeries_queryHasJsonContentType(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
+	defer resp.Body.Close()
 
 	if ct := resp.Header.Get("Content-Type"); ct != "application/json" {
 		t.Fatalf("unexpected Content-Type.  expected %q, actual: %q", "application/json", ct)
@@ -1335,10 +1339,10 @@ func TestHandler_serveWriteSeries_invalidJSON(t *testing.T) {
 	s := NewAPIServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
+	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
 
-	if status != http.StatusInternalServerError {
-		t.Fatalf("unexpected status: expected: %d, actual: %d", http.StatusInternalServerError, status)
+	if status != http.StatusBadRequest {
+		t.Fatalf("unexpected status: expected: %d, actual: %d", http.StatusBadRequest, status)
 	}
 
 	response := `{"error":"invalid character 'o' in literal false (expecting 'a')"}`
@@ -1356,8 +1360,8 @@ func TestHandler_serveWriteSeries_noDatabaseSpecified(t *testing.T) {
 
 	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{}`)
 
-	if status != http.StatusInternalServerError {
-		t.Fatalf("unexpected status: expected: %d, actual: %d", http.StatusInternalServerError, status)
+	if status != http.StatusBadRequest {
+		t.Fatalf("unexpected status: expected: %d, actual: %d", http.StatusBadRequest, status)
 	}
 
 	response := `{"error":"database is required"}`
@@ -1377,8 +1381,8 @@ func TestHandler_serveWriteSeriesNonZeroTime(t *testing.T) {
 	s := NewAPIServer(srvr)
 	defer s.Close()
 
-	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z", "fields": {"value": 100}}]}`)
-	if status != http.StatusOK {
+	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z", "fields": {"value": 100}}]}`)
+	if status != http.StatusNoContent {
 		t.Fatalf("unexpected status: %d", status)
 	}
 	time.Sleep(100 * time.Millisecond) // Ensure data node picks up write.
@@ -1424,7 +1428,7 @@ func TestHandler_serveWriteSeriesZeroTime(t *testing.T) {
 
 	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"fields": {"value": 100}}]}`)
 
-	if status != http.StatusOK {
+	if status != http.StatusNoContent {
 		t.Fatalf("unexpected status: %d", status)
 	}
 	time.Sleep(100 * time.Millisecond) // Ensure data node picks up write.
@@ -1482,7 +1486,7 @@ func TestHandler_serveWriteSeriesBatch(t *testing.T) {
     "points": [
         {
             "name": "disk",
-            "timestamp": "2009-11-10T23:00:00Z",
+            "time": "2009-11-10T23:00:00Z",
             "tags": {
                 "host": "server01"
             },
@@ -1492,7 +1496,7 @@ func TestHandler_serveWriteSeriesBatch(t *testing.T) {
         },
         {
             "name": "disk",
-            "timestamp": "2009-11-10T23:00:01Z",
+            "time": "2009-11-10T23:00:01Z",
             "tags": {
                 "host": "server01"
             },
@@ -1502,7 +1506,7 @@ func TestHandler_serveWriteSeriesBatch(t *testing.T) {
         },
         {
             "name": "disk",
-            "timestamp": "2009-11-10T23:00:02Z",
+            "time": "2009-11-10T23:00:02Z",
             "tags": {
                 "host": "server02"
             },
@@ -1514,7 +1518,7 @@ func TestHandler_serveWriteSeriesBatch(t *testing.T) {
 }
 `
 	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, batch)
-	if status != http.StatusOK {
+	if status != http.StatusNoContent {
 		t.Log(body)
 		t.Fatalf("unexpected status: %d", status)
 	}
@@ -1561,7 +1565,7 @@ func TestHandler_serveWriteSeriesFieldTypeConflict(t *testing.T) {
 	defer s.Close()
 
 	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"fields": {"value": 100}}]}`)
-	if status != http.StatusOK {
+	if status != http.StatusNoContent {
 		t.Fatalf("unexpected status: %d", status)
 	}
 
@@ -1667,9 +1671,9 @@ func TestHandler_ChunkedResponses(t *testing.T) {
 	defer s.Close()
 
 	status, errString := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [
-			{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z", "fields": {"value": 100}},
-			{"name": "cpu", "tags": {"host": "server02"},"timestamp": "2009-11-10T23:30:00Z", "fields": {"value": 25}}]}`)
-	if status != http.StatusOK {
+			{"name": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z", "fields": {"value": 100}},
+			{"name": "cpu", "tags": {"host": "server02"},"time": "2009-11-10T23:30:00Z", "fields": {"value": 25}}]}`)
+	if status != http.StatusNoContent {
 		t.Fatalf("unexpected status: %d - %s", status, errString)
 	}
 	time.Sleep(100 * time.Millisecond) // Ensure data node picks up write.
@@ -1679,6 +1683,7 @@ func TestHandler_ChunkedResponses(t *testing.T) {
 		t.Fatalf("error making request: %s", err.Error())
 	}
 	defer resp.Body.Close()
+
 	for i := 0; i < 2; i++ {
 		chunk := make([]byte, 2048, 2048)
 		n, err := resp.Body.Read(chunk)

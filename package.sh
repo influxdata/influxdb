@@ -48,7 +48,7 @@ URL=influxdb.com
 MAINTAINER=support@influxdb.com
 VENDOR=Influxdb
 DESCRIPTION="Distributed time-series database"
-
+PKG_DEPS=(coreutils)
 GO_VERSION="go1.4.2"
 GOPATH_INSTALL=
 BINS=(
@@ -173,6 +173,15 @@ do_build() {
     echo "Build completed successfully."
 }
 
+# return a list of package dependencies for fpm
+get_fpm_pkg_deps() {
+    local deps=" "
+    for d in ${PKG_DEPS[@]}; do
+	deps="${deps} -d '${d}'"
+    done
+    echo -n ${deps}
+}
+
 # generate_postinstall_script creates the post-install script for the
 # package. It must be passed the version.
 generate_postinstall_script() {
@@ -282,14 +291,14 @@ else
 fi
 
 COMMON_FPM_ARGS="-C $TMP_WORK_DIR --vendor $VENDOR --url $URL --license $LICENSE --maintainer $MAINTAINER --after-install $POST_INSTALL_PATH --name influxdb --version $VERSION --config-files $CONFIG_ROOT_DIR ."
-$rpm_args fpm -s dir -t rpm --description "$DESCRIPTION" $COMMON_FPM_ARGS
+$rpm_args fpm -s dir -t rpm $(get_fpm_pkg_deps) --description "$DESCRIPTION" $COMMON_FPM_ARGS
 if [ $? -ne 0 ]; then
     echo "Failed to create RPM package -- aborting."
     cleanup_exit 1
 fi
 echo "RPM package created successfully."
 
-fpm -s dir -t deb $deb_args --description "$DESCRIPTION" $COMMON_FPM_ARGS
+fpm -s dir -t deb $deb_args $(get_fpm_pkg_deps) --description "$DESCRIPTION" $COMMON_FPM_ARGS
 if [ $? -ne 0 ]; then
     echo "Failed to create Debian package -- aborting."
     cleanup_exit 1

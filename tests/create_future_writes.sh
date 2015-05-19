@@ -8,10 +8,10 @@ echo "creating retention policy"
 curl -G http://localhost:8086/query --data-urlencode "q=CREATE RETENTION POLICY bar ON foo DURATION INF REPLICATION 1 DEFAULT"
 
 echo "inserting data"
-curl -d "{\"database\" : \"foo\", \"retentionPolicy\" : \"bar\", \"points\": [{\"name\": \"cpu\", \"tags\": {\"region\":\"uswest\",\"host\": \"server01\"},\"timestamp\": \"$now\",\"fields\": {\"value\": 100}}]}" -H "Content-Type: application/json" http://localhost:8086/write
+curl -d "{\"database\" : \"foo\", \"retentionPolicy\" : \"bar\", \"points\": [{\"name\": \"cpu\", \"tags\": {\"region\":\"uswest\",\"host\": \"server01\"},\"time\": \"$now\",\"fields\": {\"value\": 100}}]}" -H "Content-Type: application/json" http://localhost:8086/write
 
 echo "inserting data"
-curl -d "{\"database\" : \"foo\", \"retentionPolicy\" : \"bar\", \"points\": [{\"name\": \"cpu\", \"tags\": {\"region\":\"uswest\",\"host\": \"server01\"},\"timestamp\": \"$tomorrow\",\"fields\": {\"value\": 200}}]}" -H "Content-Type: application/json" http://localhost:8086/write
+curl -d "{\"database\" : \"foo\", \"retentionPolicy\" : \"bar\", \"points\": [{\"name\": \"cpu\", \"tags\": {\"region\":\"uswest\",\"host\": \"server01\"},\"time\": \"$tomorrow\",\"fields\": {\"value\": 200}}]}" -H "Content-Type: application/json" http://localhost:8086/write
 
 sleep 1
 

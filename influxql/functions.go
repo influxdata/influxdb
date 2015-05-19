@@ -12,12 +12,13 @@ import (
 	"math"
 	"math/rand"
 	"sort"
+	"strings"
 )
 
 // Iterator represents a forward-only iterator over a set of points.
 // These are used by the MapFunctions in this file
 type Iterator interface {
-	Next() (seriesID uint64, timestamp int64, value interface{})
+	Next() (seriesID uint64, time int64, value interface{})
 }
 
 // MapFunc represents a function used for mapping over a sequential series of data.
@@ -41,16 +42,25 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 	// Ensure that there is either a single argument or if for percentile, two
 	if c.Name == "percentile" {
 		if len(c.Args) != 2 {
-			return nil, fmt.Errorf("expected two arguments for percentile()")
+			return nil, fmt.Errorf("expected two arguments for %s()", c.Name)
+		}
+	} else if strings.HasSuffix(c.Name, "derivative") {
+		// derivatives require a field name and optional duration
+		if len(c.Args) == 0 {
+			return nil, fmt.Errorf("expected field name argument for %s()", c.Name)
 		}
 	} else if len(c.Args) != 1 {
 		return nil, fmt.Errorf("expected one argument for %s()", c.Name)
 	}
 
-	// Ensure the argument is a variable reference.
-	_, ok := c.Args[0].(*VarRef)
-	if !ok {
-		return nil, fmt.Errorf("expected field argument in %s()", c.Name)
+	// derivative can take a nested aggregate function, everything else expects
+	// a variable reference as the first arg
+	if !strings.HasSuffix(c.Name, "derivative") {
+		// Ensure the argument is a variable reference.
+		_, ok := c.Args[0].(*VarRef)
+		if !ok {
+			return nil, fmt.Errorf("expected field argument in %s()", c.Name)
+		}
 	}
 
 	// Retrieve map function by name.
@@ -81,6 +91,13 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 			return nil, fmt.Errorf("expected float argument in percentile()")
 		}
 		return MapEcho, nil
+	case "derivative", "non_negative_derivative":
+		// If the arg is another aggregate e.g. derivative(mean(value)), then
+		// use the map func for that nested aggregate
+		if fn, ok := c.Args[0].(*Call); ok {
+			return InitializeMapFunc(fn)
+		}
+		return MapRawQuery, nil
 	default:
 		return nil, fmt.Errorf("function not found: %q", c.Name)
 	}
@@ -120,6 +137,13 @@ func InitializeReduceFunc(c *Call) (ReduceFunc, error) {
 			return nil, fmt.Errorf("expected float argument in percentile()")
 		}
 		return ReducePercentile(lit.Val), nil
+	case "derivative", "non_negative_derivative":
+		// If the arg is another aggregate e.g. derivative(mean(value)), then
+		// use the map func for that nested aggregate
+		if fn, ok := c.Args[0].(*Call); ok {
+			return InitializeReduceFunc(fn)
+		}
+		return nil, fmt.Errorf("expected function argument to %s", c.Name)
 	default:
 		return nil, fmt.Errorf("function not found: %q", c.Name)
 	}
@@ -513,7 +537,7 @@ type spreadMapOutput struct {
 
 // MapSpread collects the values to pass to the reducer
 func MapSpread(itr Iterator) interface{} {
-	var out spreadMapOutput
+	out := &spreadMapOutput{}
 	pointsYielded := false
 
 	for _, k, v := itr.Next(); k != 0; _, k, v = itr.Next() {
@@ -535,14 +559,14 @@ func MapSpread(itr Iterator) interface{} {
 
 // ReduceSpread computes the spread of values.
 func ReduceSpread(values []interface{}) interface{} {
-	var result spreadMapOutput
+	result := &spreadMapOutput{}
 	pointsYielded := false
 
 	for _, v := range values {
 		if v == nil {
 			continue
 		}
-		val := v.(spreadMapOutput)
+		val := v.(*spreadMapOutput)
 		// Initialize
 		if !pointsYielded {
 			result.Max = val.Max
@@ -612,7 +636,7 @@ type firstLastMapOutput struct {
 
 // MapFirst collects the values to pass to the reducer
 func MapFirst(itr Iterator) interface{} {
-	out := firstLastMapOutput{}
+	out := &firstLastMapOutput{}
 	pointsYielded := false
 
 	for _, k, v := itr.Next(); k != 0; _, k, v = itr.Next() {
@@ -635,14 +659,14 @@ func MapFirst(itr Iterator) interface{} {
 
 // ReduceFirst computes the first of value.
 func ReduceFirst(values []interface{}) interface{} {
-	out := firstLastMapOutput{}
+	out := &firstLastMapOutput{}
 	pointsYielded := false
 
 	for _, v := range values {
 		if v == nil {
 			continue
 		}
-		val := v.(firstLastMapOutput)
+		val := v.(*firstLastMapOutput)
 		// Initialize first
 		if !pointsYielded {
 			out.Time = val.Time
@@ -662,7 +686,7 @@ func ReduceFirst(values []interface{}) interface{} {
 
 // MapLast collects the values to pass to the reducer
 func MapLast(itr Iterator) interface{} {
-	out := firstLastMapOutput{}
+	out := &firstLastMapOutput{}
 	pointsYielded := false
 
 	for _, k, v := itr.Next(); k != 0; _, k, v = itr.Next() {
@@ -685,7 +709,7 @@ func MapLast(itr Iterator) interface{} {
 
 // ReduceLast computes the last of value.
 func ReduceLast(values []interface{}) interface{} {
-	out := firstLastMapOutput{}
+	out := &firstLastMapOutput{}
 	pointsYielded := false
 
 	for _, v := range values {
@@ -693,7 +717,7 @@ func ReduceLast(values []interface{}) interface{} {
 			continue
 		}
 
-		val := v.(firstLastMapOutput)
+		val := v.(*firstLastMapOutput)
 		// Initialize last
 		if !pointsYielded {
 			out.Time = val.Time
@@ -749,6 +773,16 @@ func ReducePercentile(percentile float64) ReduceFunc {
 	}
 }
 
+// IsNumeric returns whether a given aggregate can only be run on numeric fields.
+func IsNumeric(c *Call) bool {
+	switch c.Name {
+	case "count", "first", "last":
+		return false
+	default:
+		return true
+	}
+}
+
 // MapRawQuery is for queries without aggregates
 func MapRawQuery(itr Iterator) interface{} {
 	var values []*rawQueryMapOutput
@@ -760,12 +794,16 @@ func MapRawQuery(itr Iterator) interface{} {
 }
 
 type rawQueryMapOutput struct {
-	Timestamp int64
-	Values    interface{}
+	Time   int64
+	Values interface{}
+}
+
+func (r *rawQueryMapOutput) String() string {
+	return fmt.Sprintf("{%#v %#v}", r.Time, r.Values)
 }
 
 type rawOutputs []*rawQueryMapOutput
 
 func (a rawOutputs) Len() int           { return len(a) }
-func (a rawOutputs) Less(i, j int) bool { return a[i].Timestamp < a[j].Timestamp }
+func (a rawOutputs) Less(i, j int) bool { return a[i].Time < a[j].Time }
 func (a rawOutputs) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }

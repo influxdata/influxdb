@@ -189,6 +189,18 @@ func isAuthorizationError(err error) bool {
 	return ok
 }
 
+// IsClientError indicates whether an error is a known client error.
+func IsClientError(err error) bool {
+	if err == ErrFieldsRequired {
+		return true
+	}
+	if err == ErrFieldTypeConflict {
+		return true
+	}
+
+	return false
+}
+
 // mustMarshal encodes a value to JSON.
 // This will panic if an error occurs. This should only be used internally when
 // an invalid marshal will cause corruption and a panic is appropriate.
@@ -220,22 +232,22 @@ func warn(v ...interface{})              { fmt.Fprintln(os.Stderr, v...) }
 func warnf(msg string, v ...interface{}) { fmt.Fprintf(os.Stderr, msg+"\n", v...) }
 
 // NormalizeBatchPoints returns a slice of Points, created by populating individual
-// points within the batch, which do not have timestamps or tags, with the top-level
+// points within the batch, which do not have times or tags, with the top-level
 // values.
 func NormalizeBatchPoints(bp client.BatchPoints) ([]Point, error) {
 	points := []Point{}
 	for _, p := range bp.Points {
-		if p.Timestamp.IsZero() {
-			if bp.Timestamp.IsZero() {
-				p.Timestamp = time.Now()
+		if p.Time.IsZero() {
+			if bp.Time.IsZero() {
+				p.Time = time.Now()
 			} else {
-				p.Timestamp = bp.Timestamp
+				p.Time = bp.Time
 			}
 		}
 		if p.Precision == "" && bp.Precision != "" {
 			p.Precision = bp.Precision
 		}
-		p.Timestamp = client.SetPrecision(p.Timestamp, p.Precision)
+		p.Time = client.SetPrecision(p.Time, p.Precision)
 		if len(bp.Tags) > 0 {
 			if p.Tags == nil {
 				p.Tags = make(map[string]string)
@@ -248,10 +260,10 @@ func NormalizeBatchPoints(bp client.BatchPoints) ([]Point, error) {
 		}
 		// Need to convert from a client.Point to a influxdb.Point
 		points = append(points, Point{
-			Name:      p.Name,
-			Tags:      p.Tags,
-			Timestamp: p.Timestamp,
-			Fields:    p.Fields,
+			Name:   p.Name,
+			Tags:   p.Tags,
+			Time:   p.Time,
+			Fields: p.Fields,
 		})
 	}
 

@@ -117,6 +117,8 @@ func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes int
 	c.Snapshot.Enabled = false
 	c.Logging.HTTPAccess = false
 
+	// c.Raft.HeartbeatInterval = main.Duration(10 * time.Millisecond)
+
 	cmd := main.NewRunCommand()
 	baseNode := cmd.Open(c, "")
 	b := baseNode.Broker
@@ -221,9 +223,9 @@ func write(t *testing.T, node *TestNode, data string) {
 	if string(body) != "" {
 		t.Log("BODY: ", string(body))
 	}
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusNoContent {
 		body, _ := ioutil.ReadAll(resp.Body)
-		t.Fatalf("Write to database failed.  Unexpected status code.  expected: %d, actual %d, %s", http.StatusOK, resp.StatusCode, string(body))
+		t.Fatalf("Write to database failed.  Unexpected status code.  expected: %d, actual %d, %s", http.StatusNoContent, resp.StatusCode, string(body))
 	}
 }
 
@@ -313,7 +315,7 @@ func queryAndWait(t *testing.T, nodes Cluster, urlDb, q, expected, expectPattern
 var mergeMany = func(t *testing.T, node *TestNode, database, retention string) {
 	for i := 1; i < 11; i++ {
 		for j := 1; j < 5+i%3; j++ {
-			data := fmt.Sprintf(`{"database": "%s", "retentionPolicy": "%s", "points": [{"name": "cpu", "timestamp": "%s", "tags": {"host": "server_%d"}, "fields": {"value": 22}}]}`,
+			data := fmt.Sprintf(`{"database": "%s", "retentionPolicy": "%s", "points": [{"name": "cpu", "time": "%s", "tags": {"host": "server_%d"}, "fields": {"value": 22}}]}`,
 				database, retention, time.Unix(int64(j), int64(0)).UTC().Format(time.RFC3339), i)
 			write(t, node, data)
 		}
@@ -322,7 +324,7 @@ var mergeMany = func(t *testing.T, node *TestNode, database, retention string) {
 
 var limitAndOffset = func(t *testing.T, node *TestNode, database, retention string) {
 	for i := 1; i < 10; i++ {
-		data := fmt.Sprintf(`{"database": "%s", "retentionPolicy": "%s", "points": [{"name": "cpu", "timestamp": "%s", "tags": {"region": "us-east", "host": "server-%d"}, "fields": {"value": %d}}]}`,
+		data := fmt.Sprintf(`{"database": "%s", "retentionPolicy": "%s", "points": [{"name": "cpu", "time": "%s", "tags": {"region": "us-east", "host": "server-%d"}, "fields": {"value": %d}}]}`,
 			database, retention, time.Unix(int64(i), int64(0)).Format(time.RFC3339), i, i)
 		write(t, node, data)
 	}
@@ -342,7 +344,7 @@ func runTest_rawDataReturnsInOrder(t *testing.T, testName string, nodes Cluster,
 	var expected string
 
 	for i := 1; i < numPoints; i++ {
-		data := fmt.Sprintf(`{"database": "%s", "retentionPolicy": "%s", "points": [{"name": "cpu", "timestamp": "%s", "tags": {"region": "us-east", "host": "server-%d"}, "fields": {"value": %d}}]}`,
+		data := fmt.Sprintf(`{"database": "%s", "retentionPolicy": "%s", "points": [{"name": "cpu", "time": "%s", "tags": {"region": "us-east", "host": "server-%d"}, "fields": {"value": %d}}]}`,
 			database, retention, time.Unix(int64(i), int64(0)).Format(time.RFC3339), i%10, i)
 		write(t, nodes[0], data)
 	}
@@ -350,7 +352,7 @@ func runTest_rawDataReturnsInOrder(t *testing.T, testName string, nodes Cluster,
 	expected = fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",%d]]}]}]}`, numPoints-1)
 	got, ok, nOK := queryAndWait(t, nodes, database, `SELECT count(value) FROM cpu`, expected, "", 120*time.Second)
 	if !ok {
-		t.Errorf("test %s:rawDataReturnsInOrder failed, SELECT count() query returned unexpected data\nexp: %s\ngot: %s\n%d nodes responded correctly", testName, expected, got, nOK)
+		t.Fatalf("test %s:rawDataReturnsInOrder failed, SELECT count() query returned unexpected data\nexp: %s\ngot: %s\n%d nodes responded correctly", testName, expected, got, nOK)
 		dumpClusterDiags(t, testName, nodes)
 		dumpClusterStats(t, testName, nodes)
 	}
@@ -363,7 +365,7 @@ func runTest_rawDataReturnsInOrder(t *testing.T, testName string, nodes Cluster,
 	expected = fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[%s]}]}]}`, strings.Join(expectedValues, ","))
 	got, ok, nOK = query(t, nodes, database, `SELECT value FROM cpu`, expected, "")
 	if !ok {
-		t.Errorf("test %s failed, SELECT query returned unexpected data\nexp: %s\ngot: %s\n%d nodes responded correctly", testName, expected, got, nOK)
+		t.Fatalf("test %s failed, SELECT query returned unexpected data\nexp: %s\ngot: %s\n%d nodes responded correctly", testName, expected, got, nOK)
 		dumpClusterDiags(t, testName, nodes)
 		dumpClusterStats(t, testName, nodes)
 	}
@@ -395,7 +397,7 @@ func runTests_Errors(t *testing.T, nodes Cluster) {
 		if tt.query != "" {
 			got, ok, nOK := query(t, nodes, "", tt.query, tt.expected, "")
 			if !ok {
-				t.Errorf("Test '%s' failed, expected: %s, got: %s, %d nodes responded correctly", tt.name, tt.expected, got, nOK)
+				t.Fatalf("Test '%s' failed, expected: %s, got: %s, %d nodes responded correctly", tt.name, tt.expected, got, nOK)
 			}
 		}
 	}
@@ -430,25 +432,25 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		// Data read and write tests
 		{
 			reset:    true,
-			name:     "single point with timestamp",
-			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "timestamp": "2015-02-28T01:03:36.703820946Z", "tags": {"host": "server01"}, "fields": {"value": 100}}]}`,
+			name:     "single point with time",
+			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "time": "2015-02-28T01:03:36.703820946Z", "tags": {"host": "server01"}, "fields": {"value": 100}}]}`,
 			query:    `SELECT * FROM "%DB%"."%RP%".cpu`,
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",100]]}]}]}`,
 		},
 		{
-			name:     "single point count query with timestamp",
+			name:     "single point count query with time",
 			query:    `SELECT count(value) FROM "%DB%"."%RP%".cpu`,
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]}]}]}`,
 		},
 		{
-			name:     "single string point with timestamp",
-			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "logs", "timestamp": "2015-02-28T01:03:36.703820946Z", "tags": {"host": "server01"}, "fields": {"value": "disk full"}}]}`,
+			name:     "single string point with time",
+			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "logs", "time": "2015-02-28T01:03:36.703820946Z", "tags": {"host": "server01"}, "fields": {"value": "disk full"}}]}`,
 			query:    `SELECT * FROM "%DB%"."%RP%".logs`,
 			expected: `{"results":[{"series":[{"name":"logs","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z","disk full"]]}]}]}`,
 		},
 		{
-			name:     "single bool point with timestamp",
-			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "status", "timestamp": "2015-02-28T01:03:36.703820946Z", "tags": {"host": "server01"}, "fields": {"value": "true"}}]}`,
+			name:     "single bool point with time",
+			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "status", "time": "2015-02-28T01:03:36.703820946Z", "tags": {"host": "server01"}, "fields": {"value": "true"}}]}`,
 			query:    `SELECT * FROM "%DB%"."%RP%".status`,
 			expected: `{"results":[{"series":[{"name":"status","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z","true"]]}]}]}`,
 		},
@@ -482,9 +484,9 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 
 		{
 			reset: true,
-			name:  "two points with timestamp",
-			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "timestamp": "2015-02-28T01:04:36.703820946Z", "fields": {"value": 100}},
-		                                                                         {"name": "cpu", "timestamp": "2015-02-28T01:03:36.703820946Z", "fields": {"value": 100}}
+			name:  "two points with time",
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "time": "2015-02-28T01:04:36.703820946Z", "fields": {"value": 100}},
+		                                                                         {"name": "cpu", "time": "2015-02-28T01:03:36.703820946Z", "fields": {"value": 100}}
 		                                                                        ]}`,
 			query:    `SELECT * FROM "%DB%"."%RP%".cpu`,
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",100],["2015-02-28T01:04:36.703820946Z",100]]}]}]}`,
@@ -493,8 +495,8 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		{
 			reset: true,
 			name:  "two points with negative values",
-			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "timestamp": "2015-02-28T01:04:36.703820946Z", "fields": {"value": -200}},
-                                                                                 {"name": "cpu", "timestamp": "2015-02-28T01:03:36.703820946Z", "fields": {"value": -100}}
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "time": "2015-02-28T01:04:36.703820946Z", "fields": {"value": -200}},
+                                                                                 {"name": "cpu", "time": "2015-02-28T01:03:36.703820946Z", "fields": {"value": -100}}
                                                                                 ]}`,
 			query:    `SELECT * FROM "%DB%"."%RP%".cpu`,
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",-100],["2015-02-28T01:04:36.703820946Z",-200]]}]}]}`,
@@ -503,15 +505,15 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		// Data read and write tests using relative time
 		{
 			reset:    true,
-			name:     "single point with timestamp pre-calculated for past time queries yesterday",
-			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "timestamp": "` + yesterday.Format(time.RFC3339Nano) + `", "tags": {"host": "server01"}, "fields": {"value": 100}}]}`,
+			name:     "single point with time pre-calculated for past time queries yesterday",
+			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "time": "` + yesterday.Format(time.RFC3339Nano) + `", "tags": {"host": "server01"}, "fields": {"value": 100}}]}`,
 			query:    `SELECT * FROM "%DB%"."%RP%".cpu where time >= '` + yesterday.Add(-1*time.Minute).Format(time.RFC3339Nano) + `'`,
 			expected: fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",100]]}]}]}`, yesterday.Format(time.RFC3339Nano)),
 		},
 		{
 			reset:    true,
-			name:     "single point with timestamp pre-calculated for relative time queries now",
-			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "timestamp": "` + now.Format(time.RFC3339Nano) + `", "tags": {"host": "server01"}, "fields": {"value": 100}}]}`,
+			name:     "single point with time pre-calculated for relative time queries now",
+			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "time": "` + now.Format(time.RFC3339Nano) + `", "tags": {"host": "server01"}, "fields": {"value": 100}}]}`,
 			query:    `SELECT * FROM "%DB%"."%RP%".cpu where time >= now() - 1m`,
 			expected: fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",100]]}]}]}`, now.Format(time.RFC3339Nano)),
 		},
@@ -551,9 +553,9 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			reset: true,
 			name:  "FROM regex using default db and rp",
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
-				{"name": "cpu1", "timestamp": "2015-02-28T01:03:36.703820946Z", "tags": {"host": "server01"}, "fields": {"value": 10}},
-				{"name": "cpu2", "timestamp": "2015-02-28T01:03:36.703820946Z", "tags": {"host": "server01"}, "fields": {"value": 20}},
-				{"name": "cpu3", "timestamp": "2015-02-28T01:03:36.703820946Z", "tags": {"host": "server01"}, "fields": {"value": 30}}
+				{"name": "cpu1", "time": "2015-02-28T01:03:36.703820946Z", "tags": {"host": "server01"}, "fields": {"value": 10}},
+				{"name": "cpu2", "time": "2015-02-28T01:03:36.703820946Z", "tags": {"host": "server01"}, "fields": {"value": 20}},
+				{"name": "cpu3", "time": "2015-02-28T01:03:36.703820946Z", "tags": {"host": "server01"}, "fields": {"value": 30}}
 			]}`,
 			query:    `SELECT * FROM /cpu[13]/`,
 			queryDb:  "%DB%",
@@ -583,7 +585,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			reset: true,
 			name:  "stddev with just one point",
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
-				{"name": "cpu", "timestamp": "2015-04-20T14:27:41Z", "fields": {"value": 45}}
+				{"name": "cpu", "time": "2015-04-20T14:27:41Z", "fields": {"value": 45}}
 			]}`,
 			query:    `SELECT STDDEV(value) FROM cpu`,
 			queryDb:  "%DB%",
@@ -593,8 +595,8 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			reset: true,
 			name:  "large mean and stddev",
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
-				{"name": "cpu", "timestamp": "2015-04-20T14:27:40Z", "fields": {"value": ` + string(maxFloat64) + `}},
-				{"name": "cpu", "timestamp": "2015-04-20T14:27:41Z", "fields": {"value": ` + string(maxFloat64) + `}}
+				{"name": "cpu", "time": "2015-04-20T14:27:40Z", "fields": {"value": ` + string(maxFloat64) + `}},
+				{"name": "cpu", "time": "2015-04-20T14:27:41Z", "fields": {"value": ` + string(maxFloat64) + `}}
 			]}`,
 			query:    `SELECT MEAN(value), STDDEV(value) FROM cpu`,
 			queryDb:  "%DB%",
@@ -604,26 +606,47 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			reset: true,
 			name:  "mean and stddev",
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
-				{"name": "cpu", "timestamp": "2000-01-01T00:00:00Z", "fields": {"value": 2}},
-				{"name": "cpu", "timestamp": "2000-01-01T00:00:10Z", "fields": {"value": 4}},
-				{"name": "cpu", "timestamp": "2000-01-01T00:00:20Z", "fields": {"value": 4}},
-				{"name": "cpu", "timestamp": "2000-01-01T00:00:30Z", "fields": {"value": 4}},
-				{"name": "cpu", "timestamp": "2000-01-01T00:00:40Z", "fields": {"value": 5}},
-				{"name": "cpu", "timestamp": "2000-01-01T00:00:50Z", "fields": {"value": 5}},
-				{"name": "cpu", "timestamp": "2000-01-01T00:01:00Z", "fields": {"value": 7}},
-				{"name": "cpu", "timestamp": "2000-01-01T00:01:10Z", "fields": {"value": 9}}
+				{"name": "cpu", "time": "2000-01-01T00:00:00Z", "fields": {"value": 2}},
+				{"name": "cpu", "time": "2000-01-01T00:00:10Z", "fields": {"value": 4}},
+				{"name": "cpu", "time": "2000-01-01T00:00:20Z", "fields": {"value": 4}},
+				{"name": "cpu", "time": "2000-01-01T00:00:30Z", "fields": {"value": 4}},
+				{"name": "cpu", "time": "2000-01-01T00:00:40Z", "fields": {"value": 5}},
+				{"name": "cpu", "time": "2000-01-01T00:00:50Z", "fields": {"value": 5}},
+				{"name": "cpu", "time": "2000-01-01T00:01:00Z", "fields": {"value": 7}},
+				{"name": "cpu", "time": "2000-01-01T00:01:10Z", "fields": {"value": 9}}
 			]}`,
 			query:    `SELECT MEAN(value), STDDEV(value) FROM cpu WHERE time >= '2000-01-01' AND time < '2000-01-01T00:02:00Z' GROUP BY time(10m)`,
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","mean","stddev"],"values":[["2000-01-01T00:00:00Z",5,2.138089935299395]]}]}]}`,
 		},
 		{
+			reset:    false,
+			name:     "first value",
+			query:    `SELECT FIRST(value) FROM cpu`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","first"],"values":[["1970-01-01T00:00:00Z",2]]}]}]}`,
+		},
+		{
+			reset:    false,
+			name:     "last value",
+			query:    `SELECT LAST(value) FROM cpu`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","last"],"values":[["1970-01-01T00:00:00Z",9]]}]}]}`,
+		},
+		{
+			reset:    false,
+			name:     "value spread",
+			query:    `SELECT SPREAD(value) FROM cpu`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","spread"],"values":[["1970-01-01T00:00:00Z",7]]}]}]}`,
+		},
+		{
 			name: "median - even sample size",
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
-				{"name": "cpu-even", "timestamp": "2000-01-01T00:00:00Z", "tags": {"region": "us-east"}, "fields": {"value": 200}},
-				{"name": "cpu-even", "timestamp": "2000-01-01T00:00:10Z", "tags": {"region": "us-east"}, "fields": {"value": 30}},
-				{"name": "cpu-even", "timestamp": "2000-01-01T00:00:20Z", "tags": {"region": "us-east"}, "fields": {"value": 40}},
-				{"name": "cpu-even", "timestamp": "2000-01-01T00:00:30Z", "tags": {"region": "us-west"}, "fields": {"value": 100}}
+				{"name": "cpu-even", "time": "2000-01-01T00:00:00Z", "tags": {"region": "us-east"}, "fields": {"value": 200}},
+				{"name": "cpu-even", "time": "2000-01-01T00:00:10Z", "tags": {"region": "us-east"}, "fields": {"value": 30}},
+				{"name": "cpu-even", "time": "2000-01-01T00:00:20Z", "tags": {"region": "us-east"}, "fields": {"value": 40}},
+				{"name": "cpu-even", "time": "2000-01-01T00:00:30Z", "tags": {"region": "us-west"}, "fields": {"value": 100}}
 			]}`,
 			query:    `SELECT median(value) FROM "cpu-even"`,
 			queryDb:  "%DB%",
@@ -632,9 +655,9 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		{
 			name: "median - odd sample size",
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
-				{"name": "cpu-odd", "timestamp": "2000-01-01T00:00:00Z", "tags": {"region": "us-east"}, "fields": {"value": 200}},
-				{"name": "cpu-odd", "timestamp": "2000-01-01T00:00:10Z", "tags": {"region": "us-east"}, "fields": {"value": 30}},
-				{"name": "cpu-odd", "timestamp": "2000-01-01T00:00:20Z", "tags": {"region": "us-west"}, "fields": {"value": 100}}
+				{"name": "cpu-odd", "time": "2000-01-01T00:00:00Z", "tags": {"region": "us-east"}, "fields": {"value": 200}},
+				{"name": "cpu-odd", "time": "2000-01-01T00:00:10Z", "tags": {"region": "us-east"}, "fields": {"value": 30}},
+				{"name": "cpu-odd", "time": "2000-01-01T00:00:20Z", "tags": {"region": "us-west"}, "fields": {"value": 100}}
 			]}`,
 			query:    `SELECT median(value) FROM "cpu-odd"`,
 			queryDb:  "%DB%",
@@ -644,13 +667,19 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			reset: true,
 			name:  "aggregations",
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
-				{"name": "cpu", "timestamp": "2000-01-01T00:00:00Z", "tags": {"region": "us-east"}, "fields": {"value": 20}},
-				{"name": "cpu", "timestamp": "2000-01-01T00:00:10Z", "tags": {"region": "us-east"}, "fields": {"value": 30}},
-				{"name": "cpu", "timestamp": "2000-01-01T00:00:00Z", "tags": {"region": "us-west"}, "fields": {"value": 100}}
+				{"name": "cpu", "time": "2000-01-01T00:00:00Z", "tags": {"region": "us-east"}, "fields": {"value": 20}},
+				{"name": "cpu", "time": "2000-01-01T00:00:10Z", "tags": {"region": "us-east"}, "fields": {"value": 30}},
+				{"name": "cpu", "time": "2000-01-01T00:00:00Z", "tags": {"region": "us-west"}, "fields": {"value": 100}}
 			]}`,
 			query:    `SELECT value FROM cpu WHERE time >= '2000-01-01 00:00:05'`,
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:10Z",30]]}]}]}`,
+		},
+		{
+			name:     "aggregation with no interval",
+			query:    `SELECT count(value) FROM cpu WHERE time = '2000-01-01 00:00:00'`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","count"],"values":[["2000-01-01T00:00:00Z",2]]}]}]}`,
 		},
 		{
 			name:     "sum aggregation",
@@ -660,7 +689,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		},
 		{
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
-				{"name": "cpu", "timestamp": "2000-01-01T00:00:03Z", "tags": {"region": "us-east"}, "fields": {"otherVal": 20}}
+				{"name": "cpu", "time": "2000-01-01T00:00:03Z", "tags": {"region": "us-east"}, "fields": {"otherVal": 20}}
 			]}`,
 			name:     "aggregation with a null field value",
 			query:    `SELECT SUM(value) FROM cpu GROUP BY region`,
@@ -681,9 +710,9 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		{
 			name: "group by multiple dimensions",
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
-				{"name": "load", "timestamp": "2000-01-01T00:00:00Z", "tags": {"region": "us-east", "host": "serverA"}, "fields": {"value": 20}},
-				{"name": "load", "timestamp": "2000-01-01T00:00:10Z", "tags": {"region": "us-east", "host": "serverB"}, "fields": {"value": 30}},
-				{"name": "load", "timestamp": "2000-01-01T00:00:00Z", "tags": {"region": "us-west", "host": "serverC"}, "fields": {"value": 100}}
+				{"name": "load", "time": "2000-01-01T00:00:00Z", "tags": {"region": "us-east", "host": "serverA"}, "fields": {"value": 20}},
+				{"name": "load", "time": "2000-01-01T00:00:10Z", "tags": {"region": "us-east", "host": "serverB"}, "fields": {"value": 30}},
+				{"name": "load", "time": "2000-01-01T00:00:00Z", "tags": {"region": "us-west", "host": "serverC"}, "fields": {"value": 100}}
 			]}`,
 			query:    `SELECT sum(value) FROM load GROUP BY region, host`,
 			queryDb:  "%DB%",
@@ -692,35 +721,60 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		{
 			name: "WHERE with AND",
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
-				{"name": "cpu", "timestamp": "2000-01-01T00:00:03Z", "tags": {"region": "uk", "host": "serverZ", "service": "redis"}, "fields": {"value": 20}},
-				{"name": "cpu", "timestamp": "2000-01-01T00:00:03Z", "tags": {"region": "uk", "host": "serverZ", "service": "mysql"}, "fields": {"value": 30}}
+				{"name": "cpu", "time": "2000-01-01T00:00:03Z", "tags": {"region": "uk", "host": "serverZ", "service": "redis"}, "fields": {"value": 20}},
+				{"name": "cpu", "time": "2000-01-01T00:00:03Z", "tags": {"region": "uk", "host": "serverZ", "service": "mysql"}, "fields": {"value": 30}}
 			]}`,
 			query:    `SELECT sum(value) FROM cpu WHERE region='uk' AND host='serverZ'`,
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",50]]}]}]}`,
 		},
+		{
+			reset: true,
+			name:  "numeric aggregates on non-numeric data.",
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+				{"name": "cpu", "time": "2015-04-20T14:27:41Z", "fields": {"value": "hello"}}
+			]}`,
+			query:    `SELECT STDDEV(value) FROM cpu`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"error":"aggregate 'stddev' requires numerical field values. Field 'value' is of type string"}]}`,
+		},
+		{
+			query:    `SELECT mean(value) FROM cpu`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"error":"aggregate 'mean' requires numerical field values. Field 'value' is of type string"}]}`,
+		},
+		{
+			query:    `SELECT median(value) FROM cpu`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"error":"aggregate 'median' requires numerical field values. Field 'value' is of type string"}]}`,
+		},
+		{
+			query:    `SELECT count(value) FROM cpu`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]}]}]}`,
+		},
 
 		// Precision-specified writes
 		{
-			name:     "single string point with second precision timestamp",
-			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu_s_precision", "timestamp": 1, "precision": "s", "fields": {"value": 100}}]}`,
+			name:     "single string point with second precision time",
+			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu_s_precision", "time": 1, "precision": "s", "fields": {"value": 100}}]}`,
 			query:    `SELECT * FROM "%DB%"."%RP%".cpu_s_precision`,
 			expected: `{"results":[{"series":[{"name":"cpu_s_precision","columns":["time","value"],"values":[["1970-01-01T00:00:01Z",100]]}]}]}`,
 		},
 		{
-			name:     "single string point with millisecond precision timestamp",
-			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu_ms_precision", "timestamp": 1000, "precision": "ms", "fields": {"value": 100}}]}`,
+			name:     "single string point with millisecond precision time",
+			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu_ms_precision", "time": 1000, "precision": "ms", "fields": {"value": 100}}]}`,
 			query:    `SELECT * FROM "%DB%"."%RP%".cpu_ms_precision`,
 			expected: `{"results":[{"series":[{"name":"cpu_ms_precision","columns":["time","value"],"values":[["1970-01-01T00:00:01Z",100]]}]}]}`,
 		},
 		{
-			name:     "single string point with nanosecond precision timestamp",
-			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu_n_precision", "timestamp": 2000000000, "precision": "n", "fields": {"value": 100}}]}`,
+			name:     "single string point with nanosecond precision time",
+			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu_n_precision", "time": 2000000000, "precision": "n", "fields": {"value": 100}}]}`,
 			query:    `SELECT * FROM "%DB%"."%RP%".cpu_n_precision`,
 			expected: `{"results":[{"series":[{"name":"cpu_n_precision","columns":["time","value"],"values":[["1970-01-01T00:00:02Z",100]]}]}]}`,
 		},
 		{
-			name:     "single point count query with nanosecond precision timestamp",
+			name:     "single point count query with nanosecond precision time",
 			query:    `SELECT count(value) FROM "%DB%"."%RP%".cpu_n_precision`,
 			expected: `{"results":[{"series":[{"name":"cpu_n_precision","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]}]}]}`,
 		},
@@ -730,9 +784,9 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			reset: true,
 			name:  "wildcard queries",
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
-				{"name": "cpu", "timestamp": "2000-01-01T00:00:00Z", "tags": {"region": "us-east"}, "fields": {"value": 10}},
-				{"name": "cpu", "timestamp": "2000-01-01T00:00:10Z", "tags": {"region": "us-east"}, "fields": {"val-x": 20}},
-				{"name": "cpu", "timestamp": "2000-01-01T00:00:20Z", "tags": {"region": "us-east"}, "fields": {"value": 30, "val-x": 40}}
+				{"name": "cpu", "time": "2000-01-01T00:00:00Z", "tags": {"region": "us-east"}, "fields": {"value": 10}},
+				{"name": "cpu", "time": "2000-01-01T00:00:10Z", "tags": {"region": "us-east"}, "fields": {"val-x": 20}},
+				{"name": "cpu", "time": "2000-01-01T00:00:20Z", "tags": {"region": "us-east"}, "fields": {"value": 30, "val-x": 40}}
 			]}`,
 			query:    `SELECT * FROM cpu`,
 			queryDb:  "%DB%",
@@ -742,9 +796,9 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			reset: true,
 			name:  "wildcard GROUP BY queries",
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
-				{"name": "cpu", "timestamp": "2000-01-01T00:00:00Z", "tags": {"region": "us-east"}, "fields": {"value": 10}},
-				{"name": "cpu", "timestamp": "2000-01-01T00:00:10Z", "tags": {"region": "us-east"}, "fields": {"value": 20}},
-				{"name": "cpu", "timestamp": "2000-01-01T00:00:20Z", "tags": {"region": "us-west"}, "fields": {"value": 30}}
+				{"name": "cpu", "time": "2000-01-01T00:00:00Z", "tags": {"region": "us-east"}, "fields": {"value": 10}},
+				{"name": "cpu", "time": "2000-01-01T00:00:10Z", "tags": {"region": "us-east"}, "fields": {"value": 20}},
+				{"name": "cpu", "time": "2000-01-01T00:00:20Z", "tags": {"region": "us-west"}, "fields": {"value": 30}}
 			]}`,
 			query:    `SELECT mean(value) FROM cpu GROUP BY *`,
 			queryDb:  "%DB%",
@@ -761,9 +815,9 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		{
 			reset: true,
 			name:  "WHERE tags SELECT single field (EQ tag value1)",
-			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "timestamp": "2015-02-28T01:03:36.703820946Z", "tags": {"host": "server01", "region": "us-west"}, "fields": {"value": 100}},
-			                                                                     {"name": "cpu", "timestamp": "2010-02-28T01:03:37.703820946Z", "tags": {"host": "server02"}, "fields": {"value": 200}},
-			                                                                     {"name": "cpu", "timestamp": "2012-02-28T01:03:38.703820946Z", "tags": {"host": "server03"}, "fields": {"value": 300}}]}`,
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "time": "2015-02-28T01:03:36.703820946Z", "tags": {"host": "server01", "region": "us-west"}, "fields": {"value": 100}},
+			                                                                     {"name": "cpu", "time": "2010-02-28T01:03:37.703820946Z", "tags": {"host": "server02"}, "fields": {"value": 200}},
+			                                                                     {"name": "cpu", "time": "2012-02-28T01:03:38.703820946Z", "tags": {"host": "server03"}, "fields": {"value": 300}}]}`,
 			query:    `SELECT value FROM "%DB%"."%RP%".cpu WHERE host = 'server01'`,
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",100]]}]}]}`,
 		},
@@ -825,16 +879,16 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		{
 			reset: true,
 			name:  "WHERE tags SELECT single field (NEQ tag value1, point without any tags)",
-			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "timestamp": "2015-02-28T01:03:36.703820946Z", "tags": {"host": "server01"}, "fields": {"value": 100}},
-                                                                                 {"name": "cpu", "timestamp": "2012-02-28T01:03:38.703820946Z", "fields": {"value": 200}}]}`,
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "time": "2015-02-28T01:03:36.703820946Z", "tags": {"host": "server01"}, "fields": {"value": 100}},
+                                                                                 {"name": "cpu", "time": "2012-02-28T01:03:38.703820946Z", "fields": {"value": 200}}]}`,
 			query:    `SELECT value FROM "%DB%"."%RP%".cpu WHERE host != 'server01'`,
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2012-02-28T01:03:38.703820946Z",200]]}]}]}`,
 		},
 		{
 			reset: true,
 			name:  "WHERE tags SELECT single field (regex tag no match)",
-			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "timestamp": "2015-02-28T01:03:36.703820946Z", "tags": {"host": "server01"}, "fields": {"value": 100}},
-                                                                                 {"name": "cpu", "timestamp": "2012-02-28T01:03:38.703820946Z", "fields": {"value": 200}}]}`,
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "time": "2015-02-28T01:03:36.703820946Z", "tags": {"host": "server01"}, "fields": {"value": 100}},
+                                                                                 {"name": "cpu", "time": "2012-02-28T01:03:38.703820946Z", "fields": {"value": 200}}]}`,
 			query:    `SELECT value FROM "%DB%"."%RP%".cpu WHERE host !~ /server01/`,
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2012-02-28T01:03:38.703820946Z",200]]}]}]}`,
 		},
@@ -853,7 +907,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		{
 			reset:    true,
 			name:     "WHERE fields SELECT single field",
-			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "timestamp": "2015-02-28T01:03:36.703820946Z", "fields": {"alert_id": "alert", "tenant_id": "tenant", "_cust": "acme"}}]}`,
+			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "time": "2015-02-28T01:03:36.703820946Z", "fields": {"alert_id": "alert", "tenant_id": "tenant", "_cust": "acme"}}]}`,
 			query:    `SELECT alert_id FROM "%DB%"."%RP%".cpu WHERE alert_id='alert'`,
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","alert_id"],"values":[["2015-02-28T01:03:36.703820946Z","alert"]]}]}]}`,
 		},
@@ -874,8 +928,8 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		},
 		{
 			name: "select where field greater than some value",
-			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "timestamp": "2009-11-10T23:00:02Z", "fields": {"load": 100}},
-			                                                                      {"name": "cpu", "timestamp": "2009-11-10T23:01:02Z", "fields": {"load": 80}}]}`,
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "time": "2009-11-10T23:00:02Z", "fields": {"load": 100}},
+			                                                                      {"name": "cpu", "time": "2009-11-10T23:01:02Z", "fields": {"load": 80}}]}`,
 			query:    `select load from "%DB%"."%RP%".cpu where load > 100`,
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","load"]}]}]}`,
 		},
@@ -912,13 +966,13 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","load"],"values":[["2009-11-10T23:01:02Z",80]]}]}]}`,
 		},
 		{
-			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "logs", "timestamp": "2009-11-10T23:00:02Z","fields": {"event": "disk full"}},
-			                                                                        {"name": "logs", "timestamp": "2009-11-10T23:02:02Z","fields": {"event": "disk not full"}}]}`,
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "logs", "time": "2009-11-10T23:00:02Z","fields": {"event": "disk full"}},
+			                                                                        {"name": "logs", "time": "2009-11-10T23:02:02Z","fields": {"event": "disk not full"}}]}`,
 			query:    `select event from "%DB%"."%RP%".logs where event = 'disk full'`,
 			expected: `{"results":[{"series":[{"name":"logs","columns":["time","event"],"values":[["2009-11-10T23:00:02Z","disk full"]]}]}]}`,
 		},
 		{
-			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "logs", "timestamp": "2009-11-10T23:00:02Z","fields": {"event": "disk full"}}]}`,
+			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "logs", "time": "2009-11-10T23:00:02Z","fields": {"event": "disk full"}}]}`,
 			query:    `select event from "%DB%"."%RP%".logs where event = 'nonsense'`,
 			expected: `{"results":[{"series":[{"name":"logs","columns":["time","event"]}]}]}`,
 		},
@@ -930,10 +984,10 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		{
 			name: "where on a tag, field and time",
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
-				{"name": "where_events", "timestamp": "2009-11-10T23:00:02Z","fields": {"foo": "bar"}, "tags": {"tennant": "paul"}},
-				{"name": "where_events", "timestamp": "2009-11-10T23:00:03Z","fields": {"foo": "baz"}, "tags": {"tennant": "paul"}},
-				{"name": "where_events", "timestamp": "2009-11-10T23:00:04Z","fields": {"foo": "bat"}, "tags": {"tennant": "paul"}},
-				{"name": "where_events", "timestamp": "2009-11-10T23:00:05Z","fields": {"foo": "bar"}, "tags": {"tennant": "todd"}}
+				{"name": "where_events", "time": "2009-11-10T23:00:02Z","fields": {"foo": "bar"}, "tags": {"tennant": "paul"}},
+				{"name": "where_events", "time": "2009-11-10T23:00:03Z","fields": {"foo": "baz"}, "tags": {"tennant": "paul"}},
+				{"name": "where_events", "time": "2009-11-10T23:00:04Z","fields": {"foo": "bat"}, "tags": {"tennant": "paul"}},
+				{"name": "where_events", "time": "2009-11-10T23:00:05Z","fields": {"foo": "bar"}, "tags": {"tennant": "todd"}}
 			]}`,
 			query:    `select foo from "%DB%"."%RP%".where_events where tennant = 'paul' AND time > 1s AND (foo = 'bar' OR foo = 'baz')`,
 			expected: `{"results":[{"series":[{"name":"where_events","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z","bar"],["2009-11-10T23:00:03Z","baz"]]}]}]}`,
@@ -950,10 +1004,10 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		{
 			name: "limit1 on points",
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
-				{"name": "limit", "timestamp": "2009-11-10T23:00:02Z","fields": {"foo": 2}, "tags": {"tennant": "paul"}},
-				{"name": "limit", "timestamp": "2009-11-10T23:00:03Z","fields": {"foo": 3}, "tags": {"tennant": "paul"}},
-				{"name": "limit", "timestamp": "2009-11-10T23:00:04Z","fields": {"foo": 4}, "tags": {"tennant": "paul"}},
-				{"name": "limit", "timestamp": "2009-11-10T23:00:05Z","fields": {"foo": 5}, "tags": {"tennant": "todd"}}
+				{"name": "limit", "time": "2009-11-10T23:00:02Z","fields": {"foo": 2}, "tags": {"tennant": "paul"}},
+				{"name": "limit", "time": "2009-11-10T23:00:03Z","fields": {"foo": 3}, "tags": {"tennant": "paul"}},
+				{"name": "limit", "time": "2009-11-10T23:00:04Z","fields": {"foo": 4}, "tags": {"tennant": "paul"}},
+				{"name": "limit", "time": "2009-11-10T23:00:05Z","fields": {"foo": 5}, "tags": {"tennant": "todd"}}
 			]}`,
 			query:    `select foo from "%DB%"."%RP%"."limit" LIMIT 2`,
 			expected: `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z",2],["2009-11-10T23:00:03Z",3]]}]}]}`,
@@ -1018,10 +1072,10 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		{
 			name: "fill with value",
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
-				{"name": "fills", "timestamp": "2009-11-10T23:00:02Z","fields": {"val": 3}},
-				{"name": "fills", "timestamp": "2009-11-10T23:00:03Z","fields": {"val": 5}},
-				{"name": "fills", "timestamp": "2009-11-10T23:00:06Z","fields": {"val": 4}},
-				{"name": "fills", "timestamp": "2009-11-10T23:00:16Z","fields": {"val": 10}}
+				{"name": "fills", "time": "2009-11-10T23:00:02Z","fields": {"val": 3}},
+				{"name": "fills", "time": "2009-11-10T23:00:03Z","fields": {"val": 5}},
+				{"name": "fills", "time": "2009-11-10T23:00:06Z","fields": {"val": 4}},
+				{"name": "fills", "time": "2009-11-10T23:00:16Z","fields": {"val": 10}}
 			]}`,
 			query:    `select mean(val) from "%DB%"."%RP%".fills where time >= '2009-11-10T23:00:00Z' and time < '2009-11-10T23:00:20Z' group by time(5s) FILL(1)`,
 			expected: `{"results":[{"series":[{"name":"fills","columns":["time","mean"],"values":[["2009-11-10T23:00:00Z",4],["2009-11-10T23:00:05Z",4],["2009-11-10T23:00:10Z",1],["2009-11-10T23:00:15Z",10]]}]}]}`,
@@ -1057,8 +1111,8 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			reset: true,
 			name:  "Drop Measurement, series tags preserved tests",
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
-				{"name": "cpu", "timestamp": "2000-01-01T00:00:00Z", "tags": {"host": "serverA", "region": "uswest"}, "fields": {"val": 23.2}},
-				{"name": "memory", "timestamp": "2000-01-01T00:00:01Z", "tags": {"host": "serverB", "region": "uswest"}, "fields": {"val": 33.2}}
+				{"name": "cpu", "time": "2000-01-01T00:00:00Z", "tags": {"host": "serverA", "region": "uswest"}, "fields": {"val": 23.2}},
+				{"name": "memory", "time": "2000-01-01T00:00:01Z", "tags": {"host": "serverB", "region": "uswest"}, "fields": {"val": 33.2}}
 			]}`,
 			query:    `SHOW MEASUREMENTS`,
 			queryDb:  "%DB%",
@@ -1127,12 +1181,12 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		{
 			reset: true,
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
-		{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
-		{"name": "cpu", "tags": {"host": "server01", "region": "uswest"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
-		{"name": "cpu", "tags": {"host": "server01", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
-		{"name": "cpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
-		{"name": "gpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
-		{"name": "gpu", "tags": {"host": "server03", "region": "caeast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}}
+		{"name": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "uswest"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "useast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server02", "region": "useast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "gpu", "tags": {"host": "server02", "region": "useast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "gpu", "tags": {"host": "server03", "region": "caeast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}}
 		]}`,
 			query:    "SHOW SERIES",
 			queryDb:  "%DB%",
@@ -1167,13 +1221,13 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		{
 			reset: true,
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
-		{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
-		{"name": "cpu", "tags": {"host": "server01", "region": "uswest"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
-		{"name": "cpu", "tags": {"host": "server01", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
-		{"name": "cpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
-		{"name": "gpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
-		{"name": "gpu", "tags": {"host": "server02", "region": "caeast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
-		{"name": "other", "tags": {"host": "server03", "region": "caeast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}}
+		{"name": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "uswest"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "useast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server02", "region": "useast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "gpu", "tags": {"host": "server02", "region": "useast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "gpu", "tags": {"host": "server02", "region": "caeast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "other", "tags": {"host": "server03", "region": "caeast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}}
 		]}`,
 			query:    "SHOW MEASUREMENTS LIMIT 2",
 			queryDb:  "%DB%",
@@ -1193,12 +1247,12 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		{
 			reset: true,
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
-		{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
-		{"name": "cpu", "tags": {"host": "server01", "region": "uswest"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
-		{"name": "cpu", "tags": {"host": "server01", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
-		{"name": "cpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
-		{"name": "gpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
-		{"name": "gpu", "tags": {"host": "server03", "region": "caeast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}}
+		{"name": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "uswest"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "useast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server02", "region": "useast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "gpu", "tags": {"host": "server02", "region": "useast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "gpu", "tags": {"host": "server03", "region": "caeast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}}
 		]}`,
 			query:    "SHOW TAG KEYS",
 			queryDb:  "%DB%",
@@ -1218,12 +1272,12 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		{
 			reset: true,
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
-		{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
-		{"name": "cpu", "tags": {"host": "server01", "region": "uswest"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
-		{"name": "cpu", "tags": {"host": "server01", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
-		{"name": "cpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
-		{"name": "gpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}},
-		{"name": "gpu", "tags": {"host": "server03", "region": "caeast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"value": 100}}
+		{"name": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "uswest"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "useast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "cpu", "tags": {"host": "server02", "region": "useast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "gpu", "tags": {"host": "server02", "region": "useast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"name": "gpu", "tags": {"host": "server03", "region": "caeast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}}
 		]}`,
 			query:    "SHOW TAG VALUES WITH KEY = host",
 			queryDb:  "%DB%",
@@ -1258,12 +1312,12 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		{
 			reset: true,
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
-		{"name": "cpu", "tags": {"host": "server01"},"timestamp": "2009-11-10T23:00:00Z","fields": {"field1": 100}},
-		{"name": "cpu", "tags": {"host": "server01", "region": "uswest"},"timestamp": "2009-11-10T23:00:00Z","fields": {"field1": 200, "field2": 300, "field3": 400}},
-		{"name": "cpu", "tags": {"host": "server01", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"field1": 200, "field2": 300, "field3": 400}},
-		{"name": "cpu", "tags": {"host": "server02", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"field1": 200, "field2": 300, "field3": 400}},
-		{"name": "gpu", "tags": {"host": "server01", "region": "useast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"field4": 200, "field5": 300}},
-		{"name": "gpu", "tags": {"host": "server03", "region": "caeast"},"timestamp": "2009-11-10T23:00:00Z","fields": {"field6": 200, "field7": 300}}
+		{"name": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z","fields": {"field1": 100}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "uswest"},"time": "2009-11-10T23:00:00Z","fields": {"field1": 200, "field2": 300, "field3": 400}},
+		{"name": "cpu", "tags": {"host": "server01", "region": "useast"},"time": "2009-11-10T23:00:00Z","fields": {"field1": 200, "field2": 300, "field3": 400}},
+		{"name": "cpu", "tags": {"host": "server02", "region": "useast"},"time": "2009-11-10T23:00:00Z","fields": {"field1": 200, "field2": 300, "field3": 400}},
+		{"name": "gpu", "tags": {"host": "server01", "region": "useast"},"time": "2009-11-10T23:00:00Z","fields": {"field4": 200, "field5": 300}},
+		{"name": "gpu", "tags": {"host": "server03", "region": "caeast"},"time": "2009-11-10T23:00:00Z","fields": {"field6": 200, "field7": 300}}
 		]}`,
 			query:    `SHOW FIELD KEYS`,
 			queryDb:  "%DB%",
@@ -1487,9 +1541,9 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			got, ok, nOK := queryAndWait(t, qNodes, rewriteDbRp(urlDb, database, retention), qry, rewriteDbRp(tt.expected, database, retention), rewriteDbRp(tt.expectPattern, database, retention), 30*time.Second)
 			if !ok {
 				if tt.expected != "" {
-					t.Errorf("Test #%d: \"%s:%s\" failed\n  query: %s\n  exp: %s\n  got: %s\n%d nodes responded correctly", i, testName, name, qry, rewriteDbRp(tt.expected, database, retention), got, nOK)
+					t.Fatalf("Test #%d: \"%s:%s\" failed\n  query: %s\n  exp: %s\n  got: %s\n%d nodes responded correctly", i, testName, name, qry, rewriteDbRp(tt.expected, database, retention), got, nOK)
 				} else {
-					t.Errorf("Test #%d: \"%s:%s\" failed\n  query: %s\n  exp: %s\n  got: %s\n%d nodes responded correctly", i, testName, name, qry, rewriteDbRp(tt.expectPattern, database, retention), got, nOK)
+					t.Fatalf("Test #%d: \"%s:%s\" failed\n  query: %s\n  exp: %s\n  got: %s\n%d nodes responded correctly", i, testName, name, qry, rewriteDbRp(tt.expectPattern, database, retention), got, nOK)
 				}
 				dumpClusterDiags(t, name, nodes)
 				dumpClusterStats(t, name, nodes)
@@ -1652,7 +1706,7 @@ func TestClientLibrary(t *testing.T) {
 					bp: client.BatchPoints{
 						Database: "mydb",
 						Points: []client.Point{
-							{Name: "cpu", Fields: map[string]interface{}{"value": 1.1}, Timestamp: now},
+							{Name: "cpu", Fields: map[string]interface{}{"value": 1.1}, Time: now},
 						},
 					},
 					expected: `null`,
@@ -1668,9 +1722,9 @@ func TestClientLibrary(t *testing.T) {
 		{
 			name: "mulitple points, multiple values",
 			writes: []write{
-				{bp: client.BatchPoints{Database: "mydb", Points: []client.Point{{Name: "network", Fields: map[string]interface{}{"rx": 1.1, "tx": 2.1}, Timestamp: now}}}, expected: `null`},
-				{bp: client.BatchPoints{Database: "mydb", Points: []client.Point{{Name: "network", Fields: map[string]interface{}{"rx": 1.2, "tx": 2.2}, Timestamp: now.Add(time.Nanosecond)}}}, expected: `null`},
-				{bp: client.BatchPoints{Database: "mydb", Points: []client.Point{{Name: "network", Fields: map[string]interface{}{"rx": 1.3, "tx": 2.3}, Timestamp: now.Add(2 * time.Nanosecond)}}}, expected: `null`},
+				{bp: client.BatchPoints{Database: "mydb", Points: []client.Point{{Name: "network", Fields: map[string]interface{}{"rx": 1.1, "tx": 2.1}, Time: now}}}, expected: `null`},
+				{bp: client.BatchPoints{Database: "mydb", Points: []client.Point{{Name: "network", Fields: map[string]interface{}{"rx": 1.2, "tx": 2.2}, Time: now.Add(time.Nanosecond)}}}, expected: `null`},
+				{bp: client.BatchPoints{Database: "mydb", Points: []client.Point{{Name: "network", Fields: map[string]interface{}{"rx": 1.3, "tx": 2.3}, Time: now.Add(2 * time.Nanosecond)}}}, expected: `null`},
 			},
 			queries: []query{
 				{
@@ -1699,13 +1753,13 @@ func TestClientLibrary(t *testing.T) {
 		for _, w := range test.writes {
 			writeResult, err := c.Write(w.bp)
 			if w.err != errToString(err) {
-				t.Errorf("unexpected error. expected: %s, got %v", w.err, err)
+				t.Fatalf("unexpected error. expected: %s, got %v", w.err, err)
 			}
 			jsonResult := mustMarshalJSON(writeResult)
 			if w.expected != jsonResult {
 				t.Logf("write expected result: %s\n", w.expected)
 				t.Logf("write got result:      %s\n", jsonResult)
-				t.Error("unexpected results")
+				t.Fatalf("unexpected results")
 			}
 		}
 
@@ -1714,13 +1768,13 @@ func TestClientLibrary(t *testing.T) {
 				time.Sleep(500 * time.Millisecond)
 				queryResponse, err := c.Query(q.query)
 				if q.err != errToString(err) {
-					t.Errorf("unexpected error. expected: %s, got %v", q.err, err)
+					t.Fatalf("unexpected error. expected: %s, got %v", q.err, err)
 				}
 				jsonResult := mustMarshalJSON(queryResponse)
 				if q.expected != jsonResult {
 					t.Logf("query expected result: %s\n", q.expected)
 					t.Logf("query got result:      %s\n", jsonResult)
-					t.Error("unexpected results")
+					t.Fatalf("unexpected results")
 				}
 			}
 		}
@@ -1776,12 +1830,12 @@ func Test_ServerSingleGraphiteIntegration_Default(t *testing.T) {
 		return
 	}
 
-	expected := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","cpu"],"values":[["%s",23.456]]}]}]}`, now.Format(time.RFC3339Nano))
+	expected := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",23.456]]}]}]}`, now.Format(time.RFC3339Nano))
 
 	// query and wait for results
 	got, ok, _ := queryAndWait(t, nodes, "graphite", `select * from "graphite"."raw".cpu`, expected, "", graphiteTestTimeout)
 	if !ok {
-		t.Errorf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
+		t.Fatalf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
 	}
 }
 
@@ -1834,12 +1888,12 @@ func Test_ServerSingleGraphiteIntegration_FractionalTime(t *testing.T) {
 		return
 	}
 
-	expected := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","cpu"],"values":[["%s",23.456]]}]}]}`, now.Format(time.RFC3339Nano))
+	expected := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",23.456]]}]}]}`, now.Format(time.RFC3339Nano))
 
 	// query and wait for results
 	got, ok, _ := queryAndWait(t, nodes, "graphite", `select * from "graphite"."raw".cpu`, expected, "", graphiteTestTimeout)
 	if !ok {
-		t.Errorf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
+		t.Fatalf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
 	}
 }
 
@@ -1891,12 +1945,12 @@ func Test_ServerSingleGraphiteIntegration_ZeroDataPoint(t *testing.T) {
 		return
 	}
 
-	expected := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","cpu"],"values":[["%s",0]]}]}]}`, now.Format(time.RFC3339Nano))
+	expected := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",0]]}]}]}`, now.Format(time.RFC3339Nano))
 
 	// query and wait for results
 	got, ok, _ := queryAndWait(t, nodes, "graphite", `select * from "graphite"."raw".cpu`, expected, "", graphiteTestTimeout)
 	if !ok {
-		t.Errorf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
+		t.Fatalf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
 	}
 }
 
@@ -1937,14 +1991,14 @@ func Test_ServerSingleGraphiteIntegration_NoDatabase(t *testing.T) {
 	expected := `{"results":[{"series":[{"name":"databases","columns":["name"],"values":[["graphite"]]}]}]}`
 	got, ok, _ := queryAndWait(t, nodes, "graphite", `show databases`, expected, "", 2*time.Second)
 	if !ok {
-		t.Errorf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
+		t.Fatalf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
 	}
 
 	// Need to wait for the database to get a default retention policy
 	expected = `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["default","0",1,true]]}]}]}`
 	got, ok, _ = queryAndWait(t, nodes, "graphite", `show retention policies graphite`, expected, "", graphiteTestTimeout)
 	if !ok {
-		t.Errorf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
+		t.Fatalf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
 	}
 
 	t.Log("Writing data")
@@ -1959,10 +2013,10 @@ func Test_ServerSingleGraphiteIntegration_NoDatabase(t *testing.T) {
 	}
 
 	// Wait for data to show up
-	expected = fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","cpu"],"values":[["%s",23.456]]}]}]}`, now.Format(time.RFC3339Nano))
+	expected = fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",23.456]]}]}]}`, now.Format(time.RFC3339Nano))
 	got, ok, _ = queryAndWait(t, nodes, "graphite", `select * from "graphite"."default".cpu`, expected, "", 2*time.Second)
 	if !ok {
-		t.Errorf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
+		t.Fatalf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
 	}
 }
 
@@ -1972,7 +2026,7 @@ func Test_ServerOpenTSDBIntegration(t *testing.T) {
 		t.Skip()
 	}
 	nNodes := 1
-	testName := "opentsdb integration"
+	testName := "ServerOpenTSDBIntegration"
 	dir := tempfile()
 	now := time.Now().UTC().Round(time.Second)
 	c, _ := main.NewTestConfig()
@@ -2016,7 +2070,7 @@ func Test_ServerOpenTSDBIntegration(t *testing.T) {
 	// query and wait for results
 	got, ok, _ := queryAndWait(t, nodes, "opentsdb", `select * from "opentsdb"."raw".cpu`, expected, "", openTSDBTestTimeout)
 	if !ok {
-		t.Errorf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
+		t.Fatalf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
 	}
 }
 
@@ -2026,7 +2080,7 @@ func Test_ServerOpenTSDBIntegration_WithTags(t *testing.T) {
 		t.Skip()
 	}
 	nNodes := 1
-	testName := "opentsdb integration"
+	testName := "ServerOpenTSDBIntegration_WithTags"
 	dir := tempfile()
 	now := time.Now().UTC().Round(time.Second)
 	c, _ := main.NewTestConfig()
@@ -2075,7 +2129,7 @@ func Test_ServerOpenTSDBIntegration_WithTags(t *testing.T) {
 	// query and wait for results
 	got, ok, _ := queryAndWait(t, nodes, "opentsdb", `select * from "opentsdb"."raw".cpu where tag1='val3'`, expected, "", openTSDBTestTimeout)
 	if !ok {
-		t.Errorf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
+		t.Fatalf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
 	}
 }
 
@@ -2085,7 +2139,7 @@ func Test_ServerOpenTSDBIntegration_BadData(t *testing.T) {
 		t.Skip()
 	}
 	nNodes := 1
-	testName := "opentsdb integration"
+	testName := "ServerOpenTSDBIntegration_BadData"
 	dir := tempfile()
 	now := time.Now().UTC().Round(time.Second)
 	c, _ := main.NewTestConfig()
@@ -2132,7 +2186,101 @@ func Test_ServerOpenTSDBIntegration_BadData(t *testing.T) {
 	// query and wait for results
 	got, ok, _ := queryAndWait(t, nodes, "opentsdb", `select * from "opentsdb"."raw".cpu`, expected, "", openTSDBTestTimeout)
 	if !ok {
-		t.Errorf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
+		t.Fatalf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
+	}
+}
+
+func Test_ServerOpenTSDBIntegrationHTTPSingle(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+	nNodes := 1
+	testName := "ServerOpenTSDBIntegrationHTTPSingle"
+	dir := tempfile()
+	now := time.Now().UTC().Round(time.Second)
+	c, _ := main.NewTestConfig()
+	o := main.OpenTSDB{
+		Addr:            "127.0.0.1",
+		Port:            0,
+		Enabled:         true,
+		Database:        "opentsdb",
+		RetentionPolicy: "raw",
+	}
+	c.OpenTSDB = o
+
+	t.Logf("OpenTSDB Connection String: %s\n", o.ListenAddress())
+	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, c)
+	defer nodes.Close()
+
+	createDatabase(t, testName, nodes, "opentsdb")
+	createRetentionPolicy(t, testName, nodes, "opentsdb", "raw", len(nodes))
+
+	ts := fmt.Sprintf("%d", now.Unix())
+	data := bytes.NewBufferString(`{"metric":"cpu","timestamp":` + ts + `,"value":10,"tags":{"tag1":"val1","tag2":"val2"}}`)
+	host := nodes[0].node.OpenTSDBServer.Addr().String()
+	url := "http://" + host + "/api/put"
+
+	resp, err := http.Post(url, "text/json", data)
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+	resp.Body.Close()
+
+	expected := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",10]]}]}]}`, now.Format(time.RFC3339Nano))
+
+	// query and wait for results
+	got, ok, _ := queryAndWait(t, nodes, "opentsdb", `select * from "opentsdb"."raw".cpu`, expected, "", openTSDBTestTimeout)
+	if !ok {
+		t.Fatalf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
+	}
+}
+
+func Test_ServerOpenTSDBIntegrationHTTPMulti(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+	nNodes := 1
+	testName := "ServerOpenTSDBIntegrationHTTPMulti"
+	dir := tempfile()
+	now := time.Now().UTC().Round(time.Second)
+	c, _ := main.NewTestConfig()
+	o := main.OpenTSDB{
+		Addr:            "127.0.0.1",
+		Port:            0,
+		Enabled:         true,
+		Database:        "opentsdb",
+		RetentionPolicy: "raw",
+	}
+	c.OpenTSDB = o
+
+	t.Logf("OpenTSDB Connection String: %s\n", o.ListenAddress())
+	nodes := createCombinedNodeCluster(t, testName, dir, nNodes, c)
+	defer nodes.Close()
+
+	createDatabase(t, testName, nodes, "opentsdb")
+	createRetentionPolicy(t, testName, nodes, "opentsdb", "raw", len(nodes))
+
+	ts := fmt.Sprintf("%d", now.Unix())
+	data := bytes.NewBufferString(`[{"metric":"cpu","timestamp":` + ts + `,"value":10,"tags":{"tag1":"val1","tag2":"val2"}},{"metric":"cpu","timestamp":` + ts + `,"value":20,"tags":{"tag1":"val3","tag2":"val4"}}]`)
+	host := nodes[0].node.OpenTSDBServer.Addr().String()
+	url := "http://" + host + "/api/put"
+
+	resp, err := http.Post(url, "text/json", data)
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+
+	resp.Body.Close()
+
+	expts := now.Format(time.RFC3339Nano)
+	expected := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",10],["%s",20]]}]}]}`, expts, expts)
+
+	// query and wait for results
+	got, ok, _ := queryAndWait(t, nodes, "opentsdb", `select * from "opentsdb"."raw".cpu`, expected, "", openTSDBTestTimeout)
+	if !ok {
+		t.Fatalf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
 	}
 }
 

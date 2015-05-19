@@ -26,10 +26,10 @@ func main() {
 			for k := 0; k < *intervalN; k++ {
 				t = t.Add(1 * time.Second)
 				points = append(points, &Point{
-					Name:      "cpu",
-					Timestamp: t,
-					Tags:      map[string]string{"host": fmt.Sprintf("server%d", j+1)},
-					Fields:    map[string]interface{}{"value": 100},
+					Name:   "cpu",
+					Time:   t,
+					Tags:   map[string]string{"host": fmt.Sprintf("server%d", j+1)},
+					Fields: map[string]interface{}{"value": 100},
 				})
 			}
 			batch := &Batch{
@@ -51,8 +51,8 @@ type Batch struct {
 }
 
 type Point struct {
-	Name      string                 `json:"name"`
-	Timestamp time.Time              `json:"timestamp"`
-	Tags      map[string]string      `json:"tags"`
-	Fields    map[string]interface{} `json:"fields"`
+	Name   string                 `json:"name"`
+	Time   time.Time              `json:"time"`
+	Tags   map[string]string      `json:"tags"`
+	Fields map[string]interface{} `json:"fields"`
 }

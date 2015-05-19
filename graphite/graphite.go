@@ -87,22 +87,22 @@ func (p *Parser) Parse(line string) (influxdb.Point, error) {
 	}
 
 	fieldValues := make(map[string]interface{})
-	fieldValues[name] = v
+	fieldValues["value"] = v
 
 	// Parse timestamp.
 	unixTime, err := strconv.ParseFloat(fields[2], 64)
 	if err != nil {
-		return influxdb.Point{}, fmt.Errorf("field \"%s\" timestamp: %s", fields[0], err)
+		return influxdb.Point{}, fmt.Errorf("field \"%s\" time: %s", fields[0], err)
 	}
 
 	// Check if we have fractional seconds
 	timestamp := time.Unix(int64(unixTime), int64((unixTime-math.Floor(unixTime))*float64(time.Second)))
 
 	point := influxdb.Point{
-		Name:      name,
-		Tags:      tags,
-		Fields:    fieldValues,
-		Timestamp: timestamp,
+		Name:   name,
+		Tags:   tags,
+		Fields: fieldValues,
+		Time:   timestamp,
 	}
 
 	return point, nil

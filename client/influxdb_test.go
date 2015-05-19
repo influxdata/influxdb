@@ -100,7 +100,7 @@ func TestClient_BasicAuth(t *testing.T) {
 func TestClient_Write(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var data influxdb.Response
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(http.StatusNoContent)
 		_ = json.NewEncoder(w).Encode(data)
 	}))
 	defer ts.Close()
@@ -113,9 +113,12 @@ func TestClient_Write(t *testing.T) {
 	}
 
 	bp := client.BatchPoints{}
-	_, err = c.Write(bp)
+	r, err := c.Write(bp)
 	if err != nil {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+	if r != nil {
+		t.Fatalf("unexpected response. expected %v, actual %v", nil, r)
 	}
 }
 
@@ -251,15 +254,15 @@ func TestPoint_UnmarshalEpoch(t *testing.T) {
 
 	for _, test := range tests {
 		t.Logf("testing %q\n", test.name)
-		data := []byte(fmt.Sprintf(`{"timestamp": %d, "precision":"%s"}`, test.epoch, test.precision))
+		data := []byte(fmt.Sprintf(`{"time": %d, "precision":"%s"}`, test.epoch, test.precision))
 		t.Logf("json: %s", string(data))
 		var p client.Point
 		err := json.Unmarshal(data, &p)
 		if err != nil {
 			t.Fatalf("unexpected error.  exptected: %v, actual: %v", nil, err)
 		}
-		if !p.Timestamp.Equal(test.expected) {
-			t.Fatalf("Unexpected time.  expected: %v, actual: %v", test.expected, p.Timestamp)
+		if !p.Time.Equal(test.expected) {
+			t.Fatalf("Unexpected time.  expected: %v, actual: %v", test.expected, p.Time)
 		}
 	}
 }
@@ -289,15 +292,15 @@ func TestPoint_UnmarshalRFC(t *testing.T) {
 	for _, test := range tests {
 		t.Logf("testing %q\n", test.name)
 		ts := test.now.Format(test.rfc)
-		data := []byte(fmt.Sprintf(`{"timestamp": %q}`, ts))
+		data := []byte(fmt.Sprintf(`{"time": %q}`, ts))
 		t.Logf("json: %s", string(data))
 		var p client.Point
 		err := json.Unmarshal(data, &p)
 		if err != nil {
 			t.Fatalf("unexpected error.  exptected: %v, actual: %v", nil, err)
 		}
-		if !p.Timestamp.Equal(test.expected) {
-			t.Fatalf("Unexpected time.  expected: %v, actual: %v", test.expected, p.Timestamp)
+		if !p.Time.Equal(test.expected) {
+			t.Fatalf("Unexpected time.  expected: %v, actual: %v", test.expected, p.Time)
 		}
 	}
 }
@@ -318,9 +321,9 @@ func TestPoint_MarshalOmitempty(t *testing.T) {
 		},
 		{
 			name:     "with time",
-			point:    client.Point{Name: "cpu", Fields: map[string]interface{}{"value": 1.1}, Timestamp: now},
+			point:    client.Point{Name: "cpu", Fields: map[string]interface{}{"value": 1.1}, Time: now},
 			now:      now,
-			expected: fmt.Sprintf(`{"name":"cpu","timestamp":"%s","fields":{"value":1.1}}`, now.Format(time.RFC3339Nano)),
+			expected: fmt.Sprintf(`{"name":"cpu","time":"%s","fields":{"value":1.1}}`, now.Format(time.RFC3339Nano)),
 		},
 		{
 			name:     "with tags",
@@ -386,7 +389,7 @@ func emptyTestServer() *httptest.Server {
 	}))
 }
 
-// Ensure that data with epoch timestamps can be decoded.
+// Ensure that data with epoch times can be decoded.
 func TestBatchPoints_Normal(t *testing.T) {
 	var bp client.BatchPoints
 	data := []byte(`
@@ -399,7 +402,7 @@ func TestBatchPoints_Normal(t *testing.T) {
             "tags": {
                 "host": "server01"
             },
-            "timestamp": 14244733039069373,
+            "time": 14244733039069373,
             "precision": "n",
             "values": {
                     "value": 4541770385657154000
@@ -410,7 +413,7 @@ func TestBatchPoints_Normal(t *testing.T) {
              "tags": {
                 "host": "server01"
             },
-            "timestamp": 14244733039069380,
+            "time": 14244733039069380,
             "precision": "n",
             "values": {
                     "value": 7199311900554737000

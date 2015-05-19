@@ -117,7 +117,7 @@ case $1 in
             # If the status is SUCCESS then don't need to start again.
             if [ "x$status" = "x0" ]; then
                 log_failure_msg "$name process is running"
-                exit 1 # Exit
+                exit 0 # Exit
             fi
         fi
 

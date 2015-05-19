@@ -93,6 +93,28 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 			}
 		}
 
+		// If a numerical aggregate is requested, ensure it is only performed on numeric data or on a
+		// nested aggregate on numeric data.
+		for _, a := range stmt.FunctionCalls() {
+			// Check for fields like `derivative(mean(value), 1d)`
+			var nested *influxql.Call = a
+			if fn, ok := nested.Args[0].(*influxql.Call); ok {
+				nested = fn
+			}
+
+			lit, ok := nested.Args[0].(*influxql.VarRef)
+			if !ok {
+				return nil, fmt.Errorf("aggregate call didn't contain a field %s", a.String())
+			}
+			if influxql.IsNumeric(nested) {
+				f := m.FieldByName(lit.Val)
+				if f.Type != influxql.Float && f.Type != influxql.Integer {
+					return nil, fmt.Errorf("aggregate '%s' requires numerical field values. Field '%s' is of type %s",
+						a.Name, f.Name, f.Type)
+				}
+			}
+		}
+
 		// Grab time range from statement.
 		tmin, tmax := influxql.TimeRange(stmt.Condition)
 		if tmax.IsZero() {
@@ -333,7 +355,13 @@ func (l *LocalMapper) Begin(c *influxql.Call, startingTime int64, chunkSize int)
 			l.limit = math.MaxUint64
 		}
 	} else {
-		lit, ok := c.Args[0].(*influxql.VarRef)
+		// Check for calls like `derivative(mean(value), 1d)`
+		var nested *influxql.Call = c
+		if fn, ok := c.Args[0].(*influxql.Call); ok {
+			nested = fn
+		}
+
+		lit, ok := nested.Args[0].(*influxql.VarRef)
 		if !ok {
 			return fmt.Errorf("aggregate call didn't contain a field %s", c.String())
 		}

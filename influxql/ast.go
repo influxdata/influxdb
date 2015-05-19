@@ -642,6 +642,31 @@ type SelectStatement struct {
 	FillValue interface{}
 }
 
+// HasDerivative returns true if one of the function calls in the statement is a
+// derivative aggregate
+func (s *SelectStatement) HasDerivative() bool {
+	for _, f := range s.FunctionCalls() {
+		if strings.HasSuffix(f.Name, "derivative") {
+			return true
+		}
+	}
+	return false
+}
+
+// IsSimpleDerivative return true if one of the function call is a derivative function with a
+// variable ref as the first arg
+func (s *SelectStatement) IsSimpleDerivative() bool {
+	for _, f := range s.FunctionCalls() {
+		if strings.HasSuffix(f.Name, "derivative") {
+			// it's nested if the first argument is an aggregate function
+			if _, ok := f.Args[0].(*VarRef); ok {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // Clone returns a deep copy of the statement.
 func (s *SelectStatement) Clone() *SelectStatement {
 	clone := &SelectStatement{
@@ -837,6 +862,91 @@ func (s *SelectStatement) HasWildcard() bool {
 	}
 
 	return false
+}
+
+// hasTimeDimensions returns whether or not the select statement has at least 1
+// where condition with time as the condition
+func (s *SelectStatement) hasTimeDimensions(node Node) bool {
+	switch n := node.(type) {
+	case *BinaryExpr:
+		if n.Op == AND || n.Op == OR {
+			return s.hasTimeDimensions(n.LHS) || s.hasTimeDimensions(n.RHS)
+		}
+		if ref, ok := n.LHS.(*VarRef); ok && strings.ToLower(ref.Val) == "time" {
+			return true
+		}
+		return false
+	case *ParenExpr:
+		// walk down the tree
+		return s.hasTimeDimensions(n.Expr)
+	default:
+		return false
+	}
+}
+
+// Validate checks certain edge conditions to determine if this is a valid select statment
+func (s *SelectStatement) Validate(tr targetRequirement) error {
+	// fetch the group by duration
+	groupByDuration, _ := s.GroupByInterval()
+
+	// If we have a group by interval, but no aggregate function, it's an invalid statement
+	if s.IsRawQuery && groupByDuration > 0 {
+		return fmt.Errorf("GROUP BY requires at least one aggregate function")
+	}
+
+	// If we have an aggregate function with a group by time without a where clause, it's an invalid statement
+	if tr == targetNotRequired { // ignore create continuous query statements
+		if !s.IsRawQuery && groupByDuration > 0 && !s.hasTimeDimensions(s.Condition) {
+			return fmt.Errorf("aggregate functions with GROUP BY time require a WHERE time clause")
+		}
+	}
+
+	if err := s.validateDerivative(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *SelectStatement) validateDerivative() error {
+	if !s.HasDerivative() {
+		return nil
+	}
+
+	// If a derivative is requested, it must be the only field in the query. We don't support
+	// multiple fields in combination w/ derivaties yet.
+	if len(s.Fields) != 1 {
+		return fmt.Errorf("derivative cannot be used with other fields")
+	}
+
+	aggr := s.FunctionCalls()
+	if len(aggr) != 1 {
+		return fmt.Errorf("derivative cannot be used with other fields")
+	}
+
+	// Derivative requires two arguments
+	derivativeCall := aggr[0]
+	if len(derivativeCall.Args) == 0 {
+		return fmt.Errorf("derivative requires a field argument")
+	}
+
+	// First arg must be a field or aggr over a field e.g. (mean(field))
+	_, callOk := derivativeCall.Args[0].(*Call)
+	_, varOk := derivativeCall.Args[0].(*VarRef)
+
+	if !(callOk || varOk) {
+		return fmt.Errorf("derivative requires a field argument")
+	}
+
+	// If a duration arg is pased, make sure it's a duration
+	if len(derivativeCall.Args) == 2 {
+		// Second must be a duration .e.g (1h)
+		if _, ok := derivativeCall.Args[1].(*DurationLiteral); !ok {
+			return fmt.Errorf("derivative requires a duration argument")
+		}
+	}
+
+	return nil
 }
 
 // GroupByIterval extracts the time interval, if specified.

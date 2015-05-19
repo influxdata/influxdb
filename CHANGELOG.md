@@ -1,3 +1,47 @@
+## v0.9.0-rc31 [unreleased]
+
+### Features
+- [#1822](https://github.com/influxdb/influxdb/issues/1822): Wire up DERIVATIVE aggregate
+- [#1477](https://github.com/influxdb/influxdb/issues/1477): Wire up non_negative_derivative function
+- [#2557](https://github.com/influxdb/influxdb/issues/2557): Fix false positive error with `GROUP BY time`
+
+### Bugfixes
+- [#2545](https://github.com/influxdb/influxdb/pull/2545): Use "value" as the field name for graphite input. Thanks @cannium.
+- [#2558](https://github.com/influxdb/influxdb/pull/2558): Fix client response check - thanks @vladlopes!
+- [#2566](https://github.com/influxdb/influxdb/pull/2566): Wait until each data write has been commited by the Raft cluster.
+
+## PRs
+- [#2569](https://github.com/influxdb/influxdb/pull/2569): Add derivative functions
+
+## v0.9.0-rc30 [2015-05-12]
+
+### Release Notes
+
+This release has a breaking API change for writes -- the field previously called `timestamp` has been renamed to `time`.
+
+### Features
+- [#2254](https://github.com/influxdb/influxdb/pull/2254): Add Support for OpenTSDB HTTP interface. Thanks @tcolgate
+- [#2525](https://github.com/influxdb/influxdb/pull/2525): Serve broker diagnostics over HTTP
+- [#2186](https://github.com/influxdb/influxdb/pull/2186): The default status code for queries is now `200 OK`
+- [#2298](https://github.com/influxdb/influxdb/pull/2298): Successful writes now return a status code of `204 No Content` - thanks @neonstalwart!
+- [#2549](https://github.com/influxdb/influxdb/pull/2549): Raft election timeout to 5 seconds, so system is more forgiving of CPU loads.
+
+### Bugfixes
+- [#2535](https://github.com/influxdb/influxdb/pull/2535): Return exit status 0 if influxd already running. Thanks @haim0n.
+- [#2521](https://github.com/influxdb/influxdb/pull/2521): Don't truncate topic data until fully replicated.
+- [#2509](https://github.com/influxdb/influxdb/pull/2509): Parse config file correctly during restore. Thanks @neonstalwart
+- [#2536](https://github.com/influxdb/influxdb/issues/2532): Set leader ID on restart of single-node cluster.
+- [#2448](https://github.com/influxdb/influxdb/pull/2448): Fix inconsistent data type - thanks @cannium!
+- [#2108](https://github.com/influxdb/influxdb/issues/2108): Change `timestamp` to `time` - thanks @neonstalwart!
+- [#2539](https://github.com/influxdb/influxdb/issues/2539): Add additional vote request logging.
+- [#2541](https://github.com/influxdb/influxdb/issues/2541): Update messaging client connection index with every message.
+- [#2542](https://github.com/influxdb/influxdb/issues/2542): Throw parser error for invalid aggregate without where time.
+- [#2548](https://github.com/influxdb/influxdb/issues/2548): Return an error when numeric aggregate applied to non-numeric data.
+- [#2487](https://github.com/influxdb/influxdb/issues/2487): Aggregate query with exact timestamp causes panic. Thanks @neonstalwart!
+- [#2552](https://github.com/influxdb/influxdb/issues/2552): Run CQ that is actually passed into go-routine.
+- [#2553](https://github.com/influxdb/influxdb/issues/2553): Fix race condition during CQ execution.
+- [#2557](https://github.com/influxdb/influxdb/issues/2557): RC30 WHERE time filter Regression.
+
 ## v0.9.0-rc29 [2015-05-05]
 
 ### Features
