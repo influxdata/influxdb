@@ -65,6 +65,7 @@ func (*CreateContinuousQueryStatement) node() {}
 func (*CreateDatabaseStatement) node()        {}
 func (*CreateRetentionPolicyStatement) node() {}
 func (*CreateUserStatement) node()            {}
+func (*Distinct) node()                       {}
 func (*DeleteStatement) node()                {}
 func (*DropContinuousQueryStatement) node()   {}
 func (*DropDatabaseStatement) node()          {}
@@ -198,6 +199,7 @@ type Expr interface {
 func (*BinaryExpr) expr()      {}
 func (*BooleanLiteral) expr()  {}
 func (*Call) expr()            {}
+func (*Distinct) expr()        {}
 func (*DurationLiteral) expr() {}
 func (*nilLiteral) expr()      {}
 func (*NumberLiteral) expr()   {}
@@ -765,6 +767,17 @@ func (s *SelectStatement) RewriteWildcards(fields Fields, dimensions Dimensions)
 	return other
 }
 
+// RewriteDistinct rewrites the expresion to be a call for map/reduce to work correctly
+// This method assumes all validation has passed
+func (s *SelectStatement) RewriteDistinct() {
+	for i, f := range s.Fields {
+		if d, ok := f.Expr.(*Distinct); ok {
+			s.Fields[i].Expr = d.NewCall()
+			s.IsRawQuery = false
+		}
+	}
+}
+
 // String returns a string representation of the select statement.
 func (s *SelectStatement) String() string {
 	var buf bytes.Buffer
@@ -884,8 +897,23 @@ func (s *SelectStatement) hasTimeDimensions(node Node) bool {
 	}
 }
 
-// Validate checks certain edge conditions to determine if this is a valid select statment
-func (s *SelectStatement) Validate(tr targetRequirement) error {
+func (s *SelectStatement) validate(tr targetRequirement) error {
+	if err := s.validateDistinct(); err != nil {
+		return err
+	}
+
+	if err := s.validateAggregates(tr); err != nil {
+		return err
+	}
+
+	if err := s.validateDerivative(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 	// fetch the group by duration
 	groupByDuration, _ := s.GroupByInterval()
 
@@ -900,11 +928,43 @@ func (s *SelectStatement) Validate(tr targetRequirement) error {
 			return fmt.Errorf("aggregate functions with GROUP BY time require a WHERE time clause")
 		}
 	}
+	return nil
+}
 
-	if err := s.validateDerivative(); err != nil {
-		return err
+func (s *SelectStatement) HasDistinct() bool {
+	// determine if we have a call named distinct
+	for _, f := range s.Fields {
+		switch c := f.Expr.(type) {
+		case *Call:
+			if c.Name == "distinct" {
+				return true
+			}
+		case *Distinct:
+			return true
+		}
+	}
+	return false
+}
+
+func (s *SelectStatement) validateDistinct() error {
+	if !s.HasDistinct() {
+		return nil
 	}
 
+	if len(s.Fields) > 1 {
+		return fmt.Errorf("aggregate function distinct() can not be combined with other functions or fields")
+	}
+
+	switch c := s.Fields[0].Expr.(type) {
+	case *Call:
+		if len(c.Args) == 0 {
+			return fmt.Errorf("distinct function requires at least one argument")
+		}
+
+		if len(c.Args) != 1 {
+			return fmt.Errorf("distinct function can only have one argument")
+		}
+	}
 	return nil
 }
 
@@ -1895,6 +1955,27 @@ func (c *Call) String() string {
 	return fmt.Sprintf("%s(%s)", c.Name, strings.Join(str, ", "))
 }
 
+// Distinct represents a DISTINCT expression.
+type Distinct struct {
+	// Identifier following DISTINCT
+	Val string
+}
+
+// String returns a string representation of the expression.
+func (d *Distinct) String() string {
+	return fmt.Sprintf("DISTINCT %s", d.Val)
+}
+
+// NewCall returns a new call expression from this expressions.
+func (d *Distinct) NewCall() *Call {
+	return &Call{
+		Name: "distinct",
+		Args: []Expr{
+			&VarRef{Val: d.Val},
+		},
+	}
+}
+
 // NumberLiteral represents a numeric literal.
 type NumberLiteral struct {
 	Val float64
@@ -2034,6 +2115,8 @@ func CloneExpr(expr Expr) Expr {
 			args[i] = CloneExpr(arg)
 		}
 		return &Call{Name: expr.Name, Args: args}
+	case *Distinct:
+		return &Distinct{Val: expr.Val}
 	case *DurationLiteral:
 		return &DurationLiteral{Val: expr.Val}
 	case *NumberLiteral:

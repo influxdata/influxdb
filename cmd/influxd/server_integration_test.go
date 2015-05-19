@@ -666,6 +666,19 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		},
 		{
 			reset: true,
+			name:  "distincts",
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+				{"name": "cpu", "time": "2000-01-01T00:00:00Z", "fields": {"value": 30}},
+				{"name": "cpu", "time": "2000-01-01T00:00:10Z", "fields": {"value": 20}},
+				{"name": "cpu", "time": "2000-01-01T00:00:20Z", "fields": {"value": 30}},
+				{"name": "cpu", "time": "2000-01-01T00:00:30Z", "fields": {"value": 100}}
+			]}`,
+			query:    `SELECT distinct(value) FROM cpu`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","distinct"],"values":[["1970-01-01T00:00:00Z",[20,30,100]]]}]}]}`,
+		},
+		{
+			reset: true,
 			name:  "aggregations",
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
 				{"name": "cpu", "time": "2000-01-01T00:00:00Z", "tags": {"region": "us-east"}, "fields": {"value": 20}},

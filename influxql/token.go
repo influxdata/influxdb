@@ -68,6 +68,7 @@ const (
 	DEFAULT
 	DELETE
 	DESC
+	DISTINCT
 	DROP
 	DURATION
 	END
@@ -174,6 +175,7 @@ var tokens = [...]string{
 	DELETE:       "DELETE",
 	DESC:         "DESC",
 	DROP:         "DROP",
+	DISTINCT:     "DISTINCT",
 	DURATION:     "DURATION",
 	END:          "END",
 	EXISTS:       "EXISTS",
