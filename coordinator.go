@@ -44,7 +44,9 @@ var (
 // Coordinator handle queries and writes across multiple local and remote
 // data nodes.
 type Coordinator struct {
-	mu           sync.RWMutex
+	mu      sync.RWMutex
+	closing chan struct{}
+
 	MetaStore    meta.Store
 	shardWriters []ShardWriter
 }
@@ -53,6 +55,12 @@ type Coordinator struct {
 type ShardMapping struct {
 	Points map[uint64][]data.Point   // The points associated with a shard ID
 	Shards map[uint64]meta.ShardInfo // The shards that have been mapped, keyed by shard ID
+}
+
+func NewCoordinator() *Coordinator {
+	return &Coordinator{
+		closing: make(chan struct{}),
+	}
 }
 
 // NewShardMapping creates an empty ShardMapping
@@ -79,6 +87,25 @@ func (s *ShardMapping) MapPoint(shardInfo meta.ShardInfo, p data.Point) {
 // if the write failed.
 type ShardWriter interface {
 	WriteShard(shardID uint64, points []data.Point) (int, error)
+}
+
+func (c *Coordinator) Open() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closing == nil {
+		c.closing = make(chan struct{})
+	}
+	return nil
+}
+
+func (c *Coordinator) Close() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closing != nil {
+		close(c.closing)
+		c.closing = nil
+	}
+	return nil
 }
 
 func (c *Coordinator) AddShardWriter(s ShardWriter) {
@@ -140,6 +167,8 @@ func (c *Coordinator) Write(p *WritePointsRequest) error {
 
 	for range shardMappings.Points {
 		select {
+		case <-c.closing:
+			return ErrWriteFailed
 		case err := <-ch:
 			if err != nil {
 				return err
@@ -188,6 +217,8 @@ func (c *Coordinator) writeToShards(shard meta.ShardInfo, consistency Consistenc
 	timeout := time.After(defaultWriteTimeout)
 	for range c.shardWriters {
 		select {
+		case <-c.closing:
+			return ErrWriteFailed
 		case <-timeout:
 			// return timeout error to caller
 			return ErrTimeout
