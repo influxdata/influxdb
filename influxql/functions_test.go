@@ -348,6 +348,132 @@ func Test_distinctValues_Sort(t *testing.T) {
 	}
 }
 
+func TestMapCountDistinct(t *testing.T) {
+	const ( // prove that we're ignoring seriesID
+		seriesId1 = iota + 1
+		seriesId2
+	)
+
+	const ( // prove that we're ignoring time
+		timeId1 = iota + 1
+		timeId2
+		timeId3
+		timeId4
+		timeId5
+		timeId6
+		timeId7
+	)
+
+	iter := &testIterator{
+		values: []point{
+			{seriesId1, timeId1, uint64(1)},
+			{seriesId1, timeId2, uint64(1)},
+			{seriesId1, timeId3, "1"},
+			{seriesId2, timeId4, uint64(1)},
+			{seriesId2, timeId5, float64(1.0)},
+			{seriesId2, timeId6, "1"},
+			{seriesId2, timeId7, true},
+		},
+	}
+
+	values := MapCountDistinct(iter).(map[interface{}]struct{})
+
+	if exp, got := 4, len(values); exp != got {
+		t.Errorf("Wrong number of values. exp %v got %v", exp, got)
+	}
+
+	exp := map[interface{}]struct{}{
+		uint64(1):  struct{}{},
+		float64(1): struct{}{},
+		"1":        struct{}{},
+		true:       struct{}{},
+	}
+
+	if !reflect.DeepEqual(values, exp) {
+		t.Errorf("Wrong values. exp %v got %v", spew.Sdump(exp), spew.Sdump(values))
+	}
+}
+
+func TestMapCountDistinctNil(t *testing.T) {
+	iter := &testIterator{
+		values: []point{},
+	}
+
+	values := MapCountDistinct(iter)
+
+	if values != nil {
+		t.Errorf("Wrong values. exp nil got %v", spew.Sdump(values))
+	}
+}
+
+func TestReduceCountDistinct(t *testing.T) {
+	v1 := map[interface{}]struct{}{
+		"2":          struct{}{},
+		"1":          struct{}{},
+		float64(2.0): struct{}{},
+		float64(1):   struct{}{},
+		uint64(2):    struct{}{},
+		uint64(1):    struct{}{},
+		true:         struct{}{},
+		false:        struct{}{},
+	}
+
+	v2 := map[interface{}]struct{}{
+		uint64(1):  struct{}{},
+		float64(1): struct{}{},
+		uint64(2):  struct{}{},
+		float64(2): struct{}{},
+		false:      struct{}{},
+		true:       struct{}{},
+		"1":        struct{}{},
+		"2":        struct{}{},
+	}
+
+	exp := 8
+	got := ReduceCountDistinct([]interface{}{v1, v1, v2})
+
+	if !reflect.DeepEqual(got, exp) {
+		t.Errorf("Wrong values. exp %v got %v", spew.Sdump(exp), spew.Sdump(got))
+	}
+}
+
+func TestReduceCountDistinctNil(t *testing.T) {
+	emptyResults := make(map[interface{}]struct{})
+	tests := []struct {
+		name   string
+		values []interface{}
+	}{
+		{
+			name:   "nil values",
+			values: nil,
+		},
+		{
+			name:   "nil mapper",
+			values: []interface{}{nil},
+		},
+		{
+			name:   "no mappers",
+			values: []interface{}{},
+		},
+		{
+			name:   "empty mappper (len 1)",
+			values: []interface{}{emptyResults},
+		},
+		{
+			name:   "empty mappper (len 2)",
+			values: []interface{}{emptyResults, emptyResults},
+		},
+	}
+
+	for _, test := range tests {
+		t.Log(test.name)
+		got := ReduceCountDistinct(test.values)
+		if got != 0 {
+			t.Errorf("Wrong values. exp nil got %v", spew.Sdump(got))
+		}
+	}
+}
+
 var getSortedRangeData = []float64{
 	60, 61, 62, 63, 64, 65, 66, 67, 68, 69,
 	20, 21, 22, 23, 24, 25, 26, 27, 28, 29,

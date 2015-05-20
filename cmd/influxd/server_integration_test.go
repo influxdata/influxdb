@@ -678,6 +678,18 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","distinct"],"values":[["1970-01-01T00:00:00Z",[20,30,100]]]}]}]}`,
 		},
 		{
+			name:     "distincts alt syntax",
+			query:    `SELECT distinct value FROM cpu`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","distinct"],"values":[["1970-01-01T00:00:00Z",[20,30,100]]]}]}]}`,
+		},
+		{
+			name:     "count distinct",
+			query:    `SELECT count(distinct value) FROM cpu`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",3]]}]}]}`,
+		},
+		{
 			reset: true,
 			name:  "aggregations",
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [

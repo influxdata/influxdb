@@ -902,6 +902,10 @@ func (s *SelectStatement) validate(tr targetRequirement) error {
 		return err
 	}
 
+	if err := s.validateCountDistinct(); err != nil {
+		return err
+	}
+
 	if err := s.validateAggregates(tr); err != nil {
 		return err
 	}
@@ -914,6 +918,28 @@ func (s *SelectStatement) validate(tr targetRequirement) error {
 }
 
 func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
+	// First, determine if specific calls have at least one and only one argument
+	for _, f := range s.Fields {
+		if c, ok := f.Expr.(*Call); ok {
+			switch c.Name {
+			case "derivative", "non_negative_derivative":
+				if min, max, got := 1, 2, len(c.Args); got > max || got < min {
+					return fmt.Errorf("invalid number of arguments for %s, expected at least %d but no more than %d, got %d", c.Name, min, max, got)
+				}
+			case "percentile":
+				if exp, got := 2, len(c.Args); got != exp {
+					return fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", c.Name, exp, got)
+				}
+			default:
+				if exp, got := 1, len(c.Args); got != exp {
+					return fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", c.Name, exp, got)
+				}
+			}
+		}
+	}
+
+	// Now, check that we have valid duration and where clauses for aggregates
+
 	// fetch the group by duration
 	groupByDuration, _ := s.GroupByInterval()
 
@@ -965,6 +991,61 @@ func (s *SelectStatement) validateDistinct() error {
 			return fmt.Errorf("distinct function can only have one argument")
 		}
 	}
+	return nil
+}
+
+func (s *SelectStatement) HasCountDistinct() bool {
+	for _, f := range s.Fields {
+		if c, ok := f.Expr.(*Call); ok {
+			if c.Name == "count" {
+				for _, a := range c.Args {
+					if _, ok := a.(*Distinct); ok {
+						return true
+					}
+					if c, ok := a.(*Call); ok {
+						if c.Name == "distinct" {
+							return true
+						}
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
+func (s *SelectStatement) validateCountDistinct() error {
+	if !s.HasCountDistinct() {
+		return nil
+	}
+
+	valid := func(e Expr) bool {
+		c, ok := e.(*Call)
+		if !ok {
+			return true
+		}
+		if c.Name != "count" {
+			return true
+		}
+		for _, a := range c.Args {
+			if _, ok := a.(*Distinct); ok {
+				return len(c.Args) == 1
+			}
+			if d, ok := a.(*Call); ok {
+				if d.Name == "distinct" {
+					return len(d.Args) == 1
+				}
+			}
+		}
+		return true
+	}
+
+	for _, f := range s.Fields {
+		if !valid(f.Expr) {
+			return fmt.Errorf("count(distinct <field>) can only have one argument")
+		}
+	}
+
 	return nil
 }
 

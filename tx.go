@@ -93,6 +93,14 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 			}
 		}
 
+		validateType := func(aname, fname string, t influxql.DataType) error {
+			if t != influxql.Float && t != influxql.Integer {
+				return fmt.Errorf("aggregate '%s' requires numerical field values. Field '%s' is of type %s",
+					aname, fname, t)
+			}
+			return nil
+		}
+
 		// If a numerical aggregate is requested, ensure it is only performed on numeric data or on a
 		// nested aggregate on numeric data.
 		for _, a := range stmt.FunctionCalls() {
@@ -102,16 +110,26 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 				nested = fn
 			}
 
-			lit, ok := nested.Args[0].(*influxql.VarRef)
-			if !ok {
-				return nil, fmt.Errorf("aggregate call didn't contain a field %s", a.String())
-			}
-			if influxql.IsNumeric(nested) {
-				f := m.FieldByName(lit.Val)
-				if f.Type != influxql.Float && f.Type != influxql.Integer {
-					return nil, fmt.Errorf("aggregate '%s' requires numerical field values. Field '%s' is of type %s",
-						a.Name, f.Name, f.Type)
+			switch lit := nested.Args[0].(type) {
+			case *influxql.VarRef:
+				if influxql.IsNumeric(nested) {
+					f := m.FieldByName(lit.Val)
+					if err := validateType(a.Name, f.Name, f.Type); err != nil {
+						return nil, err
+					}
 				}
+			case *influxql.Distinct:
+				if nested.Name != "count" {
+					return nil, fmt.Errorf("aggregate call didn't contain a field %s", a.String())
+				}
+				if influxql.IsNumeric(nested) {
+					f := m.FieldByName(lit.Val)
+					if err := validateType(a.Name, f.Name, f.Type); err != nil {
+						return nil, err
+					}
+				}
+			default:
+				return nil, fmt.Errorf("aggregate call didn't contain a field %s", a.String())
 			}
 		}
 
@@ -361,11 +379,17 @@ func (l *LocalMapper) Begin(c *influxql.Call, startingTime int64, chunkSize int)
 			nested = fn
 		}
 
-		lit, ok := nested.Args[0].(*influxql.VarRef)
-		if !ok {
+		switch lit := nested.Args[0].(type) {
+		case *influxql.VarRef:
+			fieldName = lit.Val
+		case *influxql.Distinct:
+			if c.Name != "count" {
+				return fmt.Errorf("aggregate call didn't contain a field %s", c.String())
+			}
+			fieldName = lit.Val
+		default:
 			return fmt.Errorf("aggregate call didn't contain a field %s", c.String())
 		}
-		fieldName = lit.Val
 	}
 
 	// set up the field info if a specific field was set for this mapper
