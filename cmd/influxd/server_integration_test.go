@@ -466,7 +466,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			name:     "selecting only a tag",
 			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "gpu", "time": "2015-02-28T01:03:36.000Z", "tags": {"host": "server01"}, "fields": {"value": 100, "cores": 4}}, {"name": "gpu", "time": "2015-02-28T01:03:37.000Z", "tags": {"host": "server02"}, "fields": {"value": 50, "cores": 2}}]}`,
 			query:    `SELECT host FROM "%DB%"."%RP%".gpu`,
-			expected: `{"results":[{"error":"select statement must include at least one field"}]}`,
+			expected: `{"results":[{"error":"select statement must include at least one field or function call"}]}`,
 		},
 		{
 			name:     "selecting a tag and a field",

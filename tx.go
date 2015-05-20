@@ -94,8 +94,8 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 			}
 		}
 
-		if len(selectFields) == 0 {
-			return nil, fmt.Errorf("select statement must include at least one field")
+		if len(selectFields) == 0 && len(stmt.FunctionCalls()) == 0 {
+			return nil, fmt.Errorf("select statement must include at least one field or function call")
 		}
 
 		// Validate that group by is not a field
