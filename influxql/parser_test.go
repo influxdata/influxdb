@@ -106,7 +106,7 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
-		// SELECT statement
+		// derivative
 		{
 			s: `SELECT derivative(field1, 1h) FROM myseries;`,
 			stmt: &influxql.SelectStatement{
@@ -118,12 +118,44 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		{
+			s: `SELECT derivative(mean(field1), 1h) FROM myseries;`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: false,
+				Fields: []*influxql.Field{
+					{Expr: &influxql.Call{Name: "derivative", Args: []influxql.Expr{&influxql.Call{Name: "mean", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}}}, &influxql.DurationLiteral{Val: time.Hour}}}},
+				},
+				Sources: []influxql.Source{&influxql.Measurement{Name: "myseries"}},
+			},
+		},
+
+		{
+			s: `SELECT derivative(mean(field1)) FROM myseries;`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: false,
+				Fields: []*influxql.Field{
+					{Expr: &influxql.Call{Name: "derivative", Args: []influxql.Expr{&influxql.Call{Name: "mean", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}}}}}},
+				},
+				Sources: []influxql.Source{&influxql.Measurement{Name: "myseries"}},
+			},
+		},
+
 		// SELECT statement (lowercase)
 		{
 			s: `select my_field from myseries`,
 			stmt: &influxql.SelectStatement{
 				IsRawQuery: true,
 				Fields:     []*influxql.Field{{Expr: &influxql.VarRef{Val: "my_field"}}},
+				Sources:    []influxql.Source{&influxql.Measurement{Name: "myseries"}},
+			},
+		},
+
+		// SELECT statement (lowercase) with quoted field
+		{
+			s: `select 'my_field' from myseries`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: true,
+				Fields:     []*influxql.Field{{Expr: &influxql.StringLiteral{Val: "my_field"}}},
 				Sources:    []influxql.Source{&influxql.Measurement{Name: "myseries"}},
 			},
 		},
@@ -176,6 +208,64 @@ func TestParser_ParseStatement(t *testing.T) {
 						RHS: &influxql.RegexLiteral{Val: regexp.MustCompile(".*west.*")},
 					},
 				},
+			},
+		},
+
+		// select distinct statements
+		{
+			s: `select distinct(field1) from cpu`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: false,
+				Fields: []*influxql.Field{
+					{Expr: &influxql.Call{Name: "distinct", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}}}},
+				},
+				Sources: []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+			},
+		},
+
+		{
+			s: `select distinct field2 from network`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: true,
+				Fields: []*influxql.Field{
+					{Expr: &influxql.Distinct{Val: "field2"}},
+				},
+				Sources: []influxql.Source{&influxql.Measurement{Name: "network"}},
+			},
+		},
+
+		{
+			s: `select count(distinct field3) from metrics`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: false,
+				Fields: []*influxql.Field{
+					{Expr: &influxql.Call{Name: "count", Args: []influxql.Expr{&influxql.Distinct{Val: "field3"}}}},
+				},
+				Sources: []influxql.Source{&influxql.Measurement{Name: "metrics"}},
+			},
+		},
+
+		{
+			s: `select count(distinct field3), sum(field4) from metrics`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: false,
+				Fields: []*influxql.Field{
+					{Expr: &influxql.Call{Name: "count", Args: []influxql.Expr{&influxql.Distinct{Val: "field3"}}}},
+					{Expr: &influxql.Call{Name: "sum", Args: []influxql.Expr{&influxql.VarRef{Val: "field4"}}}},
+				},
+				Sources: []influxql.Source{&influxql.Measurement{Name: "metrics"}},
+			},
+		},
+
+		{
+			s: `select count(distinct(field3)), sum(field4) from metrics`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: false,
+				Fields: []*influxql.Field{
+					{Expr: &influxql.Call{Name: "count", Args: []influxql.Expr{&influxql.Call{Name: "distinct", Args: []influxql.Expr{&influxql.VarRef{Val: "field3"}}}}}},
+					{Expr: &influxql.Call{Name: "sum", Args: []influxql.Expr{&influxql.VarRef{Val: "field4"}}}},
+				},
+				Sources: []influxql.Source{&influxql.Measurement{Name: "metrics"}},
 			},
 		},
 
@@ -665,12 +755,12 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// CREATE CONTINUOUS QUERY ... INTO <measurement>
 		{
-			s: `CREATE CONTINUOUS QUERY myquery ON testdb BEGIN SELECT count() INTO measure1 FROM myseries GROUP BY time(5m) END`,
+			s: `CREATE CONTINUOUS QUERY myquery ON testdb BEGIN SELECT count(field1) INTO measure1 FROM myseries GROUP BY time(5m) END`,
 			stmt: &influxql.CreateContinuousQueryStatement{
 				Name:     "myquery",
 				Database: "testdb",
 				Source: &influxql.SelectStatement{
-					Fields:  []*influxql.Field{{Expr: &influxql.Call{Name: "count"}}},
+					Fields:  []*influxql.Field{{Expr: &influxql.Call{Name: "count", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}}}}},
 					Target:  &influxql.Target{Measurement: &influxql.Measurement{Name: "measure1"}},
 					Sources: []influxql.Source{&influxql.Measurement{Name: "myseries"}},
 					Dimensions: []*influxql.Dimension{
@@ -703,12 +793,12 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// CREATE CONTINUOUS QUERY ... INTO <retention-policy>.<measurement>
 		{
-			s: `CREATE CONTINUOUS QUERY myquery ON testdb BEGIN SELECT count() INTO "1h.policy1"."cpu.load" FROM myseries GROUP BY time(5m) END`,
+			s: `CREATE CONTINUOUS QUERY myquery ON testdb BEGIN SELECT count(field1) INTO "1h.policy1"."cpu.load" FROM myseries GROUP BY time(5m) END`,
 			stmt: &influxql.CreateContinuousQueryStatement{
 				Name:     "myquery",
 				Database: "testdb",
 				Source: &influxql.SelectStatement{
-					Fields: []*influxql.Field{{Expr: &influxql.Call{Name: "count"}}},
+					Fields: []*influxql.Field{{Expr: &influxql.Call{Name: "count", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}}}}},
 					Target: &influxql.Target{
 						Measurement: &influxql.Measurement{RetentionPolicy: "1h.policy1", Name: "cpu.load"},
 					},
@@ -1052,6 +1142,18 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `SELECT 1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 FROM myseries`, err: `unable to parse number at line 1, char 8`},
 		{s: `SELECT 10.5h FROM myseries`, err: `found h, expected FROM at line 1, char 12`},
 		{s: `SELECT derivative(field1), field1 FROM myseries`, err: `derivative cannot be used with other fields`},
+		{s: `SELECT distinct(field1), sum(field1) FROM myseries`, err: `aggregate function distinct() can not be combined with other functions or fields`},
+		{s: `SELECT distinct(field1), field2 FROM myseries`, err: `aggregate function distinct() can not be combined with other functions or fields`},
+		{s: `SELECT distinct(field1, field2) FROM myseries`, err: `distinct function can only have one argument`},
+		{s: `SELECT distinct() FROM myseries`, err: `distinct function requires at least one argument`},
+		{s: `SELECT distinct FROM myseries`, err: `found FROM, expected identifier at line 1, char 17`},
+		{s: `SELECT distinct field1, field2 FROM myseries`, err: `aggregate function distinct() can not be combined with other functions or fields`},
+		{s: `SELECT count(distinct) FROM myseries`, err: `found ), expected (, identifier at line 1, char 22`},
+		{s: `SELECT count(distinct field1, field2) FROM myseries`, err: `count(distinct <field>) can only have one argument`},
+		{s: `select count(distinct(too, many, arguments)) from myseries`, err: `count(distinct <field>) can only have one argument`},
+		{s: `select count() from myseries`, err: `invalid number of arguments for count, expected 1, got 0`},
+		{s: `select derivative() from myseries`, err: `invalid number of arguments for derivative, expected at least 1 but no more than 2, got 0`},
+		{s: `select derivative(mean(value), 1h, 3) from myseries`, err: `invalid number of arguments for derivative, expected at least 1 but no more than 2, got 3`},
 		{s: `DELETE`, err: `found EOF, expected FROM at line 1, char 8`},
 		{s: `DELETE FROM`, err: `found EOF, expected identifier at line 1, char 13`},
 		{s: `DELETE FROM myseries WHERE`, err: `found EOF, expected identifier, string, number, bool at line 1, char 28`},
@@ -1136,7 +1238,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		if !reflect.DeepEqual(tt.err, errstring(err)) {
 			t.Errorf("%d. %q: error mismatch:\n  exp=%s\n  got=%s\n\n", i, tt.s, tt.err, err)
 		} else if tt.err == "" && !reflect.DeepEqual(tt.stmt, stmt) {
-			t.Logf("exp=%s\ngot=%s\n", mustMarshalJSON(tt.stmt), mustMarshalJSON(stmt))
+			t.Logf("\nexp=%s\ngot=%s\n", mustMarshalJSON(tt.stmt), mustMarshalJSON(stmt))
 			t.Errorf("%d. %q\n\nstmt mismatch:\n\nexp=%#v\n\ngot=%#v\n\n", i, tt.s, tt.stmt, stmt)
 		}
 	}

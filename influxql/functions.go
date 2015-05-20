@@ -56,9 +56,18 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 	// derivative can take a nested aggregate function, everything else expects
 	// a variable reference as the first arg
 	if !strings.HasSuffix(c.Name, "derivative") {
-		// Ensure the argument is a variable reference.
-		_, ok := c.Args[0].(*VarRef)
-		if !ok {
+		// Ensure the argument is appropriate for the aggregate function.
+		switch fc := c.Args[0].(type) {
+		case *VarRef:
+		case *Distinct:
+			if c.Name != "count" {
+				return nil, fmt.Errorf("expected field argument in %s()", c.Name)
+			}
+		case *Call:
+			if fc.Name != "distinct" {
+				return nil, fmt.Errorf("expected field argument in %s()", c.Name)
+			}
+		default:
 			return nil, fmt.Errorf("expected field argument in %s()", c.Name)
 		}
 	}
@@ -66,7 +75,17 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 	// Retrieve map function by name.
 	switch c.Name {
 	case "count":
+		if _, ok := c.Args[0].(*Distinct); ok {
+			return MapCountDistinct, nil
+		}
+		if c, ok := c.Args[0].(*Call); ok {
+			if c.Name == "distinct" {
+				return MapCountDistinct, nil
+			}
+		}
 		return MapCount, nil
+	case "distinct":
+		return MapDistinct, nil
 	case "sum":
 		return MapSum, nil
 	case "mean":
@@ -108,7 +127,17 @@ func InitializeReduceFunc(c *Call) (ReduceFunc, error) {
 	// Retrieve reduce function by name.
 	switch c.Name {
 	case "count":
+		if _, ok := c.Args[0].(*Distinct); ok {
+			return ReduceCountDistinct, nil
+		}
+		if c, ok := c.Args[0].(*Call); ok {
+			if c.Name == "distinct" {
+				return ReduceCountDistinct, nil
+			}
+		}
 		return ReduceSum, nil
+	case "distinct":
+		return ReduceDistinct, nil
 	case "sum":
 		return ReduceSum, nil
 	case "mean":
@@ -173,6 +202,12 @@ func InitializeUnmarshaller(c *Call) (UnmarshalFunc, error) {
 			err := json.Unmarshal(b, &o)
 			return &o, err
 		}, nil
+	case "distinct":
+		return func(b []byte) (interface{}, error) {
+			var val distinctValues
+			err := json.Unmarshal(b, &val)
+			return val, err
+		}, nil
 	case "first":
 		return func(b []byte) (interface{}, error) {
 			var o firstLastMapOutput
@@ -216,6 +251,168 @@ func MapCount(itr Iterator) interface{} {
 		return n
 	}
 	return nil
+}
+
+type distinctValues []interface{}
+
+func (d distinctValues) Len() int      { return len(d) }
+func (d distinctValues) Swap(i, j int) { d[i], d[j] = d[j], d[i] }
+func (d distinctValues) Less(i, j int) bool {
+	// Sort by type if types match
+	{
+		d1, ok1 := d[i].(float64)
+		d2, ok2 := d[j].(float64)
+		if ok1 && ok2 {
+			return d1 < d2
+		}
+	}
+
+	{
+		d1, ok1 := d[i].(uint64)
+		d2, ok2 := d[j].(uint64)
+		if ok1 && ok2 {
+			return d1 < d2
+		}
+	}
+
+	{
+		d1, ok1 := d[i].(bool)
+		d2, ok2 := d[j].(bool)
+		if ok1 && ok2 {
+			return d1 == false && d2 == true
+		}
+	}
+
+	{
+		d1, ok1 := d[i].(string)
+		d2, ok2 := d[j].(string)
+		if ok1 && ok2 {
+			return d1 < d2
+		}
+	}
+
+	// Types did not match, need to sort based on arbitrary weighting of type
+	const (
+		intWeight = iota
+		floatWeight
+		boolWeight
+		stringWeight
+	)
+
+	infer := func(val interface{}) (int, float64) {
+		switch v := val.(type) {
+		case uint64:
+			return intWeight, float64(v)
+		case float64:
+			return floatWeight, v
+		case bool:
+			return boolWeight, 0
+		case string:
+			return stringWeight, 0
+		}
+		panic("unreachable code")
+	}
+
+	w1, n1 := infer(d[i])
+	w2, n2 := infer(d[j])
+
+	// If we had "numeric" data, use that for comparison
+	if n1 != n2 && (w1 == intWeight && w2 == floatWeight) || (w1 == floatWeight && w2 == intWeight) {
+		return n1 < n2
+	}
+
+	return w1 < w2
+}
+
+// MapDistinct computes the unique values in an iterator.
+func MapDistinct(itr Iterator) interface{} {
+	var index = make(map[interface{}]struct{})
+
+	for _, time, value := itr.Next(); time != 0; _, time, value = itr.Next() {
+		index[value] = struct{}{}
+	}
+
+	if len(index) == 0 {
+		return nil
+	}
+
+	results := make(distinctValues, len(index))
+	var i int
+	for value, _ := range index {
+		results[i] = value
+		i++
+	}
+	return results
+}
+
+// ReduceDistinct finds the unique values for each key.
+func ReduceDistinct(values []interface{}) interface{} {
+	var index = make(map[interface{}]struct{})
+
+	// index distinct values from each mapper
+	for _, v := range values {
+		if v == nil {
+			continue
+		}
+		d, ok := v.(distinctValues)
+		if !ok {
+			msg := fmt.Sprintf("expected distinctValues, got: %T", v)
+			panic(msg)
+		}
+		for _, distinctValue := range d {
+			index[distinctValue] = struct{}{}
+		}
+	}
+
+	// convert map keys to an array
+	results := make(distinctValues, len(index))
+	var i int
+	for k, _ := range index {
+		results[i] = k
+		i++
+	}
+	if len(results) > 0 {
+		sort.Sort(results)
+		return results
+	}
+	return nil
+}
+
+// MapCountDistinct computes the unique count of values in an iterator.
+func MapCountDistinct(itr Iterator) interface{} {
+	var index = make(map[interface{}]struct{})
+
+	for _, time, value := itr.Next(); time != 0; _, time, value = itr.Next() {
+		index[value] = struct{}{}
+	}
+
+	if len(index) == 0 {
+		return nil
+	}
+
+	return index
+}
+
+// ReduceCountDistinct finds the unique counts of values.
+func ReduceCountDistinct(values []interface{}) interface{} {
+	var index = make(map[interface{}]struct{})
+
+	// index distinct values from each mapper
+	for _, v := range values {
+		if v == nil {
+			continue
+		}
+		d, ok := v.(map[interface{}]struct{})
+		if !ok {
+			msg := fmt.Sprintf("expected map[interface{}]struct{}, got: %T", v)
+			panic(msg)
+		}
+		for distinctCountValue, _ := range d {
+			index[distinctCountValue] = struct{}{}
+		}
+	}
+
+	return len(index)
 }
 
 // MapSum computes the summation of values in an iterator.
@@ -776,7 +973,7 @@ func ReducePercentile(percentile float64) ReduceFunc {
 // IsNumeric returns whether a given aggregate can only be run on numeric fields.
 func IsNumeric(c *Call) bool {
 	switch c.Name {
-	case "count", "first", "last":
+	case "count", "first", "last", "distinct":
 		return false
 	default:
 		return true

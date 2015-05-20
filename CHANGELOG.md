@@ -4,11 +4,15 @@
 - [#1822](https://github.com/influxdb/influxdb/issues/1822): Wire up DERIVATIVE aggregate
 - [#1477](https://github.com/influxdb/influxdb/issues/1477): Wire up non_negative_derivative function
 - [#2557](https://github.com/influxdb/influxdb/issues/2557): Fix false positive error with `GROUP BY time`
+- [#1891](https://github.com/influxdb/influxdb/issues/1891): Wire up COUNT DISTINCT aggregate
 
 ### Bugfixes
 - [#2545](https://github.com/influxdb/influxdb/pull/2545): Use "value" as the field name for graphite input. Thanks @cannium.
 - [#2558](https://github.com/influxdb/influxdb/pull/2558): Fix client response check - thanks @vladlopes!
 - [#2566](https://github.com/influxdb/influxdb/pull/2566): Wait until each data write has been commited by the Raft cluster.
+- [#2602](https://github.com/influxdb/influxdb/pull/2602): CLI execute command exits without cleaning up liner package.
+- [#2610](https://github.com/influxdb/influxdb/pull/2610): Fix shard group creation
+- [#2596](https://github.com/influxdb/influxdb/pull/2596): RC30: `panic: runtime error: index out of range` when insert data points.
 
 ## PRs
 - [#2569](https://github.com/influxdb/influxdb/pull/2569): Add derivative functions
@@ -25,6 +29,7 @@ This release has a breaking API change for writes -- the field previously called
 - [#2186](https://github.com/influxdb/influxdb/pull/2186): The default status code for queries is now `200 OK`
 - [#2298](https://github.com/influxdb/influxdb/pull/2298): Successful writes now return a status code of `204 No Content` - thanks @neonstalwart!
 - [#2549](https://github.com/influxdb/influxdb/pull/2549): Raft election timeout to 5 seconds, so system is more forgiving of CPU loads.
+- [#2568](https://github.com/influxdb/influxdb/pull/2568): Wire up SELECT DISTINCT.
 
 ### Bugfixes
 - [#2535](https://github.com/influxdb/influxdb/pull/2535): Return exit status 0 if influxd already running. Thanks @haim0n.
