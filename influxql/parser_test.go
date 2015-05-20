@@ -718,10 +718,6 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// DROP SERIES statement
 		{
-			s:    `DROP SERIES 1`,
-			stmt: &influxql.DropSeriesStatement{SeriesID: 1},
-		},
-		{
 			s:    `DROP SERIES FROM src`,
 			stmt: &influxql.DropSeriesStatement{Source: &influxql.Measurement{Name: "src"}},
 		},
@@ -1158,7 +1154,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `DELETE FROM`, err: `found EOF, expected identifier at line 1, char 13`},
 		{s: `DELETE FROM myseries WHERE`, err: `found EOF, expected identifier, string, number, bool at line 1, char 28`},
 		{s: `DROP MEASUREMENT`, err: `found EOF, expected identifier at line 1, char 18`},
-		{s: `DROP SERIES`, err: `found EOF, expected number at line 1, char 13`},
+		{s: `DROP SERIES`, err: `found EOF, expected FROM, WHERE at line 1, char 13`},
 		{s: `DROP SERIES FROM`, err: `found EOF, expected identifier at line 1, char 18`},
 		{s: `DROP SERIES FROM src WHERE`, err: `found EOF, expected identifier, string, number, bool at line 1, char 28`},
 		{s: `SHOW CONTINUOUS`, err: `found EOF, expected QUERIES at line 1, char 17`},
@@ -1530,10 +1526,6 @@ func TestDropSeriesStatement_String(t *testing.T) {
 		s    string
 		stmt influxql.Statement
 	}{
-		{
-			s:    `DROP SERIES 1`,
-			stmt: &influxql.DropSeriesStatement{SeriesID: 1},
-		},
 		{
 			s:    `DROP SERIES FROM src`,
 			stmt: &influxql.DropSeriesStatement{Source: &influxql.Measurement{Name: "src"}},
