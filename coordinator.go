@@ -51,16 +51,16 @@ type Coordinator struct {
 	shardWriters []ShardWriter
 }
 
-// ShardMapping contiains a mapping of a shards to a points.
-type ShardMapping struct {
-	Points map[uint64][]data.Point   // The points associated with a shard ID
-	Shards map[uint64]meta.ShardInfo // The shards that have been mapped, keyed by shard ID
-}
-
 func NewCoordinator() *Coordinator {
 	return &Coordinator{
 		closing: make(chan struct{}),
 	}
+}
+
+// ShardMapping contains a mapping of a shards to a points.
+type ShardMapping struct {
+	Points map[uint64][]data.Point   // The points associated with a shard ID
+	Shards map[uint64]meta.ShardInfo // The shards that have been mapped, keyed by shard ID
 }
 
 // NewShardMapping creates an empty ShardMapping
@@ -133,21 +133,20 @@ func (c *Coordinator) MapShards(wp *WritePointsRequest) (*ShardMapping, error) {
 
 	// holds all the shard groups and shards that are required for writes
 	for t := range timeRanges {
-		g, err := c.MetaStore.CreateShardGroupIfNotExists(wp.Database, wp.RetentionPolicy, t)
+		sg, err := c.MetaStore.CreateShardGroupIfNotExists(wp.Database, wp.RetentionPolicy, t)
 		if err != nil {
 			return nil, err
 		}
-		timeRanges[t] = g
+		timeRanges[t] = sg
 	}
 
-	shardMapping := NewShardMapping()
+	mapping := NewShardMapping()
 	for _, p := range wp.Points {
-		g := timeRanges[p.Time.Truncate(rp.ShardGroupDuration)]
-		sid := p.HashID()
-		shardInfo := g.Shards[sid%uint64(len(g.Shards))]
-		shardMapping.MapPoint(shardInfo, p)
+		sg := timeRanges[p.Time.Truncate(rp.ShardGroupDuration)]
+		sh := sg.ShardFor(p)
+		mapping.MapPoint(sh, p)
 	}
-	return shardMapping, nil
+	return mapping, nil
 }
 
 // Write is coordinates multiple writes across local and remote data nodes
