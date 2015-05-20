@@ -13,6 +13,7 @@
 - [#2602](https://github.com/influxdb/influxdb/pull/2602): CLI execute command exits without cleaning up liner package.
 - [#2610](https://github.com/influxdb/influxdb/pull/2610): Fix shard group creation
 - [#2596](https://github.com/influxdb/influxdb/pull/2596): RC30: `panic: runtime error: index out of range` when insert data points.
+- [#2592](https://github.com/influxdb/influxdb/pull/2592): Should return an error if user attempts to group by a field.
 
 ## PRs
 - [#2569](https://github.com/influxdb/influxdb/pull/2569): Add derivative functions

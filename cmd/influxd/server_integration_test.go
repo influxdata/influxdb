@@ -529,6 +529,32 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","count"],"values":[["1970-01-01T00:00:01Z",10],["1970-01-01T00:00:02Z",10],["1970-01-01T00:00:03Z",10],["1970-01-01T00:00:04Z",10],["1970-01-01T00:00:05Z",7],["1970-01-01T00:00:06Z",3]]}]}]}`,
 		},
 
+		// Test group by
+		{
+			reset: true,
+			name:  "GROUP by time",
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
+				{"name": "cpu", "time": "2000-01-01T00:00:00Z", "tags": {"host": "server01"}, "fields": {"value": 10}},
+				{"name": "cpu", "time": "2000-01-01T01:00:00Z", "tags": {"host": "server02"}, "fields": {"value": 10}},
+				{"name": "cpu", "time": "2000-01-01T02:00:00Z", "tags": {"host": "server03"}, "fields": {"value": 10}}
+			]}`,
+			query:    `SELECT count(value) FROM cpu where time >= '2000-01-01T00:00:00Z' and time <= '2000-01-01T02:00:00Z' group by time(1h)`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","count"],"values":[["2000-01-01T00:00:00Z",1],["2000-01-01T01:00:00Z",1],["2000-01-01T02:00:00Z",1]]}]}]}`,
+		},
+		{
+			name:     "GROUP by tag",
+			query:    `SELECT count(value) FROM cpu where time >= '2000-01-01T00:00:00Z' and time <= '2000-01-01T02:00:00Z' group by host`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","count"],"values":[["2000-01-01T00:00:00Z",1]]},{"name":"cpu","tags":{"host":"server02"},"columns":["time","count"],"values":[["2000-01-01T00:00:00Z",1]]},{"name":"cpu","tags":{"host":"server03"},"columns":["time","count"],"values":[["2000-01-01T00:00:00Z",1]]}]}]}`,
+		},
+		{
+			name:     "GROUP by field",
+			query:    `SELECT count(value) FROM cpu where time >= '2000-01-01T00:00:00Z' and time <= '2000-01-01T02:00:00Z' group by value`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"error":"can not use field in group by clause: value"}]}`,
+		},
+
 		// Limit and offset
 		{
 			reset:    true,
