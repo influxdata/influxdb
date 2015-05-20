@@ -21,8 +21,14 @@ var (
 	// ErrServerOpen is returned when opening an already open server.
 	ErrServerOpen = errors.New("server already open")
 
+	// ErrDropServerConflict is returned when removing the server would result in data loss
+	ErrDropServerConflict = errors.New("removing this server would result in data loss")
+
 	// ErrServerClosed is returned when closing an already closed server.
 	ErrServerClosed = errors.New("server already closed")
+
+	// ErrServernotFound is returned when removing/adding a server and it is not found
+	ErrServerNotFound = errors.New("server not found")
 
 	// ErrPathRequired is returned when opening a server without a path.
 	ErrPathRequired = errors.New("path required")
@@ -43,8 +49,8 @@ var (
 	// attempting to join another data node when no data nodes exist yet
 	ErrDataNodeNotFound = errors.New("data node not found")
 
-	// ErrDataNodeRequired is returned when using a blank data node id.
-	ErrDataNodeRequired = errors.New("data node required")
+	// ErrServerNodeIDRequired is returned when using a zero server node id.
+	ErrServerNodeIDRequired = errors.New("server node id must be greater than 0")
 
 	// ErrDatabaseNameRequired is returned when creating a database without a name.
 	ErrDatabaseNameRequired = errors.New("database name required")

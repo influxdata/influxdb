@@ -68,6 +68,8 @@ type Server struct {
 	index  uint64           // highest broadcast index seen
 	errors map[uint64]error // message errors
 
+	DropNode func() // give reference to shut down the node
+
 	meta *metastore // metadata store
 
 	dataNodes map[uint64]*DataNode // data nodes by id
@@ -264,7 +266,7 @@ func (s *Server) close() error {
 	}
 
 	if s.client != nil {
-		s.client.Close()
+		_ = s.client.Close()
 		s.client = nil
 	}
 
@@ -324,7 +326,7 @@ func (s *Server) load() error {
 						s.shards[sh.ID] = sh
 
 						// Only open shards owned by the server.
-						if !sh.HasDataNodeID(s.id) {
+						if !sh.hasDataNodeID(s.id) {
 							continue
 						}
 
@@ -392,7 +394,7 @@ func (s *Server) StartSelfMonitoring(database, retention string, interval time.D
 			tags["shardID"] = strconv.FormatUint(s.id, 10)
 			s.mu.RLock()
 			for _, sh := range s.shards {
-				if !sh.HasDataNodeID(s.id) {
+				if !sh.hasDataNodeID(s.id) {
 					// No stats for non-local shards.
 					continue
 				}
@@ -894,6 +896,17 @@ func (s *Server) DataNodes() (a []*DataNode) {
 	return
 }
 
+// DropServer removes a server from the cluster
+// Curently it will drop both a broker and/or a data node
+func (s *Server) DropServer(nodeID uint64) error {
+	if nodeID == 0 {
+		return ErrServerNodeIDRequired
+	}
+	c := &dropServerCommand{NodeID: nodeID}
+	_, err := s.broadcast(dropServerMessageType, c)
+	return err
+}
+
 // CreateDataNode creates a new data node with a given URL.
 func (s *Server) CreateDataNode(u *url.URL) error {
 	c := &createDataNodeCommand{URL: u.String()}
@@ -997,6 +1010,51 @@ func (s *Server) CreateDatabaseIfNotExists(name string) error {
 	if err := s.CreateDatabase(name); err != nil && err != ErrDatabaseExists {
 		return err
 	}
+
+	return nil
+}
+
+func (s *Server) applyDropServer(m *messaging.Message) error {
+	var c dropServerCommand
+	mustUnmarshalJSON(m.Data, &c)
+
+	// Remove data node reference from every shard in meta store.
+	for _, database := range s.databases {
+		for _, policy := range database.policies {
+			for _, shardGroup := range policy.shardGroups {
+				for _, shard := range shardGroup.Shards {
+					shard.dropDataNodeID(c.NodeID)
+					// If there are no data nodes left, close the shard
+					if len(shard.DataNodeIDs) == 0 {
+						// TODO if this happens, we should replicate the data out or show a warning that we just lost data
+						// as this is a sign that no other data nodes have this shard
+						shard.close()
+						// Remove it from the top level map
+						delete(s.shards, shard.ID)
+					} else {
+						// Update the server reference
+						s.shards[shard.ID] = shard
+					}
+				}
+			}
+		}
+	}
+
+	// Remove data node from the current server
+	delete(s.dataNodes, c.NodeID)
+
+	// TODO: Update the meta store for each shard that a datanode has been removed
+
+	// TODO: Persist these changes to the meta store
+
+	// TODO: Brokes need to expire data node
+
+	// am I the server being dropped?
+	if c.NodeID == s.id {
+		go s.DropNode()
+		return nil
+	}
+
 	return nil
 }
 
@@ -1187,7 +1245,7 @@ func (s *Server) applyCreateShardGroupIfNotExists(m *messaging.Message) error {
 	// Open shards assigned to this server.
 	for _, sh := range g.Shards {
 		// Ignore if this server is not assigned.
-		if !sh.HasDataNodeID(s.id) {
+		if !sh.hasDataNodeID(s.id) {
 			continue
 		}
 
@@ -2232,6 +2290,8 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *User, ch
 				res = s.executeDropDatabaseStatement(stmt, user)
 			case *influxql.ShowDatabasesStatement:
 				res = s.executeShowDatabasesStatement(stmt, user)
+			case *influxql.DropServerStatement:
+				res = s.executeDropServerStatement(stmt, user)
 			case *influxql.ShowServersStatement:
 				res = s.executeShowServersStatement(stmt, user)
 			case *influxql.CreateUserStatement:
@@ -2510,6 +2570,10 @@ func (s *Server) executeShowDatabasesStatement(q *influxql.ShowDatabasesStatemen
 		row.Values = append(row.Values, []interface{}{name})
 	}
 	return &Result{Series: []*influxql.Row{row}}
+}
+
+func (s *Server) executeDropServerStatement(q *influxql.DropServerStatement, user *User) *Result {
+	return &Result{Err: s.DropServer(q.NodeID)}
 }
 
 func (s *Server) executeShowServersStatement(q *influxql.ShowServersStatement, user *User) *Result {
@@ -3395,7 +3459,7 @@ func (s *Server) DiagnosticsAsRows() []*influxql.Row {
 			nodes = append(nodes, strconv.FormatUint(n, 10))
 		}
 		var path string
-		if sh.HasDataNodeID(s.id) {
+		if sh.hasDataNodeID(s.id) {
 			path = sh.store.Path()
 		}
 		shardsRow.Values = append(shardsRow.Values, []interface{}{now, strconv.FormatUint(sh.ID, 10),
@@ -3444,6 +3508,8 @@ func (s *Server) processor(conn MessagingConn, done chan struct{}) {
 			// Process message.
 			var err error
 			switch m.Type {
+			case dropServerMessageType:
+				err = s.applyDropServer(m)
 			case createDataNodeMessageType:
 				err = s.applyCreateDataNode(m)
 			case deleteDataNodeMessageType:
