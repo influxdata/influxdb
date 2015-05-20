@@ -138,7 +138,7 @@ func NewMeasurement(name string) *Measurement {
 	}
 }
 
-// HasTagKey returns true if at least one eries in this measurement has written a value for the passed in tag key
+// HasTagKey returns true if at least one series in this measurement has written a value for the passed in tag key
 func (m *Measurement) HasTagKey(k string) bool {
 	return m.seriesByTagKeyValue[k] != nil
 }
