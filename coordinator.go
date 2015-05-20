@@ -143,7 +143,7 @@ func (c *Coordinator) MapShards(wp *WritePointsRequest) (*ShardMapping, error) {
 	shardMapping := NewShardMapping()
 	for _, p := range wp.Points {
 		g := timeRanges[p.Time.Truncate(rp.ShardGroupDuration)]
-		sid := p.SeriesID()
+		sid := p.HashID()
 		shardInfo := g.Shards[sid%uint64(len(g.Shards))]
 		shardMapping.MapPoint(shardInfo, p)
 	}

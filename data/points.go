@@ -14,7 +14,7 @@ type Point struct {
 	Fields map[string]interface{}
 }
 
-func (p *Point) SeriesID() uint64 {
+func (p *Point) HashID() uint64 {
 
 	// <measurementName>|<tagKey>|<tagKey>|<tagValue>|<tagValue>
 	// cpu|host|servera
