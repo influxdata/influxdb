@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/boltdb/bolt"
-	"github.com/influxdb/influxdb/data"
 	"github.com/influxdb/influxdb/messaging"
 )
 
@@ -268,14 +267,6 @@ func (s *Shard) HasDataNodeID(id uint64) bool {
 		}
 	}
 	return false
-}
-
-func (s *Shard) Write(r *WritePointsRequest) error {
-	return nil
-}
-
-func (s *Shard) Read(timestamp time.Time) ([]data.Point, error) {
-	return nil, nil
 }
 
 // readSeries reads encoded series data from a shard.
