@@ -5,6 +5,7 @@
 - [#1477](https://github.com/influxdb/influxdb/issues/1477): Wire up non_negative_derivative function
 - [#2557](https://github.com/influxdb/influxdb/issues/2557): Fix false positive error with `GROUP BY time`
 - [#1891](https://github.com/influxdb/influxdb/issues/1891): Wire up COUNT DISTINCT aggregate
+- [#1989](https://github.com/influxdb/influxdb/issues/1989): Implement `SELECT tagName FROM m`
 
 ### Bugfixes
 - [#2545](https://github.com/influxdb/influxdb/pull/2545): Use "value" as the field name for graphite input. Thanks @cannium.
@@ -14,9 +15,11 @@
 - [#2610](https://github.com/influxdb/influxdb/pull/2610): Fix shard group creation
 - [#2596](https://github.com/influxdb/influxdb/pull/2596): RC30: `panic: runtime error: index out of range` when insert data points.
 - [#2592](https://github.com/influxdb/influxdb/pull/2592): Should return an error if user attempts to group by a field.
+- [#2499](https://github.com/influxdb/influxdb/pull/2499): Issuing a select query with tag as a values causes panic.
 
 ## PRs
 - [#2569](https://github.com/influxdb/influxdb/pull/2569): Add derivative functions
+- [#2598](https://github.com/influxdb/influxdb/pull/2598): Implement tag support in SELECT statements
 
 ## v0.9.0-rc30 [2015-05-12]
 
