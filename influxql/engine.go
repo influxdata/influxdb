@@ -697,12 +697,12 @@ func (m *MapReduceJob) processRawResults(values []*rawQueryMapOutput) *Row {
 	hasTime := false
 	for i, n := range selectNames {
 		if n == "time" {
+			// Swap time to the first argument for names
 			if i != 0 {
-				tmp := selectNames[0]
-				selectNames[0] = "time"
-				selectNames[i] = tmp
+				selectNames[0], selectNames[i] = selectNames[i], selectNames[0]
 			}
 			hasTime = true
+      break
 		}
 	}
 
@@ -715,13 +715,7 @@ func (m *MapReduceJob) processRawResults(values []*rawQueryMapOutput) *Row {
 	selectFields := make([]string, 0, len(selectNames))
 
 	for _, n := range selectNames {
-		found := false
-		for t, _ := range m.TagSet.Tags {
-			if n == t {
-				found = true
-			}
-		}
-		if !found {
+		if _, found := m.TagSet.Tags[n]; !found {
 			selectFields = append(selectFields, n)
 		}
 	}
