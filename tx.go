@@ -93,6 +93,16 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 			}
 		}
 
+		// Validate that group by is not a field
+		for _, d := range stmt.Dimensions {
+			switch e := d.Expr.(type) {
+			case *influxql.VarRef:
+				if !m.HasTagKey(e.Val) {
+					return nil, fmt.Errorf("can not use field in group by clause: %s", e.Val)
+				}
+			}
+		}
+
 		validateType := func(aname, fname string, t influxql.DataType) error {
 			if t != influxql.Float && t != influxql.Integer {
 				return fmt.Errorf("aggregate '%s' requires numerical field values. Field '%s' is of type %s",
