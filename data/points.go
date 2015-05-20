@@ -6,6 +6,29 @@ import (
 	"time"
 )
 
+// PayloadWriter accepts a WritePointRequest from client facing endpoints such as
+// HTTP JSON API, Collectd, Graphite, OpenTSDB, etc.
+type PointsWriter interface {
+	Write(p *WritePointsRequest) error
+}
+
+// WritePointsRequest represents a request to write point data to the cluster
+type WritePointsRequest struct {
+	Database         string
+	RetentionPolicy  string
+	ConsistencyLevel ConsistencyLevel
+	Points           []Point
+}
+
+func (t *WritePointsRequest) AddPoint(name string, value interface{}, timestamp time.Time, tags map[string]string) {
+	t.Points = append(t.Points, Point{
+		Name:   name,
+		Fields: map[string]interface{}{"value": value},
+		Time:   timestamp,
+		Tags:   tags,
+	})
+}
+
 // Point defines the values that will be written to the database
 type Point struct {
 	Name   string

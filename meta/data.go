@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/influxdb/influxdb/data"
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta/internal"
 )
@@ -177,10 +176,9 @@ func (sgi ShardGroupInfo) Clone() ShardGroupInfo {
 	return other
 }
 
-// ShardFor returns the ShardInfo for a Point
-func (s *ShardGroupInfo) ShardFor(p data.Point) ShardInfo {
-	sid := p.HashID()
-	return s.Shards[sid%uint64(len(s.Shards))]
+// ShardFor returns the ShardInfo for a Point hash
+func (s *ShardGroupInfo) ShardFor(hash uint64) ShardInfo {
+	return s.Shards[hash%uint64(len(s.Shards))]
 }
 
 // ShardInfo represents metadata about a shard.

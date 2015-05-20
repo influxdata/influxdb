@@ -76,29 +76,6 @@ type QueryRequest struct {
 	ChunkSize int
 }
 
-// PayloadWriter accepts a WritePointRequest from client facing endpoints such as
-// HTTP JSON API, Collectd, Graphite, OpenTSDB, etc.
-type PointsWriter interface {
-	Write(p *WritePointsRequest) error
-}
-
-// WritePointsRequest represents a request to write point data to the cluster
-type WritePointsRequest struct {
-	Database         string
-	RetentionPolicy  string
-	ConsistencyLevel ConsistencyLevel
-	Points           []data.Point
-}
-
-func (t *WritePointsRequest) AddPoint(name string, value interface{}, timestamp time.Time, tags map[string]string) {
-	t.Points = append(t.Points, data.Point{
-		Name:   name,
-		Fields: map[string]interface{}{"value": value},
-		Time:   timestamp,
-		Tags:   tags,
-	})
-}
-
 // Server represents a collection of metadata and raw metric data.
 type Server struct {
 	mu       sync.RWMutex
@@ -156,10 +133,10 @@ type Server struct {
 	services []Service
 
 	// Handles write request for local and remote nodes
-	pw PointsWriter
+	pw data.PointsWriter
 
 	// Handles queries for local and remote nodes
-	qe QueryExecutor
+	//qe QueryExecutor
 }
 
 // NewServer returns a new instance of Server.
@@ -174,8 +151,7 @@ func NewServer() *Server {
 		shards: make(map[uint64]*Shard),
 		stats:  NewStats("server"),
 		Logger: log.New(os.Stderr, "[server] ", log.LstdFlags),
-		pw:     &Coordinator{},
-		qe:     &Coordinator{},
+		pw:     &data.Coordinator{},
 	}
 	// Server will always return with authentication enabled.
 	// This ensures that disabling authentication must be an explicit decision.

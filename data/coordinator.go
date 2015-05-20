@@ -1,11 +1,10 @@
-package influxdb
+package data
 
 import (
 	"errors"
 	"sync"
 	"time"
 
-	"github.com/influxdb/influxdb/data"
 	"github.com/influxdb/influxdb/meta"
 )
 
@@ -41,13 +40,18 @@ var (
 	ErrWriteFailed = errors.New("write failed")
 )
 
+type ShardGroupAccessor interface {
+	RetentionPolicy(database, policy string) (*meta.RetentionPolicyInfo, error)
+	CreateShardGroupIfNotExists(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error)
+}
+
 // Coordinator handle queries and writes across multiple local and remote
 // data nodes.
 type Coordinator struct {
 	mu      sync.RWMutex
 	closing chan struct{}
 
-	MetaStore    MetaStore
+	MetaStore    ShardGroupAccessor
 	shardWriters []ShardWriter
 }
 
@@ -59,23 +63,23 @@ func NewCoordinator() *Coordinator {
 
 // ShardMapping contains a mapping of a shards to a points.
 type ShardMapping struct {
-	Points map[uint64][]data.Point   // The points associated with a shard ID
+	Points map[uint64][]Point        // The points associated with a shard ID
 	Shards map[uint64]meta.ShardInfo // The shards that have been mapped, keyed by shard ID
 }
 
 // NewShardMapping creates an empty ShardMapping
 func NewShardMapping() *ShardMapping {
 	return &ShardMapping{
-		Points: map[uint64][]data.Point{},
+		Points: map[uint64][]Point{},
 		Shards: map[uint64]meta.ShardInfo{},
 	}
 }
 
 // MapPoint maps a point to shard
-func (s *ShardMapping) MapPoint(shardInfo meta.ShardInfo, p data.Point) {
+func (s *ShardMapping) MapPoint(shardInfo meta.ShardInfo, p Point) {
 	points, ok := s.Points[shardInfo.ID]
 	if !ok {
-		s.Points[shardInfo.ID] = []data.Point{p}
+		s.Points[shardInfo.ID] = []Point{p}
 	} else {
 		s.Points[shardInfo.ID] = append(points, p)
 	}
@@ -86,7 +90,7 @@ func (s *ShardMapping) MapPoint(shardInfo meta.ShardInfo, p data.Point) {
 // It should return the number of times the set of points was written or an error
 // if the write failed.
 type ShardWriter interface {
-	WriteShard(shardID uint64, points []data.Point) (int, error)
+	WriteShard(shardID uint64, points []Point) (int, error)
 }
 
 func (c *Coordinator) Open() error {
@@ -143,7 +147,7 @@ func (c *Coordinator) MapShards(wp *WritePointsRequest) (*ShardMapping, error) {
 	mapping := NewShardMapping()
 	for _, p := range wp.Points {
 		sg := timeRanges[p.Time.Truncate(rp.ShardGroupDuration)]
-		sh := sg.ShardFor(p)
+		sh := sg.ShardFor(p.HashID())
 		mapping.MapPoint(sh, p)
 	}
 	return mapping, nil
@@ -161,7 +165,7 @@ func (c *Coordinator) Write(p *WritePointsRequest) error {
 	// as one fails.
 	ch := make(chan error, len(shardMappings.Points))
 	for shardID, points := range shardMappings.Points {
-		go func(shard meta.ShardInfo, points []data.Point) {
+		go func(shard meta.ShardInfo, points []Point) {
 			ch <- c.writeToShards(shard, p.ConsistencyLevel, points)
 		}(shardMappings.Shards[shardID], points)
 	}
@@ -181,7 +185,7 @@ func (c *Coordinator) Write(p *WritePointsRequest) error {
 
 // writeToShards writes points to a shard and ensures a write consistency level has been met.  If the write
 // partially succceds, ErrPartialWrite is returned.
-func (c *Coordinator) writeToShards(shard meta.ShardInfo, consistency ConsistencyLevel, points []data.Point) error {
+func (c *Coordinator) writeToShards(shard meta.ShardInfo, consistency ConsistencyLevel, points []Point) error {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -210,7 +214,7 @@ func (c *Coordinator) writeToShards(shard meta.ShardInfo, consistency Consistenc
 
 	for _, w := range c.shardWriters {
 		// write to each ShardWriter (local and remote), in parallel
-		go func(w ShardWriter, shardID uint64, points []data.Point) {
+		go func(w ShardWriter, shardID uint64, points []Point) {
 			wrote, err := w.WriteShard(shardID, points)
 			ch <- result{wrote, err}
 		}(w, shard.ID, points)
@@ -245,8 +249,4 @@ func (c *Coordinator) writeToShards(shard meta.ShardInfo, consistency Consistenc
 	}
 
 	return ErrWriteFailed
-}
-
-func (c *Coordinator) Execute(q *QueryRequest) (chan *Result, error) {
-	return nil, nil
 }
