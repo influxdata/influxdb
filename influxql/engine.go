@@ -702,7 +702,7 @@ func (m *MapReduceJob) processRawResults(values []*rawQueryMapOutput) *Row {
 				selectNames[0], selectNames[i] = selectNames[i], selectNames[0]
 			}
 			hasTime = true
-      break
+			break
 		}
 	}
 
