@@ -750,13 +750,13 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			name:     "count distinct select tag",
 			query:    `SELECT count(distinct host) FROM cpu`,
 			queryDb:  "%DB%",
-			expected: `{"results":[{"error":"host isn't a field on measurement cpu"}]}`,
+			expected: `{"results":[{"error":"host isn't a field on measurement cpu; count(distinct) on tags isn't yet supported"}]}`,
 		},
 		{
 			name:     "count distinct as call select tag",
 			query:    `SELECT count(distinct(host)) FROM cpu`,
 			queryDb:  "%DB%",
-			expected: `{"results":[{"error":"host isn't a field on measurement cpu"}]}`,
+			expected: `{"results":[{"error":"host isn't a field on measurement cpu; count(distinct) on tags isn't yet supported"}]}`,
 		},
 		{
 			reset: true,
