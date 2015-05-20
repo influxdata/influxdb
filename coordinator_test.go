@@ -18,7 +18,7 @@ func (f *fakeShardWriter) WriteShard(shardID uint64, points []data.Point) (int, 
 	return f.ShardWriteFn(shardID, points)
 }
 
-func newTestMetaStore() meta.Store {
+func newTestMetaStore() influxdb.MetaStore {
 	ms := test.MetaStore{}
 	rp := test.NewRetentionPolicy("myp", time.Hour, 3)
 	test.AttachShardGroupInfo(rp, []uint64{1, 2, 3})

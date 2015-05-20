@@ -47,7 +47,7 @@ type Coordinator struct {
 	mu      sync.RWMutex
 	closing chan struct{}
 
-	MetaStore    meta.Store
+	MetaStore    MetaStore
 	shardWriters []ShardWriter
 }
 
