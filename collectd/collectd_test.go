@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/collectd"
+	"github.com/influxdb/influxdb/data"
 	"github.com/kimor79/gollectd"
 )
 
@@ -17,12 +17,12 @@ type serverResponses []serverResponse
 type serverResponse struct {
 	database        string
 	retentionPolicy string
-	points          []influxdb.Point
+	points          []data.Point
 }
 
 var responses = make(chan *serverResponse, 1024)
 
-func (testServer) WriteSeries(database, retentionPolicy string, points []influxdb.Point) (uint64, error) {
+func (testServer) WriteSeries(database, retentionPolicy string, points []data.Point) (uint64, error) {
 	responses <- &serverResponse{
 		database:        database,
 		retentionPolicy: retentionPolicy,
@@ -206,7 +206,7 @@ func TestUnmarshal_Points(t *testing.T) {
 	var tests = []struct {
 		name   string
 		packet gollectd.Packet
-		points []influxdb.Point
+		points []data.Point
 	}{
 		{
 			name: "single value",
@@ -216,7 +216,7 @@ func TestUnmarshal_Points(t *testing.T) {
 					{Name: "read", Value: 1},
 				},
 			},
-			points: []influxdb.Point{
+			points: []data.Point{
 				{Name: "disk_read", Fields: map[string]interface{}{"value": float64(1)}},
 			},
 		},
@@ -229,7 +229,7 @@ func TestUnmarshal_Points(t *testing.T) {
 					{Name: "write", Value: 5},
 				},
 			},
-			points: []influxdb.Point{
+			points: []data.Point{
 				{Name: "disk_read", Fields: map[string]interface{}{"value": float64(1)}},
 				{Name: "disk_write", Fields: map[string]interface{}{"value": float64(5)}},
 			},
@@ -246,7 +246,7 @@ func TestUnmarshal_Points(t *testing.T) {
 					{Name: "read", Value: 1},
 				},
 			},
-			points: []influxdb.Point{
+			points: []data.Point{
 				{
 					Name:   "disk_read",
 					Tags:   map[string]string{"host": "server01", "instance": "sdk", "type": "disk_octets", "type_instance": "single"},
@@ -306,7 +306,7 @@ func TestUnmarshal_Time(t *testing.T) {
 	var tests = []struct {
 		name   string
 		packet gollectd.Packet
-		points []influxdb.Point
+		points []data.Point
 	}{
 		{
 			name: "Should parse timeHR properly",
@@ -318,7 +318,7 @@ func TestUnmarshal_Time(t *testing.T) {
 					},
 				},
 			},
-			points: []influxdb.Point{
+			points: []data.Point{
 				{Time: testTime},
 			},
 		},
@@ -332,7 +332,7 @@ func TestUnmarshal_Time(t *testing.T) {
 					},
 				},
 			},
-			points: []influxdb.Point{
+			points: []data.Point{
 				{Time: testTime.Round(time.Second)},
 			},
 		},

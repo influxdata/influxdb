@@ -16,3 +16,7 @@ func (n *Node) Open() error {
 
 func (n *Node) Close() error { return nil }
 func (n *Node) Init() error  { return nil }
+
+func (n *Node) WriteShard(shardID uint64, points []Point) (int, error) {
+	return 0, nil
+}

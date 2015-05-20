@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/influxdb/influxdb/data"
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta/internal"
 )
@@ -108,6 +109,12 @@ type ShardGroupInfo struct {
 	StartTime time.Time
 	EndTime   time.Time
 	Shards    []ShardInfo
+}
+
+// ShardFor returns the ShardInfo for a Point
+func (s *ShardGroupInfo) ShardFor(p data.Point) ShardInfo {
+	sid := p.HashID()
+	return s.Shards[sid%uint64(len(s.Shards))]
 }
 
 // ShardInfo represents metadata about a shard.

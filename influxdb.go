@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb/client"
+	"github.com/influxdb/influxdb/data"
 )
 
 var startTime time.Time
@@ -234,8 +235,8 @@ func warnf(msg string, v ...interface{}) { fmt.Fprintf(os.Stderr, msg+"\n", v...
 // NormalizeBatchPoints returns a slice of Points, created by populating individual
 // points within the batch, which do not have times or tags, with the top-level
 // values.
-func NormalizeBatchPoints(bp client.BatchPoints) ([]Point, error) {
-	points := []Point{}
+func NormalizeBatchPoints(bp client.BatchPoints) ([]data.Point, error) {
+	points := []data.Point{}
 	for _, p := range bp.Points {
 		if p.Time.IsZero() {
 			if bp.Time.IsZero() {
@@ -259,7 +260,7 @@ func NormalizeBatchPoints(bp client.BatchPoints) ([]Point, error) {
 			}
 		}
 		// Need to convert from a client.Point to a influxdb.Point
-		points = append(points, Point{
+		points = append(points, data.Point{
 			Name:   p.Name,
 			Tags:   p.Tags,
 			Time:   p.Time,
