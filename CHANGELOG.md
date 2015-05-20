@@ -16,6 +16,7 @@
 - [#2596](https://github.com/influxdb/influxdb/pull/2596): RC30: `panic: runtime error: index out of range` when insert data points.
 - [#2592](https://github.com/influxdb/influxdb/pull/2592): Should return an error if user attempts to group by a field.
 - [#2499](https://github.com/influxdb/influxdb/pull/2499): Issuing a select query with tag as a values causes panic.
+- [#2612](https://github.com/influxdb/influxdb/pull/2612): Query planner should validate distinct is passed a field.
 
 ## PRs
 - [#2569](https://github.com/influxdb/influxdb/pull/2569): Add derivative functions
