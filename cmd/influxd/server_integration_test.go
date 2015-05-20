@@ -705,28 +705,58 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		},
 		{
 			reset: true,
-			name:  "distincts",
+			name:  "distinct as call",
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
-				{"name": "cpu", "time": "2000-01-01T00:00:00Z", "fields": {"value": 30}},
-				{"name": "cpu", "time": "2000-01-01T00:00:10Z", "fields": {"value": 20}},
-				{"name": "cpu", "time": "2000-01-01T00:00:20Z", "fields": {"value": 30}},
-				{"name": "cpu", "time": "2000-01-01T00:00:30Z", "fields": {"value": 100}}
+				{"name": "cpu", "time": "2000-01-01T00:00:00Z", "tags": {"host": "server01"}, "fields": {"value": 30}},
+				{"name": "cpu", "time": "2000-01-01T00:00:10Z", "tags": {"host": "server02"}, "fields": {"value": 20}},
+				{"name": "cpu", "time": "2000-01-01T00:00:20Z", "tags": {"host": "server03"}, "fields": {"value": 30}},
+				{"name": "cpu", "time": "2000-01-01T00:00:30Z", "tags": {"host": "server03"}, "fields": {"value": 100}}
 			]}`,
 			query:    `SELECT distinct(value) FROM cpu`,
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","distinct"],"values":[["1970-01-01T00:00:00Z",[20,30,100]]]}]}]}`,
 		},
 		{
-			name:     "distincts alt syntax",
+			name:     "distinct alt syntax",
 			query:    `SELECT distinct value FROM cpu`,
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","distinct"],"values":[["1970-01-01T00:00:00Z",[20,30,100]]]}]}]}`,
+		},
+		{
+			name:     "distinct select tag",
+			query:    `SELECT distinct(host) FROM cpu`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"error":"host isn't a field on measurement cpu; to query the unique values for a tag use SHOW TAG VALUES FROM cpu WITH KEY = \"host\""}]}`,
+		},
+		{
+			name:     "distinct alt select tag",
+			query:    `SELECT distinct host FROM cpu`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"error":"host isn't a field on measurement cpu; to query the unique values for a tag use SHOW TAG VALUES FROM cpu WITH KEY = \"host\""}]}`,
 		},
 		{
 			name:     "count distinct",
 			query:    `SELECT count(distinct value) FROM cpu`,
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",3]]}]}]}`,
+		},
+		{
+			name:     "count distinct as call",
+			query:    `SELECT count(distinct(value)) FROM cpu`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",3]]}]}]}`,
+		},
+		{
+			name:     "count distinct select tag",
+			query:    `SELECT count(distinct host) FROM cpu`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"error":"host isn't a field on measurement cpu"}]}`,
+		},
+		{
+			name:     "count distinct as call select tag",
+			query:    `SELECT count(distinct(host)) FROM cpu`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"error":"host isn't a field on measurement cpu"}]}`,
 		},
 		{
 			reset: true,
