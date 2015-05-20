@@ -1039,12 +1039,9 @@ func (p *Parser) parseDropSeriesStatement() (*DropSeriesStatement, error) {
 
 	// If they didn't provide a FROM or a WHERE, they need to provide the SeriesID
 	if stmt.Condition == nil && stmt.Source == nil {
-		id, err := p.parseUInt64()
-		if err != nil {
-			return nil, err
-		}
-		stmt.SeriesID = id
+		return nil, fmt.Errorf("DROP SERIES requires a FROM or WHERE clause")
 	}
+
 	return stmt, nil
 }
 

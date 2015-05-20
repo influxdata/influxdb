@@ -2547,20 +2547,8 @@ func (s *Server) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, 
 		defer s.mu.RUnlock()
 
 		seriesByMeasurement := make(map[string][]uint64)
-		// Handle the simple `DROP SERIES <id>` case.
-		if stmt.Source == nil && stmt.Condition == nil {
-			for _, db := range s.databases {
-				for _, m := range db.measurements {
-					if m.seriesByID[stmt.SeriesID] != nil {
-						seriesByMeasurement[m.Name] = []uint64{stmt.SeriesID}
-					}
-				}
-			}
 
-			return seriesByMeasurement, nil
-		}
-
-		// Handle the more complicated `DROP SERIES` with sources and/or conditions...
+		// Handle `DROP SERIES` with sources and/or conditions...
 
 		// Find the database.
 		db := s.databases[database]
