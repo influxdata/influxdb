@@ -14,10 +14,10 @@ func TestShardWrite(t *testing.T) {
 	sh := &Shard{ID: 1}
 
 	pt := Point{
-		Name:      "cpu",
-		Tags:      map[string]string{"host": "server"},
-		Timestamp: time.Unix(1, 2),
-		Fields:    map[string]interface{}{"value": 1.0},
+		Name:   "cpu",
+		Tags:   map[string]string{"host": "server"},
+		Time:   time.Unix(1, 2),
+		Fields: map[string]interface{}{"value": 1.0},
 	}
 	pr := &WritePointsRequest{
 		Database:        "foo",
@@ -30,7 +30,7 @@ func TestShardWrite(t *testing.T) {
 		t.Errorf("LocalWriter.Write() failed: %v", err)
 	}
 
-	p, err := sh.Read(pt.Timestamp)
+	p, err := sh.Read(pt.Time)
 	if err != nil {
 		t.Fatalf("LocalWriter.Read() failed: %v", err)
 	}
