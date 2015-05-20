@@ -374,8 +374,6 @@ func (l *LocalMapper) Begin(c *influxql.Call, startingTime int64, chunkSize int)
 	l.chunkSize = chunkSize
 	l.tmin = startingTime
 
-	var isDistinct bool
-
 	// determine if this is a raw data query with a single field, multiple fields, or an aggregate
 	var fieldName string
 	if c == nil { // its a raw data query
@@ -407,14 +405,13 @@ func (l *LocalMapper) Begin(c *influxql.Call, startingTime int64, chunkSize int)
 			return fmt.Errorf("aggregate call didn't contain a field %s", c.String())
 		}
 
-		isDistinct = c.Name == "distinct"
 	}
 
 	// set up the field info if a specific field was set for this mapper
 	if fieldName != "" {
 		f := l.decoder.FieldByName(fieldName)
 		if f == nil {
-			if isDistinct {
+			if c.Name == "distinct" {
 				return fmt.Errorf("%s isn't a field on measurement %s; to query the unique values for a tag use SHOW TAG VALUES FROM %s WITH KEY = %q", fieldName, l.job.MeasurementName, l.job.MeasurementName, fieldName)
 			}
 			return fmt.Errorf("%s isn't a field on measurement %s", fieldName, l.job.MeasurementName)
