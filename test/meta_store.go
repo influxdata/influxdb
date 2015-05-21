@@ -14,8 +14,11 @@ var (
 )
 
 type MetaStore struct {
-	CreateContinuousQueryFn func(q *influxql.CreateContinuousQueryStatement) (*meta.ContinuousQueryInfo, error)
-	DropContinuousQueryFn   func(q *influxql.DropContinuousQueryStatement) error
+	OpenFn  func(path string) error
+	CloseFn func() error
+
+	CreateContinuousQueryFn func(query string) (*meta.ContinuousQueryInfo, error)
+	DropContinuousQueryFn   func(query string) error
 
 	NodeFn       func(id uint64) (*meta.NodeInfo, error)
 	NodeByHostFn func(host string) (*meta.NodeInfo, error)
@@ -45,12 +48,20 @@ type MetaStore struct {
 	SetPrivilegeFn func(p influxql.Privilege, username string, dbname string) error
 }
 
-func (m MetaStore) CreateContinuousQuery(q *influxql.CreateContinuousQueryStatement) (*meta.ContinuousQueryInfo, error) {
-	return m.CreateContinuousQueryFn(q)
+func (m MetaStore) Open(path string) error {
+	return m.OpenFn(path)
 }
 
-func (m MetaStore) DropContinuousQuery(q *influxql.DropContinuousQueryStatement) error {
-	return m.DropContinuousQueryFn(q)
+func (m MetaStore) Close() error {
+	return m.CloseFn()
+}
+
+func (m MetaStore) CreateContinuousQuery(query string) (*meta.ContinuousQueryInfo, error) {
+	return m.CreateContinuousQueryFn(query)
+}
+
+func (m MetaStore) DropContinuousQuery(query string) error {
+	return m.DropContinuousQueryFn(query)
 }
 
 func (m MetaStore) Node(id uint64) (*meta.NodeInfo, error) {

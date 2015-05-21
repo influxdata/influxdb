@@ -6,7 +6,42 @@ import (
 	"time"
 
 	"github.com/boltdb/bolt"
+	"github.com/influxdb/influxdb/influxql"
+	"github.com/influxdb/influxdb/meta"
 )
+
+// MetaStore represents an interface access and mutate metadata.
+type MetaStore interface {
+	CreateContinuousQuery(query string) (*meta.ContinuousQueryInfo, error)
+	DropContinuousQuery(query string) error
+
+	Node(id uint64) (*meta.NodeInfo, error)
+	NodeByHost(host string) (*meta.NodeInfo, error)
+	CreateNode(host string) (*meta.NodeInfo, error)
+	DeleteNode(id uint64) error
+
+	Database(name string) (*meta.DatabaseInfo, error)
+	CreateDatabase(name string) (*meta.DatabaseInfo, error)
+	CreateDatabaseIfNotExists(name string) (*meta.DatabaseInfo, error)
+	DropDatabase(name string) error
+
+	RetentionPolicy(database, name string) (*meta.RetentionPolicyInfo, error)
+	CreateRetentionPolicy(database string, rp *meta.RetentionPolicyInfo) (*meta.RetentionPolicyInfo, error)
+	CreateRetentionPolicyIfNotExists(database string, rp *meta.RetentionPolicyInfo) (*meta.RetentionPolicyInfo, error)
+	SetDefaultRetentionPolicy(database, name string) error
+	UpdateRetentionPolicy(database, name string, rpu *meta.RetentionPolicyUpdate) (*meta.RetentionPolicyInfo, error)
+	DeleteRetentionPolicy(database, name string) error
+
+	ShardGroup(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error)
+	CreateShardGroupIfNotExists(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error)
+	DeleteShardGroup(database, policy string, shardID uint64) error
+
+	User(username string) (*meta.UserInfo, error)
+	CreateUser(username, password string, admin bool) (*meta.UserInfo, error)
+	UpdateUser(username, password string) (*meta.UserInfo, error)
+	DeleteUser(username string) error
+	SetPrivilege(p influxql.Privilege, username string, dbname string) error
+}
 
 // metastore represents the low-level data store for metadata.
 type metastore struct {
