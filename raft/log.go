@@ -1560,7 +1560,7 @@ func (l *Log) mustApplyInitialize(e *LogEntry) {
 
 	// TODO(benbjohnson): Lock the log while we update the configuration.
 
-	// Perist the configuration to disk.
+	// Persist the configuration to disk.
 	if err := l.writeConfig(config); err != nil {
 		panic("write config: " + err.Error())
 	}
@@ -1598,12 +1598,29 @@ func (l *Log) mustApplyAddPeer(e *LogEntry) {
 }
 
 // mustApplyRemovePeer removes a node from the cluster configuration.
-func (l *Log) mustApplyRemovePeer(e *LogEntry) error {
-	// TODO(benbjohnson): Clone configuration.
-	// TODO(benbjohnson): Remove node from configuration.
-	// TODO(benbjohnson): Set configuration index.
-	// TODO(benbjohnson): Write configuration.
-	return nil
+func (l *Log) mustApplyRemovePeer(e *LogEntry) {
+	// Unmarshal node from entry data.
+	var n *ConfigNode
+	if err := json.Unmarshal(e.Data, &n); err != nil {
+		panic("unmarshal: " + err.Error())
+	}
+
+	// Clone configuration.
+	config := l.config.Clone()
+
+	// Remove node from configuration.
+	if err := config.RemoveNode(n.ID); err != nil {
+		l.Logger.Panicf("apply: remove node: %s", err)
+	}
+
+	// Set configuration index.
+	config.Index = e.Index
+
+	// Write configuration.
+	if err := l.writeConfig(config); err != nil {
+		panic("write config: " + err.Error())
+	}
+	l.config = config
 }
 
 // AddPeer creates a new peer in the cluster.
@@ -1639,10 +1656,28 @@ func (l *Log) AddPeer(u url.URL) (uint64, uint64, *Config, error) {
 
 // RemovePeer removes an existing peer from the cluster by id.
 func (l *Log) RemovePeer(id uint64) error {
+	// Apply command.
+	b, _ := json.Marshal(&ConfigNode{ID: id})
+	index, err := l.internalApply(LogEntryRemovePeer, b)
+	if err != nil {
+		return err
+	}
+
+	// OK status from serveLeave means removal
+	// was applied - i.e. must be synchronous.
+	if err := l.Wait(index); err != nil {
+		return err
+	}
+
+	// Lock while we look up the node.
 	l.lock()
 	defer l.unlock()
 
-	// TODO(benbjohnson): Apply removePeerCommand.
+	// Ensure node was removed.
+	n := l.config.NodeByID(id)
+	if n != nil {
+		return fmt.Errorf("removal applied but node exists")
+	}
 
 	return nil
 }

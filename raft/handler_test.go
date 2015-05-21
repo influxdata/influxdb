@@ -86,7 +86,7 @@ func TestHandler_HandleLeave(t *testing.T) {
 	s := httptest.NewServer(h)
 	defer s.Close()
 
-	// Send request to join cluster.
+	// Send request to leave cluster.
 	resp, err := http.Get(s.URL + "/leave?id=1")
 	defer resp.Body.Close()
 	if err != nil {
