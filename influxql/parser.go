@@ -1027,7 +1027,7 @@ func (p *Parser) parseDropSeriesStatement() (*DropSeriesStatement, error) {
 
 	if tok == FROM {
 		// Parse source.
-		if stmt.Source, err = p.parseSource(); err != nil {
+		if stmt.Sources, err = p.parseSources(); err != nil {
 			return nil, err
 		}
 	} else {
@@ -1040,7 +1040,7 @@ func (p *Parser) parseDropSeriesStatement() (*DropSeriesStatement, error) {
 	}
 
 	// If they didn't provide a FROM or a WHERE, this query is invalid
-	if stmt.Condition == nil && stmt.Source == nil {
+	if stmt.Condition == nil && stmt.Sources == nil {
 		return nil, newParseError(tokstr(tok, lit), []string{"FROM", "WHERE"}, pos)
 	}
 

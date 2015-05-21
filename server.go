@@ -2556,10 +2556,19 @@ func (s *Server) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, 
 			return nil, ErrDatabaseNotFound(database)
 		}
 
-		// Get the list of measurements we're interested in.
-		measurements, err := measurementsFromSourceOrDB(stmt.Source, db)
-		if err != nil {
-			return nil, err
+		var measurements Measurements
+		var err error
+
+		for _, source := range stmt.Sources {
+			// Get the list of measurements we're interested in.
+			sourceMeasurements, err := measurementsFromSourceOrDB(source, db)
+			if err != nil {
+				return nil, err
+			}
+
+			for _, measurement := range sourceMeasurements {
+				measurements = append(measurements, measurement)
+			}
 		}
 
 		for _, m := range measurements {

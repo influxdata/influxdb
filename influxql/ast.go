@@ -1449,7 +1449,7 @@ func (s *ShowSeriesStatement) RequiredPrivileges() ExecutionPrivileges {
 // DropSeriesStatement represents a command for removing a series from the database.
 type DropSeriesStatement struct {
 	// Data source that fields are extracted from (optional)
-	Source Source
+	Sources Sources
 
 	// An expression evaluated on data point (optional)
 	Condition Expr
@@ -1460,9 +1460,9 @@ func (s *DropSeriesStatement) String() string {
 	var buf bytes.Buffer
 	buf.WriteString("DROP SERIES")
 
-	if s.Source != nil {
+	if s.Sources != nil {
 		buf.WriteString(" FROM ")
-		buf.WriteString(s.Source.String())
+		buf.WriteString(s.Sources.String())
 	}
 	if s.Condition != nil {
 		buf.WriteString(" WHERE ")
