@@ -295,14 +295,15 @@ func (m *Measurement) filters(stmt *influxql.SelectStatement) (map[uint64]influx
 	if err != nil {
 		return nil, err
 	}
-
-	// ensure every id is in the map
+	// Ensure every id is in the map and replace literal true expressions with
+	// nil so the engine doesn't waste time evaluating them.
 	for _, id := range ids {
-		if _, ok := seriesIdsToExpr[id]; !ok {
+		if expr, ok := seriesIdsToExpr[id]; !ok {
+			seriesIdsToExpr[id] = nil
+		} else if b, ok := expr.(*influxql.BooleanLiteral); ok && b.Val {
 			seriesIdsToExpr[id] = nil
 		}
 	}
-
 	return seriesIdsToExpr, nil
 }
 
@@ -430,25 +431,30 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (seriesIDs, influxql.Ex
 func mergeSeriesFilters(op influxql.Token, ids seriesIDs, lfilters, rfilters map[uint64]influxql.Expr) (seriesIDs, map[uint64]influxql.Expr) {
 	// Create a map to hold the final set of series filter expressions.
 	filters := make(map[uint64]influxql.Expr, 0)
-	// Series IDs that weren't culled
-	var outIDs seriesIDs
+	// Resulting list of series IDs
+	var series seriesIDs
 
 	// Combining logic:
 	// +==========+==========+==========+=======================+=======================+
-	// | operator |   LHS    |   RHS    |   intermediate expr   |     result filter     |
+	// | operator |   LHS    |   RHS    |   intermediate expr   |     reduced filter    |
 	// +==========+==========+==========+=======================+=======================+
 	// |          | <nil>    | <r-expr> | true OR <r-expr>      | true                  |
 	// |          |----------+----------+-----------------------+-----------------------+
 	// | OR       | <l-expr> | <nil>    | <l-expr> OR true      | true                  |
 	// |          |----------+----------+-----------------------+-----------------------+
+	// |          | <nil>    | <nil>    | true OR true          | true                  |
+	// |          |----------+----------+-----------------------+-----------------------+
 	// |          | <l-expr> | <r-expr> | <l-expr> OR <r-expr>  | <l-expr> OR <r-expr>  |
 	// +----------+----------+----------+-----------------------+-----------------------+
-	// |          | <nil>    | <r-expr> | false AND <r-expr>    | false                 |
+	// |          | <nil>    | <r-expr> | false AND <r-expr>    | false*                |
 	// |          |----------+----------+-----------------------+-----------------------+
 	// | AND      | <l-expr> | <nil>    | <l-expr> AND false    | false                 |
 	// |          |----------+----------+-----------------------+-----------------------+
+	// |          | <nil>    | <nil>    | false AND false       | false                 |
+	// |          |----------+----------+-----------------------+-----------------------+
 	// |          | <l-expr> | <r-expr> | <l-expr> AND <r-expr> | <l-expr> AND <r-expr> |
 	// +----------+----------+----------+-----------------------+-----------------------+
+	// *literal false filters and series IDs should be excluded from the results
 
 	def := false
 	if op == influxql.OR {
@@ -474,23 +480,19 @@ func mergeSeriesFilters(op influxql.Token, ids seriesIDs, lfilters, rfilters map
 			RHS: rfilter,
 		}
 
-		// Reduce / simplify the intermediate expression.
+		// Reduce the intermediate expression.
 		expr := influxql.Reduce(be, nil)
 
-		// Check if the reduced filter expression is a literal false,
-		// exclude this series ID and filter expression from the results.
-		if op == influxql.AND {
-			if b, ok := expr.(*influxql.BooleanLiteral); ok && !b.Val {
-				continue
-			}
+		// If the expression reduced to false, exclude this series ID and filter.
+		if b, ok := expr.(*influxql.BooleanLiteral); ok && !b.Val {
+			continue
 		}
 
-		// Store the series ID and merged expression in the final results.
+		// Store the series ID and merged filter in the final results.
 		filters[id] = expr
-		outIDs = append(outIDs, id)
+		series = append(series, id)
 	}
-
-	return outIDs, filters
+	return series, filters
 }
 
 // walkWhereForSeriesIds recursively walks the WHERE clause and returns an ordered set of series IDs and
