@@ -17,6 +17,7 @@
 - [#2592](https://github.com/influxdb/influxdb/pull/2592): Should return an error if user attempts to group by a field.
 - [#2499](https://github.com/influxdb/influxdb/pull/2499): Issuing a select query with tag as a values causes panic.
 - [#2612](https://github.com/influxdb/influxdb/pull/2612): Query planner should validate distinct is passed a field.
+- [#2531](https://github.com/influxdb/influxdb/issues/2531): Fix select with 3 or more terms in where clause.
 
 ## PRs
 - [#2569](https://github.com/influxdb/influxdb/pull/2569): Add derivative functions
