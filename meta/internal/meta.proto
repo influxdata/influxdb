@@ -70,97 +70,66 @@ message Command {
     extensions 100 to max;
 
     enum Type {
-		CreateContinuousQueryCommand            = 1;
-		DropContinuousQueryCommand              = 2;
-		CreateNodeCommand                       = 3;
-		DeleteNodeCommand                       = 4;
-		CreateDatabaseCommand                   = 5;
-		DropDatabaseCommand                     = 6;
-		CreateDatabaseIfNotExistsCommand        = 7;
-		CreateRetentionPolicyCommand            = 8;
-		CreateRetentionPolicyIfNotExistsCommand = 9;
-		DeleteRetentionPolicyCommand            = 10;
-		SetDefaultRetentionPolicyCommand        = 11;
-		UpdateRetentionPolicyCommand            = 12;
-		CreateShardGroupIfNotExistsCommand      = 13;
-		CreateUserCommand                       = 14;
-		DeleteUserCommand                       = 15;
-		UpdateUserCommand                       = 16;
-		SetPrivilegeCommand                     = 17;
-		DeleteShardGroupCommand                 = 18;
+		CreateNodeCommand                = 1;
+		DeleteNodeCommand                = 2;
+		CreateDatabaseCommand            = 3;
+		DropDatabaseCommand              = 4;
+		CreateRetentionPolicyCommand     = 5;
+		DropRetentionPolicyCommand       = 6;
+		SetDefaultRetentionPolicyCommand = 7;
+		UpdateRetentionPolicyCommand     = 8;
+		CreateShardGroupCommand          = 9;
+        DeleteShardGroupCommand          = 10;
+        CreateContinuousQueryCommand     = 11;
+        DropContinuousQueryCommand       = 12;
+		CreateUserCommand                = 13;
+		DropUserCommand                  = 14;
+		UpdateUserCommand                = 15;
+		SetPrivilegeCommand              = 16;
     }
 
     required Type type = 1;
 }
 
-message CreateContinuousQueryCommand {
-    extend Command {
-        required CreateContinuousQueryCommand command = 100;
-    }
-	required string Query = 1;
-}
-
-message DropContinuousQueryCommand {
-    extend Command {
-        required DropContinuousQueryCommand command = 101;
-    }
-	required string Query = 1;
-}
-
 message CreateNodeCommand {
     extend Command {
-        required CreateNodeCommand command = 102;
+        optional CreateNodeCommand command = 101;
     }
 	required string Host = 1;
 }
 
 message DeleteNodeCommand {
     extend Command {
-        required DeleteNodeCommand command = 103;
+        optional DeleteNodeCommand command = 102;
     }
-	required string ID = 1;
+	required uint64 ID = 1;
 }
 
 message CreateDatabaseCommand {
     extend Command {
-        required CreateDatabaseCommand command = 104;
+        optional CreateDatabaseCommand command = 103;
     }
 	required string Name = 1;
 }
 
 message DropDatabaseCommand {
     extend Command {
-        required DropDatabaseCommand command = 105;
-    }
-	required string Name = 1;
-}
-
-message CreateDatabaseIfNotExistsCommand {
-    extend Command {
-        required CreateDatabaseIfNotExistsCommand command = 106;
+        optional DropDatabaseCommand command = 104;
     }
 	required string Name = 1;
 }
 
 message CreateRetentionPolicyCommand {
     extend Command {
-        required CreateRetentionPolicyCommand command = 107;
+        optional CreateRetentionPolicyCommand command = 105;
     }
 	required string Database = 1;
 	required RetentionPolicyInfo RetentionPolicy = 2;
 }
 
-message CreateRetentionPolicyIfNotExistsCommand {
+message DropRetentionPolicyCommand {
     extend Command {
-        required CreateRetentionPolicyIfNotExistsCommand command = 108;
-    }
-	required string Database = 1;
-	required RetentionPolicyInfo RetentionPolicy = 2;
-}
-
-message DeleteRetentionPolicyCommand {
-    extend Command {
-        required DeleteRetentionPolicyCommand command = 109;
+        optional DropRetentionPolicyCommand command = 106;
     }
 	required string Database = 1;
 	required string Name = 2;
@@ -168,7 +137,7 @@ message DeleteRetentionPolicyCommand {
 
 message SetDefaultRetentionPolicyCommand {
     extend Command {
-        required SetDefaultRetentionPolicyCommand command = 110;
+        optional SetDefaultRetentionPolicyCommand command = 107;
     }
 	required string Database = 1;
 	required string Name = 2;
@@ -176,7 +145,7 @@ message SetDefaultRetentionPolicyCommand {
 
 message UpdateRetentionPolicyCommand {
     extend Command {
-        required UpdateRetentionPolicyCommand command = 111;
+        optional UpdateRetentionPolicyCommand command = 108;
     }
 	required string Database = 1;
 	required string Name = 2;
@@ -185,53 +154,67 @@ message UpdateRetentionPolicyCommand {
 	optional uint32 ReplicaN = 5;
 }
 
-message CreateShardGroupIfNotExistsCommand {
+message CreateShardGroupCommand {
     extend Command {
-        required CreateShardGroupIfNotExistsCommand command = 112;
+        optional CreateShardGroupCommand command = 109;
     }
     required string Database = 1;
     required string Policy = 2;
     required int64 Timestamp = 3;
 }
 
+message DeleteShardGroupCommand {
+    extend Command {
+        optional DeleteShardGroupCommand command = 110;
+    }
+    required string Database = 1;
+    required string Policy = 2;
+    required uint64 ShardGroupID = 3;
+}
+
+message CreateContinuousQueryCommand {
+    extend Command {
+        optional CreateContinuousQueryCommand command = 111;
+    }
+    required string Query = 1;
+}
+
+message DropContinuousQueryCommand {
+    extend Command {
+        optional DropContinuousQueryCommand command = 112;
+    }
+    required string Query = 1;
+}
+
 message CreateUserCommand {
     extend Command {
-        required CreateUserCommand command = 113;
+        optional CreateUserCommand command = 113;
     }
-    required string Username = 1;
-    required string Password = 2;
+    required string Name = 1;
+    required string Hash = 2;
     required bool Admin = 3;
 }
 
-message DeleteUserCommand {
+message DropUserCommand {
     extend Command {
-        required DeleteUserCommand command = 114;
+        optional DropUserCommand command = 114;
     }
-    required string Username = 1;
+    required string Name = 1;
 }
 
 message UpdateUserCommand {
     extend Command {
-        required UpdateUserCommand command = 115;
+        optional UpdateUserCommand command = 115;
     }
-    required string Username = 1;
-    required string Password = 2;
+    required string Name = 1;
+    required string Hash = 2;
 }
 
 message SetPrivilegeCommand {
     extend Command {
-        required SetPrivilegeCommand command = 116;
+        optional SetPrivilegeCommand command = 116;
     }
     required string Username = 1;
     required UserPrivilege Privilege = 2;
-}
-
-message DeleteShardGroupCommand {
-    extend Command {
-        required DeleteShardGroupCommand command = 117;
-    }
-    required string Database = 1;
-    required string Policy = 2;
-    required uint64 ShardID = 3;
 }
 
