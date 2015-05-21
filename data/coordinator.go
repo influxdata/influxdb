@@ -40,18 +40,16 @@ var (
 	ErrWriteFailed = errors.New("write failed")
 )
 
-type ShardGroupAccessor interface {
-	RetentionPolicy(database, policy string) (*meta.RetentionPolicyInfo, error)
-	CreateShardGroupIfNotExists(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error)
-}
-
 // Coordinator handle queries and writes across multiple local and remote
 // data nodes.
 type Coordinator struct {
 	mu      sync.RWMutex
 	closing chan struct{}
 
-	MetaStore    ShardGroupAccessor
+	MetaStore interface {
+		RetentionPolicy(database, policy string) (*meta.RetentionPolicyInfo, error)
+		CreateShardGroupIfNotExists(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error)
+	}
 	shardWriters []ShardWriter
 }
 
