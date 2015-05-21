@@ -167,7 +167,7 @@ func Unmarshal(data *gollectd.Packet) []influxdb.Point {
 
 	var points []influxdb.Point
 	for i := range data.Values {
-		name := fmt.Sprintf("%s_%s", data.Plugin, data.Values[i].Name)
+		measurement := fmt.Sprintf("%s_%s", data.Plugin, data.Values[i].Name)
 		tags := make(map[string]string)
 		fields := make(map[string]interface{})
 
@@ -186,10 +186,10 @@ func Unmarshal(data *gollectd.Packet) []influxdb.Point {
 			tags["type_instance"] = data.TypeInstance
 		}
 		p := influxdb.Point{
-			Name:   name,
-			Tags:   tags,
-			Time:   timestamp,
-			Fields: fields,
+			Measurement: measurement,
+			Tags:        tags,
+			Time:        timestamp,
+			Fields:      fields,
 		}
 
 		points = append(points, p)
