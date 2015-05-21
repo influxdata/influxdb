@@ -9,6 +9,8 @@ import (
 	"github.com/influxdb/influxdb/data/internal"
 )
 
+//go:generate protoc --gogo_out=. internal/data.proto
+
 // PointsWriter accepts a WritePointRequest from client facing endpoints such as
 // HTTP JSON API, Collectd, Graphite, OpenTSDB, etc.
 type PointsWriter interface {
