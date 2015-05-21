@@ -9,7 +9,7 @@ import (
 	"github.com/influxdb/influxdb/data/internal"
 )
 
-// PayloadWriter accepts a WritePointRequest from client facing endpoints such as
+// PointsWriter accepts a WritePointRequest from client facing endpoints such as
 // HTTP JSON API, Collectd, Graphite, OpenTSDB, etc.
 type PointsWriter interface {
 	Write(p *WritePointsRequest) error
