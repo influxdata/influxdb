@@ -2556,7 +2556,13 @@ func (s *Server) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, 
 			return nil, ErrDatabaseNotFound(database)
 		}
 
-		measurements, err := measurementsFromSourcesOrDB(db, stmt.Sources...)
+		// Expand regex expressions in the FROM clause.
+		sources, err := s.expandSources(stmt.Sources)
+		if err != nil {
+			return nil, err
+		}
+
+		measurements, err := measurementsFromSourcesOrDB(db, sources...)
 		if err != nil {
 			return nil, err
 		}
