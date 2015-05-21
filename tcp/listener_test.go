@@ -43,7 +43,6 @@ func (testServer) ResponseN(n int) ([]*serverResponse, error) {
 var responses = make(chan *serverResponse, 1024)
 
 func TestServer_Close_ErrServerClosed(t *testing.T) {
-	t.Skip()
 	var (
 		ts testServer
 		s  = tcp.NewServer(ts)
@@ -62,7 +61,7 @@ func TestServer_Close_ErrServerClosed(t *testing.T) {
 	}
 }
 
-func TestServer_WriteShardRequest(t *testing.T) {
+func TestServer_WriteShardRequestSuccess(t *testing.T) {
 	var (
 		ts testServer
 		s  = tcp.NewServer(ts)
