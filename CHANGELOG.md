@@ -1,4 +1,4 @@
-## v0.9.0-rc31 [unreleased]
+## v0.9.0-rc31 [2015-05-21]
 
 ### Features
 - [#1822](https://github.com/influxdb/influxdb/issues/1822): Wire up DERIVATIVE aggregate
