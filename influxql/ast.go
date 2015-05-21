@@ -1448,11 +1448,8 @@ func (s *ShowSeriesStatement) RequiredPrivileges() ExecutionPrivileges {
 
 // DropSeriesStatement represents a command for removing a series from the database.
 type DropSeriesStatement struct {
-	// The Id of the series being dropped (optional)
-	SeriesID uint64
-
 	// Data source that fields are extracted from (optional)
-	Source Source
+	Sources Sources
 
 	// An expression evaluated on data point (optional)
 	Condition Expr
@@ -1461,20 +1458,15 @@ type DropSeriesStatement struct {
 // String returns a string representation of the drop series statement.
 func (s *DropSeriesStatement) String() string {
 	var buf bytes.Buffer
-	i, _ := buf.WriteString("DROP SERIES")
+	buf.WriteString("DROP SERIES")
 
-	if s.Source != nil {
-		_, _ = buf.WriteString(" FROM ")
-		_, _ = buf.WriteString(s.Source.String())
+	if s.Sources != nil {
+		buf.WriteString(" FROM ")
+		buf.WriteString(s.Sources.String())
 	}
 	if s.Condition != nil {
-		_, _ = buf.WriteString(" WHERE ")
-		_, _ = buf.WriteString(s.Condition.String())
-	}
-
-	// If we haven't written any data since the initial statement, then this was a SeriesID statement
-	if len(buf.String()) == i {
-		_, _ = buf.WriteString(fmt.Sprintf(" %d", s.SeriesID))
+		buf.WriteString(" WHERE ")
+		buf.WriteString(s.Condition.String())
 	}
 
 	return buf.String()

@@ -1023,9 +1023,11 @@ func (p *Parser) parseDropSeriesStatement() (*DropSeriesStatement, error) {
 	stmt := &DropSeriesStatement{}
 	var err error
 
-	if tok, _, _ := p.scanIgnoreWhitespace(); tok == FROM {
+	tok, pos, lit := p.scanIgnoreWhitespace()
+
+	if tok == FROM {
 		// Parse source.
-		if stmt.Source, err = p.parseSource(); err != nil {
+		if stmt.Sources, err = p.parseSources(); err != nil {
 			return nil, err
 		}
 	} else {
@@ -1037,14 +1039,11 @@ func (p *Parser) parseDropSeriesStatement() (*DropSeriesStatement, error) {
 		return nil, err
 	}
 
-	// If they didn't provide a FROM or a WHERE, they need to provide the SeriesID
-	if stmt.Condition == nil && stmt.Source == nil {
-		id, err := p.parseUInt64()
-		if err != nil {
-			return nil, err
-		}
-		stmt.SeriesID = id
+	// If they didn't provide a FROM or a WHERE, this query is invalid
+	if stmt.Condition == nil && stmt.Sources == nil {
+		return nil, newParseError(tokstr(tok, lit), []string{"FROM", "WHERE"}, pos)
 	}
+
 	return stmt, nil
 }
 

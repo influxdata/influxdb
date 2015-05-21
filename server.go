@@ -2547,20 +2547,8 @@ func (s *Server) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, 
 		defer s.mu.RUnlock()
 
 		seriesByMeasurement := make(map[string][]uint64)
-		// Handle the simple `DROP SERIES <id>` case.
-		if stmt.Source == nil && stmt.Condition == nil {
-			for _, db := range s.databases {
-				for _, m := range db.measurements {
-					if m.seriesByID[stmt.SeriesID] != nil {
-						seriesByMeasurement[m.Name] = []uint64{stmt.SeriesID}
-					}
-				}
-			}
 
-			return seriesByMeasurement, nil
-		}
-
-		// Handle the more complicated `DROP SERIES` with sources and/or conditions...
+		// Handle `DROP SERIES` with sources and/or conditions...
 
 		// Find the database.
 		db := s.databases[database]
@@ -2568,8 +2556,13 @@ func (s *Server) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, 
 			return nil, ErrDatabaseNotFound(database)
 		}
 
-		// Get the list of measurements we're interested in.
-		measurements, err := measurementsFromSourceOrDB(stmt.Source, db)
+		// Expand regex expressions in the FROM clause.
+		sources, err := s.expandSources(stmt.Sources)
+		if err != nil {
+			return nil, err
+		}
+
+		measurements, err := measurementsFromSourcesOrDB(db, sources...)
 		if err != nil {
 			return nil, err
 		}
@@ -3039,6 +3032,37 @@ func measurementsFromSourceOrDB(stmt influxql.Source, db *database) (Measurement
 			measurements = append(measurements, measurement)
 		} else {
 			return nil, errors.New("identifiers in FROM clause must be measurement names")
+		}
+	} else {
+		// No measurements specified in FROM clause so get all measurements that have series.
+		for _, m := range db.Measurements() {
+			if len(m.seriesIDs) > 0 {
+				measurements = append(measurements, m)
+			}
+		}
+	}
+	sort.Sort(measurements)
+
+	return measurements, nil
+}
+
+// measurementsFromSourcesOrDB returns a list of measurements from the
+// sources passed in or, if sources is empty, a list of all
+// measurement names from the database passed in.
+func measurementsFromSourcesOrDB(db *database, sources ...influxql.Source) (Measurements, error) {
+	var measurements Measurements
+	if len(sources) > 0 {
+		for _, source := range sources {
+			if m, ok := source.(*influxql.Measurement); ok {
+				measurement := db.measurements[m.Name]
+				if measurement == nil {
+					return nil, ErrMeasurementNotFound(m.Name)
+				}
+
+				measurements = append(measurements, measurement)
+			} else {
+				return nil, errors.New("identifiers in FROM clause must be measurement names")
+			}
 		}
 	} else {
 		// No measurements specified in FROM clause so get all measurements that have series.

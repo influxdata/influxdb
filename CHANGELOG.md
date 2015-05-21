@@ -22,6 +22,7 @@
 ## PRs
 - [#2569](https://github.com/influxdb/influxdb/pull/2569): Add derivative functions
 - [#2598](https://github.com/influxdb/influxdb/pull/2598): Implement tag support in SELECT statements
+- [#2624](https://github.com/influxdb/influxdb/pull/2624): Remove references to SeriesID in `DROP SERIES` handlers.
 
 ## v0.9.0-rc30 [2015-05-12]
 
