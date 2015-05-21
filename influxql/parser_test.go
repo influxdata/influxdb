@@ -719,7 +719,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		// DROP SERIES statement
 		{
 			s:    `DROP SERIES FROM src`,
-			stmt: &influxql.DropSeriesStatement{Source: &influxql.Measurement{Name: "src"}},
+			stmt: &influxql.DropSeriesStatement{Sources: []influxql.Source{&influxql.Measurement{Name: "src"}}},
 		},
 		{
 			s: `DROP SERIES WHERE host = 'hosta.influxdb.org'`,
@@ -734,7 +734,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `DROP SERIES FROM src WHERE host = 'hosta.influxdb.org'`,
 			stmt: &influxql.DropSeriesStatement{
-				Source: &influxql.Measurement{Name: "src"},
+				Sources: []influxql.Source{&influxql.Measurement{Name: "src"}},
 				Condition: &influxql.BinaryExpr{
 					Op:  influxql.EQ,
 					LHS: &influxql.VarRef{Val: "host"},
@@ -1528,12 +1528,12 @@ func TestDropSeriesStatement_String(t *testing.T) {
 	}{
 		{
 			s:    `DROP SERIES FROM src`,
-			stmt: &influxql.DropSeriesStatement{Source: &influxql.Measurement{Name: "src"}},
+			stmt: &influxql.DropSeriesStatement{Sources: []influxql.Source{&influxql.Measurement{Name: "src"}}},
 		},
 		{
 			s: `DROP SERIES FROM src WHERE host = 'hosta.influxdb.org'`,
 			stmt: &influxql.DropSeriesStatement{
-				Source: &influxql.Measurement{Name: "src"},
+				Sources: []influxql.Source{&influxql.Measurement{Name: "src"}},
 				Condition: &influxql.BinaryExpr{
 					Op:  influxql.EQ,
 					LHS: &influxql.VarRef{Val: "host"},
@@ -1544,7 +1544,7 @@ func TestDropSeriesStatement_String(t *testing.T) {
 		{
 			s: `DROP SERIES FROM src WHERE host = 'hosta.influxdb.org'`,
 			stmt: &influxql.DropSeriesStatement{
-				Source: &influxql.Measurement{Name: "src"},
+				Sources: []influxql.Source{&influxql.Measurement{Name: "src"}},
 				Condition: &influxql.BinaryExpr{
 					Op:  influxql.EQ,
 					LHS: &influxql.VarRef{Val: "host"},

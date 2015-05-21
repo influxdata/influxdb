@@ -2556,19 +2556,9 @@ func (s *Server) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, 
 			return nil, ErrDatabaseNotFound(database)
 		}
 
-		var measurements Measurements
-		var err error
-
-		for _, source := range stmt.Sources {
-			// Get the list of measurements we're interested in.
-			sourceMeasurements, err := measurementsFromSourceOrDB(source, db)
-			if err != nil {
-				return nil, err
-			}
-
-			for _, measurement := range sourceMeasurements {
-				measurements = append(measurements, measurement)
-			}
+		measurements, err := measurementsFromSourcesOrDB(db, stmt.Sources...)
+		if err != nil {
+			return nil, err
 		}
 
 		for _, m := range measurements {
@@ -3039,6 +3029,37 @@ func measurementsFromSourceOrDB(stmt influxql.Source, db *database) (Measurement
 			measurements = append(measurements, measurement)
 		} else {
 			return nil, errors.New("identifiers in FROM clause must be measurement names")
+		}
+	} else {
+		// No measurements specified in FROM clause so get all measurements that have series.
+		for _, m := range db.Measurements() {
+			if len(m.seriesIDs) > 0 {
+				measurements = append(measurements, m)
+			}
+		}
+	}
+	sort.Sort(measurements)
+
+	return measurements, nil
+}
+
+// measurementsFromSourcesOrDB returns a list of measurements from the
+// sources passed in or, if sources is empty, a list of all
+// measurement names from the database passed in.
+func measurementsFromSourcesOrDB(db *database, sources ...influxql.Source) (Measurements, error) {
+	var measurements Measurements
+	if len(sources) > 0 {
+		for _, source := range sources {
+			if m, ok := source.(*influxql.Measurement); ok {
+				measurement := db.measurements[m.Name]
+				if measurement == nil {
+					return nil, ErrMeasurementNotFound(m.Name)
+				}
+
+				measurements = append(measurements, measurement)
+			} else {
+				return nil, errors.New("identifiers in FROM clause must be measurement names")
+			}
 		}
 	} else {
 		// No measurements specified in FROM clause so get all measurements that have series.
