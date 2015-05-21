@@ -2578,8 +2578,7 @@ func (s *Server) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, 
 			var ids seriesIDs
 			if stmt.Condition != nil {
 				// Get series IDs that match the WHERE clause.
-				filters := map[uint64]influxql.Expr{}
-				ids, _, _, err = m.walkWhereForSeriesIds(stmt.Condition, filters)
+				ids, _, err = m.walkWhereForSeriesIds(stmt.Condition)
 				if err != nil {
 					return nil, err
 				}
@@ -2630,8 +2629,7 @@ func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, 
 
 		if stmt.Condition != nil {
 			// Get series IDs that match the WHERE clause.
-			filters := map[uint64]influxql.Expr{}
-			ids, _, _, err = m.walkWhereForSeriesIds(stmt.Condition, filters)
+			ids, _, err = m.walkWhereForSeriesIds(stmt.Condition)
 			if err != nil {
 				return &Result{Err: err}
 			}
@@ -2848,8 +2846,7 @@ func (s *Server) executeShowTagValuesStatement(stmt *influxql.ShowTagValuesState
 
 		if stmt.Condition != nil {
 			// Get series IDs that match the WHERE clause.
-			filters := map[uint64]influxql.Expr{}
-			ids, _, _, err = m.walkWhereForSeriesIds(stmt.Condition, filters)
+			ids, _, err = m.walkWhereForSeriesIds(stmt.Condition)
 			if err != nil {
 				return &Result{Err: err}
 			}
