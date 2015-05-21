@@ -1,10 +1,10 @@
-package influxdb_test
+package data_test
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
-	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/data"
 	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/test"
@@ -18,8 +18,8 @@ func (f *fakeShardWriter) WriteShard(shardID uint64, points []data.Point) (int, 
 	return f.ShardWriteFn(shardID, points)
 }
 
-func newTestMetaStore() influxdb.MetaStore {
-	ms := test.MetaStore{}
+func newTestMetaStore() *test.MetaStore {
+	ms := &test.MetaStore{}
 	rp := test.NewRetentionPolicy("myp", time.Hour, 3)
 	test.AttachShardGroupInfo(rp, []uint64{1, 2, 3})
 	test.AttachShardGroupInfo(rp, []uint64{1, 2, 3})
@@ -53,16 +53,16 @@ func TestCoordinatorEnsureShardMappingOne(t *testing.T) {
 		return &rp.ShardGroups[0], nil
 	}
 
-	c := influxdb.Coordinator{MetaStore: ms}
-	pr := &influxdb.WritePointsRequest{
+	c := data.Coordinator{MetaStore: ms}
+	pr := &data.WritePointsRequest{
 		Database:         "mydb",
 		RetentionPolicy:  "myrp",
-		ConsistencyLevel: influxdb.ConsistencyLevelOne,
+		ConsistencyLevel: data.ConsistencyLevelOne,
 	}
 	pr.AddPoint("cpu", 1.0, time.Now(), nil)
 
 	var (
-		shardMappings *influxdb.ShardMapping
+		shardMappings *data.ShardMapping
 		err           error
 	)
 	if shardMappings, err = c.MapShards(pr); err != nil {
@@ -95,11 +95,11 @@ func TestCoordinatorEnsureShardMappingMultiple(t *testing.T) {
 		panic("should not get here")
 	}
 
-	c := influxdb.Coordinator{MetaStore: ms}
-	pr := &influxdb.WritePointsRequest{
+	c := data.Coordinator{MetaStore: ms}
+	pr := &data.WritePointsRequest{
 		Database:         "mydb",
 		RetentionPolicy:  "myrp",
-		ConsistencyLevel: influxdb.ConsistencyLevelOne,
+		ConsistencyLevel: data.ConsistencyLevelOne,
 	}
 
 	// Three points that range over the shardGroup duration (1h) and should map to two
@@ -109,7 +109,7 @@ func TestCoordinatorEnsureShardMappingMultiple(t *testing.T) {
 	pr.AddPoint("cpu", 3.0, time.Unix(0, 0).Add(time.Hour+time.Second), nil)
 
 	var (
-		shardMappings *influxdb.ShardMapping
+		shardMappings *data.ShardMapping
 		err           error
 	)
 	if shardMappings, err = c.MapShards(pr); err != nil {
@@ -141,7 +141,7 @@ func TestCoordinatorWrite(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		consistency influxdb.ConsistencyLevel
+		consistency data.ConsistencyLevel
 		dnWrote     int
 		dnErr       error
 		cwWrote     int
@@ -151,7 +151,7 @@ func TestCoordinatorWrite(t *testing.T) {
 		// Consistency one
 		{
 			name:        "write one local",
-			consistency: influxdb.ConsistencyLevelOne,
+			consistency: data.ConsistencyLevelOne,
 			dnWrote:     1,
 			dnErr:       nil,
 			cwWrote:     0,
@@ -160,7 +160,7 @@ func TestCoordinatorWrite(t *testing.T) {
 		},
 		{
 			name:        "write one remote",
-			consistency: influxdb.ConsistencyLevelOne,
+			consistency: data.ConsistencyLevelOne,
 			dnWrote:     0,
 			dnErr:       nil,
 			cwWrote:     1,
@@ -169,35 +169,35 @@ func TestCoordinatorWrite(t *testing.T) {
 		},
 		{
 			name:        "write one not local",
-			consistency: influxdb.ConsistencyLevelOne,
+			consistency: data.ConsistencyLevelOne,
 			dnWrote:     0,
-			dnErr:       influxdb.ErrShardNotLocal,
+			dnErr:       fmt.Errorf("random data node error"),
 			cwWrote:     0,
 			cwErr:       nil,
-			expErr:      influxdb.ErrWriteFailed,
+			expErr:      data.ErrWriteFailed,
 		},
 		{
 			name:        "write one not local, remote success",
-			consistency: influxdb.ConsistencyLevelOne,
+			consistency: data.ConsistencyLevelOne,
 			dnWrote:     0,
-			dnErr:       influxdb.ErrShardNotLocal,
+			dnErr:       fmt.Errorf("random data node error"),
 			cwWrote:     1,
 			cwErr:       nil,
 			expErr:      nil,
 		},
 		{
 			name:        "write one not local, remote success",
-			consistency: influxdb.ConsistencyLevelOne,
+			consistency: data.ConsistencyLevelOne,
 			dnWrote:     0,
-			dnErr:       influxdb.ErrShardNotLocal,
+			dnErr:       fmt.Errorf("random data node error"),
 			cwWrote:     1,
-			cwErr:       influxdb.ErrShardNotFound,
-			expErr:      influxdb.ErrPartialWrite,
+			cwErr:       fmt.Errorf("random remote write error"),
+			expErr:      data.ErrPartialWrite,
 		},
 		// Consistency any
 		{
 			name:        "write any local",
-			consistency: influxdb.ConsistencyLevelAny,
+			consistency: data.ConsistencyLevelAny,
 			dnWrote:     1,
 			dnErr:       nil,
 			cwWrote:     0,
@@ -206,7 +206,7 @@ func TestCoordinatorWrite(t *testing.T) {
 		},
 		{
 			name:        "write any remote",
-			consistency: influxdb.ConsistencyLevelAny,
+			consistency: data.ConsistencyLevelAny,
 			dnWrote:     0,
 			dnErr:       nil,
 			cwWrote:     1,
@@ -215,36 +215,36 @@ func TestCoordinatorWrite(t *testing.T) {
 		},
 		{
 			name:        "write any not local",
-			consistency: influxdb.ConsistencyLevelAny,
+			consistency: data.ConsistencyLevelAny,
 			dnWrote:     0,
-			dnErr:       influxdb.ErrShardNotLocal,
+			dnErr:       fmt.Errorf("random data node error"),
 			cwWrote:     0,
 			cwErr:       nil,
-			expErr:      influxdb.ErrWriteFailed,
+			expErr:      data.ErrWriteFailed,
 		},
 		{
 			name:        "write any local failed, remote success",
-			consistency: influxdb.ConsistencyLevelAny,
+			consistency: data.ConsistencyLevelAny,
 			dnWrote:     0,
-			dnErr:       influxdb.ErrShardNotLocal,
+			dnErr:       fmt.Errorf("random data node error"),
 			cwWrote:     1,
 			cwErr:       nil,
 			expErr:      nil,
 		},
 		{
 			name:        "write any local failed, remote success",
-			consistency: influxdb.ConsistencyLevelAny,
+			consistency: data.ConsistencyLevelAny,
 			dnWrote:     0,
-			dnErr:       influxdb.ErrShardNotLocal,
+			dnErr:       fmt.Errorf("random data node error"),
 			cwWrote:     1,
-			cwErr:       influxdb.ErrShardNotFound,
-			expErr:      influxdb.ErrPartialWrite,
+			cwErr:       fmt.Errorf("random remote write error"),
+			expErr:      data.ErrPartialWrite,
 		},
 
 		// Consistency all
 		{
 			name:        "write all",
-			consistency: influxdb.ConsistencyLevelAll,
+			consistency: data.ConsistencyLevelAll,
 			dnWrote:     1,
 			dnErr:       nil,
 			cwWrote:     2,
@@ -253,44 +253,44 @@ func TestCoordinatorWrite(t *testing.T) {
 		},
 		{
 			name:        "write all, 2/3",
-			consistency: influxdb.ConsistencyLevelAll,
+			consistency: data.ConsistencyLevelAll,
 			dnWrote:     1,
 			dnErr:       nil,
 			cwWrote:     1,
 			cwErr:       nil,
-			expErr:      influxdb.ErrPartialWrite,
+			expErr:      data.ErrPartialWrite,
 		},
 		{
 			name:        "write all, one error, one success",
-			consistency: influxdb.ConsistencyLevelAll,
+			consistency: data.ConsistencyLevelAll,
 			dnWrote:     0,
-			dnErr:       influxdb.ErrTimeout,
+			dnErr:       data.ErrTimeout,
 			cwWrote:     1,
 			cwErr:       nil,
-			expErr:      influxdb.ErrPartialWrite,
+			expErr:      data.ErrPartialWrite,
 		},
 		{
 			name:        "write all, 1/3",
-			consistency: influxdb.ConsistencyLevelAll,
+			consistency: data.ConsistencyLevelAll,
 			dnWrote:     0,
 			dnErr:       nil,
 			cwWrote:     1,
 			cwErr:       nil,
-			expErr:      influxdb.ErrPartialWrite,
+			expErr:      data.ErrPartialWrite,
 		},
 		// Consistency quorum
 		{
 			name:        "write quorum, 1/3",
-			consistency: influxdb.ConsistencyLevelQuorum,
+			consistency: data.ConsistencyLevelQuorum,
 			dnWrote:     1,
 			dnErr:       nil,
 			cwWrote:     0,
 			cwErr:       nil,
-			expErr:      influxdb.ErrPartialWrite,
+			expErr:      data.ErrPartialWrite,
 		},
 		{
 			name:        "write quorum, 2/3, local & remote",
-			consistency: influxdb.ConsistencyLevelQuorum,
+			consistency: data.ConsistencyLevelQuorum,
 			dnWrote:     1,
 			dnErr:       nil,
 			cwWrote:     1,
@@ -299,9 +299,9 @@ func TestCoordinatorWrite(t *testing.T) {
 		},
 		{
 			name:        "write quorum, 2/3, not local, two remote",
-			consistency: influxdb.ConsistencyLevelQuorum,
+			consistency: data.ConsistencyLevelQuorum,
 			dnWrote:     0,
-			dnErr:       influxdb.ErrShardNotLocal,
+			dnErr:       fmt.Errorf("random data node error"),
 			cwWrote:     2,
 			cwErr:       nil,
 			expErr:      nil,
@@ -310,12 +310,12 @@ func TestCoordinatorWrite(t *testing.T) {
 		// Error write failed
 		{
 			name:        "no writes succeed",
-			consistency: influxdb.ConsistencyLevelOne,
+			consistency: data.ConsistencyLevelOne,
 			dnWrote:     0,
 			dnErr:       nil,
 			cwWrote:     0,
 			cwErr:       nil,
-			expErr:      influxdb.ErrWriteFailed,
+			expErr:      data.ErrWriteFailed,
 		},
 	}
 
@@ -323,7 +323,7 @@ func TestCoordinatorWrite(t *testing.T) {
 
 		// copy to prevent data race
 		theTest := test
-		sm := influxdb.NewShardMapping()
+		sm := data.NewShardMapping()
 		sm.MapPoint(
 			meta.ShardInfo{ID: uint64(1), OwnerIDs: []uint64{uint64(1)}},
 			data.Point{
@@ -347,13 +347,13 @@ func TestCoordinatorWrite(t *testing.T) {
 		}
 
 		ms := newTestMetaStore()
-		c := influxdb.Coordinator{
+		c := data.Coordinator{
 			MetaStore: ms,
 		}
 		c.AddShardWriter(dn)
 		c.AddShardWriter(cw)
 
-		pr := &influxdb.WritePointsRequest{
+		pr := &data.WritePointsRequest{
 			Database:         "mydb",
 			RetentionPolicy:  "myrp",
 			ConsistencyLevel: test.consistency,
