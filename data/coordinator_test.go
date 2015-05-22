@@ -122,17 +122,17 @@ func TestCoordinatorEnsureShardMappingMultiple(t *testing.T) {
 
 	for _, points := range shardMappings.Points {
 		// First shard shoud have 1 point w/ first point added
-		if len(points) == 1 && points[0].Time != pr.Points[0].Time {
-			t.Fatalf("MapShards() value mismatch. got %v, exp %v", points[0].Time, pr.Points[0].Time)
+		if len(points) == 1 && points[0].Time() != pr.Points[0].Time() {
+			t.Fatalf("MapShards() value mismatch. got %v, exp %v", points[0].Time(), pr.Points[0].Time())
 		}
 
 		// Second shard shoud have the last two points added
-		if len(points) == 2 && points[0].Time != pr.Points[1].Time {
-			t.Fatalf("MapShards() value mismatch. got %v, exp %v", points[0].Time, pr.Points[1].Time)
+		if len(points) == 2 && points[0].Time() != pr.Points[1].Time() {
+			t.Fatalf("MapShards() value mismatch. got %v, exp %v", points[0].Time(), pr.Points[1].Time())
 		}
 
-		if len(points) == 2 && points[1].Time != pr.Points[2].Time {
-			t.Fatalf("MapShards() value mismatch. got %v, exp %v", points[1].Time, pr.Points[2].Time)
+		if len(points) == 2 && points[1].Time() != pr.Points[2].Time() {
+			t.Fatalf("MapShards() value mismatch. got %v, exp %v", points[1].Time(), pr.Points[2].Time())
 		}
 	}
 }
@@ -326,11 +326,12 @@ func TestCoordinatorWrite(t *testing.T) {
 		sm := data.NewShardMapping()
 		sm.MapPoint(
 			meta.ShardInfo{ID: uint64(1), OwnerIDs: []uint64{uint64(1)}},
-			data.Point{
-				Name:   "cpu",
-				Fields: map[string]interface{}{"value": 0.0},
-				Time:   time.Unix(0, 0),
-			})
+			data.NewPoint(
+				"cpu",
+				nil,
+				map[string]interface{}{"value": 0.0},
+				time.Unix(0, 0),
+			))
 
 		// Local data.Node ShardWriter
 		dn := &fakeShardWriter{

@@ -1009,10 +1009,10 @@ func TestServer_WriteAllDataTypes(t *testing.T) {
 	s.SetDefaultRetentionPolicy("foo", "raw")
 
 	// Write series with one point to the database.
-	s.MustWriteSeries("foo", "raw", []data.Point{{Name: "series1", Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(20)}}})
-	s.MustWriteSeries("foo", "raw", []data.Point{{Name: "series2", Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": int64(30)}}})
-	s.MustWriteSeries("foo", "raw", []data.Point{{Name: "series3", Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": "baz"}}})
-	s.MustWriteSeries("foo", "raw", []data.Point{{Name: "series4", Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": true}}})
+	s.MustWriteSeries("foo", "raw", []data.Point{data.NewPoint("series1", nil, map[string]interface{}{"value": float64(20)}, mustParseTime("2000-01-01T00:00:00Z"))})
+	s.MustWriteSeries("foo", "raw", []data.Point{data.NewPoint("series2", nil, map[string]interface{}{"value": int64(30)}, mustParseTime("2000-01-01T00:00:00Z"))})
+	s.MustWriteSeries("foo", "raw", []data.Point{data.NewPoint("series3", nil, map[string]interface{}{"value": "baz"}, mustParseTime("2000-01-01T00:00:00Z"))})
+	s.MustWriteSeries("foo", "raw", []data.Point{data.NewPoint("series4", nil, map[string]interface{}{"value": true}, mustParseTime("2000-01-01T00:00:00Z"))})
 	time.Sleep(time.Millisecond * 100)
 
 	f := func(t *testing.T, database, query, expected string) {
@@ -1080,7 +1080,7 @@ func TestServer_DropMeasurement(t *testing.T) {
 
 	// Write series with one point to the database.
 	tags := map[string]string{"host": "serverA", "region": "uswest"}
-	index, err := s.WriteSeries("foo", "raw", []data.Point{{Name: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	index, err := s.WriteSeries("foo", "raw", []data.Point{data.NewPoint("cpu", tags, map[string]interface{}{"value": float64(23.2)}, mustParseTime("2000-01-01T00:00:00Z"))})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1143,7 +1143,8 @@ func TestServer_DropSeries(t *testing.T) {
 
 	// Write series with one point to the database.
 	tags := map[string]string{"host": "serverA", "region": "uswest"}
-	index, err := s.WriteSeries("foo", "raw", []data.Point{{Name: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	index, err := s.WriteSeries("foo", "raw", []data.Point{data.NewPoint("cpu", tags, map[string]interface{}{"value": float64(23.2)}, mustParseTime("2000-01-01T00:00:00Z"))})
+
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1187,14 +1188,16 @@ func TestServer_DropSeriesFromMeasurement(t *testing.T) {
 
 	// Write series with one point to the database.
 	tags := map[string]string{"host": "serverA", "region": "uswest"}
-	index, err := s.WriteSeries("foo", "raw", []data.Point{{Name: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	index, err := s.WriteSeries("foo", "raw", []data.Point{data.NewPoint("cpu", tags, map[string]interface{}{"value": float64(23.2)}, mustParseTime("2000-01-01T00:00:00Z"))})
+
 	if err != nil {
 		t.Fatal(err)
 	}
 	c.Sync(index)
 
 	tags = map[string]string{"host": "serverb", "region": "useast"}
-	index, err = s.WriteSeries("foo", "raw", []data.Point{{Name: "memory", Tags: tags, Time: mustParseTime("2000-01-02T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23465432423)}}})
+	index, err = s.WriteSeries("foo", "raw", []data.Point{data.NewPoint("memory", tags, map[string]interface{}{"value": float64(23465432423)}, mustParseTime("2000-01-02T00:00:00Z"))})
+
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1233,14 +1236,16 @@ func TestServer_DropSeriesTagsPreserved(t *testing.T) {
 
 	// Write series with one point to the database.
 	tags := map[string]string{"host": "serverA", "region": "uswest"}
-	index, err := s.WriteSeries("foo", "raw", []data.Point{{Name: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	index, err := s.WriteSeries("foo", "raw", []data.Point{data.NewPoint("cpu", tags, map[string]interface{}{"value": float64(23.2)}, mustParseTime("2000-01-01T00:00:00Z"))})
+
 	if err != nil {
 		t.Fatal(err)
 	}
 	c.Sync(index)
 
 	tags = map[string]string{"host": "serverB", "region": "uswest"}
-	index, err = s.WriteSeries("foo", "raw", []data.Point{{Name: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:01Z"), Fields: map[string]interface{}{"value": float64(33.2)}}})
+	index, err = s.WriteSeries("foo", "raw", []data.Point{data.NewPoint("cpu", tags, map[string]interface{}{"value": float64(33.2)}, mustParseTime("2000-01-01T00:00:01Z"))})
+
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1308,11 +1313,11 @@ func TestServer_ShowSeriesLimitOffset(t *testing.T) {
 	s.SetDefaultRetentionPolicy("foo", "raw")
 
 	// Write series with one point to the database.
-	s.MustWriteSeries("foo", "raw", []data.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east", "host": "serverA"}, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(20)}}})
-	s.MustWriteSeries("foo", "raw", []data.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east", "host": "serverB"}, Time: mustParseTime("2000-01-01T00:00:10Z"), Fields: map[string]interface{}{"value": float64(30)}}})
-	s.MustWriteSeries("foo", "raw", []data.Point{{Name: "cpu", Tags: map[string]string{"region": "us-west", "host": "serverC"}, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(100)}}})
-	s.MustWriteSeries("foo", "raw", []data.Point{{Name: "memory", Tags: map[string]string{"region": "us-west", "host": "serverB"}, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(100)}}})
-	s.MustWriteSeries("foo", "raw", []data.Point{{Name: "memory", Tags: map[string]string{"region": "us-east", "host": "serverA"}, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(100)}}})
+	s.MustWriteSeries("foo", "raw", []data.Point{data.NewPoint("cpu", map[string]string{"region": "us-east", "host": "serverA"}, map[string]interface{}{"value": float64(20)}, mustParseTime("2000-01-01T00:00:00Z"))})
+	s.MustWriteSeries("foo", "raw", []data.Point{data.NewPoint("cpu", map[string]string{"region": "us-east", "host": "serverB"}, map[string]interface{}{"value": float64(30)}, mustParseTime("2000-01-01T00:00:01Z"))})
+	s.MustWriteSeries("foo", "raw", []data.Point{data.NewPoint("cpu", map[string]string{"region": "us-west", "host": "serverC"}, map[string]interface{}{"value": float64(100)}, mustParseTime("2000-01-01T00:00:00Z"))})
+	s.MustWriteSeries("foo", "raw", []data.Point{data.NewPoint("memory", map[string]string{"region": "us-west", "host": "serverB"}, map[string]interface{}{"value": float64(100)}, mustParseTime("2000-01-01T00:00:00Z"))})
+	s.MustWriteSeries("foo", "raw", []data.Point{data.NewPoint("memory", map[string]string{"region": "us-east", "host": "serverA"}, map[string]interface{}{"value": float64(100)}, mustParseTime("2000-01-01T00:00:00Z"))})
 
 	// Select data from the server.
 	results := s.executeQuery(MustParseQuery(`SHOW SERIES LIMIT 3 OFFSET 1`), "foo", nil)
@@ -1861,9 +1866,9 @@ func TestServer_RunContinuousQueries(t *testing.T) {
 	}
 	testTime.Add(time.Millisecond * 2)
 
-	s.MustWriteSeries("foo", "raw", []data.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Time: testTime, Fields: map[string]interface{}{"value": float64(30)}}})
-	s.MustWriteSeries("foo", "raw", []data.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Time: testTime.Add(-time.Millisecond * 5), Fields: map[string]interface{}{"value": float64(20)}}})
-	s.MustWriteSeries("foo", "raw", []data.Point{{Name: "cpu", Tags: map[string]string{"region": "us-west"}, Time: testTime, Fields: map[string]interface{}{"value": float64(100)}}})
+	s.MustWriteSeries("foo", "raw", []data.Point{data.NewPoint("cpu", map[string]string{"region": "us-east"}, map[string]interface{}{"value": float64(30)}, testTime)})
+	s.MustWriteSeries("foo", "raw", []data.Point{data.NewPoint("cpu", map[string]string{"region": "us-east"}, map[string]interface{}{"value": float64(20)}, testTime.Add(-time.Millisecond*5))})
+	s.MustWriteSeries("foo", "raw", []data.Point{data.NewPoint("cpu", map[string]string{"region": "us-west"}, map[string]interface{}{"value": float64(100)}, testTime)})
 
 	// Run CQs after a period of time
 	time.Sleep(time.Millisecond * 50)
@@ -1893,7 +1898,7 @@ func TestServer_RunContinuousQueries(t *testing.T) {
 
 	// ensure that data written into a previous window is picked up and the result recomputed.
 	time.Sleep(time.Millisecond * 2)
-	s.MustWriteSeries("foo", "raw", []data.Point{{Name: "cpu", Tags: map[string]string{"region": "us-west"}, Time: testTime.Add(-time.Millisecond), Fields: map[string]interface{}{"value": float64(50)}}})
+	s.MustWriteSeries("foo", "raw", []data.Point{data.NewPoint("cpu", map[string]string{"region": "us-west"}, map[string]interface{}{"value": float64(50)}, testTime.Add(-time.Millisecond))})
 	s.RunContinuousQueries()
 	// give CQs time to run
 	time.Sleep(time.Millisecond * 100)
@@ -1957,7 +1962,7 @@ func TestServer_CreateSnapshotWriter(t *testing.T) {
 	s.CreateUser("susy", "pass", false)
 
 	// Write one point.
-	index, err := s.WriteSeries("db", "raw", []data.Point{{Name: "cpu", Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(100)}}})
+	index, err := s.WriteSeries("db", "raw", []data.Point{data.NewPoint("cpu", nil, map[string]interface{}{"value": float64(100)}, mustParseTime("2000-01-01T00:00:00Z"))})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2127,7 +2132,7 @@ func TestServer_ShowTagKeysStatement_TagsExist(t *testing.T) {
 
 	// Write series with one point to the database.
 	tags := map[string]string{"host": "serverA", "region": "uswest"}
-	index, err := s.WriteSeries("foo", "bar", []data.Point{{Name: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	index, err := s.WriteSeries("foo", "bar", []data.Point{data.NewPoint("cpu", tags, map[string]interface{}{"value": float64(23.2)}, mustParseTime("2000-01-01T00:00:00Z"))})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2168,7 +2173,8 @@ func TestServer_ShowTagValuesStatement_TagsExist(t *testing.T) {
 
 	// Write series with one point to the database.
 	tags := map[string]string{"host": "serverA", "region": "uswest"}
-	index, err := s.WriteSeries("foo", "bar", []data.Point{{Name: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	index, err := s.WriteSeries("foo", "bar", []data.Point{data.NewPoint("cpu", tags, map[string]interface{}{"value": float64(23.2)}, mustParseTime("2000-01-01T00:00:00Z"))})
+
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2209,13 +2215,15 @@ func TestServer_ShowTagValuesStatement_WhereClause(t *testing.T) {
 
 	// Write series with one point to the database.
 	tags := map[string]string{"host": "serverA", "region": "uswest"}
-	index, err := s.WriteSeries("foo", "bar", []data.Point{{Name: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	index, err := s.WriteSeries("foo", "bar", []data.Point{data.NewPoint("cpu", tags, map[string]interface{}{"value": float64(23.2)}, mustParseTime("2000-01-01T00:00:00Z"))})
+
 	if err != nil {
 		t.Fatal(err)
 	}
 	c.Sync(index)
 	tags2 := map[string]string{"host": "serverC", "region": "useast"}
-	index2, err := s.WriteSeries("foo", "bar", []data.Point{{Name: "cpu", Tags: tags2, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	index2, err := s.WriteSeries("foo", "bar", []data.Point{data.NewPoint("cpu", tags2, map[string]interface{}{"value": float64(23.2)}, mustParseTime("2000-01-01T00:00:00Z"))})
+
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2256,7 +2264,8 @@ func TestServer_ShowTagValuesStatement_ErrDatabaseNotFound(t *testing.T) {
 
 	// Write series with one point to the database.
 	tags := map[string]string{"host": "serverA", "region": "uswest"}
-	index, err := s.WriteSeries("foo", "bar", []data.Point{{Name: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	index, err := s.WriteSeries("foo", "bar", []data.Point{data.NewPoint("cpu", tags, map[string]interface{}{"value": float64(23.2)}, mustParseTime("2000-01-01T00:00:00Z"))})
+
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2298,7 +2307,8 @@ func TestServer_ShowTagValuesStatement_ErrMeasurementNotFound(t *testing.T) {
 
 	// Write series with one point to the database.
 	tags := map[string]string{"host": "serverA", "region": "uswest"}
-	index, err := s.WriteSeries("foo", "bar", []data.Point{{Name: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	index, err := s.WriteSeries("foo", "bar", []data.Point{data.NewPoint("cpu", tags, map[string]interface{}{"value": float64(23.2)}, mustParseTime("2000-01-01T00:00:00Z"))})
+
 	if err != nil {
 		t.Fatal(err)
 	}

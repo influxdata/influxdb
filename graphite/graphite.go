@@ -98,12 +98,7 @@ func (p *Parser) Parse(line string) (data.Point, error) {
 	// Check if we have fractional seconds
 	timestamp := time.Unix(int64(unixTime), int64((unixTime-math.Floor(unixTime))*float64(time.Second)))
 
-	point := data.Point{
-		Name:   name,
-		Tags:   tags,
-		Fields: fieldValues,
-		Time:   timestamp,
-	}
+	point := data.NewPoint(name, tags, fieldValues, timestamp)
 
 	return point, nil
 }

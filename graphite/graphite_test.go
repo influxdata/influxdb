@@ -215,8 +215,8 @@ func Test_DecodeMetric(t *testing.T) {
 		if point.Fields["value"] != f {
 			t.Fatalf("floatValue value mismatch.  expected %v, got %v", test.value, f)
 		}
-		if point.Time.UnixNano()/1000000 != test.time.UnixNano()/1000000 {
-			t.Fatalf("time value mismatch.  expected %v, got %v", test.time.UnixNano(), point.Time.UnixNano())
+		if point.Time().UnixNano()/1000000 != test.time.UnixNano()/1000000 {
+			t.Fatalf("time value mismatch.  expected %v, got %v", test.time.UnixNano(), point.Time().UnixNano())
 		}
 	}
 }

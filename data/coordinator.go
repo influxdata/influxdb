@@ -130,7 +130,7 @@ func (c *Coordinator) MapShards(wp *WritePointsRequest) (*ShardMapping, error) {
 	}
 
 	for _, p := range wp.Points {
-		timeRanges[p.Time.Truncate(rp.ShardGroupDuration)] = nil
+		timeRanges[p.Time().Truncate(rp.ShardGroupDuration)] = nil
 	}
 
 	// holds all the shard groups and shards that are required for writes
@@ -144,7 +144,7 @@ func (c *Coordinator) MapShards(wp *WritePointsRequest) (*ShardMapping, error) {
 
 	mapping := NewShardMapping()
 	for _, p := range wp.Points {
-		sg := timeRanges[p.Time.Truncate(rp.ShardGroupDuration)]
+		sg := timeRanges[p.Time().Truncate(rp.ShardGroupDuration)]
 		sh := sg.ShardFor(p.HashID())
 		mapping.MapPoint(sh, p)
 	}

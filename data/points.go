@@ -27,12 +27,9 @@ type WritePointsRequest struct {
 
 // AddPoint adds a point to the WritePointRequest with field name 'value'
 func (w *WritePointsRequest) AddPoint(name string, value interface{}, timestamp time.Time, tags map[string]string) {
-	w.Points = append(w.Points, Point{
-		Name:   name,
-		Fields: map[string]interface{}{"value": value},
-		Time:   timestamp,
-		Tags:   tags,
-	})
+	w.Points = append(w.Points, NewPoint(
+		name, tags, map[string]interface{}{"value": value}, timestamp,
+	))
 }
 
 // WriteShardRequest represents the a request to write a slice of points to a shard
@@ -58,12 +55,9 @@ func (w *WriteShardRequest) Points() []Point {
 }
 
 func (w *WriteShardRequest) AddPoint(name string, value interface{}, timestamp time.Time, tags map[string]string) {
-	w.AddPoints([]Point{Point{
-		Name:   name,
-		Fields: map[string]interface{}{"value": value},
-		Time:   timestamp,
-		Tags:   tags,
-	}})
+	w.AddPoints([]Point{NewPoint(
+		name, tags, map[string]interface{}{"value": value}, timestamp,
+	)})
 }
 
 func (w *WriteShardRequest) AddPoints(points []Point) {
@@ -115,7 +109,7 @@ func (w *WriteShardRequest) marshalPoints(points []Point) []*internal.Point {
 		name := p.Name
 		pts[i] = &internal.Point{
 			Name:   &name,
-			Time:   proto.Int64(p.Time.UnixNano()),
+			Time:   proto.Int64(p.Time().UnixNano()),
 			Fields: fields,
 			Tags:   tags,
 		}
@@ -135,12 +129,9 @@ func (w *WriteShardRequest) UnmarshalBinary(buf []byte) error {
 func (w *WriteShardRequest) unmarhalPoints() []Point {
 	points := make([]Point, len(w.pb.GetPoints()))
 	for i, p := range w.pb.GetPoints() {
-		pt := Point{
-			Name:   p.GetName(),
-			Time:   time.Unix(0, p.GetTime()),
-			Fields: map[string]interface{}{},
-			Tags:   map[string]string{},
-		}
+		pt := NewPoint(
+			p.GetName(), map[string]string{},
+			map[string]interface{}{}, time.Unix(0, p.GetTime()))
 
 		for _, f := range p.GetFields() {
 			n := f.GetName()
@@ -201,8 +192,28 @@ func (w *WriteShardResponse) UnmarshalBinary(buf []byte) error {
 type Point struct {
 	Name   string
 	Tags   Tags
-	Time   time.Time
+	time   time.Time
 	Fields map[string]interface{}
+}
+
+// NewPoint returns a new point with the given measurement name, tags, fiels and timestamp
+func NewPoint(name string, tags Tags, fields map[string]interface{}, time time.Time) Point {
+	return Point{
+		Name:   name,
+		Tags:   tags,
+		time:   time,
+		Fields: fields,
+	}
+}
+
+// Time return the timesteamp for the point
+func (p *Point) Time() time.Time {
+	return p.time
+}
+
+// SetTime updates the timestamp for the point
+func (p *Point) SetTime(t time.Time) {
+	p.time = t
 }
 
 func (p *Point) HashID() uint64 {

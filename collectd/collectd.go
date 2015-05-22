@@ -185,12 +185,7 @@ func Unmarshal(packet *gollectd.Packet) []data.Point {
 		if packet.TypeInstance != "" {
 			tags["type_instance"] = packet.TypeInstance
 		}
-		p := data.Point{
-			Name:   name,
-			Tags:   tags,
-			Time:   timestamp,
-			Fields: fields,
-		}
+		p := data.NewPoint(name, tags, fields, timestamp)
 
 		points = append(points, p)
 	}

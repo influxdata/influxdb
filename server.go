@@ -419,12 +419,12 @@ func (s *Server) StartSelfMonitoring(database, retention string, interval time.D
 		var points []data.Point
 		now := time.Now()
 		st.Walk(func(k string, v int64) {
-			point := data.Point{
-				Time:   now,
-				Name:   st.name + "_" + k,
-				Tags:   make(map[string]string),
-				Fields: map[string]interface{}{"value": int(v)},
-			}
+			point := data.NewPoint(
+				st.name+"_"+k,
+				make(map[string]string),
+				map[string]interface{}{"value": int(v)},
+				now,
+			)
 			// Specifically create a new map.
 			for k, v := range tags {
 				point.Tags[k] = v
@@ -1885,7 +1885,7 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []data.Poi
 			}
 
 			// Retrieve shard group.
-			g, err := s.shardGroupByTimestamp(database, retentionPolicy, p.Time)
+			g, err := s.shardGroupByTimestamp(database, retentionPolicy, p.Time())
 			if err != nil {
 				return err
 			}
@@ -1914,7 +1914,7 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []data.Poi
 			}
 
 			// Encode point header, followed by point data, and add to shard's batch.
-			data := marshalPointHeader(series.ID, uint32(len(encodedFields)), p.Time.UnixNano())
+			data := marshalPointHeader(series.ID, uint32(len(encodedFields)), p.Time().UnixNano())
 			data = append(data, encodedFields...)
 			if shardData[sh.ID] == nil {
 				shardData[sh.ID] = make([]byte, 0)
@@ -2128,7 +2128,7 @@ func (s *Server) createShardGroupsIfNotExists(database, retentionPolicy string, 
 
 		times := map[time.Time]struct{}{}
 		for _, p := range points {
-			times[p.Time.Truncate(rp.ShardGroupDuration)] = struct{}{}
+			times[p.Time().Truncate(rp.ShardGroupDuration)] = struct{}{}
 		}
 
 		for t := range times {
@@ -4127,14 +4127,9 @@ func (s *Server) convertRowToPoints(measurementName string, row *influxql.Row) (
 			vals[fieldName] = v[fieldIndex]
 		}
 
-		p := &data.Point{
-			Name:   measurementName,
-			Tags:   row.Tags,
-			Time:   v[timeIndex].(time.Time),
-			Fields: vals,
-		}
+		p := data.NewPoint(measurementName, row.Tags, vals, v[timeIndex].(time.Time))
 
-		points = append(points, *p)
+		points = append(points, p)
 	}
 
 	return points, nil

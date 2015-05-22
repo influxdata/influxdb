@@ -26,7 +26,7 @@ func TestNormalizeBatchPoints(t *testing.T) {
 				},
 			},
 			p: []data.Point{
-				{Name: "cpu", Tags: map[string]string{"region": "useast"}, Time: now, Fields: map[string]interface{}{"value": 1.0}},
+				data.NewPoint("cpu", map[string]string{"region": "useast"}, map[string]interface{}{"value": 1.0}, now),
 			},
 		},
 		{
@@ -38,7 +38,7 @@ func TestNormalizeBatchPoints(t *testing.T) {
 				},
 			},
 			p: []data.Point{
-				{Name: "cpu", Tags: map[string]string{"region": "useast"}, Time: now, Fields: map[string]interface{}{"value": 1.0}},
+				data.NewPoint("cpu", map[string]string{"region": "useast"}, map[string]interface{}{"value": 1.0}, now),
 			},
 		},
 		{
@@ -51,8 +51,8 @@ func TestNormalizeBatchPoints(t *testing.T) {
 				},
 			},
 			p: []data.Point{
-				{Name: "cpu", Tags: map[string]string{"day": "monday", "region": "useast"}, Time: now, Fields: map[string]interface{}{"value": 1.0}},
-				{Name: "memory", Tags: map[string]string{"day": "monday"}, Time: now, Fields: map[string]interface{}{"value": 2.0}},
+				data.NewPoint("cpu", map[string]string{"day": "monday", "region": "useast"}, map[string]interface{}{"value": 1.0}, now),
+				data.NewPoint("memory", map[string]string{"day": "monday"}, map[string]interface{}{"value": 2.0}, now),
 			},
 		},
 	}

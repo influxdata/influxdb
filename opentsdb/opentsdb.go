@@ -223,12 +223,7 @@ func (s *Server) HandleTelnet(conn net.Conn) {
 			continue
 		}
 
-		p := data.Point{
-			Name:   name,
-			Tags:   tags,
-			Time:   t,
-			Fields: fields,
-		}
+		p := data.NewPoint(name, tags, fields, t)
 
 		_, err = s.writer.WriteSeries(s.database, s.retentionpolicy, []data.Point{p})
 		if err != nil {
@@ -332,12 +327,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			continue
 		}
-		p := data.Point{
-			Name:   dp.Metric,
-			Tags:   dp.Tags,
-			Time:   ts,
-			Fields: fields,
-		}
+		p := data.NewPoint(dp.Metric, dp.Tags, fields, ts)
+
 		idps = append(idps, p)
 	}
 	_, err = s.writer.WriteSeries(s.database, s.retentionpolicy, idps)

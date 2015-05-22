@@ -64,8 +64,8 @@ func TestWriteShardRequestBinary(t *testing.T) {
 			t.Errorf("Point %d name mismatch: got %v, exp %v", i, g.Name, p.Name)
 		}
 
-		if !g.Time.Equal(p.Time) {
-			t.Errorf("Point %d time mismatch: got %v, exp %v", i, g.Time, p.Time)
+		if !g.Time().Equal(p.Time()) {
+			t.Errorf("Point %d time mismatch: got %v, exp %v", i, g.Time(), p.Time())
 		}
 
 		if g.HashID() != p.HashID() {
