@@ -88,7 +88,7 @@ func ExampleClient_Write() {
 	rand.Seed(42)
 	for i := 0; i < sampleSize; i++ {
 		pts[i] = client.Point{
-			Name: "shapes",
+			Measurement: "shapes",
 			Tags: map[string]string{
 				"color": strconv.Itoa(rand.Intn(len(colors))),
 				"shape": strconv.Itoa(rand.Intn(len(shapes))),
