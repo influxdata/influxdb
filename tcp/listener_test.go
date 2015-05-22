@@ -124,7 +124,7 @@ func TestServer_WriteShardRequestSuccess(t *testing.T) {
 		Fields: map[string]interface{}{"value": int64(100)},
 	})
 
-	if err := client.WriteShardRequest(shardID, points); err != nil {
+	if err := client.WriteShard(shardID, points); err != nil {
 		t.Fatal(err)
 	}
 
@@ -196,7 +196,7 @@ func TestServer_WriteShardRequestFail(t *testing.T) {
 		Fields: map[string]interface{}{"value": int64(100)},
 	})
 
-	if err, exp := client.WriteShardRequest(shardID, points), "error code 1: failed to write"; err == nil || err.Error() != exp {
+	if err, exp := client.WriteShard(shardID, points), "error code 1: failed to write"; err == nil || err.Error() != exp {
 		t.Fatalf("expected error %s, got %v", exp, err)
 	}
 }
