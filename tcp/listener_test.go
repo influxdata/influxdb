@@ -80,6 +80,19 @@ func TestServer_Close_ErrServerClosed(t *testing.T) {
 	}
 }
 
+func TestServer_Close_ErrBindAddressRequired(t *testing.T) {
+	var (
+		ts testServer
+		s  = tcp.NewServer(ts)
+	)
+
+	// Start on a random port
+	_, e := s.ListenAndServe("")
+	if e == nil {
+		t.Fatalf("exprected error %s, got nil.", tcp.ErrBindAddressRequired)
+	}
+
+}
 func TestServer_WriteShardRequestSuccess(t *testing.T) {
 	var (
 		ts = newTestServer(writeShardSuccess)
