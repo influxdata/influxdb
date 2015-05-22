@@ -148,47 +148,26 @@ func (s *Server) handleConnection(conn net.Conn) {
 }
 
 func (s *Server) writeShardRequest(conn net.Conn) error {
-	messageChannel := make(chan data.WriteShardRequest)
-	errChan := make(chan error)
-
-	go func() {
-		var size int64
-		if err := binary.Read(conn, binary.LittleEndian, &size); err != nil {
-			errChan <- err
-			return
-		}
-
-		message := make([]byte, size)
-
-		reader := io.LimitReader(conn, size)
-		_, err := reader.Read(message)
-		if err != nil {
-			errChan <- err
-			return
-		}
-		var wsr data.WriteShardRequest
-		if err := wsr.UnmarshalBinary(message); err != nil {
-			errChan <- err
-			return
-		}
-		messageChannel <- wsr
-	}()
-
-	for {
-		select {
-		case <-s.shutdown:
-			// Are we shutting down? If so, exit
-			return nil
-		case e := <-errChan:
-			return e
-		case wsr := <-messageChannel:
-			if _, err := s.writer.WriteShard(wsr.ShardID(), wsr.Points()); err != nil {
-				return err
-			}
-			return nil
-		default:
-		}
+	var size int64
+	if err := binary.Read(conn, binary.LittleEndian, &size); err != nil {
+		return err
 	}
+
+	message := make([]byte, size)
+
+	reader := io.LimitReader(conn, size)
+	_, err := reader.Read(message)
+	if err != nil {
+		return err
+	}
+	var wsr data.WriteShardRequest
+	if err := wsr.UnmarshalBinary(message); err != nil {
+		return err
+	}
+	if _, err := s.writer.WriteShard(wsr.ShardID(), wsr.Points()); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *Server) writeShardResponse(conn net.Conn, e error) {
