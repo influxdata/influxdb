@@ -737,6 +737,7 @@ func cloneSource(s Source) Source {
 // with the supplied dimensions.
 func (s *SelectStatement) RewriteWildcards(fields Fields, dimensions Dimensions) *SelectStatement {
 	other := s.Clone()
+	selectWildcard, groupWildcard := false, false
 
 	// Rewrite all wildcard query fields
 	rwFields := make(Fields, 0, len(s.Fields))
@@ -746,6 +747,7 @@ func (s *SelectStatement) RewriteWildcards(fields Fields, dimensions Dimensions)
 			// Sort wildcard fields for consistent output
 			sort.Sort(fields)
 			rwFields = append(rwFields, fields...)
+			selectWildcard = true
 		default:
 			rwFields = append(rwFields, f)
 		}
@@ -758,9 +760,14 @@ func (s *SelectStatement) RewriteWildcards(fields Fields, dimensions Dimensions)
 		switch d.Expr.(type) {
 		case *Wildcard:
 			rwDimensions = append(rwDimensions, dimensions...)
+			groupWildcard = true
 		default:
 			rwDimensions = append(rwDimensions, d)
 		}
+	}
+
+	if selectWildcard && !groupWildcard {
+		rwDimensions = append(rwDimensions, dimensions...)
 	}
 	other.Dimensions = rwDimensions
 
