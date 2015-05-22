@@ -14,7 +14,7 @@ import (
 
 var (
 	// ErrBindAddressRequired is returned when starting the Server
-	// without a TCP or UDP listening address.
+	// without providing a bind address
 	ErrBindAddressRequired = errors.New("bind address required")
 
 	// ErrServerClosed return when closing an already closed graphite server.
