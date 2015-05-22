@@ -217,7 +217,7 @@ func TestUnmarshal_Points(t *testing.T) {
 				},
 			},
 			points: []data.Point{
-				{Name: "disk_read", Fields: map[string]interface{}{"value": float64(1)}},
+				data.NewPoint("disk_read", nil, map[string]interface{}{"value": float64(1)}, time.Unix(0, 0)),
 			},
 		},
 		{
@@ -230,8 +230,8 @@ func TestUnmarshal_Points(t *testing.T) {
 				},
 			},
 			points: []data.Point{
-				{Name: "disk_read", Fields: map[string]interface{}{"value": float64(1)}},
-				{Name: "disk_write", Fields: map[string]interface{}{"value": float64(5)}},
+				data.NewPoint("disk_read", nil, map[string]interface{}{"value": float64(1)}, time.Unix(0, 0)),
+				data.NewPoint("disk_write", nil, map[string]interface{}{"value": float64(5)}, time.Unix(0, 0)),
 			},
 		},
 		{
@@ -247,11 +247,10 @@ func TestUnmarshal_Points(t *testing.T) {
 				},
 			},
 			points: []data.Point{
-				{
-					Name:   "disk_read",
-					Tags:   map[string]string{"host": "server01", "instance": "sdk", "type": "disk_octets", "type_instance": "single"},
-					Fields: map[string]interface{}{"value": float64(1)},
-				},
+				data.NewPoint("disk_read",
+					map[string]string{"host": "server01", "instance": "sdk", "type": "disk_octets", "type_instance": "single"},
+					map[string]interface{}{"value": float64(1)},
+					time.Unix(0, 0)),
 			},
 		},
 	}
@@ -265,8 +264,8 @@ func TestUnmarshal_Points(t *testing.T) {
 		for i, m := range test.points {
 			// test name
 			name := fmt.Sprintf("%s_%s", test.packet.Plugin, test.packet.Values[i].Name)
-			if m.Name != name {
-				t.Errorf("point name mismatch. expected %q, got %q", name, m.Name)
+			if m.Name() != name {
+				t.Errorf("point name mismatch. expected %q, got %q", name, m.Name())
 			}
 			// test value
 			mv := m.Fields["value"].(float64)

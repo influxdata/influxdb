@@ -1878,9 +1878,9 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []data.Poi
 			return ErrDatabaseNotFound(database)
 		}
 		for _, p := range points {
-			measurement, series := db.MeasurementAndSeries(p.Name, p.Tags)
+			measurement, series := db.MeasurementAndSeries(p.Name(), p.Tags)
 			if series == nil {
-				s.Logger.Printf("series not found: name=%s, tags=%#v", p.Name, p.Tags)
+				s.Logger.Printf("series not found: name=%s, tags=%#v", p.Name(), p.Tags)
 				return ErrSeriesNotFound
 			}
 
@@ -1971,11 +1971,11 @@ func (s *Server) createMeasurementsIfNotExists(database, retentionPolicy string,
 		}
 
 		for _, p := range points {
-			measurement, series := db.MeasurementAndSeries(p.Name, p.Tags)
+			measurement, series := db.MeasurementAndSeries(p.Name(), p.Tags)
 
 			if series == nil {
 				// Series does not exist in Metastore, add it so it's created cluster-wide.
-				c.addSeriesIfNotExists(p.Name, p.Tags)
+				c.addSeriesIfNotExists(p.Name(), p.Tags)
 			}
 
 			for k, v := range p.Fields {
@@ -1989,7 +1989,7 @@ func (s *Server) createMeasurementsIfNotExists(database, retentionPolicy string,
 					}
 				}
 				// Field isn't in Metastore. Add it to command so it's created cluster-wide.
-				if err := c.addFieldIfNotExists(p.Name, k, influxql.InspectDataType(v)); err != nil {
+				if err := c.addFieldIfNotExists(p.Name(), k, influxql.InspectDataType(v)); err != nil {
 					return err
 				}
 			}

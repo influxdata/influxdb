@@ -106,7 +106,7 @@ func (w *WriteShardRequest) marshalPoints(points []Point) []*internal.Point {
 				Value: &value,
 			})
 		}
-		name := p.Name
+		name := p.Name()
 		pts[i] = &internal.Point{
 			Name:   &name,
 			Time:   proto.Int64(p.Time().UnixNano()),
@@ -190,7 +190,7 @@ func (w *WriteShardResponse) UnmarshalBinary(buf []byte) error {
 
 // Point defines the values that will be written to the database
 type Point struct {
-	Name   string
+	name   string
 	Tags   Tags
 	time   time.Time
 	Fields map[string]interface{}
@@ -199,11 +199,21 @@ type Point struct {
 // NewPoint returns a new point with the given measurement name, tags, fiels and timestamp
 func NewPoint(name string, tags Tags, fields map[string]interface{}, time time.Time) Point {
 	return Point{
-		Name:   name,
+		name:   name,
 		Tags:   tags,
 		time:   time,
 		Fields: fields,
 	}
+}
+
+// Name return the measurement name for the point
+func (p *Point) Name() string {
+	return p.name
+}
+
+// SetName updates the measurement name for the point
+func (p *Point) SetName(name string) {
+	p.name = name
 }
 
 // Time return the timesteamp for the point
@@ -221,12 +231,12 @@ func (p *Point) HashID() uint64 {
 	// <measurementName>|<tagKey>|<tagKey>|<tagValue>|<tagValue>
 	// cpu|host|servera
 	encodedTags := p.Tags.Marshal()
-	size := len(p.Name) + len(encodedTags)
+	size := len(p.Name()) + len(encodedTags)
 	if len(encodedTags) > 0 {
 		size++
 	}
 	b := make([]byte, 0, size)
-	b = append(b, p.Name...)
+	b = append(b, p.Name()...)
 	if len(encodedTags) > 0 {
 		b = append(b, '|')
 	}

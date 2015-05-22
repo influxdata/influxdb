@@ -1439,7 +1439,7 @@ func TestServer_CopyShard(t *testing.T) {
 	s.SetDefaultRetentionPolicy("foo", "raw")
 
 	// Write series with one point to the database to ensure shard 1 is created.
-	s.MustWriteSeries("foo", "raw", []data.Point{{Name: "series1", Fields: map[string]interface{}{"value": float64(20)}}})
+	s.MustWriteSeries("foo", "raw", []data.Point{data.NewPoint("series1", nil, map[string]interface{}{"value": float64(20)}, time.Unix(0, 0))})
 	time.Sleep(time.Millisecond * 100)
 
 	err := s.CopyShard(ioutil.Discard, 1234)
