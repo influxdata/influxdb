@@ -14,16 +14,11 @@ var (
 )
 
 type MetaStore struct {
-<<<<<<< HEAD
 	OpenFn  func(path string) error
 	CloseFn func() error
 
 	CreateContinuousQueryFn func(query string) (*meta.ContinuousQueryInfo, error)
 	DropContinuousQueryFn   func(query string) error
-=======
-	CreateContinuousQueryFn func(q *influxql.CreateContinuousQueryStatement) (*meta.ContinuousQueryInfo, error)
-	DropContinuousQueryFn   func(q *influxql.DropContinuousQueryStatement) error
->>>>>>> Allow coordinator to map points to multiple shards
 
 	NodeFn       func(id uint64) (*meta.NodeInfo, error)
 	NodeByHostFn func(host string) (*meta.NodeInfo, error)
@@ -53,7 +48,6 @@ type MetaStore struct {
 	SetPrivilegeFn func(p influxql.Privilege, username string, dbname string) error
 }
 
-<<<<<<< HEAD
 func (m MetaStore) Open(path string) error {
 	return m.OpenFn(path)
 }
@@ -68,14 +62,6 @@ func (m MetaStore) CreateContinuousQuery(query string) (*meta.ContinuousQueryInf
 
 func (m MetaStore) DropContinuousQuery(query string) error {
 	return m.DropContinuousQueryFn(query)
-=======
-func (m MetaStore) CreateContinuousQuery(q *influxql.CreateContinuousQueryStatement) (*meta.ContinuousQueryInfo, error) {
-	return m.CreateContinuousQueryFn(q)
-}
-
-func (m MetaStore) DropContinuousQuery(q *influxql.DropContinuousQueryStatement) error {
-	return m.DropContinuousQueryFn(q)
->>>>>>> Allow coordinator to map points to multiple shards
 }
 
 func (m MetaStore) Node(id uint64) (*meta.NodeInfo, error) {
