@@ -18,20 +18,20 @@ func TestShardWriteAndIndex(t *testing.T) {
 		t.Fatalf("error openeing shard: %s", err.Error())
 	}
 
-	pt := &Point{
-		Name:   "cpu",
-		Tags:   map[string]string{"host": "server"},
-		Time:   time.Unix(1, 2),
-		Fields: map[string]interface{}{"value": 1.0},
-	}
+	pt := NewPoint(
+		"cpu",
+		map[string]string{"host": "server"},
+		map[string]interface{}{"value": 1.0},
+		time.Unix(1, 2),
+	)
 
-	err := sh.WritePoints([]*Point{pt})
+	err := sh.WritePoints([]*Point{&pt})
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
 
-	pt.Time = time.Unix(2, 3)
-	err = sh.WritePoints([]*Point{pt})
+	pt.SetTime(time.Unix(2, 3))
+	err = sh.WritePoints([]*Point{&pt})
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -65,8 +65,8 @@ func TestShardWriteAndIndex(t *testing.T) {
 	validateIndex()
 
 	// and ensure that we can still write data
-	pt.Time = time.Unix(2, 6)
-	err = sh.WritePoints([]*Point{pt})
+	pt.SetTime(time.Unix(2, 6))
+	err = sh.WritePoints([]*Point{&pt})
 	if err != nil {
 		t.Fatalf(err.Error())
 	}

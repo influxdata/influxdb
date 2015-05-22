@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb/collectd"
-	"github.com/influxdb/influxdb/data"
+	"github.com/influxdb/influxdb/tsdb"
 	"github.com/kimor79/gollectd"
 )
 
@@ -17,12 +17,12 @@ type serverResponses []serverResponse
 type serverResponse struct {
 	database        string
 	retentionPolicy string
-	points          []data.Point
+	points          []tsdb.Point
 }
 
 var responses = make(chan *serverResponse, 1024)
 
-func (testServer) WriteSeries(database, retentionPolicy string, points []data.Point) (uint64, error) {
+func (testServer) WriteSeries(database, retentionPolicy string, points []tsdb.Point) (uint64, error) {
 	responses <- &serverResponse{
 		database:        database,
 		retentionPolicy: retentionPolicy,
@@ -206,7 +206,7 @@ func TestUnmarshal_Points(t *testing.T) {
 	var tests = []struct {
 		name   string
 		packet gollectd.Packet
-		points []data.Point
+		points []tsdb.Point
 	}{
 		{
 			name: "single value",
@@ -216,8 +216,8 @@ func TestUnmarshal_Points(t *testing.T) {
 					{Name: "read", Value: 1},
 				},
 			},
-			points: []data.Point{
-				data.NewPoint("disk_read", nil, map[string]interface{}{"value": float64(1)}, time.Unix(0, 0)),
+			points: []tsdb.Point{
+				tsdb.NewPoint("disk_read", nil, map[string]interface{}{"value": float64(1)}, time.Unix(0, 0)),
 			},
 		},
 		{
@@ -229,9 +229,9 @@ func TestUnmarshal_Points(t *testing.T) {
 					{Name: "write", Value: 5},
 				},
 			},
-			points: []data.Point{
-				data.NewPoint("disk_read", nil, map[string]interface{}{"value": float64(1)}, time.Unix(0, 0)),
-				data.NewPoint("disk_write", nil, map[string]interface{}{"value": float64(5)}, time.Unix(0, 0)),
+			points: []tsdb.Point{
+				tsdb.NewPoint("disk_read", nil, map[string]interface{}{"value": float64(1)}, time.Unix(0, 0)),
+				tsdb.NewPoint("disk_write", nil, map[string]interface{}{"value": float64(5)}, time.Unix(0, 0)),
 			},
 		},
 		{
@@ -246,8 +246,8 @@ func TestUnmarshal_Points(t *testing.T) {
 					{Name: "read", Value: 1},
 				},
 			},
-			points: []data.Point{
-				data.NewPoint("disk_read",
+			points: []tsdb.Point{
+				tsdb.NewPoint("disk_read",
 					map[string]string{"host": "server01", "instance": "sdk", "type": "disk_octets", "type_instance": "single"},
 					map[string]interface{}{"value": float64(1)},
 					time.Unix(0, 0)),
@@ -305,7 +305,7 @@ func TestUnmarshal_Time(t *testing.T) {
 	var tests = []struct {
 		name   string
 		packet gollectd.Packet
-		points []data.Point
+		points []tsdb.Point
 	}{
 		{
 			name: "Should parse timeHR properly",
@@ -317,8 +317,8 @@ func TestUnmarshal_Time(t *testing.T) {
 					},
 				},
 			},
-			points: []data.Point{
-				data.NewPoint("", nil, nil, testTime),
+			points: []tsdb.Point{
+				tsdb.NewPoint("", nil, nil, testTime),
 			},
 		},
 		{
@@ -331,8 +331,8 @@ func TestUnmarshal_Time(t *testing.T) {
 					},
 				},
 			},
-			points: []data.Point{
-				data.NewPoint("", nil, nil, testTime.Round(time.Second)),
+			points: []tsdb.Point{
+				tsdb.NewPoint("", nil, nil, testTime.Round(time.Second)),
 			},
 		},
 	}

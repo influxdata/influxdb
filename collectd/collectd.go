@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/influxdb/influxdb/data"
+	"github.com/influxdb/influxdb/tsdb"
 	"github.com/kimor79/gollectd"
 )
 
@@ -17,7 +17,7 @@ const DefaultPort = 25826
 
 // SeriesWriter defines the interface for the destination of the data.
 type SeriesWriter interface {
-	WriteSeries(database, retentionPolicy string, points []data.Point) (uint64, error)
+	WriteSeries(database, retentionPolicy string, points []tsdb.Point) (uint64, error)
 }
 
 // Server represents a UDP server which receives metrics in collectd's binary
@@ -122,7 +122,7 @@ func (s *Server) handleMessage(buffer []byte) {
 	for _, packet := range *packets {
 		points := Unmarshal(&packet)
 		for _, p := range points {
-			_, err := s.writer.WriteSeries(s.Database, "", []data.Point{p})
+			_, err := s.writer.WriteSeries(s.Database, "", []tsdb.Point{p})
 			if err != nil {
 				log.Printf("Collectd cannot write data: %s", err)
 				continue
@@ -150,7 +150,7 @@ func (s *Server) Close() error {
 }
 
 // Unmarshal translates a collectd packet into InfluxDB data points.
-func Unmarshal(packet *gollectd.Packet) []data.Point {
+func Unmarshal(packet *gollectd.Packet) []tsdb.Point {
 	// Prefer high resolution timestamp.
 	var timestamp time.Time
 	if packet.TimeHR > 0 {
@@ -165,7 +165,7 @@ func Unmarshal(packet *gollectd.Packet) []data.Point {
 		timestamp = time.Unix(int64(packet.Time), 0).UTC()
 	}
 
-	var points []data.Point
+	var points []tsdb.Point
 	for i := range packet.Values {
 		name := fmt.Sprintf("%s_%s", packet.Plugin, packet.Values[i].Name)
 		tags := make(map[string]string)
@@ -185,7 +185,7 @@ func Unmarshal(packet *gollectd.Packet) []data.Point {
 		if packet.TypeInstance != "" {
 			tags["type_instance"] = packet.TypeInstance
 		}
-		p := data.NewPoint(name, tags, fields, timestamp)
+		p := tsdb.NewPoint(name, tags, fields, timestamp)
 
 		points = append(points, p)
 	}

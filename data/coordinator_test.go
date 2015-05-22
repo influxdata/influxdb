@@ -8,13 +8,14 @@ import (
 	"github.com/influxdb/influxdb/data"
 	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/test"
+	"github.com/influxdb/influxdb/tsdb"
 )
 
 type fakeShardWriter struct {
-	ShardWriteFn func(shardID uint64, points []data.Point) (int, error)
+	ShardWriteFn func(shardID uint64, points []tsdb.Point) (int, error)
 }
 
-func (f *fakeShardWriter) WriteShard(shardID uint64, points []data.Point) (int, error) {
+func (f *fakeShardWriter) WriteShard(shardID uint64, points []tsdb.Point) (int, error) {
 	return f.ShardWriteFn(shardID, points)
 }
 
@@ -326,7 +327,7 @@ func TestCoordinatorWrite(t *testing.T) {
 		sm := data.NewShardMapping()
 		sm.MapPoint(
 			meta.ShardInfo{ID: uint64(1), OwnerIDs: []uint64{uint64(1)}},
-			data.NewPoint(
+			tsdb.NewPoint(
 				"cpu",
 				nil,
 				map[string]interface{}{"value": 0.0},
@@ -335,14 +336,14 @@ func TestCoordinatorWrite(t *testing.T) {
 
 		// Local data.Node ShardWriter
 		dn := &fakeShardWriter{
-			ShardWriteFn: func(shardID uint64, points []data.Point) (int, error) {
+			ShardWriteFn: func(shardID uint64, points []tsdb.Point) (int, error) {
 				return theTest.dnWrote, theTest.dnErr
 			},
 		}
 
 		// Cluster ShardWriter
 		cw := &fakeShardWriter{
-			ShardWriteFn: func(shardID uint64, points []data.Point) (int, error) {
+			ShardWriteFn: func(shardID uint64, points []tsdb.Point) (int, error) {
 				return theTest.cwWrote, theTest.cwErr
 			},
 		}

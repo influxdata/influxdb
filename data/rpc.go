@@ -1,12 +1,11 @@
 package data
 
 import (
-	"hash/fnv"
-	"sort"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/influxdb/influxdb/data/internal"
+	"github.com/influxdb/influxdb/tsdb"
 )
 
 //go:generate protoc --gogo_out=. internal/data.proto
@@ -22,12 +21,12 @@ type WritePointsRequest struct {
 	Database         string
 	RetentionPolicy  string
 	ConsistencyLevel ConsistencyLevel
-	Points           []Point
+	Points           []tsdb.Point
 }
 
 // AddPoint adds a point to the WritePointRequest with field name 'value'
 func (w *WritePointsRequest) AddPoint(name string, value interface{}, timestamp time.Time, tags map[string]string) {
-	w.Points = append(w.Points, NewPoint(
+	w.Points = append(w.Points, tsdb.NewPoint(
 		name, tags, map[string]interface{}{"value": value}, timestamp,
 	))
 }
@@ -50,17 +49,17 @@ func (w *WriteShardRequest) SetShardID(id uint64) {
 	w.pb.ShardID = &id
 }
 
-func (w *WriteShardRequest) Points() []Point {
+func (w *WriteShardRequest) Points() []tsdb.Point {
 	return w.unmarhalPoints()
 }
 
 func (w *WriteShardRequest) AddPoint(name string, value interface{}, timestamp time.Time, tags map[string]string) {
-	w.AddPoints([]Point{NewPoint(
+	w.AddPoints([]tsdb.Point{tsdb.NewPoint(
 		name, tags, map[string]interface{}{"value": value}, timestamp,
 	)})
 }
 
-func (w *WriteShardRequest) AddPoints(points []Point) {
+func (w *WriteShardRequest) AddPoints(points []tsdb.Point) {
 	w.pb.Points = append(w.pb.Points, w.marshalPoints(points)...)
 }
 
@@ -69,7 +68,7 @@ func (w *WriteShardRequest) MarshalBinary() ([]byte, error) {
 	return proto.Marshal(&w.pb)
 }
 
-func (w *WriteShardRequest) marshalPoints(points []Point) []*internal.Point {
+func (w *WriteShardRequest) marshalPoints(points []tsdb.Point) []*internal.Point {
 	pts := make([]*internal.Point, len(points))
 	for i, p := range points {
 		fields := []*internal.Field{}
@@ -126,10 +125,10 @@ func (w *WriteShardRequest) UnmarshalBinary(buf []byte) error {
 	return nil
 }
 
-func (w *WriteShardRequest) unmarhalPoints() []Point {
-	points := make([]Point, len(w.pb.GetPoints()))
+func (w *WriteShardRequest) unmarhalPoints() []tsdb.Point {
+	points := make([]tsdb.Point, len(w.pb.GetPoints()))
 	for i, p := range w.pb.GetPoints() {
-		pt := NewPoint(
+		pt := tsdb.NewPoint(
 			p.GetName(), map[string]string{},
 			map[string]interface{}{}, time.Unix(0, p.GetTime()))
 
@@ -186,101 +185,4 @@ func (w *WriteShardResponse) UnmarshalBinary(buf []byte) error {
 		return err
 	}
 	return nil
-}
-
-// Point defines the values that will be written to the database
-type Point struct {
-	name   string
-	Tags   Tags
-	time   time.Time
-	Fields map[string]interface{}
-}
-
-// NewPoint returns a new point with the given measurement name, tags, fiels and timestamp
-func NewPoint(name string, tags Tags, fields map[string]interface{}, time time.Time) Point {
-	return Point{
-		name:   name,
-		Tags:   tags,
-		time:   time,
-		Fields: fields,
-	}
-}
-
-// Name return the measurement name for the point
-func (p *Point) Name() string {
-	return p.name
-}
-
-// SetName updates the measurement name for the point
-func (p *Point) SetName(name string) {
-	p.name = name
-}
-
-// Time return the timesteamp for the point
-func (p *Point) Time() time.Time {
-	return p.time
-}
-
-// SetTime updates the timestamp for the point
-func (p *Point) SetTime(t time.Time) {
-	p.time = t
-}
-
-func (p *Point) HashID() uint64 {
-
-	// <measurementName>|<tagKey>|<tagKey>|<tagValue>|<tagValue>
-	// cpu|host|servera
-	encodedTags := p.Tags.Marshal()
-	size := len(p.Name()) + len(encodedTags)
-	if len(encodedTags) > 0 {
-		size++
-	}
-	b := make([]byte, 0, size)
-	b = append(b, p.Name()...)
-	if len(encodedTags) > 0 {
-		b = append(b, '|')
-	}
-	b = append(b, encodedTags...)
-	// TODO pick a better hashing that guarantees uniqueness
-	// TODO create a cash for faster lookup
-	h := fnv.New64a()
-	h.Write(b)
-	sum := h.Sum64()
-	return sum
-}
-
-type Tags map[string]string
-
-func (t Tags) Marshal() []byte {
-	// Empty maps marshal to empty bytes.
-	if len(t) == 0 {
-		return nil
-	}
-
-	// Extract keys and determine final size.
-	sz := (len(t) * 2) - 1 // separators
-	keys := make([]string, 0, len(t))
-	for k, v := range t {
-		keys = append(keys, k)
-		sz += len(k) + len(v)
-	}
-	sort.Strings(keys)
-
-	// Generate marshaled bytes.
-	b := make([]byte, sz)
-	buf := b
-	for _, k := range keys {
-		copy(buf, k)
-		buf[len(k)] = '|'
-		buf = buf[len(k)+1:]
-	}
-	for i, k := range keys {
-		v := t[k]
-		copy(buf, v)
-		if i < len(keys)-1 {
-			buf[len(v)] = '|'
-			buf = buf[len(v)+1:]
-		}
-	}
-	return b
 }

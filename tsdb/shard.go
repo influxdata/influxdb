@@ -103,12 +103,12 @@ func (s *Shard) WritePoints(points []*Point) error {
 
 		if ss := s.series[p.Key()]; ss == nil {
 			series := &Series{Key: p.Key(), Tags: p.Tags}
-			seriesToCreate = append(seriesToCreate, &seriesCreate{p.Name, series})
+			seriesToCreate = append(seriesToCreate, &seriesCreate{p.Name(), series})
 
 			// if the measurement doesn't exist, all fields need to be created
-			if m := s.measurements[p.Name]; m == nil {
+			if m := s.measurements[p.Name()]; m == nil {
 				for name, value := range p.Fields {
-					fieldsToCreate = append(fieldsToCreate, &fieldCreate{p.Name, &Field{Name: name, Type: influxql.InspectDataType(value)}})
+					fieldsToCreate = append(fieldsToCreate, &fieldCreate{p.Name(), &Field{Name: name, Type: influxql.InspectDataType(value)}})
 				}
 				continue // no need to validate since they're all new fields
 			} else {
@@ -134,7 +134,7 @@ func (s *Shard) WritePoints(points []*Point) error {
 				continue // Field is present, and it's of the same type. Nothing more to do.
 			}
 
-			fieldsToCreate = append(fieldsToCreate, &fieldCreate{p.Name, &Field{Name: name, Type: influxql.InspectDataType(value)}})
+			fieldsToCreate = append(fieldsToCreate, &fieldCreate{p.Name(), &Field{Name: name, Type: influxql.InspectDataType(value)}})
 		}
 	}
 	s.mu.RUnlock()

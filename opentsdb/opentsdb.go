@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/influxdb/influxdb/data"
+	"github.com/influxdb/influxdb/tsdb"
 )
 
 const (
@@ -28,7 +28,7 @@ const (
 
 // SeriesWriter defines the interface for the destination of the data.
 type SeriesWriter interface {
-	WriteSeries(database, retentionPolicy string, points []data.Point) (uint64, error)
+	WriteSeries(database, retentionPolicy string, points []tsdb.Point) (uint64, error)
 }
 
 // Server is an InfluxDB input class to implement  OpenTSDB's input protocols.
@@ -223,9 +223,9 @@ func (s *Server) HandleTelnet(conn net.Conn) {
 			continue
 		}
 
-		p := data.NewPoint(name, tags, fields, t)
+		p := tsdb.NewPoint(name, tags, fields, t)
 
-		_, err = s.writer.WriteSeries(s.database, s.retentionpolicy, []data.Point{p})
+		_, err = s.writer.WriteSeries(s.database, s.retentionpolicy, []tsdb.Point{p})
 		if err != nil {
 			log.Println("TSDB cannot write data: ", err)
 			continue
@@ -311,7 +311,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var idps []data.Point
+	var idps []tsdb.Point
 	for dpi := range dps {
 		dp := dps[dpi]
 
@@ -327,7 +327,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			continue
 		}
-		p := data.NewPoint(dp.Metric, dp.Tags, fields, ts)
+		p := tsdb.NewPoint(dp.Metric, dp.Tags, fields, ts)
 
 		idps = append(idps, p)
 	}

@@ -24,6 +24,7 @@ import (
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/messaging"
 	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/tsdb"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -414,12 +415,12 @@ func (s *Server) StartSelfMonitoring(database, retention string, interval time.D
 	}
 
 	// Function for local use turns stats into a slice of points
-	pointsFromStats := func(st *Stats, tags map[string]string) []data.Point {
+	pointsFromStats := func(st *Stats, tags map[string]string) []tsdb.Point {
 
-		var points []data.Point
+		var points []tsdb.Point
 		now := time.Now()
 		st.Walk(func(k string, v int64) {
-			point := data.NewPoint(
+			point := tsdb.NewPoint(
 				st.name+"_"+k,
 				make(map[string]string),
 				map[string]interface{}{"value": int(v)},
@@ -1811,7 +1812,7 @@ func (s *Server) DropSeries(database string, seriesByMeasurement map[string][]ui
 
 // WriteSeries writes series data to the database.
 // Returns the messaging index the data was written to.
-func (s *Server) WriteSeries(database, retentionPolicy string, points []data.Point) (idx uint64, err error) {
+func (s *Server) WriteSeries(database, retentionPolicy string, points []tsdb.Point) (idx uint64, err error) {
 	s.stats.Inc("batchWriteRx")
 	s.stats.Add("pointWriteRx", int64(len(points)))
 	defer func() {
@@ -1957,7 +1958,7 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []data.Poi
 
 // createMeasurementsIfNotExists walks the "points" and ensures that all new Series are created, and all
 // new Measurement fields have been created, across the cluster.
-func (s *Server) createMeasurementsIfNotExists(database, retentionPolicy string, points []data.Point) error {
+func (s *Server) createMeasurementsIfNotExists(database, retentionPolicy string, points []tsdb.Point) error {
 	c := newCreateMeasurementsIfNotExistsCommand(database)
 
 	// Local function keeps lock management foolproof.
@@ -2113,7 +2114,7 @@ func (s *Server) applyDropMeasurement(m *messaging.Message) error {
 }
 
 // createShardGroupsIfNotExist walks the "points" and ensures that all required shards exist on the cluster.
-func (s *Server) createShardGroupsIfNotExists(database, retentionPolicy string, points []data.Point) error {
+func (s *Server) createShardGroupsIfNotExists(database, retentionPolicy string, points []tsdb.Point) error {
 	var commands = make([]*createShardGroupIfNotExistsCommand, 0)
 
 	err := func() error {
@@ -4104,7 +4105,7 @@ func (s *Server) runContinuousQueryAndWriteResult(cq *ContinuousQuery) error {
 
 // convertRowToPoints will convert a query result Row into Points that can be written back in.
 // Used for continuous and INTO queries
-func (s *Server) convertRowToPoints(measurementName string, row *influxql.Row) ([]data.Point, error) {
+func (s *Server) convertRowToPoints(measurementName string, row *influxql.Row) ([]tsdb.Point, error) {
 	// figure out which parts of the result are the time and which are the fields
 	timeIndex := -1
 	fieldIndexes := make(map[string]int)
@@ -4120,14 +4121,14 @@ func (s *Server) convertRowToPoints(measurementName string, row *influxql.Row) (
 		return nil, errors.New("cq error finding time index in result")
 	}
 
-	points := make([]data.Point, 0, len(row.Values))
+	points := make([]tsdb.Point, 0, len(row.Values))
 	for _, v := range row.Values {
 		vals := make(map[string]interface{})
 		for fieldName, fieldIndex := range fieldIndexes {
 			vals[fieldName] = v[fieldIndex]
 		}
 
-		p := data.NewPoint(measurementName, row.Tags, vals, v[timeIndex].(time.Time))
+		p := tsdb.NewPoint(measurementName, row.Tags, vals, v[timeIndex].(time.Time))
 
 		points = append(points, p)
 	}

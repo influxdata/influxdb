@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdb/influxdb/data"
+	"github.com/influxdb/influxdb/tsdb"
 )
 
 const (
@@ -33,7 +33,7 @@ var (
 
 // SeriesWriter defines the interface for the destination of the data.
 type SeriesWriter interface {
-	WriteSeries(string, string, []data.Point) (uint64, error)
+	WriteSeries(string, string, []tsdb.Point) (uint64, error)
 }
 
 // Server defines the interface all Graphite servers support.
@@ -67,23 +67,23 @@ func NewParser() *Parser {
 }
 
 // Parse performs Graphite parsing of a single line.
-func (p *Parser) Parse(line string) (data.Point, error) {
+func (p *Parser) Parse(line string) (tsdb.Point, error) {
 	// Break into 3 fields (name, value, timestamp).
 	fields := strings.Fields(line)
 	if len(fields) != 3 {
-		return data.Point{}, fmt.Errorf("received %q which doesn't have three fields", line)
+		return tsdb.Point{}, fmt.Errorf("received %q which doesn't have three fields", line)
 	}
 
 	// decode the name and tags
 	name, tags, err := p.DecodeNameAndTags(fields[0])
 	if err != nil {
-		return data.Point{}, err
+		return tsdb.Point{}, err
 	}
 
 	// Parse value.
 	v, err := strconv.ParseFloat(fields[1], 64)
 	if err != nil {
-		return data.Point{}, fmt.Errorf("field \"%s\" value: %s", fields[0], err)
+		return tsdb.Point{}, fmt.Errorf("field \"%s\" value: %s", fields[0], err)
 	}
 
 	fieldValues := make(map[string]interface{})
@@ -92,13 +92,13 @@ func (p *Parser) Parse(line string) (data.Point, error) {
 	// Parse timestamp.
 	unixTime, err := strconv.ParseFloat(fields[2], 64)
 	if err != nil {
-		return data.Point{}, fmt.Errorf("field \"%s\" time: %s", fields[0], err)
+		return tsdb.Point{}, fmt.Errorf("field \"%s\" time: %s", fields[0], err)
 	}
 
 	// Check if we have fractional seconds
 	timestamp := time.Unix(int64(unixTime), int64((unixTime-math.Floor(unixTime))*float64(time.Second)))
 
-	point := data.NewPoint(name, tags, fieldValues, timestamp)
+	point := tsdb.NewPoint(name, tags, fieldValues, timestamp)
 
 	return point, nil
 }
