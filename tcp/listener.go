@@ -135,11 +135,11 @@ func (s *Server) handleConnection(conn net.Conn) {
 		case messageType := <-messageChannel:
 			switch messageType {
 			case writeShardRequestMessage:
-				if err := s.WriteShardRequest(conn); err != nil {
-					s.WriteShardResponse(conn, err)
+				if err := s.writeShardRequest(conn); err != nil {
+					s.writeShardResponse(conn, err)
 					return
 				}
-				s.WriteShardResponse(conn, nil)
+				s.writeShardResponse(conn, nil)
 			}
 		default:
 		}
@@ -147,7 +147,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 
 }
 
-func (s *Server) WriteShardRequest(conn net.Conn) error {
+func (s *Server) writeShardRequest(conn net.Conn) error {
 	messageChannel := make(chan data.WriteShardRequest)
 	errChan := make(chan error)
 
@@ -191,7 +191,7 @@ func (s *Server) WriteShardRequest(conn net.Conn) error {
 	}
 }
 
-func (s *Server) WriteShardResponse(conn net.Conn, e error) {
+func (s *Server) writeShardResponse(conn net.Conn, e error) {
 	s.Logger.Println("writing shard response")
 	var mt byte = writeShardResponseMessage
 	if err := binary.Write(conn, binary.LittleEndian, &mt); err != nil {
