@@ -10,20 +10,39 @@ import (
 	"github.com/influxdb/influxdb/tcp"
 )
 
-type testServer string
+type testServer struct {
+	writeShardFunc func(shardID uint64, points []data.Point) (int, error)
+}
+
+func newTestServer(f func(shardID uint64, points []data.Point) (int, error)) testServer {
+	return testServer{
+		writeShardFunc: f,
+	}
+}
+
 type serverResponses []serverResponse
 type serverResponse struct {
 	shardID uint64
 	points  []data.Point
 }
 
-func (testServer) WriteShard(shardID uint64, points []data.Point) (int, error) {
+func (t testServer) WriteShard(shardID uint64, points []data.Point) (int, error) {
+	return t.writeShardFunc(shardID, points)
+}
+
+func writeShardSuccess(shardID uint64, points []data.Point) (int, error) {
 	responses <- &serverResponse{
 		shardID: shardID,
 		points:  points,
 	}
-	return 0, nil
+	return 1, nil
 }
+
+func writeShardFail(shardID uint64, points []data.Point) (int, error) {
+	return 0, fmt.Errorf("failed to write")
+}
+
+var responses = make(chan *serverResponse, 1024)
 
 func (testServer) ResponseN(n int) ([]*serverResponse, error) {
 	var a []*serverResponse
@@ -40,18 +59,18 @@ func (testServer) ResponseN(n int) ([]*serverResponse, error) {
 	}
 }
 
-var responses = make(chan *serverResponse, 1024)
-
 func TestServer_Close_ErrServerClosed(t *testing.T) {
 	var (
 		ts testServer
 		s  = tcp.NewServer(ts)
 	)
 
+	// Start on a random port
 	_, e := s.ListenAndServe("127.0.0.1:0")
 	if e != nil {
 		t.Fatalf("err does not match.  expected %v, got %v", nil, e)
 	}
+
 	// Close the server
 	s.Close()
 
@@ -63,10 +82,13 @@ func TestServer_Close_ErrServerClosed(t *testing.T) {
 
 func TestServer_WriteShardRequestSuccess(t *testing.T) {
 	var (
-		ts testServer
+		ts = newTestServer(writeShardSuccess)
 		s  = tcp.NewServer(ts)
 	)
+	// Close the server
+	defer s.Close()
 
+	// Start on a random port
 	host, e := s.ListenAndServe("127.0.0.1:0")
 	if e != nil {
 		t.Fatalf("err does not match.  expected %v, got %v", nil, e)
@@ -96,9 +118,6 @@ func TestServer_WriteShardRequestSuccess(t *testing.T) {
 	if err := client.Close(); err != nil {
 		t.Fatal(err)
 	}
-
-	// Close the server
-	s.Close()
 
 	responses, err := ts.ResponseN(1)
 	if err != nil {
@@ -130,5 +149,41 @@ func TestServer_WriteShardRequestSuccess(t *testing.T) {
 
 	if got.Time.UnixNano() != exp.Time.UnixNano() {
 		t.Fatal("unexpected time")
+	}
+}
+
+func TestServer_WriteShardRequestFail(t *testing.T) {
+	var (
+		ts = newTestServer(writeShardFail)
+		s  = tcp.NewServer(ts)
+	)
+	// Close the server
+	defer s.Close()
+
+	// Start on a random port
+	host, e := s.ListenAndServe("127.0.0.1:0")
+	if e != nil {
+		t.Fatalf("err does not match.  expected %v, got %v", nil, e)
+	}
+
+	client := tcp.NewClient()
+	err := client.Dial(host)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now()
+
+	shardID := uint64(1)
+	var points []data.Point
+	points = append(points, data.Point{
+		Name:   "cpu",
+		Time:   now,
+		Tags:   data.Tags{"host": "server01"},
+		Fields: map[string]interface{}{"value": int64(100)},
+	})
+
+	if err, exp := client.WriteShardRequest(shardID, points), "error code 1: failed to write"; err == nil || err.Error() != exp {
+		t.Fatalf("expected error %s, got %v", exp, err)
 	}
 }

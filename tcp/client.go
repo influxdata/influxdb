@@ -2,6 +2,8 @@ package tcp
 
 import (
 	"encoding/binary"
+	"fmt"
+	"io"
 	"net"
 
 	"github.com/influxdb/influxdb/data"
@@ -26,16 +28,16 @@ func (c *Client) Dial(addr string) error {
 }
 
 func (c *Client) WriteShardRequest(shardID uint64, points []data.Point) error {
-	mt := writeShardRequestMessage
+	var mt byte = writeShardRequestMessage
 	if err := binary.Write(c.conn, binary.LittleEndian, &mt); err != nil {
 		return err
 	}
 
-	var wpr data.WriteShardRequest
-	wpr.SetShardID(shardID)
-	wpr.AddPoints(points)
+	var request data.WriteShardRequest
+	request.SetShardID(shardID)
+	request.AddPoints(points)
 
-	b, err := wpr.MarshalBinary()
+	b, err := request.MarshalBinary()
 	if err != nil {
 		return err
 	}
@@ -48,6 +50,32 @@ func (c *Client) WriteShardRequest(shardID uint64, points []data.Point) error {
 
 	if _, err := c.conn.Write(b); err != nil {
 		return err
+	}
+
+	// read back our response
+	if err := binary.Read(c.conn, binary.LittleEndian, &mt); err != nil {
+		return err
+	}
+
+	if err := binary.Read(c.conn, binary.LittleEndian, &size); err != nil {
+		return err
+	}
+
+	message := make([]byte, size)
+
+	reader := io.LimitReader(c.conn, size)
+	_, err = reader.Read(message)
+	if err != nil {
+		return err
+	}
+
+	var response data.WriteShardResponse
+	if err := response.UnmarshalBinary(message); err != nil {
+		return err
+	}
+
+	if response.Code() != 0 {
+		return fmt.Errorf("error code %d: %s", response.Code(), response.Message())
 	}
 
 	return nil
