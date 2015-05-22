@@ -92,7 +92,7 @@ type seriesCreate struct {
 }
 
 // WritePoints will write the raw data points and any new metadata to the index in the shard
-func (s *Shard) WritePoints(points []*Point) error {
+func (s *Shard) WritePoints(points []Point) error {
 	var seriesToCreate []*seriesCreate
 	var fieldsToCreate []*fieldCreate
 
@@ -130,7 +130,7 @@ func (s *Shard) WritePoints(points []*Point) error {
 				if err != nil {
 					return err
 				}
-				p.data = data
+				p.SetData(data)
 				continue // Field is present, and it's of the same type. Nothing more to do.
 			}
 
@@ -175,13 +175,13 @@ func (s *Shard) WritePoints(points []*Point) error {
 	// make sure all data is encoded before attempting to save to bolt
 	for _, p := range points {
 		// marshal the raw data if it hasn't been marshaled already
-		if p.data == nil {
+		if p.Data() == nil {
 			// this was populated earlier, don't need to validate that it's there.
 			data, err := s.series[p.Key()].measurement.fieldCodec.EncodeFields(p.Fields())
 			if err != nil {
 				return err
 			}
-			p.data = data
+			p.SetData(data)
 		}
 	}
 
@@ -212,7 +212,7 @@ func (s *Shard) WritePoints(points []*Point) error {
 			if err != nil {
 				return err
 			}
-			if err := bp.Put([]byte(p.Key()), p.data); err != nil {
+			if err := bp.Put([]byte(p.Key()), p.Data()); err != nil {
 				return err
 			}
 		}

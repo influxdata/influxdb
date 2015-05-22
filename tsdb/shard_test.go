@@ -25,13 +25,13 @@ func TestShardWriteAndIndex(t *testing.T) {
 		time.Unix(1, 2),
 	)
 
-	err := sh.WritePoints([]*Point{&pt})
+	err := sh.WritePoints([]Point{pt})
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
 
 	pt.SetTime(time.Unix(2, 3))
-	err = sh.WritePoints([]*Point{&pt})
+	err = sh.WritePoints([]Point{pt})
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -66,7 +66,7 @@ func TestShardWriteAndIndex(t *testing.T) {
 
 	// and ensure that we can still write data
 	pt.SetTime(time.Unix(2, 6))
-	err = sh.WritePoints([]*Point{&pt})
+	err = sh.WritePoints([]Point{pt})
 	if err != nil {
 		t.Fatalf(err.Error())
 	}

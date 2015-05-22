@@ -7,7 +7,29 @@ import (
 )
 
 // Point defines the values that will be written to the database
-type Point struct {
+type Point interface {
+	Name() string
+	SetName(string)
+
+	Tags() Tags
+	AddTag(key, value string)
+	SetTags(tags Tags)
+
+	Fields() map[string]interface{}
+	AddField(name string, value interface{})
+
+	Time() time.Time
+	SetTime(t time.Time)
+
+	HashID() uint64
+	Key() string
+
+	Data() []byte
+	SetData(buf []byte)
+}
+
+// point is the default implementation of Point.
+type point struct {
 	name   string
 	tags   Tags
 	time   time.Time
@@ -18,7 +40,7 @@ type Point struct {
 
 // NewPoint returns a new point with the given measurement name, tags, fiels and timestamp
 func NewPoint(name string, tags Tags, fields map[string]interface{}, time time.Time) Point {
-	return Point{
+	return &point{
 		name:   name,
 		tags:   tags,
 		time:   time,
@@ -26,7 +48,15 @@ func NewPoint(name string, tags Tags, fields map[string]interface{}, time time.T
 	}
 }
 
-func (p *Point) Key() string {
+func (p *point) Data() []byte {
+	return p.data
+}
+
+func (p *point) SetData(b []byte) {
+	p.data = b
+}
+
+func (p *point) Key() string {
 	if p.key == "" {
 		p.key = p.Name() + "," + string(p.tags.HashKey())
 	}
@@ -34,51 +64,51 @@ func (p *Point) Key() string {
 }
 
 // Name return the measurement name for the point
-func (p *Point) Name() string {
+func (p *point) Name() string {
 	return p.name
 }
 
 // SetName updates the measurement name for the point
-func (p *Point) SetName(name string) {
+func (p *point) SetName(name string) {
 	p.name = name
 }
 
 // Time return the timesteamp for the point
-func (p *Point) Time() time.Time {
+func (p *point) Time() time.Time {
 	return p.time
 }
 
 // SetTime updates the timestamp for the point
-func (p *Point) SetTime(t time.Time) {
+func (p *point) SetTime(t time.Time) {
 	p.time = t
 }
 
 // Tags returns the tag set for the point
-func (p *Point) Tags() Tags {
+func (p *point) Tags() Tags {
 	return p.tags
 }
 
 // SetTags replaces the tags for the point
-func (p *Point) SetTags(tags Tags) {
+func (p *point) SetTags(tags Tags) {
 	p.tags = tags
 }
 
 // AddTag adds or replaces a tag value for a point
-func (p *Point) AddTag(key, value string) {
+func (p *point) AddTag(key, value string) {
 	p.tags[key] = value
 }
 
 // Fields returns the fiels for the point
-func (p *Point) Fields() map[string]interface{} {
+func (p *point) Fields() map[string]interface{} {
 	return p.fields
 }
 
 // AddField adds or replaces a field value for a point
-func (p *Point) AddField(name string, value interface{}) {
+func (p *point) AddField(name string, value interface{}) {
 	p.fields[name] = value
 }
 
-func (p *Point) HashID() uint64 {
+func (p *point) HashID() uint64 {
 
 	// <measurementName>|<tagKey>|<tagKey>|<tagValue>|<tagValue>
 	// cpu|host|servera
