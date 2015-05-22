@@ -1829,11 +1829,11 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []tsdb.Poi
 
 	// Make sure every point is valid.
 	for _, p := range points {
-		if len(p.Fields) == 0 {
+		if len(p.Fields()) == 0 {
 			return 0, ErrFieldsRequired
 		}
 
-		for _, f := range p.Fields {
+		for _, f := range p.Fields() {
 			if f == nil {
 				return 0, ErrFieldIsNull
 			}
@@ -1910,7 +1910,7 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []tsdb.Poi
 			}
 
 			// Convert string-key/values to encoded fields.
-			encodedFields, err := codec.EncodeFields(p.Fields)
+			encodedFields, err := codec.EncodeFields(p.Fields())
 			if err != nil {
 				return err
 			}
@@ -1980,7 +1980,7 @@ func (s *Server) createMeasurementsIfNotExists(database, retentionPolicy string,
 				c.addSeriesIfNotExists(p.Name(), p.Tags())
 			}
 
-			for k, v := range p.Fields {
+			for k, v := range p.Fields() {
 				if measurement != nil {
 					if f := measurement.FieldByName(k); f != nil {
 						// Field present in Metastore, make sure there is no type conflict.
@@ -4086,7 +4086,7 @@ func (s *Server) runContinuousQueryAndWriteResult(cq *ContinuousQuery) error {
 
 		if len(points) > 0 {
 			for _, p := range points {
-				for _, v := range p.Fields {
+				for _, v := range p.Fields() {
 					if v == nil {
 						// If we have any nil values, we can't write the data
 						// This happens the CQ is created and running before we write data to the measurement

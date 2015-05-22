@@ -268,7 +268,7 @@ func TestUnmarshal_Points(t *testing.T) {
 				t.Errorf("point name mismatch. expected %q, got %q", name, m.Name())
 			}
 			// test value
-			mv := m.Fields["value"].(float64)
+			mv := m.Fields()["value"].(float64)
 			pv := test.packet.Values[i].Value
 			if mv != pv {
 				t.Errorf("point value mismatch. expected %v, got %v", pv, mv)

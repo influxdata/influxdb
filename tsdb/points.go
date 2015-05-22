@@ -11,7 +11,7 @@ type Point struct {
 	name   string
 	tags   Tags
 	time   time.Time
-	Fields map[string]interface{}
+	fields map[string]interface{}
 	key    string
 	data   []byte
 }
@@ -22,7 +22,7 @@ func NewPoint(name string, tags Tags, fields map[string]interface{}, time time.T
 		name:   name,
 		tags:   tags,
 		time:   time,
-		Fields: fields,
+		fields: fields,
 	}
 }
 
@@ -66,6 +66,16 @@ func (p *Point) SetTags(tags Tags) {
 // AddTag adds or replaces a tag value for a point
 func (p *Point) AddTag(key, value string) {
 	p.tags[key] = value
+}
+
+// Fields returns the fiels for the point
+func (p *Point) Fields() map[string]interface{} {
+	return p.fields
+}
+
+// AddField adds or replaces a field value for a point
+func (p *Point) AddField(name string, value interface{}) {
+	p.fields[name] = value
 }
 
 func (p *Point) HashID() uint64 {

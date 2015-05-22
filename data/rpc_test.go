@@ -61,13 +61,13 @@ func TestWriteShardRequestBinary(t *testing.T) {
 			}
 		}
 
-		if len(p.Fields) != len(g.Fields) {
-			t.Errorf("Point %d field count mismatch: got %v, exp %v", i, len(g.Fields), len(p.Fields))
+		if len(p.Fields()) != len(g.Fields()) {
+			t.Errorf("Point %d field count mismatch: got %v, exp %v", i, len(g.Fields()), len(p.Fields()))
 		}
 
-		for j, f := range p.Fields {
-			if g.Fields[j] != f {
-				t.Errorf("Point %d field mismatch: got %v, exp %v", i, g.Fields[j], f)
+		for j, f := range p.Fields() {
+			if g.Fields()[j] != f {
+				t.Errorf("Point %d field mismatch: got %v, exp %v", i, g.Fields()[j], f)
 			}
 		}
 	}

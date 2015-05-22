@@ -72,7 +72,7 @@ func (w *WriteShardRequest) marshalPoints(points []tsdb.Point) []*internal.Point
 	pts := make([]*internal.Point, len(points))
 	for i, p := range points {
 		fields := []*internal.Field{}
-		for k, v := range p.Fields {
+		for k, v := range p.Fields() {
 			name := k
 			f := &internal.Field{
 				Name: &name,
@@ -135,17 +135,17 @@ func (w *WriteShardRequest) unmarhalPoints() []tsdb.Point {
 		for _, f := range p.GetFields() {
 			n := f.GetName()
 			if f.Int32 != nil {
-				pt.Fields[n] = f.GetInt32()
+				pt.AddField(n, f.GetInt32())
 			} else if f.Int64 != nil {
-				pt.Fields[n] = f.GetInt64()
+				pt.AddField(n, f.GetInt64())
 			} else if f.Float64 != nil {
-				pt.Fields[n] = f.GetFloat64()
+				pt.AddField(n, f.GetFloat64())
 			} else if f.Bool != nil {
-				pt.Fields[n] = f.GetBool()
+				pt.AddField(n, f.GetBool())
 			} else if f.String_ != nil {
-				pt.Fields[n] = f.GetString_()
+				pt.AddField(n, f.GetString_())
 			} else {
-				pt.Fields[n] = f.GetBytes()
+				pt.AddField(n, f.GetBytes())
 			}
 		}
 

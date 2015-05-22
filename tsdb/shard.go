@@ -107,7 +107,7 @@ func (s *Shard) WritePoints(points []*Point) error {
 
 			// if the measurement doesn't exist, all fields need to be created
 			if m := s.measurements[p.Name()]; m == nil {
-				for name, value := range p.Fields {
+				for name, value := range p.Fields() {
 					fieldsToCreate = append(fieldsToCreate, &fieldCreate{p.Name(), &Field{Name: name, Type: influxql.InspectDataType(value)}})
 				}
 				continue // no need to validate since they're all new fields
@@ -119,14 +119,14 @@ func (s *Shard) WritePoints(points []*Point) error {
 		}
 
 		// validate field types
-		for name, value := range p.Fields {
+		for name, value := range p.Fields() {
 			if f := measurement.FieldByName(name); f != nil {
 				// Field present in Metastore, make sure there is no type conflict.
 				if f.Type != influxql.InspectDataType(value) {
 					return fmt.Errorf("input field \"%s\" is type %T, already exists as type %s", name, value, f.Type)
 				}
 
-				data, err := measurement.fieldCodec.EncodeFields(p.Fields)
+				data, err := measurement.fieldCodec.EncodeFields(p.Fields())
 				if err != nil {
 					return err
 				}
@@ -177,7 +177,7 @@ func (s *Shard) WritePoints(points []*Point) error {
 		// marshal the raw data if it hasn't been marshaled already
 		if p.data == nil {
 			// this was populated earlier, don't need to validate that it's there.
-			data, err := s.series[p.Key()].measurement.fieldCodec.EncodeFields(p.Fields)
+			data, err := s.series[p.Key()].measurement.fieldCodec.EncodeFields(p.Fields())
 			if err != nil {
 				return err
 			}
