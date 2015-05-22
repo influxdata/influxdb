@@ -19,9 +19,6 @@ var (
 
 	// ErrServerClosed return when closing an already closed graphite server.
 	ErrServerClosed = errors.New("server already closed")
-
-	// ErrServerNotSpecified returned when Server is not specified.
-	ErrServerNotSpecified = errors.New("server not present")
 )
 
 // Server processes data received over raw TCP connections.
