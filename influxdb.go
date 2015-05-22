@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"runtime"
 	"time"
 
@@ -50,7 +51,7 @@ var (
 	ErrDatabaseNameRequired = errors.New("database name required")
 
 	// ErrDatabaseExists is returned when creating a duplicate database.
-	ErrDatabaseExists = errors.New("database exists")
+	//ErrDatabaseExists = errors.New("database exists")
 
 	// ErrDatabaseRequired is returned when using a blank database name.
 	ErrDatabaseRequired = errors.New("database required")
@@ -74,7 +75,7 @@ var (
 	ErrInvalidUsername = errors.New("invalid username")
 
 	// ErrRetentionPolicyExists is returned when creating a duplicate shard space.
-	ErrRetentionPolicyExists = errors.New("retention policy exists")
+	//ErrRetentionPolicyExists = errors.New("retention policy exists")
 
 	// ErrRetentionPolicyNotFound is returned when deleting a non-existent shard space.
 	ErrRetentionPolicyNotFound = errors.New("retention policy not found")
@@ -154,16 +155,46 @@ var (
 	ErrContinuousQueryNotFound = errors.New("continuous query not found")
 )
 
-func ErrDatabaseNotFound(name string) error { return Errorf("database not found: %s", name) }
+type ErrNotFound struct {
+	text string
+}
 
-func ErrMeasurementNotFound(name string) error { return Errorf("measurement not found: %s", name) }
+func (e ErrNotFound) Error() string {
+	return e.text
+}
 
-func Errorf(format string, a ...interface{}) (err error) {
+func ErrDatabaseNotFound(name string) error {
+	return &ErrNotFound{text: Serrorf("database not found: %s", name)}
+}
+
+func ErrMeasurementNotFound(name string) error {
+	return &ErrNotFound{text: Serrorf("measurement not found: %s", name)}
+}
+
+type ErrExists struct {
+	text string
+}
+
+func (e ErrExists) Error() string {
+	return e.text
+}
+
+func ErrDatabaseExists(name string) error {
+	return &ErrExists{text: Serrorf("database exists: %s", name)}
+}
+
+func ErrRetentionPolicyExists(name string) error {
+	return &ErrExists{text: Serrorf("retention policy exists: %s", name)}
+}
+
+func Serrorf(format string, a ...interface{}) (s string) {
 	if _, file, line, ok := runtime.Caller(2); ok {
-		a = append(a, file, line)
-		err = fmt.Errorf(format+" (%s:%d)", a...)
+		dir, file := path.Split(file)
+		dir, dir2 := path.Split(dir)
+		a = append(a, path.Join(dir, dir2, file), line)
+		s = fmt.Sprintf(format+" (%s:%d)", a...)
 	} else {
-		err = fmt.Errorf(format, a...)
+		s = fmt.Sprintf(format, a...)
 	}
 	return
 }

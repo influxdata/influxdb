@@ -189,6 +189,17 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.mux.ServeHTTP(w, r)
 }
 
+func HTTPStatus(err error) int {
+	switch err.(type) {
+	case *influxdb.ErrNotFound:
+		return http.StatusNotFound
+	default:
+		fmt.Printf("err = %#v\n", err)
+	}
+
+	return http.StatusInternalServerError
+}
+
 // serveQuery parses an incoming query and, if valid, executes the query.
 func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *influxdb.User) {
 	q := r.URL.Query()
@@ -227,11 +238,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *influ
 	w.Header().Add("content-type", "application/json")
 	results, err := h.server.ExecuteQuery(query, db, user, chunkSize)
 	if err != nil {
-		if isAuthorizationError(err) {
-			w.WriteHeader(http.StatusUnauthorized)
-		} else {
-			w.WriteHeader(http.StatusInternalServerError)
-		}
+		w.WriteHeader(HTTPStatus(err))
 		return
 	}
 
@@ -246,9 +253,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *influ
 			status := http.StatusOK
 
 			if r != nil && r.Err != nil {
-				if isAuthorizationError(r.Err) {
-					status = http.StatusUnauthorized
-				}
+				status = HTTPStatus(r.Err)
 			}
 
 			w.WriteHeader(status)
