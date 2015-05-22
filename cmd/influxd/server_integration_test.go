@@ -2232,7 +2232,7 @@ func Test_ServerOpenTSDBIntegration_WithTags(t *testing.T) {
 		return
 	}
 
-	expected := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",20]]}]}]}`, now.Format(time.RFC3339Nano))
+	expected := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","tags":{"tag1":"val3","tag2":"val4"},"columns":["time","value"],"values":[["%s",20]]}]}]}`, now.Format(time.RFC3339Nano))
 
 	// query and wait for results
 	got, ok, _ := queryAndWait(t, nodes, "opentsdb", `select * from "opentsdb"."raw".cpu where tag1='val3'`, expected, "", openTSDBTestTimeout)
@@ -2289,7 +2289,7 @@ func Test_ServerOpenTSDBIntegration_BadData(t *testing.T) {
 		return
 	}
 
-	expected := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",10]]}]}]}`, now.Format(time.RFC3339Nano))
+	expected := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","tags":{"tag1":"val1","tag2":"val2"},"columns":["time","value"],"values":[["%s",10]]}]}]}`, now.Format(time.RFC3339Nano))
 
 	// query and wait for results
 	got, ok, _ := queryAndWait(t, nodes, "opentsdb", `select * from "opentsdb"."raw".cpu`, expected, "", openTSDBTestTimeout)
@@ -2335,7 +2335,7 @@ func Test_ServerOpenTSDBIntegrationHTTPSingle(t *testing.T) {
 	}
 	resp.Body.Close()
 
-	expected := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",10]]}]}]}`, now.Format(time.RFC3339Nano))
+	expected := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","tags":{"tag1":"val1","tag2":"val2"},"columns":["time","value"],"values":[["%s",10]]}]}]}`, now.Format(time.RFC3339Nano))
 
 	// query and wait for results
 	got, ok, _ := queryAndWait(t, nodes, "opentsdb", `select * from "opentsdb"."raw".cpu`, expected, "", openTSDBTestTimeout)
@@ -2383,7 +2383,7 @@ func Test_ServerOpenTSDBIntegrationHTTPMulti(t *testing.T) {
 	resp.Body.Close()
 
 	expts := now.Format(time.RFC3339Nano)
-	expected := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",10],["%s",20]]}]}]}`, expts, expts)
+	expected := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","tags":{"tag1":"val1","tag2":"val2"},"columns":["time","value"],"values":[["%s",10]]},{"name":"cpu","tags":{"tag1":"val3","tag2":"val4"},"columns":["time","value"],"values":[["%s",20]]}]}]}`, expts, expts)
 
 	// query and wait for results
 	got, ok, _ := queryAndWait(t, nodes, "opentsdb", `select * from "opentsdb"."raw".cpu`, expected, "", openTSDBTestTimeout)
