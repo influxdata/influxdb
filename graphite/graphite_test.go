@@ -208,8 +208,8 @@ func Test_DecodeMetric(t *testing.T) {
 		if point.Name() != test.name {
 			t.Fatalf("name parse failer.  expected %v, got %v", test.name, point.Name())
 		}
-		if len(point.Tags) != len(test.tags) {
-			t.Fatalf("tags len mismatch.  expected %d, got %d", len(test.tags), len(point.Tags))
+		if len(point.Tags()) != len(test.tags) {
+			t.Fatalf("tags len mismatch.  expected %d, got %d", len(test.tags), len(point.Tags()))
 		}
 		f := point.Fields["value"].(float64)
 		if point.Fields["value"] != f {

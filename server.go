@@ -428,7 +428,8 @@ func (s *Server) StartSelfMonitoring(database, retention string, interval time.D
 			)
 			// Specifically create a new map.
 			for k, v := range tags {
-				point.Tags[k] = v
+				tags[k] = v
+				point.AddTag(k, v)
 			}
 			points = append(points, point)
 		})
@@ -468,7 +469,7 @@ func (s *Server) StartSelfMonitoring(database, retention string, interval time.D
 					continue
 				}
 				for _, p := range points {
-					p.Tags = map[string]string{"serverID": strconv.FormatUint(s.ID(), 10)}
+					p.AddTag("serverID", strconv.FormatUint(s.ID(), 10))
 				}
 				batch = append(batch, points...)
 			}
@@ -1879,9 +1880,9 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []tsdb.Poi
 			return ErrDatabaseNotFound(database)
 		}
 		for _, p := range points {
-			measurement, series := db.MeasurementAndSeries(p.Name(), p.Tags)
+			measurement, series := db.MeasurementAndSeries(p.Name(), p.Tags())
 			if series == nil {
-				s.Logger.Printf("series not found: name=%s, tags=%#v", p.Name(), p.Tags)
+				s.Logger.Printf("series not found: name=%s, tags=%#v", p.Name(), p.Tags())
 				return ErrSeriesNotFound
 			}
 
@@ -1972,11 +1973,11 @@ func (s *Server) createMeasurementsIfNotExists(database, retentionPolicy string,
 		}
 
 		for _, p := range points {
-			measurement, series := db.MeasurementAndSeries(p.Name(), p.Tags)
+			measurement, series := db.MeasurementAndSeries(p.Name(), p.Tags())
 
 			if series == nil {
 				// Series does not exist in Metastore, add it so it's created cluster-wide.
-				c.addSeriesIfNotExists(p.Name(), p.Tags)
+				c.addSeriesIfNotExists(p.Name(), p.Tags())
 			}
 
 			for k, v := range p.Fields {

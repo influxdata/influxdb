@@ -9,7 +9,7 @@ import (
 // Point defines the values that will be written to the database
 type Point struct {
 	name   string
-	Tags   Tags
+	tags   Tags
 	time   time.Time
 	Fields map[string]interface{}
 	key    string
@@ -20,7 +20,7 @@ type Point struct {
 func NewPoint(name string, tags Tags, fields map[string]interface{}, time time.Time) Point {
 	return Point{
 		name:   name,
-		Tags:   tags,
+		tags:   tags,
 		time:   time,
 		Fields: fields,
 	}
@@ -28,7 +28,7 @@ func NewPoint(name string, tags Tags, fields map[string]interface{}, time time.T
 
 func (p *Point) Key() string {
 	if p.key == "" {
-		p.key = p.Name() + "," + string(p.Tags.HashKey())
+		p.key = p.Name() + "," + string(p.tags.HashKey())
 	}
 	return p.key
 }
@@ -53,11 +53,26 @@ func (p *Point) SetTime(t time.Time) {
 	p.time = t
 }
 
+// Tags returns the tag set for the point
+func (p *Point) Tags() Tags {
+	return p.tags
+}
+
+// SetTags replaces the tags for the point
+func (p *Point) SetTags(tags Tags) {
+	p.tags = tags
+}
+
+// AddTag adds or replaces a tag value for a point
+func (p *Point) AddTag(key, value string) {
+	p.tags[key] = value
+}
+
 func (p *Point) HashID() uint64 {
 
 	// <measurementName>|<tagKey>|<tagKey>|<tagValue>|<tagValue>
 	// cpu|host|servera
-	encodedTags := p.Tags.HashKey()
+	encodedTags := p.tags.HashKey()
 	size := len(p.Name()) + len(encodedTags)
 	if len(encodedTags) > 0 {
 		size++

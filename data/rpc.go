@@ -97,7 +97,7 @@ func (w *WriteShardRequest) marshalPoints(points []tsdb.Point) []*internal.Point
 		}
 
 		tags := []*internal.Tag{}
-		for k, v := range p.Tags {
+		for k, v := range p.Tags() {
 			key := k
 			value := v
 			tags = append(tags, &internal.Tag{
@@ -149,9 +149,11 @@ func (w *WriteShardRequest) unmarhalPoints() []tsdb.Point {
 			}
 		}
 
+		tags := tsdb.Tags{}
 		for _, t := range p.GetTags() {
-			pt.Tags[t.GetKey()] = t.GetValue()
+			tags[t.GetKey()] = t.GetValue()
 		}
+		pt.SetTags(tags)
 		points[i] = pt
 	}
 	return points

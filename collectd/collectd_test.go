@@ -274,17 +274,17 @@ func TestUnmarshal_Points(t *testing.T) {
 				t.Errorf("point value mismatch. expected %v, got %v", pv, mv)
 			}
 			// test tags
-			if test.packet.Hostname != m.Tags["host"] {
-				t.Errorf(`point tags["host"] mismatch. expected %q, got %q`, test.packet.Hostname, m.Tags["host"])
+			if test.packet.Hostname != m.Tags()["host"] {
+				t.Errorf(`point tags["host"] mismatch. expected %q, got %q`, test.packet.Hostname, m.Tags()["host"])
 			}
-			if test.packet.PluginInstance != m.Tags["instance"] {
-				t.Errorf(`point tags["instance"] mismatch. expected %q, got %q`, test.packet.PluginInstance, m.Tags["instance"])
+			if test.packet.PluginInstance != m.Tags()["instance"] {
+				t.Errorf(`point tags["instance"] mismatch. expected %q, got %q`, test.packet.PluginInstance, m.Tags()["instance"])
 			}
-			if test.packet.Type != m.Tags["type"] {
-				t.Errorf(`point tags["type"] mismatch. expected %q, got %q`, test.packet.Type, m.Tags["type"])
+			if test.packet.Type != m.Tags()["type"] {
+				t.Errorf(`point tags["type"] mismatch. expected %q, got %q`, test.packet.Type, m.Tags()["type"])
 			}
-			if test.packet.TypeInstance != m.Tags["type_instance"] {
-				t.Errorf(`point tags["type_instance"] mismatch. expected %q, got %q`, test.packet.TypeInstance, m.Tags["type_instance"])
+			if test.packet.TypeInstance != m.Tags()["type_instance"] {
+				t.Errorf(`point tags["type_instance"] mismatch. expected %q, got %q`, test.packet.TypeInstance, m.Tags()["type_instance"])
 			}
 		}
 	}

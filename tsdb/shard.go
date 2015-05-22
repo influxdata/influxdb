@@ -102,7 +102,7 @@ func (s *Shard) WritePoints(points []*Point) error {
 		var measurement *Measurement
 
 		if ss := s.series[p.Key()]; ss == nil {
-			series := &Series{Key: p.Key(), Tags: p.Tags}
+			series := &Series{Key: p.Key(), Tags: p.Tags()}
 			seriesToCreate = append(seriesToCreate, &seriesCreate{p.Name(), series})
 
 			// if the measurement doesn't exist, all fields need to be created

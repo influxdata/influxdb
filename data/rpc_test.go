@@ -55,8 +55,8 @@ func TestWriteShardRequestBinary(t *testing.T) {
 			t.Errorf("Point #%d HashID() mismatch: got %v, exp %v", i, g.HashID(), p.HashID())
 		}
 
-		for k, v := range p.Tags {
-			if g.Tags[k] != v {
+		for k, v := range p.Tags() {
+			if g.Tags()[k] != v {
 				t.Errorf("Point #%d tag mismatch: got %v, exp %v", i, k, v)
 			}
 		}
