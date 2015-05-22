@@ -49,6 +49,10 @@ const heartbeartErrorLogThreshold = 15
 // This is used by clients wanting to wait until a given index is processed.
 const WaitInterval = 1 * time.Millisecond
 
+// WaitTotal represents the total amount of time to wait for an index to be applied.
+// This is used by clients wanting to wait until a given index is processed.
+const WaitTotal = 5 * time.Minute
+
 // State represents whether the log is a follower, candidate, or leader.
 type State int
 
@@ -1323,9 +1327,18 @@ func (l *Log) internalApply(typ LogEntryType, command []byte) (index uint64, err
 // Wait blocks until a given index is applied.
 func (l *Log) Wait(idx uint64) error {
 	// TODO(benbjohnson): Check for leadership change (?).
-	// TODO(benbjohnson): Add timeout.
+
+	// Start timer for total wait time.
+	t := time.After(WaitTotal)
 
 	for {
+		// Check if WaitTotal elapsed.
+		select {
+		case <-t:
+			return ErrWaitTotalElapsed
+		default:
+		}
+
 		l.lock()
 		state, index := l.state, l.FSM.Index()
 		l.unlock()

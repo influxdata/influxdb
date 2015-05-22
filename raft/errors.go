@@ -54,6 +54,10 @@ var (
 	// ErrSnapshotting is returned when an action cannot be performed because
 	// the log is in the middle of a snapshot.
 	ErrSnapshotting = errors.New("snapshotting")
+
+	// ErrWaitTotalElapsed is returned when the time spent waiting for
+	// an index to be applied has exceeed the max wait time.
+	ErrWaitTotalElapsed = errors.New("total wait time exceeded")
 )
 
 // Internal marker errors.
