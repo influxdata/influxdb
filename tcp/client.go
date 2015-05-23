@@ -7,6 +7,7 @@ import (
 	"net"
 
 	"github.com/influxdb/influxdb/data"
+	"github.com/influxdb/influxdb/tsdb"
 )
 
 type Client struct {
@@ -27,7 +28,7 @@ func (c *Client) Dial(addr string) error {
 	return nil
 }
 
-func (c *Client) WriteShard(shardID uint64, points []data.Point) error {
+func (c *Client) WriteShard(shardID uint64, points []tsdb.Point) error {
 	var mt byte = writeShardRequestMessage
 	if err := binary.Write(c.conn, binary.LittleEndian, &mt); err != nil {
 		return err

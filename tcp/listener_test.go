@@ -6,15 +6,15 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/influxdb/influxdb/data"
 	"github.com/influxdb/influxdb/tcp"
+	"github.com/influxdb/influxdb/tsdb"
 )
 
 type testServer struct {
-	writeShardFunc func(shardID uint64, points []data.Point) (int, error)
+	writeShardFunc func(shardID uint64, points []tsdb.Point) (int, error)
 }
 
-func newTestServer(f func(shardID uint64, points []data.Point) (int, error)) testServer {
+func newTestServer(f func(shardID uint64, points []tsdb.Point) (int, error)) testServer {
 	return testServer{
 		writeShardFunc: f,
 	}
@@ -23,14 +23,14 @@ func newTestServer(f func(shardID uint64, points []data.Point) (int, error)) tes
 type serverResponses []serverResponse
 type serverResponse struct {
 	shardID uint64
-	points  []data.Point
+	points  []tsdb.Point
 }
 
-func (t testServer) WriteShard(shardID uint64, points []data.Point) (int, error) {
+func (t testServer) WriteShard(shardID uint64, points []tsdb.Point) (int, error) {
 	return t.writeShardFunc(shardID, points)
 }
 
-func writeShardSuccess(shardID uint64, points []data.Point) (int, error) {
+func writeShardSuccess(shardID uint64, points []tsdb.Point) (int, error) {
 	responses <- &serverResponse{
 		shardID: shardID,
 		points:  points,
@@ -38,7 +38,7 @@ func writeShardSuccess(shardID uint64, points []data.Point) (int, error) {
 	return 1, nil
 }
 
-func writeShardFail(shardID uint64, points []data.Point) (int, error) {
+func writeShardFail(shardID uint64, points []tsdb.Point) (int, error) {
 	return 0, fmt.Errorf("failed to write")
 }
 
@@ -116,13 +116,10 @@ func TestServer_WriteShardRequestSuccess(t *testing.T) {
 	now := time.Now()
 
 	shardID := uint64(1)
-	var points []data.Point
-	points = append(points, data.Point{
-		Name:   "cpu",
-		Time:   now,
-		Tags:   data.Tags{"host": "server01"},
-		Fields: map[string]interface{}{"value": int64(100)},
-	})
+	var points []tsdb.Point
+	points = append(points, tsdb.NewPoint(
+		"cpu", tsdb.Tags{"host": "server01"}, map[string]interface{}{"value": int64(100)}, now,
+	))
 
 	if err := client.WriteShard(shardID, points); err != nil {
 		t.Fatal(err)
@@ -148,19 +145,19 @@ func TestServer_WriteShardRequestSuccess(t *testing.T) {
 	t.Log("got: ", spew.Sdump(got))
 	t.Log("exp: ", spew.Sdump(exp))
 
-	if got.Name != exp.Name {
+	if got.Name() != exp.Name() {
 		t.Fatal("unexpected name")
 	}
 
-	if got.Fields["value"] != exp.Fields["value"] {
+	if got.Fields()["value"] != exp.Fields()["value"] {
 		t.Fatal("unexpected fields")
 	}
 
-	if got.Tags["host"] != exp.Tags["host"] {
+	if got.Tags()["host"] != exp.Tags()["host"] {
 		t.Fatal("unexpected tags")
 	}
 
-	if got.Time.UnixNano() != exp.Time.UnixNano() {
+	if got.Time().UnixNano() != exp.Time().UnixNano() {
 		t.Fatal("unexpected time")
 	}
 }
@@ -188,13 +185,10 @@ func TestServer_WriteShardRequestFail(t *testing.T) {
 	now := time.Now()
 
 	shardID := uint64(1)
-	var points []data.Point
-	points = append(points, data.Point{
-		Name:   "cpu",
-		Time:   now,
-		Tags:   data.Tags{"host": "server01"},
-		Fields: map[string]interface{}{"value": int64(100)},
-	})
+	var points []tsdb.Point
+	points = append(points, tsdb.NewPoint(
+		"cpu", tsdb.Tags{"host": "server01"}, map[string]interface{}{"value": int64(100)}, now,
+	))
 
 	if err, exp := client.WriteShard(shardID, points), "error code 1: failed to write"; err == nil || err.Error() != exp {
 		t.Fatalf("expected error %s, got %v", exp, err)
