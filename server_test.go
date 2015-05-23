@@ -2507,7 +2507,7 @@ func TestServer_DeleteUser_NonexistentUser(t *testing.T) {
 	s := OpenServer(c)
 	defer s.Close()
 
-	// Can't update non-existent user
+	// Can't delete non-existent user
 	if err := s.DeleteUser("susy"); err != influxdb.ErrUserNotFound {
 		t.Fatal(err)
 	}
@@ -2520,7 +2520,7 @@ func TestServer_DeleteUser_BlankUser(t *testing.T) {
 	s := OpenServer(c)
 	defer s.Close()
 
-	// Can't update non-existent user
+	// Can't delete blank user
 	if err := s.DeleteUser(""); err != influxdb.ErrUsernameRequired {
 		t.Fatal(err)
 	}
@@ -2546,7 +2546,7 @@ func TestServer_SetPrivilege_NonexistentUser(t *testing.T) {
 	s := OpenServer(c)
 	defer s.Close()
 
-	// Can't set privilege on non existent user
+	// Can't set privilege on non-existent user
 	if err := s.SetPrivilege(influxql.WritePrivilege, "susy", ""); err != influxdb.ErrUserNotFound {
 		t.Fatal(err)
 	}
@@ -2580,14 +2580,14 @@ func TestServer_SetPrivilege_BlankDatabaseName_Grant(t *testing.T) {
 	}
 }
 
-// Ensure user admin flag updated when database name is blank
+// Ensure user admin flag can be revoked when user created as admin
 func TestServer_SetPrivilege_BlankDatabaseName_Revoke(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
 	defer c.Close()
 	s := OpenServer(c)
 	defer s.Close()
 
-	// Create a user.
+	// Create an admin user.
 	if err := s.CreateUser("susy", "pass", true); err != nil {
 		t.Fatal(err)
 	}
