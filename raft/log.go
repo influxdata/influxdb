@@ -189,7 +189,7 @@ type Log struct {
 	Transport interface {
 		Join(u url.URL, nodeURL url.URL) (id uint64, leaderID uint64, config *Config, err error)
 		Leave(u url.URL, id uint64) error
-		Heartbeat(u url.URL, term, commitIndex, leaderID uint64, closing <-chan struct{}) (lastIndex uint64, err error)
+		Heartbeat(u url.URL, term, commitIndex, leaderID uint64) (lastIndex uint64, err error)
 		ReadFrom(u url.URL, id, term, index uint64) (io.ReadCloser, error)
 		RequestVote(u url.URL, term, candidateID, lastLogIndex, lastLogTerm uint64) (peerTerm uint64, err error)
 	}
@@ -197,10 +197,10 @@ type Log struct {
 	// Clock is an abstraction of time.
 	Clock interface {
 		Now() time.Time
-		ApplyTimer() Timer
-		ElectionTimer() Timer
-		HeartbeatTimer() Timer
-		ReconnectTimer() Timer
+		AfterApplyInterval() <-chan chan struct{}
+		AfterElectionTimeout() <-chan chan struct{}
+		AfterHeartbeatInterval() <-chan chan struct{}
+		AfterReconnectTimeout() <-chan chan struct{}
 	}
 
 	// Rand returns a random number.
@@ -892,13 +892,11 @@ func (l *Log) followerLoop(closing <-chan struct{}) State {
 	wg.Add(1)
 	go l.readFromLeader(&wg)
 
-	electionTimer := l.Clock.ElectionTimer()
 	for {
 		select {
 		case <-closing:
-			electionTimer.Stop()
 			return Stopped
-		case ch := <-electionTimer.C():
+		case ch := <-l.Clock.AfterElectionTimeout():
 			close(ch)
 
 			// Ignore timeout if we are snapshotting.
@@ -914,10 +912,6 @@ func (l *Log) followerLoop(closing <-chan struct{}) State {
 			return Candidate
 		case hb := <-l.heartbeats:
 			l.tracef("followerLoop: recv heartbeat: term=%d, idx=%d", hb.term, hb.commitIndex)
-
-			// Restart election timer.
-			electionTimer.Stop()
-			electionTimer = l.Clock.ElectionTimer()
 
 			// Update term, commit index & leader.
 			l.lock()
@@ -1030,9 +1024,6 @@ func (l *Log) candidateLoop(closing <-chan struct{}) State {
 	elected := make(chan struct{}, 1)
 	go l.elect(term, elected, &wg)
 
-	electionTimer := l.Clock.ElectionTimer()
-	defer electionTimer.Stop()
-
 	for {
 		select {
 		case <-closing:
@@ -1054,7 +1045,7 @@ func (l *Log) candidateLoop(closing <-chan struct{}) State {
 			l.leaderID = l.id
 			l.unlock()
 			return Leader
-		case ch := <-electionTimer.C():
+		case ch := <-l.Clock.AfterElectionTimeout():
 			close(ch)
 			return Follower
 		}
@@ -1082,7 +1073,7 @@ func (l *Log) elect(term uint64, elected chan struct{}, wg *sync.WaitGroup) {
 		}
 		go func(n *ConfigNode) {
 			peerTerm, err := l.Transport.RequestVote(n.URL, term, id, lastLogIndex, lastLogTerm)
-			l.printf("send req vote(term=%d, candidateID=%d, lastLogIndex=%d, lastLogTerm=%d) (term=%d, err=%v)", term, id, lastLogIndex, lastLogTerm, peerTerm, err)
+			l.tracef("send req vote(term=%d, candidateID=%d, lastLogIndex=%d, lastLogTerm=%d) (term=%d, err=%v)", term, id, lastLogIndex, lastLogTerm, peerTerm, err)
 
 			// If an error occured then update term.
 			if err != nil {
@@ -1197,10 +1188,6 @@ func (l *Log) heartbeater(term uint64, committed chan uint64, wg *sync.WaitGroup
 
 	l.tracef("leaderLoop: send heartbeat: start: n=%d", len(config.Nodes))
 
-	// Close all heartbeats on exit.
-	closing := make(chan struct{})
-	defer close(closing)
-
 	// Send heartbeats to all peers.
 	peerIndices := make(chan uint64, len(config.Nodes))
 	for _, n := range config.Nodes {
@@ -1208,15 +1195,9 @@ func (l *Log) heartbeater(term uint64, committed chan uint64, wg *sync.WaitGroup
 			continue
 		}
 		go func(n *ConfigNode) {
-			peerIndex, err := l.Transport.Heartbeat(n.URL, term, commitIndex, leaderID, closing)
+			peerIndex, err := l.Transport.Heartbeat(n.URL, term, commitIndex, leaderID)
 			if err != nil {
-				// Ignore errors caused by closing the connection early.
-				if strings.Contains(err.Error(), "use of closed network connection") {
-					return
-				}
-
 				c := atomic.AddInt64(&n.HeartbeatErrorCount, 1)
-
 				// log heartbeat error once every 15 seconds to avoid flooding the logs
 				if time.Now().Unix()-atomic.LoadInt64(&n.LastHeartbeatError) > heartbeartErrorLogThreshold {
 					l.printf("leaderLoop: send heartbeat: error: cnt=%d %s", c, err)
@@ -1235,9 +1216,7 @@ func (l *Log) heartbeater(term uint64, committed chan uint64, wg *sync.WaitGroup
 	}
 
 	// Wait for heartbeat responses or timeout.
-	heartbeatTimer := l.Clock.HeartbeatTimer()
-	defer heartbeatTimer.Stop()
-
+	after := l.Clock.AfterHeartbeatInterval()
 	indexes := make([]uint64, 1, len(config.Nodes))
 	indexes[0] = localIndex
 	for {
@@ -1248,7 +1227,7 @@ func (l *Log) heartbeater(term uint64, committed chan uint64, wg *sync.WaitGroup
 		case peerIndex := <-peerIndices:
 			l.tracef("leaderLoop: send heartbeat: index: idx=%d, idxs=%+v", peerIndex, indexes)
 			indexes = append(indexes, peerIndex) // collect responses
-		case ch := <-heartbeatTimer.C():
+		case ch := <-after:
 			// Once we have enough indices then return the lowest index
 			// among the highest quorum of nodes.
 			quorumN := (len(config.Nodes) / 2) + 1
@@ -1275,18 +1254,7 @@ type heartbeatResponse struct {
 // Apply executes a command against the log.
 // This function returns once the command has been committed to the log.
 func (l *Log) Apply(command []byte) (uint64, error) {
-	// Add index to the log.
-	index, err := l.internalApply(LogEntryCommand, command)
-	if err != nil {
-		return index, err
-	}
-
-	// Wait for index to be applied.
-	if err := l.Wait(index); err != nil {
-		return index, err
-	}
-
-	return index, nil
+	return l.internalApply(LogEntryCommand, command)
 }
 
 func (l *Log) internalApply(typ LogEntryType, command []byte) (index uint64, err error) {
@@ -1440,7 +1408,7 @@ func (l *Log) applier(closing <-chan struct{}) {
 		case <-closing:
 			return
 
-		case confirm = <-l.Clock.ApplyTimer().C():
+		case confirm = <-l.Clock.AfterApplyInterval():
 		}
 
 		//l.tracef("applier")
@@ -1698,7 +1666,7 @@ func (l *Log) RequestVote(term, candidateID, lastLogIndex, lastLogTerm uint64) (
 	}
 
 	defer func() {
-		l.printf("recv req vote: (term=%d, candidateID=%d, lastLogIndex=%d, lastLogTerm=%d) (err=%v)",
+		l.tracef("recv req vote: (term=%d, candidateID=%d, lastLogIndex=%d, lastLogTerm=%d) (err=%v)",
 			term, candidateID, lastLogIndex, lastLogTerm, err)
 	}()
 

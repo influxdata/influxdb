@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/influxdb/influxdb"
+	"github.com/influxdb/influxdb/tsdb"
 	"github.com/kimor79/gollectd"
 )
 
@@ -17,7 +17,7 @@ const DefaultPort = 25826
 
 // SeriesWriter defines the interface for the destination of the data.
 type SeriesWriter interface {
-	WriteSeries(database, retentionPolicy string, points []influxdb.Point) (uint64, error)
+	WriteSeries(database, retentionPolicy string, points []tsdb.Point) (uint64, error)
 }
 
 // Server represents a UDP server which receives metrics in collectd's binary
@@ -122,7 +122,7 @@ func (s *Server) handleMessage(buffer []byte) {
 	for _, packet := range *packets {
 		points := Unmarshal(&packet)
 		for _, p := range points {
-			_, err := s.writer.WriteSeries(s.Database, "", []influxdb.Point{p})
+			_, err := s.writer.WriteSeries(s.Database, "", []tsdb.Point{p})
 			if err != nil {
 				log.Printf("Collectd cannot write data: %s", err)
 				continue
@@ -150,47 +150,42 @@ func (s *Server) Close() error {
 }
 
 // Unmarshal translates a collectd packet into InfluxDB data points.
-func Unmarshal(data *gollectd.Packet) []influxdb.Point {
+func Unmarshal(packet *gollectd.Packet) []tsdb.Point {
 	// Prefer high resolution timestamp.
 	var timestamp time.Time
-	if data.TimeHR > 0 {
+	if packet.TimeHR > 0 {
 		// TimeHR is "near" nanosecond measurement, but not exactly nanasecond time
 		// Since we store time in microseconds, we round here (mostly so tests will work easier)
-		sec := data.TimeHR >> 30
+		sec := packet.TimeHR >> 30
 		// Shifting, masking, and dividing by 1 billion to get nanoseconds.
-		nsec := ((data.TimeHR & 0x3FFFFFFF) << 30) / 1000 / 1000 / 1000
+		nsec := ((packet.TimeHR & 0x3FFFFFFF) << 30) / 1000 / 1000 / 1000
 		timestamp = time.Unix(int64(sec), int64(nsec)).UTC().Round(time.Microsecond)
 	} else {
 		// If we don't have high resolution time, fall back to basic unix time
-		timestamp = time.Unix(int64(data.Time), 0).UTC()
+		timestamp = time.Unix(int64(packet.Time), 0).UTC()
 	}
 
-	var points []influxdb.Point
-	for i := range data.Values {
-		name := fmt.Sprintf("%s_%s", data.Plugin, data.Values[i].Name)
+	var points []tsdb.Point
+	for i := range packet.Values {
+		name := fmt.Sprintf("%s_%s", packet.Plugin, packet.Values[i].Name)
 		tags := make(map[string]string)
 		fields := make(map[string]interface{})
 
-		fields["value"] = data.Values[i].Value
+		fields["value"] = packet.Values[i].Value
 
-		if data.Hostname != "" {
-			tags["host"] = data.Hostname
+		if packet.Hostname != "" {
+			tags["host"] = packet.Hostname
 		}
-		if data.PluginInstance != "" {
-			tags["instance"] = data.PluginInstance
+		if packet.PluginInstance != "" {
+			tags["instance"] = packet.PluginInstance
 		}
-		if data.Type != "" {
-			tags["type"] = data.Type
+		if packet.Type != "" {
+			tags["type"] = packet.Type
 		}
-		if data.TypeInstance != "" {
-			tags["type_instance"] = data.TypeInstance
+		if packet.TypeInstance != "" {
+			tags["type_instance"] = packet.TypeInstance
 		}
-		p := influxdb.Point{
-			Name:   name,
-			Tags:   tags,
-			Time:   timestamp,
-			Fields: fields,
-		}
+		p := tsdb.NewPoint(name, tags, fields, timestamp)
 
 		points = append(points, p)
 	}

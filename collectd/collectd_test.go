@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/collectd"
+	"github.com/influxdb/influxdb/tsdb"
 	"github.com/kimor79/gollectd"
 )
 
@@ -17,12 +17,12 @@ type serverResponses []serverResponse
 type serverResponse struct {
 	database        string
 	retentionPolicy string
-	points          []influxdb.Point
+	points          []tsdb.Point
 }
 
 var responses = make(chan *serverResponse, 1024)
 
-func (testServer) WriteSeries(database, retentionPolicy string, points []influxdb.Point) (uint64, error) {
+func (testServer) WriteSeries(database, retentionPolicy string, points []tsdb.Point) (uint64, error) {
 	responses <- &serverResponse{
 		database:        database,
 		retentionPolicy: retentionPolicy,
@@ -206,7 +206,7 @@ func TestUnmarshal_Points(t *testing.T) {
 	var tests = []struct {
 		name   string
 		packet gollectd.Packet
-		points []influxdb.Point
+		points []tsdb.Point
 	}{
 		{
 			name: "single value",
@@ -216,8 +216,8 @@ func TestUnmarshal_Points(t *testing.T) {
 					{Name: "read", Value: 1},
 				},
 			},
-			points: []influxdb.Point{
-				{Name: "disk_read", Fields: map[string]interface{}{"value": float64(1)}},
+			points: []tsdb.Point{
+				tsdb.NewPoint("disk_read", nil, map[string]interface{}{"value": float64(1)}, time.Unix(0, 0)),
 			},
 		},
 		{
@@ -229,9 +229,9 @@ func TestUnmarshal_Points(t *testing.T) {
 					{Name: "write", Value: 5},
 				},
 			},
-			points: []influxdb.Point{
-				{Name: "disk_read", Fields: map[string]interface{}{"value": float64(1)}},
-				{Name: "disk_write", Fields: map[string]interface{}{"value": float64(5)}},
+			points: []tsdb.Point{
+				tsdb.NewPoint("disk_read", nil, map[string]interface{}{"value": float64(1)}, time.Unix(0, 0)),
+				tsdb.NewPoint("disk_write", nil, map[string]interface{}{"value": float64(5)}, time.Unix(0, 0)),
 			},
 		},
 		{
@@ -246,12 +246,11 @@ func TestUnmarshal_Points(t *testing.T) {
 					{Name: "read", Value: 1},
 				},
 			},
-			points: []influxdb.Point{
-				{
-					Name:   "disk_read",
-					Tags:   map[string]string{"host": "server01", "instance": "sdk", "type": "disk_octets", "type_instance": "single"},
-					Fields: map[string]interface{}{"value": float64(1)},
-				},
+			points: []tsdb.Point{
+				tsdb.NewPoint("disk_read",
+					map[string]string{"host": "server01", "instance": "sdk", "type": "disk_octets", "type_instance": "single"},
+					map[string]interface{}{"value": float64(1)},
+					time.Unix(0, 0)),
 			},
 		},
 	}
@@ -265,27 +264,27 @@ func TestUnmarshal_Points(t *testing.T) {
 		for i, m := range test.points {
 			// test name
 			name := fmt.Sprintf("%s_%s", test.packet.Plugin, test.packet.Values[i].Name)
-			if m.Name != name {
-				t.Errorf("point name mismatch. expected %q, got %q", name, m.Name)
+			if m.Name() != name {
+				t.Errorf("point name mismatch. expected %q, got %q", name, m.Name())
 			}
 			// test value
-			mv := m.Fields["value"].(float64)
+			mv := m.Fields()["value"].(float64)
 			pv := test.packet.Values[i].Value
 			if mv != pv {
 				t.Errorf("point value mismatch. expected %v, got %v", pv, mv)
 			}
 			// test tags
-			if test.packet.Hostname != m.Tags["host"] {
-				t.Errorf(`point tags["host"] mismatch. expected %q, got %q`, test.packet.Hostname, m.Tags["host"])
+			if test.packet.Hostname != m.Tags()["host"] {
+				t.Errorf(`point tags["host"] mismatch. expected %q, got %q`, test.packet.Hostname, m.Tags()["host"])
 			}
-			if test.packet.PluginInstance != m.Tags["instance"] {
-				t.Errorf(`point tags["instance"] mismatch. expected %q, got %q`, test.packet.PluginInstance, m.Tags["instance"])
+			if test.packet.PluginInstance != m.Tags()["instance"] {
+				t.Errorf(`point tags["instance"] mismatch. expected %q, got %q`, test.packet.PluginInstance, m.Tags()["instance"])
 			}
-			if test.packet.Type != m.Tags["type"] {
-				t.Errorf(`point tags["type"] mismatch. expected %q, got %q`, test.packet.Type, m.Tags["type"])
+			if test.packet.Type != m.Tags()["type"] {
+				t.Errorf(`point tags["type"] mismatch. expected %q, got %q`, test.packet.Type, m.Tags()["type"])
 			}
-			if test.packet.TypeInstance != m.Tags["type_instance"] {
-				t.Errorf(`point tags["type_instance"] mismatch. expected %q, got %q`, test.packet.TypeInstance, m.Tags["type_instance"])
+			if test.packet.TypeInstance != m.Tags()["type_instance"] {
+				t.Errorf(`point tags["type_instance"] mismatch. expected %q, got %q`, test.packet.TypeInstance, m.Tags()["type_instance"])
 			}
 		}
 	}
@@ -306,7 +305,7 @@ func TestUnmarshal_Time(t *testing.T) {
 	var tests = []struct {
 		name   string
 		packet gollectd.Packet
-		points []influxdb.Point
+		points []tsdb.Point
 	}{
 		{
 			name: "Should parse timeHR properly",
@@ -318,8 +317,8 @@ func TestUnmarshal_Time(t *testing.T) {
 					},
 				},
 			},
-			points: []influxdb.Point{
-				{Time: testTime},
+			points: []tsdb.Point{
+				tsdb.NewPoint("", nil, nil, testTime),
 			},
 		},
 		{
@@ -332,8 +331,8 @@ func TestUnmarshal_Time(t *testing.T) {
 					},
 				},
 			},
-			points: []influxdb.Point{
-				{Time: testTime.Round(time.Second)},
+			points: []tsdb.Point{
+				tsdb.NewPoint("", nil, nil, testTime.Round(time.Second)),
 			},
 		},
 	}
@@ -346,10 +345,10 @@ func TestUnmarshal_Time(t *testing.T) {
 		}
 		for _, p := range points {
 			if test.packet.TimeHR > 0 {
-				if p.Time.Format(time.RFC3339Nano) != testTime.Format(time.RFC3339Nano) {
-					t.Errorf("time mis-match, got %v, expected %v", p.Time.Format(time.RFC3339Nano), testTime.Format(time.RFC3339Nano))
-				} else if p.Time.Format(time.RFC3339) != testTime.Format(time.RFC3339) {
-					t.Errorf("time mis-match, got %v, expected %v", p.Time.Format(time.RFC3339), testTime.Format(time.RFC3339))
+				if p.Time().Format(time.RFC3339Nano) != testTime.Format(time.RFC3339Nano) {
+					t.Errorf("time mis-match, got %v, expected %v", p.Time().Format(time.RFC3339Nano), testTime.Format(time.RFC3339Nano))
+				} else if p.Time().Format(time.RFC3339) != testTime.Format(time.RFC3339) {
+					t.Errorf("time mis-match, got %v, expected %v", p.Time().Format(time.RFC3339), testTime.Format(time.RFC3339))
 				}
 			}
 		}

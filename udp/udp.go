@@ -8,6 +8,7 @@ import (
 
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/client"
+	"github.com/influxdb/influxdb/tsdb"
 )
 
 const (
@@ -16,7 +17,7 @@ const (
 
 // SeriesWriter defines the interface for the destination of the data.
 type SeriesWriter interface {
-	WriteSeries(database, retentionPolicy string, points []influxdb.Point) (uint64, error)
+	WriteSeries(database, retentionPolicy string, points []tsdb.Point) (uint64, error)
 }
 
 // UDPServer
