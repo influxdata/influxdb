@@ -5,9 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
-	"regexp"
-	"sort"
 	"sync"
 	"time"
 
@@ -20,22 +19,18 @@ import (
 // kept along with the raw time series data. Data can be split across many shards. The query engine in TSDB
 // is responsible for combining the output of many shards into a single query result.
 type Shard struct {
-	db *bolt.DB // underlying data store
+	db    *bolt.DB // underlying data store
+	index *Database
 
-	// in memory metadata index, built on load and updated when new series come in
-	mu           sync.RWMutex
-	measurements map[string]*Measurement // measurement name to object and index
-	series       map[string]*Series      // map series key to the Series object
-	names        []string                // sorted list of the measurement names
-	lastID       uint64                  // last used series ID. They're in memory only for this shard
+	mu                sync.RWMutex
+	measurementFields map[string]*measurementFields // measurement name to their fields
 }
 
 // NewShard returns a new initialized Shard
-func NewShard() *Shard {
+func NewShard(database *Database) *Shard {
 	return &Shard{
-		measurements: make(map[string]*Measurement),
-		series:       make(map[string]*Series),
-		names:        make([]string, 0),
+		index:             database,
+		measurementFields: make(map[string]*measurementFields),
 	}
 }
 
@@ -59,7 +54,7 @@ func (s *Shard) Open(path string) error {
 	// Initialize store.
 	if err := s.db.Update(func(tx *bolt.Tx) error {
 		_, _ = tx.CreateBucketIfNotExists([]byte("series"))
-		_, _ = tx.CreateBucketIfNotExists([]byte("measurements"))
+		_, _ = tx.CreateBucketIfNotExists([]byte("fields"))
 		_, _ = tx.CreateBucketIfNotExists([]byte("values"))
 
 		return nil
@@ -82,7 +77,7 @@ func (s *Shard) Close() error {
 // struct to hold information for a field to create on a measurement
 type fieldCreate struct {
 	measurement string
-	field       *Field
+	field       *field
 }
 
 // struct to hold information for a series to create
@@ -93,83 +88,24 @@ type seriesCreate struct {
 
 // WritePoints will write the raw data points and any new metadata to the index in the shard
 func (s *Shard) WritePoints(points []Point) error {
-	var seriesToCreate []*seriesCreate
-	var fieldsToCreate []*fieldCreate
-
-	// validate fields, check which series are new, whose metadata should be saved and indexed
-	s.mu.RLock()
-	for _, p := range points {
-		var measurement *Measurement
-
-		if ss := s.series[p.Key()]; ss == nil {
-			series := &Series{Key: p.Key(), Tags: p.Tags()}
-			seriesToCreate = append(seriesToCreate, &seriesCreate{p.Name(), series})
-
-			// if the measurement doesn't exist, all fields need to be created
-			if m := s.measurements[p.Name()]; m == nil {
-				for name, value := range p.Fields() {
-					fieldsToCreate = append(fieldsToCreate, &fieldCreate{p.Name(), &Field{Name: name, Type: influxql.InspectDataType(value)}})
-				}
-				continue // no need to validate since they're all new fields
-			} else {
-				measurement = m
-			}
-		} else {
-			measurement = ss.measurement
-		}
-
-		// validate field types
-		for name, value := range p.Fields() {
-			if f := measurement.FieldByName(name); f != nil {
-				// Field present in Metastore, make sure there is no type conflict.
-				if f.Type != influxql.InspectDataType(value) {
-					return fmt.Errorf("input field \"%s\" is type %T, already exists as type %s", name, value, f.Type)
-				}
-
-				data, err := measurement.fieldCodec.EncodeFields(p.Fields())
-				if err != nil {
-					return err
-				}
-				p.SetData(data)
-				continue // Field is present, and it's of the same type. Nothing more to do.
-			}
-
-			fieldsToCreate = append(fieldsToCreate, &fieldCreate{p.Name(), &Field{Name: name, Type: influxql.InspectDataType(value)}})
-		}
+	seriesToCreate, fieldsToCreate, err := s.validateSeriesAndFields(points)
+	if err != nil {
+		return err
 	}
-	s.mu.RUnlock()
 
-	// if there are any metadata updates get the write lock and do them
-	var measurementsToCreate []*Measurement
-	if len(seriesToCreate) > 0 || len(fieldsToCreate) > 0 {
-		s.mu.Lock()
-		defer s.mu.Unlock()
-
-		// add any new series to the in-memory index
+	// add any new series to the in-memory index
+	if len(seriesToCreate) > 0 {
+		s.index.mu.Lock()
 		for _, ss := range seriesToCreate {
-			s.createSeriesIndexIfNotExists(ss.measurement, ss.series)
+			s.index.createSeriesIndexIfNotExists(ss.measurement, ss.series)
 		}
+		s.index.mu.Unlock()
+	}
 
-		// add fields
-		for _, f := range fieldsToCreate {
-			measurementsToSave := make(map[string]*Measurement)
-
-			m := s.measurements[f.measurement]
-			if m == nil {
-				m = s.createMeasurementIndexIfNotExists(f.measurement)
-			}
-			measurementsToSave[f.measurement] = m
-
-			// add the field to the in memory index
-			if err := m.createFieldIfNotExists(f.field.Name, f.field.Type); err != nil {
-				return err
-			}
-
-			// now put the measurements in the list to save into Bolt
-			for _, m := range measurementsToSave {
-				measurementsToCreate = append(measurementsToCreate, m)
-			}
-		}
+	// add any new fields and keep track of what needs to be saved
+	measurementFieldsToSave, err := s.createFieldsAndMeasurements(fieldsToCreate)
+	if err != nil {
+		return err
 	}
 
 	// make sure all data is encoded before attempting to save to bolt
@@ -177,7 +113,8 @@ func (s *Shard) WritePoints(points []Point) error {
 		// marshal the raw data if it hasn't been marshaled already
 		if p.Data() == nil {
 			// this was populated earlier, don't need to validate that it's there.
-			data, err := s.series[p.Key()].measurement.fieldCodec.EncodeFields(p.Fields())
+			warn(p.Name(), s.measurementFields)
+			data, err := s.measurementFields[p.Name()].codec.EncodeFields(p.Fields())
 			if err != nil {
 				return err
 			}
@@ -196,10 +133,10 @@ func (s *Shard) WritePoints(points []Point) error {
 				}
 			}
 		}
-		if len(measurementsToCreate) > 0 {
-			b := tx.Bucket([]byte("measurements"))
-			for _, m := range measurementsToCreate {
-				if err := b.Put([]byte(m.Name), mustMarshalJSON(m)); err != nil {
+		if len(measurementFieldsToSave) > 0 {
+			b := tx.Bucket([]byte("fields"))
+			for name, m := range measurementFieldsToSave {
+				if err := b.Put([]byte(name), mustMarshalJSON(m)); err != nil {
 					return err
 				}
 			}
@@ -226,16 +163,113 @@ func (s *Shard) WritePoints(points []Point) error {
 	return nil
 }
 
+func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*fieldCreate) (map[string]*measurementFields, error) {
+	if len(fieldsToCreate) == 0 {
+		return nil, nil
+	}
+
+	s.index.mu.Lock()
+	s.mu.Lock()
+	defer s.index.mu.Unlock()
+	defer s.mu.Unlock()
+
+	// add fields
+	measurementsToSave := make(map[string]*measurementFields)
+	for _, f := range fieldsToCreate {
+
+		m := s.measurementFields[f.measurement]
+		if m == nil {
+			m = measurementsToSave[f.measurement]
+			if m == nil {
+				m = &measurementFields{Fields: make(map[string]*field)}
+			}
+			s.measurementFields[f.measurement] = m
+		}
+
+		measurementsToSave[f.measurement] = m
+
+		// add the field to the in memory index
+		if err := m.createFieldIfNotExists(f.field.Name, f.field.Type); err != nil {
+			return nil, err
+		}
+
+		// ensure the measurement is in the index and the field is there
+		measurement := s.index.createMeasurementIndexIfNotExists(f.measurement)
+		measurement.FieldNames[f.field.Name] = struct{}{}
+	}
+
+	return measurementsToSave, nil
+}
+
+// validateSeriesAndFields checks which series and fields are new and whose metadata should be saved and indexed
+func (s *Shard) validateSeriesAndFields(points []Point) ([]*seriesCreate, []*fieldCreate, error) {
+	var seriesToCreate []*seriesCreate
+	var fieldsToCreate []*fieldCreate
+
+	// get the mutex for the in memory index, which is shared across shards
+	s.index.mu.RLock()
+	defer s.index.mu.RUnlock()
+
+	// get the shard mutex for locally defined fields
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for _, p := range points {
+		// see if the series should be added to the index
+		if ss := s.index.series[p.Key()]; ss == nil {
+			series := &Series{Key: p.Key(), Tags: p.Tags()}
+			seriesToCreate = append(seriesToCreate, &seriesCreate{p.Name(), series})
+		}
+
+		// see if the field definitions need to be saved to the shard
+		mf := s.measurementFields[p.Name()]
+		if mf == nil {
+			for name, value := range p.Fields() {
+				fieldsToCreate = append(fieldsToCreate, &fieldCreate{p.Name(), &field{Name: name, Type: influxql.InspectDataType(value)}})
+			}
+			continue // skip validation since all fields are new
+		}
+
+		// validate field types and encode data
+		for name, value := range p.Fields() {
+			if f := mf.Fields[name]; f != nil {
+				// Field present in Metastore, make sure there is no type conflict.
+				if f.Type != influxql.InspectDataType(value) {
+					return nil, nil, fmt.Errorf("input field \"%s\" is type %T, already exists as type %s", name, value, f.Type)
+				}
+
+				data, err := mf.codec.EncodeFields(p.Fields())
+				if err != nil {
+					return nil, nil, err
+				}
+				p.SetData(data)
+				continue // Field is present, and it's of the same type. Nothing more to do.
+			}
+
+			fieldsToCreate = append(fieldsToCreate, &fieldCreate{p.Name(), &field{Name: name, Type: influxql.InspectDataType(value)}})
+		}
+	}
+
+	return seriesToCreate, fieldsToCreate, nil
+}
+
 // loadsMetadataIndex loads the shard metadata into memory. This should only be called by Open
 func (s *Shard) loadMetadataIndex() error {
 	return s.db.View(func(tx *bolt.Tx) error {
+		s.index.mu.Lock()
+		defer s.index.mu.Unlock()
+
 		// load measurement metadata
-		meta := tx.Bucket([]byte("measurements"))
+		meta := tx.Bucket([]byte("fields"))
 		c := meta.Cursor()
 		for k, v := c.First(); k != nil; k, v = c.Next() {
-			m := s.createMeasurementIndexIfNotExists(string(k))
-			mustUnmarshalJSON(v, &m)
-			m.fieldCodec = NewFieldCodec(m)
+			m := s.index.createMeasurementIndexIfNotExists(string(k))
+			mf := &measurementFields{}
+			mustUnmarshalJSON(v, mf)
+			for name, _ := range mf.Fields {
+				m.FieldNames[name] = struct{}{}
+			}
+			mf.codec = newFieldCodec(mf.Fields)
 		}
 
 		// load series metadata
@@ -244,182 +278,280 @@ func (s *Shard) loadMetadataIndex() error {
 		for k, v := c.First(); k != nil; k, v = c.Next() {
 			var series *Series
 			mustUnmarshalJSON(v, &series)
-			s.createSeriesIndexIfNotExists(measurementFromSeriesKey(string(k)), series)
+			s.index.createSeriesIndexIfNotExists(measurementFromSeriesKey(string(k)), series)
 		}
 		return nil
 	})
 }
 
-// createSeriesIndexIfNotExists adds the series for the given measurement to the index and sets its ID or returns the existing series object
-func (s *Shard) createSeriesIndexIfNotExists(measurementName string, series *Series) *Series {
-	// if there is a measurement for this id, it's already been added
-	ss := s.series[series.Key]
-	if ss != nil {
-		return ss
-	}
-
-	// get or create the measurement index
-	m := s.createMeasurementIndexIfNotExists(measurementName)
-
-	// set the in memory ID for query processing on this shard
-	series.id = s.lastID + 1
-	s.lastID += 1
-
-	series.measurement = m
-	s.series[series.Key] = series
-
-	m.addSeries(series)
-
-	return series
+type measurementFields struct {
+	Fields map[string]*field `json:"fields"`
+	codec  *fieldCodec
 }
 
-// addMeasurementToIndexIfNotExists creates or retrieves an in memory index object for the measurement
-func (s *Shard) createMeasurementIndexIfNotExists(name string) *Measurement {
-	m := s.measurements[name]
-	if m == nil {
-		m = NewMeasurement(name)
-		s.measurements[name] = m
-		s.names = append(s.names, name)
-		sort.Strings(s.names)
+// createFieldIfNotExists creates a new field with an autoincrementing ID.
+// Returns an error if 255 fields have already been created on the measurement or
+// the fields already exists with a different type.
+func (m *measurementFields) createFieldIfNotExists(name string, typ influxql.DataType) error {
+	// Ignore if the field already exists.
+	if f := m.Fields[name]; f != nil {
+		if f.Type != typ {
+			return ErrFieldTypeConflict
+		}
+		return nil
 	}
-	return m
+
+	// Only 255 fields are allowed. If we go over that then return an error.
+	if len(m.Fields)+1 > math.MaxUint8 {
+		return ErrFieldOverflow
+	}
+
+	// Create and append a new field.
+	f := &field{
+		ID:   uint8(len(m.Fields) + 1),
+		Name: name,
+		Type: typ,
+	}
+	m.Fields[name] = f
+	m.codec = newFieldCodec(m.Fields)
+
+	return nil
 }
 
-// measurementsByExpr takes and expression containing only tags and returns
-// a list of matching *Measurement.
-func (db *Shard) measurementsByExpr(expr influxql.Expr) (Measurements, error) {
-	switch e := expr.(type) {
-	case *influxql.BinaryExpr:
-		switch e.Op {
-		case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
-			tag, ok := e.LHS.(*influxql.VarRef)
-			if !ok {
-				return nil, fmt.Errorf("left side of '%s' must be a tag name", e.Op.String())
-			}
+// Field represents a series field.
+type field struct {
+	ID   uint8             `json:"id,omitempty"`
+	Name string            `json:"name,omitempty"`
+	Type influxql.DataType `json:"type,omitempty"`
+}
 
-			tf := &TagFilter{
-				Op:  e.Op,
-				Key: tag.Val,
-			}
+// FieldCodec providecs encoding and decoding functionality for the fields of a given
+// Measurement. It is a distinct type to avoid locking writes on this node while
+// potentially long-running queries are executing.
+//
+// It is not affected by changes to the Measurement object after codec creation.
+type fieldCodec struct {
+	fieldsByID   map[uint8]*field
+	fieldsByName map[string]*field
+}
 
-			if influxql.IsRegexOp(e.Op) {
-				re, ok := e.RHS.(*influxql.RegexLiteral)
-				if !ok {
-					return nil, fmt.Errorf("right side of '%s' must be a regular expression", e.Op.String())
-				}
-				tf.Regex = re.Val
-			} else {
-				s, ok := e.RHS.(*influxql.StringLiteral)
-				if !ok {
-					return nil, fmt.Errorf("right side of '%s' must be a tag value string", e.Op.String())
-				}
-				tf.Value = s.Val
-			}
+// NewFieldCodec returns a FieldCodec for the given Measurement. Must be called with
+// a RLock that protects the Measurement.
+func newFieldCodec(fields map[string]*field) *fieldCodec {
+	fieldsByID := make(map[uint8]*field, len(fields))
+	fieldsByName := make(map[string]*field, len(fields))
+	for _, f := range fields {
+		fieldsByID[f.ID] = f
+		fieldsByName[f.Name] = f
+	}
+	return &fieldCodec{fieldsByID: fieldsByID, fieldsByName: fieldsByName}
+}
 
-			return db.measurementsByTagFilters([]*TagFilter{tf}), nil
-		case influxql.OR, influxql.AND:
-			lhsIDs, err := db.measurementsByExpr(e.LHS)
-			if err != nil {
-				return nil, err
-			}
+// EncodeFields converts a map of values with string keys to a byte slice of field
+// IDs and values.
+//
+// If a field exists in the codec, but its type is different, an error is returned. If
+// a field is not present in the codec, the system panics.
+func (f *fieldCodec) EncodeFields(values map[string]interface{}) ([]byte, error) {
+	// Allocate byte slice
+	b := make([]byte, 0, 10)
 
-			rhsIDs, err := db.measurementsByExpr(e.RHS)
-			if err != nil {
-				return nil, err
-			}
+	for k, v := range values {
+		field := f.fieldsByName[k]
+		if field == nil {
+			panic(fmt.Sprintf("field does not exist for %s", k))
+		} else if influxql.InspectDataType(v) != field.Type {
+			return nil, fmt.Errorf("field \"%s\" is type %T, mapped as type %s", k, k, field.Type)
+		}
 
-			if e.Op == influxql.OR {
-				return lhsIDs.union(rhsIDs), nil
-			}
+		var buf []byte
 
-			return lhsIDs.intersect(rhsIDs), nil
+		switch field.Type {
+		case influxql.Float:
+			value := v.(float64)
+			buf = make([]byte, 9)
+			binary.BigEndian.PutUint64(buf[1:9], math.Float64bits(value))
+		case influxql.Integer:
+			var value uint64
+			switch v.(type) {
+			case int:
+				value = uint64(v.(int))
+			case int32:
+				value = uint64(v.(int32))
+			case int64:
+				value = uint64(v.(int64))
+			default:
+				panic(fmt.Sprintf("invalid integer type: %T", v))
+			}
+			buf = make([]byte, 9)
+			binary.BigEndian.PutUint64(buf[1:9], value)
+		case influxql.Boolean:
+			value := v.(bool)
+
+			// Only 1 byte need for a boolean.
+			buf = make([]byte, 2)
+			if value {
+				buf[1] = byte(1)
+			}
+		case influxql.String:
+			value := v.(string)
+			if len(value) > maxStringLength {
+				value = value[:maxStringLength]
+			}
+			// Make a buffer for field ID (1 bytes), the string length (2 bytes), and the string.
+			buf = make([]byte, len(value)+3)
+
+			// Set the string length, then copy the string itself.
+			binary.BigEndian.PutUint16(buf[1:3], uint16(len(value)))
+			for i, c := range []byte(value) {
+				buf[i+3] = byte(c)
+			}
 		default:
-			return nil, fmt.Errorf("invalid operator")
+			panic(fmt.Sprintf("unsupported value type during encode fields: %T", v))
 		}
-	case *influxql.ParenExpr:
-		return db.measurementsByExpr(e.Expr)
+
+		// Always set the field ID as the leading byte.
+		buf[0] = field.ID
+
+		// Append temp buffer to the end.
+		b = append(b, buf...)
 	}
-	return nil, fmt.Errorf("%#v", expr)
+
+	return b, nil
 }
 
-func (db *Shard) measurementsByTagFilters(filters []*TagFilter) Measurements {
-	// If no filters, then return all measurements.
-	if len(filters) == 0 {
-		measurements := make(Measurements, 0, len(db.measurements))
-		for _, m := range db.measurements {
-			measurements = append(measurements, m)
-		}
-		return measurements
+// DecodeByID scans a byte slice for a field with the given ID, converts it to its
+// expected type, and return that value.
+func (f *fieldCodec) decodeByID(targetID uint8, b []byte) (interface{}, error) {
+	if len(b) == 0 {
+		return 0, ErrFieldNotFound
 	}
 
-	// Build a list of measurements matching the filters.
-	var measurements Measurements
-	var tagMatch bool
+	for {
+		if len(b) < 1 {
+			// No more bytes.
+			break
+		}
+		field, ok := f.fieldsByID[b[0]]
+		if !ok {
+			// This can happen, though is very unlikely. If this node receives encoded data, to be written
+			// to disk, and is queried for that data before its metastore is updated, there will be no field
+			// mapping for the data during decode. All this can happen because data is encoded by the node
+			// that first received the write request, not the node that actually writes the data to disk.
+			// So if this happens, the read must be aborted.
+			return 0, ErrFieldUnmappedID
+		}
 
-	// Iterate through all measurements in the database.
-	for _, m := range db.measurements {
-		// Iterate filters seeing if the measurement has a matching tag.
-		for _, f := range filters {
-			tagVals, ok := m.seriesByTagKeyValue[f.Key]
-			if !ok {
-				continue
-			}
-
-			tagMatch = false
-
-			// If the operator is non-regex, only check the specified value.
-			if f.Op == influxql.EQ || f.Op == influxql.NEQ {
-				if _, ok := tagVals[f.Value]; ok {
-					tagMatch = true
-				}
+		var value interface{}
+		switch field.Type {
+		case influxql.Float:
+			// Move bytes forward.
+			value = math.Float64frombits(binary.BigEndian.Uint64(b[1:9]))
+			b = b[9:]
+		case influxql.Integer:
+			value = int64(binary.BigEndian.Uint64(b[1:9]))
+			b = b[9:]
+		case influxql.Boolean:
+			if b[1] == 1 {
+				value = true
 			} else {
-				// Else, the operator is regex and we have to check all tag
-				// values against the regular expression.
-				for tagVal := range tagVals {
-					if f.Regex.MatchString(tagVal) {
-						tagMatch = true
-						break
-					}
-				}
+				value = false
 			}
+			// Move bytes forward.
+			b = b[2:]
+		case influxql.String:
+			size := binary.BigEndian.Uint16(b[1:3])
+			value = string(b[3 : 3+size])
+			// Move bytes forward.
+			b = b[size+3:]
+		default:
+			panic(fmt.Sprintf("unsupported value type during decode by id: %T", field.Type))
+		}
 
-			isEQ := (f.Op == influxql.EQ || f.Op == influxql.EQREGEX)
-
-			// tags match | operation is EQ | measurement matches
-			// --------------------------------------------------
-			//     True   |       True      |      True
-			//     True   |       False     |      False
-			//     False  |       True      |      False
-			//     False  |       False     |      True
-
-			if tagMatch == isEQ {
-				measurements = append(measurements, m)
-				break
-			}
+		if field.ID == targetID {
+			return value, nil
 		}
 	}
 
-	return measurements
+	return 0, ErrFieldNotFound
 }
 
-// measurementsByRegex returns the measurements that match the regex.
-func (db *Shard) measurementsByRegex(re *regexp.Regexp) Measurements {
-	var matches Measurements
-	for _, m := range db.measurements {
-		if re.MatchString(m.Name) {
-			matches = append(matches, m)
+// DecodeFields decodes a byte slice into a set of field ids and values.
+func (f *fieldCodec) DecodeFields(b []byte) (map[uint8]interface{}, error) {
+	if len(b) == 0 {
+		return nil, nil
+	}
+
+	// Create a map to hold the decoded data.
+	values := make(map[uint8]interface{}, 0)
+
+	for {
+		if len(b) < 1 {
+			// No more bytes.
+			break
+		}
+
+		// First byte is the field identifier.
+		fieldID := b[0]
+		field := f.fieldsByID[fieldID]
+		if field == nil {
+			// See note in DecodeByID() regarding field-mapping failures.
+			return nil, ErrFieldUnmappedID
+		}
+
+		var value interface{}
+		switch field.Type {
+		case influxql.Float:
+			value = math.Float64frombits(binary.BigEndian.Uint64(b[1:9]))
+			// Move bytes forward.
+			b = b[9:]
+		case influxql.Integer:
+			value = int64(binary.BigEndian.Uint64(b[1:9]))
+			// Move bytes forward.
+			b = b[9:]
+		case influxql.Boolean:
+			if b[1] == 1 {
+				value = true
+			} else {
+				value = false
+			}
+			// Move bytes forward.
+			b = b[2:]
+		case influxql.String:
+			size := binary.BigEndian.Uint16(b[1:3])
+			value = string(b[3 : size+3])
+			// Move bytes forward.
+			b = b[size+3:]
+		default:
+			panic(fmt.Sprintf("unsupported value type during decode fields: %T", f.fieldsByID[fieldID]))
+		}
+
+		values[fieldID] = value
+
+	}
+
+	return values, nil
+}
+
+// DecodeFieldsWithNames decodes a byte slice into a set of field names and values
+func (f *fieldCodec) decodeFieldsWithNames(b []byte) (map[string]interface{}, error) {
+	fields, err := f.DecodeFields(b)
+	if err != nil {
+		return nil, err
+	}
+	m := make(map[string]interface{})
+	for id, v := range fields {
+		field := f.fieldsByID[id]
+		if field != nil {
+			m[field.Name] = v
 		}
 	}
-	return matches
+	return m, nil
 }
 
-// Measurements returns a list of all measurements.
-func (db *Shard) Measurements() Measurements {
-	measurements := make(Measurements, 0, len(db.measurements))
-	for _, m := range db.measurements {
-		measurements = append(measurements, m)
-	}
-	return measurements
+// FieldByName returns the field by its name. It will return a nil if not found
+func (f *fieldCodec) fieldByName(name string) *field {
+	return f.fieldsByName[name]
 }
 
 // mustMarshal encodes a value to JSON.
