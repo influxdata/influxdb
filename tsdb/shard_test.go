@@ -18,20 +18,20 @@ func TestShardWriteAndIndex(t *testing.T) {
 		t.Fatalf("error openeing shard: %s", err.Error())
 	}
 
-	pt := &Point{
-		Name:   "cpu",
-		Tags:   map[string]string{"host": "server"},
-		Time:   time.Unix(1, 2),
-		Fields: map[string]interface{}{"value": 1.0},
-	}
+	pt := NewPoint(
+		"cpu",
+		map[string]string{"host": "server"},
+		map[string]interface{}{"value": 1.0},
+		time.Unix(1, 2),
+	)
 
-	err := sh.WritePoints([]*Point{pt})
+	err := sh.WritePoints([]Point{pt})
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
 
-	pt.Time = time.Unix(2, 3)
-	err = sh.WritePoints([]*Point{pt})
+	pt.SetTime(time.Unix(2, 3))
+	err = sh.WritePoints([]Point{pt})
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -44,8 +44,8 @@ func TestShardWriteAndIndex(t *testing.T) {
 			t.Fatalf("series wasn't in index")
 		}
 		seriesTags := sh.series[pt.Key()].Tags
-		if len(seriesTags) != len(pt.Tags) || pt.Tags["host"] != seriesTags["host"] {
-			t.Fatalf("tags weren't properly saved to series index: %v, %v", pt.Tags, sh.series[pt.Key()].Tags)
+		if len(seriesTags) != len(pt.Tags()) || pt.Tags()["host"] != seriesTags["host"] {
+			t.Fatalf("tags weren't properly saved to series index: %v, %v", pt.Tags(), sh.series[pt.Key()].Tags)
 		}
 		if !reflect.DeepEqual(sh.measurements["cpu"].tagKeys(), []string{"host"}) {
 			t.Fatalf("tag key wasn't saved to measurement index")
@@ -65,8 +65,8 @@ func TestShardWriteAndIndex(t *testing.T) {
 	validateIndex()
 
 	// and ensure that we can still write data
-	pt.Time = time.Unix(2, 6)
-	err = sh.WritePoints([]*Point{pt})
+	pt.SetTime(time.Unix(2, 6))
+	err = sh.WritePoints([]Point{pt})
 	if err != nil {
 		t.Fatalf(err.Error())
 	}

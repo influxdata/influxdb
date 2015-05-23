@@ -1,5 +1,7 @@
 package data
 
+import "github.com/influxdb/influxdb/tsdb"
+
 func NewDataNode() *Node {
 	return &Node{}
 }
@@ -17,6 +19,6 @@ func (n *Node) Open() error {
 func (n *Node) Close() error { return nil }
 func (n *Node) Init() error  { return nil }
 
-func (n *Node) WriteShard(shardID uint64, points []Point) (int, error) {
+func (n *Node) WriteShard(shardID uint64, points []tsdb.Point) (int, error) {
 	return 0, nil
 }

@@ -24,6 +24,7 @@ import (
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/messaging"
 	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/tsdb"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -414,20 +415,21 @@ func (s *Server) StartSelfMonitoring(database, retention string, interval time.D
 	}
 
 	// Function for local use turns stats into a slice of points
-	pointsFromStats := func(st *Stats, tags map[string]string) []data.Point {
+	pointsFromStats := func(st *Stats, tags map[string]string) []tsdb.Point {
 
-		var points []data.Point
+		var points []tsdb.Point
 		now := time.Now()
 		st.Walk(func(k string, v int64) {
-			point := data.Point{
-				Time:   now,
-				Name:   st.name + "_" + k,
-				Tags:   make(map[string]string),
-				Fields: map[string]interface{}{"value": int(v)},
-			}
+			point := tsdb.NewPoint(
+				st.name+"_"+k,
+				make(map[string]string),
+				map[string]interface{}{"value": int(v)},
+				now,
+			)
 			// Specifically create a new map.
 			for k, v := range tags {
-				point.Tags[k] = v
+				tags[k] = v
+				point.AddTag(k, v)
 			}
 			points = append(points, point)
 		})
@@ -467,7 +469,7 @@ func (s *Server) StartSelfMonitoring(database, retention string, interval time.D
 					continue
 				}
 				for _, p := range points {
-					p.Tags = map[string]string{"serverID": strconv.FormatUint(s.ID(), 10)}
+					p.AddTag("serverID", strconv.FormatUint(s.ID(), 10))
 				}
 				batch = append(batch, points...)
 			}
@@ -1811,7 +1813,7 @@ func (s *Server) DropSeries(database string, seriesByMeasurement map[string][]ui
 
 // WriteSeries writes series data to the database.
 // Returns the messaging index the data was written to.
-func (s *Server) WriteSeries(database, retentionPolicy string, points []data.Point) (idx uint64, err error) {
+func (s *Server) WriteSeries(database, retentionPolicy string, points []tsdb.Point) (idx uint64, err error) {
 	s.stats.Inc("batchWriteRx")
 	s.stats.Add("pointWriteRx", int64(len(points)))
 	defer func() {
@@ -1827,11 +1829,11 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []data.Poi
 
 	// Make sure every point is valid.
 	for _, p := range points {
-		if len(p.Fields) == 0 {
+		if len(p.Fields()) == 0 {
 			return 0, ErrFieldsRequired
 		}
 
-		for _, f := range p.Fields {
+		for _, f := range p.Fields() {
 			if f == nil {
 				return 0, ErrFieldIsNull
 			}
@@ -1878,14 +1880,14 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []data.Poi
 			return ErrDatabaseNotFound(database)
 		}
 		for _, p := range points {
-			measurement, series := db.MeasurementAndSeries(p.Name, p.Tags)
+			measurement, series := db.MeasurementAndSeries(p.Name(), p.Tags())
 			if series == nil {
-				s.Logger.Printf("series not found: name=%s, tags=%#v", p.Name, p.Tags)
+				s.Logger.Printf("series not found: name=%s, tags=%#v", p.Name(), p.Tags())
 				return ErrSeriesNotFound
 			}
 
 			// Retrieve shard group.
-			g, err := s.shardGroupByTimestamp(database, retentionPolicy, p.Time)
+			g, err := s.shardGroupByTimestamp(database, retentionPolicy, p.Time())
 			if err != nil {
 				return err
 			}
@@ -1908,13 +1910,13 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []data.Poi
 			}
 
 			// Convert string-key/values to encoded fields.
-			encodedFields, err := codec.EncodeFields(p.Fields)
+			encodedFields, err := codec.EncodeFields(p.Fields())
 			if err != nil {
 				return err
 			}
 
 			// Encode point header, followed by point data, and add to shard's batch.
-			data := marshalPointHeader(series.ID, uint32(len(encodedFields)), p.Time.UnixNano())
+			data := marshalPointHeader(series.ID, uint32(len(encodedFields)), p.Time().UnixNano())
 			data = append(data, encodedFields...)
 			if shardData[sh.ID] == nil {
 				shardData[sh.ID] = make([]byte, 0)
@@ -1957,7 +1959,7 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []data.Poi
 
 // createMeasurementsIfNotExists walks the "points" and ensures that all new Series are created, and all
 // new Measurement fields have been created, across the cluster.
-func (s *Server) createMeasurementsIfNotExists(database, retentionPolicy string, points []data.Point) error {
+func (s *Server) createMeasurementsIfNotExists(database, retentionPolicy string, points []tsdb.Point) error {
 	c := newCreateMeasurementsIfNotExistsCommand(database)
 
 	// Local function keeps lock management foolproof.
@@ -1971,14 +1973,14 @@ func (s *Server) createMeasurementsIfNotExists(database, retentionPolicy string,
 		}
 
 		for _, p := range points {
-			measurement, series := db.MeasurementAndSeries(p.Name, p.Tags)
+			measurement, series := db.MeasurementAndSeries(p.Name(), p.Tags())
 
 			if series == nil {
 				// Series does not exist in Metastore, add it so it's created cluster-wide.
-				c.addSeriesIfNotExists(p.Name, p.Tags)
+				c.addSeriesIfNotExists(p.Name(), p.Tags())
 			}
 
-			for k, v := range p.Fields {
+			for k, v := range p.Fields() {
 				if measurement != nil {
 					if f := measurement.FieldByName(k); f != nil {
 						// Field present in Metastore, make sure there is no type conflict.
@@ -1989,7 +1991,7 @@ func (s *Server) createMeasurementsIfNotExists(database, retentionPolicy string,
 					}
 				}
 				// Field isn't in Metastore. Add it to command so it's created cluster-wide.
-				if err := c.addFieldIfNotExists(p.Name, k, influxql.InspectDataType(v)); err != nil {
+				if err := c.addFieldIfNotExists(p.Name(), k, influxql.InspectDataType(v)); err != nil {
 					return err
 				}
 			}
@@ -2113,7 +2115,7 @@ func (s *Server) applyDropMeasurement(m *messaging.Message) error {
 }
 
 // createShardGroupsIfNotExist walks the "points" and ensures that all required shards exist on the cluster.
-func (s *Server) createShardGroupsIfNotExists(database, retentionPolicy string, points []data.Point) error {
+func (s *Server) createShardGroupsIfNotExists(database, retentionPolicy string, points []tsdb.Point) error {
 	var commands = make([]*createShardGroupIfNotExistsCommand, 0)
 
 	err := func() error {
@@ -2128,7 +2130,7 @@ func (s *Server) createShardGroupsIfNotExists(database, retentionPolicy string, 
 
 		times := map[time.Time]struct{}{}
 		for _, p := range points {
-			times[p.Time.Truncate(rp.ShardGroupDuration)] = struct{}{}
+			times[p.Time().Truncate(rp.ShardGroupDuration)] = struct{}{}
 		}
 
 		for t := range times {
@@ -4084,7 +4086,7 @@ func (s *Server) runContinuousQueryAndWriteResult(cq *ContinuousQuery) error {
 
 		if len(points) > 0 {
 			for _, p := range points {
-				for _, v := range p.Fields {
+				for _, v := range p.Fields() {
 					if v == nil {
 						// If we have any nil values, we can't write the data
 						// This happens the CQ is created and running before we write data to the measurement
@@ -4104,7 +4106,7 @@ func (s *Server) runContinuousQueryAndWriteResult(cq *ContinuousQuery) error {
 
 // convertRowToPoints will convert a query result Row into Points that can be written back in.
 // Used for continuous and INTO queries
-func (s *Server) convertRowToPoints(measurementName string, row *influxql.Row) ([]data.Point, error) {
+func (s *Server) convertRowToPoints(measurementName string, row *influxql.Row) ([]tsdb.Point, error) {
 	// figure out which parts of the result are the time and which are the fields
 	timeIndex := -1
 	fieldIndexes := make(map[string]int)
@@ -4120,21 +4122,16 @@ func (s *Server) convertRowToPoints(measurementName string, row *influxql.Row) (
 		return nil, errors.New("cq error finding time index in result")
 	}
 
-	points := make([]data.Point, 0, len(row.Values))
+	points := make([]tsdb.Point, 0, len(row.Values))
 	for _, v := range row.Values {
 		vals := make(map[string]interface{})
 		for fieldName, fieldIndex := range fieldIndexes {
 			vals[fieldName] = v[fieldIndex]
 		}
 
-		p := &data.Point{
-			Name:   measurementName,
-			Tags:   row.Tags,
-			Time:   v[timeIndex].(time.Time),
-			Fields: vals,
-		}
+		p := tsdb.NewPoint(measurementName, row.Tags, vals, v[timeIndex].(time.Time))
 
-		points = append(points, *p)
+		points = append(points, p)
 	}
 
 	return points, nil

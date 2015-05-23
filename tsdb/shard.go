@@ -92,7 +92,7 @@ type seriesCreate struct {
 }
 
 // WritePoints will write the raw data points and any new metadata to the index in the shard
-func (s *Shard) WritePoints(points []*Point) error {
+func (s *Shard) WritePoints(points []Point) error {
 	var seriesToCreate []*seriesCreate
 	var fieldsToCreate []*fieldCreate
 
@@ -102,13 +102,13 @@ func (s *Shard) WritePoints(points []*Point) error {
 		var measurement *Measurement
 
 		if ss := s.series[p.Key()]; ss == nil {
-			series := &Series{Key: p.Key(), Tags: p.Tags}
-			seriesToCreate = append(seriesToCreate, &seriesCreate{p.Name, series})
+			series := &Series{Key: p.Key(), Tags: p.Tags()}
+			seriesToCreate = append(seriesToCreate, &seriesCreate{p.Name(), series})
 
 			// if the measurement doesn't exist, all fields need to be created
-			if m := s.measurements[p.Name]; m == nil {
-				for name, value := range p.Fields {
-					fieldsToCreate = append(fieldsToCreate, &fieldCreate{p.Name, &Field{Name: name, Type: influxql.InspectDataType(value)}})
+			if m := s.measurements[p.Name()]; m == nil {
+				for name, value := range p.Fields() {
+					fieldsToCreate = append(fieldsToCreate, &fieldCreate{p.Name(), &Field{Name: name, Type: influxql.InspectDataType(value)}})
 				}
 				continue // no need to validate since they're all new fields
 			} else {
@@ -119,22 +119,22 @@ func (s *Shard) WritePoints(points []*Point) error {
 		}
 
 		// validate field types
-		for name, value := range p.Fields {
+		for name, value := range p.Fields() {
 			if f := measurement.FieldByName(name); f != nil {
 				// Field present in Metastore, make sure there is no type conflict.
 				if f.Type != influxql.InspectDataType(value) {
 					return fmt.Errorf("input field \"%s\" is type %T, already exists as type %s", name, value, f.Type)
 				}
 
-				data, err := measurement.fieldCodec.EncodeFields(p.Fields)
+				data, err := measurement.fieldCodec.EncodeFields(p.Fields())
 				if err != nil {
 					return err
 				}
-				p.data = data
+				p.SetData(data)
 				continue // Field is present, and it's of the same type. Nothing more to do.
 			}
 
-			fieldsToCreate = append(fieldsToCreate, &fieldCreate{p.Name, &Field{Name: name, Type: influxql.InspectDataType(value)}})
+			fieldsToCreate = append(fieldsToCreate, &fieldCreate{p.Name(), &Field{Name: name, Type: influxql.InspectDataType(value)}})
 		}
 	}
 	s.mu.RUnlock()
@@ -175,13 +175,13 @@ func (s *Shard) WritePoints(points []*Point) error {
 	// make sure all data is encoded before attempting to save to bolt
 	for _, p := range points {
 		// marshal the raw data if it hasn't been marshaled already
-		if p.data == nil {
+		if p.Data() == nil {
 			// this was populated earlier, don't need to validate that it's there.
-			data, err := s.series[p.Key()].measurement.fieldCodec.EncodeFields(p.Fields)
+			data, err := s.series[p.Key()].measurement.fieldCodec.EncodeFields(p.Fields())
 			if err != nil {
 				return err
 			}
-			p.data = data
+			p.SetData(data)
 		}
 	}
 
@@ -212,7 +212,7 @@ func (s *Shard) WritePoints(points []*Point) error {
 			if err != nil {
 				return err
 			}
-			if err := bp.Put([]byte(p.Key()), p.data); err != nil {
+			if err := bp.Put([]byte(p.Key()), p.Data()); err != nil {
 				return err
 			}
 		}

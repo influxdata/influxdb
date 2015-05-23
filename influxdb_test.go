@@ -7,7 +7,7 @@ import (
 
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/client"
-	"github.com/influxdb/influxdb/data"
+	"github.com/influxdb/influxdb/tsdb"
 )
 
 func TestNormalizeBatchPoints(t *testing.T) {
@@ -15,7 +15,7 @@ func TestNormalizeBatchPoints(t *testing.T) {
 	tests := []struct {
 		name string
 		bp   client.BatchPoints
-		p    []data.Point
+		p    []tsdb.Point
 		err  string
 	}{
 		{
@@ -25,8 +25,8 @@ func TestNormalizeBatchPoints(t *testing.T) {
 					{Name: "cpu", Tags: map[string]string{"region": "useast"}, Time: now, Fields: map[string]interface{}{"value": 1.0}},
 				},
 			},
-			p: []data.Point{
-				{Name: "cpu", Tags: map[string]string{"region": "useast"}, Time: now, Fields: map[string]interface{}{"value": 1.0}},
+			p: []tsdb.Point{
+				tsdb.NewPoint("cpu", map[string]string{"region": "useast"}, map[string]interface{}{"value": 1.0}, now),
 			},
 		},
 		{
@@ -37,8 +37,8 @@ func TestNormalizeBatchPoints(t *testing.T) {
 					{Name: "cpu", Tags: map[string]string{"region": "useast"}, Fields: map[string]interface{}{"value": 1.0}},
 				},
 			},
-			p: []data.Point{
-				{Name: "cpu", Tags: map[string]string{"region": "useast"}, Time: now, Fields: map[string]interface{}{"value": 1.0}},
+			p: []tsdb.Point{
+				tsdb.NewPoint("cpu", map[string]string{"region": "useast"}, map[string]interface{}{"value": 1.0}, now),
 			},
 		},
 		{
@@ -50,9 +50,9 @@ func TestNormalizeBatchPoints(t *testing.T) {
 					{Name: "memory", Time: now, Fields: map[string]interface{}{"value": 2.0}},
 				},
 			},
-			p: []data.Point{
-				{Name: "cpu", Tags: map[string]string{"day": "monday", "region": "useast"}, Time: now, Fields: map[string]interface{}{"value": 1.0}},
-				{Name: "memory", Tags: map[string]string{"day": "monday"}, Time: now, Fields: map[string]interface{}{"value": 2.0}},
+			p: []tsdb.Point{
+				tsdb.NewPoint("cpu", map[string]string{"day": "monday", "region": "useast"}, map[string]interface{}{"value": 1.0}, now),
+				tsdb.NewPoint("memory", map[string]string{"day": "monday"}, map[string]interface{}{"value": 2.0}, now),
 			},
 		},
 	}

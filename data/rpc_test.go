@@ -5,23 +5,6 @@ import (
 	"time"
 )
 
-var tags = Tags{"foo": "bar", "apple": "orange", "host": "serverA", "region": "uswest"}
-
-func TestMarshal(t *testing.T) {
-	got := tags.Marshal()
-	if exp := "apple|foo|host|region|orange|bar|serverA|uswest"; string(got) != exp {
-		t.Log("got: ", string(got))
-		t.Log("exp: ", exp)
-		t.Error("invalid match")
-	}
-}
-
-func BenchmarkMarshal(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		tags.Marshal()
-	}
-}
-
 func TestWriteShardRequestBinary(t *testing.T) {
 	sr := &WriteShardRequest{}
 	sr.SetShardID(uint64(1))
@@ -60,31 +43,31 @@ func TestWriteShardRequestBinary(t *testing.T) {
 	for i, p := range srPoints {
 		g := gotPoints[i]
 
-		if g.Name != p.Name {
-			t.Errorf("Point %d name mismatch: got %v, exp %v", i, g.Name, p.Name)
+		if g.Name() != p.Name() {
+			t.Errorf("Point %d name mismatch: got %v, exp %v", i, g.Name(), p.Name())
 		}
 
-		if !g.Time.Equal(p.Time) {
-			t.Errorf("Point %d time mismatch: got %v, exp %v", i, g.Time, p.Time)
+		if !g.Time().Equal(p.Time()) {
+			t.Errorf("Point %d time mismatch: got %v, exp %v", i, g.Time(), p.Time())
 		}
 
 		if g.HashID() != p.HashID() {
 			t.Errorf("Point #%d HashID() mismatch: got %v, exp %v", i, g.HashID(), p.HashID())
 		}
 
-		for k, v := range p.Tags {
-			if g.Tags[k] != v {
+		for k, v := range p.Tags() {
+			if g.Tags()[k] != v {
 				t.Errorf("Point #%d tag mismatch: got %v, exp %v", i, k, v)
 			}
 		}
 
-		if len(p.Fields) != len(g.Fields) {
-			t.Errorf("Point %d field count mismatch: got %v, exp %v", i, len(g.Fields), len(p.Fields))
+		if len(p.Fields()) != len(g.Fields()) {
+			t.Errorf("Point %d field count mismatch: got %v, exp %v", i, len(g.Fields()), len(p.Fields()))
 		}
 
-		for j, f := range p.Fields {
-			if g.Fields[j] != f {
-				t.Errorf("Point %d field mismatch: got %v, exp %v", i, g.Fields[j], f)
+		for j, f := range p.Fields() {
+			if g.Fields()[j] != f {
+				t.Errorf("Point %d field mismatch: got %v, exp %v", i, g.Fields()[j], f)
 			}
 		}
 	}

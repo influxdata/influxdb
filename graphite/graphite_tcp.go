@@ -8,7 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/influxdb/influxdb/data"
+	"github.com/influxdb/influxdb/tsdb"
 )
 
 // TCPServer processes Graphite data received over TCP connections.
@@ -114,7 +114,7 @@ func (t *TCPServer) handleConnection(conn net.Conn) {
 		}
 
 		// Send the data to the writer.
-		_, e := t.writer.WriteSeries(t.database, "", []data.Point{point})
+		_, e := t.writer.WriteSeries(t.database, "", []tsdb.Point{point})
 		if e != nil {
 			t.Logger.Printf("failed to write data point to database %q: %s\n", t.database, e)
 		}
