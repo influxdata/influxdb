@@ -98,7 +98,7 @@ func TestSelectStatement_Substatement(t *testing.T) {
 
 // Ensure the SELECT statement can extract GROUP BY interval.
 func TestSelectStatement_GroupByInterval(t *testing.T) {
-	q := "SELECT sum(value) from foo GROUP BY time(10m)"
+	q := "SELECT sum(value) from foo  where time < now() GROUP BY time(10m)"
 	stmt, err := influxql.NewParser(strings.NewReader(q)).ParseStatement()
 	if err != nil {
 		t.Fatalf("invalid statement: %q: %s", stmt, err)
@@ -116,7 +116,7 @@ func TestSelectStatement_GroupByInterval(t *testing.T) {
 
 // Ensure the SELECT statment can have its start and end time set
 func TestSelectStatement_SetTimeRange(t *testing.T) {
-	q := "SELECT sum(value) from foo GROUP BY time(10m)"
+	q := "SELECT sum(value) from foo where time < now() GROUP BY time(10m)"
 	stmt, err := influxql.NewParser(strings.NewReader(q)).ParseStatement()
 	if err != nil {
 		t.Fatalf("invalid statement: %q: %s", stmt, err)
@@ -172,7 +172,7 @@ func TestSelectStatement_SetTimeRange(t *testing.T) {
 	}
 
 	// ensure that when we set a time range other where clause conditions are still there
-	q = "SELECT sum(value) from foo WHERE foo = 'bar' GROUP BY time(10m)"
+	q = "SELECT sum(value) from foo WHERE foo = 'bar' and time < now() GROUP BY time(10m)"
 	stmt, err = influxql.NewParser(strings.NewReader(q)).ParseStatement()
 	if err != nil {
 		t.Fatalf("invalid statement: %q: %s", stmt, err)
@@ -258,7 +258,7 @@ func TestSelectStatement_HasWildcard(t *testing.T) {
 
 		// No GROUP BY wildcards, time only
 		{
-			stmt:     `SELECT mean(value) FROM cpu GROUP BY time(5ms)`,
+			stmt:     `SELECT mean(value) FROM cpu where time < now() GROUP BY time(5ms)`,
 			wildcard: false,
 		},
 
@@ -270,7 +270,7 @@ func TestSelectStatement_HasWildcard(t *testing.T) {
 
 		// GROUP BY wildcard with time
 		{
-			stmt:     `SELECT mean(value) FROM cpu GROUP BY *,time(1m)`,
+			stmt:     `SELECT mean(value) FROM cpu where time < now() GROUP BY *,time(1m)`,
 			wildcard: true,
 		},
 
@@ -295,6 +295,7 @@ func TestSelectStatement_HasWildcard(t *testing.T) {
 
 	for i, tt := range tests {
 		// Parse statement.
+		t.Logf("index: %d, statement: %s", i, tt.stmt)
 		stmt, err := influxql.NewParser(strings.NewReader(tt.stmt)).ParseStatement()
 		if err != nil {
 			t.Fatalf("invalid statement: %q: %s", tt.stmt, err)
@@ -357,8 +358,8 @@ func TestSelectStatement_RewriteWildcards(t *testing.T) {
 
 		// No GROUP BY wildcards, time only
 		{
-			stmt:    `SELECT mean(value) FROM cpu GROUP BY time(5ms)`,
-			rewrite: `SELECT mean(value) FROM cpu GROUP BY time(5ms)`,
+			stmt:    `SELECT mean(value) FROM cpu where time < now() GROUP BY time(5ms)`,
+			rewrite: `SELECT mean(value) FROM cpu WHERE time < now() GROUP BY time(5ms)`,
 		},
 
 		// GROUP BY wildcard
@@ -369,14 +370,14 @@ func TestSelectStatement_RewriteWildcards(t *testing.T) {
 
 		// GROUP BY wildcard with time
 		{
-			stmt:    `SELECT mean(value) FROM cpu GROUP BY *,time(1m)`,
-			rewrite: `SELECT mean(value) FROM cpu GROUP BY host, region, time(1m)`,
+			stmt:    `SELECT mean(value) FROM cpu where time < now() GROUP BY *,time(1m)`,
+			rewrite: `SELECT mean(value) FROM cpu WHERE time < now() GROUP BY host, region, time(1m)`,
 		},
 
 		// GROUP BY wildarde with fill
 		{
-			stmt:    `SELECT mean(value) FROM cpu GROUP BY *,time(1m) fill(0)`,
-			rewrite: `SELECT mean(value) FROM cpu GROUP BY host, region, time(1m) fill(0)`,
+			stmt:    `SELECT mean(value) FROM cpu where time < now() GROUP BY *,time(1m) fill(0)`,
+			rewrite: `SELECT mean(value) FROM cpu WHERE time < now() GROUP BY host, region, time(1m) fill(0)`,
 		},
 
 		// GROUP BY wildcard with explicit
@@ -399,6 +400,7 @@ func TestSelectStatement_RewriteWildcards(t *testing.T) {
 	}
 
 	for i, tt := range tests {
+		t.Logf("index: %d, statement: %s", i, tt.stmt)
 		// Parse statement.
 		stmt, err := influxql.NewParser(strings.NewReader(tt.stmt)).ParseStatement()
 		if err != nil {
@@ -437,7 +439,7 @@ func TestSelectStatement_IsRawQuerySet(t *testing.T) {
 			isRaw: true,
 		},
 		{
-			stmt:  "select mean(value) from foo group by time(5m)",
+			stmt:  "select mean(value) from foo where time < now() group by time(5m)",
 			isRaw: false,
 		},
 		{
@@ -454,7 +456,8 @@ func TestSelectStatement_IsRawQuerySet(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
+	for i, tt := range tests {
+		t.Logf("index: %d, statement: %s", i, tt.stmt)
 		s := MustParseSelectStatement(tt.stmt)
 		if s.IsRawQuery != tt.isRaw {
 			t.Errorf("'%s', IsRawQuery should be %v", tt.stmt, tt.isRaw)

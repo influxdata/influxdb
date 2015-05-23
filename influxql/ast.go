@@ -65,6 +65,7 @@ func (*CreateContinuousQueryStatement) node() {}
 func (*CreateDatabaseStatement) node()        {}
 func (*CreateRetentionPolicyStatement) node() {}
 func (*CreateUserStatement) node()            {}
+func (*Distinct) node()                       {}
 func (*DeleteStatement) node()                {}
 func (*DropContinuousQueryStatement) node()   {}
 func (*DropDatabaseStatement) node()          {}
@@ -198,6 +199,7 @@ type Expr interface {
 func (*BinaryExpr) expr()      {}
 func (*BooleanLiteral) expr()  {}
 func (*Call) expr()            {}
+func (*Distinct) expr()        {}
 func (*DurationLiteral) expr() {}
 func (*nilLiteral) expr()      {}
 func (*NumberLiteral) expr()   {}
@@ -642,6 +644,31 @@ type SelectStatement struct {
 	FillValue interface{}
 }
 
+// HasDerivative returns true if one of the function calls in the statement is a
+// derivative aggregate
+func (s *SelectStatement) HasDerivative() bool {
+	for _, f := range s.FunctionCalls() {
+		if strings.HasSuffix(f.Name, "derivative") {
+			return true
+		}
+	}
+	return false
+}
+
+// IsSimpleDerivative return true if one of the function call is a derivative function with a
+// variable ref as the first arg
+func (s *SelectStatement) IsSimpleDerivative() bool {
+	for _, f := range s.FunctionCalls() {
+		if strings.HasSuffix(f.Name, "derivative") {
+			// it's nested if the first argument is an aggregate function
+			if _, ok := f.Args[0].(*VarRef); ok {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // Clone returns a deep copy of the statement.
 func (s *SelectStatement) Clone() *SelectStatement {
 	clone := &SelectStatement{
@@ -738,6 +765,17 @@ func (s *SelectStatement) RewriteWildcards(fields Fields, dimensions Dimensions)
 	other.Dimensions = rwDimensions
 
 	return other
+}
+
+// RewriteDistinct rewrites the expresion to be a call for map/reduce to work correctly
+// This method assumes all validation has passed
+func (s *SelectStatement) RewriteDistinct() {
+	for i, f := range s.Fields {
+		if d, ok := f.Expr.(*Distinct); ok {
+			s.Fields[i].Expr = d.NewCall()
+			s.IsRawQuery = false
+		}
+	}
 }
 
 // String returns a string representation of the select statement.
@@ -837,6 +875,219 @@ func (s *SelectStatement) HasWildcard() bool {
 	}
 
 	return false
+}
+
+// hasTimeDimensions returns whether or not the select statement has at least 1
+// where condition with time as the condition
+func (s *SelectStatement) hasTimeDimensions(node Node) bool {
+	switch n := node.(type) {
+	case *BinaryExpr:
+		if n.Op == AND || n.Op == OR {
+			return s.hasTimeDimensions(n.LHS) || s.hasTimeDimensions(n.RHS)
+		}
+		if ref, ok := n.LHS.(*VarRef); ok && strings.ToLower(ref.Val) == "time" {
+			return true
+		}
+		return false
+	case *ParenExpr:
+		// walk down the tree
+		return s.hasTimeDimensions(n.Expr)
+	default:
+		return false
+	}
+}
+
+func (s *SelectStatement) validate(tr targetRequirement) error {
+	if err := s.validateDistinct(); err != nil {
+		return err
+	}
+
+	if err := s.validateCountDistinct(); err != nil {
+		return err
+	}
+
+	if err := s.validateAggregates(tr); err != nil {
+		return err
+	}
+
+	if err := s.validateDerivative(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
+	// First, determine if specific calls have at least one and only one argument
+	for _, f := range s.Fields {
+		if c, ok := f.Expr.(*Call); ok {
+			switch c.Name {
+			case "derivative", "non_negative_derivative":
+				if min, max, got := 1, 2, len(c.Args); got > max || got < min {
+					return fmt.Errorf("invalid number of arguments for %s, expected at least %d but no more than %d, got %d", c.Name, min, max, got)
+				}
+			case "percentile":
+				if exp, got := 2, len(c.Args); got != exp {
+					return fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", c.Name, exp, got)
+				}
+			default:
+				if exp, got := 1, len(c.Args); got != exp {
+					return fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", c.Name, exp, got)
+				}
+			}
+		}
+	}
+
+	// Now, check that we have valid duration and where clauses for aggregates
+
+	// fetch the group by duration
+	groupByDuration, _ := s.GroupByInterval()
+
+	// If we have a group by interval, but no aggregate function, it's an invalid statement
+	if s.IsRawQuery && groupByDuration > 0 {
+		return fmt.Errorf("GROUP BY requires at least one aggregate function")
+	}
+
+	// If we have an aggregate function with a group by time without a where clause, it's an invalid statement
+	if tr == targetNotRequired { // ignore create continuous query statements
+		if !s.IsRawQuery && groupByDuration > 0 && !s.hasTimeDimensions(s.Condition) {
+			return fmt.Errorf("aggregate functions with GROUP BY time require a WHERE time clause")
+		}
+	}
+	return nil
+}
+
+func (s *SelectStatement) HasDistinct() bool {
+	// determine if we have a call named distinct
+	for _, f := range s.Fields {
+		switch c := f.Expr.(type) {
+		case *Call:
+			if c.Name == "distinct" {
+				return true
+			}
+		case *Distinct:
+			return true
+		}
+	}
+	return false
+}
+
+func (s *SelectStatement) validateDistinct() error {
+	if !s.HasDistinct() {
+		return nil
+	}
+
+	if len(s.Fields) > 1 {
+		return fmt.Errorf("aggregate function distinct() can not be combined with other functions or fields")
+	}
+
+	switch c := s.Fields[0].Expr.(type) {
+	case *Call:
+		if len(c.Args) == 0 {
+			return fmt.Errorf("distinct function requires at least one argument")
+		}
+
+		if len(c.Args) != 1 {
+			return fmt.Errorf("distinct function can only have one argument")
+		}
+	}
+	return nil
+}
+
+func (s *SelectStatement) HasCountDistinct() bool {
+	for _, f := range s.Fields {
+		if c, ok := f.Expr.(*Call); ok {
+			if c.Name == "count" {
+				for _, a := range c.Args {
+					if _, ok := a.(*Distinct); ok {
+						return true
+					}
+					if c, ok := a.(*Call); ok {
+						if c.Name == "distinct" {
+							return true
+						}
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
+func (s *SelectStatement) validateCountDistinct() error {
+	if !s.HasCountDistinct() {
+		return nil
+	}
+
+	valid := func(e Expr) bool {
+		c, ok := e.(*Call)
+		if !ok {
+			return true
+		}
+		if c.Name != "count" {
+			return true
+		}
+		for _, a := range c.Args {
+			if _, ok := a.(*Distinct); ok {
+				return len(c.Args) == 1
+			}
+			if d, ok := a.(*Call); ok {
+				if d.Name == "distinct" {
+					return len(d.Args) == 1
+				}
+			}
+		}
+		return true
+	}
+
+	for _, f := range s.Fields {
+		if !valid(f.Expr) {
+			return fmt.Errorf("count(distinct <field>) can only have one argument")
+		}
+	}
+
+	return nil
+}
+
+func (s *SelectStatement) validateDerivative() error {
+	if !s.HasDerivative() {
+		return nil
+	}
+
+	// If a derivative is requested, it must be the only field in the query. We don't support
+	// multiple fields in combination w/ derivaties yet.
+	if len(s.Fields) != 1 {
+		return fmt.Errorf("derivative cannot be used with other fields")
+	}
+
+	aggr := s.FunctionCalls()
+	if len(aggr) != 1 {
+		return fmt.Errorf("derivative cannot be used with other fields")
+	}
+
+	// Derivative requires two arguments
+	derivativeCall := aggr[0]
+	if len(derivativeCall.Args) == 0 {
+		return fmt.Errorf("derivative requires a field argument")
+	}
+
+	// First arg must be a field or aggr over a field e.g. (mean(field))
+	_, callOk := derivativeCall.Args[0].(*Call)
+	_, varOk := derivativeCall.Args[0].(*VarRef)
+
+	if !(callOk || varOk) {
+		return fmt.Errorf("derivative requires a field argument")
+	}
+
+	// If a duration arg is pased, make sure it's a duration
+	if len(derivativeCall.Args) == 2 {
+		// Second must be a duration .e.g (1h)
+		if _, ok := derivativeCall.Args[1].(*DurationLiteral); !ok {
+			return fmt.Errorf("derivative requires a duration argument")
+		}
+	}
+
+	return nil
 }
 
 // GroupByIterval extracts the time interval, if specified.
@@ -1197,11 +1448,8 @@ func (s *ShowSeriesStatement) RequiredPrivileges() ExecutionPrivileges {
 
 // DropSeriesStatement represents a command for removing a series from the database.
 type DropSeriesStatement struct {
-	// The Id of the series being dropped (optional)
-	SeriesID uint64
-
 	// Data source that fields are extracted from (optional)
-	Source Source
+	Sources Sources
 
 	// An expression evaluated on data point (optional)
 	Condition Expr
@@ -1210,20 +1458,15 @@ type DropSeriesStatement struct {
 // String returns a string representation of the drop series statement.
 func (s *DropSeriesStatement) String() string {
 	var buf bytes.Buffer
-	i, _ := buf.WriteString("DROP SERIES")
+	buf.WriteString("DROP SERIES")
 
-	if s.Source != nil {
-		_, _ = buf.WriteString(" FROM ")
-		_, _ = buf.WriteString(s.Source.String())
+	if s.Sources != nil {
+		buf.WriteString(" FROM ")
+		buf.WriteString(s.Sources.String())
 	}
 	if s.Condition != nil {
-		_, _ = buf.WriteString(" WHERE ")
-		_, _ = buf.WriteString(s.Condition.String())
-	}
-
-	// If we haven't written any data since the initial statement, then this was a SeriesID statement
-	if len(buf.String()) == i {
-		_, _ = buf.WriteString(fmt.Sprintf(" %d", s.SeriesID))
+		buf.WriteString(" WHERE ")
+		buf.WriteString(s.Condition.String())
 	}
 
 	return buf.String()
@@ -1785,6 +2028,27 @@ func (c *Call) String() string {
 	return fmt.Sprintf("%s(%s)", c.Name, strings.Join(str, ", "))
 }
 
+// Distinct represents a DISTINCT expression.
+type Distinct struct {
+	// Identifier following DISTINCT
+	Val string
+}
+
+// String returns a string representation of the expression.
+func (d *Distinct) String() string {
+	return fmt.Sprintf("DISTINCT %s", d.Val)
+}
+
+// NewCall returns a new call expression from this expressions.
+func (d *Distinct) NewCall() *Call {
+	return &Call{
+		Name: "distinct",
+		Args: []Expr{
+			&VarRef{Val: d.Val},
+		},
+	}
+}
+
 // NumberLiteral represents a numeric literal.
 type NumberLiteral struct {
 	Val float64
@@ -1924,6 +2188,8 @@ func CloneExpr(expr Expr) Expr {
 			args[i] = CloneExpr(arg)
 		}
 		return &Call{Name: expr.Name, Args: args}
+	case *Distinct:
+		return &Distinct{Val: expr.Val}
 	case *DurationLiteral:
 		return &DurationLiteral{Val: expr.Val}
 	case *NumberLiteral:

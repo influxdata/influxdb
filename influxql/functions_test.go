@@ -1,6 +1,13 @@
 package influxql
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+	"time"
+
+	"github.com/davecgh/go-spew/spew"
+)
+
 import "sort"
 
 type point struct {
@@ -19,6 +26,7 @@ func (t *testIterator) Next() (seriesID uint64, timestamp int64, value interface
 		t.values = t.values[1:]
 		return v.seriesID, v.time, v.value
 	}
+
 	return 0, 0, nil
 }
 
@@ -36,9 +44,7 @@ func TestMapMean(t *testing.T) {
 		output *meanMapOutput
 	}{
 		{ // Single point
-			input: []point{
-				point{0, 1, 1.0},
-			},
+			input:  []point{point{0, 1, 1.0}},
 			output: &meanMapOutput{1, 1},
 		},
 		{ // Two points
@@ -63,7 +69,6 @@ func TestMapMean(t *testing.T) {
 		if got.(*meanMapOutput).Count != test.output.Count || got.(*meanMapOutput).Mean != test.output.Mean {
 			t.Errorf("output mismatch: exp %v got %v", test.output, got)
 		}
-
 	}
 }
 func TestInitializeMapFuncPercentile(t *testing.T) {
@@ -96,6 +101,50 @@ func TestInitializeMapFuncPercentile(t *testing.T) {
 
 	if exp := "expected two arguments for percentile()"; err.Error() != exp {
 		t.Errorf("InitializeMapFunc(%v) mismatch. exp %v got %v", c, exp, err.Error())
+	}
+}
+
+func TestInitializeMapFuncDerivative(t *testing.T) {
+
+	for _, fn := range []string{"derivative", "non_negative_derivative"} {
+		// No args should fail
+		c := &Call{
+			Name: fn,
+			Args: []Expr{},
+		}
+
+		_, err := InitializeMapFunc(c)
+		if err == nil {
+			t.Errorf("InitializeMapFunc(%v) expected error.  got nil", c)
+		}
+
+		// Single field arg should return MapEcho
+		c = &Call{
+			Name: fn,
+			Args: []Expr{
+				&VarRef{Val: " field1"},
+				&DurationLiteral{Val: time.Hour},
+			},
+		}
+
+		_, err = InitializeMapFunc(c)
+		if err != nil {
+			t.Errorf("InitializeMapFunc(%v) unexpected error.  got %v", c, err)
+		}
+
+		// Nested Aggregate func should return the map func for the nested aggregate
+		c = &Call{
+			Name: fn,
+			Args: []Expr{
+				&Call{Name: "mean", Args: []Expr{&VarRef{Val: "field1"}}},
+				&DurationLiteral{Val: time.Hour},
+			},
+		}
+
+		_, err = InitializeMapFunc(c)
+		if err != nil {
+			t.Errorf("InitializeMapFunc(%v) unexpected error.  got %v", c, err)
+		}
 	}
 }
 
@@ -143,6 +192,285 @@ func TestReducePercentileNil(t *testing.T) {
 	got := fn(input)
 	if got != nil {
 		t.Fatalf("ReducePercentile(100) returned wrong type. exp nil got %v", got)
+	}
+}
+
+func TestMapDistinct(t *testing.T) {
+	const ( // prove that we're ignoring seriesID
+		seriesId1 = iota + 1
+		seriesId2
+	)
+
+	const ( // prove that we're ignoring time
+		timeId1 = iota + 1
+		timeId2
+		timeId3
+		timeId4
+		timeId5
+		timeId6
+	)
+
+	iter := &testIterator{
+		values: []point{
+			{seriesId1, timeId1, uint64(1)},
+			{seriesId1, timeId2, uint64(1)},
+			{seriesId1, timeId3, "1"},
+			{seriesId2, timeId4, uint64(1)},
+			{seriesId2, timeId5, float64(1.0)},
+			{seriesId2, timeId6, "1"},
+		},
+	}
+
+	values := MapDistinct(iter).(distinctValues)
+
+	if exp, got := 3, len(values); exp != got {
+		t.Errorf("Wrong number of values. exp %v got %v", exp, got)
+	}
+
+	sort.Sort(values)
+
+	exp := distinctValues{
+		uint64(1),
+		float64(1),
+		"1",
+	}
+
+	if !reflect.DeepEqual(values, exp) {
+		t.Errorf("Wrong values. exp %v got %v", spew.Sdump(exp), spew.Sdump(values))
+	}
+}
+
+func TestMapDistinctNil(t *testing.T) {
+	iter := &testIterator{
+		values: []point{},
+	}
+
+	values := MapDistinct(iter)
+
+	if values != nil {
+		t.Errorf("Wrong values. exp nil got %v", spew.Sdump(values))
+	}
+}
+
+func TestReduceDistinct(t *testing.T) {
+	v1 := distinctValues{
+		"2",
+		"1",
+		float64(2.0),
+		float64(1),
+		uint64(2),
+		uint64(1),
+		true,
+		false,
+	}
+
+	expect := distinctValues{
+		uint64(1),
+		float64(1),
+		uint64(2),
+		float64(2),
+		false,
+		true,
+		"1",
+		"2",
+	}
+
+	got := ReduceDistinct([]interface{}{v1, v1, expect})
+
+	if !reflect.DeepEqual(got, expect) {
+		t.Errorf("Wrong values. exp %v got %v", spew.Sdump(expect), spew.Sdump(got))
+	}
+}
+
+func TestReduceDistinctNil(t *testing.T) {
+	tests := []struct {
+		name   string
+		values []interface{}
+	}{
+		{
+			name:   "nil values",
+			values: nil,
+		},
+		{
+			name:   "nil mapper",
+			values: []interface{}{nil},
+		},
+		{
+			name:   "no mappers",
+			values: []interface{}{},
+		},
+		{
+			name:   "empty mappper (len 1)",
+			values: []interface{}{distinctValues{}},
+		},
+		{
+			name:   "empty mappper (len 2)",
+			values: []interface{}{distinctValues{}, distinctValues{}},
+		},
+	}
+
+	for _, test := range tests {
+		t.Log(test.name)
+		got := ReduceDistinct(test.values)
+		if got != nil {
+			t.Errorf("Wrong values. exp nil got %v", spew.Sdump(got))
+		}
+	}
+}
+
+func Test_distinctValues_Sort(t *testing.T) {
+	values := distinctValues{
+		"2",
+		"1",
+		float64(2.0),
+		float64(1),
+		uint64(2),
+		uint64(1),
+		true,
+		false,
+	}
+
+	expect := distinctValues{
+		uint64(1),
+		float64(1),
+		uint64(2),
+		float64(2),
+		false,
+		true,
+		"1",
+		"2",
+	}
+
+	sort.Sort(values)
+
+	if !reflect.DeepEqual(values, expect) {
+		t.Errorf("Wrong values. exp %v got %v", spew.Sdump(expect), spew.Sdump(values))
+	}
+}
+
+func TestMapCountDistinct(t *testing.T) {
+	const ( // prove that we're ignoring seriesID
+		seriesId1 = iota + 1
+		seriesId2
+	)
+
+	const ( // prove that we're ignoring time
+		timeId1 = iota + 1
+		timeId2
+		timeId3
+		timeId4
+		timeId5
+		timeId6
+		timeId7
+	)
+
+	iter := &testIterator{
+		values: []point{
+			{seriesId1, timeId1, uint64(1)},
+			{seriesId1, timeId2, uint64(1)},
+			{seriesId1, timeId3, "1"},
+			{seriesId2, timeId4, uint64(1)},
+			{seriesId2, timeId5, float64(1.0)},
+			{seriesId2, timeId6, "1"},
+			{seriesId2, timeId7, true},
+		},
+	}
+
+	values := MapCountDistinct(iter).(map[interface{}]struct{})
+
+	if exp, got := 4, len(values); exp != got {
+		t.Errorf("Wrong number of values. exp %v got %v", exp, got)
+	}
+
+	exp := map[interface{}]struct{}{
+		uint64(1):  struct{}{},
+		float64(1): struct{}{},
+		"1":        struct{}{},
+		true:       struct{}{},
+	}
+
+	if !reflect.DeepEqual(values, exp) {
+		t.Errorf("Wrong values. exp %v got %v", spew.Sdump(exp), spew.Sdump(values))
+	}
+}
+
+func TestMapCountDistinctNil(t *testing.T) {
+	iter := &testIterator{
+		values: []point{},
+	}
+
+	values := MapCountDistinct(iter)
+
+	if values != nil {
+		t.Errorf("Wrong values. exp nil got %v", spew.Sdump(values))
+	}
+}
+
+func TestReduceCountDistinct(t *testing.T) {
+	v1 := map[interface{}]struct{}{
+		"2":          struct{}{},
+		"1":          struct{}{},
+		float64(2.0): struct{}{},
+		float64(1):   struct{}{},
+		uint64(2):    struct{}{},
+		uint64(1):    struct{}{},
+		true:         struct{}{},
+		false:        struct{}{},
+	}
+
+	v2 := map[interface{}]struct{}{
+		uint64(1):  struct{}{},
+		float64(1): struct{}{},
+		uint64(2):  struct{}{},
+		float64(2): struct{}{},
+		false:      struct{}{},
+		true:       struct{}{},
+		"1":        struct{}{},
+		"2":        struct{}{},
+	}
+
+	exp := 8
+	got := ReduceCountDistinct([]interface{}{v1, v1, v2})
+
+	if !reflect.DeepEqual(got, exp) {
+		t.Errorf("Wrong values. exp %v got %v", spew.Sdump(exp), spew.Sdump(got))
+	}
+}
+
+func TestReduceCountDistinctNil(t *testing.T) {
+	emptyResults := make(map[interface{}]struct{})
+	tests := []struct {
+		name   string
+		values []interface{}
+	}{
+		{
+			name:   "nil values",
+			values: nil,
+		},
+		{
+			name:   "nil mapper",
+			values: []interface{}{nil},
+		},
+		{
+			name:   "no mappers",
+			values: []interface{}{},
+		},
+		{
+			name:   "empty mappper (len 1)",
+			values: []interface{}{emptyResults},
+		},
+		{
+			name:   "empty mappper (len 2)",
+			values: []interface{}{emptyResults, emptyResults},
+		},
+	}
+
+	for _, test := range tests {
+		t.Log(test.name)
+		got := ReduceCountDistinct(test.values)
+		if got != 0 {
+			t.Errorf("Wrong values. exp nil got %v", spew.Sdump(got))
+		}
 	}
 }
 

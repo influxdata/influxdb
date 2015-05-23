@@ -390,6 +390,7 @@ func (s *Server) StartSelfMonitoring(database, retention string, interval time.D
 
 			// Shard-level stats.
 			tags["shardID"] = strconv.FormatUint(s.id, 10)
+			s.mu.RLock()
 			for _, sh := range s.shards {
 				if !sh.HasDataNodeID(s.id) {
 					// No stats for non-local shards.
@@ -397,6 +398,7 @@ func (s *Server) StartSelfMonitoring(database, retention string, interval time.D
 				}
 				batch = append(batch, pointsFromStats(sh.stats, tags)...)
 			}
+			s.mu.RUnlock()
 
 			// Server diagnostics.
 			for _, row := range s.DiagnosticsAsRows() {
@@ -2067,9 +2069,20 @@ func (s *Server) createShardGroupsIfNotExists(database, retentionPolicy string, 
 		// Local function makes locking fool-proof.
 		s.mu.RLock()
 		defer s.mu.RUnlock()
+
+		rp, err := s.RetentionPolicy(database, retentionPolicy)
+		if err != nil {
+			return err
+		}
+
+		times := map[time.Time]struct{}{}
 		for _, p := range points {
+			times[p.Time.Truncate(rp.ShardGroupDuration)] = struct{}{}
+		}
+
+		for t := range times {
 			// Check if shard group exists first.
-			g, err := s.shardGroupByTimestamp(database, retentionPolicy, p.Time)
+			g, err := s.shardGroupByTimestamp(database, retentionPolicy, t)
 			if err != nil {
 				return err
 			} else if g != nil {
@@ -2078,7 +2091,7 @@ func (s *Server) createShardGroupsIfNotExists(database, retentionPolicy string, 
 			commands = append(commands, &createShardGroupIfNotExistsCommand{
 				Database: database,
 				Policy:   retentionPolicy,
-				Time:     p.Time,
+				Time:     t,
 			})
 		}
 		return nil
@@ -2353,6 +2366,8 @@ func (s *Server) rewriteSelectStatement(stmt *influxql.SelectStatement) (*influx
 		}
 	}
 
+	stmt.RewriteDistinct()
+
 	return stmt, nil
 }
 
@@ -2532,20 +2547,8 @@ func (s *Server) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, 
 		defer s.mu.RUnlock()
 
 		seriesByMeasurement := make(map[string][]uint64)
-		// Handle the simple `DROP SERIES <id>` case.
-		if stmt.Source == nil && stmt.Condition == nil {
-			for _, db := range s.databases {
-				for _, m := range db.measurements {
-					if m.seriesByID[stmt.SeriesID] != nil {
-						seriesByMeasurement[m.Name] = []uint64{stmt.SeriesID}
-					}
-				}
-			}
 
-			return seriesByMeasurement, nil
-		}
-
-		// Handle the more complicated `DROP SERIES` with sources and/or conditions...
+		// Handle `DROP SERIES` with sources and/or conditions...
 
 		// Find the database.
 		db := s.databases[database]
@@ -2553,8 +2556,13 @@ func (s *Server) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, 
 			return nil, ErrDatabaseNotFound(database)
 		}
 
-		// Get the list of measurements we're interested in.
-		measurements, err := measurementsFromSourceOrDB(stmt.Source, db)
+		// Expand regex expressions in the FROM clause.
+		sources, err := s.expandSources(stmt.Sources)
+		if err != nil {
+			return nil, err
+		}
+
+		measurements, err := measurementsFromSourcesOrDB(db, sources...)
 		if err != nil {
 			return nil, err
 		}
@@ -2563,8 +2571,7 @@ func (s *Server) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, 
 			var ids seriesIDs
 			if stmt.Condition != nil {
 				// Get series IDs that match the WHERE clause.
-				filters := map[uint64]influxql.Expr{}
-				ids, _, _, err = m.walkWhereForSeriesIds(stmt.Condition, filters)
+				ids, _, err = m.walkWhereForSeriesIds(stmt.Condition)
 				if err != nil {
 					return nil, err
 				}
@@ -2615,8 +2622,7 @@ func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, 
 
 		if stmt.Condition != nil {
 			// Get series IDs that match the WHERE clause.
-			filters := map[uint64]influxql.Expr{}
-			ids, _, _, err = m.walkWhereForSeriesIds(stmt.Condition, filters)
+			ids, _, err = m.walkWhereForSeriesIds(stmt.Condition)
 			if err != nil {
 				return &Result{Err: err}
 			}
@@ -2833,8 +2839,7 @@ func (s *Server) executeShowTagValuesStatement(stmt *influxql.ShowTagValuesState
 
 		if stmt.Condition != nil {
 			// Get series IDs that match the WHERE clause.
-			filters := map[uint64]influxql.Expr{}
-			ids, _, _, err = m.walkWhereForSeriesIds(stmt.Condition, filters)
+			ids, _, err = m.walkWhereForSeriesIds(stmt.Condition)
 			if err != nil {
 				return &Result{Err: err}
 			}
@@ -3027,6 +3032,37 @@ func measurementsFromSourceOrDB(stmt influxql.Source, db *database) (Measurement
 			measurements = append(measurements, measurement)
 		} else {
 			return nil, errors.New("identifiers in FROM clause must be measurement names")
+		}
+	} else {
+		// No measurements specified in FROM clause so get all measurements that have series.
+		for _, m := range db.Measurements() {
+			if len(m.seriesIDs) > 0 {
+				measurements = append(measurements, m)
+			}
+		}
+	}
+	sort.Sort(measurements)
+
+	return measurements, nil
+}
+
+// measurementsFromSourcesOrDB returns a list of measurements from the
+// sources passed in or, if sources is empty, a list of all
+// measurement names from the database passed in.
+func measurementsFromSourcesOrDB(db *database, sources ...influxql.Source) (Measurements, error) {
+	var measurements Measurements
+	if len(sources) > 0 {
+		for _, source := range sources {
+			if m, ok := source.(*influxql.Measurement); ok {
+				measurement := db.measurements[m.Name]
+				if measurement == nil {
+					return nil, ErrMeasurementNotFound(m.Name)
+				}
+
+				measurements = append(measurements, measurement)
+			} else {
+				return nil, errors.New("identifiers in FROM clause must be measurement names")
+			}
 		}
 	} else {
 		// No measurements specified in FROM clause so get all measurements that have series.
@@ -3476,6 +3512,9 @@ func (s *Server) processor(conn MessagingConn, done chan struct{}) {
 			if err != nil {
 				s.errors[m.Index] = err
 			}
+
+			// Update the connection with high water mark.
+			conn.SetIndex(s.index)
 		}()
 	}
 }
@@ -3611,6 +3650,7 @@ func (c *messagingClient) Conn(topicID uint64) MessagingConn { return c.Client.C
 type MessagingConn interface {
 	Open(index uint64, streaming bool) error
 	C() <-chan *messaging.Message
+	SetIndex(index uint64)
 }
 
 // DataNode represents a data node in the cluster.
@@ -3813,6 +3853,37 @@ func NewContinuousQuery(q string) (*ContinuousQuery, error) {
 	return cquery, nil
 }
 
+// shouldRunContinuousQuery returns true if the CQ should be schedule to run. It will use the
+// lastRunTime of the CQ and the rules for when to run set through the config to determine
+// if this CQ should be run
+func (cq *ContinuousQuery) shouldRunContinuousQuery(runsPerInterval int, noMoreThan time.Duration) bool {
+	// if it's not aggregated we don't run it
+	if cq.cq.Source.IsRawQuery {
+		return false
+	}
+
+	// since it's aggregated we need to figure how often it should be run
+	interval, err := cq.cq.Source.GroupByInterval()
+	if err != nil {
+		return false
+	}
+
+	// determine how often we should run this continuous query.
+	// group by time / the number of times to compute
+	computeEvery := time.Duration(interval.Nanoseconds()/int64(runsPerInterval)) * time.Nanosecond
+	// make sure we're running no more frequently than the setting in the config
+	if computeEvery < noMoreThan {
+		computeEvery = noMoreThan
+	}
+
+	// if we've passed the amount of time since the last run, do it up
+	if cq.lastRun.Add(computeEvery).UnixNano() <= time.Now().UnixNano() {
+		return true
+	}
+
+	return false
+}
+
 // applyCreateContinuousQueryCommand adds the continuous query to the database object and saves it to the metastore
 func (s *Server) applyCreateContinuousQueryCommand(m *messaging.Message) error {
 	var c createContinuousQueryCommand
@@ -3898,50 +3969,17 @@ func (s *Server) RunContinuousQueries() error {
 
 	for _, d := range s.databases {
 		for _, c := range d.continuousQueries {
-			if s.shouldRunContinuousQuery(c) {
-				// set the into retention policy based on what is now the default
-				if c.intoRP() == "" {
-					c.setIntoRP(d.defaultRetentionPolicy)
-				}
-				go func(cq *ContinuousQuery) {
-					s.runContinuousQuery(c)
-				}(c)
+			// set the into retention policy based on what is now the default
+			if c.intoRP() == "" {
+				c.setIntoRP(d.defaultRetentionPolicy)
 			}
+			go func(cq *ContinuousQuery) {
+				s.runContinuousQuery(cq)
+			}(c)
 		}
 	}
 
 	return nil
-}
-
-// shouldRunContinuousQuery returns true if the CQ should be schedule to run. It will use the
-// lastRunTime of the CQ and the rules for when to run set through the config to determine
-// if this CQ should be run
-func (s *Server) shouldRunContinuousQuery(cq *ContinuousQuery) bool {
-	// if it's not aggregated we don't run it
-	if cq.cq.Source.IsRawQuery {
-		return false
-	}
-
-	// since it's aggregated we need to figure how often it should be run
-	interval, err := cq.cq.Source.GroupByInterval()
-	if err != nil {
-		return false
-	}
-
-	// determine how often we should run this continuous query.
-	// group by time / the number of times to compute
-	computeEvery := time.Duration(interval.Nanoseconds()/int64(s.ComputeRunsPerInterval)) * time.Nanosecond
-	// make sure we're running no more frequently than the setting in the config
-	if computeEvery < s.ComputeNoMoreThan {
-		computeEvery = s.ComputeNoMoreThan
-	}
-
-	// if we've passed the amount of time since the last run, do it up
-	if cq.lastRun.Add(computeEvery).UnixNano() <= time.Now().UnixNano() {
-		return true
-	}
-
-	return false
 }
 
 // runContinuousQuery will execute a continuous query
@@ -3950,6 +3988,10 @@ func (s *Server) runContinuousQuery(cq *ContinuousQuery) {
 	s.stats.Inc("continuousQueryExecuted")
 	cq.mu.Lock()
 	defer cq.mu.Unlock()
+
+	if !cq.shouldRunContinuousQuery(s.ComputeRunsPerInterval, s.ComputeNoMoreThan) {
+		return
+	}
 
 	now := time.Now()
 	cq.lastRun = now

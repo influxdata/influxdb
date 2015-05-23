@@ -100,7 +100,7 @@ func TestClient_BasicAuth(t *testing.T) {
 func TestClient_Write(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var data influxdb.Response
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(http.StatusNoContent)
 		_ = json.NewEncoder(w).Encode(data)
 	}))
 	defer ts.Close()
@@ -113,9 +113,12 @@ func TestClient_Write(t *testing.T) {
 	}
 
 	bp := client.BatchPoints{}
-	_, err = c.Write(bp)
+	r, err := c.Write(bp)
 	if err != nil {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+	if r != nil {
+		t.Fatalf("unexpected response. expected %v, actual %v", nil, r)
 	}
 }
 
