@@ -539,6 +539,26 @@ func TestParser_ParseStatement(t *testing.T) {
 			stmt: &influxql.ShowSeriesStatement{},
 		},
 
+		// SHOW SERIES FROM
+		{
+			s: `SHOW SERIES FROM cpu`,
+			stmt: &influxql.ShowSeriesStatement{
+				Sources: influxql.Sources{&influxql.Measurement{Name: "cpu"}},
+			},
+		},
+
+		// SHOW SERIES FROM /<regex>/
+		{
+			s: `SHOW SERIES FROM /[cg]pu/`,
+			stmt: &influxql.ShowSeriesStatement{
+				Sources: influxql.Sources{
+					&influxql.Measurement{
+						Regex: &influxql.RegexLiteral{Val: regexp.MustCompile(`[cg]pu`)},
+					},
+				},
+			},
+		},
+
 		// SHOW SERIES with OFFSET 0
 		{
 			s:    `SHOW SERIES OFFSET 0`,

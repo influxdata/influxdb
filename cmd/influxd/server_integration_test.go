@@ -1292,6 +1292,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		// Metadata display tests
 
 		{
+			name:  `show series`,
 			reset: true,
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
 		{"measurement": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
@@ -1299,33 +1300,45 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		{"measurement": "cpu", "tags": {"host": "server01", "region": "useast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
 		{"measurement": "cpu", "tags": {"host": "server02", "region": "useast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
 		{"measurement": "gpu", "tags": {"host": "server02", "region": "useast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
-		{"measurement": "gpu", "tags": {"host": "server03", "region": "caeast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}}
+		{"measurement": "gpu", "tags": {"host": "server03", "region": "caeast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"measurement": "disk", "tags": {"host": "server03", "region": "caeast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}}
 		]}`,
 			query:    "SHOW SERIES",
 			queryDb:  "%DB%",
-			expected: `{"results":[{"series":[{"name":"cpu","columns":["_id","host","region"],"values":[[1,"server01",""],[2,"server01","uswest"],[3,"server01","useast"],[4,"server02","useast"]]},{"name":"gpu","columns":["_id","host","region"],"values":[[5,"server02","useast"],[6,"server03","caeast"]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["_id","host","region"],"values":[[1,"server01",""],[2,"server01","uswest"],[3,"server01","useast"],[4,"server02","useast"]]},{"name":"disk","columns":["_id","host","region"],"values":[[7,"server03","caeast"]]},{"name":"gpu","columns":["_id","host","region"],"values":[[5,"server02","useast"],[6,"server03","caeast"]]}]}]}`,
 		},
 		{
+			name:     `show series`,
 			query:    "SHOW SERIES FROM cpu",
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["_id","host","region"],"values":[[1,"server01",""],[2,"server01","uswest"],[3,"server01","useast"],[4,"server02","useast"]]}]}]}`,
 		},
 		{
+			name:     `show series`,
+			query:    "SHOW SERIES FROM /[cg]pu/",
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["_id","host","region"],"values":[[1,"server01",""],[2,"server01","uswest"],[3,"server01","useast"],[4,"server02","useast"]]},{"name":"gpu","columns":["_id","host","region"],"values":[[5,"server02","useast"],[6,"server03","caeast"]]}]}]}`,
+		},
+		{
+			name:     `show series`,
 			query:    "SHOW SERIES WHERE region = 'uswest'",
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["_id","host","region"],"values":[[2,"server01","uswest"]]}]}]}`,
 		},
 		{
+			name:     `show series`,
 			query:    "SHOW SERIES WHERE region =~ /ca.*/",
 			queryDb:  "%DB%",
-			expected: `{"results":[{"series":[{"name":"gpu","columns":["_id","host","region"],"values":[[6,"server03","caeast"]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"disk","columns":["_id","host","region"],"values":[[7,"server03","caeast"]]},{"name":"gpu","columns":["_id","host","region"],"values":[[6,"server03","caeast"]]}]}]}`,
 		},
 		{
+			name:     `show series`,
 			query:    "SHOW SERIES WHERE host !~ /server0[12]/",
 			queryDb:  "%DB%",
-			expected: `{"results":[{"series":[{"name":"gpu","columns":["_id","host","region"],"values":[[6,"server03","caeast"]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"disk","columns":["_id","host","region"],"values":[[7,"server03","caeast"]]},{"name":"gpu","columns":["_id","host","region"],"values":[[6,"server03","caeast"]]}]}]}`,
 		},
 		{
+			name:     `show series`,
 			query:    "SHOW SERIES FROM cpu WHERE region = 'useast'",
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["_id","host","region"],"values":[[3,"server01","useast"],[4,"server02","useast"]]}]}]}`,
