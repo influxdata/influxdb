@@ -245,9 +245,9 @@ func query(t *testing.T, nodes Cluster, urlDb, query, expected, expectPattern st
 		if err != nil {
 			t.Fatalf("Failed to execute query '%s': %s", query, err.Error())
 		}
-		defer resp.Body.Close()
 
 		body, err := ioutil.ReadAll(resp.Body)
+		resp.Body.Close()
 		if err != nil {
 			t.Fatalf("Couldn't read body of response: %s", err.Error())
 		}
@@ -341,7 +341,7 @@ func runTest_rawDataReturnsInOrder(t *testing.T, testName string, nodes Cluster,
 	// Start by ensuring database and retention policy exist.
 	createDatabase(t, testName, nodes, database)
 	createRetentionPolicy(t, testName, nodes, database, retention, replicationFactor)
-	numPoints := 500
+	numPoints := 100
 	var expected string
 
 	for i := 1; i < numPoints; i++ {
@@ -1699,7 +1699,6 @@ func TestSingleServer(t *testing.T) {
 	defer nodes.Close()
 
 	runTestsData(t, testName, nodes, "mydb", "myrp", len(nodes))
-	runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp", len(nodes))
 }
 
 func Test3NodeServer(t *testing.T) {
@@ -1717,7 +1716,6 @@ func Test3NodeServer(t *testing.T) {
 	defer nodes.Close()
 
 	runTestsData(t, testName, nodes, "mydb", "myrp", len(nodes))
-	runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp", len(nodes))
 }
 
 func Test3NodeServerFailover(t *testing.T) {
@@ -1736,10 +1734,9 @@ func Test3NodeServerFailover(t *testing.T) {
 	// kill the last node, cluster should expect it to be there
 	nodes[2].node.Close()
 	nodes = nodes[:len(nodes)-1]
+	defer nodes.Close()
 
 	runTestsData(t, testName, nodes, "mydb", "myrp", len(nodes))
-	runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp", len(nodes))
-	nodes.Close()
 }
 
 // ensure that all queries work if there are more nodes in a cluster than the replication factor
@@ -1758,7 +1755,6 @@ func Test5NodeClusterPartiallyReplicated(t *testing.T) {
 	defer nodes.Close()
 
 	runTestsData(t, testName, nodes, "mydb", "myrp", 2)
-	runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp", 2)
 }
 
 func TestClientLibrary(t *testing.T) {
