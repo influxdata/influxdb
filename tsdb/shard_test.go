@@ -13,7 +13,8 @@ func TestShardWriteAndIndex(t *testing.T) {
 	defer os.RemoveAll(path)
 	path += "/shard"
 
-	sh := NewShard()
+	index := NewDatabaseIndex()
+	sh := NewShard(index)
 	if err := sh.Open(path); err != nil {
 		t.Fatalf("error openeing shard: %s", err.Error())
 	}
@@ -37,17 +38,17 @@ func TestShardWriteAndIndex(t *testing.T) {
 	}
 
 	validateIndex := func() {
-		if !reflect.DeepEqual(sh.names, []string{"cpu"}) {
-			t.Fatalf("measurement names in shard din't match")
+		if !reflect.DeepEqual(index.names, []string{"cpu"}) {
+			t.Fatalf("measurement names in shard didn't match")
 		}
-		if len(sh.series) != 1 {
+		if len(index.series) != 1 {
 			t.Fatalf("series wasn't in index")
 		}
-		seriesTags := sh.series[pt.Key()].Tags
+		seriesTags := index.series[pt.Key()].Tags
 		if len(seriesTags) != len(pt.Tags()) || pt.Tags()["host"] != seriesTags["host"] {
-			t.Fatalf("tags weren't properly saved to series index: %v, %v", pt.Tags(), sh.series[pt.Key()].Tags)
+			t.Fatalf("tags weren't properly saved to series index: %v, %v", pt.Tags(), index.series[pt.Key()].Tags)
 		}
-		if !reflect.DeepEqual(sh.measurements["cpu"].tagKeys(), []string{"host"}) {
+		if !reflect.DeepEqual(index.measurements["cpu"].tagKeys(), []string{"host"}) {
 			t.Fatalf("tag key wasn't saved to measurement index")
 		}
 	}
@@ -57,7 +58,8 @@ func TestShardWriteAndIndex(t *testing.T) {
 	// ensure the index gets loaded after closing and opening the shard
 	sh.Close()
 
-	sh = NewShard()
+	index = NewDatabaseIndex()
+	sh = NewShard(index)
 	if err := sh.Open(path); err != nil {
 		t.Fatalf("error openeing shard: %s", err.Error())
 	}
