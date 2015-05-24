@@ -2485,6 +2485,10 @@ func evalBinaryExpr(expr *BinaryExpr, m map[string]interface{}) interface{} {
 			return lhs && rhs
 		case OR:
 			return lhs || rhs
+		case EQ:
+			return lhs == rhs
+		case NEQ:
+			return lhs != rhs
 		}
 	case float64:
 		rhs, _ := rhs.(float64)
