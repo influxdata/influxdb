@@ -371,7 +371,8 @@ func TestParser_ParseStatement(t *testing.T) {
 				IsRawQuery: true,
 				Fields:     []*influxql.Field{{Expr: &influxql.Wildcard{}}},
 				Sources: []influxql.Source{&influxql.Measurement{
-					Regex: &influxql.RegexLiteral{Val: regexp.MustCompile("cpu.*")}}},
+					Regex: &influxql.RegexLiteral{Val: regexp.MustCompile("cpu.*")}},
+				},
 			},
 		},
 
@@ -384,7 +385,8 @@ func TestParser_ParseStatement(t *testing.T) {
 				Sources: []influxql.Source{&influxql.Measurement{
 					Database:        `db`,
 					RetentionPolicy: `rp`,
-					Regex:           &influxql.RegexLiteral{Val: regexp.MustCompile("cpu.*")}}},
+					Regex:           &influxql.RegexLiteral{Val: regexp.MustCompile("cpu.*")}},
+				},
 			},
 		},
 
@@ -396,7 +398,8 @@ func TestParser_ParseStatement(t *testing.T) {
 				Fields:     []*influxql.Field{{Expr: &influxql.Wildcard{}}},
 				Sources: []influxql.Source{&influxql.Measurement{
 					Database: `db`,
-					Regex:    &influxql.RegexLiteral{Val: regexp.MustCompile("cpu.*")}}},
+					Regex:    &influxql.RegexLiteral{Val: regexp.MustCompile("cpu.*")}},
+				},
 			},
 		},
 
@@ -408,7 +411,8 @@ func TestParser_ParseStatement(t *testing.T) {
 				Fields:     []*influxql.Field{{Expr: &influxql.Wildcard{}}},
 				Sources: []influxql.Source{&influxql.Measurement{
 					RetentionPolicy: `rp`,
-					Regex:           &influxql.RegexLiteral{Val: regexp.MustCompile("cpu.*")}}},
+					Regex:           &influxql.RegexLiteral{Val: regexp.MustCompile("cpu.*")}},
+				},
 			},
 		},
 
@@ -751,13 +755,23 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SHOW FIELD KEYS FROM src ORDER BY ASC, field1, field2 DESC LIMIT 10`,
 			stmt: &influxql.ShowFieldKeysStatement{
-				Source: &influxql.Measurement{Name: "src"},
+				Sources: influxql.Sources{&influxql.Measurement{Name: "src"}},
 				SortFields: []*influxql.SortField{
 					{Ascending: true},
 					{Name: "field1"},
 					{Name: "field2"},
 				},
 				Limit: 10,
+			},
+		},
+		{
+			s: `SHOW FIELD KEYS FROM /[cg]pu/`,
+			stmt: &influxql.ShowFieldKeysStatement{
+				Sources: influxql.Sources{
+					&influxql.Measurement{
+						Regex: &influxql.RegexLiteral{Val: regexp.MustCompile(`[cg]pu`)},
+					},
+				},
 			},
 		},
 

@@ -2987,8 +2987,13 @@ func (s *Server) executeShowFieldKeysStatement(stmt *influxql.ShowFieldKeysState
 		return &Result{Err: ErrDatabaseNotFound(database)}
 	}
 
-	// Get the list of measurements we're interested in.
-	measurements, err := measurementsFromSourceOrDB(stmt.Source, db)
+	// Expand regex expressions in the FROM clause.
+	sources, err := s.expandSources(stmt.Sources)
+	if err != nil {
+		return &Result{Err: err}
+	}
+
+	measurements, err := measurementsFromSourcesOrDB(db, sources...)
 	if err != nil {
 		return &Result{Err: err}
 	}
@@ -3032,36 +3037,6 @@ func (s *Server) executeGrantStatement(stmt *influxql.GrantStatement, user *User
 
 func (s *Server) executeRevokeStatement(stmt *influxql.RevokeStatement, user *User) *Result {
 	return &Result{Err: s.SetPrivilege(influxql.NoPrivileges, stmt.User, stmt.On)}
-}
-
-// measurementsFromSourceOrDB returns a list of measurements from the
-// statement passed in or, if the statement is nil, a list of all
-// measurement names from the database passed in.
-func measurementsFromSourceOrDB(stmt influxql.Source, db *database) (Measurements, error) {
-	var measurements Measurements
-	if stmt != nil {
-		// TODO: handle multiple measurement sources
-		if m, ok := stmt.(*influxql.Measurement); ok {
-			measurement := db.measurements[m.Name]
-			if measurement == nil {
-				return nil, ErrMeasurementNotFound(m.Name)
-			}
-
-			measurements = append(measurements, measurement)
-		} else {
-			return nil, errors.New("identifiers in FROM clause must be measurement names")
-		}
-	} else {
-		// No measurements specified in FROM clause so get all measurements that have series.
-		for _, m := range db.Measurements() {
-			if len(m.seriesIDs) > 0 {
-				measurements = append(measurements, m)
-			}
-		}
-	}
-	sort.Sort(measurements)
-
-	return measurements, nil
 }
 
 // measurementsFromSourcesOrDB returns a list of measurements from the
@@ -3305,7 +3280,6 @@ func (s *Server) NormalizeStatement(stmt influxql.Statement, defaultDatabase str
 func (s *Server) normalizeStatement(stmt influxql.Statement, defaultDatabase string) (err error) {
 	// Track prefixes for replacing field names.
 	prefixes := make(map[string]string)
-
 	// Qualify all measurements.
 	influxql.WalkFunc(stmt, func(n influxql.Node) {
 		if err != nil {

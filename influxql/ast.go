@@ -1817,8 +1817,8 @@ func (s *ShowUsersStatement) RequiredPrivileges() ExecutionPrivileges {
 
 // ShowFieldKeysStatement represents a command for listing field keys.
 type ShowFieldKeysStatement struct {
-	// Data source that fields are extracted from.
-	Source Source
+	// Data sources that fields are extracted from.
+	Sources Sources
 
 	// Fields to sort results by
 	SortFields SortFields
@@ -1836,9 +1836,9 @@ func (s *ShowFieldKeysStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("SHOW FIELD KEYS")
 
-	if s.Source != nil {
+	if s.Sources != nil {
 		_, _ = buf.WriteString(" FROM ")
-		_, _ = buf.WriteString(s.Source.String())
+		_, _ = buf.WriteString(s.Sources.String())
 	}
 	if len(s.SortFields) > 0 {
 		_, _ = buf.WriteString(" ORDER BY ")
@@ -2362,6 +2362,10 @@ func Walk(v Visitor, node Node) {
 	case *ShowTagValuesStatement:
 		Walk(v, n.Sources)
 		Walk(v, n.Condition)
+		Walk(v, n.SortFields)
+
+	case *ShowFieldKeysStatement:
+		Walk(v, n.Sources)
 		Walk(v, n.SortFields)
 
 	case SortFields:
