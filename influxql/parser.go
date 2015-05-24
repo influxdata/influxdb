@@ -887,7 +887,7 @@ func (p *Parser) parseShowTagValuesStatement() (*ShowTagValuesStatement, error) 
 
 	// Parse optional source.
 	if tok, _, _ := p.scanIgnoreWhitespace(); tok == FROM {
-		if stmt.Source, err = p.parseSource(); err != nil {
+		if stmt.Sources, err = p.parseSources(); err != nil {
 			return nil, err
 		}
 	} else {

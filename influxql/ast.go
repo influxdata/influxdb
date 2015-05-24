@@ -1745,7 +1745,7 @@ func (s *ShowTagKeysStatement) RequiredPrivileges() ExecutionPrivileges {
 // ShowTagValuesStatement represents a command for listing tag values.
 type ShowTagValuesStatement struct {
 	// Data source that fields are extracted from.
-	Source Source
+	Sources Sources
 
 	// Tag key(s) to pull values from.
 	TagKeys []string
@@ -1769,9 +1769,9 @@ func (s *ShowTagValuesStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("SHOW TAG VALUES")
 
-	if s.Source != nil {
+	if s.Sources != nil {
 		_, _ = buf.WriteString(" FROM ")
-		_, _ = buf.WriteString(s.Source.String())
+		_, _ = buf.WriteString(s.Sources.String())
 	}
 	if s.Condition != nil {
 		_, _ = buf.WriteString(" WHERE ")
@@ -2355,7 +2355,7 @@ func Walk(v Visitor, node Node) {
 		Walk(v, n.SortFields)
 
 	case *ShowTagValuesStatement:
-		Walk(v, n.Source)
+		Walk(v, n.Sources)
 		Walk(v, n.Condition)
 		Walk(v, n.SortFields)
 

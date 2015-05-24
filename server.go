@@ -2828,8 +2828,14 @@ func (s *Server) executeShowTagValuesStatement(stmt *influxql.ShowTagValuesState
 		return &Result{Err: ErrDatabaseNotFound(database)}
 	}
 
+	// Expand regex expressions in the FROM clause.
+	sources, err := s.expandSources(stmt.Sources)
+	if err != nil {
+		return &Result{Err: err}
+	}
+
 	// Get the list of measurements we're interested in.
-	measurements, err := measurementsFromSourceOrDB(stmt.Source, db)
+	measurements, err := measurementsFromSourcesOrDB(db, sources...)
 	if err != nil {
 		return &Result{Err: err}
 	}
