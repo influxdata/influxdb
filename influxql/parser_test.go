@@ -534,6 +534,12 @@ func TestParser_ParseStatement(t *testing.T) {
 			stmt: &influxql.ShowServersStatement{},
 		},
 
+		// SHOW GRANTS
+		{
+			s:    `SHOW GRANTS FOR jdoe`,
+			stmt: &influxql.ShowGrantsForUserStatement{Name: "jdoe"},
+		},
+
 		// SHOW DATABASES
 		{
 			s:    `SHOW DATABASES`,
@@ -1228,8 +1234,10 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `SHOW CONTINUOUS`, err: `found EOF, expected QUERIES at line 1, char 17`},
 		{s: `SHOW RETENTION`, err: `found EOF, expected POLICIES at line 1, char 16`},
 		{s: `SHOW RETENTION POLICIES`, err: `found EOF, expected identifier at line 1, char 25`},
-		{s: `SHOW FOO`, err: `found FOO, expected CONTINUOUS, DATABASES, FIELD, MEASUREMENTS, RETENTION, SERIES, SERVERS, TAG, USERS at line 1, char 6`},
+		{s: `SHOW FOO`, err: `found FOO, expected CONTINUOUS, DATABASES, FIELD, GRANTS, MEASUREMENTS, RETENTION, SERIES, SERVERS, TAG, USERS at line 1, char 6`},
 		{s: `SHOW STATS ON`, err: `found EOF, expected string at line 1, char 15`},
+		{s: `SHOW GRANTS`, err: `found EOF, expected FOR at line 1, char 13`},
+		{s: `SHOW GRANTS FOR`, err: `found EOF, expected identifier at line 1, char 17`},
 		{s: `DROP CONTINUOUS`, err: `found EOF, expected QUERY at line 1, char 17`},
 		{s: `DROP CONTINUOUS QUERY`, err: `found EOF, expected identifier at line 1, char 23`},
 		{s: `DROP CONTINUOUS QUERY myquery`, err: `found EOF, expected ON at line 1, char 31`},
