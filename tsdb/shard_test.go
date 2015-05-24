@@ -13,7 +13,7 @@ func TestShardWriteAndIndex(t *testing.T) {
 	defer os.RemoveAll(path)
 	path += "/shard"
 
-	index := NewDatabase()
+	index := NewDatabaseIndex()
 	sh := NewShard(index)
 	if err := sh.Open(path); err != nil {
 		t.Fatalf("error openeing shard: %s", err.Error())
@@ -58,7 +58,7 @@ func TestShardWriteAndIndex(t *testing.T) {
 	// ensure the index gets loaded after closing and opening the shard
 	sh.Close()
 
-	index = NewDatabase()
+	index = NewDatabaseIndex()
 	sh = NewShard(index)
 	if err := sh.Open(path); err != nil {
 		t.Fatalf("error openeing shard: %s", err.Error())

@@ -20,16 +20,16 @@ import (
 // is responsible for combining the output of many shards into a single query result.
 type Shard struct {
 	db    *bolt.DB // underlying data store
-	index *Database
+	index *DatabaseIndex
 
 	mu                sync.RWMutex
 	measurementFields map[string]*measurementFields // measurement name to their fields
 }
 
 // NewShard returns a new initialized Shard
-func NewShard(database *Database) *Shard {
+func NewShard(index *DatabaseIndex) *Shard {
 	return &Shard{
-		index:             database,
+		index:             index,
 		measurementFields: make(map[string]*measurementFields),
 	}
 }
@@ -113,7 +113,6 @@ func (s *Shard) WritePoints(points []Point) error {
 		// marshal the raw data if it hasn't been marshaled already
 		if p.Data() == nil {
 			// this was populated earlier, don't need to validate that it's there.
-			warn(p.Name(), s.measurementFields)
 			data, err := s.measurementFields[p.Name()].codec.EncodeFields(p.Fields())
 			if err != nil {
 				return err
