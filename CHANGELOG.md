@@ -1,5 +1,9 @@
 ## v0.9.1 [unreleased]
 
+### Features
+
+- [2650](https://github.com/influxdb/influxdb/pull/2650): Add SHOW GRANTS FOR USER statement. Thanks @n1tr0g
+
 ### Bugfixes
 
 - [#2908](https://github.com/influxdb/influxdb/issues/2908): Field mismatch error messages need to be updated
@@ -51,30 +55,6 @@
 - [2865](https://github.com/influxdb/influxdb/pull/2865) -- Return an empty set of results if database does not exist in shard metadata.
 
 ### Features
-- [2858](https://github.com/influxdb/influxdb/pull/2858): Support setting openTSDB write consistency.
-
-## v0.9.0-rc32 [2015-06-07]
-
-### Release Notes
-
-This released introduced an updated write path and clustering design. The data format has also changed, so you'll need to wipe out your data to upgrade from RC31. There should be no other data changes before v0.9.0 is released.
-
-### Features
-- [#1997](https://github.com/influxdb/influxdb/pull/1997): Update SELECT * to return tag values.
-- [#2599](https://github.com/influxdb/influxdb/issues/2599): Add "epoch" URL param and return JSON time values as epoch instead of date strings.
-- [#2682](https://github.com/influxdb/influxdb/issues/2682): Adding pr checklist to CONTRIBUTING.md
-- [#2683](https://github.com/influxdb/influxdb/issues/2683): Add batching support to Graphite inputs.
-- [#2687](https://github.com/influxdb/influxdb/issues/2687): Add batching support to Collectd inputs.
-- [#2696](https://github.com/influxdb/influxdb/pull/2696): Add line protocol. This is now the preferred way to write data.
-- [#2751](https://github.com/influxdb/influxdb/pull/2751): Add UDP input. UDP only supports the line protocol now.
-- [#2684](https://github.com/influxdb/influxdb/pull/2684): Include client timeout configuration. Thanks @vladlopes!
-
-### Bugfixes
-- [#2776](https://github.com/influxdb/influxdb/issues/2776): Re-implement retention policy enforcement.
-- [#2635](https://github.com/influxdb/influxdb/issues/2635): Fix querying against boolean field in WHERE clause.
-- [#2644](https://github.com/influxdb/influxdb/issues/2644): Make SHOW queries work with FROM /<regex>/.
-- [#2501](https://github.com/influxdb/influxdb/issues/2501): Name the FlagSet for the shell and add a version flag. Thanks @neonstalwart
-- [#2647](https://github.com/influxdb/influxdb/issues/2647): Fixes typos in sample config file - thanks @claws!
 
 ## v0.9.0-rc31 [2015-05-21]
 

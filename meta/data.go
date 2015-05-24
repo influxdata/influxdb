@@ -458,6 +458,16 @@ func (data *Data) SetPrivilege(name, database string, p influxql.Privilege) erro
 	return nil
 }
 
+// UserPrivileges get privileges for a user.
+func (data *Data) UserPrivileges(name string) (map[string]influxql.Privilege, error) {
+	ui := data.User(name)
+	if ui == nil {
+		return nil, ErrUserNotFound
+	}
+
+	return ui.Privileges, nil
+}
+
 // Clone returns a copy of data with a new version.
 func (data *Data) Clone() *Data {
 	other := *data
