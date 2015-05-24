@@ -5,6 +5,7 @@
 
 ### Bugfixes
 - [2635](https://github.com/influxdb/influxdb/issues/2635): Fix querying against boolean field in WHERE clause.
+- [2644](https://github.com/influxdb/influxdb/issues/2644): Make SHOW queries work with FROM /<regex>/.
 
 ## v0.9.0-rc31 [2015-05-21]
 
