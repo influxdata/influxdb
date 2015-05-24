@@ -1094,6 +1094,18 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			query:         `show series where data-center = 'foo'`,
 			expectPattern: `invalid expression: .*`,
 		},
+		{
+			name: "select where boolean field value =",
+			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "bool", "time": "2009-11-10T23:00:02Z", "fields": {"value": true}},
+			                                                                      {"name": "bool", "time": "2009-11-10T23:01:02Z", "fields": {"value": false}}]}`,
+			query:    `select value from "%DB%"."%RP%".bool where value = true`,
+			expected: `{"results":[{"series":[{"name":"bool","columns":["time","value"],"values":[["2009-11-10T23:00:02Z",true]]}]}]}`,
+		},
+		{
+			name:     "select where boolean field value !=",
+			query:    `select value from "%DB%"."%RP%".bool where value != true`,
+			expected: `{"results":[{"series":[{"name":"bool","columns":["time","value"],"values":[["2009-11-10T23:01:02Z",false]]}]}]}`,
+		},
 
 		// LIMIT and OFFSET tests
 
