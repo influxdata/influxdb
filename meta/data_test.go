@@ -1,6 +1,9 @@
 package meta_test
 
+// import "github.com/davecgh/go-spew/spew"
+
 import (
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -8,6 +11,421 @@ import (
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta"
 )
+
+// Ensure a node can be created.
+func TestData_CreateNode(t *testing.T) {
+	var data meta.Data
+	if err := data.CreateNode("host0"); err != nil {
+		t.Fatal(err)
+	} else if !reflect.DeepEqual(data.Nodes, []meta.NodeInfo{{ID: 1, Host: "host0"}}) {
+		t.Fatalf("unexpected node: %#v", data.Nodes[0])
+	}
+}
+
+// Ensure a node can be removed.
+func TestData_DeleteNode(t *testing.T) {
+	var data meta.Data
+	if err := data.CreateNode("host0"); err != nil {
+		t.Fatal(err)
+	} else if err = data.CreateNode("host1"); err != nil {
+		t.Fatal(err)
+	} else if err := data.CreateNode("host2"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := data.DeleteNode(1); err != nil {
+		t.Fatal(err)
+	} else if len(data.Nodes) != 2 {
+		t.Fatalf("unexpected node count: %d", len(data.Nodes))
+	} else if data.Nodes[0] != (meta.NodeInfo{ID: 2, Host: "host1"}) {
+		t.Fatalf("unexpected node: %#v", data.Nodes[0])
+	} else if data.Nodes[1] != (meta.NodeInfo{ID: 3, Host: "host2"}) {
+		t.Fatalf("unexpected node: %#v", data.Nodes[1])
+	}
+}
+
+// Ensure a database can be created.
+func TestData_CreateDatabase(t *testing.T) {
+	var data meta.Data
+	if err := data.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	} else if !reflect.DeepEqual(data.Databases, []meta.DatabaseInfo{{Name: "db0"}}) {
+		t.Fatalf("unexpected databases: %#v", data.Databases)
+	}
+}
+
+// Ensure that creating a database without a name returns an error.
+func TestData_CreateDatabase_ErrNameRequired(t *testing.T) {
+	var data meta.Data
+	if err := data.CreateDatabase(""); err != meta.ErrDatabaseNameRequired {
+		t.Fatalf("unexpected error: %s", err)
+	}
+}
+
+// Ensure that creating an already existing database returns an error.
+func TestData_CreateDatabase_ErrDatabaseExists(t *testing.T) {
+	var data meta.Data
+	if err := data.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	}
+	if err := data.CreateDatabase("db0"); err != meta.ErrDatabaseExists {
+		t.Fatalf("unexpected error: %s", err)
+	}
+}
+
+// Ensure a database can be removed.
+func TestData_DropDatabase(t *testing.T) {
+	var data meta.Data
+	for i := 0; i < 3; i++ {
+		if err := data.CreateDatabase(fmt.Sprintf("db%d", i)); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := data.DropDatabase("db1"); err != nil {
+		t.Fatal(err)
+	} else if !reflect.DeepEqual(data.Databases, []meta.DatabaseInfo{{Name: "db0"}, {Name: "db2"}}) {
+		t.Fatalf("unexpected databases: %#v", data.Databases)
+	}
+}
+
+// Ensure a retention policy can be created.
+func TestData_CreateRetentionPolicy(t *testing.T) {
+	var data meta.Data
+	if err := data.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create policy.
+	if err := data.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{
+		Name:     "rp0",
+		ReplicaN: 2,
+		Duration: 4 * time.Hour,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify policy exists.
+	if !reflect.DeepEqual(data.Databases[0].RetentionPolicies, []meta.RetentionPolicyInfo{
+		{
+			Name:               "rp0",
+			ReplicaN:           2,
+			Duration:           4 * time.Hour,
+			ShardGroupDuration: 1 * time.Hour,
+		},
+	}) {
+		t.Fatalf("unexpected policies: %#v", data.Databases[0].RetentionPolicies)
+	}
+}
+
+// Ensure that creating a policy without a name returns an error.
+func TestData_CreateRetentionPolicy_ErrNameRequired(t *testing.T) {
+	var data meta.Data
+	if err := data.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: ""}); err != meta.ErrRetentionPolicyNameRequired {
+		t.Fatalf("unexpected error: %s", err)
+	}
+}
+
+// Ensure that creating a retention policy on a non-existent database returns an error.
+func TestData_CreateRetentionPolicy_ErrDatabaseNotFound(t *testing.T) {
+	var data meta.Data
+	if err := data.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0"}); err != meta.ErrDatabaseNotFound {
+		t.Fatalf("unexpected error: %s", err)
+	}
+}
+
+// Ensure that creating an already existing policy returns an error.
+func TestData_CreateRetentionPolicy_ErrRetentionPolicyExists(t *testing.T) {
+	var data meta.Data
+	if err := data.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	} else if err = data.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := data.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0"}); err != meta.ErrRetentionPolicyExists {
+		t.Fatalf("unexpected error: %s", err)
+	}
+}
+
+// Ensure that a retention policy can be updated.
+func TestData_UpdateRetentionPolicy(t *testing.T) {
+	var data meta.Data
+	if err := data.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	} else if err = data.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0"}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Update the policy.
+	var rpu meta.RetentionPolicyUpdate
+	rpu.SetName("rp1")
+	rpu.SetDuration(10 * time.Hour)
+	rpu.SetReplicaN(3)
+	if err := data.UpdateRetentionPolicy("db0", "rp0", &rpu); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify the policy was changed.
+	if rpi, _ := data.RetentionPolicy("db0", "rp1"); !reflect.DeepEqual(rpi, &meta.RetentionPolicyInfo{
+		Name:               "rp1",
+		Duration:           10 * time.Hour,
+		ShardGroupDuration: 604800000000000,
+		ReplicaN:           3,
+	}) {
+		t.Fatalf("unexpected policy: %#v", rpi)
+	}
+}
+
+// Ensure a retention policy can be removed.
+func TestData_DropRetentionPolicy(t *testing.T) {
+	var data meta.Data
+	if err := data.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	} else if err = data.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0"}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := data.DropRetentionPolicy("db0", "rp0"); err != nil {
+		t.Fatal(err)
+	} else if len(data.Databases[0].RetentionPolicies) != 0 {
+		t.Fatalf("unexpected policies: %#v", data.Databases[0].RetentionPolicies)
+	}
+}
+
+// Ensure an error is returned when deleting a policy from a non-existent database.
+func TestData_DropRetentionPolicy_ErrDatabaseNotFound(t *testing.T) {
+	var data meta.Data
+	if err := data.DropRetentionPolicy("db0", "rp0"); err != meta.ErrDatabaseNotFound {
+		t.Fatal(err)
+	}
+}
+
+// Ensure an error is returned when deleting a non-existent policy.
+func TestData_DropRetentionPolicy_ErrRetentionPolicyNotFound(t *testing.T) {
+	var data meta.Data
+	if err := data.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	}
+	if err := data.DropRetentionPolicy("db0", "rp0"); err != meta.ErrRetentionPolicyNotFound {
+		t.Fatal(err)
+	}
+}
+
+// Ensure that a retention policy can be retrieved.
+func TestData_RetentionPolicy(t *testing.T) {
+	var data meta.Data
+	if err := data.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	} else if err = data.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0"}); err != nil {
+		t.Fatal(err)
+	} else if err = data.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp1"}); err != nil {
+		t.Fatal(err)
+	}
+
+	if rpi, err := data.RetentionPolicy("db0", "rp0"); err != nil {
+		t.Fatal(err)
+	} else if !reflect.DeepEqual(rpi, &meta.RetentionPolicyInfo{
+		Name:               "rp0",
+		ShardGroupDuration: 604800000000000,
+	}) {
+		t.Fatalf("unexpected value: %#v", rpi)
+	}
+}
+
+// Ensure that retrieveing a policy from a non-existent database returns an error.
+func TestData_RetentionPolicy_ErrDatabaseNotFound(t *testing.T) {
+	var data meta.Data
+	if _, err := data.RetentionPolicy("db0", "rp0"); err != meta.ErrDatabaseNotFound {
+		t.Fatal(err)
+	}
+}
+
+// Ensure that a default retention policy can be set.
+func TestData_SetDefaultRetentionPolicy(t *testing.T) {
+	var data meta.Data
+	if err := data.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	} else if err = data.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0"}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify there is no default policy on the database initially.
+	if name := data.Database("db0").DefaultRetentionPolicy; name != "" {
+		t.Fatalf("unexpected initial default retention policy: %s", name)
+	}
+
+	// Set the default policy.
+	if err := data.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify the default policy is now set.
+	if name := data.Database("db0").DefaultRetentionPolicy; name != "rp0" {
+		t.Fatalf("unexpected default retention policy: %s", name)
+	}
+}
+
+// Ensure that a shard group can be created on a database for a given timestamp.
+func TestData_CreateShardGroup(t *testing.T) {
+	var data meta.Data
+	if err := data.CreateNode("node0"); err != nil {
+		t.Fatal(err)
+	} else if err = data.CreateNode("node1"); err != nil {
+		t.Fatal(err)
+	} else if err = data.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	} else if err = data.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", Duration: 1 * time.Hour}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create shard group.
+	if err := data.CreateShardGroup("db0", "rp0", time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify the shard group was created.
+	if sgi, _ := data.ShardGroupByTimestamp("db0", "rp0", time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC)); !reflect.DeepEqual(sgi, &meta.ShardGroupInfo{
+		ID:        1,
+		StartTime: time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC),
+		EndTime:   time.Date(2000, time.January, 1, 1, 0, 0, 0, time.UTC),
+		Shards: []meta.ShardInfo{
+			{ID: 1, OwnerIDs: []uint64{1}},
+			{ID: 2, OwnerIDs: []uint64{2}},
+		},
+	}) {
+		t.Fatalf("unexpected shard group: %#v", sgi)
+	}
+}
+
+// Ensure a shard group can be removed by ID.
+func TestData_DeleteShardGroup(t *testing.T) {
+	var data meta.Data
+	if err := data.CreateNode("node0"); err != nil {
+		t.Fatal(err)
+	} else if err := data.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	} else if err = data.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0"}); err != nil {
+		t.Fatal(err)
+	} else if err := data.CreateShardGroup("db0", "rp0", time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := data.DeleteShardGroup("db0", "rp0", 1); err != nil {
+		t.Fatal(err)
+	} else if len(data.Databases[0].RetentionPolicies[0].ShardGroups) != 0 {
+		t.Fatalf("unexpected shard groups: %#v", data.Databases[0].RetentionPolicies[0].ShardGroups)
+	}
+}
+
+// Ensure a continuous query can be created.
+func TestData_CreateContinuousQuery(t *testing.T) {
+	var data meta.Data
+	if err := data.CreateContinuousQuery("SELECT count() FROM foo"); err != nil {
+		t.Fatal(err)
+	} else if !reflect.DeepEqual(data.ContinuousQueries, []meta.ContinuousQueryInfo{{Query: "SELECT count() FROM foo"}}) {
+		t.Fatalf("unexpected queries: %#v", data.ContinuousQueries)
+	}
+}
+
+// Ensure a continuous query can be removed.
+func TestData_DropContinuousQuery(t *testing.T) {
+	var data meta.Data
+	if err := data.CreateContinuousQuery("SELECT count() FROM foo"); err != nil {
+		t.Fatal(err)
+	} else if err = data.CreateContinuousQuery("SELECT count() FROM bar"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := data.DropContinuousQuery("SELECT count() FROM foo"); err != nil {
+		t.Fatal(err)
+	} else if !reflect.DeepEqual(data.ContinuousQueries, []meta.ContinuousQueryInfo{
+		{Query: "SELECT count() FROM bar"},
+	}) {
+		t.Fatalf("unexpected queries: %#v", data.ContinuousQueries)
+	}
+}
+
+// Ensure a user can be created.
+func TestData_CreateUser(t *testing.T) {
+	var data meta.Data
+	if err := data.CreateUser("susy", "ABC123", true); err != nil {
+		t.Fatal(err)
+	} else if !reflect.DeepEqual(data.Users, []meta.UserInfo{
+		{Name: "susy", Hash: "ABC123", Admin: true},
+	}) {
+		t.Fatalf("unexpected users: %#v", data.Users)
+	}
+}
+
+// Ensure that creating a user with no username returns an error.
+func TestData_CreateUser_ErrUsernameRequired(t *testing.T) {
+	var data meta.Data
+	if err := data.CreateUser("", "", false); err != meta.ErrUsernameRequired {
+		t.Fatal(err)
+	}
+}
+
+// Ensure that creating the same user twice returns an error.
+func TestData_CreateUser_ErrUserExists(t *testing.T) {
+	var data meta.Data
+	if err := data.CreateUser("susy", "", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := data.CreateUser("susy", "", false); err != meta.ErrUserExists {
+		t.Fatal(err)
+	}
+}
+
+// Ensure a user can be removed.
+func TestData_DropUser(t *testing.T) {
+	var data meta.Data
+	if err := data.CreateUser("susy", "", false); err != nil {
+		t.Fatal(err)
+	} else if err := data.CreateUser("bob", "", false); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := data.DropUser("bob"); err != nil {
+		t.Fatal(err)
+	} else if !reflect.DeepEqual(data.Users, []meta.UserInfo{
+		{Name: "susy"},
+	}) {
+		t.Fatalf("unexpected users: %#v", data.Users)
+	}
+}
+
+// Ensure that removing a non-existent user returns an error.
+func TestData_DropUser_ErrUserNotFound(t *testing.T) {
+	var data meta.Data
+	if err := data.DropUser("bob"); err != meta.ErrUserNotFound {
+		t.Fatal(err)
+	}
+}
+
+// Ensure a user can be updated.
+func TestData_UpdateUser(t *testing.T) {
+	var data meta.Data
+	if err := data.CreateUser("susy", "", false); err != nil {
+		t.Fatal(err)
+	} else if err := data.CreateUser("bob", "", false); err != nil {
+		t.Fatal(err)
+	}
+
+	// Update password hash.
+	if err := data.UpdateUser("bob", "XXX"); err != nil {
+		t.Fatal(err)
+	} else if !reflect.DeepEqual(data.User("bob"), &meta.UserInfo{Name: "bob", Hash: "XXX"}) {
+		t.Fatalf("unexpected user: %#v", data.User("bob"))
+	}
+}
+
+// Ensure that updating a non-existent user returns an error.
+func TestData_UpdateUser_ErrUserNotFound(t *testing.T) {
+	var data meta.Data
+	if err := data.UpdateUser("bob", "ZZZ"); err != meta.ErrUserNotFound {
+		t.Fatal(err)
+	}
+}
 
 // Ensure the data can be deeply copied.
 func TestData_Clone(t *testing.T) {
@@ -21,7 +439,7 @@ func TestData_Clone(t *testing.T) {
 			{
 				Name: "db0",
 				DefaultRetentionPolicy: "default",
-				Policies: []meta.RetentionPolicyInfo{
+				RetentionPolicies: []meta.RetentionPolicyInfo{
 					{
 						Name:               "rp0",
 						ReplicaN:           3,
@@ -42,8 +460,10 @@ func TestData_Clone(t *testing.T) {
 						},
 					},
 				},
-				ContinuousQueries: []meta.ContinuousQueryInfo{},
 			},
+		},
+		ContinuousQueries: []meta.ContinuousQueryInfo{
+			{Query: "SELECT count() FROM foo"},
 		},
 		Users: []meta.UserInfo{
 			{
@@ -70,8 +490,8 @@ func TestData_Clone(t *testing.T) {
 	}
 
 	// Ensure that changing data in the clone does not affect the original.
-	other.Databases[0].Policies[0].ShardGroups[0].Shards[0].OwnerIDs[1] = 9
-	if v := data.Databases[0].Policies[0].ShardGroups[0].Shards[0].OwnerIDs[1]; v != 3 {
+	other.Databases[0].RetentionPolicies[0].ShardGroups[0].Shards[0].OwnerIDs[1] = 9
+	if v := data.Databases[0].RetentionPolicies[0].ShardGroups[0].Shards[0].OwnerIDs[1]; v != 3 {
 		t.Fatalf("editing clone changed original: %v", v)
 	}
 }

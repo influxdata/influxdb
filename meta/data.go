@@ -1,7 +1,6 @@
 package meta
 
 import (
-	"errors"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -11,35 +10,27 @@ import (
 
 //go:generate protoc --gogo_out=. internal/meta.proto
 
-var (
-	// ErrNodeExists is returned when creating a node that already exists.
-	ErrNodeExists = errors.New("node already exists")
-)
-
 // Data represents the top level collection of all metadata.
 type Data struct {
-	Version   uint64 // autoincrementing version
-	MaxNodeID uint64
-	Nodes     []NodeInfo
-	Databases []DatabaseInfo
-	Users     []UserInfo
+	Version           uint64 // autoincrementing version
+	Nodes             []NodeInfo
+	Databases         []DatabaseInfo
+	Users             []UserInfo
+	ContinuousQueries []ContinuousQueryInfo
+
+	MaxNodeID       uint64
+	MaxShardGroupID uint64
+	MaxShardID      uint64
 }
 
-// CreateNode returns a new instance of Data with a new node.
-func (data *Data) CreateNode(host string) (*Data, error) {
-	if data.NodeByHost(host) != nil {
-		return nil, ErrNodeExists
+// Node returns a node by id.
+func (data *Data) Node(id uint64) *NodeInfo {
+	for i := range data.Nodes {
+		if data.Nodes[i].ID == id {
+			return &data.Nodes[i]
+		}
 	}
-
-	// Clone and append new node.
-	other := data.Clone()
-	other.MaxNodeID++
-	other.Nodes = append(other.Nodes, NodeInfo{
-		ID:   other.MaxNodeID,
-		Host: host,
-	})
-
-	return other, nil
+	return nil
 }
 
 // NodeByHost returns a node by hostname.
@@ -52,29 +43,395 @@ func (data *Data) NodeByHost(host string) *NodeInfo {
 	return nil
 }
 
+// CreateNode adds a node to the metadata.
+func (data *Data) CreateNode(host string) error {
+	// Ensure a node with the same host doesn't already exist.
+	if data.NodeByHost(host) != nil {
+		return ErrNodeExists
+	}
+
+	// Append new node.
+	data.MaxNodeID++
+	data.Nodes = append(data.Nodes, NodeInfo{
+		ID:   data.MaxNodeID,
+		Host: host,
+	})
+
+	return nil
+}
+
+// DeleteNode removes a node from the metadata.
+func (data *Data) DeleteNode(id uint64) error {
+	for i := range data.Nodes {
+		if data.Nodes[i].ID == id {
+			data.Nodes = append(data.Nodes[:i], data.Nodes[i+1:]...)
+			return nil
+		}
+	}
+	return ErrNodeNotFound
+}
+
+// Database returns a database by name.
+func (data *Data) Database(name string) *DatabaseInfo {
+	for i := range data.Databases {
+		if data.Databases[i].Name == name {
+			return &data.Databases[i]
+		}
+	}
+	return nil
+}
+
+// CreateDatabase creates a new database.
+// Returns an error if name is blank or if a database with the same name already exists.
+func (data *Data) CreateDatabase(name string) error {
+	if name == "" {
+		return ErrDatabaseNameRequired
+	} else if data.Database(name) != nil {
+		return ErrDatabaseExists
+	}
+
+	// Append new node.
+	data.Databases = append(data.Databases, DatabaseInfo{Name: name})
+
+	return nil
+}
+
+// DropDatabase removes a database by name.
+func (data *Data) DropDatabase(name string) error {
+	for i := range data.Databases {
+		if data.Databases[i].Name == name {
+			data.Databases = append(data.Databases[:i], data.Databases[i+1:]...)
+			return nil
+		}
+	}
+	return ErrDatabaseNotFound
+}
+
+// RetentionPolicy returns a retention policy for a database by name.
+func (data *Data) RetentionPolicy(database, name string) (*RetentionPolicyInfo, error) {
+	di := data.Database(database)
+	if di == nil {
+		return nil, ErrDatabaseNotFound
+	}
+
+	for i := range di.RetentionPolicies {
+		if di.RetentionPolicies[i].Name == name {
+			return &di.RetentionPolicies[i], nil
+		}
+	}
+	return nil, nil
+}
+
+// CreateRetentionPolicy creates a new retention policy on a database.
+// Returns an error if name is blank or if a database does not exist.
+func (data *Data) CreateRetentionPolicy(database string, rpi *RetentionPolicyInfo) error {
+	// Validate retention policy.
+	if rpi.Name == "" {
+		return ErrRetentionPolicyNameRequired
+	}
+
+	// Find database.
+	di := data.Database(database)
+	if di == nil {
+		return ErrDatabaseNotFound
+	} else if di.RetentionPolicy(rpi.Name) != nil {
+		return ErrRetentionPolicyExists
+	}
+
+	// Append new policy.
+	di.RetentionPolicies = append(di.RetentionPolicies, RetentionPolicyInfo{
+		Name:               rpi.Name,
+		Duration:           rpi.Duration,
+		ShardGroupDuration: shardGroupDuration(rpi.Duration),
+		ReplicaN:           rpi.ReplicaN,
+	})
+
+	return nil
+}
+
+// DropRetentionPolicy removes a retention policy from a database by name.
+func (data *Data) DropRetentionPolicy(database, name string) error {
+	// Find database.
+	di := data.Database(database)
+	if di == nil {
+		return ErrDatabaseNotFound
+	}
+
+	// Remove from list.
+	for i := range di.RetentionPolicies {
+		if di.RetentionPolicies[i].Name == name {
+			di.RetentionPolicies = append(di.RetentionPolicies[:i], di.RetentionPolicies[i+1:]...)
+			return nil
+		}
+	}
+	return ErrRetentionPolicyNotFound
+}
+
+// UpdateRetentionPolicy updates an existing retention policy.
+func (data *Data) UpdateRetentionPolicy(database, name string, rpu *RetentionPolicyUpdate) error {
+	// Find database.
+	di := data.Database(database)
+	if di == nil {
+		return ErrDatabaseNotFound
+	}
+
+	// Find policy.
+	rpi := di.RetentionPolicy(name)
+	if rpi == nil {
+		return ErrRetentionPolicyNotFound
+	}
+
+	// Ensure new policy doesn't match an existing policy.
+	if rpu.Name != nil && *rpu.Name != name && di.RetentionPolicy(*rpu.Name) != nil {
+		return ErrRetentionPolicyNameExists
+	}
+
+	// Update fields.
+	if rpu.Name != nil {
+		rpi.Name = *rpu.Name
+	}
+	if rpu.Duration != nil {
+		rpi.Duration = *rpu.Duration
+	}
+	if rpu.ReplicaN != nil {
+		rpi.ReplicaN = *rpu.ReplicaN
+	}
+
+	return nil
+}
+
+// SetDefaultRetentionPolicy sets the default retention policy for a database.
+func (data *Data) SetDefaultRetentionPolicy(database, name string) error {
+	// Find database and verify policy exists.
+	di := data.Database(database)
+	if di == nil {
+		return ErrDatabaseNotFound
+	} else if di.RetentionPolicy(name) == nil {
+		return ErrRetentionPolicyNotFound
+	}
+
+	// Set default policy.
+	di.DefaultRetentionPolicy = name
+
+	return nil
+}
+
+// ShardGroupByTimestamp returns the shard group on a database and policy for a given timestamp.
+func (data *Data) ShardGroupByTimestamp(database, policy string, timestamp time.Time) (*ShardGroupInfo, error) {
+	// Find retention policy.
+	rpi, err := data.RetentionPolicy(database, policy)
+	if err != nil {
+		return nil, err
+	} else if rpi == nil {
+		return nil, ErrRetentionPolicyNotFound
+	}
+
+	return rpi.ShardGroupByTimestamp(timestamp), nil
+}
+
+// CreateShardGroup creates a shard group on a database and policy for a given timestamp.
+func (data *Data) CreateShardGroup(database, policy string, timestamp time.Time) error {
+	// Ensure there are nodes in the metadata.
+	if len(data.Nodes) == 0 {
+		return ErrNodesRequired
+	}
+
+	// Find retention policy.
+	rpi, err := data.RetentionPolicy(database, policy)
+	if err != nil {
+		return err
+	} else if rpi == nil {
+		return ErrRetentionPolicyNotFound
+	}
+
+	// Verify that shard group doesn't already exist for this timestamp.
+	if rpi.ShardGroupByTimestamp(timestamp) != nil {
+		return ErrShardGroupExists
+	}
+
+	// Require at least one replica but no more replicas than nodes.
+	replicaN := rpi.ReplicaN
+	if replicaN == 0 {
+		replicaN = 1
+	} else if replicaN > len(data.Nodes) {
+		replicaN = len(data.Nodes)
+	}
+
+	// Determine shard count by node count divided by replication factor.
+	// This will ensure nodes will get distributed across nodes evenly and
+	// replicated the correct number of times.
+	shardN := len(data.Nodes) / replicaN
+
+	// Create the shard group.
+	data.MaxShardGroupID++
+	sgi := ShardGroupInfo{}
+	sgi.ID = data.MaxShardGroupID
+	sgi.StartTime = timestamp.Truncate(rpi.ShardGroupDuration).UTC()
+	sgi.EndTime = sgi.StartTime.Add(rpi.ShardGroupDuration).UTC()
+
+	// Create shards on the group.
+	sgi.Shards = make([]ShardInfo, shardN)
+	for i := range sgi.Shards {
+		data.MaxShardID++
+		sgi.Shards[i] = ShardInfo{ID: data.MaxShardID}
+	}
+
+	// Assign data nodes to shards via round robin.
+	// Start from a repeatably "random" place in the node list.
+	nodeIndex := int(data.Version % uint64(len(data.Nodes)))
+	for i := range sgi.Shards {
+		si := &sgi.Shards[i]
+		for j := 0; j < replicaN; j++ {
+			nodeID := data.Nodes[nodeIndex%len(data.Nodes)].ID
+			si.OwnerIDs = append(si.OwnerIDs, nodeID)
+			nodeIndex++
+		}
+	}
+
+	// Retention policy has a new shard group, so update the policy.
+	rpi.ShardGroups = append(rpi.ShardGroups, sgi)
+
+	return nil
+}
+
+// DeleteShardGroup removes a shard group from a database and retention policy by id.
+func (data *Data) DeleteShardGroup(database, policy string, id uint64) error {
+	// Find retention policy.
+	rpi, err := data.RetentionPolicy(database, policy)
+	if err != nil {
+		return err
+	} else if rpi == nil {
+		return ErrRetentionPolicyNotFound
+	}
+
+	// Find shard group by ID and remove it.
+	for i := range rpi.ShardGroups {
+		if rpi.ShardGroups[i].ID == id {
+			rpi.ShardGroups = append(rpi.ShardGroups[:i], rpi.ShardGroups[i+1:]...)
+			return nil
+		}
+	}
+
+	return ErrShardGroupNotFound
+}
+
+// CreateContinuousQuery adds a continuous query.
+func (data *Data) CreateContinuousQuery(query string) error {
+	// Ensure the query doesn't already exist.
+	for i := range data.ContinuousQueries {
+		if data.ContinuousQueries[i].Query == query {
+			return ErrContinuousQueryExists
+		}
+	}
+
+	// Append new query.
+	data.ContinuousQueries = append(data.ContinuousQueries, ContinuousQueryInfo{
+		Query: query,
+	})
+
+	return nil
+}
+
+// DropContinuousQuery removes a continuous query.
+func (data *Data) DropContinuousQuery(query string) error {
+	for i := range data.ContinuousQueries {
+		if data.ContinuousQueries[i].Query == query {
+			data.ContinuousQueries = append(data.ContinuousQueries[:i], data.ContinuousQueries[i+1:]...)
+			return nil
+		}
+	}
+	return ErrContinuousQueryNotFound
+}
+
+// User returns a user by username.
+func (data *Data) User(username string) *UserInfo {
+	for i := range data.Users {
+		if data.Users[i].Name == username {
+			return &data.Users[i]
+		}
+	}
+	return nil
+}
+
+// CreateUser creates a new user.
+func (data *Data) CreateUser(name, hash string, admin bool) error {
+	// Ensure the user doesn't already exist.
+	if name == "" {
+		return ErrUsernameRequired
+	} else if data.User(name) != nil {
+		return ErrUserExists
+	}
+
+	// Append new user.
+	data.Users = append(data.Users, UserInfo{
+		Name:  name,
+		Hash:  hash,
+		Admin: admin,
+	})
+
+	return nil
+}
+
+// DropUser removes an existing user by name.
+func (data *Data) DropUser(name string) error {
+	for i := range data.Users {
+		if data.Users[i].Name == name {
+			data.Users = append(data.Users[:i], data.Users[i+1:]...)
+			return nil
+		}
+	}
+	return ErrUserNotFound
+}
+
+// UpdateUser updates the password hash of an existing user.
+func (data *Data) UpdateUser(name, hash string) error {
+	for i := range data.Users {
+		if data.Users[i].Name == name {
+			data.Users[i].Hash = hash
+			return nil
+		}
+	}
+	return ErrUserNotFound
+}
+
 // Clone returns a copy of data with a new version.
 func (data *Data) Clone() *Data {
-	other := &Data{Version: data.Version + 1}
+	other := *data
+	other.Version++
 
 	// Copy nodes.
-	other.Nodes = make([]NodeInfo, len(data.Nodes))
-	for i := range data.Nodes {
-		other.Nodes[i] = data.Nodes[i].Clone()
+	if data.Nodes != nil {
+		other.Nodes = make([]NodeInfo, len(data.Nodes))
+		for i := range data.Nodes {
+			other.Nodes[i] = data.Nodes[i].clone()
+		}
 	}
 
 	// Deep copy databases.
-	other.Databases = make([]DatabaseInfo, len(data.Databases))
-	for i := range data.Databases {
-		other.Databases[i] = data.Databases[i].Clone()
+	if data.Databases != nil {
+		other.Databases = make([]DatabaseInfo, len(data.Databases))
+		for i := range data.Databases {
+			other.Databases[i] = data.Databases[i].clone()
+		}
+	}
+
+	// Copy continuous queries.
+	if data.ContinuousQueries != nil {
+		other.ContinuousQueries = make([]ContinuousQueryInfo, len(data.ContinuousQueries))
+		for i := range data.ContinuousQueries {
+			other.ContinuousQueries[i] = data.ContinuousQueries[i].clone()
+		}
 	}
 
 	// Copy users.
-	other.Users = make([]UserInfo, len(data.Users))
-	for i := range data.Users {
-		other.Users[i] = data.Users[i].Clone()
+	if data.Users != nil {
+		other.Users = make([]UserInfo, len(data.Users))
+		for i := range data.Users {
+			other.Users[i] = data.Users[i].clone()
+		}
 	}
 
-	return other
+	return &other
 }
 
 // NodeInfo represents information about a single node in the cluster.
@@ -83,8 +440,8 @@ type NodeInfo struct {
 	Host string
 }
 
-// Clone returns a deep copy of ni.
-func (ni NodeInfo) Clone() NodeInfo { return ni }
+// clone returns a deep copy of ni.
+func (ni NodeInfo) clone() NodeInfo { return ni }
 
 // MarshalBinary encodes the object to a binary format.
 func (info *NodeInfo) MarshalBinary() ([]byte, error) {
@@ -109,30 +466,31 @@ func (info *NodeInfo) UnmarshalBinary(buf []byte) error {
 type DatabaseInfo struct {
 	Name                   string
 	DefaultRetentionPolicy string
-	Policies               []RetentionPolicyInfo
-	ContinuousQueries      []ContinuousQueryInfo
+	RetentionPolicies      []RetentionPolicyInfo
 }
 
-// Clone returns a deep copy of di.
-func (di DatabaseInfo) Clone() DatabaseInfo {
+// RetentionPolicy returns a retention policy by name.
+func (di DatabaseInfo) RetentionPolicy(name string) *RetentionPolicyInfo {
+	for i := range di.RetentionPolicies {
+		if di.RetentionPolicies[i].Name == name {
+			return &di.RetentionPolicies[i]
+		}
+	}
+	return nil
+}
+
+// clone returns a deep copy of di.
+func (di DatabaseInfo) clone() DatabaseInfo {
 	other := di
 
-	other.Policies = make([]RetentionPolicyInfo, len(di.Policies))
-	for i := range di.Policies {
-		other.Policies[i] = di.Policies[i].Clone()
-	}
-
-	other.ContinuousQueries = make([]ContinuousQueryInfo, len(di.ContinuousQueries))
-	for i := range di.ContinuousQueries {
-		other.ContinuousQueries[i] = di.ContinuousQueries[i].Clone()
+	if di.RetentionPolicies != nil {
+		other.RetentionPolicies = make([]RetentionPolicyInfo, len(di.RetentionPolicies))
+		for i := range di.RetentionPolicies {
+			other.RetentionPolicies[i] = di.RetentionPolicies[i].clone()
+		}
 	}
 
 	return other
-}
-
-// RetentionPolicy returns a policy on the database by name.
-func (db *DatabaseInfo) RetentionPolicy(name string) *RetentionPolicyInfo {
-	panic("not yet implemented")
 }
 
 // RetentionPolicyInfo represents metadata about a retention policy.
@@ -144,16 +502,48 @@ type RetentionPolicyInfo struct {
 	ShardGroups        []ShardGroupInfo
 }
 
-// Clone returns a deep copy of rpi.
-func (rpi RetentionPolicyInfo) Clone() RetentionPolicyInfo {
+// ShardGroupByTimestamp returns the shard group in the policy that contains the timestamp.
+func (rpi *RetentionPolicyInfo) ShardGroupByTimestamp(timestamp time.Time) *ShardGroupInfo {
+	for i := range rpi.ShardGroups {
+		if rpi.ShardGroups[i].Contains(timestamp) {
+			return &rpi.ShardGroups[i]
+		}
+	}
+	return nil
+}
+
+// protobuf returns a protocol buffers object.
+func (rpi *RetentionPolicyInfo) protobuf() *internal.RetentionPolicyInfo {
+	return &internal.RetentionPolicyInfo{
+		Name:               proto.String(rpi.Name),
+		ReplicaN:           proto.Uint32(uint32(rpi.ReplicaN)),
+		Duration:           proto.Int64(int64(rpi.Duration)),
+		ShardGroupDuration: proto.Int64(int64(rpi.ShardGroupDuration)),
+	}
+}
+
+// clone returns a deep copy of rpi.
+func (rpi RetentionPolicyInfo) clone() RetentionPolicyInfo {
 	other := rpi
 
-	other.ShardGroups = make([]ShardGroupInfo, len(rpi.ShardGroups))
-	for i := range rpi.ShardGroups {
-		other.ShardGroups[i] = rpi.ShardGroups[i].Clone()
+	if rpi.ShardGroups != nil {
+		other.ShardGroups = make([]ShardGroupInfo, len(rpi.ShardGroups))
+		for i := range rpi.ShardGroups {
+			other.ShardGroups[i] = rpi.ShardGroups[i].clone()
+		}
 	}
 
 	return other
+}
+
+// shardGroupDuration returns the duration for a shard group based on a policy duration.
+func shardGroupDuration(d time.Duration) time.Duration {
+	if d >= 180*24*time.Hour || d == 0 { // 6 months or 0
+		return 7 * 24 * time.Hour
+	} else if d >= 2*24*time.Hour { // 2 days
+		return 1 * 24 * time.Hour
+	}
+	return 1 * time.Hour
 }
 
 // ShardGroupInfo represents metadata about a shard group.
@@ -164,13 +554,20 @@ type ShardGroupInfo struct {
 	Shards    []ShardInfo
 }
 
-// Clone returns a deep copy of sgi.
-func (sgi ShardGroupInfo) Clone() ShardGroupInfo {
+// Contains return true if the shard group contains data for the timestamp.
+func (sgi *ShardGroupInfo) Contains(timestamp time.Time) bool {
+	return !sgi.StartTime.After(timestamp) && sgi.EndTime.After(timestamp)
+}
+
+// clone returns a deep copy of sgi.
+func (sgi ShardGroupInfo) clone() ShardGroupInfo {
 	other := sgi
 
-	other.Shards = make([]ShardInfo, len(sgi.Shards))
-	for i := range sgi.Shards {
-		other.Shards[i] = sgi.Shards[i].Clone()
+	if sgi.Shards != nil {
+		other.Shards = make([]ShardInfo, len(sgi.Shards))
+		for i := range sgi.Shards {
+			other.Shards[i] = sgi.Shards[i].clone()
+		}
 	}
 
 	return other
@@ -187,12 +584,14 @@ type ShardInfo struct {
 	OwnerIDs []uint64
 }
 
-// Clone returns a deep copy of si.
-func (si ShardInfo) Clone() ShardInfo {
+// clone returns a deep copy of si.
+func (si ShardInfo) clone() ShardInfo {
 	other := si
 
-	other.OwnerIDs = make([]uint64, len(si.OwnerIDs))
-	copy(other.OwnerIDs, si.OwnerIDs)
+	if si.OwnerIDs != nil {
+		other.OwnerIDs = make([]uint64, len(si.OwnerIDs))
+		copy(other.OwnerIDs, si.OwnerIDs)
+	}
 
 	return other
 }
@@ -202,8 +601,8 @@ type ContinuousQueryInfo struct {
 	Query string
 }
 
-// Clone returns a deep copy of cqi.
-func (cqi ContinuousQueryInfo) Clone() ContinuousQueryInfo { return cqi }
+// clone returns a deep copy of cqi.
+func (cqi ContinuousQueryInfo) clone() ContinuousQueryInfo { return cqi }
 
 // UserInfo represents metadata about a user in the system.
 type UserInfo struct {
@@ -213,13 +612,15 @@ type UserInfo struct {
 	Privileges map[string]influxql.Privilege
 }
 
-// Clone returns a deep copy of si.
-func (ui UserInfo) Clone() UserInfo {
+// clone returns a deep copy of si.
+func (ui UserInfo) clone() UserInfo {
 	other := ui
 
-	other.Privileges = make(map[string]influxql.Privilege)
-	for k, v := range ui.Privileges {
-		other.Privileges[k] = v
+	if ui.Privileges != nil {
+		other.Privileges = make(map[string]influxql.Privilege)
+		for k, v := range ui.Privileges {
+			other.Privileges[k] = v
+		}
 	}
 
 	return other

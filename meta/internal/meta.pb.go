@@ -19,24 +19,22 @@ It has these top-level messages:
 	User
 	UserPrivilege
 	Command
-	CreateContinuousQueryCommand
-	DropContinuousQueryCommand
 	CreateNodeCommand
 	DeleteNodeCommand
 	CreateDatabaseCommand
 	DropDatabaseCommand
-	CreateDatabaseIfNotExistsCommand
 	CreateRetentionPolicyCommand
-	CreateRetentionPolicyIfNotExistsCommand
-	DeleteRetentionPolicyCommand
+	DropRetentionPolicyCommand
 	SetDefaultRetentionPolicyCommand
 	UpdateRetentionPolicyCommand
-	CreateShardGroupIfNotExistsCommand
+	CreateShardGroupCommand
+	DeleteShardGroupCommand
+	CreateContinuousQueryCommand
+	DropContinuousQueryCommand
 	CreateUserCommand
-	DeleteUserCommand
+	DropUserCommand
 	UpdateUserCommand
 	SetPrivilegeCommand
-	DeleteShardGroupCommand
 */
 package internal
 
@@ -50,65 +48,59 @@ var _ = math.Inf
 type Command_Type int32
 
 const (
-	Command_CreateContinuousQueryCommand            Command_Type = 1
-	Command_DropContinuousQueryCommand              Command_Type = 2
-	Command_CreateNodeCommand                       Command_Type = 3
-	Command_DeleteNodeCommand                       Command_Type = 4
-	Command_CreateDatabaseCommand                   Command_Type = 5
-	Command_DropDatabaseCommand                     Command_Type = 6
-	Command_CreateDatabaseIfNotExistsCommand        Command_Type = 7
-	Command_CreateRetentionPolicyCommand            Command_Type = 8
-	Command_CreateRetentionPolicyIfNotExistsCommand Command_Type = 9
-	Command_DeleteRetentionPolicyCommand            Command_Type = 10
-	Command_SetDefaultRetentionPolicyCommand        Command_Type = 11
-	Command_UpdateRetentionPolicyCommand            Command_Type = 12
-	Command_CreateShardGroupIfNotExistsCommand      Command_Type = 13
-	Command_CreateUserCommand                       Command_Type = 14
-	Command_DeleteUserCommand                       Command_Type = 15
-	Command_UpdateUserCommand                       Command_Type = 16
-	Command_SetPrivilegeCommand                     Command_Type = 17
-	Command_DeleteShardGroupCommand                 Command_Type = 18
+	Command_CreateNodeCommand                Command_Type = 1
+	Command_DeleteNodeCommand                Command_Type = 2
+	Command_CreateDatabaseCommand            Command_Type = 3
+	Command_DropDatabaseCommand              Command_Type = 4
+	Command_CreateRetentionPolicyCommand     Command_Type = 5
+	Command_DropRetentionPolicyCommand       Command_Type = 6
+	Command_SetDefaultRetentionPolicyCommand Command_Type = 7
+	Command_UpdateRetentionPolicyCommand     Command_Type = 8
+	Command_CreateShardGroupCommand          Command_Type = 9
+	Command_DeleteShardGroupCommand          Command_Type = 10
+	Command_CreateContinuousQueryCommand     Command_Type = 11
+	Command_DropContinuousQueryCommand       Command_Type = 12
+	Command_CreateUserCommand                Command_Type = 13
+	Command_DropUserCommand                  Command_Type = 14
+	Command_UpdateUserCommand                Command_Type = 15
+	Command_SetPrivilegeCommand              Command_Type = 16
 )
 
 var Command_Type_name = map[int32]string{
-	1:  "CreateContinuousQueryCommand",
-	2:  "DropContinuousQueryCommand",
-	3:  "CreateNodeCommand",
-	4:  "DeleteNodeCommand",
-	5:  "CreateDatabaseCommand",
-	6:  "DropDatabaseCommand",
-	7:  "CreateDatabaseIfNotExistsCommand",
-	8:  "CreateRetentionPolicyCommand",
-	9:  "CreateRetentionPolicyIfNotExistsCommand",
-	10: "DeleteRetentionPolicyCommand",
-	11: "SetDefaultRetentionPolicyCommand",
-	12: "UpdateRetentionPolicyCommand",
-	13: "CreateShardGroupIfNotExistsCommand",
-	14: "CreateUserCommand",
-	15: "DeleteUserCommand",
-	16: "UpdateUserCommand",
-	17: "SetPrivilegeCommand",
-	18: "DeleteShardGroupCommand",
+	1:  "CreateNodeCommand",
+	2:  "DeleteNodeCommand",
+	3:  "CreateDatabaseCommand",
+	4:  "DropDatabaseCommand",
+	5:  "CreateRetentionPolicyCommand",
+	6:  "DropRetentionPolicyCommand",
+	7:  "SetDefaultRetentionPolicyCommand",
+	8:  "UpdateRetentionPolicyCommand",
+	9:  "CreateShardGroupCommand",
+	10: "DeleteShardGroupCommand",
+	11: "CreateContinuousQueryCommand",
+	12: "DropContinuousQueryCommand",
+	13: "CreateUserCommand",
+	14: "DropUserCommand",
+	15: "UpdateUserCommand",
+	16: "SetPrivilegeCommand",
 }
 var Command_Type_value = map[string]int32{
-	"CreateContinuousQueryCommand":            1,
-	"DropContinuousQueryCommand":              2,
-	"CreateNodeCommand":                       3,
-	"DeleteNodeCommand":                       4,
-	"CreateDatabaseCommand":                   5,
-	"DropDatabaseCommand":                     6,
-	"CreateDatabaseIfNotExistsCommand":        7,
-	"CreateRetentionPolicyCommand":            8,
-	"CreateRetentionPolicyIfNotExistsCommand": 9,
-	"DeleteRetentionPolicyCommand":            10,
-	"SetDefaultRetentionPolicyCommand":        11,
-	"UpdateRetentionPolicyCommand":            12,
-	"CreateShardGroupIfNotExistsCommand":      13,
-	"CreateUserCommand":                       14,
-	"DeleteUserCommand":                       15,
-	"UpdateUserCommand":                       16,
-	"SetPrivilegeCommand":                     17,
-	"DeleteShardGroupCommand":                 18,
+	"CreateNodeCommand":                1,
+	"DeleteNodeCommand":                2,
+	"CreateDatabaseCommand":            3,
+	"DropDatabaseCommand":              4,
+	"CreateRetentionPolicyCommand":     5,
+	"DropRetentionPolicyCommand":       6,
+	"SetDefaultRetentionPolicyCommand": 7,
+	"UpdateRetentionPolicyCommand":     8,
+	"CreateShardGroupCommand":          9,
+	"DeleteShardGroupCommand":          10,
+	"CreateContinuousQueryCommand":     11,
+	"DropContinuousQueryCommand":       12,
+	"CreateUserCommand":                13,
+	"DropUserCommand":                  14,
+	"UpdateUserCommand":                15,
+	"SetPrivilegeCommand":              16,
 }
 
 func (x Command_Type) Enum() *Command_Type {
@@ -436,55 +428,7 @@ func (m *Command) GetType() Command_Type {
 	if m != nil && m.Type != nil {
 		return *m.Type
 	}
-	return Command_CreateContinuousQueryCommand
-}
-
-type CreateContinuousQueryCommand struct {
-	Query            *string `protobuf:"bytes,1,req" json:"Query,omitempty"`
-	XXX_unrecognized []byte  `json:"-"`
-}
-
-func (m *CreateContinuousQueryCommand) Reset()         { *m = CreateContinuousQueryCommand{} }
-func (m *CreateContinuousQueryCommand) String() string { return proto.CompactTextString(m) }
-func (*CreateContinuousQueryCommand) ProtoMessage()    {}
-
-func (m *CreateContinuousQueryCommand) GetQuery() string {
-	if m != nil && m.Query != nil {
-		return *m.Query
-	}
-	return ""
-}
-
-var E_CreateContinuousQueryCommand_Command = &proto.ExtensionDesc{
-	ExtendedType:  (*Command)(nil),
-	ExtensionType: (*CreateContinuousQueryCommand)(nil),
-	Field:         100,
-	Name:          "internal.CreateContinuousQueryCommand.command",
-	Tag:           "bytes,100,req,name=command",
-}
-
-type DropContinuousQueryCommand struct {
-	Query            *string `protobuf:"bytes,1,req" json:"Query,omitempty"`
-	XXX_unrecognized []byte  `json:"-"`
-}
-
-func (m *DropContinuousQueryCommand) Reset()         { *m = DropContinuousQueryCommand{} }
-func (m *DropContinuousQueryCommand) String() string { return proto.CompactTextString(m) }
-func (*DropContinuousQueryCommand) ProtoMessage()    {}
-
-func (m *DropContinuousQueryCommand) GetQuery() string {
-	if m != nil && m.Query != nil {
-		return *m.Query
-	}
-	return ""
-}
-
-var E_DropContinuousQueryCommand_Command = &proto.ExtensionDesc{
-	ExtendedType:  (*Command)(nil),
-	ExtensionType: (*DropContinuousQueryCommand)(nil),
-	Field:         101,
-	Name:          "internal.DropContinuousQueryCommand.command",
-	Tag:           "bytes,101,req,name=command",
+	return Command_CreateNodeCommand
 }
 
 type CreateNodeCommand struct {
@@ -506,13 +450,13 @@ func (m *CreateNodeCommand) GetHost() string {
 var E_CreateNodeCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
 	ExtensionType: (*CreateNodeCommand)(nil),
-	Field:         102,
+	Field:         101,
 	Name:          "internal.CreateNodeCommand.command",
-	Tag:           "bytes,102,req,name=command",
+	Tag:           "bytes,101,opt,name=command",
 }
 
 type DeleteNodeCommand struct {
-	ID               *string `protobuf:"bytes,1,req" json:"ID,omitempty"`
+	ID               *uint64 `protobuf:"varint,1,req" json:"ID,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -520,19 +464,19 @@ func (m *DeleteNodeCommand) Reset()         { *m = DeleteNodeCommand{} }
 func (m *DeleteNodeCommand) String() string { return proto.CompactTextString(m) }
 func (*DeleteNodeCommand) ProtoMessage()    {}
 
-func (m *DeleteNodeCommand) GetID() string {
+func (m *DeleteNodeCommand) GetID() uint64 {
 	if m != nil && m.ID != nil {
 		return *m.ID
 	}
-	return ""
+	return 0
 }
 
 var E_DeleteNodeCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
 	ExtensionType: (*DeleteNodeCommand)(nil),
-	Field:         103,
+	Field:         102,
 	Name:          "internal.DeleteNodeCommand.command",
-	Tag:           "bytes,103,req,name=command",
+	Tag:           "bytes,102,opt,name=command",
 }
 
 type CreateDatabaseCommand struct {
@@ -554,9 +498,9 @@ func (m *CreateDatabaseCommand) GetName() string {
 var E_CreateDatabaseCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
 	ExtensionType: (*CreateDatabaseCommand)(nil),
-	Field:         104,
+	Field:         103,
 	Name:          "internal.CreateDatabaseCommand.command",
-	Tag:           "bytes,104,req,name=command",
+	Tag:           "bytes,103,opt,name=command",
 }
 
 type DropDatabaseCommand struct {
@@ -578,33 +522,9 @@ func (m *DropDatabaseCommand) GetName() string {
 var E_DropDatabaseCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
 	ExtensionType: (*DropDatabaseCommand)(nil),
-	Field:         105,
+	Field:         104,
 	Name:          "internal.DropDatabaseCommand.command",
-	Tag:           "bytes,105,req,name=command",
-}
-
-type CreateDatabaseIfNotExistsCommand struct {
-	Name             *string `protobuf:"bytes,1,req" json:"Name,omitempty"`
-	XXX_unrecognized []byte  `json:"-"`
-}
-
-func (m *CreateDatabaseIfNotExistsCommand) Reset()         { *m = CreateDatabaseIfNotExistsCommand{} }
-func (m *CreateDatabaseIfNotExistsCommand) String() string { return proto.CompactTextString(m) }
-func (*CreateDatabaseIfNotExistsCommand) ProtoMessage()    {}
-
-func (m *CreateDatabaseIfNotExistsCommand) GetName() string {
-	if m != nil && m.Name != nil {
-		return *m.Name
-	}
-	return ""
-}
-
-var E_CreateDatabaseIfNotExistsCommand_Command = &proto.ExtensionDesc{
-	ExtendedType:  (*Command)(nil),
-	ExtensionType: (*CreateDatabaseIfNotExistsCommand)(nil),
-	Field:         106,
-	Name:          "internal.CreateDatabaseIfNotExistsCommand.command",
-	Tag:           "bytes,106,req,name=command",
+	Tag:           "bytes,104,opt,name=command",
 }
 
 type CreateRetentionPolicyCommand struct {
@@ -634,75 +554,41 @@ func (m *CreateRetentionPolicyCommand) GetRetentionPolicy() *RetentionPolicyInfo
 var E_CreateRetentionPolicyCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
 	ExtensionType: (*CreateRetentionPolicyCommand)(nil),
-	Field:         107,
+	Field:         105,
 	Name:          "internal.CreateRetentionPolicyCommand.command",
-	Tag:           "bytes,107,req,name=command",
+	Tag:           "bytes,105,opt,name=command",
 }
 
-type CreateRetentionPolicyIfNotExistsCommand struct {
-	Database         *string              `protobuf:"bytes,1,req" json:"Database,omitempty"`
-	RetentionPolicy  *RetentionPolicyInfo `protobuf:"bytes,2,req" json:"RetentionPolicy,omitempty"`
-	XXX_unrecognized []byte               `json:"-"`
-}
-
-func (m *CreateRetentionPolicyIfNotExistsCommand) Reset() {
-	*m = CreateRetentionPolicyIfNotExistsCommand{}
-}
-func (m *CreateRetentionPolicyIfNotExistsCommand) String() string { return proto.CompactTextString(m) }
-func (*CreateRetentionPolicyIfNotExistsCommand) ProtoMessage()    {}
-
-func (m *CreateRetentionPolicyIfNotExistsCommand) GetDatabase() string {
-	if m != nil && m.Database != nil {
-		return *m.Database
-	}
-	return ""
-}
-
-func (m *CreateRetentionPolicyIfNotExistsCommand) GetRetentionPolicy() *RetentionPolicyInfo {
-	if m != nil {
-		return m.RetentionPolicy
-	}
-	return nil
-}
-
-var E_CreateRetentionPolicyIfNotExistsCommand_Command = &proto.ExtensionDesc{
-	ExtendedType:  (*Command)(nil),
-	ExtensionType: (*CreateRetentionPolicyIfNotExistsCommand)(nil),
-	Field:         108,
-	Name:          "internal.CreateRetentionPolicyIfNotExistsCommand.command",
-	Tag:           "bytes,108,req,name=command",
-}
-
-type DeleteRetentionPolicyCommand struct {
+type DropRetentionPolicyCommand struct {
 	Database         *string `protobuf:"bytes,1,req" json:"Database,omitempty"`
 	Name             *string `protobuf:"bytes,2,req" json:"Name,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
-func (m *DeleteRetentionPolicyCommand) Reset()         { *m = DeleteRetentionPolicyCommand{} }
-func (m *DeleteRetentionPolicyCommand) String() string { return proto.CompactTextString(m) }
-func (*DeleteRetentionPolicyCommand) ProtoMessage()    {}
+func (m *DropRetentionPolicyCommand) Reset()         { *m = DropRetentionPolicyCommand{} }
+func (m *DropRetentionPolicyCommand) String() string { return proto.CompactTextString(m) }
+func (*DropRetentionPolicyCommand) ProtoMessage()    {}
 
-func (m *DeleteRetentionPolicyCommand) GetDatabase() string {
+func (m *DropRetentionPolicyCommand) GetDatabase() string {
 	if m != nil && m.Database != nil {
 		return *m.Database
 	}
 	return ""
 }
 
-func (m *DeleteRetentionPolicyCommand) GetName() string {
+func (m *DropRetentionPolicyCommand) GetName() string {
 	if m != nil && m.Name != nil {
 		return *m.Name
 	}
 	return ""
 }
 
-var E_DeleteRetentionPolicyCommand_Command = &proto.ExtensionDesc{
+var E_DropRetentionPolicyCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
-	ExtensionType: (*DeleteRetentionPolicyCommand)(nil),
-	Field:         109,
-	Name:          "internal.DeleteRetentionPolicyCommand.command",
-	Tag:           "bytes,109,req,name=command",
+	ExtensionType: (*DropRetentionPolicyCommand)(nil),
+	Field:         106,
+	Name:          "internal.DropRetentionPolicyCommand.command",
+	Tag:           "bytes,106,opt,name=command",
 }
 
 type SetDefaultRetentionPolicyCommand struct {
@@ -732,9 +618,9 @@ func (m *SetDefaultRetentionPolicyCommand) GetName() string {
 var E_SetDefaultRetentionPolicyCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
 	ExtensionType: (*SetDefaultRetentionPolicyCommand)(nil),
-	Field:         110,
+	Field:         107,
 	Name:          "internal.SetDefaultRetentionPolicyCommand.command",
-	Tag:           "bytes,110,req,name=command",
+	Tag:           "bytes,107,opt,name=command",
 }
 
 type UpdateRetentionPolicyCommand struct {
@@ -788,54 +674,142 @@ func (m *UpdateRetentionPolicyCommand) GetReplicaN() uint32 {
 var E_UpdateRetentionPolicyCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
 	ExtensionType: (*UpdateRetentionPolicyCommand)(nil),
-	Field:         111,
+	Field:         108,
 	Name:          "internal.UpdateRetentionPolicyCommand.command",
-	Tag:           "bytes,111,req,name=command",
+	Tag:           "bytes,108,opt,name=command",
 }
 
-type CreateShardGroupIfNotExistsCommand struct {
+type CreateShardGroupCommand struct {
 	Database         *string `protobuf:"bytes,1,req" json:"Database,omitempty"`
 	Policy           *string `protobuf:"bytes,2,req" json:"Policy,omitempty"`
 	Timestamp        *int64  `protobuf:"varint,3,req" json:"Timestamp,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
-func (m *CreateShardGroupIfNotExistsCommand) Reset()         { *m = CreateShardGroupIfNotExistsCommand{} }
-func (m *CreateShardGroupIfNotExistsCommand) String() string { return proto.CompactTextString(m) }
-func (*CreateShardGroupIfNotExistsCommand) ProtoMessage()    {}
+func (m *CreateShardGroupCommand) Reset()         { *m = CreateShardGroupCommand{} }
+func (m *CreateShardGroupCommand) String() string { return proto.CompactTextString(m) }
+func (*CreateShardGroupCommand) ProtoMessage()    {}
 
-func (m *CreateShardGroupIfNotExistsCommand) GetDatabase() string {
+func (m *CreateShardGroupCommand) GetDatabase() string {
 	if m != nil && m.Database != nil {
 		return *m.Database
 	}
 	return ""
 }
 
-func (m *CreateShardGroupIfNotExistsCommand) GetPolicy() string {
+func (m *CreateShardGroupCommand) GetPolicy() string {
 	if m != nil && m.Policy != nil {
 		return *m.Policy
 	}
 	return ""
 }
 
-func (m *CreateShardGroupIfNotExistsCommand) GetTimestamp() int64 {
+func (m *CreateShardGroupCommand) GetTimestamp() int64 {
 	if m != nil && m.Timestamp != nil {
 		return *m.Timestamp
 	}
 	return 0
 }
 
-var E_CreateShardGroupIfNotExistsCommand_Command = &proto.ExtensionDesc{
+var E_CreateShardGroupCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
-	ExtensionType: (*CreateShardGroupIfNotExistsCommand)(nil),
+	ExtensionType: (*CreateShardGroupCommand)(nil),
+	Field:         109,
+	Name:          "internal.CreateShardGroupCommand.command",
+	Tag:           "bytes,109,opt,name=command",
+}
+
+type DeleteShardGroupCommand struct {
+	Database         *string `protobuf:"bytes,1,req" json:"Database,omitempty"`
+	Policy           *string `protobuf:"bytes,2,req" json:"Policy,omitempty"`
+	ShardGroupID     *uint64 `protobuf:"varint,3,req" json:"ShardGroupID,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *DeleteShardGroupCommand) Reset()         { *m = DeleteShardGroupCommand{} }
+func (m *DeleteShardGroupCommand) String() string { return proto.CompactTextString(m) }
+func (*DeleteShardGroupCommand) ProtoMessage()    {}
+
+func (m *DeleteShardGroupCommand) GetDatabase() string {
+	if m != nil && m.Database != nil {
+		return *m.Database
+	}
+	return ""
+}
+
+func (m *DeleteShardGroupCommand) GetPolicy() string {
+	if m != nil && m.Policy != nil {
+		return *m.Policy
+	}
+	return ""
+}
+
+func (m *DeleteShardGroupCommand) GetShardGroupID() uint64 {
+	if m != nil && m.ShardGroupID != nil {
+		return *m.ShardGroupID
+	}
+	return 0
+}
+
+var E_DeleteShardGroupCommand_Command = &proto.ExtensionDesc{
+	ExtendedType:  (*Command)(nil),
+	ExtensionType: (*DeleteShardGroupCommand)(nil),
+	Field:         110,
+	Name:          "internal.DeleteShardGroupCommand.command",
+	Tag:           "bytes,110,opt,name=command",
+}
+
+type CreateContinuousQueryCommand struct {
+	Query            *string `protobuf:"bytes,1,req" json:"Query,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *CreateContinuousQueryCommand) Reset()         { *m = CreateContinuousQueryCommand{} }
+func (m *CreateContinuousQueryCommand) String() string { return proto.CompactTextString(m) }
+func (*CreateContinuousQueryCommand) ProtoMessage()    {}
+
+func (m *CreateContinuousQueryCommand) GetQuery() string {
+	if m != nil && m.Query != nil {
+		return *m.Query
+	}
+	return ""
+}
+
+var E_CreateContinuousQueryCommand_Command = &proto.ExtensionDesc{
+	ExtendedType:  (*Command)(nil),
+	ExtensionType: (*CreateContinuousQueryCommand)(nil),
+	Field:         111,
+	Name:          "internal.CreateContinuousQueryCommand.command",
+	Tag:           "bytes,111,opt,name=command",
+}
+
+type DropContinuousQueryCommand struct {
+	Query            *string `protobuf:"bytes,1,req" json:"Query,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *DropContinuousQueryCommand) Reset()         { *m = DropContinuousQueryCommand{} }
+func (m *DropContinuousQueryCommand) String() string { return proto.CompactTextString(m) }
+func (*DropContinuousQueryCommand) ProtoMessage()    {}
+
+func (m *DropContinuousQueryCommand) GetQuery() string {
+	if m != nil && m.Query != nil {
+		return *m.Query
+	}
+	return ""
+}
+
+var E_DropContinuousQueryCommand_Command = &proto.ExtensionDesc{
+	ExtendedType:  (*Command)(nil),
+	ExtensionType: (*DropContinuousQueryCommand)(nil),
 	Field:         112,
-	Name:          "internal.CreateShardGroupIfNotExistsCommand.command",
-	Tag:           "bytes,112,req,name=command",
+	Name:          "internal.DropContinuousQueryCommand.command",
+	Tag:           "bytes,112,opt,name=command",
 }
 
 type CreateUserCommand struct {
-	Username         *string `protobuf:"bytes,1,req" json:"Username,omitempty"`
-	Password         *string `protobuf:"bytes,2,req" json:"Password,omitempty"`
+	Name             *string `protobuf:"bytes,1,req" json:"Name,omitempty"`
+	Hash             *string `protobuf:"bytes,2,req" json:"Hash,omitempty"`
 	Admin            *bool   `protobuf:"varint,3,req" json:"Admin,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
@@ -844,16 +818,16 @@ func (m *CreateUserCommand) Reset()         { *m = CreateUserCommand{} }
 func (m *CreateUserCommand) String() string { return proto.CompactTextString(m) }
 func (*CreateUserCommand) ProtoMessage()    {}
 
-func (m *CreateUserCommand) GetUsername() string {
-	if m != nil && m.Username != nil {
-		return *m.Username
+func (m *CreateUserCommand) GetName() string {
+	if m != nil && m.Name != nil {
+		return *m.Name
 	}
 	return ""
 }
 
-func (m *CreateUserCommand) GetPassword() string {
-	if m != nil && m.Password != nil {
-		return *m.Password
+func (m *CreateUserCommand) GetHash() string {
+	if m != nil && m.Hash != nil {
+		return *m.Hash
 	}
 	return ""
 }
@@ -870,36 +844,36 @@ var E_CreateUserCommand_Command = &proto.ExtensionDesc{
 	ExtensionType: (*CreateUserCommand)(nil),
 	Field:         113,
 	Name:          "internal.CreateUserCommand.command",
-	Tag:           "bytes,113,req,name=command",
+	Tag:           "bytes,113,opt,name=command",
 }
 
-type DeleteUserCommand struct {
-	Username         *string `protobuf:"bytes,1,req" json:"Username,omitempty"`
+type DropUserCommand struct {
+	Name             *string `protobuf:"bytes,1,req" json:"Name,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
-func (m *DeleteUserCommand) Reset()         { *m = DeleteUserCommand{} }
-func (m *DeleteUserCommand) String() string { return proto.CompactTextString(m) }
-func (*DeleteUserCommand) ProtoMessage()    {}
+func (m *DropUserCommand) Reset()         { *m = DropUserCommand{} }
+func (m *DropUserCommand) String() string { return proto.CompactTextString(m) }
+func (*DropUserCommand) ProtoMessage()    {}
 
-func (m *DeleteUserCommand) GetUsername() string {
-	if m != nil && m.Username != nil {
-		return *m.Username
+func (m *DropUserCommand) GetName() string {
+	if m != nil && m.Name != nil {
+		return *m.Name
 	}
 	return ""
 }
 
-var E_DeleteUserCommand_Command = &proto.ExtensionDesc{
+var E_DropUserCommand_Command = &proto.ExtensionDesc{
 	ExtendedType:  (*Command)(nil),
-	ExtensionType: (*DeleteUserCommand)(nil),
+	ExtensionType: (*DropUserCommand)(nil),
 	Field:         114,
-	Name:          "internal.DeleteUserCommand.command",
-	Tag:           "bytes,114,req,name=command",
+	Name:          "internal.DropUserCommand.command",
+	Tag:           "bytes,114,opt,name=command",
 }
 
 type UpdateUserCommand struct {
-	Username         *string `protobuf:"bytes,1,req" json:"Username,omitempty"`
-	Password         *string `protobuf:"bytes,2,req" json:"Password,omitempty"`
+	Name             *string `protobuf:"bytes,1,req" json:"Name,omitempty"`
+	Hash             *string `protobuf:"bytes,2,req" json:"Hash,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -907,16 +881,16 @@ func (m *UpdateUserCommand) Reset()         { *m = UpdateUserCommand{} }
 func (m *UpdateUserCommand) String() string { return proto.CompactTextString(m) }
 func (*UpdateUserCommand) ProtoMessage()    {}
 
-func (m *UpdateUserCommand) GetUsername() string {
-	if m != nil && m.Username != nil {
-		return *m.Username
+func (m *UpdateUserCommand) GetName() string {
+	if m != nil && m.Name != nil {
+		return *m.Name
 	}
 	return ""
 }
 
-func (m *UpdateUserCommand) GetPassword() string {
-	if m != nil && m.Password != nil {
-		return *m.Password
+func (m *UpdateUserCommand) GetHash() string {
+	if m != nil && m.Hash != nil {
+		return *m.Hash
 	}
 	return ""
 }
@@ -926,7 +900,7 @@ var E_UpdateUserCommand_Command = &proto.ExtensionDesc{
 	ExtensionType: (*UpdateUserCommand)(nil),
 	Field:         115,
 	Name:          "internal.UpdateUserCommand.command",
-	Tag:           "bytes,115,req,name=command",
+	Tag:           "bytes,115,opt,name=command",
 }
 
 type SetPrivilegeCommand struct {
@@ -958,67 +932,25 @@ var E_SetPrivilegeCommand_Command = &proto.ExtensionDesc{
 	ExtensionType: (*SetPrivilegeCommand)(nil),
 	Field:         116,
 	Name:          "internal.SetPrivilegeCommand.command",
-	Tag:           "bytes,116,req,name=command",
-}
-
-type DeleteShardGroupCommand struct {
-	Database         *string `protobuf:"bytes,1,req" json:"Database,omitempty"`
-	Policy           *string `protobuf:"bytes,2,req" json:"Policy,omitempty"`
-	ShardID          *uint64 `protobuf:"varint,3,req" json:"ShardID,omitempty"`
-	XXX_unrecognized []byte  `json:"-"`
-}
-
-func (m *DeleteShardGroupCommand) Reset()         { *m = DeleteShardGroupCommand{} }
-func (m *DeleteShardGroupCommand) String() string { return proto.CompactTextString(m) }
-func (*DeleteShardGroupCommand) ProtoMessage()    {}
-
-func (m *DeleteShardGroupCommand) GetDatabase() string {
-	if m != nil && m.Database != nil {
-		return *m.Database
-	}
-	return ""
-}
-
-func (m *DeleteShardGroupCommand) GetPolicy() string {
-	if m != nil && m.Policy != nil {
-		return *m.Policy
-	}
-	return ""
-}
-
-func (m *DeleteShardGroupCommand) GetShardID() uint64 {
-	if m != nil && m.ShardID != nil {
-		return *m.ShardID
-	}
-	return 0
-}
-
-var E_DeleteShardGroupCommand_Command = &proto.ExtensionDesc{
-	ExtendedType:  (*Command)(nil),
-	ExtensionType: (*DeleteShardGroupCommand)(nil),
-	Field:         117,
-	Name:          "internal.DeleteShardGroupCommand.command",
-	Tag:           "bytes,117,req,name=command",
+	Tag:           "bytes,116,opt,name=command",
 }
 
 func init() {
 	proto.RegisterEnum("internal.Command_Type", Command_Type_name, Command_Type_value)
-	proto.RegisterExtension(E_CreateContinuousQueryCommand_Command)
-	proto.RegisterExtension(E_DropContinuousQueryCommand_Command)
 	proto.RegisterExtension(E_CreateNodeCommand_Command)
 	proto.RegisterExtension(E_DeleteNodeCommand_Command)
 	proto.RegisterExtension(E_CreateDatabaseCommand_Command)
 	proto.RegisterExtension(E_DropDatabaseCommand_Command)
-	proto.RegisterExtension(E_CreateDatabaseIfNotExistsCommand_Command)
 	proto.RegisterExtension(E_CreateRetentionPolicyCommand_Command)
-	proto.RegisterExtension(E_CreateRetentionPolicyIfNotExistsCommand_Command)
-	proto.RegisterExtension(E_DeleteRetentionPolicyCommand_Command)
+	proto.RegisterExtension(E_DropRetentionPolicyCommand_Command)
 	proto.RegisterExtension(E_SetDefaultRetentionPolicyCommand_Command)
 	proto.RegisterExtension(E_UpdateRetentionPolicyCommand_Command)
-	proto.RegisterExtension(E_CreateShardGroupIfNotExistsCommand_Command)
+	proto.RegisterExtension(E_CreateShardGroupCommand_Command)
+	proto.RegisterExtension(E_DeleteShardGroupCommand_Command)
+	proto.RegisterExtension(E_CreateContinuousQueryCommand_Command)
+	proto.RegisterExtension(E_DropContinuousQueryCommand_Command)
 	proto.RegisterExtension(E_CreateUserCommand_Command)
-	proto.RegisterExtension(E_DeleteUserCommand_Command)
+	proto.RegisterExtension(E_DropUserCommand_Command)
 	proto.RegisterExtension(E_UpdateUserCommand_Command)
 	proto.RegisterExtension(E_SetPrivilegeCommand_Command)
-	proto.RegisterExtension(E_DeleteShardGroupCommand_Command)
 }
