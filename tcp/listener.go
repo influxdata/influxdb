@@ -106,6 +106,7 @@ func (s *Server) Close() error {
 	}
 	// Shut down all handlers
 	close(s.shutdown)
+	s.shutdown = nil
 	s.wg.Wait()
 	s.listener = nil
 
