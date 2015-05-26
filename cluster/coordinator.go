@@ -45,6 +45,7 @@ var (
 // Coordinator handle queries and writes across multiple local and remote
 // data nodes.
 type Coordinator struct {
+	nodeID  uint64
 	mu      sync.RWMutex
 	closing chan struct{}
 
@@ -53,7 +54,13 @@ type Coordinator struct {
 		CreateShardGroupIfNotExists(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error)
 	}
 
-	Cluster ClusterWriter
+	Store interface {
+		WriteToShard(shardID uint64, points []tsdb.Point) error
+	}
+
+	ClusterWriter interface {
+		Write(shardID, ownerID uint64, points []tsdb.Point) error
+	}
 }
 
 func NewCoordinator() *Coordinator {
@@ -201,7 +208,11 @@ func (c *Coordinator) writeToShard(shard *meta.ShardInfo, consistency Consistenc
 
 	for _, nodeID := range shard.OwnerIDs {
 		go func(shardID, nodeID uint64, points []tsdb.Point) {
-			ch <- c.Cluster.Write(shardID, nodeID, points)
+			if c.nodeID == nodeID {
+				ch <- c.Store.WriteToShard(shardID, points)
+			} else {
+				ch <- c.ClusterWriter.Write(shardID, nodeID, points)
+			}
 		}(shard.ID, nodeID, points)
 	}
 

@@ -20,7 +20,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/influxdb/influxdb/data"
+	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/messaging"
 	"github.com/influxdb/influxdb/meta"
@@ -124,8 +124,8 @@ type Server struct {
 	Version    string
 	CommitHash string
 
-	// The local data node that manages local shard data
-	dn *data.Node
+	// The local data store that manages local shard data
+	store *tsdb.Store
 
 	// The meta store for accessing and updating cluster and schema data
 	ms *meta.Store
@@ -164,9 +164,9 @@ func (s *Server) openServices() error {
 
 	// TODO: open metastore
 
-	// Open the local data node
-	s.dn = data.NewDataNode(uint64(1))
-	if err := s.dn.Open(); err != nil {
+	// Open the local data node. TODO: pass in the data path to the server
+	s.store = tsdb.NewStore("FIXME")
+	if err := s.store.Open(); err != nil {
 		return err
 	}
 
@@ -174,7 +174,7 @@ func (s *Server) openServices() error {
 
 	// Open the coordinator service
 	coordinator := data.NewCoordinator()
-	coordinator.Cluster = s.dn
+	coordinator.Store = s.store
 
 	// TODO: add cluster writer to coordinator
 
@@ -191,7 +191,7 @@ func (s *Server) openServices() error {
 		}
 	}
 
-	s.services = append(s.services, s.dn)
+	s.services = append(s.services, s.store)
 	s.services = append(s.services, coordinator)
 
 	return nil

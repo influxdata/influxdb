@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/influxdb/influxdb/data/internal"
+	"github.com/influxdb/influxdb/cluster/internal"
 	"github.com/influxdb/influxdb/tsdb"
 )
 

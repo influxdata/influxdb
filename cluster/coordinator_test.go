@@ -20,6 +20,14 @@ func (f *fakeShardWriter) Write(shardID, nodeID uint64, points []tsdb.Point) err
 	return f.ShardWriteFn(shardID, nodeID, points)
 }
 
+type fakeStore struct {
+	WriteFn func(shardID uint64, points []tsdb.Point) error
+}
+
+func (f *fakeStore) WriteToShard(shardID uint64, points []tsdb.Point) error {
+	return f.WriteFn(shardID, points)
+}
+
 func newTestMetaStore() *test.MetaStore {
 	ms := &test.MetaStore{}
 	rp := test.NewRetentionPolicy("myp", time.Hour, 3)
@@ -264,10 +272,19 @@ func TestCoordinatorWrite(t *testing.T) {
 			},
 		}
 
+		store := &fakeStore{
+			WriteFn: func(shardID uint64, points []tsdb.Point) error {
+				mu.Lock()
+				defer mu.Unlock()
+				return theTest.err[0]
+			},
+		}
+
 		ms := newTestMetaStore()
 		c := data.Coordinator{
-			MetaStore: ms,
-			Cluster:   dn,
+			MetaStore:     ms,
+			ClusterWriter: dn,
+			Store:         store,
 		}
 
 		if err := c.Write(pr); err != test.expErr {
