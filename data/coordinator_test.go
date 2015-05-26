@@ -2,6 +2,7 @@ package data_test
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -12,11 +13,11 @@ import (
 )
 
 type fakeShardWriter struct {
-	ShardWriteFn func(shardID uint64, points []tsdb.Point) (int, error)
+	ShardWriteFn func(shardID, nodeID uint64, points []tsdb.Point) error
 }
 
-func (f *fakeShardWriter) WriteShard(shardID uint64, points []tsdb.Point) (int, error) {
-	return f.ShardWriteFn(shardID, points)
+func (f *fakeShardWriter) Write(shardID, nodeID uint64, points []tsdb.Point) error {
+	return f.ShardWriteFn(shardID, nodeID, points)
 }
 
 func newTestMetaStore() *test.MetaStore {
@@ -143,168 +144,76 @@ func TestCoordinatorWrite(t *testing.T) {
 	tests := []struct {
 		name        string
 		consistency data.ConsistencyLevel
-		dnWrote     int
-		dnErr       error
-		cwWrote     int
-		cwErr       error
-		expErr      error
+
+		// the responses returned by each shard write call.  node ID 1 = pos 0
+		err    []error
+		expErr error
 	}{
 		// Consistency one
 		{
-			name:        "write one local",
+			name:        "write one success",
 			consistency: data.ConsistencyLevelOne,
-			dnWrote:     1,
-			dnErr:       nil,
-			cwWrote:     0,
-			cwErr:       nil,
+			err:         []error{nil, nil, nil},
 			expErr:      nil,
 		},
 		{
-			name:        "write one remote",
+			name:        "write one fail",
 			consistency: data.ConsistencyLevelOne,
-			dnWrote:     0,
-			dnErr:       nil,
-			cwWrote:     1,
-			cwErr:       nil,
-			expErr:      nil,
-		},
-		{
-			name:        "write one not local",
-			consistency: data.ConsistencyLevelOne,
-			dnWrote:     0,
-			dnErr:       fmt.Errorf("random data node error"),
-			cwWrote:     0,
-			cwErr:       nil,
+			err:         []error{fmt.Errorf("a failure"), fmt.Errorf("a failure"), fmt.Errorf("a failure")},
 			expErr:      data.ErrWriteFailed,
 		},
-		{
-			name:        "write one not local, remote success",
-			consistency: data.ConsistencyLevelOne,
-			dnWrote:     0,
-			dnErr:       fmt.Errorf("random data node error"),
-			cwWrote:     1,
-			cwErr:       nil,
-			expErr:      nil,
-		},
-		{
-			name:        "write one not local, remote success",
-			consistency: data.ConsistencyLevelOne,
-			dnWrote:     0,
-			dnErr:       fmt.Errorf("random data node error"),
-			cwWrote:     1,
-			cwErr:       fmt.Errorf("random remote write error"),
-			expErr:      data.ErrPartialWrite,
-		},
+
 		// Consistency any
 		{
-			name:        "write any local",
+			name:        "write any success",
 			consistency: data.ConsistencyLevelAny,
-			dnWrote:     1,
-			dnErr:       nil,
-			cwWrote:     0,
-			cwErr:       nil,
+			err:         []error{nil, nil, nil},
 			expErr:      nil,
 		},
 		{
-			name:        "write any remote",
+			name:        "write any failure",
 			consistency: data.ConsistencyLevelAny,
-			dnWrote:     0,
-			dnErr:       nil,
-			cwWrote:     1,
-			cwErr:       nil,
-			expErr:      nil,
-		},
-		{
-			name:        "write any not local",
-			consistency: data.ConsistencyLevelAny,
-			dnWrote:     0,
-			dnErr:       fmt.Errorf("random data node error"),
-			cwWrote:     0,
-			cwErr:       nil,
+			err:         []error{fmt.Errorf("a failure"), fmt.Errorf("a failure"), fmt.Errorf("a failure")},
 			expErr:      data.ErrWriteFailed,
-		},
-		{
-			name:        "write any local failed, remote success",
-			consistency: data.ConsistencyLevelAny,
-			dnWrote:     0,
-			dnErr:       fmt.Errorf("random data node error"),
-			cwWrote:     1,
-			cwErr:       nil,
-			expErr:      nil,
-		},
-		{
-			name:        "write any local failed, remote success",
-			consistency: data.ConsistencyLevelAny,
-			dnWrote:     0,
-			dnErr:       fmt.Errorf("random data node error"),
-			cwWrote:     1,
-			cwErr:       fmt.Errorf("random remote write error"),
-			expErr:      data.ErrPartialWrite,
 		},
 
 		// Consistency all
 		{
-			name:        "write all",
+			name:        "write all success",
 			consistency: data.ConsistencyLevelAll,
-			dnWrote:     1,
-			dnErr:       nil,
-			cwWrote:     2,
-			cwErr:       nil,
+			err:         []error{nil, nil, nil},
 			expErr:      nil,
 		},
 		{
-			name:        "write all, 2/3",
+			name:        "write all, 2/3, partial write",
 			consistency: data.ConsistencyLevelAll,
-			dnWrote:     1,
-			dnErr:       nil,
-			cwWrote:     1,
-			cwErr:       nil,
+			err:         []error{nil, fmt.Errorf("a failure"), nil},
 			expErr:      data.ErrPartialWrite,
 		},
 		{
-			name:        "write all, one error, one success",
+			name:        "write all, 1/3 (failure)",
 			consistency: data.ConsistencyLevelAll,
-			dnWrote:     0,
-			dnErr:       data.ErrTimeout,
-			cwWrote:     1,
-			cwErr:       nil,
+			err:         []error{nil, fmt.Errorf("a failure"), fmt.Errorf("a failure")},
 			expErr:      data.ErrPartialWrite,
 		},
-		{
-			name:        "write all, 1/3",
-			consistency: data.ConsistencyLevelAll,
-			dnWrote:     0,
-			dnErr:       nil,
-			cwWrote:     1,
-			cwErr:       nil,
-			expErr:      data.ErrPartialWrite,
-		},
+
 		// Consistency quorum
 		{
-			name:        "write quorum, 1/3",
+			name:        "write quorum, 1/3 failure",
 			consistency: data.ConsistencyLevelQuorum,
-			dnWrote:     1,
-			dnErr:       nil,
-			cwWrote:     0,
-			cwErr:       nil,
+			err:         []error{fmt.Errorf("a failure"), fmt.Errorf("a failure"), nil},
 			expErr:      data.ErrPartialWrite,
 		},
 		{
-			name:        "write quorum, 2/3, local & remote",
+			name:        "write quorum, 2/3 success",
 			consistency: data.ConsistencyLevelQuorum,
-			dnWrote:     1,
-			dnErr:       nil,
-			cwWrote:     1,
-			cwErr:       nil,
+			err:         []error{nil, nil, fmt.Errorf("a failure")},
 			expErr:      nil,
 		},
 		{
-			name:        "write quorum, 2/3, not local, two remote",
+			name:        "write quorum, 3/3 success",
 			consistency: data.ConsistencyLevelQuorum,
-			dnWrote:     0,
-			dnErr:       fmt.Errorf("random data node error"),
-			cwWrote:     2,
-			cwErr:       nil,
+			err:         []error{nil, nil, nil},
 			expErr:      nil,
 		},
 
@@ -312,48 +221,12 @@ func TestCoordinatorWrite(t *testing.T) {
 		{
 			name:        "no writes succeed",
 			consistency: data.ConsistencyLevelOne,
-			dnWrote:     0,
-			dnErr:       nil,
-			cwWrote:     0,
-			cwErr:       nil,
+			err:         []error{fmt.Errorf("a failure"), fmt.Errorf("a failure"), fmt.Errorf("a failure")},
 			expErr:      data.ErrWriteFailed,
 		},
 	}
 
 	for _, test := range tests {
-
-		// copy to prevent data race
-		theTest := test
-		sm := data.NewShardMapping()
-		sm.MapPoint(
-			meta.ShardInfo{ID: uint64(1), OwnerIDs: []uint64{uint64(1)}},
-			tsdb.NewPoint(
-				"cpu",
-				nil,
-				map[string]interface{}{"value": 0.0},
-				time.Unix(0, 0),
-			))
-
-		// Local data.Node ShardWriter
-		dn := &fakeShardWriter{
-			ShardWriteFn: func(shardID uint64, points []tsdb.Point) (int, error) {
-				return theTest.dnWrote, theTest.dnErr
-			},
-		}
-
-		// Cluster ShardWriter
-		cw := &fakeShardWriter{
-			ShardWriteFn: func(shardID uint64, points []tsdb.Point) (int, error) {
-				return theTest.cwWrote, theTest.cwErr
-			},
-		}
-
-		ms := newTestMetaStore()
-		c := data.Coordinator{
-			MetaStore: ms,
-		}
-		c.AddShardWriter(dn)
-		c.AddShardWriter(cw)
 
 		pr := &data.WritePointsRequest{
 			Database:         "mydb",
@@ -366,6 +239,36 @@ func TestCoordinatorWrite(t *testing.T) {
 		pr.AddPoint("cpu", 1.0, time.Unix(0, 0), nil)
 		pr.AddPoint("cpu", 2.0, time.Unix(0, 0).Add(time.Hour), nil)
 		pr.AddPoint("cpu", 3.0, time.Unix(0, 0).Add(time.Hour+time.Second), nil)
+
+		// copy to prevent data race
+		theTest := test
+		sm := data.NewShardMapping()
+		sm.MapPoint(
+			&meta.ShardInfo{ID: uint64(1), OwnerIDs: []uint64{uint64(1), uint64(2), uint64(3)}},
+			pr.Points[0])
+		sm.MapPoint(
+			&meta.ShardInfo{ID: uint64(2), OwnerIDs: []uint64{uint64(1), uint64(2), uint64(3)}},
+			pr.Points[1])
+		sm.MapPoint(
+			&meta.ShardInfo{ID: uint64(2), OwnerIDs: []uint64{uint64(1), uint64(2), uint64(3)}},
+			pr.Points[2])
+
+		// Local data.Node ShardWriter
+		// lock on the write increment since these functions get called in parallel
+		var mu sync.Mutex
+		dn := &fakeShardWriter{
+			ShardWriteFn: func(shardID, nodeID uint64, points []tsdb.Point) error {
+				mu.Lock()
+				defer mu.Unlock()
+				return theTest.err[int(nodeID)-1]
+			},
+		}
+
+		ms := newTestMetaStore()
+		c := data.Coordinator{
+			MetaStore: ms,
+			Cluster:   dn,
+		}
 
 		if err := c.Write(pr); err != test.expErr {
 			t.Errorf("Coordinator.Write(): '%s' failed: got %v, exp %v", test.name, err, test.expErr)

@@ -11,10 +11,10 @@ import (
 )
 
 type testServer struct {
-	writeShardFunc func(shardID uint64, points []tsdb.Point) (int, error)
+	writeShardFunc func(shardID uint64, points []tsdb.Point) error
 }
 
-func newTestServer(f func(shardID uint64, points []tsdb.Point) (int, error)) testServer {
+func newTestServer(f func(shardID uint64, points []tsdb.Point) error) testServer {
 	return testServer{
 		writeShardFunc: f,
 	}
@@ -26,20 +26,20 @@ type serverResponse struct {
 	points  []tsdb.Point
 }
 
-func (t testServer) WriteShard(shardID uint64, points []tsdb.Point) (int, error) {
+func (t testServer) WriteShard(shardID uint64, points []tsdb.Point) error {
 	return t.writeShardFunc(shardID, points)
 }
 
-func writeShardSuccess(shardID uint64, points []tsdb.Point) (int, error) {
+func writeShardSuccess(shardID uint64, points []tsdb.Point) error {
 	responses <- &serverResponse{
 		shardID: shardID,
 		points:  points,
 	}
-	return 1, nil
+	return nil
 }
 
-func writeShardFail(shardID uint64, points []tsdb.Point) (int, error) {
-	return 0, fmt.Errorf("failed to write")
+func writeShardFail(shardID uint64, points []tsdb.Point) error {
+	return fmt.Errorf("failed to write")
 }
 
 var responses = make(chan *serverResponse, 1024)
