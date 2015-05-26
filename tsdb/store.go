@@ -33,8 +33,32 @@ type Store struct {
 	Logger *log.Logger
 }
 
-func (s *Store) CreateShard(database, replicationPolicy string, shardID uint64) error {
-	// TODO: create database dir, replicaton policy dir, add shard to shards map and open
+func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// shard already exists
+	if _, ok := s.shards[shardID]; ok {
+		return nil
+	}
+
+	// created the db and retention policy dirs if they don't exist
+	if err := os.MkdirAll(filepath.Join(s.path, database, retentionPolicy), 0700); err != nil {
+		return err
+	}
+
+	// create the database index if it does not exist
+	db, ok := s.databaseIndexes[database]
+	if !ok {
+		db = NewDatabaseIndex()
+		s.databaseIndexes[database] = db
+	}
+
+	shardPath := filepath.Join(s.path, database, retentionPolicy, strconv.FormatUint(shardID, 10))
+	shard := NewShard(db, shardPath)
+
+	s.shards[shardID] = shard
+
 	return nil
 }
 
@@ -117,6 +141,12 @@ func (s *Store) WriteToShard(shardID uint64, points []Point) error {
 		return ErrShardNotFound
 	}
 	fmt.Printf("> WriteShard %d, %d points\n", shardID, len(points))
+
+	// Lazily open shards when written.  If the shard is already open,
+	// this will do nothing.
+	if err := sh.Open(); err != nil {
+		return err
+	}
 
 	if err := sh.WritePoints(points); err != nil {
 		return err

@@ -179,8 +179,12 @@ func (s *Server) openServices() error {
 	// TODO: open the cluster writer
 
 	// Open the coordinator service
-	coordinator := cluster.NewCoordinator()
+	// FIXME: Use the metastores node ID for the current node
+	coordinator := cluster.NewCoordinator(uint64(1))
 	coordinator.Store = s.store
+
+	// FIXME: Add the cluster writer to the coordinator
+	// coordinator.ClusterWriter = ...
 
 	// TODO: add cluster writer to coordinator
 

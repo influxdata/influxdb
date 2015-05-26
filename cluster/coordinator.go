@@ -55,6 +55,7 @@ type Coordinator struct {
 	}
 
 	Store interface {
+		CreateShard(database, retentionPolicy string, shardID uint64) error
 		WriteToShard(shardID uint64, points []tsdb.Point) error
 	}
 
@@ -63,8 +64,9 @@ type Coordinator struct {
 	}
 }
 
-func NewCoordinator() *Coordinator {
+func NewCoordinator(localID uint64) *Coordinator {
 	return &Coordinator{
+		nodeID:  localID,
 		closing: make(chan struct{}),
 	}
 }
@@ -173,9 +175,9 @@ func (c *Coordinator) Write(p *WritePointsRequest) error {
 	// as one fails.
 	ch := make(chan error, len(shardMappings.Points))
 	for shardID, points := range shardMappings.Points {
-		go func(shard *meta.ShardInfo, points []tsdb.Point) {
-			ch <- c.writeToShard(shard, p.ConsistencyLevel, points)
-		}(shardMappings.Shards[shardID], points)
+		go func(shard *meta.ShardInfo, database, retentionPolicy string, points []tsdb.Point) {
+			ch <- c.writeToShard(shard, p.Database, p.RetentionPolicy, p.ConsistencyLevel, points)
+		}(shardMappings.Shards[shardID], p.Database, p.RetentionPolicy, points)
 	}
 
 	for range shardMappings.Points {
@@ -193,7 +195,8 @@ func (c *Coordinator) Write(p *WritePointsRequest) error {
 
 // writeToShards writes points to a shard and ensures a write consistency level has been met.  If the write
 // partially succceds, ErrPartialWrite is returned.
-func (c *Coordinator) writeToShard(shard *meta.ShardInfo, consistency ConsistencyLevel, points []tsdb.Point) error {
+func (c *Coordinator) writeToShard(shard *meta.ShardInfo, database, retentionPolicy string,
+	consistency ConsistencyLevel, points []tsdb.Point) error {
 	// The required number of writes to achieve the requested consistency level
 	required := len(shard.OwnerIDs)
 	switch consistency {
@@ -209,9 +212,24 @@ func (c *Coordinator) writeToShard(shard *meta.ShardInfo, consistency Consistenc
 	for _, nodeID := range shard.OwnerIDs {
 		go func(shardID, nodeID uint64, points []tsdb.Point) {
 			if c.nodeID == nodeID {
-				ch <- c.Store.WriteToShard(shardID, points)
-			} else {
+				err := c.Store.WriteToShard(shardID, points)
+				// If we've written to shard that should exist on the current node, but the store has
+				// not actually created this shard, tell it to create it and retry the write
+				if err == tsdb.ErrShardNotFound {
+					err = c.Store.CreateShard(database, retentionPolicy, shardID)
+					if err != nil {
+						ch <- err
+						return
+					}
+					err = c.Store.WriteToShard(shardID, points)
+				}
+				ch <- err
+
+				// FIXME: When ClusterWriter is implemented, this should never be nil
+			} else if c.ClusterWriter != nil {
 				ch <- c.ClusterWriter.Write(shardID, nodeID, points)
+			} else {
+				ch <- ErrWriteFailed
 			}
 		}(shard.ID, nodeID, points)
 	}
