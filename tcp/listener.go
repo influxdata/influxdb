@@ -106,7 +106,6 @@ func (s *Server) Close() error {
 	}
 	// Shut down all handlers
 	close(s.shutdown)
-	s.shutdown = nil
 	s.wg.Wait()
 	s.listener = nil
 
@@ -128,8 +127,11 @@ func (s *Server) handleConnection(conn net.Conn) {
 			}
 			s.processMessage(messageType, conn)
 
-			if s.shutdown == nil {
+			select {
+			case <-s.shutdown:
+				// Are we shutting down? If so, exit
 				return
+			default:
 			}
 		}
 	}()
