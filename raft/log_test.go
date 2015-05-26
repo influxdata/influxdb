@@ -256,9 +256,7 @@ func TestLog_WriteEntriesTo(t *testing.T) {
 	}()
 
 	// Wait for buffer to be written to.
-	for buf.Len() == 0 {
-		runtime.Gosched()
-	}
+	time.Sleep(1 * time.Second)
 
 	// Verify that a snapshot is not sent.
 	entries := MustDecodeAllLogEntries(&buf)
@@ -294,9 +292,7 @@ func TestLog_WriteEntriesTo_Snapshot(t *testing.T) {
 	}()
 
 	// Wait for buffer to be written to.
-	for buf.Len() == 0 {
-		runtime.Gosched()
-	}
+	time.Sleep(1 * time.Second)
 
 	// Verify that a snapshot is not sent.
 	entries := MustDecodeAllLogEntries(&buf)
@@ -397,10 +393,10 @@ func TestCluster_Apply(t *testing.T) {
 	if n := len(c.Logs[0].FSM.(*FSM).Commands); n != 1 {
 		t.Fatalf("unexpected command count(0): %d", n)
 	}
-	if n := len(c.Logs[1].FSM.(*FSM).Commands); n != 1 {
+	if n := len(c.Logs[1].FSM.(*FSM).Commands); n != 0 {
 		t.Fatalf("unexpected command count(1): %d", n)
 	}
-	if n := len(c.Logs[2].FSM.(*FSM).Commands); n != 1 {
+	if n := len(c.Logs[2].FSM.(*FSM).Commands); n != 0 {
 		t.Fatalf("unexpected command count(2): %d", n)
 	}
 }
@@ -775,6 +771,12 @@ func (buf *lockingBuffer) Len() int {
 	buf.Lock()
 	defer buf.Unlock()
 	return buf.Buffer.Len()
+}
+
+func (buf *lockingBuffer) Read(p []byte) (n int, err error) {
+	buf.Lock()
+	defer buf.Unlock()
+	return buf.Buffer.Read(p)
 }
 
 // MustOpen opens the log. Panic on error.
