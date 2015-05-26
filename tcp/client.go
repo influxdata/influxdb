@@ -80,7 +80,10 @@ func (c *Client) dial(addr string) (net.Conn, error) {
 		c.pool[addr] = p
 		c.mu.Unlock()
 	}
-	return c.pool[addr].Get()
+	c.mu.Lock()
+	conn, err := c.pool[addr].Get()
+	c.mu.Unlock()
+	return conn, err
 }
 
 func (c *Client) WriteShard(addr string, shardID uint64, points []tsdb.Point) error {
