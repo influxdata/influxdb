@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/influxdb/influxdb/data"
+	"github.com/influxdb/influxdb/tsdb"
 )
 
 var (
@@ -21,9 +22,13 @@ var (
 	ErrServerClosed = errors.New("server already closed")
 )
 
+type writer interface {
+	WriteShard(shardID uint64, points []tsdb.Point) error
+}
+
 // Server processes data received over raw TCP connections.
 type Server struct {
-	writer   data.ShardWriter
+	writer   writer
 	listener *net.Listener
 
 	wg sync.WaitGroup
@@ -34,7 +39,7 @@ type Server struct {
 }
 
 // NewServer returns a new instance of a Server.
-func NewServer(w data.ShardWriter) *Server {
+func NewServer(w writer) *Server {
 	return &Server{
 		writer:   w,
 		Logger:   log.New(os.Stderr, "[tcp] ", log.LstdFlags),
@@ -162,10 +167,7 @@ func (s *Server) writeShardRequest(conn net.Conn) error {
 	if err := wsr.UnmarshalBinary(message); err != nil {
 		return err
 	}
-	if _, err := s.writer.WriteShard(wsr.ShardID(), wsr.Points()); err != nil {
-		return err
-	}
-	return nil
+	return s.writer.WriteShard(wsr.ShardID(), wsr.Points())
 }
 
 func (s *Server) writeShardResponse(conn net.Conn, e error) {

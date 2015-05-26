@@ -20,7 +20,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/influxdb/influxdb/data"
+	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/messaging"
 	"github.com/influxdb/influxdb/meta"
@@ -124,11 +124,11 @@ type Server struct {
 	Version    string
 	CommitHash string
 
-	// The local data node that manages local shard data
-	dn data.Node
+	// The local data store that manages local shard data
+	store *tsdb.Store
 
 	// The meta store for accessing and updating cluster and schema data
-	ms meta.Store
+	ms *meta.Store
 
 	// The services running on this node
 	services []Service
@@ -152,7 +152,6 @@ func NewServer() *Server {
 		shards: make(map[uint64]*Shard),
 		stats:  NewStats("server"),
 		Logger: log.New(os.Stderr, "[server] ", log.LstdFlags),
-		pw:     &data.Coordinator{},
 	}
 	// Server will always return with authentication enabled.
 	// This ensures that disabling authentication must be an explicit decision.
@@ -162,11 +161,39 @@ func NewServer() *Server {
 }
 
 func (s *Server) openServices() error {
+
+	// TODO: open metastore
+
+	// Open the local data node. TODO: pass in the data path to the server
+	s.store = tsdb.NewStore("FIXME")
+	if err := s.store.Open(); err != nil {
+		return err
+	}
+
+	// TODO: open the cluster writer
+
+	// Open the coordinator service
+	coordinator := data.NewCoordinator()
+	coordinator.Store = s.store
+
+	// TODO: add cluster writer to coordinator
+
+	if err := coordinator.Open(); err != nil {
+		return err
+	}
+
+	s.pw = coordinator
+
+	// Open remainging services listeners
 	for _, n := range s.services {
 		if err := n.Open(); err != nil {
 			return err
 		}
 	}
+
+	s.services = append(s.services, s.store)
+	s.services = append(s.services, coordinator)
+
 	return nil
 }
 
@@ -1814,6 +1841,19 @@ func (s *Server) DropSeries(database string, seriesByMeasurement map[string][]ui
 // WriteSeries writes series data to the database.
 // Returns the messaging index the data was written to.
 func (s *Server) WriteSeries(database, retentionPolicy string, points []tsdb.Point) (idx uint64, err error) {
+	//FIXME: Remove this env var when all write path pieces are in place
+	useNewWritePath := os.Getenv("INFLUXDB_ALPHA1") != ""
+	if useNewWritePath {
+		wpr := &data.WritePointsRequest{
+			Database:         database,
+			RetentionPolicy:  retentionPolicy,
+			ConsistencyLevel: data.ConsistencyLevelAll,
+			Points:           points,
+		}
+
+		return 0, s.pw.Write(wpr)
+	}
+
 	s.stats.Inc("batchWriteRx")
 	s.stats.Add("pointWriteRx", int64(len(points)))
 	defer func() {

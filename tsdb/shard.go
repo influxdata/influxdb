@@ -21,31 +21,33 @@ import (
 type Shard struct {
 	db    *bolt.DB // underlying data store
 	index *DatabaseIndex
+	path  string
 
 	mu                sync.RWMutex
 	measurementFields map[string]*measurementFields // measurement name to their fields
 }
 
 // NewShard returns a new initialized Shard
-func NewShard(index *DatabaseIndex) *Shard {
+func NewShard(index *DatabaseIndex, path string) *Shard {
 	return &Shard{
 		index:             index,
+		path:              path,
 		measurementFields: make(map[string]*measurementFields),
 	}
 }
 
 // open initializes and opens the shard's store.
-func (s *Shard) Open(path string) error {
+func (s *Shard) Open() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Return an error if the shard is already open.
+	// Return if the shard is already open
 	if s.db != nil {
-		return errors.New("shard already open")
+		return nil
 	}
 
 	// Open store on shard.
-	store, err := bolt.Open(path, 0666, &bolt.Options{Timeout: 1 * time.Second})
+	store, err := bolt.Open(s.path, 0666, &bolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
 		return err
 	}
@@ -148,7 +150,7 @@ func (s *Shard) WritePoints(points []Point) error {
 			if err != nil {
 				return err
 			}
-			if err := bp.Put([]byte(p.Key()), p.Data()); err != nil {
+			if err := bp.Put(u64tob(p.UnixNano()), p.Data()); err != nil {
 				return err
 			}
 		}

@@ -20,6 +20,7 @@ type Point interface {
 
 	Time() time.Time
 	SetTime(t time.Time)
+	UnixNano() uint64
 
 	HashID() uint64
 	Key() string
@@ -129,6 +130,10 @@ func (p *point) HashID() uint64 {
 	h.Write(b)
 	sum := h.Sum64()
 	return sum
+}
+
+func (p *point) UnixNano() uint64 {
+	return uint64(p.time.UnixNano())
 }
 
 type Tags map[string]string
