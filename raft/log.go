@@ -613,16 +613,27 @@ func (l *Log) readConfig() (*Config, error) {
 // writeConfig writes the configuration to disk.
 func (l *Log) writeConfig(config *Config) error {
 	// FIX(benbjohnson): Atomic write.
+	// As is, not atomic on non-POSIX systems due to Rename.
+	// TempFile not problematic since multiple programs calling
+	// TempFile simultaneously will not choose the same file.
 
-	// Open file.
-	f, err := os.Create(l.configPath())
+	// Open temp file
+	// Directory set to the final directory so that rename won't involve a cross device copy.
+	f, err := ioutil.TempFile(l.path, "config_tmp_")
 	if err != nil {
 		return err
 	}
-	defer func() { _ = f.Close() }()
 
 	// Marshal config into file.
 	if err := NewConfigEncoder(f).Encode(config); err != nil {
+		return err
+	}
+
+	// Close file since done writing
+	f.Close()
+
+	// Move "mv" temporary file to config path.
+	if err := os.Rename(f.Name(), l.configPath()); err != nil {
 		return err
 	}
 
