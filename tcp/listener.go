@@ -114,40 +114,45 @@ func (s *Server) Close() error {
 
 // handleConnection services an individual TCP connection.
 func (s *Server) handleConnection(conn net.Conn) {
-	defer func() {
-		conn.Close()
-		s.wg.Done()
-	}()
-
-	messageChannel := make(chan byte)
 
 	// Start our reader up in a go routine so we don't block checking our close channel
 	go func() {
-		var messageType byte
-		err := binary.Read(conn, binary.LittleEndian, &messageType)
-		if err != nil {
-			s.Logger.Printf("unable to read message type %s", err)
-			return
+		for {
+			var messageType byte
+
+			err := binary.Read(conn, binary.LittleEndian, &messageType)
+			if err != nil {
+				s.Logger.Printf("unable to read message type %s", err)
+				return
+			}
+			s.processMessage(messageType, conn)
+
+			if s.shutdown == nil {
+				return
+			}
 		}
-		messageChannel <- messageType
 	}()
 
 	for {
 		select {
 		case <-s.shutdown:
 			// Are we shutting down? If so, exit
+			conn.Close()
+			s.wg.Done()
 			return
-		case messageType := <-messageChannel:
-			switch messageType {
-			case writeShardRequestMessage:
-				err := s.writeShardRequest(conn)
-				s.writeShardResponse(conn, err)
-				return
-			}
 		default:
 		}
 	}
+}
 
+func (s *Server) processMessage(messageType byte, conn net.Conn) {
+	switch messageType {
+	case writeShardRequestMessage:
+		err := s.writeShardRequest(conn)
+		s.writeShardResponse(conn, err)
+		return
+	}
+	return
 }
 
 func (s *Server) writeShardRequest(conn net.Conn) error {

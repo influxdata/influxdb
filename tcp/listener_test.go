@@ -93,6 +93,7 @@ func TestServer_Close_ErrBindAddressRequired(t *testing.T) {
 	}
 
 }
+
 func TestServer_WriteShardRequestSuccess(t *testing.T) {
 	var (
 		ts = newTestServer(writeShardSuccess)
@@ -118,6 +119,81 @@ func TestServer_WriteShardRequestSuccess(t *testing.T) {
 	))
 
 	if err := client.WriteShard(host, shardID, points); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := client.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	responses, err := ts.ResponseN(1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	response := responses[0]
+
+	if shardID != response.shardID {
+		t.Fatalf("unexpected shardID.  exp: %d, got %d", shardID, response.shardID)
+	}
+
+	got := response.points[0]
+	exp := points[0]
+	t.Log("got: ", spew.Sdump(got))
+	t.Log("exp: ", spew.Sdump(exp))
+
+	if got.Name() != exp.Name() {
+		t.Fatal("unexpected name")
+	}
+
+	if got.Fields()["value"] != exp.Fields()["value"] {
+		t.Fatal("unexpected fields")
+	}
+
+	if got.Tags()["host"] != exp.Tags()["host"] {
+		t.Fatal("unexpected tags")
+	}
+
+	if got.Time().UnixNano() != exp.Time().UnixNano() {
+		t.Fatal("unexpected time")
+	}
+}
+
+func TestServer_WriteShardRequestMultipleSuccess(t *testing.T) {
+	var (
+		ts = newTestServer(writeShardSuccess)
+		s  = tcp.NewServer(ts)
+	)
+	// Close the server
+	defer s.Close()
+
+	// Start on a random port
+	host, e := s.ListenAndServe("127.0.0.1:0")
+	if e != nil {
+		t.Fatalf("err does not match.  expected %v, got %v", nil, e)
+	}
+
+	client := tcp.NewClient()
+
+	now := time.Now()
+
+	shardID := uint64(1)
+	var points []tsdb.Point
+	points = append(points, tsdb.NewPoint(
+		"cpu", tsdb.Tags{"host": "server01"}, map[string]interface{}{"value": int64(100)}, now,
+	))
+
+	if err := client.WriteShard(host, shardID, points); err != nil {
+		t.Fatal(err)
+	}
+
+	now = time.Now()
+
+	points = append(points, tsdb.NewPoint(
+		"cpu", tsdb.Tags{"host": "server01"}, map[string]interface{}{"value": int64(100)}, now,
+	))
+
+	if err := client.WriteShard(host, shardID, points[1:]); err != nil {
 		t.Fatal(err)
 	}
 

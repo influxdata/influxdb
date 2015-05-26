@@ -1,6 +1,10 @@
 package tcp
 
-import "net"
+import (
+	"net"
+
+	"github.com/davecgh/go-spew/spew"
+)
 
 // poolConn is a wrapper around net.Conn to modify the the behavior of
 // net.Conn's Close() method.
@@ -11,6 +15,7 @@ type poolConn struct {
 
 // Close() puts the given connects back to the pool instead of closing it.
 func (p poolConn) Close() error {
+	spew.Dump("I'm back on the queue!")
 	return p.c.put(p.Conn)
 }
 

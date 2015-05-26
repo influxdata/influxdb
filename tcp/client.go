@@ -6,7 +6,6 @@ import (
 	"io"
 	"net"
 	"strings"
-	"sync"
 
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/tsdb"
@@ -40,13 +39,12 @@ func (c *clientConn) dial() (net.Conn, error) {
 }
 
 type Client struct {
-	pool map[string]Pool
-	mu   sync.RWMutex
+	pool *connectionPool
 }
 
 func NewClient() *Client {
 	return &Client{
-		pool: make(map[string]Pool),
+		pool: newConnectionPool(),
 	}
 }
 
@@ -55,35 +53,22 @@ func (c *Client) poolSize() int {
 		return 0
 	}
 
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	var size int
-	for _, p := range c.pool {
-		size += p.Len()
-	}
-	return size
+	return c.pool.size()
 }
 
 func (c *Client) dial(addr string) (net.Conn, error) {
 	addr = strings.ToLower(addr)
 	// if we don't have a connection pool for that addr yet, create one
-	c.mu.Lock()
-	if _, ok := c.pool[addr]; !ok {
-		c.mu.Unlock()
+	_, ok := c.pool.getPool(addr)
+	if !ok {
 		conn := newClientConn(addr, c)
 		p, err := NewChannelPool(1, 3, conn.dial)
 		if err != nil {
 			return nil, err
 		}
-		c.mu.Lock()
-		c.pool[addr] = p
-		c.mu.Unlock()
+		c.pool.setPool(addr, p)
 	}
-	c.mu.Lock()
-	conn, err := c.pool[addr].Get()
-	c.mu.Unlock()
-	return conn, err
+	return c.pool.conn(addr)
 }
 
 func (c *Client) WriteShard(addr string, shardID uint64, points []tsdb.Point) error {
@@ -91,6 +76,10 @@ func (c *Client) WriteShard(addr string, shardID uint64, points []tsdb.Point) er
 	if err != nil {
 		return err
 	}
+
+	// This will return the connection to the data pool
+	defer conn.Close()
+
 	var mt byte = writeShardRequestMessage
 	if err := binary.Write(conn, binary.LittleEndian, &mt); err != nil {
 		return err
@@ -147,11 +136,6 @@ func (c *Client) WriteShard(addr string, shardID uint64, points []tsdb.Point) er
 func (c *Client) Close() error {
 	if c.pool == nil {
 		return fmt.Errorf("client already closed")
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	for _, p := range c.pool {
-		p.Close()
 	}
 	c.pool = nil
 	return nil
