@@ -1,10 +1,11 @@
 package tsdb
 
 import (
+	"io/ioutil"
+	"strconv"
 	"sync"
 
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -13,7 +14,7 @@ import (
 func NewStore(path string) *Store {
 	return &Store{
 		path:   path,
-		Logger: log.New(os.Stderr, "[node] ", log.LstdFlags),
+		Logger: log.New(os.Stderr, "[store] ", log.LstdFlags),
 	}
 }
 
@@ -37,6 +38,60 @@ func (s *Store) CreateShard(database, replicationPolicy string, shardID uint64) 
 	return nil
 }
 
+func (s *Store) loadIndexes() error {
+	dbs, err := ioutil.ReadDir(s.path)
+	if err != nil {
+		return err
+	}
+	for _, db := range dbs {
+		if !db.IsDir() {
+			s.Logger.Printf("Skipping database dir: %s. Not a directory", db.Name())
+			continue
+		}
+		s.databaseIndexes[db.Name()] = NewDatabaseIndex()
+	}
+	return nil
+}
+
+func (s *Store) loadShards() error {
+	// loop through the current database indexes
+	for db := range s.databaseIndexes {
+
+		rps, err := ioutil.ReadDir(filepath.Join(s.path, db))
+		if err != nil {
+			return err
+		}
+
+		for _, rp := range rps {
+			// retention policies should be directories.  Skip anything that is not a dir.
+			if !rp.IsDir() {
+				s.Logger.Printf("Skipping retention policy dir: %s. Not a directory", rp.Name())
+				continue
+			}
+
+			shards, err := ioutil.ReadDir(filepath.Join(s.path, db, rp.Name()))
+			if err != nil {
+				return err
+			}
+			for _, sh := range shards {
+				path := filepath.Join(s.path, db, rp.Name(), sh.Name())
+
+				// Shard file names are numeric shardIDs
+				shardID, err := strconv.ParseUint(sh.Name(), 10, 64)
+				if err != nil {
+					s.Logger.Printf("Skipping shard: %s. Not a valid path", rp.Name())
+					continue
+				}
+
+				shard := NewShard(s.databaseIndexes[db], path)
+				s.shards[shardID] = shard
+			}
+		}
+	}
+	return nil
+
+}
+
 func (s *Store) Open() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -44,33 +99,19 @@ func (s *Store) Open() error {
 	s.shards = map[uint64]*Shard{}
 	s.databaseIndexes = map[string]*DatabaseIndex{}
 
-	// Open shards
-	// Start AE for Node
-
-	// FIXME: Need to use config data dir
-	path, err := ioutil.TempDir("", "influxdb-alpha1")
-	if err != nil {
+	// TODO: Start AE for Node
+	if err := s.loadIndexes(); err != nil {
 		return err
 	}
-	s.path = filepath.Join(path, "1")
 
-	// TODO: there should be a separate database index for each database dir in the data directory
-	s.databaseIndexes["fixthis"] = NewDatabaseIndex()
-	shard := NewShard(s.databaseIndexes["fixthis"], s.path)
-
-	if err := shard.Open(); err != nil {
+	if err := s.loadShards(); err != nil {
 		return err
 	}
-	s.Logger.Printf("opened temp shard at %s", s.path)
-
-	s.shards[uint64(1)] = shard
 
 	return nil
 }
 
 func (s *Store) WriteToShard(shardID uint64, points []Point) error {
-	//TODO: Find the Shard for shardID
-	//TODO: Write points to the shard
 	sh, ok := s.shards[shardID]
 	if !ok {
 		return ErrShardNotFound
