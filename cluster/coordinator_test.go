@@ -1,4 +1,4 @@
-package data_test
+package cluster_test
 
 import (
 	"fmt"
@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdb/influxdb/data"
+	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/test"
 	"github.com/influxdb/influxdb/tsdb"
@@ -63,16 +63,16 @@ func TestCoordinatorEnsureShardMappingOne(t *testing.T) {
 		return &rp.ShardGroups[0], nil
 	}
 
-	c := data.Coordinator{MetaStore: ms}
-	pr := &data.WritePointsRequest{
+	c := cluster.Coordinator{MetaStore: ms}
+	pr := &cluster.WritePointsRequest{
 		Database:         "mydb",
 		RetentionPolicy:  "myrp",
-		ConsistencyLevel: data.ConsistencyLevelOne,
+		ConsistencyLevel: cluster.ConsistencyLevelOne,
 	}
 	pr.AddPoint("cpu", 1.0, time.Now(), nil)
 
 	var (
-		shardMappings *data.ShardMapping
+		shardMappings *cluster.ShardMapping
 		err           error
 	)
 	if shardMappings, err = c.MapShards(pr); err != nil {
@@ -105,11 +105,11 @@ func TestCoordinatorEnsureShardMappingMultiple(t *testing.T) {
 		panic("should not get here")
 	}
 
-	c := data.Coordinator{MetaStore: ms}
-	pr := &data.WritePointsRequest{
+	c := cluster.Coordinator{MetaStore: ms}
+	pr := &cluster.WritePointsRequest{
 		Database:         "mydb",
 		RetentionPolicy:  "myrp",
-		ConsistencyLevel: data.ConsistencyLevelOne,
+		ConsistencyLevel: cluster.ConsistencyLevelOne,
 	}
 
 	// Three points that range over the shardGroup duration (1h) and should map to two
@@ -119,7 +119,7 @@ func TestCoordinatorEnsureShardMappingMultiple(t *testing.T) {
 	pr.AddPoint("cpu", 3.0, time.Unix(0, 0).Add(time.Hour+time.Second), nil)
 
 	var (
-		shardMappings *data.ShardMapping
+		shardMappings *cluster.ShardMapping
 		err           error
 	)
 	if shardMappings, err = c.MapShards(pr); err != nil {
@@ -151,7 +151,7 @@ func TestCoordinatorWrite(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		consistency data.ConsistencyLevel
+		consistency cluster.ConsistencyLevel
 
 		// the responses returned by each shard write call.  node ID 1 = pos 0
 		err    []error
@@ -160,67 +160,67 @@ func TestCoordinatorWrite(t *testing.T) {
 		// Consistency one
 		{
 			name:        "write one success",
-			consistency: data.ConsistencyLevelOne,
+			consistency: cluster.ConsistencyLevelOne,
 			err:         []error{nil, nil, nil},
 			expErr:      nil,
 		},
 		{
 			name:        "write one fail",
-			consistency: data.ConsistencyLevelOne,
+			consistency: cluster.ConsistencyLevelOne,
 			err:         []error{fmt.Errorf("a failure"), fmt.Errorf("a failure"), fmt.Errorf("a failure")},
-			expErr:      data.ErrWriteFailed,
+			expErr:      cluster.ErrWriteFailed,
 		},
 
 		// Consistency any
 		{
 			name:        "write any success",
-			consistency: data.ConsistencyLevelAny,
+			consistency: cluster.ConsistencyLevelAny,
 			err:         []error{nil, nil, nil},
 			expErr:      nil,
 		},
 		{
 			name:        "write any failure",
-			consistency: data.ConsistencyLevelAny,
+			consistency: cluster.ConsistencyLevelAny,
 			err:         []error{fmt.Errorf("a failure"), fmt.Errorf("a failure"), fmt.Errorf("a failure")},
-			expErr:      data.ErrWriteFailed,
+			expErr:      cluster.ErrWriteFailed,
 		},
 
 		// Consistency all
 		{
 			name:        "write all success",
-			consistency: data.ConsistencyLevelAll,
+			consistency: cluster.ConsistencyLevelAll,
 			err:         []error{nil, nil, nil},
 			expErr:      nil,
 		},
 		{
 			name:        "write all, 2/3, partial write",
-			consistency: data.ConsistencyLevelAll,
+			consistency: cluster.ConsistencyLevelAll,
 			err:         []error{nil, fmt.Errorf("a failure"), nil},
-			expErr:      data.ErrPartialWrite,
+			expErr:      cluster.ErrPartialWrite,
 		},
 		{
 			name:        "write all, 1/3 (failure)",
-			consistency: data.ConsistencyLevelAll,
+			consistency: cluster.ConsistencyLevelAll,
 			err:         []error{nil, fmt.Errorf("a failure"), fmt.Errorf("a failure")},
-			expErr:      data.ErrPartialWrite,
+			expErr:      cluster.ErrPartialWrite,
 		},
 
 		// Consistency quorum
 		{
 			name:        "write quorum, 1/3 failure",
-			consistency: data.ConsistencyLevelQuorum,
+			consistency: cluster.ConsistencyLevelQuorum,
 			err:         []error{fmt.Errorf("a failure"), fmt.Errorf("a failure"), nil},
-			expErr:      data.ErrPartialWrite,
+			expErr:      cluster.ErrPartialWrite,
 		},
 		{
 			name:        "write quorum, 2/3 success",
-			consistency: data.ConsistencyLevelQuorum,
+			consistency: cluster.ConsistencyLevelQuorum,
 			err:         []error{nil, nil, fmt.Errorf("a failure")},
 			expErr:      nil,
 		},
 		{
 			name:        "write quorum, 3/3 success",
-			consistency: data.ConsistencyLevelQuorum,
+			consistency: cluster.ConsistencyLevelQuorum,
 			err:         []error{nil, nil, nil},
 			expErr:      nil,
 		},
@@ -228,15 +228,15 @@ func TestCoordinatorWrite(t *testing.T) {
 		// Error write failed
 		{
 			name:        "no writes succeed",
-			consistency: data.ConsistencyLevelOne,
+			consistency: cluster.ConsistencyLevelOne,
 			err:         []error{fmt.Errorf("a failure"), fmt.Errorf("a failure"), fmt.Errorf("a failure")},
-			expErr:      data.ErrWriteFailed,
+			expErr:      cluster.ErrWriteFailed,
 		},
 	}
 
 	for _, test := range tests {
 
-		pr := &data.WritePointsRequest{
+		pr := &cluster.WritePointsRequest{
 			Database:         "mydb",
 			RetentionPolicy:  "myrp",
 			ConsistencyLevel: test.consistency,
@@ -250,7 +250,7 @@ func TestCoordinatorWrite(t *testing.T) {
 
 		// copy to prevent data race
 		theTest := test
-		sm := data.NewShardMapping()
+		sm := cluster.NewShardMapping()
 		sm.MapPoint(
 			&meta.ShardInfo{ID: uint64(1), OwnerIDs: []uint64{uint64(1), uint64(2), uint64(3)}},
 			pr.Points[0])
@@ -261,7 +261,7 @@ func TestCoordinatorWrite(t *testing.T) {
 			&meta.ShardInfo{ID: uint64(2), OwnerIDs: []uint64{uint64(1), uint64(2), uint64(3)}},
 			pr.Points[2])
 
-		// Local data.Node ShardWriter
+		// Local cluster.Node ShardWriter
 		// lock on the write increment since these functions get called in parallel
 		var mu sync.Mutex
 		dn := &fakeShardWriter{
@@ -281,7 +281,7 @@ func TestCoordinatorWrite(t *testing.T) {
 		}
 
 		ms := newTestMetaStore()
-		c := data.Coordinator{
+		c := cluster.Coordinator{
 			MetaStore:     ms,
 			ClusterWriter: dn,
 			Store:         store,

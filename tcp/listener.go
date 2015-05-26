@@ -9,7 +9,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/influxdb/influxdb/data"
+	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -163,7 +163,7 @@ func (s *Server) writeShardRequest(conn net.Conn) error {
 		return err
 	}
 
-	var wsr data.WriteShardRequest
+	var wsr cluster.WriteShardRequest
 	if err := wsr.UnmarshalBinary(message); err != nil {
 		return err
 	}
@@ -177,7 +177,7 @@ func (s *Server) writeShardResponse(conn net.Conn, e error) {
 		return
 	}
 
-	var wsr data.WriteShardResponse
+	var wsr cluster.WriteShardResponse
 	if e != nil {
 		wsr.SetCode(1)
 		wsr.SetMessage(e.Error())

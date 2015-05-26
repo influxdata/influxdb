@@ -6,7 +6,7 @@ import (
 	"io"
 	"net"
 
-	"github.com/influxdb/influxdb/data"
+	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -34,7 +34,7 @@ func (c *Client) WriteShard(shardID uint64, points []tsdb.Point) error {
 		return err
 	}
 
-	var request data.WriteShardRequest
+	var request cluster.WriteShardRequest
 	request.SetShardID(shardID)
 	request.AddPoints(points)
 
@@ -70,7 +70,7 @@ func (c *Client) WriteShard(shardID uint64, points []tsdb.Point) error {
 		return err
 	}
 
-	var response data.WriteShardResponse
+	var response cluster.WriteShardResponse
 	if err := response.UnmarshalBinary(message); err != nil {
 		return err
 	}

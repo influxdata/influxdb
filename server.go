@@ -134,7 +134,7 @@ type Server struct {
 	services []Service
 
 	// Handles write request for local and remote nodes
-	pw data.PointsWriter
+	pw cluster.PointsWriter
 
 	// Handles queries for local and remote nodes
 	//qe QueryExecutor
@@ -173,7 +173,7 @@ func (s *Server) openServices() error {
 	// TODO: open the cluster writer
 
 	// Open the coordinator service
-	coordinator := data.NewCoordinator()
+	coordinator := cluster.NewCoordinator()
 	coordinator.Store = s.store
 
 	// TODO: add cluster writer to coordinator
@@ -1844,10 +1844,10 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []tsdb.Poi
 	//FIXME: Remove this env var when all write path pieces are in place
 	useNewWritePath := os.Getenv("INFLUXDB_ALPHA1") != ""
 	if useNewWritePath {
-		wpr := &data.WritePointsRequest{
+		wpr := &cluster.WritePointsRequest{
 			Database:         database,
 			RetentionPolicy:  retentionPolicy,
-			ConsistencyLevel: data.ConsistencyLevelAll,
+			ConsistencyLevel: cluster.ConsistencyLevelAll,
 			Points:           points,
 		}
 
