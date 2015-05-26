@@ -108,10 +108,6 @@ func TestServer_WriteShardRequestSuccess(t *testing.T) {
 	}
 
 	client := tcp.NewClient()
-	err := client.Dial(host)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	now := time.Now()
 
@@ -121,7 +117,7 @@ func TestServer_WriteShardRequestSuccess(t *testing.T) {
 		"cpu", tsdb.Tags{"host": "server01"}, map[string]interface{}{"value": int64(100)}, now,
 	))
 
-	if err := client.WriteShard(shardID, points); err != nil {
+	if err := client.WriteShard(host, shardID, points); err != nil {
 		t.Fatal(err)
 	}
 
@@ -177,11 +173,6 @@ func TestServer_WriteShardRequestFail(t *testing.T) {
 	}
 
 	client := tcp.NewClient()
-	err := client.Dial(host)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	now := time.Now()
 
 	shardID := uint64(1)
@@ -190,7 +181,7 @@ func TestServer_WriteShardRequestFail(t *testing.T) {
 		"cpu", tsdb.Tags{"host": "server01"}, map[string]interface{}{"value": int64(100)}, now,
 	))
 
-	if err, exp := client.WriteShard(shardID, points), "error code 1: failed to write"; err == nil || err.Error() != exp {
+	if err, exp := client.WriteShard(host, shardID, points), "error code 1: failed to write"; err == nil || err.Error() != exp {
 		t.Fatalf("expected error %s, got %v", exp, err)
 	}
 }
