@@ -1,6 +1,7 @@
 ## v0.9.0-rc32 [unreleased]
 
 ### Features
+- [1997](https://github.com/influxdb/influxdb/pull/1997): Update SELECT * to return tag values.
 
 ### Bugfixes
 - [2635](https://github.com/influxdb/influxdb/issues/2635): Fix querying against boolean field in WHERE clause.
