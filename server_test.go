@@ -1282,7 +1282,7 @@ func TestServer_DropSeriesTagsPreserved(t *testing.T) {
 		t.Fatalf("unexpected error: %s", res.Err)
 	} else if len(res.Series) != 1 {
 		t.Fatalf("unexpected row count: %d", len(res.Series))
-	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:01Z",33.2]]}]}` {
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","tags":{"host":"serverB","region":"uswest"},"columns":["time","value"],"values":[["2000-01-01T00:00:01Z",33.2]]}]}` {
 		t.Fatalf("unexpected row(0): %s", s)
 	}
 
@@ -1291,7 +1291,7 @@ func TestServer_DropSeriesTagsPreserved(t *testing.T) {
 		t.Fatalf("unexpected error: %s", res.Err)
 	} else if len(res.Series) != 1 {
 		t.Fatalf("unexpected row count: %d", len(res.Series))
-	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:01Z",33.2]]}]}` {
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","tags":{"host":"serverB","region":"uswest"},"columns":["time","value"],"values":[["2000-01-01T00:00:01Z",33.2]]}]}` {
 		t.Fatalf("unexpected row(0): %s", s)
 	}
 }

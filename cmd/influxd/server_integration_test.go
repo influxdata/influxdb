@@ -436,7 +436,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			name:     "single point with time",
 			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "time": "2015-02-28T01:03:36.703820946Z", "tags": {"host": "server01"}, "fields": {"value": 100}}]}`,
 			query:    `SELECT * FROM "%DB%"."%RP%".cpu`,
-			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",100]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",100]]}]}]}`,
 		},
 		{
 			name:     "single point count query with time",
@@ -447,18 +447,18 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			name:     "single string point with time",
 			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "logs", "time": "2015-02-28T01:03:36.703820946Z", "tags": {"host": "server01"}, "fields": {"value": "disk full"}}]}`,
 			query:    `SELECT * FROM "%DB%"."%RP%".logs`,
-			expected: `{"results":[{"series":[{"name":"logs","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z","disk full"]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"logs","tags":{"host":"server01"},"columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z","disk full"]]}]}]}`,
 		},
 		{
 			name:     "single bool point with time",
 			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "status", "time": "2015-02-28T01:03:36.703820946Z", "tags": {"host": "server01"}, "fields": {"value": "true"}}]}`,
 			query:    `SELECT * FROM "%DB%"."%RP%".status`,
-			expected: `{"results":[{"series":[{"name":"status","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z","true"]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"status","tags":{"host":"server01"},"columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z","true"]]}]}]}`,
 		},
 		{
 			name:     "single point, select with now()",
 			query:    `SELECT * FROM "%DB%"."%RP%".cpu WHERE time < NOW()`,
-			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",100]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",100]]}]}]}`,
 		},
 
 		// Selecting tags
@@ -477,6 +477,11 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			name:     "selecting a tag and two fields",
 			query:    `SELECT host, value, cores FROM "%DB%"."%RP%".gpu`,
 			expected: `{"results":[{"series":[{"name":"gpu","tags":{"host":"server01"},"columns":["time","value","cores"],"values":[["2015-02-28T01:03:36Z",100,4]]},{"name":"gpu","tags":{"host":"server02"},"columns":["time","value","cores"],"values":[["2015-02-28T01:03:37Z",50,2]]}]}]}`,
+		},
+		{
+			name:     "selecting * from a measurement with tags",
+			query:    `SELECT * FROM "%DB%"."%RP%".gpu`,
+			expected: `{"results":[{"series":[{"name":"gpu","tags":{"host":"server01"},"columns":["time","cores","value"],"values":[["2015-02-28T01:03:36Z",4,100]]},{"name":"gpu","tags":{"host":"server02"},"columns":["time","cores","value"],"values":[["2015-02-28T01:03:37Z",2,50]]}]}]}`,
 		},
 
 		{
@@ -522,14 +527,14 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			name:     "single point with time pre-calculated for past time queries yesterday",
 			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "time": "` + yesterday.Format(time.RFC3339Nano) + `", "tags": {"host": "server01"}, "fields": {"value": 100}}]}`,
 			query:    `SELECT * FROM "%DB%"."%RP%".cpu where time >= '` + yesterday.Add(-1*time.Minute).Format(time.RFC3339Nano) + `'`,
-			expected: fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",100]]}]}]}`, yesterday.Format(time.RFC3339Nano)),
+			expected: fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","value"],"values":[["%s",100]]}]}]}`, yesterday.Format(time.RFC3339Nano)),
 		},
 		{
 			reset:    true,
 			name:     "single point with time pre-calculated for relative time queries now",
 			write:    `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [{"name": "cpu", "time": "` + now.Format(time.RFC3339Nano) + `", "tags": {"host": "server01"}, "fields": {"value": 100}}]}`,
 			query:    `SELECT * FROM "%DB%"."%RP%".cpu where time >= now() - 1m`,
-			expected: fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",100]]}]}]}`, now.Format(time.RFC3339Nano)),
+			expected: fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","value"],"values":[["%s",100]]}]}]}`, now.Format(time.RFC3339Nano)),
 		},
 
 		// Merge tests.
@@ -599,25 +604,25 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			]}`,
 			query:    `SELECT * FROM /cpu[13]/`,
 			queryDb:  "%DB%",
-			expected: `{"results":[{"series":[{"name":"cpu1","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",10]]},{"name":"cpu3","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",30]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"cpu1","tags":{"host":"server01"},"columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",10]]},{"name":"cpu3","tags":{"host":"server01"},"columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",30]]}]}]}`,
 		},
 		{
 			name:     `FROM regex specifying db and rp`,
 			query:    `SELECT * FROM "%DB%"."%RP%"./cpu[13]/`,
 			queryDb:  "%DB%",
-			expected: `{"results":[{"series":[{"name":"cpu1","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",10]]},{"name":"cpu3","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",30]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"cpu1","tags":{"host":"server01"},"columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",10]]},{"name":"cpu3","tags":{"host":"server01"},"columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",30]]}]}]}`,
 		},
 		{
 			name:     `FROM regex using specified db and default rp`,
 			query:    `SELECT * FROM "%DB%"../cpu[13]/`,
 			queryDb:  "%DB%",
-			expected: `{"results":[{"series":[{"name":"cpu1","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",10]]},{"name":"cpu3","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",30]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"cpu1","tags":{"host":"server01"},"columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",10]]},{"name":"cpu3","tags":{"host":"server01"},"columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",30]]}]}]}`,
 		},
 		{
 			name:     `FROM regex using default db and specified rp`,
 			query:    `SELECT * FROM "%RP%"./cpu[13]/`,
 			queryDb:  "%DB%",
-			expected: `{"results":[{"series":[{"name":"cpu1","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",10]]},{"name":"cpu3","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",30]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"cpu1","tags":{"host":"server01"},"columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",10]]},{"name":"cpu3","tags":{"host":"server01"},"columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",30]]}]}]}`,
 		},
 
 		// Aggregations
@@ -885,7 +890,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			]}`,
 			query:    `SELECT * FROM cpu`,
 			queryDb:  "%DB%",
-			expected: `{"results":[{"series":[{"name":"cpu","columns":["time","val-x","value"],"values":[["2000-01-01T00:00:00Z",null,10],["2000-01-01T00:00:10Z",20,null],["2000-01-01T00:00:20Z",40,30]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","val-x","value"],"values":[["2000-01-01T00:00:00Z",null,10],["2000-01-01T00:00:10Z",20,null],["2000-01-01T00:00:20Z",40,30]]}]}]}`,
 		},
 		{
 			reset: true,
@@ -2239,7 +2244,7 @@ func Test_ServerOpenTSDBIntegration_WithTags(t *testing.T) {
 		return
 	}
 
-	expected := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",20]]}]}]}`, now.Format(time.RFC3339Nano))
+	expected := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","tags":{"tag1":"val3","tag2":"val4"},"columns":["time","value"],"values":[["%s",20]]}]}]}`, now.Format(time.RFC3339Nano))
 
 	// query and wait for results
 	got, ok, _ := queryAndWait(t, nodes, "opentsdb", `select * from "opentsdb"."raw".cpu where tag1='val3'`, expected, "", openTSDBTestTimeout)
@@ -2296,7 +2301,7 @@ func Test_ServerOpenTSDBIntegration_BadData(t *testing.T) {
 		return
 	}
 
-	expected := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",10]]}]}]}`, now.Format(time.RFC3339Nano))
+	expected := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","tags":{"tag1":"val1","tag2":"val2"},"columns":["time","value"],"values":[["%s",10]]}]}]}`, now.Format(time.RFC3339Nano))
 
 	// query and wait for results
 	got, ok, _ := queryAndWait(t, nodes, "opentsdb", `select * from "opentsdb"."raw".cpu`, expected, "", openTSDBTestTimeout)
@@ -2342,7 +2347,7 @@ func Test_ServerOpenTSDBIntegrationHTTPSingle(t *testing.T) {
 	}
 	resp.Body.Close()
 
-	expected := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",10]]}]}]}`, now.Format(time.RFC3339Nano))
+	expected := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","tags":{"tag1":"val1","tag2":"val2"},"columns":["time","value"],"values":[["%s",10]]}]}]}`, now.Format(time.RFC3339Nano))
 
 	// query and wait for results
 	got, ok, _ := queryAndWait(t, nodes, "opentsdb", `select * from "opentsdb"."raw".cpu`, expected, "", openTSDBTestTimeout)
@@ -2390,7 +2395,7 @@ func Test_ServerOpenTSDBIntegrationHTTPMulti(t *testing.T) {
 	resp.Body.Close()
 
 	expts := now.Format(time.RFC3339Nano)
-	expected := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",10],["%s",20]]}]}]}`, expts, expts)
+	expected := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","tags":{"tag1":"val1","tag2":"val2"},"columns":["time","value"],"values":[["%s",10]]},{"name":"cpu","tags":{"tag1":"val3","tag2":"val4"},"columns":["time","value"],"values":[["%s",20]]}]}]}`, expts, expts)
 
 	// query and wait for results
 	got, ok, _ := queryAndWait(t, nodes, "opentsdb", `select * from "opentsdb"."raw".cpu`, expected, "", openTSDBTestTimeout)
