@@ -1292,6 +1292,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		// Metadata display tests
 
 		{
+			name:  `show series`,
 			reset: true,
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
 		{"measurement": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
@@ -1299,33 +1300,45 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		{"measurement": "cpu", "tags": {"host": "server01", "region": "useast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
 		{"measurement": "cpu", "tags": {"host": "server02", "region": "useast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
 		{"measurement": "gpu", "tags": {"host": "server02", "region": "useast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
-		{"measurement": "gpu", "tags": {"host": "server03", "region": "caeast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}}
+		{"measurement": "gpu", "tags": {"host": "server03", "region": "caeast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"measurement": "disk", "tags": {"host": "server03", "region": "caeast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}}
 		]}`,
 			query:    "SHOW SERIES",
 			queryDb:  "%DB%",
-			expected: `{"results":[{"series":[{"name":"cpu","columns":["_id","host","region"],"values":[[1,"server01",""],[2,"server01","uswest"],[3,"server01","useast"],[4,"server02","useast"]]},{"name":"gpu","columns":["_id","host","region"],"values":[[5,"server02","useast"],[6,"server03","caeast"]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["_id","host","region"],"values":[[1,"server01",""],[2,"server01","uswest"],[3,"server01","useast"],[4,"server02","useast"]]},{"name":"disk","columns":["_id","host","region"],"values":[[7,"server03","caeast"]]},{"name":"gpu","columns":["_id","host","region"],"values":[[5,"server02","useast"],[6,"server03","caeast"]]}]}]}`,
 		},
 		{
+			name:     `show series`,
 			query:    "SHOW SERIES FROM cpu",
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["_id","host","region"],"values":[[1,"server01",""],[2,"server01","uswest"],[3,"server01","useast"],[4,"server02","useast"]]}]}]}`,
 		},
 		{
+			name:     `show series`,
+			query:    "SHOW SERIES FROM /[cg]pu/",
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["_id","host","region"],"values":[[1,"server01",""],[2,"server01","uswest"],[3,"server01","useast"],[4,"server02","useast"]]},{"name":"gpu","columns":["_id","host","region"],"values":[[5,"server02","useast"],[6,"server03","caeast"]]}]}]}`,
+		},
+		{
+			name:     `show series`,
 			query:    "SHOW SERIES WHERE region = 'uswest'",
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["_id","host","region"],"values":[[2,"server01","uswest"]]}]}]}`,
 		},
 		{
+			name:     `show series`,
 			query:    "SHOW SERIES WHERE region =~ /ca.*/",
 			queryDb:  "%DB%",
-			expected: `{"results":[{"series":[{"name":"gpu","columns":["_id","host","region"],"values":[[6,"server03","caeast"]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"disk","columns":["_id","host","region"],"values":[[7,"server03","caeast"]]},{"name":"gpu","columns":["_id","host","region"],"values":[[6,"server03","caeast"]]}]}]}`,
 		},
 		{
+			name:     `show series`,
 			query:    "SHOW SERIES WHERE host !~ /server0[12]/",
 			queryDb:  "%DB%",
-			expected: `{"results":[{"series":[{"name":"gpu","columns":["_id","host","region"],"values":[[6,"server03","caeast"]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"disk","columns":["_id","host","region"],"values":[[7,"server03","caeast"]]},{"name":"gpu","columns":["_id","host","region"],"values":[[6,"server03","caeast"]]}]}]}`,
 		},
 		{
+			name:     `show series`,
 			query:    "SHOW SERIES FROM cpu WHERE region = 'useast'",
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["_id","host","region"],"values":[[3,"server01","useast"],[4,"server02","useast"]]}]}]}`,
@@ -1358,6 +1371,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		},
 
 		{
+			name:  "show tag keys",
 			reset: true,
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
 		{"measurement": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
@@ -1365,24 +1379,34 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		{"measurement": "cpu", "tags": {"host": "server01", "region": "useast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
 		{"measurement": "cpu", "tags": {"host": "server02", "region": "useast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
 		{"measurement": "gpu", "tags": {"host": "server02", "region": "useast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
-		{"measurement": "gpu", "tags": {"host": "server03", "region": "caeast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}}
+		{"measurement": "gpu", "tags": {"host": "server03", "region": "caeast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"measurement": "disk", "tags": {"host": "server03", "region": "caeast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}}
 		]}`,
 			query:    "SHOW TAG KEYS",
 			queryDb:  "%DB%",
-			expected: `{"results":[{"series":[{"name":"cpu","columns":["tagKey"],"values":[["host"],["region"]]},{"name":"gpu","columns":["tagKey"],"values":[["host"],["region"]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["tagKey"],"values":[["host"],["region"]]},{"name":"disk","columns":["tagKey"],"values":[["host"],["region"]]},{"name":"gpu","columns":["tagKey"],"values":[["host"],["region"]]}]}]}`,
 		},
 		{
+			name:     "show tag keys from",
 			query:    "SHOW TAG KEYS FROM cpu",
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["tagKey"],"values":[["host"],["region"]]}]}]}`,
 		},
 		{
+			name:     "show tag keys from regex",
+			query:    "SHOW TAG KEYS FROM /[cg]pu/",
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["tagKey"],"values":[["host"],["region"]]},{"name":"gpu","columns":["tagKey"],"values":[["host"],["region"]]}]}]}`,
+		},
+		{
+			name:          "show tag keys measurement not found",
 			query:         "SHOW TAG KEYS FROM bad",
 			queryDb:       "%DB%",
 			expectPattern: `measurement not found: bad.*`,
 		},
 
 		{
+			name:  `show tag values`,
 			reset: true,
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
 		{"measurement": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
@@ -1390,39 +1414,52 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		{"measurement": "cpu", "tags": {"host": "server01", "region": "useast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
 		{"measurement": "cpu", "tags": {"host": "server02", "region": "useast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
 		{"measurement": "gpu", "tags": {"host": "server02", "region": "useast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
-		{"measurement": "gpu", "tags": {"host": "server03", "region": "caeast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}}
+		{"measurement": "gpu", "tags": {"host": "server03", "region": "caeast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}},
+		{"measurement": "disk", "tags": {"host": "server04", "region": "caeast"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}}
 		]}`,
 			query:    "SHOW TAG VALUES WITH KEY = host",
 			queryDb:  "%DB%",
-			expected: `{"results":[{"series":[{"name":"hostTagValues","columns":["host"],"values":[["server01"],["server02"],["server03"]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"hostTagValues","columns":["host"],"values":[["server01"],["server02"],["server03"],["server04"]]}]}]}`,
 		},
 		{
+			name:     `show tag values`,
 			query:    `SHOW TAG VALUES WITH KEY = "host"`,
 			queryDb:  "%DB%",
-			expected: `{"results":[{"series":[{"name":"hostTagValues","columns":["host"],"values":[["server01"],["server02"],["server03"]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"hostTagValues","columns":["host"],"values":[["server01"],["server02"],["server03"],["server04"]]}]}]}`,
 		},
 		{
+			name:     `show tag values`,
 			query:    `SHOW TAG VALUES FROM cpu WITH KEY = host WHERE region = 'uswest'`,
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"hostTagValues","columns":["host"],"values":[["server01"]]}]}]}`,
 		},
 		{
+			name:     `show tag values`,
 			query:    `SHOW TAG VALUES WITH KEY = host WHERE region =~ /ca.*/`,
 			queryDb:  "%DB%",
-			expected: `{"results":[{"series":[{"name":"hostTagValues","columns":["host"],"values":[["server03"]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"hostTagValues","columns":["host"],"values":[["server03"],["server04"]]}]}]}`,
 		},
 		{
+			name:     `show tag values`,
 			query:    `SHOW TAG VALUES WITH KEY = region WHERE host !~ /server0[12]/`,
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"regionTagValues","columns":["region"],"values":[["caeast"]]}]}]}`,
 		},
 		{
+			name:     `show tag values`,
 			query:    `SHOW TAG VALUES FROM cpu WITH KEY IN (host, region) WHERE region = 'uswest'`,
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"hostTagValues","columns":["host"],"values":[["server01"]]},{"name":"regionTagValues","columns":["region"],"values":[["uswest"]]}]}]}`,
 		},
+		{
+			name:     `show tag values`,
+			query:    `SHOW TAG VALUES FROM /[cg]pu/ WITH KEY = host`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"hostTagValues","columns":["host"],"values":[["server01"],["server02"],["server03"]]}]}]}`,
+		},
 
 		{
+			name:  `show field keys`,
 			reset: true,
 			write: `{"database" : "%DB%", "retentionPolicy" : "%RP%", "points": [
 		{"measurement": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z","fields": {"field1": 100}},
@@ -1430,16 +1467,24 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 		{"measurement": "cpu", "tags": {"host": "server01", "region": "useast"},"time": "2009-11-10T23:00:00Z","fields": {"field1": 200, "field2": 300, "field3": 400}},
 		{"measurement": "cpu", "tags": {"host": "server02", "region": "useast"},"time": "2009-11-10T23:00:00Z","fields": {"field1": 200, "field2": 300, "field3": 400}},
 		{"measurement": "gpu", "tags": {"host": "server01", "region": "useast"},"time": "2009-11-10T23:00:00Z","fields": {"field4": 200, "field5": 300}},
-		{"measurement": "gpu", "tags": {"host": "server03", "region": "caeast"},"time": "2009-11-10T23:00:00Z","fields": {"field6": 200, "field7": 300}}
+		{"measurement": "gpu", "tags": {"host": "server03", "region": "caeast"},"time": "2009-11-10T23:00:00Z","fields": {"field6": 200, "field7": 300}},
+		{"measurement": "disk", "tags": {"host": "server03", "region": "caeast"},"time": "2009-11-10T23:00:00Z","fields": {"field8": 200, "field9": 300}}
 		]}`,
 			query:    `SHOW FIELD KEYS`,
 			queryDb:  "%DB%",
-			expected: `{"results":[{"series":[{"name":"cpu","columns":["fieldKey"],"values":[["field1"],["field2"],["field3"]]},{"name":"gpu","columns":["fieldKey"],"values":[["field4"],["field5"],["field6"],["field7"]]}]}]}`,
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["fieldKey"],"values":[["field1"],["field2"],["field3"]]},{"name":"disk","columns":["fieldKey"],"values":[["field8"],["field9"]]},{"name":"gpu","columns":["fieldKey"],"values":[["field4"],["field5"],["field6"],["field7"]]}]}]}`,
 		},
 		{
+			name:     `show field keys`,
 			query:    `SHOW FIELD KEYS FROM cpu`,
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["fieldKey"],"values":[["field1"],["field2"],["field3"]]}]}]}`,
+		},
+		{
+			name:     `show field keys`,
+			query:    `SHOW FIELD KEYS FROM /[cg]pu/`,
+			queryDb:  "%DB%",
+			expected: `{"results":[{"series":[{"name":"cpu","columns":["fieldKey"],"values":[["field1"],["field2"],["field3"]]},{"name":"gpu","columns":["fieldKey"],"values":[["field4"],["field5"],["field6"],["field7"]]}]}]}`,
 		},
 
 		// Database control tests

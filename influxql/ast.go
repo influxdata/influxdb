@@ -1408,7 +1408,7 @@ func (s *DeleteStatement) RequiredPrivileges() ExecutionPrivileges {
 // ShowSeriesStatement represents a command for listing series in the database.
 type ShowSeriesStatement struct {
 	// Measurement(s) the series are listed for.
-	Source Source
+	Sources Sources
 
 	// An expression evaluated on a series name or tag.
 	Condition Expr
@@ -1428,6 +1428,11 @@ type ShowSeriesStatement struct {
 func (s *ShowSeriesStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("SHOW SERIES")
+
+	if s.Sources != nil {
+		_, _ = buf.WriteString(" FROM ")
+		_, _ = buf.WriteString(s.Sources.String())
+	}
 
 	if s.Condition != nil {
 		_, _ = buf.WriteString(" WHERE ")
@@ -1692,8 +1697,8 @@ func (s *ShowDiagnosticsStatement) RequiredPrivileges() ExecutionPrivileges {
 
 // ShowTagKeysStatement represents a command for listing tag keys.
 type ShowTagKeysStatement struct {
-	// Data source that fields are extracted from.
-	Source Source
+	// Data sources that fields are extracted from.
+	Sources Sources
 
 	// An expression evaluated on data point.
 	Condition Expr
@@ -1714,9 +1719,9 @@ func (s *ShowTagKeysStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("SHOW TAG KEYS")
 
-	if s.Source != nil {
+	if s.Sources != nil {
 		_, _ = buf.WriteString(" FROM ")
-		_, _ = buf.WriteString(s.Source.String())
+		_, _ = buf.WriteString(s.Sources.String())
 	}
 	if s.Condition != nil {
 		_, _ = buf.WriteString(" WHERE ")
@@ -1745,7 +1750,7 @@ func (s *ShowTagKeysStatement) RequiredPrivileges() ExecutionPrivileges {
 // ShowTagValuesStatement represents a command for listing tag values.
 type ShowTagValuesStatement struct {
 	// Data source that fields are extracted from.
-	Source Source
+	Sources Sources
 
 	// Tag key(s) to pull values from.
 	TagKeys []string
@@ -1769,9 +1774,9 @@ func (s *ShowTagValuesStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("SHOW TAG VALUES")
 
-	if s.Source != nil {
+	if s.Sources != nil {
 		_, _ = buf.WriteString(" FROM ")
-		_, _ = buf.WriteString(s.Source.String())
+		_, _ = buf.WriteString(s.Sources.String())
 	}
 	if s.Condition != nil {
 		_, _ = buf.WriteString(" WHERE ")
@@ -1812,8 +1817,8 @@ func (s *ShowUsersStatement) RequiredPrivileges() ExecutionPrivileges {
 
 // ShowFieldKeysStatement represents a command for listing field keys.
 type ShowFieldKeysStatement struct {
-	// Data source that fields are extracted from.
-	Source Source
+	// Data sources that fields are extracted from.
+	Sources Sources
 
 	// Fields to sort results by
 	SortFields SortFields
@@ -1831,9 +1836,9 @@ func (s *ShowFieldKeysStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("SHOW FIELD KEYS")
 
-	if s.Source != nil {
+	if s.Sources != nil {
 		_, _ = buf.WriteString(" FROM ")
-		_, _ = buf.WriteString(s.Source.String())
+		_, _ = buf.WriteString(s.Sources.String())
 	}
 	if len(s.SortFields) > 0 {
 		_, _ = buf.WriteString(" ORDER BY ")
@@ -2346,17 +2351,21 @@ func Walk(v Visitor, node Node) {
 		Walk(v, n.SortFields)
 
 	case *ShowSeriesStatement:
-		Walk(v, n.Source)
+		Walk(v, n.Sources)
 		Walk(v, n.Condition)
 
 	case *ShowTagKeysStatement:
-		Walk(v, n.Source)
+		Walk(v, n.Sources)
 		Walk(v, n.Condition)
 		Walk(v, n.SortFields)
 
 	case *ShowTagValuesStatement:
-		Walk(v, n.Source)
+		Walk(v, n.Sources)
 		Walk(v, n.Condition)
+		Walk(v, n.SortFields)
+
+	case *ShowFieldKeysStatement:
+		Walk(v, n.Sources)
 		Walk(v, n.SortFields)
 
 	case SortFields:

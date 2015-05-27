@@ -371,7 +371,8 @@ func TestParser_ParseStatement(t *testing.T) {
 				IsRawQuery: true,
 				Fields:     []*influxql.Field{{Expr: &influxql.Wildcard{}}},
 				Sources: []influxql.Source{&influxql.Measurement{
-					Regex: &influxql.RegexLiteral{Val: regexp.MustCompile("cpu.*")}}},
+					Regex: &influxql.RegexLiteral{Val: regexp.MustCompile("cpu.*")}},
+				},
 			},
 		},
 
@@ -384,7 +385,8 @@ func TestParser_ParseStatement(t *testing.T) {
 				Sources: []influxql.Source{&influxql.Measurement{
 					Database:        `db`,
 					RetentionPolicy: `rp`,
-					Regex:           &influxql.RegexLiteral{Val: regexp.MustCompile("cpu.*")}}},
+					Regex:           &influxql.RegexLiteral{Val: regexp.MustCompile("cpu.*")}},
+				},
 			},
 		},
 
@@ -396,7 +398,8 @@ func TestParser_ParseStatement(t *testing.T) {
 				Fields:     []*influxql.Field{{Expr: &influxql.Wildcard{}}},
 				Sources: []influxql.Source{&influxql.Measurement{
 					Database: `db`,
-					Regex:    &influxql.RegexLiteral{Val: regexp.MustCompile("cpu.*")}}},
+					Regex:    &influxql.RegexLiteral{Val: regexp.MustCompile("cpu.*")}},
+				},
 			},
 		},
 
@@ -408,7 +411,8 @@ func TestParser_ParseStatement(t *testing.T) {
 				Fields:     []*influxql.Field{{Expr: &influxql.Wildcard{}}},
 				Sources: []influxql.Source{&influxql.Measurement{
 					RetentionPolicy: `rp`,
-					Regex:           &influxql.RegexLiteral{Val: regexp.MustCompile("cpu.*")}}},
+					Regex:           &influxql.RegexLiteral{Val: regexp.MustCompile("cpu.*")}},
+				},
 			},
 		},
 
@@ -539,6 +543,26 @@ func TestParser_ParseStatement(t *testing.T) {
 			stmt: &influxql.ShowSeriesStatement{},
 		},
 
+		// SHOW SERIES FROM
+		{
+			s: `SHOW SERIES FROM cpu`,
+			stmt: &influxql.ShowSeriesStatement{
+				Sources: influxql.Sources{&influxql.Measurement{Name: "cpu"}},
+			},
+		},
+
+		// SHOW SERIES FROM /<regex>/
+		{
+			s: `SHOW SERIES FROM /[cg]pu/`,
+			stmt: &influxql.ShowSeriesStatement{
+				Sources: influxql.Sources{
+					&influxql.Measurement{
+						Regex: &influxql.RegexLiteral{Val: regexp.MustCompile(`[cg]pu`)},
+					},
+				},
+			},
+		},
+
 		// SHOW SERIES with OFFSET 0
 		{
 			s:    `SHOW SERIES OFFSET 0`,
@@ -599,7 +623,19 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SHOW TAG KEYS FROM src`,
 			stmt: &influxql.ShowTagKeysStatement{
-				Source: &influxql.Measurement{Name: "src"},
+				Sources: influxql.Sources{&influxql.Measurement{Name: "src"}},
+			},
+		},
+
+		// SHOW TAG KEYS FROM /<regex>/
+		{
+			s: `SHOW TAG KEYS FROM /[cg]pu/`,
+			stmt: &influxql.ShowTagKeysStatement{
+				Sources: influxql.Sources{
+					&influxql.Measurement{
+						Regex: &influxql.RegexLiteral{Val: regexp.MustCompile(`[cg]pu`)},
+					},
+				},
 			},
 		},
 
@@ -607,7 +643,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SHOW TAG KEYS FROM src WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
 			stmt: &influxql.ShowTagKeysStatement{
-				Source: &influxql.Measurement{Name: "src"},
+				Sources: influxql.Sources{&influxql.Measurement{Name: "src"}},
 				Condition: &influxql.BinaryExpr{
 					Op:  influxql.EQ,
 					LHS: &influxql.VarRef{Val: "region"},
@@ -626,7 +662,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SHOW TAG VALUES FROM src WITH KEY = region WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
 			stmt: &influxql.ShowTagValuesStatement{
-				Source:  &influxql.Measurement{Name: "src"},
+				Sources: influxql.Sources{&influxql.Measurement{Name: "src"}},
 				TagKeys: []string{"region"},
 				Condition: &influxql.BinaryExpr{
 					Op:  influxql.EQ,
@@ -646,7 +682,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SHOW TAG VALUES FROM cpu WITH KEY IN (region, host) WHERE region = 'uswest'`,
 			stmt: &influxql.ShowTagValuesStatement{
-				Source:  &influxql.Measurement{Name: "cpu"},
+				Sources: influxql.Sources{&influxql.Measurement{Name: "cpu"}},
 				TagKeys: []string{"region", "host"},
 				Condition: &influxql.BinaryExpr{
 					Op:  influxql.EQ,
@@ -660,7 +696,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SHOW TAG VALUES FROM cpu WITH KEY IN (region,service,host)WHERE region = 'uswest'`,
 			stmt: &influxql.ShowTagValuesStatement{
-				Source:  &influxql.Measurement{Name: "cpu"},
+				Sources: influxql.Sources{&influxql.Measurement{Name: "cpu"}},
 				TagKeys: []string{"region", "service", "host"},
 				Condition: &influxql.BinaryExpr{
 					Op:  influxql.EQ,
@@ -680,6 +716,19 @@ func TestParser_ParseStatement(t *testing.T) {
 					LHS: &influxql.VarRef{Val: "region"},
 					RHS: &influxql.StringLiteral{Val: "uswest"},
 				},
+			},
+		},
+
+		// SHOW TAG VALUES FROM /<regex>/ WITH KEY = ...
+		{
+			s: `SHOW TAG VALUES FROM /[cg]pu/ WITH KEY = host`,
+			stmt: &influxql.ShowTagValuesStatement{
+				Sources: influxql.Sources{
+					&influxql.Measurement{
+						Regex: &influxql.RegexLiteral{Val: regexp.MustCompile(`[cg]pu`)},
+					},
+				},
+				TagKeys: []string{"host"},
 			},
 		},
 
@@ -706,13 +755,23 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SHOW FIELD KEYS FROM src ORDER BY ASC, field1, field2 DESC LIMIT 10`,
 			stmt: &influxql.ShowFieldKeysStatement{
-				Source: &influxql.Measurement{Name: "src"},
+				Sources: influxql.Sources{&influxql.Measurement{Name: "src"}},
 				SortFields: []*influxql.SortField{
 					{Ascending: true},
 					{Name: "field1"},
 					{Name: "field2"},
 				},
 				Limit: 10,
+			},
+		},
+		{
+			s: `SHOW FIELD KEYS FROM /[cg]pu/`,
+			stmt: &influxql.ShowFieldKeysStatement{
+				Sources: influxql.Sources{
+					&influxql.Measurement{
+						Regex: &influxql.RegexLiteral{Val: regexp.MustCompile(`[cg]pu`)},
+					},
+				},
 			},
 		},
 
