@@ -99,10 +99,10 @@ func (p *Parser) Parse(line string) (influxdb.Point, error) {
 	timestamp := time.Unix(int64(unixTime), int64((unixTime-math.Floor(unixTime))*float64(time.Second)))
 
 	point := influxdb.Point{
-		Name:   name,
-		Tags:   tags,
-		Fields: fieldValues,
-		Time:   timestamp,
+		Measurement: name,
+		Tags:        tags,
+		Fields:      fieldValues,
+		Time:        timestamp,
 	}
 
 	return point, nil

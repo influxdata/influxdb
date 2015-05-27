@@ -1073,10 +1073,10 @@ func TestServer_WriteAllDataTypes(t *testing.T) {
 	s.SetDefaultRetentionPolicy("foo", "raw")
 
 	// Write series with one point to the database.
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "series1", Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(20)}}})
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "series2", Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": int64(30)}}})
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "series3", Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": "baz"}}})
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "series4", Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": true}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Measurement: "series1", Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(20)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Measurement: "series2", Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": int64(30)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Measurement: "series3", Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": "baz"}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Measurement: "series4", Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": true}}})
 	time.Sleep(time.Millisecond * 100)
 
 	f := func(t *testing.T, database, query, expected string) {
@@ -1144,7 +1144,7 @@ func TestServer_DropMeasurement(t *testing.T) {
 
 	// Write series with one point to the database.
 	tags := map[string]string{"host": "serverA", "region": "uswest"}
-	index, err := s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	index, err := s.WriteSeries("foo", "raw", []influxdb.Point{{Measurement: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1207,7 +1207,7 @@ func TestServer_DropSeries(t *testing.T) {
 
 	// Write series with one point to the database.
 	tags := map[string]string{"host": "serverA", "region": "uswest"}
-	index, err := s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	index, err := s.WriteSeries("foo", "raw", []influxdb.Point{{Measurement: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1251,14 +1251,14 @@ func TestServer_DropSeriesFromMeasurement(t *testing.T) {
 
 	// Write series with one point to the database.
 	tags := map[string]string{"host": "serverA", "region": "uswest"}
-	index, err := s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	index, err := s.WriteSeries("foo", "raw", []influxdb.Point{{Measurement: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	c.Sync(index)
 
 	tags = map[string]string{"host": "serverb", "region": "useast"}
-	index, err = s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "memory", Tags: tags, Time: mustParseTime("2000-01-02T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23465432423)}}})
+	index, err = s.WriteSeries("foo", "raw", []influxdb.Point{{Measurement: "memory", Tags: tags, Time: mustParseTime("2000-01-02T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23465432423)}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1297,14 +1297,14 @@ func TestServer_DropSeriesTagsPreserved(t *testing.T) {
 
 	// Write series with one point to the database.
 	tags := map[string]string{"host": "serverA", "region": "uswest"}
-	index, err := s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	index, err := s.WriteSeries("foo", "raw", []influxdb.Point{{Measurement: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	c.Sync(index)
 
 	tags = map[string]string{"host": "serverB", "region": "uswest"}
-	index, err = s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:01Z"), Fields: map[string]interface{}{"value": float64(33.2)}}})
+	index, err = s.WriteSeries("foo", "raw", []influxdb.Point{{Measurement: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:01Z"), Fields: map[string]interface{}{"value": float64(33.2)}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1372,11 +1372,11 @@ func TestServer_ShowSeriesLimitOffset(t *testing.T) {
 	s.SetDefaultRetentionPolicy("foo", "raw")
 
 	// Write series with one point to the database.
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east", "host": "serverA"}, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(20)}}})
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east", "host": "serverB"}, Time: mustParseTime("2000-01-01T00:00:10Z"), Fields: map[string]interface{}{"value": float64(30)}}})
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-west", "host": "serverC"}, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(100)}}})
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "memory", Tags: map[string]string{"region": "us-west", "host": "serverB"}, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(100)}}})
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "memory", Tags: map[string]string{"region": "us-east", "host": "serverA"}, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(100)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Measurement: "cpu", Tags: map[string]string{"region": "us-east", "host": "serverA"}, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(20)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Measurement: "cpu", Tags: map[string]string{"region": "us-east", "host": "serverB"}, Time: mustParseTime("2000-01-01T00:00:10Z"), Fields: map[string]interface{}{"value": float64(30)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Measurement: "cpu", Tags: map[string]string{"region": "us-west", "host": "serverC"}, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(100)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Measurement: "memory", Tags: map[string]string{"region": "us-west", "host": "serverB"}, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(100)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Measurement: "memory", Tags: map[string]string{"region": "us-east", "host": "serverA"}, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(100)}}})
 
 	// Select data from the server.
 	results := s.executeQuery(MustParseQuery(`SHOW SERIES LIMIT 3 OFFSET 1`), "foo", nil)
@@ -1498,7 +1498,7 @@ func TestServer_CopyShard(t *testing.T) {
 	s.SetDefaultRetentionPolicy("foo", "raw")
 
 	// Write series with one point to the database to ensure shard 1 is created.
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "series1", Fields: map[string]interface{}{"value": float64(20)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Measurement: "series1", Fields: map[string]interface{}{"value": float64(20)}}})
 	time.Sleep(time.Millisecond * 100)
 
 	err := s.CopyShard(ioutil.Discard, 1234)
@@ -1528,7 +1528,7 @@ func TestServer_Measurements(t *testing.T) {
 	tags := map[string]string{"host": "servera.influx.com", "region": "uswest"}
 	values := map[string]interface{}{"value": 23.2}
 
-	index, err := s.WriteSeries("foo", "mypolicy", []influxdb.Point{influxdb.Point{Name: "cpu_load", Tags: tags, Time: timestamp, Fields: values}})
+	index, err := s.WriteSeries("foo", "mypolicy", []influxdb.Point{influxdb.Point{Measurement: "cpu_load", Tags: tags, Time: timestamp, Fields: values}})
 	if err != nil {
 		t.Fatal(err)
 	} else if err = s.Sync(index); err != nil {
@@ -1925,9 +1925,9 @@ func TestServer_RunContinuousQueries(t *testing.T) {
 	}
 	testTime.Add(time.Millisecond * 2)
 
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Time: testTime, Fields: map[string]interface{}{"value": float64(30)}}})
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Time: testTime.Add(-time.Millisecond * 5), Fields: map[string]interface{}{"value": float64(20)}}})
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-west"}, Time: testTime, Fields: map[string]interface{}{"value": float64(100)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Measurement: "cpu", Tags: map[string]string{"region": "us-east"}, Time: testTime, Fields: map[string]interface{}{"value": float64(30)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Measurement: "cpu", Tags: map[string]string{"region": "us-east"}, Time: testTime.Add(-time.Millisecond * 5), Fields: map[string]interface{}{"value": float64(20)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Measurement: "cpu", Tags: map[string]string{"region": "us-west"}, Time: testTime, Fields: map[string]interface{}{"value": float64(100)}}})
 
 	// Run CQs after a period of time
 	time.Sleep(time.Millisecond * 50)
@@ -1957,7 +1957,7 @@ func TestServer_RunContinuousQueries(t *testing.T) {
 
 	// ensure that data written into a previous window is picked up and the result recomputed.
 	time.Sleep(time.Millisecond * 2)
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-west"}, Time: testTime.Add(-time.Millisecond), Fields: map[string]interface{}{"value": float64(50)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Measurement: "cpu", Tags: map[string]string{"region": "us-west"}, Time: testTime.Add(-time.Millisecond), Fields: map[string]interface{}{"value": float64(50)}}})
 	s.RunContinuousQueries()
 	// give CQs time to run
 	time.Sleep(time.Millisecond * 100)
@@ -2021,7 +2021,7 @@ func TestServer_CreateSnapshotWriter(t *testing.T) {
 	s.CreateUser("susy", "pass", false)
 
 	// Write one point.
-	index, err := s.WriteSeries("db", "raw", []influxdb.Point{{Name: "cpu", Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(100)}}})
+	index, err := s.WriteSeries("db", "raw", []influxdb.Point{{Measurement: "cpu", Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(100)}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2191,7 +2191,7 @@ func TestServer_ShowTagKeysStatement_TagsExist(t *testing.T) {
 
 	// Write series with one point to the database.
 	tags := map[string]string{"host": "serverA", "region": "uswest"}
-	index, err := s.WriteSeries("foo", "bar", []influxdb.Point{{Name: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	index, err := s.WriteSeries("foo", "bar", []influxdb.Point{{Measurement: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2232,7 +2232,7 @@ func TestServer_ShowTagValuesStatement_TagsExist(t *testing.T) {
 
 	// Write series with one point to the database.
 	tags := map[string]string{"host": "serverA", "region": "uswest"}
-	index, err := s.WriteSeries("foo", "bar", []influxdb.Point{{Name: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	index, err := s.WriteSeries("foo", "bar", []influxdb.Point{{Measurement: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2273,13 +2273,13 @@ func TestServer_ShowTagValuesStatement_WhereClause(t *testing.T) {
 
 	// Write series with one point to the database.
 	tags := map[string]string{"host": "serverA", "region": "uswest"}
-	index, err := s.WriteSeries("foo", "bar", []influxdb.Point{{Name: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	index, err := s.WriteSeries("foo", "bar", []influxdb.Point{{Measurement: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	c.Sync(index)
 	tags2 := map[string]string{"host": "serverC", "region": "useast"}
-	index2, err := s.WriteSeries("foo", "bar", []influxdb.Point{{Name: "cpu", Tags: tags2, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	index2, err := s.WriteSeries("foo", "bar", []influxdb.Point{{Measurement: "cpu", Tags: tags2, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2320,7 +2320,7 @@ func TestServer_ShowTagValuesStatement_ErrDatabaseNotFound(t *testing.T) {
 
 	// Write series with one point to the database.
 	tags := map[string]string{"host": "serverA", "region": "uswest"}
-	index, err := s.WriteSeries("foo", "bar", []influxdb.Point{{Name: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	index, err := s.WriteSeries("foo", "bar", []influxdb.Point{{Measurement: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2362,7 +2362,7 @@ func TestServer_ShowTagValuesStatement_ErrMeasurementNotFound(t *testing.T) {
 
 	// Write series with one point to the database.
 	tags := map[string]string{"host": "serverA", "region": "uswest"}
-	index, err := s.WriteSeries("foo", "bar", []influxdb.Point{{Name: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	index, err := s.WriteSeries("foo", "bar", []influxdb.Point{{Measurement: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
 	if err != nil {
 		t.Fatal(err)
 	}

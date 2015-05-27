@@ -304,15 +304,15 @@ func (r Response) Error() error {
 }
 
 // Point defines the fields that will be written to the database
-// Name, Time, and Fields are required
+// Measurement, Time, and Fields are required
 // Precision can be specified if the time is in epoch format (integer).
 // Valid values for Precision are n, u, ms, s, m, and h
 type Point struct {
-	Name      string
-	Tags      map[string]string
-	Time      time.Time
-	Fields    map[string]interface{}
-	Precision string
+	Measurement string
+	Tags        map[string]string
+	Time        time.Time
+	Fields      map[string]interface{}
+	Precision   string
 }
 
 // MarshalJSON will format the time in RFC3339Nano
@@ -320,16 +320,16 @@ type Point struct {
 // Or another way to say it is we always send back in nanosecond precision
 func (p *Point) MarshalJSON() ([]byte, error) {
 	point := struct {
-		Name      string                 `json:"name,omitempty"`
-		Tags      map[string]string      `json:"tags,omitempty"`
-		Time      string                 `json:"time,omitempty"`
-		Fields    map[string]interface{} `json:"fields,omitempty"`
-		Precision string                 `json:"precision,omitempty"`
+		Measurement string                 `json:"measurement,omitempty"`
+		Tags        map[string]string      `json:"tags,omitempty"`
+		Time        string                 `json:"time,omitempty"`
+		Fields      map[string]interface{} `json:"fields,omitempty"`
+		Precision   string                 `json:"precision,omitempty"`
 	}{
-		Name:      p.Name,
-		Tags:      p.Tags,
-		Fields:    p.Fields,
-		Precision: p.Precision,
+		Measurement: p.Measurement,
+		Tags:        p.Tags,
+		Fields:      p.Fields,
+		Precision:   p.Precision,
 	}
 	// Let it omit empty if it's really zero
 	if !p.Time.IsZero() {
@@ -341,18 +341,18 @@ func (p *Point) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON decodes the data into the Point struct
 func (p *Point) UnmarshalJSON(b []byte) error {
 	var normal struct {
-		Name      string                 `json:"name"`
-		Tags      map[string]string      `json:"tags"`
-		Time      time.Time              `json:"time"`
-		Precision string                 `json:"precision"`
-		Fields    map[string]interface{} `json:"fields"`
+		Measurement string                 `json:"measurement"`
+		Tags        map[string]string      `json:"tags"`
+		Time        time.Time              `json:"time"`
+		Precision   string                 `json:"precision"`
+		Fields      map[string]interface{} `json:"fields"`
 	}
 	var epoch struct {
-		Name      string                 `json:"name"`
-		Tags      map[string]string      `json:"tags"`
-		Time      *int64                 `json:"time"`
-		Precision string                 `json:"precision"`
-		Fields    map[string]interface{} `json:"fields"`
+		Measurement string                 `json:"measurement"`
+		Tags        map[string]string      `json:"tags"`
+		Time        *int64                 `json:"time"`
+		Precision   string                 `json:"precision"`
+		Fields      map[string]interface{} `json:"fields"`
 	}
 
 	if err := func() error {
@@ -371,7 +371,7 @@ func (p *Point) UnmarshalJSON(b []byte) error {
 				return err
 			}
 		}
-		p.Name = epoch.Name
+		p.Measurement = epoch.Measurement
 		p.Tags = epoch.Tags
 		p.Time = ts
 		p.Precision = epoch.Precision
@@ -387,7 +387,7 @@ func (p *Point) UnmarshalJSON(b []byte) error {
 		return err
 	}
 	normal.Time = SetPrecision(normal.Time, normal.Precision)
-	p.Name = normal.Name
+	p.Measurement = normal.Measurement
 	p.Tags = normal.Tags
 	p.Time = normal.Time
 	p.Precision = normal.Precision

@@ -181,7 +181,7 @@ func (s *Server) HandleTelnet(conn net.Conn) {
 			continue
 		}
 
-		name := inputStrs[1]
+		measurement := inputStrs[1]
 		tsStr := inputStrs[2]
 		valueStr := inputStrs[3]
 		tagStrs := inputStrs[4:]
@@ -224,10 +224,10 @@ func (s *Server) HandleTelnet(conn net.Conn) {
 		}
 
 		p := influxdb.Point{
-			Name:   name,
-			Tags:   tags,
-			Time:   t,
-			Fields: fields,
+			Measurement: measurement,
+			Tags:        tags,
+			Time:        t,
+			Fields:      fields,
 		}
 
 		_, err = s.writer.WriteSeries(s.database, s.retentionpolicy, []influxdb.Point{p})
@@ -333,10 +333,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		p := influxdb.Point{
-			Name:   dp.Metric,
-			Tags:   dp.Tags,
-			Time:   ts,
-			Fields: fields,
+			Measurement: dp.Metric,
+			Tags:        dp.Tags,
+			Time:        ts,
+			Fields:      fields,
 		}
 		idps = append(idps, p)
 	}

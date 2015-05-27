@@ -361,10 +361,10 @@ func (s *Server) StartSelfMonitoring(database, retention string, interval time.D
 		now := time.Now()
 		st.Walk(func(k string, v int64) {
 			point := Point{
-				Time:   now,
-				Name:   st.name + "_" + k,
-				Tags:   make(map[string]string),
-				Fields: map[string]interface{}{"value": int(v)},
+				Time:        now,
+				Measurement: st.name + "_" + k,
+				Tags:        make(map[string]string),
+				Fields:      map[string]interface{}{"value": int(v)},
 			}
 			// Specifically create a new map.
 			for k, v := range tags {
@@ -1752,10 +1752,10 @@ func (s *Server) DropSeries(database string, seriesByMeasurement map[string][]ui
 
 // Point defines the values that will be written to the database
 type Point struct {
-	Name   string
-	Tags   map[string]string
-	Time   time.Time
-	Fields map[string]interface{}
+	Measurement string
+	Tags        map[string]string
+	Time        time.Time
+	Fields      map[string]interface{}
 }
 
 // WriteSeries writes series data to the database.
@@ -1827,9 +1827,9 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 			return ErrDatabaseNotFound(database)
 		}
 		for _, p := range points {
-			measurement, series := db.MeasurementAndSeries(p.Name, p.Tags)
+			measurement, series := db.MeasurementAndSeries(p.Measurement, p.Tags)
 			if series == nil {
-				s.Logger.Printf("series not found: name=%s, tags=%#v", p.Name, p.Tags)
+				s.Logger.Printf("series not found: name=%s, tags=%#v", p.Measurement, p.Tags)
 				return ErrSeriesNotFound
 			}
 
@@ -1920,11 +1920,11 @@ func (s *Server) createMeasurementsIfNotExists(database, retentionPolicy string,
 		}
 
 		for _, p := range points {
-			measurement, series := db.MeasurementAndSeries(p.Name, p.Tags)
+			measurement, series := db.MeasurementAndSeries(p.Measurement, p.Tags)
 
 			if series == nil {
 				// Series does not exist in Metastore, add it so it's created cluster-wide.
-				c.addSeriesIfNotExists(p.Name, p.Tags)
+				c.addSeriesIfNotExists(p.Measurement, p.Tags)
 			}
 
 			for k, v := range p.Fields {
@@ -1938,7 +1938,7 @@ func (s *Server) createMeasurementsIfNotExists(database, retentionPolicy string,
 					}
 				}
 				// Field isn't in Metastore. Add it to command so it's created cluster-wide.
-				if err := c.addFieldIfNotExists(p.Name, k, influxql.InspectDataType(v)); err != nil {
+				if err := c.addFieldIfNotExists(p.Measurement, k, influxql.InspectDataType(v)); err != nil {
 					return err
 				}
 			}
@@ -4098,10 +4098,10 @@ func (s *Server) convertRowToPoints(measurementName string, row *influxql.Row) (
 		}
 
 		p := &Point{
-			Name:   measurementName,
-			Tags:   row.Tags,
-			Time:   v[timeIndex].(time.Time),
-			Fields: vals,
+			Measurement: measurementName,
+			Tags:        row.Tags,
+			Time:        v[timeIndex].(time.Time),
+			Fields:      vals,
 		}
 
 		points = append(points, *p)
