@@ -1,4 +1,4 @@
-package tcp_test
+package cluster_test
 
 import (
 	"fmt"
@@ -6,9 +6,21 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/influxdb/influxdb/tcp"
+	"github.com/influxdb/influxdb/cluster"
+	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/tsdb"
 )
+
+type metaStore struct {
+	host string
+}
+
+func (m *metaStore) Node(nodeID uint64) (*meta.NodeInfo, error) {
+	return &meta.NodeInfo{
+		ID:   nodeID,
+		Host: m.host,
+	}, nil
+}
 
 type testServer struct {
 	writeShardFunc func(shardID uint64, points []tsdb.Point) error
@@ -62,7 +74,7 @@ func (testServer) ResponseN(n int) ([]*serverResponse, error) {
 func TestServer_Close_ErrServerClosed(t *testing.T) {
 	var (
 		ts testServer
-		s  = tcp.NewServer(ts)
+		s  = cluster.NewServer(ts)
 	)
 
 	// Start on a random port
@@ -75,7 +87,7 @@ func TestServer_Close_ErrServerClosed(t *testing.T) {
 	s.Close()
 
 	// Try to close it again
-	if err := s.Close(); err != tcp.ErrServerClosed {
+	if err := s.Close(); err != cluster.ErrServerClosed {
 		t.Fatalf("expected an error, got %v", err)
 	}
 }
@@ -83,13 +95,13 @@ func TestServer_Close_ErrServerClosed(t *testing.T) {
 func TestServer_Close_ErrBindAddressRequired(t *testing.T) {
 	var (
 		ts testServer
-		s  = tcp.NewServer(ts)
+		s  = cluster.NewServer(ts)
 	)
 
 	// Start on a random port
 	_, e := s.ListenAndServe("")
 	if e == nil {
-		t.Fatalf("exprected error %s, got nil.", tcp.ErrBindAddressRequired)
+		t.Fatalf("exprected error %s, got nil.", cluster.ErrBindAddressRequired)
 	}
 
 }
@@ -97,7 +109,7 @@ func TestServer_Close_ErrBindAddressRequired(t *testing.T) {
 func TestServer_WriteShardRequestSuccess(t *testing.T) {
 	var (
 		ts = newTestServer(writeShardSuccess)
-		s  = tcp.NewServer(ts)
+		s  = cluster.NewServer(ts)
 	)
 	// Close the server
 	defer s.Close()
@@ -108,21 +120,22 @@ func TestServer_WriteShardRequestSuccess(t *testing.T) {
 		t.Fatalf("err does not match.  expected %v, got %v", nil, e)
 	}
 
-	client := tcp.NewClient()
+	writer := cluster.NewWriter(&metaStore{host: host})
 
 	now := time.Now()
 
 	shardID := uint64(1)
+	ownerID := uint64(2)
 	var points []tsdb.Point
 	points = append(points, tsdb.NewPoint(
 		"cpu", tsdb.Tags{"host": "server01"}, map[string]interface{}{"value": int64(100)}, now,
 	))
 
-	if err := client.WriteShard(host, shardID, points); err != nil {
+	if err := writer.Write(shardID, ownerID, points); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := client.Close(); err != nil {
+	if err := writer.Close(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -162,7 +175,7 @@ func TestServer_WriteShardRequestSuccess(t *testing.T) {
 func TestServer_WriteShardRequestMultipleSuccess(t *testing.T) {
 	var (
 		ts = newTestServer(writeShardSuccess)
-		s  = tcp.NewServer(ts)
+		s  = cluster.NewServer(ts)
 	)
 	// Close the server
 	defer s.Close()
@@ -173,17 +186,18 @@ func TestServer_WriteShardRequestMultipleSuccess(t *testing.T) {
 		t.Fatalf("err does not match.  expected %v, got %v", nil, e)
 	}
 
-	client := tcp.NewClient()
+	writer := cluster.NewWriter(&metaStore{host: host})
 
 	now := time.Now()
 
 	shardID := uint64(1)
+	ownerID := uint64(2)
 	var points []tsdb.Point
 	points = append(points, tsdb.NewPoint(
 		"cpu", tsdb.Tags{"host": "server01"}, map[string]interface{}{"value": int64(100)}, now,
 	))
 
-	if err := client.WriteShard(host, shardID, points); err != nil {
+	if err := writer.Write(shardID, ownerID, points); err != nil {
 		t.Fatal(err)
 	}
 
@@ -193,11 +207,11 @@ func TestServer_WriteShardRequestMultipleSuccess(t *testing.T) {
 		"cpu", tsdb.Tags{"host": "server01"}, map[string]interface{}{"value": int64(100)}, now,
 	))
 
-	if err := client.WriteShard(host, shardID, points[1:]); err != nil {
+	if err := writer.Write(shardID, ownerID, points[1:]); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := client.Close(); err != nil {
+	if err := writer.Close(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -237,7 +251,7 @@ func TestServer_WriteShardRequestMultipleSuccess(t *testing.T) {
 func TestServer_WriteShardRequestFail(t *testing.T) {
 	var (
 		ts = newTestServer(writeShardFail)
-		s  = tcp.NewServer(ts)
+		s  = cluster.NewServer(ts)
 	)
 	// Close the server
 	defer s.Close()
@@ -248,16 +262,17 @@ func TestServer_WriteShardRequestFail(t *testing.T) {
 		t.Fatalf("err does not match.  expected %v, got %v", nil, e)
 	}
 
-	client := tcp.NewClient()
+	writer := cluster.NewWriter(&metaStore{host: host})
 	now := time.Now()
 
 	shardID := uint64(1)
+	ownerID := uint64(2)
 	var points []tsdb.Point
 	points = append(points, tsdb.NewPoint(
 		"cpu", tsdb.Tags{"host": "server01"}, map[string]interface{}{"value": int64(100)}, now,
 	))
 
-	if err, exp := client.WriteShard(host, shardID, points), "error code 1: failed to write"; err == nil || err.Error() != exp {
+	if err, exp := writer.Write(shardID, ownerID, points), "error code 1: failed to write"; err == nil || err.Error() != exp {
 		t.Fatalf("expected error %s, got %v", exp, err)
 	}
 }

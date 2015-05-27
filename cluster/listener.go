@@ -1,4 +1,4 @@
-package tcp
+package cluster
 
 import (
 	"encoding/binary"
@@ -9,7 +9,6 @@ import (
 	"os"
 	"sync"
 
-	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -171,7 +170,7 @@ func (s *Server) writeShardRequest(conn net.Conn) error {
 		return err
 	}
 
-	var wsr cluster.WriteShardRequest
+	var wsr WriteShardRequest
 	if err := wsr.UnmarshalBinary(message); err != nil {
 		return err
 	}
@@ -185,7 +184,7 @@ func (s *Server) writeShardResponse(conn net.Conn, e error) {
 		return
 	}
 
-	var wsr cluster.WriteShardResponse
+	var wsr WriteShardResponse
 	if e != nil {
 		wsr.SetCode(1)
 		wsr.SetMessage(e.Error())

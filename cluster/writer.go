@@ -1,78 +1,81 @@
-package tcp
+package cluster
 
 import (
 	"encoding/binary"
 	"fmt"
 	"io"
 	"net"
-	"strings"
 
-	"github.com/influxdb/influxdb/cluster"
+	"github.com/fatih/pool"
+	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/tsdb"
+)
+
+const (
+	writeShardRequestMessage byte = iota + 1
+	writeShardResponseMessage
 )
 
 const maxConnections = 500
 
 var errMaxConnectionsExceeded = fmt.Errorf("can not exceed max connections of %d", maxConnections)
 
-type clientConn struct {
-	client *Client
-	addr   string
+type metaStore interface {
+	Node(id uint64) (ni *meta.NodeInfo, err error)
 }
 
-func newClientConn(addr string, c *Client) *clientConn {
-	return &clientConn{
-		addr:   addr,
-		client: c,
+type connFactory struct {
+	nodeInfo   *meta.NodeInfo
+	clientPool interface {
+		size() int
 	}
 }
-func (c *clientConn) dial() (net.Conn, error) {
-	if c.client.poolSize() > maxConnections {
+
+func (c *connFactory) dial() (net.Conn, error) {
+	if c.clientPool.size() > maxConnections {
 		return nil, errMaxConnectionsExceeded
 	}
 
-	conn, err := net.Dial("tcp", c.addr)
+	conn, err := net.Dial("tcp", c.nodeInfo.Host)
 	if err != nil {
 		return nil, err
 	}
 	return conn, nil
 }
 
-type Client struct {
-	pool *connectionPool
+type Writer struct {
+	pool      *clientPool
+	metaStore metaStore
 }
 
-func NewClient() *Client {
-	return &Client{
-		pool: newConnectionPool(),
+func NewWriter(m metaStore) *Writer {
+	return &Writer{
+		pool:      newClientPool(),
+		metaStore: m,
 	}
 }
 
-func (c *Client) poolSize() int {
-	if c.pool == nil {
-		return 0
+func (c *Writer) dial(nodeID uint64) (net.Conn, error) {
+	nodeInfo, err := c.metaStore.Node(nodeID)
+	if err != nil {
+		return nil, err
 	}
 
-	return c.pool.size()
-}
-
-func (c *Client) dial(addr string) (net.Conn, error) {
-	addr = strings.ToLower(addr)
 	// if we don't have a connection pool for that addr yet, create one
-	_, ok := c.pool.getPool(addr)
+	_, ok := c.pool.getPool(nodeInfo)
 	if !ok {
-		conn := newClientConn(addr, c)
-		p, err := NewChannelPool(1, 3, conn.dial)
+		factory := &connFactory{nodeInfo: nodeInfo, clientPool: c.pool}
+		p, err := pool.NewChannelPool(1, 3, factory.dial)
 		if err != nil {
 			return nil, err
 		}
-		c.pool.setPool(addr, p)
+		c.pool.setPool(nodeInfo, p)
 	}
-	return c.pool.conn(addr)
+	return c.pool.conn(nodeInfo)
 }
 
-func (c *Client) WriteShard(addr string, shardID uint64, points []tsdb.Point) error {
-	conn, err := c.dial(addr)
+func (w *Writer) Write(shardID, ownerID uint64, points []tsdb.Point) error {
+	conn, err := w.dial(ownerID)
 	if err != nil {
 		return err
 	}
@@ -85,7 +88,7 @@ func (c *Client) WriteShard(addr string, shardID uint64, points []tsdb.Point) er
 		return err
 	}
 
-	var request cluster.WriteShardRequest
+	var request WriteShardRequest
 	request.SetShardID(shardID)
 	request.AddPoints(points)
 
@@ -121,7 +124,7 @@ func (c *Client) WriteShard(addr string, shardID uint64, points []tsdb.Point) er
 		return err
 	}
 
-	var response cluster.WriteShardResponse
+	var response WriteShardResponse
 	if err := response.UnmarshalBinary(message); err != nil {
 		return err
 	}
@@ -132,11 +135,10 @@ func (c *Client) WriteShard(addr string, shardID uint64, points []tsdb.Point) er
 
 	return nil
 }
-
-func (c *Client) Close() error {
-	if c.pool == nil {
+func (w *Writer) Close() error {
+	if w.pool == nil {
 		return fmt.Errorf("client already closed")
 	}
-	c.pool = nil
+	w.pool = nil
 	return nil
 }
