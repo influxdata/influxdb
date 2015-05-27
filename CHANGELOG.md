@@ -2,6 +2,7 @@
 
 ### Features
 - [1997](https://github.com/influxdb/influxdb/pull/1997): Update SELECT * to return tag values.
+- [2599](https://github.com/influxdb/influxdb/issues/2599): Add "epoch" URL param and return JSON time values as epoch instead of date strings.
 
 ### Bugfixes
 - [2635](https://github.com/influxdb/influxdb/issues/2635): Fix querying against boolean field in WHERE clause.
