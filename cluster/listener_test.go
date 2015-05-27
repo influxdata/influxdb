@@ -2,6 +2,7 @@ package cluster_test
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -112,7 +113,7 @@ func TestServer_WriteShardRequestSuccess(t *testing.T) {
 	// Close the server
 	defer s.Close()
 
-	writer := cluster.NewWriter(&metaStore{host: s.Addr().String()})
+	writer := cluster.NewWriter(&metaStore{host: s.Addr().String()}, time.Minute)
 
 	now := time.Now()
 
@@ -176,7 +177,7 @@ func TestServer_WriteShardRequestMultipleSuccess(t *testing.T) {
 	// Close the server
 	defer s.Close()
 
-	writer := cluster.NewWriter(&metaStore{host: s.Addr().String()})
+	writer := cluster.NewWriter(&metaStore{host: s.Addr().String()}, time.Minute)
 
 	now := time.Now()
 
@@ -250,7 +251,7 @@ func TestServer_WriteShardRequestFail(t *testing.T) {
 	// Close the server
 	defer s.Close()
 
-	writer := cluster.NewWriter(&metaStore{host: s.Addr().String()})
+	writer := cluster.NewWriter(&metaStore{host: s.Addr().String()}, time.Minute)
 	now := time.Now()
 
 	shardID := uint64(1)
@@ -262,5 +263,32 @@ func TestServer_WriteShardRequestFail(t *testing.T) {
 
 	if err, exp := writer.Write(shardID, ownerID, points), "error code 1: failed to write"; err == nil || err.Error() != exp {
 		t.Fatalf("expected error %s, got %v", exp, err)
+	}
+}
+
+func TestServer_DialTimeout(t *testing.T) {
+	var (
+		ts = newTestServer(writeShardSuccess)
+		s  = cluster.NewServer(ts, "127.0.0.1:0")
+	)
+	// Start on a random port
+	if e := s.Open(); e != nil {
+		t.Fatalf("err does not match.  expected %v, got %v", nil, e)
+	}
+	// Close the server
+	defer s.Close()
+
+	writer := cluster.NewWriter(&metaStore{host: s.Addr().String()}, time.Nanosecond)
+	now := time.Now()
+
+	shardID := uint64(1)
+	ownerID := uint64(2)
+	var points []tsdb.Point
+	points = append(points, tsdb.NewPoint(
+		"cpu", tsdb.Tags{"host": "server01"}, map[string]interface{}{"value": int64(100)}, now,
+	))
+
+	if err, exp := writer.Write(shardID, ownerID, points), "i/o timeout"; err == nil || !strings.Contains(err.Error(), exp) {
+		t.Fatalf("expected error %v, to contain %s", err, exp)
 	}
 }
