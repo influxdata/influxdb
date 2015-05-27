@@ -1,4 +1,4 @@
-package tcp
+package cluster
 
 import (
 	"encoding/binary"
@@ -9,7 +9,6 @@ import (
 	"os"
 	"sync"
 
-	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -36,30 +35,38 @@ type Server struct {
 	Logger *log.Logger
 
 	shutdown chan struct{}
+
+	mu sync.RWMutex
+	// the actual addr the server opens on
+	addr net.Addr
+	// used to initially spin up the server, could be a zero port
+	laddr string
 }
 
 // NewServer returns a new instance of a Server.
-func NewServer(w writer) *Server {
+func NewServer(w writer, laddr string) *Server {
 	return &Server{
 		writer:   w,
+		laddr:    laddr,
 		Logger:   log.New(os.Stderr, "[tcp] ", log.LstdFlags),
 		shutdown: make(chan struct{}),
 	}
 }
 
-// ListenAndServe instructs the Server to start processing connections
-// on the given interface. iface must be in the form host:port
-// If successful, it returns the host as the first argument
-func (s *Server) ListenAndServe(laddr string) (string, error) {
-	if laddr == "" { // Make sure we have an laddr
-		return "", ErrBindAddressRequired
+// Open instructs the Server to start processing connections
+func (s *Server) Open() error {
+	if s.laddr == "" { // Make sure we have an laddr
+		return ErrBindAddressRequired
 	}
 
-	ln, err := net.Listen("tcp", laddr)
+	ln, err := net.Listen("tcp", s.laddr)
 	if err != nil {
-		return "", err
+		return err
 	}
+	s.mu.Lock()
 	s.listener = &ln
+	s.addr = ln.Addr()
+	s.mu.Unlock()
 
 	s.Logger.Println("listening on TCP connection", ln.Addr().String())
 	s.wg.Add(1)
@@ -89,8 +96,7 @@ func (s *Server) ListenAndServe(laddr string) (string, error) {
 		}
 	}()
 
-	// Return the host we started up on. Mostly needed for testing
-	return ln.Addr().String(), nil
+	return nil
 }
 
 // Close will close the listener
@@ -114,40 +120,48 @@ func (s *Server) Close() error {
 
 // handleConnection services an individual TCP connection.
 func (s *Server) handleConnection(conn net.Conn) {
-	defer func() {
-		conn.Close()
-		s.wg.Done()
-	}()
-
-	messageChannel := make(chan byte)
 
 	// Start our reader up in a go routine so we don't block checking our close channel
 	go func() {
-		var messageType byte
-		err := binary.Read(conn, binary.LittleEndian, &messageType)
-		if err != nil {
-			s.Logger.Printf("unable to read message type %s", err)
-			return
+		for {
+			var messageType byte
+
+			err := binary.Read(conn, binary.LittleEndian, &messageType)
+			if err != nil {
+				s.Logger.Printf("unable to read message type %s", err)
+				return
+			}
+			s.processMessage(messageType, conn)
+
+			select {
+			case <-s.shutdown:
+				// Are we shutting down? If so, exit
+				return
+			default:
+			}
 		}
-		messageChannel <- messageType
 	}()
 
 	for {
 		select {
 		case <-s.shutdown:
 			// Are we shutting down? If so, exit
+			conn.Close()
+			s.wg.Done()
 			return
-		case messageType := <-messageChannel:
-			switch messageType {
-			case writeShardRequestMessage:
-				err := s.writeShardRequest(conn)
-				s.writeShardResponse(conn, err)
-				return
-			}
 		default:
 		}
 	}
+}
 
+func (s *Server) processMessage(messageType byte, conn net.Conn) {
+	switch messageType {
+	case writeShardRequestMessage:
+		err := s.writeShardRequest(conn)
+		s.writeShardResponse(conn, err)
+		return
+	}
+	return
 }
 
 func (s *Server) writeShardRequest(conn net.Conn) error {
@@ -163,7 +177,7 @@ func (s *Server) writeShardRequest(conn net.Conn) error {
 		return err
 	}
 
-	var wsr cluster.WriteShardRequest
+	var wsr WriteShardRequest
 	if err := wsr.UnmarshalBinary(message); err != nil {
 		return err
 	}
@@ -177,7 +191,7 @@ func (s *Server) writeShardResponse(conn net.Conn, e error) {
 		return
 	}
 
-	var wsr cluster.WriteShardResponse
+	var wsr WriteShardResponse
 	if e != nil {
 		wsr.SetCode(1)
 		wsr.SetMessage(e.Error())
@@ -202,4 +216,11 @@ func (s *Server) writeShardResponse(conn net.Conn, e error) {
 		s.Logger.Printf("error writing shard response: %s", err)
 		return
 	}
+}
+
+func (s *Server) Addr() net.Addr {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.addr
+
 }
