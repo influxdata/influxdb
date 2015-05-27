@@ -49,11 +49,10 @@ func (c *clientPool) conn(n *meta.NodeInfo) (net.Conn, error) {
 	return conn, err
 }
 
-func (c *clientPool) close() error {
+func (c *clientPool) close() {
 	c.mu.Lock()
 	for _, p := range c.pool {
 		p.Close()
 	}
 	c.mu.Unlock()
-	return nil
 }

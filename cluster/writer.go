@@ -139,6 +139,7 @@ func (w *Writer) Close() error {
 	if w.pool == nil {
 		return fmt.Errorf("client already closed")
 	}
+	w.pool.close()
 	w.pool = nil
 	return nil
 }
