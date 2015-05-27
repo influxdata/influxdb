@@ -1764,7 +1764,7 @@ func TestServerDiags(t *testing.T) {
 }
 
 func TestSingleServer(t *testing.T) {
-	//t.Skip()
+	t.Skip()
 	t.Parallel()
 	testName := "single server integration"
 	if testing.Short() {
