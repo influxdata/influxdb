@@ -46,6 +46,10 @@ var (
 	// ErrRetentionPolicyNameExists is returned when renaming a policy to
 	// the same name as another existing policy.
 	ErrRetentionPolicyNameExists = errors.New("retention policy name already exists")
+
+	// ErrRetentionPolicyDurationTooLow is returned when updating a retention
+	// policy that has a duration lower than the allowed minimum.
+	ErrRetentionPolicyDurationTooLow = errors.New("retention policy duration too low")
 )
 
 var (

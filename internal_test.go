@@ -1,7 +1,7 @@
 package influxdb
 
 // This file is run within the "influxdb" package and allows for internal unit tests.
-
+/*
 import (
 	"bytes"
 	"fmt"
@@ -379,3 +379,4 @@ func MustParseExpr(s string) influxql.Expr {
 func strref(s string) *string {
 	return &s
 }
+*/

@@ -88,13 +88,15 @@ func (m *RemoteMapper) Begin(c *influxql.Call, startingTime int64, chunkSize int
 		}
 
 		// request to start streaming results
-		resp, err = http.Post(node.URL.String()+"/data/run_mapper", "application/json", bytes.NewReader(b))
+		resp, err = http.Post("http://"+node.Host+"/data/run_mapper", "application/json", bytes.NewReader(b))
 		if err != nil {
-			node.Down()
+			warn("NODE DOWN")
+			// node.Down()
 			continue
 		}
 		// Mark the node as up
-		node.Up()
+		warn("NODE UP")
+		// node.Up()
 		break
 	}
 

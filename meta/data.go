@@ -10,6 +10,17 @@ import (
 
 //go:generate protoc --gogo_out=. internal/meta.proto
 
+const (
+	// DefaultRetentionPolicyReplicaN is the default value of RetentionPolicyInfo.ReplicaN.
+	DefaultRetentionPolicyReplicaN = 1
+
+	// DefaultRetentionPolicyDuration is the default value of RetentionPolicyInfo.Duration.
+	DefaultRetentionPolicyDuration = 7 * (24 * time.Hour)
+
+	// MinRetentionPolicyDuration represents the minimum duration for a policy.
+	MinRetentionPolicyDuration = time.Hour
+)
+
 // Data represents the top level collection of all metadata.
 type Data struct {
 	Version           uint64 // autoincrementing version
@@ -186,6 +197,11 @@ func (data *Data) UpdateRetentionPolicy(database, name string, rpu *RetentionPol
 		return ErrRetentionPolicyNameExists
 	}
 
+	// Enforce duration of at least MinRetentionPolicyDuration
+	if rpu.Duration != nil && *rpu.Duration < MinRetentionPolicyDuration && *rpu.Duration != 0 {
+		return ErrRetentionPolicyDurationTooLow
+	}
+
 	// Update fields.
 	if rpu.Name != nil {
 		rpi.Name = *rpu.Name
@@ -214,6 +230,18 @@ func (data *Data) SetDefaultRetentionPolicy(database, name string) error {
 	di.DefaultRetentionPolicy = name
 
 	return nil
+}
+
+// ShardGroup returns a list of all shard groups on a database and policy.
+func (data *Data) ShardGroups(database, policy string) ([]ShardGroupInfo, error) {
+	// Find retention policy.
+	rpi, err := data.RetentionPolicy(database, policy)
+	if err != nil {
+		return nil, err
+	} else if rpi == nil {
+		return nil, ErrRetentionPolicyNotFound
+	}
+	return rpi.ShardGroups, nil
 }
 
 // ShardGroupByTimestamp returns the shard group on a database and policy for a given timestamp.
@@ -394,6 +422,21 @@ func (data *Data) UpdateUser(name, hash string) error {
 	return ErrUserNotFound
 }
 
+// SetPrivilege sets a privilege for a user on a database.
+func (data *Data) SetPrivilege(name, database string, p influxql.Privilege) error {
+	ui := data.User(name)
+	if ui == nil {
+		return ErrUserNotFound
+	}
+
+	if ui.Privileges == nil {
+		ui.Privileges = make(map[string]influxql.Privilege)
+	}
+	ui.Privileges[database] = p
+
+	return nil
+}
+
 // Clone returns a copy of data with a new version.
 func (data *Data) Clone() *Data {
 	other := *data
@@ -500,6 +543,15 @@ type RetentionPolicyInfo struct {
 	Duration           time.Duration
 	ShardGroupDuration time.Duration
 	ShardGroups        []ShardGroupInfo
+}
+
+// NewRetentionPolicyInfo returns a new instance of RetentionPolicyInfo with defaults set.
+func NewRetentionPolicyInfo(name string) *RetentionPolicyInfo {
+	return &RetentionPolicyInfo{
+		Name:     name,
+		ReplicaN: DefaultRetentionPolicyReplicaN,
+		Duration: DefaultRetentionPolicyDuration,
+	}
 }
 
 // ShardGroupByTimestamp returns the shard group in the policy that contains the timestamp.
@@ -610,6 +662,12 @@ type UserInfo struct {
 	Hash       string
 	Admin      bool
 	Privileges map[string]influxql.Privilege
+}
+
+// Authorize returns true if the user is authorized and false if not.
+func (ui *UserInfo) Authorize(privilege influxql.Privilege, database string) bool {
+	p, ok := ui.Privileges[database]
+	return (ok && p >= privilege) || (ui.Admin)
 }
 
 // clone returns a deep copy of si.

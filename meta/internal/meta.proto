@@ -215,6 +215,7 @@ message SetPrivilegeCommand {
         optional SetPrivilegeCommand command = 116;
     }
     required string Username = 1;
-    required UserPrivilege Privilege = 2;
+    required string Database = 2;
+    required int32 Privilege = 3;
 }
 

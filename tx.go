@@ -1,5 +1,6 @@
 package influxdb
 
+/*
 import (
 	"fmt"
 	"math"
@@ -584,3 +585,4 @@ type fieldDecoder interface {
 	FieldByName(name string) *Field
 	DecodeFieldsWithNames(b []byte) (map[string]interface{}, error)
 }
+*/
