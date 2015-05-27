@@ -939,26 +939,6 @@ type Row struct {
 	Err     error             `json:"err,omitempty"`
 }
 
-// type RowMarshalerJSON struct {
-// 	epoch string
-// }
-
-// func (r *RowMarshalerJSON) MarshalJSON(v interface{}) ([]byte, error) {
-// 	row := []struct{
-// 		Name    string            `json:"name,omitempty"`
-// 		Tags    map[string]string `json:"tags,omitempty"`
-// 		Columns []string          `json:"columns"`
-// 		Values  [][]interface{}   `json:"values,omitempty"`
-// 		Err     error             `json:"err,omitempty"`
-// 	}{
-// 		Name: r.Name,
-// 		Tags: = r.Tags,
-// 		Columns: r.Columns,
-// 		Err: r.Err,
-// 	}
-
-// }
-
 // tagsHash returns a hash of tag key/value pairs.
 func (r *Row) tagsHash() uint64 {
 	h := fnv.New64a()
