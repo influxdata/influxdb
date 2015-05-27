@@ -25,9 +25,6 @@ var (
 	// ErrServerClosed is returned when closing an already closed server.
 	ErrServerClosed = errors.New("server already closed")
 
-	// ErrPathRequired is returned when opening a server without a path.
-	ErrPathRequired = errors.New("path required")
-
 	// ErrUnableToJoin is returned when a server cannot join a cluster.
 	ErrUnableToJoin = errors.New("unable to join")
 
@@ -82,9 +79,6 @@ var (
 
 	// ErrRetentionPolicyNameRequired is returned using a blank shard space name.
 	ErrRetentionPolicyNameRequired = errors.New("retention policy name required")
-
-	// ErrRetentionPolicyMinDuration is returned when creating replication policy with a duration smaller than RetenionPolicyMinDuration.
-	ErrRetentionPolicyMinDuration = fmt.Errorf("retention policy duration needs to be at least %s", retentionPolicyMinDuration)
 
 	// ErrDefaultRetentionPolicyNotFound is returned when using the default
 	// policy on a database but the default has not been set.

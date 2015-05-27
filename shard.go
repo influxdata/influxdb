@@ -1,5 +1,6 @@
 package influxdb
 
+/*
 import (
 	"encoding/binary"
 	"errors"
@@ -9,7 +10,6 @@ import (
 	"time"
 
 	"github.com/boltdb/bolt"
-	"github.com/influxdb/influxdb/messaging"
 )
 
 // ShardGroup represents a group of shards created for a single time range.
@@ -118,9 +118,8 @@ type Shard struct {
 	DataNodeIDs []uint64 `json:"nodeIDs,omitempty"` // owners
 
 	mu    sync.RWMutex
-	index uint64        // highest replicated index
-	store *bolt.DB      // underlying data store
-	conn  MessagingConn // streaming connection to broker
+	index uint64   // highest replicated index
+	store *bolt.DB // underlying data store
 
 	stats *Stats // In-memory stats
 
@@ -139,7 +138,7 @@ func newShard(id uint64) *Shard {
 }
 
 // open initializes and opens the shard's store.
-func (s *Shard) open(path string, conn MessagingConn) error {
+func (s *Shard) open(path string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -170,22 +169,12 @@ func (s *Shard) open(path string, conn MessagingConn) error {
 		// Find highest replicated index.
 		s.index = shardMetaIndex(tx)
 
-		// Open connection.
-		if err := conn.Open(s.index, true); err != nil {
-			return fmt.Errorf("open shard conn: id=%d, idx=%d, err=%s", s.ID, s.index, err)
-		}
-
 		return nil
 	}); err != nil {
 		s.stats.Inc("errBoltStoreUpdateFailure")
 		_ = s.close()
 		return fmt.Errorf("init: %s", err)
 	}
-
-	// Start importing from connection.
-	s.closing = make(chan struct{})
-	s.wg.Add(1)
-	go s.processor(conn, s.closing)
 
 	return nil
 }
@@ -344,53 +333,6 @@ func (s *Shard) dropSeries(seriesIDs ...uint64) error {
 	})
 }
 
-// processor runs in a separate goroutine and processes all incoming broker messages.
-func (s *Shard) processor(conn MessagingConn, closing <-chan struct{}) {
-	defer s.wg.Done()
-
-	for {
-		// Read incoming message.
-		// Exit if the connection has been closed or if shard is closing.
-		var ok bool
-		var m *messaging.Message
-		select {
-		case m, ok = <-conn.C():
-			if !ok {
-				return
-			}
-		case <-closing:
-			return
-		}
-
-		// Ignore any writes that are from an old index.
-		s.mu.RLock()
-		i := s.index
-		s.mu.RUnlock()
-		if m.Index < i {
-			continue
-		}
-
-		// Handle write series separately so we don't lock server during shard writes.
-		switch m.Type {
-		case writeRawSeriesMessageType:
-			s.stats.Inc("writeSeriesMessageRx")
-			if err := s.writeSeries(m.Index, m.Data); err != nil {
-				panic(fmt.Errorf("apply shard: id=%d, idx=%d, err=%s", s.ID, m.Index, err))
-			}
-		default:
-			panic(fmt.Sprintf("invalid shard message type: %d", m.Type))
-		}
-
-		// Track last index.
-		s.mu.Lock()
-		s.index = m.Index
-		s.mu.Unlock()
-
-		// Update the connection with the high index.
-		conn.SetIndex(m.Index)
-	}
-}
-
 // Shards represents a list of shards.
 type Shards []*Shard
 
@@ -419,3 +361,4 @@ type uint8Slice []uint8
 func (p uint8Slice) Len() int           { return len(p) }
 func (p uint8Slice) Less(i, j int) bool { return p[i] < p[j] }
 func (p uint8Slice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
+*/

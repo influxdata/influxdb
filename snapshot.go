@@ -1,5 +1,7 @@
 package influxdb
 
+/*
+
 import (
 	"archive/tar"
 	"encoding/json"
@@ -639,3 +641,4 @@ type nopWriteToCloser struct {
 }
 
 func (w *nopWriteToCloser) Close() error { return nil }
+*/

@@ -1,5 +1,6 @@
 package influxdb
 
+/*
 import (
 	"fmt"
 	"log"
@@ -8,8 +9,6 @@ import (
 	"net/url"
 	"sync"
 	"time"
-
-	"github.com/influxdb/influxdb/messaging"
 )
 
 const (
@@ -144,3 +143,4 @@ func (b *Broker) requestContinuousQueryProcessing(cqURL url.URL) error {
 
 	return nil
 }
+*/

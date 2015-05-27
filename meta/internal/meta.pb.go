@@ -904,9 +904,10 @@ var E_UpdateUserCommand_Command = &proto.ExtensionDesc{
 }
 
 type SetPrivilegeCommand struct {
-	Username         *string        `protobuf:"bytes,1,req" json:"Username,omitempty"`
-	Privilege        *UserPrivilege `protobuf:"bytes,2,req" json:"Privilege,omitempty"`
-	XXX_unrecognized []byte         `json:"-"`
+	Username         *string `protobuf:"bytes,1,req" json:"Username,omitempty"`
+	Database         *string `protobuf:"bytes,2,req" json:"Database,omitempty"`
+	Privilege        *int32  `protobuf:"varint,3,req" json:"Privilege,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
 }
 
 func (m *SetPrivilegeCommand) Reset()         { *m = SetPrivilegeCommand{} }
@@ -920,11 +921,18 @@ func (m *SetPrivilegeCommand) GetUsername() string {
 	return ""
 }
 
-func (m *SetPrivilegeCommand) GetPrivilege() *UserPrivilege {
-	if m != nil {
-		return m.Privilege
+func (m *SetPrivilegeCommand) GetDatabase() string {
+	if m != nil && m.Database != nil {
+		return *m.Database
 	}
-	return nil
+	return ""
+}
+
+func (m *SetPrivilegeCommand) GetPrivilege() int32 {
+	if m != nil && m.Privilege != nil {
+		return *m.Privilege
+	}
+	return 0
 }
 
 var E_SetPrivilegeCommand_Command = &proto.ExtensionDesc{

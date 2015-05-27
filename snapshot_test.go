@@ -1,5 +1,6 @@
 package influxdb_test
 
+/*
 import (
 	"bytes"
 	"io"
@@ -290,3 +291,4 @@ func MustReadAll(r io.Reader) []byte {
 	}
 	return b
 }
+*/

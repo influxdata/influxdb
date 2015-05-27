@@ -1,5 +1,8 @@
 package influxdb
 
+import "github.com/influxdb/influxdb/influxql"
+
+/*
 import (
 	"encoding/binary"
 	"encoding/json"
@@ -10,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdb/influxdb/influxql"
 )
 
 const (
@@ -754,13 +756,6 @@ func (a Measurements) union(other Measurements) Measurements {
 	return result
 }
 
-// Field represents a series field.
-type Field struct {
-	ID   uint8             `json:"id,omitempty"`
-	Name string            `json:"name,omitempty"`
-	Type influxql.DataType `json:"type,omitempty"`
-}
-
 // Fields represents a list of fields.
 type Fields []*Field
 
@@ -1123,61 +1118,6 @@ func (a seriesIDs) reject(other seriesIDs) seriesIDs {
 	return seriesIDs(ids)
 }
 
-// RetentionPolicy represents a policy for creating new shards in a database and how long they're kept around for.
-type RetentionPolicy struct {
-	// Unique name within database. Required.
-	Name string `json:"name"`
-
-	// Length of time to keep data around. A zero duration means keep the data forever.
-	Duration time.Duration `json:"duration"`
-
-	// Length of time to create shard groups in.
-	ShardGroupDuration time.Duration `json:"shardGroupDuration"`
-
-	// The number of copies to make of each shard.
-	ReplicaN uint32 `json:"replicaN"`
-
-	shardGroups []*ShardGroup
-}
-
-// RetentionPolicies represents a list of retention policies.
-type RetentionPolicies []*RetentionPolicy
-
-func (a RetentionPolicies) Len() int           { return len(a) }
-func (a RetentionPolicies) Less(i, j int) bool { return a[i].Name < a[j].Name }
-func (a RetentionPolicies) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-
-// NewRetentionPolicy returns a new instance of RetentionPolicy with defaults set.
-func NewRetentionPolicy(name string) *RetentionPolicy {
-	return &RetentionPolicy{
-		Name:     name,
-		ReplicaN: DefaultReplicaN,
-		Duration: DefaultShardRetention,
-	}
-}
-
-// shardGroupByTimestamp returns the group in the policy that owns a timestamp.
-// Returns nil group does not exist.
-func (rp *RetentionPolicy) shardGroupByTimestamp(timestamp time.Time) *ShardGroup {
-	for _, g := range rp.shardGroups {
-		if g.Contains(timestamp) {
-			return g
-		}
-	}
-	return nil
-}
-
-// shardGroupByID returns the group in the policy for the given ID.
-// Returns nil if group does not exist.
-func (rp *RetentionPolicy) shardGroupByID(shardID uint64) *ShardGroup {
-	for _, g := range rp.shardGroups {
-		if g.ID == shardID {
-			return g
-		}
-	}
-	return nil
-}
-
 // dropMeasurement will remove a measurement from:
 //    In memory index.
 //    Series data from the shards.
@@ -1228,46 +1168,6 @@ func (rp *RetentionPolicy) removeShardGroupByID(shardID uint64) {
 			rp.shardGroups = append(rp.shardGroups[:i], rp.shardGroups[i+1:]...)
 		}
 	}
-}
-
-// MarshalJSON encodes a retention policy to a JSON-encoded byte slice.
-func (rp *RetentionPolicy) MarshalJSON() ([]byte, error) {
-	var o retentionPolicyJSON
-	o.Name = rp.Name
-	o.Duration = rp.Duration
-	o.ShardGroupDuration = rp.ShardGroupDuration
-	o.ReplicaN = rp.ReplicaN
-	for _, g := range rp.shardGroups {
-		o.ShardGroups = append(o.ShardGroups, g)
-	}
-	return json.Marshal(&o)
-}
-
-// UnmarshalJSON decodes a JSON-encoded byte slice to a retention policy.
-func (rp *RetentionPolicy) UnmarshalJSON(data []byte) error {
-	// Decode into intermediate type.
-	var o retentionPolicyJSON
-	if err := json.Unmarshal(data, &o); err != nil {
-		return err
-	}
-
-	// Copy over properties from intermediate type.
-	rp.Name = o.Name
-	rp.ReplicaN = o.ReplicaN
-	rp.Duration = o.Duration
-	rp.ShardGroupDuration = o.ShardGroupDuration
-	rp.shardGroups = o.ShardGroups
-
-	return nil
-}
-
-// retentionPolicyJSON represents an intermediate struct for JSON marshaling.
-type retentionPolicyJSON struct {
-	Name               string        `json:"name"`
-	ReplicaN           uint32        `json:"replicaN,omitempty"`
-	Duration           time.Duration `json:"duration,omitempty"`
-	ShardGroupDuration time.Duration `json:"shardGroupDuration"`
-	ShardGroups        []*ShardGroup `json:"shardGroups,omitempty"`
 }
 
 // TagFilter represents a tag filter when looking up other tags or measurements.
@@ -1634,4 +1534,13 @@ func (s stringSet) intersect(o stringSet) stringSet {
 		}
 	}
 	return ns
+}
+
+*/
+
+// Field represents a series field.
+type Field struct {
+	ID   uint8             `json:"id,omitempty"`
+	Name string            `json:"name,omitempty"`
+	Type influxql.DataType `json:"type,omitempty"`
 }
