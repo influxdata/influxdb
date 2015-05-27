@@ -1704,7 +1704,7 @@ func TestSingleServer(t *testing.T) {
 	defer nodes.Close()
 
 	runTestsData(t, testName, nodes, "mydb", "myrp", len(nodes))
-	runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp", len(nodes))
+	runTest_rawDataReturnsInOrder(t, testName, nodes, "inorderdb", "inorderrp", len(nodes))
 }
 
 func Test3NodeServer(t *testing.T) {
@@ -1722,7 +1722,7 @@ func Test3NodeServer(t *testing.T) {
 	defer nodes.Close()
 
 	runTestsData(t, testName, nodes, "mydb", "myrp", len(nodes))
-	runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp", len(nodes))
+	runTest_rawDataReturnsInOrder(t, testName, nodes, "inorderdb", "inorderrp", len(nodes))
 }
 
 func Test3NodeServerFailover(t *testing.T) {
@@ -1743,7 +1743,7 @@ func Test3NodeServerFailover(t *testing.T) {
 	nodes = nodes[:len(nodes)-1]
 
 	runTestsData(t, testName, nodes, "mydb", "myrp", len(nodes))
-	runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp", len(nodes))
+	runTest_rawDataReturnsInOrder(t, testName, nodes, "inorderdb", "inorderrp", len(nodes))
 	nodes.Close()
 }
 
@@ -1763,7 +1763,7 @@ func Test5NodeClusterPartiallyReplicated(t *testing.T) {
 	defer nodes.Close()
 
 	runTestsData(t, testName, nodes, "mydb", "myrp", 2)
-	runTest_rawDataReturnsInOrder(t, testName, nodes, "mydb", "myrp", 2)
+	runTest_rawDataReturnsInOrder(t, testName, nodes, "inorderdb", "inorderrp", len(nodes))
 }
 
 func TestClientLibrary(t *testing.T) {
