@@ -7,9 +7,9 @@ import (
 	"net"
 	"time"
 
-	"github.com/fatih/pool"
 	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/tsdb"
+	"gopkg.in/fatih/pool.v2"
 )
 
 const (
@@ -88,9 +88,13 @@ func (c *Writer) dial(nodeID uint64) (net.Conn, error) {
 }
 
 func (w *Writer) Write(shardID, ownerID uint64, points []tsdb.Point) error {
-	conn, err := w.dial(ownerID)
+	c, err := w.dial(ownerID)
 	if err != nil {
 		return err
+	}
+	conn, ok := c.(*pool.PoolConn)
+	if !ok {
+		panic("wrong connection type")
 	}
 
 	// This will return the connection to the data pool
@@ -99,6 +103,7 @@ func (w *Writer) Write(shardID, ownerID uint64, points []tsdb.Point) error {
 	conn.SetWriteDeadline(time.Now().Add(w.timeout))
 	var mt byte = writeShardRequestMessage
 	if err := binary.Write(conn, binary.LittleEndian, &mt); err != nil {
+		conn.MarkUnusable()
 		return err
 	}
 
@@ -115,22 +120,26 @@ func (w *Writer) Write(shardID, ownerID uint64, points []tsdb.Point) error {
 
 	conn.SetWriteDeadline(time.Now().Add(w.timeout))
 	if err := binary.Write(conn, binary.LittleEndian, &size); err != nil {
+		conn.MarkUnusable()
 		return err
 	}
 
 	conn.SetWriteDeadline(time.Now().Add(w.timeout))
 	if _, err := conn.Write(b); err != nil {
+		conn.MarkUnusable()
 		return err
 	}
 
 	conn.SetReadDeadline(time.Now().Add(w.timeout))
 	// read back our response
 	if err := binary.Read(conn, binary.LittleEndian, &mt); err != nil {
+		conn.MarkUnusable()
 		return err
 	}
 
 	conn.SetReadDeadline(time.Now().Add(w.timeout))
 	if err := binary.Read(conn, binary.LittleEndian, &size); err != nil {
+		conn.MarkUnusable()
 		return err
 	}
 
@@ -140,6 +149,7 @@ func (w *Writer) Write(shardID, ownerID uint64, points []tsdb.Point) error {
 	conn.SetReadDeadline(time.Now().Add(w.timeout))
 	_, err = reader.Read(message)
 	if err != nil {
+		conn.MarkUnusable()
 		return err
 	}
 

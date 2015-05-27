@@ -4,7 +4,7 @@ import (
 	"net"
 	"sync"
 
-	"github.com/fatih/pool"
+	"gopkg.in/fatih/pool.v2"
 )
 
 type clientPool struct {
