@@ -25,7 +25,8 @@ type metaStore interface {
 }
 
 type connFactory struct {
-	nodeInfo   *meta.NodeInfo
+	metaStore  metaStore
+	nodeID     uint64
 	clientPool interface {
 		size() int
 	}
@@ -36,7 +37,12 @@ func (c *connFactory) dial() (net.Conn, error) {
 		return nil, errMaxConnectionsExceeded
 	}
 
-	conn, err := net.Dial("tcp", c.nodeInfo.Host)
+	nodeInfo, err := c.metaStore.Node(c.nodeID)
+	if err != nil {
+		return nil, err
+	}
+
+	conn, err := net.Dial("tcp", nodeInfo.Host)
 	if err != nil {
 		return nil, err
 	}
@@ -56,22 +62,17 @@ func NewWriter(m metaStore) *Writer {
 }
 
 func (c *Writer) dial(nodeID uint64) (net.Conn, error) {
-	nodeInfo, err := c.metaStore.Node(nodeID)
-	if err != nil {
-		return nil, err
-	}
-
 	// if we don't have a connection pool for that addr yet, create one
-	_, ok := c.pool.getPool(nodeInfo)
+	_, ok := c.pool.getPool(nodeID)
 	if !ok {
-		factory := &connFactory{nodeInfo: nodeInfo, clientPool: c.pool}
+		factory := &connFactory{nodeID: nodeID, metaStore: c.metaStore, clientPool: c.pool}
 		p, err := pool.NewChannelPool(1, 3, factory.dial)
 		if err != nil {
 			return nil, err
 		}
-		c.pool.setPool(nodeInfo, p)
+		c.pool.setPool(nodeID, p)
 	}
-	return c.pool.conn(nodeInfo)
+	return c.pool.conn(nodeID)
 }
 
 func (w *Writer) Write(shardID, ownerID uint64, points []tsdb.Point) error {

@@ -5,29 +5,28 @@ import (
 	"sync"
 
 	"github.com/fatih/pool"
-	"github.com/influxdb/influxdb/meta"
 )
 
 type clientPool struct {
 	mu   sync.RWMutex
-	pool map[*meta.NodeInfo]pool.Pool
+	pool map[uint64]pool.Pool
 }
 
 func newClientPool() *clientPool {
 	return &clientPool{
-		pool: make(map[*meta.NodeInfo]pool.Pool),
+		pool: make(map[uint64]pool.Pool),
 	}
 }
 
-func (c *clientPool) setPool(n *meta.NodeInfo, p pool.Pool) {
+func (c *clientPool) setPool(nodeID uint64, p pool.Pool) {
 	c.mu.Lock()
-	c.pool[n] = p
+	c.pool[nodeID] = p
 	c.mu.Unlock()
 }
 
-func (c *clientPool) getPool(n *meta.NodeInfo) (pool.Pool, bool) {
+func (c *clientPool) getPool(nodeID uint64) (pool.Pool, bool) {
 	c.mu.Lock()
-	p, ok := c.pool[n]
+	p, ok := c.pool[nodeID]
 	c.mu.Unlock()
 	return p, ok
 }
@@ -42,9 +41,9 @@ func (c *clientPool) size() int {
 	return size
 }
 
-func (c *clientPool) conn(n *meta.NodeInfo) (net.Conn, error) {
+func (c *clientPool) conn(nodeID uint64) (net.Conn, error) {
 	c.mu.Lock()
-	conn, err := c.pool[n].Get()
+	conn, err := c.pool[nodeID].Get()
 	c.mu.Unlock()
 	return conn, err
 }
