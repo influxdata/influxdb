@@ -74,12 +74,10 @@ func (testServer) ResponseN(n int) ([]*serverResponse, error) {
 func TestServer_Close_ErrServerClosed(t *testing.T) {
 	var (
 		ts testServer
-		s  = cluster.NewServer(ts)
+		s  = cluster.NewServer(ts, "127.0.0.1:0")
 	)
 
-	// Start on a random port
-	_, e := s.ListenAndServe("127.0.0.1:0")
-	if e != nil {
+	if e := s.Open(); e != nil {
 		t.Fatalf("err does not match.  expected %v, got %v", nil, e)
 	}
 
@@ -95,32 +93,26 @@ func TestServer_Close_ErrServerClosed(t *testing.T) {
 func TestServer_Close_ErrBindAddressRequired(t *testing.T) {
 	var (
 		ts testServer
-		s  = cluster.NewServer(ts)
+		s  = cluster.NewServer(ts, "")
 	)
-
-	// Start on a random port
-	_, e := s.ListenAndServe("")
-	if e == nil {
+	if e := s.Open(); e == nil {
 		t.Fatalf("exprected error %s, got nil.", cluster.ErrBindAddressRequired)
 	}
-
 }
 
 func TestServer_WriteShardRequestSuccess(t *testing.T) {
 	var (
 		ts = newTestServer(writeShardSuccess)
-		s  = cluster.NewServer(ts)
+		s  = cluster.NewServer(ts, "127.0.0.1:0")
 	)
-	// Close the server
-	defer s.Close()
-
-	// Start on a random port
-	host, e := s.ListenAndServe("127.0.0.1:0")
+	e := s.Open()
 	if e != nil {
 		t.Fatalf("err does not match.  expected %v, got %v", nil, e)
 	}
+	// Close the server
+	defer s.Close()
 
-	writer := cluster.NewWriter(&metaStore{host: host})
+	writer := cluster.NewWriter(&metaStore{host: s.Addr().String()})
 
 	now := time.Now()
 
@@ -175,18 +167,16 @@ func TestServer_WriteShardRequestSuccess(t *testing.T) {
 func TestServer_WriteShardRequestMultipleSuccess(t *testing.T) {
 	var (
 		ts = newTestServer(writeShardSuccess)
-		s  = cluster.NewServer(ts)
+		s  = cluster.NewServer(ts, "127.0.0.1:0")
 	)
+	// Start on a random port
+	if e := s.Open(); e != nil {
+		t.Fatalf("err does not match.  expected %v, got %v", nil, e)
+	}
 	// Close the server
 	defer s.Close()
 
-	// Start on a random port
-	host, e := s.ListenAndServe("127.0.0.1:0")
-	if e != nil {
-		t.Fatalf("err does not match.  expected %v, got %v", nil, e)
-	}
-
-	writer := cluster.NewWriter(&metaStore{host: host})
+	writer := cluster.NewWriter(&metaStore{host: s.Addr().String()})
 
 	now := time.Now()
 
@@ -251,18 +241,16 @@ func TestServer_WriteShardRequestMultipleSuccess(t *testing.T) {
 func TestServer_WriteShardRequestFail(t *testing.T) {
 	var (
 		ts = newTestServer(writeShardFail)
-		s  = cluster.NewServer(ts)
+		s  = cluster.NewServer(ts, "127.0.0.1:0")
 	)
+	// Start on a random port
+	if e := s.Open(); e != nil {
+		t.Fatalf("err does not match.  expected %v, got %v", nil, e)
+	}
 	// Close the server
 	defer s.Close()
 
-	// Start on a random port
-	host, e := s.ListenAndServe("127.0.0.1:0")
-	if e != nil {
-		t.Fatalf("err does not match.  expected %v, got %v", nil, e)
-	}
-
-	writer := cluster.NewWriter(&metaStore{host: host})
+	writer := cluster.NewWriter(&metaStore{host: s.Addr().String()})
 	now := time.Now()
 
 	shardID := uint64(1)

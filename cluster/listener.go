@@ -35,30 +35,38 @@ type Server struct {
 	Logger *log.Logger
 
 	shutdown chan struct{}
+
+	mu sync.RWMutex
+	// the actual addr the server opens on
+	addr net.Addr
+	// used to initially spin up the server, could be a zero port
+	laddr string
 }
 
 // NewServer returns a new instance of a Server.
-func NewServer(w writer) *Server {
+func NewServer(w writer, laddr string) *Server {
 	return &Server{
 		writer:   w,
+		laddr:    laddr,
 		Logger:   log.New(os.Stderr, "[tcp] ", log.LstdFlags),
 		shutdown: make(chan struct{}),
 	}
 }
 
-// ListenAndServe instructs the Server to start processing connections
-// on the given interface. iface must be in the form host:port
-// If successful, it returns the host as the first argument
-func (s *Server) ListenAndServe(laddr string) (string, error) {
-	if laddr == "" { // Make sure we have an laddr
-		return "", ErrBindAddressRequired
+// Open instructs the Server to start processing connections
+func (s *Server) Open() error {
+	if s.laddr == "" { // Make sure we have an laddr
+		return ErrBindAddressRequired
 	}
 
-	ln, err := net.Listen("tcp", laddr)
+	ln, err := net.Listen("tcp", s.laddr)
 	if err != nil {
-		return "", err
+		return err
 	}
+	s.mu.Lock()
 	s.listener = &ln
+	s.addr = ln.Addr()
+	s.mu.Unlock()
 
 	s.Logger.Println("listening on TCP connection", ln.Addr().String())
 	s.wg.Add(1)
@@ -88,8 +96,7 @@ func (s *Server) ListenAndServe(laddr string) (string, error) {
 		}
 	}()
 
-	// Return the host we started up on. Mostly needed for testing
-	return ln.Addr().String(), nil
+	return nil
 }
 
 // Close will close the listener
@@ -209,4 +216,11 @@ func (s *Server) writeShardResponse(conn net.Conn, e error) {
 		s.Logger.Printf("error writing shard response: %s", err)
 		return
 	}
+}
+
+func (s *Server) Addr() net.Addr {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.addr
+
 }
