@@ -21,11 +21,16 @@ func (f *fakeShardWriter) Write(shardID, nodeID uint64, points []tsdb.Point) err
 }
 
 type fakeStore struct {
-	WriteFn func(shardID uint64, points []tsdb.Point) error
+	WriteFn       func(shardID uint64, points []tsdb.Point) error
+	CreateShardfn func(database, retentionPolicy string, shardID uint64) error
 }
 
 func (f *fakeStore) WriteToShard(shardID uint64, points []tsdb.Point) error {
 	return f.WriteFn(shardID, points)
+}
+
+func (f *fakeStore) CreateShard(database, retentionPolicy string, shardID uint64) error {
+	return f.CreateShardfn(database, retentionPolicy, shardID)
 }
 
 func newTestMetaStore() *test.MetaStore {

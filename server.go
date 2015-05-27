@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"math"
 	"net/http"
@@ -165,7 +166,12 @@ func (s *Server) openServices() error {
 	// TODO: open metastore
 
 	// Open the local data node. TODO: pass in the data path to the server
-	s.store = tsdb.NewStore("FIXME")
+	// FIXME: Use config data dir
+	path, err := ioutil.TempDir("", "influxdb-alpha1")
+	if err != nil {
+		return err
+	}
+	s.store = tsdb.NewStore(path)
 	if err := s.store.Open(); err != nil {
 		return err
 	}
@@ -173,8 +179,12 @@ func (s *Server) openServices() error {
 	// TODO: open the cluster writer
 
 	// Open the coordinator service
-	coordinator := cluster.NewCoordinator()
+	// FIXME: Use the metastores node ID for the current node
+	coordinator := cluster.NewCoordinator(uint64(1))
 	coordinator.Store = s.store
+
+	// FIXME: Add the cluster writer to the coordinator
+	// coordinator.ClusterWriter = ...
 
 	// TODO: add cluster writer to coordinator
 
