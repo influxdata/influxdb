@@ -9,6 +9,7 @@
 # Short-Description: Start influxd at boot time
 ### END INIT INFO
 
+# If you modify this, please make sure to also edit influxdb.service
 # this init script supports three different variations:
 #  1. New lsb that define start-stop-daemon
 #  2. Old lsb that don't have start-stop-daemon but define, log, pidofproc and killproc
