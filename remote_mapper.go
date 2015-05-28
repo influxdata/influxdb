@@ -32,13 +32,13 @@ type RemoteMapper struct {
 	SeriesIDs       []uint64 `json:",omitempty"`
 	ShardID         uint64   `json:",omitempty"`
 	Filters         []string `json:",omitempty"`
-	WhereFields     []*Field `json:",omitempty"`
-	SelectFields    []*Field `json:",omitempty"`
-	SelectTags      []string `json:",omitempty"`
-	Limit           int      `json:",omitempty"`
-	Offset          int      `json:",omitempty"`
-	Interval        int64    `json:",omitempty"`
-	ChunkSize       int      `json:",omitempty"`
+	// WhereFields     []*Field `json:",omitempty"`
+	// SelectFields    []*Field `json:",omitempty"`
+	SelectTags []string `json:",omitempty"`
+	Limit      int      `json:",omitempty"`
+	Offset     int      `json:",omitempty"`
+	Interval   int64    `json:",omitempty"`
+	ChunkSize  int      `json:",omitempty"`
 }
 
 // Responses get streamed back to the remote mapper from the remote machine that runs a local mapper

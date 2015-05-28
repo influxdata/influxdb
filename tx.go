@@ -1,7 +1,7 @@
 package influxdb
 
-/*
 import (
+	"encoding/binary"
 	"fmt"
 	"math"
 	"sort"
@@ -9,24 +9,38 @@ import (
 
 	"github.com/boltdb/bolt"
 	"github.com/influxdb/influxdb/influxql"
+	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/tsdb"
 )
 
 // tx represents a transaction that spans multiple shard data stores.
 // This transaction will open and close all data stores atomically.
 type tx struct {
-	server *Server
-	now    time.Time
+	now time.Time
 
 	// used by DecodeFields and FieldIDs. Only used in a raw query, which won't let you select from more than one measurement
-	measurement *Measurement
-	decoder     fieldDecoder
+	measurement *tsdb.Measurement
+
+	meta  metaStore
+	store localStore
+}
+
+type metaStore interface {
+	RetentionPolicy(database, name string) (rpi *meta.RetentionPolicyInfo, err error)
+}
+
+type localStore interface {
+	Measurement(database, name string) *tsdb.Measurement
+	ValidateAggregateFieldsInStatement(shardID uint64, measurementName string, stmt *influxql.SelectStatement) error
+	Shard(shardID uint64) *tsdb.Shard
 }
 
 // newTx return a new initialized Tx.
-func newTx(server *Server) *tx {
+func newTx(meta metaStore, store localStore) *tx {
 	return &tx{
-		server: server,
-		now:    time.Now(),
+		meta:  meta,
+		store: store,
+		now:   time.Now(),
 	}
 }
 
@@ -42,37 +56,27 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 			return nil, fmt.Errorf("invalid source type: %#v", src)
 		}
 
-		// Find database and retention policy.
-		db := tx.server.databases[mm.Database]
-		if db == nil {
-			return nil, ErrDatabaseNotFound(mm.Database)
-		}
-		rp := db.policies[mm.RetentionPolicy]
-		if rp == nil {
-			return nil, ErrRetentionPolicyNotFound
-		}
-
-		// Find measurement.
-		m, err := tx.server.measurement(mm.Database, mm.Name)
+		// get the index and the retention policy
+		rp, err := tx.meta.RetentionPolicy(mm.Database, mm.RetentionPolicy)
 		if err != nil {
 			return nil, err
 		}
+		m := tx.store.Measurement(mm.Database, mm.Name)
 		if m == nil {
 			return nil, ErrMeasurementNotFound(influxql.QuoteIdent([]string{mm.Database, "", mm.Name}...))
 		}
 
 		tx.measurement = m
-		tx.decoder = NewFieldCodec(m)
 
 		// Validate the fields and tags asked for exist and keep track of which are in the select vs the where
-		var selectFields []*Field
-		var whereFields []*Field
+		var selectFields []string
+		var whereFields []string
 		var selectTags []string
 
 		for _, n := range stmt.NamesInSelect() {
-			f := m.FieldByName(n)
-			if f != nil {
-				selectFields = append(selectFields, f)
+			_, hasField := m.FieldNames[n]
+			if hasField {
+				selectFields = append(selectFields, n)
 				continue
 			}
 			if !m.HasTagKey(n) {
@@ -84,53 +88,13 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 			if n == "time" {
 				continue
 			}
-			f := m.FieldByName(n)
-			if f != nil {
-				whereFields = append(whereFields, f)
+			_, hasField := m.FieldNames[n]
+			if hasField {
+				whereFields = append(whereFields, n)
 				continue
 			}
 			if !m.HasTagKey(n) {
 				return nil, fmt.Errorf("unknown field or tag name in where clause: %s", n)
-			}
-		}
-
-		validateType := func(aname, fname string, t influxql.DataType) error {
-			if t != influxql.Float && t != influxql.Integer {
-				return fmt.Errorf("aggregate '%s' requires numerical field values. Field '%s' is of type %s",
-					aname, fname, t)
-			}
-			return nil
-		}
-
-		// If a numerical aggregate is requested, ensure it is only performed on numeric data or on a
-		// nested aggregate on numeric data.
-		for _, a := range stmt.FunctionCalls() {
-			// Check for fields like `derivative(mean(value), 1d)`
-			var nested *influxql.Call = a
-			if fn, ok := nested.Args[0].(*influxql.Call); ok {
-				nested = fn
-			}
-
-			switch lit := nested.Args[0].(type) {
-			case *influxql.VarRef:
-				if influxql.IsNumeric(nested) {
-					f := m.FieldByName(lit.Val)
-					if err := validateType(a.Name, f.Name, f.Type); err != nil {
-						return nil, err
-					}
-				}
-			case *influxql.Distinct:
-				if nested.Name != "count" {
-					return nil, fmt.Errorf("aggregate call didn't contain a field %s", a.String())
-				}
-				if influxql.IsNumeric(nested) {
-					f := m.FieldByName(lit.Val)
-					if err := validateType(a.Name, f.Name, f.Type); err != nil {
-						return nil, err
-					}
-				}
-			default:
-				return nil, fmt.Errorf("aggregate call didn't contain a field %s", a.String())
 			}
 		}
 
@@ -144,10 +108,11 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 		}
 
 		// Find shard groups within time range.
-		var shardGroups []*ShardGroup
-		for _, group := range rp.shardGroups {
+		var shardGroups []*meta.ShardGroupInfo
+		for _, group := range rp.ShardGroups {
 			if group.Overlaps(tmin, tmax) {
-				shardGroups = append(shardGroups, group)
+				g := group
+				shardGroups = append(shardGroups, &g)
 			}
 		}
 		if len(shardGroups) == 0 {
@@ -163,7 +128,7 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 		}
 
 		// get the sorted unique tag sets for this query.
-		tagSets, err := m.tagSets(stmt, tagKeys)
+		tagSets, err := m.TagSets(stmt, tagKeys)
 		if err != nil {
 			return nil, err
 		}
@@ -183,63 +148,37 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 
 			// create mappers for each shard we need to hit
 			for _, sg := range shardGroups {
-
-				shards := map[*Shard][]uint64{}
-				for _, sid := range t.SeriesIDs {
-					shard := sg.ShardBySeriesID(sid)
-					shards[shard] = append(shards[shard], sid)
+				// TODO: implement distributed queries
+				if len(sg.Shards) != 1 {
+					return nil, fmt.Errorf("distributed queries aren't supported yet. You have a replication policy with RF < # of servers in cluster")
+				}
+				shard := tx.store.Shard(sg.Shards[0].ID)
+				if shard == nil {
+					// the store returned nil which means we haven't written any data into this shard yet, so ignore it
+					continue
 				}
 
-				for shard, sids := range shards {
-					var mapper influxql.Mapper
+				var mapper influxql.Mapper
 
-					// create either a remote or local mapper for this shard
-					if shard.store == nil {
-						nodes := tx.server.DataNodesByID(shard.DataNodeIDs)
-						if len(nodes) == 0 {
-							return nil, ErrShardNotFound
-						}
-
-						balancer := NewDataNodeBalancer(nodes)
-
-						mapper = &RemoteMapper{
-							dataNodes:       balancer,
-							Database:        mm.Database,
-							MeasurementName: m.Name,
-							TMin:            tmin.UnixNano(),
-							TMax:            tmax.UnixNano(),
-							SeriesIDs:       sids,
-							ShardID:         shard.ID,
-							WhereFields:     whereFields,
-							SelectFields:    selectFields,
-							SelectTags:      selectTags,
-							Limit:           stmt.Limit,
-							Offset:          stmt.Offset,
-							Interval:        interval,
-						}
-						mapper.(*RemoteMapper).SetFilters(t.Filters)
-					} else {
-						mapper = &LocalMapper{
-							seriesIDs:    sids,
-							db:           shard.store,
-							job:          job,
-							decoder:      NewFieldCodec(m),
-							filters:      t.Filters,
-							whereFields:  whereFields,
-							selectFields: selectFields,
-							selectTags:   selectTags,
-							tmin:         tmin.UnixNano(),
-							tmax:         tmax.UnixNano(),
-							interval:     interval,
-							// multiple mappers may need to be merged together to get the results
-							// for a raw query. So each mapper will have to read at least the
-							// limit plus the offset in data points to ensure we've hit our mark
-							limit: uint64(stmt.Limit) + uint64(stmt.Offset),
-						}
-					}
-
-					mappers = append(mappers, mapper)
+				mapper = &LocalMapper{
+					seriesKeys:   t.SeriesKeys,
+					db:           shard.DB(),
+					job:          job,
+					decoder:      shard.FieldCodec(m.Name),
+					filters:      t.Filters,
+					whereFields:  whereFields,
+					selectFields: selectFields,
+					selectTags:   selectTags,
+					tmin:         tmin.UnixNano(),
+					tmax:         tmax.UnixNano(),
+					interval:     interval,
+					// multiple mappers may need to be merged together to get the results
+					// for a raw query. So each mapper will have to read at least the
+					// limit plus the offset in data points to ensure we've hit our mark
+					limit: uint64(stmt.Limit) + uint64(stmt.Offset),
 				}
+
+				mappers = append(mappers, mapper)
 			}
 
 			job.Mappers = mappers
@@ -253,51 +192,13 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 	return jobs, nil
 }
 
-// DecodeValues is for use in a raw data query
-func (tx *tx) DecodeValues(fieldIDs []uint8, timestamp int64, data []byte) []interface{} {
-	vals := make([]interface{}, len(fieldIDs)+1)
-	vals[0] = timestamp
-	for i, id := range fieldIDs {
-		v, _ := tx.decoder.DecodeByID(id, data)
-		vals[i+1] = v
-	}
-	return vals
-}
-
-// FieldIDs will take an array of fields and return the id associated with each
-func (tx *tx) FieldIDs(fields []*influxql.Field) ([]uint8, error) {
-	names := tx.fieldNames(fields)
-	ids := make([]uint8, len(names))
-
-	for i, n := range names {
-		field := tx.measurement.FieldByName(n)
-		if field == nil {
-			return nil, ErrFieldNotFound
-		}
-		ids[i] = field.ID
-	}
-
-	return ids, nil
-}
-
-// fieldNames returns the referenced database field names from the slice of fields
-func (tx *tx) fieldNames(fields []*influxql.Field) []string {
-	var a []string
-	for _, f := range fields {
-		if v, ok := f.Expr.(*influxql.VarRef); ok { // this is a raw query so we handle it differently
-			a = append(a, v.Val)
-		}
-	}
-	return a
-}
-
 // LocalMapper implements the influxql.Mapper interface for running map tasks over a shard that is local to this server
 type LocalMapper struct {
 	cursorsEmpty     bool                   // boolean that lets us know if the cursors are empty
-	decoder          fieldDecoder           // decoder for the raw data bytes
+	decoder          *tsdb.FieldCodec       // decoder for the raw data bytes
 	filters          []influxql.Expr        // filters for each series
 	cursors          []*bolt.Cursor         // bolt cursors for each series id
-	seriesIDs        []uint64               // seriesIDs to be read from this shard
+	seriesKeys       []string               // seriesKeys to be read from this shard
 	db               *bolt.DB               // bolt store for the shard accessed by this mapper
 	txn              *bolt.Tx               // read transactions by shard id
 	job              *influxql.MapReduceJob // the MRJob this mapper belongs to
@@ -309,8 +210,8 @@ type LocalMapper struct {
 	tmin             int64                  // the min of the current group by interval being iterated over
 	tmax             int64                  // the max of the current group by interval being iterated over
 	additionalNames  []string               // additional field or tag names that might be requested from the map function
-	whereFields      []*Field               // field names that occur in the where clause
-	selectFields     []*Field               // field names that occur in the select clause
+	whereFields      []string               // field names that occur in the where clause
+	selectFields     []string               // field names that occur in the select clause
 	selectTags       []string               // tag keys that occur in the select clause
 	isRaw            bool                   // if the query is a non-aggregate query
 	interval         int64                  // the group by interval of the query, if any
@@ -329,10 +230,10 @@ func (l *LocalMapper) Open() error {
 	l.txn = txn
 
 	// create a bolt cursor for each unique series id
-	l.cursors = make([]*bolt.Cursor, len(l.seriesIDs))
+	l.cursors = make([]*bolt.Cursor, len(l.seriesKeys))
 
-	for i, id := range l.seriesIDs {
-		b := l.txn.Bucket(u64tob(id))
+	for i, key := range l.seriesKeys {
+		b := l.txn.Bucket([]byte(key))
 		if b == nil {
 			continue
 		}
@@ -366,7 +267,7 @@ func (l *LocalMapper) Begin(c *influxql.Call, startingTime int64, chunkSize int)
 	if c == nil { // its a raw data query
 		l.isRaw = true
 		if len(l.selectFields) == 1 {
-			fieldName = l.selectFields[0].Name
+			fieldName = l.selectFields[0]
 		}
 
 		// if they haven't set a limit, just set it to the max int size
@@ -395,12 +296,12 @@ func (l *LocalMapper) Begin(c *influxql.Call, startingTime int64, chunkSize int)
 
 	// set up the field info if a specific field was set for this mapper
 	if fieldName != "" {
-		f := l.decoder.FieldByName(fieldName)
-		if f == nil {
+		fid, err := l.decoder.FieldIDByName(fieldName)
+		if err != nil {
 			return fmt.Errorf("%s isn't a field on measurement %s", fieldName, l.job.MeasurementName)
 		}
-		l.fieldID = f.ID
-		l.fieldName = f.Name
+		l.fieldID = fid
+		l.fieldName = fieldName
 	}
 
 	// seek the bolt cursors and fill the buffers
@@ -471,12 +372,12 @@ func (l *LocalMapper) NextInterval() (interface{}, error) {
 }
 
 // Next returns the next matching timestamped value for the LocalMapper.
-func (l *LocalMapper) Next() (seriesID uint64, timestamp int64, value interface{}) {
+func (l *LocalMapper) Next() (seriesKey string, timestamp int64, value interface{}) {
 	for {
 		// if it's a raw query and we've hit the limit of the number of points to read in
 		// for either this chunk or for the absolute query, bail
 		if l.isRaw && (l.limit == 0 || l.perIntervalLimit == 0) {
-			return uint64(0), int64(0), nil
+			return "", int64(0), nil
 		}
 
 		// find the minimum timestamp
@@ -491,12 +392,12 @@ func (l *LocalMapper) Next() (seriesID uint64, timestamp int64, value interface{
 
 		// return if there is no more data in this group by interval
 		if min == -1 {
-			return 0, 0, nil
+			return "", 0, nil
 		}
 
 		// set the current timestamp and seriesID
 		timestamp = l.keyBuffer[min]
-		seriesID = l.seriesIDs[min]
+		seriesKey = l.seriesKeys[min]
 
 		// decode either the value, or values we need. Also filter if necessary
 		var value interface{}
@@ -518,7 +419,7 @@ func (l *LocalMapper) Next() (seriesID uint64, timestamp int64, value interface{
 			// if there's a where clase, see if we need to filter
 			if l.filters[min] != nil {
 				// see if the where is only on this field or on one or more other fields. if the latter, we'll have to decode everything
-				if len(l.whereFields) == 1 && l.whereFields[0].ID == l.fieldID {
+				if len(l.whereFields) == 1 && l.whereFields[0] == l.fieldName {
 					if !matchesWhere(l.filters[min], map[string]interface{}{l.fieldName: value}) {
 						value = nil
 					}
@@ -551,7 +452,7 @@ func (l *LocalMapper) Next() (seriesID uint64, timestamp int64, value interface{
 			l.perIntervalLimit--
 		}
 
-		return seriesID, timestamp, value
+		return seriesKey, timestamp, value
 	}
 }
 
@@ -580,9 +481,12 @@ func matchesWhere(f influxql.Expr, fields map[string]interface{}) bool {
 	return true
 }
 
-type fieldDecoder interface {
-	DecodeByID(fieldID uint8, b []byte) (interface{}, error)
-	FieldByName(name string) *Field
-	DecodeFieldsWithNames(b []byte) (map[string]interface{}, error)
+// u64tob converts a uint64 into an 8-byte slice.
+func u64tob(v uint64) []byte {
+	b := make([]byte, 8)
+	binary.BigEndian.PutUint64(b, v)
+	return b
 }
-*/
+
+// btou64 converts an 8-byte slice into an uint64.
+func btou64(b []byte) uint64 { return binary.BigEndian.Uint64(b) }

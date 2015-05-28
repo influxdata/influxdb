@@ -1,14 +1,15 @@
 package tsdb
 
 import (
-	"io/ioutil"
-	"strconv"
-	"sync"
-
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
+	"sync"
+
+	"github.com/influxdb/influxdb/influxql"
 )
 
 func NewStore(path string) *Store {
@@ -60,6 +61,30 @@ func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64) er
 	s.shards[shardID] = shard
 
 	return nil
+}
+
+func (s *Store) Shard(shardID uint64) *Shard {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.shards[shardID]
+}
+
+func (s *Store) ValidateAggregateFieldsInStatement(shardID uint64, measurementName string, stmt *influxql.SelectStatement) error {
+	s.mu.RLock()
+	shard := s.shards[shardID]
+	s.mu.RUnlock()
+	if shard == nil {
+		return ErrShardNotFound
+	}
+	return shard.ValidateAggregateFieldsInStatement(measurementName, stmt)
+}
+
+func (s *Store) Measurement(database, name string) *Measurement {
+	db := s.databaseIndexes[database]
+	if db == nil {
+		return nil
+	}
+	return db.measurements[name]
 }
 
 func (s *Store) loadIndexes() error {
