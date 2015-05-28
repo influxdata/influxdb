@@ -201,6 +201,8 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *influ
 		return
 	}
 
+	epoch := strings.TrimSpace(q.Get("epoch"))
+
 	p := influxql.NewParser(strings.NewReader(qp))
 	db := q.Get("db")
 
@@ -260,6 +262,11 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *influ
 			continue
 		}
 
+		// if requested, convert result timestamps to epoch
+		if epoch != "" {
+			convertToEpoch(r, epoch)
+		}
+
 		// if chunked we write out this result and flush
 		if chunked {
 			res.Results = []*influxdb.Result{r}
@@ -285,6 +292,32 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *influ
 	// if it's not chunked we buffered everything in memory, so write it out
 	if !chunked {
 		w.Write(marshalPretty(res, pretty))
+	}
+}
+
+// convertToEpoch converts result timestamps from time.Time to the specified epoch.
+func convertToEpoch(r *influxdb.Result, epoch string) {
+	divisor := int64(1)
+
+	switch epoch {
+	case "u":
+		divisor = 1000
+	case "ms":
+		divisor = 1000000
+	case "s":
+		divisor = 1000000000
+	case "m":
+		divisor = 60000000000
+	case "h":
+		divisor = 3600000000000
+	}
+
+	for _, s := range r.Series {
+		for _, v := range s.Values {
+			if ts, ok := v[0].(time.Time); ok {
+				v[0] = ts.UnixNano() / divisor
+			}
+		}
 	}
 }
 
