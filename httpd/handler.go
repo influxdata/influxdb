@@ -300,12 +300,16 @@ func convertToEpoch(r *influxdb.Result, epoch string) {
 	divisor := int64(1)
 
 	switch epoch {
-	case "us":
+	case "u":
 		divisor = 1000
 	case "ms":
 		divisor = 1000000
 	case "s":
 		divisor = 1000000000
+	case "m":
+		divisor = 60000000000
+	case "h":
+		divisor = 3600000000000
 	}
 
 	for _, s := range r.Series {

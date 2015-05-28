@@ -458,13 +458,13 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			name:      "single point with timestamp in nanosecond epoch",
 			query:     `SELECT * FROM "%DB%"."%RP%".cpu`,
 			expected:  `{"results":[{"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","value"],"values":[[1425085416703820946,100]]}]}]}`,
-			urlValues: url.Values{"epoch": []string{"ns"}},
+			urlValues: url.Values{"epoch": []string{"n"}},
 		},
 		{
 			name:      "single point with timestamp in microsecond epoch",
 			query:     `SELECT * FROM "%DB%"."%RP%".cpu`,
 			expected:  `{"results":[{"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","value"],"values":[[1425085416703820,100]]}]}]}`,
-			urlValues: url.Values{"epoch": []string{"us"}},
+			urlValues: url.Values{"epoch": []string{"u"}},
 		},
 		{
 			name:      "single point with timestamp in millisecond epoch",
@@ -477,6 +477,18 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			query:     `SELECT * FROM "%DB%"."%RP%".cpu`,
 			expected:  `{"results":[{"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","value"],"values":[[1425085416,100]]}]}]}`,
 			urlValues: url.Values{"epoch": []string{"s"}},
+		},
+		{
+			name:      "single point with timestamp in minute epoch",
+			query:     `SELECT * FROM "%DB%"."%RP%".cpu`,
+			expected:  `{"results":[{"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","value"],"values":[[23751423,100]]}]}]}`,
+			urlValues: url.Values{"epoch": []string{"m"}},
+		},
+		{
+			name:      "single point with timestamp in hour epoch",
+			query:     `SELECT * FROM "%DB%"."%RP%".cpu`,
+			expected:  `{"results":[{"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","value"],"values":[[395857,100]]}]}]}`,
+			urlValues: url.Values{"epoch": []string{"h"}},
 		},
 
 		// Selecting tags
