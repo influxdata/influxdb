@@ -604,6 +604,47 @@ func TestServer_CreateRetentionPolicy(t *testing.T) {
 	}
 }
 
+// Ensure the database only creates retention policy if it doesn't already exist.
+func TestServer_CreateRetentionPolicyIfNotExists(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Create a database.
+	if err := s.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a retention policy on the database.
+	rp := &influxdb.RetentionPolicy{
+		Name:               "bar",
+		Duration:           time.Hour,
+		ShardGroupDuration: time.Hour,
+		ReplicaN:           2,
+	}
+
+	// Verify nil returned if policy doesn't exist and succesfully created
+	if err := s.CreateRetentionPolicyIfNotExists("foo", rp); err != nil {
+		t.Fatal(err)
+	}
+	s.Restart()
+
+	// Verify that the policy exists.
+	if o, err := s.RetentionPolicy("foo", "bar"); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if o == nil {
+		t.Fatalf("retention policy not found")
+	} else if !reflect.DeepEqual(rp, o) {
+		t.Fatalf("retention policy mismatch: %#v", o)
+	}
+
+	// Verify nil returned if policy already exists
+	if err := s.CreateRetentionPolicyIfNotExists("foo", rp); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // Ensure the database can create a new retention policy with infinite duration.
 func TestServer_CreateRetentionPolicyInfinite(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
@@ -997,6 +1038,30 @@ func TestServer_StartRetentionPolicyEnforcement_ErrZeroInterval(t *testing.T) {
 	}
 }
 
+// Ensure the server returns an error when attempting to look up
+// the retention policy on a non existent database
+func TestServer_RetentionPolicy_NonexistentDatabase(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	nonExistentDBName := "nonexistent_database"
+
+	expectedErr := influxdb.ErrDatabaseNotFound(nonExistentDBName)
+
+	extractMessage := func(e error) string {
+		r, _ := regexp.Compile("(.+)\\(.+\\)")
+		match := r.FindStringSubmatch(e.Error())[1]
+		return match
+	}
+
+	_, err := s.RetentionPolicy(nonExistentDBName, "rp")
+	if extractMessage(err) != extractMessage(expectedErr) {
+		t.Fatal(err)
+	}
+}
+
 // Ensure the server can support writes of all data types.
 func TestServer_WriteAllDataTypes(t *testing.T) {
 	c := test.NewDefaultMessagingClient()
@@ -1008,10 +1073,10 @@ func TestServer_WriteAllDataTypes(t *testing.T) {
 	s.SetDefaultRetentionPolicy("foo", "raw")
 
 	// Write series with one point to the database.
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "series1", Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(20)}}})
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "series2", Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": int64(30)}}})
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "series3", Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": "baz"}}})
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "series4", Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": true}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Measurement: "series1", Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(20)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Measurement: "series2", Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": int64(30)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Measurement: "series3", Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": "baz"}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Measurement: "series4", Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": true}}})
 	time.Sleep(time.Millisecond * 100)
 
 	f := func(t *testing.T, database, query, expected string) {
@@ -1079,7 +1144,7 @@ func TestServer_DropMeasurement(t *testing.T) {
 
 	// Write series with one point to the database.
 	tags := map[string]string{"host": "serverA", "region": "uswest"}
-	index, err := s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	index, err := s.WriteSeries("foo", "raw", []influxdb.Point{{Measurement: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1142,7 +1207,7 @@ func TestServer_DropSeries(t *testing.T) {
 
 	// Write series with one point to the database.
 	tags := map[string]string{"host": "serverA", "region": "uswest"}
-	index, err := s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	index, err := s.WriteSeries("foo", "raw", []influxdb.Point{{Measurement: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1186,14 +1251,14 @@ func TestServer_DropSeriesFromMeasurement(t *testing.T) {
 
 	// Write series with one point to the database.
 	tags := map[string]string{"host": "serverA", "region": "uswest"}
-	index, err := s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	index, err := s.WriteSeries("foo", "raw", []influxdb.Point{{Measurement: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	c.Sync(index)
 
 	tags = map[string]string{"host": "serverb", "region": "useast"}
-	index, err = s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "memory", Tags: tags, Time: mustParseTime("2000-01-02T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23465432423)}}})
+	index, err = s.WriteSeries("foo", "raw", []influxdb.Point{{Measurement: "memory", Tags: tags, Time: mustParseTime("2000-01-02T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23465432423)}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1232,14 +1297,14 @@ func TestServer_DropSeriesTagsPreserved(t *testing.T) {
 
 	// Write series with one point to the database.
 	tags := map[string]string{"host": "serverA", "region": "uswest"}
-	index, err := s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	index, err := s.WriteSeries("foo", "raw", []influxdb.Point{{Measurement: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	c.Sync(index)
 
 	tags = map[string]string{"host": "serverB", "region": "uswest"}
-	index, err = s.WriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:01Z"), Fields: map[string]interface{}{"value": float64(33.2)}}})
+	index, err = s.WriteSeries("foo", "raw", []influxdb.Point{{Measurement: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:01Z"), Fields: map[string]interface{}{"value": float64(33.2)}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1282,7 +1347,7 @@ func TestServer_DropSeriesTagsPreserved(t *testing.T) {
 		t.Fatalf("unexpected error: %s", res.Err)
 	} else if len(res.Series) != 1 {
 		t.Fatalf("unexpected row count: %d", len(res.Series))
-	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:01Z",33.2]]}]}` {
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","tags":{"host":"serverB","region":"uswest"},"columns":["time","value"],"values":[["2000-01-01T00:00:01Z",33.2]]}]}` {
 		t.Fatalf("unexpected row(0): %s", s)
 	}
 
@@ -1291,7 +1356,7 @@ func TestServer_DropSeriesTagsPreserved(t *testing.T) {
 		t.Fatalf("unexpected error: %s", res.Err)
 	} else if len(res.Series) != 1 {
 		t.Fatalf("unexpected row count: %d", len(res.Series))
-	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:01Z",33.2]]}]}` {
+	} else if s := mustMarshalJSON(res); s != `{"series":[{"name":"cpu","tags":{"host":"serverB","region":"uswest"},"columns":["time","value"],"values":[["2000-01-01T00:00:01Z",33.2]]}]}` {
 		t.Fatalf("unexpected row(0): %s", s)
 	}
 }
@@ -1307,11 +1372,11 @@ func TestServer_ShowSeriesLimitOffset(t *testing.T) {
 	s.SetDefaultRetentionPolicy("foo", "raw")
 
 	// Write series with one point to the database.
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east", "host": "serverA"}, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(20)}}})
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east", "host": "serverB"}, Time: mustParseTime("2000-01-01T00:00:10Z"), Fields: map[string]interface{}{"value": float64(30)}}})
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-west", "host": "serverC"}, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(100)}}})
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "memory", Tags: map[string]string{"region": "us-west", "host": "serverB"}, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(100)}}})
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "memory", Tags: map[string]string{"region": "us-east", "host": "serverA"}, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(100)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Measurement: "cpu", Tags: map[string]string{"region": "us-east", "host": "serverA"}, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(20)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Measurement: "cpu", Tags: map[string]string{"region": "us-east", "host": "serverB"}, Time: mustParseTime("2000-01-01T00:00:10Z"), Fields: map[string]interface{}{"value": float64(30)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Measurement: "cpu", Tags: map[string]string{"region": "us-west", "host": "serverC"}, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(100)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Measurement: "memory", Tags: map[string]string{"region": "us-west", "host": "serverB"}, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(100)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Measurement: "memory", Tags: map[string]string{"region": "us-east", "host": "serverA"}, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(100)}}})
 
 	// Select data from the server.
 	results := s.executeQuery(MustParseQuery(`SHOW SERIES LIMIT 3 OFFSET 1`), "foo", nil)
@@ -1433,7 +1498,7 @@ func TestServer_CopyShard(t *testing.T) {
 	s.SetDefaultRetentionPolicy("foo", "raw")
 
 	// Write series with one point to the database to ensure shard 1 is created.
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "series1", Fields: map[string]interface{}{"value": float64(20)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Measurement: "series1", Fields: map[string]interface{}{"value": float64(20)}}})
 	time.Sleep(time.Millisecond * 100)
 
 	err := s.CopyShard(ioutil.Discard, 1234)
@@ -1463,7 +1528,7 @@ func TestServer_Measurements(t *testing.T) {
 	tags := map[string]string{"host": "servera.influx.com", "region": "uswest"}
 	values := map[string]interface{}{"value": 23.2}
 
-	index, err := s.WriteSeries("foo", "mypolicy", []influxdb.Point{influxdb.Point{Name: "cpu_load", Tags: tags, Time: timestamp, Fields: values}})
+	index, err := s.WriteSeries("foo", "mypolicy", []influxdb.Point{influxdb.Point{Measurement: "cpu_load", Tags: tags, Time: timestamp, Fields: values}})
 	if err != nil {
 		t.Fatal(err)
 	} else if err = s.Sync(index); err != nil {
@@ -1860,9 +1925,9 @@ func TestServer_RunContinuousQueries(t *testing.T) {
 	}
 	testTime.Add(time.Millisecond * 2)
 
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Time: testTime, Fields: map[string]interface{}{"value": float64(30)}}})
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-east"}, Time: testTime.Add(-time.Millisecond * 5), Fields: map[string]interface{}{"value": float64(20)}}})
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-west"}, Time: testTime, Fields: map[string]interface{}{"value": float64(100)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Measurement: "cpu", Tags: map[string]string{"region": "us-east"}, Time: testTime, Fields: map[string]interface{}{"value": float64(30)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Measurement: "cpu", Tags: map[string]string{"region": "us-east"}, Time: testTime.Add(-time.Millisecond * 5), Fields: map[string]interface{}{"value": float64(20)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Measurement: "cpu", Tags: map[string]string{"region": "us-west"}, Time: testTime, Fields: map[string]interface{}{"value": float64(100)}}})
 
 	// Run CQs after a period of time
 	time.Sleep(time.Millisecond * 50)
@@ -1892,7 +1957,7 @@ func TestServer_RunContinuousQueries(t *testing.T) {
 
 	// ensure that data written into a previous window is picked up and the result recomputed.
 	time.Sleep(time.Millisecond * 2)
-	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Name: "cpu", Tags: map[string]string{"region": "us-west"}, Time: testTime.Add(-time.Millisecond), Fields: map[string]interface{}{"value": float64(50)}}})
+	s.MustWriteSeries("foo", "raw", []influxdb.Point{{Measurement: "cpu", Tags: map[string]string{"region": "us-west"}, Time: testTime.Add(-time.Millisecond), Fields: map[string]interface{}{"value": float64(50)}}})
 	s.RunContinuousQueries()
 	// give CQs time to run
 	time.Sleep(time.Millisecond * 100)
@@ -1956,7 +2021,7 @@ func TestServer_CreateSnapshotWriter(t *testing.T) {
 	s.CreateUser("susy", "pass", false)
 
 	// Write one point.
-	index, err := s.WriteSeries("db", "raw", []influxdb.Point{{Name: "cpu", Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(100)}}})
+	index, err := s.WriteSeries("db", "raw", []influxdb.Point{{Measurement: "cpu", Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(100)}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2126,7 +2191,7 @@ func TestServer_ShowTagKeysStatement_TagsExist(t *testing.T) {
 
 	// Write series with one point to the database.
 	tags := map[string]string{"host": "serverA", "region": "uswest"}
-	index, err := s.WriteSeries("foo", "bar", []influxdb.Point{{Name: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	index, err := s.WriteSeries("foo", "bar", []influxdb.Point{{Measurement: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2167,7 +2232,7 @@ func TestServer_ShowTagValuesStatement_TagsExist(t *testing.T) {
 
 	// Write series with one point to the database.
 	tags := map[string]string{"host": "serverA", "region": "uswest"}
-	index, err := s.WriteSeries("foo", "bar", []influxdb.Point{{Name: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	index, err := s.WriteSeries("foo", "bar", []influxdb.Point{{Measurement: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2208,13 +2273,13 @@ func TestServer_ShowTagValuesStatement_WhereClause(t *testing.T) {
 
 	// Write series with one point to the database.
 	tags := map[string]string{"host": "serverA", "region": "uswest"}
-	index, err := s.WriteSeries("foo", "bar", []influxdb.Point{{Name: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	index, err := s.WriteSeries("foo", "bar", []influxdb.Point{{Measurement: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	c.Sync(index)
 	tags2 := map[string]string{"host": "serverC", "region": "useast"}
-	index2, err := s.WriteSeries("foo", "bar", []influxdb.Point{{Name: "cpu", Tags: tags2, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	index2, err := s.WriteSeries("foo", "bar", []influxdb.Point{{Measurement: "cpu", Tags: tags2, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2255,7 +2320,7 @@ func TestServer_ShowTagValuesStatement_ErrDatabaseNotFound(t *testing.T) {
 
 	// Write series with one point to the database.
 	tags := map[string]string{"host": "serverA", "region": "uswest"}
-	index, err := s.WriteSeries("foo", "bar", []influxdb.Point{{Name: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	index, err := s.WriteSeries("foo", "bar", []influxdb.Point{{Measurement: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2297,7 +2362,7 @@ func TestServer_ShowTagValuesStatement_ErrMeasurementNotFound(t *testing.T) {
 
 	// Write series with one point to the database.
 	tags := map[string]string{"host": "serverA", "region": "uswest"}
-	index, err := s.WriteSeries("foo", "bar", []influxdb.Point{{Name: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
+	index, err := s.WriteSeries("foo", "bar", []influxdb.Point{{Measurement: "cpu", Tags: tags, Time: mustParseTime("2000-01-01T00:00:00Z"), Fields: map[string]interface{}{"value": float64(23.2)}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2344,6 +2409,288 @@ func TestServer_CreateDatabaseIfNotExists(t *testing.T) {
 	err := s.CreateDatabaseIfNotExists("foo")
 	if err != nil {
 		t.Fatal("An error should be returned if the database already exists")
+	}
+}
+
+// Ensure session is always authenticated when authentication is disabled
+func TestServer_Authenticate_AuthenticationDisabled(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Create a user.
+	if err := s.CreateUser("susy", "pass", true); err != nil {
+		t.Fatal(err)
+	}
+	s.Restart()
+	s.SetAuthenticationEnabled(false)
+
+	u, err := s.Authenticate("sammy", "pass")
+	if u != nil || err != nil {
+		t.Fatalf("Authenticate should return nil when authentication is disabled and user does not exist")
+	}
+}
+
+// Ensure an error is raised for a non-existent user
+func TestServer_Authenticate_InvalidUsername(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Create a user.
+	if err := s.CreateUser("susy", "pass", true); err != nil {
+		t.Fatal(err)
+	}
+	s.Restart()
+	s.SetAuthenticationEnabled(true)
+
+	_, err := s.Authenticate("sammy", "pass")
+	if err == nil {
+		t.Fatalf("Authenticate should return an error when the user does not exist")
+	}
+}
+
+// Server should be able to update user's password
+func TestServer_UpdateUser_ChangePassword(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Create a user.
+	if err := s.CreateUser("susy", "pass", true); err != nil {
+		t.Fatal(err)
+	}
+	s.Restart()
+	s.SetAuthenticationEnabled(true)
+
+	// Can authenticate with existing password
+	if _, err := s.Authenticate("susy", "pass"); err != nil {
+		t.Errorf("unexpected error: %s", err)
+	}
+
+	// Can update password
+	if err := s.UpdateUser("susy", "updatedPass"); err != nil {
+		t.Errorf("unexpected error: %s", err)
+	}
+
+	// Can authenticate with new password
+	if _, err := s.Authenticate("susy", "updatedPass"); err != nil {
+		t.Errorf("unexpected error: %s", err)
+	}
+
+	// Can't authenticate with old password
+	if _, err := s.Authenticate("susy", "pass"); err == nil {
+		t.Errorf("The server should not allow users to authenticate with password that has been replaced.")
+	}
+}
+
+// Ensure error is returned when attempting to update a non-existent user
+func TestServer_UpdateUser_NonexistentUser(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Can't update non-existent user
+	if err := s.UpdateUser("susy", "updatedPass"); err != influxdb.ErrUserNotFound {
+		t.Fatal(err)
+	}
+}
+
+// Ensure error is returned when attempting to delete a non-existent user
+func TestServer_DeleteUser_NonexistentUser(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Can't delete non-existent user
+	if err := s.DeleteUser("susy"); err != influxdb.ErrUserNotFound {
+		t.Fatal(err)
+	}
+}
+
+// Ensure error is returned when attempting to delete a blank username
+func TestServer_DeleteUser_BlankUser(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Can't delete blank user
+	if err := s.DeleteUser(""); err != influxdb.ErrUsernameRequired {
+		t.Fatal(err)
+	}
+}
+
+// Ensure error is returned when attempting to set privileges for a blank username
+func TestServer_SetPrivilege_BlankUser(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Can't set privilege on blank username
+	if err := s.SetPrivilege(influxql.WritePrivilege, "", ""); err != influxdb.ErrUsernameRequired {
+		t.Fatal(err)
+	}
+}
+
+// Ensure error is returned when attempting to set privileges for a non-existent user
+func TestServer_SetPrivilege_NonexistentUser(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Can't set privilege on non-existent user
+	if err := s.SetPrivilege(influxql.WritePrivilege, "susy", ""); err != influxdb.ErrUserNotFound {
+		t.Fatal(err)
+	}
+}
+
+// Ensure user admin flag updated when database name is blank
+func TestServer_SetPrivilege_BlankDatabaseName_Grant(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Create a user.
+	if err := s.CreateUser("susy", "pass", false); err != nil {
+		t.Fatal(err)
+	}
+	s.Restart()
+
+	if u := s.User("susy"); u.Admin != false {
+		t.Errorf("The user should not be an admin by default.")
+	}
+
+	// Set privileges with blank database name to update user admin flag
+	err := s.SetPrivilege(influxql.AllPrivileges, "susy", "")
+	if err != nil {
+		t.Errorf("unexpected error: %s", err)
+	}
+
+	if u := s.User("susy"); u.Admin != true {
+		t.Errorf("The user should be an admin as their privileges have been updated.")
+	}
+}
+
+// Ensure user admin flag can be revoked when user created as admin
+func TestServer_SetPrivilege_BlankDatabaseName_Revoke(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Create an admin user.
+	if err := s.CreateUser("susy", "pass", true); err != nil {
+		t.Fatal(err)
+	}
+	s.Restart()
+
+	if u := s.User("susy"); u.Admin != true {
+		t.Errorf("The user should be an admin.")
+	}
+
+	// Set no privileges with blank database name to update user admin flag
+	err := s.SetPrivilege(influxql.NoPrivileges, "susy", "")
+	if err != nil {
+		t.Errorf("unexpected error: %s", err)
+	}
+
+	if u := s.User("susy"); u.Admin != false {
+		t.Errorf("The user should not be an admin as their privileges have been revoked.")
+	}
+}
+
+// Ensure read privilege can be set for user
+func TestServer_SetPrivilege_Read(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Create the "foo" database.
+	if err := s.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a user.
+	if err := s.CreateUser("susy", "pass", false); err != nil {
+		t.Fatal(err)
+	}
+	s.Restart()
+
+	u := s.User("susy")
+	if u.Privileges["foo"] != influxql.NoPrivileges {
+		t.Errorf("The user should have no privileges by default.")
+	}
+
+	err := s.SetPrivilege(influxql.WritePrivilege, "susy", "foo")
+	if err != nil {
+		t.Errorf("unexpected error: %s", err)
+	}
+
+	if u := s.User("susy"); u.Privileges["foo"] != influxql.WritePrivilege {
+		t.Errorf("The user should have 'WRITE' privileges.")
+	}
+}
+
+// Ensure all privileges can be set for user
+func TestServer_SetPrivilege_All(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Create the "foo" database.
+	if err := s.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a user.
+	if err := s.CreateUser("susy", "pass", false); err != nil {
+		t.Fatal(err)
+	}
+	s.Restart()
+
+	u := s.User("susy")
+	if u.Privileges["foo"] != influxql.NoPrivileges {
+		t.Errorf("The user should have no privileges by default.")
+	}
+
+	err := s.SetPrivilege(influxql.AllPrivileges, "susy", "foo")
+	if err != nil {
+		t.Errorf("unexpected error: %s", err)
+	}
+
+	if u := s.User("susy"); u.Privileges["foo"] != influxql.AllPrivileges {
+		t.Errorf("The user should have 'ALL' privileges.")
+	}
+}
+
+// Ensure server returns error when attempting to grant granular privileges on blank database name
+func TestServer_SetPrivilege_WritePrivilegeBlankDatabase(t *testing.T) {
+	c := test.NewDefaultMessagingClient()
+	defer c.Close()
+	s := OpenServer(c)
+	defer s.Close()
+
+	// Create a user.
+	if err := s.CreateUser("susy", "pass", false); err != nil {
+		t.Fatal(err)
+	}
+	s.Restart()
+
+	// Can't set write privileges with blank database name
+	err := s.SetPrivilege(influxql.WritePrivilege, "susy", "")
+	if err != influxdb.ErrInvalidGrantRevoke {
+		t.Fatal(err)
 	}
 }
 

@@ -260,10 +260,10 @@ func NormalizeBatchPoints(bp client.BatchPoints) ([]Point, error) {
 		}
 		// Need to convert from a client.Point to a influxdb.Point
 		points = append(points, Point{
-			Name:   p.Name,
-			Tags:   p.Tags,
-			Time:   p.Time,
-			Fields: p.Fields,
+			Measurement: p.Measurement,
+			Tags:        p.Tags,
+			Time:        p.Time,
+			Fields:      p.Fields,
 		})
 	}
 

@@ -333,7 +333,7 @@ func TestSelectStatement_RewriteWildcards(t *testing.T) {
 		// Query wildcard
 		{
 			stmt:    `SELECT * FROM cpu`,
-			rewrite: `SELECT value1, value2 FROM cpu`,
+			rewrite: `SELECT value1, value2 FROM cpu GROUP BY host, region`,
 		},
 
 		// Parser fundamentally prohibits multiple query sources

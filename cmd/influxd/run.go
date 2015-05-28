@@ -719,12 +719,18 @@ is used.
         -config <path>
                           Set the path to the configuration file.
 
+        -cpuprofile <path>
+                          Set the path to the cpuprofile.
+
         -hostname <name>
                           Override the hostname, the 'hostname' configuration
                           option will be overridden.
 
         -join <url>
                           Joins the server to an existing cluster.
+
+        -memprofile <path>
+                          Set the path to the memprofile.
 
         -pidfile <path>
                           Write process ID to a file.

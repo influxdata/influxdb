@@ -1,3 +1,12 @@
+## v0.9.0-rc32 [unreleased]
+
+### Features
+- [1997](https://github.com/influxdb/influxdb/pull/1997): Update SELECT * to return tag values.
+
+### Bugfixes
+- [2635](https://github.com/influxdb/influxdb/issues/2635): Fix querying against boolean field in WHERE clause.
+- [2644](https://github.com/influxdb/influxdb/issues/2644): Make SHOW queries work with FROM /<regex>/.
+
 ## v0.9.0-rc31 [2015-05-21]
 
 ### Features
@@ -18,6 +27,7 @@
 - [#2499](https://github.com/influxdb/influxdb/pull/2499): Issuing a select query with tag as a values causes panic.
 - [#2612](https://github.com/influxdb/influxdb/pull/2612): Query planner should validate distinct is passed a field.
 - [#2531](https://github.com/influxdb/influxdb/issues/2531): Fix select with 3 or more terms in where clause.
+- [#2564](https://github.com/influxdb/influxdb/issues/2564): Change "name" to "measurement" in JSON for writes.
 
 ## PRs
 - [#2569](https://github.com/influxdb/influxdb/pull/2569): Add derivative functions

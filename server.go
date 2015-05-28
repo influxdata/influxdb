@@ -361,10 +361,10 @@ func (s *Server) StartSelfMonitoring(database, retention string, interval time.D
 		now := time.Now()
 		st.Walk(func(k string, v int64) {
 			point := Point{
-				Time:   now,
-				Name:   st.name + "_" + k,
-				Tags:   make(map[string]string),
-				Fields: map[string]interface{}{"value": int(v)},
+				Time:        now,
+				Measurement: st.name + "_" + k,
+				Tags:        make(map[string]string),
+				Fields:      map[string]interface{}{"value": int(v)},
 			}
 			// Specifically create a new map.
 			for k, v := range tags {
@@ -1486,7 +1486,7 @@ func (s *Server) DefaultRetentionPolicy(database string) (*RetentionPolicy, erro
 	return db.policies[db.defaultRetentionPolicy], nil
 }
 
-// RetentionPolicies returns a list of retention polocies for a database.
+// RetentionPolicies returns a list of retention policies for a database.
 // Returns an error if the database doesn't exist.
 func (s *Server) RetentionPolicies(database string) ([]*RetentionPolicy, error) {
 	s.mu.RLock()
@@ -1752,10 +1752,10 @@ func (s *Server) DropSeries(database string, seriesByMeasurement map[string][]ui
 
 // Point defines the values that will be written to the database
 type Point struct {
-	Name   string
-	Tags   map[string]string
-	Time   time.Time
-	Fields map[string]interface{}
+	Measurement string
+	Tags        map[string]string
+	Time        time.Time
+	Fields      map[string]interface{}
 }
 
 // WriteSeries writes series data to the database.
@@ -1827,9 +1827,9 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 			return ErrDatabaseNotFound(database)
 		}
 		for _, p := range points {
-			measurement, series := db.MeasurementAndSeries(p.Name, p.Tags)
+			measurement, series := db.MeasurementAndSeries(p.Measurement, p.Tags)
 			if series == nil {
-				s.Logger.Printf("series not found: name=%s, tags=%#v", p.Name, p.Tags)
+				s.Logger.Printf("series not found: name=%s, tags=%#v", p.Measurement, p.Tags)
 				return ErrSeriesNotFound
 			}
 
@@ -1920,11 +1920,11 @@ func (s *Server) createMeasurementsIfNotExists(database, retentionPolicy string,
 		}
 
 		for _, p := range points {
-			measurement, series := db.MeasurementAndSeries(p.Name, p.Tags)
+			measurement, series := db.MeasurementAndSeries(p.Measurement, p.Tags)
 
 			if series == nil {
 				// Series does not exist in Metastore, add it so it's created cluster-wide.
-				c.addSeriesIfNotExists(p.Name, p.Tags)
+				c.addSeriesIfNotExists(p.Measurement, p.Tags)
 			}
 
 			for k, v := range p.Fields {
@@ -1938,7 +1938,7 @@ func (s *Server) createMeasurementsIfNotExists(database, retentionPolicy string,
 					}
 				}
 				// Field isn't in Metastore. Add it to command so it's created cluster-wide.
-				if err := c.addFieldIfNotExists(p.Name, k, influxql.InspectDataType(v)); err != nil {
+				if err := c.addFieldIfNotExists(p.Measurement, k, influxql.InspectDataType(v)); err != nil {
 					return err
 				}
 			}
@@ -2605,8 +2605,14 @@ func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, 
 		return &Result{Err: ErrDatabaseNotFound(database)}
 	}
 
+	// Expand regex expressions in the FROM clause.
+	sources, err := s.expandSources(stmt.Sources)
+	if err != nil {
+		return &Result{Err: err}
+	}
+
 	// Get the list of measurements we're interested in.
-	measurements, err := measurementsFromSourceOrDB(stmt.Source, db)
+	measurements, err := measurementsFromSourcesOrDB(db, sources...)
 	if err != nil {
 		return &Result{Err: err}
 	}
@@ -2772,8 +2778,14 @@ func (s *Server) executeShowTagKeysStatement(stmt *influxql.ShowTagKeysStatement
 		return &Result{Err: ErrDatabaseNotFound(database)}
 	}
 
+	// Expand regex expressions in the FROM clause.
+	sources, err := s.expandSources(stmt.Sources)
+	if err != nil {
+		return &Result{Err: err}
+	}
+
 	// Get the list of measurements we're interested in.
-	measurements, err := measurementsFromSourceOrDB(stmt.Source, db)
+	measurements, err := measurementsFromSourcesOrDB(db, sources...)
 	if err != nil {
 		return &Result{Err: err}
 	}
@@ -2822,8 +2834,14 @@ func (s *Server) executeShowTagValuesStatement(stmt *influxql.ShowTagValuesState
 		return &Result{Err: ErrDatabaseNotFound(database)}
 	}
 
+	// Expand regex expressions in the FROM clause.
+	sources, err := s.expandSources(stmt.Sources)
+	if err != nil {
+		return &Result{Err: err}
+	}
+
 	// Get the list of measurements we're interested in.
-	measurements, err := measurementsFromSourceOrDB(stmt.Source, db)
+	measurements, err := measurementsFromSourcesOrDB(db, sources...)
 	if err != nil {
 		return &Result{Err: err}
 	}
@@ -2969,8 +2987,13 @@ func (s *Server) executeShowFieldKeysStatement(stmt *influxql.ShowFieldKeysState
 		return &Result{Err: ErrDatabaseNotFound(database)}
 	}
 
-	// Get the list of measurements we're interested in.
-	measurements, err := measurementsFromSourceOrDB(stmt.Source, db)
+	// Expand regex expressions in the FROM clause.
+	sources, err := s.expandSources(stmt.Sources)
+	if err != nil {
+		return &Result{Err: err}
+	}
+
+	measurements, err := measurementsFromSourcesOrDB(db, sources...)
 	if err != nil {
 		return &Result{Err: err}
 	}
@@ -3014,36 +3037,6 @@ func (s *Server) executeGrantStatement(stmt *influxql.GrantStatement, user *User
 
 func (s *Server) executeRevokeStatement(stmt *influxql.RevokeStatement, user *User) *Result {
 	return &Result{Err: s.SetPrivilege(influxql.NoPrivileges, stmt.User, stmt.On)}
-}
-
-// measurementsFromSourceOrDB returns a list of measurements from the
-// statement passed in or, if the statement is nil, a list of all
-// measurement names from the database passed in.
-func measurementsFromSourceOrDB(stmt influxql.Source, db *database) (Measurements, error) {
-	var measurements Measurements
-	if stmt != nil {
-		// TODO: handle multiple measurement sources
-		if m, ok := stmt.(*influxql.Measurement); ok {
-			measurement := db.measurements[m.Name]
-			if measurement == nil {
-				return nil, ErrMeasurementNotFound(m.Name)
-			}
-
-			measurements = append(measurements, measurement)
-		} else {
-			return nil, errors.New("identifiers in FROM clause must be measurement names")
-		}
-	} else {
-		// No measurements specified in FROM clause so get all measurements that have series.
-		for _, m := range db.Measurements() {
-			if len(m.seriesIDs) > 0 {
-				measurements = append(measurements, m)
-			}
-		}
-	}
-	sort.Sort(measurements)
-
-	return measurements, nil
 }
 
 // measurementsFromSourcesOrDB returns a list of measurements from the
@@ -3287,7 +3280,6 @@ func (s *Server) NormalizeStatement(stmt influxql.Statement, defaultDatabase str
 func (s *Server) normalizeStatement(stmt influxql.Statement, defaultDatabase string) (err error) {
 	// Track prefixes for replacing field names.
 	prefixes := make(map[string]string)
-
 	// Qualify all measurements.
 	influxql.WalkFunc(stmt, func(n influxql.Node) {
 		if err != nil {
@@ -4098,10 +4090,10 @@ func (s *Server) convertRowToPoints(measurementName string, row *influxql.Row) (
 		}
 
 		p := &Point{
-			Name:   measurementName,
-			Tags:   row.Tags,
-			Time:   v[timeIndex].(time.Time),
-			Fields: vals,
+			Measurement: measurementName,
+			Tags:        row.Tags,
+			Time:        v[timeIndex].(time.Time),
+			Fields:      vals,
 		}
 
 		points = append(points, *p)

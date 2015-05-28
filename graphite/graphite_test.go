@@ -205,8 +205,8 @@ func Test_DecodeMetric(t *testing.T) {
 			// If we erred out,it was intended and the following tests won't work
 			continue
 		}
-		if point.Name != test.name {
-			t.Fatalf("name parse failer.  expected %v, got %v", test.name, point.Name)
+		if point.Measurement != test.name {
+			t.Fatalf("name parse failer.  expected %v, got %v", test.name, point.Measurement)
 		}
 		if len(point.Tags) != len(test.tags) {
 			t.Fatalf("tags len mismatch.  expected %d, got %d", len(test.tags), len(point.Tags))

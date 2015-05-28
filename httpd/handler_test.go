@@ -173,7 +173,7 @@ func TestHandler_SelectTagNotFound(t *testing.T) {
 	defer s.Close()
 
 	// Write some data
-	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "default", "points": [{"name": "bin", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
+	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "default", "points": [{"measurement": "bin", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
 	if status != http.StatusNoContent {
 		t.Fatalf("unexpected status: %d", status)
 	}
@@ -627,7 +627,7 @@ func TestHandler_WaitIncrement(t *testing.T) {
 	status, _ := MustHTTP("GET", s.URL+`/data/wait/2`, map[string]string{"timeout": "200"}, nil, "")
 
 	// Write some data
-	_, _ = MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
+	_, _ = MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"measurement": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
 
 	if status != http.StatusOK {
 		t.Fatalf("unexpected status, expected:  %d, actual: %d", http.StatusOK, status)
@@ -1098,7 +1098,7 @@ func TestHandler_DropSeries(t *testing.T) {
 	s := NewAPIServer(srvr)
 	defer s.Close()
 
-	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
+	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"measurement": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
 
 	if status != http.StatusNoContent {
 		t.Fatalf("unexpected status: %d", status)
@@ -1120,7 +1120,7 @@ func TestHandler_serveWriteSeries(t *testing.T) {
 	s := NewAPIServer(srvr)
 	defer s.Close()
 
-	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "default", "points": [{"name": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
+	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "default", "points": [{"measurement": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
 
 	if status != http.StatusNoContent {
 		t.Fatalf("unexpected status for post: %d", status)
@@ -1143,7 +1143,7 @@ func TestHandler_serveDump(t *testing.T) {
 	s := NewAPIServer(srvr)
 	defer s.Close()
 
-	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "default", "points": [{"name": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
+	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "default", "points": [{"measurement": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
 
 	if status != http.StatusNoContent {
 		t.Fatalf("unexpected status for post: %d", status)
@@ -1175,7 +1175,7 @@ func TestHandler_serveWriteSeriesWithNoFields(t *testing.T) {
 	s := NewAPIServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z"}]}`)
+	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"measurement": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z"}]}`)
 
 	expected := fmt.Sprintf(`{"error":"%s"}`, influxdb.ErrFieldsRequired.Error())
 
@@ -1195,7 +1195,7 @@ func TestHandler_serveWriteSeriesWithNullFields(t *testing.T) {
 	s := NewAPIServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "fields": {"country": null}}]}`)
+	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"measurement": "cpu", "fields": {"country": null}}]}`)
 
 	expected := fmt.Sprintf(`{"error":"%s"}`, influxdb.ErrFieldIsNull.Error())
 
@@ -1215,7 +1215,7 @@ func TestHandler_serveWriteSeriesWithAuthNilUser(t *testing.T) {
 	s := NewAuthenticatedAPIServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
+	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"measurement": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
 
 	if status != http.StatusUnauthorized {
 		t.Fatalf("unexpected status: %d", status)
@@ -1234,7 +1234,7 @@ func TestHandler_serveWriteSeries_noDatabaseExists(t *testing.T) {
 	s := NewAPIServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
+	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"measurement": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
 
 	expectedStatus := http.StatusNotFound
 	if status != expectedStatus {
@@ -1284,7 +1284,7 @@ func TestHandler_serveWriteSeries_queryHasJsonContentType(t *testing.T) {
 	s := NewAPIServer(srvr)
 	defer s.Close()
 
-	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z", "fields": {"value": 100}}]}`)
+	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"measurement": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z", "fields": {"value": 100}}]}`)
 	if status != http.StatusNoContent {
 		t.Fatalf("unexpected status: %d", status)
 	}
@@ -1339,7 +1339,7 @@ func TestHandler_serveWriteSeries_invalidJSON(t *testing.T) {
 	s := NewAPIServer(srvr)
 	defer s.Close()
 
-	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
+	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : foo", "retentionPolicy" : "bar", "points": [{"measurement": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z","fields": {"value": 100}}]}`)
 
 	if status != http.StatusBadRequest {
 		t.Fatalf("unexpected status: expected: %d, actual: %d", http.StatusBadRequest, status)
@@ -1381,7 +1381,7 @@ func TestHandler_serveWriteSeriesNonZeroTime(t *testing.T) {
 	s := NewAPIServer(srvr)
 	defer s.Close()
 
-	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z", "fields": {"value": 100}}]}`)
+	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"measurement": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z", "fields": {"value": 100}}]}`)
 	if status != http.StatusNoContent {
 		t.Fatalf("unexpected status: %d", status)
 	}
@@ -1426,7 +1426,7 @@ func TestHandler_serveWriteSeriesZeroTime(t *testing.T) {
 
 	now := time.Now()
 
-	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"fields": {"value": 100}}]}`)
+	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"measurement": "cpu", "tags": {"host": "server01"},"fields": {"value": 100}}]}`)
 
 	if status != http.StatusNoContent {
 		t.Fatalf("unexpected status: %d", status)
@@ -1485,7 +1485,7 @@ func TestHandler_serveWriteSeriesBatch(t *testing.T) {
     "retentionPolicy": "bar",
     "points": [
         {
-            "name": "disk",
+            "measurement": "disk",
             "time": "2009-11-10T23:00:00Z",
             "tags": {
                 "host": "server01"
@@ -1495,7 +1495,7 @@ func TestHandler_serveWriteSeriesBatch(t *testing.T) {
             }
         },
         {
-            "name": "disk",
+            "measurement": "disk",
             "time": "2009-11-10T23:00:01Z",
             "tags": {
                 "host": "server01"
@@ -1505,7 +1505,7 @@ func TestHandler_serveWriteSeriesBatch(t *testing.T) {
             }
         },
         {
-            "name": "disk",
+            "measurement": "disk",
             "time": "2009-11-10T23:00:02Z",
             "tags": {
                 "host": "server02"
@@ -1542,14 +1542,14 @@ func TestHandler_serveWriteSeriesBatch(t *testing.T) {
 		t.Fatalf("unexpected results count")
 	}
 	result := r.Results[0]
-	if len(result.Series) != 1 {
-		t.Fatalf("unexpected row count, expected: %d, actual: %d", 1, len(result.Series))
+	if len(result.Series) != 2 {
+		t.Fatalf("unexpected row count, expected: %d, actual: %d", 2, len(result.Series))
 	}
 	if len(result.Series[0].Columns) != 3 {
 		t.Fatalf("unexpected column count, expected: %d, actual: %d", 3, len(result.Series[0].Columns))
 	}
-	if len(result.Series[0].Values) != 3 {
-		t.Fatalf("unexpected values count, expected: %d, actual: %d", 3, len(result.Series[0].Values))
+	if len(result.Series[0].Values) != 2 {
+		t.Fatalf("unexpected values count, expected: %d, actual: %d", 2, len(result.Series[0].Values))
 	}
 }
 
@@ -1564,12 +1564,12 @@ func TestHandler_serveWriteSeriesFieldTypeConflict(t *testing.T) {
 	s := NewAPIServer(srvr)
 	defer s.Close()
 
-	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"fields": {"value": 100}}]}`)
+	status, _ := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"measurement": "cpu", "tags": {"host": "server01"},"fields": {"value": 100}}]}`)
 	if status != http.StatusNoContent {
 		t.Fatalf("unexpected status: %d", status)
 	}
 
-	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"name": "cpu", "tags": {"host": "server01"},"fields": {"value": "foo"}}]}`)
+	status, body := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [{"measurement": "cpu", "tags": {"host": "server01"},"fields": {"value": "foo"}}]}`)
 	if status != http.StatusInternalServerError {
 		t.Errorf("unexpected status: %d", status)
 	}
@@ -1671,8 +1671,8 @@ func TestHandler_ChunkedResponses(t *testing.T) {
 	defer s.Close()
 
 	status, errString := MustHTTP("POST", s.URL+`/write`, nil, nil, `{"database" : "foo", "retentionPolicy" : "bar", "points": [
-			{"name": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z", "fields": {"value": 100}},
-			{"name": "cpu", "tags": {"host": "server02"},"time": "2009-11-10T23:30:00Z", "fields": {"value": 25}}]}`)
+			{"measurement": "cpu", "tags": {"host": "server01"},"time": "2009-11-10T23:00:00Z", "fields": {"value": 100}},
+			{"measurement": "cpu", "tags": {"host": "server02"},"time": "2009-11-10T23:30:00Z", "fields": {"value": 25}}]}`)
 	if status != http.StatusNoContent {
 		t.Fatalf("unexpected status: %d - %s", status, errString)
 	}
