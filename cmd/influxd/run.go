@@ -19,16 +19,14 @@ import (
 	"github.com/influxdb/influxdb/admin"
 	"github.com/influxdb/influxdb/collectd"
 	"github.com/influxdb/influxdb/graphite"
-	"github.com/influxdb/influxdb/messaging"
 	"github.com/influxdb/influxdb/opentsdb"
-	"github.com/influxdb/influxdb/raft"
 	"github.com/influxdb/influxdb/udp"
 )
 
 type RunCommand struct {
 	// The logger passed to the ticker during execution.
 	logWriter *os.File
-	config    *Config
+	config    *influxdb.Config
 	hostname  string
 	node      *Node
 }
@@ -40,9 +38,7 @@ func NewRunCommand() *RunCommand {
 }
 
 type Node struct {
-	Broker   *influxdb.Broker
-	DataNode *influxdb.Server
-	raftLog  *raft.Log
+	Server *influxdb.Server
 
 	hostname string
 

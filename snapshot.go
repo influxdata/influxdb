@@ -1,7 +1,6 @@
 package influxdb
 
 /*
-
 import (
 	"archive/tar"
 	"encoding/json"
@@ -542,7 +541,7 @@ func (sw *SnapshotWriter) writeFileTo(tw *tar.Writer, f *SnapshotFile) error {
 // createServerSnapshotWriter creates a snapshot writer from a locked server.
 func createServerSnapshotWriter(s *Server) (*SnapshotWriter, error) {
 	// Exit if the server is closed.
-	if !s.opened() {
+	if !s.opened {
 		return nil, ErrServerClosed
 	}
 

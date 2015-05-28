@@ -72,7 +72,7 @@ type Server struct {
 	// Retention policy settings
 	RetentionAutoCreate bool
 
-	// continuous query settings
+	// Continuous query settings
 	RecomputePreviousN     int
 	RecomputeNoOlderThan   time.Duration
 	ComputeRunsPerInterval int

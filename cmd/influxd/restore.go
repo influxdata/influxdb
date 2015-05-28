@@ -1,5 +1,6 @@
 package main
 
+/*
 import (
 	"encoding/binary"
 	"flag"
@@ -15,7 +16,6 @@ import (
 
 	"github.com/boltdb/bolt"
 	"github.com/influxdb/influxdb"
-	"github.com/influxdb/influxdb/raft"
 )
 
 // RestoreCommand represents the program execution for "influxd restore".
@@ -40,8 +40,8 @@ func NewRestoreCommand() *RestoreCommand {
 
 // Run excutes the program.
 func (cmd *RestoreCommand) Run(args ...string) error {
-
 	cmd.Logger.Printf("influxdb restore, version %s, commit %s", version, commit)
+
 	// Parse command line arguments.
 	config, path, err := cmd.parseFlags(args)
 	if err != nil {
@@ -51,7 +51,7 @@ func (cmd *RestoreCommand) Run(args ...string) error {
 	return cmd.Restore(config, path)
 }
 
-func (cmd *RestoreCommand) Restore(config *Config, path string) error {
+func (cmd *RestoreCommand) Restore(config *influxdb.Config, path string) error {
 	// Remove broker & data directories.
 	if err := os.RemoveAll(config.BrokerDir()); err != nil {
 		return fmt.Errorf("remove broker dir: %s", err)
@@ -88,7 +88,7 @@ func (cmd *RestoreCommand) Restore(config *Config, path string) error {
 }
 
 // parseFlags parses and validates the command line arguments.
-func (cmd *RestoreCommand) parseFlags(args []string) (*Config, string, error) {
+func (cmd *RestoreCommand) parseFlags(args []string) (*influxdb.Config, string, error) {
 	fs := flag.NewFlagSet("", flag.ContinueOnError)
 	configPath := fs.String("config", "", "")
 	fs.SetOutput(cmd.Stderr)
@@ -273,3 +273,4 @@ func u64tob(v uint64) []byte {
 
 // btou64 converts an 8-byte slice into an uint64.
 func btou64(b []byte) uint64 { return binary.BigEndian.Uint64(b) }
+*/

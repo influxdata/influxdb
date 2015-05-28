@@ -1,5 +1,6 @@
 package main
 
+/*
 import (
 	"bytes"
 	"encoding/json"
@@ -180,3 +181,4 @@ backup downloads a snapshot of a data node and saves it to disk.
                           Defaults to http://127.0.0.1:8087.
 `)
 }
+*/

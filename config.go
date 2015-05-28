@@ -1,4 +1,4 @@
-package main
+package influxdb
 
 import (
 	"fmt"
@@ -133,9 +133,8 @@ type Raft struct {
 	ReconnectTimeout  Duration `toml:"reconnect-timeout"`
 }
 
-// Snapshot represents the configuration for a snapshot service. Snapshot configuration
-// is only valid for data nodes.
-type Snapshot struct {
+// SnapshotConfig represents the configuration for a snapshot service.
+type SnapshotConfig struct {
 	Enabled bool `toml:"enabled"`
 }
 
@@ -201,7 +200,7 @@ type Config struct {
 
 	Data Data `toml:"data"`
 
-	Snapshot Snapshot `toml:"snapshot"`
+	Snapshot SnapshotConfig `toml:"snapshot"`
 
 	Logging struct {
 		HTTPAccess   bool `toml:"http-access"`
@@ -285,13 +284,6 @@ func NewConfig() *Config {
 	c.Raft.ElectionTimeout = Duration(DefaultRaftElectionTimeout)
 	c.Raft.HeartbeatInterval = Duration(DefaultRaftHeartbeatInterval)
 	c.Raft.ReconnectTimeout = Duration(DefaultRaftReconnectTimeout)
-
-	// FIX(benbjohnson): Append where the udp servers are actually used.
-	// config.UDPServers = append(config.UDPServers, UDPInputConfig{
-	// 	Enabled:  tomlConfiguration.InputPlugins.UDPInput.Enabled,
-	// 	Database: tomlConfiguration.InputPlugins.UDPInput.Database,
-	// 	Port:     tomlConfiguration.InputPlugins.UDPInput.Port,
-	// })
 
 	return c
 }
