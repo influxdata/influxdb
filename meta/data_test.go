@@ -297,6 +297,59 @@ func TestData_CreateShardGroup(t *testing.T) {
 	}
 }
 
+// Test shard group selection.
+func TestShardGroup_Overlaps(t *testing.T) {
+	// Make a shard group 1 hour in duration
+	startTime, _ := time.Parse(time.RFC3339, "2000-01-01T00:00:00Z")
+	endTime := startTime.Add(time.Hour)
+	g := &meta.ShardGroupInfo{StartTime: startTime, EndTime: endTime}
+
+	if !g.Overlaps(g.StartTime.Add(-time.Minute), g.EndTime) {
+		t.Fatal("shard group not selected when min before start time")
+	}
+
+	if !g.Overlaps(g.StartTime.Add(-time.Minute), g.StartTime) {
+		t.Fatal("shard group not selected when min before start time and max equals start time")
+	}
+
+	if !g.Overlaps(g.StartTime, g.EndTime.Add(time.Minute)) {
+		t.Fatal("shard group not selected when max after after end time")
+	}
+
+	if !g.Overlaps(g.StartTime.Add(-time.Minute), g.EndTime.Add(time.Minute)) {
+		t.Fatal("shard group not selected when min before start time and when max after end time")
+	}
+
+	if !g.Overlaps(g.StartTime.Add(time.Minute), g.EndTime.Add(-time.Minute)) {
+		t.Fatal("shard group not selected when min after start time and when max before end time")
+	}
+
+	if !g.Overlaps(g.StartTime, g.EndTime) {
+		t.Fatal("shard group not selected when min at start time and when max at end time")
+	}
+
+	if !g.Overlaps(g.StartTime, g.StartTime) {
+		t.Fatal("shard group not selected when min and max set to start time")
+	}
+
+	if !g.Overlaps(g.StartTime.Add(1*time.Minute), g.EndTime.Add(24*time.Hour)) {
+		t.Fatal("shard group selected when both min in range")
+	}
+
+	if g.Overlaps(g.EndTime, g.EndTime) {
+		t.Fatal("shard group selected when min and max set to end time")
+	}
+
+	if g.Overlaps(g.StartTime.Add(-10*time.Hour), g.EndTime.Add(-9*time.Hour)) {
+		t.Fatal("shard group selected when both min and max before shard times")
+	}
+
+	if g.Overlaps(g.StartTime.Add(24*time.Hour), g.EndTime.Add(25*time.Hour)) {
+		t.Fatal("shard group selected when both min and max after shard times")
+	}
+
+}
+
 // Ensure a shard group can be removed by ID.
 func TestData_DeleteShardGroup(t *testing.T) {
 	var data meta.Data

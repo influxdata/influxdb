@@ -60,7 +60,7 @@ func (s *DatabaseIndex) createSeriesIndexIfNotExists(measurementName string, ser
 func (s *DatabaseIndex) createMeasurementIndexIfNotExists(name string) *Measurement {
 	m := s.measurements[name]
 	if m == nil {
-		m = NewMeasurement(name)
+		m = NewMeasurement(name, s)
 		s.measurements[name] = m
 		s.names = append(s.names, name)
 		sort.Strings(s.names)
@@ -212,6 +212,7 @@ func (db *DatabaseIndex) Measurements() Measurements {
 type Measurement struct {
 	Name       string              `json:"name,omitempty"`
 	FieldNames map[string]struct{} `json:"fieldNames,omitempty"`
+	index      *DatabaseIndex
 
 	// in-memory index fields
 	series              map[string]*Series // sorted tagset string to the series object
@@ -222,10 +223,11 @@ type Measurement struct {
 }
 
 // NewMeasurement allocates and initializes a new Measurement.
-func NewMeasurement(name string) *Measurement {
+func NewMeasurement(name string, idx *DatabaseIndex) *Measurement {
 	return &Measurement{
 		Name:       name,
 		FieldNames: make(map[string]struct{}),
+		index:      idx,
 
 		series:              make(map[string]*Series),
 		seriesByID:          make(map[uint64]*Series),
@@ -363,7 +365,11 @@ func (m *Measurement) filters(stmt *influxql.SelectStatement) (map[uint64]influx
 // {"region": "uswest", "service": "redis"}, {"region": "uswest", "service": "mysql"}, etc...
 // This will also populate the TagSet objects with the series IDs that match each tagset and any
 // influx filter expression that goes with the series
-func (m *Measurement) tagSets(stmt *influxql.SelectStatement, dimensions []string) ([]*influxql.TagSet, error) {
+// TODO: this shouldn't be exported. However, until tx.go and the engine get refactored into tsdb, we need it.
+func (m *Measurement) TagSets(stmt *influxql.SelectStatement, dimensions []string) ([]*influxql.TagSet, error) {
+	m.index.mu.RLock()
+	defer m.index.mu.RUnlock()
+
 	// get the unique set of series ids and the filters that should be applied to each
 	filters, err := m.filters(stmt)
 	if err != nil {
@@ -395,7 +401,7 @@ func (m *Measurement) tagSets(stmt *influxql.SelectStatement, dimensions []strin
 			set.Tags = tagsForSet
 			set.Key = marshalTags(tagsForSet)
 		}
-		set.AddFilter(id, filter)
+		set.AddFilter(m.seriesByID[id].Key, filter)
 		tagSets[t] = set
 	}
 

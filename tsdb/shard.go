@@ -57,7 +57,6 @@ func (s *Shard) Open() error {
 	if err := s.db.Update(func(tx *bolt.Tx) error {
 		_, _ = tx.CreateBucketIfNotExists([]byte("series"))
 		_, _ = tx.CreateBucketIfNotExists([]byte("fields"))
-		_, _ = tx.CreateBucketIfNotExists([]byte("values"))
 
 		return nil
 	}); err != nil {
@@ -74,6 +73,24 @@ func (s *Shard) Close() error {
 		_ = s.db.Close()
 	}
 	return nil
+}
+
+// TODO: this is temporarily exported to make tx.go work. When the query engine gets refactored
+// into the tsdb package this should be removed. No one outside tsdb should know the underlying store
+func (s *Shard) DB() *bolt.DB {
+	return s.db
+}
+
+// TODO: this is temporarily exported to make tx.go work. When the query engine gets refactored
+// into the tsdb package this should be removed. No one outside tsdb should know the underlying field encoding scheme.
+func (s *Shard) FieldCodec(measurementName string) *FieldCodec {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	m := s.measurementFields[measurementName]
+	if m == nil {
+		return nil
+	}
+	return m.codec
 }
 
 // struct to hold information for a field to create on a measurement
@@ -144,13 +161,12 @@ func (s *Shard) WritePoints(points []Point) error {
 		}
 
 		// save the raw point data
-		b := tx.Bucket([]byte("values"))
 		for _, p := range points {
-			bp, err := b.CreateBucketIfNotExists([]byte(p.Key()))
+			b, err := tx.CreateBucketIfNotExists([]byte(p.Key()))
 			if err != nil {
 				return err
 			}
-			if err := bp.Put(u64tob(p.UnixNano()), p.Data()); err != nil {
+			if err := b.Put(u64tob(p.UnixNano()), p.Data()); err != nil {
 				return err
 			}
 		}
@@ -159,6 +175,58 @@ func (s *Shard) WritePoints(points []Point) error {
 	}); err != nil {
 		_ = s.Close()
 		return err
+	}
+
+	return nil
+}
+
+func (s *Shard) ValidateAggregateFieldsInStatement(measurementName string, stmt *influxql.SelectStatement) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	validateType := func(aname, fname string, t influxql.DataType) error {
+		if t != influxql.Float && t != influxql.Integer {
+			return fmt.Errorf("aggregate '%s' requires numerical field values. Field '%s' is of type %s",
+				aname, fname, t)
+		}
+		return nil
+	}
+
+	m := s.measurementFields[measurementName]
+	if m == nil {
+		return fmt.Errorf("measurement not found: %s", measurementName)
+	}
+
+	// If a numerical aggregate is requested, ensure it is only performed on numeric data or on a
+	// nested aggregate on numeric data.
+	for _, a := range stmt.FunctionCalls() {
+		// Check for fields like `derivative(mean(value), 1d)`
+		var nested *influxql.Call = a
+		if fn, ok := nested.Args[0].(*influxql.Call); ok {
+			nested = fn
+		}
+
+		switch lit := nested.Args[0].(type) {
+		case *influxql.VarRef:
+			if influxql.IsNumeric(nested) {
+				f := m.Fields[lit.Val]
+				if err := validateType(a.Name, f.Name, f.Type); err != nil {
+					return err
+				}
+			}
+		case *influxql.Distinct:
+			if nested.Name != "count" {
+				return fmt.Errorf("aggregate call didn't contain a field %s", a.String())
+			}
+			if influxql.IsNumeric(nested) {
+				f := m.Fields[lit.Val]
+				if err := validateType(a.Name, f.Name, f.Type); err != nil {
+					return err
+				}
+			}
+		default:
+			return fmt.Errorf("aggregate call didn't contain a field %s", a.String())
+		}
 	}
 
 	return nil
@@ -287,7 +355,7 @@ func (s *Shard) loadMetadataIndex() error {
 
 type measurementFields struct {
 	Fields map[string]*field `json:"fields"`
-	codec  *fieldCodec
+	codec  *FieldCodec
 }
 
 // createFieldIfNotExists creates a new field with an autoincrementing ID.
@@ -331,21 +399,23 @@ type field struct {
 // potentially long-running queries are executing.
 //
 // It is not affected by changes to the Measurement object after codec creation.
-type fieldCodec struct {
+// TODO: this shouldn't be exported. nothing outside the shard should know about field encodings.
+//       However, this is here until tx.go and the engine get refactored into tsdb.
+type FieldCodec struct {
 	fieldsByID   map[uint8]*field
 	fieldsByName map[string]*field
 }
 
 // NewFieldCodec returns a FieldCodec for the given Measurement. Must be called with
 // a RLock that protects the Measurement.
-func newFieldCodec(fields map[string]*field) *fieldCodec {
+func newFieldCodec(fields map[string]*field) *FieldCodec {
 	fieldsByID := make(map[uint8]*field, len(fields))
 	fieldsByName := make(map[string]*field, len(fields))
 	for _, f := range fields {
 		fieldsByID[f.ID] = f
 		fieldsByName[f.Name] = f
 	}
-	return &fieldCodec{fieldsByID: fieldsByID, fieldsByName: fieldsByName}
+	return &FieldCodec{fieldsByID: fieldsByID, fieldsByName: fieldsByName}
 }
 
 // EncodeFields converts a map of values with string keys to a byte slice of field
@@ -353,7 +423,7 @@ func newFieldCodec(fields map[string]*field) *fieldCodec {
 //
 // If a field exists in the codec, but its type is different, an error is returned. If
 // a field is not present in the codec, the system panics.
-func (f *fieldCodec) EncodeFields(values map[string]interface{}) ([]byte, error) {
+func (f *FieldCodec) EncodeFields(values map[string]interface{}) ([]byte, error) {
 	// Allocate byte slice
 	b := make([]byte, 0, 10)
 
@@ -421,9 +491,18 @@ func (f *fieldCodec) EncodeFields(values map[string]interface{}) ([]byte, error)
 	return b, nil
 }
 
+// TODO: this shouldn't be exported. remove when tx.go and engine.go get refactored into tsdb
+func (f *FieldCodec) FieldIDByName(s string) (uint8, error) {
+	fi := f.fieldsByName[s]
+	if fi == nil {
+		return 0, fmt.Errorf("field doesn't exist")
+	}
+	return fi.ID, nil
+}
+
 // DecodeByID scans a byte slice for a field with the given ID, converts it to its
 // expected type, and return that value.
-func (f *fieldCodec) decodeByID(targetID uint8, b []byte) (interface{}, error) {
+func (f *FieldCodec) decodeByID(targetID uint8, b []byte) (interface{}, error) {
 	if len(b) == 0 {
 		return 0, ErrFieldNotFound
 	}
@@ -478,7 +557,7 @@ func (f *fieldCodec) decodeByID(targetID uint8, b []byte) (interface{}, error) {
 }
 
 // DecodeFields decodes a byte slice into a set of field ids and values.
-func (f *fieldCodec) DecodeFields(b []byte) (map[uint8]interface{}, error) {
+func (f *FieldCodec) DecodeFields(b []byte) (map[uint8]interface{}, error) {
 	if len(b) == 0 {
 		return nil, nil
 	}
@@ -535,7 +614,8 @@ func (f *fieldCodec) DecodeFields(b []byte) (map[uint8]interface{}, error) {
 }
 
 // DecodeFieldsWithNames decodes a byte slice into a set of field names and values
-func (f *fieldCodec) decodeFieldsWithNames(b []byte) (map[string]interface{}, error) {
+// TODO: shouldn't be exported. refactor engine
+func (f *FieldCodec) DecodeFieldsWithNames(b []byte) (map[string]interface{}, error) {
 	fields, err := f.DecodeFields(b)
 	if err != nil {
 		return nil, err
@@ -550,8 +630,65 @@ func (f *fieldCodec) decodeFieldsWithNames(b []byte) (map[string]interface{}, er
 	return m, nil
 }
 
+// DecodeByID scans a byte slice for a field with the given ID, converts it to its
+// expected type, and return that value.
+// TODO: shouldn't be exported. refactor engine
+func (f *FieldCodec) DecodeByID(targetID uint8, b []byte) (interface{}, error) {
+	if len(b) == 0 {
+		return 0, ErrFieldNotFound
+	}
+
+	for {
+		if len(b) < 1 {
+			// No more bytes.
+			break
+		}
+		field, ok := f.fieldsByID[b[0]]
+		if !ok {
+			// This can happen, though is very unlikely. If this node receives encoded data, to be written
+			// to disk, and is queried for that data before its metastore is updated, there will be no field
+			// mapping for the data during decode. All this can happen because data is encoded by the node
+			// that first received the write request, not the node that actually writes the data to disk.
+			// So if this happens, the read must be aborted.
+			return 0, ErrFieldUnmappedID
+		}
+
+		var value interface{}
+		switch field.Type {
+		case influxql.Float:
+			// Move bytes forward.
+			value = math.Float64frombits(binary.BigEndian.Uint64(b[1:9]))
+			b = b[9:]
+		case influxql.Integer:
+			value = int64(binary.BigEndian.Uint64(b[1:9]))
+			b = b[9:]
+		case influxql.Boolean:
+			if b[1] == 1 {
+				value = true
+			} else {
+				value = false
+			}
+			// Move bytes forward.
+			b = b[2:]
+		case influxql.String:
+			size := binary.BigEndian.Uint16(b[1:3])
+			value = string(b[3 : 3+size])
+			// Move bytes forward.
+			b = b[size+3:]
+		default:
+			panic(fmt.Sprintf("unsupported value type during decode by id: %T", field.Type))
+		}
+
+		if field.ID == targetID {
+			return value, nil
+		}
+	}
+
+	return 0, ErrFieldNotFound
+}
+
 // FieldByName returns the field by its name. It will return a nil if not found
-func (f *fieldCodec) fieldByName(name string) *field {
+func (f *FieldCodec) fieldByName(name string) *field {
 	return f.fieldsByName[name]
 }
 

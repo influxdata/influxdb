@@ -622,6 +622,11 @@ func (sgi *ShardGroupInfo) Contains(timestamp time.Time) bool {
 	return !sgi.StartTime.After(timestamp) && sgi.EndTime.After(timestamp)
 }
 
+// Overlaps return whether the shard group contains data for the time range between min and max
+func (sgi *ShardGroupInfo) Overlaps(min, max time.Time) bool {
+	return !sgi.StartTime.After(max) && sgi.EndTime.After(min)
+}
+
 // clone returns a deep copy of sgi.
 func (sgi ShardGroupInfo) clone() ShardGroupInfo {
 	other := sgi
