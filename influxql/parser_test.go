@@ -547,7 +547,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SHOW SERIES FROM cpu`,
 			stmt: &influxql.ShowSeriesStatement{
-				Sources: influxql.Sources{&influxql.Measurement{Name: "cpu"}},
+				Sources: []influxql.Source{&influxql.Measurement{Name: "cpu"}},
 			},
 		},
 
@@ -555,7 +555,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SHOW SERIES FROM /[cg]pu/`,
 			stmt: &influxql.ShowSeriesStatement{
-				Sources: influxql.Sources{
+				Sources: []influxql.Source{
 					&influxql.Measurement{
 						Regex: &influxql.RegexLiteral{Val: regexp.MustCompile(`[cg]pu`)},
 					},
@@ -623,7 +623,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SHOW TAG KEYS FROM src`,
 			stmt: &influxql.ShowTagKeysStatement{
-				Sources: influxql.Sources{&influxql.Measurement{Name: "src"}},
+				Sources: []influxql.Source{&influxql.Measurement{Name: "src"}},
 			},
 		},
 
@@ -631,7 +631,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SHOW TAG KEYS FROM /[cg]pu/`,
 			stmt: &influxql.ShowTagKeysStatement{
-				Sources: influxql.Sources{
+				Sources: []influxql.Source{
 					&influxql.Measurement{
 						Regex: &influxql.RegexLiteral{Val: regexp.MustCompile(`[cg]pu`)},
 					},
@@ -643,7 +643,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SHOW TAG KEYS FROM src WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
 			stmt: &influxql.ShowTagKeysStatement{
-				Sources: influxql.Sources{&influxql.Measurement{Name: "src"}},
+				Sources: []influxql.Source{&influxql.Measurement{Name: "src"}},
 				Condition: &influxql.BinaryExpr{
 					Op:  influxql.EQ,
 					LHS: &influxql.VarRef{Val: "region"},
@@ -662,7 +662,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SHOW TAG VALUES FROM src WITH KEY = region WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
 			stmt: &influxql.ShowTagValuesStatement{
-				Sources: influxql.Sources{&influxql.Measurement{Name: "src"}},
+				Sources: []influxql.Source{&influxql.Measurement{Name: "src"}},
 				TagKeys: []string{"region"},
 				Condition: &influxql.BinaryExpr{
 					Op:  influxql.EQ,
@@ -682,7 +682,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SHOW TAG VALUES FROM cpu WITH KEY IN (region, host) WHERE region = 'uswest'`,
 			stmt: &influxql.ShowTagValuesStatement{
-				Sources: influxql.Sources{&influxql.Measurement{Name: "cpu"}},
+				Sources: []influxql.Source{&influxql.Measurement{Name: "cpu"}},
 				TagKeys: []string{"region", "host"},
 				Condition: &influxql.BinaryExpr{
 					Op:  influxql.EQ,
@@ -696,7 +696,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SHOW TAG VALUES FROM cpu WITH KEY IN (region,service,host)WHERE region = 'uswest'`,
 			stmt: &influxql.ShowTagValuesStatement{
-				Sources: influxql.Sources{&influxql.Measurement{Name: "cpu"}},
+				Sources: []influxql.Source{&influxql.Measurement{Name: "cpu"}},
 				TagKeys: []string{"region", "service", "host"},
 				Condition: &influxql.BinaryExpr{
 					Op:  influxql.EQ,
@@ -723,7 +723,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SHOW TAG VALUES FROM /[cg]pu/ WITH KEY = host`,
 			stmt: &influxql.ShowTagValuesStatement{
-				Sources: influxql.Sources{
+				Sources: []influxql.Source{
 					&influxql.Measurement{
 						Regex: &influxql.RegexLiteral{Val: regexp.MustCompile(`[cg]pu`)},
 					},
@@ -755,7 +755,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SHOW FIELD KEYS FROM src ORDER BY ASC, field1, field2 DESC LIMIT 10`,
 			stmt: &influxql.ShowFieldKeysStatement{
-				Sources: influxql.Sources{&influxql.Measurement{Name: "src"}},
+				Sources: []influxql.Source{&influxql.Measurement{Name: "src"}},
 				SortFields: []*influxql.SortField{
 					{Ascending: true},
 					{Name: "field1"},
@@ -767,7 +767,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `SHOW FIELD KEYS FROM /[cg]pu/`,
 			stmt: &influxql.ShowFieldKeysStatement{
-				Sources: influxql.Sources{
+				Sources: []influxql.Source{
 					&influxql.Measurement{
 						Regex: &influxql.RegexLiteral{Val: regexp.MustCompile(`[cg]pu`)},
 					},
