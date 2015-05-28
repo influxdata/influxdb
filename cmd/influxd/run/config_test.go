@@ -1,4 +1,4 @@
-package influxdb_test
+package run_test
 
 import (
 	"bytes"

@@ -1,4 +1,4 @@
-package influxdb
+package run
 
 import (
 	"fmt"
@@ -13,8 +13,11 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	"github.com/influxdb/influxdb/admin"
 	"github.com/influxdb/influxdb/collectd"
 	"github.com/influxdb/influxdb/graphite"
+	"github.com/influxdb/influxdb/httpd"
+	"github.com/influxdb/influxdb/tsdb"
 )
 
 const (
@@ -116,37 +119,10 @@ var DefaultSnapshotURL = url.URL{
 	Host:   net.JoinHostPort("127.0.0.1", strconv.Itoa(DefaultClusterPort)),
 }
 
-// Broker represents the configuration for a broker node
-type Broker struct {
-	Dir                string   `toml:"dir"`
-	Enabled            bool     `toml:"enabled"`
-	TruncationInterval Duration `toml:"truncation-interval"`
-	MaxTopicSize       int64    `toml:"max-topic-size"`
-	MaxSegmentSize     int64    `toml:"max-segment-size"`
-}
-
-// Raft represents the Raft configuration for broker nodes.
-type Raft struct {
-	ApplyInterval     Duration `toml:"apply-interval"`
-	ElectionTimeout   Duration `toml:"election-timeout"`
-	HeartbeatInterval Duration `toml:"heartbeat-interval"`
-	ReconnectTimeout  Duration `toml:"reconnect-timeout"`
-}
-
 // SnapshotConfig represents the configuration for a snapshot service.
-type SnapshotConfig struct {
-	Enabled bool `toml:"enabled"`
-}
-
-// Data represents the configuration for a data node
-type Data struct {
-	Dir                   string   `toml:"dir"`
-	Enabled               bool     `toml:"enabled"`
-	RetentionAutoCreate   bool     `toml:"retention-auto-create"`
-	RetentionCheckEnabled bool     `toml:"retention-check-enabled"`
-	RetentionCheckPeriod  Duration `toml:"retention-check-period"`
-	RetentionCreatePeriod Duration `toml:"retention-create-period"`
-}
+// type SnapshotConfig struct {
+// 	Enabled bool `toml:"enabled"`
+// }
 
 // Initialization contains configuration options for the first time a node boots
 type Initialization struct {
@@ -171,18 +147,9 @@ type Config struct {
 		Enabled bool `toml:"enabled"`
 	} `toml:"authentication"`
 
-	Admin struct {
-		Enabled bool `toml:"enabled"`
-		Port    int  `toml:"port"`
-	} `toml:"admin"`
+	Admin admin.Config `toml:"admin"`
 
-	HTTPAPI struct {
-		BindAddress string   `toml:"bind-address"`
-		Port        int      `toml:"port"`
-		SSLPort     int      `toml:"ssl-port"`
-		SSLCertPath string   `toml:"ssl-cert"`
-		ReadTimeout Duration `toml:"read-timeout"`
-	} `toml:"api"`
+	HTTPAPI httpd.Config `toml:"api"`
 
 	Graphites []Graphite `toml:"graphite"`
 	Collectd  Collectd   `toml:"collectd"`
@@ -194,19 +161,9 @@ type Config struct {
 		Port        int    `toml:"port"`
 	} `toml:"udp"`
 
-	Broker Broker `toml:"broker"`
+	Data tsdb.Config `toml:"data"`
 
-	Raft Raft `toml:"raft"`
-
-	Data Data `toml:"data"`
-
-	Snapshot SnapshotConfig `toml:"snapshot"`
-
-	Logging struct {
-		HTTPAccess   bool `toml:"http-access"`
-		WriteTracing bool `toml:"write-tracing"`
-		RaftTracing  bool `toml:"raft-tracing"`
-	} `toml:"logging"`
+	// Snapshot SnapshotConfig `toml:"snapshot"`
 
 	Monitoring struct {
 		Enabled       bool     `toml:"enabled"`

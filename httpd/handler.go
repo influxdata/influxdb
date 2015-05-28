@@ -48,11 +48,8 @@ type route struct {
 
 // Handler represents an HTTP handler for the InfluxDB server.
 type Handler struct {
-	server                *influxdb.Server
-	routes                []route
 	mux                   *pat.PatternServeMux
 	requireAuthentication bool
-	snapshotEnabled       bool
 	version               string
 
 	MetaStore interface {
@@ -71,42 +68,16 @@ type Handler struct {
 	WriteTrace     bool // Detailed logging of write path
 }
 
-// NewClusterHandler is the http handler for cluster communication endpoints
-func NewClusterHandler(s *influxdb.Server, requireAuthentication, snapshotEnabled, loggingEnabled bool, version string) *Handler {
-	h := newHandler(s, requireAuthentication, loggingEnabled, version)
-	h.snapshotEnabled = snapshotEnabled
-	h.SetRoutes([]route{
-		route{ // List nodes
-			"nodes_index",
-			"GET", "/data/nodes", true, false, h.serveNodes,
-		},
-		route{ // Create node
-			"nodes_create",
-			"POST", "/data/nodes", true, false, h.serveCreateNode,
-		},
-		route{ // Delete node
-			"nodes_delete",
-			"DELETE", "/data/nodes/:id", true, false, h.serveDeleteNode,
-		},
-		route{ // Tell node to run CQs that should be run
-			"process_continuous_queries",
-			"POST", "/data/process_continuous_queries", false, false, h.serveProcessContinuousQueries,
-		},
-		route{
-			"run_mapper",
-			"POST", "/data/run_mapper", true, true, h.serveRunMapper,
-		},
-		// route{
-		// 	"snapshot",
-		// 	"GET", "/data/snapshot", true, true, h.serveSnapshot,
-		// },
-	})
-	return h
-}
+// NewHandler returns a new instance of handler with routes.
+func NewHandler(requireAuthentication, loggingEnabled bool, version string) *Handler {
+	h := &Handler{
+		mux: pat.New(),
+		requireAuthentication: requireAuthentication,
+		Logger:                log.New(os.Stderr, "[http] ", log.LstdFlags),
+		loggingEnabled:        loggingEnabled,
+		version:               version,
+	}
 
-// NewAPIHandler is the http handler for api endpoints
-func NewAPIHandler(s *influxdb.Server, requireAuthentication, loggingEnabled bool, version string) *Handler {
-	h := newHandler(s, requireAuthentication, loggingEnabled, version)
 	h.SetRoutes([]route{
 		route{
 			"query", // Query serving route.
@@ -140,25 +111,12 @@ func NewAPIHandler(s *influxdb.Server, requireAuthentication, loggingEnabled boo
 			"dump", // export all points in the given db.
 			"GET", "/dump", true, true, h.serveDump,
 		}})
+
 	return h
 }
 
-// newHandler returns a new instance of Handler.
-func newHandler(s *influxdb.Server, requireAuthentication, loggingEnabled bool, version string) *Handler {
-	return &Handler{
-		server: s,
-		mux:    pat.New(),
-		requireAuthentication: requireAuthentication,
-		Logger:                log.New(os.Stderr, "[http] ", log.LstdFlags),
-		loggingEnabled:        loggingEnabled,
-		version:               version,
-	}
-}
-
 func (h *Handler) SetRoutes(routes []route) {
-	h.routes = routes
-
-	for _, r := range h.routes {
+	for _, r := range routes {
 		var handler http.Handler
 
 		// If it's a handler func that requires authorization, wrap it in authorization
@@ -241,7 +199,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 
 	// Send results to client.
 	w.Header().Add("content-type", "application/json")
-	results, err := h.server.ExecuteQuery(query, db, user, chunkSize)
+	results, err := h.QueryExecutor.ExecuteQuery(query, db, user, chunkSize)
 	if err != nil {
 		if isAuthorizationError(err) {
 			w.WriteHeader(http.StatusUnauthorized)
@@ -362,7 +320,7 @@ type Batch struct {
 // Return all the measurements from the given DB
 func (h *Handler) showMeasurements(db string, user *meta.UserInfo) ([]string, error) {
 	var measurements []string
-	c, err := h.server.ExecuteQuery(&influxql.Query{Statements: []influxql.Statement{&influxql.ShowMeasurementsStatement{}}}, db, user, 0)
+	c, err := h.QueryExecutor.ExecuteQuery(&influxql.Query{Statements: []influxql.Statement{&influxql.ShowMeasurementsStatement{}}}, db, user, 0)
 	if err != nil {
 		return measurements, err
 	}
@@ -420,7 +378,7 @@ func (h *Handler) serveDump(w http.ResponseWriter, r *http.Request, user *meta.U
 			return
 		}
 
-		res, err := h.server.ExecuteQuery(query, db, user, DefaultChunkSize)
+		res, err := h.QueryExecutor.ExecuteQuery(query, db, user, DefaultChunkSize)
 		if err != nil {
 			w.Write([]byte("*** SERVER-SIDE ERROR. MISSING DATA ***"))
 			w.Write(delim)
@@ -537,7 +495,7 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *meta.
 		return
 	}
 
-	if index, err := h.server.WriteSeries(bp.Database, bp.RetentionPolicy, points); err != nil {
+	if index, err := h.SeriesWriter.WriteSeries(bp.Database, bp.RetentionPolicy, points); err != nil {
 		if influxdb.IsClientError(err) {
 			resultError(w, influxql.Result{Err: err}, http.StatusBadRequest)
 		} else {
@@ -783,111 +741,6 @@ func (h *Handler) serveDeleteNode(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// serveProcessContinuousQueries will execute any continuous queries that should be run
-func (h *Handler) serveProcessContinuousQueries(w http.ResponseWriter, r *http.Request) {
-	if err := h.server.RunContinuousQueries(); err != nil {
-		httpError(w, err.Error(), false, http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusAccepted)
-}
-
-func (h *Handler) serveRunMapper(w http.ResponseWriter, r *http.Request) {
-	/*
-		// we always return a 200, even if there's an error because we always include an error object
-		// that can be passed on
-		w.Header().Add("content-type", "application/json")
-		w.WriteHeader(200)
-
-		// Read in the mapper info from the request body
-		var m influxdb.RemoteMapper
-
-		if err := json.NewDecoder(r.Body).Decode(&m); err != nil {
-			mapError(w, err)
-			return
-		}
-
-		// create a local mapper and chunk out the results to the other server
-		lm, err := h.server.StartLocalMapper(&m)
-		if err != nil {
-			mapError(w, err)
-			return
-		}
-		if err := lm.Open(); err != nil {
-			mapError(w, err)
-			return
-		}
-		defer lm.Close()
-		call, err := m.CallExpr()
-		if err != nil {
-			mapError(w, err)
-			return
-		}
-
-		if err := lm.Begin(call, m.TMin, m.ChunkSize); err != nil {
-			mapError(w, err)
-			return
-		}
-
-		// see if this is an aggregate query or not
-		isRaw := true
-		if call != nil {
-			isRaw = false
-		}
-
-		// write results to the client until the next interval is empty
-		for {
-			v, err := lm.NextInterval()
-			if err != nil {
-				mapError(w, err)
-				return
-			}
-
-			// see if we're done. only bail if v is nil and we're empty. v could be nil for
-			// group by intervals that don't have data. We should keep iterating to get to the next interval.
-			if v == nil && lm.IsEmpty(m.TMax) {
-				break
-			}
-
-			// marshal and write out
-			d, err := json.Marshal(&v)
-			if err != nil {
-				mapError(w, err)
-				return
-			}
-			b, err := json.Marshal(&influxdb.MapResponse{Data: d})
-			if err != nil {
-				mapError(w, err)
-				return
-			}
-			w.Write(b)
-			w.(http.Flusher).Flush()
-
-			// if this is an aggregate query, we should only call next interval as many times as the chunk size
-			if !isRaw {
-				m.ChunkSize--
-				if m.ChunkSize == 0 {
-					break
-				}
-			}
-
-			// bail out if we're empty
-			if lm.IsEmpty(m.TMax) {
-				break
-			}
-		}
-
-		d, err := json.Marshal(&influxdb.MapResponse{Completed: true})
-		if err != nil {
-			mapError(w, err)
-		} else {
-			w.Write(d)
-			w.(http.Flusher).Flush()
-		}
-	*/
-}
-
 type nodeJSON struct {
 	ID  uint64 `json:"id"`
 	URL string `json:"url"`
@@ -978,7 +831,7 @@ func authenticate(inner func(http.ResponseWriter, *http.Request, *meta.UserInfo)
 				return
 			}
 
-			user, err = h.server.Authenticate(username, password)
+			user, err = h.MetaStore.Authenticate(username, password)
 			if err != nil {
 				httpError(w, err.Error(), false, http.StatusUnauthorized)
 				return
@@ -1090,49 +943,3 @@ func recovery(inner http.Handler, name string, weblog *log.Logger) http.Handler 
 		}
 	})
 }
-
-/*
-// SnapshotHandler streams out a snapshot from the server.
-type SnapshotHandler struct {
-	CreateSnapshotWriter func() (*influxdb.SnapshotWriter, error)
-}
-
-func (h *SnapshotHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Read in previous snapshot from request body.
-	var prev influxdb.Snapshot
-	if err := json.NewDecoder(r.Body).Decode(&prev); err != nil && err != io.EOF {
-		httpError(w, "error reading previous snapshot: "+err.Error(), false, http.StatusBadRequest)
-		return
-	}
-
-	// Retrieve a snapshot from the server.
-	sw, err := h.CreateSnapshotWriter()
-	if err != nil {
-		httpError(w, "error creating snapshot writer: "+err.Error(), false, http.StatusInternalServerError)
-		return
-	}
-	defer sw.Close()
-
-	// Subtract existing snapshot from writer.
-	sw.Snapshot = sw.Snapshot.Diff(&prev)
-
-	// Write to response.
-	if _, err := sw.WriteTo(w); err != nil {
-		httpError(w, "error writing snapshot: "+err.Error(), false, http.StatusInternalServerError)
-		return
-	}
-}
-
-// serveSnapshot streams out a snapshot from the server.
-func (h *Handler) serveSnapshot(w http.ResponseWriter, r *http.Request) {
-	if !h.snapshotEnabled {
-		httpError(w, "not found", false, http.StatusNotFound)
-		return
-	}
-	sh := SnapshotHandler{
-		CreateSnapshotWriter: h.server.CreateSnapshotWriter,
-	}
-	sh.ServeHTTP(w, r)
-
-}
-*/

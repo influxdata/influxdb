@@ -1,4 +1,4 @@
-package main
+package run
 
 import (
 	"flag"
@@ -17,24 +17,87 @@ import (
 
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/admin"
+	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/collectd"
 	"github.com/influxdb/influxdb/graphite"
+	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/opentsdb"
-	"github.com/influxdb/influxdb/udp"
+	"github.com/influxdb/influxdb/tsdb"
 )
 
-type RunCommand struct {
-	// The logger passed to the ticker during execution.
-	logWriter *os.File
-	config    *influxdb.Config
-	hostname  string
-	node      *Node
+type Server struct {
+	MetaStore *meta.Store
+	TSDBStore *tsdb.Store
+
+	Services []Service
 }
 
-func NewRunCommand() *RunCommand {
-	return &RunCommand{
-		node: &Node{},
+// NewServer returns a new instance of Server built from a config.
+func NewServer(c *influxdb.Config) (*Server, error) {
+	// Construct base meta store and data store.
+	s := &Server{
+		MetaStore: meta.NewStore(filepath.Join(path, "meta")),
+		TSDBStore: tsdb.NewStore(filepath.Join(path, "data")),
 	}
+
+	// Add cluster Service
+	s.Services = append(s.Services, cluster.NewService(c.Cluster))
+
+	// Add admin Service
+	if c.Admin.Enabled {
+		s.Services = append(s.Services, admin.NewService(c.Admin))
+	}
+
+	// HTTP API Service
+
+	// TODO: Graphite services
+	// TODO: OpenTSDB services
+	// TODO: Collectd service
+
+	return s
+}
+
+// Open opens the meta and data store and all services.
+func (s *Server) Open() error {
+	if err := func() error {
+		// Open meta store.
+		if err := s.MetaStore.Open(); err != nil {
+			return fmt.Errorf("open meta store: %s", err)
+		}
+
+		// Open TSDB store.
+		if err := s.TSDBStore.Open(); err != nil {
+			return fmt.Errorf("open tsdb store: %s", err)
+		}
+
+		for _, service := range s.Services {
+			if err := service.Open(); err != nil {
+				return fmt.Errorf("open service: %s", err)
+			}
+		}
+
+		return nil
+
+	}(); err != nil {
+		s.Close()
+		return err
+	}
+
+	return nil
+}
+
+// Close shuts down the meta and data stores and all services.
+func (s *Server) Close() error {
+	if s.MetaStore != nil {
+		s.MetaStore.Close()
+	}
+	if s.TSDBStore != nil {
+		s.TSDBStore.Close()
+	}
+	for _, service := range s.Services {
+		service.Close()
+	}
+	return nil
 }
 
 type Node struct {
@@ -43,8 +106,6 @@ type Node struct {
 	hostname string
 
 	adminServer     *admin.Server
-	clusterListener net.Listener      // The cluster TCP listener
-	apiListener     net.Listener      // The API TCP listener
 	GraphiteServers []graphite.Server // The Graphite Servers
 	OpenTSDBServer  *opentsdb.Server  // The OpenTSDB Server
 }
@@ -110,20 +171,6 @@ func (s *Node) Close() error {
 		}
 	}
 
-	return nil
-}
-
-func (s *Node) openAdminServer(port int) error {
-	// Start the admin interface on the default port
-	addr := net.JoinHostPort("", strconv.Itoa(port))
-	s.adminServer = admin.NewServer(addr)
-	return s.adminServer.ListenAndServe()
-}
-
-func (s *Node) closeAdminServer() error {
-	if s.adminServer != nil {
-		return s.adminServer.Close()
-	}
 	return nil
 }
 
@@ -354,18 +401,11 @@ func (cmd *RunCommand) Open(config *Config, join string) *Node {
 	// Start the server handler. Attach to broker if listening on the same port.
 	if s != nil {
 		h.Server = s
-		if config.Snapshot.Enabled {
-			log.Printf("snapshot server listening on %s", cmd.config.ClusterAddr())
-		} else {
-			log.Printf("snapshot server disabled")
-		}
-
-		if cmd.config.Admin.Enabled {
-			if err := cmd.node.openAdminServer(cmd.config.Admin.Port); err != nil {
-				log.Fatalf("admin server failed to listen on :%d: %s", cmd.config.Admin.Port, err)
-			}
-			log.Printf("admin server listening on :%d", cmd.config.Admin.Port)
-		}
+		// if config.Snapshot.Enabled {
+		// 	log.Printf("snapshot server listening on %s", cmd.config.ClusterAddr())
+		// } else {
+		// 	log.Printf("snapshot server disabled")
+		// }
 
 		// Spin up the collectd server
 		if cmd.config.Collectd.Enabled {
@@ -376,16 +416,6 @@ func (cmd *RunCommand) Open(config *Config, join string) *Node {
 			if err != nil {
 				log.Printf("failed to start collectd Server: %v\n", err.Error())
 			}
-		}
-
-		// Start the server bound to a UDP listener
-		if cmd.config.UDP.Enabled {
-			log.Printf("Starting UDP listener on %s", cmd.config.APIAddrUDP())
-			u := udp.NewUDPServer(s)
-			if err := u.ListenAndServe(cmd.config.APIAddrUDP()); err != nil {
-				log.Printf("Failed to start UDP listener on %s: %s", cmd.config.APIAddrUDP(), err)
-			}
-
 		}
 
 		// Spin up any Graphite servers
@@ -703,26 +733,4 @@ func fileExists(path string) bool {
 		return false
 	}
 	return true
-}
-
-func printRunUsage() {
-	log.Printf(`usage: run [flags]
-
-run starts the broker and data node server. If this is the first time running
-the command then a new cluster will be initialized unless the -join argument
-is used.
-
-        -config <path>
-                          Set the path to the configuration file.
-
-        -hostname <name>
-                          Override the hostname, the 'hostname' configuration
-                          option will be overridden.
-
-        -join <url>
-                          Joins the server to an existing cluster.
-
-        -pidfile <path>
-                          Write process ID to a file.
-`)
 }
