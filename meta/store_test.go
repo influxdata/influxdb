@@ -408,7 +408,9 @@ func TestStore_CreateContinuousQuery(t *testing.T) {
 	<-s.LeaderCh()
 
 	// Create query.
-	if err := s.CreateContinuousQuery("SELECT count() FROM foo"); err != nil {
+	if _, err := s.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	} else if err := s.CreateContinuousQuery("db0", "cq0", "SELECT count() FROM foo"); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -420,12 +422,14 @@ func TestStore_CreateContinuousQuery_ErrContinuousQueryExists(t *testing.T) {
 	<-s.LeaderCh()
 
 	// Create continuous query.
-	if err := s.CreateContinuousQuery("SELECT count() FROM foo"); err != nil {
+	if _, err := s.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	} else if err := s.CreateContinuousQuery("db0", "cq0", "SELECT count() FROM foo"); err != nil {
 		t.Fatal(err)
 	}
 
 	// Create it again.
-	if err := s.CreateContinuousQuery("SELECT count() FROM foo"); err != meta.ErrContinuousQueryExists {
+	if err := s.CreateContinuousQuery("db0", "cq0", "SELECT count() FROM foo"); err != meta.ErrContinuousQueryExists {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }
@@ -437,27 +441,29 @@ func TestStore_DropContinuousQuery(t *testing.T) {
 	<-s.LeaderCh()
 
 	// Create queries.
-	if err := s.CreateContinuousQuery("SELECT count() FROM foo"); err != nil {
+	if _, err := s.CreateDatabase("db0"); err != nil {
 		t.Fatal(err)
-	} else if err = s.CreateContinuousQuery("SELECT count() FROM bar"); err != nil {
+	} else if err := s.CreateContinuousQuery("db0", "cq0", "SELECT count() FROM foo"); err != nil {
 		t.Fatal(err)
-	} else if err = s.CreateContinuousQuery("SELECT count() FROM baz"); err != nil {
+	} else if err = s.CreateContinuousQuery("db0", "cq1", "SELECT count() FROM bar"); err != nil {
+		t.Fatal(err)
+	} else if err = s.CreateContinuousQuery("db0", "cq2", "SELECT count() FROM baz"); err != nil {
 		t.Fatal(err)
 	}
 
 	// Remove one of the queries.
-	if err := s.DropContinuousQuery("SELECT count() FROM bar"); err != nil {
+	if err := s.DropContinuousQuery("db0", "cq1"); err != nil {
 		t.Fatal(err)
 	}
 
 	// Ensure the resulting queries are correct.
-	if a, err := s.ContinuousQueries(); err != nil {
+	if di, err := s.Database("db0"); err != nil {
 		t.Fatal(err)
-	} else if !reflect.DeepEqual(a, []meta.ContinuousQueryInfo{
-		{Query: "SELECT count() FROM foo"},
-		{Query: "SELECT count() FROM baz"},
+	} else if !reflect.DeepEqual(di.ContinuousQueries, []meta.ContinuousQueryInfo{
+		{Name: "cq0", Query: "SELECT count() FROM foo"},
+		{Name: "cq2", Query: "SELECT count() FROM baz"},
 	}) {
-		t.Fatalf("unexpected queries: %#v", a)
+		t.Fatalf("unexpected queries: %#v", di.ContinuousQueries)
 	}
 }
 

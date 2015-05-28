@@ -4,12 +4,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -37,7 +39,7 @@ type Service interface {
 
 // QueryExecutor executes a query across multiple data nodes
 type QueryExecutor interface {
-	Execute(q *QueryRequest) (chan *Result, error)
+	Execute(q *QueryRequest) (chan *influxql.Result, error)
 }
 
 // QueryRequest represent a request to run a query across the cluster
@@ -91,11 +93,12 @@ type Server struct {
 	MetaStore interface {
 		Open() error
 		Close() error
+		LeaderCh() <-chan bool
 
 		Node(id uint64) (*meta.NodeInfo, error)
 		NodeByHost(host string) (*meta.NodeInfo, error)
 		Nodes() ([]meta.NodeInfo, error)
-		CreateNode(host string) (*meta.NodeInfo, error)
+		CreateNode(host string) (*meta.NodeInfo, error) // *
 		DeleteNode(id uint64) error
 
 		Database(name string) (*meta.DatabaseInfo, error)
@@ -125,9 +128,13 @@ type Server struct {
 		DropUser(name string) error
 		SetPrivilege(username, database string, p influxql.Privilege) error
 
-		ContinuousQueries() ([]meta.ContinuousQueryInfo, error)
-		CreateContinuousQuery(query string) error
-		DropContinuousQuery(query string) error
+		CreateContinuousQuery(database, name, query string) error
+		DropContinuousQuery(database, name string) error
+	}
+
+	// Executes statements relating to meta data.
+	MetaStatementExecutor interface {
+		ExecuteStatement(stmt influxql.Statement, user *meta.UserInfo) *influxql.Result
 	}
 
 	// The local data store that manages local shard data.
@@ -152,10 +159,13 @@ func NewServer(path string) *Server {
 		panic("path required")
 	}
 
+	metaStore := meta.NewStore(filepath.Join(path, "meta"))
+	tsdbStore := tsdb.NewStore(filepath.Join(path, "data"))
+
 	s := Server{
 		path:      path,
-		MetaStore: meta.NewStore(filepath.Join(path, "meta")),
-		DataStore: tsdb.NewStore(filepath.Join(path, "data")),
+		MetaStore: metaStore,
+		DataStore: tsdbStore,
 
 		stats:  NewStats("server"),
 		Logger: log.New(os.Stderr, "[server] ", log.LstdFlags),
@@ -165,6 +175,8 @@ func NewServer(path string) *Server {
 		// To set the server to 'authless mode', call server.SetAuthenticationEnabled(false).
 		authenticationEnabled: true,
 	}
+
+	s.MetaStatementExecutor = &meta.StatementExecutor{Store: metaStore}
 
 	return &s
 }
@@ -189,6 +201,9 @@ func (s *Server) Path() string { return s.path }
 // metaPath returns the path for the metastore.
 func (s *Server) metaPath() string { return filepath.Join(s.path, "meta") }
 
+// idPath returns the path to the server's node id.
+func (s *Server) idPath() string { return filepath.Join(s.path, "id") }
+
 // Open initializes the server from a given path.
 func (s *Server) Open() error {
 	s.mu.Lock()
@@ -199,16 +214,29 @@ func (s *Server) Open() error {
 		if s.opened {
 			return ErrServerOpen
 		}
+		s.opened = true
 
 		// Create required directories.
-		if err := os.MkdirAll(s.path, 0755); err != nil {
+		if err := os.MkdirAll(s.path, 0777); err != nil {
 			return err
+		}
+
+		// Read server's node id.
+		if b, err := ioutil.ReadFile(s.idPath()); os.IsNotExist(err) {
+			s.id = 0
+		} else if err != nil {
+			return fmt.Errorf("read id: %s", err)
+		} else if id, err := strconv.ParseUint(string(b), 10, 64); err != nil {
+			return fmt.Errorf("parse id: %s", err)
+		} else {
+			s.id = id
 		}
 
 		// Open metadata store.
 		if err := s.MetaStore.Open(); err != nil {
 			return fmt.Errorf("meta: %s", err)
 		}
+		<-s.MetaStore.LeaderCh()
 
 		// Open the local data node.
 		if err := s.DataStore.Open(); err != nil {
@@ -243,6 +271,7 @@ func (s *Server) close() error {
 	if !s.opened {
 		return ErrServerClosed
 	}
+	s.opened = false
 
 	for _, n := range s.services {
 		if err := n.Close(); err != nil {
@@ -485,7 +514,18 @@ func (s *Server) ShardGroupPreCreate(checkInterval time.Duration) {
 
 // Initialize creates a new data node and initializes the server's id to the latest.
 func (s *Server) Initialize(u url.URL) error {
-	panic("FIXME: create node, store id")
+	// Create node in meta store.
+	ni, err := s.MetaStore.CreateNode(u.Host)
+	if err != nil {
+		return fmt.Errorf("create node: %s", err)
+	}
+
+	// Write id to file.
+	if err := ioutil.WriteFile(s.idPath(), []byte(strconv.FormatUint(ni.ID, 10)), 0666); err != nil {
+		return fmt.Errorf("write id: %s", err)
+	}
+
+	return nil
 }
 
 // Join creates a new data node in an existing cluster, copies the metastore,
@@ -849,7 +889,7 @@ func (s *Server) DropMeasurement(database, name string) error {
 // If the user isn't authorized to access the database an error will be returned.
 // It sends results down the passed in chan and closes it when done. It will close the chan
 // on the first statement that throws an error.
-func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *meta.UserInfo, chunkSize int) (chan *Result, error) {
+func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *meta.UserInfo, chunkSize int) (chan *influxql.Result, error) {
 	// Authorize user to execute the query.
 	if s.authenticationEnabled {
 		if err := s.Authorize(user, q, database); err != nil {
@@ -861,7 +901,7 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *meta.Use
 
 	// Execute each statement. Keep the iterator external so we can
 	// track how many of the statements were executed
-	results := make(chan *Result)
+	results := make(chan *influxql.Result)
 	go func() {
 		var i int
 		var stmt influxql.Statement
@@ -879,37 +919,19 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *meta.Use
 			// If we have a default database, normalize the statement with it.
 			if defaultDB != "" {
 				if err := s.NormalizeStatement(stmt, defaultDB); err != nil {
-					results <- &Result{Err: err}
+					results <- &influxql.Result{Err: err}
 					break
 				}
 			}
 
-			var res *Result
+			var res *influxql.Result
 			switch stmt := stmt.(type) {
 			case *influxql.SelectStatement:
 				panic("not yet implemented")
 				// if err := s.executeSelectStatement(i, stmt, database, user, results, chunkSize); err != nil {
-				// 	results <- &Result{Err: err}
+				// 	results <- &influxql.Result{Err: err}
 				// 	break
 				// }
-			case *influxql.CreateDatabaseStatement:
-				res = s.executeCreateDatabaseStatement(stmt, user)
-			case *influxql.DropDatabaseStatement:
-				res = s.executeDropDatabaseStatement(stmt, user)
-			case *influxql.ShowDatabasesStatement:
-				res = s.executeShowDatabasesStatement(stmt, user)
-			case *influxql.ShowServersStatement:
-				res = s.executeShowServersStatement(stmt, user)
-			case *influxql.CreateUserStatement:
-				res = s.executeCreateUserStatement(stmt, user)
-			case *influxql.SetPasswordUserStatement:
-				res = s.executeSetPasswordUserStatement(stmt, user)
-			case *influxql.DeleteStatement:
-				res = s.executeDeleteStatement()
-			case *influxql.DropUserStatement:
-				res = s.executeDropUserStatement(stmt, user)
-			case *influxql.ShowUsersStatement:
-				res = s.executeShowUsersStatement(stmt, user)
 			case *influxql.DropSeriesStatement:
 				res = s.executeDropSeriesStatement(stmt, database, user)
 			case *influxql.ShowSeriesStatement:
@@ -928,26 +950,11 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *meta.Use
 				res = s.executeShowStatsStatement(stmt, user)
 			case *influxql.ShowDiagnosticsStatement:
 				res = s.executeShowDiagnosticsStatement(stmt, user)
-			case *influxql.GrantStatement:
-				res = s.executeGrantStatement(stmt, user)
-			case *influxql.RevokeStatement:
-				res = s.executeRevokeStatement(stmt, user)
-			case *influxql.CreateRetentionPolicyStatement:
-				res = s.executeCreateRetentionPolicyStatement(stmt, user)
-			case *influxql.AlterRetentionPolicyStatement:
-				res = s.executeAlterRetentionPolicyStatement(stmt, user)
-			case *influxql.DropRetentionPolicyStatement:
-				res = s.executeDropRetentionPolicyStatement(stmt, user)
-			case *influxql.ShowRetentionPoliciesStatement:
-				res = s.executeShowRetentionPoliciesStatement(stmt, user)
-			case *influxql.CreateContinuousQueryStatement:
-				res = s.executeCreateContinuousQueryStatement(stmt, user)
-			case *influxql.DropContinuousQueryStatement:
-				res = s.executeDropContinuousQueryStatement(stmt, user)
-			case *influxql.ShowContinuousQueriesStatement:
-				res = s.executeShowContinuousQueriesStatement(stmt, database, user)
+			case *influxql.DeleteStatement:
+				res = &influxql.Result{Err: ErrInvalidQuery}
 			default:
-				panic(fmt.Sprintf("unsupported statement type: %T", stmt))
+				// Delegate all meta statements to a separate executor.
+				res = s.MetaStatementExecutor.ExecuteStatement(stmt, user)
 			}
 
 			if res != nil {
@@ -966,7 +973,7 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *meta.Use
 
 		// if there was an error send results that the remaining statements weren't executed
 		for ; i < len(q.Statements)-1; i++ {
-			results <- &Result{Err: ErrNotExecuted}
+			results <- &influxql.Result{Err: ErrNotExecuted}
 		}
 
 		close(results)
@@ -977,7 +984,7 @@ func (s *Server) ExecuteQuery(q *influxql.Query, database string, user *meta.Use
 
 // executeSelectStatement plans and executes a select statement against a database.
 /*
-func (s *Server) executeSelectStatement(statementID int, stmt *influxql.SelectStatement, database string, user *meta.UserInfo, results chan *Result, chunkSize int) error {
+func (s *Server) executeSelectStatement(statementID int, stmt *influxql.SelectStatement, database string, user *meta.UserInfo, results chan *influxql.Result, chunkSize int) error {
 	// Perform any necessary query re-writing.
 	stmt, err := s.rewriteSelectStatement(stmt)
 	if err != nil {
@@ -1000,12 +1007,12 @@ func (s *Server) executeSelectStatement(statementID int, stmt *influxql.SelectSt
 			return row.Err
 		} else {
 			resultSent = true
-			results <- &Result{StatementID: statementID, Series: []*influxql.Row{row}}
+			results <- &influxql.Result{StatementID: statementID, Series: []*influxql.Row{row}}
 		}
 	}
 
 	if !resultSent {
-		results <- &Result{StatementID: statementID, Series: make([]*influxql.Row, 0)}
+		results <- &influxql.Result{StatementID: statementID, Series: make([]*influxql.Row, 0)}
 	}
 
 	return nil
@@ -1172,65 +1179,15 @@ func (s *Server) planSelectStatement(stmt *influxql.SelectStatement, chunkSize i
 }
 */
 
-func (s *Server) executeCreateDatabaseStatement(q *influxql.CreateDatabaseStatement, user *meta.UserInfo) *Result {
-	return &Result{Err: s.CreateDatabase(q.Name)}
+func (s *Server) executeDropMeasurementStatement(stmt *influxql.DropMeasurementStatement, database string, user *meta.UserInfo) *influxql.Result {
+	return &influxql.Result{Err: s.DropMeasurement(database, stmt.Name)}
 }
 
-func (s *Server) executeDropDatabaseStatement(q *influxql.DropDatabaseStatement, user *meta.UserInfo) *Result {
-	return &Result{Err: s.DropDatabase(q.Name)}
-}
-
-func (s *Server) executeShowDatabasesStatement(q *influxql.ShowDatabasesStatement, user *meta.UserInfo) *Result {
-	names, err := s.Databases()
-	if err != nil {
-		return &Result{Err: err}
-	}
-
-	row := &influxql.Row{Name: "databases", Columns: []string{"name"}}
-	for _, name := range names {
-		row.Values = append(row.Values, []interface{}{name})
-	}
-	return &Result{Series: []*influxql.Row{row}}
-}
-
-func (s *Server) executeShowServersStatement(q *influxql.ShowServersStatement, user *meta.UserInfo) *Result {
-	nis, err := s.Nodes()
-	if err != nil {
-		return &Result{Err: err}
-	}
-
-	row := &influxql.Row{Columns: []string{"id", "url"}}
-	for _, ni := range nis {
-		row.Values = append(row.Values, []interface{}{ni.ID, "http://" + ni.Host})
-	}
-	return &Result{Series: []*influxql.Row{row}}
-}
-
-func (s *Server) executeCreateUserStatement(q *influxql.CreateUserStatement, user *meta.UserInfo) *Result {
-	isAdmin := false
-	if q.Privilege != nil {
-		isAdmin = *q.Privilege == influxql.AllPrivileges
-	}
-	return &Result{Err: s.CreateUser(q.Name, q.Password, isAdmin)}
-}
-
-func (s *Server) executeSetPasswordUserStatement(q *influxql.SetPasswordUserStatement, user *meta.UserInfo) *Result {
-	return &Result{Err: s.UpdateUser(q.Name, q.Password)}
-}
-
-func (s *Server) executeDropUserStatement(q *influxql.DropUserStatement, user *meta.UserInfo) *Result {
-	return &Result{Err: s.DropUser(q.Name)}
-}
-
-func (s *Server) executeDropMeasurementStatement(stmt *influxql.DropMeasurementStatement, database string, user *meta.UserInfo) *Result {
-	return &Result{Err: s.DropMeasurement(database, stmt.Name)}
-}
-
-func (s *Server) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, database string, user *meta.UserInfo) *Result {
+func (s *Server) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, database string, user *meta.UserInfo) *influxql.Result {
 	panic("not yet implemented")
 }
 
-func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, database string, user *meta.UserInfo) *Result {
+func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, database string, user *meta.UserInfo) *influxql.Result {
 	panic("not yet implemented")
 	/*
 		s.mu.RLock()
@@ -1239,17 +1196,17 @@ func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, 
 		// Find the database.
 		db := s.databases[database]
 		if db == nil {
-			return &Result{Err: ErrDatabaseNotFound(database)}
+			return &influxql.Result{Err: ErrDatabaseNotFound(database)}
 		}
 
 		// Get the list of measurements we're interested in.
 		measurements, err := measurementsFromSourceOrDB(stmt.Source, db)
 		if err != nil {
-			return &Result{Err: err}
+			return &influxql.Result{Err: err}
 		}
 
 		// Create result struct that will be populated and returned.
-		result := &Result{
+		result := &influxql.Result{
 			Series: make(influxql.Rows, 0, len(measurements)),
 		}
 
@@ -1262,7 +1219,7 @@ func (s *Server) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, 
 				filters := map[uint64]influxql.Expr{}
 				ids, _, _, err = m.walkWhereForSeriesIds(stmt.Condition, filters)
 				if err != nil {
-					return &Result{Err: err}
+					return &influxql.Result{Err: err}
 				}
 
 				// If no series matched, then go to the next measurement.
@@ -1339,7 +1296,7 @@ func (s *Server) filterShowSeriesResult(limit, offset int, rows influxql.Rows) i
 	return filteredSeries
 }
 
-func (s *Server) executeShowMeasurementsStatement(stmt *influxql.ShowMeasurementsStatement, database string, user *meta.UserInfo) *Result {
+func (s *Server) executeShowMeasurementsStatement(stmt *influxql.ShowMeasurementsStatement, database string, user *meta.UserInfo) *influxql.Result {
 	panic("not yet implemented")
 
 	/*
@@ -1349,7 +1306,7 @@ func (s *Server) executeShowMeasurementsStatement(stmt *influxql.ShowMeasurement
 		// Find the database.
 		db := s.databases[database]
 		if db == nil {
-			return &Result{Err: ErrDatabaseNotFound(database)}
+			return &influxql.Result{Err: ErrDatabaseNotFound(database)}
 		}
 
 		var measurements Measurements
@@ -1359,7 +1316,7 @@ func (s *Server) executeShowMeasurementsStatement(stmt *influxql.ShowMeasurement
 			var err error
 			measurements, err = db.measurementsByExpr(stmt.Condition)
 			if err != nil {
-				return &Result{Err: err}
+				return &influxql.Result{Err: err}
 			}
 		} else {
 			// Otherwise, get all measurements from the database.
@@ -1372,7 +1329,7 @@ func (s *Server) executeShowMeasurementsStatement(stmt *influxql.ShowMeasurement
 
 		// If OFFSET is past the end of the array, return empty results.
 		if offset > len(measurements)-1 {
-			return &Result{}
+			return &influxql.Result{}
 		}
 
 		// Calculate last index based on LIMIT.
@@ -1397,7 +1354,7 @@ func (s *Server) executeShowMeasurementsStatement(stmt *influxql.ShowMeasurement
 		}
 
 		// Make a result.
-		result := &Result{
+		result := &influxql.Result{
 			Series: influxql.Rows{row},
 		}
 
@@ -1405,7 +1362,7 @@ func (s *Server) executeShowMeasurementsStatement(stmt *influxql.ShowMeasurement
 	*/
 }
 
-func (s *Server) executeShowTagKeysStatement(stmt *influxql.ShowTagKeysStatement, database string, user *meta.UserInfo) *Result {
+func (s *Server) executeShowTagKeysStatement(stmt *influxql.ShowTagKeysStatement, database string, user *meta.UserInfo) *influxql.Result {
 	panic("not yet implemented")
 	/*
 		s.mu.RLock()
@@ -1414,17 +1371,17 @@ func (s *Server) executeShowTagKeysStatement(stmt *influxql.ShowTagKeysStatement
 		// Find the database.
 		db := s.databases[database]
 		if db == nil {
-			return &Result{Err: ErrDatabaseNotFound(database)}
+			return &influxql.Result{Err: ErrDatabaseNotFound(database)}
 		}
 
 		// Get the list of measurements we're interested in.
 		measurements, err := measurementsFromSourceOrDB(stmt.Source, db)
 		if err != nil {
-			return &Result{Err: err}
+			return &influxql.Result{Err: err}
 		}
 
 		// Make result.
-		result := &Result{
+		result := &influxql.Result{
 			Series: make(influxql.Rows, 0, len(measurements)),
 		}
 
@@ -1458,7 +1415,7 @@ func (s *Server) executeShowTagKeysStatement(stmt *influxql.ShowTagKeysStatement
 	*/
 }
 
-func (s *Server) executeShowTagValuesStatement(stmt *influxql.ShowTagValuesStatement, database string, user *meta.UserInfo) *Result {
+func (s *Server) executeShowTagValuesStatement(stmt *influxql.ShowTagValuesStatement, database string, user *meta.UserInfo) *influxql.Result {
 	panic("not yet implemented")
 	/*
 		s.mu.RLock()
@@ -1467,17 +1424,17 @@ func (s *Server) executeShowTagValuesStatement(stmt *influxql.ShowTagValuesState
 		// Find the database.
 		db := s.databases[database]
 		if db == nil {
-			return &Result{Err: ErrDatabaseNotFound(database)}
+			return &influxql.Result{Err: ErrDatabaseNotFound(database)}
 		}
 
 		// Get the list of measurements we're interested in.
 		measurements, err := measurementsFromSourceOrDB(stmt.Source, db)
 		if err != nil {
-			return &Result{Err: err}
+			return &influxql.Result{Err: err}
 		}
 
 		// Make result.
-		result := &Result{
+		result := &influxql.Result{
 			Series: make(influxql.Rows, 0),
 		}
 
@@ -1490,7 +1447,7 @@ func (s *Server) executeShowTagValuesStatement(stmt *influxql.ShowTagValuesState
 				filters := map[uint64]influxql.Expr{}
 				ids, _, _, err = m.walkWhereForSeriesIds(stmt.Condition, filters)
 				if err != nil {
-					return &Result{Err: err}
+					return &influxql.Result{Err: err}
 				}
 
 				// If no series matched, then go to the next measurement.
@@ -1535,23 +1492,7 @@ func (s *Server) executeShowTagValuesStatement(stmt *influxql.ShowTagValuesState
 	*/
 }
 
-func (s *Server) executeShowContinuousQueriesStatement(stmt *influxql.ShowContinuousQueriesStatement, database string, user *meta.UserInfo) *Result {
-	cqis, err := s.MetaStore.ContinuousQueries()
-	if err != nil {
-		return &Result{Err: err}
-	}
-
-	rows := []*influxql.Row{}
-	for _, cqi := range cqis {
-		rows = append(rows, &influxql.Row{
-			Columns: []string{"query"},
-			Values:  [][]interface{}{{cqi.Query}},
-		})
-	}
-	return &Result{Series: rows}
-}
-
-func (s *Server) executeShowStatsStatement(stmt *influxql.ShowStatsStatement, user *meta.UserInfo) *Result {
+func (s *Server) executeShowStatsStatement(stmt *influxql.ShowStatsStatement, user *meta.UserInfo) *influxql.Result {
 	panic("not yet implemented")
 	/*
 		var rows []*influxql.Row
@@ -1584,18 +1525,18 @@ func (s *Server) executeShowStatsStatement(stmt *influxql.ShowStatsStatement, us
 			rows = append(rows, row)
 		}
 
-		return &Result{Series: rows}
+		return &influxql.Result{Series: rows}
 	*/
 }
 
-func (s *Server) executeShowDiagnosticsStatement(stmt *influxql.ShowDiagnosticsStatement, user *meta.UserInfo) *Result {
+func (s *Server) executeShowDiagnosticsStatement(stmt *influxql.ShowDiagnosticsStatement, user *meta.UserInfo) *influxql.Result {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	return &Result{Series: s.DiagnosticsAsRows()}
+	return &influxql.Result{Series: s.DiagnosticsAsRows()}
 }
 
-func (s *Server) executeShowFieldKeysStatement(stmt *influxql.ShowFieldKeysStatement, database string, user *meta.UserInfo) *Result {
+func (s *Server) executeShowFieldKeysStatement(stmt *influxql.ShowFieldKeysStatement, database string, user *meta.UserInfo) *influxql.Result {
 	panic("not yet implemented")
 	/*
 		s.mu.RLock()
@@ -1606,17 +1547,17 @@ func (s *Server) executeShowFieldKeysStatement(stmt *influxql.ShowFieldKeysState
 		// Find the database.
 		db := s.databases[database]
 		if db == nil {
-			return &Result{Err: ErrDatabaseNotFound(database)}
+			return &influxql.Result{Err: ErrDatabaseNotFound(database)}
 		}
 
 		// Get the list of measurements we're interested in.
 		measurements, err := measurementsFromSourceOrDB(stmt.Source, db)
 		if err != nil {
-			return &Result{Err: err}
+			return &influxql.Result{Err: err}
 		}
 
 		// Make result.
-		result := &Result{
+		result := &influxql.Result{
 			Series: make(influxql.Rows, 0, len(measurements)),
 		}
 
@@ -1647,14 +1588,6 @@ func (s *Server) executeShowFieldKeysStatement(stmt *influxql.ShowFieldKeysState
 
 		return result
 	*/
-}
-
-func (s *Server) executeGrantStatement(stmt *influxql.GrantStatement, user *meta.UserInfo) *Result {
-	return &Result{Err: s.SetPrivilege(stmt.User, stmt.On, stmt.Privilege)}
-}
-
-func (s *Server) executeRevokeStatement(stmt *influxql.RevokeStatement, user *meta.UserInfo) *Result {
-	return &Result{Err: s.SetPrivilege(stmt.User, stmt.On, influxql.NoPrivileges)}
 }
 
 // measurementsFromSourceOrDB returns a list of measurements from the
@@ -1688,105 +1621,6 @@ func measurementsFromSourceOrDB(stmt influxql.Source, db *database) (Measurement
 	return measurements, nil
 }
 */
-
-func (s *Server) executeShowUsersStatement(q *influxql.ShowUsersStatement, user *meta.UserInfo) *Result {
-	uis, err := s.Users()
-	if err != nil {
-		return &Result{Err: err}
-	}
-
-	row := &influxql.Row{Columns: []string{"user", "admin"}}
-	for _, user := range uis {
-		row.Values = append(row.Values, []interface{}{user.Name, user.Admin})
-	}
-	return &Result{Series: []*influxql.Row{row}}
-}
-
-func (s *Server) executeCreateRetentionPolicyStatement(stmt *influxql.CreateRetentionPolicyStatement, user *meta.UserInfo) *Result {
-	rpi := meta.NewRetentionPolicyInfo(stmt.Name)
-	rpi.Duration = stmt.Duration
-	rpi.ReplicaN = stmt.Replication
-
-	// Create new retention policy.
-	err := s.CreateRetentionPolicy(stmt.Database, rpi)
-	if err != nil {
-		return &Result{Err: err}
-	}
-
-	// If requested, set new policy as the default.
-	if stmt.Default {
-		err = s.SetDefaultRetentionPolicy(stmt.Database, stmt.Name)
-	}
-
-	return &Result{Err: err}
-}
-
-func (s *Server) executeAlterRetentionPolicyStatement(stmt *influxql.AlterRetentionPolicyStatement, user *meta.UserInfo) *Result {
-	rpu := &meta.RetentionPolicyUpdate{
-		Duration: stmt.Duration,
-		ReplicaN: stmt.Replication,
-	}
-
-	// Update the retention policy.
-	err := s.UpdateRetentionPolicy(stmt.Database, stmt.Name, rpu)
-	if err != nil {
-		return &Result{Err: err}
-	}
-
-	// If requested, set as default retention policy.
-	if stmt.Default {
-		err = s.SetDefaultRetentionPolicy(stmt.Database, stmt.Name)
-	}
-
-	return &Result{Err: err}
-}
-
-func (s *Server) executeDeleteStatement() *Result {
-	return &Result{Err: ErrInvalidQuery}
-}
-
-func (s *Server) executeDropRetentionPolicyStatement(q *influxql.DropRetentionPolicyStatement, user *meta.UserInfo) *Result {
-	return &Result{Err: s.DropRetentionPolicy(q.Database, q.Name)}
-}
-
-func (s *Server) executeShowRetentionPoliciesStatement(q *influxql.ShowRetentionPoliciesStatement, user *meta.UserInfo) *Result {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	di, err := s.MetaStore.Database(q.Database)
-	if err != nil {
-		return &Result{Err: err}
-	}
-
-	a, err := s.RetentionPolicies(q.Database)
-	if err != nil {
-		return &Result{Err: err}
-	}
-
-	row := &influxql.Row{Columns: []string{"name", "duration", "replicaN", "default"}}
-	for _, rpi := range a {
-		row.Values = append(row.Values, []interface{}{rpi.Name, rpi.Duration.String(), rpi.ReplicaN, di.DefaultRetentionPolicy == rpi.Name})
-	}
-	return &Result{Series: []*influxql.Row{row}}
-}
-
-func (s *Server) executeCreateContinuousQueryStatement(q *influxql.CreateContinuousQueryStatement, user *meta.UserInfo) *Result {
-	return &Result{Err: s.CreateContinuousQuery(q)}
-}
-
-// CreateContinuousQuery creates a continuous query.
-func (s *Server) CreateContinuousQuery(q *influxql.CreateContinuousQueryStatement) error {
-	return s.MetaStore.CreateContinuousQuery(q.String())
-}
-
-func (s *Server) executeDropContinuousQueryStatement(q *influxql.DropContinuousQueryStatement, user *meta.UserInfo) *Result {
-	return &Result{Err: s.DropContinuousQuery(q)}
-}
-
-// DropContinuousQuery dropsoa continuous query.
-func (s *Server) DropContinuousQuery(q *influxql.DropContinuousQueryStatement) error {
-	return s.MetaStore.DropContinuousQuery(q.String())
-}
 
 // MeasurementNames returns a list of all measurements for the specified database.
 func (s *Server) MeasurementNames(database string) []string {
@@ -2039,53 +1873,9 @@ func (s *Server) DiagnosticsAsRows() []*influxql.Row {
 	*/
 }
 
-// Result represents a resultset returned from a single statement.
-type Result struct {
-	// StatementID is just the statement's position in the query. It's used
-	// to combine statement results if they're being buffered in memory.
-	StatementID int `json:"-"`
-	Series      influxql.Rows
-	Err         error
-}
-
-// MarshalJSON encodes the result into JSON.
-func (r *Result) MarshalJSON() ([]byte, error) {
-	// Define a struct that outputs "error" as a string.
-	var o struct {
-		Series []*influxql.Row `json:"series,omitempty"`
-		Err    string          `json:"error,omitempty"`
-	}
-
-	// Copy fields to output struct.
-	o.Series = r.Series
-	if r.Err != nil {
-		o.Err = r.Err.Error()
-	}
-
-	return json.Marshal(&o)
-}
-
-// UnmarshalJSON decodes the data into the Result struct
-func (r *Result) UnmarshalJSON(b []byte) error {
-	var o struct {
-		Series []*influxql.Row `json:"series,omitempty"`
-		Err    string          `json:"error,omitempty"`
-	}
-
-	err := json.Unmarshal(b, &o)
-	if err != nil {
-		return err
-	}
-	r.Series = o.Series
-	if o.Err != "" {
-		r.Err = errors.New(o.Err)
-	}
-	return nil
-}
-
 // Response represents a list of statement results.
 type Response struct {
-	Results []*Result
+	Results []*influxql.Result
 	Err     error
 }
 
@@ -2093,8 +1883,8 @@ type Response struct {
 func (r Response) MarshalJSON() ([]byte, error) {
 	// Define a struct that outputs "error" as a string.
 	var o struct {
-		Results []*Result `json:"results,omitempty"`
-		Err     string    `json:"error,omitempty"`
+		Results []*influxql.Result `json:"results,omitempty"`
+		Err     string             `json:"error,omitempty"`
 	}
 
 	// Copy fields to output struct.
@@ -2109,8 +1899,8 @@ func (r Response) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON decodes the data into the Response struct
 func (r *Response) UnmarshalJSON(b []byte) error {
 	var o struct {
-		Results []*Result `json:"results,omitempty"`
-		Err     string    `json:"error,omitempty"`
+		Results []*influxql.Result `json:"results,omitempty"`
+		Err     string             `json:"error,omitempty"`
 	}
 
 	err := json.Unmarshal(b, &o)

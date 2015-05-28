@@ -123,6 +123,11 @@ func (s *Store) Open() error {
 	s.shards = map[uint64]*Shard{}
 	s.databaseIndexes = map[string]*DatabaseIndex{}
 
+	// Create directory.
+	if err := os.MkdirAll(s.path, 0777); err != nil {
+		return err
+	}
+
 	// TODO: Start AE for Node
 	if err := s.loadIndexes(); err != nil {
 		return err

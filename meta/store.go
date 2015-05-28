@@ -507,30 +507,24 @@ func (s *Store) ShardGroupByTimestamp(database, policy string, timestamp time.Ti
 }
 
 // CreateContinuousQuery creates a new continuous query on the store.
-func (s *Store) CreateContinuousQuery(query string) error {
+func (s *Store) CreateContinuousQuery(database, name, query string) error {
 	return s.exec(internal.Command_CreateContinuousQueryCommand, internal.E_CreateContinuousQueryCommand_Command,
 		&internal.CreateContinuousQueryCommand{
-			Query: proto.String(query),
+			Database: proto.String(database),
+			Name:     proto.String(name),
+			Query:    proto.String(query),
 		},
 	)
 }
 
 // DropContinuousQuery removes a continuous query from the store.
-func (s *Store) DropContinuousQuery(query string) error {
+func (s *Store) DropContinuousQuery(database, name string) error {
 	return s.exec(internal.Command_DropContinuousQueryCommand, internal.E_DropContinuousQueryCommand_Command,
 		&internal.DropContinuousQueryCommand{
-			Query: proto.String(query),
+			Database: proto.String(database),
+			Name:     proto.String(name),
 		},
 	)
-}
-
-// ContinuousQueries returns all continuous queries.
-func (s *Store) ContinuousQueries() (a []ContinuousQueryInfo, err error) {
-	err = s.read(func(data *Data) error {
-		a = data.ContinuousQueries
-		return nil
-	})
-	return
 }
 
 // User returns a user by name.
@@ -933,7 +927,7 @@ func (fsm *storeFSM) applyCreateContinuousQueryCommand(cmd *internal.Command) in
 
 	// Copy data and update.
 	other := fsm.data.Clone()
-	if err := other.CreateContinuousQuery(v.GetQuery()); err != nil {
+	if err := other.CreateContinuousQuery(v.GetDatabase(), v.GetName(), v.GetQuery()); err != nil {
 		return err
 	}
 	fsm.data = other
@@ -947,7 +941,7 @@ func (fsm *storeFSM) applyDropContinuousQueryCommand(cmd *internal.Command) inte
 
 	// Copy data and update.
 	other := fsm.data.Clone()
-	if err := other.DropContinuousQuery(v.GetQuery()); err != nil {
+	if err := other.DropContinuousQuery(v.GetDatabase(), v.GetName()); err != nil {
 		return err
 	}
 	fsm.data = other

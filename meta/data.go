@@ -23,11 +23,10 @@ const (
 
 // Data represents the top level collection of all metadata.
 type Data struct {
-	Version           uint64 // autoincrementing version
-	Nodes             []NodeInfo
-	Databases         []DatabaseInfo
-	Users             []UserInfo
-	ContinuousQueries []ContinuousQueryInfo
+	Version   uint64 // autoincrementing version
+	Nodes     []NodeInfo
+	Databases []DatabaseInfo
+	Users     []UserInfo
 
 	MaxNodeID       uint64
 	MaxShardGroupID uint64
@@ -343,17 +342,23 @@ func (data *Data) DeleteShardGroup(database, policy string, id uint64) error {
 	return ErrShardGroupNotFound
 }
 
-// CreateContinuousQuery adds a continuous query.
-func (data *Data) CreateContinuousQuery(query string) error {
-	// Ensure the query doesn't already exist.
-	for i := range data.ContinuousQueries {
-		if data.ContinuousQueries[i].Query == query {
+// CreateContinuousQuery adds a named continuous query to a database.
+func (data *Data) CreateContinuousQuery(database, name, query string) error {
+	di := data.Database(database)
+	if di == nil {
+		return ErrDatabaseNotFound
+	}
+
+	// Ensure the name doesn't already exist.
+	for i := range di.ContinuousQueries {
+		if di.ContinuousQueries[i].Name == name {
 			return ErrContinuousQueryExists
 		}
 	}
 
 	// Append new query.
-	data.ContinuousQueries = append(data.ContinuousQueries, ContinuousQueryInfo{
+	di.ContinuousQueries = append(di.ContinuousQueries, ContinuousQueryInfo{
+		Name:  name,
 		Query: query,
 	})
 
@@ -361,10 +366,15 @@ func (data *Data) CreateContinuousQuery(query string) error {
 }
 
 // DropContinuousQuery removes a continuous query.
-func (data *Data) DropContinuousQuery(query string) error {
-	for i := range data.ContinuousQueries {
-		if data.ContinuousQueries[i].Query == query {
-			data.ContinuousQueries = append(data.ContinuousQueries[:i], data.ContinuousQueries[i+1:]...)
+func (data *Data) DropContinuousQuery(database, name string) error {
+	di := data.Database(database)
+	if di == nil {
+		return ErrDatabaseNotFound
+	}
+
+	for i := range di.ContinuousQueries {
+		if di.ContinuousQueries[i].Name == name {
+			di.ContinuousQueries = append(di.ContinuousQueries[:i], di.ContinuousQueries[i+1:]...)
 			return nil
 		}
 	}
@@ -458,14 +468,6 @@ func (data *Data) Clone() *Data {
 		}
 	}
 
-	// Copy continuous queries.
-	if data.ContinuousQueries != nil {
-		other.ContinuousQueries = make([]ContinuousQueryInfo, len(data.ContinuousQueries))
-		for i := range data.ContinuousQueries {
-			other.ContinuousQueries[i] = data.ContinuousQueries[i].clone()
-		}
-	}
-
 	// Copy users.
 	if data.Users != nil {
 		other.Users = make([]UserInfo, len(data.Users))
@@ -510,6 +512,7 @@ type DatabaseInfo struct {
 	Name                   string
 	DefaultRetentionPolicy string
 	RetentionPolicies      []RetentionPolicyInfo
+	ContinuousQueries      []ContinuousQueryInfo
 }
 
 // RetentionPolicy returns a retention policy by name.
@@ -530,6 +533,14 @@ func (di DatabaseInfo) clone() DatabaseInfo {
 		other.RetentionPolicies = make([]RetentionPolicyInfo, len(di.RetentionPolicies))
 		for i := range di.RetentionPolicies {
 			other.RetentionPolicies[i] = di.RetentionPolicies[i].clone()
+		}
+	}
+
+	// Copy continuous queries.
+	if di.ContinuousQueries != nil {
+		other.ContinuousQueries = make([]ContinuousQueryInfo, len(di.ContinuousQueries))
+		for i := range di.ContinuousQueries {
+			other.ContinuousQueries[i] = di.ContinuousQueries[i].clone()
 		}
 	}
 
@@ -650,6 +661,7 @@ func (si ShardInfo) clone() ShardInfo {
 
 // ContinuousQueryInfo represents metadata about a continuous query.
 type ContinuousQueryInfo struct {
+	Name  string
 	Query string
 }
 

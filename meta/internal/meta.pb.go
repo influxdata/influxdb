@@ -760,13 +760,29 @@ var E_DeleteShardGroupCommand_Command = &proto.ExtensionDesc{
 }
 
 type CreateContinuousQueryCommand struct {
-	Query            *string `protobuf:"bytes,1,req" json:"Query,omitempty"`
+	Database         *string `protobuf:"bytes,1,req" json:"Database,omitempty"`
+	Name             *string `protobuf:"bytes,2,req" json:"Name,omitempty"`
+	Query            *string `protobuf:"bytes,3,req" json:"Query,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
 func (m *CreateContinuousQueryCommand) Reset()         { *m = CreateContinuousQueryCommand{} }
 func (m *CreateContinuousQueryCommand) String() string { return proto.CompactTextString(m) }
 func (*CreateContinuousQueryCommand) ProtoMessage()    {}
+
+func (m *CreateContinuousQueryCommand) GetDatabase() string {
+	if m != nil && m.Database != nil {
+		return *m.Database
+	}
+	return ""
+}
+
+func (m *CreateContinuousQueryCommand) GetName() string {
+	if m != nil && m.Name != nil {
+		return *m.Name
+	}
+	return ""
+}
 
 func (m *CreateContinuousQueryCommand) GetQuery() string {
 	if m != nil && m.Query != nil {
@@ -784,7 +800,8 @@ var E_CreateContinuousQueryCommand_Command = &proto.ExtensionDesc{
 }
 
 type DropContinuousQueryCommand struct {
-	Query            *string `protobuf:"bytes,1,req" json:"Query,omitempty"`
+	Database         *string `protobuf:"bytes,1,req" json:"Database,omitempty"`
+	Name             *string `protobuf:"bytes,2,req" json:"Name,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -792,9 +809,16 @@ func (m *DropContinuousQueryCommand) Reset()         { *m = DropContinuousQueryC
 func (m *DropContinuousQueryCommand) String() string { return proto.CompactTextString(m) }
 func (*DropContinuousQueryCommand) ProtoMessage()    {}
 
-func (m *DropContinuousQueryCommand) GetQuery() string {
-	if m != nil && m.Query != nil {
-		return *m.Query
+func (m *DropContinuousQueryCommand) GetDatabase() string {
+	if m != nil && m.Database != nil {
+		return *m.Database
+	}
+	return ""
+}
+
+func (m *DropContinuousQueryCommand) GetName() string {
+	if m != nil && m.Name != nil {
+		return *m.Name
 	}
 	return ""
 }
