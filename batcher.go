@@ -27,38 +27,46 @@ type PointBatcherStats struct {
 	TimeoutTotal uint64 // Nubmer of timeouts that occurred.
 }
 
-// Start starts the batching process. It should be called from a goroutine.
-func (b *PointBatcher) Start(in <-chan Point, out chan<- []Point) {
+// Start starts the batching process. Returns the in and out channels for points
+// and point-batches respectively.
+func (b *PointBatcher) Start() (chan<- Point, <-chan []Point) {
 	var timer *time.Timer
 	var batch []Point
 	var timerCh <-chan time.Time
 
-	for {
-		select {
-		case p := <-in:
-			atomic.AddUint64(&b.stats.PointTotal, 1)
-			if batch == nil {
-				batch = make([]Point, 0, b.size)
-				timer = time.NewTimer(b.duration)
-				timerCh = timer.C
-			}
+	in := make(chan Point)
+	out := make(chan []Point)
 
-			batch = append(batch, p)
-			if len(batch) == b.size {
-				atomic.AddUint64(&b.stats.SizeTotal, 1)
+	go func() {
+		for {
+			select {
+			case p := <-in:
+				atomic.AddUint64(&b.stats.PointTotal, 1)
+				if batch == nil {
+					batch = make([]Point, 0, b.size)
+					timer = time.NewTimer(b.duration)
+					timerCh = timer.C
+				}
+
+				batch = append(batch, p)
+				if len(batch) >= b.size { // 0 means send immediately.
+					atomic.AddUint64(&b.stats.SizeTotal, 1)
+					out <- batch
+					atomic.AddUint64(&b.stats.BatchTotal, 1)
+					batch = nil
+					timerCh = nil
+				}
+
+			case <-timerCh:
+				atomic.AddUint64(&b.stats.TimeoutTotal, 1)
 				out <- batch
 				atomic.AddUint64(&b.stats.BatchTotal, 1)
 				batch = nil
-				timerCh = nil
 			}
-
-		case <-timerCh:
-			atomic.AddUint64(&b.stats.TimeoutTotal, 1)
-			out <- batch
-			atomic.AddUint64(&b.stats.BatchTotal, 1)
-			batch = nil
 		}
-	}
+	}()
+
+	return in, out
 }
 
 // Stats returns a PointBatcherStats object for the PointBatcher. While the each statistic should be

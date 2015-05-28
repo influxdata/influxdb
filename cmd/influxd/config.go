@@ -510,6 +510,9 @@ type Graphite struct {
 	Protocol      string `toml:"protocol"`
 	NamePosition  string `toml:"name-position"`
 	NameSeparator string `toml:"name-separator"`
+
+	BatchSize    int      `toml:"batch-size"`
+	BatchTimeout Duration `toml:"batch-timeout"`
 }
 
 // ConnnectionString returns the connection string for this Graphite config in the form host:port.

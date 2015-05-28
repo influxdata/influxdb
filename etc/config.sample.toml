@@ -48,6 +48,8 @@ enabled = false
 # name-position = "last"
 # name-separator = "-"
 # database = ""  # store graphite data in this database
+# batch-size = 0 # How many points to batch up internally before writing.
+# batch-timeout = 0ms # Maximum time to wait before sending batch, regardless of current size.
 
 # Configure the collectd input.
 [collectd]
