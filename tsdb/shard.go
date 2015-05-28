@@ -146,7 +146,7 @@ func (s *Shard) WritePoints(points []Point) error {
 		// save the raw point data
 		b := tx.Bucket([]byte("values"))
 		for _, p := range points {
-			bp, err := b.CreateBucketIfNotExists([]byte(p.Key()))
+			bp, err := b.CreateBucketIfNotExists(p.Key())
 			if err != nil {
 				return err
 			}
@@ -217,8 +217,8 @@ func (s *Shard) validateSeriesAndFields(points []Point) ([]*seriesCreate, []*fie
 
 	for _, p := range points {
 		// see if the series should be added to the index
-		if ss := s.index.series[p.Key()]; ss == nil {
-			series := &Series{Key: p.Key(), Tags: p.Tags()}
+		if ss := s.index.series[string(p.Key())]; ss == nil {
+			series := &Series{Key: string(p.Key()), Tags: p.Tags()}
 			seriesToCreate = append(seriesToCreate, &seriesCreate{p.Name(), series})
 		}
 

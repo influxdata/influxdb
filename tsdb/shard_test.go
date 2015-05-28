@@ -44,9 +44,9 @@ func TestShardWriteAndIndex(t *testing.T) {
 		if len(index.series) != 1 {
 			t.Fatalf("series wasn't in index")
 		}
-		seriesTags := index.series[pt.Key()].Tags
+		seriesTags := index.series[string(pt.Key())].Tags
 		if len(seriesTags) != len(pt.Tags()) || pt.Tags()["host"] != seriesTags["host"] {
-			t.Fatalf("tags weren't properly saved to series index: %v, %v", pt.Tags(), index.series[pt.Key()].Tags)
+			t.Fatalf("tags weren't properly saved to series index: %v, %v", pt.Tags(), index.series[string(pt.Key())].Tags)
 		}
 		if !reflect.DeepEqual(index.measurements["cpu"].tagKeys(), []string{"host"}) {
 			t.Fatalf("tag key wasn't saved to measurement index")
