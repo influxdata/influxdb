@@ -5,6 +5,7 @@
 - [2599](https://github.com/influxdb/influxdb/issues/2599): Add "epoch" URL param and return JSON time values as epoch instead of date strings.
 - [2682](https://github.com/influxdb/influxdb/issues/2682): Adding pr checklist to CONTRIBUTING.md
 - [2683](https://github.com/influxdb/influxdb/issues/2683): Add batching support to Graphite inputs.
+- [2687](https://github.com/influxdb/influxdb/issues/2687): Add batching support to Collectd inputs.
 
 ### Bugfixes
 - [2635](https://github.com/influxdb/influxdb/issues/2635): Fix querying against boolean field in WHERE clause.
