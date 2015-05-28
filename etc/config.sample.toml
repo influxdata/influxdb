@@ -58,6 +58,8 @@ enabled = false
 # port = 25827
 # database = "collectd_database"
 # typesdb = "types.db"
+# batch-size = 0 # How many points to batch up internally before writing.
+# batch-timeout = 0ms # Maximum time to wait before sending batch, regardless of current size.
 
 # Configure the OpenTSDB input.
 [opentsdb]

@@ -482,6 +482,9 @@ type Collectd struct {
 	Database string `toml:"database"`
 	Enabled  bool   `toml:"enabled"`
 	TypesDB  string `toml:"typesdb"`
+
+	BatchSize    int      `toml:"batch-size"`
+	BatchTimeout Duration `toml:"batch-timeout"`
 }
 
 // ConnnectionString returns the connection string for this collectd config in the form host:port.

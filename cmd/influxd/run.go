@@ -376,6 +376,8 @@ func (cmd *RunCommand) Open(config *Config, join string) *Node {
 			c := cmd.config.Collectd
 			cs := collectd.NewServer(s, c.TypesDB)
 			cs.Database = c.Database
+			cs.BatchSize = cmd.config.Collectd.BatchSize
+			cs.BatchTimeout = time.Duration(cmd.config.Collectd.BatchTimeout)
 			err := collectd.ListenAndServe(cs, c.ConnectionString(cmd.config.BindAddress))
 			if err != nil {
 				log.Printf("failed to start collectd Server: %v\n", err.Error())
