@@ -23,11 +23,13 @@ type Query struct {
 // URL: The URL of the server connecting to.
 // Username/Password are optional.  They will be passed via basic auth if provided.
 // UserAgent: If not provided, will default "InfluxDBClient",
+//Timeout: If not provided, will default to 0 (no timeout)
 type Config struct {
 	URL       url.URL
 	Username  string
 	Password  string
 	UserAgent string
+	Timeout   time.Duration
 }
 
 // Client is used to make calls to the server.
@@ -45,7 +47,7 @@ func NewClient(c Config) (*Client, error) {
 		url:        c.URL,
 		username:   c.Username,
 		password:   c.Password,
-		httpClient: http.DefaultClient,
+		httpClient: &http.Client{Timeout: c.Timeout},
 		userAgent:  c.UserAgent,
 	}
 	if client.userAgent == "" {
