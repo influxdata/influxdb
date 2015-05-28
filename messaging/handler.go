@@ -26,6 +26,7 @@ type Handler struct {
 		DataURLsForTopic(id, index uint64) []url.URL
 		Publish(m *Message) (uint64, error)
 		SetTopicMaxIndex(topicID, index uint64, u url.URL) error
+		Diagnostics() interface{}
 	}
 
 	RaftHandler http.Handler
@@ -52,6 +53,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "/messaging/heartbeat":
 		if r.Method == "POST" {
 			h.postHeartbeat(w, r)
+		} else {
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		}
+	case "/messaging/diagnostics":
+		if r.Method == "GET" {
+			h.getDiagnostics(w, r)
 		} else {
 			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		}
@@ -190,6 +197,19 @@ func (h *Handler) postHeartbeat(w http.ResponseWriter, r *http.Request) {
 		return
 	} else if err != nil {
 		h.error(w, err, http.StatusInternalServerError)
+		return
+	}
+}
+
+// getDiagnostics returns Broker diagnostic information
+func (h *Handler) getDiagnostics(w http.ResponseWriter, r *http.Request) {
+	diagnostics := h.Broker.Diagnostics()
+	if diagnostics == nil {
+		http.Error(w, "unable to determine broker diagnostics", http.StatusInternalServerError)
+		return
+	}
+	if err := json.NewEncoder(w).Encode(diagnostics); err != nil {
+		log.Printf("unable to write broker diagnostics: %s", err)
 		return
 	}
 }

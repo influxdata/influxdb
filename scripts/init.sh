@@ -9,6 +9,7 @@
 # Short-Description: Start influxd at boot time
 ### END INIT INFO
 
+# If you modify this, please make sure to also edit influxdb.service
 # this init script supports three different variations:
 #  1. New lsb that define start-stop-daemon
 #  2. Old lsb that don't have start-stop-daemon but define, log, pidofproc and killproc
@@ -117,7 +118,7 @@ case $1 in
             # If the status is SUCCESS then don't need to start again.
             if [ "x$status" = "x0" ]; then
                 log_failure_msg "$name process is running"
-                exit 1 # Exit
+                exit 0 # Exit
             fi
         fi
 

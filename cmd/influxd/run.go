@@ -296,15 +296,15 @@ func (cmd *RunCommand) CheckConfig() {
 
 	// Validate that we have a sane config
 	if !(cmd.config.Data.Enabled || cmd.config.Broker.Enabled) {
-		log.Fatal("Node must be configured as a broker node, data node, or as both.  Run `influxd config` to generate a valid configuration.")
+		log.Fatal("Node must be configured as a broker node, data node, or as both. To generate a valid configuration file run `influxd config > influxdb.generated.conf`.")
 	}
 
 	if cmd.config.Broker.Enabled && cmd.config.Broker.Dir == "" {
-		log.Fatal("Broker.Dir must be specified.  Run `influxd config` to generate a valid configuration.")
+		log.Fatal("Broker.Dir must be specified.  To generate a valid configuration file run `influxd config > influxdb.generated.conf`.")
 	}
 
 	if cmd.config.Data.Enabled && cmd.config.Data.Dir == "" {
-		log.Fatal("Data.Dir must be specified.  Run `influxd config` to generate a valid configuration.")
+		log.Fatal("Data.Dir must be specified.  To generate a valid configuration file run `influxd config > influxdb.generated.conf`.")
 	}
 }
 
@@ -724,12 +724,18 @@ is used.
         -config <path>
                           Set the path to the configuration file.
 
+        -cpuprofile <path>
+                          Set the path to the cpuprofile.
+
         -hostname <name>
                           Override the hostname, the 'hostname' configuration
                           option will be overridden.
 
         -join <url>
                           Joins the server to an existing cluster.
+
+        -memprofile <path>
+                          Set the path to the memprofile.
 
         -pidfile <path>
                           Write process ID to a file.

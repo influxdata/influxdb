@@ -217,7 +217,7 @@ func TestUnmarshal_Points(t *testing.T) {
 				},
 			},
 			points: []influxdb.Point{
-				{Name: "disk_read", Fields: map[string]interface{}{"value": float64(1)}},
+				{Measurement: "disk_read", Fields: map[string]interface{}{"value": float64(1)}},
 			},
 		},
 		{
@@ -230,8 +230,8 @@ func TestUnmarshal_Points(t *testing.T) {
 				},
 			},
 			points: []influxdb.Point{
-				{Name: "disk_read", Fields: map[string]interface{}{"value": float64(1)}},
-				{Name: "disk_write", Fields: map[string]interface{}{"value": float64(5)}},
+				{Measurement: "disk_read", Fields: map[string]interface{}{"value": float64(1)}},
+				{Measurement: "disk_write", Fields: map[string]interface{}{"value": float64(5)}},
 			},
 		},
 		{
@@ -248,9 +248,9 @@ func TestUnmarshal_Points(t *testing.T) {
 			},
 			points: []influxdb.Point{
 				{
-					Name:   "disk_read",
-					Tags:   map[string]string{"host": "server01", "instance": "sdk", "type": "disk_octets", "type_instance": "single"},
-					Fields: map[string]interface{}{"value": float64(1)},
+					Measurement: "disk_read",
+					Tags:        map[string]string{"host": "server01", "instance": "sdk", "type": "disk_octets", "type_instance": "single"},
+					Fields:      map[string]interface{}{"value": float64(1)},
 				},
 			},
 		},
@@ -265,8 +265,8 @@ func TestUnmarshal_Points(t *testing.T) {
 		for i, m := range test.points {
 			// test name
 			name := fmt.Sprintf("%s_%s", test.packet.Plugin, test.packet.Values[i].Name)
-			if m.Name != name {
-				t.Errorf("point name mismatch. expected %q, got %q", name, m.Name)
+			if m.Measurement != name {
+				t.Errorf("point name mismatch. expected %q, got %q", name, m.Measurement)
 			}
 			// test value
 			mv := m.Fields["value"].(float64)
@@ -319,7 +319,7 @@ func TestUnmarshal_Time(t *testing.T) {
 				},
 			},
 			points: []influxdb.Point{
-				{Timestamp: testTime},
+				{Time: testTime},
 			},
 		},
 		{
@@ -333,7 +333,7 @@ func TestUnmarshal_Time(t *testing.T) {
 				},
 			},
 			points: []influxdb.Point{
-				{Timestamp: testTime.Round(time.Second)},
+				{Time: testTime.Round(time.Second)},
 			},
 		},
 	}
@@ -346,10 +346,10 @@ func TestUnmarshal_Time(t *testing.T) {
 		}
 		for _, p := range points {
 			if test.packet.TimeHR > 0 {
-				if p.Timestamp.Format(time.RFC3339Nano) != testTime.Format(time.RFC3339Nano) {
-					t.Errorf("timestamp mis-match, got %v, expected %v", p.Timestamp.Format(time.RFC3339Nano), testTime.Format(time.RFC3339Nano))
-				} else if p.Timestamp.Format(time.RFC3339) != testTime.Format(time.RFC3339) {
-					t.Errorf("timestamp mis-match, got %v, expected %v", p.Timestamp.Format(time.RFC3339), testTime.Format(time.RFC3339))
+				if p.Time.Format(time.RFC3339Nano) != testTime.Format(time.RFC3339Nano) {
+					t.Errorf("time mis-match, got %v, expected %v", p.Time.Format(time.RFC3339Nano), testTime.Format(time.RFC3339Nano))
+				} else if p.Time.Format(time.RFC3339) != testTime.Format(time.RFC3339) {
+					t.Errorf("time mis-match, got %v, expected %v", p.Time.Format(time.RFC3339), testTime.Format(time.RFC3339))
 				}
 			}
 		}

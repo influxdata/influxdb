@@ -43,7 +43,7 @@ port = 8083
 [[graphite]] # 1 or more of these sections may be present.
 enabled = false
 # protocol = "" # Set to "tcp" or "udp"
-# address = "0.0.0.0" # If not set, is actually set to bind-address.
+# bind-address = "0.0.0.0" # If not set, is actually set to bind-address.
 # port = 2003
 # name-position = "last"
 # name-separator = "-"
@@ -52,23 +52,23 @@ enabled = false
 # Configure the collectd input.
 [collectd]
 enabled = false
-#address = "0.0.0.0" # If not set, is actually set to bind-address.
-#port = 25827
-#database = "collectd_database"
-#typesdb = "types.db"
+# bind-address = "0.0.0.0" # If not set, is actually set to bind-address.
+# port = 25827
+# database = "collectd_database"
+# typesdb = "types.db"
 
 # Configure the OpenTSDB input.
 [opentsdb]
 enabled = false
-#address = "0.0.0.0" # If not set, is actually set to bind-address.
-#port = 4242
-#database = "opentsdb_database"
+# address = "0.0.0.0" # If not set, is actually set to bind-address.
+# port = 4242
+# database = "opentsdb_database"
 
 # Configure UDP listener for series data.
 [udp]
 enabled = false
-#bind-address = "0.0.0.0"
-#port = 4444
+# bind-address = "0.0.0.0"
+# port = 4444
 
 # Broker configuration. Brokers are nodes which participate in distributed
 # consensus.
@@ -83,7 +83,7 @@ max-segment-size = 10485760
 # Raft configuration. Controls the distributed consensus system.
 [raft]
 apply-interval = "10ms"
-election-timeout = "1s"
+election-timeout = "5s"
 heartbeat-interval = "100ms"
 reconnect-timeout = "10ms"
 

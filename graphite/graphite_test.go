@@ -62,104 +62,104 @@ func Test_DecodeMetric(t *testing.T) {
 		name                string
 		tags                map[string]string
 		value               float64
-		timestamp           time.Time
+		time                time.Time
 		position, separator string
 		err                 string
 	}{
 		{
-			test:      "position first by default",
-			line:      `cpu.foo.bar 50 ` + strTime,
-			name:      "cpu",
-			tags:      map[string]string{"foo": "bar"},
-			value:     50,
-			timestamp: testTime,
+			test:  "position first by default",
+			line:  `cpu.foo.bar 50 ` + strTime,
+			name:  "cpu",
+			tags:  map[string]string{"foo": "bar"},
+			value: 50,
+			time:  testTime,
 		},
 		{
-			test:      "position first if unable to determine",
-			position:  "foo",
-			line:      `cpu.foo.bar 50 ` + strTime,
-			name:      "cpu",
-			tags:      map[string]string{"foo": "bar"},
-			value:     50,
-			timestamp: testTime,
+			test:     "position first if unable to determine",
+			position: "foo",
+			line:     `cpu.foo.bar 50 ` + strTime,
+			name:     "cpu",
+			tags:     map[string]string{"foo": "bar"},
+			value:    50,
+			time:     testTime,
 		},
 		{
-			test:      "position last if specified",
-			position:  "last",
-			line:      `foo.bar.cpu 50 ` + strTime,
-			name:      "cpu",
-			tags:      map[string]string{"foo": "bar"},
-			value:     50,
-			timestamp: testTime,
+			test:     "position last if specified",
+			position: "last",
+			line:     `foo.bar.cpu 50 ` + strTime,
+			name:     "cpu",
+			tags:     map[string]string{"foo": "bar"},
+			value:    50,
+			time:     testTime,
 		},
 		{
-			test:      "position first if specified with no series",
-			position:  "first",
-			line:      `cpu 50 ` + strTime,
-			name:      "cpu",
-			tags:      map[string]string{},
-			value:     50,
-			timestamp: testTime,
+			test:     "position first if specified with no series",
+			position: "first",
+			line:     `cpu 50 ` + strTime,
+			name:     "cpu",
+			tags:     map[string]string{},
+			value:    50,
+			time:     testTime,
 		},
 		{
-			test:      "position last if specified with no series",
-			position:  "last",
-			line:      `cpu 50 ` + strTime,
-			name:      "cpu",
-			tags:      map[string]string{},
-			value:     50,
-			timestamp: testTime,
+			test:     "position last if specified with no series",
+			position: "last",
+			line:     `cpu 50 ` + strTime,
+			name:     "cpu",
+			tags:     map[string]string{},
+			value:    50,
+			time:     testTime,
 		},
 		{
-			test:      "sepeartor is . by default",
-			line:      `cpu.foo.bar 50 ` + strTime,
-			name:      "cpu",
-			tags:      map[string]string{"foo": "bar"},
-			value:     50,
-			timestamp: testTime,
+			test:  "separator is . by default",
+			line:  `cpu.foo.bar 50 ` + strTime,
+			name:  "cpu",
+			tags:  map[string]string{"foo": "bar"},
+			value: 50,
+			time:  testTime,
 		},
 		{
-			test:      "sepeartor is . if specified",
+			test:      "separator is . if specified",
 			separator: ".",
 			line:      `cpu.foo.bar 50 ` + strTime,
 			name:      "cpu",
 			tags:      map[string]string{"foo": "bar"},
 			value:     50,
-			timestamp: testTime,
+			time:      testTime,
 		},
 		{
-			test:      "sepeartor is - if specified",
+			test:      "separator is - if specified",
 			separator: "-",
 			line:      `cpu-foo-bar 50 ` + strTime,
 			name:      "cpu",
 			tags:      map[string]string{"foo": "bar"},
 			value:     50,
-			timestamp: testTime,
+			time:      testTime,
 		},
 		{
-			test:      "sepeartor is boo if specified",
+			test:      "separator is boo if specified",
 			separator: "boo",
 			line:      `cpuboofooboobar 50 ` + strTime,
 			name:      "cpu",
 			tags:      map[string]string{"foo": "bar"},
 			value:     50,
-			timestamp: testTime,
+			time:      testTime,
 		},
 
 		{
-			test:      "series + metric + integer value",
-			line:      `cpu.foo.bar 50 ` + strTime,
-			name:      "cpu",
-			tags:      map[string]string{"foo": "bar"},
-			value:     50,
-			timestamp: testTime,
+			test:  "series + metric + integer value",
+			line:  `cpu.foo.bar 50 ` + strTime,
+			name:  "cpu",
+			tags:  map[string]string{"foo": "bar"},
+			value: 50,
+			time:  testTime,
 		},
 		{
-			test:      "metric only with float value",
-			line:      `cpu 50.554 ` + strTime,
-			name:      "cpu",
-			value:     50.554,
-			timestamp: testTime,
+			test:  "metric only with float value",
+			line:  `cpu 50.554 ` + strTime,
+			name:  "cpu",
+			value: 50.554,
+			time:  testTime,
 		},
 		{
 			test: "missing metric",
@@ -184,7 +184,7 @@ func Test_DecodeMetric(t *testing.T) {
 		{
 			test: "should fail parsing invalid time",
 			line: `cpu 50.554 14199724z57825`,
-			err:  `field "cpu" timestamp: strconv.ParseFloat: parsing "14199724z57825": invalid syntax`,
+			err:  `field "cpu" time: strconv.ParseFloat: parsing "14199724z57825": invalid syntax`,
 		},
 	}
 
@@ -205,18 +205,18 @@ func Test_DecodeMetric(t *testing.T) {
 			// If we erred out,it was intended and the following tests won't work
 			continue
 		}
-		if point.Name != test.name {
-			t.Fatalf("name parse failer.  expected %v, got %v", test.name, point.Name)
+		if point.Measurement != test.name {
+			t.Fatalf("name parse failer.  expected %v, got %v", test.name, point.Measurement)
 		}
 		if len(point.Tags) != len(test.tags) {
 			t.Fatalf("tags len mismatch.  expected %d, got %d", len(test.tags), len(point.Tags))
 		}
-		f := point.Fields[point.Name].(float64)
-		if point.Fields[point.Name] != f {
+		f := point.Fields["value"].(float64)
+		if point.Fields["value"] != f {
 			t.Fatalf("floatValue value mismatch.  expected %v, got %v", test.value, f)
 		}
-		if point.Timestamp.UnixNano()/1000000 != test.timestamp.UnixNano()/1000000 {
-			t.Fatalf("timestamp value mismatch.  expected %v, got %v", test.timestamp.UnixNano(), point.Timestamp.UnixNano())
+		if point.Time.UnixNano()/1000000 != test.time.UnixNano()/1000000 {
+			t.Fatalf("time value mismatch.  expected %v, got %v", test.time.UnixNano(), point.Time.UnixNano())
 		}
 	}
 }

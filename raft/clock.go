@@ -10,7 +10,7 @@ const (
 	DefaultApplyInterval = 10 * time.Millisecond
 
 	// DefaultElectionTimeout is the default time before starting an election.
-	DefaultElectionTimeout = 1 * time.Second
+	DefaultElectionTimeout = 5 * time.Second
 
 	// DefaultHeartbeatInterval is the default time to wait between heartbeats.
 	DefaultHeartbeatInterval = 100 * time.Millisecond
@@ -37,33 +37,65 @@ func NewClock() *Clock {
 	}
 }
 
-// AfterApplyInterval returns a channel that fires after the apply interval.
-func (c *Clock) AfterApplyInterval() <-chan chan struct{} { return newClockChan(c.ApplyInterval) }
+// ApplyTimer returns a timer that fires after the apply interval.
+func (c *Clock) ApplyTimer() Timer { return NewTimer(c.ApplyInterval) }
 
 // AfterElectionTimeout returns a channel that fires after a duration that is
 // between the election timeout and double the election timeout.
-func (c *Clock) AfterElectionTimeout() <-chan chan struct{} {
+func (c *Clock) ElectionTimer() Timer {
 	rand.Seed(time.Now().UnixNano())
 	d := c.ElectionTimeout + time.Duration(rand.Intn(int(c.ElectionTimeout)))
-	return newClockChan(d)
+	return NewTimer(d)
 }
 
-// AfterHeartbeatInterval returns a channel that fires after the heartbeat interval.
-func (c *Clock) AfterHeartbeatInterval() <-chan chan struct{} {
-	return newClockChan(c.HeartbeatInterval)
+// HeartbeatTimer returns a timer that fires after the heartbeat interval.
+func (c *Clock) HeartbeatTimer() Timer {
+	return NewTimer(c.HeartbeatInterval)
 }
 
-// AfterReconnectTimeout returns a channel that fires after the reconnection timeout.
-func (c *Clock) AfterReconnectTimeout() <-chan chan struct{} { return newClockChan(c.ReconnectTimeout) }
+// ReconnectTimer returns a timer that fires after the reconnection timeout.
+func (c *Clock) ReconnectTimer() Timer { return NewTimer(c.ReconnectTimeout) }
 
 // Now returns the current wall clock time.
 func (c *Clock) Now() time.Time { return time.Now() }
 
-// newClockChan returns a channel that sends a channel after a given duration.
+type Timer interface {
+	C() <-chan chan struct{}
+	Stop()
+}
+
+// NewTimer returns a channel that sends a channel after a given duration.
 // The channel being sent, over the channel that is returned, can be used to
 // notify the sender when an action is done.
-func newClockChan(d time.Duration) <-chan chan struct{} {
-	ch := make(chan chan struct{}, 1)
-	go func() { time.Sleep(d); ch <- make(chan struct{}) }()
-	return ch
+func NewTimer(d time.Duration) Timer {
+	t := &timer{
+		Timer:   time.NewTimer(d),
+		closing: make(chan struct{}, 0),
+		c:       make(chan chan struct{}, 1),
+	}
+	go t.run()
+	return t
+}
+
+type timer struct {
+	*time.Timer
+	closing chan struct{}
+	c       chan chan struct{}
+}
+
+func (t *timer) C() <-chan chan struct{} {
+	return t.c
+}
+
+func (t *timer) Stop() {
+	t.Timer.Stop()
+	close(t.closing)
+}
+
+func (t *timer) run() {
+	select {
+	case <-t.closing:
+	case <-t.Timer.C:
+		t.c <- make(chan struct{})
+	}
 }

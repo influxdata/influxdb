@@ -104,7 +104,7 @@ func (cmd *RestoreCommand) parseFlags(args []string) (*Config, string, error) {
 		config, err = NewTestConfig()
 		log.Println("No config provided, using default settings")
 	} else {
-		config, err = ParseConfig(*configPath)
+		config, err = ParseConfigFile(*configPath)
 	}
 	if err != nil {
 		log.Fatal(err)

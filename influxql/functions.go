@@ -10,13 +10,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"math/rand"
 	"sort"
+	"strings"
 )
 
 // Iterator represents a forward-only iterator over a set of points.
 // These are used by the MapFunctions in this file
 type Iterator interface {
-	Next() (seriesID uint64, timestamp int64, value interface{})
+	Next() (seriesID uint64, time int64, value interface{})
 }
 
 // MapFunc represents a function used for mapping over a sequential series of data.
@@ -40,26 +42,56 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 	// Ensure that there is either a single argument or if for percentile, two
 	if c.Name == "percentile" {
 		if len(c.Args) != 2 {
-			return nil, fmt.Errorf("expected two arguments for percentile()")
+			return nil, fmt.Errorf("expected two arguments for %s()", c.Name)
+		}
+	} else if strings.HasSuffix(c.Name, "derivative") {
+		// derivatives require a field name and optional duration
+		if len(c.Args) == 0 {
+			return nil, fmt.Errorf("expected field name argument for %s()", c.Name)
 		}
 	} else if len(c.Args) != 1 {
 		return nil, fmt.Errorf("expected one argument for %s()", c.Name)
 	}
 
-	// Ensure the argument is a variable reference.
-	_, ok := c.Args[0].(*VarRef)
-	if !ok {
-		return nil, fmt.Errorf("expected field argument in %s()", c.Name)
+	// derivative can take a nested aggregate function, everything else expects
+	// a variable reference as the first arg
+	if !strings.HasSuffix(c.Name, "derivative") {
+		// Ensure the argument is appropriate for the aggregate function.
+		switch fc := c.Args[0].(type) {
+		case *VarRef:
+		case *Distinct:
+			if c.Name != "count" {
+				return nil, fmt.Errorf("expected field argument in %s()", c.Name)
+			}
+		case *Call:
+			if fc.Name != "distinct" {
+				return nil, fmt.Errorf("expected field argument in %s()", c.Name)
+			}
+		default:
+			return nil, fmt.Errorf("expected field argument in %s()", c.Name)
+		}
 	}
 
 	// Retrieve map function by name.
 	switch c.Name {
 	case "count":
+		if _, ok := c.Args[0].(*Distinct); ok {
+			return MapCountDistinct, nil
+		}
+		if c, ok := c.Args[0].(*Call); ok {
+			if c.Name == "distinct" {
+				return MapCountDistinct, nil
+			}
+		}
 		return MapCount, nil
+	case "distinct":
+		return MapDistinct, nil
 	case "sum":
 		return MapSum, nil
 	case "mean":
 		return MapMean, nil
+	case "median":
+		return MapStddev, nil
 	case "min":
 		return MapMin, nil
 	case "max":
@@ -78,6 +110,13 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 			return nil, fmt.Errorf("expected float argument in percentile()")
 		}
 		return MapEcho, nil
+	case "derivative", "non_negative_derivative":
+		// If the arg is another aggregate e.g. derivative(mean(value)), then
+		// use the map func for that nested aggregate
+		if fn, ok := c.Args[0].(*Call); ok {
+			return InitializeMapFunc(fn)
+		}
+		return MapRawQuery, nil
 	default:
 		return nil, fmt.Errorf("function not found: %q", c.Name)
 	}
@@ -88,11 +127,23 @@ func InitializeReduceFunc(c *Call) (ReduceFunc, error) {
 	// Retrieve reduce function by name.
 	switch c.Name {
 	case "count":
+		if _, ok := c.Args[0].(*Distinct); ok {
+			return ReduceCountDistinct, nil
+		}
+		if c, ok := c.Args[0].(*Call); ok {
+			if c.Name == "distinct" {
+				return ReduceCountDistinct, nil
+			}
+		}
 		return ReduceSum, nil
+	case "distinct":
+		return ReduceDistinct, nil
 	case "sum":
 		return ReduceSum, nil
 	case "mean":
 		return ReduceMean, nil
+	case "median":
+		return ReduceMedian, nil
 	case "min":
 		return ReduceMin, nil
 	case "max":
@@ -115,6 +166,13 @@ func InitializeReduceFunc(c *Call) (ReduceFunc, error) {
 			return nil, fmt.Errorf("expected float argument in percentile()")
 		}
 		return ReducePercentile(lit.Val), nil
+	case "derivative", "non_negative_derivative":
+		// If the arg is another aggregate e.g. derivative(mean(value)), then
+		// use the map func for that nested aggregate
+		if fn, ok := c.Args[0].(*Call); ok {
+			return InitializeReduceFunc(fn)
+		}
+		return nil, fmt.Errorf("expected function argument to %s", c.Name)
 	default:
 		return nil, fmt.Errorf("function not found: %q", c.Name)
 	}
@@ -144,6 +202,12 @@ func InitializeUnmarshaller(c *Call) (UnmarshalFunc, error) {
 			err := json.Unmarshal(b, &o)
 			return &o, err
 		}, nil
+	case "distinct":
+		return func(b []byte) (interface{}, error) {
+			var val distinctValues
+			err := json.Unmarshal(b, &val)
+			return val, err
+		}, nil
 	case "first":
 		return func(b []byte) (interface{}, error) {
 			var o firstLastMapOutput
@@ -161,6 +225,12 @@ func InitializeUnmarshaller(c *Call) (UnmarshalFunc, error) {
 			val := make([]float64, 0)
 			err := json.Unmarshal(b, &val)
 			return val, err
+		}, nil
+	case "median":
+		return func(b []byte) (interface{}, error) {
+			a := make([]float64, 0)
+			err := json.Unmarshal(b, &a)
+			return a, err
 		}, nil
 	default:
 		return func(b []byte) (interface{}, error) {
@@ -181,6 +251,168 @@ func MapCount(itr Iterator) interface{} {
 		return n
 	}
 	return nil
+}
+
+type distinctValues []interface{}
+
+func (d distinctValues) Len() int      { return len(d) }
+func (d distinctValues) Swap(i, j int) { d[i], d[j] = d[j], d[i] }
+func (d distinctValues) Less(i, j int) bool {
+	// Sort by type if types match
+	{
+		d1, ok1 := d[i].(float64)
+		d2, ok2 := d[j].(float64)
+		if ok1 && ok2 {
+			return d1 < d2
+		}
+	}
+
+	{
+		d1, ok1 := d[i].(uint64)
+		d2, ok2 := d[j].(uint64)
+		if ok1 && ok2 {
+			return d1 < d2
+		}
+	}
+
+	{
+		d1, ok1 := d[i].(bool)
+		d2, ok2 := d[j].(bool)
+		if ok1 && ok2 {
+			return d1 == false && d2 == true
+		}
+	}
+
+	{
+		d1, ok1 := d[i].(string)
+		d2, ok2 := d[j].(string)
+		if ok1 && ok2 {
+			return d1 < d2
+		}
+	}
+
+	// Types did not match, need to sort based on arbitrary weighting of type
+	const (
+		intWeight = iota
+		floatWeight
+		boolWeight
+		stringWeight
+	)
+
+	infer := func(val interface{}) (int, float64) {
+		switch v := val.(type) {
+		case uint64:
+			return intWeight, float64(v)
+		case float64:
+			return floatWeight, v
+		case bool:
+			return boolWeight, 0
+		case string:
+			return stringWeight, 0
+		}
+		panic("unreachable code")
+	}
+
+	w1, n1 := infer(d[i])
+	w2, n2 := infer(d[j])
+
+	// If we had "numeric" data, use that for comparison
+	if n1 != n2 && (w1 == intWeight && w2 == floatWeight) || (w1 == floatWeight && w2 == intWeight) {
+		return n1 < n2
+	}
+
+	return w1 < w2
+}
+
+// MapDistinct computes the unique values in an iterator.
+func MapDistinct(itr Iterator) interface{} {
+	var index = make(map[interface{}]struct{})
+
+	for _, time, value := itr.Next(); time != 0; _, time, value = itr.Next() {
+		index[value] = struct{}{}
+	}
+
+	if len(index) == 0 {
+		return nil
+	}
+
+	results := make(distinctValues, len(index))
+	var i int
+	for value, _ := range index {
+		results[i] = value
+		i++
+	}
+	return results
+}
+
+// ReduceDistinct finds the unique values for each key.
+func ReduceDistinct(values []interface{}) interface{} {
+	var index = make(map[interface{}]struct{})
+
+	// index distinct values from each mapper
+	for _, v := range values {
+		if v == nil {
+			continue
+		}
+		d, ok := v.(distinctValues)
+		if !ok {
+			msg := fmt.Sprintf("expected distinctValues, got: %T", v)
+			panic(msg)
+		}
+		for _, distinctValue := range d {
+			index[distinctValue] = struct{}{}
+		}
+	}
+
+	// convert map keys to an array
+	results := make(distinctValues, len(index))
+	var i int
+	for k, _ := range index {
+		results[i] = k
+		i++
+	}
+	if len(results) > 0 {
+		sort.Sort(results)
+		return results
+	}
+	return nil
+}
+
+// MapCountDistinct computes the unique count of values in an iterator.
+func MapCountDistinct(itr Iterator) interface{} {
+	var index = make(map[interface{}]struct{})
+
+	for _, time, value := itr.Next(); time != 0; _, time, value = itr.Next() {
+		index[value] = struct{}{}
+	}
+
+	if len(index) == 0 {
+		return nil
+	}
+
+	return index
+}
+
+// ReduceCountDistinct finds the unique counts of values.
+func ReduceCountDistinct(values []interface{}) interface{} {
+	var index = make(map[interface{}]struct{})
+
+	// index distinct values from each mapper
+	for _, v := range values {
+		if v == nil {
+			continue
+		}
+		d, ok := v.(map[interface{}]struct{})
+		if !ok {
+			msg := fmt.Sprintf("expected map[interface{}]struct{}, got: %T", v)
+			panic(msg)
+		}
+		for distinctCountValue, _ := range d {
+			index[distinctCountValue] = struct{}{}
+		}
+	}
+
+	return len(index)
 }
 
 // MapSum computes the summation of values in an iterator.
@@ -252,6 +484,161 @@ func ReduceMean(values []interface{}) interface{} {
 		return out.Mean
 	}
 	return nil
+}
+
+// ReduceMedian computes the median of values
+func ReduceMedian(values []interface{}) interface{} {
+	var data []float64
+	// Collect all the data points
+	for _, value := range values {
+		if value == nil {
+			continue
+		}
+		data = append(data, value.([]float64)...)
+	}
+
+	length := len(data)
+	if length < 2 {
+		if length == 0 {
+			return nil
+		}
+		return data[0]
+	}
+	middle := length / 2
+	var sortedRange []float64
+	if length%2 == 0 {
+		sortedRange = getSortedRange(data, middle-1, 2)
+		var low, high = sortedRange[0], sortedRange[1]
+		return low + (high-low)/2
+	} else {
+		sortedRange = getSortedRange(data, middle, 1)
+		return sortedRange[0]
+	}
+}
+
+// getSortedRange returns a sorted subset of data. By using discardLowerRange and discardUpperRange to get the target
+// subset (unsorted) and then just sorting that subset, the work can be reduced from O(N lg N), where N is len(data), to
+// O(N + count lg count) for the average case
+// - O(N) to discard the unwanted items
+// - O(count lg count) to sort the count number of extracted items
+// This can be useful for:
+// - finding the median: getSortedRange(data, middle, 1)
+// - finding the top N: getSortedRange(data, len(data) - N, N)
+// - finding the bottom N: getSortedRange(data, 0, N)
+func getSortedRange(data []float64, start int, count int) []float64 {
+	out := discardLowerRange(data, start)
+	k := len(out) - count
+	if k > 0 {
+		out = discardUpperRange(out, k)
+	}
+	sort.Float64s(out)
+
+	return out
+}
+
+// discardLowerRange discards the lower k elements of the sorted data set without sorting all the data. Sorting all of
+// the data would take O(NlgN), where N is len(data), but partitioning to find the kth largest number is O(N) in the
+// average case. The remaining N-k unsorted elements are returned - no kind of ordering is guaranteed on these elements.
+func discardLowerRange(data []float64, k int) []float64 {
+	out := make([]float64, len(data)-k)
+	i := 0
+
+	// discard values lower than the desired range
+	for k > 0 {
+		lows, pivotValue, highs := partition(data)
+
+		lowLength := len(lows)
+		if lowLength > k {
+			// keep all the highs and the pivot
+			out[i] = pivotValue
+			i++
+			copy(out[i:], highs)
+			i += len(highs)
+			// iterate over the lows again
+			data = lows
+		} else {
+			// discard all the lows
+			data = highs
+			k -= lowLength
+			if k == 0 {
+				// if discarded enough lows, keep the pivot
+				out[i] = pivotValue
+				i++
+			} else {
+				// able to discard the pivot too
+				k--
+			}
+		}
+	}
+	copy(out[i:], data)
+	return out
+}
+
+// discardUpperRange discards the upper k elements of the sorted data set without sorting all the data. Sorting all of
+// the data would take O(NlgN), where N is len(data), but partitioning to find the kth largest number is O(N) in the
+// average case. The remaining N-k unsorted elements are returned - no kind of ordering is guaranteed on these elements.
+func discardUpperRange(data []float64, k int) []float64 {
+	out := make([]float64, len(data)-k)
+	i := 0
+
+	// discard values higher than the desired range
+	for k > 0 {
+		lows, pivotValue, highs := partition(data)
+
+		highLength := len(highs)
+		if highLength > k {
+			// keep all the lows and the pivot
+			out[i] = pivotValue
+			i++
+			copy(out[i:], lows)
+			i += len(lows)
+			// iterate over the highs again
+			data = highs
+		} else {
+			// discard all the highs
+			data = lows
+			k -= highLength
+			if k == 0 {
+				// if discarded enough highs, keep the pivot
+				out[i] = pivotValue
+				i++
+			} else {
+				// able to discard the pivot too
+				k--
+			}
+		}
+	}
+	copy(out[i:], data)
+	return out
+}
+
+// partition takes a list of data, chooses a random pivot index and returns a list of elements lower than the
+// pivotValue, the pivotValue, and a list of elements higher than the pivotValue.  partition mutates data.
+func partition(data []float64) (lows []float64, pivotValue float64, highs []float64) {
+	length := len(data)
+	// there are better (more complex) ways to calculate pivotIndex (e.g. median of 3, median of 3 medians) if this
+	// proves to be inadequate.
+	pivotIndex := rand.Int() % length
+	pivotValue = data[pivotIndex]
+	low, high := 1, length-1
+
+	// put the pivot in the first position
+	data[pivotIndex], data[0] = data[0], data[pivotIndex]
+
+	// partition the data around the pivot
+	for low <= high {
+		for low <= high && data[low] <= pivotValue {
+			low++
+		}
+		for high >= low && data[high] >= pivotValue {
+			high--
+		}
+		if low < high {
+			data[low], data[high] = data[high], data[low]
+		}
+	}
+
+	return data[1:low], pivotValue, data[high+1:]
 }
 
 // MapMin collects the values to pass to the reducer
@@ -347,7 +734,7 @@ type spreadMapOutput struct {
 
 // MapSpread collects the values to pass to the reducer
 func MapSpread(itr Iterator) interface{} {
-	var out spreadMapOutput
+	out := &spreadMapOutput{}
 	pointsYielded := false
 
 	for _, k, v := itr.Next(); k != 0; _, k, v = itr.Next() {
@@ -369,14 +756,14 @@ func MapSpread(itr Iterator) interface{} {
 
 // ReduceSpread computes the spread of values.
 func ReduceSpread(values []interface{}) interface{} {
-	var result spreadMapOutput
+	result := &spreadMapOutput{}
 	pointsYielded := false
 
 	for _, v := range values {
 		if v == nil {
 			continue
 		}
-		val := v.(spreadMapOutput)
+		val := v.(*spreadMapOutput)
 		// Initialize
 		if !pointsYielded {
 			result.Max = val.Max
@@ -446,7 +833,7 @@ type firstLastMapOutput struct {
 
 // MapFirst collects the values to pass to the reducer
 func MapFirst(itr Iterator) interface{} {
-	out := firstLastMapOutput{}
+	out := &firstLastMapOutput{}
 	pointsYielded := false
 
 	for _, k, v := itr.Next(); k != 0; _, k, v = itr.Next() {
@@ -469,14 +856,14 @@ func MapFirst(itr Iterator) interface{} {
 
 // ReduceFirst computes the first of value.
 func ReduceFirst(values []interface{}) interface{} {
-	out := firstLastMapOutput{}
+	out := &firstLastMapOutput{}
 	pointsYielded := false
 
 	for _, v := range values {
 		if v == nil {
 			continue
 		}
-		val := v.(firstLastMapOutput)
+		val := v.(*firstLastMapOutput)
 		// Initialize first
 		if !pointsYielded {
 			out.Time = val.Time
@@ -496,7 +883,7 @@ func ReduceFirst(values []interface{}) interface{} {
 
 // MapLast collects the values to pass to the reducer
 func MapLast(itr Iterator) interface{} {
-	out := firstLastMapOutput{}
+	out := &firstLastMapOutput{}
 	pointsYielded := false
 
 	for _, k, v := itr.Next(); k != 0; _, k, v = itr.Next() {
@@ -519,7 +906,7 @@ func MapLast(itr Iterator) interface{} {
 
 // ReduceLast computes the last of value.
 func ReduceLast(values []interface{}) interface{} {
-	out := firstLastMapOutput{}
+	out := &firstLastMapOutput{}
 	pointsYielded := false
 
 	for _, v := range values {
@@ -527,7 +914,7 @@ func ReduceLast(values []interface{}) interface{} {
 			continue
 		}
 
-		val := v.(firstLastMapOutput)
+		val := v.(*firstLastMapOutput)
 		// Initialize last
 		if !pointsYielded {
 			out.Time = val.Time
@@ -583,6 +970,16 @@ func ReducePercentile(percentile float64) ReduceFunc {
 	}
 }
 
+// IsNumeric returns whether a given aggregate can only be run on numeric fields.
+func IsNumeric(c *Call) bool {
+	switch c.Name {
+	case "count", "first", "last", "distinct":
+		return false
+	default:
+		return true
+	}
+}
+
 // MapRawQuery is for queries without aggregates
 func MapRawQuery(itr Iterator) interface{} {
 	var values []*rawQueryMapOutput
@@ -594,12 +991,16 @@ func MapRawQuery(itr Iterator) interface{} {
 }
 
 type rawQueryMapOutput struct {
-	Timestamp int64
-	Values    interface{}
+	Time   int64
+	Values interface{}
+}
+
+func (r *rawQueryMapOutput) String() string {
+	return fmt.Sprintf("{%#v %#v}", r.Time, r.Values)
 }
 
 type rawOutputs []*rawQueryMapOutput
 
 func (a rawOutputs) Len() int           { return len(a) }
-func (a rawOutputs) Less(i, j int) bool { return a[i].Timestamp < a[j].Timestamp }
+func (a rawOutputs) Less(i, j int) bool { return a[i].Time < a[j].Time }
 func (a rawOutputs) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
