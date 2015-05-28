@@ -306,6 +306,14 @@ func (cmd *RunCommand) CheckConfig() {
 func (cmd *RunCommand) Open(config *Config, join string) *Node {
 	if config != nil {
 		cmd.config = config
+
+		// Override config properties.
+		if cmd.hostname != "" {
+			cmd.config.Hostname = cmd.hostname
+		}
+		cmd.node.hostname = cmd.config.Hostname
+	} else {
+		panic("repeated calls to RunCommand.Open()")
 	}
 
 	log.Printf("influxdb started, version %s, commit %s", version, commit)
