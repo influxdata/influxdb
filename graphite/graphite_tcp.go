@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/influxdb/influxdb"
 )
@@ -16,9 +17,12 @@ type TCPServer struct {
 	writer   SeriesWriter
 	parser   *Parser
 	database string
-	listener *net.Listener
 
-	wg sync.WaitGroup
+	batchSize    int
+	batchTimeout time.Duration
+
+	listener *net.Listener
+	wg       sync.WaitGroup
 
 	Logger *log.Logger
 
@@ -35,6 +39,9 @@ func NewTCPServer(p *Parser, w SeriesWriter, db string) *TCPServer {
 		Logger:   log.New(os.Stderr, "[graphite] ", log.LstdFlags),
 	}
 }
+
+func (t *TCPServer) SetBatchSize(sz int)             { t.batchSize = sz }
+func (t *TCPServer) SetBatchTimeout(d time.Duration) { t.batchTimeout = d }
 
 // ListenAndServe instructs the TCPServer to start processing Graphite data
 // on the given interface. iface must be in the form host:port
@@ -95,11 +102,35 @@ func (t *TCPServer) handleConnection(conn net.Conn) {
 	defer conn.Close()
 	defer t.wg.Done()
 
+	batcher := influxdb.NewPointBatcher(t.batchSize, t.batchTimeout)
+	in, out := batcher.Start()
 	reader := bufio.NewReader(conn)
+
+	// Start processing batches.
+	var wg sync.WaitGroup
+	done := make(chan struct{})
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case batch := <-out:
+				_, e := t.writer.WriteSeries(t.database, "", batch)
+				if e != nil {
+					t.Logger.Printf("failed to write point batch to database %q: %s\n", t.database, e)
+				}
+			case <-done:
+				return
+			}
+		}
+	}()
+
 	for {
 		// Read up to the next newline.
 		buf, err := reader.ReadBytes('\n')
 		if err != nil {
+			close(done)
+			wg.Wait()
 			return
 		}
 
@@ -112,11 +143,6 @@ func (t *TCPServer) handleConnection(conn net.Conn) {
 			t.Logger.Printf("unable to parse data: %s", err)
 			continue
 		}
-
-		// Send the data to the writer.
-		_, e := t.writer.WriteSeries(t.database, "", []influxdb.Point{point})
-		if e != nil {
-			t.Logger.Printf("failed to write data point to database %q: %s\n", t.database, e)
-		}
+		in <- point
 	}
 }

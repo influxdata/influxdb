@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/influxdb/influxdb"
 )
@@ -23,6 +24,9 @@ type UDPServer struct {
 	addr     *net.UDPAddr
 	wg       sync.WaitGroup
 
+	batchSize    int
+	batchTimeout time.Duration
+
 	Logger *log.Logger
 
 	host string
@@ -38,6 +42,9 @@ func NewUDPServer(p *Parser, w SeriesWriter, db string) *UDPServer {
 	}
 	return &u
 }
+
+func (u *UDPServer) SetBatchSize(sz int)             { u.batchSize = sz }
+func (u *UDPServer) SetBatchTimeout(d time.Duration) { u.batchTimeout = d }
 
 // ListenAndServer instructs the UDPServer to start processing Graphite data
 // on the given interface. iface must be in the form host:port.
@@ -60,6 +67,28 @@ func (u *UDPServer) ListenAndServe(iface string) error {
 
 	u.host = u.addr.String()
 
+	batcher := influxdb.NewPointBatcher(u.batchSize, u.batchTimeout)
+	in, out := batcher.Start()
+
+	// Start processing batches.
+	var wg sync.WaitGroup
+	done := make(chan struct{})
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case batch := <-out:
+				_, e := u.writer.WriteSeries(u.database, "", batch)
+				if e != nil {
+					u.Logger.Printf("failed to write point batch to database %q: %s\n", u.database, e)
+				}
+			case <-done:
+				return
+			}
+		}
+	}()
+
 	buf := make([]byte, udpBufferSize)
 	u.wg.Add(1)
 	go func() {
@@ -67,6 +96,8 @@ func (u *UDPServer) ListenAndServe(iface string) error {
 		for {
 			n, _, err := conn.ReadFromUDP(buf)
 			if err != nil {
+				close(done)
+				wg.Wait()
 				return
 			}
 			for _, line := range strings.Split(string(buf[:n]), "\n") {
@@ -74,12 +105,7 @@ func (u *UDPServer) ListenAndServe(iface string) error {
 				if err != nil {
 					continue
 				}
-
-				// Send the data to the writer.
-				_, e := u.writer.WriteSeries(u.database, "", []influxdb.Point{point})
-				if e != nil {
-					u.Logger.Printf("failed to write data point: %s\n", e)
-				}
+				in <- point
 			}
 		}
 	}()

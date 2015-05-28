@@ -414,6 +414,10 @@ func (cmd *RunCommand) Open(config *Config, join string) *Node {
 				log.Fatalf("failed to initialize %s Graphite server: %s", graphiteConfig.Protocol, err.Error())
 			}
 
+			// Configure batching.
+			g.SetBatchSize(graphiteConfig.BatchSize)
+			g.SetBatchTimeout(time.Duration(graphiteConfig.BatchTimeout))
+
 			err = g.ListenAndServe(graphiteConfig.ConnectionString())
 			if err != nil {
 				log.Fatalf("failed to start %s Graphite server: %s", graphiteConfig.Protocol, err.Error())

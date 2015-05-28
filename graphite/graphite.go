@@ -38,6 +38,8 @@ type SeriesWriter interface {
 
 // Server defines the interface all Graphite servers support.
 type Server interface {
+	SetBatchSize(sz int)
+	SetBatchTimeout(t time.Duration)
 	ListenAndServe(iface string) error
 	Host() string
 	Close() error
