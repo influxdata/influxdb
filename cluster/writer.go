@@ -47,16 +47,11 @@ func (c *connFactory) dial() (net.Conn, error) {
 		return nil, err
 	}
 
-	var retries int
-	for {
-		conn, err := net.DialTimeout("tcp", nodeInfo.Host, c.timeout)
-		if err != nil && retries == maxRetries {
-			return nil, err
-		} else if err == nil {
-			return conn, nil
-		}
-		retries++
+	conn, err := net.DialTimeout("tcp", nodeInfo.Host, c.timeout)
+	if err != nil {
+		return nil, err
 	}
+	return conn, nil
 }
 
 type Writer struct {
