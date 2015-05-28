@@ -44,7 +44,7 @@ func (b *PointBatcher) Start(in <-chan Point, out chan<- []Point) {
 			}
 
 			batch = append(batch, p)
-			if len(batch) == b.size {
+			if len(batch) >= b.size { // 0 means send immediately.
 				atomic.AddUint64(&b.stats.SizeTotal, 1)
 				out <- batch
 				atomic.AddUint64(&b.stats.BatchTotal, 1)
