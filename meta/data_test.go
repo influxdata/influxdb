@@ -320,28 +320,34 @@ func TestData_DeleteShardGroup(t *testing.T) {
 // Ensure a continuous query can be created.
 func TestData_CreateContinuousQuery(t *testing.T) {
 	var data meta.Data
-	if err := data.CreateContinuousQuery("SELECT count() FROM foo"); err != nil {
+	if err := data.CreateDatabase("db0"); err != nil {
 		t.Fatal(err)
-	} else if !reflect.DeepEqual(data.ContinuousQueries, []meta.ContinuousQueryInfo{{Query: "SELECT count() FROM foo"}}) {
-		t.Fatalf("unexpected queries: %#v", data.ContinuousQueries)
+	} else if err := data.CreateContinuousQuery("db0", "cq0", "SELECT count() FROM foo"); err != nil {
+		t.Fatal(err)
+	} else if !reflect.DeepEqual(data.Databases[0].ContinuousQueries, []meta.ContinuousQueryInfo{
+		{Name: "cq0", Query: "SELECT count() FROM foo"},
+	}) {
+		t.Fatalf("unexpected queries: %#v", data.Databases[0].ContinuousQueries)
 	}
 }
 
 // Ensure a continuous query can be removed.
 func TestData_DropContinuousQuery(t *testing.T) {
 	var data meta.Data
-	if err := data.CreateContinuousQuery("SELECT count() FROM foo"); err != nil {
+	if err := data.CreateDatabase("db0"); err != nil {
 		t.Fatal(err)
-	} else if err = data.CreateContinuousQuery("SELECT count() FROM bar"); err != nil {
+	} else if err := data.CreateContinuousQuery("db0", "cq0", "SELECT count() FROM foo"); err != nil {
+		t.Fatal(err)
+	} else if err = data.CreateContinuousQuery("db0", "cq1", "SELECT count() FROM bar"); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := data.DropContinuousQuery("SELECT count() FROM foo"); err != nil {
+	if err := data.DropContinuousQuery("db0", "cq0"); err != nil {
 		t.Fatal(err)
-	} else if !reflect.DeepEqual(data.ContinuousQueries, []meta.ContinuousQueryInfo{
-		{Query: "SELECT count() FROM bar"},
+	} else if !reflect.DeepEqual(data.Databases[0].ContinuousQueries, []meta.ContinuousQueryInfo{
+		{Name: "cq1", Query: "SELECT count() FROM bar"},
 	}) {
-		t.Fatalf("unexpected queries: %#v", data.ContinuousQueries)
+		t.Fatalf("unexpected queries: %#v", data.Databases[0].ContinuousQueries)
 	}
 }
 
@@ -460,10 +466,10 @@ func TestData_Clone(t *testing.T) {
 						},
 					},
 				},
+				ContinuousQueries: []meta.ContinuousQueryInfo{
+					{Query: "SELECT count() FROM foo"},
+				},
 			},
-		},
-		ContinuousQueries: []meta.ContinuousQueryInfo{
-			{Query: "SELECT count() FROM foo"},
 		},
 		Users: []meta.UserInfo{
 			{
