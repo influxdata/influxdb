@@ -13,10 +13,7 @@ func TestBatch_Size(t *testing.T) {
 		t.Fatal("failed to create batcher for size test")
 	}
 
-	in := make(chan Point)
-	out := make(chan []Point)
-
-	go batcher.Start(in, out)
+	in, out := batcher.Start()
 
 	var p Point
 	go func() {
@@ -39,10 +36,7 @@ func TestBatch_Timeout(t *testing.T) {
 		t.Fatal("failed to create batcher for timeout test")
 	}
 
-	in := make(chan Point)
-	out := make(chan []Point)
-
-	go batcher.Start(in, out)
+	in, out := batcher.Start()
 
 	var p Point
 	go func() {
@@ -65,10 +59,7 @@ func TestBatch_MultipleBatches(t *testing.T) {
 		t.Fatal("failed to create batcher for size test")
 	}
 
-	in := make(chan Point)
-	out := make(chan []Point)
-
-	go batcher.Start(in, out)
+	in, out := batcher.Start()
 
 	var p Point
 	var b []Point
