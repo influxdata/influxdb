@@ -13,7 +13,7 @@ func TestBatch_Size(t *testing.T) {
 		t.Fatal("failed to create batcher for size test")
 	}
 
-	in, out := batcher.Start()
+	in, out, _ := batcher.Start()
 
 	var p Point
 	go func() {
@@ -36,7 +36,7 @@ func TestBatch_Timeout(t *testing.T) {
 		t.Fatal("failed to create batcher for timeout test")
 	}
 
-	in, out := batcher.Start()
+	in, out, _ := batcher.Start()
 
 	var p Point
 	go func() {
@@ -59,7 +59,7 @@ func TestBatch_MultipleBatches(t *testing.T) {
 		t.Fatal("failed to create batcher for size test")
 	}
 
-	in, out := batcher.Start()
+	in, out, _ := batcher.Start()
 
 	var p Point
 	var b []Point
@@ -78,6 +78,28 @@ func TestBatch_MultipleBatches(t *testing.T) {
 	}
 
 	checkPointBatcherStats(t, batcher, -1, 3, 1, 1)
+}
+
+// TestBatch_Flush ensures that a batcher generates a batch when flushed
+func TestBatch_Flush(t *testing.T) {
+	batchSize := 2
+	batcher := NewPointBatcher(batchSize, time.Hour)
+	if batcher == nil {
+		t.Fatal("failed to create batcher for flush test")
+	}
+
+	in, out, flush := batcher.Start()
+
+	var p Point
+	go func() {
+		in <- p
+		flush <- struct{}{}
+	}()
+	batch := <-out
+	if len(batch) != 1 {
+		t.Errorf("received batch has incorrect length exp %d, got %d", 1, len(batch))
+	}
+	checkPointBatcherStats(t, batcher, -1, 1, 0, 0)
 }
 
 func checkPointBatcherStats(t *testing.T, b *PointBatcher, batchTotal, pointTotal, sizeTotal, timeoutTotal int) {

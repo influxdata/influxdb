@@ -37,6 +37,7 @@ type Server struct {
 	BatchTimeout time.Duration
 	in           chan<- influxdb.Point
 	out          <-chan []influxdb.Point
+	flush        chan<- struct{}
 }
 
 // NewServer constructs a new Server.
@@ -79,7 +80,7 @@ func ListenAndServe(s *Server, iface string) error {
 	s.conn = conn
 
 	batcher := influxdb.NewPointBatcher(s.BatchSize, s.BatchTimeout)
-	s.in, s.out = batcher.Start()
+	s.in, s.out, s.flush = batcher.Start()
 
 	s.wg.Add(2)
 	go s.serve()
@@ -161,6 +162,7 @@ func (s *Server) Close() error {
 
 	// Close the connection, and wait for the goroutine to exit.
 	s.conn.Close()
+	s.flush <- struct{}{}
 	close(s.done)
 	s.wg.Wait()
 

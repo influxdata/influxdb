@@ -103,7 +103,7 @@ func (t *TCPServer) handleConnection(conn net.Conn) {
 	defer t.wg.Done()
 
 	batcher := influxdb.NewPointBatcher(t.batchSize, t.batchTimeout)
-	in, out := batcher.Start()
+	in, out, flush := batcher.Start()
 	reader := bufio.NewReader(conn)
 
 	// Start processing batches.
@@ -129,6 +129,7 @@ func (t *TCPServer) handleConnection(conn net.Conn) {
 		// Read up to the next newline.
 		buf, err := reader.ReadBytes('\n')
 		if err != nil {
+			flush <- struct{}{}
 			close(done)
 			wg.Wait()
 			return
