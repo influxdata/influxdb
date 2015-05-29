@@ -16,7 +16,7 @@ recompute-previous-n = 1
 recompute-no-older-than = "10s"
 compute-runs-per-interval = 2
 compute-no-more-than = "20s"
-disabled = true
+enabled = true
 `, &c); err != nil {
 		t.Fatal(err)
 	}
@@ -30,7 +30,7 @@ disabled = true
 		t.Fatalf("unexpected compute runs per interval: %d", c.ComputeRunsPerInterval)
 	} else if time.Duration(c.ComputeNoMoreThan) != 20*time.Second {
 		t.Fatalf("unexpected compute no more than: %v", c.ComputeNoMoreThan)
-	} else if c.Disabled != true {
-		t.Fatalf("unexpected disabled: %v", c.Disabled)
+	} else if c.Enabled != true {
+		t.Fatalf("unexpected enabled: %v", c.Enabled)
 	}
 }

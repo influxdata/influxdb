@@ -1,5 +1,6 @@
-package main_test
+package backup_test
 
+/*
 import (
 	"bytes"
 	"net/http"
@@ -121,3 +122,4 @@ func NewBackupCommand() *BackupCommand {
 	cmd.BackupCommand.Stderr = &cmd.Stderr
 	return cmd
 }
+*/

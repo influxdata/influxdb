@@ -1,5 +1,6 @@
-package main_test
+package restore_test
 
+/*
 import (
 	"bytes"
 	"io/ioutil"
@@ -151,3 +152,4 @@ func MustReadFile(filename string) []byte {
 	}
 	return b
 }
+*/

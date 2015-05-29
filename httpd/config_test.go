@@ -11,6 +11,7 @@ func TestConfig_Parse(t *testing.T) {
 	// Parse configuration.
 	var c httpd.Config
 	if _, err := toml.Decode(`
+enabled = true
 bind-address = ":8080"
 auth-enabled = true
 log-enabled = true
@@ -21,7 +22,9 @@ pprof-enabled = true
 	}
 
 	// Validate configuration.
-	if c.BindAddress != ":8080" {
+	if c.Enabled != true {
+		t.Fatalf("unexpected enabled: %v", c.Enabled)
+	} else if c.BindAddress != ":8080" {
 		t.Fatalf("unexpected bind address: %s", c.BindAddress)
 	} else if c.AuthEnabled != true {
 		t.Fatalf("unexpected auth enabled: %v", c.AuthEnabled)

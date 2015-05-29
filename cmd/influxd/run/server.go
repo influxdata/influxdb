@@ -6,7 +6,11 @@ import (
 
 	"github.com/influxdb/influxdb/admin"
 	"github.com/influxdb/influxdb/cluster"
+	"github.com/influxdb/influxdb/collectd"
+	"github.com/influxdb/influxdb/graphite"
+	"github.com/influxdb/influxdb/httpd"
 	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/opentsdb"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -34,10 +38,26 @@ func NewServer(c *Config, joinURLs string) *Server {
 	}
 
 	// HTTP API Service
+	if c.HTTPD.Enabled {
+		s.Services = append(s.Services, httpd.NewService(c.HTTPD))
+	}
 
-	// TODO: Graphite services
-	// TODO: OpenTSDB services
-	// TODO: Collectd service
+	// Graphite services
+	for _, g := range c.Graphites {
+		if g.Enabled {
+			s.Services = append(s.Services, graphite.NewService(g))
+		}
+	}
+
+	// Collectd service
+	if c.Collectd.Enabled {
+		s.Services = append(s.Services, collectd.NewService(c.Collectd))
+	}
+
+	// OpenTSDB services
+	if c.OpenTSDB.Enabled {
+		s.Services = append(s.Services, opentsdb.NewService(c.OpenTSDB))
+	}
 
 	return s
 }

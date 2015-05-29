@@ -17,7 +17,7 @@ type Service struct {
 }
 
 // NewService returns a new instance of Service.
-func NewService(c *Config) *Service {
+func NewService(c Config) *Service {
 	return &Service{
 		addr: c.BindAddress,
 		err:  make(chan error),

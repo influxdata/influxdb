@@ -1,6 +1,7 @@
 package httpd
 
 type Config struct {
+	Enabled      bool   `toml:"enabled"`
 	BindAddress  string `toml:"bind-address"`
 	AuthEnabled  bool   `toml:"auth-enabled"`
 	LogEnabled   bool   `toml:"log-enabled"`
@@ -10,7 +11,7 @@ type Config struct {
 
 func NewConfig() Config {
 	return Config{
-		LogEnabled:   true,
-		WriteTracing: false,
+		Enabled:    true,
+		LogEnabled: true,
 	}
 }

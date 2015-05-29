@@ -281,6 +281,7 @@ func TestServer_PreCreateRetentionPolices(t *testing.T) {
 */
 
 // Ensure the server prohibits a zero check interval for retention policy enforcement.
+/*
 func TestServer_StartRetentionPolicyEnforcement_ErrZeroInterval(t *testing.T) {
 	s := OpenServer()
 	defer s.Close()
@@ -288,6 +289,7 @@ func TestServer_StartRetentionPolicyEnforcement_ErrZeroInterval(t *testing.T) {
 		t.Fatal("failed to prohibit retention policies zero check interval")
 	}
 }
+*/
 
 // Ensure the server can support writes of all data types.
 func TestServer_WriteAllDataTypes(t *testing.T) {
