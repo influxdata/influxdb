@@ -35,8 +35,7 @@ type Server struct {
 
 	BatchSize    int
 	BatchTimeout time.Duration
-	in           chan<- influxdb.Point
-	out          <-chan []influxdb.Point
+	batcher      *influxdb.PointBatcher
 }
 
 // NewServer constructs a new Server.
@@ -78,8 +77,8 @@ func ListenAndServe(s *Server, iface string) error {
 	}
 	s.conn = conn
 
-	batcher := influxdb.NewPointBatcher(s.BatchSize, s.BatchTimeout)
-	s.in, s.out = batcher.Start()
+	s.batcher = influxdb.NewPointBatcher(s.BatchSize, s.BatchTimeout)
+	s.batcher.Start()
 
 	s.wg.Add(2)
 	go s.serve()
@@ -131,7 +130,7 @@ func (s *Server) handleMessage(buffer []byte) {
 	for _, packet := range *packets {
 		points := Unmarshal(&packet)
 		for _, p := range points {
-			s.in <- p
+			s.batcher.In() <- p
 		}
 	}
 }
@@ -143,7 +142,7 @@ func (s *Server) writePoints() {
 		select {
 		case <-s.done:
 			return
-		case batch := <-s.out:
+		case batch := <-s.batcher.Out():
 			_, err := s.writer.WriteSeries(s.Database, "", batch)
 			if err != nil {
 				log.Printf("Collectd cannot write data: %s", err)
@@ -161,6 +160,7 @@ func (s *Server) Close() error {
 
 	// Close the connection, and wait for the goroutine to exit.
 	s.conn.Close()
+	s.batcher.Flush()
 	close(s.done)
 	s.wg.Wait()
 

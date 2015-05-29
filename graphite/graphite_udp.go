@@ -68,7 +68,7 @@ func (u *UDPServer) ListenAndServe(iface string) error {
 	u.host = u.addr.String()
 
 	batcher := influxdb.NewPointBatcher(u.batchSize, u.batchTimeout)
-	in, out := batcher.Start()
+	batcher.Start()
 
 	// Start processing batches.
 	var wg sync.WaitGroup
@@ -78,7 +78,7 @@ func (u *UDPServer) ListenAndServe(iface string) error {
 		defer wg.Done()
 		for {
 			select {
-			case batch := <-out:
+			case batch := <-batcher.Out():
 				_, e := u.writer.WriteSeries(u.database, "", batch)
 				if e != nil {
 					u.Logger.Printf("failed to write point batch to database %q: %s\n", u.database, e)
@@ -96,6 +96,7 @@ func (u *UDPServer) ListenAndServe(iface string) error {
 		for {
 			n, _, err := conn.ReadFromUDP(buf)
 			if err != nil {
+				batcher.Flush()
 				close(done)
 				wg.Wait()
 				return
@@ -105,7 +106,7 @@ func (u *UDPServer) ListenAndServe(iface string) error {
 				if err != nil {
 					continue
 				}
-				in <- point
+				batcher.In() <- point
 			}
 		}
 	}()
