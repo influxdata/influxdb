@@ -150,7 +150,7 @@ func (s *Shard) WritePoints(points []Point) error {
 			if err != nil {
 				return err
 			}
-			if err := bp.Put(u64tob(p.UnixNano()), p.Data()); err != nil {
+			if err := bp.Put(u64tob(uint64(p.UnixNano())), p.Data()); err != nil {
 				return err
 			}
 		}

@@ -24,7 +24,7 @@ type Point interface {
 
 	Time() time.Time
 	SetTime(t time.Time)
-	UnixNano() uint64
+	UnixNano() int64
 
 	HashID() uint64
 	Key() []byte
@@ -74,6 +74,10 @@ func ParsePointsString(buf string) ([]Point, error) {
 // ParsePoints returns a slice of Points from a text representation of a point
 // with each point separated by newlines.
 func ParsePoints(buf []byte) ([]Point, error) {
+	return ParsePointsWithPrecision(buf, time.Now().UTC(), "n")
+}
+
+func ParsePointsWithPrecision(buf []byte, defaultTime time.Time, precision string) ([]Point, error) {
 	points := []Point{}
 	var (
 		pos   int
@@ -81,12 +85,13 @@ func ParsePoints(buf []byte) ([]Point, error) {
 	)
 	for {
 		pos, block = scanTo(buf, pos, '\n')
+		pos += 1
 
 		if len(block) == 0 {
 			break
 		}
 
-		pt, err := ParsePoint(block)
+		pt, err := parsePoint(block, defaultTime, precision)
 		if err != nil {
 			return nil, err
 		}
@@ -98,9 +103,10 @@ func ParsePoints(buf []byte) ([]Point, error) {
 
 	}
 	return points, nil
+
 }
 
-func ParsePoint(buf []byte) (Point, error) {
+func parsePoint(buf []byte, defaultTime time.Time, precision string) (Point, error) {
 	// scan the first block which is measurement[,tag1=value1,tag2=value=2...]
 	pos, key, err := scanKey(buf, 0)
 	if err != nil {
@@ -136,6 +142,10 @@ func ParsePoint(buf []byte) (Point, error) {
 		ts:     ts,
 	}
 
+	if len(ts) == 0 {
+		pt.time = defaultTime
+	}
+	pt.SetPrecision(precision)
 	return pt, nil
 }
 
@@ -561,6 +571,24 @@ func (p *point) AddField(name string, value interface{}) {
 	p.fields = fields.MarshalBinary()
 }
 
+// SetPrecision will round a time to the specified precision
+func (p *point) SetPrecision(precision string) {
+	switch precision {
+	case "n":
+	case "u":
+		p.SetTime(p.Time().Round(time.Microsecond))
+	case "ms":
+		p.SetTime(p.Time().Round(time.Millisecond))
+	case "s":
+		p.SetTime(p.Time().Round(time.Second))
+	case "m":
+		p.SetTime(p.Time().Round(time.Minute))
+
+	case "h":
+		p.SetTime(p.Time().Round(time.Hour))
+	}
+}
+
 func (p *point) String() string {
 	if p.Time().IsZero() {
 		return fmt.Sprintf("%s %s", p.Key(), string(p.fields))
@@ -579,8 +607,8 @@ func (p *point) HashID() uint64 {
 	return sum
 }
 
-func (p *point) UnixNano() uint64 {
-	return uint64(p.time.UnixNano())
+func (p *point) UnixNano() int64 {
+	return p.Time().UnixNano()
 }
 
 type Tags map[string]string

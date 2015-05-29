@@ -579,7 +579,12 @@ func (h *Handler) serveWritePoints(w http.ResponseWriter, r *http.Request, user 
 		h.Logger.Printf("write body received by handler: %s", string(b))
 	}
 
-	points, err := tsdb.ParsePoints(b)
+	precision := r.FormValue("precision")
+	if precision == "" {
+		precision = "n"
+	}
+
+	points, err := tsdb.ParsePointsWithPrecision(b, time.Now().UTC(), precision)
 	if err != nil {
 		if err.Error() == "EOF" {
 			w.WriteHeader(http.StatusOK)
