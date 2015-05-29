@@ -13,15 +13,15 @@ func TestBatch_Size(t *testing.T) {
 		t.Fatal("failed to create batcher for size test")
 	}
 
-	in, out := batcher.Start()
+	batcher.Start()
 
 	var p Point
 	go func() {
 		for i := 0; i < batchSize; i++ {
-			in <- p
+			batcher.In() <- p
 		}
 	}()
-	batch := <-out
+	batch := <-batcher.Out()
 	if len(batch) != batchSize {
 		t.Errorf("received batch has incorrect length exp %d, got %d", batchSize, len(batch))
 	}
@@ -36,19 +36,41 @@ func TestBatch_Timeout(t *testing.T) {
 		t.Fatal("failed to create batcher for timeout test")
 	}
 
-	in, out := batcher.Start()
+	batcher.Start()
 
 	var p Point
 	go func() {
 		for i := 0; i < batchSize; i++ {
-			in <- p
+			batcher.In() <- p
 		}
 	}()
-	batch := <-out
+	batch := <-batcher.Out()
 	if len(batch) != batchSize {
 		t.Errorf("received batch has incorrect length exp %d, got %d", batchSize, len(batch))
 	}
 	checkPointBatcherStats(t, batcher, -1, batchSize, 0, 1)
+}
+
+// TestBatch_Flush ensures that a batcher generates a batch when flushed
+func TestBatch_Flush(t *testing.T) {
+	batchSize := 2
+	batcher := NewPointBatcher(batchSize, time.Hour)
+	if batcher == nil {
+		t.Fatal("failed to create batcher for flush test")
+	}
+
+	batcher.Start()
+
+	var p Point
+	go func() {
+		batcher.In() <- p
+		batcher.Flush()
+	}()
+	batch := <-batcher.Out()
+	if len(batch) != 1 {
+		t.Errorf("received batch has incorrect length exp %d, got %d", 1, len(batch))
+	}
+	checkPointBatcherStats(t, batcher, -1, 1, 0, 0)
 }
 
 // TestBatch_MultipleBatches ensures that a batcher correctly processes multiple batches.
@@ -59,22 +81,22 @@ func TestBatch_MultipleBatches(t *testing.T) {
 		t.Fatal("failed to create batcher for size test")
 	}
 
-	in, out := batcher.Start()
+	batcher.Start()
 
 	var p Point
 	var b []Point
 
-	in <- p
-	in <- p
-	b = <-out // Batch threshold reached.
+	batcher.In() <- p
+	batcher.In() <- p
+	b = <-batcher.Out() // Batch threshold reached.
 	if len(b) != batchSize {
-		t.Errorf("received batch has incorrect length exp %d, got %d", batchSize, len(b))
+		t.Errorf("received batch (size) has incorrect length exp %d, got %d", batchSize, len(b))
 	}
 
-	in <- p
-	b = <-out // Timeout triggered.
+	batcher.In() <- p
+	b = <-batcher.Out() // Timeout triggered.
 	if len(b) != 1 {
-		t.Errorf("received batch has incorrect length exp %d, got %d", 1, len(b))
+		t.Errorf("received batch (timeout) has incorrect length exp %d, got %d", 1, len(b))
 	}
 
 	checkPointBatcherStats(t, batcher, -1, 3, 1, 1)

@@ -103,7 +103,7 @@ func (t *TCPServer) handleConnection(conn net.Conn) {
 	defer t.wg.Done()
 
 	batcher := influxdb.NewPointBatcher(t.batchSize, t.batchTimeout)
-	in, out := batcher.Start()
+	batcher.Start()
 	reader := bufio.NewReader(conn)
 
 	// Start processing batches.
@@ -114,7 +114,7 @@ func (t *TCPServer) handleConnection(conn net.Conn) {
 		defer wg.Done()
 		for {
 			select {
-			case batch := <-out:
+			case batch := <-batcher.Out():
 				_, e := t.writer.WriteSeries(t.database, "", batch)
 				if e != nil {
 					t.Logger.Printf("failed to write point batch to database %q: %s\n", t.database, e)
@@ -129,6 +129,7 @@ func (t *TCPServer) handleConnection(conn net.Conn) {
 		// Read up to the next newline.
 		buf, err := reader.ReadBytes('\n')
 		if err != nil {
+			batcher.Flush()
 			close(done)
 			wg.Wait()
 			return
@@ -143,6 +144,6 @@ func (t *TCPServer) handleConnection(conn net.Conn) {
 			t.Logger.Printf("unable to parse data: %s", err)
 			continue
 		}
-		in <- point
+		batcher.In() <- point
 	}
 }
