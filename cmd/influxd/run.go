@@ -388,6 +388,8 @@ func (cmd *RunCommand) Open(config *Config, join string) *Node {
 		if cmd.config.UDP.Enabled {
 			log.Printf("Starting UDP listener on %s", cmd.config.APIAddrUDP())
 			u := udp.NewUDPServer(s)
+			u.SetBatchSize(cmd.config.UDP.BatchSize)
+			u.SetBatchTimeout(time.Duration(cmd.config.UDP.BatchTimeout))
 			if err := u.ListenAndServe(cmd.config.APIAddrUDP()); err != nil {
 				log.Printf("Failed to start UDP listener on %s: %s", cmd.config.APIAddrUDP(), err)
 			}
