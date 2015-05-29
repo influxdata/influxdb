@@ -20,7 +20,9 @@ import (
 	"github.com/bmizerany/pat"
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/client"
+	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/influxql"
+	"github.com/influxdb/influxdb/tsdb"
 	"github.com/influxdb/influxdb/uuid"
 )
 
@@ -122,6 +124,10 @@ func NewAPIHandler(s *influxdb.Server, requireAuthentication, loggingEnabled boo
 		route{
 			"write", // Data-ingest route.
 			"POST", "/write", true, true, h.serveWrite,
+		},
+		route{
+			"write_points", // Data-ingest route.
+			"POST", "/write_points", true, true, h.serveWritePoints,
 		},
 		route{ // Status
 			"status",
@@ -535,6 +541,103 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *influ
 	} else {
 		w.WriteHeader(http.StatusNoContent)
 		w.Header().Add("X-InfluxDB-Index", fmt.Sprintf("%d", index))
+	}
+}
+
+// serveWritePoints receives incoming series data and writes it to the database.
+func (h *Handler) serveWritePoints(w http.ResponseWriter, r *http.Request, user *influxdb.User) {
+	var writeError = func(result influxdb.Result, statusCode int) {
+		w.WriteHeader(statusCode)
+		w.Write([]byte(result.Err.Error()))
+		return
+	}
+
+	// Check to see if we have a gzip'd post
+	var body io.ReadCloser
+	if r.Header.Get("Content-encoding") == "gzip" {
+		b, err := gzip.NewReader(r.Body)
+		if err != nil {
+			writeError(influxdb.Result{Err: err}, http.StatusBadRequest)
+			return
+		}
+		body = b
+		defer r.Body.Close()
+	} else {
+		body = r.Body
+		defer r.Body.Close()
+	}
+
+	b, err := ioutil.ReadAll(body)
+	if err != nil {
+		if h.WriteTrace {
+			h.Logger.Print("write handler failed to read bytes from request body")
+		}
+		writeError(influxdb.Result{Err: err}, http.StatusBadRequest)
+		return
+	}
+	if h.WriteTrace {
+		h.Logger.Printf("write body received by handler: %s", string(b))
+	}
+
+	precision := r.FormValue("precision")
+	if precision == "" {
+		precision = "n"
+	}
+
+	points, err := tsdb.ParsePointsWithPrecision(b, time.Now().UTC(), precision)
+	if err != nil {
+		if err.Error() == "EOF" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		writeError(influxdb.Result{Err: err}, http.StatusBadRequest)
+		return
+	}
+
+	database := r.FormValue("db")
+	if database == "" {
+		writeError(influxdb.Result{Err: fmt.Errorf("database is required")}, http.StatusBadRequest)
+		return
+	}
+
+	if !h.server.DatabaseExists(database) {
+		writeError(influxdb.Result{Err: fmt.Errorf("database not found: %q", database)}, http.StatusNotFound)
+		return
+	}
+
+	if h.requireAuthentication && user == nil {
+		writeError(influxdb.Result{Err: fmt.Errorf("user is required to write to database %q", database)}, http.StatusUnauthorized)
+		return
+	}
+
+	if h.requireAuthentication && !user.Authorize(influxql.WritePrivilege, database) {
+		writeError(influxdb.Result{Err: fmt.Errorf("%q user is not authorized to write to database %q", user.Name, database)}, http.StatusUnauthorized)
+		return
+	}
+
+	retentionPolicy := r.Form.Get("rp")
+	consistencyVal := r.Form.Get("consistency")
+	consistency := cluster.ConsistencyLevelOne
+	switch consistencyVal {
+	case "all":
+		consistency = cluster.ConsistencyLevelAll
+	case "any":
+		consistency = cluster.ConsistencyLevelAny
+	case "one":
+		consistency = cluster.ConsistencyLevelOne
+	case "quorum":
+		consistency = cluster.ConsistencyLevelQuorum
+	}
+
+	if err := h.server.WritePoints(database, retentionPolicy, consistency, points); err != nil {
+		if influxdb.IsClientError(err) {
+			writeError(influxdb.Result{Err: err}, http.StatusBadRequest)
+		} else {
+			writeError(influxdb.Result{Err: err}, http.StatusInternalServerError)
+		}
+		return
+	} else {
+		w.WriteHeader(http.StatusNoContent)
 	}
 }
 

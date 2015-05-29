@@ -517,7 +517,7 @@ func EpochToTime(epoch int64, precision string) (time.Time, error) {
 	case "n":
 		t = time.Unix(0, epoch)
 	default:
-		return time.Time{}, fmt.Errorf("Unknowm precision %q", precision)
+		return time.Time{}, fmt.Errorf("Unknown precision %q", precision)
 	}
 	return t, nil
 }
