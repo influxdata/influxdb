@@ -160,6 +160,52 @@ func TestParsePointMissingTagValue(t *testing.T) {
 }
 
 func TestParsePointUnescape(t *testing.T) {
+	// commas in measuremnt name
+	test(t, `cpu\,main,regions=east\,west value=1.0`,
+		NewPoint(
+			"cpu,main", // comma in the name
+			Tags{
+				"regions": "east,west",
+			},
+			Fields{
+				"value": 1.0,
+			},
+			time.Unix(0, 0)))
+
+	// spaces in measurement name
+	test(t, `cpu\ load,region=east value=1.0`,
+		NewPoint(
+			"cpu load", // space in the name
+			Tags{
+				"region": "east",
+			},
+			Fields{
+				"value": 1.0,
+			},
+			time.Unix(0, 0)))
+
+	// commas in tag names
+	test(t, `cpu,region\,zone=east value=1.0`,
+		NewPoint("cpu",
+			Tags{
+				"region,zone": "east", // comma in the tag name
+			},
+			Fields{
+				"value": 1.0,
+			},
+			time.Unix(0, 0)))
+
+	// spaces in tag names
+	test(t, `cpu,region\ zone=east value=1.0`,
+		NewPoint("cpu",
+			Tags{
+				"region zone": "east", // comma in the tag name
+			},
+			Fields{
+				"value": 1.0,
+			},
+			time.Unix(0, 0)))
+
 	// commas in tag values
 	test(t, `cpu,regions=east\,west value=1.0`,
 		NewPoint("cpu",
@@ -171,15 +217,47 @@ func TestParsePointUnescape(t *testing.T) {
 			},
 			time.Unix(0, 0)))
 
-	// commas in measuremnt name
-	test(t, `cpu\,main,regions=east\,west value=1.0`,
-		NewPoint(
-			"cpu,main", // comma in the name
+	// spaces in tag values
+	test(t, `cpu,regions=east\ west value=1.0`,
+		NewPoint("cpu",
 			Tags{
-				"regions": "east,west",
+				"regions": "east west", // comma in the tag value
 			},
 			Fields{
 				"value": 1.0,
+			},
+			time.Unix(0, 0)))
+
+	// commas in field names
+	test(t, `cpu,regions=east value\,ms=1.0`,
+		NewPoint("cpu",
+			Tags{
+				"regions": "east",
+			},
+			Fields{
+				"value,ms": 1.0, // comma in the field name
+			},
+			time.Unix(0, 0)))
+
+	// spaces in field names
+	test(t, `cpu,regions=east value\ ms=1.0`,
+		NewPoint("cpu",
+			Tags{
+				"regions": "east",
+			},
+			Fields{
+				"value ms": 1.0, // comma in the field name
+			},
+			time.Unix(0, 0)))
+
+	// commas in field values
+	test(t, `cpu,regions=east value="1,0"`,
+		NewPoint("cpu",
+			Tags{
+				"regions": "east",
+			},
+			Fields{
+				"value": "1,0", // comma in the field value
 			},
 			time.Unix(0, 0)))
 
@@ -254,7 +332,22 @@ func TestParsePointWithStringWithSpaces(t *testing.T) {
 			},
 			time.Unix(1, 0)),
 	)
+}
 
+func TestParsePointWithStringWithEquals(t *testing.T) {
+	test(t, `cpu,host=serverA,region=us-east str="foo=bar",value=1.0, 1000000000`,
+		NewPoint(
+			"cpu",
+			Tags{
+				"host":   "serverA",
+				"region": "us-east",
+			},
+			Fields{
+				"value": 1.0,
+				"str":   "foo=bar", // spaces in string value
+			},
+			time.Unix(1, 0)),
+	)
 }
 
 func TestParsePointWithBoolField(t *testing.T) {
@@ -270,6 +363,21 @@ func TestParsePointWithBoolField(t *testing.T) {
 				"boolTrue": true,
 				"false":    false,
 				"falseVal": false,
+			},
+			time.Unix(1, 0)),
+	)
+}
+
+func TestParsePointUnicodeString(t *testing.T) {
+	test(t, `cpu,host=serverA,region=us-east value="wè" 1000000000`,
+		NewPoint(
+			"cpu",
+			Tags{
+				"host":   "serverA",
+				"region": "us-east",
+			},
+			Fields{
+				"value": "wè",
 			},
 			time.Unix(1, 0)),
 	)
@@ -357,4 +465,25 @@ func TestParsePointsWithPrecision(t *testing.T) {
 	if exp := "cpu,host=serverA,region=us-east value=1.0 0"; got != exp {
 		t.Errorf("ParsePoint() to string mismatch:\n got %v\n exp %v", got, exp)
 	}
+}
+
+func TestNewPointEscaped(t *testing.T) {
+	// commas
+	pt := NewPoint("cpu,main", Tags{"tag,bar": "value"}, Fields{"name,bar": 1.0}, time.Unix(0, 0))
+	if exp := `cpu\,main,tag\,bar=value name\,bar=1.0 0`; pt.String() != exp {
+		t.Errorf("NewPoint().String() mismatch.\ngot %v\nexp %v", pt.String(), exp)
+	}
+
+	// spaces
+	pt = NewPoint("cpu main", Tags{"tag bar": "value"}, Fields{"name bar": 1.0}, time.Unix(0, 0))
+	if exp := `cpu\ main,tag\ bar=value name\ bar=1.0 0`; pt.String() != exp {
+		t.Errorf("NewPoint().String() mismatch.\ngot %v\nexp %v", pt.String(), exp)
+	}
+
+	// equals
+	pt = NewPoint("cpu=main", Tags{"tag=bar": "value=foo"}, Fields{"name=bar": 1.0}, time.Unix(0, 0))
+	if exp := `cpu\=main,tag\=bar=value\=foo name\=bar=1.0 0`; pt.String() != exp {
+		t.Errorf("NewPoint().String() mismatch.\ngot %v\nexp %v", pt.String(), exp)
+	}
+
 }

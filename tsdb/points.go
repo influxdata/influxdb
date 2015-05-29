@@ -57,6 +57,8 @@ type point struct {
 var escapeCodes = map[byte][]byte{
 	',': []byte(`\,`),
 	'"': []byte(`\"`),
+	' ': []byte(`\ `),
+	'=': []byte(`\=`),
 }
 
 var escapeCodesStr = map[string]string{}
@@ -535,7 +537,7 @@ func (p *point) Tags() Tags {
 			i, key = scanTo(p.key, i, '=')
 			i, value = scanTagValue(p.key, i+1)
 
-			tags[string(key)] = string(unescape(value))
+			tags[string(unescape(key))] = string(unescape(value))
 
 			i += 1
 		}
@@ -583,7 +585,6 @@ func (p *point) SetPrecision(precision string) {
 		p.SetTime(p.Time().Round(time.Second))
 	case "m":
 		p.SetTime(p.Time().Round(time.Minute))
-
 	case "h":
 		p.SetTime(p.Time().Round(time.Hour))
 	}
@@ -619,19 +620,24 @@ func (t Tags) hashKey() []byte {
 		return nil
 	}
 
-	// Extract keys and determine final size.
-	sz := len(t) + (len(t) * 2) - 1 // separators
-	keys := make([]string, len(t))
-	i := 0
+	escaped := Tags{}
 	for k, v := range t {
-		v = escapeString(v)
-		t[k] = v
+		ek := escapeString(k)
+		ev := escapeString(v)
+		escaped[ek] = ev
+	}
+
+	// Extract keys and determine final size.
+	sz := len(escaped) + (len(escaped) * 2) // separators
+	keys := make([]string, len(escaped)+1)
+	i := 0
+	for k, v := range escaped {
 		keys[i] = k
 		i += 1
 		sz += len(k) + len(v)
 	}
+	keys = keys[:i]
 	sort.Strings(keys)
-
 	// Generate marshaled bytes.
 	b := make([]byte, sz)
 	buf := b
@@ -643,7 +649,7 @@ func (t Tags) hashKey() []byte {
 		idx += len(k)
 		buf[idx] = '='
 		idx += 1
-		v := t[k]
+		v := escaped[k]
 		copy(buf[idx:idx+len(v)], v)
 		idx += len(v)
 	}
@@ -695,18 +701,19 @@ func newFieldsFromBinary(buf []byte) Fields {
 		} else if (valueBuf[0] >= '0' && valueBuf[0] <= '9') || valueBuf[0] == '-' || valueBuf[0] == '.' {
 			value, err = parseNumber(valueBuf)
 			if err != nil {
-				panic(fmt.Sprintf("unable to parse float value '%v': %v", string(valueBuf), err))
+				fmt.Printf("unable to parse number value '%v': %v\n", string(valueBuf), err)
+				value = float64(0)
 			}
 
 			// Otherwise parse it as bool
 		} else {
 			value, err = strconv.ParseBool(string(valueBuf))
 			if err != nil {
-				panic(fmt.Sprintf("unable to parse bool value '%v': %v", string(valueBuf), err))
+				fmt.Printf("unable to parse bool value '%v': %v\n", string(valueBuf), err)
+				value = false
 			}
-
 		}
-		fields[string(name)] = value
+		fields[string(unescape(name))] = value
 		i += 1
 	}
 	return fields
@@ -724,7 +731,7 @@ func (p Fields) MarshalBinary() []byte {
 
 	for _, k := range keys {
 		v := p[k]
-		b = append(b, []byte(k)...)
+		b = append(b, []byte(escapeString(k))...)
 		b = append(b, '=')
 		switch t := v.(type) {
 		case int:
@@ -748,7 +755,7 @@ func (p Fields) MarshalBinary() []byte {
 			b = append(b, t...)
 		case string:
 			b = append(b, '"')
-			b = append(b, []byte(escapeString(t))...)
+			b = append(b, []byte(t)...)
 			b = append(b, '"')
 		case nil:
 			// skip
