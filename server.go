@@ -1304,8 +1304,8 @@ func (s *Server) Authenticate(username, password string) (*User, error) {
 
 	u := s.users[username]
 
-	// If authorization is not enabled and user is nil, we are authorized
-	if u == nil && !s.authenticationEnabled {
+	// Authorize if user is nil and auth is disabled or there are no users.
+	if u == nil && (!s.authenticationEnabled || len(s.users) == 0) {
 		return nil, nil
 	}
 	if u == nil {
@@ -3710,6 +3710,19 @@ func (p dataNodes) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 // If u is nil, this means authorization is disabled.
 func (s *Server) Authorize(u *User, q *influxql.Query, database string) error {
 	const authErrLogFmt = "unauthorized request | user: %q | query: %q | database %q\n"
+
+	// Special case if no users exist.
+	if s.UserCount() == 0 {
+		// Get the first statement in the query.
+		stmt := q.Statements[0]
+		// First statement must create a root user.
+		if cu, ok := stmt.(*influxql.CreateUserStatement); !ok ||
+			cu.Privilege == nil ||
+			*cu.Privilege != influxql.AllPrivileges {
+			return ErrAuthorize{text: "no users exist. create root user first or disable authentication"}
+		}
+		return nil
+	}
 
 	if u == nil {
 		s.Logger.Printf(authErrLogFmt, "", q.String(), database)
