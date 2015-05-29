@@ -10,7 +10,6 @@ import (
 	"log"
 	"net/http"
 	"net/http/pprof"
-	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -53,14 +52,17 @@ type Handler struct {
 	version               string
 
 	MetaStore interface {
-		Nodes() ([]meta.NodeInfo, error)
-		NodeByHost(host string) (*meta.NodeInfo, error)
-		CreateNode(host string) (*meta.NodeInfo, error)
-		DeleteNode(id uint64) error
-
 		Database(name string) (*meta.DatabaseInfo, error)
-
+		Authenticate(username, password string) (ui *meta.UserInfo, err error)
 		Users() ([]meta.UserInfo, error)
+	}
+
+	QueryExecutor interface {
+		ExecuteQuery(q *influxql.Query, db string, user *meta.UserInfo, chunkSize int) (<-chan *influxql.Result, error)
+	}
+
+	SeriesWriter interface {
+		WriteSeries(database, retentionPolicy string, points []tsdb.Point) error
 	}
 
 	Logger         *log.Logger
@@ -107,10 +109,11 @@ func NewHandler(requireAuthentication, loggingEnabled bool, version string) *Han
 			"ping-head",
 			"HEAD", "/ping", true, true, h.servePing,
 		},
-		route{
-			"dump", // export all points in the given db.
-			"GET", "/dump", true, true, h.serveDump,
-		}})
+		// route{
+		// 	"dump", // export all points in the given db.
+		// 	"GET", "/dump", true, true, h.serveDump,
+		// },
+	})
 
 	return h
 }
@@ -166,7 +169,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // serveQuery parses an incoming query and, if valid, executes the query.
 func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.UserInfo) {
 	q := r.URL.Query()
-
 	pretty := q.Get("pretty") == "true"
 
 	qp := strings.TrimSpace(q.Get("q"))
@@ -185,32 +187,29 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 		return
 	}
 
-	// get the chunking settings
-	chunked := q.Get("chunked") == "true"
-	// even if we're not chunking, the engine will chunk at this size and then the handler will combine results
+	// Parse chunk size. Use default if not provided or unparsable.
+	chunked := (q.Get("chunked") == "true")
 	chunkSize := DefaultChunkSize
 	if chunked {
-		if cs, err := strconv.ParseInt(q.Get("chunk_size"), 10, 64); err == nil {
-			chunkSize = int(cs)
-		} else {
-			chunkSize = DefaultChunkSize
+		if n, err := strconv.ParseInt(q.Get("chunk_size"), 10, 64); err == nil {
+			chunkSize = int(n)
 		}
 	}
 
-	// Send results to client.
+	// Execute query.
 	w.Header().Add("content-type", "application/json")
 	results, err := h.QueryExecutor.ExecuteQuery(query, db, user, chunkSize)
-	if err != nil {
-		if isAuthorizationError(err) {
-			w.WriteHeader(http.StatusUnauthorized)
-		} else {
-			w.WriteHeader(http.StatusInternalServerError)
-		}
+
+	if _, ok := err.(meta.AuthError); ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	} else if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	// if we're not chunking, this will be the in memory buffer for all results before sending to client
-	res := influxdb.Response{Results: make([]*influxql.Result, 0)}
+	resp := influxdb.Response{Results: make([]*influxql.Result, 0)}
 	statusWritten := false
 
 	// pull all results from the channel
@@ -220,7 +219,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 			status := http.StatusOK
 
 			if r != nil && r.Err != nil {
-				if isAuthorizationError(r.Err) {
+				if _, ok := r.Err.(meta.AuthError); ok {
 					status = http.StatusUnauthorized
 				}
 			}
@@ -229,199 +228,38 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 			statusWritten = true
 		}
 
-		// ignore nils
+		// Ignore nil results.
 		if r == nil {
 			continue
 		}
 
-		// if chunked we write out this result and flush
+		// Write out result immediately if chunked.
 		if chunked {
-			res.Results = []*influxql.Result{r}
-			w.Write(marshalPretty(res, pretty))
+			w.Write(MarshalJSON(influxdb.Response{
+				Results: []*influxql.Result{r},
+			}, pretty))
 			w.(http.Flusher).Flush()
 			continue
 		}
 
-		// it's not chunked so buffer results in memory.
-		// results for statements need to be combined together. We need to check if this new result is
-		// for the same statement as the last result, or for the next statement
-		l := len(res.Results)
+		// It's not chunked so buffer results in memory.
+		// Results for statements need to be combined together.
+		// We need to check if this new result is for the same statement as
+		// the last result, or for the next statement
+		l := len(resp.Results)
 		if l == 0 {
-			res.Results = append(res.Results, r)
-		} else if res.Results[l-1].StatementID == r.StatementID {
-			cr := res.Results[l-1]
+			resp.Results = append(resp.Results, r)
+		} else if resp.Results[l-1].StatementID == r.StatementID {
+			cr := resp.Results[l-1]
 			cr.Series = append(cr.Series, r.Series...)
 		} else {
-			res.Results = append(res.Results, r)
+			resp.Results = append(resp.Results, r)
 		}
 	}
 
-	// if it's not chunked we buffered everything in memory, so write it out
+	// If it's not chunked we buffered everything in memory, so write it out
 	if !chunked {
-		w.Write(marshalPretty(res, pretty))
-	}
-}
-
-// marshalPretty will marshal the interface to json either pretty printed or not
-func marshalPretty(r interface{}, pretty bool) []byte {
-	var b []byte
-	var err error
-	if pretty {
-		b, err = json.MarshalIndent(r, "", "    ")
-	} else {
-		b, err = json.Marshal(r)
-	}
-
-	// if for some reason there was an error, convert to a result object with the error
-	if err != nil {
-		if pretty {
-			b, err = json.MarshalIndent(&influxql.Result{Err: err}, "", "    ")
-		} else {
-			b, err = json.Marshal(&influxql.Result{Err: err})
-		}
-	}
-
-	// if there's still an error, json is out and a straight up error string is in
-	if err != nil {
-		return []byte(err.Error())
-	}
-
-	return b
-}
-
-func interfaceToString(v interface{}) string {
-	switch t := v.(type) {
-	case nil:
-		return ""
-	case bool:
-		return fmt.Sprintf("%v", v)
-	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, uintptr:
-		return fmt.Sprintf("%d", t)
-	case float32, float64:
-		return fmt.Sprintf("%v", t)
-	default:
-		return fmt.Sprintf("%v", t)
-	}
-}
-
-type Point struct {
-	Name   string                 `json:"name"`
-	Time   time.Time              `json:"time"`
-	Tags   map[string]string      `json:"tags"`
-	Fields map[string]interface{} `json:"fields"`
-}
-
-type Batch struct {
-	Database        string  `json:"database"`
-	RetentionPolicy string  `json:"retentionPolicy"`
-	Points          []Point `json:"points"`
-}
-
-// Return all the measurements from the given DB
-func (h *Handler) showMeasurements(db string, user *meta.UserInfo) ([]string, error) {
-	var measurements []string
-	c, err := h.QueryExecutor.ExecuteQuery(&influxql.Query{Statements: []influxql.Statement{&influxql.ShowMeasurementsStatement{}}}, db, user, 0)
-	if err != nil {
-		return measurements, err
-	}
-	results := influxdb.Response{}
-
-	for r := range c {
-		results.Results = append(results.Results, r)
-	}
-
-	for _, result := range results.Results {
-		for _, row := range result.Series {
-			for _, tuple := range (*row).Values {
-				for _, cell := range tuple {
-					measurements = append(measurements, interfaceToString(cell))
-				}
-			}
-		}
-	}
-	return measurements, nil
-}
-
-// serveDump returns all points in the given database as a plaintext list of JSON structs.
-// To get all points:
-// Find all measurements (show measurements).
-// For each measurement do select * from <measurement> group by *
-func (h *Handler) serveDump(w http.ResponseWriter, r *http.Request, user *meta.UserInfo) {
-	q := r.URL.Query()
-	db := q.Get("db")
-	pretty := q.Get("pretty") == "true"
-	delim := []byte("\n")
-	measurements, err := h.showMeasurements(db, user)
-	if err != nil {
-		httpError(w, "error with dump: "+err.Error(), pretty, http.StatusInternalServerError)
-		return
-	}
-
-	// Fetch all the points for each measurement.
-	// From the 'select' query below, we get:
-	//
-	// columns:[col1, col2, col3, ...]
-	// - and -
-	// values:[[val1, val2, val3, ...], [val1, val2, val3, ...], [val1, val2, val3, ...]...]
-	//
-	// We need to turn that into multiple rows like so...
-	// fields:{col1 : values[0][0], col2 : values[0][1], col3 : values[0][2]}
-	// fields:{col1 : values[1][0], col2 : values[1][1], col3 : values[1][2]}
-	// fields:{col1 : values[2][0], col2 : values[2][1], col3 : values[2][2]}
-	//
-	for _, measurement := range measurements {
-		queryString := fmt.Sprintf("select * from %s group by *", measurement)
-		p := influxql.NewParser(strings.NewReader(queryString))
-		query, err := p.ParseQuery()
-		if err != nil {
-			httpError(w, "error with dump: "+err.Error(), pretty, http.StatusInternalServerError)
-			return
-		}
-
-		res, err := h.QueryExecutor.ExecuteQuery(query, db, user, DefaultChunkSize)
-		if err != nil {
-			w.Write([]byte("*** SERVER-SIDE ERROR. MISSING DATA ***"))
-			w.Write(delim)
-			return
-		}
-		for result := range res {
-			for _, row := range result.Series {
-				points := make([]Point, 1)
-				var point Point
-				point.Name = row.Name
-				point.Tags = row.Tags
-				point.Fields = make(map[string]interface{})
-				for _, tuple := range row.Values {
-					for subscript, cell := range tuple {
-						if row.Columns[subscript] == "time" {
-							point.Time, _ = cell.(time.Time)
-							continue
-						}
-						point.Fields[row.Columns[subscript]] = cell
-					}
-					points[0] = point
-					batch := &Batch{
-						Points:          points,
-						Database:        db,
-						RetentionPolicy: "default",
-					}
-					buf, err := json.Marshal(&batch)
-
-					// TODO: Make this more legit in the future
-					// Since we're streaming data as chunked responses, this error could
-					// be in the middle of an already-started data stream. Until Go 1.5,
-					// we can't really support proper trailer headers, so we'll just
-					// wait until then: https://code.google.com/p/go/issues/detail?id=7759
-					if err != nil {
-						w.Write([]byte("*** SERVER-SIDE ERROR. MISSING DATA ***"))
-						w.Write(delim)
-						return
-					}
-					w.Write(buf)
-					w.Write(delim)
-				}
-			}
-		}
+		w.Write(MarshalJSON(resp, pretty))
 	}
 }
 
@@ -495,17 +333,16 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *meta.
 		return
 	}
 
-	if index, err := h.SeriesWriter.WriteSeries(bp.Database, bp.RetentionPolicy, points); err != nil {
+	if err := h.SeriesWriter.WriteSeries(bp.Database, bp.RetentionPolicy, points); err != nil {
 		if influxdb.IsClientError(err) {
 			resultError(w, influxql.Result{Err: err}, http.StatusBadRequest)
 		} else {
 			resultError(w, influxql.Result{Err: err}, http.StatusInternalServerError)
 		}
 		return
-	} else {
-		w.WriteHeader(http.StatusNoContent)
-		w.Header().Add("X-InfluxDB-Index", fmt.Sprintf("%d", index))
 	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // serveWritePoints receives incoming series data and writes it to the database.
@@ -664,97 +501,33 @@ func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// serveNodes returns a list of all nodes in the cluster.
-func (h *Handler) serveNodes(w http.ResponseWriter, r *http.Request) {
-	// Retrieve nodes from meta store.
-	nis, err := h.MetaStore.Nodes()
+// MarshalJSON will marshal v to JSON. Pretty prints if pretty is true.
+func MarshalJSON(v interface{}, pretty bool) []byte {
+	var b []byte
+	var err error
+	if pretty {
+		b, err = json.MarshalIndent(v, "", "    ")
+	} else {
+		b, err = json.Marshal(v)
+	}
+
 	if err != nil {
-		resultError(w, influxql.Result{Err: err}, http.StatusInternalServerError)
-		return
+		return []byte(err.Error())
 	}
-
-	// Generate a list of objects for encoding to the API.
-	a := make([]*nodeJSON, 0)
-	for _, ni := range nis {
-		a = append(a, &nodeJSON{
-			ID:  ni.ID,
-			URL: "http://" + ni.Host,
-		})
-	}
-
-	w.Header().Add("content-type", "application/json")
-	_ = json.NewEncoder(w).Encode(a)
+	return b
 }
 
-// serveCreateNode creates a new node in the cluster.
-func (h *Handler) serveCreateNode(w http.ResponseWriter, r *http.Request) {
-	// Read in node from request body.
-	var n nodeJSON
-	if err := json.NewDecoder(r.Body).Decode(&n); err != nil {
-		httpError(w, err.Error(), false, http.StatusBadRequest)
-		return
-	}
-
-	// Parse the URL.
-	u, err := url.Parse(n.URL)
-	if err != nil {
-		httpError(w, "invalid node url", false, http.StatusBadRequest)
-		return
-	}
-
-	// Create the node.
-	ni, err := h.MetaStore.CreateNode(u.Host)
-	if err == meta.ErrNodeExists {
-		httpError(w, err.Error(), false, http.StatusConflict)
-		return
-	} else if err != nil {
-		httpError(w, err.Error(), false, http.StatusInternalServerError)
-		return
-	}
-
-	// Write new node back to client.
-	w.Header().Add("content-type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(&nodeJSON{ID: ni.ID, URL: "http://" + ni.Host}); err != nil {
-		h.Logger.Printf("marshal new node error: %s", err)
-	}
+type Point struct {
+	Name   string                 `json:"name"`
+	Time   time.Time              `json:"time"`
+	Tags   map[string]string      `json:"tags"`
+	Fields map[string]interface{} `json:"fields"`
 }
 
-// serveDeleteNode removes an existing node.
-func (h *Handler) serveDeleteNode(w http.ResponseWriter, r *http.Request) {
-	// Parse node id.
-	nodeID, err := strconv.ParseUint(r.URL.Query().Get(":id"), 10, 64)
-	if err != nil {
-		httpError(w, "invalid node id", false, http.StatusBadRequest)
-		return
-	}
-
-	// Delete the node.
-	if err := h.MetaStore.DeleteNode(nodeID); err == meta.ErrNodeNotFound {
-		httpError(w, err.Error(), false, http.StatusNotFound)
-		return
-	} else if err != nil {
-		httpError(w, err.Error(), false, http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
-}
-
-type nodeJSON struct {
-	ID  uint64 `json:"id"`
-	URL string `json:"url"`
-}
-
-func isAuthorizationError(err error) bool {
-	_, ok := err.(influxdb.ErrAuthorize)
-	return ok
-}
-
-// mapError writes an error result after trying to start a mapper
-func mapError(w http.ResponseWriter, err error) {
-	b, _ := json.Marshal(&influxdb.MapResponse{Err: err.Error()})
-	w.Write(b)
+type Batch struct {
+	Database        string  `json:"database"`
+	RetentionPolicy string  `json:"retentionPolicy"`
+	Points          []Point `json:"points"`
 }
 
 // httpError writes an error to the client in a standard format.
@@ -943,3 +716,126 @@ func recovery(inner http.Handler, name string, weblog *log.Logger) http.Handler 
 		}
 	})
 }
+
+/*
+FIXME: Convert to line protocol format.
+
+// serveDump returns all points in the given database as a plaintext list of JSON structs.
+// To get all points:
+// Find all measurements (show measurements).
+// For each measurement do select * from <measurement> group by *
+func (h *Handler) serveDump(w http.ResponseWriter, r *http.Request, user *meta.UserInfo) {
+	q := r.URL.Query()
+	db := q.Get("db")
+	pretty := q.Get("pretty") == "true"
+	delim := []byte("\n")
+	measurements, err := h.showMeasurements(db, user)
+	if err != nil {
+		httpError(w, "error with dump: "+err.Error(), pretty, http.StatusInternalServerError)
+		return
+	}
+
+	// Fetch all the points for each measurement.
+	// From the 'select' query below, we get:
+	//
+	// columns:[col1, col2, col3, ...]
+	// - and -
+	// values:[[val1, val2, val3, ...], [val1, val2, val3, ...], [val1, val2, val3, ...]...]
+	//
+	// We need to turn that into multiple rows like so...
+	// fields:{col1 : values[0][0], col2 : values[0][1], col3 : values[0][2]}
+	// fields:{col1 : values[1][0], col2 : values[1][1], col3 : values[1][2]}
+	// fields:{col1 : values[2][0], col2 : values[2][1], col3 : values[2][2]}
+	//
+	for _, measurement := range measurements {
+		queryString := fmt.Sprintf("select * from %s group by *", measurement)
+		p := influxql.NewParser(strings.NewReader(queryString))
+		query, err := p.ParseQuery()
+		if err != nil {
+			httpError(w, "error with dump: "+err.Error(), pretty, http.StatusInternalServerError)
+			return
+		}
+
+		res, err := h.QueryExecutor.ExecuteQuery(query, db, user, DefaultChunkSize)
+		if err != nil {
+			w.Write([]byte("*** SERVER-SIDE ERROR. MISSING DATA ***"))
+			w.Write(delim)
+			return
+		}
+		for result := range res {
+			for _, row := range result.Series {
+				points := make([]Point, 1)
+				var point Point
+				point.Name = row.Name
+				point.Tags = row.Tags
+				point.Fields = make(map[string]interface{})
+				for _, tuple := range row.Values {
+					for subscript, cell := range tuple {
+						if row.Columns[subscript] == "time" {
+							point.Time, _ = cell.(time.Time)
+							continue
+						}
+						point.Fields[row.Columns[subscript]] = cell
+					}
+					points[0] = point
+					batch := &Batch{
+						Points:          points,
+						Database:        db,
+						RetentionPolicy: "default",
+					}
+					buf, err := json.Marshal(&batch)
+
+					// TODO: Make this more legit in the future
+					// Since we're streaming data as chunked responses, this error could
+					// be in the middle of an already-started data stream. Until Go 1.5,
+					// we can't really support proper trailer headers, so we'll just
+					// wait until then: https://code.google.com/p/go/issues/detail?id=7759
+					if err != nil {
+						w.Write([]byte("*** SERVER-SIDE ERROR. MISSING DATA ***"))
+						w.Write(delim)
+						return
+					}
+					w.Write(buf)
+					w.Write(delim)
+				}
+			}
+		}
+	}
+}
+
+// Return all the measurements from the given DB
+func (h *Handler) showMeasurements(db string, user *meta.UserInfo) ([]string, error) {
+	var measurements []string
+	c, err := h.QueryExecutor.ExecuteQuery(&influxql.Query{Statements: []influxql.Statement{&influxql.ShowMeasurementsStatement{}}}, db, user, 0)
+	if err != nil {
+		return measurements, err
+	}
+	results := influxdb.Response{}
+
+	for r := range c {
+		results.Results = append(results.Results, r)
+	}
+
+	for _, result := range results.Results {
+		for _, row := range result.Series {
+			for _, tuple := range (*row).Values {
+				for _, cell := range tuple {
+					measurements = append(measurements, interfaceToString(cell))
+				}
+			}
+		}
+	}
+	return measurements, nil
+}
+
+func interfaceToString(v interface{}) string {
+	switch t := v.(type) {
+	case nil:
+		return ""
+	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, uintptr:
+		return fmt.Sprintf("%d", t)
+	default:
+		return fmt.Sprintf("%v", t)
+	}
+}
+*/

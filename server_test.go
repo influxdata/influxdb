@@ -57,8 +57,8 @@ func TestServer_UnauthorizedRequests(t *testing.T) {
 	}
 
 	e := s.Authorize(nil, adminOnlyQuery, "foo")
-	if _, ok := e.(influxdb.ErrAuthorize); !ok {
-		t.Fatalf("unexpected error.  expected %v, actual: %v", influxdb.ErrAuthorize{}, e)
+	if _, ok := e.(meta.AuthError); !ok {
+		t.Fatalf("unexpected error.  expected %v, actual: %v", meta.NewAuthError(""), e)
 	}
 
 	// Create normal database user.
@@ -70,8 +70,8 @@ func TestServer_UnauthorizedRequests(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, ok := s.Authorize(ui, adminOnlyQuery, "foo").(influxdb.ErrAuthorize); !ok {
-		t.Fatalf("unexpected error.  expected %v, actual: %v", influxdb.ErrAuthorize{}, e)
+	if _, ok := s.Authorize(ui, adminOnlyQuery, "foo").(meta.AuthError); !ok {
+		t.Fatalf("unexpected error.  expected %v, actual: %v", meta.NewAuthError(""), e)
 	}
 }
 

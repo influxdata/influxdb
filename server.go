@@ -1689,7 +1689,7 @@ func (s *Server) Authorize(u *meta.UserInfo, q *influxql.Query, database string)
 
 	if u == nil {
 		s.Logger.Printf(authErrLogFmt, "", q.String(), database)
-		return ErrAuthorize{text: "no user provided"}
+		return meta.NewAuthError("no user provided")
 	}
 
 	// Cluster admins can do anything.
@@ -1722,9 +1722,9 @@ func (s *Server) Authorize(u *meta.UserInfo, q *influxql.Query, database string)
 					msg = fmt.Sprintf("requires %s privilege on %s", p.Privilege.String(), dbname)
 				}
 				s.Logger.Printf(authErrLogFmt, u.Name, q.String(), database)
-				return ErrAuthorize{
-					text: fmt.Sprintf("%s not authorized to execute '%s'.  %s", u.Name, stmt.String(), msg),
-				}
+				return meta.NewAuthError(
+					fmt.Sprintf("%s not authorized to execute '%s'.  %s", u.Name, stmt.String(), msg),
+				)
 			}
 		}
 	}

@@ -19,7 +19,7 @@ type HTTPService struct {
 // NewHTTPService returns a new instance of HTTPService.
 func NewHTTPService(c *Config) *HTTPService {
 	return &HTTPService{
-		addr: addr,
+		addr: c.BindAddress,
 		err:  make(chan error),
 	}
 }
@@ -34,7 +34,7 @@ func (s *HTTPService) Open() error {
 	s.listener = listener
 
 	// Begin listening for requests in a separate goroutine.
-	go s.server()
+	go s.serve()
 	return nil
 }
 
@@ -52,7 +52,7 @@ func (s *HTTPService) Err() <-chan error { return s.err }
 // Addr returns the listener's address. Returns nil if listener is closed.
 func (s *HTTPService) Addr() net.Addr {
 	if s.listener != nil {
-		return s.listener.Addr
+		return s.listener.Addr()
 	}
 	return nil
 }
@@ -61,9 +61,9 @@ func (s *HTTPService) Addr() net.Addr {
 func (s *HTTPService) serve() {
 	// The listener was closed so exit
 	// See https://github.com/golang/go/issues/4373
-	err := http.Serve(s.listener, s.Handler)
+	err := http.Serve(s.listener, &s.Handler)
 	if err != nil && !strings.Contains(err.Error(), "closed") {
-		s.Err <- fmt.Errorf("listener failed: addr=%s, err=%s", s.Addr(), err)
+		s.err <- fmt.Errorf("listener failed: addr=%s, err=%s", s.Addr(), err)
 	}
 }
 

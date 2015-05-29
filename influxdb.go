@@ -163,27 +163,6 @@ func Errorf(format string, a ...interface{}) (err error) {
 	return
 }
 
-// ErrAuthorize represents an authorization error.
-type ErrAuthorize struct {
-	text string
-}
-
-// Error returns the text of the error.
-func (e ErrAuthorize) Error() string {
-	return e.text
-}
-
-// authorize satisfies isAuthorizationError
-func (ErrAuthorize) authorize() {}
-
-func isAuthorizationError(err error) bool {
-	type authorize interface {
-		authorize()
-	}
-	_, ok := err.(authorize)
-	return ok
-}
-
 // IsClientError indicates whether an error is a known client error.
 func IsClientError(err error) bool {
 	if err == ErrFieldsRequired {

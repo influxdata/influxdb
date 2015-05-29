@@ -925,7 +925,7 @@ func (e *Executor) execute(out chan *Row) {
 type Row struct {
 	Name    string            `json:"name,omitempty"`
 	Tags    map[string]string `json:"tags,omitempty"`
-	Columns []string          `json:"columns"`
+	Columns []string          `json:"columns,omitempty"`
 	Values  [][]interface{}   `json:"values,omitempty"`
 	Err     error             `json:"err,omitempty"`
 }

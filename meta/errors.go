@@ -102,3 +102,18 @@ func lookupError(err error) error {
 	}
 	return err
 }
+
+// AuthError represents an authorization error.
+type AuthError struct {
+	text string
+}
+
+// NewAuthError returns a new instance of AuthError.
+func NewAuthError(text string) AuthError {
+	return AuthError{text: text}
+}
+
+// Error returns the text of the error.
+func (e AuthError) Error() string {
+	return e.text
+}
