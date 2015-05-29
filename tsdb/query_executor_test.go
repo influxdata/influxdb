@@ -11,19 +11,11 @@ import (
 	"github.com/influxdb/influxdb/meta"
 )
 
-func TestWritePointsAndExecuteQuery(t *testing.T) {
-	path, _ := ioutil.TempDir("", "")
-	defer os.RemoveAll(path)
+var shardID = uint64(1)
 
-	store := NewStore(path)
-	err := store.Open()
-	if err != nil {
-		t.Fatalf("error opening store: %s", err.Error())
-	}
-	database := "foo"
-	retentionPolicy := "bar"
-	shardID := uint64(1)
-	store.CreateShard(database, retentionPolicy, shardID)
+func TestWritePointsAndExecuteQuery(t *testing.T) {
+	store, executor := testStoreAndExecutor()
+	defer os.RemoveAll(store.path)
 
 	pt := NewPoint(
 		"cpu",
@@ -32,7 +24,7 @@ func TestWritePointsAndExecuteQuery(t *testing.T) {
 		time.Unix(1, 2),
 	)
 
-	err = store.WriteToShard(shardID, []Point{pt})
+	err := store.WriteToShard(shardID, []Point{pt})
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -43,25 +35,84 @@ func TestWritePointsAndExecuteQuery(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 
+	got := executeAndGetJSON("select * from cpu", executor)
+	exepected := `[{"series":[{"name":"cpu","columns":["time","value"],"values":[["1970-01-01T00:00:01.000000002Z",1],["1970-01-01T00:00:02.000000003Z",1]]}]}]`
+	if exepected != got {
+		t.Fatalf("exp: %s\ngot: %s", exepected, got)
+	}
+
+	store.Close()
+	store = NewStore(store.path)
+	err = store.Open()
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+	executor.store = store
+
+	got = executeAndGetJSON("select * from cpu", executor)
+	if exepected != got {
+		t.Fatalf("exp: %s\ngot: %s", exepected, got)
+	}
+}
+
+func TestDropSeriesStatement(t *testing.T) {
+	store, executor := testStoreAndExecutor()
+	defer os.RemoveAll(store.path)
+
+	pt := NewPoint(
+		"cpu",
+		map[string]string{"host": "server"},
+		map[string]interface{}{"value": 1.0},
+		time.Unix(1, 2),
+	)
+
+	err := store.WriteToShard(shardID, []Point{pt})
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	got := executeAndGetJSON("select * from cpu", executor)
+	exepected := `[{"series":[{"name":"cpu","columns":["time","value"],"values":[["1970-01-01T00:00:01.000000002Z",1]]}]}]`
+	if exepected != got {
+		t.Fatalf("exp: %s\ngot: %s", exepected, got)
+	}
+
+	store.Close()
+	store = NewStore(store.path)
+	store.Open()
+}
+
+func testStoreAndExecutor() (*Store, *QueryExecutor) {
+	path, _ := ioutil.TempDir("", "")
+
+	store := NewStore(path)
+	err := store.Open()
+	if err != nil {
+		panic(err)
+	}
+	database := "foo"
+	retentionPolicy := "bar"
+	shardID := uint64(1)
+	store.CreateShard(database, retentionPolicy, shardID)
+
 	executor := NewQueryExecutor(store)
 	executor.MetaStore = &testMetastore{}
 	executor.Stats = &fakeStats{}
 
-	ch, err := executor.ExecuteQuery(mustParseQuery("select * from cpu"), "foo", 20)
+	return store, executor
+}
+
+func executeAndGetJSON(query string, executor *QueryExecutor) string {
+	ch, err := executor.ExecuteQuery(mustParseQuery(query), "foo", 20)
 	if err != nil {
-		t.Fatalf(err.Error())
+		panic(err.Error())
 	}
 
 	var results []*influxql.Result
 	for r := range ch {
 		results = append(results, r)
 	}
-
-	exepected := `[{"series":[{"name":"cpu","columns":["time","value"],"values":[["1970-01-01T00:00:01.000000002Z",1],["1970-01-01T00:00:02.000000003Z",1]]}]}]`
-	got := string(mustMarshalJSON(results))
-	if exepected != got {
-		t.Fatalf("exp: %s\ngot: %s", exepected, got)
-	}
+	return string(mustMarshalJSON(results))
 }
 
 type testMetastore struct{}
