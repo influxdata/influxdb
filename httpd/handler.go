@@ -616,14 +616,20 @@ func (h *Handler) serveWritePoints(w http.ResponseWriter, r *http.Request, user 
 	}
 
 	retentionPolicy := r.Form.Get("rp")
-	// FIXME: Incorporate this into points parsing
-	// points, err := influxdb.NormalizeBatchPoints(bp)
-	// if err != nil {
-	// 	writeError(influxdb.Result{Err: err}, http.StatusInternalServerError)
-	// 	return
-	// }
+	consistencyVal := r.Form.Get("consistency")
+	consistency := cluster.ConsistencyLevelOne
+	switch consistencyVal {
+	case "all":
+		consistency = cluster.ConsistencyLevelAll
+	case "any":
+		consistency = cluster.ConsistencyLevelAny
+	case "one":
+		consistency = cluster.ConsistencyLevelOne
+	case "quorum":
+		consistency = cluster.ConsistencyLevelQuorum
+	}
 
-	if err := h.server.WritePoints(database, retentionPolicy, cluster.ConsistencyLevelAll, points); err != nil {
+	if err := h.server.WritePoints(database, retentionPolicy, consistency, points); err != nil {
 		if influxdb.IsClientError(err) {
 			writeError(influxdb.Result{Err: err}, http.StatusBadRequest)
 		} else {
