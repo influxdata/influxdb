@@ -1848,6 +1848,17 @@ func (s *Server) DropSeries(database string, seriesByMeasurement map[string][]ui
 	return err
 }
 
+func (s *Server) WritePoints(database, retentionPolicy string, consistency cluster.ConsistencyLevel, points []tsdb.Point) error {
+	wpr := &cluster.WritePointsRequest{
+		Database:         database,
+		RetentionPolicy:  retentionPolicy,
+		ConsistencyLevel: consistency,
+		Points:           points,
+	}
+
+	return s.pw.Write(wpr)
+}
+
 // WriteSeries writes series data to the database.
 // Returns the messaging index the data was written to.
 func (s *Server) WriteSeries(database, retentionPolicy string, points []tsdb.Point) (idx uint64, err error) {

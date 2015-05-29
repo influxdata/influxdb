@@ -83,7 +83,7 @@ func ParsePoints(buf []byte) ([]Point, error) {
 		pos, block = scanTo(buf, pos, '\n')
 
 		if len(block) == 0 {
-			return nil, fmt.Errorf("missing measurement")
+			break
 		}
 
 		pt, err := ParsePoint(block)
