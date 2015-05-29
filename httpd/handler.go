@@ -234,6 +234,8 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *influ
 		} else {
 			w.WriteHeader(http.StatusInternalServerError)
 		}
+		result := newErrResult(err)
+		w.Write(marshalPretty(result, pretty))
 		return
 	}
 
@@ -923,26 +925,23 @@ func authenticate(inner func(http.ResponseWriter, *http.Request, *influxdb.User)
 			inner(w, r, nil)
 			return
 		}
-		var user *influxdb.User
 
-		// TODO corylanou: never allow this in the future without users
-		if requireAuthentication && h.server.UserCount() > 0 {
-			username, password, err := parseCredentials(r)
-			if err != nil {
-				httpError(w, err.Error(), false, http.StatusUnauthorized)
-				return
-			}
-			if username == "" {
-				httpError(w, "username required", false, http.StatusUnauthorized)
-				return
-			}
-
-			user, err = h.server.Authenticate(username, password)
-			if err != nil {
-				httpError(w, err.Error(), false, http.StatusUnauthorized)
-				return
-			}
+		username, password, err := parseCredentials(r)
+		if err != nil {
+			httpError(w, err.Error(), false, http.StatusUnauthorized)
+			return
 		}
+		if username == "" {
+			httpError(w, "username required", false, http.StatusUnauthorized)
+			return
+		}
+
+		user, err := h.server.Authenticate(username, password)
+		if err != nil {
+			httpError(w, err.Error(), false, http.StatusUnauthorized)
+			return
+		}
+
 		inner(w, r, user)
 	})
 }
@@ -1092,4 +1091,11 @@ func (h *Handler) serveSnapshot(w http.ResponseWriter, r *http.Request) {
 	}
 	sh.ServeHTTP(w, r)
 
+}
+
+// newErrResult wraps an error in an influxdb.Result.
+func newErrResult(err error) *influxdb.Result {
+	return &influxdb.Result{
+		Err: err,
+	}
 }
