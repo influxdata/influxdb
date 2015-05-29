@@ -162,7 +162,7 @@ func (s *Shard) WritePoints(points []Point) error {
 
 		// save the raw point data
 		for _, p := range points {
-			bp, err := b.CreateBucketIfNotExists(p.Key())
+			bp, err := tx.CreateBucketIfNotExists(p.Key())
 			if err != nil {
 				return err
 			}

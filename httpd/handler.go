@@ -65,6 +65,8 @@ type Handler struct {
 		WriteSeries(database, retentionPolicy string, points []tsdb.Point) error
 	}
 
+	PointsWriter cluster.PointsWriter
+
 	Logger         *log.Logger
 	loggingEnabled bool // Log every HTTP access.
 	WriteTrace     bool // Detailed logging of write path
@@ -96,10 +98,6 @@ func NewHandler(requireAuthentication, loggingEnabled bool, version string) *Han
 		route{
 			"write_points", // Data-ingest route.
 			"POST", "/write_points", true, true, h.serveWritePoints,
-		},
-		route{ // Status
-			"status",
-			"GET", "/status", true, true, h.serveStatus,
 		},
 		route{ // Ping
 			"ping",
@@ -346,8 +344,8 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *meta.
 }
 
 // serveWritePoints receives incoming series data and writes it to the database.
-func (h *Handler) serveWritePoints(w http.ResponseWriter, r *http.Request, user *influxdb.User) {
-	var writeError = func(result influxdb.Result, statusCode int) {
+func (h *Handler) serveWritePoints(w http.ResponseWriter, r *http.Request, user *meta.UserInfo) {
+	var writeError = func(result influxql.Result, statusCode int) {
 		w.WriteHeader(statusCode)
 		w.Write([]byte(result.Err.Error()))
 		return
@@ -358,7 +356,7 @@ func (h *Handler) serveWritePoints(w http.ResponseWriter, r *http.Request, user 
 	if r.Header.Get("Content-encoding") == "gzip" {
 		b, err := gzip.NewReader(r.Body)
 		if err != nil {
-			writeError(influxdb.Result{Err: err}, http.StatusBadRequest)
+			writeError(influxql.Result{Err: err}, http.StatusBadRequest)
 			return
 		}
 		body = b
@@ -373,7 +371,7 @@ func (h *Handler) serveWritePoints(w http.ResponseWriter, r *http.Request, user 
 		if h.WriteTrace {
 			h.Logger.Print("write handler failed to read bytes from request body")
 		}
-		writeError(influxdb.Result{Err: err}, http.StatusBadRequest)
+		writeError(influxql.Result{Err: err}, http.StatusBadRequest)
 		return
 	}
 	if h.WriteTrace {
@@ -391,28 +389,31 @@ func (h *Handler) serveWritePoints(w http.ResponseWriter, r *http.Request, user 
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-		writeError(influxdb.Result{Err: err}, http.StatusBadRequest)
+		writeError(influxql.Result{Err: err}, http.StatusBadRequest)
 		return
 	}
 
 	database := r.FormValue("db")
 	if database == "" {
-		writeError(influxdb.Result{Err: fmt.Errorf("database is required")}, http.StatusBadRequest)
+		writeError(influxql.Result{Err: fmt.Errorf("database is required")}, http.StatusBadRequest)
 		return
 	}
 
-	if !h.server.DatabaseExists(database) {
-		writeError(influxdb.Result{Err: fmt.Errorf("database not found: %q", database)}, http.StatusNotFound)
+	if di, err := h.MetaStore.Database(database); err != nil {
+		resultError(w, influxql.Result{Err: fmt.Errorf("metastore database error: %s", err)}, http.StatusInternalServerError)
+		return
+	} else if di == nil {
+		resultError(w, influxql.Result{Err: fmt.Errorf("database not found: %q", database)}, http.StatusNotFound)
 		return
 	}
 
 	if h.requireAuthentication && user == nil {
-		writeError(influxdb.Result{Err: fmt.Errorf("user is required to write to database %q", database)}, http.StatusUnauthorized)
+		resultError(w, influxql.Result{Err: fmt.Errorf("user is required to write to database %q", database)}, http.StatusUnauthorized)
 		return
 	}
 
 	if h.requireAuthentication && !user.Authorize(influxql.WritePrivilege, database) {
-		writeError(influxdb.Result{Err: fmt.Errorf("%q user is not authorized to write to database %q", user.Name, database)}, http.StatusUnauthorized)
+		resultError(w, influxql.Result{Err: fmt.Errorf("%q user is not authorized to write to database %q", user.Name, database)}, http.StatusUnauthorized)
 		return
 	}
 
@@ -430,65 +431,23 @@ func (h *Handler) serveWritePoints(w http.ResponseWriter, r *http.Request, user 
 		consistency = cluster.ConsistencyLevelQuorum
 	}
 
-	if err := h.server.WritePoints(database, retentionPolicy, consistency, points); err != nil {
+	wpr := &cluster.WritePointsRequest{
+		Database:         database,
+		RetentionPolicy:  retentionPolicy,
+		ConsistencyLevel: consistency,
+		Points:           points,
+	}
+
+	if err := h.PointsWriter.Write(wpr); err != nil {
 		if influxdb.IsClientError(err) {
-			writeError(influxdb.Result{Err: err}, http.StatusBadRequest)
+			writeError(influxql.Result{Err: err}, http.StatusBadRequest)
 		} else {
-			writeError(influxdb.Result{Err: err}, http.StatusInternalServerError)
+			writeError(influxql.Result{Err: err}, http.StatusInternalServerError)
 		}
 		return
 	} else {
 		w.WriteHeader(http.StatusNoContent)
 	}
-}
-
-// serveMetastore returns a copy of the metastore.
-func (h *Handler) serveMetastore(w http.ResponseWriter, r *http.Request) {
-	// Set headers.
-	w.Header().Set("Content-Type", "application/octet-stream")
-	w.Header().Set("Content-Disposition", `attachment; filename="meta"`)
-
-	if err := h.server.CopyMetastore(w); err != nil {
-		httpError(w, err.Error(), false, http.StatusInternalServerError)
-	}
-}
-
-// serveShard returns a copy of the requested shard.
-func (h *Handler) serveShard(w http.ResponseWriter, r *http.Request) {
-	id := r.URL.Query().Get(":id")
-	shardID, err := strconv.ParseUint(id, 10, 64)
-	if err != nil {
-		httpError(w, fmt.Sprintf("invalid shard ID %s: %s", id, err), false, http.StatusBadRequest)
-		return
-	}
-
-	// Set headers.
-	w.Header().Set("Content-Type", "application/octet-stream")
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, id))
-
-	if err := h.server.CopyShard(w, shardID); err != nil {
-		httpError(w, err.Error(), false, http.StatusInternalServerError)
-	}
-}
-
-// serveStatus returns a set of states that the server is currently in.
-func (h *Handler) serveStatus(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("content-type", "application/json")
-
-	pretty := r.URL.Query().Get("pretty") == "true"
-
-	data := struct {
-		ID uint64 `json:"id"`
-	}{
-		ID: h.server.ID(),
-	}
-	var b []byte
-	if pretty {
-		b, _ = json.MarshalIndent(data, "", "    ")
-	} else {
-		b, _ = json.Marshal(data)
-	}
-	w.Write(b)
 }
 
 // serveOptions returns an empty response to comply with OPTIONS pre-flight requests

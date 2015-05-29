@@ -139,8 +139,8 @@ func TestHandler_Query(t *testing.T) {
 			t.Fatalf("unexpected db: %s", db)
 		}
 		return NewResultChan(
-			&influxql.Result{StatementID: 1, Series: influxql.Rows{{Name: "series0"}}},
-			&influxql.Result{StatementID: 2, Series: influxql.Rows{{Name: "series1"}}},
+			&influxql.Result{StatementID: 1, Series: []influxql.Row{{Name: "series0"}}},
+			&influxql.Result{StatementID: 2, Series: []influxql.Row{{Name: "series1"}}},
 			nil,
 		), nil
 	}
@@ -159,8 +159,8 @@ func TestHandler_Query_MergeResults(t *testing.T) {
 	h := NewHandler(false)
 	h.QueryExecutor.ExecuteQueryFn = func(q *influxql.Query, db string, user *meta.UserInfo, chunkSize int) (<-chan *influxql.Result, error) {
 		return NewResultChan(
-			&influxql.Result{StatementID: 1, Series: influxql.Rows{{Name: "series0"}}},
-			&influxql.Result{StatementID: 1, Series: influxql.Rows{{Name: "series1"}}},
+			&influxql.Result{StatementID: 1, Series: []influxql.Row{{Name: "series0"}}},
+			&influxql.Result{StatementID: 1, Series: []influxql.Row{{Name: "series1"}}},
 		), nil
 	}
 
@@ -181,8 +181,8 @@ func TestHandler_Query_Chunked(t *testing.T) {
 			t.Fatalf("unexpected chunk size: %d", chunkSize)
 		}
 		return NewResultChan(
-			&influxql.Result{StatementID: 1, Series: influxql.Rows{{Name: "series0"}}},
-			&influxql.Result{StatementID: 1, Series: influxql.Rows{{Name: "series1"}}},
+			&influxql.Result{StatementID: 1, Series: []influxql.Row{{Name: "series0"}}},
+			&influxql.Result{StatementID: 1, Series: []influxql.Row{{Name: "series1"}}},
 		), nil
 	}
 

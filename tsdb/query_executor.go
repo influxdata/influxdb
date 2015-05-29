@@ -531,7 +531,7 @@ func (q *QueryExecutor) executeShowMeasurementsStatement(stmt *influxql.ShowMeas
 
 	// Make a result.
 	result := &influxql.Result{
-		Series: influxql.Rows{row},
+		Series: []influxql.Row{row},
 	}
 
 	return result
