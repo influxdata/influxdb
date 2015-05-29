@@ -11,19 +11,9 @@ import (
 	"runtime/pprof"
 	"strings"
 	"time"
+
+	"github.com/influxdb/influxdb/cmd/influxd/run"
 )
-
-const logo = `
- 8888888           .d888 888                   8888888b.  888888b.
-   888            d88P"  888                   888  "Y88b 888  "88b
-   888            888    888                   888    888 888  .88P
-   888   88888b.  888888 888 888  888 888  888 888    888 8888888K.
-   888   888 "88b 888    888 888  888  Y8bd8P' 888    888 888  "Y88b
-   888   888  888 888    888 888  888   X88K   888    888 888    888
-   888   888  888 888    888 Y88b 888 .d8""8b. 888  .d88P 888   d88P
- 8888888 888  888 888    888  "Y88888 888  888 8888888P"  8888888P"
-
-`
 
 // These variables are populated via the Go linker.
 var (
@@ -69,37 +59,38 @@ func main() {
 		cmd = args[0]
 	}
 
+	// FIXME(benbjohnson): Parse profiling args & start profiling.
+
 	// Extract name from args.
 	switch cmd {
-	case "run":
-		cmd := NewRunCommand()
-		if err := cmd.Run(args[1:]...); err != nil {
-			log.Fatalf("run: %s", err)
-		}
 	case "":
-		cmd := NewRunCommand()
-		if err := cmd.Run(args...); err != nil {
+		if err := run.NewCommand().Run(args...); err != nil {
 			log.Fatalf("run: %s", err)
 		}
-	case "backup":
-		cmd := NewBackupCommand()
-		if err := cmd.Run(args[1:]...); err != nil {
-			log.Fatalf("backup: %s", err)
+	case "run":
+		if err := run.NewCommand().Run(args[1:]...); err != nil {
+			log.Fatalf("run: %s", err)
 		}
-	case "restore":
-		cmd := NewRestoreCommand()
-		if err := cmd.Run(args[1:]...); err != nil {
-			log.Fatalf("restore: %s", err)
-		}
+	// case "backup":
+	// 	cmd := NewBackupCommand()
+	// 	if err := cmd.Run(args[1:]...); err != nil {
+	// 		log.Fatalf("backup: %s", err)
+	// 	}
+	// case "restore":
+	// 	cmd := NewRestoreCommand()
+	// 	if err := cmd.Run(args[1:]...); err != nil {
+	// 		log.Fatalf("restore: %s", err)
+	// 	}
 	case "version":
 		execVersion(args[1:])
 	case "config":
-		execConfig(args[1:])
-	case "help":
-		cmd := NewHelpCommand()
-		if err := cmd.Run(args[1:]...); err != nil {
-			log.Fatalf("help: %s", err)
+		if err := run.NewPrintConfigCommand().Run(args[1:]...); err != nil {
+			log.Fatalf("config: %s", err)
 		}
+	// case "help":
+	// 	if err := help.NewCommand().Run(args[1:]...); err != nil {
+	// 		log.Fatalf("help: %s", err)
+	// 	}
 	default:
 		log.Fatalf(`influxd: unknown command "%s"`+"\n"+`Run 'influxd help' for usage`+"\n\n", cmd)
 	}
@@ -122,43 +113,6 @@ func execVersion(args []string) {
 		s += fmt.Sprintf(" (git: %s)", commit)
 	}
 	log.Print(s)
-}
-
-// execConfig parses and prints the current config loaded.
-func execConfig(args []string) {
-	// Parse command flags.
-	fs := flag.NewFlagSet("", flag.ExitOnError)
-	fs.Usage = func() {
-		fmt.Println(`usage: config
-
-	config displays the default configuration
-						    `)
-	}
-
-	var (
-		configPath string
-		hostname   string
-	)
-	fs.StringVar(&configPath, "config", "", "")
-	fs.StringVar(&hostname, "hostname", "", "")
-	fs.Parse(args)
-
-	var config *Config
-	var err error
-	if configPath == "" {
-		config, err = NewTestConfig()
-	} else {
-		config, err = ParseConfigFile(configPath)
-	}
-	if err != nil {
-		log.Fatalf("parse config: %s", err)
-	}
-	// Override config properties.
-	if hostname != "" {
-		config.Hostname = hostname
-	}
-
-	config.Write(os.Stdout)
 }
 
 type Stopper interface {

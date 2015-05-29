@@ -7,8 +7,8 @@ import (
 	"strings"
 )
 
-// HTTPService manages the listener and handler for an HTTP endpoint.
-type HTTPService struct {
+// Service manages the listener and handler for an HTTP endpoint.
+type Service struct {
 	listener net.Listener
 	addr     string
 	err      chan error
@@ -16,16 +16,16 @@ type HTTPService struct {
 	Handler Handler
 }
 
-// NewHTTPService returns a new instance of HTTPService.
-func NewHTTPService(c *Config) *HTTPService {
-	return &HTTPService{
+// NewService returns a new instance of Service.
+func NewService(c *Config) *Service {
+	return &Service{
 		addr: c.BindAddress,
 		err:  make(chan error),
 	}
 }
 
 // Open starts the service
-func (s *HTTPService) Open() error {
+func (s *Service) Open() error {
 	// Open listener.
 	listener, err := net.Listen("tcp", s.addr)
 	if err != nil {
@@ -39,7 +39,7 @@ func (s *HTTPService) Open() error {
 }
 
 // Close closes the underlying listener.
-func (s *HTTPService) Close() error {
+func (s *Service) Close() error {
 	if s.listener != nil {
 		return s.listener.Close()
 	}
@@ -47,10 +47,10 @@ func (s *HTTPService) Close() error {
 }
 
 // Err returns a channel for fatal errors that occur on the listener.
-func (s *HTTPService) Err() <-chan error { return s.err }
+func (s *Service) Err() <-chan error { return s.err }
 
 // Addr returns the listener's address. Returns nil if listener is closed.
-func (s *HTTPService) Addr() net.Addr {
+func (s *Service) Addr() net.Addr {
 	if s.listener != nil {
 		return s.listener.Addr()
 	}
@@ -58,18 +58,11 @@ func (s *HTTPService) Addr() net.Addr {
 }
 
 // serve serves the handler from the listener.
-func (s *HTTPService) serve() {
+func (s *Service) serve() {
 	// The listener was closed so exit
 	// See https://github.com/golang/go/issues/4373
 	err := http.Serve(s.listener, &s.Handler)
 	if err != nil && !strings.Contains(err.Error(), "closed") {
 		s.err <- fmt.Errorf("listener failed: addr=%s, err=%s", s.Addr(), err)
 	}
-}
-
-type Config struct {
-	BindAddress  string `toml:"bind-address"`
-	Port         int    `toml:"port"`
-	LogEnabled   bool   `toml:"log-enabled"`
-	WriteTracing bool   `toml:"write-tracing"`
 }

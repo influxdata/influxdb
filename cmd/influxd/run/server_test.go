@@ -1,5 +1,6 @@
 package run_test
 
+/*
 import (
 	"bytes"
 	"encoding/json"
@@ -113,7 +114,7 @@ func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes int
 	c.Port = basePort
 	c.Admin.Port = 0
 	c.Admin.Enabled = false
-	c.ReportingDisabled = true
+	c.ReportingEnabled = false
 	c.Snapshot.Enabled = false
 	c.Logging.HTTPAccess = false
 
@@ -1229,7 +1230,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			expected: `{"results":[{"series":[{"name":"cpu","columns":["_id","host","region"],"values":[[2,"server01","uswest"]]}]}]}`,
 		},
 		{
-			query:    "SHOW SERIES WHERE region =~ /ca.*/",
+			query:    "SHOW SERIES WHERE region =~ /ca.*./",
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"gpu","columns":["_id","host","region"],"values":[[6,"server03","caeast"]]}]}]}`,
 		},
@@ -1260,12 +1261,12 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			expected: `{"results":[{"series":[{"name":"measurements","columns":["name"],"values":[["cpu"],["gpu"]]}]}]}`,
 		},
 		{
-			query:    "SHOW MEASUREMENTS WHERE region =~ /ca.*/",
+			query:    "SHOW MEASUREMENTS WHERE region =~ /ca.*./",
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"measurements","columns":["name"],"values":[["gpu"],["other"]]}]}]}`,
 		},
 		{
-			query:    "SHOW MEASUREMENTS WHERE region !~ /ca.*/",
+			query:    "SHOW MEASUREMENTS WHERE region !~ /ca.*./",
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"measurements","columns":["name"],"values":[["cpu"]]}]}]}`,
 		},
@@ -1320,7 +1321,7 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			expected: `{"results":[{"series":[{"name":"hostTagValues","columns":["host"],"values":[["server01"]]}]}]}`,
 		},
 		{
-			query:    `SHOW TAG VALUES WITH KEY = host WHERE region =~ /ca.*/`,
+			query:    `SHOW TAG VALUES WITH KEY = host WHERE region =~ /ca.*./`,
 			queryDb:  "%DB%",
 			expected: `{"results":[{"series":[{"name":"hostTagValues","columns":["host"],"values":[["server03"]]}]}]}`,
 		},
@@ -2341,14 +2342,14 @@ func TestSeparateBrokerDataNode(t *testing.T) {
 	brokerConfig.Admin.Enabled = false
 	brokerConfig.Data.Enabled = false
 	brokerConfig.Broker.Dir = filepath.Join(tmpBrokerDir, strconv.Itoa(brokerConfig.Port))
-	brokerConfig.ReportingDisabled = true
+	brokerConfig.ReportingEnabled = false
 
 	dataConfig := main.NewConfig()
 	dataConfig.Port = 0
 	dataConfig.Admin.Enabled = false
 	dataConfig.Broker.Enabled = false
 	dataConfig.Data.Dir = filepath.Join(tmpDataDir, strconv.Itoa(dataConfig.Port))
-	dataConfig.ReportingDisabled = true
+	dataConfig.ReportingEnabled = false
 
 	brokerCmd := main.NewRunCommand()
 	broker := brokerCmd.Open(brokerConfig, "")
@@ -2394,7 +2395,7 @@ func TestSeparateBrokerTwoDataNodes(t *testing.T) {
 	brokerConfig.Admin.Enabled = false
 	brokerConfig.Data.Enabled = false
 	brokerConfig.Broker.Dir = filepath.Join(tmpBrokerDir, "1")
-	brokerConfig.ReportingDisabled = true
+	brokerConfig.ReportingEnabled = false
 
 	brokerCmd := main.NewRunCommand()
 	broker := brokerCmd.Open(brokerConfig, "")
@@ -2413,7 +2414,7 @@ func TestSeparateBrokerTwoDataNodes(t *testing.T) {
 	dataConfig1.Admin.Enabled = false
 	dataConfig1.Broker.Enabled = false
 	dataConfig1.Data.Dir = filepath.Join(tmpDataDir, "1")
-	dataConfig1.ReportingDisabled = true
+	dataConfig1.ReportingEnabled = false
 
 	dataCmd1 := main.NewRunCommand()
 
@@ -2430,7 +2431,7 @@ func TestSeparateBrokerTwoDataNodes(t *testing.T) {
 	dataConfig2.Admin.Enabled = false
 	dataConfig2.Broker.Enabled = false
 	dataConfig2.Data.Dir = filepath.Join(tmpDataDir, "2")
-	dataConfig2.ReportingDisabled = true
+	dataConfig2.ReportingEnabled = false
 
 	dataCmd2 := main.NewRunCommand()
 
@@ -2462,3 +2463,4 @@ func mustMarshalJSON(v interface{}) string {
 
 func warn(v ...interface{})              { fmt.Fprintln(os.Stderr, v...) }
 func warnf(msg string, v ...interface{}) { fmt.Fprintf(os.Stderr, msg+"\n", v...) }
+*/

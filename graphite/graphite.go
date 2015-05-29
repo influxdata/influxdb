@@ -14,9 +14,6 @@ import (
 const (
 	// DefaultGraphitePort represents the default Graphite (Carbon) plaintext port.
 	DefaultGraphitePort = 2003
-
-	// DefaultGraphiteNameSeparator represents the default Graphite field separator.
-	DefaultGraphiteNameSeparator = "."
 )
 
 var (
@@ -63,7 +60,7 @@ type Parser struct {
 
 // NewParser returns a GraphiteParser instance.
 func NewParser() *Parser {
-	return &Parser{Separator: DefaultGraphiteNameSeparator}
+	return &Parser{Separator: DefaultNameSeparator}
 }
 
 // Parse performs Graphite parsing of a single line.

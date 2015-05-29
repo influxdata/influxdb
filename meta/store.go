@@ -19,20 +19,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-const (
-	// DefaultHeartbeatTimeout is the default heartbeat timeout for the store.
-	DefaultHeartbeatTimeout = 1000 * time.Millisecond
-
-	// DefaultElectionTimeout is the default election timeout for the store.
-	DefaultElectionTimeout = 1000 * time.Millisecond
-
-	// DefaultLeaderLeaseTimeout is the default leader lease for the store.
-	DefaultLeaderLeaseTimeout = 500 * time.Millisecond
-
-	// DefaultCommitTimeout is the default commit timeout for the store.
-	DefaultCommitTimeout = 50 * time.Millisecond
-)
-
 // Raft configuration.
 const (
 	raftLogCacheSize      = 512

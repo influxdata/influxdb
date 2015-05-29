@@ -35,8 +35,7 @@ type SeriesWriter interface {
 type Server struct {
 	writer SeriesWriter
 
-	database        string
-	retentionpolicy string
+	database string
 
 	listener *net.TCPListener
 	tsdbhttp *tsdbHTTPListener
@@ -50,7 +49,6 @@ func NewServer(w SeriesWriter, retpol string, db string) *Server {
 	s := &Server{}
 
 	s.writer = w
-	s.retentionpolicy = retpol
 	s.database = db
 	s.tsdbhttp = makeTSDBHTTPListener()
 
@@ -225,7 +223,7 @@ func (s *Server) HandleTelnet(conn net.Conn) {
 
 		p := tsdb.NewPoint(name, tags, fields, t)
 
-		_, err = s.writer.WriteSeries(s.database, s.retentionpolicy, []tsdb.Point{p})
+		_, err = s.writer.WriteSeries(s.database, "", []tsdb.Point{p})
 		if err != nil {
 			log.Println("TSDB cannot write data: ", err)
 			continue
@@ -331,7 +329,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		idps = append(idps, p)
 	}
-	_, err = s.writer.WriteSeries(s.database, s.retentionpolicy, idps)
+	_, err = s.writer.WriteSeries(s.database, "", idps)
 	if err != nil {
 		log.Println("TSDB cannot write data: ", err)
 	}

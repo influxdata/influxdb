@@ -1,27 +1,12 @@
 package run
 
 import (
-	"flag"
 	"fmt"
-	"io/ioutil"
-	"log"
 	"net"
-	"net/http"
-	"net/url"
-	"os"
-	"path/filepath"
-	"runtime"
-	"strconv"
-	"strings"
-	"time"
 
-	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/admin"
 	"github.com/influxdb/influxdb/cluster"
-	"github.com/influxdb/influxdb/collectd"
-	"github.com/influxdb/influxdb/graphite"
 	"github.com/influxdb/influxdb/meta"
-	"github.com/influxdb/influxdb/opentsdb"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -33,11 +18,11 @@ type Server struct {
 }
 
 // NewServer returns a new instance of Server built from a config.
-func NewServer(c *influxdb.Config) (*Server, error) {
+func NewServer(c *Config, joinURLs string) *Server {
 	// Construct base meta store and data store.
 	s := &Server{
-		MetaStore: meta.NewStore(filepath.Join(path, "meta")),
-		TSDBStore: tsdb.NewStore(filepath.Join(path, "data")),
+		MetaStore: meta.NewStore(c.Meta.Dir),
+		TSDBStore: tsdb.NewStore(c.Data.Dir),
 	}
 
 	// Add cluster Service
@@ -100,6 +85,14 @@ func (s *Server) Close() error {
 	return nil
 }
 
+// Service represents a service attached to the server.
+type Service interface {
+	Open() error
+	Close() error
+	Addr() net.Addr
+}
+
+/*
 type Node struct {
 	Server *influxdb.Server
 
@@ -232,119 +225,7 @@ func (s *Node) closeClusterListener() error {
 	return err
 }
 
-func (cmd *RunCommand) ParseConfig(path string) error {
-	// Parse configuration file from disk.
-	if path != "" {
-		var err error
-		cmd.config, err = ParseConfigFile(path)
-		if err != nil {
-			return fmt.Errorf("error parsing configuration %s - %s\n", path, err)
-		}
-		log.Printf("using configuration at: %s\n", path)
-	} else {
-		var err error
-		cmd.config, err = NewTestConfig()
 
-		if err != nil {
-			return fmt.Errorf("error parsing default config: %s\n", err)
-		}
-
-		log.Println("no configuration provided, using default settings")
-	}
-
-	// Override config properties.
-	if cmd.hostname != "" {
-		cmd.config.Hostname = cmd.hostname
-	}
-	cmd.node.hostname = cmd.config.Hostname
-	return nil
-}
-
-func (cmd *RunCommand) Run(args ...string) error {
-	// Parse command flags.
-	fs := flag.NewFlagSet("", flag.ExitOnError)
-	var configPath, pidfile, hostname, join, cpuprofile, memprofile string
-
-	fs.StringVar(&configPath, "config", "", "")
-	fs.StringVar(&pidfile, "pidfile", "", "")
-	fs.StringVar(&hostname, "hostname", "", "")
-	fs.StringVar(&join, "join", "", "")
-	fs.StringVar(&cpuprofile, "cpuprofile", "", "")
-	fs.StringVar(&memprofile, "memprofile", "", "")
-
-	fs.Usage = printRunUsage
-	fs.Parse(args)
-	cmd.hostname = hostname
-
-	// Start profiling, if set.
-	startProfiling(cpuprofile, memprofile)
-	defer stopProfiling()
-
-	// Print sweet InfluxDB logo and write the process id to file.
-	fmt.Print(logo)
-	writePIDFile(pidfile)
-
-	// Set parallelism.
-	runtime.GOMAXPROCS(runtime.NumCPU())
-	log.Printf("GOMAXPROCS set to %d", runtime.GOMAXPROCS(0))
-
-	// Parse config
-	if err := cmd.ParseConfig(configPath); err != nil {
-		log.Fatal(err)
-	}
-
-	// Use the config JoinURLs by default
-	joinURLs := cmd.config.Initialization.JoinURLs
-
-	// If a -join flag was passed, these should override the config
-	if join != "" {
-		joinURLs = join
-	}
-	cmd.CheckConfig()
-	cmd.Open(cmd.config, joinURLs)
-
-	// Wait indefinitely.
-	<-(chan struct{})(nil)
-	return nil
-}
-
-// CheckConfig validates the configuration
-func (cmd *RunCommand) CheckConfig() {
-	// Set any defaults that aren't set
-	// TODO: bring more defaults in here instead of letting helpers do it
-
-	// Normalize Graphite configs
-	for i, _ := range cmd.config.Graphites {
-		if cmd.config.Graphites[i].BindAddress == "" {
-			cmd.config.Graphites[i].BindAddress = cmd.config.BindAddress
-		}
-		if cmd.config.Graphites[i].Port == 0 {
-			cmd.config.Graphites[i].Port = graphite.DefaultGraphitePort
-		}
-	}
-
-	// Normalize openTSDB config
-	if cmd.config.OpenTSDB.Addr == "" {
-		cmd.config.OpenTSDB.Addr = cmd.config.BindAddress
-	}
-
-	if cmd.config.OpenTSDB.Port == 0 {
-		cmd.config.OpenTSDB.Port = opentsdb.DefaultPort
-	}
-
-	// Validate that we have a sane config
-	if !(cmd.config.Data.Enabled || cmd.config.Broker.Enabled) {
-		log.Fatal("Node must be configured as a broker node, data node, or as both. To generate a valid configuration file run `influxd config > influxdb.generated.conf`.")
-	}
-
-	if cmd.config.Broker.Enabled && cmd.config.Broker.Dir == "" {
-		log.Fatal("Broker.Dir must be specified.  To generate a valid configuration file run `influxd config > influxdb.generated.conf`.")
-	}
-
-	if cmd.config.Data.Enabled && cmd.config.Data.Dir == "" {
-		log.Fatal("Data.Dir must be specified.  To generate a valid configuration file run `influxd config > influxdb.generated.conf`.")
-	}
-}
 
 func (cmd *RunCommand) Open(config *Config, join string) *Node {
 	if config != nil {
@@ -496,7 +377,7 @@ func (cmd *RunCommand) Open(config *Config, join string) *Node {
 	}
 
 	// unless disabled, start the loop to report anonymous usage stats every 24h
-	if !cmd.config.ReportingDisabled {
+	if cmd.config.ReportingEnabled {
 		if cmd.config.Broker.Enabled && cmd.config.Data.Enabled {
 			// Make sure we have a config object b4 we try to use it.
 			if clusterID := cmd.node.Broker.Broker.ClusterID(); clusterID != 0 {
@@ -531,24 +412,6 @@ func (cmd *RunCommand) Close() {
 	cmd.node.Close()
 }
 
-// write the current process id to a file specified by path.
-func writePIDFile(path string) {
-	if path == "" {
-		return
-	}
-
-	// Ensure the required directory structure exists.
-	err := os.MkdirAll(filepath.Dir(path), 0755)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// Retrieve the PID and write it.
-	pid := strconv.Itoa(os.Getpid())
-	if err := ioutil.WriteFile(path, []byte(pid), 0644); err != nil {
-		log.Fatal(err)
-	}
-}
 
 // creates and initializes a broker.
 func (cmd *RunCommand) openBroker(brokerURLs []url.URL, h *Handler) {
@@ -734,3 +597,4 @@ func fileExists(path string) bool {
 	}
 	return true
 }
+*/
