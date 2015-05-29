@@ -14,6 +14,7 @@ func TestNormalizeBatchPoints(t *testing.T) {
 	tests := []struct {
 		name string
 		bp   client.BatchPoints
+		json []byte // if set, generate bp from json. overrides bp
 		p    []influxdb.Point
 		err  string
 	}{
@@ -54,11 +55,29 @@ func TestNormalizeBatchPoints(t *testing.T) {
 				{Measurement: "memory", Tags: map[string]string{"day": "monday"}, Time: now, Fields: map[string]interface{}{"value": 2.0}},
 			},
 		},
+		{
+			name: "merge precision",
+			json: []byte(`{ "precision": "ms", "points": [
+			{"name": "cpu", "timestamp": 1422921600000, "fields": { "value": 1.0 }},
+			{"name": "memory", "timestamp": 1423008000000, "fields": { "value": 2.0 }}
+			] }`),
+			p: []influxdb.Point{
+				{Name: "cpu", Timestamp: time.Unix(1422921600, 0), Fields: map[string]interface{}{"value": 1.0}},
+				{Name: "memory", Timestamp: time.Unix(1423008000, 0), Fields: map[string]interface{}{"value": 2.0}},
+			},
+		},
 	}
 
 	for _, test := range tests {
 		t.Logf("running test %q", test.name)
-		p, e := influxdb.NormalizeBatchPoints(test.bp)
+		bp := test.bp
+		if test.json != nil {
+			e := bp.UnmarshalJSON(test.json)
+			if e != nil {
+				t.Errorf("error unmarshalling batchpoints %v\n json: %s", e, test.json)
+			}
+		}
+		p, e := influxdb.NormalizeBatchPoints(bp)
 		if test.err == "" && e != nil {
 			t.Errorf("unexpected error %v", e)
 		} else if test.err != "" && e == nil {
