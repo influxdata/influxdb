@@ -79,6 +79,12 @@ func (s *Store) ValidateAggregateFieldsInStatement(shardID uint64, measurementNa
 	return shard.ValidateAggregateFieldsInStatement(measurementName, stmt)
 }
 
+func (s *Store) DatabaseIndex(name string) *DatabaseIndex {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.databaseIndexes[name]
+}
+
 func (s *Store) Measurement(database, name string) *Measurement {
 	db := s.databaseIndexes[database]
 	if db == nil {

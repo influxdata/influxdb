@@ -1,4 +1,4 @@
-package influxdb
+package tsdb
 
 import (
 	"encoding/binary"
@@ -10,7 +10,6 @@ import (
 	"github.com/boltdb/bolt"
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta"
-	"github.com/influxdb/influxdb/tsdb"
 )
 
 // tx represents a transaction that spans multiple shard data stores.
@@ -19,7 +18,7 @@ type tx struct {
 	now time.Time
 
 	// used by DecodeFields and FieldIDs. Only used in a raw query, which won't let you select from more than one measurement
-	measurement *tsdb.Measurement
+	measurement *Measurement
 
 	meta  metaStore
 	store localStore
@@ -30,9 +29,9 @@ type metaStore interface {
 }
 
 type localStore interface {
-	Measurement(database, name string) *tsdb.Measurement
+	Measurement(database, name string) *Measurement
 	ValidateAggregateFieldsInStatement(shardID uint64, measurementName string, stmt *influxql.SelectStatement) error
-	Shard(shardID uint64) *tsdb.Shard
+	Shard(shardID uint64) *Shard
 }
 
 // newTx return a new initialized Tx.
@@ -195,7 +194,7 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 // LocalMapper implements the influxql.Mapper interface for running map tasks over a shard that is local to this server
 type LocalMapper struct {
 	cursorsEmpty     bool                   // boolean that lets us know if the cursors are empty
-	decoder          *tsdb.FieldCodec       // decoder for the raw data bytes
+	decoder          *FieldCodec            // decoder for the raw data bytes
 	filters          []influxql.Expr        // filters for each series
 	cursors          []*bolt.Cursor         // bolt cursors for each series id
 	seriesKeys       []string               // seriesKeys to be read from this shard
@@ -479,13 +478,6 @@ func matchesWhere(f influxql.Expr, fields map[string]interface{}) bool {
 		return false
 	}
 	return true
-}
-
-// u64tob converts a uint64 into an 8-byte slice.
-func u64tob(v uint64) []byte {
-	b := make([]byte, 8)
-	binary.BigEndian.PutUint64(b, v)
-	return b
 }
 
 // btou64 converts an 8-byte slice into an uint64.
