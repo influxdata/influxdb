@@ -73,6 +73,8 @@ enabled = false
 enabled = false
 # bind-address = "0.0.0.0"
 # port = 4444
+# batch-size = 0 # How many points to batch up internally before writing.
+# batch-timeout = "0ms" # Maximum time to wait before sending batch, regardless of current size.
 
 # Broker configuration. Brokers are nodes which participate in distributed
 # consensus.

@@ -193,6 +193,9 @@ type Config struct {
 		Enabled     bool   `toml:"enabled"`
 		BindAddress string `toml:"bind-address"`
 		Port        int    `toml:"port"`
+
+		BatchSize    int      `toml:"batch-size"`
+		BatchTimeout Duration `toml:"batch-timeout"`
 	} `toml:"udp"`
 
 	Broker Broker `toml:"broker"`
