@@ -68,7 +68,7 @@ func (u *UDPServer) ListenAndServe(iface string) error {
 	u.host = u.addr.String()
 
 	batcher := influxdb.NewPointBatcher(u.batchSize, u.batchTimeout)
-	in, out := batcher.Start()
+	in, out, flush := batcher.Start()
 
 	// Start processing batches.
 	var wg sync.WaitGroup
@@ -96,6 +96,7 @@ func (u *UDPServer) ListenAndServe(iface string) error {
 		for {
 			n, _, err := conn.ReadFromUDP(buf)
 			if err != nil {
+				flush <- struct{}{}
 				close(done)
 				wg.Wait()
 				return

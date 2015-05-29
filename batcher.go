@@ -28,14 +28,24 @@ type PointBatcherStats struct {
 }
 
 // Start starts the batching process. Returns the in and out channels for points
-// and point-batches respectively.
-func (b *PointBatcher) Start() (chan<- Point, <-chan []Point) {
+// and point-batches respectively. It also returns a flush channel, to which can be
+// sent an empty struct. Doing so will flush the batcher, if there is at least one
+// point pending.
+func (b *PointBatcher) Start() (chan<- Point, <-chan []Point, chan<- struct{}) {
 	var timer *time.Timer
 	var batch []Point
 	var timerCh <-chan time.Time
 
 	in := make(chan Point)
+	flush := make(chan struct{})
 	out := make(chan []Point)
+
+	emit := func() {
+		out <- batch
+		atomic.AddUint64(&b.stats.BatchTotal, 1)
+		batch = nil
+		timerCh = nil
+	}
 
 	go func() {
 		for {
@@ -51,22 +61,22 @@ func (b *PointBatcher) Start() (chan<- Point, <-chan []Point) {
 				batch = append(batch, p)
 				if len(batch) >= b.size { // 0 means send immediately.
 					atomic.AddUint64(&b.stats.SizeTotal, 1)
-					out <- batch
-					atomic.AddUint64(&b.stats.BatchTotal, 1)
-					batch = nil
-					timerCh = nil
+					emit()
+				}
+
+			case <-flush:
+				if len(batch) > 0 {
+					emit()
 				}
 
 			case <-timerCh:
 				atomic.AddUint64(&b.stats.TimeoutTotal, 1)
-				out <- batch
-				atomic.AddUint64(&b.stats.BatchTotal, 1)
-				batch = nil
+				emit()
 			}
 		}
 	}()
 
-	return in, out
+	return in, out, flush
 }
 
 // Stats returns a PointBatcherStats object for the PointBatcher. While the each statistic should be
