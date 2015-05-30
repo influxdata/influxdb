@@ -149,7 +149,7 @@ func Test_WriteShardRequestMultipleSuccess(t *testing.T) {
 		t.Fatal("unexpected time")
 	}
 }
-func Test_WriteShardRequestFail(t *testing.T) {
+func Test_WriteShardRequestError(t *testing.T) {
 	var (
 		ts = newTestServer(writeShardFail)
 		s  = cluster.NewServer(ts, "127.0.0.1:0")

@@ -67,7 +67,7 @@ func (s *Server) ShardGroupPreCreate(checkInterval time.Duration) {
 
 	for _, g := range groups {
 		if err := s.CreateShardGroupIfNotExists(g.Database, g.Retention, g.Time); err != nil {
-			log.Printf("failed to request pre-creation of shard group %d for time %s: %s", g.ID, g.Time, err.Error())
+			log.Printf("unable to request pre-creation of shard group %d for time %s: %s", g.ID, g.Time, err.Error())
 		}
 	}
 }

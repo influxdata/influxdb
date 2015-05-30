@@ -58,7 +58,7 @@ func (s *Server) EnforceRetentionPolicies() {
 
 	for _, g := range groups {
 		if err := s.DeleteShardGroup(g.Database, g.Retention, g.ID); err != nil {
-			log.Printf("failed to request deletion of shard group %d: %s", g.ID, err.Error())
+			log.Printf("unable to request deletion of shard group %d: %s", g.ID, err.Error())
 		}
 	}
 }

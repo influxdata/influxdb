@@ -75,7 +75,7 @@ type Cluster []*TestNode
 func (c *Cluster) Close() {
 	for _, n := range *c {
 		if err := n.node.Close(); err != nil {
-			log.Fatalf("failed to close node: %s", err)
+			log.Fatalf("unable to close node: %s", err)
 		}
 	}
 }
@@ -126,10 +126,10 @@ func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes int
 	s := baseNode.DataNode
 
 	if b == nil {
-		t.Fatalf("Test %s: failed to create broker on port %d", testName, basePort)
+		t.Fatalf("Test %s: unable to create broker on port %d", testName, basePort)
 	}
 	if s == nil {
-		t.Fatalf("Test %s: failed to create leader data node on port %d", testName, basePort)
+		t.Fatalf("Test %s: unable to create leader data node on port %d", testName, basePort)
 	}
 	nodes = append(nodes, &TestNode{
 		node:   baseNode,
@@ -147,10 +147,10 @@ func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes int
 		cmd := main.NewRunCommand()
 		node := cmd.Open(c, baseNode.ClusterURL().String())
 		if node.Broker == nil {
-			t.Fatalf("Test %s: failed to create following broker on addr %s", testName, node.ClusterURL().String())
+			t.Fatalf("Test %s: unable to create following broker on addr %s", testName, node.ClusterURL().String())
 		}
 		if node.DataNode == nil {
-			t.Fatalf("Test %s: failed to create following data node on addr %s", testName, node.ClusterURL().String())
+			t.Fatalf("Test %s: unable to create following data node on addr %s", testName, node.ClusterURL().String())
 		}
 
 		nodes = append(nodes, &TestNode{
@@ -167,7 +167,7 @@ func createCombinedNodeCluster(t *testing.T, testName, tmpDir string, nNodes int
 		ids[int(n.node.DataNode.ID())] = true
 	}
 	if len(ids) != len(nodes) {
-		t.Fatalf("failed to create valid cluster. some data nodes have the same id: %v", ids)
+		t.Fatalf("unable to create valid cluster. some data nodes have the same id: %v", ids)
 	}
 
 	return nodes
@@ -226,7 +226,7 @@ func write(t *testing.T, node *TestNode, data string) {
 	}
 	if resp.StatusCode != http.StatusNoContent {
 		body, _ := ioutil.ReadAll(resp.Body)
-		t.Fatalf("Write to database failed.  Unexpected status code.  expected: %d, actual %d, %s", http.StatusNoContent, resp.StatusCode, string(body))
+		t.Fatalf("Write to database error.  Unexpected status code.  expected: %d, actual %d, %s", http.StatusNoContent, resp.StatusCode, string(body))
 	}
 }
 
@@ -244,7 +244,7 @@ func query(t *testing.T, nodes Cluster, urlDb, query, expected, expectPattern st
 		u := urlFor(n.url, "query", v)
 		resp, err := http.Get(u.String())
 		if err != nil {
-			t.Fatalf("Failed to execute query '%s': %s", query, err.Error())
+			t.Fatalf("Unable to execute query '%s': %s", query, err.Error())
 		}
 		defer resp.Body.Close()
 
@@ -354,7 +354,7 @@ func runTest_rawDataReturnsInOrder(t *testing.T, testName string, nodes Cluster,
 	expected = fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",%d]]}]}]}`, numPoints-1)
 	got, ok, nOK := queryAndWait(t, nodes, database, `SELECT count(value) FROM cpu`, expected, "", 120*time.Second)
 	if !ok {
-		t.Fatalf("test %s:rawDataReturnsInOrder failed, SELECT count() query returned unexpected data\nexp: %s\ngot: %s\n%d nodes responded correctly", testName, expected, got, nOK)
+		t.Fatalf("test %s:rawDataReturnsInOrder unable, SELECT count() query returned unexpected data\nexp: %s\ngot: %s\n%d nodes responded correctly", testName, expected, got, nOK)
 		dumpClusterDiags(t, testName, nodes)
 		dumpClusterStats(t, testName, nodes)
 	}
@@ -367,7 +367,7 @@ func runTest_rawDataReturnsInOrder(t *testing.T, testName string, nodes Cluster,
 	expected = fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[%s]}]}]}`, strings.Join(expectedValues, ","))
 	got, ok, nOK = query(t, nodes, database, `SELECT value FROM cpu`, expected, "")
 	if !ok {
-		t.Fatalf("test %s failed, SELECT query returned unexpected data\nexp: %s\ngot: %s\n%d nodes responded correctly", testName, expected, got, nOK)
+		t.Fatalf("test %s error, SELECT query returned unexpected data\nexp: %s\ngot: %s\n%d nodes responded correctly", testName, expected, got, nOK)
 		dumpClusterDiags(t, testName, nodes)
 		dumpClusterStats(t, testName, nodes)
 	}
@@ -399,7 +399,7 @@ func runTests_Errors(t *testing.T, nodes Cluster) {
 		if tt.query != "" {
 			got, ok, nOK := query(t, nodes, "", tt.query, tt.expected, "")
 			if !ok {
-				t.Fatalf("Test '%s' failed, expected: %s, got: %s, %d nodes responded correctly", tt.name, tt.expected, got, nOK)
+				t.Fatalf("Test '%s' error, expected: %s, got: %s, %d nodes responded correctly", tt.name, tt.expected, got, nOK)
 			}
 		}
 	}
@@ -1568,9 +1568,9 @@ func runTestsData(t *testing.T, testName string, nodes Cluster, database, retent
 			got, ok, nOK := queryAndWait(t, qNodes, rewriteDbRp(urlDb, database, retention), qry, rewriteDbRp(tt.expected, database, retention), rewriteDbRp(tt.expectPattern, database, retention), 30*time.Second)
 			if !ok {
 				if tt.expected != "" {
-					t.Fatalf("Test #%d: \"%s:%s\" failed\n  query: %s\n  exp: %s\n  got: %s\n%d nodes responded correctly", i, testName, name, qry, rewriteDbRp(tt.expected, database, retention), got, nOK)
+					t.Fatalf("Test #%d: \"%s:%s\" error\n  query: %s\n  exp: %s\n  got: %s\n%d nodes responded correctly", i, testName, name, qry, rewriteDbRp(tt.expected, database, retention), got, nOK)
 				} else {
-					t.Fatalf("Test #%d: \"%s:%s\" failed\n  query: %s\n  exp: %s\n  got: %s\n%d nodes responded correctly", i, testName, name, qry, rewriteDbRp(tt.expectPattern, database, retention), got, nOK)
+					t.Fatalf("Test #%d: \"%s:%s\" error\n  query: %s\n  exp: %s\n  got: %s\n%d nodes responded correctly", i, testName, name, qry, rewriteDbRp(tt.expectPattern, database, retention), got, nOK)
 				}
 				dumpClusterDiags(t, name, nodes)
 				dumpClusterStats(t, name, nodes)
@@ -1868,7 +1868,7 @@ func Test_ServerSingleGraphiteIntegration_Default(t *testing.T) {
 	// query and wait for results
 	got, ok, _ := queryAndWait(t, nodes, "graphite", `select * from "graphite"."raw".cpu`, expected, "", graphiteTestTimeout)
 	if !ok {
-		t.Fatalf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
+		t.Fatalf(`Test "%s" error, expected: %s, got: %s`, testName, expected, got)
 	}
 }
 
@@ -1926,7 +1926,7 @@ func Test_ServerSingleGraphiteIntegration_FractionalTime(t *testing.T) {
 	// query and wait for results
 	got, ok, _ := queryAndWait(t, nodes, "graphite", `select * from "graphite"."raw".cpu`, expected, "", graphiteTestTimeout)
 	if !ok {
-		t.Fatalf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
+		t.Fatalf(`Test "%s" error, expected: %s, got: %s`, testName, expected, got)
 	}
 }
 
@@ -1983,7 +1983,7 @@ func Test_ServerSingleGraphiteIntegration_ZeroDataPoint(t *testing.T) {
 	// query and wait for results
 	got, ok, _ := queryAndWait(t, nodes, "graphite", `select * from "graphite"."raw".cpu`, expected, "", graphiteTestTimeout)
 	if !ok {
-		t.Fatalf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
+		t.Fatalf(`Test "%s" error, expected: %s, got: %s`, testName, expected, got)
 	}
 }
 
@@ -2025,14 +2025,14 @@ func Test_ServerSingleGraphiteIntegration_NoDatabase(t *testing.T) {
 	expected := `{"results":[{"series":[{"name":"databases","columns":["name"],"values":[["graphite"]]}]}]}`
 	got, ok, _ := queryAndWait(t, nodes, "graphite", `show databases`, expected, "", 2*time.Second)
 	if !ok {
-		t.Fatalf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
+		t.Fatalf(`Test "%s" error, expected: %s, got: %s`, testName, expected, got)
 	}
 
 	// Need to wait for the database to get a default retention policy
 	expected = `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["default","0",1,true]]}]}]}`
 	got, ok, _ = queryAndWait(t, nodes, "graphite", `show retention policies graphite`, expected, "", graphiteTestTimeout)
 	if !ok {
-		t.Fatalf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
+		t.Fatalf(`Test "%s" error, expected: %s, got: %s`, testName, expected, got)
 	}
 
 	t.Log("Writing data")
@@ -2050,7 +2050,7 @@ func Test_ServerSingleGraphiteIntegration_NoDatabase(t *testing.T) {
 	expected = fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",23.456]]}]}]}`, now.Format(time.RFC3339Nano))
 	got, ok, _ = queryAndWait(t, nodes, "graphite", `select * from "graphite"."default".cpu`, expected, "", 2*time.Second)
 	if !ok {
-		t.Fatalf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
+		t.Fatalf(`Test "%s" error, expected: %s, got: %s`, testName, expected, got)
 	}
 }
 
@@ -2104,7 +2104,7 @@ func Test_ServerOpenTSDBIntegration(t *testing.T) {
 	// query and wait for results
 	got, ok, _ := queryAndWait(t, nodes, "opentsdb", `select * from "opentsdb"."raw".cpu`, expected, "", openTSDBTestTimeout)
 	if !ok {
-		t.Fatalf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
+		t.Fatalf(`Test "%s" error, expected: %s, got: %s`, testName, expected, got)
 	}
 }
 
@@ -2163,7 +2163,7 @@ func Test_ServerOpenTSDBIntegration_WithTags(t *testing.T) {
 	// query and wait for results
 	got, ok, _ := queryAndWait(t, nodes, "opentsdb", `select * from "opentsdb"."raw".cpu where tag1='val3'`, expected, "", openTSDBTestTimeout)
 	if !ok {
-		t.Fatalf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
+		t.Fatalf(`Test "%s" error, expected: %s, got: %s`, testName, expected, got)
 	}
 }
 
@@ -2220,7 +2220,7 @@ func Test_ServerOpenTSDBIntegration_BadData(t *testing.T) {
 	// query and wait for results
 	got, ok, _ := queryAndWait(t, nodes, "opentsdb", `select * from "opentsdb"."raw".cpu`, expected, "", openTSDBTestTimeout)
 	if !ok {
-		t.Fatalf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
+		t.Fatalf(`Test "%s" error, expected: %s, got: %s`, testName, expected, got)
 	}
 }
 
@@ -2266,7 +2266,7 @@ func Test_ServerOpenTSDBIntegrationHTTPSingle(t *testing.T) {
 	// query and wait for results
 	got, ok, _ := queryAndWait(t, nodes, "opentsdb", `select * from "opentsdb"."raw".cpu`, expected, "", openTSDBTestTimeout)
 	if !ok {
-		t.Fatalf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
+		t.Fatalf(`Test "%s" error, expected: %s, got: %s`, testName, expected, got)
 	}
 }
 
@@ -2314,7 +2314,7 @@ func Test_ServerOpenTSDBIntegrationHTTPMulti(t *testing.T) {
 	// query and wait for results
 	got, ok, _ := queryAndWait(t, nodes, "opentsdb", `select * from "opentsdb"."raw".cpu`, expected, "", openTSDBTestTimeout)
 	if !ok {
-		t.Fatalf(`Test "%s" failed, expected: %s, got: %s`, testName, expected, got)
+		t.Fatalf(`Test "%s" error, expected: %s, got: %s`, testName, expected, got)
 	}
 }
 
@@ -2356,7 +2356,7 @@ func TestSeparateBrokerDataNode(t *testing.T) {
 	defer broker.Close()
 
 	if broker.Broker == nil {
-		t.Fatalf("Test %s: failed to create broker on port %d", testName, brokerConfig.Port)
+		t.Fatalf("Test %s: error to create broker on port %d", testName, brokerConfig.Port)
 	}
 
 	u := broker.Broker.URL()
@@ -2366,7 +2366,7 @@ func TestSeparateBrokerDataNode(t *testing.T) {
 	defer data.Close()
 
 	if data.DataNode == nil {
-		t.Fatalf("Test %s: failed to create leader data node on port %d", testName, dataConfig.Port)
+		t.Fatalf("Test %s: error to create leader data node on port %d", testName, dataConfig.Port)
 	}
 }
 
@@ -2402,7 +2402,7 @@ func TestSeparateBrokerTwoDataNodes(t *testing.T) {
 	defer broker.Close()
 
 	if broker.Broker == nil {
-		t.Fatalf("Test %s: failed to create broker on port %d", testName, brokerConfig.Port)
+		t.Fatalf("Test %s: error to create broker on port %d", testName, brokerConfig.Port)
 	}
 
 	u := broker.Broker.URL()
@@ -2422,7 +2422,7 @@ func TestSeparateBrokerTwoDataNodes(t *testing.T) {
 	defer data1.Close()
 
 	if data1.DataNode == nil {
-		t.Fatalf("Test %s: failed to create leader data node on port %d", testName, dataConfig1.Port)
+		t.Fatalf("Test %s: error to create leader data node on port %d", testName, dataConfig1.Port)
 	}
 
 	// Join data node 2 to single broker and first data node
@@ -2439,7 +2439,7 @@ func TestSeparateBrokerTwoDataNodes(t *testing.T) {
 
 	defer data2.Close()
 	if data2.DataNode == nil {
-		t.Fatalf("Test %s: failed to create leader data node on port %d", testName, dataConfig2.Port)
+		t.Fatalf("Test %s: error to create leader data node on port %d", testName, dataConfig2.Port)
 	}
 }
 

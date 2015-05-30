@@ -11,7 +11,7 @@ func TestStats_Set(t *testing.T) {
 	s := influxdb.NewStats("foo")
 	s.Set("a", 100)
 	if s.Get("a") != 100 {
-		t.Fatalf("stats set failed, expected 100, got %d", s.Get("a"))
+		t.Fatalf("stats set error, expected 100, got %d", s.Get("a"))
 	}
 }
 
@@ -21,7 +21,7 @@ func TestStats_Add(t *testing.T) {
 
 	s.Add("a", 200)
 	if s.Get("a") != 200 {
-		t.Fatalf("stats set failed, expected 200, got %d", s.Get("a"))
+		t.Fatalf("stats set error, expected 200, got %d", s.Get("a"))
 	}
 }
 
@@ -31,7 +31,7 @@ func TestStats_Add_Negative(t *testing.T) {
 
 	s.Add("a", -200)
 	if s.Get("a") != -200 {
-		t.Fatalf("stats set failed, expected -200, got %d", s.Get("a"))
+		t.Fatalf("stats set error, expected -200, got %d", s.Get("a"))
 	}
 }
 
@@ -42,12 +42,12 @@ func TestStats_Inc(t *testing.T) {
 	s.Set("a", 100)
 	s.Inc("a")
 	if s.Get("a") != 101 {
-		t.Fatalf("stats Inc failed, expected 101, got %d", s.Get("a"))
+		t.Fatalf("stats Inc error, expected 101, got %d", s.Get("a"))
 	}
 
 	s.Inc("b")
 	if s.Get("b") != 1 {
-		t.Fatalf("stats Inc failed, expected 1, got %d", s.Get("b"))
+		t.Fatalf("stats Inc error, expected 1, got %d", s.Get("b"))
 	}
 }
 
@@ -57,7 +57,7 @@ func TestStats_SetAndAdd(t *testing.T) {
 	s.Set("a", 100)
 	s.Add("a", 200)
 	if s.Get("a") != 300 {
-		t.Fatalf("stats set failed, expected 300, got %d", s.Get("a"))
+		t.Fatalf("stats set error, expected 300, got %d", s.Get("a"))
 	}
 }
 
@@ -98,6 +98,6 @@ func TestStats_String(t *testing.T) {
 	if exp, got := `{"server":[{"a":100},{"b":600}]}`, s.String(); exp != got {
 		t.Log("exp: ", exp)
 		t.Log("got: ", got)
-		t.Fatalf("failed to get string")
+		t.Fatalf("error to get string")
 	}
 }

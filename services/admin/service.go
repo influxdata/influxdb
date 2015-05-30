@@ -70,7 +70,7 @@ func (s *Service) serve() {
 	// Run file system handler on listener.
 	err = http.Serve(s.listener, http.FileServer(statikFS))
 	if err != nil && !strings.Contains(err.Error(), "closed") {
-		s.err <- fmt.Errorf("listener failed: addr=%s, err=%s", s.Addr(), err)
+		s.err <- fmt.Errorf("listener error: addr=%s, err=%s", s.Addr(), err)
 	}
 }
 

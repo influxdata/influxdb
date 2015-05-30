@@ -500,11 +500,11 @@ func TestGetSortedRange(t *testing.T) {
 	for _, tt := range getSortedRangeTests {
 		results := getSortedRange(tt.data, tt.start, tt.count)
 		if len(results) != len(tt.expected) {
-			t.Errorf("Test %s failed.  Expected getSortedRange to return %v but got %v", tt.name, tt.expected, results)
+			t.Errorf("Test %s error.  Expected getSortedRange to return %v but got %v", tt.name, tt.expected, results)
 		}
 		for i, point := range tt.expected {
 			if point != results[i] {
-				t.Errorf("Test %s failed. getSortedRange returned wrong result for index %v.  Expected %v but got %v", tt.name, i, point, results[i])
+				t.Errorf("Test %s error. getSortedRange returned wrong result for index %v.  Expected %v but got %v", tt.name, i, point, results[i])
 			}
 		}
 	}

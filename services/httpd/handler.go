@@ -283,7 +283,7 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *meta.
 	if h.WriteTrace {
 		b, err := ioutil.ReadAll(body)
 		if err != nil {
-			h.Logger.Print("write handler failed to read bytes from request body")
+			h.Logger.Print("write handler unable to read bytes from request body")
 		} else {
 			h.Logger.Printf("write body received by handler: %s", string(b))
 		}
@@ -369,7 +369,7 @@ func (h *Handler) serveWritePoints(w http.ResponseWriter, r *http.Request, user 
 	b, err := ioutil.ReadAll(body)
 	if err != nil {
 		if h.WriteTrace {
-			h.Logger.Print("write handler failed to read bytes from request body")
+			h.Logger.Print("write handler unable to read bytes from request body")
 		}
 		writeError(influxql.Result{Err: err}, http.StatusBadRequest)
 		return

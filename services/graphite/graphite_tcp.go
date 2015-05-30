@@ -116,7 +116,7 @@ func (t *TCPServer) handleConnection(conn net.Conn) {
 		// Send the data to the writer.
 		_, e := t.writer.WriteSeries(t.database, "", []tsdb.Point{point})
 		if e != nil {
-			t.Logger.Printf("failed to write data point to database %q: %s\n", t.database, e)
+			t.Logger.Printf("unable to write data point to database %q: %s\n", t.database, e)
 		}
 	}
 }

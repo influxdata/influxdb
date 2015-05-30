@@ -78,7 +78,7 @@ func (u *UDPServer) ListenAndServe(iface string) error {
 				// Send the data to the writer.
 				_, e := u.writer.WriteSeries(u.database, "", []tsdb.Point{point})
 				if e != nil {
-					u.Logger.Printf("failed to write data point: %s\n", e)
+					u.Logger.Printf("unable to write data point: %s\n", e)
 				}
 			}
 		}

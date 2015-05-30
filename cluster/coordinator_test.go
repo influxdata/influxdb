@@ -129,7 +129,7 @@ func TestCoordinatorWrite(t *testing.T) {
 			expErr:      nil,
 		},
 		{
-			name:        "write one fail",
+			name:        "write one error",
 			consistency: cluster.ConsistencyLevelOne,
 			err:         []error{fmt.Errorf("a failure"), fmt.Errorf("a failure"), fmt.Errorf("a failure")},
 			expErr:      cluster.ErrWriteFailed,
@@ -189,7 +189,7 @@ func TestCoordinatorWrite(t *testing.T) {
 			expErr:      nil,
 		},
 
-		// Error write failed
+		// Error write error
 		{
 			name:        "no writes succeed",
 			consistency: cluster.ConsistencyLevelOne,
@@ -252,7 +252,7 @@ func TestCoordinatorWrite(t *testing.T) {
 		}
 
 		if err := c.Write(pr); err != test.expErr {
-			t.Errorf("Coordinator.Write(): '%s' failed: got %v, exp %v", test.name, err, test.expErr)
+			t.Errorf("Coordinator.Write(): '%s' error: got %v, exp %v", test.name, err, test.expErr)
 		}
 	}
 }

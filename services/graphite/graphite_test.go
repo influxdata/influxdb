@@ -167,22 +167,22 @@ func Test_DecodeMetric(t *testing.T) {
 			err:  `received "50.554 1419972457825" which doesn't have three fields`,
 		},
 		{
-			test: "should fail on invalid key",
+			test: "should error on invalid key",
 			line: `foo.cpu 50.554 1419972457825`,
 			err:  `received "foo.cpu" which doesn't conform to format of key.value.key.value.name or name`,
 		},
 		{
-			test: "should fail parsing invalid float",
+			test: "should error parsing invalid float",
 			line: `cpu 50.554z 1419972457825`,
 			err:  `field "cpu" value: strconv.ParseFloat: parsing "50.554z": invalid syntax`,
 		},
 		{
-			test: "should fail parsing invalid int",
+			test: "should error parsing invalid int",
 			line: `cpu 50z 1419972457825`,
 			err:  `field "cpu" value: strconv.ParseFloat: parsing "50z": invalid syntax`,
 		},
 		{
-			test: "should fail parsing invalid time",
+			test: "should error parsing invalid time",
 			line: `cpu 50.554 14199724z57825`,
 			err:  `field "cpu" time: strconv.ParseFloat: parsing "14199724z57825": invalid syntax`,
 		},
