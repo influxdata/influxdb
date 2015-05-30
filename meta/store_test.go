@@ -541,6 +541,28 @@ func TestStore_UpdateUser(t *testing.T) {
 	}
 }
 
+// Ensure the store can return the count of users in it.
+func TestStore_UserCount(t *testing.T) {
+	s := MustOpenStore()
+	defer s.Close()
+	<-s.LeaderCh()
+
+	if count, err := s.UserCount(); count != 0 && err != nil {
+		t.Fatalf("expected user count to be 0 but was %d", count)
+	}
+
+	// Create users.
+	if _, err := s.CreateUser("susy", "pass", true); err != nil {
+		t.Fatal(err)
+	} else if _, err := s.CreateUser("bob", "pass", true); err != nil {
+		t.Fatal(err)
+	}
+
+	if count, err := s.UserCount(); count != 2 && err != nil {
+		t.Fatalf("expected user count to be 2 but was %d", count)
+	}
+}
+
 // Store is a test wrapper for meta.Store.
 type Store struct {
 	*meta.Store

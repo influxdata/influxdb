@@ -26,6 +26,7 @@ type QueryExecutor struct {
 		AdminUserExists() (bool, error)
 		Authenticate(username, password string) (*meta.UserInfo, error)
 		RetentionPolicy(database, name string) (rpi *meta.RetentionPolicyInfo, err error)
+		UserCount() (int, error)
 	}
 
 	// Executes statements relating to meta data.
@@ -61,9 +62,24 @@ func (q *QueryExecutor) Begin() (influxql.Tx, error) {
 }
 
 // Authorize user u to execute query q on database.
-// database can be "" for queries that do not require a database. Will return an error if no user is provided.
+// database can be "" for queries that do not require a database.
+// If no user is provided it will return an error unless the query's first statement is to create
+// a root user.
 func (q *QueryExecutor) Authorize(u *meta.UserInfo, query *influxql.Query, database string) error {
 	const authErrLogFmt = "unauthorized request | user: %q | query: %q | database %q\n"
+
+	// Special case if no users exist.
+	if count, err := q.MetaStore.UserCount(); count == 0 && err == nil {
+		// Get the first statement in the query.
+		stmt := query.Statements[0]
+		// First statement must create a root user.
+		if cu, ok := stmt.(*influxql.CreateUserStatement); !ok ||
+			cu.Privilege == nil ||
+			*cu.Privilege != influxql.AllPrivileges {
+			return ErrAuthorize{text: "no users exist. create root user first or disable authentication"}
+		}
+		return nil
+	}
 
 	if u == nil {
 		q.Logger.Printf(authErrLogFmt, "", query.String(), database)
