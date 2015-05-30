@@ -12,6 +12,7 @@
 - [2644](https://github.com/influxdb/influxdb/issues/2644): Make SHOW queries work with FROM /<regex>/.
 - [2501](https://github.com/influxdb/influxdb/issues/2501): Name the FlagSet for the shell and add a version flag. Thanks @neonstalwart
 - [2647](https://github.com/influxdb/influxdb/issues/2647): Fixes typos in sample config file - thanks @claws!
+- [2468](https://github.com/influxdb/influxdb/issues/2468): bind-address parameter issue on 0.9- thanks @marcosnils!
 
 ## v0.9.0-rc31 [2015-05-21]
 
