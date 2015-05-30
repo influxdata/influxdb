@@ -34,57 +34,57 @@ type StatementExecutor struct {
 }
 
 // ExecuteStatement executes stmt against the meta store as user.
-func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, user *UserInfo) *influxql.Result {
+func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement) *influxql.Result {
 	switch stmt := stmt.(type) {
 	case *influxql.CreateDatabaseStatement:
-		return e.executeCreateDatabaseStatement(stmt, user)
+		return e.executeCreateDatabaseStatement(stmt)
 	case *influxql.DropDatabaseStatement:
-		return e.executeDropDatabaseStatement(stmt, user)
+		return e.executeDropDatabaseStatement(stmt)
 	case *influxql.ShowDatabasesStatement:
-		return e.executeShowDatabasesStatement(stmt, user)
+		return e.executeShowDatabasesStatement(stmt)
 	case *influxql.ShowServersStatement:
-		return e.executeShowServersStatement(stmt, user)
+		return e.executeShowServersStatement(stmt)
 	case *influxql.CreateUserStatement:
-		return e.executeCreateUserStatement(stmt, user)
+		return e.executeCreateUserStatement(stmt)
 	case *influxql.SetPasswordUserStatement:
-		return e.executeSetPasswordUserStatement(stmt, user)
+		return e.executeSetPasswordUserStatement(stmt)
 	case *influxql.DropUserStatement:
-		return e.executeDropUserStatement(stmt, user)
+		return e.executeDropUserStatement(stmt)
 	case *influxql.ShowUsersStatement:
-		return e.executeShowUsersStatement(stmt, user)
+		return e.executeShowUsersStatement(stmt)
 	case *influxql.GrantStatement:
-		return e.executeGrantStatement(stmt, user)
+		return e.executeGrantStatement(stmt)
 	case *influxql.RevokeStatement:
-		return e.executeRevokeStatement(stmt, user)
+		return e.executeRevokeStatement(stmt)
 	case *influxql.CreateRetentionPolicyStatement:
-		return e.executeCreateRetentionPolicyStatement(stmt, user)
+		return e.executeCreateRetentionPolicyStatement(stmt)
 	case *influxql.AlterRetentionPolicyStatement:
-		return e.executeAlterRetentionPolicyStatement(stmt, user)
+		return e.executeAlterRetentionPolicyStatement(stmt)
 	case *influxql.DropRetentionPolicyStatement:
-		return e.executeDropRetentionPolicyStatement(stmt, user)
+		return e.executeDropRetentionPolicyStatement(stmt)
 	case *influxql.ShowRetentionPoliciesStatement:
-		return e.executeShowRetentionPoliciesStatement(stmt, user)
+		return e.executeShowRetentionPoliciesStatement(stmt)
 	case *influxql.CreateContinuousQueryStatement:
-		return e.executeCreateContinuousQueryStatement(stmt, user)
+		return e.executeCreateContinuousQueryStatement(stmt)
 	case *influxql.DropContinuousQueryStatement:
-		return e.executeDropContinuousQueryStatement(stmt, user)
+		return e.executeDropContinuousQueryStatement(stmt)
 	case *influxql.ShowContinuousQueriesStatement:
-		return e.executeShowContinuousQueriesStatement(stmt, user)
+		return e.executeShowContinuousQueriesStatement(stmt)
 	default:
 		panic(fmt.Sprintf("unsupported statement type: %T", stmt))
 	}
 }
 
-func (e *StatementExecutor) executeCreateDatabaseStatement(q *influxql.CreateDatabaseStatement, user *UserInfo) *influxql.Result {
+func (e *StatementExecutor) executeCreateDatabaseStatement(q *influxql.CreateDatabaseStatement) *influxql.Result {
 	_, err := e.Store.CreateDatabase(q.Name)
 	return &influxql.Result{Err: err}
 }
 
-func (e *StatementExecutor) executeDropDatabaseStatement(q *influxql.DropDatabaseStatement, user *UserInfo) *influxql.Result {
+func (e *StatementExecutor) executeDropDatabaseStatement(q *influxql.DropDatabaseStatement) *influxql.Result {
 	return &influxql.Result{Err: e.Store.DropDatabase(q.Name)}
 }
 
-func (e *StatementExecutor) executeShowDatabasesStatement(q *influxql.ShowDatabasesStatement, user *UserInfo) *influxql.Result {
+func (e *StatementExecutor) executeShowDatabasesStatement(q *influxql.ShowDatabasesStatement) *influxql.Result {
 	dis, err := e.Store.Databases()
 	if err != nil {
 		return &influxql.Result{Err: err}
@@ -97,7 +97,7 @@ func (e *StatementExecutor) executeShowDatabasesStatement(q *influxql.ShowDataba
 	return &influxql.Result{Series: []*influxql.Row{row}}
 }
 
-func (e *StatementExecutor) executeShowServersStatement(q *influxql.ShowServersStatement, user *UserInfo) *influxql.Result {
+func (e *StatementExecutor) executeShowServersStatement(q *influxql.ShowServersStatement) *influxql.Result {
 	nis, err := e.Store.Nodes()
 	if err != nil {
 		return &influxql.Result{Err: err}
@@ -110,7 +110,7 @@ func (e *StatementExecutor) executeShowServersStatement(q *influxql.ShowServersS
 	return &influxql.Result{Series: []*influxql.Row{row}}
 }
 
-func (e *StatementExecutor) executeCreateUserStatement(q *influxql.CreateUserStatement, user *UserInfo) *influxql.Result {
+func (e *StatementExecutor) executeCreateUserStatement(q *influxql.CreateUserStatement) *influxql.Result {
 	admin := false
 	if q.Privilege != nil {
 		admin = (*q.Privilege == influxql.AllPrivileges)
@@ -120,36 +120,36 @@ func (e *StatementExecutor) executeCreateUserStatement(q *influxql.CreateUserSta
 	return &influxql.Result{Err: err}
 }
 
-func (e *StatementExecutor) executeSetPasswordUserStatement(q *influxql.SetPasswordUserStatement, user *UserInfo) *influxql.Result {
+func (e *StatementExecutor) executeSetPasswordUserStatement(q *influxql.SetPasswordUserStatement) *influxql.Result {
 	return &influxql.Result{Err: e.Store.UpdateUser(q.Name, q.Password)}
 }
 
-func (e *StatementExecutor) executeDropUserStatement(q *influxql.DropUserStatement, user *UserInfo) *influxql.Result {
+func (e *StatementExecutor) executeDropUserStatement(q *influxql.DropUserStatement) *influxql.Result {
 	return &influxql.Result{Err: e.Store.DropUser(q.Name)}
 }
 
-func (e *StatementExecutor) executeShowUsersStatement(q *influxql.ShowUsersStatement, user *UserInfo) *influxql.Result {
+func (e *StatementExecutor) executeShowUsersStatement(q *influxql.ShowUsersStatement) *influxql.Result {
 	uis, err := e.Store.Users()
 	if err != nil {
 		return &influxql.Result{Err: err}
 	}
 
 	row := &influxql.Row{Columns: []string{"user", "admin"}}
-	for _, user := range uis {
-		row.Values = append(row.Values, []interface{}{user.Name, user.Admin})
+	for _, ui := range uis {
+		row.Values = append(row.Values, []interface{}{ui.Name, ui.Admin})
 	}
 	return &influxql.Result{Series: []*influxql.Row{row}}
 }
 
-func (e *StatementExecutor) executeGrantStatement(stmt *influxql.GrantStatement, user *UserInfo) *influxql.Result {
+func (e *StatementExecutor) executeGrantStatement(stmt *influxql.GrantStatement) *influxql.Result {
 	return &influxql.Result{Err: e.Store.SetPrivilege(stmt.User, stmt.On, stmt.Privilege)}
 }
 
-func (e *StatementExecutor) executeRevokeStatement(stmt *influxql.RevokeStatement, user *UserInfo) *influxql.Result {
+func (e *StatementExecutor) executeRevokeStatement(stmt *influxql.RevokeStatement) *influxql.Result {
 	return &influxql.Result{Err: e.Store.SetPrivilege(stmt.User, stmt.On, influxql.NoPrivileges)}
 }
 
-func (e *StatementExecutor) executeCreateRetentionPolicyStatement(stmt *influxql.CreateRetentionPolicyStatement, user *UserInfo) *influxql.Result {
+func (e *StatementExecutor) executeCreateRetentionPolicyStatement(stmt *influxql.CreateRetentionPolicyStatement) *influxql.Result {
 	rpi := NewRetentionPolicyInfo(stmt.Name)
 	rpi.Duration = stmt.Duration
 	rpi.ReplicaN = stmt.Replication
@@ -168,7 +168,7 @@ func (e *StatementExecutor) executeCreateRetentionPolicyStatement(stmt *influxql
 	return &influxql.Result{Err: err}
 }
 
-func (e *StatementExecutor) executeAlterRetentionPolicyStatement(stmt *influxql.AlterRetentionPolicyStatement, user *UserInfo) *influxql.Result {
+func (e *StatementExecutor) executeAlterRetentionPolicyStatement(stmt *influxql.AlterRetentionPolicyStatement) *influxql.Result {
 	rpu := &RetentionPolicyUpdate{
 		Duration: stmt.Duration,
 		ReplicaN: stmt.Replication,
@@ -188,11 +188,11 @@ func (e *StatementExecutor) executeAlterRetentionPolicyStatement(stmt *influxql.
 	return &influxql.Result{Err: err}
 }
 
-func (e *StatementExecutor) executeDropRetentionPolicyStatement(q *influxql.DropRetentionPolicyStatement, user *UserInfo) *influxql.Result {
+func (e *StatementExecutor) executeDropRetentionPolicyStatement(q *influxql.DropRetentionPolicyStatement) *influxql.Result {
 	return &influxql.Result{Err: e.Store.DropRetentionPolicy(q.Database, q.Name)}
 }
 
-func (e *StatementExecutor) executeShowRetentionPoliciesStatement(q *influxql.ShowRetentionPoliciesStatement, user *UserInfo) *influxql.Result {
+func (e *StatementExecutor) executeShowRetentionPoliciesStatement(q *influxql.ShowRetentionPoliciesStatement) *influxql.Result {
 	di, err := e.Store.Database(q.Database)
 	if err != nil {
 		return &influxql.Result{Err: err}
@@ -207,19 +207,19 @@ func (e *StatementExecutor) executeShowRetentionPoliciesStatement(q *influxql.Sh
 	return &influxql.Result{Series: []*influxql.Row{row}}
 }
 
-func (e *StatementExecutor) executeCreateContinuousQueryStatement(q *influxql.CreateContinuousQueryStatement, user *UserInfo) *influxql.Result {
+func (e *StatementExecutor) executeCreateContinuousQueryStatement(q *influxql.CreateContinuousQueryStatement) *influxql.Result {
 	return &influxql.Result{
 		Err: e.Store.CreateContinuousQuery(q.Database, q.Name, q.Source.String()),
 	}
 }
 
-func (e *StatementExecutor) executeDropContinuousQueryStatement(q *influxql.DropContinuousQueryStatement, user *UserInfo) *influxql.Result {
+func (e *StatementExecutor) executeDropContinuousQueryStatement(q *influxql.DropContinuousQueryStatement) *influxql.Result {
 	return &influxql.Result{
 		Err: e.Store.DropContinuousQuery(q.Database, q.Name),
 	}
 }
 
-func (e *StatementExecutor) executeShowContinuousQueriesStatement(stmt *influxql.ShowContinuousQueriesStatement, user *UserInfo) *influxql.Result {
+func (e *StatementExecutor) executeShowContinuousQueriesStatement(stmt *influxql.ShowContinuousQueriesStatement) *influxql.Result {
 	dis, err := e.Store.Databases()
 	if err != nil {
 		return &influxql.Result{Err: err}

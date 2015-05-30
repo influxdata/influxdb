@@ -10,7 +10,7 @@ import (
 	"github.com/influxdb/influxdb/tsdb"
 )
 
-const defaultWriteTimeout = 5 * time.Second
+const DefaultWriteTimeout = 5 * time.Second
 
 // ConsistencyLevel represent a required replication criteria before a write can
 // be returned as successful
@@ -31,20 +31,19 @@ const (
 )
 
 var (
-	// ErrTimeout is returned when a write times out
+	// ErrTimeout is returned when a write times out.
 	ErrTimeout = errors.New("timeout")
 
 	// ErrPartialWrite is returned when a write partially succeeds but does
-	// not meet the requested consistency level
+	// not meet the requested consistency level.
 	ErrPartialWrite = errors.New("partial write")
 
-	// ErrWriteFailed is returned when no writes succeeded
+	// ErrWriteFailed is returned when no writes succeeded.
 	ErrWriteFailed = errors.New("write failed")
 )
 
-// Coordinator handle queries and writes across multiple local and remote
-// data nodes.
-type Coordinator struct {
+// PointsWriter handles writes across multiple local and remote data nodes.
+type PointsWriter struct {
 	nodeID  uint64
 	mu      sync.RWMutex
 	closing chan struct{}
@@ -59,13 +58,14 @@ type Coordinator struct {
 		WriteToShard(shardID uint64, points []tsdb.Point) error
 	}
 
-	ClusterWriter interface {
-		Write(shardID, ownerID uint64, points []tsdb.Point) error
+	ShardWriter interface {
+		WriteShard(shardID, ownerID uint64, points []tsdb.Point) error
 	}
 }
 
-func NewCoordinator(localID uint64) *Coordinator {
-	return &Coordinator{
+// NewPointsWriter returns a new instance of PointsWriter for a node.
+func NewPointsWriter(localID uint64) *PointsWriter {
+	return &PointsWriter{
 		nodeID:  localID,
 		closing: make(chan struct{}),
 	}
@@ -96,21 +96,21 @@ func (s *ShardMapping) MapPoint(shardInfo *meta.ShardInfo, p tsdb.Point) {
 	s.Shards[shardInfo.ID] = shardInfo
 }
 
-func (c *Coordinator) Open() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.closing == nil {
-		c.closing = make(chan struct{})
+func (w *PointsWriter) Open() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.closing == nil {
+		w.closing = make(chan struct{})
 	}
 	return nil
 }
 
-func (c *Coordinator) Close() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.closing != nil {
-		close(c.closing)
-		c.closing = nil
+func (w *PointsWriter) Close() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.closing != nil {
+		close(w.closing)
+		w.closing = nil
 	}
 	return nil
 }
@@ -118,7 +118,7 @@ func (c *Coordinator) Close() error {
 // MapShards maps the points contained in wp to a ShardMapping.  If a point
 // maps to a shard group or shard that does not currently exist, it will be
 // created before returning the mapping.
-func (c *Coordinator) MapShards(wp *WritePointsRequest) (*ShardMapping, error) {
+func (w *PointsWriter) MapShards(wp *WritePointsRequest) (*ShardMapping, error) {
 
 	// Stub out the MapShards call to return a single node/shard setup
 	if os.Getenv("INFLUXDB_ALPHA1") != "" {
@@ -136,7 +136,7 @@ func (c *Coordinator) MapShards(wp *WritePointsRequest) (*ShardMapping, error) {
 	// holds the start time ranges for required shard groups
 	timeRanges := map[time.Time]*meta.ShardGroupInfo{}
 
-	rp, err := c.MetaStore.RetentionPolicy(wp.Database, wp.RetentionPolicy)
+	rp, err := w.MetaStore.RetentionPolicy(wp.Database, wp.RetentionPolicy)
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +147,7 @@ func (c *Coordinator) MapShards(wp *WritePointsRequest) (*ShardMapping, error) {
 
 	// holds all the shard groups and shards that are required for writes
 	for t := range timeRanges {
-		sg, err := c.MetaStore.CreateShardGroupIfNotExists(wp.Database, wp.RetentionPolicy, t)
+		sg, err := w.MetaStore.CreateShardGroupIfNotExists(wp.Database, wp.RetentionPolicy, t)
 		if err != nil {
 			return nil, err
 		}
@@ -163,10 +163,9 @@ func (c *Coordinator) MapShards(wp *WritePointsRequest) (*ShardMapping, error) {
 	return mapping, nil
 }
 
-// Write is coordinates multiple writes across local and remote data nodes
-// according the request consistency level
-func (c *Coordinator) Write(p *WritePointsRequest) error {
-	shardMappings, err := c.MapShards(p)
+// WritePoints writes across multiple local and remote data nodes according the consistency level.
+func (w *PointsWriter) WritePoints(p *WritePointsRequest) error {
+	shardMappings, err := w.MapShards(p)
 	if err != nil {
 		return err
 	}
@@ -176,13 +175,13 @@ func (c *Coordinator) Write(p *WritePointsRequest) error {
 	ch := make(chan error, len(shardMappings.Points))
 	for shardID, points := range shardMappings.Points {
 		go func(shard *meta.ShardInfo, database, retentionPolicy string, points []tsdb.Point) {
-			ch <- c.writeToShard(shard, p.Database, p.RetentionPolicy, p.ConsistencyLevel, points)
+			ch <- w.writeToShard(shard, p.Database, p.RetentionPolicy, p.ConsistencyLevel, points)
 		}(shardMappings.Shards[shardID], p.Database, p.RetentionPolicy, points)
 	}
 
 	for range shardMappings.Points {
 		select {
-		case <-c.closing:
+		case <-w.closing:
 			return ErrWriteFailed
 		case err := <-ch:
 			if err != nil {
@@ -195,7 +194,7 @@ func (c *Coordinator) Write(p *WritePointsRequest) error {
 
 // writeToShards writes points to a shard and ensures a write consistency level has been met.  If the write
 // partially succceds, ErrPartialWrite is returned.
-func (c *Coordinator) writeToShard(shard *meta.ShardInfo, database, retentionPolicy string,
+func (w *PointsWriter) writeToShard(shard *meta.ShardInfo, database, retentionPolicy string,
 	consistency ConsistencyLevel, points []tsdb.Point) error {
 	// The required number of writes to achieve the requested consistency level
 	required := len(shard.OwnerIDs)
@@ -211,23 +210,23 @@ func (c *Coordinator) writeToShard(shard *meta.ShardInfo, database, retentionPol
 
 	for _, nodeID := range shard.OwnerIDs {
 		go func(shardID, nodeID uint64, points []tsdb.Point) {
-			if c.nodeID == nodeID {
-				err := c.Store.WriteToShard(shardID, points)
+			if w.nodeID == nodeID {
+				err := w.Store.WriteToShard(shardID, points)
 				// If we've written to shard that should exist on the current node, but the store has
 				// not actually created this shard, tell it to create it and retry the write
 				if err == tsdb.ErrShardNotFound {
-					err = c.Store.CreateShard(database, retentionPolicy, shardID)
+					err = w.Store.CreateShard(database, retentionPolicy, shardID)
 					if err != nil {
 						ch <- err
 						return
 					}
-					err = c.Store.WriteToShard(shardID, points)
+					err = w.Store.WriteToShard(shardID, points)
 				}
 				ch <- err
 
-				// FIXME: When ClusterWriter is implemented, this should never be nil
-			} else if c.ClusterWriter != nil {
-				ch <- c.ClusterWriter.Write(shardID, nodeID, points)
+				// FIXME: When ShardWriter is implemented, this should never be nil
+			} else if w.ShardWriter != nil {
+				ch <- w.ShardWriter.WriteShard(shardID, nodeID, points)
 			} else {
 				ch <- ErrWriteFailed
 			}
@@ -235,10 +234,10 @@ func (c *Coordinator) writeToShard(shard *meta.ShardInfo, database, retentionPol
 	}
 
 	var wrote int
-	timeout := time.After(defaultWriteTimeout)
+	timeout := time.After(DefaultWriteTimeout)
 	for range shard.OwnerIDs {
 		select {
-		case <-c.closing:
+		case <-w.closing:
 			return ErrWriteFailed
 		case <-timeout:
 			// return timeout error to caller

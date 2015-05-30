@@ -10,12 +10,6 @@ import (
 
 //go:generate protoc --gogo_out=. internal/data.proto
 
-// PointsWriter accepts a WritePointRequest from client facing endpoints such as
-// HTTP JSON API, Collectd, Graphite, OpenTSDB, etc.
-type PointsWriter interface {
-	Write(p *WritePointsRequest) error
-}
-
 // WritePointsRequest represents a request to write point data to the cluster
 type WritePointsRequest struct {
 	Database         string
@@ -41,17 +35,13 @@ type WriteShardResponse struct {
 	pb internal.WriteShardResponse
 }
 
-func (w *WriteShardRequest) ShardID() uint64 {
-	return w.pb.GetShardID()
-}
+func (w *WriteShardRequest) SetShardID(id uint64) { w.pb.ShardID = &id }
+func (w *WriteShardRequest) ShardID() uint64      { return w.pb.GetShardID() }
 
-func (w *WriteShardRequest) SetShardID(id uint64) {
-	w.pb.ShardID = &id
-}
+func (w *WriteShardRequest) SetOwnerID(id uint64) { w.pb.OwnerID = &id }
+func (w *WriteShardRequest) OwnerID() uint64      { return w.pb.GetOwnerID() }
 
-func (w *WriteShardRequest) Points() []tsdb.Point {
-	return w.unmarhalPoints()
-}
+func (w *WriteShardRequest) Points() []tsdb.Point { return w.unmarshalPoints() }
 
 func (w *WriteShardRequest) AddPoint(name string, value interface{}, timestamp time.Time, tags map[string]string) {
 	w.AddPoints([]tsdb.Point{tsdb.NewPoint(
@@ -125,7 +115,7 @@ func (w *WriteShardRequest) UnmarshalBinary(buf []byte) error {
 	return nil
 }
 
-func (w *WriteShardRequest) unmarhalPoints() []tsdb.Point {
+func (w *WriteShardRequest) unmarshalPoints() []tsdb.Point {
 	points := make([]tsdb.Point, len(w.pb.GetPoints()))
 	for i, p := range w.pb.GetPoints() {
 		pt := tsdb.NewPoint(
@@ -159,22 +149,11 @@ func (w *WriteShardRequest) unmarhalPoints() []tsdb.Point {
 	return points
 }
 
-func (w *WriteShardResponse) SetCode(code int) {
-	c32 := int32(code)
-	w.pb.Code = &c32
-}
+func (w *WriteShardResponse) SetCode(code int)          { w.pb.Code = proto.Int32(int32(code)) }
+func (w *WriteShardResponse) SetMessage(message string) { w.pb.Message = &message }
 
-func (w *WriteShardResponse) SetMessage(message string) {
-	w.pb.Message = &message
-}
-
-func (w *WriteShardResponse) Code() int {
-	return int(w.pb.GetCode())
-}
-
-func (w *WriteShardResponse) Message() string {
-	return w.pb.GetMessage()
-}
+func (w *WriteShardResponse) Code() int       { return int(w.pb.GetCode()) }
+func (w *WriteShardResponse) Message() string { return w.pb.GetMessage() }
 
 // MarshalBinary encodes the object to a binary format.
 func (w *WriteShardResponse) MarshalBinary() ([]byte, error) {

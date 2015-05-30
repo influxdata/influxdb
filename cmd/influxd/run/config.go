@@ -5,11 +5,8 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net"
-	"net/url"
 	"os/user"
 	"path/filepath"
-	"strconv"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -61,23 +58,11 @@ const (
 	DefaultStatisticsRetentionPolicy = "default"
 )
 
-var DefaultSnapshotURL = url.URL{
-	Scheme: "http",
-	Host:   net.JoinHostPort("127.0.0.1", strconv.Itoa(DefaultClusterPort)),
-}
-
-// SnapshotConfig represents the configuration for a snapshot service.
-// type SnapshotConfig struct {
-// 	Enabled bool `toml:"enabled"`
-// }
-
 // Config represents the configuration format for the influxd binary.
 type Config struct {
 	Hostname         string `toml:"hostname"`
 	BindAddress      string `toml:"bind-address"`
 	ReportingEnabled bool   `toml:"reporting-enabled"`
-	// Version           string `toml:"-"`
-	// InfluxDBVersion   string `toml:"-"`
 
 	Initialization struct {
 		// JoinURLs are cluster URLs to use when joining a node to a cluster the first time it boots.  After,
@@ -109,6 +94,7 @@ func NewConfig() *Config {
 
 	c.Meta = meta.NewConfig()
 	c.Data = tsdb.NewConfig()
+	c.Cluster = cluster.NewConfig()
 	c.HTTPD = httpd.NewConfig()
 	c.Monitoring = monitor.NewConfig()
 	c.ContinuousQuery = continuous_querier.NewConfig()
@@ -116,9 +102,8 @@ func NewConfig() *Config {
 	return c
 }
 
-// NewTestConfig returns an instance of Config with reasonable defaults suitable
-// for testing a local server w/ broker and data nodes active
-func NewTestConfig() (*Config, error) {
+// NewDemoConfig returns the config that runs when no config is specified.
+func NewDemoConfig() (*Config, error) {
 	c := NewConfig()
 
 	// By default, store meta and data files in current users home directory
@@ -131,7 +116,6 @@ func NewTestConfig() (*Config, error) {
 	c.Data.Dir = filepath.Join(u.HomeDir, ".influxdb/data")
 
 	c.Admin.Enabled = true
-	c.Admin.BindAddress = ":8083"
 
 	c.Monitoring.Enabled = false
 	//c.Snapshot.Enabled = true

@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta"
 )
@@ -35,12 +36,7 @@ type QueryExecutor struct {
 	}
 
 	// The stats service to report to
-	Stats interface {
-		Add(key string, delta int64)
-		Inc(key string)
-		Name() string
-		Walk(f func(string, int64))
-	}
+	Stats *influxdb.Stats
 
 	Logger *log.Logger
 
@@ -52,6 +48,7 @@ type QueryExecutor struct {
 func NewQueryExecutor(store *Store) *QueryExecutor {
 	return &QueryExecutor{
 		store:  store,
+		Stats:  influxdb.NewStats("query_executor"),
 		Logger: log.New(os.Stderr, "[query] ", log.LstdFlags),
 	}
 }

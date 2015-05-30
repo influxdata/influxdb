@@ -25,6 +25,9 @@ func main() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+
+	// Wait indefinitely.
+	<-(chan struct{})(nil)
 }
 
 // Main represents the program execution.
@@ -77,9 +80,11 @@ func (m *Main) Run(args ...string) error {
 		if err := help.NewCommand().Run(args...); err != nil {
 			return fmt.Errorf("help: %s", err)
 		}
+	default:
+		return fmt.Errorf(`unknown command "%s"`+"\n"+`Run 'influxd help' for usage`+"\n\n", name)
 	}
 
-	return fmt.Errorf(`unknown command "%s"`+"\n"+`Run 'influxd help' for usage`+"\n\n", name)
+	return nil
 }
 
 // ParseCommandName extracts the command name and args from the args list.

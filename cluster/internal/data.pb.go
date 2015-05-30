@@ -26,7 +26,8 @@ var _ = math.Inf
 
 type WriteShardRequest struct {
 	ShardID          *uint64  `protobuf:"varint,1,req" json:"ShardID,omitempty"`
-	Points           []*Point `protobuf:"bytes,2,rep" json:"Points,omitempty"`
+	OwnerID          *uint64  `protobuf:"varint,2,req" json:"OwnerID,omitempty"`
+	Points           []*Point `protobuf:"bytes,3,rep" json:"Points,omitempty"`
 	XXX_unrecognized []byte   `json:"-"`
 }
 
@@ -37,6 +38,13 @@ func (*WriteShardRequest) ProtoMessage()    {}
 func (m *WriteShardRequest) GetShardID() uint64 {
 	if m != nil && m.ShardID != nil {
 		return *m.ShardID
+	}
+	return 0
+}
+
+func (m *WriteShardRequest) GetOwnerID() uint64 {
+	if m != nil && m.OwnerID != nil {
+		return *m.OwnerID
 	}
 	return 0
 }
