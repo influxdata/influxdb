@@ -1,20 +1,18 @@
-package collectd_test
+package admin_test
 
 import (
 	"testing"
 
 	"github.com/BurntSushi/toml"
-	"github.com/influxdb/influxdb/collectd"
+	"github.com/influxdb/influxdb/services/admin"
 )
 
 func TestConfig_Parse(t *testing.T) {
 	// Parse configuration.
-	var c collectd.Config
+	var c admin.Config
 	if _, err := toml.Decode(`
 enabled = true
-bind-address = ":9000"
-database = "xxx"
-typesdb = "yyy"
+bind-address = ":8083"
 `, &c); err != nil {
 		t.Fatal(err)
 	}
@@ -22,11 +20,7 @@ typesdb = "yyy"
 	// Validate configuration.
 	if c.Enabled != true {
 		t.Fatalf("unexpected enabled: %v", c.Enabled)
-	} else if c.BindAddress != ":9000" {
+	} else if c.BindAddress != ":8083" {
 		t.Fatalf("unexpected bind address: %s", c.BindAddress)
-	} else if c.Database != "xxx" {
-		t.Fatalf("unexpected database: %s", c.Database)
-	} else if c.TypesDB != "yyy" {
-		t.Fatalf("unexpected types db: %s", c.TypesDB)
 	}
 }

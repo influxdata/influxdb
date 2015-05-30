@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/influxdb/influxdb/admin"
 	"github.com/influxdb/influxdb/cluster"
-	"github.com/influxdb/influxdb/collectd"
-	"github.com/influxdb/influxdb/graphite"
-	"github.com/influxdb/influxdb/httpd"
 	"github.com/influxdb/influxdb/meta"
-	"github.com/influxdb/influxdb/opentsdb"
+	"github.com/influxdb/influxdb/services/admin"
+	"github.com/influxdb/influxdb/services/collectd"
+	"github.com/influxdb/influxdb/services/graphite"
+	"github.com/influxdb/influxdb/services/httpd"
+	"github.com/influxdb/influxdb/services/opentsdb"
 	"github.com/influxdb/influxdb/tsdb"
 )
 

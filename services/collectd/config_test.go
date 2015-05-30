@@ -1,19 +1,20 @@
-package opentsdb_test
+package collectd_test
 
 import (
 	"testing"
 
 	"github.com/BurntSushi/toml"
-	"github.com/influxdb/influxdb/opentsdb"
+	"github.com/influxdb/influxdb/services/collectd"
 )
 
 func TestConfig_Parse(t *testing.T) {
 	// Parse configuration.
-	var c opentsdb.Config
+	var c collectd.Config
 	if _, err := toml.Decode(`
 enabled = true
 bind-address = ":9000"
 database = "xxx"
+typesdb = "yyy"
 `, &c); err != nil {
 		t.Fatal(err)
 	}
@@ -25,5 +26,7 @@ database = "xxx"
 		t.Fatalf("unexpected bind address: %s", c.BindAddress)
 	} else if c.Database != "xxx" {
 		t.Fatalf("unexpected database: %s", c.Database)
+	} else if c.TypesDB != "yyy" {
+		t.Fatalf("unexpected types db: %s", c.TypesDB)
 	}
 }

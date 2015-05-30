@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb/client"
-	"github.com/influxdb/influxdb/httpd"
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/services/httpd"
 	"github.com/influxdb/influxdb/tsdb"
 )
 

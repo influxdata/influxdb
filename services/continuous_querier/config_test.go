@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/influxdb/influxdb/meta/continuous_querier"
+	"github.com/influxdb/influxdb/services/continuous_querier"
 )
 
 func TestConfig_Parse(t *testing.T) {

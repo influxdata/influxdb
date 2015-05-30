@@ -1,18 +1,19 @@
-package admin_test
+package opentsdb_test
 
 import (
 	"testing"
 
 	"github.com/BurntSushi/toml"
-	"github.com/influxdb/influxdb/admin"
+	"github.com/influxdb/influxdb/services/opentsdb"
 )
 
 func TestConfig_Parse(t *testing.T) {
 	// Parse configuration.
-	var c admin.Config
+	var c opentsdb.Config
 	if _, err := toml.Decode(`
 enabled = true
-bind-address = ":8083"
+bind-address = ":9000"
+database = "xxx"
 `, &c); err != nil {
 		t.Fatal(err)
 	}
@@ -20,7 +21,9 @@ bind-address = ":8083"
 	// Validate configuration.
 	if c.Enabled != true {
 		t.Fatalf("unexpected enabled: %v", c.Enabled)
-	} else if c.BindAddress != ":8083" {
+	} else if c.BindAddress != ":9000" {
 		t.Fatalf("unexpected bind address: %s", c.BindAddress)
+	} else if c.Database != "xxx" {
+		t.Fatalf("unexpected database: %s", c.Database)
 	}
 }

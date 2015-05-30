@@ -13,15 +13,15 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/influxdb/influxdb/admin"
 	"github.com/influxdb/influxdb/cluster"
-	"github.com/influxdb/influxdb/collectd"
-	"github.com/influxdb/influxdb/graphite"
-	"github.com/influxdb/influxdb/httpd"
 	"github.com/influxdb/influxdb/meta"
-	"github.com/influxdb/influxdb/meta/continuous_querier"
-	"github.com/influxdb/influxdb/monitor"
-	"github.com/influxdb/influxdb/opentsdb"
+	"github.com/influxdb/influxdb/services/admin"
+	"github.com/influxdb/influxdb/services/collectd"
+	"github.com/influxdb/influxdb/services/continuous_querier"
+	"github.com/influxdb/influxdb/services/graphite"
+	"github.com/influxdb/influxdb/services/httpd"
+	"github.com/influxdb/influxdb/services/monitor"
+	"github.com/influxdb/influxdb/services/opentsdb"
 	"github.com/influxdb/influxdb/tsdb"
 )
 

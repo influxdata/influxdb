@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdb/influxdb/collectd"
+	"github.com/influxdb/influxdb/services/collectd"
 	"github.com/influxdb/influxdb/tsdb"
 	"github.com/kimor79/gollectd"
 )

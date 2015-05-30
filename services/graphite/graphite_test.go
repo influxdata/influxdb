@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdb/influxdb/graphite"
+	"github.com/influxdb/influxdb/services/graphite"
 )
 
 func Test_DecodeNameAndTags(t *testing.T) {
