@@ -11,23 +11,23 @@ import (
 import "sort"
 
 type point struct {
-	seriesID uint64
-	time     int64
-	value    interface{}
+	seriesKey string
+	time      int64
+	value     interface{}
 }
 
 type testIterator struct {
 	values []point
 }
 
-func (t *testIterator) Next() (seriesID uint64, timestamp int64, value interface{}) {
+func (t *testIterator) Next() (seriesKey string, timestamp int64, value interface{}) {
 	if len(t.values) > 0 {
 		v := t.values[0]
 		t.values = t.values[1:]
-		return v.seriesID, v.time, v.value
+		return v.seriesKey, v.time, v.value
 	}
 
-	return 0, 0, nil
+	return "0", 0, nil
 }
 
 func TestMapMeanNoValues(t *testing.T) {
@@ -44,13 +44,13 @@ func TestMapMean(t *testing.T) {
 		output *meanMapOutput
 	}{
 		{ // Single point
-			input:  []point{point{0, 1, 1.0}},
+			input:  []point{point{"0", 1, 1.0}},
 			output: &meanMapOutput{1, 1},
 		},
 		{ // Two points
 			input: []point{
-				point{0, 1, 2.0},
-				point{0, 2, 8.0},
+				point{"0", 1, 2.0},
+				point{"0", 2, 8.0},
 			},
 			output: &meanMapOutput{2, 5.0},
 		},
@@ -196,9 +196,9 @@ func TestReducePercentileNil(t *testing.T) {
 }
 
 func TestMapDistinct(t *testing.T) {
-	const ( // prove that we're ignoring seriesID
-		seriesId1 = iota + 1
-		seriesId2
+	const ( // prove that we're ignoring seriesKey
+		seriesKey1 = "1"
+		seriesKey2 = "2"
 	)
 
 	const ( // prove that we're ignoring time
@@ -212,12 +212,12 @@ func TestMapDistinct(t *testing.T) {
 
 	iter := &testIterator{
 		values: []point{
-			{seriesId1, timeId1, uint64(1)},
-			{seriesId1, timeId2, uint64(1)},
-			{seriesId1, timeId3, "1"},
-			{seriesId2, timeId4, uint64(1)},
-			{seriesId2, timeId5, float64(1.0)},
-			{seriesId2, timeId6, "1"},
+			{seriesKey1, timeId1, uint64(1)},
+			{seriesKey1, timeId2, uint64(1)},
+			{seriesKey1, timeId3, "1"},
+			{seriesKey2, timeId4, uint64(1)},
+			{seriesKey2, timeId5, float64(1.0)},
+			{seriesKey2, timeId6, "1"},
 		},
 	}
 
@@ -349,9 +349,9 @@ func Test_distinctValues_Sort(t *testing.T) {
 }
 
 func TestMapCountDistinct(t *testing.T) {
-	const ( // prove that we're ignoring seriesID
-		seriesId1 = iota + 1
-		seriesId2
+	const ( // prove that we're ignoring seriesKey
+		seriesKey1 = "1"
+		seriesKey2 = "2"
 	)
 
 	const ( // prove that we're ignoring time
@@ -366,13 +366,13 @@ func TestMapCountDistinct(t *testing.T) {
 
 	iter := &testIterator{
 		values: []point{
-			{seriesId1, timeId1, uint64(1)},
-			{seriesId1, timeId2, uint64(1)},
-			{seriesId1, timeId3, "1"},
-			{seriesId2, timeId4, uint64(1)},
-			{seriesId2, timeId5, float64(1.0)},
-			{seriesId2, timeId6, "1"},
-			{seriesId2, timeId7, true},
+			{seriesKey1, timeId1, uint64(1)},
+			{seriesKey1, timeId2, uint64(1)},
+			{seriesKey1, timeId3, "1"},
+			{seriesKey2, timeId4, uint64(1)},
+			{seriesKey2, timeId5, float64(1.0)},
+			{seriesKey2, timeId6, "1"},
+			{seriesKey2, timeId7, true},
 		},
 	}
 
@@ -500,11 +500,11 @@ func TestGetSortedRange(t *testing.T) {
 	for _, tt := range getSortedRangeTests {
 		results := getSortedRange(tt.data, tt.start, tt.count)
 		if len(results) != len(tt.expected) {
-			t.Errorf("Test %s failed.  Expected getSortedRange to return %v but got %v", tt.name, tt.expected, results)
+			t.Errorf("Test %s error.  Expected getSortedRange to return %v but got %v", tt.name, tt.expected, results)
 		}
 		for i, point := range tt.expected {
 			if point != results[i] {
-				t.Errorf("Test %s failed. getSortedRange returned wrong result for index %v.  Expected %v but got %v", tt.name, i, point, results[i])
+				t.Errorf("Test %s error. getSortedRange returned wrong result for index %v.  Expected %v but got %v", tt.name, i, point, results[i])
 			}
 		}
 	}

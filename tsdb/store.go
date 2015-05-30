@@ -1,14 +1,15 @@
 package tsdb
 
 import (
-	"io/ioutil"
-	"strconv"
-	"sync"
-
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
+	"sync"
+
+	"github.com/influxdb/influxdb/influxql"
 )
 
 func NewStore(path string) *Store {
@@ -60,6 +61,36 @@ func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64) er
 	s.shards[shardID] = shard
 
 	return nil
+}
+
+func (s *Store) Shard(shardID uint64) *Shard {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.shards[shardID]
+}
+
+func (s *Store) ValidateAggregateFieldsInStatement(shardID uint64, measurementName string, stmt *influxql.SelectStatement) error {
+	s.mu.RLock()
+	shard := s.shards[shardID]
+	s.mu.RUnlock()
+	if shard == nil {
+		return ErrShardNotFound
+	}
+	return shard.ValidateAggregateFieldsInStatement(measurementName, stmt)
+}
+
+func (s *Store) DatabaseIndex(name string) *DatabaseIndex {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.databaseIndexes[name]
+}
+
+func (s *Store) Measurement(database, name string) *Measurement {
+	db := s.databaseIndexes[database]
+	if db == nil {
+		return nil
+	}
+	return db.measurements[name]
 }
 
 func (s *Store) loadIndexes() error {
@@ -122,6 +153,11 @@ func (s *Store) Open() error {
 
 	s.shards = map[uint64]*Shard{}
 	s.databaseIndexes = map[string]*DatabaseIndex{}
+
+	// Create directory.
+	if err := os.MkdirAll(s.path, 0777); err != nil {
+		return err
+	}
 
 	// TODO: Start AE for Node
 	if err := s.loadIndexes(); err != nil {

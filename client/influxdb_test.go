@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/client"
 )
 
@@ -39,7 +38,7 @@ func BenchmarkUnmarshalJSON2Tags(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		if err := json.Unmarshal(data, &bp); err != nil {
-			b.Errorf("failed to unmarshal nanosecond data: %s", err.Error())
+			b.Errorf("unable to unmarshal nanosecond data: %s", err.Error())
 		}
 		b.SetBytes(int64(len(data)))
 	}
@@ -78,7 +77,7 @@ func BenchmarkUnmarshalJSON10Tags(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		if err := json.Unmarshal(data, &bp); err != nil {
-			b.Errorf("failed to unmarshal nanosecond data: %s", err.Error())
+			b.Errorf("unable to unmarshal nanosecond data: %s", err.Error())
 		}
 		b.SetBytes(int64(len(data)))
 	}
@@ -116,7 +115,7 @@ func TestClient_Ping(t *testing.T) {
 
 func TestClient_Query(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var data influxdb.Response
+		var data client.Response
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(data)
 	}))
@@ -141,7 +140,7 @@ func TestClient_BasicAuth(t *testing.T) {
 		u, p, ok := r.BasicAuth()
 
 		if !ok {
-			t.Errorf("basic auth failed")
+			t.Errorf("basic auth error")
 		}
 		if u != "username" {
 			t.Errorf("unexpected username, expected %q, actual %q", "username", u)
@@ -169,7 +168,7 @@ func TestClient_BasicAuth(t *testing.T) {
 
 func TestClient_Write(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var data influxdb.Response
+		var data client.Response
 		w.WriteHeader(http.StatusNoContent)
 		_ = json.NewEncoder(w).Encode(data)
 	}))
@@ -197,7 +196,7 @@ func TestClient_UserAgent(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedUserAgent = r.UserAgent()
 
-		var data influxdb.Response
+		var data client.Response
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(data)
 	}))
@@ -494,6 +493,6 @@ func TestBatchPoints_Normal(t *testing.T) {
 `)
 
 	if err := json.Unmarshal(data, &bp); err != nil {
-		t.Errorf("failed to unmarshal nanosecond data: %s", err.Error())
+		t.Errorf("unable to unmarshal nanosecond data: %s", err.Error())
 	}
 }

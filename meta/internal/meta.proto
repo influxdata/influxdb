@@ -176,14 +176,17 @@ message CreateContinuousQueryCommand {
     extend Command {
         optional CreateContinuousQueryCommand command = 111;
     }
-    required string Query = 1;
+    required string Database = 1;
+    required string Name = 2;
+    required string Query = 3;
 }
 
 message DropContinuousQueryCommand {
     extend Command {
         optional DropContinuousQueryCommand command = 112;
     }
-    required string Query = 1;
+    required string Database = 1;
+    required string Name = 2;
 }
 
 message CreateUserCommand {
@@ -215,6 +218,7 @@ message SetPrivilegeCommand {
         optional SetPrivilegeCommand command = 116;
     }
     required string Username = 1;
-    required UserPrivilege Privilege = 2;
+    required string Database = 2;
+    required int32 Privilege = 3;
 }
 

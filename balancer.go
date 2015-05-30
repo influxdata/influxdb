@@ -2,61 +2,62 @@ package influxdb
 
 import (
 	"math/rand"
-	"time"
+
+	"github.com/influxdb/influxdb/meta"
 )
 
-// Balancer represents a load-balancing algorithm for a set of DataNodes
+// Balancer represents a load-balancing algorithm for a set of nodes
 type Balancer interface {
-	// Next returns the next DataNode according to the balancing method
+	// Next returns the next Node according to the balancing method
 	// or nil if there are no nodes available
-	Next() *DataNode
+	Next() *meta.NodeInfo
 }
 
-type dataNodeBalancer struct {
-	dataNodes []*DataNode // data nodes to balance between
-	p         int         // current node index
+type nodeBalancer struct {
+	nodes []meta.NodeInfo // data nodes to balance between
+	p     int             // current node index
 }
 
-// NewDataNodeBalancer create a shuffled, round-robin balancer so that
+// NewNodeBalancer create a shuffled, round-robin balancer so that
 // multiple instances will return nodes in randomized order and each
-// each returned DataNode will be repeated in a cycle
-func NewDataNodeBalancer(dataNodes []*DataNode) Balancer {
-	// make a copy of the dataNode slice so we can randomize it
+// each returned node will be repeated in a cycle
+func NewNodeBalancer(nodes []meta.NodeInfo) Balancer {
+	// make a copy of the node slice so we can randomize it
 	// without affecting the original instance as well as ensure
 	// that each Balancer returns nodes in a different order
-	nodes := make([]*DataNode, len(dataNodes))
-	copy(nodes, dataNodes)
+	b := &nodeBalancer{}
 
-	b := &dataNodeBalancer{
-		dataNodes: nodes,
-	}
+	b.nodes = make([]meta.NodeInfo, len(nodes))
+	copy(b.nodes, nodes)
+
 	b.shuffle()
 	return b
 }
 
-// shuffle randomizes the ordering the balancers available DataNodes
-func (b *dataNodeBalancer) shuffle() {
-	for i := range b.dataNodes {
+// shuffle randomizes the ordering the balancers available nodes
+func (b *nodeBalancer) shuffle() {
+	for i := range b.nodes {
 		j := rand.Intn(i + 1)
-		b.dataNodes[i], b.dataNodes[j] = b.dataNodes[j], b.dataNodes[i]
+		b.nodes[i], b.nodes[j] = b.nodes[j], b.nodes[i]
 	}
 }
 
-// online returns a slice of the DataNodes that are online
-func (b *dataNodeBalancer) online() []*DataNode {
-	now := time.Now().UTC()
-	up := []*DataNode{}
-	for _, n := range b.dataNodes {
-		if n.OfflineUntil.After(now) {
-			continue
-		}
-		up = append(up, n)
-	}
-	return up
+// online returns a slice of the nodes that are online
+func (b *nodeBalancer) online() []meta.NodeInfo {
+	return b.nodes
+	// now := time.Now().UTC()
+	// up := []meta.NodeInfo{}
+	// for _, n := range b.nodes {
+	// 	if n.OfflineUntil.After(now) {
+	// 		continue
+	// 	}
+	// 	up = append(up, n)
+	// }
+	// return up
 }
 
-// Next returns the next available DataNode
-func (b *dataNodeBalancer) Next() *DataNode {
+// Next returns the next available nodes
+func (b *nodeBalancer) Next() *meta.NodeInfo {
 	// only use online nodes
 	up := b.online()
 
@@ -70,7 +71,7 @@ func (b *dataNodeBalancer) Next() *DataNode {
 		b.p = 0
 	}
 
-	d := up[b.p]
+	d := &up[b.p]
 	b.p += 1
 
 	return d

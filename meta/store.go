@@ -14,22 +14,9 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/hashicorp/raft"
 	"github.com/hashicorp/raft-boltdb"
+	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta/internal"
 	"golang.org/x/crypto/bcrypt"
-)
-
-const (
-	// DefaultHeartbeatTimeout is the default heartbeat timeout for the store.
-	DefaultHeartbeatTimeout = 1000 * time.Millisecond
-
-	// DefaultElectionTimeout is the default election timeout for the store.
-	DefaultElectionTimeout = 1000 * time.Millisecond
-
-	// DefaultLeaderLeaseTimeout is the default leader lease for the store.
-	DefaultLeaderLeaseTimeout = 500 * time.Millisecond
-
-	// DefaultCommitTimeout is the default commit timeout for the store.
-	DefaultCommitTimeout = 50 * time.Millisecond
 )
 
 // Raft configuration.
@@ -42,8 +29,10 @@ const (
 
 // Store represents a raft-backed metastore.
 type Store struct {
-	mu        sync.RWMutex
-	path      string
+	mu     sync.RWMutex
+	path   string
+	opened bool
+
 	data      *Data
 	raft      *raft.Raft
 	peers     raft.PeerStore
@@ -67,8 +56,9 @@ type Store struct {
 }
 
 // NewStore returns a new instance of Store.
-func NewStore() *Store {
+func NewStore(path string) *Store {
 	return &Store{
+		path:               path,
 		data:               &Data{},
 		HeartbeatTimeout:   DefaultHeartbeatTimeout,
 		ElectionTimeout:    DefaultElectionTimeout,
@@ -80,29 +70,22 @@ func NewStore() *Store {
 
 // Path returns the root path when open.
 // Returns an empty string when the store is closed.
-func (s *Store) Path() string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.path
-}
-
-// opened returns true if the store is in an open state.
-func (s *Store) opened() bool { return s.path != "" }
+func (s *Store) Path() string { return s.path }
 
 // Open opens and initializes the raft store.
-func (s *Store) Open(path string) error {
+func (s *Store) Open() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	// Check if store has already been opened.
-	if s.opened() {
+	if s.opened {
 		return ErrStoreOpen
 	}
-	s.path = path
+	s.opened = true
 
 	if err := func() error {
 		// Create the root directory if it doesn't already exist.
-		if err := os.MkdirAll(path, 0777); err != nil {
+		if err := os.MkdirAll(s.path, 0777); err != nil {
 			return fmt.Errorf("mkdir all: %s", err)
 		}
 
@@ -128,17 +111,17 @@ func (s *Store) Open(path string) error {
 		s.transport = transport
 
 		// Create peer storage.
-		s.peers = raft.NewJSONPeers(path, transport)
+		s.peers = raft.NewJSONPeers(s.path, transport)
 
 		// Create the log store and stable store.
-		store, err := raftboltdb.NewBoltStore(filepath.Join(path, "raft.db"))
+		store, err := raftboltdb.NewBoltStore(filepath.Join(s.path, "raft.db"))
 		if err != nil {
 			return fmt.Errorf("new bolt store: %s", err)
 		}
 		s.store = store
 
 		// Create the snapshot store.
-		snapshots, err := raft.NewFileSnapshotStore(path, raftSnapshotsRetained, os.Stderr)
+		snapshots, err := raft.NewFileSnapshotStore(s.path, raftSnapshotsRetained, os.Stderr)
 		if err != nil {
 			return fmt.Errorf("file snapshot store: %s", err)
 		}
@@ -168,10 +151,10 @@ func (s *Store) Close() error {
 
 func (s *Store) close() error {
 	// Check if store has already been closed.
-	if !s.opened() {
+	if !s.opened {
 		return ErrStoreClosed
 	}
-	s.path = ""
+	s.opened = false
 
 	if s.raft != nil {
 		s.raft.Shutdown()
@@ -222,6 +205,15 @@ func (s *Store) NodeByHost(host string) (ni *NodeInfo, err error) {
 	return
 }
 
+// Nodes returns a list of all nodes.
+func (s *Store) Nodes() (a []NodeInfo, err error) {
+	err = s.read(func(data *Data) error {
+		a = data.Nodes
+		return nil
+	})
+	return
+}
+
 // CreateNode creates a new node in the store.
 func (s *Store) CreateNode(host string) (*NodeInfo, error) {
 	if err := s.exec(internal.Command_CreateNodeCommand, internal.E_CreateNodeCommand_Command,
@@ -255,6 +247,15 @@ func (s *Store) Database(name string) (di *DatabaseInfo, err error) {
 	return
 }
 
+// Databases returns a list of all databases.
+func (s *Store) Databases() (dis []DatabaseInfo, err error) {
+	err = s.read(func(data *Data) error {
+		dis = data.Databases
+		return nil
+	})
+	return
+}
+
 // CreateDatabase creates a new database in the store.
 func (s *Store) CreateDatabase(name string) (*DatabaseInfo, error) {
 	if err := s.exec(internal.Command_CreateDatabaseCommand, internal.E_CreateDatabaseCommand_Command,
@@ -267,7 +268,22 @@ func (s *Store) CreateDatabase(name string) (*DatabaseInfo, error) {
 	return s.Database(name)
 }
 
-// FIX: CreateDatabaseIfNotExists(name string) (*DatabaseInfo, error)
+// CreateDatabaseIfNotExists creates a new database in the store if it doesn't already exist.
+func (s *Store) CreateDatabaseIfNotExists(name string) (*DatabaseInfo, error) {
+	// Try to find database locally first.
+	if di, err := s.Database(name); err != nil {
+		return nil, err
+	} else if di != nil {
+		return di, nil
+	}
+
+	// Attempt to create database.
+	if di, err := s.CreateDatabase(name); err == ErrDatabaseExists {
+		return s.Database(name)
+	} else {
+		return di, err
+	}
+}
 
 // DropDatabase removes a database from the metastore by name.
 func (s *Store) DropDatabase(name string) error {
@@ -292,6 +308,38 @@ func (s *Store) RetentionPolicy(database, name string) (rpi *RetentionPolicyInfo
 	return
 }
 
+// DefaultRetentionPolicy returns the default retention policy for a database.
+func (s *Store) DefaultRetentionPolicy(database string) (rpi *RetentionPolicyInfo, err error) {
+	err = s.read(func(data *Data) error {
+		di := data.Database(database)
+		if di == nil {
+			return ErrDatabaseNotFound
+		}
+
+		for i := range di.RetentionPolicies {
+			if di.RetentionPolicies[i].Name == di.DefaultRetentionPolicy {
+				rpi = &di.RetentionPolicies[i]
+				return nil
+			}
+		}
+		return errInvalidate
+	})
+	return
+}
+
+// RetentionPolicies returns a list of all retention policies for a database.
+func (s *Store) RetentionPolicies(database string) (a []RetentionPolicyInfo, err error) {
+	err = s.read(func(data *Data) error {
+		di := data.Database(database)
+		if di != nil {
+			return ErrDatabaseNotFound
+		}
+		a = di.RetentionPolicies
+		return nil
+	})
+	return
+}
+
 // CreateRetentionPolicy creates a new retention policy for a database.
 func (s *Store) CreateRetentionPolicy(database string, rpi *RetentionPolicyInfo) (*RetentionPolicyInfo, error) {
 	if err := s.exec(internal.Command_CreateRetentionPolicyCommand, internal.E_CreateRetentionPolicyCommand_Command,
@@ -304,6 +352,23 @@ func (s *Store) CreateRetentionPolicy(database string, rpi *RetentionPolicyInfo)
 	}
 
 	return s.RetentionPolicy(database, rpi.Name)
+}
+
+// CreateRetentionPolicyIfNotExists creates a new policy in the store if it doesn't already exist.
+func (s *Store) CreateRetentionPolicyIfNotExists(database string, rpi *RetentionPolicyInfo) (*RetentionPolicyInfo, error) {
+	// Try to find policy locally first.
+	if rpi, err := s.RetentionPolicy(database, rpi.Name); err != nil {
+		return nil, err
+	} else if rpi != nil {
+		return rpi, nil
+	}
+
+	// Attempt to create policy.
+	if other, err := s.CreateRetentionPolicy(database, rpi); err == ErrRetentionPolicyExists {
+		return s.RetentionPolicy(database, rpi.Name)
+	} else {
+		return other, err
+	}
 }
 
 // SetDefaultRetentionPolicy sets the default retention policy for a database.
@@ -373,6 +438,23 @@ func (s *Store) CreateShardGroup(database, policy string, timestamp time.Time) (
 	return s.ShardGroupByTimestamp(database, policy, timestamp)
 }
 
+// CreateShardGroupIfNotExists creates a new shard group if one doesn't already exist.
+func (s *Store) CreateShardGroupIfNotExists(database, policy string, timestamp time.Time) (*ShardGroupInfo, error) {
+	// Try to find shard group locally first.
+	if sgi, err := s.ShardGroupByTimestamp(database, policy, timestamp); err != nil {
+		return nil, err
+	} else if sgi != nil {
+		return sgi, nil
+	}
+
+	// Attempt to create database.
+	if sgi, err := s.CreateShardGroup(database, policy, timestamp); err == ErrShardGroupExists {
+		return s.ShardGroupByTimestamp(database, policy, timestamp)
+	} else {
+		return sgi, err
+	}
+}
+
 // DeleteShardGroup removes an existing shard group from a policy by ID.
 func (s *Store) DeleteShardGroup(database, policy string, id uint64) error {
 	return s.exec(internal.Command_DeleteShardGroupCommand, internal.E_DeleteShardGroupCommand_Command,
@@ -382,6 +464,18 @@ func (s *Store) DeleteShardGroup(database, policy string, id uint64) error {
 			ShardGroupID: proto.Uint64(id),
 		},
 	)
+}
+
+// ShardGroups returns a list of all shard groups for a policy by timestamp.
+func (s *Store) ShardGroups(database, policy string) (a []ShardGroupInfo, err error) {
+	err = s.read(func(data *Data) error {
+		a, err = data.ShardGroups(database, policy)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	return
 }
 
 // ShardGroupByTimestamp returns a shard group for a policy by timestamp.
@@ -399,30 +493,24 @@ func (s *Store) ShardGroupByTimestamp(database, policy string, timestamp time.Ti
 }
 
 // CreateContinuousQuery creates a new continuous query on the store.
-func (s *Store) CreateContinuousQuery(query string) error {
+func (s *Store) CreateContinuousQuery(database, name, query string) error {
 	return s.exec(internal.Command_CreateContinuousQueryCommand, internal.E_CreateContinuousQueryCommand_Command,
 		&internal.CreateContinuousQueryCommand{
-			Query: proto.String(query),
+			Database: proto.String(database),
+			Name:     proto.String(name),
+			Query:    proto.String(query),
 		},
 	)
 }
 
 // DropContinuousQuery removes a continuous query from the store.
-func (s *Store) DropContinuousQuery(query string) error {
+func (s *Store) DropContinuousQuery(database, name string) error {
 	return s.exec(internal.Command_DropContinuousQueryCommand, internal.E_DropContinuousQueryCommand_Command,
 		&internal.DropContinuousQueryCommand{
-			Query: proto.String(query),
+			Database: proto.String(database),
+			Name:     proto.String(name),
 		},
 	)
-}
-
-// ContinuousQueries returns all continuous queries.
-func (s *Store) ContinuousQueries() (a []ContinuousQueryInfo, err error) {
-	err = s.read(func(data *Data) error {
-		a = data.ContinuousQueries
-		return nil
-	})
-	return
 }
 
 // User returns a user by name.
@@ -441,6 +529,40 @@ func (s *Store) User(name string) (ui *UserInfo, err error) {
 func (s *Store) Users() (a []UserInfo, err error) {
 	err = s.read(func(data *Data) error {
 		a = data.Users
+		return nil
+	})
+	return
+}
+
+// AdminUserExists returns true if an admin user exists on the system.
+func (s *Store) AdminUserExists() (exists bool, err error) {
+	err = s.read(func(data *Data) error {
+		for i := range data.Users {
+			if data.Users[i].Admin {
+				exists = true
+				break
+			}
+		}
+		return nil
+	})
+	return
+}
+
+// Authenticate retrieves a user with a matching username and password.
+func (s *Store) Authenticate(username, password string) (ui *UserInfo, err error) {
+	err = s.read(func(data *Data) error {
+		// Find user.
+		u := data.User(username)
+		if u == nil {
+			return ErrUserNotFound
+		}
+
+		// Compare password with user hash.
+		if err := bcrypt.CompareHashAndPassword([]byte(u.Hash), []byte(password)); err != nil {
+			return err
+		}
+
+		ui = u
 		return nil
 	})
 	return
@@ -489,6 +611,17 @@ func (s *Store) UpdateUser(name, password string) error {
 		&internal.UpdateUserCommand{
 			Name: proto.String(name),
 			Hash: proto.String(string(hash)),
+		},
+	)
+}
+
+// SetPrivilege sets a privilege for a user on a database.
+func (s *Store) SetPrivilege(username, database string, p influxql.Privilege) error {
+	return s.exec(internal.Command_SetPrivilegeCommand, internal.E_SetPrivilegeCommand_Command,
+		&internal.SetPrivilegeCommand{
+			Username:  proto.String(username),
+			Database:  proto.String(database),
+			Privilege: proto.Int32(int32(p)),
 		},
 	)
 }
@@ -597,6 +730,8 @@ func (fsm *storeFSM) Apply(l *raft.Log) interface{} {
 		return fsm.applyUpdateRetentionPolicyCommand(&cmd)
 	case internal.Command_CreateShardGroupCommand:
 		return fsm.applyCreateShardGroupCommand(&cmd)
+	case internal.Command_DeleteShardGroupCommand:
+		return fsm.applyDeleteShardGroupCommand(&cmd)
 	case internal.Command_CreateContinuousQueryCommand:
 		return fsm.applyCreateContinuousQueryCommand(&cmd)
 	case internal.Command_DropContinuousQueryCommand:
@@ -609,8 +744,6 @@ func (fsm *storeFSM) Apply(l *raft.Log) interface{} {
 		return fsm.applyUpdateUserCommand(&cmd)
 	case internal.Command_SetPrivilegeCommand:
 		return fsm.applySetPrivilegeCommand(&cmd)
-	case internal.Command_DeleteShardGroupCommand:
-		return fsm.applyDeleteShardGroupCommand(&cmd)
 	default:
 		panic(fmt.Errorf("cannot apply command: %x", l.Data))
 	}
@@ -780,7 +913,7 @@ func (fsm *storeFSM) applyCreateContinuousQueryCommand(cmd *internal.Command) in
 
 	// Copy data and update.
 	other := fsm.data.Clone()
-	if err := other.CreateContinuousQuery(v.GetQuery()); err != nil {
+	if err := other.CreateContinuousQuery(v.GetDatabase(), v.GetName(), v.GetQuery()); err != nil {
 		return err
 	}
 	fsm.data = other
@@ -794,7 +927,7 @@ func (fsm *storeFSM) applyDropContinuousQueryCommand(cmd *internal.Command) inte
 
 	// Copy data and update.
 	other := fsm.data.Clone()
-	if err := other.DropContinuousQuery(v.GetQuery()); err != nil {
+	if err := other.DropContinuousQuery(v.GetDatabase(), v.GetName()); err != nil {
 		return err
 	}
 	fsm.data = other
@@ -843,7 +976,16 @@ func (fsm *storeFSM) applyUpdateUserCommand(cmd *internal.Command) interface{} {
 }
 
 func (fsm *storeFSM) applySetPrivilegeCommand(cmd *internal.Command) interface{} {
-	panic("not yet implemented")
+	ext, _ := proto.GetExtension(cmd, internal.E_SetPrivilegeCommand_Command)
+	v := ext.(*internal.SetPrivilegeCommand)
+
+	// Copy data and update.
+	other := fsm.data.Clone()
+	if err := other.SetPrivilege(v.GetUsername(), v.GetDatabase(), influxql.Privilege(v.GetPrivilege())); err != nil {
+		return err
+	}
+	fsm.data = other
+	return nil
 }
 
 func (fsm *storeFSM) Snapshot() (raft.FSMSnapshot, error) {

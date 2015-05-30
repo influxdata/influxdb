@@ -297,6 +297,59 @@ func TestData_CreateShardGroup(t *testing.T) {
 	}
 }
 
+// Test shard group selection.
+func TestShardGroup_Overlaps(t *testing.T) {
+	// Make a shard group 1 hour in duration
+	startTime, _ := time.Parse(time.RFC3339, "2000-01-01T00:00:00Z")
+	endTime := startTime.Add(time.Hour)
+	g := &meta.ShardGroupInfo{StartTime: startTime, EndTime: endTime}
+
+	if !g.Overlaps(g.StartTime.Add(-time.Minute), g.EndTime) {
+		t.Fatal("shard group not selected when min before start time")
+	}
+
+	if !g.Overlaps(g.StartTime.Add(-time.Minute), g.StartTime) {
+		t.Fatal("shard group not selected when min before start time and max equals start time")
+	}
+
+	if !g.Overlaps(g.StartTime, g.EndTime.Add(time.Minute)) {
+		t.Fatal("shard group not selected when max after after end time")
+	}
+
+	if !g.Overlaps(g.StartTime.Add(-time.Minute), g.EndTime.Add(time.Minute)) {
+		t.Fatal("shard group not selected when min before start time and when max after end time")
+	}
+
+	if !g.Overlaps(g.StartTime.Add(time.Minute), g.EndTime.Add(-time.Minute)) {
+		t.Fatal("shard group not selected when min after start time and when max before end time")
+	}
+
+	if !g.Overlaps(g.StartTime, g.EndTime) {
+		t.Fatal("shard group not selected when min at start time and when max at end time")
+	}
+
+	if !g.Overlaps(g.StartTime, g.StartTime) {
+		t.Fatal("shard group not selected when min and max set to start time")
+	}
+
+	if !g.Overlaps(g.StartTime.Add(1*time.Minute), g.EndTime.Add(24*time.Hour)) {
+		t.Fatal("shard group selected when both min in range")
+	}
+
+	if g.Overlaps(g.EndTime, g.EndTime) {
+		t.Fatal("shard group selected when min and max set to end time")
+	}
+
+	if g.Overlaps(g.StartTime.Add(-10*time.Hour), g.EndTime.Add(-9*time.Hour)) {
+		t.Fatal("shard group selected when both min and max before shard times")
+	}
+
+	if g.Overlaps(g.StartTime.Add(24*time.Hour), g.EndTime.Add(25*time.Hour)) {
+		t.Fatal("shard group selected when both min and max after shard times")
+	}
+
+}
+
 // Ensure a shard group can be removed by ID.
 func TestData_DeleteShardGroup(t *testing.T) {
 	var data meta.Data
@@ -320,28 +373,34 @@ func TestData_DeleteShardGroup(t *testing.T) {
 // Ensure a continuous query can be created.
 func TestData_CreateContinuousQuery(t *testing.T) {
 	var data meta.Data
-	if err := data.CreateContinuousQuery("SELECT count() FROM foo"); err != nil {
+	if err := data.CreateDatabase("db0"); err != nil {
 		t.Fatal(err)
-	} else if !reflect.DeepEqual(data.ContinuousQueries, []meta.ContinuousQueryInfo{{Query: "SELECT count() FROM foo"}}) {
-		t.Fatalf("unexpected queries: %#v", data.ContinuousQueries)
+	} else if err := data.CreateContinuousQuery("db0", "cq0", "SELECT count() FROM foo"); err != nil {
+		t.Fatal(err)
+	} else if !reflect.DeepEqual(data.Databases[0].ContinuousQueries, []meta.ContinuousQueryInfo{
+		{Name: "cq0", Query: "SELECT count() FROM foo"},
+	}) {
+		t.Fatalf("unexpected queries: %#v", data.Databases[0].ContinuousQueries)
 	}
 }
 
 // Ensure a continuous query can be removed.
 func TestData_DropContinuousQuery(t *testing.T) {
 	var data meta.Data
-	if err := data.CreateContinuousQuery("SELECT count() FROM foo"); err != nil {
+	if err := data.CreateDatabase("db0"); err != nil {
 		t.Fatal(err)
-	} else if err = data.CreateContinuousQuery("SELECT count() FROM bar"); err != nil {
+	} else if err := data.CreateContinuousQuery("db0", "cq0", "SELECT count() FROM foo"); err != nil {
+		t.Fatal(err)
+	} else if err = data.CreateContinuousQuery("db0", "cq1", "SELECT count() FROM bar"); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := data.DropContinuousQuery("SELECT count() FROM foo"); err != nil {
+	if err := data.DropContinuousQuery("db0", "cq0"); err != nil {
 		t.Fatal(err)
-	} else if !reflect.DeepEqual(data.ContinuousQueries, []meta.ContinuousQueryInfo{
-		{Query: "SELECT count() FROM bar"},
+	} else if !reflect.DeepEqual(data.Databases[0].ContinuousQueries, []meta.ContinuousQueryInfo{
+		{Name: "cq1", Query: "SELECT count() FROM bar"},
 	}) {
-		t.Fatalf("unexpected queries: %#v", data.ContinuousQueries)
+		t.Fatalf("unexpected queries: %#v", data.Databases[0].ContinuousQueries)
 	}
 }
 
@@ -460,10 +519,10 @@ func TestData_Clone(t *testing.T) {
 						},
 					},
 				},
+				ContinuousQueries: []meta.ContinuousQueryInfo{
+					{Query: "SELECT count() FROM foo"},
+				},
 			},
-		},
-		ContinuousQueries: []meta.ContinuousQueryInfo{
-			{Query: "SELECT count() FROM foo"},
 		},
 		Users: []meta.UserInfo{
 			{

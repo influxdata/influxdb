@@ -46,6 +46,10 @@ var (
 	// ErrRetentionPolicyNameExists is returned when renaming a policy to
 	// the same name as another existing policy.
 	ErrRetentionPolicyNameExists = errors.New("retention policy name already exists")
+
+	// ErrRetentionPolicyDurationTooLow is returned when updating a retention
+	// policy that has a duration lower than the allowed minimum.
+	ErrRetentionPolicyDurationTooLow = errors.New("retention policy duration too low")
 )
 
 var (
@@ -97,4 +101,19 @@ func lookupError(err error) error {
 		return e
 	}
 	return err
+}
+
+// AuthError represents an authorization error.
+type AuthError struct {
+	text string
+}
+
+// NewAuthError returns a new instance of AuthError.
+func NewAuthError(text string) AuthError {
+	return AuthError{text: text}
+}
+
+// Error returns the text of the error.
+func (e AuthError) Error() string {
+	return e.text
 }

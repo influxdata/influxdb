@@ -10,13 +10,23 @@ import (
 
 //go:generate protoc --gogo_out=. internal/meta.proto
 
+const (
+	// DefaultRetentionPolicyReplicaN is the default value of RetentionPolicyInfo.ReplicaN.
+	DefaultRetentionPolicyReplicaN = 1
+
+	// DefaultRetentionPolicyDuration is the default value of RetentionPolicyInfo.Duration.
+	DefaultRetentionPolicyDuration = 7 * (24 * time.Hour)
+
+	// MinRetentionPolicyDuration represents the minimum duration for a policy.
+	MinRetentionPolicyDuration = time.Hour
+)
+
 // Data represents the top level collection of all metadata.
 type Data struct {
-	Version           uint64 // autoincrementing version
-	Nodes             []NodeInfo
-	Databases         []DatabaseInfo
-	Users             []UserInfo
-	ContinuousQueries []ContinuousQueryInfo
+	Version   uint64 // autoincrementing version
+	Nodes     []NodeInfo
+	Databases []DatabaseInfo
+	Users     []UserInfo
 
 	MaxNodeID       uint64
 	MaxShardGroupID uint64
@@ -186,6 +196,11 @@ func (data *Data) UpdateRetentionPolicy(database, name string, rpu *RetentionPol
 		return ErrRetentionPolicyNameExists
 	}
 
+	// Enforce duration of at least MinRetentionPolicyDuration
+	if rpu.Duration != nil && *rpu.Duration < MinRetentionPolicyDuration && *rpu.Duration != 0 {
+		return ErrRetentionPolicyDurationTooLow
+	}
+
 	// Update fields.
 	if rpu.Name != nil {
 		rpi.Name = *rpu.Name
@@ -214,6 +229,18 @@ func (data *Data) SetDefaultRetentionPolicy(database, name string) error {
 	di.DefaultRetentionPolicy = name
 
 	return nil
+}
+
+// ShardGroup returns a list of all shard groups on a database and policy.
+func (data *Data) ShardGroups(database, policy string) ([]ShardGroupInfo, error) {
+	// Find retention policy.
+	rpi, err := data.RetentionPolicy(database, policy)
+	if err != nil {
+		return nil, err
+	} else if rpi == nil {
+		return nil, ErrRetentionPolicyNotFound
+	}
+	return rpi.ShardGroups, nil
 }
 
 // ShardGroupByTimestamp returns the shard group on a database and policy for a given timestamp.
@@ -315,17 +342,23 @@ func (data *Data) DeleteShardGroup(database, policy string, id uint64) error {
 	return ErrShardGroupNotFound
 }
 
-// CreateContinuousQuery adds a continuous query.
-func (data *Data) CreateContinuousQuery(query string) error {
-	// Ensure the query doesn't already exist.
-	for i := range data.ContinuousQueries {
-		if data.ContinuousQueries[i].Query == query {
+// CreateContinuousQuery adds a named continuous query to a database.
+func (data *Data) CreateContinuousQuery(database, name, query string) error {
+	di := data.Database(database)
+	if di == nil {
+		return ErrDatabaseNotFound
+	}
+
+	// Ensure the name doesn't already exist.
+	for i := range di.ContinuousQueries {
+		if di.ContinuousQueries[i].Name == name {
 			return ErrContinuousQueryExists
 		}
 	}
 
 	// Append new query.
-	data.ContinuousQueries = append(data.ContinuousQueries, ContinuousQueryInfo{
+	di.ContinuousQueries = append(di.ContinuousQueries, ContinuousQueryInfo{
+		Name:  name,
 		Query: query,
 	})
 
@@ -333,10 +366,15 @@ func (data *Data) CreateContinuousQuery(query string) error {
 }
 
 // DropContinuousQuery removes a continuous query.
-func (data *Data) DropContinuousQuery(query string) error {
-	for i := range data.ContinuousQueries {
-		if data.ContinuousQueries[i].Query == query {
-			data.ContinuousQueries = append(data.ContinuousQueries[:i], data.ContinuousQueries[i+1:]...)
+func (data *Data) DropContinuousQuery(database, name string) error {
+	di := data.Database(database)
+	if di == nil {
+		return ErrDatabaseNotFound
+	}
+
+	for i := range di.ContinuousQueries {
+		if di.ContinuousQueries[i].Name == name {
+			di.ContinuousQueries = append(di.ContinuousQueries[:i], di.ContinuousQueries[i+1:]...)
 			return nil
 		}
 	}
@@ -394,6 +432,21 @@ func (data *Data) UpdateUser(name, hash string) error {
 	return ErrUserNotFound
 }
 
+// SetPrivilege sets a privilege for a user on a database.
+func (data *Data) SetPrivilege(name, database string, p influxql.Privilege) error {
+	ui := data.User(name)
+	if ui == nil {
+		return ErrUserNotFound
+	}
+
+	if ui.Privileges == nil {
+		ui.Privileges = make(map[string]influxql.Privilege)
+	}
+	ui.Privileges[database] = p
+
+	return nil
+}
+
 // Clone returns a copy of data with a new version.
 func (data *Data) Clone() *Data {
 	other := *data
@@ -412,14 +465,6 @@ func (data *Data) Clone() *Data {
 		other.Databases = make([]DatabaseInfo, len(data.Databases))
 		for i := range data.Databases {
 			other.Databases[i] = data.Databases[i].clone()
-		}
-	}
-
-	// Copy continuous queries.
-	if data.ContinuousQueries != nil {
-		other.ContinuousQueries = make([]ContinuousQueryInfo, len(data.ContinuousQueries))
-		for i := range data.ContinuousQueries {
-			other.ContinuousQueries[i] = data.ContinuousQueries[i].clone()
 		}
 	}
 
@@ -467,6 +512,7 @@ type DatabaseInfo struct {
 	Name                   string
 	DefaultRetentionPolicy string
 	RetentionPolicies      []RetentionPolicyInfo
+	ContinuousQueries      []ContinuousQueryInfo
 }
 
 // RetentionPolicy returns a retention policy by name.
@@ -490,6 +536,14 @@ func (di DatabaseInfo) clone() DatabaseInfo {
 		}
 	}
 
+	// Copy continuous queries.
+	if di.ContinuousQueries != nil {
+		other.ContinuousQueries = make([]ContinuousQueryInfo, len(di.ContinuousQueries))
+		for i := range di.ContinuousQueries {
+			other.ContinuousQueries[i] = di.ContinuousQueries[i].clone()
+		}
+	}
+
 	return other
 }
 
@@ -500,6 +554,15 @@ type RetentionPolicyInfo struct {
 	Duration           time.Duration
 	ShardGroupDuration time.Duration
 	ShardGroups        []ShardGroupInfo
+}
+
+// NewRetentionPolicyInfo returns a new instance of RetentionPolicyInfo with defaults set.
+func NewRetentionPolicyInfo(name string) *RetentionPolicyInfo {
+	return &RetentionPolicyInfo{
+		Name:     name,
+		ReplicaN: DefaultRetentionPolicyReplicaN,
+		Duration: DefaultRetentionPolicyDuration,
+	}
 }
 
 // ShardGroupByTimestamp returns the shard group in the policy that contains the timestamp.
@@ -559,6 +622,11 @@ func (sgi *ShardGroupInfo) Contains(timestamp time.Time) bool {
 	return !sgi.StartTime.After(timestamp) && sgi.EndTime.After(timestamp)
 }
 
+// Overlaps return whether the shard group contains data for the time range between min and max
+func (sgi *ShardGroupInfo) Overlaps(min, max time.Time) bool {
+	return !sgi.StartTime.After(max) && sgi.EndTime.After(min)
+}
+
 // clone returns a deep copy of sgi.
 func (sgi ShardGroupInfo) clone() ShardGroupInfo {
 	other := sgi
@@ -598,6 +666,7 @@ func (si ShardInfo) clone() ShardInfo {
 
 // ContinuousQueryInfo represents metadata about a continuous query.
 type ContinuousQueryInfo struct {
+	Name  string
 	Query string
 }
 
@@ -610,6 +679,12 @@ type UserInfo struct {
 	Hash       string
 	Admin      bool
 	Privileges map[string]influxql.Privilege
+}
+
+// Authorize returns true if the user is authorized and false if not.
+func (ui *UserInfo) Authorize(privilege influxql.Privilege, database string) bool {
+	p, ok := ui.Privileges[database]
+	return (ok && p >= privilege) || (ui.Admin)
 }
 
 // clone returns a deep copy of si.

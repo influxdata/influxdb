@@ -806,14 +806,14 @@ type Mapper interface {
 }
 
 type TagSet struct {
-	Tags      map[string]string
-	Filters   []Expr
-	SeriesIDs []uint64
-	Key       []byte
+	Tags       map[string]string
+	Filters    []Expr
+	SeriesKeys []string
+	Key        []byte
 }
 
-func (t *TagSet) AddFilter(id uint64, filter Expr) {
-	t.SeriesIDs = append(t.SeriesIDs, id)
+func (t *TagSet) AddFilter(key string, filter Expr) {
+	t.SeriesKeys = append(t.SeriesKeys, key)
 	t.Filters = append(t.Filters, filter)
 }
 
@@ -925,7 +925,7 @@ func (e *Executor) execute(out chan *Row) {
 type Row struct {
 	Name    string            `json:"name,omitempty"`
 	Tags    map[string]string `json:"tags,omitempty"`
-	Columns []string          `json:"columns"`
+	Columns []string          `json:"columns,omitempty"`
 	Values  [][]interface{}   `json:"values,omitempty"`
 	Err     error             `json:"err,omitempty"`
 }
