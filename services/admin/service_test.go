@@ -11,7 +11,7 @@ import (
 // Ensure service can serve the root index page of the admin.
 func TestService_Index(t *testing.T) {
 	// Start service on random port.
-	s := admin.NewService(admin.Config{BindAddress: ":0"})
+	s := admin.NewService(admin.Config{BindAddress: "127.0.0.1:0"})
 	if err := s.Open(); err != nil {
 		t.Fatal(err)
 	}
