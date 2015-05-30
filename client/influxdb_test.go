@@ -13,6 +13,76 @@ import (
 	"github.com/influxdb/influxdb/client"
 )
 
+func BenchmarkUnmarshalJSON2Tags(b *testing.B) {
+	var bp client.BatchPoints
+	data := []byte(`
+{
+    "database": "foo",
+    "retentionPolicy": "bar",
+    "points": [
+        {
+            "name": "cpu",
+            "tags": {
+                "host": "server01",
+                "region": "us-east1"
+            },
+            "time": 14244733039069373,
+            "precision": "n",
+            "fields": {
+                    "value": 4541770385657154000
+            }
+        }
+    ]
+}
+`)
+
+	for i := 0; i < b.N; i++ {
+		if err := json.Unmarshal(data, &bp); err != nil {
+			b.Errorf("failed to unmarshal nanosecond data: %s", err.Error())
+		}
+		b.SetBytes(int64(len(data)))
+	}
+}
+
+func BenchmarkUnmarshalJSON10Tags(b *testing.B) {
+	var bp client.BatchPoints
+	data := []byte(`
+{
+    "database": "foo",
+    "retentionPolicy": "bar",
+    "points": [
+        {
+            "name": "cpu",
+            "tags": {
+                "host": "server01",
+                "region": "us-east1",
+                "tag1": "value1",
+                "tag2": "value2",
+                "tag2": "value3",
+                "tag4": "value4",
+                "tag5": "value5",
+                "tag6": "value6",
+                "tag7": "value7",
+                "tag8": "value8"
+            },
+            "time": 14244733039069373,
+            "precision": "n",
+            "fields": {
+                    "value": 4541770385657154000
+            }
+        }
+    ]
+}
+`)
+
+	for i := 0; i < b.N; i++ {
+		if err := json.Unmarshal(data, &bp); err != nil {
+			b.Errorf("failed to unmarshal nanosecond data: %s", err.Error())
+		}
+		b.SetBytes(int64(len(data)))
+	}
+}
+
 func TestNewClient(t *testing.T) {
 	config := client.Config{}
 	_, err := client.NewClient(config)
