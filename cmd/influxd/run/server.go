@@ -8,15 +8,19 @@ import (
 	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/services/admin"
 	"github.com/influxdb/influxdb/services/collectd"
-	"github.com/influxdb/influxdb/services/graphite"
 	"github.com/influxdb/influxdb/services/httpd"
 	"github.com/influxdb/influxdb/services/opentsdb"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
+// Server represents a container for the metadata and storage data and services.
+// It is built using a Config and it manages the startup and shutdown of all
+// services in the proper order.
 type Server struct {
-	MetaStore *meta.Store
-	TSDBStore *tsdb.Store
+	MetaStore     *meta.Store
+	TSDBStore     *tsdb.Store
+	QueryExecutor *tsdb.QueryExecutor
+	PointsWriter  tsdb.PointsWriter
 
 	Services []Service
 }
@@ -29,37 +33,47 @@ func NewServer(c *Config, joinURLs string) *Server {
 		TSDBStore: tsdb.NewStore(c.Data.Dir),
 	}
 
-	// Add cluster Service
-	s.Services = append(s.Services, cluster.NewService(c.Cluster))
-
-	// Add admin Service
-	if c.Admin.Enabled {
-		s.Services = append(s.Services, admin.NewService(c.Admin))
-	}
-
-	// HTTP API Service
-	if c.HTTPD.Enabled {
-		s.Services = append(s.Services, httpd.NewService(c.HTTPD))
-	}
-
-	// Graphite services
+	// Append services.
+	s.appendClusterService(c.Cluster)
+	s.appendAdminService(c.Admin)
+	s.appendHTTPDService(c.HTTPD)
+	s.appendCollectdService(c.Collectd)
+	s.appendOpenTSDBService(c.OpenTSDB)
 	for _, g := range c.Graphites {
-		if g.Enabled {
-			s.Services = append(s.Services, graphite.NewService(g))
-		}
-	}
-
-	// Collectd service
-	if c.Collectd.Enabled {
-		s.Services = append(s.Services, collectd.NewService(c.Collectd))
-	}
-
-	// OpenTSDB services
-	if c.OpenTSDB.Enabled {
-		s.Services = append(s.Services, opentsdb.NewService(c.OpenTSDB))
+		s.appendGraphiteServices(g)
 	}
 
 	return s
+}
+
+func (s *Server) appendClusterService(c cluster.Config) {
+	srv := cluster.NewService(c)
+	s.Services = append(s.Services, srv)
+}
+
+func (s *Server) appendAdminService(c admin.Config) {
+	srv := admin.NewService(c)
+	s.Services = append(s.Services, srv)
+}
+
+func (s *Server) appendHTTPDService(c httpd.Config) {
+	srv := httpd.NewService(c)
+	s.Services = append(s.Services, srv)
+}
+
+func (s *Server) appendCollectdService(c collectd.Config) {
+	srv := collectd.NewService(c)
+	s.Services = append(s.Services, srv)
+}
+
+func (s *Server) appendOpenTSDBService(c opentsdb.Config) {
+	srv := opentsdb.NewService(c)
+	s.Services = append(s.Services, srv)
+}
+
+func (s *Server) appendGraphiteService(c graphite.Config) {
+	srv := graphite.NewService(c)
+	s.Services = append(s.Services, srv)
 }
 
 // Open opens the meta and data store and all services.

@@ -24,9 +24,8 @@ var (
 )
 
 type Store struct {
+	mu   sync.RWMutex
 	path string
-
-	mu sync.RWMutex
 
 	databaseIndexes map[string]*DatabaseIndex
 	shards          map[uint64]*Shard

@@ -10,7 +10,7 @@ import (
 	"github.com/influxdb/influxdb/tsdb"
 )
 
-const defaultWriteTimeout = 5 * time.Second
+const DefaultWriteTimeout = 5 * time.Second
 
 // ConsistencyLevel represent a required replication criteria before a write can
 // be returned as successful
@@ -163,9 +163,9 @@ func (c *Coordinator) MapShards(wp *WritePointsRequest) (*ShardMapping, error) {
 	return mapping, nil
 }
 
-// Write is coordinates multiple writes across local and remote data nodes
+// WritePoints is coordinates multiple writes across local and remote data nodes
 // according the request consistency level
-func (c *Coordinator) Write(p *WritePointsRequest) error {
+func (c *Coordinator) WritePoints(p *WritePointsRequest) error {
 	shardMappings, err := c.MapShards(p)
 	if err != nil {
 		return err

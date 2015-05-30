@@ -50,7 +50,7 @@ func (w *WriteShardRequest) SetShardID(id uint64) {
 }
 
 func (w *WriteShardRequest) Points() []tsdb.Point {
-	return w.unmarhalPoints()
+	return w.unmarshalPoints()
 }
 
 func (w *WriteShardRequest) AddPoint(name string, value interface{}, timestamp time.Time, tags map[string]string) {
@@ -125,7 +125,7 @@ func (w *WriteShardRequest) UnmarshalBinary(buf []byte) error {
 	return nil
 }
 
-func (w *WriteShardRequest) unmarhalPoints() []tsdb.Point {
+func (w *WriteShardRequest) unmarshalPoints() []tsdb.Point {
 	points := make([]tsdb.Point, len(w.pb.GetPoints()))
 	for i, p := range w.pb.GetPoints() {
 		pt := tsdb.NewPoint(

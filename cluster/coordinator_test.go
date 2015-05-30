@@ -251,7 +251,7 @@ func TestCoordinatorWrite(t *testing.T) {
 			Store:         store,
 		}
 
-		if err := c.Write(pr); err != test.expErr {
+		if err := c.WritePoints(pr); err != test.expErr {
 			t.Errorf("Coordinator.Write(): '%s' error: got %v, exp %v", test.name, err, test.expErr)
 		}
 	}

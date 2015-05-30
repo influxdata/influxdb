@@ -17,83 +17,35 @@ const (
 	writeShardResponseMessage
 )
 
-const (
-	maxConnections = 500
-	maxRetries     = 3
-)
+// ShardWriter writes a set of points to a shard.
+type ShardWriter struct {
+	pool    *clientPool
+	timeout time.Duration
 
-var errMaxConnectionsExceeded = fmt.Errorf("can not exceed max connections of %d", maxConnections)
-
-type metaStore interface {
-	Node(id uint64) (ni *meta.NodeInfo, err error)
-}
-
-type connFactory struct {
-	metaStore  metaStore
-	nodeID     uint64
-	timeout    time.Duration
-	clientPool interface {
-		size() int
+	MetaStore interface {
+		Node(id uint64) (ni *meta.NodeInfo, err error)
 	}
 }
 
-func (c *connFactory) dial() (net.Conn, error) {
-	if c.clientPool.size() > maxConnections {
-		return nil, errMaxConnectionsExceeded
-	}
-
-	nodeInfo, err := c.metaStore.Node(c.nodeID)
-	if err != nil {
-		return nil, err
-	}
-
-	conn, err := net.DialTimeout("tcp", nodeInfo.Host, c.timeout)
-	if err != nil {
-		return nil, err
-	}
-	return conn, nil
-}
-
-type Writer struct {
-	pool      *clientPool
-	metaStore metaStore
-	timeout   time.Duration
-}
-
-func NewWriter(m metaStore, timeout time.Duration) *Writer {
-	return &Writer{
-		pool:      newClientPool(),
-		metaStore: m,
-		timeout:   timeout,
+// NewShardWriter returns a new instance of ShardWriter.
+func NewShardWriter(timeout time.Duration) *ShardWriter {
+	return &ShardWriter{
+		pool:    newClientPool(),
+		timeout: timeout,
 	}
 }
 
-func (c *Writer) dial(nodeID uint64) (net.Conn, error) {
-	// if we don't have a connection pool for that addr yet, create one
-	_, ok := c.pool.getPool(nodeID)
-	if !ok {
-		factory := &connFactory{nodeID: nodeID, metaStore: c.metaStore, clientPool: c.pool, timeout: c.timeout}
-		p, err := pool.NewChannelPool(1, 3, factory.dial)
-		if err != nil {
-			return nil, err
-		}
-		c.pool.setPool(nodeID, p)
-	}
-	return c.pool.conn(nodeID)
-}
-
-func (w *Writer) Write(shardID, ownerID uint64, points []tsdb.Point) error {
+func (w *ShardWriter) WriteShard(shardID, ownerID uint64, points []tsdb.Point) error {
 	c, err := w.dial(ownerID)
 	if err != nil {
 		return err
 	}
+
 	conn, ok := c.(*pool.PoolConn)
 	if !ok {
 		panic("wrong connection type")
 	}
-
-	// This will return the connection to the data pool
-	defer conn.Close()
+	defer conn.Close() // return to pool
 
 	conn.SetWriteDeadline(time.Now().Add(w.timeout))
 	var mt byte = writeShardRequestMessage
@@ -102,15 +54,16 @@ func (w *Writer) Write(shardID, ownerID uint64, points []tsdb.Point) error {
 		return err
 	}
 
+	// Build write request.
 	var request WriteShardRequest
 	request.SetShardID(shardID)
 	request.AddPoints(points)
 
+	// Marshal into protocol buffers.
 	b, err := request.MarshalBinary()
 	if err != nil {
 		return err
 	}
-
 	size := int64(len(b))
 
 	conn.SetWriteDeadline(time.Now().Add(w.timeout))
@@ -160,11 +113,65 @@ func (w *Writer) Write(shardID, ownerID uint64, points []tsdb.Point) error {
 	return nil
 }
 
-func (w *Writer) Close() error {
+func (c *ShardWriter) dial(nodeID uint64) (net.Conn, error) {
+	// If we don't have a connection pool for that addr yet, create one
+	_, ok := c.pool.getPool(nodeID)
+	if !ok {
+		factory := &connFactory{nodeID: nodeID, clientPool: c.pool, timeout: c.timeout}
+		factory.metaStore = c.MetaStore
+
+		p, err := pool.NewChannelPool(1, 3, factory.dial)
+		if err != nil {
+			return nil, err
+		}
+		c.pool.setPool(nodeID, p)
+	}
+	return c.pool.conn(nodeID)
+}
+
+func (w *ShardWriter) Close() error {
 	if w.pool == nil {
 		return fmt.Errorf("client already closed")
 	}
 	w.pool.close()
 	w.pool = nil
 	return nil
+}
+
+const (
+	maxConnections = 500
+	maxRetries     = 3
+)
+
+var errMaxConnectionsExceeded = fmt.Errorf("can not exceed max connections of %d", maxConnections)
+
+type connFactory struct {
+	nodeID  uint64
+	timeout time.Duration
+
+	clientPool interface {
+		size() int
+	}
+
+	metaStore interface {
+		Node(id uint64) (ni *meta.NodeInfo, err error)
+	}
+}
+
+func (c *connFactory) dial() (net.Conn, error) {
+	if c.clientPool.size() > maxConnections {
+		return nil, errMaxConnectionsExceeded
+	}
+
+	nodeInfo, err := c.metaStore.Node(c.nodeID)
+	if err != nil {
+		return nil, err
+	}
+
+	conn, err := net.DialTimeout("tcp", nodeInfo.Host, c.timeout)
+	if err != nil {
+		return nil, err
+	}
+
+	return conn, nil
 }
