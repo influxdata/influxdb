@@ -1,4 +1,4 @@
-package influxdb_test
+package tsdb_test
 
 /*
 import (

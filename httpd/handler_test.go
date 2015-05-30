@@ -1287,7 +1287,7 @@ func TestHandler_serveWriteSeriesNonZeroTime(t *testing.T) {
 		t.Errorf("unexpected status: %d", status)
 	}
 
-	r := &influxdb.Response{}
+	r := &httpd.Response{}
 	if err := json.Unmarshal([]byte(body), r); err != nil {
 		t.Logf("query : %s\n", query)
 		t.Log(body)
@@ -1332,7 +1332,7 @@ func TestHandler_serveWriteSeriesZeroTime(t *testing.T) {
 		t.Errorf("unexpected status: %d", status)
 	}
 
-	r := &influxdb.Response{}
+	r := &httpd.Response{}
 	if err := json.Unmarshal([]byte(body), r); err != nil {
 		t.Logf("query : %s\n", query)
 		t.Log(body)
@@ -1418,7 +1418,7 @@ func TestHandler_serveWriteSeriesBatch(t *testing.T) {
 		t.Errorf("unexpected status: %d", status)
 	}
 
-	r := &influxdb.Response{}
+	r := &httpd.Response{}
 	if err := json.Unmarshal([]byte(body), r); err != nil {
 		t.Logf("query : %s\n", query)
 		t.Log(body)
@@ -1458,7 +1458,7 @@ func TestHandler_serveWriteSeriesFieldTypeConflict(t *testing.T) {
 		t.Errorf("unexpected status: %d", status)
 	}
 
-	r := &influxdb.Response{}
+	r := &httpd.Response{}
 	if err := json.Unmarshal([]byte(body), r); err != nil {
 		t.Log(body)
 		t.Error(err)
@@ -1559,7 +1559,7 @@ func TestHandler_ChunkedResponses(t *testing.T) {
 		if err != nil {
 			t.Fatalf("error reading response: %s", err.Error())
 		}
-		response := &influxdb.Response{}
+		response := &httpd.Response{}
 		err = json.Unmarshal(chunk[0:n], response)
 		if err != nil {
 			t.Fatalf("error unmarshaling resultsz: %s", err.Error())

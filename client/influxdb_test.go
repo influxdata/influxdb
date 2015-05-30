@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/client"
 )
 
@@ -46,7 +45,7 @@ func TestClient_Ping(t *testing.T) {
 
 func TestClient_Query(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var data influxdb.Response
+		var data client.Response
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(data)
 	}))
@@ -99,7 +98,7 @@ func TestClient_BasicAuth(t *testing.T) {
 
 func TestClient_Write(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var data influxdb.Response
+		var data client.Response
 		w.WriteHeader(http.StatusNoContent)
 		_ = json.NewEncoder(w).Encode(data)
 	}))
@@ -127,7 +126,7 @@ func TestClient_UserAgent(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedUserAgent = r.UserAgent()
 
-		var data influxdb.Response
+		var data client.Response
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(data)
 	}))

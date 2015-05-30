@@ -207,7 +207,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 	}
 
 	// if we're not chunking, this will be the in memory buffer for all results before sending to client
-	resp := influxdb.Response{Results: make([]*influxql.Result, 0)}
+	resp := Response{Results: make([]*influxql.Result, 0)}
 	statusWritten := false
 
 	// pull all results from the channel
@@ -233,7 +233,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 
 		// Write out result immediately if chunked.
 		if chunked {
-			w.Write(MarshalJSON(influxdb.Response{
+			w.Write(MarshalJSON(Response{
 				Results: []*influxql.Result{r},
 			}, pretty))
 			w.(http.Flusher).Flush()
@@ -494,7 +494,7 @@ func httpError(w http.ResponseWriter, error string, pretty bool, code int) {
 	w.Header().Add("content-type", "application/json")
 	w.WriteHeader(code)
 
-	response := influxdb.Response{Err: errors.New(error)}
+	response := Response{Err: errors.New(error)}
 	var b []byte
 	if pretty {
 		b, _ = json.MarshalIndent(response, "", "    ")
@@ -676,6 +676,61 @@ func recovery(inner http.Handler, name string, weblog *log.Logger) http.Handler 
 	})
 }
 
+// Response represents a list of statement results.
+type Response struct {
+	Results []*influxql.Result
+	Err     error
+}
+
+// MarshalJSON encodes a Response struct into JSON.
+func (r Response) MarshalJSON() ([]byte, error) {
+	// Define a struct that outputs "error" as a string.
+	var o struct {
+		Results []*influxql.Result `json:"results,omitempty"`
+		Err     string             `json:"error,omitempty"`
+	}
+
+	// Copy fields to output struct.
+	o.Results = r.Results
+	if r.Err != nil {
+		o.Err = r.Err.Error()
+	}
+
+	return json.Marshal(&o)
+}
+
+// UnmarshalJSON decodes the data into the Response struct
+func (r *Response) UnmarshalJSON(b []byte) error {
+	var o struct {
+		Results []*influxql.Result `json:"results,omitempty"`
+		Err     string             `json:"error,omitempty"`
+	}
+
+	err := json.Unmarshal(b, &o)
+	if err != nil {
+		return err
+	}
+	r.Results = o.Results
+	if o.Err != "" {
+		r.Err = errors.New(o.Err)
+	}
+	return nil
+}
+
+// Error returns the first error from any statement.
+// Returns nil if no errors occurred on any statements.
+func (r *Response) Error() error {
+	if r.Err != nil {
+		return r.Err
+	}
+	for _, rr := range r.Results {
+		if rr.Err != nil {
+			return rr.Err
+		}
+	}
+	return nil
+}
+
 /*
 FIXME: Convert to line protocol format.
 
@@ -769,7 +824,7 @@ func (h *Handler) showMeasurements(db string, user *meta.UserInfo) ([]string, er
 	if err != nil {
 		return measurements, err
 	}
-	results := influxdb.Response{}
+	results := Response{}
 
 	for r := range c {
 		results.Results = append(results.Results, r)
