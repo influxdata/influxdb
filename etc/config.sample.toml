@@ -17,6 +17,10 @@ port = 8086
 # Change this option to true to disable reporting.
 reporting-disabled = false
 
+# File containing administration secret you can use this file as an way to run
+# administration commands via localhost. Useful for automation tools
+#secret-file = "/path/to/the/file"
+
 # Controls settings for initial start-up. Once a node is successfully started,
 # these settings are ignored.  If a node is started with the -join flag,
 # these settings are ignored.

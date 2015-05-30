@@ -30,6 +30,13 @@ const (
 	DefaultChunkSize = 10000
 )
 
+const (
+	// type of authentication
+	UserAuth = iota
+	SecretAuth
+	UnknownAuth
+)
+
 // TODO: Standard response headers (see: HeaderHandler)
 // TODO: Compression (see: CompressionHeaderHandler)
 
@@ -898,16 +905,21 @@ func httpError(w http.ResponseWriter, error string, pretty bool, code int) {
 // a Basic Authentication header.
 // as params: http://127.0.0.1/query?u=username&p=password
 // as basic auth: http://username:password@127.0.0.1
-func parseCredentials(r *http.Request) (string, string, error) {
+// as secret file auth: Header X-Influxdb-Secret from 127.0.0.1
+
+func parseCredentials(r *http.Request) (uint, string, string, error) {
 	q := r.URL.Query()
 
+	if s := r.Header.Get("X-Influxdb-Secret"); s != "" && strings.HasPrefix(r.RemoteAddr, "127.0.0.1") {
+		return SecretAuth, "", s, nil
+	}
 	if u, p := q.Get("u"), q.Get("p"); u != "" && p != "" {
-		return u, p, nil
+		return UserAuth, u, p, nil
 	}
 	if u, p, ok := r.BasicAuth(); ok {
-		return u, p, nil
+		return UserAuth, u, p, nil
 	} else {
-		return "", "", fmt.Errorf("unable to parse Basic Auth credentials")
+		return UnknownAuth, "", "", fmt.Errorf("unable to parse Secret File or Basic Auth credentials")
 	}
 }
 
@@ -927,17 +939,25 @@ func authenticate(inner func(http.ResponseWriter, *http.Request, *influxdb.User)
 
 		// TODO corylanou: never allow this in the future without users
 		if requireAuthentication && h.server.UserCount() > 0 {
-			username, password, err := parseCredentials(r)
+			authType, username, password, err := parseCredentials(r)
 			if err != nil {
 				httpError(w, err.Error(), false, http.StatusUnauthorized)
 				return
 			}
-			if username == "" {
-				httpError(w, "username required", false, http.StatusUnauthorized)
+
+			switch authType {
+			case UserAuth:
+				if username == "" {
+					httpError(w, "username required", false, http.StatusUnauthorized)
+					return
+				}
+				user, err = h.server.Authenticate(username, password)
+			case SecretAuth:
+				user, err = h.server.AuthenticateBySecret(password)
+			default:
+				httpError(w, "unsupported authentication", false, http.StatusUnauthorized)
 				return
 			}
-
-			user, err = h.server.Authenticate(username, password)
 			if err != nil {
 				httpError(w, err.Error(), false, http.StatusUnauthorized)
 				return

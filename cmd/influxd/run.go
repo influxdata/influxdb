@@ -301,6 +301,11 @@ func (cmd *RunCommand) CheckConfig() {
 	if cmd.config.Data.Enabled && cmd.config.Data.Dir == "" {
 		log.Fatal("Data.Dir must be specified.  To generate a valid configuration file run `influxd config > influxdb.generated.conf`.")
 	}
+	if cmd.config.SecretFile != "" {
+		if _, err := os.Stat(cmd.config.SecretFile); err != nil {
+			log.Fatalf("Problem while loading secret file: %s.", err)
+		}
+	}
 }
 
 func (cmd *RunCommand) Open(config *Config, join string) *Node {
@@ -337,6 +342,11 @@ func (cmd *RunCommand) Open(config *Config, join string) *Node {
 		cmd.node.DataNode = s
 		s.SetAuthenticationEnabled(cmd.config.Authentication.Enabled)
 		log.Printf("authentication enabled: %v\n", cmd.config.Authentication.Enabled)
+
+		if cmd.config.SecretFile != "" {
+			s.SecretFile = cmd.config.SecretFile
+			log.Printf("Secret file: %s\n", cmd.config.SecretFile)
+		}
 
 		// Enable retention policy enforcement if requested.
 		if cmd.config.Data.RetentionCheckEnabled {
