@@ -13,6 +13,10 @@ import (
 	"github.com/influxdb/influxdb/meta"
 )
 
+// QueryExecutor executes every statement in an influxdb Query. It is responsible for
+// coordinating between the local tsdb.Store, the meta.Store, and the other nodes in
+// the cluster to run the query against their local tsdb.Stores. There should be one executor
+// in a running process
 type QueryExecutor struct {
 	// The meta store for accessing and updating cluster and schema data.
 	MetaStore interface {
@@ -43,6 +47,7 @@ type QueryExecutor struct {
 	store *Store
 }
 
+// NewQueryExecutor returns an initialized QueryExecutor
 func NewQueryExecutor(store *Store) *QueryExecutor {
 	return &QueryExecutor{
 		store:  store,
@@ -56,8 +61,7 @@ func (q *QueryExecutor) Begin() (influxql.Tx, error) {
 }
 
 // Authorize user u to execute query q on database.
-// database can be "" for queries that do not require a database.
-// If u is nil, this means authorization is disabled.
+// database can be "" for queries that do not require a database. Will return an error if no user is provided.
 func (q *QueryExecutor) Authorize(u *meta.UserInfo, query *influxql.Query, database string) error {
 	const authErrLogFmt = "unauthorized request | user: %q | query: %q | database %q\n"
 
@@ -163,8 +167,10 @@ func (q *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chu
 				res = q.executeShowDiagnosticsStatement(stmt)
 			case *influxql.DeleteStatement:
 				res = &influxql.Result{Err: ErrInvalidQuery}
+			case *influxql.DropDatabaseStatement:
+				res = q.executeDropDatabaseStatement(stmt, database)
 			default:
-				// Delegate all meta statements to a separate executor.
+				// Delegate all other meta statements to a separate executor. They don't hit tsdb storage.
 				res = q.MetaStatementExecutor.ExecuteStatement(stmt)
 			}
 
@@ -365,6 +371,10 @@ func (q *QueryExecutor) expandSources(sources influxql.Sources) (influxql.Source
 	}
 
 	return expanded, nil
+}
+
+func (q *QueryExecutor) executeDropDatabaseStatement(stmt *influxql.DropDatabaseStatement, database string) *influxql.Result {
+	panic("not yet imlemented")
 }
 
 func (q *QueryExecutor) executeDropMeasurementStatement(stmt *influxql.DropMeasurementStatement, database string) *influxql.Result {

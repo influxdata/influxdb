@@ -57,6 +57,9 @@ func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64) er
 
 	shardPath := filepath.Join(s.path, database, retentionPolicy, strconv.FormatUint(shardID, 10))
 	shard := NewShard(db, shardPath)
+	if err := shard.Open(); err != nil {
+		return err
+	}
 
 	s.shards[shardID] = shard
 
@@ -111,7 +114,6 @@ func (s *Store) loadIndexes() error {
 func (s *Store) loadShards() error {
 	// loop through the current database indexes
 	for db := range s.databaseIndexes {
-
 		rps, err := ioutil.ReadDir(filepath.Join(s.path, db))
 		if err != nil {
 			return err
@@ -139,6 +141,7 @@ func (s *Store) loadShards() error {
 				}
 
 				shard := NewShard(s.databaseIndexes[db], path)
+				shard.Open()
 				s.shards[shardID] = shard
 			}
 		}
@@ -176,19 +179,8 @@ func (s *Store) WriteToShard(shardID uint64, points []Point) error {
 	if !ok {
 		return ErrShardNotFound
 	}
-	fmt.Printf("> WriteShard %d, %d points\n", shardID, len(points))
 
-	// Lazily open shards when written.  If the shard is already open,
-	// this will do nothing.
-	if err := sh.Open(); err != nil {
-		return err
-	}
-
-	if err := sh.WritePoints(points); err != nil {
-		return err
-	}
-	return nil
-
+	return sh.WritePoints(points)
 }
 
 func (s *Store) Close() error {
