@@ -29,7 +29,7 @@ func BenchmarkUnmarshalJSON2Tags(b *testing.B) {
             },
             "time": 14244733039069373,
             "precision": "n",
-            "values": {
+            "fields": {
                     "value": 4541770385657154000
             }
         }
@@ -68,7 +68,7 @@ func BenchmarkUnmarshalJSON10Tags(b *testing.B) {
             },
             "time": 14244733039069373,
             "precision": "n",
-            "values": {
+            "fields": {
                     "value": 4541770385657154000
             }
         }
