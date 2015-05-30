@@ -1,19 +1,31 @@
 package help
 
-import "fmt"
+import (
+	"fmt"
+	"io"
+	"os"
+	"strings"
+)
 
-// HelpCommand displays help for command-line sub-commands.
-type HelpCommand struct {
+// Command displays help for command-line sub-commands.
+type Command struct {
+	Stdout io.Writer
 }
 
-// NewHelpCommand returns a new instance of HelpCommand.
-func NewHelpCommand() *HelpCommand {
-	return &HelpCommand{}
+// NewCommand returns a new instance of Command.
+func NewCommand() *Command {
+	return &Command{
+		Stdout: os.Stdout,
+	}
 }
 
 // Run executes the command.
-func (cmd *HelpCommand) Run(args ...string) error {
-	fmt.Println(`
+func (cmd *Command) Run(args ...string) error {
+	fmt.Fprintln(cmd.Stdout, strings.TrimSpace(usage))
+	return nil
+}
+
+const usage = `
 Configure and start an InfluxDB server.
 
 Usage:
@@ -23,13 +35,10 @@ Usage:
 The commands are:
 
     config               display the default configuration
-    join-cluster         create a new node that will join an existing cluster
     run                  run node with existing configuration
     version              displays the InfluxDB version
 
 "run" is the default command.
 
 Use "influxd help [command]" for more information about a command.
-`)
-	return nil
-}
+`

@@ -376,8 +376,8 @@ func (cmd *RunCommand) Open(config *Config, join string) *Node {
 
 		// Start up self-monitoring if enabled.
 		if cmd.config.Monitoring.Enabled {
-			database := monitoringDatabase
-			policy := monitoringRetentionPolicy
+			database := "_influxdb"
+			policy := "default"
 			interval := time.Duration(cmd.config.Monitoring.WriteInterval)
 
 			// Ensure database exists.
