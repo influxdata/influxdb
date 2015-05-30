@@ -626,6 +626,15 @@ func (s *Store) SetPrivilege(username, database string, p influxql.Privilege) er
 	)
 }
 
+// UserCount returns the number of users defined in the cluster.
+func (s *Store) UserCount() (count int, err error) {
+	err = s.read(func(data *Data) error {
+		count = len(data.Users)
+		return nil
+	})
+	return
+}
+
 // read executes a function with the current metadata.
 // If an error is returned then the cache is invalidated and retried.
 //

@@ -82,6 +82,37 @@ func TestDropSeriesStatement(t *testing.T) {
 	store.Open()
 }
 
+// ensure that authenticate doesn't return an error if the user count is zero and they're attempting
+// to create a user.
+func TestAuthenticateIfUserCountZeroAndCreateUser(t *testing.T) {
+	store, executor := testStoreAndExecutor()
+	defer os.RemoveAll(store.path)
+	ms := &testMetastore{userCount: 0}
+	executor.MetaStore = ms
+
+	if err := executor.Authorize(nil, mustParseQuery("create user foo with password 'asdf' with all privileges"), ""); err != nil {
+		t.Fatalf("should have authenticated if no users and attempting to create a user but got error: %s", err.Error())
+	}
+
+	if executor.Authorize(nil, mustParseQuery("create user foo with password 'asdf'"), "") == nil {
+		t.Fatalf("should have failed authentication if no user given and no users exist for create user query that doesn't grant all privileges")
+	}
+
+	if executor.Authorize(nil, mustParseQuery("select * from foo"), "") == nil {
+		t.Fatalf("should have failed authentication if no user given and no users exist for any query other than create user")
+	}
+
+	ms.userCount = 1
+
+	if executor.Authorize(nil, mustParseQuery("create user foo with password 'asdf'"), "") == nil {
+		t.Fatalf("should have failed authentication if no user given and users exist")
+	}
+
+	if executor.Authorize(nil, mustParseQuery("select * from foo"), "") == nil {
+		t.Fatalf("should have failed authentication if no user given and users exist")
+	}
+}
+
 func testStoreAndExecutor() (*Store, *QueryExecutor) {
 	path, _ := ioutil.TempDir("", "")
 
@@ -115,7 +146,9 @@ func executeAndGetJSON(query string, executor *QueryExecutor) string {
 	return string(mustMarshalJSON(results))
 }
 
-type testMetastore struct{}
+type testMetastore struct {
+	userCount int
+}
 
 func (t *testMetastore) Database(name string) (*meta.DatabaseInfo, error) {
 	return &meta.DatabaseInfo{
@@ -172,6 +205,10 @@ func (t *testMetastore) RetentionPolicy(database, name string) (rpi *meta.Retent
 			},
 		},
 	}, nil
+}
+
+func (t *testMetastore) UserCount() (int, error) {
+	return t.userCount, nil
 }
 
 type fakeStats struct{}
