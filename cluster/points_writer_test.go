@@ -8,14 +8,12 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb/cluster"
-	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
-// TestCoordinatorEnsureShardMappingOne tests that a single point maps to
-// a single shard
-func TestCoordinatorEnsureShardMappingOne(t *testing.T) {
+// Ensures the points writer maps a single point to a single shard.
+func TestPointsWriter_MapShards_One(t *testing.T) {
 	ms := MetaStore{}
 	rp := NewRetentionPolicy("myp", time.Hour, 3)
 
@@ -27,7 +25,7 @@ func TestCoordinatorEnsureShardMappingOne(t *testing.T) {
 		return &rp.ShardGroups[0], nil
 	}
 
-	c := cluster.Coordinator{MetaStore: ms}
+	c := cluster.PointsWriter{MetaStore: ms}
 	pr := &cluster.WritePointsRequest{
 		Database:         "mydb",
 		RetentionPolicy:  "myrp",
@@ -48,9 +46,8 @@ func TestCoordinatorEnsureShardMappingOne(t *testing.T) {
 	}
 }
 
-// TestCoordinatorEnsureShardMappingMultiple tests that MapShards maps multiple points
-// across shard group boundaries to multiple shards
-func TestCoordinatorEnsureShardMappingMultiple(t *testing.T) {
+// Ensures the points writer maps a multiple points across shard group boundries.
+func TestPointsWriter_MapShards_Multiple(t *testing.T) {
 	ms := MetaStore{}
 	rp := NewRetentionPolicy("myp", time.Hour, 3)
 	AttachShardGroupInfo(rp, []uint64{1, 2, 3})
@@ -69,7 +66,7 @@ func TestCoordinatorEnsureShardMappingMultiple(t *testing.T) {
 		panic("should not get here")
 	}
 
-	c := cluster.Coordinator{MetaStore: ms}
+	c := cluster.PointsWriter{MetaStore: ms}
 	pr := &cluster.WritePointsRequest{
 		Database:         "mydb",
 		RetentionPolicy:  "myrp",
@@ -111,8 +108,7 @@ func TestCoordinatorEnsureShardMappingMultiple(t *testing.T) {
 	}
 }
 
-func TestCoordinatorWrite(t *testing.T) {
-
+func TestPointsWriter_WritePoints(t *testing.T) {
 	tests := []struct {
 		name        string
 		consistency cluster.ConsistencyLevel
@@ -228,7 +224,7 @@ func TestCoordinatorWrite(t *testing.T) {
 		// Local cluster.Node ShardWriter
 		// lock on the write increment since these functions get called in parallel
 		var mu sync.Mutex
-		dn := &fakeShardWriter{
+		sw := &fakeShardWriter{
 			ShardWriteFn: func(shardID, nodeID uint64, points []tsdb.Point) error {
 				mu.Lock()
 				defer mu.Unlock()
@@ -244,28 +240,26 @@ func TestCoordinatorWrite(t *testing.T) {
 			},
 		}
 
-		ms := newTestMetaStore()
-		c := cluster.Coordinator{
-			MetaStore:     ms,
-			ClusterWriter: dn,
-			Store:         store,
+		ms := NewMetaStore()
+		c := cluster.PointsWriter{
+			MetaStore:   ms,
+			ShardWriter: sw,
+			Store:       store,
 		}
 
 		if err := c.WritePoints(pr); err != test.expErr {
-			t.Errorf("Coordinator.Write(): '%s' error: got %v, exp %v", test.name, err, test.expErr)
+			t.Errorf("PointsWriter.WritePoints(): '%s' error: got %v, exp %v", test.name, err, test.expErr)
 		}
 	}
 }
 
-var (
-	shardID uint64
-)
+var shardID uint64
 
 type fakeShardWriter struct {
 	ShardWriteFn func(shardID, nodeID uint64, points []tsdb.Point) error
 }
 
-func (f *fakeShardWriter) Write(shardID, nodeID uint64, points []tsdb.Point) error {
+func (f *fakeShardWriter) WriteShard(shardID, nodeID uint64, points []tsdb.Point) error {
 	return f.ShardWriteFn(shardID, nodeID, points)
 }
 
@@ -282,7 +276,7 @@ func (f *fakeStore) CreateShard(database, retentionPolicy string, shardID uint64
 	return f.CreateShardfn(database, retentionPolicy, shardID)
 }
 
-func newTestMetaStore() *MetaStore {
+func NewMetaStore() *MetaStore {
 	ms := &MetaStore{}
 	rp := NewRetentionPolicy("myp", time.Hour, 3)
 	AttachShardGroupInfo(rp, []uint64{1, 2, 3})
@@ -304,145 +298,19 @@ func newTestMetaStore() *MetaStore {
 }
 
 type MetaStore struct {
-	OpenFn  func(path string) error
-	CloseFn func() error
-
-	CreateContinuousQueryFn func(query string) (*meta.ContinuousQueryInfo, error)
-	DropContinuousQueryFn   func(query string) error
-
-	NodeFn       func(id uint64) (*meta.NodeInfo, error)
-	NodeByHostFn func(host string) (*meta.NodeInfo, error)
-	CreateNodeFn func(host string) (*meta.NodeInfo, error)
-	DeleteNodeFn func(id uint64) error
-
-	DatabaseFn                  func(name string) (*meta.DatabaseInfo, error)
-	CreateDatabaseFn            func(name string) (*meta.DatabaseInfo, error)
-	CreateDatabaseIfNotExistsFn func(name string) (*meta.DatabaseInfo, error)
-	DropDatabaseFn              func(name string) error
-
-	RetentionPolicyFn                  func(database, name string) (*meta.RetentionPolicyInfo, error)
-	CreateRetentionPolicyFn            func(database string, rp *meta.RetentionPolicyInfo) (*meta.RetentionPolicyInfo, error)
-	CreateRetentionPolicyIfNotExistsFn func(database string, rp *meta.RetentionPolicyInfo) (*meta.RetentionPolicyInfo, error)
-	SetDefaultRetentionPolicyFn        func(database, name string) error
-	UpdateRetentionPolicyFn            func(database, name string, rpu *meta.RetentionPolicyUpdate) (*meta.RetentionPolicyInfo, error)
-	DeleteRetentionPolicyFn            func(database, name string) error
-
-	ShardGroupFn                  func(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error)
+	RetentionPolicyFn             func(database, name string) (*meta.RetentionPolicyInfo, error)
 	CreateShardGroupIfNotExistsFn func(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error)
-	DeleteShardGroupFn            func(database, policy string, shardID uint64) error
-
-	UserFn         func(username string) (*meta.UserInfo, error)
-	CreateUserFn   func(username, password string, admin bool) (*meta.UserInfo, error)
-	UpdateUserFn   func(username, password string) (*meta.UserInfo, error)
-	DeleteUserFn   func(username string) error
-	SetPrivilegeFn func(p influxql.Privilege, username string, dbname string) error
-}
-
-func (m MetaStore) Open(path string) error {
-	return m.OpenFn(path)
-}
-
-func (m MetaStore) Close() error {
-	return m.CloseFn()
-}
-
-func (m MetaStore) CreateContinuousQuery(query string) (*meta.ContinuousQueryInfo, error) {
-	return m.CreateContinuousQueryFn(query)
-}
-
-func (m MetaStore) DropContinuousQuery(query string) error {
-	return m.DropContinuousQueryFn(query)
-}
-
-func (m MetaStore) Node(id uint64) (*meta.NodeInfo, error) {
-	return m.NodeFn(id)
-}
-
-func (m MetaStore) NodeByHost(host string) (*meta.NodeInfo, error) {
-	return m.NodeByHostFn(host)
-}
-
-func (m MetaStore) CreateNode(host string) (*meta.NodeInfo, error) {
-	return m.CreateNodeFn(host)
-}
-
-func (m MetaStore) DeleteNode(id uint64) error {
-	return m.DeleteNodeFn(id)
-}
-
-func (m MetaStore) Database(name string) (*meta.DatabaseInfo, error) {
-	return m.DatabaseFn(name)
-}
-
-func (m MetaStore) CreateDatabase(name string) (*meta.DatabaseInfo, error) {
-	return m.CreateDatabaseFn(name)
-}
-
-func (m MetaStore) CreateDatabaseIfNotExists(name string) (*meta.DatabaseInfo, error) {
-	return m.CreateDatabaseIfNotExistsFn(name)
-}
-
-func (m MetaStore) DropDatabase(name string) error {
-	return m.DropDatabaseFn(name)
 }
 
 func (m MetaStore) RetentionPolicy(database, name string) (*meta.RetentionPolicyInfo, error) {
 	return m.RetentionPolicyFn(database, name)
 }
 
-func (m MetaStore) CreateRetentionPolicy(database string, rp *meta.RetentionPolicyInfo) (*meta.RetentionPolicyInfo, error) {
-	return m.CreateRetentionPolicyFn(database, rp)
-}
-
-func (m MetaStore) CreateRetentionPolicyIfNotExists(database string, rp *meta.RetentionPolicyInfo) (*meta.RetentionPolicyInfo, error) {
-	return m.CreateRetentionPolicyIfNotExistsFn(database, rp)
-}
-
-func (m MetaStore) SetDefaultRetentionPolicy(database, name string) error {
-	return m.SetDefaultRetentionPolicyFn(database, name)
-}
-
-func (m MetaStore) UpdateRetentionPolicy(database, name string, rpu *meta.RetentionPolicyUpdate) (*meta.RetentionPolicyInfo, error) {
-	return m.UpdateRetentionPolicyFn(database, name, rpu)
-}
-
-func (m MetaStore) DeleteRetentionPolicy(database, name string) error {
-	return m.DeleteRetentionPolicyFn(database, name)
-}
-
-func (m MetaStore) ShardGroup(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error) {
-	return m.ShardGroupFn(database, policy, timestamp)
-}
-
 func (m MetaStore) CreateShardGroupIfNotExists(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error) {
 	return m.CreateShardGroupIfNotExistsFn(database, policy, timestamp)
 }
 
-func (m MetaStore) DeleteShardGroup(database, policy string, shardID uint64) error {
-	return m.DeleteShardGroupFn(database, policy, shardID)
-}
-
-func (m MetaStore) User(username string) (*meta.UserInfo, error) {
-	return m.UserFn(username)
-}
-
-func (m MetaStore) CreateUser(username, password string, admin bool) (*meta.UserInfo, error) {
-	return m.CreateUserFn(username, password, admin)
-}
-
-func (m MetaStore) UpdateUser(username, password string) (*meta.UserInfo, error) {
-	return m.UpdateUserFn(username, password)
-}
-func (m MetaStore) DeleteUser(username string) error {
-	return m.DeleteUserFn(username)
-}
-
-func (m MetaStore) SetPrivilege(p influxql.Privilege, username string, dbname string) error {
-	return m.SetPrivilegeFn(p, username, dbname)
-}
-
 func NewRetentionPolicy(name string, duration time.Duration, nodeCount int) *meta.RetentionPolicyInfo {
-
 	shards := []meta.ShardInfo{}
 	ownerIDs := []uint64{}
 	for i := 1; i <= nodeCount; i++ {

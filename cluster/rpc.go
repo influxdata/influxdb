@@ -10,12 +10,6 @@ import (
 
 //go:generate protoc --gogo_out=. internal/data.proto
 
-// PointsWriter accepts a WritePointRequest from client facing endpoints such as
-// HTTP JSON API, Collectd, Graphite, OpenTSDB, etc.
-type PointsWriter interface {
-	Write(p *WritePointsRequest) error
-}
-
 // WritePointsRequest represents a request to write point data to the cluster
 type WritePointsRequest struct {
 	Database         string
