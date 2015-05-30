@@ -15,6 +15,12 @@ import (
 	"github.com/influxdb/influxdb"
 )
 
+var DefaultSnapshotURL = url.URL{
+	Scheme: "http",
+	Host:   net.JoinHostPort("127.0.0.1", strconv.Itoa(DefaultClusterPort)),
+}
+
+
 // BackupSuffix is a suffix added to the backup while it's in-process.
 const BackupSuffix = ".pending"
 

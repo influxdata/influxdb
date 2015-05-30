@@ -55,8 +55,9 @@ func (cmd *PrintConfigCommand) Run(args ...string) error {
 // Returns a demo configuration if path is blank.
 func (cmd *PrintConfigCommand) parseConfig(path string) (*Config, error) {
 	if path == "" {
-		return NewTestConfig()
+		return NewDemoConfig()
 	}
+
 	config := NewConfig()
 	if _, err := toml.DecodeFile(path, &config); err != nil {
 		return nil, err

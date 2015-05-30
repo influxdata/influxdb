@@ -325,7 +325,7 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *meta.
 		return
 	}
 
-	points, err := influxdb.NormalizeBatchPoints(bp)
+	points, err := NormalizeBatchPoints(bp)
 	if err != nil {
 		resultError(w, influxql.Result{Err: err}, http.StatusInternalServerError)
 		return
@@ -417,10 +417,9 @@ func (h *Handler) serveWritePoints(w http.ResponseWriter, r *http.Request, user 
 		return
 	}
 
-	retentionPolicy := r.Form.Get("rp")
-	consistencyVal := r.Form.Get("consistency")
+	// Determine required consistency level.
 	consistency := cluster.ConsistencyLevelOne
-	switch consistencyVal {
+	switch r.Form.Get("consistency") {
 	case "all":
 		consistency = cluster.ConsistencyLevelAll
 	case "any":
@@ -431,23 +430,21 @@ func (h *Handler) serveWritePoints(w http.ResponseWriter, r *http.Request, user 
 		consistency = cluster.ConsistencyLevelQuorum
 	}
 
-	wpr := &cluster.WritePointsRequest{
+	// Write points.
+	if err := h.PointsWriter.WritePoints(&cluster.WritePointsRequest{
 		Database:         database,
-		RetentionPolicy:  retentionPolicy,
+		RetentionPolicy:  r.Form.Get("rp"),
 		ConsistencyLevel: consistency,
 		Points:           points,
+	}); influxdb.IsClientError(err) {
+		writeError(influxql.Result{Err: err}, http.StatusBadRequest)
+		return
+	} else if err != nil {
+		writeError(influxql.Result{Err: err}, http.StatusInternalServerError)
+		return
 	}
 
-	if err := h.PointsWriter.Write(wpr); err != nil {
-		if influxdb.IsClientError(err) {
-			writeError(influxql.Result{Err: err}, http.StatusBadRequest)
-		} else {
-			writeError(influxql.Result{Err: err}, http.StatusInternalServerError)
-		}
-		return
-	} else {
-		w.WriteHeader(http.StatusNoContent)
-	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // serveOptions returns an empty response to comply with OPTIONS pre-flight requests
@@ -853,3 +850,37 @@ func interfaceToString(v interface{}) string {
 	}
 }
 */
+
+// NormalizeBatchPoints returns a slice of Points, created by populating individual
+// points within the batch, which do not have times or tags, with the top-level
+// values.
+func NormalizeBatchPoints(bp client.BatchPoints) ([]tsdb.Point, error) {
+	points := []tsdb.Point{}
+	for _, p := range bp.Points {
+		if p.Time.IsZero() {
+			if bp.Time.IsZero() {
+				p.Time = time.Now()
+			} else {
+				p.Time = bp.Time
+			}
+		}
+		if p.Precision == "" && bp.Precision != "" {
+			p.Precision = bp.Precision
+		}
+		p.Time = client.SetPrecision(p.Time, p.Precision)
+		if len(bp.Tags) > 0 {
+			if p.Tags == nil {
+				p.Tags = make(map[string]string)
+			}
+			for k := range bp.Tags {
+				if p.Tags[k] == "" {
+					p.Tags[k] = bp.Tags[k]
+				}
+			}
+		}
+		// Need to convert from a client.Point to a influxdb.Point
+		points = append(points, tsdb.NewPoint(p.Name, p.Tags, p.Fields, p.Time))
+	}
+
+	return points, nil
+}

@@ -21,7 +21,7 @@ func TestStatementExecutor_ExecuteStatement_CreateDatabase(t *testing.T) {
 		return &meta.DatabaseInfo{Name: name}, nil
 	}
 
-	if res := e.ExecuteStatement(influxql.MustParseStatement(`CREATE DATABASE foo`), nil); res.Err != nil {
+	if res := e.ExecuteStatement(influxql.MustParseStatement(`CREATE DATABASE foo`)); res.Err != nil {
 		t.Fatal(res.Err)
 	} else if res.Series != nil {
 		t.Fatalf("unexpected rows: %#v", res.Series)
@@ -38,7 +38,7 @@ func TestStatementExecutor_ExecuteStatement_DropDatabase(t *testing.T) {
 		return nil
 	}
 
-	if res := e.ExecuteStatement(influxql.MustParseStatement(`DROP DATABASE foo`), nil); res.Err != nil {
+	if res := e.ExecuteStatement(influxql.MustParseStatement(`DROP DATABASE foo`)); res.Err != nil {
 		t.Fatal(res.Err)
 	} else if res.Series != nil {
 		t.Fatalf("unexpected rows: %#v", res.Series)
@@ -55,7 +55,7 @@ func TestStatementExecutor_ExecuteStatement_ShowDatabases(t *testing.T) {
 		}, nil
 	}
 
-	if res := e.ExecuteStatement(influxql.MustParseStatement(`SHOW DATABASES`), nil); res.Err != nil {
+	if res := e.ExecuteStatement(influxql.MustParseStatement(`SHOW DATABASES`)); res.Err != nil {
 		t.Fatal(res.Err)
 	} else if !reflect.DeepEqual(res.Series, influxql.Rows{
 		{
@@ -78,7 +78,7 @@ func TestStatementExecutor_ExecuteStatement_ShowDatabases_Err(t *testing.T) {
 		return nil, errors.New("marker")
 	}
 
-	if res := e.ExecuteStatement(influxql.MustParseStatement(`SHOW DATABASES`), nil); res.Err == nil || res.Err.Error() != "marker" {
+	if res := e.ExecuteStatement(influxql.MustParseStatement(`SHOW DATABASES`)); res.Err == nil || res.Err.Error() != "marker" {
 		t.Fatalf("unexpected error: %s", res.Err)
 	}
 }
@@ -93,7 +93,7 @@ func TestStatementExecutor_ExecuteStatement_ShowServers(t *testing.T) {
 		}, nil
 	}
 
-	if res := e.ExecuteStatement(influxql.MustParseStatement(`SHOW SERVERS`), nil); res.Err != nil {
+	if res := e.ExecuteStatement(influxql.MustParseStatement(`SHOW SERVERS`)); res.Err != nil {
 		t.Fatal(res.Err)
 	} else if !reflect.DeepEqual(res.Series, influxql.Rows{
 		{
@@ -115,7 +115,7 @@ func TestStatementExecutor_ExecuteStatement_ShowServers_Err(t *testing.T) {
 		return nil, errors.New("marker")
 	}
 
-	if res := e.ExecuteStatement(influxql.MustParseStatement(`SHOW SERVERS`), nil); res.Err == nil || res.Err.Error() != "marker" {
+	if res := e.ExecuteStatement(influxql.MustParseStatement(`SHOW SERVERS`)); res.Err == nil || res.Err.Error() != "marker" {
 		t.Fatalf("unexpected error: %s", res.Err)
 	}
 }
@@ -134,7 +134,7 @@ func TestStatementExecutor_ExecuteStatement_CreateUser(t *testing.T) {
 		return &meta.UserInfo{Name: name, Admin: admin}, nil
 	}
 
-	if res := e.ExecuteStatement(influxql.MustParseStatement(`CREATE USER susy WITH PASSWORD 'pass' WITH ALL PRIVILEGES`), nil); res.Err != nil {
+	if res := e.ExecuteStatement(influxql.MustParseStatement(`CREATE USER susy WITH PASSWORD 'pass' WITH ALL PRIVILEGES`)); res.Err != nil {
 		t.Fatal(res.Err)
 	} else if res.Series != nil {
 		t.Fatalf("unexpected rows: %#v", res.Series)
@@ -148,7 +148,7 @@ func TestStatementExecutor_ExecuteStatement_CreateUser_Err(t *testing.T) {
 		return nil, errors.New("marker")
 	}
 
-	if res := e.ExecuteStatement(influxql.MustParseStatement(`CREATE USER susy WITH PASSWORD 'pass'`), nil); res.Err == nil || res.Err.Error() != "marker" {
+	if res := e.ExecuteStatement(influxql.MustParseStatement(`CREATE USER susy WITH PASSWORD 'pass'`)); res.Err == nil || res.Err.Error() != "marker" {
 		t.Fatalf("unexpected error: %s", res.Err)
 	}
 }
@@ -165,7 +165,7 @@ func TestStatementExecutor_ExecuteStatement_SetPassword(t *testing.T) {
 		return nil
 	}
 
-	if res := e.ExecuteStatement(influxql.MustParseStatement(`SET PASSWORD FOR susy = 'pass' WITH ALL PRIVILEGES`), nil); res.Err != nil {
+	if res := e.ExecuteStatement(influxql.MustParseStatement(`SET PASSWORD FOR susy = 'pass' WITH ALL PRIVILEGES`)); res.Err != nil {
 		t.Fatal(res.Err)
 	} else if res.Series != nil {
 		t.Fatalf("unexpected rows: %#v", res.Series)
@@ -179,7 +179,7 @@ func TestStatementExecutor_ExecuteStatement_SetPassword_Err(t *testing.T) {
 		return errors.New("marker")
 	}
 
-	if res := e.ExecuteStatement(influxql.MustParseStatement(`SET PASSWORD FOR susy = 'pass'`), nil); res.Err == nil || res.Err.Error() != "marker" {
+	if res := e.ExecuteStatement(influxql.MustParseStatement(`SET PASSWORD FOR susy = 'pass'`)); res.Err == nil || res.Err.Error() != "marker" {
 		t.Fatalf("unexpected error: %s", res.Err)
 	}
 }
@@ -194,7 +194,7 @@ func TestStatementExecutor_ExecuteStatement_DropUser(t *testing.T) {
 		return nil
 	}
 
-	if res := e.ExecuteStatement(influxql.MustParseStatement(`DROP USER susy`), nil); res.Err != nil {
+	if res := e.ExecuteStatement(influxql.MustParseStatement(`DROP USER susy`)); res.Err != nil {
 		t.Fatal(res.Err)
 	} else if res.Series != nil {
 		t.Fatalf("unexpected rows: %#v", res.Series)
@@ -208,7 +208,7 @@ func TestStatementExecutor_ExecuteStatement_DropUser_Err(t *testing.T) {
 		return errors.New("marker")
 	}
 
-	if res := e.ExecuteStatement(influxql.MustParseStatement(`DROP USER susy`), nil); res.Err == nil || res.Err.Error() != "marker" {
+	if res := e.ExecuteStatement(influxql.MustParseStatement(`DROP USER susy`)); res.Err == nil || res.Err.Error() != "marker" {
 		t.Fatalf("unexpected error: %s", res.Err)
 	}
 }
@@ -223,7 +223,7 @@ func TestStatementExecutor_ExecuteStatement_ShowUsers(t *testing.T) {
 		}, nil
 	}
 
-	if res := e.ExecuteStatement(influxql.MustParseStatement(`SHOW USERS`), nil); res.Err != nil {
+	if res := e.ExecuteStatement(influxql.MustParseStatement(`SHOW USERS`)); res.Err != nil {
 		t.Fatal(res.Err)
 	} else if !reflect.DeepEqual(res.Series, influxql.Rows{
 		{
@@ -245,7 +245,7 @@ func TestStatementExecutor_ExecuteStatement_ShowUsers_Err(t *testing.T) {
 		return nil, errors.New("marker")
 	}
 
-	if res := e.ExecuteStatement(influxql.MustParseStatement(`SHOW USERS`), nil); res.Err == nil || res.Err.Error() != "marker" {
+	if res := e.ExecuteStatement(influxql.MustParseStatement(`SHOW USERS`)); res.Err == nil || res.Err.Error() != "marker" {
 		t.Fatalf("unexpected error: %s", res.Err)
 	}
 }
@@ -264,7 +264,7 @@ func TestStatementExecutor_ExecuteStatement_Grant(t *testing.T) {
 		return nil
 	}
 
-	if res := e.ExecuteStatement(influxql.MustParseStatement(`GRANT WRITE ON foo TO susy`), nil); res.Err != nil {
+	if res := e.ExecuteStatement(influxql.MustParseStatement(`GRANT WRITE ON foo TO susy`)); res.Err != nil {
 		t.Fatal(res.Err)
 	} else if res.Series != nil {
 		t.Fatalf("unexpected rows: %#v", res.Series)
@@ -278,7 +278,7 @@ func TestStatementExecutor_ExecuteStatement_Grant_Err(t *testing.T) {
 		return errors.New("marker")
 	}
 
-	if res := e.ExecuteStatement(influxql.MustParseStatement(`GRANT READ ON foo TO susy`), nil); res.Err == nil || res.Err.Error() != "marker" {
+	if res := e.ExecuteStatement(influxql.MustParseStatement(`GRANT READ ON foo TO susy`)); res.Err == nil || res.Err.Error() != "marker" {
 		t.Fatalf("unexpected error: %s", res.Err)
 	}
 }
@@ -297,7 +297,7 @@ func TestStatementExecutor_ExecuteStatement_Revoke(t *testing.T) {
 		return nil
 	}
 
-	if res := e.ExecuteStatement(influxql.MustParseStatement(`REVOKE ALL PRIVILEGES ON foo FROM susy`), nil); res.Err != nil {
+	if res := e.ExecuteStatement(influxql.MustParseStatement(`REVOKE ALL PRIVILEGES ON foo FROM susy`)); res.Err != nil {
 		t.Fatal(res.Err)
 	} else if res.Series != nil {
 		t.Fatalf("unexpected rows: %#v", res.Series)
@@ -311,7 +311,7 @@ func TestStatementExecutor_ExecuteStatement_Revoke_Err(t *testing.T) {
 		return errors.New("marker")
 	}
 
-	if res := e.ExecuteStatement(influxql.MustParseStatement(`REVOKE ALL PRIVILEGES ON foo FROM susy`), nil); res.Err == nil || res.Err.Error() != "marker" {
+	if res := e.ExecuteStatement(influxql.MustParseStatement(`REVOKE ALL PRIVILEGES ON foo FROM susy`)); res.Err == nil || res.Err.Error() != "marker" {
 		t.Fatalf("unexpected error: %s", res.Err)
 	}
 }
@@ -340,7 +340,7 @@ func TestStatementExecutor_ExecuteStatement_CreateRetentionPolicy(t *testing.T) 
 		return nil
 	}
 
-	if res := e.ExecuteStatement(influxql.MustParseStatement(`CREATE RETENTION POLICY rp0 ON foo DURATION 2h REPLICATION 3 DEFAULT`), nil); res.Err != nil {
+	if res := e.ExecuteStatement(influxql.MustParseStatement(`CREATE RETENTION POLICY rp0 ON foo DURATION 2h REPLICATION 3 DEFAULT`)); res.Err != nil {
 		t.Fatal(res.Err)
 	} else if res.Series != nil {
 		t.Fatalf("unexpected rows: %#v", res.Series)
@@ -354,7 +354,7 @@ func TestStatementExecutor_ExecuteStatement_CreateRetentionPolicy_Err(t *testing
 		return nil, errors.New("marker")
 	}
 
-	if res := e.ExecuteStatement(influxql.MustParseStatement(`CREATE RETENTION POLICY rp0 ON foo DURATION 2h REPLICATION 1`), nil); res.Err == nil || res.Err.Error() != "marker" {
+	if res := e.ExecuteStatement(influxql.MustParseStatement(`CREATE RETENTION POLICY rp0 ON foo DURATION 2h REPLICATION 1`)); res.Err == nil || res.Err.Error() != "marker" {
 		t.Fatalf("unexpected error: %s", res.Err)
 	}
 }
@@ -384,7 +384,7 @@ func TestStatementExecutor_ExecuteStatement_AlterRetentionPolicy(t *testing.T) {
 	}
 
 	stmt := influxql.MustParseStatement(`ALTER RETENTION POLICY rp0 ON foo DURATION 7d REPLICATION 2 DEFAULT`)
-	if res := e.ExecuteStatement(stmt, nil); res.Err != nil {
+	if res := e.ExecuteStatement(stmt); res.Err != nil {
 		t.Fatalf("unexpected error: %s", res.Err)
 	}
 }
@@ -397,7 +397,7 @@ func TestStatementExecutor_ExecuteStatement_AlterRetentionPolicy_Err(t *testing.
 	}
 
 	stmt := influxql.MustParseStatement(`ALTER RETENTION POLICY rp0 ON foo DURATION 1m REPLICATION 4 DEFAULT`)
-	if res := e.ExecuteStatement(stmt, nil); res.Err == nil || res.Err.Error() != "marker" {
+	if res := e.ExecuteStatement(stmt); res.Err == nil || res.Err.Error() != "marker" {
 		t.Fatalf("unexpected error: %s", res.Err)
 	}
 }
@@ -413,7 +413,7 @@ func TestStatementExecutor_ExecuteStatement_AlterRetentionPolicy_ErrSetDefault(t
 	}
 
 	stmt := influxql.MustParseStatement(`ALTER RETENTION POLICY rp0 ON foo DURATION 1m REPLICATION 4 DEFAULT`)
-	if res := e.ExecuteStatement(stmt, nil); res.Err == nil || res.Err.Error() != "marker" {
+	if res := e.ExecuteStatement(stmt); res.Err == nil || res.Err.Error() != "marker" {
 		t.Fatalf("unexpected error: %s", res.Err)
 	}
 }
@@ -431,7 +431,7 @@ func TestStatementExecutor_ExecuteStatement_DropRetentionPolicy(t *testing.T) {
 	}
 
 	stmt := influxql.MustParseStatement(`DROP RETENTION POLICY rp0 ON foo`)
-	if res := e.ExecuteStatement(stmt, nil); res.Err != nil {
+	if res := e.ExecuteStatement(stmt); res.Err != nil {
 		t.Fatalf("unexpected error: %s", res.Err)
 	}
 }
@@ -444,7 +444,7 @@ func TestStatementExecutor_ExecuteStatement_DropRetentionPolicy_Err(t *testing.T
 	}
 
 	stmt := influxql.MustParseStatement(`DROP RETENTION POLICY rp0 ON foo`)
-	if res := e.ExecuteStatement(stmt, nil); res.Err == nil || res.Err.Error() != "marker" {
+	if res := e.ExecuteStatement(stmt); res.Err == nil || res.Err.Error() != "marker" {
 		t.Fatalf("unexpected error: %s", res.Err)
 	}
 }
@@ -474,7 +474,7 @@ func TestStatementExecutor_ExecuteStatement_ShowRetentionPolicies(t *testing.T) 
 		}, nil
 	}
 
-	if res := e.ExecuteStatement(influxql.MustParseStatement(`SHOW RETENTION POLICIES db0`), nil); res.Err != nil {
+	if res := e.ExecuteStatement(influxql.MustParseStatement(`SHOW RETENTION POLICIES db0`)); res.Err != nil {
 		t.Fatal(res.Err)
 	} else if !reflect.DeepEqual(res.Series, influxql.Rows{
 		{
@@ -496,7 +496,7 @@ func TestStatementExecutor_ExecuteStatement_ShowRetentionPolicies_Err(t *testing
 		return nil, errors.New("marker")
 	}
 
-	if res := e.ExecuteStatement(influxql.MustParseStatement(`SHOW RETENTION POLICIES db0`), nil); res.Err == nil || res.Err.Error() != "marker" {
+	if res := e.ExecuteStatement(influxql.MustParseStatement(`SHOW RETENTION POLICIES db0`)); res.Err == nil || res.Err.Error() != "marker" {
 		t.Fatalf("unexpected error: %s", res.Err)
 	}
 }
@@ -508,7 +508,7 @@ func TestStatementExecutor_ExecuteStatement_ShowRetentionPolicies_ErrDatabaseNot
 		return nil, nil
 	}
 
-	if res := e.ExecuteStatement(influxql.MustParseStatement(`SHOW RETENTION POLICIES db0`), nil); res.Err != meta.ErrDatabaseNotFound {
+	if res := e.ExecuteStatement(influxql.MustParseStatement(`SHOW RETENTION POLICIES db0`)); res.Err != meta.ErrDatabaseNotFound {
 		t.Fatalf("unexpected error: %s", res.Err)
 	}
 }
@@ -528,7 +528,7 @@ func TestStatementExecutor_ExecuteStatement_CreateContinuousQuery(t *testing.T) 
 	}
 
 	stmt := influxql.MustParseStatement(`CREATE CONTINUOUS QUERY cq0 ON db0 BEGIN SELECT count(*) INTO db1 FROM db0 GROUP BY time(1h) END`)
-	if res := e.ExecuteStatement(stmt, nil); res.Err != nil {
+	if res := e.ExecuteStatement(stmt); res.Err != nil {
 		t.Fatal(res.Err)
 	} else if res.Series != nil {
 		t.Fatalf("unexpected rows: %#v", res.Series)
@@ -543,7 +543,7 @@ func TestStatementExecutor_ExecuteStatement_CreateContinuousQuery_Err(t *testing
 	}
 
 	stmt := influxql.MustParseStatement(`CREATE CONTINUOUS QUERY cq0 ON db0 BEGIN SELECT count(*) INTO db1 FROM db0 GROUP BY time(1h) END`)
-	if res := e.ExecuteStatement(stmt, nil); res.Err == nil || res.Err.Error() != "marker" {
+	if res := e.ExecuteStatement(stmt); res.Err == nil || res.Err.Error() != "marker" {
 		t.Fatalf("unexpected error: %s", res.Err)
 	}
 }
@@ -561,7 +561,7 @@ func TestStatementExecutor_ExecuteStatement_DropContinuousQuery(t *testing.T) {
 	}
 
 	stmt := influxql.MustParseStatement(`DROP CONTINUOUS QUERY cq0 ON db0`)
-	if res := e.ExecuteStatement(stmt, nil); res.Err != nil {
+	if res := e.ExecuteStatement(stmt); res.Err != nil {
 		t.Fatal(res.Err)
 	} else if res.Series != nil {
 		t.Fatalf("unexpected rows: %#v", res.Series)
@@ -576,7 +576,7 @@ func TestStatementExecutor_ExecuteStatement_DropContinuousQuery_Err(t *testing.T
 	}
 
 	stmt := influxql.MustParseStatement(`DROP CONTINUOUS QUERY cq0 ON db0`)
-	if res := e.ExecuteStatement(stmt, nil); res.Err == nil || res.Err.Error() != "marker" {
+	if res := e.ExecuteStatement(stmt); res.Err == nil || res.Err.Error() != "marker" {
 		t.Fatalf("unexpected error: %s", res.Err)
 	}
 }
@@ -603,7 +603,7 @@ func TestStatementExecutor_ExecuteStatement_ShowContinuousQueries(t *testing.T) 
 	}
 
 	stmt := influxql.MustParseStatement(`SHOW CONTINUOUS QUERIES`)
-	if res := e.ExecuteStatement(stmt, nil); res.Err != nil {
+	if res := e.ExecuteStatement(stmt); res.Err != nil {
 		t.Fatal(res.Err)
 	} else if !reflect.DeepEqual(res.Series, influxql.Rows{
 		{
@@ -634,7 +634,7 @@ func TestStatementExecutor_ExecuteStatement_ShowContinuousQueries_Err(t *testing
 	}
 
 	stmt := influxql.MustParseStatement(`SHOW CONTINUOUS QUERIES`)
-	if res := e.ExecuteStatement(stmt, nil); res.Err == nil || res.Err.Error() != "marker" {
+	if res := e.ExecuteStatement(stmt); res.Err == nil || res.Err.Error() != "marker" {
 		t.Fatal(res.Err)
 	}
 }
@@ -651,7 +651,7 @@ func TestStatementExecutor_ExecuteStatement_Unsupported(t *testing.T) {
 
 		// Execute a SELECT statement.
 		NewStatementExecutor().ExecuteStatement(
-			influxql.MustParseStatement(`SELECT count(*) FROM db0`), nil,
+			influxql.MustParseStatement(`SELECT count(*) FROM db0`),
 		)
 	}()
 

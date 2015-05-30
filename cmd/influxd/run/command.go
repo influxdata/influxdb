@@ -61,7 +61,7 @@ func (cmd *Command) Run(args ...string) error {
 
 	// Set parallelism.
 	runtime.GOMAXPROCS(runtime.NumCPU())
-	fmt.Fprintf(cmd.Stderr, "GOMAXPROCS set to %d", runtime.GOMAXPROCS(0))
+	fmt.Fprintf(cmd.Stderr, "GOMAXPROCS set to %d\n", runtime.GOMAXPROCS(0))
 
 	// Parse config
 	config, err := cmd.ParseConfig(options.ConfigPath)
@@ -151,7 +151,7 @@ func (cmd *Command) ParseConfig(path string) (*Config, error) {
 	// Use demo configuration if no config path is specified.
 	if path == "" {
 		fmt.Fprintln(cmd.Stdout, "no configuration provided, using default settings")
-		return NewTestConfig()
+		return NewDemoConfig()
 	}
 
 	fmt.Fprintf(cmd.Stdout, "using configuration at: %s\n", path)

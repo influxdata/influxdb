@@ -31,14 +31,14 @@ const (
 )
 
 var (
-	// ErrTimeout is returned when a write times out
+	// ErrTimeout is returned when a write times out.
 	ErrTimeout = errors.New("timeout")
 
 	// ErrPartialWrite is returned when a write partially succeeds but does
-	// not meet the requested consistency level
+	// not meet the requested consistency level.
 	ErrPartialWrite = errors.New("partial write")
 
-	// ErrWriteFailed is returned when no writes succeeded
+	// ErrWriteFailed is returned when no writes succeeded.
 	ErrWriteFailed = errors.New("write failed")
 )
 

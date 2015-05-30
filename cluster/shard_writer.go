@@ -1,9 +1,7 @@
 package cluster
 
 import (
-	"encoding/binary"
 	"fmt"
-	"io"
 	"net"
 	"time"
 
@@ -47,62 +45,36 @@ func (w *ShardWriter) WriteShard(shardID, ownerID uint64, points []tsdb.Point) e
 	}
 	defer conn.Close() // return to pool
 
-	conn.SetWriteDeadline(time.Now().Add(w.timeout))
-	var mt byte = writeShardRequestMessage
-	if err := binary.Write(conn, binary.LittleEndian, &mt); err != nil {
-		conn.MarkUnusable()
-		return err
-	}
-
 	// Build write request.
 	var request WriteShardRequest
 	request.SetShardID(shardID)
+	request.SetOwnerID(ownerID)
 	request.AddPoints(points)
 
 	// Marshal into protocol buffers.
-	b, err := request.MarshalBinary()
+	buf, err := request.MarshalBinary()
 	if err != nil {
 		return err
 	}
-	size := int64(len(b))
 
+	// Write request.
 	conn.SetWriteDeadline(time.Now().Add(w.timeout))
-	if err := binary.Write(conn, binary.LittleEndian, &size); err != nil {
+	if err := WriteTLV(conn, writeShardRequestMessage, buf); err != nil {
 		conn.MarkUnusable()
 		return err
 	}
 
-	conn.SetWriteDeadline(time.Now().Add(w.timeout))
-	if _, err := conn.Write(b); err != nil {
-		conn.MarkUnusable()
-		return err
-	}
-
+	// Read the response.
 	conn.SetReadDeadline(time.Now().Add(w.timeout))
-	// read back our response
-	if err := binary.Read(conn, binary.LittleEndian, &mt); err != nil {
-		conn.MarkUnusable()
-		return err
-	}
-
-	conn.SetReadDeadline(time.Now().Add(w.timeout))
-	if err := binary.Read(conn, binary.LittleEndian, &size); err != nil {
-		conn.MarkUnusable()
-		return err
-	}
-
-	message := make([]byte, size)
-
-	reader := io.LimitReader(conn, size)
-	conn.SetReadDeadline(time.Now().Add(w.timeout))
-	_, err = reader.Read(message)
+	_, buf, err = ReadTLV(conn)
 	if err != nil {
 		conn.MarkUnusable()
 		return err
 	}
 
+	// Unmarshal response.
 	var response WriteShardResponse
-	if err := response.UnmarshalBinary(message); err != nil {
+	if err := response.UnmarshalBinary(buf); err != nil {
 		return err
 	}
 
@@ -163,12 +135,12 @@ func (c *connFactory) dial() (net.Conn, error) {
 		return nil, errMaxConnectionsExceeded
 	}
 
-	nodeInfo, err := c.metaStore.Node(c.nodeID)
+	ni, err := c.metaStore.Node(c.nodeID)
 	if err != nil {
 		return nil, err
 	}
 
-	conn, err := net.DialTimeout("tcp", nodeInfo.Host, c.timeout)
+	conn, err := net.DialTimeout("tcp", ni.Host, c.timeout)
 	if err != nil {
 		return nil, err
 	}

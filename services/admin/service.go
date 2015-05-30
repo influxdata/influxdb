@@ -73,8 +73,3 @@ func (s *Service) serve() {
 		s.err <- fmt.Errorf("listener error: addr=%s, err=%s", s.Addr(), err)
 	}
 }
-
-type Config struct {
-	Enabled     bool   `toml:"enabled"`
-	BindAddress string `toml:"bind-address"`
-}

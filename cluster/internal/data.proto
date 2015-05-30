@@ -2,7 +2,8 @@ package internal;
 
 message WriteShardRequest {
     required uint64 ShardID = 1;
-    repeated Point Points = 2;
+    required uint64 OwnerID = 2;
+    repeated Point Points = 3;
 }
 
 message Field {

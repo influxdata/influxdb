@@ -35,17 +35,13 @@ type WriteShardResponse struct {
 	pb internal.WriteShardResponse
 }
 
-func (w *WriteShardRequest) ShardID() uint64 {
-	return w.pb.GetShardID()
-}
+func (w *WriteShardRequest) SetShardID(id uint64) { w.pb.ShardID = &id }
+func (w *WriteShardRequest) ShardID() uint64      { return w.pb.GetShardID() }
 
-func (w *WriteShardRequest) SetShardID(id uint64) {
-	w.pb.ShardID = &id
-}
+func (w *WriteShardRequest) SetOwnerID(id uint64) { w.pb.OwnerID = &id }
+func (w *WriteShardRequest) OwnerID() uint64      { return w.pb.GetOwnerID() }
 
-func (w *WriteShardRequest) Points() []tsdb.Point {
-	return w.unmarshalPoints()
-}
+func (w *WriteShardRequest) Points() []tsdb.Point { return w.unmarshalPoints() }
 
 func (w *WriteShardRequest) AddPoint(name string, value interface{}, timestamp time.Time, tags map[string]string) {
 	w.AddPoints([]tsdb.Point{tsdb.NewPoint(
@@ -153,22 +149,11 @@ func (w *WriteShardRequest) unmarshalPoints() []tsdb.Point {
 	return points
 }
 
-func (w *WriteShardResponse) SetCode(code int) {
-	c32 := int32(code)
-	w.pb.Code = &c32
-}
+func (w *WriteShardResponse) SetCode(code int)          { w.pb.Code = proto.Int32(int32(code)) }
+func (w *WriteShardResponse) SetMessage(message string) { w.pb.Message = &message }
 
-func (w *WriteShardResponse) SetMessage(message string) {
-	w.pb.Message = &message
-}
-
-func (w *WriteShardResponse) Code() int {
-	return int(w.pb.GetCode())
-}
-
-func (w *WriteShardResponse) Message() string {
-	return w.pb.GetMessage()
-}
+func (w *WriteShardResponse) Code() int       { return int(w.pb.GetCode()) }
+func (w *WriteShardResponse) Message() string { return w.pb.GetMessage() }
 
 // MarshalBinary encodes the object to a binary format.
 func (w *WriteShardResponse) MarshalBinary() ([]byte, error) {

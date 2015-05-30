@@ -8,6 +8,7 @@ import (
 	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/services/admin"
 	"github.com/influxdb/influxdb/services/collectd"
+	"github.com/influxdb/influxdb/services/graphite"
 	"github.com/influxdb/influxdb/services/httpd"
 	"github.com/influxdb/influxdb/services/opentsdb"
 	"github.com/influxdb/influxdb/tsdb"
@@ -20,7 +21,8 @@ type Server struct {
 	MetaStore     *meta.Store
 	TSDBStore     *tsdb.Store
 	QueryExecutor *tsdb.QueryExecutor
-	PointsWriter  tsdb.PointsWriter
+	PointsWriter  *cluster.PointsWriter
+	ShardWriter   *cluster.ShardWriter
 
 	Services []Service
 }
@@ -33,6 +35,15 @@ func NewServer(c *Config, joinURLs string) *Server {
 		TSDBStore: tsdb.NewStore(c.Data.Dir),
 	}
 
+	// Initialize query executor.
+	s.QueryExecutor = tsdb.NewQueryExecutor(s.TSDBStore)
+	s.QueryExecutor.MetaStore = s.MetaStore
+	s.QueryExecutor.MetaStatementExecutor = &meta.StatementExecutor{Store: s.MetaStore}
+
+	// Initialize points writer.
+	s.PointsWriter = cluster.NewPointsWriter(1) // FIXME: Find ID.
+	s.PointsWriter.ShardWriter = s.ShardWriter
+
 	// Append services.
 	s.appendClusterService(c.Cluster)
 	s.appendAdminService(c.Admin)
@@ -40,7 +51,7 @@ func NewServer(c *Config, joinURLs string) *Server {
 	s.appendCollectdService(c.Collectd)
 	s.appendOpenTSDBService(c.OpenTSDB)
 	for _, g := range c.Graphites {
-		s.appendGraphiteServices(g)
+		s.appendGraphiteService(g)
 	}
 
 	return s
@@ -48,6 +59,7 @@ func NewServer(c *Config, joinURLs string) *Server {
 
 func (s *Server) appendClusterService(c cluster.Config) {
 	srv := cluster.NewService(c)
+	srv.ShardWriter = s.ShardWriter
 	s.Services = append(s.Services, srv)
 }
 

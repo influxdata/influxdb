@@ -128,7 +128,6 @@ func testStoreAndExecutor() (*Store, *QueryExecutor) {
 
 	executor := NewQueryExecutor(store)
 	executor.MetaStore = &testMetastore{}
-	executor.Stats = &fakeStats{}
 
 	return store, executor
 }
@@ -210,13 +209,6 @@ func (t *testMetastore) RetentionPolicy(database, name string) (rpi *meta.Retent
 func (t *testMetastore) UserCount() (int, error) {
 	return t.userCount, nil
 }
-
-type fakeStats struct{}
-
-func (f *fakeStats) Add(key string, delta int64)  {}
-func (f *fakeStats) Inc(key string)               {}
-func (f *fakeStats) Name() string                 { return "test" }
-func (f *fakeStats) Walk(fun func(string, int64)) {}
 
 // MustParseQuery parses an InfluxQL query. Panic on error.
 func mustParseQuery(s string) *influxql.Query {
