@@ -1082,5 +1082,9 @@ func (s stringSet) intersect(o stringSet) stringSet {
 }
 
 func measurementFromSeriesKey(key string) string {
+	idx := strings.Index(key, ",")
+	if idx == -1 {
+		return key
+	}
 	return key[:strings.Index(key, ",")]
 }

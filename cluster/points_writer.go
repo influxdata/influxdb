@@ -2,7 +2,6 @@ package cluster
 
 import (
 	"errors"
-	"os"
 	"sync"
 	"time"
 
@@ -49,6 +48,7 @@ type PointsWriter struct {
 
 	MetaStore interface {
 		NodeID() uint64
+		Database(name string) (di *meta.DatabaseInfo, err error)
 		RetentionPolicy(database, policy string) (*meta.RetentionPolicyInfo, error)
 		CreateShardGroupIfNotExists(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error)
 	}
@@ -119,19 +119,6 @@ func (w *PointsWriter) Close() error {
 // created before returning the mapping.
 func (w *PointsWriter) MapShards(wp *WritePointsRequest) (*ShardMapping, error) {
 
-	// Stub out the MapShards call to return a single node/shard setup
-	if os.Getenv("INFLUXDB_ALPHA1") != "" {
-		sm := NewShardMapping()
-		sh := &meta.ShardInfo{
-			ID:       uint64(1),
-			OwnerIDs: []uint64{uint64(1)},
-		}
-		for _, p := range wp.Points {
-			sm.MapPoint(sh, p)
-		}
-		return sm, nil
-	}
-
 	// holds the start time ranges for required shard groups
 	timeRanges := map[time.Time]*meta.ShardGroupInfo{}
 
@@ -164,6 +151,14 @@ func (w *PointsWriter) MapShards(wp *WritePointsRequest) (*ShardMapping, error) 
 
 // WritePoints writes across multiple local and remote data nodes according the consistency level.
 func (w *PointsWriter) WritePoints(p *WritePointsRequest) error {
+	if p.RetentionPolicy == "" {
+		db, err := w.MetaStore.Database(p.Database)
+		if err != nil {
+			return err
+		}
+		p.RetentionPolicy = db.DefaultRetentionPolicy
+	}
+
 	shardMappings, err := w.MapShards(p)
 	if err != nil {
 		return err
