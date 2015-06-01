@@ -25,15 +25,6 @@ func TestStore_Open(t *testing.T) {
 	}
 	defer s.Close() // idempotent
 
-	// Wait for leadership change.
-	select {
-	case <-s.LeaderCh():
-	case <-time.After(1 * time.Second):
-		t.Fatal("no leadership")
-	}
-
-	time.Sleep(100 * time.Millisecond)
-
 	// Close store.
 	if err := s.Close(); err != nil {
 		t.Fatal(err)
@@ -54,19 +45,18 @@ func TestStore_Open_ErrStoreOpen(t *testing.T) {
 func TestStore_CreateNode(t *testing.T) {
 	s := MustOpenStore()
 	defer s.Close()
-	<-s.LeaderCh()
 
 	// Create node.
 	if ni, err := s.CreateNode("host0"); err != nil {
 		t.Fatal(err)
-	} else if *ni != (meta.NodeInfo{ID: 1, Host: "host0"}) {
+	} else if *ni != (meta.NodeInfo{ID: 2, Host: "host0"}) {
 		t.Fatalf("unexpected node: %#v", ni)
 	}
 
 	// Create another node.
 	if ni, err := s.CreateNode("host1"); err != nil {
 		t.Fatal(err)
-	} else if *ni != (meta.NodeInfo{ID: 2, Host: "host1"}) {
+	} else if *ni != (meta.NodeInfo{ID: 3, Host: "host1"}) {
 		t.Fatalf("unexpected node: %#v", ni)
 	}
 }
@@ -75,7 +65,6 @@ func TestStore_CreateNode(t *testing.T) {
 func TestStore_CreateNode_ErrNodeExists(t *testing.T) {
 	s := MustOpenStore()
 	defer s.Close()
-	<-s.LeaderCh()
 
 	// Create node.
 	if _, err := s.CreateNode("host0"); err != nil {
@@ -92,7 +81,6 @@ func TestStore_CreateNode_ErrNodeExists(t *testing.T) {
 func TestStore_Node(t *testing.T) {
 	s := MustOpenStore()
 	defer s.Close()
-	<-s.LeaderCh()
 
 	// Create nodes.
 	for i := 0; i < 3; i++ {
@@ -102,9 +90,9 @@ func TestStore_Node(t *testing.T) {
 	}
 
 	// Find second node.
-	if ni, err := s.Node(2); err != nil {
+	if ni, err := s.Node(3); err != nil {
 		t.Fatal(err)
-	} else if *ni != (meta.NodeInfo{ID: 2, Host: "host1"}) {
+	} else if *ni != (meta.NodeInfo{ID: 3, Host: "host1"}) {
 		t.Fatalf("unexpected node: %#v", ni)
 	}
 }
@@ -113,7 +101,6 @@ func TestStore_Node(t *testing.T) {
 func TestStore_NodeByHost(t *testing.T) {
 	s := MustOpenStore()
 	defer s.Close()
-	<-s.LeaderCh()
 
 	// Create nodes.
 	for i := 0; i < 3; i++ {
@@ -125,7 +112,7 @@ func TestStore_NodeByHost(t *testing.T) {
 	// Find second node.
 	if ni, err := s.NodeByHost("host1"); err != nil {
 		t.Fatal(err)
-	} else if *ni != (meta.NodeInfo{ID: 2, Host: "host1"}) {
+	} else if *ni != (meta.NodeInfo{ID: 3, Host: "host1"}) {
 		t.Fatalf("unexpected node: %#v", ni)
 	}
 }
@@ -134,7 +121,6 @@ func TestStore_NodeByHost(t *testing.T) {
 func TestStore_DeleteNode(t *testing.T) {
 	s := MustOpenStore()
 	defer s.Close()
-	<-s.LeaderCh()
 
 	// Create nodes.
 	for i := 0; i < 3; i++ {
@@ -144,18 +130,18 @@ func TestStore_DeleteNode(t *testing.T) {
 	}
 
 	// Remove second node.
-	if err := s.DeleteNode(2); err != nil {
+	if err := s.DeleteNode(3); err != nil {
 		t.Fatal(err)
 	}
 
 	// Ensure remaining nodes are correct.
-	if ni, _ := s.Node(1); *ni != (meta.NodeInfo{ID: 1, Host: "host0"}) {
+	if ni, _ := s.Node(2); *ni != (meta.NodeInfo{ID: 2, Host: "host0"}) {
 		t.Fatalf("unexpected node(1): %#v", ni)
 	}
-	if ni, _ := s.Node(2); ni != nil {
+	if ni, _ := s.Node(3); ni != nil {
 		t.Fatalf("unexpected node(2): %#v", ni)
 	}
-	if ni, _ := s.Node(3); *ni != (meta.NodeInfo{ID: 3, Host: "host2"}) {
+	if ni, _ := s.Node(4); *ni != (meta.NodeInfo{ID: 4, Host: "host2"}) {
 		t.Fatalf("unexpected node(3): %#v", ni)
 	}
 }
@@ -164,7 +150,6 @@ func TestStore_DeleteNode(t *testing.T) {
 func TestStore_DeleteNode_ErrNodeNotFound(t *testing.T) {
 	s := MustOpenStore()
 	defer s.Close()
-	<-s.LeaderCh()
 
 	if err := s.DeleteNode(2); err != meta.ErrNodeNotFound {
 		t.Fatalf("unexpected error: %s", err)
@@ -175,7 +160,6 @@ func TestStore_DeleteNode_ErrNodeNotFound(t *testing.T) {
 func TestStore_CreateDatabase(t *testing.T) {
 	s := MustOpenStore()
 	defer s.Close()
-	<-s.LeaderCh()
 
 	// Create database.
 	if di, err := s.CreateDatabase("db0"); err != nil {
@@ -196,7 +180,6 @@ func TestStore_CreateDatabase(t *testing.T) {
 func TestStore_DropDatabase(t *testing.T) {
 	s := MustOpenStore()
 	defer s.Close()
-	<-s.LeaderCh()
 
 	// Create databases.
 	for i := 0; i < 3; i++ {
@@ -226,7 +209,6 @@ func TestStore_DropDatabase(t *testing.T) {
 func TestStore_DropDatabase_ErrDatabaseNotFound(t *testing.T) {
 	s := MustOpenStore()
 	defer s.Close()
-	<-s.LeaderCh()
 
 	if err := s.DropDatabase("no_such_database"); err != meta.ErrDatabaseNotFound {
 		t.Fatalf("unexpected error: %s", err)
@@ -237,7 +219,6 @@ func TestStore_DropDatabase_ErrDatabaseNotFound(t *testing.T) {
 func TestStore_CreateRetentionPolicy(t *testing.T) {
 	s := MustOpenStore()
 	defer s.Close()
-	<-s.LeaderCh()
 
 	// Create database.
 	if _, err := s.CreateDatabase("db0"); err != nil {
@@ -265,7 +246,6 @@ func TestStore_CreateRetentionPolicy(t *testing.T) {
 func TestStore_DropRetentionPolicy(t *testing.T) {
 	s := MustOpenStore()
 	defer s.Close()
-	<-s.LeaderCh()
 
 	// Create database.
 	if _, err := s.CreateDatabase("db0"); err != nil {
@@ -300,7 +280,6 @@ func TestStore_DropRetentionPolicy(t *testing.T) {
 func TestStore_SetDefaultRetentionPolicy(t *testing.T) {
 	s := MustOpenStore()
 	defer s.Close()
-	<-s.LeaderCh()
 
 	// Create database.
 	if _, err := s.CreateDatabase("db0"); err != nil {
@@ -324,7 +303,6 @@ func TestStore_SetDefaultRetentionPolicy(t *testing.T) {
 func TestStore_UpdateRetentionPolicy(t *testing.T) {
 	s := MustOpenStore()
 	defer s.Close()
-	<-s.LeaderCh()
 
 	// Create database.
 	if _, err := s.CreateDatabase("db0"); err != nil {
@@ -359,7 +337,6 @@ func TestStore_UpdateRetentionPolicy(t *testing.T) {
 func TestStore_CreateShardGroup(t *testing.T) {
 	s := MustOpenStore()
 	defer s.Close()
-	<-s.LeaderCh()
 
 	// Create node & database.
 	if _, err := s.CreateNode("host0"); err != nil {
@@ -382,7 +359,6 @@ func TestStore_CreateShardGroup(t *testing.T) {
 func TestStore_DeleteShardGroup(t *testing.T) {
 	s := MustOpenStore()
 	defer s.Close()
-	<-s.LeaderCh()
 
 	// Create node, database, policy, & group.
 	if _, err := s.CreateNode("host0"); err != nil {
@@ -405,7 +381,6 @@ func TestStore_DeleteShardGroup(t *testing.T) {
 func TestStore_CreateContinuousQuery(t *testing.T) {
 	s := MustOpenStore()
 	defer s.Close()
-	<-s.LeaderCh()
 
 	// Create query.
 	if _, err := s.CreateDatabase("db0"); err != nil {
@@ -419,7 +394,6 @@ func TestStore_CreateContinuousQuery(t *testing.T) {
 func TestStore_CreateContinuousQuery_ErrContinuousQueryExists(t *testing.T) {
 	s := MustOpenStore()
 	defer s.Close()
-	<-s.LeaderCh()
 
 	// Create continuous query.
 	if _, err := s.CreateDatabase("db0"); err != nil {
@@ -438,7 +412,6 @@ func TestStore_CreateContinuousQuery_ErrContinuousQueryExists(t *testing.T) {
 func TestStore_DropContinuousQuery(t *testing.T) {
 	s := MustOpenStore()
 	defer s.Close()
-	<-s.LeaderCh()
 
 	// Create queries.
 	if _, err := s.CreateDatabase("db0"); err != nil {
@@ -471,7 +444,6 @@ func TestStore_DropContinuousQuery(t *testing.T) {
 func TestStore_CreateUser(t *testing.T) {
 	s := MustOpenStore()
 	defer s.Close()
-	<-s.LeaderCh()
 
 	// Create user.
 	if ui, err := s.CreateUser("susy", "pass", true); err != nil {
@@ -485,7 +457,6 @@ func TestStore_CreateUser(t *testing.T) {
 func TestStore_DropUser(t *testing.T) {
 	s := MustOpenStore()
 	defer s.Close()
-	<-s.LeaderCh()
 
 	// Create users.
 	if _, err := s.CreateUser("susy", "pass", true); err != nil {
@@ -513,7 +484,6 @@ func TestStore_DropUser(t *testing.T) {
 func TestStore_UpdateUser(t *testing.T) {
 	s := MustOpenStore()
 	defer s.Close()
-	<-s.LeaderCh()
 
 	// Create users.
 	if _, err := s.CreateUser("susy", "pass", true); err != nil {
@@ -545,7 +515,6 @@ func TestStore_UpdateUser(t *testing.T) {
 func TestStore_UserCount(t *testing.T) {
 	s := MustOpenStore()
 	defer s.Close()
-	<-s.LeaderCh()
 
 	if count, err := s.UserCount(); count != 0 && err != nil {
 		t.Fatalf("expected user count to be 0 but was %d", count)
@@ -572,7 +541,7 @@ type Store struct {
 // NewStore returns a new test wrapper for Store.
 func NewStore(path string) *Store {
 	s := &Store{
-		Store: meta.NewStore(path),
+		Store: meta.NewStore(path, "localhost"),
 	}
 	s.HeartbeatTimeout = 50 * time.Millisecond
 	s.ElectionTimeout = 50 * time.Millisecond

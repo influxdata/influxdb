@@ -4,10 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 
@@ -33,6 +35,9 @@ type Store struct {
 	path   string
 	opened bool
 
+	id   uint64 // local node id
+	host string // local hostname
+
 	data      *Data
 	raft      *raft.Raft
 	peers     raft.PeerStore
@@ -56,9 +61,10 @@ type Store struct {
 }
 
 // NewStore returns a new instance of Store.
-func NewStore(path string) *Store {
+func NewStore(path, host string) *Store {
 	return &Store{
 		path:               path,
+		host:               host,
 		data:               &Data{},
 		HeartbeatTimeout:   DefaultHeartbeatTimeout,
 		ElectionTimeout:    DefaultElectionTimeout,
@@ -72,18 +78,21 @@ func NewStore(path string) *Store {
 // Returns an empty string when the store is closed.
 func (s *Store) Path() string { return s.path }
 
+// IDPath returns the path to the local node ID file.
+func (s *Store) IDPath() string { return filepath.Join(s.path, "id") }
+
 // Open opens and initializes the raft store.
 func (s *Store) Open() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	// Check if store has already been opened.
-	if s.opened {
-		return ErrStoreOpen
-	}
-	s.opened = true
-
 	if err := func() error {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+
+		// Check if store has already been opened.
+		if s.opened {
+			return ErrStoreOpen
+		}
+		s.opened = true
+
 		// Create the root directory if it doesn't already exist.
 		if err := os.MkdirAll(s.path, 0777); err != nil {
 			return fmt.Errorf("mkdir all: %s", err)
@@ -133,10 +142,22 @@ func (s *Store) Open() error {
 		}
 		s.raft = r
 
+		// Load existing ID.
+		if err := s.readID(); err != nil {
+			return fmt.Errorf("read id: %s", err)
+		}
+
 		return nil
 	}(); err != nil {
 		s.close()
 		return err
+	}
+
+	// If the ID doesn't exist then create a new node.
+	if s.id == 0 {
+		if err := s.createLocalNode(); err != nil {
+			return fmt.Errorf("create local node: %s", err)
+		}
 	}
 
 	return nil
@@ -172,6 +193,52 @@ func (s *Store) close() error {
 	return nil
 }
 
+// readID reads the local node ID from the ID file.
+func (s *Store) readID() error {
+	b, err := ioutil.ReadFile(s.IDPath())
+	if os.IsNotExist(err) {
+		s.id = 0
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("read file: %s", err)
+	}
+
+	id, err := strconv.ParseUint(string(b), 10, 64)
+	if err != nil {
+		return fmt.Errorf("parse id: %s", err)
+	}
+	s.id = id
+
+	s.Logger.Printf("read local node id: %d", s.id)
+
+	return nil
+}
+
+// createLocalNode creates the node for this local instance.
+// Writes the id of the node to file on success.
+func (s *Store) createLocalNode() error {
+	// Wait for leader.
+	<-s.LeaderCh()
+
+	// Create new node.
+	ni, err := s.CreateNode(s.host)
+	if err != nil {
+		return fmt.Errorf("create node: %s", err)
+	}
+
+	// Write node id to file.
+	if err := ioutil.WriteFile(s.IDPath(), []byte(strconv.FormatUint(ni.ID, 10)), 0666); err != nil {
+		return fmt.Errorf("write file: %s", err)
+	}
+
+	// Set ID locally.
+	s.id = ni.ID
+
+	s.Logger.Printf("created local node: id=%d, host=%s", s.id, s.host)
+
+	return nil
+}
+
 // LeaderCh returns a channel that notifies on leadership change.
 // Panics when the store has not been opened yet.
 func (s *Store) LeaderCh() <-chan bool {
@@ -180,6 +247,10 @@ func (s *Store) LeaderCh() <-chan bool {
 	assert(s.raft != nil, "cannot retrieve leadership channel when closed")
 	return s.raft.LeaderCh()
 }
+
+// NodeID returns the identifier for the local node.
+// Panics if the node has not joined the cluster.
+func (s *Store) NodeID() uint64 { return s.id }
 
 // Node returns a node by id.
 func (s *Store) Node(id uint64) (ni *NodeInfo, err error) {

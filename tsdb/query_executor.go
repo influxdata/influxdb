@@ -40,7 +40,7 @@ type QueryExecutor struct {
 
 	Logger *log.Logger
 
-	// the local daata store
+	// the local data store
 	store *Store
 }
 
@@ -125,7 +125,7 @@ func (q *QueryExecutor) Authorize(u *meta.UserInfo, query *influxql.Query, datab
 // ExecuteQuery executes an InfluxQL query against the server.
 // It sends results down the passed in chan and closes it when done. It will close the chan
 // on the first statement that throws an error.
-func (q *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chunkSize int) (chan *influxql.Result, error) {
+func (q *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chunkSize int) (<-chan *influxql.Result, error) {
 	q.Stats.Add("queriesRx", int64(len(query.Statements)))
 
 	// Execute each statement. Keep the iterator external so we can
