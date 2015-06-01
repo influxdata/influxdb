@@ -222,13 +222,10 @@ func (w *PointsWriter) writeToShard(shard *meta.ShardInfo, database, retentionPo
 					err = w.Store.WriteToShard(shardID, points)
 				}
 				ch <- err
-
-				// FIXME: When ShardWriter is implemented, this should never be nil
-			} else if w.ShardWriter != nil {
-				ch <- w.ShardWriter.WriteShard(shardID, nodeID, points)
-			} else {
-				ch <- ErrWriteFailed
+				return
 			}
+
+			ch <- w.ShardWriter.WriteShard(shardID, nodeID, points)
 		}(shard.ID, nodeID, points)
 	}
 
@@ -244,11 +241,12 @@ func (w *PointsWriter) writeToShard(shard *meta.ShardInfo, database, retentionPo
 		case err := <-ch:
 			// If the write returned an error, continue to the next response
 			if err != nil {
+				// FIXME
+				println(err.Error())
 				continue
 			}
 
 			wrote += 1
-
 		}
 	}
 

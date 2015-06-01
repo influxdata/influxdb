@@ -62,10 +62,6 @@ type Handler struct {
 		ExecuteQuery(q *influxql.Query, db string, chunkSize int) (<-chan *influxql.Result, error)
 	}
 
-	SeriesWriter interface {
-		WriteSeries(database, retentionPolicy string, points []tsdb.Point) error
-	}
-
 	PointsWriter interface {
 		WritePoints(p *cluster.WritePointsRequest) error
 	}
@@ -338,12 +334,18 @@ func (h *Handler) serveWriteJSON(w http.ResponseWriter, r *http.Request, body []
 		return
 	}
 
-	if err := h.SeriesWriter.WriteSeries(bp.Database, bp.RetentionPolicy, points); err != nil {
-		if influxdb.IsClientError(err) {
-			resultError(w, influxql.Result{Err: err}, http.StatusBadRequest)
-		} else {
-			resultError(w, influxql.Result{Err: err}, http.StatusInternalServerError)
-		}
+	// Convert the json batch struct to a points writer struct
+
+	if err := h.PointsWriter.WritePoints(&cluster.WritePointsRequest{
+		Database:         bp.Database,
+		RetentionPolicy:  bp.RetentionPolicy,
+		ConsistencyLevel: cluster.ConsistencyLevelOne,
+		Points:           points,
+	}); influxdb.IsClientError(err) {
+		resultError(w, influxql.Result{Err: err}, http.StatusBadRequest)
+		return
+	} else if err != nil {
+		resultError(w, influxql.Result{Err: err}, http.StatusInternalServerError)
 		return
 	}
 

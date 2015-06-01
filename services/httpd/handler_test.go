@@ -376,7 +376,6 @@ type Handler struct {
 	*httpd.Handler
 	MetaStore     HandlerMetaStore
 	QueryExecutor HandlerQueryExecutor
-	SeriesWriter  HandlerSeriesWriter
 }
 
 // NewHandler returns a new instance of Handler.
@@ -386,7 +385,6 @@ func NewHandler(requireAuthentication bool) *Handler {
 	}
 	h.Handler.MetaStore = &h.MetaStore
 	h.Handler.QueryExecutor = &h.QueryExecutor
-	h.Handler.SeriesWriter = &h.SeriesWriter
 	return h
 }
 
@@ -416,15 +414,6 @@ type HandlerQueryExecutor struct {
 
 func (e *HandlerQueryExecutor) ExecuteQuery(q *influxql.Query, db string, chunkSize int) (<-chan *influxql.Result, error) {
 	return e.ExecuteQueryFn(q, db, chunkSize)
-}
-
-// HandlerSeriesWriter is a mock implementation of Handler.SeriesWriter.
-type HandlerSeriesWriter struct {
-	WriteSeriesFn func(database, retentionPolicy string, points []tsdb.Point) error
-}
-
-func (w *HandlerSeriesWriter) WriteSeries(database, retentionPolicy string, points []tsdb.Point) error {
-	return w.WriteSeriesFn(database, retentionPolicy, points)
 }
 
 // MustNewRequest returns a new HTTP request. Panic on error.
