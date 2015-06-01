@@ -2,7 +2,6 @@ package run
 
 import (
 	"fmt"
-	"net"
 	"time"
 
 	"github.com/influxdb/influxdb/cluster"
@@ -32,7 +31,7 @@ type Server struct {
 func NewServer(c *Config, joinURLs string) *Server {
 	// Construct base meta store and data store.
 	s := &Server{
-		MetaStore: meta.NewStore(c.Meta.Dir, c.Hostname),
+		MetaStore: meta.NewStore(c.Meta),
 		TSDBStore: tsdb.NewStore(c.Data.Dir),
 	}
 
@@ -144,7 +143,6 @@ func (s *Server) Close() error {
 type Service interface {
 	Open() error
 	Close() error
-	Addr() net.Addr
 }
 
 /*

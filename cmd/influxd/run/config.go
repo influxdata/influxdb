@@ -122,6 +122,9 @@ func NewDemoConfig() (*Config, error) {
 
 // Normalize sets default values on config.
 func (c *Config) Normalize() {
+	// Pass hostname down to meta.
+	c.Meta.Hostname = c.Hostname
+
 	// Normalize Graphite configs.
 	for i, _ := range c.Graphites {
 		if c.Graphites[i].BindAddress == "" {
