@@ -59,14 +59,16 @@ type Handler struct {
 	}
 
 	QueryExecutor interface {
-		ExecuteQuery(q *influxql.Query, db string, user *meta.UserInfo, chunkSize int) (<-chan *influxql.Result, error)
+		ExecuteQuery(q *influxql.Query, db string, chunkSize int) (<-chan *influxql.Result, error)
 	}
 
 	SeriesWriter interface {
 		WriteSeries(database, retentionPolicy string, points []tsdb.Point) error
 	}
 
-	PointsWriter cluster.PointsWriter
+	PointsWriter interface {
+		WritePoints(p *cluster.WritePointsRequest) error
+	}
 
 	Logger         *log.Logger
 	loggingEnabled bool // Log every HTTP access.
@@ -193,7 +195,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 
 	// Execute query.
 	w.Header().Add("content-type", "application/json")
-	results, err := h.QueryExecutor.ExecuteQuery(query, db, user, chunkSize)
+	results, err := h.QueryExecutor.ExecuteQuery(query, db, chunkSize)
 
 	if _, ok := err.(meta.AuthError); ok {
 		w.WriteHeader(http.StatusUnauthorized)
@@ -751,7 +753,7 @@ func (h *Handler) serveDump(w http.ResponseWriter, r *http.Request, user *meta.U
 			return
 		}
 
-		res, err := h.QueryExecutor.ExecuteQuery(query, db, user, DefaultChunkSize)
+		res, err := h.QueryExecutor.ExecuteQuery(query, db, DefaultChunkSize)
 		if err != nil {
 			w.Write([]byte("*** SERVER-SIDE ERROR. MISSING DATA ***"))
 			w.Write(delim)
@@ -801,7 +803,7 @@ func (h *Handler) serveDump(w http.ResponseWriter, r *http.Request, user *meta.U
 // Return all the measurements from the given DB
 func (h *Handler) showMeasurements(db string, user *meta.UserInfo) ([]string, error) {
 	var measurements []string
-	c, err := h.QueryExecutor.ExecuteQuery(&influxql.Query{Statements: []influxql.Statement{&influxql.ShowMeasurementsStatement{}}}, db, user, 0)
+	c, err := h.QueryExecutor.ExecuteQuery(&influxql.Query{Statements: []influxql.Statement{&influxql.ShowMeasurementsStatement{}}}, db, 0)
 	if err != nil {
 		return measurements, err
 	}

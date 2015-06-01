@@ -3,6 +3,7 @@ package run
 import (
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/meta"
@@ -31,7 +32,7 @@ type Server struct {
 func NewServer(c *Config, joinURLs string) *Server {
 	// Construct base meta store and data store.
 	s := &Server{
-		MetaStore: meta.NewStore(c.Meta.Dir),
+		MetaStore: meta.NewStore(c.Meta.Dir, c.Hostname),
 		TSDBStore: tsdb.NewStore(c.Data.Dir),
 	}
 
@@ -40,8 +41,13 @@ func NewServer(c *Config, joinURLs string) *Server {
 	s.QueryExecutor.MetaStore = s.MetaStore
 	s.QueryExecutor.MetaStatementExecutor = &meta.StatementExecutor{Store: s.MetaStore}
 
+	// Set the shard writer
+	s.ShardWriter = cluster.NewShardWriter(time.Duration(c.Cluster.ShardWriterTimeout))
+
 	// Initialize points writer.
-	s.PointsWriter = cluster.NewPointsWriter(1) // FIXME: Find ID.
+	s.PointsWriter = cluster.NewPointsWriter()
+	s.PointsWriter.MetaStore = s.MetaStore
+	s.PointsWriter.Store = s.TSDBStore
 	s.PointsWriter.ShardWriter = s.ShardWriter
 
 	// Append services.
@@ -70,6 +76,9 @@ func (s *Server) appendAdminService(c admin.Config) {
 
 func (s *Server) appendHTTPDService(c httpd.Config) {
 	srv := httpd.NewService(c)
+	srv.Handler.MetaStore = s.MetaStore
+	srv.Handler.QueryExecutor = s.QueryExecutor
+	srv.Handler.PointsWriter = s.PointsWriter
 	s.Services = append(s.Services, srv)
 }
 

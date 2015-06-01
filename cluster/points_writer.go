@@ -44,11 +44,11 @@ var (
 
 // PointsWriter handles writes across multiple local and remote data nodes.
 type PointsWriter struct {
-	nodeID  uint64
 	mu      sync.RWMutex
 	closing chan struct{}
 
 	MetaStore interface {
+		NodeID() uint64
 		RetentionPolicy(database, policy string) (*meta.RetentionPolicyInfo, error)
 		CreateShardGroupIfNotExists(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error)
 	}
@@ -64,9 +64,8 @@ type PointsWriter struct {
 }
 
 // NewPointsWriter returns a new instance of PointsWriter for a node.
-func NewPointsWriter(localID uint64) *PointsWriter {
+func NewPointsWriter() *PointsWriter {
 	return &PointsWriter{
-		nodeID:  localID,
 		closing: make(chan struct{}),
 	}
 }
@@ -210,7 +209,7 @@ func (w *PointsWriter) writeToShard(shard *meta.ShardInfo, database, retentionPo
 
 	for _, nodeID := range shard.OwnerIDs {
 		go func(shardID, nodeID uint64, points []tsdb.Point) {
-			if w.nodeID == nodeID {
+			if w.MetaStore.NodeID() == nodeID {
 				err := w.Store.WriteToShard(shardID, points)
 				// If we've written to shard that should exist on the current node, but the store has
 				// not actually created this shard, tell it to create it and retry the write

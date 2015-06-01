@@ -37,13 +37,10 @@ const (
 	DefaultAPIReadTimeout = 5 * time.Second
 
 	// DefaultHostName represents the default host name to use if it is never provided
-	DefaultHostName = "localhost"
+	DefaultHostname = "localhost"
 
 	// DefaultBindAddress represents the bind address to use if none is specified
 	DefaultBindAddress = "0.0.0.0"
-
-	// DefaultClusterPort represents the default port the cluster runs ons.
-	DefaultClusterPort = 8086
 
 	// DefaultOpenTSDBDatabaseName is the default OpenTSDB database if none is specified
 	DefaultOpenTSDBDatabaseName = "opentsdb"
@@ -89,7 +86,7 @@ type Config struct {
 // NewConfig returns an instance of Config with reasonable defaults.
 func NewConfig() *Config {
 	c := &Config{}
-	c.Hostname = DefaultHostName
+	c.Hostname = DefaultHostname
 	c.BindAddress = DefaultBindAddress
 
 	c.Meta = meta.NewConfig()

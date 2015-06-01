@@ -47,7 +47,7 @@ func (s *Service) Open() error {
 	}
 	s.ln = ln
 
-	s.Logger.Println("listening on TCP connection", ln.Addr().String())
+	s.Logger.Println("listening on TCP:", ln.Addr().String())
 
 	// Begin serving conections.
 	s.wg.Add(1)

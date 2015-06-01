@@ -2,36 +2,50 @@ package httpd
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 )
 
 // Service manages the listener and handler for an HTTP endpoint.
 type Service struct {
-	listener net.Listener
-	addr     string
-	err      chan error
+	ln   net.Listener
+	addr string
+	err  chan error
 
-	Handler Handler
+	Handler *Handler
+
+	Logger *log.Logger
 }
 
 // NewService returns a new instance of Service.
 func NewService(c Config) *Service {
-	return &Service{
+	s := &Service{
 		addr: c.BindAddress,
 		err:  make(chan error),
+		Handler: NewHandler(
+			c.AuthEnabled,
+			c.LogEnabled,
+			"FIXME",
+		),
+		Logger: log.New(os.Stderr, "[httpd] ", log.LstdFlags),
 	}
+	s.Handler.Logger = s.Logger
+	return s
 }
 
 // Open starts the service
 func (s *Service) Open() error {
 	// Open listener.
-	listener, err := net.Listen("tcp", s.addr)
+	ln, err := net.Listen("tcp", s.addr)
 	if err != nil {
 		return err
 	}
-	s.listener = listener
+	s.ln = ln
+
+	s.Logger.Println("listening on HTTP:", ln.Addr().String())
 
 	// Begin listening for requests in a separate goroutine.
 	go s.serve()
@@ -40,8 +54,8 @@ func (s *Service) Open() error {
 
 // Close closes the underlying listener.
 func (s *Service) Close() error {
-	if s.listener != nil {
-		return s.listener.Close()
+	if s.ln != nil {
+		return s.ln.Close()
 	}
 	return nil
 }
@@ -51,8 +65,8 @@ func (s *Service) Err() <-chan error { return s.err }
 
 // Addr returns the listener's address. Returns nil if listener is closed.
 func (s *Service) Addr() net.Addr {
-	if s.listener != nil {
-		return s.listener.Addr()
+	if s.ln != nil {
+		return s.ln.Addr()
 	}
 	return nil
 }
@@ -61,7 +75,7 @@ func (s *Service) Addr() net.Addr {
 func (s *Service) serve() {
 	// The listener was closed so exit
 	// See https://github.com/golang/go/issues/4373
-	err := http.Serve(s.listener, &s.Handler)
+	err := http.Serve(s.ln, s.Handler)
 	if err != nil && !strings.Contains(err.Error(), "closed") {
 		s.err <- fmt.Errorf("listener failed: addr=%s, err=%s", s.Addr(), err)
 	}

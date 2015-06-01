@@ -17,6 +17,7 @@ func TestPointsWriter_MapShards_One(t *testing.T) {
 	ms := MetaStore{}
 	rp := NewRetentionPolicy("myp", time.Hour, 3)
 
+	ms.NodeIDFn = func() uint64 { return 1 }
 	ms.RetentionPolicyFn = func(db, retentionPolicy string) (*meta.RetentionPolicyInfo, error) {
 		return rp, nil
 	}
@@ -53,6 +54,7 @@ func TestPointsWriter_MapShards_Multiple(t *testing.T) {
 	AttachShardGroupInfo(rp, []uint64{1, 2, 3})
 	AttachShardGroupInfo(rp, []uint64{1, 2, 3})
 
+	ms.NodeIDFn = func() uint64 { return 1 }
 	ms.RetentionPolicyFn = func(db, retentionPolicy string) (*meta.RetentionPolicyInfo, error) {
 		return rp, nil
 	}
@@ -241,6 +243,7 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 		}
 
 		ms := NewMetaStore()
+		ms.NodeIDFn = func() uint64 { return 1 }
 		c := cluster.PointsWriter{
 			MetaStore:   ms,
 			ShardWriter: sw,
@@ -298,9 +301,12 @@ func NewMetaStore() *MetaStore {
 }
 
 type MetaStore struct {
+	NodeIDFn                      func() uint64
 	RetentionPolicyFn             func(database, name string) (*meta.RetentionPolicyInfo, error)
 	CreateShardGroupIfNotExistsFn func(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error)
 }
+
+func (m MetaStore) NodeID() uint64 { return m.NodeIDFn() }
 
 func (m MetaStore) RetentionPolicy(database, name string) (*meta.RetentionPolicyInfo, error) {
 	return m.RetentionPolicyFn(database, name)

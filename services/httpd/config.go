@@ -11,7 +11,8 @@ type Config struct {
 
 func NewConfig() Config {
 	return Config{
-		Enabled:    true,
-		LogEnabled: true,
+		Enabled:     true,
+		BindAddress: ":8086",
+		LogEnabled:  true,
 	}
 }
