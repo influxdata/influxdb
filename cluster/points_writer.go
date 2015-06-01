@@ -48,6 +48,7 @@ type PointsWriter struct {
 
 	MetaStore interface {
 		NodeID() uint64
+		Database(name string) (di *meta.DatabaseInfo, err error)
 		RetentionPolicy(database, policy string) (*meta.RetentionPolicyInfo, error)
 		CreateShardGroupIfNotExists(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error)
 	}
@@ -150,6 +151,14 @@ func (w *PointsWriter) MapShards(wp *WritePointsRequest) (*ShardMapping, error) 
 
 // WritePoints writes across multiple local and remote data nodes according the consistency level.
 func (w *PointsWriter) WritePoints(p *WritePointsRequest) error {
+	if p.RetentionPolicy == "" {
+		db, err := w.MetaStore.Database(p.Database)
+		if err != nil {
+			return err
+		}
+		p.RetentionPolicy = db.DefaultRetentionPolicy
+	}
+
 	shardMappings, err := w.MapShards(p)
 	if err != nil {
 		return err
