@@ -133,7 +133,7 @@ func TestBatchWrite_UnmarshalRFC(t *testing.T) {
 // Ensure the handler returns results from a query (including nil results).
 func TestHandler_Query(t *testing.T) {
 	h := NewHandler(false)
-	h.QueryExecutor.ExecuteQueryFn = func(q *influxql.Query, db string, user *meta.UserInfo, chunkSize int) (<-chan *influxql.Result, error) {
+	h.QueryExecutor.ExecuteQueryFn = func(q *influxql.Query, db string, chunkSize int) (<-chan *influxql.Result, error) {
 		if q.String() != `SELECT * FROM bar` {
 			t.Fatalf("unexpected query: %s", q.String())
 		} else if db != `foo` {
@@ -158,7 +158,7 @@ func TestHandler_Query(t *testing.T) {
 // Ensure the handler merges results from the same statement.
 func TestHandler_Query_MergeResults(t *testing.T) {
 	h := NewHandler(false)
-	h.QueryExecutor.ExecuteQueryFn = func(q *influxql.Query, db string, user *meta.UserInfo, chunkSize int) (<-chan *influxql.Result, error) {
+	h.QueryExecutor.ExecuteQueryFn = func(q *influxql.Query, db string, chunkSize int) (<-chan *influxql.Result, error) {
 		return NewResultChan(
 			&influxql.Result{StatementID: 1, Series: influxql.Rows{{Name: "series0"}}},
 			&influxql.Result{StatementID: 1, Series: influxql.Rows{{Name: "series1"}}},
@@ -177,7 +177,7 @@ func TestHandler_Query_MergeResults(t *testing.T) {
 // Ensure the handler can parse chunked and chunk size query parameters.
 func TestHandler_Query_Chunked(t *testing.T) {
 	h := NewHandler(false)
-	h.QueryExecutor.ExecuteQueryFn = func(q *influxql.Query, db string, user *meta.UserInfo, chunkSize int) (<-chan *influxql.Result, error) {
+	h.QueryExecutor.ExecuteQueryFn = func(q *influxql.Query, db string, chunkSize int) (<-chan *influxql.Result, error) {
 		if chunkSize != 2 {
 			t.Fatalf("unexpected chunk size: %d", chunkSize)
 		}
@@ -223,7 +223,7 @@ func TestHandler_Query_ErrInvalidQuery(t *testing.T) {
 // Ensure the handler returns a status 401 if the user is not authorized.
 func TestHandler_Query_ErrUnauthorized(t *testing.T) {
 	h := NewHandler(false)
-	h.QueryExecutor.ExecuteQueryFn = func(q *influxql.Query, db string, user *meta.UserInfo, chunkSize int) (<-chan *influxql.Result, error) {
+	h.QueryExecutor.ExecuteQueryFn = func(q *influxql.Query, db string, chunkSize int) (<-chan *influxql.Result, error) {
 		return nil, meta.NewAuthError("marker")
 	}
 
@@ -237,7 +237,7 @@ func TestHandler_Query_ErrUnauthorized(t *testing.T) {
 // Ensure the handler returns a status 500 if an error is returned from the query executor.
 func TestHandler_Query_ErrExecuteQuery(t *testing.T) {
 	h := NewHandler(false)
-	h.QueryExecutor.ExecuteQueryFn = func(q *influxql.Query, db string, user *meta.UserInfo, chunkSize int) (<-chan *influxql.Result, error) {
+	h.QueryExecutor.ExecuteQueryFn = func(q *influxql.Query, db string, chunkSize int) (<-chan *influxql.Result, error) {
 		return nil, errors.New("marker")
 	}
 
@@ -251,7 +251,7 @@ func TestHandler_Query_ErrExecuteQuery(t *testing.T) {
 // Ensure the handler returns a status 200 if an error is returned in the result.
 func TestHandler_Query_ErrResult(t *testing.T) {
 	h := NewHandler(false)
-	h.QueryExecutor.ExecuteQueryFn = func(q *influxql.Query, db string, user *meta.UserInfo, chunkSize int) (<-chan *influxql.Result, error) {
+	h.QueryExecutor.ExecuteQueryFn = func(q *influxql.Query, db string, chunkSize int) (<-chan *influxql.Result, error) {
 		return NewResultChan(&influxql.Result{Err: errors.New("measurement not found")}), nil
 	}
 
@@ -267,7 +267,7 @@ func TestHandler_Query_ErrResult(t *testing.T) {
 // Ensure the handler returns a status 401 if an auth error is returned from the result.
 func TestHandler_Query_Result_ErrUnauthorized(t *testing.T) {
 	h := NewHandler(false)
-	h.QueryExecutor.ExecuteQueryFn = func(q *influxql.Query, db string, user *meta.UserInfo, chunkSize int) (<-chan *influxql.Result, error) {
+	h.QueryExecutor.ExecuteQueryFn = func(q *influxql.Query, db string, chunkSize int) (<-chan *influxql.Result, error) {
 		return NewResultChan(&influxql.Result{Err: meta.NewAuthError("marker")}), nil
 	}
 
@@ -411,11 +411,11 @@ func (s *HandlerMetaStore) Users() ([]meta.UserInfo, error) {
 
 // HandlerQueryExecutor is a mock implementation of Handler.QueryExecutor.
 type HandlerQueryExecutor struct {
-	ExecuteQueryFn func(q *influxql.Query, db string, user *meta.UserInfo, chunkSize int) (<-chan *influxql.Result, error)
+	ExecuteQueryFn func(q *influxql.Query, db string, chunkSize int) (<-chan *influxql.Result, error)
 }
 
-func (e *HandlerQueryExecutor) ExecuteQuery(q *influxql.Query, db string, user *meta.UserInfo, chunkSize int) (<-chan *influxql.Result, error) {
-	return e.ExecuteQueryFn(q, db, user, chunkSize)
+func (e *HandlerQueryExecutor) ExecuteQuery(q *influxql.Query, db string, chunkSize int) (<-chan *influxql.Result, error) {
+	return e.ExecuteQueryFn(q, db, chunkSize)
 }
 
 // HandlerSeriesWriter is a mock implementation of Handler.SeriesWriter.
