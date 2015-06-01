@@ -37,6 +37,7 @@ type Store struct {
 
 	id   uint64 // local node id
 	host string // local hostname
+	addr string // bind address
 
 	data      *Data
 	raft      *raft.Raft
@@ -61,15 +62,16 @@ type Store struct {
 }
 
 // NewStore returns a new instance of Store.
-func NewStore(path, host string) *Store {
+func NewStore(c Config) *Store {
 	return &Store{
-		path:               path,
-		host:               host,
+		path:               c.Dir,
+		host:               c.Hostname,
+		addr:               c.BindAddress,
 		data:               &Data{},
-		HeartbeatTimeout:   DefaultHeartbeatTimeout,
-		ElectionTimeout:    DefaultElectionTimeout,
-		LeaderLeaseTimeout: DefaultLeaderLeaseTimeout,
-		CommitTimeout:      DefaultCommitTimeout,
+		HeartbeatTimeout:   time.Duration(c.HeartbeatTimeout),
+		ElectionTimeout:    time.Duration(c.ElectionTimeout),
+		LeaderLeaseTimeout: time.Duration(c.LeaderLeaseTimeout),
+		CommitTimeout:      time.Duration(c.CommitTimeout),
 		Logger:             log.New(os.Stderr, "", log.LstdFlags),
 	}
 }
@@ -108,11 +110,11 @@ func (s *Store) Open() error {
 		config.CommitTimeout = s.CommitTimeout
 
 		// Create a transport layer
-		advertise, err := net.ResolveTCPAddr("tcp", "localhost:9000")
+		advertise, err := net.ResolveTCPAddr("tcp", s.addr)
 		if err != nil {
 			return fmt.Errorf("resolve tcp addr: %s", err)
 		}
-		transport, err := raft.NewTCPTransport(":9000", advertise,
+		transport, err := raft.NewTCPTransport(s.addr, advertise,
 			raftTransportMaxPool, raftTransportTimeout, os.Stderr)
 		if err != nil {
 			return fmt.Errorf("new tcp transport: %s", err)

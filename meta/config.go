@@ -7,6 +7,9 @@ import (
 )
 
 const (
+	// DefaultBindAddress is the default address to bind to.
+	DefaultBindAddress = ":8088"
+
 	// DefaultHeartbeatTimeout is the default heartbeat timeout for the store.
 	DefaultHeartbeatTimeout = 1000 * time.Millisecond
 
@@ -22,7 +25,9 @@ const (
 
 // Config represents the meta configuration.
 type Config struct {
+	Hostname           string        `toml:"-"`
 	Dir                string        `toml:"dir"`
+	BindAddress        string        `toml:"bind-address"`
 	ElectionTimeout    toml.Duration `toml:"election-timeout"`
 	HeartbeatTimeout   toml.Duration `toml:"heartbeat-timeout"`
 	LeaderLeaseTimeout toml.Duration `toml:"leader-lease-timeout"`
@@ -31,6 +36,7 @@ type Config struct {
 
 func NewConfig() Config {
 	return Config{
+		BindAddress:        DefaultBindAddress,
 		ElectionTimeout:    toml.Duration(DefaultElectionTimeout),
 		HeartbeatTimeout:   toml.Duration(DefaultHeartbeatTimeout),
 		LeaderLeaseTimeout: toml.Duration(DefaultLeaderLeaseTimeout),

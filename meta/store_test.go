@@ -541,7 +541,10 @@ type Store struct {
 // NewStore returns a new test wrapper for Store.
 func NewStore(path string) *Store {
 	s := &Store{
-		Store: meta.NewStore(path, "localhost"),
+		Store: meta.NewStore(meta.Config{
+			Dir:      path,
+			Hostname: "localhost",
+		}),
 	}
 	s.HeartbeatTimeout = 50 * time.Millisecond
 	s.ElectionTimeout = 50 * time.Millisecond

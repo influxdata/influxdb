@@ -142,7 +142,6 @@ func (q *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chu
 				if s, ok := stmt.(influxql.HasDefaultDatabase); ok {
 					defaultDB = s.DefaultDatabase()
 				}
-
 			}
 
 			// If we have a default database, normalize the statement with it.

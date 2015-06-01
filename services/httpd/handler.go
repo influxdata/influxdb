@@ -421,7 +421,7 @@ func (h *Handler) serveWriteLine(w http.ResponseWriter, r *http.Request, body []
 	// Write points.
 	if err := h.PointsWriter.WritePoints(&cluster.WritePointsRequest{
 		Database:         database,
-		RetentionPolicy:  r.Form.Get("rp"),
+		RetentionPolicy:  r.FormValue("rp"),
 		ConsistencyLevel: consistency,
 		Points:           points,
 	}); influxdb.IsClientError(err) {
