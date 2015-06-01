@@ -2,7 +2,6 @@ package cluster
 
 import (
 	"errors"
-	"os"
 	"sync"
 	"time"
 
@@ -118,19 +117,6 @@ func (w *PointsWriter) Close() error {
 // maps to a shard group or shard that does not currently exist, it will be
 // created before returning the mapping.
 func (w *PointsWriter) MapShards(wp *WritePointsRequest) (*ShardMapping, error) {
-
-	// Stub out the MapShards call to return a single node/shard setup
-	if os.Getenv("INFLUXDB_ALPHA1") != "" {
-		sm := NewShardMapping()
-		sh := &meta.ShardInfo{
-			ID:       uint64(1),
-			OwnerIDs: []uint64{uint64(1)},
-		}
-		for _, p := range wp.Points {
-			sm.MapPoint(sh, p)
-		}
-		return sm, nil
-	}
 
 	// holds the start time ranges for required shard groups
 	timeRanges := map[time.Time]*meta.ShardGroupInfo{}
