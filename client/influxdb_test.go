@@ -10,9 +10,78 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/client"
 )
+
+func BenchmarkUnmarshalJSON2Tags(b *testing.B) {
+	var bp client.BatchPoints
+	data := []byte(`
+{
+    "database": "foo",
+    "retentionPolicy": "bar",
+    "points": [
+        {
+            "name": "cpu",
+            "tags": {
+                "host": "server01",
+                "region": "us-east1"
+            },
+            "time": 14244733039069373,
+            "precision": "n",
+            "fields": {
+                    "value": 4541770385657154000
+            }
+        }
+    ]
+}
+`)
+
+	for i := 0; i < b.N; i++ {
+		if err := json.Unmarshal(data, &bp); err != nil {
+			b.Errorf("unable to unmarshal nanosecond data: %s", err.Error())
+		}
+		b.SetBytes(int64(len(data)))
+	}
+}
+
+func BenchmarkUnmarshalJSON10Tags(b *testing.B) {
+	var bp client.BatchPoints
+	data := []byte(`
+{
+    "database": "foo",
+    "retentionPolicy": "bar",
+    "points": [
+        {
+            "name": "cpu",
+            "tags": {
+                "host": "server01",
+                "region": "us-east1",
+                "tag1": "value1",
+                "tag2": "value2",
+                "tag2": "value3",
+                "tag4": "value4",
+                "tag5": "value5",
+                "tag6": "value6",
+                "tag7": "value7",
+                "tag8": "value8"
+            },
+            "time": 14244733039069373,
+            "precision": "n",
+            "fields": {
+                    "value": 4541770385657154000
+            }
+        }
+    ]
+}
+`)
+
+	for i := 0; i < b.N; i++ {
+		if err := json.Unmarshal(data, &bp); err != nil {
+			b.Errorf("unable to unmarshal nanosecond data: %s", err.Error())
+		}
+		b.SetBytes(int64(len(data)))
+	}
+}
 
 func TestNewClient(t *testing.T) {
 	config := client.Config{}
@@ -46,7 +115,7 @@ func TestClient_Ping(t *testing.T) {
 
 func TestClient_Query(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var data influxdb.Response
+		var data client.Response
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(data)
 	}))
@@ -71,7 +140,7 @@ func TestClient_BasicAuth(t *testing.T) {
 		u, p, ok := r.BasicAuth()
 
 		if !ok {
-			t.Errorf("basic auth failed")
+			t.Errorf("basic auth error")
 		}
 		if u != "username" {
 			t.Errorf("unexpected username, expected %q, actual %q", "username", u)
@@ -99,7 +168,7 @@ func TestClient_BasicAuth(t *testing.T) {
 
 func TestClient_Write(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var data influxdb.Response
+		var data client.Response
 		w.WriteHeader(http.StatusNoContent)
 		_ = json.NewEncoder(w).Encode(data)
 	}))
@@ -127,7 +196,7 @@ func TestClient_UserAgent(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedUserAgent = r.UserAgent()
 
-		var data influxdb.Response
+		var data client.Response
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(data)
 	}))
@@ -424,6 +493,6 @@ func TestBatchPoints_Normal(t *testing.T) {
 `)
 
 	if err := json.Unmarshal(data, &bp); err != nil {
-		t.Errorf("failed to unmarshal nanosecond data: %s", err.Error())
+		t.Errorf("unable to unmarshal nanosecond data: %s", err.Error())
 	}
 }

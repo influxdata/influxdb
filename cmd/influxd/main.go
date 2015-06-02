@@ -1,8 +1,8 @@
 package main
 
 import (
-	"flag"
 	"fmt"
+	"io"
 	"log"
 	"math/rand"
 	"os"
@@ -11,170 +11,116 @@ import (
 	"runtime/pprof"
 	"strings"
 	"time"
-)
 
-const logo = `
- 8888888           .d888 888                   8888888b.  888888b.
-   888            d88P"  888                   888  "Y88b 888  "88b
-   888            888    888                   888    888 888  .88P
-   888   88888b.  888888 888 888  888 888  888 888    888 8888888K.
-   888   888 "88b 888    888 888  888  Y8bd8P' 888    888 888  "Y88b
-   888   888  888 888    888 888  888   X88K   888    888 888    888
-   888   888  888 888    888 Y88b 888 .d8""8b. 888  .d88P 888   d88P
- 8888888 888  888 888    888  "Y88888 888  888 8888888P"  8888888P"
-
-`
-
-// These variables are populated via the Go linker.
-var (
-	version string = "0.9"
-	commit  string
-)
-
-// Various constants used by the main package.
-const (
-	messagingClientFile       string = "messaging"
-	monitoringDatabase        string = "_influxdb"
-	monitoringRetentionPolicy string = "default"
+	"github.com/influxdb/influxdb/cmd/influxd/help"
+	"github.com/influxdb/influxdb/cmd/influxd/run"
+	"github.com/influxdb/influxdb/cmd/influxd/version"
 )
 
 func main() {
-	log.SetFlags(0)
-	log.SetPrefix(`[srvr] `)
-	log.SetFlags(log.LstdFlags)
 	rand.Seed(time.Now().UnixNano())
 
-	// If commit not set, make that clear.
-	if commit == "" {
-		commit = "unknown"
+	m := NewMain()
+	if err := m.Run(os.Args[1:]...); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
-	// Shift binary name off argument list.
-	args := os.Args[1:]
+	// Wait indefinitely.
+	<-(chan struct{})(nil)
+}
 
+// Main represents the program execution.
+type Main struct {
+	Stdin  io.Reader
+	Stdout io.Writer
+	Stderr io.Writer
+}
+
+// NewMain return a new instance of Main.
+func NewMain() *Main {
+	return &Main{
+		Stdin:  os.Stdin,
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+	}
+}
+
+// Run determines and runs the command specified by the CLI args.
+func (m *Main) Run(args ...string) error {
+	name, args := ParseCommandName(args)
+
+	// FIXME(benbjohnson): Parse profiling args & start profiling.
+
+	// Extract name from args.
+	switch name {
+	case "", "run":
+		if err := run.NewCommand().Run(args...); err != nil {
+			return fmt.Errorf("run: %s", err)
+		}
+	// case "backup":
+	// 	name := NewBackupCommand()
+	// 	if err := name.Run(args...); err != nil {
+	// 		return fmt.Errorf("backup: %s", err)
+	// 	}
+	// case "restore":
+	// 	name := NewRestoreCommand()
+	// 	if err := name.Run(args...); err != nil {
+	// 		return fmt.Errorf("restore: %s", err)
+	// 	}
+	case "config":
+		if err := run.NewPrintConfigCommand().Run(args...); err != nil {
+			return fmt.Errorf("config: %s", err)
+		}
+	case "version":
+		if err := version.NewCommand().Run(args...); err != nil {
+			return fmt.Errorf("version: %s", err)
+		}
+	case "help":
+		if err := help.NewCommand().Run(args...); err != nil {
+			return fmt.Errorf("help: %s", err)
+		}
+	default:
+		return fmt.Errorf(`unknown command "%s"`+"\n"+`Run 'influxd help' for usage`+"\n\n", name)
+	}
+
+	return nil
+}
+
+// ParseCommandName extracts the command name and args from the args list.
+func ParseCommandName(args []string) (string, []string) {
 	// Retrieve command name as first argument.
-	var cmd string
+	var name string
 	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
-		cmd = args[0]
+		name = args[0]
 	}
 
 	// Special case -h immediately following binary name
 	if len(args) > 0 && args[0] == "-h" {
-		cmd = "help"
+		name = "help"
 	}
 
 	// If command is "help" and has an argument then rewrite args to use "-h".
-	if cmd == "help" && len(args) > 1 {
+	if name == "help" && len(args) > 1 {
 		args[0], args[1] = args[1], "-h"
-		cmd = args[0]
+		name = args[0]
 	}
 
-	// Extract name from args.
-	switch cmd {
-	case "run":
-		cmd := NewRunCommand()
-		if err := cmd.Run(args[1:]...); err != nil {
-			log.Fatalf("run: %s", err)
-		}
-	case "":
-		cmd := NewRunCommand()
-		if err := cmd.Run(args...); err != nil {
-			log.Fatalf("run: %s", err)
-		}
-	case "backup":
-		cmd := NewBackupCommand()
-		if err := cmd.Run(args[1:]...); err != nil {
-			log.Fatalf("backup: %s", err)
-		}
-	case "restore":
-		cmd := NewRestoreCommand()
-		if err := cmd.Run(args[1:]...); err != nil {
-			log.Fatalf("restore: %s", err)
-		}
-	case "version":
-		execVersion(args[1:])
-	case "config":
-		execConfig(args[1:])
-	case "help":
-		cmd := NewHelpCommand()
-		if err := cmd.Run(args[1:]...); err != nil {
-			log.Fatalf("help: %s", err)
-		}
-	default:
-		log.Fatalf(`influxd: unknown command "%s"`+"\n"+`Run 'influxd help' for usage`+"\n\n", cmd)
+	// If a named command is specified then return it with its arguments.
+	if name != "" {
+		return name, args[1:]
 	}
+	return "", args
 }
 
-// execVersion runs the "version" command.
-// Prints the commit SHA1 if set by the build process.
-func execVersion(args []string) {
-	fs := flag.NewFlagSet("", flag.ExitOnError)
-	fs.Usage = func() {
-		fmt.Println(`usage: version
-
-	version displays the InfluxDB version and build git commit hash
-	`)
-	}
-	fs.Parse(args)
-
-	s := fmt.Sprintf("InfluxDB v%s", version)
-	if commit != "" {
-		s += fmt.Sprintf(" (git: %s)", commit)
-	}
-	log.Print(s)
-}
-
-// execConfig parses and prints the current config loaded.
-func execConfig(args []string) {
-	// Parse command flags.
-	fs := flag.NewFlagSet("", flag.ExitOnError)
-	fs.Usage = func() {
-		fmt.Println(`usage: config
-
-	config displays the default configuration
-						    `)
-	}
-
-	var (
-		configPath string
-		hostname   string
-	)
-	fs.StringVar(&configPath, "config", "", "")
-	fs.StringVar(&hostname, "hostname", "", "")
-	fs.Parse(args)
-
-	var config *Config
-	var err error
-	if configPath == "" {
-		config, err = NewTestConfig()
-	} else {
-		config, err = ParseConfigFile(configPath)
-	}
-	if err != nil {
-		log.Fatalf("parse config: %s", err)
-	}
-	// Override config properties.
-	if hostname != "" {
-		config.Hostname = hostname
-	}
-
-	config.Write(os.Stdout)
-}
-
-type Stopper interface {
-	Stop()
-}
-
-type State struct {
-	Mode string `json:"mode"`
-}
-
+// prof stores the file locations of active profiles.
 var prof struct {
 	cpu *os.File
 	mem *os.File
 }
 
-func startProfiling(cpuprofile, memprofile string) {
+// StartProfile initializes the cpu and memory profile, if specified.
+func StartProfile(cpuprofile, memprofile string) {
 	if cpuprofile != "" {
 		f, err := os.Create(cpuprofile)
 		if err != nil {
@@ -197,12 +143,13 @@ func startProfiling(cpuprofile, memprofile string) {
 		c := make(chan os.Signal, 1)
 		signal.Notify(c, os.Interrupt)
 		<-c
-		stopProfiling()
+		StopProfile()
 		os.Exit(0)
 	}()
 }
 
-func stopProfiling() {
+// StopProfile closes the cpu and memory profiles if they are running.
+func StopProfile() {
 	if prof.cpu != nil {
 		pprof.StopCPUProfile()
 		prof.cpu.Close()
@@ -212,6 +159,3 @@ func stopProfiling() {
 		prof.mem.Close()
 	}
 }
-
-func warn(v ...interface{})              { fmt.Fprintln(os.Stderr, v...) }
-func warnf(msg string, v ...interface{}) { fmt.Fprintf(os.Stderr, msg+"\n", v...) }

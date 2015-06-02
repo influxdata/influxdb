@@ -16,10 +16,10 @@ Test cases should be in the form of `curl` commands. For example:
 ```
 # create database
 curl -G http://localhost:8086/query --data-urlencode "q=CREATE DATABASE mydb"
- 
+
 # create retention policy
 curl -G http://localhost:8086/query --data-urlencode "q=CREATE RETENTION POLICY myrp ON mydb DURATION 365d REPLICATION 1 DEFAULT"
- 
+
 # write data
 curl -d '{"database" : "mydb", "retentionPolicy" : "myrp", "points": [{"name":"cpu","tags":{"region":"useast","host":"server_1","service":"redis"},"fields":{"value":61}}]}' -H "Content-Type: application/json" http://localhost:8086/write
 
@@ -176,6 +176,25 @@ go test -coverprofile /tmp/cover . && go tool cover -html /tmp/cover
 To install go cover, run the following command:
 ```
 go get golang.org/x/tools/cmd/cover
+```
+
+To update the generated protocol buffer code, you'll need to install the protocol buffers toolchain.
+
+First install the [protocol buffer compiler](https://developers.google.com/protocol-buffers/
+) 2.6.1 or later for your OS:
+
+Then install the go plugins:
+
+```bash
+go get github.com/gogo/protobuf/proto
+go get github.com/gogo/protobuf/protoc-gen-gogo
+go get github.com/gogo/protobuf/gogoproto
+```
+
+Finally run, `go generate` after updating any `*.proto` file:
+
+```bash
+go generate ./...
 ```
 
 Continuous Integration testing

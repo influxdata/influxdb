@@ -33,6 +33,20 @@ func NewParser(r io.Reader) *Parser {
 // ParseQuery parses a query string and returns its AST representation.
 func ParseQuery(s string) (*Query, error) { return NewParser(strings.NewReader(s)).ParseQuery() }
 
+// ParseStatement parses a statement string and returns its AST representation.
+func ParseStatement(s string) (Statement, error) {
+	return NewParser(strings.NewReader(s)).ParseStatement()
+}
+
+// MustParseStatement parses a statement string and returns its AST. Panic on error.
+func MustParseStatement(s string) Statement {
+	stmt, err := ParseStatement(s)
+	if err != nil {
+		panic(err.Error())
+	}
+	return stmt
+}
+
 // ParseExpr parses an expression string and returns its AST representation.
 func ParseExpr(s string) (Expr, error) { return NewParser(strings.NewReader(s)).ParseExpr() }
 
