@@ -346,6 +346,8 @@ func (cmd *RunCommand) Open(config *Config, join string) *Node {
 			c := cmd.config.Collectd
 			cs := collectd.NewServer(s, c.TypesDB)
 			cs.Database = c.Database
+			cs.BatchSize = cmd.config.Collectd.BatchSize
+			cs.BatchTimeout = time.Duration(cmd.config.Collectd.BatchTimeout)
 			err := collectd.ListenAndServe(cs, c.ConnectionString(cmd.config.BindAddress))
 			if err != nil {
 				log.Printf("failed to start collectd Server: %v\n", err.Error())
@@ -373,6 +375,10 @@ func (cmd *RunCommand) Open(config *Config, join string) *Node {
 			if err != nil {
 				log.Fatalf("failed to initialize %s Graphite server: %s", graphiteConfig.Protocol, err.Error())
 			}
+
+			// Configure batching.
+			g.SetBatchSize(graphiteConfig.BatchSize)
+			g.SetBatchTimeout(time.Duration(graphiteConfig.BatchTimeout))
 
 			err = g.ListenAndServe(graphiteConfig.ConnectionString())
 			if err != nil {

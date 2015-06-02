@@ -32,6 +32,10 @@ type Server struct {
 	Database    string
 	typesdb     gollectd.Types
 	typesdbpath string
+
+	BatchSize    int
+	BatchTimeout time.Duration
+	batcher      *tsdb.PointBatcher
 }
 
 // NewServer constructs a new Server.
@@ -73,8 +77,12 @@ func ListenAndServe(s *Server, iface string) error {
 	}
 	s.conn = conn
 
-	s.wg.Add(1)
+	s.batcher = tsdb.NewPointBatcher(s.BatchSize, s.BatchTimeout)
+	s.batcher.Start()
+
+	s.wg.Add(2)
 	go s.serve()
+	go s.writePoints()
 
 	return nil
 }
@@ -122,7 +130,20 @@ func (s *Server) handleMessage(buffer []byte) {
 	for _, packet := range *packets {
 		points := Unmarshal(&packet)
 		for _, p := range points {
-			_, err := s.writer.WriteSeries(s.Database, "", []tsdb.Point{p})
+			s.batcher.In() <- p
+		}
+	}
+}
+
+func (s *Server) writePoints() {
+	defer s.wg.Done()
+
+	for {
+		select {
+		case <-s.done:
+			return
+		case batch := <-s.batcher.Out():
+			_, err := s.writer.WriteSeries(s.Database, "", batch)
 			if err != nil {
 				log.Printf("Collectd cannot write data: %s", err)
 				continue
@@ -139,6 +160,7 @@ func (s *Server) Close() error {
 
 	// Close the connection, and wait for the goroutine to exit.
 	s.conn.Close()
+	s.batcher.Flush()
 	close(s.done)
 	s.wg.Wait()
 

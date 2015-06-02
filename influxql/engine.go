@@ -225,7 +225,7 @@ func (m *MapReduceJob) processRawQuery(out chan *Row, filterEmptyResults bool) {
 	// markers for which mappers have been completely emptied
 	mapperComplete := make([]bool, len(m.Mappers))
 
-	// for limit and offset we need to track how many values we've swalloed for the offset and how many we've already set for the limit.
+	// for limit and offset we need to track how many values we've swallowed for the offset and how many we've already set for the limit.
 	// we track the number set for the limit because they could be getting chunks. For instance if your limit is 10k, but chunk size is 1k
 	valuesSent := 0
 	valuesOffset := 0
@@ -697,12 +697,12 @@ func (m *MapReduceJob) processRawResults(values []*rawQueryMapOutput) *Row {
 	hasTime := false
 	for i, n := range selectNames {
 		if n == "time" {
+			// Swap time to the first argument for names
 			if i != 0 {
-				tmp := selectNames[0]
-				selectNames[0] = "time"
-				selectNames[i] = tmp
+				selectNames[0], selectNames[i] = selectNames[i], selectNames[0]
 			}
 			hasTime = true
+			break
 		}
 	}
 
@@ -711,13 +711,19 @@ func (m *MapReduceJob) processRawResults(values []*rawQueryMapOutput) *Row {
 		selectNames = append([]string{"time"}, selectNames...)
 	}
 
-	// if they've selected only a single value we have to handle things a little differently
-	singleValue := len(selectNames) == SelectColumnCountWithOneValue
+	// since selectNames can contain tags, we need to strip them out
+	selectFields := make([]string, 0, len(selectNames))
+
+	for _, n := range selectNames {
+		if _, found := m.TagSet.Tags[n]; !found {
+			selectFields = append(selectFields, n)
+		}
+	}
 
 	row := &Row{
 		Name:    m.MeasurementName,
 		Tags:    m.TagSet.Tags,
-		Columns: selectNames,
+		Columns: selectFields,
 	}
 
 	// return an empty row if there are no results
@@ -725,9 +731,12 @@ func (m *MapReduceJob) processRawResults(values []*rawQueryMapOutput) *Row {
 		return row
 	}
 
+	// if they've selected only a single value we have to handle things a little differently
+	singleValue := len(selectFields) == SelectColumnCountWithOneValue
+
 	// the results will have all of the raw mapper results, convert into the row
 	for _, v := range values {
-		vals := make([]interface{}, len(selectNames))
+		vals := make([]interface{}, len(selectFields))
 
 		if singleValue {
 			vals[0] = time.Unix(0, v.Time).UTC()
@@ -739,8 +748,8 @@ func (m *MapReduceJob) processRawResults(values []*rawQueryMapOutput) *Row {
 			vals[0] = time.Unix(0, v.Time).UTC()
 
 			// populate the other values
-			for i := 1; i < len(selectNames); i++ {
-				vals[i] = fields[selectNames[i]]
+			for i := 1; i < len(selectFields); i++ {
+				vals[i] = fields[selectFields[i]]
 			}
 		}
 

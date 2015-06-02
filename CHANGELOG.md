@@ -1,10 +1,26 @@
-## v0.9.0-rc31 [unreleased]
+## v0.9.0-rc32 [unreleased]
+
+### Features
+- [1997](https://github.com/influxdb/influxdb/pull/1997): Update SELECT * to return tag values.
+- [2599](https://github.com/influxdb/influxdb/issues/2599): Add "epoch" URL param and return JSON time values as epoch instead of date strings.
+- [2682](https://github.com/influxdb/influxdb/issues/2682): Adding pr checklist to CONTRIBUTING.md
+- [2683](https://github.com/influxdb/influxdb/issues/2683): Add batching support to Graphite inputs.
+- [2687](https://github.com/influxdb/influxdb/issues/2687): Add batching support to Collectd inputs.
+
+### Bugfixes
+- [2635](https://github.com/influxdb/influxdb/issues/2635): Fix querying against boolean field in WHERE clause.
+- [2644](https://github.com/influxdb/influxdb/issues/2644): Make SHOW queries work with FROM /<regex>/.
+- [2501](https://github.com/influxdb/influxdb/issues/2501): Name the FlagSet for the shell and add a version flag. Thanks @neonstalwart
+- [2647](https://github.com/influxdb/influxdb/issues/2647): Fixes typos in sample config file - thanks @claws!
+
+## v0.9.0-rc31 [2015-05-21]
 
 ### Features
 - [#1822](https://github.com/influxdb/influxdb/issues/1822): Wire up DERIVATIVE aggregate
 - [#1477](https://github.com/influxdb/influxdb/issues/1477): Wire up non_negative_derivative function
 - [#2557](https://github.com/influxdb/influxdb/issues/2557): Fix false positive error with `GROUP BY time`
 - [#1891](https://github.com/influxdb/influxdb/issues/1891): Wire up COUNT DISTINCT aggregate
+- [#1989](https://github.com/influxdb/influxdb/issues/1989): Implement `SELECT tagName FROM m`
 
 ### Bugfixes
 - [#2545](https://github.com/influxdb/influxdb/pull/2545): Use "value" as the field name for graphite input. Thanks @cannium.
@@ -13,9 +29,16 @@
 - [#2602](https://github.com/influxdb/influxdb/pull/2602): CLI execute command exits without cleaning up liner package.
 - [#2610](https://github.com/influxdb/influxdb/pull/2610): Fix shard group creation
 - [#2596](https://github.com/influxdb/influxdb/pull/2596): RC30: `panic: runtime error: index out of range` when insert data points.
+- [#2592](https://github.com/influxdb/influxdb/pull/2592): Should return an error if user attempts to group by a field.
+- [#2499](https://github.com/influxdb/influxdb/pull/2499): Issuing a select query with tag as a values causes panic.
+- [#2612](https://github.com/influxdb/influxdb/pull/2612): Query planner should validate distinct is passed a field.
+- [#2531](https://github.com/influxdb/influxdb/issues/2531): Fix select with 3 or more terms in where clause.
+- [#2564](https://github.com/influxdb/influxdb/issues/2564): Change "name" to "measurement" in JSON for writes.
 
 ## PRs
 - [#2569](https://github.com/influxdb/influxdb/pull/2569): Add derivative functions
+- [#2598](https://github.com/influxdb/influxdb/pull/2598): Implement tag support in SELECT statements
+- [#2624](https://github.com/influxdb/influxdb/pull/2624): Remove references to SeriesID in `DROP SERIES` handlers.
 
 ## v0.9.0-rc30 [2015-05-12]
 

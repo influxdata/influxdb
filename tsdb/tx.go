@@ -82,6 +82,7 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 				return nil, fmt.Errorf("unknown field or tag name in select clause: %s", n)
 			}
 			selectTags = append(selectTags, n)
+			tagKeys = append(tagKeys, n)
 		}
 		for _, n := range stmt.NamesInWhere() {
 			if n == "time" {
@@ -96,6 +97,65 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 				return nil, fmt.Errorf("unknown field or tag name in where clause: %s", n)
 			}
 		}
+
+		if len(selectFields) == 0 && len(stmt.FunctionCalls()) == 0 {
+			return nil, fmt.Errorf("select statement must include at least one field or function call")
+		}
+
+		// Validate that group by is not a field
+		for _, d := range stmt.Dimensions {
+			switch e := d.Expr.(type) {
+			case *influxql.VarRef:
+				if !m.HasTagKey(e.Val) {
+					return nil, fmt.Errorf("can not use field in group by clause: %s", e.Val)
+				}
+			}
+		}
+
+		/*
+
+			FIXME(pauldix)
+
+			validateType := func(aname, fname string, t influxql.DataType) error {
+				if t != influxql.Float && t != influxql.Integer {
+					return fmt.Errorf("aggregate '%s' requires numerical field values. Field '%s' is of type %s",
+						aname, fname, t)
+				}
+				return nil
+			}
+
+			// If a numerical aggregate is requested, ensure it is only performed on numeric data or on a
+			// nested aggregate on numeric data.
+			for _, a := range stmt.FunctionCalls() {
+				// Check for fields like `derivative(mean(value), 1d)`
+				var nested *influxql.Call = a
+				if fn, ok := nested.Args[0].(*influxql.Call); ok {
+					nested = fn
+				}
+
+				switch lit := nested.Args[0].(type) {
+				case *influxql.VarRef:
+					if influxql.IsNumeric(nested) {
+						f := m.FieldByName(lit.Val)
+						if err := validateType(a.Name, f.Name, f.Type); err != nil {
+							return nil, err
+						}
+					}
+				case *influxql.Distinct:
+					if nested.Name != "count" {
+						return nil, fmt.Errorf("aggregate call didn't contain a field %s", a.String())
+					}
+					if influxql.IsNumeric(nested) {
+						f := m.FieldByName(lit.Val)
+						if err := validateType(a.Name, f.Name, f.Type); err != nil {
+							return nil, err
+						}
+					}
+				default:
+					return nil, fmt.Errorf("aggregate call didn't contain a field %s", a.String())
+				}
+			}
+		*/
 
 		// Grab time range from statement.
 		tmin, tmax := influxql.TimeRange(stmt.Condition)
@@ -132,7 +192,6 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 			return nil, err
 		}
 
-		//jobs := make([]*influxql.MapReduceJob, 0, len(tagSets))
 		for _, t := range tagSets {
 			// make a job for each tagset
 			job := &influxql.MapReduceJob{
@@ -261,6 +320,8 @@ func (l *LocalMapper) Begin(c *influxql.Call, startingTime int64, chunkSize int)
 	l.chunkSize = chunkSize
 	l.tmin = startingTime
 
+	var isCountDistinct bool
+
 	// determine if this is a raw data query with a single field, multiple fields, or an aggregate
 	var fieldName string
 	if c == nil { // its a raw data query
@@ -287,19 +348,29 @@ func (l *LocalMapper) Begin(c *influxql.Call, startingTime int64, chunkSize int)
 			if c.Name != "count" {
 				return fmt.Errorf("aggregate call didn't contain a field %s", c.String())
 			}
+			isCountDistinct = true
 			fieldName = lit.Val
 		default:
 			return fmt.Errorf("aggregate call didn't contain a field %s", c.String())
 		}
+
+		isCountDistinct = isCountDistinct || (c.Name == "count" && nested.Name == "distinct")
 	}
 
 	// set up the field info if a specific field was set for this mapper
 	if fieldName != "" {
-		fid, err := l.decoder.FieldIDByName(fieldName)
-		if err != nil {
-			return fmt.Errorf("%s isn't a field on measurement %s", fieldName, l.job.MeasurementName)
+		f := l.decoder.fieldByName(fieldName)
+		if f == nil {
+			switch {
+			case c.Name == "distinct":
+				return fmt.Errorf("%s isn't a field on measurement %s; to query the unique values for a tag use SHOW TAG VALUES FROM %s WITH KEY = %q", fieldName, l.job.MeasurementName, l.job.MeasurementName, fieldName)
+			case isCountDistinct:
+				return fmt.Errorf("%s isn't a field on measurement %s; count(distinct) on tags isn't yet supported", fieldName, l.job.MeasurementName)
+			default:
+				return fmt.Errorf("%s isn't a field on measurement %s", fieldName, l.job.MeasurementName)
+			}
 		}
-		l.fieldID = fid
+		l.fieldID = f.ID
 		l.fieldName = fieldName
 	}
 

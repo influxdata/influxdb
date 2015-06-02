@@ -384,27 +384,27 @@ func TestPoint_MarshalOmitempty(t *testing.T) {
 	}{
 		{
 			name:     "all empty",
-			point:    client.Point{Name: "cpu", Fields: map[string]interface{}{"value": 1.1}},
+			point:    client.Point{Measurement: "cpu", Fields: map[string]interface{}{"value": 1.1}},
 			now:      now,
-			expected: `{"name":"cpu","fields":{"value":1.1}}`,
+			expected: `{"measurement":"cpu","fields":{"value":1.1}}`,
 		},
 		{
 			name:     "with time",
-			point:    client.Point{Name: "cpu", Fields: map[string]interface{}{"value": 1.1}, Time: now},
+			point:    client.Point{Measurement: "cpu", Fields: map[string]interface{}{"value": 1.1}, Time: now},
 			now:      now,
-			expected: fmt.Sprintf(`{"name":"cpu","time":"%s","fields":{"value":1.1}}`, now.Format(time.RFC3339Nano)),
+			expected: fmt.Sprintf(`{"measurement":"cpu","time":"%s","fields":{"value":1.1}}`, now.Format(time.RFC3339Nano)),
 		},
 		{
 			name:     "with tags",
-			point:    client.Point{Name: "cpu", Fields: map[string]interface{}{"value": 1.1}, Tags: map[string]string{"foo": "bar"}},
+			point:    client.Point{Measurement: "cpu", Fields: map[string]interface{}{"value": 1.1}, Tags: map[string]string{"foo": "bar"}},
 			now:      now,
-			expected: `{"name":"cpu","tags":{"foo":"bar"},"fields":{"value":1.1}}`,
+			expected: `{"measurement":"cpu","tags":{"foo":"bar"},"fields":{"value":1.1}}`,
 		},
 		{
 			name:     "with precision",
-			point:    client.Point{Name: "cpu", Fields: map[string]interface{}{"value": 1.1}, Precision: "ms"},
+			point:    client.Point{Measurement: "cpu", Fields: map[string]interface{}{"value": 1.1}, Precision: "ms"},
 			now:      now,
-			expected: `{"name":"cpu","fields":{"value":1.1},"precision":"ms"}`,
+			expected: `{"measurement":"cpu","fields":{"value":1.1},"precision":"ms"}`,
 		},
 	}
 

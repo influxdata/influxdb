@@ -148,7 +148,7 @@ func TestServer_Write_LineProtocol(t *testing.T) {
 	// Verify the data was written.
 	if res, err := s.Query(`SELECT * FROM db0.rp0.cpu`); err != nil {
 		t.Fatal(err)
-	} else if res != fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",1]]}]}]}`, now.Format(time.RFC3339Nano)) {
+	} else if res != fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","value"],"values":[["%s",1]]}]}]}`, now.Format(time.RFC3339Nano)) {
 		t.Fatalf("unexpected results: %s", res)
 	}
 }
@@ -167,7 +167,7 @@ func TestServer_Write_JSON(t *testing.T) {
 	}
 
 	now := time.Now().UTC()
-	if res, err := s.Write("", "", fmt.Sprintf(`{"database" : "db0", "retentionPolicy" : "rp0", "points": [{"name": "cpu", "tags": {"host": "server02"},"fields": {"value": 1.0}}],"time":"%s"} `, now.Format(time.RFC3339Nano))); err != nil {
+	if res, err := s.Write("", "", fmt.Sprintf(`{"database" : "db0", "retentionPolicy" : "rp0", "points": [{"measurement": "cpu", "tags": {"host": "server02"},"fields": {"value": 1.0}}],"time":"%s"} `, now.Format(time.RFC3339Nano))); err != nil {
 		t.Fatal(err)
 	} else if res != `` {
 		t.Fatalf("unexpected results: %s", res)
@@ -176,7 +176,7 @@ func TestServer_Write_JSON(t *testing.T) {
 	// Verify the data was written.
 	if res, err := s.Query(`SELECT * FROM db0.rp0.cpu`); err != nil {
 		t.Fatal(err)
-	} else if res != fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",1]]}]}]}`, now.Format(time.RFC3339Nano)) {
+	} else if res != fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","tags":{"host":"server02"},"columns":["time","value"],"values":[["%s",1]]}]}]}`, now.Format(time.RFC3339Nano)) {
 		t.Fatalf("unexpected results: %s", res)
 	}
 }

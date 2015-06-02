@@ -179,7 +179,7 @@ func (s *Server) HandleTelnet(conn net.Conn) {
 			continue
 		}
 
-		name := inputStrs[1]
+		measurement := inputStrs[1]
 		tsStr := inputStrs[2]
 		valueStr := inputStrs[3]
 		tagStrs := inputStrs[4:]
@@ -221,7 +221,7 @@ func (s *Server) HandleTelnet(conn net.Conn) {
 			continue
 		}
 
-		p := tsdb.NewPoint(name, tags, fields, t)
+		p := tsdb.NewPoint(measurement, tags, fields, t)
 
 		_, err = s.writer.WriteSeries(s.database, "", []tsdb.Point{p})
 		if err != nil {
@@ -326,7 +326,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		p := tsdb.NewPoint(dp.Metric, dp.Tags, fields, ts)
-
 		idps = append(idps, p)
 	}
 	_, err = s.writer.WriteSeries(s.database, "", idps)

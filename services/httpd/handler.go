@@ -335,7 +335,6 @@ func (h *Handler) serveWriteJSON(w http.ResponseWriter, r *http.Request, body []
 	}
 
 	// Convert the json batch struct to a points writer struct
-
 	if err := h.PointsWriter.WritePoints(&cluster.WritePointsRequest{
 		Database:         bp.Database,
 		RetentionPolicy:  bp.RetentionPolicy,
@@ -867,7 +866,7 @@ func NormalizeBatchPoints(bp client.BatchPoints) ([]tsdb.Point, error) {
 			}
 		}
 		// Need to convert from a client.Point to a influxdb.Point
-		points = append(points, tsdb.NewPoint(p.Name, p.Tags, p.Fields, p.Time))
+		points = append(points, tsdb.NewPoint(p.Measurement, p.Tags, p.Fields, p.Time))
 	}
 
 	return points, nil
