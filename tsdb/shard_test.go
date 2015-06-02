@@ -100,11 +100,8 @@ func BenchmarkWritePoints_ExistingSeries_1M(b *testing.B) {
 func benchmarkWritePoints(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt int) {
 	// Generate test series (measurements + unique tag sets).
 	series := genTestSeries(mCnt, tkCnt, tvCnt)
-	// Load the in-memory series index.
+	// Create index for the shard to use.
 	index := NewDatabaseIndex()
-	for _, s := range series {
-		index.createSeriesIndexIfNotExists(s.Measurement, s.Series)
-	}
 	// Generate point data to write to the shard.
 	points := []Point{}
 	for _, s := range series {
@@ -138,11 +135,8 @@ func benchmarkWritePoints(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt int) {
 func benchmarkWritePointsExistingSeries(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt int) {
 	// Generate test series (measurements + unique tag sets).
 	series := genTestSeries(mCnt, tkCnt, tvCnt)
-	// Load the in-memory series index.
+	// Create index for the shard to use.
 	index := NewDatabaseIndex()
-	for _, s := range series {
-		index.createSeriesIndexIfNotExists(s.Measurement, s.Series)
-	}
 	// Generate point data to write to the shard.
 	points := []Point{}
 	for _, s := range series {
