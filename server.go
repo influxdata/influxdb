@@ -1827,6 +1827,10 @@ func (s *Server) WriteSeries(database, retentionPolicy string, points []Point) (
 			return ErrDatabaseNotFound(database)
 		}
 		for _, p := range points {
+			if p.Measurement == "" {
+				return ErrMeasurementNameRequired
+			}
+
 			measurement, series := db.MeasurementAndSeries(p.Measurement, p.Tags)
 			if series == nil {
 				s.Logger.Printf("series not found: name=%s, tags=%#v", p.Measurement, p.Tags)
@@ -1920,6 +1924,10 @@ func (s *Server) createMeasurementsIfNotExists(database, retentionPolicy string,
 		}
 
 		for _, p := range points {
+			if p.Measurement == "" {
+				return ErrMeasurementNameRequired
+			}
+
 			measurement, series := db.MeasurementAndSeries(p.Measurement, p.Tags)
 
 			if series == nil {
