@@ -20,6 +20,13 @@ const (
 	DateTimeFormat = "2006-01-02 15:04:05.999999"
 )
 
+type requirement int
+
+const (
+	Optional requirement = iota
+	Required
+)
+
 // Parser represents an InfluxQL parser.
 type Parser struct {
 	s *bufScanner
@@ -1448,7 +1455,7 @@ func (p *Parser) parseSource() (Source, error) {
 	m := &Measurement{}
 
 	// Attempt to parse a regex.
-	re, err := p.parseRegex()
+	re, err := p.parseRegex(Optional)
 	if err != nil {
 		return nil, err
 	} else if re != nil {
@@ -1469,7 +1476,7 @@ func (p *Parser) parseSource() (Source, error) {
 		return m, nil
 	}
 	// Check again for regex.
-	re, err = p.parseRegex()
+	re, err = p.parseRegex(Optional)
 	if err != nil {
 		return nil, err
 	} else if re != nil {
@@ -1743,7 +1750,7 @@ func (p *Parser) ParseExpr() (Expr, error) {
 		if IsRegexOp(op) {
 			// RHS of a regex operator must be a regular expression.
 			p.consumeWhitespace()
-			if rhs, err = p.parseRegex(); err != nil {
+			if rhs, err = p.parseRegex(Required); err != nil {
 				return nil, err
 			}
 		} else {
@@ -1862,7 +1869,7 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 }
 
 // parseRegex parses a regular expression.
-func (p *Parser) parseRegex() (*RegexLiteral, error) {
+func (p *Parser) parseRegex(r requirement) (*RegexLiteral, error) {
 	nextRune := p.peekRune()
 	if isWhitespace(nextRune) {
 		p.consumeWhitespace()
@@ -1871,7 +1878,11 @@ func (p *Parser) parseRegex() (*RegexLiteral, error) {
 	// If the next character is not a '/', then return nils.
 	nextRune = p.peekRune()
 	if nextRune != '/' {
-		return nil, nil
+		if r == Optional {
+			return nil, nil
+		}
+		tok, pos, lit := p.scanIgnoreWhitespace()
+		return nil, newParseError(tokstr(tok, lit), []string{"regex"}, pos)
 	}
 
 	tok, pos, lit := p.s.ScanRegex()
