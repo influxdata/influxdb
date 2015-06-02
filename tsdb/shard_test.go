@@ -3,18 +3,19 @@ package tsdb
 import (
 	"io/ioutil"
 	"os"
+	"path"
 	"reflect"
 	"testing"
 	"time"
 )
 
 func TestShardWriteAndIndex(t *testing.T) {
-	path, _ := ioutil.TempDir("", "")
-	defer os.RemoveAll(path)
-	path += "/shard"
+	tmpDir, _ := ioutil.TempDir("", "")
+	defer os.RemoveAll(tmpDir)
+	tmpShard := path.Join(tmpDir, "shard")
 
 	index := NewDatabaseIndex()
-	sh := NewShard(index, path)
+	sh := NewShard(index, tmpShard)
 	if err := sh.Open(); err != nil {
 		t.Fatalf("error openeing shard: %s", err.Error())
 	}
@@ -59,7 +60,7 @@ func TestShardWriteAndIndex(t *testing.T) {
 	sh.Close()
 
 	index = NewDatabaseIndex()
-	sh = NewShard(index, path)
+	sh = NewShard(index, tmpShard)
 	if err := sh.Open(); err != nil {
 		t.Fatalf("error openeing shard: %s", err.Error())
 	}
@@ -71,5 +72,126 @@ func TestShardWriteAndIndex(t *testing.T) {
 	err = sh.WritePoints([]Point{pt})
 	if err != nil {
 		t.Fatalf(err.Error())
+	}
+}
+
+func BenchmarkWritePoints_NewSeries_1K(b *testing.B)   { benchmarkWritePoints(b, 38, 3, 3, 1) }
+func BenchmarkWritePoints_NewSeries_100K(b *testing.B) { benchmarkWritePoints(b, 32, 5, 5, 1) }
+func BenchmarkWritePoints_NewSeries_250K(b *testing.B) { benchmarkWritePoints(b, 80, 5, 5, 1) }
+func BenchmarkWritePoints_NewSeries_500K(b *testing.B) { benchmarkWritePoints(b, 160, 5, 5, 1) }
+func BenchmarkWritePoints_NewSeries_1M(b *testing.B)   { benchmarkWritePoints(b, 320, 5, 5, 1) }
+
+func BenchmarkWritePoints_ExistingSeries_1K(b *testing.B) {
+	benchmarkWritePointsExistingSeries(b, 38, 3, 3, 1)
+}
+func BenchmarkWritePoints_ExistingSeries_100K(b *testing.B) {
+	benchmarkWritePointsExistingSeries(b, 32, 5, 5, 1)
+}
+func BenchmarkWritePoints_ExistingSeries_250K(b *testing.B) {
+	benchmarkWritePointsExistingSeries(b, 80, 5, 5, 1)
+}
+func BenchmarkWritePoints_ExistingSeries_500K(b *testing.B) {
+	benchmarkWritePointsExistingSeries(b, 160, 5, 5, 1)
+}
+func BenchmarkWritePoints_ExistingSeries_1M(b *testing.B) {
+	benchmarkWritePointsExistingSeries(b, 320, 5, 5, 1)
+}
+
+func benchmarkWritePoints(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt int) {
+	// Generate test series (measurements + unique tag sets).
+	series := genTestSeries(mCnt, tkCnt, tvCnt)
+	// Load the in-memory series index.
+	index := NewDatabaseIndex()
+	for _, s := range series {
+		index.createSeriesIndexIfNotExists(s.Measurement, s.Series)
+	}
+	// Generate point data to write to the shard.
+	points := []Point{}
+	for _, s := range series {
+		for val := 0.0; val < float64(pntCnt); val++ {
+			p := NewPoint(s.Measurement, s.Series.Tags, map[string]interface{}{"value": val}, time.Now())
+			points = append(points, p)
+		}
+	}
+
+	// Stop & reset timers and mem-stats before the main benchmark loop.
+	b.StopTimer()
+	b.ResetTimer()
+
+	// Run the benchmark loop.
+	for n := 0; n < b.N; n++ {
+		tmpDir, _ := ioutil.TempDir("", "")
+		tmpShard := path.Join(tmpDir, "shard")
+		shard := NewShard(index, tmpShard)
+		shard.Open()
+
+		b.StartTimer()
+		// Call the function being benchmarked.
+		chunkedWrite(shard, points)
+
+		b.StopTimer()
+		shard.Close()
+		os.RemoveAll(tmpDir)
+	}
+}
+
+func benchmarkWritePointsExistingSeries(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt int) {
+	// Generate test series (measurements + unique tag sets).
+	series := genTestSeries(mCnt, tkCnt, tvCnt)
+	// Load the in-memory series index.
+	index := NewDatabaseIndex()
+	for _, s := range series {
+		index.createSeriesIndexIfNotExists(s.Measurement, s.Series)
+	}
+	// Generate point data to write to the shard.
+	points := []Point{}
+	for _, s := range series {
+		for val := 0.0; val < float64(pntCnt); val++ {
+			p := NewPoint(s.Measurement, s.Series.Tags, map[string]interface{}{"value": val}, time.Now())
+			points = append(points, p)
+		}
+	}
+
+	tmpDir, _ := ioutil.TempDir("", "")
+	defer os.RemoveAll(tmpDir)
+	tmpShard := path.Join(tmpDir, "shard")
+	shard := NewShard(index, tmpShard)
+	shard.Open()
+	defer shard.Close()
+	chunkedWrite(shard, points)
+
+	// Reset timers and mem-stats before the main benchmark loop.
+	b.ResetTimer()
+
+	// Run the benchmark loop.
+	for n := 0; n < b.N; n++ {
+		b.StopTimer()
+		for _, p := range points {
+			p.SetTime(p.Time().Add(time.Second))
+		}
+
+		b.StartTimer()
+		// Call the function being benchmarked.
+		chunkedWrite(shard, points)
+	}
+}
+
+func chunkedWrite(shard *Shard, points []Point) {
+	nPts := len(points)
+	chunkSz := 10000
+	start := 0
+	end := chunkSz
+
+	for {
+		if end > nPts {
+			end = nPts
+		}
+		if end-start == 0 {
+			break
+		}
+
+		shard.WritePoints(points[start:end])
+		start = end
+		end += chunkSz
 	}
 }
