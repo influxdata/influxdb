@@ -82,6 +82,7 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 				return nil, fmt.Errorf("unknown field or tag name in select clause: %s", n)
 			}
 			selectTags = append(selectTags, n)
+			tagKeys = append(tagKeys, n)
 		}
 		for _, n := range stmt.NamesInWhere() {
 			if n == "time" {
