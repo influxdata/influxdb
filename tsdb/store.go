@@ -88,11 +88,25 @@ func (s *Store) DatabaseIndex(name string) *DatabaseIndex {
 }
 
 func (s *Store) Measurement(database, name string) *Measurement {
+	s.mu.RLock()
 	db := s.databaseIndexes[database]
+	s.mu.RUnlock()
 	if db == nil {
 		return nil
 	}
 	return db.measurements[name]
+}
+
+// deleteSeries lopos through the local shards and deletes the series data and metadata for the passed in series keys
+func (s *Store) deleteSeries(keys []string) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, sh := range s.shards {
+		if err := sh.deleteSeries(keys); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Store) loadIndexes() error {

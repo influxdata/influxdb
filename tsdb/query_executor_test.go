@@ -36,7 +36,7 @@ func TestWritePointsAndExecuteQuery(t *testing.T) {
 	}
 
 	got := executeAndGetJSON("select * from cpu", executor)
-	exepected := `[{"series":[{"name":"cpu","columns":["time","value"],"values":[["1970-01-01T00:00:01.000000002Z",1],["1970-01-01T00:00:02.000000003Z",1]]}]}]`
+	exepected := `[{"series":[{"name":"cpu","tags":{"host":"server"},"columns":["time","value"],"values":[["1970-01-01T00:00:01.000000002Z",1],["1970-01-01T00:00:02.000000003Z",1]]}]}]`
 	if exepected != got {
 		t.Fatalf("exp: %s\ngot: %s", exepected, got)
 	}
@@ -72,7 +72,22 @@ func TestDropSeriesStatement(t *testing.T) {
 	}
 
 	got := executeAndGetJSON("select * from cpu", executor)
-	exepected := `[{"series":[{"name":"cpu","columns":["time","value"],"values":[["1970-01-01T00:00:01.000000002Z",1]]}]}]`
+	exepected := `[{"series":[{"name":"cpu","tags":{"host":"server"},"columns":["time","value"],"values":[["1970-01-01T00:00:01.000000002Z",1]]}]}]`
+	if exepected != got {
+		t.Fatalf("exp: %s\ngot: %s", exepected, got)
+	}
+
+	got = executeAndGetJSON("drop series from cpu", executor)
+	warn("*** ", got)
+
+	got = executeAndGetJSON("select * from cpu", executor)
+	exepected = `[{}]`
+	if exepected != got {
+		t.Fatalf("exp: %s\ngot: %s", exepected, got)
+	}
+
+	got = executeAndGetJSON("show tag keys from cpu", executor)
+	exepected = `[{"series":[{"name":"cpu","columns":["tagKey"]}]}]`
 	if exepected != got {
 		t.Fatalf("exp: %s\ngot: %s", exepected, got)
 	}
@@ -80,6 +95,19 @@ func TestDropSeriesStatement(t *testing.T) {
 	store.Close()
 	store = NewStore(store.path)
 	store.Open()
+	executor.store = store
+
+	got = executeAndGetJSON("select * from cpu", executor)
+	exepected = `[{}]`
+	if exepected != got {
+		t.Fatalf("exp: %s\ngot: %s", exepected, got)
+	}
+
+	got = executeAndGetJSON("show tag keys from cpu", executor)
+	exepected = `[{"series":[{"name":"cpu","columns":["tagKey"]}]}]`
+	if exepected != got {
+		t.Fatalf("exp: %s\ngot: %s", exepected, got)
+	}
 }
 
 // ensure that authenticate doesn't return an error if the user count is zero and they're attempting

@@ -232,6 +232,27 @@ func (s *Shard) ValidateAggregateFieldsInStatement(measurementName string, stmt 
 	return nil
 }
 
+// deleteSeries deletes the buckets and the metadata for the given series keys
+func (s *Shard) deleteSeries(keys []string) error {
+	if err := s.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte("series"))
+		for _, k := range keys {
+			if err := b.Delete([]byte(k)); err != nil {
+				return err
+			}
+			if err := tx.DeleteBucket([]byte(k)); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		_ = s.Close()
+		return err
+	}
+
+	return nil
+}
+
 func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*fieldCreate) (map[string]*measurementFields, error) {
 	if len(fieldsToCreate) == 0 {
 		return nil, nil

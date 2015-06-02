@@ -160,6 +160,7 @@ func (q *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chu
 					break
 				}
 			case *influxql.DropSeriesStatement:
+				// TODO: handle this in a cluster
 				res = q.executeDropSeriesStatement(stmt, database)
 			case *influxql.ShowSeriesStatement:
 				res = q.executeShowSeriesStatement(stmt, database)
@@ -393,8 +394,54 @@ func (q *QueryExecutor) executeDropMeasurementStatement(stmt *influxql.DropMeasu
 	panic("not yet implemented")
 }
 
+// executeDropSeriesStatement removes all series from the local store that match the drop query
 func (q *QueryExecutor) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, database string) *influxql.Result {
-	panic("not yet implemented")
+	// Find the database.
+	db := q.store.DatabaseIndex(database)
+	if db == nil {
+		return &influxql.Result{Err: ErrDatabaseNotFound(database)}
+	}
+
+	// Expand regex expressions in the FROM clause.
+	sources, err := q.expandSources(stmt.Sources)
+	if err != nil {
+		return &influxql.Result{Err: err}
+	}
+
+	measurements, err := measurementsFromSourcesOrDB(db, sources...)
+	if err != nil {
+		return &influxql.Result{Err: err}
+	}
+
+	var seriesKeys []string
+	for _, m := range measurements {
+		var ids seriesIDs
+		if stmt.Condition != nil {
+			// Get series IDs that match the WHERE clause.
+			ids, _, err = m.walkWhereForSeriesIds(stmt.Condition)
+			if err != nil {
+				return &influxql.Result{Err: err}
+			}
+
+			// TODO: check return of walkWhereForSeriesIds for fields
+		} else {
+			// No WHERE clause so get all series IDs for this measurement.
+			ids = m.seriesIDs
+		}
+
+		for _, id := range ids {
+			seriesKeys = append(seriesKeys, m.seriesByID[id].Key)
+		}
+	}
+
+	// delete the raw series data
+	if err := q.store.deleteSeries(seriesKeys); err != nil {
+		return &influxql.Result{Err: err}
+	}
+	// remove them from the index
+	db.deleteSeries(seriesKeys)
+
+	return &influxql.Result{}
 }
 
 func (q *QueryExecutor) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, database string) *influxql.Result {
@@ -404,8 +451,14 @@ func (q *QueryExecutor) executeShowSeriesStatement(stmt *influxql.ShowSeriesStat
 		return &influxql.Result{Err: ErrDatabaseNotFound(database)}
 	}
 
+	// Expand regex expressions in the FROM clause.
+	sources, err := q.expandSources(stmt.Sources)
+	if err != nil {
+		return &influxql.Result{Err: err}
+	}
+
 	// Get the list of measurements we're interested in.
-	measurements, err := measurementsFromSourceOrDB(stmt.Source, db)
+	measurements, err := measurementsFromSourcesOrDB(db, sources...)
 	if err != nil {
 		return &influxql.Result{Err: err}
 	}
@@ -421,8 +474,7 @@ func (q *QueryExecutor) executeShowSeriesStatement(stmt *influxql.ShowSeriesStat
 
 		if stmt.Condition != nil {
 			// Get series IDs that match the WHERE clause.
-			filters := map[uint64]influxql.Expr{}
-			ids, _, _, err = m.walkWhereForSeriesIds(stmt.Condition, filters)
+			ids, _, err = m.walkWhereForSeriesIds(stmt.Condition)
 			if err != nil {
 				return &influxql.Result{Err: err}
 			}
@@ -447,8 +499,11 @@ func (q *QueryExecutor) executeShowSeriesStatement(stmt *influxql.ShowSeriesStat
 		// Loop through series IDs getting matching tag sets.
 		for _, id := range ids {
 			if s, ok := m.seriesByID[id]; ok {
-				values := make([]interface{}, 0, len(r.Columns)+1)
-				values = append(values, id)
+				values := make([]interface{}, 0, len(r.Columns))
+
+				// make the series key the first value
+				values = append(values, s.Key)
+
 				for _, column := range r.Columns {
 					values = append(values, s.Tags[column])
 				}
@@ -458,7 +513,7 @@ func (q *QueryExecutor) executeShowSeriesStatement(stmt *influxql.ShowSeriesStat
 			}
 		}
 		// make the id the first column
-		r.Columns = append([]string{"_id"}, r.Columns...)
+		r.Columns = append([]string{"_key"}, r.Columns...)
 
 		// Append the row to the result.
 		result.Series = append(result.Series, r)
@@ -566,8 +621,14 @@ func (q *QueryExecutor) executeShowTagKeysStatement(stmt *influxql.ShowTagKeysSt
 		return &influxql.Result{Err: ErrDatabaseNotFound(database)}
 	}
 
+	// Expand regex expressions in the FROM clause.
+	sources, err := q.expandSources(stmt.Sources)
+	if err != nil {
+		return &influxql.Result{Err: err}
+	}
+
 	// Get the list of measurements we're interested in.
-	measurements, err := measurementsFromSourceOrDB(stmt.Source, db)
+	measurements, err := measurementsFromSourcesOrDB(db, sources...)
 	if err != nil {
 		return &influxql.Result{Err: err}
 	}
@@ -613,8 +674,14 @@ func (q *QueryExecutor) executeShowTagValuesStatement(stmt *influxql.ShowTagValu
 		return &influxql.Result{Err: ErrDatabaseNotFound(database)}
 	}
 
+	// Expand regex expressions in the FROM clause.
+	sources, err := q.expandSources(stmt.Sources)
+	if err != nil {
+		return &influxql.Result{Err: err}
+	}
+
 	// Get the list of measurements we're interested in.
-	measurements, err := measurementsFromSourceOrDB(stmt.Source, db)
+	measurements, err := measurementsFromSourcesOrDB(db, sources...)
 	if err != nil {
 		return &influxql.Result{Err: err}
 	}
@@ -630,8 +697,7 @@ func (q *QueryExecutor) executeShowTagValuesStatement(stmt *influxql.ShowTagValu
 
 		if stmt.Condition != nil {
 			// Get series IDs that match the WHERE clause.
-			filters := map[uint64]influxql.Expr{}
-			ids, _, _, err = m.walkWhereForSeriesIds(stmt.Condition, filters)
+			ids, _, err = m.walkWhereForSeriesIds(stmt.Condition)
 			if err != nil {
 				return &influxql.Result{Err: err}
 			}
@@ -686,8 +752,13 @@ func (q *QueryExecutor) executeShowFieldKeysStatement(stmt *influxql.ShowFieldKe
 		return &influxql.Result{Err: ErrDatabaseNotFound(database)}
 	}
 
-	// Get the list of measurements we're interested in.
-	measurements, err := measurementsFromSourceOrDB(stmt.Source, db)
+	// Expand regex expressions in the FROM clause.
+	sources, err := q.expandSources(stmt.Sources)
+	if err != nil {
+		return &influxql.Result{Err: err}
+	}
+
+	measurements, err := measurementsFromSourcesOrDB(db, sources...)
 	if err != nil {
 		return &influxql.Result{Err: err}
 	}
@@ -725,22 +796,23 @@ func (q *QueryExecutor) executeShowFieldKeysStatement(stmt *influxql.ShowFieldKe
 	return result
 }
 
-// measurementsFromSourceOrDB returns a list of measurements from the
-// statement passed in or, if the statement is nil, a list of all
+// measurementsFromSourcesOrDB returns a list of measurements from the
+// sources passed in or, if sources is empty, a list of all
 // measurement names from the database passed in.
-func measurementsFromSourceOrDB(stmt influxql.Source, db *DatabaseIndex) (Measurements, error) {
+func measurementsFromSourcesOrDB(db *DatabaseIndex, sources ...influxql.Source) (Measurements, error) {
 	var measurements Measurements
-	if stmt != nil {
-		// TODO: handle multiple measurement sources
-		if m, ok := stmt.(*influxql.Measurement); ok {
-			measurement := db.measurements[m.Name]
-			if measurement == nil {
-				return nil, ErrMeasurementNotFound(m.Name)
-			}
+	if len(sources) > 0 {
+		for _, source := range sources {
+			if m, ok := source.(*influxql.Measurement); ok {
+				measurement := db.measurements[m.Name]
+				if measurement == nil {
+					return nil, ErrMeasurementNotFound(m.Name)
+				}
 
-			measurements = append(measurements, measurement)
-		} else {
-			return nil, errors.New("identifiers in FROM clause must be measurement names")
+				measurements = append(measurements, measurement)
+			} else {
+				return nil, errors.New("identifiers in FROM clause must be measurement names")
+			}
 		}
 	} else {
 		// No measurements specified in FROM clause so get all measurements that have series.
