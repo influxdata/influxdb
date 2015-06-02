@@ -64,7 +64,7 @@ func NewServer(c *Config, joinURLs string) *Server {
 
 func (s *Server) appendClusterService(c cluster.Config) {
 	srv := cluster.NewService(c)
-	srv.ShardWriter = s.ShardWriter
+	srv.TSDBStore = s.TSDBStore
 	s.Services = append(s.Services, srv)
 }
 

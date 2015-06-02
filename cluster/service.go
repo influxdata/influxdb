@@ -22,8 +22,8 @@ type Service struct {
 	wg      sync.WaitGroup
 	closing chan struct{}
 
-	ShardWriter interface {
-		WriteShard(shardID, ownerID uint64, points []tsdb.Point) error
+	TSDBStore interface {
+		WriteToShard(shardID uint64, points []tsdb.Point) error
 	}
 
 	Logger *log.Logger
@@ -146,7 +146,7 @@ func (s *Service) processWriteShardRequest(buf []byte) error {
 		return err
 	}
 
-	if err := s.ShardWriter.WriteShard(req.ShardID(), req.OwnerID(), req.Points()); err != nil {
+	if err := s.TSDBStore.WriteToShard(req.ShardID(), req.Points()); err != nil {
 		return fmt.Errorf("write shard: %s", err)
 	}
 

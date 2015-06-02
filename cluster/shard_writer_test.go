@@ -14,7 +14,7 @@ import (
 func TestShardWriter_WriteShard_Success(t *testing.T) {
 	ts := newTestService(writeShardSuccess)
 	s := cluster.NewService(cluster.Config{BindAddress: "127.0.0.1:0"})
-	s.ShardWriter = ts
+	s.TSDBStore = ts
 	if err := s.Open(); err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +59,7 @@ func TestShardWriter_WriteShard_Success(t *testing.T) {
 func TestShardWriter_WriteShard_Multiple(t *testing.T) {
 	ts := newTestService(writeShardSuccess)
 	s := cluster.NewService(cluster.Config{BindAddress: "127.0.0.1:0"})
-	s.ShardWriter = ts
+	s.TSDBStore = ts
 	if err := s.Open(); err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +106,7 @@ func TestShardWriter_WriteShard_Multiple(t *testing.T) {
 func TestShardWriter_WriteShard_Error(t *testing.T) {
 	ts := newTestService(writeShardFail)
 	s := cluster.NewService(cluster.Config{BindAddress: "127.0.0.1:0"})
-	s.ShardWriter = ts
+	s.TSDBStore = ts
 	if err := s.Open(); err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +132,7 @@ func TestShardWriter_WriteShard_Error(t *testing.T) {
 func TestShardWriter_Write_ErrDialTimeout(t *testing.T) {
 	ts := newTestService(writeShardSuccess)
 	s := cluster.NewService(cluster.Config{BindAddress: "127.0.0.1:0"})
-	s.ShardWriter = ts
+	s.TSDBStore = ts
 	if err := s.Open(); err != nil {
 		t.Fatal(err)
 	}
