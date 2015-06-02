@@ -247,7 +247,7 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 		c := cluster.PointsWriter{
 			MetaStore:   ms,
 			ShardWriter: sw,
-			Store:       store,
+			TSDBStore:   store,
 		}
 
 		if err := c.WritePoints(pr); err != test.expErr {
