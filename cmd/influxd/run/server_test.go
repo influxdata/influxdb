@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -88,8 +89,8 @@ func TestServer_CreateRetentionPolicy(t *testing.T) {
 	// Verify the database was deleted.
 	if res, err := s.Query(`SHOW RETENTION POLICIES db0`); err != nil {
 		t.Fatal(err)
-	} else if res != `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["rp0","1h0m0s",1,false]]}]}]}` {
-		t.Fatalf("unexpected results: %s", res)
+	} else if exp := `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["rp0","1h0m0s",1,false]]}]}]}`; exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
 	}
 }
 
@@ -113,15 +114,15 @@ func TestServer_DropRetentionPolicy(t *testing.T) {
 	// Drop retenetion policy.
 	if res, err := s.Query(`DROP RETENTION POLICY rp0 ON db0`); err != nil {
 		t.Fatal(err)
-	} else if res != `{"results":[{}]}` {
-		t.Fatalf("unexpected results: %s", res)
+	} else if exp := `{"results":[{}]}`; exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
 	}
 
 	// Verify the retention policy was deleted.
 	if res, err := s.Query(`SHOW RETENTION POLICIES db0`); err != nil {
 		t.Fatal(err)
-	} else if res != `{"results":[{"series":[{"columns":["name","duration","replicaN","default"]}]}]}` {
-		t.Fatalf("unexpected results: %s", res)
+	} else if exp := `{"results":[{"series":[{"columns":["name","duration","replicaN","default"]}]}]}`; exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
 	}
 }
 
@@ -141,15 +142,15 @@ func TestServer_Write_LineProtocol(t *testing.T) {
 	now := time.Now().UTC()
 	if res, err := s.Write("db0", "rp0", `cpu,host=server01 value=1.0 `+strconv.FormatInt(now.UnixNano(), 10)); err != nil {
 		t.Fatal(err)
-	} else if res != `` {
-		t.Fatalf("unexpected results: %s", res)
+	} else if exp := ``; exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
 	}
 
 	// Verify the data was written.
 	if res, err := s.Query(`SELECT * FROM db0.rp0.cpu`); err != nil {
 		t.Fatal(err)
-	} else if res != fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","value"],"values":[["%s",1]]}]}]}`, now.Format(time.RFC3339Nano)) {
-		t.Fatalf("unexpected results: %s", res)
+	} else if exp := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","value"],"values":[["%s",1]]}]}]}`, now.Format(time.RFC3339Nano)); exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
 	}
 }
 
@@ -169,15 +170,99 @@ func TestServer_Write_JSON(t *testing.T) {
 	now := time.Now().UTC()
 	if res, err := s.Write("", "", fmt.Sprintf(`{"database" : "db0", "retentionPolicy" : "rp0", "points": [{"measurement": "cpu", "tags": {"host": "server02"},"fields": {"value": 1.0}}],"time":"%s"} `, now.Format(time.RFC3339Nano))); err != nil {
 		t.Fatal(err)
-	} else if res != `` {
-		t.Fatalf("unexpected results: %s", res)
+	} else if exp := ``; exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
 	}
 
 	// Verify the data was written.
 	if res, err := s.Query(`SELECT * FROM db0.rp0.cpu`); err != nil {
 		t.Fatal(err)
-	} else if res != fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","tags":{"host":"server02"},"columns":["time","value"],"values":[["%s",1]]}]}]}`, now.Format(time.RFC3339Nano)) {
-		t.Fatalf("unexpected results: %s", res)
+	} else if exp := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","tags":{"host":"server02"},"columns":["time","value"],"values":[["%s",1]]}]}]}`, now.Format(time.RFC3339Nano)); exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+}
+
+// Ensure the server can create a single point via line protocol with bool type and read it back.
+func TestServer_Write_LineProtocol_Bool(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	// Create the database.
+	if _, err := s.MetaStore.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	} else if _, err := s.MetaStore.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 1, Duration: 1 * time.Hour}); err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now().UTC()
+	if res, err := s.Write("db0", "rp0", `cpu,host=server01 value=true `+strconv.FormatInt(now.UnixNano(), 10)); err != nil {
+		t.Fatal(err)
+	} else if exp := ``; exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+
+	// Verify the data was written.
+	if res, err := s.Query(`SELECT * FROM db0.rp0.cpu`); err != nil {
+		t.Fatal(err)
+	} else if exp := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","value"],"values":[["%s",true]]}]}]}`, now.Format(time.RFC3339Nano)); exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+}
+
+// Ensure the server can create a single point via line protocol with string type and read it back.
+func TestServer_Write_LineProtocol_String(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	// Create the database.
+	if _, err := s.MetaStore.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	} else if _, err := s.MetaStore.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 1, Duration: 1 * time.Hour}); err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now().UTC()
+	if res, err := s.Write("db0", "rp0", `cpu,host=server01 value="disk full" `+strconv.FormatInt(now.UnixNano(), 10)); err != nil {
+		t.Fatal(err)
+	} else if exp := ``; exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+
+	// Verify the data was written.
+	if res, err := s.Query(`SELECT * FROM db0.rp0.cpu`); err != nil {
+		t.Fatal(err)
+	} else if exp := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","value"],"values":[["%s","disk full"]]}]}]}`, now.Format(time.RFC3339Nano)); exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+}
+
+// Ensure the server can create a single point via line protocol with integer type and read it back.
+func TestServer_Write_LineProtocol_Integer(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	// Create the database.
+	if _, err := s.MetaStore.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	} else if _, err := s.MetaStore.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 1, Duration: 1 * time.Hour}); err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now().UTC()
+	if res, err := s.Write("db0", "rp0", `cpu,host=server01 value=100 `+strconv.FormatInt(now.UnixNano(), 10)); err != nil {
+		t.Fatal(err)
+	} else if exp := ``; exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+
+	// Verify the data was written.
+	if res, err := s.Query(`SELECT * FROM db0.rp0.cpu`); err != nil {
+		t.Fatal(err)
+	} else if exp := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","value"],"values":[["%s",100]]}]}]}`, now.Format(time.RFC3339Nano)); exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
 	}
 }
 
@@ -197,15 +282,437 @@ func TestServer_Query_Count(t *testing.T) {
 	now := time.Now().UTC()
 	if res, err := s.Write("db0", "rp0", `cpu,host=server01 value=1.0 `+strconv.FormatInt(now.UnixNano(), 10)); err != nil {
 		t.Fatal(err)
-	} else if res != `` {
-		t.Fatalf("unexpected results: %s", res)
+	} else if exp := ``; exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
 	}
 
 	// Verify the data was written.
 	if res, err := s.Query(`SELECT count(value) FROM db0.rp0.cpu`); err != nil {
 		t.Fatal(err)
-	} else if res != `{"results":[{"series":[{"name":"cpu","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]}]}]}` {
-		t.Fatalf("unexpected results: %s", res)
+	} else if exp := `{"results":[{"series":[{"name":"cpu","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]}]}]}`; exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+}
+
+// Ensure the server can query with Now().
+func TestServer_Query_Now(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	// Create the database.
+	if _, err := s.MetaStore.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	} else if _, err := s.MetaStore.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 1, Duration: 1 * time.Hour}); err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now().UTC()
+	if res, err := s.Write("db0", "rp0", `cpu,host=server01 value=1.0 `+strconv.FormatInt(now.UnixNano(), 10)); err != nil {
+		t.Fatal(err)
+	} else if exp := ``; exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+
+	// Verify the data was written.
+	if res, err := s.Query(`SELECT * FROM db0.rp0.cpu where time < now()`); err != nil {
+		t.Fatal(err)
+	} else if exp := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","value"],"values":[["%s",1]]}]}]}`, now.Format(time.RFC3339Nano)); exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+}
+
+// Ensure the server can query with epoch nanoseconds.
+func TestServer_Query_EpochNano(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	// Create the database.
+	if _, err := s.MetaStore.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	} else if _, err := s.MetaStore.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 1, Duration: 1 * time.Hour}); err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now().UTC()
+	if res, err := s.Write("db0", "rp0", `cpu,host=server01 value=1.0 `+strconv.FormatInt(now.UnixNano(), 10)); err != nil {
+		t.Fatal(err)
+	} else if exp := ``; exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+
+	// Verify the data was written.
+	if res, err := s.QueryWithParams(`SELECT * FROM db0.rp0.cpu`, url.Values{"epoch": []string{"n"}}); err != nil {
+		t.Fatal(err)
+	} else if exp := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","value"],"values":[[%d,1]]}]}]}`, now.UnixNano()); exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+}
+
+// Ensure the server can query with epoch microseconds.
+func TestServer_Query_EpochMicro(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	// Create the database.
+	if _, err := s.MetaStore.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	} else if _, err := s.MetaStore.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 1, Duration: 1 * time.Hour}); err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now().UTC()
+	if res, err := s.Write("db0", "rp0", `cpu,host=server01 value=1.0 `+strconv.FormatInt(now.UnixNano(), 10)); err != nil {
+		t.Fatal(err)
+	} else if exp := ``; exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+
+	// Verify the data was written.
+	if res, err := s.QueryWithParams(`SELECT * FROM db0.rp0.cpu`, url.Values{"epoch": []string{"u"}}); err != nil {
+		t.Fatal(err)
+	} else if exp := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","value"],"values":[[%d,1]]}]}]}`, now.UnixNano()/int64(time.Microsecond)); exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+}
+
+// Ensure the server can query with epoch milliseconds.
+func TestServer_Query_EpochMilli(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	// Create the database.
+	if _, err := s.MetaStore.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	} else if _, err := s.MetaStore.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 1, Duration: 1 * time.Hour}); err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now().UTC()
+	if res, err := s.Write("db0", "rp0", `cpu,host=server01 value=1.0 `+strconv.FormatInt(now.UnixNano(), 10)); err != nil {
+		t.Fatal(err)
+	} else if exp := ``; exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+
+	// Verify the data was written.
+	if res, err := s.QueryWithParams(`SELECT * FROM db0.rp0.cpu`, url.Values{"epoch": []string{"ms"}}); err != nil {
+		t.Fatal(err)
+	} else if exp := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","value"],"values":[[%d,1]]}]}]}`, now.UnixNano()/int64(time.Millisecond)); exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+}
+
+// Ensure the server can query with epoch second.
+func TestServer_Query_EpochSecond(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	// Create the database.
+	if _, err := s.MetaStore.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	} else if _, err := s.MetaStore.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 1, Duration: 1 * time.Hour}); err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now().UTC()
+	if res, err := s.Write("db0", "rp0", `cpu,host=server01 value=1.0 `+strconv.FormatInt(now.UnixNano(), 10)); err != nil {
+		t.Fatal(err)
+	} else if exp := ``; exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+
+	// Verify the data was written.
+	if res, err := s.QueryWithParams(`SELECT * FROM db0.rp0.cpu`, url.Values{"epoch": []string{"s"}}); err != nil {
+		t.Fatal(err)
+	} else if exp := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","value"],"values":[[%d,1]]}]}]}`, now.UnixNano()/int64(time.Second)); exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+}
+
+// Ensure the server can query with epoch minute.
+func TestServer_Query_EpochMinute(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	// Create the database.
+	if _, err := s.MetaStore.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	} else if _, err := s.MetaStore.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 1, Duration: 1 * time.Hour}); err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now().UTC()
+	if res, err := s.Write("db0", "rp0", `cpu,host=server01 value=1.0 `+strconv.FormatInt(now.UnixNano(), 10)); err != nil {
+		t.Fatal(err)
+	} else if exp := ``; exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+
+	// Verify the data was written.
+	if res, err := s.QueryWithParams(`SELECT * FROM db0.rp0.cpu`, url.Values{"epoch": []string{"m"}}); err != nil {
+		t.Fatal(err)
+	} else if exp := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","value"],"values":[[%d,1]]}]}]}`, now.UnixNano()/int64(time.Minute)); exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+}
+
+// Ensure the server can query with epoch hour.
+func TestServer_Query_EpochHour(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	// Create the database.
+	if _, err := s.MetaStore.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	} else if _, err := s.MetaStore.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 1, Duration: 1 * time.Hour}); err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now().UTC()
+	if res, err := s.Write("db0", "rp0", `cpu,host=server01 value=1.0 `+strconv.FormatInt(now.UnixNano(), 10)); err != nil {
+		t.Fatal(err)
+	} else if exp := ``; exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+
+	// Verify the data was written.
+	if res, err := s.QueryWithParams(`SELECT * FROM db0.rp0.cpu`, url.Values{"epoch": []string{"h"}}); err != nil {
+		t.Fatal(err)
+	} else if exp := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","value"],"values":[[%d,1]]}]}]}`, now.UnixNano()/int64(time.Hour)); exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+}
+
+// Ensure the server fails with query tag only.
+func TestServer_Query_Tag(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	// Create the database.
+	if _, err := s.MetaStore.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	} else if _, err := s.MetaStore.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 1, Duration: 1 * time.Hour}); err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now().UTC()
+	if res, err := s.Write("db0", "rp0", `cpu,host=server01 value=1.0 `+strconv.FormatInt(now.UnixNano(), 10)); err != nil {
+		t.Fatal(err)
+	} else if exp := ``; exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+
+	// Verify the data was written.
+	if res, err := s.Query(`SELECT host FROM db0.rp0.cpu`); err != nil {
+		t.Fatal(err)
+	} else if exp := `{"results":[{"error":"select statement must include at least one field or function call"}]}`; exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+}
+
+// Ensure the server can query with field and tag.
+func TestServer_Query_FieldWithTag(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	// Create the database.
+	if _, err := s.MetaStore.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	} else if _, err := s.MetaStore.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 1, Duration: 1 * time.Hour}); err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now().UTC()
+	if res, err := s.Write("db0", "rp0", fmt.Sprintf("cpu,host=server01 value=100,core=4 %s\ncpu,host=server02 value=50,core=2 %s", strconv.FormatInt(now.UnixNano(), 10), strconv.FormatInt(now.Add(1).UnixNano(), 10))); err != nil {
+		t.Fatal(err)
+	} else if exp := ``; exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+
+	// Verify the data was written.
+	if res, err := s.Query(`SELECT host, value FROM db0.rp0.cpu`); err != nil {
+		t.Fatal(err)
+
+	} else if exp := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","value"],"values":[["%s",100]]},{"name":"cpu","tags":{"host":"server02"},"columns":["time","value"],"values":[["%s",50]]}]}]}`, now.Format(time.RFC3339Nano), now.Add(1).Format(time.RFC3339Nano)); exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+}
+
+// Ensure the server can query with two fields and tag.
+func TestServer_Query_TwoFieldsWithTag(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	// Create the database.
+	if _, err := s.MetaStore.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	} else if _, err := s.MetaStore.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 1, Duration: 1 * time.Hour}); err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now().UTC()
+	if res, err := s.Write("db0", "rp0", fmt.Sprintf("cpu,host=server01 value=100,core=4 %s\ncpu,host=server02 value=50,core=2 %s", strconv.FormatInt(now.UnixNano(), 10), strconv.FormatInt(now.Add(1).UnixNano(), 10))); err != nil {
+		t.Fatal(err)
+	} else if exp := ``; exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+
+	// Verify the data was written.
+	if res, err := s.Query(`SELECT host, value, core FROM db0.rp0.cpu`); err != nil {
+		t.Fatal(err)
+	} else if exp := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","value","core"],"values":[["%s",100,4]]},{"name":"cpu","tags":{"host":"server02"},"columns":["time","value","core"],"values":[["%s",50,2]]}]}]}`, now.Format(time.RFC3339Nano), now.Add(1).Format(time.RFC3339Nano)); exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+}
+
+// Ensure the server can query select * with tags.
+func TestServer_Query_SelectStarTag(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	// Create the database.
+	if _, err := s.MetaStore.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	} else if _, err := s.MetaStore.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 1, Duration: 1 * time.Hour}); err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now().UTC()
+	if res, err := s.Write("db0", "rp0", fmt.Sprintf("cpu,host=server01 value=100,core=4 %s\ncpu,host=server02 value=50,core=2 %s", strconv.FormatInt(now.UnixNano(), 10), strconv.FormatInt(now.Add(1).UnixNano(), 10))); err != nil {
+		t.Fatal(err)
+	} else if exp := ``; exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+
+	// Verify the data was written.
+	if res, err := s.Query(`SELECT * FROM db0.rp0.cpu`); err != nil {
+		t.Fatal(err)
+	} else if exp := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","core","value"],"values":[["%s",4,100]]},{"name":"cpu","tags":{"host":"server02"},"columns":["time","core","value"],"values":[["%s",2,50]]}]}]}`, now.Format(time.RFC3339Nano), now.Add(1).Format(time.RFC3339Nano)); exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+}
+
+// Ensure the server query will error out with a measurement not found.
+func TestServer_Query_MeasurementNotFound(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	// Create the database.
+	if _, err := s.MetaStore.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	} else if _, err := s.MetaStore.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 1, Duration: 1 * time.Hour}); err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now().UTC()
+	if res, err := s.Write("db0", "rp0", fmt.Sprintf("cpu,host=server01 value=1 %s", strconv.FormatInt(now.UnixNano(), 10))); err != nil {
+		t.Fatal(err)
+	} else if exp := ``; exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+
+	// Verify the data was written.
+	if res, err := s.Query(`SELECT * FROM db0.rp0.foobarbin`); err != nil {
+		t.Fatal(err)
+	} else if exp := `.*measurement not found*`; !expectPattern(exp, res) {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+}
+
+// Ensure the server query will error out with a field not found.
+func TestServer_Query_FieldNotFound(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	// Create the database.
+	if _, err := s.MetaStore.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	} else if _, err := s.MetaStore.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 1, Duration: 1 * time.Hour}); err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now().UTC()
+	if res, err := s.Write("db0", "rp0", fmt.Sprintf("cpu,host=server01 value=1 %s", strconv.FormatInt(now.UnixNano(), 10))); err != nil {
+		t.Fatal(err)
+	} else if exp := ``; exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+
+	// Verify the data was written.
+	if res, err := s.Query(`SELECT foobarfield FROM db0.rp0.cpu`); err != nil {
+		t.Fatal(err)
+	} else if exp := `{"results":[{"error":"unknown field or tag name in select clause: foobarfield"}]}`; exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+}
+
+// Ensure the server query return an empty result.
+func TestServer_Query_EmptyResult(t *testing.T) {
+	t.Skip("FIXME(pauldix)")
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	// Create the database.
+	if _, err := s.MetaStore.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	} else if _, err := s.MetaStore.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 1, Duration: 1 * time.Hour}); err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now().UTC()
+	if res, err := s.Write("db0", "rp0", fmt.Sprintf("cpu,host=server01 value=1 %s", strconv.FormatInt(now.UnixNano(), 10))); err != nil {
+		t.Fatal(err)
+	} else if exp := ``; exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+
+	// Verify the data was written.
+	if res, err := s.Query(`SELECT value FROM db0.rp0.cpu where time > now()`); err != nil {
+		t.Fatal(err)
+	} else if exp := `{"results":[{}]}`; exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+}
+
+// Ensure the server can query two points.
+func TestServer_Query_SelectTwoPoints(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	// Create the database.
+	if _, err := s.MetaStore.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	} else if _, err := s.MetaStore.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 1, Duration: 1 * time.Hour}); err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Now().UTC()
+	if res, err := s.Write("db0", "rp0", fmt.Sprintf("cpu value=100 %s\ncpu value=200 %s", strconv.FormatInt(now.UnixNano(), 10), strconv.FormatInt(now.Add(1).UnixNano(), 10))); err != nil {
+		t.Fatal(err)
+	} else if exp := ``; exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+
+	// Verify the data was written.
+	if res, err := s.Query(`SELECT * FROM db0.rp0.cpu`); err != nil {
+		t.Fatal(err)
+	} else if exp := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",100],["%s",200]]}]}]}`, now.Format(time.RFC3339Nano), now.Add(1).Format(time.RFC3339Nano)); exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
 	}
 }
 
@@ -251,7 +758,16 @@ func (s *Server) URL() string {
 
 // Query executes a query against the server and returns the results.
 func (s *Server) Query(query string) (results string, err error) {
-	resp, err := http.Get(s.URL() + "/query?q=" + url.QueryEscape(query))
+	return s.QueryWithParams(query, nil)
+}
+
+// Query executes a query against the server and returns the results.
+func (s *Server) QueryWithParams(query string, values url.Values) (results string, err error) {
+	if values == nil {
+		values = url.Values{}
+	}
+	values.Set("q", query)
+	resp, err := http.Get(s.URL() + "/query?" + values.Encode())
 	if err != nil {
 		return "", err
 	} else if resp.StatusCode != http.StatusOK {
@@ -308,4 +824,12 @@ func MustTempFile() string {
 	f.Close()
 	os.Remove(f.Name())
 	return f.Name()
+}
+
+func expectPattern(exp, act string) bool {
+	re := regexp.MustCompile(exp)
+	if !re.MatchString(act) {
+		return false
+	}
+	return true
 }
