@@ -13,11 +13,6 @@ func TestWriteShardRequestBinary(t *testing.T) {
 		t.Fatalf("ShardID mismatch: got %v, exp %v", sr.ShardID(), exp)
 	}
 
-	sr.SetOwnerID(uint64(1))
-	if exp := uint64(1); sr.OwnerID() != exp {
-		t.Fatalf("OwnerID mismatch: got %v, exp %v", sr.OwnerID(), exp)
-	}
-
 	sr.AddPoint("cpu", 1.0, time.Unix(0, 0), map[string]string{"host": "serverA"})
 	sr.AddPoint("cpu", 2.0, time.Unix(0, 0).Add(time.Hour), nil)
 	sr.AddPoint("cpu_load", 3.0, time.Unix(0, 0).Add(time.Hour+time.Second), nil)

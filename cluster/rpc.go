@@ -38,9 +38,6 @@ type WriteShardResponse struct {
 func (w *WriteShardRequest) SetShardID(id uint64) { w.pb.ShardID = &id }
 func (w *WriteShardRequest) ShardID() uint64      { return w.pb.GetShardID() }
 
-func (w *WriteShardRequest) SetOwnerID(id uint64) { w.pb.OwnerID = &id }
-func (w *WriteShardRequest) OwnerID() uint64      { return w.pb.GetOwnerID() }
-
 func (w *WriteShardRequest) Points() []tsdb.Point { return w.unmarshalPoints() }
 
 func (w *WriteShardRequest) AddPoint(name string, value interface{}, timestamp time.Time, tags map[string]string) {

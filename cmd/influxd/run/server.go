@@ -46,7 +46,7 @@ func NewServer(c *Config, joinURLs string) *Server {
 	// Initialize points writer.
 	s.PointsWriter = cluster.NewPointsWriter()
 	s.PointsWriter.MetaStore = s.MetaStore
-	s.PointsWriter.Store = s.TSDBStore
+	s.PointsWriter.TSDBStore = s.TSDBStore
 	s.PointsWriter.ShardWriter = s.ShardWriter
 
 	// Append services.
@@ -64,7 +64,7 @@ func NewServer(c *Config, joinURLs string) *Server {
 
 func (s *Server) appendClusterService(c cluster.Config) {
 	srv := cluster.NewService(c)
-	srv.ShardWriter = s.ShardWriter
+	srv.TSDBStore = s.TSDBStore
 	s.Services = append(s.Services, srv)
 }
 

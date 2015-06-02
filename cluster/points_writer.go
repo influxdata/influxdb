@@ -53,7 +53,7 @@ type PointsWriter struct {
 		CreateShardGroupIfNotExists(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error)
 	}
 
-	Store interface {
+	TSDBStore interface {
 		CreateShard(database, retentionPolicy string, shardID uint64) error
 		WriteToShard(shardID uint64, points []tsdb.Point) error
 	}
@@ -205,16 +205,16 @@ func (w *PointsWriter) writeToShard(shard *meta.ShardInfo, database, retentionPo
 	for _, nodeID := range shard.OwnerIDs {
 		go func(shardID, nodeID uint64, points []tsdb.Point) {
 			if w.MetaStore.NodeID() == nodeID {
-				err := w.Store.WriteToShard(shardID, points)
+				err := w.TSDBStore.WriteToShard(shardID, points)
 				// If we've written to shard that should exist on the current node, but the store has
 				// not actually created this shard, tell it to create it and retry the write
 				if err == tsdb.ErrShardNotFound {
-					err = w.Store.CreateShard(database, retentionPolicy, shardID)
+					err = w.TSDBStore.CreateShard(database, retentionPolicy, shardID)
 					if err != nil {
 						ch <- err
 						return
 					}
-					err = w.Store.WriteToShard(shardID, points)
+					err = w.TSDBStore.WriteToShard(shardID, points)
 				}
 				ch <- err
 				return

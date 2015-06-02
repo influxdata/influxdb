@@ -48,7 +48,6 @@ func (w *ShardWriter) WriteShard(shardID, ownerID uint64, points []tsdb.Point) e
 	// Build write request.
 	var request WriteShardRequest
 	request.SetShardID(shardID)
-	request.SetOwnerID(ownerID)
 	request.AddPoints(points)
 
 	// Marshal into protocol buffers.

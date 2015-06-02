@@ -20,10 +20,11 @@ func (m *metaStore) Node(nodeID uint64) (*meta.NodeInfo, error) {
 }
 
 type testService struct {
-	writeShardFunc func(shardID, ownerID uint64, points []tsdb.Point) error
+	nodeID         uint64
+	writeShardFunc func(shardID uint64, points []tsdb.Point) error
 }
 
-func newTestService(f func(shardID, ownerID uint64, points []tsdb.Point) error) testService {
+func newTestService(f func(shardID uint64, points []tsdb.Point) error) testService {
 	return testService{
 		writeShardFunc: f,
 	}
@@ -36,20 +37,19 @@ type serviceResponse struct {
 	points  []tsdb.Point
 }
 
-func (t testService) WriteShard(shardID, ownerID uint64, points []tsdb.Point) error {
-	return t.writeShardFunc(shardID, ownerID, points)
+func (t testService) WriteToShard(shardID uint64, points []tsdb.Point) error {
+	return t.writeShardFunc(shardID, points)
 }
 
-func writeShardSuccess(shardID, ownerID uint64, points []tsdb.Point) error {
+func writeShardSuccess(shardID uint64, points []tsdb.Point) error {
 	responses <- &serviceResponse{
 		shardID: shardID,
-		ownerID: ownerID,
 		points:  points,
 	}
 	return nil
 }
 
-func writeShardFail(shardID, ownerID uint64, points []tsdb.Point) error {
+func writeShardFail(shardID uint64, points []tsdb.Point) error {
 	return fmt.Errorf("failed to write")
 }
 
