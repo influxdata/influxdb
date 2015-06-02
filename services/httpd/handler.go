@@ -170,6 +170,8 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 		return
 	}
 
+	epoch := strings.TrimSpace(q.Get("epoch"))
+
 	p := influxql.NewParser(strings.NewReader(qp))
 	db := q.Get("db")
 
@@ -224,6 +226,11 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 		// Ignore nil results.
 		if r == nil {
 			continue
+		}
+
+		// if requested, convert result timestamps to epoch
+		if epoch != "" {
+			convertToEpoch(r, epoch)
 		}
 
 		// Write out result immediately if chunked.
@@ -442,6 +449,32 @@ func (h *Handler) serveOptions(w http.ResponseWriter, r *http.Request) {
 // servePing returns a simple response to let the client know the server is running.
 func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// convertToEpoch converts result timestamps from time.Time to the specified epoch.
+func convertToEpoch(r *influxql.Result, epoch string) {
+	divisor := int64(1)
+
+	switch epoch {
+	case "u":
+		divisor = int64(time.Microsecond)
+	case "ms":
+		divisor = int64(time.Millisecond)
+	case "s":
+		divisor = int64(time.Second)
+	case "m":
+		divisor = int64(time.Minute)
+	case "h":
+		divisor = int64(time.Hour)
+	}
+
+	for _, s := range r.Series {
+		for _, v := range s.Values {
+			if ts, ok := v[0].(time.Time); ok {
+				v[0] = ts.UnixNano() / divisor
+			}
+		}
+	}
 }
 
 // MarshalJSON will marshal v to JSON. Pretty prints if pretty is true.
