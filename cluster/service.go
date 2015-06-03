@@ -56,6 +56,11 @@ func (s *Service) Open() error {
 	return nil
 }
 
+// SetLogger sets the internal logger to the logger passed in.
+func (s *Service) SetLogger(l *log.Logger) {
+	s.Logger = l
+}
+
 // serve accepts connections from the listener and handles them.
 func (s *Service) serve() {
 	defer s.wg.Done()
