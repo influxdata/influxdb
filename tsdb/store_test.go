@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestStoreOpen(t *testing.T) {
@@ -159,4 +160,72 @@ func TestStoreOpenShardBadShardPath(t *testing.T) {
 		t.Fatalf("Store.Open() shard count mismatch: got %v, exp %v", len(s.shards), exp)
 	}
 
+}
+
+func BenchmarkStoreOpen_200KSeries_100Shards(b *testing.B) { benchmarkStoreOpen(b, 64, 5, 5, 1, 100) }
+
+func benchmarkStoreOpen(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt, shardCnt int) {
+	// Generate test series (measurements + unique tag sets).
+	series := genTestSeries(mCnt, tkCnt, tvCnt)
+	// Generate point data to write to the shards.
+	points := []Point{}
+	for _, s := range series {
+		for val := 0.0; val < float64(pntCnt); val++ {
+			p := NewPoint(s.Measurement, s.Series.Tags, map[string]interface{}{"value": val}, time.Now())
+			points = append(points, p)
+		}
+	}
+	// Create a temporary directory for the test data.
+	dir, _ := ioutil.TempDir("", "store_test")
+	// Create the store.
+	store := NewStore(dir)
+	// Open the store.
+	if err := store.Open(); err != nil {
+		b.Fatalf("benchmarkStoreOpen: %s", err)
+	}
+	// Create requested number of shards in the store & write points.
+	for shardID := 0; shardID < shardCnt; shardID++ {
+		if err := store.CreateShard("mydb", "myrp", uint64(shardID)); err != nil {
+			b.Fatalf("benchmarkStoreOpen: %s", err)
+		}
+		// Write points to the shard.
+		chunkedWriteStoreShard(store, shardID, points)
+	}
+	// Close the store.
+	if err := store.Close(); err != nil {
+		b.Fatalf("benchmarkStoreOpen: %s", err)
+	}
+
+	// Run the benchmark loop.
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		store := NewStore(dir)
+		if err := store.Open(); err != nil {
+			b.Fatalf("benchmarkStoreOpen: %s", err)
+		}
+
+		b.StopTimer()
+		store.Close()
+		b.StartTimer()
+	}
+}
+
+func chunkedWriteStoreShard(store *Store, shardID int, points []Point) {
+	nPts := len(points)
+	chunkSz := 10000
+	start := 0
+	end := chunkSz
+
+	for {
+		if end > nPts {
+			end = nPts
+		}
+		if end-start == 0 {
+			break
+		}
+
+		store.WriteToShard(uint64(shardID), points[start:end])
+		start = end
+		end += chunkSz
+	}
 }

@@ -10,7 +10,7 @@ import (
 )
 
 func TestShardWriteAndIndex(t *testing.T) {
-	tmpDir, _ := ioutil.TempDir("", "")
+	tmpDir, _ := ioutil.TempDir("", "shard_test")
 	defer os.RemoveAll(tmpDir)
 	tmpShard := path.Join(tmpDir, "shard")
 
@@ -97,6 +97,11 @@ func BenchmarkWritePoints_ExistingSeries_1M(b *testing.B) {
 	benchmarkWritePointsExistingSeries(b, 320, 5, 5, 1)
 }
 
+// benchmarkWritePoints benchmarks writing new series to a shard.
+// mCnt - measurmeent count
+// tkCnt - tag key count
+// tvCnt - tag value count (values per tag)
+// pntCnt - points per series.  # of series = mCnt * (tvCnt ^ tkCnt)
 func benchmarkWritePoints(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt int) {
 	// Generate test series (measurements + unique tag sets).
 	series := genTestSeries(mCnt, tkCnt, tvCnt)
@@ -117,7 +122,7 @@ func benchmarkWritePoints(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt int) {
 
 	// Run the benchmark loop.
 	for n := 0; n < b.N; n++ {
-		tmpDir, _ := ioutil.TempDir("", "")
+		tmpDir, _ := ioutil.TempDir("", "shard_test")
 		tmpShard := path.Join(tmpDir, "shard")
 		shard := NewShard(index, tmpShard)
 		shard.Open()
@@ -132,6 +137,11 @@ func benchmarkWritePoints(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt int) {
 	}
 }
 
+// benchmarkWritePointsExistingSeries benchmarks writing to existing series in a shard.
+// mCnt - measurmeent count
+// tkCnt - tag key count
+// tvCnt - tag value count (values per tag)
+// pntCnt - points per series.  # of series = mCnt * (tvCnt ^ tkCnt)
 func benchmarkWritePointsExistingSeries(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt int) {
 	// Generate test series (measurements + unique tag sets).
 	series := genTestSeries(mCnt, tkCnt, tvCnt)
