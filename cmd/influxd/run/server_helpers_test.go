@@ -2,10 +2,12 @@
 package run_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -151,6 +153,11 @@ func NewConfig() *run.Config {
 
 func newRetentionPolicyInfo(name string, rf int, duration time.Duration) *meta.RetentionPolicyInfo {
 	return &meta.RetentionPolicyInfo{Name: name, ReplicaN: rf, Duration: duration}
+}
+
+func maxFloat64() string {
+	maxFloat64, _ := json.Marshal(math.MaxFloat64)
+	return string(maxFloat64)
 }
 
 func now() time.Time {
