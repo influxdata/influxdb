@@ -217,7 +217,7 @@ func (db *DatabaseIndex) Measurements() Measurements {
 	return measurements
 }
 
-// dropMeasurement removes the measurement and all of its underlying series from the database index
+// DropMeasurement removes the measurement and all of its underlying series from the database index
 func (db *DatabaseIndex) DropMeasurement(name string) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
