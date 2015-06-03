@@ -406,7 +406,7 @@ func (m *measurementFields) MarshalBinary() ([]byte, error) {
 	return proto.Marshal(&pb)
 }
 
-// MarshalBinary decodes the object from a binary format.
+// UnmarshalBinary decodes the object from a binary format.
 func (m *measurementFields) UnmarshalBinary(buf []byte) error {
 	var pb internal.MeasurementFields
 	if err := proto.Unmarshal(buf, &pb); err != nil {

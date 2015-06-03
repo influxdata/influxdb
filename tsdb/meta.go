@@ -874,7 +874,7 @@ func (s *Series) MarshalBinary() ([]byte, error) {
 	return proto.Marshal(&pb)
 }
 
-// MarshalBinary decodes the object from a binary format.
+// UnmarshalBinary decodes the object from a binary format.
 func (s *Series) UnmarshalBinary(buf []byte) error {
 	var pb internal.Series
 	if err := proto.Unmarshal(buf, &pb); err != nil {
