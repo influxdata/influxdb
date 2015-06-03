@@ -188,6 +188,8 @@ func (s *Store) Open() error {
 }
 
 func (s *Store) WriteToShard(shardID uint64, points []Point) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	sh, ok := s.shards[shardID]
 	if !ok {
 		return ErrShardNotFound
