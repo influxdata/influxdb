@@ -16,9 +16,9 @@ var (
 	ErrFieldTypeConflict = errors.New("field type conflict")
 )
 
-func ErrDatabaseNotFound(name string) error { return Errorf("database not found: %s", name) }
+func ErrDatabaseNotFound(name string) error { return fmt.Errorf("database not found: %s", name) }
 
-func ErrMeasurementNotFound(name string) error { return Errorf("measurement not found: %s", name) }
+func ErrMeasurementNotFound(name string) error { return fmt.Errorf("measurement not found: %s", name) }
 
 func Errorf(format string, a ...interface{}) (err error) {
 	if _, file, line, ok := runtime.Caller(2); ok {

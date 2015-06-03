@@ -263,6 +263,32 @@ func (s *Shard) deleteSeries(keys []string) error {
 	return nil
 }
 
+// deleteMeasurement deletes the measurement field encoding information and all underlying series from the shard
+func (s *Shard) deleteMeasurement(name string, seriesKeys []string) error {
+	if err := s.db.Update(func(tx *bolt.Tx) error {
+		bm := tx.Bucket([]byte("fields"))
+		if err := bm.Delete([]byte(name)); err != nil {
+			return err
+		}
+		b := tx.Bucket([]byte("series"))
+		for _, k := range seriesKeys {
+			if err := b.Delete([]byte(k)); err != nil {
+				return err
+			}
+			if err := tx.DeleteBucket([]byte(k)); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}); err != nil {
+		_ = s.Close()
+		return err
+	}
+
+	return nil
+}
+
 func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*fieldCreate) (map[string]*measurementFields, error) {
 	if len(fieldsToCreate) == 0 {
 		return nil, nil

@@ -109,6 +109,18 @@ func (s *Store) deleteSeries(keys []string) error {
 	return nil
 }
 
+// deleteMeasurement loops through the local shards and removes the measurement field encodings from each shard
+func (s *Store) deleteMeasurement(name string, seriesKeys []string) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, sh := range s.shards {
+		if err := sh.deleteMeasurement(name, seriesKeys); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *Store) loadIndexes() error {
 	dbs, err := ioutil.ReadDir(s.path)
 	if err != nil {

@@ -78,7 +78,6 @@ func TestDropSeriesStatement(t *testing.T) {
 	}
 
 	got = executeAndGetJSON("drop series from cpu", executor)
-	warn("*** ", got)
 
 	got = executeAndGetJSON("select * from cpu", executor)
 	exepected = `[{}]`
@@ -108,6 +107,66 @@ func TestDropSeriesStatement(t *testing.T) {
 	if exepected != got {
 		t.Fatalf("exp: %s\ngot: %s", exepected, got)
 	}
+}
+
+func TestDropMeasurementStatement(t *testing.T) {
+	store, executor := testStoreAndExecutor()
+	defer os.RemoveAll(store.path)
+
+	pt := NewPoint(
+		"cpu",
+		map[string]string{"host": "server"},
+		map[string]interface{}{"value": 1.0},
+		time.Unix(1, 2),
+	)
+	pt2 := NewPoint(
+		"memory",
+		map[string]string{"host": "server"},
+		map[string]interface{}{"value": 1.0},
+		time.Unix(1, 2),
+	)
+
+	err := store.WriteToShard(shardID, []Point{pt, pt2})
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	got := executeAndGetJSON("show series", executor)
+	exepected := `[{"series":[{"name":"cpu","columns":["_key","host"],"values":[["cpu,host=server","server"]]},{"name":"memory","columns":["_key","host"],"values":[["memory,host=server","server"]]}]}]`
+	if exepected != got {
+		t.Fatalf("exp: %s\ngot: %s", exepected, got)
+	}
+
+	got = executeAndGetJSON("drop measurement memory", executor)
+	exepected = `[{}]`
+	if exepected != got {
+		t.Fatalf("exp: %s\ngot: %s", exepected, got)
+	}
+
+	validateDrop := func() {
+		got = executeAndGetJSON("show series", executor)
+		exepected = `[{"series":[{"name":"cpu","columns":["_key","host"],"values":[["cpu,host=server","server"]]}]}]`
+		if exepected != got {
+			t.Fatalf("exp: %s\ngot: %s", exepected, got)
+		}
+		got = executeAndGetJSON("show measurements", executor)
+		exepected = `[{"series":[{"name":"measurements","columns":["name"],"values":[["cpu"]]}]}]`
+		if exepected != got {
+			t.Fatalf("exp: %s\ngot: %s", exepected, got)
+		}
+		got = executeAndGetJSON("select * from memory", executor)
+		exepected = `[{"error":"measurement not found: \"foo\".\"foo\".memory"}]`
+		if exepected != got {
+			t.Fatalf("exp: %s\ngot: %s", exepected, got)
+		}
+	}
+
+	validateDrop()
+	store.Close()
+	store = NewStore(store.path)
+	store.Open()
+	executor.store = store
+	validateDrop()
 }
 
 // ensure that authenticate doesn't return an error if the user count is zero and they're attempting
