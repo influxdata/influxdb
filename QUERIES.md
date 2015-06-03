@@ -1,4 +1,4 @@
-The top level name is called a measurement. These names can contain any characters. Then there are field names, field values, tag keys and tag values, which can also contain any characters. Because of this, anywhere a measurement name, field name, field value, tag name, or tag value appears should be able to get wrapped in double quotes to deal with special characters.
+The top level name is called a measurement. These names can contain any characters. Then there are field names, field values, tag keys and tag values, which can also contain any characters. However, if the measurement, field, or tag contains any character other than [A-Z,a-z,0-9,_], or if it starts with a digit, it must be double-quoted. Therefore anywhere a measurement name, field name, field value, tag name, or tag value appears it should be wrapped in double quotes.
 
 # Databases & retention policies
 
@@ -16,14 +16,17 @@ ALTER RETENTION POLICY <rp-name> ON <db-name> (DURATION <duration> | REPLICATION
 DROP DATABASE <name>
 
 -- drop a retention policy
-DROP RETENTION POLICY <rp-name> ON <db.name>
+DROP RETENTION POLICY <rp-name> ON <db-name>
 ```
+where `<duration>` is either `INF` for infinite retention, or an integer followed by the desired unit of time: u,ms,s,m,h,d,w for microseconds, milliseconds, seconds, minutes, hours, days, or weeks, respectively. `<replication>` must be an integer.
+
+If present, `DEFAULT` sets the retention policy as the default retention policy for writes and reads.
 
 # Users and permissions
 
 ```sql
 -- create user
-CREATE USER <name> WITH PASSWORD <password>
+CREATE USER <name> WITH PASSWORD '<password>'
 
 -- grant privilege on a database
 GRANT <privilege> ON <db> TO <user>
@@ -40,8 +43,14 @@ REVOKE ALL [PRIVILEGES] ON <db> FROM <user>
 -- revoke all of user's privileges (all DBs and/or cluster admin)
 REVOKE ALL [PRIVILEGES] FROM <user>
 
+-- combine db creation with privilege assignment (user must already exist)
+CREATE DATABASE <name> GRANT <privilege> TO <user>
+CREATE DATABASE <name> REVOKE <privilege> FROM <user>
+
 -- delete a user
 DROP USER <name>
+
+
 ```
 where `<privilege> := READ | WRITE | All [PRIVILEGES]`.
 
