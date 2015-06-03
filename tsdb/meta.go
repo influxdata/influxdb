@@ -9,7 +9,12 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb/influxql"
+	"github.com/influxdb/influxdb/tsdb/internal"
+
+	"github.com/gogo/protobuf/proto"
 )
+
+//go:generate protoc --gogo_out=. internal/meta.proto
 
 const (
 	maxStringLength = 64 * 1024
@@ -855,6 +860,32 @@ type Series struct {
 
 	id          uint64
 	measurement *Measurement
+}
+
+// MarshalBinary encodes the object to a binary format.
+func (s *Series) MarshalBinary() ([]byte, error) {
+	var pb internal.Series
+	pb.Key = &s.Key
+	for k, v := range s.Tags {
+		key := k
+		value := v
+		pb.Tags = append(pb.Tags, &internal.Tag{Key: &key, Value: &value})
+	}
+	return proto.Marshal(&pb)
+}
+
+// UnmarshalBinary decodes the object from a binary format.
+func (s *Series) UnmarshalBinary(buf []byte) error {
+	var pb internal.Series
+	if err := proto.Unmarshal(buf, &pb); err != nil {
+		return err
+	}
+	s.Key = pb.GetKey()
+	s.Tags = make(map[string]string)
+	for _, t := range pb.Tags {
+		s.Tags[t.GetKey()] = t.GetValue()
+	}
+	return nil
 }
 
 // match returns true if all tags match the series' tags.

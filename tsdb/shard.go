@@ -11,8 +11,10 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb/influxql"
+	"github.com/influxdb/influxdb/tsdb/internal"
 
 	"github.com/boltdb/bolt"
+	"github.com/gogo/protobuf/proto"
 )
 
 // Shard represents a self-contained time series database. An inverted index of the measurement and tag data is
@@ -146,7 +148,11 @@ func (s *Shard) WritePoints(points []Point) error {
 		if len(seriesToCreate) > 0 {
 			b := tx.Bucket([]byte("series"))
 			for _, sc := range seriesToCreate {
-				if err := b.Put([]byte(sc.series.Key), mustMarshalJSON(sc.series)); err != nil {
+				data, err := sc.series.MarshalBinary()
+				if err != nil {
+					return err
+				}
+				if err := b.Put([]byte(sc.series.Key), data); err != nil {
 					return err
 				}
 			}
@@ -154,7 +160,11 @@ func (s *Shard) WritePoints(points []Point) error {
 		if len(measurementFieldsToSave) > 0 {
 			b := tx.Bucket([]byte("fields"))
 			for name, m := range measurementFieldsToSave {
-				if err := b.Put([]byte(name), mustMarshalJSON(m)); err != nil {
+				data, err := m.MarshalBinary()
+				if err != nil {
+					return err
+				}
+				if err := b.Put([]byte(name), data); err != nil {
 					return err
 				}
 			}
@@ -355,7 +365,9 @@ func (s *Shard) loadMetadataIndex() error {
 		for k, v := c.First(); k != nil; k, v = c.Next() {
 			m := s.index.createMeasurementIndexIfNotExists(string(k))
 			mf := &measurementFields{}
-			mustUnmarshalJSON(v, mf)
+			if err := mf.UnmarshalBinary(v); err != nil {
+				return err
+			}
 			for name, _ := range mf.Fields {
 				m.FieldNames[name] = struct{}{}
 			}
@@ -367,8 +379,10 @@ func (s *Shard) loadMetadataIndex() error {
 		meta = tx.Bucket([]byte("series"))
 		c = meta.Cursor()
 		for k, v := c.First(); k != nil; k, v = c.Next() {
-			var series *Series
-			mustUnmarshalJSON(v, &series)
+			series := &Series{}
+			if err := series.UnmarshalBinary(v); err != nil {
+				return err
+			}
 			s.index.createSeriesIndexIfNotExists(measurementFromSeriesKey(string(k)), series)
 		}
 		return nil
@@ -378,6 +392,31 @@ func (s *Shard) loadMetadataIndex() error {
 type measurementFields struct {
 	Fields map[string]*field `json:"fields"`
 	codec  *FieldCodec
+}
+
+// MarshalBinary encodes the object to a binary format.
+func (m *measurementFields) MarshalBinary() ([]byte, error) {
+	var pb internal.MeasurementFields
+	for _, f := range m.Fields {
+		id := int32(f.ID)
+		name := f.Name
+		t := string(f.Type)
+		pb.Fields = append(pb.Fields, &internal.Field{ID: &id, Name: &name, Type: &t})
+	}
+	return proto.Marshal(&pb)
+}
+
+// UnmarshalBinary decodes the object from a binary format.
+func (m *measurementFields) UnmarshalBinary(buf []byte) error {
+	var pb internal.MeasurementFields
+	if err := proto.Unmarshal(buf, &pb); err != nil {
+		return err
+	}
+	m.Fields = make(map[string]*field)
+	for _, f := range pb.Fields {
+		m.Fields[f.GetName()] = &field{ID: uint8(f.GetID()), Name: f.GetName(), Type: influxql.DataType(f.GetType())}
+	}
+	return nil
 }
 
 // createFieldIfNotExists creates a new field with an autoincrementing ID.
