@@ -23,7 +23,7 @@ DROP RETENTION POLICY <rp-name> ON <db.name>
 
 ```sql
 -- create user
-CREATE USER <name> WITH PASSWORD <password>
+CREATE USER <name> WITH PASSWORD '<password>'
 
 -- grant privilege on a database
 GRANT <privilege> ON <db> TO <user>
@@ -37,13 +37,19 @@ REVOKE <privilege> ON <db> FROM <user>
 -- revoke all privileges for a DB
 REVOKE ALL [PRIVILEGES] ON <db> FROM <user>
 
--- revoke all of user's privileges (all DBs and/or cluster admin)
+-- revoke all privileges including cluster admin
 REVOKE ALL [PRIVILEGES] FROM <user>
 
 -- delete a user
 DROP USER <name>
 ```
-where `<privilege> := READ | WRITE | All [PRIVILEGES]`.
+where `<privilege> := READ | WRITE | All [PRIVILEGES]`. 
+
+Authentication must be enabled in the influxdb.conf file for user permissions to be in effect.
+
+By default, newly created users have no privileges to any databases.
+
+Cluster administration privileges automatically grant full read and write permissions to all databases, regardless of subsequent database-specific privilege revocation statements.
 
 # Select
 
