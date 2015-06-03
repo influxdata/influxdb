@@ -330,7 +330,7 @@ func (h *Handler) serveWriteJSON(w http.ResponseWriter, r *http.Request, body []
 
 	points, err := NormalizeBatchPoints(bp)
 	if err != nil {
-		resultError(w, influxql.Result{Err: err}, http.StatusInternalServerError)
+		resultError(w, influxql.Result{Err: err}, http.StatusBadRequest)
 		return
 	}
 
@@ -864,6 +864,14 @@ func NormalizeBatchPoints(bp client.BatchPoints) ([]tsdb.Point, error) {
 					p.Tags[k] = bp.Tags[k]
 				}
 			}
+		}
+
+		if p.Measurement == "" {
+			return points, fmt.Errorf("missing measurement")
+		}
+
+		if len(p.Fields) == 0 {
+			return points, fmt.Errorf("missing fields")
 		}
 		// Need to convert from a client.Point to a influxdb.Point
 		points = append(points, tsdb.NewPoint(p.Measurement, p.Tags, p.Fields, p.Time))
