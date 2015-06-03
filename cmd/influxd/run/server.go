@@ -11,6 +11,7 @@ import (
 	"github.com/influxdb/influxdb/services/collectd"
 	"github.com/influxdb/influxdb/services/continuous_querier"
 	"github.com/influxdb/influxdb/services/graphite"
+	"github.com/influxdb/influxdb/services/hh"
 	"github.com/influxdb/influxdb/services/httpd"
 	"github.com/influxdb/influxdb/services/opentsdb"
 	"github.com/influxdb/influxdb/services/retention"
@@ -35,6 +36,7 @@ type Server struct {
 	QueryExecutor *tsdb.QueryExecutor
 	PointsWriter  *cluster.PointsWriter
 	ShardWriter   *cluster.ShardWriter
+	HintedHandoff *hh.Service
 
 	Services []Service
 }
@@ -62,11 +64,15 @@ func NewServer(c *Config) *Server {
 	s.ShardWriter = cluster.NewShardWriter(time.Duration(c.Cluster.ShardWriterTimeout))
 	s.ShardWriter.MetaStore = s.MetaStore
 
+	// Create the hinted handoff service
+	s.HintedHandoff = hh.NewService(c.HintedHandoff)
+
 	// Initialize points writer.
 	s.PointsWriter = cluster.NewPointsWriter()
 	s.PointsWriter.MetaStore = s.MetaStore
 	s.PointsWriter.TSDBStore = s.TSDBStore
 	s.PointsWriter.ShardWriter = s.ShardWriter
+	s.PointsWriter.HintedHandoff = s.HintedHandoff
 
 	// Append services.
 	s.appendClusterService(c.Cluster)
@@ -216,6 +222,11 @@ func (s *Server) Open() error {
 			return fmt.Errorf("open tsdb store: %s", err)
 		}
 
+		// Open the hinted handoff service
+		if err := s.HintedHandoff.Open(); err != nil {
+			return fmt.Errorf("open hinted handoff: %s", err)
+		}
+
 		for _, service := range s.Services {
 			if err := service.Open(); err != nil {
 				return fmt.Errorf("open service: %s", err)
@@ -242,6 +253,9 @@ func (s *Server) Close() error {
 	}
 	if s.TSDBStore != nil {
 		s.TSDBStore.Close()
+	}
+	if s.HintedHandoff != nil {
+		s.HintedHandoff.Close()
 	}
 	for _, service := range s.Services {
 		service.Close()
