@@ -316,7 +316,7 @@ func (l *LocalMapper) Begin(c *influxql.Call, startingTime int64, chunkSize int)
 	if fieldName != "" {
 		fid, err := l.decoder.FieldIDByName(fieldName)
 		if err != nil {
-			return fmt.Errorf("%s isn't a field on measurement %s", fieldName, l.job.MeasurementName)
+			return fmt.Errorf(`%s isn't a field on measurement %s; to query the unique values for a tag use SHOW TAG VALUES FROM %[2]s WITH KEY = "%[1]s"`, fieldName, l.job.MeasurementName)
 		}
 		l.fieldID = fid
 		l.fieldName = fieldName
