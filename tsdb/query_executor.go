@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"runtime"
 	"sort"
 	"strings"
 
@@ -165,6 +164,7 @@ func (q *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chu
 			case *influxql.ShowSeriesStatement:
 				res = q.executeShowSeriesStatement(stmt, database)
 			case *influxql.DropMeasurementStatement:
+				// TODO: handle this in a cluster
 				res = q.executeDropMeasurementStatement(stmt, database)
 			case *influxql.ShowMeasurementsStatement:
 				res = q.executeShowMeasurementsStatement(stmt, database)
@@ -390,8 +390,28 @@ func (q *QueryExecutor) executeDropDatabaseStatement(stmt *influxql.DropDatabase
 	panic("not yet imlemented")
 }
 
+// executeDropMeasurementStatement removes the measurement and all series data from the local store for the given measurement
 func (q *QueryExecutor) executeDropMeasurementStatement(stmt *influxql.DropMeasurementStatement, database string) *influxql.Result {
-	panic("not yet implemented")
+	// Find the database.
+	db := q.store.DatabaseIndex(database)
+	if db == nil {
+		return &influxql.Result{Err: ErrDatabaseNotFound(database)}
+	}
+
+	m := db.Measurement(stmt.Name)
+	if m == nil {
+		return &influxql.Result{Err: ErrMeasurementNotFound(stmt.Name)}
+	}
+
+	// first remove from the index
+	db.DropMeasurement(m.Name)
+
+	// now drop the raw data
+	if err := q.store.deleteMeasurement(m.Name, m.seriesKeys()); err != nil {
+		return &influxql.Result{Err: err}
+	}
+
+	return &influxql.Result{}
 }
 
 // executeDropSeriesStatement removes all series from the local store that match the drop query
@@ -422,8 +442,6 @@ func (q *QueryExecutor) executeDropSeriesStatement(stmt *influxql.DropSeriesStat
 			if err != nil {
 				return &influxql.Result{Err: err}
 			}
-
-			// TODO: check return of walkWhereForSeriesIds for fields
 		} else {
 			// No WHERE clause so get all series IDs for this measurement.
 			ids = m.seriesIDs
@@ -439,7 +457,7 @@ func (q *QueryExecutor) executeDropSeriesStatement(stmt *influxql.DropSeriesStat
 		return &influxql.Result{Err: err}
 	}
 	// remove them from the index
-	db.deleteSeries(seriesKeys)
+	db.DropSeries(seriesKeys)
 
 	return &influxql.Result{}
 }
@@ -1033,16 +1051,6 @@ var (
 	ErrNotExecuted = errors.New("not executed")
 )
 
-func ErrDatabaseNotFound(name string) error { return Errorf("database not found: %s", name) }
+func ErrDatabaseNotFound(name string) error { return fmt.Errorf("database not found: %s", name) }
 
-func ErrMeasurementNotFound(name string) error { return Errorf("measurement not found: %s", name) }
-
-func Errorf(format string, a ...interface{}) (err error) {
-	if _, file, line, ok := runtime.Caller(2); ok {
-		a = append(a, file, line)
-		err = fmt.Errorf(format+" (%s:%d)", a...)
-	} else {
-		err = fmt.Errorf(format, a...)
-	}
-	return
-}
+func ErrMeasurementNotFound(name string) error { return fmt.Errorf("measurement not found: %s", name) }

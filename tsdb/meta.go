@@ -38,6 +38,13 @@ func NewDatabaseIndex() *DatabaseIndex {
 	}
 }
 
+// Measurement returns the measurement object from the index by the name
+func (d *DatabaseIndex) Measurement(name string) *Measurement {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.measurements[name]
+}
+
 // createSeriesIndexIfNotExists adds the series for the given measurement to the index and sets its ID or returns the existing series object
 func (s *DatabaseIndex) createSeriesIndexIfNotExists(measurementName string, series *Series) *Series {
 	// if there is a measurement for this id, it's already been added
@@ -210,8 +217,32 @@ func (db *DatabaseIndex) Measurements() Measurements {
 	return measurements
 }
 
-// deleteSeries removes the series keys and their tags from the index
-func (db *DatabaseIndex) deleteSeries(keys []string) {
+// DropMeasurement removes the measurement and all of its underlying series from the database index
+func (db *DatabaseIndex) DropMeasurement(name string) {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	m := db.measurements[name]
+	if m == nil {
+		return
+	}
+
+	delete(db.measurements, name)
+	for _, s := range m.seriesByID {
+		delete(db.series, s.Key)
+	}
+
+	var names []string
+	for _, n := range db.names {
+		if n != name {
+			names = append(names, n)
+		}
+	}
+	db.names = names
+}
+
+// DropSeries removes the series keys and their tags from the index
+func (db *DatabaseIndex) DropSeries(keys []string) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 	for _, k := range keys {
@@ -219,7 +250,7 @@ func (db *DatabaseIndex) deleteSeries(keys []string) {
 		if series == nil {
 			continue
 		}
-		series.measurement.dropSeries(series.id)
+		series.measurement.DropSeries(series.id)
 	}
 }
 
@@ -228,6 +259,7 @@ func (db *DatabaseIndex) deleteSeries(keys []string) {
 // object. Generally these methods are only accessed from Index, which is responsible for ensuring
 // go routine safe access.
 type Measurement struct {
+	mu         sync.RWMutex
 	Name       string              `json:"name,omitempty"`
 	FieldNames map[string]struct{} `json:"fieldNames,omitempty"`
 	index      *DatabaseIndex
@@ -252,6 +284,17 @@ func NewMeasurement(name string, idx *DatabaseIndex) *Measurement {
 		seriesByTagKeyValue: make(map[string]map[string]seriesIDs),
 		seriesIDs:           make(seriesIDs, 0),
 	}
+}
+
+// seriesKeys returns the keys of every series in this measurement
+func (m *Measurement) seriesKeys() []string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	var keys []string
+	for _, s := range m.seriesByID {
+		keys = append(keys, s.Key)
+	}
+	return keys
 }
 
 // HasTagKey returns true if at least one series in this measurement has written a value for the passed in tag key
@@ -297,7 +340,10 @@ func (m *Measurement) addSeries(s *Series) bool {
 }
 
 // dropSeries will remove a series from the measurementIndex. Returns true if already removed
-func (m *Measurement) dropSeries(seriesID uint64) bool {
+func (m *Measurement) DropSeries(seriesID uint64) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	if _, ok := m.seriesByID[seriesID]; !ok {
 		return true
 	}
