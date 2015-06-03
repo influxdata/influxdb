@@ -34,7 +34,7 @@ func TestServer_DatabaseCommands(t *testing.T) {
 				exp:     `{"results":[{}]}`,
 			},
 			&Query{
-				name:    "create database should fail if it already exists",
+				name:    "create database should error if it already exists",
 				command: `CREATE DATABASE db0`,
 				exp:     `{"results":[{"error":"database already exists"}]}`,
 			},
@@ -46,7 +46,7 @@ func TestServer_DatabaseCommands(t *testing.T) {
 			},
 			&Query{
 				skip:    true,
-				name:    "drop database should fail if it doesn't exist - FIXME pauldix",
+				name:    "drop database should error if it doesn't exist - FIXME pauldix",
 				command: `DROP DATABASE db0`,
 				exp:     `FIXME`,
 			},
@@ -85,7 +85,7 @@ func TestServer_RetentionPolicyCommands(t *testing.T) {
 				exp:     `{"results":[{}]}`,
 			},
 			&Query{
-				name:    "create retention policy should fail if it already exists",
+				name:    "create retention policy should error if it already exists",
 				command: `CREATE RETENTION POLICY rp0 ON db0 DURATION 1h REPLICATION 1`,
 				exp:     `{"results":[{"error":"retention policy already exists"}]}`,
 			},
@@ -332,7 +332,7 @@ func TestServer_Query_Count(t *testing.T) {
 			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]}]}]}`,
 		},
 		&Query{
-			name:    "selecting count(*) should fail",
+			name:    "selecting count(*) should error",
 			command: `SELECT count(*) FROM db0.rp0.cpu`,
 			exp:     `{"results":[{"error":"expected field argument in count()"}]}`,
 		},
@@ -555,13 +555,13 @@ func TestServer_Query_Common(t *testing.T) {
 			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",1]]}]}]}`, now.Format(time.RFC3339Nano)),
 		},
 		&Query{
-			name:    "selecting a measurement that doesn't exist should fail",
+			name:    "selecting a measurement that doesn't exist should error",
 			command: `SELECT value FROM db0.rp0.idontexist`,
 			exp:     `.*measurement not found*`,
 			pattern: true,
 		},
 		&Query{
-			name:    "selecting a field that doesn't exist should fail",
+			name:    "selecting a field that doesn't exist should error",
 			command: `SELECT idontexist FROM db0.rp0.cpu`,
 			exp:     `{"results":[{"error":"unknown field or tag name in select clause: idontexist"}]}`,
 		},
