@@ -45,6 +45,9 @@ bind-address = ":1000"
 [opentsdb]
 bind-address = ":2000"
 
+[udp]
+bind-address = ":4444"
+
 [monitoring]
 enabled = true
 
@@ -81,6 +84,8 @@ enabled = true
 		t.Fatalf("unexpected collectd bind address: %s", c.Collectd.BindAddress)
 	} else if c.OpenTSDB.BindAddress != ":2000" {
 		t.Fatalf("unexpected opentsdb bind address: %s", c.OpenTSDB.BindAddress)
+	} else if c.UDP.BindAddress != ":4444" {
+		t.Fatalf("unexpected udp bind address: %s", c.UDP.BindAddress)
 	} else if c.Monitoring.Enabled != true {
 		t.Fatalf("unexpected monitoring enabled: %v", c.Monitoring.Enabled)
 	} else if c.ContinuousQuery.Enabled != true {
