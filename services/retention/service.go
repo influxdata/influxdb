@@ -5,9 +5,6 @@ import (
 	"os"
 	"sync"
 	"time"
-
-	"github.com/influxdb/influxdb/meta"
-	"github.com/influxdb/influxdb/tsdb"
 )
 
 // Service represents the retention policy enforcement service.
@@ -28,7 +25,7 @@ type Service struct {
 }
 
 // NewService returns a configure retention policy enforcement service.
-func NewService(c *Config) *Service {
+func NewService(c Config) *Service {
 	return &Service{
 		enabled:       c.Enabled,
 		checkInterval: c.CheckInterval,
@@ -71,7 +68,7 @@ func (s *Service) run() {
 				log.Printf("error enforcing retention policies: %s", err.Error())
 				continue
 			}
-			for id := range ids {
+			for _, id := range ids {
 				if err := s.TSDBStore.DeleteShard(id); err != nil {
 					log.Printf("failed to delete shard ID %d: %s", id, err.Error())
 				} else {

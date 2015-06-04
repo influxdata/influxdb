@@ -19,6 +19,7 @@ import (
 	"github.com/influxdb/influxdb/services/httpd"
 	"github.com/influxdb/influxdb/services/monitor"
 	"github.com/influxdb/influxdb/services/opentsdb"
+	"github.com/influxdb/influxdb/services/retention"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -68,9 +69,10 @@ type Config struct {
 		JoinURLs string `toml:"join-urls"`
 	} `toml:"initialization"`
 
-	Meta    meta.Config    `toml:"meta"`
-	Data    tsdb.Config    `toml:"data"`
-	Cluster cluster.Config `toml:"cluster"`
+	Meta      meta.Config      `toml:"meta"`
+	Data      tsdb.Config      `toml:"data"`
+	Cluster   cluster.Config   `toml:"cluster"`
+	Retention retention.Config `toml:"retention"`
 
 	Admin     admin.Config      `toml:"admin"`
 	HTTPD     httpd.Config      `toml:"api"`

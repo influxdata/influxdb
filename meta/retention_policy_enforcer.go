@@ -4,11 +4,17 @@ import (
 	"time"
 )
 
+// RetentionPolicyEnforcer enforces retention policies.
 type RetentionPolicyEnforcer struct {
 	Store interface {
 		Databases() (dis []DatabaseInfo, err error)
 		DeleteShardGroup(database, policy string, id uint64) error
 	}
+}
+
+// NewRetentionPolicyEnforcer returns a retention policy enforcer using the given store.
+func NewRetentionPolicyEnforcer(store *Store) *RetentionPolicyEnforcer {
+	return &RetentionPolicyEnforcer{Store: store}
 }
 
 // Enforce removes shard groups that represent data older than the retention policies
