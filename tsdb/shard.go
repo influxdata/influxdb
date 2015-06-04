@@ -71,6 +71,9 @@ func (s *Shard) Open() error {
 
 // close shuts down the shard's store.
 func (s *Shard) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if s.db != nil {
 		_ = s.db.Close()
 	}
@@ -78,7 +81,7 @@ func (s *Shard) Close() error {
 }
 
 // TODO: this is temporarily exported to make tx.go work. When the query engine gets refactored
-// into the tsdb package this should be removed. No one outside tsdb should know the underlying store
+// into the tsdb package this should be removed. No one outside tsdb should know the underlying store.
 func (s *Shard) DB() *bolt.DB {
 	return s.db
 }
@@ -321,7 +324,7 @@ func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*fieldCreate) (map[
 
 		// ensure the measurement is in the index and the field is there
 		measurement := s.index.createMeasurementIndexIfNotExists(f.measurement)
-		measurement.FieldNames[f.field.Name] = struct{}{}
+		measurement.fieldNames[f.field.Name] = struct{}{}
 	}
 
 	return measurementsToSave, nil
@@ -395,7 +398,7 @@ func (s *Shard) loadMetadataIndex() error {
 				return err
 			}
 			for name, _ := range mf.Fields {
-				m.FieldNames[name] = struct{}{}
+				m.fieldNames[name] = struct{}{}
 			}
 			mf.codec = newFieldCodec(mf.Fields)
 			s.measurementFields[string(k)] = mf

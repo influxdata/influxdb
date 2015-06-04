@@ -94,7 +94,7 @@ func (s *Store) Measurement(database, name string) *Measurement {
 	if db == nil {
 		return nil
 	}
-	return db.measurements[name]
+	return db.Measurement(name)
 }
 
 // deleteSeries lopos through the local shards and deletes the series data and metadata for the passed in series keys
