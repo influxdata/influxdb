@@ -303,7 +303,7 @@ func (q *QueryExecutor) expandWildcards(stmt *influxql.SelectStatement) (*influx
 			}
 
 			// Get the fields for this measurement.
-			for name, _ := range mm.FieldNames {
+			for _, name := range mm.FieldNames() {
 				if _, ok := fieldSet[name]; ok {
 					continue
 				}
@@ -312,7 +312,7 @@ func (q *QueryExecutor) expandWildcards(stmt *influxql.SelectStatement) (*influx
 			}
 
 			// Get the dimensions for this measurement.
-			for _, t := range mm.tagKeys() {
+			for _, t := range mm.TagKeys() {
 				if _, ok := dimensionSet[t]; ok {
 					continue
 				}
@@ -407,7 +407,7 @@ func (q *QueryExecutor) executeDropMeasurementStatement(stmt *influxql.DropMeasu
 	db.DropMeasurement(m.Name)
 
 	// now drop the raw data
-	if err := q.store.deleteMeasurement(m.Name, m.seriesKeys()); err != nil {
+	if err := q.store.deleteMeasurement(m.Name, m.SeriesKeys()); err != nil {
 		return &influxql.Result{Err: err}
 	}
 
@@ -511,7 +511,7 @@ func (q *QueryExecutor) executeShowSeriesStatement(stmt *influxql.ShowSeriesStat
 		// Make a new row for this measurement.
 		r := &influxql.Row{
 			Name:    m.Name,
-			Columns: m.tagKeys(),
+			Columns: m.TagKeys(),
 		}
 
 		// Loop through series IDs getting matching tag sets.
@@ -661,7 +661,7 @@ func (q *QueryExecutor) executeShowTagKeysStatement(stmt *influxql.ShowTagKeysSt
 		// TODO: filter tag keys by stmt.Condition
 
 		// Get the tag keys in sorted order.
-		keys := m.tagKeys()
+		keys := m.TagKeys()
 
 		// Convert keys to an [][]interface{}.
 		values := make([][]interface{}, 0, len(m.seriesByTagKeyValue))
@@ -795,10 +795,7 @@ func (q *QueryExecutor) executeShowFieldKeysStatement(stmt *influxql.ShowFieldKe
 		}
 
 		// Get a list of field names from the measurement then sort them.
-		names := make([]string, 0, len(m.FieldNames))
-		for n, _ := range m.FieldNames {
-			names = append(names, n)
-		}
+		names := m.FieldNames()
 		sort.Strings(names)
 
 		// Add the field names to the result row values.
@@ -835,7 +832,7 @@ func measurementsFromSourcesOrDB(db *DatabaseIndex, sources ...influxql.Source) 
 	} else {
 		// No measurements specified in FROM clause so get all measurements that have series.
 		for _, m := range db.Measurements() {
-			if len(m.seriesIDs) > 0 {
+			if m.HasSeries() {
 				measurements = append(measurements, m)
 			}
 		}

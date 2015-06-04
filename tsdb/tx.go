@@ -73,8 +73,7 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 		var selectTags []string
 
 		for _, n := range stmt.NamesInSelect() {
-			_, hasField := m.FieldNames[n]
-			if hasField {
+			if m.HasField(n) {
 				selectFields = append(selectFields, n)
 				continue
 			}
@@ -88,8 +87,7 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 			if n == "time" {
 				continue
 			}
-			_, hasField := m.FieldNames[n]
-			if hasField {
+			if m.HasField(n) {
 				whereFields = append(whereFields, n)
 				continue
 			}
