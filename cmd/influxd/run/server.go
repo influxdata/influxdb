@@ -11,6 +11,7 @@ import (
 	"github.com/influxdb/influxdb/services/graphite"
 	"github.com/influxdb/influxdb/services/httpd"
 	"github.com/influxdb/influxdb/services/opentsdb"
+	"github.com/influxdb/influxdb/services/udp"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -55,6 +56,7 @@ func NewServer(c *Config, joinURLs string) *Server {
 	s.appendHTTPDService(c.HTTPD)
 	s.appendCollectdService(c.Collectd)
 	s.appendOpenTSDBService(c.OpenTSDB)
+	s.appendUDPService(c.UDP)
 	for _, g := range c.Graphites {
 		s.appendGraphiteService(g)
 	}
@@ -93,6 +95,12 @@ func (s *Server) appendOpenTSDBService(c opentsdb.Config) {
 
 func (s *Server) appendGraphiteService(c graphite.Config) {
 	srv := graphite.NewService(c)
+	s.Services = append(s.Services, srv)
+}
+
+func (s *Server) appendUDPService(c udp.Config) {
+	srv := udp.NewService(c)
+	srv.Server.PointsWriter = s.PointsWriter
 	s.Services = append(s.Services, srv)
 }
 

@@ -6,6 +6,7 @@
 - [2682](https://github.com/influxdb/influxdb/issues/2682): Adding pr checklist to CONTRIBUTING.md
 - [2683](https://github.com/influxdb/influxdb/issues/2683): Add batching support to Graphite inputs.
 - [2687](https://github.com/influxdb/influxdb/issues/2687): Add batching support to Collectd inputs.
+- [2751](https://github.com/influxdb/influxdb/pull/2751): Add UDP input back
 
 ### Bugfixes
 - [2635](https://github.com/influxdb/influxdb/issues/2635): Fix querying against boolean field in WHERE clause.

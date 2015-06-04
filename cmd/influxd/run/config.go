@@ -19,6 +19,7 @@ import (
 	"github.com/influxdb/influxdb/services/httpd"
 	"github.com/influxdb/influxdb/services/monitor"
 	"github.com/influxdb/influxdb/services/opentsdb"
+	"github.com/influxdb/influxdb/services/udp"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -77,6 +78,7 @@ type Config struct {
 	Graphites []graphite.Config `toml:"graphite"`
 	Collectd  collectd.Config   `toml:"collectd"`
 	OpenTSDB  opentsdb.Config   `toml:"opentsdb"`
+	UDP       udp.Config        `toml:"udp"`
 
 	// Snapshot SnapshotConfig `toml:"snapshot"`
 	Monitoring      monitor.Config            `toml:"monitoring"`
