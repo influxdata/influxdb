@@ -142,6 +142,9 @@ func (s *Server) appendUDPService(c udp.Config) {
 }
 
 func (s *Server) appendContinuousQueryService(c continuous_querier.Config) {
+	if !c.Enabled {
+		return
+	}
 	srv := continuous_querier.NewService(c)
 	srv.MetaStore = s.MetaStore
 	srv.QueryExecutor = s.QueryExecutor
