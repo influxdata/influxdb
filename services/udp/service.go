@@ -1,35 +1,156 @@
 package udp
 
 import (
+	"errors"
+	"log"
 	"net"
+	"os"
+	"sync"
 	"time"
+
+	"github.com/influxdb/influxdb/cluster"
+	"github.com/influxdb/influxdb/tsdb"
 )
 
-type Service struct {
-	Server *Server
+const (
+	UDPBufferSize = 65536
+)
 
-	addr string
+//
+// Service represents here an UDP service
+// that will listen for incoming packets
+// formatted with the inline protocol
+//
+type Service struct {
+	conn *net.UDPConn
+	addr *net.UDPAddr
+	wg   sync.WaitGroup
+	done chan struct{}
+
+	batcher *tsdb.PointBatcher
+	config  Config
+
+	PointsWriter interface {
+		WritePoints(p *cluster.WritePointsRequest) error
+	}
+
+	Logger *log.Logger
 }
 
 func NewService(c Config) *Service {
-	server := NewServer(c.Database)
-	server.SetBatchSize(c.BatchSize)
-	server.SetBatchTimeout(time.Duration(c.BatchTimeout))
-
 	return &Service{
-		addr:   c.BindAddress,
-		Server: server,
+		config: c,
+		done:   make(chan struct{}),
+		Logger: log.New(os.Stderr, "[udp] ", log.LstdFlags),
 	}
 }
 
-func (s *Service) Open() error {
-	return s.Server.ListenAndServe(s.addr)
+func (s *Service) Open() (err error) {
+	if s.config.BindAddress == "" {
+		return errors.New("bind address has to be specified in config")
+	}
+	if s.config.Database == "" {
+		return errors.New("database has to be specified in config")
+	}
+
+	s.addr, err = net.ResolveUDPAddr("udp", s.config.BindAddress)
+	if err != nil {
+		s.Logger.Printf("Failed to resolve UDP address %s: %s", s.config.BindAddress, err)
+		return err
+	}
+
+	s.conn, err = net.ListenUDP("udp", s.addr)
+	if err != nil {
+		s.Logger.Printf("Failed to set up UDP listener at address %s: %s", s.addr, err)
+		return err
+	}
+
+	s.Logger.Printf("Started listening on %s", s.config.BindAddress)
+
+	s.batcher = tsdb.NewPointBatcher(s.config.BatchSize, time.Duration(s.config.BatchTimeout))
+
+	s.wg.Add(2)
+	go s.serve()
+	go s.writePoints()
+
+	return nil
+}
+
+func (s *Service) writePoints() {
+	defer s.wg.Done()
+
+	for {
+		select {
+		case batch := <-s.batcher.Out():
+			err := s.PointsWriter.WritePoints(&cluster.WritePointsRequest{
+				Database:         s.config.Database,
+				RetentionPolicy:  "",
+				ConsistencyLevel: cluster.ConsistencyLevelOne,
+				Points:           batch,
+			})
+			if err != nil {
+				s.Logger.Printf("Failed to write points batch to database %s: %s", s.config.Database, err)
+			} else {
+				s.Logger.Printf("Wrote a batch of %d points to %s", len(batch), s.config.Database)
+			}
+		case <-s.done:
+			return
+		}
+	}
+}
+
+func (s *Service) serve() {
+	defer s.wg.Done()
+
+	s.batcher.Start()
+	for {
+		buf := make([]byte, UDPBufferSize)
+
+		select {
+		case <-s.done:
+			// We closed the connection, time to go.
+			return
+		default:
+			// Keep processing.
+		}
+
+		n, _, err := s.conn.ReadFromUDP(buf)
+		if err != nil {
+			s.Logger.Printf("Failed to read UDP message: %s", err)
+			continue
+		}
+
+		points, err := tsdb.ParsePoints(buf[:n])
+		if err != nil {
+			s.Logger.Printf("Failed to parse points: %s", err)
+			continue
+		}
+
+		for _, point := range points {
+			s.batcher.In() <- point
+		}
+	}
 }
 
 func (s *Service) Close() error {
-	return s.Server.Close()
+	if s.conn == nil {
+		return errors.New("Service already closed")
+	}
+
+	s.conn.Close()
+	s.batcher.Flush()
+	close(s.done)
+	s.wg.Wait()
+
+	// Release all remaining resources.
+	s.done = nil
+	s.conn = nil
+
+	s.Logger.Print("Service closed")
+
+	return nil
 }
 
 func (s *Service) Addr() net.Addr {
-	return s.Server.Addr()
+	return s.addr
 }

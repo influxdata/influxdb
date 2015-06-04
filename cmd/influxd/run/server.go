@@ -115,7 +115,7 @@ func (s *Server) appendUDPService(c udp.Config) {
 		return
 	}
 	srv := udp.NewService(c)
-	srv.Server.PointsWriter = s.PointsWriter
+	srv.PointsWriter = s.PointsWriter
 	s.Services = append(s.Services, srv)
 }
 
