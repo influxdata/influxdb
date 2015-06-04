@@ -121,9 +121,17 @@ func (s *Server) QueryWithParams(query string, values url.Values) (results strin
 }
 
 // Write executes a write against the server and returns the results.
-func (s *Server) Write(db, rp, body string) (results string, err error) {
-	v := url.Values{"db": {db}, "rp": {rp}}
-	resp, err := http.Post(s.URL()+"/write?"+v.Encode(), "", strings.NewReader(body))
+func (s *Server) Write(db, rp, body string, params url.Values) (results string, err error) {
+	if params == nil {
+		params = url.Values{}
+	}
+	if params.Get("db") == "" {
+		params.Set("db", db)
+	}
+	if params.Get("rp") == "" {
+		params.Set("rp", rp)
+	}
+	resp, err := http.Post(s.URL()+"/write?"+params.Encode(), "", strings.NewReader(body))
 	if err != nil {
 		return "", err
 	} else if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
@@ -242,6 +250,7 @@ func (q *Query) failureMessage() string {
 type Test struct {
 	initialized bool
 	write       string
+	params      url.Values
 	db          string
 	rp          string
 	exp         string
@@ -264,7 +273,7 @@ func (t *Test) init(s *Server) error {
 		return nil
 	}
 	t.initialized = true
-	if res, err := s.Write(t.db, t.rp, t.write); err != nil {
+	if res, err := s.Write(t.db, t.rp, t.write, t.params); err != nil {
 		return err
 	} else if t.exp != res {
 		return fmt.Errorf("unexpected results\nexp: %s\ngot: %s\n", t.exp, res)

@@ -241,7 +241,7 @@ func TestServer_Write_JSON(t *testing.T) {
 	}
 
 	now := now()
-	if res, err := s.Write("", "", fmt.Sprintf(`{"database" : "db0", "retentionPolicy" : "rp0", "points": [{"measurement": "cpu", "tags": {"host": "server02"},"fields": {"value": 1.0}}],"time":"%s"} `, now.Format(time.RFC3339Nano))); err != nil {
+	if res, err := s.Write("", "", fmt.Sprintf(`{"database" : "db0", "retentionPolicy" : "rp0", "points": [{"measurement": "cpu", "tags": {"host": "server02"},"fields": {"value": 1.0}}],"time":"%s"} `, now.Format(time.RFC3339Nano)), nil); err != nil {
 		t.Fatal(err)
 	} else if exp := ``; exp != res {
 		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
@@ -266,7 +266,7 @@ func TestServer_Write_LineProtocol_Float(t *testing.T) {
 	}
 
 	now := now()
-	if res, err := s.Write("db0", "rp0", `cpu,host=server01 value=1.0 `+strconv.FormatInt(now.UnixNano(), 10)); err != nil {
+	if res, err := s.Write("db0", "rp0", `cpu,host=server01 value=1.0 `+strconv.FormatInt(now.UnixNano(), 10), nil); err != nil {
 		t.Fatal(err)
 	} else if exp := ``; exp != res {
 		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
@@ -291,7 +291,7 @@ func TestServer_Write_LineProtocol_Bool(t *testing.T) {
 	}
 
 	now := now()
-	if res, err := s.Write("db0", "rp0", `cpu,host=server01 value=true `+strconv.FormatInt(now.UnixNano(), 10)); err != nil {
+	if res, err := s.Write("db0", "rp0", `cpu,host=server01 value=true `+strconv.FormatInt(now.UnixNano(), 10), nil); err != nil {
 		t.Fatal(err)
 	} else if exp := ``; exp != res {
 		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
@@ -316,7 +316,7 @@ func TestServer_Write_LineProtocol_String(t *testing.T) {
 	}
 
 	now := now()
-	if res, err := s.Write("db0", "rp0", `cpu,host=server01 value="disk full" `+strconv.FormatInt(now.UnixNano(), 10)); err != nil {
+	if res, err := s.Write("db0", "rp0", `cpu,host=server01 value="disk full" `+strconv.FormatInt(now.UnixNano(), 10), nil); err != nil {
 		t.Fatal(err)
 	} else if exp := ``; exp != res {
 		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
@@ -341,7 +341,7 @@ func TestServer_Write_LineProtocol_Integer(t *testing.T) {
 	}
 
 	now := now()
-	if res, err := s.Write("db0", "rp0", `cpu,host=server01 value=100 `+strconv.FormatInt(now.UnixNano(), 10)); err != nil {
+	if res, err := s.Write("db0", "rp0", `cpu,host=server01 value=100 `+strconv.FormatInt(now.UnixNano(), 10), nil); err != nil {
 		t.Fatal(err)
 	} else if exp := ``; exp != res {
 		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
@@ -1237,6 +1237,185 @@ func TestServer_Query_Aggregates(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT LAST(value) FROM stringdata`,
 			exp:     `{"results":[{"series":[{"name":"stringdata","columns":["time","last"],"values":[["1970-01-01T00:00:00Z","last"]]}]}]}`,
+		},
+	}...)
+
+	for i, query := range test.queries {
+		if i == 0 {
+			if err := test.init(s); err != nil {
+				t.Fatalf("test init failed: %s", err)
+			}
+		}
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
+func TestServer_Write_Precision(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MetaStore.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := []struct {
+		write  string
+		params url.Values
+	}{
+		{
+			write: fmt.Sprintf("cpu_n0_precision value=1 %d", mustParseTime(time.RFC3339Nano, "2000-01-01T12:34:56.789012345Z").UnixNano()),
+		},
+		{
+			write:  fmt.Sprintf("cpu_n1_precision value=1.1 %d", mustParseTime(time.RFC3339Nano, "2000-01-01T12:34:56.789012345Z").UnixNano()),
+			params: url.Values{"precision": []string{"n"}},
+		},
+		{
+			write:  fmt.Sprintf("cpu_u_precision value=100 %d", mustParseTime(time.RFC3339Nano, "2000-01-01T12:34:56.789012345Z").Truncate(time.Microsecond).UnixNano()/int64(time.Microsecond)),
+			params: url.Values{"precision": []string{"u"}},
+		},
+		{
+			write:  fmt.Sprintf("cpu_ms_precision value=200 %d", mustParseTime(time.RFC3339Nano, "2000-01-01T12:34:56.789012345Z").Truncate(time.Millisecond).UnixNano()/int64(time.Millisecond)),
+			params: url.Values{"precision": []string{"ms"}},
+		},
+		{
+			write:  fmt.Sprintf("cpu_s_precision value=300 %d", mustParseTime(time.RFC3339Nano, "2000-01-01T12:34:56.789012345Z").Truncate(time.Second).UnixNano()/int64(time.Second)),
+			params: url.Values{"precision": []string{"s"}},
+		},
+		{
+			write:  fmt.Sprintf("cpu_m_precision value=400 %d", mustParseTime(time.RFC3339Nano, "2000-01-01T12:34:56.789012345Z").Truncate(time.Minute).UnixNano()/int64(time.Minute)),
+			params: url.Values{"precision": []string{"m"}},
+		},
+		{
+			write:  fmt.Sprintf("cpu_h_precision value=500 %d", mustParseTime(time.RFC3339Nano, "2000-01-01T12:34:56.789012345Z").Truncate(time.Hour).UnixNano()/int64(time.Hour)),
+			params: url.Values{"precision": []string{"h"}},
+		},
+	}
+
+	test := NewTest("db0", "rp0")
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "point with nanosecond precision time - no precision specified on write",
+			command: `SELECT * FROM cpu_n0_precision`,
+			params:  url.Values{"db": []string{"db0"}},
+			exp:     `{"results":[{"series":[{"name":"cpu_n0_precision","columns":["time","value"],"values":[["2000-01-01T12:34:56.789012345Z",1]]}]}]}`,
+		},
+		&Query{
+			name:    "point with nanosecond precision time",
+			command: `SELECT * FROM cpu_n1_precision`,
+			params:  url.Values{"db": []string{"db0"}},
+			exp:     `{"results":[{"series":[{"name":"cpu_n1_precision","columns":["time","value"],"values":[["2000-01-01T12:34:56.789012345Z",1.1]]}]}]}`,
+		},
+		&Query{
+			name:    "point with microsecond precision time",
+			command: `SELECT * FROM cpu_u_precision`,
+			params:  url.Values{"db": []string{"db0"}},
+			exp:     `{"results":[{"series":[{"name":"cpu_u_precision","columns":["time","value"],"values":[["2000-01-01T12:34:56.789012Z",100]]}]}]}`,
+		},
+		&Query{
+			name:    "point with millisecond precision time",
+			command: `SELECT * FROM cpu_ms_precision`,
+			params:  url.Values{"db": []string{"db0"}},
+			exp:     `{"results":[{"series":[{"name":"cpu_ms_precision","columns":["time","value"],"values":[["2000-01-01T12:34:56.789Z",200]]}]}]}`,
+		},
+		&Query{
+			name:    "point with second precision time",
+			command: `SELECT * FROM cpu_s_precision`,
+			params:  url.Values{"db": []string{"db0"}},
+			exp:     `{"results":[{"series":[{"name":"cpu_s_precision","columns":["time","value"],"values":[["2000-01-01T12:34:56Z",300]]}]}]}`,
+		},
+		&Query{
+			name:    "point with minute precision time",
+			command: `SELECT * FROM cpu_m_precision`,
+			params:  url.Values{"db": []string{"db0"}},
+			exp:     `{"results":[{"series":[{"name":"cpu_m_precision","columns":["time","value"],"values":[["2000-01-01T12:34:00Z",400]]}]}]}`,
+		},
+		&Query{
+			name:    "point with hour precision time",
+			command: `SELECT * FROM cpu_h_precision`,
+			params:  url.Values{"db": []string{"db0"}},
+			exp:     `{"results":[{"series":[{"name":"cpu_h_precision","columns":["time","value"],"values":[["2000-01-01T12:00:00Z",500]]}]}]}`,
+		},
+	}...)
+
+	// we are doing writes that require parameter changes, so we are fighting the test harness a little to make this happen properly
+	for _, w := range writes {
+		test.write = w.write
+		test.params = w.params
+		test.initialized = false
+		if err := test.init(s); err != nil {
+			t.Fatalf("test init failed: %s", err)
+		}
+	}
+
+	for _, query := range test.queries {
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
+func TestServer_Query_Wildcards(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MetaStore.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := []string{
+		fmt.Sprintf(`wildcard,region=us-east value=10 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`wildcard,region=us-east val-x=20 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
+		fmt.Sprintf(`wildcard,region=us-east value=30,val-x=40 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:20Z").UnixNano()),
+
+		fmt.Sprintf(`wgroup,region=us-east value=10.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`wgroup,region=us-east value=20.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
+		fmt.Sprintf(`wgroup,region=us-west value=30.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:20Z").UnixNano()),
+	}
+
+	test := NewTest("db0", "rp0")
+	test.write = strings.Join(writes, "\n")
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "wildcard",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT * FROM wildcard`,
+			exp:     `{"results":[{"series":[{"name":"wildcard","tags":{"region":"us-east"},"columns":["time","val-x","value"],"values":[["2000-01-01T00:00:00Z",null,10],["2000-01-01T00:00:10Z",20,null],["2000-01-01T00:00:20Z",40,30]]}]}]}`,
+		},
+		&Query{
+			name:    "GROUP BY queries",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT mean(value) FROM wgroup GROUP BY *`,
+			exp:     `{"results":[{"series":[{"name":"wgroup","tags":{"region":"us-east"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",15]]},{"name":"wgroup","tags":{"region":"us-west"},"columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",30]]}]}]}`,
+		},
+		&Query{
+			name:    "GROUP BY queries with time",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT mean(value) FROM wgroup WHERE time >= '2000-01-01T00:00:00Z' AND time < '2000-01-01T00:01:00Z' GROUP BY *,TIME(1m)`,
+			exp:     `{"results":[{"series":[{"name":"wgroup","tags":{"region":"us-east"},"columns":["time","mean"],"values":[["2000-01-01T00:00:00Z",15]]},{"name":"wgroup","tags":{"region":"us-west"},"columns":["time","mean"],"values":[["2000-01-01T00:00:00Z",30]]}]}]}`,
 		},
 	}...)
 
