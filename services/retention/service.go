@@ -74,7 +74,7 @@ func (s *Service) deleteShardGroups() {
 			// Only run this on the leader, but always allow the loop to check
 			// as the leader can change.
 			if !s.MetaStore.IsLeader() {
-				return
+				continue
 			}
 			s.logger.Println("retention policy enforcement commencing")
 
@@ -96,4 +96,34 @@ func (s *Service) deleteShardGroups() {
 
 func (s *Service) deleteShards() {
 	defer s.wg.Done()
+
+	ticker := time.NewTicker(s.checkInterval)
+	for {
+		select {
+		case <-s.done:
+			s.logger.Println("retention policy enforcement terminating")
+			return
+
+		case <-ticker.C:
+			s.logger.Println("retention policy shard deletion commencing")
+
+			// Build a list of all shard IDs that exist.
+			shardIDs := make(map[uint64]struct{}, 0)
+			s.MetaStore.VisitShardGroups(func(d meta.DatabaseInfo, r meta.RetentionPolicyInfo, g meta.ShardGroupInfo) {
+				for _, sh := range g.Shards {
+					shardIDs[sh.ID] = struct{}{}
+				}
+			})
+
+			for _, id := range s.TSDBStore.ShardIDs() {
+				if _, ok := shardIDs[id]; !ok {
+					if err := s.TSDBStore.DeleteShard(id); err != nil {
+						s.logger.Printf("failed to delete shard ID %d: %s", id, err.Error())
+						continue
+					}
+					s.logger.Printf("shard ID% deleted", id)
+				}
+			}
+		}
+	}
 }
