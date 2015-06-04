@@ -146,8 +146,14 @@ func parsePoint(buf []byte, defaultTime time.Time, precision string) (Point, err
 
 	if len(ts) == 0 {
 		pt.time = defaultTime
+		pt.SetPrecision(precision)
+	} else {
+		ts, err := strconv.ParseInt(string(ts), 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		pt.time = time.Unix(0, ts*pt.GetPrecisionMultiplier(precision))
 	}
-	pt.SetPrecision(precision)
 	return pt, nil
 }
 
@@ -496,18 +502,6 @@ func (p *point) SetName(name string) {
 
 // Time return the timesteamp for the point
 func (p *point) Time() time.Time {
-	if !p.time.IsZero() {
-		return p.time
-	}
-
-	if len(p.ts) > 0 {
-		ts, err := strconv.ParseInt(string(p.ts), 10, 64)
-		if err != nil {
-			return p.time
-		}
-		p.time = time.Unix(0, ts)
-	}
-
 	return p.time
 }
 
@@ -578,16 +572,34 @@ func (p *point) SetPrecision(precision string) {
 	switch precision {
 	case "n":
 	case "u":
-		p.SetTime(p.Time().Round(time.Microsecond))
+		p.SetTime(p.Time().Truncate(time.Microsecond))
 	case "ms":
-		p.SetTime(p.Time().Round(time.Millisecond))
+		p.SetTime(p.Time().Truncate(time.Millisecond))
 	case "s":
-		p.SetTime(p.Time().Round(time.Second))
+		p.SetTime(p.Time().Truncate(time.Second))
 	case "m":
-		p.SetTime(p.Time().Round(time.Minute))
+		p.SetTime(p.Time().Truncate(time.Minute))
 	case "h":
-		p.SetTime(p.Time().Round(time.Hour))
+		p.SetTime(p.Time().Truncate(time.Hour))
 	}
+}
+
+// GetPrecisionMultiplier will return a multiplier for the precision specified
+func (p *point) GetPrecisionMultiplier(precision string) int64 {
+	d := time.Nanosecond
+	switch precision {
+	case "u":
+		d = time.Microsecond
+	case "ms":
+		d = time.Millisecond
+	case "s":
+		d = time.Second
+	case "m":
+		d = time.Minute
+	case "h":
+		d = time.Hour
+	}
+	return int64(d)
 }
 
 func (p *point) String() string {

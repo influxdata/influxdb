@@ -451,19 +451,131 @@ func TestParsePointToString(t *testing.T) {
 }
 
 func TestParsePointsWithPrecision(t *testing.T) {
-	line := `cpu,host=serverA,region=us-east value=1.0 20000000000`
-	pts, err := ParsePointsWithPrecision([]byte(line), time.Now().UTC(), "m")
-	if err != nil {
-		t.Fatalf(`ParsePoints() failed. got %s`, err)
+	tests := []struct {
+		name      string
+		line      string
+		precision string
+		exp       string
+	}{
+		{
+			name:      "nanosecond by default",
+			line:      `cpu,host=serverA,region=us-east value=1.0 946730096789012345`,
+			precision: "",
+			exp:       "cpu,host=serverA,region=us-east value=1.0 946730096789012345",
+		},
+		{
+			name:      "nanosecond",
+			line:      `cpu,host=serverA,region=us-east value=1.0 946730096789012345`,
+			precision: "n",
+			exp:       "cpu,host=serverA,region=us-east value=1.0 946730096789012345",
+		},
+		{
+			name:      "microsecond",
+			line:      `cpu,host=serverA,region=us-east value=1.0 946730096789012`,
+			precision: "u",
+			exp:       "cpu,host=serverA,region=us-east value=1.0 946730096789012000",
+		},
+		{
+			name:      "millisecond",
+			line:      `cpu,host=serverA,region=us-east value=1.0 946730096789`,
+			precision: "ms",
+			exp:       "cpu,host=serverA,region=us-east value=1.0 946730096789000000",
+		},
+		{
+			name:      "second",
+			line:      `cpu,host=serverA,region=us-east value=1.0 946730096`,
+			precision: "s",
+			exp:       "cpu,host=serverA,region=us-east value=1.0 946730096000000000",
+		},
+		{
+			name:      "minute",
+			line:      `cpu,host=serverA,region=us-east value=1.0 15778834`,
+			precision: "m",
+			exp:       "cpu,host=serverA,region=us-east value=1.0 946730040000000000",
+		},
+		{
+			name:      "hour",
+			line:      `cpu,host=serverA,region=us-east value=1.0 262980`,
+			precision: "h",
+			exp:       "cpu,host=serverA,region=us-east value=1.0 946728000000000000",
+		},
 	}
-	if exp := 1; len(pts) != exp {
-		t.Errorf("ParsePoint() len mismatch: got %v, exp %v", len(pts), exp)
-	}
-	pt := pts[0]
+	for _, test := range tests {
+		pts, err := ParsePointsWithPrecision([]byte(test.line), time.Now().UTC(), test.precision)
+		if err != nil {
+			t.Fatalf(`%s: ParsePoints() failed. got %s`, test.name, err)
+		}
+		if exp := 1; len(pts) != exp {
+			t.Errorf("%s: ParsePoint() len mismatch: got %v, exp %v", test.name, len(pts), exp)
+		}
+		pt := pts[0]
 
-	got := pt.String()
-	if exp := "cpu,host=serverA,region=us-east value=1.0 0"; got != exp {
-		t.Errorf("ParsePoint() to string mismatch:\n got %v\n exp %v", got, exp)
+		got := pt.String()
+		if got != test.exp {
+			t.Errorf("%s: ParsePoint() to string mismatch:\n got %v\n exp %v", test.name, got, test.exp)
+		}
+	}
+}
+
+func TestParsePointsWithPrecisionNoTime(t *testing.T) {
+	line := `cpu,host=serverA,region=us-east value=1.0`
+	tm, _ := time.Parse(time.RFC3339Nano, "2000-01-01T12:34:56.789012345Z")
+	tests := []struct {
+		name      string
+		precision string
+		exp       string
+	}{
+		{
+			name:      "no precision",
+			precision: "",
+			exp:       "cpu,host=serverA,region=us-east value=1.0 946730096789012345",
+		},
+		{
+			name:      "nanosecond precision",
+			precision: "n",
+			exp:       "cpu,host=serverA,region=us-east value=1.0 946730096789012345",
+		},
+		{
+			name:      "microsecond precision",
+			precision: "u",
+			exp:       "cpu,host=serverA,region=us-east value=1.0 946730096789012000",
+		},
+		{
+			name:      "millisecond precision",
+			precision: "ms",
+			exp:       "cpu,host=serverA,region=us-east value=1.0 946730096789000000",
+		},
+		{
+			name:      "second precision",
+			precision: "s",
+			exp:       "cpu,host=serverA,region=us-east value=1.0 946730096000000000",
+		},
+		{
+			name:      "minute precision",
+			precision: "m",
+			exp:       "cpu,host=serverA,region=us-east value=1.0 946730040000000000",
+		},
+		{
+			name:      "hour precision",
+			precision: "h",
+			exp:       "cpu,host=serverA,region=us-east value=1.0 946728000000000000",
+		},
+	}
+
+	for _, test := range tests {
+		pts, err := ParsePointsWithPrecision([]byte(line), tm, test.precision)
+		if err != nil {
+			t.Fatalf(`%s: ParsePoints() failed. got %s`, test.name, err)
+		}
+		if exp := 1; len(pts) != exp {
+			t.Errorf("%s: ParsePoint() len mismatch: got %v, exp %v", test.name, len(pts), exp)
+		}
+		pt := pts[0]
+
+		got := pt.String()
+		if got != test.exp {
+			t.Errorf("%s: ParsePoint() to string mismatch:\n got %v\n exp %v", test.name, got, test.exp)
+		}
 	}
 }
 
