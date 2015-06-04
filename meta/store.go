@@ -195,6 +195,15 @@ func (s *Store) close() error {
 	return nil
 }
 
+// IsLeader returns whether this node is a leader of the cluster.
+func (s *Store) IsLeader() bool {
+	// Check if store has already been closed.
+	if !s.opened {
+		return false
+	}
+	return s.raft.State() == raft.Leader
+}
+
 // readID reads the local node ID from the ID file.
 func (s *Store) readID() error {
 	b, err := ioutil.ReadFile(s.IDPath())
