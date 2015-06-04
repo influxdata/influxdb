@@ -52,9 +52,6 @@ type point struct {
 
 	// binary encoded field data
 	data []byte
-
-	// precision is set
-	precision string
 }
 
 var escapeCodes = map[byte][]byte{
@@ -142,15 +139,20 @@ func parsePoint(buf []byte, defaultTime time.Time, precision string) (Point, err
 	}
 
 	pt := &point{
-		key:       key,
-		fields:    fields,
-		ts:        ts,
-		precision: precision,
+		key:    key,
+		fields: fields,
+		ts:     ts,
 	}
 
 	if len(ts) == 0 {
 		pt.time = defaultTime
-		pt.SetPrecision()
+		pt.SetPrecision(precision)
+	} else {
+		ts, err := strconv.ParseInt(string(ts), 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		pt.time = time.Unix(0, ts*pt.GetPrecisionMultiplier(precision))
 	}
 	return pt, nil
 }
@@ -500,18 +502,6 @@ func (p *point) SetName(name string) {
 
 // Time return the timesteamp for the point
 func (p *point) Time() time.Time {
-	if !p.time.IsZero() {
-		return p.time
-	}
-
-	if len(p.ts) > 0 {
-		ts, err := strconv.ParseInt(string(p.ts), 10, 64)
-		if err != nil {
-			return p.time
-		}
-		p.time = time.Unix(0, ts*p.GetPrecisionMultiplier())
-	}
-
 	return p.time
 }
 
@@ -578,8 +568,8 @@ func (p *point) AddField(name string, value interface{}) {
 }
 
 // SetPrecision will round a time to the specified precision
-func (p *point) SetPrecision() {
-	switch p.precision {
+func (p *point) SetPrecision(precision string) {
+	switch precision {
 	case "n":
 	case "u":
 		p.SetTime(p.Time().Truncate(time.Microsecond))
@@ -595,9 +585,9 @@ func (p *point) SetPrecision() {
 }
 
 // GetPrecisionMultiplier will return a multiplier for the precision specified
-func (p *point) GetPrecisionMultiplier() int64 {
+func (p *point) GetPrecisionMultiplier(precision string) int64 {
 	d := time.Nanosecond
-	switch p.precision {
+	switch precision {
 	case "u":
 		d = time.Microsecond
 	case "ms":
