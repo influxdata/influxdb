@@ -66,6 +66,47 @@ func TestStoreOpenShard(t *testing.T) {
 	}
 }
 
+func TestStoreOpenShardCreateDelete(t *testing.T) {
+	dir, err := ioutil.TempDir("", "store_test")
+	if err != nil {
+		t.Fatalf("Store.Open() failed to create temp dir: %v", err)
+	}
+
+	path := filepath.Join(dir, "mydb", "myrp")
+	if err := os.MkdirAll(path, 0700); err != nil {
+		t.Fatalf("Store.Open() failed to create test db dir: %v", err)
+	}
+
+	s := NewStore(dir)
+	if err := s.Open(); err != nil {
+		t.Fatalf("Store.Open() failed: %v", err)
+	}
+
+	if exp := 1; len(s.databaseIndexes) != exp {
+		t.Fatalf("Store.Open() database index count mismatch: got %v, exp %v", len(s.databaseIndexes), exp)
+	}
+
+	if _, ok := s.databaseIndexes["mydb"]; !ok {
+		t.Errorf("Store.Open() database mydb does not exist")
+	}
+
+	if err := s.CreateShard("mydb", "myrp", 1); err != nil {
+		t.Fatalf("Store.Open() failed to create shard")
+	}
+
+	if exp := 1; len(s.shards) != exp {
+		t.Fatalf("Store.Open() shard count mismatch: got %v, exp %v", len(s.shards), exp)
+	}
+
+	if err := s.DeleteShard(1); err != nil {
+		t.Fatalf("Store.Open() failed to delete shard: %v", err)
+	}
+
+	if _, ok := s.shards[uint64(1)]; ok {
+		t.Fatal("Store.Open() shard ID 1 still exists")
+	}
+}
+
 func TestStoreOpenNotDatabaseDir(t *testing.T) {
 	dir, err := ioutil.TempDir("", "store_test")
 	if err != nil {

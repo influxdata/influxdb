@@ -65,6 +65,30 @@ func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64) er
 	return nil
 }
 
+// DeleteShard removes a shard from disk.
+func (s *Store) DeleteShard(shardID uint64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// ensure shard exists
+	sh, ok := s.shards[shardID]
+	if !ok {
+		return ErrShardNotFound
+	}
+
+	if err := sh.Close(); err != nil {
+		return err
+	}
+
+	if err := os.Remove(sh.path); err != nil {
+		return err
+	}
+
+	delete(s.shards, shardID)
+
+	return nil
+}
+
 func (s *Store) Shard(shardID uint64) *Shard {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
