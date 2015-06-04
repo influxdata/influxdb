@@ -2,22 +2,11 @@ package run_test
 
 import (
 	"fmt"
-	"io"
-	"io/ioutil"
-	"log"
-	"net/http"
 	"net/url"
-	"os"
-	"regexp"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/influxdb/influxdb/cmd/influxd/run"
-	"github.com/influxdb/influxdb/meta"
-	"github.com/influxdb/influxdb/services/httpd"
-	"github.com/influxdb/influxdb/toml"
 )
 
 // Ensure the database commands work.
@@ -34,6 +23,16 @@ func TestServer_DatabaseCommands(t *testing.T) {
 				exp:     `{"results":[{}]}`,
 			},
 			&Query{
+				name:    "create database should error with bad name",
+				command: `CREATE DATABASE 0xdb0`,
+				exp:     `{"error":"error parsing query: found 0, expected identifier at line 1, char 17"}`,
+			},
+			&Query{
+				name:    "show database should succeed",
+				command: `SHOW DATABASES`,
+				exp:     `{"results":[{"series":[{"name":"databases","columns":["name"],"values":[["db0"]]}]}]}`,
+			},
+			&Query{
 				name:    "create database should error if it already exists",
 				command: `CREATE DATABASE db0`,
 				exp:     `{"results":[{"error":"database already exists"}]}`,
@@ -43,6 +42,12 @@ func TestServer_DatabaseCommands(t *testing.T) {
 				name:    "drop database should succeed - FIXME pauldix",
 				command: `DROP DATABASE db0`,
 				exp:     `{"results":[{}]}`,
+			},
+			&Query{
+				skip:    true,
+				name:    "show database should have no results - FIXME pauldix",
+				command: `SHOW DATABASES`,
+				exp:     `FIXME`,
 			},
 			&Query{
 				skip:    true,
@@ -130,6 +135,101 @@ func TestServer_RetentionPolicyCommands(t *testing.T) {
 	}
 }
 
+// Ensure user commands work.
+func TestServer_UserCommands(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	// Create a database.
+	if _, err := s.MetaStore.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	}
+
+	test := Test{
+		queries: []*Query{
+			&Query{
+				name:    "show users, no actual users",
+				command: `SHOW USERS`,
+				exp:     `{"results":[{"series":[{"columns":["user","admin"]}]}]}`,
+			},
+			&Query{
+				name:    `create user`,
+				command: "CREATE USER jdoe WITH PASSWORD '1337'",
+				exp:     `{"results":[{}]}`,
+			},
+			&Query{
+				name:    "show users, 1 existing user",
+				command: `SHOW USERS`,
+				exp:     `{"results":[{"series":[{"columns":["user","admin"],"values":[["jdoe",false]]}]}]}`,
+			},
+			&Query{
+				name:    "grant all priviledges to jdoe",
+				command: `GRANT ALL PRIVILEGES TO jdoe`,
+				exp:     `{"results":[{}]}`,
+			},
+			&Query{
+				skip:    true,
+				name:    "show users, existing user as admin - FIXME",
+				command: `SHOW USERS`,
+				exp:     `{"results":[{"series":[{"columns":["user","admin"],"values":[["jdoe",true]]}]}]}`,
+			},
+			&Query{
+				name:    "grant DB privileges to user",
+				command: `GRANT READ ON db0 TO jdoe`,
+				exp:     `{"results":[{}]}`,
+			},
+			&Query{
+				name:    "revoke all privileges",
+				command: `REVOKE ALL PRIVILEGES FROM jdoe`,
+				exp:     `{"results":[{}]}`,
+			},
+			&Query{
+				name:    "bad create user request",
+				command: `CREATE USER 0xBAD WITH PASSWORD pwd1337`,
+				exp:     `{"error":"error parsing query: found 0, expected identifier at line 1, char 13"}`,
+			},
+			&Query{
+				name:    "bad create user request, no name",
+				command: `CREATE USER WITH PASSWORD pwd1337`,
+				exp:     `{"error":"error parsing query: found WITH, expected identifier at line 1, char 13"}`,
+			},
+			&Query{
+				name:    "bad create user request, no password",
+				command: `CREATE USER jdoe`,
+				exp:     `{"error":"error parsing query: found EOF, expected WITH at line 1, char 18"}`,
+			},
+			&Query{
+				name:    "drop user",
+				command: `DROP USER jdoe`,
+				exp:     `{"results":[{}]}`,
+			},
+			&Query{
+				name:    "make sure user was dropped",
+				command: `SHOW USERS`,
+				exp:     `{"results":[{"series":[{"columns":["user","admin"]}]}]}`,
+			},
+			&Query{
+				name:    "delete non existing user",
+				command: `DROP USER noone`,
+				exp:     `{"results":[{"error":"user not found"}]}`,
+			},
+		},
+	}
+
+	for _, query := range test.queries {
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(fmt.Sprintf("command: %s - err: %s", query.command, query.Error(err)))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
 // Ensure the server can create a single point via json protocol and read it back.
 func TestServer_Write_JSON(t *testing.T) {
 	t.Parallel()
@@ -140,7 +240,7 @@ func TestServer_Write_JSON(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	now := time.Now().UTC()
+	now := now()
 	if res, err := s.Write("", "", fmt.Sprintf(`{"database" : "db0", "retentionPolicy" : "rp0", "points": [{"measurement": "cpu", "tags": {"host": "server02"},"fields": {"value": 1.0}}],"time":"%s"} `, now.Format(time.RFC3339Nano))); err != nil {
 		t.Fatal(err)
 	} else if exp := ``; exp != res {
@@ -165,7 +265,7 @@ func TestServer_Write_LineProtocol_Float(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	now := time.Now().UTC()
+	now := now()
 	if res, err := s.Write("db0", "rp0", `cpu,host=server01 value=1.0 `+strconv.FormatInt(now.UnixNano(), 10)); err != nil {
 		t.Fatal(err)
 	} else if exp := ``; exp != res {
@@ -190,7 +290,7 @@ func TestServer_Write_LineProtocol_Bool(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	now := time.Now().UTC()
+	now := now()
 	if res, err := s.Write("db0", "rp0", `cpu,host=server01 value=true `+strconv.FormatInt(now.UnixNano(), 10)); err != nil {
 		t.Fatal(err)
 	} else if exp := ``; exp != res {
@@ -215,7 +315,7 @@ func TestServer_Write_LineProtocol_String(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	now := time.Now().UTC()
+	now := now()
 	if res, err := s.Write("db0", "rp0", `cpu,host=server01 value="disk full" `+strconv.FormatInt(now.UnixNano(), 10)); err != nil {
 		t.Fatal(err)
 	} else if exp := ``; exp != res {
@@ -240,7 +340,7 @@ func TestServer_Write_LineProtocol_Integer(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	now := time.Now().UTC()
+	now := now()
 	if res, err := s.Write("db0", "rp0", `cpu,host=server01 value=100 `+strconv.FormatInt(now.UnixNano(), 10)); err != nil {
 		t.Fatal(err)
 	} else if exp := ``; exp != res {
@@ -320,7 +420,7 @@ func TestServer_Query_Count(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	now := time.Now().UTC()
+	now := now()
 
 	test := NewTest("db0", "rp0")
 	test.write = `cpu,host=server01 value=1.0 ` + strconv.FormatInt(now.UnixNano(), 10)
@@ -365,7 +465,7 @@ func TestServer_Query_Now(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	now := time.Now().UTC()
+	now := now()
 
 	test := NewTest("db0", "rp0")
 	test.write = `cpu,host=server01 value=1.0 ` + strconv.FormatInt(now.UnixNano(), 10)
@@ -411,7 +511,7 @@ func TestServer_Query_EpochPrecision(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	now := time.Now().UTC()
+	now := now()
 
 	test := NewTest("db0", "rp0")
 	test.write = `cpu,host=server01 value=1.0 ` + strconv.FormatInt(now.UnixNano(), 10)
@@ -482,7 +582,7 @@ func TestServer_Query_Tags(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	now := time.Now().UTC()
+	now := now()
 
 	test := NewTest("db0", "rp0")
 	test.write = fmt.Sprintf("cpu,host=server01 value=100,core=4 %s\ncpu,host=server02 value=50,core=2 %s", strconv.FormatInt(now.UnixNano(), 10), strconv.FormatInt(now.Add(1).UnixNano(), 10))
@@ -542,12 +642,22 @@ func TestServer_Query_Common(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	now := time.Now().UTC()
+	now := now()
 
 	test := NewTest("db0", "rp0")
 	test.write = fmt.Sprintf("cpu,host=server01 value=1 %s", strconv.FormatInt(now.UnixNano(), 10))
 
 	test.addQueries([]*Query{
+		&Query{
+			name:    "selecting a from a non-existent database should error",
+			command: `SELECT value FROM db1.rp0.cpu`,
+			exp:     `{"results":[{"error":"database not found"}]}`,
+		},
+		&Query{
+			name:    "selecting a from a non-existent retention policy should error",
+			command: `SELECT value FROM db0.rp1.cpu`,
+			exp:     `{"results":[{"error":"retention policy not found"}]}`,
+		},
 		&Query{
 			name:    "selecting a valid  measurement and field should succeed",
 			command: `SELECT value FROM db0.rp0.cpu`,
@@ -894,236 +1004,256 @@ func TestServer_Query_Regex(t *testing.T) {
 	}
 }
 
-// Server represents a test wrapper for run.Server.
-type Server struct {
-	*run.Server
-	Config *run.Config
-}
+func TestServer_Query_Aggregates(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
 
-// NewServer returns a new instance of Server.
-func NewServer(c *run.Config, joinURLs string) *Server {
-
-	s := Server{
-		Server: run.NewServer(c, joinURLs),
-		Config: c,
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
+		t.Fatal(err)
 	}
-	// Set the logger to discard unless verbose is on
-	if !testing.Verbose() {
-		type logSetter interface {
-			SetLogger(*log.Logger)
-		}
-		nullLogger := log.New(ioutil.Discard, "", 0)
-		s.MetaStore.Logger = nullLogger
-		s.TSDBStore.Logger = nullLogger
-		for _, service := range s.Services {
-			if service, ok := service.(logSetter); ok {
-				service.SetLogger(nullLogger)
+	if err := s.MetaStore.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := []string{
+		fmt.Sprintf(`int value=45 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+
+		fmt.Sprintf(`floatsingle value=45.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+
+		fmt.Sprintf(`floatmax value=%s %d`, maxFloat64(), mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`floatmax value=%s %d`, maxFloat64(), mustParseTime(time.RFC3339Nano, "2000-01-01T01:00:00Z").UnixNano()),
+
+		fmt.Sprintf(`floatmany,host=server01 value=2.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`floatmany,host=server02 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
+		fmt.Sprintf(`floatmany,host=server03 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:20Z").UnixNano()),
+		fmt.Sprintf(`floatmany,host=server04 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:30Z").UnixNano()),
+		fmt.Sprintf(`floatmany,host=server05 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:40Z").UnixNano()),
+		fmt.Sprintf(`floatmany,host=server06 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:50Z").UnixNano()),
+		fmt.Sprintf(`floatmany,host=server07 value=7.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:00Z").UnixNano()),
+		fmt.Sprintf(`floatmany,host=server08 value=9.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:10Z").UnixNano()),
+
+		fmt.Sprintf(`floatoverlap,region=us-east value=20.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`floatoverlap,region=us-east value=30.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
+		fmt.Sprintf(`floatoverlap,region=us-west value=100.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`floatoverlap,region=us-east otherVal=20.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:03Z").UnixNano()),
+
+		fmt.Sprintf(`load,region=us-east,host=serverA value=20.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`load,region=us-east,host=serverB value=30.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
+		fmt.Sprintf(`load,region=us-west,host=serverC value=100.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+
+		fmt.Sprintf(`cpu,region=uk,host=serverZ,service=redis value=20.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:03Z").UnixNano()),
+		fmt.Sprintf(`cpu,region=uk,host=serverZ,service=mysql value=30.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:03Z").UnixNano()),
+
+		fmt.Sprintf(`stringdata value="first" %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:03Z").UnixNano()),
+		fmt.Sprintf(`stringdata value="last" %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:04Z").UnixNano()),
+	}
+
+	test := NewTest("db0", "rp0")
+	test.write = strings.Join(writes, "\n")
+
+	//FIXME add all of the int style tests once it is fixed.
+	test.addQueries([]*Query{
+		&Query{
+			skip:    true,
+			name:    "stddev with just one point - int FIXME currently panics the server",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT STDDEV(value) FROM int where time = '2000-01-01T00:00:00Z' and time < '2000-01-01T01:00:00Z'`,
+			exp:     `{"results":[{"series":[{"name":"int","columns":["time","stddev"],"values":[["1970-01-01T00:00:00Z",null]]}]}]}`,
+		},
+		&Query{
+			name:    "stddev with just one point - float",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT STDDEV(value) FROM floatsingle`,
+			exp:     `{"results":[{"series":[{"name":"floatsingle","columns":["time","stddev"],"values":[["1970-01-01T00:00:00Z",null]]}]}]}`,
+		},
+		&Query{
+			name:    "large mean and stddev - float",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT MEAN(value), STDDEV(value) FROM floatmax`,
+			exp:     `{"results":[{"series":[{"name":"floatmax","columns":["time","mean","stddev"],"values":[["1970-01-01T00:00:00Z",` + maxFloat64() + `,0]]}]}]}`,
+		},
+		&Query{
+			name:    "mean and stddev - float",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT MEAN(value), STDDEV(value) FROM floatmany WHERE time >= '2000-01-01' AND time < '2000-01-01T00:02:00Z' GROUP BY time(10m)`,
+			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","mean","stddev"],"values":[["2000-01-01T00:00:00Z",5,2.138089935299395]]}]}]}`,
+		},
+		&Query{
+			name:    "first",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT FIRST(value) FROM floatmany`,
+			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","first"],"values":[["1970-01-01T00:00:00Z",2]]}]}]}`,
+		},
+		&Query{
+			name:    "last",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT LAST(value) FROM floatmany`,
+			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","last"],"values":[["1970-01-01T00:00:00Z",9]]}]}]}`,
+		},
+		&Query{
+			name:    "spread",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT SPREAD(value) FROM floatmany`,
+			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","spread"],"values":[["1970-01-01T00:00:00Z",7]]}]}]}`,
+		},
+		&Query{
+			name:    "median - even count",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT MEDIAN(value) FROM floatmany`,
+			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","median"],"values":[["1970-01-01T00:00:00Z",4.5]]}]}]}`,
+		},
+		&Query{
+			name:    "median - odd count",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT MEDIAN(value) FROM floatmany where time < '2000-01-01T00:01:10Z'`,
+			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","median"],"values":[["1970-01-01T00:00:00Z",4]]}]}]}`,
+		},
+		&Query{
+			name:    "distinct as call",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT DISTINCT(value) FROM floatmany`,
+			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","distinct"],"values":[["1970-01-01T00:00:00Z",[2,4,5,7,9]]]}]}]}`,
+		},
+		&Query{
+			name:    "distinct alt syntax",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT DISTINCT value FROM floatmany`,
+			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","distinct"],"values":[["1970-01-01T00:00:00Z",[2,4,5,7,9]]]}]}]}`,
+		},
+		&Query{
+			name:    "distinct select tag",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT DISTINCT(host) FROM floatmany`,
+			exp:     `{"results":[{"error":"host isn't a field on measurement floatmany; to query the unique values for a tag use SHOW TAG VALUES FROM floatmany WITH KEY = \"host\""}]}`,
+		},
+		&Query{
+			name:    "distinct alt select tag",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT DISTINCT host FROM floatmany`,
+			exp:     `{"results":[{"error":"host isn't a field on measurement floatmany; to query the unique values for a tag use SHOW TAG VALUES FROM floatmany WITH KEY = \"host\""}]}`,
+		},
+		&Query{
+			name:    "count distinct",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT COUNT(DISTINCT value) FROM floatmany`,
+			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",5]]}]}]}`,
+		},
+		&Query{
+			name:    "count distinct as call",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT COUNT(DISTINCT(value)) FROM floatmany`,
+			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",5]]}]}]}`,
+		},
+		&Query{
+			name:    "count distinct select tag",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT COUNT(DISTINCT host) FROM floatmany`,
+			exp:     `{"results":[{"error":"host isn't a field on measurement floatmany; count(distinct) on tags isn't yet supported"}]}`,
+		},
+		&Query{
+			name:    "count distinct as call select tag",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT COUNT(DISTINCT host) FROM floatmany`,
+			exp:     `{"results":[{"error":"host isn't a field on measurement floatmany; count(distinct) on tags isn't yet supported"}]}`,
+		},
+		&Query{
+			name:    "aggregation with no interval",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT count(value) FROM floatoverlap WHERE time = '2000-01-01 00:00:00'`,
+			exp:     `{"results":[{"series":[{"name":"floatoverlap","columns":["time","count"],"values":[["2000-01-01T00:00:00Z",2]]}]}]}`,
+		},
+		&Query{
+			name:    "sum",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT SUM(value) FROM floatoverlap WHERE time >= '2000-01-01 00:00:05' AND time <= '2000-01-01T00:00:10Z' GROUP BY time(10s), region`,
+			exp:     `{"results":[{"series":[{"name":"floatoverlap","tags":{"region":"us-east"},"columns":["time","sum"],"values":[["2000-01-01T00:00:00Z",null],["2000-01-01T00:00:10Z",30]]}]}]}`,
+		},
+		&Query{
+			name:    "aggregation with a null field value",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT SUM(value) FROM floatoverlap GROUP BY region`,
+			exp:     `{"results":[{"series":[{"name":"floatoverlap","tags":{"region":"us-east"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",50]]},{"name":"floatoverlap","tags":{"region":"us-west"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",100]]}]}]}`,
+		},
+		&Query{
+			name:    "multiple aggregations",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT SUM(value), MEAN(value) FROM floatoverlap GROUP BY region`,
+			exp:     `{"results":[{"series":[{"name":"floatoverlap","tags":{"region":"us-east"},"columns":["time","sum","mean"],"values":[["1970-01-01T00:00:00Z",50,25]]},{"name":"floatoverlap","tags":{"region":"us-west"},"columns":["time","sum","mean"],"values":[["1970-01-01T00:00:00Z",100,100]]}]}]}`,
+		},
+		&Query{
+			name:    "multiple aggregations with division",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT sum(value) / mean(value) as div FROM floatoverlap GROUP BY region`,
+			exp:     `{"results":[{"series":[{"name":"floatoverlap","tags":{"region":"us-east"},"columns":["time","div"],"values":[["1970-01-01T00:00:00Z",2]]},{"name":"floatoverlap","tags":{"region":"us-west"},"columns":["time","div"],"values":[["1970-01-01T00:00:00Z",1]]}]}]}`,
+		},
+		&Query{
+			name:    "group by multiple dimensions",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT sum(value) FROM load GROUP BY region, host`,
+			exp:     `{"results":[{"series":[{"name":"load","tags":{"host":"serverA","region":"us-east"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",20]]},{"name":"load","tags":{"host":"serverB","region":"us-east"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",30]]},{"name":"load","tags":{"host":"serverC","region":"us-west"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",100]]}]}]}`,
+		},
+		&Query{
+			name:    "aggregation with WHERE and AND",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT sum(value) FROM cpu WHERE region='uk' AND host='serverZ'`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",50]]}]}]}`,
+		},
+		&Query{
+			skip:    true,
+			name:    "STDDEV on string data. FIXME pauldix I panic!",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT STDDEV(value) FROM stringdata`,
+			exp:     `{"results":[{"error":"aggregate 'stddev' requires numerical field values. Field 'value' is of type string"}]}`,
+		},
+		&Query{
+			skip:    true,
+			name:    "MEAN on string data. FIXME pauldix I panic!",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT MEAN(value) FROM stringdata`,
+			exp:     `{"results":[{"error":"aggregate 'mean' requires numerical field values. Field 'value' is of type string"}]}`,
+		},
+		&Query{
+			skip:    true,
+			name:    "MEDIAN on string data. FIXME pauldix I panic!",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT MEDIAN(value) FROM stringdata`,
+			exp:     `{"results":[{"error":"aggregate 'median' requires numerical field values. Field 'value' is of type string"}]}`,
+		},
+		&Query{
+			name:    "COUNT on string data.",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT COUNT(value) FROM stringdata`,
+			exp:     `{"results":[{"series":[{"name":"stringdata","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",2]]}]}]}`,
+		},
+		&Query{
+			name:    "FIRST on string data.",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT FIRST(value) FROM stringdata`,
+			exp:     `{"results":[{"series":[{"name":"stringdata","columns":["time","first"],"values":[["1970-01-01T00:00:00Z","first"]]}]}]}`,
+		},
+		&Query{
+			name:    "LAST on string data.",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT LAST(value) FROM stringdata`,
+			exp:     `{"results":[{"series":[{"name":"stringdata","columns":["time","last"],"values":[["1970-01-01T00:00:00Z","last"]]}]}]}`,
+		},
+	}...)
+
+	for i, query := range test.queries {
+		if i == 0 {
+			if err := test.init(s); err != nil {
+				t.Fatalf("test init failed: %s", err)
 			}
 		}
-	}
-
-	return &s
-}
-
-// OpenServer opens a test server.
-func OpenServer(c *run.Config, joinURLs string) *Server {
-	s := NewServer(c, joinURLs)
-	if err := s.Open(); err != nil {
-		panic(err.Error())
-	}
-
-	return s
-}
-
-// Close shuts down the server and removes all temporary paths.
-func (s *Server) Close() {
-	os.RemoveAll(s.Config.Meta.Dir)
-	os.RemoveAll(s.Config.Data.Dir)
-	s.Server.Close()
-}
-
-// URL returns the base URL for the httpd endpoint.
-func (s *Server) URL() string {
-	for _, service := range s.Services {
-		if service, ok := service.(*httpd.Service); ok {
-			return "http://" + service.Addr().String()
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
 		}
 	}
-	panic("httpd server not found in services")
-}
-
-// CreateDatabaseAndRetentionPolicy will create the datbase and retnetion policy.
-func (s *Server) CreateDatabaseAndRetentionPolicy(db string, rp *meta.RetentionPolicyInfo) error {
-	if _, err := s.MetaStore.CreateDatabase(db); err != nil {
-		return err
-	} else if _, err := s.MetaStore.CreateRetentionPolicy(db, rp); err != nil {
-		return err
-	}
-	return nil
-}
-
-// Query executes a query against the server and returns the results.
-func (s *Server) Query(query string) (results string, err error) {
-	return s.QueryWithParams(query, nil)
-}
-
-// Query executes a query against the server and returns the results.
-func (s *Server) QueryWithParams(query string, values url.Values) (results string, err error) {
-	if values == nil {
-		values = url.Values{}
-	}
-	values.Set("q", query)
-	resp, err := http.Get(s.URL() + "/query?" + values.Encode())
-	if err != nil {
-		return "", err
-	} else if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("invalid status code: code=%d, body=%s", resp.StatusCode, MustReadAll(resp.Body))
-	}
-	return string(MustReadAll(resp.Body)), nil
-}
-
-// Write executes a write against the server and returns the results.
-func (s *Server) Write(db, rp, body string) (results string, err error) {
-	v := url.Values{"db": {db}, "rp": {rp}}
-	resp, err := http.Post(s.URL()+"/write?"+v.Encode(), "", strings.NewReader(body))
-	if err != nil {
-		return "", err
-	} else if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
-		return "", fmt.Errorf("invalid status code: code=%d, body=%s", resp.StatusCode, MustReadAll(resp.Body))
-	}
-	return string(MustReadAll(resp.Body)), nil
-}
-
-// NewConfig returns the default config with temporary paths.
-func NewConfig() *run.Config {
-	c := run.NewConfig()
-	c.Cluster.BindAddress = "127.0.0.1:0"
-	c.Meta.Dir = MustTempFile()
-	c.Meta.BindAddress = "127.0.0.1:0"
-	c.Meta.HeartbeatTimeout = toml.Duration(50 * time.Millisecond)
-	c.Meta.ElectionTimeout = toml.Duration(50 * time.Millisecond)
-	c.Meta.LeaderLeaseTimeout = toml.Duration(50 * time.Millisecond)
-	c.Meta.CommitTimeout = toml.Duration(5 * time.Millisecond)
-
-	c.Data.Dir = MustTempFile()
-
-	c.HTTPD.Enabled = true
-	c.HTTPD.BindAddress = "127.0.0.1:0"
-	c.HTTPD.LogEnabled = testing.Verbose()
-	return c
-}
-
-func newRetentionPolicyInfo(name string, rf int, duration time.Duration) *meta.RetentionPolicyInfo {
-	return &meta.RetentionPolicyInfo{Name: name, ReplicaN: rf, Duration: duration}
-}
-
-func now() time.Time {
-	return time.Now().UTC()
-}
-
-func yesterday() time.Time {
-	return now().Add(-1 * time.Hour * 24)
-}
-
-func mustParseTime(layout, value string) time.Time {
-	tm, err := time.Parse(layout, value)
-	if err != nil {
-		panic(err)
-	}
-	return tm
-}
-
-// MustReadAll reads r. Panic on error.
-func MustReadAll(r io.Reader) []byte {
-	b, err := ioutil.ReadAll(r)
-	if err != nil {
-		panic(err)
-	}
-	return b
-}
-
-// MustTempFile returns a path to a temporary file.
-func MustTempFile() string {
-	f, err := ioutil.TempFile("", "influxd-")
-	if err != nil {
-		panic(err)
-	}
-	f.Close()
-	os.Remove(f.Name())
-	return f.Name()
-}
-
-func expectPattern(exp, act string) bool {
-	re := regexp.MustCompile(exp)
-	if !re.MatchString(act) {
-		return false
-	}
-	return true
-}
-
-type Query struct {
-	name     string
-	command  string
-	params   url.Values
-	exp, act string
-	pattern  bool
-	skip     bool
-}
-
-// Execute runs the command and returns an err if it fails
-func (q *Query) Execute(s *Server) (err error) {
-	if q.params == nil {
-		q.act, err = s.Query(q.command)
-		return
-	}
-	q.act, err = s.QueryWithParams(q.command, q.params)
-	return
-}
-
-func (q *Query) success() bool {
-	if q.pattern {
-		return expectPattern(q.exp, q.act)
-	}
-	return q.exp == q.act
-}
-
-func (q *Query) Error(err error) string {
-	return fmt.Sprintf("%s: %v", q.name, err)
-}
-
-func (q *Query) failureMessage() string {
-	return fmt.Sprintf("%s: unexpected results for query: %s\nexp:    %s\nactual: %s\n", q.name, q.command, q.exp, q.act)
-}
-
-type Test struct {
-	initialized bool
-	write       string
-	db          string
-	rp          string
-	exp         string
-	queries     []*Query
-}
-
-func NewTest(db, rp string) Test {
-	return Test{
-		db: db,
-		rp: rp,
-	}
-}
-
-func (t *Test) addQueries(q ...*Query) {
-	t.queries = append(t.queries, q...)
-}
-
-func (t *Test) init(s *Server) error {
-	if t.write == "" || t.initialized {
-		return nil
-	}
-	t.initialized = true
-	if res, err := s.Write(t.db, t.rp, t.write); err != nil {
-		return err
-	} else if t.exp != res {
-		return fmt.Errorf("unexpected results\nexp: %s\ngot: %s\n", t.exp, res)
-	}
-	return nil
 }
