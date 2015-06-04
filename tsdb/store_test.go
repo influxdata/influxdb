@@ -98,6 +98,11 @@ func TestStoreOpenShardCreateDelete(t *testing.T) {
 		t.Fatalf("Store.Open() shard count mismatch: got %v, exp %v", len(s.shards), exp)
 	}
 
+	shardIDs := s.ShardIDs()
+	if len(shardIDs) != 1 || shardIDs[0] != 1 {
+		t.Fatalf("Store.Open() ShardIDs not correct: got %v, exp %v", s.ShardIDs(), []uint64{1})
+	}
+
 	if err := s.DeleteShard(1); err != nil {
 		t.Fatalf("Store.Open() failed to delete shard: %v", err)
 	}
