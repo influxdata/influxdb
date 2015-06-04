@@ -260,8 +260,8 @@ func (db *DatabaseIndex) DropSeries(keys []string) {
 // assume the caller will use the appropriate locks
 type Measurement struct {
 	mu         sync.RWMutex
-	Name       string              `json:"name,omitempty"`
-	fieldNames map[string]struct{} `json:"fieldNames,omitempty"`
+	Name       string `json:"name,omitempty"`
+	fieldNames map[string]struct{}
 	index      *DatabaseIndex
 
 	// in-memory index fields
@@ -286,7 +286,7 @@ func NewMeasurement(name string, idx *DatabaseIndex) *Measurement {
 	}
 }
 
-// hasField returns true if the measurement has a field by the given name
+// HasField returns true if the measurement has a field by the given name
 func (m *Measurement) HasField(name string) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -294,7 +294,7 @@ func (m *Measurement) HasField(name string) bool {
 	return hasField
 }
 
-// seriesKeys returns the keys of every series in this measurement
+// SeriesKeys returns the keys of every series in this measurement
 func (m *Measurement) SeriesKeys() []string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -320,7 +320,7 @@ func (m *Measurement) HasSeries() bool {
 	return len(m.seriesByID) > 0
 }
 
-// addSeries will add a series to the measurementIndex. Returns false if already present
+// AddSeries will add a series to the measurementIndex. Returns false if already present
 func (m *Measurement) AddSeries(s *Series) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -360,7 +360,7 @@ func (m *Measurement) AddSeries(s *Series) bool {
 	return true
 }
 
-// dropSeries will remove a series from the measurementIndex. Returns true if already removed
+// DropSeries will remove a series from the measurementIndex. Returns true if already removed
 func (m *Measurement) DropSeries(seriesID uint64) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -409,11 +409,6 @@ func (m *Measurement) DropSeries(seriesID uint64) bool {
 	}
 
 	return true
-}
-
-// seriesByTags returns the Series that matches the given tagset.
-func (m *Measurement) seriesByTags(tags map[string]string) *Series {
-	return m.series[string(marshalTags(tags))]
 }
 
 // filters walks the where clause of a select statement and returns a map with all series ids
