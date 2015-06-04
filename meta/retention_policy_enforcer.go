@@ -1,65 +1,48 @@
 package meta
 
+import (
+	"time"
+)
+
+// RetentionPolicyEnforcer enforces retention policies.
 type RetentionPolicyEnforcer struct {
+	Store interface {
+		Databases() (dis []DatabaseInfo, err error)
+		DeleteShardGroup(database, policy string, id uint64) error
+	}
 }
 
-/*
-// StartRetentionPolicyEnforcement launches retention policy enforcement.
-func (s *Server) StartRetentionPolicyEnforcement(checkInterval time.Duration) error {
-	if checkInterval == 0 {
-		return fmt.Errorf("retention policy check interval must be non-zero")
-	}
-	rpDone := make(chan struct{}, 0)
-	s.rpDone = rpDone
-	go func() {
-		for {
-			select {
-			case <-rpDone:
-				return
-			case <-time.After(checkInterval):
-				s.EnforceRetentionPolicies()
-			}
-		}
-	}()
-	return nil
+// NewRetentionPolicyEnforcer returns a retention policy enforcer using the given store.
+func NewRetentionPolicyEnforcer(store *Store) *RetentionPolicyEnforcer {
+	return &RetentionPolicyEnforcer{Store: store}
 }
 
-// EnforceRetentionPolicies ensures that data that is aging-out due to retention policies
-// is removed from the server.
-func (s *Server) EnforceRetentionPolicies() {
-	log.Println("retention policy enforcement check commencing")
-
-	type group struct {
-		Database  string
-		Retention string
-		ID        uint64
+// Enforce removes shard groups that represent data older than the retention policies
+// allow. It then returns a slice of the shard IDs that must be deleted.
+func (r *RetentionPolicyEnforcer) Enforce() ([]uint64, error) {
+	dis, err := r.Store.Databases()
+	if err != nil {
+		return nil, err
 	}
 
-	var groups []group
-	// Only keep the lock while walking the shard groups, so the lock is not held while
-	// any deletions take place across the cluster.
-	func() {
-		s.mu.RLock()
-		defer s.mu.RUnlock()
-
-		// Check all shard groups.
-		for _, db := range s.databases {
-			for _, rp := range db.policies {
-				for _, g := range rp.shardGroups {
-					if rp.Duration != 0 && g.EndTime.Add(rp.Duration).Before(time.Now().UTC()) {
-						log.Printf("shard group %d, retention policy %s, database %s due for deletion",
-							g.ID, rp.Name, db.name)
-						groups = append(groups, group{Database: db.name, Retention: rp.Name, ID: g.ID})
+	// Check all shard groups.
+	var ids []uint64
+	for _, di := range dis {
+		for _, rp := range di.RetentionPolicies {
+			for _, g := range rp.ShardGroups {
+				if rp.Duration != 0 && g.EndTime.Add(rp.Duration).Before(time.Now().UTC()) {
+					for _, sh := range g.Shards {
+						ids = append(ids, sh.ID)
 					}
+
+					if err := r.Store.DeleteShardGroup(di.Name, rp.Name, g.ID); err != nil {
+						return nil, err
+					}
+
 				}
 			}
 		}
-	}()
-
-	for _, g := range groups {
-		if err := s.DeleteShardGroup(g.Database, g.Retention, g.ID); err != nil {
-			log.Printf("unable to request deletion of shard group %d: %s", g.ID, err.Error())
-		}
 	}
+
+	return ids, nil
 }
-*/

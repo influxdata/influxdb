@@ -11,6 +11,7 @@ import (
 	"github.com/influxdb/influxdb/services/graphite"
 	"github.com/influxdb/influxdb/services/httpd"
 	"github.com/influxdb/influxdb/services/opentsdb"
+	"github.com/influxdb/influxdb/services/retention"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -51,6 +52,7 @@ func NewServer(c *Config, joinURLs string) *Server {
 
 	// Append services.
 	s.appendClusterService(c.Cluster)
+	s.appendRetentionPolicyService(c.Retention)
 	s.appendAdminService(c.Admin)
 	s.appendHTTPDService(c.HTTPD)
 	s.appendCollectdService(c.Collectd)
@@ -64,6 +66,13 @@ func NewServer(c *Config, joinURLs string) *Server {
 
 func (s *Server) appendClusterService(c cluster.Config) {
 	srv := cluster.NewService(c)
+	srv.TSDBStore = s.TSDBStore
+	s.Services = append(s.Services, srv)
+}
+
+func (s *Server) appendRetentionPolicyService(c retention.Config) {
+	srv := retention.NewService(c)
+	srv.Enforcer = meta.NewRetentionPolicyEnforcer(s.MetaStore)
 	srv.TSDBStore = s.TSDBStore
 	s.Services = append(s.Services, srv)
 }
