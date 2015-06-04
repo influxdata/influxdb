@@ -149,8 +149,6 @@ func NewConfig() *run.Config {
 	c.HTTPD.BindAddress = "127.0.0.1:0"
 	c.HTTPD.LogEnabled = testing.Verbose()
 
-	c.UDP.BindAddress = "127.0.0.1:0"
-	c.UDP.Database = "db0"
 	return c
 }
 
