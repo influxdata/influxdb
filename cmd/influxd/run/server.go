@@ -76,6 +76,9 @@ func (s *Server) appendAdminService(c admin.Config) {
 }
 
 func (s *Server) appendHTTPDService(c httpd.Config) {
+	if !c.Enabled {
+		return
+	}
 	srv := httpd.NewService(c)
 	srv.Handler.MetaStore = s.MetaStore
 	srv.Handler.QueryExecutor = s.QueryExecutor
@@ -84,21 +87,33 @@ func (s *Server) appendHTTPDService(c httpd.Config) {
 }
 
 func (s *Server) appendCollectdService(c collectd.Config) {
+	if !c.Enabled {
+		return
+	}
 	srv := collectd.NewService(c)
 	s.Services = append(s.Services, srv)
 }
 
 func (s *Server) appendOpenTSDBService(c opentsdb.Config) {
+	if !c.Enabled {
+		return
+	}
 	srv := opentsdb.NewService(c)
 	s.Services = append(s.Services, srv)
 }
 
 func (s *Server) appendGraphiteService(c graphite.Config) {
+	if !c.Enabled {
+		return
+	}
 	srv := graphite.NewService(c)
 	s.Services = append(s.Services, srv)
 }
 
 func (s *Server) appendUDPService(c udp.Config) {
+	if !c.Enabled {
+		return
+	}
 	srv := udp.NewService(c)
 	srv.Server.PointsWriter = s.PointsWriter
 	s.Services = append(s.Services, srv)
