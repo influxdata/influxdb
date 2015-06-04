@@ -107,16 +107,17 @@ func (s *Service) deleteShards() {
 		case <-ticker.C:
 			s.logger.Println("retention policy shard deletion commencing")
 
-			// Build a list of all shard IDs that exist.
-			shardIDs := make(map[uint64]struct{}, 0)
+			deletedShardIDs := make(map[uint64]struct{}, 0)
 			s.MetaStore.VisitShardGroups(func(d meta.DatabaseInfo, r meta.RetentionPolicyInfo, g meta.ShardGroupInfo) {
-				for _, sh := range g.Shards {
-					shardIDs[sh.ID] = struct{}{}
+				if g.Deleted() {
+					for _, sh := range g.Shards {
+						deletedShardIDs[sh.ID] = struct{}{}
+					}
 				}
 			})
 
 			for _, id := range s.TSDBStore.ShardIDs() {
-				if _, ok := shardIDs[id]; !ok {
+				if _, ok := deletedShardIDs[id]; ok {
 					if err := s.TSDBStore.DeleteShard(id); err != nil {
 						s.logger.Printf("failed to delete shard ID %d: %s", id, err.Error())
 						continue

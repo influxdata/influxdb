@@ -525,7 +525,7 @@ func (s *Store) CreateShardGroupIfNotExists(database, policy string, timestamp t
 	// Try to find shard group locally first.
 	if sgi, err := s.ShardGroupByTimestamp(database, policy, timestamp); err != nil {
 		return nil, err
-	} else if sgi != nil {
+	} else if sgi != nil && !sgi.Deleted() {
 		return sgi, nil
 	}
 

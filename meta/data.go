@@ -240,7 +240,14 @@ func (data *Data) ShardGroups(database, policy string) ([]ShardGroupInfo, error)
 	} else if rpi == nil {
 		return nil, ErrRetentionPolicyNotFound
 	}
-	return rpi.ShardGroups, nil
+	groups := make([]ShardGroupInfo, 0, len(rpi.ShardGroups))
+	for _, g := range rpi.ShardGroups {
+		if g.Deleted() {
+			continue
+		}
+		groups = append(groups, g)
+	}
+	return groups, nil
 }
 
 // ShardGroupByTimestamp returns the shard group on a database and policy for a given timestamp.
@@ -331,10 +338,10 @@ func (data *Data) DeleteShardGroup(database, policy string, id uint64) error {
 		return ErrRetentionPolicyNotFound
 	}
 
-	// Find shard group by ID and remove it.
+	// Find shard group by ID and set its deletion timestamp.
 	for i := range rpi.ShardGroups {
 		if rpi.ShardGroups[i].ID == id {
-			rpi.ShardGroups = append(rpi.ShardGroups[:i], rpi.ShardGroups[i+1:]...)
+			rpi.ShardGroups[i].DeletedAt = time.Now().UTC()
 			return nil
 		}
 	}
@@ -568,7 +575,7 @@ func NewRetentionPolicyInfo(name string) *RetentionPolicyInfo {
 // ShardGroupByTimestamp returns the shard group in the policy that contains the timestamp.
 func (rpi *RetentionPolicyInfo) ShardGroupByTimestamp(timestamp time.Time) *ShardGroupInfo {
 	for i := range rpi.ShardGroups {
-		if rpi.ShardGroups[i].Contains(timestamp) {
+		if rpi.ShardGroups[i].Contains(timestamp) && !rpi.ShardGroups[i].Deleted() {
 			return &rpi.ShardGroups[i]
 		}
 	}
@@ -609,12 +616,16 @@ func shardGroupDuration(d time.Duration) time.Duration {
 	return 1 * time.Hour
 }
 
-// ShardGroupInfo represents metadata about a shard group.
+// ShardGroupInfo represents metadata about a shard group. The DeletedAt field is important
+// because it makes it clear that a ShardGroup has been marked as deleted, and allow the system
+// to be sure that a ShardGroup is not simply missing. If the DeletedAt is set, the system can
+// safely delete any associated shards.
 type ShardGroupInfo struct {
 	ID        uint64
 	StartTime time.Time
 	EndTime   time.Time
 	Shards    []ShardInfo
+	DeletedAt time.Time
 }
 
 // Contains return true if the shard group contains data for the timestamp.
@@ -625,6 +636,11 @@ func (sgi *ShardGroupInfo) Contains(timestamp time.Time) bool {
 // Overlaps return whether the shard group contains data for the time range between min and max
 func (sgi *ShardGroupInfo) Overlaps(min, max time.Time) bool {
 	return !sgi.StartTime.After(max) && sgi.EndTime.After(min)
+}
+
+// Deleted returns whether this ShardGroup has been deleted.
+func (sgi *ShardGroupInfo) Deleted() bool {
+	return !sgi.DeletedAt.IsZero()
 }
 
 // clone returns a deep copy of sgi.
