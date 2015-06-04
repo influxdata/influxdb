@@ -560,6 +560,21 @@ func (s *Store) ShardGroups(database, policy string) (a []ShardGroupInfo, err er
 	return
 }
 
+// VisitShardGroups calls the given function with full shard group details.
+func (s *Store) VisitShardGroups(f func(d DatabaseInfo, r RetentionPolicyInfo, s ShardGroupInfo)) {
+	s.read(func(data *Data) error {
+		for _, di := range data.Databases {
+			for _, rp := range di.RetentionPolicies {
+				for _, sg := range rp.ShardGroups {
+					f(di, rp, sg)
+				}
+			}
+		}
+		return nil
+	})
+	return
+}
+
 // ShardGroupByTimestamp returns a shard group for a policy by timestamp.
 func (s *Store) ShardGroupByTimestamp(database, policy string, timestamp time.Time) (sgi *ShardGroupInfo, err error) {
 	err = s.read(func(data *Data) error {
