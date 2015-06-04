@@ -8,8 +8,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/davecgh/go-spew/spew"
 )
 
 // Point defines the values that will be written to the database
@@ -512,7 +510,6 @@ func (p *point) Time() time.Time {
 			return p.time
 		}
 		p.time = time.Unix(0, ts*p.GetPrecisionMultiplier())
-		spew.Dump(ts, p.precision, p.GetPrecisionMultiplier(), p.time.UTC())
 	}
 
 	return p.time
