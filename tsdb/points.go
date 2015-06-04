@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
 // Point defines the values that will be written to the database
@@ -52,6 +54,9 @@ type point struct {
 
 	// binary encoded field data
 	data []byte
+
+	// precision is set
+	precision string
 }
 
 var escapeCodes = map[byte][]byte{
@@ -139,15 +144,16 @@ func parsePoint(buf []byte, defaultTime time.Time, precision string) (Point, err
 	}
 
 	pt := &point{
-		key:    key,
-		fields: fields,
-		ts:     ts,
+		key:       key,
+		fields:    fields,
+		ts:        ts,
+		precision: precision,
 	}
 
 	if len(ts) == 0 {
 		pt.time = defaultTime
+		pt.SetPrecision()
 	}
-	pt.SetPrecision(precision)
 	return pt, nil
 }
 
@@ -505,7 +511,8 @@ func (p *point) Time() time.Time {
 		if err != nil {
 			return p.time
 		}
-		p.time = time.Unix(0, ts)
+		p.time = time.Unix(0, ts*p.GetPrecisionMultiplier())
+		spew.Dump(ts, p.precision, p.GetPrecisionMultiplier(), p.time.UTC())
 	}
 
 	return p.time
@@ -574,20 +581,38 @@ func (p *point) AddField(name string, value interface{}) {
 }
 
 // SetPrecision will round a time to the specified precision
-func (p *point) SetPrecision(precision string) {
-	switch precision {
+func (p *point) SetPrecision() {
+	switch p.precision {
 	case "n":
 	case "u":
-		p.SetTime(p.Time().Round(time.Microsecond))
+		p.SetTime(p.Time().Truncate(time.Microsecond))
 	case "ms":
-		p.SetTime(p.Time().Round(time.Millisecond))
+		p.SetTime(p.Time().Truncate(time.Millisecond))
 	case "s":
-		p.SetTime(p.Time().Round(time.Second))
+		p.SetTime(p.Time().Truncate(time.Second))
 	case "m":
-		p.SetTime(p.Time().Round(time.Minute))
+		p.SetTime(p.Time().Truncate(time.Minute))
 	case "h":
-		p.SetTime(p.Time().Round(time.Hour))
+		p.SetTime(p.Time().Truncate(time.Hour))
 	}
+}
+
+// GetPrecisionMultiplier will return a multiplier for the precision specified
+func (p *point) GetPrecisionMultiplier() int64 {
+	d := time.Nanosecond
+	switch p.precision {
+	case "u":
+		d = time.Microsecond
+	case "ms":
+		d = time.Millisecond
+	case "s":
+		d = time.Second
+	case "m":
+		d = time.Minute
+	case "h":
+		d = time.Hour
+	}
+	return int64(d)
 }
 
 func (p *point) String() string {
