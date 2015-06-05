@@ -13,6 +13,9 @@ import (
 	"github.com/influxdb/influxdb/tsdb"
 )
 
+// MaxMessageSize defines how large a message can be before we reject it
+const MaxMessageSize = 1024 * 1024 * 1024 // 1GB
+
 // Service processes data received over raw TCP connections.
 type Service struct {
 	mu   sync.RWMutex
@@ -192,6 +195,14 @@ func ReadTLV(r io.Reader) (byte, []byte, error) {
 	var sz int64
 	if err := binary.Read(r, binary.BigEndian, &sz); err != nil {
 		return 0, nil, fmt.Errorf("read message size: %s", err)
+	}
+
+	if sz == 0 {
+		return 0, nil, fmt.Errorf("invalid message size: %d", sz)
+	}
+
+	if sz >= MaxMessageSize {
+		return 0, nil, fmt.Errorf("max message size of %d exceeded: %d", MaxMessageSize, sz)
 	}
 
 	// Read the value.
