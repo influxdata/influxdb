@@ -297,6 +297,51 @@ func TestData_CreateShardGroup(t *testing.T) {
 	}
 }
 
+// Ensure that a shard group is correctly detected as expired.
+func TestData_ShardGroupExpiredDeleted(t *testing.T) {
+	var data meta.Data
+	if err := data.CreateNode("node0"); err != nil {
+		t.Fatal(err)
+	} else if err = data.CreateNode("node1"); err != nil {
+		t.Fatal(err)
+	} else if err = data.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	} else if err = data.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", Duration: 1 * time.Hour}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create shard groups.
+	if err := data.CreateShardGroup("db0", "rp0", time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
+	if err := data.CreateShardGroup("db0", "rp0", time.Date(2001, time.January, 1, 0, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
+
+	// Check expiration.
+	rp, _ := data.RetentionPolicy("db0", "rp0")
+	groups := rp.ExpiredShardGroups(time.Date(2001, time.January, 1, 0, 0, 0, 0, time.UTC))
+	if len(groups) != 1 {
+		t.Fatalf("wrong number of expired shard groups returned, got %d, exp 1", len(groups))
+	}
+	if groups[0].StartTime != time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC) {
+		t.Fatal("wrong shard group marked as expired")
+	}
+
+	// Check deletion.
+	if err := data.DeleteShardGroup("db0", "rp0", groups[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	groups = rp.DeletedShardGroups()
+	if len(groups) != 1 {
+		t.Fatalf("wrong number of deleted shard groups returned, got %d, exp 1", len(groups))
+	}
+	if groups[0].StartTime != time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC) {
+		t.Fatal("wrong shard group marked as expired")
+	}
+
+}
+
 // Test shard group selection.
 func TestShardGroup_Overlaps(t *testing.T) {
 	// Make a shard group 1 hour in duration
