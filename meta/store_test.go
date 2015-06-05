@@ -31,7 +31,7 @@ func TestStore_Open_ErrStoreOpen(t *testing.T) {
 	s := MustOpenStore()
 	defer s.Close()
 
-	if err := s.Open(); err != meta.ErrStoreOpen {
+	if err := s.Store.Open(); err != meta.ErrStoreOpen {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }
