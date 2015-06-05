@@ -8,7 +8,7 @@ import (
 
 const (
 	// DefaultMaxSize is the default maximum size of all hinted handoff queues in bytes.
-	DefaultMaxSize = 1024 ^ 3
+	DefaultMaxSize = 1024 * 1024 * 1024
 
 	// DefaultRetryInterval is the default amout of time the system waits before
 	// attempting to flush hinted handoff queues.
@@ -21,7 +21,8 @@ const (
 
 type Config struct {
 	Enabled        bool          `toml:"enabled"`
-	MaxSize        int           `toml:"max-size"`
+	Dir            string        `toml:"dir"`
+	MaxSize        int64         `toml:"max-size"`
 	RetryInterval  toml.Duration `toml:"retry-interval"`
 	MaxBackoffTime toml.Duration `toml:"max-backoff-time"`
 }

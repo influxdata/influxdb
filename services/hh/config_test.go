@@ -33,7 +33,7 @@ max-size=2048
 		t.Fatalf("unexpected max backoff time: got %v, exp %v", c.MaxBackoffTime, exp)
 	}
 
-	if exp := 2048; c.MaxSize != exp {
+	if exp := int64(2048); c.MaxSize != exp {
 		t.Fatalf("unexpected retry interval: got %v, exp %v", c.MaxSize, exp)
 	}
 }
