@@ -586,6 +586,9 @@ func (rpi *RetentionPolicyInfo) ShardGroupByTimestamp(timestamp time.Time) *Shar
 func (rpi *RetentionPolicyInfo) ExpiredShardGroups(t time.Time) []*ShardGroupInfo {
 	groups := make([]*ShardGroupInfo, 0)
 	for i := range rpi.ShardGroups {
+		if rpi.ShardGroups[i].Deleted() {
+			continue
+		}
 		if rpi.Duration != 0 && rpi.ShardGroups[i].EndTime.Add(rpi.Duration).Before(t) {
 			groups = append(groups, &rpi.ShardGroups[i])
 		}
