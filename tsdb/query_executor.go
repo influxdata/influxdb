@@ -181,7 +181,8 @@ func (q *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chu
 			case *influxql.DeleteStatement:
 				res = &influxql.Result{Err: ErrInvalidQuery}
 			case *influxql.DropDatabaseStatement:
-				res = q.executeDropDatabaseStatement(stmt, database)
+				// TODO: handle this in a cluster
+				res = q.executeDropDatabaseStatement(stmt)
 			default:
 				// Delegate all other meta statements to a separate executor. They don't hit tsdb storage.
 				res = q.MetaStatementExecutor.ExecuteStatement(stmt)
@@ -386,8 +387,31 @@ func (q *QueryExecutor) expandSources(sources influxql.Sources) (influxql.Source
 	return expanded, nil
 }
 
-func (q *QueryExecutor) executeDropDatabaseStatement(stmt *influxql.DropDatabaseStatement, database string) *influxql.Result {
-	panic("not yet imlemented")
+// exzecuteDropDatabaseStatement closes all local shards for the database and removes the directtory. It then calls to the metastore to remove the database from there.
+// TODO: make this work in a cluster/distributed
+func (q *QueryExecutor) executeDropDatabaseStatement(stmt *influxql.DropDatabaseStatement) *influxql.Result {
+	dbi, err := q.MetaStore.Database(stmt.Name)
+	if err != nil {
+		return &influxql.Result{Err: err}
+	} else if dbi == nil {
+		return &influxql.Result{Err: ErrDatabaseNotFound(stmt.Name)}
+	}
+
+	var shardIDs []uint64
+	for _, rp := range dbi.RetentionPolicies {
+		for _, sg := range rp.ShardGroups {
+			for _, s := range sg.Shards {
+				shardIDs = append(shardIDs, s.ID)
+			}
+		}
+	}
+
+	err = q.store.DeleteDatabase(stmt.Name, shardIDs)
+	if err != nil {
+		return &influxql.Result{Err: err}
+	}
+
+	return q.MetaStatementExecutor.ExecuteStatement(stmt)
 }
 
 // executeDropMeasurementStatement removes the measurement and all series data from the local store for the given measurement

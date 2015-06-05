@@ -89,6 +89,19 @@ func (s *Store) DeleteShard(shardID uint64) error {
 	return nil
 }
 
+// DeleteDatabase will close all shards associated with a database and remove the directory and files from disk.
+func (s *Store) DeleteDatabase(name string, shardIDs []uint64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, id := range shardIDs {
+		shard := s.shards[id]
+		if shard != nil {
+			shard.Close()
+		}
+	}
+	return os.RemoveAll(s.path)
+}
+
 func (s *Store) Shard(shardID uint64) *Shard {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

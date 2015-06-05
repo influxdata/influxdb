@@ -3,6 +3,7 @@ package tsdb
 import (
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -167,6 +168,75 @@ func TestDropMeasurementStatement(t *testing.T) {
 	store.Open()
 	executor.store = store
 	validateDrop()
+}
+
+// mock for the metaExecutor
+type metaExec struct {
+	fn func(stmt influxql.Statement) *influxql.Result
+}
+
+func (m *metaExec) ExecuteStatement(stmt influxql.Statement) *influxql.Result {
+	return m.fn(stmt)
+}
+
+func TestDropDatabase(t *testing.T) {
+	store, executor := testStoreAndExecutor()
+	defer os.RemoveAll(store.path)
+
+	pt := NewPoint(
+		"cpu",
+		map[string]string{"host": "server"},
+		map[string]interface{}{"value": 1.0},
+		time.Unix(1, 2),
+	)
+
+	err := store.WriteToShard(shardID, []Point{pt})
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	got := executeAndGetJSON("select * from cpu", executor)
+	expected := `[{"series":[{"name":"cpu","tags":{"host":"server"},"columns":["time","value"],"values":[["1970-01-01T00:00:01.000000002Z",1]]}]}]`
+	if expected != got {
+		t.Fatalf("exp: %s\ngot: %s", expected, got)
+	}
+
+	var name string
+	me := &metaExec{fn: func(stmt influxql.Statement) *influxql.Result {
+		name = stmt.(*influxql.DropDatabaseStatement).Name
+		return &influxql.Result{}
+	}}
+	executor.MetaStatementExecutor = me
+
+	// verify the database is there on disk
+	dbPath := filepath.Join(store.path, "foo")
+	if _, err := os.Stat(dbPath); err != nil {
+		t.Fatalf("execpted database dir %s to exist", dbPath)
+	}
+
+	got = executeAndGetJSON("drop database foo", executor)
+	expected = `[{}]`
+	if got != expected {
+		t.Fatalf("exp: %s\ngot: %s", expected, got)
+	}
+
+	if name != "foo" {
+		t.Fatalf("exepected the MetaStatementExecutor to be called with database name foo, but got %s", name)
+	}
+
+	if _, err := os.Stat(dbPath); !os.IsNotExist(err) {
+		t.Fatalf("execpted database dir %s to be gone", dbPath)
+	}
+
+	store.Close()
+	store = NewStore(store.path)
+	store.Open()
+	executor.store = store
+
+	err = store.WriteToShard(shardID, []Point{pt})
+	if err == nil || err.Error() != "shard not found" {
+		t.Fatalf("expected shard to not be found")
+	}
 }
 
 // ensure that authenticate doesn't return an error if the user count is zero and they're attempting
