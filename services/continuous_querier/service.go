@@ -171,7 +171,7 @@ func (s *Service) runContinuousQueries() {
 		// TODO: distribute across nodes
 		for _, cq := range db.ContinuousQueries {
 			if err := s.ExecuteContinuousQuery(&db, &cq); err != nil {
-				s.Logger.Println(err)
+				s.Logger.Printf("error executing query: %s: err = %s", cq.Query, err)
 			}
 		}
 	}
