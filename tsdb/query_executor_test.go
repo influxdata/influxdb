@@ -221,11 +221,11 @@ func TestDropDatabase(t *testing.T) {
 	}
 
 	if name != "foo" {
-		t.Fatalf("exepected the MetaStatementExecutor to be called with database name foo, but got %s", name)
+		t.Fatalf("expected the MetaStatementExecutor to be called with database name foo, but got %s", name)
 	}
 
 	if _, err := os.Stat(dbPath); !os.IsNotExist(err) {
-		t.Fatalf("execpted database dir %s to be gone", dbPath)
+		t.Fatalf("expected database dir %s to be gone", dbPath)
 	}
 
 	store.Close()
