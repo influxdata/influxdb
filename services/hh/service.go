@@ -38,8 +38,11 @@ func NewService(c Config, w shardWriter) *Service {
 		cfg:    c,
 		Logger: log.New(os.Stderr, "[handoff] ", log.LstdFlags),
 	}
-	// FIXME: add exponential backoff, throughput limit, max TTL config options
-	processor, err := NewProcessor(c.Dir, c.MaxSize, w)
+	processor, err := NewProcessor(c.Dir, w, ProcessorOptions{
+		MaxSize:        c.MaxSize,
+		MaxAge:         time.Duration(c.MaxAge),
+		RetryRateLimit: c.RetryRateLimit,
+	})
 	if err != nil {
 		s.Logger.Fatalf("Failed to start hinted handoff processor: %v", err)
 	}

@@ -48,7 +48,7 @@ func TestProcessorProcess(t *testing.T) {
 		},
 	}
 
-	p, err := NewProcessor(dir, 1024, sh)
+	p, err := NewProcessor(dir, sh, ProcessorOptions{MaxSize: 1024})
 	if err != nil {
 		t.Fatalf("Process() failed to create processor: %v", err)
 	}

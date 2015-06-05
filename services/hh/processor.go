@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/influxdb/influxdb/tsdb"
 )
@@ -15,19 +16,29 @@ import (
 type Processor struct {
 	mu sync.RWMutex
 
-	dir     string
-	maxSize int64
-	queues  map[uint64]*queue
-	writer  shardWriter
+	dir            string
+	maxSize        int64
+	maxAge         time.Duration
+	retryRateLimit int64
+
+	queues map[uint64]*queue
+	writer shardWriter
 }
 
-func NewProcessor(dir string, maxSize int64, writer shardWriter) (*Processor, error) {
+type ProcessorOptions struct {
+	MaxSize        int64
+	MaxAge         time.Duration
+	RetryRateLimit int64
+}
+
+func NewProcessor(dir string, writer shardWriter, options ProcessorOptions) (*Processor, error) {
+
 	p := &Processor{
-		dir:     dir,
-		maxSize: maxSize,
-		queues:  map[uint64]*queue{},
-		writer:  writer,
+		dir:    dir,
+		queues: map[uint64]*queue{},
+		writer: writer,
 	}
+	p.setOptions(options)
 
 	// Create the root directory if it doesn't already exist.
 	if err := os.MkdirAll(dir, 0700); err != nil {
@@ -38,6 +49,23 @@ func NewProcessor(dir string, maxSize int64, writer shardWriter) (*Processor, er
 		return p, err
 	}
 	return p, nil
+}
+
+func (p *Processor) setOptions(options ProcessorOptions) {
+	p.maxSize = DefaultMaxSize
+	if options.MaxSize != 0 {
+		p.maxSize = options.MaxSize
+	}
+
+	p.maxAge = DefaultMaxAge
+	if options.MaxAge.Nanoseconds() >= 0 {
+		p.maxAge = options.MaxAge
+	}
+
+	p.retryRateLimit = DefaultRetryRateLimit
+	if options.RetryRateLimit != 0 {
+		p.retryRateLimit = options.RetryRateLimit
+	}
 }
 
 func (p *Processor) loadQueues() error {
