@@ -179,6 +179,7 @@ func (s *Server) Open() error {
 		mux := tcp.NewMux()
 		s.MetaStore.RaftListener = mux.Listen(meta.MuxRaftHeader)
 		s.MetaStore.ExecListener = mux.Listen(meta.MuxExecHeader)
+		s.Services[0].(*cluster.Service).Listener = mux.Listen(cluster.MuxHeader)
 
 		// Open meta store.
 		if err := s.MetaStore.Open(); err != nil {
