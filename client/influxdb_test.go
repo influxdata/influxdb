@@ -496,3 +496,35 @@ func TestBatchPoints_Normal(t *testing.T) {
 		t.Errorf("unable to unmarshal nanosecond data: %s", err.Error())
 	}
 }
+
+func TestClient_Timeout(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(1 * time.Second)
+		var data influxdb.Response
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(data)
+	}))
+	defer ts.Close()
+
+	u, _ := url.Parse(ts.URL)
+	config := client.Config{URL: *u, Timeout: 500 * time.Millisecond}
+	c, err := client.NewClient(config)
+	if err != nil {
+		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+
+	query := client.Query{}
+	_, err = c.Query(query)
+	if err == nil {
+		t.Fatalf("unexpected success.  expected timeout error")
+	} else if !strings.Contains(err.Error(), "use of closed network connection") {
+		t.Fatalf("unexpected error.  expected 'use of closed network connection' error, got %v", err)
+	}
+
+	confignotimeout := client.Config{URL: *u}
+	cnotimeout, err := client.NewClient(confignotimeout)
+	_, err = cnotimeout.Query(query)
+	if err != nil {
+		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+}

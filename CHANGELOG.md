@@ -8,6 +8,7 @@
 - [2687](https://github.com/influxdb/influxdb/issues/2687): Add batching support to Collectd inputs.
 - [2696](https://github.com/influxdb/influxdb/pull/2696): Add line protocol. This is now the preferred way to write data.
 - [2751](https://github.com/influxdb/influxdb/pull/2751): Add UDP input. UPD only supports the line protocol now.
+- [2684](https://github.com/influxdb/influxdb/pull/2684): Include client timeout configuration. Thanks @vladlopes!
 
 ### Bugfixes
 - [2776](https://github.com/influxdb/influxdb/issues/2776): Re-implement retention policy enforcement.
