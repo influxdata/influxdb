@@ -43,7 +43,9 @@ type Service struct {
 	PointsWriter  pointsWriter
 	Config        *Config
 	RunInterval   time.Duration
-	Logger        *log.Logger
+	// RunCh can be used by clients to signal service to run CQs.
+	RunCh  chan struct{}
+	Logger *log.Logger
 	// lastRuns maps CQ name to last time it was run.
 	lastRuns map[string]time.Time
 	stop     chan struct{}
@@ -55,6 +57,7 @@ func NewService(c Config) *Service {
 	s := &Service{
 		Config:      &c,
 		RunInterval: time.Second,
+		RunCh:       make(chan struct{}),
 		Logger:      log.New(os.Stderr, "[continuous_querier] ", log.LstdFlags),
 		lastRuns:    map[string]time.Time{},
 	}
@@ -97,6 +100,10 @@ func (s *Service) backgroundLoop() {
 		select {
 		case <-s.stop:
 			return
+		case <-s.RunCh:
+			if s.MetaStore.IsLeader() {
+				s.runContinuousQueries()
+			}
 		case <-time.After(s.RunInterval):
 			if s.MetaStore.IsLeader() {
 				s.runContinuousQueries()
@@ -159,11 +166,14 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 
 	// Get the group by interval.
 	interval, err := cq.q.GroupByInterval()
-	if err != nil || interval == 0 {
+	if err != nil {
+		return err
+	} else if interval == 0 {
 		return nil
 	}
 
 	// Calculate and set the time range for the query.
+	fmt.Printf("interval = %v\n", interval)
 	startTime := now.Round(interval)
 	if startTime.UnixNano() > now.UnixNano() {
 		startTime = startTime.Add(-interval)
@@ -183,6 +193,7 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 
 	for i := 0; i < s.Config.RecomputePreviousN; i++ {
 		// if we're already more time past the previous window than we're going to look back, stop
+		fmt.Printf("now - start = %v, recomputeNoOlderThan = %v\n", now.Sub(startTime), recomputeNoOlderThan)
 		if now.Sub(startTime) > recomputeNoOlderThan {
 			return nil
 		}
@@ -190,10 +201,12 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 
 		if err := cq.q.SetTimeRange(newStartTime, startTime); err != nil {
 			s.Logger.Printf("error setting time range: %s\n", err)
+			return err
 		}
 
 		if err := s.runContinuousQueryAndWriteResult(cq); err != nil {
 			s.Logger.Printf("error during recompute previous: %s. running: %s\n", err, cq.q.String())
+			return err
 		}
 
 		startTime = newStartTime
@@ -203,6 +216,7 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 
 // runContinuousQueryAndWriteResult will run the query against the cluster and write the results back in
 func (s *Service) runContinuousQueryAndWriteResult(cq *ContinuousQuery) error {
+	fmt.Printf("runContinuousQueryAndWriteResult(): %s\n", cq.q.String())
 	// Wrap the CQ's inner SELECT statement in a Query for the QueryExecutor.
 	q := &influxql.Query{
 		Statements: influxql.Statements{cq.q},
