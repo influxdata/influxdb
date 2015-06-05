@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"sync"
 	"testing"
 	"time"
 
@@ -69,21 +68,19 @@ func TestService_HappyPath(t *testing.T) {
 	qe := s.QueryExecutor.(*QueryExecutor)
 	qe.Results = []*influxql.Result{genResult(1, pointCnt)}
 
-	done := make(chan struct{}, 5)
-	defer close(done)
 	pw := s.PointsWriter.(*PointsWriter)
-	gotCnt := -1
+	ch := make(chan int, 5)
+	defer close(ch)
 	pw.WritePointsFn = func(p *cluster.WritePointsRequest) error {
-		gotCnt = len(p.Points)
-		done <- struct{}{}
+		ch <- len(p.Points)
 		return nil
 	}
 
 	s.Open()
-	if err := wait(done, time.Second); err != nil {
+	if cnt, err := waitInt(ch, time.Second); err != nil {
 		t.Error(err)
-	} else if gotCnt != pointCnt {
-		t.Errorf("exp = %d, got = %d", pointCnt, gotCnt)
+	} else if cnt != pointCnt {
+		t.Errorf("exp = %d, got = %d", pointCnt, cnt)
 	}
 	s.Close()
 }
@@ -351,7 +348,6 @@ type QueryExecutor struct {
 	Err                 error
 	ErrAfterResult      int
 	StopRespondingAfter int
-	Wg                  *sync.WaitGroup
 	t                   *testing.T
 }
 
@@ -380,12 +376,9 @@ func (qe *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, ch
 	}
 
 	ch := make(chan *influxql.Result)
-	qe.Wg = &sync.WaitGroup{}
-	qe.Wg.Add(1)
 
 	// Start a go routine to send results and / or error.
 	go func() {
-		defer func() { qe.t.Log("ExecuteQuery(): go routine exited"); qe.Wg.Done() }()
 		n := 0
 		for i, r := range qe.Results {
 			if i == qe.ErrAfterResult-1 {
@@ -467,6 +460,15 @@ func genResult(rowCnt, valCnt int) *influxql.Result {
 func wait(c chan struct{}, d time.Duration) (err error) {
 	select {
 	case <-c:
+	case <-time.After(d):
+		err = errors.New("timed out")
+	}
+	return
+}
+
+func waitInt(c chan int, d time.Duration) (i int, err error) {
+	select {
+	case i = <-c:
 	case <-time.After(d):
 		err = errors.New("timed out")
 	}

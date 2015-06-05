@@ -102,8 +102,6 @@ func (s *Service) Close() error {
 
 // Run runs the specified continuous query, or all CQs if none is specified.
 func (s *Service) Run(database, name string) error {
-	fmt.Printf("database = %v\n", database)
-	fmt.Printf("name = %v\n", name)
 	var dbs []meta.DatabaseInfo
 
 	if database != "" {
@@ -130,7 +128,6 @@ func (s *Service) Run(database, name string) error {
 		for _, cq := range db.ContinuousQueries {
 			if name == "" || cq.Name == name {
 				// Reset the last run time for the CQ.
-				fmt.Printf("running = %v\n", name)
 				s.lastRuns[cq.Name] = time.Time{}
 			}
 		}
