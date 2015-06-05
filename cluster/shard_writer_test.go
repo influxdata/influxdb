@@ -130,7 +130,7 @@ func TestShardWriter_WriteShard_Error(t *testing.T) {
 	))
 
 	if err := w.WriteShard(shardID, ownerID, points); err == nil || err.Error() != "error code 1: write shard: failed to write" {
-		t.Fatalf("unexpected error: %s", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

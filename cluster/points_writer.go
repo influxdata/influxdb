@@ -51,6 +51,7 @@ type PointsWriter struct {
 		Database(name string) (di *meta.DatabaseInfo, err error)
 		RetentionPolicy(database, policy string) (*meta.RetentionPolicyInfo, error)
 		CreateShardGroupIfNotExists(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error)
+		ShardOwner(shardID uint64) (string, string, *meta.ShardGroupInfo)
 	}
 
 	TSDBStore interface {

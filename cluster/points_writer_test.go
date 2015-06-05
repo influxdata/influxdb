@@ -313,6 +313,7 @@ type MetaStore struct {
 	RetentionPolicyFn             func(database, name string) (*meta.RetentionPolicyInfo, error)
 	CreateShardGroupIfNotExistsFn func(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error)
 	DatabaseFn                    func(database string) (*meta.DatabaseInfo, error)
+	ShardOwnerFn                  func(shardID uint64) (string, string, *meta.ShardGroupInfo)
 }
 
 func (m MetaStore) NodeID() uint64 { return m.NodeIDFn() }
@@ -327,6 +328,10 @@ func (m MetaStore) CreateShardGroupIfNotExists(database, policy string, timestam
 
 func (m MetaStore) Database(database string) (*meta.DatabaseInfo, error) {
 	return m.DatabaseFn(database)
+}
+
+func (m MetaStore) ShardOwner(shardID uint64) (string, string, *meta.ShardGroupInfo) {
+	return m.ShardOwnerFn(shardID)
 }
 
 func NewRetentionPolicy(name string, duration time.Duration, nodeCount int) *meta.RetentionPolicyInfo {

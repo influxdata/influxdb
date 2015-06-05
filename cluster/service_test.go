@@ -23,10 +23,11 @@ func (m *metaStore) Node(nodeID uint64) (*meta.NodeInfo, error) {
 }
 
 type testService struct {
-	nodeID         uint64
-	writeShardFunc func(shardID uint64, points []tsdb.Point) error
-	ln             net.Listener
-	muxln          net.Listener
+	nodeID          uint64
+	ln              net.Listener
+	muxln           net.Listener
+	writeShardFunc  func(shardID uint64, points []tsdb.Point) error
+	createShardFunc func(database, policy string, shardID uint64) error
 }
 
 func newTestService(f func(shardID uint64, points []tsdb.Point) error) testService {
@@ -61,6 +62,10 @@ type serviceResponse struct {
 
 func (t testService) WriteToShard(shardID uint64, points []tsdb.Point) error {
 	return t.writeShardFunc(shardID, points)
+}
+
+func (t testService) CreateShard(database, policy string, shardID uint64) error {
+	return t.createShardFunc(database, policy, shardID)
 }
 
 func writeShardSuccess(shardID uint64, points []tsdb.Point) error {
