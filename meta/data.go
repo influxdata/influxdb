@@ -582,6 +582,28 @@ func (rpi *RetentionPolicyInfo) ShardGroupByTimestamp(timestamp time.Time) *Shar
 	return nil
 }
 
+// ExpiredShardGroups returns the Shard Groups which are considered expired, for the given time.
+func (rpi *RetentionPolicyInfo) ExpiredShardGroups(t time.Time) []*ShardGroupInfo {
+	groups := make([]*ShardGroupInfo, 0)
+	for i := range rpi.ShardGroups {
+		if rpi.Duration != 0 && rpi.ShardGroups[i].EndTime.Add(rpi.Duration).Before(t) {
+			groups = append(groups, &rpi.ShardGroups[i])
+		}
+	}
+	return groups
+}
+
+// DeletedShardGroups returns the Shard Groups which are marked as deleted.
+func (rpi *RetentionPolicyInfo) DeletedShardGroups() []*ShardGroupInfo {
+	groups := make([]*ShardGroupInfo, 0)
+	for i := range rpi.ShardGroups {
+		if rpi.ShardGroups[i].Deleted() {
+			groups = append(groups, &rpi.ShardGroups[i])
+		}
+	}
+	return groups
+}
+
 // protobuf returns a protocol buffers object.
 func (rpi *RetentionPolicyInfo) protobuf() *internal.RetentionPolicyInfo {
 	return &internal.RetentionPolicyInfo{

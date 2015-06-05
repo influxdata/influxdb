@@ -560,6 +560,19 @@ func (s *Store) ShardGroups(database, policy string) (a []ShardGroupInfo, err er
 	return
 }
 
+// VisitRetentionPolicies calls the given function with full retention policy details.
+func (s *Store) VisitRetentionPolicies(f func(d DatabaseInfo, r RetentionPolicyInfo)) {
+	s.read(func(data *Data) error {
+		for _, di := range data.Databases {
+			for _, rp := range di.RetentionPolicies {
+				f(di, rp)
+			}
+		}
+		return nil
+	})
+	return
+}
+
 // VisitShardGroups calls the given function with full shard group details.
 func (s *Store) VisitShardGroups(f func(d DatabaseInfo, r RetentionPolicyInfo, s ShardGroupInfo)) {
 	s.read(func(data *Data) error {

@@ -15,7 +15,7 @@ import (
 type Service struct {
 	MetaStore interface {
 		IsLeader() bool
-		VisitShardGroups(f func(d meta.DatabaseInfo, r meta.RetentionPolicyInfo, s meta.ShardGroupInfo))
+		VisitRetentionPolicies(f func(d meta.DatabaseInfo, r meta.RetentionPolicyInfo))
 		DeleteShardGroup(database, policy string, id uint64) error
 	}
 	TSDBStore interface {
@@ -73,8 +73,8 @@ func (s *Service) deleteShardGroups() {
 			}
 			s.logger.Println("retention policy enforcement commencing")
 
-			s.MetaStore.VisitShardGroups(func(d meta.DatabaseInfo, r meta.RetentionPolicyInfo, g meta.ShardGroupInfo) {
-				if r.Duration != 0 && g.EndTime.Add(r.Duration).Before(time.Now().UTC()) {
+			s.MetaStore.VisitRetentionPolicies(func(d meta.DatabaseInfo, r meta.RetentionPolicyInfo) {
+				for _, g := range r.ExpiredShardGroups(time.Now().UTC()) {
 					if err := s.MetaStore.DeleteShardGroup(d.Name, r.Name, g.ID); err != nil {
 						s.logger.Printf("failed to delete shard group %d from database %s, retention policy %s: %s",
 							g.ID, d.Name, r.Name, err.Error())
@@ -83,7 +83,6 @@ func (s *Service) deleteShardGroups() {
 							g.ID, d.Name, r.Name)
 					}
 				}
-
 			})
 		}
 	}
@@ -103,8 +102,8 @@ func (s *Service) deleteShards() {
 			s.logger.Println("retention policy shard deletion commencing")
 
 			deletedShardIDs := make(map[uint64]struct{}, 0)
-			s.MetaStore.VisitShardGroups(func(d meta.DatabaseInfo, r meta.RetentionPolicyInfo, g meta.ShardGroupInfo) {
-				if g.Deleted() {
+			s.MetaStore.VisitRetentionPolicies(func(d meta.DatabaseInfo, r meta.RetentionPolicyInfo) {
+				for _, g := range r.DeletedShardGroups() {
 					for _, sh := range g.Shards {
 						deletedShardIDs[sh.ID] = struct{}{}
 					}
