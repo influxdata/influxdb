@@ -10,6 +10,7 @@
 - [2751](https://github.com/influxdb/influxdb/pull/2751): Add UDP input. UPD only supports the line protocol now.
 
 ### Bugfixes
+- [2776](https://github.com/influxdb/influxdb/issues/2776): Re-implement retention policy enforcement.
 - [2635](https://github.com/influxdb/influxdb/issues/2635): Fix querying against boolean field in WHERE clause.
 - [2644](https://github.com/influxdb/influxdb/issues/2644): Make SHOW queries work with FROM /<regex>/.
 - [2501](https://github.com/influxdb/influxdb/issues/2501): Name the FlagSet for the shell and add a version flag. Thanks @neonstalwart
