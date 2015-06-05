@@ -34,7 +34,6 @@ type Service struct {
 // NewService returns a configure retention policy enforcement service.
 func NewService(c Config) *Service {
 	return &Service{
-		enabled:       c.Enabled,
 		checkInterval: time.Duration(c.CheckInterval),
 		done:          make(chan struct{}),
 		logger:        log.New(os.Stderr, "[retention] ", log.LstdFlags),
@@ -43,10 +42,6 @@ func NewService(c Config) *Service {
 
 // Open starts retention policy enforcement.
 func (s *Service) Open() error {
-	if !s.enabled {
-		return nil
-	}
-
 	s.wg.Add(2)
 	go s.deleteShardGroups()
 	go s.deleteShards()

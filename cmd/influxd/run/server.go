@@ -73,6 +73,9 @@ func (s *Server) appendClusterService(c cluster.Config) {
 }
 
 func (s *Server) appendRetentionPolicyService(c retention.Config) {
+	if !c.Enabled {
+		return
+	}
 	srv := retention.NewService(c)
 	srv.MetaStore = s.MetaStore
 	srv.TSDBStore = s.TSDBStore
