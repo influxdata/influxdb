@@ -72,7 +72,7 @@ func (s *Service) deleteShardGroups() {
 			if !s.MetaStore.IsLeader() {
 				continue
 			}
-			s.logger.Println("retention policy enforcement commencing")
+			s.logger.Println("retention policy enforcement check commencing")
 
 			s.MetaStore.VisitRetentionPolicies(func(d meta.DatabaseInfo, r meta.RetentionPolicyInfo) {
 				for _, g := range r.ExpiredShardGroups(time.Now().UTC()) {
@@ -101,7 +101,7 @@ func (s *Service) deleteShards() {
 			return
 
 		case <-ticker.C:
-			s.logger.Println("retention policy shard deletion commencing")
+			s.logger.Println("retention policy shard deletion check commencing")
 
 			deletedShardIDs := make(map[uint64]struct{}, 0)
 			s.MetaStore.VisitRetentionPolicies(func(d meta.DatabaseInfo, r meta.RetentionPolicyInfo) {
@@ -118,7 +118,7 @@ func (s *Service) deleteShards() {
 						s.logger.Printf("failed to delete shard ID %d: %s", id, err.Error())
 						continue
 					}
-					s.logger.Printf("shard ID% deleted", id)
+					s.logger.Printf("shard ID %d deleted", id)
 				}
 			}
 		}
