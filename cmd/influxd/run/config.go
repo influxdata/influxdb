@@ -99,6 +99,7 @@ func NewConfig() *Config {
 	c.HTTPD = httpd.NewConfig()
 	c.Monitoring = monitor.NewConfig()
 	c.ContinuousQuery = continuous_querier.NewConfig()
+	c.Retention = retention.NewConfig()
 
 	return c
 }
