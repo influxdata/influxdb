@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+	"time"
 )
 
 var (
@@ -153,6 +154,31 @@ func (l *queue) SetMaxSegmentSize(size int64) error {
 		l.tail = segment
 	}
 	return nil
+}
+
+func (l *queue) PurgeOlderThan(when time.Time) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	// Add a new empty segment so old ones can be reclaimed
+	if _, err := l.addSegment(); err != nil {
+		return err
+	}
+
+	cutoff := when.Truncate(time.Second)
+	for {
+		mod, err := l.head.lastModified()
+		if err != nil {
+			return err
+		}
+
+		if mod.After(cutoff) || mod.Equal(cutoff) {
+			return nil
+		}
+		if err := l.trimHead(); err != nil {
+			return err
+		}
+	}
 }
 
 // diskUsage returns the total size on disk used by the queue
@@ -533,6 +559,17 @@ func (l *segment) close() error {
 	}
 	l.file = nil
 	return nil
+}
+
+func (l *segment) lastModified() (time.Time, error) {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+
+	stats, err := os.Stat(l.file.Name())
+	if err != nil {
+		return time.Time{}, err
+	}
+	return stats.ModTime(), nil
 }
 
 func (l *segment) diskUsage() int64 {

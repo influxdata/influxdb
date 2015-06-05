@@ -25,6 +25,7 @@ type Service struct {
 	HintedHandoff interface {
 		WriteShard(shardID, ownerID uint64, points []tsdb.Point) error
 		Process() error
+		PurgeOlderThan(when time.Duration) error
 	}
 }
 
@@ -40,7 +41,6 @@ func NewService(c Config, w shardWriter) *Service {
 	}
 	processor, err := NewProcessor(c.Dir, w, ProcessorOptions{
 		MaxSize:        c.MaxSize,
-		MaxAge:         time.Duration(c.MaxAge),
 		RetryRateLimit: c.RetryRateLimit,
 	})
 	if err != nil {
@@ -58,7 +58,7 @@ func (s *Service) Open() error {
 
 	go s.retryWrites()
 
-	// go s.expireWrites()
+	go s.expireWrites()
 	// go s.evictWrites()
 
 	return nil
@@ -102,7 +102,18 @@ func (s *Service) retryWrites() {
 // expireWrites will cause the handoff queues to remove writes that are older
 // than the configured threshold
 func (s *Service) expireWrites() {
-	panic("not implemented")
+	ticker := time.NewTicker(time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-s.closing:
+			return
+		case <-ticker.C:
+			if err := s.HintedHandoff.PurgeOlderThan(time.Duration(s.cfg.MaxAge)); err != nil {
+				s.Logger.Printf("purge write failed: %v", err)
+			}
+		}
+	}
 }
 
 // purgeWrites will cause the handoff queues to remove writes that are no longer

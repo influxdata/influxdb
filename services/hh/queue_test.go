@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func BenchmarkQueueAppend(b *testing.B) {
@@ -275,6 +276,52 @@ func TestQueueReopen(t *testing.T) {
 
 	if exp := "two"; string(cur) != exp {
 		t.Errorf("Queue.Current mismatch: got %v, exp %v", string(cur), exp)
+	}
+}
+
+func TestPurgeQueue(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping purge queue")
+	}
+
+	dir, err := ioutil.TempDir("", "hh_queue")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(dir)
+
+	// create the queue
+	q, err := newQueue(dir, 1024)
+	if err != nil {
+		t.Fatalf("failed to create queue: %v", err)
+	}
+
+	if err := q.Open(); err != nil {
+		t.Fatalf("failed to open queue: %v", err)
+	}
+
+	if err := q.Append([]byte("one")); err != nil {
+		t.Fatalf("Queue.Append failed: %v", err)
+	}
+
+	cur, err := q.Current()
+	if err != nil {
+		t.Fatalf("Queue.Current failed: %v", err)
+	}
+
+	if exp := "one"; string(cur) != exp {
+		t.Errorf("Queue.Current mismatch: got %v, exp %v", string(cur), exp)
+	}
+
+	time.Sleep(time.Second)
+
+	if err := q.PurgeOlderThan(time.Now()); err != nil {
+		t.Errorf("Queue.PurgeOlderThan failed: %v", err)
+	}
+
+	_, err = q.Current()
+	if err != io.EOF {
+		t.Fatalf("Queue.Current expected io.EOF, got: %v", err)
 	}
 
 }

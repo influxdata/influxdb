@@ -27,7 +27,6 @@ type Processor struct {
 
 type ProcessorOptions struct {
 	MaxSize        int64
-	MaxAge         time.Duration
 	RetryRateLimit int64
 }
 
@@ -55,11 +54,6 @@ func (p *Processor) setOptions(options ProcessorOptions) {
 	p.maxSize = DefaultMaxSize
 	if options.MaxSize != 0 {
 		p.maxSize = options.MaxSize
-	}
-
-	p.maxAge = DefaultMaxAge
-	if options.MaxAge.Nanoseconds() >= 0 {
-		p.maxAge = options.MaxAge
 	}
 
 	p.retryRateLimit = DefaultRetryRateLimit
@@ -171,4 +165,16 @@ func (p *Processor) unmarshalWrite(b []byte) (uint64, []tsdb.Point, error) {
 	ownerID := binary.BigEndian.Uint64(b[:8])
 	points, err := tsdb.ParsePoints(b[8:])
 	return ownerID, points, err
+}
+
+func (p *Processor) PurgeOlderThan(when time.Duration) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	for _, queue := range p.queues {
+		if err := queue.PurgeOlderThan(time.Now().Add(-when)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
