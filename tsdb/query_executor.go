@@ -387,7 +387,7 @@ func (q *QueryExecutor) expandSources(sources influxql.Sources) (influxql.Source
 	return expanded, nil
 }
 
-// exzecuteDropDatabaseStatement closes all local shards for the database and removes the directtory. It then calls to the metastore to remove the database from there.
+// executeDropDatabaseStatement closes all local shards for the database and removes the directtory. It then calls to the metastore to remove the database from there.
 // TODO: make this work in a cluster/distributed
 func (q *QueryExecutor) executeDropDatabaseStatement(stmt *influxql.DropDatabaseStatement) *influxql.Result {
 	dbi, err := q.MetaStore.Database(stmt.Name)
