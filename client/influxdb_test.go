@@ -500,7 +500,7 @@ func TestBatchPoints_Normal(t *testing.T) {
 func TestClient_Timeout(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(1 * time.Second)
-		var data influxdb.Response
+		var data client.Response
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(data)
 	}))
