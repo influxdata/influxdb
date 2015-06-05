@@ -365,8 +365,9 @@ func TestData_DeleteShardGroup(t *testing.T) {
 
 	if err := data.DeleteShardGroup("db0", "rp0", 1); err != nil {
 		t.Fatal(err)
-	} else if len(data.Databases[0].RetentionPolicies[0].ShardGroups) != 0 {
-		t.Fatalf("unexpected shard groups: %#v", data.Databases[0].RetentionPolicies[0].ShardGroups)
+	}
+	if sg := data.Databases[0].RetentionPolicies[0].ShardGroups[0]; !sg.Deleted() {
+		t.Fatalf("shard group not correctly flagged as deleted")
 	}
 }
 

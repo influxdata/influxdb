@@ -195,6 +195,15 @@ func (s *Store) close() error {
 	return nil
 }
 
+// IsLeader returns whether this node is a leader of the cluster.
+func (s *Store) IsLeader() bool {
+	// Check if store has already been closed.
+	if !s.opened {
+		return false
+	}
+	return s.raft.State() == raft.Leader
+}
+
 // readID reads the local node ID from the ID file.
 func (s *Store) readID() error {
 	b, err := ioutil.ReadFile(s.IDPath())
@@ -516,7 +525,7 @@ func (s *Store) CreateShardGroupIfNotExists(database, policy string, timestamp t
 	// Try to find shard group locally first.
 	if sgi, err := s.ShardGroupByTimestamp(database, policy, timestamp); err != nil {
 		return nil, err
-	} else if sgi != nil {
+	} else if sgi != nil && !sgi.Deleted() {
 		return sgi, nil
 	}
 
@@ -545,6 +554,34 @@ func (s *Store) ShardGroups(database, policy string) (a []ShardGroupInfo, err er
 		a, err = data.ShardGroups(database, policy)
 		if err != nil {
 			return err
+		}
+		return nil
+	})
+	return
+}
+
+// VisitRetentionPolicies calls the given function with full retention policy details.
+func (s *Store) VisitRetentionPolicies(f func(d DatabaseInfo, r RetentionPolicyInfo)) {
+	s.read(func(data *Data) error {
+		for _, di := range data.Databases {
+			for _, rp := range di.RetentionPolicies {
+				f(di, rp)
+			}
+		}
+		return nil
+	})
+	return
+}
+
+// VisitShardGroups calls the given function with full shard group details.
+func (s *Store) VisitShardGroups(f func(d DatabaseInfo, r RetentionPolicyInfo, s ShardGroupInfo)) {
+	s.read(func(data *Data) error {
+		for _, di := range data.Databases {
+			for _, rp := range di.RetentionPolicies {
+				for _, sg := range rp.ShardGroups {
+					f(di, rp, sg)
+				}
+			}
 		}
 		return nil
 	})

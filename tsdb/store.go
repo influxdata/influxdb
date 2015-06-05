@@ -108,6 +108,15 @@ func (s *Store) Shard(shardID uint64) *Shard {
 	return s.shards[shardID]
 }
 
+// ShardIDs returns a slice of all ShardIDs under management.
+func (s *Store) ShardIDs() []uint64 {
+	ids := make([]uint64, 0, len(s.shards))
+	for i, _ := range s.shards {
+		ids = append(ids, i)
+	}
+	return ids
+}
+
 func (s *Store) ValidateAggregateFieldsInStatement(shardID uint64, measurementName string, stmt *influxql.SelectStatement) error {
 	s.mu.RLock()
 	shard := s.shards[shardID]
