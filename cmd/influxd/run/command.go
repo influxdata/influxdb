@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -27,6 +28,8 @@ const logo = `
 
 // Command represents the command executed by "influxd run".
 type Command struct {
+	closing chan struct{}
+
 	Stdin  io.Reader
 	Stdout io.Writer
 	Stderr io.Writer
@@ -37,9 +40,10 @@ type Command struct {
 // NewCommand return a new instance of Command.
 func NewCommand() *Command {
 	return &Command{
-		Stdin:  os.Stdin,
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
+		closing: make(chan struct{}),
+		Stdin:   os.Stdin,
+		Stdout:  os.Stdout,
+		Stderr:  os.Stderr,
 	}
 }
 
@@ -71,29 +75,23 @@ func (cmd *Command) Run(args ...string) error {
 
 	// Override config hostname if specified in the command line args.
 	if options.Hostname != "" {
-		config.Hostname = options.Hostname
-	}
-	// FIXME(benbjohnson): cmd.node.hostname = cmd.config.Hostname
-
-	// Use the config JoinURLs by default
-	// If a -join flag was passed, these should override the config
-	joinURLs := config.Initialization.JoinURLs
-	if options.Join != "" {
-		joinURLs = options.Join
+		config.Meta.Hostname = options.Hostname
 	}
 
-	// Normalize and validate the configuration.
-	config.Normalize()
+	// Validate the configuration.
 	if err := config.Validate(); err != nil {
 		return fmt.Errorf("%s. To generate a valid configuration file run `influxd config > influxdb.generated.conf`.", err)
 	}
 
 	// Create server from config and start it.
-	s := NewServer(config, joinURLs)
+	s := NewServer(config)
 	if err := s.Open(); err != nil {
 		return fmt.Errorf("open server: %s", err)
 	}
 	cmd.Server = s
+
+	// Begin monitoring the server's error channel.
+	go cmd.monitorServerErrors()
 
 	return nil
 }
@@ -104,6 +102,18 @@ func (cmd *Command) Close() error {
 		return cmd.Server.Close()
 	}
 	return nil
+}
+
+func (cmd *Command) monitorServerErrors() {
+	logger := log.New(cmd.Stderr, "", log.LstdFlags)
+	for {
+		select {
+		case err := <-cmd.Server.Err():
+			logger.Println(err)
+		case <-cmd.closing:
+			return
+		}
+	}
 }
 
 // ParseFlags parses the command line flags from args and returns an options set.

@@ -12,13 +12,6 @@ func TestConfig_Parse(t *testing.T) {
 	// Parse configuration.
 	var c run.Config
 	if _, err := toml.Decode(`
-hostname = "localhost"
-bind-address = ":8086"
-reporting-enabled = true
-
-[initialization]
-join-urls = "serverA,serverB"
-
 [meta]
 dir = "/tmp/meta"
 
@@ -30,7 +23,7 @@ dir = "/tmp/data"
 [admin]
 bind-address = ":8083"
 
-[api]
+[http]
 bind-address = ":8087"
 
 [[graphite]]
@@ -58,15 +51,7 @@ enabled = true
 	}
 
 	// Validate configuration.
-	if c.Hostname != "localhost" {
-		t.Fatalf("unexpected hostname: %v", c.Hostname)
-	} else if c.BindAddress != ":8086" {
-		t.Fatalf("unexpected bind address: %s", c.BindAddress)
-	} else if c.ReportingEnabled != true {
-		t.Fatalf("unexpected reporting enabled: %v", c.ReportingEnabled)
-	} else if c.Initialization.JoinURLs != "serverA,serverB" {
-		t.Fatalf("unexpected join urls: %s", c.Initialization.JoinURLs)
-	} else if c.Meta.Dir != "/tmp/meta" {
+	if c.Meta.Dir != "/tmp/meta" {
 		t.Fatalf("unexpected meta dir: %s", c.Meta.Dir)
 	} else if c.Data.Dir != "/tmp/data" {
 		t.Fatalf("unexpected data dir: %s", c.Data.Dir)

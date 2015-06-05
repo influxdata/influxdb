@@ -6,3 +6,7 @@ type Config struct {
 	Database    string `toml:"database"`
 	TypesDB     string `toml:"typesdb"`
 }
+
+func NewConfig() Config {
+	return Config{}
+}

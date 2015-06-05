@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"os"
 	"sync"
 	"time"
 
@@ -801,9 +800,6 @@ func mustUnmarshalJSON(b []byte, v interface{}) {
 		panic("unmarshal: " + err.Error())
 	}
 }
-
-func warn(v ...interface{})              { fmt.Fprintln(os.Stderr, v...) }
-func warnf(msg string, v ...interface{}) { fmt.Fprintf(os.Stderr, msg+"\n", v...) }
 
 // u64tob converts a uint64 into an 8-byte slice.
 func u64tob(v uint64) []byte {

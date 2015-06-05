@@ -23,7 +23,8 @@ const (
 
 // Data represents the top level collection of all metadata.
 type Data struct {
-	Version   uint64 // autoincrementing version
+	Term      uint64 // associated raft term
+	Index     uint64 // associated raft index
 	Nodes     []NodeInfo
 	Databases []DatabaseInfo
 	Users     []UserInfo
@@ -312,7 +313,7 @@ func (data *Data) CreateShardGroup(database, policy string, timestamp time.Time)
 
 	// Assign data nodes to shards via round robin.
 	// Start from a repeatably "random" place in the node list.
-	nodeIndex := int(data.Version % uint64(len(data.Nodes)))
+	nodeIndex := int(data.Index % uint64(len(data.Nodes)))
 	for i := range sgi.Shards {
 		si := &sgi.Shards[i]
 		for j := 0; j < replicaN; j++ {
@@ -457,7 +458,6 @@ func (data *Data) SetPrivilege(name, database string, p influxql.Privilege) erro
 // Clone returns a copy of data with a new version.
 func (data *Data) Clone() *Data {
 	other := *data
-	other.Version++
 
 	// Copy nodes.
 	if data.Nodes != nil {

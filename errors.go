@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"runtime"
 )
 
@@ -68,6 +67,3 @@ func assert(condition bool, msg string, v ...interface{}) {
 		panic(fmt.Sprintf("assert failed: "+msg, v...))
 	}
 }
-
-func warn(v ...interface{})              { fmt.Fprintln(os.Stderr, v...) }
-func warnf(msg string, v ...interface{}) { fmt.Fprintf(os.Stderr, msg+"\n", v...) }
