@@ -59,6 +59,7 @@ func (s *Service) deleteShardGroups() {
 	defer s.wg.Done()
 
 	ticker := time.NewTicker(s.checkInterval)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-s.done:
@@ -92,6 +93,7 @@ func (s *Service) deleteShards() {
 	defer s.wg.Done()
 
 	ticker := time.NewTicker(s.checkInterval)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-s.done:
