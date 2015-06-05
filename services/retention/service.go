@@ -35,7 +35,7 @@ type Service struct {
 func NewService(c Config) *Service {
 	return &Service{
 		enabled:       c.Enabled,
-		checkInterval: c.CheckInterval,
+		checkInterval: time.Duration(c.CheckInterval),
 		done:          make(chan struct{}),
 		logger:        log.New(os.Stderr, "[retention] ", log.LstdFlags),
 	}

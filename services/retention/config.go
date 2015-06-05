@@ -1,8 +1,10 @@
 package retention
 
-import "time"
+import (
+	"github.com/influxdb/influxdb/toml"
+)
 
 type Config struct {
-	Enabled       bool
-	CheckInterval time.Duration
+	Enabled       bool          `toml:"enabled"`
+	CheckInterval toml.Duration `toml:"check-interval"`
 }
