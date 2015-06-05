@@ -144,5 +144,12 @@ func (c *connFactory) dial() (net.Conn, error) {
 		return nil, err
 	}
 
+	// Write a marker byte for cluster messages.
+	_, err = conn.Write([]byte{MuxHeader})
+	if err != nil {
+		conn.Close()
+		return nil, err
+	}
+
 	return conn, nil
 }

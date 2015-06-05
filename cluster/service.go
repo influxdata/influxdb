@@ -16,14 +16,17 @@ import (
 // MaxMessageSize defines how large a message can be before we reject it
 const MaxMessageSize = 1024 * 1024 * 1024 // 1GB
 
+// MuxHeader is the header byte used in the TCP mux.
+const MuxHeader = 2
+
 // Service processes data received over raw TCP connections.
 type Service struct {
-	mu   sync.RWMutex
-	addr string
-	ln   net.Listener
+	mu sync.RWMutex
 
 	wg      sync.WaitGroup
 	closing chan struct{}
+
+	Listener net.Listener
 
 	TSDBStore interface {
 		WriteToShard(shardID uint64, points []tsdb.Point) error
@@ -35,7 +38,6 @@ type Service struct {
 // NewService returns a new instance of Service.
 func NewService(c Config) *Service {
 	return &Service{
-		addr:    c.BindAddress,
 		closing: make(chan struct{}),
 		Logger:  log.New(os.Stderr, "[tcp] ", log.LstdFlags),
 	}
@@ -43,15 +45,6 @@ func NewService(c Config) *Service {
 
 // Open opens the network listener and begins serving requests.
 func (s *Service) Open() error {
-	// Open TCP listener.
-	ln, err := net.Listen("tcp", s.addr)
-	if err != nil {
-		return err
-	}
-	s.ln = ln
-
-	s.Logger.Println("listening on TCP:", ln.Addr().String())
-
 	// Begin serving conections.
 	s.wg.Add(1)
 	go s.serve()
@@ -77,7 +70,7 @@ func (s *Service) serve() {
 		}
 
 		// Accept the next connection.
-		conn, err := s.ln.Accept()
+		conn, err := s.Listener.Accept()
 		if opErr, ok := err.(*net.OpError); ok && opErr.Temporary() {
 			s.Logger.Println("error temporarily accepting TCP connection", err.Error())
 			continue
@@ -96,22 +89,14 @@ func (s *Service) serve() {
 
 // Close shuts down the listener and waits for all connections to finish.
 func (s *Service) Close() error {
-	if s.ln != nil {
-		s.ln.Close()
+	if s.Listener != nil {
+		s.Listener.Close()
 	}
 
 	// Shut down all handlers.
 	close(s.closing)
 	s.wg.Wait()
 
-	return nil
-}
-
-// Addr returns the network address of the service.
-func (s *Service) Addr() net.Addr {
-	if s.ln != nil {
-		return s.ln.Addr()
-	}
 	return nil
 }
 
