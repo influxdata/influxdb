@@ -70,7 +70,6 @@ func (s *Service) Close() error {
 
 	if s.closing != nil {
 		close(s.closing)
-		s.closing = nil
 	}
 	return nil
 }
