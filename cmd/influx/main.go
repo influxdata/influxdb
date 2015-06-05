@@ -211,6 +211,8 @@ func (c *CommandLine) ParseCommand(cmd string) bool {
 		}
 	case strings.HasPrefix(lcmd, "use"):
 		c.use(cmd)
+	case strings.HasPrefix(lcmd, "insert"):
+		c.Insert(cmd)
 	case lcmd == "":
 		break
 	default:
@@ -347,6 +349,32 @@ func (c *CommandLine) dump() error {
 			fmt.Printf("Dump failed. %s\n", err)
 			return err
 		}
+	}
+	return nil
+}
+
+func (c *CommandLine) Insert(point string) error {
+	args := strings.Split(strings.TrimSpace(point), " ")
+	if len(args) < 3 || len(args) > 4 {
+		fmt.Printf("Could not parse point from %q.\n", point)
+		return nil
+	}
+	_, err := c.Client.Write(client.BatchPoints{
+		Points: []client.Point{
+			client.Point{Raw: strings.Join(args[1:len(args)], " ")},
+		},
+		Database:         c.Database,
+		RetentionPolicy:  "default",
+		Precision:        "n",
+		WriteConsistency: client.ConsistencyAny,
+	})
+	if err != nil {
+		fmt.Printf("ERR: %s\n", err)
+		if c.Database == "" {
+			fmt.Println("Warning: It is possible this error is due to not setting a database.")
+			fmt.Println(`Please set a database with the command "use <database>".`)
+		}
+		return err
 	}
 	return nil
 }
