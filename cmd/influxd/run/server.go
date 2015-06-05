@@ -61,12 +61,12 @@ func NewServer(c *Config) *Server {
 	// Append services.
 	s.appendClusterService(c.Cluster)
 	s.appendAdminService(c.Admin)
+	s.appendContinuousQueryService(c.ContinuousQuery)
 	s.appendHTTPDService(c.HTTPD)
 	s.appendCollectdService(c.Collectd)
 	s.appendOpenTSDBService(c.OpenTSDB)
 	s.appendUDPService(c.UDP)
 	s.appendRetentionPolicyService(c.Retention)
-	s.appendContinuousQueryService(c.ContinuousQuery)
 	for _, g := range c.Graphites {
 		s.appendGraphiteService(g)
 	}
@@ -106,6 +106,14 @@ func (s *Server) appendHTTPDService(c httpd.Config) {
 	srv.Handler.MetaStore = s.MetaStore
 	srv.Handler.QueryExecutor = s.QueryExecutor
 	srv.Handler.PointsWriter = s.PointsWriter
+
+	// If a ContinuousQuerier service has been started, attach it.
+	for _, srvc := range s.Services {
+		if cqsrvc, ok := srvc.(continuous_querier.ContinuousQuerier); ok {
+			srv.Handler.ContinuousQuerier = cqsrvc
+		}
+	}
+
 	s.Services = append(s.Services, srv)
 }
 

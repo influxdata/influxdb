@@ -20,6 +20,12 @@ const (
 	NoChunkingSize = 0
 )
 
+// ContinuousQuerier represents a service that executes continuous queries.
+type ContinuousQuerier interface {
+	// Run executes the named query in the named database.  Blank database or name matches all.
+	Run(database, name string) error
+}
+
 // queryExecutor is an internal interface to make testing easier.
 type queryExecutor interface {
 	ExecuteQuery(query *influxql.Query, database string, chunkSize int) (<-chan *influxql.Result, error)
@@ -29,6 +35,7 @@ type queryExecutor interface {
 type metaStore interface {
 	IsLeader() bool
 	Databases() ([]meta.DatabaseInfo, error)
+	Database(name string) (*meta.DatabaseInfo, error)
 }
 
 // pointsWriter is an internal interface to make testing easier.
@@ -90,6 +97,48 @@ func (s *Service) Close() error {
 	s.wg.Wait()
 	s.wg = nil
 	s.stop = nil
+	return nil
+}
+
+// Run runs the specified continuous query, or all CQs if none is specified.
+func (s *Service) Run(database, name string) error {
+	fmt.Printf("database = %v\n", database)
+	fmt.Printf("name = %v\n", name)
+	var dbs []meta.DatabaseInfo
+
+	if database != "" {
+		// Find the requested database.
+		db, err := s.MetaStore.Database(database)
+		if err != nil {
+			return err
+		} else if db == nil {
+			return tsdb.ErrDatabaseNotFound(database)
+		}
+		dbs = append(dbs, *db)
+	} else {
+		// Get all databases.
+		var err error
+		dbs, err = s.MetaStore.Databases()
+		if err != nil {
+			return err
+		}
+	}
+
+	// Loop through databases.
+	for _, db := range dbs {
+		// Loop through CQs in each DB executing the ones that match name.
+		for _, cq := range db.ContinuousQueries {
+			if name == "" || cq.Name == name {
+				// Reset the last run time for the CQ.
+				fmt.Printf("running = %v\n", name)
+				s.lastRuns[cq.Name] = time.Time{}
+			}
+		}
+	}
+
+	// Signal the background routine to run CQs.
+	s.RunCh <- struct{}{}
+
 	return nil
 }
 
@@ -173,7 +222,6 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 	}
 
 	// Calculate and set the time range for the query.
-	fmt.Printf("interval = %v\n", interval)
 	startTime := now.Round(interval)
 	if startTime.UnixNano() > now.UnixNano() {
 		startTime = startTime.Add(-interval)
@@ -193,7 +241,6 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 
 	for i := 0; i < s.Config.RecomputePreviousN; i++ {
 		// if we're already more time past the previous window than we're going to look back, stop
-		fmt.Printf("now - start = %v, recomputeNoOlderThan = %v\n", now.Sub(startTime), recomputeNoOlderThan)
 		if now.Sub(startTime) > recomputeNoOlderThan {
 			return nil
 		}
@@ -216,7 +263,6 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 
 // runContinuousQueryAndWriteResult will run the query against the cluster and write the results back in
 func (s *Service) runContinuousQueryAndWriteResult(cq *ContinuousQuery) error {
-	fmt.Printf("runContinuousQueryAndWriteResult(): %s\n", cq.q.String())
 	// Wrap the CQ's inner SELECT statement in a Query for the QueryExecutor.
 	q := &influxql.Query{
 		Statements: influxql.Statements{cq.q},

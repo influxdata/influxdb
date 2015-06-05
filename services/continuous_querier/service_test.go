@@ -88,6 +88,59 @@ func TestService_HappyPath(t *testing.T) {
 	s.Close()
 }
 
+// Test Run method.
+func TestService_Run(t *testing.T) {
+	s := NewTestService(t)
+
+	// Set RunInterval high so we can trigger using Run method.
+	s.RunInterval = 10 * time.Minute
+
+	// Only want one call to ExecuteQueryFn per CQ.
+	s.Config.RecomputePreviousN = 0
+
+	done := make(chan struct{})
+	expectCallCnt := 2
+	callCnt := 0
+
+	// Set a callback for ExecuteQuery.
+	qe := s.QueryExecutor.(*QueryExecutor)
+	qe.ExecuteQueryFn = func(query *influxql.Query, database string, chunkSize int) (<-chan *influxql.Result, error) {
+		callCnt++
+		if callCnt >= expectCallCnt {
+			done <- struct{}{}
+		}
+		return nil, nil
+	}
+
+	s.Open()
+	// Trigger service to run all CQs.
+	s.Run("", "")
+	// Shouldn't time out.
+	if err := wait(done, 100*time.Millisecond); err != nil {
+		t.Error(err)
+	}
+	// This time it should timeout because ExecuteQuery should not get called again.
+	if err := wait(done, 100*time.Millisecond); err == nil {
+		t.Error("too many queries executed")
+	}
+	s.Close()
+
+	// Now test just one query.
+	expectCallCnt = 1
+	callCnt = 0
+	s.Open()
+	s.Run("db", "cq")
+	// Shouldn't time out.
+	if err := wait(done, 100*time.Millisecond); err != nil {
+		t.Error(err)
+	}
+	// This time it should timeout because ExecuteQuery should not get called again.
+	if err := wait(done, 100*time.Millisecond); err == nil {
+		t.Error("too many queries executed")
+	}
+	s.Close()
+}
+
 // Test service when not the cluster leader (CQs shouldn't run).
 func TestService_NotLeader(t *testing.T) {
 	s := NewTestService(t)
@@ -185,7 +238,8 @@ func TestExecuteContinuousQuery_QueryExecutor_Error(t *testing.T) {
 // NewTestService returns a new *Service with default mock object members.
 func NewTestService(t *testing.T) *Service {
 	s := NewService(NewConfig())
-	s.MetaStore = NewMetaStore(t)
+	ms := NewMetaStore(t)
+	s.MetaStore = ms
 	s.QueryExecutor = NewQueryExecutor(t)
 	s.PointsWriter = NewPointsWriter(t)
 	s.RunInterval = time.Millisecond
@@ -193,6 +247,12 @@ func NewTestService(t *testing.T) *Service {
 	// Set Logger to write to dev/null so stdout isn't polluted.
 	//null, _ := os.Open(os.DevNull)
 	s.Logger = log.New(os.Stdout, "", 0)
+
+	// Add a couple test databases and CQs.
+	ms.CreateDatabase("db", "rp")
+	ms.CreateContinuousQuery("db", "cq", `SELECT count(cpu) INTO cpu_count FROM cpu WHERE time > now() - 1h GROUP BY time(1s)`)
+	ms.CreateDatabase("db2", "default")
+	ms.CreateContinuousQuery("db2", "cq2", `SELECT mean(value) INTO cpu_mean FROM cpu WHERE time > now() - 10m GROUP BY time(1m))`)
 
 	return s
 }
@@ -209,19 +269,7 @@ type MetaStore struct {
 func NewMetaStore(t *testing.T) *MetaStore {
 	return &MetaStore{
 		Leader: true,
-		DatabaseInfos: []meta.DatabaseInfo{
-			{
-				Name: "db",
-				DefaultRetentionPolicy: "rp",
-				ContinuousQueries: []meta.ContinuousQueryInfo{
-					{
-						Name:  "cq",
-						Query: `SELECT count(cpu) INTO cpu_count FROM cpu WHERE time > now() - 1h GROUP BY time(1s)`,
-					},
-				},
-			},
-		},
-		t: t,
+		t:      t,
 	}
 }
 
@@ -230,6 +278,70 @@ func (ms *MetaStore) IsLeader() bool { return ms.Leader }
 
 // Databases returns a list of database info about each database in the cluster.
 func (ms *MetaStore) Databases() ([]meta.DatabaseInfo, error) { return ms.DatabaseInfos, ms.Err }
+
+// Database returns a single database by name.
+func (ms *MetaStore) Database(name string) (*meta.DatabaseInfo, error) {
+	if ms.Err != nil {
+		return nil, ms.Err
+	}
+	for i := range ms.DatabaseInfos {
+		if ms.DatabaseInfos[i].Name == name {
+			return &ms.DatabaseInfos[i], nil
+		}
+	}
+	return nil, fmt.Errorf("database not found: %s", name)
+}
+
+// CreateDatabase adds a new database to the meta store.
+func (ms *MetaStore) CreateDatabase(name, defaultRetentionPolicy string) error {
+	if ms.Err != nil {
+		return ms.Err
+	}
+
+	// See if the database already exists.
+	for _, dbi := range ms.DatabaseInfos {
+		if dbi.Name == name {
+			return fmt.Errorf("database already exists: %s", name)
+		}
+	}
+
+	// Create database.
+	ms.DatabaseInfos = append(ms.DatabaseInfos, meta.DatabaseInfo{
+		Name: name,
+		DefaultRetentionPolicy: defaultRetentionPolicy,
+	})
+
+	return nil
+}
+
+// CreateContinuousQuery adds a CQ to the meta store.
+func (ms *MetaStore) CreateContinuousQuery(database, name, query string) error {
+	if ms.Err != nil {
+		return ms.Err
+	}
+
+	dbi, err := ms.Database(database)
+	if err != nil {
+		return err
+	} else if dbi == nil {
+		return fmt.Errorf("database not found: %s", database)
+	}
+
+	// See if CQ already exists.
+	for _, cqi := range dbi.ContinuousQueries {
+		if cqi.Name == name {
+			return fmt.Errorf("continuous query already exists: %s", name)
+		}
+	}
+
+	// Create a new CQ and store it.
+	dbi.ContinuousQueries = append(dbi.ContinuousQueries, meta.ContinuousQueryInfo{
+		Name:  name,
+		Query: query,
+	})
+
+	return nil
+}
 
 // QueryExecutor is a mock query executor.
 type QueryExecutor struct {
@@ -359,4 +471,10 @@ func wait(c chan struct{}, d time.Duration) (err error) {
 		err = errors.New("timed out")
 	}
 	return
+}
+
+func check(err error) {
+	if err != nil {
+		panic(err)
+	}
 }
