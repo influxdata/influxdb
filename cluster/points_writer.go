@@ -237,7 +237,6 @@ func (w *PointsWriter) writeToShard(shard *meta.ShardInfo, database, retentionPo
 			// If the write returned an error, continue to the next response
 			if err != nil {
 				// FIXME
-				println(err.Error())
 				continue
 			}
 

@@ -6,33 +6,26 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"path/filepath"
 	"reflect"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/toml"
 )
 
-// Ensure the store can be opened and closed.
-func TestStore_Open(t *testing.T) {
-	path := MustTempFile()
-	defer os.RemoveAll(path)
-
-	// Open store in temporary directory.
-	s := NewStore(path)
-	if err := s.Open(); err != nil {
-		t.Fatal(err)
-	}
-	defer s.Close() // idempotent
-
-	// Close store.
-	if err := s.Close(); err != nil {
-		t.Fatal(err)
+func init() {
+	// Disable password hashing to speed up testing.
+	meta.HashPassword = func(password string) ([]byte, error) {
+		return []byte(password), nil
 	}
 }
 
 // Ensure the store returns an error
 func TestStore_Open_ErrStoreOpen(t *testing.T) {
+	t.Parallel()
 	s := MustOpenStore()
 	defer s.Close()
 
@@ -43,6 +36,7 @@ func TestStore_Open_ErrStoreOpen(t *testing.T) {
 
 // Ensure the store can create a new node.
 func TestStore_CreateNode(t *testing.T) {
+	t.Parallel()
 	s := MustOpenStore()
 	defer s.Close()
 
@@ -63,6 +57,7 @@ func TestStore_CreateNode(t *testing.T) {
 
 // Ensure that creating an existing node returns an error.
 func TestStore_CreateNode_ErrNodeExists(t *testing.T) {
+	t.Parallel()
 	s := MustOpenStore()
 	defer s.Close()
 
@@ -79,6 +74,7 @@ func TestStore_CreateNode_ErrNodeExists(t *testing.T) {
 
 // Ensure the store can find a node by ID.
 func TestStore_Node(t *testing.T) {
+	t.Parallel()
 	s := MustOpenStore()
 	defer s.Close()
 
@@ -99,6 +95,7 @@ func TestStore_Node(t *testing.T) {
 
 // Ensure the store can find a node by host.
 func TestStore_NodeByHost(t *testing.T) {
+	t.Parallel()
 	s := MustOpenStore()
 	defer s.Close()
 
@@ -119,6 +116,7 @@ func TestStore_NodeByHost(t *testing.T) {
 
 // Ensure the store can delete an existing node.
 func TestStore_DeleteNode(t *testing.T) {
+	t.Parallel()
 	s := MustOpenStore()
 	defer s.Close()
 
@@ -148,6 +146,7 @@ func TestStore_DeleteNode(t *testing.T) {
 
 // Ensure the store returns an error when deleting a node that doesn't exist.
 func TestStore_DeleteNode_ErrNodeNotFound(t *testing.T) {
+	t.Parallel()
 	s := MustOpenStore()
 	defer s.Close()
 
@@ -158,6 +157,7 @@ func TestStore_DeleteNode_ErrNodeNotFound(t *testing.T) {
 
 // Ensure the store can create a new database.
 func TestStore_CreateDatabase(t *testing.T) {
+	t.Parallel()
 	s := MustOpenStore()
 	defer s.Close()
 
@@ -178,6 +178,7 @@ func TestStore_CreateDatabase(t *testing.T) {
 
 // Ensure the store can delete an existing database.
 func TestStore_DropDatabase(t *testing.T) {
+	t.Parallel()
 	s := MustOpenStore()
 	defer s.Close()
 
@@ -207,6 +208,7 @@ func TestStore_DropDatabase(t *testing.T) {
 
 // Ensure the store returns an error when dropping a database that doesn't exist.
 func TestStore_DropDatabase_ErrDatabaseNotFound(t *testing.T) {
+	t.Parallel()
 	s := MustOpenStore()
 	defer s.Close()
 
@@ -217,6 +219,7 @@ func TestStore_DropDatabase_ErrDatabaseNotFound(t *testing.T) {
 
 // Ensure the store can create a retention policy on a database.
 func TestStore_CreateRetentionPolicy(t *testing.T) {
+	t.Parallel()
 	s := MustOpenStore()
 	defer s.Close()
 
@@ -244,6 +247,7 @@ func TestStore_CreateRetentionPolicy(t *testing.T) {
 
 // Ensure the store can delete a retention policy.
 func TestStore_DropRetentionPolicy(t *testing.T) {
+	t.Parallel()
 	s := MustOpenStore()
 	defer s.Close()
 
@@ -278,6 +282,7 @@ func TestStore_DropRetentionPolicy(t *testing.T) {
 
 // Ensure the store can set the default retention policy on a database.
 func TestStore_SetDefaultRetentionPolicy(t *testing.T) {
+	t.Parallel()
 	s := MustOpenStore()
 	defer s.Close()
 
@@ -301,6 +306,7 @@ func TestStore_SetDefaultRetentionPolicy(t *testing.T) {
 
 // Ensure the store can update a retention policy.
 func TestStore_UpdateRetentionPolicy(t *testing.T) {
+	t.Parallel()
 	s := MustOpenStore()
 	defer s.Close()
 
@@ -335,6 +341,7 @@ func TestStore_UpdateRetentionPolicy(t *testing.T) {
 
 // Ensure the store can create a shard group on a retention policy.
 func TestStore_CreateShardGroup(t *testing.T) {
+	t.Parallel()
 	s := MustOpenStore()
 	defer s.Close()
 
@@ -357,6 +364,7 @@ func TestStore_CreateShardGroup(t *testing.T) {
 
 // Ensure the store can delete an existing shard group.
 func TestStore_DeleteShardGroup(t *testing.T) {
+	t.Parallel()
 	s := MustOpenStore()
 	defer s.Close()
 
@@ -379,6 +387,7 @@ func TestStore_DeleteShardGroup(t *testing.T) {
 
 // Ensure the store can create a new continuous query.
 func TestStore_CreateContinuousQuery(t *testing.T) {
+	t.Parallel()
 	s := MustOpenStore()
 	defer s.Close()
 
@@ -392,6 +401,7 @@ func TestStore_CreateContinuousQuery(t *testing.T) {
 
 // Ensure that creating an existing continuous query returns an error.
 func TestStore_CreateContinuousQuery_ErrContinuousQueryExists(t *testing.T) {
+	t.Parallel()
 	s := MustOpenStore()
 	defer s.Close()
 
@@ -410,6 +420,7 @@ func TestStore_CreateContinuousQuery_ErrContinuousQueryExists(t *testing.T) {
 
 // Ensure the store can delete a continuous query.
 func TestStore_DropContinuousQuery(t *testing.T) {
+	t.Parallel()
 	s := MustOpenStore()
 	defer s.Close()
 
@@ -442,6 +453,7 @@ func TestStore_DropContinuousQuery(t *testing.T) {
 
 // Ensure the store can create a user.
 func TestStore_CreateUser(t *testing.T) {
+	t.Parallel()
 	s := MustOpenStore()
 	defer s.Close()
 
@@ -455,6 +467,7 @@ func TestStore_CreateUser(t *testing.T) {
 
 // Ensure the store can remove a user.
 func TestStore_DropUser(t *testing.T) {
+	t.Parallel()
 	s := MustOpenStore()
 	defer s.Close()
 
@@ -482,6 +495,7 @@ func TestStore_DropUser(t *testing.T) {
 
 // Ensure the store can update a user.
 func TestStore_UpdateUser(t *testing.T) {
+	t.Parallel()
 	s := MustOpenStore()
 	defer s.Close()
 
@@ -513,6 +527,7 @@ func TestStore_UpdateUser(t *testing.T) {
 
 // Ensure the store can return the count of users in it.
 func TestStore_UserCount(t *testing.T) {
+	t.Parallel()
 	s := MustOpenStore()
 	defer s.Close()
 
@@ -532,6 +547,37 @@ func TestStore_UserCount(t *testing.T) {
 	}
 }
 
+// Ensure a multi-node cluster can start, join the cluster, and replicate commands.
+func TestCluster_Open(t *testing.T) {
+	c := MustOpenCluster(3)
+	defer c.Close()
+
+	// Check that one node is leader and two are followers.
+	if s := c.Leader(); s == nil {
+		t.Fatal("no leader found")
+	}
+
+	// Add a database to each node.
+	for i, s := range c.Stores {
+		if di, err := s.CreateDatabase(fmt.Sprintf("db%d", i)); err != nil {
+			t.Fatal(err)
+		} else if di == nil {
+			t.Fatal("expected database")
+		}
+	}
+
+	// Verify that each store has all databases.
+	for i := 0; i < len(c.Stores); i++ {
+		for _, s := range c.Stores {
+			if di, err := s.Database(fmt.Sprintf("db%d", i)); err != nil {
+				t.Fatal(err)
+			} else if di == nil {
+				t.Fatal("expected database")
+			}
+		}
+	}
+}
+
 // Store is a test wrapper for meta.Store.
 type Store struct {
 	*meta.Store
@@ -539,33 +585,136 @@ type Store struct {
 }
 
 // NewStore returns a new test wrapper for Store.
-func NewStore(path string) *Store {
+func NewStore(c meta.Config) *Store {
 	s := &Store{
-		Store: meta.NewStore(meta.Config{
-			Dir:      path,
-			Hostname: "localhost",
-		}),
+		Store: meta.NewStore(c),
 	}
-	s.HeartbeatTimeout = 50 * time.Millisecond
-	s.ElectionTimeout = 50 * time.Millisecond
-	s.LeaderLeaseTimeout = 50 * time.Millisecond
-	s.CommitTimeout = 5 * time.Millisecond
 	s.Logger = log.New(&s.Stderr, "", log.LstdFlags)
 	return s
 }
 
 // MustOpenStore opens a store in a temporary path. Panic on error.
 func MustOpenStore() *Store {
-	s := NewStore(MustTempFile())
+	s := NewStore(NewConfig(MustTempFile()))
 	if err := s.Open(); err != nil {
 		panic(err.Error())
+	}
+
+	// Wait until the server is ready.
+	select {
+	case err := <-s.Err():
+		panic(err.Error())
+	case <-s.Ready():
 	}
 	return s
 }
 
+// Close shuts down the store and removes all data from the path.
 func (s *Store) Close() error {
 	defer os.RemoveAll(s.Path())
 	return s.Store.Close()
+}
+
+// NewConfig returns the default test configuration.
+func NewConfig(path string) meta.Config {
+	return meta.Config{
+		Dir:                path,
+		Hostname:           "localhost",
+		BindAddress:        "127.0.0.1:0",
+		HeartbeatTimeout:   toml.Duration(50 * time.Millisecond),
+		ElectionTimeout:    toml.Duration(50 * time.Millisecond),
+		LeaderLeaseTimeout: toml.Duration(50 * time.Millisecond),
+		CommitTimeout:      toml.Duration(5 * time.Millisecond),
+	}
+}
+
+// Cluster represents a group of stores joined as a raft cluster.
+type Cluster struct {
+	Stores []*Store
+}
+
+// NewCluster returns a cluster of n stores within path.
+func NewCluster(path string, n int) *Cluster {
+	c := &Cluster{}
+
+	// Construct a list of temporary peers.
+	peers := make([]string, n)
+	for i := range peers {
+		peers[i] = "127.0.0.1:0"
+	}
+
+	// Create new stores with temporary peers.
+	for i := 0; i < n; i++ {
+		config := NewConfig(filepath.Join(path, strconv.Itoa(i)))
+		config.Peers = peers
+		s := NewStore(config)
+		c.Stores = append(c.Stores, s)
+	}
+
+	return c
+}
+
+// MustOpenCluster opens a cluster in a temporary path. Panic on error.
+func MustOpenCluster(n int) *Cluster {
+	c := NewCluster(MustTempFile(), n)
+	if err := c.Open(); err != nil {
+		panic(err.Error())
+	}
+
+	// Wait for all stores to be ready.
+	for i, s := range c.Stores {
+		select {
+		case err := <-s.Err():
+			panic(fmt.Sprintf("store: i=%d, addr=%s, err=%s", i, s.RemoteAddr(), err))
+		case <-s.Ready():
+		}
+	}
+	return c
+}
+
+// Open opens and initializes all stores in the cluster.
+func (c *Cluster) Open() error {
+	if err := func() error {
+		// Open each store and add to peer list.
+		peers := make([]string, len(c.Stores))
+		for i, s := range c.Stores {
+			if err := s.Open(); err != nil {
+				return fmt.Errorf("open test store #%d: %s", i, err)
+			}
+			peers[i] = s.RemoteAddr()
+		}
+
+		// Reset peers on all stores.
+		for _, s := range c.Stores {
+			if err := s.SetPeers(peers); err != nil {
+				return fmt.Errorf("set peers: %s", err)
+			}
+		}
+
+		return nil
+	}(); err != nil {
+		c.Close()
+		return err
+	}
+	return nil
+}
+
+// Close shuts down all stores.
+func (c *Cluster) Close() error {
+	for _, s := range c.Stores {
+		s.Close()
+	}
+	return nil
+}
+
+// Leader returns the store that is currently leader.
+func (c *Cluster) Leader() *Store {
+	for _, s := range c.Stores {
+		if s.IsLeader() {
+			return s
+		}
+	}
+	return nil
 }
 
 // MustTempFile returns the path to a non-existent temporary file.
@@ -575,6 +724,3 @@ func MustTempFile() string {
 	os.Remove(f.Name())
 	return f.Name()
 }
-
-func warn(v ...interface{})              { fmt.Fprintln(os.Stderr, v...) }
-func warnf(msg string, v ...interface{}) { fmt.Fprintf(os.Stderr, msg+"\n", v...) }

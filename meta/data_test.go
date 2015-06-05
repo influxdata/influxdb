@@ -535,7 +535,8 @@ func TestData_UpdateUser_ErrUserNotFound(t *testing.T) {
 // Ensure the data can be deeply copied.
 func TestData_Clone(t *testing.T) {
 	data := meta.Data{
-		Version: 10,
+		Term:  10,
+		Index: 20,
 		Nodes: []meta.NodeInfo{
 			{ID: 1, Host: "host0"},
 			{ID: 2, Host: "host1"},
@@ -583,10 +584,7 @@ func TestData_Clone(t *testing.T) {
 	// Copy the root structure.
 	other := data.Clone()
 
-	// Version should be incremented.
-	if other.Version != 11 {
-		t.Fatal("version not incremented")
-	} else if !reflect.DeepEqual(data.Nodes, other.Nodes) {
+	if !reflect.DeepEqual(data.Nodes, other.Nodes) {
 		t.Fatalf("unexpected cloned nodes: %#v", other.Nodes)
 	} else if !reflect.DeepEqual(data.Databases, other.Databases) {
 		t.Fatalf("unexpected cloned databases: %#v", other.Databases)

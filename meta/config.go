@@ -7,6 +7,9 @@ import (
 )
 
 const (
+	// DefaultHostname is the default hostname if one is not provided.
+	DefaultHostname = "localhost"
+
 	// DefaultBindAddress is the default address to bind to.
 	DefaultBindAddress = ":8088"
 
@@ -25,9 +28,10 @@ const (
 
 // Config represents the meta configuration.
 type Config struct {
-	Hostname           string        `toml:"-"`
 	Dir                string        `toml:"dir"`
+	Hostname           string        `toml:"hostname"`
 	BindAddress        string        `toml:"bind-address"`
+	Peers              []string      `toml:"peers"`
 	ElectionTimeout    toml.Duration `toml:"election-timeout"`
 	HeartbeatTimeout   toml.Duration `toml:"heartbeat-timeout"`
 	LeaderLeaseTimeout toml.Duration `toml:"leader-lease-timeout"`
@@ -36,6 +40,7 @@ type Config struct {
 
 func NewConfig() Config {
 	return Config{
+		Hostname:           DefaultHostname,
 		BindAddress:        DefaultBindAddress,
 		ElectionTimeout:    toml.Duration(DefaultElectionTimeout),
 		HeartbeatTimeout:   toml.Duration(DefaultHeartbeatTimeout),

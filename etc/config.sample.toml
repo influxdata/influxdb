@@ -1,9 +1,10 @@
 # Welcome to the InfluxDB configuration file.
 
-# If hostname (on the OS) doesn't return a name that can be resolved by the other
-# systems in the cluster, you'll have to set the hostname to an IP or something
-# that can be resolved here.
+# If hostname (on the OS) doesn't return a name that can be resolved by
+# the other systems in the cluster, you'll have to set the hostname to an
+# IP or something that can be resolved here.
 # hostname = ""
+
 bind-address = "0.0.0.0"
 
 # The default cluster and API port

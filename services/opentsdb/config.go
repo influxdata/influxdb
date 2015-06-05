@@ -6,3 +6,7 @@ type Config struct {
 	Database        string `toml:"database"`
 	RetentionPolicy string `toml:"retention-policy"`
 }
+
+func NewConfig() Config {
+	return Config{}
+}

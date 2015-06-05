@@ -44,10 +44,12 @@ func (cmd *PrintConfigCommand) Run(args ...string) error {
 
 	// Override config properties.
 	if *hostname != "" {
-		config.Hostname = *hostname
+		config.Meta.Hostname = *hostname
 	}
 
-	config.Write(cmd.Stdout)
+	toml.NewEncoder(cmd.Stdout).Encode(config)
+	fmt.Fprint(cmd.Stdout, "\n")
+
 	return nil
 }
 

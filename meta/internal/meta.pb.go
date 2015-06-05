@@ -35,6 +35,7 @@ It has these top-level messages:
 	DropUserCommand
 	UpdateUserCommand
 	SetPrivilegeCommand
+	Response
 */
 package internal
 
@@ -965,6 +966,38 @@ var E_SetPrivilegeCommand_Command = &proto.ExtensionDesc{
 	Field:         116,
 	Name:          "internal.SetPrivilegeCommand.command",
 	Tag:           "bytes,116,opt,name=command",
+}
+
+type Response struct {
+	OK               *bool   `protobuf:"varint,1,req" json:"OK,omitempty"`
+	Error            *string `protobuf:"bytes,2,opt" json:"Error,omitempty"`
+	Index            *uint64 `protobuf:"varint,3,opt" json:"Index,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *Response) Reset()         { *m = Response{} }
+func (m *Response) String() string { return proto.CompactTextString(m) }
+func (*Response) ProtoMessage()    {}
+
+func (m *Response) GetOK() bool {
+	if m != nil && m.OK != nil {
+		return *m.OK
+	}
+	return false
+}
+
+func (m *Response) GetError() string {
+	if m != nil && m.Error != nil {
+		return *m.Error
+	}
+	return ""
+}
+
+func (m *Response) GetIndex() uint64 {
+	if m != nil && m.Index != nil {
+		return *m.Index
+	}
+	return 0
 }
 
 func init() {

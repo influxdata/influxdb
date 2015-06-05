@@ -79,9 +79,9 @@ message Command {
 		SetDefaultRetentionPolicyCommand = 7;
 		UpdateRetentionPolicyCommand     = 8;
 		CreateShardGroupCommand          = 9;
-        DeleteShardGroupCommand          = 10;
-        CreateContinuousQueryCommand     = 11;
-        DropContinuousQueryCommand       = 12;
+		DeleteShardGroupCommand          = 10;
+		CreateContinuousQueryCommand     = 11;
+		DropContinuousQueryCommand       = 12;
 		CreateUserCommand                = 13;
 		DropUserCommand                  = 14;
 		UpdateUserCommand                = 15;
@@ -222,3 +222,8 @@ message SetPrivilegeCommand {
     required int32 Privilege = 3;
 }
 
+message Response {
+	required bool OK = 1;
+	optional string Error = 2;
+	optional uint64 Index = 3;
+}

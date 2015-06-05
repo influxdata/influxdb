@@ -25,9 +25,6 @@ func main() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-
-	// Wait indefinitely.
-	<-(chan struct{})(nil)
 }
 
 // Main represents the program execution.
@@ -58,6 +55,10 @@ func (m *Main) Run(args ...string) error {
 		if err := run.NewCommand().Run(args...); err != nil {
 			return fmt.Errorf("run: %s", err)
 		}
+
+		// Wait indefinitely.
+		<-(chan struct{})(nil)
+
 	// case "backup":
 	// 	name := NewBackupCommand()
 	// 	if err := name.Run(args...); err != nil {

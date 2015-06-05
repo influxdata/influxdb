@@ -1,6 +1,7 @@
 package meta
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -35,15 +36,31 @@ type Store struct {
 	path   string
 	opened bool
 
-	id   uint64 // local node id
-	host string // local hostname
-	addr string // bind address
+	id uint64 // local node id
 
-	data      *Data
-	raft      *raft.Raft
-	peers     raft.PeerStore
-	transport *raft.NetworkTransport
-	store     *raftboltdb.BoltStore
+	// All peers in cluster. Used during bootstrapping.
+	peers []string
+
+	data *Data
+
+	ln         *net.TCPListener
+	remoteAddr net.Addr
+	raft       *raft.Raft
+	raftLayer  *raftLayer
+	peerStore  raft.PeerStore
+	transport  *raft.NetworkTransport
+	store      *raftboltdb.BoltStore
+
+	ready   chan struct{}
+	err     chan error
+	closing chan struct{}
+	wg      sync.WaitGroup
+
+	// The advertised hostname of the store.
+	Hostname string
+
+	// The address the TCP connection will bind to.
+	BindAddress string
 
 	// The amount of time before a follower starts a new election.
 	HeartbeatTimeout time.Duration
@@ -64,10 +81,16 @@ type Store struct {
 // NewStore returns a new instance of Store.
 func NewStore(c Config) *Store {
 	return &Store{
-		path:               c.Dir,
-		host:               c.Hostname,
-		addr:               c.BindAddress,
-		data:               &Data{},
+		path:  c.Dir,
+		peers: c.Peers,
+		data:  &Data{},
+
+		ready:   make(chan struct{}),
+		err:     make(chan error),
+		closing: make(chan struct{}),
+
+		Hostname:           c.Hostname,
+		BindAddress:        c.BindAddress,
 		HeartbeatTimeout:   time.Duration(c.HeartbeatTimeout),
 		ElectionTimeout:    time.Duration(c.ElectionTimeout),
 		LeaderLeaseTimeout: time.Duration(c.LeaderLeaseTimeout),
@@ -100,51 +123,17 @@ func (s *Store) Open() error {
 			return fmt.Errorf("mkdir all: %s", err)
 		}
 
-		// Setup raft configuration.
-		config := raft.DefaultConfig()
-		config.Logger = s.Logger
-		config.EnableSingleNode = true
-		config.HeartbeatTimeout = s.HeartbeatTimeout
-		config.ElectionTimeout = s.ElectionTimeout
-		config.LeaderLeaseTimeout = s.LeaderLeaseTimeout
-		config.CommitTimeout = s.CommitTimeout
-
-		// Create a transport layer
-		advertise, err := net.ResolveTCPAddr("tcp", s.addr)
-		if err != nil {
-			return fmt.Errorf("resolve tcp addr: %s", err)
-		}
-		transport, err := raft.NewTCPTransport(s.addr, advertise,
-			raftTransportMaxPool, raftTransportTimeout, os.Stderr)
-		if err != nil {
-			return fmt.Errorf("new tcp transport: %s", err)
-		}
-		s.transport = transport
-
-		// Create peer storage.
-		s.peers = raft.NewJSONPeers(s.path, transport)
-
-		// Create the log store and stable store.
-		store, err := raftboltdb.NewBoltStore(filepath.Join(s.path, "raft.db"))
-		if err != nil {
-			return fmt.Errorf("new bolt store: %s", err)
-		}
-		s.store = store
-
-		// Create the snapshot store.
-		snapshots, err := raft.NewFileSnapshotStore(s.path, raftSnapshotsRetained, os.Stderr)
-		if err != nil {
-			return fmt.Errorf("file snapshot store: %s", err)
+		// Open the raft store.
+		if err := s.openRaft(); err != nil {
+			return fmt.Errorf("raft: %s", err)
 		}
 
-		// Create raft log.
-		r, err := raft.NewRaft(config, (*storeFSM)(s), store, store, snapshots, s.peers, s.transport)
-		if err != nil {
-			return fmt.Errorf("new raft: %s", err)
+		// Initialize the store, if necessary.
+		if err := s.initialize(); err != nil {
+			return fmt.Errorf("initialize raft: %s", err)
 		}
-		s.raft = r
 
-		// Load existing ID.
+		// Load existing ID, if exists.
 		if err := s.readID(); err != nil {
 			return fmt.Errorf("read id: %s", err)
 		}
@@ -155,11 +144,95 @@ func (s *Store) Open() error {
 		return err
 	}
 
+	// Begin serving listener.
+	s.wg.Add(1)
+	go s.serve()
+
 	// If the ID doesn't exist then create a new node.
 	if s.id == 0 {
-		if err := s.createLocalNode(); err != nil {
-			return fmt.Errorf("create local node: %s", err)
+		go s.init()
+	} else {
+		close(s.ready)
+	}
+
+	return nil
+}
+
+// openRaft initializes the raft store.
+func (s *Store) openRaft() error {
+	// Setup raft configuration.
+	config := raft.DefaultConfig()
+	config.Logger = s.Logger
+	config.HeartbeatTimeout = s.HeartbeatTimeout
+	config.ElectionTimeout = s.ElectionTimeout
+	config.LeaderLeaseTimeout = s.LeaderLeaseTimeout
+	config.CommitTimeout = s.CommitTimeout
+
+	// If no peers are set in the config then start as a single server.
+	config.EnableSingleNode = (len(s.peers) == 0)
+
+	// Begin listening to TCP port.
+	addr, err := net.ResolveTCPAddr("tcp", s.BindAddress)
+	if err != nil {
+		return fmt.Errorf("resolve tcp addr: %s", err)
+	}
+	ln, err := net.ListenTCP("tcp", addr)
+	if err != nil {
+		return fmt.Errorf("listen tcp: %s", err)
+	}
+	s.ln = ln
+
+	// Build raft layer to multiplex listener.
+	addr, err = net.ResolveTCPAddr("tcp", net.JoinHostPort(s.Hostname, strconv.Itoa(s.ln.Addr().(*net.TCPAddr).Port)))
+	if err != nil {
+		return fmt.Errorf("resolve remote addr: %s", err)
+	}
+	s.remoteAddr = addr
+	s.raftLayer = newRaftLayer(s.remoteAddr)
+
+	// Create a transport layer
+	s.transport = raft.NewNetworkTransport(s.raftLayer, 3, 10*time.Second, os.Stderr)
+
+	// Create peer storage.
+	s.peerStore = raft.NewJSONPeers(s.path, s.transport)
+
+	// Create the log store and stable store.
+	store, err := raftboltdb.NewBoltStore(filepath.Join(s.path, "raft.db"))
+	if err != nil {
+		return fmt.Errorf("new bolt store: %s", err)
+	}
+	s.store = store
+
+	// Create the snapshot store.
+	snapshots, err := raft.NewFileSnapshotStore(s.path, raftSnapshotsRetained, os.Stderr)
+	if err != nil {
+		return fmt.Errorf("file snapshot store: %s", err)
+	}
+
+	// Create raft log.
+	r, err := raft.NewRaft(config, (*storeFSM)(s), store, store, snapshots, s.peerStore, s.transport)
+	if err != nil {
+		return fmt.Errorf("new raft: %s", err)
+	}
+	s.raft = r
+
+	return nil
+}
+
+// initialize attempts to bootstrap the raft store if there are no committed entries.
+func (s *Store) initialize() error {
+	// If we have committed entries then the store is already in the cluster.
+	/*
+		if index, err := s.store.LastIndex(); err != nil {
+			return fmt.Errorf("last index: %s", err)
+		} else if index > 0 {
+			return nil
 		}
+	*/
+
+	// Force set peers.
+	if err := s.SetPeers(s.peers); err != nil {
+		return fmt.Errorf("set raft peers: %s", err)
 	}
 
 	return nil
@@ -179,6 +252,11 @@ func (s *Store) close() error {
 	}
 	s.opened = false
 
+	// Notify goroutines of close.
+	close(s.closing)
+	// FIXME(benbjohnson): s.wg.Wait()
+
+	// Shutdown raft.
 	if s.raft != nil {
 		s.raft.Shutdown()
 		s.raft = nil
@@ -193,15 +271,6 @@ func (s *Store) close() error {
 	}
 
 	return nil
-}
-
-// IsLeader returns whether this node is a leader of the cluster.
-func (s *Store) IsLeader() bool {
-	// Check if store has already been closed.
-	if !s.opened {
-		return false
-	}
-	return s.raft.State() == raft.Leader
 }
 
 // readID reads the local node ID from the ID file.
@@ -225,14 +294,30 @@ func (s *Store) readID() error {
 	return nil
 }
 
+// init initializes the store in a separate goroutine.
+// This occurs when the store first creates or joins a cluster.
+// The ready channel is closed once the store is initialized.
+func (s *Store) init() {
+	// Create a node for this store.
+	if err := s.createLocalNode(); err != nil {
+		s.err <- fmt.Errorf("create local node: %s", err)
+		return
+	}
+
+	// Notify the ready channel.
+	close(s.ready)
+}
+
 // createLocalNode creates the node for this local instance.
 // Writes the id of the node to file on success.
 func (s *Store) createLocalNode() error {
 	// Wait for leader.
-	<-s.LeaderCh()
+	if err := s.waitForLeader(5 * time.Second); err != nil {
+		return fmt.Errorf("wait for leader: %s", err)
+	}
 
 	// Create new node.
-	ni, err := s.CreateNode(s.host)
+	ni, err := s.CreateNode(s.RemoteAddr())
 	if err != nil {
 		return fmt.Errorf("create node: %s", err)
 	}
@@ -245,10 +330,42 @@ func (s *Store) createLocalNode() error {
 	// Set ID locally.
 	s.id = ni.ID
 
-	s.Logger.Printf("created local node: id=%d, host=%s", s.id, s.host)
+	s.Logger.Printf("created local node: id=%d, host=%s", s.id, s.RemoteAddr())
 
 	return nil
 }
+
+// waitForLeader sleeps until a leader is found or a timeout occurs.
+func (s *Store) waitForLeader(timeout time.Duration) error {
+	// Begin timeout timer.
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	// Continually check for leader until timeout.
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-s.closing:
+			return errors.New("closing")
+		case <-timer.C:
+			return errors.New("timeout")
+		case <-ticker.C:
+			if s.raft.Leader() != "" {
+				return nil
+			}
+		}
+	}
+}
+
+// Ready returns a channel that is closed once the store is initialized.
+func (s *Store) Ready() <-chan struct{} { return s.ready }
+
+// Err returns a channel for all out-of-band errors.
+func (s *Store) Err() <-chan error { return s.err }
+
+// IsLeader returns true if the store is currently the leader.
+func (s *Store) IsLeader() bool { return s.raft.State() == raft.Leader }
 
 // LeaderCh returns a channel that notifies on leadership change.
 // Panics when the store has not been opened yet.
@@ -257,6 +374,130 @@ func (s *Store) LeaderCh() <-chan bool {
 	defer s.mu.RUnlock()
 	assert(s.raft != nil, "cannot retrieve leadership channel when closed")
 	return s.raft.LeaderCh()
+}
+
+// SetPeers sets a list of peers in the cluster.
+func (s *Store) SetPeers(addrs []string) error {
+	a := make([]string, len(addrs))
+	for i, s := range addrs {
+		addr, err := net.ResolveTCPAddr("tcp", s)
+		if err != nil {
+			return fmt.Errorf("cannot resolve addr: %s, err=%s", s, err)
+		}
+		a[i] = addr.String()
+	}
+	return s.raft.SetPeers(a).Error()
+}
+
+// RemoteAddr returns the advertised hostname and port of the store.
+func (s *Store) RemoteAddr() string {
+	return s.remoteAddr.String()
+}
+
+// LocalAddr returns the address that the raft server is listening on.
+func (s *Store) LocalAddr() string {
+	return s.ln.Addr().String()
+}
+
+// serve multiplexes the listener across raft and forwarding requests.
+// This function runs in a separate goroutine.
+func (s *Store) serve() {
+	defer s.wg.Done()
+
+	for {
+		// Accept next TCP connection.
+		conn, err := s.ln.Accept()
+		if err != nil {
+			s.Logger.Printf("accept error: %s", err)
+			continue
+		}
+
+		// Handle connection in a separate goroutine.
+		s.wg.Add(1)
+		go s.handleConn(conn)
+	}
+}
+
+// handleConn processes a connection received from the listener.
+func (s *Store) handleConn(conn net.Conn) {
+	defer s.wg.Done()
+
+	if err := func() error {
+		// Read marker byte to multiplex.
+		var typ [1]byte
+		if _, err := io.ReadFull(conn, typ[:]); err != nil {
+			return err
+		}
+
+		switch typ[0] {
+		case raftLayerRaft:
+			s.raftLayer.Handoff(conn)
+		case raftLayerExec:
+			s.handleExecConn(conn)
+		default:
+			return fmt.Errorf("invalid conn type: %d", typ[0])
+		}
+
+		return nil
+	}(); err != nil {
+		conn.Close()
+		return
+	}
+}
+
+// handleExecConn reads a command from the connection and executes it.
+func (s *Store) handleExecConn(conn net.Conn) {
+	// Read and execute command.
+	err := func() error {
+		// Read marker message.
+		b := make([]byte, 4)
+		if _, err := io.ReadFull(conn, b); err != nil {
+			return fmt.Errorf("read marker message: %s", err)
+		} else if string(b) != `META` {
+			return fmt.Errorf("invalid meta marker message: %q", string(b))
+		}
+
+		// Read command size.
+		var sz uint64
+		if err := binary.Read(conn, binary.BigEndian, &sz); err != nil {
+			return fmt.Errorf("read size: %s", err)
+		}
+
+		// Read command.
+		buf := make([]byte, sz)
+		if _, err := io.ReadFull(conn, buf); err != nil {
+			return fmt.Errorf("read command: %s", err)
+		}
+
+		// Ensure command can be deserialized before applying.
+		if err := proto.Unmarshal(buf, &internal.Command{}); err != nil {
+			return fmt.Errorf("unable to unmarshal command: %s", err)
+		}
+
+		// Apply against the raft log.
+		if err := s.apply(buf); err != nil {
+			return fmt.Errorf("apply: %s", err)
+		}
+		return nil
+	}()
+
+	// Build response message.
+	var resp internal.Response
+	resp.OK = proto.Bool(err == nil)
+	resp.Index = proto.Uint64(s.raft.LastIndex())
+	if err != nil {
+		resp.Error = proto.String(err.Error())
+	}
+
+	// Encode response back to connection.
+	if b, err := proto.Marshal(&resp); err != nil {
+		panic(err)
+	} else if err = binary.Write(conn, binary.BigEndian, uint64(len(b))); err != nil {
+		s.Logger.Printf("unable to write exec response size: %s", err)
+	} else if _, err = conn.Write(b); err != nil {
+		s.Logger.Printf("unable to write exec response: %s", err)
+	}
+	conn.Close()
 }
 
 // NodeID returns the identifier for the local node.
@@ -786,7 +1027,8 @@ func (s *Store) read(fn func(*Data) error) error {
 var errInvalidate = errors.New("invalidate cache")
 
 func (s *Store) invalidate() error {
-	return nil // FIX(benbjohnson): Reload cache from the leader.
+	time.Sleep(1 * time.Second)
+	return nil // FIXME(benbjohnson): Reload cache from the leader.
 }
 
 func (s *Store) exec(typ internal.Command_Type, desc *proto.ExtensionDesc, value interface{}) error {
@@ -799,6 +1041,17 @@ func (s *Store) exec(typ internal.Command_Type, desc *proto.ExtensionDesc, value
 	b, err := proto.Marshal(cmd)
 	assert(err == nil, "proto.Marshal: %s", err)
 
+	// Apply the command if this is the leader.
+	// Otherwise remotely execute the command against the current leader.
+	if s.raft.State() == raft.Leader {
+		return s.apply(b)
+	} else {
+		return s.remoteExec(b)
+	}
+}
+
+// apply applies a serialized command to the raft log.
+func (s *Store) apply(b []byte) error {
 	// Apply to raft log.
 	f := s.raft.Apply(b, 0)
 	if err := f.Error(); err != nil {
@@ -816,6 +1069,94 @@ func (s *Store) exec(typ internal.Command_Type, desc *proto.ExtensionDesc, value
 	return nil
 }
 
+// remoteExec sends an encoded command to the remote leader.
+func (s *Store) remoteExec(b []byte) error {
+	// Retrieve the current known leader.
+	leader := s.raft.Leader()
+	if leader == "" {
+		return errors.New("no leader")
+	}
+
+	// Create a connection to the leader.
+	conn, err := net.DialTimeout("tcp", leader, 10*time.Second)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	// Write a marker byte for exec messages.
+	_, err = conn.Write([]byte{raftLayerExec})
+	if err != nil {
+		return err
+	}
+
+	// Write a marker message.
+	_, err = conn.Write([]byte("META"))
+	if err != nil {
+		return err
+	}
+
+	// Write command size & bytes.
+	if err := binary.Write(conn, binary.BigEndian, uint64(len(b))); err != nil {
+		return fmt.Errorf("write command size: %s", err)
+	} else if _, err := conn.Write(b); err != nil {
+		return fmt.Errorf("write command: %s", err)
+	}
+
+	// Read response bytes.
+	var sz uint64
+	if err := binary.Read(conn, binary.BigEndian, &sz); err != nil {
+		return fmt.Errorf("read response size: %s", err)
+	}
+	buf := make([]byte, sz)
+	if _, err := io.ReadFull(conn, buf); err != nil {
+		return fmt.Errorf("read response: %s", err)
+	}
+
+	// Unmarshal response.
+	var resp internal.Response
+	if err := proto.Unmarshal(buf, &resp); err != nil {
+		return fmt.Errorf("unmarshal response: %s", err)
+	} else if !resp.GetOK() {
+		return fmt.Errorf("exec failed: %s", resp.GetError())
+	}
+
+	// Wait for local FSM to sync to index.
+	if err := s.sync(resp.GetIndex(), 5*time.Second); err != nil {
+		return fmt.Errorf("sync: %s", err)
+	}
+
+	return nil
+}
+
+// sync polls the state machine until it reaches a given index.
+func (s *Store) sync(index uint64, timeout time.Duration) error {
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	for {
+		// Wait for next tick or timeout.
+		select {
+		case <-ticker.C:
+		case <-timer.C:
+			return errors.New("timeout")
+		}
+
+		// Compare index against current metadata.
+		s.mu.Lock()
+		ok := (s.data.Index >= index)
+		s.mu.Unlock()
+
+		// Exit if we are at least at the given index.
+		if ok {
+			return nil
+		}
+	}
+}
+
 // storeFSM represents the finite state machine used by Store to interact with Raft.
 type storeFSM Store
 
@@ -830,42 +1171,50 @@ func (fsm *storeFSM) Apply(l *raft.Log) interface{} {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	switch cmd.GetType() {
-	case internal.Command_CreateNodeCommand:
-		return fsm.applyCreateNodeCommand(&cmd)
-	case internal.Command_DeleteNodeCommand:
-		return fsm.applyDeleteNodeCommand(&cmd)
-	case internal.Command_CreateDatabaseCommand:
-		return fsm.applyCreateDatabaseCommand(&cmd)
-	case internal.Command_DropDatabaseCommand:
-		return fsm.applyDropDatabaseCommand(&cmd)
-	case internal.Command_CreateRetentionPolicyCommand:
-		return fsm.applyCreateRetentionPolicyCommand(&cmd)
-	case internal.Command_DropRetentionPolicyCommand:
-		return fsm.applyDropRetentionPolicyCommand(&cmd)
-	case internal.Command_SetDefaultRetentionPolicyCommand:
-		return fsm.applySetDefaultRetentionPolicyCommand(&cmd)
-	case internal.Command_UpdateRetentionPolicyCommand:
-		return fsm.applyUpdateRetentionPolicyCommand(&cmd)
-	case internal.Command_CreateShardGroupCommand:
-		return fsm.applyCreateShardGroupCommand(&cmd)
-	case internal.Command_DeleteShardGroupCommand:
-		return fsm.applyDeleteShardGroupCommand(&cmd)
-	case internal.Command_CreateContinuousQueryCommand:
-		return fsm.applyCreateContinuousQueryCommand(&cmd)
-	case internal.Command_DropContinuousQueryCommand:
-		return fsm.applyDropContinuousQueryCommand(&cmd)
-	case internal.Command_CreateUserCommand:
-		return fsm.applyCreateUserCommand(&cmd)
-	case internal.Command_DropUserCommand:
-		return fsm.applyDropUserCommand(&cmd)
-	case internal.Command_UpdateUserCommand:
-		return fsm.applyUpdateUserCommand(&cmd)
-	case internal.Command_SetPrivilegeCommand:
-		return fsm.applySetPrivilegeCommand(&cmd)
-	default:
-		panic(fmt.Errorf("cannot apply command: %x", l.Data))
-	}
+	err := func() interface{} {
+		switch cmd.GetType() {
+		case internal.Command_CreateNodeCommand:
+			return fsm.applyCreateNodeCommand(&cmd)
+		case internal.Command_DeleteNodeCommand:
+			return fsm.applyDeleteNodeCommand(&cmd)
+		case internal.Command_CreateDatabaseCommand:
+			return fsm.applyCreateDatabaseCommand(&cmd)
+		case internal.Command_DropDatabaseCommand:
+			return fsm.applyDropDatabaseCommand(&cmd)
+		case internal.Command_CreateRetentionPolicyCommand:
+			return fsm.applyCreateRetentionPolicyCommand(&cmd)
+		case internal.Command_DropRetentionPolicyCommand:
+			return fsm.applyDropRetentionPolicyCommand(&cmd)
+		case internal.Command_SetDefaultRetentionPolicyCommand:
+			return fsm.applySetDefaultRetentionPolicyCommand(&cmd)
+		case internal.Command_UpdateRetentionPolicyCommand:
+			return fsm.applyUpdateRetentionPolicyCommand(&cmd)
+		case internal.Command_CreateShardGroupCommand:
+			return fsm.applyCreateShardGroupCommand(&cmd)
+		case internal.Command_DeleteShardGroupCommand:
+			return fsm.applyDeleteShardGroupCommand(&cmd)
+		case internal.Command_CreateContinuousQueryCommand:
+			return fsm.applyCreateContinuousQueryCommand(&cmd)
+		case internal.Command_DropContinuousQueryCommand:
+			return fsm.applyDropContinuousQueryCommand(&cmd)
+		case internal.Command_CreateUserCommand:
+			return fsm.applyCreateUserCommand(&cmd)
+		case internal.Command_DropUserCommand:
+			return fsm.applyDropUserCommand(&cmd)
+		case internal.Command_UpdateUserCommand:
+			return fsm.applyUpdateUserCommand(&cmd)
+		case internal.Command_SetPrivilegeCommand:
+			return fsm.applySetPrivilegeCommand(&cmd)
+		default:
+			panic(fmt.Errorf("cannot apply command: %x", l.Data))
+		}
+	}()
+
+	// Copy term and index to new metadata.
+	fsm.data.Term = l.Term
+	fsm.data.Index = l.Index
+
+	return err
 }
 
 func (fsm *storeFSM) applyCreateNodeCommand(cmd *internal.Command) interface{} {
@@ -1142,6 +1491,76 @@ func (s *storeFSMSnapshot) Persist(sink raft.SnapshotSink) error {
 // Release is invoked when we are finished with the snapshot
 func (s *storeFSMSnapshot) Release() {}
 
+const (
+	raftLayerRaft = byte(iota)
+	raftLayerExec
+)
+
+// raftLayer wraps the connection so it can be re-used for forwarding.
+type raftLayer struct {
+	addr   net.Addr
+	conn   chan net.Conn
+	closed chan struct{}
+}
+
+// newRaftLayer returns a new instance of raftLayer.
+func newRaftLayer(addr net.Addr) *raftLayer {
+	return &raftLayer{
+		addr:   addr,
+		conn:   make(chan net.Conn),
+		closed: make(chan struct{}),
+	}
+}
+
+// Addr returns the local address for the layer.
+func (l *raftLayer) Addr() net.Addr { return l.addr }
+
+// Dial creates a new network connection.
+func (l *raftLayer) Dial(addr string, timeout time.Duration) (net.Conn, error) {
+	conn, err := net.DialTimeout("tcp", addr, timeout)
+	if err != nil {
+		return nil, err
+	}
+
+	// Write a marker byte for raft messages.
+	_, err = conn.Write([]byte{raftLayerRaft})
+	if err != nil {
+		conn.Close()
+		return nil, err
+	}
+	return conn, err
+}
+
+// Accept waits for the next connection.
+func (l *raftLayer) Accept() (net.Conn, error) {
+	select {
+	case conn := <-l.conn:
+		return conn, nil
+	case <-l.closed:
+		return nil, errors.New("raft layer closed")
+	}
+}
+
+// Handoff sends the connection to the layer to be handled by raft.
+func (l *raftLayer) Handoff(c net.Conn) error {
+	select {
+	case l.conn <- c:
+		return nil
+	case <-l.closed:
+		return errors.New("raft layer closed")
+	}
+}
+
+// Close closes the layer.
+func (l *raftLayer) Close() error {
+	select {
+	case <-l.closed:
+	default:
+		close(l.closed)
+	}
+	return nil
+}
+
 // RetentionPolicyUpdate represents retention policy fields to be updated.
 type RetentionPolicyUpdate struct {
 	Name     *string
@@ -1159,7 +1578,7 @@ var BcryptCost = 10
 
 // HashPassword generates a cryptographically secure hash for password.
 // Returns an error if the password is invalid or a hash cannot be generated.
-func HashPassword(password string) ([]byte, error) {
+var HashPassword = func(password string) ([]byte, error) {
 	// The second arg is the cost of the hashing, higher is slower but makes
 	// it harder to brute force, since it will be really slow and impractical
 	return bcrypt.GenerateFromPassword([]byte(password), BcryptCost)
@@ -1171,6 +1590,3 @@ func assert(condition bool, msg string, v ...interface{}) {
 		panic(fmt.Sprintf("assert failed: "+msg, v...))
 	}
 }
-
-func warn(v ...interface{})              { fmt.Fprintln(os.Stderr, v...) }
-func warnf(msg string, v ...interface{}) { fmt.Fprintf(os.Stderr, msg+"\n", v...) }
