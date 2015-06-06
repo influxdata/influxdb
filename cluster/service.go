@@ -82,7 +82,7 @@ func (s *Service) serve() {
 				s.Logger.Printf("cluster service accept error: %s", err)
 				return
 			}
-			s.Logger.Println("accept error: %s", err)
+			s.Logger.Printf("accept error: %s", err)
 			continue
 		}
 
