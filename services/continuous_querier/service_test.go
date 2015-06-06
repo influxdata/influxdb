@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -256,6 +257,7 @@ func NewTestService(t *testing.T) *Service {
 
 // MetaStore is a mock meta store.
 type MetaStore struct {
+	mu            sync.RWMutex
 	Leader        bool
 	DatabaseInfos []meta.DatabaseInfo
 	Err           error
@@ -271,13 +273,27 @@ func NewMetaStore(t *testing.T) *MetaStore {
 }
 
 // IsLeader returns true if the node is the cluster leader.
-func (ms *MetaStore) IsLeader() bool { return ms.Leader }
+func (ms *MetaStore) IsLeader() bool {
+	ms.mu.RLock()
+	defer ms.mu.RUnlock()
+	return ms.Leader
+}
 
 // Databases returns a list of database info about each database in the cluster.
-func (ms *MetaStore) Databases() ([]meta.DatabaseInfo, error) { return ms.DatabaseInfos, ms.Err }
+func (ms *MetaStore) Databases() ([]meta.DatabaseInfo, error) {
+	ms.mu.RLock()
+	// defer ms.mu.RUnlock()
+	return ms.DatabaseInfos, ms.Err
+}
 
 // Database returns a single database by name.
 func (ms *MetaStore) Database(name string) (*meta.DatabaseInfo, error) {
+	ms.mu.RLock()
+	defer ms.mu.RUnlock()
+	return ms.database(name)
+}
+
+func (ms *MetaStore) database(name string) (*meta.DatabaseInfo, error) {
 	if ms.Err != nil {
 		return nil, ms.Err
 	}
@@ -291,6 +307,8 @@ func (ms *MetaStore) Database(name string) (*meta.DatabaseInfo, error) {
 
 // CreateDatabase adds a new database to the meta store.
 func (ms *MetaStore) CreateDatabase(name, defaultRetentionPolicy string) error {
+	ms.mu.Lock()
+	defer ms.mu.Unlock()
 	if ms.Err != nil {
 		return ms.Err
 	}
@@ -313,11 +331,13 @@ func (ms *MetaStore) CreateDatabase(name, defaultRetentionPolicy string) error {
 
 // CreateContinuousQuery adds a CQ to the meta store.
 func (ms *MetaStore) CreateContinuousQuery(database, name, query string) error {
+	ms.mu.Lock()
+	defer ms.mu.Unlock()
 	if ms.Err != nil {
 		return ms.Err
 	}
 
-	dbi, err := ms.Database(database)
+	dbi, err := ms.database(database)
 	if err != nil {
 		return err
 	} else if dbi == nil {
