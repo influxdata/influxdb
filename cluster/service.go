@@ -133,7 +133,12 @@ func (s *Service) handleConn(conn net.Conn) {
 		switch typ {
 		case writeShardRequestMessage:
 			err := s.processWriteShardRequest(buf)
+			if err != nil {
+				s.Logger.Printf("process write shard error: %s", err)
+			}
 			s.writeShardResponse(conn, err)
+		default:
+			s.Logger.Printf("cluster service message type not found: %d", typ)
 		}
 	}
 }
