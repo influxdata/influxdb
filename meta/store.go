@@ -785,24 +785,6 @@ func (s *Store) VisitRetentionPolicies(f func(d DatabaseInfo, r RetentionPolicyI
 	return
 }
 
-// VisitShardGroups calls the given function with full shard group details.
-func (s *Store) VisitShardGroups(f func(d *DatabaseInfo, r *RetentionPolicyInfo, sgi *ShardGroupInfo)) {
-	s.read(func(data *Data) error {
-		for i := range data.Databases {
-			db := &data.Databases[i]
-			for j := range db.RetentionPolicies {
-				rp := &db.RetentionPolicies[j]
-				for k := range rp.ShardGroups {
-					sg := &rp.ShardGroups[k]
-					f(db, rp, sg)
-				}
-			}
-		}
-		return nil
-	})
-	return
-}
-
 // ShardGroupByTimestamp returns a shard group for a policy by timestamp.
 func (s *Store) ShardGroupByTimestamp(database, policy string, timestamp time.Time) (sgi *ShardGroupInfo, err error) {
 	err = s.read(func(data *Data) error {
@@ -818,18 +800,26 @@ func (s *Store) ShardGroupByTimestamp(database, policy string, timestamp time.Ti
 }
 
 func (s *Store) ShardOwner(shardID uint64) (database, policy string, sgi *ShardGroupInfo) {
-	s.VisitShardGroups(func(d *DatabaseInfo, r *RetentionPolicyInfo, s *ShardGroupInfo) {
-		if s.Deleted() {
-			return
-		}
+	s.read(func(data *Data) error {
+		for _, dbi := range data.Databases {
+			for _, rpi := range dbi.RetentionPolicies {
+				for _, g := range rpi.ShardGroups {
+					if g.Deleted() {
+						continue
+					}
 
-		for _, sh := range s.Shards {
-			if sh.ID == shardID {
-				database = d.Name
-				policy = r.Name
-				sgi = s
+					for _, sh := range g.Shards {
+						if sh.ID == shardID {
+							database = dbi.Name
+							policy = rpi.Name
+							sgi = &g
+							return nil
+						}
+					}
+				}
 			}
 		}
+		return errInvalidate
 	})
 	return
 }
