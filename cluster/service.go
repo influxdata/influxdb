@@ -77,11 +77,13 @@ func (s *Service) serve() {
 
 		// Accept the next connection.
 		conn, err := s.Listener.Accept()
-		if opErr, ok := err.(*net.OpError); ok && opErr.Temporary() {
-			s.Logger.Println("error temporarily accepting TCP connection", err.Error())
+		if err != nil {
+			if strings.Contains(err.Error(), "connection closed") {
+				s.Logger.Printf("cluster service accept error: %s", err)
+				return
+			}
+			s.Logger.Println("accept error: %s", err)
 			continue
-		} else if err != nil {
-			return
 		}
 
 		// Delegate connection handling to a separate goroutine.
@@ -119,12 +121,11 @@ func (s *Service) handleConn(conn net.Conn) {
 		conn.Close()
 	}()
 
+	s.Logger.Println("accept remote write connection")
 	for {
 		// Read type-length-value.
 		typ, buf, err := ReadTLV(conn)
-		if err != nil && strings.Contains(err.Error(), "closed network connection") {
-			return
-		} else if err != nil {
+		if err != nil {
 			s.Logger.Printf("unable to read type-length-value %s", err)
 			return
 		}
@@ -165,6 +166,7 @@ func (s *Service) processWriteShardRequest(buf []byte) error {
 			// If we can't find it, then we need to drop this request
 			// as it is no longer valid.  This could happen if writes were queued via
 			// hinted handoff and delivered after a shard group was deleted.
+			s.Logger.Printf("drop write request: shard=%d", req.ShardID())
 			return nil
 		}
 
