@@ -368,6 +368,9 @@ func (s *Store) Err() <-chan error { return s.err }
 func (s *Store) IsLeader() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	if s.raft == nil {
+		return false
+	}
 	return s.raft.State() == raft.Leader
 }
 
