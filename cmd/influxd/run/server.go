@@ -93,6 +93,7 @@ func NewServer(c *Config) *Server {
 func (s *Server) appendClusterService(c cluster.Config) {
 	srv := cluster.NewService(c)
 	srv.TSDBStore = s.TSDBStore
+	srv.MetaStore = s.MetaStore
 	s.Services = append(s.Services, srv)
 }
 
