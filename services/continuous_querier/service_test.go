@@ -282,7 +282,7 @@ func (ms *MetaStore) IsLeader() bool {
 // Databases returns a list of database info about each database in the cluster.
 func (ms *MetaStore) Databases() ([]meta.DatabaseInfo, error) {
 	ms.mu.RLock()
-	// defer ms.mu.RUnlock()
+	defer ms.mu.RUnlock()
 	return ms.DatabaseInfos, ms.Err
 }
 
