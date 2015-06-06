@@ -513,7 +513,7 @@ func (l *segment) advance() error {
 		return ErrNotOpen
 	}
 
-	// If we're ad the end of the file, can't advance
+	// If we're at the end of the file, can't advance
 	if int64(l.pos) == l.size-footerSize {
 		l.currentSize = 0
 		return io.EOF

@@ -57,9 +57,7 @@ func (s *Service) Open() error {
 	s.closing = make(chan struct{})
 
 	go s.retryWrites()
-
 	go s.expireWrites()
-	// go s.evictWrites()
 
 	return nil
 }

@@ -31,7 +31,6 @@ type ProcessorOptions struct {
 }
 
 func NewProcessor(dir string, writer shardWriter, options ProcessorOptions) (*Processor, error) {
-
 	p := &Processor{
 		dir:    dir,
 		queues: map[uint64]*queue{},
@@ -69,7 +68,6 @@ func (p *Processor) loadQueues() error {
 	}
 
 	for _, file := range files {
-
 		nodeID, err := strconv.ParseUint(file.Name(), 10, 64)
 		if err != nil {
 			return err
