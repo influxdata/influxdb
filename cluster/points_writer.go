@@ -51,6 +51,7 @@ type PointsWriter struct {
 		Database(name string) (di *meta.DatabaseInfo, err error)
 		RetentionPolicy(database, policy string) (*meta.RetentionPolicyInfo, error)
 		CreateShardGroupIfNotExists(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error)
+		ShardOwner(shardID uint64) (string, string, *meta.ShardGroupInfo)
 	}
 
 	TSDBStore interface {
@@ -59,6 +60,10 @@ type PointsWriter struct {
 	}
 
 	ShardWriter interface {
+		WriteShard(shardID, ownerID uint64, points []tsdb.Point) error
+	}
+
+	HintedHandoff interface {
 		WriteShard(shardID, ownerID uint64, points []tsdb.Point) error
 	}
 }
@@ -220,7 +225,21 @@ func (w *PointsWriter) writeToShard(shard *meta.ShardInfo, database, retentionPo
 				return
 			}
 
-			ch <- w.ShardWriter.WriteShard(shardID, nodeID, points)
+			err := w.ShardWriter.WriteShard(shardID, nodeID, points)
+			if err != nil {
+				// The remote write failed so queue it via hinted handoff
+				hherr := w.HintedHandoff.WriteShard(shardID, nodeID, points)
+
+				// If the write consistency level is ANY, then a successful hinted handoff can
+				// be considered a successful write so send nil to the response channel
+				// otherwise, let the original error propogate to the response channel
+				if hherr == nil && consistency == ConsistencyLevelAny {
+					ch <- nil
+					return
+				}
+			}
+			ch <- err
+
 		}(shard.ID, nodeID, points)
 	}
 
@@ -236,7 +255,6 @@ func (w *PointsWriter) writeToShard(shard *meta.ShardInfo, database, retentionPo
 		case err := <-ch:
 			// If the write returned an error, continue to the next response
 			if err != nil {
-				// FIXME
 				continue
 			}
 

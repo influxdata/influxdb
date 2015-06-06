@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -28,7 +29,12 @@ type Service struct {
 
 	Listener net.Listener
 
+	MetaStore interface {
+		ShardOwner(shardID uint64) (string, string, *meta.ShardGroupInfo)
+	}
+
 	TSDBStore interface {
+		CreateShard(database, policy string, shardID uint64) error
 		WriteToShard(shardID uint64, points []tsdb.Point) error
 	}
 
@@ -139,7 +145,32 @@ func (s *Service) processWriteShardRequest(buf []byte) error {
 		return err
 	}
 
-	if err := s.TSDBStore.WriteToShard(req.ShardID(), req.Points()); err != nil {
+	err := s.TSDBStore.WriteToShard(req.ShardID(), req.Points())
+
+	// We may have received a write for a shard that we don't have locally because the
+	// sending node may have just created the shard (via the metastore) and the write
+	// arrived before the local store could create the shard.  In this case, we need
+	// to check the metastore to determine what database and retention policy this
+	// shard should reside within.
+	if err == tsdb.ErrShardNotFound {
+
+		// Query the metastore for the owner of this shard
+		database, retentionPolicy, sgi := s.MetaStore.ShardOwner(req.ShardID())
+		if sgi == nil {
+			// If we can't find it, then we need to drop this request
+			// as it is no longer valid.  This could happen if writes were queued via
+			// hinted handoff and delivered after a shard group was deleted.
+			return nil
+		}
+
+		err = s.TSDBStore.CreateShard(database, retentionPolicy, req.ShardID())
+		if err != nil {
+			return err
+		}
+		return s.TSDBStore.WriteToShard(req.ShardID(), req.Points())
+	}
+
+	if err != nil {
 		return fmt.Errorf("write shard: %s", err)
 	}
 

@@ -137,16 +137,9 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 		{
 			name:        "write any success",
 			consistency: cluster.ConsistencyLevelAny,
-			err:         []error{nil, nil, nil},
+			err:         []error{fmt.Errorf("a failure"), nil, fmt.Errorf("a failure")},
 			expErr:      nil,
 		},
-		{
-			name:        "write any failure",
-			consistency: cluster.ConsistencyLevelAny,
-			err:         []error{fmt.Errorf("a failure"), fmt.Errorf("a failure"), fmt.Errorf("a failure")},
-			expErr:      cluster.ErrWriteFailed,
-		},
-
 		// Consistency all
 		{
 			name:        "write all success",
@@ -193,6 +186,14 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 			consistency: cluster.ConsistencyLevelOne,
 			err:         []error{fmt.Errorf("a failure"), fmt.Errorf("a failure"), fmt.Errorf("a failure")},
 			expErr:      cluster.ErrWriteFailed,
+		},
+
+		// Hinted handoff w/ ANY
+		{
+			name:        "hinted handoff write succeed",
+			consistency: cluster.ConsistencyLevelAny,
+			err:         []error{fmt.Errorf("a failure"), fmt.Errorf("a failure"), fmt.Errorf("a failure")},
+			expErr:      nil,
 		},
 	}
 
@@ -242,12 +243,19 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 			},
 		}
 
+		hh := &fakeShardWriter{
+			ShardWriteFn: func(shardID, nodeID uint64, points []tsdb.Point) error {
+				return nil
+			},
+		}
+
 		ms := NewMetaStore()
 		ms.NodeIDFn = func() uint64 { return 1 }
 		c := cluster.PointsWriter{
-			MetaStore:   ms,
-			ShardWriter: sw,
-			TSDBStore:   store,
+			MetaStore:     ms,
+			ShardWriter:   sw,
+			TSDBStore:     store,
+			HintedHandoff: hh,
 		}
 
 		if err := c.WritePoints(pr); err != test.expErr {
@@ -305,6 +313,7 @@ type MetaStore struct {
 	RetentionPolicyFn             func(database, name string) (*meta.RetentionPolicyInfo, error)
 	CreateShardGroupIfNotExistsFn func(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error)
 	DatabaseFn                    func(database string) (*meta.DatabaseInfo, error)
+	ShardOwnerFn                  func(shardID uint64) (string, string, *meta.ShardGroupInfo)
 }
 
 func (m MetaStore) NodeID() uint64 { return m.NodeIDFn() }
@@ -319,6 +328,10 @@ func (m MetaStore) CreateShardGroupIfNotExists(database, policy string, timestam
 
 func (m MetaStore) Database(database string) (*meta.DatabaseInfo, error) {
 	return m.DatabaseFn(database)
+}
+
+func (m MetaStore) ShardOwner(shardID uint64) (string, string, *meta.ShardGroupInfo) {
+	return m.ShardOwnerFn(shardID)
 }
 
 func NewRetentionPolicy(name string, duration time.Duration, nodeCount int) *meta.RetentionPolicyInfo {

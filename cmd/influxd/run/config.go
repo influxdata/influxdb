@@ -12,6 +12,7 @@ import (
 	"github.com/influxdb/influxdb/services/collectd"
 	"github.com/influxdb/influxdb/services/continuous_querier"
 	"github.com/influxdb/influxdb/services/graphite"
+	"github.com/influxdb/influxdb/services/hh"
 	"github.com/influxdb/influxdb/services/httpd"
 	"github.com/influxdb/influxdb/services/monitor"
 	"github.com/influxdb/influxdb/services/opentsdb"
@@ -37,6 +38,8 @@ type Config struct {
 	// Snapshot SnapshotConfig `toml:"snapshot"`
 	Monitoring      monitor.Config            `toml:"monitoring"`
 	ContinuousQuery continuous_querier.Config `toml:"continuous_queries"`
+
+	HintedHandoff hh.Config `toml:"hinted-handoff"`
 }
 
 // NewConfig returns an instance of Config with reasonable defaults.
@@ -54,6 +57,7 @@ func NewConfig() *Config {
 	c.Monitoring = monitor.NewConfig()
 	c.ContinuousQuery = continuous_querier.NewConfig()
 	c.Retention = retention.NewConfig()
+	c.HintedHandoff = hh.NewConfig()
 
 	return c
 }
@@ -70,6 +74,7 @@ func NewDemoConfig() (*Config, error) {
 
 	c.Meta.Dir = filepath.Join(u.HomeDir, ".influxdb/meta")
 	c.Data.Dir = filepath.Join(u.HomeDir, ".influxdb/data")
+	c.HintedHandoff.Dir = filepath.Join(u.HomeDir, ".influxdb/hh")
 
 	c.Admin.Enabled = true
 	c.Monitoring.Enabled = false
@@ -83,6 +88,8 @@ func (c *Config) Validate() error {
 		return errors.New("Meta.Dir must be specified")
 	} else if c.Data.Dir == "" {
 		return errors.New("Data.Dir must be specified")
+	} else if c.HintedHandoff.Dir == "" {
+		return errors.New("HintedHandoff.Dir must be specified")
 	}
 	return nil
 }

@@ -139,6 +139,10 @@ func (c *connFactory) dial() (net.Conn, error) {
 		return nil, err
 	}
 
+	if ni == nil {
+		return nil, fmt.Errorf("node %d does not exist", c.nodeID)
+	}
+
 	conn, err := net.DialTimeout("tcp", ni.Host, c.timeout)
 	if err != nil {
 		return nil, err

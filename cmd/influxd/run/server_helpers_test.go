@@ -67,6 +67,7 @@ func OpenServer(c *run.Config, joinURLs string) *Server {
 func (s *Server) Close() {
 	os.RemoveAll(s.Config.Meta.Dir)
 	os.RemoveAll(s.Config.Data.Dir)
+	os.RemoveAll(s.Config.HintedHandoff.Dir)
 	s.Server.Close()
 }
 
@@ -151,6 +152,8 @@ func NewConfig() *run.Config {
 	c.Meta.CommitTimeout = toml.Duration(5 * time.Millisecond)
 
 	c.Data.Dir = MustTempFile()
+
+	c.HintedHandoff.Dir = MustTempFile()
 
 	c.HTTPD.Enabled = true
 	c.HTTPD.BindAddress = "127.0.0.1:0"
