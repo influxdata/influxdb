@@ -32,13 +32,10 @@ For those adventurous enough, you can
 * `service influxdb start` if you have installed InfluxDB using an official Debian or RPM package.
 * `$GOPATH/bin/influxd` if you have built InfluxDB from source.
 
-### Creating your first database and retention policy
+### Creating your first database
 
 ```JSON
 curl -G 'http://localhost:8086/query' --data-urlencode "q=CREATE DATABASE mydb"
-
-curl -G 'http://localhost:8086/query' --data-urlencode "q=CREATE RETENTION POLICY mypolicy \
-ON mydb DURATION 7d REPLICATION 1 DEFAULT"
 ```
 
 ### Insert some data
@@ -46,7 +43,7 @@ ON mydb DURATION 7d REPLICATION 1 DEFAULT"
 curl -H "Content-Type: application/json" http://localhost:8086/write -d '
 {
     "database": "mydb",
-    "retentionPolicy": "mypolicy",
+    "retentionPolicy": "default",
     "points": [
         {
             "time": "2014-11-10T23:00:00Z",
