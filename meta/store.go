@@ -33,6 +33,12 @@ const (
 // that it is coming from a remote exec client connection.
 const ExecMagic = "EXEC"
 
+// Retention policy auto-create settings.
+const (
+	AutocreateRetentionPolicyName     = "default"
+	AutocreateRetentionPolicyReplicaN = 1
+)
+
 // Raft configuration.
 const (
 	raftLogCacheSize      = 512
@@ -568,14 +574,14 @@ func (s *Store) CreateDatabase(name string) (*DatabaseInfo, error) {
 	}
 
 	if s.retentionAutocreate {
-		rpi := NewRetentionPolicyInfo("default")
-		rpi.ReplicaN = 1
+		rpi := NewRetentionPolicyInfo(AutocreateRetentionPolicyName)
+		rpi.ReplicaN = AutocreateRetentionPolicyReplicaN
 		_, err := s.CreateRetentionPolicy(name, rpi)
 		if err != nil {
 			return nil, err
 		}
 
-		if err := s.SetDefaultRetentionPolicy(name, "default"); err != nil {
+		if err := s.SetDefaultRetentionPolicy(name, AutocreateRetentionPolicyName); err != nil {
 			return nil, err
 		}
 	}
