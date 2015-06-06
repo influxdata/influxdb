@@ -28,23 +28,25 @@ const (
 
 // Config represents the meta configuration.
 type Config struct {
-	Dir                string        `toml:"dir"`
-	Hostname           string        `toml:"hostname"`
-	BindAddress        string        `toml:"bind-address"`
-	Peers              []string      `toml:"peers"`
-	ElectionTimeout    toml.Duration `toml:"election-timeout"`
-	HeartbeatTimeout   toml.Duration `toml:"heartbeat-timeout"`
-	LeaderLeaseTimeout toml.Duration `toml:"leader-lease-timeout"`
-	CommitTimeout      toml.Duration `toml:"commit-timeout"`
+	Dir                 string        `toml:"dir"`
+	Hostname            string        `toml:"hostname"`
+	BindAddress         string        `toml:"bind-address"`
+	Peers               []string      `toml:"peers"`
+	RetentionAutocreate bool          `toml:"retention-autocreate"`
+	ElectionTimeout     toml.Duration `toml:"election-timeout"`
+	HeartbeatTimeout    toml.Duration `toml:"heartbeat-timeout"`
+	LeaderLeaseTimeout  toml.Duration `toml:"leader-lease-timeout"`
+	CommitTimeout       toml.Duration `toml:"commit-timeout"`
 }
 
 func NewConfig() Config {
 	return Config{
-		Hostname:           DefaultHostname,
-		BindAddress:        DefaultBindAddress,
-		ElectionTimeout:    toml.Duration(DefaultElectionTimeout),
-		HeartbeatTimeout:   toml.Duration(DefaultHeartbeatTimeout),
-		LeaderLeaseTimeout: toml.Duration(DefaultLeaderLeaseTimeout),
-		CommitTimeout:      toml.Duration(DefaultCommitTimeout),
+		Hostname:            DefaultHostname,
+		BindAddress:         DefaultBindAddress,
+		RetentionAutocreate: true,
+		ElectionTimeout:     toml.Duration(DefaultElectionTimeout),
+		HeartbeatTimeout:    toml.Duration(DefaultHeartbeatTimeout),
+		LeaderLeaseTimeout:  toml.Duration(DefaultLeaderLeaseTimeout),
+		CommitTimeout:       toml.Duration(DefaultCommitTimeout),
 	}
 }
