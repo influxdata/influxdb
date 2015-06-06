@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -401,8 +402,12 @@ func (s *Store) serveExecListener() {
 		// Accept next TCP connection.
 		conn, err := s.ExecListener.Accept()
 		if err != nil {
-			s.Logger.Printf("accept error: %s", err)
-			continue
+			if strings.Contains(err.Error(), "connection closed") {
+				return
+			} else {
+				s.Logger.Printf("temporary accept error: %s", err)
+				continue
+			}
 		}
 
 		// Handle connection in a separate goroutine.
