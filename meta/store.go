@@ -364,7 +364,11 @@ func (s *Store) Ready() <-chan struct{} { return s.ready }
 func (s *Store) Err() <-chan error { return s.err }
 
 // IsLeader returns true if the store is currently the leader.
-func (s *Store) IsLeader() bool { return s.raft.State() == raft.Leader }
+func (s *Store) IsLeader() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.raft.State() == raft.Leader
+}
 
 // LeaderCh returns a channel that notifies on leadership change.
 // Panics when the store has not been opened yet.

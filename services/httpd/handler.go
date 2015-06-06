@@ -22,6 +22,7 @@ import (
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/services/continuous_querier"
 	"github.com/influxdb/influxdb/tsdb"
 	"github.com/influxdb/influxdb/uuid"
 )
@@ -66,6 +67,8 @@ type Handler struct {
 		WritePoints(p *cluster.WritePointsRequest) error
 	}
 
+	ContinuousQuerier continuous_querier.ContinuousQuerier
+
 	Logger         *log.Logger
 	loggingEnabled bool // Log every HTTP access.
 	WriteTrace     bool // Detailed logging of write path
@@ -101,6 +104,10 @@ func NewHandler(requireAuthentication, loggingEnabled bool, version string) *Han
 		route{ // Ping
 			"ping-head",
 			"HEAD", "/ping", true, true, h.servePing,
+		},
+		route{ // Tell data node to run CQs that should be run
+			"process_continuous_queries",
+			"POST", "/data/process_continuous_queries", false, false, h.serveProcessContinuousQueries,
 		},
 		// route{
 		// 	"dump", // export all points in the given db.
@@ -157,6 +164,29 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.mux.ServeHTTP(w, r)
+}
+
+func (h *Handler) serveProcessContinuousQueries(w http.ResponseWriter, r *http.Request, user *meta.UserInfo) {
+	// If the continuous query service isn't configured, return 404.
+	if h.ContinuousQuerier == nil {
+		w.WriteHeader(http.StatusNotImplemented)
+		return
+	}
+
+	q := r.URL.Query()
+
+	// Get the database name (blank means all databases).
+	db := q.Get("db")
+	// Get the name of the CQ to run (blank means run all).
+	name := q.Get("name")
+
+	// Pass the request to the CQ service.
+	if err := h.ContinuousQuerier.Run(db, name); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // serveQuery parses an incoming query and, if valid, executes the query.

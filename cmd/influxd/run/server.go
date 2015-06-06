@@ -9,6 +9,7 @@ import (
 	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/services/admin"
 	"github.com/influxdb/influxdb/services/collectd"
+	"github.com/influxdb/influxdb/services/continuous_querier"
 	"github.com/influxdb/influxdb/services/graphite"
 	"github.com/influxdb/influxdb/services/httpd"
 	"github.com/influxdb/influxdb/services/opentsdb"
@@ -70,6 +71,7 @@ func NewServer(c *Config) *Server {
 	// Append services.
 	s.appendClusterService(c.Cluster)
 	s.appendAdminService(c.Admin)
+	s.appendContinuousQueryService(c.ContinuousQuery)
 	s.appendHTTPDService(c.HTTPD)
 	s.appendCollectdService(c.Collectd)
 	s.appendOpenTSDBService(c.OpenTSDB)
@@ -114,6 +116,14 @@ func (s *Server) appendHTTPDService(c httpd.Config) {
 	srv.Handler.MetaStore = s.MetaStore
 	srv.Handler.QueryExecutor = s.QueryExecutor
 	srv.Handler.PointsWriter = s.PointsWriter
+
+	// If a ContinuousQuerier service has been started, attach it.
+	for _, srvc := range s.Services {
+		if cqsrvc, ok := srvc.(continuous_querier.ContinuousQuerier); ok {
+			srv.Handler.ContinuousQuerier = cqsrvc
+		}
+	}
+
 	s.Services = append(s.Services, srv)
 }
 
@@ -146,6 +156,16 @@ func (s *Server) appendUDPService(c udp.Config) {
 		return
 	}
 	srv := udp.NewService(c)
+	srv.PointsWriter = s.PointsWriter
+}
+
+func (s *Server) appendContinuousQueryService(c continuous_querier.Config) {
+	if !c.Enabled {
+		return
+	}
+	srv := continuous_querier.NewService(c)
+	srv.MetaStore = s.MetaStore
+	srv.QueryExecutor = s.QueryExecutor
 	srv.PointsWriter = s.PointsWriter
 	s.Services = append(s.Services, srv)
 }
