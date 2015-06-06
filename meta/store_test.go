@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/tcp"
 	"github.com/influxdb/influxdb/toml"
 )
 
@@ -29,7 +31,7 @@ func TestStore_Open_ErrStoreOpen(t *testing.T) {
 	s := MustOpenStore()
 	defer s.Close()
 
-	if err := s.Open(); err != meta.ErrStoreOpen {
+	if err := s.Store.Open(); err != meta.ErrStoreOpen {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }
@@ -581,7 +583,8 @@ func TestCluster_Open(t *testing.T) {
 // Store is a test wrapper for meta.Store.
 type Store struct {
 	*meta.Store
-	Stderr bytes.Buffer
+	Listener net.Listener
+	Stderr   bytes.Buffer
 }
 
 // NewStore returns a new test wrapper for Store.
@@ -597,20 +600,48 @@ func NewStore(c meta.Config) *Store {
 func MustOpenStore() *Store {
 	s := NewStore(NewConfig(MustTempFile()))
 	if err := s.Open(); err != nil {
-		panic(err.Error())
+		panic(err)
 	}
 
 	// Wait until the server is ready.
 	select {
 	case err := <-s.Err():
-		panic(err.Error())
+		panic(err)
 	case <-s.Ready():
 	}
+
 	return s
+}
+
+// Open opens the store on a random TCP port.
+func (s *Store) Open() error {
+	// Open a TCP port.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return fmt.Errorf("listen: %s", err)
+	}
+	s.Addr = ln.Addr()
+	s.Listener = ln
+
+	// Wrap listener in a muxer.
+	mux := tcp.NewMux()
+	s.RaftListener = mux.Listen(meta.MuxRaftHeader)
+	s.ExecListener = mux.Listen(meta.MuxExecHeader)
+	go mux.Serve(ln)
+
+	// Open store.
+	if err := s.Store.Open(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // Close shuts down the store and removes all data from the path.
 func (s *Store) Close() error {
+	if s.Listener != nil {
+		s.Listener.Close()
+	}
 	defer os.RemoveAll(s.Path())
 	return s.Store.Close()
 }
@@ -665,7 +696,7 @@ func MustOpenCluster(n int) *Cluster {
 	for i, s := range c.Stores {
 		select {
 		case err := <-s.Err():
-			panic(fmt.Sprintf("store: i=%d, addr=%s, err=%s", i, s.RemoteAddr(), err))
+			panic(fmt.Sprintf("store: i=%d, addr=%s, err=%s", i, s.Addr.String(), err))
 		case <-s.Ready():
 		}
 	}
@@ -681,7 +712,7 @@ func (c *Cluster) Open() error {
 			if err := s.Open(); err != nil {
 				return fmt.Errorf("open test store #%d: %s", i, err)
 			}
-			peers[i] = s.RemoteAddr()
+			peers[i] = s.Addr.String()
 		}
 
 		// Reset peers on all stores.

@@ -2,9 +2,12 @@ package cluster_test
 
 import (
 	"fmt"
+	"net"
 	"time"
 
+	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/tcp"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -22,11 +25,30 @@ func (m *metaStore) Node(nodeID uint64) (*meta.NodeInfo, error) {
 type testService struct {
 	nodeID         uint64
 	writeShardFunc func(shardID uint64, points []tsdb.Point) error
+	ln             net.Listener
+	muxln          net.Listener
 }
 
 func newTestService(f func(shardID uint64, points []tsdb.Point) error) testService {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		panic(err)
+	}
+
+	mux := tcp.NewMux()
+	muxln := mux.Listen(cluster.MuxHeader)
+	go mux.Serve(ln)
+
 	return testService{
 		writeShardFunc: f,
+		ln:             ln,
+		muxln:          muxln,
+	}
+}
+
+func (ts *testService) Close() {
+	if ts.ln != nil {
+		ts.ln.Close()
 	}
 }
 

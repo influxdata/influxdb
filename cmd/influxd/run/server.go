@@ -2,6 +2,7 @@ package run
 
 import (
 	"fmt"
+	"net"
 	"time"
 
 	"github.com/influxdb/influxdb/cluster"
@@ -13,6 +14,7 @@ import (
 	"github.com/influxdb/influxdb/services/opentsdb"
 	"github.com/influxdb/influxdb/services/retention"
 	"github.com/influxdb/influxdb/services/udp"
+	"github.com/influxdb/influxdb/tcp"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -22,6 +24,10 @@ import (
 type Server struct {
 	err     chan error
 	closing chan struct{}
+
+	Hostname    string
+	BindAddress string
+	Listener    net.Listener
 
 	MetaStore     *meta.Store
 	TSDBStore     *tsdb.Store
@@ -36,8 +42,12 @@ type Server struct {
 func NewServer(c *Config) *Server {
 	// Construct base meta store and data store.
 	s := &Server{
-		err:       make(chan error),
-		closing:   make(chan struct{}),
+		err:     make(chan error),
+		closing: make(chan struct{}),
+
+		Hostname:    c.Meta.Hostname,
+		BindAddress: c.Meta.BindAddress,
+
 		MetaStore: meta.NewStore(c.Meta),
 		TSDBStore: tsdb.NewStore(c.Data.Dir),
 	}
@@ -146,6 +156,31 @@ func (s *Server) Err() <-chan error { return s.err }
 // Open opens the meta and data store and all services.
 func (s *Server) Open() error {
 	if err := func() error {
+		// Resolve host to address.
+		_, port, err := net.SplitHostPort(s.BindAddress)
+		if err != nil {
+			return fmt.Errorf("split bind address: %s", err)
+		}
+		hostport := net.JoinHostPort(s.Hostname, port)
+		addr, err := net.ResolveTCPAddr("tcp", hostport)
+		if err != nil {
+			return fmt.Errorf("resolve tcp: addr=%s, err=%s", hostport, err)
+		}
+		s.MetaStore.Addr = addr
+
+		// Open shared TCP connection.
+		ln, err := net.Listen("tcp", s.BindAddress)
+		if err != nil {
+			return fmt.Errorf("listen: %s", err)
+		}
+		s.Listener = ln
+
+		// Multiplex listener.
+		mux := tcp.NewMux()
+		s.MetaStore.RaftListener = mux.Listen(meta.MuxRaftHeader)
+		s.MetaStore.ExecListener = mux.Listen(meta.MuxExecHeader)
+		s.Services[0].(*cluster.Service).Listener = mux.Listen(cluster.MuxHeader)
+
 		// Open meta store.
 		if err := s.MetaStore.Open(); err != nil {
 			return fmt.Errorf("open meta store: %s", err)
@@ -178,6 +213,9 @@ func (s *Server) Open() error {
 
 // Close shuts down the meta and data stores and all services.
 func (s *Server) Close() error {
+	if s.Listener != nil {
+		s.Listener.Close()
+	}
 	if s.MetaStore != nil {
 		s.MetaStore.Close()
 	}

@@ -22,6 +22,16 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// tcp.Mux header bytes.
+const (
+	MuxRaftHeader = 0
+	MuxExecHeader = 1
+)
+
+// ExecMagic is the first 4 bytes sent to a remote exec connection to verify
+// that it is coming from a remote exec client connection.
+const ExecMagic = "EXEC"
+
 // Raft configuration.
 const (
 	raftLogCacheSize      = 512
@@ -43,7 +53,6 @@ type Store struct {
 
 	data *Data
 
-	ln         *net.TCPListener
 	remoteAddr net.Addr
 	raft       *raft.Raft
 	raftLayer  *raftLayer
@@ -56,11 +65,12 @@ type Store struct {
 	closing chan struct{}
 	wg      sync.WaitGroup
 
-	// The advertised hostname of the store.
-	Hostname string
+	// The listeners to accept raft and remote exec connections from.
+	RaftListener net.Listener
+	ExecListener net.Listener
 
-	// The address the TCP connection will bind to.
-	BindAddress string
+	// The advertised hostname of the store.
+	Addr net.Addr
 
 	// The amount of time before a follower starts a new election.
 	HeartbeatTimeout time.Duration
@@ -89,8 +99,6 @@ func NewStore(c Config) *Store {
 		err:     make(chan error),
 		closing: make(chan struct{}),
 
-		Hostname:           c.Hostname,
-		BindAddress:        c.BindAddress,
 		HeartbeatTimeout:   time.Duration(c.HeartbeatTimeout),
 		ElectionTimeout:    time.Duration(c.ElectionTimeout),
 		LeaderLeaseTimeout: time.Duration(c.LeaderLeaseTimeout),
@@ -108,6 +116,13 @@ func (s *Store) IDPath() string { return filepath.Join(s.path, "id") }
 
 // Open opens and initializes the raft store.
 func (s *Store) Open() error {
+	// Verify listeners are set.
+	if s.RaftListener == nil {
+		panic("Store.RaftListener not set")
+	} else if s.ExecListener == nil {
+		panic("Store.ExecListener not set")
+	}
+
 	if err := func() error {
 		s.mu.Lock()
 		defer s.mu.Unlock()
@@ -146,7 +161,7 @@ func (s *Store) Open() error {
 
 	// Begin serving listener.
 	s.wg.Add(1)
-	go s.serve()
+	go s.serveExecListener()
 
 	// If the ID doesn't exist then create a new node.
 	if s.id == 0 {
@@ -171,24 +186,8 @@ func (s *Store) openRaft() error {
 	// If no peers are set in the config then start as a single server.
 	config.EnableSingleNode = (len(s.peers) == 0)
 
-	// Begin listening to TCP port.
-	addr, err := net.ResolveTCPAddr("tcp", s.BindAddress)
-	if err != nil {
-		return fmt.Errorf("resolve tcp addr: %s", err)
-	}
-	ln, err := net.ListenTCP("tcp", addr)
-	if err != nil {
-		return fmt.Errorf("listen tcp: %s", err)
-	}
-	s.ln = ln
-
 	// Build raft layer to multiplex listener.
-	addr, err = net.ResolveTCPAddr("tcp", net.JoinHostPort(s.Hostname, strconv.Itoa(s.ln.Addr().(*net.TCPAddr).Port)))
-	if err != nil {
-		return fmt.Errorf("resolve remote addr: %s", err)
-	}
-	s.remoteAddr = addr
-	s.raftLayer = newRaftLayer(s.remoteAddr)
+	s.raftLayer = newRaftLayer(s.RaftListener, s.Addr)
 
 	// Create a transport layer
 	s.transport = raft.NewNetworkTransport(s.raftLayer, 3, 10*time.Second, os.Stderr)
@@ -317,7 +316,7 @@ func (s *Store) createLocalNode() error {
 	}
 
 	// Create new node.
-	ni, err := s.CreateNode(s.RemoteAddr())
+	ni, err := s.CreateNode(s.Addr.String())
 	if err != nil {
 		return fmt.Errorf("create node: %s", err)
 	}
@@ -330,7 +329,7 @@ func (s *Store) createLocalNode() error {
 	// Set ID locally.
 	s.id = ni.ID
 
-	s.Logger.Printf("created local node: id=%d, host=%s", s.id, s.RemoteAddr())
+	s.Logger.Printf("created local node: id=%d, host=%s", s.id, s.Addr.String())
 
 	return nil
 }
@@ -389,24 +388,14 @@ func (s *Store) SetPeers(addrs []string) error {
 	return s.raft.SetPeers(a).Error()
 }
 
-// RemoteAddr returns the advertised hostname and port of the store.
-func (s *Store) RemoteAddr() string {
-	return s.remoteAddr.String()
-}
-
-// LocalAddr returns the address that the raft server is listening on.
-func (s *Store) LocalAddr() string {
-	return s.ln.Addr().String()
-}
-
-// serve multiplexes the listener across raft and forwarding requests.
+// serveExecListener processes remote exec connections.
 // This function runs in a separate goroutine.
-func (s *Store) serve() {
+func (s *Store) serveExecListener() {
 	defer s.wg.Done()
 
 	for {
 		// Accept next TCP connection.
-		conn, err := s.ln.Accept()
+		conn, err := s.ExecListener.Accept()
 		if err != nil {
 			s.Logger.Printf("accept error: %s", err)
 			continue
@@ -414,34 +403,7 @@ func (s *Store) serve() {
 
 		// Handle connection in a separate goroutine.
 		s.wg.Add(1)
-		go s.handleConn(conn)
-	}
-}
-
-// handleConn processes a connection received from the listener.
-func (s *Store) handleConn(conn net.Conn) {
-	defer s.wg.Done()
-
-	if err := func() error {
-		// Read marker byte to multiplex.
-		var typ [1]byte
-		if _, err := io.ReadFull(conn, typ[:]); err != nil {
-			return err
-		}
-
-		switch typ[0] {
-		case raftLayerRaft:
-			s.raftLayer.Handoff(conn)
-		case raftLayerExec:
-			s.handleExecConn(conn)
-		default:
-			return fmt.Errorf("invalid conn type: %d", typ[0])
-		}
-
-		return nil
-	}(); err != nil {
-		conn.Close()
-		return
+		go s.handleExecConn(conn)
 	}
 }
 
@@ -452,9 +414,9 @@ func (s *Store) handleExecConn(conn net.Conn) {
 		// Read marker message.
 		b := make([]byte, 4)
 		if _, err := io.ReadFull(conn, b); err != nil {
-			return fmt.Errorf("read marker message: %s", err)
-		} else if string(b) != `META` {
-			return fmt.Errorf("invalid meta marker message: %q", string(b))
+			return fmt.Errorf("read magic: %s", err)
+		} else if string(b) != ExecMagic {
+			return fmt.Errorf("invalid exec magic: %q", string(b))
 		}
 
 		// Read command size.
@@ -1085,13 +1047,13 @@ func (s *Store) remoteExec(b []byte) error {
 	defer conn.Close()
 
 	// Write a marker byte for exec messages.
-	_, err = conn.Write([]byte{raftLayerExec})
+	_, err = conn.Write([]byte{MuxExecHeader})
 	if err != nil {
 		return err
 	}
 
 	// Write a marker message.
-	_, err = conn.Write([]byte("META"))
+	_, err = conn.Write([]byte(ExecMagic))
 	if err != nil {
 		return err
 	}
@@ -1491,21 +1453,18 @@ func (s *storeFSMSnapshot) Persist(sink raft.SnapshotSink) error {
 // Release is invoked when we are finished with the snapshot
 func (s *storeFSMSnapshot) Release() {}
 
-const (
-	raftLayerRaft = byte(iota)
-	raftLayerExec
-)
-
 // raftLayer wraps the connection so it can be re-used for forwarding.
 type raftLayer struct {
+	ln     net.Listener
 	addr   net.Addr
 	conn   chan net.Conn
 	closed chan struct{}
 }
 
 // newRaftLayer returns a new instance of raftLayer.
-func newRaftLayer(addr net.Addr) *raftLayer {
+func newRaftLayer(ln net.Listener, addr net.Addr) *raftLayer {
 	return &raftLayer{
+		ln:     ln,
 		addr:   addr,
 		conn:   make(chan net.Conn),
 		closed: make(chan struct{}),
@@ -1523,7 +1482,7 @@ func (l *raftLayer) Dial(addr string, timeout time.Duration) (net.Conn, error) {
 	}
 
 	// Write a marker byte for raft messages.
-	_, err = conn.Write([]byte{raftLayerRaft})
+	_, err = conn.Write([]byte{MuxRaftHeader})
 	if err != nil {
 		conn.Close()
 		return nil, err
@@ -1532,34 +1491,10 @@ func (l *raftLayer) Dial(addr string, timeout time.Duration) (net.Conn, error) {
 }
 
 // Accept waits for the next connection.
-func (l *raftLayer) Accept() (net.Conn, error) {
-	select {
-	case conn := <-l.conn:
-		return conn, nil
-	case <-l.closed:
-		return nil, errors.New("raft layer closed")
-	}
-}
-
-// Handoff sends the connection to the layer to be handled by raft.
-func (l *raftLayer) Handoff(c net.Conn) error {
-	select {
-	case l.conn <- c:
-		return nil
-	case <-l.closed:
-		return errors.New("raft layer closed")
-	}
-}
+func (l *raftLayer) Accept() (net.Conn, error) { return l.ln.Accept() }
 
 // Close closes the layer.
-func (l *raftLayer) Close() error {
-	select {
-	case <-l.closed:
-	default:
-		close(l.closed)
-	}
-	return nil
-}
+func (l *raftLayer) Close() error { return l.ln.Close() }
 
 // RetentionPolicyUpdate represents retention policy fields to be updated.
 type RetentionPolicyUpdate struct {

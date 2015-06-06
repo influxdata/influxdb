@@ -143,7 +143,6 @@ func (s *Server) Write(db, rp, body string, params url.Values) (results string, 
 // NewConfig returns the default config with temporary paths.
 func NewConfig() *run.Config {
 	c := run.NewConfig()
-	c.Cluster.BindAddress = "127.0.0.1:0"
 	c.Meta.Dir = MustTempFile()
 	c.Meta.BindAddress = "127.0.0.1:0"
 	c.Meta.HeartbeatTimeout = toml.Duration(50 * time.Millisecond)
