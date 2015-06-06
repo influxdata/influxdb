@@ -576,8 +576,7 @@ func (s *Store) CreateDatabase(name string) (*DatabaseInfo, error) {
 	if s.retentionAutocreate {
 		rpi := NewRetentionPolicyInfo(AutocreateRetentionPolicyName)
 		rpi.ReplicaN = AutocreateRetentionPolicyReplicaN
-		_, err := s.CreateRetentionPolicy(name, rpi)
-		if err != nil {
+		if _, err := s.CreateRetentionPolicy(name, rpi); err != nil {
 			return nil, err
 		}
 
