@@ -66,6 +66,8 @@ type Store struct {
 	closing chan struct{}
 	wg      sync.WaitGroup
 
+	RetentionAutocreate bool
+
 	// The listeners to accept raft and remote exec connections from.
 	RaftListener net.Listener
 	ExecListener net.Listener
@@ -562,6 +564,20 @@ func (s *Store) CreateDatabase(name string) (*DatabaseInfo, error) {
 	); err != nil {
 		return nil, err
 	}
+
+	if s.RetentionAutocreate {
+		rpi := NewRetentionPolicyInfo("default")
+		rpi.ReplicaN = 1
+		_, err := s.CreateRetentionPolicy(name, rpi)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := s.SetDefaultRetentionPolicy(name, "default"); err != nil {
+			return nil, err
+		}
+	}
+
 	return s.Database(name)
 }
 
