@@ -136,7 +136,10 @@ func (s *Shard) WritePoints(points []Point) error {
 		// marshal the raw data if it hasn't been marshaled already
 		if p.Data() == nil {
 			// this was populated earlier, don't need to validate that it's there.
-			data, err := s.measurementFields[p.Name()].codec.EncodeFields(p.Fields())
+			s.mu.RLock()
+			mf := s.measurementFields[p.Name()]
+			s.mu.RUnlock()
+			data, err := mf.codec.EncodeFields(p.Fields())
 			if err != nil {
 				return err
 			}
