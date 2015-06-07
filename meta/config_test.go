@@ -17,6 +17,8 @@ election-timeout = "10s"
 heartbeat-timeout = "20s"
 leader-lease-timeout = "30h"
 commit-timeout = "40m"
+retention-policy = "168h"
+shard-duration = "24h"
 `, &c); err != nil {
 		t.Fatal(err)
 	}
@@ -32,5 +34,9 @@ commit-timeout = "40m"
 		t.Fatalf("unexpected leader lease timeout: %v", c.LeaderLeaseTimeout)
 	} else if time.Duration(c.CommitTimeout) != 40*time.Minute {
 		t.Fatalf("unexpected commit timeout: %v", c.CommitTimeout)
+	} else if time.Duration(c.RetentionPolicy) != 24*7*time.Hour {
+		t.Fatalf("unexpected retention policy duration: %v", c.RetentionPolicy)
+	} else if time.Duration(c.ShardDuration) != 24*time.Hour {
+		t.Fatalf("unexpected shard duration: %v", c.ShardDuration)
 	}
 }
