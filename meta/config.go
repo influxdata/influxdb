@@ -32,7 +32,7 @@ type Config struct {
 	Hostname            string        `toml:"hostname"`
 	BindAddress         string        `toml:"bind-address"`
 	Peers               []string      `toml:"peers"`
-	RetentionAutocreate bool          `toml:"retention-autocreate"`
+	RetentionAutoCreate bool          `toml:"retention-autocreate"`
 	ElectionTimeout     toml.Duration `toml:"election-timeout"`
 	HeartbeatTimeout    toml.Duration `toml:"heartbeat-timeout"`
 	LeaderLeaseTimeout  toml.Duration `toml:"leader-lease-timeout"`
@@ -43,7 +43,7 @@ func NewConfig() Config {
 	return Config{
 		Hostname:            DefaultHostname,
 		BindAddress:         DefaultBindAddress,
-		RetentionAutocreate: true,
+		RetentionAutoCreate: true,
 		ElectionTimeout:     toml.Duration(DefaultElectionTimeout),
 		HeartbeatTimeout:    toml.Duration(DefaultHeartbeatTimeout),
 		LeaderLeaseTimeout:  toml.Duration(DefaultLeaderLeaseTimeout),

@@ -35,8 +35,8 @@ const ExecMagic = "EXEC"
 
 // Retention policy auto-create settings.
 const (
-	AutocreateRetentionPolicyName     = "default"
-	AutocreateRetentionPolicyReplicaN = 1
+	AutoCreateRetentionPolicyName     = "default"
+	AutoCreateRetentionPolicyReplicaN = 1
 )
 
 // Raft configuration.
@@ -72,7 +72,7 @@ type Store struct {
 	closing chan struct{}
 	wg      sync.WaitGroup
 
-	retentionAutocreate bool
+	retentionAutoCreate bool
 
 	// The listeners to accept raft and remote exec connections from.
 	RaftListener net.Listener
@@ -108,7 +108,7 @@ func NewStore(c Config) *Store {
 		err:     make(chan error),
 		closing: make(chan struct{}),
 
-		retentionAutocreate: c.RetentionAutocreate,
+		retentionAutoCreate: c.RetentionAutoCreate,
 
 		HeartbeatTimeout:   time.Duration(c.HeartbeatTimeout),
 		ElectionTimeout:    time.Duration(c.ElectionTimeout),
@@ -573,14 +573,14 @@ func (s *Store) CreateDatabase(name string) (*DatabaseInfo, error) {
 		return nil, err
 	}
 
-	if s.retentionAutocreate {
-		rpi := NewRetentionPolicyInfo(AutocreateRetentionPolicyName)
-		rpi.ReplicaN = AutocreateRetentionPolicyReplicaN
+	if s.retentionAutoCreate {
+		rpi := NewRetentionPolicyInfo(AutoCreateRetentionPolicyName)
+		rpi.ReplicaN = AutoCreateRetentionPolicyReplicaN
 		if _, err := s.CreateRetentionPolicy(name, rpi); err != nil {
 			return nil, err
 		}
 
-		if err := s.SetDefaultRetentionPolicy(name, AutocreateRetentionPolicyName); err != nil {
+		if err := s.SetDefaultRetentionPolicy(name, AutoCreateRetentionPolicyName); err != nil {
 			return nil, err
 		}
 	}
