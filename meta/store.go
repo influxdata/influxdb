@@ -33,6 +33,12 @@ const (
 // that it is coming from a remote exec client connection.
 const ExecMagic = "EXEC"
 
+// Retention policy auto-create settings.
+const (
+	AutoCreateRetentionPolicyName     = "default"
+	AutoCreateRetentionPolicyReplicaN = 1
+)
+
 // Raft configuration.
 const (
 	raftLogCacheSize      = 512
@@ -65,6 +71,8 @@ type Store struct {
 	err     chan error
 	closing chan struct{}
 	wg      sync.WaitGroup
+
+	retentionAutoCreate bool
 
 	// The listeners to accept raft and remote exec connections from.
 	RaftListener net.Listener
@@ -99,6 +107,8 @@ func NewStore(c Config) *Store {
 		ready:   make(chan struct{}),
 		err:     make(chan error),
 		closing: make(chan struct{}),
+
+		retentionAutoCreate: c.RetentionAutoCreate,
 
 		HeartbeatTimeout:   time.Duration(c.HeartbeatTimeout),
 		ElectionTimeout:    time.Duration(c.ElectionTimeout),
@@ -562,6 +572,19 @@ func (s *Store) CreateDatabase(name string) (*DatabaseInfo, error) {
 	); err != nil {
 		return nil, err
 	}
+
+	if s.retentionAutoCreate {
+		rpi := NewRetentionPolicyInfo(AutoCreateRetentionPolicyName)
+		rpi.ReplicaN = AutoCreateRetentionPolicyReplicaN
+		if _, err := s.CreateRetentionPolicy(name, rpi); err != nil {
+			return nil, err
+		}
+
+		if err := s.SetDefaultRetentionPolicy(name, AutoCreateRetentionPolicyName); err != nil {
+			return nil, err
+		}
+	}
+
 	return s.Database(name)
 }
 

@@ -74,7 +74,9 @@ func TestServer_DatabaseCommands(t *testing.T) {
 // Ensure retention policy commands work.
 func TestServer_RetentionPolicyCommands(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig(), "")
+	c := NewConfig()
+	c.Meta.RetentionAutoCreate = false
+	s := OpenServer(c, "")
 	defer s.Close()
 
 	// Create a database.
@@ -118,6 +120,40 @@ func TestServer_RetentionPolicyCommands(t *testing.T) {
 				name:    "show retention policy should be empty after dropping them",
 				command: `SHOW RETENTION POLICIES db0`,
 				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"]}]}]}`,
+			},
+		},
+	}
+
+	for _, query := range test.queries {
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
+// Ensure the autocreation of retention policy works.
+func TestServer_DatabaseRetentionPolicyAutoCreate(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	test := Test{
+		queries: []*Query{
+			&Query{
+				name:    "create database should succeed",
+				command: `CREATE DATABASE db0`,
+				exp:     `{"results":[{}]}`,
+			},
+			&Query{
+				name:    "show retention policies should return auto-created policy",
+				command: `SHOW RETENTION POLICIES db0`,
+				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["default","168h0m0s",1,true]]}]}]}`,
 			},
 		},
 	}
