@@ -1,4 +1,8 @@
-## v0.9.0-rc32 [unreleased]
+## v0.9.0-rc32 [2015-06-07]
+
+### Release Notes
+
+This released introduced an updated write path and clustering design. The data format has also changed, so you'll need to wipe out your data to upgrade from RC31. There should be no other data changes before v0.9.0 is released.
 
 ### Features
 - [1997](https://github.com/influxdb/influxdb/pull/1997): Update SELECT * to return tag values.
@@ -7,7 +11,7 @@
 - [2683](https://github.com/influxdb/influxdb/issues/2683): Add batching support to Graphite inputs.
 - [2687](https://github.com/influxdb/influxdb/issues/2687): Add batching support to Collectd inputs.
 - [2696](https://github.com/influxdb/influxdb/pull/2696): Add line protocol. This is now the preferred way to write data.
-- [2751](https://github.com/influxdb/influxdb/pull/2751): Add UDP input. UPD only supports the line protocol now.
+- [2751](https://github.com/influxdb/influxdb/pull/2751): Add UDP input. UDP only supports the line protocol now.
 - [2684](https://github.com/influxdb/influxdb/pull/2684): Include client timeout configuration. Thanks @vladlopes!
 
 ### Bugfixes
