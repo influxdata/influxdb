@@ -431,6 +431,8 @@ func (s *Store) serveExecListener() {
 
 // handleExecConn reads a command from the connection and executes it.
 func (s *Store) handleExecConn(conn net.Conn) {
+	defer s.wg.Done()
+
 	// Read and execute command.
 	err := func() error {
 		// Read marker message.
