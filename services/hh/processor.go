@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -23,6 +24,7 @@ type Processor struct {
 
 	queues map[uint64]*queue
 	writer shardWriter
+	Logger *log.Logger
 }
 
 type ProcessorOptions struct {
@@ -137,6 +139,7 @@ func (p *Processor) Process() error {
 
 			// Try to send the write to the node
 			if err := p.writer.WriteShard(shardID, nodeID, points); err != nil {
+				p.Logger.Printf("remote write failed: %v", err)
 				break
 			}
 
