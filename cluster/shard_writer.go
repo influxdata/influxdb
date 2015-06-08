@@ -43,7 +43,9 @@ func (w *ShardWriter) WriteShard(shardID, ownerID uint64, points []tsdb.Point) e
 	if !ok {
 		panic("wrong connection type")
 	}
-	defer conn.Close() // return to pool
+	defer func(conn net.Conn) {
+		conn.Close() // return to pool
+	}(conn)
 
 	// Build write request.
 	var request WriteShardRequest
