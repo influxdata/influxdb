@@ -466,9 +466,9 @@ func TestServer_Query_Multiple_Measurements(t *testing.T) {
 
 	test.addQueries([]*Query{
 		&Query{
-			name:    "tag without field should return error",
+			name:    "measurement in one shard but not another shouldn't panic server",
 			command: `SELECT host,value  FROM db0.rp0.cpu`,
-			exp:     `{"results":[{"error":"select statement must include at least one field or function call"}]}`,
+			exp:     `{"results":[{"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","value"],"values":[["2000-01-01T00:00:00Z",100]]}]}]}`,
 		},
 	}...)
 
