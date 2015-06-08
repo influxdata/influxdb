@@ -4,6 +4,7 @@
 
 - [2816](https://github.com/influxdb/influxdb/pull/2816) -- enable UDP service. Thanks @renan-
 - [2824](https://github.com/influxdb/influxdb/pull/2824) -- Add missing call to WaitGroup.Done in execConn. Thanks @liyichao
+- [2823](https://github.com/influxdb/influxdb/pull/2823) -- Convert OpenTSDB to a service.
 
 ## v0.9.0-rc32 [2015-06-07]
 

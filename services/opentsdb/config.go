@@ -1,5 +1,16 @@
 package opentsdb
 
+const (
+	// DefaultBindAddress is the default address that the service binds to.
+	DefaultBindAddress = ":4242"
+
+	// DefaultDatabase is the default database used for writes.
+	DefaultDatabase = "opentsdb"
+
+	// DefaultRetentionPolicy is the default retention policy used for writes.
+	DefaultRetentionPolicy = ""
+)
+
 type Config struct {
 	Enabled         bool   `toml:"enabled"`
 	BindAddress     string `toml:"bind-address"`
@@ -8,5 +19,9 @@ type Config struct {
 }
 
 func NewConfig() Config {
-	return Config{}
+	return Config{
+		BindAddress:     DefaultBindAddress,
+		Database:        DefaultDatabase,
+		RetentionPolicy: DefaultRetentionPolicy,
+	}
 }

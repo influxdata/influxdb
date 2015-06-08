@@ -147,6 +147,7 @@ func (s *Server) appendOpenTSDBService(c opentsdb.Config) {
 		return
 	}
 	srv := opentsdb.NewService(c)
+	srv.PointsWriter = s.PointsWriter
 	s.Services = append(s.Services, srv)
 }
 
