@@ -47,6 +47,7 @@ func NewService(c Config, w shardWriter) *Service {
 	if err != nil {
 		s.Logger.Fatalf("Failed to start hinted handoff processor: %v", err)
 	}
+	processor.Logger = s.Logger
 	s.HintedHandoff = processor
 	return s
 }
