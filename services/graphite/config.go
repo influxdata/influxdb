@@ -3,11 +3,20 @@ package graphite
 import "strings"
 
 const (
+	// DefaultBindAddress is the default binding interface if none is specified.
+	DefaultBindAddress = ":2003"
+
 	// DefaultDatabase is the default database if none is specified.
 	DefaultDatabase = "graphite"
 
 	// DefaultNameSeparator represents the default field separator.
 	DefaultNameSeparator = "."
+
+	// DefaultNamePosition represents the default location of the name.
+	DefaultNamePosition = "last"
+
+	// DefaultProtocol is the default IP protocol used by the Graphite input.
+	DefaultProtocol = "tcp"
 )
 
 // Config represents the configuration for Graphite endpoints.
@@ -23,7 +32,10 @@ type Config struct {
 // NewConfig returns a new Config with defaults.
 func NewConfig() Config {
 	return Config{
+		BindAddress:   DefaultBindAddress,
 		Database:      DefaultDatabase,
+		Protocol:      DefaultProtocol,
+		NamePosition:  DefaultNamePosition,
 		NameSeparator: DefaultNameSeparator,
 	}
 }

@@ -4,18 +4,19 @@ import (
 	"testing"
 
 	"github.com/BurntSushi/toml"
-	"github.com/influxdb/influxdb/services/httpd"
+	"github.com/influxdb/influxdb/services/graphite"
 )
 
 func TestConfig_Parse(t *testing.T) {
 	// Parse configuration.
-	var c httpd.Config
+	var c graphite.Config
 	if _, err := toml.Decode(`
 bind-address = ":8080"
-auth-enabled = true
-log-enabled = true
-write-tracing = true
-pprof-enabled = true
+database = "mydb"
+enabled = true
+protocol = "tcp"
+name-position = "first"
+name-separator = "."
 `, &c); err != nil {
 		t.Fatal(err)
 	}
@@ -23,13 +24,15 @@ pprof-enabled = true
 	// Validate configuration.
 	if c.BindAddress != ":8080" {
 		t.Fatalf("unexpected bind address: %s", c.BindAddress)
-	} else if c.AuthEnabled != true {
-		t.Fatalf("unexpected auth enabled: %v", c.AuthEnabled)
-	} else if c.LogEnabled != true {
-		t.Fatalf("unexpected log enabled: %v", c.LogEnabled)
-	} else if c.WriteTracing != true {
-		t.Fatalf("unexpected write tracing: %v", c.WriteTracing)
-	} else if c.PprofEnabled != true {
-		t.Fatalf("unexpected pprof enabled: %v", c.PprofEnabled)
+	} else if c.Database != "mydb" {
+		t.Fatalf("unexpected database selected: %s", c.Database)
+	} else if c.Enabled != true {
+		t.Fatalf("unexpected graphite enabled: %v", c.Enabled)
+	} else if c.Protocol != "tcp" {
+		t.Fatalf("unexpected graphite protocol: %s", c.Protocol)
+	} else if c.NamePosition != "first" {
+		t.Fatalf("unexpected graphite name position: %s", c.NamePosition)
+	} else if c.NameSeparator != "." {
+		t.Fatalf("unexpected graphite name separator: %s", c.NameSeparator)
 	}
 }
