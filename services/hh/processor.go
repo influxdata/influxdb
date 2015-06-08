@@ -119,34 +119,47 @@ func (p *Processor) Process() error {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	// FIXME: each queue should be processed in its own goroutine
-	for nodeID, queue := range p.queues {
-		for {
-			// Get the current block from the queue
-			buf, err := queue.Current()
-			if err != nil {
-				break
-			}
+	res := make(chan error, len(p.queues))
+	for nodeID, q := range p.queues {
+		go func(nodeID uint64, q *queue) {
+			for {
+				// Get the current block from the queue
+				buf, err := q.Current()
+				if err != nil {
+					res <- nil
+					break
+				}
 
-			// unmarshal the byte slice back to shard ID and points
-			shardID, points, err := p.unmarshalWrite(buf)
-			if err != nil {
-				// TODO: If we ever get and error here, we should probably drop the
-				// the write and let anti-entropy resolve it.  This would be an urecoverable
-				// error and could block the queue indefinitely.
-				return err
-			}
+				// unmarshal the byte slice back to shard ID and points
+				shardID, points, err := p.unmarshalWrite(buf)
+				if err != nil {
+					// TODO: If we ever get and error here, we should probably drop the
+					// the write and let anti-entropy resolve it.  This would be an urecoverable
+					// error and could block the queue indefinitely.
+					res <- err
+					return
+				}
 
-			// Try to send the write to the node
-			if err := p.writer.WriteShard(shardID, nodeID, points); err != nil {
-				p.Logger.Printf("remote write failed: %v", err)
-				break
-			}
+				// Try to send the write to the node
+				if err := p.writer.WriteShard(shardID, nodeID, points); err != nil {
+					p.Logger.Printf("remote write failed: %v", err)
+					res <- nil
+					break
+				}
 
-			// If we get here, the write succeed to advance the queue to the next item
-			if err := queue.Advance(); err != nil {
-				return err
+				// If we get here, the write succeed to advance the queue to the next item
+				if err := q.Advance(); err != nil {
+					res <- err
+					return
+				}
 			}
+		}(nodeID, q)
+	}
+
+	for range p.queues {
+		err := <-res
+		if err != nil {
+			return err
 		}
 	}
 	return nil

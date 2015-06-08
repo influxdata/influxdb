@@ -121,11 +121,17 @@ func (s *Service) handleConn(conn net.Conn) {
 		conn.Close()
 	}()
 
-	s.Logger.Println("accept remote write connection")
+	s.Logger.Printf("accept remote write connection from %v\n", conn.RemoteAddr())
+	defer func() {
+		s.Logger.Printf("close remote write connection from %v\n", conn.RemoteAddr())
+	}()
 	for {
 		// Read type-length-value.
 		typ, buf, err := ReadTLV(conn)
 		if err != nil {
+			if strings.HasSuffix(err.Error(), "EOF") {
+				return
+			}
 			s.Logger.Printf("unable to read type-length-value %s", err)
 			return
 		}
