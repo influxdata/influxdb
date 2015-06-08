@@ -20,6 +20,7 @@ name-position = "first"
 name-separator = "."
 batch-size=100
 batch-timeout="1s"
+consistency-level="one"
 `, &c); err != nil {
 		t.Fatal(err)
 	}
@@ -41,5 +42,7 @@ batch-timeout="1s"
 		t.Fatalf("unexpected graphite batch size: %d", c.BatchSize)
 	} else if time.Duration(c.BatchTimeout) != time.Second {
 		t.Fatalf("unexpected graphite batch timeout: %v", c.BatchTimeout)
+	} else if c.ConsistencyLevel != "one" {
+		t.Fatalf("unexpected graphite consistency setting: %s", c.ConsistencyLevel)
 	}
 }
