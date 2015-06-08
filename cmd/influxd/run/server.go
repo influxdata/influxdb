@@ -156,6 +156,7 @@ func (s *Server) appendGraphiteService(c graphite.Config) {
 		return
 	}
 	srv := graphite.NewService(c)
+	srv.PointsWriter = s.PointsWriter
 	s.Services = append(s.Services, srv)
 }
 
