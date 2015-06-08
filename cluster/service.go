@@ -129,6 +129,9 @@ func (s *Service) handleConn(conn net.Conn) {
 		// Read type-length-value.
 		typ, buf, err := ReadTLV(conn)
 		if err != nil {
+			if strings.HasSuffix(err.Error(), "EOF") {
+				return
+			}
 			s.Logger.Printf("unable to read type-length-value %s", err)
 			return
 		}
