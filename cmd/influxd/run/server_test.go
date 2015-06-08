@@ -38,22 +38,19 @@ func TestServer_DatabaseCommands(t *testing.T) {
 				exp:     `{"results":[{"error":"database already exists"}]}`,
 			},
 			&Query{
-				skip:    true,
-				name:    "drop database should succeed - FIXME pauldix",
+				name:    "drop database should succeed",
 				command: `DROP DATABASE db0`,
 				exp:     `{"results":[{}]}`,
 			},
 			&Query{
-				skip:    true,
-				name:    "show database should have no results - FIXME pauldix",
+				name:    "show database should have no results",
 				command: `SHOW DATABASES`,
-				exp:     `FIXME`,
+				exp:     `{"results":[{"series":[{"name":"databases","columns":["name"]}]}]}`,
 			},
 			&Query{
-				skip:    true,
-				name:    "drop database should error if it doesn't exist - FIXME pauldix",
+				name:    "drop database should error if it doesn't exist",
 				command: `DROP DATABASE db0`,
-				exp:     `FIXME`,
+				exp:     `{"results":[{"error":"database not found: db0"}]}`,
 			},
 		},
 	}
@@ -663,8 +660,23 @@ func TestServer_Query_Tags(t *testing.T) {
 
 	now := now()
 
+	writes := []string{
+		fmt.Sprintf("cpu,host=server01 value=100,core=4 %d", now.UnixNano()),
+		fmt.Sprintf("cpu,host=server02 value=50,core=2 %d", now.Add(1).UnixNano()),
+
+		fmt.Sprintf("cpu1,host=server01,region=us-west value=100 %d", mustParseTime(time.RFC3339Nano, "2015-02-28T01:03:36.703820946Z").UnixNano()),
+		fmt.Sprintf("cpu1,host=server02 value=200 %d", mustParseTime(time.RFC3339Nano, "2010-02-28T01:03:37.703820946Z").UnixNano()),
+		fmt.Sprintf("cpu1,host=server03 value=300 %d", mustParseTime(time.RFC3339Nano, "2012-02-28T01:03:38.703820946Z").UnixNano()),
+
+		fmt.Sprintf("cpu2,host=server01 value=100 %d", mustParseTime(time.RFC3339Nano, "2015-02-28T01:03:36.703820946Z").UnixNano()),
+		fmt.Sprintf("cpu2 value=200 %d", mustParseTime(time.RFC3339Nano, "2012-02-28T01:03:38.703820946Z").UnixNano()),
+
+		fmt.Sprintf("cpu3,company=acme01 value=100 %d", mustParseTime(time.RFC3339Nano, "2015-02-28T01:03:36.703820946Z").UnixNano()),
+		fmt.Sprintf("cpu3 value=200 %d", mustParseTime(time.RFC3339Nano, "2012-02-28T01:03:38.703820946Z").UnixNano()),
+	}
+
 	test := NewTest("db0", "rp0")
-	test.write = fmt.Sprintf("cpu,host=server01 value=100,core=4 %s\ncpu,host=server02 value=50,core=2 %s", strconv.FormatInt(now.UnixNano(), 10), strconv.FormatInt(now.Add(1).UnixNano(), 10))
+	test.write = strings.Join(writes, "\n")
 
 	test.addQueries([]*Query{
 		&Query{
@@ -691,6 +703,81 @@ func TestServer_Query_Tags(t *testing.T) {
 			name:    "group by tag",
 			command: `SELECT value FROM db0.rp0.cpu GROUP by host`,
 			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","value"],"values":[["%s",100]]},{"name":"cpu","tags":{"host":"server02"},"columns":["time","value"],"values":[["%s",50]]}]}]}`, now.Format(time.RFC3339Nano), now.Add(1).Format(time.RFC3339Nano)),
+		},
+		&Query{
+			name:    "single field (EQ tag value1)",
+			command: `SELECT value FROM db0.rp0.cpu1 WHERE host = 'server01'`,
+			exp:     `{"results":[{"series":[{"name":"cpu1","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",100]]}]}]}`,
+		},
+		&Query{
+			name:    "single field (2 EQ tags)",
+			command: `SELECT value FROM db0.rp0.cpu1 WHERE host = 'server01' AND region = 'us-west'`,
+			exp:     `{"results":[{"series":[{"name":"cpu1","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",100]]}]}]}`,
+		},
+		&Query{
+			name:    "single field (OR different tags)",
+			command: `SELECT value FROM db0.rp0.cpu1 WHERE host = 'server03' OR region = 'us-west'`,
+			exp:     `{"results":[{"series":[{"name":"cpu1","columns":["time","value"],"values":[["2012-02-28T01:03:38.703820946Z",300],["2015-02-28T01:03:36.703820946Z",100]]}]}]}`,
+		},
+		&Query{
+			name:    "single field (OR with non-existent tag value)",
+			command: `SELECT value FROM db0.rp0.cpu1 WHERE host = 'server01' OR host = 'server66'`,
+			exp:     `{"results":[{"series":[{"name":"cpu1","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",100]]}]}]}`,
+		},
+		&Query{
+			name:    "single field (OR with all tag values)",
+			command: `SELECT value FROM db0.rp0.cpu1 WHERE host = 'server01' OR host = 'server02' OR host = 'server03'`,
+			exp:     `{"results":[{"series":[{"name":"cpu1","columns":["time","value"],"values":[["2010-02-28T01:03:37.703820946Z",200],["2012-02-28T01:03:38.703820946Z",300],["2015-02-28T01:03:36.703820946Z",100]]}]}]}`,
+		},
+		&Query{
+			name:    "single field (1 EQ and 1 NEQ tag)",
+			command: `SELECT value FROM db0.rp0.cpu1 WHERE host = 'server01' AND region != 'us-west'`,
+			exp:     `{"results":[{}]}`,
+		},
+		&Query{
+			name:    "single field (EQ tag value2)",
+			command: `SELECT value FROM db0.rp0.cpu1 WHERE host = 'server02'`,
+			exp:     `{"results":[{"series":[{"name":"cpu1","columns":["time","value"],"values":[["2010-02-28T01:03:37.703820946Z",200]]}]}]}`,
+		},
+		&Query{
+			name:    "single field (NEQ tag value1)",
+			command: `SELECT value FROM db0.rp0.cpu1 WHERE host != 'server01'`,
+			exp:     `{"results":[{"series":[{"name":"cpu1","columns":["time","value"],"values":[["2010-02-28T01:03:37.703820946Z",200],["2012-02-28T01:03:38.703820946Z",300]]}]}]}`,
+		},
+		&Query{
+			name:    "single field (NEQ tag value1 AND NEQ tag value2)",
+			command: `SELECT value FROM db0.rp0.cpu1 WHERE host != 'server01' AND host != 'server02'`,
+			exp:     `{"results":[{"series":[{"name":"cpu1","columns":["time","value"],"values":[["2012-02-28T01:03:38.703820946Z",300]]}]}]}`,
+		},
+		&Query{
+			name:    "single field (NEQ tag value1 OR NEQ tag value2)",
+			command: `SELECT value FROM db0.rp0.cpu1 WHERE host != 'server01' OR host != 'server02'`, // Yes, this is always true, but that's the point.
+			exp:     `{"results":[{"series":[{"name":"cpu1","columns":["time","value"],"values":[["2010-02-28T01:03:37.703820946Z",200],["2012-02-28T01:03:38.703820946Z",300],["2015-02-28T01:03:36.703820946Z",100]]}]}]}`,
+		},
+		&Query{
+			name:    "single field (NEQ tag value1 AND NEQ tag value2 AND NEQ tag value3)",
+			command: `SELECT value FROM db0.rp0.cpu1 WHERE host != 'server01' AND host != 'server02' AND host != 'server03'`,
+			exp:     `{"results":[{}]}`,
+		},
+		&Query{
+			name:    "single field (NEQ tag value1, point without any tags)",
+			command: `SELECT value FROM db0.rp0.cpu2 WHERE host != 'server01'`,
+			exp:     `{"results":[{"series":[{"name":"cpu2","columns":["time","value"],"values":[["2012-02-28T01:03:38.703820946Z",200]]}]}]}`,
+		},
+		&Query{
+			name:    "single field (NEQ tag value1, point without any tags)",
+			command: `SELECT value FROM db0.rp0.cpu3 WHERE company !~ /acme01/`,
+			exp:     `{"results":[{"series":[{"name":"cpu3","columns":["time","value"],"values":[["2012-02-28T01:03:38.703820946Z",200]]}]}]}`,
+		},
+		&Query{
+			name:    "single field (regex tag match)",
+			command: `SELECT value FROM db0.rp0.cpu3 WHERE company =~ /acme01/`,
+			exp:     `{"results":[{"series":[{"name":"cpu3","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",100]]}]}]}`,
+		},
+		&Query{
+			name:    "single field (regex tag match)",
+			command: `SELECT value FROM db0.rp0.cpu3 WHERE company !~ /acme[23]/`,
+			exp:     `{"results":[{"series":[{"name":"cpu3","columns":["time","value"],"values":[["2012-02-28T01:03:38.703820946Z",200],["2015-02-28T01:03:36.703820946Z",100]]}]}]}`,
 		},
 	}...)
 
