@@ -1,6 +1,10 @@
 package graphite
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/influxdb/influxdb/toml"
+)
 
 const (
 	// DefaultBindAddress is the default binding interface if none is specified.
@@ -21,12 +25,14 @@ const (
 
 // Config represents the configuration for Graphite endpoints.
 type Config struct {
-	BindAddress   string `toml:"bind-address"`
-	Database      string `toml:"database"`
-	Enabled       bool   `toml:"enabled"`
-	Protocol      string `toml:"protocol"`
-	NamePosition  string `toml:"name-position"`
-	NameSeparator string `toml:"name-separator"`
+	BindAddress   string        `toml:"bind-address"`
+	Database      string        `toml:"database"`
+	Enabled       bool          `toml:"enabled"`
+	Protocol      string        `toml:"protocol"`
+	NamePosition  string        `toml:"name-position"`
+	NameSeparator string        `toml:"name-separator"`
+	BatchSize     int           `toml:"batch-size"`
+	BatchTimeout  toml.Duration `toml:"batch-timeout"`
 }
 
 // NewConfig returns a new Config with defaults.
