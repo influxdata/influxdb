@@ -1,3 +1,9 @@
+## v0.9.0-rc33 [unreleased]
+
+### Bugfixes
+
+- [2816](https://github.com/influxdb/influxdb/pull/2816) -- enable UDP service. Thanks @renan-
+
 ## v0.9.0-rc32 [2015-06-07]
 
 ### Release Notes
