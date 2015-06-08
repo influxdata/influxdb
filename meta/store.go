@@ -487,6 +487,13 @@ func (s *Store) handleExecConn(conn net.Conn) {
 	conn.Close()
 }
 
+// MarshalBinary encodes the store's data to a binary protobuf format.
+func (s *Store) MarshalBinary() ([]byte, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.data.MarshalBinary()
+}
+
 // NodeID returns the identifier for the local node.
 // Panics if the node has not joined the cluster.
 func (s *Store) NodeID() uint64 { return s.id }
@@ -669,7 +676,7 @@ func (s *Store) CreateRetentionPolicy(database string, rpi *RetentionPolicyInfo)
 	if err := s.exec(internal.Command_CreateRetentionPolicyCommand, internal.E_CreateRetentionPolicyCommand_Command,
 		&internal.CreateRetentionPolicyCommand{
 			Database:        proto.String(database),
-			RetentionPolicy: rpi.protobuf(),
+			RetentionPolicy: rpi.marshal(),
 		},
 	); err != nil {
 		return nil, err
@@ -1025,6 +1032,16 @@ func (s *Store) PrecreateShardGroups(cutoff time.Time) error {
 	return nil
 }
 
+// SetData force overwrites the root data.
+// This should only be used when restoring a snapshot.
+func (s *Store) SetData(data *Data) error {
+	return s.exec(internal.Command_SetDataCommand, internal.E_SetDataCommand_Command,
+		&internal.SetDataCommand{
+			Data: data.marshal(),
+		},
+	)
+}
+
 // read executes a function with the current metadata.
 // If an error is returned then the cache is invalidated and retried.
 //
@@ -1244,6 +1261,8 @@ func (fsm *storeFSM) Apply(l *raft.Log) interface{} {
 			return fsm.applyUpdateUserCommand(&cmd)
 		case internal.Command_SetPrivilegeCommand:
 			return fsm.applySetPrivilegeCommand(&cmd)
+		case internal.Command_SetDataCommand:
+			return fsm.applySetDataCommand(&cmd)
 		default:
 			panic(fmt.Errorf("cannot apply command: %x", l.Data))
 		}
@@ -1492,6 +1511,17 @@ func (fsm *storeFSM) applySetPrivilegeCommand(cmd *internal.Command) interface{}
 		return err
 	}
 	fsm.data = other
+	return nil
+}
+
+func (fsm *storeFSM) applySetDataCommand(cmd *internal.Command) interface{} {
+	ext, _ := proto.GetExtension(cmd, internal.E_SetDataCommand_Command)
+	v := ext.(*internal.SetDataCommand)
+
+	// Overwrite data.
+	fsm.data = &Data{}
+	fsm.data.unmarshal(v.GetData())
+
 	return nil
 }
 

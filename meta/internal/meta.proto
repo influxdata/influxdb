@@ -9,6 +9,7 @@ package internal;
 message Data {
 	repeated NodeInfo Nodes = 1;
 	repeated DatabaseInfo Databases = 2;
+	repeated UserInfo Users = 3;
 }
 
 message NodeInfo {
@@ -19,7 +20,7 @@ message NodeInfo {
 message DatabaseInfo {
 	required string Name = 1;
 	required string DefaultRetentionPolicy = 2;
-	repeated RetentionPolicyInfo Polices = 3;
+	repeated RetentionPolicyInfo RetentionPolicies = 3;
 	repeated ContinuousQueryInfo ContinuousQueries = 4;
 }
 
@@ -35,19 +36,21 @@ message ShardGroupInfo {
 	required uint64 ID = 1;
 	required int64 StartTime = 2;
 	required int64 EndTime = 3;
-	repeated ShardInfo Shards = 4;
+	required int64 DeletedAt = 4;
+	repeated ShardInfo Shards = 5;
 }
 
 message ShardInfo {
 	required uint64 ID = 1;
-	required uint64 OwnerIDs = 2;
+	repeated uint64 OwnerIDs = 2;
 }
 
 message ContinuousQueryInfo {
-	required string Query = 1;
+	required string Name = 1;
+	required string Query = 2;
 }
 
-message User {
+message UserInfo {
 	required string Name = 1;
 	required string Hash = 2;
 	required bool Admin = 3;
@@ -86,6 +89,7 @@ message Command {
 		DropUserCommand                  = 14;
 		UpdateUserCommand                = 15;
 		SetPrivilegeCommand              = 16;
+		SetDataCommand                   = 17;
     }
 
     required Type type = 1;
@@ -220,6 +224,13 @@ message SetPrivilegeCommand {
     required string Username = 1;
     required string Database = 2;
     required int32 Privilege = 3;
+}
+
+message SetDataCommand {
+    extend Command {
+        optional SetDataCommand command = 117;
+    }
+    required Data Data = 1;
 }
 
 message Response {

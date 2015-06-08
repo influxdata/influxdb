@@ -9,6 +9,7 @@
 - [#2898](https://github.com/influxdb/influxdb/pull/2898): Ensure target openTSDB database exists
 - [#2895](https://github.com/influxdb/influxdb/pull/2895): Use Graphite input defaults where necessary
 - [#2900](https://github.com/influxdb/influxdb/pull/2900): Use openTSDB input defaults where necessary
+- [#2886](https://github.com/influxdb/influxdb/issues/2886): Refactor backup & restore
 
 ## v0.9.0-rc33 [2015-06-09]
 

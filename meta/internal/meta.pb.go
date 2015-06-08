@@ -16,7 +16,7 @@ It has these top-level messages:
 	ShardGroupInfo
 	ShardInfo
 	ContinuousQueryInfo
-	User
+	UserInfo
 	UserPrivilege
 	Command
 	CreateNodeCommand
@@ -35,6 +35,7 @@ It has these top-level messages:
 	DropUserCommand
 	UpdateUserCommand
 	SetPrivilegeCommand
+	SetDataCommand
 	Response
 */
 package internal
@@ -65,6 +66,7 @@ const (
 	Command_DropUserCommand                  Command_Type = 14
 	Command_UpdateUserCommand                Command_Type = 15
 	Command_SetPrivilegeCommand              Command_Type = 16
+	Command_SetDataCommand                   Command_Type = 17
 )
 
 var Command_Type_name = map[int32]string{
@@ -84,6 +86,7 @@ var Command_Type_name = map[int32]string{
 	14: "DropUserCommand",
 	15: "UpdateUserCommand",
 	16: "SetPrivilegeCommand",
+	17: "SetDataCommand",
 }
 var Command_Type_value = map[string]int32{
 	"CreateNodeCommand":                1,
@@ -102,6 +105,7 @@ var Command_Type_value = map[string]int32{
 	"DropUserCommand":                  14,
 	"UpdateUserCommand":                15,
 	"SetPrivilegeCommand":              16,
+	"SetDataCommand":                   17,
 }
 
 func (x Command_Type) Enum() *Command_Type {
@@ -124,6 +128,7 @@ func (x *Command_Type) UnmarshalJSON(data []byte) error {
 type Data struct {
 	Nodes            []*NodeInfo     `protobuf:"bytes,1,rep" json:"Nodes,omitempty"`
 	Databases        []*DatabaseInfo `protobuf:"bytes,2,rep" json:"Databases,omitempty"`
+	Users            []*UserInfo     `protobuf:"bytes,3,rep" json:"Users,omitempty"`
 	XXX_unrecognized []byte          `json:"-"`
 }
 
@@ -141,6 +146,13 @@ func (m *Data) GetNodes() []*NodeInfo {
 func (m *Data) GetDatabases() []*DatabaseInfo {
 	if m != nil {
 		return m.Databases
+	}
+	return nil
+}
+
+func (m *Data) GetUsers() []*UserInfo {
+	if m != nil {
+		return m.Users
 	}
 	return nil
 }
@@ -172,7 +184,7 @@ func (m *NodeInfo) GetHost() string {
 type DatabaseInfo struct {
 	Name                   *string                `protobuf:"bytes,1,req" json:"Name,omitempty"`
 	DefaultRetentionPolicy *string                `protobuf:"bytes,2,req" json:"DefaultRetentionPolicy,omitempty"`
-	Polices                []*RetentionPolicyInfo `protobuf:"bytes,3,rep" json:"Polices,omitempty"`
+	RetentionPolicies      []*RetentionPolicyInfo `protobuf:"bytes,3,rep" json:"RetentionPolicies,omitempty"`
 	ContinuousQueries      []*ContinuousQueryInfo `protobuf:"bytes,4,rep" json:"ContinuousQueries,omitempty"`
 	XXX_unrecognized       []byte                 `json:"-"`
 }
@@ -195,9 +207,9 @@ func (m *DatabaseInfo) GetDefaultRetentionPolicy() string {
 	return ""
 }
 
-func (m *DatabaseInfo) GetPolices() []*RetentionPolicyInfo {
+func (m *DatabaseInfo) GetRetentionPolicies() []*RetentionPolicyInfo {
 	if m != nil {
-		return m.Polices
+		return m.RetentionPolicies
 	}
 	return nil
 }
@@ -261,7 +273,8 @@ type ShardGroupInfo struct {
 	ID               *uint64      `protobuf:"varint,1,req" json:"ID,omitempty"`
 	StartTime        *int64       `protobuf:"varint,2,req" json:"StartTime,omitempty"`
 	EndTime          *int64       `protobuf:"varint,3,req" json:"EndTime,omitempty"`
-	Shards           []*ShardInfo `protobuf:"bytes,4,rep" json:"Shards,omitempty"`
+	DeletedAt        *int64       `protobuf:"varint,4,req" json:"DeletedAt,omitempty"`
+	Shards           []*ShardInfo `protobuf:"bytes,5,rep" json:"Shards,omitempty"`
 	XXX_unrecognized []byte       `json:"-"`
 }
 
@@ -290,6 +303,13 @@ func (m *ShardGroupInfo) GetEndTime() int64 {
 	return 0
 }
 
+func (m *ShardGroupInfo) GetDeletedAt() int64 {
+	if m != nil && m.DeletedAt != nil {
+		return *m.DeletedAt
+	}
+	return 0
+}
+
 func (m *ShardGroupInfo) GetShards() []*ShardInfo {
 	if m != nil {
 		return m.Shards
@@ -298,9 +318,9 @@ func (m *ShardGroupInfo) GetShards() []*ShardInfo {
 }
 
 type ShardInfo struct {
-	ID               *uint64 `protobuf:"varint,1,req" json:"ID,omitempty"`
-	OwnerIDs         *uint64 `protobuf:"varint,2,req" json:"OwnerIDs,omitempty"`
-	XXX_unrecognized []byte  `json:"-"`
+	ID               *uint64  `protobuf:"varint,1,req" json:"ID,omitempty"`
+	OwnerIDs         []uint64 `protobuf:"varint,2,rep" json:"OwnerIDs,omitempty"`
+	XXX_unrecognized []byte   `json:"-"`
 }
 
 func (m *ShardInfo) Reset()         { *m = ShardInfo{} }
@@ -314,21 +334,29 @@ func (m *ShardInfo) GetID() uint64 {
 	return 0
 }
 
-func (m *ShardInfo) GetOwnerIDs() uint64 {
-	if m != nil && m.OwnerIDs != nil {
-		return *m.OwnerIDs
+func (m *ShardInfo) GetOwnerIDs() []uint64 {
+	if m != nil {
+		return m.OwnerIDs
 	}
-	return 0
+	return nil
 }
 
 type ContinuousQueryInfo struct {
-	Query            *string `protobuf:"bytes,1,req" json:"Query,omitempty"`
+	Name             *string `protobuf:"bytes,1,req" json:"Name,omitempty"`
+	Query            *string `protobuf:"bytes,2,req" json:"Query,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
 func (m *ContinuousQueryInfo) Reset()         { *m = ContinuousQueryInfo{} }
 func (m *ContinuousQueryInfo) String() string { return proto.CompactTextString(m) }
 func (*ContinuousQueryInfo) ProtoMessage()    {}
+
+func (m *ContinuousQueryInfo) GetName() string {
+	if m != nil && m.Name != nil {
+		return *m.Name
+	}
+	return ""
+}
 
 func (m *ContinuousQueryInfo) GetQuery() string {
 	if m != nil && m.Query != nil {
@@ -337,7 +365,7 @@ func (m *ContinuousQueryInfo) GetQuery() string {
 	return ""
 }
 
-type User struct {
+type UserInfo struct {
 	Name             *string          `protobuf:"bytes,1,req" json:"Name,omitempty"`
 	Hash             *string          `protobuf:"bytes,2,req" json:"Hash,omitempty"`
 	Admin            *bool            `protobuf:"varint,3,req" json:"Admin,omitempty"`
@@ -345,32 +373,32 @@ type User struct {
 	XXX_unrecognized []byte           `json:"-"`
 }
 
-func (m *User) Reset()         { *m = User{} }
-func (m *User) String() string { return proto.CompactTextString(m) }
-func (*User) ProtoMessage()    {}
+func (m *UserInfo) Reset()         { *m = UserInfo{} }
+func (m *UserInfo) String() string { return proto.CompactTextString(m) }
+func (*UserInfo) ProtoMessage()    {}
 
-func (m *User) GetName() string {
+func (m *UserInfo) GetName() string {
 	if m != nil && m.Name != nil {
 		return *m.Name
 	}
 	return ""
 }
 
-func (m *User) GetHash() string {
+func (m *UserInfo) GetHash() string {
 	if m != nil && m.Hash != nil {
 		return *m.Hash
 	}
 	return ""
 }
 
-func (m *User) GetAdmin() bool {
+func (m *UserInfo) GetAdmin() bool {
 	if m != nil && m.Admin != nil {
 		return *m.Admin
 	}
 	return false
 }
 
-func (m *User) GetPrivileges() []*UserPrivilege {
+func (m *UserInfo) GetPrivileges() []*UserPrivilege {
 	if m != nil {
 		return m.Privileges
 	}
@@ -968,6 +996,30 @@ var E_SetPrivilegeCommand_Command = &proto.ExtensionDesc{
 	Tag:           "bytes,116,opt,name=command",
 }
 
+type SetDataCommand struct {
+	Data             *Data  `protobuf:"bytes,1,req" json:"Data,omitempty"`
+	XXX_unrecognized []byte `json:"-"`
+}
+
+func (m *SetDataCommand) Reset()         { *m = SetDataCommand{} }
+func (m *SetDataCommand) String() string { return proto.CompactTextString(m) }
+func (*SetDataCommand) ProtoMessage()    {}
+
+func (m *SetDataCommand) GetData() *Data {
+	if m != nil {
+		return m.Data
+	}
+	return nil
+}
+
+var E_SetDataCommand_Command = &proto.ExtensionDesc{
+	ExtendedType:  (*Command)(nil),
+	ExtensionType: (*SetDataCommand)(nil),
+	Field:         117,
+	Name:          "internal.SetDataCommand.command",
+	Tag:           "bytes,117,opt,name=command",
+}
+
 type Response struct {
 	OK               *bool   `protobuf:"varint,1,req" json:"OK,omitempty"`
 	Error            *string `protobuf:"bytes,2,opt" json:"Error,omitempty"`
@@ -1018,4 +1070,5 @@ func init() {
 	proto.RegisterExtension(E_DropUserCommand_Command)
 	proto.RegisterExtension(E_UpdateUserCommand_Command)
 	proto.RegisterExtension(E_SetPrivilegeCommand_Command)
+	proto.RegisterExtension(E_SetDataCommand_Command)
 }

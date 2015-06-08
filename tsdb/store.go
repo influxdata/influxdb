@@ -34,6 +34,9 @@ type Store struct {
 	Logger *log.Logger
 }
 
+// Path returns the store's root path.
+func (s *Store) Path() string { return s.path }
+
 func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

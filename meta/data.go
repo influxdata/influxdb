@@ -486,6 +486,60 @@ func (data *Data) Clone() *Data {
 	return &other
 }
 
+// marshal serializes to a protobuf representation.
+func (data *Data) marshal() *internal.Data {
+	pb := &internal.Data{}
+	pb.Nodes = make([]*internal.NodeInfo, len(data.Nodes))
+	for i := range data.Nodes {
+		pb.Nodes[i] = data.Nodes[i].marshal()
+	}
+
+	pb.Databases = make([]*internal.DatabaseInfo, len(data.Databases))
+	for i := range data.Databases {
+		pb.Databases[i] = data.Databases[i].marshal()
+	}
+
+	pb.Users = make([]*internal.UserInfo, len(data.Users))
+	for i := range data.Users {
+		pb.Users[i] = data.Users[i].marshal()
+	}
+
+	return pb
+}
+
+// unmarshal deserializes from a protobuf representation.
+func (data *Data) unmarshal(pb *internal.Data) {
+	data.Nodes = make([]NodeInfo, len(pb.GetNodes()))
+	for i, x := range pb.GetNodes() {
+		data.Nodes[i].unmarshal(x)
+	}
+
+	data.Databases = make([]DatabaseInfo, len(pb.GetDatabases()))
+	for i, x := range pb.GetDatabases() {
+		data.Databases[i].unmarshal(x)
+	}
+
+	data.Users = make([]UserInfo, len(pb.GetUsers()))
+	for i, x := range pb.GetUsers() {
+		data.Users[i].unmarshal(x)
+	}
+}
+
+// MarshalBinary encodes the metadata to a binary format.
+func (data *Data) MarshalBinary() ([]byte, error) {
+	return proto.Marshal(data.marshal())
+}
+
+// UnmarshalBinary decodes the object from a binary format.
+func (data *Data) UnmarshalBinary(buf []byte) error {
+	var pb internal.Data
+	if err := proto.Unmarshal(buf, &pb); err != nil {
+		return err
+	}
+	data.unmarshal(&pb)
+	return nil
+}
+
 // NodeInfo represents information about a single node in the cluster.
 type NodeInfo struct {
 	ID   uint64
@@ -495,23 +549,18 @@ type NodeInfo struct {
 // clone returns a deep copy of ni.
 func (ni NodeInfo) clone() NodeInfo { return ni }
 
-// MarshalBinary encodes the object to a binary format.
-func (info *NodeInfo) MarshalBinary() ([]byte, error) {
-	var pb internal.NodeInfo
-	pb.ID = &info.ID
-	pb.Host = &info.Host
-	return proto.Marshal(&pb)
+// marshal serializes to a protobuf representation.
+func (ni NodeInfo) marshal() *internal.NodeInfo {
+	pb := &internal.NodeInfo{}
+	pb.ID = proto.Uint64(ni.ID)
+	pb.Host = proto.String(ni.Host)
+	return pb
 }
 
-// MarshalBinary decodes the object from a binary format.
-func (info *NodeInfo) UnmarshalBinary(buf []byte) error {
-	var pb internal.NodeInfo
-	if err := proto.Unmarshal(buf, &pb); err != nil {
-		return err
-	}
-	info.ID = pb.GetID()
-	info.Host = pb.GetHost()
-	return nil
+// unmarshal deserializes from a protobuf representation.
+func (ni *NodeInfo) unmarshal(pb *internal.NodeInfo) {
+	ni.ID = pb.GetID()
+	ni.Host = pb.GetHost()
 }
 
 // DatabaseInfo represents information about a database in the system.
@@ -552,6 +601,40 @@ func (di DatabaseInfo) clone() DatabaseInfo {
 	}
 
 	return other
+}
+
+// marshal serializes to a protobuf representation.
+func (di DatabaseInfo) marshal() *internal.DatabaseInfo {
+	pb := &internal.DatabaseInfo{}
+	pb.Name = proto.String(di.Name)
+	pb.DefaultRetentionPolicy = proto.String(di.DefaultRetentionPolicy)
+
+	pb.RetentionPolicies = make([]*internal.RetentionPolicyInfo, len(di.RetentionPolicies))
+	for i := range di.RetentionPolicies {
+		pb.RetentionPolicies[i] = di.RetentionPolicies[i].marshal()
+	}
+
+	pb.ContinuousQueries = make([]*internal.ContinuousQueryInfo, len(di.ContinuousQueries))
+	for i := range di.ContinuousQueries {
+		pb.ContinuousQueries[i] = di.ContinuousQueries[i].marshal()
+	}
+	return pb
+}
+
+// unmarshal deserializes from a protobuf representation.
+func (di *DatabaseInfo) unmarshal(pb *internal.DatabaseInfo) {
+	di.Name = pb.GetName()
+	di.DefaultRetentionPolicy = pb.GetDefaultRetentionPolicy()
+
+	di.RetentionPolicies = make([]RetentionPolicyInfo, len(pb.GetRetentionPolicies()))
+	for i, x := range pb.GetRetentionPolicies() {
+		di.RetentionPolicies[i].unmarshal(x)
+	}
+
+	di.ContinuousQueries = make([]ContinuousQueryInfo, len(pb.GetContinuousQueries()))
+	for i, x := range pb.GetContinuousQueries() {
+		di.ContinuousQueries[i].unmarshal(x)
+	}
 }
 
 // RetentionPolicyInfo represents metadata about a retention policy.
@@ -607,13 +690,33 @@ func (rpi *RetentionPolicyInfo) DeletedShardGroups() []*ShardGroupInfo {
 	return groups
 }
 
-// protobuf returns a protocol buffers object.
-func (rpi *RetentionPolicyInfo) protobuf() *internal.RetentionPolicyInfo {
-	return &internal.RetentionPolicyInfo{
+// marshal serializes to a protobuf representation.
+func (rpi *RetentionPolicyInfo) marshal() *internal.RetentionPolicyInfo {
+	pb := &internal.RetentionPolicyInfo{
 		Name:               proto.String(rpi.Name),
 		ReplicaN:           proto.Uint32(uint32(rpi.ReplicaN)),
 		Duration:           proto.Int64(int64(rpi.Duration)),
 		ShardGroupDuration: proto.Int64(int64(rpi.ShardGroupDuration)),
+	}
+
+	pb.ShardGroups = make([]*internal.ShardGroupInfo, len(rpi.ShardGroups))
+	for i, sgi := range rpi.ShardGroups {
+		pb.ShardGroups[i] = sgi.marshal()
+	}
+
+	return pb
+}
+
+// unmarshal deserializes from a protobuf representation.
+func (rpi *RetentionPolicyInfo) unmarshal(pb *internal.RetentionPolicyInfo) {
+	rpi.Name = pb.GetName()
+	rpi.ReplicaN = int(pb.GetReplicaN())
+	rpi.Duration = time.Duration(pb.GetDuration())
+	rpi.ShardGroupDuration = time.Duration(pb.GetShardGroupDuration())
+
+	rpi.ShardGroups = make([]ShardGroupInfo, len(pb.GetShardGroups()))
+	for i, x := range pb.GetShardGroups() {
+		rpi.ShardGroups[i].unmarshal(x)
 	}
 }
 
@@ -649,8 +752,8 @@ type ShardGroupInfo struct {
 	ID        uint64
 	StartTime time.Time
 	EndTime   time.Time
-	Shards    []ShardInfo
 	DeletedAt time.Time
+	Shards    []ShardInfo
 }
 
 // Contains return true if the shard group contains data for the timestamp.
@@ -687,6 +790,36 @@ func (s *ShardGroupInfo) ShardFor(hash uint64) ShardInfo {
 	return s.Shards[hash%uint64(len(s.Shards))]
 }
 
+// marshal serializes to a protobuf representation.
+func (sgi *ShardGroupInfo) marshal() *internal.ShardGroupInfo {
+	pb := &internal.ShardGroupInfo{
+		ID:        proto.Uint64(sgi.ID),
+		StartTime: proto.Int64(MarshalTime(sgi.StartTime)),
+		EndTime:   proto.Int64(MarshalTime(sgi.EndTime)),
+		DeletedAt: proto.Int64(MarshalTime(sgi.DeletedAt)),
+	}
+
+	pb.Shards = make([]*internal.ShardInfo, len(sgi.Shards))
+	for i := range sgi.Shards {
+		pb.Shards[i] = sgi.Shards[i].marshal()
+	}
+
+	return pb
+}
+
+// unmarshal deserializes from a protobuf representation.
+func (sgi *ShardGroupInfo) unmarshal(pb *internal.ShardGroupInfo) {
+	sgi.ID = pb.GetID()
+	sgi.StartTime = UnmarshalTime(pb.GetStartTime())
+	sgi.EndTime = UnmarshalTime(pb.GetEndTime())
+	sgi.DeletedAt = UnmarshalTime(pb.GetDeletedAt())
+
+	sgi.Shards = make([]ShardInfo, len(pb.GetShards()))
+	for i, x := range pb.GetShards() {
+		sgi.Shards[i].unmarshal(x)
+	}
+}
+
 // ShardInfo represents metadata about a shard.
 type ShardInfo struct {
 	ID       uint64
@@ -705,6 +838,25 @@ func (si ShardInfo) clone() ShardInfo {
 	return other
 }
 
+// marshal serializes to a protobuf representation.
+func (si ShardInfo) marshal() *internal.ShardInfo {
+	pb := &internal.ShardInfo{
+		ID: proto.Uint64(si.ID),
+	}
+
+	pb.OwnerIDs = make([]uint64, len(si.OwnerIDs))
+	copy(pb.OwnerIDs, si.OwnerIDs)
+
+	return pb
+}
+
+// unmarshal deserializes from a protobuf representation.
+func (si *ShardInfo) unmarshal(pb *internal.ShardInfo) {
+	si.ID = pb.GetID()
+	si.OwnerIDs = make([]uint64, len(pb.GetOwnerIDs()))
+	copy(si.OwnerIDs, pb.GetOwnerIDs())
+}
+
 // ContinuousQueryInfo represents metadata about a continuous query.
 type ContinuousQueryInfo struct {
 	Name  string
@@ -713,6 +865,20 @@ type ContinuousQueryInfo struct {
 
 // clone returns a deep copy of cqi.
 func (cqi ContinuousQueryInfo) clone() ContinuousQueryInfo { return cqi }
+
+// marshal serializes to a protobuf representation.
+func (cqi ContinuousQueryInfo) marshal() *internal.ContinuousQueryInfo {
+	return &internal.ContinuousQueryInfo{
+		Name:  proto.String(cqi.Name),
+		Query: proto.String(cqi.Query),
+	}
+}
+
+// unmarshal deserializes from a protobuf representation.
+func (cqi *ContinuousQueryInfo) unmarshal(pb *internal.ContinuousQueryInfo) {
+	cqi.Name = pb.GetName()
+	cqi.Query = pb.GetQuery()
+}
 
 // UserInfo represents metadata about a user in the system.
 type UserInfo struct {
@@ -740,4 +906,51 @@ func (ui UserInfo) clone() UserInfo {
 	}
 
 	return other
+}
+
+// marshal serializes to a protobuf representation.
+func (ui UserInfo) marshal() *internal.UserInfo {
+	pb := &internal.UserInfo{
+		Name:  proto.String(ui.Name),
+		Hash:  proto.String(ui.Hash),
+		Admin: proto.Bool(ui.Admin),
+	}
+
+	for database, privilege := range ui.Privileges {
+		pb.Privileges = append(pb.Privileges, &internal.UserPrivilege{
+			Database:  proto.String(database),
+			Privilege: proto.Int32(int32(privilege)),
+		})
+	}
+
+	return pb
+}
+
+// unmarshal deserializes from a protobuf representation.
+func (ui *UserInfo) unmarshal(pb *internal.UserInfo) {
+	ui.Name = pb.GetName()
+	ui.Hash = pb.GetHash()
+	ui.Admin = pb.GetAdmin()
+
+	ui.Privileges = make(map[string]influxql.Privilege)
+	for _, p := range pb.GetPrivileges() {
+		ui.Privileges[p.GetDatabase()] = influxql.Privilege(p.GetPrivilege())
+	}
+}
+
+// MarshalTime converts t to nanoseconds since epoch. A zero time returns 0.
+func MarshalTime(t time.Time) int64 {
+	if t.IsZero() {
+		return 0
+	}
+	return t.UnixNano()
+}
+
+// UnmarshalTime converts nanoseconds since epoch to time.
+// A zero value returns a zero time.
+func UnmarshalTime(v int64) time.Time {
+	if v == 0 {
+		return time.Time{}
+	}
+	return time.Unix(0, v).UTC()
 }
