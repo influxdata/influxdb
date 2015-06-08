@@ -147,7 +147,7 @@ func (p *Processor) Process() error {
 					break
 				}
 
-				// If we get here, the write succeed to advance the queue to the next item
+				// If we get here, the write succeeded so advance the queue to the next item
 				if err := q.Advance(); err != nil {
 					res <- err
 					return
