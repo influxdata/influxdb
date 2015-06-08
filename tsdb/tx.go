@@ -169,13 +169,20 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 					continue
 				}
 
+				// get the codec for this measuremnt. If this is nil it just means this measurement was
+				// never written into this shard, so we can skip it and continue.
+				codec := shard.FieldCodec(m.Name)
+				if codec == nil {
+					continue
+				}
+
 				var mapper influxql.Mapper
 
 				mapper = &LocalMapper{
 					seriesKeys:   t.SeriesKeys,
 					db:           shard.DB(),
 					job:          job,
-					decoder:      shard.FieldCodec(m.Name),
+					decoder:      codec,
 					filters:      t.Filters,
 					whereFields:  whereFields,
 					selectFields: selectFields,
