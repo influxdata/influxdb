@@ -524,7 +524,7 @@ func (l *segment) advance() error {
 	}
 
 	pos := l.pos + l.currentSize + 8
-	if err := l.writeUint64(uint64(l.pos)); err != nil {
+	if err := l.writeUint64(uint64(pos)); err != nil {
 		return err
 	}
 
