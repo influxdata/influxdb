@@ -4,6 +4,7 @@
 
 - [2650](https://github.com/influxdb/influxdb/pull/2650): Add SHOW GRANTS FOR USER statement. Thanks @n1tr0g.
 - [3013](https://github.com/influxdb/influxdb/issues/3013): Panic error with inserting values with commas
+- [#2981](https://github.com/influxdb/influxdb/pull/2981): Add Go RPC input.
 
 ### Bugfixes
 

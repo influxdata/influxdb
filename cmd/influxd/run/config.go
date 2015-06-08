@@ -11,6 +11,7 @@ import (
 	"github.com/influxdb/influxdb/services/admin"
 	"github.com/influxdb/influxdb/services/collectd"
 	"github.com/influxdb/influxdb/services/continuous_querier"
+	"github.com/influxdb/influxdb/services/gorpc"
 	"github.com/influxdb/influxdb/services/graphite"
 	"github.com/influxdb/influxdb/services/hh"
 	"github.com/influxdb/influxdb/services/httpd"
@@ -36,6 +37,7 @@ type Config struct {
 	Collectd  collectd.Config   `toml:"collectd"`
 	OpenTSDB  opentsdb.Config   `toml:"opentsdb"`
 	UDP       udp.Config        `toml:"udp"`
+	GoRPC     gorpc.Config      `toml:"gorpc"`
 
 	// Snapshot SnapshotConfig `toml:"snapshot"`
 	Monitoring      monitor.Config            `toml:"monitoring"`
@@ -59,6 +61,7 @@ func NewConfig() *Config {
 	c.HTTPD = httpd.NewConfig()
 	c.Collectd = collectd.NewConfig()
 	c.OpenTSDB = opentsdb.NewConfig()
+	c.GoRPC = gorpc.NewConfig()
 
 	c.Monitoring = monitor.NewConfig()
 	c.ContinuousQuery = continuous_querier.NewConfig()
