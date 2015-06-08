@@ -25,9 +25,9 @@ func (c *clientPool) setPool(nodeID uint64, p pool.Pool) {
 }
 
 func (c *clientPool) getPool(nodeID uint64) (pool.Pool, bool) {
-	c.mu.Lock()
+	c.mu.RLock()
 	p, ok := c.pool[nodeID]
-	c.mu.Unlock()
+	c.mu.RUnlock()
 	return p, ok
 }
 
@@ -42,9 +42,9 @@ func (c *clientPool) size() int {
 }
 
 func (c *clientPool) conn(nodeID uint64) (net.Conn, error) {
-	c.mu.Lock()
+	c.mu.RLock()
 	conn, err := c.pool[nodeID].Get()
-	c.mu.Unlock()
+	c.mu.RUnlock()
 	return conn, err
 }
 
