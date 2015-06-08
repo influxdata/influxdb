@@ -397,9 +397,21 @@ func (h *Handler) writeError(w http.ResponseWriter, result influxql.Result, stat
 func (h *Handler) serveWriteLine(w http.ResponseWriter, r *http.Request, body []byte, user *meta.UserInfo) {
 	// Some clients may not set the content-type header appropriately and send JSON with a non-json
 	// content-type.  If the body looks JSON, try to handle it as as JSON instead
-	if len(body) > 0 && body[0] == '{' {
-		h.serveWriteJSON(w, r, body, user)
-		return
+	if len(body) > 0 {
+		var i int
+		for {
+			// JSON requests must start w/ an opening bracket
+			if body[i] == '{' {
+				h.serveWriteJSON(w, r, body, user)
+				return
+			}
+
+			// check that the byte is in the standard ascii code range
+			if body[i] > 32 {
+				break
+			}
+			i += 1
+		}
 	}
 
 	precision := r.FormValue("precision")
