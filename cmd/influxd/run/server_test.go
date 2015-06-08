@@ -38,22 +38,19 @@ func TestServer_DatabaseCommands(t *testing.T) {
 				exp:     `{"results":[{"error":"database already exists"}]}`,
 			},
 			&Query{
-				skip:    true,
-				name:    "drop database should succeed - FIXME pauldix",
+				name:    "drop database should succeed",
 				command: `DROP DATABASE db0`,
 				exp:     `{"results":[{}]}`,
 			},
 			&Query{
-				skip:    true,
-				name:    "show database should have no results - FIXME pauldix",
+				name:    "show database should have no results",
 				command: `SHOW DATABASES`,
-				exp:     `FIXME`,
+				exp:     `{"results":[{"series":[{"name":"databases","columns":["name"]}]}]}`,
 			},
 			&Query{
-				skip:    true,
-				name:    "drop database should error if it doesn't exist - FIXME pauldix",
+				name:    "drop database should error if it doesn't exist",
 				command: `DROP DATABASE db0`,
-				exp:     `FIXME`,
+				exp:     `{"results":[{"error":"database not found: db0"}]}`,
 			},
 		},
 	}
