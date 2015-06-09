@@ -150,7 +150,7 @@ func TestServer_DatabaseRetentionPolicyAutoCreate(t *testing.T) {
 			&Query{
 				name:    "show retention policies should return auto-created policy",
 				command: `SHOW RETENTION POLICIES db0`,
-				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["default","168h0m0s",1,true]]}]}]}`,
+				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["default","0",1,true]]}]}]}`,
 			},
 		},
 	}
