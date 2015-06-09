@@ -29,8 +29,8 @@ func NewPointBatcher(sz int, d time.Duration) *PointBatcher {
 		size:     sz,
 		duration: d,
 		stop:     make(chan struct{}),
-		in:       make(chan Point, 1000000),
-		out:      make(chan []Point, 1000000),
+		in:       make(chan Point),
+		out:      make(chan []Point),
 		flush:    make(chan struct{}),
 	}
 }
