@@ -2,6 +2,8 @@ package cluster
 
 import (
 	"errors"
+	"log"
+	"os"
 	"sync"
 	"time"
 
@@ -45,6 +47,7 @@ var (
 type PointsWriter struct {
 	mu      sync.RWMutex
 	closing chan struct{}
+	Logger  *log.Logger
 
 	MetaStore interface {
 		NodeID() uint64
@@ -72,6 +75,7 @@ type PointsWriter struct {
 func NewPointsWriter() *PointsWriter {
 	return &PointsWriter{
 		closing: make(chan struct{}),
+		Logger:  log.New(os.Stderr, "[write] ", log.LstdFlags),
 	}
 }
 
@@ -245,7 +249,7 @@ func (w *PointsWriter) writeToShard(shard *meta.ShardInfo, database, retentionPo
 
 	var wrote int
 	timeout := time.After(DefaultWriteTimeout)
-	for range shard.OwnerIDs {
+	for _, nodeID := range shard.OwnerIDs {
 		select {
 		case <-w.closing:
 			return ErrWriteFailed
@@ -255,6 +259,7 @@ func (w *PointsWriter) writeToShard(shard *meta.ShardInfo, database, retentionPo
 		case err := <-ch:
 			// If the write returned an error, continue to the next response
 			if err != nil {
+				w.Logger.Printf("write failed for shard %d on node %d: %v", shard.ID, nodeID, err)
 				continue
 			}
 

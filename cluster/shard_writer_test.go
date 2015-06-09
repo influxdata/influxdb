@@ -129,7 +129,7 @@ func TestShardWriter_WriteShard_Error(t *testing.T) {
 		"cpu", tsdb.Tags{"host": "server01"}, map[string]interface{}{"value": int64(100)}, now,
 	))
 
-	if err := w.WriteShard(shardID, ownerID, points); err == nil || err.Error() != "error code 1: write shard: failed to write" {
+	if err := w.WriteShard(shardID, ownerID, points); err == nil || err.Error() != "error code 1: write shard 1: failed to write" {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }

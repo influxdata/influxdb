@@ -251,12 +251,11 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 
 		ms := NewMetaStore()
 		ms.NodeIDFn = func() uint64 { return 1 }
-		c := cluster.PointsWriter{
-			MetaStore:     ms,
-			ShardWriter:   sw,
-			TSDBStore:     store,
-			HintedHandoff: hh,
-		}
+		c := cluster.NewPointsWriter()
+		c.MetaStore = ms
+		c.ShardWriter = sw
+		c.TSDBStore = store
+		c.HintedHandoff = hh
 
 		if err := c.WritePoints(pr); err != test.expErr {
 			t.Errorf("PointsWriter.WritePoints(): '%s' error: got %v, exp %v", test.name, err, test.expErr)

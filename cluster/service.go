@@ -184,7 +184,7 @@ func (s *Service) processWriteShardRequest(buf []byte) error {
 	}
 
 	if err != nil {
-		return fmt.Errorf("write shard: %s", err)
+		return fmt.Errorf("write shard %d: %s", req.ShardID(), err)
 	}
 
 	return nil
