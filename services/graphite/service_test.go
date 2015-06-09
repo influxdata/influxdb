@@ -232,9 +232,6 @@ func Test_DecodeMetric(t *testing.T) {
 
 func Test_ServerGraphiteTCP(t *testing.T) {
 	t.Parallel()
-	if testing.Short() {
-		t.Skip()
-	}
 
 	now := time.Now().UTC().Round(time.Second)
 
@@ -282,7 +279,7 @@ func Test_ServerGraphiteTCP(t *testing.T) {
 	}
 
 	// Connect to the graphite endpoint we just spun up
-	conn, err := net.Dial("tcp", strings.TrimPrefix(service.Host(), "[::]"))
+	conn, err := net.Dial("tcp", strings.TrimPrefix(service.Addr().String(), "[::]"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -300,9 +297,6 @@ func Test_ServerGraphiteTCP(t *testing.T) {
 
 func Test_ServerGraphiteUDP(t *testing.T) {
 	t.Parallel()
-	if testing.Short() {
-		t.Skip()
-	}
 
 	now := time.Now().UTC().Round(time.Second)
 
@@ -351,7 +345,7 @@ func Test_ServerGraphiteUDP(t *testing.T) {
 	}
 
 	// Connect to the graphite endpoint we just spun up
-	conn, err := net.Dial("udp", strings.TrimPrefix(service.Host(), "[::]"))
+	conn, err := net.Dial("udp", strings.TrimPrefix(service.Addr().String(), "[::]"))
 	if err != nil {
 		t.Fatal(err)
 	}
