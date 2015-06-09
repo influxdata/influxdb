@@ -34,7 +34,6 @@ type Config struct {
 // NewConfig returns a new instance of Config with defaults.
 func NewConfig() Config {
 	return Config{
-		Enabled:         false,
 		BindAddress:     DefaultBindAddress,
 		Database:        DefaultDatabase,
 		RetentionPolicy: DefaultRetentionPolicy,
