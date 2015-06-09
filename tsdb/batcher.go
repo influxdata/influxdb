@@ -19,7 +19,6 @@ type PointBatcher struct {
 
 	stats PointBatcherStats
 
-	mu sync.RWMutex
 	wg *sync.WaitGroup
 }
 
@@ -46,9 +45,6 @@ type PointBatcherStats struct {
 // Start starts the batching process. Returns the in and out channels for points
 // and point-batches respectively.
 func (b *PointBatcher) Start() {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
 	// Already running?
 	if b.wg != nil {
 		return
@@ -107,9 +103,6 @@ func (b *PointBatcher) Start() {
 }
 
 func (b *PointBatcher) Stop() {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
 	// If not running, nothing to stop.
 	if b.wg == nil {
 		return
@@ -121,31 +114,23 @@ func (b *PointBatcher) Stop() {
 
 // In returns the channel to which points should be written.
 func (b *PointBatcher) In() chan<- Point {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
 	return b.in
 }
 
 // Out returns the channel from which batches should be read.
 func (b *PointBatcher) Out() <-chan []Point {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
 	return b.out
 }
 
 // Flush instructs the batcher to emit any pending points in a batch, regardless of batch size.
 // If there are no pending points, no batch is emitted.
 func (b *PointBatcher) Flush() {
-	b.mu.Lock()
-	defer b.mu.Unlock()
 	b.flush <- struct{}{}
 }
 
 // Stats returns a PointBatcherStats object for the PointBatcher. While the each statistic should be
 // closely correlated with each other statistic, it is not guaranteed.
 func (b *PointBatcher) Stats() *PointBatcherStats {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
 	stats := PointBatcherStats{}
 	stats.BatchTotal = atomic.LoadUint64(&b.stats.BatchTotal)
 	stats.PointTotal = atomic.LoadUint64(&b.stats.PointTotal)
