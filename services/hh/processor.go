@@ -126,11 +126,12 @@ func (p *Processor) Process() error {
 
 			// Log how many writes we successfully sent at the end
 			var sent int
-			defer func() {
+			start := time.Now()
+			defer func(start time.Time) {
 				if sent > 0 {
-					p.Logger.Printf("%d queued writes sent to node %d", sent, nodeID)
+					p.Logger.Printf("%d queued writes sent to node %d in %s", sent, nodeID, time.Since(start))
 				}
-			}()
+			}(start)
 
 			limiter := NewRateLimiter(p.retryRateLimit)
 			for {
