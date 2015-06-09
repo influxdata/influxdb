@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -41,7 +42,26 @@ var (
 
 	// ErrWriteFailed is returned when no writes succeeded.
 	ErrWriteFailed = errors.New("write failed")
+
+	// ErrConsistencyLevelParseError is returned when parsing the string version
+	// of a consistency level.
+	ErrConsistencyLevelParseError = errors.New("write failed")
 )
+
+func ParseConsistencyLevel(level string) (ConsistencyLevel, error) {
+	switch strings.ToLower(level) {
+	case "any":
+		return ConsistencyLevelAny, nil
+	case "one":
+		return ConsistencyLevelOne, nil
+	case "quorum":
+		return ConsistencyLevelQuorum, nil
+	case "all":
+		return ConsistencyLevelAll, nil
+	default:
+		return 0, ErrConsistencyLevelParseError
+	}
+}
 
 // PointsWriter handles writes across multiple local and remote data nodes.
 type PointsWriter struct {
