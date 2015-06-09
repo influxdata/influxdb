@@ -363,93 +363,72 @@ func isLetter(ch rune) bool { return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && c
 // isDigit returns true if the rune is a digit.
 func isDigit(ch rune) bool { return (ch >= '0' && ch <= '9') }
 
-// isIdentChar returns true if the rune can be used in an unquoted identifier.
-func isIdentChar(ch rune) bool { return isLetter(ch) || isDigit(ch) || ch == '_' }
-
 // isIdentFirstChar returns true if the rune can be used as the first char in an unquoted identifer.
 func isIdentFirstChar(ch rune) bool { return isLetter(ch) || ch == '_' }
 
+// isIdentChar returns true if the rune can be used in an unquoted identifier.
+func isNotIdentChar(ch rune) bool { return !(isLetter(ch) || isDigit(ch) || ch == '_') }
+
+func parseUnquotedIdentifier(stmt string) (string, string) {
+	if fields := strings.FieldsFunc(stmt, isNotIdentChar); len(fields) > 0 {
+		return fields[0], strings.TrimPrefix(stmt, fields[0])
+	}
+	return "", stmt
+}
+
+func parseDoubleQuotedIdentifier(stmt string) (string, string) {
+	escapeNext := false
+	fields := strings.FieldsFunc(stmt, func(ch rune) bool {
+		if ch == '\\' {
+			escapeNext = true
+		} else if ch == '"' {
+			if !escapeNext {
+				return true
+			}
+			escapeNext = false
+		}
+		return false
+	})
+	if len(fields) > 0 {
+		return fields[0], strings.TrimPrefix(stmt, "\""+fields[0]+"\"")
+	}
+	return "", stmt
+}
+
 func parseNextIdentifier(stmt string) (ident, remainder string) {
-	firstIdent, firstChar := true, true
-	doubleQuoted, escapeNext := false, false
-	identFunc := func(c rune) bool {
-		if !firstIdent {
-			return false
+	if len(stmt) > 0 {
+		switch {
+		case isWhitespace(rune(stmt[0])):
+			return parseNextIdentifier(stmt[1:])
+		case isIdentFirstChar(rune(stmt[0])):
+			return parseUnquotedIdentifier(stmt)
+		case stmt[0] == '"':
+			return parseDoubleQuotedIdentifier(stmt)
 		}
-		if firstChar {
-			if isWhitespace(c) {
-				return true
-			}
-			firstChar = false
-			switch {
-			case c == '"':
-				doubleQuoted = true
-				return true
-			case isIdentFirstChar(c):
-				return false
-			}
-		}
-		if doubleQuoted {
-			switch c {
-			case '\\':
-				escapeNext = true
-			case '"':
-				if escapeNext {
-					escapeNext = false
-				} else {
-					firstIdent = false
-					return true
-				}
-			}
-			return false
-		}
-		if isIdentChar(c) {
-			return false
-		}
-		firstIdent = false
-		return true
 	}
-	f := strings.FieldsFunc(stmt, identFunc)
-	fmt.Println(f)
-	if len(f) == 2 {
-		ident, remainder = f[0], f[1]
-	}
-	return ident, remainder
+	return "", stmt
 }
 
 func (c *CommandLine) parseInto(stmt string) string {
 	ident, stmt := parseNextIdentifier(stmt)
-	fmt.Println("first identifier", ident, "remainder", stmt)
-	switch stmt[0] {
-	case '.':
-		if ident == "" {
-			fmt.Println("ERR: could not parse database name")
-		}
+	if strings.HasPrefix(stmt, ".") {
 		c.Database = ident
-		c.RetentionPolicy, stmt = parseNextIdentifier(stmt[1:])
-		fmt.Println("second identifier", ident, "remainder", stmt)
-	case ' ':
+		fmt.Printf("Using database %s\n", c.Database)
+		ident, stmt = parseNextIdentifier(stmt[1:])
+	}
+	if strings.HasPrefix(stmt, " ") {
 		c.RetentionPolicy = ident
-	default:
-		fmt.Println("ERR: Invalid statement.")
+		fmt.Printf("Using retention policy %s\n", c.RetentionPolicy)
+		return stmt[1:]
 	}
-
-	if c.RetentionPolicy == "" || stmt[0] != ' ' {
-		fmt.Println("ERR: could not parse retention policy name")
-		fmt.Println("Note: Valid INSERT INTO formats:")
-		fmt.Println("INSERT INTO <retention-policy> <point>\nor")
-		fmt.Println("INSERT INTO <database>.<retention-policy> <point>")
-	}
-	return stmt[1:]
+	return stmt
 }
 
 func (c *CommandLine) Insert(stmt string) error {
-	// Remove INSERT
 	stmt = stmt[7:]
 	if strings.EqualFold(stmt[:4], "into") {
 		stmt = c.parseInto(stmt[5:])
 	}
-
 	if c.RetentionPolicy == "" {
 		c.RetentionPolicy = "default"
 	}
@@ -465,7 +444,7 @@ func (c *CommandLine) Insert(stmt string) error {
 	if err != nil {
 		fmt.Printf("ERR: %s\n", err)
 		if c.Database == "" {
-			fmt.Println("Note: It is possible this error is due to not setting a database.")
+			fmt.Println("Note: error may be due to not setting a database or retention policy.")
 			fmt.Println(`Please set a database with the command "use <database>" or`)
 			fmt.Println("INSERT INTO <database>.<retention-policy> <point>")
 		}

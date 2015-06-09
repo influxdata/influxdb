@@ -139,11 +139,36 @@ func TestParseCommand_InsertInto(t *testing.T) {
 	tests := []struct {
 		cmd, db, rp string
 	}{
-		{cmd: "INSERT INTO test.test cpu,host=serverA,region=us-west value=1.0"},
-		{cmd: " INSERT INTO test.test cpu,host=serverA,region=us-west value=1.0"},
-		{cmd: "INSERT INTO   test.test cpu,host=serverA,region=us-west value=1.0"},
-		{cmd: "Insert iNTO test.test cpu,host=serverA,region=us-west value=1.0"},
-		{cmd: "insert into test.test cpu,host=serverA,region=us-west value=1.0"},
+		{
+			cmd: `INSERT INTO test cpu,host=serverA,region=us-west value=1.0`,
+			db:  "",
+			rp:  "test",
+		},
+		{
+			cmd: ` INSERT INTO .test cpu,host=serverA,region=us-west value=1.0`,
+			db:  "",
+			rp:  "test",
+		},
+		{
+			cmd: `INSERT INTO   "test test" cpu,host=serverA,region=us-west value=1.0`,
+			db:  "",
+			rp:  "test test",
+		},
+		{
+			cmd: `Insert iNTO test.test cpu,host=serverA,region=us-west value=1.0`,
+			db:  "test",
+			rp:  "test",
+		},
+		{
+			cmd: `insert into "test test" cpu,host=serverA,region=us-west value=1.0`,
+			db:  "test",
+			rp:  "test test",
+		},
+		{
+			cmd: `insert into "d b"."test test" cpu,host=serverA,region=us-west value=1.0`,
+			db:  "d b",
+			rp:  "test test",
+		},
 	}
 
 	for _, test := range tests {
