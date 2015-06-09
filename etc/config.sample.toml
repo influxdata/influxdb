@@ -1,125 +1,161 @@
-# Welcome to the InfluxDB configuration file.
+### Welcome to the InfluxDB configuration file.
 
-# If hostname (on the OS) doesn't return a name that can be resolved by
-# the other systems in the cluster, you'll have to set the hostname to an
-# IP or something that can be resolved here.
-# hostname = ""
+###
+### [meta]
+###
+### Controls the parameters for the Raft consensus group that stores metadata
+### about the InfluxDB cluster.
+###
 
-bind-address = "0.0.0.0"
+[meta]
+  dir = "/var/opt/influxdb/meta"
+  hostname = "localhost"
+  bind-address = ":8088"
+  retention-autocreate = true
+  election-timeout = "1s"
+  heartbeat-timeout = "1s"
+  leader-lease-timeout = "500ms"
+  commit-timeout = "50ms"
 
-# The default cluster and API port
-port = 8086
+###
+### [data]
+###
+### Controls where the actual shard data for InfluxDB lives.
+###
 
-# Once every 24 hours InfluxDB will report anonymous data to m.influxdb.com
-# The data includes raft id (random 8 bytes), os, arch and version
-# We don't track ip addresses of servers reporting. This is only used
-# to track the number of instances running and the versions, which
-# is very helpful for us.
-# Change this option to true to disable reporting.
-reporting-disabled = false
-
-# Controls settings for initial start-up. Once a node is successfully started,
-# these settings are ignored.  If a node is started with the -join flag,
-# these settings are ignored.
-[initialization]
-join-urls = "" # Comma-delimited URLs, in the form http://host:port, for joining another cluster.
-
-# Control authentication
-# If not set authetication is DISABLED. Be sure to explicitly set this flag to
-# true if you want authentication.
-[authentication]
-enabled = false
-
-# Configure the admin server
-[admin]
-enabled = true
-port = 8083
-
-# Configure the HTTP API endpoint. All time-series data and queries uses this endpoint.
-[api]
-# ssl-port = 8087    # SSL support is enabled if you set a port and cert
-# ssl-cert = "/path/to/cert.pem"
-
-# Configure the Graphite plugins.
-[[graphite]] # 1 or more of these sections may be present.
-enabled = false
-# protocol = "" # Set to "tcp" or "udp"
-# bind-address = "0.0.0.0" # If not set, is actually set to bind-address.
-# port = 2003
-# name-position = "last"
-# name-separator = "-"
-# database = ""  # store graphite data in this database
-# batch-size = 0 # How many points to batch up internally before writing.
-# batch-timeout = "0ms" # Maximum time to wait before sending batch, regardless of current size.
-
-# Configure the collectd input.
-[collectd]
-enabled = false
-# bind-address = "0.0.0.0" # If not set, is actually set to bind-address.
-# port = 25827
-# database = "collectd_database"
-# typesdb = "types.db"
-# batch-size = 0 # How many points to batch up internally before writing.
-# batch-timeout = "0ms" # Maximum time to wait before sending batch, regardless of current size.
-
-# Configure the OpenTSDB input.
-[opentsdb]
-enabled = false
-# address = "0.0.0.0" # If not set, is actually set to bind-address.
-# port = 4242
-# database = "opentsdb_database"
-
-# Configure UDP listener for series data.
-[udp]
-enabled = false
-# bind-address = ":4444"
-# database = "udp_database"
-# batch-size = 0 # How many points to batch up internally before writing.
-# batch-timeout = "0ms" # Maximum time to wait before sending batch, regardless of current size.
-
-# Broker configuration. Brokers are nodes which participate in distributed
-# consensus.
-[broker]
-enabled = true
-# Where the Raft logs are stored. The user running InfluxDB will need read/write access.
-dir  = "/var/opt/influxdb/raft"
-truncation-interval = "10m"
-max-topic-size = 52428800
-max-segment-size = 10485760
-
-# Raft configuration. Controls the distributed consensus system.
-[raft]
-apply-interval = "10ms"
-election-timeout = "5s"
-heartbeat-interval = "100ms"
-reconnect-timeout = "10ms"
-
-# Data node configuration. Data nodes are where the time-series data, in the form of
-# shards, is stored.
 [data]
-enabled = true
-dir = "/var/opt/influxdb/db"
+  dir = "/var/opt/influxdb/data"
 
-# Auto-create a retention policy when a database is created. Defaults to true.
-retention-auto-create = true
+###
+### [cluster]
+###
+### Controls non-Raft cluster behavior, which generally includes how data is
+### shared across shards.
+###
 
-# Control whether retention policies are enforced and how long the system waits between
-# enforcing those policies.
-retention-check-enabled = true
-retention-check-period = "10m"
+[cluster]
+  shard-writer-timeout = "5s"
 
-# Configuration for snapshot endpoint.
-[snapshot]
-enabled = true # Enabled by default if not set.
+###
+### [retention]
+###
+### Controls the enforcement of retention policies for evicting old data.
+###
 
-[logging]
-write-tracing = false # If true, enables detailed logging of the write system.
-raft-tracing = false # If true, enables detailed logging of Raft consensus.
-http-access = true # If true, logs each HTTP access to the system.
+[retention]
+  enabled = true
+  check-interval = "10m"
 
-# InfluxDB can store statistical and diagnostic information about itself. This is useful for
-# monitoring purposes. This feature is disabled by default, but if enabled, these data can be
-# queried like any other data.
+###
+### [admin]
+###
+### Controls the availability of the built-in, web-based admin interface.
+###
+
+[admin]
+  enabled = true
+  bind-address = ":8083"
+
+###
+### [http]
+###
+### Controls how the HTTP endpoints are configured. These are the primary
+### mechanism for getting data into and out of InfluxDB.
+###
+
+[http]
+  enabled = true
+  bind-address = ":8086"
+  auth-enabled = false
+  log-enabled = true
+  write-tracing = false
+  pprof-enabled = false
+
+###
+### [[graphite]]
+###
+### Controls one or many listeners for Graphite data.
+###
+
+[[graphite]]
+  enabled = false
+  # protocol = ""
+  # bind-address = ""
+
+###
+### [collectd]
+###
+### Controls the listener for collectd data.
+###
+
+[collectd]
+  enabled = false
+  # bind-address = ""
+  # database = ""
+  # typesdb = ""
+
+###
+### [opentsdb]
+###
+### Controls the listener for OpenTSDB data.
+###
+
+[opentsdb]
+  enabled = false
+  # bind-address = ""
+  # database = ""
+  # retention-policy = ""
+
+###
+### [udp]
+###
+### Controls the listener for InfluxDB line protocol data via UDP.
+###
+
+[udp]
+  enabled = false
+  # bind-address = ""
+  # database = ""
+  # batch-size = 0
+  # batch-timeout = "0"
+
+###
+### [monitoring]
+###
+### Controls the anonymous statistics reporting function of InfluxDB. At start
+### and once per interval, the daemon will send some basic internal statistics
+### to help us see how InfluxDB is being used in the wild.
+###
+
 [monitoring]
-enabled = false
-write-interval = "1m"          # Period between writing the data.
+  enabled = true
+  write-interval = "24h"
+
+###
+### [continuous_queries]
+###
+### Controls how continuous queries are run within InfluxDB.
+###
+
+[continuous_queries]
+  enabled = true
+  recompute-previous-n = 2
+  recompute-no-older-than = "10m"
+  compute-runs-per-interval = 10
+  compute-no-more-than = "2m"
+
+###
+### [hinted-handoff]
+###
+### Controls the hinted handoff feature, which allows nodes to temporarily
+### store queued data when one node of a cluster is down for a short period
+### of time.
+###
+
+[hinted-handoff]
+  enabled = true
+  dir = "/var/opt/influxdb/hh"
+  max-size = 1073741824
+  max-age = "168h"
+  retry-rate-limit = 0
+  retry-interval = "1s"
