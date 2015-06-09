@@ -303,6 +303,8 @@ func (d distinctValues) Less(i, j int) bool {
 		switch v := val.(type) {
 		case uint64:
 			return intWeight, float64(v)
+		case int64:
+			return intWeight, float64(v)
 		case float64:
 			return floatWeight, v
 		case bool:
@@ -415,16 +417,35 @@ func ReduceCountDistinct(values []interface{}) interface{} {
 	return len(index)
 }
 
+type NumberType int8
+
+const (
+	Float64Type NumberType = iota
+	Int64Type
+)
+
 // MapSum computes the summation of values in an iterator.
 func MapSum(itr Iterator) interface{} {
 	n := float64(0)
 	count := 0
+	var resultType NumberType
 	for _, k, v := itr.Next(); k != 0; _, k, v = itr.Next() {
 		count++
-		n += v.(float64)
+		switch n1 := v.(type) {
+		case float64:
+			n += n1
+		case int64:
+			n += float64(n1)
+			resultType = Int64Type
+		}
 	}
 	if count > 0 {
-		return n
+		switch resultType {
+		case Float64Type:
+			return n
+		case Int64Type:
+			return int64(n)
+		}
 	}
 	return nil
 }
@@ -433,15 +454,27 @@ func MapSum(itr Iterator) interface{} {
 func ReduceSum(values []interface{}) interface{} {
 	var n float64
 	count := 0
+	var resultType NumberType
 	for _, v := range values {
 		if v == nil {
 			continue
 		}
 		count++
-		n += v.(float64)
+		switch n1 := v.(type) {
+		case float64:
+			n += n1
+		case int64:
+			n += float64(n1)
+			resultType = Int64Type
+		}
 	}
 	if count > 0 {
-		return n
+		switch resultType {
+		case Float64Type:
+			return n
+		case Int64Type:
+			return int64(n)
+		}
 	}
 	return nil
 }
@@ -452,7 +485,13 @@ func MapMean(itr Iterator) interface{} {
 
 	for _, k, v := itr.Next(); k != 0; _, k, v = itr.Next() {
 		out.Count++
-		out.Mean += (v.(float64) - out.Mean) / float64(out.Count)
+		switch n1 := v.(type) {
+		case float64:
+			out.Mean += (n1 - out.Mean) / float64(out.Count)
+		case int64:
+			out.Mean += (float64(n1) - out.Mean) / float64(out.Count)
+			out.ResultType = Int64Type
+		}
 	}
 
 	if out.Count > 0 {
@@ -463,8 +502,9 @@ func MapMean(itr Iterator) interface{} {
 }
 
 type meanMapOutput struct {
-	Count int
-	Mean  float64
+	Count      int
+	Mean       float64
+	ResultType NumberType
 }
 
 // ReduceMean computes the mean of values for each key.
@@ -641,19 +681,33 @@ func partition(data []float64) (lows []float64, pivotValue float64, highs []floa
 	return data[1:low], pivotValue, data[high+1:]
 }
 
+type minMaxMapOut struct {
+	Val  float64
+	Type NumberType
+}
+
 // MapMin collects the values to pass to the reducer
 func MapMin(itr Iterator) interface{} {
-	var min float64
+	min := &minMaxMapOut{}
+
 	pointsYielded := false
+	var val float64
 
 	for _, k, v := itr.Next(); k != 0; _, k, v = itr.Next() {
-		val := v.(float64)
+		switch n := v.(type) {
+		case float64:
+			val = n
+		case int64:
+			val = float64(n)
+			min.Type = Int64Type
+		}
+
 		// Initialize min
 		if !pointsYielded {
-			min = val
+			min.Val = val
 			pointsYielded = true
 		}
-		min = math.Min(min, val)
+		min.Val = math.Min(min.Val, val)
 	}
 	if pointsYielded {
 		return min
@@ -663,41 +717,60 @@ func MapMin(itr Iterator) interface{} {
 
 // ReduceMin computes the min of value.
 func ReduceMin(values []interface{}) interface{} {
-	var min float64
+	min := &minMaxMapOut{}
 	pointsYielded := false
 
-	for _, v := range values {
-		if v == nil {
+	for _, value := range values {
+		if value == nil {
 			continue
 		}
-		val := v.(float64)
+
+		v, ok := value.(*minMaxMapOut)
+		if !ok {
+			continue
+		}
+
 		// Initialize min
 		if !pointsYielded {
-			min = val
+			min.Val = v.Val
+			min.Type = v.Type
 			pointsYielded = true
 		}
-		m := math.Min(min, val)
-		min = m
+		min.Val = math.Min(min.Val, v.Val)
 	}
 	if pointsYielded {
-		return min
+		switch min.Type {
+		case Float64Type:
+			return min.Val
+		case Int64Type:
+			return int64(min.Val)
+		}
 	}
 	return nil
 }
 
 // MapMax collects the values to pass to the reducer
 func MapMax(itr Iterator) interface{} {
-	var max float64
+	max := &minMaxMapOut{}
+
 	pointsYielded := false
+	var val float64
 
 	for _, k, v := itr.Next(); k != 0; _, k, v = itr.Next() {
-		val := v.(float64)
+		switch n := v.(type) {
+		case float64:
+			val = n
+		case int64:
+			val = float64(n)
+			max.Type = Int64Type
+		}
+
 		// Initialize max
 		if !pointsYielded {
-			max = val
+			max.Val = val
 			pointsYielded = true
 		}
-		max = math.Max(max, val)
+		max.Val = math.Max(max.Val, val)
 	}
 	if pointsYielded {
 		return max
@@ -707,38 +780,58 @@ func MapMax(itr Iterator) interface{} {
 
 // ReduceMax computes the max of value.
 func ReduceMax(values []interface{}) interface{} {
-	var max float64
+	max := &minMaxMapOut{}
 	pointsYielded := false
 
-	for _, v := range values {
-		if v == nil {
+	for _, value := range values {
+		if value == nil {
 			continue
 		}
-		val := v.(float64)
+
+		v, ok := value.(*minMaxMapOut)
+		if !ok {
+			continue
+		}
+
 		// Initialize max
 		if !pointsYielded {
-			max = val
+			max.Val = v.Val
+			max.Type = v.Type
 			pointsYielded = true
 		}
-		max = math.Max(max, val)
+		max.Val = math.Max(max.Val, v.Val)
 	}
 	if pointsYielded {
-		return max
+		switch max.Type {
+		case Float64Type:
+			return max.Val
+		case Int64Type:
+			return int64(max.Val)
+		}
 	}
 	return nil
 }
 
 type spreadMapOutput struct {
 	Min, Max float64
+	Type     NumberType
 }
 
 // MapSpread collects the values to pass to the reducer
 func MapSpread(itr Iterator) interface{} {
 	out := &spreadMapOutput{}
 	pointsYielded := false
+	var val float64
 
 	for _, k, v := itr.Next(); k != 0; _, k, v = itr.Next() {
-		val := v.(float64)
+		switch n := v.(type) {
+		case float64:
+			val = n
+		case int64:
+			val = float64(n)
+			out.Type = Int64Type
+		}
+
 		// Initialize
 		if !pointsYielded {
 			out.Max = val
@@ -768,13 +861,19 @@ func ReduceSpread(values []interface{}) interface{} {
 		if !pointsYielded {
 			result.Max = val.Max
 			result.Min = val.Min
+			result.Type = val.Type
 			pointsYielded = true
 		}
 		result.Max = math.Max(result.Max, val.Max)
 		result.Min = math.Min(result.Min, val.Min)
 	}
 	if pointsYielded {
-		return result.Max - result.Min
+		switch result.Type {
+		case Float64Type:
+			return result.Max - result.Min
+		case Int64Type:
+			return int64(result.Max - result.Min)
+		}
 	}
 	return nil
 }
@@ -784,7 +883,12 @@ func MapStddev(itr Iterator) interface{} {
 	var values []float64
 
 	for _, k, v := itr.Next(); k != 0; _, k, v = itr.Next() {
-		values = append(values, v.(float64))
+		switch n := v.(type) {
+		case float64:
+			values = append(values, n)
+		case int64:
+			values = append(values, float64(n))
+		}
 	}
 
 	return values
