@@ -12,7 +12,6 @@
 
 [data]
   dir = "/var/opt/influxdb/data"
-  retention-auto-create = true
   retention-check-enabled = true
   retention-check-period = "10m0s"
   retention-create-period = "45m0s"
@@ -36,40 +35,40 @@
   write-tracing = false
   pprof-enabled = false
 
+[[graphite]]
+  enabled = false
+  # protocol = ""
+  # bind-address = ""
+
 [collectd]
   enabled = false
-  bind-address = ""
-  database = ""
-  typesdb = ""
+  # bind-address = ""
+  # database = ""
+  # typesdb = ""
 
 [opentsdb]
   enabled = false
-  bind-address = ""
-  database = ""
-  retention-policy = ""
+  # bind-address = ""
+  # database = ""
+  # retention-policy = ""
 
 [udp]
   enabled = false
-  bind-address = ""
-  database = ""
-  batch-size = 0
-  batch-timeout = "0"
+  # bind-address = ""
+  # database = ""
+  # batch-size = 0
+  # batch-timeout = "0"
 
-# Once every 24 hours InfluxDB will report anonymous data to m.influxdb.com
-# The data includes randomly-generated ids, os, arch and version.
-# We don't track ip addresses of servers reporting. This is only used
-# to track the number of instances running and the versions, which
-# is very helpful for us.
 [monitoring]
   enabled = false
-  write-interval = "1m0s"
+  write-interval = "24h"
 
 [continuous_queries]
   enabled = true
   recompute-previous-n = 2
-  recompute-no-older-than = "10m0s"
+  recompute-no-older-than = "10m"
   compute-runs-per-interval = 10
-  compute-no-more-than = "2m0s"
+  compute-no-more-than = "2m"
 
 [hinted-handoff]
   enabled = true
