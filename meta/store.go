@@ -719,7 +719,7 @@ func (s *Store) UpdateRetentionPolicy(database, name string, rpu *RetentionPolic
 	}
 
 	var replicaN *uint32
-	if rpu.Duration != nil {
+	if rpu.ReplicaN != nil {
 		value := uint32(*rpu.ReplicaN)
 		replicaN = &value
 	}
