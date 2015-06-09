@@ -30,9 +30,9 @@ type Server struct {
 
 // NewServer returns a new instance of Server.
 func NewServer(c *run.Config) *Server {
-
+	srv, _ := run.NewServer(c)
 	s := Server{
-		Server: run.NewServer(c),
+		Server: srv,
 		Config: c,
 	}
 	// Set the logger to discard unless verbose is on

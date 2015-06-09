@@ -3,7 +3,6 @@ package graphite
 import (
 	"strings"
 
-	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/toml"
 )
 
@@ -55,20 +54,4 @@ func NewConfig() Config {
 // LastEnabled returns whether the server should interpret the last field as "name".
 func (c *Config) LastEnabled() bool {
 	return c.NamePosition == strings.ToLower("last")
-}
-
-// ConsistencyAsEnum returns the enumerated write consistency level.
-func (c *Config) ConsistencyAsEnum() cluster.ConsistencyLevel {
-	switch strings.ToLower(c.ConsistencyLevel) {
-	case "any":
-		return cluster.ConsistencyLevelAny
-	case "one":
-		return cluster.ConsistencyLevelOne
-	case "quorum":
-		return cluster.ConsistencyLevelQuorum
-	case "all":
-		return cluster.ConsistencyLevelAll
-	default:
-		return cluster.ConsistencyLevelOne
-	}
 }

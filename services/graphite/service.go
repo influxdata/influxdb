@@ -44,24 +44,29 @@ type Service struct {
 }
 
 // NewService returns an instance of the Graphite service.
-func NewService(c Config) *Service {
+func NewService(c Config) (*Service, error) {
 	s := Service{
-		bindAddress:      c.BindAddress,
-		database:         c.Database,
-		protocol:         c.Protocol,
-		batchSize:        c.BatchSize,
-		batchTimeout:     time.Duration(c.BatchTimeout),
-		consistencyLevel: c.ConsistencyAsEnum(),
-		logger:           log.New(os.Stderr, "[graphite] ", log.LstdFlags),
-		done:             make(chan struct{}),
+		bindAddress:  c.BindAddress,
+		database:     c.Database,
+		protocol:     c.Protocol,
+		batchSize:    c.BatchSize,
+		batchTimeout: time.Duration(c.BatchTimeout),
+		logger:       log.New(os.Stderr, "[graphite] ", log.LstdFlags),
+		done:         make(chan struct{}),
 	}
+
+	consistencyLevel, err := cluster.ParseConsistencyLevel(c.ConsistencyLevel)
+	if err != nil {
+		return nil, err
+	}
+	s.consistencyLevel = consistencyLevel
 
 	parser := NewParser()
 	parser.Separator = c.NameSeparator
 	parser.LastEnabled = c.LastEnabled()
 	s.parser = parser
 
-	return &s
+	return &s, nil
 }
 
 // Open starts the Graphite input processing data.
