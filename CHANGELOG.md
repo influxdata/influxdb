@@ -11,6 +11,9 @@
 - [2852](https://github.com/influxdb/influxdb/pull/2852) -- Don't panic when altering retention policies. Thanks for the report @huhongbo
 - [2857](https://github.com/influxdb/influxdb/issues/2857) -- Fix parsing commas in string field values.
 
+### Features
+- [2858](https://github.com/influxdb/influxdb/pull/2858) - Support setting openTSDB write consistency.
+
 ## v0.9.0-rc32 [2015-06-07]
 
 ### Release Notes
