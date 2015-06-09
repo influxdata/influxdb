@@ -334,6 +334,39 @@ func TestParsePointWithStringWithSpaces(t *testing.T) {
 	)
 }
 
+func TestParsePointWithStringWithCommas(t *testing.T) {
+	// escaped comma
+	test(t, `cpu,host=serverA,region=us-east value=1.0,str="foo\,bar" 1000000000`,
+		NewPoint(
+			"cpu",
+			Tags{
+				"host":   "serverA",
+				"region": "us-east",
+			},
+			Fields{
+				"value": 1.0,
+				"str":   "foo,bar", // commas in string value
+			},
+			time.Unix(1, 0)),
+	)
+
+	// non-escaped comma
+	test(t, `cpu,host=serverA,region=us-east value=1.0,str="foo,bar" 1000000000`,
+		NewPoint(
+			"cpu",
+			Tags{
+				"host":   "serverA",
+				"region": "us-east",
+			},
+			Fields{
+				"value": 1.0,
+				"str":   "foo,bar", // commas in string value
+			},
+			time.Unix(1, 0)),
+	)
+
+}
+
 func TestParsePointWithStringWithEquals(t *testing.T) {
 	test(t, `cpu,host=serverA,region=us-east str="foo=bar",value=1.0, 1000000000`,
 		NewPoint(

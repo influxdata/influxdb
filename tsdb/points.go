@@ -436,6 +436,33 @@ func scanTagValue(buf []byte, i int) (int, []byte) {
 	return i, buf[start:i]
 }
 
+func scanFieldValue(buf []byte, i int) (int, []byte) {
+	start := i
+	quoted := false
+	for {
+		if i >= len(buf) {
+			break
+		}
+
+		if buf[i] == '"' {
+			i += 1
+			quoted = !quoted
+			continue
+		}
+
+		if buf[i] == '\\' {
+			i += 2
+			continue
+		}
+
+		if buf[i] == ',' && !quoted {
+			break
+		}
+		i += 1
+	}
+	return i, buf[start:i]
+}
+
 func escape(in []byte) []byte {
 	for b, esc := range escapeCodes {
 		in = bytes.Replace(in, []byte{b}, esc, -1)
@@ -700,7 +727,7 @@ func newFieldsFromBinary(buf []byte) Fields {
 			continue
 		}
 
-		i, valueBuf = scanTo(buf, i+1, ',')
+		i, valueBuf = scanFieldValue(buf, i+1)
 		if len(valueBuf) == 0 {
 			fields[string(name)] = nil
 			continue
