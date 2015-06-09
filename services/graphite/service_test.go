@@ -241,9 +241,9 @@ func Test_ServerGraphiteTCP(t *testing.T) {
 	config.BatchTimeout = toml.Duration(time.Second)
 	config.BindAddress = ":0"
 
-	service := graphite.NewService(config)
-	if service == nil {
-		t.Fatal("failed to create Graphite service")
+	service, err := graphite.NewService(config)
+	if err != nil {
+		t.Fatalf("failed to create Graphite service: %s", err.Error())
 	}
 
 	// Allow test to wait until points are written.
@@ -307,9 +307,9 @@ func Test_ServerGraphiteUDP(t *testing.T) {
 	config.BindAddress = ":10000"
 	config.Protocol = "udp"
 
-	service := graphite.NewService(config)
-	if service == nil {
-		t.Fatal("failed to create Graphite service")
+	service, err := graphite.NewService(config)
+	if err != nil {
+		t.Fatalf("failed to create Graphite service: %s", err.Error())
 	}
 
 	// Allow test to wait until points are written.

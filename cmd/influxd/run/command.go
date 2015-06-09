@@ -84,7 +84,10 @@ func (cmd *Command) Run(args ...string) error {
 	}
 
 	// Create server from config and start it.
-	s := NewServer(config)
+	s, err := NewServer(config)
+	if err != nil {
+		return fmt.Errorf("create server: %s", err)
+	}
 	if err := s.Open(); err != nil {
 		return fmt.Errorf("open server: %s", err)
 	}

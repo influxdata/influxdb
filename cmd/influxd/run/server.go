@@ -42,7 +42,7 @@ type Server struct {
 }
 
 // NewServer returns a new instance of Server built from a config.
-func NewServer(c *Config) *Server {
+func NewServer(c *Config) (*Server, error) {
 	// Construct base meta store and data store.
 	s := &Server{
 		err:     make(chan error),
@@ -84,10 +84,12 @@ func NewServer(c *Config) *Server {
 	s.appendUDPService(c.UDP)
 	s.appendRetentionPolicyService(c.Retention)
 	for _, g := range c.Graphites {
-		s.appendGraphiteService(g)
+		if err := s.appendGraphiteService(g); err != nil {
+			return nil, err
+		}
 	}
 
-	return s
+	return s, nil
 }
 
 func (s *Server) appendClusterService(c cluster.Config) {
@@ -152,13 +154,18 @@ func (s *Server) appendOpenTSDBService(c opentsdb.Config) {
 	s.Services = append(s.Services, srv)
 }
 
-func (s *Server) appendGraphiteService(c graphite.Config) {
+func (s *Server) appendGraphiteService(c graphite.Config) error {
 	if !c.Enabled {
-		return
+		return nil
 	}
-	srv := graphite.NewService(c)
+	srv, err := graphite.NewService(c)
+	if err != nil {
+		return err
+	}
+
 	srv.PointsWriter = s.PointsWriter
 	s.Services = append(s.Services, srv)
+	return nil
 }
 
 func (s *Server) appendUDPService(c udp.Config) {
