@@ -408,7 +408,7 @@ func (m *Measurement) DropSeries(seriesID uint64) bool {
 		}
 	}
 
-	return true
+	return false
 }
 
 // filters walks the where clause of a select statement and returns a map with all series ids
