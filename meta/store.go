@@ -37,6 +37,7 @@ const ExecMagic = "EXEC"
 const (
 	AutoCreateRetentionPolicyName     = "default"
 	AutoCreateRetentionPolicyReplicaN = 1
+	AutoCreateRetentionPolicyPeriod   = 0
 )
 
 // Raft configuration.
@@ -578,6 +579,7 @@ func (s *Store) CreateDatabase(name string) (*DatabaseInfo, error) {
 	if s.retentionAutoCreate {
 		rpi := NewRetentionPolicyInfo(AutoCreateRetentionPolicyName)
 		rpi.ReplicaN = AutoCreateRetentionPolicyReplicaN
+		rpi.Duration = AutoCreateRetentionPolicyPeriod
 		if _, err := s.CreateRetentionPolicy(name, rpi); err != nil {
 			return nil, err
 		}
