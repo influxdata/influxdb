@@ -47,9 +47,13 @@ func NewService(c Config) *Service {
 
 // Open starts the service.
 func (s *Service) Open() error {
-	assert(s.Config.BindAddress != "", "BindAddress is blank")
-	assert(s.Config.Database != "", "Database name is blank")
-	assert(s.PointsWriter != nil, "PointsWriter is nil")
+	if s.Config.BindAddress == "" {
+		return fmt.Errorf("bind address is blank")
+	} else if s.Config.Database == "" {
+		return fmt.Errorf("database name is blank")
+	} else if s.PointsWriter == nil {
+		return fmt.Errorf("PointsWriter is nil")
+	}
 
 	if s.typesdb == nil {
 		// Open collectd types.
