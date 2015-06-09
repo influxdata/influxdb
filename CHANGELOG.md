@@ -7,6 +7,7 @@
 - [2823](https://github.com/influxdb/influxdb/pull/2823) -- Convert OpenTSDB to a service.
 - [2838](https://github.com/influxdb/influxdb/pull/2838) -- Set auto-created retention policy period to infinite.
 - [2829](https://github.com/influxdb/influxdb/pull/2829) -- Re-enable Graphite support as a new Service-style component.
+- [2814](https://github.com/influxdb/influxdb/issues/2814) -- Convert collectd to a service.
 
 ## v0.9.0-rc32 [2015-06-07]
 

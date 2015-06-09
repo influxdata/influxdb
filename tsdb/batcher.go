@@ -1,6 +1,7 @@
 package tsdb
 
 import (
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -11,11 +12,14 @@ type PointBatcher struct {
 	size     int
 	duration time.Duration
 
+	stop  chan struct{}
 	in    chan Point
 	out   chan []Point
 	flush chan struct{}
 
 	stats PointBatcherStats
+
+	wg *sync.WaitGroup
 }
 
 // NewPointBatcher returns a new PointBatcher.
@@ -23,6 +27,7 @@ func NewPointBatcher(sz int, d time.Duration) *PointBatcher {
 	return &PointBatcher{
 		size:     sz,
 		duration: d,
+		stop:     make(chan struct{}),
 		in:       make(chan Point),
 		out:      make(chan []Point),
 		flush:    make(chan struct{}),
@@ -40,6 +45,11 @@ type PointBatcherStats struct {
 // Start starts the batching process. Returns the in and out channels for points
 // and point-batches respectively.
 func (b *PointBatcher) Start() {
+	// Already running?
+	if b.wg != nil {
+		return
+	}
+
 	var timer *time.Timer
 	var batch []Point
 	var timerCh <-chan time.Time
@@ -50,9 +60,19 @@ func (b *PointBatcher) Start() {
 		batch = nil
 	}
 
+	b.wg = &sync.WaitGroup{}
+	b.wg.Add(1)
+
 	go func() {
+		defer b.wg.Done()
 		for {
 			select {
+			case <-b.stop:
+				if len(batch) > 0 {
+					emit()
+					timerCh = nil
+				}
+				return
 			case p := <-b.in:
 				atomic.AddUint64(&b.stats.PointTotal, 1)
 				if batch == nil {
@@ -82,11 +102,25 @@ func (b *PointBatcher) Start() {
 	}()
 }
 
+func (b *PointBatcher) Stop() {
+	// If not running, nothing to stop.
+	if b.wg == nil {
+		return
+	}
+
+	close(b.stop)
+	b.wg.Wait()
+}
+
 // In returns the channel to which points should be written.
-func (b *PointBatcher) In() chan<- Point { return b.in }
+func (b *PointBatcher) In() chan<- Point {
+	return b.in
+}
 
 // Out returns the channel from which batches should be read.
-func (b *PointBatcher) Out() <-chan []Point { return b.out }
+func (b *PointBatcher) Out() <-chan []Point {
+	return b.out
+}
 
 // Flush instructs the batcher to emit any pending points in a batch, regardless of batch size.
 // If there are no pending points, no batch is emitted.
