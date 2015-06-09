@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -14,8 +15,20 @@ import (
 
 	"github.com/influxdb/influxdb/cmd/influxd/help"
 	"github.com/influxdb/influxdb/cmd/influxd/run"
-	"github.com/influxdb/influxdb/cmd/influxd/version"
 )
+
+// These variables are populated via the Go linker.
+var (
+	version string = "0.9"
+	commit  string
+)
+
+func init() {
+	// If commit not set, make that clear.
+	if commit == "" {
+		commit = "unknown"
+	}
+}
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
@@ -74,7 +87,7 @@ func (m *Main) Run(args ...string) error {
 			return fmt.Errorf("config: %s", err)
 		}
 	case "version":
-		if err := version.NewCommand().Run(args...); err != nil {
+		if err := NewVersionCommand().Run(args...); err != nil {
 			return fmt.Errorf("version: %s", err)
 		}
 	case "help":
@@ -160,3 +173,38 @@ func StopProfile() {
 		prof.mem.Close()
 	}
 }
+
+// Command represents the command executed by "influxd version".
+type VersionCommand struct {
+	Stdout io.Writer
+	Stderr io.Writer
+}
+
+// NewVersionCommand return a new instance of VersionCommand.
+func NewVersionCommand() *VersionCommand {
+	return &VersionCommand{
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+	}
+}
+
+// Run prints the current version and commit info.
+func (cmd *VersionCommand) Run(args ...string) error {
+	// Parse flags in case -h is specified.
+	fs := flag.NewFlagSet("", flag.ContinueOnError)
+	fs.Usage = func() { fmt.Fprintln(cmd.Stderr, strings.TrimSpace(versionUsage)) }
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	// Print version info.
+	fmt.Fprintf(cmd.Stdout, "InfluxDB v%s (git: %s)\n", version, commit)
+
+	return nil
+}
+
+var versionUsage = `
+usage: version
+
+	version displays the InfluxDB version and build git commit hash
+`
