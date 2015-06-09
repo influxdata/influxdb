@@ -129,12 +129,12 @@ type Service struct {
 
 // NewService returns a new instance of Service.
 func NewService(database string) *Service {
-	s := &Service{
-		Service: opentsdb.NewService(opentsdb.Config{
-			BindAddress: "127.0.0.1:0",
-			Database:    database,
-		}),
-	}
+	srv, _ := opentsdb.NewService(opentsdb.Config{
+		BindAddress:      "127.0.0.1:0",
+		Database:         database,
+		ConsistencyLevel: "one",
+	})
+	s := &Service{Service: srv}
 	s.Service.PointsWriter = &s.PointsWriter
 
 	if !testing.Verbose() {

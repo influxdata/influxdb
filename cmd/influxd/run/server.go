@@ -80,7 +80,9 @@ func NewServer(c *Config) (*Server, error) {
 	s.appendContinuousQueryService(c.ContinuousQuery)
 	s.appendHTTPDService(c.HTTPD)
 	s.appendCollectdService(c.Collectd)
-	s.appendOpenTSDBService(c.OpenTSDB)
+	if err := s.appendOpenTSDBService(c.OpenTSDB); err != nil {
+		return nil, err
+	}
 	s.appendUDPService(c.UDP)
 	s.appendRetentionPolicyService(c.Retention)
 	for _, g := range c.Graphites {
@@ -145,13 +147,17 @@ func (s *Server) appendCollectdService(c collectd.Config) {
 	s.Services = append(s.Services, srv)
 }
 
-func (s *Server) appendOpenTSDBService(c opentsdb.Config) {
+func (s *Server) appendOpenTSDBService(c opentsdb.Config) error {
 	if !c.Enabled {
-		return
+		return nil
 	}
-	srv := opentsdb.NewService(c)
+	srv, err := opentsdb.NewService(c)
+	if err != nil {
+		return err
+	}
 	srv.PointsWriter = s.PointsWriter
 	s.Services = append(s.Services, srv)
+	return nil
 }
 
 func (s *Server) appendGraphiteService(c graphite.Config) error {
