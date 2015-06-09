@@ -1291,13 +1291,13 @@ func TestServer_Query_Aggregates(t *testing.T) {
 			name:    "distinct select tag",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT DISTINCT(host) FROM floatmany`,
-			exp:     `{"results":[{"error":"host isn't a field on measurement floatmany; to query the unique values for a tag use SHOW TAG VALUES FROM floatmany WITH KEY = \"host\""}]}`,
+			exp:     `{"results":[{"error":"host isn't a field on measurement floatmany; to query the unique values for a tag use SHOW TAG VALUES FROM floatmany WITH KEY = \"host"}]}`,
 		},
 		&Query{
 			name:    "distinct alt select tag",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT DISTINCT host FROM floatmany`,
-			exp:     `{"results":[{"error":"host isn't a field on measurement floatmany; to query the unique values for a tag use SHOW TAG VALUES FROM floatmany WITH KEY = \"host\""}]}`,
+			exp:     `{"results":[{"error":"host isn't a field on measurement floatmany; to query the unique values for a tag use SHOW TAG VALUES FROM floatmany WITH KEY = \"host"}]}`,
 		},
 		&Query{
 			name:    "count distinct",
@@ -1582,6 +1582,66 @@ func TestServer_Query_Wildcards(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT mean(value) FROM wgroup WHERE time >= '2000-01-01T00:00:00Z' AND time < '2000-01-01T00:01:00Z' GROUP BY *,TIME(1m)`,
 			exp:     `{"results":[{"series":[{"name":"wgroup","tags":{"region":"us-east"},"columns":["time","mean"],"values":[["2000-01-01T00:00:00Z",15]]},{"name":"wgroup","tags":{"region":"us-west"},"columns":["time","mean"],"values":[["2000-01-01T00:00:00Z",30]]}]}]}`,
+		},
+	}...)
+
+	for i, query := range test.queries {
+		if i == 0 {
+			if err := test.init(s); err != nil {
+				t.Fatalf("test init failed: %s", err)
+			}
+		}
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
+func TestServer_Query_AcrossShardsAndFields(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MetaStore.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := []string{
+		fmt.Sprintf(`cpu load=100 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`cpu load=200 %d`, mustParseTime(time.RFC3339Nano, "2010-01-01T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`cpu core=4 %d`, mustParseTime(time.RFC3339Nano, "2015-01-01T00:00:00Z").UnixNano()),
+	}
+
+	test := NewTest("db0", "rp0")
+	test.write = strings.Join(writes, "\n")
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "two results for cpu",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT load FROM cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","load"],"values":[["2000-01-01T00:00:00Z",100],["2010-01-01T00:00:00Z",200]]}]}]}`,
+		},
+		&Query{
+			name:    "one result for core",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT core FROM cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","core"],"values":[["2015-01-01T00:00:00Z",4]]}]}]}`,
+		},
+		&Query{
+			name:    "error for non-existent field",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT foo FROM cpu`,
+			exp:     `{"results":[{"error":"unknown field or tag name in select clause: foo"}]}`,
 		},
 	}...)
 

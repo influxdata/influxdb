@@ -322,12 +322,10 @@ func (l *LocalMapper) Begin(c *influxql.Call, startingTime int64, chunkSize int)
 		fid, err := l.decoder.FieldIDByName(fieldName)
 		if err != nil {
 			switch {
-			case c.Name == "distinct":
-				return fmt.Errorf(`%s isn't a field on measurement %s; to query the unique values for a tag use SHOW TAG VALUES FROM %[2]s WITH KEY = "%[1]s"`, fieldName, l.job.MeasurementName)
+			case c != nil && c.Name == "distinct":
+				return fmt.Errorf(`%s isn't a field on measurement %s; to query the unique values for a tag use SHOW TAG VALUES FROM %[2]s WITH KEY = "%[1]s`, fieldName, l.job.MeasurementName)
 			case isCountDistinct:
 				return fmt.Errorf("%s isn't a field on measurement %s; count(distinct) on tags isn't yet supported", fieldName, l.job.MeasurementName)
-			default:
-				return fmt.Errorf("%s isn't a field on measurement %s", fieldName, l.job.MeasurementName)
 			}
 		}
 		l.fieldID = fid
