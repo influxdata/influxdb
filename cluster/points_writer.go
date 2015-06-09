@@ -43,9 +43,9 @@ var (
 	// ErrWriteFailed is returned when no writes succeeded.
 	ErrWriteFailed = errors.New("write failed")
 
-	// ErrConsistencyLevelParseError is returned when parsing the string version
+	// ErrInvalidConsistencyLevel is returned when parsing the string version
 	// of a consistency level.
-	ErrConsistencyLevelParseError = errors.New("write failed")
+	ErrInvalidConsistencyLevel = errors.New("invalid consistency level")
 )
 
 func ParseConsistencyLevel(level string) (ConsistencyLevel, error) {
@@ -59,7 +59,7 @@ func ParseConsistencyLevel(level string) (ConsistencyLevel, error) {
 	case "all":
 		return ConsistencyLevelAll, nil
 	default:
-		return 0, ErrConsistencyLevelParseError
+		return 0, ErrInvalidConsistencyLevel
 	}
 }
 
