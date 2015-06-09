@@ -75,7 +75,7 @@ func (s *Service) Open() error {
 	s.ln = ln
 
 	// Start the points batcher.
-	s.batcher = tsdb.NewPointBatcher(s.Config.BatchSize, s.Config.BatchDuration)
+	s.batcher = tsdb.NewPointBatcher(s.Config.BatchSize, time.Duration(s.Config.BatchDuration))
 	s.batcher.Start()
 
 	// Create channel and wait group for signalling goroutines to stop.

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb/cluster"
+	"github.com/influxdb/influxdb/toml"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -159,7 +160,7 @@ func newTestService(batchSize int, batchDuration time.Duration) *testService {
 			BindAddress:   "127.0.0.1:0",
 			Database:      "collectd_test",
 			BatchSize:     batchSize,
-			BatchDuration: batchDuration,
+			BatchDuration: toml.Duration(batchDuration),
 		}),
 	}
 	s.Service.PointsWriter = &s.PointsWriter

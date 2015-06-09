@@ -2,6 +2,8 @@ package collectd
 
 import (
 	"time"
+
+	"github.com/influxdb/influxdb/toml"
 )
 
 const (
@@ -13,7 +15,7 @@ const (
 
 	DefaultBatchSize = 5000
 
-	DefaultBatchDuration = 10 * time.Second
+	DefaultBatchDuration = toml.Duration(10 * time.Second)
 
 	DefaultTypesDB = "/usr/share/collectd/types.db"
 )
@@ -25,7 +27,7 @@ type Config struct {
 	Database        string        `toml:"database"`
 	RetentionPolicy string        `toml:"retention-policy"`
 	BatchSize       int           `toml:"batch-size"`
-	BatchDuration   time.Duration `toml:"batch-timeout"`
+	BatchDuration   toml.Duration `toml:"batch-timeout"`
 	TypesDB         string        `toml:"typesdb"`
 }
 
