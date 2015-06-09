@@ -2533,6 +2533,36 @@ func evalBinaryExpr(expr *BinaryExpr, m map[string]interface{}) interface{} {
 			}
 			return lhs / rhs
 		}
+	case int64:
+		// we parse all number literals as float 64, so we have to convert from
+		// an interface to the float64, then cast to an int64 for comparison
+		rhsf, _ := rhs.(float64)
+		rhs := int64(rhsf)
+		switch expr.Op {
+		case EQ:
+			return lhs == rhs
+		case NEQ:
+			return lhs != rhs
+		case LT:
+			return lhs < rhs
+		case LTE:
+			return lhs <= rhs
+		case GT:
+			return lhs > rhs
+		case GTE:
+			return lhs >= rhs
+		case ADD:
+			return lhs + rhs
+		case SUB:
+			return lhs - rhs
+		case MUL:
+			return lhs * rhs
+		case DIV:
+			if rhs == 0 {
+				return int64(0)
+			}
+			return lhs / rhs
+		}
 	case string:
 		rhs, _ := rhs.(string)
 		switch expr.Op {

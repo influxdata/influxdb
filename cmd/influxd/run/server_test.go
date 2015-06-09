@@ -1662,3 +1662,199 @@ func TestServer_Query_AcrossShardsAndFields(t *testing.T) {
 		}
 	}
 }
+
+func TestServer_Query_Where_Fields(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MetaStore.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := []string{
+		fmt.Sprintf(`cpu alert_id="alert",tenant_id="tenant",_cust="johnson brothers" %d`, mustParseTime(time.RFC3339Nano, "2015-02-28T01:03:36.703820946Z").UnixNano()),
+		fmt.Sprintf(`cpu alert_id="alert",tenant_id="tenant",_cust="johnson brothers" %d`, mustParseTime(time.RFC3339Nano, "2015-02-28T01:03:36.703820946Z").UnixNano()),
+		fmt.Sprintf(`cpu load=100.0,core=4 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:02Z").UnixNano()),
+		fmt.Sprintf(`cpu load=80.0,core=2 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:01:02Z").UnixNano()),
+	}
+
+	test := NewTest("db0", "rp0")
+	test.write = strings.Join(writes, "\n")
+
+	test.addQueries([]*Query{
+		// non type specific
+		&Query{
+			name:    "missing measurement with group by",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT load from missing group by *`,
+			exp:     `{"results":[{"error":"measurement not found: \"db0\".\"rp0\".missing"}]}`,
+		},
+
+		// string
+		&Query{
+			name:    "single string field",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT alert_id FROM cpu WHERE alert_id='alert'`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","alert_id"],"values":[["2015-02-28T01:03:36.703820946Z","alert"]]}]}]}`,
+		},
+		&Query{
+			name:    "string AND query, all fields in SELECT",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT alert_id,tenant_id,_cust FROM cpu WHERE alert_id='alert' AND tenant_id='tenant'`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","alert_id","tenant_id","_cust"],"values":[["2015-02-28T01:03:36.703820946Z","alert","tenant","johnson brothers"]]}]}]}`,
+		},
+		&Query{
+			name:    "string AND query, all fields in SELECT, one in parenthesis",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT alert_id,tenant_id FROM cpu WHERE alert_id='alert' AND (tenant_id='tenant')`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","alert_id","tenant_id"],"values":[["2015-02-28T01:03:36.703820946Z","alert","tenant"]]}]}]}`,
+		},
+		&Query{
+			name:    "string underscored field",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT alert_id FROM cpu WHERE _cust='johnson brothers'`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","alert_id"],"values":[["2015-02-28T01:03:36.703820946Z","alert"]]}]}]}`,
+		},
+		&Query{
+			name:    "string no match",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT alert_id FROM cpu WHERE _cust='acme'`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","alert_id"]}]}]}`,
+		},
+
+		// float64
+		&Query{
+			name:    "float64 GT no match",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select load from cpu where load > 100`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","load"]}]}]}`,
+		},
+		&Query{
+			name:    "float64 GTE match one",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select load from cpu where load >= 100`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","load"],"values":[["2009-11-10T23:00:02Z",100]]}]}]}`,
+		},
+		&Query{
+			name:    "float64 EQ match upper bound",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select load from cpu where load = 100`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","load"],"values":[["2009-11-10T23:00:02Z",100]]}]}]}`,
+		},
+		&Query{
+			name:    "float64 LTE match two",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select load from cpu where load <= 100`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","load"],"values":[["2009-11-10T23:00:02Z",100],["2009-11-10T23:01:02Z",80]]}]}]}`,
+		},
+		&Query{
+			name:    "float64 GT match one",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select load from cpu where load > 99`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","load"],"values":[["2009-11-10T23:00:02Z",100]]}]}]}`,
+		},
+		&Query{
+			name:    "float64 EQ no match",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select load from cpu where load = 99`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","load"]}]}]}`,
+		},
+		&Query{
+			name:    "float64 LT match one",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select load from cpu where load < 99`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","load"],"values":[["2009-11-10T23:01:02Z",80]]}]}]}`,
+		},
+		&Query{
+			name:    "float64 LT no match",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select load from cpu where load < 80`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","load"]}]}]}`,
+		},
+		&Query{
+			name:    "float64 NE match one",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select load from cpu where load != 100`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","load"],"values":[["2009-11-10T23:01:02Z",80]]}]}]}`,
+		},
+
+		// int64
+		&Query{
+			name:    "int64 GT no match",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select core from cpu where core > 4`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","core"]}]}]}`,
+		},
+		&Query{
+			name:    "int64 GTE match one",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select core from cpu where core >= 4`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","core"],"values":[["2009-11-10T23:00:02Z",4]]}]}]}`,
+		},
+		&Query{
+			name:    "int64 EQ match upper bound",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select core from cpu where core = 4`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","core"],"values":[["2009-11-10T23:00:02Z",4]]}]}]}`,
+		},
+		&Query{
+			name:    "int64 LTE match two ",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select core from cpu where core <= 4`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","core"],"values":[["2009-11-10T23:00:02Z",4],["2009-11-10T23:01:02Z",2]]}]}]}`,
+		},
+		&Query{
+			name:    "int64 GT match one",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select core from cpu where core > 3`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","core"],"values":[["2009-11-10T23:00:02Z",4]]}]}]}`,
+		},
+		&Query{
+			name:    "int64 EQ no match",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select core from cpu where core = 3`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","core"]}]}]}`,
+		},
+		&Query{
+			name:    "int64 LT match one",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select core from cpu where core < 3`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","core"],"values":[["2009-11-10T23:01:02Z",2]]}]}]}`,
+		},
+		&Query{
+			name:    "int64 LT no match",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select core from cpu where core < 2`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","core"]}]}]}`,
+		},
+		&Query{
+			name:    "int64 NE match one",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select core from cpu where core != 4`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","core"],"values":[["2009-11-10T23:01:02Z",2]]}]}]}`,
+		},
+
+		// TODO add bool where tests
+	}...)
+
+	for i, query := range test.queries {
+		if i == 0 {
+			if err := test.init(s); err != nil {
+				t.Fatalf("test init failed: %s", err)
+			}
+		}
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
