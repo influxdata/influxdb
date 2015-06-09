@@ -1,4 +1,11 @@
-# Welcome to the InfluxDB configuration file.
+### Welcome to the InfluxDB configuration file.
+
+###
+### [meta]
+###
+### Controls the parameters for the Raft consensus group that stores metadata
+### about the InfluxDB cluster.
+###
 
 [meta]
   dir = "/var/opt/influxdb/meta"
@@ -10,22 +17,51 @@
   leader-lease-timeout = "500ms"
   commit-timeout = "50ms"
 
+###
+### [data]
+###
+### Controls where the actual shard data for InfluxDB lives.
+###
+
 [data]
   dir = "/var/opt/influxdb/data"
-  retention-check-enabled = true
-  retention-check-period = "10m0s"
-  retention-create-period = "45m0s"
+
+###
+### [cluster]
+###
+### Controls non-Raft cluster behavior, which generally includes how data is
+### shared across shards.
+###
 
 [cluster]
   shard-writer-timeout = "5s"
 
+###
+### [retention]
+###
+### Controls the enforcement of retention policies for evicting old data.
+###
+
 [retention]
   enabled = true
-  check-interval = "10m0s"
+  check-interval = "10m"
+
+###
+### [admin]
+###
+### Controls the availability of the built-in, web-based admin interface.
+###
 
 [admin]
   enabled = true
   bind-address = ":8083"
+
+###
+### [http]
+###
+### Controls how the HTTP endpoints are configured. These are the primary
+### mechanism for getting data into and out of InfluxDB.
+###
 
 [http]
   enabled = true
@@ -35,10 +71,22 @@
   write-tracing = false
   pprof-enabled = false
 
+###
+### [[graphite]]
+###
+### Controls one or many listeners for Graphite data.
+###
+
 [[graphite]]
   enabled = false
   # protocol = ""
   # bind-address = ""
+
+###
+### [collectd]
+###
+### Controls the listener for collectd data.
+###
 
 [collectd]
   enabled = false
@@ -46,11 +94,23 @@
   # database = ""
   # typesdb = ""
 
+###
+### [opentsdb]
+###
+### Controls the listener for OpenTSDB data.
+###
+
 [opentsdb]
   enabled = false
   # bind-address = ""
   # database = ""
   # retention-policy = ""
+
+###
+### [udp]
+###
+### Controls the listener for InfluxDB line protocol data via UDP.
+###
 
 [udp]
   enabled = false
@@ -59,9 +119,23 @@
   # batch-size = 0
   # batch-timeout = "0"
 
+###
+### [monitoring]
+###
+### Controls the anonymous statistics reporting function of InfluxDB. At start
+### and once per interval, the daemon will send some basic internal statistics
+### to help us see how InfluxDB is being used in the wild.
+###
+
 [monitoring]
-  enabled = false
+  enabled = true
   write-interval = "24h"
+
+###
+### [continuous_queries]
+###
+### Controls how continuous queries are run within InfluxDB.
+###
 
 [continuous_queries]
   enabled = true
@@ -70,10 +144,18 @@
   compute-runs-per-interval = 10
   compute-no-more-than = "2m"
 
+###
+### [hinted-handoff]
+###
+### Controls the hinted handoff feature, which allows nodes to temporarily
+### store queued data when one node of a cluster is down for a short period
+### of time.
+###
+
 [hinted-handoff]
   enabled = true
   dir = "/var/opt/influxdb/hh"
   max-size = 1073741824
-  max-age = "168h0m0s"
+  max-age = "168h"
   retry-rate-limit = 0
   retry-interval = "1s"
