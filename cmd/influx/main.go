@@ -31,19 +31,20 @@ const (
 )
 
 type CommandLine struct {
-	Client      *client.Client
-	Line        *liner.State
-	Host        string
-	Port        int
-	Username    string
-	Password    string
-	Database    string
-	Version     string
-	Pretty      bool   // controls pretty print for json
-	Format      string // controls the output format.  Valid values are json, csv, or column
-	ShouldDump  bool
-	Execute     string
-	ShowVersion bool
+	Client          *client.Client
+	Line            *liner.State
+	Host            string
+	Port            int
+	Username        string
+	Password        string
+	Database        string
+	RetentionPolicy string
+	Version         string
+	Pretty          bool   // controls pretty print for json
+	Format          string // controls the output format.  Valid values are json, csv, or column
+	ShouldDump      bool
+	Execute         string
+	ShowVersion     bool
 }
 
 func main() {
@@ -353,26 +354,120 @@ func (c *CommandLine) dump() error {
 	return nil
 }
 
-func (c *CommandLine) Insert(point string) error {
-	args := strings.Split(strings.TrimSpace(point), " ")
-	if len(args) < 3 || len(args) > 4 {
-		fmt.Printf("Could not parse point from %q.\n", point)
-		return nil
+// isWhitespace returns true if the rune is a space, tab, or newline.
+func isWhitespace(ch rune) bool { return ch == ' ' || ch == '\t' || ch == '\n' }
+
+// isLetter returns true if the rune is a letter.
+func isLetter(ch rune) bool { return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') }
+
+// isDigit returns true if the rune is a digit.
+func isDigit(ch rune) bool { return (ch >= '0' && ch <= '9') }
+
+// isIdentChar returns true if the rune can be used in an unquoted identifier.
+func isIdentChar(ch rune) bool { return isLetter(ch) || isDigit(ch) || ch == '_' }
+
+// isIdentFirstChar returns true if the rune can be used as the first char in an unquoted identifer.
+func isIdentFirstChar(ch rune) bool { return isLetter(ch) || ch == '_' }
+
+func parseNextIdentifier(stmt string) (ident, remainder string) {
+	firstIdent, firstChar := true, true
+	doubleQuoted, escapeNext := false, false
+	identFunc := func(c rune) bool {
+		if !firstIdent {
+			return false
+		}
+		if firstChar {
+			if isWhitespace(c) {
+				return true
+			}
+			firstChar = false
+			switch {
+			case c == '"':
+				doubleQuoted = true
+				return true
+			case isIdentFirstChar(c):
+				return false
+			}
+		}
+		if doubleQuoted {
+			switch c {
+			case '\\':
+				escapeNext = true
+			case '"':
+				if escapeNext {
+					escapeNext = false
+				} else {
+					firstIdent = false
+					return true
+				}
+			}
+			return false
+		}
+		if isIdentChar(c) {
+			return false
+		}
+		firstIdent = false
+		return true
+	}
+	f := strings.FieldsFunc(stmt, identFunc)
+	fmt.Println(f)
+	if len(f) == 2 {
+		ident, remainder = f[0], f[1]
+	}
+	return ident, remainder
+}
+
+func (c *CommandLine) parseInto(stmt string) string {
+	ident, stmt := parseNextIdentifier(stmt)
+	fmt.Println("first identifier", ident, "remainder", stmt)
+	switch stmt[0] {
+	case '.':
+		if ident == "" {
+			fmt.Println("ERR: could not parse database name")
+		}
+		c.Database = ident
+		c.RetentionPolicy, stmt = parseNextIdentifier(stmt[1:])
+		fmt.Println("second identifier", ident, "remainder", stmt)
+	case ' ':
+		c.RetentionPolicy = ident
+	default:
+		fmt.Println("ERR: Invalid statement.")
+	}
+
+	if c.RetentionPolicy == "" || stmt[0] != ' ' {
+		fmt.Println("ERR: could not parse retention policy name")
+		fmt.Println("Note: Valid INSERT INTO formats:")
+		fmt.Println("INSERT INTO <retention-policy> <point>\nor")
+		fmt.Println("INSERT INTO <database>.<retention-policy> <point>")
+	}
+	return stmt[1:]
+}
+
+func (c *CommandLine) Insert(stmt string) error {
+	// Remove INSERT
+	stmt = stmt[7:]
+	if strings.EqualFold(stmt[:4], "into") {
+		stmt = c.parseInto(stmt[5:])
+	}
+
+	if c.RetentionPolicy == "" {
+		c.RetentionPolicy = "default"
 	}
 	_, err := c.Client.Write(client.BatchPoints{
 		Points: []client.Point{
-			client.Point{Raw: strings.Join(args[1:len(args)], " ")},
+			client.Point{Raw: stmt},
 		},
 		Database:         c.Database,
-		RetentionPolicy:  "default",
+		RetentionPolicy:  c.RetentionPolicy,
 		Precision:        "n",
 		WriteConsistency: client.ConsistencyAny,
 	})
 	if err != nil {
 		fmt.Printf("ERR: %s\n", err)
 		if c.Database == "" {
-			fmt.Println("Warning: It is possible this error is due to not setting a database.")
-			fmt.Println(`Please set a database with the command "use <database>".`)
+			fmt.Println("Note: It is possible this error is due to not setting a database.")
+			fmt.Println(`Please set a database with the command "use <database>" or`)
+			fmt.Println("INSERT INTO <database>.<retention-policy> <point>")
 		}
 		return err
 	}
