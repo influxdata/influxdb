@@ -367,9 +367,9 @@ func TestStatementExecutor_ExecuteStatement_AlterRetentionPolicy(t *testing.T) {
 			t.Fatalf("unexpected database: %s", database)
 		} else if name != "rp0" {
 			t.Fatalf("unexpected name: %s", name)
-		} else if *rpu.Duration != 7*24*time.Hour {
+		} else if rpu.Duration != nil && *rpu.Duration != 7*24*time.Hour {
 			t.Fatalf("unexpected duration: %v", *rpu.Duration)
-		} else if *rpu.ReplicaN != 2 {
+		} else if rpu.ReplicaN != nil && *rpu.ReplicaN != 2 {
 			t.Fatalf("unexpected replication factor: %v", *rpu.ReplicaN)
 		}
 		return nil
@@ -384,6 +384,16 @@ func TestStatementExecutor_ExecuteStatement_AlterRetentionPolicy(t *testing.T) {
 	}
 
 	stmt := influxql.MustParseStatement(`ALTER RETENTION POLICY rp0 ON foo DURATION 7d REPLICATION 2 DEFAULT`)
+	if res := e.ExecuteStatement(stmt); res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	}
+
+	stmt = influxql.MustParseStatement(`ALTER RETENTION POLICY rp0 ON foo DURATION 7d`)
+	if res := e.ExecuteStatement(stmt); res.Err != nil {
+		t.Fatalf("unexpected error: %s", res.Err)
+	}
+
+	stmt = influxql.MustParseStatement(`ALTER RETENTION POLICY rp0 ON foo REPLICATION 2`)
 	if res := e.ExecuteStatement(stmt); res.Err != nil {
 		t.Fatalf("unexpected error: %s", res.Err)
 	}
