@@ -18,6 +18,12 @@ port = 8086
 # Change this option to true to disable reporting.
 reporting-disabled = false
 
+# the period of time that data will be kept around
+retention-policy = "168h"
+
+# the amount of time date is kept on the shard after the retention policy expires
+shard-duration = "24h"
+
 # Controls settings for initial start-up. Once a node is successfully started,
 # these settings are ignored.  If a node is started with the -join flag,
 # these settings are ignored.

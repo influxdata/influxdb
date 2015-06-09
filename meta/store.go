@@ -95,6 +95,12 @@ type Store struct {
 	// The amount of time without an apply before sending a heartbeat.
 	CommitTimeout time.Duration
 
+	// The amount of time that data will be kept around.
+	RetentionPolicyDuration time.Duration
+
+	// The amount of time that date is kept after retention policy expires.
+	ShardDuration time.Duration
+
 	Logger *log.Logger
 }
 
@@ -111,11 +117,13 @@ func NewStore(c Config) *Store {
 
 		retentionAutoCreate: c.RetentionAutoCreate,
 
-		HeartbeatTimeout:   time.Duration(c.HeartbeatTimeout),
-		ElectionTimeout:    time.Duration(c.ElectionTimeout),
-		LeaderLeaseTimeout: time.Duration(c.LeaderLeaseTimeout),
-		CommitTimeout:      time.Duration(c.CommitTimeout),
-		Logger:             log.New(os.Stderr, "", log.LstdFlags),
+		HeartbeatTimeout:        time.Duration(c.HeartbeatTimeout),
+		ElectionTimeout:         time.Duration(c.ElectionTimeout),
+		LeaderLeaseTimeout:      time.Duration(c.LeaderLeaseTimeout),
+		CommitTimeout:           time.Duration(c.CommitTimeout),
+		RetentionPolicyDuration: time.Duration(c.RetentionPolicyDuration),
+		ShardDuration:           time.Duration(c.ShardDuration),
+		Logger:                  log.New(os.Stderr, "", log.LstdFlags),
 	}
 }
 

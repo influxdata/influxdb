@@ -14,9 +14,6 @@ const (
 	// DefaultRetentionPolicyReplicaN is the default value of RetentionPolicyInfo.ReplicaN.
 	DefaultRetentionPolicyReplicaN = 1
 
-	// DefaultRetentionPolicyDuration is the default value of RetentionPolicyInfo.Duration.
-	DefaultRetentionPolicyDuration = 7 * (24 * time.Hour)
-
 	// MinRetentionPolicyDuration represents the minimum duration for a policy.
 	MinRetentionPolicyDuration = time.Hour
 )
@@ -566,9 +563,10 @@ type RetentionPolicyInfo struct {
 // NewRetentionPolicyInfo returns a new instance of RetentionPolicyInfo with defaults set.
 func NewRetentionPolicyInfo(name string) *RetentionPolicyInfo {
 	return &RetentionPolicyInfo{
-		Name:     name,
-		ReplicaN: DefaultRetentionPolicyReplicaN,
-		Duration: DefaultRetentionPolicyDuration,
+		Name:               name,
+		ReplicaN:           DefaultRetentionPolicyReplicaN,
+		Duration:           DefaultRetentionPolicyDuration,
+		ShardGroupDuration: DefaultShardDuration,
 	}
 }
 
