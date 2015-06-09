@@ -14,6 +14,7 @@ func TestConfig_Parse(t *testing.T) {
 enabled = true
 bind-address = ":9000"
 database = "xxx"
+consistency-level ="all"
 `, &c); err != nil {
 		t.Fatal(err)
 	}
@@ -25,5 +26,7 @@ database = "xxx"
 		t.Fatalf("unexpected bind address: %s", c.BindAddress)
 	} else if c.Database != "xxx" {
 		t.Fatalf("unexpected database: %s", c.Database)
+	} else if c.ConsistencyLevel != "all" {
+		t.Fatalf("unexpected database: %s", c.ConsistencyLevel)
 	}
 }

@@ -26,9 +26,10 @@ type Service struct {
 	wg  sync.WaitGroup
 	err chan error
 
-	BindAddress     string
-	Database        string
-	RetentionPolicy string
+	BindAddress      string
+	Database         string
+	RetentionPolicy  string
+	ConsistencyLevel cluster.ConsistencyLevel
 
 	PointsWriter interface {
 		WritePoints(p *cluster.WritePointsRequest) error
@@ -38,15 +39,21 @@ type Service struct {
 }
 
 // NewService returns a new instance of Service.
-func NewService(c Config) *Service {
-	s := &Service{
-		err:             make(chan error),
-		BindAddress:     c.BindAddress,
-		Database:        c.Database,
-		RetentionPolicy: c.RetentionPolicy,
-		Logger:          log.New(os.Stderr, "[opentsdb] ", log.LstdFlags),
+func NewService(c Config) (*Service, error) {
+	consistencyLevel, err := cluster.ParseConsistencyLevel(c.ConsistencyLevel)
+	if err != nil {
+		return nil, err
 	}
-	return s
+
+	s := &Service{
+		err:              make(chan error),
+		BindAddress:      c.BindAddress,
+		Database:         c.Database,
+		RetentionPolicy:  c.RetentionPolicy,
+		ConsistencyLevel: consistencyLevel,
+		Logger:           log.New(os.Stderr, "[opentsdb] ", log.LstdFlags),
+	}
+	return s, nil
 }
 
 // Open starts the service
@@ -211,7 +218,7 @@ func (s *Service) handleTelnetConn(conn net.Conn) {
 		if err := s.PointsWriter.WritePoints(&cluster.WritePointsRequest{
 			Database:         s.Database,
 			RetentionPolicy:  s.RetentionPolicy,
-			ConsistencyLevel: cluster.ConsistencyLevelOne,
+			ConsistencyLevel: s.ConsistencyLevel,
 			Points:           []tsdb.Point{p},
 		}); err != nil {
 			s.Logger.Println("TSDB cannot write data: ", err)
@@ -223,10 +230,11 @@ func (s *Service) handleTelnetConn(conn net.Conn) {
 // serveHTTP handles connections in HTTP format.
 func (s *Service) serveHTTP() {
 	srv := &http.Server{Handler: &Handler{
-		Database:        s.Database,
-		RetentionPolicy: s.RetentionPolicy,
-		PointsWriter:    s.PointsWriter,
-		Logger:          s.Logger,
+		Database:         s.Database,
+		RetentionPolicy:  s.RetentionPolicy,
+		ConsistencyLevel: s.ConsistencyLevel,
+		PointsWriter:     s.PointsWriter,
+		Logger:           s.Logger,
 	}}
 	srv.Serve(s.httpln)
 }
