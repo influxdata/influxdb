@@ -37,6 +37,7 @@ func NewProcessor(dir string, writer shardWriter, options ProcessorOptions) (*Pr
 		dir:    dir,
 		queues: map[uint64]*queue{},
 		writer: writer,
+		Logger: log.New(os.Stderr, "[handoff] ", log.LstdFlags),
 	}
 	p.setOptions(options)
 
@@ -122,6 +123,17 @@ func (p *Processor) Process() error {
 	res := make(chan error, len(p.queues))
 	for nodeID, q := range p.queues {
 		go func(nodeID uint64, q *queue) {
+
+			// Log how many writes we successfully sent at the end
+			var sent int
+			start := time.Now()
+			defer func(start time.Time) {
+				if sent > 0 {
+					p.Logger.Printf("%d queued writes sent to node %d in %s", sent, nodeID, time.Since(start))
+				}
+			}(start)
+
+			limiter := NewRateLimiter(p.retryRateLimit)
 			for {
 				// Get the current block from the queue
 				buf, err := q.Current()
@@ -152,6 +164,15 @@ func (p *Processor) Process() error {
 					res <- err
 					return
 				}
+
+				sent += 1
+
+				// Update how many bytes we've sent
+				limiter.Update(len(buf))
+
+				// Block to maintain the throughput rate
+				time.Sleep(limiter.Delay())
+
 			}
 		}(nodeID, q)
 	}
