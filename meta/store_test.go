@@ -652,9 +652,9 @@ func NewConfig(path string) meta.Config {
 		Dir:                path,
 		Hostname:           "localhost",
 		BindAddress:        "127.0.0.1:0",
-		HeartbeatTimeout:   toml.Duration(50 * time.Millisecond),
-		ElectionTimeout:    toml.Duration(50 * time.Millisecond),
-		LeaderLeaseTimeout: toml.Duration(50 * time.Millisecond),
+		HeartbeatTimeout:   toml.Duration(500 * time.Millisecond),
+		ElectionTimeout:    toml.Duration(500 * time.Millisecond),
+		LeaderLeaseTimeout: toml.Duration(500 * time.Millisecond),
 		CommitTimeout:      toml.Duration(5 * time.Millisecond),
 	}
 }
