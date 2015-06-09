@@ -101,7 +101,8 @@ func TestMux(t *testing.T) {
 				t.Fatalf("unexpected response: %s", resp[:])
 			}
 		} else {
-			if err == nil || (err != io.EOF && !strings.Contains(err.Error(), "connection reset by peer")) {
+			if err == nil || (err != io.EOF && !(strings.Contains(err.Error(), "connection reset by peer") ||
+				strings.Contains(err.Error(), "closed by the remote host"))) {
 				t.Fatalf("unexpected error: %s", err)
 			}
 		}

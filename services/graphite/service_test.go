@@ -5,7 +5,6 @@ import (
 	"net"
 	"reflect"
 	"strconv"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -279,7 +278,8 @@ func Test_ServerGraphiteTCP(t *testing.T) {
 	}
 
 	// Connect to the graphite endpoint we just spun up
-	conn, err := net.Dial("tcp", strings.TrimPrefix(service.Addr().String(), "[::]"))
+	_, port, _ := net.SplitHostPort(service.Addr().String())
+	conn, err := net.Dial("tcp", "127.0.0.1:"+port)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -345,7 +345,8 @@ func Test_ServerGraphiteUDP(t *testing.T) {
 	}
 
 	// Connect to the graphite endpoint we just spun up
-	conn, err := net.Dial("udp", strings.TrimPrefix(service.Addr().String(), "[::]"))
+	_, port, _ := net.SplitHostPort(service.Addr().String())
+	conn, err := net.Dial("udp", "127.0.0.1:"+port)
 	if err != nil {
 		t.Fatal(err)
 	}
