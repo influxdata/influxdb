@@ -251,7 +251,7 @@ func (w *PointsWriter) writeToShard(shard *meta.ShardInfo, database, retentionPo
 			}
 
 			err := w.ShardWriter.WriteShard(shardID, nodeID, points)
-			if err != nil {
+			if err != nil && tsdb.IsRetryable(err) {
 				// The remote write failed so queue it via hinted handoff
 				hherr := w.HintedHandoff.WriteShard(shardID, nodeID, points)
 
