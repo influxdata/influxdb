@@ -1,4 +1,4 @@
-package shard_precreation
+package precreator
 
 import (
 	"time"

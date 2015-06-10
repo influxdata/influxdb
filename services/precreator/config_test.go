@@ -1,16 +1,16 @@
-package shard_precreation_test
+package precreator_test
 
 import (
 	"testing"
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/influxdb/influxdb/services/shard_precreation"
+	"github.com/influxdb/influxdb/services/precreator"
 )
 
 func TestConfig_Parse(t *testing.T) {
 	// Parse configuration.
-	var c shard_precreation.Config
+	var c precreator.Config
 	if _, err := toml.Decode(`
 enabled = true
 check-interval = "2m"

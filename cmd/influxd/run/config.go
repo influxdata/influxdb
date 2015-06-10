@@ -16,19 +16,19 @@ import (
 	"github.com/influxdb/influxdb/services/httpd"
 	"github.com/influxdb/influxdb/services/monitor"
 	"github.com/influxdb/influxdb/services/opentsdb"
+	"github.com/influxdb/influxdb/services/precreator"
 	"github.com/influxdb/influxdb/services/retention"
-	"github.com/influxdb/influxdb/services/shard_precreation"
 	"github.com/influxdb/influxdb/services/udp"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
 // Config represents the configuration format for the influxd binary.
 type Config struct {
-	Meta             meta.Config              `toml:"meta"`
-	Data             tsdb.Config              `toml:"data"`
-	Cluster          cluster.Config           `toml:"cluster"`
-	Retention        retention.Config         `toml:"retention"`
-	ShardPrecreation shard_precreation.Config `toml:"shard-precreation"`
+	Meta       meta.Config       `toml:"meta"`
+	Data       tsdb.Config       `toml:"data"`
+	Cluster    cluster.Config    `toml:"cluster"`
+	Retention  retention.Config  `toml:"retention"`
+	Precreator precreator.Config `toml:"shard-precreation"`
 
 	Admin     admin.Config      `toml:"admin"`
 	HTTPD     httpd.Config      `toml:"http"`
@@ -50,7 +50,7 @@ func NewConfig() *Config {
 	c.Meta = meta.NewConfig()
 	c.Data = tsdb.NewConfig()
 	c.Cluster = cluster.NewConfig()
-	c.ShardPrecreation = shard_precreation.NewConfig()
+	c.Precreator = precreator.NewConfig()
 
 	c.Admin = admin.NewConfig()
 	c.HTTPD = httpd.NewConfig()
