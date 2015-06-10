@@ -5,8 +5,6 @@ import (
 	"os"
 	"sync"
 	"time"
-
-	"github.com/influxdb/influxdb/meta"
 )
 
 type Service struct {
@@ -20,13 +18,11 @@ type Service struct {
 
 	MetaStore interface {
 		IsLeader() bool
-		VisitRetentionPolicies(f func(d meta.DatabaseInfo, r meta.RetentionPolicyInfo))
-		ShardGroups(database, policy string) ([]meta.ShardGroupInfo, error)
-		CreateShardGroupIfNotExists(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error)
+		PrecreateShardGroups(cutoff time.Time) error
 	}
 }
 
-// NewService returns an instance of the Graphite service.
+// NewService returns an instance of the precreation service.
 func NewService(c Config) (*Service, error) {
 	s := Service{
 		checkInterval: time.Duration(c.CheckInterval),
@@ -42,7 +38,7 @@ func (s *Service) SetLogger(l *log.Logger) {
 	s.Logger = l
 }
 
-// Open starts the shard precreation service.
+// Open starts the precreation service.
 func (s *Service) Open() error {
 	if s.done != nil {
 		return nil
@@ -55,7 +51,7 @@ func (s *Service) Open() error {
 	return nil
 }
 
-// Close stops the shard precreation service.
+// Close stops the precreation service.
 func (s *Service) Close() error {
 	if s.done == nil {
 		return nil
@@ -68,7 +64,7 @@ func (s *Service) Close() error {
 	return nil
 }
 
-// runPrecreation continually checks if shards need precreation.
+// runPrecreation continually checks if resources need precreation.
 func (s *Service) runPrecreation() {
 	defer s.wg.Done()
 
@@ -81,42 +77,21 @@ func (s *Service) runPrecreation() {
 				continue
 			}
 
-			if _, err := s.precreate(time.Now().UTC()); err != nil {
+			if err := s.precreate(time.Now().UTC()); err != nil {
 				s.Logger.Printf("failed to precreate shards: %s", err.Error())
 			}
 		case <-s.done:
-			s.Logger.Println("shard precreation service terminating")
+			s.Logger.Println("precreation service terminating")
 			return
 		}
 	}
 }
 
-// precreate performs actual shard precreation. Returns the number of groups that were created.
-func (s *Service) precreate(t time.Time) (int, error) {
+// precreate performs actual resource precreation.
+func (s *Service) precreate(t time.Time) error {
 	cutoff := t.Add(s.advancePeriod).UTC()
-	numCreated := 0
-
-	s.MetaStore.VisitRetentionPolicies(func(d meta.DatabaseInfo, r meta.RetentionPolicyInfo) {
-		groups, err := s.MetaStore.ShardGroups(d.Name, r.Name)
-		if err != nil {
-			s.Logger.Printf("failed to retrieve shard groups for database %s, policy %s: %s",
-				d.Name, r.Name, err.Error())
-			return
-		}
-		for _, g := range groups {
-			// Check to see if it is going to end before our interval
-			if g.EndTime.Before(cutoff) {
-				s.Logger.Printf("pre-creating successive shard group for group %d, database %s, policy %s",
-					g.ID, d.Name, r.Name)
-				if newGroup, err := s.MetaStore.CreateShardGroupIfNotExists(d.Name, r.Name, g.EndTime.Add(1*time.Nanosecond)); err != nil {
-					s.Logger.Printf("failed to create successive shard group for group %d: %s",
-						g.ID, err.Error())
-				} else {
-					numCreated++
-					s.Logger.Printf("new shard group %d successfully created", newGroup.ID)
-				}
-			}
-		}
-	})
-	return numCreated, nil
+	if err := s.MetaStore.PrecreateShardGroups(cutoff); err != nil {
+		return err
+	}
+	return nil
 }

@@ -997,6 +997,34 @@ func (s *Store) UserCount() (count int, err error) {
 	return
 }
 
+// PrecreateShardGroups creates shard groups whose endtime is before the cutoff time passed in. This
+// avoid the need for these shards to be created when data for the corresponding time range arrives.
+// Shard creation involves Raft consensus, and precreation avoids taking the hit at write-time.
+func (s *Store) PrecreateShardGroups(cutoff time.Time) error {
+	s.read(func(data *Data) error {
+		for _, di := range data.Databases {
+			for _, rp := range di.RetentionPolicies {
+				for _, g := range rp.ShardGroups {
+					// Check to see if it is going to end before our interval
+					if g.EndTime.Before(cutoff) {
+						s.Logger.Printf("pre-creating successive shard group for group %d, database %s, policy %s",
+							g.ID, di.Name, rp.Name)
+						if newGroup, err := s.CreateShardGroupIfNotExists(di.Name, rp.Name, g.EndTime.Add(1*time.Nanosecond)); err != nil {
+							s.Logger.Printf("failed to create successive shard group for group %d: %s",
+								g.ID, err.Error())
+						} else {
+							s.Logger.Printf("new shard group %d successfully created", newGroup.ID)
+						}
+					}
+				}
+
+			}
+		}
+		return nil
+	})
+	return nil
+}
+
 // read executes a function with the current metadata.
 // If an error is returned then the cache is invalidated and retried.
 //

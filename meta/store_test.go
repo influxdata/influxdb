@@ -387,6 +387,38 @@ func TestStore_DeleteShardGroup(t *testing.T) {
 	}
 }
 
+// Ensure the store correctly precreates shard groups.
+func TestStore_PrecreateShardGroup(t *testing.T) {
+	t.Parallel()
+	s := MustOpenStore()
+	defer s.Close()
+
+	// Create node, database, policy, & group.
+	if _, err := s.CreateNode("host0"); err != nil {
+		t.Fatal(err)
+	} else if _, err := s.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	} else if _, err = s.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 1, Duration: 1 * time.Hour}); err != nil {
+		t.Fatal(err)
+	} else if _, err := s.CreateShardGroup("db0", "rp0", time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	} else if err := s.PrecreateShardGroups(time.Date(2001, time.January, 1, 0, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
+
+	groups, err := s.ShardGroups("db0", "rp0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(groups) != 2 {
+		t.Fatalf("shard group precreation failed to create new shard group")
+	}
+	if groups[1].StartTime != time.Date(2000, time.January, 1, 1, 0, 0, 0, time.UTC) {
+		t.Fatalf("precreated shard group has wrong start time, exp %s, got %s",
+			time.Date(2000, time.January, 1, 1, 0, 0, 0, time.UTC), groups[1].StartTime)
+	}
+}
+
 // Ensure the store can create a new continuous query.
 func TestStore_CreateContinuousQuery(t *testing.T) {
 	t.Parallel()
