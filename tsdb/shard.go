@@ -426,7 +426,7 @@ func (m *measurementFields) MarshalBinary() ([]byte, error) {
 	for _, f := range m.Fields {
 		id := int32(f.ID)
 		name := f.Name
-		t := string(f.Type)
+		t := int32(f.Type)
 		pb.Fields = append(pb.Fields, &internal.Field{ID: &id, Name: &name, Type: &t})
 	}
 	return proto.Marshal(&pb)
