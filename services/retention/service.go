@@ -5,9 +5,7 @@ import (
 	"os"
 	"sync"
 	"time"
-)
 
-import (
 	"github.com/influxdb/influxdb/meta"
 )
 
