@@ -100,6 +100,11 @@ func (s *Service) Close() error {
 	return nil
 }
 
+// SetLogger sets the internal logger to the logger passed in.
+func (s *Service) SetLogger(l *log.Logger) {
+	s.logger = l
+}
+
 func (s *Service) Addr() net.Addr {
 	return s.addr
 }
