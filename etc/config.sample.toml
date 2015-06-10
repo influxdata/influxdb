@@ -79,8 +79,11 @@
 
 [[graphite]]
   enabled = false
-  # protocol = ""
-  # bind-address = ""
+  # bind-address = ":2003"
+  # protocol = "tcp"
+  # consistency-level = "one"
+  # name-separator = "."
+  # name-position = "last"
 
 ###
 ### [collectd]

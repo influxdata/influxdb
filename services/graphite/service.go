@@ -49,25 +49,28 @@ type Service struct {
 
 // NewService returns an instance of the Graphite service.
 func NewService(c Config) (*Service, error) {
+	// Use defaults where necessary.
+	d := c.WithDefaults()
+
 	s := Service{
-		bindAddress:  c.BindAddress,
-		database:     c.Database,
-		protocol:     c.Protocol,
-		batchSize:    c.BatchSize,
-		batchTimeout: time.Duration(c.BatchTimeout),
+		bindAddress:  d.BindAddress,
+		database:     d.Database,
+		protocol:     d.Protocol,
+		batchSize:    d.BatchSize,
+		batchTimeout: time.Duration(d.BatchTimeout),
 		logger:       log.New(os.Stderr, "[graphite] ", log.LstdFlags),
 		done:         make(chan struct{}),
 	}
 
-	consistencyLevel, err := cluster.ParseConsistencyLevel(c.ConsistencyLevel)
+	consistencyLevel, err := cluster.ParseConsistencyLevel(d.ConsistencyLevel)
 	if err != nil {
 		return nil, err
 	}
 	s.consistencyLevel = consistencyLevel
 
 	parser := NewParser()
-	parser.Separator = c.NameSeparator
-	parser.LastEnabled = c.LastEnabled()
+	parser.Separator = d.NameSeparator
+	parser.LastEnabled = d.LastEnabled()
 	s.parser = parser
 
 	return &s, nil
