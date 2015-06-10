@@ -369,11 +369,6 @@ func (s *Shard) validateSeriesAndFields(points []Point) ([]*seriesCreate, []*fie
 					return nil, nil, fmt.Errorf("input field \"%s\" is type %T, already exists as type %s", name, value, f.Type)
 				}
 
-				data, err := mf.codec.EncodeFields(p.Fields())
-				if err != nil {
-					return nil, nil, err
-				}
-				p.SetData(data)
 				continue // Field is present, and it's of the same type. Nothing more to do.
 			}
 

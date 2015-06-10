@@ -75,6 +75,62 @@ func TestShardWriteAndIndex(t *testing.T) {
 	}
 }
 
+func TestShardWriteAddNewField(t *testing.T) {
+	tmpDir, _ := ioutil.TempDir("", "shard_test")
+	defer os.RemoveAll(tmpDir)
+	tmpShard := path.Join(tmpDir, "shard")
+
+	index := NewDatabaseIndex()
+	sh := NewShard(index, tmpShard)
+	if err := sh.Open(); err != nil {
+		t.Fatalf("error openeing shard: %s", err.Error())
+	}
+	defer sh.Close()
+
+	pt := NewPoint(
+		"cpu",
+		map[string]string{"host": "server"},
+		map[string]interface{}{"value": 1.0},
+		time.Unix(1, 2),
+	)
+
+	err := sh.WritePoints([]Point{pt})
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	pt = NewPoint(
+		"cpu",
+		map[string]string{"host": "server"},
+		map[string]interface{}{"value": 1.0, "value2": 2.0},
+		time.Unix(1, 2),
+	)
+
+	err = sh.WritePoints([]Point{pt})
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	if !reflect.DeepEqual(index.names, []string{"cpu"}) {
+		t.Fatalf("measurement names in shard didn't match")
+	}
+	if len(index.series) != 1 {
+		t.Fatalf("series wasn't in index")
+	}
+	seriesTags := index.series[string(pt.Key())].Tags
+	if len(seriesTags) != len(pt.Tags()) || pt.Tags()["host"] != seriesTags["host"] {
+		t.Fatalf("tags weren't properly saved to series index: %v, %v", pt.Tags(), index.series[string(pt.Key())].Tags)
+	}
+	if !reflect.DeepEqual(index.measurements["cpu"].TagKeys(), []string{"host"}) {
+		t.Fatalf("tag key wasn't saved to measurement index")
+	}
+
+	if len(index.measurements["cpu"].FieldNames()) != 2 {
+		t.Fatalf("field names wasn't saved to measurement index")
+	}
+
+}
+
 func BenchmarkWritePoints_NewSeries_1K(b *testing.B)   { benchmarkWritePoints(b, 38, 3, 3, 1) }
 func BenchmarkWritePoints_NewSeries_100K(b *testing.B) { benchmarkWritePoints(b, 32, 5, 5, 1) }
 func BenchmarkWritePoints_NewSeries_250K(b *testing.B) { benchmarkWritePoints(b, 80, 5, 5, 1) }
