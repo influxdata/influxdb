@@ -111,6 +111,11 @@ func (s *Service) Close() error {
 	return nil
 }
 
+// SetLogger sets the internal logger to the logger passed in.
+func (s *Service) SetLogger(l *log.Logger) {
+	s.Logger = l
+}
+
 // SetTypes sets collectd types db.
 func (s *Service) SetTypes(types string) (err error) {
 	s.typesdb, err = gollectd.TypesDB([]byte(types))

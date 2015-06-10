@@ -100,6 +100,11 @@ func (s *Service) Close() error {
 	return nil
 }
 
+// SetLogger sets the internal logger to the logger passed in.
+func (s *Service) SetLogger(l *log.Logger) {
+	s.Logger = l
+}
+
 // Run runs the specified continuous query, or all CQs if none is specified.
 func (s *Service) Run(database, name string) error {
 	var dbs []meta.DatabaseInfo
