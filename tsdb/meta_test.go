@@ -108,6 +108,10 @@ func TestMarshalTags(t *testing.T) {
 			tags:   map[string]string{"foo": "bar", "baz": "battttt"},
 			result: []byte(`baz|foo|battttt|bar`),
 		},
+		{
+			tags:   map[string]string{"baz": "battttt", "foo": "bar"},
+			result: []byte(`baz|foo|battttt|bar`),
+		},
 	} {
 		result := marshalTags(tt.tags)
 		if !bytes.Equal(result, tt.result) {
