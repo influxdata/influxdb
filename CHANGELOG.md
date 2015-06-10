@@ -22,6 +22,7 @@
 - [#2833](https://github.com/influxdb/influxdb/pull/2833): Make the default config valid.
 - [#2859](https://github.com/influxdb/influxdb/pull/2859): Fix panic on aggregate functions.
 - [#2878](https://github.com/influxdb/influxdb/pull/2878): Re-enable shard precreation.
+- [2865](https://github.com/influxdb/influxdb/pull/2865) -- Return an empty set of results if database does not exist in shard metadata.
 
 ### Features
 - [2858](https://github.com/influxdb/influxdb/pull/2858): Support setting openTSDB write consistency.
