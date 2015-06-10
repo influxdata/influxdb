@@ -366,7 +366,7 @@ func (s *Shard) validateSeriesAndFields(points []Point) ([]*seriesCreate, []*fie
 			if f := mf.Fields[name]; f != nil {
 				// Field present in Metastore, make sure there is no type conflict.
 				if f.Type != influxql.InspectDataType(value) {
-					return nil, nil, fmt.Errorf("input field \"%s\" is type %T, already exists as type %s", name, value, f.Type)
+					return nil, nil, fmt.Errorf("field type conflict: input field \"%s\" is type %T, already exists as type %s", name, value, f.Type)
 				}
 
 				continue // Field is present, and it's of the same type. Nothing more to do.

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"strings"
 )
 
 var (
@@ -31,10 +32,18 @@ func Errorf(format string, a ...interface{}) (err error) {
 
 // IsClientError indicates whether an error is a known client error.
 func IsClientError(err error) bool {
+	if err == nil {
+		return false
+	}
+
 	if err == ErrFieldsRequired {
 		return true
 	}
 	if err == ErrFieldTypeConflict {
+		return true
+	}
+
+	if strings.Contains(err.Error(), ErrFieldTypeConflict.Error()) {
 		return true
 	}
 

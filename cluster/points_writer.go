@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -250,7 +251,7 @@ func (w *PointsWriter) writeToShard(shard *meta.ShardInfo, database, retentionPo
 			}
 
 			err := w.ShardWriter.WriteShard(shardID, nodeID, points)
-			if err != nil {
+			if err != nil && tsdb.IsRetryable(err) {
 				// The remote write failed so queue it via hinted handoff
 				hherr := w.HintedHandoff.WriteShard(shardID, nodeID, points)
 
@@ -269,6 +270,7 @@ func (w *PointsWriter) writeToShard(shard *meta.ShardInfo, database, retentionPo
 
 	var wrote int
 	timeout := time.After(DefaultWriteTimeout)
+	var writeError error
 	for _, nodeID := range shard.OwnerIDs {
 		select {
 		case <-w.closing:
@@ -280,6 +282,11 @@ func (w *PointsWriter) writeToShard(shard *meta.ShardInfo, database, retentionPo
 			// If the write returned an error, continue to the next response
 			if err != nil {
 				w.Logger.Printf("write failed for shard %d on node %d: %v", shard.ID, nodeID, err)
+
+				// Keep track of the first error we see to return back to the client
+				if writeError == nil {
+					writeError = err
+				}
 				continue
 			}
 
@@ -294,6 +301,10 @@ func (w *PointsWriter) writeToShard(shard *meta.ShardInfo, database, retentionPo
 
 	if wrote > 0 {
 		return ErrPartialWrite
+	}
+
+	if writeError != nil {
+		return fmt.Errorf("write failed: %v", writeError)
 	}
 
 	return ErrWriteFailed

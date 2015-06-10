@@ -153,7 +153,7 @@ func (p *Processor) Process() error {
 				}
 
 				// Try to send the write to the node
-				if err := p.writer.WriteShard(shardID, nodeID, points); err != nil {
+				if err := p.writer.WriteShard(shardID, nodeID, points); err != nil && tsdb.IsRetryable(err) {
 					p.Logger.Printf("remote write failed: %v", err)
 					res <- nil
 					break
