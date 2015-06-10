@@ -21,6 +21,7 @@
 - [#2857](https://github.com/influxdb/influxdb/issues/2857): Fix parsing commas in string field values.
 - [#2833](https://github.com/influxdb/influxdb/pull/2833): Make the default config valid.
 - [#2859](https://github.com/influxdb/influxdb/pull/2859): Fix panic on aggregate functions.
+- [#2878](https://github.com/influxdb/influxdb/pull/2878): Re-enable shard precreation.
 
 ### Features
 - [2858](https://github.com/influxdb/influxdb/pull/2858): Support setting openTSDB write consistency.
