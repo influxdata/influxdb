@@ -1049,7 +1049,7 @@ func TestServer_Query_MergeMany(t *testing.T) {
 	}
 }
 
-func TestServer_Query_LimitAndOffset(t *testing.T) {
+func TestServer_Query_SLimitAndSOffset(t *testing.T) {
 	t.Parallel()
 	s := OpenServer(NewConfig(), "")
 	defer s.Close()
@@ -1818,8 +1818,12 @@ func TestServer_Query_Where_Fields(t *testing.T) {
 	writes := []string{
 		fmt.Sprintf(`cpu alert_id="alert",tenant_id="tenant",_cust="johnson brothers" %d`, mustParseTime(time.RFC3339Nano, "2015-02-28T01:03:36.703820946Z").UnixNano()),
 		fmt.Sprintf(`cpu alert_id="alert",tenant_id="tenant",_cust="johnson brothers" %d`, mustParseTime(time.RFC3339Nano, "2015-02-28T01:03:36.703820946Z").UnixNano()),
+
 		fmt.Sprintf(`cpu load=100.0,core=4 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:02Z").UnixNano()),
 		fmt.Sprintf(`cpu load=80.0,core=2 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:01:02Z").UnixNano()),
+
+		fmt.Sprintf(`clicks local=true %d`, mustParseTime(time.RFC3339Nano, "2014-11-10T23:00:01Z").UnixNano()),
+		fmt.Sprintf(`clicks local=false %d`, mustParseTime(time.RFC3339Nano, "2014-11-10T23:00:02Z").UnixNano()),
 	}
 
 	test := NewTest("db0", "rp0")
@@ -1978,7 +1982,203 @@ func TestServer_Query_Where_Fields(t *testing.T) {
 			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","core"],"values":[["2009-11-10T23:01:02Z",2]]}]}]}`,
 		},
 
-		// TODO add bool where tests
+		// bool
+		&Query{
+			name:    "bool EQ match true",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select local from clicks where local = true`,
+			exp:     `{"results":[{"series":[{"name":"clicks","columns":["time","local"],"values":[["2014-11-10T23:00:01Z",true]]}]}]}`,
+		},
+		&Query{
+			name:    "bool EQ match false",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select local from clicks where local = false`,
+			exp:     `{"results":[{"series":[{"name":"clicks","columns":["time","local"],"values":[["2014-11-10T23:00:02Z",false]]}]}]}`,
+		},
+
+		&Query{
+			name:    "bool NE match one",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select local from clicks where local != true`,
+			exp:     `{"results":[{"series":[{"name":"clicks","columns":["time","local"],"values":[["2014-11-10T23:00:02Z",false]]}]}]}`,
+		},
+	}...)
+
+	for i, query := range test.queries {
+		if i == 0 {
+			if err := test.init(s); err != nil {
+				t.Fatalf("test init failed: %s", err)
+			}
+		}
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
+func TestServer_Query_Where_With_Tags(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MetaStore.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := []string{
+		fmt.Sprintf(`where_events,tennant=paul foo="bar" %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:02Z").UnixNano()),
+		fmt.Sprintf(`where_events,tennant=paul foo="baz" %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:03Z").UnixNano()),
+		fmt.Sprintf(`where_events,tennant=paul foo="bat" %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:04Z").UnixNano()),
+		fmt.Sprintf(`where_events,tennant=todd foo="bar" %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:05Z").UnixNano()),
+		fmt.Sprintf(`where_events,tennant=david foo="bap" %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:06Z").UnixNano()),
+	}
+
+	test := NewTest("db0", "rp0")
+	test.write = strings.Join(writes, "\n")
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "tag field and time",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select foo from where_events where (tennant = 'paul' OR tennant = 'david') AND time > 1s AND (foo = 'bar' OR foo = 'baz' OR foo = 'bap')`,
+			exp:     `{"results":[{"series":[{"name":"where_events","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z","bar"],["2009-11-10T23:00:03Z","baz"],["2009-11-10T23:00:06Z","bap"]]}]}]}`,
+		},
+		&Query{
+			name:    "where on tag that should be double quoted but isn't",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `show series where data-center = 'foo'`,
+			exp:     `{"results":[{"error":"invalid expression: data - center = 'foo'"}]}`,
+		},
+	}...)
+
+	for i, query := range test.queries {
+		if i == 0 {
+			if err := test.init(s); err != nil {
+				t.Fatalf("test init failed: %s", err)
+			}
+		}
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
+func TestServer_Query_LimitAndOffset(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MetaStore.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := []string{
+		fmt.Sprintf(`limit,tennant=paul foo=2 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:02Z").UnixNano()),
+		fmt.Sprintf(`limit,tennant=paul foo=3 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:03Z").UnixNano()),
+		fmt.Sprintf(`limit,tennant=paul foo=4 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:04Z").UnixNano()),
+		fmt.Sprintf(`limit,tennant=todd foo=5 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:05Z").UnixNano()),
+	}
+
+	test := NewTest("db0", "rp0")
+	test.write = strings.Join(writes, "\n")
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "limit on points",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select foo from "limit" LIMIT 2`,
+			exp:     `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z",2],["2009-11-10T23:00:03Z",3]]}]}]}`,
+		},
+		&Query{
+			name:    "limit higher than the number of data points",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select foo from "limit" LIMIT 20`,
+			exp:     `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z",2],["2009-11-10T23:00:03Z",3],["2009-11-10T23:00:04Z",4],["2009-11-10T23:00:05Z",5]]}]}]}`,
+		},
+		&Query{
+			name:    "limit and offset",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select foo from "limit" LIMIT 2 OFFSET 1`,
+			exp:     `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:03Z",3],["2009-11-10T23:00:04Z",4]]}]}]}`,
+		},
+		&Query{
+			name:    "limit + offset equal to total number of points",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select foo from "limit" LIMIT 3 OFFSET 3`,
+			exp:     `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:05Z",5]]}]}]}`,
+		},
+		&Query{
+			name:    "limit - offset higher than number of points",
+			command: `select foo from "limit" LIMIT 2 OFFSET 20`,
+			exp:     `{"results":[{"series":[{"name":"limit","columns":["time","foo"]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "limit on points with group by time",
+			command: `select mean(foo) from "limit" WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY TIME(1s) LIMIT 2`,
+			exp:     `{"results":[{"series":[{"name":"limit","columns":["time","mean"],"values":[["2009-11-10T23:00:02Z",2],["2009-11-10T23:00:03Z",3]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "limit higher than the number of data points with group by time",
+			command: `select mean(foo) from "limit" WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY TIME(1s) LIMIT 20`,
+			exp:     `{"results":[{"series":[{"name":"limit","columns":["time","mean"],"values":[["2009-11-10T23:00:02Z",2],["2009-11-10T23:00:03Z",3],["2009-11-10T23:00:04Z",4],["2009-11-10T23:00:05Z",5]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "limit and offset with group by time",
+			command: `select mean(foo) from "limit" WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY TIME(1s) LIMIT 2 OFFSET 1`,
+			exp:     `{"results":[{"series":[{"name":"limit","columns":["time","mean"],"values":[["2009-11-10T23:00:03Z",3],["2009-11-10T23:00:04Z",4]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "limit + offset equal to the  number of points with group by time",
+			command: `select mean(foo) from "limit" WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY TIME(1s) LIMIT 3 OFFSET 3`,
+			exp:     `{"results":[{"series":[{"name":"limit","columns":["time","mean"],"values":[["2009-11-10T23:00:05Z",5]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "limit + offset equal to the  number of points with group by time",
+			command: `select mean(foo) from "limit" WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY TIME(1s) LIMIT 3 OFFSET 3`,
+			exp:     `{"results":[{"series":[{"name":"limit","columns":["time","mean"],"values":[["2009-11-10T23:00:05Z",5]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "limit - offset higher than number of points with group by time",
+			command: `select mean(foo) from "limit" WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY TIME(1s) LIMIT 2 OFFSET 20`,
+			exp:     `{"results":[{}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "limit higher than the number of data points should error",
+			command: `select mean(foo)  from "limit"  where  time > '2000-01-01T00:00:00Z' group by time(1s), * fill(0)  limit 2147483647`,
+			exp:     `{"results":[{"error":"too many points in the group by interval. maybe you forgot to specify a where time clause?"}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "limit1 higher than MaxGroupBy but the number of data points is less than MaxGroupBy",
+			command: `select mean(foo)  from "limit"  where  time >= '2009-11-10T23:00:02Z' and time < '2009-11-10T23:00:03Z' group by time(1s), * fill(0)  limit 2147483647`,
+			exp:     `{"results":[{"series":[{"name":"limit","tags":{"tennant":"paul"},"columns":["time","mean"],"values":[["2009-11-10T23:00:02Z",2]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
 	}...)
 
 	for i, query := range test.queries {
