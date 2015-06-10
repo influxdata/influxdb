@@ -973,13 +973,13 @@ func (q *QueryExecutor) executeShowStatsStatement(stmt *influxql.ShowStatsStatem
 }
 
 func (q *QueryExecutor) executeShowDiagnosticsStatement(stmt *influxql.ShowDiagnosticsStatement) *influxql.Result {
-	return &influxql.Result{Series: q.DiagnosticsAsRows()}
+	return &influxql.Result{Err: fmt.Errorf("not implemented")}
 }
 
 // DiagnosticsAsRows returns diagnostic information about the server, as a slice of
 // InfluxQL rows.
 func (q *QueryExecutor) DiagnosticsAsRows() []*influxql.Row {
-	panic("not yet implemented")
+	return nil
 	/*
 	   s.mu.RLock()
 	   defer s.mu.RUnlock()
