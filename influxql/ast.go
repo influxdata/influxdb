@@ -16,19 +16,19 @@ type DataType int
 
 const (
 	// Unknown primitive data type.
-	Unknown DataType = iota
+	Unknown DataType = 0
 	// Float means the data type is a float
-	Float
+	Float = 1
 	// Integer means the data type is a integer
-	Integer
+	Integer = 2
 	// Boolean means the data type is a boolean.
-	Boolean
+	Boolean = 3
 	// String means the data type is a string of text.
-	String
+	String = 4
 	// Time means the data type is a time.
-	Time
+	Time = 5
 	// Duration means the data type is a duration of time.
-	Duration
+	Duration = 6
 )
 
 // InspectDataType returns the data type of a given value.
