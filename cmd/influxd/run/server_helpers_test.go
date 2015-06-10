@@ -171,6 +171,11 @@ func maxFloat64() string {
 	return string(maxFloat64)
 }
 
+func maxInt64() string {
+	maxInt64, _ := json.Marshal(^int64(0))
+	return string(maxInt64)
+}
+
 func now() time.Time {
 	return time.Now().UTC()
 }
