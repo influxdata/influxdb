@@ -3,6 +3,8 @@
 ### Bugfixes
 
 - [#2869](https://github.com/influxdb/influxdb/issues/2869): Adding field to existing measurement causes panic
+- [#2849](https://github.com/influxdb/influxdb/issues/2849): RC32: Frequent write errors
+
 
 ## v0.9.0-rc33 [2015-06-09]
 

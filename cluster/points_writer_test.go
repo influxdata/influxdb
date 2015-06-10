@@ -130,7 +130,7 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 			name:        "write one error",
 			consistency: cluster.ConsistencyLevelOne,
 			err:         []error{fmt.Errorf("a failure"), fmt.Errorf("a failure"), fmt.Errorf("a failure")},
-			expErr:      cluster.ErrWriteFailed,
+			expErr:      fmt.Errorf("write failed: a failure"),
 		},
 
 		// Consistency any
@@ -185,7 +185,7 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 			name:        "no writes succeed",
 			consistency: cluster.ConsistencyLevelOne,
 			err:         []error{fmt.Errorf("a failure"), fmt.Errorf("a failure"), fmt.Errorf("a failure")},
-			expErr:      cluster.ErrWriteFailed,
+			expErr:      fmt.Errorf("write failed: a failure"),
 		},
 
 		// Hinted handoff w/ ANY
@@ -257,7 +257,15 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 		c.TSDBStore = store
 		c.HintedHandoff = hh
 
-		if err := c.WritePoints(pr); err != test.expErr {
+		err := c.WritePoints(pr)
+		if err == nil && test.expErr != nil {
+			t.Errorf("PointsWriter.WritePoints(): '%s' error: got %v, exp %v", test.name, err, test.expErr)
+		}
+
+		if err != nil && test.expErr == nil {
+			t.Errorf("PointsWriter.WritePoints(): '%s' error: got %v, exp %v", test.name, err, test.expErr)
+		}
+		if err != nil && test.expErr != nil && err.Error() != test.expErr.Error() {
 			t.Errorf("PointsWriter.WritePoints(): '%s' error: got %v, exp %v", test.name, err, test.expErr)
 		}
 	}
