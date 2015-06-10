@@ -45,14 +45,14 @@ func TestMapMean(t *testing.T) {
 	}{
 		{ // Single point
 			input:  []point{point{"0", 1, 1.0}},
-			output: &meanMapOutput{1, 1},
+			output: &meanMapOutput{1, 1, Float64Type},
 		},
 		{ // Two points
 			input: []point{
 				point{"0", 1, 2.0},
 				point{"0", 2, 8.0},
 			},
-			output: &meanMapOutput{2, 5.0},
+			output: &meanMapOutput{2, 5.0, Float64Type},
 		},
 	}
 
