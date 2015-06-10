@@ -43,7 +43,7 @@ REVOKE ALL [PRIVILEGES] FROM <user>
 -- delete a user
 DROP USER <name>
 ```
-where `<privilege> := READ | WRITE | All [PRIVILEGES]`. 
+where `<privilege> := READ | WRITE | All `. 
 
 Authentication must be enabled in the influxdb.conf file for user permissions to be in effect.
 
