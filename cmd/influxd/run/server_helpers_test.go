@@ -251,7 +251,7 @@ func (q *Query) Error(err error) string {
 }
 
 func (q *Query) failureMessage() string {
-	return fmt.Sprintf("%s: unexpected results for query: %s\nexp:    %s\nactual: %s\n", q.name, q.command, q.exp, q.act)
+	return fmt.Sprintf("%s: unexpected results\nquery:  %s\nexp:    %s\nactual: %s\n", q.name, q.command, q.exp, q.act)
 }
 
 type Test struct {
