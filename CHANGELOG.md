@@ -2,18 +2,19 @@
 
 ### Bugfixes
 
-- [#2816](https://github.com/influxdb/influxdb/pull/2816) -- Enable UDP service. Thanks @renan-
-- [#2824](https://github.com/influxdb/influxdb/pull/2824) -- Add missing call to WaitGroup.Done in execConn. Thanks @liyichao
-- [#2823](https://github.com/influxdb/influxdb/pull/2823) -- Convert OpenTSDB to a service.
-- [#2838](https://github.com/influxdb/influxdb/pull/2838) -- Set auto-created retention policy period to infinite.
-- [#2829](https://github.com/influxdb/influxdb/pull/2829) -- Re-enable Graphite support as a new Service-style component.
-- [#2814](https://github.com/influxdb/influxdb/issues/2814) -- Convert collectd to a service.
-- [#2852](https://github.com/influxdb/influxdb/pull/2852) -- Don't panic when altering retention policies. Thanks for the report @huhongbo
-- [#2857](https://github.com/influxdb/influxdb/issues/2857) -- Fix parsing commas in string field values.
-- [#2833](https://github.com/influxdb/influxdb/pull/2833) -- Make the default config valid.
+- [#2816](https://github.com/influxdb/influxdb/pull/2816): Enable UDP service. Thanks @renan-
+- [#2824](https://github.com/influxdb/influxdb/pull/2824): Add missing call to WaitGroup.Done in execConn. Thanks @liyichao
+- [#2823](https://github.com/influxdb/influxdb/pull/2823): Convert OpenTSDB to a service.
+- [#2838](https://github.com/influxdb/influxdb/pull/2838): Set auto-created retention policy period to infinite.
+- [#2829](https://github.com/influxdb/influxdb/pull/2829): Re-enable Graphite support as a new Service-style component.
+- [#2814](https://github.com/influxdb/influxdb/issues/2814): Convert collectd to a service.
+- [#2852](https://github.com/influxdb/influxdb/pull/2852): Don't panic when altering retention policies. Thanks for the report @huhongbo
+- [#2857](https://github.com/influxdb/influxdb/issues/2857): Fix parsing commas in string field values.
+- [#2833](https://github.com/influxdb/influxdb/pull/2833): Make the default config valid.
+- [#2859](https://github.com/influxdb/influxdb/pull/2859): Fix panic on aggregate functions.
 
 ### Features
-- [2858](https://github.com/influxdb/influxdb/pull/2858) - Support setting openTSDB write consistency.
+- [2858](https://github.com/influxdb/influxdb/pull/2858): Support setting openTSDB write consistency.
 
 ## v0.9.0-rc32 [2015-06-07]
 
