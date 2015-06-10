@@ -1,4 +1,4 @@
-## v0.9.0-rc33 [unreleased]
+## v0.9.0-rc33 [2015-06-09]
 
 ### Bugfixes
 
