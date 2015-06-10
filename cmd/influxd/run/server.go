@@ -15,6 +15,7 @@ import (
 	"github.com/influxdb/influxdb/services/httpd"
 	"github.com/influxdb/influxdb/services/opentsdb"
 	"github.com/influxdb/influxdb/services/retention"
+	"github.com/influxdb/influxdb/services/shard_precreation"
 	"github.com/influxdb/influxdb/services/udp"
 	"github.com/influxdb/influxdb/tcp"
 	"github.com/influxdb/influxdb/tsdb"
@@ -76,6 +77,7 @@ func NewServer(c *Config) (*Server, error) {
 
 	// Append services.
 	s.appendClusterService(c.Cluster)
+	s.appendShardPrecreationService(c.ShardPrecreation)
 	s.appendAdminService(c.Admin)
 	s.appendContinuousQueryService(c.ContinuousQuery)
 	s.appendHTTPDService(c.HTTPD)
@@ -170,6 +172,20 @@ func (s *Server) appendGraphiteService(c graphite.Config) error {
 	}
 
 	srv.PointsWriter = s.PointsWriter
+	s.Services = append(s.Services, srv)
+	return nil
+}
+
+func (s *Server) appendShardPrecreationService(c shard_precreation.Config) error {
+	if !c.Enabled {
+		return nil
+	}
+	srv, err := shard_precreation.NewService(c)
+	if err != nil {
+		return err
+	}
+
+	srv.MetaStore = s.MetaStore
 	s.Services = append(s.Services, srv)
 	return nil
 }
