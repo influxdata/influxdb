@@ -44,16 +44,19 @@ type Service struct {
 
 // NewService returns a new instance of Service.
 func NewService(c Config) (*Service, error) {
-	consistencyLevel, err := cluster.ParseConsistencyLevel(c.ConsistencyLevel)
+	// Use defaults where necessary.
+	d := c.WithDefaults()
+
+	consistencyLevel, err := cluster.ParseConsistencyLevel(d.ConsistencyLevel)
 	if err != nil {
 		return nil, err
 	}
 
 	s := &Service{
 		err:              make(chan error),
-		BindAddress:      c.BindAddress,
-		Database:         c.Database,
-		RetentionPolicy:  c.RetentionPolicy,
+		BindAddress:      d.BindAddress,
+		Database:         d.Database,
+		RetentionPolicy:  d.RetentionPolicy,
 		ConsistencyLevel: consistencyLevel,
 		Logger:           log.New(os.Stderr, "[opentsdb] ", log.LstdFlags),
 	}
