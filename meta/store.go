@@ -36,9 +36,8 @@ const ExecMagic = "EXEC"
 
 // Retention policy auto-create settings.
 const (
-	AutoCreateRetentionPolicyName     = "default"
-	AutoCreateRetentionPolicyReplicaN = 1
-	AutoCreateRetentionPolicyPeriod   = 0
+	AutoCreateRetentionPolicyName   = "default"
+	AutoCreateRetentionPolicyPeriod = 0
 )
 
 // Raft configuration.
@@ -617,13 +616,25 @@ func (s *Store) CreateDatabase(name string) (*DatabaseInfo, error) {
 	}
 
 	if s.retentionAutoCreate {
+		// Read node count.
+		// Retention policies must be fully replicated.
+		var nodeN int
+		if err := s.read(func(data *Data) error {
+			nodeN = len(data.Nodes)
+			return nil
+		}); err != nil {
+			return nil, fmt.Errorf("read: %s", err)
+		}
+
+		// Create a retention policy.
 		rpi := NewRetentionPolicyInfo(AutoCreateRetentionPolicyName)
-		rpi.ReplicaN = AutoCreateRetentionPolicyReplicaN
+		rpi.ReplicaN = nodeN
 		rpi.Duration = AutoCreateRetentionPolicyPeriod
 		if _, err := s.CreateRetentionPolicy(name, rpi); err != nil {
 			return nil, err
 		}
 
+		// Set it as the default retention policy.
 		if err := s.SetDefaultRetentionPolicy(name, AutoCreateRetentionPolicyName); err != nil {
 			return nil, err
 		}
