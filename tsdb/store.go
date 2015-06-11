@@ -144,7 +144,7 @@ func (s *Store) Measurement(database, name string) *Measurement {
 	return db.Measurement(name)
 }
 
-// deleteSeries lopos through the local shards and deletes the series data and metadata for the passed in series keys
+// deleteSeries loops through the local shards and deletes the series data and metadata for the passed in series keys
 func (s *Store) deleteSeries(keys []string) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
