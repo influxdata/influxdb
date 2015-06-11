@@ -4,6 +4,7 @@
 
 - [#2908](https://github.com/influxdb/influxdb/issues/2908): Field mismatch error messages need to be updated
 - [#2931](https://github.com/influxdb/influxdb/pull/2931): Services and reporting should wait until cluster has leader.
+- [#2943](https://github.com/influxdb/influxdb/issues/2943): Ensure default retention policies are fully replicated
 
 ## v0.9.0 [2015-06-11]
 
