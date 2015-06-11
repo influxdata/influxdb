@@ -172,6 +172,7 @@ func (s *Server) appendGraphiteService(c graphite.Config) error {
 	}
 
 	srv.PointsWriter = s.PointsWriter
+	srv.MetaStore = s.MetaStore
 	s.Services = append(s.Services, srv)
 	return nil
 }

@@ -11,6 +11,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/influxdb/influxdb/cluster"
+	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/services/graphite"
 	"github.com/influxdb/influxdb/toml"
 	"github.com/influxdb/influxdb/tsdb"
@@ -272,9 +273,15 @@ func Test_ServerGraphiteTCP(t *testing.T) {
 		},
 	}
 	service.PointsWriter = &pointsWriter
+	dbCreator := DatabaseCreator{}
+	service.MetaStore = &dbCreator
 
 	if err := service.Open(); err != nil {
 		t.Fatalf("failed to open Graphite service: %s", err.Error())
+	}
+
+	if !dbCreator.Created {
+		t.Fatalf("failed to create target database")
 	}
 
 	// Connect to the graphite endpoint we just spun up
@@ -339,9 +346,15 @@ func Test_ServerGraphiteUDP(t *testing.T) {
 		},
 	}
 	service.PointsWriter = &pointsWriter
+	dbCreator := DatabaseCreator{}
+	service.MetaStore = &dbCreator
 
 	if err := service.Open(); err != nil {
 		t.Fatalf("failed to open Graphite service: %s", err.Error())
+	}
+
+	if !dbCreator.Created {
+		t.Fatalf("failed to create target database")
 	}
 
 	// Connect to the graphite endpoint we just spun up
@@ -369,6 +382,15 @@ type PointsWriter struct {
 
 func (w *PointsWriter) WritePoints(p *cluster.WritePointsRequest) error {
 	return w.WritePointsFn(p)
+}
+
+type DatabaseCreator struct {
+	Created bool
+}
+
+func (d *DatabaseCreator) CreateDatabaseIfNotExists(name string) (*meta.DatabaseInfo, error) {
+	d.Created = true
+	return nil, nil
 }
 
 // Test Helpers

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb/cluster"
+	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -40,6 +41,9 @@ type Service struct {
 
 	PointsWriter interface {
 		WritePoints(p *cluster.WritePointsRequest) error
+	}
+	MetaStore interface {
+		CreateDatabaseIfNotExists(name string) (*meta.DatabaseInfo, error)
 	}
 }
 
@@ -73,6 +77,12 @@ func NewService(c Config) (*Service, error) {
 func (s *Service) Open() error {
 	var err error
 
+	if _, err := s.MetaStore.CreateDatabaseIfNotExists(s.database); err != nil {
+		s.logger.Printf("failed to ensure target database %s exists: %s", s.database, err.Error())
+		return err
+	}
+	s.logger.Printf("ensured target database %s exists", s.database)
+
 	if strings.ToLower(s.protocol) == "tcp" {
 		s.addr, err = s.openTCPServer()
 	} else if strings.ToLower(s.protocol) == "udp" {
@@ -80,7 +90,6 @@ func (s *Service) Open() error {
 	} else {
 		return fmt.Errorf("unrecognized Graphite input protocol %s", s.protocol)
 	}
-
 	if err != nil {
 		return err
 	}
