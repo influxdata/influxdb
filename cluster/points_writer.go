@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/tsdb"
 )
@@ -185,6 +186,8 @@ func (w *PointsWriter) WritePoints(p *WritePointsRequest) error {
 		db, err := w.MetaStore.Database(p.Database)
 		if err != nil {
 			return err
+		} else if db == nil {
+			return influxdb.ErrDatabaseNotFound(p.Database)
 		}
 		p.RetentionPolicy = db.DefaultRetentionPolicy
 	}

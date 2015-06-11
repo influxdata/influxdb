@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb/cluster"
+	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/tsdb"
 	"github.com/kimor79/gollectd"
 )
@@ -18,10 +19,16 @@ type pointsWriter interface {
 	WritePoints(p *cluster.WritePointsRequest) error
 }
 
+// metaStore is an internal interface to make testing easier.
+type metaStore interface {
+	CreateDatabaseIfNotExists(name string) (*meta.DatabaseInfo, error)
+}
+
 // Service represents a UDP server which receives metrics in collectd's binary
 // protocol and stores them in InfluxDB.
 type Service struct {
 	Config       *Config
+	MetaStore    metaStore
 	PointsWriter pointsWriter
 	Logger       *log.Logger
 
@@ -53,6 +60,11 @@ func (s *Service) Open() error {
 		return fmt.Errorf("database name is blank")
 	} else if s.PointsWriter == nil {
 		return fmt.Errorf("PointsWriter is nil")
+	}
+
+	if _, err := s.MetaStore.CreateDatabaseIfNotExists(s.Config.Database); err != nil {
+		s.Logger.Printf("failed to ensure target database %s exists: %s", s.Config.Database, err.Error())
+		return err
 	}
 
 	if s.typesdb == nil {
