@@ -6,7 +6,10 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
+	"os/signal"
 	"runtime"
+	"runtime/pprof"
 	"time"
 
 	"github.com/influxdb/influxdb/cluster"
@@ -55,6 +58,10 @@ type Server struct {
 
 	// Server reporting
 	reportingDisabled bool
+
+	// Profiling
+	CPUProfile string
+	MemProfile string
 }
 
 // NewServer returns a new instance of Server built from a config.
@@ -247,6 +254,9 @@ func (s *Server) Err() <-chan error { return s.err }
 // Open opens the meta and data store and all services.
 func (s *Server) Open() error {
 	if err := func() error {
+		// Start profiling, if set.
+		StartProfile(s.CPUProfile, s.MemProfile)
+
 		// Resolve host to address.
 		_, port, err := net.SplitHostPort(s.BindAddress)
 		if err != nil {
@@ -316,6 +326,9 @@ func (s *Server) Open() error {
 
 // Close shuts down the meta and data stores and all services.
 func (s *Server) Close() error {
+	fmt.Println("Close()")
+	StopProfile()
+
 	if s.Listener != nil {
 		s.Listener.Close()
 	}
@@ -408,4 +421,55 @@ func (s *Server) monitorErrorChan(ch <-chan error) {
 type Service interface {
 	Open() error
 	Close() error
+}
+
+// prof stores the file locations of active profiles.
+var prof struct {
+	cpu *os.File
+	mem *os.File
+}
+
+// StartProfile initializes the cpu and memory profile, if specified.
+func StartProfile(cpuprofile, memprofile string) {
+	if cpuprofile != "" {
+		f, err := os.Create(cpuprofile)
+		if err != nil {
+			log.Fatalf("cpuprofile: %v", err)
+		}
+		fmt.Printf("writing CPU profile to: %s\n", cpuprofile)
+		prof.cpu = f
+		pprof.StartCPUProfile(prof.cpu)
+	}
+
+	if memprofile != "" {
+		f, err := os.Create(memprofile)
+		if err != nil {
+			log.Fatalf("memprofile: %v", err)
+		}
+		fmt.Printf("writing mem profile to: %s\n", memprofile)
+		prof.mem = f
+		go func() { time.Sleep(30 * time.Second); runtime.MemProfileRate = 4096 }()
+	}
+
+	go func() {
+		c := make(chan os.Signal, 1)
+		signal.Notify(c, os.Interrupt)
+		<-c
+		StopProfile()
+		os.Exit(0)
+	}()
+}
+
+// StopProfile closes the cpu and memory profiles if they are running.
+func StopProfile() {
+	if prof.cpu != nil {
+		pprof.StopCPUProfile()
+		prof.cpu.Close()
+		fmt.Println("CPU profile stopped")
+	}
+	if prof.mem != nil {
+		pprof.Lookup("heap").WriteTo(prof.mem, 0)
+		prof.mem.Close()
+		fmt.Println("mem profile stopped")
+	}
 }
