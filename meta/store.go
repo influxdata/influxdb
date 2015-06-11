@@ -392,6 +392,17 @@ func (s *Store) IsLeader() bool {
 	return s.raft.State() == raft.Leader
 }
 
+// Leader returns what the store thinks is the current leader. An empty
+// string indicates no leader exists.
+func (s *Store) Leader() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.raft == nil {
+		return ""
+	}
+	return s.raft.Leader()
+}
+
 // LeaderCh returns a channel that notifies on leadership change.
 // Panics when the store has not been opened yet.
 func (s *Store) LeaderCh() <-chan bool {

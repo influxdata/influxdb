@@ -291,15 +291,15 @@ func (s *Server) Open() error {
 			return fmt.Errorf("open hinted handoff: %s", err)
 		}
 
-		// Start the reporting service, if not disabled.
-		if !s.reportingDisabled {
-			go s.startServerReporting()
-		}
-
 		for _, service := range s.Services {
 			if err := service.Open(); err != nil {
 				return fmt.Errorf("open service: %s", err)
 			}
+		}
+
+		// Start the reporting service, if not disabled.
+		if !s.reportingDisabled {
+			go s.startServerReporting()
 		}
 
 		return nil
@@ -336,6 +336,13 @@ func (s *Server) Close() error {
 // startServerReporting starts periodic server reporting.
 func (s *Server) startServerReporting() {
 	for {
+		for {
+			time.Sleep(time.Second)
+			if s.MetaStore.Leader() != "" {
+				break
+			}
+		}
+
 		s.reportServer()
 		<-time.After(24 * time.Hour)
 	}
@@ -372,7 +379,7 @@ func (s *Server) reportServer() {
 	json := fmt.Sprintf(`[{
     "name":"reports",
     "columns":["os", "arch", "version", "server_id", "cluster_id", "num_series", "num_measurements", "num_databases"],
-    "points":[["%s", "%s", "%s", "%x", ",%x", "%d", "%d", "%d"]]
+    "points":[["%s", "%s", "%s", "%x", "%x", "%d", "%d", "%d"]]
   }]`, runtime.GOOS, runtime.GOARCH, s.Version, s.MetaStore.NodeID(), clusterID, numSeries, numMeasurements, numDatabases)
 
 	data := bytes.NewBufferString(json)
