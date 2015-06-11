@@ -100,6 +100,7 @@ message CreateNodeCommand {
         optional CreateNodeCommand command = 101;
     }
 	required string Host = 1;
+	required uint64 Rand = 2;
 }
 
 message DeleteNodeCommand {

@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"net"
 	"os"
 	"path/filepath"
@@ -494,6 +495,16 @@ func (s *Store) MarshalBinary() ([]byte, error) {
 	return s.data.MarshalBinary()
 }
 
+// ClusterID returns the unique identifier for the cluster.
+// This is generated once a node has been created.
+func (s *Store) ClusterID() (id uint64, err error) {
+	err = s.read(func(data *Data) error {
+		id = data.ClusterID
+		return nil
+	})
+	return
+}
+
 // NodeID returns the identifier for the local node.
 // Panics if the node has not joined the cluster.
 func (s *Store) NodeID() uint64 { return s.id }
@@ -536,6 +547,7 @@ func (s *Store) CreateNode(host string) (*NodeInfo, error) {
 	if err := s.exec(internal.Command_CreateNodeCommand, internal.E_CreateNodeCommand_Command,
 		&internal.CreateNodeCommand{
 			Host: proto.String(host),
+			Rand: proto.Uint64(uint64(rand.Int63())),
 		},
 	); err != nil {
 		return nil, err
@@ -1284,8 +1296,13 @@ func (fsm *storeFSM) applyCreateNodeCommand(cmd *internal.Command) interface{} {
 	if err := other.CreateNode(v.GetHost()); err != nil {
 		return err
 	}
-	fsm.data = other
 
+	// If the cluster ID hasn't been set then use the command's random number.
+	if other.ClusterID == 0 {
+		other.ClusterID = uint64(v.GetRand())
+	}
+
+	fsm.data = other
 	return nil
 }
 
