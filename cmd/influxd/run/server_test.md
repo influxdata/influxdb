@@ -1,6 +1,6 @@
 # Server Integration Tests
 
-Currently, the file `server_test.go` has integration tests for single node scendarios.
+Currently, the file `server_test.go` has integration tests for single node scenarios.
 At some point we'll need to add cluster tests, and may add them in a different file, or 
 rename `server_test.go` to `server_single_node_test.go` or something like that.
 
@@ -11,15 +11,15 @@ Each test is broken apart effectively into the following areas:
 - Write sample data
 - Use cases for table driven test, that include a command (typically a query) and an expected result.
 
-When the each test runs it does the following:
+When each test runs it does the following:
 
-- init: determines if there are any writes and if so, writes them to the in memory database
+- init: determines if there are any writes and if so, writes them to the in-memory database
 - queries: iterate through each query, executing the command, and comparing the results to the expected result.
 
 ## Idempotent - Allows for parallel tests
 
-Each test should be `idempotent`, meaining that it's data will not be affected by other tests, or use cases within the table tests themselves.
-This allows for parellel testing, keeping the test suite total exucution time very low.
+Each test should be `idempotent`, meaining that its data will not be affected by other tests, or use cases within the table tests themselves.
+This allows for parallel testing, keeping the test suite total execution time very low.
 
 ### Basic sample test
 
@@ -88,9 +88,7 @@ if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0"
 }
 ```
 
-
 Next, set up the write data you need:
-
 
 ```go
 writes := []string{
@@ -98,7 +96,6 @@ writes := []string{
 	fmt.Sprintf("cpu1,host=server02 value=50,core=2 %d", mustParseTime(time.RFC3339Nano, "2015-01-01T00:00:00Z").UnixNano()),
 }
 ```
-
 Create a new test with the database and retention policy:
 
 ```go
@@ -129,7 +126,6 @@ test.addQueries([]*Query{
 
 The rest of the code is boilerplate execution code.  It is purposefully not refactored out to a helper
 to make sure the test failure reports the proper lines for debugging purposes.
-
 
 #### Running the tests
 
