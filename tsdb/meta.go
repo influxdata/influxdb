@@ -360,13 +360,13 @@ func (m *Measurement) AddSeries(s *Series) bool {
 	return true
 }
 
-// DropSeries will remove a series from the measurementIndex. Returns true if already removed
-func (m *Measurement) DropSeries(seriesID uint64) bool {
+// DropSeries will remove a series from the measurementIndex.
+func (m *Measurement) DropSeries(seriesID uint64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	if _, ok := m.seriesByID[seriesID]; !ok {
-		return true
+		return
 	}
 	s := m.seriesByID[seriesID]
 	tagset := string(marshalTags(s.Tags))
@@ -408,7 +408,7 @@ func (m *Measurement) DropSeries(seriesID uint64) bool {
 		}
 	}
 
-	return false
+	return
 }
 
 // filters walks the where clause of a select statement and returns a map with all series ids
