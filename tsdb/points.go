@@ -95,7 +95,7 @@ func ParsePointsWithPrecision(buf []byte, defaultTime time.Time, precision strin
 
 		pt, err := parsePoint(block, defaultTime, precision)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("unable to parse '%s': %v", string(block), err)
 		}
 		points = append(points, pt)
 
@@ -412,7 +412,7 @@ func scanNumber(buf []byte, i int) (int, []byte, error) {
 
 		// Can't have more than 1 decimal (e.g. 1.1.1 should fail)
 		if decimals > 1 {
-			return i, buf[start:i], fmt.Errorf("invalid number: %s", string(buf[start:i+1]))
+			return i, buf[start:i], fmt.Errorf("invalid number")
 		}
 
 		// `e` is valid for floats but not as the first char
@@ -428,7 +428,7 @@ func scanNumber(buf []byte, i int) (int, []byte, error) {
 		}
 
 		if !isNumeric(buf[i]) {
-			return i, buf[start:i], fmt.Errorf("invalid number: %s", string(buf[start:i+1]))
+			return i, buf[start:i], fmt.Errorf("invalid number")
 		}
 		i += 1
 	}
