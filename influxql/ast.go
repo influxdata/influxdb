@@ -12,23 +12,23 @@ import (
 )
 
 // DataType represents the primitive data types available in InfluxQL.
-type DataType string
+type DataType int
 
 const (
 	// Unknown primitive data type.
-	Unknown = DataType("")
+	Unknown DataType = 0
 	// Float means the data type is a float
-	Float = DataType("float")
+	Float = 1
 	// Integer means the data type is a integer
-	Integer = DataType("integer")
+	Integer = 2
 	// Boolean means the data type is a boolean.
-	Boolean = DataType("boolean")
+	Boolean = 3
 	// String means the data type is a string of text.
-	String = DataType("string")
+	String = 4
 	// Time means the data type is a time.
-	Time = DataType("time")
+	Time = 5
 	// Duration means the data type is a duration of time.
-	Duration = DataType("duration")
+	Duration = 6
 )
 
 // InspectDataType returns the data type of a given value.

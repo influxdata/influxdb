@@ -23,5 +23,5 @@ message MeasurementFields {
 message Field {
   required int32 ID = 1;
   required string Name = 2;
-  required string Type = 3;
+  required int32 Type = 3;
 }
