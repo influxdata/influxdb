@@ -158,6 +158,7 @@ func (s *Server) appendOpenTSDBService(c opentsdb.Config) error {
 		return err
 	}
 	srv.PointsWriter = s.PointsWriter
+	srv.MetaStore = s.MetaStore
 	s.Services = append(s.Services, srv)
 	return nil
 }

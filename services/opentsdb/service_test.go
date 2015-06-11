@@ -13,6 +13,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/influxdb/influxdb/cluster"
+	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/services/opentsdb"
 	"github.com/influxdb/influxdb/tsdb"
 )
@@ -136,6 +137,7 @@ func NewService(database string) *Service {
 	})
 	s := &Service{Service: srv}
 	s.Service.PointsWriter = &s.PointsWriter
+	s.Service.MetaStore = &DatabaseCreator{}
 
 	if !testing.Verbose() {
 		s.Logger = log.New(ioutil.Discard, "", log.LstdFlags)
@@ -151,4 +153,11 @@ type PointsWriter struct {
 
 func (w *PointsWriter) WritePoints(p *cluster.WritePointsRequest) error {
 	return w.WritePointsFn(p)
+}
+
+type DatabaseCreator struct {
+}
+
+func (d *DatabaseCreator) CreateDatabaseIfNotExists(name string) (*meta.DatabaseInfo, error) {
+	return nil, nil
 }
