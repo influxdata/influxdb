@@ -46,6 +46,15 @@ func (d *DatabaseIndex) Measurement(name string) *Measurement {
 	return d.measurements[name]
 }
 
+// MeasurementSeriesCounts returns the number of measurments and series currently indexed by the database.
+// Useful for reporting and monitoring.
+func (d *DatabaseIndex) MeasurementSeriesCounts() (nMeasurements int, nSeries int) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	nMeasurements, nSeries = len(d.measurements), len(d.series)
+	return
+}
+
 // createSeriesIndexIfNotExists adds the series for the given measurement to the index and sets its ID or returns the existing series object
 func (s *DatabaseIndex) createSeriesIndexIfNotExists(measurementName string, series *Series) *Series {
 	// if there is a measurement for this id, it's already been added

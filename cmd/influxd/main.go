@@ -67,7 +67,13 @@ func (m *Main) Run(args ...string) error {
 	// Extract name from args.
 	switch name {
 	case "", "run":
-		if err := run.NewCommand().Run(args...); err != nil {
+		cmd := run.NewCommand()
+
+		// Tell the server the build details.
+		cmd.Version = version
+		cmd.Commit = commit
+
+		if err := cmd.Run(args...); err != nil {
 			return fmt.Errorf("run: %s", err)
 		}
 

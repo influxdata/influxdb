@@ -13,6 +13,7 @@
 - [#2804](https://github.com/influxdb/influxdb/pull/2804): BREAKING: change time literals to be single quoted in InfluxQL. Thanks @nvcook42!
 - [#2906](https://github.com/influxdb/influxdb/pull/2906): Restrict replication factor to the cluster size
 - [#2905](https://github.com/influxdb/influxdb/pull/2905): Restrict clusters to 3 peers
+- [#2904](https://github.com/influxdb/influxdb/pull/2904): Re-enable server reporting.
 
 ## v0.9.0-rc33 [2015-06-09]
 
