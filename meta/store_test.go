@@ -240,8 +240,10 @@ func TestStore_CreateRetentionPolicy(t *testing.T) {
 	s := MustOpenStore()
 	defer s.Close()
 
-	// Create database.
-	if _, err := s.CreateDatabase("db0"); err != nil {
+	// Create an additional nodes and database.
+	if _, err := s.CreateNode("hostX"); err != nil {
+		t.Fatal(err)
+	} else if _, err := s.CreateDatabase("db0"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -275,7 +277,7 @@ func TestStore_DropRetentionPolicy(t *testing.T) {
 
 	// Create policies.
 	for i := 0; i < 3; i++ {
-		if _, err := s.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: fmt.Sprintf("rp%d", i)}); err != nil {
+		if _, err := s.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: fmt.Sprintf("rp%d", i), ReplicaN: 1}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -286,13 +288,13 @@ func TestStore_DropRetentionPolicy(t *testing.T) {
 	}
 
 	// Ensure remaining policies are correct.
-	if rpi, _ := s.RetentionPolicy("db0", "rp0"); !reflect.DeepEqual(rpi, &meta.RetentionPolicyInfo{Name: "rp0", ShardGroupDuration: 7 * 24 * time.Hour}) {
+	if rpi, _ := s.RetentionPolicy("db0", "rp0"); !reflect.DeepEqual(rpi, &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 1, ShardGroupDuration: 7 * 24 * time.Hour}) {
 		t.Fatalf("unexpected policy(0): %#v", rpi)
 	}
 	if rpi, _ := s.RetentionPolicy("db0", "rp1"); rpi != nil {
 		t.Fatalf("unexpected policy(1): %#v", rpi)
 	}
-	if rpi, _ := s.RetentionPolicy("db0", "rp2"); !reflect.DeepEqual(rpi, &meta.RetentionPolicyInfo{Name: "rp2", ShardGroupDuration: 7 * 24 * time.Hour}) {
+	if rpi, _ := s.RetentionPolicy("db0", "rp2"); !reflect.DeepEqual(rpi, &meta.RetentionPolicyInfo{Name: "rp2", ReplicaN: 1, ShardGroupDuration: 7 * 24 * time.Hour}) {
 		t.Fatalf("unexpected policy(2): %#v", rpi)
 	}
 }
@@ -306,7 +308,7 @@ func TestStore_SetDefaultRetentionPolicy(t *testing.T) {
 	// Create database.
 	if _, err := s.CreateDatabase("db0"); err != nil {
 		t.Fatal(err)
-	} else if _, err := s.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0"}); err != nil {
+	} else if _, err := s.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 1}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -330,7 +332,7 @@ func TestStore_UpdateRetentionPolicy(t *testing.T) {
 	// Create database.
 	if _, err := s.CreateDatabase("db0"); err != nil {
 		t.Fatal(err)
-	} else if _, err := s.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0"}); err != nil {
+	} else if _, err := s.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 1}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -338,7 +340,6 @@ func TestStore_UpdateRetentionPolicy(t *testing.T) {
 	var rpu meta.RetentionPolicyUpdate
 	rpu.SetName("rp1")
 	rpu.SetDuration(10 * time.Hour)
-	rpu.SetReplicaN(3)
 	if err := s.UpdateRetentionPolicy("db0", "rp0", &rpu); err != nil {
 		t.Fatal(err)
 	}
@@ -350,7 +351,7 @@ func TestStore_UpdateRetentionPolicy(t *testing.T) {
 		Name:               "rp1",
 		Duration:           10 * time.Hour,
 		ShardGroupDuration: 7 * 24 * time.Hour,
-		ReplicaN:           3,
+		ReplicaN:           1,
 	}) {
 		t.Fatalf("unexpected policy: %#v", rpi)
 	}
@@ -367,7 +368,7 @@ func TestStore_CreateShardGroup(t *testing.T) {
 		t.Fatal(err)
 	} else if _, err := s.CreateDatabase("db0"); err != nil {
 		t.Fatal(err)
-	} else if _, err = s.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 1, Duration: 1 * time.Hour}); err != nil {
+	} else if _, err = s.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 2, Duration: 1 * time.Hour}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -390,7 +391,7 @@ func TestStore_DeleteShardGroup(t *testing.T) {
 		t.Fatal(err)
 	} else if _, err := s.CreateDatabase("db0"); err != nil {
 		t.Fatal(err)
-	} else if _, err = s.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 1, Duration: 1 * time.Hour}); err != nil {
+	} else if _, err = s.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 2, Duration: 1 * time.Hour}); err != nil {
 		t.Fatal(err)
 	} else if _, err := s.CreateShardGroup("db0", "rp0", time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
@@ -413,7 +414,7 @@ func TestStore_PrecreateShardGroup(t *testing.T) {
 		t.Fatal(err)
 	} else if _, err := s.CreateDatabase("db0"); err != nil {
 		t.Fatal(err)
-	} else if _, err = s.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 1, Duration: 1 * time.Hour}); err != nil {
+	} else if _, err = s.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 2, Duration: 1 * time.Hour}); err != nil {
 		t.Fatal(err)
 	} else if _, err := s.CreateShardGroup("db0", "rp0", time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)

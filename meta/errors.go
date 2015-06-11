@@ -50,6 +50,11 @@ var (
 	// ErrRetentionPolicyDurationTooLow is returned when updating a retention
 	// policy that has a duration lower than the allowed minimum.
 	ErrRetentionPolicyDurationTooLow = errors.New("retention policy duration too low")
+
+	// ErrReplicationFactorMismatch is returned when the replication factor
+	// does not match the number of nodes in the cluster. This is a temporary
+	// restriction until v0.9.1 is released.
+	ErrReplicationFactorMismatch = errors.New("replication factor must match cluster size; this limitation will be lifted in v0.9.1")
 )
 
 var (
