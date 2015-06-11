@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb/cluster"
+	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -33,6 +34,9 @@ type Service struct {
 
 	PointsWriter interface {
 		WritePoints(p *cluster.WritePointsRequest) error
+	}
+	MetaStore interface {
+		CreateDatabaseIfNotExists(name string) (*meta.DatabaseInfo, error)
 	}
 
 	Logger *log.Logger
@@ -58,6 +62,12 @@ func NewService(c Config) (*Service, error) {
 
 // Open starts the service
 func (s *Service) Open() error {
+	if _, err := s.MetaStore.CreateDatabaseIfNotExists(s.Database); err != nil {
+		s.Logger.Printf("failed to ensure target database %s exists: %s", s.Database, err.Error())
+		return err
+	}
+	s.Logger.Printf("ensured target database %s exists", s.Database)
+
 	// Open listener.
 	ln, err := net.Listen("tcp", s.BindAddress)
 	if err != nil {
