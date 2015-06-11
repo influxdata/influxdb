@@ -355,6 +355,10 @@ func (s *Store) createLocalNode() error {
 
 // WaitForLeader sleeps until a leader is found or a timeout occurs.
 func (s *Store) WaitForLeader(timeout time.Duration) error {
+	if s.raft.Leader() != "" {
+		return nil
+	}
+
 	// Begin timeout timer.
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
