@@ -186,6 +186,7 @@ func (s *Store) Open() error {
 	if s.id == 0 {
 		go s.init()
 	} else {
+		s.waitForLeader(10 * time.Second)
 		close(s.ready)
 	}
 
