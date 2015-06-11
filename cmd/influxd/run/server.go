@@ -371,7 +371,7 @@ func (s *Server) reportServer() {
 
 	json := fmt.Sprintf(`[{
     "name":"reports",
-    "columns":["os", "arch", "version", "server_id", "id", "num_series", "num_measurements", "num_databases"],
+    "columns":["os", "arch", "version", "server_id", "cluster_id", "num_series", "num_measurements", "num_databases"],
     "points":[["%s", "%s", "%s", "%x", ",%x", "%d", "%d", "%d"]]
   }]`, runtime.GOOS, runtime.GOARCH, s.Version, s.MetaStore.NodeID(), clusterID, numSeries, numMeasurements, numDatabases)
 
