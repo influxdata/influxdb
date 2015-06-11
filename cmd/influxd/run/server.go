@@ -156,6 +156,7 @@ func (s *Server) appendHTTPDService(c httpd.Config) {
 	srv.Handler.MetaStore = s.MetaStore
 	srv.Handler.QueryExecutor = s.QueryExecutor
 	srv.Handler.PointsWriter = s.PointsWriter
+	srv.Handler.Version = s.Version
 
 	// If a ContinuousQuerier service has been started, attach it.
 	for _, srvc := range s.Services {

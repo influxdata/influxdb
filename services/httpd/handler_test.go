@@ -381,10 +381,11 @@ type Handler struct {
 // NewHandler returns a new instance of Handler.
 func NewHandler(requireAuthentication bool) *Handler {
 	h := &Handler{
-		Handler: httpd.NewHandler(requireAuthentication, true, "0.0.0"),
+		Handler: httpd.NewHandler(requireAuthentication, true),
 	}
 	h.Handler.MetaStore = &h.MetaStore
 	h.Handler.QueryExecutor = &h.QueryExecutor
+	h.Handler.Version = "0.0.0"
 	return h
 }
 
