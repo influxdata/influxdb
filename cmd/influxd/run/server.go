@@ -1,8 +1,12 @@
 package run
 
 import (
+	"bytes"
 	"fmt"
+	"log"
 	"net"
+	"net/http"
+	"runtime"
 	"time"
 
 	"github.com/influxdb/influxdb/cluster"
@@ -26,6 +30,9 @@ import (
 // It is built using a Config and it manages the startup and shutdown of all
 // services in the proper order.
 type Server struct {
+	Version string
+	Commit  string
+
 	err     chan error
 	closing chan struct{}
 
@@ -45,6 +52,9 @@ type Server struct {
 	// These references are required for the tcp muxer.
 	ClusterService     *cluster.Service
 	SnapshotterService *snapshotter.Service
+
+	// Server reporting
+	reportingDisabled bool
 }
 
 // NewServer returns a new instance of Server built from a config.
@@ -59,6 +69,8 @@ func NewServer(c *Config) (*Server, error) {
 
 		MetaStore: meta.NewStore(c.Meta),
 		TSDBStore: tsdb.NewStore(c.Data.Dir),
+
+		reportingDisabled: c.ReportingDisabled,
 	}
 
 	// Initialize query executor.
@@ -279,6 +291,11 @@ func (s *Server) Open() error {
 			return fmt.Errorf("open hinted handoff: %s", err)
 		}
 
+		// Start the reporting service, if not disabled.
+		if !s.reportingDisabled {
+			go s.startServerReporting()
+		}
+
 		for _, service := range s.Services {
 			if err := service.Open(); err != nil {
 				return fmt.Errorf("open service: %s", err)
@@ -314,6 +331,56 @@ func (s *Server) Close() error {
 	}
 	close(s.closing)
 	return nil
+}
+
+// startServerReporting starts periodic server reporting.
+func (s *Server) startServerReporting() {
+	for {
+		s.reportServer()
+		<-time.After(24 * time.Hour)
+	}
+}
+
+// reportServer reports anonymous statistics about the system.
+func (s *Server) reportServer() {
+	dis, err := s.MetaStore.Databases()
+	if err != nil {
+		log.Printf("failed to retrieve databases for reporting: %s", err.Error)
+		return
+	}
+	numDatabases := len(dis)
+
+	numMeasurements := 0
+	numSeries := 0
+	for _, di := range dis {
+		d := s.TSDBStore.DatabaseIndex(di.Name)
+		if d == nil {
+			// No data in this store for this database.
+			continue
+		}
+		m, s := d.MeasurementSeriesCounts()
+		numMeasurements += m
+		numSeries += s
+	}
+
+	clusterID, err := s.MetaStore.ClusterID()
+	if err != nil {
+		log.Printf("failed to retrieve cluster ID for reporting: %s", err.Error)
+		return
+	}
+
+	json := fmt.Sprintf(`[{
+    "name":"reports",
+    "columns":["os", "arch", "version", "server_id", "id", "num_series", "num_measurements", "num_databases"],
+    "points":[["%s", "%s", "%s", "%x", ",%x", "%d", "%d", "%d"]]
+  }]`, runtime.GOOS, runtime.GOARCH, s.Version, s.MetaStore.NodeID(), clusterID, numSeries, numMeasurements, numDatabases)
+
+	data := bytes.NewBufferString(json)
+
+	log.Printf("Sending anonymous usage statistics to m.influxdb.com")
+
+	client := http.Client{Timeout: time.Duration(5 * time.Second)}
+	client.Post("http://m.influxdb.com:8086/db/reporting/series?u=reporter&p=influxdb", "application/json", data)
 }
 
 // monitorErrorChan reads an error channel and resends it through the server.

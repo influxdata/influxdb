@@ -42,6 +42,9 @@ type Config struct {
 	ContinuousQuery continuous_querier.Config `toml:"continuous_queries"`
 
 	HintedHandoff hh.Config `toml:"hinted-handoff"`
+
+	// Server reporting
+	ReportingDisabled bool `toml:"reporting-disabled"`
 }
 
 // NewConfig returns an instance of Config with reasonable defaults.

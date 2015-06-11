@@ -28,6 +28,9 @@ const logo = `
 
 // Command represents the command executed by "influxd run".
 type Command struct {
+	Version string
+	Commit  string
+
 	closing chan struct{}
 
 	Stdin  io.Reader
@@ -88,6 +91,8 @@ func (cmd *Command) Run(args ...string) error {
 	if err != nil {
 		return fmt.Errorf("create server: %s", err)
 	}
+	s.Commit = cmd.Commit
+	s.Version = cmd.Version
 	if err := s.Open(); err != nil {
 		return fmt.Errorf("open server: %s", err)
 	}
