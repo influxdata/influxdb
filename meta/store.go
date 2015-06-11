@@ -129,6 +129,12 @@ func (s *Store) IDPath() string { return filepath.Join(s.path, "id") }
 
 // Open opens and initializes the raft store.
 func (s *Store) Open() error {
+	// Verify that no more than 3 peers.
+	// https://github.com/influxdb/influxdb/issues/2750
+	if len(s.peers) > 3 {
+		return ErrTooManyPeers
+	}
+
 	// Verify listeners are set.
 	if s.RaftListener == nil {
 		panic("Store.RaftListener not set")

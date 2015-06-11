@@ -36,6 +36,17 @@ func TestStore_Open_ErrStoreOpen(t *testing.T) {
 	}
 }
 
+// Ensure that opening a store with more than 3 peers returns an error.
+func TestStore_Open_ErrTooManyPeers(t *testing.T) {
+	t.Parallel()
+	config := NewConfig(MustTempFile())
+	config.Peers = []string{"localhost:9000", "localhost:9001", "localhost:9002", "localhost:9003"}
+	s := NewStore(config)
+	if err := s.Open(); err != meta.ErrTooManyPeers {
+		t.Fatalf("unexpected error: %s", err)
+	}
+}
+
 // Ensure the store can create a new node.
 func TestStore_CreateNode(t *testing.T) {
 	t.Parallel()
