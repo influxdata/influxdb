@@ -174,7 +174,84 @@ func TestParsePointMissingFieldValue(t *testing.T) {
 	if err == nil {
 		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, "cpu")
 	}
+}
 
+func TestParsePointBadNumber(t *testing.T) {
+	_, err := ParsePointsString(`cpu,host=serverA,region=us-west value=1a`)
+	if err == nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west value=1a`)
+	}
+}
+
+func TestParsePointNumberNonNumeric(t *testing.T) {
+	_, err := ParsePointsString(`cpu,host=serverA,region=us-west value=.1a`)
+	if err == nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west value=.1a`)
+	}
+}
+
+func TestParsePointNegativeWrongPlace(t *testing.T) {
+	_, err := ParsePointsString(`cpu,host=serverA,region=us-west value=0.-1`)
+	if err == nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west value=0.-1`)
+	}
+}
+
+func TestParsePointFloatMultipleDecimals(t *testing.T) {
+	_, err := ParsePointsString(`cpu,host=serverA,region=us-west value=1.1.1`)
+	if err == nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west value=1.1.1`)
+	}
+	println(err.Error())
+}
+
+func TestParsePointInteger(t *testing.T) {
+	_, err := ParsePointsString(`cpu,host=serverA,region=us-west value=1`)
+	if err != nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,region=us-west value=1`, err)
+	}
+}
+
+func TestParsePointNegativeInteger(t *testing.T) {
+	_, err := ParsePointsString(`cpu,host=serverA,region=us-west value=-1`)
+	if err != nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,region=us-west value=-1`, err)
+	}
+}
+
+func TestParsePointNegativeFloat(t *testing.T) {
+	_, err := ParsePointsString(`cpu,host=serverA,region=us-west value=-1.0`)
+	if err != nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,region=us-west value=-1.0`, err)
+	}
+}
+
+func TestParsePointFloatNoLeadingDigit(t *testing.T) {
+	_, err := ParsePointsString(`cpu,host=serverA,region=us-west value=.1`)
+	if err != nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,region=us-west value=-1.0`, err)
+	}
+}
+
+func TestParsePointFloatScientific(t *testing.T) {
+	_, err := ParsePointsString(`cpu,host=serverA,region=us-west value=1.0e4`)
+	if err != nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,region=us-west value=1.0e4`, err)
+	}
+}
+
+func TestParsePointFloatScientificDecimal(t *testing.T) {
+	_, err := ParsePointsString(`cpu,host=serverA,region=us-west value=1.0e-4`)
+	if err != nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,region=us-west value=1.0e-4`, err)
+	}
+}
+
+func TestParsePointFloatNegativeScientific(t *testing.T) {
+	_, err := ParsePointsString(`cpu,host=serverA,region=us-west value=-1.0e-4`)
+	if err != nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,region=us-west value=-1.0e-4`, err)
+	}
 }
 
 func TestParsePointUnescape(t *testing.T) {
