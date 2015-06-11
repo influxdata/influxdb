@@ -16,6 +16,7 @@ import (
 	"github.com/influxdb/influxdb/services/opentsdb"
 	"github.com/influxdb/influxdb/services/precreator"
 	"github.com/influxdb/influxdb/services/retention"
+	"github.com/influxdb/influxdb/services/snapshotter"
 	"github.com/influxdb/influxdb/services/udp"
 	"github.com/influxdb/influxdb/tcp"
 	"github.com/influxdb/influxdb/tsdb"
@@ -40,6 +41,10 @@ type Server struct {
 	HintedHandoff *hh.Service
 
 	Services []Service
+
+	// These references are required for the tcp muxer.
+	ClusterService     *cluster.Service
+	SnapshotterService *snapshotter.Service
 }
 
 // NewServer returns a new instance of Server built from a config.
@@ -78,6 +83,7 @@ func NewServer(c *Config) (*Server, error) {
 	// Append services.
 	s.appendClusterService(c.Cluster)
 	s.appendPrecreatorService(c.Precreator)
+	s.appendSnapshotterService()
 	s.appendAdminService(c.Admin)
 	s.appendContinuousQueryService(c.ContinuousQuery)
 	s.appendHTTPDService(c.HTTPD)
@@ -101,6 +107,15 @@ func (s *Server) appendClusterService(c cluster.Config) {
 	srv.TSDBStore = s.TSDBStore
 	srv.MetaStore = s.MetaStore
 	s.Services = append(s.Services, srv)
+	s.ClusterService = srv
+}
+
+func (s *Server) appendSnapshotterService() {
+	srv := snapshotter.NewService()
+	srv.TSDBStore = s.TSDBStore
+	srv.MetaStore = s.MetaStore
+	s.Services = append(s.Services, srv)
+	s.SnapshotterService = srv
 }
 
 func (s *Server) appendRetentionPolicyService(c retention.Config) {
@@ -241,7 +256,8 @@ func (s *Server) Open() error {
 		mux := tcp.NewMux()
 		s.MetaStore.RaftListener = mux.Listen(meta.MuxRaftHeader)
 		s.MetaStore.ExecListener = mux.Listen(meta.MuxExecHeader)
-		s.Services[0].(*cluster.Service).Listener = mux.Listen(cluster.MuxHeader)
+		s.ClusterService.Listener = mux.Listen(cluster.MuxHeader)
+		s.SnapshotterService.Listener = mux.Listen(snapshotter.MuxHeader)
 		go mux.Serve(ln)
 
 		// Open meta store.

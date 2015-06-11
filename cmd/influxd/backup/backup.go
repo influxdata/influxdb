@@ -1,31 +1,24 @@
 package backup
 
-/*
 import (
-	"bytes"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"log"
-	"net/http"
-	"net/url"
+	"net"
 	"os"
 
-	"github.com/influxdb/influxdb"
+	"github.com/influxdb/influxdb/services/snapshotter"
+	"github.com/influxdb/influxdb/snapshot"
 )
 
-var DefaultSnapshotURL = url.URL{
-	Scheme: "http",
-	Host:   net.JoinHostPort("127.0.0.1", strconv.Itoa(DefaultClusterPort)),
-}
+// Suffix is a suffix added to the backup while it's in-process.
+const Suffix = ".pending"
 
-
-// BackupSuffix is a suffix added to the backup while it's in-process.
-const BackupSuffix = ".pending"
-
-// BackupCommand represents the program execution for "influxd backup".
-type BackupCommand struct {
+// Command represents the program execution for "influxd backup".
+type Command struct {
 	// The logger passed to the ticker during execution.
 	Logger *log.Logger
 
@@ -33,33 +26,33 @@ type BackupCommand struct {
 	Stderr io.Writer
 }
 
-// NewBackupCommand returns a new instance of BackupCommand with default settings.
-func NewBackupCommand() *BackupCommand {
-	return &BackupCommand{
+// NewCommand returns a new instance of Command with default settings.
+func NewCommand() *Command {
+	return &Command{
 		Stderr: os.Stderr,
 	}
 }
 
 // Run excutes the program.
-func (cmd *BackupCommand) Run(args ...string) error {
+func (cmd *Command) Run(args ...string) error {
 	// Set up logger.
 	cmd.Logger = log.New(cmd.Stderr, "", log.LstdFlags)
-	cmd.Logger.Printf("influxdb backup, version %s, commit %s", version, commit)
+	cmd.Logger.Printf("influxdb backup")
 
 	// Parse command line arguments.
-	u, path, err := cmd.parseFlags(args)
+	host, path, err := cmd.parseFlags(args)
 	if err != nil {
 		return err
 	}
 
 	// Retrieve snapshot from local file.
-	ss, err := influxdb.ReadFileSnapshot(path)
+	m, err := snapshot.ReadFileManifest(path)
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("read file snapshot: %s", err)
 	}
 
 	// Determine temporary path to download to.
-	tmppath := path + BackupSuffix
+	tmppath := path + Suffix
 
 	// Calculate path of next backup file.
 	// This uses the path if it doesn't exist.
@@ -70,7 +63,7 @@ func (cmd *BackupCommand) Run(args ...string) error {
 	}
 
 	// Retrieve snapshot.
-	if err := cmd.download(u, ss, tmppath); err != nil {
+	if err := cmd.download(host, m, tmppath); err != nil {
 		return fmt.Errorf("download: %s", err)
 	}
 
@@ -88,32 +81,28 @@ func (cmd *BackupCommand) Run(args ...string) error {
 }
 
 // parseFlags parses and validates the command line arguments.
-func (cmd *BackupCommand) parseFlags(args []string) (url.URL, string, error) {
+func (cmd *Command) parseFlags(args []string) (host string, path string, err error) {
 	fs := flag.NewFlagSet("", flag.ContinueOnError)
-	host := fs.String("host", DefaultSnapshotURL.String(), "")
+	fs.StringVar(&host, "host", "localhost:8088", "")
 	fs.SetOutput(cmd.Stderr)
 	fs.Usage = cmd.printUsage
 	if err := fs.Parse(args); err != nil {
-		return url.URL{}, "", err
+		return "", "", err
 	}
 
-	// Parse host.
-	u, err := url.Parse(*host)
-	if err != nil {
-		return url.URL{}, "", fmt.Errorf("parse host url: %s", err)
+	// Ensure that only one arg is specified.
+	if fs.NArg() == 0 {
+		return "", "", errors.New("snapshot path required")
+	} else if fs.NArg() != 1 {
+		return "", "", errors.New("only one snapshot path allowed")
 	}
+	path = fs.Arg(0)
 
-	// Require output path.
-	path := fs.Arg(0)
-	if path == "" {
-		return url.URL{}, "", fmt.Errorf("snapshot path required")
-	}
-
-	return *u, path, nil
+	return host, path, nil
 }
 
 // nextPath returns the next file to write to.
-func (cmd *BackupCommand) nextPath(path string) (string, error) {
+func (cmd *Command) nextPath(path string) (string, error) {
 	// Use base path if it doesn't exist.
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return path, nil
@@ -133,7 +122,7 @@ func (cmd *BackupCommand) nextPath(path string) (string, error) {
 }
 
 // download downloads a snapshot from a host to a given path.
-func (cmd *BackupCommand) download(u url.URL, ss *influxdb.Snapshot, path string) error {
+func (cmd *Command) download(host string, m *snapshot.Manifest, path string) error {
 	// Create local file to write to.
 	f, err := os.Create(path)
 	if err != nil {
@@ -141,50 +130,41 @@ func (cmd *BackupCommand) download(u url.URL, ss *influxdb.Snapshot, path string
 	}
 	defer f.Close()
 
-	// Encode snapshot.
-	var buf bytes.Buffer
-	if ss != nil {
-		if err := json.NewEncoder(&buf).Encode(ss); err != nil {
-			return fmt.Errorf("encode snapshot: %s", err)
-		}
-	}
-
-	// Create request with existing snapshot as the body.
-	u.Path = "/data/snapshot"
-	req, err := http.NewRequest("GET", u.String(), &buf)
+	// Connect to snapshotter service.
+	conn, err := net.Dial("tcp", host)
 	if err != nil {
-		return fmt.Errorf("new request: %s", err)
+		return err
+	}
+	defer conn.Close()
+
+	// Send snapshotter marker byte.
+	if _, err := conn.Write([]byte{snapshotter.MuxHeader}); err != nil {
+		return fmt.Errorf("write snapshot header byte: %s", err)
 	}
 
-	// Fetch the archive from the server.
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("get: %s", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	// Check the status code.
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("snapshot error: status=%d", resp.StatusCode)
+	// Write the manifest we currently have.
+	if err := json.NewEncoder(conn).Encode(m); err != nil {
+		return fmt.Errorf("encode snapshot manifest: %s", err)
 	}
 
-	// Write the archive to disk.
-	if _, err := io.Copy(f, resp.Body); err != nil {
-		return fmt.Errorf("write snapshot: %s", err)
+	// Read snapshot from the connection.
+	if _, err := io.Copy(f, conn); err != nil {
+		return fmt.Errorf("copy snapshot to file: %s", err)
 	}
+
+	// FIXME(benbjohnson): Verify integrity of snapshot.
 
 	return nil
 }
 
 // printUsage prints the usage message to STDERR.
-func (cmd *BackupCommand) printUsage() {
+func (cmd *Command) printUsage() {
 	fmt.Fprintf(cmd.Stderr, `usage: influxd backup [flags] PATH
 
 backup downloads a snapshot of a data node and saves it to disk.
 
-        -host <url>
+        -host <host:port>
                           The host to connect to snapshot.
-                          Defaults to http://127.0.0.1:8087.
+                          Defaults to 127.0.0.1:8088.
 `)
 }
-*/

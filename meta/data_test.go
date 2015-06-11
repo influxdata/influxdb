@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta"
 )
@@ -599,20 +600,74 @@ func TestData_Clone(t *testing.T) {
 	}
 }
 
-// Ensure the node info can be encoded to and from a binary format.
-func TestNodeInfo_Marshal(t *testing.T) {
-	// Encode object.
-	n := meta.NodeInfo{ID: 100, Host: "server0"}
-	buf, err := n.MarshalBinary()
+// Ensure the data can be marshaled and unmarshaled.
+func TestData_MarshalBinary(t *testing.T) {
+	data := meta.Data{
+		Term:  10,
+		Index: 20,
+		Nodes: []meta.NodeInfo{
+			{ID: 1, Host: "host0"},
+			{ID: 2, Host: "host1"},
+		},
+		Databases: []meta.DatabaseInfo{
+			{
+				Name: "db0",
+				DefaultRetentionPolicy: "default",
+				RetentionPolicies: []meta.RetentionPolicyInfo{
+					{
+						Name:               "rp0",
+						ReplicaN:           3,
+						Duration:           10 * time.Second,
+						ShardGroupDuration: 3 * time.Millisecond,
+						ShardGroups: []meta.ShardGroupInfo{
+							{
+								ID:        100,
+								StartTime: time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC),
+								EndTime:   time.Date(2000, time.February, 1, 0, 0, 0, 0, time.UTC),
+								Shards: []meta.ShardInfo{
+									{
+										ID:       200,
+										OwnerIDs: []uint64{1, 3, 4},
+									},
+								},
+							},
+						},
+					},
+				},
+				ContinuousQueries: []meta.ContinuousQueryInfo{
+					{Query: "SELECT count() FROM foo"},
+				},
+			},
+		},
+		Users: []meta.UserInfo{
+			{
+				Name:       "susy",
+				Hash:       "ABC123",
+				Admin:      true,
+				Privileges: map[string]influxql.Privilege{"db0": influxql.AllPrivileges},
+			},
+		},
+	}
+
+	// Marshal the data struture.
+	buf, err := data.MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// Decode object.
-	var other meta.NodeInfo
+	// Unmarshal into new data.
+	var other meta.Data
 	if err := other.UnmarshalBinary(buf); err != nil {
 		t.Fatal(err)
-	} else if !reflect.DeepEqual(n, other) {
-		t.Fatalf("mismatch:\n\nexp=%#v\n\ngot=%#v\n\n", n, other)
+	}
+
+	if !reflect.DeepEqual(data.Nodes, other.Nodes) {
+		t.Fatalf("unexpected nodes: %#v", other.Nodes)
+	} else if !reflect.DeepEqual(data.Databases, other.Databases) {
+		spew.Dump(data.Databases)
+		spew.Dump(other.Databases)
+		t.Fatalf("unexpected databases: %#v", other.Databases)
+	} else if !reflect.DeepEqual(data.Users, other.Users) {
+		t.Fatalf("unexpected users: %#v", other.Users)
 	}
 }

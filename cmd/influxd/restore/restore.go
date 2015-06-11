@@ -1,48 +1,37 @@
 package restore
 
-/*
 import (
-	"encoding/binary"
+	"bytes"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
-	"log"
-	"math/rand"
-	"net/url"
+	"net"
 	"os"
 	"path/filepath"
-	"time"
 
-	"github.com/boltdb/bolt"
-	"github.com/influxdb/influxdb"
+	"github.com/BurntSushi/toml"
+	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/snapshot"
+	"github.com/influxdb/influxdb/tsdb"
 )
 
-// RestoreCommand represents the program execution for "influxd restore".
-type RestoreCommand struct {
-	// The logger passed to the ticker during execution.
-	Logger *log.Logger
-
-	// Standard input/output, overridden for testing.
+// Command represents the program execution for "influxd restore".
+type Command struct {
+	Stdout io.Writer
 	Stderr io.Writer
 }
 
-// NewRestoreCommand returns a new instance of RestoreCommand with default settings.
-func NewRestoreCommand() *RestoreCommand {
-	cmd := RestoreCommand{
+// NewCommand returns a new instance of Command with default settings.
+func NewCommand() *Command {
+	return &Command{
+		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 	}
-
-	// Set up logger.
-	cmd.Logger = log.New(cmd.Stderr, "", log.LstdFlags)
-	return &cmd
 }
 
 // Run excutes the program.
-func (cmd *RestoreCommand) Run(args ...string) error {
-	cmd.Logger.Printf("influxdb restore, version %s, commit %s", version, commit)
-
-	// Parse command line arguments.
+func (cmd *Command) Run(args ...string) error {
 	config, path, err := cmd.parseFlags(args)
 	if err != nil {
 		return err
@@ -51,44 +40,33 @@ func (cmd *RestoreCommand) Run(args ...string) error {
 	return cmd.Restore(config, path)
 }
 
-func (cmd *RestoreCommand) Restore(config *influxdb.Config, path string) error {
-	// Remove broker & data directories.
-	if err := os.RemoveAll(config.BrokerDir()); err != nil {
-		return fmt.Errorf("remove broker dir: %s", err)
-	} else if err := os.RemoveAll(config.DataDir()); err != nil {
+func (cmd *Command) Restore(config *Config, path string) error {
+	// Remove meta and data directories.
+	if err := os.RemoveAll(config.Meta.Dir); err != nil {
+		return fmt.Errorf("remove meta dir: %s", err)
+	} else if err := os.RemoveAll(config.Data.Dir); err != nil {
 		return fmt.Errorf("remove data dir: %s", err)
 	}
 
 	// Open snapshot file and all incremental backups.
-	ssr, files, err := influxdb.OpenFileSnapshotsReader(path)
+	mr, files, err := snapshot.OpenFileMultiReader(path)
 	if err != nil {
-		return fmt.Errorf("open: %s", err)
+		return fmt.Errorf("open multireader: %s", err)
 	}
 	defer closeAll(files)
 
-	// Extract manifest.
-	ss, err := ssr.Snapshot()
-	if err != nil {
-		return fmt.Errorf("snapshot: %s", err)
-	}
-
-	// Unpack snapshot files into data directory.
-	if err := cmd.unpack(config.DataDir(), ssr); err != nil {
+	// Unpack files from archive.
+	if err := cmd.unpack(mr, config); err != nil {
 		return fmt.Errorf("unpack: %s", err)
 	}
 
-	// Generate broker & raft directories from manifest.
-	if err := cmd.materialize(config.BrokerDir(), ss, config.ClusterURL()); err != nil {
-		return fmt.Errorf("materialize: %s", err)
-	}
-
 	// Notify user of completion.
-	cmd.Logger.Printf("restore complete using %s", path)
+	fmt.Fprintf(os.Stdout, "restore complete using %s", path)
 	return nil
 }
 
 // parseFlags parses and validates the command line arguments.
-func (cmd *RestoreCommand) parseFlags(args []string) (*influxdb.Config, string, error) {
+func (cmd *Command) parseFlags(args []string) (*Config, string, error) {
 	fs := flag.NewFlagSet("", flag.ContinueOnError)
 	configPath := fs.String("config", "", "")
 	fs.SetOutput(cmd.Stderr)
@@ -98,16 +76,17 @@ func (cmd *RestoreCommand) parseFlags(args []string) (*influxdb.Config, string, 
 	}
 
 	// Parse configuration file from disk.
-	var config *Config
-	var err error
 	if *configPath == "" {
-		config, err = NewTestConfig()
-		log.Println("No config provided, using default settings")
-	} else {
-		config, err = ParseConfigFile(*configPath)
+		return nil, "", fmt.Errorf("config required")
 	}
-	if err != nil {
-		log.Fatal(err)
+
+	// Parse config.
+	config := Config{
+		Meta: meta.NewConfig(),
+		Data: tsdb.NewConfig(),
+	}
+	if _, err := toml.DecodeFile(*configPath, &config); err != nil {
+		return nil, "", err
 	}
 
 	// Require output path.
@@ -116,7 +95,7 @@ func (cmd *RestoreCommand) parseFlags(args []string) (*influxdb.Config, string, 
 		return nil, "", fmt.Errorf("snapshot path required")
 	}
 
-	return config, path, nil
+	return &config, path, nil
 }
 
 func closeAll(a []io.Closer) {
@@ -126,16 +105,11 @@ func closeAll(a []io.Closer) {
 }
 
 // unpack expands the files in the snapshot archive into a directory.
-func (cmd *RestoreCommand) unpack(path string, ssr *influxdb.SnapshotsReader) error {
-	// Create root directory.
-	if err := os.MkdirAll(path, 0777); err != nil {
-		return fmt.Errorf("mkdir: err=%s", err)
-	}
-
+func (cmd *Command) unpack(mr *snapshot.MultiReader, config *Config) error {
 	// Loop over files and extract.
 	for {
 		// Read entry header.
-		sf, err := ssr.Next()
+		sf, err := mr.Next()
 		if err == io.EOF {
 			break
 		} else if err != nil {
@@ -143,118 +117,107 @@ func (cmd *RestoreCommand) unpack(path string, ssr *influxdb.SnapshotsReader) er
 		}
 
 		// Log progress.
-		cmd.Logger.Printf("unpacking: %s / idx=%d (%d bytes)", sf.Name, sf.Index, sf.Size)
+		fmt.Fprintf(os.Stdout, "unpacking: %s (%d bytes)\n", sf.Name, sf.Size)
 
-		// Create parent directory for output file.
-		if err := os.MkdirAll(filepath.Dir(filepath.Join(path, sf.Name)), 0777); err != nil {
-			return fmt.Errorf("mkdir: entry=%s, err=%s", sf.Name, err)
-		}
-
-		if err := func() error {
-			// Create output file.
-			f, err := os.Create(filepath.Join(path, sf.Name))
-			if err != nil {
-				return fmt.Errorf("create: entry=%s, err=%s", sf.Name, err)
+		// Handle meta and tsdb files separately.
+		switch sf.Name {
+		case "meta":
+			if err := cmd.unpackMeta(mr, sf, config); err != nil {
+				return fmt.Errorf("meta: %s", err)
 			}
-			defer f.Close()
-
-			// Copy contents from reader.
-			if _, err := io.CopyN(f, ssr, sf.Size); err != nil {
-				return fmt.Errorf("copy: entry=%s, err=%s", sf.Name, err)
+		default:
+			if err := cmd.unpackData(mr, sf, config); err != nil {
+				return fmt.Errorf("data: %s", err)
 			}
-
-			return nil
-		}(); err != nil {
-			return err
 		}
 	}
 
 	return nil
 }
 
-// materialize creates broker & raft directories based on the snapshot.
-func (cmd *RestoreCommand) materialize(path string, ss *influxdb.Snapshot, u url.URL) error {
-	// Materialize broker.
-	if err := cmd.materializeBroker(path, ss.Index()); err != nil {
-		return fmt.Errorf("broker: %s", err)
+// unpackMeta reads the metadata from the snapshot and initializes a raft
+// cluster and replaces the root metadata.
+func (cmd *Command) unpackMeta(mr *snapshot.MultiReader, sf snapshot.File, config *Config) error {
+	// Read meta into buffer.
+	var buf bytes.Buffer
+	if _, err := io.CopyN(&buf, mr, sf.Size); err != nil {
+		return fmt.Errorf("copy: %s", err)
 	}
 
-	// Materialize raft.
-	if err := cmd.materializeRaft(filepath.Join(path, "raft"), u); err != nil {
-		return fmt.Errorf("raft: %s", err)
+	// Unpack into metadata.
+	var data meta.Data
+	if err := data.UnmarshalBinary(buf.Bytes()); err != nil {
+		return fmt.Errorf("unmarshal: %s", err)
 	}
 
-	return nil
-}
+	// Copy meta config and remove peers so it starts in single mode.
+	c := config.Meta
+	c.Peers = nil
 
-func (cmd *RestoreCommand) materializeBroker(path string, index uint64) error {
-	// Create root directory.
-	if err := os.MkdirAll(path, 0777); err != nil {
-		return fmt.Errorf("mkdir: err=%s", err)
-	}
+	// Initialize meta store.
+	store := meta.NewStore(config.Meta)
+	store.RaftListener = newNopListener()
+	store.ExecListener = newNopListener()
 
-	// Create broker meta store.
-	meta, err := bolt.Open(filepath.Join(path, "meta"), 0666, &bolt.Options{Timeout: 1 * time.Second})
+	// Determine advertised address.
+	_, port, err := net.SplitHostPort(config.Meta.BindAddress)
 	if err != nil {
-		return fmt.Errorf("open broker meta: %s", err)
+		return fmt.Errorf("split bind address: %s", err)
 	}
-	defer meta.Close()
+	hostport := net.JoinHostPort(config.Meta.Hostname, port)
 
-	// Write highest index to meta store.
-	if err := meta.Update(func(tx *bolt.Tx) error {
-		b, err := tx.CreateBucket([]byte("meta"))
-		if err != nil {
-			return fmt.Errorf("create meta bucket: %s", err)
-		}
+	// Resolve address.
+	addr, err := net.ResolveTCPAddr("tcp", hostport)
+	if err != nil {
+		return fmt.Errorf("resolve tcp: addr=%s, err=%s", hostport, err)
+	}
+	store.Addr = addr
 
-		if err := b.Put([]byte("index"), u64tob(index)); err != nil {
-			return fmt.Errorf("put: %s", err)
-		}
-		return nil
-	}); err != nil {
-		return fmt.Errorf("update broker meta: %s", err)
+	// Open the meta store.
+	if err := store.Open(); err != nil {
+		return fmt.Errorf("open store: %s", err)
+	}
+	defer store.Close()
+
+	// Wait for the store to be ready or error.
+	select {
+	case <-store.Ready():
+	case err := <-store.Err():
+		return err
+	}
+
+	// Force set the full metadata.
+	if err := store.SetData(&data); err != nil {
+		return fmt.Errorf("set data: %s", err)
 	}
 
 	return nil
 }
 
-func (cmd *RestoreCommand) materializeRaft(path string, u url.URL) error {
-	// Create raft directory.
-	if err := os.MkdirAll(path, 0777); err != nil {
-		return fmt.Errorf("mkdir raft: err=%s", err)
+func (cmd *Command) unpackData(mr *snapshot.MultiReader, sf snapshot.File, config *Config) error {
+	path := filepath.Join(config.Data.Dir, sf.Name)
+	// Create parent directory for output file.
+	if err := os.MkdirAll(filepath.Dir(path), 0777); err != nil {
+		return fmt.Errorf("mkdir: entry=%s, err=%s", sf.Name, err)
 	}
 
-	// Write raft id & term.
-	if err := ioutil.WriteFile(filepath.Join(path, "id"), []byte(`1`), 0666); err != nil {
-		return fmt.Errorf("write raft/id: %s", err)
-	}
-	if err := ioutil.WriteFile(filepath.Join(path, "term"), []byte(`1`), 0666); err != nil {
-		return fmt.Errorf("write raft/term: %s", err)
-	}
-
-	// Generate configuration.
-	var rc raft.Config
-	rc.ClusterID = uint64(rand.Int())
-	rc.MaxNodeID = 1
-	rc.AddNode(1, u)
-
-	// Marshal config.
-	f, err := os.Create(filepath.Join(path, "config"))
+	// Create output file.
+	f, err := os.Create(path)
 	if err != nil {
-		return fmt.Errorf("create config: %s", err)
+		return fmt.Errorf("create: entry=%s, err=%s", sf.Name, err)
 	}
 	defer f.Close()
 
-	// Write config.
-	if err := raft.NewConfigEncoder(f).Encode(&rc); err != nil {
-		return fmt.Errorf("encode config: %s", err)
+	// Copy contents from reader.
+	if _, err := io.CopyN(f, mr, sf.Size); err != nil {
+		return fmt.Errorf("copy: entry=%s, err=%s", sf.Name, err)
 	}
 
 	return nil
 }
 
 // printUsage prints the usage message to STDERR.
-func (cmd *RestoreCommand) printUsage() {
+func (cmd *Command) printUsage() {
 	fmt.Fprintf(cmd.Stderr, `usage: influxd restore [flags] PATH
 
 restore uses a snapshot of a data node to rebuild a cluster.
@@ -264,13 +227,24 @@ restore uses a snapshot of a data node to rebuild a cluster.
 `)
 }
 
-// u64tob converts a uint64 into an 8-byte slice.
-func u64tob(v uint64) []byte {
-	b := make([]byte, 8)
-	binary.BigEndian.PutUint64(b, v)
-	return b
+// Config represents a partial config for rebuilding the server.
+type Config struct {
+	Meta meta.Config `toml:"meta"`
+	Data tsdb.Config `toml:"data"`
 }
 
-// btou64 converts an 8-byte slice into an uint64.
-func btou64(b []byte) uint64 { return binary.BigEndian.Uint64(b) }
-*/
+type nopListener struct {
+	closing chan struct{}
+}
+
+func newNopListener() *nopListener {
+	return &nopListener{make(chan struct{})}
+}
+
+func (ln *nopListener) Accept() (net.Conn, error) {
+	<-ln.closing
+	return nil, errors.New("listener closing")
+}
+
+func (ln *nopListener) Close() error   { close(ln.closing); return nil }
+func (ln *nopListener) Addr() net.Addr { return nil }

@@ -37,6 +37,9 @@ func NewShard(index *DatabaseIndex, path string) *Shard {
 	}
 }
 
+// Path returns the path set on the shard when it was created.
+func (s *Shard) Path() string { return s.path }
+
 // open initializes and opens the shard's store.
 func (s *Shard) Open() error {
 	s.mu.Lock()
