@@ -318,6 +318,19 @@ func scanFields(buf []byte, i int) (int, []byte, error) {
 			continue
 		}
 
+		// If we see an =, ensure that there is at least on char after it
+		if buf[i] == '=' {
+			// check for "... value="
+			if i+1 >= len(buf) {
+				return i, buf[start:i], fmt.Errorf("missing field value")
+			}
+
+			// check for "... value=,value2=..."
+			if buf[i+1] == ',' || buf[i+1] == ' ' {
+				return i, buf[start:i], fmt.Errorf("missing field value")
+			}
+		}
+
 		// reached end of block?
 		if buf[i] == ' ' && !quoted {
 			break

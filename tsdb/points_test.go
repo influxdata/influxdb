@@ -159,6 +159,24 @@ func TestParsePointMissingTagValue(t *testing.T) {
 	}
 }
 
+func TestParsePointMissingFieldValue(t *testing.T) {
+	_, err := ParsePointsString(`cpu,host=serverA,region=us-west value=`)
+	if err == nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, "cpu")
+	}
+
+	_, err = ParsePointsString(`cpu,host=serverA,region=us-west value= 1000000000`)
+	if err == nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, "cpu")
+	}
+
+	_, err = ParsePointsString(`cpu,host=serverA,region=us-west value=,value2=1`)
+	if err == nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, "cpu")
+	}
+
+}
+
 func TestParsePointUnescape(t *testing.T) {
 	// commas in measuremnt name
 	test(t, `cpu\,main,regions=east\,west value=1.0`,
