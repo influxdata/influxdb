@@ -55,3 +55,28 @@ func NewConfig() Config {
 func (c *Config) LastEnabled() bool {
 	return c.NamePosition == strings.ToLower("last")
 }
+
+// WithDefaults takes the given config and returns a new config with any required
+// default values set.
+func (c *Config) WithDefaults() *Config {
+	d := *c
+	if d.BindAddress == "" {
+		d.BindAddress = DefaultBindAddress
+	}
+	if d.Database == "" {
+		d.Database = DefaultDatabase
+	}
+	if d.Protocol == "" {
+		d.Protocol = DefaultProtocol
+	}
+	if d.NamePosition == "" {
+		d.NamePosition = DefaultNamePosition
+	}
+	if d.NameSeparator == "" {
+		d.NameSeparator = DefaultNameSeparator
+	}
+	if d.ConsistencyLevel == "" {
+		d.ConsistencyLevel = DefaultConsistencyLevel
+	}
+	return &d
+}
