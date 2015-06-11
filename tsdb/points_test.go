@@ -159,6 +159,108 @@ func TestParsePointMissingTagValue(t *testing.T) {
 	}
 }
 
+func TestParsePointMissingFieldValue(t *testing.T) {
+	_, err := ParsePointsString(`cpu,host=serverA,region=us-west value=`)
+	if err == nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, "cpu")
+	}
+
+	_, err = ParsePointsString(`cpu,host=serverA,region=us-west value= 1000000000`)
+	if err == nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, "cpu")
+	}
+
+	_, err = ParsePointsString(`cpu,host=serverA,region=us-west value=,value2=1`)
+	if err == nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, "cpu")
+	}
+}
+
+func TestParsePointBadNumber(t *testing.T) {
+	_, err := ParsePointsString(`cpu,host=serverA,region=us-west value=1a`)
+	if err == nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west value=1a`)
+	}
+}
+
+func TestParsePointNumberNonNumeric(t *testing.T) {
+	_, err := ParsePointsString(`cpu,host=serverA,region=us-west value=.1a`)
+	if err == nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west value=.1a`)
+	}
+}
+
+func TestParsePointNegativeWrongPlace(t *testing.T) {
+	_, err := ParsePointsString(`cpu,host=serverA,region=us-west value=0.-1`)
+	if err == nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west value=0.-1`)
+	}
+}
+
+func TestParsePointFloatMultipleDecimals(t *testing.T) {
+	_, err := ParsePointsString(`cpu,host=serverA,region=us-west value=1.1.1`)
+	if err == nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west value=1.1.1`)
+	}
+	println(err.Error())
+}
+
+func TestParsePointInteger(t *testing.T) {
+	_, err := ParsePointsString(`cpu,host=serverA,region=us-west value=1`)
+	if err != nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,region=us-west value=1`, err)
+	}
+}
+
+func TestParsePointNegativeInteger(t *testing.T) {
+	_, err := ParsePointsString(`cpu,host=serverA,region=us-west value=-1`)
+	if err != nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,region=us-west value=-1`, err)
+	}
+}
+
+func TestParsePointNegativeFloat(t *testing.T) {
+	_, err := ParsePointsString(`cpu,host=serverA,region=us-west value=-1.0`)
+	if err != nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,region=us-west value=-1.0`, err)
+	}
+}
+
+func TestParsePointFloatNoLeadingDigit(t *testing.T) {
+	_, err := ParsePointsString(`cpu,host=serverA,region=us-west value=.1`)
+	if err != nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,region=us-west value=-1.0`, err)
+	}
+}
+
+func TestParsePointFloatScientific(t *testing.T) {
+	_, err := ParsePointsString(`cpu,host=serverA,region=us-west value=1.0e4`)
+	if err != nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,region=us-west value=1.0e4`, err)
+	}
+}
+
+func TestParsePointFloatScientificDecimal(t *testing.T) {
+	_, err := ParsePointsString(`cpu,host=serverA,region=us-west value=1.0e-4`)
+	if err != nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,region=us-west value=1.0e-4`, err)
+	}
+}
+
+func TestParsePointFloatNegativeScientific(t *testing.T) {
+	_, err := ParsePointsString(`cpu,host=serverA,region=us-west value=-1.0e-4`)
+	if err != nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,region=us-west value=-1.0e-4`, err)
+	}
+}
+
+func TestParsePointBooleanInvalid(t *testing.T) {
+	_, err := ParsePointsString(`cpu,host=serverA,region=us-west value=a`)
+	if err == nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west value=a`)
+	}
+}
+
 func TestParsePointUnescape(t *testing.T) {
 	// commas in measuremnt name
 	test(t, `cpu\,main,regions=east\,west value=1.0`,
@@ -384,7 +486,7 @@ func TestParsePointWithStringWithEquals(t *testing.T) {
 }
 
 func TestParsePointWithBoolField(t *testing.T) {
-	test(t, `cpu,host=serverA,region=us-east bool=true,boolTrue=t,false=false,falseVal=f 1000000000`,
+	test(t, `cpu,host=serverA,region=us-east true=true,t=t,T=T,TRUE=TRUE,false=false,f=f,F=F,FALSE=FALSE 1000000000`,
 		NewPoint(
 			"cpu",
 			Tags{
@@ -392,10 +494,14 @@ func TestParsePointWithBoolField(t *testing.T) {
 				"region": "us-east",
 			},
 			Fields{
-				"bool":     true,
-				"boolTrue": true,
-				"false":    false,
-				"falseVal": false,
+				"t":     true,
+				"T":     true,
+				"true":  true,
+				"TRUE":  true,
+				"f":     false,
+				"F":     false,
+				"false": false,
+				"FALSE": false,
 			},
 			time.Unix(1, 0)),
 	)
