@@ -655,9 +655,9 @@ func TestReduce(t *testing.T) {
 		{in: `true + false`, out: `true + false`},
 
 		// Time literals.
-		{in: `now() + 2h`, out: `"2000-01-01 02:00:00"`, data: map[string]interface{}{"now()": now}},
-		{in: `now() / 2h`, out: `"2000-01-01 00:00:00" / 2h`, data: map[string]interface{}{"now()": now}},
-		{in: `4µ + now()`, out: `"2000-01-01 00:00:00.000004"`, data: map[string]interface{}{"now()": now}},
+		{in: `now() + 2h`, out: `'2000-01-01 02:00:00'`, data: map[string]interface{}{"now()": now}},
+		{in: `now() / 2h`, out: `'2000-01-01 00:00:00' / 2h`, data: map[string]interface{}{"now()": now}},
+		{in: `4µ + now()`, out: `'2000-01-01 00:00:00.000004'`, data: map[string]interface{}{"now()": now}},
 		{in: `now() = now()`, out: `true`, data: map[string]interface{}{"now()": now}},
 		{in: `now() <> now()`, out: `false`, data: map[string]interface{}{"now()": now}},
 		{in: `now() < now() + 1h`, out: `true`, data: map[string]interface{}{"now()": now}},
@@ -665,7 +665,7 @@ func TestReduce(t *testing.T) {
 		{in: `now() >= now() - 1h`, out: `true`, data: map[string]interface{}{"now()": now}},
 		{in: `now() > now() - 1h`, out: `true`, data: map[string]interface{}{"now()": now}},
 		{in: `now() - (now() - 60s)`, out: `1m`, data: map[string]interface{}{"now()": now}},
-		{in: `now() AND now()`, out: `"2000-01-01 00:00:00" AND "2000-01-01 00:00:00"`, data: map[string]interface{}{"now()": now}},
+		{in: `now() AND now()`, out: `'2000-01-01 00:00:00' AND '2000-01-01 00:00:00'`, data: map[string]interface{}{"now()": now}},
 		{in: `now()`, out: `now()`},
 
 		// Duration literals.
