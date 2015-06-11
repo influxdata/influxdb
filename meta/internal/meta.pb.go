@@ -462,6 +462,7 @@ func (m *Command) GetType() Command_Type {
 
 type CreateNodeCommand struct {
 	Host             *string `protobuf:"bytes,1,req" json:"Host,omitempty"`
+	Rand             *uint64 `protobuf:"varint,2,req" json:"Rand,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -474,6 +475,13 @@ func (m *CreateNodeCommand) GetHost() string {
 		return *m.Host
 	}
 	return ""
+}
+
+func (m *CreateNodeCommand) GetRand() uint64 {
+	if m != nil && m.Rand != nil {
+		return *m.Rand
+	}
+	return 0
 }
 
 var E_CreateNodeCommand_Command = &proto.ExtensionDesc{

@@ -25,6 +25,7 @@ const (
 type Data struct {
 	Term      uint64 // associated raft term
 	Index     uint64 // associated raft index
+	ClusterID uint64
 	Nodes     []NodeInfo
 	Databases []DatabaseInfo
 	Users     []UserInfo

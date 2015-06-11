@@ -49,11 +49,26 @@ func TestStore_CreateNode(t *testing.T) {
 		t.Fatalf("unexpected node: %#v", ni)
 	}
 
+	// Ensure cluster id is set.
+	clusterID, err := s.ClusterID()
+	if err != nil {
+		t.Fatal(err)
+	} else if clusterID == 0 {
+		t.Fatal("expected cluster id to be set")
+	}
+
 	// Create another node.
 	if ni, err := s.CreateNode("host1"); err != nil {
 		t.Fatal(err)
 	} else if *ni != (meta.NodeInfo{ID: 3, Host: "host1"}) {
 		t.Fatalf("unexpected node: %#v", ni)
+	}
+
+	// Ensure cluster id remains the same.
+	if id, err := s.ClusterID(); err != nil {
+		t.Fatal(err)
+	} else if id != clusterID {
+		t.Fatalf("cluster id changed: %d", id)
 	}
 }
 
