@@ -11,6 +11,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/influxdb/influxdb/cluster"
+	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/services/graphite"
 	"github.com/influxdb/influxdb/toml"
 	"github.com/influxdb/influxdb/tsdb"
@@ -272,6 +273,7 @@ func Test_ServerGraphiteTCP(t *testing.T) {
 		},
 	}
 	service.PointsWriter = &pointsWriter
+	service.MetaStore = &DatabaseCreator{}
 
 	if err := service.Open(); err != nil {
 		t.Fatalf("failed to open Graphite service: %s", err.Error())
@@ -339,6 +341,7 @@ func Test_ServerGraphiteUDP(t *testing.T) {
 		},
 	}
 	service.PointsWriter = &pointsWriter
+	service.MetaStore = &DatabaseCreator{}
 
 	if err := service.Open(); err != nil {
 		t.Fatalf("failed to open Graphite service: %s", err.Error())
@@ -369,6 +372,13 @@ type PointsWriter struct {
 
 func (w *PointsWriter) WritePoints(p *cluster.WritePointsRequest) error {
 	return w.WritePointsFn(p)
+}
+
+type DatabaseCreator struct {
+}
+
+func (d *DatabaseCreator) CreateDatabaseIfNotExists(name string) (*meta.DatabaseInfo, error) {
+	return nil, nil
 }
 
 // Test Helpers
