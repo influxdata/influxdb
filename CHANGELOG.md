@@ -10,7 +10,7 @@
 - [#2895](https://github.com/influxdb/influxdb/pull/2895): Use Graphite input defaults where necessary
 - [#2900](https://github.com/influxdb/influxdb/pull/2900): Use openTSDB input defaults where necessary
 - [#2886](https://github.com/influxdb/influxdb/issues/2886): Refactor backup & restore
-- [#2804](https://github.com/influxdb/influxdb/pull/2804): BREAKING: change time literals to be single quoted in InfluxQL
+- [#2804](https://github.com/influxdb/influxdb/pull/2804): BREAKING: change time literals to be single quoted in InfluxQL. Thanks @nvcook42!
 
 ## v0.9.0-rc33 [2015-06-09]
 
