@@ -1,3 +1,9 @@
+## v0.9.1 [unreleased]
+
+### Bugfixes
+
+- [#2908](https://github.com/influxdb/influxdb/issues/2908): Field mismatch error messages need to be updated
+
 ## v0.9.0 [2015-06-11]
 
 ### Bugfixes

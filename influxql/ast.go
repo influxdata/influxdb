@@ -51,6 +51,24 @@ func InspectDataType(v interface{}) DataType {
 	}
 }
 
+func (d DataType) String() string {
+	switch d {
+	case Float:
+		return "float"
+	case Integer:
+		return "integer"
+	case Boolean:
+		return "boolean"
+	case String:
+		return "string"
+	case Time:
+		return "time"
+	case Duration:
+		return "duration"
+	}
+	return "unknown"
+}
+
 // Node represents a node in the InfluxDB abstract syntax tree.
 type Node interface {
 	node()
