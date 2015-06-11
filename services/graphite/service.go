@@ -18,7 +18,8 @@ import (
 )
 
 const (
-	udpBufferSize = 65536
+	udpBufferSize     = 65536
+	leaderWaitTimeout = 30 * time.Second
 )
 
 type Service struct {
@@ -43,6 +44,7 @@ type Service struct {
 		WritePoints(p *cluster.WritePointsRequest) error
 	}
 	MetaStore interface {
+		WaitForLeader(d time.Duration) error
 		CreateDatabaseIfNotExists(name string) (*meta.DatabaseInfo, error)
 	}
 }
@@ -78,7 +80,10 @@ func NewService(c Config) (*Service, error) {
 
 // Open starts the Graphite input processing data.
 func (s *Service) Open() error {
-	var err error
+	if err := s.MetaStore.WaitForLeader(leaderWaitTimeout); err != nil {
+		s.logger.Printf("failed to detect a cluster leader: %s", err.Error())
+		return err
+	}
 
 	if _, err := s.MetaStore.CreateDatabaseIfNotExists(s.database); err != nil {
 		s.logger.Printf("failed to ensure target database %s exists: %s", s.database, err.Error())
@@ -86,6 +91,7 @@ func (s *Service) Open() error {
 	}
 	s.logger.Printf("ensured target database %s exists", s.database)
 
+	var err error
 	if strings.ToLower(s.protocol) == "tcp" {
 		s.addr, err = s.openTCPServer()
 	} else if strings.ToLower(s.protocol) == "udp" {

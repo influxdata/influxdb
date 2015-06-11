@@ -14,6 +14,8 @@ import (
 	"github.com/kimor79/gollectd"
 )
 
+const leaderWaitTimeout = 30 * time.Second
+
 // pointsWriter is an internal interface to make testing easier.
 type pointsWriter interface {
 	WritePoints(p *cluster.WritePointsRequest) error
@@ -21,6 +23,7 @@ type pointsWriter interface {
 
 // metaStore is an internal interface to make testing easier.
 type metaStore interface {
+	WaitForLeader(d time.Duration) error
 	CreateDatabaseIfNotExists(name string) (*meta.DatabaseInfo, error)
 }
 
@@ -60,6 +63,11 @@ func (s *Service) Open() error {
 		return fmt.Errorf("database name is blank")
 	} else if s.PointsWriter == nil {
 		return fmt.Errorf("PointsWriter is nil")
+	}
+
+	if err := s.MetaStore.WaitForLeader(leaderWaitTimeout); err != nil {
+		s.Logger.Printf("failed to detect a cluster leader: %s", err.Error())
+		return err
 	}
 
 	if _, err := s.MetaStore.CreateDatabaseIfNotExists(s.Config.Database); err != nil {

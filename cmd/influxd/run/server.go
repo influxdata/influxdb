@@ -337,6 +337,10 @@ func (s *Server) Close() error {
 // startServerReporting starts periodic server reporting.
 func (s *Server) startServerReporting() {
 	for {
+		if err := s.MetaStore.WaitForLeader(30 * time.Second); err != nil {
+			log.Printf("no leader available for reporting: %s", err.Error())
+			continue
+		}
 		s.reportServer()
 		<-time.After(24 * time.Hour)
 	}
