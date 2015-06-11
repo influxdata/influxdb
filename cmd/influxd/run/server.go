@@ -336,13 +336,6 @@ func (s *Server) Close() error {
 // startServerReporting starts periodic server reporting.
 func (s *Server) startServerReporting() {
 	for {
-		for {
-			time.Sleep(time.Second)
-			if s.MetaStore.Leader() != "" {
-				break
-			}
-		}
-
 		s.reportServer()
 		<-time.After(24 * time.Hour)
 	}
