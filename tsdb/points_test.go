@@ -254,6 +254,13 @@ func TestParsePointFloatNegativeScientific(t *testing.T) {
 	}
 }
 
+func TestParsePointBooleanInvalid(t *testing.T) {
+	_, err := ParsePointsString(`cpu,host=serverA,region=us-west value=a`)
+	if err == nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west value=a`)
+	}
+}
+
 func TestParsePointUnescape(t *testing.T) {
 	// commas in measuremnt name
 	test(t, `cpu\,main,regions=east\,west value=1.0`,
@@ -479,7 +486,7 @@ func TestParsePointWithStringWithEquals(t *testing.T) {
 }
 
 func TestParsePointWithBoolField(t *testing.T) {
-	test(t, `cpu,host=serverA,region=us-east bool=true,boolTrue=t,false=false,falseVal=f 1000000000`,
+	test(t, `cpu,host=serverA,region=us-east true=true,t=t,T=T,TRUE=TRUE,false=false,f=f,F=F,FALSE=FALSE 1000000000`,
 		NewPoint(
 			"cpu",
 			Tags{
@@ -487,10 +494,14 @@ func TestParsePointWithBoolField(t *testing.T) {
 				"region": "us-east",
 			},
 			Fields{
-				"bool":     true,
-				"boolTrue": true,
-				"false":    false,
-				"falseVal": false,
+				"t":     true,
+				"T":     true,
+				"true":  true,
+				"TRUE":  true,
+				"f":     false,
+				"F":     false,
+				"false": false,
+				"FALSE": false,
 			},
 			time.Unix(1, 0)),
 	)

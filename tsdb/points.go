@@ -319,7 +319,7 @@ func scanFields(buf []byte, i int) (int, []byte, error) {
 		}
 
 		// If we see an =, ensure that there is at least on char after it
-		if buf[i] == '=' {
+		if buf[i] == '=' && !quoted {
 			// check for "... value="
 			if i+1 >= len(buf) {
 				return i, buf[start:i], fmt.Errorf("missing field value")
@@ -333,6 +333,15 @@ func scanFields(buf []byte, i int) (int, []byte, error) {
 			if isNumeric(buf[i+1]) || buf[i+1] == '-' {
 				var err error
 				i, _, err = scanNumber(buf, i+1)
+				if err != nil {
+					return i, buf[start:i], err
+				} else {
+					continue
+				}
+				// If next byte is not a double-quote, the value must be a boolean
+			} else if buf[i+1] != '"' {
+				var err error
+				i, _, err = scanBoolean(buf, i+1)
 				if err != nil {
 					return i, buf[start:i], err
 				} else {
@@ -434,6 +443,65 @@ func scanNumber(buf []byte, i int) (int, []byte, error) {
 	}
 
 	return i, buf[start:i], nil
+}
+
+// scanBoolean returns the end position within buf, start at i after
+// scanning over buf for boolean. Valid values for a boolean are
+// t, T, true, TRUE, f, F, false, FALSE.  It returns an error if a invalid boolean
+// is scanned.
+func scanBoolean(buf []byte, i int) (int, []byte, error) {
+	start := i
+
+	if i < len(buf) && (buf[i] != 't' && buf[i] != 'f' && buf[i] != 'T' && buf[i] != 'F') {
+		return i, buf[start:i], fmt.Errorf("invalid boolean")
+	}
+
+	i += 1
+	for {
+		if i >= len(buf) {
+			break
+		}
+
+		if buf[i] == ',' || buf[i] == ' ' {
+			break
+		}
+		i += 1
+	}
+
+	// Single char bool (t, T, f, F) is ok
+	if i-start == 1 {
+		return i, buf[start:i], nil
+	}
+
+	// length must be 4 for true or TRUE
+	if (buf[start] == 't' || buf[start] == 'T') && i-start != 4 {
+		return i, buf[start:i], fmt.Errorf("invalid boolean")
+	}
+
+	// length must be 5 for false or FALSE
+	if (buf[start] == 'f' || buf[start] == 'F') && i-start != 5 {
+		return i, buf[start:i], fmt.Errorf("invalid boolean")
+	}
+
+	// Otherwise
+	valid := false
+	switch buf[start] {
+	case 't':
+		valid = bytes.Equal(buf[start:i], []byte("true"))
+	case 'f':
+		valid = bytes.Equal(buf[start:i], []byte("false"))
+	case 'T':
+		valid = bytes.Equal(buf[start:i], []byte("TRUE"))
+	case 'F':
+		valid = bytes.Equal(buf[start:i], []byte("FALSE"))
+	}
+
+	if !valid {
+		return i, buf[start:i], fmt.Errorf("invalid boolean")
+	}
+
+	return i, buf[start:i], nil
+
 }
 
 // skipWhitespace returns the end position within buf, starting at i after
@@ -826,8 +894,7 @@ func newFieldsFromBinary(buf []byte) Fields {
 		} else {
 			value, err = strconv.ParseBool(string(valueBuf))
 			if err != nil {
-				fmt.Printf("unable to parse bool value '%v': %v\n", string(valueBuf), err)
-				value = false
+				panic(fmt.Sprintf("unable to parse bool value '%v': %v\n", string(valueBuf), err))
 			}
 		}
 		fields[string(unescape(name))] = value
