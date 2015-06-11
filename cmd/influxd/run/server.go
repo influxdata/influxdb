@@ -172,6 +172,7 @@ func (s *Server) appendCollectdService(c collectd.Config) {
 		return
 	}
 	srv := collectd.NewService(c)
+	srv.MetaStore = s.MetaStore
 	srv.PointsWriter = s.PointsWriter
 	s.Services = append(s.Services, srv)
 }

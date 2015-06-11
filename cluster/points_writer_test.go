@@ -112,8 +112,10 @@ func TestPointsWriter_MapShards_Multiple(t *testing.T) {
 
 func TestPointsWriter_WritePoints(t *testing.T) {
 	tests := []struct {
-		name        string
-		consistency cluster.ConsistencyLevel
+		name            string
+		database        string
+		retentionPolicy string
+		consistency     cluster.ConsistencyLevel
 
 		// the responses returned by each shard write call.  node ID 1 = pos 0
 		err    []error
@@ -121,87 +123,119 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 	}{
 		// Consistency one
 		{
-			name:        "write one success",
-			consistency: cluster.ConsistencyLevelOne,
-			err:         []error{nil, nil, nil},
-			expErr:      nil,
+			name:            "write one success",
+			database:        "mydb",
+			retentionPolicy: "myrp",
+			consistency:     cluster.ConsistencyLevelOne,
+			err:             []error{nil, nil, nil},
+			expErr:          nil,
 		},
 		{
-			name:        "write one error",
-			consistency: cluster.ConsistencyLevelOne,
-			err:         []error{fmt.Errorf("a failure"), fmt.Errorf("a failure"), fmt.Errorf("a failure")},
-			expErr:      fmt.Errorf("write failed: a failure"),
+			name:            "write one error",
+			database:        "mydb",
+			retentionPolicy: "myrp",
+			consistency:     cluster.ConsistencyLevelOne,
+			err:             []error{fmt.Errorf("a failure"), fmt.Errorf("a failure"), fmt.Errorf("a failure")},
+			expErr:          fmt.Errorf("write failed: a failure"),
 		},
 
 		// Consistency any
 		{
-			name:        "write any success",
-			consistency: cluster.ConsistencyLevelAny,
-			err:         []error{fmt.Errorf("a failure"), nil, fmt.Errorf("a failure")},
-			expErr:      nil,
+			name:            "write any success",
+			database:        "mydb",
+			retentionPolicy: "myrp",
+			consistency:     cluster.ConsistencyLevelAny,
+			err:             []error{fmt.Errorf("a failure"), nil, fmt.Errorf("a failure")},
+			expErr:          nil,
 		},
 		// Consistency all
 		{
-			name:        "write all success",
-			consistency: cluster.ConsistencyLevelAll,
-			err:         []error{nil, nil, nil},
-			expErr:      nil,
+			name:            "write all success",
+			database:        "mydb",
+			retentionPolicy: "myrp",
+			consistency:     cluster.ConsistencyLevelAll,
+			err:             []error{nil, nil, nil},
+			expErr:          nil,
 		},
 		{
-			name:        "write all, 2/3, partial write",
-			consistency: cluster.ConsistencyLevelAll,
-			err:         []error{nil, fmt.Errorf("a failure"), nil},
-			expErr:      cluster.ErrPartialWrite,
+			name:            "write all, 2/3, partial write",
+			database:        "mydb",
+			retentionPolicy: "myrp",
+			consistency:     cluster.ConsistencyLevelAll,
+			err:             []error{nil, fmt.Errorf("a failure"), nil},
+			expErr:          cluster.ErrPartialWrite,
 		},
 		{
-			name:        "write all, 1/3 (failure)",
-			consistency: cluster.ConsistencyLevelAll,
-			err:         []error{nil, fmt.Errorf("a failure"), fmt.Errorf("a failure")},
-			expErr:      cluster.ErrPartialWrite,
+			name:            "write all, 1/3 (failure)",
+			database:        "mydb",
+			retentionPolicy: "myrp",
+			consistency:     cluster.ConsistencyLevelAll,
+			err:             []error{nil, fmt.Errorf("a failure"), fmt.Errorf("a failure")},
+			expErr:          cluster.ErrPartialWrite,
 		},
 
 		// Consistency quorum
 		{
-			name:        "write quorum, 1/3 failure",
-			consistency: cluster.ConsistencyLevelQuorum,
-			err:         []error{fmt.Errorf("a failure"), fmt.Errorf("a failure"), nil},
-			expErr:      cluster.ErrPartialWrite,
+			name:            "write quorum, 1/3 failure",
+			consistency:     cluster.ConsistencyLevelQuorum,
+			database:        "mydb",
+			retentionPolicy: "myrp",
+			err:             []error{fmt.Errorf("a failure"), fmt.Errorf("a failure"), nil},
+			expErr:          cluster.ErrPartialWrite,
 		},
 		{
-			name:        "write quorum, 2/3 success",
-			consistency: cluster.ConsistencyLevelQuorum,
-			err:         []error{nil, nil, fmt.Errorf("a failure")},
-			expErr:      nil,
+			name:            "write quorum, 2/3 success",
+			database:        "mydb",
+			retentionPolicy: "myrp",
+			consistency:     cluster.ConsistencyLevelQuorum,
+			err:             []error{nil, nil, fmt.Errorf("a failure")},
+			expErr:          nil,
 		},
 		{
-			name:        "write quorum, 3/3 success",
-			consistency: cluster.ConsistencyLevelQuorum,
-			err:         []error{nil, nil, nil},
-			expErr:      nil,
+			name:            "write quorum, 3/3 success",
+			database:        "mydb",
+			retentionPolicy: "myrp",
+			consistency:     cluster.ConsistencyLevelQuorum,
+			err:             []error{nil, nil, nil},
+			expErr:          nil,
 		},
 
 		// Error write error
 		{
-			name:        "no writes succeed",
-			consistency: cluster.ConsistencyLevelOne,
-			err:         []error{fmt.Errorf("a failure"), fmt.Errorf("a failure"), fmt.Errorf("a failure")},
-			expErr:      fmt.Errorf("write failed: a failure"),
+			name:            "no writes succeed",
+			database:        "mydb",
+			retentionPolicy: "myrp",
+			consistency:     cluster.ConsistencyLevelOne,
+			err:             []error{fmt.Errorf("a failure"), fmt.Errorf("a failure"), fmt.Errorf("a failure")},
+			expErr:          fmt.Errorf("write failed: a failure"),
 		},
 
 		// Hinted handoff w/ ANY
 		{
-			name:        "hinted handoff write succeed",
-			consistency: cluster.ConsistencyLevelAny,
-			err:         []error{fmt.Errorf("a failure"), fmt.Errorf("a failure"), fmt.Errorf("a failure")},
-			expErr:      nil,
+			name:            "hinted handoff write succeed",
+			database:        "mydb",
+			retentionPolicy: "myrp",
+			consistency:     cluster.ConsistencyLevelAny,
+			err:             []error{fmt.Errorf("a failure"), fmt.Errorf("a failure"), fmt.Errorf("a failure")},
+			expErr:          nil,
+		},
+
+		// Write to non-existant database
+		{
+			name:            "write to non-existant database",
+			database:        "doesnt_exist",
+			retentionPolicy: "",
+			consistency:     cluster.ConsistencyLevelAny,
+			err:             []error{nil, nil, nil},
+			expErr:          fmt.Errorf("database not found: doesnt_exist"),
 		},
 	}
 
 	for _, test := range tests {
 
 		pr := &cluster.WritePointsRequest{
-			Database:         "mydb",
-			RetentionPolicy:  "myrp",
+			Database:         test.database,
+			RetentionPolicy:  test.retentionPolicy,
 			ConsistencyLevel: test.consistency,
 		}
 
@@ -250,6 +284,9 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 		}
 
 		ms := NewMetaStore()
+		ms.DatabaseFn = func(database string) (*meta.DatabaseInfo, error) {
+			return nil, nil
+		}
 		ms.NodeIDFn = func() uint64 { return 1 }
 		c := cluster.NewPointsWriter()
 		c.MetaStore = ms
