@@ -489,7 +489,16 @@ func (data *Data) Clone() *Data {
 
 // marshal serializes to a protobuf representation.
 func (data *Data) marshal() *internal.Data {
-	pb := &internal.Data{}
+	pb := &internal.Data{
+		Term:      proto.Uint64(data.Term),
+		Index:     proto.Uint64(data.Index),
+		ClusterID: proto.Uint64(data.ClusterID),
+
+		MaxNodeID:       proto.Uint64(data.MaxNodeID),
+		MaxShardGroupID: proto.Uint64(data.MaxShardGroupID),
+		MaxShardID:      proto.Uint64(data.MaxShardID),
+	}
+
 	pb.Nodes = make([]*internal.NodeInfo, len(data.Nodes))
 	for i := range data.Nodes {
 		pb.Nodes[i] = data.Nodes[i].marshal()
@@ -510,6 +519,14 @@ func (data *Data) marshal() *internal.Data {
 
 // unmarshal deserializes from a protobuf representation.
 func (data *Data) unmarshal(pb *internal.Data) {
+	data.Term = pb.GetTerm()
+	data.Index = pb.GetIndex()
+	data.ClusterID = pb.GetClusterID()
+
+	data.MaxNodeID = pb.GetMaxNodeID()
+	data.MaxShardGroupID = pb.GetMaxShardGroupID()
+	data.MaxShardID = pb.GetMaxShardID()
+
 	data.Nodes = make([]NodeInfo, len(pb.GetNodes()))
 	for i, x := range pb.GetNodes() {
 		data.Nodes[i].unmarshal(x)

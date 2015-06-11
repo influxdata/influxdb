@@ -126,15 +126,42 @@ func (x *Command_Type) UnmarshalJSON(data []byte) error {
 }
 
 type Data struct {
-	Nodes            []*NodeInfo     `protobuf:"bytes,1,rep" json:"Nodes,omitempty"`
-	Databases        []*DatabaseInfo `protobuf:"bytes,2,rep" json:"Databases,omitempty"`
-	Users            []*UserInfo     `protobuf:"bytes,3,rep" json:"Users,omitempty"`
+	Term             *uint64         `protobuf:"varint,1,req" json:"Term,omitempty"`
+	Index            *uint64         `protobuf:"varint,2,req" json:"Index,omitempty"`
+	ClusterID        *uint64         `protobuf:"varint,3,req" json:"ClusterID,omitempty"`
+	Nodes            []*NodeInfo     `protobuf:"bytes,4,rep" json:"Nodes,omitempty"`
+	Databases        []*DatabaseInfo `protobuf:"bytes,5,rep" json:"Databases,omitempty"`
+	Users            []*UserInfo     `protobuf:"bytes,6,rep" json:"Users,omitempty"`
+	MaxNodeID        *uint64         `protobuf:"varint,7,req" json:"MaxNodeID,omitempty"`
+	MaxShardGroupID  *uint64         `protobuf:"varint,8,req" json:"MaxShardGroupID,omitempty"`
+	MaxShardID       *uint64         `protobuf:"varint,9,req" json:"MaxShardID,omitempty"`
 	XXX_unrecognized []byte          `json:"-"`
 }
 
 func (m *Data) Reset()         { *m = Data{} }
 func (m *Data) String() string { return proto.CompactTextString(m) }
 func (*Data) ProtoMessage()    {}
+
+func (m *Data) GetTerm() uint64 {
+	if m != nil && m.Term != nil {
+		return *m.Term
+	}
+	return 0
+}
+
+func (m *Data) GetIndex() uint64 {
+	if m != nil && m.Index != nil {
+		return *m.Index
+	}
+	return 0
+}
+
+func (m *Data) GetClusterID() uint64 {
+	if m != nil && m.ClusterID != nil {
+		return *m.ClusterID
+	}
+	return 0
+}
 
 func (m *Data) GetNodes() []*NodeInfo {
 	if m != nil {
@@ -155,6 +182,27 @@ func (m *Data) GetUsers() []*UserInfo {
 		return m.Users
 	}
 	return nil
+}
+
+func (m *Data) GetMaxNodeID() uint64 {
+	if m != nil && m.MaxNodeID != nil {
+		return *m.MaxNodeID
+	}
+	return 0
+}
+
+func (m *Data) GetMaxShardGroupID() uint64 {
+	if m != nil && m.MaxShardGroupID != nil {
+		return *m.MaxShardGroupID
+	}
+	return 0
+}
+
+func (m *Data) GetMaxShardID() uint64 {
+	if m != nil && m.MaxShardID != nil {
+		return *m.MaxShardID
+	}
+	return 0
 }
 
 type NodeInfo struct {

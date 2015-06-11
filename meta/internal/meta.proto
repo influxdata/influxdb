@@ -7,9 +7,17 @@ package internal;
 //========================================================================
 
 message Data {
-	repeated NodeInfo Nodes = 1;
-	repeated DatabaseInfo Databases = 2;
-	repeated UserInfo Users = 3;
+	required uint64 Term = 1;
+	required uint64 Index = 2;
+	required uint64 ClusterID = 3;
+
+	repeated NodeInfo Nodes = 4;
+	repeated DatabaseInfo Databases = 5;
+	repeated UserInfo Users = 6;
+
+	required uint64 MaxNodeID = 7;
+	required uint64 MaxShardGroupID = 8;
+	required uint64 MaxShardID = 9;
 }
 
 message NodeInfo {
