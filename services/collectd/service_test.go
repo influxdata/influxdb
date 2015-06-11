@@ -225,10 +225,6 @@ func (ms *testMetaStore) CreateDatabaseIfNotExists(name string) (*meta.DatabaseI
 	return ms.CreateDatabaseIfNotExistsFn(name)
 }
 
-// func (ms *testMetaStore) Database(name string) (*meta.DatabaseInfo, error) {
-// 	return ms.DatabaseFn(name)
-// }
-
 func wait(c chan struct{}, d time.Duration) (err error) {
 	select {
 	case <-c:
