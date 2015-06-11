@@ -380,7 +380,7 @@ func (s *Server) reportServer() {
 	log.Printf("Sending anonymous usage statistics to m.influxdb.com")
 
 	client := http.Client{Timeout: time.Duration(5 * time.Second)}
-	client.Post("http://m.influxdb.com:8086/db/reporting/series?u=reporter&p=influxdb", "application/json", data)
+	go client.Post("http://m.influxdb.com:8086/db/reporting/series?u=reporter&p=influxdb", "application/json", data)
 }
 
 // monitorErrorChan reads an error channel and resends it through the server.
