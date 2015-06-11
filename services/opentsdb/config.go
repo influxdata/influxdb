@@ -30,3 +30,22 @@ func NewConfig() Config {
 		ConsistencyLevel: DefaultConsistencyLevel,
 	}
 }
+
+// WithDefaults takes the given config and returns a new config with any required
+// default values set.
+func (c *Config) WithDefaults() *Config {
+	d := *c
+	if d.BindAddress == "" {
+		d.BindAddress = DefaultBindAddress
+	}
+	if d.Database == "" {
+		d.Database = DefaultDatabase
+	}
+	if d.RetentionPolicy == "" {
+		d.RetentionPolicy = DefaultRetentionPolicy
+	}
+	if d.ConsistencyLevel == "" {
+		d.ConsistencyLevel = DefaultConsistencyLevel
+	}
+	return &d
+}
