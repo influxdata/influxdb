@@ -346,7 +346,7 @@ func (s *Server) startServerReporting() {
 func (s *Server) reportServer() {
 	dis, err := s.MetaStore.Databases()
 	if err != nil {
-		log.Printf("failed to retrieve databases for reporting: %s", err.Error)
+		log.Printf("failed to retrieve databases for reporting: %s", err.Error())
 		return
 	}
 	numDatabases := len(dis)
@@ -366,7 +366,7 @@ func (s *Server) reportServer() {
 
 	clusterID, err := s.MetaStore.ClusterID()
 	if err != nil {
-		log.Printf("failed to retrieve cluster ID for reporting: %s", err.Error)
+		log.Printf("failed to retrieve cluster ID for reporting: %s", err.Error())
 		return
 	}
 
