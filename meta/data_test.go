@@ -92,7 +92,7 @@ func TestData_DropDatabase(t *testing.T) {
 
 // Ensure a retention policy can be created.
 func TestData_CreateRetentionPolicy(t *testing.T) {
-	var data meta.Data
+	data := meta.Data{Nodes: []meta.NodeInfo{{ID: 1}, {ID: 2}}}
 	if err := data.CreateDatabase("db0"); err != nil {
 		t.Fatal(err)
 	}
@@ -121,16 +121,28 @@ func TestData_CreateRetentionPolicy(t *testing.T) {
 
 // Ensure that creating a policy without a name returns an error.
 func TestData_CreateRetentionPolicy_ErrNameRequired(t *testing.T) {
-	var data meta.Data
+	data := meta.Data{Nodes: []meta.NodeInfo{{ID: 1}}}
 	if err := data.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: ""}); err != meta.ErrRetentionPolicyNameRequired {
+		t.Fatalf("unexpected error: %s", err)
+	}
+}
+
+// Ensure that creating a policy with a replication factor that doesn't match
+// the number of nodes in the cluster will return an error. This is a temporary
+// restriction until v0.9.1 is released.
+func TestData_CreateRetentionPolicy_ErrReplicationFactorMismatch(t *testing.T) {
+	data := meta.Data{
+		Nodes: []meta.NodeInfo{{ID: 1}, {ID: 2}, {ID: 3}},
+	}
+	if err := data.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 2}); err != meta.ErrReplicationFactorMismatch {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }
 
 // Ensure that creating a retention policy on a non-existent database returns an error.
 func TestData_CreateRetentionPolicy_ErrDatabaseNotFound(t *testing.T) {
-	var data meta.Data
-	if err := data.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0"}); err != meta.ErrDatabaseNotFound {
+	data := meta.Data{Nodes: []meta.NodeInfo{{ID: 1}}}
+	if err := data.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 1}); err != meta.ErrDatabaseNotFound {
 		t.Fatalf("unexpected error: %s", err)
 	}
 }
@@ -275,7 +287,7 @@ func TestData_CreateShardGroup(t *testing.T) {
 		t.Fatal(err)
 	} else if err = data.CreateDatabase("db0"); err != nil {
 		t.Fatal(err)
-	} else if err = data.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", Duration: 1 * time.Hour}); err != nil {
+	} else if err = data.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 2, Duration: 1 * time.Hour}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -290,8 +302,7 @@ func TestData_CreateShardGroup(t *testing.T) {
 		StartTime: time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(2000, time.January, 1, 1, 0, 0, 0, time.UTC),
 		Shards: []meta.ShardInfo{
-			{ID: 1, OwnerIDs: []uint64{1}},
-			{ID: 2, OwnerIDs: []uint64{2}},
+			{ID: 1, OwnerIDs: []uint64{1, 2}},
 		},
 	}) {
 		t.Fatalf("unexpected shard group: %#v", sgi)
@@ -307,7 +318,7 @@ func TestData_ShardGroupExpiredDeleted(t *testing.T) {
 		t.Fatal(err)
 	} else if err = data.CreateDatabase("db0"); err != nil {
 		t.Fatal(err)
-	} else if err = data.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", Duration: 1 * time.Hour}); err != nil {
+	} else if err = data.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 2, Duration: 1 * time.Hour}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -403,7 +414,7 @@ func TestData_DeleteShardGroup(t *testing.T) {
 		t.Fatal(err)
 	} else if err := data.CreateDatabase("db0"); err != nil {
 		t.Fatal(err)
-	} else if err = data.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0"}); err != nil {
+	} else if err = data.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 1}); err != nil {
 		t.Fatal(err)
 	} else if err := data.CreateShardGroup("db0", "rp0", time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)

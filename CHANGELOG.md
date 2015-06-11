@@ -11,6 +11,7 @@
 - [#2900](https://github.com/influxdb/influxdb/pull/2900): Use openTSDB input defaults where necessary
 - [#2886](https://github.com/influxdb/influxdb/issues/2886): Refactor backup & restore
 - [#2804](https://github.com/influxdb/influxdb/pull/2804): BREAKING: change time literals to be single quoted in InfluxQL. Thanks @nvcook42!
+- [#2906](https://github.com/influxdb/influxdb/pull/2906): Restrict replication factor to the cluster size
 
 ## v0.9.0-rc33 [2015-06-09]
 
