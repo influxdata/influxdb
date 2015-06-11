@@ -225,6 +225,10 @@ func (ms *testMetaStore) CreateDatabaseIfNotExists(name string) (*meta.DatabaseI
 	return ms.CreateDatabaseIfNotExistsFn(name)
 }
 
+func (ms *testMetaStore) WaitForLeader(d time.Duration) error {
+	return nil
+}
+
 func wait(c chan struct{}, d time.Duration) (err error) {
 	select {
 	case <-c:

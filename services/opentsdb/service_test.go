@@ -161,3 +161,7 @@ type DatabaseCreator struct {
 func (d *DatabaseCreator) CreateDatabaseIfNotExists(name string) (*meta.DatabaseInfo, error) {
 	return nil, nil
 }
+
+func (d *DatabaseCreator) WaitForLeader(t time.Duration) error {
+	return nil
+}

@@ -186,7 +186,6 @@ func (s *Store) Open() error {
 	if s.id == 0 {
 		go s.init()
 	} else {
-		s.waitForLeader(10 * time.Second)
 		close(s.ready)
 	}
 
@@ -331,7 +330,7 @@ func (s *Store) init() {
 // Writes the id of the node to file on success.
 func (s *Store) createLocalNode() error {
 	// Wait for leader.
-	if err := s.waitForLeader(5 * time.Second); err != nil {
+	if err := s.WaitForLeader(5 * time.Second); err != nil {
 		return fmt.Errorf("wait for leader: %s", err)
 	}
 
@@ -354,8 +353,8 @@ func (s *Store) createLocalNode() error {
 	return nil
 }
 
-// waitForLeader sleeps until a leader is found or a timeout occurs.
-func (s *Store) waitForLeader(timeout time.Duration) error {
+// WaitForLeader sleeps until a leader is found or a timeout occurs.
+func (s *Store) WaitForLeader(timeout time.Duration) error {
 	// Begin timeout timer.
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
