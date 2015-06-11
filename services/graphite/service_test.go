@@ -273,10 +273,15 @@ func Test_ServerGraphiteTCP(t *testing.T) {
 		},
 	}
 	service.PointsWriter = &pointsWriter
-	service.MetaStore = &DatabaseCreator{}
+	dbCreator := DatabaseCreator{}
+	service.MetaStore = &dbCreator
 
 	if err := service.Open(); err != nil {
 		t.Fatalf("failed to open Graphite service: %s", err.Error())
+	}
+
+	if !dbCreator.Created {
+		t.Fatalf("failed to create target database")
 	}
 
 	// Connect to the graphite endpoint we just spun up
@@ -341,10 +346,15 @@ func Test_ServerGraphiteUDP(t *testing.T) {
 		},
 	}
 	service.PointsWriter = &pointsWriter
-	service.MetaStore = &DatabaseCreator{}
+	dbCreator := DatabaseCreator{}
+	service.MetaStore = &dbCreator
 
 	if err := service.Open(); err != nil {
 		t.Fatalf("failed to open Graphite service: %s", err.Error())
+	}
+
+	if !dbCreator.Created {
+		t.Fatalf("failed to create target database")
 	}
 
 	// Connect to the graphite endpoint we just spun up
@@ -375,9 +385,11 @@ func (w *PointsWriter) WritePoints(p *cluster.WritePointsRequest) error {
 }
 
 type DatabaseCreator struct {
+	Created bool
 }
 
 func (d *DatabaseCreator) CreateDatabaseIfNotExists(name string) (*meta.DatabaseInfo, error) {
+	d.Created = true
 	return nil, nil
 }
 

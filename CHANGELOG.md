@@ -5,7 +5,7 @@
 - [#2869](https://github.com/influxdb/influxdb/issues/2869): Adding field to existing measurement causes panic
 - [#2849](https://github.com/influxdb/influxdb/issues/2849): RC32: Frequent write errors
 - [#2700](https://github.com/influxdb/influxdb/issues/2700): Incorrect error message in database EncodeFields
-
+- [#2897](https://github.com/influxdb/influxdb/pull/2897): Ensure target Graphite database exists
 
 ## v0.9.0-rc33 [2015-06-09]
 
