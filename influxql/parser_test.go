@@ -57,6 +57,7 @@ func TestParser_ParseStatement(t *testing.T) {
 	now := time.Now()
 
 	var tests = []struct {
+		skip bool
 		s    string
 		stmt influxql.Statement
 		err  string
@@ -75,7 +76,8 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// SELECT statement
 		{
-			s: fmt.Sprintf(`SELECT mean(field1), sum(field2) ,count(field3) AS field_x FROM myseries WHERE host = 'hosta.influxdb.org' and time > '%s' GROUP BY time(10h) ORDER BY ASC LIMIT 20 OFFSET 10;`, now.UTC().Format(time.RFC3339Nano)),
+			skip: true,
+			s:    fmt.Sprintf(`SELECT mean(field1), sum(field2) ,count(field3) AS field_x FROM myseries WHERE host = 'hosta.influxdb.org' and time > '%s' GROUP BY time(10h) ORDER BY ASC LIMIT 20 OFFSET 10;`, now.UTC().Format(time.RFC3339Nano)),
 			stmt: &influxql.SelectStatement{
 				IsRawQuery: false,
 				Fields: []*influxql.Field{
@@ -162,7 +164,8 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// SELECT statement with multiple ORDER BY fields
 		{
-			s: `SELECT field1 FROM myseries ORDER BY ASC, field1, field2 DESC LIMIT 10`,
+			skip: true,
+			s:    `SELECT field1 FROM myseries ORDER BY ASC, field1, field2 DESC LIMIT 10`,
 			stmt: &influxql.SelectStatement{
 				IsRawQuery: true,
 				Fields:     []*influxql.Field{{Expr: &influxql.VarRef{Val: "field1"}}},
@@ -577,7 +580,8 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// SHOW SERIES WHERE with ORDER BY and LIMIT
 		{
-			s: `SHOW SERIES WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
+			skip: true,
+			s:    `SHOW SERIES WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
 			stmt: &influxql.ShowSeriesStatement{
 				Condition: &influxql.BinaryExpr{
 					Op:  influxql.EQ,
@@ -595,7 +599,8 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// SHOW MEASUREMENTS WHERE with ORDER BY and LIMIT
 		{
-			s: `SHOW MEASUREMENTS WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
+			skip: true,
+			s:    `SHOW MEASUREMENTS WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
 			stmt: &influxql.ShowMeasurementsStatement{
 				Condition: &influxql.BinaryExpr{
 					Op:  influxql.EQ,
@@ -641,7 +646,8 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// SHOW TAG KEYS
 		{
-			s: `SHOW TAG KEYS FROM src WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
+			skip: true,
+			s:    `SHOW TAG KEYS FROM src WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
 			stmt: &influxql.ShowTagKeysStatement{
 				Sources: []influxql.Source{&influxql.Measurement{Name: "src"}},
 				Condition: &influxql.BinaryExpr{
@@ -660,7 +666,8 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// SHOW TAG VALUES FROM ... WITH KEY = ...
 		{
-			s: `SHOW TAG VALUES FROM src WITH KEY = region WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
+			skip: true,
+			s:    `SHOW TAG VALUES FROM src WITH KEY = region WHERE region = 'uswest' ORDER BY ASC, field1, field2 DESC LIMIT 10`,
 			stmt: &influxql.ShowTagValuesStatement{
 				Sources: []influxql.Source{&influxql.Measurement{Name: "src"}},
 				TagKeys: []string{"region"},
@@ -753,7 +760,8 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// SHOW FIELD KEYS
 		{
-			s: `SHOW FIELD KEYS FROM src ORDER BY ASC, field1, field2 DESC LIMIT 10`,
+			skip: true,
+			s:    `SHOW FIELD KEYS FROM src ORDER BY ASC, field1, field2 DESC LIMIT 10`,
 			stmt: &influxql.ShowFieldKeysStatement{
 				Sources: []influxql.Source{&influxql.Measurement{Name: "src"}},
 				SortFields: []*influxql.SortField{
@@ -1187,8 +1195,9 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `SELECT field1 FROM myseries OFFSET`, err: `found EOF, expected number at line 1, char 36`},
 		{s: `SELECT field1 FROM myseries OFFSET 10.5`, err: `fractional parts not allowed in OFFSET at line 1, char 36`},
 		{s: `SELECT field1 FROM myseries ORDER`, err: `found EOF, expected BY at line 1, char 35`},
-		{s: `SELECT field1 FROM myseries ORDER BY /`, err: `found /, expected identifier, ASC, or DESC at line 1, char 38`},
-		{s: `SELECT field1 FROM myseries ORDER BY 1`, err: `found 1, expected identifier, ASC, or DESC at line 1, char 38`},
+		{s: `SELECT field1 FROM myseries ORDER BY /`, err: `only ORDER BY ASC supported at this time`},
+		{s: `SELECT field1 FROM myseries ORDER BY 1`, err: `only ORDER BY ASC supported at this time`},
+		{s: `SELECT field1 FROM myseries ORDER BY DESC`, err: `only ORDER BY ASC supported at this time`},
 		{s: `SELECT field1 AS`, err: `found EOF, expected identifier at line 1, char 18`},
 		{s: `SELECT field1 FROM foo group by time(1s)`, err: `GROUP BY requires at least one aggregate function`},
 		{s: `SELECT count(value) FROM foo group by time(1s)`, err: `aggregate functions with GROUP BY time require a WHERE time clause`},
@@ -1279,6 +1288,10 @@ func TestParser_ParseStatement(t *testing.T) {
 	}
 
 	for i, tt := range tests {
+		if tt.skip {
+			t.Logf("skipping test of '%s'", tt.s)
+			continue
+		}
 		stmt, err := influxql.NewParser(strings.NewReader(tt.s)).ParseStatement()
 
 		// We are memoizing a field so for testing we need to...

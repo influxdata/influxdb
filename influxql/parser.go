@@ -1684,22 +1684,13 @@ func (p *Parser) parseSortFields() (SortFields, error) {
 func (p *Parser) parseSortField() (*SortField, error) {
 	field := &SortField{}
 
-	// Next token should be ASC, DESC, or IDENT | STRING.
-	tok, pos, lit := p.scanIgnoreWhitespace()
-	if tok == IDENT || tok == STRING {
-		field.Name = lit
-		// Check for optional ASC or DESC token.
-		tok, pos, lit = p.scanIgnoreWhitespace()
-		if tok != ASC && tok != DESC {
-			p.unscan()
-			return field, nil
-		}
-	} else if tok != ASC && tok != DESC {
-		return nil, newParseError(tokstr(tok, lit), []string{"identifier, ASC, or DESC"}, pos)
+	// Next token must be ASC, until other sort orders are supported.
+	tok, _, _ := p.scanIgnoreWhitespace()
+	if tok != ASC {
+		return nil, errors.New("only ORDER BY ASC supported at this time")
 	}
 
-	field.Ascending = (tok == ASC)
-
+	field.Ascending = true
 	return field, nil
 }
 
