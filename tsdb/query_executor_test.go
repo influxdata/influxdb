@@ -239,6 +239,26 @@ func TestDropDatabase(t *testing.T) {
 	}
 }
 
+// Ensure that queries for which there is no data result in an empty set.
+func TestQueryNoData(t *testing.T) {
+	store, executor := testStoreAndExecutor()
+	defer os.RemoveAll(store.path)
+
+	got := executeAndGetJSON("select * from /.*/", executor)
+	expected := `[{}]`
+	if expected != got {
+		t.Fatalf("exp: %s\ngot: %s", expected, got)
+	}
+
+	got = executeAndGetJSON("show series", executor)
+	expected = `[{}]`
+	if expected != got {
+		t.Fatalf("exp: %s\ngot: %s", expected, got)
+	}
+
+	store.Close()
+}
+
 // ensure that authenticate doesn't return an error if the user count is zero and they're attempting
 // to create a user.
 func TestAuthenticateIfUserCountZeroAndCreateUser(t *testing.T) {

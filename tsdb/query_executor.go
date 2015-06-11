@@ -294,7 +294,7 @@ func (q *QueryExecutor) expandWildcards(stmt *influxql.SelectStatement) (*influx
 			// Lookup the database.
 			db := q.store.DatabaseIndex(m.Database)
 			if db == nil {
-				return nil, ErrDatabaseNotFound(m.Database)
+				return nil, nil
 			}
 
 			// Lookup the measurement in the database.
@@ -349,7 +349,7 @@ func (q *QueryExecutor) expandSources(sources influxql.Sources) (influxql.Source
 			// Lookup the database.
 			db := q.store.DatabaseIndex(src.Database)
 			if db == nil {
-				return nil, ErrDatabaseNotFound(src.Database)
+				return nil, nil
 			}
 
 			// Get measurements from the database that match the regex.
@@ -419,7 +419,7 @@ func (q *QueryExecutor) executeDropMeasurementStatement(stmt *influxql.DropMeasu
 	// Find the database.
 	db := q.store.DatabaseIndex(database)
 	if db == nil {
-		return &influxql.Result{Err: ErrDatabaseNotFound(database)}
+		return &influxql.Result{}
 	}
 
 	m := db.Measurement(stmt.Name)
@@ -443,7 +443,7 @@ func (q *QueryExecutor) executeDropSeriesStatement(stmt *influxql.DropSeriesStat
 	// Find the database.
 	db := q.store.DatabaseIndex(database)
 	if db == nil {
-		return &influxql.Result{Err: ErrDatabaseNotFound(database)}
+		return &influxql.Result{}
 	}
 
 	// Expand regex expressions in the FROM clause.
@@ -490,7 +490,7 @@ func (q *QueryExecutor) executeShowSeriesStatement(stmt *influxql.ShowSeriesStat
 	// Find the database.
 	db := q.store.DatabaseIndex(database)
 	if db == nil {
-		return &influxql.Result{Err: ErrDatabaseNotFound(database)}
+		return &influxql.Result{}
 	}
 
 	// Expand regex expressions in the FROM clause.
@@ -601,7 +601,7 @@ func (q *QueryExecutor) executeShowMeasurementsStatement(stmt *influxql.ShowMeas
 	// Find the database.
 	db := q.store.DatabaseIndex(database)
 	if db == nil {
-		return &influxql.Result{Err: ErrDatabaseNotFound(database)}
+		return &influxql.Result{}
 	}
 
 	var measurements Measurements
@@ -660,7 +660,7 @@ func (q *QueryExecutor) executeShowTagKeysStatement(stmt *influxql.ShowTagKeysSt
 	// Find the database.
 	db := q.store.DatabaseIndex(database)
 	if db == nil {
-		return &influxql.Result{Err: ErrDatabaseNotFound(database)}
+		return &influxql.Result{}
 	}
 
 	// Expand regex expressions in the FROM clause.
@@ -713,7 +713,7 @@ func (q *QueryExecutor) executeShowTagValuesStatement(stmt *influxql.ShowTagValu
 	// Find the database.
 	db := q.store.DatabaseIndex(database)
 	if db == nil {
-		return &influxql.Result{Err: ErrDatabaseNotFound(database)}
+		return &influxql.Result{}
 	}
 
 	// Expand regex expressions in the FROM clause.
@@ -791,7 +791,7 @@ func (q *QueryExecutor) executeShowFieldKeysStatement(stmt *influxql.ShowFieldKe
 	// Find the database.
 	db := q.store.DatabaseIndex(database)
 	if db == nil {
-		return &influxql.Result{Err: ErrDatabaseNotFound(database)}
+		return &influxql.Result{}
 	}
 
 	// Expand regex expressions in the FROM clause.
