@@ -9,7 +9,8 @@
 - [#2919](https://github.com/influxdb/influxdb/issues/2919): Unable to insert negative floats
 - [#2935](https://github.com/influxdb/influxdb/issues/2935): Hook CPU and memory profiling back up.
 - [#2960](https://github.com/influxdb/influxdb/issues/2960): Cluster Write Errors
-- [#2928](https://github.com/influxdb/influxdb/pull/2928): Correctly set InfluxDB version in HTTP response headers. Thanks @neonstalwart.
+- [#2928](https://github.com/influxdb/influxdb/pull/2928): Start work to set InfluxDB version in HTTP response headers. Thanks @neonstalwart.
+- [#2969](https://github.com/influxdb/influxdb/pull/2969): Actually set HTTP version in responses.
 
 ## v0.9.0 [2015-06-11]
 
