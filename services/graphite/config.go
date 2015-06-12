@@ -1,8 +1,6 @@
 package graphite
 
 import (
-	"strings"
-
 	"github.com/influxdb/influxdb/toml"
 )
 
@@ -16,8 +14,11 @@ const (
 	// DefaultNameSeparator represents the default field separator.
 	DefaultNameSeparator = "."
 
-	// DefaultNamePosition represents the default location of the name.
-	DefaultNamePosition = "last"
+	// DefaultNameSchema represents the default schema of the name.
+	DefaultNameSchema = "measurement"
+
+	// By default unnamed fields from metrics will be ignored.
+	DefaultIgnoreUnnamed = true
 
 	// DefaultProtocol is the default IP protocol used by the Graphite input.
 	DefaultProtocol = "tcp"
@@ -33,7 +34,9 @@ type Config struct {
 	Enabled          bool          `toml:"enabled"`
 	Protocol         string        `toml:"protocol"`
 	NamePosition     string        `toml:"name-position"`
+	NameSchema       string        `toml:"name-schema"`
 	NameSeparator    string        `toml:"name-separator"`
+	IgnoreUnnamed    bool          `toml:"ignore-unnamed"`
 	BatchSize        int           `toml:"batch-size"`
 	BatchTimeout     toml.Duration `toml:"batch-timeout"`
 	ConsistencyLevel string        `toml:"consistency-level"`
@@ -45,15 +48,11 @@ func NewConfig() Config {
 		BindAddress:      DefaultBindAddress,
 		Database:         DefaultDatabase,
 		Protocol:         DefaultProtocol,
-		NamePosition:     DefaultNamePosition,
+		NameSchema:       DefaultNameSchema,
 		NameSeparator:    DefaultNameSeparator,
+		IgnoreUnnamed:    DefaultIgnoreUnnamed,
 		ConsistencyLevel: DefaultConsistencyLevel,
 	}
-}
-
-// LastEnabled returns whether the server should interpret the last field as "name".
-func (c *Config) LastEnabled() bool {
-	return c.NamePosition == strings.ToLower("last")
 }
 
 // WithDefaults takes the given config and returns a new config with any required
@@ -69,8 +68,8 @@ func (c *Config) WithDefaults() *Config {
 	if d.Protocol == "" {
 		d.Protocol = DefaultProtocol
 	}
-	if d.NamePosition == "" {
-		d.NamePosition = DefaultNamePosition
+	if d.NameSchema == "" {
+		d.NameSchema = DefaultNameSchema
 	}
 	if d.NameSeparator == "" {
 		d.NameSeparator = DefaultNameSeparator
