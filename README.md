@@ -2,7 +2,7 @@
 
 ## An Open-Source, Distributed, Time Series Database
 
-> InfluxDB v0.9.0 is now in the alpha phase. Builds are currently tagged as RCs, but they're alpha stage at this point. We will update this document when the first stable RC is ready. However, the current builds have an API that should not change significantly between now and the final 0.9.0 release. Most of the work we're doing now is focused on features and stability for clustering. So please develop against the current 0.9.0 RCs for new projects that won't go into production for a little bit.
+> InfluxDB v0.9.0 is now out. Going forward, the 0.9.x series of releases will not make breaking API changes or breaking changes to the underlying data storage. However, 0.9.0 clustering should be considered an alpha release.
 
 InfluxDB is an open source **distributed time series database** with
 **no external dependencies**. It's useful for recording metrics,
@@ -34,31 +34,15 @@ For those adventurous enough, you can
 
 ### Creating your first database
 
-```JSON
+```
 curl -G 'http://localhost:8086/query' --data-urlencode "q=CREATE DATABASE mydb"
 ```
 
 ### Insert some data
-```JSON
-curl -H "Content-Type: application/json" http://localhost:8086/write -d '
-{
-    "database": "mydb",
-    "retentionPolicy": "default",
-    "points": [
-        {
-            "time": "2014-11-10T23:00:00Z",
-            "measurement": "cpu",
-             "tags": {
-                 "region":"uswest",
-                 "host": "server01"
-            },
-             "fields":{
-                 "value": 100
-            }
-         }
-      ]
-}'
 ```
+curl -XPOST 'http://localhost:8086/write?db=mydb' -d 'cpu,host=server01,region=uswest value=1.0 1434055562000000000'
+```
+
 ### Query for the data
 ```JSON
 curl -G http://localhost:8086/query?pretty=true \
@@ -69,4 +53,3 @@ curl -G http://localhost:8086/query?pretty=true \
 * Understand the [design goals and motivations of the project](http://influxdb.com/docs/v0.9/introduction/overview.html).
 * Follow the [getting started guide](http://influxdb.com/docs/v0.9/introduction/getting_started.html) to find out how to install InfluxDB, start writing more data, and issue more queries - in just a few minutes.
 * See the  [HTTP API documentation to start writing a library for your favorite language](http://influxdb.com/docs/v0.9/concepts/reading_and_writing_data.html).
-
