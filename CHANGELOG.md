@@ -6,7 +6,7 @@
 - [#2931](https://github.com/influxdb/influxdb/pull/2931): Services and reporting should wait until cluster has leader.
 - [#2943](https://github.com/influxdb/influxdb/issues/2943): Ensure default retention policies are fully replicated
 - [#2948](https://github.com/influxdb/influxdb/issues/2948): Field mismatch error message to include measurement name
-
+- [#2919](https://github.com/influxdb/influxdb/issues/2919): Unable to insert negative floats
 
 ## v0.9.0 [2015-06-11]
 
