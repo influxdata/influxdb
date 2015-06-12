@@ -35,32 +35,34 @@ func NewServer(c *run.Config) *Server {
 		Server: srv,
 		Config: c,
 	}
-	// Set the logger to discard unless verbose is on
-	if !testing.Verbose() {
-		type logSetter interface {
-			SetLogger(*log.Logger)
-		}
-		nullLogger := log.New(ioutil.Discard, "", 0)
-		s.MetaStore.Logger = nullLogger
-		s.TSDBStore.Logger = nullLogger
-		for _, service := range s.Services {
-			if service, ok := service.(logSetter); ok {
-				service.SetLogger(nullLogger)
-			}
-		}
-	}
-
+	configureLogging(&s)
 	return &s
 }
 
 // OpenServer opens a test server.
 func OpenServer(c *run.Config, joinURLs string) *Server {
 	s := NewServer(c)
+	configureLogging(s)
 	if err := s.Open(); err != nil {
 		panic(err.Error())
 	}
 
 	return s
+}
+
+// OpenServerWithVersion opens a test server with a specific version.
+func OpenServerWithVersion(c *run.Config, version string) *Server {
+	srv, _ := run.NewServer(c, version)
+	s := Server{
+		Server: srv,
+		Config: c,
+	}
+	configureLogging(&s)
+	if err := s.Open(); err != nil {
+		panic(err.Error())
+	}
+
+	return &s
 }
 
 // Close shuts down the server and removes all temporary paths.
@@ -286,4 +288,21 @@ func (t *Test) init(s *Server) error {
 		return fmt.Errorf("unexpected results\nexp: %s\ngot: %s\n", t.exp, res)
 	}
 	return nil
+}
+
+func configureLogging(s *Server) {
+	// Set the logger to discard unless verbose is on
+	if !testing.Verbose() {
+		type logSetter interface {
+			SetLogger(*log.Logger)
+		}
+		nullLogger := log.New(ioutil.Discard, "", 0)
+		s.MetaStore.Logger = nullLogger
+		s.TSDBStore.Logger = nullLogger
+		for _, service := range s.Services {
+			if service, ok := service.(logSetter); ok {
+				service.SetLogger(nullLogger)
+			}
+		}
+	}
 }
