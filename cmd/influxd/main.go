@@ -58,8 +58,6 @@ func NewMain() *Main {
 func (m *Main) Run(args ...string) error {
 	name, args := ParseCommandName(args)
 
-	// FIXME(benbjohnson): Parse profiling args & start profiling.
-
 	// Extract name from args.
 	switch name {
 	case "", "run":
