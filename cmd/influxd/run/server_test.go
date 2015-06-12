@@ -3,12 +3,26 @@ package run_test
 import (
 	"fmt"
 	"log"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 )
+
+// Ensure that HTTP responses include the InfluxDB version.
+func TestServer_HTTPResponseVersion(t *testing.T) {
+	version := "v1234"
+	s := OpenServerWithVersion(NewConfig(), version)
+	defer s.Close()
+
+	resp, _ := http.Get(s.URL() + "/query")
+	got := resp.Header.Get("X-Influxdb-Version")
+	if version != version {
+		t.Errorf("Server responded with incorrect version, exp %s, got %s", version, got)
+	}
+}
 
 // Ensure the database commands work.
 func TestServer_DatabaseCommands(t *testing.T) {

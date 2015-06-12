@@ -33,8 +33,7 @@ import (
 // It is built using a Config and it manages the startup and shutdown of all
 // services in the proper order.
 type Server struct {
-	Version string
-	Commit  string
+	version string // Build version
 
 	err     chan error
 	closing chan struct{}
@@ -65,9 +64,10 @@ type Server struct {
 }
 
 // NewServer returns a new instance of Server built from a config.
-func NewServer(c *Config) (*Server, error) {
+func NewServer(c *Config, version string) (*Server, error) {
 	// Construct base meta store and data store.
 	s := &Server{
+		version: version,
 		err:     make(chan error),
 		closing: make(chan struct{}),
 
@@ -163,7 +163,7 @@ func (s *Server) appendHTTPDService(c httpd.Config) {
 	srv.Handler.MetaStore = s.MetaStore
 	srv.Handler.QueryExecutor = s.QueryExecutor
 	srv.Handler.PointsWriter = s.PointsWriter
-	srv.Handler.Version = s.Version
+	srv.Handler.Version = s.version
 
 	// If a ContinuousQuerier service has been started, attach it.
 	for _, srvc := range s.Services {
@@ -391,7 +391,7 @@ func (s *Server) reportServer() {
     "name":"reports",
     "columns":["os", "arch", "version", "server_id", "cluster_id", "num_series", "num_measurements", "num_databases"],
     "points":[["%s", "%s", "%s", "%x", "%x", "%d", "%d", "%d"]]
-  }]`, runtime.GOOS, runtime.GOARCH, s.Version, s.MetaStore.NodeID(), clusterID, numSeries, numMeasurements, numDatabases)
+  }]`, runtime.GOOS, runtime.GOARCH, s.version, s.MetaStore.NodeID(), clusterID, numSeries, numMeasurements, numDatabases)
 
 	data := bytes.NewBufferString(json)
 
