@@ -355,7 +355,7 @@ func (q *QueryExecutor) expandSources(sources influxql.Sources) (influxql.Source
 			// Get measurements from the database that match the regex.
 			measurements := db.measurementsByRegex(src.Regex.Val)
 
-			// Add those measurments to the set.
+			// Add those measurements to the set.
 			for _, m := range measurements {
 				m2 := &influxql.Measurement{
 					Database:        src.Database,

@@ -1,4 +1,14 @@
-## v0.9.0-rc34 [unreleased]
+## v0.9.1 [unreleased]
+
+### Bugfixes
+
+- [#2908](https://github.com/influxdb/influxdb/issues/2908): Field mismatch error messages need to be updated
+- [#2931](https://github.com/influxdb/influxdb/pull/2931): Services and reporting should wait until cluster has leader.
+- [#2943](https://github.com/influxdb/influxdb/issues/2943): Ensure default retention policies are fully replicated
+- [#2948](https://github.com/influxdb/influxdb/issues/2948): Field mismatch error message to include measurement name
+- [#2919](https://github.com/influxdb/influxdb/issues/2919): Unable to insert negative floats
+
+## v0.9.0 [2015-06-11]
 
 ### Bugfixes
 
@@ -14,6 +24,7 @@
 - [#2906](https://github.com/influxdb/influxdb/pull/2906): Restrict replication factor to the cluster size
 - [#2905](https://github.com/influxdb/influxdb/pull/2905): Restrict clusters to 3 peers
 - [#2904](https://github.com/influxdb/influxdb/pull/2904): Re-enable server reporting.
+- [#2920](https://github.com/influxdb/influxdb/issues/2920): Ensure collectd database exists
 
 ## v0.9.0-rc33 [2015-06-09]
 

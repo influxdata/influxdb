@@ -393,6 +393,10 @@ func (d *DatabaseCreator) CreateDatabaseIfNotExists(name string) (*meta.Database
 	return nil, nil
 }
 
+func (d *DatabaseCreator) WaitForLeader(t time.Duration) error {
+	return nil
+}
+
 // Test Helpers
 func errstr(err error) string {
 	if err != nil {
