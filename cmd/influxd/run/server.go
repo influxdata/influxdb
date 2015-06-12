@@ -34,7 +34,6 @@ import (
 // services in the proper order.
 type Server struct {
 	Version string
-	Commit  string
 
 	err     chan error
 	closing chan struct{}

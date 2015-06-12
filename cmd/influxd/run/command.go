@@ -91,7 +91,6 @@ func (cmd *Command) Run(args ...string) error {
 	if err != nil {
 		return fmt.Errorf("create server: %s", err)
 	}
-	s.Commit = cmd.Commit
 	s.Version = cmd.Version
 	s.CPUProfile = options.CPUProfile
 	s.MemProfile = options.MemProfile
