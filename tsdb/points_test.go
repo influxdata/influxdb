@@ -546,6 +546,30 @@ func TestNewPointFloatNoDecimal(t *testing.T) {
 	)
 }
 
+func TestNewPointFloatScientific(t *testing.T) {
+	test(t, `cpu value=6.632243e+06 1000000000`,
+		NewPoint(
+			"cpu",
+			Tags{},
+			Fields{
+				"value": float64(6632243),
+			},
+			time.Unix(1, 0)),
+	)
+}
+
+func TestNewPointLargeInteger(t *testing.T) {
+	test(t, `cpu value=6632243 1000000000`,
+		NewPoint(
+			"cpu",
+			Tags{},
+			Fields{
+				"value": 6632243, // if incorrectly encoded as a float, it would show up as 6.632243e+06
+			},
+			time.Unix(1, 0)),
+	)
+}
+
 func TestParsePointIntsFloats(t *testing.T) {
 	pts, err := ParsePoints([]byte(`cpu,host=serverA,region=us-east int=10,float=11.0,float2=12.1 1000000000`))
 	if err != nil {

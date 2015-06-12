@@ -920,11 +920,11 @@ func (p Fields) MarshalBinary() []byte {
 		b = append(b, '=')
 		switch t := v.(type) {
 		case int:
-			b = append(b, []byte(strconv.FormatFloat(float64(t), 'g', -1, 64))...)
+			b = append(b, []byte(strconv.FormatInt(int64(t), 10))...)
 		case int32:
-			b = append(b, []byte(strconv.FormatFloat(float64(t), 'g', -1, 64))...)
+			b = append(b, []byte(strconv.FormatInt(int64(t), 10))...)
 		case int64:
-			b = append(b, []byte(strconv.FormatFloat(float64(t), 'g', -1, 64))...)
+			b = append(b, []byte(strconv.FormatInt(t, 10))...)
 		case float64:
 			// ensure there is a decimal in the encoded for
 
