@@ -30,7 +30,7 @@ type Server struct {
 
 // NewServer returns a new instance of Server.
 func NewServer(c *run.Config) *Server {
-	srv, _ := run.NewServer(c)
+	srv, _ := run.NewServer(c, "testServer")
 	s := Server{
 		Server: srv,
 		Config: c,
