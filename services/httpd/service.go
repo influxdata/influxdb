@@ -28,7 +28,6 @@ func NewService(c Config) *Service {
 		Handler: NewHandler(
 			c.AuthEnabled,
 			c.LogEnabled,
-			"FIXME",
 		),
 		Logger: log.New(os.Stderr, "[httpd] ", log.LstdFlags),
 	}

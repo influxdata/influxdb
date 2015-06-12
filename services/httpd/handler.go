@@ -51,7 +51,7 @@ type route struct {
 type Handler struct {
 	mux                   *pat.PatternServeMux
 	requireAuthentication bool
-	version               string
+	Version               string
 
 	MetaStore interface {
 		Database(name string) (*meta.DatabaseInfo, error)
@@ -75,13 +75,12 @@ type Handler struct {
 }
 
 // NewHandler returns a new instance of handler with routes.
-func NewHandler(requireAuthentication, loggingEnabled bool, version string) *Handler {
+func NewHandler(requireAuthentication, loggingEnabled bool) *Handler {
 	h := &Handler{
 		mux: pat.New(),
 		requireAuthentication: requireAuthentication,
 		Logger:                log.New(os.Stderr, "[http] ", log.LstdFlags),
 		loggingEnabled:        loggingEnabled,
-		version:               version,
 	}
 
 	h.SetRoutes([]route{
@@ -134,7 +133,7 @@ func (h *Handler) SetRoutes(routes []route) {
 		if r.gzipped {
 			handler = gzipFilter(handler)
 		}
-		handler = versionHeader(handler, h.version)
+		handler = versionHeader(handler, h)
 		handler = cors(handler)
 		handler = requestID(handler)
 		if h.loggingEnabled && r.log {
@@ -663,9 +662,9 @@ func gzipFilter(inner http.Handler) http.Handler {
 
 // versionHeader taks a HTTP handler and returns a HTTP handler
 // and adds the X-INFLUXBD-VERSION header to outgoing responses.
-func versionHeader(inner http.Handler, version string) http.Handler {
+func versionHeader(inner http.Handler, h *Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Add("X-InfluxDB-Version", version)
+		w.Header().Add("X-InfluxDB-Version", h.Version)
 		inner.ServeHTTP(w, r)
 	})
 }
