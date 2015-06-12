@@ -16,7 +16,8 @@ bind-address = ":8080"
 database = "mydb"
 enabled = true
 protocol = "tcp"
-name-position = "first"
+name-schema= "measurement"
+ignore-unnamed = true
 name-separator = "."
 batch-size=100
 batch-timeout="1s"
@@ -34,8 +35,10 @@ consistency-level="one"
 		t.Fatalf("unexpected graphite enabled: %v", c.Enabled)
 	} else if c.Protocol != "tcp" {
 		t.Fatalf("unexpected graphite protocol: %s", c.Protocol)
-	} else if c.NamePosition != "first" {
-		t.Fatalf("unexpected graphite name position: %s", c.NamePosition)
+	} else if c.NameSchema != "measurement" {
+		t.Fatalf("unexpected graphite name schema: %s", c.NameSchema)
+	} else if c.IgnoreUnnamed != true {
+		t.Fatalf("unexpected ignore-unnamed: %v", c.IgnoreUnnamed)
 	} else if c.NameSeparator != "." {
 		t.Fatalf("unexpected graphite name separator: %s", c.NameSeparator)
 	} else if c.BatchSize != 100 {
