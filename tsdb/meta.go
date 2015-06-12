@@ -46,7 +46,7 @@ func (d *DatabaseIndex) Measurement(name string) *Measurement {
 	return d.measurements[name]
 }
 
-// MeasurementSeriesCounts returns the number of measurments and series currently indexed by the database.
+// MeasurementSeriesCounts returns the number of measurements and series currently indexed by the database.
 // Useful for reporting and monitoring.
 func (d *DatabaseIndex) MeasurementSeriesCounts() (nMeasurements int, nSeries int) {
 	d.mu.RLock()
@@ -78,7 +78,7 @@ func (s *DatabaseIndex) createSeriesIndexIfNotExists(measurementName string, ser
 	return series
 }
 
-// addMeasurementToIndexIfNotExists creates or retrieves an in memory index object for the measurement
+// createMeasurementIndexIfNotExists creates or retrieves an in memory index object for the measurement
 func (s *DatabaseIndex) createMeasurementIndexIfNotExists(name string) *Measurement {
 	m := s.measurements[name]
 	if m == nil {
@@ -147,6 +147,7 @@ func (db *DatabaseIndex) measurementsByExpr(expr influxql.Expr) (Measurements, e
 	return nil, fmt.Errorf("%#v", expr)
 }
 
+// measurementsByTagFilters returns the measurements matching the filters on tag values.
 func (db *DatabaseIndex) measurementsByTagFilters(filters []*TagFilter) Measurements {
 	// If no filters, then return all measurements.
 	if len(filters) == 0 {
