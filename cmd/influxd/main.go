@@ -4,12 +4,8 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"math/rand"
 	"os"
-	"os/signal"
-	"runtime"
-	"runtime/pprof"
 	"strings"
 	"time"
 
@@ -133,53 +129,6 @@ func ParseCommandName(args []string) (string, []string) {
 		return name, args[1:]
 	}
 	return "", args
-}
-
-// prof stores the file locations of active profiles.
-var prof struct {
-	cpu *os.File
-	mem *os.File
-}
-
-// StartProfile initializes the cpu and memory profile, if specified.
-func StartProfile(cpuprofile, memprofile string) {
-	if cpuprofile != "" {
-		f, err := os.Create(cpuprofile)
-		if err != nil {
-			log.Fatalf("cpuprofile: %v", err)
-		}
-		prof.cpu = f
-		pprof.StartCPUProfile(prof.cpu)
-	}
-
-	if memprofile != "" {
-		f, err := os.Create(memprofile)
-		if err != nil {
-			log.Fatalf("memprofile: %v", err)
-		}
-		prof.mem = f
-		runtime.MemProfileRate = 4096
-	}
-
-	go func() {
-		c := make(chan os.Signal, 1)
-		signal.Notify(c, os.Interrupt)
-		<-c
-		StopProfile()
-		os.Exit(0)
-	}()
-}
-
-// StopProfile closes the cpu and memory profiles if they are running.
-func StopProfile() {
-	if prof.cpu != nil {
-		pprof.StopCPUProfile()
-		prof.cpu.Close()
-	}
-	if prof.mem != nil {
-		pprof.Lookup("heap").WriteTo(prof.mem, 0)
-		prof.mem.Close()
-	}
 }
 
 // Command represents the command executed by "influxd version".

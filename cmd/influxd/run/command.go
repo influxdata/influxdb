@@ -93,6 +93,8 @@ func (cmd *Command) Run(args ...string) error {
 	}
 	s.Commit = cmd.Commit
 	s.Version = cmd.Version
+	s.CPUProfile = options.CPUProfile
+	s.MemProfile = options.MemProfile
 	if err := s.Open(); err != nil {
 		return fmt.Errorf("open server: %s", err)
 	}
