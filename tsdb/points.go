@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"hash/fnv"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -928,7 +929,8 @@ func (p Fields) MarshalBinary() []byte {
 			// ensure there is a decimal in the encoded for
 
 			val := []byte(strconv.FormatFloat(t, 'f', -1, 64))
-			hasDecimal := t-float64(int64(t)) > 0
+			_, frac := math.Modf(t)
+			hasDecimal := frac != 0
 			b = append(b, val...)
 			if !hasDecimal {
 				b = append(b, []byte(".0")...)

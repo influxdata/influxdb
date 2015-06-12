@@ -522,6 +522,30 @@ func TestParsePointUnicodeString(t *testing.T) {
 	)
 }
 
+func TestNewPointNegativeFloat(t *testing.T) {
+	test(t, `cpu value=-0.64 1000000000`,
+		NewPoint(
+			"cpu",
+			Tags{},
+			Fields{
+				"value": -0.64,
+			},
+			time.Unix(1, 0)),
+	)
+}
+
+func TestNewPointFloatNoDecimal(t *testing.T) {
+	test(t, `cpu value=1. 1000000000`,
+		NewPoint(
+			"cpu",
+			Tags{},
+			Fields{
+				"value": 1.0,
+			},
+			time.Unix(1, 0)),
+	)
+}
+
 func TestParsePointIntsFloats(t *testing.T) {
 	pts, err := ParsePoints([]byte(`cpu,host=serverA,region=us-east int=10,float=11.0,float2=12.1 1000000000`))
 	if err != nil {
@@ -736,5 +760,4 @@ func TestNewPointEscaped(t *testing.T) {
 	if exp := `cpu\=main,tag\=bar=value\=foo name\=bar=1.0 0`; pt.String() != exp {
 		t.Errorf("NewPoint().String() mismatch.\ngot %v\nexp %v", pt.String(), exp)
 	}
-
 }
