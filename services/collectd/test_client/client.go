@@ -32,10 +32,12 @@ func main() {
 
 	go func() {
 		ticker := time.NewTicker(time.Second)
-		select {
-		case <-ticker.C:
-			for i := 0; i < *rate; i++ {
-				rateLimiter <- i
+		for {
+			select {
+			case <-ticker.C:
+				for i := 0; i < *rate; i++ {
+					rateLimiter <- i
+				}
 			}
 		}
 	}()
