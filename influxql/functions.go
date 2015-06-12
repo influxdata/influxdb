@@ -1058,7 +1058,12 @@ func ReducePercentile(percentile float64) ReduceFunc {
 
 			vals := v.([]interface{})
 			for _, v := range vals {
-				allValues = append(allValues, v.(float64))
+				switch v.(type) {
+				case int64:
+					allValues = append(allValues, float64(v.(int64)))
+				case float64:
+					allValues = append(allValues, v.(float64))
+				}
 			}
 		}
 
