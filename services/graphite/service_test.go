@@ -23,28 +23,41 @@ func Test_DecodeNameAndTags(t *testing.T) {
 		str       string
 		name      string
 		tags      map[string]string
-		position  string
+		schema    string
 		separator string
+		ignore    bool
 		err       string
 	}{
-		{test: "metric only", str: "cpu", name: "cpu"},
-		{test: "metric with single series", str: "cpu.hostname.server01", name: "cpu", tags: map[string]string{"hostname": "server01"}},
-		{test: "metric with multiple series", str: "cpu.region.us-west.hostname.server01", name: "cpu", tags: map[string]string{"hostname": "server01", "region": "us-west"}},
-		{test: "no metric", tags: make(map[string]string), err: `no name specified for metric. ""`},
-		{test: "wrong metric format", str: "foo.cpu", tags: make(map[string]string), err: `received "foo.cpu" which doesn't conform to format of key.value.key.value.name or name`},
+		{test: "metric only", str: "cpu", name: "cpu", schema:"measurement", ignore: true},
+		{test: "metric with single series", str: "cpu.server01", name: "cpu", ignore: true,
+			schema:"measurement.hostname", tags: map[string]string{"hostname": "server01"}},
+		{test: "metric with multiple series", str: "cpu.us-west.server01", name: "cpu", ignore: true,
+			schema:"measurement.region.hostname", tags: map[string]string{"hostname": "server01", "region": "us-west"}},
+		{test: "no metric", tags: make(map[string]string), ignore: true,
+			err: `no measurement specified for metric. ""`},
+		{test: "ignore unnamed", str: "foo.cpu", ignore: true, schema: "measurement",
+			tags: make(map[string]string), name: "foo"},
+		{test: "not ignore unnamed", str: "foo.cpu", ignore: false, schema: "measurement",
+			tags: make(map[string]string), err: `received "foo.cpu" which contains unnamed field`},
+		{test: "name shorter than schema", str: "foo", schema: "measurement.A.B.C", ignore: true,
+			tags: make(map[string]string), name: "foo"},
 	}
 
 	for _, test := range tests {
 		t.Logf("testing %q...", test.test)
 
-		p := graphite.NewParser()
-		if test.separator != "" {
-			p.Separator = test.separator
+		if test.separator == "" {
+			test.separator = "."
 		}
+		p := graphite.NewParser(test.schema, test.separator, test.ignore)
 
 		name, tags, err := p.DecodeNameAndTags(test.str)
 		if errstr(err) != test.err {
 			t.Fatalf("err does not match.  expected %v, got %v", test.err, err)
+		}
+		if err != nil {
+			// If we erred out,it was intended and the following tests won't work
+			continue
 		}
 		if name != test.name {
 			t.Fatalf("name parse failer.  expected %v, got %v", test.name, name)
@@ -72,58 +85,38 @@ func Test_DecodeMetric(t *testing.T) {
 		tags                map[string]string
 		value               float64
 		time                time.Time
-		position, separator string
+		separator           string
+		schema              string
+		ignore              bool
 		err                 string
 	}{
 		{
-			test:  "position first by default",
+			test:  "normal case",
 			line:  `cpu.foo.bar 50 ` + strTime,
+			schema: "measurement.foo.bar",
 			name:  "cpu",
-			tags:  map[string]string{"foo": "bar"},
+			tags:  map[string]string{
+				"foo": "foo",
+				"bar": "bar",
+			},
 			value: 50,
 			time:  testTime,
 		},
 		{
-			test:     "position first if unable to determine",
-			position: "foo",
-			line:     `cpu.foo.bar 50 ` + strTime,
-			name:     "cpu",
-			tags:     map[string]string{"foo": "bar"},
-			value:    50,
-			time:     testTime,
-		},
-		{
-			test:     "position last if specified",
-			position: "last",
-			line:     `foo.bar.cpu 50 ` + strTime,
-			name:     "cpu",
-			tags:     map[string]string{"foo": "bar"},
-			value:    50,
-			time:     testTime,
-		},
-		{
-			test:     "position first if specified with no series",
-			position: "first",
-			line:     `cpu 50 ` + strTime,
-			name:     "cpu",
-			tags:     map[string]string{},
-			value:    50,
-			time:     testTime,
-		},
-		{
-			test:     "position last if specified with no series",
-			position: "last",
-			line:     `cpu 50 ` + strTime,
-			name:     "cpu",
-			tags:     map[string]string{},
-			value:    50,
-			time:     testTime,
+			test: "DecodeNameAndTags returns error",
+			line: `cpu.foo.bar 50 ` + strTime,
+			schema: "a.b.c",
+			err: `no measurement specified for metric. "cpu.foo.bar"`,
 		},
 		{
 			test:  "separator is . by default",
 			line:  `cpu.foo.bar 50 ` + strTime,
 			name:  "cpu",
-			tags:  map[string]string{"foo": "bar"},
+			schema: "measurement.foo.bar",
+			tags:  map[string]string{
+				"foo": "foo",
+				"bar": "bar",
+			},
 			value: 50,
 			time:  testTime,
 		},
@@ -132,7 +125,11 @@ func Test_DecodeMetric(t *testing.T) {
 			separator: ".",
 			line:      `cpu.foo.bar 50 ` + strTime,
 			name:      "cpu",
-			tags:      map[string]string{"foo": "bar"},
+			schema:    "measurement.foo.bar",
+			tags:      map[string]string{
+				"foo": "foo",
+				"bar": "bar",
+			},
 			value:     50,
 			time:      testTime,
 		},
@@ -141,7 +138,11 @@ func Test_DecodeMetric(t *testing.T) {
 			separator: "-",
 			line:      `cpu-foo-bar 50 ` + strTime,
 			name:      "cpu",
-			tags:      map[string]string{"foo": "bar"},
+			schema:    "measurement-foo-bar",
+			tags:      map[string]string{
+				"foo": "foo",
+				"bar": "bar",
+			},
 			value:     50,
 			time:      testTime,
 		},
@@ -150,23 +151,19 @@ func Test_DecodeMetric(t *testing.T) {
 			separator: "boo",
 			line:      `cpuboofooboobar 50 ` + strTime,
 			name:      "cpu",
-			tags:      map[string]string{"foo": "bar"},
+			schema:    "measurementboofooboobar",
+			tags:  	   map[string]string{
+				"foo": "foo",
+				"bar": "bar",
+			},
 			value:     50,
 			time:      testTime,
-		},
-
-		{
-			test:  "series + metric + integer value",
-			line:  `cpu.foo.bar 50 ` + strTime,
-			name:  "cpu",
-			tags:  map[string]string{"foo": "bar"},
-			value: 50,
-			time:  testTime,
 		},
 		{
 			test:  "metric only with float value",
 			line:  `cpu 50.554 ` + strTime,
 			name:  "cpu",
+			schema: "measurement",
 			value: 50.554,
 			time:  testTime,
 		},
@@ -176,23 +173,21 @@ func Test_DecodeMetric(t *testing.T) {
 			err:  `received "50.554 1419972457825" which doesn't have three fields`,
 		},
 		{
-			test: "should error on invalid key",
-			line: `foo.cpu 50.554 1419972457825`,
-			err:  `received "foo.cpu" which doesn't conform to format of key.value.key.value.name or name`,
-		},
-		{
 			test: "should error parsing invalid float",
 			line: `cpu 50.554z 1419972457825`,
+			schema: "measurement",
 			err:  `field "cpu" value: strconv.ParseFloat: parsing "50.554z": invalid syntax`,
 		},
 		{
 			test: "should error parsing invalid int",
 			line: `cpu 50z 1419972457825`,
+			schema: "measurement",
 			err:  `field "cpu" value: strconv.ParseFloat: parsing "50z": invalid syntax`,
 		},
 		{
 			test: "should error parsing invalid time",
 			line: `cpu 50.554 14199724z57825`,
+			schema: "measurement",
 			err:  `field "cpu" time: strconv.ParseFloat: parsing "14199724z57825": invalid syntax`,
 		},
 	}
@@ -200,11 +195,10 @@ func Test_DecodeMetric(t *testing.T) {
 	for _, test := range tests {
 		t.Logf("testing %q...", test.test)
 
-		p := graphite.NewParser()
-		if test.separator != "" {
-			p.Separator = test.separator
+		if test.separator == "" {
+			test.separator = "."
 		}
-		p.LastEnabled = (test.position == "last")
+		p := graphite.NewParser(test.schema, test.separator, test.ignore)
 
 		point, err := p.Parse(test.line)
 		if errstr(err) != test.err {
