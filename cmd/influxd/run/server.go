@@ -255,7 +255,7 @@ func (s *Server) Err() <-chan error { return s.err }
 func (s *Server) Open() error {
 	if err := func() error {
 		// Start profiling, if set.
-		StartProfile(s.CPUProfile, s.MemProfile)
+		startProfile(s.CPUProfile, s.MemProfile)
 
 		// Resolve host to address.
 		_, port, err := net.SplitHostPort(s.BindAddress)
@@ -326,8 +326,7 @@ func (s *Server) Open() error {
 
 // Close shuts down the meta and data stores and all services.
 func (s *Server) Close() error {
-	fmt.Println("Close()")
-	StopProfile()
+	stopProfile()
 
 	if s.Listener != nil {
 		s.Listener.Close()
@@ -430,13 +429,13 @@ var prof struct {
 }
 
 // StartProfile initializes the cpu and memory profile, if specified.
-func StartProfile(cpuprofile, memprofile string) {
+func startProfile(cpuprofile, memprofile string) {
 	if cpuprofile != "" {
 		f, err := os.Create(cpuprofile)
 		if err != nil {
 			log.Fatalf("cpuprofile: %v", err)
 		}
-		fmt.Printf("writing CPU profile to: %s\n", cpuprofile)
+		log.Printf("writing CPU profile to: %s\n", cpuprofile)
 		prof.cpu = f
 		pprof.StartCPUProfile(prof.cpu)
 	}
@@ -446,7 +445,7 @@ func StartProfile(cpuprofile, memprofile string) {
 		if err != nil {
 			log.Fatalf("memprofile: %v", err)
 		}
-		fmt.Printf("writing mem profile to: %s\n", memprofile)
+		log.Printf("writing mem profile to: %s\n", memprofile)
 		prof.mem = f
 		go func() { time.Sleep(30 * time.Second); runtime.MemProfileRate = 4096 }()
 	}
@@ -455,21 +454,21 @@ func StartProfile(cpuprofile, memprofile string) {
 		c := make(chan os.Signal, 1)
 		signal.Notify(c, os.Interrupt)
 		<-c
-		StopProfile()
+		stopProfile()
 		os.Exit(0)
 	}()
 }
 
 // StopProfile closes the cpu and memory profiles if they are running.
-func StopProfile() {
+func stopProfile() {
 	if prof.cpu != nil {
 		pprof.StopCPUProfile()
 		prof.cpu.Close()
-		fmt.Println("CPU profile stopped")
+		log.Println("CPU profile stopped")
 	}
 	if prof.mem != nil {
 		pprof.Lookup("heap").WriteTo(prof.mem, 0)
 		prof.mem.Close()
-		fmt.Println("mem profile stopped")
+		log.Println("mem profile stopped")
 	}
 }
