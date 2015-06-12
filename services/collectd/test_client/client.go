@@ -4,31 +4,63 @@ import (
 	"collectd.org/api"
 	"collectd.org/network"
 
+	"flag"
 	"fmt"
-	"net"
+	"math/rand"
 	"os"
+	"strconv"
 	"time"
 )
 
+var nMeasurments = flag.Int("m", 1, "Number of measurements")
+var tagVariance = flag.Int("v", 1, "Number of values per tag. Client is fixed at one tag")
+var rate = flag.Int("r", 1, "Number of points per second")
+var total = flag.Int("t", 1, "Total number of points to send")
+var host = flag.String("u", "127.0.0.1:25826", "Destination host in the form host:port")
+
 func main() {
-	conn, err := network.Dial(net.JoinHostPort("localhost", "25826"), network.ClientOptions{})
+	flag.Parse()
+
+	conn, err := network.Dial(*host, network.ClientOptions{})
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
 	defer conn.Close()
-	vl := api.ValueList{
-		Identifier: api.Identifier{
-			Host:   "example.com",
-			Plugin: "golang",
-			Type:   "gauge",
-		},
-		Time:     time.Now(),
-		Interval: 10 * time.Second,
-		Values:   []api.Value{api.Gauge(42.0)},
+
+	rateLimiter := make(chan int, *rate)
+
+	go func() {
+		ticker := time.NewTicker(time.Second)
+		select {
+		case <-ticker.C:
+			for i := 0; i < *rate; i++ {
+				rateLimiter <- i
+			}
+		}
+	}()
+
+	nSent := 0
+	for nSent < *total {
+		<-rateLimiter
+
+		vl := api.ValueList{
+			Identifier: api.Identifier{
+				Host:   "tagvalue" + strconv.Itoa(int(rand.Int31n(int32(*tagVariance)))),
+				Plugin: "golang" + strconv.Itoa(int(rand.Int31n(int32(*nMeasurments)))),
+				Type:   "gauge",
+			},
+			Time:     time.Now(),
+			Interval: 10 * time.Second,
+			Values:   []api.Value{api.Gauge(42.0)},
+		}
+		if err := conn.Write(vl); err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		conn.Flush()
+		nSent = nSent + 1
 	}
-	if err := conn.Write(vl); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
+
+	fmt.Println("Number of points sent:", nSent)
 }
