@@ -47,7 +47,7 @@ type Service struct {
 // NewService returns a new instance of the collectd service.
 func NewService(c Config) *Service {
 	s := &Service{
-		Config: c.WithDefaults(),
+		Config: &c,
 		Logger: log.New(os.Stderr, "[collectd] ", log.LstdFlags),
 		err:    make(chan error),
 	}
