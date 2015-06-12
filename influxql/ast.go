@@ -51,6 +51,24 @@ func InspectDataType(v interface{}) DataType {
 	}
 }
 
+func (d DataType) String() string {
+	switch d {
+	case Float:
+		return "float"
+	case Integer:
+		return "integer"
+	case Boolean:
+		return "boolean"
+	case String:
+		return "string"
+	case Time:
+		return "time"
+	case Duration:
+		return "duration"
+	}
+	return "unknown"
+}
+
 // Node represents a node in the InfluxDB abstract syntax tree.
 type Node interface {
 	node()
@@ -1360,7 +1378,7 @@ func MatchSource(sources Sources, name string) string {
 	return ""
 }
 
-// Target represents a target (destination) policy, measurment, and DB.
+// Target represents a target (destination) policy, measurement, and DB.
 type Target struct {
 	// Measurement to write into.
 	Measurement *Measurement
@@ -1625,7 +1643,7 @@ func (s *ShowMeasurementsStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Name: "", Privilege: ReadPrivilege}}
 }
 
-// DropMeasurmentStatement represents a command to drop a measurement.
+// DropMeasurementStatement represents a command to drop a measurement.
 type DropMeasurementStatement struct {
 	// Name of the measurement to be dropped.
 	Name string

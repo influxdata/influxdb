@@ -156,6 +156,7 @@ func (s *Server) appendHTTPDService(c httpd.Config) {
 	srv.Handler.MetaStore = s.MetaStore
 	srv.Handler.QueryExecutor = s.QueryExecutor
 	srv.Handler.PointsWriter = s.PointsWriter
+	srv.Handler.Version = s.Version
 
 	// If a ContinuousQuerier service has been started, attach it.
 	for _, srvc := range s.Services {
@@ -172,6 +173,7 @@ func (s *Server) appendCollectdService(c collectd.Config) {
 		return
 	}
 	srv := collectd.NewService(c)
+	srv.MetaStore = s.MetaStore
 	srv.PointsWriter = s.PointsWriter
 	s.Services = append(s.Services, srv)
 }
@@ -336,6 +338,10 @@ func (s *Server) Close() error {
 // startServerReporting starts periodic server reporting.
 func (s *Server) startServerReporting() {
 	for {
+		if err := s.MetaStore.WaitForLeader(30 * time.Second); err != nil {
+			log.Printf("no leader available for reporting: %s", err.Error())
+			continue
+		}
 		s.reportServer()
 		<-time.After(24 * time.Hour)
 	}
@@ -345,7 +351,7 @@ func (s *Server) startServerReporting() {
 func (s *Server) reportServer() {
 	dis, err := s.MetaStore.Databases()
 	if err != nil {
-		log.Printf("failed to retrieve databases for reporting: %s", err.Error)
+		log.Printf("failed to retrieve databases for reporting: %s", err.Error())
 		return
 	}
 	numDatabases := len(dis)
@@ -365,7 +371,7 @@ func (s *Server) reportServer() {
 
 	clusterID, err := s.MetaStore.ClusterID()
 	if err != nil {
-		log.Printf("failed to retrieve cluster ID for reporting: %s", err.Error)
+		log.Printf("failed to retrieve cluster ID for reporting: %s", err.Error())
 		return
 	}
 

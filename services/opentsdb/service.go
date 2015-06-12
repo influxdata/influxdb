@@ -19,6 +19,8 @@ import (
 	"github.com/influxdb/influxdb/tsdb"
 )
 
+const leaderWaitTimeout = 30 * time.Second
+
 // Service manages the listener and handler for an HTTP endpoint.
 type Service struct {
 	ln     net.Listener  // main listener
@@ -36,6 +38,7 @@ type Service struct {
 		WritePoints(p *cluster.WritePointsRequest) error
 	}
 	MetaStore interface {
+		WaitForLeader(d time.Duration) error
 		CreateDatabaseIfNotExists(name string) (*meta.DatabaseInfo, error)
 	}
 
@@ -65,6 +68,11 @@ func NewService(c Config) (*Service, error) {
 
 // Open starts the service
 func (s *Service) Open() error {
+	if err := s.MetaStore.WaitForLeader(leaderWaitTimeout); err != nil {
+		s.Logger.Printf("failed to detect a cluster leader: %s", err.Error())
+		return err
+	}
+
 	if _, err := s.MetaStore.CreateDatabaseIfNotExists(s.Database); err != nil {
 		s.Logger.Printf("failed to ensure target database %s exists: %s", s.Database, err.Error())
 		return err
