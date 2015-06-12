@@ -391,6 +391,7 @@ func (h *Handler) serveWriteJSON(w http.ResponseWriter, r *http.Request, body []
 func (h *Handler) writeError(w http.ResponseWriter, result influxql.Result, statusCode int) {
 	w.WriteHeader(statusCode)
 	w.Write([]byte(result.Err.Error()))
+	w.Write([]byte("\n"))
 }
 
 // serveWriteLine receives incoming series data in line protocol format and writes it to the database.
