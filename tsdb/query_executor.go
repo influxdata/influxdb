@@ -154,7 +154,7 @@ func (q *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chu
 			var res *influxql.Result
 			switch stmt := stmt.(type) {
 			case *influxql.SelectStatement:
-				if err := q.executeSelectStatement(i, stmt, database, results, chunkSize); err != nil {
+				if err := q.executeSelectStatement(i, stmt, results, chunkSize); err != nil {
 					results <- &influxql.Result{Err: err}
 					break
 				}
@@ -214,7 +214,7 @@ func (q *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chu
 }
 
 // executeSelectStatement plans and executes a select statement against a database.
-func (q *QueryExecutor) executeSelectStatement(statementID int, stmt *influxql.SelectStatement, database string, results chan *influxql.Result, chunkSize int) error {
+func (q *QueryExecutor) executeSelectStatement(statementID int, stmt *influxql.SelectStatement, results chan *influxql.Result, chunkSize int) error {
 	// Perform any necessary query re-writing.
 	stmt, err := q.rewriteSelectStatement(stmt)
 	if err != nil {
