@@ -3,8 +3,8 @@ package continuous_querier
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
-	"os"
 	"sync"
 	"testing"
 	"time"
@@ -244,13 +244,16 @@ func NewTestService(t *testing.T) *Service {
 
 	// Set Logger to write to dev/null so stdout isn't polluted.
 	//null, _ := os.Open(os.DevNull)
-	s.Logger = log.New(os.Stdout, "", 0)
+	//s.Logger = log.New(os.Stdout, "", 0)
+	if !testing.Verbose() {
+		s.Logger = log.New(ioutil.Discard, "", log.LstdFlags)
+	}
 
 	// Add a couple test databases and CQs.
 	ms.CreateDatabase("db", "rp")
-	ms.CreateContinuousQuery("db", "cq", `SELECT count(cpu) INTO cpu_count FROM cpu WHERE time > now() - 1h GROUP BY time(1s)`)
+	ms.CreateContinuousQuery("db", "cq", `CREATE CONTINUOUS QUERY cq ON db BEGIN SELECT count(cpu) INTO cpu_count FROM cpu WHERE time > now() - 1h GROUP BY time(1s) END`)
 	ms.CreateDatabase("db2", "default")
-	ms.CreateContinuousQuery("db2", "cq2", `SELECT mean(value) INTO cpu_mean FROM cpu WHERE time > now() - 10m GROUP BY time(1m))`)
+	ms.CreateContinuousQuery("db2", "cq2", `CREATE CONTINUOUS QUERY cq2 ON db2 BEGIN SELECT mean(value) INTO cpu_mean FROM cpu WHERE time > now() - 10m GROUP BY time(1m) END`)
 
 	return s
 }
