@@ -225,7 +225,7 @@ func (e *StatementExecutor) executeShowRetentionPoliciesStatement(q *influxql.Sh
 
 func (e *StatementExecutor) executeCreateContinuousQueryStatement(q *influxql.CreateContinuousQueryStatement) *influxql.Result {
 	return &influxql.Result{
-		Err: e.Store.CreateContinuousQuery(q.Database, q.Name, q.Source.String()),
+		Err: e.Store.CreateContinuousQuery(q.Database, q.Name, q.String()),
 	}
 }
 
