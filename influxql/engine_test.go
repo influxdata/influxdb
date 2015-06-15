@@ -206,6 +206,36 @@ func TestProcessDerivative(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:     "float derivatives",
+			fn:       "non_integer_derivative",
+			interval: "1d",
+			in: [][]interface{}{
+				[]interface{}{
+					time.Unix(0, 0), 1.0,
+				},
+				[]interface{}{
+					time.Unix(0, 0).Add(24 * time.Hour), int64(3),
+				},
+				[]interface{}{
+					time.Unix(0, 0).Add(48 * time.Hour), int64(5),
+				},
+				[]interface{}{
+					time.Unix(0, 0).Add(72 * time.Hour), int64(9),
+				},
+			},
+			exp: [][]interface{}{
+				[]interface{}{
+					time.Unix(0, 0).Add(24 * time.Hour), 2.0,
+				},
+				[]interface{}{
+					time.Unix(0, 0).Add(48 * time.Hour), 2.0,
+				},
+				[]interface{}{
+					time.Unix(0, 0).Add(72 * time.Hour), 4.0,
+				},
+			},
+		},
 	}
 
 	for _, test := range tests {
