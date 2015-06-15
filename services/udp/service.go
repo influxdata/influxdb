@@ -90,9 +90,8 @@ func (s *Service) writePoints() {
 			})
 			if err != nil {
 				s.Logger.Printf("Failed to write points batch to database %s: %s", s.config.Database, err)
-			} else {
-				s.Logger.Printf("Wrote a batch of %d points to %s", len(batch), s.config.Database)
 			}
+
 		case <-s.done:
 			return
 		}
