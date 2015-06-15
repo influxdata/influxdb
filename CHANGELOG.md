@@ -12,6 +12,7 @@
 - [#2928](https://github.com/influxdb/influxdb/pull/2928): Start work to set InfluxDB version in HTTP response headers. Thanks @neonstalwart.
 - [#2969](https://github.com/influxdb/influxdb/pull/2969): Actually set HTTP version in responses.
 - [#2993](https://github.com/influxdb/influxdb/pull/2993): Don't log each UDP batch.
+- [#2994](https://github.com/influxdb/influxdb/pull/2994): Don't panic during wilcard expanasion if no default database specified.
 
 ## v0.9.0 [2015-06-11]
 

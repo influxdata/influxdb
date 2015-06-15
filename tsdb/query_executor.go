@@ -134,8 +134,9 @@ func (q *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chu
 		var i int
 		var stmt influxql.Statement
 		for i, stmt = range query.Statements {
-			// If a default database wasn't passed in by the caller,
-			// try to get it from the statement.
+			// If a default database wasn't passed in by the caller, check the statement.
+			// Some types of statements have an associated default database, even if it
+			// is not explicitly included.
 			defaultDB := database
 			if defaultDB == "" {
 				if s, ok := stmt.(influxql.HasDefaultDatabase); ok {
@@ -143,18 +144,16 @@ func (q *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chu
 				}
 			}
 
-			// If we have a default database, normalize the statement with it.
-			if defaultDB != "" {
-				if err := q.normalizeStatement(stmt, defaultDB); err != nil {
-					results <- &influxql.Result{Err: err}
-					break
-				}
+			// Normalize each statement.
+			if err := q.normalizeStatement(stmt, defaultDB); err != nil {
+				results <- &influxql.Result{Err: err}
+				break
 			}
 
 			var res *influxql.Result
 			switch stmt := stmt.(type) {
 			case *influxql.SelectStatement:
-				if err := q.executeSelectStatement(i, stmt, database, results, chunkSize); err != nil {
+				if err := q.executeSelectStatement(i, stmt, results, chunkSize); err != nil {
 					results <- &influxql.Result{Err: err}
 					break
 				}
@@ -214,7 +213,7 @@ func (q *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chu
 }
 
 // executeSelectStatement plans and executes a select statement against a database.
-func (q *QueryExecutor) executeSelectStatement(statementID int, stmt *influxql.SelectStatement, database string, results chan *influxql.Result, chunkSize int) error {
+func (q *QueryExecutor) executeSelectStatement(statementID int, stmt *influxql.SelectStatement, results chan *influxql.Result, chunkSize int) error {
 	// Perform any necessary query re-writing.
 	stmt, err := q.rewriteSelectStatement(stmt)
 	if err != nil {
@@ -905,17 +904,21 @@ func (q *QueryExecutor) normalizeStatement(stmt influxql.Statement, defaultDatab
 	return
 }
 
-// normalizeMeasurement inserts the default database or policy into all measurement names.
+// normalizeMeasurement inserts the default database or policy into all measurement names,
+// if required.
 func (q *QueryExecutor) normalizeMeasurement(m *influxql.Measurement, defaultDatabase string) error {
-	if defaultDatabase == "" {
-		return errors.New("no default database specified")
-	}
 	if m.Name == "" && m.Regex == nil {
 		return errors.New("invalid measurement")
 	}
 
+	// Measurement does not have an explicit database? Insert default.
 	if m.Database == "" {
 		m.Database = defaultDatabase
+	}
+
+	// The database must now be specified by this point.
+	if m.Database == "" {
+		return errors.New("database name required")
 	}
 
 	// Find database.
