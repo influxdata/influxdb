@@ -134,8 +134,9 @@ func (q *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chu
 		var i int
 		var stmt influxql.Statement
 		for i, stmt = range query.Statements {
-			// If a default database wasn't passed in by the caller,
-			// try to get it from the statement.
+			// If a default database wasn't passed in by the caller, check the statement.
+			// Some types of statements have an associated default database, even if it
+			// is not explicitly included.
 			defaultDB := database
 			if defaultDB == "" {
 				if s, ok := stmt.(influxql.HasDefaultDatabase); ok {
@@ -143,12 +144,10 @@ func (q *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chu
 				}
 			}
 
-			// If we have a default database, normalize the statement with it.
-			if defaultDB != "" {
-				if err := q.normalizeStatement(stmt, defaultDB); err != nil {
-					results <- &influxql.Result{Err: err}
-					break
-				}
+			// Normalize each statement.
+			if err := q.normalizeStatement(stmt, defaultDB); err != nil {
+				results <- &influxql.Result{Err: err}
+				break
 			}
 
 			var res *influxql.Result
@@ -905,17 +904,21 @@ func (q *QueryExecutor) normalizeStatement(stmt influxql.Statement, defaultDatab
 	return
 }
 
-// normalizeMeasurement inserts the default database or policy into all measurement names.
+// normalizeMeasurement inserts the default database or policy into all measurement names,
+// if required.
 func (q *QueryExecutor) normalizeMeasurement(m *influxql.Measurement, defaultDatabase string) error {
-	if defaultDatabase == "" {
-		return errors.New("no default database specified")
-	}
 	if m.Name == "" && m.Regex == nil {
 		return errors.New("invalid measurement")
 	}
 
+	// Measurement does not have an explicit database? Insert default.
 	if m.Database == "" {
 		m.Database = defaultDatabase
+	}
+
+	// The database must now be specified by this point.
+	if m.Database == "" {
+		return errors.New("database name required")
 	}
 
 	// Find database.

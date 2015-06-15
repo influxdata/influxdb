@@ -847,7 +847,7 @@ func TestServer_Query_Common(t *testing.T) {
 		&Query{
 			name:    "selecting a from a non-existent database should error",
 			command: `SELECT value FROM db1.rp0.cpu`,
-			exp:     `{"results":[{"error":"database not found"}]}`,
+			exp:     `{"results":[{"error":"database not found: db1"}]}`,
 		},
 		&Query{
 			name:    "selecting a from a non-existent retention policy should error",
@@ -869,6 +869,16 @@ func TestServer_Query_Common(t *testing.T) {
 			name:    "selecting a field that doesn't exist should error",
 			command: `SELECT idontexist FROM db0.rp0.cpu`,
 			exp:     `{"results":[{"error":"unknown field or tag name in select clause: idontexist"}]}`,
+		},
+		&Query{
+			name:    "selecting wildcard without specifying a database should error",
+			command: `SELECT * FROM cpu`,
+			exp:     `{"results":[{"error":"database name required"}]}`,
+		},
+		&Query{
+			name:    "selecting explicit field without specifying a database should error",
+			command: `SELECT value FROM cpu`,
+			exp:     `{"results":[{"error":"database name required"}]}`,
 		},
 	}...)
 
