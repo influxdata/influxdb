@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta"
 )
@@ -34,9 +33,6 @@ type QueryExecutor struct {
 		ExecuteStatement(stmt influxql.Statement) *influxql.Result
 	}
 
-	// The stats service to report to
-	Stats *influxdb.Stats
-
 	Logger *log.Logger
 
 	// the local data store
@@ -47,7 +43,6 @@ type QueryExecutor struct {
 func NewQueryExecutor(store *Store) *QueryExecutor {
 	return &QueryExecutor{
 		store:  store,
-		Stats:  influxdb.NewStats("query_executor"),
 		Logger: log.New(os.Stderr, "[query] ", log.LstdFlags),
 	}
 }
@@ -125,8 +120,6 @@ func (q *QueryExecutor) Authorize(u *meta.UserInfo, query *influxql.Query, datab
 // It sends results down the passed in chan and closes it when done. It will close the chan
 // on the first statement that throws an error.
 func (q *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chunkSize int) (<-chan *influxql.Result, error) {
-	q.Stats.Add("queriesRx", int64(len(query.Statements)))
-
 	// Execute each statement. Keep the iterator external so we can
 	// track how many of the statements were executed
 	results := make(chan *influxql.Result)
@@ -173,8 +166,6 @@ func (q *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chu
 				res = q.executeShowTagValuesStatement(stmt, database)
 			case *influxql.ShowFieldKeysStatement:
 				res = q.executeShowFieldKeysStatement(stmt, database)
-			case *influxql.ShowStatsStatement:
-				res = q.executeShowStatsStatement(stmt)
 			case *influxql.ShowDiagnosticsStatement:
 				res = q.executeShowDiagnosticsStatement(stmt)
 			case *influxql.DeleteStatement:
@@ -197,8 +188,6 @@ func (q *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chu
 					break
 				}
 			}
-
-			q.Stats.Inc("queriesExecuted")
 		}
 
 		// if there was an error send results that the remaining statements weren't executed
@@ -940,117 +929,8 @@ func (q *QueryExecutor) normalizeMeasurement(m *influxql.Measurement, defaultDat
 	return nil
 }
 
-func (q *QueryExecutor) executeShowStatsStatement(stmt *influxql.ShowStatsStatement) *influxql.Result {
-	var rows []*influxql.Row
-	// Server stats.
-	serverRow := &influxql.Row{Columns: []string{}}
-	serverRow.Name = q.Stats.Name()
-	var values []interface{}
-	q.Stats.Walk(func(k string, v int64) {
-		serverRow.Columns = append(serverRow.Columns, k)
-		values = append(values, v)
-	})
-	serverRow.Values = append(serverRow.Values, values)
-	rows = append(rows, serverRow)
-
-	// Shard-level stats.
-	// TODO: wire up shard level stats
-	// for _, sh := range s.shards {
-	// 	if sh.store == nil {
-	// 		// No stats for non-local shards
-	// 		continue
-	// 	}
-
-	// 	row := &influxql.Row{Columns: []string{}}
-	// 	row.Name = sh.stats.Name()
-	// 	var values []interface{}
-	// 	sh.stats.Walk(func(k string, v int64) {
-	// 		row.Columns = append(row.Columns, k)
-	// 		values = append(values, v)
-	// 	})
-	// 	row.Values = append(row.Values, values)
-	// 	rows = append(rows, row)
-	// }
-
-	return &influxql.Result{Series: rows}
-}
-
 func (q *QueryExecutor) executeShowDiagnosticsStatement(stmt *influxql.ShowDiagnosticsStatement) *influxql.Result {
 	return &influxql.Result{Err: fmt.Errorf("SHOW DIAGNOSTICS is not implemented yet")}
-}
-
-// DiagnosticsAsRows returns diagnostic information about the server, as a slice of
-// InfluxQL rows.
-func (q *QueryExecutor) DiagnosticsAsRows() []*influxql.Row {
-	return nil
-	/*
-	   s.mu.RLock()
-	   defer s.mu.RUnlock()
-	   now := time.Now().UTC()
-
-	   // Common rows.
-	   gd := NewGoDiagnostics()
-	   sd := NewSystemDiagnostics()
-	   md := NewMemoryDiagnostics()
-	   bd := BuildDiagnostics{Version: s.Version, CommitHash: s.CommitHash}
-
-	   // Common tagset.
-	   tags := map[string]string{"serverID": strconv.FormatUint(s.id, 10)}
-
-	   // Server row.
-	   serverRow := &influxql.Row{
-	       Name: "server_diag",
-	       Columns: []string{"time", "startTime", "uptime", "id",
-	           "path", "authEnabled", "index", "retentionAutoCreate", "numShards", "cqLastRun"},
-	       Tags: tags,
-	       Values: [][]interface{}{[]interface{}{now, startTime.String(), time.Since(startTime).String(), strconv.FormatUint(s.id, 10),
-	           s.path, s.authenticationEnabled, int64(s.index), s.RetentionAutoCreate, len(s.shards), s.lastContinuousQueryRun.String()}},
-	   }
-
-	   // Shard groups.
-	   shardGroupsRow := &influxql.Row{Columns: []string{}}
-	   shardGroupsRow.Name = "shardGroups_diag"
-	   shardGroupsRow.Columns = append(shardGroupsRow.Columns, "time", "database", "retentionPolicy", "id",
-	       "startTime", "endTime", "duration", "numShards")
-	   shardGroupsRow.Tags = tags
-	   // Check all shard groups.
-	   for _, db := range s.databases {
-	       for _, rp := range db.policies {
-	           for _, g := range rp.shardGroups {
-	               shardGroupsRow.Values = append(shardGroupsRow.Values, []interface{}{now, db.name, rp.Name,
-	                   strconv.FormatUint(g.ID, 10), g.StartTime.String(), g.EndTime.String(), g.Duration().String(), len(g.Shards)})
-	           }
-	       }
-	   }
-
-	   // Shards
-	   shardsRow := &influxql.Row{Columns: []string{}}
-	   shardsRow.Name = "shards_diag"
-	   shardsRow.Columns = append(shardsRow.Columns, "time", "id", "dataNodes", "index", "path")
-	   shardsRow.Tags = tags
-	   for _, sh := range s.shards {
-	       var nodes []string
-	       for _, n := range sh.DataNodeIDs {
-	           nodes = append(nodes, strconv.FormatUint(n, 10))
-	       }
-	       var path string
-	       if sh.HasDataNodeID(s.id) {
-	           path = sh.store.Path()
-	       }
-	       shardsRow.Values = append(shardsRow.Values, []interface{}{now, strconv.FormatUint(sh.ID, 10),
-	           strings.Join(nodes, ","), strconv.FormatUint(sh.Index(), 10), path})
-	   }
-
-	   return []*influxql.Row{
-	       gd.AsRow("server_go", tags),
-	       sd.AsRow("server_system", tags),
-	       md.AsRow("server_memory", tags),
-	       bd.AsRow("server_build", tags),
-	       serverRow,
-	       shardGroupsRow,
-	       shardsRow,
-	   }
-	*/
 }
 
 // ErrAuthorize represents an authorization error.
