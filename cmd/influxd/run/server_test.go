@@ -19,7 +19,7 @@ func TestServer_HTTPResponseVersion(t *testing.T) {
 
 	resp, _ := http.Get(s.URL() + "/query")
 	got := resp.Header.Get("X-Influxdb-Version")
-	if version != version {
+	if got != version {
 		t.Errorf("Server responded with incorrect version, exp %s, got %s", version, got)
 	}
 }
