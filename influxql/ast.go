@@ -949,7 +949,7 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 	for _, f := range s.Fields {
 		if c, ok := f.Expr.(*Call); ok {
 			switch c.Name {
-			case "derivative", "non_negative_derivative", "non_integer_derivative":
+			case "derivative", "non_negative_derivative":
 				if min, max, got := 1, 2, len(c.Args); got > max || got < min {
 					return fmt.Errorf("invalid number of arguments for %s, expected at least %d but no more than %d, got %d", c.Name, min, max, got)
 				}
