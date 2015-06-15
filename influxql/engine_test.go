@@ -208,7 +208,7 @@ func TestProcessDerivative(t *testing.T) {
 		},
 		{
 			name:     "float derivatives",
-			fn:       "non_integer_derivative",
+			fn:       "derivative",
 			interval: "1d",
 			in: [][]interface{}{
 				[]interface{}{
