@@ -2313,7 +2313,7 @@ func TestServer_Query_Fill(t *testing.T) {
 	}
 }
 
-func TestServer_Query_DropMeasurement(t *testing.T) {
+func TestServer_Query_DropAndRecreateMeasurement(t *testing.T) {
 	t.Parallel()
 	s := OpenServer(NewConfig(), "")
 	defer s.Close()
@@ -2398,6 +2398,42 @@ func TestServer_Query_DropMeasurement(t *testing.T) {
 			name:    "Drop non-existant measurement",
 			command: `DROP MEASUREMENT doesntexist`,
 			exp:     `{"results":[{"error":"measurement not found: doesntexist"}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+	}...)
+
+	// Test that re-inserting the measurement works fine.
+	for i, query := range test.queries {
+		if i == 0 {
+			if err := test.init(s); err != nil {
+				t.Fatalf("test init failed: %s", err)
+			}
+		}
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+
+	test = NewTest("db0", "rp0")
+	test.write = strings.Join(writes, "\n")
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "verify measurements after recreation",
+			command: `SHOW MEASUREMENTS`,
+			exp:     `{"results":[{"series":[{"name":"measurements","columns":["name"],"values":[["cpu"],["memory"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "verify cpu measurement has been re-inserted",
+			command: `SELECT * FROM cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","tags":{"host":"serverA","region":"uswest"},"columns":["time","val"],"values":[["2000-01-01T00:00:00Z",23.2]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 	}...)
