@@ -83,6 +83,34 @@ func TestStatementExecutor_ExecuteStatement_ShowDatabases_Err(t *testing.T) {
 	}
 }
 
+// Ensure a SHOW GRANTS FOR statement can be executed.
+func TestStatementExecutor_ExecuteStatement_ShowGrantsFor(t *testing.T) {
+	e := NewStatementExecutor()
+	e.Store.UserPrivilegesFn = func(username string) (map[string]influxql.Privilege, error) {
+		if username != "dejan" {
+			t.Fatalf("unexpected username: %s", username)
+		}
+		return map[string]influxql.Privilege{
+			"dejan": influxql.ReadPrivilege,
+			"golja": influxql.WritePrivilege,
+		}, nil
+	}
+
+	if res := e.ExecuteStatement(influxql.MustParseStatement(`SHOW GRANTS FOR dejan`)); res.Err != nil {
+		t.Fatal(res.Err)
+	} else if !reflect.DeepEqual(res.Series, influxql.Rows{
+		{
+			Columns: []string{"database", "privilege"},
+			Values: [][]interface{}{
+				{"dejan", "READ"},
+				{"golja", "WRITE"},
+			},
+		},
+	}) {
+		t.Fatalf("unexpected rows: %s", spew.Sdump(res.Series))
+	}
+}
+
 // Ensure a SHOW SERVERS statement can be executed.
 func TestStatementExecutor_ExecuteStatement_ShowServers(t *testing.T) {
 	e := NewStatementExecutor()
@@ -701,6 +729,7 @@ type StatementExecutorStore struct {
 	UpdateUserFn                func(name, password string) error
 	DropUserFn                  func(name string) error
 	SetPrivilegeFn              func(username, database string, p influxql.Privilege) error
+	UserPrivilegesFn            func(username string) (map[string]influxql.Privilege, error)
 	ContinuousQueriesFn         func() ([]meta.ContinuousQueryInfo, error)
 	CreateContinuousQueryFn     func(database, name, query string) error
 	DropContinuousQueryFn       func(database, name string) error
@@ -764,6 +793,10 @@ func (s *StatementExecutorStore) DropUser(name string) error {
 
 func (s *StatementExecutorStore) SetPrivilege(username, database string, p influxql.Privilege) error {
 	return s.SetPrivilegeFn(username, database, p)
+}
+
+func (s *StatementExecutorStore) UserPrivileges(username string) (map[string]influxql.Privilege, error) {
+	return s.UserPrivilegesFn(username)
 }
 
 func (s *StatementExecutorStore) ContinuousQueries() ([]meta.ContinuousQueryInfo, error) {

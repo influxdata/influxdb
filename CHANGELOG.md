@@ -1,5 +1,9 @@
 ## v0.9.1 [unreleased]
 
+### Features
+
+- [2650](https://github.com/influxdb/influxdb/pull/2650): Add SHOW GRANTS FOR USER statement. Thanks @n1tr0g.
+
 ### Bugfixes
 
 - [#2908](https://github.com/influxdb/influxdb/issues/2908): Field mismatch error messages need to be updated

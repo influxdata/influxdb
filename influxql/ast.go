@@ -93,6 +93,7 @@ func (*DropSeriesStatement) node()            {}
 func (*DropUserStatement) node()              {}
 func (*GrantStatement) node()                 {}
 func (*ShowContinuousQueriesStatement) node() {}
+func (*ShowGrantsForUserStatement) node()     {}
 func (*ShowServersStatement) node()           {}
 func (*ShowDatabasesStatement) node()         {}
 func (*ShowFieldKeysStatement) node()         {}
@@ -193,6 +194,7 @@ func (*DropSeriesStatement) stmt()            {}
 func (*DropUserStatement) stmt()              {}
 func (*GrantStatement) stmt()                 {}
 func (*ShowContinuousQueriesStatement) stmt() {}
+func (*ShowGrantsForUserStatement) stmt()     {}
 func (*ShowServersStatement) stmt()           {}
 func (*ShowDatabasesStatement) stmt()         {}
 func (*ShowFieldKeysStatement) stmt()         {}
@@ -1516,6 +1518,26 @@ func (s *ShowContinuousQueriesStatement) String() string { return "SHOW CONTINUO
 // RequiredPrivileges returns the privilege required to execute a ShowContinuousQueriesStatement.
 func (s *ShowContinuousQueriesStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Name: "", Privilege: ReadPrivilege}}
+}
+
+// ShowGrantsForUserStatement represents a command for listing user privileges.
+type ShowGrantsForUserStatement struct {
+	// Name of the user to display privileges.
+	Name string
+}
+
+// String returns a string representation of the show grants for user.
+func (s *ShowGrantsForUserStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("SHOW GRANTS FOR ")
+	_, _ = buf.WriteString(s.Name)
+
+	return buf.String()
+}
+
+// RequiredPrivileges returns the privilege required to execute a ShowGrantsForUserStatement
+func (s *ShowGrantsForUserStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
 }
 
 // ShowServersStatement represents a command for listing all servers.

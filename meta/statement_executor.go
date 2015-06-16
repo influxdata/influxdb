@@ -27,6 +27,7 @@ type StatementExecutor struct {
 		UpdateUser(name, password string) error
 		DropUser(name string) error
 		SetPrivilege(username, database string, p influxql.Privilege) error
+		UserPrivileges(username string) (map[string]influxql.Privilege, error)
 
 		CreateContinuousQuery(database, name, query string) error
 		DropContinuousQuery(database, name string) error
@@ -42,6 +43,8 @@ func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement) *influxql.
 		return e.executeDropDatabaseStatement(stmt)
 	case *influxql.ShowDatabasesStatement:
 		return e.executeShowDatabasesStatement(stmt)
+	case *influxql.ShowGrantsForUserStatement:
+		return e.executeShowGrantsForUserStatement(stmt)
 	case *influxql.ShowServersStatement:
 		return e.executeShowServersStatement(stmt)
 	case *influxql.CreateUserStatement:
@@ -93,6 +96,19 @@ func (e *StatementExecutor) executeShowDatabasesStatement(q *influxql.ShowDataba
 	row := &influxql.Row{Name: "databases", Columns: []string{"name"}}
 	for _, di := range dis {
 		row.Values = append(row.Values, []interface{}{di.Name})
+	}
+	return &influxql.Result{Series: []*influxql.Row{row}}
+}
+
+func (e *StatementExecutor) executeShowGrantsForUserStatement(q *influxql.ShowGrantsForUserStatement) *influxql.Result {
+	priv, err := e.Store.UserPrivileges(q.Name)
+	if err != nil {
+		return &influxql.Result{Err: err}
+	}
+
+	row := &influxql.Row{Columns: []string{"database", "privilege"}}
+	for d, p := range priv {
+		row.Values = append(row.Values, []interface{}{d, p.String()})
 	}
 	return &influxql.Result{Series: []*influxql.Row{row}}
 }
