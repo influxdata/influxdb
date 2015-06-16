@@ -13,6 +13,7 @@
 - [#2969](https://github.com/influxdb/influxdb/pull/2969): Actually set HTTP version in responses.
 - [#2993](https://github.com/influxdb/influxdb/pull/2993): Don't log each UDP batch.
 - [#2994](https://github.com/influxdb/influxdb/pull/2994): Don't panic during wilcard expanasion if no default database specified.
+- [#3002](https://github.com/influxdb/influxdb/pull/3002): Remove measurement from shard's index on DROP MEASUREMENT.
 
 ## v0.9.0 [2015-06-11]
 
