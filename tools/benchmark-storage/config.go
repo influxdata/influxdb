@@ -6,7 +6,7 @@ import (
 	"math/rand"
 	"time"
 
-	"code.google.com/p/goprotobuf/proto"
+	"github.com/gogo/protobuf/proto"
 	"github.com/influxdb/influxdb/datastore/storage"
 	"github.com/influxdb/influxdb/protocol"
 )

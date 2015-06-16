@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"code.google.com/p/goprotobuf/proto"
 	log "code.google.com/p/log4go"
+	"github.com/gogo/protobuf/proto"
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/common"
 	"github.com/influxdb/influxdb/configuration"
