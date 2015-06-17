@@ -20,6 +20,7 @@
 - [#3002](https://github.com/influxdb/influxdb/pull/3002): Remove measurement from shard's index on DROP MEASUREMENT.
 - [#3021](https://github.com/influxdb/influxdb/pull/3021): Correct set HTTP write trace logging. Thanks @vladlopes.
 - [#3027](https://github.com/influxdb/influxdb/pull/3027): Enforce minimum retention policy duration of 1 hour.
+- [#3030](https://github.com/influxdb/influxdb/pull/3030): Fix excessive logging of shard creation.
 
 ## v0.9.0 [2015-06-11]
 
