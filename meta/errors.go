@@ -1,6 +1,9 @@
 package meta
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 var (
 	// ErrStoreOpen is returned when opening an already open store.
@@ -52,7 +55,8 @@ var (
 
 	// ErrRetentionPolicyDurationTooLow is returned when updating a retention
 	// policy that has a duration lower than the allowed minimum.
-	ErrRetentionPolicyDurationTooLow = errors.New("retention policy duration too low")
+	ErrRetentionPolicyDurationTooLow = errors.New(fmt.Sprintf("retention policy duration must be at least %s",
+		RetentionPolicyMinDuration))
 
 	// ErrReplicationFactorMismatch is returned when the replication factor
 	// does not match the number of nodes in the cluster. This is a temporary

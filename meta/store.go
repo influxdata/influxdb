@@ -34,10 +34,11 @@ const (
 // that it is coming from a remote exec client connection.
 const ExecMagic = "EXEC"
 
-// Retention policy auto-create settings.
+// Retention policy settings.
 const (
 	AutoCreateRetentionPolicyName   = "default"
 	AutoCreateRetentionPolicyPeriod = 0
+	RetentionPolicyMinDuration      = time.Hour
 )
 
 // Raft configuration.
@@ -717,6 +718,9 @@ func (s *Store) RetentionPolicies(database string) (a []RetentionPolicyInfo, err
 
 // CreateRetentionPolicy creates a new retention policy for a database.
 func (s *Store) CreateRetentionPolicy(database string, rpi *RetentionPolicyInfo) (*RetentionPolicyInfo, error) {
+	if rpi.Duration < RetentionPolicyMinDuration && rpi.Duration != 0 {
+		return nil, ErrRetentionPolicyDurationTooLow
+	}
 	if err := s.exec(internal.Command_CreateRetentionPolicyCommand, internal.E_CreateRetentionPolicyCommand_Command,
 		&internal.CreateRetentionPolicyCommand{
 			Database:        proto.String(database),

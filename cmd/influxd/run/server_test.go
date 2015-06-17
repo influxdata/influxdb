@@ -133,10 +133,9 @@ func TestServer_RetentionPolicyCommands(t *testing.T) {
 				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"]}]}]}`,
 			},
 			&Query{
-				skip:    true,
 				name:    "Ensure retention policy with unacceptable retention cannot be created - FIXME issue #2991",
 				command: `CREATE RETENTION POLICY rp3 ON db0 DURATION 1s REPLICATION 1`,
-				exp:     `{"results":[{"error":"retention policy duration needs to be at least 1h0m0s"}]}`,
+				exp:     `{"results":[{"error":"retention policy duration must be at least 1h0m0s"}]}`,
 			},
 			&Query{
 				name:    "Check error when deleting retention policy on non-existent database",
