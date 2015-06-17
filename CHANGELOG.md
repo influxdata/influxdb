@@ -18,6 +18,7 @@
 - [#2993](https://github.com/influxdb/influxdb/pull/2993): Don't log each UDP batch.
 - [#2994](https://github.com/influxdb/influxdb/pull/2994): Don't panic during wilcard expanasion if no default database specified.
 - [#3002](https://github.com/influxdb/influxdb/pull/3002): Remove measurement from shard's index on DROP MEASUREMENT.
+- [#3021](https://github.com/influxdb/influxdb/pull/3021): Correct set HTTP write trace logging. Thanks @vladlopes. 
 
 ## v0.9.0 [2015-06-11]
 
