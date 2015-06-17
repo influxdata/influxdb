@@ -12,11 +12,11 @@
 - [#2948](https://github.com/influxdb/influxdb/issues/2948): Field mismatch error message to include measurement name
 - [#2919](https://github.com/influxdb/influxdb/issues/2919): Unable to insert negative floats
 - [#2935](https://github.com/influxdb/influxdb/issues/2935): Hook CPU and memory profiling back up.
-- [#2960](https://github.com/influxdb/influxdb/issues/2960): Cluster Write Errors
+- [#2960](https://github.com/influxdb/influxdb/issues/2960): Cluster Write Errors.
 - [#2928](https://github.com/influxdb/influxdb/pull/2928): Start work to set InfluxDB version in HTTP response headers. Thanks @neonstalwart.
 - [#2969](https://github.com/influxdb/influxdb/pull/2969): Actually set HTTP version in responses.
 - [#2993](https://github.com/influxdb/influxdb/pull/2993): Don't log each UDP batch.
-- [#2994](https://github.com/influxdb/influxdb/pull/2994): Don't panic during wilcard expanasion if no default database specified.
+- [#2994](https://github.com/influxdb/influxdb/pull/2994): Don't panic during wilcard expansion if no default database specified.
 - [#3002](https://github.com/influxdb/influxdb/pull/3002): Remove measurement from shard's index on DROP MEASUREMENT.
 - [#3021](https://github.com/influxdb/influxdb/pull/3021): Correct set HTTP write trace logging. Thanks @vladlopes. 
 
