@@ -85,7 +85,7 @@ func TestStatementExecutor_ExecuteStatement_ShowDatabases_Err(t *testing.T) {
 
 // Ensure a SHOW GRANTS FOR statement can be executed.
 func TestStatementExecutor_ExecuteStatement_ShowGrantsFor(t *testing.T) {
-	t.Skip("Intermittent test failure: issue 3028"
+	t.Skip("Intermittent test failure: issue 3028")
 	e := NewStatementExecutor()
 	e.Store.UserPrivilegesFn = func(username string) (map[string]influxql.Privilege, error) {
 		if username != "dejan" {
