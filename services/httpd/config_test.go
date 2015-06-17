@@ -36,3 +36,11 @@ pprof-enabled = true
 		t.Fatalf("unexpected pprof enabled: %v", c.PprofEnabled)
 	}
 }
+
+func TestConfig_WriteTracing(t *testing.T) {
+	c := httpd.Config{WriteTracing: true}
+	s := httpd.NewService(c)
+	if !s.Handler.WriteTrace {
+		t.Fatalf("write tracing was not set")
+	}
+}
