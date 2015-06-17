@@ -1039,6 +1039,15 @@ func (s *Store) SetPrivilege(username, database string, p influxql.Privilege) er
 	)
 }
 
+// UserPrivileges returns a list of all databases.
+func (s *Store) UserPrivileges(username string) (p map[string]influxql.Privilege, err error) {
+	err = s.read(func(data *Data) error {
+		p, err = data.UserPrivileges(username)
+		return err
+	})
+	return
+}
+
 // UserCount returns the number of users defined in the cluster.
 func (s *Store) UserCount() (count int, err error) {
 	err = s.read(func(data *Data) error {

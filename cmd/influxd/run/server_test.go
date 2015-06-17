@@ -2,7 +2,6 @@ package run_test
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -19,7 +18,7 @@ func TestServer_HTTPResponseVersion(t *testing.T) {
 
 	resp, _ := http.Get(s.URL() + "/query")
 	got := resp.Header.Get("X-Influxdb-Version")
-	if version != version {
+	if got != version {
 		t.Errorf("Server responded with incorrect version, exp %s, got %s", version, got)
 	}
 }
@@ -132,6 +131,17 @@ func TestServer_RetentionPolicyCommands(t *testing.T) {
 				name:    "show retention policy should be empty after dropping them",
 				command: `SHOW RETENTION POLICIES db0`,
 				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"]}]}]}`,
+			},
+			&Query{
+				skip:    true,
+				name:    "Ensure retention policy with unacceptable retention cannot be created - FIXME issue #2991",
+				command: `CREATE RETENTION POLICY rp3 ON db0 DURATION 1s REPLICATION 1`,
+				exp:     `{"results":[{"error":"retention policy duration needs to be at least 1h0m0s"}]}`,
+			},
+			&Query{
+				name:    "Check error when deleting retention policy on non-existent database",
+				command: `DROP RETENTION POLICY rp1 ON mydatabase`,
+				exp:     `{"results":[{"error":"database not found"}]}`,
 			},
 		},
 	}
@@ -837,7 +847,7 @@ func TestServer_Query_Common(t *testing.T) {
 		&Query{
 			name:    "selecting a from a non-existent database should error",
 			command: `SELECT value FROM db1.rp0.cpu`,
-			exp:     `{"results":[{"error":"database not found"}]}`,
+			exp:     `{"results":[{"error":"database not found: db1"}]}`,
 		},
 		&Query{
 			name:    "selecting a from a non-existent retention policy should error",
@@ -859,6 +869,16 @@ func TestServer_Query_Common(t *testing.T) {
 			name:    "selecting a field that doesn't exist should error",
 			command: `SELECT idontexist FROM db0.rp0.cpu`,
 			exp:     `{"results":[{"error":"unknown field or tag name in select clause: idontexist"}]}`,
+		},
+		&Query{
+			name:    "selecting wildcard without specifying a database should error",
+			command: `SELECT * FROM cpu`,
+			exp:     `{"results":[{"error":"database name required"}]}`,
+		},
+		&Query{
+			name:    "selecting explicit field without specifying a database should error",
+			command: `SELECT value FROM cpu`,
+			exp:     `{"results":[{"error":"database name required"}]}`,
 		},
 	}...)
 
@@ -2293,7 +2313,7 @@ func TestServer_Query_Fill(t *testing.T) {
 	}
 }
 
-func TestServer_Query_DropMeasurement(t *testing.T) {
+func TestServer_Query_DropAndRecreateMeasurement(t *testing.T) {
 	t.Parallel()
 	s := OpenServer(NewConfig(), "")
 	defer s.Close()
@@ -2382,6 +2402,42 @@ func TestServer_Query_DropMeasurement(t *testing.T) {
 		},
 	}...)
 
+	// Test that re-inserting the measurement works fine.
+	for i, query := range test.queries {
+		if i == 0 {
+			if err := test.init(s); err != nil {
+				t.Fatalf("test init failed: %s", err)
+			}
+		}
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+
+	test = NewTest("db0", "rp0")
+	test.write = strings.Join(writes, "\n")
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "verify measurements after recreation",
+			command: `SHOW MEASUREMENTS`,
+			exp:     `{"results":[{"series":[{"name":"measurements","columns":["name"],"values":[["cpu"],["memory"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "verify cpu measurement has been re-inserted",
+			command: `SELECT * FROM cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","tags":{"host":"serverA","region":"uswest"},"columns":["time","val"],"values":[["2000-01-01T00:00:00Z",23.2]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+	}...)
+
 	for i, query := range test.queries {
 		if i == 0 {
 			if err := test.init(s); err != nil {
@@ -2424,7 +2480,6 @@ func TestServer_Query_ShowSeries(t *testing.T) {
 
 	test := NewTest("db0", "rp0")
 	test.write = strings.Join(writes, "\n")
-	log.Println("", test.write)
 
 	test.addQueries([]*Query{
 		&Query{
@@ -2513,7 +2568,6 @@ func TestServer_Query_ShowMeasurements(t *testing.T) {
 
 	test := NewTest("db0", "rp0")
 	test.write = strings.Join(writes, "\n")
-	log.Println("", test.write)
 
 	test.addQueries([]*Query{
 		&Query{
@@ -2578,7 +2632,6 @@ func TestServer_Query_ShowTagKeys(t *testing.T) {
 
 	test := NewTest("db0", "rp0")
 	test.write = strings.Join(writes, "\n")
-	log.Println("", test.write)
 
 	test.addQueries([]*Query{
 		&Query{
@@ -2639,6 +2692,70 @@ func TestServer_Query_ShowTagKeys(t *testing.T) {
 			name:    `show tag values with key and measurement matches regular expression`,
 			command: `SHOW TAG VALUES FROM /[cg]pu/ WITH KEY = host`,
 			exp:     `{"results":[{"series":[{"name":"hostTagValues","columns":["host"],"values":[["server01"],["server02"],["server03"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+	}...)
+
+	for i, query := range test.queries {
+		if i == 0 {
+			if err := test.init(s); err != nil {
+				t.Fatalf("test init failed: %s", err)
+			}
+		}
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
+func TestServer_Query_ShowFieldKeys(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MetaStore.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := []string{
+		fmt.Sprintf(`cpu,host=server01 field1=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
+		fmt.Sprintf(`cpu,host=server01,region=uswest field1=200,field2=300,field3=400 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
+		fmt.Sprintf(`cpu,host=server01,region=useast field1=200,field2=300,field3=400 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
+		fmt.Sprintf(`cpu,host=server02,region=useast field1=200,field2=300,field3=400 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
+		fmt.Sprintf(`gpu,host=server01,region=useast field4=200,field5=300 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
+		fmt.Sprintf(`gpu,host=server03,region=caeast field6=200,field7=300 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
+		fmt.Sprintf(`disk,host=server03,region=caeast field8=200,field9=300 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
+	}
+
+	test := NewTest("db0", "rp0")
+	test.write = strings.Join(writes, "\n")
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    `show field keys`,
+			command: `SHOW FIELD KEYS`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["fieldKey"],"values":[["field1"],["field2"],["field3"]]},{"name":"disk","columns":["fieldKey"],"values":[["field8"],["field9"]]},{"name":"gpu","columns":["fieldKey"],"values":[["field4"],["field5"],["field6"],["field7"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `show field keys from measurement`,
+			command: `SHOW FIELD KEYS FROM cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["fieldKey"],"values":[["field1"],["field2"],["field3"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `show field keys measurement with regex`,
+			command: `SHOW FIELD KEYS FROM /[cg]pu/`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["fieldKey"],"values":[["field1"],["field2"],["field3"]]},{"name":"gpu","columns":["fieldKey"],"values":[["field4"],["field5"],["field6"],["field7"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 	}...)

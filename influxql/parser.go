@@ -107,6 +107,8 @@ func (p *Parser) parseShowStatement() (Statement, error) {
 	switch tok {
 	case CONTINUOUS:
 		return p.parseShowContinuousQueriesStatement()
+	case GRANTS:
+		return p.parseGrantsForUserStatement()
 	case DATABASES:
 		return p.parseShowDatabasesStatement()
 	case SERVERS:
@@ -143,7 +145,7 @@ func (p *Parser) parseShowStatement() (Statement, error) {
 		return p.parseShowUsersStatement()
 	}
 
-	return nil, newParseError(tokstr(tok, lit), []string{"CONTINUOUS", "DATABASES", "FIELD", "MEASUREMENTS", "RETENTION", "SERIES", "SERVERS", "TAG", "USERS"}, pos)
+	return nil, newParseError(tokstr(tok, lit), []string{"CONTINUOUS", "DATABASES", "FIELD", "GRANTS", "MEASUREMENTS", "RETENTION", "SERIES", "SERVERS", "TAG", "USERS"}, pos)
 }
 
 // parseCreateStatement parses a string and returns a create statement.
@@ -1078,6 +1080,26 @@ func (p *Parser) parseShowContinuousQueriesStatement() (*ShowContinuousQueriesSt
 // This function assumes the "SHOW SERVERS" tokens have already been consumed.
 func (p *Parser) parseShowServersStatement() (*ShowServersStatement, error) {
 	stmt := &ShowServersStatement{}
+	return stmt, nil
+}
+
+// parseGrantsForUserStatement parses a string and returns a ShowGrantsForUserStatement.
+// This function assumes the "SHOW GRANTS" tokens have already been consumed.
+func (p *Parser) parseGrantsForUserStatement() (*ShowGrantsForUserStatement, error) {
+	stmt := &ShowGrantsForUserStatement{}
+
+	// Expect a "FOR" token.
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != FOR {
+		return nil, newParseError(tokstr(tok, lit), []string{"FOR"}, pos)
+	}
+
+	// Parse the name of the user to be displayed.
+	lit, err := p.parseIdent()
+	if err != nil {
+		return nil, err
+	}
+	stmt.Name = lit
+
 	return stmt, nil
 }
 

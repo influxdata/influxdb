@@ -294,6 +294,10 @@ func (s *Shard) deleteMeasurement(name string, seriesKeys []string) error {
 		return err
 	}
 
+	// Remove entry from shard index.
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.measurementFields, name)
 	return nil
 }
 

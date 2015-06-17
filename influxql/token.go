@@ -78,6 +78,7 @@ const (
 	FOR
 	FROM
 	GRANT
+	GRANTS
 	GROUP
 	IF
 	IN
@@ -184,6 +185,7 @@ var tokens = [...]string{
 	FOR:          "FOR",
 	FROM:         "FROM",
 	GRANT:        "GRANT",
+	GRANTS:       "GRANTS",
 	GROUP:        "GROUP",
 	IF:           "IF",
 	IN:           "IN",
