@@ -1071,13 +1071,24 @@ func (s *Store) PrecreateShardGroups(cutoff time.Time) error {
 				for _, g := range rp.ShardGroups {
 					// Check to see if it is going to end before our interval
 					if g.EndTime.Before(cutoff) {
-						s.Logger.Printf("pre-creating successive shard group for group %d, database %s, policy %s",
-							g.ID, di.Name, rp.Name)
-						if newGroup, err := s.CreateShardGroupIfNotExists(di.Name, rp.Name, g.EndTime.Add(1*time.Nanosecond)); err != nil {
+						nextShardGroupTime := g.EndTime.Add(1 * time.Nanosecond)
+
+						// Check if successive shard group exists.
+						if sgi, err := s.ShardGroupByTimestamp(di.Name, rp.Name, nextShardGroupTime); err != nil {
+							s.Logger.Printf("failed to check if successive shard group for group exists %d: %s",
+								g.ID, err.Error())
+							continue
+						} else if sgi != nil && !sgi.Deleted() {
+							continue
+						}
+
+						// It doesn't. Create it.
+						if newGroup, err := s.CreateShardGroupIfNotExists(di.Name, rp.Name, nextShardGroupTime); err != nil {
 							s.Logger.Printf("failed to create successive shard group for group %d: %s",
 								g.ID, err.Error())
 						} else {
-							s.Logger.Printf("new shard group %d successfully created", newGroup.ID)
+							s.Logger.Printf("new shard group %d successfully created for database %s, retention policy %s",
+								newGroup.ID, di.Name, rp.Name)
 						}
 					}
 				}
