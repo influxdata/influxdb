@@ -75,12 +75,13 @@ type Handler struct {
 }
 
 // NewHandler returns a new instance of handler with routes.
-func NewHandler(requireAuthentication, loggingEnabled bool) *Handler {
+func NewHandler(requireAuthentication, loggingEnabled, writeTrace bool) *Handler {
 	h := &Handler{
 		mux: pat.New(),
 		requireAuthentication: requireAuthentication,
 		Logger:                log.New(os.Stderr, "[http] ", log.LstdFlags),
 		loggingEnabled:        loggingEnabled,
+		WriteTrace:            writeTrace,
 	}
 
 	h.SetRoutes([]route{

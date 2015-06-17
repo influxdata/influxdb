@@ -28,6 +28,7 @@ func NewService(c Config) *Service {
 		Handler: NewHandler(
 			c.AuthEnabled,
 			c.LogEnabled,
+			c.WriteTracing,
 		),
 		Logger: log.New(os.Stderr, "[httpd] ", log.LstdFlags),
 	}
