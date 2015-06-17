@@ -1612,7 +1612,7 @@ func (s *storeFSMSnapshot) Persist(sink raft.SnapshotSink) error {
 	// TODO: Encode data.
 	// TODO: sink.Write(p)
 	// TODO: sink.Close()
-	panic("not implemented yet")
+	return nil
 }
 
 // Release is invoked when we are finished with the snapshot
