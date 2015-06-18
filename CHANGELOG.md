@@ -22,6 +22,7 @@
 - [#3027](https://github.com/influxdb/influxdb/pull/3027): Enforce minimum retention policy duration of 1 hour.
 - [#3030](https://github.com/influxdb/influxdb/pull/3030): Fix excessive logging of shard creation.
 - [#3038](https://github.com/influxdb/influxdb/pull/3038): Don't check deleted shards for precreation. Thanks @vladlopes.
+- [#3033](https://github.com/influxdb/influxdb/pull/3033): Add support for marshaling `uint64` in client.
 
 ## v0.9.0 [2015-06-11]
 
