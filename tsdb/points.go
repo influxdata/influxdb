@@ -94,6 +94,11 @@ func ParsePointsWithPrecision(buf []byte, defaultTime time.Time, precision strin
 			break
 		}
 
+		// lines which start with '#' are comments
+		if start := skipWhitespace(block, 0); block[start] == '#' {
+			continue
+		}
+
 		pt, err := parsePoint(block, defaultTime, precision)
 		if err != nil {
 			return nil, fmt.Errorf("unable to parse '%s': %v", string(block), err)
