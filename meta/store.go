@@ -1069,8 +1069,8 @@ func (s *Store) PrecreateShardGroups(cutoff time.Time) error {
 		for _, di := range data.Databases {
 			for _, rp := range di.RetentionPolicies {
 				for _, g := range rp.ShardGroups {
-					// Check to see if it is going to end before our interval
-					if g.EndTime.Before(cutoff) {
+					// Check to see if it is not deleted and going to end before our interval
+					if !g.Deleted() && g.EndTime.Before(cutoff) {
 						nextShardGroupTime := g.EndTime.Add(1 * time.Nanosecond)
 
 						// Check if successive shard group exists.
