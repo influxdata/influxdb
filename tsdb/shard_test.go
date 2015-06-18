@@ -1,9 +1,11 @@
 package tsdb
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
+	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
@@ -129,6 +131,80 @@ func TestShardWriteAddNewField(t *testing.T) {
 		t.Fatalf("field names wasn't saved to measurement index")
 	}
 
+}
+
+// Ensure the shard will automatically flush the WAL after a threshold has been reached.
+func TestShard_Autoflush(t *testing.T) {
+	path, _ := ioutil.TempDir("", "shard_test")
+	defer os.RemoveAll(path)
+
+	// Open shard with a really low size threshold, high flush interval.
+	sh := NewShard(NewDatabaseIndex(), filepath.Join(path, "shard"))
+	sh.MaxWALSize = 1024 // 1KB
+	sh.WALFlushInterval = 1 * time.Hour
+	if err := sh.Open(); err != nil {
+		t.Fatal(err)
+	}
+	defer sh.Close()
+
+	// Write a bunch of points.
+	for i := 0; i < 100; i++ {
+		if err := sh.WritePoints([]Point{NewPoint(
+			fmt.Sprintf("cpu%d", i),
+			map[string]string{"host": "server"},
+			map[string]interface{}{"value": 1.0},
+			time.Unix(1, 2),
+		)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Wait for autoflush.
+	time.Sleep(1 * time.Second)
+
+	// Make sure we have series buckets created outside the WAL.
+	if n, err := sh.SeriesCount(); err != nil {
+		t.Fatal(err)
+	} else if n < 10 {
+		t.Fatalf("not enough series, expected at least 10, got %d", n)
+	}
+}
+
+// Ensure the shard will automatically flush the WAL after a threshold has been reached.
+func TestShard_Autoflush_FlushInterval(t *testing.T) {
+	path, _ := ioutil.TempDir("", "shard_test")
+	defer os.RemoveAll(path)
+
+	// Open shard with a high size threshold, small time threshold.
+	sh := NewShard(NewDatabaseIndex(), filepath.Join(path, "shard"))
+	sh.MaxWALSize = 10 * 1024 * 1024 // 10MB
+	sh.WALFlushInterval = 100 * time.Millisecond
+	if err := sh.Open(); err != nil {
+		t.Fatal(err)
+	}
+	defer sh.Close()
+
+	// Write some points.
+	for i := 0; i < 100; i++ {
+		if err := sh.WritePoints([]Point{NewPoint(
+			fmt.Sprintf("cpu%d", i),
+			map[string]string{"host": "server"},
+			map[string]interface{}{"value": 1.0},
+			time.Unix(1, 2),
+		)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Wait for time-based flush.
+	time.Sleep(1 * time.Second)
+
+	// Make sure we have series buckets created outside the WAL.
+	if n, err := sh.SeriesCount(); err != nil {
+		t.Fatal(err)
+	} else if n < 10 {
+		t.Fatalf("not enough series, expected at least 10, got %d", n)
+	}
 }
 
 func BenchmarkWritePoints_NewSeries_1K(b *testing.B)   { benchmarkWritePoints(b, 38, 3, 3, 1) }

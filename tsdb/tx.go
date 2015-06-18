@@ -180,6 +180,7 @@ func (tx *tx) CreateMapReduceJobs(stmt *influxql.SelectStatement, tagKeys []stri
 
 				mapper = &LocalMapper{
 					seriesKeys:   t.SeriesKeys,
+					shard:        shard,
 					db:           shard.DB(),
 					job:          job,
 					decoder:      codec,
@@ -215,8 +216,9 @@ type LocalMapper struct {
 	cursorsEmpty     bool                   // boolean that lets us know if the cursors are empty
 	decoder          *FieldCodec            // decoder for the raw data bytes
 	filters          []influxql.Expr        // filters for each series
-	cursors          []*bolt.Cursor         // bolt cursors for each series id
+	cursors          []*shardCursor         // bolt cursors for each series id
 	seriesKeys       []string               // seriesKeys to be read from this shard
+	shard            *Shard                 // original shard
 	db               *bolt.DB               // bolt store for the shard accessed by this mapper
 	txn              *bolt.Tx               // read transactions by shard id
 	job              *influxql.MapReduceJob // the MRJob this mapper belongs to
@@ -240,6 +242,10 @@ type LocalMapper struct {
 
 // Open opens the LocalMapper.
 func (l *LocalMapper) Open() error {
+	// Obtain shard lock to copy in-cache points.
+	l.shard.mu.Lock()
+	defer l.shard.mu.Unlock()
+
 	// Open the data store
 	txn, err := l.db.Begin(false)
 	if err != nil {
@@ -248,15 +254,28 @@ func (l *LocalMapper) Open() error {
 	l.txn = txn
 
 	// create a bolt cursor for each unique series id
-	l.cursors = make([]*bolt.Cursor, len(l.seriesKeys))
+	l.cursors = make([]*shardCursor, len(l.seriesKeys))
 
 	for i, key := range l.seriesKeys {
+		// Retrieve key bucket.
 		b := l.txn.Bucket([]byte(key))
-		if b == nil {
+
+		// Ignore if there is no bucket or points in the cache.
+		partitionID := WALPartition([]byte(key))
+		if b == nil && len(l.shard.cache[partitionID][key]) == 0 {
 			continue
 		}
 
-		l.cursors[i] = b.Cursor()
+		// Retrieve a copy of the in-cache points for the key.
+		cache := make([][]byte, len(l.shard.cache[partitionID][key]))
+		copy(cache, l.shard.cache[partitionID][key])
+
+		// Build a cursor that merges the bucket and cache together.
+		cur := &shardCursor{cache: cache}
+		if b != nil {
+			cur.cursor = b.Cursor()
+		}
+		l.cursors[i] = cur
 	}
 
 	return nil
@@ -264,7 +283,9 @@ func (l *LocalMapper) Open() error {
 
 // Close closes the LocalMapper.
 func (l *LocalMapper) Close() {
-	_ = l.txn.Rollback()
+	if l.txn != nil {
+		_ = l.txn.Rollback()
+	}
 }
 
 // Begin will set up the mapper to run the map function for a given aggregate call starting at the passed in time

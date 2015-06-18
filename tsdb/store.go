@@ -9,14 +9,17 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/influxdb/influxdb/influxql"
 )
 
 func NewStore(path string) *Store {
 	return &Store{
-		path:   path,
-		Logger: log.New(os.Stderr, "[store] ", log.LstdFlags),
+		path:             path,
+		MaxWALSize:       DefaultMaxWALSize,
+		WALFlushInterval: DefaultWALFlushInterval,
+		Logger:           log.New(os.Stderr, "[store] ", log.LstdFlags),
 	}
 }
 
@@ -30,6 +33,9 @@ type Store struct {
 
 	databaseIndexes map[string]*DatabaseIndex
 	shards          map[uint64]*Shard
+
+	MaxWALSize       int
+	WALFlushInterval time.Duration
 
 	Logger *log.Logger
 }
@@ -59,7 +65,7 @@ func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64) er
 	}
 
 	shardPath := filepath.Join(s.path, database, retentionPolicy, strconv.FormatUint(shardID, 10))
-	shard := NewShard(db, shardPath)
+	shard := s.newShard(db, shardPath)
 	if err := shard.Open(); err != nil {
 		return err
 	}
@@ -91,6 +97,14 @@ func (s *Store) DeleteShard(shardID uint64) error {
 	delete(s.shards, shardID)
 
 	return nil
+}
+
+// newShard returns a shard and copies configuration settings from the store.
+func (s *Store) newShard(index *DatabaseIndex, path string) *Shard {
+	sh := NewShard(index, path)
+	sh.MaxWALSize = s.MaxWALSize
+	sh.WALFlushInterval = s.WALFlushInterval
+	return sh
 }
 
 // DeleteDatabase will close all shards associated with a database and remove the directory and files from disk.
@@ -219,7 +233,7 @@ func (s *Store) loadShards() error {
 					continue
 				}
 
-				shard := NewShard(s.databaseIndexes[db], path)
+				shard := s.newShard(s.databaseIndexes[db], path)
 				shard.Open()
 				s.shards[shardID] = shard
 			}
@@ -262,6 +276,18 @@ func (s *Store) WriteToShard(shardID uint64, points []Point) error {
 	}
 
 	return sh.WritePoints(points)
+}
+
+// Flush forces all shards to write their WAL data to the index.
+func (s *Store) Flush() error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for shardID, sh := range s.shards {
+		if err := sh.Flush(); err != nil {
+			return fmt.Errorf("flush: shard=%d, err=%s", shardID, err)
+		}
+	}
+	return nil
 }
 
 func (s *Store) Close() error {

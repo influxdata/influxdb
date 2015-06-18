@@ -80,6 +80,10 @@ func NewServer(c *Config, version string) (*Server, error) {
 		reportingDisabled: c.ReportingDisabled,
 	}
 
+	// Copy TSDB configuration.
+	s.TSDBStore.MaxWALSize = c.Data.MaxWALSize
+	s.TSDBStore.WALFlushInterval = time.Duration(c.Data.WALFlushInterval)
+
 	// Initialize query executor.
 	s.QueryExecutor = tsdb.NewQueryExecutor(s.TSDBStore)
 	s.QueryExecutor.MetaStore = s.MetaStore
