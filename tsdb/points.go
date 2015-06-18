@@ -923,6 +923,8 @@ func (p Fields) MarshalBinary() []byte {
 			b = append(b, []byte(strconv.FormatInt(int64(t), 10))...)
 		case int32:
 			b = append(b, []byte(strconv.FormatInt(int64(t), 10))...)
+		case uint64:
+			b = append(b, []byte(strconv.FormatUint(t, 10))...)
 		case int64:
 			b = append(b, []byte(strconv.FormatInt(t, 10))...)
 		case float64:
