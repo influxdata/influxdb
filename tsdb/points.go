@@ -941,7 +941,7 @@ func (p Fields) MarshalBinary() []byte {
 			b = append(b, t...)
 		case string:
 			b = append(b, '"')
-			b = append(b, []byte(t)...)
+			b = append(b, []byte(escapeString(t))...)
 			b = append(b, '"')
 		case nil:
 			// skip
