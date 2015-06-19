@@ -235,61 +235,81 @@ func TestSelect_NamesInWhere(t *testing.T) {
 
 func TestSelectStatement_HasWildcard(t *testing.T) {
 	var tests = []struct {
-		stmt     string
-		wildcard bool
+		stmt            string
+		wildcard        bool
+		fieldWildcard   bool
+		groupByWildcard bool
 	}{
 		// No wildcards
 		{
-			stmt:     `SELECT value FROM cpu`,
-			wildcard: false,
+			stmt:            `SELECT value FROM cpu`,
+			wildcard:        false,
+			fieldWildcard:   false,
+			groupByWildcard: false,
 		},
 
 		// Query wildcard
 		{
-			stmt:     `SELECT * FROM cpu`,
-			wildcard: true,
+			stmt:            `SELECT * FROM cpu`,
+			wildcard:        true,
+			fieldWildcard:   true,
+			groupByWildcard: false,
 		},
 
 		// No GROUP BY wildcards
 		{
-			stmt:     `SELECT value FROM cpu GROUP BY host`,
-			wildcard: false,
+			stmt:            `SELECT value FROM cpu GROUP BY host`,
+			wildcard:        false,
+			fieldWildcard:   false,
+			groupByWildcard: false,
 		},
 
 		// No GROUP BY wildcards, time only
 		{
-			stmt:     `SELECT mean(value) FROM cpu where time < now() GROUP BY time(5ms)`,
-			wildcard: false,
+			stmt:            `SELECT mean(value) FROM cpu where time < now() GROUP BY time(5ms)`,
+			wildcard:        false,
+			fieldWildcard:   false,
+			groupByWildcard: false,
 		},
 
 		// GROUP BY wildcard
 		{
-			stmt:     `SELECT value FROM cpu GROUP BY *`,
-			wildcard: true,
+			stmt:            `SELECT value FROM cpu GROUP BY *`,
+			wildcard:        true,
+			fieldWildcard:   false,
+			groupByWildcard: true,
 		},
 
 		// GROUP BY wildcard with time
 		{
-			stmt:     `SELECT mean(value) FROM cpu where time < now() GROUP BY *,time(1m)`,
-			wildcard: true,
+			stmt:            `SELECT mean(value) FROM cpu where time < now() GROUP BY *,time(1m)`,
+			wildcard:        true,
+			fieldWildcard:   false,
+			groupByWildcard: true,
 		},
 
 		// GROUP BY wildcard with explicit
 		{
-			stmt:     `SELECT value FROM cpu GROUP BY *,host`,
-			wildcard: true,
+			stmt:            `SELECT value FROM cpu GROUP BY *,host`,
+			wildcard:        true,
+			fieldWildcard:   false,
+			groupByWildcard: true,
 		},
 
 		// GROUP BY multiple wildcards
 		{
-			stmt:     `SELECT value FROM cpu GROUP BY *,*`,
-			wildcard: true,
+			stmt:            `SELECT value FROM cpu GROUP BY *,*`,
+			wildcard:        true,
+			fieldWildcard:   false,
+			groupByWildcard: true,
 		},
 
 		// Combo
 		{
-			stmt:     `SELECT * FROM cpu GROUP BY *`,
-			wildcard: true,
+			stmt:            `SELECT * FROM cpu GROUP BY *`,
+			wildcard:        true,
+			fieldWildcard:   true,
+			groupByWildcard: true,
 		},
 	}
 
@@ -302,8 +322,11 @@ func TestSelectStatement_HasWildcard(t *testing.T) {
 		}
 
 		// Test wildcard detection.
-		if w := stmt.(*influxql.SelectStatement).HasWildcard(); tt.wildcard != w {
-			t.Errorf("%d. %q: unexpected wildcard detection:\n\nexp=%v\n\ngot=%v\n\n", i, tt.stmt, tt.wildcard, w)
+		w := stmt.(*influxql.SelectStatement).HasWildcard()
+		f := stmt.(*influxql.SelectStatement).HasFieldWildcard()
+		g := stmt.(*influxql.SelectStatement).HasGroupByWildcard()
+		if tt.wildcard != w || tt.fieldWildcard != f || tt.groupByWildcard != g {
+			t.Errorf("%d. %q: incorrect wildcard detection", i, tt.stmt)
 			continue
 		}
 	}
