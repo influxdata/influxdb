@@ -887,20 +887,28 @@ func (s *SelectStatement) walkForTime(node Node) bool {
 
 // HasWildcard returns whether or not the select statement has at least 1 wildcard
 func (s *SelectStatement) HasWildcard() bool {
+	return s.HasFieldWildcard() || s.HasGroupByWildcard()
+}
+
+// HasSelectWildcard returns whether or not the select statement has a field wildcard.
+func (s *SelectStatement) HasFieldWildcard() bool {
 	for _, f := range s.Fields {
 		_, ok := f.Expr.(*Wildcard)
 		if ok {
 			return true
 		}
 	}
+	return false
+}
 
+// HasGroupByWildcard returns whether or not the select statement has a GROUP By wildcard.
+func (s *SelectStatement) HasGroupByWildcard() bool {
 	for _, d := range s.Dimensions {
 		_, ok := d.Expr.(*Wildcard)
 		if ok {
 			return true
 		}
 	}
-
 	return false
 }
 
