@@ -1,8 +1,7 @@
 # Line Protocol
 
 The line protocol is a text based format for representing measurments.  Each line defines a measurement
-and multiple lines are separated by the newline character `\n`. The format of the line
-consists of three parts:
+and multiple lines are separated by the newline character `\n`. The format of the line consists of three parts:
 
 ```
 [key] [fields] [timestamp]
@@ -12,8 +11,7 @@ Each section is separated by spaces.  The minimum required line consists of a me
 
 ## Key
 
-The key is the measurement name and any optional tags separated by commas.  Measurement names, tag keys and values must escape
-any spaces, commas using `\ ` and `\,` respectively.  Values should not be surrounded in quotes.
+The key is the measurement name and any optional tags separated by commas.  Measurement names, tag keys and values must escape any spaces, commas using `\ ` and `\,` respectively.  Values should not be surrounded in quotes.
 
 Tags should always be sorted by key before being sent for best performance.
 
@@ -35,8 +33,7 @@ cpu,host=server\ A,region=us\ west
 
 ## Fields
 
-Fields are are values associated with the measurement.  Every line must have at least one field.  Multiple fields should
-be separated with commas and not spaces in between.
+Fields are are values associated with the measurement.  Every line must have at least one field.  Multiple fields should be separated with commas and not spaces in between.
 
 Fields can be one of four types.  The value written for a given field defines the type of the field.
 
@@ -67,8 +64,15 @@ cpu load=10.0,alert=true,reason="value above maximum threshold"
 
 ## Timestamp
 
-The timestamp section is optional but should be specified if possible.  The value is an integer representing nanoseconds since
-the epoch.
+The timestamp section is optional but should be specified if possible.  The value is an integer representing nanoseconds since the epoch.
 
 Some write APIs allow passing a lower precision.  If the API supports a lower precision, the timestamp may also be
 and integer epoch in microseconds, milliseconds, seconds, minutes and hours.
+
+## Full Example
+A full example is shown below.
+```
+cpu,host=server01,region=uswest value=1.0 1434055562000000000
+cpu,host=server02,region=uswest value=3.0 1434055562000010000
+```
+In this example the first line shows a `measurement` of "cpu", there are two tags "host" and "region, the `value` is 1.0, and the `timestamp` is 1434055562000000000. Following this is a second line, also of the `measurement` "cpu" but of a different machine.
