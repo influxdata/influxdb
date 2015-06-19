@@ -21,7 +21,7 @@ curl -G http://localhost:8086/query --data-urlencode "q=CREATE DATABASE mydb"
 curl -G http://localhost:8086/query --data-urlencode "q=CREATE RETENTION POLICY myrp ON mydb DURATION 365d REPLICATION 1 DEFAULT"
 
 # write data
-curl -d '{"database" : "mydb", "retentionPolicy" : "myrp", "points": [{"name":"cpu","tags":{"region":"useast","host":"server_1","service":"redis"},"fields":{"value":61}}]}' -H "Content-Type: application/json" http://localhost:8086/write
+curl -d '{"database" : "mydb", "retentionPolicy" : "myrp", "points": [{"measurement":"cpu","tags":{"region":"useast","host":"server_1","service":"redis"},"fields":{"value":61}}]}' -H "Content-Type: application/json" http://localhost:8086/write
 
 # Delete a Measurement
 curl -G http://localhost:8086/query  --data-urlencode 'db=mydb' --data-urlencode 'q=DROP MEASUREMENT cpu'
