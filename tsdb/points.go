@@ -55,6 +55,11 @@ type point struct {
 	data []byte
 }
 
+type escapePairStr struct {
+	b string
+	esc string
+}
+
 var escapeCodes = map[byte][]byte{
 	',': []byte(`\,`),
 	'"': []byte(`\"`),
@@ -62,21 +67,16 @@ var escapeCodes = map[byte][]byte{
 	'=': []byte(`\=`),
 }
 
-var escapeCodesFields = map[byte][]byte{
-	',': []byte(`\,`),
+var escapeCodesStrFields = []escapePairStr {
+	escapePairStr{string('\\'), string([]byte(`\\`))},
+	escapePairStr{string('"'), string([]byte(`\"`))},
 }
 
 var escapeCodesStr = map[string]string{}
 
-var escapeCodesStrFields = map[string]string{}
-
 func init() {
 	for k, v := range escapeCodes {
 		escapeCodesStr[string(k)] = string(v)
-	}
-
-	for k, v := range escapeCodesFields {
-		escapeCodesStrFields[string(k)] = string(v)
 	}
 }
 
@@ -636,8 +636,8 @@ func escapeString(in string) string {
 }
 
 func escapeStringFields(in string) string {
-	for b, esc := range escapeCodesStrFields {
-		in = strings.Replace(in, b, esc, -1)
+	for _, p := range escapeCodesStrFields {
+		in = strings.Replace(in, p.b, p.esc, -1)
 	}
 	return in
 }
@@ -891,7 +891,6 @@ func newFieldsFromBinary(buf []byte) Fields {
 		if len(name) == 0 {
 			continue
 		}
-
 		i, valueBuf = scanFieldValue(buf, i+1)
 		if len(valueBuf) == 0 {
 			fields[string(name)] = nil
