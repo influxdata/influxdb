@@ -55,11 +55,6 @@ type point struct {
 	data []byte
 }
 
-type escapePairStr struct {
-	b string
-	esc string
-}
-
 var escapeCodes = map[byte][]byte{
 	',': []byte(`\,`),
 	'"': []byte(`\"`),
@@ -67,10 +62,7 @@ var escapeCodes = map[byte][]byte{
 	'=': []byte(`\=`),
 }
 
-var escapeCodesStrFields = []escapePairStr {
-	escapePairStr{string('\\'), string([]byte(`\\`))},
-	escapePairStr{string('"'), string([]byte(`\"`))},
-}
+var escapeReplacerFields = strings.NewReplacer( "\\", "\\\\", "\"", "\\\"")
 
 var escapeCodesStr = map[string]string{}
 
@@ -636,10 +628,7 @@ func escapeString(in string) string {
 }
 
 func escapeStringFields(in string) string {
-	for _, p := range escapeCodesStrFields {
-		in = strings.Replace(in, p.b, p.esc, -1)
-	}
-	return in
+	return escapeReplacerFields.Replace(in)
 }
 
 func unescape(in []byte) []byte {
