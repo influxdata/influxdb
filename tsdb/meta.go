@@ -469,43 +469,55 @@ func (m *Measurement) TagSets(stmt *influxql.SelectStatement, dimensions []strin
 		return nil, err
 	}
 
-	// build the tag sets
-	var tagStrings []string
+	// For every series, get the tag values for the requested tag keys i.e. dimensions. This is the
+	// TagSet for that series. Series with the same TagSet are then grouped together, because for the
+	// purpose of GROUP BY they are part of the same composite series.
 	tagSets := make(map[string]*influxql.TagSet)
 	for id, filter := range filters {
-		// get the series and set the tag values for the dimensions we care about
 		s := m.seriesByID[id]
-		tags := make([]string, len(dimensions))
-		for i, dim := range dimensions {
-			tags[i] = s.Tags[dim]
+		tags := make(map[string]string)
+
+		// Build the TagSet for this series.
+		for _, dim := range dimensions {
+			tags[dim] = s.Tags[dim]
 		}
 
-		// marshal it into a string and put this series and its expr into the tagSets map
-		t := strings.Join(tags, "")
-		set, ok := tagSets[t]
+		// Convert the TagSet to a string, so it can be added to a map allowing TagSets to be handled
+		// as a set.
+		tagsAsKey := string(marshalTags(tags))
+		tagSet, ok := tagSets[tagsAsKey]
 		if !ok {
-			tagStrings = append(tagStrings, t)
-			set = &influxql.TagSet{}
-			// set the tags for this set
+			// This TagSet is new, create a new entry for it.
+			tagSet = &influxql.TagSet{}
 			tagsForSet := make(map[string]string)
-			for i, dim := range dimensions {
-				tagsForSet[dim] = tags[i]
+			for k, v := range tags {
+				tagsForSet[k] = v
 			}
-			set.Tags = tagsForSet
-			set.Key = marshalTags(tagsForSet)
+			tagSet.Tags = tagsForSet
+			tagSet.Key = marshalTags(tagsForSet)
 		}
-		set.AddFilter(m.seriesByID[id].Key, filter)
-		tagSets[t] = set
+
+		// Associate the series and filter with the Tagset.
+		tagSet.AddFilter(m.seriesByID[id].Key, filter)
+
+		// Ensure it's back in the map.
+		tagSets[tagsAsKey] = tagSet
 	}
 
-	// return the tag sets in sorted order
-	a := make([]*influxql.TagSet, 0, len(tagSets))
-	sort.Strings(tagStrings)
-	for _, s := range tagStrings {
-		a = append(a, tagSets[s])
+	// The TagSets have been created, as a map of TagSets. Just send
+	// the values back as a slice, sorting for consistency.
+	sortedTagSetKeys := make([]string, 0, len(tagSets))
+	for k, _ := range tagSets {
+		sortedTagSetKeys = append(sortedTagSetKeys, k)
+	}
+	sort.Strings(sortedTagSetKeys)
+
+	sortedTagsSets := make([]*influxql.TagSet, 0, len(sortedTagSetKeys))
+	for _, k := range sortedTagSetKeys {
+		sortedTagsSets = append(sortedTagsSets, tagSets[k])
 	}
 
-	return a, nil
+	return sortedTagsSets, nil
 }
 
 // mergeSeriesFilters merges two sets of filter expressions and culls series IDs.
