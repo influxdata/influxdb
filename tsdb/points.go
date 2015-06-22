@@ -62,6 +62,8 @@ var escapeCodes = map[byte][]byte{
 	'=': []byte(`\=`),
 }
 
+var escapeReplacerFields = strings.NewReplacer( "\\", "\\\\", "\"", "\\\"")
+
 var escapeCodesStr = map[string]string{}
 
 func init() {
@@ -637,6 +639,10 @@ func escapeString(in string) string {
 	return in
 }
 
+func escapeStringFields(in string) string {
+	return escapeReplacerFields.Replace(in)
+}
+
 func unescape(in []byte) []byte {
 	for b, esc := range escapeCodes {
 		in = bytes.Replace(in, esc, []byte{b}, -1)
@@ -886,7 +892,6 @@ func newFieldsFromBinary(buf []byte) Fields {
 		if len(name) == 0 {
 			continue
 		}
-
 		i, valueBuf = scanFieldValue(buf, i+1)
 		if len(valueBuf) == 0 {
 			fields[string(name)] = nil
@@ -955,7 +960,7 @@ func (p Fields) MarshalBinary() []byte {
 			b = append(b, t...)
 		case string:
 			b = append(b, '"')
-			b = append(b, []byte(t)...)
+			b = append(b, []byte(escapeStringFields(t))...)
 			b = append(b, '"')
 		case nil:
 			// skip
