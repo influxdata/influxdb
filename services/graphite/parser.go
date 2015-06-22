@@ -85,6 +85,9 @@ func (p *Parser) DecodeNameAndTags(nameField string) (string, map[string]string,
 	for i := 0; i < minLen; i++ {
 		if p.FieldNames[i] == "measurement" {
 			measurement = fields[i]
+		} else if p.FieldNames[i] == "measurement*" {
+			measurement = strings.Join(fields[i:len(fields)], ".")
+			break
 		} else {
 			tags[p.FieldNames[i]] = fields[i]
 		}

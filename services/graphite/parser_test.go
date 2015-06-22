@@ -64,11 +64,16 @@ func TestDecodeNameAndTags(t *testing.T) {
 			tags:        make(map[string]string),
 			measurement: "foo",
 		},
+		{test: "wildcard measurement at end",
+			str:         "prod.us-west.server01.cpu.load",
+			schema:      "env.zone.host.measurement*",
+			ignore:      true,
+			tags:        map[string]string{"env": "prod", "zone": "us-west", "host": "server01"},
+			measurement: "cpu.load",
+		},
 	}
 
 	for _, test := range tests {
-		t.Logf("testing %q...", test.test)
-
 		if test.separator == "" {
 			test.separator = "."
 		}
@@ -216,8 +221,6 @@ func TestParse(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		t.Logf("testing %q...", test.test)
-
 		if test.separator == "" {
 			test.separator = "."
 		}
