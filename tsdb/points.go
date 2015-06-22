@@ -300,6 +300,10 @@ func scanFields(buf []byte, i int) (int, []byte, error) {
 	start := skipWhitespace(buf, i)
 	i = start
 	quoted := false
+
+	// tracks whether we've see at least one '='
+	hasSeparator := false
+
 	for {
 		// reached the end of buf?
 		if i >= len(buf) {
@@ -321,6 +325,8 @@ func scanFields(buf []byte, i int) (int, []byte, error) {
 
 		// If we see an =, ensure that there is at least on char after it
 		if buf[i] == '=' && !quoted {
+			hasSeparator = true
+
 			// check for "... value="
 			if i+1 >= len(buf) {
 				return i, buf[start:i], fmt.Errorf("missing field value")
@@ -357,9 +363,15 @@ func scanFields(buf []byte, i int) (int, []byte, error) {
 		}
 		i += 1
 	}
+
 	if quoted {
 		return i, buf[start:i], fmt.Errorf("unbalanced quotes")
 	}
+
+	if !hasSeparator {
+		return i, buf[start:i], fmt.Errorf("invalid field format")
+	}
+
 	return i, buf[start:i], nil
 }
 
