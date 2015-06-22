@@ -82,6 +82,73 @@ func TestServer_DatabaseCommands(t *testing.T) {
 	}
 }
 
+func TestServer_Query_DropAndRecreateDatabase(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MetaStore.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := []string{
+		fmt.Sprintf(`cpu,host=serverA,region=uswest val=23.2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+	}
+
+	test := NewTest("db0", "rp0")
+	test.write = strings.Join(writes, "\n")
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "Drop database after data write",
+			command: `DROP DATABASE db0`,
+			exp:     `{"results":[{}]}`,
+		},
+		&Query{
+			name:    "Recreate database",
+			command: `CREATE DATABASE db0`,
+			exp:     `{"results":[{}]}`,
+		},
+		&Query{
+			name:    "Recreate retention policy",
+			command: `CREATE RETENTION POLICY rp0 ON db0 DURATION 365d REPLICATION 1 DEFAULT`,
+			exp:     `{"results":[{}]}`,
+		},
+		&Query{
+			name:    "Show measurements after recreate",
+			command: `SHOW MEASUREMENTS`,
+			exp:     `{"results":[{}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "Query data after recreate",
+			command: `SELECT * FROM cpu`,
+			exp:     `{"results":[{"error":"measurement not found: \"db0\"..cpu"}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+	}...)
+
+	for i, query := range test.queries {
+		if i == 0 {
+			if err := test.init(s); err != nil {
+				t.Fatalf("test init failed: %s", err)
+			}
+		}
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
 // Ensure retention policy commands work.
 func TestServer_RetentionPolicyCommands(t *testing.T) {
 	t.Parallel()
