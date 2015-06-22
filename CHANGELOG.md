@@ -26,6 +26,7 @@
 - [#3033](https://github.com/influxdb/influxdb/pull/3033): Add support for marshaling `uint64` in client.
 - [#3090](https://github.com/influxdb/influxdb/pull/3090): Remove database from TSDB index on DROP DATABASE.
 - [#2944](https://github.com/influxdb/influxdb/issues/2944): Don't require "WHERE time" when creating continuous queries.
+- [#3075](https://github.com/influxdb/influxdb/pull/3075): GROUP BY correctly when different tags have same value.
 
 ## v0.9.0 [2015-06-11]
 
