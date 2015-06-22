@@ -803,6 +803,62 @@ func TestParsePointsWithPrecisionNoTime(t *testing.T) {
 	}
 }
 
+func TestParsePointsWithPrecisionComments(t *testing.T) {
+	tests := []struct {
+		name      string
+		batch     string
+		exp       string
+		lenPoints int
+	}{
+		{
+			name:      "comment only",
+			batch:     `# comment only`,
+			exp:       "cpu,host=serverA,region=us-east value=1.0 946730096789012345",
+			lenPoints: 0,
+		},
+		{
+			name: "point with comment above",
+			batch: `# a point is below
+cpu,host=serverA,region=us-east value=1.0 946730096789012345`,
+			exp:       "cpu,host=serverA,region=us-east value=1.0 946730096789012345",
+			lenPoints: 1,
+		},
+		{
+			name: "point with comment below",
+			batch: `cpu,host=serverA,region=us-east value=1.0 946730096789012345
+# end of points`,
+			exp:       "cpu,host=serverA,region=us-east value=1.0 946730096789012345",
+			lenPoints: 1,
+		},
+		{
+			name: "indented comment",
+			batch: `	# a point is below
+cpu,host=serverA,region=us-east value=1.0 946730096789012345`,
+			exp:       "cpu,host=serverA,region=us-east value=1.0 946730096789012345",
+			lenPoints: 1,
+		},
+	}
+	for _, test := range tests {
+		pts, err := ParsePointsWithPrecision([]byte(test.batch), time.Now().UTC(), "")
+		if err != nil {
+			t.Fatalf(`%s: ParsePoints() failed. got %s`, test.name, err)
+		}
+		pointsLength := len(pts)
+		if exp := test.lenPoints; pointsLength != exp {
+			t.Errorf("%s: ParsePoint() len mismatch: got %v, exp %v", test.name, pointsLength, exp)
+		}
+
+		if pointsLength > 0 {
+			pt := pts[0]
+
+			got := pt.String()
+			if got != test.exp {
+				t.Errorf("%s: ParsePoint() to string mismatch:\n got %v\n exp %v", test.name, got, test.exp)
+			}
+		}
+	}
+}
+
 func TestNewPointEscaped(t *testing.T) {
 	// commas
 	pt := NewPoint("cpu,main", Tags{"tag,bar": "value"}, Fields{"name,bar": 1.0}, time.Unix(0, 0))
