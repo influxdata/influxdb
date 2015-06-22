@@ -119,7 +119,7 @@ func (m *matcher) Match(line string) (string, map[string]string) {
 		} else if tag == "measurement*" {
 			measurement = strings.Join(fields[i:len(fields)], ".")
 			break
-		} else {
+		} else if tag != "" {
 			tags[tag] = fields[i]
 		}
 	}

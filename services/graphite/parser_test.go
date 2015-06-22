@@ -55,6 +55,12 @@ func TestDecodeNameAndTags(t *testing.T) {
 			tags:        map[string]string{"env": "prod", "zone": "us-west", "host": "server01"},
 			measurement: "cpu.load",
 		},
+		{test: "skip fields",
+			str:         "ignore.us-west.ignore-this-too.cpu.load",
+			template:    ".zone..measurement*",
+			tags:        map[string]string{"zone": "us-west"},
+			measurement: "cpu.load",
+		},
 	}
 
 	for _, test := range tests {
@@ -72,7 +78,7 @@ func TestDecodeNameAndTags(t *testing.T) {
 			t.Fatalf("name parse failer.  expected %v, got %v", test.measurement, measurement)
 		}
 		if len(tags) != len(test.tags) {
-			t.Fatalf("unexpected number of tags.  expected %d, got %d", len(test.tags), len(tags))
+			t.Fatalf("unexpected number of tags.  expected %v, got %v", test.tags, tags)
 		}
 		for k, v := range test.tags {
 			if tags[k] != v {
