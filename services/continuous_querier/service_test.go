@@ -243,8 +243,6 @@ func NewTestService(t *testing.T) *Service {
 	s.RunInterval = time.Millisecond
 
 	// Set Logger to write to dev/null so stdout isn't polluted.
-	//null, _ := os.Open(os.DevNull)
-	//s.Logger = log.New(os.Stdout, "", 0)
 	if !testing.Verbose() {
 		s.Logger = log.New(ioutil.Discard, "", log.LstdFlags)
 	}
