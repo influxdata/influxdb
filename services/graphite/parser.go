@@ -12,18 +12,19 @@ import (
 
 // Parser encapulates a Graphite Parser.
 type Parser struct {
-	Separator     string
-	FieldNames    []string
-	IgnoreUnnamed bool
+	matchers []*matcher
 }
 
 // NewParser returns a GraphiteParser instance.
-func NewParser(schema string, separator string, ignore bool) *Parser {
-	return &Parser{
-		Separator:     separator,
-		FieldNames:    strings.Split(schema, separator),
-		IgnoreUnnamed: ignore,
+func NewParser(template string) (*Parser, error) {
+	p := &Parser{}
+
+	matcher, err := newMatcher(template)
+	if err != nil {
+		return nil, err
 	}
+	p.matchers = append(p.matchers, matcher)
+	return p, nil
 }
 
 // Parse performs Graphite parsing of a single line.
@@ -35,9 +36,9 @@ func (p *Parser) Parse(line string) (tsdb.Point, error) {
 	}
 
 	// decode the name and tags
-	name, tags, err := p.DecodeNameAndTags(fields[0])
-	if err != nil {
-		return nil, err
+	name, tags := p.DecodeNameAndTags(fields[0])
+	if name == "" {
+		return nil, fmt.Errorf("unable to parse measurement name from %s", line)
 	}
 
 	// Parse value.
@@ -64,38 +65,64 @@ func (p *Parser) Parse(line string) (tsdb.Point, error) {
 }
 
 // DecodeNameAndTags parses the name and tags of a single field of a Graphite datum.
-func (p *Parser) DecodeNameAndTags(nameField string) (string, map[string]string, error) {
+func (p *Parser) DecodeNameAndTags(nameField string) (string, map[string]string) {
+	return p.matchers[0].Match(nameField)
+}
+
+type matcher struct {
+	tags              []string
+	measurementPos    int
+	greedyMeasurement bool
+}
+
+func newMatcher(template string) (*matcher, error) {
+	tags := strings.Split(template, ".")
+	matcher := &matcher{tags: tags, measurementPos: -1}
+
+	for i, tag := range tags {
+		if strings.HasPrefix(tag, "measurement") {
+			matcher.measurementPos = i
+		}
+		if tag == "measurement*" {
+			matcher.greedyMeasurement = true
+		}
+	}
+
+	if matcher.measurementPos == -1 {
+		return nil, fmt.Errorf("no measurement specified for template. %q", template)
+	}
+
+	return matcher, nil
+}
+
+func (m *matcher) Match(line string) (string, map[string]string) {
+	fields := strings.Split(line, ".")
 	var (
 		measurement string
 		tags        = make(map[string]string)
-		minLen      int
 	)
 
-	fields := strings.Split(nameField, p.Separator)
-	if len(fields) > len(p.FieldNames) {
-		if !p.IgnoreUnnamed {
-			return measurement, tags, fmt.Errorf("received %q which contains unnamed field", nameField)
+	for i, tag := range m.tags {
+		if i >= len(fields) {
+			continue
 		}
-		minLen = len(p.FieldNames)
-	} else {
-		minLen = len(fields)
-	}
 
-	// decode the name and tags
-	for i := 0; i < minLen; i++ {
-		if p.FieldNames[i] == "measurement" {
+		if i == m.measurementPos {
 			measurement = fields[i]
-		} else if p.FieldNames[i] == "measurement*" {
+			if m.greedyMeasurement {
+				measurement = strings.Join(fields[i:len(fields)], ".")
+			}
+		}
+
+		if tag == "measurement" {
+			measurement = fields[i]
+		} else if tag == "measurement*" {
 			measurement = strings.Join(fields[i:len(fields)], ".")
 			break
 		} else {
-			tags[p.FieldNames[i]] = fields[i]
+			tags[tag] = fields[i]
 		}
 	}
 
-	if measurement == "" {
-		return measurement, tags, fmt.Errorf("no measurement specified for metric. %q", nameField)
-	}
-
-	return measurement, tags, nil
+	return measurement, tags
 }

@@ -68,7 +68,10 @@ func NewService(c Config) (*Service, error) {
 	}
 	s.consistencyLevel = consistencyLevel
 
-	parser := NewParser(d.NameSchema, d.NameSeparator, d.IgnoreUnnamed)
+	parser, err := NewParser(d.NameSchema)
+	if err != nil {
+		return nil, err
+	}
 	s.parser = parser
 
 	return &s, nil

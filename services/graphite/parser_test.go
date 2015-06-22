@@ -14,72 +14,51 @@ func TestDecodeNameAndTags(t *testing.T) {
 		str         string
 		measurement string
 		tags        map[string]string
-		schema      string
-		separator   string
-		ignore      bool
+		template    string
 		err         string
 	}{
 		{test: "metric only",
 			str:         "cpu",
 			measurement: "cpu",
-			schema:      "measurement",
-			ignore:      true,
+			template:    "measurement",
 		},
 		{test: "metric with single series",
 			str:         "cpu.server01",
 			measurement: "cpu",
-			ignore:      true,
-			schema:      "measurement.hostname",
+			template:    "measurement.hostname",
 			tags:        map[string]string{"hostname": "server01"},
 		},
 		{test: "metric with multiple series",
 			str:         "cpu.us-west.server01",
 			measurement: "cpu",
-			ignore:      true,
-			schema:      "measurement.region.hostname",
+			template:    "measurement.region.hostname",
 			tags:        map[string]string{"hostname": "server01", "region": "us-west"},
 		},
 		{test: "no metric",
-			tags:   make(map[string]string),
-			ignore: true,
-			err:    `no measurement specified for metric. ""`,
+			tags: make(map[string]string),
+			err:  `no measurement specified for template. ""`,
 		},
 		{test: "ignore unnamed",
 			str:         "foo.cpu",
-			ignore:      true,
-			schema:      "measurement",
+			template:    "measurement",
 			tags:        make(map[string]string),
 			measurement: "foo"},
-		{test: "not ignore unnamed",
-			str:    "foo.cpu",
-			ignore: false,
-			schema: "measurement",
-			tags:   make(map[string]string),
-			err:    `received "foo.cpu" which contains unnamed field`,
-		},
-		{test: "name shorter than schema",
+		{test: "name shorter than template",
 			str:         "foo",
-			schema:      "measurement.A.B.C",
-			ignore:      true,
+			template:    "measurement.A.B.C",
 			tags:        make(map[string]string),
 			measurement: "foo",
 		},
 		{test: "wildcard measurement at end",
 			str:         "prod.us-west.server01.cpu.load",
-			schema:      "env.zone.host.measurement*",
-			ignore:      true,
+			template:    "env.zone.host.measurement*",
 			tags:        map[string]string{"env": "prod", "zone": "us-west", "host": "server01"},
 			measurement: "cpu.load",
 		},
 	}
 
 	for _, test := range tests {
-		if test.separator == "" {
-			test.separator = "."
-		}
-		p := graphite.NewParser(test.schema, test.separator, test.ignore)
-
-		measurement, tags, err := p.DecodeNameAndTags(test.str)
+		p, err := graphite.NewParser(test.template)
 		if errstr(err) != test.err {
 			t.Fatalf("err does not match.  expected %v, got %v", test.err, err)
 		}
@@ -87,6 +66,8 @@ func TestDecodeNameAndTags(t *testing.T) {
 			// If we erred out,it was intended and the following tests won't work
 			continue
 		}
+
+		measurement, tags := p.DecodeNameAndTags(test.str)
 		if measurement != test.measurement {
 			t.Fatalf("name parse failer.  expected %v, got %v", test.measurement, measurement)
 		}
@@ -101,28 +82,33 @@ func TestDecodeNameAndTags(t *testing.T) {
 	}
 }
 
+func TestParseMissingMeasurement(t *testing.T) {
+	_, err := graphite.NewParser("a.b.c")
+	if err == nil {
+		t.Fatalf("expected error creating parser, got nil")
+	}
+}
+
 func TestParse(t *testing.T) {
 	testTime := time.Now().Round(time.Second)
 	epochTime := testTime.Unix()
 	strTime := strconv.FormatInt(epochTime, 10)
 
 	var tests = []struct {
-		test      string
-		line      string
-		name      string
-		tags      map[string]string
-		value     float64
-		time      time.Time
-		separator string
-		schema    string
-		ignore    bool
-		err       string
+		test        string
+		line        string
+		measurement string
+		tags        map[string]string
+		value       float64
+		time        time.Time
+		template    string
+		err         string
 	}{
 		{
-			test:   "normal case",
-			line:   `cpu.foo.bar 50 ` + strTime,
-			schema: "measurement.foo.bar",
-			name:   "cpu",
+			test:        "normal case",
+			line:        `cpu.foo.bar 50 ` + strTime,
+			template:    "measurement.foo.bar",
+			measurement: "cpu",
 			tags: map[string]string{
 				"foo": "foo",
 				"bar": "bar",
@@ -131,100 +117,44 @@ func TestParse(t *testing.T) {
 			time:  testTime,
 		},
 		{
-			test:   "DecodeNameAndTags returns error",
-			line:   `cpu.foo.bar 50 ` + strTime,
-			schema: "a.b.c",
-			err:    `no measurement specified for metric. "cpu.foo.bar"`,
+			test:        "metric only with float value",
+			line:        `cpu 50.554 ` + strTime,
+			measurement: "cpu",
+			template:    "measurement",
+			value:       50.554,
+			time:        testTime,
 		},
 		{
-			test:   "separator is . by default",
-			line:   `cpu.foo.bar 50 ` + strTime,
-			name:   "cpu",
-			schema: "measurement.foo.bar",
-			tags: map[string]string{
-				"foo": "foo",
-				"bar": "bar",
-			},
-			value: 50,
-			time:  testTime,
+			test:     "missing metric",
+			line:     `50.554 1419972457825`,
+			template: "measurement",
+			err:      `received "50.554 1419972457825" which doesn't have three fields`,
 		},
 		{
-			test:      "separator is . if specified",
-			separator: ".",
-			line:      `cpu.foo.bar 50 ` + strTime,
-			name:      "cpu",
-			schema:    "measurement.foo.bar",
-			tags: map[string]string{
-				"foo": "foo",
-				"bar": "bar",
-			},
-			value: 50,
-			time:  testTime,
+			test:     "should error parsing invalid float",
+			line:     `cpu 50.554z 1419972457825`,
+			template: "measurement",
+			err:      `field "cpu" value: strconv.ParseFloat: parsing "50.554z": invalid syntax`,
 		},
 		{
-			test:      "separator is - if specified",
-			separator: "-",
-			line:      `cpu-foo-bar 50 ` + strTime,
-			name:      "cpu",
-			schema:    "measurement-foo-bar",
-			tags: map[string]string{
-				"foo": "foo",
-				"bar": "bar",
-			},
-			value: 50,
-			time:  testTime,
+			test:     "should error parsing invalid int",
+			line:     `cpu 50z 1419972457825`,
+			template: "measurement",
+			err:      `field "cpu" value: strconv.ParseFloat: parsing "50z": invalid syntax`,
 		},
 		{
-			test:      "separator is boo if specified",
-			separator: "boo",
-			line:      `cpuboofooboobar 50 ` + strTime,
-			name:      "cpu",
-			schema:    "measurementboofooboobar",
-			tags: map[string]string{
-				"foo": "foo",
-				"bar": "bar",
-			},
-			value: 50,
-			time:  testTime,
-		},
-		{
-			test:   "metric only with float value",
-			line:   `cpu 50.554 ` + strTime,
-			name:   "cpu",
-			schema: "measurement",
-			value:  50.554,
-			time:   testTime,
-		},
-		{
-			test: "missing metric",
-			line: `50.554 1419972457825`,
-			err:  `received "50.554 1419972457825" which doesn't have three fields`,
-		},
-		{
-			test:   "should error parsing invalid float",
-			line:   `cpu 50.554z 1419972457825`,
-			schema: "measurement",
-			err:    `field "cpu" value: strconv.ParseFloat: parsing "50.554z": invalid syntax`,
-		},
-		{
-			test:   "should error parsing invalid int",
-			line:   `cpu 50z 1419972457825`,
-			schema: "measurement",
-			err:    `field "cpu" value: strconv.ParseFloat: parsing "50z": invalid syntax`,
-		},
-		{
-			test:   "should error parsing invalid time",
-			line:   `cpu 50.554 14199724z57825`,
-			schema: "measurement",
-			err:    `field "cpu" time: strconv.ParseFloat: parsing "14199724z57825": invalid syntax`,
+			test:     "should error parsing invalid time",
+			line:     `cpu 50.554 14199724z57825`,
+			template: "measurement",
+			err:      `field "cpu" time: strconv.ParseFloat: parsing "14199724z57825": invalid syntax`,
 		},
 	}
 
 	for _, test := range tests {
-		if test.separator == "" {
-			test.separator = "."
+		p, err := graphite.NewParser(test.template)
+		if err != nil {
+			t.Fatalf("unexpected error creating graphite parser: %v", err)
 		}
-		p := graphite.NewParser(test.schema, test.separator, test.ignore)
 
 		point, err := p.Parse(test.line)
 		if errstr(err) != test.err {
@@ -234,8 +164,8 @@ func TestParse(t *testing.T) {
 			// If we erred out,it was intended and the following tests won't work
 			continue
 		}
-		if point.Name() != test.name {
-			t.Fatalf("name parse failer.  expected %v, got %v", test.name, point.Name())
+		if point.Name() != test.measurement {
+			t.Fatalf("name parse failer.  expected %v, got %v", test.measurement, point.Name())
 		}
 		if len(point.Tags()) != len(test.tags) {
 			t.Fatalf("tags len mismatch.  expected %d, got %d", len(test.tags), len(point.Tags()))
