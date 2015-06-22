@@ -453,7 +453,7 @@ func TestParsePointWithStringWithCommas(t *testing.T) {
 			},
 			Fields{
 				"value": 1.0,
-				"str":   "foo,bar", // commas in string value
+				"str":   `foo\,bar`, // commas in string value
 			},
 			time.Unix(1, 0)),
 	)
@@ -469,6 +469,37 @@ func TestParsePointWithStringWithCommas(t *testing.T) {
 			Fields{
 				"value": 1.0,
 				"str":   "foo,bar", // commas in string value
+			},
+			time.Unix(1, 0)),
+	)
+
+}
+
+func TestParsePointEscapedStringsAndCommas(t *testing.T) {
+	// non-escaped comma and quotes
+	test(t, `cpu,host=serverA,region=us-east value="{Hello\"{,}\" World}" 1000000000`,
+		NewPoint(
+			"cpu",
+			Tags{
+				"host":   "serverA",
+				"region": "us-east",
+			},
+			Fields{
+				"value": `{Hello"{,}" World}`,
+			},
+			time.Unix(1, 0)),
+	)
+
+	// escaped comma and quotes
+	test(t, `cpu,host=serverA,region=us-east value="{Hello\"{\,}\" World}" 1000000000`,
+		NewPoint(
+			"cpu",
+			Tags{
+				"host":   "serverA",
+				"region": "us-east",
+			},
+			Fields{
+				"value": `{Hello"{\,}" World}`,
 			},
 			time.Unix(1, 0)),
 	)

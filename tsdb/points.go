@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"math"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -54,6 +55,9 @@ type point struct {
 	// binary encoded field data
 	data []byte
 }
+
+// Compile the regex that detects unquoted double quote sequences
+var quoteReplacer = regexp.MustCompile(`([^\\])"`)
 
 var escapeCodes = map[byte][]byte{
 	',': []byte(`\,`),
@@ -604,7 +608,8 @@ func scanFieldValue(buf []byte, i int) (int, []byte) {
 			break
 		}
 
-		if buf[i] == '"' {
+		// If we see a double quote, makes sure it is not escaped
+		if buf[i] == '"' && buf[i-1] != '\\' {
 			i += 1
 			quoted = !quoted
 			continue
@@ -649,6 +654,21 @@ func unescapeString(in string) string {
 		in = strings.Replace(in, esc, b, -1)
 	}
 	return in
+}
+
+// escapeQuoteString returns a copy of in with any double quotes that
+// have not been escaped with escaped quotes
+func escapeQuoteString(in string) string {
+	if strings.IndexAny(in, `"`) == -1 {
+		return in
+	}
+	return quoteReplacer.ReplaceAllString(in, `$1\"`)
+}
+
+// unescapeQuoteString returns a copy of in with any escaped double-quotes
+// with unescaped double quotes
+func unescapeQuoteString(in string) string {
+	return strings.Replace(in, `\"`, `"`, -1)
 }
 
 // NewPoint returns a new point with the given measurement name, tags, fiels and timestamp
@@ -895,7 +915,7 @@ func newFieldsFromBinary(buf []byte) Fields {
 
 		// If the first char is a double-quote, then unmarshal as string
 		if valueBuf[0] == '"' {
-			value = unescapeString(string(valueBuf[1 : len(valueBuf)-1]))
+			value = unescapeQuoteString(string(valueBuf[1 : len(valueBuf)-1]))
 			// Check for numeric characters
 		} else if (valueBuf[0] >= '0' && valueBuf[0] <= '9') || valueBuf[0] == '-' || valueBuf[0] == '.' {
 			value, err = parseNumber(valueBuf)
@@ -955,7 +975,7 @@ func (p Fields) MarshalBinary() []byte {
 			b = append(b, t...)
 		case string:
 			b = append(b, '"')
-			b = append(b, []byte(t)...)
+			b = append(b, []byte(escapeQuoteString(t))...)
 			b = append(b, '"')
 		case nil:
 			// skip
