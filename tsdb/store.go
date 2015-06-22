@@ -103,7 +103,11 @@ func (s *Store) DeleteDatabase(name string, shardIDs []uint64) error {
 			shard.Close()
 		}
 	}
-	return os.RemoveAll(s.path)
+	if err := os.RemoveAll(s.path); err != nil {
+		return err
+	}
+	delete(s.databaseIndexes, name)
+	return nil
 }
 
 func (s *Store) Shard(shardID uint64) *Shard {
