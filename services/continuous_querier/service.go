@@ -153,6 +153,7 @@ func (s *Service) backgroundLoop() {
 			return
 		case <-s.RunCh:
 			if s.MetaStore.IsLeader() {
+				s.Logger.Print("running continuous queries by request")
 				s.runContinuousQueries()
 			}
 		case <-time.After(s.RunInterval):
@@ -377,15 +378,15 @@ func NewContinuousQuery(database string, cqi *meta.ContinuousQueryInfo) (*Contin
 		return nil, err
 	}
 
-	q, ok := stmt.(*influxql.SelectStatement)
-	if !ok || q.Target == nil || q.Target.Measurement == nil {
+	q, ok := stmt.(*influxql.CreateContinuousQueryStatement)
+	if !ok || q.Source.Target == nil || q.Source.Target.Measurement == nil {
 		return nil, errors.New("query isn't a valid continuous query")
 	}
 
 	cquery := &ContinuousQuery{
 		Database: database,
 		Info:     cqi,
-		q:        q,
+		q:        q.Source,
 	}
 
 	return cquery, nil

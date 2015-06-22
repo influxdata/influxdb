@@ -560,7 +560,7 @@ func TestStatementExecutor_ExecuteStatement_CreateContinuousQuery(t *testing.T) 
 			t.Fatalf("unexpected database: %s", database)
 		} else if name != "cq0" {
 			t.Fatalf("unexpected name: %s", name)
-		} else if query != `SELECT count(*) INTO db1 FROM db0 GROUP BY time(1h)` {
+		} else if query != `CREATE CONTINUOUS QUERY cq0 ON db0 BEGIN SELECT count(*) INTO db1 FROM db0 GROUP BY time(1h) END` {
 			t.Fatalf("unexpected query: %s", query)
 		}
 		return nil
