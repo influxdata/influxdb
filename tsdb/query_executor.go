@@ -279,10 +279,11 @@ func (q *QueryExecutor) expandWildcards(stmt *influxql.SelectStatement) (*influx
 	// Iterate measurements in the FROM clause getting the fields & dimensions for each.
 	for _, src := range stmt.Sources {
 		if m, ok := src.(*influxql.Measurement); ok {
-			// Lookup the database.
+			// Lookup the database. The database may not exist if no data for this database
+			// was ever written to the shard.
 			db := q.store.DatabaseIndex(m.Database)
 			if db == nil {
-				return nil, nil
+				return stmt, nil
 			}
 
 			// Lookup the measurement in the database.
