@@ -7,7 +7,7 @@ Multiple lines must be separated by the newline character `\n`. The format of th
 [key] [fields] [timestamp]
 ```
 
-Each section is separated by spaces.  The minimum required point consists of a measurement name and at least one field. Points without a specified timestamp will be written using the server's local timestamp. Timestamps are assumed to be in nanoseconds unless a `time_parameter` is passed in the query string.
+Each section is separated by spaces.  The minimum required point consists of a measurement name and at least one field. Points without a specified timestamp will be written using the server's local timestamp. Timestamps are assumed to be in nanoseconds unless a `precision` value is passed in the query string.
 
 ## Key
 
