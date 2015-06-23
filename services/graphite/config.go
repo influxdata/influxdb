@@ -116,9 +116,12 @@ func (c *Config) validateTemplates() error {
 		if err := c.validateTemplate(template); err != nil {
 			return err
 		}
-		// Validate filter expression is valid
-		if err := c.validateFilter(filter); err != nil {
-			return err
+
+		if filter != "" {
+			// Validate filter expression is valid
+			if err := c.validateFilter(filter); err != nil {
+				return err
+			}
 		}
 
 		if tags != "" {
