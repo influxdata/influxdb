@@ -425,16 +425,17 @@ func (c *CommandLine) parseInto(stmt string) string {
 }
 
 func (c *CommandLine) Insert(stmt string) error {
-	stmt = stmt[7:]
-	if strings.EqualFold(stmt[:4], "into") {
-		stmt = c.parseInto(stmt[5:])
+	i, point := parseNextIdentifier(stmt)
+	if !strings.EqualFold(i, "insert") {
+		fmt.Println("ERR: missing space after INSERT")
+		return nil
 	}
-	if c.RetentionPolicy == "" {
-		c.RetentionPolicy = "default"
+	if i, r := parseNextIdentifier(point); strings.EqualFold(i, "into") {
+		point = c.parseInto(r)
 	}
 	_, err := c.Client.Write(client.BatchPoints{
 		Points: []client.Point{
-			client.Point{Raw: stmt},
+			client.Point{Raw: point},
 		},
 		Database:         c.Database,
 		RetentionPolicy:  c.RetentionPolicy,
