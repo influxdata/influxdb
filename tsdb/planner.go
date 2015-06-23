@@ -14,16 +14,20 @@ type Planner struct {
 	}
 
 	localStore interface {
+		Measurement(database, name string) *Measurement
 		Shard(shardID uint64) *Shard
 	}
 }
 
-func NewPlanner(m metaStore) *Planner {
-	return &Planner{metaStore: m}
+func NewPlanner(m metaStore, l localStore) *Planner {
+	return &Planner{
+		metaStore:  m,
+		localStore: l,
+	}
 }
 
 func (p *Planner) Plan(stmt *influxql.SelectStatement) (*Executor, error) {
-	mappers := make([]ShardMapper, 0)
+	mappers := make([]ShardProcessor, 0)
 
 	for _, src := range stmt.Sources {
 		mm, ok := src.(*influxql.Measurement)
@@ -46,12 +50,12 @@ func (p *Planner) Plan(stmt *influxql.SelectStatement) (*Executor, error) {
 			tmin = time.Unix(0, 0)
 		}
 
-		// Create a Mapper for every shard that must be queried.
+		// Create a Processor for every shard that must be queried.
 		for _, group := range rp.ShardGroups {
 			if group.Overlaps(tmin, tmax) {
 				for _, sh := range group.Shards {
 					// Assume shard is local for now.
-					mappers = append(mappers, NewLocalShardMapper(sh.ID))
+					mappers = append(mappers, NewLocalShardProcessor(sh.ID, p.xLocalStore))
 				}
 			}
 		}
@@ -60,38 +64,55 @@ func (p *Planner) Plan(stmt *influxql.SelectStatement) (*Executor, error) {
 	return &Executor{mappers: mappers}, nil
 }
 
-type LocalShardMapper struct {
+type LocalShardProcessor struct {
+	shardID     uint64
+	xLocalStore interface {
+		Measurement(database, name string) *Measurement
+		Shard(shardID uint64) *Shard
+	}
 }
 
-func NewLocalShardMapper(shID uint64) *LocalShardMapper {
-	return &LocalShardMapper{}
+func NewLocalShardProcessor(shID uint64, store xLocalStore) *LocalShardProcessor {
+	return &LocalShardProcessor{
+		shardID:     shID,
+		xLocalStore: store,
+	}
 }
 
-func (l *LocalShardMapper) Open(query *influxql.Statement) error {
+func (l *LocalShardProcessor) Open(stmt *influxql.SelectStatement) error {
+	// Determine group by tag keys.
+	_, tags, err := stmt.Dimensions.Normalize()
+	if err != nil {
+		return err
+	}
+
+	m := l.store.Measurement(mm.Database, mm.Name)
+	if m == nil {
+		return nil, ErrMeasurementNotFound(influxql.QuoteIdent([]string{mm.Database, "", mm.Name}...))
+	}
+
 	return nil
 }
 
-func (l *LocalShardMapper) Close() {
+func (l *LocalShardProcessor) Close() {
 	return
 }
 
-func (l *LocalShardMapper) NextInterval() (interface{}, error) {
+func (l *LocalShardProcessor) NextInterval() (interface{}, error) {
 	return nil, nil
 }
 
-type ShardMapper interface {
-	// Open will open the necessary resources to begin the mapper.
-	Open(query *influxql.Statement) error
+type ShardProcessor interface {
+	// Open will open the necessary resources to begin the processor.
+	Open(stmt *influxql.SelectStatement) error
 
 	// Close will close the mapper.
 	Close()
 
-	// NextInterval will get the time ordered next interval of the given interval size from the mapper. This is a
-	// forward only operation from the start time passed into Begin. Will return nil when there is no more data to be read.
-	// Interval periods can be different based on time boundaries (months, daylight savings, etc) of the query.
+	// NextInterval will get the time ordered next interval of the given interval size from the processor.
 	NextInterval() (interface{}, error)
 }
 
 type Executor struct {
-	mappers []ShardMapper
+	mappers []ShardProcessor
 }
