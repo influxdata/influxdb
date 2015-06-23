@@ -65,7 +65,7 @@ func TestTemplateApply(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		tmpl, err := graphite.NewTemplate(test.template)
+		tmpl, err := graphite.NewTemplate(test.template, nil)
 		if errstr(err) != test.err {
 			t.Fatalf("err does not match.  expected %v, got %v", test.err, err)
 		}
@@ -331,6 +331,54 @@ func TestParseDefaultTags(t *testing.T) {
 	p, err := graphite.NewParser([]string{"servers.localhost .host.measurement*"}, tsdb.Tags{
 		"region": "us-east",
 		"zone":   "1c",
+		"host":   "should not set",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error creating parser, got %v", err)
+	}
+
+	exp := tsdb.NewPoint("cpu_load",
+		tsdb.Tags{"host": "localhost", "region": "us-east", "zone": "1c"},
+		tsdb.Fields{"value": float64(11)},
+		time.Unix(1435077219, 0))
+
+	pt, err := p.Parse("servers.localhost.cpu_load 11 1435077219")
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+
+	if exp.String() != pt.String() {
+		t.Errorf("parse mismatch: got %v, exp %v", pt.String(), exp.String())
+	}
+}
+
+func TestParseDefaultTemplateTags(t *testing.T) {
+	p, err := graphite.NewParser([]string{"servers.localhost .host.measurement* zone=1c"}, tsdb.Tags{
+		"region": "us-east",
+		"host":   "should not set",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error creating parser, got %v", err)
+	}
+
+	exp := tsdb.NewPoint("cpu_load",
+		tsdb.Tags{"host": "localhost", "region": "us-east", "zone": "1c"},
+		tsdb.Fields{"value": float64(11)},
+		time.Unix(1435077219, 0))
+
+	pt, err := p.Parse("servers.localhost.cpu_load 11 1435077219")
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+
+	if exp.String() != pt.String() {
+		t.Errorf("parse mismatch: got %v, exp %v", pt.String(), exp.String())
+	}
+}
+
+func TestParseDefaultTemplateTagsOverridGlobal(t *testing.T) {
+	p, err := graphite.NewParser([]string{"servers.localhost .host.measurement* zone=1c,region=us-east"}, tsdb.Tags{
+		"region": "shot not be set",
 		"host":   "should not set",
 	})
 	if err != nil {

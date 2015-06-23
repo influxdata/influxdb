@@ -15,7 +15,7 @@ var defaultTemplate *template
 
 func init() {
 	var err error
-	defaultTemplate, err = NewTemplate("measurement*")
+	defaultTemplate, err = NewTemplate("measurement*", nil)
 	if err != nil {
 		panic(err)
 	}
@@ -44,7 +44,16 @@ func NewParser(templates []string, defaultTags tsdb.Tags) (*Parser, error) {
 			template = parts[1]
 		}
 
-		tmpl, err := NewTemplate(template)
+		tags := tsdb.Tags{}
+		if strings.Contains(parts[len(parts)-1], "=") {
+			tagStrs := strings.Split(parts[len(parts)-1], ",")
+			for _, kv := range tagStrs {
+				parts := strings.Split(kv, "=")
+				tags[parts[0]] = parts[1]
+			}
+		}
+
+		tmpl, err := NewTemplate(template, tags)
 		if err != nil {
 			return nil, err
 		}
@@ -98,13 +107,14 @@ func (p *Parser) Parse(line string) (tsdb.Point, error) {
 
 type template struct {
 	tags              []string
+	defaultTags       tsdb.Tags
 	measurementPos    int
 	greedyMeasurement bool
 }
 
-func NewTemplate(pattern string) (*template, error) {
+func NewTemplate(pattern string, defaultTags tsdb.Tags) (*template, error) {
 	tags := strings.Split(pattern, ".")
-	template := &template{tags: tags, measurementPos: -1}
+	template := &template{tags: tags, measurementPos: -1, defaultTags: defaultTags}
 
 	for i, tag := range tags {
 		if strings.HasPrefix(tag, "measurement") {
@@ -128,6 +138,11 @@ func (t *template) Apply(line string) (string, map[string]string) {
 		measurement string
 		tags        = make(map[string]string)
 	)
+
+	// Set any default tags
+	for k, v := range t.defaultTags {
+		tags[k] = v
+	}
 
 	for i, tag := range t.tags {
 		if i >= len(fields) {
