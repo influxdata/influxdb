@@ -106,10 +106,13 @@ func TestParseCommand_Insert(t *testing.T) {
 		cmd string
 	}{
 		{cmd: "INSERT cpu,host=serverA,region=us-west value=1.0"},
-		{cmd: " INSERT test.test cpu,host=serverA,region=us-west value=1.0"},
-		{cmd: "INSERT   test.test cpu,host=serverA,region=us-west value=1.0"},
-		{cmd: "Insert test.test cpu,host=serverA,region=us-west value=1.0"},
-		{cmd: "insert test.test cpu,host=serverA,region=us-west value=1.0"},
+		{cmd: " INSERT cpu,host=serverA,region=us-west value=1.0"},
+		{cmd: "INSERT   cpu,host=serverA,region=us-west value=1.0"},
+		{cmd: "insert cpu,host=serverA,region=us-west    value=1.0    "},
+		{cmd: "insert"},
+		{cmd: "Insert "},
+		{cmd: "insert c"},
+		{cmd: "insert int"},
 	}
 
 	for _, test := range tests {
