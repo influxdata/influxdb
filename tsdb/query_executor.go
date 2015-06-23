@@ -7,6 +7,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta"
@@ -208,6 +209,9 @@ func (q *QueryExecutor) executeSelectStatement(statementID int, stmt *influxql.S
 	if err != nil {
 		return err
 	}
+
+	// Replace instances of "now()" with the current time.
+	stmt.Condition = influxql.Reduce(stmt.Condition, &influxql.NowValuer{Now: time.Now().UTC()})
 
 	// Plan statement execution.
 	p := influxql.NewPlanner(q)

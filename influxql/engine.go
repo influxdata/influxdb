@@ -844,11 +844,6 @@ func NewPlanner(db DB) *Planner {
 
 // Plan creates an execution plan for the given SelectStatement and returns an Executor.
 func (p *Planner) Plan(stmt *SelectStatement, chunkSize int) (*Executor, error) {
-	now := p.Now().UTC()
-
-	// Replace instances of "now()" with the current time.
-	stmt.Condition = Reduce(stmt.Condition, &NowValuer{Now: now})
-
 	// Begin an unopened transaction.
 	tx, err := p.DB.Begin()
 	if err != nil {
