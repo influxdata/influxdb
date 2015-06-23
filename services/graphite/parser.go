@@ -14,7 +14,7 @@ var defaultTemplate *template
 
 func init() {
 	var err error
-	defaultTemplate, err = newTemplate("measurement*")
+	defaultTemplate, err = NewTemplate("measurement*")
 	if err != nil {
 		panic(err)
 	}
@@ -32,7 +32,7 @@ func NewParser(templates []string) (*Parser, error) {
 	}
 
 	for _, pattern := range templates {
-		template, err := newTemplate(pattern)
+		template, err := NewTemplate(pattern)
 		if err != nil {
 			return nil, err
 		}
@@ -50,7 +50,8 @@ func (p *Parser) Parse(line string) (tsdb.Point, error) {
 	}
 
 	// decode the name and tags
-	name, tags := p.DecodeNameAndTags(fields[0])
+	matcher := p.matcher.Match(fields[0])
+	name, tags := matcher.Apply(fields[0])
 	if name == "" {
 		return nil, fmt.Errorf("unable to parse measurement name from %s", line)
 	}
@@ -78,18 +79,13 @@ func (p *Parser) Parse(line string) (tsdb.Point, error) {
 	return point, nil
 }
 
-// DecodeNameAndTags parses the name and tags of a single field of a Graphite datum.
-func (p *Parser) DecodeNameAndTags(nameField string) (string, map[string]string) {
-	return p.matcher.Match(nameField).Apply(nameField)
-}
-
 type template struct {
 	tags              []string
 	measurementPos    int
 	greedyMeasurement bool
 }
 
-func newTemplate(pattern string) (*template, error) {
+func NewTemplate(pattern string) (*template, error) {
 	tags := strings.Split(pattern, ".")
 	template := &template{tags: tags, measurementPos: -1}
 

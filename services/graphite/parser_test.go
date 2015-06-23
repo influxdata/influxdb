@@ -8,7 +8,7 @@ import (
 	"github.com/influxdb/influxdb/services/graphite"
 )
 
-func TestDecodeNameAndTags(t *testing.T) {
+func TestTemplateApply(t *testing.T) {
 	var tests = []struct {
 		test        string
 		str         string
@@ -64,7 +64,7 @@ func TestDecodeNameAndTags(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		p, err := graphite.NewParser([]string{test.template})
+		tmpl, err := graphite.NewTemplate(test.template)
 		if errstr(err) != test.err {
 			t.Fatalf("err does not match.  expected %v, got %v", test.err, err)
 		}
@@ -73,7 +73,7 @@ func TestDecodeNameAndTags(t *testing.T) {
 			continue
 		}
 
-		measurement, tags := p.DecodeNameAndTags(test.str)
+		measurement, tags := tmpl.Apply(test.str)
 		if measurement != test.measurement {
 			t.Fatalf("name parse failer.  expected %v, got %v", test.measurement, measurement)
 		}
