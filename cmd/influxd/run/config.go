@@ -59,6 +59,7 @@ func NewConfig() *Config {
 	c.HTTPD = httpd.NewConfig()
 	c.Collectd = collectd.NewConfig()
 	c.OpenTSDB = opentsdb.NewConfig()
+	c.Graphites = append(c.Graphites, graphite.NewConfig())
 
 	c.Monitoring = monitor.NewConfig()
 	c.ContinuousQuery = continuous_querier.NewConfig()
