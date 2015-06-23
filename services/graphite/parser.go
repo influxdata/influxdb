@@ -12,18 +12,18 @@ import (
 
 // Parser encapulates a Graphite Parser.
 type Parser struct {
-	matchers []*matcher
+	templates []*template
 }
 
 // NewParser returns a GraphiteParser instance.
-func NewParser(template string) (*Parser, error) {
+func NewParser(pattern string) (*Parser, error) {
 	p := &Parser{}
 
-	matcher, err := newMatcher(template)
+	template, err := newTemplate(pattern)
 	if err != nil {
 		return nil, err
 	}
-	p.matchers = append(p.matchers, matcher)
+	p.templates = append(p.templates, template)
 	return p, nil
 }
 
@@ -66,50 +66,50 @@ func (p *Parser) Parse(line string) (tsdb.Point, error) {
 
 // DecodeNameAndTags parses the name and tags of a single field of a Graphite datum.
 func (p *Parser) DecodeNameAndTags(nameField string) (string, map[string]string) {
-	return p.matchers[0].Match(nameField)
+	return p.templates[0].Match(nameField)
 }
 
-type matcher struct {
+type template struct {
 	tags              []string
 	measurementPos    int
 	greedyMeasurement bool
 }
 
-func newMatcher(template string) (*matcher, error) {
-	tags := strings.Split(template, ".")
-	matcher := &matcher{tags: tags, measurementPos: -1}
+func newTemplate(pattern string) (*template, error) {
+	tags := strings.Split(pattern, ".")
+	template := &template{tags: tags, measurementPos: -1}
 
 	for i, tag := range tags {
 		if strings.HasPrefix(tag, "measurement") {
-			matcher.measurementPos = i
+			template.measurementPos = i
 		}
 		if tag == "measurement*" {
-			matcher.greedyMeasurement = true
+			template.greedyMeasurement = true
 		}
 	}
 
-	if matcher.measurementPos == -1 {
-		return nil, fmt.Errorf("no measurement specified for template. %q", template)
+	if template.measurementPos == -1 {
+		return nil, fmt.Errorf("no measurement specified for template. %q", pattern)
 	}
 
-	return matcher, nil
+	return template, nil
 }
 
-func (m *matcher) Match(line string) (string, map[string]string) {
+func (t *template) Match(line string) (string, map[string]string) {
 	fields := strings.Split(line, ".")
 	var (
 		measurement string
 		tags        = make(map[string]string)
 	)
 
-	for i, tag := range m.tags {
+	for i, tag := range t.tags {
 		if i >= len(fields) {
 			continue
 		}
 
-		if i == m.measurementPos {
+		if i == t.measurementPos {
 			measurement = fields[i]
-			if m.greedyMeasurement {
+			if t.greedyMeasurement {
 				measurement = strings.Join(fields[i:len(fields)], ".")
 			}
 		}
