@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb/services/graphite"
+	"github.com/influxdb/influxdb/tsdb"
 )
 
 func TestTemplateApply(t *testing.T) {
@@ -183,5 +184,143 @@ func TestParse(t *testing.T) {
 		if point.Time().UnixNano()/1000000 != test.time.UnixNano()/1000000 {
 			t.Fatalf("time value mismatch.  expected %v, got %v", test.time.UnixNano(), point.Time().UnixNano())
 		}
+	}
+}
+
+func TestFilterMatchDefault(t *testing.T) {
+	p, err := graphite.NewParser([]string{"servers.localhost .host.measurement*"})
+	if err != nil {
+		t.Fatalf("unexpected error creating parser, got %v", err)
+	}
+
+	exp := tsdb.NewPoint("miss.servers.localhost.cpu_load",
+		tsdb.Tags{},
+		tsdb.Fields{"value": float64(11)},
+		time.Unix(1435077219, 0))
+
+	pt, err := p.Parse("miss.servers.localhost.cpu_load 11 1435077219")
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+
+	if exp.String() != pt.String() {
+		t.Errorf("parse mismatch: got %v, exp %v", pt.String(), exp.String())
+	}
+}
+
+func TestFilterMatch(t *testing.T) {
+	p, err := graphite.NewParser([]string{"servers.localhost .host.measurement*"})
+	if err != nil {
+		t.Fatalf("unexpected error creating parser, got %v", err)
+	}
+
+	exp := tsdb.NewPoint("cpu_load",
+		tsdb.Tags{"host": "localhost"},
+		tsdb.Fields{"value": float64(11)},
+		time.Unix(1435077219, 0))
+
+	pt, err := p.Parse("servers.localhost.cpu_load 11 1435077219")
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+
+	if exp.String() != pt.String() {
+		t.Errorf("parse mismatch: got %v, exp %v", pt.String(), exp.String())
+	}
+}
+
+func TestFilterMatchWildcard(t *testing.T) {
+	p, err := graphite.NewParser([]string{"servers.* .host.measurement*"})
+	if err != nil {
+		t.Fatalf("unexpected error creating parser, got %v", err)
+	}
+
+	exp := tsdb.NewPoint("cpu_load",
+		tsdb.Tags{"host": "localhost"},
+		tsdb.Fields{"value": float64(11)},
+		time.Unix(1435077219, 0))
+
+	pt, err := p.Parse("servers.localhost.cpu_load 11 1435077219")
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+
+	if exp.String() != pt.String() {
+		t.Errorf("parse mismatch: got %v, exp %v", pt.String(), exp.String())
+	}
+}
+
+func TestFilterMatchExactBeforeWildcard(t *testing.T) {
+	p, err := graphite.NewParser([]string{"servers.* .hostname.measurement*", "servers.localhost .host.measurement*"})
+	if err != nil {
+		t.Fatalf("unexpected error creating parser, got %v", err)
+	}
+
+	exp := tsdb.NewPoint("cpu_load",
+		tsdb.Tags{"host": "localhost"},
+		tsdb.Fields{"value": float64(11)},
+		time.Unix(1435077219, 0))
+
+	pt, err := p.Parse("servers.localhost.cpu_load 11 1435077219")
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+
+	if exp.String() != pt.String() {
+		t.Errorf("parse mismatch: got %v, exp %v", pt.String(), exp.String())
+	}
+}
+
+func TestFilterMatchMostLongestFilter(t *testing.T) {
+	p, err := graphite.NewParser([]string{
+		"*.* .wrong.measurement*",
+		"servers.* .wrong.measurement*",
+		"servers.localhost .host.measurement*", // should match this
+		"*.localhost .wrong.measurement*",
+	})
+
+	if err != nil {
+		t.Fatalf("unexpected error creating parser, got %v", err)
+	}
+
+	exp := tsdb.NewPoint("cpu_load",
+		tsdb.Tags{"host": "localhost"},
+		tsdb.Fields{"value": float64(11)},
+		time.Unix(1435077219, 0))
+
+	pt, err := p.Parse("servers.localhost.cpu_load 11 1435077219")
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+
+	if exp.String() != pt.String() {
+		t.Errorf("parse mismatch: got %v, exp %v", pt.String(), exp.String())
+	}
+}
+
+func TestFilterMatchMultipleWildcards(t *testing.T) {
+	p, err := graphite.NewParser([]string{
+		"*.* .wrong.measurement*",
+		"servers.* .host.measurement*", // should match this
+		"servers.localhost .wrong.measurement*",
+		"*.localhost .wrong.measurement*",
+	})
+
+	if err != nil {
+		t.Fatalf("unexpected error creating parser, got %v", err)
+	}
+
+	exp := tsdb.NewPoint("cpu_load",
+		tsdb.Tags{"host": "server01"},
+		tsdb.Fields{"value": float64(11)},
+		time.Unix(1435077219, 0))
+
+	pt, err := p.Parse("servers.server01.cpu_load 11 1435077219")
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+
+	if exp.String() != pt.String() {
+		t.Errorf("parse mismatch: got %v, exp %v", pt.String(), exp.String())
 	}
 }
