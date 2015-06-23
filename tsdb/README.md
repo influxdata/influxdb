@@ -7,13 +7,13 @@ Multiple lines must be separated by the newline character `\n`. The format of th
 [key] [fields] [timestamp]
 ```
 
-Each section is separated by spaces.  The minimum required point consists of a measurement name and at least one field. Points without a specified timestamp will be written using the server's local timestamp.
+Each section is separated by spaces.  The minimum required point consists of a measurement name and at least one field. Points without a specified timestamp will be written using the server's local timestamp. Timestamps are assumed to be in nanoseconds unless a `time_parameter` is passed in the query string.
 
 ## Key
 
 The key is the measurement name and any optional tags separated by commas.  Measurement names, tag keys, and tag values must escape any spaces or commas using a backslash (`\`). For example: `\ ` and `\,`.  All tag values are stored as strings and should not be surrounded in quotes. 
 
-Tags should be alphabetically sorted by key before being sent for best performance.
+Tags should be sorted by key before being sent for best performance. The sort should match that from the Go `bytes.Compare` function (http://golang.org/pkg/bytes/#Compare).
 
 ### Examples
 
@@ -75,3 +75,8 @@ cpu,host=server01,region=uswest value=1.0 1434055562000000000
 cpu,host=server02,region=uswest value=3.0 1434055562000010000
 ```
 In this example the first line shows a `measurement` of "cpu", there are two tags "host" and "region, the `value` is 1.0, and the `timestamp` is 1434055562000000000. Following this is a second line, also a point in the `measurement` "cpu" but belonging to a different "host".
+```
+cpu,host=server\ 01,region=uswest value=1.0,msg="all systems nominal"
+cpu,host=server\ 01,region=us\,west value_int=1
+```
+In these examples, the "host" is set to `server 01`. The field value associated with field key `msg` is double-quoted, as it is a string. The second example shows a region of `us,west` with the comma properly escaped. In the first example `value` is written as a floating point number. In the second, `value_int` is an integer. 
