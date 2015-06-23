@@ -64,7 +64,7 @@ func TestDecodeNameAndTags(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		p, err := graphite.NewParser(test.template)
+		p, err := graphite.NewParser([]string{test.template})
 		if errstr(err) != test.err {
 			t.Fatalf("err does not match.  expected %v, got %v", test.err, err)
 		}
@@ -89,7 +89,7 @@ func TestDecodeNameAndTags(t *testing.T) {
 }
 
 func TestParseMissingMeasurement(t *testing.T) {
-	_, err := graphite.NewParser("a.b.c")
+	_, err := graphite.NewParser([]string{"a.b.c"})
 	if err == nil {
 		t.Fatalf("expected error creating parser, got nil")
 	}
@@ -157,7 +157,7 @@ func TestParse(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		p, err := graphite.NewParser(test.template)
+		p, err := graphite.NewParser([]string{test.template})
 		if err != nil {
 			t.Fatalf("unexpected error creating graphite parser: %v", err)
 		}

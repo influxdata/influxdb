@@ -10,20 +10,34 @@ import (
 	"github.com/influxdb/influxdb/tsdb"
 )
 
+var defaultTemplate *template
+
+func init() {
+	var err error
+	defaultTemplate, err = newTemplate("measurement*")
+	if err != nil {
+		panic(err)
+	}
+}
+
 // Parser encapulates a Graphite Parser.
 type Parser struct {
-	templates []*template
+	matcher *matcher
 }
 
 // NewParser returns a GraphiteParser instance.
-func NewParser(pattern string) (*Parser, error) {
-	p := &Parser{}
-
-	template, err := newTemplate(pattern)
-	if err != nil {
-		return nil, err
+func NewParser(templates []string) (*Parser, error) {
+	p := &Parser{
+		matcher: &matcher{},
 	}
-	p.templates = append(p.templates, template)
+
+	for _, pattern := range templates {
+		template, err := newTemplate(pattern)
+		if err != nil {
+			return nil, err
+		}
+		p.matcher.templates = append(p.matcher.templates, template)
+	}
 	return p, nil
 }
 
@@ -66,7 +80,7 @@ func (p *Parser) Parse(line string) (tsdb.Point, error) {
 
 // DecodeNameAndTags parses the name and tags of a single field of a Graphite datum.
 func (p *Parser) DecodeNameAndTags(nameField string) (string, map[string]string) {
-	return p.templates[0].Match(nameField)
+	return p.matcher.Match(nameField).Apply(nameField)
 }
 
 type template struct {
@@ -95,7 +109,7 @@ func newTemplate(pattern string) (*template, error) {
 	return template, nil
 }
 
-func (t *template) Match(line string) (string, map[string]string) {
+func (t *template) Apply(line string) (string, map[string]string) {
 	fields := strings.Split(line, ".")
 	var (
 		measurement string
@@ -125,4 +139,15 @@ func (t *template) Match(line string) (string, map[string]string) {
 	}
 
 	return measurement, tags
+}
+
+type matcher struct {
+	templates []*template
+}
+
+func (m *matcher) Match(line string) *template {
+	if len(m.templates) == 0 {
+		return defaultTemplate
+	}
+	return m.templates[0]
 }

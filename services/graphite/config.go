@@ -40,6 +40,7 @@ type Config struct {
 	BatchSize        int           `toml:"batch-size"`
 	BatchTimeout     toml.Duration `toml:"batch-timeout"`
 	ConsistencyLevel string        `toml:"consistency-level"`
+	Templates        []string      `toml:"templates"`
 }
 
 // NewConfig returns a new Config with defaults.
