@@ -398,5 +398,28 @@ func TestParseDefaultTemplateTagsOverridGlobal(t *testing.T) {
 	if exp.String() != pt.String() {
 		t.Errorf("parse mismatch: got %v, exp %v", pt.String(), exp.String())
 	}
+}
 
+func TestParseTemplateWhitespace(t *testing.T) {
+	p, err := graphite.NewParser([]string{"servers.localhost        .host.measurement*           zone=1c"}, tsdb.Tags{
+		"region": "us-east",
+		"host":   "should not set",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error creating parser, got %v", err)
+	}
+
+	exp := tsdb.NewPoint("cpu_load",
+		tsdb.Tags{"host": "localhost", "region": "us-east", "zone": "1c"},
+		tsdb.Fields{"value": float64(11)},
+		time.Unix(1435077219, 0))
+
+	pt, err := p.Parse("servers.localhost.cpu_load 11 1435077219")
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+
+	if exp.String() != pt.String() {
+		t.Errorf("parse mismatch: got %v, exp %v", pt.String(), exp.String())
+	}
 }

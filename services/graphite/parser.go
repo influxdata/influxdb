@@ -38,7 +38,7 @@ func NewParser(templates []string, defaultTags tsdb.Tags) (*Parser, error) {
 		template := pattern
 		filter := ""
 		// Format is [filter] <template> [tags]
-		parts := strings.Split(pattern, " ")
+		parts := strings.Fields(pattern)
 		if len(parts) >= 2 {
 			filter = parts[0]
 			template = parts[1]
