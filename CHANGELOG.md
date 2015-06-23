@@ -27,6 +27,7 @@
 - [#3090](https://github.com/influxdb/influxdb/pull/3090): Remove database from TSDB index on DROP DATABASE.
 - [#2944](https://github.com/influxdb/influxdb/issues/2944): Don't require "WHERE time" when creating continuous queries.
 - [#3075](https://github.com/influxdb/influxdb/pull/3075): GROUP BY correctly when different tags have same value.
+- [#3078](https://github.com/influxdb/influxdb/pull/3078): Fix CLI panic on malformed INSERT.
 
 ## v0.9.0 [2015-06-11]
 
