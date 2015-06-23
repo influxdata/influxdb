@@ -40,13 +40,14 @@ curl -G 'http://localhost:8086/query' --data-urlencode "q=CREATE DATABASE mydb"
 
 ### Insert some data
 ```
-curl -XPOST 'http://localhost:8086/write?db=mydb' -d 'cpu,host=server01,region=uswest value=1.0 1434055562000000000'
+curl -XPOST 'http://localhost:8086/write?db=mydb' \
+-d 'cpu,host=server01,region=uswest value=1.0 1434055562000000000'
 ```
 
 ### Query for the data
 ```JSON
-curl -G http://localhost:8086/query?pretty=true \
---data-urlencode "db=mydb" --data-urlencode "q=SELECT * FROM cpu"
+curl -G http://localhost:8086/query?pretty=true --data-urlencode "db=mydb" \
+--data-urlencode "q=SELECT * FROM cpu WHERE host='server01'"
 ```
 ## Helpful Links
 
