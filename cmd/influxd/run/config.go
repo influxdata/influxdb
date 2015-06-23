@@ -97,5 +97,11 @@ func (c *Config) Validate() error {
 	} else if c.HintedHandoff.Dir == "" {
 		return errors.New("HintedHandoff.Dir must be specified")
 	}
+
+	for _, g := range c.Graphites {
+		if err := g.Validate(); err != nil {
+			return fmt.Errorf("invalid graphite config: %v", err)
+		}
+	}
 	return nil
 }
