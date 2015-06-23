@@ -881,16 +881,13 @@ func (p *Planner) Plan(stmt *SelectStatement, chunkSize int) (*Executor, error) 
 		j.chunkSize = chunkSize
 	}
 
-	return &Executor{tx: tx, stmt: stmt, jobs: jobs, interval: interval.Nanoseconds()}, nil
+	return &Executor{jobs: jobs}, nil
 }
 
 // Executor represents the implementation of Executor.
 // It executes all reducers and combines their result into a row.
 type Executor struct {
-	tx       Tx               // transaction
-	stmt     *SelectStatement // original statement
-	jobs     []*MapReduceJob  // one job per unique tag set that will return in the query
-	interval int64            // the group by interval of the query in nanoseconds
+	jobs []*MapReduceJob // one job per unique tag set that will return in the query
 }
 
 // Execute begins execution of the query and returns a channel to receive rows.
