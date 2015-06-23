@@ -68,7 +68,7 @@ func NewService(c Config) (*Service, error) {
 	}
 	s.consistencyLevel = consistencyLevel
 
-	parser, err := NewParser(d.Templates)
+	parser, err := NewParser(d.Templates, d.DefaultTags())
 	if err != nil {
 		return nil, err
 	}

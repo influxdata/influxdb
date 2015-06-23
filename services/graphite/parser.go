@@ -24,10 +24,11 @@ func init() {
 // Parser encapulates a Graphite Parser.
 type Parser struct {
 	matcher *matcher
+	tags    tsdb.Tags
 }
 
 // NewParser returns a GraphiteParser instance.
-func NewParser(templates []string) (*Parser, error) {
+func NewParser(templates []string, defaultTags tsdb.Tags) (*Parser, error) {
 
 	matcher := &matcher{}
 	matcher.AddDefaultTemplate(defaultTemplate)
@@ -49,7 +50,7 @@ func NewParser(templates []string) (*Parser, error) {
 		}
 		matcher.Add(filter, tmpl)
 	}
-	return &Parser{matcher: matcher}, nil
+	return &Parser{matcher: matcher, tags: defaultTags}, nil
 }
 
 // Parse performs Graphite parsing of a single line.
@@ -85,6 +86,11 @@ func (p *Parser) Parse(line string) (tsdb.Point, error) {
 	// Check if we have fractional seconds
 	timestamp := time.Unix(int64(unixTime), int64((unixTime-math.Floor(unixTime))*float64(time.Second)))
 
+	for k, v := range p.tags {
+		if _, ok := tags[k]; !ok {
+			tags[k] = v
+		}
+	}
 	point := tsdb.NewPoint(name, tags, fieldValues, timestamp)
 
 	return point, nil

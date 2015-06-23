@@ -90,7 +90,7 @@ func TestTemplateApply(t *testing.T) {
 }
 
 func TestParseMissingMeasurement(t *testing.T) {
-	_, err := graphite.NewParser([]string{"a.b.c"})
+	_, err := graphite.NewParser([]string{"a.b.c"}, nil)
 	if err == nil {
 		t.Fatalf("expected error creating parser, got nil")
 	}
@@ -158,7 +158,7 @@ func TestParse(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		p, err := graphite.NewParser([]string{test.template})
+		p, err := graphite.NewParser([]string{test.template}, nil)
 		if err != nil {
 			t.Fatalf("unexpected error creating graphite parser: %v", err)
 		}
@@ -188,7 +188,7 @@ func TestParse(t *testing.T) {
 }
 
 func TestFilterMatchDefault(t *testing.T) {
-	p, err := graphite.NewParser([]string{"servers.localhost .host.measurement*"})
+	p, err := graphite.NewParser([]string{"servers.localhost .host.measurement*"}, nil)
 	if err != nil {
 		t.Fatalf("unexpected error creating parser, got %v", err)
 	}
@@ -209,7 +209,7 @@ func TestFilterMatchDefault(t *testing.T) {
 }
 
 func TestFilterMatch(t *testing.T) {
-	p, err := graphite.NewParser([]string{"servers.localhost .host.measurement*"})
+	p, err := graphite.NewParser([]string{"servers.localhost .host.measurement*"}, nil)
 	if err != nil {
 		t.Fatalf("unexpected error creating parser, got %v", err)
 	}
@@ -230,7 +230,7 @@ func TestFilterMatch(t *testing.T) {
 }
 
 func TestFilterMatchWildcard(t *testing.T) {
-	p, err := graphite.NewParser([]string{"servers.* .host.measurement*"})
+	p, err := graphite.NewParser([]string{"servers.* .host.measurement*"}, nil)
 	if err != nil {
 		t.Fatalf("unexpected error creating parser, got %v", err)
 	}
@@ -251,7 +251,9 @@ func TestFilterMatchWildcard(t *testing.T) {
 }
 
 func TestFilterMatchExactBeforeWildcard(t *testing.T) {
-	p, err := graphite.NewParser([]string{"servers.* .hostname.measurement*", "servers.localhost .host.measurement*"})
+	p, err := graphite.NewParser([]string{
+		"servers.* .hostname.measurement*",
+		"servers.localhost .host.measurement*"}, nil)
 	if err != nil {
 		t.Fatalf("unexpected error creating parser, got %v", err)
 	}
@@ -277,7 +279,7 @@ func TestFilterMatchMostLongestFilter(t *testing.T) {
 		"servers.* .wrong.measurement*",
 		"servers.localhost .host.measurement*", // should match this
 		"*.localhost .wrong.measurement*",
-	})
+	}, nil)
 
 	if err != nil {
 		t.Fatalf("unexpected error creating parser, got %v", err)
@@ -304,7 +306,7 @@ func TestFilterMatchMultipleWildcards(t *testing.T) {
 		"servers.* .host.measurement*", // should match this
 		"servers.localhost .wrong.measurement*",
 		"*.localhost .wrong.measurement*",
-	})
+	}, nil)
 
 	if err != nil {
 		t.Fatalf("unexpected error creating parser, got %v", err)
@@ -323,4 +325,30 @@ func TestFilterMatchMultipleWildcards(t *testing.T) {
 	if exp.String() != pt.String() {
 		t.Errorf("parse mismatch: got %v, exp %v", pt.String(), exp.String())
 	}
+}
+
+func TestParseDefaultTags(t *testing.T) {
+	p, err := graphite.NewParser([]string{"servers.localhost .host.measurement*"}, tsdb.Tags{
+		"region": "us-east",
+		"zone":   "1c",
+		"host":   "should not set",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error creating parser, got %v", err)
+	}
+
+	exp := tsdb.NewPoint("cpu_load",
+		tsdb.Tags{"host": "localhost", "region": "us-east", "zone": "1c"},
+		tsdb.Fields{"value": float64(11)},
+		time.Unix(1435077219, 0))
+
+	pt, err := p.Parse("servers.localhost.cpu_load 11 1435077219")
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+
+	if exp.String() != pt.String() {
+		t.Errorf("parse mismatch: got %v, exp %v", pt.String(), exp.String())
+	}
+
 }

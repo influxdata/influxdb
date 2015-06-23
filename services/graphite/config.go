@@ -1,7 +1,10 @@
 package graphite
 
 import (
+	"strings"
+
 	"github.com/influxdb/influxdb/toml"
+	"github.com/influxdb/influxdb/tsdb"
 )
 
 const (
@@ -41,6 +44,7 @@ type Config struct {
 	BatchTimeout     toml.Duration `toml:"batch-timeout"`
 	ConsistencyLevel string        `toml:"consistency-level"`
 	Templates        []string      `toml:"templates"`
+	Tags             []string      `toml:"tags"`
 }
 
 // NewConfig returns a new Config with defaults.
@@ -79,4 +83,13 @@ func (c *Config) WithDefaults() *Config {
 		d.ConsistencyLevel = DefaultConsistencyLevel
 	}
 	return &d
+}
+
+func (c *Config) DefaultTags() tsdb.Tags {
+	tags := tsdb.Tags{}
+	for _, t := range c.Tags {
+		parts := strings.Split(t, "=")
+		tags[parts[0]] = parts[1]
+	}
+	return tags
 }

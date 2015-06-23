@@ -22,6 +22,8 @@ name-separator = "."
 batch-size=100
 batch-timeout="1s"
 consistency-level="one"
+templates=["servers.* .host.measurement*"]
+tags=["region=us-east"]
 `, &c); err != nil {
 		t.Fatal(err)
 	}
@@ -47,5 +49,12 @@ consistency-level="one"
 		t.Fatalf("unexpected graphite batch timeout: %v", c.BatchTimeout)
 	} else if c.ConsistencyLevel != "one" {
 		t.Fatalf("unexpected graphite consistency setting: %s", c.ConsistencyLevel)
+	}
+
+	if len(c.Templates) != 1 && c.Templates[0] != "servers.* .host.measurement*" {
+		t.Fatalf("unexpected graphite templates setting: %s", c.ConsistencyLevel)
+	}
+	if len(c.Tags) != 1 && c.Tags[0] != "regsion=us-east" {
+		t.Fatalf("unexpected graphite templates setting: %s", c.ConsistencyLevel)
 	}
 }
