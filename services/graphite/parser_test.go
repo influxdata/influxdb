@@ -322,7 +322,8 @@ func TestFilterMatchMostLongestFilter(t *testing.T) {
 	p, err := graphite.NewParser([]string{
 		"*.* .wrong.measurement*",
 		"servers.* .wrong.measurement*",
-		"servers.localhost .host.measurement*", // should match this
+		"servers.localhost .wrong.measurement*",
+		"servers.localhost.cpu .host.resource.measurement*", // should match this
 		"*.localhost .wrong.measurement*",
 	}, nil)
 
@@ -331,11 +332,11 @@ func TestFilterMatchMostLongestFilter(t *testing.T) {
 	}
 
 	exp := tsdb.NewPoint("cpu_load",
-		tsdb.Tags{"host": "localhost"},
+		tsdb.Tags{"host": "localhost", "resource": "cpu"},
 		tsdb.Fields{"value": float64(11)},
 		time.Unix(1435077219, 0))
 
-	pt, err := p.Parse("servers.localhost.cpu_load 11 1435077219")
+	pt, err := p.Parse("servers.localhost.cpu.cpu_load 11 1435077219")
 	if err != nil {
 		t.Fatalf("parse error: %v", err)
 	}
