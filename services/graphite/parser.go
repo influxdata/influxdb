@@ -27,12 +27,14 @@ type Parser struct {
 	tags    tsdb.Tags
 }
 
+// Options are configurable values that can be provided to a Parser
 type Options struct {
 	Separator   string
 	Templates   []string
 	DefaultTags tsdb.Tags
 }
 
+// NewParserWithOptions returns a graphite parser using the given options
 func NewParserWithOptions(options Options) (*Parser, error) {
 
 	matcher := newMatcher()
@@ -49,6 +51,7 @@ func NewParserWithOptions(options Options) (*Parser, error) {
 			template = parts[1]
 		}
 
+		// Parse out the default tags specific to this template
 		tags := tsdb.Tags{}
 		if strings.Contains(parts[len(parts)-1], "=") {
 			tagStrs := strings.Split(parts[len(parts)-1], ",")
@@ -99,8 +102,7 @@ func (p *Parser) Parse(line string) (tsdb.Point, error) {
 		return nil, fmt.Errorf("field \"%s\" value: %s", fields[0], err)
 	}
 
-	fieldValues := make(map[string]interface{})
-	fieldValues["value"] = v
+	fieldValues := map[string]interface{}{"value": v}
 
 	// Parse timestamp.
 	unixTime, err := strconv.ParseFloat(fields[2], 64)
@@ -111,6 +113,7 @@ func (p *Parser) Parse(line string) (tsdb.Point, error) {
 	// Check if we have fractional seconds
 	timestamp := time.Unix(int64(unixTime), int64((unixTime-math.Floor(unixTime))*float64(time.Second)))
 
+	// Set the default tags on the point if they are not already set
 	for k, v := range p.tags {
 		if _, ok := tags[k]; !ok {
 			tags[k] = v
@@ -121,6 +124,7 @@ func (p *Parser) Parse(line string) (tsdb.Point, error) {
 	return point, nil
 }
 
+// template represent a pattern and tags to map a graphite metric string to a influxdb Point
 type template struct {
 	tags              []string
 	defaultTags       tsdb.Tags
@@ -149,6 +153,8 @@ func NewTemplate(pattern string, defaultTags tsdb.Tags, separtor string) (*templ
 	return template, nil
 }
 
+// Apply extracts the template fields form the given line and returns the measurement
+// name and tags
 func (t *template) Apply(line string) (string, map[string]string) {
 	fields := strings.Split(line, ".")
 	var (
@@ -179,7 +185,8 @@ func (t *template) Apply(line string) (string, map[string]string) {
 	return strings.Join(measurement, t.separtor), tags
 }
 
-// matcher
+// matcher determines which template should be applied to a given metric
+// based on a filter tree.
 type matcher struct {
 	root            *node
 	defaultTemplate *template
@@ -190,18 +197,21 @@ func newMatcher() *matcher {
 		root: &node{},
 	}
 }
-func (m *matcher) Add(match string, template *template) {
-	if match == "" {
+
+// Add inserts the template in the filter tree based the given filter
+func (m *matcher) Add(filter string, template *template) {
+	if filter == "" {
 		m.AddDefaultTemplate(template)
 		return
 	}
-	m.root.Insert(match, template)
+	m.root.Insert(filter, template)
 }
 
 func (m *matcher) AddDefaultTemplate(template *template) {
 	m.defaultTemplate = template
 }
 
+// Match returns the template that matches the given graphite line
 func (m *matcher) Match(line string) *template {
 	tmpl := m.root.Search(line)
 	if tmpl != nil {
@@ -211,6 +221,9 @@ func (m *matcher) Match(line string) *template {
 	return m.defaultTemplate
 }
 
+// node is an item in a sorted k-ary tree.  Each child is sorted by it's value.
+// The special value of "*", is always last.  Children with idential ancestor paths
+// will fall under the same sub-tree.
 type node struct {
 	value    string
 	children nodes
@@ -218,27 +231,37 @@ type node struct {
 }
 
 func (n *node) insert(values []string, template *template) {
+	// Nothing to insert
 	if len(values) == 0 {
 		return
 	}
 
+	// See if the the current element already exists in the tree. If so, insert the
+	// into that sub-tree
 	for _, v := range n.children {
 		if v.value == values[0] {
 			v.insert(values[1:], template)
 			return
 		}
 	}
+
+	// New element, add it to the tree and sort the children
 	newNode := &node{value: values[0], template: template}
 	n.children = append(n.children, newNode)
 	sort.Sort(&n.children)
+
+	// Now insert the rest of the tree into the new element
 	newNode.insert(values[1:], template)
 }
 
+// Insert inserts the given string template into the tree.  The match sting is separated
+// on "." and each part is used as the path in the tree.
 func (n *node) Insert(match string, template *template) {
 	n.insert(strings.Split(match, "."), template)
 }
 
 func (n *node) search(lineParts []string) *template {
+	// Nothing to search
 	if len(lineParts) == 0 || len(n.children) == 0 {
 		return n.template
 	}
@@ -251,13 +274,16 @@ func (n *node) search(lineParts []string) *template {
 		length -= 1
 	}
 
+	// Find the index of child with an exact match
 	i := sort.Search(length, func(i int) bool {
 		return n.children[i].value == lineParts[0]
 	})
 
+	// Found an exact match, so search that child sub-tree
 	if i < len(n.children) && n.children[i].value == lineParts[0] {
 		return n.children[i].search(lineParts[1:])
 	} else {
+		// Not an exact match, see if we have a wildcard child to search
 		if n.children[len(n.children)-1].value == "*" {
 			return n.children[len(n.children)-1].search(lineParts[1:])
 		}
