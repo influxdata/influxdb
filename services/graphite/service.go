@@ -70,9 +70,7 @@ func NewService(c Config) (*Service, error) {
 	}
 	s.consistencyLevel = consistencyLevel
 
-	parser := NewParser()
-	parser.Separator = d.NameSeparator
-	parser.LastEnabled = d.LastEnabled()
+	parser := NewParser(d.NameSchema, d.NameSeparator, d.IgnoreUnnamed)
 	s.parser = parser
 
 	return &s, nil
@@ -254,13 +252,18 @@ func (s *Service) processBatches(batcher *tsdb.PointBatcher) {
 
 // Parser encapulates a Graphite Parser.
 type Parser struct {
-	Separator   string
-	LastEnabled bool
+	Separator      string
+	FieldNames     []string
+	IgnoreUnnamed  bool
 }
 
 // NewParser returns a GraphiteParser instance.
-func NewParser() *Parser {
-	return &Parser{Separator: DefaultNameSeparator}
+func NewParser(schema string, separator string, ignore bool) *Parser {
+	return &Parser{
+		Separator: separator,
+		FieldNames: strings.Split(schema, separator),
+		IgnoreUnnamed: ignore,
+	}
 }
 
 // Parse performs Graphite parsing of a single line.
@@ -301,38 +304,35 @@ func (p *Parser) Parse(line string) (tsdb.Point, error) {
 }
 
 // DecodeNameAndTags parses the name and tags of a single field of a Graphite datum.
-func (p *Parser) DecodeNameAndTags(field string) (string, map[string]string, error) {
+func (p *Parser) DecodeNameAndTags(nameField string) (string, map[string]string, error) {
 	var (
-		name string
+		measurement string
 		tags = make(map[string]string)
+		minLen int
 	)
 
-	// decode the name and tags
-	values := strings.Split(field, p.Separator)
-	if len(values)%2 != 1 {
-		// There should always be an odd number of fields to map a point name and tags
-		// ex: region.us-west.hostname.server01.cpu -> tags -> region: us-west, hostname: server01, point name -> cpu
-		return name, tags, fmt.Errorf("received %q which doesn't conform to format of key.value.key.value.name or name", field)
-	}
-
-	if p.LastEnabled {
-		name = values[len(values)-1]
-		values = values[0 : len(values)-1]
+	fields := strings.Split(nameField, p.Separator)
+	if len(fields) > len(p.FieldNames) {
+		if !p.IgnoreUnnamed {
+			return measurement, tags, fmt.Errorf("received %q which contains unnamed field", nameField)
+		}
+		minLen = len(p.FieldNames)
 	} else {
-		name = values[0]
-		values = values[1:]
+		minLen = len(fields)
 	}
 
-	if name == "" {
-		return name, tags, fmt.Errorf("no name specified for metric. %q", field)
+	// decode the name and tags
+	for i := 0; i < minLen; i++ {
+		if p.FieldNames[i] == "measurement" {
+			measurement = fields[i]
+		} else {
+			tags[p.FieldNames[i]] = fields[i]
+		}
 	}
 
-	// Grab the pairs and throw them in the map
-	for i := 0; i < len(values); i += 2 {
-		k := values[i]
-		v := values[i+1]
-		tags[k] = v
+	if measurement == "" {
+		return measurement, tags, fmt.Errorf("no measurement specified for metric. %q", nameField)
 	}
 
-	return name, tags, nil
+	return measurement, tags, nil
 }

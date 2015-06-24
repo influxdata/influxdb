@@ -91,7 +91,26 @@ reporting-disabled = false
   # protocol = "tcp"
   # consistency-level = "one"
   # name-separator = "."
-  # name-position = "last"
+
+  ## "name-schema" configures tag names for parsing the metric name from graphite protocol;
+  ## separated by `name-separator`.
+  ## The "measurement" tag is special and the corresponding field will become
+  ## the name of the metric.
+  ## e.g. "type.host.measurement.device" will parse "server.localhost.cpu.cpu0" as
+  ## {
+  ##     measurement: "cpu",
+  ##     tags: {
+  ##         "type": "server",
+  ##         "host": "localhost,
+  ##         "device": "cpu0"
+  ##     }
+  ## }
+  # name-schema = "type.host.measurement.device"
+
+  ## If set to true, when the input metric name has more fields than `name-schema` specified,
+  ## the extra fields will be ignored.
+  ## Otherwise an error will be logged and the metric rejected.
+  # ignore-unnamed = true
 
 ###
 ### [collectd]
