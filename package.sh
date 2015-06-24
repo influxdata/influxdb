@@ -102,7 +102,7 @@ check_gvm() {
 
     # Keep any existing GOPATH set.
     if [ -n "$existing_gopath" ]; then
-        $GOPATH=$existing_gopath
+        GOPATH=$existing_gopath
     fi
 }
 
