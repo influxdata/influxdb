@@ -84,6 +84,10 @@ check_gopath() {
 }
 
 check_gvm() {
+    if [ -n "$GOPATH" ]; then
+        existing_gopath=$GOPATH
+    fi
+
     source $HOME/.gvm/scripts/gvm
     which gvm
     if [ $? -ne 0 ]; then
@@ -94,6 +98,11 @@ check_gvm() {
     if [ $? -ne 0 ]; then
         echo "gvm cannot find Go version $GO_VERSION -- aborting."
         cleanup_exit $1
+    fi
+
+    # Keep any existing GOPATH set.
+    if [ -n "$existing_gopath" ]; then
+        $GOPATH=$existing_gopath
     fi
 }
 
