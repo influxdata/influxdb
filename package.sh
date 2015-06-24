@@ -342,7 +342,7 @@ if [ -z "$NIGHTLY_BUILD" ]; then
     response=`echo $response | tr 'A-Z' 'a-z'`
 fi
 
-if [ "x$response" == "xy" || -n "$NIGHTLY_BUILD" ]; then
+if [ "x$response" == "xy" -o -n "$NIGHTLY_BUILD" ]; then
     echo "Publishing packages to S3."
     if [ ! -e "$AWS_FILE" ]; then
         echo "$AWS_FILE does not exist -- aborting."
