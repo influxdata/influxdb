@@ -231,8 +231,9 @@ type node struct {
 }
 
 func (n *node) insert(values []string, template *template) {
-	// Nothing to insert
+	// Add the end, set the template
 	if len(values) == 0 {
+		n.template = template
 		return
 	}
 
@@ -246,7 +247,7 @@ func (n *node) insert(values []string, template *template) {
 	}
 
 	// New element, add it to the tree and sort the children
-	newNode := &node{value: values[0], template: template}
+	newNode := &node{value: values[0]}
 	n.children = append(n.children, newNode)
 	sort.Sort(&n.children)
 

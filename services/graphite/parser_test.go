@@ -295,6 +295,27 @@ func TestFilterMatchSingle(t *testing.T) {
 	}
 }
 
+func TestParseNoMatch(t *testing.T) {
+	p, err := graphite.NewParser([]string{"servers.*.cpu .host.measurement.cpu.measurement"}, nil)
+	if err != nil {
+		t.Fatalf("unexpected error creating parser, got %v", err)
+	}
+
+	exp := tsdb.NewPoint("servers.localhost.memory.VmallocChunk",
+		tsdb.Tags{},
+		tsdb.Fields{"value": float64(11)},
+		time.Unix(1435077219, 0))
+
+	pt, err := p.Parse("servers.localhost.memory.VmallocChunk 11 1435077219")
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+
+	if exp.String() != pt.String() {
+		t.Errorf("parse mismatch: got %v, exp %v", pt.String(), exp.String())
+	}
+}
+
 func TestFilterMatchWildcard(t *testing.T) {
 	p, err := graphite.NewParser([]string{"servers.* .host.measurement*"}, nil)
 	if err != nil {
