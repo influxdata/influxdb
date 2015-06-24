@@ -147,3 +147,18 @@ func TestConfigValidateDefaultTags(t *testing.T) {
 		t.Errorf("config validate expected error. got nil")
 	}
 }
+
+func TestConfigValidateFilterDuplicates(t *testing.T) {
+	c := graphite.NewConfig()
+	c.Templates = []string{"foo measurement*", "foo .host.measurement"}
+	if err := c.Validate(); err == nil {
+		t.Errorf("config validate expected error. got nil")
+	}
+
+	// duplicate default templates
+	c.Templates = []string{"measurement*", ".host.measurement"}
+	if err := c.Validate(); err == nil {
+		t.Errorf("config validate expected error. got nil")
+	}
+
+}

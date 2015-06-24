@@ -95,6 +95,9 @@ func (c *Config) Validate() error {
 }
 
 func (c *Config) validateTemplates() error {
+	// map to keep track of filters we see
+	filters := map[string]struct{}{}
+
 	for i, t := range c.Templates {
 		parts := strings.Fields(t)
 		// Ensure template string is non-empty
@@ -125,6 +128,12 @@ func (c *Config) validateTemplates() error {
 		if err := c.validateTemplate(template); err != nil {
 			return err
 		}
+
+		// Prevent duplicate filters in the config
+		if _, ok := filters[filter]; ok {
+			return fmt.Errorf("duplicate filter '%s' found at position: %d", filter, i)
+		}
+		filters[filter] = struct{}{}
 
 		if filter != "" {
 			// Validate filter expression is valid
