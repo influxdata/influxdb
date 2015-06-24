@@ -352,14 +352,17 @@ if [ "x$response" == "xy" -o -n "$NIGHTLY_BUILD" ]; then
     for filepath in `ls *.{deb,rpm}`; do
         echo "Uploading $filepath to S3"
         filename=`basename $filepath`
+        if [ -n "$NIGHTLY_BUILD" ]; then
+            filename=`echo $filename | sed s/$VERSION/nightly/`
+        fi
         bucket=influxdb
-        echo "Uploading $filename to s3://influxdb/$filename"
+        echo "Uploading $filepath to s3://influxdb/$filename"
         AWS_CONFIG_FILE=$AWS_FILE aws s3 cp $filepath s3://influxdb/$filename --acl public-read --region us-east-1
         if [ $? -ne 0 ]; then
             echo "Upload failed -- aborting".
             cleanup_exit 1
         fi
-        echo "Uploading $filename to s3://get.influxdb.org/$filename"
+        echo "Uploading $filepath to s3://get.influxdb.org/$filename"
         AWS_CONFIG_FILE=$AWS_FILE aws s3 cp $filepath s3://get.influxdb.org/$filename --acl public-read --region us-east-1
         if [ $? -ne 0 ]; then
             echo "Upload failed -- aborting".
