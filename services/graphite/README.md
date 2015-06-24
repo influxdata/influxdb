@@ -18,6 +18,22 @@ The special value _measurement_ is used to define the measurement name.  It can 
 * Template: `.host.resource.measurement*`
 * Output:  _measurement_ =`loading.10` _tags_ =`host=localhost resource=cpu`
 
+### Multiple Measurement Matching
+
+The _measurement_ can be specified multiple times in a template to provide more control over the measurment name.  Multipel values
+will be join together using the _Separator_ config variable.  By default, this value is is `.`.
+
+`servers.localhost.cpu.cpu0.user`
+* Template: `.host.measurement.cpu.measurement`
+* Output: _measurement_ = `cpu.user` _tags_ = `host=localhost cpu=cpu0`
+
+Since '.' requires queries on measurements to be double-quoted, you may want to set this to `_` to simplify querying parsed metrics.
+
+`servers.localhost.cpu.cpu0.user`
+* Separator: `_`
+* Template: `.host.measurement.cpu.measurement`
+* Output: _measurement_ = `cpu_user` _tags_ = `host=localhost cpu=cpu0`
+
 ### Adding Tags
 
 Additional tags can be added to a metric that don't exist on the received metric.  You can add additional tags by specifying them after the pattern.  Tags have the same format as the line protocol.  Multiple tags are separate by commas.
@@ -72,6 +88,9 @@ If you need to add the same set of tags to all metrics, you can define them glob
   # protocol = "tcp"
   # consistency-level = "one"
 
+  ### If matching multiple measurement files, this string will be used to join the matched values.
+  # separator = "."
+
   ### Default tags that will be added to all metrics.  These can be overriden at the template level
   ### or by tags extracted from metric
   # tags = ["regions=us-east", "zone=1c"]
@@ -90,6 +109,7 @@ If you need to add the same set of tags to all metrics, you can define them glob
 ## Customized Config ```
 [[graphite]]
    enabled = true
+   separator = "_"
    tags = ["region=us-east", "zone=1c"]
    templates = [
       # filter + template

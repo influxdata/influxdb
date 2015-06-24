@@ -73,11 +73,6 @@ func TestConfigValidateTooManyField(t *testing.T) {
 
 func TestConfigValidateTemplatePatterns(t *testing.T) {
 	c := graphite.NewConfig()
-	c.Templates = []string{"measurement.measurement"}
-	if err := c.Validate(); err == nil {
-		t.Errorf("config validate expected error. got nil")
-	}
-
 	c.Templates = []string{"*measurement"}
 	if err := c.Validate(); err == nil {
 		t.Errorf("config validate expected error. got nil")

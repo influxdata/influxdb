@@ -15,7 +15,7 @@ var defaultTemplate *template
 
 func init() {
 	var err error
-	defaultTemplate, err = NewTemplate("measurement*", nil)
+	defaultTemplate, err = NewTemplate("measurement*", nil, DefaultSeparator)
 	if err != nil {
 		panic(err)
 	}
@@ -27,13 +27,18 @@ type Parser struct {
 	tags    tsdb.Tags
 }
 
-// NewParser returns a GraphiteParser instance.
-func NewParser(templates []string, defaultTags tsdb.Tags) (*Parser, error) {
+type Options struct {
+	Separator   string
+	Templates   []string
+	DefaultTags tsdb.Tags
+}
+
+func NewParserWithOptions(options Options) (*Parser, error) {
 
 	matcher := newMatcher()
 	matcher.AddDefaultTemplate(defaultTemplate)
 
-	for _, pattern := range templates {
+	for _, pattern := range options.Templates {
 
 		template := pattern
 		filter := ""
@@ -53,13 +58,24 @@ func NewParser(templates []string, defaultTags tsdb.Tags) (*Parser, error) {
 			}
 		}
 
-		tmpl, err := NewTemplate(template, tags)
+		tmpl, err := NewTemplate(template, tags, options.Separator)
 		if err != nil {
 			return nil, err
 		}
 		matcher.Add(filter, tmpl)
 	}
-	return &Parser{matcher: matcher, tags: defaultTags}, nil
+	return &Parser{matcher: matcher, tags: options.DefaultTags}, nil
+
+}
+
+// NewParser returns a GraphiteParser instance.
+func NewParser(templates []string, defaultTags tsdb.Tags) (*Parser, error) {
+	return NewParserWithOptions(
+		Options{
+			Templates:   templates,
+			DefaultTags: defaultTags,
+			Separator:   DefaultSeparator,
+		})
 }
 
 // Parse performs Graphite parsing of a single line.
@@ -108,24 +124,25 @@ func (p *Parser) Parse(line string) (tsdb.Point, error) {
 type template struct {
 	tags              []string
 	defaultTags       tsdb.Tags
-	measurementPos    int
 	greedyMeasurement bool
+	separtor          string
 }
 
-func NewTemplate(pattern string, defaultTags tsdb.Tags) (*template, error) {
+func NewTemplate(pattern string, defaultTags tsdb.Tags, separtor string) (*template, error) {
 	tags := strings.Split(pattern, ".")
-	template := &template{tags: tags, measurementPos: -1, defaultTags: defaultTags}
+	hasMeasurement := false
+	template := &template{tags: tags, defaultTags: defaultTags, separtor: separtor}
 
-	for i, tag := range tags {
+	for _, tag := range tags {
 		if strings.HasPrefix(tag, "measurement") {
-			template.measurementPos = i
+			hasMeasurement = true
 		}
 		if tag == "measurement*" {
 			template.greedyMeasurement = true
 		}
 	}
 
-	if template.measurementPos == -1 {
+	if !hasMeasurement {
 		return nil, fmt.Errorf("no measurement specified for template. %q", pattern)
 	}
 
@@ -135,7 +152,7 @@ func NewTemplate(pattern string, defaultTags tsdb.Tags) (*template, error) {
 func (t *template) Apply(line string) (string, map[string]string) {
 	fields := strings.Split(line, ".")
 	var (
-		measurement string
+		measurement []string
 		tags        = make(map[string]string)
 	)
 
@@ -149,24 +166,17 @@ func (t *template) Apply(line string) (string, map[string]string) {
 			continue
 		}
 
-		if i == t.measurementPos {
-			measurement = fields[i]
-			if t.greedyMeasurement {
-				measurement = strings.Join(fields[i:len(fields)], ".")
-			}
-		}
-
 		if tag == "measurement" {
-			measurement = fields[i]
+			measurement = append(measurement, fields[i])
 		} else if tag == "measurement*" {
-			measurement = strings.Join(fields[i:len(fields)], ".")
+			measurement = append(measurement, fields[i:]...)
 			break
 		} else if tag != "" {
 			tags[tag] = fields[i]
 		}
 	}
 
-	return measurement, tags
+	return strings.Join(measurement, t.separtor), tags
 }
 
 // matcher

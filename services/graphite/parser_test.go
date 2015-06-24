@@ -65,7 +65,7 @@ func TestTemplateApply(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		tmpl, err := graphite.NewTemplate(test.template, nil)
+		tmpl, err := graphite.NewTemplate(test.template, nil, graphite.DefaultSeparator)
 		if errstr(err) != test.err {
 			t.Fatalf("err does not match.  expected %v, got %v", test.err, err)
 		}
@@ -208,6 +208,51 @@ func TestFilterMatchDefault(t *testing.T) {
 	}
 }
 
+func TestFilterMatchMultipleMeasurement(t *testing.T) {
+	p, err := graphite.NewParser([]string{"servers.localhost .host.measurement.measurement*"}, nil)
+	if err != nil {
+		t.Fatalf("unexpected error creating parser, got %v", err)
+	}
+
+	exp := tsdb.NewPoint("cpu.cpu_load.10",
+		tsdb.Tags{"host": "localhost"},
+		tsdb.Fields{"value": float64(11)},
+		time.Unix(1435077219, 0))
+
+	pt, err := p.Parse("servers.localhost.cpu.cpu_load.10 11 1435077219")
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+
+	if exp.String() != pt.String() {
+		t.Errorf("parse mismatch: got %v, exp %v", pt.String(), exp.String())
+	}
+}
+
+func TestFilterMatchMultipleMeasurementSeparator(t *testing.T) {
+	p, err := graphite.NewParserWithOptions(graphite.Options{
+		Templates: []string{"servers.localhost .host.measurement.measurement*"},
+		Separator: "_",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error creating parser, got %v", err)
+	}
+
+	exp := tsdb.NewPoint("cpu_cpu_load_10",
+		tsdb.Tags{"host": "localhost"},
+		tsdb.Fields{"value": float64(11)},
+		time.Unix(1435077219, 0))
+
+	pt, err := p.Parse("servers.localhost.cpu.cpu_load.10 11 1435077219")
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+
+	if exp.String() != pt.String() {
+		t.Errorf("parse mismatch: got %v, exp %v", pt.String(), exp.String())
+	}
+}
+
 func TestFilterMatchSingle(t *testing.T) {
 	p, err := graphite.NewParser([]string{"servers.localhost .host.measurement*"}, nil)
 	if err != nil {
@@ -252,7 +297,7 @@ func TestFilterMatchWildcard(t *testing.T) {
 
 func TestFilterMatchExactBeforeWildcard(t *testing.T) {
 	p, err := graphite.NewParser([]string{
-		"servers.* .hostname.measurement*",
+		"servers.* .wrong.measurement*",
 		"servers.localhost .host.measurement*"}, nil)
 	if err != nil {
 		t.Fatalf("unexpected error creating parser, got %v", err)

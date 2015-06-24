@@ -20,6 +20,10 @@ const (
 
 	// DefaultConsistencyLevel is the default write consistency for the Graphite input.
 	DefaultConsistencyLevel = "one"
+
+	// DefaultSeparator is the default join character to use when joining multiple
+	// measurment parts in a template.
+	DefaultSeparator = "."
 )
 
 // Config represents the configuration for Graphite endpoints.
@@ -33,6 +37,7 @@ type Config struct {
 	ConsistencyLevel string        `toml:"consistency-level"`
 	Templates        []string      `toml:"templates"`
 	Tags             []string      `toml:"tags"`
+	Separator        string        `toml:"separator"`
 }
 
 // NewConfig returns a new Config with defaults.
@@ -42,6 +47,7 @@ func NewConfig() Config {
 		Database:         DefaultDatabase,
 		Protocol:         DefaultProtocol,
 		ConsistencyLevel: DefaultConsistencyLevel,
+		Separator:        DefaultSeparator,
 	}
 }
 
@@ -60,6 +66,9 @@ func (c *Config) WithDefaults() *Config {
 	}
 	if d.ConsistencyLevel == "" {
 		d.ConsistencyLevel = DefaultConsistencyLevel
+	}
+	if d.Separator == "" {
+		d.Separator = DefaultSeparator
 	}
 	return &d
 }
@@ -149,9 +158,6 @@ func (c *Config) validateTemplate(template string) error {
 	hasMeasurement := false
 	for _, p := range strings.Split(template, ".") {
 		if p == "measurement" || p == "measurement*" {
-			if hasMeasurement {
-				return fmt.Errorf("multiple measurements in template `%s`", template)
-			}
 			hasMeasurement = true
 		}
 	}
