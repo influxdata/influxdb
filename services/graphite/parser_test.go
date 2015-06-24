@@ -9,6 +9,27 @@ import (
 	"github.com/influxdb/influxdb/tsdb"
 )
 
+func BenchmarkParse(b *testing.B) {
+	p, err := graphite.NewParser([]string{
+		"*.* .wrong.measurement*",
+		"servers.* .host.measurement*",
+		"servers.localhost .host.measurement*",
+		"*.localhost .host.measurement*",
+		"*.*.cpu .host.measurement*",
+		"a.b.c .host.measurement*",
+		"influxd.*.foo .host.measurement*",
+		"prod.*.mem .host.measurement*",
+	}, nil)
+
+	if err != nil {
+		b.Fatalf("unexpected error creating parser, got %v", err)
+	}
+
+	for i := 0; i < b.N; i++ {
+		p.Parse("servers.localhost.cpu.load 11 1435077219")
+	}
+}
+
 func TestTemplateApply(t *testing.T) {
 	var tests = []struct {
 		test        string
