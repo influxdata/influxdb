@@ -209,6 +209,10 @@ EOF
     echo "Post-install script created successfully at $POST_INSTALL_PATH"
 }
 
+echo $NIGHTLY_BUILD
+echo $AWS_ACCESS_KEY
+echo $AWS_SECRET_ACCESS_KEY
+
 ###########################################################################
 # Start the packaging process.
 
@@ -224,9 +228,11 @@ echo -e "\nStarting package process...\n"
 
 check_gvm
 check_gopath
-check_clean_tree
-update_tree
-check_tag_exists $VERSION
+if [ -z "$NIGHTLY_BUILD" ]; then
+    check_clean_tree
+    update_tree
+    check_tag_exists $VERSION
+fi
 do_build $VERSION
 make_dir_tree $TMP_WORK_DIR $VERSION
 
@@ -260,12 +266,14 @@ generate_postinstall_script $VERSION
 ###########################################################################
 # Create the actual packages.
 
-echo -n "Commence creation of $ARCH packages, version $VERSION? [Y/n] "
-read response
-response=`echo $response | tr 'A-Z' 'a-z'`
-if [ "x$response" == "xn" ]; then
-    echo "Packaging aborted."
-    cleanup_exit 1
+if [ -z "$NIGHTLY_BUILD" ]; then
+    echo -n "Commence creation of $ARCH packages, version $VERSION? [Y/n] "
+    read response
+    response=`echo $response | tr 'A-Z' 'a-z'`
+    if [ "x$response" == "xn" ]; then
+        echo "Packaging aborted."
+        cleanup_exit 1
+    fi
 fi
 
 if [ $ARCH == "i386" ]; then
@@ -299,23 +307,25 @@ echo "Debian package created successfully."
 ###########################################################################
 # Offer to tag the repo.
 
-echo -n "Tag source tree with v$VERSION and push to repo? [y/N] "
-read response
-response=`echo $response | tr 'A-Z' 'a-z'`
-if [ "x$response" == "xy" ]; then
-    echo "Creating tag v$VERSION and pushing to repo"
-    git tag v$VERSION
-    if [ $? -ne 0 ]; then
-        echo "Failed to create tag v$VERSION -- aborting"
-        cleanup_exit 1
+if [ -z "$NIGHTLY_BUILD" ]; then
+    echo -n "Tag source tree with v$VERSION and push to repo? [y/N] "
+    read response
+    response=`echo $response | tr 'A-Z' 'a-z'`
+    if [ "x$response" == "xy" ]; then
+        echo "Creating tag v$VERSION and pushing to repo"
+        git tag v$VERSION
+        if [ $? -ne 0 ]; then
+            echo "Failed to create tag v$VERSION -- aborting"
+            cleanup_exit 1
+        fi
+        git push origin v$VERSION
+        if [ $? -ne 0 ]; then
+            echo "Failed to push tag v$VERSION to repo -- aborting"
+            cleanup_exit 1
+        fi
+    else
+        echo "Not creating tag v$VERSION."
     fi
-    git push origin v$VERSION
-    if [ $? -ne 0 ]; then
-        echo "Failed to push tag v$VERSION to repo -- aborting"
-        cleanup_exit 1
-    fi
-else
-    echo "Not creating tag v$VERSION."
 fi
 
 
