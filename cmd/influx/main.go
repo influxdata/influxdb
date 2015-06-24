@@ -427,7 +427,7 @@ func (c *CommandLine) parseInto(stmt string) string {
 func (c *CommandLine) Insert(stmt string) error {
 	i, point := parseNextIdentifier(stmt)
 	if !strings.EqualFold(i, "insert") {
-		fmt.Println("ERR: missing space after INSERT")
+		fmt.Printf("ERR: found %s, expected INSERT\n", i)
 		return nil
 	}
 	if i, r := parseNextIdentifier(point); strings.EqualFold(i, "into") {
