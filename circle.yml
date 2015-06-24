@@ -12,15 +12,19 @@ machine:
 dependencies:
     override:
         - echo "Dummy override, so no Circle dependencies execute"
+
 test:
     override:
         - bash circle-test.sh:
             parallel: true
 
+
     post:
         - >
             if [ -n "${NIGHTLY_BUILD}" ]; then
-                echo ./package.sh "nightly"
+                echo $PWD
+                cd $HOME/influxdb-build/src/github.com/influxdb/influxdb
+                ./package.sh "nightly"
             else
                 echo "Nightly build not requested."
             fi
