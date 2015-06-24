@@ -30,7 +30,7 @@ type Parser struct {
 // NewParser returns a GraphiteParser instance.
 func NewParser(templates []string, defaultTags tsdb.Tags) (*Parser, error) {
 
-	matcher := &matcher{}
+	matcher := newMatcher()
 	matcher.AddDefaultTemplate(defaultTemplate)
 
 	for _, pattern := range templates {
@@ -169,90 +169,23 @@ func (t *template) Apply(line string) (string, map[string]string) {
 	return measurement, tags
 }
 
-type entry struct {
-	filter   *filter
-	template *template
-}
-
-type entries []*entry
-
-// Less returns a boolean indicating whether the filter at position j
-// is less than the filter at postion k.  Filters are order by string
-// comparison of each component parts.  A wildcard value "*" is never
-// less than a non-wildcard values.
-//
-// For example, the filters:
-//		"*.*"
-//		"servers.*""
-//		"servers.localhost""
-//		"*.localhost"
-//
-// Would be sorted as:
-//		"servers.localhost""
-//		"servers.*""
-//		"*.localhost"
-//		"*.*"
-func (s *entries) Less(j, k int) bool {
-	jParts := (*s)[j].filter.sections
-	kParts := (*s)[k].filter.sections
-
-	i := 0
-	for {
-		if i >= len(jParts) && i >= len(kParts) {
-			return false
-		}
-
-		if i < len(jParts) && i < len(kParts) {
-
-			if jParts[i] == "*" && kParts[i] != "*" {
-				return false
-			}
-
-			if jParts[i] != "*" && kParts[i] == "*" {
-				return true
-			}
-
-			if jParts[i] < kParts[i] {
-				return true
-			}
-
-			if jParts[i] > kParts[i] {
-				return false
-			}
-		}
-
-		if i >= len(jParts) && i < len(kParts) {
-			return true
-		}
-
-		if i < len(jParts) && i >= len(kParts) {
-			return false
-		}
-
-		i += 1
-	}
-}
-
-func (s *entries) Swap(i, j int) {
-	(*s)[i], (*s)[j] = (*s)[j], (*s)[i]
-}
-
-func (s *entries) Len() int {
-	return len(*s)
-}
-
+// matcher
 type matcher struct {
-	entries         entries
+	root            *node
 	defaultTemplate *template
 }
 
+func newMatcher() *matcher {
+	return &matcher{
+		root: &node{},
+	}
+}
 func (m *matcher) Add(match string, template *template) {
 	if match == "" {
 		m.AddDefaultTemplate(template)
 		return
 	}
-	m.entries = append(m.entries, &entry{&filter{sections: strings.Split(match, ".")}, template})
-	sort.Sort(&m.entries)
+	m.root.Insert(match, template)
 }
 
 func (m *matcher) AddDefaultTemplate(template *template) {
@@ -260,38 +193,101 @@ func (m *matcher) AddDefaultTemplate(template *template) {
 }
 
 func (m *matcher) Match(line string) *template {
-
-	if len(m.entries) == 0 {
-		return m.defaultTemplate
-	}
-
-	lineParts := strings.Split(line, ".")
-	for _, entry := range m.entries {
-		if entry.filter.Matches(lineParts) {
-			return entry.template
-		}
+	tmpl := m.root.Search(line)
+	if tmpl != nil {
+		return tmpl
 	}
 
 	return m.defaultTemplate
 }
 
-type filter struct {
-	sections []string
+type node struct {
+	value    string
+	children nodes
+	template *template
 }
 
-func (f *filter) Matches(lineParts []string) bool {
-	for i, filterPart := range f.sections {
-		if filterPart == "*" {
-			continue
-		}
+func (n *node) insert(values []string, template *template) {
+	if len(values) == 0 {
+		return
+	}
 
-		if i >= len(lineParts) {
-			return false
-		}
-
-		if filterPart != lineParts[i] {
-			return false
+	for _, v := range n.children {
+		if v.value == values[0] {
+			v.insert(values[1:], template)
+			return
 		}
 	}
-	return true
+	newNode := &node{value: values[0], template: template}
+	n.children = append(n.children, newNode)
+	sort.Sort(&n.children)
+	newNode.insert(values[1:], template)
 }
+
+func (n *node) Insert(match string, template *template) {
+	n.insert(strings.Split(match, "."), template)
+}
+
+func (n *node) search(lineParts []string) *template {
+	if len(lineParts) == 0 || len(n.children) == 0 {
+		return n.template
+	}
+
+	// If last element is a wildcard, don't include in this search since it's sorted
+	// to the end but lexigraphically it would not alwasy be and sort.Search assumes
+	// the slice is sorted.
+	length := len(n.children)
+	if n.children[length-1].value == "*" {
+		length -= 1
+	}
+
+	i := sort.Search(length, func(i int) bool {
+		return n.children[i].value == lineParts[0]
+	})
+
+	if i < len(n.children) && n.children[i].value == lineParts[0] {
+		return n.children[i].search(lineParts[1:])
+	} else {
+		if n.children[len(n.children)-1].value == "*" {
+			return n.children[len(n.children)-1].search(lineParts[1:])
+		}
+	}
+	return n.template
+}
+
+func (n *node) Search(line string) *template {
+	return n.search(strings.Split(line, "."))
+}
+
+type nodes []*node
+
+// Less returns a boolean indicating whether the filter at position j
+// is less than the filter at postion k.  Filters are order by string
+// comparison of each component parts.  A wildcard value "*" is never
+// less than a non-wildcard value.
+//
+// For example, the filters:
+//             "*.*"
+//             "servers.*""
+//             "servers.localhost""
+//             "*.localhost"
+//
+// Would be sorted as:
+//             "servers.localhost""
+//             "servers.*""
+//             "*.localhost"
+//             "*.*"
+func (n *nodes) Less(j, k int) bool {
+	if (*n)[j].value == "*" && (*n)[k].value != "*" {
+		return false
+	}
+
+	if (*n)[j].value != "*" && (*n)[k].value == "*" {
+		return true
+	}
+
+	return (*n)[j].value < (*n)[k].value
+}
+
+func (n *nodes) Swap(i, j int) { (*n)[i], (*n)[j] = (*n)[j], (*n)[i] }
+func (n *nodes) Len() int      { return len(*n) }

@@ -208,7 +208,7 @@ func TestFilterMatchDefault(t *testing.T) {
 	}
 }
 
-func TestFilterMatch(t *testing.T) {
+func TestFilterMatchSingle(t *testing.T) {
 	p, err := graphite.NewParser([]string{"servers.localhost .host.measurement*"}, nil)
 	if err != nil {
 		t.Fatalf("unexpected error creating parser, got %v", err)
