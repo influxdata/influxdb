@@ -41,6 +41,11 @@ bind-address = ":2000"
 [udp]
 bind-address = ":4444"
 
+[gorpc]
+network = "unix"
+laddr = "/tmp/influxdb.sock"
+auth-enabled = true
+
 [monitoring]
 enabled = true
 
@@ -71,6 +76,12 @@ enabled = true
 		t.Fatalf("unexpected opentsdb bind address: %s", c.OpenTSDB.BindAddress)
 	} else if c.UDP.BindAddress != ":4444" {
 		t.Fatalf("unexpected udp bind address: %s", c.UDP.BindAddress)
+	} else if c.GoRPC.Network != "unix" {
+		t.Fatalf("unexpected gorpc network: %s", c.GoRPC.Network)
+	} else if c.GoRPC.Laddr != "/tmp/influxdb.sock" {
+		t.Fatalf("unexpected gorpc local address: %s", c.GoRPC.Laddr)
+	} else if c.GoRPC.AuthEnabled != true {
+		t.Fatalf("unexpected gorpc auth enabled: %v", c.GoRPC.AuthEnabled)
 	} else if c.Monitoring.Enabled != true {
 		t.Fatalf("unexpected monitoring enabled: %v", c.Monitoring.Enabled)
 	} else if c.ContinuousQuery.Enabled != true {

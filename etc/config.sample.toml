@@ -131,6 +131,18 @@ reporting-disabled = false
   # batch-timeout = "0"
 
 ###
+### [gorpc]
+###
+### Controls the listener for InfluxDB Go RPC  data via TCP or unix domain socket.
+###
+
+[gorpc]
+  enabled = false
+  # auth-enabled = true
+  # network = "unix" #  stream-oriented network: "tcp", "tcp4", "tcp6", "unix" or "unixpacket", If not set, is actually set "unix"
+  # laddr   = "/tmp/influxdb.sock" # Unix networks, the address must be a file system path. or bind-address Ex:"0.0.0.0:5555"
+
+###
 ### [monitoring]
 ###
 

@@ -17,6 +17,7 @@ import (
 	"github.com/influxdb/influxdb/services/admin"
 	"github.com/influxdb/influxdb/services/collectd"
 	"github.com/influxdb/influxdb/services/continuous_querier"
+	"github.com/influxdb/influxdb/services/gorpc"
 	"github.com/influxdb/influxdb/services/graphite"
 	"github.com/influxdb/influxdb/services/hh"
 	"github.com/influxdb/influxdb/services/httpd"
@@ -111,6 +112,7 @@ func NewServer(c *Config, version string) (*Server, error) {
 		return nil, err
 	}
 	s.appendUDPService(c.UDP)
+	s.appendGoRPCService(c.GoRPC)
 	s.appendRetentionPolicyService(c.Retention)
 	for _, g := range c.Graphites {
 		if err := s.appendGraphiteService(g); err != nil {
@@ -234,6 +236,16 @@ func (s *Server) appendUDPService(c udp.Config) {
 	}
 	srv := udp.NewService(c)
 	srv.PointsWriter = s.PointsWriter
+	s.Services = append(s.Services, srv)
+}
+
+func (s *Server) appendGoRPCService(c gorpc.Config) {
+	if !c.Enabled {
+		return
+	}
+	srv := gorpc.NewService(c)
+	srv.PointsWriter = s.PointsWriter
+	srv.MetaStore = s.MetaStore
 	s.Services = append(s.Services, srv)
 }
 
