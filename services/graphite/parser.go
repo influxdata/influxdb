@@ -90,9 +90,11 @@ func (p *Parser) Parse(line string) (tsdb.Point, error) {
 
 	// decode the name and tags
 	matcher := p.matcher.Match(fields[0])
-	name, tags := matcher.Apply(fields[0])
-	if name == "" {
-		return nil, fmt.Errorf("unable to parse measurement name from %s", line)
+	measurement, tags := matcher.Apply(fields[0])
+
+	// Could not extract measurement, use the raw value
+	if measurement == "" {
+		measurement = fields[0]
 	}
 
 	// Parse value.
@@ -118,7 +120,7 @@ func (p *Parser) Parse(line string) (tsdb.Point, error) {
 			tags[k] = v
 		}
 	}
-	point := tsdb.NewPoint(name, tags, fieldValues, timestamp)
+	point := tsdb.NewPoint(measurement, tags, fieldValues, timestamp)
 
 	return point, nil
 }
