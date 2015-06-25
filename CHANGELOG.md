@@ -7,7 +7,7 @@
 - [3125](https://github.com/influxdb/influxdb/pull/3125): Graphite Input Protocol Parsing
 
 ### Bugfixes
-
+- [#2956](https://github.com/influxdb/influxdb/issues/2956): Type mismatch in derivative
 - [#2908](https://github.com/influxdb/influxdb/issues/2908): Field mismatch error messages need to be updated
 - [#2931](https://github.com/influxdb/influxdb/pull/2931): Services and reporting should wait until cluster has leader.
 - [#2943](https://github.com/influxdb/influxdb/issues/2943): Ensure default retention policies are fully replicated
