@@ -362,7 +362,6 @@ if [ "x$response" == "xy" -o -n "$NIGHTLY_BUILD" ]; then
             filename=`echo $filename | sed s/$VERSION/nightly/`
             filename=`echo $filename | sed s/$VERSION_UNDERSCORED/nightly/`
         fi
-        echo "Uploading $filepath to s3://influxdb/$filename"
         AWS_CONFIG_FILE=$AWS_FILE aws s3 cp $filepath s3://influxdb/$filename --acl public-read --region us-east-1
         if [ $? -ne 0 ]; then
             echo "Upload failed -- aborting".
