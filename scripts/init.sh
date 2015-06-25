@@ -39,14 +39,14 @@ if [ -z "$STDOUT" ]; then
     STDOUT=/dev/null
 fi
 if [ ! -f "$STDOUT" ]; then
-    mkdir -p `dirname $STDOUT`
+    mkdir -p $(dirname $STDOUT)
 fi
 
 if [ -z "$STDERR" ]; then
     STDERR=/var/log/influxdb/influxd.log
 fi
 if [ ! -f "$STDERR" ]; then
-    mkdir -p `dirname $STDERR`
+    mkdir -p $(dirname $STDERR)
 fi
 
 
@@ -57,8 +57,8 @@ function pidofproc() {
         echo "Expected three arguments, e.g. $0 -p pidfile daemon-name"
     fi
 
-    pid=`pgrep -f $3`
-    local pidfile=`cat $2`
+    pid=$(pgrep -f $3)
+    local pidfile=$(cat $2)
 
     if [ "x$pidfile" == "x" ]; then
         return 1
@@ -97,7 +97,7 @@ daemon=/opt/influxdb/influxd
 
 # pid file for the daemon
 pidfile=/var/run/influxdb/influxd.pid
-piddir=`dirname $pidfile`
+piddir=$(dirname $pidfile)
 
 if [ ! -d "$piddir" ]; then
     mkdir -p $piddir
@@ -110,16 +110,40 @@ config=/etc/opt/influxdb/influxdb.conf
 # If the daemon is not there, then exit.
 [ -x $daemon ] || exit 5
 
+function wait_for_startup() {
+    control=1
+    while [ $control -lt 5 ]
+    do
+        if [ ! -e $pidfile ]; then
+            sleep 1
+            control=$((control+1))
+        else
+            break
+        fi
+    done
+}
+
+function is_process_running() {
+    # Checked the PID file exists and check the actual status of process
+    if [ -e $pidfile ]; then
+        pidofproc -p $pidfile $daemon > /dev/null 2>&1 && status="0" || status="$?"
+        # If the status is SUCCESS then don't need to start again.
+        if [ "x$status" = "x0" ]; then
+            return 0
+        else
+            return 1
+        fi
+    else
+        return 1
+    fi
+}
+
 case $1 in
     start)
-        # Checked the PID file exists and check the actual status of process
-        if [ -e $pidfile ]; then
-            pidofproc -p $pidfile $daemon > /dev/null 2>&1 && status="0" || status="$?"
-            # If the status is SUCCESS then don't need to start again.
-            if [ "x$status" = "x0" ]; then
-                log_failure_msg "$name process is running"
-                exit 0 # Exit
-            fi
+        is_process_running
+        if [ $? -eq 0 ]; then
+            log_success_msg "$name process is running"
+            exit 0 # Exit
         fi
 
         # Bump the file limits, before launching the daemon. These will carry over to
@@ -127,6 +151,7 @@ case $1 in
         ulimit -n $OPEN_FILE_LIMIT
         if [ $? -ne 0 ]; then
             log_failure_msg "set open file limit to $OPEN_FILE_LIMIT"
+            exit 1
         fi
 
         log_success_msg "Starting the process" "$name"
@@ -135,22 +160,31 @@ case $1 in
         else
             nohup $daemon -pidfile $pidfile -config $config $INFLUXD_OPTS >>$STDOUT 2>>$STDERR &
         fi
-        log_success_msg "$name process was started"
+
+        wait_for_startup && is_process_running
+        if [ $? -ne 0 ]; then
+            log_failure_msg "$name process failed to start"
+            exit 1
+        else
+            log_success_msg "$name process was started"
+            exit 0
+        fi
         ;;
 
     stop)
         # Stop the daemon.
-        if [ -e $pidfile ]; then
-            pidofproc -p $pidfile $daemon > /dev/null 2>&1 && status="0" || status="$?"
-            if [ "$status" = 0 ]; then
-                if killproc -p $pidfile SIGTERM && /bin/rm -rf $pidfile; then
-                    log_success_msg "$name process was stopped"
-                else
-                    log_failure_msg "$name failed to stop service"
-                fi
-            fi
+        is_process_running
+        if [ $? -ne 0 ]; then
+            log_success_msg "$name process is not running"
+            exit 0 # Exit
         else
-            log_failure_msg "$name process is not running"
+            if killproc -p $pidfile SIGTERM && /bin/rm -rf $pidfile; then
+                log_success_msg "$name process was stopped"
+                exit 0
+            else
+                log_failure_msg "$name failed to stop service"
+                exit 1
+            fi
         fi
         ;;
 
@@ -161,14 +195,10 @@ case $1 in
 
     status)
         # Check the status of the process.
-        if [ -e $pidfile ]; then
-            if pidofproc -p $pidfile $daemon > /dev/null; then
-                log_success_msg "$name Process is running"
-                exit 0
-            else
-                log_failure_msg "$name Process is not running"
-                exit 1
-            fi
+        is_process_running
+        if [ $? -eq 0 ]; then
+            log_success_msg "$name Process is running"
+            exit 0
         else
             log_failure_msg "$name Process is not running"
             exit 3
