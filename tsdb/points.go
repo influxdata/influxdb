@@ -56,17 +56,35 @@ type point struct {
 	data []byte
 }
 
-// Compile the regex that detects unquoted double quote sequences
-var quoteReplacer = regexp.MustCompile(`([^\\])"`)
+const (
+	// the number of characters for the largest possible int64 (9223372036854775807)
+	maxInt64Digits = 19
 
-var escapeCodes = map[byte][]byte{
-	',': []byte(`\,`),
-	'"': []byte(`\"`),
-	' ': []byte(`\ `),
-	'=': []byte(`\=`),
-}
+	// the number of characters for the smallest possible int64 (-9223372036854775808)
+	minInt64Digits = 20
 
-var escapeCodesStr = map[string]string{}
+	// the number of characters required for the largest float64 before a range check
+	// would occur during parsing
+	maxFloat64Digits = 25
+
+	// the number of characters required for smallest float64 before a range check occur
+	// would occur during parsing
+	minFloat64Digits = 27
+)
+
+var (
+	// Compile the regex that detects unquoted double quote sequences
+	quoteReplacer = regexp.MustCompile(`([^\\])"`)
+
+	escapeCodes = map[byte][]byte{
+		',': []byte(`\,`),
+		'"': []byte(`\"`),
+		' ': []byte(`\ `),
+		'=': []byte(`\=`),
+	}
+
+	escapeCodesStr = map[string]string{}
+)
 
 func init() {
 	for k, v := range escapeCodes {
@@ -426,7 +444,11 @@ func scanNumber(buf []byte, i int) (int, []byte, error) {
 		i += 1
 	}
 
+	// how many decimal points we've see
 	decimals := 0
+
+	// indicates the number is float in scientific notation
+	scientific := false
 
 	for {
 		if i >= len(buf) {
@@ -448,6 +470,7 @@ func scanNumber(buf []byte, i int) (int, []byte, error) {
 
 		// `e` is valid for floats but not as the first char
 		if i > start && (buf[i] == 'e') {
+			scientific = true
 			i += 1
 			continue
 		}
@@ -462,6 +485,26 @@ func scanNumber(buf []byte, i int) (int, []byte, error) {
 			return i, buf[start:i], fmt.Errorf("invalid number")
 		}
 		i += 1
+	}
+
+	// It's more common that numbers will be within min/max range for their type but we need to prevent
+	// out or range numbers from being parsed successfully.  This uses some simple heuristics to decide
+	// if we should parse the number to the actual type.  It does not do it all the time because it incurs
+	// extra allocations and we end up converting the type again when writing points to disk.
+	if decimals == 0 {
+		// Parse the int to check bounds the number of digits could be larger than the max range
+		if len(buf[start:i]) >= maxInt64Digits || len(buf[start:i]) >= minInt64Digits {
+			if _, err := strconv.ParseInt(string(buf[start:i]), 10, 64); err != nil {
+				return i, buf[start:i], fmt.Errorf("invalid integer")
+			}
+		}
+	} else {
+		// Parse the float to check bounds if it's scientific or the number of digits could be larger than the max range
+		if scientific || len(buf[start:i]) >= maxFloat64Digits || len(buf[start:i]) >= minFloat64Digits {
+			if _, err := strconv.ParseFloat(string(buf[start:i]), 10); err != nil {
+				return i, buf[start:i], fmt.Errorf("invalid float")
+			}
+		}
 	}
 
 	return i, buf[start:i], nil
