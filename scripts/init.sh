@@ -76,7 +76,7 @@ function killproc() {
         echo "Expected three arguments, e.g. $0 -p pidfile signal"
     fi
 
-    pid=`cat $2`
+    pid=$(cat $2)
 
     kill -s $3 $pid
 }
