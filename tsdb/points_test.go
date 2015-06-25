@@ -2,13 +2,20 @@ package tsdb
 
 import (
 	"bytes"
+	"fmt"
+	"math"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 )
 
-var tags = Tags{"foo": "bar", "apple": "orange", "host": "serverA", "region": "uswest"}
+var (
+	tags       = Tags{"foo": "bar", "apple": "orange", "host": "serverA", "region": "uswest"}
+	maxFloat64 = strconv.FormatFloat(math.MaxFloat64, 'f', 1, 64)
+	minFloat64 = strconv.FormatFloat(-math.MaxFloat64, 'f', 1, 64)
+)
 
 func TestMarshal(t *testing.T) {
 	got := tags.hashKey()
@@ -186,6 +193,86 @@ func TestParsePointBadNumber(t *testing.T) {
 	_, err := ParsePointsString(`cpu,host=serverA,region=us-west value=1a`)
 	if err == nil {
 		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west value=1a`)
+	}
+}
+
+func TestParsePointMaxInt64(t *testing.T) {
+	// out of range
+	_, err := ParsePointsString(`cpu,host=serverA,region=us-west value=9223372036854775808`)
+	if err == nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west value=9223372036854775808`)
+	}
+
+	// max int
+	_, err = ParsePointsString(`cpu,host=serverA,region=us-west value=9223372036854775807`)
+	if err != nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,region=us-west value=9223372036854775807`, err)
+	}
+
+	// leading zeros
+	_, err = ParsePointsString(`cpu,host=serverA,region=us-west value=0009223372036854775807`)
+	if err != nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,region=us-west value=0009223372036854775807`, err)
+	}
+}
+
+func TestParsePointMinInt64(t *testing.T) {
+	// out of range
+	_, err := ParsePointsString(`cpu,host=serverA,region=us-west value=-9223372036854775809`)
+	if err == nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west value=-9223372036854775809`)
+	}
+
+	// min int
+	_, err = ParsePointsString(`cpu,host=serverA,region=us-west value=-9223372036854775808`)
+	if err != nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,region=us-west value=-9223372036854775808`, err)
+	}
+
+	// leading zeros
+	_, err = ParsePointsString(`cpu,host=serverA,region=us-west value=-0009223372036854775808`)
+	if err != nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,region=us-west value=-0009223372036854775808`, err)
+	}
+}
+
+func TestParsePointMaxFloat64(t *testing.T) {
+	// out of range
+	_, err := ParsePointsString(fmt.Sprintf(`cpu,host=serverA,region=us-west value=%s`, "1"+string(maxFloat64)))
+	if err == nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west value=...`)
+	}
+
+	// max float
+	_, err = ParsePointsString(fmt.Sprintf(`cpu,host=serverA,region=us-west value=%s`, string(maxFloat64)))
+	if err != nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,region=us-west value=9223372036854775807`, err)
+	}
+
+	// leading zeros
+	_, err = ParsePointsString(fmt.Sprintf(`cpu,host=serverA,region=us-west value=%s`, "0000"+string(maxFloat64)))
+	if err != nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,region=us-west value=0009223372036854775807`, err)
+	}
+}
+
+func TestParsePointMinFloat64(t *testing.T) {
+	// out of range
+	_, err := ParsePointsString(fmt.Sprintf(`cpu,host=serverA,region=us-west value=%s`, "-1"+string(minFloat64)[1:]))
+	if err == nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west value=...`)
+	}
+
+	// min float
+	_, err = ParsePointsString(fmt.Sprintf(`cpu,host=serverA,region=us-west value=%s`, string(minFloat64)))
+	if err != nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,region=us-west value=...`, err)
+	}
+
+	// leading zeros
+	_, err = ParsePointsString(fmt.Sprintf(`cpu,host=serverA,region=us-west value=%s`, "-0000000"+string(minFloat64)[1:]))
+	if err != nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,region=us-west value=...`, err)
 	}
 }
 

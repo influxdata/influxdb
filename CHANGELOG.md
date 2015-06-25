@@ -33,6 +33,8 @@
 - [#2102](https://github.com/influxdb/influxdb/issues/2102): Re-work Graphite input and metric processing
 - [#2996](https://github.com/influxdb/influxdb/issues/2996): Graphite Input Parsing
 - [#3136](https://github.com/influxdb/influxdb/pull/3136): Fix various issues with init.d script. Thanks @ miguelcnf.
+- [2996](https://github.com/influxdb/influxdb/issues/2996): Graphite Input Parsing
+- [3127](https://github.com/influxdb/influxdb/issues/3127): Trying to insert a number larger than the largest signed 64-bit number kills influxd
 
 ## v0.9.0 [2015-06-11]
 
