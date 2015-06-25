@@ -3,11 +3,11 @@
 ### Features
 
 - [2650](https://github.com/influxdb/influxdb/pull/2650): Add SHOW GRANTS FOR USER statement. Thanks @n1tr0g.
-- [3013](https://github.com/influxdb/influxdb/issues/3013): Panic error with inserting values with commas
 - [3125](https://github.com/influxdb/influxdb/pull/3125): Graphite Input Protocol Parsing
 
 ### Bugfixes
 
+- [3013](https://github.com/influxdb/influxdb/issues/3013): Panic error with inserting values with commas
 - [#2908](https://github.com/influxdb/influxdb/issues/2908): Field mismatch error messages need to be updated
 - [#2931](https://github.com/influxdb/influxdb/pull/2931): Services and reporting should wait until cluster has leader.
 - [#2943](https://github.com/influxdb/influxdb/issues/2943): Ensure default retention policies are fully replicated
