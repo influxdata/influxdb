@@ -244,10 +244,6 @@ if [ -z "$NIGHTLY_BUILD" ]; then
        check_tag_exists $VERSION
 fi
 
-if [ -n "$NIGHTLY_BUILD" ]; then
-    commit=`git rev-parse HEAD`
-    VERSION=$VERSION-nightly-$commit
-fi
 do_build $VERSION
 make_dir_tree $TMP_WORK_DIR $VERSION
 
