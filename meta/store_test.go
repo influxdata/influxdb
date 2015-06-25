@@ -608,6 +608,37 @@ func TestStore_UserCount(t *testing.T) {
 	}
 }
 
+// Ensure the store can take a snapshot.
+func TestStore_Snapshot_And_Restore(t *testing.T) {
+	t.Parallel()
+
+	s := MustOpenStore()
+	s.LeaveFiles = true
+
+	// Test taking a snapshot.
+	if err := s.Store.Snapshot(); err != nil {
+		t.Fatal(err)
+	}
+	s.Close()
+
+	// Test restoring the snapshot taken above.
+	existingDataPath := s.Path()
+	s = NewStore(NewConfig(existingDataPath))
+	if err := s.Open(); err != nil {
+		panic(err)
+	}
+	defer s.Close()
+
+	// Wait until the server is ready.
+	select {
+	case err := <-s.Err():
+		panic(err)
+	case <-s.Ready():
+	}
+
+	// TODO: figure out some way to confirm that the snapshot restored
+}
+
 // Ensure a multi-node cluster can start, join the cluster, and replicate commands.
 func TestCluster_Open(t *testing.T) {
 	c := MustOpenCluster(3)
@@ -642,8 +673,9 @@ func TestCluster_Open(t *testing.T) {
 // Store is a test wrapper for meta.Store.
 type Store struct {
 	*meta.Store
-	Listener net.Listener
-	Stderr   bytes.Buffer
+	Listener   net.Listener
+	Stderr     bytes.Buffer
+	LeaveFiles bool
 }
 
 // NewStore returns a new test wrapper for Store.
@@ -701,7 +733,9 @@ func (s *Store) Close() error {
 	if s.Listener != nil {
 		s.Listener.Close()
 	}
-	defer os.RemoveAll(s.Path())
+	if !s.LeaveFiles {
+		defer os.RemoveAll(s.Path())
+	}
 	return s.Store.Close()
 }
 
