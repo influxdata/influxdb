@@ -4,6 +4,7 @@
 
 - [2650](https://github.com/influxdb/influxdb/pull/2650): Add SHOW GRANTS FOR USER statement. Thanks @n1tr0g.
 - [3125](https://github.com/influxdb/influxdb/pull/3125): Graphite Input Protocol Parsing
+- [2746](https://github.com/influxdb/influxdb/pull/2746): New Admin UI/interface
 
 ### Bugfixes
 
