@@ -33,55 +33,64 @@ func BenchmarkParse(b *testing.B) {
 func TestTemplateApply(t *testing.T) {
 	var tests = []struct {
 		test        string
-		str         string
+		input       string
+		template    string
 		measurement string
 		tags        map[string]string
-		template    string
 		err         string
 	}{
-		{test: "metric only",
-			str:         "cpu",
-			measurement: "cpu",
+		{
+			test:        "metric only",
+			input:       "cpu",
 			template:    "measurement",
-		},
-		{test: "metric with single series",
-			str:         "cpu.server01",
 			measurement: "cpu",
+		},
+		{
+			test:        "metric with single series",
+			input:       "cpu.server01",
 			template:    "measurement.hostname",
+			measurement: "cpu",
 			tags:        map[string]string{"hostname": "server01"},
 		},
-		{test: "metric with multiple series",
-			str:         "cpu.us-west.server01",
-			measurement: "cpu",
+		{
+			test:        "metric with multiple series",
+			input:       "cpu.us-west.server01",
 			template:    "measurement.region.hostname",
+			measurement: "cpu",
 			tags:        map[string]string{"hostname": "server01", "region": "us-west"},
 		},
-		{test: "no metric",
+		{
+			test: "no metric",
 			tags: make(map[string]string),
 			err:  `no measurement specified for template. ""`,
 		},
-		{test: "ignore unnamed",
-			str:         "foo.cpu",
+		{
+			test:        "ignore unnamed",
+			input:       "foo.cpu",
 			template:    "measurement",
-			tags:        make(map[string]string),
-			measurement: "foo"},
-		{test: "name shorter than template",
-			str:         "foo",
-			template:    "measurement.A.B.C",
-			tags:        make(map[string]string),
 			measurement: "foo",
+			tags:        make(map[string]string),
 		},
-		{test: "wildcard measurement at end",
-			str:         "prod.us-west.server01.cpu.load",
+		{
+			test:        "name shorter than template",
+			input:       "foo",
+			template:    "measurement.A.B.C",
+			measurement: "foo",
+			tags:        make(map[string]string),
+		},
+		{
+			test:        "wildcard measurement at end",
+			input:       "prod.us-west.server01.cpu.load",
 			template:    "env.zone.host.measurement*",
+			measurement: "cpu.load",
 			tags:        map[string]string{"env": "prod", "zone": "us-west", "host": "server01"},
-			measurement: "cpu.load",
 		},
-		{test: "skip fields",
-			str:         "ignore.us-west.ignore-this-too.cpu.load",
+		{
+			test:        "skip fields",
+			input:       "ignore.us-west.ignore-this-too.cpu.load",
 			template:    ".zone..measurement*",
-			tags:        map[string]string{"zone": "us-west"},
 			measurement: "cpu.load",
+			tags:        map[string]string{"zone": "us-west"},
 		},
 	}
 
@@ -95,7 +104,7 @@ func TestTemplateApply(t *testing.T) {
 			continue
 		}
 
-		measurement, tags := tmpl.Apply(test.str)
+		measurement, tags := tmpl.Apply(test.input)
 		if measurement != test.measurement {
 			t.Fatalf("name parse failer.  expected %v, got %v", test.measurement, measurement)
 		}
@@ -124,7 +133,7 @@ func TestParse(t *testing.T) {
 
 	var tests = []struct {
 		test        string
-		line        string
+		input       string
 		measurement string
 		tags        map[string]string
 		value       float64
@@ -134,7 +143,7 @@ func TestParse(t *testing.T) {
 	}{
 		{
 			test:        "normal case",
-			line:        `cpu.foo.bar 50 ` + strTime,
+			input:       `cpu.foo.bar 50 ` + strTime,
 			template:    "measurement.foo.bar",
 			measurement: "cpu",
 			tags: map[string]string{
@@ -146,7 +155,7 @@ func TestParse(t *testing.T) {
 		},
 		{
 			test:        "metric only with float value",
-			line:        `cpu 50.554 ` + strTime,
+			input:       `cpu 50.554 ` + strTime,
 			measurement: "cpu",
 			template:    "measurement",
 			value:       50.554,
@@ -154,25 +163,25 @@ func TestParse(t *testing.T) {
 		},
 		{
 			test:     "missing metric",
-			line:     `50.554 1419972457825`,
+			input:    `50.554 1419972457825`,
 			template: "measurement",
 			err:      `received "50.554 1419972457825" which doesn't have three fields`,
 		},
 		{
 			test:     "should error parsing invalid float",
-			line:     `cpu 50.554z 1419972457825`,
+			input:    `cpu 50.554z 1419972457825`,
 			template: "measurement",
 			err:      `field "cpu" value: strconv.ParseFloat: parsing "50.554z": invalid syntax`,
 		},
 		{
 			test:     "should error parsing invalid int",
-			line:     `cpu 50z 1419972457825`,
+			input:    `cpu 50z 1419972457825`,
 			template: "measurement",
 			err:      `field "cpu" value: strconv.ParseFloat: parsing "50z": invalid syntax`,
 		},
 		{
 			test:     "should error parsing invalid time",
-			line:     `cpu 50.554 14199724z57825`,
+			input:    `cpu 50.554 14199724z57825`,
 			template: "measurement",
 			err:      `field "cpu" time: strconv.ParseFloat: parsing "14199724z57825": invalid syntax`,
 		},
@@ -184,7 +193,7 @@ func TestParse(t *testing.T) {
 			t.Fatalf("unexpected error creating graphite parser: %v", err)
 		}
 
-		point, err := p.Parse(test.line)
+		point, err := p.Parse(test.input)
 		if errstr(err) != test.err {
 			t.Fatalf("err does not match.  expected %v, got %v", test.err, err)
 		}

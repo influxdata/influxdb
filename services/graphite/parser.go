@@ -21,7 +21,7 @@ func init() {
 	}
 }
 
-// Parser encapulates a Graphite Parser.
+// Parser encapsulates a Graphite Parser.
 type Parser struct {
 	matcher *matcher
 	tags    tsdb.Tags
@@ -68,7 +68,6 @@ func NewParserWithOptions(options Options) (*Parser, error) {
 		matcher.Add(filter, tmpl)
 	}
 	return &Parser{matcher: matcher, tags: options.DefaultTags}, nil
-
 }
 
 // NewParser returns a GraphiteParser instance.
@@ -99,7 +98,7 @@ func (p *Parser) Parse(line string) (tsdb.Point, error) {
 	// Parse value.
 	v, err := strconv.ParseFloat(fields[1], 64)
 	if err != nil {
-		return nil, fmt.Errorf("field \"%s\" value: %s", fields[0], err)
+		return nil, fmt.Errorf(`field "%s" value: %s`, fields[0], err)
 	}
 
 	fieldValues := map[string]interface{}{"value": v}
@@ -107,7 +106,7 @@ func (p *Parser) Parse(line string) (tsdb.Point, error) {
 	// Parse timestamp.
 	unixTime, err := strconv.ParseFloat(fields[2], 64)
 	if err != nil {
-		return nil, fmt.Errorf("field \"%s\" time: %s", fields[0], err)
+		return nil, fmt.Errorf(`field "%s" time: %s`, fields[0], err)
 	}
 
 	// Check if we have fractional seconds
@@ -124,18 +123,18 @@ func (p *Parser) Parse(line string) (tsdb.Point, error) {
 	return point, nil
 }
 
-// template represent a pattern and tags to map a graphite metric string to a influxdb Point
+// template represents a pattern and tags to map a graphite metric string to a influxdb Point
 type template struct {
 	tags              []string
 	defaultTags       tsdb.Tags
 	greedyMeasurement bool
-	separtor          string
+	separator         string
 }
 
-func NewTemplate(pattern string, defaultTags tsdb.Tags, separtor string) (*template, error) {
+func NewTemplate(pattern string, defaultTags tsdb.Tags, separator string) (*template, error) {
 	tags := strings.Split(pattern, ".")
 	hasMeasurement := false
-	template := &template{tags: tags, defaultTags: defaultTags, separtor: separtor}
+	template := &template{tags: tags, defaultTags: defaultTags, separator: separator}
 
 	for _, tag := range tags {
 		if strings.HasPrefix(tag, "measurement") {
@@ -182,7 +181,7 @@ func (t *template) Apply(line string) (string, map[string]string) {
 		}
 	}
 
-	return strings.Join(measurement, t.separtor), tags
+	return strings.Join(measurement, t.separator), tags
 }
 
 // matcher determines which template should be applied to a given metric
@@ -221,9 +220,8 @@ func (m *matcher) Match(line string) *template {
 	return m.defaultTemplate
 }
 
-// node is an item in a sorted k-ary tree.  Each child is sorted by it's value.
-// The special value of "*", is always last.  Children with idential ancestor paths
-// will fall under the same sub-tree.
+// node is an item in a sorted k-ary tree.  Each child is sorted by its value.
+// The special value of "*", is always last.
 type node struct {
 	value    string
 	children nodes
@@ -255,10 +253,10 @@ func (n *node) insert(values []string, template *template) {
 	newNode.insert(values[1:], template)
 }
 
-// Insert inserts the given string template into the tree.  The match sting is separated
+// Insert inserts the given string template into the tree.  The filter string is separated
 // on "." and each part is used as the path in the tree.
-func (n *node) Insert(match string, template *template) {
-	n.insert(strings.Split(match, "."), template)
+func (n *node) Insert(filter string, template *template) {
+	n.insert(strings.Split(filter, "."), template)
 }
 
 func (n *node) search(lineParts []string) *template {
@@ -268,7 +266,7 @@ func (n *node) search(lineParts []string) *template {
 	}
 
 	// If last element is a wildcard, don't include in this search since it's sorted
-	// to the end but lexigraphically it would not alwasy be and sort.Search assumes
+	// to the end but lexicographically it would not always be and sort.Search assumes
 	// the slice is sorted.
 	length := len(n.children)
 	if n.children[length-1].value == "*" {
@@ -299,19 +297,19 @@ func (n *node) Search(line string) *template {
 type nodes []*node
 
 // Less returns a boolean indicating whether the filter at position j
-// is less than the filter at postion k.  Filters are order by string
+// is less than the filter at position k.  Filters are order by string
 // comparison of each component parts.  A wildcard value "*" is never
 // less than a non-wildcard value.
 //
 // For example, the filters:
 //             "*.*"
-//             "servers.*""
-//             "servers.localhost""
+//             "servers.*"
+//             "servers.localhost"
 //             "*.localhost"
 //
 // Would be sorted as:
-//             "servers.localhost""
-//             "servers.*""
+//             "servers.localhost"
+//             "servers.*"
 //             "*.localhost"
 //             "*.*"
 func (n *nodes) Less(j, k int) bool {
