@@ -84,8 +84,8 @@ func NewParser(templates []string, defaultTags tsdb.Tags) (*Parser, error) {
 func (p *Parser) Parse(line string) (tsdb.Point, error) {
 	// Break into 3 fields (name, value, timestamp).
 	fields := strings.Fields(line)
-	if len(fields) != 3 {
-		return nil, fmt.Errorf("received %q which doesn't have three fields", line)
+	if len(fields) != 2 && len(fields) != 3 {
+		return nil, fmt.Errorf("received %q which doesn't have required fields", line)
 	}
 
 	// decode the name and tags
@@ -105,14 +105,23 @@ func (p *Parser) Parse(line string) (tsdb.Point, error) {
 
 	fieldValues := map[string]interface{}{"value": v}
 
-	// Parse timestamp.
-	unixTime, err := strconv.ParseFloat(fields[2], 64)
-	if err != nil {
-		return nil, fmt.Errorf(`field "%s" time: %s`, fields[0], err)
-	}
+	// If no 3rd field, use now as timestamp
+	timestamp := time.Now().UTC()
 
-	// Check if we have fractional seconds
-	timestamp := time.Unix(int64(unixTime), int64((unixTime-math.Floor(unixTime))*float64(time.Second)))
+	if len(fields) == 3 {
+		// Parse timestamp.
+		unixTime, err := strconv.ParseFloat(fields[2], 64)
+		if err != nil {
+			return nil, fmt.Errorf(`field "%s" time: %s`, fields[0], err)
+		}
+
+		// -1 is a special value that gets converted to current UTC time
+		// See https://github.com/graphite-project/carbon/issues/54
+		if unixTime != float64(-1) {
+			// Check if we have fractional seconds
+			timestamp = time.Unix(int64(unixTime), int64((unixTime-math.Floor(unixTime))*float64(time.Second)))
+		}
+	}
 
 	// Set the default tags on the point if they are not already set
 	for k, v := range p.tags {

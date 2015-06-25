@@ -163,9 +163,9 @@ func TestParse(t *testing.T) {
 		},
 		{
 			test:     "missing metric",
-			input:    `50.554 1419972457825`,
+			input:    `1419972457825`,
 			template: "measurement",
-			err:      `received "50.554 1419972457825" which doesn't have three fields`,
+			err:      `received "1419972457825" which doesn't have required fields`,
 		},
 		{
 			test:     "should error parsing invalid float",
