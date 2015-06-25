@@ -129,6 +129,10 @@ func (c *Client) Write(bp BatchPoints) (*Response, error) {
 				return nil, err
 			}
 		} else {
+			for k, v := range bp.Tags {
+				p.Tags[k] = v
+			}
+
 			if _, err := b.WriteString(p.MarshalString()); err != nil {
 				return nil, err
 			}
