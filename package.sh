@@ -73,6 +73,11 @@ cleanup_exit() {
     exit $1
 }
 
+# current_branch echos the current git branch.
+current_branch() {
+    echo `git rev-parse --abbrev-ref HEAD`
+}
+
 # check_gopath sanity checks the value of the GOPATH env variable, and determines
 # the path where build artifacts are installed. GOPATH may be a colon-delimited
 # list of directories.
@@ -118,7 +123,7 @@ check_clean_tree() {
 
 # update_tree ensures the tree is in-sync with the repo.
 update_tree() {
-    git pull origin master
+    git pull origin `current_branch`
     if [ $? -ne 0 ]; then
         echo "Failed to pull latest code -- aborting."
         cleanup_exit 1
