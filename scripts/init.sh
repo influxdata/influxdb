@@ -158,7 +158,7 @@ case $1 in
         if which start-stop-daemon > /dev/null 2>&1; then
             start-stop-daemon --chuid $GROUP:$USER --start --quiet --pidfile $pidfile --exec $daemon -- -pidfile $pidfile -config $config $INFLUXD_OPTS >>$STDOUT 2>>$STDERR &
         else
-            nohup $daemon -pidfile $pidfile -config $config $INFLUXD_OPTS >>$STDOUT 2>>$STDERR &
+            su $USER -c "nohup $daemon -pidfile $pidfile -config $config $INFLUXD_OPTS >>$STDOUT 2>>$STDERR &"
         fi
 
         wait_for_startup && is_process_running
