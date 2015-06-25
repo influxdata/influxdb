@@ -59,6 +59,7 @@ func NewConfig() *Config {
 	c.HTTPD = httpd.NewConfig()
 	c.Collectd = collectd.NewConfig()
 	c.OpenTSDB = opentsdb.NewConfig()
+	c.Graphites = append(c.Graphites, graphite.NewConfig())
 
 	c.Monitoring = monitor.NewConfig()
 	c.ContinuousQuery = continuous_querier.NewConfig()
@@ -96,6 +97,12 @@ func (c *Config) Validate() error {
 		return errors.New("Data.Dir must be specified")
 	} else if c.HintedHandoff.Dir == "" {
 		return errors.New("HintedHandoff.Dir must be specified")
+	}
+
+	for _, g := range c.Graphites {
+		if err := g.Validate(); err != nil {
+			return fmt.Errorf("invalid graphite config: %v", err)
+		}
 	}
 	return nil
 }

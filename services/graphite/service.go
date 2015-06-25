@@ -4,10 +4,8 @@ import (
 	"bufio"
 	"fmt"
 	"log"
-	"math"
 	"net"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -70,9 +68,14 @@ func NewService(c Config) (*Service, error) {
 	}
 	s.consistencyLevel = consistencyLevel
 
-	parser := NewParser()
-	parser.Separator = d.NameSeparator
-	parser.LastEnabled = d.LastEnabled()
+	parser, err := NewParserWithOptions(Options{
+		Templates:   d.Templates,
+		DefaultTags: d.DefaultTags(),
+		Separator:   d.Separator})
+
+	if err != nil {
+		return nil, err
+	}
 	s.parser = parser
 
 	return &s, nil
@@ -250,89 +253,4 @@ func (s *Service) processBatches(batcher *tsdb.PointBatcher) {
 			return
 		}
 	}
-}
-
-// Parser encapulates a Graphite Parser.
-type Parser struct {
-	Separator   string
-	LastEnabled bool
-}
-
-// NewParser returns a GraphiteParser instance.
-func NewParser() *Parser {
-	return &Parser{Separator: DefaultNameSeparator}
-}
-
-// Parse performs Graphite parsing of a single line.
-func (p *Parser) Parse(line string) (tsdb.Point, error) {
-	// Break into 3 fields (name, value, timestamp).
-	fields := strings.Fields(line)
-	if len(fields) != 3 {
-		return nil, fmt.Errorf("received %q which doesn't have three fields", line)
-	}
-
-	// decode the name and tags
-	name, tags, err := p.DecodeNameAndTags(fields[0])
-	if err != nil {
-		return nil, err
-	}
-
-	// Parse value.
-	v, err := strconv.ParseFloat(fields[1], 64)
-	if err != nil {
-		return nil, fmt.Errorf("field \"%s\" value: %s", fields[0], err)
-	}
-
-	fieldValues := make(map[string]interface{})
-	fieldValues["value"] = v
-
-	// Parse timestamp.
-	unixTime, err := strconv.ParseFloat(fields[2], 64)
-	if err != nil {
-		return nil, fmt.Errorf("field \"%s\" time: %s", fields[0], err)
-	}
-
-	// Check if we have fractional seconds
-	timestamp := time.Unix(int64(unixTime), int64((unixTime-math.Floor(unixTime))*float64(time.Second)))
-
-	point := tsdb.NewPoint(name, tags, fieldValues, timestamp)
-
-	return point, nil
-}
-
-// DecodeNameAndTags parses the name and tags of a single field of a Graphite datum.
-func (p *Parser) DecodeNameAndTags(field string) (string, map[string]string, error) {
-	var (
-		name string
-		tags = make(map[string]string)
-	)
-
-	// decode the name and tags
-	values := strings.Split(field, p.Separator)
-	if len(values)%2 != 1 {
-		// There should always be an odd number of fields to map a point name and tags
-		// ex: region.us-west.hostname.server01.cpu -> tags -> region: us-west, hostname: server01, point name -> cpu
-		return name, tags, fmt.Errorf("received %q which doesn't conform to format of key.value.key.value.name or name", field)
-	}
-
-	if p.LastEnabled {
-		name = values[len(values)-1]
-		values = values[0 : len(values)-1]
-	} else {
-		name = values[0]
-		values = values[1:]
-	}
-
-	if name == "" {
-		return name, tags, fmt.Errorf("no name specified for metric. %q", field)
-	}
-
-	// Grab the pairs and throw them in the map
-	for i := 0; i < len(values); i += 2 {
-		k := values[i]
-		v := values[i+1]
-		tags[k] = v
-	}
-
-	return name, tags, nil
 }
