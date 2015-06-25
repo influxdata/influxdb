@@ -18,21 +18,23 @@ func TestWritePointsAndExecuteQuery(t *testing.T) {
 	store, executor := testStoreAndExecutor()
 	defer os.RemoveAll(store.path)
 
-	pt := NewPoint(
+	// Write first point.
+	if err := store.WriteToShard(shardID, []Point{NewPoint(
 		"cpu",
 		map[string]string{"host": "server"},
 		map[string]interface{}{"value": 1.0},
 		time.Unix(1, 2),
-	)
-
-	err := store.WriteToShard(shardID, []Point{pt})
-	if err != nil {
+	)}); err != nil {
 		t.Fatalf(err.Error())
 	}
 
-	pt.SetTime(time.Unix(2, 3))
-	err = store.WriteToShard(shardID, []Point{pt})
-	if err != nil {
+	// Write second point.
+	if err := store.WriteToShard(shardID, []Point{NewPoint(
+		"cpu",
+		map[string]string{"host": "server"},
+		map[string]interface{}{"value": 1.0},
+		time.Unix(2, 3),
+	)}); err != nil {
 		t.Fatalf(err.Error())
 	}
 
@@ -44,8 +46,63 @@ func TestWritePointsAndExecuteQuery(t *testing.T) {
 
 	store.Close()
 	store = NewStore(store.path)
-	err = store.Open()
-	if err != nil {
+	if err := store.Open(); err != nil {
+		t.Fatalf(err.Error())
+	}
+	executor.store = store
+
+	got = executeAndGetJSON("select * from cpu", executor)
+	if exepected != got {
+		t.Fatalf("exp: %s\ngot: %s", exepected, got)
+	}
+}
+
+// Ensure that points can be written and flushed even after a restart.
+func TestWritePointsAndExecuteQuery_FlushRestart(t *testing.T) {
+	store, executor := testStoreAndExecutor()
+	defer os.RemoveAll(store.path)
+
+	// Write first point.
+	if err := store.WriteToShard(shardID, []Point{NewPoint(
+		"cpu",
+		map[string]string{"host": "server"},
+		map[string]interface{}{"value": 1.0},
+		time.Unix(1, 2),
+	)}); err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	// Write second point.
+	if err := store.WriteToShard(shardID, []Point{NewPoint(
+		"cpu",
+		map[string]string{"host": "server"},
+		map[string]interface{}{"value": 1.0},
+		time.Unix(2, 3),
+	)}); err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	// Restart the store.
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	} else if err = store.Open(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Flush WAL data to the index.
+	if err := store.Flush(); err != nil {
+		t.Fatal(err)
+	}
+
+	got := executeAndGetJSON("select * from cpu", executor)
+	exepected := `[{"series":[{"name":"cpu","tags":{"host":"server"},"columns":["time","value"],"values":[["1970-01-01T00:00:01.000000002Z",1],["1970-01-01T00:00:02.000000003Z",1]]}]}]`
+	if exepected != got {
+		t.Fatalf("exp: %s\ngot: %s", exepected, got)
+	}
+
+	store.Close()
+	store = NewStore(store.path)
+	if err := store.Open(); err != nil {
 		t.Fatalf(err.Error())
 	}
 	executor.store = store
@@ -127,9 +184,8 @@ func TestDropMeasurementStatement(t *testing.T) {
 		time.Unix(1, 2),
 	)
 
-	err := store.WriteToShard(shardID, []Point{pt, pt2})
-	if err != nil {
-		t.Fatalf(err.Error())
+	if err := store.WriteToShard(shardID, []Point{pt, pt2}); err != nil {
+		t.Fatal(err)
 	}
 
 	got := executeAndGetJSON("show series", executor)
@@ -190,9 +246,8 @@ func TestDropDatabase(t *testing.T) {
 		time.Unix(1, 2),
 	)
 
-	err := store.WriteToShard(shardID, []Point{pt})
-	if err != nil {
-		t.Fatalf(err.Error())
+	if err := store.WriteToShard(shardID, []Point{pt}); err != nil {
+		t.Fatal(err)
 	}
 
 	got := executeAndGetJSON("select * from cpu", executor)
@@ -233,8 +288,7 @@ func TestDropDatabase(t *testing.T) {
 	store.Open()
 	executor.store = store
 
-	err = store.WriteToShard(shardID, []Point{pt})
-	if err == nil || err.Error() != "shard not found" {
+	if err := store.WriteToShard(shardID, []Point{pt}); err == nil || err.Error() != "shard not found" {
 		t.Fatalf("expected shard to not be found")
 	}
 }

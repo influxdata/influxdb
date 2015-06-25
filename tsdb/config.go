@@ -19,10 +19,19 @@ const (
 
 	// DefaultRetentionCheckPeriod is the period of time between retention policy checks are run
 	DefaultRetentionCheckPeriod = 10 * time.Minute
+
+	// DefaultMaxWALSize is the default size of the WAL before it is flushed.
+	DefaultMaxWALSize = 100 * 1024 * 1024 // 100MB
+
+	// DefaultWALFlushInterval is the frequency the WAL will get flushed if
+	// it doesn't reach its size threshold.
+	DefaultWALFlushInterval = 10 * time.Minute
 )
 
 type Config struct {
 	Dir                   string        `toml:"dir"`
+	MaxWALSize            int           `toml:"max-wal-size"`
+	WALFlushInterval      toml.Duration `toml:"wal-flush-interval"`
 	RetentionAutoCreate   bool          `toml:"retention-auto-create"`
 	RetentionCheckEnabled bool          `toml:"retention-check-enabled"`
 	RetentionCheckPeriod  toml.Duration `toml:"retention-check-period"`
@@ -31,6 +40,8 @@ type Config struct {
 
 func NewConfig() Config {
 	return Config{
+		MaxWALSize:            DefaultMaxWALSize,
+		WALFlushInterval:      toml.Duration(DefaultWALFlushInterval),
 		RetentionAutoCreate:   DefaultRetentionAutoCreate,
 		RetentionCheckEnabled: DefaultRetentionCheckEnabled,
 		RetentionCheckPeriod:  toml.Duration(DefaultRetentionCheckPeriod),
