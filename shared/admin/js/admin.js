@@ -229,11 +229,22 @@ var QueryError = React.createClass({
     }
 });
 
+var stringifyTags = function(tags) {
+    var tagStrings = [];
+
+    for(var index in tags) {
+        tagStrings.push(index + ":" + tags[index]);
+    }
+
+    return tagStrings.join(", ");
+}
+
 var DataTable = React.createClass({
   render: function() {
     var tables = this.props.series.map(function(series) {
         return React.createElement("div", null, 
             React.createElement("h1", null, series.name), 
+            React.createElement("h2", null, stringifyTags(series.tags)), 
             React.createElement("table", {className: "table"}, 
                 React.createElement(TableHeader, {data: series.columns}), 
                 React.createElement(TableBody, {data: series})

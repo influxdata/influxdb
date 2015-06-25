@@ -33,6 +33,12 @@ div#content {
     margin-bottom: -10px;
 }
 
+div#table h2 {
+  color: #999;
+  margin-top: -8px;
+  font-size: 16px
+}
+
 textarea#content-data {
     font-family: "Courier New";
     height: 200px;
