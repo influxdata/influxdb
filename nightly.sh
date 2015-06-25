@@ -10,5 +10,5 @@ cd $GOPATH/src/github.com/influxdb
 git clone https://github.com/influxdb/influxdb.git
 
 cd $GOPATH/src/github.com/influxdb/influxdb
-NIGHTLY_BUILD=true ./package.sh `git describe --tags`
+NIGHTLY_BUILD=true ./package.sh `git describe --tags | sed -e s/^v//`
 rm -rf $REPO_DIR
