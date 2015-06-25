@@ -29,8 +29,9 @@
 - [#2944](https://github.com/influxdb/influxdb/issues/2944): Don't require "WHERE time" when creating continuous queries.
 - [#3075](https://github.com/influxdb/influxdb/pull/3075): GROUP BY correctly when different tags have same value.
 - [#3078](https://github.com/influxdb/influxdb/pull/3078): Fix CLI panic on malformed INSERT.
-- [2102](https://github.com/influxdb/influxdb/issues/2102): Re-work Graphite input and metric processing
-- [2996](https://github.com/influxdb/influxdb/issues/2996): Graphite Input Parsing
+- [#2102](https://github.com/influxdb/influxdb/issues/2102): Re-work Graphite input and metric processing
+- [#2996](https://github.com/influxdb/influxdb/issues/2996): Graphite Input Parsing
+- [#3136](https://github.com/influxdb/influxdb/pull/3136): Fix various issues with init.d script. Thanks @ miguelcnf.
 
 ## v0.9.0 [2015-06-11]
 
