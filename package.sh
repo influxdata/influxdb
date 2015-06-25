@@ -356,7 +356,6 @@ if [ "x$response" == "xy" -o -n "$NIGHTLY_BUILD" ]; then
     fi
 
     for filepath in `ls *.{deb,rpm}`; do
-        echo "Uploading $filepath to S3"
         filename=`basename $filepath`
         if [ -n "$NIGHTLY_BUILD" ]; then
             filename=`echo $filename | sed s/$VERSION/nightly/`
