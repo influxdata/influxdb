@@ -316,7 +316,7 @@ if [ $? -ne 0 ]; then
 fi
 echo "Debian package created successfully."
 
-fpm -s dir -t tar --description "$DESCRIPTION" $COMMON_FPM_ARGS && gzip influxdb.tar && mv influxdb.tar.gz influxdb_${VERSION}_${ARCH}.tar.gz
+fpm -s dir -t tar --prefix influxdb_${VERSION}_${ARCH} -p influxdb_${VERSION}_${ARCH}.tar.gz --description "$DESCRIPTION" $COMMON_FPM_ARGS
 if [ $? -ne 0 ]; then
     echo "Failed to create Tar package -- aborting."
     cleanup_exit 1
