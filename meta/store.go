@@ -1626,6 +1626,8 @@ func (fsm *storeFSM) Restore(r io.ReadCloser) error {
 	}
 
 	// Set metadata on store.
+	// NOTE: No lock because Hashicorp Raft doesn't call Restore concurrently
+	// with any other function.
 	fsm.data = data
 
 	return nil
@@ -1636,19 +1638,28 @@ type storeFSMSnapshot struct {
 }
 
 func (s *storeFSMSnapshot) Persist(sink raft.SnapshotSink) error {
-	// Encode data.
-	p, err := s.Data.MarshalBinary()
+	err := func() error {
+		// Encode data.
+		p, err := s.Data.MarshalBinary()
+		if err != nil {
+			return err
+		}
+
+		// Write data to sink.
+		if _, err := sink.Write(p); err != nil {
+			return err
+		}
+
+		// Close the sink.
+		if err := sink.Close(); err != nil {
+			return err
+		}
+
+		return nil
+	}()
+
 	if err != nil {
-		return err
-	}
-
-	// Write data to sink.
-	if _, err := sink.Write(p); err != nil {
-		return err
-	}
-
-	// Close the sink.
-	if err := sink.Close(); err != nil {
+		sink.Cancel()
 		return err
 	}
 

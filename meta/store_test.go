@@ -615,10 +615,17 @@ func TestStore_Snapshot_And_Restore(t *testing.T) {
 	s := MustOpenStore()
 	s.LeaveFiles = true
 
+	// Create a bunch of databases in the Store
+	nDatabases := 5
+	for n := 0; n < nDatabases; n++ {
+		s.CreateDatabase(fmt.Sprintf("db%d", n))
+	}
+
 	// Test taking a snapshot.
 	if err := s.Store.Snapshot(); err != nil {
 		t.Fatal(err)
 	}
+
 	s.Close()
 
 	// Test restoring the snapshot taken above.
@@ -636,7 +643,17 @@ func TestStore_Snapshot_And_Restore(t *testing.T) {
 	case <-s.Ready():
 	}
 
-	// TODO: figure out some way to confirm that the snapshot restored
+	// Make sure all the data we added to the Store is still there.
+	for n := 0; n < nDatabases; n++ {
+		name := fmt.Sprintf("db%d", n)
+		if dbi, err := s.Database(name); err != nil {
+			t.Fatal(err)
+		} else if dbi == nil {
+			t.Fatalf("database not found: %s", name)
+		} else if dbi.Name != name {
+			t.Fatal(name)
+		}
+	}
 }
 
 // Ensure a multi-node cluster can start, join the cluster, and replicate commands.
