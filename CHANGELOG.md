@@ -1,3 +1,9 @@
+## v0.9.2 [unreleased]
+
+### Bugfixes
+
+- [3155](https://github.com/influxdb/influxdb/pull/3155): Instantiate UDP batcher before listening for UDP traffic, otherwise a panic may result.
+
 ## v0.9.1 [2015-06-26]
 
 ### Features
