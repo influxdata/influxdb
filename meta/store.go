@@ -353,6 +353,12 @@ func (s *Store) createLocalNode() error {
 	return nil
 }
 
+// Snapshot saves a snapshot of the current state.
+func (s *Store) Snapshot() error {
+	future := s.raft.Snapshot()
+	return future.Error()
+}
+
 // WaitForLeader sleeps until a leader is found or a timeout occurs.
 func (s *Store) WaitForLeader(timeout time.Duration) error {
 	if s.raft.Leader() != "" {
@@ -1608,13 +1614,21 @@ func (fsm *storeFSM) Snapshot() (raft.FSMSnapshot, error) {
 
 func (fsm *storeFSM) Restore(r io.ReadCloser) error {
 	// Read all bytes.
-	// b, err := ioutil.ReadAll(r)
-	// if err != nil {
-	// 	return err
-	// }
+	b, err := ioutil.ReadAll(r)
+	if err != nil {
+		return err
+	}
 
-	// TODO: Decode metadata.
-	// TODO: Set metadata on store.
+	// Decode metadata.
+	data := &Data{}
+	if err := data.UnmarshalBinary(b); err != nil {
+		return err
+	}
+
+	// Set metadata on store.
+	// NOTE: No lock because Hashicorp Raft doesn't call Restore concurrently
+	// with any other function.
+	fsm.data = data
 
 	return nil
 }
@@ -1624,10 +1638,32 @@ type storeFSMSnapshot struct {
 }
 
 func (s *storeFSMSnapshot) Persist(sink raft.SnapshotSink) error {
-	// TODO: Encode data.
-	// TODO: sink.Write(p)
-	// TODO: sink.Close()
-	panic("not implemented yet")
+	err := func() error {
+		// Encode data.
+		p, err := s.Data.MarshalBinary()
+		if err != nil {
+			return err
+		}
+
+		// Write data to sink.
+		if _, err := sink.Write(p); err != nil {
+			return err
+		}
+
+		// Close the sink.
+		if err := sink.Close(); err != nil {
+			return err
+		}
+
+		return nil
+	}()
+
+	if err != nil {
+		sink.Cancel()
+		return err
+	}
+
+	return nil
 }
 
 // Release is invoked when we are finished with the snapshot

@@ -6,6 +6,7 @@
 - [3125](https://github.com/influxdb/influxdb/pull/3125): Graphite Input Protocol Parsing
 - [2746](https://github.com/influxdb/influxdb/pull/2746): New Admin UI/interface
 - [3036](https://github.com/influxdb/influxdb/pull/3036): Write Ahead Log (WAL)
+- [3014](https://github.com/influxdb/influxdb/issues/3014): Implement Raft snapshots
 
 ### Bugfixes
 
