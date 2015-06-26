@@ -289,15 +289,15 @@ if [ -z "$NIGHTLY_BUILD" ]; then
 fi
 
 if [ $ARCH == "i386" ]; then
-    rpm_package=influxdb-$VERSION-1.i686.rpm
+    rpm_package=influxdb-${VERSION}.i686.rpm
     debian_package=influxdb_${VERSION}_i686.deb
     deb_args="-a i686"
     rpm_args="setarch i686"
 elif [ $ARCH == "arm" ]; then
-    rpm_package=influxdb-$VERSION-1.armel.rpm
+    rpm_package=influxdb-${VERSION}.armel.rpm
     debian_package=influxdb_${VERSION}_armel.deb
 else
-    rpm_package=influxdb-$VERSION-1.x86_64.rpm
+    rpm_package=influxdb-${VERSION}.x86_64.rpm
     debian_package=influxdb_${VERSION}_amd64.deb
 fi
 
