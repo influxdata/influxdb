@@ -17,6 +17,7 @@ import (
 	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/tcp"
 	"github.com/influxdb/influxdb/toml"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func init() {
@@ -653,6 +654,60 @@ func TestStore_UpdateUser(t *testing.T) {
 		t.Fatal(err)
 	} else if ui.Hash == other.Hash {
 		t.Fatal("password hash did not change")
+	}
+}
+
+// Ensure Authentication works.
+func TestStore_Authentication(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	s := MustOpenStore()
+	defer s.Close()
+
+	// Set the hash function back to the real thing for this test.
+	oldHashFn := meta.HashPassword
+	meta.HashPassword = func(password string) ([]byte, error) {
+		return bcrypt.GenerateFromPassword([]byte(password), 4)
+	}
+	defer func() { meta.HashPassword = oldHashFn }()
+
+	// Create user.
+	s.CreateUser("susy", "pass", true)
+
+	// Authenticate user.
+	if ui, err := s.Authenticate("susy", "pass"); err != nil {
+		t.Fatal(err)
+	} else if ui.Name != "susy" {
+		t.Fatalf(`expected "susy", got "%s"`, ui.Name)
+	}
+
+	// Update user's password.
+	s.UpdateUser("susy", "pass2")
+
+	// Make sure authentication with old password does NOT work.
+	if _, err := s.Authenticate("susy", "pass"); err == nil {
+		t.Fatal("expected authentication error")
+	}
+
+	// Authenticate user with new password
+	if ui, err := s.Authenticate("susy", "pass2"); err != nil {
+		t.Fatal(err)
+	} else if ui.Name != "susy" {
+		t.Fatalf(`expected "susy", got "%s"`, ui.Name)
+	}
+
+	// Drop user.
+	s.DropUser("susy")
+
+	// Make sure authentication with both old passwords does NOT work.
+	if _, err := s.Authenticate("susy", "pass"); err == nil {
+		t.Fatal("expected authentication error")
+	} else if _, err := s.Authenticate("susy", "pass2"); err == nil {
+		t.Fatal("expected authentication error")
 	}
 }
 

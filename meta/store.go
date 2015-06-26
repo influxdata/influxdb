@@ -1003,7 +1003,6 @@ func (s *Store) Authenticate(username, password string) (ui *UserInfo, err error
 			ui = u
 			return nil
 		}
-
 		// Compare password with user hash.
 		if err := bcrypt.CompareHashAndPassword([]byte(u.Hash), []byte(password)); err != nil {
 			return err
