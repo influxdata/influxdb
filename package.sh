@@ -30,6 +30,8 @@
 # Trim the leading spaces when creating the file. The script will exit if
 # S3 upload is requested, but this file does not exist.
 
+[ -z $DEBUG ] || set -x
+
 AWS_FILE=~/aws.conf
 
 INSTALL_ROOT_DIR=/opt/influxdb
