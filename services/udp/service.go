@@ -39,9 +39,10 @@ type Service struct {
 
 func NewService(c Config) *Service {
 	return &Service{
-		config: c,
-		done:   make(chan struct{}),
-		Logger: log.New(os.Stderr, "[udp] ", log.LstdFlags),
+		config:  c,
+		done:    make(chan struct{}),
+		batcher: tsdb.NewPointBatcher(c.BatchSize, time.Duration(c.BatchTimeout)),
+		Logger:  log.New(os.Stderr, "[udp] ", log.LstdFlags),
 	}
 }
 
@@ -66,8 +67,6 @@ func (s *Service) Open() (err error) {
 	}
 
 	s.Logger.Printf("Started listening on %s", s.config.BindAddress)
-
-	s.batcher = tsdb.NewPointBatcher(s.config.BatchSize, time.Duration(s.config.BatchTimeout))
 
 	s.wg.Add(2)
 	go s.serve()
