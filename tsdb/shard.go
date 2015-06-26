@@ -243,6 +243,12 @@ func (s *Shard) WritePoints(points []Point) error {
 			s.mu.RLock()
 			mf := s.measurementFields[p.Name()]
 			s.mu.RUnlock()
+
+			// If a measurement is dropped while writes for it are in progress, this could be nil
+			if mf == nil {
+				return ErrFieldNotFound
+			}
+
 			data, err := mf.codec.EncodeFields(p.Fields())
 			if err != nil {
 				return err
