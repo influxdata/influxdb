@@ -409,7 +409,7 @@ func (m *MapReduceJob) processRawQueryDerivative(lastValueFromPreviousChunk *raw
 
 		// Calculate the derivative of successive points by dividing the difference
 		// of each value by the elapsed time normalized to the interval
-		diff := i64tof64(v.Values) - i64tof64(lastValueFromPreviousChunk.Values)
+		diff := int64toFloat64(v.Values) - int64toFloat64(lastValueFromPreviousChunk.Values)
 
 		elapsed := v.Time - lastValueFromPreviousChunk.Time
 
@@ -470,7 +470,7 @@ func (m *MapReduceJob) processDerivative(results [][]interface{}) [][]interface{
 		}
 
 		elapsed := cur[0].(time.Time).Sub(prev[0].(time.Time))
-		diff := i64tof64(cur[1]) - i64tof64(prev[1])
+		diff := int64toFloat64(cur[1]) - int64toFloat64(prev[1])
 		value := 0.0
 		if elapsed > 0 {
 			value = float64(diff) / (float64(elapsed) / float64(m.derivativeInterval()))
@@ -932,7 +932,7 @@ func (e *Executor) execute(out chan *Row) {
 	close(out)
 }
 
-func i64tof64(v interface{}) float64 {
+func int64toFloat64(v interface{}) float64 {
 	switch v.(type) {
 	case int64:
 		return float64(v.(int64))
