@@ -96,6 +96,9 @@ type Store struct {
 	// The amount of time without an apply before sending a heartbeat.
 	CommitTimeout time.Duration
 
+	// Authentication cache.
+	authCache map[string]string
+
 	Logger *log.Logger
 }
 
@@ -116,6 +119,7 @@ func NewStore(c Config) *Store {
 		ElectionTimeout:    time.Duration(c.ElectionTimeout),
 		LeaderLeaseTimeout: time.Duration(c.LeaderLeaseTimeout),
 		CommitTimeout:      time.Duration(c.CommitTimeout),
+		authCache:          make(map[string]string, 0),
 		Logger:             log.New(os.Stderr, "", log.LstdFlags),
 	}
 }
@@ -994,10 +998,18 @@ func (s *Store) Authenticate(username, password string) (ui *UserInfo, err error
 			return ErrUserNotFound
 		}
 
+		// Check the local auth cache first.
+		if p, ok := s.authCache[username]; ok && p == password {
+			ui = u
+			return nil
+		}
+
 		// Compare password with user hash.
 		if err := bcrypt.CompareHashAndPassword([]byte(u.Hash), []byte(password)); err != nil {
 			return err
 		}
+
+		s.authCache[username] = password
 
 		ui = u
 		return nil
@@ -1578,6 +1590,7 @@ func (fsm *storeFSM) applyDropUserCommand(cmd *internal.Command) interface{} {
 		return err
 	}
 	fsm.data = other
+	delete(fsm.authCache, v.GetName())
 	return nil
 }
 
@@ -1591,6 +1604,7 @@ func (fsm *storeFSM) applyUpdateUserCommand(cmd *internal.Command) interface{} {
 		return err
 	}
 	fsm.data = other
+	delete(fsm.authCache, v.GetName())
 	return nil
 }
 
