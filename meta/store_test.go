@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strconv"
 	"testing"
 	"time"
@@ -388,6 +389,75 @@ func TestStore_CreateShardGroup(t *testing.T) {
 		t.Fatal(err)
 	} else if sgi.ID != 1 {
 		t.Fatalf("unexpected shard group: %#v", sgi)
+	}
+
+}
+
+func TestStore_ShardGroupsRetrieval(t *testing.T) {
+	t.Parallel()
+	s := MustOpenStore()
+	defer s.Close()
+
+	// Create resources for testing.
+	if _, err := s.CreateNode("host0"); err != nil {
+		t.Fatal(err)
+	} else if _, err := s.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	} else if _, err = s.CreateRetentionPolicy("db0", &meta.RetentionPolicyInfo{Name: "rp0", ReplicaN: 2, Duration: 1 * time.Hour}); err != nil {
+		t.Fatal(err)
+	}
+	if sgi, err := s.CreateShardGroup("db0", "rp0", time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	} else if sgi.ID != 1 {
+		t.Fatalf("unexpected shard group: %#v", sgi)
+	}
+
+	// Function to compare actual and expected. Works on integers only, as results require sorting.
+	assertShardGroupsInTimeRange := func(database, policy string, actualGroups []meta.ShardGroupInfo, expectedGroupIDs []int) {
+		if len(actualGroups) != len(expectedGroupIDs) {
+			t.Fatalf(("number of actual groups (%d) does not equal number expected groups (%d)"), len(actualGroups), len(expectedGroupIDs))
+		}
+
+		actualGroupIDs := []int{}
+		for i := range actualGroups {
+			actualGroupIDs = append(actualGroupIDs, int(actualGroups[i].ID))
+		}
+
+		sort.Ints(actualGroupIDs)
+		sort.Ints(expectedGroupIDs)
+		for i := range actualGroupIDs {
+			if actualGroupIDs[i] != expectedGroupIDs[i] {
+				t.Fatalf("actual group IDs (%v) does not match expected group IDs (%v)", actualGroupIDs, expectedGroupIDs)
+			}
+		}
+	}
+
+	// Check that it is returned correctly when requested.
+	if sgs, err := s.ShardGroups("db0", "rp0"); err != nil {
+		t.Fatal(err)
+	} else {
+		assertShardGroupsInTimeRange("db0", "rp0", sgs, []int{1})
+	}
+
+	if sgs, err := s.ShardGroupsByTimeRange("db0", "rp0", time.Date(1999, time.January, 1, 0, 0, 0, 0, time.UTC), time.Date(1999, time.January, 2, 0, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	} else {
+		assertShardGroupsInTimeRange("db0", "rp0", sgs, []int{})
+	}
+	if sgs, err := s.ShardGroupsByTimeRange("db0", "rp0", time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC), time.Date(2001, time.January, 1, 0, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	} else {
+		assertShardGroupsInTimeRange("db0", "rp0", sgs, []int{1})
+	}
+	if sgs, err := s.ShardGroupsByTimeRange("db0", "rp0", time.Date(1999, time.January, 1, 0, 0, 0, 0, time.UTC), time.Date(2001, time.January, 1, 0, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	} else {
+		assertShardGroupsInTimeRange("db0", "rp0", sgs, []int{1})
+	}
+	if sgs, err := s.ShardGroupsByTimeRange("db0", "rp0", time.Date(2002, time.January, 1, 0, 0, 0, 0, time.UTC), time.Date(2002, time.January, 2, 0, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	} else {
+		assertShardGroupsInTimeRange("db0", "rp0", sgs, []int{})
 	}
 }
 
