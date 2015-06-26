@@ -94,7 +94,7 @@ func (p *Parser) ParseStatement() (Statement, error) {
 	case ALTER:
 		return p.parseAlterStatement()
 	case SET:
-		return p.parseSetStatement()
+		return p.parseSetPasswordUserStatement()
 	default:
 		return nil, newParseError(tokstr(tok, lit), []string{"SELECT", "DELETE", "SHOW", "CREATE", "DROP", "GRANT", "REVOKE", "ALTER", "SET"}, pos)
 	}
@@ -207,19 +207,14 @@ func (p *Parser) parseAlterStatement() (Statement, error) {
 	return nil, newParseError(tokstr(tok, lit), []string{"RETENTION"}, pos)
 }
 
-// parseSetStatement parses a string and returns a set statement.
+// parseSetPasswordUserStatement parses a string and returns a set statement.
 // This function assumes the SET token has already been consumed.
-func (p *Parser) parseSetStatement() (*SetPasswordUserStatement, error) {
+func (p *Parser) parseSetPasswordUserStatement() (*SetPasswordUserStatement, error) {
 	stmt := &SetPasswordUserStatement{}
 
-	// Consume the required PASSWORD token.
-	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != PASSWORD {
-		return nil, newParseError(tokstr(tok, lit), []string{"PASSWORD"}, pos)
-	}
-
-	// Consume the required FOR token.
-	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != FOR {
-		return nil, newParseError(tokstr(tok, lit), []string{"FOR"}, pos)
+	// Consume the required PASSWORD FOR tokens.
+	if err := p.parseTokens([]Token{PASSWORD, FOR}); err != nil {
+		return nil, err
 	}
 
 	// Parse username

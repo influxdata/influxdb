@@ -92,6 +92,9 @@ func (*DropRetentionPolicyStatement) node()   {}
 func (*DropSeriesStatement) node()            {}
 func (*DropUserStatement) node()              {}
 func (*GrantStatement) node()                 {}
+func (*RevokeStatement) node()                {}
+func (*SelectStatement) node()                {}
+func (*SetPasswordUserStatement) node()       {}
 func (*ShowContinuousQueriesStatement) node() {}
 func (*ShowGrantsForUserStatement) node()     {}
 func (*ShowServersStatement) node()           {}
@@ -105,9 +108,6 @@ func (*ShowDiagnosticsStatement) node()       {}
 func (*ShowTagKeysStatement) node()           {}
 func (*ShowTagValuesStatement) node()         {}
 func (*ShowUsersStatement) node()             {}
-func (*RevokeStatement) node()                {}
-func (*SelectStatement) node()                {}
-func (*SetPasswordUserStatement) node()       {}
 
 func (*BinaryExpr) node()      {}
 func (*BooleanLiteral) node()  {}
