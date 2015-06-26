@@ -39,6 +39,7 @@
 - [#2996](https://github.com/influxdb/influxdb/issues/2996): Graphite Input Parsing
 - [#3127](https://github.com/influxdb/influxdb/issues/3127): Trying to insert a number larger than the largest signed 64-bit number kills influxd
 - [#3131](https://github.com/influxdb/influxdb/pull/3131): Copy batch tags to each point before marshalling
+- [#3155](https://github.com/influxdb/influxdb/pull/3155): Instantiate UDP batcher before listening for UDP traffic, otherwise a panic may result.
 
 ## v0.9.0 [2015-06-11]
 
