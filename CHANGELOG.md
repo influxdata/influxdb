@@ -42,6 +42,7 @@
 - [#3155](https://github.com/influxdb/influxdb/pull/3155): Instantiate UDP batcher before listening for UDP traffic, otherwise a panic may result.
 - [#2678](https://github.com/influxdb/influxdb/issues/2678): Server allows tags with an empty string for the key and/or value
 - [#3061](https://github.com/influxdb/influxdb/issues/3061): syntactically incorrect line protocol insert panics the database
+- [#2608](https://github.com/influxdb/influxdb/issues/2608): drop measurement while writing points to that measurement has race condition that can panic
 
 ## v0.9.0 [2015-06-11]
 
