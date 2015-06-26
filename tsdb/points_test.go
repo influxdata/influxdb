@@ -146,6 +146,22 @@ func TestParsePointNoFields(t *testing.T) {
 	if err == nil {
 		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, "cpu")
 	}
+
+	_, err = ParsePointsString("cpu,")
+	if err == nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, "cpu,")
+	}
+
+	_, err = ParsePointsString("cpu, value=1")
+	if err == nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, "cpu, value=1")
+	}
+
+	_, err = ParsePointsString("cpu,,, value=1")
+	if err == nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, "cpu,,, value=1")
+	}
+
 }
 
 func TestParsePointNoTimestamp(t *testing.T) {
@@ -159,10 +175,36 @@ func TestParsePointMissingQuote(t *testing.T) {
 	}
 }
 
+func TestParsePointMissingTagName(t *testing.T) {
+	_, err := ParsePointsString(`cpu,host=serverA,=us-east value=1`)
+	if err == nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,=us-east value=1`)
+	}
+
+	_, err = ParsePointsString(`cpu,host=serverAa\,,=us-east value=1`)
+	if err == nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverAa\,,=us-east value=1`)
+	}
+
+	_, err = ParsePointsString(`cpu,host=serverA\,,=us-east value=1`)
+	if err == nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA\,,=us-east value=1`)
+	}
+
+	_, err = ParsePointsString(`cpu,host=serverA,\ =us-east value=1`)
+	if err != nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,\ =us-east value=1`, err)
+	}
+}
+
 func TestParsePointMissingTagValue(t *testing.T) {
 	_, err := ParsePointsString(`cpu,host=serverA,region value=1`)
 	if err == nil {
-		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, "cpu")
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region value=1`)
+	}
+	_, err = ParsePointsString(`cpu,host=serverA,region= value=1`)
+	if err == nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region= value=1`)
 	}
 }
 
