@@ -328,8 +328,11 @@ func scanFields(buf []byte, i int) (int, []byte, error) {
 	i = start
 	quoted := false
 
-	// tracks whether we've see at least one '='
-	hasSeparator := false
+	// tracks how many '=' we've seen
+	equals := 0
+
+	// tracks how many commas we've seen
+	commas := 0
 
 	for {
 		// reached the end of buf?
@@ -350,9 +353,19 @@ func scanFields(buf []byte, i int) (int, []byte, error) {
 			continue
 		}
 
-		// If we see an =, ensure that there is at least on char after it
+		// If we see an =, ensure that there is at least on char before and after it
 		if buf[i] == '=' && !quoted {
-			hasSeparator = true
+			equals += 1
+
+			// check for "... =123" but allow "a\ =123"
+			if buf[i-1] == ' ' && buf[i-2] != '\\' {
+				return i, buf[start:i], fmt.Errorf("missing field name")
+			}
+
+			// check for "...a=123,=456" but allow "a=123,a\,=456"
+			if buf[i-1] == ',' && buf[i-2] != '\\' {
+				return i, buf[start:i], fmt.Errorf("missing field name")
+			}
 
 			// check for "... value="
 			if i+1 >= len(buf) {
@@ -384,6 +397,10 @@ func scanFields(buf []byte, i int) (int, []byte, error) {
 			}
 		}
 
+		if buf[i] == ',' && !quoted {
+			commas += 1
+		}
+
 		// reached end of block?
 		if buf[i] == ' ' && !quoted {
 			break
@@ -395,7 +412,8 @@ func scanFields(buf []byte, i int) (int, []byte, error) {
 		return i, buf[start:i], fmt.Errorf("unbalanced quotes")
 	}
 
-	if !hasSeparator {
+	// check that all field sections had key and values (e.g. prevent "a=1,b"
+	if equals == 0 || commas != equals-1 {
 		return i, buf[start:i], fmt.Errorf("invalid field format")
 	}
 
