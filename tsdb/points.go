@@ -193,7 +193,7 @@ func scanKey(buf []byte, i int) (int, []byte, error) {
 
 	i = start
 
-	// Determiens whether the tags are sort, assume they are
+	// Determines whether the tags are sort, assume they are
 	sorted := true
 
 	// indices holds the indexes within buf of the start of each tag.  For example,
@@ -203,7 +203,7 @@ func scanKey(buf []byte, i int) (int, []byte, error) {
 	indices := make([]int, 100)
 
 	// tracks how many commas we've seen so we know how many values are indices.
-	// Since indices is an arbitraily large slice,
+	// Since indices is an arbitrarily large slice,
 	// we need to know how many values in the buffer are in use.
 	commas := 0
 
