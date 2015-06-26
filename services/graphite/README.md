@@ -106,7 +106,8 @@ If you need to add the same set of tags to all metrics, you can define them glob
  #]
 ```
 
-## Customized Config ```
+## Customized Config 
+```
 [[graphite]]
    enabled = true
    separator = "_"
