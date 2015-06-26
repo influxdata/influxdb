@@ -675,7 +675,7 @@ type Store struct {
 	*meta.Store
 	Listener   net.Listener
 	Stderr     bytes.Buffer
-	LeaveFiles bool
+	LeaveFiles bool // set to true to leave temporary files on close
 }
 
 // NewStore returns a new test wrapper for Store.
