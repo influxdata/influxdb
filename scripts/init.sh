@@ -36,14 +36,14 @@ if [ -r $DEFAULT ]; then
 fi
 
 if [ -z "$STDOUT" ]; then
-    STDOUT=/dev/null
+    STDOUT=/var/log/influxdb/influxd.log
 fi
 if [ ! -f "$STDOUT" ]; then
     mkdir -p $(dirname $STDOUT)
 fi
 
 if [ -z "$STDERR" ]; then
-    STDERR=/var/log/influxdb/influxd.log
+    STDERR=/var/log/influxdb/influxd.err
 fi
 if [ ! -f "$STDERR" ]; then
     mkdir -p $(dirname $STDERR)
