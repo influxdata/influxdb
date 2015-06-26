@@ -193,7 +193,7 @@ func scanKey(buf []byte, i int) (int, []byte, error) {
 
 	i = start
 
-	// Determiens whether the tags are sort, assume they are
+	// Determines whether the tags are sort, assume they are
 	sorted := true
 
 	// indices holds the indexes within buf of the start of each tag.  For example,
@@ -203,27 +203,42 @@ func scanKey(buf []byte, i int) (int, []byte, error) {
 	indices := make([]int, 100)
 
 	// tracks how many commas we've seen so we know how many values are indices.
-	// Since indices is an arbitraily large slice,
+	// Since indices is an arbitrarily large slice,
 	// we need to know how many values in the buffer are in use.
-	separators := 0
+	commas := 0
 
 	// tracks whether we've see an '='
-	hasSeparator := false
+	equals := 0
 
 	// loop over each byte in buf
 	for {
 		// reached the end of buf?
 		if i >= len(buf) {
-			if !hasSeparator && separators > 0 {
-				return i, buf[start:i], fmt.Errorf("missing value")
+			if equals == 0 && commas > 0 {
+				return i, buf[start:i], fmt.Errorf("missing tag value")
 			}
 
 			break
 		}
 
 		if buf[i] == '=' {
+			// Check for "cpu,=value" but allow "cpu,a\,=value"
+			if buf[i-1] == ',' && buf[i-2] != '\\' {
+				return i, buf[start:i], fmt.Errorf("missing tag name")
+			}
+
+			// Check for "cpu,\ =value"
+			if buf[i-1] == ' ' && buf[i-2] != '\\' {
+				return i, buf[start:i], fmt.Errorf("missing tag name")
+			}
+
 			i += 1
-			hasSeparator = true
+			equals += 1
+
+			// Check for "cpu,a=1,b= value=1"
+			if i < len(buf) && buf[i] == ' ' {
+				return i, buf[start:i], fmt.Errorf("missing tag value")
+			}
 			continue
 		}
 
@@ -235,36 +250,46 @@ func scanKey(buf []byte, i int) (int, []byte, error) {
 
 		// At a tag separator (comma), track it's location
 		if buf[i] == ',' {
-			if !hasSeparator && separators > 0 {
-				return i, buf[start:i], fmt.Errorf("missing value")
+			if equals == 0 && commas > 0 {
+				return i, buf[start:i], fmt.Errorf("missing tag value")
 			}
 			i += 1
-			indices[separators] = i
-			separators += 1
-			hasSeparator = false
+			indices[commas] = i
+			commas += 1
+
+			// Check for "cpu, value=1"
+			if i < len(buf) && buf[i] == ' ' {
+				return i, buf[start:i], fmt.Errorf("missing tag key")
+			}
 			continue
 		}
 
 		// reached end of the block? (next block would be fields)
 		if buf[i] == ' ' {
-			if !hasSeparator && separators > 0 {
-				return i, buf[start:i], fmt.Errorf("missing value")
+			if equals > 0 && commas-1 != equals-1 {
+				return i, buf[start:i], fmt.Errorf("missing tag value")
 			}
-			indices[separators] = i + 1
+			indices[commas] = i + 1
 			break
 		}
 
 		i += 1
 	}
 
+	// check that all field sections had key and values (e.g. prevent "a=1,b"
+	// We're using commas -1 because there should always be a comma after measurement
+	if equals > 0 && commas-1 != equals-1 {
+		return i, buf[start:i], fmt.Errorf("invalid tag format")
+	}
+
 	// Now we know where the key region is within buf, and the locations of tags, we
 	// need to deterimine if duplicate tags exist and if the tags are sorted.  This iterates
 	// 1/2 of the list comparing each end with each other, walking towards the center from
 	// both sides.
-	for j := 0; j < separators/2; j++ {
+	for j := 0; j < commas/2; j++ {
 		// get the left and right tags
 		_, left := scanTo(buf[indices[j]:indices[j+1]-1], 0, '=')
-		_, right := scanTo(buf[indices[separators-j-1]:indices[separators-j]-1], 0, '=')
+		_, right := scanTo(buf[indices[commas-j-1]:indices[commas-j]-1], 0, '=')
 
 		// If the tags are equal, then there are duplicate tags, and we should abort
 		if bytes.Equal(left, right) {
@@ -282,13 +307,13 @@ func scanKey(buf []byte, i int) (int, []byte, error) {
 	// uses the tag indices we created earlier.  The actual buffer is not sorted, the
 	// indices are using the buffer for value comparison.  After the indices are sorted,
 	// the buffer is reconstructed from the sorted indices.
-	if !sorted && separators > 0 {
+	if !sorted && commas > 0 {
 		// Get the measurement name for later
 		measurement := buf[start : indices[0]-1]
 
 		// Sort the indices
-		indices := indices[:separators]
-		insertionSort(0, separators, buf, indices)
+		indices := indices[:commas]
+		insertionSort(0, commas, buf, indices)
 
 		// Create a new key using the measurement and sorted indices
 		b := make([]byte, len(buf[start:i]))
@@ -328,8 +353,11 @@ func scanFields(buf []byte, i int) (int, []byte, error) {
 	i = start
 	quoted := false
 
-	// tracks whether we've see at least one '='
-	hasSeparator := false
+	// tracks how many '=' we've seen
+	equals := 0
+
+	// tracks how many commas we've seen
+	commas := 0
 
 	for {
 		// reached the end of buf?
@@ -350,9 +378,19 @@ func scanFields(buf []byte, i int) (int, []byte, error) {
 			continue
 		}
 
-		// If we see an =, ensure that there is at least on char after it
+		// If we see an =, ensure that there is at least on char before and after it
 		if buf[i] == '=' && !quoted {
-			hasSeparator = true
+			equals += 1
+
+			// check for "... =123" but allow "a\ =123"
+			if buf[i-1] == ' ' && buf[i-2] != '\\' {
+				return i, buf[start:i], fmt.Errorf("missing field name")
+			}
+
+			// check for "...a=123,=456" but allow "a=123,a\,=456"
+			if buf[i-1] == ',' && buf[i-2] != '\\' {
+				return i, buf[start:i], fmt.Errorf("missing field name")
+			}
 
 			// check for "... value="
 			if i+1 >= len(buf) {
@@ -384,6 +422,10 @@ func scanFields(buf []byte, i int) (int, []byte, error) {
 			}
 		}
 
+		if buf[i] == ',' && !quoted {
+			commas += 1
+		}
+
 		// reached end of block?
 		if buf[i] == ' ' && !quoted {
 			break
@@ -395,7 +437,8 @@ func scanFields(buf []byte, i int) (int, []byte, error) {
 		return i, buf[start:i], fmt.Errorf("unbalanced quotes")
 	}
 
-	if !hasSeparator {
+	// check that all field sections had key and values (e.g. prevent "a=1,b"
+	if equals == 0 || commas != equals-1 {
 		return i, buf[start:i], fmt.Errorf("invalid field format")
 	}
 
