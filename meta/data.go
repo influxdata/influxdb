@@ -254,6 +254,26 @@ func (data *Data) ShardGroups(database, policy string) ([]ShardGroupInfo, error)
 	return groups, nil
 }
 
+// ShardGroupsByTimeRange returns a list of all shard groups on a database and policy that may contain data
+// for the specified time range.
+func (data *Data) ShardGroupsByTimeRange(database, policy string, tmin, tmax time.Time) ([]ShardGroupInfo, error) {
+	// Find retention policy.
+	rpi, err := data.RetentionPolicy(database, policy)
+	if err != nil {
+		return nil, err
+	} else if rpi == nil {
+		return nil, ErrRetentionPolicyNotFound
+	}
+	groups := make([]ShardGroupInfo, 0, len(rpi.ShardGroups))
+	for _, g := range rpi.ShardGroups {
+		if g.Deleted() || !g.Overlaps(tmin, tmax) {
+			continue
+		}
+		groups = append(groups, g)
+	}
+	return groups, nil
+}
+
 // ShardGroupByTimestamp returns the shard group on a database and policy for a given timestamp.
 func (data *Data) ShardGroupByTimestamp(database, policy string, timestamp time.Time) (*ShardGroupInfo, error) {
 	// Find retention policy.

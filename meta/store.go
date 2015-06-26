@@ -863,6 +863,20 @@ func (s *Store) ShardGroups(database, policy string) (a []ShardGroupInfo, err er
 	return
 }
 
+// ShardGroupsByTimeRange returns a slice of ShardGroups that may contain data for the given time range
+func (s *Store) ShardGroupsByTimeRange(database, policy string, tmin, tmax time.Time) (a []ShardGroupInfo, err error) {
+	err = s.read(func(data *Data) error {
+		a, err = data.ShardGroupsByTimeRange(database, policy, tmin, tmax)
+		if err != nil {
+			return err
+		} else if a == nil {
+			return errInvalidate
+		}
+		return nil
+	})
+	return
+}
+
 // VisitRetentionPolicies calls the given function with full retention policy details.
 func (s *Store) VisitRetentionPolicies(f func(d DatabaseInfo, r RetentionPolicyInfo)) {
 	s.read(func(data *Data) error {
