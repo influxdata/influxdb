@@ -316,6 +316,13 @@ if [ $? -ne 0 ]; then
 fi
 echo "Debian package created successfully."
 
+fpm -s dir -t tar --prefix influxdb_${VERSION}_${ARCH} -p influxdb_${VERSION}_${ARCH}.tar.gz --description "$DESCRIPTION" $COMMON_FPM_ARGS
+if [ $? -ne 0 ]; then
+    echo "Failed to create Tar package -- aborting."
+    cleanup_exit 1
+fi
+echo "Tar package created successfully."
+
 ###########################################################################
 # Offer to tag the repo.
 
