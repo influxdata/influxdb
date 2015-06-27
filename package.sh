@@ -363,7 +363,7 @@ if [ "x$response" == "xy" -o -n "$NIGHTLY_BUILD" ]; then
         cleanup_exit 1
     fi
 
-    for filepath in `ls *.{deb,rpm}`; do
+    for filepath in `ls *.{deb,rpm,gz}`; do
         filename=`basename $filepath`
         if [ -n "$NIGHTLY_BUILD" ]; then
             filename=`echo $filename | sed s/$VERSION/nightly/`
