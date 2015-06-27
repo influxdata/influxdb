@@ -139,6 +139,12 @@ type ShardMapper struct {
 
 	tx      *bolt.Tx // Read transaction for this shard.
 	cursors []*mapperCursor
+
+	queryTMin time.Time     // the min specified by the query
+	queryTMax time.Time     // the max specified by the query
+	currTmin  time.Time     // the min of the current GROUP BY interval being iterated over
+	currTmax  time.Time     // the max of the current GROUP BY interval being iterated over
+	interval  time.Duration // GROUP BY interval.
 }
 
 func NewShardMapper(shard *Shard) *ShardMapper {
@@ -165,12 +171,27 @@ func (sm *ShardMapper) Close() {
 }
 
 func (sm *ShardMapper) Begin(stmt *influxql.SelectStatement, chunkSize int) error {
+	var err error
 	for _, src := range stmt.Sources {
 		mm := src.(*influxql.Measurement)
 
 		m := sm.shard.index.Measurement(mm.Name)
 		if m == nil {
 			return ErrMeasurementNotFound(influxql.QuoteIdent([]string{mm.Database, "", mm.Name}...))
+		}
+
+		// Set all time-related paremeters on the mapper.
+		sm.queryTMin, sm.queryTMax = influxql.TimeRange(stmt.Condition)
+		if sm.queryTMin.IsZero() {
+			sm.queryTMin = time.Unix(0, 0)
+		}
+		if sm.queryTMax.IsZero() {
+			sm.queryTMax = time.Now()
+		}
+		sm.currTmin = sm.queryTMin
+		sm.currTmax = sm.queryTMax
+		if sm.interval, err = stmt.GroupByInterval(); err != nil {
+			return err
 		}
 
 		// Validate the fields and tags asked for exist and keep track of which are in the select vs the where
@@ -240,6 +261,7 @@ func (sm *ShardMapper) Begin(stmt *influxql.SelectStatement, chunkSize int) erro
 					Filters: t.Filters,
 					Decoder: sm.shard.FieldCodec(m.Name),
 				}
+				cm.Seek(u64tob(uint64(sm.queryTMin.UnixNano())))
 				sm.cursors = append(sm.cursors, cm)
 			}
 		}
@@ -249,7 +271,10 @@ func (sm *ShardMapper) Begin(stmt *influxql.SelectStatement, chunkSize int) erro
 }
 
 func (sm *ShardMapper) NextChunk() (tagSet string, result interface{}, interval int, err error) {
-	return "", nil, 0, nil
+	if sm.IsEmpty(uint64(sm.currTmax.UnixNano())) || sm.currTmin.After(sm.queryTMax) {
+		return "", nil, 1, nil
+	}
+	return "", nil, 1, nil
 }
 
 func (sm *ShardMapper) createCursorForSeries(key string) *shardCursor {
@@ -274,18 +299,51 @@ func (sm *ShardMapper) createCursorForSeries(key string) *shardCursor {
 	return cur
 }
 
+// IsEmpty returns true if either all cursors are nil or all cursors are past the give time.
+func (sm *ShardMapper) IsEmpty(tmax uint64) bool {
+	for _, c := range sm.cursors {
+		k, _ := c.Peek()
+		if k != nil && uint64(btou64(k)) <= tmax {
+			return false
+		}
+	}
+
+	return true
+}
+
 type mapperCursor struct {
 	Cursor  *shardCursor    // BoltDB cursor for a series
-	Filters []influxql.Expr // filters for the series
+	Filters []influxql.Expr // Filters for the series
 	Decoder *FieldCodec     // Decoder for the raw data bytes
 
-	buffered    bool   // Is anything buffered?
 	keyBuffer   []byte // The current timestamp key for the cursor
 	valueBuffer []byte // The current value for the cursor
 }
 
-// Seek returns the key and value at a certain key.
-func (mc *mapperCursor) Seek(seek []byte) (key, value []byte) {
-	mc.keyBuffer, mc.valueBuffer = mc.Cursor.Seek(seek)
-	return mc.keyBuffer, mc.valueBuffer
+// Peek returns the next key and value, without changing what will be
+// be returned by a call to Next()
+func (mc *mapperCursor) Peek() (key, value []byte) {
+	if mc.keyBuffer != nil {
+		mc.keyBuffer, mc.valueBuffer = mc.Cursor.Next()
+	}
+
+	key, value = mc.keyBuffer, mc.valueBuffer
+	return
+}
+
+// Seek positions the cursor at the key, such that Next will return
+// the key and value at key.
+func (mc *mapperCursor) Seek(key []byte) {
+	mc.keyBuffer, mc.valueBuffer = mc.Cursor.Seek(key)
+}
+
+// Next returns the next key and value from the cursor.
+func (mc *mapperCursor) Next() (key, value []byte) {
+	if mc.keyBuffer != nil {
+		key, value = mc.keyBuffer, mc.valueBuffer
+		mc.keyBuffer, mc.valueBuffer = nil, nil
+	} else {
+		key, value = mc.Cursor.Next()
+	}
+	return
 }
