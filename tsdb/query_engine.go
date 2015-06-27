@@ -137,12 +137,15 @@ func (e *Executor) Execute() <-chan *influxql.Row {
 type ShardMapper struct {
 	shard *Shard
 
-	tx            *bolt.Tx                  // Read transaction for this shard.
-	tagSetCursors map[string][]*shardCursor // Multiple cursors per TagSet.
+	tx      *bolt.Tx // Read transaction for this shard.
+	cursors []*mapperCursor
 }
 
 func NewShardMapper(shard *Shard) *ShardMapper {
-	return &ShardMapper{shard: shard}
+	return &ShardMapper{
+		shard:   shard,
+		cursors: make([]*mapperCursor, 0),
+	}
 }
 
 func (sm *ShardMapper) Open() error {
@@ -165,9 +168,9 @@ func (sm *ShardMapper) Begin(stmt *influxql.SelectStatement, chunkSize int) erro
 	for _, src := range stmt.Sources {
 		mm := src.(*influxql.Measurement)
 
-		m := shard.index.Measurement(mm.Name)
+		m := sm.shard.index.Measurement(mm.Name)
 		if m == nil {
-			return nil, ErrMeasurementNotFound(influxql.QuoteIdent([]string{mm.Database, "", mm.Name}...))
+			return ErrMeasurementNotFound(influxql.QuoteIdent([]string{mm.Database, "", mm.Name}...))
 		}
 
 		// Validate the fields and tags asked for exist and keep track of which are in the select vs the where
@@ -181,7 +184,7 @@ func (sm *ShardMapper) Begin(stmt *influxql.SelectStatement, chunkSize int) erro
 				continue
 			}
 			if !m.HasTagKey(n) {
-				return nil, fmt.Errorf("unknown field or tag name in select clause: %s", n)
+				return fmt.Errorf("unknown field or tag name in select clause: %s", n)
 			}
 			selectTags = append(selectTags, n)
 		}
@@ -194,12 +197,12 @@ func (sm *ShardMapper) Begin(stmt *influxql.SelectStatement, chunkSize int) erro
 				continue
 			}
 			if !m.HasTagKey(n) {
-				return nil, fmt.Errorf("unknown field or tag name in where clause: %s", n)
+				return fmt.Errorf("unknown field or tag name in where clause: %s", n)
 			}
 		}
 
 		if len(selectFields) == 0 && len(stmt.FunctionCalls()) == 0 {
-			return nil, fmt.Errorf("select statement must include at least one field or function call")
+			return fmt.Errorf("select statement must include at least one field or function call")
 		}
 
 		// Validate that group by is not a field
@@ -207,30 +210,82 @@ func (sm *ShardMapper) Begin(stmt *influxql.SelectStatement, chunkSize int) erro
 			switch e := d.Expr.(type) {
 			case *influxql.VarRef:
 				if !m.HasTagKey(e.Val) {
-					return nil, fmt.Errorf("can not use field in group by clause: %s", e.Val)
+					return fmt.Errorf("can not use field in group by clause: %s", e.Val)
 				}
 			}
 		}
 
 		// Determine the interval and GROUP BY tag keys.
-		interval, tagKeys, err := stmt.Dimensions.Normalize()
+		_, tagKeys, err := stmt.Dimensions.Normalize()
 		if err != nil {
-			return nil, err
+			return err
 		}
 
-		// get the sorted unique tag sets for this statement.
+		// Get the sorted unique tag sets for this statement.
 		tagSets, err := m.TagSets(stmt, tagKeys)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
-		// -- looks like I need some sort of collection of cursors, grouped by tag set. Within each
-		// will be the codec, series keys, and a bunch of other stuff. Moving these cursors along
-		// will have to be driven by NextChunk().
-
+		// Create all cursors for reading the data from this shard.
+		for _, t := range tagSets {
+			for _, key := range t.SeriesKeys {
+				c := sm.createCursorForSeries(key)
+				if c == nil {
+					// No data exists for this key.
+					continue
+				}
+				cm := &mapperCursor{
+					Cursor:  c,
+					Filters: t.Filters,
+					Decoder: sm.shard.FieldCodec(m.Name),
+				}
+				sm.cursors = append(sm.cursors, cm)
+			}
+		}
 	}
+
+	return nil
 }
 
 func (sm *ShardMapper) NextChunk() (tagSet string, result interface{}, interval int, err error) {
 	return "", nil, 0, nil
+}
+
+func (sm *ShardMapper) createCursorForSeries(key string) *shardCursor {
+	// Retrieve key bucket.
+	b := sm.tx.Bucket([]byte(key))
+
+	// Ignore if there is no bucket or points in the cache.
+	partitionID := WALPartition([]byte(key))
+	if b == nil && len(sm.shard.cache[partitionID][key]) == 0 {
+		return nil
+	}
+
+	// Retrieve a copy of the in-cache points for the key.
+	cache := make([][]byte, len(sm.shard.cache[partitionID][key]))
+	copy(cache, sm.shard.cache[partitionID][key])
+
+	// Build a cursor that merges the bucket and cache together.
+	cur := &shardCursor{cache: cache}
+	if b != nil {
+		cur.cursor = b.Cursor()
+	}
+	return cur
+}
+
+type mapperCursor struct {
+	Cursor  *shardCursor    // BoltDB cursor for a series
+	Filters []influxql.Expr // filters for the series
+	Decoder *FieldCodec     // Decoder for the raw data bytes
+
+	buffered    bool   // Is anything buffered?
+	keyBuffer   []byte // The current timestamp key for the cursor
+	valueBuffer []byte // The current value for the cursor
+}
+
+// Seek returns the key and value at a certain key.
+func (mc *mapperCursor) Seek(seek []byte) (key, value []byte) {
+	mc.keyBuffer, mc.valueBuffer = mc.Cursor.Seek(seek)
+	return mc.keyBuffer, mc.valueBuffer
 }
