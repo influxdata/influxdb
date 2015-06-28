@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// maxInt is the largest integer representable by a word (architeture dependent).
+// maxInt is the largest integer representable by a word (architecture dependent).
 const maxInt = int64(^uint(0) >> 1)
 
 // Duration is a TOML wrapper type for time.Duration.

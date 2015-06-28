@@ -83,7 +83,7 @@ func (s *Server) URL() string {
 	panic("httpd server not found in services")
 }
 
-// CreateDatabaseAndRetentionPolicy will create the datbase and retnetion policy.
+// CreateDatabaseAndRetentionPolicy will create the database and retention policy.
 func (s *Server) CreateDatabaseAndRetentionPolicy(db string, rp *meta.RetentionPolicyInfo) error {
 	if _, err := s.MetaStore.CreateDatabase(db); err != nil {
 		return err

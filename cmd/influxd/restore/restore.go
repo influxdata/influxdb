@@ -30,7 +30,7 @@ func NewCommand() *Command {
 	}
 }
 
-// Run excutes the program.
+// Run executes the program.
 func (cmd *Command) Run(args ...string) error {
 	config, path, err := cmd.parseFlags(args)
 	if err != nil {

@@ -245,7 +245,7 @@ func TestData_RetentionPolicy(t *testing.T) {
 	}
 }
 
-// Ensure that retrieveing a policy from a non-existent database returns an error.
+// Ensure that retrieving a policy from a non-existent database returns an error.
 func TestData_RetentionPolicy_ErrDatabaseNotFound(t *testing.T) {
 	var data meta.Data
 	if _, err := data.RetentionPolicy("db0", "rp0"); err != meta.ErrDatabaseNotFound {

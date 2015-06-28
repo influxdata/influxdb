@@ -106,7 +106,7 @@ type boltTxCloser struct {
 	*bolt.Tx
 }
 
-// Close rollsback the transaction.
+// Close rolls back the transaction.
 func (tx *boltTxCloser) Close() error { return tx.Rollback() }
 
 // NopWriteToCloser returns an io.WriterTo that implements io.Closer.

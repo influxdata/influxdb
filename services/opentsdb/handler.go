@@ -169,7 +169,7 @@ type readerConn struct {
 	r io.Reader
 }
 
-// Read implments the io.Reader interface.
+// Read implements the io.Reader interface.
 func (conn *readerConn) Read(b []byte) (n int, err error) { return conn.r.Read(b) }
 
 // point represents an incoming JSON data point.

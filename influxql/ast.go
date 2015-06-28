@@ -463,7 +463,7 @@ func (s *GrantStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
 }
 
-// SetPasswordUserStatement represents a command for chaning user password.
+// SetPasswordUserStatement represents a command for changing user password.
 type SetPasswordUserStatement struct {
 	// Plain Password
 	Password string
@@ -794,7 +794,7 @@ func (s *SelectStatement) RewriteWildcards(fields Fields, dimensions Dimensions)
 	return other
 }
 
-// RewriteDistinct rewrites the expresion to be a call for map/reduce to work correctly
+// RewriteDistinct rewrites the expression to be a call for map/reduce to work correctly
 // This method assumes all validation has passed
 func (s *SelectStatement) RewriteDistinct() {
 	for i, f := range s.Fields {
@@ -1504,7 +1504,7 @@ func (s *DropSeriesStatement) String() string {
 	return buf.String()
 }
 
-// RequiredPrivileges returns the privilige reqired to execute a DropSeriesStatement.
+// RequiredPrivileges returns the privilege required to execute a DropSeriesStatement.
 func (s DropSeriesStatement) RequiredPrivileges() ExecutionPrivileges {
 	return ExecutionPrivileges{{Name: "", Privilege: WritePrivilege}}
 }
@@ -1845,7 +1845,7 @@ func (s *ShowTagValuesStatement) RequiredPrivileges() ExecutionPrivileges {
 // ShowUsersStatement represents a command for listing users.
 type ShowUsersStatement struct{}
 
-// String retuns a string representation of the ShowUsersStatement.
+// String returns a string representation of the ShowUsersStatement.
 func (s *ShowUsersStatement) String() string {
 	return "SHOW USERS"
 }
