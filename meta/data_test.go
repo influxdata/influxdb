@@ -306,6 +306,9 @@ func TestData_CreateShardGroup(t *testing.T) {
 		},
 	}) {
 		t.Fatalf("unexpected shard group: %#v", sgi)
+	} else if !sgi.Shards[0].OwnedBy(1) || !sgi.Shards[0].OwnedBy(2) || sgi.Shards[0].OwnedBy(3) {
+		// Verify shard is correctly owned-by the node.
+		t.Fatalf("new shard is not owned by correct node")
 	}
 }
 
