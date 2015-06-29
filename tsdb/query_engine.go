@@ -140,17 +140,22 @@ type ShardMapper struct {
 	tx      *bolt.Tx                   // Read transaction for this shard.
 	cursors map[string][]*mapperCursor // Cursors per tag sets.
 
-	queryTMin time.Time     // the min specified by the query
-	queryTMax time.Time     // the max specified by the query
-	currTmin  time.Time     // the min of the current GROUP BY interval being iterated over
-	currTmax  time.Time     // the max of the current GROUP BY interval being iterated over
+	queryTMin int64         // the min specified by the query
+	queryTMax int64         // the max specified by the query
 	interval  time.Duration // GROUP BY interval.
+
+	// Iterator state
+	itrTagSets     []string
+	itrTagSetIndex int
+	currTmin       int64 // the min of the current GROUP BY interval being iterated over
+	currTmax       int64 // the max of the current GROUP BY interval being iterated over
 }
 
 func NewShardMapper(shard *Shard) *ShardMapper {
 	return &ShardMapper{
-		shard:   shard,
-		cursors: make(map[string][]*mapperCursor, 0),
+		shard:      shard,
+		cursors:    make(map[string][]*mapperCursor, 0),
+		itrTagSets: make([]string, 0),
 	}
 }
 
@@ -181,12 +186,12 @@ func (sm *ShardMapper) Begin(stmt *influxql.SelectStatement, chunkSize int) erro
 		}
 
 		// Set all time-related paremeters on the mapper.
-		sm.queryTMin, sm.queryTMax = influxql.TimeRange(stmt.Condition)
-		if sm.queryTMin.IsZero() {
-			sm.queryTMin = time.Unix(0, 0)
+		tMin, tMax := influxql.TimeRange(stmt.Condition)
+		if tMin.IsZero() {
+			sm.queryTMin = time.Unix(0, 0).UnixNano()
 		}
-		if sm.queryTMax.IsZero() {
-			sm.queryTMax = time.Now()
+		if tMax.IsZero() {
+			sm.queryTMax = time.Now().UnixNano()
 		}
 		sm.currTmin = sm.queryTMin
 		sm.currTmax = sm.queryTMax
@@ -251,6 +256,7 @@ func (sm *ShardMapper) Begin(stmt *influxql.SelectStatement, chunkSize int) erro
 		// Create all cursors for reading the data from this shard.
 		for _, t := range tagSets {
 			tagSet := string(marshalTags(t.Tags))
+			sm.itrTagSets = append(sm.itrTagSets, tagSet)
 			for _, key := range t.SeriesKeys {
 				c := sm.createCursorForSeries(key)
 				if c == nil {
@@ -258,23 +264,62 @@ func (sm *ShardMapper) Begin(stmt *influxql.SelectStatement, chunkSize int) erro
 					continue
 				}
 				cm := &mapperCursor{
-					Cursor:  c,
-					Filters: t.Filters,
-					Decoder: sm.shard.FieldCodec(m.Name),
+					Cursor:    c,
+					Filters:   t.Filters,
+					Decoder:   sm.shard.FieldCodec(m.Name),
+					keyBuffer: -1,
 				}
-				cm.Seek(u64tob(uint64(sm.queryTMin.UnixNano())))
+				cm.Seek(sm.queryTMin)
 				sm.cursors[tagSet] = append(sm.cursors[tagSet], cm)
 			}
 		}
+
 	}
 
 	return nil
 }
 
 func (sm *ShardMapper) NextChunk() (tagSet string, result interface{}, interval int, err error) {
-	if sm.IsEmpty(uint64(sm.currTmax.UnixNano())) || sm.currTmin.After(sm.queryTMax) {
+	// XXX might be overkill, an inefficient.
+	if sm.IsEmpty(sm.currTmax) || sm.currTmin > sm.queryTMax {
 		return "", nil, 1, nil
 	}
+
+	// Get the current set of series cursors.
+	if sm.itrTagSetIndex == len(sm.itrTagSets) {
+		// Worked the all cursor sets for this interval. XXX reset and do next interval.
+		return "", nil, 1, nil
+	}
+	currCursorSet := sm.cursors[sm.itrTagSets[sm.itrTagSetIndex]]
+
+	// if it's a raw query and we've hit the limit of the number of points to read in
+	// for either this chunk or for the absolute query, bail
+	//if l.isRaw && (l.limit == 0 || l.perIntervalLimit == 0) {
+	//	return "", int64(0), nil
+	//}
+
+	// Find the cursor with the lowest timestamp, as that is the one to be read next.
+	var minCursor *mapperCursor
+	for _, c := range currCursorSet {
+		timestamp, _ := c.Peek()
+
+		if timestamp != 0 && timestamp >= sm.currTmin && timestamp <= sm.currTmax {
+			if minCursor == nil {
+				minCursor = c
+			} else {
+				if t, _ := minCursor.Peek(); timestamp < t {
+					minCursor = c
+				}
+			}
+		}
+	}
+
+	if minCursor == nil {
+		// No cursor of this tagset has any matching data.
+		sm.itrTagSetIndex++
+		return "", nil, 1, nil
+	}
+
 	return "", nil, 1, nil
 }
 
@@ -301,11 +346,11 @@ func (sm *ShardMapper) createCursorForSeries(key string) *shardCursor {
 }
 
 // IsEmpty returns true if either all cursors are nil or all cursors are past the given time.
-func (sm *ShardMapper) IsEmpty(tmax uint64) bool {
+func (sm *ShardMapper) IsEmpty(tmax int64) bool {
 	for _, v := range sm.cursors {
 		for _, c := range v {
-			k, _ := c.Peek()
-			if k != nil && uint64(btou64(k)) <= tmax {
+			timestamp, _ := c.Peek()
+			if timestamp != 0 && timestamp <= tmax {
 				return false
 			}
 		}
@@ -319,15 +364,17 @@ type mapperCursor struct {
 	Filters []influxql.Expr // Filters for the series
 	Decoder *FieldCodec     // Decoder for the raw data bytes
 
-	keyBuffer   []byte // The current timestamp key for the cursor
+	keyBuffer   int64  // The current timestamp key for the cursor
 	valueBuffer []byte // The current value for the cursor
 }
 
-// Peek returns the next key and value, without changing what will be
+// Peek returns the next timestamp and value, without changing what will be
 // be returned by a call to Next()
-func (mc *mapperCursor) Peek() (key, value []byte) {
-	if mc.keyBuffer != nil {
-		mc.keyBuffer, mc.valueBuffer = mc.Cursor.Next()
+func (mc *mapperCursor) Peek() (key int64, value []byte) {
+	if mc.keyBuffer == -1 {
+		k, v := mc.Cursor.Next()
+		mc.keyBuffer = int64(btou64(k))
+		mc.valueBuffer = v
 	}
 
 	key, value = mc.keyBuffer, mc.valueBuffer
@@ -336,17 +383,19 @@ func (mc *mapperCursor) Peek() (key, value []byte) {
 
 // Seek positions the cursor at the key, such that Next() will return
 // the key and value at key.
-func (mc *mapperCursor) Seek(key []byte) {
-	mc.keyBuffer, mc.valueBuffer = mc.Cursor.Seek(key)
+func (mc *mapperCursor) Seek(key int64) {
+	k, v := mc.Cursor.Seek(u64tob(uint64(key)))
+	mc.keyBuffer, mc.valueBuffer = int64(btou64(k)), v
 }
 
-// Next returns the next key and value from the cursor.
-func (mc *mapperCursor) Next() (key, value []byte) {
-	if mc.keyBuffer != nil {
+// Next returns the next timestamp and value from the cursor.
+func (mc *mapperCursor) Next() (key int64, value []byte) {
+	if mc.keyBuffer != -1 {
 		key, value = mc.keyBuffer, mc.valueBuffer
-		mc.keyBuffer, mc.valueBuffer = nil, nil
+		mc.keyBuffer, mc.valueBuffer = -1, nil
 	} else {
-		key, value = mc.Cursor.Next()
+		k, v := mc.Cursor.Next()
+		key, value = int64(btou64(k)), v
 	}
 	return
 }
