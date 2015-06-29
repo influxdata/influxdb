@@ -68,7 +68,6 @@ func (cmd *Command) Run(args ...string) error {
 
 	// Set parallelism.
 	runtime.GOMAXPROCS(runtime.NumCPU())
-	fmt.Fprintf(cmd.Stderr, "GOMAXPROCS set to %d\n", runtime.GOMAXPROCS(0))
 
 	// Parse config
 	config, err := cmd.ParseConfig(options.ConfigPath)
@@ -97,6 +96,10 @@ func (cmd *Command) Run(args ...string) error {
 		return fmt.Errorf("open server: %s", err)
 	}
 	cmd.Server = s
+
+	// Mark start-up in log.
+	log.Printf("InfluxDB starting, version %s, commit %s", cmd.Version, cmd.Commit)
+	log.Println("GOMAXPROCS set to", runtime.GOMAXPROCS(0))
 
 	// Begin monitoring the server's error channel.
 	go cmd.monitorServerErrors()
