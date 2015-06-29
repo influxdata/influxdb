@@ -20,13 +20,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-func init() {
-	// Disable password hashing to speed up testing.
-	meta.HashPassword = func(password string) ([]byte, error) {
-		return []byte(password), nil
-	}
-}
-
 // Ensure the store returns an error
 func TestStore_Open_ErrStoreOpen(t *testing.T) {
 	t.Parallel()
@@ -668,12 +661,10 @@ func TestStore_Authentication(t *testing.T) {
 	s := MustOpenStore()
 	defer s.Close()
 
-	// Set the hash function back to the real thing for this test.
-	oldHashFn := meta.HashPassword
-	meta.HashPassword = func(password string) ([]byte, error) {
+	// Set the password hash function to the real thing for this test.
+	s.SetHashPasswordFn(func(password string) ([]byte, error) {
 		return bcrypt.GenerateFromPassword([]byte(password), 4)
-	}
-	defer func() { meta.HashPassword = oldHashFn }()
+	})
 
 	// Create user.
 	s.CreateUser("susy", "pass", true)
@@ -826,6 +817,7 @@ func NewStore(c meta.Config) *Store {
 		Store: meta.NewStore(c),
 	}
 	s.Logger = log.New(&s.Stderr, "", log.LstdFlags)
+	s.SetHashPasswordFn(mockHashPassword)
 	return s
 }
 
@@ -989,4 +981,9 @@ func MustTempFile() string {
 	f.Close()
 	os.Remove(f.Name())
 	return f.Name()
+}
+
+// mockHashPassword is used for most tests to avoid slow calls to bcrypt.
+func mockHashPassword(password string) ([]byte, error) {
+	return []byte(password), nil
 }
