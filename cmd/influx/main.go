@@ -38,6 +38,7 @@ type CommandLine struct {
 	Username        string
 	Password        string
 	Database        string
+	Ssl             bool
 	RetentionPolicy string
 	Version         string
 	Pretty          bool   // controls pretty print for json
@@ -56,6 +57,7 @@ func main() {
 	fs.StringVar(&c.Username, "username", c.Username, "username to connect to the server.")
 	fs.StringVar(&c.Password, "password", c.Password, `password to connect to the server.  Leaving blank will prompt for password (--password="")`)
 	fs.StringVar(&c.Database, "database", c.Database, "database to connect to the server.")
+	fs.BoolVar(&c.Ssl, "ssl", false, "use https for connecting to cluster")
 	fs.StringVar(&c.Format, "format", default_format, "format specifies the format of the server responses:  json, csv, or column")
 	fs.BoolVar(&c.Pretty, "pretty", false, "turns on pretty print for the json format")
 	fs.BoolVar(&c.ShouldDump, "dump", false, "dump the contents of the given database to stdout")
@@ -77,6 +79,8 @@ func main() {
       Password to connect to the server.  Leaving blank will prompt for password (--password '')
   -username 'username'
        Username to connect to the server.
+  -ssl
+        Use https for requests.
   -dump
        Dump the contents of the given database to stdout.
   -execute 'command'
@@ -253,6 +257,9 @@ func (c *CommandLine) connect(cmd string) {
 
 	u := url.URL{
 		Scheme: "http",
+	}
+	if c.Ssl {
+		u.Scheme = "https"
 	}
 	if c.Port > 0 {
 		u.Host = fmt.Sprintf("%s:%d", c.Host, c.Port)
