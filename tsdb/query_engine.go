@@ -137,25 +137,25 @@ func (e *Executor) Execute() <-chan *influxql.Row {
 type ShardMapper struct {
 	shard *Shard
 
-	tx      *bolt.Tx                   // Read transaction for this shard.
-	cursors map[string][]*mapperCursor // Cursors per tag sets.
+	tx      *bolt.Tx        // Read transaction for this shard.
+	cursors []*tagSetCursor // Cursors per tag sets.
+
+	whereFields  []string // field names that occur in the where clause
+	selectFields []string // field names that occur in the select clause
 
 	queryTMin int64         // the min specified by the query
 	queryTMax int64         // the max specified by the query
 	interval  time.Duration // GROUP BY interval.
 
 	// Iterator state
-	itrTagSets     []string
-	itrTagSetIndex int
-	currTmin       int64 // the min of the current GROUP BY interval being iterated over
-	currTmax       int64 // the max of the current GROUP BY interval being iterated over
+	currTmin int64 // the min of the current GROUP BY interval being iterated over
+	currTmax int64 // the max of the current GROUP BY interval being iterated over
 }
 
 func NewShardMapper(shard *Shard) *ShardMapper {
 	return &ShardMapper{
-		shard:      shard,
-		cursors:    make(map[string][]*mapperCursor, 0),
-		itrTagSets: make([]string, 0),
+		shard:   shard,
+		cursors: make([]*tagSetCursor, 0),
 	}
 }
 
@@ -255,22 +255,14 @@ func (sm *ShardMapper) Begin(stmt *influxql.SelectStatement, chunkSize int) erro
 
 		// Create all cursors for reading the data from this shard.
 		for _, t := range tagSets {
-			tagSet := string(marshalTags(t.Tags))
-			sm.itrTagSets = append(sm.itrTagSets, tagSet)
-			for _, key := range t.SeriesKeys {
+			for i, key := range t.SeriesKeys {
 				c := sm.createCursorForSeries(key)
 				if c == nil {
 					// No data exists for this key.
 					continue
 				}
-				cm := &mapperCursor{
-					Cursor:    c,
-					Filters:   t.Filters,
-					Decoder:   sm.shard.FieldCodec(m.Name),
-					keyBuffer: -1,
-				}
+				cm := newSeriesCursor(c, t.Filters[i])
 				cm.Seek(sm.queryTMin)
-				sm.cursors[tagSet] = append(sm.cursors[tagSet], cm)
 			}
 		}
 
@@ -286,11 +278,8 @@ func (sm *ShardMapper) NextChunk() (tagSet string, result interface{}, interval 
 	}
 
 	// Get the current set of series cursors.
-	if sm.itrTagSetIndex == len(sm.itrTagSets) {
-		// Worked the all cursor sets for this interval. XXX reset and do next interval.
-		return "", nil, 1, nil
-	}
-	currCursorSet := sm.cursors[sm.itrTagSets[sm.itrTagSetIndex]]
+
+	// Worked the all cursor sets for this interval. XXX reset and do next interval.
 
 	// if it's a raw query and we've hit the limit of the number of points to read in
 	// for either this chunk or for the absolute query, bail
@@ -298,27 +287,7 @@ func (sm *ShardMapper) NextChunk() (tagSet string, result interface{}, interval 
 	//	return "", int64(0), nil
 	//}
 
-	// Find the cursor with the lowest timestamp, as that is the one to be read next.
-	var minCursor *mapperCursor
-	for _, c := range currCursorSet {
-		timestamp, _ := c.Peek()
-
-		if timestamp != 0 && timestamp >= sm.currTmin && timestamp <= sm.currTmax {
-			if minCursor == nil {
-				minCursor = c
-			} else {
-				if t, _ := minCursor.Peek(); timestamp < t {
-					minCursor = c
-				}
-			}
-		}
-	}
-
-	if minCursor == nil {
-		// No cursor of this tagset has any matching data.
-		sm.itrTagSetIndex++
-		return "", nil, 1, nil
-	}
+	// No cursor of this tagset has any matching data.
 
 	return "", nil, 1, nil
 }
@@ -347,34 +316,35 @@ func (sm *ShardMapper) createCursorForSeries(key string) *shardCursor {
 
 // IsEmpty returns true if either all cursors are nil or all cursors are past the given time.
 func (sm *ShardMapper) IsEmpty(tmax int64) bool {
-	for _, v := range sm.cursors {
-		for _, c := range v {
-			timestamp, _ := c.Peek()
-			if timestamp != 0 && timestamp <= tmax {
-				return false
-			}
-		}
-	}
-
-	return true
+	return false
 }
 
-type mapperCursor struct {
-	Cursor  *shardCursor    // BoltDB cursor for a series
-	Filters []influxql.Expr // Filters for the series
-	Decoder *FieldCodec     // Decoder for the raw data bytes
-
+type seriesCursor struct {
+	cursor      *shardCursor // BoltDB cursor for a series
+	filter      influxql.Expr
 	keyBuffer   int64  // The current timestamp key for the cursor
 	valueBuffer []byte // The current value for the cursor
 }
 
+func newSeriesCursor(b *shardCursor, filter influxql.Expr) *seriesCursor {
+	return &seriesCursor{
+		cursor:    b,
+		filter:    filter,
+		keyBuffer: -1, // Nothing buffered.
+	}
+}
+
 // Peek returns the next timestamp and value, without changing what will be
 // be returned by a call to Next()
-func (mc *mapperCursor) Peek() (key int64, value []byte) {
+func (mc *seriesCursor) Peek() (key int64, value []byte) {
 	if mc.keyBuffer == -1 {
-		k, v := mc.Cursor.Next()
-		mc.keyBuffer = int64(btou64(k))
-		mc.valueBuffer = v
+		k, v := mc.cursor.Next()
+		if k == nil {
+			mc.keyBuffer = 0
+		} else {
+			mc.keyBuffer = int64(btou64(k))
+			mc.valueBuffer = v
+		}
 	}
 
 	key, value = mc.keyBuffer, mc.valueBuffer
@@ -383,19 +353,109 @@ func (mc *mapperCursor) Peek() (key int64, value []byte) {
 
 // Seek positions the cursor at the key, such that Next() will return
 // the key and value at key.
-func (mc *mapperCursor) Seek(key int64) {
-	k, v := mc.Cursor.Seek(u64tob(uint64(key)))
-	mc.keyBuffer, mc.valueBuffer = int64(btou64(k)), v
+func (mc *seriesCursor) Seek(key int64) {
+	k, v := mc.cursor.Seek(u64tob(uint64(key)))
+	if k == nil {
+		mc.keyBuffer = 0
+	} else {
+		mc.keyBuffer, mc.valueBuffer = int64(btou64(k)), v
+	}
 }
 
 // Next returns the next timestamp and value from the cursor.
-func (mc *mapperCursor) Next() (key int64, value []byte) {
+func (mc *seriesCursor) Next() (key int64, value []byte) {
 	if mc.keyBuffer != -1 {
 		key, value = mc.keyBuffer, mc.valueBuffer
 		mc.keyBuffer, mc.valueBuffer = -1, nil
 	} else {
-		k, v := mc.Cursor.Next()
-		key, value = int64(btou64(k)), v
+		k, v := mc.cursor.Next()
+		if k == nil {
+			key = 0
+		} else {
+			key, value = int64(btou64(k)), v
+		}
 	}
 	return
+}
+
+// tagSetCursor is virtual cursor that iterates over mutiple series cursors, as though it were
+// a single series.
+type tagSetCursor struct {
+	cursors []*seriesCursor // Cursors per tag sets.
+	sm      *ShardMapper    // The parent shard mapper.
+}
+
+// newTagSetCursor returns a tagSetCursor
+func newTagSetCursor(cursors []*seriesCursor) *tagSetCursor {
+	return &tagSetCursor{
+		cursors: cursors,
+	}
+}
+
+// Next returns the next matching timestamp value for the tagset.
+func (tsc *tagSetCursor) Next() (seriesKey string, timestamp int64, value interface{}) {
+	for {
+		// Find the cursor with the lowest timestamp, as that is the one to be read next.
+		var minCursor *seriesCursor
+		for _, c := range tsc.cursors {
+			timestamp, _ := c.Peek()
+			if timestamp != 0 && timestamp >= tsc.sm.currTmin && timestamp <= tsc.sm.currTmax {
+				if minCursor == nil {
+					minCursor = c
+				} else {
+					if t, _ := minCursor.Peek(); timestamp < t {
+						minCursor = c
+					}
+				}
+			}
+		}
+
+		if minCursor == nil {
+			// No cursor of this tagset has any matching data.
+			return "", 0, nil
+		}
+
+		// We've got the next series to read from.
+		ts, val := minCursor.Next()
+
+		// Decode either the value, or values we need. Also filter if necessary
+		var err error
+		if l.isRaw && len(l.selectFields) > 1 {
+			if fieldsWithNames, err := l.decoder.DecodeFieldsWithNames(val); err == nil {
+				value = fieldsWithNames
+
+				// if there's a where clause, make sure we don't need to filter this value
+				if minCursor.filter != nil {
+					if !matchesWhere(minCursor.filter, fieldsWithNames) {
+						value = nil
+					}
+				}
+			}
+		} else {
+			// In this case a more efficient decode may be available.
+			value, err = l.decoder.DecodeByID(l.fieldID, val)
+
+			// if there's a where clase, see if we need to filter
+			if minCursor.filter != nil {
+				// see if the where is only on this field or on one or more other fields. if the latter, we'll have to decode everything
+				if len(l.whereFields) == 1 && l.whereFields[0] == l.fieldName {
+					if !matchesWhere(minCursor.filter, map[string]interface{}{l.fieldName: value}) {
+						value = nil
+					}
+				} else { // decode everything
+					fieldsWithNames, err := l.decoder.DecodeFieldsWithNames(val)
+					if err != nil || !matchesWhere(minCursor.filter, fieldsWithNames) {
+						value = nil
+					}
+				}
+			}
+		}
+
+		// if the value didn't match our filter or if we didn't find the field keep iterating
+		if err != nil || value == nil {
+			continue
+		}
+
+		return seriesKey, timestamp, value
+	}
 }
