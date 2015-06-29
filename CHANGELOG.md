@@ -53,6 +53,7 @@
 - [#2678](https://github.com/influxdb/influxdb/issues/2678): Server allows tags with an empty string for the key and/or value
 - [#3061](https://github.com/influxdb/influxdb/issues/3061): syntactically incorrect line protocol insert panics the database
 - [#2608](https://github.com/influxdb/influxdb/issues/2608): drop measurement while writing points to that measurement has race condition that can panic
+- [#3183](https://github.com/influxdb/influxdb/issues/3183): using line protocol measurement names cannot contain commas
 
 ## v0.9.0 [2015-06-11]
 
