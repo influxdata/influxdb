@@ -19,6 +19,14 @@ var connectionString = function() {
     var protocol = (connectionSettings.ssl ? "https" : "http");
     var host = connectionSettings.hostname + ":" + connectionSettings.port;
 
+    if (connectionSettings.username !== "") {
+        $.ajaxSetup({
+            headers: {
+                'Authorization': "Basic " + btoa(connectionSettings.username + ":" + connectionSettings.password)
+            }
+        });
+    }
+
     return protocol + "://" + host;
 }
 
@@ -27,7 +35,7 @@ var getSeriesFromJSON = function(data) {
     return results;
 }
 
-// gets settings from the browser's localStorage and sets defaults if they aren't found 
+// gets settings from the browser's localStorage and sets defaults if they aren't found
 var loadSettings = function() {
     var cs = localStorage.getItem("connectionSettings");
 
@@ -166,7 +174,7 @@ var handleSubmit = function(e) {
         }
 
         var values = series[0].values;
-        
+
         if ((values == null) || (values.length == 0)) {
             showQueryError("Query returned no results!");
         } else {
@@ -242,11 +250,11 @@ var stringifyTags = function(tags) {
 var DataTable = React.createClass({
   render: function() {
     var tables = this.props.series.map(function(series) {
-        return React.createElement("div", null, 
-            React.createElement("h1", null, series.name), 
-            React.createElement("h2", null, stringifyTags(series.tags)), 
-            React.createElement("table", {className: "table"}, 
-                React.createElement(TableHeader, {data: series.columns}), 
+        return React.createElement("div", null,
+            React.createElement("h1", null, series.name),
+            React.createElement("h2", null, stringifyTags(series.tags)),
+            React.createElement("table", {className: "table"},
+                React.createElement(TableHeader, {data: series.columns}),
                 React.createElement(TableBody, {data: series})
             )
         );
@@ -293,7 +301,7 @@ var chooseDatabase = function (databaseName) {
 
 var getDatabases = function () {
     var q = "SHOW DATABASES";
-    
+
     var query = $.get(connectionString() + "/query", {q: q, db: currentlySelectedDatabase}, function() {
         hideDatabaseWarning();
     });
@@ -320,7 +328,7 @@ var getDatabases = function () {
 
         var series = getSeriesFromJSON(data);
         var values = series[0].values;
-        
+
         if ((values == null) || (values.length == 0)) {
             availableDatabases = [];
             updateDatabaseList();
