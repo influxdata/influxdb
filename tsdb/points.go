@@ -266,6 +266,10 @@ func scanKey(buf []byte, i int) (int, []byte, error) {
 
 		// reached end of the block? (next block would be fields)
 		if buf[i] == ' ' {
+			// check for "cpu,tag value=1"
+			if equals == 0 && commas > 0 {
+				return i, buf[start:i], fmt.Errorf("missing tag value")
+			}
 			if equals > 0 && commas-1 != equals-1 {
 				return i, buf[start:i], fmt.Errorf("missing tag value")
 			}
@@ -620,6 +624,10 @@ func skipWhitespace(buf []byte, i int) int {
 			return i
 		}
 
+		if buf[i] == '\\' {
+			i += 2
+			continue
+		}
 		if buf[i] == ' ' || buf[i] == '\t' {
 			i += 1
 			continue
@@ -631,13 +639,18 @@ func skipWhitespace(buf []byte, i int) int {
 
 // scanTo returns the end position in buf and the next consecutive block
 // of bytes, starting from i and ending with stop byte.  If there are leading
-// spaces, they are skipped.
+// spaces or escaped chars, they are skipped.
 func scanTo(buf []byte, i int, stop byte) (int, []byte) {
 	start := i
 	for {
 		// reached the end of buf?
 		if i >= len(buf) {
 			break
+		}
+
+		if buf[i] == '\\' {
+			i += 2
+			continue
 		}
 
 		// reached end of block?
@@ -661,6 +674,10 @@ func scanToSpaceOr(buf []byte, i int, stop byte) (int, []byte) {
 			break
 		}
 
+		if buf[i] == '\\' {
+			i += 2
+			continue
+		}
 		// reached end of block?
 		if buf[i] == stop || buf[i] == ' ' {
 			break
