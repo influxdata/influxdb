@@ -137,8 +137,8 @@ func (e *Executor) Execute() <-chan *influxql.Row {
 type ShardMapper struct {
 	shard *Shard
 
-	tx      *bolt.Tx // Read transaction for this shard.
-	cursors []*mapperCursor
+	tx      *bolt.Tx                   // Read transaction for this shard.
+	cursors map[string][]*mapperCursor // Cursors per tag sets.
 
 	queryTMin time.Time     // the min specified by the query
 	queryTMax time.Time     // the max specified by the query
@@ -150,7 +150,7 @@ type ShardMapper struct {
 func NewShardMapper(shard *Shard) *ShardMapper {
 	return &ShardMapper{
 		shard:   shard,
-		cursors: make([]*mapperCursor, 0),
+		cursors: make(map[string][]*mapperCursor, 0),
 	}
 }
 
@@ -250,6 +250,7 @@ func (sm *ShardMapper) Begin(stmt *influxql.SelectStatement, chunkSize int) erro
 
 		// Create all cursors for reading the data from this shard.
 		for _, t := range tagSets {
+			tagSet := string(marshalTags(t.Tags))
 			for _, key := range t.SeriesKeys {
 				c := sm.createCursorForSeries(key)
 				if c == nil {
@@ -262,7 +263,7 @@ func (sm *ShardMapper) Begin(stmt *influxql.SelectStatement, chunkSize int) erro
 					Decoder: sm.shard.FieldCodec(m.Name),
 				}
 				cm.Seek(u64tob(uint64(sm.queryTMin.UnixNano())))
-				sm.cursors = append(sm.cursors, cm)
+				sm.cursors[tagSet] = append(sm.cursors[tagSet], cm)
 			}
 		}
 	}
@@ -299,12 +300,14 @@ func (sm *ShardMapper) createCursorForSeries(key string) *shardCursor {
 	return cur
 }
 
-// IsEmpty returns true if either all cursors are nil or all cursors are past the give time.
+// IsEmpty returns true if either all cursors are nil or all cursors are past the given time.
 func (sm *ShardMapper) IsEmpty(tmax uint64) bool {
-	for _, c := range sm.cursors {
-		k, _ := c.Peek()
-		if k != nil && uint64(btou64(k)) <= tmax {
-			return false
+	for _, v := range sm.cursors {
+		for _, c := range v {
+			k, _ := c.Peek()
+			if k != nil && uint64(btou64(k)) <= tmax {
+				return false
+			}
 		}
 	}
 
@@ -331,7 +334,7 @@ func (mc *mapperCursor) Peek() (key, value []byte) {
 	return
 }
 
-// Seek positions the cursor at the key, such that Next will return
+// Seek positions the cursor at the key, such that Next() will return
 // the key and value at key.
 func (mc *mapperCursor) Seek(key []byte) {
 	mc.keyBuffer, mc.valueBuffer = mc.Cursor.Seek(key)
