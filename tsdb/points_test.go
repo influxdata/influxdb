@@ -198,7 +198,12 @@ func TestParsePointMissingTagName(t *testing.T) {
 }
 
 func TestParsePointMissingTagValue(t *testing.T) {
-	_, err := ParsePointsString(`cpu,host=serverA,region value=1`)
+	_, err := ParsePointsString(`cpu,host value=1`)
+	if err == nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host value=1`)
+	}
+
+	_, err = ParsePointsString(`cpu,host=serverA,region value=1`)
 	if err == nil {
 		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region value=1`)
 	}
@@ -423,6 +428,15 @@ func TestParsePointBooleanInvalid(t *testing.T) {
 }
 
 func TestParsePointUnescape(t *testing.T) {
+	test(t, `foo\,bar value=1`,
+		NewPoint(
+			"foo,bar", // comma in the name
+			Tags{},
+			Fields{
+				"value": 1,
+			},
+			time.Unix(0, 0)))
+
 	// commas in measuremnt name
 	test(t, `cpu\,main,regions=east\,west value=1.0`,
 		NewPoint(
