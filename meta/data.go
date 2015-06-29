@@ -876,6 +876,16 @@ type ShardInfo struct {
 	OwnerIDs []uint64
 }
 
+// OwnedBy returns whether the shard's owner IDs includes nodeID.
+func (si ShardInfo) OwnedBy(nodeID uint64) bool {
+	for _, id := range si.OwnerIDs {
+		if id == nodeID {
+			return true
+		}
+	}
+	return false
+}
+
 // clone returns a deep copy of si.
 func (si ShardInfo) clone() ShardInfo {
 	other := si
