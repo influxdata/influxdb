@@ -1,8 +1,12 @@
 ## v0.9.2 [unreleased]
 
+### Features
+- [#3177](https://github.com/influxdb/influxdb/pull/3177): Client supports making HTTPS requests. Thanks @jipperinbham
+
 ### Bugfixes
 
 - [#3180](https://github.com/influxdb/influxdb/pull/3180): Log GOMAXPROCS, version, and commit on startup.
+
 
 ## v0.9.1 [unreleased]
 
