@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env bash -x
 
 ###########################################################################
 # Packaging script which creates debian and RPM packages. It optionally
