@@ -130,6 +130,9 @@ func (c *Client) Write(bp BatchPoints) (*Response, error) {
 			}
 		} else {
 			for k, v := range bp.Tags {
+				if p.Tags == nil {
+					p.Tags = make(map[string]string, len(bp.Tags))
+				}
 				p.Tags[k] = v
 			}
 
