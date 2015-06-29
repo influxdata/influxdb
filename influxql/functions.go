@@ -29,7 +29,7 @@ type MapFunc func(Iterator) interface{}
 type ReduceFunc func([]interface{}) interface{}
 
 // UnmarshalFunc represents a function that can take bytes from a mapper from remote
-// server and marshal it into an interface the reduer can use
+// server and marshal it into an interface the reducer can use
 type UnmarshalFunc func([]byte) (interface{}, error)
 
 // InitializeMapFunc takes an aggregate call from the query and returns the MapFunc

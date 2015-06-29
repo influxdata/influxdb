@@ -47,7 +47,7 @@ func TestPointsWriter_MapShards_One(t *testing.T) {
 	}
 }
 
-// Ensures the points writer maps a multiple points across shard group boundries.
+// Ensures the points writer maps a multiple points across shard group boundaries.
 func TestPointsWriter_MapShards_Multiple(t *testing.T) {
 	ms := MetaStore{}
 	rp := NewRetentionPolicy("myp", time.Hour, 3)

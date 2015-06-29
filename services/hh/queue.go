@@ -30,7 +30,7 @@ const (
 //
 // Internally, the queue writes byte slices to multiple segment files so
 // that disk space can be reclaimed. When a segment file is larger than
-// the max segement size, a new file is created.   Segments are removed
+// the max segment size, a new file is created.   Segments are removed
 // after their head pointer has advanced past the last entry.  The first
 // segment is the head, and the last segment is the tail.  Reads are from
 // the head segment and writes tail segment.
@@ -279,7 +279,7 @@ func (l *queue) Append(b []byte) error {
 	}
 
 	// Append the entry to the tail, if the segment is full,
-	// try to create new segement and retry the append
+	// try to create new segment and retry the append
 	if err := l.tail.append(b); err == ErrSegmentFull {
 		segment, err := l.addSegment()
 		if err != nil {
@@ -334,7 +334,7 @@ func (l *queue) trimHead() error {
 }
 
 // Segment is a queue using a single file.  The structure of a segment is a series
-// lengths + block with a single footer point to the position in the segement of the
+// lengths + block with a single footer point to the position in the segment of the
 // current head block.
 //
 // ┌──────────────────────────┐ ┌──────────────────────────┐ ┌────────────┐

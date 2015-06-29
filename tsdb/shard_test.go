@@ -230,7 +230,7 @@ func BenchmarkWritePoints_ExistingSeries_1M(b *testing.B) {
 }
 
 // benchmarkWritePoints benchmarks writing new series to a shard.
-// mCnt - measurmeent count
+// mCnt - measurement count
 // tkCnt - tag key count
 // tvCnt - tag value count (values per tag)
 // pntCnt - points per series.  # of series = mCnt * (tvCnt ^ tkCnt)
@@ -270,7 +270,7 @@ func benchmarkWritePoints(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt int) {
 }
 
 // benchmarkWritePointsExistingSeries benchmarks writing to existing series in a shard.
-// mCnt - measurmeent count
+// mCnt - measurement count
 // tkCnt - tag key count
 // tvCnt - tag value count (values per tag)
 // pntCnt - points per series.  # of series = mCnt * (tvCnt ^ tkCnt)

@@ -33,7 +33,7 @@ func NewCommand() *Command {
 	}
 }
 
-// Run excutes the program.
+// Run executes the program.
 func (cmd *Command) Run(args ...string) error {
 	// Set up logger.
 	cmd.Logger = log.New(cmd.Stderr, "", log.LstdFlags)

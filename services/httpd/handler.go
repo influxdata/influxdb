@@ -661,7 +661,7 @@ func gzipFilter(inner http.Handler) http.Handler {
 	})
 }
 
-// versionHeader taks a HTTP handler and returns a HTTP handler
+// versionHeader takes a HTTP handler and returns a HTTP handler
 // and adds the X-INFLUXBD-VERSION header to outgoing responses.
 func versionHeader(inner http.Handler, h *Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

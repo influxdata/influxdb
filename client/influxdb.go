@@ -181,7 +181,7 @@ func (c *Client) Write(bp BatchPoints) (*Response, error) {
 }
 
 // Ping will check to see if the server is up
-// Ping returns how long the requeset took, the version of the server it connected to, and an error if one occured.
+// Ping returns how long the request took, the version of the server it connected to, and an error if one occurred.
 func (c *Client) Ping() (time.Duration, string, error) {
 	now := time.Now()
 	u := c.url

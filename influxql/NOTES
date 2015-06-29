@@ -372,7 +372,7 @@ type ReduceOutput struct {
 }
 
 // for topCountReducer ReduceOutput would look like
-// values = [t, c, "some strign"]
+// values = [t, c, "some string"]
 // fieldIDs = [0, 0, 3]
 
 SELECT val1, val2 FROM abc

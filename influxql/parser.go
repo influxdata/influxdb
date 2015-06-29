@@ -25,7 +25,7 @@ type Parser struct {
 	s *bufScanner
 }
 
-// NewParser returns a new instance of Parsr.
+// NewParser returns a new instance of Parser.
 func NewParser(r io.Reader) *Parser {
 	return &Parser{s: newBufScanner(r)}
 }
@@ -304,7 +304,7 @@ func (p *Parser) parseCreateRetentionPolicyStatement() (*CreateRetentionPolicySt
 }
 
 // parseAlterRetentionPolicyStatement parses a string and returns an alter retention policy statement.
-// This function assumes the ALTER RETENTION POLICY tokens have already been consumned.
+// This function assumes the ALTER RETENTION POLICY tokens have already been consumed.
 func (p *Parser) parseAlterRetentionPolicyStatement() (*AlterRetentionPolicyStatement, error) {
 	stmt := &AlterRetentionPolicyStatement{}
 
@@ -525,7 +525,7 @@ func (p *Parser) parseString() (string, error) {
 }
 
 // parseRevokeStatement parses a string and returns a revoke statement.
-// This function assumes the REVOKE token has already been consumend.
+// This function assumes the REVOKE token has already been consumed.
 func (p *Parser) parseRevokeStatement() (*RevokeStatement, error) {
 	stmt := &RevokeStatement{}
 
@@ -1581,7 +1581,7 @@ func (p *Parser) parseDimension() (*Dimension, error) {
 	return &Dimension{Expr: expr}, nil
 }
 
-// parseFill parses the fill call and its optios.
+// parseFill parses the fill call and its options.
 func (p *Parser) parseFill() (FillOption, interface{}, error) {
 	// Parse the expression first.
 	expr, err := p.ParseExpr()

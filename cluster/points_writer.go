@@ -220,7 +220,7 @@ func (w *PointsWriter) WritePoints(p *WritePointsRequest) error {
 }
 
 // writeToShards writes points to a shard and ensures a write consistency level has been met.  If the write
-// partially succceds, ErrPartialWrite is returned.
+// partially succeeds, ErrPartialWrite is returned.
 func (w *PointsWriter) writeToShard(shard *meta.ShardInfo, database, retentionPolicy string,
 	consistency ConsistencyLevel, points []tsdb.Point) error {
 	// The required number of writes to achieve the requested consistency level

@@ -114,7 +114,7 @@ func TestSelectStatement_GroupByInterval(t *testing.T) {
 	}
 }
 
-// Ensure the SELECT statment can have its start and end time set
+// Ensure the SELECT statement can have its start and end time set
 func TestSelectStatement_SetTimeRange(t *testing.T) {
 	q := "SELECT sum(value) from foo where time < now() GROUP BY time(10m)"
 	stmt, err := influxql.NewParser(strings.NewReader(q)).ParseStatement()

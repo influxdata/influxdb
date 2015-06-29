@@ -140,7 +140,7 @@ func TestQueueAdvancePastEnd(t *testing.T) {
 	// set the segment size low to force a new segment to be created
 	q.SetMaxSegmentSize(12)
 
-	// Should go into a new segement
+	// Should go into a new segment
 	if err := q.Append([]byte("two")); err != nil {
 		t.Fatalf("Queue.Append failed: %v", err)
 	}

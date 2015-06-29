@@ -525,7 +525,7 @@ func (m *MapReduceJob) processResults(results [][]interface{}) [][]interface{} {
 	return mathResults
 }
 
-// processFill will take the results and return new reaults (or the same if no fill modifications are needed) with whatever fill options the query has.
+// processFill will take the results and return new results (or the same if no fill modifications are needed) with whatever fill options the query has.
 func (m *MapReduceJob) processFill(results [][]interface{}) [][]interface{} {
 	// don't do anything if we're supposed to leave the nulls
 	if m.stmt.Fill == NullFill {

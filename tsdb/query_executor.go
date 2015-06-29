@@ -262,7 +262,7 @@ func (q *QueryExecutor) rewriteSelectStatement(stmt *influxql.SelectStatement) (
 }
 
 // expandWildcards returns a new SelectStatement with wildcards in the fields
-// and/or GROUP BY exapnded with actual field names.
+// and/or GROUP BY expanded with actual field names.
 func (q *QueryExecutor) expandWildcards(stmt *influxql.SelectStatement) (*influxql.SelectStatement, error) {
 	// If there are no wildcards in the statement, return it as-is.
 	if !stmt.HasWildcard() {
@@ -376,7 +376,7 @@ func (q *QueryExecutor) expandSources(sources influxql.Sources) (influxql.Source
 	return expanded, nil
 }
 
-// executeDropDatabaseStatement closes all local shards for the database and removes the directtory. It then calls to the metastore to remove the database from there.
+// executeDropDatabaseStatement closes all local shards for the database and removes the directory. It then calls to the metastore to remove the database from there.
 // TODO: make this work in a cluster/distributed
 func (q *QueryExecutor) executeDropDatabaseStatement(stmt *influxql.DropDatabaseStatement) *influxql.Result {
 	dbi, err := q.MetaStore.Database(stmt.Name)

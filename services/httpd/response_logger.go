@@ -61,7 +61,7 @@ func (l *responseLogger) Size() int {
 // Common Log Format: http://en.wikipedia.org/wiki/Common_Log_Format
 
 // buildLogLine creates a common log format
-// in addittion to the common fields, we also append referrer, user agent and request ID
+// in addition to the common fields, we also append referrer, user agent and request ID
 func buildLogLine(l *responseLogger, r *http.Request, start time.Time) string {
 	username := parseUsername(r)
 
@@ -106,7 +106,7 @@ func detect(values ...string) string {
 	return ""
 }
 
-// parses the uesrname either from the url or auth header
+// parses the username either from the url or auth header
 func parseUsername(r *http.Request) string {
 	var (
 		username = ""

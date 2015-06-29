@@ -782,7 +782,7 @@ type field struct {
 	Type influxql.DataType `json:"type,omitempty"`
 }
 
-// FieldCodec providecs encoding and decoding functionality for the fields of a given
+// FieldCodec provides encoding and decoding functionality for the fields of a given
 // Measurement. It is a distinct type to avoid locking writes on this node while
 // potentially long-running queries are executing.
 //
