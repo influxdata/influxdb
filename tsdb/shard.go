@@ -889,7 +889,7 @@ func (f *FieldCodec) EncodeFields(values map[string]interface{}) ([]byte, error)
 func (f *FieldCodec) FieldIDByName(s string) (uint8, error) {
 	fi := f.fieldsByName[s]
 	if fi == nil {
-		return 0, fmt.Errorf("field doesn't exist")
+		return 0, ErrFieldNotFound
 	}
 	return fi.ID, nil
 }
@@ -1023,6 +1023,16 @@ func (f *FieldCodec) DecodeByID(targetID uint8, b []byte) (interface{}, error) {
 	}
 
 	return 0, ErrFieldNotFound
+}
+
+// DecodeByName scans a byte slice for a field with the given name, converts it to its
+// expected type, and return that value.
+func (f *FieldCodec) DecodeByName(name string, b []byte) (interface{}, error) {
+	if fi := f.fieldByName(name); fi == nil {
+		return 0, fmt.Errorf("field doesn't exist")
+	} else {
+		return f.DecodeByID(fi.ID, b)
+	}
 }
 
 // FieldByName returns the field by its name. It will return a nil if not found
