@@ -139,13 +139,18 @@ type ShardMapper struct {
 
 	tx      *bolt.Tx        // Read transaction for this shard.
 	cursors []*tagSetCursor // Cursors per tag sets.
+	decoder *FieldCodec     // decoder for the raw data bytes
 
 	whereFields  []string // field names that occur in the where clause
 	selectFields []string // field names that occur in the select clause
+	selectTags   []string // tag keys that occur in the select clause
+	fieldID      uint8    // the field ID associated with the mapFunc curently being run
+	fieldName    string   // the field name associated with the mapFunc currently being run
 
 	queryTMin int64         // the min specified by the query
 	queryTMax int64         // the max specified by the query
 	interval  time.Duration // GROUP BY interval.
+	isRaw     bool          // if the query is a non-aggregate query
 
 	// Iterator state
 	currTmin int64 // the min of the current GROUP BY interval being iterated over
@@ -177,95 +182,152 @@ func (sm *ShardMapper) Close() {
 
 func (sm *ShardMapper) Begin(stmt *influxql.SelectStatement, chunkSize int) error {
 	var err error
-	for _, src := range stmt.Sources {
-		mm := src.(*influxql.Measurement)
+	if len(stmt.Sources) != 1 {
+		return fmt.Errorf("only 1 source per statement supported")
+	}
+	src := stmt.Sources[0]
 
-		m := sm.shard.index.Measurement(mm.Name)
-		if m == nil {
-			return ErrMeasurementNotFound(influxql.QuoteIdent([]string{mm.Database, "", mm.Name}...))
-		}
+	mm := src.(*influxql.Measurement)
 
-		// Set all time-related paremeters on the mapper.
-		tMin, tMax := influxql.TimeRange(stmt.Condition)
-		if tMin.IsZero() {
-			sm.queryTMin = time.Unix(0, 0).UnixNano()
-		}
-		if tMax.IsZero() {
-			sm.queryTMax = time.Now().UnixNano()
-		}
-		sm.currTmin = sm.queryTMin
-		sm.currTmax = sm.queryTMax
-		if sm.interval, err = stmt.GroupByInterval(); err != nil {
-			return err
-		}
+	m := sm.shard.index.Measurement(mm.Name)
+	if m == nil {
+		// This shard have never received data for the measurement. No Mapper
+		// required.
+		return nil
+	}
 
-		// Validate the fields and tags asked for exist and keep track of which are in the select vs the where
-		var selectFields []string
-		var whereFields []string
-		var selectTags []string
+	// Get a decoder for the measurement.
+	sm.decoder = sm.shard.FieldCodec(m.Name)
 
-		for _, n := range stmt.NamesInSelect() {
-			if m.HasField(n) {
-				selectFields = append(selectFields, n)
+	// Set all time-related paremeters on the mapper.
+	tMin, tMax := influxql.TimeRange(stmt.Condition)
+	if tMin.IsZero() {
+		sm.queryTMin = time.Unix(0, 0).UnixNano()
+	}
+	if tMax.IsZero() {
+		sm.queryTMax = time.Now().UnixNano()
+	}
+	sm.currTmin = sm.queryTMin
+	sm.currTmax = sm.queryTMax
+	if sm.interval, err = stmt.GroupByInterval(); err != nil {
+		return err
+	}
+
+	// Validate the fields and tags asked for exist and keep track of which are in the select vs the where
+	for _, n := range stmt.NamesInSelect() {
+		if m.HasField(n) {
+			sm.selectFields = append(sm.selectFields, n)
+			continue
+		}
+		if !m.HasTagKey(n) {
+			return fmt.Errorf("unknown field or tag name in select clause: %s", n)
+		}
+		sm.selectTags = append(sm.selectTags, n)
+	}
+	for _, n := range stmt.NamesInWhere() {
+		if n == "time" {
+			continue
+		}
+		if m.HasField(n) {
+			sm.whereFields = append(sm.whereFields, n)
+			continue
+		}
+		if !m.HasTagKey(n) {
+			return fmt.Errorf("unknown field or tag name in where clause: %s", n)
+		}
+	}
+
+	if len(sm.selectFields) == 0 && len(stmt.FunctionCalls()) == 0 {
+		return fmt.Errorf("select statement must include at least one field or function call")
+	}
+
+	// Validate that group by is not a field
+	for _, d := range stmt.Dimensions {
+		switch e := d.Expr.(type) {
+		case *influxql.VarRef:
+			if !m.HasTagKey(e.Val) {
+				return fmt.Errorf("can not use field in group by clause: %s", e.Val)
+			}
+		}
+	}
+
+	// // determine if this is a raw data query with a single field, multiple fields, or an aggregate
+	// var fieldName string
+	// if c == nil { // its a raw data query
+	// 	l.isRaw = true
+	// 	if len(sm.selectFields) == 1 {
+	// 		fieldName = sm.selectFields[0]
+	// 	}
+
+	// 	// if they haven't set a limit, just set it to the max int size
+	// 	if l.limit == 0 {
+	// 		l.limit = math.MaxUint64
+	// 	}
+	// } else {
+	// 	// Check for calls like `derivative(mean(value), 1d)`
+	// 	var nested *influxql.Call = c
+	// 	if fn, ok := c.Args[0].(*influxql.Call); ok {
+	// 		nested = fn
+	// 	}
+
+	// 	switch lit := nested.Args[0].(type) {
+	// 	case *influxql.VarRef:
+	// 		fieldName = lit.Val
+	// 	case *influxql.Distinct:
+	// 		if c.Name != "count" {
+	// 			return fmt.Errorf("aggregate call didn't contain a field %s", c.String())
+	// 		}
+	// 		isCountDistinct = true
+	// 		fieldName = lit.Val
+	// 	default:
+	// 		return fmt.Errorf("aggregate call didn't contain a field %s", c.String())
+	// 	}
+
+	// 	isCountDistinct = isCountDistinct || (c.Name == "count" && nested.Name == "distinct")
+	// }
+
+	// // set up the field info if a specific field was set for this mapper
+	// if fieldName != "" {
+	// 	fid, err := sm.decoder.FieldIDByName(fieldName)
+	// 	if err != nil {
+	// 		switch {
+	// 		case c != nil && c.Name == "distinct":
+	// 			return fmt.Errorf(`%s isn't a field on measurement %s; to query the unique values for a tag use SHOW TAG VALUES FROM %[2]s WITH KEY = "%[1]s`, fieldName, l.job.MeasurementName)
+	// 		case isCountDistinct:
+	// 			return fmt.Errorf("%s isn't a field on measurement %s; count(distinct) on tags isn't yet supported", fieldName, l.job.MeasurementName)
+	// 		}
+	// 	}
+	// 	sm.fieldID = fid
+	// 	sm.fieldName = fieldName
+	// }
+
+	// Determine the interval and GROUP BY tag keys.
+	_, tagKeys, err := stmt.Dimensions.Normalize()
+	if err != nil {
+		return err
+	}
+
+	// Get the sorted unique tag sets for this statement.
+	tagSets, err := m.TagSets(stmt, tagKeys)
+	if err != nil {
+		return err
+	}
+
+	// Create all cursors for reading the data from this shard.
+	for _, t := range tagSets {
+		cursors := []*seriesCursor{}
+
+		for i, key := range t.SeriesKeys {
+			c := sm.createCursorForSeries(key)
+			if c == nil {
+				// No data exists for this key.
 				continue
 			}
-			if !m.HasTagKey(n) {
-				return fmt.Errorf("unknown field or tag name in select clause: %s", n)
-			}
-			selectTags = append(selectTags, n)
+			cm := newSeriesCursor(c, t.Filters[i])
+			cm.Seek(sm.queryTMin)
+			cursors = append(cursors, cm)
 		}
-		for _, n := range stmt.NamesInWhere() {
-			if n == "time" {
-				continue
-			}
-			if m.HasField(n) {
-				whereFields = append(whereFields, n)
-				continue
-			}
-			if !m.HasTagKey(n) {
-				return fmt.Errorf("unknown field or tag name in where clause: %s", n)
-			}
-		}
-
-		if len(selectFields) == 0 && len(stmt.FunctionCalls()) == 0 {
-			return fmt.Errorf("select statement must include at least one field or function call")
-		}
-
-		// Validate that group by is not a field
-		for _, d := range stmt.Dimensions {
-			switch e := d.Expr.(type) {
-			case *influxql.VarRef:
-				if !m.HasTagKey(e.Val) {
-					return fmt.Errorf("can not use field in group by clause: %s", e.Val)
-				}
-			}
-		}
-
-		// Determine the interval and GROUP BY tag keys.
-		_, tagKeys, err := stmt.Dimensions.Normalize()
-		if err != nil {
-			return err
-		}
-
-		// Get the sorted unique tag sets for this statement.
-		tagSets, err := m.TagSets(stmt, tagKeys)
-		if err != nil {
-			return err
-		}
-
-		// Create all cursors for reading the data from this shard.
-		for _, t := range tagSets {
-			for i, key := range t.SeriesKeys {
-				c := sm.createCursorForSeries(key)
-				if c == nil {
-					// No data exists for this key.
-					continue
-				}
-				cm := newSeriesCursor(c, t.Filters[i])
-				cm.Seek(sm.queryTMin)
-			}
-		}
-
+		sm.cursors = append(sm.cursors, newTagSetCursor(cursors))
 	}
 
 	return nil
@@ -416,12 +478,12 @@ func (tsc *tagSetCursor) Next() (seriesKey string, timestamp int64, value interf
 		}
 
 		// We've got the next series to read from.
-		ts, val := minCursor.Next()
+		timestamp, val := minCursor.Next()
 
 		// Decode either the value, or values we need. Also filter if necessary
 		var err error
-		if l.isRaw && len(l.selectFields) > 1 {
-			if fieldsWithNames, err := l.decoder.DecodeFieldsWithNames(val); err == nil {
+		if tsc.sm.isRaw && len(tsc.sm.selectFields) > 1 {
+			if fieldsWithNames, err := tsc.sm.decoder.DecodeFieldsWithNames(val); err == nil {
 				value = fieldsWithNames
 
 				// if there's a where clause, make sure we don't need to filter this value
@@ -433,17 +495,17 @@ func (tsc *tagSetCursor) Next() (seriesKey string, timestamp int64, value interf
 			}
 		} else {
 			// In this case a more efficient decode may be available.
-			value, err = l.decoder.DecodeByID(l.fieldID, val)
+			value, err = tsc.sm.decoder.DecodeByID(tsc.sm.fieldID, val)
 
 			// if there's a where clase, see if we need to filter
 			if minCursor.filter != nil {
 				// see if the where is only on this field or on one or more other fields. if the latter, we'll have to decode everything
-				if len(l.whereFields) == 1 && l.whereFields[0] == l.fieldName {
-					if !matchesWhere(minCursor.filter, map[string]interface{}{l.fieldName: value}) {
+				if len(tsc.sm.whereFields) == 1 && tsc.sm.whereFields[0] == tsc.sm.fieldName {
+					if !matchesWhere(minCursor.filter, map[string]interface{}{tsc.sm.fieldName: value}) {
 						value = nil
 					}
 				} else { // decode everything
-					fieldsWithNames, err := l.decoder.DecodeFieldsWithNames(val)
+					fieldsWithNames, err := tsc.sm.decoder.DecodeFieldsWithNames(val)
 					if err != nil || !matchesWhere(minCursor.filter, fieldsWithNames) {
 						value = nil
 					}
