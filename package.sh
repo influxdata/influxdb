@@ -51,7 +51,11 @@ MAINTAINER=support@influxdb.com
 VENDOR=Influxdb
 DESCRIPTION="Distributed time-series database"
 
-FPM=`which fpm`
+# Allow path to FPM to be set by environment variables. Some execution contexts
+# like cron don't have PATH set correctly to pick it up.
+if [ -z "$FPM" ]; then
+    FPM=`which fpm`
+fi
 
 GO_VERSION="go1.4.2"
 GOPATH_INSTALL=
