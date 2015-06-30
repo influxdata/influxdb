@@ -449,6 +449,17 @@ func (tsc *tagSetCursor) Next() (seriesKey string, timestamp int64, value interf
 	}
 }
 
+// IsEmpty returns whether the tagsetCursor has any more data for the current interval.
+func (tsc *tagSetCursor) IsEmptyForInterval() bool {
+	for _, c := range tsc.cursors {
+		k, _ := c.Peek()
+		if k != 0 && k >= tsc.sm.currTmin && k <= tsc.sm.currTmax {
+			return true
+		}
+	}
+	return false
+}
+
 type seriesCursor struct {
 	cursor      *shardCursor // BoltDB cursor for a series
 	filter      influxql.Expr
