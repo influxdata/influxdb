@@ -894,62 +894,6 @@ func (f *FieldCodec) FieldIDByName(s string) (uint8, error) {
 	return fi.ID, nil
 }
 
-// DecodeByID scans a byte slice for a field with the given ID, converts it to its
-// expected type, and return that value.
-func (f *FieldCodec) decodeByID(targetID uint8, b []byte) (interface{}, error) {
-	if len(b) == 0 {
-		return 0, ErrFieldNotFound
-	}
-
-	for {
-		if len(b) < 1 {
-			// No more bytes.
-			break
-		}
-		field, ok := f.fieldsByID[b[0]]
-		if !ok {
-			// This can happen, though is very unlikely. If this node receives encoded data, to be written
-			// to disk, and is queried for that data before its metastore is updated, there will be no field
-			// mapping for the data during decode. All this can happen because data is encoded by the node
-			// that first received the write request, not the node that actually writes the data to disk.
-			// So if this happens, the read must be aborted.
-			return 0, ErrFieldUnmappedID
-		}
-
-		var value interface{}
-		switch field.Type {
-		case influxql.Float:
-			// Move bytes forward.
-			value = math.Float64frombits(binary.BigEndian.Uint64(b[1:9]))
-			b = b[9:]
-		case influxql.Integer:
-			value = int64(binary.BigEndian.Uint64(b[1:9]))
-			b = b[9:]
-		case influxql.Boolean:
-			if b[1] == 1 {
-				value = true
-			} else {
-				value = false
-			}
-			// Move bytes forward.
-			b = b[2:]
-		case influxql.String:
-			size := binary.BigEndian.Uint16(b[1:3])
-			value = string(b[3 : 3+size])
-			// Move bytes forward.
-			b = b[size+3:]
-		default:
-			panic(fmt.Sprintf("unsupported value type during decode by id: %T", field.Type))
-		}
-
-		if field.ID == targetID {
-			return value, nil
-		}
-	}
-
-	return 0, ErrFieldNotFound
-}
-
 // DecodeFields decodes a byte slice into a set of field ids and values.
 func (f *FieldCodec) DecodeFields(b []byte) (map[uint8]interface{}, error) {
 	if len(b) == 0 {
