@@ -17,14 +17,8 @@ import (
 	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/tcp"
 	"github.com/influxdb/influxdb/toml"
+	"golang.org/x/crypto/bcrypt"
 )
-
-func init() {
-	// Disable password hashing to speed up testing.
-	meta.HashPassword = func(password string) ([]byte, error) {
-		return []byte(password), nil
-	}
-}
 
 // Ensure the store returns an error
 func TestStore_Open_ErrStoreOpen(t *testing.T) {
@@ -656,6 +650,58 @@ func TestStore_UpdateUser(t *testing.T) {
 	}
 }
 
+// Ensure Authentication works.
+func TestStore_Authentication(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	s := MustOpenStore()
+	defer s.Close()
+
+	// Set the password hash function to the real thing for this test.
+	s.SetHashPasswordFn(func(password string) ([]byte, error) {
+		return bcrypt.GenerateFromPassword([]byte(password), 4)
+	})
+
+	// Create user.
+	s.CreateUser("susy", "pass", true)
+
+	// Authenticate user.
+	if ui, err := s.Authenticate("susy", "pass"); err != nil {
+		t.Fatal(err)
+	} else if ui.Name != "susy" {
+		t.Fatalf(`expected "susy", got "%s"`, ui.Name)
+	}
+
+	// Update user's password.
+	s.UpdateUser("susy", "pass2")
+
+	// Make sure authentication with old password does NOT work.
+	if _, err := s.Authenticate("susy", "pass"); err == nil {
+		t.Fatal("expected authentication error")
+	}
+
+	// Authenticate user with new password
+	if ui, err := s.Authenticate("susy", "pass2"); err != nil {
+		t.Fatal(err)
+	} else if ui.Name != "susy" {
+		t.Fatalf(`expected "susy", got "%s"`, ui.Name)
+	}
+
+	// Drop user.
+	s.DropUser("susy")
+
+	// Make sure authentication with both old passwords does NOT work.
+	if _, err := s.Authenticate("susy", "pass"); err == nil {
+		t.Fatal("expected authentication error")
+	} else if _, err := s.Authenticate("susy", "pass2"); err == nil {
+		t.Fatal("expected authentication error")
+	}
+}
+
 // Ensure the store can return the count of users in it.
 func TestStore_UserCount(t *testing.T) {
 	t.Parallel()
@@ -771,6 +817,7 @@ func NewStore(c meta.Config) *Store {
 		Store: meta.NewStore(c),
 	}
 	s.Logger = log.New(&s.Stderr, "", log.LstdFlags)
+	s.SetHashPasswordFn(mockHashPassword)
 	return s
 }
 
@@ -934,4 +981,9 @@ func MustTempFile() string {
 	f.Close()
 	os.Remove(f.Name())
 	return f.Name()
+}
+
+// mockHashPassword is used for most tests to avoid slow calls to bcrypt.
+func mockHashPassword(password string) ([]byte, error) {
+	return []byte(password), nil
 }

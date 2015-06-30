@@ -96,6 +96,13 @@ type Store struct {
 	// The amount of time without an apply before sending a heartbeat.
 	CommitTimeout time.Duration
 
+	// Authentication cache.
+	authCache map[string]string
+
+	// hashPassword generates a cryptographically secure hash for password.
+	// Returns an error if the password is invalid or a hash cannot be generated.
+	hashPassword HashPasswordFn
+
 	Logger *log.Logger
 }
 
@@ -116,7 +123,11 @@ func NewStore(c Config) *Store {
 		ElectionTimeout:    time.Duration(c.ElectionTimeout),
 		LeaderLeaseTimeout: time.Duration(c.LeaderLeaseTimeout),
 		CommitTimeout:      time.Duration(c.CommitTimeout),
-		Logger:             log.New(os.Stderr, "", log.LstdFlags),
+		authCache:          make(map[string]string, 0),
+		hashPassword: func(password string) ([]byte, error) {
+			return bcrypt.GenerateFromPassword([]byte(password), BcryptCost)
+		},
+		Logger: log.New(os.Stderr, "", log.LstdFlags),
 	}
 }
 
@@ -985,19 +996,37 @@ func (s *Store) AdminUserExists() (exists bool, err error) {
 	return
 }
 
+// ErrAuthenticate is returned when authentication fails.
+var ErrAuthenticate = errors.New("authentication failed")
+
 // Authenticate retrieves a user with a matching username and password.
 func (s *Store) Authenticate(username, password string) (ui *UserInfo, err error) {
 	err = s.read(func(data *Data) error {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+
 		// Find user.
 		u := data.User(username)
 		if u == nil {
 			return ErrUserNotFound
 		}
 
+		// Check the local auth cache first.
+		if p, ok := s.authCache[username]; ok {
+			if p == password {
+				ui = u
+				return nil
+			} else {
+				return ErrAuthenticate
+			}
+		}
+
 		// Compare password with user hash.
 		if err := bcrypt.CompareHashAndPassword([]byte(u.Hash), []byte(password)); err != nil {
-			return err
+			return ErrAuthenticate
 		}
+
+		s.authCache[username] = password
 
 		ui = u
 		return nil
@@ -1008,7 +1037,7 @@ func (s *Store) Authenticate(username, password string) (ui *UserInfo, err error
 // CreateUser creates a new user in the store.
 func (s *Store) CreateUser(name, password string, admin bool) (*UserInfo, error) {
 	// Hash the password before serializing it.
-	hash, err := HashPassword(password)
+	hash, err := s.hashPassword(password)
 	if err != nil {
 		return nil, err
 	}
@@ -1038,7 +1067,7 @@ func (s *Store) DropUser(name string) error {
 // UpdateUser updates an existing user in the store.
 func (s *Store) UpdateUser(name, password string) error {
 	// Hash the password before serializing it.
-	hash, err := HashPassword(password)
+	hash, err := s.hashPassword(password)
 	if err != nil {
 		return err
 	}
@@ -1299,6 +1328,27 @@ func (s *Store) sync(index uint64, timeout time.Duration) error {
 			return nil
 		}
 	}
+}
+
+// BcryptCost is the cost associated with generating password with Bcrypt.
+// This setting is lowered during testing to improve test suite performance.
+var BcryptCost = 10
+
+// HashPasswordFn represnets a password hashing function.
+type HashPasswordFn func(password string) ([]byte, error)
+
+// GetHashPasswordFn returns the current password hashing function.
+func (s *Store) GetHashPasswordFn() HashPasswordFn {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.hashPassword
+}
+
+// SetHashPasswordFn sets the password hashing function.
+func (s *Store) SetHashPasswordFn(fn HashPasswordFn) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.hashPassword = fn
 }
 
 // storeFSM represents the finite state machine used by Store to interact with Raft.
@@ -1578,6 +1628,7 @@ func (fsm *storeFSM) applyDropUserCommand(cmd *internal.Command) interface{} {
 		return err
 	}
 	fsm.data = other
+	delete(fsm.authCache, v.GetName())
 	return nil
 }
 
@@ -1591,6 +1642,7 @@ func (fsm *storeFSM) applyUpdateUserCommand(cmd *internal.Command) interface{} {
 		return err
 	}
 	fsm.data = other
+	delete(fsm.authCache, v.GetName())
 	return nil
 }
 
@@ -1736,18 +1788,6 @@ type RetentionPolicyUpdate struct {
 func (rpu *RetentionPolicyUpdate) SetName(v string)            { rpu.Name = &v }
 func (rpu *RetentionPolicyUpdate) SetDuration(v time.Duration) { rpu.Duration = &v }
 func (rpu *RetentionPolicyUpdate) SetReplicaN(v int)           { rpu.ReplicaN = &v }
-
-// BcryptCost is the cost associated with generating password with Bcrypt.
-// This setting is lowered during testing to improve test suite performance.
-var BcryptCost = 10
-
-// HashPassword generates a cryptographically secure hash for password.
-// Returns an error if the password is invalid or a hash cannot be generated.
-var HashPassword = func(password string) ([]byte, error) {
-	// The second arg is the cost of the hashing, higher is slower but makes
-	// it harder to brute force, since it will be really slow and impractical
-	return bcrypt.GenerateFromPassword([]byte(password), BcryptCost)
-}
 
 // assert will panic with a given formatted message if the given condition is false.
 func assert(condition bool, msg string, v ...interface{}) {

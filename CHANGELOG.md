@@ -55,6 +55,7 @@
 - [#2608](https://github.com/influxdb/influxdb/issues/2608): drop measurement while writing points to that measurement has race condition that can panic
 - [#3183](https://github.com/influxdb/influxdb/issues/3183): using line protocol measurement names cannot contain commas
 - [#3193](https://github.com/influxdb/influxdb/pull/3193): Fix panic for SHOW STATS and in collectd
+- [#3102](https://github.com/influxdb/influxdb/issues/3102): Add authentication cache
 
 ## v0.9.0 [2015-06-11]
 
