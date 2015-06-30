@@ -6,6 +6,7 @@
 ### Bugfixes
 
 - [#3180](https://github.com/influxdb/influxdb/pull/3180): Log GOMAXPROCS, version, and commit on startup.
+- [#3193](https://github.com/influxdb/influxdb/pull/3193): Fix panic for SHOW STATS and in collectd
 
 
 ## v0.9.1 [unreleased]
