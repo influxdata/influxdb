@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sort"
 	"time"
 
 	"github.com/boltdb/bolt"
@@ -139,7 +140,7 @@ type ShardMapper struct {
 
 	tx               *bolt.Tx         // Read transaction for this shard.
 	decoder          *FieldCodec      // decoder for the raw data bytes
-	cursors          []*tagSetCursor  // Cursors per tag sets.
+	cursors          tagSetCursors    // Cursors per tag sets.
 	currTagSetCursor int              // Current tagset cursor being iterated.
 	mapFunc          influxql.MapFunc // the map func
 
@@ -332,8 +333,11 @@ func (sm *ShardMapper) Begin(stmt *influxql.SelectStatement, chunkSize int) erro
 			cm.Seek(sm.queryTMin)
 			cursors = append(cursors, cm)
 		}
-		sm.cursors = append(sm.cursors, newTagSetCursor(cursors))
+		sm.cursors = append(sm.cursors, newTagSetCursor(string(t.Key), cursors, sm))
 	}
+
+	// Sort the tag-set cursors such that they are always iterated in the same order.
+	sort.Sort(sm.cursors)
 
 	return nil
 }
@@ -405,14 +409,24 @@ func (sm *ShardMapper) IsEmpty(tmax int64) bool {
 // tagSetCursor is virtual cursor that iterates over mutiple series cursors, as though it were
 // a single series.
 type tagSetCursor struct {
+	key     string          // Measurement and tag key-values.
 	cursors []*seriesCursor // Cursors per tag sets.
 	sm      *ShardMapper    // The parent shard mapper.
 }
 
+// tagSetCursors represents a sortable slice of tagSetCursors.
+type tagSetCursors []*tagSetCursor
+
+func (a tagSetCursors) Len() int           { return len(a) }
+func (a tagSetCursors) Less(i, j int) bool { return a[i].key < a[j].key }
+func (a tagSetCursors) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+
 // newTagSetCursor returns a tagSetCursor
-func newTagSetCursor(cursors []*seriesCursor) *tagSetCursor {
+func newTagSetCursor(key string, cursors []*seriesCursor, sm *ShardMapper) *tagSetCursor {
 	return &tagSetCursor{
+		key:     key,
 		cursors: cursors,
+		sm:      sm,
 	}
 }
 
