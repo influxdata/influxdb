@@ -1,6 +1,9 @@
 package meta
 
 import (
+	"bytes"
+	crand "crypto/rand"
+	"crypto/sha256"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -28,6 +31,9 @@ import (
 const (
 	MuxRaftHeader = 0
 	MuxExecHeader = 1
+
+	// SaltBytes is the number of bytes used for salts
+	SaltBytes = 32
 )
 
 // ExecMagic is the first 4 bytes sent to a remote exec connection to verify
@@ -97,13 +103,18 @@ type Store struct {
 	CommitTimeout time.Duration
 
 	// Authentication cache.
-	authCache map[string]string
+	authCache map[string]authUser
 
 	// hashPassword generates a cryptographically secure hash for password.
 	// Returns an error if the password is invalid or a hash cannot be generated.
 	hashPassword HashPasswordFn
 
 	Logger *log.Logger
+}
+
+type authUser struct {
+	salt []byte
+	hash []byte
 }
 
 // NewStore returns a new instance of Store.
@@ -123,7 +134,7 @@ func NewStore(c Config) *Store {
 		ElectionTimeout:    time.Duration(c.ElectionTimeout),
 		LeaderLeaseTimeout: time.Duration(c.LeaderLeaseTimeout),
 		CommitTimeout:      time.Duration(c.CommitTimeout),
-		authCache:          make(map[string]string, 0),
+		authCache:          make(map[string]authUser, 0),
 		hashPassword: func(password string) ([]byte, error) {
 			return bcrypt.GenerateFromPassword([]byte(password), BcryptCost)
 		},
@@ -1012,8 +1023,14 @@ func (s *Store) Authenticate(username, password string) (ui *UserInfo, err error
 		}
 
 		// Check the local auth cache first.
-		if p, ok := s.authCache[username]; ok {
-			if p == password {
+		if au, ok := s.authCache[username]; ok {
+			// verify the password using the cached salt and hash
+			hashed, err := s.hashWithSalt(au.salt, password)
+			if err != nil {
+				return err
+			}
+
+			if bytes.Equal(hashed, au.hash) {
 				ui = u
 				return nil
 			} else {
@@ -1026,11 +1043,35 @@ func (s *Store) Authenticate(username, password string) (ui *UserInfo, err error
 			return ErrAuthenticate
 		}
 
-		s.authCache[username] = password
+		// generate a salt and hash of the password for the cache
+		salt, hashed, err := s.saltedHash(password)
+		if err != nil {
+			return err
+		}
+		s.authCache[username] = authUser{salt: salt, hash: hashed}
 
 		ui = u
 		return nil
 	})
+	return
+}
+
+// hashWithSalt returns a salted hash of password using salt
+func (s *Store) hashWithSalt(salt []byte, password string) ([]byte, error) {
+	hasher := sha256.New()
+	hasher.Write(append(salt, []byte(password)...))
+	return hasher.Sum(nil), nil
+}
+
+// saltedHash returns a salt and salted hash of password
+func (s *Store) saltedHash(password string) (salt, hash []byte, err error) {
+	salt = make([]byte, SaltBytes)
+	_, err = io.ReadFull(crand.Reader, salt)
+	if err != nil {
+		return
+	}
+
+	hash, err = s.hashWithSalt(salt, password)
 	return
 }
 
