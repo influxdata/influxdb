@@ -1029,7 +1029,7 @@ func (f *FieldCodec) DecodeByID(targetID uint8, b []byte) (interface{}, error) {
 // expected type, and return that value.
 func (f *FieldCodec) DecodeByName(name string, b []byte) (interface{}, error) {
 	if fi := f.fieldByName(name); fi == nil {
-		return 0, fmt.Errorf("field doesn't exist")
+		return 0, ErrFieldNotFound
 	} else {
 		return f.DecodeByID(fi.ID, b)
 	}
