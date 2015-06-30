@@ -381,65 +381,6 @@ func (sm *ShardMapper) IsEmpty(tmax int64) bool {
 	return false
 }
 
-type seriesCursor struct {
-	cursor      *shardCursor // BoltDB cursor for a series
-	filter      influxql.Expr
-	keyBuffer   int64  // The current timestamp key for the cursor
-	valueBuffer []byte // The current value for the cursor
-}
-
-func newSeriesCursor(b *shardCursor, filter influxql.Expr) *seriesCursor {
-	return &seriesCursor{
-		cursor:    b,
-		filter:    filter,
-		keyBuffer: -1, // Nothing buffered.
-	}
-}
-
-// Peek returns the next timestamp and value, without changing what will be
-// be returned by a call to Next()
-func (mc *seriesCursor) Peek() (key int64, value []byte) {
-	if mc.keyBuffer == -1 {
-		k, v := mc.cursor.Next()
-		if k == nil {
-			mc.keyBuffer = 0
-		} else {
-			mc.keyBuffer = int64(btou64(k))
-			mc.valueBuffer = v
-		}
-	}
-
-	key, value = mc.keyBuffer, mc.valueBuffer
-	return
-}
-
-// Seek positions the cursor at the key, such that Next() will return
-// the key and value at key.
-func (mc *seriesCursor) Seek(key int64) {
-	k, v := mc.cursor.Seek(u64tob(uint64(key)))
-	if k == nil {
-		mc.keyBuffer = 0
-	} else {
-		mc.keyBuffer, mc.valueBuffer = int64(btou64(k)), v
-	}
-}
-
-// Next returns the next timestamp and value from the cursor.
-func (mc *seriesCursor) Next() (key int64, value []byte) {
-	if mc.keyBuffer != -1 {
-		key, value = mc.keyBuffer, mc.valueBuffer
-		mc.keyBuffer, mc.valueBuffer = -1, nil
-	} else {
-		k, v := mc.cursor.Next()
-		if k == nil {
-			key = 0
-		} else {
-			key, value = int64(btou64(k)), v
-		}
-	}
-	return
-}
-
 // tagSetCursor is virtual cursor that iterates over mutiple series cursors, as though it were
 // a single series.
 type tagSetCursor struct {
@@ -520,4 +461,63 @@ func (tsc *tagSetCursor) Next() (seriesKey string, timestamp int64, value interf
 
 		return seriesKey, timestamp, value
 	}
+}
+
+type seriesCursor struct {
+	cursor      *shardCursor // BoltDB cursor for a series
+	filter      influxql.Expr
+	keyBuffer   int64  // The current timestamp key for the cursor
+	valueBuffer []byte // The current value for the cursor
+}
+
+func newSeriesCursor(b *shardCursor, filter influxql.Expr) *seriesCursor {
+	return &seriesCursor{
+		cursor:    b,
+		filter:    filter,
+		keyBuffer: -1, // Nothing buffered.
+	}
+}
+
+// Peek returns the next timestamp and value, without changing what will be
+// be returned by a call to Next()
+func (mc *seriesCursor) Peek() (key int64, value []byte) {
+	if mc.keyBuffer == -1 {
+		k, v := mc.cursor.Next()
+		if k == nil {
+			mc.keyBuffer = 0
+		} else {
+			mc.keyBuffer = int64(btou64(k))
+			mc.valueBuffer = v
+		}
+	}
+
+	key, value = mc.keyBuffer, mc.valueBuffer
+	return
+}
+
+// Seek positions the cursor at the key, such that Next() will return
+// the key and value at key.
+func (mc *seriesCursor) Seek(key int64) {
+	k, v := mc.cursor.Seek(u64tob(uint64(key)))
+	if k == nil {
+		mc.keyBuffer = 0
+	} else {
+		mc.keyBuffer, mc.valueBuffer = int64(btou64(k)), v
+	}
+}
+
+// Next returns the next timestamp and value from the cursor.
+func (mc *seriesCursor) Next() (key int64, value []byte) {
+	if mc.keyBuffer != -1 {
+		key, value = mc.keyBuffer, mc.valueBuffer
+		mc.keyBuffer, mc.valueBuffer = -1, nil
+	} else {
+		k, v := mc.cursor.Next()
+		if k == nil {
+			key = 0
+		} else {
+			key, value = int64(btou64(k)), v
+		}
+	}
+	return
 }
