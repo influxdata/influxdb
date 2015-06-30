@@ -147,7 +147,6 @@ type ShardMapper struct {
 	whereFields  []string // field names that occur in the where clause
 	selectFields []string // field names that occur in the select clause
 	selectTags   []string // tag keys that occur in the select clause
-	fieldID      uint8    // the field ID associated with the mapFunc curently being run
 	fieldName    string   // the field name associated with the mapFunc currently being run
 
 	queryTMin int64         // the min specified by the query
@@ -294,7 +293,6 @@ func (sm *ShardMapper) Begin(stmt *influxql.SelectStatement, chunkSize int) erro
 
 	// // set up the field info if a specific field was set for this mapper
 	// if fieldName != "" {
-	// 	fid, err := sm.decoder.FieldIDByName(fieldName)
 	// 	if err != nil {
 	// 		switch {
 	// 		case c != nil && c.Name == "distinct":
@@ -303,7 +301,6 @@ func (sm *ShardMapper) Begin(stmt *influxql.SelectStatement, chunkSize int) erro
 	// 			return fmt.Errorf("%s isn't a field on measurement %s; count(distinct) on tags isn't yet supported", fieldName, l.job.MeasurementName)
 	// 		}
 	// 	}
-	// 	sm.fieldID = fid
 	// 	sm.fieldName = fieldName
 	// }
 
@@ -471,7 +468,7 @@ func (tsc *tagSetCursor) Next() (seriesKey string, timestamp int64, value interf
 			}
 		} else {
 			// In this case a more efficient decode may be available.
-			value, err = tsc.sm.decoder.DecodeByID(tsc.sm.fieldID, val)
+			value, err = tsc.sm.decoder.DecodeByName(tsc.sm.fieldName, val)
 
 			// if there's a where clase, see if we need to filter
 			if minCursor.filter != nil {
