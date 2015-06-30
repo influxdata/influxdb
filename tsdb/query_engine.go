@@ -294,7 +294,7 @@ func (sm *ShardMapper) Begin(stmt *influxql.SelectStatement, chunkSize int) erro
 }
 
 // NextChunk returns the next chunk (interval for now) of data for given tagset. If result is nil
-// then the mapper is empty.
+// then the mapper has no more data.
 func (sm *ShardMapper) NextChunk() (tagSet string, result interface{}, interval int, err error) {
 	// XXX might be overkill, an inefficient.
 	if sm.IsEmpty(sm.currTmax) || sm.currTmin > sm.queryTMax {
@@ -308,11 +308,11 @@ func (sm *ShardMapper) NextChunk() (tagSet string, result interface{}, interval 
 		}
 		cursor := sm.cursors[sm.currTagSetCursor]
 		val := sm.mapFunc(cursor)
-		if val == nil {
+
+		if cursor.IsEmptyForInterval() {
 			sm.currTagSetCursor++
-		} else {
-			return cursor.key, val, 1, nil
 		}
+		return cursor.key, val, 1, nil
 	}
 
 	// Get the current set of series cursors.
@@ -454,10 +454,10 @@ func (tsc *tagSetCursor) IsEmptyForInterval() bool {
 	for _, c := range tsc.cursors {
 		k, _ := c.Peek()
 		if k != 0 && k >= tsc.sm.currTmin && k <= tsc.sm.currTmax {
-			return true
+			return false
 		}
 	}
-	return false
+	return true
 }
 
 type seriesCursor struct {
