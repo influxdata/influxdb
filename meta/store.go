@@ -988,6 +988,9 @@ var ErrAuthenticate = errors.New("authentication failed")
 // Authenticate retrieves a user with a matching username and password.
 func (s *Store) Authenticate(username, password string) (ui *UserInfo, err error) {
 	err = s.read(func(data *Data) error {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+
 		// Find user.
 		u := data.User(username)
 		if u == nil {
@@ -1003,6 +1006,7 @@ func (s *Store) Authenticate(username, password string) (ui *UserInfo, err error
 				return ErrAuthenticate
 			}
 		}
+
 		// Compare password with user hash.
 		if err := bcrypt.CompareHashAndPassword([]byte(u.Hash), []byte(password)); err != nil {
 			return ErrAuthenticate
@@ -1321,8 +1325,8 @@ type HashPasswordFn func(password string) ([]byte, error)
 
 // GetHashPasswordFn returns the current password hashing function.
 func (s *Store) GetHashPasswordFn() HashPasswordFn {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.hashPassword
 }
 
