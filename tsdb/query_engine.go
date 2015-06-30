@@ -285,7 +285,6 @@ func (sm *ShardMapper) Begin(stmt *influxql.SelectStatement, chunkSize int) erro
 			cursors = append(cursors, cm)
 		}
 		sm.cursors = append(sm.cursors, newTagSetCursor(m.Name+string(t.Key), cursors, sm))
-
 	}
 
 	// Sort the tag-set cursors such that they are always iterated in the same order.
@@ -312,7 +311,7 @@ func (sm *ShardMapper) NextChunk() (tagSet string, result interface{}, interval 
 		if val == nil {
 			sm.currTagSetCursor++
 		} else {
-			return "cursor tagset", val, 1, nil
+			return cursor.key, val, 1, nil
 		}
 	}
 
