@@ -137,9 +137,11 @@ func (e *Executor) Execute() <-chan *influxql.Row {
 type ShardMapper struct {
 	shard *Shard
 
-	tx      *bolt.Tx        // Read transaction for this shard.
-	cursors []*tagSetCursor // Cursors per tag sets.
-	decoder *FieldCodec     // decoder for the raw data bytes
+	tx               *bolt.Tx         // Read transaction for this shard.
+	decoder          *FieldCodec      // decoder for the raw data bytes
+	cursors          []*tagSetCursor  // Cursors per tag sets.
+	currTagSetCursor int              // Current tagset cursor being iterated.
+	mapFunc          influxql.MapFunc // the map func
 
 	whereFields  []string // field names that occur in the where clause
 	selectFields []string // field names that occur in the select clause
@@ -251,6 +253,9 @@ func (sm *ShardMapper) Begin(stmt *influxql.SelectStatement, chunkSize int) erro
 		}
 	}
 
+	// Hardcode a raw function.
+	sm.mapFunc = influxql.MapRawQuery
+
 	// // determine if this is a raw data query with a single field, multiple fields, or an aggregate
 	// var fieldName string
 	// if c == nil { // its a raw data query
@@ -333,10 +338,26 @@ func (sm *ShardMapper) Begin(stmt *influxql.SelectStatement, chunkSize int) erro
 	return nil
 }
 
+// NextChunk returns the next chunk (interval for now) of data for given tagset. If result is nil
+// then the mapper is empty.
 func (sm *ShardMapper) NextChunk() (tagSet string, result interface{}, interval int, err error) {
 	// XXX might be overkill, an inefficient.
 	if sm.IsEmpty(sm.currTmax) || sm.currTmin > sm.queryTMax {
 		return "", nil, 1, nil
+	}
+
+	for {
+		if sm.currTagSetCursor == len(sm.cursors) {
+			// All tag set cursors for this mapper are drained, for this interval.
+			return "", nil, 1, nil
+		}
+		cursor := sm.cursors[sm.currTagSetCursor]
+		val := sm.mapFunc(cursor)
+		if val == nil {
+			sm.currTagSetCursor++
+		} else {
+			return "cursor tagset", val, 1, nil
+		}
 	}
 
 	// Get the current set of series cursors.
