@@ -118,9 +118,15 @@ func (s *Service) Open() error {
 // Close stops the service.
 func (s *Service) Close() error {
 	// Close the connection, and wait for the goroutine to exit.
-	close(s.stop)
-	s.ln.Close()
-	s.batcher.Stop()
+	if s.stop != nil {
+		close(s.stop)
+	}
+	if s.ln != nil {
+		s.ln.Close()
+	}
+	if s.batcher != nil {
+		s.batcher.Stop()
+	}
 	s.wg.Wait()
 
 	// Release all remaining resources.
