@@ -255,54 +255,8 @@ func (sm *ShardMapper) Begin(stmt *influxql.SelectStatement, chunkSize int) erro
 
 	// Hardcode a raw function.
 	sm.mapFunc = influxql.MapRawQuery
-
-	// // determine if this is a raw data query with a single field, multiple fields, or an aggregate
-	// var fieldName string
-	// if c == nil { // its a raw data query
-	// 	l.isRaw = true
-	// 	if len(sm.selectFields) == 1 {
-	// 		fieldName = sm.selectFields[0]
-	// 	}
-
-	// 	// if they haven't set a limit, just set it to the max int size
-	// 	if l.limit == 0 {
-	// 		l.limit = math.MaxUint64
-	// 	}
-	// } else {
-	// 	// Check for calls like `derivative(mean(value), 1d)`
-	// 	var nested *influxql.Call = c
-	// 	if fn, ok := c.Args[0].(*influxql.Call); ok {
-	// 		nested = fn
-	// 	}
-
-	// 	switch lit := nested.Args[0].(type) {
-	// 	case *influxql.VarRef:
-	// 		fieldName = lit.Val
-	// 	case *influxql.Distinct:
-	// 		if c.Name != "count" {
-	// 			return fmt.Errorf("aggregate call didn't contain a field %s", c.String())
-	// 		}
-	// 		isCountDistinct = true
-	// 		fieldName = lit.Val
-	// 	default:
-	// 		return fmt.Errorf("aggregate call didn't contain a field %s", c.String())
-	// 	}
-
-	// 	isCountDistinct = isCountDistinct || (c.Name == "count" && nested.Name == "distinct")
-	// }
-
-	// // set up the field info if a specific field was set for this mapper
-	// if fieldName != "" {
-	// 	if err != nil {
-	// 		switch {
-	// 		case c != nil && c.Name == "distinct":
-	// 			return fmt.Errorf(`%s isn't a field on measurement %s; to query the unique values for a tag use SHOW TAG VALUES FROM %[2]s WITH KEY = "%[1]s`, fieldName, l.job.MeasurementName)
-	// 		case isCountDistinct:
-	// 			return fmt.Errorf("%s isn't a field on measurement %s; count(distinct) on tags isn't yet supported", fieldName, l.job.MeasurementName)
-	// 		}
-	// 	}
-	// 	sm.fieldName = fieldName
-	// }
+	sm.isRaw = true
+	sm.fieldName = sm.selectFields[0]
 
 	// Determine the interval and GROUP BY tag keys.
 	_, tagKeys, err := stmt.Dimensions.Normalize()
