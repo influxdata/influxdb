@@ -51,6 +51,8 @@ MAINTAINER=support@influxdb.com
 VENDOR=Influxdb
 DESCRIPTION="Distributed time-series database"
 
+FPM=`which fpm`
+
 GO_VERSION="go1.4.2"
 GOPATH_INSTALL=
 BINS=(
@@ -304,21 +306,21 @@ else
 fi
 
 COMMON_FPM_ARGS="-C $TMP_WORK_DIR --vendor $VENDOR --url $URL --license $LICENSE --maintainer $MAINTAINER --after-install $POST_INSTALL_PATH --name influxdb --version $VERSION --config-files $CONFIG_ROOT_DIR ."
-$rpm_args fpm -s dir -t rpm --description "$DESCRIPTION" $COMMON_FPM_ARGS
+$rpm_args $FPM -s dir -t rpm --description "$DESCRIPTION" $COMMON_FPM_ARGS
 if [ $? -ne 0 ]; then
     echo "Failed to create RPM package -- aborting."
     cleanup_exit 1
 fi
 echo "RPM package created successfully."
 
-fpm -s dir -t deb $deb_args --description "$DESCRIPTION" $COMMON_FPM_ARGS
+$FPM -s dir -t deb $deb_args --description "$DESCRIPTION" $COMMON_FPM_ARGS
 if [ $? -ne 0 ]; then
     echo "Failed to create Debian package -- aborting."
     cleanup_exit 1
 fi
 echo "Debian package created successfully."
 
-fpm -s dir -t tar --prefix influxdb_${VERSION}_${ARCH} -p influxdb_${VERSION}_${ARCH}.tar.gz --description "$DESCRIPTION" $COMMON_FPM_ARGS
+$FPM -s dir -t tar --prefix influxdb_${VERSION}_${ARCH} -p influxdb_${VERSION}_${ARCH}.tar.gz --description "$DESCRIPTION" $COMMON_FPM_ARGS
 if [ $? -ne 0 ]; then
     echo "Failed to create Tar package -- aborting."
     cleanup_exit 1
