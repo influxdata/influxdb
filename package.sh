@@ -30,6 +30,8 @@
 # Trim the leading spaces when creating the file. The script will exit if
 # S3 upload is requested, but this file does not exist.
 
+[ -z $DEBUG ] || set -x
+
 AWS_FILE=~/aws.conf
 
 INSTALL_ROOT_DIR=/opt/influxdb
@@ -48,6 +50,12 @@ URL=influxdb.com
 MAINTAINER=support@influxdb.com
 VENDOR=Influxdb
 DESCRIPTION="Distributed time-series database"
+
+# Allow path to FPM to be set by environment variables. Some execution contexts
+# like cron don't have PATH set correctly to pick it up.
+if [ -z "$FPM" ]; then
+    FPM=`which fpm`
+fi
 
 GO_VERSION="go1.4.2"
 GOPATH_INSTALL=
@@ -289,32 +297,39 @@ if [ -z "$NIGHTLY_BUILD" ]; then
 fi
 
 if [ $ARCH == "i386" ]; then
-    rpm_package=influxdb-$VERSION-1.i686.rpm
+    rpm_package=influxdb-${VERSION}-1.i686.rpm # RPM packages use 1 for default package release.
     debian_package=influxdb_${VERSION}_i686.deb
     deb_args="-a i686"
     rpm_args="setarch i686"
 elif [ $ARCH == "arm" ]; then
-    rpm_package=influxdb-$VERSION-1.armel.rpm
+    rpm_package=influxdb-${VERSION}-1.armel.rpm
     debian_package=influxdb_${VERSION}_armel.deb
 else
-    rpm_package=influxdb-$VERSION-1.x86_64.rpm
+    rpm_package=influxdb-${VERSION}-1.x86_64.rpm
     debian_package=influxdb_${VERSION}_amd64.deb
 fi
 
 COMMON_FPM_ARGS="-C $TMP_WORK_DIR --vendor $VENDOR --url $URL --license $LICENSE --maintainer $MAINTAINER --after-install $POST_INSTALL_PATH --name influxdb --version $VERSION --config-files $CONFIG_ROOT_DIR ."
-$rpm_args fpm -s dir -t rpm --description "$DESCRIPTION" $COMMON_FPM_ARGS
+$rpm_args $FPM -s dir -t rpm --description "$DESCRIPTION" $COMMON_FPM_ARGS
 if [ $? -ne 0 ]; then
     echo "Failed to create RPM package -- aborting."
     cleanup_exit 1
 fi
 echo "RPM package created successfully."
 
-fpm -s dir -t deb $deb_args --description "$DESCRIPTION" $COMMON_FPM_ARGS
+$FPM -s dir -t deb $deb_args --description "$DESCRIPTION" $COMMON_FPM_ARGS
 if [ $? -ne 0 ]; then
     echo "Failed to create Debian package -- aborting."
     cleanup_exit 1
 fi
 echo "Debian package created successfully."
+
+$FPM -s dir -t tar --prefix influxdb_${VERSION}_${ARCH} -p influxdb_${VERSION}_${ARCH}.tar.gz --description "$DESCRIPTION" $COMMON_FPM_ARGS
+if [ $? -ne 0 ]; then
+    echo "Failed to create Tar package -- aborting."
+    cleanup_exit 1
+fi
+echo "Tar package created successfully."
 
 ###########################################################################
 # Offer to tag the repo.
@@ -356,7 +371,7 @@ if [ "x$response" == "xy" -o -n "$NIGHTLY_BUILD" ]; then
         cleanup_exit 1
     fi
 
-    for filepath in `ls *.{deb,rpm}`; do
+    for filepath in `ls *.{deb,rpm,gz}`; do
         filename=`basename $filepath`
         if [ -n "$NIGHTLY_BUILD" ]; then
             filename=`echo $filename | sed s/$VERSION/nightly/`
