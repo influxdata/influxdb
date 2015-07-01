@@ -7,9 +7,6 @@ import (
 )
 
 const (
-	// DefaultRetentionAutoCreate is the default for auto-creating retention policies
-	DefaultRetentionAutoCreate = true
-
 	// DefaultRetentionCheckEnabled is the default for checking for retention policy enforcement
 	DefaultRetentionCheckEnabled = true
 
@@ -32,7 +29,6 @@ type Config struct {
 	Dir                   string        `toml:"dir"`
 	MaxWALSize            int           `toml:"max-wal-size"`
 	WALFlushInterval      toml.Duration `toml:"wal-flush-interval"`
-	RetentionAutoCreate   bool          `toml:"retention-auto-create"`
 	RetentionCheckEnabled bool          `toml:"retention-check-enabled"`
 	RetentionCheckPeriod  toml.Duration `toml:"retention-check-period"`
 	RetentionCreatePeriod toml.Duration `toml:"retention-create-period"`
@@ -42,7 +38,6 @@ func NewConfig() Config {
 	return Config{
 		MaxWALSize:            DefaultMaxWALSize,
 		WALFlushInterval:      toml.Duration(DefaultWALFlushInterval),
-		RetentionAutoCreate:   DefaultRetentionAutoCreate,
 		RetentionCheckEnabled: DefaultRetentionCheckEnabled,
 		RetentionCheckPeriod:  toml.Duration(DefaultRetentionCheckPeriod),
 		RetentionCreatePeriod: toml.Duration(DefaultRetentionCreatePeriod),
