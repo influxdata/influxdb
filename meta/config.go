@@ -32,7 +32,7 @@ type Config struct {
 	Hostname            string        `toml:"hostname"`
 	BindAddress         string        `toml:"bind-address"`
 	Peers               []string      `toml:"peers"`
-	RetentionAutoCreate bool          `toml:"retention-autocreate"`
+	RetentionAutoCreate bool          `toml:"retention-auto-create"`
 	ElectionTimeout     toml.Duration `toml:"election-timeout"`
 	HeartbeatTimeout    toml.Duration `toml:"heartbeat-timeout"`
 	LeaderLeaseTimeout  toml.Duration `toml:"leader-lease-timeout"`
