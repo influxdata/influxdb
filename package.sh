@@ -131,7 +131,7 @@ check_clean_tree() {
 
 # update_tree ensures the tree is in-sync with the repo.
 update_tree() {
-    git pull origin `current_branch`
+    git pull origin $TARGET_BRANCH
     if [ $? -ne 0 ]; then
         echo "Failed to pull latest code -- aborting."
         cleanup_exit 1
@@ -173,6 +173,15 @@ make_dir_tree() {
 
 # do_build builds the code. The version and commit must be passed in.
 do_build() {
+    for b in ${BINS[*]}; do
+        rm -f $GOPATH_INSTALL/bin/$b
+    done
+    go get -u -f -d ./...
+    if [ $? -ne 0 ]; then
+        echo "WARNING: failed to 'go get' packages."
+    fi
+
+    git checkout $TARGET_BRANCH # go get switches to master, so ensure we're back.
     version=$1
     commit=`git rev-parse HEAD`
     if [ $? -ne 0 ]; then
@@ -180,13 +189,6 @@ do_build() {
         cleanup_exit 1
     fi
 
-    for b in ${BINS[*]}; do
-        rm -f $GOPATH_INSTALL/bin/$b
-    done
-    go get -u -f ./...
-    if [ $? -ne 0 ]; then
-        echo "WARNING: failed to 'go get' packages."
-    fi
     go install -a -ldflags="-X main.version $version -X main.commit $commit" ./...
     if [ $? -ne 0 ]; then
         echo "Build failed, unable to create package -- aborting"
@@ -244,6 +246,18 @@ else
 fi
 
 echo -e "\nStarting package process...\n"
+
+# Ensure the current is correct.
+TARGET_BRANCH=`current_branch`
+if [ -z "$NIGHTLY_BUILD" ]; then
+echo -n "Current branch is $TARGET_BRANCH. Start packaging this branch? [Y/n] "
+    read response
+    response=`echo $response | tr 'A-Z' 'a-z'`
+    if [ "x$response" == "xn" ]; then
+        echo "Packaging aborted."
+        cleanup_exit 1
+    fi
+fi
 
 check_gvm
 check_gopath
