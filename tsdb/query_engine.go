@@ -333,7 +333,6 @@ func (sm *ShardMapper) NextChunk() (tagSet string, result interface{}, interval 
 
 	// No cursor of this tagset has any matching data.
 
-	return "", nil, 1, nil
 }
 
 func (sm *ShardMapper) createCursorForSeries(key string) *shardCursor {
