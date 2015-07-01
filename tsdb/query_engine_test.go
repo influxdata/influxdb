@@ -18,14 +18,14 @@ func TestShardMapper_WriteAndSingleMapperRawQuery(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 	shard := mustCreateShard(tmpDir)
 
-	pt1time := time.Unix(1, 2).UTC()
+	pt1time := time.Unix(1, 0).UTC()
 	pt1 := NewPoint(
 		"cpu",
 		map[string]string{"host": "serverA"},
 		map[string]interface{}{"value": 42},
 		pt1time,
 	)
-	pt2time := time.Unix(2, 2).UTC()
+	pt2time := time.Unix(2, 0).UTC()
 	pt2 := NewPoint(
 		"cpu",
 		map[string]string{"host": "serverB"},
@@ -47,15 +47,15 @@ func TestShardMapper_WriteAndSingleMapperRawQuery(t *testing.T) {
 		},
 		{
 			stmt:     `SELECT value FROM cpu`,
-			expected: `[{"Time":1000000002,"Values":42},{"Time":2000000002,"Values":60}]`,
+			expected: `[{"Time":1000000000,"Values":42},{"Time":2000000000,"Values":60}]`,
 		},
 		{
 			stmt:     `SELECT value FROM cpu WHERE host='serverA'`,
-			expected: `[{"Time":1000000002,"Values":42}]`,
+			expected: `[{"Time":1000000000,"Values":42}]`,
 		},
 		{
 			stmt:     `SELECT value FROM cpu WHERE host='serverB'`,
-			expected: `[{"Time":2000000002,"Values":60}]`,
+			expected: `[{"Time":2000000000,"Values":60}]`,
 		},
 		{
 			stmt:     `SELECT value FROM cpu WHERE host='serverC'`,
@@ -63,15 +63,19 @@ func TestShardMapper_WriteAndSingleMapperRawQuery(t *testing.T) {
 		},
 		{
 			stmt:     `SELECT value FROM cpu WHERE value = 60`,
-			expected: `[{"Time":2000000002,"Values":60}]`,
+			expected: `[{"Time":2000000000,"Values":60}]`,
 		},
 		{
 			stmt:     `SELECT value FROM cpu WHERE value != 60`,
-			expected: `[{"Time":1000000002,"Values":42}]`,
+			expected: `[{"Time":1000000000,"Values":42}]`,
+		},
+		{
+			stmt:     fmt.Sprintf(`SELECT value FROM cpu WHERE time = '%s'`, pt1time.Format(influxql.DateTimeFormat)),
+			expected: `[{"Time":1000000000,"Values":42}]`,
 		},
 		{
 			stmt:     fmt.Sprintf(`SELECT value FROM cpu WHERE time > '%s'`, pt1time.Format(influxql.DateTimeFormat)),
-			expected: `[{"Time":2000000002,"Values":60}]`,
+			expected: `[{"Time":2000000000,"Values":60}]`,
 		},
 		{
 			stmt:     fmt.Sprintf(`SELECT value FROM cpu WHERE time > '%s'`, pt2time.Format(influxql.DateTimeFormat)),

@@ -387,8 +387,8 @@ func newTagSetCursor(key string, cursors []*seriesCursor, sm *ShardMapper) *tagS
 	}
 }
 
-// Next returns the next matching timestamp value for the tagset.
-func (tsc *tagSetCursor) Next() (seriesKey string, timestamp int64, value interface{}) {
+// Next returns the next matching series-key, timestamp and value for the tagset.
+func (tsc *tagSetCursor) Next() (string, int64, interface{}) {
 	for {
 		// Find the cursor with the lowest timestamp, as that is the one to be read next.
 		var minCursor *seriesCursor
@@ -415,6 +415,7 @@ func (tsc *tagSetCursor) Next() (seriesKey string, timestamp int64, value interf
 
 		// Decode either the value, or values we need. Also filter if necessary
 		var err error
+		var value interface{}
 		if tsc.sm.isRaw && len(tsc.sm.selectFields) > 1 {
 			if fieldsWithNames, err := tsc.sm.decoder.DecodeFieldsWithNames(val); err == nil {
 				value = fieldsWithNames
@@ -451,7 +452,7 @@ func (tsc *tagSetCursor) Next() (seriesKey string, timestamp int64, value interf
 			continue
 		}
 
-		return seriesKey, timestamp, value
+		return tsc.key, timestamp, value
 	}
 }
 
