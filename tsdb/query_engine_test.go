@@ -18,17 +18,19 @@ func TestShardMapper_WriteAndSingleMapperRawQuery(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 	shard := mustCreateShard(tmpDir)
 
+	pt1time := time.Unix(1, 2).UTC()
 	pt1 := NewPoint(
 		"cpu",
 		map[string]string{"host": "serverA"},
 		map[string]interface{}{"value": 42},
-		time.Unix(1, 2),
+		pt1time,
 	)
+	pt2time := time.Unix(2, 2).UTC()
 	pt2 := NewPoint(
 		"cpu",
 		map[string]string{"host": "serverB"},
 		map[string]interface{}{"value": 60},
-		time.Unix(1, 3),
+		pt2time,
 	)
 	err := shard.WritePoints([]Point{pt1, pt2})
 	if err != nil {
@@ -45,7 +47,7 @@ func TestShardMapper_WriteAndSingleMapperRawQuery(t *testing.T) {
 		},
 		{
 			stmt:     `SELECT value FROM cpu`,
-			expected: `[{"Time":1000000002,"Values":42},{"Time":1000000003,"Values":60}]`,
+			expected: `[{"Time":1000000002,"Values":42},{"Time":2000000002,"Values":60}]`,
 		},
 		{
 			stmt:     `SELECT value FROM cpu WHERE host='serverA'`,
@@ -53,21 +55,37 @@ func TestShardMapper_WriteAndSingleMapperRawQuery(t *testing.T) {
 		},
 		{
 			stmt:     `SELECT value FROM cpu WHERE host='serverB'`,
-			expected: `[{"Time":1000000003,"Values":60}]`,
+			expected: `[{"Time":2000000002,"Values":60}]`,
 		},
 		{
 			stmt:     `SELECT value FROM cpu WHERE host='serverC'`,
 			expected: `null`,
 		},
+		{
+			stmt:     `SELECT value FROM cpu WHERE value = 60`,
+			expected: `[{"Time":2000000002,"Values":60}]`,
+		},
+		{
+			stmt:     `SELECT value FROM cpu WHERE value != 60`,
+			expected: `[{"Time":1000000002,"Values":42}]`,
+		},
+		{
+			stmt:     fmt.Sprintf(`SELECT value FROM cpu WHERE time > '%s'`, pt1time.Format(influxql.DateTimeFormat)),
+			expected: `[{"Time":2000000002,"Values":60}]`,
+		},
+		{
+			stmt:     fmt.Sprintf(`SELECT value FROM cpu WHERE time > '%s'`, pt2time.Format(influxql.DateTimeFormat)),
+			expected: `null`,
+		},
 	}
 
-	for i, tt := range tests {
+	for _, tt := range tests {
 		stmt := mustParseSelectStatement(tt.stmt)
 		mapper := beginMapperOrFail(t, shard, stmt)
 
 		got := nextChunkAsJson(t, mapper)
 		if got != tt.expected {
-			t.Fatalf("test %d got %s, expected %s", i, got, tt.expected)
+			t.Errorf("test '%s'\n\tgot      %s\n\texpected %s", tt.stmt, got, tt.expected)
 		}
 	}
 }

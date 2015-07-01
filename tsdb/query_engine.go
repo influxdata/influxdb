@@ -202,13 +202,19 @@ func (sm *ShardMapper) Begin(stmt *influxql.SelectStatement, chunkSize int) erro
 	sm.decoder = sm.shard.FieldCodec(m.Name)
 
 	// Set all time-related paremeters on the mapper.
-	tMin, tMax := influxql.TimeRange(stmt.Condition)
-	if tMin.IsZero() {
+	tmin, tmax := influxql.TimeRange(stmt.Condition)
+	if tmin.IsZero() {
 		sm.queryTMin = time.Unix(0, 0).UnixNano()
+	} else {
+		sm.queryTMin = tmin.UnixNano()
 	}
-	if tMax.IsZero() {
+	if tmax.IsZero() {
 		sm.queryTMax = time.Now().UnixNano()
+	} else {
+		sm.queryTMax = tmax.UnixNano()
 	}
+
+	// Set first interval to query range.
 	sm.currTmin = sm.queryTMin
 	sm.currTmax = sm.queryTMax
 	if sm.interval, err = stmt.GroupByInterval(); err != nil {
