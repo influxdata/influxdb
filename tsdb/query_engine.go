@@ -389,6 +389,8 @@ func newTagSetCursor(key string, cursors []*seriesCursor, sm *ShardMapper) *tagS
 // Next returns the next matching series-key, timestamp and value for the tagset.
 func (tsc *tagSetCursor) Next() (string, int64, interface{}) {
 	for {
+		// TODO: Enforce a limit, and per-interval limit, check here.
+
 		// Find the cursor with the lowest timestamp, as that is the one to be read next.
 		var minCursor *seriesCursor
 		for _, c := range tsc.cursors {
@@ -450,6 +452,8 @@ func (tsc *tagSetCursor) Next() (string, int64, interface{}) {
 		if err != nil || value == nil {
 			continue
 		}
+
+		// TODO: update any limit-related counters here.
 
 		return tsc.key, timestamp, value
 	}
