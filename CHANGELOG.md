@@ -6,6 +6,7 @@
 ### Bugfixes
 
 - [#3180](https://github.com/influxdb/influxdb/pull/3180): Log GOMAXPROCS, version, and commit on startup.
+- [#3218](https://github.com/influxdb/influxdb/pull/3218): Allow write timeouts to be configurable.
 
 
 ## v0.9.1 [unreleased]
