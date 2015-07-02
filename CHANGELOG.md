@@ -47,6 +47,7 @@
 - [#3193](https://github.com/influxdb/influxdb/pull/3193): Fix panic for SHOW STATS and in collectd
 - [#3102](https://github.com/influxdb/influxdb/issues/3102): Add authentication cache
 - [#3209](https://github.com/influxdb/influxdb/pull/3209): Dump Run() errors to stderr
+- [#3217](https://github.com/influxdb/influxdb/pull/3217): Allow WAL partition flush delay to be configurable.
 
 ## v0.9.0 [2015-06-11]
 
