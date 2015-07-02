@@ -28,11 +28,17 @@ reporting-disabled = false
 ###
 ### [data]
 ###
-### Controls where the actual shard data for InfluxDB lives.
+### Controls where the actual shard data for InfluxDB lives and how it is
+### flushed from the WAL. "dir" may need to be changed to a suitable place
+### for your system, but the WAL settings are an advanced configuration. The
+### defaults should work for most systems.
 ###
 
 [data]
   dir = "/var/opt/influxdb/data"
+  MaxWALSize = 104857600 # Maximum size the WAL can reach before a flush. Defaults to 100MB.
+  WALFlushInterval = "10m" # Maximum time data can sit in WAL before a flush.
+  WALPartitionFlushDelay = "2s" # The delay time between each WAL partition being flushed.
 
 ###
 ### [cluster]
