@@ -83,6 +83,7 @@ func NewServer(c *Config, version string) (*Server, error) {
 	// Copy TSDB configuration.
 	s.TSDBStore.MaxWALSize = c.Data.MaxWALSize
 	s.TSDBStore.WALFlushInterval = time.Duration(c.Data.WALFlushInterval)
+	s.TSDBStore.WALPartitionFlushDelay = time.Duration(c.Data.WALPartitionFlushDelay)
 
 	// Initialize query executor.
 	s.QueryExecutor = tsdb.NewQueryExecutor(s.TSDBStore)
