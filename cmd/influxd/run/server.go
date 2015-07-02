@@ -99,6 +99,7 @@ func NewServer(c *Config, version string) (*Server, error) {
 
 	// Initialize points writer.
 	s.PointsWriter = cluster.NewPointsWriter()
+	s.PointsWriter.WriteTimeout = time.Duration(c.Cluster.WriteTimeout)
 	s.PointsWriter.MetaStore = s.MetaStore
 	s.PointsWriter.TSDBStore = s.TSDBStore
 	s.PointsWriter.ShardWriter = s.ShardWriter

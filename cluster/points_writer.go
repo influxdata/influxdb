@@ -14,8 +14,6 @@ import (
 	"github.com/influxdb/influxdb/tsdb"
 )
 
-const DefaultWriteTimeout = 5 * time.Second
-
 // ConsistencyLevel represent a required replication criteria before a write can
 // be returned as successful
 type ConsistencyLevel int
@@ -67,9 +65,10 @@ func ParseConsistencyLevel(level string) (ConsistencyLevel, error) {
 
 // PointsWriter handles writes across multiple local and remote data nodes.
 type PointsWriter struct {
-	mu      sync.RWMutex
-	closing chan struct{}
-	Logger  *log.Logger
+	mu           sync.RWMutex
+	closing      chan struct{}
+	WriteTimeout time.Duration
+	Logger       *log.Logger
 
 	MetaStore interface {
 		NodeID() uint64
@@ -96,8 +95,9 @@ type PointsWriter struct {
 // NewPointsWriter returns a new instance of PointsWriter for a node.
 func NewPointsWriter() *PointsWriter {
 	return &PointsWriter{
-		closing: make(chan struct{}),
-		Logger:  log.New(os.Stderr, "[write] ", log.LstdFlags),
+		closing:      make(chan struct{}),
+		WriteTimeout: DefaultWriteTimeout,
+		Logger:       log.New(os.Stderr, "[write] ", log.LstdFlags),
 	}
 }
 
@@ -272,7 +272,7 @@ func (w *PointsWriter) writeToShard(shard *meta.ShardInfo, database, retentionPo
 	}
 
 	var wrote int
-	timeout := time.After(DefaultWriteTimeout)
+	timeout := time.After(w.WriteTimeout)
 	var writeError error
 	for _, nodeID := range shard.OwnerIDs {
 		select {
