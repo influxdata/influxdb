@@ -8,7 +8,7 @@
 - [#3180](https://github.com/influxdb/influxdb/pull/3180): Log GOMAXPROCS, version, and commit on startup.
 
 
-## v0.9.1 [unreleased]
+## v0.9.1 [2015-07-02]
 
 ### Features
 
