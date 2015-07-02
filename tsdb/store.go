@@ -16,10 +16,11 @@ import (
 
 func NewStore(path string) *Store {
 	return &Store{
-		path:             path,
-		MaxWALSize:       DefaultMaxWALSize,
-		WALFlushInterval: DefaultWALFlushInterval,
-		Logger:           log.New(os.Stderr, "[store] ", log.LstdFlags),
+		path:                   path,
+		MaxWALSize:             DefaultMaxWALSize,
+		WALFlushInterval:       DefaultWALFlushInterval,
+		WALPartitionFlushDelay: DefaultWALPartitionFlushDelay,
+		Logger:                 log.New(os.Stderr, "[store] ", log.LstdFlags),
 	}
 }
 
@@ -34,8 +35,9 @@ type Store struct {
 	databaseIndexes map[string]*DatabaseIndex
 	shards          map[uint64]*Shard
 
-	MaxWALSize       int
-	WALFlushInterval time.Duration
+	MaxWALSize             int
+	WALFlushInterval       time.Duration
+	WALPartitionFlushDelay time.Duration
 
 	Logger *log.Logger
 }
@@ -104,6 +106,7 @@ func (s *Store) newShard(index *DatabaseIndex, path string) *Shard {
 	sh := NewShard(index, path)
 	sh.MaxWALSize = s.MaxWALSize
 	sh.WALFlushInterval = s.WALFlushInterval
+	sh.WALPartitionFlushDelay = s.WALPartitionFlushDelay
 	return sh
 }
 

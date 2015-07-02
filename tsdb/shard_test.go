@@ -142,6 +142,7 @@ func TestShard_Autoflush(t *testing.T) {
 	sh := NewShard(NewDatabaseIndex(), filepath.Join(path, "shard"))
 	sh.MaxWALSize = 1024 // 1KB
 	sh.WALFlushInterval = 1 * time.Hour
+	sh.WALPartitionFlushDelay = 1 * time.Millisecond
 	if err := sh.Open(); err != nil {
 		t.Fatal(err)
 	}
@@ -160,7 +161,7 @@ func TestShard_Autoflush(t *testing.T) {
 	}
 
 	// Wait for autoflush.
-	time.Sleep(1 * time.Second)
+	time.Sleep(100 * time.Millisecond)
 
 	// Make sure we have series buckets created outside the WAL.
 	if n, err := sh.SeriesCount(); err != nil {
@@ -179,6 +180,7 @@ func TestShard_Autoflush_FlushInterval(t *testing.T) {
 	sh := NewShard(NewDatabaseIndex(), filepath.Join(path, "shard"))
 	sh.MaxWALSize = 10 * 1024 * 1024 // 10MB
 	sh.WALFlushInterval = 100 * time.Millisecond
+	sh.WALPartitionFlushDelay = 1 * time.Millisecond
 	if err := sh.Open(); err != nil {
 		t.Fatal(err)
 	}
@@ -197,7 +199,7 @@ func TestShard_Autoflush_FlushInterval(t *testing.T) {
 	}
 
 	// Wait for time-based flush.
-	time.Sleep(1 * time.Second)
+	time.Sleep(100 * time.Millisecond)
 
 	// Make sure we have series buckets created outside the WAL.
 	if n, err := sh.SeriesCount(); err != nil {

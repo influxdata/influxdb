@@ -69,8 +69,9 @@ type Shard struct {
 	logger *log.Logger
 
 	// The maximum size and time thresholds for flushing the WAL.
-	MaxWALSize       int
-	WALFlushInterval time.Duration
+	MaxWALSize             int
+	WALFlushInterval       time.Duration
+	WALPartitionFlushDelay time.Duration
 
 	// The writer used by the logger.
 	LogOutput io.Writer
@@ -84,8 +85,9 @@ func NewShard(index *DatabaseIndex, path string) *Shard {
 		flush:             make(chan struct{}, 1),
 		measurementFields: make(map[string]*measurementFields),
 
-		MaxWALSize:       DefaultMaxWALSize,
-		WALFlushInterval: DefaultWALFlushInterval,
+		MaxWALSize:             DefaultMaxWALSize,
+		WALFlushInterval:       DefaultWALFlushInterval,
+		WALPartitionFlushDelay: DefaultWALPartitionFlushDelay,
 
 		LogOutput: os.Stderr,
 	}
@@ -372,7 +374,7 @@ func (s *Shard) Flush() error {
 		}
 
 		// Wait momentarily so other threads can process.
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(s.WALPartitionFlushDelay)
 	}
 
 	s.mu.Lock()
