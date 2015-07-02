@@ -8,7 +8,7 @@ var currentlySelectedDatabase = null;
 
 // connection settings for the server, with sensible defaults
 var connectionSettings = {
-    hostname: "localhost",
+    hostname: (window.location.hostname ? window.location.hostname: "localhost"),
     port: "8086",
     username: "",
     password: "",
