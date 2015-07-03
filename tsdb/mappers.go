@@ -98,9 +98,6 @@ func NewRawMapper(shard *Shard, stmt *influxql.SelectStatement) (*RawMapper, err
 			return nil, fmt.Errorf("select statement must include at least one field")
 		}
 
-		// Get a decoder for this measurement.
-		mapper.decoders[m.Name] = shard.FieldCodec(m.Name)
-
 		// Create tagset cursors.
 		_, tagKeys, err := stmt.Dimensions.Normalize()
 		if err != nil {
@@ -127,7 +124,7 @@ func NewRawMapper(shard *Shard, stmt *influxql.SelectStatement) (*RawMapper, err
 				cm.Seek(mapper.queryTMin)
 				cursors = append(cursors, cm)
 			}
-			mapper.cursors = append(mapper.cursors, newTagSetCursor(m.Name+string(t.Key), cursors))
+			mapper.cursors = append(mapper.cursors, newTagSetCursor(m.Name+string(t.Key), cursors, shard.FieldCodec(m.Name)))
 		}
 	}
 
@@ -140,60 +137,24 @@ func NewRawMapper(shard *Shard, stmt *influxql.SelectStatement) (*RawMapper, err
 // NextChunk returns the next chunk of data for a tagset. If the result is nil, there is no more
 // data.
 func (rm *RawMapper) NextChunk() (tagSet string, result interface{}, interval int, err error) {
+	var values []*rawMapperOutput
 	for {
-		if rm.currTagSetIdx == len(sm.cursors) {
+		if rm.currTagSetIdx == len(rm.cursors) {
 			// All tag set cursors for this mapper are complete.
-			return "", nil, 1, nil
+			return "", values, 1, nil
 		}
 
-		cursor := rm.cursors[sm.currTagSetIdx]
+		cursor := rm.cursors[rm.currTagSetIdx]
 		if cursor.IsEmptyForInterval(rm.queryTMin, rm.queryTMax) {
 			// This tagset cursor has no more data, go to next one. XXX may need new mapfunc instance here.
-			sm.currTagSetIdx++
+			rm.currTagSetIdx++
 			continue
 		}
 
 		// This tagset cursor still has matching data. Get it and decode it.
-		key, timestamp, bytes := cursor.Next()
-
-		// Decode either the value, or values we need. Also filter if necessary
-		var value interface{}
-		var err error
-		decoder := rm.decoders[key]
-		if len(rm.selectFields) > 1 {
-			if fieldsWithNames, err := decoder.DecodeFieldsWithNames(bytes); err == nil {
-				value = fieldsWithNames
-
-				// if there's a where clause, make sure we don't need to filter this value
-				if l.filters[min] != nil {
-					if !matchesWhere(l.filters[min], fieldsWithNames) {
-						value = nil
-					}
-				}
-			}
-		} else {
-			value, err = decoder.DecodeByID(l.fieldID, bytes)
-
-			// if there's a where clase, see if we need to filter
-			if l.filters[min] != nil {
-				// see if the where is only on this field or on one or more other fields. if the latter, we'll have to decode everything
-				if len(l.whereFields) == 1 && l.whereFields[0] == l.fieldName {
-					if !matchesWhere(l.filters[min], map[string]interface{}{l.fieldName: value}) {
-						value = nil
-					}
-				} else { // decode everything
-					fieldsWithNames, err := decoder.DecodeFieldsWithNames(bytes)
-					if err != nil || !matchesWhere(l.filters[min], fieldsWithNames) {
-						value = nil
-					}
-				}
-			}
-		}
-
-		// Create results.
-		val := rm.mapFunc(cursor)
-
-		return "", val, 1, nil
+		_, timestamp, value := cursor.Next()
+		val := &rawMapperOutput{timestamp, value}
+		values = append(values, val)
 	}
 }
 
@@ -219,6 +180,11 @@ func (rm *RawMapper) createCursorForSeries(key string) *shardCursor {
 	return cur
 }
 
+type rawMapperOutput struct {
+	Time   int64
+	Values interface{}
+}
+
 // tagSetCursor is virtual cursor that iterates over mutiple series cursors, as though it were
 // a single series.
 type tagSetCursor struct {
@@ -235,26 +201,16 @@ func (a tagSetCursors) Less(i, j int) bool { return a[i].key < a[j].key }
 func (a tagSetCursors) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
 // newTagSetCursor returns a tagSetCursor
-func newTagSetCursor(key string, cursors []*seriesCursor) *tagSetCursor {
+func newTagSetCursor(key string, cursors []*seriesCursor, decoder *FieldCodec) *tagSetCursor {
 	return &tagSetCursor{
 		key:     key,
 		cursors: cursors,
+		decoder: decoder,
 	}
-}
-
-// Peek returns the next series key, timestamp and value, without changing what will be
-// be returned by a call to Next()
-func (tsc *tagSetCursor) Peek() (key string, timestamp int64, value []byte) {
-	minCursor := tsc.nextCursor()
-	if minCursor == nil {
-		return "", 0, nil
-	}
-	timestamp, value = minCursor.Peek()
-	return "", timestamp, value
 }
 
 // Next returns the next matching series-key, timestamp and byte slice for the tagset.
-func (tsc *tagSetCursor) Next() (string, int64, []byte) {
+func (tsc *tagSetCursor) Next() (string, int64, interface{}) {
 	for {
 		// Find the cursor with the lowest timestamp, as that is the one to be read next.
 		minCursor := tsc.nextCursor()
@@ -263,8 +219,25 @@ func (tsc *tagSetCursor) Next() (string, int64, []byte) {
 			return "", 0, nil
 		}
 
-		timestamp, value := minCursor.Next()
-		return "not sure what goes here", timestamp, value
+		timestamp, bytes := minCursor.Next()
+
+		var value interface{}
+		// Unoptimized decode. Optimized requires knowlegde of query XXXX
+		if fieldsWithNames, err := tsc.decoder.DecodeFieldsWithNames(bytes); err == nil {
+			value = fieldsWithNames
+
+			// if there's a where clause, make sure we don't need to filter this value
+			if !matchesWhere(minCursor.filter, fieldsWithNames) {
+				value = nil
+			}
+		}
+
+		// Value didn't match, look for the next one.
+		if value == nil {
+			continue
+		}
+
+		return "", timestamp, value
 	}
 }
 
