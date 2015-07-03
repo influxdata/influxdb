@@ -214,19 +214,16 @@ func newTagSetCursor(key string, cursors []*seriesCursor, decoder *FieldCodec) *
 // Next returns the next matching series-key, timestamp and byte slice for the tagset. Filtering
 // is enforced on the values. If there is no matching value, then a nil result is returned.
 func (tsc *tagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []string) (string, int64, interface{}) {
+	_ = "breakpoint"
+
 	for {
 		// Find the cursor with the lowest timestamp, as that is the one to be read next.
-		minCursor := tsc.nextCursor()
+		minCursor := tsc.nextCursor(tmin, tmax)
 		if minCursor == nil {
 			// No cursor of this tagset has any matching data.
 			return "", 0, nil
 		}
-
-		// Is the timestamp of the next cursor in range? XXX Consider pushing this logic into above.
 		timestamp, bytes := minCursor.Next()
-		if timestamp < tmin || timestamp > tmax {
-			continue
-		}
 
 		var value interface{}
 		if len(selectFields) > 1 {
@@ -283,14 +280,15 @@ func (tsc *tagSetCursor) IsEmptyForInterval(tmin, tmax int64) bool {
 	return true
 }
 
-// nextCursor returns the series cursor with the lowest next timestamp. If none exists,
-// nil is returned.
-func (tsc *tagSetCursor) nextCursor() *seriesCursor {
+// nextCursor returns the series cursor with the lowest next timestamp, within in the specified
+// range. If none exists, nil is returned.
+func (tsc *tagSetCursor) nextCursor(tmin, tmax int64) *seriesCursor {
+	_ = "breakpoint"
 	var minCursor *seriesCursor
 	var timestamp int64
 	for _, c := range tsc.cursors {
 		timestamp, _ = c.Peek()
-		if timestamp != 0 {
+		if timestamp != 0 && timestamp >= tmin && timestamp <= tmax {
 			if minCursor == nil {
 				minCursor = c
 			} else {
