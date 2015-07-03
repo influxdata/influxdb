@@ -26,7 +26,6 @@ type Mapper interface {
 
 type Executor interface {
 	Execute() <-chan *influxql.Row
-	Close()
 }
 
 type Planner struct {
@@ -128,13 +127,18 @@ func NewRawExecutor(mappers []Mapper) *RawExecutor {
 func (re *RawExecutor) Execute() <-chan *influxql.Row {
 	// Create output channel and stream data in a separate goroutine.
 	out := make(chan *influxql.Row, 0)
-
+	go re.execute(out)
 	return out
+}
+
+func (re *RawExecutor) execute(out chan *influxql.Row) {
+	// It's important the all resources are released when execution completes.
+	defer re.close()
 }
 
 // Close closes the executor such that all resources are released. Once closed,
 // an executor may not be re-used.
-func (re *RawExecutor) Close() {
+func (re *RawExecutor) close() {
 	for _, m := range re.mappers {
 		m.Close()
 	}
