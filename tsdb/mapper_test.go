@@ -89,7 +89,7 @@ func TestShardMapper_WriteAndSingleMapperRawQuery(t *testing.T) {
 
 	for _, tt := range tests {
 		stmt := mustParseSelectStatement(tt.stmt)
-		mapper := beginMapperOrFail(t, shard, stmt)
+		mapper := openMapperOrFail(t, shard, stmt)
 
 		for _, s := range tt.expected {
 			got := nextChunkAsJson(t, mapper)
@@ -123,10 +123,11 @@ func mustParseSelectStatement(s string) *influxql.SelectStatement {
 	return stmt.(*influxql.SelectStatement)
 }
 
-func beginMapperOrFail(t *testing.T, shard *Shard, stmt *influxql.SelectStatement) *RawMapper {
-	mapper, err := NewRawMapper(shard, stmt)
-	if err != nil {
-		t.Fatalf("failed to create raw mapper: %s", err.Error())
+func openMapperOrFail(t *testing.T, shard *Shard, stmt *influxql.SelectStatement) *RawMapper {
+	mapper := NewRawMapper(shard, stmt)
+
+	if err := mapper.Open(); err != nil {
+		t.Fatalf("failed to open raw mapper: %s", err.Error())
 	}
 	return mapper
 }

@@ -30,85 +30,88 @@ type RawMapper struct {
 }
 
 // NewRawMapper returns a mapper for the given shard, which will return data for the SELECT statement.
-func NewRawMapper(shard *Shard, stmt *influxql.SelectStatement) (*RawMapper, error) {
-	mapper := RawMapper{
+func NewRawMapper(shard *Shard, stmt *influxql.SelectStatement) *RawMapper {
+	return &RawMapper{
 		shard: shard,
 		stmt:  stmt,
 	}
+}
 
+// Open opens the raw mapper.
+func (rm *RawMapper) Open() error {
 	// Get a read-only transaction.
-	tx, err := shard.DB().Begin(false)
+	tx, err := rm.shard.DB().Begin(false)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	mapper.tx = tx
+	rm.tx = tx
 
 	// Set all time-related parameters on the mapper.
-	tmin, tmax := influxql.TimeRange(stmt.Condition)
+	tmin, tmax := influxql.TimeRange(rm.stmt.Condition)
 	if tmin.IsZero() {
-		mapper.queryTMin = time.Unix(0, 0).UnixNano()
+		rm.queryTMin = time.Unix(0, 0).UnixNano()
 	} else {
-		mapper.queryTMin = tmin.UnixNano()
+		rm.queryTMin = tmin.UnixNano()
 	}
 	if tmax.IsZero() {
-		mapper.queryTMax = time.Now().UnixNano()
+		rm.queryTMax = time.Now().UnixNano()
 	} else {
-		mapper.queryTMax = tmax.UnixNano()
+		rm.queryTMax = tmax.UnixNano()
 	}
 
 	// Create the TagSet cursors for the Mapper.
-	for _, src := range stmt.Sources {
+	for _, src := range rm.stmt.Sources {
 		mm, ok := src.(*influxql.Measurement)
 		if !ok {
-			return nil, fmt.Errorf("invalid source type: %#v", src)
+			return fmt.Errorf("invalid source type: %#v", src)
 		}
 
-		m := shard.index.Measurement(mm.Name)
+		m := rm.shard.index.Measurement(mm.Name)
 
 		if m == nil {
 			// This shard have never received data for the measurement. No Mapper
 			// required.
-			return nil, nil
+			return nil
 		}
 
 		// Validate the fields and tags asked for exist and keep track of which are in the select vs the where
-		for _, n := range stmt.NamesInSelect() {
+		for _, n := range rm.stmt.NamesInSelect() {
 			if m.HasField(n) {
-				mapper.selectFields = append(mapper.selectFields, n)
+				rm.selectFields = append(rm.selectFields, n)
 				continue
 			}
 			if !m.HasTagKey(n) {
-				return nil, fmt.Errorf("unknown field or tag name in select clause: %s", n)
+				return fmt.Errorf("unknown field or tag name in select clause: %s", n)
 			}
-			mapper.selectTags = append(mapper.selectTags, n)
+			rm.selectTags = append(rm.selectTags, n)
 		}
-		for _, n := range stmt.NamesInWhere() {
+		for _, n := range rm.stmt.NamesInWhere() {
 			if n == "time" {
 				continue
 			}
 			if m.HasField(n) {
-				mapper.whereFields = append(mapper.whereFields, n)
+				rm.whereFields = append(rm.whereFields, n)
 				continue
 			}
 			if !m.HasTagKey(n) {
-				return nil, fmt.Errorf("unknown field or tag name in where clause: %s", n)
+				return fmt.Errorf("unknown field or tag name in where clause: %s", n)
 			}
 		}
 
-		if len(mapper.selectFields) == 0 {
-			return nil, fmt.Errorf("select statement must include at least one field")
+		if len(rm.selectFields) == 0 {
+			return fmt.Errorf("select statement must include at least one field")
 		}
 
 		// Create tagset cursors.
-		_, tagKeys, err := stmt.Dimensions.Normalize()
+		_, tagKeys, err := rm.stmt.Dimensions.Normalize()
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		// Get the sorted unique tag sets for this statement.
-		tagSets, err := m.TagSets(stmt, tagKeys)
+		tagSets, err := m.TagSets(rm.stmt, tagKeys)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		// Create all cursors for reading the data from this shard.
@@ -116,23 +119,23 @@ func NewRawMapper(shard *Shard, stmt *influxql.SelectStatement) (*RawMapper, err
 			cursors := []*seriesCursor{}
 
 			for i, key := range t.SeriesKeys {
-				c := mapper.createCursorForSeries(key)
+				c := rm.createCursorForSeries(key)
 				if c == nil {
 					// No data exists for this key.
 					continue
 				}
 				cm := newSeriesCursor(c, t.Filters[i])
-				cm.Seek(mapper.queryTMin)
+				cm.Seek(rm.queryTMin)
 				cursors = append(cursors, cm)
 			}
-			mapper.cursors = append(mapper.cursors, newTagSetCursor(m.Name+string(t.Key), cursors, shard.FieldCodec(m.Name)))
+			rm.cursors = append(rm.cursors, newTagSetCursor(m.Name+string(t.Key), cursors, rm.shard.FieldCodec(m.Name)))
 		}
 	}
 
 	// Sort the tag-set cursors such that they are always iterated in the same order.
-	sort.Sort(mapper.cursors)
+	sort.Sort(rm.cursors)
 
-	return &mapper, nil
+	return nil
 }
 
 // NextChunk returns the next chunk of data for a tagset. If the result is nil, there are no more
