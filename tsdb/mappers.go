@@ -147,14 +147,16 @@ func (rm *RawMapper) NextChunk() (tagSet string, result interface{}, interval in
 		cursor := rm.cursors[rm.currTagSetIdx]
 		if cursor.IsEmptyForInterval(rm.queryTMin, rm.queryTMax) {
 			// This tagset cursor has no more data, go to next one. XXX may need new mapfunc instance here.
+			// This is because 'SELECT value from CPU GROUP BY host' is valid, right?
 			rm.currTagSetIdx++
 			continue
 		}
 
 		// This tagset cursor still has matching data. Get it and decode it.
-		_, timestamp, value := cursor.Next()
-		val := &rawMapperOutput{timestamp, value}
-		values = append(values, val)
+		for _, k, v := cursor.Next(); v != nil; _, k, v = cursor.Next() {
+			val := &rawMapperOutput{k, v}
+			values = append(values, val)
+		}
 	}
 }
 
