@@ -239,7 +239,6 @@ func (tsc *tagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []stri
 
 		var value interface{}
 		if len(selectFields) > 1 {
-			// Unoptimized decode. Optimized requires knowlegde of query XXXX
 			if fieldsWithNames, err := tsc.decoder.DecodeFieldsWithNames(bytes); err == nil {
 				value = fieldsWithNames
 
@@ -249,6 +248,7 @@ func (tsc *tagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []stri
 				}
 			}
 		} else {
+			// With only 1 field SELECTed, decoding all fields may be avoidable, which is faster.
 			var err error
 			value, err = tsc.decoder.DecodeByName(selectFields[0], bytes)
 			if err != nil {
