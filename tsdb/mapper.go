@@ -145,8 +145,12 @@ func (rm *RawMapper) NextChunk() (tagSet string, result interface{}, interval in
 		}
 		cursor := rm.cursors[rm.currTagSetIdx]
 
-		// This tagset cursor still has matching data. Get it and decode it.
-		for _, k, v := cursor.Next(rm.queryTMin, rm.queryTMax); v != nil; _, k, v = cursor.Next(rm.queryTMin, rm.queryTMax) {
+		// Still got a tagset cursor to process.
+		for {
+			_, k, v := cursor.Next(rm.queryTMin, rm.queryTMax, rm.selectFields, rm.whereFields)
+			if v == nil {
+				break
+			}
 			val := &rawMapperOutput{k, v}
 			values = append(values, val)
 		}
@@ -209,7 +213,7 @@ func newTagSetCursor(key string, cursors []*seriesCursor, decoder *FieldCodec) *
 
 // Next returns the next matching series-key, timestamp and byte slice for the tagset. Filtering
 // is enforced on the values. If there is no matching value, then a nil result is returned.
-func (tsc *tagSetCursor) Next(tmin, tmax int64) (string, int64, interface{}) {
+func (tsc *tagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []string) (string, int64, interface{}) {
 	for {
 		// Find the cursor with the lowest timestamp, as that is the one to be read next.
 		minCursor := tsc.nextCursor()
@@ -226,13 +230,37 @@ func (tsc *tagSetCursor) Next(tmin, tmax int64) (string, int64, interface{}) {
 		timestamp, bytes := minCursor.Next()
 
 		var value interface{}
-		// Unoptimized decode. Optimized requires knowlegde of query XXXX
-		if fieldsWithNames, err := tsc.decoder.DecodeFieldsWithNames(bytes); err == nil {
-			value = fieldsWithNames
+		if len(selectFields) > 1 {
+			// Unoptimized decode. Optimized requires knowlegde of query XXXX
+			if fieldsWithNames, err := tsc.decoder.DecodeFieldsWithNames(bytes); err == nil {
+				value = fieldsWithNames
 
-			// if there's a where clause, make sure we don't need to filter this value
-			if !matchesWhere(minCursor.filter, fieldsWithNames) {
-				value = nil
+				// if there's a where clause, make sure we don't need to filter this value
+				if minCursor.filter != nil && !matchesWhere(minCursor.filter, fieldsWithNames) {
+					value = nil
+				}
+			}
+		} else {
+			var err error
+			value, err = tsc.decoder.DecodeByName(selectFields[0], bytes)
+			if err != nil {
+				continue
+			}
+
+			// If there's a WHERE clase, see if we need to filter
+			if minCursor.filter != nil {
+				// See if the WHERE is only on this field or on one or more other fields.
+				// If the latter, we'll have to decode everything
+				if len(whereFields) == 1 && whereFields[0] == selectFields[0] {
+					if !matchesWhere(minCursor.filter, map[string]interface{}{selectFields[0]: value}) {
+						value = nil
+					}
+				} else { // Decode everything
+					fieldsWithNames, err := tsc.decoder.DecodeFieldsWithNames(bytes)
+					if err != nil || !matchesWhere(minCursor.filter, fieldsWithNames) {
+						value = nil
+					}
+				}
 			}
 		}
 
