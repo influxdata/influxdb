@@ -160,6 +160,8 @@ func (rm *RawMapper) NextChunk() (tagSet string, result interface{}, interval in
 	}
 }
 
+// createCursorForSeries creates a cursor for walking the given series key. The cursor
+// consolidates both the Bolt store and any WAL cache.
 func (rm *RawMapper) createCursorForSeries(key string) *shardCursor {
 	// Retrieve key bucket.
 	b := rm.tx.Bucket([]byte(key))
