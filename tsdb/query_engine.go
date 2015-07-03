@@ -154,6 +154,10 @@ func (re *RawExecutor) execute(out chan *influxql.Row) {
 			mapperOutput[tagset] = result.([]*rawMapperOutput)
 		}
 	}
+
+	// XXX Results need to be sorted.
+	// XXX Limit and chunk checking here.
+	// XXX Convert results to "rows"
 }
 
 // Close closes the executor such that all resources are released. Once closed,
