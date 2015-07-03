@@ -136,6 +136,27 @@ func (re *RawExecutor) Execute() <-chan *influxql.Row {
 func (re *RawExecutor) execute(out chan *influxql.Row) {
 	// It's important the all resources are released when execution completes.
 	defer re.close()
+
+	// Open the mappers.
+	for _, m := range re.mappers {
+		if err := m.Open(); err != nil {
+			out <- &influxql.Row{Err: err}
+			return
+		}
+	}
+
+	// Drain each mapper, grouping results in by tagset.
+	mapperOutput := make(map[string][]*rawMapperOutput, len(re.mappers))
+	for _, m := range re.mappers {
+		for {
+			tagset, result, _, err := m.NextChunk()
+			if err != nil {
+				out <- &influxql.Row{Err: err}
+				return
+			}
+			mapperOutput[tagset] = result.([]*rawMapperOutput)
+		}
+	}
 }
 
 // Close closes the executor such that all resources are released. Once closed,
