@@ -138,7 +138,7 @@ func NewStore(c Config) *Store {
 		hashPassword: func(password string) ([]byte, error) {
 			return bcrypt.GenerateFromPassword([]byte(password), BcryptCost)
 		},
-		Logger: log.New(os.Stderr, "", log.LstdFlags),
+		Logger: log.New(os.Stderr, "[metastore] ", log.LstdFlags),
 	}
 }
 
