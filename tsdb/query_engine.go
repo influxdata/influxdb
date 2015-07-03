@@ -151,6 +151,10 @@ func (re *RawExecutor) execute(out chan *influxql.Row) {
 				out <- &influxql.Row{Err: err}
 				return
 			}
+			if result == nil {
+				// Mapper has no (more) matching data.
+				break
+			}
 			mapperOutput[tagset] = result.([]*rawMapperOutput)
 		}
 	}
