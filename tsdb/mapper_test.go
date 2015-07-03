@@ -98,6 +98,9 @@ func TestShardMapper_WriteAndSingleMapperRawQuery(t *testing.T) {
 				break
 			}
 		}
+		if nextChunkAsJson(t, mapper) != `null` {
+			t.Errorf("test '%s' has more data when none expected", tt.stmt)
+		}
 	}
 }
 
