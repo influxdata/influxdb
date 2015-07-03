@@ -115,10 +115,12 @@ func (p *Planner) Plan(stmt *influxql.SelectStatement, chunkSize int) (Executor,
 	return NewRawExecutor(mappers), nil
 }
 
+// RawExecutor is an executor for RawMappers.
 type RawExecutor struct {
 	mappers []Mapper
 }
 
+// NewRawExecutor returns a new RawExecutor.
 func NewRawExecutor(mappers []Mapper) *RawExecutor {
 	return &RawExecutor{mappers: mappers}
 }
