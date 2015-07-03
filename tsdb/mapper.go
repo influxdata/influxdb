@@ -223,11 +223,10 @@ func (tsc *tagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []stri
 		}
 
 		// Is the timestamp of the next cursor in range? XXX Consider pushing this logic into above.
-		t, _ := minCursor.Peek()
-		if t < tmin || t > tmax {
+		timestamp, bytes := minCursor.Next()
+		if timestamp < tmin || timestamp > tmax {
 			continue
 		}
-		timestamp, bytes := minCursor.Next()
 
 		var value interface{}
 		if len(selectFields) > 1 {
