@@ -143,20 +143,16 @@ func (rm *RawMapper) NextChunk() (tagSet string, result interface{}, interval in
 			// All tag set cursors for this mapper are complete.
 			return "", values, 1, nil
 		}
-
 		cursor := rm.cursors[rm.currTagSetIdx]
-		if cursor.IsEmptyForInterval(rm.queryTMin, rm.queryTMax) {
-			// This tagset cursor has no more data, go to next one. XXX may need new mapfunc instance here.
-			// This is because 'SELECT value from CPU GROUP BY host' is valid, right?
-			rm.currTagSetIdx++
-			continue
-		}
 
 		// This tagset cursor still has matching data. Get it and decode it.
-		for _, k, v := cursor.Next(); v != nil; _, k, v = cursor.Next() {
+		for _, k, v := cursor.Next(rm.queryTMin, rm.queryTMax); v != nil; _, k, v = cursor.Next(rm.queryTMin, rm.queryTMax) {
 			val := &rawMapperOutput{k, v}
 			values = append(values, val)
 		}
+
+		// Go to next tagset cursor for this mapper.
+		rm.currTagSetIdx++
 	}
 }
 
@@ -211,8 +207,9 @@ func newTagSetCursor(key string, cursors []*seriesCursor, decoder *FieldCodec) *
 	}
 }
 
-// Next returns the next matching series-key, timestamp and byte slice for the tagset.
-func (tsc *tagSetCursor) Next() (string, int64, interface{}) {
+// Next returns the next matching series-key, timestamp and byte slice for the tagset. Filtering
+// is enforced on the values. If there is no matching value, then a nil result is returned.
+func (tsc *tagSetCursor) Next(tmin, tmax int64) (string, int64, interface{}) {
 	for {
 		// Find the cursor with the lowest timestamp, as that is the one to be read next.
 		minCursor := tsc.nextCursor()
@@ -221,6 +218,11 @@ func (tsc *tagSetCursor) Next() (string, int64, interface{}) {
 			return "", 0, nil
 		}
 
+		// Is the timestamp of the next cursor in range? XXX Consider pushing this logic into above.
+		t, _ := minCursor.Peek()
+		if t < tmin || t > tmax {
+			continue
+		}
 		timestamp, bytes := minCursor.Next()
 
 		var value interface{}
