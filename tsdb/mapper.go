@@ -29,6 +29,7 @@ type RawMapper struct {
 	currTagSetIdx int           // current tagset cursor being iterated.
 }
 
+// NewRawMapper returns a mapper for the given shard, which will return data for the SELECT statement.
 func NewRawMapper(shard *Shard, stmt *influxql.SelectStatement) (*RawMapper, error) {
 	mapper := RawMapper{
 		shard: shard,
@@ -134,7 +135,7 @@ func NewRawMapper(shard *Shard, stmt *influxql.SelectStatement) (*RawMapper, err
 	return &mapper, nil
 }
 
-// NextChunk returns the next chunk of data for a tagset. If the result is nil, there is no more
+// NextChunk returns the next chunk of data for a tagset. If the result is nil, there are no more
 // data.
 func (rm *RawMapper) NextChunk() (tagSet string, result interface{}, interval int, err error) {
 	var values []*rawMapperOutput
@@ -156,7 +157,13 @@ func (rm *RawMapper) NextChunk() (tagSet string, result interface{}, interval in
 			val := &rawMapperOutput{k, v}
 			values = append(values, val)
 		}
+	}
+}
 
+// Close closes the mapper.
+func (rm *RawMapper) Close() {
+	if rm.tx != nil {
+		_ = rm.tx.Rollback()
 	}
 }
 
