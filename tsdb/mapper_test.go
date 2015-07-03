@@ -39,51 +39,51 @@ func TestShardMapper_WriteAndSingleMapperRawQuery(t *testing.T) {
 
 	var tests = []struct {
 		stmt     string
-		expected string
+		expected []string
 	}{
 		{
 			stmt:     `SELECT value FROM cpu`,
-			expected: `[{"Time":1000000000,"Values":42},{"Time":2000000000,"Values":60}]`,
+			expected: []string{`[{"Time":1000000000,"Values":42},{"Time":2000000000,"Values":60}]`},
 		},
 		{
 			stmt:     `SELECT value FROM cpu GROUP BY host`,
-			expected: `[{"Time":1000000000,"Values":42},{"Time":2000000000,"Values":60}]`,
+			expected: []string{`[{"Time":1000000000,"Values":42}]`, `[{"Time":2000000000,"Values":60}]`},
 		},
 		{
 			stmt:     `SELECT value FROM cpu GROUP BY region`,
-			expected: `[{"Time":1000000000,"Values":42},{"Time":2000000000,"Values":60}]`,
+			expected: []string{`[{"Time":1000000000,"Values":42},{"Time":2000000000,"Values":60}]`},
 		},
 		{
 			stmt:     `SELECT value FROM cpu WHERE host='serverA'`,
-			expected: `[{"Time":1000000000,"Values":42}]`,
+			expected: []string{`[{"Time":1000000000,"Values":42}]`},
 		},
 		{
 			stmt:     `SELECT value FROM cpu WHERE host='serverB'`,
-			expected: `[{"Time":2000000000,"Values":60}]`,
+			expected: []string{`[{"Time":2000000000,"Values":60}]`},
 		},
 		{
 			stmt:     `SELECT value FROM cpu WHERE host='serverC'`,
-			expected: `null`,
+			expected: []string{`null`},
 		},
 		{
 			stmt:     `SELECT value FROM cpu WHERE value = 60`,
-			expected: `[{"Time":2000000000,"Values":60}]`,
+			expected: []string{`[{"Time":2000000000,"Values":60}]`},
 		},
 		{
 			stmt:     `SELECT value FROM cpu WHERE value != 60`,
-			expected: `[{"Time":1000000000,"Values":42}]`,
+			expected: []string{`[{"Time":1000000000,"Values":42}]`},
 		},
 		{
 			stmt:     fmt.Sprintf(`SELECT value FROM cpu WHERE time = '%s'`, pt1time.Format(influxql.DateTimeFormat)),
-			expected: `[{"Time":1000000000,"Values":42}]`,
+			expected: []string{`[{"Time":1000000000,"Values":42}]`},
 		},
 		{
 			stmt:     fmt.Sprintf(`SELECT value FROM cpu WHERE time > '%s'`, pt1time.Format(influxql.DateTimeFormat)),
-			expected: `[{"Time":2000000000,"Values":60}]`,
+			expected: []string{`[{"Time":2000000000,"Values":60}]`},
 		},
 		{
 			stmt:     fmt.Sprintf(`SELECT value FROM cpu WHERE time > '%s'`, pt2time.Format(influxql.DateTimeFormat)),
-			expected: `null`,
+			expected: []string{`null`},
 		},
 	}
 
@@ -91,9 +91,12 @@ func TestShardMapper_WriteAndSingleMapperRawQuery(t *testing.T) {
 		stmt := mustParseSelectStatement(tt.stmt)
 		mapper := beginMapperOrFail(t, shard, stmt)
 
-		got := nextChunkAsJson(t, mapper)
-		if got != tt.expected {
-			t.Errorf("test '%s'\n\tgot      %s\n\texpected %s", tt.stmt, got, tt.expected)
+		for _, s := range tt.expected {
+			got := nextChunkAsJson(t, mapper)
+			if got != s {
+				t.Errorf("test '%s'\n\tgot      %s\n\texpected %s", tt.stmt, got, tt.expected)
+				break
+			}
 		}
 	}
 }

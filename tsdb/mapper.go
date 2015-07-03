@@ -141,7 +141,7 @@ func (rm *RawMapper) NextChunk() (tagSet string, result interface{}, interval in
 	for {
 		if rm.currTagSetIdx == len(rm.cursors) {
 			// All tag set cursors for this mapper are complete.
-			return "", values, 1, nil
+			return "", nil, 1, nil
 		}
 		cursor := rm.cursors[rm.currTagSetIdx]
 
@@ -149,14 +149,14 @@ func (rm *RawMapper) NextChunk() (tagSet string, result interface{}, interval in
 		for {
 			_, k, v := cursor.Next(rm.queryTMin, rm.queryTMax, rm.selectFields, rm.whereFields)
 			if v == nil {
-				break
+				// Set up for next tagset cursor and then return.
+				rm.currTagSetIdx++
+				return "", values, 1, nil
 			}
 			val := &rawMapperOutput{k, v}
 			values = append(values, val)
 		}
 
-		// Go to next tagset cursor for this mapper.
-		rm.currTagSetIdx++
 	}
 }
 
