@@ -109,17 +109,21 @@ func (p *Planner) Plan(stmt *influxql.SelectStatement, chunkSize int) (Executor,
 		}
 	}
 
-	return NewRawExecutor(mappers), nil
+	return NewRawExecutor(mappers, stmt.NamesInSelect()), nil
 }
 
 // RawExecutor is an executor for RawMappers.
 type RawExecutor struct {
-	mappers []Mapper
+	mappers     []Mapper
+	selectNames []string
 }
 
 // NewRawExecutor returns a new RawExecutor.
-func NewRawExecutor(mappers []Mapper) *RawExecutor {
-	return &RawExecutor{mappers: mappers}
+func NewRawExecutor(mappers []Mapper, selectNames []string) *RawExecutor {
+	return &RawExecutor{
+		mappers:     mappers,
+		selectNames: selectNames,
+	}
 }
 
 // Execute begins execution of the query and returns a channel to receive rows.
@@ -131,7 +135,7 @@ func (re *RawExecutor) Execute() <-chan *influxql.Row {
 }
 
 func (re *RawExecutor) execute(out chan *influxql.Row) {
-	// It's important the all resources are released when execution completes.
+	// It's important that all resources are released when execution completes.
 	defer re.close()
 
 	// Open the mappers.
@@ -142,7 +146,7 @@ func (re *RawExecutor) execute(out chan *influxql.Row) {
 		}
 	}
 
-	// Drain each mapper, grouping results in by tagset.
+	// Drain each mapper, grouping results by tagset.
 	mapperOutput := make(map[string][]*rawMapperOutput, len(re.mappers))
 	for _, m := range re.mappers {
 		for {
@@ -159,9 +163,84 @@ func (re *RawExecutor) execute(out chan *influxql.Row) {
 		}
 	}
 
+	for k, v := range mapperOutput {
+		out <- re.processRawResults(k, v)
+	}
+
 	// XXX Results need to be sorted.
 	// XXX Limit and chunk checking here.
 	// XXX Convert results to "rows"
+	close(out)
+}
+
+// processRawResults will handle converting the results from a raw query into a Row
+func (re *RawExecutor) processRawResults(key string, values []*rawMapperOutput) *influxql.Row {
+	selectNames := re.selectNames
+
+	// ensure that time is in the select names and in the first position
+	hasTime := false
+	for i, n := range selectNames {
+		if n == "time" {
+			// Swap time to the first argument for names
+			if i != 0 {
+				selectNames[0], selectNames[i] = selectNames[i], selectNames[0]
+			}
+			hasTime = true
+			break
+		}
+	}
+
+	// time should always be in the list of names they get back
+	if !hasTime {
+		selectNames = append([]string{"time"}, selectNames...)
+	}
+
+	// since selectNames can contain tags, we need to strip them out
+	selectFields := make([]string, 0, len(selectNames))
+
+	for _, n := range selectNames {
+		//	if _, found := m.TagSet.Tags[n]; !found {
+		selectFields = append(selectFields, n)
+		//	}
+	}
+
+	row := &influxql.Row{
+		Name: key,
+		//Tags:    m.TagSet.Tags,
+		Columns: selectFields,
+	}
+
+	// return an empty row if there are no results
+	if len(values) == 0 {
+		return row
+	}
+
+	// if they've selected only a single value we have to handle things a little differently
+	singleValue := len(selectFields) == influxql.SelectColumnCountWithOneValue
+
+	// the results will have all of the raw mapper results, convert into the row
+	for _, v := range values {
+		vals := make([]interface{}, len(selectFields))
+
+		if singleValue {
+			vals[0] = time.Unix(0, v.Time).UTC()
+			vals[1] = v.Values.(interface{})
+		} else {
+			fields := v.Values.(map[string]interface{})
+
+			// time is always the first value
+			vals[0] = time.Unix(0, v.Time).UTC()
+
+			// populate the other values
+			for i := 1; i < len(selectFields); i++ {
+				vals[i] = fields[selectFields[i]]
+			}
+		}
+
+		row.Values = append(row.Values, vals)
+	}
+
+	return row
 }
 
 // Close closes the executor such that all resources are released. Once closed,
