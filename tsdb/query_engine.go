@@ -38,17 +38,14 @@ type Planner struct {
 		NewMapper(shardID uint64) (Mapper, error)
 	}
 
-	// Local store for local shards. Would be elegant if all shards came from Cluster. REVISIT THIS!
-	// The TSDBSTORE interface in the cluster service could be expanded to "ShardMapper(shard ID)"
-	// this may not be possible due to circular imports. This file couldn't import Cluster, since
-	// imports this package.
 	store *Store
 
 	Logger *log.Logger
 }
 
-func NewPlanner() *Planner {
+func NewPlanner(store *Store) *Planner {
 	return &Planner{
+		store:  store,
 		Logger: log.New(os.Stderr, "[planner] ", log.LstdFlags),
 	}
 }
