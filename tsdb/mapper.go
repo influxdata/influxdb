@@ -141,7 +141,7 @@ func (rm *RawMapper) NextChunk() (tagSet string, result interface{}, interval in
 	for {
 		if rm.currTagSetIdx == len(rm.cursors) {
 			// All tag set cursors for this mapper are complete.
-			return "", nil, 1, nil
+			return "", nil, 0, nil
 		}
 		cursor := rm.cursors[rm.currTagSetIdx]
 
@@ -151,7 +151,7 @@ func (rm *RawMapper) NextChunk() (tagSet string, result interface{}, interval in
 			if v == nil {
 				// Set up for next tagset cursor and then return.
 				rm.currTagSetIdx++
-				return "", values, 1, nil
+				return cursor.key, values, 0, nil
 			}
 			val := &rawMapperOutput{k, v}
 			values = append(values, val)
@@ -303,6 +303,7 @@ func (tsc *tagSetCursor) nextCursor() *seriesCursor {
 	return minCursor
 }
 
+// seriesCursor is a cursor that walks a single series. It provides lookahead functionality.
 type seriesCursor struct {
 	cursor      *shardCursor // BoltDB cursor for a series
 	filter      influxql.Expr
@@ -310,6 +311,7 @@ type seriesCursor struct {
 	valueBuffer []byte // The current value for the cursor
 }
 
+// newSeriesCursor returns a new instance of a series cursor.
 func newSeriesCursor(b *shardCursor, filter influxql.Expr) *seriesCursor {
 	return &seriesCursor{
 		cursor:    b,
