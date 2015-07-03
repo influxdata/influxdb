@@ -1,0 +1,359 @@
+package tsdb
+
+import (
+	"fmt"
+	"sort"
+	"time"
+
+	"github.com/boltdb/bolt"
+	"github.com/influxdb/influxdb/influxql"
+)
+
+// RawMapper is for retrieving data, for a query, from a given shard. It implements the
+// ShardMapper interface.
+type RawMapper struct {
+	shard *Shard
+	stmt  *influxql.SelectStatement
+
+	tx        *bolt.Tx // Read transaction for this shard.
+	queryTMin int64
+	queryTMax int64
+
+	whereFields  []string               // field names that occur in the where clause
+	selectFields []string               // field names that occur in the select clause
+	selectTags   []string               // tag keys that occur in the select clause
+	fieldName    string                 // the field name associated with the mapFunc currently being run
+	decoders     map[string]*FieldCodec // byte decoder per measurement
+
+	cursors       tagSetCursors // Cursors per tag sets.
+	currTagSetIdx int           // current tagset cursor being iterated.
+}
+
+func NewRawMapper(shard *Shard, stmt *influxql.SelectStatement) (*RawMapper, error) {
+	mapper := RawMapper{
+		shard: shard,
+		stmt:  stmt,
+	}
+
+	// Get a read-only transaction.
+	tx, err := shard.DB().Begin(false)
+	if err != nil {
+		return nil, err
+	}
+	mapper.tx = tx
+
+	// Set all time-related parameters on the mapper.
+	tmin, tmax := influxql.TimeRange(stmt.Condition)
+	if tmin.IsZero() {
+		mapper.queryTMin = time.Unix(0, 0).UnixNano()
+	} else {
+		mapper.queryTMin = tmin.UnixNano()
+	}
+	if tmax.IsZero() {
+		mapper.queryTMax = time.Now().UnixNano()
+	} else {
+		mapper.queryTMax = tmax.UnixNano()
+	}
+
+	// Create the TagSet cursors for the Mapper.
+	for _, src := range stmt.Sources {
+		mm, ok := src.(*influxql.Measurement)
+		if !ok {
+			return nil, fmt.Errorf("invalid source type: %#v", src)
+		}
+
+		m := shard.index.Measurement(mm.Name)
+
+		if m == nil {
+			// This shard have never received data for the measurement. No Mapper
+			// required.
+			return nil, nil
+		}
+
+		// Validate the fields and tags asked for exist and keep track of which are in the select vs the where
+		for _, n := range stmt.NamesInSelect() {
+			if m.HasField(n) {
+				mapper.selectFields = append(mapper.selectFields, n)
+				continue
+			}
+			if !m.HasTagKey(n) {
+				return nil, fmt.Errorf("unknown field or tag name in select clause: %s", n)
+			}
+			mapper.selectTags = append(mapper.selectTags, n)
+		}
+		for _, n := range stmt.NamesInWhere() {
+			if n == "time" {
+				continue
+			}
+			if m.HasField(n) {
+				mapper.whereFields = append(mapper.whereFields, n)
+				continue
+			}
+			if !m.HasTagKey(n) {
+				return nil, fmt.Errorf("unknown field or tag name in where clause: %s", n)
+			}
+		}
+
+		if len(mapper.selectFields) == 0 {
+			return nil, fmt.Errorf("select statement must include at least one field")
+		}
+
+		// Get a decoder for this measurement.
+		mapper.decoders[m.Name] = shard.FieldCodec(m.Name)
+
+		// Create tagset cursors.
+		_, tagKeys, err := stmt.Dimensions.Normalize()
+		if err != nil {
+			return nil, err
+		}
+
+		// Get the sorted unique tag sets for this statement.
+		tagSets, err := m.TagSets(stmt, tagKeys)
+		if err != nil {
+			return nil, err
+		}
+
+		// Create all cursors for reading the data from this shard.
+		for _, t := range tagSets {
+			cursors := []*seriesCursor{}
+
+			for i, key := range t.SeriesKeys {
+				c := mapper.createCursorForSeries(key)
+				if c == nil {
+					// No data exists for this key.
+					continue
+				}
+				cm := newSeriesCursor(c, t.Filters[i])
+				cm.Seek(mapper.queryTMin)
+				cursors = append(cursors, cm)
+			}
+			mapper.cursors = append(mapper.cursors, newTagSetCursor(m.Name+string(t.Key), cursors))
+		}
+	}
+
+	// Sort the tag-set cursors such that they are always iterated in the same order.
+	sort.Sort(mapper.cursors)
+
+	return &mapper, nil
+}
+
+// NextChunk returns the next chunk of data for a tagset. If the result is nil, there is no more
+// data.
+func (rm *RawMapper) NextChunk() (tagSet string, result interface{}, interval int, err error) {
+	for {
+		if rm.currTagSetIdx == len(sm.cursors) {
+			// All tag set cursors for this mapper are complete.
+			return "", nil, 1, nil
+		}
+
+		cursor := rm.cursors[sm.currTagSetIdx]
+		if cursor.IsEmptyForInterval(rm.queryTMin, rm.queryTMax) {
+			// This tagset cursor has no more data, go to next one. XXX may need new mapfunc instance here.
+			sm.currTagSetIdx++
+			continue
+		}
+
+		// This tagset cursor still has matching data. Get it and decode it.
+		key, timestamp, bytes := cursor.Next()
+
+		// Decode either the value, or values we need. Also filter if necessary
+		var value interface{}
+		var err error
+		decoder := rm.decoders[key]
+		if len(rm.selectFields) > 1 {
+			if fieldsWithNames, err := decoder.DecodeFieldsWithNames(bytes); err == nil {
+				value = fieldsWithNames
+
+				// if there's a where clause, make sure we don't need to filter this value
+				if l.filters[min] != nil {
+					if !matchesWhere(l.filters[min], fieldsWithNames) {
+						value = nil
+					}
+				}
+			}
+		} else {
+			value, err = decoder.DecodeByID(l.fieldID, bytes)
+
+			// if there's a where clase, see if we need to filter
+			if l.filters[min] != nil {
+				// see if the where is only on this field or on one or more other fields. if the latter, we'll have to decode everything
+				if len(l.whereFields) == 1 && l.whereFields[0] == l.fieldName {
+					if !matchesWhere(l.filters[min], map[string]interface{}{l.fieldName: value}) {
+						value = nil
+					}
+				} else { // decode everything
+					fieldsWithNames, err := decoder.DecodeFieldsWithNames(bytes)
+					if err != nil || !matchesWhere(l.filters[min], fieldsWithNames) {
+						value = nil
+					}
+				}
+			}
+		}
+
+		// Create results.
+		val := rm.mapFunc(cursor)
+
+		return "", val, 1, nil
+	}
+}
+
+func (rm *RawMapper) createCursorForSeries(key string) *shardCursor {
+	// Retrieve key bucket.
+	b := rm.tx.Bucket([]byte(key))
+
+	// Ignore if there is no bucket or points in the cache.
+	partitionID := WALPartition([]byte(key))
+	if b == nil && len(rm.shard.cache[partitionID][key]) == 0 {
+		return nil
+	}
+
+	// Retrieve a copy of the in-cache points for the key.
+	cache := make([][]byte, len(rm.shard.cache[partitionID][key]))
+	copy(cache, rm.shard.cache[partitionID][key])
+
+	// Build a cursor that merges the bucket and cache together.
+	cur := &shardCursor{cache: cache}
+	if b != nil {
+		cur.cursor = b.Cursor()
+	}
+	return cur
+}
+
+// tagSetCursor is virtual cursor that iterates over mutiple series cursors, as though it were
+// a single series.
+type tagSetCursor struct {
+	key     string          // Measurement and tag key-values.
+	cursors []*seriesCursor // Underlying series cursors.
+	decoder *FieldCodec     // decoder for the raw data bytes
+}
+
+// tagSetCursors represents a sortable slice of tagSetCursors.
+type tagSetCursors []*tagSetCursor
+
+func (a tagSetCursors) Len() int           { return len(a) }
+func (a tagSetCursors) Less(i, j int) bool { return a[i].key < a[j].key }
+func (a tagSetCursors) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+
+// newTagSetCursor returns a tagSetCursor
+func newTagSetCursor(key string, cursors []*seriesCursor) *tagSetCursor {
+	return &tagSetCursor{
+		key:     key,
+		cursors: cursors,
+	}
+}
+
+// Peek returns the next series key, timestamp and value, without changing what will be
+// be returned by a call to Next()
+func (tsc *tagSetCursor) Peek() (key string, timestamp int64, value []byte) {
+	minCursor := tsc.nextCursor()
+	if minCursor == nil {
+		return "", 0, nil
+	}
+	timestamp, value = minCursor.Peek()
+	return "", timestamp, value
+}
+
+// Next returns the next matching series-key, timestamp and byte slice for the tagset.
+func (tsc *tagSetCursor) Next() (string, int64, []byte) {
+	for {
+		// Find the cursor with the lowest timestamp, as that is the one to be read next.
+		minCursor := tsc.nextCursor()
+		if minCursor == nil {
+			// No cursor of this tagset has any matching data.
+			return "", 0, nil
+		}
+
+		timestamp, value := minCursor.Next()
+		return "not sure what goes here", timestamp, value
+	}
+}
+
+// IsEmpty returns whether the tagsetCursor has any more data for the given interval.
+func (tsc *tagSetCursor) IsEmptyForInterval(tmin, tmax int64) bool {
+	for _, c := range tsc.cursors {
+		k, _ := c.Peek()
+		if k != 0 && k >= tmin && k <= tmax {
+			return false
+		}
+	}
+	return true
+}
+
+// nextCursor returns the series cursor with the lowest next timestamp. If none exists,
+// nil is returned.
+func (tsc *tagSetCursor) nextCursor() *seriesCursor {
+	var minCursor *seriesCursor
+	var timestamp int64
+	for _, c := range tsc.cursors {
+		timestamp, _ = c.Peek()
+		if timestamp != 0 {
+			if minCursor == nil {
+				minCursor = c
+			} else {
+				if currMinTimestamp, _ := minCursor.Peek(); timestamp < currMinTimestamp {
+					minCursor = c
+				}
+			}
+		}
+	}
+	return minCursor
+}
+
+type seriesCursor struct {
+	cursor      *shardCursor // BoltDB cursor for a series
+	filter      influxql.Expr
+	keyBuffer   int64  // The current timestamp key for the cursor
+	valueBuffer []byte // The current value for the cursor
+}
+
+func newSeriesCursor(b *shardCursor, filter influxql.Expr) *seriesCursor {
+	return &seriesCursor{
+		cursor:    b,
+		filter:    filter,
+		keyBuffer: -1, // Nothing buffered.
+	}
+}
+
+// Peek returns the next timestamp and value, without changing what will be
+// be returned by a call to Next()
+func (mc *seriesCursor) Peek() (key int64, value []byte) {
+	if mc.keyBuffer == -1 {
+		k, v := mc.cursor.Next()
+		if k == nil {
+			mc.keyBuffer = 0
+		} else {
+			mc.keyBuffer = int64(btou64(k))
+			mc.valueBuffer = v
+		}
+	}
+
+	key, value = mc.keyBuffer, mc.valueBuffer
+	return
+}
+
+// Seek positions the cursor at the key, such that Next() will return
+// the key and value at key.
+func (mc *seriesCursor) Seek(key int64) {
+	k, v := mc.cursor.Seek(u64tob(uint64(key)))
+	if k == nil {
+		mc.keyBuffer = 0
+	} else {
+		mc.keyBuffer, mc.valueBuffer = int64(btou64(k)), v
+	}
+}
+
+// Next returns the next timestamp and value from the cursor.
+func (mc *seriesCursor) Next() (key int64, value []byte) {
+	if mc.keyBuffer != -1 {
+		key, value = mc.keyBuffer, mc.valueBuffer
+		mc.keyBuffer, mc.valueBuffer = -1, nil
+	} else {
+		k, v := mc.cursor.Next()
+		if k == nil {
+			key = 0
+		} else {
+			key, value = int64(btou64(k)), v
+		}
+	}
+	return
+}
