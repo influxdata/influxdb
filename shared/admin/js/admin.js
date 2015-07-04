@@ -286,13 +286,27 @@ var TableBody = React.createClass({
 
 var TableRow = React.createClass({
     render: function() {
-        var tableData = this.props.data.map(function (data) {
-            return React.createElement("td", null, data)
+        var tableData = this.props.data.map(function (data, index) {
+            if (index == 0) {
+                return React.createElement("td", {className: "timestamp"}, null, data);
+            } else {
+                return React.createElement("td", null, pretty(data));
+            }
         });
 
         return React.createElement("tr", null, tableData);
     }
 });
+
+var pretty = function(val) {
+    if (typeof val == 'string') {
+        return "\"" + val + "\"";
+    } else if (typeof val == 'boolean' ){
+        return val.toString();
+    } else {
+        return val;
+    }
+}
 
 var chooseDatabase = function (databaseName) {
     currentlySelectedDatabase = databaseName;
