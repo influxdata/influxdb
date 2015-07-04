@@ -1123,12 +1123,13 @@ func (s *Store) UpdateUser(name, password string) error {
 }
 
 // SetPrivilege sets a privilege for a user on a database.
-func (s *Store) SetPrivilege(username, database string, p influxql.Privilege) error {
+func (s *Store) SetPrivilege(username, database string, p influxql.Privilege, admin bool) error {
 	return s.exec(internal.Command_SetPrivilegeCommand, internal.E_SetPrivilegeCommand_Command,
 		&internal.SetPrivilegeCommand{
 			Username:  proto.String(username),
 			Database:  proto.String(database),
 			Privilege: proto.Int32(int32(p)),
+			Admin:     proto.Bool(admin),
 		},
 	)
 }
@@ -1693,7 +1694,7 @@ func (fsm *storeFSM) applySetPrivilegeCommand(cmd *internal.Command) interface{}
 
 	// Copy data and update.
 	other := fsm.data.Clone()
-	if err := other.SetPrivilege(v.GetUsername(), v.GetDatabase(), influxql.Privilege(v.GetPrivilege())); err != nil {
+	if err := other.SetPrivilege(v.GetUsername(), v.GetDatabase(), influxql.Privilege(v.GetPrivilege()), v.GetAdmin()); err != nil {
 		return err
 	}
 	fsm.data = other

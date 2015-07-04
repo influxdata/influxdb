@@ -582,6 +582,8 @@ func (p *Parser) parseGrantStatement() (*GrantStatement, error) {
 		lit, err := p.parseIdent()
 		if err != nil {
 			return nil, err
+		} else if lit == "" {
+			return nil, newParseError(tokstr(tok, lit), []string{"identifier"}, pos)
 		}
 		stmt.On = lit
 

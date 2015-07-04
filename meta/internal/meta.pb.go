@@ -1016,6 +1016,7 @@ type SetPrivilegeCommand struct {
 	Username         *string `protobuf:"bytes,1,req" json:"Username,omitempty"`
 	Database         *string `protobuf:"bytes,2,req" json:"Database,omitempty"`
 	Privilege        *int32  `protobuf:"varint,3,req" json:"Privilege,omitempty"`
+	Admin            *bool   `protobuf:"varint,4,req" json:"Admin,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
@@ -1042,6 +1043,13 @@ func (m *SetPrivilegeCommand) GetPrivilege() int32 {
 		return *m.Privilege
 	}
 	return 0
+}
+
+func (m *SetPrivilegeCommand) GetAdmin() bool {
+	if m != nil && m.Admin != nil {
+		return *m.Admin
+	}
+	return false
 }
 
 var E_SetPrivilegeCommand_Command = &proto.ExtensionDesc{
