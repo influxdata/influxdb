@@ -464,10 +464,16 @@ func (data *Data) UpdateUser(name, hash string) error {
 }
 
 // SetPrivilege sets a privilege for a user on a database.
-func (data *Data) SetPrivilege(name, database string, p influxql.Privilege) error {
+func (data *Data) SetPrivilege(name, database string, p influxql.Privilege, admin bool) error {
 	ui := data.User(name)
 	if ui == nil {
 		return ErrUserNotFound
+	}
+
+	// an empty database signals the admin privilege should be set
+	if database == "" {
+		ui.Admin = admin
+		return nil
 	}
 
 	if ui.Privileges == nil {

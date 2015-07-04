@@ -26,7 +26,7 @@ type StatementExecutor struct {
 		CreateUser(name, password string, admin bool) (*UserInfo, error)
 		UpdateUser(name, password string) error
 		DropUser(name string) error
-		SetPrivilege(username, database string, p influxql.Privilege) error
+		SetPrivilege(username, database string, p influxql.Privilege, admin bool) error
 		UserPrivileges(username string) (map[string]influxql.Privilege, error)
 
 		CreateContinuousQuery(database, name, query string) error
@@ -160,11 +160,17 @@ func (e *StatementExecutor) executeShowUsersStatement(q *influxql.ShowUsersState
 }
 
 func (e *StatementExecutor) executeGrantStatement(stmt *influxql.GrantStatement) *influxql.Result {
-	return &influxql.Result{Err: e.Store.SetPrivilege(stmt.User, stmt.On, stmt.Privilege)}
+	admin := false
+	if stmt.On == "" && &stmt.Privilege != nil {
+		admin = (stmt.Privilege == influxql.AllPrivileges)
+	}
+
+	return &influxql.Result{Err: e.Store.SetPrivilege(stmt.User, stmt.On, stmt.Privilege, admin)}
 }
 
 func (e *StatementExecutor) executeRevokeStatement(stmt *influxql.RevokeStatement) *influxql.Result {
-	return &influxql.Result{Err: e.Store.SetPrivilege(stmt.User, stmt.On, influxql.NoPrivileges)}
+	admin := false
+	return &influxql.Result{Err: e.Store.SetPrivilege(stmt.User, stmt.On, influxql.NoPrivileges, admin)}
 }
 
 func (e *StatementExecutor) executeCreateRetentionPolicyStatement(stmt *influxql.CreateRetentionPolicyStatement) *influxql.Result {

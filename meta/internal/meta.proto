@@ -233,6 +233,7 @@ message SetPrivilegeCommand {
     required string Username = 1;
     required string Database = 2;
     required int32 Privilege = 3;
+    required bool Admin = 4;
 }
 
 message SetDataCommand {
