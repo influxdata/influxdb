@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sort"
 	"time"
 
 	"github.com/influxdb/influxdb/influxql"
@@ -18,10 +19,7 @@ type Mapper interface {
 	// Close will close the mapper
 	Close()
 
-	// NextChunk returns the next chunk of data within the interval, for a specific tag set.
-	// interval is a monotonically increasing number based on the group by time and the shard
-	// times. It lets the caller know when mappers are processing the same interval
-	NextChunk() (tagSet string, result interface{}, interval int, err error)
+	NextChunk() (*rawMapperOutput, error)
 }
 
 type Executor interface {
@@ -147,24 +145,33 @@ func (re *RawExecutor) execute(out chan *influxql.Row) {
 	}
 
 	// Drain each mapper, grouping results by tagset.
-	mapperOutput := make(map[string][]*rawMapperOutput, len(re.mappers))
+	mapperOutput := make(map[string]*rawMapperOutput, len(re.mappers))
 	for _, m := range re.mappers {
 		for {
-			tagset, result, _, err := m.NextChunk()
+			chunk, err := m.NextChunk()
 			if err != nil {
 				out <- &influxql.Row{Err: err}
 				return
 			}
-			if result == nil {
+			if chunk == nil {
 				// Mapper has no (more) matching data.
 				break
 			}
-			mapperOutput[tagset] = result.([]*rawMapperOutput)
+
+			// Is there an existing mapper-output object for this tagset? If not,
+			// use this output. If there is, then append new values to it. This
+			// merges data across mappers, for each tagset.
+			var output = mapperOutput[chunk.key()]
+			if mapperOutput[chunk.key()] == nil {
+				output = chunk
+			} else {
+				output.values = append(output.values, chunk.values...)
+			}
 		}
 	}
 
-	for k, v := range mapperOutput {
-		out <- re.processRawResults(k, v)
+	for _, v := range mapperOutput {
+		out <- re.processRawResults(v)
 	}
 
 	// XXX Results need to be sorted.
@@ -173,8 +180,10 @@ func (re *RawExecutor) execute(out chan *influxql.Row) {
 	close(out)
 }
 
-// processRawResults will handle converting the results from a raw query into a Row
-func (re *RawExecutor) processRawResults(key string, values []*rawMapperOutput) *influxql.Row {
+// processRawResults will handle converting the results from a raw query into a Row. It is responsible
+// for sorting the results by time.
+func (re *RawExecutor) processRawResults(output *rawMapperOutput) *influxql.Row {
+	sort.Sort(output.values)
 	selectNames := re.selectNames
 
 	// ensure that time is in the select names and in the first position
@@ -199,37 +208,32 @@ func (re *RawExecutor) processRawResults(key string, values []*rawMapperOutput) 
 	selectFields := make([]string, 0, len(selectNames))
 
 	for _, n := range selectNames {
-		//	if _, found := m.TagSet.Tags[n]; !found {
-		selectFields = append(selectFields, n)
-		//	}
+		if _, found := output.tags[n]; !found {
+			selectFields = append(selectFields, n)
+		}
 	}
 
 	row := &influxql.Row{
-		Name: key,
-		//Tags:    m.TagSet.Tags,
+		Name:    output.measurement,
+		Tags:    output.tags,
 		Columns: selectFields,
-	}
-
-	// return an empty row if there are no results
-	if len(values) == 0 {
-		return row
 	}
 
 	// if they've selected only a single value we have to handle things a little differently
 	singleValue := len(selectFields) == influxql.SelectColumnCountWithOneValue
 
 	// the results will have all of the raw mapper results, convert into the row
-	for _, v := range values {
+	for _, v := range output.values {
 		vals := make([]interface{}, len(selectFields))
 
 		if singleValue {
-			vals[0] = time.Unix(0, v.Time).UTC()
-			vals[1] = v.Values.(interface{})
+			vals[0] = time.Unix(0, v.time).UTC()
+			vals[1] = v.value.(interface{})
 		} else {
-			fields := v.Values.(map[string]interface{})
+			fields := v.value.(map[string]interface{})
 
 			// time is always the first value
-			vals[0] = time.Unix(0, v.Time).UTC()
+			vals[0] = time.Unix(0, v.time).UTC()
 
 			// populate the other values
 			for i := 1; i < len(selectFields); i++ {

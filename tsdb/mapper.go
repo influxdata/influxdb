@@ -128,7 +128,7 @@ func (rm *RawMapper) Open() error {
 				cm.Seek(rm.queryTMin)
 				cursors = append(cursors, cm)
 			}
-			rm.cursors = append(rm.cursors, newTagSetCursor(m.Name+string(t.Key), cursors, rm.shard.FieldCodec(m.Name)))
+			rm.cursors = append(rm.cursors, newTagSetCursor(m.Name, t.Tags, cursors, rm.shard.FieldCodec(m.Name)))
 		}
 	}
 
@@ -140,26 +140,27 @@ func (rm *RawMapper) Open() error {
 
 // NextChunk returns the next chunk of data for a tagset. If the result is nil, there are no more
 // data.
-func (rm *RawMapper) NextChunk() (tagSet string, result interface{}, interval int, err error) {
-	var values []*rawMapperOutput
-	for {
-		if rm.currTagSetIdx == len(rm.cursors) {
-			// All tag set cursors for this mapper are complete.
-			return "", nil, 0, nil
-		}
-		cursor := rm.cursors[rm.currTagSetIdx]
+func (rm *RawMapper) NextChunk() (*rawMapperOutput, error) {
+	if rm.currTagSetIdx == len(rm.cursors) {
+		// All tag set cursors for this mapper are complete.
+		return nil, nil
+	}
+	cursor := rm.cursors[rm.currTagSetIdx]
+	output := &rawMapperOutput{
+		measurement: cursor.measurement,
+		tags:        cursor.tags,
+	}
 
-		// Still got a tagset cursor to process.
-		for {
-			_, k, v := cursor.Next(rm.queryTMin, rm.queryTMax, rm.selectFields, rm.whereFields)
-			if v == nil {
-				// Set up for next tagset cursor and then return.
-				rm.currTagSetIdx++
-				return cursor.key, values, 0, nil
-			}
-			val := &rawMapperOutput{k, v}
-			values = append(values, val)
+	// Still got a tagset cursor to process.
+	for {
+		_, k, v := cursor.Next(rm.queryTMin, rm.queryTMax, rm.selectFields, rm.whereFields)
+		if v == nil {
+			// Set up for next tagset cursor and then return.
+			rm.currTagSetIdx++
+			return output, nil
 		}
+		value := &rawMapperValue{time: k, value: v}
+		output.values = append(output.values, value)
 	}
 }
 
@@ -194,33 +195,55 @@ func (rm *RawMapper) createCursorForSeries(key string) *shardCursor {
 	return cur
 }
 
+type rawMapperValue struct {
+	time  int64
+	value interface{}
+}
+
+type rawMapperValues []*rawMapperValue
+
+func (a rawMapperValues) Len() int           { return len(a) }
+func (a rawMapperValues) Less(i, j int) bool { return a[i].time < a[j].time }
+func (a rawMapperValues) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+
 type rawMapperOutput struct {
-	Time   int64
-	Values interface{}
+	measurement string
+	tags        map[string]string
+	values      rawMapperValues
+}
+
+func (rmo *rawMapperOutput) key() string {
+	return rmo.measurement + string(marshalTags(rmo.tags))
 }
 
 // tagSetCursor is virtual cursor that iterates over mutiple series cursors, as though it were
 // a single series.
 type tagSetCursor struct {
-	key     string          // Measurement and tag key-values.
-	cursors []*seriesCursor // Underlying series cursors.
-	decoder *FieldCodec     // decoder for the raw data bytes
+	measurement string            // Measurement name
+	tags        map[string]string // Tag key-value pairs
+	cursors     []*seriesCursor   // Underlying series cursors.
+	decoder     *FieldCodec       // decoder for the raw data bytes
 }
 
 // tagSetCursors represents a sortable slice of tagSetCursors.
 type tagSetCursors []*tagSetCursor
 
 func (a tagSetCursors) Len() int           { return len(a) }
-func (a tagSetCursors) Less(i, j int) bool { return a[i].key < a[j].key }
+func (a tagSetCursors) Less(i, j int) bool { return a[i].key() < a[j].key() }
 func (a tagSetCursors) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
 // newTagSetCursor returns a tagSetCursor
-func newTagSetCursor(key string, cursors []*seriesCursor, decoder *FieldCodec) *tagSetCursor {
+func newTagSetCursor(m string, t map[string]string, c []*seriesCursor, d *FieldCodec) *tagSetCursor {
 	return &tagSetCursor{
-		key:     key,
-		cursors: cursors,
-		decoder: decoder,
+		measurement: m,
+		tags:        t,
+		cursors:     c,
+		decoder:     d,
 	}
+}
+
+func (tsc *tagSetCursor) key() string {
+	return tsc.measurement + string(marshalTags(tsc.tags))
 }
 
 // Next returns the next matching series-key, timestamp and byte slice for the tagset. Filtering
