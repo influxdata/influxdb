@@ -105,6 +105,7 @@ func TestShardMapper_WriteAndSingleMapperRawQuery(t *testing.T) {
 	var tests = []struct {
 		stmt      string
 		reqTagSet string
+		chunkSize int
 		expected  []string
 	}{
 		{
@@ -113,11 +114,27 @@ func TestShardMapper_WriteAndSingleMapperRawQuery(t *testing.T) {
 			expected:  []string{`{"Name":"cpu","values":[{"time":1000000000,"value":42},{"time":2000000000,"value":60}]}`},
 		},
 		{
+			stmt:      `SELECT value FROM cpu`,
+			reqTagSet: "cpu",
+			chunkSize: 1,
+			expected:  []string{`{"Name":"cpu","values":[{"time":1000000000,"value":42}]}`},
+		},
+		{
+			stmt:      `SELECT value FROM cpu`,
+			reqTagSet: "cpu",
+			chunkSize: 2,
+			expected:  []string{`{"Name":"cpu","values":[{"time":1000000000,"value":42},{"time":2000000000,"value":60}]}`},
+		},
+		{
+			stmt:      `SELECT value FROM cpu`,
+			reqTagSet: "cpu",
+			chunkSize: 3,
+			expected:  []string{`{"Name":"cpu","values":[{"time":1000000000,"value":42},{"time":2000000000,"value":60}]}`},
+		},
+		{
 			stmt:      `SELECT value FROM cpu GROUP BY host`,
 			reqTagSet: "cpuhost|serverA",
-			expected: []string{
-				`{"Name":"cpu","tags":{"host":"serverA"},"values":[{"time":1000000000,"value":42}]}`,
-			},
+			expected:  []string{`{"Name":"cpu","tags":{"host":"serverA"},"values":[{"time":1000000000,"value":42}]}`},
 		},
 		{
 			stmt:      `SELECT value FROM cpu GROUP BY host`,
@@ -178,7 +195,7 @@ func TestShardMapper_WriteAndSingleMapperRawQuery(t *testing.T) {
 		mapper := openMapperOrFail(t, shard, stmt)
 
 		for _, s := range tt.expected {
-			got := nextChunkAsJson(t, mapper, tt.reqTagSet)
+			got := nextChunkAsJson(t, mapper, tt.reqTagSet, tt.chunkSize)
 			if got != s {
 				t.Errorf("test '%s'\n\tgot      %s\n\texpected %s", tt.stmt, got, tt.expected)
 				break
@@ -215,8 +232,8 @@ func openMapperOrFail(t *testing.T, shard *Shard, stmt *influxql.SelectStatement
 	return mapper
 }
 
-func nextChunkAsJson(t *testing.T, mapper *RawMapper, tagset string) string {
-	r, err := mapper.NextChunk(tagset, 100)
+func nextChunkAsJson(t *testing.T, mapper *RawMapper, tagset string, chunkSize int) string {
+	r, err := mapper.NextChunk(tagset, chunkSize)
 	if err != nil {
 		t.Fatalf("failed to get next chunk from mapper: %s", err.Error())
 	}

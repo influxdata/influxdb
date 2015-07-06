@@ -23,7 +23,7 @@ type Mapper interface {
 	TagSets() []string
 
 	// NextChunk returns the next chunk of points for the given tagset. The chunk will be a maximum size
-	// of chunkSize, but it may be less.
+	// of chunkSize, but it may be less. A chunkSize of 0 means do no chunking.
 	NextChunk(tagset string, chunkSize int) (*rawMapperOutput, error)
 }
 

@@ -160,10 +160,14 @@ func (rm *RawMapper) NextChunk(tagset string, chunkSize int) (*rawMapperOutput, 
 	for {
 		_, k, v := cursor.Next(rm.queryTMin, rm.queryTMax, rm.selectFields, rm.whereFields)
 		if v == nil {
+			// cursor is empty.
 			return output, nil
 		}
 		value := &rawMapperValue{Time: k, Value: v}
 		output.Values = append(output.Values, value)
+		if len(output.Values) == chunkSize {
+			return output, nil
+		}
 	}
 }
 
