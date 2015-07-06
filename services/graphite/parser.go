@@ -286,7 +286,7 @@ func (n *node) search(lineParts []string) *template {
 
 	// Find the index of child with an exact match
 	i := sort.Search(length, func(i int) bool {
-		return n.children[i].value == lineParts[0]
+		return n.children[i].value >= lineParts[0]
 	})
 
 	// Found an exact match, so search that child sub-tree
