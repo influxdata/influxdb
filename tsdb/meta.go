@@ -1200,29 +1200,36 @@ func (m *Measurement) tagValuesByKeyAndSeriesID(tagKeys []string, ids seriesIDs)
 	return tagValues
 }
 
+// stringSet represents a set of strings.
 type stringSet map[string]struct{}
 
+// newStringSet returns an empty stringSet.
 func newStringSet() stringSet {
 	return make(map[string]struct{})
 }
 
+// add adds a string to the set.
 func (s stringSet) add(ss string) {
 	s[ss] = struct{}{}
 }
 
+// contains returns whether the set contains the given string.
 func (s stringSet) contains(ss string) bool {
 	_, ok := s[ss]
 	return ok
 }
 
+// list returns the current elements in the set, in sorted order.
 func (s stringSet) list() []string {
 	l := make([]string, 0, len(s))
 	for k := range s {
 		l = append(l, k)
 	}
+	sort.Strings(l)
 	return l
 }
 
+// union returns the union of this set and another.
 func (s stringSet) union(o stringSet) stringSet {
 	ns := newStringSet()
 	for k := range s {
@@ -1234,6 +1241,7 @@ func (s stringSet) union(o stringSet) stringSet {
 	return ns
 }
 
+// union returns the intersection of this set and another.
 func (s stringSet) intersect(o stringSet) stringSet {
 	ns := newStringSet()
 	for k := range s {
