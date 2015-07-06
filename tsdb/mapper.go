@@ -18,9 +18,9 @@ type RawMapper struct {
 	queryTMin int64
 	queryTMax int64
 
-	whereFields  []string               // field names that occur in the where clause
-	selectFields []string               // field names that occur in the select clause
-	selectTags   []string               // tag keys that occur in the select clause
+	whereFields  stringSet              // field names that occur in the where clause
+	selectFields stringSet              // field names that occur in the select clause
+	selectTags   stringSet              // tag keys that occur in the select clause
 	fieldName    string                 // the field name associated with the mapFunc currently being run
 	decoders     map[string]*FieldCodec // byte decoder per measurement
 
@@ -30,9 +30,12 @@ type RawMapper struct {
 // NewRawMapper returns a mapper for the given shard, which will return data for the SELECT statement.
 func NewRawMapper(shard *Shard, stmt *influxql.SelectStatement) *RawMapper {
 	return &RawMapper{
-		shard:   shard,
-		stmt:    stmt,
-		cursors: make(map[string]*tagSetCursor, 0),
+		shard:        shard,
+		stmt:         stmt,
+		whereFields:  newStringSet(),
+		selectFields: newStringSet(),
+		selectTags:   newStringSet(),
+		cursors:      make(map[string]*tagSetCursor, 0),
 	}
 }
 
@@ -82,13 +85,13 @@ func (rm *RawMapper) Open() error {
 		// Validate the fields and tags asked for exist and keep track of which are in the select vs the where
 		for _, n := range rm.stmt.NamesInSelect() {
 			if m.HasField(n) {
-				rm.selectFields = append(rm.selectFields, n)
+				rm.selectFields.add(n)
 				continue
 			}
 			if !m.HasTagKey(n) {
 				return fmt.Errorf("unknown field or tag name in select clause: %s", n)
 			}
-			rm.selectTags = append(rm.selectTags, n)
+			rm.selectTags.add(n)
 			tagKeys = append(tagKeys, n)
 		}
 		for _, n := range rm.stmt.NamesInWhere() {
@@ -96,7 +99,7 @@ func (rm *RawMapper) Open() error {
 				continue
 			}
 			if m.HasField(n) {
-				rm.whereFields = append(rm.whereFields, n)
+				rm.whereFields.add(n)
 				continue
 			}
 			if !m.HasTagKey(n) {
@@ -160,7 +163,7 @@ func (rm *RawMapper) NextChunk(tagset string, chunkSize int) (*rawMapperOutput, 
 
 	// Still got a tagset cursor to process.
 	for {
-		_, k, v := cursor.Next(rm.queryTMin, rm.queryTMax, rm.selectFields, rm.whereFields)
+		_, k, v := cursor.Next(rm.queryTMin, rm.queryTMax, rm.selectFields.list(), rm.whereFields.list())
 		if v == nil {
 			// cursor is empty.
 			return output, nil
