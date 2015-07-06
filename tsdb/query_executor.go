@@ -7,6 +7,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta"
@@ -26,6 +27,9 @@ type QueryExecutor struct {
 		Authenticate(username, password string) (*meta.UserInfo, error)
 		RetentionPolicy(database, name string) (rpi *meta.RetentionPolicyInfo, err error)
 		UserCount() (int, error)
+
+		ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error)
+		NodeID() uint64
 	}
 
 	// Executes statements relating to meta data.
@@ -146,9 +150,16 @@ func (q *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chu
 			var res *influxql.Result
 			switch stmt := stmt.(type) {
 			case *influxql.SelectStatement:
-				if err := q.executeSelectStatement(i, stmt, results, chunkSize); err != nil {
-					results <- &influxql.Result{Err: err}
-					break
+				if stmt.IsRawQuery && !stmt.HasDistinct() {
+					if err := q.executeSelectStatementRaw(i, stmt, results, chunkSize); err != nil {
+						results <- &influxql.Result{Err: err}
+						break
+					}
+				} else {
+					if err := q.executeSelectStatement(i, stmt, results, chunkSize); err != nil {
+						results <- &influxql.Result{Err: err}
+						break
+					}
 				}
 			case *influxql.DropSeriesStatement:
 				// TODO: handle this in a cluster
@@ -218,6 +229,43 @@ func (q *QueryExecutor) executeSelectStatement(statementID int, stmt *influxql.S
 
 	// Execute plan.
 	ch := e.Execute()
+
+	// Stream results from the channel. We should send an empty result if nothing comes through.
+	resultSent := false
+	for row := range ch {
+		if row.Err != nil {
+			return row.Err
+		} else {
+			resultSent = true
+			results <- &influxql.Result{StatementID: statementID, Series: []*influxql.Row{row}}
+		}
+	}
+
+	if !resultSent {
+		results <- &influxql.Result{StatementID: statementID, Series: make([]*influxql.Row, 0)}
+	}
+
+	return nil
+}
+
+// executeSelectStatement plans and executes a select statement against a database.
+func (q *QueryExecutor) executeSelectStatementRaw(statementID int, stmt *influxql.SelectStatement, results chan *influxql.Result, chunkSize int) error {
+	// Perform any necessary query re-writing.
+	stmt, err := q.rewriteSelectStatement(stmt)
+	if err != nil {
+		return err
+	}
+
+	// Plan statement execution.
+	p := NewPlanner(q.store)
+	p.MetaStore = q.MetaStore
+	e, err := p.Plan(stmt)
+	if err != nil {
+		return err
+	}
+
+	// Execute plan.
+	ch := e.Execute(chunkSize)
 
 	// Stream results from the channel. We should send an empty result if nothing comes through.
 	resultSent := false
