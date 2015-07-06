@@ -1,7 +1,6 @@
 package tsdb
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -30,11 +29,30 @@ func TestWritePointsAndPlan(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 
-	executor, err := planner.Plan(mustParseSelectStatement(`SELECT value FROM cpu GROUP BY host`), 100000)
-	if err != nil {
-		t.Fatalf("failed to plan query: %s", err.Error())
+	var tests = []struct {
+		stmt     string
+		expected string
+	}{
+		{
+			stmt:     `SELECT value FROM cpu`,
+			expected: `[{"name":"cpu","columns":["time","value"],"values":[["1970-01-01T00:00:01Z",100]]}]`,
+		},
+		{
+			stmt:     `SELECT value FROM cpu GROUP BY host`,
+			expected: `[{"name":"cpu","tags":{"host":"serverA"},"columns":["time","value"],"values":[["1970-01-01T00:00:01Z",100]]}]`,
+		},
 	}
-	fmt.Println(executeAndGetResults(executor))
+
+	for _, tt := range tests {
+		executor, err := planner.Plan(mustParseSelectStatement(tt.stmt), 100000)
+		if err != nil {
+			t.Fatalf("failed to plan query: %s", err.Error())
+		}
+		got := executeAndGetResults(executor)
+		if got != tt.expected {
+			t.Fatalf("Test %s\nexp: %s\ngot: %s\n", tt.stmt, tt.expected, got)
+		}
+	}
 }
 
 type testQEMetastore struct {
