@@ -237,7 +237,12 @@ func TestShardMapper_WriteAndSingleMapperRawQueryMultiValue(t *testing.T) {
 		{
 			stmt:      `SELECT foo FROM cpu`,
 			reqTagSet: "cpu",
-			expected:  []string{`{"Name":"cpu","values":[{"time":1000000000,"foo":42},{"time":2000000000,"foo":60}]}`},
+			expected:  []string{`{"Name":"cpu","values":[{"time":1000000000,"value":42},{"time":2000000000,"value":60}]}`},
+		},
+		{
+			stmt:      `SELECT foo,bar FROM cpu`,
+			reqTagSet: "cpu",
+			expected:  []string{`{"Name":"cpu","values":[{"time":1000000000,"value":{"bar":43,"foo":42}},{"time":2000000000,"value":{"bar":61,"foo":60}}]}`},
 		},
 	}
 
