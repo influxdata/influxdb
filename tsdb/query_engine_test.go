@@ -84,7 +84,7 @@ func TestWritePointsAndExecuteTwoShards(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		if !tt.skip {
+		if tt.skip {
 			t.Logf("Skipping test %s", tt.stmt)
 			continue
 		}
