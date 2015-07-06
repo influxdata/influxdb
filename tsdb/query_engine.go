@@ -148,39 +148,40 @@ func (re *RawExecutor) execute(out chan *influxql.Row) {
 		}
 	}
 
-	// Drain each mapper, grouping results by tagset.
-	mapperOutput := make(map[string]*rawMapperOutput, len(re.mappers))
+	// Build the set of available tagsets across all mappers.
+	availTagSets := make(map[string]bool)
 	for _, m := range re.mappers {
-		for {
-			chunk, err := m.NextChunk("xxx")
+		for _, t := range m.TagSets() {
+			availTagSets[t] = true
+		}
+	}
+
+	// For each mapper, drain it by tagset.
+	for t, _ := range availTagSets {
+		var output *rawMapperOutput
+		for _, m := range re.mappers {
+			chunk, err := m.NextChunk(t)
 			if err != nil {
 				out <- &influxql.Row{Err: err}
 				return
 			}
-			if chunk == nil {
-				// Mapper has no (more) matching data.
-				break
-			}
-
-			// Is there an existing mapper-output object for this tagset? If not,
-			// use this output. If there is, then append new values to it. This
-			// merges data across mappers, for each tagset.
-			var output = mapperOutput[chunk.key()]
-			if mapperOutput[chunk.key()] == nil {
+			if output == nil {
 				output = chunk
 			} else {
 				output.Values = append(output.Values, chunk.Values...)
 			}
+
+			if len(chunk.Values) == 0 {
+				// Go to next tagset for this mapper.
+				continue
+			}
 		}
+
+		// All data for this tagset, across all mappers, gathered.
+		out <- re.processRawResults(output)
 	}
 
-	for _, v := range mapperOutput {
-		out <- re.processRawResults(v)
-	}
-
-	// XXX Results need to be sorted.
-	// XXX Limit and chunk checking here.
-	// XXX Convert results to "rows"
+	// XXX Limit and chunk checking.
 	close(out)
 }
 
@@ -189,8 +190,6 @@ func (re *RawExecutor) execute(out chan *influxql.Row) {
 func (re *RawExecutor) processRawResults(output *rawMapperOutput) *influxql.Row {
 	sort.Sort(output.Values)
 	selectNames := re.selectNames
-
-	// XXX need a len(values) == 0 check again.
 
 	// ensure that time is in the select names and in the first position
 	hasTime := false
@@ -223,6 +222,11 @@ func (re *RawExecutor) processRawResults(output *rawMapperOutput) *influxql.Row 
 		Name:    output.Name,
 		Tags:    output.Tags,
 		Columns: selectFields,
+	}
+
+	// return an empty row if there are no results
+	if len(output.Values) == 0 {
+		return row
 	}
 
 	// if they've selected only a single value we have to handle things a little differently
