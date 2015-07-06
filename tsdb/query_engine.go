@@ -38,7 +38,7 @@ type Planner struct {
 	}
 
 	Cluster interface {
-		NewMapper(shardID uint64) (Mapper, error)
+		NewRawMapper(shardID uint64, stmt string) (Mapper, error)
 	}
 
 	store *Store
@@ -86,6 +86,13 @@ func (p *Planner) Plan(stmt *influxql.SelectStatement) (Executor, error) {
 		}
 	}
 
+	if stmt.IsRawQuery && !stmt.HasDistinct() {
+		return p.planRawQuery(stmt, shards)
+	}
+	return p.planAggregateQuery(stmt, shards)
+}
+
+func (p *Planner) planRawQuery(stmt *influxql.SelectStatement, shards map[uint64]meta.ShardInfo) (Executor, error) {
 	// Build the Mappers, one per shard. If the shard is local to this node, always use
 	// that one, versus asking the cluster.
 	mappers := []Mapper{}
@@ -99,20 +106,19 @@ func (p *Planner) Plan(stmt *influxql.SelectStatement) (Executor, error) {
 			}
 			mappers = append(mappers, NewRawMapper(shard, stmt))
 		} else {
-			mapper, err := p.Cluster.NewMapper(sh.ID)
+			mapper, err := p.Cluster.NewRawMapper(sh.ID, stmt.String())
 			if err != nil {
 				return nil, err
-			}
-			if mapper == nil {
-				// No error, but there shard doesn't actually exist anywhere on the cluster.
-				// This means no data has been written to it, so forget about the mapper.
-				continue
 			}
 			mappers = append(mappers, mapper)
 		}
 	}
 
 	return NewRawExecutor(mappers, stmt.NamesInSelect()), nil
+}
+
+func (p *Planner) planAggregateQuery(stmt *influxql.SelectStatement, shards map[uint64]meta.ShardInfo) (Executor, error) {
+	return nil, nil
 }
 
 // RawExecutor is an executor for RawMappers.
