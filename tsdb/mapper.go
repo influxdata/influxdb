@@ -73,6 +73,12 @@ func (rm *RawMapper) Open() error {
 			return nil
 		}
 
+		// Create tagset cursors.
+		_, tagKeys, err := rm.stmt.Dimensions.Normalize()
+		if err != nil {
+			return err
+		}
+
 		// Validate the fields and tags asked for exist and keep track of which are in the select vs the where
 		for _, n := range rm.stmt.NamesInSelect() {
 			if m.HasField(n) {
@@ -83,6 +89,7 @@ func (rm *RawMapper) Open() error {
 				return fmt.Errorf("unknown field or tag name in select clause: %s", n)
 			}
 			rm.selectTags = append(rm.selectTags, n)
+			tagKeys = append(tagKeys, n)
 		}
 		for _, n := range rm.stmt.NamesInWhere() {
 			if n == "time" {
@@ -101,14 +108,9 @@ func (rm *RawMapper) Open() error {
 			return fmt.Errorf("select statement must include at least one field")
 		}
 
-		// Create tagset cursors.
-		_, tagKeys, err := rm.stmt.Dimensions.Normalize()
-		if err != nil {
-			return err
-		}
-
 		// Get the sorted unique tag sets for this statement.
 		tagSets, err := m.TagSets(rm.stmt, tagKeys)
+
 		if err != nil {
 			return err
 		}
