@@ -19,7 +19,11 @@ type Mapper interface {
 	// Close will close the mapper
 	Close()
 
-	NextChunk() (*rawMapperOutput, error)
+	// TagSets returns the tagsets for which the Mapper has data.
+	TagSets() []string
+
+	// NextChunk returns the next chunk of points for the given tagset
+	NextChunk(tagset string) (*rawMapperOutput, error)
 }
 
 type Executor interface {
@@ -148,7 +152,7 @@ func (re *RawExecutor) execute(out chan *influxql.Row) {
 	mapperOutput := make(map[string]*rawMapperOutput, len(re.mappers))
 	for _, m := range re.mappers {
 		for {
-			chunk, err := m.NextChunk()
+			chunk, err := m.NextChunk("xxx")
 			if err != nil {
 				out <- &influxql.Row{Err: err}
 				return

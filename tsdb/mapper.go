@@ -25,15 +25,15 @@ type RawMapper struct {
 	fieldName    string                 // the field name associated with the mapFunc currently being run
 	decoders     map[string]*FieldCodec // byte decoder per measurement
 
-	cursors       tagSetCursors // Cursors per tag sets.
-	currTagSetIdx int           // current tagset cursor being iterated.
+	cursors map[string]*tagSetCursor // Cursors per tag sets.
 }
 
 // NewRawMapper returns a mapper for the given shard, which will return data for the SELECT statement.
 func NewRawMapper(shard *Shard, stmt *influxql.SelectStatement) *RawMapper {
 	return &RawMapper{
-		shard: shard,
-		stmt:  stmt,
+		shard:   shard,
+		stmt:    stmt,
+		cursors: make(map[string]*tagSetCursor, 0),
 	}
 }
 
@@ -128,24 +128,31 @@ func (rm *RawMapper) Open() error {
 				cm.Seek(rm.queryTMin)
 				cursors = append(cursors, cm)
 			}
-			rm.cursors = append(rm.cursors, newTagSetCursor(m.Name, t.Tags, cursors, rm.shard.FieldCodec(m.Name)))
+			tsc := newTagSetCursor(m.Name, t.Tags, cursors, rm.shard.FieldCodec(m.Name))
+			rm.cursors[tsc.key()] = tsc
 		}
 	}
-
-	// Sort the tag-set cursors such that they are always iterated in the same order.
-	sort.Sort(rm.cursors)
 
 	return nil
 }
 
+// TagSets returns the list of TagSets for which this mapper has data.
+func (rm *RawMapper) TagSets() []string {
+	set := make([]string, 0, len(rm.cursors))
+	for k, _ := range rm.cursors {
+		set = append(set, k)
+	}
+	sort.Strings(set)
+	return set
+}
+
 // NextChunk returns the next chunk of data for a tagset. If the result is nil, there are no more
 // data.
-func (rm *RawMapper) NextChunk() (*rawMapperOutput, error) {
-	if rm.currTagSetIdx == len(rm.cursors) {
-		// All tag set cursors for this mapper are complete.
+func (rm *RawMapper) NextChunk(tagset string) (*rawMapperOutput, error) {
+	cursor, ok := rm.cursors[tagset]
+	if !ok {
 		return nil, nil
 	}
-	cursor := rm.cursors[rm.currTagSetIdx]
 	output := &rawMapperOutput{
 		Name: cursor.measurement,
 		Tags: cursor.tags,
@@ -155,8 +162,6 @@ func (rm *RawMapper) NextChunk() (*rawMapperOutput, error) {
 	for {
 		_, k, v := cursor.Next(rm.queryTMin, rm.queryTMax, rm.selectFields, rm.whereFields)
 		if v == nil {
-			// Set up for next tagset cursor and then return.
-			rm.currTagSetIdx++
 			return output, nil
 		}
 		value := &rawMapperValue{Time: k, Value: v}
