@@ -23,7 +23,7 @@ func TestWritePointsAndExecuteTwoShards(t *testing.T) {
 	pt1time := time.Unix(1, 0).UTC()
 	if err := store.WriteToShard(sID0, []Point{NewPoint(
 		"cpu",
-		map[string]string{"host": "serverA"},
+		map[string]string{"host": "serverA", "region": "us-east"},
 		map[string]interface{}{"value": 100},
 		pt1time,
 	)}); err != nil {
@@ -32,7 +32,7 @@ func TestWritePointsAndExecuteTwoShards(t *testing.T) {
 	pt2time := time.Unix(2, 0).UTC()
 	if err := store.WriteToShard(sID1, []Point{NewPoint(
 		"cpu",
-		map[string]string{"host": "serverB"},
+		map[string]string{"host": "serverB", "region": "us-east"},
 		map[string]interface{}{"value": 200},
 		pt2time,
 	)}); err != nil {
@@ -60,12 +60,20 @@ func TestWritePointsAndExecuteTwoShards(t *testing.T) {
 			expected: `null`,
 		},
 		{
-			stmt:     `SELECT value FROM cpu WHERE host='serverA' GROUP BY host`,
-			expected: `[{"name":"cpu","tags":{"host":"serverA"},"columns":["time","value"],"values":[["1970-01-01T00:00:01Z",100]]}]`,
-		},
-		{
 			stmt:     `SELECT value FROM cpu GROUP BY host`,
 			expected: `[{"name":"cpu","tags":{"host":"serverA"},"columns":["time","value"],"values":[["1970-01-01T00:00:01Z",100]]},{"name":"cpu","tags":{"host":"serverB"},"columns":["time","value"],"values":[["1970-01-01T00:00:02Z",200]]}]`,
+		},
+		{
+			stmt:     `SELECT value FROM cpu GROUP BY region`,
+			expected: `[{"name":"cpu","tags":{"region":"us-east"},"columns":["time","value"],"values":[["1970-01-01T00:00:01Z",100],["1970-01-01T00:00:02Z",200]]}]`,
+		},
+		{
+			stmt:     `SELECT value FROM cpu GROUP BY host,region`,
+			expected: `[{"name":"cpu","tags":{"host":"serverA","region":"us-east"},"columns":["time","value"],"values":[["1970-01-01T00:00:01Z",100]]},{"name":"cpu","tags":{"host":"serverB","region":"us-east"},"columns":["time","value"],"values":[["1970-01-01T00:00:02Z",200]]}]`,
+		},
+		{
+			stmt:     `SELECT value FROM cpu WHERE host='serverA' GROUP BY host`,
+			expected: `[{"name":"cpu","tags":{"host":"serverA"},"columns":["time","value"],"values":[["1970-01-01T00:00:01Z",100]]}]`,
 		},
 	}
 
