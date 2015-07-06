@@ -34,3 +34,12 @@ message WriteShardResponse {
     optional string Message = 2;
 }
 
+message MapShardRequest {
+    required uint64 ShardID = 1;
+    required string Statement = 2;
+}
+
+message MapShardResponse {
+    required int32 Code = 1;
+    optional string Message = 2;
+}

@@ -10,11 +10,6 @@ import (
 	"gopkg.in/fatih/pool.v2"
 )
 
-const (
-	writeShardRequestMessage byte = iota + 1
-	writeShardResponseMessage
-)
-
 // ShardWriter writes a set of points to a shard.
 type ShardWriter struct {
 	pool    *clientPool
@@ -151,7 +146,7 @@ func (c *connFactory) dial() (net.Conn, error) {
 	}
 
 	// Write a marker byte for cluster messages.
-	_, err = conn.Write([]byte{MuxHeader})
+	_, err = conn.Write([]byte{MuxWriteHeader})
 	if err != nil {
 		conn.Close()
 		return nil, err
