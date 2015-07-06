@@ -178,7 +178,9 @@ To install go cover, run the following command:
 go get golang.org/x/tools/cmd/cover
 ```
 
-To update the generated protocol buffer code, you'll need to install the protocol buffers toolchain.
+Generated Google Protobuf code
+-----------------
+Most changes to the source do not require that the generated protocol buffer code be changed. But if you need to modify the protocol buffer code, you'll first need to install the protocol buffers toolchain.
 
 First install the [protocol buffer compiler](https://developers.google.com/protocol-buffers/
 ) 2.6.1 or later for your OS:
