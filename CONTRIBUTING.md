@@ -198,6 +198,11 @@ Finally run, `go generate` after updating any `*.proto` file:
 ```bash
 go generate ./...
 ```
+**Trouleshooting**
+
+If generating the protobuf code is failing for you, check each of the following:
+ * Ensure the protobuf library can be found. Make sure that `LD_LIBRRARY_PATH` includes the directory in which the library `libprotoc.so` has been installed.
+ * Ensure the command `protoc-gen-gogo`, found in `GOPATH/bin` is on your path. This can be done by adding `GOPATH/bin` to `PATH`.
 
 Continuous Integration testing
 -----
