@@ -126,7 +126,7 @@ func TestServer_Query_DropAndRecreateDatabase(t *testing.T) {
 		&Query{
 			name:    "Query data after recreate",
 			command: `SELECT * FROM cpu`,
-			exp:     `{"results":[{"error":"measurement not found: \"db0\"..cpu"}]}`,
+			exp:     `{"results":[{}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 	}...)
