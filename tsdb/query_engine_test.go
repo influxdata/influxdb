@@ -19,7 +19,7 @@ func TestWritePointsAndExecuteTwoShards(t *testing.T) {
 	store, planner := testStoreAndPlanner()
 	defer os.RemoveAll(store.path)
 
-	// Write two points
+	// Write two points across shards.
 	pt1time := time.Unix(1, 0).UTC()
 	if err := store.WriteToShard(sID0, []Point{NewPoint(
 		"cpu",
@@ -30,7 +30,7 @@ func TestWritePointsAndExecuteTwoShards(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 	pt2time := time.Unix(2, 0).UTC()
-	if err := store.WriteToShard(sID0, []Point{NewPoint(
+	if err := store.WriteToShard(sID1, []Point{NewPoint(
 		"cpu",
 		map[string]string{"host": "serverB"},
 		map[string]interface{}{"value": 200},
