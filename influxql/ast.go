@@ -2317,6 +2317,24 @@ func TimeRange(expr Expr) (min, max time.Time) {
 	return
 }
 
+// TimeRange returns the minimum and maximum times, as epoch nano, specified by
+// and expression. If there is no lower bound, the start of the epoch is returned
+// for minimum. If there is no higher bound, now is returned for maximum.
+func TimeRangeAsEpochNano(expr Expr) (min, max int64) {
+	tmin, tmax := TimeRange(expr)
+	if tmin.IsZero() {
+		min = time.Unix(0, 0).UnixNano()
+	} else {
+		min = tmin.UnixNano()
+	}
+	if tmax.IsZero() {
+		max = time.Now().UnixNano()
+	} else {
+		max = tmax.UnixNano()
+	}
+	return
+}
+
 // timeExprValue returns the time literal value of a "time == <TimeLiteral>" expression.
 // Returns zero time if the expression is not a time expression.
 func timeExprValue(ref Expr, lit Expr) time.Time {
