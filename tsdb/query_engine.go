@@ -190,6 +190,8 @@ func (re *RawExecutor) processRawResults(output *rawMapperOutput) *influxql.Row 
 	sort.Sort(output.Values)
 	selectNames := re.selectNames
 
+	// XXX need a len(values) == 0 check again.
+
 	// ensure that time is in the select names and in the first position
 	hasTime := false
 	for i, n := range selectNames {
