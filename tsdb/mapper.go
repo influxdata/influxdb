@@ -2,7 +2,6 @@ package tsdb
 
 import (
 	"fmt"
-	"sort"
 	"time"
 
 	"github.com/boltdb/bolt"
@@ -138,12 +137,11 @@ func (rm *RawMapper) Open() error {
 
 // TagSets returns the list of TagSets for which this mapper has data.
 func (rm *RawMapper) TagSets() []string {
-	set := make([]string, 0, len(rm.cursors))
+	set := newStringSet()
 	for k, _ := range rm.cursors {
-		set = append(set, k)
+		set.add(k)
 	}
-	sort.Strings(set)
-	return set
+	return set.list()
 }
 
 // NextChunk returns the next chunk of data for a tagset. If the result is nil, there are no more

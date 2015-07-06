@@ -10,17 +10,18 @@ import (
 	"github.com/influxdb/influxdb/meta"
 )
 
-var sID = uint64(1)
+var sID0 = uint64(1)
+var sID1 = uint64(1)
 var sgID = uint64(2)
 var nID = uint64(42)
 
-func TestWritePointsAndExecuteSingleShard(t *testing.T) {
+func TestWritePointsAndExecuteTwoShards(t *testing.T) {
 	store, planner := testStoreAndPlanner()
 	defer os.RemoveAll(store.path)
 
 	// Write two points
 	pt1time := time.Unix(1, 0).UTC()
-	if err := store.WriteToShard(sID, []Point{NewPoint(
+	if err := store.WriteToShard(sID0, []Point{NewPoint(
 		"cpu",
 		map[string]string{"host": "serverA"},
 		map[string]interface{}{"value": 100},
@@ -29,7 +30,7 @@ func TestWritePointsAndExecuteSingleShard(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 	pt2time := time.Unix(2, 0).UTC()
-	if err := store.WriteToShard(sID, []Point{NewPoint(
+	if err := store.WriteToShard(sID0, []Point{NewPoint(
 		"cpu",
 		map[string]string{"host": "serverB"},
 		map[string]interface{}{"value": 200},
@@ -87,11 +88,22 @@ func (t *testQEMetastore) ShardGroupsByTimeRange(database, policy string, min, m
 	return []meta.ShardGroupInfo{
 		{
 			ID:        sgID,
-			StartTime: min,
-			EndTime:   max,
+			StartTime: time.Now().Add(-time.Hour),
+			EndTime:   time.Now().Add(time.Hour),
 			Shards: []meta.ShardInfo{
 				{
-					ID:       uint64(sID),
+					ID:       uint64(sID0),
+					OwnerIDs: []uint64{nID},
+				},
+			},
+		},
+		{
+			ID:        sgID,
+			StartTime: time.Now().Add(-2 * time.Hour),
+			EndTime:   time.Now().Add(-time.Hour),
+			Shards: []meta.ShardInfo{
+				{
+					ID:       uint64(sID1),
 					OwnerIDs: []uint64{nID},
 				},
 			},
@@ -111,7 +123,8 @@ func testStoreAndPlanner() (*Store, *Planner) {
 	}
 	database := "foo"
 	retentionPolicy := "bar"
-	store.CreateShard(database, retentionPolicy, sID)
+	store.CreateShard(database, retentionPolicy, sID0)
+	store.CreateShard(database, retentionPolicy, sID1)
 
 	planner := NewPlanner(store)
 	planner.MetaStore = &testQEMetastore{}

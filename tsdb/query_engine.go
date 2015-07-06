@@ -149,15 +149,15 @@ func (re *RawExecutor) execute(out chan *influxql.Row) {
 	}
 
 	// Build the set of available tagsets across all mappers.
-	availTagSets := make(map[string]bool)
+	availTagSets := newStringSet()
 	for _, m := range re.mappers {
 		for _, t := range m.TagSets() {
-			availTagSets[t] = true
+			availTagSets.add(t)
 		}
 	}
 
 	// For each mapper, drain it by tagset.
-	for t, _ := range availTagSets {
+	for _, t := range availTagSets.list() {
 		var output *rawMapperOutput
 		for _, m := range re.mappers {
 			chunk, err := m.NextChunk(t)
