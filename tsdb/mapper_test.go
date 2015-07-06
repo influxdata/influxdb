@@ -216,7 +216,7 @@ func openMapperOrFail(t *testing.T, shard *Shard, stmt *influxql.SelectStatement
 }
 
 func nextChunkAsJson(t *testing.T, mapper *RawMapper, tagset string) string {
-	r, err := mapper.NextChunk(tagset)
+	r, err := mapper.NextChunk(tagset, 100)
 	if err != nil {
 		t.Fatalf("failed to get next chunk from mapper: %s", err.Error())
 	}

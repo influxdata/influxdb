@@ -146,7 +146,7 @@ func (rm *RawMapper) TagSets() []string {
 
 // NextChunk returns the next chunk of data for a tagset. If the result is nil, there are no more
 // data.
-func (rm *RawMapper) NextChunk(tagset string) (*rawMapperOutput, error) {
+func (rm *RawMapper) NextChunk(tagset string, chunkSize int) (*rawMapperOutput, error) {
 	cursor, ok := rm.cursors[tagset]
 	if !ok {
 		return nil, nil

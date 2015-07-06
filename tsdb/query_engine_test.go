@@ -82,7 +82,7 @@ func TestWritePointsAndExecuteTwoShards(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		executor, err := planner.Plan(mustParseSelectStatement(tt.stmt), 100000)
+		executor, err := planner.Plan(mustParseSelectStatement(tt.stmt))
 		if err != nil {
 			t.Fatalf("failed to plan query: %s", err.Error())
 		}
@@ -145,7 +145,7 @@ func testStoreAndPlanner() (*Store, *Planner) {
 }
 
 func executeAndGetResults(executor Executor) string {
-	ch := executor.Execute()
+	ch := executor.Execute(1000)
 
 	var rows []*influxql.Row
 	for r := range ch {

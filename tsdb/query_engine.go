@@ -22,12 +22,13 @@ type Mapper interface {
 	// TagSets returns the tagsets for which the Mapper has data.
 	TagSets() []string
 
-	// NextChunk returns the next chunk of points for the given tagset
-	NextChunk(tagset string) (*rawMapperOutput, error)
+	// NextChunk returns the next chunk of points for the given tagset. The chunk will be a maximum size
+	// of chunkSize, but it may be less.
+	NextChunk(tagset string, chunkSize int) (*rawMapperOutput, error)
 }
 
 type Executor interface {
-	Execute() <-chan *influxql.Row
+	Execute(chunkSize int) <-chan *influxql.Row
 }
 
 type Planner struct {
@@ -53,7 +54,7 @@ func NewPlanner(store *Store) *Planner {
 }
 
 // Plan creates an execution plan for the given SelectStatement and returns an Executor.
-func (p *Planner) Plan(stmt *influxql.SelectStatement, chunkSize int) (Executor, error) {
+func (p *Planner) Plan(stmt *influxql.SelectStatement) (Executor, error) {
 	shards := map[uint64]meta.ShardInfo{} // Shards requiring mappers.
 
 	for _, src := range stmt.Sources {
@@ -129,14 +130,14 @@ func NewRawExecutor(mappers []Mapper, selectNames []string) *RawExecutor {
 }
 
 // Execute begins execution of the query and returns a channel to receive rows.
-func (re *RawExecutor) Execute() <-chan *influxql.Row {
+func (re *RawExecutor) Execute(chunkSize int) <-chan *influxql.Row {
 	// Create output channel and stream data in a separate goroutine.
 	out := make(chan *influxql.Row, 0)
-	go re.execute(out)
+	go re.execute(out, chunkSize)
 	return out
 }
 
-func (re *RawExecutor) execute(out chan *influxql.Row) {
+func (re *RawExecutor) execute(out chan *influxql.Row, chunkSize int) {
 	// It's important that all resources are released when execution completes.
 	defer re.close()
 
@@ -160,7 +161,7 @@ func (re *RawExecutor) execute(out chan *influxql.Row) {
 	for _, t := range availTagSets.list() {
 		var output *rawMapperOutput
 		for _, m := range re.mappers {
-			chunk, err := m.NextChunk(t)
+			chunk, err := m.NextChunk(t, chunkSize)
 			if err != nil {
 				out <- &influxql.Row{Err: err}
 				return
