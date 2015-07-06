@@ -64,7 +64,7 @@ func (s *Service) Open() error {
 	// Begin serving conections.
 	s.wg.Add(1)
 	go s.serve(s.WriteListener, s.handleWriteConn)
-	go s.serve(s.MapperListener, s.handleMapperConn)
+	//go s.serve(s.MapperListener, s.handleMapperConn)
 
 	return nil
 }
