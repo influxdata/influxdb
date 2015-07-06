@@ -116,8 +116,15 @@ func (c *Config) validateTemplates() error {
 		filter := ""
 		tags := ""
 		if len(parts) >= 2 {
-			filter = parts[0]
-			template = parts[1]
+			// We could have <filter> <template>  or <template> <tags>.  Equals is only allowed in
+			// tags section.
+			if strings.Contains(parts[1], "=") {
+				template = parts[0]
+				tags = parts[1]
+			} else {
+				filter = parts[0]
+				template = parts[1]
+			}
 		}
 
 		if len(parts) == 3 {

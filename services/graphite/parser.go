@@ -47,8 +47,12 @@ func NewParserWithOptions(options Options) (*Parser, error) {
 		// Format is [filter] <template> [tag1=value1,tag2=value2]
 		parts := strings.Fields(pattern)
 		if len(parts) >= 2 {
-			filter = parts[0]
-			template = parts[1]
+			if strings.Contains(parts[1], "=") {
+				template = parts[0]
+			} else {
+				filter = parts[0]
+				template = parts[1]
+			}
 		}
 
 		// Parse out the default tags specific to this template
