@@ -14,17 +14,26 @@ var sID = uint64(1)
 var sgID = uint64(2)
 var nID = uint64(42)
 
-func TestWritePointsAndPlan(t *testing.T) {
+func TestWritePointsAndExecuteSingleShard(t *testing.T) {
 	store, planner := testStoreAndPlanner()
 	defer os.RemoveAll(store.path)
 
-	// Write first point.
+	// Write two points
 	pt1time := time.Unix(1, 0).UTC()
 	if err := store.WriteToShard(sID, []Point{NewPoint(
 		"cpu",
 		map[string]string{"host": "serverA"},
 		map[string]interface{}{"value": 100},
 		pt1time,
+	)}); err != nil {
+		t.Fatalf(err.Error())
+	}
+	pt2time := time.Unix(2, 0).UTC()
+	if err := store.WriteToShard(sID, []Point{NewPoint(
+		"cpu",
+		map[string]string{"host": "serverB"},
+		map[string]interface{}{"value": 200},
+		pt2time,
 	)}); err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -35,11 +44,27 @@ func TestWritePointsAndPlan(t *testing.T) {
 	}{
 		{
 			stmt:     `SELECT value FROM cpu`,
+			expected: `[{"name":"cpu","columns":["time","value"],"values":[["1970-01-01T00:00:01Z",100],["1970-01-01T00:00:02Z",200]]}]`,
+		},
+		{
+			stmt:     `SELECT value FROM cpu WHERE host='serverA'`,
 			expected: `[{"name":"cpu","columns":["time","value"],"values":[["1970-01-01T00:00:01Z",100]]}]`,
 		},
 		{
-			stmt:     `SELECT value FROM cpu GROUP BY host`,
+			stmt:     `SELECT value FROM cpu WHERE host='serverB'`,
+			expected: `[{"name":"cpu","columns":["time","value"],"values":[["1970-01-01T00:00:02Z",200]]}]`,
+		},
+		{
+			stmt:     `SELECT value FROM cpu WHERE host='serverC'`,
+			expected: `null`,
+		},
+		{
+			stmt:     `SELECT value FROM cpu WHERE host='serverA' GROUP BY host`,
 			expected: `[{"name":"cpu","tags":{"host":"serverA"},"columns":["time","value"],"values":[["1970-01-01T00:00:01Z",100]]}]`,
+		},
+		{
+			stmt:     `SELECT value FROM cpu GROUP BY host`,
+			expected: `[{"name":"cpu","tags":{"host":"serverA"},"columns":["time","value"],"values":[["1970-01-01T00:00:01Z",100]]},{"name":"cpu","tags":{"host":"serverB"},"columns":["time","value"],"values":[["1970-01-01T00:00:02Z",200]]}]`,
 		},
 	}
 
