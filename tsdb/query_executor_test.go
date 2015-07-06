@@ -442,7 +442,19 @@ func (t *testMetastore) UserCount() (int, error) {
 }
 
 func (t *testMetastore) ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error) {
-	return nil, nil
+	return []meta.ShardGroupInfo{
+		{
+			ID:        sgID,
+			StartTime: time.Now().Add(-time.Hour),
+			EndTime:   time.Now().Add(time.Hour),
+			Shards: []meta.ShardInfo{
+				{
+					ID:       uint64(1),
+					OwnerIDs: []uint64{1},
+				},
+			},
+		},
+	}, nil
 }
 
 func (t *testMetastore) NodeID() uint64 {
