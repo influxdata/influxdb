@@ -204,6 +204,57 @@ func TestShardMapper_WriteAndSingleMapperRawQuery(t *testing.T) {
 	}
 }
 
+func TestShardMapper_WriteAndSingleMapperRawQueryMultiValue(t *testing.T) {
+	tmpDir, _ := ioutil.TempDir("", "shard_test")
+	defer os.RemoveAll(tmpDir)
+	shard := mustCreateShard(tmpDir)
+
+	pt1time := time.Unix(1, 0).UTC()
+	pt1 := NewPoint(
+		"cpu",
+		map[string]string{"host": "serverA", "region": "us-east"},
+		map[string]interface{}{"foo": 42, "bar": 43},
+		pt1time,
+	)
+	pt2time := time.Unix(2, 0).UTC()
+	pt2 := NewPoint(
+		"cpu",
+		map[string]string{"host": "serverB", "region": "us-east"},
+		map[string]interface{}{"foo": 60, "bar": 61},
+		pt2time,
+	)
+	err := shard.WritePoints([]Point{pt1, pt2})
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	var tests = []struct {
+		stmt      string
+		reqTagSet string
+		chunkSize int
+		expected  []string
+	}{
+		{
+			stmt:      `SELECT foo FROM cpu`,
+			reqTagSet: "cpu",
+			expected:  []string{`{"Name":"cpu","values":[{"time":1000000000,"foo":42},{"time":2000000000,"foo":60}]}`},
+		},
+	}
+
+	for _, tt := range tests {
+		stmt := mustParseSelectStatement(tt.stmt)
+		mapper := openMapperOrFail(t, shard, stmt)
+
+		for _, s := range tt.expected {
+			got := nextChunkAsJson(t, mapper, tt.reqTagSet, tt.chunkSize)
+			if got != s {
+				t.Errorf("test '%s'\n\tgot      %s\n\texpected %s", tt.stmt, got, tt.expected)
+				break
+			}
+		}
+	}
+}
+
 func mustCreateShard(dir string) *Shard {
 	tmpShard := path.Join(dir, "shard")
 	index := NewDatabaseIndex()
