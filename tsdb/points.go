@@ -1098,7 +1098,11 @@ func (p Fields) MarshalBinary() []byte {
 		case nil:
 			// skip
 		default:
-			panic(fmt.Sprintf("unknown type: %T", v))
+			// Can't determine the type, so convert to string
+			b = append(b, '"')
+			b = append(b, []byte(escapeQuoteString(fmt.Sprintf("%v", v)))...)
+			b = append(b, '"')
+
 		}
 		b = append(b, ',')
 	}

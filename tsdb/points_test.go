@@ -1078,3 +1078,22 @@ func TestNewPointEscaped(t *testing.T) {
 		t.Errorf("NewPoint().String() mismatch.\ngot %v\nexp %v", pt.String(), exp)
 	}
 }
+
+func TestNewPointUnhandledType(t *testing.T) {
+	// nil value
+	pt := NewPoint("cpu", nil, Fields{"value": nil}, time.Unix(0, 0))
+	if exp := `cpu value= 0`; pt.String() != exp {
+		t.Errorf("NewPoint().String() mismatch.\ngot %v\nexp %v", pt.String(), exp)
+	}
+
+	// unsupported type gets stored as string
+	now := time.Unix(0, 0)
+	pt = NewPoint("cpu", nil, Fields{"value": now}, time.Unix(0, 0))
+	if exp := `cpu value="1969-12-31 17:00:00 -0700 MST" 0`; pt.String() != exp {
+		t.Errorf("NewPoint().String() mismatch.\ngot %v\nexp %v", pt.String(), exp)
+	}
+
+	if exp := "1969-12-31 17:00:00 -0700 MST"; pt.Fields()["value"] != exp {
+		t.Errorf("NewPoint().String() mismatch.\ngot %v\nexp %v", pt.String(), exp)
+	}
+}
