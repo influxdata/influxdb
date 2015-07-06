@@ -168,6 +168,7 @@ func (s *Server) appendHTTPDService(c httpd.Config) {
 	srv := httpd.NewService(c)
 	srv.Handler.MetaStore = s.MetaStore
 	srv.Handler.QueryExecutor = s.QueryExecutor
+	srv.Handler.TSDBStore = s.TSDBStore
 	srv.Handler.PointsWriter = s.PointsWriter
 	srv.Handler.Version = s.version
 

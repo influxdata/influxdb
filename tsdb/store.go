@@ -293,6 +293,28 @@ func (s *Store) Flush() error {
 	return nil
 }
 
+func (s *Store) CreateMapper(shardID uint64, query string, chunkSize int) (Mapper, error) {
+	q, err := influxql.NewParser(strings.NewReader(query)).ParseStatement()
+	if err != nil {
+		return nil, err
+	}
+	stmt, ok := q.(*influxql.SelectStatement)
+	if !ok {
+		return nil, fmt.Errorf("query is not a SELECT statement: %s", err.Error())
+	}
+
+	shard := s.Shard(shardID)
+	if shard == nil {
+		// This can happen if the shard has been assigned, but hasn't actually been created yet.
+		return nil, nil
+	}
+
+	if stmt.IsRawQuery && !stmt.HasDistinct() {
+		return NewRawMapper(shard, stmt, chunkSize), nil
+	}
+	return NewAggMapper(shard, stmt), nil
+}
+
 func (s *Store) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
