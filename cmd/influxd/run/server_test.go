@@ -979,10 +979,9 @@ func TestServer_Query_Common(t *testing.T) {
 			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",1]]}]}]}`, now.Format(time.RFC3339Nano)),
 		},
 		&Query{
-			name:    "selecting a measurement that doesn't exist should error",
+			name:    "selecting a measurement that doesn't exist should not result in an error",
 			command: `SELECT value FROM db0.rp0.idontexist`,
-			exp:     `.*measurement not found*`,
-			pattern: true,
+			exp:     `{"results":[{}]}`,
 		},
 		&Query{
 			name:    "selecting a field that doesn't exist should error",
