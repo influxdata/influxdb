@@ -147,8 +147,8 @@ func (rm *RawMapper) NextChunk() (*rawMapperOutput, error) {
 	}
 	cursor := rm.cursors[rm.currTagSetIdx]
 	output := &rawMapperOutput{
-		measurement: cursor.measurement,
-		tags:        cursor.tags,
+		Name: cursor.measurement,
+		Tags: cursor.tags,
 	}
 
 	// Still got a tagset cursor to process.
@@ -159,8 +159,8 @@ func (rm *RawMapper) NextChunk() (*rawMapperOutput, error) {
 			rm.currTagSetIdx++
 			return output, nil
 		}
-		value := &rawMapperValue{time: k, value: v}
-		output.values = append(output.values, value)
+		value := &rawMapperValue{Time: k, Value: v}
+		output.Values = append(output.Values, value)
 	}
 }
 
@@ -196,24 +196,24 @@ func (rm *RawMapper) createCursorForSeries(key string) *shardCursor {
 }
 
 type rawMapperValue struct {
-	time  int64
-	value interface{}
+	Time  int64       `json:"time,omitempty"`
+	Value interface{} `json:"value,omitempty"`
 }
 
 type rawMapperValues []*rawMapperValue
 
 func (a rawMapperValues) Len() int           { return len(a) }
-func (a rawMapperValues) Less(i, j int) bool { return a[i].time < a[j].time }
+func (a rawMapperValues) Less(i, j int) bool { return a[i].Time < a[j].Time }
 func (a rawMapperValues) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
 type rawMapperOutput struct {
-	measurement string
-	tags        map[string]string
-	values      rawMapperValues
+	Name   string            `json:"Name,omitempty"`
+	Tags   map[string]string `json:"tags,omitempty"`
+	Values rawMapperValues   `json:"values,omitempty"`
 }
 
 func (rmo *rawMapperOutput) key() string {
-	return rmo.measurement + string(marshalTags(rmo.tags))
+	return rmo.Name + string(marshalTags(rmo.Tags))
 }
 
 // tagSetCursor is virtual cursor that iterates over mutiple series cursors, as though it were

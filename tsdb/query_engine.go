@@ -165,7 +165,7 @@ func (re *RawExecutor) execute(out chan *influxql.Row) {
 			if mapperOutput[chunk.key()] == nil {
 				output = chunk
 			} else {
-				output.values = append(output.values, chunk.values...)
+				output.Values = append(output.Values, chunk.Values...)
 			}
 		}
 	}
@@ -183,7 +183,7 @@ func (re *RawExecutor) execute(out chan *influxql.Row) {
 // processRawResults will handle converting the results from a raw query into a Row. It is responsible
 // for sorting the results by time.
 func (re *RawExecutor) processRawResults(output *rawMapperOutput) *influxql.Row {
-	sort.Sort(output.values)
+	sort.Sort(output.Values)
 	selectNames := re.selectNames
 
 	// ensure that time is in the select names and in the first position
@@ -208,14 +208,14 @@ func (re *RawExecutor) processRawResults(output *rawMapperOutput) *influxql.Row 
 	selectFields := make([]string, 0, len(selectNames))
 
 	for _, n := range selectNames {
-		if _, found := output.tags[n]; !found {
+		if _, found := output.Tags[n]; !found {
 			selectFields = append(selectFields, n)
 		}
 	}
 
 	row := &influxql.Row{
-		Name:    output.measurement,
-		Tags:    output.tags,
+		Name:    output.Name,
+		Tags:    output.Tags,
 		Columns: selectFields,
 	}
 
@@ -223,17 +223,17 @@ func (re *RawExecutor) processRawResults(output *rawMapperOutput) *influxql.Row 
 	singleValue := len(selectFields) == influxql.SelectColumnCountWithOneValue
 
 	// the results will have all of the raw mapper results, convert into the row
-	for _, v := range output.values {
+	for _, v := range output.Values {
 		vals := make([]interface{}, len(selectFields))
 
 		if singleValue {
-			vals[0] = time.Unix(0, v.time).UTC()
-			vals[1] = v.value.(interface{})
+			vals[0] = time.Unix(0, v.Time).UTC()
+			vals[1] = v.Value.(interface{})
 		} else {
-			fields := v.value.(map[string]interface{})
+			fields := v.Value.(map[string]interface{})
 
 			// time is always the first value
-			vals[0] = time.Unix(0, v.time).UTC()
+			vals[0] = time.Unix(0, v.Time).UTC()
 
 			// populate the other values
 			for i := 1; i < len(selectFields); i++ {
