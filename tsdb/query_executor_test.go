@@ -441,6 +441,14 @@ func (t *testMetastore) UserCount() (int, error) {
 	return t.userCount, nil
 }
 
+func (t *testMetastore) ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error) {
+	return nil, nil
+}
+
+func (t *testMetastore) NodeID() uint64 {
+	return 1
+}
+
 // MustParseQuery parses an InfluxQL query. Panic on error.
 func mustParseQuery(s string) *influxql.Query {
 	q, err := influxql.NewParser(strings.NewReader(s)).ParseQuery()
