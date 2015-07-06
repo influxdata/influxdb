@@ -831,7 +831,7 @@ func TestServer_Query_Tags(t *testing.T) {
 		&Query{
 			name:    "tag without field should return error",
 			command: `SELECT host FROM db0.rp0.cpu`,
-			exp:     `{"results":[{"error":"select statement must include at least one field or function call"}]}`,
+			exp:     `{"results":[{"error":"select statement must include at least one field"}]}`,
 		},
 		&Query{
 			name:    "field with tag should succeed",
