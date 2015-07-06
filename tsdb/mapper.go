@@ -256,8 +256,6 @@ func (tsc *tagSetCursor) key() string {
 // Next returns the next matching series-key, timestamp and byte slice for the tagset. Filtering
 // is enforced on the values. If there is no matching value, then a nil result is returned.
 func (tsc *tagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []string) (string, int64, interface{}) {
-	_ = "breakpoint"
-
 	for {
 		// Find the cursor with the lowest timestamp, as that is the one to be read next.
 		minCursor := tsc.nextCursor(tmin, tmax)
@@ -325,7 +323,6 @@ func (tsc *tagSetCursor) IsEmptyForInterval(tmin, tmax int64) bool {
 // nextCursor returns the series cursor with the lowest next timestamp, within in the specified
 // range. If none exists, nil is returned.
 func (tsc *tagSetCursor) nextCursor(tmin, tmax int64) *seriesCursor {
-	_ = "breakpoint"
 	var minCursor *seriesCursor
 	var timestamp int64
 	for _, c := range tsc.cursors {
