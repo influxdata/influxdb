@@ -124,7 +124,7 @@ func (rm *RawMapper) Open() error {
 					continue
 				}
 				cm := newSeriesCursor(c, t.Filters[i])
-				cm.Seek(rm.queryTMin)
+				cm.SeekTo(rm.queryTMin)
 				cursors = append(cursors, cm)
 			}
 			tsc := newTagSetCursor(m.Name, t.Tags, cursors, rm.shard.FieldCodec(m.Name))
@@ -373,9 +373,9 @@ func (mc *seriesCursor) Peek() (key int64, value []byte) {
 	return
 }
 
-// Seek positions the cursor at the key, such that Next() will return
+// SeekTo positions the cursor at the key, such that Next() will return
 // the key and value at key.
-func (mc *seriesCursor) Seek(key int64) {
+func (mc *seriesCursor) SeekTo(key int64) {
 	k, v := mc.cursor.Seek(u64tob(uint64(key)))
 	if k == nil {
 		mc.keyBuffer = 0
