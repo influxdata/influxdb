@@ -7,6 +7,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta"
@@ -26,6 +27,9 @@ type QueryExecutor struct {
 		Authenticate(username, password string) (*meta.UserInfo, error)
 		RetentionPolicy(database, name string) (rpi *meta.RetentionPolicyInfo, err error)
 		UserCount() (int, error)
+
+		ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error)
+		NodeID() uint64
 	}
 
 	// Executes statements relating to meta data.
@@ -45,11 +49,6 @@ func NewQueryExecutor(store *Store) *QueryExecutor {
 		store:  store,
 		Logger: log.New(os.Stderr, "[query] ", log.LstdFlags),
 	}
-}
-
-// Begin is for influxql/engine.go to use to get a transaction object to start the query
-func (q *QueryExecutor) Begin() (influxql.Tx, error) {
-	return newTx(q.MetaStore, q.store), nil
 }
 
 // Authorize user u to execute query q on database.
@@ -210,14 +209,15 @@ func (q *QueryExecutor) executeSelectStatement(statementID int, stmt *influxql.S
 	}
 
 	// Plan statement execution.
-	p := influxql.NewPlanner(q)
-	e, err := p.Plan(stmt, chunkSize)
+	p := NewPlanner(q.store)
+	p.MetaStore = q.MetaStore
+	e, err := p.Plan(stmt)
 	if err != nil {
 		return err
 	}
 
 	// Execute plan.
-	ch := e.Execute()
+	ch := e.Execute(chunkSize)
 
 	// Stream results from the channel. We should send an empty result if nothing comes through.
 	resultSent := false

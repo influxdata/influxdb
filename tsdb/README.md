@@ -80,3 +80,6 @@ cpu,host=server\ 01,region=uswest value=1.0,msg="all systems nominal"
 cpu,host=server\ 01,region=us\,west value_int=1
 ```
 In these examples, the "host" is set to `server 01`. The field value associated with field key `msg` is double-quoted, as it is a string. The second example shows a region of `us,west` with the comma properly escaped. In the first example `value` is written as a floating point number. In the second, `value_int` is an integer. 
+
+# Distributed Queries
+
