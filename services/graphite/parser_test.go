@@ -1,6 +1,7 @@
 package graphite_test
 
 import (
+	"math"
 	"strconv"
 	"testing"
 	"time"
@@ -214,6 +215,31 @@ func TestParse(t *testing.T) {
 		if point.Time().UnixNano()/1000000 != test.time.UnixNano()/1000000 {
 			t.Fatalf("time value mismatch.  expected %v, got %v", test.time.UnixNano(), point.Time().UnixNano())
 		}
+	}
+}
+
+func TestParseNaN(t *testing.T) {
+	p, err := graphite.NewParser([]string{"measurement*"}, nil)
+	if err != nil {
+		t.Fatalf("unexpected error creating parser, got %v", err)
+	}
+
+	pt, err := p.Parse("servers.localhost.cpu_load NaN 1435077219")
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+
+	exp := tsdb.NewPoint("servers.localhost.cpu_load",
+		tsdb.Tags{},
+		tsdb.Fields{"value": math.NaN()},
+		time.Unix(1435077219, 0))
+
+	if exp.String() != pt.String() {
+		t.Errorf("parse mismatch: got %v, exp %v", pt.String(), exp.String())
+	}
+
+	if !math.IsNaN(pt.Fields()["value"].(float64)) {
+		t.Errorf("parse value mismatch: expected NaN")
 	}
 }
 

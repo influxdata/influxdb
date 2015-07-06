@@ -116,7 +116,15 @@ func test(t *testing.T, line string, point Point) {
 	}
 
 	for name, value := range point.Fields() {
-		if !reflect.DeepEqual(pts[0].Fields()[name], value) {
+		val := pts[0].Fields()[name]
+		expfval, ok := val.(float64)
+
+		if ok && math.IsNaN(expfval) {
+			gotfval, ok := value.(float64)
+			if ok && !math.IsNaN(gotfval) {
+				t.Errorf(`ParsePoints("%s") field '%s' mismatch. exp NaN`, line, name)
+			}
+		} else if !reflect.DeepEqual(pts[0].Fields()[name], value) {
 			t.Errorf(`ParsePoints("%s") field '%s' mismatch. got %v, exp %v`, line, name, pts[0].Fields()[name], value)
 		}
 	}
@@ -774,6 +782,29 @@ func TestNewPointLargeInteger(t *testing.T) {
 			},
 			time.Unix(1, 0)),
 	)
+}
+
+func TestNewPointNaN(t *testing.T) {
+	test(t, `cpu value=NaN 1000000000`,
+		NewPoint(
+			"cpu",
+			Tags{},
+			Fields{
+				"value": math.NaN(),
+			},
+			time.Unix(1, 0)),
+	)
+
+	test(t, `cpu value=nAn 1000000000`,
+		NewPoint(
+			"cpu",
+			Tags{},
+			Fields{
+				"value": math.NaN(),
+			},
+			time.Unix(1, 0)),
+	)
+
 }
 
 func TestParsePointIntsFloats(t *testing.T) {
