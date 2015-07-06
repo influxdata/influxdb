@@ -21,7 +21,7 @@ const MaxMessageSize = 1024 * 1024 * 1024 // 1GB
 const MuxWriteHeader = 2
 
 // MuxMapperHeader is the header byte used in the TCP mux for shard mapping.
-const MuxMapperHeader = 3
+const MuxMapperHeader = 4
 
 const (
 	writeShardRequestMessage byte = iota + 1
