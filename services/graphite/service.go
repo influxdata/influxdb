@@ -232,14 +232,12 @@ func (s *Service) handleLine(line string) {
 	}
 
 	f, ok := point.Fields()["value"].(float64)
-	if !ok {
-		return
-	}
-
-	// Drop NaN and +/-Inf data points since they are not supported values
-	if math.IsNaN(f) || math.IsInf(f, 0) {
-		s.logger.Printf("dropping unsupported value: '%v'", line)
-		return
+	if ok {
+		// Drop NaN and +/-Inf data points since they are not supported values
+		if math.IsNaN(f) || math.IsInf(f, 0) {
+			s.logger.Printf("dropping unsupported value: '%v'", line)
+			return
+		}
 	}
 
 	s.batcher.In() <- point
