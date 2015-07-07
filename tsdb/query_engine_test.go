@@ -145,8 +145,8 @@ func TestWritePointsAndExecuteTwoShardsAlign(t *testing.T) {
 			return []meta.ShardGroupInfo{
 				{
 					ID:        sgID,
-					StartTime: time.Now().Add(-time.Hour),
-					EndTime:   time.Now().Add(time.Hour),
+					StartTime: time.Now().Add(-2 * time.Hour),
+					EndTime:   time.Now().Add(-time.Hour),
 					Shards: []meta.ShardInfo{
 						{
 							ID:       uint64(sID0),
@@ -156,8 +156,8 @@ func TestWritePointsAndExecuteTwoShardsAlign(t *testing.T) {
 				},
 				{
 					ID:        sgID,
-					StartTime: time.Now().Add(-2 * time.Hour),
-					EndTime:   time.Now().Add(-time.Hour),
+					StartTime: time.Now().Add(-time.Hour),
+					EndTime:   time.Now().Add(time.Hour),
 					Shards: []meta.ShardInfo{
 						{
 							ID:       uint64(sID1),
