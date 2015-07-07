@@ -1087,13 +1087,13 @@ func TestNewPointUnhandledType(t *testing.T) {
 	}
 
 	// unsupported type gets stored as string
-	now := time.Unix(0, 0)
+	now := time.Unix(0, 0).UTC()
 	pt = NewPoint("cpu", nil, Fields{"value": now}, time.Unix(0, 0))
-	if exp := `cpu value="1969-12-31 17:00:00 -0700 MST" 0`; pt.String() != exp {
+	if exp := `cpu value="1970-01-01 00:00:00 +0000 UTC" 0`; pt.String() != exp {
 		t.Errorf("NewPoint().String() mismatch.\ngot %v\nexp %v", pt.String(), exp)
 	}
 
-	if exp := "1969-12-31 17:00:00 -0700 MST"; pt.Fields()["value"] != exp {
+	if exp := "1970-01-01 00:00:00 +0000 UTC"; pt.Fields()["value"] != exp {
 		t.Errorf("NewPoint().String() mismatch.\ngot %v\nexp %v", pt.String(), exp)
 	}
 }
