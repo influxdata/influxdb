@@ -13,7 +13,7 @@
 - [#3230](https://github.com/influxdb/influxdb/issues/3230): panic: unable to parse bool value
 - [#3245](https://github.com/influxdb/influxdb/issues/3245): Error using graphite plugin with multiple filters
 - [#3223](https://github.com/influxdb/influxdb/issues/323): default graphite template cannot have extra tags
-
+- [#3255](https://github.com/influxdb/influxdb/pull/3255): Flush WAL on start-up as soon as possible.
 
 ## v0.9.1 [2015-07-02]
 
