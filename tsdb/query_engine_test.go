@@ -15,6 +15,7 @@ var sID1 = uint64(1)
 var sgID = uint64(2)
 var nID = uint64(42)
 
+// Simple test to ensure data can be read from two shards.
 func TestWritePointsAndExecuteTwoShards(t *testing.T) {
 	// Create the mock planner and its metastore
 	store, planner := testStoreAndPlanner()
@@ -115,6 +116,95 @@ func TestWritePointsAndExecuteTwoShards(t *testing.T) {
 		{
 			stmt:     `SELECT value FROM cpu WHERE host='serverA' GROUP BY host`,
 			expected: `[{"name":"cpu","tags":{"host":"serverA"},"columns":["time","value"],"values":[["1970-01-01T00:00:01Z",100]]}]`,
+		},
+	}
+
+	for _, tt := range tests {
+		if tt.skip {
+			t.Logf("Skipping test %s", tt.stmt)
+			continue
+		}
+		executor, err := planner.Plan(mustParseSelectStatement(tt.stmt))
+		if err != nil {
+			t.Fatalf("failed to plan query: %s", err.Error())
+		}
+		got := executeAndGetResults(executor, tt.chunkSize)
+		if got != tt.expected {
+			t.Fatalf("Test %s\nexp: %s\ngot: %s\n", tt.stmt, tt.expected, got)
+		}
+	}
+}
+
+// Test that executor correctly orders data across shards.
+func TestWritePointsAndExecuteTwoShardsAlign(t *testing.T) {
+	// Create the mock planner and its metastore
+	store, planner := testStoreAndPlanner()
+	defer os.RemoveAll(store.path)
+	planner.MetaStore = &testQEMetastore{
+		sgFunc: func(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error) {
+			return []meta.ShardGroupInfo{
+				{
+					ID:        sgID,
+					StartTime: time.Now().Add(-time.Hour),
+					EndTime:   time.Now().Add(time.Hour),
+					Shards: []meta.ShardInfo{
+						{
+							ID:       uint64(sID0),
+							OwnerIDs: []uint64{nID},
+						},
+					},
+				},
+				{
+					ID:        sgID,
+					StartTime: time.Now().Add(-2 * time.Hour),
+					EndTime:   time.Now().Add(-time.Hour),
+					Shards: []meta.ShardInfo{
+						{
+							ID:       uint64(sID1),
+							OwnerIDs: []uint64{nID},
+						},
+					},
+				},
+			}, nil
+		},
+	}
+
+	// Write interleaving, by time, chunks to the shards.
+	if err := store.WriteToShard(sID0, []Point{NewPoint(
+		"cpu",
+		map[string]string{"host": "serverA", "region": "us-east"},
+		map[string]interface{}{"value": 100},
+		time.Unix(1, 0).UTC(),
+	)}); err != nil {
+		t.Fatalf(err.Error())
+	}
+	if err := store.WriteToShard(sID1, []Point{NewPoint(
+		"cpu",
+		map[string]string{"host": "serverB", "region": "us-east"},
+		map[string]interface{}{"value": 200},
+		time.Unix(2, 0).UTC(),
+	)}); err != nil {
+		t.Fatalf(err.Error())
+	}
+	if err := store.WriteToShard(sID1, []Point{NewPoint(
+		"cpu",
+		map[string]string{"host": "serverA", "region": "us-east"},
+		map[string]interface{}{"value": 300},
+		time.Unix(3, 0).UTC(),
+	)}); err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	var tests = []struct {
+		skip      bool   // Skip test
+		stmt      string // Query statement
+		chunkSize int    // Chunk size for driving the executor
+		expected  string // Expected results, rendered as a string
+	}{
+		{
+			stmt:      `SELECT value FROM cpu`,
+			chunkSize: 1,
+			expected:  `[{"name":"cpu","columns":["time","value"],"values":[["1970-01-01T00:00:01Z",100]]},{"name":"cpu","columns":["time","value"],"values":[["1970-01-01T00:00:02Z",200]]},{"name":"cpu","columns":["time","value"],"values":[["1970-01-01T00:00:03Z",300]]}]`,
 		},
 	}
 
