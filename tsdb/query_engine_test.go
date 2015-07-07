@@ -11,7 +11,7 @@ import (
 )
 
 var sID0 = uint64(1)
-var sID1 = uint64(1)
+var sID1 = uint64(2)
 var sgID = uint64(2)
 var nID = uint64(42)
 
@@ -149,18 +149,18 @@ func TestWritePointsAndExecuteTwoShardsAlign(t *testing.T) {
 					EndTime:   time.Now().Add(-time.Hour),
 					Shards: []meta.ShardInfo{
 						{
-							ID:       uint64(sID0),
+							ID:       uint64(sID1),
 							OwnerIDs: []uint64{nID},
 						},
 					},
 				},
 				{
 					ID:        sgID,
-					StartTime: time.Now().Add(-time.Hour),
+					StartTime: time.Now().Add(-2 * time.Hour),
 					EndTime:   time.Now().Add(time.Hour),
 					Shards: []meta.ShardInfo{
 						{
-							ID:       uint64(sID1),
+							ID:       uint64(sID0),
 							OwnerIDs: []uint64{nID},
 						},
 					},
@@ -172,7 +172,7 @@ func TestWritePointsAndExecuteTwoShardsAlign(t *testing.T) {
 	// Write interleaving, by time, chunks to the shards.
 	if err := store.WriteToShard(sID0, []Point{NewPoint(
 		"cpu",
-		map[string]string{"host": "serverA", "region": "us-east"},
+		map[string]string{"host": "serverA"},
 		map[string]interface{}{"value": 100},
 		time.Unix(1, 0).UTC(),
 	)}); err != nil {
@@ -180,7 +180,7 @@ func TestWritePointsAndExecuteTwoShardsAlign(t *testing.T) {
 	}
 	if err := store.WriteToShard(sID1, []Point{NewPoint(
 		"cpu",
-		map[string]string{"host": "serverB", "region": "us-east"},
+		map[string]string{"host": "serverB"},
 		map[string]interface{}{"value": 200},
 		time.Unix(2, 0).UTC(),
 	)}); err != nil {
@@ -188,7 +188,7 @@ func TestWritePointsAndExecuteTwoShardsAlign(t *testing.T) {
 	}
 	if err := store.WriteToShard(sID1, []Point{NewPoint(
 		"cpu",
-		map[string]string{"host": "serverA", "region": "us-east"},
+		map[string]string{"host": "serverA"},
 		map[string]interface{}{"value": 300},
 		time.Unix(3, 0).UTC(),
 	)}); err != nil {
