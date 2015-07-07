@@ -16,8 +16,37 @@ var sgID = uint64(2)
 var nID = uint64(42)
 
 func TestWritePointsAndExecuteTwoShards(t *testing.T) {
+	// Create the mock planner and its metastore
 	store, planner := testStoreAndPlanner()
 	defer os.RemoveAll(store.path)
+	planner.MetaStore = &testQEMetastore{
+		sgFunc: func(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error) {
+			return []meta.ShardGroupInfo{
+				{
+					ID:        sgID,
+					StartTime: time.Now().Add(-time.Hour),
+					EndTime:   time.Now().Add(time.Hour),
+					Shards: []meta.ShardInfo{
+						{
+							ID:       uint64(sID0),
+							OwnerIDs: []uint64{nID},
+						},
+					},
+				},
+				{
+					ID:        sgID,
+					StartTime: time.Now().Add(-2 * time.Hour),
+					EndTime:   time.Now().Add(-time.Hour),
+					Shards: []meta.ShardInfo{
+						{
+							ID:       uint64(sID1),
+							OwnerIDs: []uint64{nID},
+						},
+					},
+				},
+			}, nil
+		},
+	}
 
 	// Write two points across shards.
 	pt1time := time.Unix(1, 0).UTC()
@@ -106,33 +135,11 @@ func TestWritePointsAndExecuteTwoShards(t *testing.T) {
 }
 
 type testQEMetastore struct {
+	sgFunc func(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error)
 }
 
 func (t *testQEMetastore) ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error) {
-	return []meta.ShardGroupInfo{
-		{
-			ID:        sgID,
-			StartTime: time.Now().Add(-time.Hour),
-			EndTime:   time.Now().Add(time.Hour),
-			Shards: []meta.ShardInfo{
-				{
-					ID:       uint64(sID0),
-					OwnerIDs: []uint64{nID},
-				},
-			},
-		},
-		{
-			ID:        sgID,
-			StartTime: time.Now().Add(-2 * time.Hour),
-			EndTime:   time.Now().Add(-time.Hour),
-			Shards: []meta.ShardInfo{
-				{
-					ID:       uint64(sID1),
-					OwnerIDs: []uint64{nID},
-				},
-			},
-		},
-	}, nil
+	return t.sgFunc(database, policy, min, max)
 }
 
 func (t *testQEMetastore) NodeID() uint64 { return nID }
@@ -151,7 +158,6 @@ func testStoreAndPlanner() (*Store, *Planner) {
 	store.CreateShard(database, retentionPolicy, sID1)
 
 	planner := NewPlanner(store)
-	planner.MetaStore = &testQEMetastore{}
 
 	return store, planner
 }
