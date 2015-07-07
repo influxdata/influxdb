@@ -166,26 +166,42 @@ func (re *RawExecutor) execute(out chan *influxql.Row, chunkSize int) {
 	// For each mapper, drain it by tagset.
 	for _, t := range availTagSets.list() {
 		var output *rawMapperOutput
-		for _, m := range re.mappers {
-			chunk, err := m.NextChunk(t, chunkSize)
-			if err != nil {
-				out <- &influxql.Row{Err: err}
-				return
-			}
-			if output == nil {
-				output = chunk
-			} else {
-				output.Values = append(output.Values, chunk.Values...)
-			}
+		chunksSent := false // Any values sent due to chunking?
 
-			if len(chunk.Values) == 0 {
-				// Go to next tagset for this mapper.
-				continue
+	mapperLoop:
+		for _, m := range re.mappers {
+			for {
+				chunk, err := m.NextChunk(t, chunkSize)
+				if err != nil {
+					out <- &influxql.Row{Err: err}
+					return
+				}
+				if output == nil {
+					output = chunk
+				} else {
+					output.Values = append(output.Values, chunk.Values...)
+				}
+
+				// Hit the chunking limit? If so, emit what we have, and keep going.
+				if len(output.Values) == chunkSize {
+					out <- re.processRawResults(output)
+					output = nil
+					chunksSent = true
+				}
+
+				if len(chunk.Values) == 0 {
+					// Go to next tagset for this mapper.
+					continue mapperLoop
+				}
 			}
 		}
 
-		// All data for this tagset, across all mappers, gathered.
-		out <- re.processRawResults(output)
+		// All data for this tagset, across all mappers, gathered. Emit any remaining values.
+		// But if no values were sent during chunking, then send out an empty set for the
+		// tagset to explicitly indicate there is no data for the tagset.
+		if len(output.Values) != 0 || (len(output.Values) == 0 && !chunksSent) {
+			out <- re.processRawResults(output)
+		}
 	}
 
 	// XXX Limit and chunk checking.

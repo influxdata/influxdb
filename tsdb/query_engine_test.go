@@ -40,13 +40,19 @@ func TestWritePointsAndExecuteTwoShards(t *testing.T) {
 	}
 
 	var tests = []struct {
-		skip     bool
-		stmt     string
-		expected string
+		skip      bool   // Skip test
+		stmt      string // Query statement
+		chunkSize int    // Chunk size for driving the executor
+		expected  string // Expected results, rendered as a string
 	}{
 		{
 			stmt:     `SELECT value FROM cpu`,
 			expected: `[{"name":"cpu","columns":["time","value"],"values":[["1970-01-01T00:00:01Z",100],["1970-01-01T00:00:02Z",200]]}]`,
+		},
+		{
+			stmt:      `SELECT value FROM cpu`,
+			chunkSize: 1,
+			expected:  `[{"name":"cpu","columns":["time","value"],"values":[["1970-01-01T00:00:01Z",100]]},{"name":"cpu","columns":["time","value"],"values":[["1970-01-01T00:00:02Z",200]]}]`,
 		},
 		{
 			skip:     true,
@@ -92,7 +98,7 @@ func TestWritePointsAndExecuteTwoShards(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to plan query: %s", err.Error())
 		}
-		got := executeAndGetResults(executor)
+		got := executeAndGetResults(executor, tt.chunkSize)
 		if got != tt.expected {
 			t.Fatalf("Test %s\nexp: %s\ngot: %s\n", tt.stmt, tt.expected, got)
 		}
@@ -150,8 +156,8 @@ func testStoreAndPlanner() (*Store, *Planner) {
 	return store, planner
 }
 
-func executeAndGetResults(executor Executor) string {
-	ch := executor.Execute(1000)
+func executeAndGetResults(executor Executor, chunkSize int) string {
+	ch := executor.Execute(chunkSize)
 
 	var rows []*influxql.Row
 	for r := range ch {
