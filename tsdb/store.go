@@ -286,7 +286,7 @@ func (s *Store) Flush() error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for shardID, sh := range s.shards {
-		if err := sh.Flush(); err != nil {
+		if err := sh.Flush(s.WALPartitionFlushDelay); err != nil {
 			return fmt.Errorf("flush: shard=%d, err=%s", shardID, err)
 		}
 	}
