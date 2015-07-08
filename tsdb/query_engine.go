@@ -168,7 +168,7 @@ func (re *RawExecutor) execute(out chan *influxql.Row, chunkSize int) {
 	for _, t := range availTagSets.list() {
 		// Used to read ahead chunks.
 		mapperOutputs := make([]*rawMapperOutput, len(re.mappers))
-		output := &rawMapperOutput{}
+		var output *rawMapperOutput
 
 		for {
 			// Get the next chunk from each mapper.
@@ -249,12 +249,24 @@ func (re *RawExecutor) execute(out chan *influxql.Row, chunkSize int) {
 			// Sort the values by time first so we can then handle offset and limit
 			sort.Sort(rawMapperValues(chunkedOutput.Values))
 
-			// XXX If we hit a chunk size, kick out and update.
-
-			// Add values left to tagset-level output.
+			// Add to the total output for this tagset.
+			if output == nil {
+				output = &rawMapperOutput{
+					Name: chunkedOutput.Name,
+					Tags: chunkedOutput.Tags,
+				}
+			}
 			output.Values = append(output.Values, chunkedOutput.Values...)
-			output.Name = chunkedOutput.Name
-			output.Tags = chunkedOutput.Tags
+
+			if chunkSize > 0 && len(output.Values) > chunkSize {
+				// Don't memcpy so much ...... XXX
+				out <- re.processRawResults(&rawMapperOutput{
+					Name:   chunkedOutput.Name,
+					Tags:   chunkedOutput.Tags,
+					Values: output.Values[:chunkSize],
+				})
+				output.Values = output.Values[chunkSize:]
+			}
 		}
 
 		sort.Sort(rawMapperValues(output.Values)) // XXX necessary?
