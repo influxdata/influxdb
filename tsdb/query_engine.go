@@ -212,6 +212,12 @@ func (re *RawExecutor) execute(out chan *influxql.Row, chunkSize int) {
 				if o == nil {
 					continue
 				}
+
+				// Very first value in this mapper is at a higher timestamp. Skip it.
+				if o.Values[0].Time > minTime {
+					continue
+				}
+
 				// Find the index of the point up to the min.
 				ind := len(o.Values)
 				for i, mo := range o.Values {
