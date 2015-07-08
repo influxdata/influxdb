@@ -155,7 +155,7 @@ func (s *Shard) Open() error {
 	}
 
 	// Flush on-disk WAL before we return to the caller.
-	if err := s.Flush(); err != nil {
+	if err := s.Flush(0); err != nil {
 		return fmt.Errorf("flush: %s", err)
 	}
 
@@ -355,7 +355,7 @@ func (s *Shard) WritePoints(points []Point) error {
 }
 
 // Flush writes all points from the write ahead log to the index.
-func (s *Shard) Flush() error {
+func (s *Shard) Flush(partitionFlushDelay time.Duration) error {
 	// Retrieve a list of WAL buckets.
 	var partitionIDs []uint8
 	if err := s.db.View(func(tx *bolt.Tx) error {
@@ -374,7 +374,7 @@ func (s *Shard) Flush() error {
 		}
 
 		// Wait momentarily so other threads can process.
-		time.Sleep(s.WALPartitionFlushDelay)
+		time.Sleep(partitionFlushDelay)
 	}
 
 	s.mu.Lock()
@@ -454,11 +454,11 @@ func (s *Shard) autoflusher(closing chan struct{}) {
 		case <-closing:
 			return
 		case <-s.flushTimer.C:
-			if err := s.Flush(); err != nil {
+			if err := s.Flush(s.WALPartitionFlushDelay); err != nil {
 				s.logger.Printf("flush error: %s", err)
 			}
 		case <-s.flush:
-			if err := s.Flush(); err != nil {
+			if err := s.Flush(s.WALPartitionFlushDelay); err != nil {
 				s.logger.Printf("flush error: %s", err)
 			}
 		}
