@@ -168,78 +168,97 @@ func (re *RawExecutor) execute(out chan *influxql.Row, chunkSize int) {
 	for _, t := range availTagSets.list() {
 		// Used to read ahead chunks.
 		mapperOutputs := make([]*rawMapperOutput, len(re.mappers))
+		output := &rawMapperOutput{}
 
-		// Get the next chunk from each mapper.
-		for j, m := range re.mappers {
-			if mapperOutputs[j] != nil {
-				// There is data for this mapper, for this tagset, from a previous loop.
-				continue
+		for {
+			// Get the next chunk from each mapper.
+			for j, m := range re.mappers {
+				if mapperOutputs[j] != nil {
+					// There is data for this mapper, for this tagset, from a previous loop.
+					continue
+				}
+
+				chunk, err := m.NextChunk(t, chunkSize)
+				if err != nil {
+					out <- &influxql.Row{Err: err}
+					return
+				}
+				if len(chunk.Values) == 0 {
+					// This mapper is empty for this tagset.
+					continue
+				}
+				mapperOutputs[j] = chunk
 			}
 
-			chunk, err := m.NextChunk(t, chunkSize)
-			if err != nil {
-				out <- &influxql.Row{Err: err}
-				return
-			}
-			if len(chunk.Values) == 0 {
-				// This mapper is empty for this tagset.
-				continue
-			}
-			mapperOutputs[j] = chunk
-		}
+			// Process the mapper outputs. We can send out everything up to the min of the last time
+			// of the chunks.
+			minTime := int64(math.MaxInt64)
+			for _, o := range mapperOutputs {
+				// Some of the mappers could empty out before others so ignore them because they'll be nil
+				if o == nil {
+					continue
+				}
 
-		// Process the mapper outputs. We can send out everything up to the min of the last time
-		// of the chunks.
-		minTime := int64(math.MaxInt64)
-		for _, o := range mapperOutputs {
-			// Some of the mappers could empty out before others so ignore them because they'll be nil
-			if o == nil {
-				continue
-			}
-
-			// Find the min of the last point across all the chunks.
-			t := o.Values[len(o.Values)-1].Time
-			if t < minTime {
-				minTime = t
-			}
-		}
-
-		// Now empty out all the chunks up to the min time. Create new output struct for this data.
-		output := &rawMapperOutput{
-			Name: mapperOutputs[0].Name, // Just use the details of the first chunk, it's the same for all.
-			Tags: mapperOutputs[0].Tags,
-		}
-		for j, o := range mapperOutputs {
-			// Find the index of the point up to the min
-			ind := len(o.Values)
-			for i, mo := range o.Values {
-				if mo.Time > minTime {
-					ind = i
-					break
+				// Find the min of the last point across all the chunks.
+				t := o.Values[len(o.Values)-1].Time
+				if t < minTime {
+					minTime = t
 				}
 			}
 
-			// Add up to the index to the values
-			output.Values = append(output.Values, o.Values[:ind]...)
+			// Now empty out all the chunks up to the min time. Create new output struct for this data.
+			_ = "breakpoint"
+			var chunkedOutput *rawMapperOutput
+			for j, o := range mapperOutputs {
+				if o == nil {
+					continue
+				}
+				// Find the index of the point up to the min.
+				ind := len(o.Values)
+				for i, mo := range o.Values {
+					if mo.Time > minTime {
+						ind = i
+						break
+					}
+				}
 
-			// Clear out the values being sent out, keep the remainder.
-			mapperOutputs[j].Values = mapperOutputs[j].Values[ind:]
+				// Add up to the index to the values
+				if chunkedOutput == nil {
+					chunkedOutput = &rawMapperOutput{
+						Name: o.Name,
+						Tags: o.Tags,
+					}
+					chunkedOutput.Values = o.Values[:ind]
+				} else {
+					chunkedOutput.Values = append(chunkedOutput.Values, o.Values[:ind]...)
+				}
 
-			// If we emptied out all the values, set this output to nil so that the mapper will get run again on the next loop
-			if len(mapperOutputs[j].Values) == 0 {
-				mapperOutputs[j] = nil
+				// Clear out the values being sent out, keep the remainder.
+				mapperOutputs[j].Values = mapperOutputs[j].Values[ind:]
+
+				// If we emptied out all the values, set this output to nil so that the mapper will get run again on the next loop
+				if len(mapperOutputs[j].Values) == 0 {
+					mapperOutputs[j] = nil
+				}
 			}
+
+			// If we didn't pull out any values, this tagset is done.
+			if chunkedOutput == nil {
+				break
+			}
+
+			// Sort the values by time first so we can then handle offset and limit
+			sort.Sort(rawMapperValues(chunkedOutput.Values))
+
+			// XXX If we hit a chunk size, kick out and update.
+
+			// Add values left to tagset-level output.
+			output.Values = append(output.Values, chunkedOutput.Values...)
+			output.Name = chunkedOutput.Name
+			output.Tags = chunkedOutput.Tags
 		}
 
-		// If we didn't pull out any values, this tagset is done.
-		if output.Values == nil {
-			continue
-		}
-
-		// Sort the values by time first so we can then handle offset and limit
-		sort.Sort(rawMapperValues(output.Values))
-
-		// Kick out the values (no chunking done!)
+		sort.Sort(rawMapperValues(output.Values)) // XXX necessary?
 		out <- re.processRawResults(output)
 	}
 
