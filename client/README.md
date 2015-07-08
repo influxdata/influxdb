@@ -1,5 +1,7 @@
 # InfluxDB Client
 
+[![GoDoc](https://godoc.org/github.com/influxdb/influxdb?status.svg)](http://godoc.org/github.com/influxdb/influxdb/client)
+
 ## Description
 
 A Go client library written and maintained by the **InfluxDB** team.
