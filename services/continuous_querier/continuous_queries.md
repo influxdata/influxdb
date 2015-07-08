@@ -33,7 +33,7 @@ By selecting specific fields, `INTO` can merge many series into one that will go
 
 ```sql
 SELECT mean(value) as value, region
-INTO 1h.cpu_load
+INTO "1h.cpu_load"
 FROM cpu_load
 GROUP BY time(1h), region
 ```
@@ -47,11 +47,11 @@ With `SELECT ... INTO`, fields will be written as fields and tags will be writte
 The `INTO` queries run once. Continuous queries will turn `INTO` queries into something that run in the background in the cluster. They're kind of like triggers in SQL.
 
 ```sql
-CREATE CONTINUOUS QUERY 1h_cpu_load
+CREATE CONTINUOUS QUERY "1h_cpu_load"
 ON database_name
 BEGIN
   SELECT mean(value) as value, region
-  INTO 1h.cpu_load
+  INTO "1h.cpu_load"
   FROM cpu_load
   GROUP BY time(1h), region
 END
@@ -60,21 +60,21 @@ END
 Or chain them together:
 
 ```sql
-CREATE CONTINUOUS QUERY 10m_event_count
+CREATE CONTINUOUS QUERY "10m_event_count"
 ON database_name
 BEGIN
   SELECT count(value)
-  INTO 10m.events
+  INTO "10m.events"
   FROM events
   GROUP BY time(10m)
 END
 
 -- this selects from the output of one continuous query and outputs to another series
-CREATE CONTINUOUS QUERY 1h_event_count
+CREATE CONTINUOUS QUERY "1h_event_count"
 ON database_name
 BEGIN
   SELECT sum(count) as count
-  INTO 1h.events
+  INTO "1h.events"
   FROM events
   GROUP BY time(1h)
 END
@@ -83,11 +83,11 @@ END
 Or multiple aggregations from all series in a measurement. This example assumes you have a retention policy named `1h`.
 
 ```sql
-CREATE CONTINUOUS QUERY 1h_cpu_load
+CREATE CONTINUOUS QUERY "1h_cpu_load"
 ON database_name
 BEGIN
   SELECT mean(value), percentile(80, value) as percentile_80, percentile(95, value) as percentile_95
-  INTO 1h.cpu_load
+  INTO "1h.cpu_load"
   FROM cpu_load
   GROUP BY time(1h), *
 END
@@ -176,7 +176,7 @@ When a write comes into a data node, we could have it evaluated against group by
 Let's lay out a concrete example.
 
 ```sql
-CREATE CONTINUOUS QUERY 10m_cpu_by_region
+CREATE CONTINUOUS QUERY "10m_cpu_by_region"
 ON foo
 BEGIN
   SELECT mean(value)
@@ -191,11 +191,11 @@ In this example we write values into `cpu` with the tags `region` and `host`.
 Here's another example CQ:
 
 ```sql
-CREATE CONTINUOUS QUERY 1h_cpu
+CREATE CONTINUOUS QUERY "1h_cpu"
 ON foo
 BEGIN
   SELECT mean(value)
-  INTO 1h.cpu
+  INTO "1h.cpu"
   FROM raw.cpu
   GROUP BY time(10m), *
 END
