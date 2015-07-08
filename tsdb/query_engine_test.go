@@ -208,6 +208,11 @@ func TestWritePointsAndExecuteTwoShardsAlign(t *testing.T) {
 			chunkSize: 1,
 			expected:  `[{"name":"cpu","columns":["time","value"],"values":[["1970-01-01T00:00:01Z",100]]},{"name":"cpu","columns":["time","value"],"values":[["1970-01-01T00:00:02Z",200]]},{"name":"cpu","columns":["time","value"],"values":[["1970-01-01T00:00:03Z",300]]}]`,
 		},
+		{
+			stmt:      `SELECT value FROM cpu`,
+			chunkSize: 2,
+			expected:  `[{"name":"cpu","columns":["time","value"],"values":[["1970-01-01T00:00:01Z",100],["1970-01-01T00:00:02Z",200]]},{"name":"cpu","columns":["time","value"],"values":[["1970-01-01T00:00:03Z",300]]}]`,
+		},
 	}
 
 	for _, tt := range tests {
