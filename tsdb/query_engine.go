@@ -3,6 +3,7 @@ package tsdb
 import (
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"sort"
 	"time"
@@ -165,51 +166,89 @@ func (re *RawExecutor) execute(out chan *influxql.Row, chunkSize int) {
 
 	// For each mapper, drain it by tagset.
 	for _, t := range availTagSets.list() {
-		var output *rawMapperOutput
-		chunksSent := false // Any values sent due to chunking?
+		// Used to read ahead chunks.
+		mapperOutputs := make([]*rawMapperOutput, len(re.mappers))
 
-	mapperLoop:
-		for _, m := range re.mappers {
-			for {
-				chunk, err := m.NextChunk(t, chunkSize)
-				if err != nil {
-					out <- &influxql.Row{Err: err}
-					return
-				}
-				if output == nil {
-					output = chunk
-				} else {
-					output.Values = append(output.Values, chunk.Values...)
-				}
+		// Get the next chunk from each mapper.
+		for j, m := range re.mappers {
+			if mapperOutputs[j] != nil {
+				// There is data for this mapper, for this tagset, from a previous loop.
+				continue
+			}
 
-				// Hit the chunking limit? If so, emit what we have, and keep going.
-				if len(output.Values) == chunkSize {
-					out <- re.processRawResults(output)
-					output = nil
-					chunksSent = true
-				}
+			chunk, err := m.NextChunk(t, chunkSize)
+			if err != nil {
+				out <- &influxql.Row{Err: err}
+				return
+			}
+			if len(chunk.Values) == 0 {
+				// This mapper is empty for this tagset.
+				continue
+			}
+			mapperOutputs[j] = chunk
+		}
 
-				if len(chunk.Values) == 0 {
-					// Go to next tagset for this mapper.
-					continue mapperLoop
-				}
+		// Process the mapper outputs. We can send out everything up to the min of the last time
+		// of the chunks.
+		minTime := int64(math.MaxInt64)
+		for _, o := range mapperOutputs {
+			// Some of the mappers could empty out before others so ignore them because they'll be nil
+			if o == nil {
+				continue
+			}
+
+			// Find the min of the last point across all the chunks.
+			t := o.Values[len(o.Values)-1].Time
+			if t < minTime {
+				minTime = t
 			}
 		}
 
-		// All data for this tagset, across all mappers, gathered. Emit any remaining values.
-		// But if no values were sent during chunking, then send out an empty set for the
-		// tagset to explicitly indicate there is no data for the tagset.
-		if len(output.Values) != 0 || (len(output.Values) == 0 && !chunksSent) {
-			out <- re.processRawResults(output)
+		// Now empty out all the chunks up to the min time. Create new output struct for this data.
+		output := &rawMapperOutput{
+			Name: mapperOutputs[0].Name, // Just use the details of the first chunk, it's the same for all.
+			Tags: mapperOutputs[0].Tags,
 		}
+		for j, o := range mapperOutputs {
+			// Find the index of the point up to the min
+			ind := len(o.Values)
+			for i, mo := range o.Values {
+				if mo.Time > minTime {
+					ind = i
+					break
+				}
+			}
+
+			// Add up to the index to the values
+			output.Values = append(output.Values, o.Values[:ind]...)
+
+			// Clear out the values being sent out, keep the remainder.
+			mapperOutputs[j].Values = mapperOutputs[j].Values[ind:]
+
+			// If we emptied out all the values, set this output to nil so that the mapper will get run again on the next loop
+			if len(mapperOutputs[j].Values) == 0 {
+				mapperOutputs[j] = nil
+			}
+		}
+
+		// If we didn't pull out any values, this tagset is done.
+		if output.Values == nil {
+			continue
+		}
+
+		// Sort the values by time first so we can then handle offset and limit
+		sort.Sort(rawMapperValues(output.Values))
+
+		// Kick out the values (no chunking done!)
+		out <- re.processRawResults(output)
 	}
 
 	// XXX Limit and chunk checking.
 	close(out)
 }
 
-// processRawResults will handle converting the results from a raw query into a Row. It is responsible
-// for sorting the results by time.
+// processRawResults will handle converting the results from a raw query into a Row. It assumes the output's
+// values are sorted by time.
 func (re *RawExecutor) processRawResults(output *rawMapperOutput) *influxql.Row {
 	sort.Sort(output.Values)
 	selectNames := re.selectNames
