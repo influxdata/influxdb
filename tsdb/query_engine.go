@@ -115,7 +115,7 @@ func (p *Planner) planRawQuery(stmt *influxql.SelectStatement, shards map[uint64
 		}
 	}
 
-	return NewRawExecutor(mappers, stmt.NamesInSelect()), nil
+	return NewRawExecutor(stmt, mappers), nil
 }
 
 func (p *Planner) planAggregateQuery(stmt *influxql.SelectStatement, shards map[uint64]meta.ShardInfo) (Executor, error) {
@@ -124,15 +124,15 @@ func (p *Planner) planAggregateQuery(stmt *influxql.SelectStatement, shards map[
 
 // RawExecutor is an executor for RawMappers.
 type RawExecutor struct {
-	mappers     []Mapper
-	selectNames []string
+	stmt    *influxql.SelectStatement
+	mappers []Mapper
 }
 
 // NewRawExecutor returns a new RawExecutor.
-func NewRawExecutor(mappers []Mapper, selectNames []string) *RawExecutor {
+func NewRawExecutor(stmt *influxql.SelectStatement, mappers []Mapper) *RawExecutor {
 	return &RawExecutor{
-		mappers:     mappers,
-		selectNames: selectNames,
+		stmt:    stmt,
+		mappers: mappers,
 	}
 }
 
@@ -164,11 +164,12 @@ func (re *RawExecutor) execute(out chan *influxql.Row, chunkSize int) {
 		}
 	}
 
+tagsetLoop:
 	// For each mapper, drain it by tagset.
 	for _, t := range availTagSets.list() {
 		// Used to read ahead chunks.
 		mapperOutputs := make([]*rawMapperOutput, len(re.mappers))
-		var output *rawMapperOutput
+		var rowWriter *limitedRowWriter
 
 		for {
 			// Get the next chunk from each mapper.
@@ -255,39 +256,84 @@ func (re *RawExecutor) execute(out chan *influxql.Row, chunkSize int) {
 			// Sort the values by time first so we can then handle offset and limit
 			sort.Sort(rawMapperValues(chunkedOutput.Values))
 
-			// Add to the total output for this tagset.
-			if output == nil {
-				output = &rawMapperOutput{
-					Name: chunkedOutput.Name,
-					Tags: chunkedOutput.Tags,
+			if rowWriter == nil {
+				rowWriter = &limitedRowWriter{
+					limit:       re.stmt.Limit,
+					chunkSize:   chunkSize,
+					name:        chunkedOutput.Name,
+					tags:        chunkedOutput.Tags,
+					selectNames: re.stmt.NamesInSelect(),
+					c:           out,
 				}
 			}
-			output.Values = append(output.Values, chunkedOutput.Values...)
-
-			if chunkSize > 0 && len(output.Values) > chunkSize {
-				// Don't memcpy so much ...... XXX
-				out <- re.processRawResults(&rawMapperOutput{
-					Name:   chunkedOutput.Name,
-					Tags:   chunkedOutput.Tags,
-					Values: output.Values[:chunkSize],
-				})
-				output.Values = output.Values[chunkSize:]
+			if limited := rowWriter.Add(chunkedOutput.Values); limited {
+				// Limit for this tagset was reached, go to next one.
+				continue tagsetLoop
 			}
 		}
 
-		sort.Sort(rawMapperValues(output.Values)) // XXX necessary?
-		out <- re.processRawResults(output)
+		rowWriter.Flush()
 	}
 
 	// XXX Limit and chunk checking.
 	close(out)
 }
 
-// processRawResults will handle converting the results from a raw query into a Row. It assumes the output's
-// values are sorted by time.
-func (re *RawExecutor) processRawResults(output *rawMapperOutput) *influxql.Row {
-	sort.Sort(output.Values)
-	selectNames := re.selectNames
+// Close closes the executor such that all resources are released. Once closed,
+// an executor may not be re-used.
+func (re *RawExecutor) close() {
+	for _, m := range re.mappers {
+		m.Close()
+	}
+}
+
+// limitedRowWriter accepts raw maper values, and will emit those values as rows in chunks
+// of the given size. If the chunk size is 0, no chunking will be performed. In addiiton if
+// limit is reached, outstanding values will be emitted. If limit is zero, no limit is enforced.
+type limitedRowWriter struct {
+	chunkSize   int
+	limit       int
+	name        string
+	tags        map[string]string
+	selectNames []string
+	c           chan *influxql.Row
+
+	currValues []*rawMapperValue
+}
+
+// Add accepts a slice of values, and will emit those values as per chunking requirements.
+// If limited is returned as true, the limit was also reached. In that case only up the limit
+// of values are emitted.
+func (r *limitedRowWriter) Add(values []*rawMapperValue) (limited bool) {
+	if r.currValues == nil {
+		r.currValues = make([]*rawMapperValue, 0, r.chunkSize)
+	}
+	r.currValues = append(r.currValues, values...)
+
+	for r.chunkSize > 0 && len(r.currValues) >= r.chunkSize {
+		index := len(r.currValues) - (len(r.currValues) - r.chunkSize)
+		r.c <- r.processValues(r.currValues[:index])
+		r.currValues = r.currValues[index:]
+	}
+
+	return false
+}
+
+// Flush instructs the limitedRowWriter to emit any pending values as a single row,
+// adhering to any limits. Chunking is not enforced.
+func (r *limitedRowWriter) Flush() {
+	if len(r.currValues) == 0 {
+		return
+	}
+
+	if r.limit > 0 && len(r.currValues) > r.limit {
+		r.currValues = r.currValues[:r.limit]
+	}
+	r.c <- r.processValues(r.currValues)
+}
+
+func (r *limitedRowWriter) processValues(values []*rawMapperValue) *influxql.Row {
+	selectNames := r.selectNames
 
 	// ensure that time is in the select names and in the first position
 	hasTime := false
@@ -311,27 +357,22 @@ func (re *RawExecutor) processRawResults(output *rawMapperOutput) *influxql.Row 
 	selectFields := make([]string, 0, len(selectNames))
 
 	for _, n := range selectNames {
-		if _, found := output.Tags[n]; !found {
+		if _, found := r.tags[n]; !found {
 			selectFields = append(selectFields, n)
 		}
 	}
 
 	row := &influxql.Row{
-		Name:    output.Name,
-		Tags:    output.Tags,
+		Name:    r.name,
+		Tags:    r.tags,
 		Columns: selectFields,
-	}
-
-	// return an empty row if there are no results
-	if len(output.Values) == 0 {
-		return row
 	}
 
 	// if they've selected only a single value we have to handle things a little differently
 	singleValue := len(selectFields) == influxql.SelectColumnCountWithOneValue
 
 	// the results will have all of the raw mapper results, convert into the row
-	for _, v := range output.Values {
+	for _, v := range values {
 		vals := make([]interface{}, len(selectFields))
 
 		if singleValue {
@@ -353,12 +394,4 @@ func (re *RawExecutor) processRawResults(output *rawMapperOutput) *influxql.Row 
 	}
 
 	return row
-}
-
-// Close closes the executor such that all resources are released. Once closed,
-// an executor may not be re-used.
-func (re *RawExecutor) close() {
-	for _, m := range re.mappers {
-		m.Close()
-	}
 }
