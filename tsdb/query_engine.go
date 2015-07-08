@@ -207,7 +207,6 @@ func (re *RawExecutor) execute(out chan *influxql.Row, chunkSize int) {
 			}
 
 			// Now empty out all the chunks up to the min time. Create new output struct for this data.
-			_ = "breakpoint"
 			var chunkedOutput *rawMapperOutput
 			for j, o := range mapperOutputs {
 				if o == nil {
