@@ -77,8 +77,10 @@ func (b *PointBatcher) Start() {
 				atomic.AddUint64(&b.stats.PointTotal, 1)
 				if batch == nil {
 					batch = make([]Point, 0, b.size)
-					timer = time.NewTimer(b.duration)
-					timerCh = timer.C
+					if b.duration > 0 {
+						timer = time.NewTimer(b.duration)
+						timerCh = timer.C
+					}
 				}
 
 				batch = append(batch, p)

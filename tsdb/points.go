@@ -406,7 +406,7 @@ func scanFields(buf []byte, i int) (int, []byte, error) {
 				return i, buf[start:i], fmt.Errorf("missing field value")
 			}
 
-			if isNumeric(buf[i+1]) || buf[i+1] == '-' {
+			if isNumeric(buf[i+1]) || buf[i+1] == '-' || buf[i+1] == 'N' || buf[i+1] == 'n' {
 				var err error
 				i, _, err = scanNumber(buf, i+1)
 				if err != nil {
@@ -526,6 +526,15 @@ func scanNumber(buf []byte, i int) (int, []byte, error) {
 		if (buf[i] == '+' || buf[i] == '-') && buf[i-1] == 'e' {
 			i += 1
 			continue
+		}
+
+		// NaN is a valid float
+		if i+3 < len(buf) && (buf[i] == 'N' || buf[i] == 'n') {
+			if (buf[i+1] == 'a' || buf[i+1] == 'A') && (buf[i+2] == 'N' || buf[i+2] == 'n') {
+				i += 3
+				continue
+			}
+			return i, buf[start:i], fmt.Errorf("invalid number")
 		}
 
 		if !isNumeric(buf[i]) {
@@ -987,7 +996,8 @@ type Fields map[string]interface{}
 
 func parseNumber(val []byte) (interface{}, error) {
 	for i := 0; i < len(val); i++ {
-		if val[i] == '.' {
+		// If there is a decimal or an N (NaN), I (Inf), parse as float
+		if val[i] == '.' || val[i] == 'N' || val[i] == 'n' || val[i] == 'I' || val[i] == 'i' {
 			return strconv.ParseFloat(string(val), 64)
 		}
 		if val[i] < '0' && val[i] > '9' {
@@ -1024,8 +1034,11 @@ func newFieldsFromBinary(buf []byte) Fields {
 		// If the first char is a double-quote, then unmarshal as string
 		if valueBuf[0] == '"' {
 			value = unescapeQuoteString(string(valueBuf[1 : len(valueBuf)-1]))
-			// Check for numeric characters
-		} else if (valueBuf[0] >= '0' && valueBuf[0] <= '9') || valueBuf[0] == '-' || valueBuf[0] == '.' {
+			// Check for numeric characters and special NaN or Inf
+		} else if (valueBuf[0] >= '0' && valueBuf[0] <= '9') || valueBuf[0] == '-' || valueBuf[0] == '+' || valueBuf[0] == '.' ||
+			valueBuf[0] == 'N' || valueBuf[0] == 'n' || // NaN
+			valueBuf[0] == 'I' || valueBuf[0] == 'i' { // Inf
+
 			value, err = parseNumber(valueBuf)
 			if err != nil {
 				panic(fmt.Sprintf("unable to parse number value '%v': %v", string(valueBuf), err))
@@ -1088,7 +1101,11 @@ func (p Fields) MarshalBinary() []byte {
 		case nil:
 			// skip
 		default:
-			panic(fmt.Sprintf("unknown type: %T", v))
+			// Can't determine the type, so convert to string
+			b = append(b, '"')
+			b = append(b, []byte(escapeQuoteString(fmt.Sprintf("%v", v)))...)
+			b = append(b, '"')
+
 		}
 		b = append(b, ',')
 	}

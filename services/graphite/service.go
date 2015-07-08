@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"log"
+	"math"
 	"net"
 	"os"
 	"strings"
@@ -28,7 +29,8 @@ type Service struct {
 	batchTimeout     time.Duration
 	consistencyLevel cluster.ConsistencyLevel
 
-	parser *Parser
+	batcher *tsdb.PointBatcher
+	parser  *Parser
 
 	logger *log.Logger
 
@@ -94,6 +96,13 @@ func (s *Service) Open() error {
 	}
 	s.logger.Printf("ensured target database %s exists", s.database)
 
+	s.batcher = tsdb.NewPointBatcher(s.batchSize, s.batchTimeout)
+	s.batcher.Start()
+
+	// Start processing batches.
+	s.wg.Add(1)
+	go s.processBatches(s.batcher)
+
 	var err error
 	if strings.ToLower(s.protocol) == "tcp" {
 		s.addr, err = s.openTCPServer()
@@ -112,6 +121,7 @@ func (s *Service) Open() error {
 
 // Close stops all data processing on the Graphite input.
 func (s *Service) Close() error {
+	s.batcher.Flush()
 	close(s.done)
 	s.wg.Wait()
 	s.done = nil
@@ -164,32 +174,19 @@ func (s *Service) handleTCPConnection(conn net.Conn) {
 	defer conn.Close()
 	defer s.wg.Done()
 
-	batcher := tsdb.NewPointBatcher(s.batchSize, s.batchTimeout)
-	batcher.Start()
 	reader := bufio.NewReader(conn)
-
-	// Start processing batches.
-	s.wg.Add(1)
-	go s.processBatches(batcher)
 
 	for {
 		// Read up to the next newline.
 		buf, err := reader.ReadBytes('\n')
 		if err != nil {
-			batcher.Flush()
 			return
 		}
 
 		// Trim the buffer, even though there should be no padding
 		line := strings.TrimSpace(string(buf))
 
-		// Parse it.
-		point, err := s.parser.Parse(line)
-		if err != nil {
-			s.logger.Printf("unable to parse data: %s", err)
-			continue
-		}
-		batcher.In() <- point
+		s.handleLine(line)
 	}
 }
 
@@ -205,13 +202,6 @@ func (s *Service) openUDPServer() (net.Addr, error) {
 		return nil, err
 	}
 
-	batcher := tsdb.NewPointBatcher(s.batchSize, s.batchTimeout)
-	batcher.Start()
-
-	// Start processing batches.
-	s.wg.Add(1)
-	go s.processBatches(batcher)
-
 	buf := make([]byte, udpBufferSize)
 	s.wg.Add(1)
 	go func() {
@@ -219,20 +209,38 @@ func (s *Service) openUDPServer() (net.Addr, error) {
 		for {
 			n, _, err := conn.ReadFromUDP(buf)
 			if err != nil {
-				batcher.Flush()
 				conn.Close()
 				return
 			}
 			for _, line := range strings.Split(string(buf[:n]), "\n") {
-				point, err := s.parser.Parse(line)
-				if err != nil {
-					continue
-				}
-				batcher.In() <- point
+				s.handleLine(line)
 			}
 		}
 	}()
 	return conn.LocalAddr(), nil
+}
+
+func (s *Service) handleLine(line string) {
+	if line == "" {
+		return
+	}
+	// Parse it.
+	point, err := s.parser.Parse(line)
+	if err != nil {
+		s.logger.Printf("unable to parse line: %s", err)
+		return
+	}
+
+	f, ok := point.Fields()["value"].(float64)
+	if ok {
+		// Drop NaN and +/-Inf data points since they are not supported values
+		if math.IsNaN(f) || math.IsInf(f, 0) {
+			s.logger.Printf("dropping unsupported value: '%v'", line)
+			return
+		}
+	}
+
+	s.batcher.In() <- point
 }
 
 // processBatches continually drains the given batcher and writes the batches to the database.

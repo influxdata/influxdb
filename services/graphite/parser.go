@@ -47,8 +47,12 @@ func NewParserWithOptions(options Options) (*Parser, error) {
 		// Format is [filter] <template> [tag1=value1,tag2=value2]
 		parts := strings.Fields(pattern)
 		if len(parts) >= 2 {
-			filter = parts[0]
-			template = parts[1]
+			if strings.Contains(parts[1], "=") {
+				template = parts[0]
+			} else {
+				filter = parts[0]
+				template = parts[1]
+			}
 		}
 
 		// Parse out the default tags specific to this template
@@ -286,7 +290,7 @@ func (n *node) search(lineParts []string) *template {
 
 	// Find the index of child with an exact match
 	i := sort.Search(length, func(i int) bool {
-		return n.children[i].value == lineParts[0]
+		return n.children[i].value >= lineParts[0]
 	})
 
 	// Found an exact match, so search that child sub-tree

@@ -116,7 +116,15 @@ func test(t *testing.T, line string, point Point) {
 	}
 
 	for name, value := range point.Fields() {
-		if !reflect.DeepEqual(pts[0].Fields()[name], value) {
+		val := pts[0].Fields()[name]
+		expfval, ok := val.(float64)
+
+		if ok && math.IsNaN(expfval) {
+			gotfval, ok := value.(float64)
+			if ok && !math.IsNaN(gotfval) {
+				t.Errorf(`ParsePoints("%s") field '%s' mismatch. exp NaN`, line, name)
+			}
+		} else if !reflect.DeepEqual(pts[0].Fields()[name], value) {
 			t.Errorf(`ParsePoints("%s") field '%s' mismatch. got %v, exp %v`, line, name, pts[0].Fields()[name], value)
 		}
 	}
@@ -776,6 +784,29 @@ func TestNewPointLargeInteger(t *testing.T) {
 	)
 }
 
+func TestNewPointNaN(t *testing.T) {
+	test(t, `cpu value=NaN 1000000000`,
+		NewPoint(
+			"cpu",
+			Tags{},
+			Fields{
+				"value": math.NaN(),
+			},
+			time.Unix(1, 0)),
+	)
+
+	test(t, `cpu value=nAn 1000000000`,
+		NewPoint(
+			"cpu",
+			Tags{},
+			Fields{
+				"value": math.NaN(),
+			},
+			time.Unix(1, 0)),
+	)
+
+}
+
 func TestParsePointIntsFloats(t *testing.T) {
 	pts, err := ParsePoints([]byte(`cpu,host=serverA,region=us-east int=10,float=11.0,float2=12.1 1000000000`))
 	if err != nil {
@@ -1044,6 +1075,25 @@ func TestNewPointEscaped(t *testing.T) {
 	// equals
 	pt = NewPoint("cpu=main", Tags{"tag=bar": "value=foo"}, Fields{"name=bar": 1.0}, time.Unix(0, 0))
 	if exp := `cpu\=main,tag\=bar=value\=foo name\=bar=1.0 0`; pt.String() != exp {
+		t.Errorf("NewPoint().String() mismatch.\ngot %v\nexp %v", pt.String(), exp)
+	}
+}
+
+func TestNewPointUnhandledType(t *testing.T) {
+	// nil value
+	pt := NewPoint("cpu", nil, Fields{"value": nil}, time.Unix(0, 0))
+	if exp := `cpu value= 0`; pt.String() != exp {
+		t.Errorf("NewPoint().String() mismatch.\ngot %v\nexp %v", pt.String(), exp)
+	}
+
+	// unsupported type gets stored as string
+	now := time.Unix(0, 0).UTC()
+	pt = NewPoint("cpu", nil, Fields{"value": now}, time.Unix(0, 0))
+	if exp := `cpu value="1970-01-01 00:00:00 +0000 UTC" 0`; pt.String() != exp {
+		t.Errorf("NewPoint().String() mismatch.\ngot %v\nexp %v", pt.String(), exp)
+	}
+
+	if exp := "1970-01-01 00:00:00 +0000 UTC"; pt.Fields()["value"] != exp {
 		t.Errorf("NewPoint().String() mismatch.\ngot %v\nexp %v", pt.String(), exp)
 	}
 }
