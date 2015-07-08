@@ -2462,7 +2462,7 @@ func TestServer_Query_DropAndRecreateMeasurement(t *testing.T) {
 		&Query{
 			name:    "show series",
 			command: `SHOW SERIES`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["_key","host","region"],"values":[["cpu,host=serverA,region=uswest","serverA","uswest"]]},{"name":"memory","columns":["_key","host","region"],"values":[["memory,host=serverB,region=uswest","serverB","uswest"]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["host","region"],"values":[["serverA","uswest"]]},{"name":"memory","columns":["host","region"],"values":[[","serverB","uswest"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
@@ -2486,7 +2486,7 @@ func TestServer_Query_DropAndRecreateMeasurement(t *testing.T) {
 		&Query{
 			name:    "verify series",
 			command: `SHOW SERIES`,
-			exp:     `{"results":[{"series":[{"name":"memory","columns":["_key","host","region"],"values":[["memory,host=serverB,region=uswest","serverB","uswest"]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"memory","columns":["host","region"],"values":[["serverB","uswest"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
@@ -2604,43 +2604,43 @@ func TestServer_Query_ShowSeries(t *testing.T) {
 		&Query{
 			name:    `show series`,
 			command: "SHOW SERIES",
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["_key","host","region"],"values":[["cpu,host=server01","server01",""],["cpu,host=server01,region=uswest","server01","uswest"],["cpu,host=server01,region=useast","server01","useast"],["cpu,host=server02,region=useast","server02","useast"]]},{"name":"disk","columns":["_key","host","region"],"values":[["disk,host=server03,region=caeast","server03","caeast"]]},{"name":"gpu","columns":["_key","host","region"],"values":[["gpu,host=server02,region=useast","server02","useast"],["gpu,host=server03,region=caeast","server03","caeast"]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["host","region"],"values":[["server01",""],["server01","uswest"],["server01","useast"],["server02","useast"]]},{"name":"disk","columns":["host","region"],"values":[["server03","caeast"]]},{"name":"gpu","columns":["host","region"],"values":[["gpu,host=server02,region=useast","server02","useast"],["server03","caeast"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
 			name:    `show series from measurement - FIXME issue #2942`,
 			command: "SHOW SERIES FROM cpu",
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["_key","host","region"],"values":[["cpu,host=server01","server01",""],["cpu,host=server01,region=uswest","server01","uswest"],["cpu,host=server01,region=useast","server01","useast"],["cpu,host=server02,region=useast","server02","useast"]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["host","region"],"values":[["server01",""],["server01","uswest"],["server01","useast"],["server02","useast"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
 			name:    `show series from regular expression - FIXME issue #2942`,
 			command: "SHOW SERIES FROM /[cg]pu/",
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["_key","host","region"],"values":[["cpu,host=server01","server01",""],["cpu,host=server01,region=uswest","server01","uswest"],["cpu,host=server01,region=useast","server01","useast"],["cpu,host=server02,region=useast","server02","useast"]]},{"name":"gpu","columns":["_key","host","region"],"values":[["gpu,host=server02,region=useast","server02","useast"],["gpu,host=server03,region=caeast","server03","caeast"]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["host","region"],"values":[["server01",""],["server01","uswest"],["server01","useast"],["server02","useast"]]},{"name":"gpu","columns":["host","region"],"values":[["server02","useast"],["server03","caeast"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
 			name:    `show series with where tag`,
 			command: "SHOW SERIES WHERE region = 'uswest'",
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["_key","host","region"],"values":[["cpu,host=server01,region=uswest","server01","uswest"]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["host","region"],"values":[["server01","uswest"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
 			name:    `show series where tag matches regular expression`,
 			command: "SHOW SERIES WHERE region =~ /ca.*/",
-			exp:     `{"results":[{"series":[{"name":"disk","columns":["_key","host","region"],"values":[["disk,host=server03,region=caeast","server03","caeast"]]},{"name":"gpu","columns":["_key","host","region"],"values":[["gpu,host=server03,region=caeast","server03","caeast"]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"disk","columns":["host","region"],"values":[["server03","caeast"]]},{"name":"gpu","columns":["host","region"],"values":[["server03","caeast"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
 			name:    `show series`,
 			command: "SHOW SERIES WHERE host !~ /server0[12]/",
-			exp:     `{"results":[{"series":[{"name":"disk","columns":["_key","host","region"],"values":[["disk,host=server03,region=caeast","server03","caeast"]]},{"name":"gpu","columns":["_key","host","region"],"values":[["gpu,host=server03,region=caeast","server03","caeast"]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"disk","columns":["host","region"],"values":[["server03","caeast"]]},{"name":"gpu","columns":["host","region"],"values":[["server03","caeast"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
 			name:    `show series with from and where`,
 			command: "SHOW SERIES FROM cpu WHERE region = 'useast'",
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["_key","host","region"],"values":[["cpu,host=server01,region=useast","server01","useast"],["cpu,host=server02,region=useast","server02","useast"]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["host","region"],"values":[["server01","useast"],["server02","useast"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 	}...)
