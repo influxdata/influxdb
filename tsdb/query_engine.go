@@ -299,24 +299,49 @@ type limitedRowWriter struct {
 	c           chan *influxql.Row
 
 	currValues []*rawMapperValue
+	totalSent  int
 }
 
 // Add accepts a slice of values, and will emit those values as per chunking requirements.
-// If limited is returned as true, the limit was also reached. In that case only up the limit
-// of values are emitted.
+// If limited is returned as true, the limit was also reached and no more values should be
+// add. In that case only up the limit of values are emitted.
 func (r *limitedRowWriter) Add(values []*rawMapperValue) (limited bool) {
 	if r.currValues == nil {
 		r.currValues = make([]*rawMapperValue, 0, r.chunkSize)
 	}
 	r.currValues = append(r.currValues, values...)
 
-	for r.chunkSize > 0 && len(r.currValues) >= r.chunkSize {
-		index := len(r.currValues) - (len(r.currValues) - r.chunkSize)
-		r.c <- r.processValues(r.currValues[:index])
-		r.currValues = r.currValues[index:]
+	// Check limit.
+	limitReached := r.limit > 0 && r.totalSent+len(r.currValues) >= r.limit
+	if limitReached {
+		// Limit will be satified with current values. Truncate 'em.
+		r.currValues = r.currValues[:r.limit-r.totalSent]
 	}
 
-	return false
+	// Is chunking in effect?
+	if r.chunkSize > 0 {
+		// Chunking level reached?
+		for len(r.currValues) >= r.chunkSize {
+			index := len(r.currValues) - (len(r.currValues) - r.chunkSize)
+			r.c <- r.processValues(r.currValues[:index])
+			r.totalSent += index
+			r.currValues = r.currValues[index:]
+		}
+
+		// After values have been sent out by chunking, there may still be some
+		// values left, if the remainder is less than the chunk size. But if the
+		// limit has been reached, kick them out.
+		if len(r.currValues) > 0 && limitReached {
+			r.c <- r.processValues(r.currValues)
+			r.currValues = nil
+		}
+	} else if limitReached {
+		// No chunking in effect, but the limit has been reached.
+		r.c <- r.processValues(r.currValues)
+		r.currValues = nil
+	}
+
+	return limitReached
 }
 
 // Flush instructs the limitedRowWriter to emit any pending values as a single row,
@@ -330,8 +355,11 @@ func (r *limitedRowWriter) Flush() {
 		r.currValues = r.currValues[:r.limit]
 	}
 	r.c <- r.processValues(r.currValues)
+	r.totalSent = len(r.currValues)
+	r.currValues = nil
 }
 
+// processValues emits the given values in a single row.
 func (r *limitedRowWriter) processValues(values []*rawMapperValue) *influxql.Row {
 	selectNames := r.selectNames
 

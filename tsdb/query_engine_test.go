@@ -91,6 +91,11 @@ func TestWritePointsAndExecuteTwoShards(t *testing.T) {
 			expected: `[{"name":"cpu","columns":["time","value"],"values":[["1970-01-01T00:00:01Z",100]]}]`,
 		},
 		{
+			stmt:      `SELECT value FROM cpu LIMIT 1`,
+			chunkSize: 2,
+			expected:  `[{"name":"cpu","columns":["time","value"],"values":[["1970-01-01T00:00:01Z",100]]}]`,
+		},
+		{
 			stmt:     `SELECT value FROM cpu WHERE host='serverA'`,
 			expected: `[{"name":"cpu","columns":["time","value"],"values":[["1970-01-01T00:00:01Z",100]]}]`,
 		},
