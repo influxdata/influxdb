@@ -184,6 +184,20 @@ tagsetLoop:
 					out <- &influxql.Row{Err: err}
 					return
 				}
+
+				// Now that we have full name and tag details, initialize the rowWriter.
+				// The Name and Tags will be the same for all mappers.
+				if rowWriter == nil {
+					rowWriter = &limitedRowWriter{
+						limit:       re.stmt.Limit,
+						chunkSize:   chunkSize,
+						name:        chunk.Name,
+						tags:        chunk.Tags,
+						selectNames: re.stmt.NamesInSelect(),
+						c:           out,
+					}
+				}
+
 				if len(chunk.Values) == 0 {
 					// This mapper is empty for this tagset.
 					continue
@@ -256,23 +270,15 @@ tagsetLoop:
 			// Sort the values by time first so we can then handle offset and limit
 			sort.Sort(rawMapperValues(chunkedOutput.Values))
 
-			if rowWriter == nil {
-				rowWriter = &limitedRowWriter{
-					limit:       re.stmt.Limit,
-					chunkSize:   chunkSize,
-					name:        chunkedOutput.Name,
-					tags:        chunkedOutput.Tags,
-					selectNames: re.stmt.NamesInSelect(),
-					c:           out,
-				}
-			}
 			if limited := rowWriter.Add(chunkedOutput.Values); limited {
 				// Limit for this tagset was reached, go to next one.
 				continue tagsetLoop
 			}
 		}
 
-		rowWriter.Flush()
+		if rowWriter != nil {
+			rowWriter.Flush()
+		}
 	}
 
 	// XXX Limit and chunk checking.
@@ -347,10 +353,6 @@ func (r *limitedRowWriter) Add(values []*rawMapperValue) (limited bool) {
 // Flush instructs the limitedRowWriter to emit any pending values as a single row,
 // adhering to any limits. Chunking is not enforced.
 func (r *limitedRowWriter) Flush() {
-	if len(r.currValues) == 0 {
-		return
-	}
-
 	if r.limit > 0 && len(r.currValues) > r.limit {
 		r.currValues = r.currValues[:r.limit]
 	}
@@ -394,6 +396,11 @@ func (r *limitedRowWriter) processValues(values []*rawMapperValue) *influxql.Row
 		Name:    r.name,
 		Tags:    r.tags,
 		Columns: selectFields,
+	}
+
+	// Kick out an empty row it no results available.
+	if len(values) == 0 {
+		return row
 	}
 
 	// if they've selected only a single value we have to handle things a little differently
