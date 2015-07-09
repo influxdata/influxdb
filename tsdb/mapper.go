@@ -486,11 +486,11 @@ func (am *AggMapper) Open() error {
 		}
 
 		// Get the group by interval.
-		if d, err := am.stmt.GroupByInterval(); err != nil {
+		d, err := am.stmt.GroupByInterval()
+		if err != nil {
 			return err
-		} else {
-			am.interval = d.Nanoseconds()
 		}
+		am.interval = d.Nanoseconds()
 
 		// Get the sorted unique tag sets for this statement.
 		tagSets, err := m.TagSets(am.stmt, tagKeys)
