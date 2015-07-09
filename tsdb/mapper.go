@@ -562,8 +562,6 @@ func (am *AggMapper) NextChunk(tagset string, chunkSize int) (*rawMapperOutput, 
 		output.Values = append(output.Values, value)
 		return output, nil // No chunking?
 	}
-
-	return nil, nil
 }
 
 // Close closes the mapper.
