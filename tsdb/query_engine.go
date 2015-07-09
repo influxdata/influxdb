@@ -339,6 +339,54 @@ func (ae *AggregateExecutor) Execute(chunkSize int) <-chan *influxql.Row {
 }
 
 func (ae *AggregateExecutor) execute(out chan *influxql.Row, chunkSize int) {
+	// Get the aggregates and the associated reduce functions
+	aggregates := ae.stmt.FunctionCalls()
+	reduceFuncs := make([]influxql.ReduceFunc, len(aggregates))
+	for i, c := range aggregates {
+		reduceFunc, err := influxql.InitializeReduceFunc(c)
+		if err != nil {
+			out <- &Row{Err: err}
+			return
+		}
+		reduceFuncs[i] = reduceFunc
+	}
+
+	// we'll have a fixed number of points with times in buckets. Initialize those times and a slice to hold the associated values
+	var pointCountInResult int
+
+	// if the user didn't specify a start time or a group by interval, we're returning a single point that describes the entire range
+	if m.TMin == 0 || m.interval == 0 {
+		// they want a single aggregate point for the entire time range
+		m.interval = m.TMax - m.TMin
+		pointCountInResult = 1
+	} else {
+		intervalTop := m.TMax/m.interval*m.interval + m.interval
+		intervalBottom := m.TMin / m.interval * m.interval
+		pointCountInResult = int((intervalTop - intervalBottom) / m.interval)
+	}
+
+	// For group by time queries, limit the number of data points returned by the limit and offset
+	// raw query limits are handled elsewhere
+	if m.stmt.Limit > 0 || m.stmt.Offset > 0 {
+		// ensure that the offset isn't higher than the number of points we'd get
+		if m.stmt.Offset > pointCountInResult {
+			return
+		}
+
+		// take the lesser of either the pre computed number of group by buckets that
+		// will be in the result or the limit passed in by the user
+		if m.stmt.Limit < pointCountInResult {
+			pointCountInResult = m.stmt.Limit
+		}
+	}
+
+	// If we are exceeding our MaxGroupByPoints and we aren't a raw query, error out
+	if pointCountInResult > MaxGroupByPoints {
+		out <- &Row{
+			Err: errors.New("too many points in the group by interval. maybe you forgot to specify a where time clause?"),
+		}
+		return
+	}
 }
 
 // Close closes the executor such that all resources are released. Once closed,
