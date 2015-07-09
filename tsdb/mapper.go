@@ -392,10 +392,11 @@ type AggMapper struct {
 	queryTMin int64
 	queryTMax int64
 
-	whereFields  stringSet // field names that occur in the where clause
-	selectFields stringSet // field names that occur in the select clause
-	selectTags   stringSet // tag keys that occur in the select clause
-	fieldName    string    // the field name being read.
+	whereFields  stringSet        // field names that occur in the where clause
+	selectFields stringSet        // field names that occur in the select clause
+	selectTags   stringSet        // tag keys that occur in the select clause
+	fieldName    string           // the field name being read.
+	mapFunc      influxql.MapFunc // the map function.
 
 	cursors map[string]*tagSetCursor // Cursors per tag sets.
 }
@@ -530,8 +531,38 @@ func (am *AggMapper) TagSets() []string {
 }
 
 // NextChunk returns the next chunk of data for a tagset. If the result is nil, there are no more
-// data.
+// data. XXX Call this NextInterval?
 func (am *AggMapper) NextChunk(tagset string, chunkSize int) (*rawMapperOutput, error) {
+
+	cursor, ok := am.cursors[tagset]
+	if !ok {
+		return nil, nil
+	}
+	output := &rawMapperOutput{
+		Name: cursor.measurement,
+		Tags: cursor.tags,
+	}
+
+	// Gotta calcuate intervals.
+
+	// Still got a tagset cursor to process.
+	for {
+		f := func() (seriesKey string, time int64, value interface{}) {
+			return cursor.Next(100, 200, am.selectFields.list(), am.whereFields.list())
+		}
+
+		tagSetCursor := &aggTagSetCursor{
+			nextFunc: f,
+		}
+
+		// Execute the map function.
+		v := am.mapFunc(tagSetCursor)
+
+		value := &rawMapperValue{Time: 100, Value: v} // rawMapperValue -> rawValue?
+		output.Values = append(output.Values, value)
+		return output, nil // No chunking?
+	}
+
 	return nil, nil
 }
 
@@ -540,6 +571,18 @@ func (am *AggMapper) Close() {
 	if am.tx != nil {
 		_ = am.tx.Rollback()
 	}
+}
+
+// aggTagSetCursor wraps a standard tagSetCursor, such that the values it emits are aggregated
+// by intervals.
+type aggTagSetCursor struct {
+	nextFunc func() (seriesKey string, time int64, value interface{})
+}
+
+// Next returns the next value for the aggTagSetCursor. It implements the interface expected
+// by the mapping functions.
+func (a *aggTagSetCursor) Next() (seriesKey string, time int64, value interface{}) {
+	return a.nextFunc()
 }
 
 // createCursorForSeries creates a cursor for walking the given series key. The cursor
