@@ -163,6 +163,11 @@ func (self *HttpServer) Serve(listener net.Listener) {
 	// return whether the cluster is in sync or not
 	self.registerEndpoint("get", "/sync", self.isInSync)
 
+	// export endpoints
+	self.registerEndpoint("get", "/export", self.exportDatabases)
+	self.registerEndpoint("get", "/export/db/:db", self.exportDatabases)
+	self.registerEndpoint("get", "/export/db/:db/sp/:sp", self.exportDatabases)
+
 	if listener == nil {
 		self.startSsl(self.p)
 		return
@@ -1224,4 +1229,108 @@ func (self *HttpServer) getClusterConfiguration(w libhttp.ResponseWriter, r *lib
 	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
 		return libhttp.StatusOK, self.clusterConfig.SerializableConfiguration()
 	})
+}
+
+// Export Endpoints
+
+func (self *HttpServer) exportDatabases(w libhttp.ResponseWriter, r *libhttp.Request) {
+	username, password, err := getUsernameAndPassword(r)
+	if err != nil {
+		w.WriteHeader(libhttp.StatusBadRequest)
+		w.Write([]byte(err.Error()))
+		return
+	}
+
+	if username == "" {
+		w.Header().Add("WWW-Authenticate", "Basic realm=\"influxdb\"")
+		w.Header().Add("Content-Type", "text/plain")
+		w.WriteHeader(libhttp.StatusUnauthorized)
+		w.Write([]byte(INVALID_CREDENTIALS_MSG))
+		return
+	}
+
+	user, err := self.userManager.AuthenticateClusterAdmin(username, password)
+	if err != nil {
+		w.Header().Add("WWW-Authenticate", "Basic realm=\"influxdb\"")
+		w.Header().Add("Content-Type", "text/plain")
+		w.WriteHeader(libhttp.StatusUnauthorized)
+		w.Write([]byte(err.Error()))
+		return
+	}
+
+	// First determine if they specified a database
+	schema := make(map[string][]*cluster.ShardSpace)
+	dbs := []string{}
+	db := r.URL.Query().Get(":db")
+	if db != "" {
+		// They sent us a db, lets see if it exists
+		if !self.clusterConfig.DatabaseExists(db) {
+			libhttp.Error(w, fmt.Sprintf("database not found %s", db), libhttp.StatusNotFound)
+			return
+		}
+		dbs = append(dbs, db)
+	}
+	if len(dbs) == 0 {
+		databases, err := self.coordinator.ListDatabases(user)
+		if err != nil {
+			libhttp.Error(w, err.Error(), errorToStatusCode(err))
+			return
+		}
+		for _, db := range databases {
+			dbs = append(dbs, db.Name)
+		}
+	}
+
+	// Now that we have the databases, let's see if they sent in a shard space
+	shardSpace := strings.ToLower(r.URL.Query().Get(":sp"))
+	if shardSpace != "" && len(dbs) == 1 {
+		// TODO validate shard space exists and belongs to specified database
+		var found bool
+		for _, sp := range self.coordinator.GetShardSpacesForDatabase(dbs[0]) {
+			if strings.ToLower(sp.Name) == shardSpace {
+				found = true
+				schema[db] = []*cluster.ShardSpace{sp}
+				break
+			}
+		}
+		if !found {
+			libhttp.Error(w, fmt.Sprintf("shard space %s for database %s not found", shardSpace, dbs[0]), libhttp.StatusNotFound)
+			return
+		}
+	}
+
+	// fill any db's or rp's if they weren't specified
+	if len(schema) == 0 {
+		for _, db := range dbs {
+			schema[db] = self.coordinator.GetShardSpacesForDatabase(db)
+		}
+	}
+	w.Header().Add("Content-Type", "text/plain")
+	fmt.Fprintf(w, "#DDL\n")
+	for db, sps := range schema {
+		fmt.Fprintf(w, "CREATE DATABASE %q;\n", db)
+		for _, sp := range sps {
+			rp := sp.RetentionPolicy
+			if rp == "inf" {
+				rp = strings.ToUpper(rp)
+			}
+			fmt.Fprintf(w, "CREATE RETENTION POLICY %q ON %q DURATION %s REPLICATION %d;\n", sp.Name, sp.Database, rp, sp.ReplicationFactor)
+		}
+	}
+
+	for _, db := range dbs {
+		// gather measurements for each database
+		var measurements = []string{}
+
+		// Walk through each database and measurement and select all data
+
+		// Start ripping through data
+		writer := &AllPointsWriter{map[string]*protocol.Series{}, w, MicrosecondPrecision, pretty}
+		seriesWriter := NewSeriesWriter(writer.yield)
+		err = self.coordinator.RunQuery(user, db, query, seriesWriter)
+		if err != nil {
+			libhttp.Error(w, fmt.Sprintf("failed to query data for for database %s, measurement %s: %s", shardSpace, dbs[0]), libhttp.StatusNotFound)
+		}
+	}
+
 }

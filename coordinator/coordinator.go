@@ -711,6 +711,10 @@ func (self *Coordinator) DropDatabase(user common.User, db string) error {
 	return self.raftServer.DropDatabase(db)
 }
 
+func (self *Coordinator) GetShardSpacesForDatabase(database string) []*cluster.ShardSpace {
+	return self.clusterConfiguration.GetShardSpacesForDatabase(database)
+}
+
 func (self *Coordinator) AuthenticateDbUser(db, username, password string) (common.User, error) {
 	log.Debug("(raft:%s) Authenticating password for %s:%s", self.raftServer.raftServer.Name(), db, username)
 	user, err := self.clusterConfiguration.AuthenticateDbUser(db, username, password)
