@@ -506,10 +506,10 @@ func (m *MapReduceJob) processResults(results [][]interface{}) [][]interface{} {
 		return results
 	}
 
-	processors := make([]processor, len(m.stmt.Fields))
+	processors := make([]Processor, len(m.stmt.Fields))
 	startIndex := 1
 	for i, f := range m.stmt.Fields {
-		processors[i], startIndex = getProcessor(f.Expr, startIndex)
+		processors[i], startIndex = GetProcessor(f.Expr, startIndex)
 	}
 
 	mathResults := make([][]interface{}, len(results))
@@ -571,7 +571,7 @@ func (m *MapReduceJob) processFill(results [][]interface{}) [][]interface{} {
 	return results
 }
 
-func getProcessor(expr Expr, startIndex int) (processor, int) {
+func GetProcessor(expr Expr, startIndex int) (Processor, int) {
 	switch expr := expr.(type) {
 	case *VarRef:
 		return newEchoProcessor(startIndex), startIndex + 1
@@ -580,7 +580,7 @@ func getProcessor(expr Expr, startIndex int) (processor, int) {
 	case *BinaryExpr:
 		return getBinaryProcessor(expr, startIndex)
 	case *ParenExpr:
-		return getProcessor(expr.Expr, startIndex)
+		return GetProcessor(expr.Expr, startIndex)
 	case *NumberLiteral:
 		return newLiteralProcessor(expr.Val), startIndex
 	case *StringLiteral:
@@ -595,28 +595,28 @@ func getProcessor(expr Expr, startIndex int) (processor, int) {
 	panic("unreachable")
 }
 
-type processor func(values []interface{}) interface{}
+type Processor func(values []interface{}) interface{}
 
-func newEchoProcessor(index int) processor {
+func newEchoProcessor(index int) Processor {
 	return func(values []interface{}) interface{} {
 		return values[index]
 	}
 }
 
-func newLiteralProcessor(val interface{}) processor {
+func newLiteralProcessor(val interface{}) Processor {
 	return func(values []interface{}) interface{} {
 		return val
 	}
 }
 
-func getBinaryProcessor(expr *BinaryExpr, startIndex int) (processor, int) {
-	lhs, index := getProcessor(expr.LHS, startIndex)
-	rhs, index := getProcessor(expr.RHS, index)
+func getBinaryProcessor(expr *BinaryExpr, startIndex int) (Processor, int) {
+	lhs, index := GetProcessor(expr.LHS, startIndex)
+	rhs, index := GetProcessor(expr.RHS, index)
 
 	return newBinaryExprEvaluator(expr.Op, lhs, rhs), index
 }
 
-func newBinaryExprEvaluator(op Token, lhs, rhs processor) processor {
+func newBinaryExprEvaluator(op Token, lhs, rhs Processor) Processor {
 	switch op {
 	case ADD:
 		return func(values []interface{}) interface{} {
