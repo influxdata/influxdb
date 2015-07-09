@@ -300,9 +300,8 @@ tagsetLoop:
 			}
 		}
 
-		if rowWriter != nil {
-			rowWriter.Flush()
-		}
+		// Be sure to kick out any residual values.
+		rowWriter.Flush()
 	}
 
 	// XXX Limit and chunk checking.
@@ -312,8 +311,10 @@ tagsetLoop:
 // Close closes the executor such that all resources are released. Once closed,
 // an executor may not be re-used.
 func (re *RawExecutor) close() {
-	for _, m := range re.mappers {
-		m.Close()
+	if re != nil {
+		for _, m := range re.mappers {
+			m.Close()
+		}
 	}
 }
 
