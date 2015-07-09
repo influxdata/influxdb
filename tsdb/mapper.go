@@ -21,7 +21,7 @@ type RawMapper struct {
 	whereFields  stringSet              // field names that occur in the where clause
 	selectFields stringSet              // field names that occur in the select clause
 	selectTags   stringSet              // tag keys that occur in the select clause
-	fieldName    string                 // the field name associated with the mapFunc currently being run
+	fieldName    string                 // the field name being read.
 	decoders     map[string]*FieldCodec // byte decoder per measurement
 
 	cursors map[string]*tagSetCursor // Cursors per tag sets.
@@ -123,7 +123,7 @@ func (rm *RawMapper) Open() error {
 			cursors := []*seriesCursor{}
 
 			for i, key := range t.SeriesKeys {
-				c := rm.createCursorForSeries(key)
+				c := createCursorForSeries(rm.tx, rm.shard, key)
 				if c == nil {
 					// No data exists for this key.
 					continue
@@ -181,30 +181,6 @@ func (rm *RawMapper) Close() {
 	if rm.tx != nil {
 		_ = rm.tx.Rollback()
 	}
-}
-
-// createCursorForSeries creates a cursor for walking the given series key. The cursor
-// consolidates both the Bolt store and any WAL cache.
-func (rm *RawMapper) createCursorForSeries(key string) *shardCursor {
-	// Retrieve key bucket.
-	b := rm.tx.Bucket([]byte(key))
-
-	// Ignore if there is no bucket or points in the cache.
-	partitionID := WALPartition([]byte(key))
-	if b == nil && len(rm.shard.cache[partitionID][key]) == 0 {
-		return nil
-	}
-
-	// Retrieve a copy of the in-cache points for the key.
-	cache := make([][]byte, len(rm.shard.cache[partitionID][key]))
-	copy(cache, rm.shard.cache[partitionID][key])
-
-	// Build a cursor that merges the bucket and cache together.
-	cur := &shardCursor{cache: cache}
-	if b != nil {
-		cur.cursor = b.Cursor()
-	}
-	return cur
 }
 
 type rawMapperValue struct {
@@ -408,10 +384,18 @@ func (mc *seriesCursor) Next() (key int64, value []byte) {
 
 // AggMapper is for retrieving data, for an aggregate query, from a given shard.
 type AggMapper struct {
-	shard *Shard
-	stmt  *influxql.SelectStatement
+	shard    *Shard
+	stmt     *influxql.SelectStatement
+	interval int64 // The GROUP BY interval of the query
 
-	tx *bolt.Tx // Read transaction for this shard.
+	tx        *bolt.Tx // Read transaction for this shard.
+	queryTMin int64
+	queryTMax int64
+
+	whereFields  stringSet // field names that occur in the where clause
+	selectFields stringSet // field names that occur in the select clause
+	selectTags   stringSet // tag keys that occur in the select clause
+	fieldName    string    // the field name being read.
 
 	cursors map[string]*tagSetCursor // Cursors per tag sets.
 }
@@ -419,9 +403,12 @@ type AggMapper struct {
 // NewAggMapper returns a mapper for the given shard, which will return data for the SELECT statement.
 func NewAggMapper(shard *Shard, stmt *influxql.SelectStatement) *AggMapper {
 	return &AggMapper{
-		shard:   shard,
-		stmt:    stmt,
-		cursors: make(map[string]*tagSetCursor, 0),
+		shard:        shard,
+		stmt:         stmt,
+		whereFields:  newStringSet(),
+		selectFields: newStringSet(),
+		selectTags:   newStringSet(),
+		cursors:      make(map[string]*tagSetCursor, 0),
 	}
 }
 
@@ -433,6 +420,102 @@ func (am *AggMapper) Open() error {
 		return err
 	}
 	am.tx = tx
+
+	// Set all time-related parameters on the mapper.
+	tmin, tmax := influxql.TimeRange(am.stmt.Condition)
+	if tmin.IsZero() {
+		am.queryTMin = time.Unix(0, 0).UnixNano()
+	} else {
+		am.queryTMin = tmin.UnixNano()
+	}
+	if tmax.IsZero() {
+		am.queryTMax = time.Now().UnixNano()
+	} else {
+		am.queryTMax = tmax.UnixNano()
+	}
+
+	// Create the TagSet cursors for the Mapper.
+	for _, src := range am.stmt.Sources {
+		mm, ok := src.(*influxql.Measurement)
+		if !ok {
+			return fmt.Errorf("invalid source type: %#v", src)
+		}
+
+		m := am.shard.index.Measurement(mm.Name)
+
+		if m == nil {
+			// This shard have never received data for the measurement. No Mapper
+			// required.
+			return nil
+		}
+
+		// Create tagset cursors.
+		_, tagKeys, err := am.stmt.Dimensions.Normalize()
+		if err != nil {
+			return err
+		}
+
+		// Validate the fields and tags asked for exist and keep track of which are in the select vs the where
+		for _, n := range am.stmt.NamesInSelect() {
+			if m.HasField(n) {
+				am.selectFields.add(n)
+				continue
+			}
+			if !m.HasTagKey(n) {
+				return fmt.Errorf("unknown field or tag name in select clause: %s", n)
+			}
+			am.selectTags.add(n)
+			tagKeys = append(tagKeys, n)
+		}
+		for _, n := range am.stmt.NamesInWhere() {
+			if n == "time" {
+				continue
+			}
+			if m.HasField(n) {
+				am.whereFields.add(n)
+				continue
+			}
+			if !m.HasTagKey(n) {
+				return fmt.Errorf("unknown field or tag name in where clause: %s", n)
+			}
+		}
+
+		if len(am.selectFields) == 0 {
+			return fmt.Errorf("select statement must include at least one field")
+		}
+
+		// Get the group by interval.
+		if d, err := am.stmt.GroupByInterval(); err != nil {
+			return err
+		} else {
+			am.interval = d.Nanoseconds()
+		}
+
+		// Get the sorted unique tag sets for this statement.
+		tagSets, err := m.TagSets(am.stmt, tagKeys)
+
+		if err != nil {
+			return err
+		}
+
+		// Create all cursors for reading the data from this shard.
+		for _, t := range tagSets {
+			cursors := []*seriesCursor{}
+
+			for i, key := range t.SeriesKeys {
+				c := createCursorForSeries(am.tx, am.shard, key)
+				if c == nil {
+					// No data exists for this key.
+					continue
+				}
+				cm := newSeriesCursor(c, t.Filters[i])
+				cm.SeekTo(am.queryTMin)
+				cursors = append(cursors, cm)
+			}
+			tsc := newTagSetCursor(m.Name, t.Tags, cursors, am.shard.FieldCodec(m.Name))
+			am.cursors[tsc.key()] = tsc
+		}
+	}
 
 	return nil
 }
@@ -457,4 +540,28 @@ func (am *AggMapper) Close() {
 	if am.tx != nil {
 		_ = am.tx.Rollback()
 	}
+}
+
+// createCursorForSeries creates a cursor for walking the given series key. The cursor
+// consolidates both the Bolt store and any WAL cache.
+func createCursorForSeries(tx *bolt.Tx, shard *Shard, key string) *shardCursor {
+	// Retrieve key bucket.
+	b := tx.Bucket([]byte(key))
+
+	// Ignore if there is no bucket or points in the cache.
+	partitionID := WALPartition([]byte(key))
+	if b == nil && len(shard.cache[partitionID][key]) == 0 {
+		return nil
+	}
+
+	// Retrieve a copy of the in-cache points for the key.
+	cache := make([][]byte, len(shard.cache[partitionID][key]))
+	copy(cache, shard.cache[partitionID][key])
+
+	// Build a cursor that merges the bucket and cache together.
+	cur := &shardCursor{cache: cache}
+	if b != nil {
+		cur.cursor = b.Cursor()
+	}
+	return cur
 }
