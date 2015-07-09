@@ -288,10 +288,9 @@ func (q *QueryExecutor) executeSelectStatement(statementID int, stmt *influxql.S
 	for row := range ch {
 		if row.Err != nil {
 			return row.Err
-		} else {
-			resultSent = true
-			results <- &influxql.Result{StatementID: statementID, Series: []*influxql.Row{row}}
 		}
+		resultSent = true
+		results <- &influxql.Result{StatementID: statementID, Series: []*influxql.Row{row}}
 	}
 
 	if !resultSent {

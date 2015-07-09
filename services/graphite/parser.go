@@ -296,11 +296,10 @@ func (n *node) search(lineParts []string) *template {
 	// Found an exact match, so search that child sub-tree
 	if i < len(n.children) && n.children[i].value == lineParts[0] {
 		return n.children[i].search(lineParts[1:])
-	} else {
-		// Not an exact match, see if we have a wildcard child to search
-		if n.children[len(n.children)-1].value == "*" {
-			return n.children[len(n.children)-1].search(lineParts[1:])
-		}
+	}
+	// Not an exact match, see if we have a wildcard child to search
+	if n.children[len(n.children)-1].value == "*" {
+		return n.children[len(n.children)-1].search(lineParts[1:])
 	}
 	return n.template
 }

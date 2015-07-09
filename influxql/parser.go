@@ -1590,31 +1590,31 @@ func (p *Parser) parseFill() (FillOption, interface{}, error) {
 		p.unscan()
 		return NullFill, nil, nil
 	}
-	if lit, ok := expr.(*Call); !ok {
+	lit, ok := expr.(*Call)
+	if !ok {
 		p.unscan()
 		return NullFill, nil, nil
-	} else {
-		if strings.ToLower(lit.Name) != "fill" {
-			p.unscan()
-			return NullFill, nil, nil
+	}
+	if strings.ToLower(lit.Name) != "fill" {
+		p.unscan()
+		return NullFill, nil, nil
+	}
+	if len(lit.Args) != 1 {
+		return NullFill, nil, errors.New("fill requires an argument, e.g.: 0, null, none, previous")
+	}
+	switch lit.Args[0].String() {
+	case "null":
+		return NullFill, nil, nil
+	case "none":
+		return NoFill, nil, nil
+	case "previous":
+		return PreviousFill, nil, nil
+	default:
+		num, ok := lit.Args[0].(*NumberLiteral)
+		if !ok {
+			return NullFill, nil, fmt.Errorf("expected number argument in fill()")
 		}
-		if len(lit.Args) != 1 {
-			return NullFill, nil, errors.New("fill requires an argument, e.g.: 0, null, none, previous")
-		}
-		switch lit.Args[0].String() {
-		case "null":
-			return NullFill, nil, nil
-		case "none":
-			return NoFill, nil, nil
-		case "previous":
-			return PreviousFill, nil, nil
-		default:
-			num, ok := lit.Args[0].(*NumberLiteral)
-			if !ok {
-				return NullFill, nil, fmt.Errorf("expected number argument in fill()")
-			}
-			return NumberFill, num.Val, nil
-		}
+		return NumberFill, num.Val, nil
 	}
 }
 

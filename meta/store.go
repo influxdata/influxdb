@@ -468,10 +468,9 @@ func (s *Store) serveExecListener() {
 		if err != nil {
 			if strings.Contains(err.Error(), "connection closed") {
 				return
-			} else {
-				s.Logger.Printf("temporary accept error: %s", err)
-				continue
 			}
+			s.Logger.Printf("temporary accept error: %s", err)
+			continue
 		}
 
 		// Handle connection in a separate goroutine.
@@ -682,11 +681,11 @@ func (s *Store) CreateDatabaseIfNotExists(name string) (*DatabaseInfo, error) {
 	}
 
 	// Attempt to create database.
-	if di, err := s.CreateDatabase(name); err == ErrDatabaseExists {
+	di, err := s.CreateDatabase(name)
+	if err == ErrDatabaseExists {
 		return s.Database(name)
-	} else {
-		return di, err
 	}
+	return di, err
 }
 
 // DropDatabase removes a database from the metastore by name.
@@ -771,11 +770,11 @@ func (s *Store) CreateRetentionPolicyIfNotExists(database string, rpi *Retention
 	}
 
 	// Attempt to create policy.
-	if other, err := s.CreateRetentionPolicy(database, rpi); err == ErrRetentionPolicyExists {
+	other, err := s.CreateRetentionPolicy(database, rpi)
+	if err == ErrRetentionPolicyExists {
 		return s.RetentionPolicy(database, rpi.Name)
-	} else {
-		return other, err
 	}
+	return other, err
 }
 
 // SetDefaultRetentionPolicy sets the default retention policy for a database.
@@ -855,11 +854,11 @@ func (s *Store) CreateShardGroupIfNotExists(database, policy string, timestamp t
 	}
 
 	// Attempt to create database.
-	if sgi, err := s.CreateShardGroup(database, policy, timestamp); err == ErrShardGroupExists {
+	sgi, err := s.CreateShardGroup(database, policy, timestamp)
+	if err == ErrShardGroupExists {
 		return s.ShardGroupByTimestamp(database, policy, timestamp)
-	} else {
-		return sgi, err
 	}
+	return sgi, err
 }
 
 // DeleteShardGroup removes an existing shard group from a policy by ID.
@@ -1034,9 +1033,8 @@ func (s *Store) Authenticate(username, password string) (ui *UserInfo, err error
 			if bytes.Equal(hashed, au.hash) {
 				ui = u
 				return nil
-			} else {
-				return ErrAuthenticate
 			}
+			return ErrAuthenticate
 		}
 
 		// Compare password with user hash.
@@ -1260,9 +1258,8 @@ func (s *Store) exec(typ internal.Command_Type, desc *proto.ExtensionDesc, value
 	// Otherwise remotely execute the command against the current leader.
 	if s.raft.State() == raft.Leader {
 		return s.apply(b)
-	} else {
-		return s.remoteExec(b)
 	}
+	return s.remoteExec(b)
 }
 
 // apply applies a serialized command to the raft log.
