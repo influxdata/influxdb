@@ -312,7 +312,7 @@ func NewAggregateExecutor(stmt *influxql.SelectStatement, mappers []Mapper) *Agg
 func (ae *AggregateExecutor) Execute(chunkSize int) <-chan *influxql.Row {
 	// Create output channel and stream data in a separate goroutine.
 	out := make(chan *influxql.Row, 0)
-	go re.execute(out, chunkSize)
+	go ae.execute(out, chunkSize)
 	return out
 }
 
@@ -322,7 +322,7 @@ func (ae *AggregateExecutor) execute(out chan *influxql.Row, chunkSize int) {
 // Close closes the executor such that all resources are released. Once closed,
 // an executor may not be re-used.
 func (ae *AggregateExecutor) close() {
-	for _, m := range re.mappers {
+	for _, m := range ae.mappers {
 		m.Close()
 	}
 }

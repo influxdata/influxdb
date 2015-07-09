@@ -405,3 +405,67 @@ func (mc *seriesCursor) Next() (key int64, value []byte) {
 	}
 	return
 }
+
+// AggMapper is for retrieving data, for an aggregate query, from a given shard.
+type AggMapper struct {
+	shard *Shard
+	stmt  *influxql.SelectStatement
+
+	tx *bolt.Tx // Read transaction for this shard.
+
+	cursors map[string]*tagSetCursor // Cursors per tag sets.
+}
+
+// NewAggMapper returns a mapper for the given shard, which will return data for the SELECT statement.
+func NewAggMapper(shard *Shard, stmt *influxql.SelectStatement) *AggMapper {
+	return &AggMapper{
+		shard:   shard,
+		stmt:    stmt,
+		cursors: make(map[string]*tagSetCursor, 0),
+	}
+}
+
+// Open opens the aggregate mapper.
+func (am *AggMapper) Open() error {
+	// Get a read-only transaction.
+	tx, err := am.shard.DB().Begin(false)
+	if err != nil {
+		return err
+	}
+	am.tx = tx
+
+	return nil
+}
+
+// TagSets returns the list of TagSets for which this mapper has data.
+func (am *AggMapper) TagSets() []string {
+	set := newStringSet()
+	for k, _ := range am.cursors {
+		set.add(k)
+	}
+	return set.list()
+}
+
+// NextChunk returns the next chunk of data for a tagset. If the result is nil, there are no more
+// data.
+func (am *AggMapper) NextChunk(tagset string, chunkSize int) (*rawMapperOutput, error) {
+	cursor, ok := am.cursors[tagset]
+	if !ok {
+		return nil, nil
+	}
+	output := &rawMapperOutput{
+		Name: cursor.measurement,
+		Tags: cursor.tags,
+	}
+
+	// Still got a tagset cursor to process.
+	for {
+	}
+}
+
+// Close closes the mapper.
+func (am *AggMapper) Close() {
+	if am.tx != nil {
+		_ = am.tx.Rollback()
+	}
+}
