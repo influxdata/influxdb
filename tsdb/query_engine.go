@@ -194,6 +194,7 @@ tagsetLoop:
 						name:        chunk.Name,
 						tags:        chunk.Tags,
 						selectNames: re.stmt.NamesInSelect(),
+						fields:      re.stmt.Fields,
 						c:           out,
 					}
 				}
@@ -302,6 +303,7 @@ type limitedRowWriter struct {
 	name        string
 	tags        map[string]string
 	selectNames []string
+	fields      influxql.Fields
 	c           chan *influxql.Row
 
 	currValues []*rawMapperValue
@@ -435,5 +437,42 @@ func (r *limitedRowWriter) processValues(values []*rawMapperValue) *influxql.Row
 		row.Values = append(row.Values, vals)
 	}
 
+	// Perform any mathematical post-processing.
+	row.Values = r.processRowValues(row.Values)
+
 	return row
+}
+
+// processRowValues will apply any math that was specified in the select statement against the passed in results
+func (r *limitedRowWriter) processRowValues(results [][]interface{}) [][]interface{} {
+	hasMath := false
+	for _, f := range r.fields {
+		if _, ok := f.Expr.(*influxql.BinaryExpr); ok {
+			hasMath = true
+		} else if _, ok := f.Expr.(*influxql.ParenExpr); ok {
+			hasMath = true
+		}
+	}
+
+	if !hasMath {
+		return results
+	}
+
+	processors := make([]influxql.Processor, len(r.fields))
+	startIndex := 1
+	for i, f := range r.fields {
+		processors[i], startIndex = influxql.GetProcessor(f.Expr, startIndex)
+	}
+
+	mathResults := make([][]interface{}, len(results))
+	for i, _ := range mathResults {
+		mathResults[i] = make([]interface{}, len(r.fields)+1)
+		// put the time in
+		mathResults[i][0] = results[i][0]
+		for j, p := range processors {
+			mathResults[i][j+1] = p(results[i])
+		}
+	}
+
+	return mathResults
 }
