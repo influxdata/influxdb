@@ -449,18 +449,7 @@ func (am *AggMapper) TagSets() []string {
 // NextChunk returns the next chunk of data for a tagset. If the result is nil, there are no more
 // data.
 func (am *AggMapper) NextChunk(tagset string, chunkSize int) (*rawMapperOutput, error) {
-	cursor, ok := am.cursors[tagset]
-	if !ok {
-		return nil, nil
-	}
-	output := &rawMapperOutput{
-		Name: cursor.measurement,
-		Tags: cursor.tags,
-	}
-
-	// Still got a tagset cursor to process.
-	for {
-	}
+	return nil, nil
 }
 
 // Close closes the mapper.
