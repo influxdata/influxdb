@@ -301,7 +301,7 @@ func nextRawChunkAsJson(t *testing.T, mapper *RawMapper, tagset string, chunkSiz
 }
 
 func openAggMapperOrFail(t *testing.T, shard *Shard, stmt *influxql.SelectStatement) *AggMapper {
-	mapper := NewAggMapper(shard, smt)
+	mapper := NewAggMapper(shard, stmt)
 
 	if err := mapper.Open(); err != nil {
 		t.Fatalf("failed to open aggregate mapper: %s", err.Error())
