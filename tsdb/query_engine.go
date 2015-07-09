@@ -40,6 +40,7 @@ type Planner struct {
 
 	Cluster interface {
 		NewRawMapper(shardID uint64, stmt string) (Mapper, error)
+		NewAggMapper(shardID uint64, stmt string) (Mapper, error)
 	}
 
 	store *Store
@@ -119,7 +120,28 @@ func (p *Planner) planRawQuery(stmt *influxql.SelectStatement, shards map[uint64
 }
 
 func (p *Planner) planAggregateQuery(stmt *influxql.SelectStatement, shards map[uint64]meta.ShardInfo) (Executor, error) {
-	return nil, nil
+	// Build the Mappers, one per shard. If the shard is local to this node, always use
+	// that one, versus asking the cluster.
+	mappers := []Mapper{}
+	for _, sh := range shards {
+		if sh.OwnedBy(p.MetaStore.NodeID()) {
+			shard := p.store.Shard(sh.ID)
+			if shard == nil {
+				// If the store returns nil, no data has actually been written to the shard.
+				// In this case, since there is no data, don't make a mapper.
+				continue
+			}
+			mappers = append(mappers, NewAggMapper(shard, stmt))
+		} else {
+			mapper, err := p.Cluster.NewAggMapper(sh.ID, stmt.String())
+			if err != nil {
+				return nil, err
+			}
+			mappers = append(mappers, mapper)
+		}
+	}
+
+	return NewAggregateExecutor(stmt, mappers), nil
 }
 
 // RawExecutor is an executor for RawMappers.
