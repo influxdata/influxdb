@@ -70,7 +70,7 @@ func TestShardMapper_WriteAndSingleMapperTagSets(t *testing.T) {
 
 	for _, tt := range tests {
 		stmt := mustParseSelectStatement(tt.stmt)
-		mapper := openMapperOrFail(t, shard, stmt)
+		mapper := openRawMapperOrFail(t, shard, stmt)
 		got := mapper.TagSets()
 		if !reflect.DeepEqual(got, tt.expected) {
 			t.Errorf("test '%s'\n\tgot      %s\n\texpected %s", tt.stmt, got, tt.expected)
@@ -192,10 +192,10 @@ func TestShardMapper_WriteAndSingleMapperRawQuery(t *testing.T) {
 
 	for _, tt := range tests {
 		stmt := mustParseSelectStatement(tt.stmt)
-		mapper := openMapperOrFail(t, shard, stmt)
+		mapper := openRawMapperOrFail(t, shard, stmt)
 
 		for _, s := range tt.expected {
-			got := nextChunkAsJson(t, mapper, tt.reqTagSet, tt.chunkSize)
+			got := nextRawChunkAsJson(t, mapper, tt.reqTagSet, tt.chunkSize)
 			if got != s {
 				t.Errorf("test '%s'\n\tgot      %s\n\texpected %s", tt.stmt, got, tt.expected)
 				break
@@ -248,10 +248,10 @@ func TestShardMapper_WriteAndSingleMapperRawQueryMultiValue(t *testing.T) {
 
 	for _, tt := range tests {
 		stmt := mustParseSelectStatement(tt.stmt)
-		mapper := openMapperOrFail(t, shard, stmt)
+		mapper := openRawMapperOrFail(t, shard, stmt)
 
 		for _, s := range tt.expected {
-			got := nextChunkAsJson(t, mapper, tt.reqTagSet, tt.chunkSize)
+			got := nextRawChunkAsJson(t, mapper, tt.reqTagSet, tt.chunkSize)
 			if got != s {
 				t.Errorf("test '%s'\n\tgot      %s\n\texpected %s", tt.stmt, got, tt.expected)
 				break
@@ -279,7 +279,7 @@ func mustParseSelectStatement(s string) *influxql.SelectStatement {
 	return stmt.(*influxql.SelectStatement)
 }
 
-func openMapperOrFail(t *testing.T, shard *Shard, stmt *influxql.SelectStatement) *RawMapper {
+func openRawMapperOrFail(t *testing.T, shard *Shard, stmt *influxql.SelectStatement) *RawMapper {
 	mapper := NewRawMapper(shard, stmt)
 
 	if err := mapper.Open(); err != nil {
@@ -288,7 +288,7 @@ func openMapperOrFail(t *testing.T, shard *Shard, stmt *influxql.SelectStatement
 	return mapper
 }
 
-func nextChunkAsJson(t *testing.T, mapper *RawMapper, tagset string, chunkSize int) string {
+func nextRawChunkAsJson(t *testing.T, mapper *RawMapper, tagset string, chunkSize int) string {
 	r, err := mapper.NextChunk(tagset, chunkSize)
 	if err != nil {
 		t.Fatalf("failed to get next chunk from mapper: %s", err.Error())
