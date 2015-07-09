@@ -1,6 +1,7 @@
 package tsdb
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"math"
@@ -345,7 +346,7 @@ func (ae *AggregateExecutor) execute(out chan *influxql.Row, chunkSize int) {
 	for i, c := range aggregates {
 		reduceFunc, err := influxql.InitializeReduceFunc(c)
 		if err != nil {
-			out <- &Row{Err: err}
+			out <- &influxql.Row{Err: err}
 			return
 		}
 		reduceFuncs[i] = reduceFunc
@@ -355,34 +356,34 @@ func (ae *AggregateExecutor) execute(out chan *influxql.Row, chunkSize int) {
 	var pointCountInResult int
 
 	// if the user didn't specify a start time or a group by interval, we're returning a single point that describes the entire range
-	if m.TMin == 0 || m.interval == 0 {
-		// they want a single aggregate point for the entire time range
-		m.interval = m.TMax - m.TMin
-		pointCountInResult = 1
-	} else {
-		intervalTop := m.TMax/m.interval*m.interval + m.interval
-		intervalBottom := m.TMin / m.interval * m.interval
-		pointCountInResult = int((intervalTop - intervalBottom) / m.interval)
-	}
+	//if m.TMin == 0 || m.interval == 0 {
+	//	// they want a single aggregate point for the entire time range
+	//	ae.interval = m.TMax - m.TMin
+	//	pointCountInResult = 1
+	//} else {
+	//	intervalTop := m.TMax/m.interval*m.interval + m.interval
+	//	intervalBottom := m.TMin / m.interval * m.interval
+	//	pointCountInResult = int((intervalTop - intervalBottom) / m.interval)
+	//}
 
 	// For group by time queries, limit the number of data points returned by the limit and offset
 	// raw query limits are handled elsewhere
-	if m.stmt.Limit > 0 || m.stmt.Offset > 0 {
+	if ae.stmt.Limit > 0 || ae.stmt.Offset > 0 {
 		// ensure that the offset isn't higher than the number of points we'd get
-		if m.stmt.Offset > pointCountInResult {
+		if ae.stmt.Offset > pointCountInResult {
 			return
 		}
 
 		// take the lesser of either the pre computed number of group by buckets that
 		// will be in the result or the limit passed in by the user
-		if m.stmt.Limit < pointCountInResult {
-			pointCountInResult = m.stmt.Limit
+		if ae.stmt.Limit < pointCountInResult {
+			pointCountInResult = ae.stmt.Limit
 		}
 	}
 
 	// If we are exceeding our MaxGroupByPoints and we aren't a raw query, error out
-	if pointCountInResult > MaxGroupByPoints {
-		out <- &Row{
+	if pointCountInResult > influxql.MaxGroupByPoints {
+		out <- &influxql.Row{
 			Err: errors.New("too many points in the group by interval. maybe you forgot to specify a where time clause?"),
 		}
 		return
