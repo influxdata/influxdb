@@ -294,6 +294,39 @@ func (re *RawExecutor) close() {
 	}
 }
 
+// AggregateExecutor is an executor for AggregateMappers.
+type AggregateExecutor struct {
+	stmt    *influxql.SelectStatement
+	mappers []Mapper
+}
+
+// NewAggregateExecutor returns a new AggregateExecutor.
+func NewAggregateExecutor(stmt *influxql.SelectStatement, mappers []Mapper) *AggregateExecutor {
+	return &AggregateExecutor{
+		stmt:    stmt,
+		mappers: mappers,
+	}
+}
+
+// Execute begins execution of the query and returns a channel to receive rows.
+func (ae *AggregateExecutor) Execute(chunkSize int) <-chan *influxql.Row {
+	// Create output channel and stream data in a separate goroutine.
+	out := make(chan *influxql.Row, 0)
+	go re.execute(out, chunkSize)
+	return out
+}
+
+func (ae *AggregateExecutor) execute(out chan *influxql.Row, chunkSize int) {
+}
+
+// Close closes the executor such that all resources are released. Once closed,
+// an executor may not be re-used.
+func (ae *AggregateExecutor) close() {
+	for _, m := range re.mappers {
+		m.Close()
+	}
+}
+
 // limitedRowWriter accepts raw maper values, and will emit those values as rows in chunks
 // of the given size. If the chunk size is 0, no chunking will be performed. In addiiton if
 // limit is reached, outstanding values will be emitted. If limit is zero, no limit is enforced.
