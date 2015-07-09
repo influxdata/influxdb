@@ -353,6 +353,13 @@ func (r *limitedRowWriter) Add(values []*rawMapperValue) (limited bool) {
 // Flush instructs the limitedRowWriter to emit any pending values as a single row,
 // adhering to any limits. Chunking is not enforced.
 func (r *limitedRowWriter) Flush() {
+	// If at least some rows were sent, and no values are pending, then don't
+	// emit anything, since at least 1 row was previously emitted. This ensures
+	// that if no rows were ever sent, at least 1 will be emitted, even an empty row.
+	if r.totalSent != 0 && len(r.currValues) == 0 {
+		return
+	}
+
 	if r.limit > 0 && len(r.currValues) > r.limit {
 		r.currValues = r.currValues[:r.limit]
 	}
