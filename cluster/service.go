@@ -268,6 +268,9 @@ func (s *Service) writeShardResponse(w io.Writer, e error) {
 }
 
 func (s *Service) processMapShardRequest(w io.Writer, buf []byte) error {
+	// Consider adding a timeout to the read of w. This way query processing
+	// that hangs on the remote node, but doesn't terminate the connection,
+	// the resources are still free.
 	return nil
 }
 
