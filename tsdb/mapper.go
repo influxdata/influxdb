@@ -396,11 +396,10 @@ type AggMapper struct {
 
 	tx *bolt.Tx // Read transaction for this shard.
 
-	whereFields  stringSet        // field names that occur in the where clause
-	selectFields stringSet        // field names that occur in the select clause
-	selectTags   stringSet        // tag keys that occur in the select clause
-	fieldName    string           // the field name being read.
-	mapFunc      influxql.MapFunc // the map function.
+	whereFields  stringSet // field names that occur in the where clause
+	selectFields stringSet // field names that occur in the select clause
+	selectTags   stringSet // tag keys that occur in the select clause
+	fieldName    string    // the field name being read.
 
 	cursors map[string]*tagSetCursor // Cursors per tag sets.
 }
@@ -514,7 +513,12 @@ func (am *AggMapper) TagSets() []string {
 
 // Interval returns the next chunk of aggregated data, for the given time range. If the result is nil,
 // there are no more data.
-func (am *AggMapper) Interval(tagset string, tmin, tmax int64) (*rawMapperOutput, error) {
+func (am *AggMapper) Interval(tagset string, call *influxql.Call, tmin, tmax int64) (*rawMapperOutput, error) {
+	mapFunc, err := influxql.InitializeMapFunc(call)
+	if err != nil {
+		return nil, err
+	}
+
 	cursor, ok := am.cursors[tagset]
 	if !ok {
 		return nil, nil
@@ -539,7 +543,7 @@ func (am *AggMapper) Interval(tagset string, tmin, tmax int64) (*rawMapperOutput
 
 		// Execute the map function which walks the entire interval, and aggregates
 		// the result.
-		v := am.mapFunc(tagSetCursor)
+		v := mapFunc(tagSetCursor)
 
 		value := &rawMapperValue{Time: tmin, Value: v} // rawMapperValue -> rawValue?
 		output.Values = append(output.Values, value)

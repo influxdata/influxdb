@@ -444,12 +444,14 @@ func (ae *AggregateExecutor) execute(out chan *influxql.Row, chunkSize int) {
 
 	for _, tMin := range tMins {
 		for _, t := range availTagSets.list() {
-			for _, m := range ae.mappers {
-				val, err := m.Interval(t, tMin, tMin+interval)
-				if err != nil {
-					panic("error getting interval")
+			for _, c := range aggregates {
+				for _, m := range ae.mappers {
+					val, err := m.Interval(t, c, tMin, tMin+interval)
+					if err != nil {
+						panic("error getting interval")
+					}
+					fmt.Println(">>>>>agg value:", val)
 				}
-				fmt.Println(">>>>>agg value:", val)
 			}
 		}
 	}
