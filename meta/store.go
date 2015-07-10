@@ -1137,10 +1137,29 @@ func (s *Store) SetPrivilege(username, database string, p influxql.Privilege) er
 	)
 }
 
+// SetAdminPrivilege sets the admin privilege for a user on a database.
+func (s *Store) SetAdminPrivilege(username string, admin bool) error {
+	return s.exec(internal.Command_SetAdminPrivilegeCommand, internal.E_SetAdminPrivilegeCommand_Command,
+		&internal.SetAdminPrivilegeCommand{
+			Username: proto.String(username),
+			Admin:    proto.Bool(admin),
+		},
+	)
+}
+
 // UserPrivileges returns a list of all databases.
 func (s *Store) UserPrivileges(username string) (p map[string]influxql.Privilege, err error) {
 	err = s.read(func(data *Data) error {
 		p, err = data.UserPrivileges(username)
+		return err
+	})
+	return
+}
+
+// UserPrivilege returns the privilege for a database.
+func (s *Store) UserPrivilege(username, database string) (p *influxql.Privilege, err error) {
+	err = s.read(func(data *Data) error {
+		p, err = data.UserPrivilege(username, database)
 		return err
 	})
 	return
@@ -1444,6 +1463,8 @@ func (fsm *storeFSM) Apply(l *raft.Log) interface{} {
 			return fsm.applyUpdateUserCommand(&cmd)
 		case internal.Command_SetPrivilegeCommand:
 			return fsm.applySetPrivilegeCommand(&cmd)
+		case internal.Command_SetAdminPrivilegeCommand:
+			return fsm.applySetAdminPrivilegeCommand(&cmd)
 		case internal.Command_SetDataCommand:
 			return fsm.applySetDataCommand(&cmd)
 		default:
@@ -1698,6 +1719,19 @@ func (fsm *storeFSM) applySetPrivilegeCommand(cmd *internal.Command) interface{}
 	// Copy data and update.
 	other := fsm.data.Clone()
 	if err := other.SetPrivilege(v.GetUsername(), v.GetDatabase(), influxql.Privilege(v.GetPrivilege())); err != nil {
+		return err
+	}
+	fsm.data = other
+	return nil
+}
+
+func (fsm *storeFSM) applySetAdminPrivilegeCommand(cmd *internal.Command) interface{} {
+	ext, _ := proto.GetExtension(cmd, internal.E_SetAdminPrivilegeCommand_Command)
+	v := ext.(*internal.SetAdminPrivilegeCommand)
+
+	// Copy data and update.
+	other := fsm.data.Clone()
+	if err := other.SetAdminPrivilege(v.GetUsername(), v.GetAdmin()); err != nil {
 		return err
 	}
 	fsm.data = other

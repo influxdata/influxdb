@@ -92,7 +92,9 @@ func (*DropRetentionPolicyStatement) node()   {}
 func (*DropSeriesStatement) node()            {}
 func (*DropUserStatement) node()              {}
 func (*GrantStatement) node()                 {}
+func (*GrantAdminStatement) node()            {}
 func (*RevokeStatement) node()                {}
+func (*RevokeAdminStatement) node()           {}
 func (*SelectStatement) node()                {}
 func (*SetPasswordUserStatement) node()       {}
 func (*ShowContinuousQueriesStatement) node() {}
@@ -169,11 +171,13 @@ type HasDefaultDatabase interface {
 // ExecutionPrivilege is a privilege required for a user to execute
 // a statement on a database or resource.
 type ExecutionPrivilege struct {
-	// Name of the database or resource.
-	// If "", then the resource is the cluster.
+	// Admin privilege required.
+	Admin bool
+
+	// Name of the database.
 	Name string
 
-	// Privilege required.
+	// Database privilege required.
 	Privilege Privilege
 }
 
@@ -193,6 +197,7 @@ func (*DropRetentionPolicyStatement) stmt()   {}
 func (*DropSeriesStatement) stmt()            {}
 func (*DropUserStatement) stmt()              {}
 func (*GrantStatement) stmt()                 {}
+func (*GrantAdminStatement) stmt()            {}
 func (*ShowContinuousQueriesStatement) stmt() {}
 func (*ShowGrantsForUserStatement) stmt()     {}
 func (*ShowServersStatement) stmt()           {}
@@ -207,6 +212,7 @@ func (*ShowTagKeysStatement) stmt()           {}
 func (*ShowTagValuesStatement) stmt()         {}
 func (*ShowUsersStatement) stmt()             {}
 func (*RevokeStatement) stmt()                {}
+func (*RevokeAdminStatement) stmt()           {}
 func (*SelectStatement) stmt()                {}
 func (*SetPasswordUserStatement) stmt()       {}
 
@@ -308,7 +314,7 @@ func (s *CreateDatabaseStatement) String() string {
 
 // RequiredPrivileges returns the privilege required to execute a CreateDatabaseStatement.
 func (s *CreateDatabaseStatement) RequiredPrivileges() ExecutionPrivileges {
-	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
+	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
 }
 
 // DropDatabaseStatement represents a command to drop a database.
@@ -327,7 +333,7 @@ func (s *DropDatabaseStatement) String() string {
 
 // RequiredPrivileges returns the privilege required to execute a DropDatabaseStatement.
 func (s *DropDatabaseStatement) RequiredPrivileges() ExecutionPrivileges {
-	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
+	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
 }
 
 // DropRetentionPolicyStatement represents a command to drop a retention policy from a database.
@@ -351,7 +357,7 @@ func (s *DropRetentionPolicyStatement) String() string {
 
 // RequiredPrivileges returns the privilege required to execute a DropRetentionPolicyStatement.
 func (s *DropRetentionPolicyStatement) RequiredPrivileges() ExecutionPrivileges {
-	return ExecutionPrivileges{{Name: s.Database, Privilege: WritePrivilege}}
+	return ExecutionPrivileges{{Admin: false, Name: s.Database, Privilege: WritePrivilege}}
 }
 
 // CreateUserStatement represents a command for creating a new user.
@@ -359,11 +365,11 @@ type CreateUserStatement struct {
 	// Name of the user to be created.
 	Name string
 
-	// User's password
+	// User's password.
 	Password string
 
-	// User's privilege level.
-	Privilege *Privilege
+	// User's admin privilege.
+	Admin bool
 }
 
 // String returns a string representation of the create user statement.
@@ -376,13 +382,12 @@ func (s *CreateUserStatement) String() string {
 	if s.Admin {
 		_, _ = buf.WriteString(" WITH ALL PRIVILEGES")
 	}
-
 	return buf.String()
 }
 
 // RequiredPrivileges returns the privilege(s) required to execute a CreateUserStatement.
 func (s *CreateUserStatement) RequiredPrivileges() ExecutionPrivileges {
-	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
+	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
 }
 
 // DropUserStatement represents a command for dropping a user.
@@ -401,7 +406,7 @@ func (s *DropUserStatement) String() string {
 
 // RequiredPrivileges returns the privilege(s) required to execute a DropUserStatement.
 func (s *DropUserStatement) RequiredPrivileges() ExecutionPrivileges {
-	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
+	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
 }
 
 // Privilege is a type of action a user can be granted the right to use.
@@ -441,7 +446,7 @@ type GrantStatement struct {
 	// The privilege to be granted.
 	Privilege Privilege
 
-	// Thing to grant privilege on (e.g., a DB).
+	// Database to grant the privilege to.
 	On string
 
 	// Who to grant the privilege to.
@@ -453,10 +458,8 @@ func (s *GrantStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("GRANT ")
 	_, _ = buf.WriteString(s.Privilege.String())
-	if s.On != "" {
-		_, _ = buf.WriteString(" ON ")
-		_, _ = buf.WriteString(s.On)
-	}
+	_, _ = buf.WriteString(" ON ")
+	_, _ = buf.WriteString(s.On)
 	_, _ = buf.WriteString(" TO ")
 	_, _ = buf.WriteString(s.User)
 	return buf.String()
@@ -464,7 +467,26 @@ func (s *GrantStatement) String() string {
 
 // RequiredPrivileges returns the privilege required to execute a GrantStatement.
 func (s *GrantStatement) RequiredPrivileges() ExecutionPrivileges {
-	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
+	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
+}
+
+// GrantAdminStatement represents a command for granting admin privilege.
+type GrantAdminStatement struct {
+	// Who to grant the privilege to.
+	User string
+}
+
+// String returns a string representation of the grant admin statement.
+func (s *GrantAdminStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("GRANT ALL PRIVILEGES TO ")
+	_, _ = buf.WriteString(s.User)
+	return buf.String()
+}
+
+// RequiredPrivileges returns the privilege required to execute a GrantAdminStatement.
+func (s *GrantAdminStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
 }
 
 // SetPasswordUserStatement represents a command for changing user password.
@@ -486,17 +508,17 @@ func (s *SetPasswordUserStatement) String() string {
 	return buf.String()
 }
 
-// RequiredPrivileges returns the privilege required to execute a GrantStatement.
+// RequiredPrivileges returns the privilege required to execute a SetPasswordUserStatement.
 func (s *SetPasswordUserStatement) RequiredPrivileges() ExecutionPrivileges {
-	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
+	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
 }
 
 // RevokeStatement represents a command to revoke a privilege from a user.
 type RevokeStatement struct {
-	// Privilege to be revoked.
+	// The privilege to be revoked.
 	Privilege Privilege
 
-	// Thing to revoke privilege to (e.g., a DB)
+	// Database to revoke the privilege from.
 	On string
 
 	// Who to revoke privilege from.
@@ -508,10 +530,8 @@ func (s *RevokeStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("REVOKE ")
 	_, _ = buf.WriteString(s.Privilege.String())
-	if s.On != "" {
-		_, _ = buf.WriteString(" ON ")
-		_, _ = buf.WriteString(s.On)
-	}
+	_, _ = buf.WriteString(" ON ")
+	_, _ = buf.WriteString(s.On)
 	_, _ = buf.WriteString(" FROM ")
 	_, _ = buf.WriteString(s.User)
 	return buf.String()
@@ -519,7 +539,26 @@ func (s *RevokeStatement) String() string {
 
 // RequiredPrivileges returns the privilege required to execute a RevokeStatement.
 func (s *RevokeStatement) RequiredPrivileges() ExecutionPrivileges {
-	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
+	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
+}
+
+// RevokeAdminStatement represents a command to revoke admin privilege from a user.
+type RevokeAdminStatement struct {
+	// Who to revoke admin privilege from.
+	User string
+}
+
+// String returns a string representation of the revoke admin statement.
+func (s *RevokeAdminStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("REVOKE ALL PRIVILEGES FROM ")
+	_, _ = buf.WriteString(s.User)
+	return buf.String()
+}
+
+// RequiredPrivileges returns the privilege required to execute a RevokeAdminStatement.
+func (s *RevokeAdminStatement) RequiredPrivileges() ExecutionPrivileges {
+	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
 }
 
 // CreateRetentionPolicyStatement represents a command to create a retention policy.
@@ -559,7 +598,7 @@ func (s *CreateRetentionPolicyStatement) String() string {
 
 // RequiredPrivileges returns the privilege required to execute a CreateRetentionPolicyStatement.
 func (s *CreateRetentionPolicyStatement) RequiredPrivileges() ExecutionPrivileges {
-	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
+	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
 }
 
 // AlterRetentionPolicyStatement represents a command to alter an existing retention policy.
@@ -607,7 +646,7 @@ func (s *AlterRetentionPolicyStatement) String() string {
 
 // RequiredPrivileges returns the privilege required to execute an AlterRetentionPolicyStatement.
 func (s *AlterRetentionPolicyStatement) RequiredPrivileges() ExecutionPrivileges {
-	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
+	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
 }
 
 type FillOption int
@@ -861,10 +900,10 @@ func (s *SelectStatement) String() string {
 
 // RequiredPrivileges returns the privilege required to execute the SelectStatement.
 func (s *SelectStatement) RequiredPrivileges() ExecutionPrivileges {
-	ep := ExecutionPrivileges{{Name: "", Privilege: ReadPrivilege}}
+	ep := ExecutionPrivileges{{Admin: false, Name: "", Privilege: ReadPrivilege}}
 
 	if s.Target != nil {
-		p := ExecutionPrivilege{Name: s.Target.Measurement.Database, Privilege: WritePrivilege}
+		p := ExecutionPrivilege{Admin: false, Name: s.Target.Measurement.Database, Privilege: WritePrivilege}
 		ep = append(ep, p)
 	}
 	return ep
@@ -1432,7 +1471,7 @@ func (s *DeleteStatement) String() string {
 
 // RequiredPrivileges returns the privilege required to execute a DeleteStatement.
 func (s *DeleteStatement) RequiredPrivileges() ExecutionPrivileges {
-	return ExecutionPrivileges{{Name: "", Privilege: WritePrivilege}}
+	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: WritePrivilege}}
 }
 
 // ShowSeriesStatement represents a command for listing series in the database.
@@ -1485,7 +1524,7 @@ func (s *ShowSeriesStatement) String() string {
 
 // RequiredPrivileges returns the privilege required to execute a ShowSeriesStatement.
 func (s *ShowSeriesStatement) RequiredPrivileges() ExecutionPrivileges {
-	return ExecutionPrivileges{{Name: "", Privilege: ReadPrivilege}}
+	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: ReadPrivilege}}
 }
 
 // DropSeriesStatement represents a command for removing a series from the database.
@@ -1516,7 +1555,7 @@ func (s *DropSeriesStatement) String() string {
 
 // RequiredPrivileges returns the privilege required to execute a DropSeriesStatement.
 func (s DropSeriesStatement) RequiredPrivileges() ExecutionPrivileges {
-	return ExecutionPrivileges{{Name: "", Privilege: WritePrivilege}}
+	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: WritePrivilege}}
 }
 
 // ShowContinuousQueriesStatement represents a command for listing continuous queries.
@@ -1527,7 +1566,7 @@ func (s *ShowContinuousQueriesStatement) String() string { return "SHOW CONTINUO
 
 // RequiredPrivileges returns the privilege required to execute a ShowContinuousQueriesStatement.
 func (s *ShowContinuousQueriesStatement) RequiredPrivileges() ExecutionPrivileges {
-	return ExecutionPrivileges{{Name: "", Privilege: ReadPrivilege}}
+	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: ReadPrivilege}}
 }
 
 // ShowGrantsForUserStatement represents a command for listing user privileges.
@@ -1547,7 +1586,7 @@ func (s *ShowGrantsForUserStatement) String() string {
 
 // RequiredPrivileges returns the privilege required to execute a ShowGrantsForUserStatement
 func (s *ShowGrantsForUserStatement) RequiredPrivileges() ExecutionPrivileges {
-	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
+	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
 }
 
 // ShowServersStatement represents a command for listing all servers.
@@ -1558,7 +1597,7 @@ func (s *ShowServersStatement) String() string { return "SHOW SERVERS" }
 
 // RequiredPrivileges returns the privilege required to execute a ShowServersStatement
 func (s *ShowServersStatement) RequiredPrivileges() ExecutionPrivileges {
-	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
+	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
 }
 
 // ShowDatabasesStatement represents a command for listing all databases in the cluster.
@@ -1569,7 +1608,7 @@ func (s *ShowDatabasesStatement) String() string { return "SHOW DATABASES" }
 
 // RequiredPrivileges returns the privilege required to execute a ShowDatabasesStatement
 func (s *ShowDatabasesStatement) RequiredPrivileges() ExecutionPrivileges {
-	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
+	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
 }
 
 // CreateContinuousQueryStatement represents a command for creating a continuous query.
@@ -1596,7 +1635,7 @@ func (s *CreateContinuousQueryStatement) DefaultDatabase() string {
 
 // RequiredPrivileges returns the privilege required to execute a CreateContinuousQueryStatement.
 func (s *CreateContinuousQueryStatement) RequiredPrivileges() ExecutionPrivileges {
-	ep := ExecutionPrivileges{{Name: s.Database, Privilege: ReadPrivilege}}
+	ep := ExecutionPrivileges{{Admin: false, Name: s.Database, Privilege: ReadPrivilege}}
 
 	// Selecting into a database that's different from the source?
 	if s.Source.Target.Measurement.Database != "" {
@@ -1605,6 +1644,7 @@ func (s *CreateContinuousQueryStatement) RequiredPrivileges() ExecutionPrivilege
 
 		// Add destination database privilege requirement and set it to write.
 		p := ExecutionPrivilege{
+			Admin:     false,
 			Name:      s.Source.Target.Measurement.Database,
 			Privilege: WritePrivilege,
 		}
@@ -1627,7 +1667,7 @@ func (s *DropContinuousQueryStatement) String() string {
 
 // RequiredPrivileges returns the privilege(s) required to execute a DropContinuousQueryStatement
 func (s *DropContinuousQueryStatement) RequiredPrivileges() ExecutionPrivileges {
-	return ExecutionPrivileges{{Name: "", Privilege: WritePrivilege}}
+	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: WritePrivilege}}
 }
 
 // ShowMeasurementsStatement represents a command for listing measurements.
@@ -1672,7 +1712,7 @@ func (s *ShowMeasurementsStatement) String() string {
 
 // RequiredPrivileges returns the privilege(s) required to execute a ShowMeasurementsStatement
 func (s *ShowMeasurementsStatement) RequiredPrivileges() ExecutionPrivileges {
-	return ExecutionPrivileges{{Name: "", Privilege: ReadPrivilege}}
+	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: ReadPrivilege}}
 }
 
 // DropMeasurementStatement represents a command to drop a measurement.
@@ -1691,7 +1731,7 @@ func (s *DropMeasurementStatement) String() string {
 
 // RequiredPrivileges returns the privilege(s) required to execute a DropMeasurementStatement
 func (s *DropMeasurementStatement) RequiredPrivileges() ExecutionPrivileges {
-	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
+	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
 }
 
 // ShowRetentionPoliciesStatement represents a command for listing retention policies.
@@ -1710,7 +1750,7 @@ func (s *ShowRetentionPoliciesStatement) String() string {
 
 // RequiredPrivileges returns the privilege(s) required to execute a ShowRetentionPoliciesStatement
 func (s *ShowRetentionPoliciesStatement) RequiredPrivileges() ExecutionPrivileges {
-	return ExecutionPrivileges{{Name: "", Privilege: ReadPrivilege}}
+	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: ReadPrivilege}}
 }
 
 // ShowRetentionPoliciesStatement represents a command for displaying stats for a given server.
@@ -1731,7 +1771,7 @@ func (s *ShowStatsStatement) String() string {
 
 // RequiredPrivileges returns the privilege(s) required to execute a ShowStatsStatement
 func (s *ShowStatsStatement) RequiredPrivileges() ExecutionPrivileges {
-	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
+	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
 }
 
 // ShowDiagnosticsStatement represents a command for show node diagnostics.
@@ -1742,7 +1782,7 @@ func (s *ShowDiagnosticsStatement) String() string { return "SHOW DIAGNOSTICS" }
 
 // RequiredPrivileges returns the privilege required to execute a ShowDiagnosticsStatement
 func (s *ShowDiagnosticsStatement) RequiredPrivileges() ExecutionPrivileges {
-	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
+	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
 }
 
 // ShowTagKeysStatement represents a command for listing tag keys.
@@ -1794,7 +1834,7 @@ func (s *ShowTagKeysStatement) String() string {
 
 // RequiredPrivileges returns the privilege(s) required to execute a ShowTagKeysStatement
 func (s *ShowTagKeysStatement) RequiredPrivileges() ExecutionPrivileges {
-	return ExecutionPrivileges{{Name: "", Privilege: ReadPrivilege}}
+	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: ReadPrivilege}}
 }
 
 // ShowTagValuesStatement represents a command for listing tag values.
@@ -1849,7 +1889,7 @@ func (s *ShowTagValuesStatement) String() string {
 
 // RequiredPrivileges returns the privilege(s) required to execute a ShowTagValuesStatement
 func (s *ShowTagValuesStatement) RequiredPrivileges() ExecutionPrivileges {
-	return ExecutionPrivileges{{Name: "", Privilege: ReadPrivilege}}
+	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: ReadPrivilege}}
 }
 
 // ShowUsersStatement represents a command for listing users.
@@ -1862,7 +1902,7 @@ func (s *ShowUsersStatement) String() string {
 
 // RequiredPrivileges returns the privilege(s) required to execute a ShowUsersStatement
 func (s *ShowUsersStatement) RequiredPrivileges() ExecutionPrivileges {
-	return ExecutionPrivileges{{Name: "", Privilege: AllPrivileges}}
+	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}
 }
 
 // ShowFieldKeysStatement represents a command for listing field keys.
@@ -1907,7 +1947,7 @@ func (s *ShowFieldKeysStatement) String() string {
 
 // RequiredPrivileges returns the privilege(s) required to execute a ShowFieldKeysStatement
 func (s *ShowFieldKeysStatement) RequiredPrivileges() ExecutionPrivileges {
-	return ExecutionPrivileges{{Name: "", Privilege: ReadPrivilege}}
+	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: ReadPrivilege}}
 }
 
 // Fields represents a list of fields.
