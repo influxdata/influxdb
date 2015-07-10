@@ -14,7 +14,7 @@ import (
 	"github.com/influxdb/influxdb/influxql"
 )
 
-func TestShardMapper_WriteAndSingleMapperTagSets(t *testing.T) {
+func TestShardMapper_RawMapperTagSets(t *testing.T) {
 	tmpDir, _ := ioutil.TempDir("", "shard_test")
 	defer os.RemoveAll(tmpDir)
 	shard := mustCreateShard(tmpDir)
@@ -324,6 +324,71 @@ func TestShardMapper_WriteAndSingleMapperAggregateQuery(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestShardMapper_AggMapperTagSets(t *testing.T) {
+	tmpDir, _ := ioutil.TempDir("", "shard_test")
+	defer os.RemoveAll(tmpDir)
+	shard := mustCreateShard(tmpDir)
+
+	pt1time := time.Unix(1, 0).UTC()
+	pt1 := NewPoint(
+		"cpu",
+		map[string]string{"host": "serverA", "region": "us-east"},
+		map[string]interface{}{"value": 42},
+		pt1time,
+	)
+	pt2time := time.Unix(2, 0).UTC()
+	pt2 := NewPoint(
+		"cpu",
+		map[string]string{"host": "serverB", "region": "us-east"},
+		map[string]interface{}{"value": 60},
+		pt2time,
+	)
+	err := shard.WritePoints([]Point{pt1, pt2})
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	var tests = []struct {
+		stmt     string
+		expected []string
+	}{
+		{
+			stmt:     `SELECT value FROM cpu`,
+			expected: []string{"cpu"},
+		},
+		{
+			stmt:     `SELECT value FROM cpu GROUP BY host`,
+			expected: []string{"cpuhost|serverA", "cpuhost|serverB"},
+		},
+		{
+			stmt:     `SELECT value FROM cpu GROUP BY region`,
+			expected: []string{"cpuregion|us-east"},
+		},
+		{
+			stmt:     `SELECT value FROM cpu WHERE host='serverA'`,
+			expected: []string{"cpu"},
+		},
+		{
+			stmt:     `SELECT value FROM cpu WHERE host='serverB'`,
+			expected: []string{"cpu"},
+		},
+		{
+			stmt:     `SELECT value FROM cpu WHERE host='serverC'`,
+			expected: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		stmt := mustParseSelectStatement(tt.stmt)
+		mapper := openAggMapperOrFail(t, shard, stmt)
+		got := mapper.TagSets()
+		if !reflect.DeepEqual(got, tt.expected) {
+			t.Errorf("test '%s'\n\tgot      %s\n\texpected %s", tt.stmt, got, tt.expected)
+		}
+	}
+
 }
 
 func mustCreateShard(dir string) *Shard {
