@@ -260,6 +260,61 @@ func TestShardMapper_WriteAndSingleMapperRawQueryMultiValue(t *testing.T) {
 	}
 }
 
+func TestShardMapper_WriteAndSingleMapperAggregateQuery(t *testing.T) {
+	tmpDir, _ := ioutil.TempDir("", "shard_test")
+	defer os.RemoveAll(tmpDir)
+	shard := mustCreateShard(tmpDir)
+
+	pt1time := time.Unix(10, 0).UTC()
+	pt1 := NewPoint(
+		"cpu",
+		map[string]string{"host": "serverA", "region": "us-east"},
+		map[string]interface{}{"value": 1},
+		pt1time,
+	)
+	pt2time := time.Unix(20, 0).UTC()
+	pt2 := NewPoint(
+		"cpu",
+		map[string]string{"host": "serverB", "region": "us-east"},
+		map[string]interface{}{"value": 60},
+		pt2time,
+	)
+	err := shard.WritePoints([]Point{pt1, pt2})
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	var tests = []struct {
+		stmt      string
+		reqTagSet string
+		chunkSize int
+		expected  []string
+	}{
+		{
+			stmt:      `SELECT sum(value) FROM cpu`,
+			reqTagSet: "cpu",
+			expected:  []string{``},
+		},
+	}
+
+	for _, tt := range tests {
+		stmt := mustParseSelectStatement(tt.stmt)
+		tmin, tmax := influxql.TimeRange(stmt.Condition)
+		call := stmt.FunctionCalls()[0]
+
+		mapper := openAggMapperOrFail(t, shard, stmt)
+
+		for _, s := range tt.expected {
+
+			got := aggIntervalAsJson(t, mapper, tt.reqTagSet, call, tmin.UnixNano(), tmax.UnixNano())
+			if got != s {
+				t.Errorf("test '%s'\n\tgot      %s\n\texpected %s", tt.stmt, got, tt.expected)
+				break
+			}
+		}
+	}
+}
+
 func mustCreateShard(dir string) *Shard {
 	tmpShard := path.Join(dir, "shard")
 	index := NewDatabaseIndex()
@@ -307,4 +362,16 @@ func openAggMapperOrFail(t *testing.T, shard *Shard, stmt *influxql.SelectStatem
 		t.Fatalf("failed to open aggregate mapper: %s", err.Error())
 	}
 	return mapper
+}
+
+func aggIntervalAsJson(t *testing.T, mapper *AggMapper, tagset string, call *influxql.Call, tmin, tmax int64) string {
+	r, err := mapper.Interval(tagset, call, tmin, tmax)
+	if err != nil {
+		t.Fatalf("failed to get interval from mapper: %s", err.Error())
+	}
+	b, err := json.Marshal(r)
+	if err != nil {
+		t.Fatalf("failed to marshal chunk as JSON: %s", err.Error())
+	}
+	return string(b)
 }
