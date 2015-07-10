@@ -242,6 +242,14 @@ message SetDataCommand {
     required Data Data = 1;
 }
 
+message SetAdminPrivilegeCommand {
+    extend Command {
+        optional SetAdminPrivilegeCommand command = 118;
+    }
+    required string Username = 1;
+    required bool Admin = 2;
+}
+
 message Response {
 	required bool OK = 1;
 	optional string Error = 2;
