@@ -293,20 +293,31 @@ func TestShardMapper_WriteAndSingleMapperAggregateQuery(t *testing.T) {
 		{
 			stmt:      `SELECT sum(value) FROM cpu`,
 			reqTagSet: "cpu",
-			expected:  []string{``},
+			expected:  []string{`{"Name":"cpu","values":[{"value":61}]}`},
 		},
 	}
 
 	for _, tt := range tests {
+		var tmin, tmax int64
 		stmt := mustParseSelectStatement(tt.stmt)
-		tmin, tmax := influxql.TimeRange(stmt.Condition)
+		qMin, qMax := influxql.TimeRange(stmt.Condition)
+		if qMin.IsZero() {
+			tmin = time.Unix(0, 0).UnixNano()
+		} else {
+			tmin = qMin.UnixNano()
+		}
+		if qMax.IsZero() {
+			tmax = time.Now().UnixNano()
+		} else {
+			tmax = qMax.UnixNano()
+		}
 		call := stmt.FunctionCalls()[0]
 
 		mapper := openAggMapperOrFail(t, shard, stmt)
 
 		for _, s := range tt.expected {
 
-			got := aggIntervalAsJson(t, mapper, tt.reqTagSet, call, tmin.UnixNano(), tmax.UnixNano())
+			got := aggIntervalAsJson(t, mapper, tt.reqTagSet, call, tmin, tmax)
 			if got != s {
 				t.Errorf("test '%s'\n\tgot      %s\n\texpected %s", tt.stmt, got, tt.expected)
 				break
