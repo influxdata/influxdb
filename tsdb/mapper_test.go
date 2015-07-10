@@ -295,6 +295,11 @@ func TestShardMapper_WriteAndSingleMapperAggregateQuery(t *testing.T) {
 			reqTagSet: "cpu",
 			expected:  []string{`{"Name":"cpu","values":[{"value":61}]}`},
 		},
+		{
+			stmt:      `SELECT sum(value) FROM cpu WHERE host='serverB'`,
+			reqTagSet: "cpu",
+			expected:  []string{`{"Name":"cpu","values":[{"value":60}]}`},
+		},
 	}
 
 	for _, tt := range tests {
