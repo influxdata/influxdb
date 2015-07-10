@@ -288,17 +288,32 @@ func TestShardMapper_WriteAndSingleMapperAggregateQuery(t *testing.T) {
 		stmt      string
 		reqTagSet string
 		chunkSize int
-		expected  []string
+		expected  string
 	}{
 		{
 			stmt:      `SELECT sum(value) FROM cpu`,
 			reqTagSet: "cpu",
-			expected:  []string{`{"Name":"cpu","values":[{"value":61}]}`},
+			expected:  `{"Name":"cpu","values":[{"value":61}]}`, // XXXX Not sure about [values]
 		},
 		{
 			stmt:      `SELECT sum(value) FROM cpu WHERE host='serverB'`,
 			reqTagSet: "cpu",
-			expected:  []string{`{"Name":"cpu","values":[{"value":60}]}`},
+			expected:  `{"Name":"cpu","values":[{"value":60}]}`,
+		},
+		{
+			stmt:      fmt.Sprintf(`SELECT sum(value) FROM cpu WHERE time = '%s'`, pt1time.Format(influxql.DateTimeFormat)),
+			reqTagSet: "cpu",
+			expected:  `{"Name":"cpu","values":[{"time":10000000000,"value":1}]}`,
+		},
+		{
+			stmt:      fmt.Sprintf(`SELECT sum(value) FROM cpu WHERE time > '%s'`, pt1time.Format(influxql.DateTimeFormat)),
+			reqTagSet: "cpu",
+			expected:  `{"Name":"cpu","values":[{"time":10000001000,"value":60}]}`,
+		},
+		{
+			stmt:      fmt.Sprintf(`SELECT sum(value) FROM cpu WHERE time > '%s'`, pt2time.Format(influxql.DateTimeFormat)),
+			reqTagSet: "cpu",
+			expected:  `{"Name":"cpu","values":[{"time":20000001000}]}`, /// XXX Not sure if this should even come out.
 		},
 	}
 
@@ -320,13 +335,10 @@ func TestShardMapper_WriteAndSingleMapperAggregateQuery(t *testing.T) {
 
 		mapper := openAggMapperOrFail(t, shard, stmt)
 
-		for _, s := range tt.expected {
-
-			got := aggIntervalAsJson(t, mapper, tt.reqTagSet, call, tmin, tmax)
-			if got != s {
-				t.Errorf("test '%s'\n\tgot      %s\n\texpected %s", tt.stmt, got, tt.expected)
-				break
-			}
+		got := aggIntervalAsJson(t, mapper, tt.reqTagSet, call, tmin, tmax)
+		if got != tt.expected {
+			t.Errorf("test '%s'\n\tgot      %s\n\texpected %s", tt.stmt, got, tt.expected)
+			break
 		}
 	}
 }
