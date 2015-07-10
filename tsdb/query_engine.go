@@ -372,18 +372,30 @@ func (ae *AggregateExecutor) execute(out chan *influxql.Row, chunkSize int) {
 	// Work out how many intervals we need per tagset. If the user didn't specify a start time or
 	// GROUP BY interval, we're returning a single point per tagset, for the entire range.
 	var tMins []int64
-	tmin, tmax := influxql.TimeRange(ae.stmt.Condition)
+	var tmin, tmax int64
+	qMin, qMax := influxql.TimeRange(ae.stmt.Condition)
+	if qMin.IsZero() {
+		tmin = time.Unix(0, 0).UnixNano()
+	} else {
+		tmin = qMin.UnixNano()
+	}
+	if qMax.IsZero() {
+		tmax = time.Now().UnixNano()
+	} else {
+		tmax = qMax.UnixNano()
+	}
+
 	d, err := ae.stmt.GroupByInterval()
 	if err != nil {
 		out <- &influxql.Row{Err: err}
 		return
 	}
 	interval := d.Nanoseconds()
-	if tmin.IsZero() || interval == 0 {
+	if tmin == 0 || interval == 0 {
 		tMins = make([]int64, 1)
 	} else {
-		intervalTop := tmax.UnixNano()/interval*interval + interval
-		intervalBottom := tmin.UnixNano() / interval * interval
+		intervalTop := tmax/interval*interval + interval
+		intervalBottom := tmin / interval * interval
 		tMins = make([]int64, int((intervalTop-intervalBottom)/interval))
 	}
 
@@ -410,7 +422,7 @@ func (ae *AggregateExecutor) execute(out chan *influxql.Row, chunkSize int) {
 	}
 
 	// Ensure that the start time for the results is on the start of the window.
-	startTime := int64(tmin.Nanosecond())
+	startTime := tmin
 	if interval > 0 {
 		startTime = startTime / interval * interval
 	}
