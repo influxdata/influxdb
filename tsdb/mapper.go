@@ -290,6 +290,13 @@ func (tsc *tagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []stri
 	}
 }
 
+// SeekTo seeks each underlying cursor to the specified key.
+func (tsc *tagSetCursor) SeekTo(key int64) {
+	for _, c := range tsc.cursors {
+		c.SeekTo(key)
+	}
+}
+
 // IsEmpty returns whether the tagsetCursor has any more data for the given interval.
 func (tsc *tagSetCursor) IsEmptyForInterval(tmin, tmax int64) bool {
 	for _, c := range tsc.cursors {
@@ -384,13 +391,10 @@ func (mc *seriesCursor) Next() (key int64, value []byte) {
 
 // AggMapper is for retrieving data, for an aggregate query, from a given shard.
 type AggMapper struct {
-	shard    *Shard
-	stmt     *influxql.SelectStatement
-	interval int64 // The GROUP BY interval of the query
+	shard *Shard
+	stmt  *influxql.SelectStatement
 
-	tx        *bolt.Tx // Read transaction for this shard.
-	queryTMin int64
-	queryTMax int64
+	tx *bolt.Tx // Read transaction for this shard.
 
 	whereFields  stringSet        // field names that occur in the where clause
 	selectFields stringSet        // field names that occur in the select clause
@@ -421,19 +425,6 @@ func (am *AggMapper) Open() error {
 		return err
 	}
 	am.tx = tx
-
-	// Set all time-related parameters on the mapper.
-	tmin, tmax := influxql.TimeRange(am.stmt.Condition)
-	if tmin.IsZero() {
-		am.queryTMin = time.Unix(0, 0).UnixNano()
-	} else {
-		am.queryTMin = tmin.UnixNano()
-	}
-	if tmax.IsZero() {
-		am.queryTMax = time.Now().UnixNano()
-	} else {
-		am.queryTMax = tmax.UnixNano()
-	}
 
 	// Create the TagSet cursors for the Mapper.
 	for _, src := range am.stmt.Sources {
@@ -485,16 +476,8 @@ func (am *AggMapper) Open() error {
 			return fmt.Errorf("select statement must include at least one field")
 		}
 
-		// Get the group by interval.
-		d, err := am.stmt.GroupByInterval()
-		if err != nil {
-			return err
-		}
-		am.interval = d.Nanoseconds()
-
 		// Get the sorted unique tag sets for this statement.
 		tagSets, err := m.TagSets(am.stmt, tagKeys)
-
 		if err != nil {
 			return err
 		}
@@ -510,7 +493,6 @@ func (am *AggMapper) Open() error {
 					continue
 				}
 				cm := newSeriesCursor(c, t.Filters[i])
-				cm.SeekTo(am.queryTMin)
 				cursors = append(cursors, cm)
 			}
 			tsc := newTagSetCursor(m.Name, t.Tags, cursors, am.shard.FieldCodec(m.Name))
@@ -530,10 +512,9 @@ func (am *AggMapper) TagSets() []string {
 	return set.list()
 }
 
-// NextChunk returns the next chunk of data for a tagset. If the result is nil, there are no more
-// data. XXX Call this NextInterval?
-func (am *AggMapper) NextChunk(tagset string, chunkSize int) (*rawMapperOutput, error) {
-
+// Interval returns the next chunk of aggregated data, for the given time range. If the result is nil,
+// there are no more data.
+func (am *AggMapper) Interval(tagset string, tmin, tmax int64) (*rawMapperOutput, error) {
 	cursor, ok := am.cursors[tagset]
 	if !ok {
 		return nil, nil
@@ -543,24 +524,26 @@ func (am *AggMapper) NextChunk(tagset string, chunkSize int) (*rawMapperOutput, 
 		Tags: cursor.tags,
 	}
 
-	// Gotta calcuate intervals.
+	// Set the cursor to the start of the interval.
+	cursor.SeekTo(tmin)
 
-	// Still got a tagset cursor to process.
 	for {
+		// Wrap the tagset cursor so it implements the mapping functions interface.
 		f := func() (seriesKey string, time int64, value interface{}) {
-			return cursor.Next(100, 200, am.selectFields.list(), am.whereFields.list())
+			return cursor.Next(tmin, tmax, am.selectFields.list(), am.whereFields.list())
 		}
 
 		tagSetCursor := &aggTagSetCursor{
 			nextFunc: f,
 		}
 
-		// Execute the map function.
+		// Execute the map function which walks the entire interval, and aggregates
+		// the result.
 		v := am.mapFunc(tagSetCursor)
 
-		value := &rawMapperValue{Time: 100, Value: v} // rawMapperValue -> rawValue?
+		value := &rawMapperValue{Time: tmin, Value: v} // rawMapperValue -> rawValue?
 		output.Values = append(output.Values, value)
-		return output, nil // No chunking?
+		return output, nil
 	}
 }
 

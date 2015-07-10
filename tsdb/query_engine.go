@@ -40,8 +40,8 @@ type Planner struct {
 	}
 
 	Cluster interface {
-		NewRawMapper(shardID uint64, stmt string) (Mapper, error)
-		NewAggMapper(shardID uint64, stmt string) (Mapper, error)
+		NewRawMapper(shardID uint64, stmt string) (*RawMapper, error)
+		NewAggMapper(shardID uint64, stmt string) (*AggMapper, error)
 	}
 
 	store *Store
@@ -98,7 +98,7 @@ func (p *Planner) Plan(stmt *influxql.SelectStatement) (Executor, error) {
 func (p *Planner) planRawQuery(stmt *influxql.SelectStatement, shards map[uint64]meta.ShardInfo) (Executor, error) {
 	// Build the Mappers, one per shard. If the shard is local to this node, always use
 	// that one, versus asking the cluster.
-	mappers := []Mapper{}
+	mappers := []*RawMapper{}
 	for _, sh := range shards {
 		if sh.OwnedBy(p.MetaStore.NodeID()) {
 			shard := p.store.Shard(sh.ID)
@@ -123,7 +123,7 @@ func (p *Planner) planRawQuery(stmt *influxql.SelectStatement, shards map[uint64
 func (p *Planner) planAggregateQuery(stmt *influxql.SelectStatement, shards map[uint64]meta.ShardInfo) (Executor, error) {
 	// Build the Mappers, one per shard. If the shard is local to this node, always use
 	// that one, versus asking the cluster.
-	mappers := []Mapper{}
+	mappers := []*AggMapper{}
 	for _, sh := range shards {
 		if sh.OwnedBy(p.MetaStore.NodeID()) {
 			shard := p.store.Shard(sh.ID)
@@ -148,11 +148,11 @@ func (p *Planner) planAggregateQuery(stmt *influxql.SelectStatement, shards map[
 // RawExecutor is an executor for RawMappers.
 type RawExecutor struct {
 	stmt    *influxql.SelectStatement
-	mappers []Mapper
+	mappers []*RawMapper
 }
 
 // NewRawExecutor returns a new RawExecutor.
-func NewRawExecutor(stmt *influxql.SelectStatement, mappers []Mapper) *RawExecutor {
+func NewRawExecutor(stmt *influxql.SelectStatement, mappers []*RawMapper) *RawExecutor {
 	return &RawExecutor{
 		stmt:    stmt,
 		mappers: mappers,
@@ -321,11 +321,11 @@ func (re *RawExecutor) close() {
 // AggregateExecutor is an executor for AggregateMappers.
 type AggregateExecutor struct {
 	stmt    *influxql.SelectStatement
-	mappers []Mapper
+	mappers []*AggMapper
 }
 
 // NewAggregateExecutor returns a new AggregateExecutor.
-func NewAggregateExecutor(stmt *influxql.SelectStatement, mappers []Mapper) *AggregateExecutor {
+func NewAggregateExecutor(stmt *influxql.SelectStatement, mappers []*AggMapper) *AggregateExecutor {
 	return &AggregateExecutor{
 		stmt:    stmt,
 		mappers: mappers,
@@ -341,6 +341,22 @@ func (ae *AggregateExecutor) Execute(chunkSize int) <-chan *influxql.Row {
 }
 
 func (ae *AggregateExecutor) execute(out chan *influxql.Row, chunkSize int) {
+	// Open the mappers.
+	for _, m := range ae.mappers {
+		if err := m.Open(); err != nil {
+			out <- &influxql.Row{Err: err}
+			return
+		}
+	}
+
+	// Build the set of available tagsets across all mappers.
+	availTagSets := newStringSet()
+	for _, m := range ae.mappers {
+		for _, t := range m.TagSets() {
+			availTagSets.add(t)
+		}
+	}
+
 	// Get the aggregates and the associated reduce functions
 	aggregates := ae.stmt.FunctionCalls()
 	reduceFuncs := make([]influxql.ReduceFunc, len(aggregates))
@@ -353,41 +369,89 @@ func (ae *AggregateExecutor) execute(out chan *influxql.Row, chunkSize int) {
 		reduceFuncs[i] = reduceFunc
 	}
 
-	// we'll have a fixed number of points with times in buckets. Initialize those times and a slice to hold the associated values
-	var pointCountInResult int
+	// Work out how many intervals we need per tagset. If the user didn't specify a start time or
+	// GROUP BY interval, we're returning a single point per tagset, for the entire range.
+	var tMins []int64
+	tmin, tmax := influxql.TimeRange(ae.stmt.Condition)
+	d, err := ae.stmt.GroupByInterval()
+	if err != nil {
+		out <- &influxql.Row{Err: err}
+		return
+	}
+	interval := d.Nanoseconds()
+	if tmin.IsZero() || interval == 0 {
+		tMins = make([]int64, 1)
+	} else {
+		intervalTop := int64(tmax.Nanosecond())/interval*interval + interval
+		intervalBottom := int64(tmin.Nanosecond()) / interval * interval
+		tMins = make([]int64, int((intervalTop-intervalBottom)/interval))
+	}
 
-	// if the user didn't specify a start time or a group by interval, we're returning a single point that describes the entire range
-	//if m.TMin == 0 || m.interval == 0 {
-	//	// they want a single aggregate point for the entire time range
-	//	ae.interval = m.TMax - m.TMin
-	//	pointCountInResult = 1
-	//} else {
-	//	intervalTop := m.TMax/m.interval*m.interval + m.interval
-	//	intervalBottom := m.TMin / m.interval * m.interval
-	//	pointCountInResult = int((intervalTop - intervalBottom) / m.interval)
-	//}
-
-	// For group by time queries, limit the number of data points returned by the limit and offset
-	// raw query limits are handled elsewhere
+	// For GROUP BY time queries, limit the number of data points returned by the limit and offset
 	if ae.stmt.Limit > 0 || ae.stmt.Offset > 0 {
 		// ensure that the offset isn't higher than the number of points we'd get
-		if ae.stmt.Offset > pointCountInResult {
+		if ae.stmt.Offset > len(tMins) {
 			return
 		}
 
-		// take the lesser of either the pre computed number of group by buckets that
+		// Take the lesser of either the pre computed number of GROUP BY buckets that
 		// will be in the result or the limit passed in by the user
-		if ae.stmt.Limit < pointCountInResult {
-			pointCountInResult = ae.stmt.Limit
+		if ae.stmt.Limit < len(tMins) {
+			tMins = tMins[:ae.stmt.Limit]
 		}
 	}
 
-	// If we are exceeding our MaxGroupByPoints and we aren't a raw query, error out
-	if pointCountInResult > influxql.MaxGroupByPoints {
+	// If we are exceeding our MaxGroupByPoints error out
+	if len(tMins) > influxql.MaxGroupByPoints {
 		out <- &influxql.Row{
 			Err: errors.New("too many points in the group by interval. maybe you forgot to specify a where time clause?"),
 		}
 		return
+	}
+
+	// Ensure that the start time for the results is on the start of the window.
+	startTime := int64(tmin.Nanosecond())
+	if interval > 0 {
+		startTime = startTime / interval * interval
+	}
+
+	// Create the minimum times for each interval.
+	for i, _ := range tMins {
+		var t int64
+		if ae.stmt.Offset > 0 {
+			t = startTime + (int64(i+1) * interval * int64(ae.stmt.Offset))
+		} else {
+			t = startTime + (int64(i+1) * interval) - interval
+		}
+		tMins[i] = t
+
+		// If we start getting out of our max time range, then truncate values and return
+		//if t > tmax {
+		//	resultValues = resultValues[:i]
+		//	break
+		//}
+
+		// we always include time so we need one more column than we have aggregates
+		//vals := make([]interface{}, 0, len(aggregates)+1)
+		//resultValues[i] = append(vals, time.Unix(0, t).UTC())
+	}
+
+	// This just makes sure that if they specify a start time less than what the start time would be with the offset,
+	// we just reset the start time to the later time to avoid going over data that won't show up in the result.
+	//if m.stmt.Offset > 0 {
+	//	m.TMin = resultValues[0][0].(time.Time).UnixNano()
+	//}
+
+	for _, tMin := range tMins {
+		for _, t := range availTagSets.list() {
+			for _, m := range ae.mappers {
+				val, err := m.Interval(t, tMin, tMin+interval)
+				if err != nil {
+					panic("error getting interval")
+				}
+				fmt.Println(">>>>>agg value:", val)
+			}
+		}
 	}
 }
 
