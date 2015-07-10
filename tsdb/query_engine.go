@@ -382,8 +382,8 @@ func (ae *AggregateExecutor) execute(out chan *influxql.Row, chunkSize int) {
 	if tmin.IsZero() || interval == 0 {
 		tMins = make([]int64, 1)
 	} else {
-		intervalTop := int64(tmax.Nanosecond())/interval*interval + interval
-		intervalBottom := int64(tmin.Nanosecond()) / interval * interval
+		intervalTop := tmax.UnixNano()/interval*interval + interval
+		intervalBottom := tmin.UnixNano() / interval * interval
 		tMins = make([]int64, int((intervalTop-intervalBottom)/interval))
 	}
 
