@@ -532,9 +532,6 @@ func (q *QueryExecutor) executeShowSeriesStatement(stmt *influxql.ShowSeriesStat
 			if s, ok := m.seriesByID[id]; ok {
 				values := make([]interface{}, 0, len(r.Columns))
 
-				// make the series key the first value
-				values = append(values, s.Key)
-
 				for _, column := range r.Columns {
 					values = append(values, s.Tags[column])
 				}
@@ -543,8 +540,6 @@ func (q *QueryExecutor) executeShowSeriesStatement(stmt *influxql.ShowSeriesStat
 				r.Values = append(r.Values, values)
 			}
 		}
-		// make the id the first column
-		r.Columns = append([]string{"_key"}, r.Columns...)
 
 		// Append the row to the result.
 		result.Series = append(result.Series, r)
