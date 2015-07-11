@@ -997,7 +997,7 @@ type Fields map[string]interface{}
 func parseNumber(val []byte) (interface{}, error) {
 	for i := 0; i < len(val); i++ {
 		// If there is a decimal or an N (NaN), I (Inf), parse as float
-		if val[i] == '.' || val[i] == 'N' || val[i] == 'n' || val[i] == 'I' || val[i] == 'i' {
+		if val[i] == '.' || val[i] == 'N' || val[i] == 'n' || val[i] == 'I' || val[i] == 'i' || val[i] == 'e' {
 			return strconv.ParseFloat(string(val), 64)
 		}
 		if val[i] < '0' && val[i] > '9' {
