@@ -481,6 +481,9 @@ func (ae *AggregateExecutor) execute(out chan *influxql.Row, chunkSize int) {
 			}
 		}
 
+		// handle any fill options
+		values = ae.processFill(values)
+
 		row := &influxql.Row{
 			Name:    measurement,
 			Tags:    tags,
@@ -496,7 +499,7 @@ func (ae *AggregateExecutor) execute(out chan *influxql.Row, chunkSize int) {
 func (ae *AggregateExecutor) processAggregate(t string, c *influxql.Call, f influxql.ReduceFunc, tmin, tmax int64) (string, map[string]string, interface{}, error) {
 	measurement := ""
 	tags := make(map[string]string)
-	mappedValues := make([]interface{}, len(ae.mappers))
+	mappedValues := make([]interface{}, 0, len(ae.mappers))
 	for _, m := range ae.mappers {
 		output, err := m.Interval(t, c, tmin, tmax)
 		if err != nil {
@@ -508,6 +511,47 @@ func (ae *AggregateExecutor) processAggregate(t string, c *influxql.Call, f infl
 		mappedValues = append(mappedValues, output.Value)
 	}
 	return measurement, tags, f(mappedValues), nil
+}
+
+func (ae *AggregateExecutor) processFill(values []interface{}) []interface{} {
+	// don't do anything if we're supposed to leave the nulls
+	if ae.stmt.Fill == influxql.NullFill {
+		return values
+	}
+
+	if ae.stmt.Fill == influxql.NoFill {
+		// remove any rows that have even one nil value. This one is tricky because they could have multiple
+		// aggregates, but this option means that any row that has even one nil gets purged.
+		newValues := make([]interface{}, 0, len(values))
+		hasNil := false
+		// start at 1 because the first value is always time
+		for j := 1; j < len(values); j++ {
+			if values[j] == nil {
+				break
+			}
+			newValues = append(newValues, value[j])
+		}
+		if !hasNil {
+			newValues = append(newValues, values)
+		}
+		return newValues
+	}
+
+	// they're either filling with previous values or a specific number
+	// start at 1 because the first value is always time
+	for j := 1; j < len(values); j++ {
+		if values[j] == nil {
+			switch ae.stmt.Fill {
+			case influxql.PreviousFill:
+				if i != 0 {
+					values[j] = results[i-1][j]
+				}
+			case influxql.NumberFill:
+				values[j] = ae.stmt.FillValue
+			}
+		}
+	}
+	return results
 }
 
 // Close closes the executor such that all resources are released. Once closed,
