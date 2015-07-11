@@ -293,27 +293,27 @@ func TestShardMapper_WriteAndSingleMapperAggregateQuery(t *testing.T) {
 		{
 			stmt:      `SELECT sum(value) FROM cpu`,
 			reqTagSet: "cpu",
-			expected:  `61`, // XXXX Not sure about [values]. Where is time? Must be because 0?
+			expected:  `{"Name":"cpu","Tags":{},"Value":61}`,
 		},
 		{
 			stmt:      `SELECT sum(value) FROM cpu WHERE host='serverB'`,
 			reqTagSet: "cpu",
-			expected:  `60`,
+			expected:  `{"Name":"cpu","Tags":{},"Value":60}`,
 		},
 		{
 			stmt:      fmt.Sprintf(`SELECT sum(value) FROM cpu WHERE time = '%s'`, pt1time.Format(influxql.DateTimeFormat)),
 			reqTagSet: "cpu",
-			expected:  `1`,
+			expected:  `{"Name":"cpu","Tags":{},"Value":1}`,
 		},
 		{
 			stmt:      fmt.Sprintf(`SELECT sum(value) FROM cpu WHERE time > '%s'`, pt1time.Format(influxql.DateTimeFormat)),
 			reqTagSet: "cpu",
-			expected:  `60`,
+			expected:  `{"Name":"cpu","Tags":{},"Value":60}`,
 		},
 		{
 			stmt:      fmt.Sprintf(`SELECT sum(value) FROM cpu WHERE time > '%s'`, pt2time.Format(influxql.DateTimeFormat)),
 			reqTagSet: "cpu",
-			expected:  `null`, /// XXX Not sure if this should even come out.
+			expected:  `{"Name":"cpu","Tags":{},"Value":null}`,
 		},
 	}
 
