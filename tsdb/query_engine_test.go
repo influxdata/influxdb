@@ -127,7 +127,7 @@ func TestWritePointsAndExecuteTwoShards(t *testing.T) {
 		// Aggregate queries.
 		{
 			stmt:     `SELECT sum(value) FROM cpu`,
-			expected: `[{"name":"cpu","columns":["time","sum"],"values":[["1970-01-01T00:00:01Z",300]]}]`,
+			expected: `[{"name":"cpu","columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",300]]}]`,
 		},
 	}
 

@@ -462,14 +462,15 @@ func (ae *AggregateExecutor) execute(out chan *influxql.Row, chunkSize int) {
 		columnNames[i+1] = f.Name()
 	}
 
-	for i, tag := range availTagSets.list() {
+	for _, tag := range availTagSets.list() {
 		var err error
 		var reducedVal interface{}
 		measurement := ""
 		tags := make(map[string]string)
-		values := make([][]interface{}, len(columnNames))
+		values := make([][]interface{}, len(tMins))
 
-		for _, t := range tMins {
+		for i, t := range tMins {
+			values[i] = make([]interface{}, 0, len(columnNames))
 			values[i] = append(values[i], time.Unix(0, t).UTC()) // Time value is always first.
 			for j, c := range aggregates {
 				measurement, tags, reducedVal, err = ae.processAggregate(tag, c, reduceFuncs[j], t, t+interval)
