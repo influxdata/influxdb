@@ -150,16 +150,9 @@ func (q *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chu
 			var res *influxql.Result
 			switch stmt := stmt.(type) {
 			case *influxql.SelectStatement:
-				if stmt.IsRawQuery && !stmt.HasDistinct() {
-					if err := q.executeSelectStatementRaw(i, stmt, results, chunkSize); err != nil {
-						results <- &influxql.Result{Err: err}
-						break
-					}
-				} else {
-					if err := q.executeSelectStatement(i, stmt, results, chunkSize); err != nil {
-						results <- &influxql.Result{Err: err}
-						break
-					}
+				if err := q.executeSelectStatement(i, stmt, results, chunkSize); err != nil {
+					results <- &influxql.Result{Err: err}
+					break
 				}
 			case *influxql.DropSeriesStatement:
 				// TODO: handle this in a cluster
@@ -214,42 +207,6 @@ func (q *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chu
 
 // executeSelectStatement plans and executes a select statement against a database.
 func (q *QueryExecutor) executeSelectStatement(statementID int, stmt *influxql.SelectStatement, results chan *influxql.Result, chunkSize int) error {
-	// Perform any necessary query re-writing.
-	stmt, err := q.rewriteSelectStatement(stmt)
-	if err != nil {
-		return err
-	}
-
-	// Plan statement execution.
-	p := influxql.NewPlanner(q)
-	e, err := p.Plan(stmt, chunkSize)
-	if err != nil {
-		return err
-	}
-
-	// Execute plan.
-	ch := e.Execute()
-
-	// Stream results from the channel. We should send an empty result if nothing comes through.
-	resultSent := false
-	for row := range ch {
-		if row.Err != nil {
-			return row.Err
-		} else {
-			resultSent = true
-			results <- &influxql.Result{StatementID: statementID, Series: []*influxql.Row{row}}
-		}
-	}
-
-	if !resultSent {
-		results <- &influxql.Result{StatementID: statementID, Series: make([]*influxql.Row, 0)}
-	}
-
-	return nil
-}
-
-// executeSelectStatement plans and executes a select statement against a database.
-func (q *QueryExecutor) executeSelectStatementRaw(statementID int, stmt *influxql.SelectStatement, results chan *influxql.Result, chunkSize int) error {
 	// Perform any necessary query re-writing.
 	stmt, err := q.rewriteSelectStatement(stmt)
 	if err != nil {
