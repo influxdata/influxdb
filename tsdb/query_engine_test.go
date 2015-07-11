@@ -123,6 +123,12 @@ func TestWritePointsAndExecuteTwoShards(t *testing.T) {
 			stmt:     `SELECT value FROM cpu WHERE host='serverA' GROUP BY host`,
 			expected: `[{"name":"cpu","tags":{"host":"serverA"},"columns":["time","value"],"values":[["1970-01-01T00:00:01Z",100]]}]`,
 		},
+
+		// Aggregate queries.
+		{
+			stmt:     `SELECT sum(value) FROM cpu`,
+			expected: `[{"ndame":"cpu","columns":["time","sum"],"values":[["1970-01-01T00:00:01Z",300]]}]`,
+		},
 	}
 
 	for _, tt := range tests {

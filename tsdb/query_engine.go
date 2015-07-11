@@ -454,19 +454,47 @@ func (ae *AggregateExecutor) execute(out chan *influxql.Row, chunkSize int) {
 	//	m.TMin = resultValues[0][0].(time.Time).UnixNano()
 	//}
 
-	for _, tMin := range tMins {
-		for _, t := range availTagSets.list() {
-			for _, c := range aggregates {
-				for _, m := range ae.mappers {
-					val, err := m.Interval(t, c, tMin, tMin+interval)
-					if err != nil {
-						panic("error getting interval")
-					}
-					fmt.Println(">>>>>agg value:", val)
+	// Put together the rows to return, starting with columns.
+	columnNames := make([]string, len(ae.stmt.Fields)+1)
+	columnNames[0] = "time"
+	for i, f := range ae.stmt.Fields {
+		columnNames[i+1] = f.Name()
+	}
+
+	for i, tag := range availTagSets.list() {
+		values := make([][]interface{}, len(columnNames))
+		for _, t := range tMins {
+			values[i] = append(values[i], t) // Time value is always first.
+			for j, c := range aggregates {
+				reducedVal, err := ae.processAggregate(tag, c, reduceFuncs[j], t, t+interval)
+				if err != nil {
+					out <- &influxql.Row{Err: err}
+					return
 				}
+				values[i] = append(values[i], reducedVal)
 			}
 		}
+
+		row := &influxql.Row{
+			//Name:    t.Name,
+			//Tags:    t.Tags,
+			Columns: columnNames,
+			Values:  values,
+		}
+		out <- row
 	}
+}
+
+func (ae *AggregateExecutor) processAggregate(t string, c *influxql.Call, f influxql.ReduceFunc, tmin, tmax int64) (interface{}, error) {
+	mappedValues := make([]interface{}, len(ae.mappers))
+	for _, m := range ae.mappers {
+		val, err := m.Interval(t, c, tmin, tmax)
+		if err != nil {
+			return nil, err
+		}
+		mappedValues = append(mappedValues, val)
+	}
+	return f(mappedValues), nil
 }
 
 // Close closes the executor such that all resources are released. Once closed,

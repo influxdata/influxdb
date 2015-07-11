@@ -513,7 +513,7 @@ func (am *AggMapper) TagSets() []string {
 
 // Interval returns the next chunk of aggregated data, for the given time range. If the result is nil,
 // there are no more data.
-func (am *AggMapper) Interval(tagset string, call *influxql.Call, tmin, tmax int64) (*rawMapperOutput, error) {
+func (am *AggMapper) Interval(tagset string, call *influxql.Call, tmin, tmax int64) (interface{}, error) {
 	mapFunc, err := influxql.InitializeMapFunc(call)
 	if err != nil {
 		return nil, err
@@ -522,10 +522,6 @@ func (am *AggMapper) Interval(tagset string, call *influxql.Call, tmin, tmax int
 	cursor, ok := am.cursors[tagset]
 	if !ok {
 		return nil, nil
-	}
-	output := &rawMapperOutput{
-		Name: cursor.measurement,
-		Tags: cursor.tags,
 	}
 
 	// Set the cursor to the start of the interval.
@@ -543,11 +539,7 @@ func (am *AggMapper) Interval(tagset string, call *influxql.Call, tmin, tmax int
 
 		// Execute the map function which walks the entire interval, and aggregates
 		// the result.
-		v := mapFunc(tagSetCursor)
-
-		value := &rawMapperValue{Time: tmin, Value: v} // rawMapperValue -> rawValue?
-		output.Values = append(output.Values, value)
-		return output, nil
+		return mapFunc(tagSetCursor), nil
 	}
 }
 

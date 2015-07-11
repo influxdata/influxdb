@@ -293,7 +293,7 @@ func TestShardMapper_WriteAndSingleMapperAggregateQuery(t *testing.T) {
 		{
 			stmt:      `SELECT sum(value) FROM cpu`,
 			reqTagSet: "cpu",
-			expected:  `{"Name":"cpu","values":[{"value":61}]}`, // XXXX Not sure about [values]
+			expected:  `{"Name":"cpu","values":[{"value":61}]}`, // XXXX Not sure about [values]. Where is time? Must be because 0?
 		},
 		{
 			stmt:      `SELECT sum(value) FROM cpu WHERE host='serverB'`,
