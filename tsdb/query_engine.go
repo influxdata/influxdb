@@ -393,6 +393,7 @@ func (ae *AggregateExecutor) execute(out chan *influxql.Row, chunkSize int) {
 	interval := d.Nanoseconds()
 	if tmin == 0 || interval == 0 {
 		tMins = make([]int64, 1)
+		interval = tmax - tmin
 	} else {
 		intervalTop := tmax/interval*interval + interval
 		intervalBottom := tmin / interval * interval
@@ -464,7 +465,7 @@ func (ae *AggregateExecutor) execute(out chan *influxql.Row, chunkSize int) {
 	for i, tag := range availTagSets.list() {
 		values := make([][]interface{}, len(columnNames))
 		for _, t := range tMins {
-			values[i] = append(values[i], t) // Time value is always first.
+			values[i] = append(values[i], time.Unix(0, t).UTC()) // Time value is always first.
 			for j, c := range aggregates {
 				reducedVal, err := ae.processAggregate(tag, c, reduceFuncs[j], t, t+interval)
 				if err != nil {
@@ -483,6 +484,8 @@ func (ae *AggregateExecutor) execute(out chan *influxql.Row, chunkSize int) {
 		}
 		out <- row
 	}
+
+	close(out)
 }
 
 func (ae *AggregateExecutor) processAggregate(t string, c *influxql.Call, f influxql.ReduceFunc, tmin, tmax int64) (interface{}, error) {
