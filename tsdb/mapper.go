@@ -475,6 +475,16 @@ func (am *AggMapper) Open() error {
 			return fmt.Errorf("select statement must include at least one field")
 		}
 
+		// Validate that group by is not a field
+		for _, d := range am.stmt.Dimensions {
+			switch e := d.Expr.(type) {
+			case *influxql.VarRef:
+				if !m.HasTagKey(e.Val) {
+					return fmt.Errorf("can not use field in GROUP BY clause: %s", e.Val)
+				}
+			}
+		}
+
 		// Get the sorted unique tag sets for this statement.
 		tagSets, err := m.TagSets(am.stmt, tagKeys)
 		if err != nil {
