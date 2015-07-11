@@ -463,11 +463,16 @@ func (ae *AggregateExecutor) execute(out chan *influxql.Row, chunkSize int) {
 	}
 
 	for i, tag := range availTagSets.list() {
+		var err error
+		var reducedVal interface{}
+		measurement := ""
+		tags := make(map[string]string)
 		values := make([][]interface{}, len(columnNames))
+
 		for _, t := range tMins {
 			values[i] = append(values[i], time.Unix(0, t).UTC()) // Time value is always first.
 			for j, c := range aggregates {
-				reducedVal, err := ae.processAggregate(tag, c, reduceFuncs[j], t, t+interval)
+				measurement, tags, reducedVal, err = ae.processAggregate(tag, c, reduceFuncs[j], t, t+interval)
 				if err != nil {
 					out <- &influxql.Row{Err: err}
 					return
@@ -477,8 +482,8 @@ func (ae *AggregateExecutor) execute(out chan *influxql.Row, chunkSize int) {
 		}
 
 		row := &influxql.Row{
-			//Name:    t.Name,
-			//Tags:    t.Tags,
+			Name:    measurement,
+			Tags:    tags,
 			Columns: columnNames,
 			Values:  values,
 		}
@@ -488,16 +493,21 @@ func (ae *AggregateExecutor) execute(out chan *influxql.Row, chunkSize int) {
 	close(out)
 }
 
-func (ae *AggregateExecutor) processAggregate(t string, c *influxql.Call, f influxql.ReduceFunc, tmin, tmax int64) (interface{}, error) {
+func (ae *AggregateExecutor) processAggregate(t string, c *influxql.Call, f influxql.ReduceFunc, tmin, tmax int64) (string, map[string]string, interface{}, error) {
+	measurement := ""
+	tags := make(map[string]string)
 	mappedValues := make([]interface{}, len(ae.mappers))
 	for _, m := range ae.mappers {
-		val, err := m.Interval(t, c, tmin, tmax)
+		output, err := m.Interval(t, c, tmin, tmax)
 		if err != nil {
-			return nil, err
+			return "", nil, nil, err
 		}
-		mappedValues = append(mappedValues, val)
+		if measurement == "" {
+			measurement, tags = output.Name, output.Tags
+		}
+		mappedValues = append(mappedValues, output.Value)
 	}
-	return f(mappedValues), nil
+	return measurement, tags, f(mappedValues), nil
 }
 
 // Close closes the executor such that all resources are released. Once closed,

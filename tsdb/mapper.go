@@ -511,9 +511,16 @@ func (am *AggMapper) TagSets() []string {
 	return set.list()
 }
 
+// aggMapperOutput is the format of the data emitted by an Aggregate Mapper.
+type aggMapperOutput struct {
+	Name  string
+	Tags  map[string]string
+	Value interface{}
+}
+
 // Interval returns the next chunk of aggregated data, for the given time range. If the result is nil,
 // there are no more data.
-func (am *AggMapper) Interval(tagset string, call *influxql.Call, tmin, tmax int64) (interface{}, error) {
+func (am *AggMapper) Interval(tagset string, call *influxql.Call, tmin, tmax int64) (*aggMapperOutput, error) {
 	mapFunc, err := influxql.InitializeMapFunc(call)
 	if err != nil {
 		return nil, err
@@ -527,6 +534,11 @@ func (am *AggMapper) Interval(tagset string, call *influxql.Call, tmin, tmax int
 	// Set the cursor to the start of the interval.
 	cursor.SeekTo(tmin)
 
+	output := &aggMapperOutput{
+		Name: cursor.measurement,
+		Tags: cursor.tags,
+	}
+
 	for {
 		// Wrap the tagset cursor so it implements the mapping functions interface.
 		f := func() (seriesKey string, time int64, value interface{}) {
@@ -539,7 +551,8 @@ func (am *AggMapper) Interval(tagset string, call *influxql.Call, tmin, tmax int
 
 		// Execute the map function which walks the entire interval, and aggregates
 		// the result.
-		return mapFunc(tagSetCursor), nil
+		output.Value = mapFunc(tagSetCursor)
+		return output, nil
 	}
 }
 
