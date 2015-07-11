@@ -513,41 +513,46 @@ func (ae *AggregateExecutor) processAggregate(t string, c *influxql.Call, f infl
 	return measurement, tags, f(mappedValues), nil
 }
 
-func (ae *AggregateExecutor) processFill(values []interface{}) []interface{} {
+// processFill will take the results and return new results (or the same if no fill modifications are needed) with whatever fill options the query has.
+func (ae *AggregateExecutor) processFill(results [][]interface{}) [][]interface{} {
 	// don't do anything if we're supposed to leave the nulls
 	if ae.stmt.Fill == influxql.NullFill {
-		return values
+		return results
 	}
 
 	if ae.stmt.Fill == influxql.NoFill {
 		// remove any rows that have even one nil value. This one is tricky because they could have multiple
 		// aggregates, but this option means that any row that has even one nil gets purged.
-		newValues := make([]interface{}, 0, len(values))
-		hasNil := false
-		// start at 1 because the first value is always time
-		for j := 1; j < len(values); j++ {
-			if values[j] == nil {
-				break
+		newResults := make([][]interface{}, 0, len(results))
+		for _, vals := range results {
+			hasNil := false
+			// start at 1 because the first value is always time
+			for j := 1; j < len(vals); j++ {
+				if vals[j] == nil {
+					hasNil = true
+					break
+				}
 			}
-			newValues = append(newValues, value[j])
+			if !hasNil {
+				newResults = append(newResults, vals)
+			}
 		}
-		if !hasNil {
-			newValues = append(newValues, values)
-		}
-		return newValues
+		return newResults
 	}
 
 	// they're either filling with previous values or a specific number
-	// start at 1 because the first value is always time
-	for j := 1; j < len(values); j++ {
-		if values[j] == nil {
-			switch ae.stmt.Fill {
-			case influxql.PreviousFill:
-				if i != 0 {
-					values[j] = results[i-1][j]
+	for i, vals := range results {
+		// start at 1 because the first value is always time
+		for j := 1; j < len(vals); j++ {
+			if vals[j] == nil {
+				switch ae.stmt.Fill {
+				case influxql.PreviousFill:
+					if i != 0 {
+						vals[j] = results[i-1][j]
+					}
+				case influxql.NumberFill:
+					vals[j] = ae.stmt.FillValue
 				}
-			case influxql.NumberFill:
-				values[j] = ae.stmt.FillValue
 			}
 		}
 	}
