@@ -463,7 +463,6 @@ func (ae *AggregateExecutor) execute(out chan *influxql.Row, chunkSize int) {
 		//vals := make([]interface{}, 0, len(aggregates)+1)
 		//resultValues[i] = append(vals, time.Unix(0, t).UTC())
 	}
-	fmt.Println("tmin, tMins[0]", tmin, tMins[0], tMins[1])
 
 	// This just makes sure that if they specify a start time less than what the start time would be with the offset,
 	// we just reset the start time to the later time to avoid going over data that won't show up in the result.
