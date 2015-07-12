@@ -113,9 +113,21 @@ func (rm *RawMapper) Open() error {
 
 		// Get the sorted unique tag sets for this statement.
 		tagSets, err := m.TagSets(rm.stmt, tagKeys)
-
 		if err != nil {
 			return err
+		}
+
+		// SLIMIT and SOFFSET the unique series
+		if rm.stmt.SLimit > 0 || rm.stmt.SOffset > 0 {
+			if rm.stmt.SOffset > len(tagSets) {
+				tagSets = nil
+			} else {
+				if rm.stmt.SOffset+rm.stmt.SLimit > len(tagSets) {
+					rm.stmt.SLimit = len(tagSets) - rm.stmt.SOffset
+				}
+
+				tagSets = tagSets[rm.stmt.SOffset : rm.stmt.SOffset+rm.stmt.SLimit]
+			}
 		}
 
 		// Create all cursors for reading the data from this shard.
