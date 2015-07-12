@@ -126,7 +126,7 @@ func TestServer_Query_DropAndRecreateDatabase(t *testing.T) {
 		&Query{
 			name:    "Query data after recreate",
 			command: `SELECT * FROM cpu`,
-			exp:     `{"results":[{}]}`,
+			exp:     `{"results":[{"error":"measurement not found: \"db0\"..cpu"}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 	}...)
@@ -831,7 +831,7 @@ func TestServer_Query_Tags(t *testing.T) {
 		&Query{
 			name:    "tag without field should return error",
 			command: `SELECT host FROM db0.rp0.cpu`,
-			exp:     `{"results":[{"error":"select statement must include at least one field"}]}`,
+			exp:     `{"results":[{"error":"select statement must include at least one field or function call"}]}`,
 		},
 		&Query{
 			name:    "field with tag should succeed",
@@ -979,9 +979,10 @@ func TestServer_Query_Common(t *testing.T) {
 			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",1]]}]}]}`, now.Format(time.RFC3339Nano)),
 		},
 		&Query{
-			name:    "selecting a measurement that doesn't exist should not result in an error",
+			name:    "selecting a measurement that doesn't exist should error",
 			command: `SELECT value FROM db0.rp0.idontexist`,
-			exp:     `{"results":[{}]}`,
+			exp:     `.*measurement not found*`,
+			pattern: true,
 		},
 		&Query{
 			name:    "selecting a field that doesn't exist should error",
@@ -1335,10 +1336,53 @@ func TestServer_Query_Aggregates(t *testing.T) {
 	}
 
 	writes := []string{
+		fmt.Sprintf(`int value=45 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+
+		fmt.Sprintf(`intmax value=%s %d`, maxInt64(), mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`intmax value=%s %d`, maxInt64(), mustParseTime(time.RFC3339Nano, "2000-01-01T01:00:00Z").UnixNano()),
+
+		fmt.Sprintf(`intmany,host=server01 value=2.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`intmany,host=server02 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
+		fmt.Sprintf(`intmany,host=server03 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:20Z").UnixNano()),
+		fmt.Sprintf(`intmany,host=server04 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:30Z").UnixNano()),
+		fmt.Sprintf(`intmany,host=server05 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:40Z").UnixNano()),
+		fmt.Sprintf(`intmany,host=server06 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:50Z").UnixNano()),
+		fmt.Sprintf(`intmany,host=server07 value=7.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:00Z").UnixNano()),
+		fmt.Sprintf(`intmany,host=server08 value=9.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:10Z").UnixNano()),
+
 		fmt.Sprintf(`intoverlap,region=us-east value=20 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
 		fmt.Sprintf(`intoverlap,region=us-east value=30 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
 		fmt.Sprintf(`intoverlap,region=us-west value=100 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
 		fmt.Sprintf(`intoverlap,region=us-east otherVal=20 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:03Z").UnixNano()),
+
+		fmt.Sprintf(`floatsingle value=45.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+
+		fmt.Sprintf(`floatmax value=%s %d`, maxFloat64(), mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`floatmax value=%s %d`, maxFloat64(), mustParseTime(time.RFC3339Nano, "2000-01-01T01:00:00Z").UnixNano()),
+
+		fmt.Sprintf(`floatmany,host=server01 value=2.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`floatmany,host=server02 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
+		fmt.Sprintf(`floatmany,host=server03 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:20Z").UnixNano()),
+		fmt.Sprintf(`floatmany,host=server04 value=4.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:30Z").UnixNano()),
+		fmt.Sprintf(`floatmany,host=server05 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:40Z").UnixNano()),
+		fmt.Sprintf(`floatmany,host=server06 value=5.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:50Z").UnixNano()),
+		fmt.Sprintf(`floatmany,host=server07 value=7.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:00Z").UnixNano()),
+		fmt.Sprintf(`floatmany,host=server08 value=9.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:10Z").UnixNano()),
+
+		fmt.Sprintf(`floatoverlap,region=us-east value=20.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`floatoverlap,region=us-east value=30.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
+		fmt.Sprintf(`floatoverlap,region=us-west value=100.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`floatoverlap,region=us-east otherVal=20.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:03Z").UnixNano()),
+
+		fmt.Sprintf(`load,region=us-east,host=serverA value=20.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`load,region=us-east,host=serverB value=30.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
+		fmt.Sprintf(`load,region=us-west,host=serverC value=100.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+
+		fmt.Sprintf(`cpu,region=uk,host=serverZ,service=redis value=20.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:03Z").UnixNano()),
+		fmt.Sprintf(`cpu,region=uk,host=serverZ,service=mysql value=30.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:03Z").UnixNano()),
+
+		fmt.Sprintf(`stringdata value="first" %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:03Z").UnixNano()),
+		fmt.Sprintf(`stringdata value="last" %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:04Z").UnixNano()),
 	}
 
 	test := NewTest("db0", "rp0")
@@ -1346,11 +1390,313 @@ func TestServer_Query_Aggregates(t *testing.T) {
 
 	//FIXME add all of the int style tests once it is fixed.
 	test.addQueries([]*Query{
+		// int64
+		&Query{
+			name:    "stddev with just one point - int",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT STDDEV(value) FROM int`,
+			exp:     `{"results":[{"series":[{"name":"int","columns":["time","stddev"],"values":[["1970-01-01T00:00:00Z",null]]}]}]}`,
+		},
+		&Query{
+			name:    "large mean and stddev - int",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT MEAN(value), STDDEV(value) FROM intmax`,
+			exp:     `{"results":[{"series":[{"name":"intmax","columns":["time","mean","stddev"],"values":[["1970-01-01T00:00:00Z",` + maxInt64() + `,0]]}]}]}`,
+		},
+		&Query{
+			name:    "mean and stddev - int",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT MEAN(value), STDDEV(value) FROM intmany WHERE time >= '2000-01-01' AND time < '2000-01-01T00:02:00Z' GROUP BY time(10m)`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","mean","stddev"],"values":[["2000-01-01T00:00:00Z",5,2.138089935299395]]}]}]}`,
+		},
+		&Query{
+			name:    "first - int",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT FIRST(value) FROM intmany`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","first"],"values":[["1970-01-01T00:00:00Z",2]]}]}]}`,
+		},
+		&Query{
+			name:    "last - int",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT LAST(value) FROM intmany`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","last"],"values":[["1970-01-01T00:00:00Z",9]]}]}]}`,
+		},
+		&Query{
+			name:    "spread - int",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT SPREAD(value) FROM intmany`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","spread"],"values":[["1970-01-01T00:00:00Z",7]]}]}]}`,
+		},
+		&Query{
+			name:    "median - even count - int",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT MEDIAN(value) FROM intmany`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","median"],"values":[["1970-01-01T00:00:00Z",4.5]]}]}]}`,
+		},
+		&Query{
+			name:    "median - odd count - int",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT MEDIAN(value) FROM intmany where time < '2000-01-01T00:01:10Z'`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","median"],"values":[["1970-01-01T00:00:00Z",4]]}]}]}`,
+		},
+		&Query{
+			name:    "distinct as call - int",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT DISTINCT(value) FROM intmany`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","distinct"],"values":[["1970-01-01T00:00:00Z",[2,4,5,7,9]]]}]}]}`,
+		},
+		&Query{
+			name:    "distinct alt syntax - int",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT DISTINCT value FROM intmany`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","distinct"],"values":[["1970-01-01T00:00:00Z",[2,4,5,7,9]]]}]}]}`,
+		},
+		&Query{
+			name:    "distinct select tag - int",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT DISTINCT(host) FROM intmany`,
+			exp:     `{"results":[{"error":"host isn't a field on measurement intmany; to query the unique values for a tag use SHOW TAG VALUES FROM intmany WITH KEY = \"host"}]}`,
+		},
+		&Query{
+			name:    "distinct alt select tag - int",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT DISTINCT host FROM intmany`,
+			exp:     `{"results":[{"error":"host isn't a field on measurement intmany; to query the unique values for a tag use SHOW TAG VALUES FROM intmany WITH KEY = \"host"}]}`,
+		},
+		&Query{
+			name:    "count distinct - int",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT COUNT(DISTINCT value) FROM intmany`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",5]]}]}]}`,
+		},
+		&Query{
+			name:    "count distinct as call - int",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT COUNT(DISTINCT(value)) FROM intmany`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",5]]}]}]}`,
+		},
+		&Query{
+			name:    "count distinct select tag - int",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT COUNT(DISTINCT host) FROM intmany`,
+			exp:     `{"results":[{"error":"host isn't a field on measurement intmany; count(distinct) on tags isn't yet supported"}]}`,
+		},
+		&Query{
+			name:    "count distinct as call select tag - int",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT COUNT(DISTINCT host) FROM intmany`,
+			exp:     `{"results":[{"error":"host isn't a field on measurement intmany; count(distinct) on tags isn't yet supported"}]}`,
+		},
+		&Query{
+			name:    "aggregation with no interval - int",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT count(value) FROM intoverlap WHERE time = '2000-01-01 00:00:00'`,
+			exp:     `{"results":[{"series":[{"name":"intoverlap","columns":["time","count"],"values":[["2000-01-01T00:00:00Z",2]]}]}]}`,
+		},
 		&Query{
 			name:    "sum - int",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT SUM(value) FROM intoverlap WHERE time >= '2000-01-01 00:00:05' AND time <= '2000-01-01T00:00:10Z' GROUP BY time(10s), region`,
 			exp:     `{"results":[{"series":[{"name":"intoverlap","tags":{"region":"us-east"},"columns":["time","sum"],"values":[["2000-01-01T00:00:00Z",null],["2000-01-01T00:00:10Z",30]]}]}]}`,
+		},
+		&Query{
+			name:    "aggregation with a null field value - int",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT SUM(value) FROM intoverlap GROUP BY region`,
+			exp:     `{"results":[{"series":[{"name":"intoverlap","tags":{"region":"us-east"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",50]]},{"name":"intoverlap","tags":{"region":"us-west"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",100]]}]}]}`,
+		},
+		&Query{
+			name:    "multiple aggregations - int",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT SUM(value), MEAN(value) FROM intoverlap GROUP BY region`,
+			exp:     `{"results":[{"series":[{"name":"intoverlap","tags":{"region":"us-east"},"columns":["time","sum","mean"],"values":[["1970-01-01T00:00:00Z",50,25]]},{"name":"intoverlap","tags":{"region":"us-west"},"columns":["time","sum","mean"],"values":[["1970-01-01T00:00:00Z",100,100]]}]}]}`,
+		},
+		&Query{
+			skip:    true,
+			name:    "multiple aggregations with division - int FIXME issue #2879",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT sum(value), mean(value), sum(value) / mean(value) as div FROM intoverlap GROUP BY region`,
+			exp:     `{"results":[{"series":[{"name":"intoverlap","tags":{"region":"us-east"},"columns":["time","sum","mean","div"],"values":[["1970-01-01T00:00:00Z",50,25,2]]},{"name":"intoverlap","tags":{"region":"us-west"},"columns":["time","div"],"values":[["1970-01-01T00:00:00Z",100,100,1]]}]}]}`,
+		},
+
+		// float64
+		&Query{
+			name:    "stddev with just one point - float",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT STDDEV(value) FROM floatsingle`,
+			exp:     `{"results":[{"series":[{"name":"floatsingle","columns":["time","stddev"],"values":[["1970-01-01T00:00:00Z",null]]}]}]}`,
+		},
+		&Query{
+			name:    "large mean and stddev - float",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT MEAN(value), STDDEV(value) FROM floatmax`,
+			exp:     `{"results":[{"series":[{"name":"floatmax","columns":["time","mean","stddev"],"values":[["1970-01-01T00:00:00Z",` + maxFloat64() + `,0]]}]}]}`,
+		},
+		&Query{
+			name:    "mean and stddev - float",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT MEAN(value), STDDEV(value) FROM floatmany WHERE time >= '2000-01-01' AND time < '2000-01-01T00:02:00Z' GROUP BY time(10m)`,
+			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","mean","stddev"],"values":[["2000-01-01T00:00:00Z",5,2.138089935299395]]}]}]}`,
+		},
+		&Query{
+			name:    "first - float",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT FIRST(value) FROM floatmany`,
+			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","first"],"values":[["1970-01-01T00:00:00Z",2]]}]}]}`,
+		},
+		&Query{
+			name:    "last - float",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT LAST(value) FROM floatmany`,
+			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","last"],"values":[["1970-01-01T00:00:00Z",9]]}]}]}`,
+		},
+		&Query{
+			name:    "spread - float",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT SPREAD(value) FROM floatmany`,
+			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","spread"],"values":[["1970-01-01T00:00:00Z",7]]}]}]}`,
+		},
+		&Query{
+			name:    "median - even count - float",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT MEDIAN(value) FROM floatmany`,
+			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","median"],"values":[["1970-01-01T00:00:00Z",4.5]]}]}]}`,
+		},
+		&Query{
+			name:    "median - odd count - float",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT MEDIAN(value) FROM floatmany where time < '2000-01-01T00:01:10Z'`,
+			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","median"],"values":[["1970-01-01T00:00:00Z",4]]}]}]}`,
+		},
+		&Query{
+			name:    "distinct as call - float",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT DISTINCT(value) FROM floatmany`,
+			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","distinct"],"values":[["1970-01-01T00:00:00Z",[2,4,5,7,9]]]}]}]}`,
+		},
+		&Query{
+			name:    "distinct alt syntax - float",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT DISTINCT value FROM floatmany`,
+			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","distinct"],"values":[["1970-01-01T00:00:00Z",[2,4,5,7,9]]]}]}]}`,
+		},
+		&Query{
+			name:    "distinct select tag - float",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT DISTINCT(host) FROM floatmany`,
+			exp:     `{"results":[{"error":"host isn't a field on measurement floatmany; to query the unique values for a tag use SHOW TAG VALUES FROM floatmany WITH KEY = \"host"}]}`,
+		},
+		&Query{
+			name:    "distinct alt select tag - float",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT DISTINCT host FROM floatmany`,
+			exp:     `{"results":[{"error":"host isn't a field on measurement floatmany; to query the unique values for a tag use SHOW TAG VALUES FROM floatmany WITH KEY = \"host"}]}`,
+		},
+		&Query{
+			name:    "count distinct - float",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT COUNT(DISTINCT value) FROM floatmany`,
+			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",5]]}]}]}`,
+		},
+		&Query{
+			name:    "count distinct as call - float",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT COUNT(DISTINCT(value)) FROM floatmany`,
+			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",5]]}]}]}`,
+		},
+		&Query{
+			name:    "count distinct select tag - float",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT COUNT(DISTINCT host) FROM floatmany`,
+			exp:     `{"results":[{"error":"host isn't a field on measurement floatmany; count(distinct) on tags isn't yet supported"}]}`,
+		},
+		&Query{
+			name:    "count distinct as call select tag - float",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT COUNT(DISTINCT host) FROM floatmany`,
+			exp:     `{"results":[{"error":"host isn't a field on measurement floatmany; count(distinct) on tags isn't yet supported"}]}`,
+		},
+		&Query{
+			name:    "aggregation with no interval - float",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT count(value) FROM floatoverlap WHERE time = '2000-01-01 00:00:00'`,
+			exp:     `{"results":[{"series":[{"name":"floatoverlap","columns":["time","count"],"values":[["2000-01-01T00:00:00Z",2]]}]}]}`,
+		},
+		&Query{
+			name:    "sum - float",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT SUM(value) FROM floatoverlap WHERE time >= '2000-01-01 00:00:05' AND time <= '2000-01-01T00:00:10Z' GROUP BY time(10s), region`,
+			exp:     `{"results":[{"series":[{"name":"floatoverlap","tags":{"region":"us-east"},"columns":["time","sum"],"values":[["2000-01-01T00:00:00Z",null],["2000-01-01T00:00:10Z",30]]}]}]}`,
+		},
+		&Query{
+			name:    "aggregation with a null field value - float",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT SUM(value) FROM floatoverlap GROUP BY region`,
+			exp:     `{"results":[{"series":[{"name":"floatoverlap","tags":{"region":"us-east"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",50]]},{"name":"floatoverlap","tags":{"region":"us-west"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",100]]}]}]}`,
+		},
+		&Query{
+			name:    "multiple aggregations - float",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT SUM(value), MEAN(value) FROM floatoverlap GROUP BY region`,
+			exp:     `{"results":[{"series":[{"name":"floatoverlap","tags":{"region":"us-east"},"columns":["time","sum","mean"],"values":[["1970-01-01T00:00:00Z",50,25]]},{"name":"floatoverlap","tags":{"region":"us-west"},"columns":["time","sum","mean"],"values":[["1970-01-01T00:00:00Z",100,100]]}]}]}`,
+		},
+		&Query{
+			name:    "multiple aggregations with division - float",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT sum(value) / mean(value) as div FROM floatoverlap GROUP BY region`,
+			exp:     `{"results":[{"series":[{"name":"floatoverlap","tags":{"region":"us-east"},"columns":["time","div"],"values":[["1970-01-01T00:00:00Z",2]]},{"name":"floatoverlap","tags":{"region":"us-west"},"columns":["time","div"],"values":[["1970-01-01T00:00:00Z",1]]}]}]}`,
+		},
+
+		// strings
+		&Query{
+			name:    "STDDEV on string data - string",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT STDDEV(value) FROM stringdata`,
+			exp:     `{"results":[{"series":[{"name":"stringdata","columns":["time","stddev"],"values":[["1970-01-01T00:00:00Z",null]]}]}]}`,
+		},
+		&Query{
+			name:    "MEAN on string data - string",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT MEAN(value) FROM stringdata`,
+			exp:     `{"results":[{"series":[{"name":"stringdata","columns":["time","mean"],"values":[["1970-01-01T00:00:00Z",0]]}]}]}`,
+		},
+		&Query{
+			name:    "MEDIAN on string data - string",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT MEDIAN(value) FROM stringdata`,
+			exp:     `{"results":[{"series":[{"name":"stringdata","columns":["time","median"],"values":[["1970-01-01T00:00:00Z",null]]}]}]}`,
+		},
+		&Query{
+			name:    "COUNT on string data - string",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT COUNT(value) FROM stringdata`,
+			exp:     `{"results":[{"series":[{"name":"stringdata","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",2]]}]}]}`,
+		},
+		&Query{
+			name:    "FIRST on string data - string",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT FIRST(value) FROM stringdata`,
+			exp:     `{"results":[{"series":[{"name":"stringdata","columns":["time","first"],"values":[["1970-01-01T00:00:00Z","first"]]}]}]}`,
+		},
+		&Query{
+			name:    "LAST on string data - string",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT LAST(value) FROM stringdata`,
+			exp:     `{"results":[{"series":[{"name":"stringdata","columns":["time","last"],"values":[["1970-01-01T00:00:00Z","last"]]}]}]}`,
+		},
+
+		// general queries
+		&Query{
+			name:    "group by multiple dimensions",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT sum(value) FROM load GROUP BY region, host`,
+			exp:     `{"results":[{"series":[{"name":"load","tags":{"host":"serverA","region":"us-east"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",20]]},{"name":"load","tags":{"host":"serverB","region":"us-east"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",30]]},{"name":"load","tags":{"host":"serverC","region":"us-west"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",100]]}]}]}`,
+		},
+		&Query{
+			name:    "aggregation with WHERE and AND",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT sum(value) FROM cpu WHERE region='uk' AND host='serverZ'`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",50]]}]}]}`,
 		},
 	}...)
 
