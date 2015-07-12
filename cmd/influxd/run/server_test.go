@@ -1180,7 +1180,7 @@ func TestServer_Query_MergeMany(t *testing.T) {
 		},
 		&Query{
 			name:    "GROUP by field",
-			command: `SELECT count(value) FROM db0.rp0.cpu where time >= '2000-01-01T00:00:00Z' and time <= '2000-01-01T02:00:00Z' group by value`,
+			command: `SELECT count(value) FROM db0.rp0.cpu group by value`,
 			exp:     `{"results":[{"error":"can not use field in group by clause: value"}]}`,
 		},
 	}...)
