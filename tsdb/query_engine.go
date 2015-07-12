@@ -213,6 +213,7 @@ tagsetLoop:
 				if rowWriter == nil {
 					rowWriter = &limitedRowWriter{
 						limit:       re.stmt.Limit,
+						offset:      re.stmt.Offset,
 						chunkSize:   chunkSize,
 						name:        chunk.Name,
 						tags:        chunk.Tags,
@@ -682,14 +683,16 @@ func (ae *AggregateExecutor) close() {
 type limitedRowWriter struct {
 	chunkSize   int
 	limit       int
+	offset      int
 	name        string
 	tags        map[string]string
 	selectNames []string
 	fields      influxql.Fields
 	c           chan *influxql.Row
 
-	currValues []*rawMapperValue
-	totalSent  int
+	currValues  []*rawMapperValue
+	totalOffSet int
+	totalSent   int
 
 	transformer interface {
 		process(input []*rawMapperValue) []*rawMapperValue
@@ -702,6 +705,20 @@ type limitedRowWriter struct {
 func (r *limitedRowWriter) Add(values []*rawMapperValue) (limited bool) {
 	if r.currValues == nil {
 		r.currValues = make([]*rawMapperValue, 0, r.chunkSize)
+	}
+
+	// Enforce offset.
+	if r.totalOffSet < r.offset {
+		// Still some offsetting to do.
+		offsetRequired := r.offset - r.totalOffSet
+		if offsetRequired >= len(values) {
+			r.totalOffSet += len(values)
+			return false
+		} else {
+			// Drop leading values and keep going.
+			values = values[offsetRequired:]
+			r.totalOffSet += offsetRequired
+		}
 	}
 	r.currValues = append(r.currValues, values...)
 
