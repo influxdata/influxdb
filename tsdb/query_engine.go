@@ -431,6 +431,7 @@ func (ae *AggregateExecutor) execute(out chan *influxql.Row, chunkSize int) {
 	if ae.stmt.Limit > 0 || ae.stmt.Offset > 0 {
 		// ensure that the offset isn't higher than the number of points we'd get
 		if ae.stmt.Offset > len(tMins) {
+			close(out)
 			return
 		}
 
