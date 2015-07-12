@@ -286,7 +286,8 @@ func (s *Server) Open() error {
 		mux := tcp.NewMux()
 		s.MetaStore.RaftListener = mux.Listen(meta.MuxRaftHeader)
 		s.MetaStore.ExecListener = mux.Listen(meta.MuxExecHeader)
-		s.ClusterService.Listener = mux.Listen(cluster.MuxHeader)
+		s.ClusterService.WriteListener = mux.Listen(cluster.MuxWriteHeader)
+		s.ClusterService.MapperListener = mux.Listen(cluster.MuxMapperHeader)
 		s.SnapshotterService.Listener = mux.Listen(snapshotter.MuxHeader)
 		go mux.Serve(ln)
 

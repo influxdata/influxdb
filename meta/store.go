@@ -885,7 +885,8 @@ func (s *Store) ShardGroups(database, policy string) (a []ShardGroupInfo, err er
 	return
 }
 
-// ShardGroupsByTimeRange returns a slice of ShardGroups that may contain data for the given time range
+// ShardGroupsByTimeRange returns a slice of ShardGroups that may contain data for the given time range. ShardGroups
+// are sorted by start time.
 func (s *Store) ShardGroupsByTimeRange(database, policy string, tmin, tmax time.Time) (a []ShardGroupInfo, err error) {
 	err = s.read(func(data *Data) error {
 		a, err = data.ShardGroupsByTimeRange(database, policy, tmin, tmax)
