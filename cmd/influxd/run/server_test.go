@@ -126,7 +126,7 @@ func TestServer_Query_DropAndRecreateDatabase(t *testing.T) {
 		&Query{
 			name:    "Query data after recreate",
 			command: `SELECT * FROM cpu`,
-			exp:     `{"results":[{"error":"measurement not found: \"db0\"..cpu"}]}`,
+			exp:     `{"results":[{}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 	}...)
@@ -831,7 +831,7 @@ func TestServer_Query_Tags(t *testing.T) {
 		&Query{
 			name:    "tag without field should return error",
 			command: `SELECT host FROM db0.rp0.cpu`,
-			exp:     `{"results":[{"error":"select statement must include at least one field or function call"}]}`,
+			exp:     `{"results":[{"error":"select statement must include at least one field"}]}`,
 		},
 		&Query{
 			name:    "field with tag should succeed",
@@ -981,8 +981,7 @@ func TestServer_Query_Common(t *testing.T) {
 		&Query{
 			name:    "selecting a measurement that doesn't exist should error",
 			command: `SELECT value FROM db0.rp0.idontexist`,
-			exp:     `.*measurement not found*`,
-			pattern: true,
+			exp:     `{"results":[{}]}`,
 		},
 		&Query{
 			name:    "selecting a field that doesn't exist should error",
