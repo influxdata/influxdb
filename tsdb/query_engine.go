@@ -465,15 +465,12 @@ func (ae *AggregateExecutor) execute(out chan *influxql.Row, chunkSize int) {
 		}
 		tMins[i] = t
 
-		// If we start getting out of our max time range, then truncate values and return
-		//if t > tmax {
-		//	resultValues = resultValues[:i]
-		//	break
-		//}
-
-		// we always include time so we need one more column than we have aggregates
-		//vals := make([]interface{}, 0, len(aggregates)+1)
-		//resultValues[i] = append(vals, time.Unix(0, t).UTC())
+		// If we start getting out of our max time range, then truncate values and return.
+		// This is a key part of enforcing the statement's OFFSET.
+		if t > tmax {
+			tMins = tMins[:i]
+			break
+		}
 	}
 
 	// This just makes sure that if they specify a start time less than what the start time would be with the offset,
