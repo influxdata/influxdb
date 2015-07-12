@@ -462,7 +462,8 @@ func (ae *AggregateExecutor) execute(out chan *influxql.Row, chunkSize int) {
 		columnNames[i+1] = f.Name()
 	}
 
-	for _, tag := range availTagSets.list() {
+	tagsets := availTagSets.list()
+	for _, tag := range tagsets {
 		var err error
 		var reducedVal interface{}
 		measurement := ""
@@ -487,6 +488,11 @@ func (ae *AggregateExecutor) execute(out chan *influxql.Row, chunkSize int) {
 
 		// Perform any mathematics.
 		values = processForMath(ae.stmt.Fields, values)
+
+		// If we have multiple tag sets we'll want to filter out the empty ones
+		if len(tagsets) > 1 && resultsEmpty(values) {
+			continue
+		}
 
 		row := &influxql.Row{
 			Name:    measurement,
@@ -752,4 +758,17 @@ func processForMath(fields influxql.Fields, results [][]interface{}) [][]interfa
 	}
 
 	return mathResults
+}
+
+// resultsEmpty will return true if the all the result values are empty or contain only nulls
+func resultsEmpty(resultValues [][]interface{}) bool {
+	for _, vals := range resultValues {
+		// start the loop at 1 because we want to skip over the time value
+		for i := 1; i < len(vals); i++ {
+			if vals[i] != nil {
+				return false
+			}
+		}
+	}
+	return true
 }
