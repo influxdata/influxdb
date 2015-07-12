@@ -15,6 +15,9 @@
 - [#3223](https://github.com/influxdb/influxdb/issues/323): default graphite template cannot have extra tags
 - [#3255](https://github.com/influxdb/influxdb/pull/3255): Flush WAL on start-up as soon as possible.
 - [#3289](https://github.com/influxdb/influxdb/issues/3289): InfluxDB crashes on floats without decimal
+- [#3298](https://github.com/influxdb/influxdb/pull/3298): Corrected WAL & flush parameters in default config. Thanks @jhorwit2
+- [#3303](https://github.com/influxdb/influxdb/pull/3303): Fixed httpd logger to log user from query params. Thanks @jhorwit2
+
 
 ## v0.9.1 [2015-07-02]
 

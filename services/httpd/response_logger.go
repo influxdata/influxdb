@@ -119,7 +119,8 @@ func parseUsername(r *http.Request) string {
 			username = name
 		}
 	}
-	
+
+	// Try to get the username from the query param 'u'
 	q := url.Query()
 	if u := q.Get("u"); u != "" {
 		username = u

@@ -52,15 +52,15 @@ func main() {
 	c := CommandLine{}
 
 	fs := flag.NewFlagSet("InfluxDB shell version "+version, flag.ExitOnError)
-	fs.StringVar(&c.Host, "host", default_host, "influxdb host to connect to")
-	fs.IntVar(&c.Port, "port", default_port, "influxdb port to connect to")
-	fs.StringVar(&c.Username, "username", c.Username, "username to connect to the server.")
-	fs.StringVar(&c.Password, "password", c.Password, `password to connect to the server.  Leaving blank will prompt for password (--password="")`)
-	fs.StringVar(&c.Database, "database", c.Database, "database to connect to the server.")
-	fs.BoolVar(&c.Ssl, "ssl", false, "use https for connecting to cluster")
-	fs.StringVar(&c.Format, "format", default_format, "format specifies the format of the server responses:  json, csv, or column")
-	fs.BoolVar(&c.Pretty, "pretty", false, "turns on pretty print for the json format")
-	fs.BoolVar(&c.ShouldDump, "dump", false, "dump the contents of the given database to stdout")
+	fs.StringVar(&c.Host, "host", default_host, "Influxdb host to connect to.")
+	fs.IntVar(&c.Port, "port", default_port, "Influxdb port to connect to.")
+	fs.StringVar(&c.Username, "username", c.Username, "Username to connect to the server.")
+	fs.StringVar(&c.Password, "password", c.Password, `Password to connect to the server.  Leaving blank will prompt for password (--password="").`)
+	fs.StringVar(&c.Database, "database", c.Database, "Database to connect to the server.")
+	fs.BoolVar(&c.Ssl, "ssl", false, "Use https for connecting to cluster.")
+	fs.StringVar(&c.Format, "format", default_format, "Format specifies the format of the server responses:  json, csv, or column.")
+	fs.BoolVar(&c.Pretty, "pretty", false, "Turns on pretty print for the json format.")
+	fs.BoolVar(&c.ShouldDump, "dump", false, "Dump the contents of the given database to stdout.")
 	fs.StringVar(&c.Execute, "execute", c.Execute, "Execute command and quit.")
 	fs.BoolVar(&c.ShowVersion, "version", false, "Displays the InfluxDB version.")
 
@@ -76,7 +76,7 @@ func main() {
   -database 'database name'
        Database to connect to the server.
   -password 'password'
-      Password to connect to the server.  Leaving blank will prompt for password (--password '')
+      Password to connect to the server.  Leaving blank will prompt for password (--password '').
   -username 'username'
        Username to connect to the server.
   -ssl
@@ -92,13 +92,13 @@ func main() {
 
 Examples:
 
-    # Use influx in a non-interactive mode to query the database "metrics" and pretty print json
+    # Use influx in a non-interactive mode to query the database "metrics" and pretty print json:
     $ influx -database 'metrics' -execute 'select * from cpu' -format 'json' -pretty
 
-    # Dumping out your data
+	# Dumping out your data:
     $ influx  -database 'metrics' -dump
 
-    # Connect to a specific database on startup and set database context
+	# Connect to a specific database on startup and set database context:
     $ influx -database 'metrics' -host 'localhost' -port '8086'
 `)
 	}
