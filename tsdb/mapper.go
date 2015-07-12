@@ -471,10 +471,6 @@ func (am *AggMapper) Open() error {
 			}
 		}
 
-		if len(am.selectFields) == 0 {
-			return fmt.Errorf("select statement must include at least one field")
-		}
-
 		// Validate that group by is not a field
 		for _, d := range am.stmt.Dimensions {
 			switch e := d.Expr.(type) {
