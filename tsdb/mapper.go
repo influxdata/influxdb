@@ -315,7 +315,7 @@ func (tsc *tagSetCursor) nextCursor(tmin, tmax int64) *seriesCursor {
 	var timestamp int64
 	for _, c := range tsc.cursors {
 		timestamp, _ = c.Peek()
-		if timestamp != 0 && timestamp >= tmin && timestamp <= tmax {
+		if timestamp != 0 && ((timestamp == tmin) || (timestamp >= tmin && timestamp < tmax)) {
 			if minCursor == nil {
 				minCursor = c
 			} else {
