@@ -509,11 +509,14 @@ func (ae *AggregateExecutor) execute(out chan *influxql.Row, chunkSize int) {
 			}
 		}
 
+		// Perform any mathematics.
+		values = processForMath(ae.stmt.Fields, values)
+
 		// Handle any fill options
 		values = ae.processFill(values)
 
-		// Perform any mathematics.
-		values = processForMath(ae.stmt.Fields, values)
+		// process derivatives
+		values = ae.processDerivative(values)
 
 		// If we have multiple tag sets we'll want to filter out the empty ones
 		if len(tagsets) > 1 && resultsEmpty(values) {
@@ -602,6 +605,67 @@ func (ae *AggregateExecutor) processFill(results [][]interface{}) [][]interface{
 		}
 	}
 	return results
+}
+
+// processDerivative returns the derivatives of the results
+func (ae *AggregateExecutor) processDerivative(results [][]interface{}) [][]interface{} {
+	// Return early if we're not supposed to process the derivatives
+	if !ae.stmt.HasDerivative() {
+		return results
+	}
+
+	// Return early if we can't calculate derivatives
+	if len(results) == 0 {
+		return results
+	}
+
+	// If we only have 1 value, then the value did not change, so return
+	// a single row w/ 0.0
+	if len(results) == 1 {
+		return [][]interface{}{
+			[]interface{}{results[0][0], 0.0},
+		}
+	}
+
+	// Determines whether to drop negative differences
+	isNonNegative := ae.stmt.FunctionCalls()[0].Name == "non_negative_derivative"
+
+	// Otherwise calculate the derivatives as the difference between consecutive
+	// points divided by the elapsed time.  Then normalize to the requested
+	// interval.
+	derivatives := [][]interface{}{}
+	for i := 1; i < len(results); i++ {
+		prev := results[i-1]
+		cur := results[i]
+
+		if cur[1] == nil || prev[1] == nil {
+			continue
+		}
+
+		elapsed := cur[0].(time.Time).Sub(prev[0].(time.Time))
+		diff := int64toFloat64(cur[1]) - int64toFloat64(prev[1])
+		value := 0.0
+		if elapsed > 0 {
+			interval, err := derivativeInterval(ae.stmt)
+			if err != nil {
+				return results // XXX need to handle this better.
+			}
+			value = float64(diff) / (float64(elapsed) / float64(interval))
+		}
+
+		// Drop negative values for non-negative derivatives
+		if isNonNegative && diff < 0 {
+			continue
+		}
+
+		val := []interface{}{
+			cur[0],
+			value,
+		}
+		derivatives = append(derivatives, val)
+	}
+
+	return derivatives
 }
 
 // Close closes the executor such that all resources are released. Once closed,
