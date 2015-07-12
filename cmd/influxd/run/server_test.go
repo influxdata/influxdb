@@ -2315,14 +2315,12 @@ func TestServer_Query_LimitAndOffset(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
-			skip:    true,
 			name:    "limit higher than the number of data points should error",
 			command: `select mean(foo)  from "limit"  where  time > '2000-01-01T00:00:00Z' group by time(1s), * fill(0)  limit 2147483647`,
 			exp:     `{"results":[{"error":"too many points in the group by interval. maybe you forgot to specify a where time clause?"}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
-			skip:    true,
 			name:    "limit1 higher than MaxGroupBy but the number of data points is less than MaxGroupBy",
 			command: `select mean(foo)  from "limit"  where  time >= '2009-11-10T23:00:02Z' and time < '2009-11-10T23:00:03Z' group by time(1s), * fill(0)  limit 2147483647`,
 			exp:     `{"results":[{"series":[{"name":"limit","tags":{"tennant":"paul"},"columns":["time","mean"],"values":[["2009-11-10T23:00:02Z",2]]},{"name":"limit","tags":{"tennant":"todd"},"columns":["time","mean"],"values":[["2009-11-10T23:00:02Z",0]]}]}]}`,

@@ -398,7 +398,7 @@ func (ae *AggregateExecutor) execute(out chan *influxql.Row, chunkSize int) {
 
 	// Work out how many intervals we need per tagset. If the user didn't specify a start time or
 	// GROUP BY interval, we're returning a single point per tagset, for the entire range.
-	var tMins []int64
+	numIntervals := 0
 	var tmin, tmax int64
 	qMin, qMax := influxql.TimeRange(ae.stmt.Condition)
 	if qMin.IsZero() {
@@ -419,31 +419,31 @@ func (ae *AggregateExecutor) execute(out chan *influxql.Row, chunkSize int) {
 	}
 	interval := d.Nanoseconds()
 	if tmin == 0 || interval == 0 {
-		tMins = make([]int64, 1)
+		numIntervals = 1
 		interval = tmax - tmin
 	} else {
 		intervalTop := tmax/interval*interval + interval
 		intervalBottom := tmin / interval * interval
-		tMins = make([]int64, int((intervalTop-intervalBottom)/interval))
+		numIntervals = int((intervalTop - intervalBottom) / interval)
 	}
 
 	// For GROUP BY time queries, limit the number of data points returned by the limit and offset
 	if ae.stmt.Limit > 0 || ae.stmt.Offset > 0 {
 		// ensure that the offset isn't higher than the number of points we'd get
-		if ae.stmt.Offset > len(tMins) {
+		if ae.stmt.Offset > numIntervals {
 			close(out)
 			return
 		}
 
 		// Take the lesser of either the pre computed number of GROUP BY buckets that
 		// will be in the result or the limit passed in by the user
-		if ae.stmt.Limit < len(tMins) {
-			tMins = tMins[:ae.stmt.Limit]
+		if ae.stmt.Limit < numIntervals {
+			numIntervals = ae.stmt.Limit
 		}
 	}
 
 	// If we are exceeding our MaxGroupByPoints error out
-	if len(tMins) > influxql.MaxGroupByPoints {
+	if numIntervals > influxql.MaxGroupByPoints {
 		out <- &influxql.Row{
 			Err: errors.New("too many points in the group by interval. maybe you forgot to specify a where time clause?"),
 		}
@@ -457,6 +457,7 @@ func (ae *AggregateExecutor) execute(out chan *influxql.Row, chunkSize int) {
 	}
 
 	// Create the minimum times for each interval.
+	tMins := make([]int64, numIntervals)
 	for i, _ := range tMins {
 		var t int64
 		if ae.stmt.Offset > 0 {
