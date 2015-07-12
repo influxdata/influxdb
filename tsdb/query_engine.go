@@ -221,6 +221,17 @@ tagsetLoop:
 						c:           out,
 					}
 				}
+				if re.stmt.HasDerivative() {
+					interval, err := derivativeInterval(re.stmt)
+					if err != nil {
+						out <- &influxql.Row{Err: err}
+						return
+					}
+					rowWriter.transformer = &rawQueryDerivativeProcessor{
+						isNonNegative:      re.stmt.FunctionCalls()[0].Name == "non_negative_derivative",
+						derivativeInterval: interval,
+					}
+				}
 
 				if len(chunk.Values) == 0 {
 					// This mapper is empty for this tagset.
@@ -615,6 +626,10 @@ type limitedRowWriter struct {
 
 	currValues []*rawMapperValue
 	totalSent  int
+
+	transformer interface {
+		process(input []*rawMapperValue) []*rawMapperValue
+	}
 }
 
 // Add accepts a slice of values, and will emit those values as per chunking requirements.
@@ -680,6 +695,10 @@ func (r *limitedRowWriter) Flush() {
 // processValues emits the given values in a single row.
 func (r *limitedRowWriter) processValues(values []*rawMapperValue) *influxql.Row {
 	selectNames := r.selectNames
+
+	if r.transformer != nil {
+		values = r.transformer.process(values)
+	}
 
 	// ensure that time is in the select names and in the first position
 	hasTime := false
@@ -750,6 +769,63 @@ func (r *limitedRowWriter) processValues(values []*rawMapperValue) *influxql.Row
 	return row
 }
 
+type rawQueryDerivativeProcessor struct {
+	lastValueFromPreviousChunk *rawMapperValue
+	isNonNegative              bool // Whether to drop negative differences
+	derivativeInterval         time.Duration
+}
+
+func (rqdp *rawQueryDerivativeProcessor) process(input []*rawMapperValue) []*rawMapperValue {
+	if len(input) == 0 {
+		return input
+	}
+
+	// If we only have 1 value, then the value did not change, so return
+	// a single row with 0.0
+	if len(input) == 1 {
+		return []*rawMapperValue{
+			&rawMapperValue{
+				Time:  input[0].Time,
+				Value: 0.0,
+			},
+		}
+	}
+
+	if rqdp.lastValueFromPreviousChunk == nil {
+		rqdp.lastValueFromPreviousChunk = input[0]
+	}
+
+	derivativeValues := []*rawMapperValue{}
+	for i := 1; i < len(input); i++ {
+		v := input[i]
+
+		// Calculate the derivative of successive points by dividing the difference
+		// of each value by the elapsed time normalized to the interval
+		diff := int64toFloat64(v.Value) - int64toFloat64(rqdp.lastValueFromPreviousChunk.Value)
+
+		elapsed := v.Time - rqdp.lastValueFromPreviousChunk.Time
+
+		value := 0.0
+		if elapsed > 0 {
+			value = diff / (float64(elapsed) / float64(rqdp.derivativeInterval))
+		}
+
+		rqdp.lastValueFromPreviousChunk = v
+
+		// Drop negative values for non-negative derivatives
+		if rqdp.isNonNegative && diff < 0 {
+			continue
+		}
+
+		derivativeValues = append(derivativeValues, &rawMapperValue{
+			Time:  v.Time,
+			Value: value,
+		})
+	}
+
+	return derivativeValues
+}
+
 // processForMath will apply any math that was specified in the select statement against the passed in results
 func processForMath(fields influxql.Fields, results [][]interface{}) [][]interface{} {
 	hasMath := false
@@ -784,6 +860,21 @@ func processForMath(fields influxql.Fields, results [][]interface{}) [][]interfa
 	return mathResults
 }
 
+// derivativeInterval returns the time interval for the one (and only) derivative func
+func derivativeInterval(stmt *influxql.SelectStatement) (time.Duration, error) {
+	if len(stmt.FunctionCalls()[0].Args) == 2 {
+		return stmt.FunctionCalls()[0].Args[1].(*influxql.DurationLiteral).Val, nil
+	}
+	interval, err := stmt.GroupByInterval()
+	if err != nil {
+		return 0, err
+	}
+	if interval > 0 {
+		return interval, nil
+	}
+	return time.Second, nil
+}
+
 // resultsEmpty will return true if the all the result values are empty or contain only nulls
 func resultsEmpty(resultValues [][]interface{}) bool {
 	for _, vals := range resultValues {
@@ -795,4 +886,14 @@ func resultsEmpty(resultValues [][]interface{}) bool {
 		}
 	}
 	return true
+}
+
+func int64toFloat64(v interface{}) float64 {
+	switch v.(type) {
+	case int64:
+		return float64(v.(int64))
+	case float64:
+		return v.(float64)
+	}
+	panic(fmt.Sprintf("expected either int64 or float64, got %v", v))
 }
