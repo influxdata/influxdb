@@ -487,6 +487,19 @@ func (am *AggMapper) Open() error {
 			return err
 		}
 
+		// SLIMIT and SOFFSET the unique series
+		if am.stmt.SLimit > 0 || am.stmt.SOffset > 0 {
+			if am.stmt.SOffset > len(tagSets) {
+				tagSets = nil
+			} else {
+				if am.stmt.SOffset+am.stmt.SLimit > len(tagSets) {
+					am.stmt.SLimit = len(tagSets) - am.stmt.SOffset
+				}
+
+				tagSets = tagSets[am.stmt.SOffset : am.stmt.SOffset+am.stmt.SLimit]
+			}
+		}
+
 		// Create all cursors for reading the data from this shard.
 		for _, t := range tagSets {
 			cursors := []*seriesCursor{}
