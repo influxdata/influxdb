@@ -119,6 +119,11 @@ func parseUsername(r *http.Request) string {
 			username = name
 		}
 	}
+	
+	q := url.Query()
+	if u := q.Get("u"); u != "" {
+		username = u
+	}
 
 	// Try to get it from the authorization header if set there
 	if username == "" {
