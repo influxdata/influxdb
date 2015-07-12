@@ -2315,6 +2315,7 @@ func TestServer_Query_LimitAndOffset(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
+			skip:    true,
 			name:    "limit higher than the number of data points should error",
 			command: `select mean(foo)  from "limit"  where  time > '2000-01-01T00:00:00Z' group by time(1s), * fill(0)  limit 2147483647`,
 			exp:     `{"results":[{"error":"too many points in the group by interval. maybe you forgot to specify a where time clause?"}]}`,
