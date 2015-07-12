@@ -1455,13 +1455,13 @@ func TestServer_Query_Aggregates(t *testing.T) {
 			name:    "distinct select tag - int",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT DISTINCT(host) FROM intmany`,
-			exp:     `{"results":[{"error":"host isn't a field on measurement intmany; to query the unique values for a tag use SHOW TAG VALUES FROM intmany WITH KEY = \"host"}]}`,
+			exp:     `{"results":[{}]}`,
 		},
 		&Query{
 			name:    "distinct alt select tag - int",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT DISTINCT host FROM intmany`,
-			exp:     `{"results":[{"error":"host isn't a field on measurement intmany; to query the unique values for a tag use SHOW TAG VALUES FROM intmany WITH KEY = \"host"}]}`,
+			exp:     `{"results":[{}]}`,
 		},
 		&Query{
 			name:    "count distinct - int",
@@ -1479,13 +1479,13 @@ func TestServer_Query_Aggregates(t *testing.T) {
 			name:    "count distinct select tag - int",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT COUNT(DISTINCT host) FROM intmany`,
-			exp:     `{"results":[{"error":"host isn't a field on measurement intmany; count(distinct) on tags isn't yet supported"}]}`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",0]]}]}]}`,
 		},
 		&Query{
 			name:    "count distinct as call select tag - int",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT COUNT(DISTINCT host) FROM intmany`,
-			exp:     `{"results":[{"error":"host isn't a field on measurement intmany; count(distinct) on tags isn't yet supported"}]}`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",0]]}]}]}`,
 		},
 		&Query{
 			name:    "aggregation with no interval - int",
@@ -1584,13 +1584,13 @@ func TestServer_Query_Aggregates(t *testing.T) {
 			name:    "distinct select tag - float",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT DISTINCT(host) FROM floatmany`,
-			exp:     `{"results":[{"error":"host isn't a field on measurement floatmany; to query the unique values for a tag use SHOW TAG VALUES FROM floatmany WITH KEY = \"host"}]}`,
+			exp:     `{"results":[{}]}`,
 		},
 		&Query{
 			name:    "distinct alt select tag - float",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT DISTINCT host FROM floatmany`,
-			exp:     `{"results":[{"error":"host isn't a field on measurement floatmany; to query the unique values for a tag use SHOW TAG VALUES FROM floatmany WITH KEY = \"host"}]}`,
+			exp:     `{"results":[{}]}`,
 		},
 		&Query{
 			name:    "count distinct - float",
@@ -1608,13 +1608,13 @@ func TestServer_Query_Aggregates(t *testing.T) {
 			name:    "count distinct select tag - float",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT COUNT(DISTINCT host) FROM floatmany`,
-			exp:     `{"results":[{"error":"host isn't a field on measurement floatmany; count(distinct) on tags isn't yet supported"}]}`,
+			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",0]]}]}]}`,
 		},
 		&Query{
 			name:    "count distinct as call select tag - float",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT COUNT(DISTINCT host) FROM floatmany`,
-			exp:     `{"results":[{"error":"host isn't a field on measurement floatmany; count(distinct) on tags isn't yet supported"}]}`,
+			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",0]]}]}]}`,
 		},
 		&Query{
 			name:    "aggregation with no interval - float",
