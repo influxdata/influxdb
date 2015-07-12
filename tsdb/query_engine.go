@@ -320,8 +320,10 @@ func (re *RawExecutor) close() {
 
 // AggregateExecutor is an executor for AggregateMappers.
 type AggregateExecutor struct {
-	stmt    *influxql.SelectStatement
-	mappers []*AggMapper
+	stmt      *influxql.SelectStatement
+	queryTMin int64
+	queryTMax int64
+	mappers   []*AggMapper
 }
 
 // NewAggregateExecutor returns a new AggregateExecutor.
@@ -347,6 +349,19 @@ func (ae *AggregateExecutor) execute(out chan *influxql.Row, chunkSize int) {
 			out <- &influxql.Row{Err: err}
 			return
 		}
+	}
+
+	// Set all time-related parameters on the mapper.
+	qmin, qmax := influxql.TimeRange(ae.stmt.Condition)
+	if qmin.IsZero() {
+		ae.queryTMin = time.Unix(0, 0).UnixNano()
+	} else {
+		ae.queryTMin = qmin.UnixNano()
+	}
+	if qmax.IsZero() {
+		ae.queryTMax = time.Now().UnixNano()
+	} else {
+		ae.queryTMax = qmax.UnixNano()
 	}
 
 	// Build the set of available tagsets across all mappers.
@@ -448,6 +463,7 @@ func (ae *AggregateExecutor) execute(out chan *influxql.Row, chunkSize int) {
 		//vals := make([]interface{}, 0, len(aggregates)+1)
 		//resultValues[i] = append(vals, time.Unix(0, t).UTC())
 	}
+	fmt.Println("tmin, tMins[0]", tmin, tMins[0], tMins[1])
 
 	// This just makes sure that if they specify a start time less than what the start time would be with the offset,
 	// we just reset the start time to the later time to avoid going over data that won't show up in the result.
@@ -507,6 +523,15 @@ func (ae *AggregateExecutor) execute(out chan *influxql.Row, chunkSize int) {
 }
 
 func (ae *AggregateExecutor) processAggregate(t string, c *influxql.Call, f influxql.ReduceFunc, tmin, tmax int64) (string, map[string]string, interface{}, error) {
+	// Always clamp tmin and tmax. This can happen as bucket-times are bucketed to the nearest
+	// interval, and this can be less than the times in the query.
+	if tmin < ae.queryTMin {
+		tmin = ae.queryTMin
+	}
+	if tmax > ae.queryTMax {
+		tmax = ae.queryTMax
+	}
+
 	measurement := ""
 	tags := make(map[string]string)
 	mappedValues := make([]interface{}, 0, len(ae.mappers))
