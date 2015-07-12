@@ -1181,7 +1181,7 @@ func TestServer_Query_MergeMany(t *testing.T) {
 		&Query{
 			name:    "GROUP by field",
 			command: `SELECT count(value) FROM db0.rp0.cpu group by value`,
-			exp:     `{"results":[{"error":"can not use field in group by clause: value"}]}`,
+			exp:     `{"results":[{"error":"can not use field in GROUP BY clause: value"}]}`,
 		},
 	}...)
 
