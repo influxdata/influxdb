@@ -536,6 +536,27 @@ func (am *AggMapper) Interval(tagset string, call *influxql.Call, tmin, tmax int
 		return nil, err
 	}
 
+	// Check for calls like `derivative(mean(value), 1d)`
+	var fieldName string
+	var isCountDistinct bool
+	var nested *influxql.Call = call
+	if fn, ok := call.Args[0].(*influxql.Call); ok {
+		nested = fn
+	}
+	switch lit := nested.Args[0].(type) {
+	case *influxql.VarRef:
+		fieldName = lit.Val
+	case *influxql.Distinct:
+		if call.Name != "count" {
+			return nil, fmt.Errorf("aggregate call didn't contain a field %s", call.String())
+		}
+		isCountDistinct = true
+		fieldName = lit.Val
+	default:
+		return nil, fmt.Errorf("aggregate call didn't contain a field %s", call.String())
+	}
+	isCountDistinct = isCountDistinct || (call.Name == "count" && nested.Name == "distinct")
+
 	cursor, ok := am.cursors[tagset]
 	if !ok {
 		return nil, nil
@@ -552,7 +573,7 @@ func (am *AggMapper) Interval(tagset string, call *influxql.Call, tmin, tmax int
 	for {
 		// Wrap the tagset cursor so it implements the mapping functions interface.
 		f := func() (seriesKey string, time int64, value interface{}) {
-			return cursor.Next(tmin, tmax, am.selectFields.list(), am.whereFields.list())
+			return cursor.Next(tmin, tmax, []string{fieldName}, am.whereFields.list())
 		}
 
 		tagSetCursor := &aggTagSetCursor{
