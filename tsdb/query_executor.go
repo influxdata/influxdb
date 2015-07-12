@@ -51,11 +51,6 @@ func NewQueryExecutor(store *Store) *QueryExecutor {
 	}
 }
 
-// Begin is for influxql/engine.go to use to get a transaction object to start the query
-func (q *QueryExecutor) Begin() (influxql.Tx, error) {
-	return newTx(q.MetaStore, q.store), nil
-}
-
 // Authorize user u to execute query q on database.
 // database can be "" for queries that do not require a database.
 // If no user is provided it will return an error unless the query's first statement is to create

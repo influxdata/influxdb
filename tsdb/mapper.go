@@ -1,6 +1,7 @@
 package tsdb
 
 import (
+	"encoding/binary"
 	"fmt"
 	"time"
 
@@ -650,3 +651,14 @@ func createCursorForSeries(tx *bolt.Tx, shard *Shard, key string) *shardCursor {
 	}
 	return cur
 }
+
+// matchesFilter returns true if the value matches the where clause
+func matchesWhere(f influxql.Expr, fields map[string]interface{}) bool {
+	if ok, _ := influxql.Eval(f, fields).(bool); !ok {
+		return false
+	}
+	return true
+}
+
+// btou64 converts an 8-byte slice into an uint64.
+func btou64(b []byte) uint64 { return binary.BigEndian.Uint64(b) }
