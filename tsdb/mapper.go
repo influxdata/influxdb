@@ -3,6 +3,7 @@ package tsdb
 import (
 	"encoding/binary"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/boltdb/bolt"
@@ -154,11 +155,12 @@ func (rm *RawMapper) Open() error {
 
 // TagSets returns the list of TagSets for which this mapper has data.
 func (rm *RawMapper) TagSets() []string {
-	set := newStringSet()
+	list := []string{}
 	for k, _ := range rm.cursors {
-		set.add(k)
+		list = append(list, k)
 	}
-	return set.list()
+	sort.Strings(list)
+	return list
 }
 
 // NextChunk returns the next chunk of data for a tagset. If the result is nil, there are no more
@@ -535,11 +537,12 @@ func (am *AggMapper) Open() error {
 
 // TagSets returns the list of TagSets for which this mapper has data.
 func (am *AggMapper) TagSets() []string {
-	set := newStringSet()
+	list := []string{}
 	for k, _ := range am.cursors {
-		set.add(k)
+		list = append(list, k)
 	}
-	return set.list()
+	sort.Strings(list)
+	return list
 }
 
 // aggMapperOutput is the format of the data emitted by an Aggregate Mapper.
