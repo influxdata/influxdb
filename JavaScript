@@ -1,0 +1,52 @@
+ feedback, and volunteering alongside funding. So, the site has accessory tools (wiki, discussion, ticketing) which we're using for our own development and which all projects may use if they choose.</p>
+ 
+ <p>We're currently running a fundraising-drive at <a href="https://snowdrift.tilt.com">https://snowdrift.tilt.com</a> to cover our legal costs and extra development. At this point, we've reached our first couple goals for funding but hope we continue to get additional support as we have a lot more still to do.</p>
+ 
+ <p>Despite only testing with fake money on the live Snowdrift.coop site, we have registered over 600 users already. We see a lot of interest, and we're feeling optimistic. We hope to start getting projects listed soon.</p>
+ 
+ <h2>What features do you think really sets Snowdrift apart from similar software?</h2>
+ 
+ <p>We did a lot of background research about the history of funding for free software and culture and reviewed over 700 other web platforms; see <a href="https://snowdrift.coop/p/snowdrift/w/en/status-quo-floss">our software history article</a> and <a href="https://snowdrift.coop/p/snowdrift/w/en/othercrowdfunding">our review of other platforms</a>.</p>
+ 
+ <p>A few other web platforms offer some features worth comparing, but we're really quite distinct. Our funding mechanism is new. Our technical design emphasizes progressive enhancement — that means everything is functional without relying on client-side JavaScript at all (and, of course, wherever we use some JavaScript enhancements, that's still all free software). Many bits and pieces can be compared to other software, but we're a unique package with a number of novel elements. For example, even our approach to ticketing is unique because we integrated it with our discussion boards in order to lessen the divide and the unnecessary duplication we often see between separated forums and ticketing systems.</p>
+ 
+ <h2>Why did you choose the AGPLv3 as Snowdrift's license?</h2>
+ 
+ <p>We aren't building the software with the main goal of others running it themselves (although we hope to split out some of the accessory tools so they can work independently), but we see it as important and ethically consistent with our mission that people have the <em>freedom</em> to run the software on their own or fork the project. If we ran the site with proprietary software, it would give us particularly strong lock-in, and that amplifies power imbalances and conflict-of-interest concerns.</p>
+ 
+ <p>AGPLv3+ allows us to not only share our software freely but to ensure that it <em>stays</em> free. I think it would be great for all software to be under AGPL. The Affero clause doesn't hurt anything; basically, it either does nothing (in the case of a program that would never be run over a server) or it protects our freedoms — so, might as well include it for <em>any</em> software.</p>
+ 
+ <h2>How can users (technical or otherwise) help contribute to Snowdrift?</h2>
+ 
+ <p>See <a href="https://snowdrift.coop/p/snowdrift/w/en/how-to-help">https://snowdrift.coop/p/snowdrift/w/en/how-to-help</a>. But, in summary, coders can jump in and help with patches. The main code is written in Haskell, but we have lots of work that mostly involves simple HTML, CSS, or JavaScript coding.</p>
+ 
+ <p>We also have legal, design, organizing, illustration, and other work to do. It would even help to have more people actively welcoming visitors to our #snowdrift IRC channel at freenode.net. It also helps to have more people simply testing the site and participating in the discussion boards at Snowdrift.coop. We welcome all sorts of questions and constructive feedback.</p>
+ 
+ <p>We also want to determine the optimal projects to sign up for our launch. Ideally, those will be downstream, user-facing, reasonably broad audience sorts of things that have decent history but clear need for more funding.</p>
+ 
+ <p><em>Enjoyed this interview? Check out our previous entry in this series featuring <a href="http://www.fsf.org/blogs/licensing/interview-with-jessica-tallon-of-pypump">Jessica Tallon of PyPump</a>.</em></p>
+]]>
+</content:encoded>
+<dc:publisher>No publisher</dc:publisher>
+<dc:creator/>
+<dc:rights/>
+<dc:subject>GPL-interview</dc:subject>
+<dc:date>2014-12-29T20:30:00Z</dc:date>
+<dc:type>Blog Entry</dc:type>
+</item>
+<item rdf:about="http://www.fsf.org/blogs/licensing/the-sharks-move-in-lobbyists-pushing-forward-on-tpp-agreements">
+<title>
+The sharks move in; lobbyists pushing forward on TPP agreements
+</title>
+<link>
+http://www.fsf.org/blogs/licensing/the-sharks-move-in-lobbyists-pushing-forward-on-tpp-agreements
+</link>
+<description>
+The latest leaked draft of the TPP reveals that the countries involved in the negotiations are coming closer to acceptance of a whole host of problematic agreements.
+</description>
+<content:encoded xmlns:content="http://purl.org/rss/1.0/modules/content/">
+<![CDATA[
+<p>On October 16th, <a href="https://www.wikileaks.org/tpp-ip2/">WikiLeaks</a> released an updated draft of the Trans-Pacific Partnership (TPP) Strategic Partnership Agreement chapter on copyright, patent and other proprietary interests. A previous draft had been released last year. If you aren't fa
+]]>
+<![CDATA[
+miliar with TPP, it is a multinational trade-agreement that is being developed through a series of secret negotiations that when enacted will have a vast effect on civil liberties, including the ability of users all around the world to enjoy software freedom. </p> <p>We have been <a href="https://www.fsf.org/blogs/community/2012-melbourne-tpp-report">following</a> and <a href="https://www.fsf.org/blogs/community/fsf-speaks-against-tpp">opposing</a> these negotiations both in person and online for many years now. We <a href="https://www.fsf.org/blogs/community/as-free-software-users-we-need-to-speak-out-against-the-tpp">wrote earlier this year</a> about the dangers posed by these secret negotiations. This latest leak reveals that the countries involved in the TPP negotiations are 
