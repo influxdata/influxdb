@@ -185,7 +185,7 @@ func (re *RawExecutor) execute(out chan *influxql.Row, chunkSize int) {
 
 tagsetLoop:
 	// For each mapper, drain it by tagset.
-	for _, t := range availTagSets.list() {
+	for _, _ = range availTagSets.list() {
 		// Used to read ahead chunks.
 		mapperOutputs := make([]*rawMapperOutput, len(re.mappers))
 		var rowWriter *limitedRowWriter
@@ -198,7 +198,7 @@ tagsetLoop:
 					continue
 				}
 
-				chunk, err := m.NextChunk(t, chunkSize)
+				chunk, err := m.NextChunk(chunkSize)
 				if err != nil {
 					out <- &influxql.Row{Err: err}
 					return

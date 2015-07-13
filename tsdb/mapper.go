@@ -25,18 +25,21 @@ type RawMapper struct {
 	fieldName    string                 // the field name being read.
 	decoders     map[string]*FieldCodec // byte decoder per measurement
 
-	cursors map[string]*tagSetCursor // Cursors per tag sets.
+	cursors         map[string]*tagSetCursor // Cursors per tag sets.
+	cursorSequence  []string                 // Sequence tagset cursors are drained.
+	currCursorIndex int                      // Current tagset cursor being drained.
 }
 
 // NewRawMapper returns a mapper for the given shard, which will return data for the SELECT statement.
 func NewRawMapper(shard *Shard, stmt *influxql.SelectStatement) *RawMapper {
 	return &RawMapper{
-		shard:        shard,
-		stmt:         stmt,
-		whereFields:  newStringSet(),
-		selectFields: newStringSet(),
-		selectTags:   newStringSet(),
-		cursors:      make(map[string]*tagSetCursor, 0),
+		shard:          shard,
+		stmt:           stmt,
+		whereFields:    newStringSet(),
+		selectFields:   newStringSet(),
+		selectTags:     newStringSet(),
+		cursors:        make(map[string]*tagSetCursor, 0),
+		cursorSequence: make([]string, 0),
 	}
 }
 
@@ -148,6 +151,13 @@ func (rm *RawMapper) Open() error {
 			tsc := newTagSetCursor(m.Name, t.Tags, cursors, rm.shard.FieldCodec(m.Name))
 			rm.cursors[tsc.key()] = tsc
 		}
+
+		// Update tagset drain sequence.
+		rm.cursorSequence = []string{}
+		for k, _ := range rm.cursors {
+			rm.cursorSequence = append(rm.cursorSequence, k)
+		}
+		sort.Strings(rm.cursorSequence)
 	}
 
 	return nil
@@ -165,11 +175,12 @@ func (rm *RawMapper) TagSets() []string {
 
 // NextChunk returns the next chunk of data for a tagset. If the result is nil, there are no more
 // data.
-func (rm *RawMapper) NextChunk(tagset string, chunkSize int) (*rawMapperOutput, error) {
-	cursor, ok := rm.cursors[tagset]
-	if !ok {
+func (rm *RawMapper) NextChunk(chunkSize int) (*rawMapperOutput, error) {
+	if rm.currCursorIndex == len(rm.cursorSequence) {
+		// All cursors processed. NextChunking complete.
 		return nil, nil
 	}
+	cursor := rm.cursors[rm.cursorSequence[rm.currCursorIndex]]
 	output := &rawMapperOutput{
 		Name: cursor.measurement,
 		Tags: cursor.tags,
@@ -179,7 +190,8 @@ func (rm *RawMapper) NextChunk(tagset string, chunkSize int) (*rawMapperOutput, 
 	for {
 		_, k, v := cursor.Next(rm.queryTMin, rm.queryTMax, rm.selectFields.list(), rm.whereFields.list())
 		if v == nil {
-			// cursor is empty.
+			// cursor is empty, move to next one and return.
+			rm.currCursorIndex++
 			return output, nil
 		}
 		value := &rawMapperValue{Time: k, Value: v}
