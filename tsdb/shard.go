@@ -317,6 +317,9 @@ func (s *Shard) WritePoints(points []Point) error {
 		s.mu.Lock()
 		defer s.mu.Unlock()
 
+		// tracks which in-memory caches need to be resorted
+		resorts := map[uint8]map[string]struct{}{}
+
 		for _, p := range points {
 			// Generate in-memory cache entry of <timestamp,data>.
 			key, data := p.Key(), p.Data()
@@ -332,15 +335,27 @@ func (s *Shard) WritePoints(points []Point) error {
 			// Append to cache list.
 			a = append(a, v)
 
-			// Sort by timestamp if not appending.
+			// If not appending, keep track of cache lists that need to be resorted.
 			if !appending {
-				sort.Sort(byteSlices(a))
+				series := resorts[partitionID]
+				if series == nil {
+					series = map[string]struct{}{}
+					resorts[partitionID] = series
+				}
+				series[string(key)] = struct{}{}
 			}
 
 			s.cache[partitionID][string(key)] = a
 
 			// Calculate estimated WAL size.
 			s.walSize += len(key) + len(v)
+		}
+
+		// Sort by timestamp if not appending.
+		for partitionID, cache := range resorts {
+			for key, _ := range cache {
+				sort.Sort(byteSlices(s.cache[partitionID][key]))
+			}
 		}
 
 		// Check for flush threshold.
