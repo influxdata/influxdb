@@ -1,0 +1,47 @@
+the document and removing white space before generating a hash of the document. But testing showed that some valid copies of licenses in the wild would fail this check. There doesn't seem to be a simple method that will accurately verify that the text of the document is unchanged, without constricting the ability of free software developers in how they format the document.</p> <p>The fact remains that even if users could check that a document they receive is a legitimate, unmodified copy of a GNU license, that doesn't mean that the accompanying software is free of impermissible restrictions. Additional restrictions on the software do not need to be written into the license. In fact, proprietary developers have mastered the art of using many different documents to place restrictions on their software, and the same can happen when a user receives a piece of software that purports to be under a free license. Additional restrictions could be hidden in a README file, a manual, or even a separate licensing or TOS document.</p> <p>In the end, while it would be convenient and useful to verify via command line that a document is a genuine copy of a GNU license, the problems this can cause are unfortunately more trouble than they are worth. The license, like the documentation, is among the few things distributed with software that are meant exclusively for humans to understand, not for computers to process. After all, it's always great for users to take the time to read the license themselves.</p>
+]]>
+</content:encoded>
+<dc:publisher>No publisher</dc:publisher>
+<dc:creator/>
+<dc:rights/>
+<dc:date>2015-05-11T18:58:40Z</dc:date>
+<dc:type>Blog Entry</dc:type>
+</item>
+<item rdf:about="http://www.fsf.org/blogs/licensing/friday-free-software-directory-irc-meetup-may-1">
+<title>Friday Free Software Directory IRC meetup: May 1</title>
+<link>
+http://www.fsf.org/blogs/licensing/friday-free-software-directory-irc-meetup-may-1
+</link>
+<description>
+Join the FSF and friends every Friday to help improve the Free Software Directory by adding new entries and updating existing ones.
+</description>
+<content:encoded xmlns:content="http://purl.org/rss/1.0/modules/content/">
+<![CDATA[
+<p>Join the FSF and friends today, Friday, May 1, from 2pm to 5pm EDT (18:00 to 21:00 UTC) to help improve the <a href="https://directory.fsf.org">Free Software Directory</a> by adding new entries and updating existing ones. We will be on IRC in the <a href="irc://irc.gnu.org/fsf">#fsf channel on fr
+]]>
+<![CDATA[
+eenode</a>.<br /> </p> <p>Tens of thousands of people visit <a href="https://directory.fsf.org">directory.fsf.org</a> each month to discover free software. Each entry in the Directory contains a wealth of useful information, from basic category and descriptions, to providing detailed info about version control, IRC channels, documentation, and licensing info that has been carefully checked by FSF staff and trained volunteers.<br /> </p> <p>While the Free Software Directory has been and continues to be a great resource to the world over the past decade, it has the potential of being a resource of even greater value. But it needs your help!<br /> </p> <p>If you are eager to help and you can't wait or are simply unable to make it onto IRC on Friday, our <a href="https://directory.fsf.org/wiki/FSD:Participate">participation guide</a> will provide you with all the information you need to get started on helping the Directory today!</p>
+]]>
+</content:encoded>
+<dc:publisher>No publisher</dc:publisher>
+<dc:creator/>
+<dc:rights/>
+<dc:date>2015-04-30T22:51:09Z</dc:date>
+<dc:type>Blog Entry</dc:type>
+</item>
+<item rdf:about="http://www.fsf.org/blogs/licensing/the-licensing-and-compliance-lab-interviews-matt-lee-from-the-list-powered-by-creative-commons">
+<title>
+The Licensing and Compliance Lab interviews Matt Lee from The List powered by Creative Commons
+</title>
+<link>
+http://www.fsf.org/blogs/licensing/the-licensing-and-compliance-lab-interviews-matt-lee-from-the-list-powered-by-creative-commons
+</link>
+<description>
+This is the latest installment of our Licensing and Compliance Lab's series on free software developers who choose GNU licenses for their works.
+</description>
+<content:encoded xmlns:content="http://purl.org/rss/1.0/modules/content/">
+<![CDATA[
+<p>In this edition, we conducted an email-based interview with Matt Lee, a lead developer of The List, which is licensed under the <a href="https://www.gnu.org/licenses/agpl.html">GNU Affero General Public License version 3</a> (AGPLv3), or at your option, any later version. Matt is the technical le
+]]>
+<![CDATA[
+ad at Creative Commons. Matt has been working in free software for over a decade and is a notable contributor to the GNU project and a former Campaigns Manager at the Free Software Foundation, as well as co-founder of Libre.fm and GNU social. Currently Matt is <a href="http://indiegogo.com/at/orangu">raising funds</a> to produce a film this summer, <em>Orang-U: An Ape Goes to College</em>, which he plans to edit using entirely free software and release under a <a href="https:
