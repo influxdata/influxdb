@@ -176,29 +176,33 @@ func (rm *RawMapper) TagSets() []string {
 // NextChunk returns the next chunk of data for a tagset. If the result is nil, there are no more
 // data.
 func (rm *RawMapper) NextChunk(chunkSize int) (*rawMapperOutput, error) {
-	if rm.currCursorIndex == len(rm.cursorSequence) {
-		// All cursors processed. NextChunk'ing complete.
-		return nil, nil
-	}
-	cursor := rm.cursors[rm.cursorSequence[rm.currCursorIndex]]
-	output := &rawMapperOutput{
-		Name: cursor.measurement,
-		Tags: cursor.tags,
-	}
-
-	// Still got a tagset cursor to process.
+	var output *rawMapperOutput
 	for {
+		if rm.currCursorIndex == len(rm.cursorSequence) {
+			// All cursors processed. NextChunk'ing complete.
+			return output, nil
+		}
+		cursor := rm.cursors[rm.cursorSequence[rm.currCursorIndex]]
+
 		_, k, v := cursor.Next(rm.queryTMin, rm.queryTMax, rm.selectFields.list(), rm.whereFields.list())
 		if v == nil {
 			// cursor is empty, move to next one and return.
 			rm.currCursorIndex++
 			return output, nil
 		}
+
+		if output == nil {
+			output = &rawMapperOutput{
+				Name: cursor.measurement,
+				Tags: cursor.tags,
+			}
+		}
 		value := &rawMapperValue{Time: k, Value: v}
 		output.Values = append(output.Values, value)
 		if len(output.Values) == chunkSize {
 			return output, nil
 		}
+
 	}
 }
 

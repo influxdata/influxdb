@@ -109,12 +109,12 @@ func TestShardMapper_WriteAndSingleMapperRawQuery(t *testing.T) {
 	}{
 		{
 			stmt:     `SELECT value FROM cpu`,
-			expected: []string{`{"Name":"cpu","values":[{"time":1000000000,"value":42},{"time":2000000000,"value":60}]}`},
+			expected: []string{`{"Name":"cpu","values":[{"time":1000000000,"value":42},{"time":2000000000,"value":60}]}`, `null`},
 		},
 		{
 			stmt:      `SELECT value FROM cpu`,
 			chunkSize: 1,
-			expected:  []string{`{"Name":"cpu","values":[{"time":1000000000,"value":42}]}`},
+			expected:  []string{`{"Name":"cpu","values":[{"time":1000000000,"value":42}]}`, `{"Name":"cpu","values":[{"time":2000000000,"value":60}]}`, `null`},
 		},
 		{
 			stmt:      `SELECT value FROM cpu`,
@@ -128,19 +128,19 @@ func TestShardMapper_WriteAndSingleMapperRawQuery(t *testing.T) {
 		},
 		{
 			stmt:     `SELECT value FROM cpu GROUP BY host`,
-			expected: []string{`{"Name":"cpu","tags":{"host":"serverA"},"values":[{"time":1000000000,"value":42}]}`, `{"Name":"cpu","tags":{"host":"serverB"},"values":[{"time":2000000000,"value":60}]}`},
+			expected: []string{`{"Name":"cpu","tags":{"host":"serverA"},"values":[{"time":1000000000,"value":42}]}`, `{"Name":"cpu","tags":{"host":"serverB"},"values":[{"time":2000000000,"value":60}]}`, `null`},
 		},
 		{
 			stmt:     `SELECT value FROM cpu GROUP BY region`,
-			expected: []string{`{"Name":"cpu","tags":{"region":"us-east"},"values":[{"time":1000000000,"value":42},{"time":2000000000,"value":60}]}`},
+			expected: []string{`{"Name":"cpu","tags":{"region":"us-east"},"values":[{"time":1000000000,"value":42},{"time":2000000000,"value":60}]}`, `null`},
 		},
 		{
 			stmt:     `SELECT value FROM cpu WHERE host='serverA'`,
-			expected: []string{`{"Name":"cpu","values":[{"time":1000000000,"value":42}]}`},
+			expected: []string{`{"Name":"cpu","values":[{"time":1000000000,"value":42}]}`, `null`},
 		},
 		{
 			stmt:     `SELECT value FROM cpu WHERE host='serverB'`,
-			expected: []string{`{"Name":"cpu","values":[{"time":2000000000,"value":60}]}`},
+			expected: []string{`{"Name":"cpu","values":[{"time":2000000000,"value":60}]}`, `null`},
 		},
 		{
 			stmt:     `SELECT value FROM cpu WHERE host='serverC'`,
@@ -148,23 +148,23 @@ func TestShardMapper_WriteAndSingleMapperRawQuery(t *testing.T) {
 		},
 		{
 			stmt:     `SELECT value FROM cpu WHERE value = 60`,
-			expected: []string{`{"Name":"cpu","values":[{"time":2000000000,"value":60}]}`},
+			expected: []string{`{"Name":"cpu","values":[{"time":2000000000,"value":60}]}`, `null`},
 		},
 		{
 			stmt:     `SELECT value FROM cpu WHERE value != 60`,
-			expected: []string{`{"Name":"cpu","values":[{"time":1000000000,"value":42}]}`},
+			expected: []string{`{"Name":"cpu","values":[{"time":1000000000,"value":42}]}`, `null`},
 		},
 		{
 			stmt:     fmt.Sprintf(`SELECT value FROM cpu WHERE time = '%s'`, pt1time.Format(influxql.DateTimeFormat)),
-			expected: []string{`{"Name":"cpu","values":[{"time":1000000000,"value":42}]}`},
+			expected: []string{`{"Name":"cpu","values":[{"time":1000000000,"value":42}]}`, `null`},
 		},
 		{
 			stmt:     fmt.Sprintf(`SELECT value FROM cpu WHERE time > '%s'`, pt1time.Format(influxql.DateTimeFormat)),
-			expected: []string{`{"Name":"cpu","values":[{"time":2000000000,"value":60}]}`},
+			expected: []string{`{"Name":"cpu","values":[{"time":2000000000,"value":60}]}`, `null`},
 		},
 		{
 			stmt:     fmt.Sprintf(`SELECT value FROM cpu WHERE time > '%s'`, pt2time.Format(influxql.DateTimeFormat)),
-			expected: []string{`{"Name":"cpu"}`},
+			expected: []string{`null`},
 		},
 	}
 
@@ -172,10 +172,10 @@ func TestShardMapper_WriteAndSingleMapperRawQuery(t *testing.T) {
 		stmt := mustParseSelectStatement(tt.stmt)
 		mapper := openRawMapperOrFail(t, shard, stmt)
 
-		for _, s := range tt.expected {
+		for i, _ := range tt.expected {
 			got := nextRawChunkAsJson(t, mapper, tt.chunkSize)
-			if got != s {
-				t.Errorf("test '%s'\n\tgot      %s\n\texpected %s", tt.stmt, got, tt.expected)
+			if got != tt.expected[i] {
+				t.Errorf("test '%s'\n\tgot      %s\n\texpected %s", tt.stmt, got, tt.expected[i])
 				break
 			}
 		}
@@ -213,11 +213,11 @@ func TestShardMapper_WriteAndSingleMapperRawQueryMultiValue(t *testing.T) {
 	}{
 		{
 			stmt:     `SELECT foo FROM cpu`,
-			expected: []string{`{"Name":"cpu","values":[{"time":1000000000,"value":42},{"time":2000000000,"value":60}]}`},
+			expected: []string{`{"Name":"cpu","values":[{"time":1000000000,"value":42},{"time":2000000000,"value":60}]}`, `null`},
 		},
 		{
 			stmt:     `SELECT foo,bar FROM cpu`,
-			expected: []string{`{"Name":"cpu","values":[{"time":1000000000,"value":{"bar":43,"foo":42}},{"time":2000000000,"value":{"bar":61,"foo":60}}]}`},
+			expected: []string{`{"Name":"cpu","values":[{"time":1000000000,"value":{"bar":43,"foo":42}},{"time":2000000000,"value":{"bar":61,"foo":60}}]}`, `null`},
 		},
 	}
 
@@ -231,9 +231,6 @@ func TestShardMapper_WriteAndSingleMapperRawQueryMultiValue(t *testing.T) {
 				t.Errorf("test '%s'\n\tgot      %s\n\texpected %s", tt.stmt, got, tt.expected)
 				break
 			}
-		}
-		if nextRawChunkAsJson(t, mapper, tt.chunkSize) != "null" {
-			t.Errorf("test '%s' got unexpected data", tt.stmt)
 		}
 	}
 }
