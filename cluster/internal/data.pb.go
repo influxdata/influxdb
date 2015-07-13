@@ -14,6 +14,8 @@ It has these top-level messages:
 	Tag
 	Point
 	WriteShardResponse
+	MapShardRequest
+	MapShardResponse
 */
 package internal
 
@@ -194,6 +196,54 @@ func (m *WriteShardResponse) GetCode() int32 {
 }
 
 func (m *WriteShardResponse) GetMessage() string {
+	if m != nil && m.Message != nil {
+		return *m.Message
+	}
+	return ""
+}
+
+type MapShardRequest struct {
+	ShardID          *uint64 `protobuf:"varint,1,req" json:"ShardID,omitempty"`
+	Statement        *string `protobuf:"bytes,2,req" json:"Statement,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *MapShardRequest) Reset()         { *m = MapShardRequest{} }
+func (m *MapShardRequest) String() string { return proto.CompactTextString(m) }
+func (*MapShardRequest) ProtoMessage()    {}
+
+func (m *MapShardRequest) GetShardID() uint64 {
+	if m != nil && m.ShardID != nil {
+		return *m.ShardID
+	}
+	return 0
+}
+
+func (m *MapShardRequest) GetStatement() string {
+	if m != nil && m.Statement != nil {
+		return *m.Statement
+	}
+	return ""
+}
+
+type MapShardResponse struct {
+	Code             *int32  `protobuf:"varint,1,req" json:"Code,omitempty"`
+	Message          *string `protobuf:"bytes,2,opt" json:"Message,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *MapShardResponse) Reset()         { *m = MapShardResponse{} }
+func (m *MapShardResponse) String() string { return proto.CompactTextString(m) }
+func (*MapShardResponse) ProtoMessage()    {}
+
+func (m *MapShardResponse) GetCode() int32 {
+	if m != nil && m.Code != nil {
+		return *m.Code
+	}
+	return 0
+}
+
+func (m *MapShardResponse) GetMessage() string {
 	if m != nil && m.Message != nil {
 		return *m.Message
 	}

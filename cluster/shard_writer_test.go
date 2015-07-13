@@ -14,7 +14,7 @@ import (
 func TestShardWriter_WriteShard_Success(t *testing.T) {
 	ts := newTestService(writeShardSuccess)
 	s := cluster.NewService(cluster.Config{})
-	s.Listener = ts.muxln
+	s.WriteListener = ts.muxln
 	s.TSDBStore = ts
 	if err := s.Open(); err != nil {
 		t.Fatal(err)
@@ -61,7 +61,7 @@ func TestShardWriter_WriteShard_Success(t *testing.T) {
 func TestShardWriter_WriteShard_Multiple(t *testing.T) {
 	ts := newTestService(writeShardSuccess)
 	s := cluster.NewService(cluster.Config{})
-	s.Listener = ts.muxln
+	s.WriteListener = ts.muxln
 	s.TSDBStore = ts
 	if err := s.Open(); err != nil {
 		t.Fatal(err)
@@ -110,7 +110,7 @@ func TestShardWriter_WriteShard_Multiple(t *testing.T) {
 func TestShardWriter_WriteShard_Error(t *testing.T) {
 	ts := newTestService(writeShardFail)
 	s := cluster.NewService(cluster.Config{})
-	s.Listener = ts.muxln
+	s.WriteListener = ts.muxln
 	s.TSDBStore = ts
 	if err := s.Open(); err != nil {
 		t.Fatal(err)
@@ -138,7 +138,7 @@ func TestShardWriter_WriteShard_Error(t *testing.T) {
 func TestShardWriter_Write_ErrDialTimeout(t *testing.T) {
 	ts := newTestService(writeShardSuccess)
 	s := cluster.NewService(cluster.Config{})
-	s.Listener = ts.muxln
+	s.WriteListener = ts.muxln
 	s.TSDBStore = ts
 	if err := s.Open(); err != nil {
 		t.Fatal(err)
