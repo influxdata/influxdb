@@ -612,9 +612,9 @@ func scanBoolean(buf []byte, i int) (int, []byte, error) {
 	case 'f':
 		valid = bytes.Equal(buf[start:i], []byte("false"))
 	case 'T':
-		valid = bytes.Equal(buf[start:i], []byte("TRUE"))
+		valid = bytes.Equal(buf[start:i], []byte("TRUE")) || bytes.Equal(buf[start:i], []byte("True"))
 	case 'F':
-		valid = bytes.Equal(buf[start:i], []byte("FALSE"))
+		valid = bytes.Equal(buf[start:i], []byte("FALSE")) || bytes.Equal(buf[start:i], []byte("False"))
 	}
 
 	if !valid {

@@ -710,7 +710,7 @@ func TestParsePointWithStringWithEquals(t *testing.T) {
 }
 
 func TestParsePointWithBoolField(t *testing.T) {
-	test(t, `cpu,host=serverA,region=us-east true=true,t=t,T=T,TRUE=TRUE,false=false,f=f,F=F,FALSE=FALSE 1000000000`,
+	test(t, `cpu,host=serverA,region=us-east true=true,t=t,T=T,TRUE=TRUE,True=True,false=false,f=f,F=F,FALSE=FALSE,False=False 1000000000`,
 		NewPoint(
 			"cpu",
 			Tags{
@@ -721,10 +721,12 @@ func TestParsePointWithBoolField(t *testing.T) {
 				"t":     true,
 				"T":     true,
 				"true":  true,
+				"True":  true,
 				"TRUE":  true,
 				"f":     false,
 				"F":     false,
 				"false": false,
+				"False": false,
 				"FALSE": false,
 			},
 			time.Unix(1, 0)),
