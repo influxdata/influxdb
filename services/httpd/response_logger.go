@@ -120,6 +120,12 @@ func parseUsername(r *http.Request) string {
 		}
 	}
 
+	// Try to get the username from the query param 'u'
+	q := url.Query()
+	if u := q.Get("u"); u != "" {
+		username = u
+	}
+
 	// Try to get it from the authorization header if set there
 	if username == "" {
 		if u, _, ok := r.BasicAuth(); ok {
