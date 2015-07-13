@@ -232,6 +232,9 @@ func TestShardMapper_WriteAndSingleMapperRawQueryMultiValue(t *testing.T) {
 				break
 			}
 		}
+		if nextRawChunkAsJson(t, mapper, tt.chunkSize) != "null" {
+			t.Errorf("test '%s' got unexpected data", tt.stmt)
+		}
 	}
 }
 
