@@ -3,9 +3,12 @@ package client_test
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -526,5 +529,45 @@ func TestClient_Timeout(t *testing.T) {
 	_, err = cnotimeout.Query(query)
 	if err != nil {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+}
+
+func TestBufferedClient_Write(t *testing.T) {
+	flushCount := 0
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var data client.Response
+		w.WriteHeader(http.StatusNoContent)
+		_ = json.NewEncoder(w).Encode(data)
+		flushCount += 1
+		all, _ := ioutil.ReadAll(r.Body)
+		t.Logf(string(all))
+	}))
+	defer ts.Close()
+
+	u, _ := url.Parse(ts.URL)
+	config := client.Config{URL: *u}
+	bufferConfig := client.BufferConfig{FlushMaxPoints: 25, FlushMaxWaitTime: 1 * time.Second}
+	c, err := client.NewBufferedClient(config, bufferConfig)
+	if err != nil {
+		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+	var (
+		shapes     = []string{"circle", "rectangle", "square", "triangle"}
+		colors     = []string{"red", "blue", "green"}
+		sampleSize = 100
+	)
+	rand.Seed(42)
+	makeTags := func() map[string]string {
+		return map[string]string{
+			"color": strconv.Itoa(rand.Intn(len(colors))),
+			"shape": strconv.Itoa(rand.Intn(len(shapes))),
+		}
+	}
+	for i := 0; i < sampleSize; i++ {
+		c.Add("shapes", rand.Intn(sampleSize), makeTags())
+	}
+	<-time.After(100 * time.Millisecond)
+	if flushCount < sampleSize/bufferConfig.FlushMaxPoints {
+		t.Fatal("Server did not flush")
 	}
 }
