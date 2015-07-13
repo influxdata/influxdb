@@ -177,7 +177,7 @@ func (rm *RawMapper) TagSets() []string {
 // data.
 func (rm *RawMapper) NextChunk(chunkSize int) (*rawMapperOutput, error) {
 	if rm.currCursorIndex == len(rm.cursorSequence) {
-		// All cursors processed. NextChunking complete.
+		// All cursors processed. NextChunk'ing complete.
 		return nil, nil
 	}
 	cursor := rm.cursors[rm.cursorSequence[rm.currCursorIndex]]
