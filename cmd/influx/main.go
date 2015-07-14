@@ -665,7 +665,7 @@ func (c *CommandLine) help() {
         show tag values       show tag value information
 
         a full list of influxql commands can be found at:
-        http://influxdb.com/docs
+        https://influxdb.com/docs/v0.9/query_language/spec.html
 `)
 }
 
