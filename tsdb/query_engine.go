@@ -141,17 +141,31 @@ func (p *Planner) planAggregateQuery(stmt *influxql.SelectStatement, shards map[
 	return NewAggregateExecutor(stmt, mappers), nil
 }
 
+// StatefulRawMapper encapsulates a RawMapper and some state that the executor needs to
+// track for that mapper.
+type StatefulRawMapper struct {
+	*RawMapper
+	bufferedChunk *rawMapperOutput // Last read chunk.
+	drained       bool
+}
+
 // RawExecutor is an executor for RawMappers.
 type RawExecutor struct {
-	stmt    *influxql.SelectStatement
-	mappers []*RawMapper
+	stmt           *influxql.SelectStatement
+	mappers        []*StatefulRawMapper
+	limitedTagSets map[string]struct{} // Set tagsets for which data has reached the LIMIT.
 }
 
 // NewRawExecutor returns a new RawExecutor.
 func NewRawExecutor(stmt *influxql.SelectStatement, mappers []*RawMapper) *RawExecutor {
+	a := []*StatefulRawMapper{}
+	for _, m := range mappers {
+		a = append(a, &StatefulRawMapper{m, nil, false})
+	}
 	return &RawExecutor{
-		stmt:    stmt,
-		mappers: mappers,
+		stmt:           stmt,
+		mappers:        a,
+		limitedTagSets: make(map[string]struct{}),
 	}
 }
 
@@ -175,144 +189,188 @@ func (re *RawExecutor) execute(out chan *influxql.Row, chunkSize int) {
 		}
 	}
 
-	// Build the set of available tagsets across all mappers.
-	availTagSets := newStringSet()
-	for _, m := range re.mappers {
-		for _, t := range m.TagSets() {
-			availTagSets.add(t)
-		}
-	}
+	// Used to read ahead chunks from mappers.
+	var rowWriter *limitedRowWriter
+	var currTagset string
 
-tagsetLoop:
-	// For each mapper, drain it by tagset.
-	for _, _ = range availTagSets.list() {
-		// Used to read ahead chunks.
-		mapperOutputs := make([]*rawMapperOutput, len(re.mappers))
-		var rowWriter *limitedRowWriter
+	// Keep looping until all mappers drained.
+	var err error
+	for {
+		// Get the next chunk from each Mapper.
+		for _, m := range re.mappers {
+			if m.drained {
+				continue
+			}
 
-		for {
-			// Get the next chunk from each mapper.
-			for j, m := range re.mappers {
-				if mapperOutputs[j] != nil {
-					// There is data for this mapper, for this tagset, from a previous loop.
-					continue
-				}
-
-				chunk, err := m.NextChunk(chunkSize)
-				if err != nil {
-					out <- &influxql.Row{Err: err}
-					return
-				}
-
-				// Now that we have full name and tag details, initialize the rowWriter.
-				// The Name and Tags will be the same for all mappers.
-				if rowWriter == nil {
-					rowWriter = &limitedRowWriter{
-						limit:       re.stmt.Limit,
-						offset:      re.stmt.Offset,
-						chunkSize:   chunkSize,
-						name:        chunk.Name,
-						tags:        chunk.Tags,
-						selectNames: re.stmt.NamesInSelect(),
-						fields:      re.stmt.Fields,
-						c:           out,
-					}
-				}
-				if re.stmt.HasDerivative() {
-					interval, err := derivativeInterval(re.stmt)
+			// Set the next buffered chunk on the mapper, or mark it drained.
+			for {
+				if m.bufferedChunk == nil {
+					m.bufferedChunk, err = m.NextChunk(chunkSize)
 					if err != nil {
 						out <- &influxql.Row{Err: err}
 						return
 					}
-					rowWriter.transformer = &rawQueryDerivativeProcessor{
-						isNonNegative:      re.stmt.FunctionCalls()[0].Name == "non_negative_derivative",
-						derivativeInterval: interval,
-					}
-				}
-
-				if len(chunk.Values) == 0 {
-					// This mapper is empty for this tagset.
-					continue
-				}
-				mapperOutputs[j] = chunk
-			}
-
-			// Process the mapper outputs. We can send out everything up to the min of the last time
-			// of the chunks.
-			minTime := int64(math.MaxInt64)
-			for _, o := range mapperOutputs {
-				// Some of the mappers could empty out before others so ignore them because they'll be nil
-				if o == nil {
-					continue
-				}
-
-				// Find the min of the last point across all the chunks.
-				t := o.Values[len(o.Values)-1].Time
-				if t < minTime {
-					minTime = t
-				}
-			}
-
-			// Now empty out all the chunks up to the min time. Create new output struct for this data.
-			var chunkedOutput *rawMapperOutput
-			for j, o := range mapperOutputs {
-				if o == nil {
-					continue
-				}
-
-				// Very first value in this mapper is at a higher timestamp. Skip it.
-				if o.Values[0].Time > minTime {
-					continue
-				}
-
-				// Find the index of the point up to the min.
-				ind := len(o.Values)
-				for i, mo := range o.Values {
-					if mo.Time > minTime {
-						ind = i
+					if m.bufferedChunk == nil {
+						// Mapper can do no more for us.
+						m.drained = true
 						break
 					}
 				}
 
-				// Add up to the index to the values
-				if chunkedOutput == nil {
-					chunkedOutput = &rawMapperOutput{
-						Name: o.Name,
-						Tags: o.Tags,
-					}
-					chunkedOutput.Values = o.Values[:ind]
-				} else {
-					chunkedOutput.Values = append(chunkedOutput.Values, o.Values[:ind]...)
+				if re.tagSetIsLimited(m.bufferedChunk.Name) {
+					// chunk's tagset is limited, so no good. Try again.
+					m.bufferedChunk = nil
 				}
-
-				// Clear out the values being sent out, keep the remainder.
-				mapperOutputs[j].Values = mapperOutputs[j].Values[ind:]
-
-				// If we emptied out all the values, set this output to nil so that the mapper will get run again on the next loop
-				if len(mapperOutputs[j].Values) == 0 {
-					mapperOutputs[j] = nil
-				}
-			}
-
-			// If we didn't pull out any values, this tagset is done.
-			if chunkedOutput == nil {
+				// This mapper has a chunk available, and it is not limited.
 				break
-			}
-
-			// Sort the values by time first so we can then handle offset and limit
-			sort.Sort(rawMapperValues(chunkedOutput.Values))
-
-			if limited := rowWriter.Add(chunkedOutput.Values); limited {
-				// Limit for this tagset was reached, go to next one.
-				continue tagsetLoop
 			}
 		}
 
-		// Be sure to kick out any residual values.
-		rowWriter.Flush()
+		// All Mappers done?
+		if re.mappersDrained() {
+			break
+		}
+
+		// We need to send out data for whatever is the lowest tagset. All Mappers spit data out in tagset
+		// order, so this ensures we continue with the lowest tagset until it is finished. XXX better here too.
+		tagset := re.nextMapperTagSet()
+		if tagset != currTagset {
+			// Tagset has changed, time for a new rowWriter.
+			currTagset = tagset
+			rowWriter = nil
+		}
+
+		// Process the mapper outputs. We can send out everything up to the min of the last time
+		// of the chunks for the next tagset.
+		minTime := re.nextMapperLowestTime(tagset)
+
+		// Now empty out all the chunks up to the min time. Create new output struct for this data.
+		var chunkedOutput *rawMapperOutput
+		for _, m := range re.mappers {
+			// This mapper's next chunk is not for the next tagset, or the very first value of
+			// the chunk is at a higher acceptable timestamp. Skip it.
+			if m.bufferedChunk.key() != tagset || m.bufferedChunk.Values[0].Time > minTime {
+				continue
+			}
+
+			// Find the index of the point up to the min.
+			ind := len(m.bufferedChunk.Values)
+			for i, mo := range m.bufferedChunk.Values {
+				if mo.Time > minTime {
+					ind = i
+					break
+				}
+			}
+
+			// Add up to the index to the values
+			if chunkedOutput == nil {
+				chunkedOutput = &rawMapperOutput{
+					Name: m.bufferedChunk.Name,
+					Tags: m.bufferedChunk.Tags,
+				}
+				chunkedOutput.Values = m.bufferedChunk.Values[:ind]
+			} else {
+				chunkedOutput.Values = append(chunkedOutput.Values, m.bufferedChunk.Values[:ind]...)
+			}
+
+			// Clear out the values being sent out, keep the remainder.
+			m.bufferedChunk.Values = m.bufferedChunk.Values[ind:]
+
+			// If we emptied out all the values, clear the mapper's buffered chunk.
+			if len(m.bufferedChunk.Values) == 0 {
+				m.bufferedChunk = nil
+			}
+		}
+
+		// Sort the values by time first so we can then handle offset and limit
+		sort.Sort(rawMapperValues(chunkedOutput.Values))
+
+		// Now that we have full name and tag details, initialize the rowWriter.
+		// The Name and Tags will be the same for all mappers.
+		if rowWriter == nil {
+			rowWriter = &limitedRowWriter{
+				limit:       re.stmt.Limit,
+				offset:      re.stmt.Offset,
+				chunkSize:   chunkSize,
+				name:        chunkedOutput.Name,
+				tags:        chunkedOutput.Tags,
+				selectNames: re.stmt.NamesInSelect(),
+				fields:      re.stmt.Fields,
+				c:           out,
+			}
+		}
+		if re.stmt.HasDerivative() {
+			interval, err := derivativeInterval(re.stmt)
+			if err != nil {
+				out <- &influxql.Row{Err: err}
+				return
+			}
+			rowWriter.transformer = &rawQueryDerivativeProcessor{
+				isNonNegative:      re.stmt.FunctionCalls()[0].Name == "non_negative_derivative",
+				derivativeInterval: interval,
+			}
+		}
+
+		// Emit the data via the limiter.
+		if limited := rowWriter.Add(chunkedOutput.Values); limited {
+			// Limit for this tagset was reached, mark it and drain again.
+			re.limitTagSet(chunkedOutput.key())
+			rowWriter = nil
+			continue
+		}
 	}
 
+	// Be sure to kick out any residual values.
+	rowWriter.Flush()
+
 	close(out)
+}
+
+// mappersDrained returns whether all the executors Mappers have been drained of data.
+func (re *RawExecutor) mappersDrained() bool {
+	for _, m := range re.mappers {
+		if !m.drained {
+			return false
+		}
+	}
+	return true
+}
+
+// nextMapperTagset returns the next available lowest tagset chunk across all mappers. XXX FIX THIS COMMENT
+func (re *RawExecutor) nextMapperTagSet() string {
+	tagset := ""
+	for _, m := range re.mappers {
+		if m.bufferedChunk != nil {
+			if tagset == "" {
+				tagset = m.bufferedChunk.key()
+			} else if m.bufferedChunk.key() < tagset {
+				tagset = m.bufferedChunk.key()
+			}
+		}
+	}
+	return tagset
+}
+
+func (re *RawExecutor) nextMapperLowestTime(tagset string) int64 {
+	minTime := int64(math.MaxInt64)
+	for _, m := range re.mappers {
+		if !m.drained && m.bufferedChunk != nil {
+			t := m.bufferedChunk.Values[len(m.bufferedChunk.Values)-1].Time
+			if t < minTime {
+				minTime = t
+			}
+		}
+	}
+	return minTime
+}
+
+func (re *RawExecutor) tagSetIsLimited(tagset string) bool {
+	_, ok := re.limitedTagSets[tagset]
+	return ok
+}
+
+func (re *RawExecutor) limitTagSet(tagset string) {
+	re.limitedTagSets[tagset] = struct{}{}
 }
 
 // Close closes the executor such that all resources are released. Once closed,
