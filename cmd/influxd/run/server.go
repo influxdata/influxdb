@@ -9,6 +9,7 @@ import (
 	"os"
 	"runtime"
 	"runtime/pprof"
+	"strings"
 	"time"
 
 	"github.com/influxdb/influxdb/cluster"
@@ -290,10 +291,17 @@ func (s *Server) Open() error {
 		}
 		s.Listener = ln
 
+		// The port 0 is used, we need to retrieve the port assigned by the kernel
+		if strings.HasSuffix(s.BindAddress, ":0") {
+			s.MetaStore.Addr = ln.Addr()
+		}
+
 		// Multiplex listener.
 		mux := tcp.NewMux()
 		s.MetaStore.RaftListener = mux.Listen(meta.MuxRaftHeader)
 		s.MetaStore.ExecListener = mux.Listen(meta.MuxExecHeader)
+		s.MetaStore.RPCListener = mux.Listen(meta.MuxRPCHeader)
+
 		s.ClusterService.Listener = mux.Listen(cluster.MuxHeader)
 		s.SnapshotterService.Listener = mux.Listen(snapshotter.MuxHeader)
 		go mux.Serve(ln)

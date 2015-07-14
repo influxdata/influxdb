@@ -31,6 +31,7 @@ import (
 const (
 	MuxRaftHeader = 0
 	MuxExecHeader = 1
+	MuxRPCHeader  = 5
 
 	// SaltBytes is the number of bytes used for salts
 	SaltBytes = 32
@@ -68,6 +69,8 @@ type Store struct {
 
 	data *Data
 
+	rpc *RPC
+
 	remoteAddr net.Addr
 	raft       *raft.Raft
 	raftLayer  *raftLayer
@@ -85,6 +88,9 @@ type Store struct {
 	// The listeners to accept raft and remote exec connections from.
 	RaftListener net.Listener
 	ExecListener net.Listener
+
+	// The listener for higher-level, cluster operations
+	RPCListener net.Listener
 
 	// The advertised hostname of the store.
 	Addr net.Addr
@@ -119,7 +125,7 @@ type authUser struct {
 
 // NewStore returns a new instance of Store.
 func NewStore(c Config) *Store {
-	return &Store{
+	s := &Store{
 		path:  c.Dir,
 		peers: c.Peers,
 		data:  &Data{},
@@ -140,6 +146,12 @@ func NewStore(c Config) *Store {
 		},
 		Logger: log.New(os.Stderr, "[metastore] ", log.LstdFlags),
 	}
+
+	s.rpc = &RPC{
+		store:  s,
+		Logger: s.Logger,
+	}
+	return s
 }
 
 // Path returns the root path when open.
@@ -162,6 +174,8 @@ func (s *Store) Open() error {
 		panic("Store.RaftListener not set")
 	} else if s.ExecListener == nil {
 		panic("Store.ExecListener not set")
+	} else if s.RPCListener == nil {
+		panic("Store.RPCListener not set")
 	}
 
 	if err := func() error {
@@ -203,6 +217,9 @@ func (s *Store) Open() error {
 	// Begin serving listener.
 	s.wg.Add(1)
 	go s.serveExecListener()
+
+	s.wg.Add(1)
+	go s.serveRPCListener()
 
 	// If the ID doesn't exist then create a new node.
 	if s.id == 0 {
@@ -537,6 +554,34 @@ func (s *Store) handleExecConn(conn net.Conn) {
 		s.Logger.Printf("unable to write exec response: %s", err)
 	}
 	conn.Close()
+}
+
+// serveRPCListener processes remote exec connections.
+// This function runs in a separate goroutine.
+func (s *Store) serveRPCListener() {
+	<-s.ready
+
+	defer s.wg.Done()
+
+	for {
+		// Accept next TCP connection.
+		conn, err := s.RPCListener.Accept()
+		if err != nil {
+			if strings.Contains(err.Error(), "connection closed") {
+				return
+			} else {
+				s.Logger.Printf("temporary accept error: %s", err)
+				continue
+			}
+		}
+
+		// Handle connection in a separate goroutine.
+		s.wg.Add(1)
+		go func() {
+			defer s.wg.Done()
+			s.rpc.handleRPCConn(conn)
+		}()
+	}
 }
 
 // MarshalBinary encodes the store's data to a binary protobuf format.
@@ -1262,8 +1307,17 @@ func (s *Store) read(fn func(*Data) error) error {
 var errInvalidate = errors.New("invalidate cache")
 
 func (s *Store) invalidate() error {
-	time.Sleep(1 * time.Second)
-	return nil // FIXME(benbjohnson): Reload cache from the leader.
+
+	ms, err := s.rpc.fetchMetaData()
+	if err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	s.data = ms
+	s.mu.Unlock()
+
+	return nil
 }
 
 func (s *Store) exec(typ internal.Command_Type, desc *proto.ExtensionDesc, value interface{}) error {
@@ -1389,6 +1443,12 @@ func (s *Store) sync(index uint64, timeout time.Duration) error {
 			return nil
 		}
 	}
+}
+
+func (s *Store) cachedData() *Data {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.data.Clone()
 }
 
 // BcryptCost is the cost associated with generating password with Bcrypt.

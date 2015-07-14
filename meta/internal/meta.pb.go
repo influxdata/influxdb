@@ -38,6 +38,9 @@ It has these top-level messages:
 	SetDataCommand
 	SetAdminPrivilegeCommand
 	Response
+	RPCRequest
+	QueryDataRequest
+	RPCResponse
 */
 package internal
 
@@ -126,6 +129,36 @@ func (x *Command_Type) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	*x = Command_Type(value)
+	return nil
+}
+
+type RPCRequest_Type int32
+
+const (
+	RPCRequest_QueryDataRequest RPCRequest_Type = 1
+)
+
+var RPCRequest_Type_name = map[int32]string{
+	1: "QueryDataRequest",
+}
+var RPCRequest_Type_value = map[string]int32{
+	"QueryDataRequest": 1,
+}
+
+func (x RPCRequest_Type) Enum() *RPCRequest_Type {
+	p := new(RPCRequest_Type)
+	*p = x
+	return p
+}
+func (x RPCRequest_Type) String() string {
+	return proto.EnumName(RPCRequest_Type_name, int32(x))
+}
+func (x *RPCRequest_Type) UnmarshalJSON(data []byte) error {
+	value, err := proto.UnmarshalJSONEnum(RPCRequest_Type_value, data, "RPCRequest_Type")
+	if err != nil {
+		return err
+	}
+	*x = RPCRequest_Type(value)
 	return nil
 }
 
@@ -1144,8 +1177,88 @@ func (m *Response) GetIndex() uint64 {
 	return 0
 }
 
+type RPCRequest struct {
+	Type             *RPCRequest_Type          `protobuf:"varint,1,req,name=type,enum=internal.RPCRequest_Type" json:"type,omitempty"`
+	XXX_extensions   map[int32]proto.Extension `json:"-"`
+	XXX_unrecognized []byte                    `json:"-"`
+}
+
+func (m *RPCRequest) Reset()         { *m = RPCRequest{} }
+func (m *RPCRequest) String() string { return proto.CompactTextString(m) }
+func (*RPCRequest) ProtoMessage()    {}
+
+var extRange_RPCRequest = []proto.ExtensionRange{
+	{100, 536870911},
+}
+
+func (*RPCRequest) ExtensionRangeArray() []proto.ExtensionRange {
+	return extRange_RPCRequest
+}
+func (m *RPCRequest) ExtensionMap() map[int32]proto.Extension {
+	if m.XXX_extensions == nil {
+		m.XXX_extensions = make(map[int32]proto.Extension)
+	}
+	return m.XXX_extensions
+}
+
+func (m *RPCRequest) GetType() RPCRequest_Type {
+	if m != nil && m.Type != nil {
+		return *m.Type
+	}
+	return RPCRequest_QueryDataRequest
+}
+
+type QueryDataRequest struct {
+	XXX_unrecognized []byte `json:"-"`
+}
+
+func (m *QueryDataRequest) Reset()         { *m = QueryDataRequest{} }
+func (m *QueryDataRequest) String() string { return proto.CompactTextString(m) }
+func (*QueryDataRequest) ProtoMessage()    {}
+
+var E_QueryDataRequest_Command = &proto.ExtensionDesc{
+	ExtendedType:  (*RPCRequest)(nil),
+	ExtensionType: (*QueryDataRequest)(nil),
+	Field:         101,
+	Name:          "internal.QueryDataRequest.command",
+	Tag:           "bytes,101,opt,name=command",
+}
+
+type RPCResponse struct {
+	OK               *bool   `protobuf:"varint,1,req" json:"OK,omitempty"`
+	Error            *string `protobuf:"bytes,2,opt" json:"Error,omitempty"`
+	Data             []byte  `protobuf:"bytes,3,opt" json:"Data,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *RPCResponse) Reset()         { *m = RPCResponse{} }
+func (m *RPCResponse) String() string { return proto.CompactTextString(m) }
+func (*RPCResponse) ProtoMessage()    {}
+
+func (m *RPCResponse) GetOK() bool {
+	if m != nil && m.OK != nil {
+		return *m.OK
+	}
+	return false
+}
+
+func (m *RPCResponse) GetError() string {
+	if m != nil && m.Error != nil {
+		return *m.Error
+	}
+	return ""
+}
+
+func (m *RPCResponse) GetData() []byte {
+	if m != nil {
+		return m.Data
+	}
+	return nil
+}
+
 func init() {
 	proto.RegisterEnum("internal.Command_Type", Command_Type_name, Command_Type_value)
+	proto.RegisterEnum("internal.RPCRequest_Type", RPCRequest_Type_name, RPCRequest_Type_value)
 	proto.RegisterExtension(E_CreateNodeCommand_Command)
 	proto.RegisterExtension(E_DeleteNodeCommand_Command)
 	proto.RegisterExtension(E_CreateDatabaseCommand_Command)
@@ -1164,4 +1277,5 @@ func init() {
 	proto.RegisterExtension(E_SetPrivilegeCommand_Command)
 	proto.RegisterExtension(E_SetDataCommand_Command)
 	proto.RegisterExtension(E_SetAdminPrivilegeCommand_Command)
+	proto.RegisterExtension(E_QueryDataRequest_Command)
 }

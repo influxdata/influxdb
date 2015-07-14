@@ -98,6 +98,7 @@ message Command {
 		UpdateUserCommand                = 15;
 		SetPrivilegeCommand              = 16;
 		SetDataCommand                   = 17;
+        SetAdminPrivilegeCommand         = 18;
     }
 
     required Type type = 1;
@@ -254,4 +255,33 @@ message Response {
 	required bool OK = 1;
 	optional string Error = 2;
 	optional uint64 Index = 3;
+}
+
+
+//========================================================================
+//
+// RPC - higher-level cluster communication operations
+//
+//========================================================================
+
+message RPCRequest {
+    extensions 100 to max;
+
+    enum Type {
+        QueryDataRequest                = 1;
+    }
+
+    required Type type = 1;
+}
+
+message QueryDataRequest {
+    extend RPCRequest {
+        optional QueryDataRequest command = 101;
+    }
+}
+
+message RPCResponse {
+    required bool OK = 1;
+    optional string Error = 2;
+    optional bytes Data = 3;
 }
