@@ -187,7 +187,7 @@ func (rm *RawMapper) NextChunk(chunkSize int) (*rawMapperOutput, error) {
 
 		_, k, v := cursor.Next(rm.queryTMin, rm.queryTMax, rm.selectFields.list(), rm.whereFields.list())
 		if v == nil {
-			// cursor is empty, move to next one and return.
+			// cursor is empty, move to next one.
 			rm.currCursorIndex++
 			if output != nil {
 				// There is data, so return it and continue when next called.
