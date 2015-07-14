@@ -220,6 +220,7 @@ func (re *RawExecutor) execute(out chan *influxql.Row, chunkSize int) {
 				if re.tagSetIsLimited(m.bufferedChunk.Name) {
 					// chunk's tagset is limited, so no good. Try again.
 					m.bufferedChunk = nil
+					continue
 				}
 				// This mapper has a chunk available, and it is not limited.
 				break
@@ -235,8 +236,9 @@ func (re *RawExecutor) execute(out chan *influxql.Row, chunkSize int) {
 		// order, so this ensures we continue with the lowest tagset until it is finished. XXX better here too.
 		tagset := re.nextMapperTagSet()
 		if tagset != currTagset {
-			// Tagset has changed, time for a new rowWriter.
 			currTagset = tagset
+			// Tagset has changed, time for a new rowWriter. Be sure to kick out any residual values.
+			rowWriter.Flush()
 			rowWriter = nil
 		}
 
@@ -247,6 +249,10 @@ func (re *RawExecutor) execute(out chan *influxql.Row, chunkSize int) {
 		// Now empty out all the chunks up to the min time. Create new output struct for this data.
 		var chunkedOutput *rawMapperOutput
 		for _, m := range re.mappers {
+			if m.drained {
+				continue
+			}
+
 			// This mapper's next chunk is not for the next tagset, or the very first value of
 			// the chunk is at a higher acceptable timestamp. Skip it.
 			if m.bufferedChunk.key() != tagset || m.bufferedChunk.Values[0].Time > minTime {
@@ -313,15 +319,11 @@ func (re *RawExecutor) execute(out chan *influxql.Row, chunkSize int) {
 
 		// Emit the data via the limiter.
 		if limited := rowWriter.Add(chunkedOutput.Values); limited {
-			// Limit for this tagset was reached, mark it and drain again.
+			// Limit for this tagset was reached, mark it and start draining a new tagset.
 			re.limitTagSet(chunkedOutput.key())
-			rowWriter = nil
 			continue
 		}
 	}
-
-	// Be sure to kick out any residual values.
-	rowWriter.Flush()
 
 	close(out)
 }
@@ -759,6 +761,10 @@ func (r *limitedRowWriter) Add(values []*rawMapperValue) (limited bool) {
 // Flush instructs the limitedRowWriter to emit any pending values as a single row,
 // adhering to any limits. Chunking is not enforced.
 func (r *limitedRowWriter) Flush() {
+	if r == nil {
+		return
+	}
+
 	// If at least some rows were sent, and no values are pending, then don't
 	// emit anything, since at least 1 row was previously emitted. This ensures
 	// that if no rows were ever sent, at least 1 will be emitted, even an empty row.
