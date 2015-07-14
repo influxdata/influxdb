@@ -209,7 +209,6 @@ func (rm *RawMapper) NextChunk(chunkSize int) (*rawMapperOutput, error) {
 		if len(output.Values) == chunkSize {
 			return output, nil
 		}
-
 	}
 }
 
