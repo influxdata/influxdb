@@ -339,7 +339,7 @@ func (re *RawExecutor) mappersDrained() bool {
 	return true
 }
 
-// nextMapperTagset returns the next available lowest tagset chunk across all mappers. XXX FIX THIS COMMENT
+// nextMapperTagset returns the alphabetically lowest tagset across all Mappers.
 func (re *RawExecutor) nextMapperTagSet() string {
 	tagset := ""
 	for _, m := range re.mappers {
@@ -354,6 +354,7 @@ func (re *RawExecutor) nextMapperTagSet() string {
 	return tagset
 }
 
+// nextMapperLowestTime returns the lowest minimum time across all Mappers, for the given tagset.
 func (re *RawExecutor) nextMapperLowestTime(tagset string) int64 {
 	minTime := int64(math.MaxInt64)
 	for _, m := range re.mappers {
@@ -367,11 +368,13 @@ func (re *RawExecutor) nextMapperLowestTime(tagset string) int64 {
 	return minTime
 }
 
+// tagSetIsLimited returns whether data for the given tagset has been LIMITed.
 func (re *RawExecutor) tagSetIsLimited(tagset string) bool {
 	_, ok := re.limitedTagSets[tagset]
 	return ok
 }
 
+// limitTagSet marks the given taset as LIMITed.
 func (re *RawExecutor) limitTagSet(tagset string) {
 	re.limitedTagSets[tagset] = struct{}{}
 }
