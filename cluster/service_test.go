@@ -37,7 +37,7 @@ func newTestService(f func(shardID uint64, points []tsdb.Point) error) testServi
 	}
 
 	mux := tcp.NewMux()
-	muxln := mux.Listen(cluster.MuxWriteHeader)
+	muxln := mux.Listen(cluster.MuxHeader)
 	go mux.Serve(ln)
 
 	return testService{

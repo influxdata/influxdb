@@ -17,17 +17,8 @@ import (
 // MaxMessageSize defines how large a message can be before we reject it
 const MaxMessageSize = 1024 * 1024 * 1024 // 1GB
 
-// MuxWriteHeader is the header byte used in the TCP mux for data writes.
-const MuxWriteHeader = 2
-
-// MuxMapperHeader is the header byte used in the TCP mux for shard mapping.
-const MuxMapperHeader = 4
-
-const (
-	writeShardRequestMessage byte = iota + 1
-	writeShardResponseMessage
-	mapShardRequestMessage
-)
+// MuxHeader is the header byte used in the TCP mux.
+const MuxHeader = 2
 
 // Service processes data received over raw TCP connections.
 type Service struct {
@@ -36,8 +27,7 @@ type Service struct {
 	wg      sync.WaitGroup
 	closing chan struct{}
 
-	WriteListener  net.Listener
-	MapperListener net.Listener
+	Listener net.Listener
 
 	MetaStore interface {
 		ShardOwner(shardID uint64) (string, string, *meta.ShardGroupInfo)
@@ -63,8 +53,7 @@ func NewService(c Config) *Service {
 func (s *Service) Open() error {
 	// Begin serving conections.
 	s.wg.Add(1)
-	go s.serve(s.WriteListener, s.handleWriteConn)
-	//go s.serve(s.MapperListener, s.handleMapperConn)
+	go s.serve()
 
 	return nil
 }
@@ -74,8 +63,8 @@ func (s *Service) SetLogger(l *log.Logger) {
 	s.Logger = l
 }
 
-// serve accepts writer connections from the listener and handles them.
-func (s *Service) serve(listener net.Listener, handler func(conn net.Conn)) {
+// serve accepts connections from the listener and handles them.
+func (s *Service) serve() {
 	defer s.wg.Done()
 
 	for {
@@ -87,7 +76,7 @@ func (s *Service) serve(listener net.Listener, handler func(conn net.Conn)) {
 		}
 
 		// Accept the next connection.
-		conn, err := listener.Accept()
+		conn, err := s.Listener.Accept()
 		if err != nil {
 			if strings.Contains(err.Error(), "connection closed") {
 				s.Logger.Printf("cluster service accept error: %s", err)
@@ -101,18 +90,15 @@ func (s *Service) serve(listener net.Listener, handler func(conn net.Conn)) {
 		s.wg.Add(1)
 		go func() {
 			defer s.wg.Done()
-			handler(conn)
+			s.handleConn(conn)
 		}()
 	}
 }
 
 // Close shuts down the listener and waits for all connections to finish.
 func (s *Service) Close() error {
-	if s.WriteListener != nil {
-		s.WriteListener.Close()
-	}
-	if s.MapperListener != nil {
-		s.MapperListener.Close()
+	if s.Listener != nil {
+		s.Listener.Close()
 	}
 
 	// Shut down all handlers.
@@ -122,8 +108,8 @@ func (s *Service) Close() error {
 	return nil
 }
 
-// handleWriteConn services an individual write connection.
-func (s *Service) handleWriteConn(conn net.Conn) {
+// handleConn services an individual TCP connection.
+func (s *Service) handleConn(conn net.Conn) {
 	// Ensure connection is closed when service is closed.
 	closing := make(chan struct{})
 	defer close(closing)
@@ -158,46 +144,6 @@ func (s *Service) handleWriteConn(conn net.Conn) {
 				s.Logger.Printf("process write shard error: %s", err)
 			}
 			s.writeShardResponse(conn, err)
-		default:
-			s.Logger.Printf("cluster service message type not found: %d", typ)
-		}
-	}
-}
-
-// handleWriteConn services an individual mapper connection.
-func (s *Service) handleMapperConn(conn net.Conn) {
-	// Ensure connection is closed when service is closed.
-	closing := make(chan struct{})
-	defer close(closing)
-	go func() {
-		select {
-		case <-closing:
-		case <-s.closing:
-		}
-		conn.Close()
-	}()
-
-	s.Logger.Printf("accept remote shard mapper connection from %v\n", conn.RemoteAddr())
-	defer func() {
-		s.Logger.Printf("close remote shard mapper from %v\n", conn.RemoteAddr())
-	}()
-	for {
-		// Read type-length-value.
-		typ, buf, err := ReadTLV(conn)
-		if err != nil {
-			if strings.HasSuffix(err.Error(), "EOF") {
-				return
-			}
-			s.Logger.Printf("unable to read type-length-value %s", err)
-			return
-		}
-
-		// Delegate message processing by type.
-		switch typ {
-		case mapShardRequestMessage:
-			if err := s.processMapShardRequest(conn, buf); err != nil {
-				s.Logger.Printf("process map shard request error: %s", err)
-			}
 		default:
 			s.Logger.Printf("cluster service message type not found: %d", typ)
 		}
@@ -265,13 +211,6 @@ func (s *Service) writeShardResponse(w io.Writer, e error) {
 	if err := WriteTLV(w, writeShardResponseMessage, buf); err != nil {
 		s.Logger.Printf("write shard response error: %s", err)
 	}
-}
-
-func (s *Service) processMapShardRequest(w io.Writer, buf []byte) error {
-	// Consider adding a timeout to the read of w. This way query processing
-	// that hangs on the remote node, but doesn't terminate the connection,
-	// the resources are still free.
-	return nil
 }
 
 // ReadTLV reads a type-length-value record from r.
