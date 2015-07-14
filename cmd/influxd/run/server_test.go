@@ -126,7 +126,7 @@ func TestServer_Query_DropAndRecreateDatabase(t *testing.T) {
 		&Query{
 			name:    "Query data after recreate",
 			command: `SELECT * FROM cpu`,
-			exp:     `{"results":[{"error":"measurement not found: \"db0\"..cpu"}]}`,
+			exp:     `{"results":[{}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 	}...)
@@ -831,7 +831,7 @@ func TestServer_Query_Tags(t *testing.T) {
 		&Query{
 			name:    "tag without field should return error",
 			command: `SELECT host FROM db0.rp0.cpu`,
-			exp:     `{"results":[{"error":"select statement must include at least one field or function call"}]}`,
+			exp:     `{"results":[{"error":"select statement must include at least one field"}]}`,
 		},
 		&Query{
 			name:    "field with tag should succeed",
@@ -981,8 +981,7 @@ func TestServer_Query_Common(t *testing.T) {
 		&Query{
 			name:    "selecting a measurement that doesn't exist should error",
 			command: `SELECT value FROM db0.rp0.idontexist`,
-			exp:     `.*measurement not found*`,
-			pattern: true,
+			exp:     `{"results":[{}]}`,
 		},
 		&Query{
 			name:    "selecting a field that doesn't exist should error",
@@ -1180,8 +1179,8 @@ func TestServer_Query_MergeMany(t *testing.T) {
 		},
 		&Query{
 			name:    "GROUP by field",
-			command: `SELECT count(value) FROM db0.rp0.cpu where time >= '2000-01-01T00:00:00Z' and time <= '2000-01-01T02:00:00Z' group by value`,
-			exp:     `{"results":[{"error":"can not use field in group by clause: value"}]}`,
+			command: `SELECT count(value) FROM db0.rp0.cpu group by value`,
+			exp:     `{"results":[{"error":"can not use field in GROUP BY clause: value"}]}`,
 		},
 	}...)
 
@@ -1455,13 +1454,13 @@ func TestServer_Query_Aggregates(t *testing.T) {
 			name:    "distinct select tag - int",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT DISTINCT(host) FROM intmany`,
-			exp:     `{"results":[{"error":"host isn't a field on measurement intmany; to query the unique values for a tag use SHOW TAG VALUES FROM intmany WITH KEY = \"host"}]}`,
+			exp:     `{"results":[{}]}`,
 		},
 		&Query{
 			name:    "distinct alt select tag - int",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT DISTINCT host FROM intmany`,
-			exp:     `{"results":[{"error":"host isn't a field on measurement intmany; to query the unique values for a tag use SHOW TAG VALUES FROM intmany WITH KEY = \"host"}]}`,
+			exp:     `{"results":[{}]}`,
 		},
 		&Query{
 			name:    "count distinct - int",
@@ -1479,13 +1478,13 @@ func TestServer_Query_Aggregates(t *testing.T) {
 			name:    "count distinct select tag - int",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT COUNT(DISTINCT host) FROM intmany`,
-			exp:     `{"results":[{"error":"host isn't a field on measurement intmany; count(distinct) on tags isn't yet supported"}]}`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",0]]}]}]}`,
 		},
 		&Query{
 			name:    "count distinct as call select tag - int",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT COUNT(DISTINCT host) FROM intmany`,
-			exp:     `{"results":[{"error":"host isn't a field on measurement intmany; count(distinct) on tags isn't yet supported"}]}`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",0]]}]}]}`,
 		},
 		&Query{
 			name:    "aggregation with no interval - int",
@@ -1584,13 +1583,13 @@ func TestServer_Query_Aggregates(t *testing.T) {
 			name:    "distinct select tag - float",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT DISTINCT(host) FROM floatmany`,
-			exp:     `{"results":[{"error":"host isn't a field on measurement floatmany; to query the unique values for a tag use SHOW TAG VALUES FROM floatmany WITH KEY = \"host"}]}`,
+			exp:     `{"results":[{}]}`,
 		},
 		&Query{
 			name:    "distinct alt select tag - float",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT DISTINCT host FROM floatmany`,
-			exp:     `{"results":[{"error":"host isn't a field on measurement floatmany; to query the unique values for a tag use SHOW TAG VALUES FROM floatmany WITH KEY = \"host"}]}`,
+			exp:     `{"results":[{}]}`,
 		},
 		&Query{
 			name:    "count distinct - float",
@@ -1608,13 +1607,13 @@ func TestServer_Query_Aggregates(t *testing.T) {
 			name:    "count distinct select tag - float",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT COUNT(DISTINCT host) FROM floatmany`,
-			exp:     `{"results":[{"error":"host isn't a field on measurement floatmany; count(distinct) on tags isn't yet supported"}]}`,
+			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",0]]}]}]}`,
 		},
 		&Query{
 			name:    "count distinct as call select tag - float",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT COUNT(DISTINCT host) FROM floatmany`,
-			exp:     `{"results":[{"error":"host isn't a field on measurement floatmany; count(distinct) on tags isn't yet supported"}]}`,
+			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",0]]}]}]}`,
 		},
 		&Query{
 			name:    "aggregation with no interval - float",
@@ -2021,7 +2020,7 @@ func TestServer_Query_Where_Fields(t *testing.T) {
 			name:    "string no match",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT alert_id FROM cpu WHERE _cust='acme'`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","alert_id"]}]}]}`,
+			exp:     `{"results":[{}]}`,
 		},
 
 		// float64
@@ -2029,7 +2028,7 @@ func TestServer_Query_Where_Fields(t *testing.T) {
 			name:    "float64 GT no match",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `select load from cpu where load > 100`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","load"]}]}]}`,
+			exp:     `{"results":[{}]}`,
 		},
 		&Query{
 			name:    "float64 GTE match one",
@@ -2059,7 +2058,7 @@ func TestServer_Query_Where_Fields(t *testing.T) {
 			name:    "float64 EQ no match",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `select load from cpu where load = 99`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","load"]}]}]}`,
+			exp:     `{"results":[{}]}`,
 		},
 		&Query{
 			name:    "float64 LT match one",
@@ -2071,7 +2070,7 @@ func TestServer_Query_Where_Fields(t *testing.T) {
 			name:    "float64 LT no match",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `select load from cpu where load < 80`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","load"]}]}]}`,
+			exp:     `{"results":[{}]}`,
 		},
 		&Query{
 			name:    "float64 NE match one",
@@ -2085,7 +2084,7 @@ func TestServer_Query_Where_Fields(t *testing.T) {
 			name:    "int64 GT no match",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `select core from cpu where core > 4`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","core"]}]}]}`,
+			exp:     `{"results":[{}]}`,
 		},
 		&Query{
 			name:    "int64 GTE match one",
@@ -2115,7 +2114,7 @@ func TestServer_Query_Where_Fields(t *testing.T) {
 			name:    "int64 EQ no match",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `select core from cpu where core = 3`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","core"]}]}]}`,
+			exp:     `{"results":[{}]}`,
 		},
 		&Query{
 			name:    "int64 LT match one",
@@ -2127,7 +2126,7 @@ func TestServer_Query_Where_Fields(t *testing.T) {
 			name:    "int64 LT no match",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `select core from cpu where core < 2`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","core"]}]}]}`,
+			exp:     `{"results":[{}]}`,
 		},
 		&Query{
 			name:    "int64 NE match one",
@@ -2310,12 +2309,6 @@ func TestServer_Query_LimitAndOffset(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
-			name:    "limit + offset equal to the  number of points with group by time",
-			command: `select mean(foo) from "limit" WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY TIME(1s) LIMIT 3 OFFSET 3`,
-			exp:     `{"results":[{"series":[{"name":"limit","columns":["time","mean"],"values":[["2009-11-10T23:00:05Z",5]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
 			name:    "limit - offset higher than number of points with group by time",
 			command: `select mean(foo) from "limit" WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY TIME(1s) LIMIT 2 OFFSET 20`,
 			exp:     `{"results":[{}]}`,
@@ -2330,7 +2323,7 @@ func TestServer_Query_LimitAndOffset(t *testing.T) {
 		&Query{
 			name:    "limit1 higher than MaxGroupBy but the number of data points is less than MaxGroupBy",
 			command: `select mean(foo)  from "limit"  where  time >= '2009-11-10T23:00:02Z' and time < '2009-11-10T23:00:03Z' group by time(1s), * fill(0)  limit 2147483647`,
-			exp:     `{"results":[{"series":[{"name":"limit","tags":{"tennant":"paul"},"columns":["time","mean"],"values":[["2009-11-10T23:00:02Z",2]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"limit","tags":{"tennant":"paul"},"columns":["time","mean"],"values":[["2009-11-10T23:00:02Z",2]]},{"name":"limit","tags":{"tennant":"todd"},"columns":["time","mean"],"values":[["2009-11-10T23:00:02Z",0]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 	}...)
