@@ -173,8 +173,9 @@ func (rm *RawMapper) TagSets() []string {
 	return list
 }
 
-// NextChunk returns the next chunk of data for a tagset. If the result is nil, there are no more
-// data.
+// NextChunk returns the next chunk of data. Data comes in the same order as the
+// tags return by TagSets. A chunk never contains data for more than 1 tagset.
+// If there is no more data for any tagset, nil will be returned.
 func (rm *RawMapper) NextChunk(chunkSize int) (*rawMapperOutput, error) {
 	var output *rawMapperOutput
 	for {
