@@ -321,7 +321,7 @@ func (c *CommandLine) SetAuth(cmd string) {
 }
 
 func (c *CommandLine) use(cmd string) {
-	args := strings.Split(strings.TrimSpace(cmd), " ")
+	args := strings.Split(strings.TrimSuffix(strings.TrimSpace(cmd), ";"), " ")
 	if len(args) != 2 {
 		fmt.Printf("Could not parse database name from %q.\n", cmd)
 		return
