@@ -229,6 +229,7 @@ func (re *RawExecutor) execute(out chan *influxql.Row, chunkSize int) {
 
 		// All Mappers done?
 		if re.mappersDrained() {
+			rowWriter.Flush()
 			break
 		}
 
@@ -738,7 +739,6 @@ func (r *limitedRowWriter) Add(values []*rawMapperValue) (limited bool) {
 		for len(r.currValues) >= r.chunkSize {
 			index := len(r.currValues) - (len(r.currValues) - r.chunkSize)
 			r.c <- r.processValues(r.currValues[:index])
-			r.totalSent += index
 			r.currValues = r.currValues[index:]
 		}
 
@@ -776,12 +776,15 @@ func (r *limitedRowWriter) Flush() {
 		r.currValues = r.currValues[:r.limit]
 	}
 	r.c <- r.processValues(r.currValues)
-	r.totalSent = len(r.currValues)
 	r.currValues = nil
 }
 
 // processValues emits the given values in a single row.
 func (r *limitedRowWriter) processValues(values []*rawMapperValue) *influxql.Row {
+	defer func() {
+		r.totalSent += len(values)
+	}()
+
 	selectNames := r.selectNames
 
 	if r.transformer != nil {
