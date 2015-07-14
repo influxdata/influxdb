@@ -2020,7 +2020,7 @@ func TestServer_Query_Where_Fields(t *testing.T) {
 			name:    "string no match",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT alert_id FROM cpu WHERE _cust='acme'`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","alert_id"]}]}]}`,
+			exp:     `{"results":[{}]}`,
 		},
 
 		// float64
@@ -2028,7 +2028,7 @@ func TestServer_Query_Where_Fields(t *testing.T) {
 			name:    "float64 GT no match",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `select load from cpu where load > 100`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","load"]}]}]}`,
+			exp:     `{"results":[{}]}`,
 		},
 		&Query{
 			name:    "float64 GTE match one",
@@ -2058,7 +2058,7 @@ func TestServer_Query_Where_Fields(t *testing.T) {
 			name:    "float64 EQ no match",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `select load from cpu where load = 99`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","load"]}]}]}`,
+			exp:     `{"results":[{}]}`,
 		},
 		&Query{
 			name:    "float64 LT match one",
@@ -2070,7 +2070,7 @@ func TestServer_Query_Where_Fields(t *testing.T) {
 			name:    "float64 LT no match",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `select load from cpu where load < 80`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","load"]}]}]}`,
+			exp:     `{"results":[{}]}`,
 		},
 		&Query{
 			name:    "float64 NE match one",
@@ -2084,7 +2084,7 @@ func TestServer_Query_Where_Fields(t *testing.T) {
 			name:    "int64 GT no match",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `select core from cpu where core > 4`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","core"]}]}]}`,
+			exp:     `{"results":[{}]}`,
 		},
 		&Query{
 			name:    "int64 GTE match one",
@@ -2114,7 +2114,7 @@ func TestServer_Query_Where_Fields(t *testing.T) {
 			name:    "int64 EQ no match",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `select core from cpu where core = 3`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","core"]}]}]}`,
+			exp:     `{"results":[{}]}`,
 		},
 		&Query{
 			name:    "int64 LT match one",
@@ -2126,7 +2126,7 @@ func TestServer_Query_Where_Fields(t *testing.T) {
 			name:    "int64 LT no match",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `select core from cpu where core < 2`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","core"]}]}]}`,
+			exp:     `{"results":[{}]}`,
 		},
 		&Query{
 			name:    "int64 NE match one",
