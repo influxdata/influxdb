@@ -189,7 +189,13 @@ func (rm *RawMapper) NextChunk(chunkSize int) (*rawMapperOutput, error) {
 		if v == nil {
 			// cursor is empty, move to next one and return.
 			rm.currCursorIndex++
-			return output, nil
+			if output != nil {
+				// There is data, so return it and continue when next called.
+				return output, nil
+			} else {
+				// Just go straight to the next cursor.
+				continue
+			}
 		}
 
 		if output == nil {
