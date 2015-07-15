@@ -120,7 +120,7 @@ func (s *Store) DeleteDatabase(name string, shardIDs []uint64) error {
 			shard.Close()
 		}
 	}
-	if err := os.RemoveAll(s.path); err != nil {
+	if err := os.RemoveAll(filepath.Join(s.path, name)); err != nil {
 		return err
 	}
 	delete(s.databaseIndexes, name)
