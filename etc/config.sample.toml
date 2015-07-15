@@ -37,8 +37,8 @@ reporting-disabled = false
 [data]
   dir = "/var/opt/influxdb/data"
   max-wal-size = 104857600 # Maximum size the WAL can reach before a flush. Defaults to 100MB.
-  max-flush-interval = "10m" # Maximum time data can sit in WAL before a flush.
-  max-partition-flush-delay = "2s" # The delay time between each WAL partition being flushed.
+  flush-interval = "10m" # Maximum time data can sit in WAL before a flush.
+  partition-flush-delay = "2s" # The delay time between each WAL partition being flushed.
 
 ###
 ### [cluster]
