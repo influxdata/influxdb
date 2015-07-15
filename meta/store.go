@@ -66,17 +66,19 @@ type Store struct {
 
 	// All peers in cluster. Used during bootstrapping.
 	peers []string
+	join  string
 
 	data *Data
 
 	rpc *RPC
 
-	remoteAddr net.Addr
-	raft       *raft.Raft
-	raftLayer  *raftLayer
-	peerStore  raft.PeerStore
-	transport  *raft.NetworkTransport
-	store      *raftboltdb.BoltStore
+	remoteAddr        net.Addr
+	raft              *raft.Raft
+	raftLayer         *raftLayer
+	peerStore         raft.PeerStore
+	transport         *raft.NetworkTransport
+	store             *raftboltdb.BoltStore
+	consensusStrategy consensusStrategy
 
 	ready   chan struct{}
 	err     chan error
@@ -123,11 +125,160 @@ type authUser struct {
 	hash []byte
 }
 
+// consensusStrategy abstracts the interaction of the raft consensus layer
+// across local or remote nodes.
+type consensusStrategy interface {
+	OpenRaft() error
+	Initialize() error
+	Leader() string
+	RaftEnabled() bool
+	Sync(index uint64, timeout time.Duration) error
+}
+
+// localConsensus is a consensus strategy that uses a local raft implementation fo
+// consensus operations.
+type localConsensus struct {
+	store *Store
+}
+
+func (r *localConsensus) RaftEnabled() bool {
+	return true
+}
+
+func (r *localConsensus) OpenRaft() error {
+	s := r.store
+	// Setup raft configuration.
+	config := raft.DefaultConfig()
+	config.Logger = s.Logger
+	config.HeartbeatTimeout = s.HeartbeatTimeout
+	config.ElectionTimeout = s.ElectionTimeout
+	config.LeaderLeaseTimeout = s.LeaderLeaseTimeout
+	config.CommitTimeout = s.CommitTimeout
+
+	// If no peers are set in the config then start as a single server.
+	config.EnableSingleNode = (len(s.peers) == 0)
+
+	// Build raft layer to multiplex listener.
+	s.raftLayer = newRaftLayer(s.RaftListener, s.Addr)
+
+	// Create a transport layer
+	s.transport = raft.NewNetworkTransport(s.raftLayer, 3, 10*time.Second, os.Stderr)
+
+	// Create peer storage.
+	s.peerStore = raft.NewJSONPeers(s.path, s.transport)
+
+	// Create the log store and stable store.
+	store, err := raftboltdb.NewBoltStore(filepath.Join(s.path, "raft.db"))
+	if err != nil {
+		return fmt.Errorf("new bolt store: %s", err)
+	}
+	s.store = store
+
+	// Create the snapshot store.
+	snapshots, err := raft.NewFileSnapshotStore(s.path, raftSnapshotsRetained, os.Stderr)
+	if err != nil {
+		return fmt.Errorf("file snapshot store: %s", err)
+	}
+
+	// Create raft log.
+	ra, err := raft.NewRaft(config, (*storeFSM)(s), store, store, snapshots, s.peerStore, s.transport)
+	if err != nil {
+		return fmt.Errorf("new raft: %s", err)
+	}
+	s.raft = ra
+
+	return nil
+}
+
+func (r *localConsensus) Initialize() error {
+	s := r.store
+	// If we have committed entries then the store is already in the cluster.
+	if index, err := s.store.LastIndex(); err != nil {
+		return fmt.Errorf("last index: %s", err)
+	} else if index > 0 {
+		return nil
+	}
+
+	// Force set peers.
+	if err := s.SetPeers(s.peers); err != nil {
+		return fmt.Errorf("set raft peers: %s", err)
+	}
+
+	return nil
+}
+
+func (r *localConsensus) Sync(index uint64, timeout time.Duration) error {
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	for {
+		// Wait for next tick or timeout.
+		select {
+		case <-ticker.C:
+		case <-timer.C:
+			return errors.New("timeout")
+		}
+
+		// Compare index against current metadata.
+		r.store.mu.Lock()
+		ok := (r.store.data.Index >= index)
+		r.store.mu.Unlock()
+
+		// Exit if we are at least at the given index.
+		if ok {
+			return nil
+		}
+	}
+}
+
+func (r *localConsensus) Leader() string {
+	if r.store.raft == nil {
+		return ""
+	}
+
+	return r.store.raft.Leader()
+}
+
+// remoteConsensus is a consensus strategy that uses a remote raft cluster for
+// consensus operations.
+type remoteConsensus struct {
+	store *Store
+}
+
+func (r *remoteConsensus) RaftEnabled() bool {
+	return false
+}
+
+func (r *remoteConsensus) OpenRaft() error {
+	return nil
+}
+
+func (r *remoteConsensus) Initialize() error {
+	return nil
+}
+
+func (r *remoteConsensus) Leader() string {
+	if len(r.store.peers) == 0 {
+		return ""
+	}
+
+	return r.store.peers[rand.Intn(len(r.store.peers))]
+}
+
+func (r *remoteConsensus) Sync(index uint64, timeout time.Duration) error {
+	//FIXME: jwilder: check index and timeout
+	return r.store.invalidate()
+}
+
 // NewStore returns a new instance of Store.
 func NewStore(c Config) *Store {
 	s := &Store{
 		path:  c.Dir,
 		peers: c.Peers,
+		join:  c.Join,
 		data:  &Data{},
 
 		ready:   make(chan struct{}),
@@ -163,6 +314,26 @@ func (s *Store) IDPath() string { return filepath.Join(s.path, "id") }
 
 // Open opens and initializes the raft store.
 func (s *Store) Open() error {
+
+	s.consensusStrategy = &localConsensus{s}
+	// If we have a join addr, attempt to join
+	if s.join != "" {
+		res, err := s.rpc.join(s.Addr.String(), s.join)
+		if err != nil {
+			return err
+		}
+
+		s.Logger.Printf("Joined remote node %v", s.join)
+		s.Logger.Printf("raftEnabled=%v peers=%v", res.RaftEnabled, res.Peers)
+		s.peers = res.Peers
+		if !res.RaftEnabled {
+			s.consensusStrategy = &remoteConsensus{s}
+			if err := s.invalidate(); err != nil {
+				return err
+			}
+		}
+	}
+
 	// Verify that no more than 3 peers.
 	// https://github.com/influxdb/influxdb/issues/2750
 	if len(s.peers) > 3 {
@@ -233,66 +404,12 @@ func (s *Store) Open() error {
 
 // openRaft initializes the raft store.
 func (s *Store) openRaft() error {
-	// Setup raft configuration.
-	config := raft.DefaultConfig()
-	config.Logger = s.Logger
-	config.HeartbeatTimeout = s.HeartbeatTimeout
-	config.ElectionTimeout = s.ElectionTimeout
-	config.LeaderLeaseTimeout = s.LeaderLeaseTimeout
-	config.CommitTimeout = s.CommitTimeout
-
-	// If no peers are set in the config then start as a single server.
-	config.EnableSingleNode = (len(s.peers) == 0)
-
-	// Build raft layer to multiplex listener.
-	s.raftLayer = newRaftLayer(s.RaftListener, s.Addr)
-
-	// Create a transport layer
-	s.transport = raft.NewNetworkTransport(s.raftLayer, 3, 10*time.Second, os.Stderr)
-
-	// Create peer storage.
-	s.peerStore = raft.NewJSONPeers(s.path, s.transport)
-
-	// Create the log store and stable store.
-	store, err := raftboltdb.NewBoltStore(filepath.Join(s.path, "raft.db"))
-	if err != nil {
-		return fmt.Errorf("new bolt store: %s", err)
-	}
-	s.store = store
-
-	// Create the snapshot store.
-	snapshots, err := raft.NewFileSnapshotStore(s.path, raftSnapshotsRetained, os.Stderr)
-	if err != nil {
-		return fmt.Errorf("file snapshot store: %s", err)
-	}
-
-	// Create raft log.
-	r, err := raft.NewRaft(config, (*storeFSM)(s), store, store, snapshots, s.peerStore, s.transport)
-	if err != nil {
-		return fmt.Errorf("new raft: %s", err)
-	}
-	s.raft = r
-
-	return nil
+	return s.consensusStrategy.OpenRaft()
 }
 
 // initialize attempts to bootstrap the raft store if there are no committed entries.
 func (s *Store) initialize() error {
-	// If we have committed entries then the store is already in the cluster.
-	/*
-		if index, err := s.store.LastIndex(); err != nil {
-			return fmt.Errorf("last index: %s", err)
-		} else if index > 0 {
-			return nil
-		}
-	*/
-
-	// Force set peers.
-	if err := s.SetPeers(s.peers); err != nil {
-		return fmt.Errorf("set raft peers: %s", err)
-	}
-
-	return nil
+	return s.consensusStrategy.Initialize()
 }
 
 // Close closes the store and shuts down the node in the cluster.
@@ -401,7 +518,7 @@ func (s *Store) Snapshot() error {
 // WaitForLeader sleeps until a leader is found or a timeout occurs.
 // timeout == 0 means to wait forever.
 func (s *Store) WaitForLeader(timeout time.Duration) error {
-	if s.raft.Leader() != "" {
+	if s.Leader() != "" {
 		return nil
 	}
 
@@ -421,7 +538,7 @@ func (s *Store) WaitForLeader(timeout time.Duration) error {
 				return errors.New("timeout")
 			}
 		case <-ticker.C:
-			if s.raft.Leader() != "" {
+			if s.Leader() != "" {
 				return nil
 			}
 		}
@@ -449,10 +566,7 @@ func (s *Store) IsLeader() bool {
 func (s *Store) Leader() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if s.raft == nil {
-		return ""
-	}
-	return s.raft.Leader()
+	return s.consensusStrategy.Leader()
 }
 
 // LeaderCh returns a channel that notifies on leadership change.
@@ -475,6 +589,19 @@ func (s *Store) SetPeers(addrs []string) error {
 		a[i] = addr.String()
 	}
 	return s.raft.SetPeers(a).Error()
+}
+
+func (s *Store) AddPeer(host string) error {
+	if fut := s.raft.AddPeer(host); fut.Error() != nil {
+		return fut.Error()
+	}
+	return nil
+}
+
+func (s *Store) Peers() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.peers
 }
 
 // serveExecListener processes remote exec connections.
@@ -1307,6 +1434,7 @@ func (s *Store) read(fn func(*Data) error) error {
 var errInvalidate = errors.New("invalidate cache")
 
 func (s *Store) invalidate() error {
+	time.Sleep(time.Second)
 
 	ms, err := s.rpc.fetchMetaData()
 	if err != nil {
@@ -1332,7 +1460,7 @@ func (s *Store) exec(typ internal.Command_Type, desc *proto.ExtensionDesc, value
 
 	// Apply the command if this is the leader.
 	// Otherwise remotely execute the command against the current leader.
-	if s.raft.State() == raft.Leader {
+	if s.consensusStrategy.RaftEnabled() && s.raft.State() == raft.Leader {
 		return s.apply(b)
 	}
 	return s.remoteExec(b)
@@ -1360,7 +1488,7 @@ func (s *Store) apply(b []byte) error {
 // remoteExec sends an encoded command to the remote leader.
 func (s *Store) remoteExec(b []byte) error {
 	// Retrieve the current known leader.
-	leader := s.raft.Leader()
+	leader := s.consensusStrategy.Leader()
 	if leader == "" {
 		return errors.New("no leader")
 	}
@@ -1419,30 +1547,7 @@ func (s *Store) remoteExec(b []byte) error {
 
 // sync polls the state machine until it reaches a given index.
 func (s *Store) sync(index uint64, timeout time.Duration) error {
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
-
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
-
-	for {
-		// Wait for next tick or timeout.
-		select {
-		case <-ticker.C:
-		case <-timer.C:
-			return errors.New("timeout")
-		}
-
-		// Compare index against current metadata.
-		s.mu.Lock()
-		ok := (s.data.Index >= index)
-		s.mu.Unlock()
-
-		// Exit if we are at least at the given index.
-		if ok {
-			return nil
-		}
-	}
+	return s.consensusStrategy.Sync(index, timeout)
 }
 
 func (s *Store) cachedData() *Data {

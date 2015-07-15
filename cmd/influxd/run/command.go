@@ -82,6 +82,10 @@ func (cmd *Command) Run(args ...string) error {
 		config.Meta.Hostname = options.Hostname
 	}
 
+	if options.Join != "" {
+		config.Meta.Join = options.Join
+	}
+
 	// Validate the configuration.
 	if err := config.Validate(); err != nil {
 		return fmt.Errorf("%s. To generate a valid configuration file run `influxd config > influxdb.generated.conf`.", err)

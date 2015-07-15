@@ -37,6 +37,9 @@ type Config struct {
 	HeartbeatTimeout    toml.Duration `toml:"heartbeat-timeout"`
 	LeaderLeaseTimeout  toml.Duration `toml:"leader-lease-timeout"`
 	CommitTimeout       toml.Duration `toml:"commit-timeout"`
+
+	// The join command-line argument
+	Join string
 }
 
 func NewConfig() Config {

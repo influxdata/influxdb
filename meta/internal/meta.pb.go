@@ -38,9 +38,11 @@ It has these top-level messages:
 	SetDataCommand
 	SetAdminPrivilegeCommand
 	Response
-	RPCRequest
-	QueryDataRequest
-	RPCResponse
+	ResponseHeader
+	FetchDataRequest
+	FetchDataResponse
+	JoinRequest
+	JoinResponse
 */
 package internal
 
@@ -50,6 +52,39 @@ import math "math"
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
 var _ = math.Inf
+
+type RPCType int32
+
+const (
+	RPCType_FetchData RPCType = 1
+	RPCType_Join      RPCType = 2
+)
+
+var RPCType_name = map[int32]string{
+	1: "FetchData",
+	2: "Join",
+}
+var RPCType_value = map[string]int32{
+	"FetchData": 1,
+	"Join":      2,
+}
+
+func (x RPCType) Enum() *RPCType {
+	p := new(RPCType)
+	*p = x
+	return p
+}
+func (x RPCType) String() string {
+	return proto.EnumName(RPCType_name, int32(x))
+}
+func (x *RPCType) UnmarshalJSON(data []byte) error {
+	value, err := proto.UnmarshalJSONEnum(RPCType_value, data, "RPCType")
+	if err != nil {
+		return err
+	}
+	*x = RPCType(value)
+	return nil
+}
 
 type Command_Type int32
 
@@ -129,36 +164,6 @@ func (x *Command_Type) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	*x = Command_Type(value)
-	return nil
-}
-
-type RPCRequest_Type int32
-
-const (
-	RPCRequest_QueryDataRequest RPCRequest_Type = 1
-)
-
-var RPCRequest_Type_name = map[int32]string{
-	1: "QueryDataRequest",
-}
-var RPCRequest_Type_value = map[string]int32{
-	"QueryDataRequest": 1,
-}
-
-func (x RPCRequest_Type) Enum() *RPCRequest_Type {
-	p := new(RPCRequest_Type)
-	*p = x
-	return p
-}
-func (x RPCRequest_Type) String() string {
-	return proto.EnumName(RPCRequest_Type_name, int32(x))
-}
-func (x *RPCRequest_Type) UnmarshalJSON(data []byte) error {
-	value, err := proto.UnmarshalJSONEnum(RPCRequest_Type_value, data, "RPCRequest_Type")
-	if err != nil {
-		return err
-	}
-	*x = RPCRequest_Type(value)
 	return nil
 }
 
@@ -1177,88 +1182,115 @@ func (m *Response) GetIndex() uint64 {
 	return 0
 }
 
-type RPCRequest struct {
-	Type             *RPCRequest_Type          `protobuf:"varint,1,req,name=type,enum=internal.RPCRequest_Type" json:"type,omitempty"`
-	XXX_extensions   map[int32]proto.Extension `json:"-"`
-	XXX_unrecognized []byte                    `json:"-"`
-}
-
-func (m *RPCRequest) Reset()         { *m = RPCRequest{} }
-func (m *RPCRequest) String() string { return proto.CompactTextString(m) }
-func (*RPCRequest) ProtoMessage()    {}
-
-var extRange_RPCRequest = []proto.ExtensionRange{
-	{100, 536870911},
-}
-
-func (*RPCRequest) ExtensionRangeArray() []proto.ExtensionRange {
-	return extRange_RPCRequest
-}
-func (m *RPCRequest) ExtensionMap() map[int32]proto.Extension {
-	if m.XXX_extensions == nil {
-		m.XXX_extensions = make(map[int32]proto.Extension)
-	}
-	return m.XXX_extensions
-}
-
-func (m *RPCRequest) GetType() RPCRequest_Type {
-	if m != nil && m.Type != nil {
-		return *m.Type
-	}
-	return RPCRequest_QueryDataRequest
-}
-
-type QueryDataRequest struct {
-	XXX_unrecognized []byte `json:"-"`
-}
-
-func (m *QueryDataRequest) Reset()         { *m = QueryDataRequest{} }
-func (m *QueryDataRequest) String() string { return proto.CompactTextString(m) }
-func (*QueryDataRequest) ProtoMessage()    {}
-
-var E_QueryDataRequest_Command = &proto.ExtensionDesc{
-	ExtendedType:  (*RPCRequest)(nil),
-	ExtensionType: (*QueryDataRequest)(nil),
-	Field:         101,
-	Name:          "internal.QueryDataRequest.command",
-	Tag:           "bytes,101,opt,name=command",
-}
-
-type RPCResponse struct {
+type ResponseHeader struct {
 	OK               *bool   `protobuf:"varint,1,req" json:"OK,omitempty"`
 	Error            *string `protobuf:"bytes,2,opt" json:"Error,omitempty"`
-	Data             []byte  `protobuf:"bytes,3,opt" json:"Data,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
-func (m *RPCResponse) Reset()         { *m = RPCResponse{} }
-func (m *RPCResponse) String() string { return proto.CompactTextString(m) }
-func (*RPCResponse) ProtoMessage()    {}
+func (m *ResponseHeader) Reset()         { *m = ResponseHeader{} }
+func (m *ResponseHeader) String() string { return proto.CompactTextString(m) }
+func (*ResponseHeader) ProtoMessage()    {}
 
-func (m *RPCResponse) GetOK() bool {
+func (m *ResponseHeader) GetOK() bool {
 	if m != nil && m.OK != nil {
 		return *m.OK
 	}
 	return false
 }
 
-func (m *RPCResponse) GetError() string {
+func (m *ResponseHeader) GetError() string {
 	if m != nil && m.Error != nil {
 		return *m.Error
 	}
 	return ""
 }
 
-func (m *RPCResponse) GetData() []byte {
+type FetchDataRequest struct {
+	XXX_unrecognized []byte `json:"-"`
+}
+
+func (m *FetchDataRequest) Reset()         { *m = FetchDataRequest{} }
+func (m *FetchDataRequest) String() string { return proto.CompactTextString(m) }
+func (*FetchDataRequest) ProtoMessage()    {}
+
+type FetchDataResponse struct {
+	Header           *ResponseHeader `protobuf:"bytes,1,req" json:"Header,omitempty"`
+	Data             []byte          `protobuf:"bytes,2,opt" json:"Data,omitempty"`
+	XXX_unrecognized []byte          `json:"-"`
+}
+
+func (m *FetchDataResponse) Reset()         { *m = FetchDataResponse{} }
+func (m *FetchDataResponse) String() string { return proto.CompactTextString(m) }
+func (*FetchDataResponse) ProtoMessage()    {}
+
+func (m *FetchDataResponse) GetHeader() *ResponseHeader {
+	if m != nil {
+		return m.Header
+	}
+	return nil
+}
+
+func (m *FetchDataResponse) GetData() []byte {
 	if m != nil {
 		return m.Data
 	}
 	return nil
 }
 
+type JoinRequest struct {
+	Addr             *string `protobuf:"bytes,1,req" json:"Addr,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *JoinRequest) Reset()         { *m = JoinRequest{} }
+func (m *JoinRequest) String() string { return proto.CompactTextString(m) }
+func (*JoinRequest) ProtoMessage()    {}
+
+func (m *JoinRequest) GetAddr() string {
+	if m != nil && m.Addr != nil {
+		return *m.Addr
+	}
+	return ""
+}
+
+type JoinResponse struct {
+	Header     *ResponseHeader `protobuf:"bytes,1,req" json:"Header,omitempty"`
+	EnableRaft *bool           `protobuf:"varint,2,opt" json:"EnableRaft,omitempty"`
+	// The addresses of raft peers to use if joining as a raft member. If not joining
+	// as a raft member, these are the nodes running raft.
+	Peers            []string `protobuf:"bytes,3,rep" json:"Peers,omitempty"`
+	XXX_unrecognized []byte   `json:"-"`
+}
+
+func (m *JoinResponse) Reset()         { *m = JoinResponse{} }
+func (m *JoinResponse) String() string { return proto.CompactTextString(m) }
+func (*JoinResponse) ProtoMessage()    {}
+
+func (m *JoinResponse) GetHeader() *ResponseHeader {
+	if m != nil {
+		return m.Header
+	}
+	return nil
+}
+
+func (m *JoinResponse) GetEnableRaft() bool {
+	if m != nil && m.EnableRaft != nil {
+		return *m.EnableRaft
+	}
+	return false
+}
+
+func (m *JoinResponse) GetPeers() []string {
+	if m != nil {
+		return m.Peers
+	}
+	return nil
+}
+
 func init() {
+	proto.RegisterEnum("internal.RPCType", RPCType_name, RPCType_value)
 	proto.RegisterEnum("internal.Command_Type", Command_Type_name, Command_Type_value)
-	proto.RegisterEnum("internal.RPCRequest_Type", RPCRequest_Type_name, RPCRequest_Type_value)
 	proto.RegisterExtension(E_CreateNodeCommand_Command)
 	proto.RegisterExtension(E_DeleteNodeCommand_Command)
 	proto.RegisterExtension(E_CreateDatabaseCommand_Command)
@@ -1277,5 +1309,4 @@ func init() {
 	proto.RegisterExtension(E_SetPrivilegeCommand_Command)
 	proto.RegisterExtension(E_SetDataCommand_Command)
 	proto.RegisterExtension(E_SetAdminPrivilegeCommand_Command)
-	proto.RegisterExtension(E_QueryDataRequest_Command)
 }
