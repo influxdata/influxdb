@@ -19,6 +19,7 @@ type RPC struct {
 
 	store interface {
 		cachedData() *Data
+		IsLeader() bool
 		Leader() string
 		Peers() []string
 		AddPeer(host string) error
@@ -34,8 +35,39 @@ type Reply interface {
 	GetHeader() *internal.ResponseHeader
 }
 
+// proxyLeader proxies the connection to the current raft leader
+func (r *RPC) proxyLeader(conn *net.TCPConn) {
+	if r.store.Leader() == "" {
+		// FIXME: return error to client
+		r.Logger.Printf("no leader")
+		return
+	}
+
+	leaderConn, err := net.DialTimeout("tcp", r.store.Leader(), 10*time.Second)
+	if err != nil {
+		r.Logger.Printf("dial leader: %v", err)
+		return
+	}
+	defer leaderConn.Close()
+	leaderConn.Write([]byte{MuxRPCHeader})
+	if err := proxy(leaderConn.(*net.TCPConn), conn); err != nil {
+		r.Logger.Printf("leader proxy error: %v", err)
+	}
+}
+
 // handleRPCConn reads a command from the connection and executes it.
 func (r *RPC) handleRPCConn(conn net.Conn) {
+
+	// RPC connections should execute on the leader.  If we are not the leader,
+	// proxy the connection to the leader so that clients an connect to any node
+	// in the cluster.
+	r.Logger.Printf("rpc connection from: %v", conn.RemoteAddr())
+	if !r.store.IsLeader() {
+		r.proxyLeader(conn.(*net.TCPConn))
+		conn.Close()
+		return
+	}
+
 	// Read and execute request.
 	resp, err := func() (proto.Message, error) {
 		// Read request size.
@@ -50,6 +82,7 @@ func (r *RPC) handleRPCConn(conn net.Conn) {
 			return nil, fmt.Errorf("read request: %s", err)
 		}
 
+		// Determine the RPC type
 		rpcType := internal.RPCType(btou64(buf[0:8]))
 		buf = buf[8:]
 
@@ -68,6 +101,7 @@ func (r *RPC) handleRPCConn(conn net.Conn) {
 		}
 	}()
 
+	// Set the status header and error message
 	if reply, ok := resp.(Reply); ok {
 		reply.GetHeader().OK = proto.Bool(err == nil)
 		if err != nil {
@@ -75,6 +109,7 @@ func (r *RPC) handleRPCConn(conn net.Conn) {
 		}
 	}
 
+	// Marshal the response back to a protobuf
 	buf, err := proto.Marshal(resp)
 	if err != nil {
 		r.Logger.Printf("unable to marshal response: %v", err)
@@ -89,6 +124,7 @@ func (r *RPC) handleRPCConn(conn net.Conn) {
 	conn.Close()
 }
 
+// handleFetchData handles a request for the current nodes meta data
 func (r *RPC) handleFetchData() (*internal.FetchDataResponse, error) {
 	data := r.store.cachedData()
 	b, err := data.MarshalBinary()
@@ -100,6 +136,7 @@ func (r *RPC) handleFetchData() (*internal.FetchDataResponse, error) {
 		Data: b}, err
 }
 
+// handleJoinRequest handles a request to join the cluster
 func (r *RPC) handleJoinRequest(req *internal.JoinRequest) (*internal.JoinResponse, error) {
 	if err := r.store.AddPeer(*req.Addr); err != nil {
 		r.Logger.Printf("join request failed: %v", err)
@@ -115,6 +152,15 @@ func (r *RPC) handleJoinRequest(req *internal.JoinRequest) (*internal.JoinRespon
 
 }
 
+// pack returns a TLV style byte slice encoding the size of the payload, the RPC type
+// and the RPC data
+func (r *RPC) pack(typ internal.RPCType, b []byte) []byte {
+	buf := u64tob(uint64(len(b)) + 8)
+	buf = append(buf, u64tob(uint64(typ))...)
+	buf = append(buf, b...)
+	return buf
+}
+
 // fetchMetaData returns the latest copy of the meta store data from the current
 // leader.
 func (r *RPC) fetchMetaData() (*Data, error) {
@@ -124,8 +170,7 @@ func (r *RPC) fetchMetaData() (*Data, error) {
 		return nil, errors.New("no leader")
 	}
 
-	typeBuf := u64tob(uint64(internal.RPCType_FetchData))
-	data, err := r.call(leader, typeBuf)
+	data, err := r.call(leader, r.pack(internal.RPCType_FetchData, nil))
 	if err != nil {
 		return nil, err
 	}
@@ -147,8 +192,9 @@ func (r *RPC) fetchMetaData() (*Data, error) {
 	return ms, nil
 }
 
+// join attempts to join a cluster at remoteAddr using localAddr as the current
+// node's cluster address
 func (r *RPC) join(localAddr, remoteAddr string) (*JoinResult, error) {
-	typeBuf := u64tob(uint64(internal.RPCType_Join))
 	req := &internal.JoinRequest{
 		Addr: proto.String(localAddr),
 	}
@@ -157,7 +203,7 @@ func (r *RPC) join(localAddr, remoteAddr string) (*JoinResult, error) {
 		return nil, err
 	}
 
-	data, err := r.call(remoteAddr, append(typeBuf, b...))
+	data, err := r.call(remoteAddr, r.pack(internal.RPCType_Join, b))
 	if err != nil {
 		return nil, err
 	}
@@ -194,9 +240,7 @@ func (r *RPC) call(dest string, b []byte) ([]byte, error) {
 	}
 
 	// Write request size & bytes.
-	if err := binary.Write(conn, binary.BigEndian, uint64(len(b))); err != nil {
-		return nil, fmt.Errorf("write rpc size: %s", err)
-	} else if _, err := conn.Write(b); err != nil {
+	if _, err := conn.Write(b); err != nil {
 		return nil, fmt.Errorf("write rpc: %s", err)
 	}
 

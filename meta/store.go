@@ -72,13 +72,13 @@ type Store struct {
 
 	rpc *RPC
 
-	remoteAddr        net.Addr
-	raft              *raft.Raft
-	raftLayer         *raftLayer
-	peerStore         raft.PeerStore
-	transport         *raft.NetworkTransport
-	store             *raftboltdb.BoltStore
-	consensusStrategy consensusStrategy
+	remoteAddr net.Addr
+	raft       *raft.Raft
+	raftLayer  *raftLayer
+	peerStore  raft.PeerStore
+	transport  *raft.NetworkTransport
+	store      *raftboltdb.BoltStore
+	raftState  raftState
 
 	ready   chan struct{}
 	err     chan error
@@ -125,9 +125,9 @@ type authUser struct {
 	hash []byte
 }
 
-// consensusStrategy abstracts the interaction of the raft consensus layer
+// raftState abstracts the interaction of the raft consensus layer
 // across local or remote nodes.
-type consensusStrategy interface {
+type raftState interface {
 	OpenRaft() error
 	Initialize() error
 	Leader() string
@@ -135,17 +135,17 @@ type consensusStrategy interface {
 	Sync(index uint64, timeout time.Duration) error
 }
 
-// localConsensus is a consensus strategy that uses a local raft implementation fo
+// localRaft is a consensus strategy that uses a local raft implementation fo
 // consensus operations.
-type localConsensus struct {
+type localRaft struct {
 	store *Store
 }
 
-func (r *localConsensus) RaftEnabled() bool {
+func (r *localRaft) RaftEnabled() bool {
 	return true
 }
 
-func (r *localConsensus) OpenRaft() error {
+func (r *localRaft) OpenRaft() error {
 	s := r.store
 	// Setup raft configuration.
 	config := raft.DefaultConfig()
@@ -190,7 +190,7 @@ func (r *localConsensus) OpenRaft() error {
 	return nil
 }
 
-func (r *localConsensus) Initialize() error {
+func (r *localRaft) Initialize() error {
 	s := r.store
 	// If we have committed entries then the store is already in the cluster.
 	if index, err := s.store.LastIndex(); err != nil {
@@ -207,7 +207,7 @@ func (r *localConsensus) Initialize() error {
 	return nil
 }
 
-func (r *localConsensus) Sync(index uint64, timeout time.Duration) error {
+func (r *localRaft) Sync(index uint64, timeout time.Duration) error {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
@@ -234,7 +234,7 @@ func (r *localConsensus) Sync(index uint64, timeout time.Duration) error {
 	}
 }
 
-func (r *localConsensus) Leader() string {
+func (r *localRaft) Leader() string {
 	if r.store.raft == nil {
 		return ""
 	}
@@ -242,25 +242,25 @@ func (r *localConsensus) Leader() string {
 	return r.store.raft.Leader()
 }
 
-// remoteConsensus is a consensus strategy that uses a remote raft cluster for
+// remoteRaft is a consensus strategy that uses a remote raft cluster for
 // consensus operations.
-type remoteConsensus struct {
+type remoteRaft struct {
 	store *Store
 }
 
-func (r *remoteConsensus) RaftEnabled() bool {
+func (r *remoteRaft) RaftEnabled() bool {
 	return false
 }
 
-func (r *remoteConsensus) OpenRaft() error {
+func (r *remoteRaft) OpenRaft() error {
 	return nil
 }
 
-func (r *remoteConsensus) Initialize() error {
+func (r *remoteRaft) Initialize() error {
 	return nil
 }
 
-func (r *remoteConsensus) Leader() string {
+func (r *remoteRaft) Leader() string {
 	if len(r.store.peers) == 0 {
 		return ""
 	}
@@ -268,7 +268,7 @@ func (r *remoteConsensus) Leader() string {
 	return r.store.peers[rand.Intn(len(r.store.peers))]
 }
 
-func (r *remoteConsensus) Sync(index uint64, timeout time.Duration) error {
+func (r *remoteRaft) Sync(index uint64, timeout time.Duration) error {
 	//FIXME: jwilder: check index and timeout
 	return r.store.invalidate()
 }
@@ -315,7 +315,7 @@ func (s *Store) IDPath() string { return filepath.Join(s.path, "id") }
 // Open opens and initializes the raft store.
 func (s *Store) Open() error {
 
-	s.consensusStrategy = &localConsensus{s}
+	s.raftState = &localRaft{s}
 	// If we have a join addr, attempt to join
 	if s.join != "" {
 		res, err := s.rpc.join(s.Addr.String(), s.join)
@@ -327,7 +327,7 @@ func (s *Store) Open() error {
 		s.Logger.Printf("raftEnabled=%v peers=%v", res.RaftEnabled, res.Peers)
 		s.peers = res.Peers
 		if !res.RaftEnabled {
-			s.consensusStrategy = &remoteConsensus{s}
+			s.raftState = &remoteRaft{s}
 			if err := s.invalidate(); err != nil {
 				return err
 			}
@@ -404,12 +404,12 @@ func (s *Store) Open() error {
 
 // openRaft initializes the raft store.
 func (s *Store) openRaft() error {
-	return s.consensusStrategy.OpenRaft()
+	return s.raftState.OpenRaft()
 }
 
 // initialize attempts to bootstrap the raft store if there are no committed entries.
 func (s *Store) initialize() error {
-	return s.consensusStrategy.Initialize()
+	return s.raftState.Initialize()
 }
 
 // Close closes the store and shuts down the node in the cluster.
@@ -566,7 +566,7 @@ func (s *Store) IsLeader() bool {
 func (s *Store) Leader() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.consensusStrategy.Leader()
+	return s.raftState.Leader()
 }
 
 // LeaderCh returns a channel that notifies on leadership change.
@@ -591,13 +591,24 @@ func (s *Store) SetPeers(addrs []string) error {
 	return s.raft.SetPeers(a).Error()
 }
 
-func (s *Store) AddPeer(host string) error {
-	if fut := s.raft.AddPeer(host); fut.Error() != nil {
+// AddPeer adds addr to the list of peers in the cluster.
+func (s *Store) AddPeer(addr string) error {
+	peers, err := s.peerStore.Peers()
+	if err != nil {
+		return err
+	}
+
+	if len(peers) >= 3 {
+		return nil
+	}
+
+	if fut := s.raft.AddPeer(addr); fut.Error() != nil {
 		return fut.Error()
 	}
 	return nil
 }
 
+// Peers returns the list of peers in the cluster.
 func (s *Store) Peers() []string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -629,6 +640,25 @@ func (s *Store) serveExecListener() {
 // handleExecConn reads a command from the connection and executes it.
 func (s *Store) handleExecConn(conn net.Conn) {
 	defer s.wg.Done()
+
+	// Nodes not part of the raft cluster may initiate remote exec commands
+	// but may not know who the current leader of the cluster.  If we are not
+	// the leader, proxy the request to the current leader.
+	if !s.IsLeader() {
+		leaderConn, err := net.DialTimeout("tcp", s.Leader(), 10*time.Second)
+		if err != nil {
+			s.Logger.Printf("dial leader: %v", err)
+			return
+		}
+		defer leaderConn.Close()
+		leaderConn.Write([]byte{MuxExecHeader})
+
+		if err := proxy(leaderConn.(*net.TCPConn), conn.(*net.TCPConn)); err != nil {
+			s.Logger.Printf("leader proxy error: %v", err)
+		}
+		conn.Close()
+		return
+	}
 
 	// Read and execute command.
 	err := func() error {
@@ -1460,7 +1490,7 @@ func (s *Store) exec(typ internal.Command_Type, desc *proto.ExtensionDesc, value
 
 	// Apply the command if this is the leader.
 	// Otherwise remotely execute the command against the current leader.
-	if s.consensusStrategy.RaftEnabled() && s.raft.State() == raft.Leader {
+	if s.raftState.RaftEnabled() && s.raft.State() == raft.Leader {
 		return s.apply(b)
 	}
 	return s.remoteExec(b)
@@ -1488,7 +1518,7 @@ func (s *Store) apply(b []byte) error {
 // remoteExec sends an encoded command to the remote leader.
 func (s *Store) remoteExec(b []byte) error {
 	// Retrieve the current known leader.
-	leader := s.consensusStrategy.Leader()
+	leader := s.raftState.Leader()
 	if leader == "" {
 		return errors.New("no leader")
 	}
@@ -1547,7 +1577,7 @@ func (s *Store) remoteExec(b []byte) error {
 
 // sync polls the state machine until it reaches a given index.
 func (s *Store) sync(index uint64, timeout time.Duration) error {
-	return s.consensusStrategy.Sync(index, timeout)
+	return s.raftState.Sync(index, timeout)
 }
 
 func (s *Store) cachedData() *Data {
