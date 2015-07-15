@@ -7,7 +7,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/signal"
 	"runtime"
 	"runtime/pprof"
 	"time"
@@ -349,6 +348,7 @@ func (s *Server) Close() error {
 	for _, service := range s.Services {
 		service.Close()
 	}
+
 	close(s.closing)
 	return nil
 }
@@ -456,13 +456,6 @@ func startProfile(cpuprofile, memprofile string) {
 		runtime.MemProfileRate = 4096
 	}
 
-	go func() {
-		c := make(chan os.Signal, 1)
-		signal.Notify(c, os.Interrupt)
-		<-c
-		stopProfile()
-		os.Exit(0)
-	}()
 }
 
 // StopProfile closes the cpu and memory profiles if they are running.
