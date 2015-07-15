@@ -1,6 +1,7 @@
 package meta
 
 import (
+	"sort"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -255,7 +256,7 @@ func (data *Data) ShardGroups(database, policy string) ([]ShardGroupInfo, error)
 }
 
 // ShardGroupsByTimeRange returns a list of all shard groups on a database and policy that may contain data
-// for the specified time range.
+// for the specified time range. Shard groups are sorted by start time.
 func (data *Data) ShardGroupsByTimeRange(database, policy string, tmin, tmax time.Time) ([]ShardGroupInfo, error) {
 	// Find retention policy.
 	rpi, err := data.RetentionPolicy(database, policy)
@@ -271,6 +272,7 @@ func (data *Data) ShardGroupsByTimeRange(database, policy string, tmin, tmax tim
 		}
 		groups = append(groups, g)
 	}
+	sort.Sort(ShardGroupInfos(groups))
 	return groups, nil
 }
 
@@ -805,6 +807,12 @@ type ShardGroupInfo struct {
 	DeletedAt time.Time
 	Shards    []ShardInfo
 }
+
+type ShardGroupInfos []ShardGroupInfo
+
+func (a ShardGroupInfos) Len() int           { return len(a) }
+func (a ShardGroupInfos) Less(i, j int) bool { return a[i].StartTime.Before(a[j].StartTime) }
+func (a ShardGroupInfos) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
 // Contains return true if the shard group contains data for the timestamp.
 func (sgi *ShardGroupInfo) Contains(timestamp time.Time) bool {

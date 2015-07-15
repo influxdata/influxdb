@@ -2,6 +2,7 @@
 
 ### Features
 - [#3177](https://github.com/influxdb/influxdb/pull/3177): Client supports making HTTPS requests. Thanks @jipperinbham
+- [#3299](https://github.com/influxdb/influxdb/pull/3299): Refactor query engine for distributed query support.
 
 ### Bugfixes
 
