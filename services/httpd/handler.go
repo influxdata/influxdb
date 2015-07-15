@@ -303,6 +303,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 
 // serveShardMapping maps the requested shard and streams data back to the client.
 func (h *Handler) serveShardMapping(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("content-type", "application/json")
 	var err error
 
 	// Pull out shard ID, query statement, and chunking size.
@@ -311,12 +312,18 @@ func (h *Handler) serveShardMapping(w http.ResponseWriter, r *http.Request) {
 	id, s, cs := q.Get("shard"), q.Get("q"), q.Get("chunksize")
 
 	var chunkSize int
+	if id == "" {
+		httpError(w, `no shard ID specified`, pretty, http.StatusBadRequest)
+		return
+	}
 	shardID, err := strconv.Atoi(id)
 	if err != nil {
 		httpError(w, `shard ID is not valid`, pretty, http.StatusBadRequest)
+		return
 	}
 	if s == "" {
 		httpError(w, `no query specified`, pretty, http.StatusBadRequest)
+		return
 	}
 	if cs == "" {
 		chunkSize = 0
@@ -324,6 +331,7 @@ func (h *Handler) serveShardMapping(w http.ResponseWriter, r *http.Request) {
 		chunkSize, err = strconv.Atoi(cs)
 		if err != nil {
 			httpError(w, `chunk size is not valid`, pretty, http.StatusBadRequest)
+			return
 		}
 	}
 
