@@ -19,6 +19,7 @@
 - [#3152](https://github.com/influxdb/influxdb/issues/3159): High CPU Usage with unsorted writes
 - [#3307](https://github.com/influxdb/influxdb/pull/3307): Fix regression parsing boolean values True/False
 - [#3304](https://github.com/influxdb/influxdb/pull/3304): Fixed httpd logger to log user from query params. Thanks @jhorwit2
+- [#3332](https://github.com/influxdb/influxdb/pull/3332): Add SLIMIT and SOFFSET to string version of AST.
 
 ## v0.9.1 [2015-07-02]
 

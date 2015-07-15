@@ -846,6 +846,12 @@ func (s *SelectStatement) String() string {
 		_, _ = buf.WriteString(" OFFSET ")
 		_, _ = buf.WriteString(strconv.Itoa(s.Offset))
 	}
+	if s.SLimit > 0 {
+		_, _ = fmt.Fprintf(&buf, " SLIMIT %d", s.SLimit)
+	}
+	if s.SOffset > 0 {
+		_, _ = fmt.Fprintf(&buf, " SOFFSET %d", s.SOffset)
+	}
 	return buf.String()
 }
 
