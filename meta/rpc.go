@@ -23,12 +23,15 @@ type RPC struct {
 		Leader() string
 		Peers() []string
 		AddPeer(host string) error
+		CreateNode(host string) (*NodeInfo, error)
+		NodeByHost(host string) (*NodeInfo, error)
 	}
 }
 
 type JoinResult struct {
 	RaftEnabled bool
 	Peers       []string
+	NodeID      uint64
 }
 
 type Reply interface {
@@ -138,17 +141,44 @@ func (r *RPC) handleFetchData() (*internal.FetchDataResponse, error) {
 
 // handleJoinRequest handles a request to join the cluster
 func (r *RPC) handleJoinRequest(req *internal.JoinRequest) (*internal.JoinResponse, error) {
-	if err := r.store.AddPeer(*req.Addr); err != nil {
-		r.Logger.Printf("join request failed: %v", err)
+
+	node, err := func() (*NodeInfo, error) {
+		// attempt to create the node
+		node, err := r.store.CreateNode(*req.Addr)
+		// if it exists, return the exting node
+		if err == ErrNodeExists {
+			return r.store.NodeByHost(*req.Addr)
+		} else if err != nil {
+			return nil, fmt.Errorf("create node: %v", err)
+		}
+
+		// If we have less than 3 nodes, add them as raft peers
+		if len(r.store.Peers()) < MaxRaftNodes {
+			if err = r.store.AddPeer(*req.Addr); err != nil {
+				return node, fmt.Errorf("add peer: %v", err)
+			}
+		}
+		return node, err
+	}()
+
+	nodeID := uint64(0)
+	if node != nil {
+		nodeID = node.ID
 	}
+
+	if err != nil {
+		r.Logger.Printf("join request failed: create node: %v", err)
+	}
+
 	r.Logger.Printf("recv join request from: %v", *req.Addr)
 	return &internal.JoinResponse{
 		Header: &internal.ResponseHeader{
 			OK: proto.Bool(true),
 		},
-		EnableRaft: proto.Bool(false),
+		EnableRaft: proto.Bool(contains(r.store.Peers(), *req.Addr)),
 		Peers:      r.store.Peers(),
-	}, nil
+		NodeID:     proto.Uint64(nodeID),
+	}, err
 
 }
 
@@ -219,6 +249,7 @@ func (r *RPC) join(localAddr, remoteAddr string) (*JoinResult, error) {
 	return &JoinResult{
 		RaftEnabled: resp.GetEnableRaft(),
 		Peers:       resp.GetPeers(),
+		NodeID:      resp.GetNodeID(),
 	}, nil
 
 }
@@ -266,4 +297,13 @@ func u64tob(v uint64) []byte {
 
 func btou64(b []byte) uint64 {
 	return binary.BigEndian.Uint64(b)
+}
+
+func contains(s []string, e string) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
+	return false
 }

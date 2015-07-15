@@ -54,6 +54,7 @@ const (
 	raftSnapshotsRetained = 2
 	raftTransportMaxPool  = 3
 	raftTransportTimeout  = 10 * time.Second
+	MaxRaftNodes          = 3
 )
 
 // Store represents a raft-backed metastore.
@@ -326,6 +327,12 @@ func (s *Store) Open() error {
 		s.Logger.Printf("Joined remote node %v", s.join)
 		s.Logger.Printf("raftEnabled=%v peers=%v", res.RaftEnabled, res.Peers)
 		s.peers = res.Peers
+		s.id = res.NodeID
+
+		if err := s.writeNodeID(res.NodeID); err != nil {
+			return err
+		}
+
 		if !res.RaftEnabled {
 			s.raftState = &remoteRaft{s}
 			if err := s.invalidate(); err != nil {
@@ -336,7 +343,7 @@ func (s *Store) Open() error {
 
 	// Verify that no more than 3 peers.
 	// https://github.com/influxdb/influxdb/issues/2750
-	if len(s.peers) > 3 {
+	if len(s.peers) > MaxRaftNodes {
 		return ErrTooManyPeers
 	}
 
@@ -360,7 +367,7 @@ func (s *Store) Open() error {
 		s.opened = true
 
 		// Create the root directory if it doesn't already exist.
-		if err := os.MkdirAll(s.path, 0777); err != nil {
+		if err := s.createRootDir(); err != nil {
 			return fmt.Errorf("mkdir all: %s", err)
 		}
 
@@ -497,7 +504,7 @@ func (s *Store) createLocalNode() error {
 	}
 
 	// Write node id to file.
-	if err := ioutil.WriteFile(s.IDPath(), []byte(strconv.FormatUint(ni.ID, 10)), 0666); err != nil {
+	if err := s.writeNodeID(ni.ID); err != nil {
 		return fmt.Errorf("write file: %s", err)
 	}
 
@@ -507,6 +514,17 @@ func (s *Store) createLocalNode() error {
 	s.Logger.Printf("created local node: id=%d, host=%s", s.id, s.Addr.String())
 
 	return nil
+}
+
+func (s *Store) createRootDir() error {
+	return os.MkdirAll(s.path, 0777)
+}
+
+func (s *Store) writeNodeID(id uint64) error {
+	if err := s.createRootDir(); err != nil {
+		return err
+	}
+	return ioutil.WriteFile(s.IDPath(), []byte(strconv.FormatUint(id, 10)), 0666)
 }
 
 // Snapshot saves a snapshot of the current state.

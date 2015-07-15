@@ -1255,12 +1255,15 @@ func (m *JoinRequest) GetAddr() string {
 }
 
 type JoinResponse struct {
-	Header     *ResponseHeader `protobuf:"bytes,1,req" json:"Header,omitempty"`
-	EnableRaft *bool           `protobuf:"varint,2,opt" json:"EnableRaft,omitempty"`
+	Header *ResponseHeader `protobuf:"bytes,1,req" json:"Header,omitempty"`
+	// Indicates that this node should take part in the raft cluster.
+	EnableRaft *bool `protobuf:"varint,2,opt" json:"EnableRaft,omitempty"`
 	// The addresses of raft peers to use if joining as a raft member. If not joining
 	// as a raft member, these are the nodes running raft.
-	Peers            []string `protobuf:"bytes,3,rep" json:"Peers,omitempty"`
-	XXX_unrecognized []byte   `json:"-"`
+	Peers []string `protobuf:"bytes,3,rep" json:"Peers,omitempty"`
+	// The node ID assigned to the requesting node.
+	NodeID           *uint64 `protobuf:"varint,4,opt" json:"NodeID,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
 }
 
 func (m *JoinResponse) Reset()         { *m = JoinResponse{} }
@@ -1286,6 +1289,13 @@ func (m *JoinResponse) GetPeers() []string {
 		return m.Peers
 	}
 	return nil
+}
+
+func (m *JoinResponse) GetNodeID() uint64 {
+	if m != nil && m.NodeID != nil {
+		return *m.NodeID
+	}
+	return 0
 }
 
 func init() {

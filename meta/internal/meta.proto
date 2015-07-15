@@ -290,8 +290,12 @@ message JoinResponse {
     required ResponseHeader Header = 1;
 
 
+    // Indicates that this node should take part in the raft cluster.
     optional bool EnableRaft = 2;
     // The addresses of raft peers to use if joining as a raft member. If not joining
     // as a raft member, these are the nodes running raft.
     repeated string Peers = 3;
+
+    // The node ID assigned to the requesting node.
+    optional uint64 NodeID = 4;
 }
