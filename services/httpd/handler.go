@@ -332,11 +332,7 @@ func (h *Handler) serveShardMapping(w http.ResponseWriter, r *http.Request) {
 		httpError(w, fmt.Sprintf("mapper create: %s", err), pretty, http.StatusInternalServerError)
 	}
 	if mapper == nil {
-		b, err := json.Marshal(&tsdb.MapperResponse{})
-		if err != nil {
-			httpError(w, fmt.Sprintf("marshal response: %s", err), pretty, http.StatusInternalServerError)
-			return
-		}
+		b := MarshalJSON(&tsdb.MapperResponse{}, pretty)
 		w.Write(b)
 		w.(http.Flusher).Flush()
 		return
@@ -362,19 +358,11 @@ func (h *Handler) serveShardMapping(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if chunk != nil {
-			data, err := json.Marshal(&chunk)
-			if err != nil {
-				httpError(w, fmt.Sprintf("marshal chunk: %s", err), pretty, http.StatusInternalServerError)
-				return
-			}
+			data := MarshalJSON(&chunk, pretty)
 			r.Data = data
 		}
 
-		b, err := json.Marshal(&r)
-		if err != nil {
-			httpError(w, fmt.Sprintf("marshal response: %s", err), pretty, http.StatusInternalServerError)
-			return
-		}
+		b := MarshalJSON(&r, pretty)
 		w.Write(b)
 		w.(http.Flusher).Flush()
 
