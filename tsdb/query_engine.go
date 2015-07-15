@@ -150,6 +150,15 @@ type StatefulRawMapper struct {
 	drained       bool
 }
 
+// NextChunk wraps a RawMapper and some state.
+func (srm *StatefulRawMapper) NextChunk() (*rawMapperOutput, error) {
+	chunk, err := srm.RawMapper.NextChunk()
+	if err != nil {
+		return nil, err
+	}
+	return chunk.(*rawMapperOutput), nil
+}
+
 // RawExecutor is an executor for RawMappers.
 type RawExecutor struct {
 	stmt           *influxql.SelectStatement
@@ -399,6 +408,15 @@ type StatefulAggMapper struct {
 	*AggMapper
 	bufferedChunk *aggMapperOutput // Last read chunk.
 	drained       bool
+}
+
+// NextChunk wraps an AggregateMapper and some state.
+func (sam *StatefulAggMapper) NextChunk() (*aggMapperOutput, error) {
+	chunk, err := sam.AggMapper.NextChunk()
+	if err != nil {
+		return nil, err
+	}
+	return chunk.(*aggMapperOutput), nil
 }
 
 // AggregateExecutor is an executor for AggregateMappers.
