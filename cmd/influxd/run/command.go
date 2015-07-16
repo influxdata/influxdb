@@ -32,6 +32,7 @@ type Command struct {
 	Commit  string
 
 	closing chan struct{}
+	Closed  chan struct{}
 
 	Stdin  io.Reader
 	Stdout io.Writer
@@ -44,6 +45,7 @@ type Command struct {
 func NewCommand() *Command {
 	return &Command{
 		closing: make(chan struct{}),
+		Closed:  make(chan struct{}),
 		Stdin:   os.Stdin,
 		Stdout:  os.Stdout,
 		Stderr:  os.Stderr,
@@ -109,6 +111,8 @@ func (cmd *Command) Run(args ...string) error {
 
 // Close shuts down the server.
 func (cmd *Command) Close() error {
+	defer close(cmd.Closed)
+	close(cmd.closing)
 	if cmd.Server != nil {
 		return cmd.Server.Close()
 	}
