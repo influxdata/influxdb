@@ -277,6 +277,9 @@ func (re *RawExecutor) nextMapperLowestTime(tagset string) int64 {
 	minTime := int64(math.MaxInt64)
 	for _, m := range re.mappers {
 		if !m.drained && m.bufferedChunk != nil {
+			if m.bufferedChunk.key() != tagset {
+				continue
+			}
 			t := m.bufferedChunk.Values[len(m.bufferedChunk.Values)-1].Time
 			if t < minTime {
 				minTime = t
