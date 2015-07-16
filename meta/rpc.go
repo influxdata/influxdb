@@ -152,12 +152,17 @@ func (r *RPC) handleJoinRequest(req *internal.JoinRequest) (*internal.JoinRespon
 			return nil, fmt.Errorf("create node: %v", err)
 		}
 
+		// FIXME: jwilder: adding raft nodes is tricky since going
+		// from 1 node (leader) to two kills the cluster because
+		// quorum is lost after adding the second node.  For now,
+		// can only add non-raft enabled nodes
+
 		// If we have less than 3 nodes, add them as raft peers
-		if len(r.store.Peers()) < MaxRaftNodes {
-			if err = r.store.AddPeer(*req.Addr); err != nil {
-				return node, fmt.Errorf("add peer: %v", err)
-			}
-		}
+		// if len(r.store.Peers()) < MaxRaftNodes {
+		// 	if err = r.store.AddPeer(*req.Addr); err != nil {
+		// 		return node, fmt.Errorf("add peer: %v", err)
+		// 	}
+		// }
 		return node, err
 	}()
 
@@ -175,7 +180,8 @@ func (r *RPC) handleJoinRequest(req *internal.JoinRequest) (*internal.JoinRespon
 		Header: &internal.ResponseHeader{
 			OK: proto.Bool(true),
 		},
-		EnableRaft: proto.Bool(contains(r.store.Peers(), *req.Addr)),
+		//EnableRaft: proto.Bool(contains(r.store.Peers(), *req.Addr)),
+		EnableRaft: proto.Bool(false),
 		Peers:      r.store.Peers(),
 		NodeID:     proto.Uint64(nodeID),
 	}, err
