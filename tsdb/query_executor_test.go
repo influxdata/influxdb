@@ -12,6 +12,7 @@ import (
 	"github.com/influxdb/influxdb/meta"
 )
 
+var sgID = uint64(2)
 var shardID = uint64(1)
 
 func TestWritePointsAndExecuteQuery(t *testing.T) {
@@ -50,6 +51,7 @@ func TestWritePointsAndExecuteQuery(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 	executor.store = store
+	executor.ShardMapper = &testShardMapper{store: store}
 
 	got = executeAndGetJSON("select * from cpu", executor)
 	if exepected != got {
@@ -106,6 +108,7 @@ func TestWritePointsAndExecuteQuery_FlushRestart(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 	executor.store = store
+	executor.ShardMapper = &testShardMapper{store: store}
 
 	got = executeAndGetJSON("select * from cpu", executor)
 	if exepected != got {
@@ -287,6 +290,7 @@ func TestDropDatabase(t *testing.T) {
 	store = NewStore(store.path)
 	store.Open()
 	executor.store = store
+	executor.ShardMapper = &testShardMapper{store: store}
 
 	if err := store.WriteToShard(shardID, []Point{pt}); err == nil || err.Error() != "shard not found" {
 		t.Fatalf("expected shard to not be found")
@@ -359,6 +363,7 @@ func testStoreAndExecutor() (*Store, *QueryExecutor) {
 
 	executor := NewQueryExecutor(store)
 	executor.MetaStore = &testMetastore{}
+	executor.ShardMapper = &testShardMapper{store: store}
 
 	return store, executor
 }
@@ -439,6 +444,35 @@ func (t *testMetastore) RetentionPolicy(database, name string) (rpi *meta.Retent
 
 func (t *testMetastore) UserCount() (int, error) {
 	return t.userCount, nil
+}
+
+func (t *testMetastore) ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error) {
+	return []meta.ShardGroupInfo{
+		{
+			ID:        sgID,
+			StartTime: time.Now().Add(-time.Hour),
+			EndTime:   time.Now().Add(time.Hour),
+			Shards: []meta.ShardInfo{
+				{
+					ID:       uint64(1),
+					OwnerIDs: []uint64{1},
+				},
+			},
+		},
+	}, nil
+}
+
+func (t *testMetastore) NodeID() uint64 {
+	return 1
+}
+
+type testShardMapper struct {
+	store *Store
+}
+
+func (t *testShardMapper) CreateMapper(shard meta.ShardInfo, stmt string, chunkSize int) (Mapper, error) {
+	m, err := t.store.CreateMapper(shard.ID, stmt, chunkSize)
+	return m, err
 }
 
 // MustParseQuery parses an InfluxQL query. Panic on error.

@@ -126,7 +126,7 @@ func TestServer_Query_DropAndRecreateDatabase(t *testing.T) {
 		&Query{
 			name:    "Query data after recreate",
 			command: `SELECT * FROM cpu`,
-			exp:     `{"results":[{"error":"measurement not found: \"db0\"..cpu"}]}`,
+			exp:     `{"results":[{}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 	}...)
@@ -891,7 +891,7 @@ func TestServer_Query_Tags(t *testing.T) {
 		&Query{
 			name:    "tag without field should return error",
 			command: `SELECT host FROM db0.rp0.cpu`,
-			exp:     `{"results":[{"error":"select statement must include at least one field or function call"}]}`,
+			exp:     `{"results":[{"error":"select statement must include at least one field"}]}`,
 		},
 		&Query{
 			name:    "field with tag should succeed",
@@ -1041,8 +1041,7 @@ func TestServer_Query_Common(t *testing.T) {
 		&Query{
 			name:    "selecting a measurement that doesn't exist should error",
 			command: `SELECT value FROM db0.rp0.idontexist`,
-			exp:     `.*measurement not found*`,
-			pattern: true,
+			exp:     `{"results":[{}]}`,
 		},
 		&Query{
 			name:    "selecting a field that doesn't exist should error",
@@ -1240,8 +1239,8 @@ func TestServer_Query_MergeMany(t *testing.T) {
 		},
 		&Query{
 			name:    "GROUP by field",
-			command: `SELECT count(value) FROM db0.rp0.cpu where time >= '2000-01-01T00:00:00Z' and time <= '2000-01-01T02:00:00Z' group by value`,
-			exp:     `{"results":[{"error":"can not use field in group by clause: value"}]}`,
+			command: `SELECT count(value) FROM db0.rp0.cpu group by value`,
+			exp:     `{"results":[{"error":"can not use field in GROUP BY clause: value"}]}`,
 		},
 	}...)
 
@@ -1515,13 +1514,13 @@ func TestServer_Query_Aggregates(t *testing.T) {
 			name:    "distinct select tag - int",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT DISTINCT(host) FROM intmany`,
-			exp:     `{"results":[{"error":"host isn't a field on measurement intmany; to query the unique values for a tag use SHOW TAG VALUES FROM intmany WITH KEY = \"host"}]}`,
+			exp:     `{"results":[{}]}`,
 		},
 		&Query{
 			name:    "distinct alt select tag - int",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT DISTINCT host FROM intmany`,
-			exp:     `{"results":[{"error":"host isn't a field on measurement intmany; to query the unique values for a tag use SHOW TAG VALUES FROM intmany WITH KEY = \"host"}]}`,
+			exp:     `{"results":[{}]}`,
 		},
 		&Query{
 			name:    "count distinct - int",
@@ -1539,13 +1538,13 @@ func TestServer_Query_Aggregates(t *testing.T) {
 			name:    "count distinct select tag - int",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT COUNT(DISTINCT host) FROM intmany`,
-			exp:     `{"results":[{"error":"host isn't a field on measurement intmany; count(distinct) on tags isn't yet supported"}]}`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",0]]}]}]}`,
 		},
 		&Query{
 			name:    "count distinct as call select tag - int",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT COUNT(DISTINCT host) FROM intmany`,
-			exp:     `{"results":[{"error":"host isn't a field on measurement intmany; count(distinct) on tags isn't yet supported"}]}`,
+			exp:     `{"results":[{"series":[{"name":"intmany","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",0]]}]}]}`,
 		},
 		&Query{
 			name:    "aggregation with no interval - int",
@@ -1644,13 +1643,13 @@ func TestServer_Query_Aggregates(t *testing.T) {
 			name:    "distinct select tag - float",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT DISTINCT(host) FROM floatmany`,
-			exp:     `{"results":[{"error":"host isn't a field on measurement floatmany; to query the unique values for a tag use SHOW TAG VALUES FROM floatmany WITH KEY = \"host"}]}`,
+			exp:     `{"results":[{}]}`,
 		},
 		&Query{
 			name:    "distinct alt select tag - float",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT DISTINCT host FROM floatmany`,
-			exp:     `{"results":[{"error":"host isn't a field on measurement floatmany; to query the unique values for a tag use SHOW TAG VALUES FROM floatmany WITH KEY = \"host"}]}`,
+			exp:     `{"results":[{}]}`,
 		},
 		&Query{
 			name:    "count distinct - float",
@@ -1668,13 +1667,13 @@ func TestServer_Query_Aggregates(t *testing.T) {
 			name:    "count distinct select tag - float",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT COUNT(DISTINCT host) FROM floatmany`,
-			exp:     `{"results":[{"error":"host isn't a field on measurement floatmany; count(distinct) on tags isn't yet supported"}]}`,
+			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",0]]}]}]}`,
 		},
 		&Query{
 			name:    "count distinct as call select tag - float",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT COUNT(DISTINCT host) FROM floatmany`,
-			exp:     `{"results":[{"error":"host isn't a field on measurement floatmany; count(distinct) on tags isn't yet supported"}]}`,
+			exp:     `{"results":[{"series":[{"name":"floatmany","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",0]]}]}]}`,
 		},
 		&Query{
 			name:    "aggregation with no interval - float",
@@ -1907,8 +1906,8 @@ func TestServer_Query_Wildcards(t *testing.T) {
 
 	writes := []string{
 		fmt.Sprintf(`wildcard,region=us-east value=10 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
-		fmt.Sprintf(`wildcard,region=us-east val-x=20 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
-		fmt.Sprintf(`wildcard,region=us-east value=30,val-x=40 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:20Z").UnixNano()),
+		fmt.Sprintf(`wildcard,region=us-east valx=20 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
+		fmt.Sprintf(`wildcard,region=us-east value=30,valx=40 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:20Z").UnixNano()),
 
 		fmt.Sprintf(`wgroup,region=us-east value=10.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
 		fmt.Sprintf(`wgroup,region=us-east value=20.0 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
@@ -1923,7 +1922,7 @@ func TestServer_Query_Wildcards(t *testing.T) {
 			name:    "wildcard",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT * FROM wildcard`,
-			exp:     `{"results":[{"series":[{"name":"wildcard","tags":{"region":"us-east"},"columns":["time","val-x","value"],"values":[["2000-01-01T00:00:00Z",null,10],["2000-01-01T00:00:10Z",20,null],["2000-01-01T00:00:20Z",40,30]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"wildcard","tags":{"region":"us-east"},"columns":["time","value","valx"],"values":[["2000-01-01T00:00:00Z",10,null],["2000-01-01T00:00:10Z",null,20],["2000-01-01T00:00:20Z",30,40]]}]}]}`,
 		},
 		&Query{
 			name:    "GROUP BY queries",
@@ -2081,7 +2080,7 @@ func TestServer_Query_Where_Fields(t *testing.T) {
 			name:    "string no match",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT alert_id FROM cpu WHERE _cust='acme'`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","alert_id"]}]}]}`,
+			exp:     `{"results":[{}]}`,
 		},
 
 		// float64
@@ -2089,7 +2088,7 @@ func TestServer_Query_Where_Fields(t *testing.T) {
 			name:    "float64 GT no match",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `select load from cpu where load > 100`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","load"]}]}]}`,
+			exp:     `{"results":[{}]}`,
 		},
 		&Query{
 			name:    "float64 GTE match one",
@@ -2119,7 +2118,7 @@ func TestServer_Query_Where_Fields(t *testing.T) {
 			name:    "float64 EQ no match",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `select load from cpu where load = 99`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","load"]}]}]}`,
+			exp:     `{"results":[{}]}`,
 		},
 		&Query{
 			name:    "float64 LT match one",
@@ -2131,7 +2130,7 @@ func TestServer_Query_Where_Fields(t *testing.T) {
 			name:    "float64 LT no match",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `select load from cpu where load < 80`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","load"]}]}]}`,
+			exp:     `{"results":[{}]}`,
 		},
 		&Query{
 			name:    "float64 NE match one",
@@ -2145,7 +2144,7 @@ func TestServer_Query_Where_Fields(t *testing.T) {
 			name:    "int64 GT no match",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `select core from cpu where core > 4`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","core"]}]}]}`,
+			exp:     `{"results":[{}]}`,
 		},
 		&Query{
 			name:    "int64 GTE match one",
@@ -2175,7 +2174,7 @@ func TestServer_Query_Where_Fields(t *testing.T) {
 			name:    "int64 EQ no match",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `select core from cpu where core = 3`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","core"]}]}]}`,
+			exp:     `{"results":[{}]}`,
 		},
 		&Query{
 			name:    "int64 LT match one",
@@ -2187,7 +2186,7 @@ func TestServer_Query_Where_Fields(t *testing.T) {
 			name:    "int64 LT no match",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `select core from cpu where core < 2`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","core"]}]}]}`,
+			exp:     `{"results":[{}]}`,
 		},
 		&Query{
 			name:    "int64 NE match one",
@@ -2305,10 +2304,10 @@ func TestServer_Query_LimitAndOffset(t *testing.T) {
 	}
 
 	writes := []string{
-		fmt.Sprintf(`limit,tennant=paul foo=2 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:02Z").UnixNano()),
-		fmt.Sprintf(`limit,tennant=paul foo=3 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:03Z").UnixNano()),
-		fmt.Sprintf(`limit,tennant=paul foo=4 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:04Z").UnixNano()),
-		fmt.Sprintf(`limit,tennant=todd foo=5 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:05Z").UnixNano()),
+		fmt.Sprintf(`limited,tennant=paul foo=2 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:02Z").UnixNano()),
+		fmt.Sprintf(`limited,tennant=paul foo=3 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:03Z").UnixNano()),
+		fmt.Sprintf(`limited,tennant=paul foo=4 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:04Z").UnixNano()),
+		fmt.Sprintf(`limited,tennant=todd foo=5 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:05Z").UnixNano()),
 	}
 
 	test := NewTest("db0", "rp0")
@@ -2318,79 +2317,73 @@ func TestServer_Query_LimitAndOffset(t *testing.T) {
 		&Query{
 			name:    "limit on points",
 			params:  url.Values{"db": []string{"db0"}},
-			command: `select foo from "limit" LIMIT 2`,
-			exp:     `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z",2],["2009-11-10T23:00:03Z",3]]}]}]}`,
+			command: `select foo from "limited" LIMIT 2`,
+			exp:     `{"results":[{"series":[{"name":"limited","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z",2],["2009-11-10T23:00:03Z",3]]}]}]}`,
 		},
 		&Query{
 			name:    "limit higher than the number of data points",
 			params:  url.Values{"db": []string{"db0"}},
-			command: `select foo from "limit" LIMIT 20`,
-			exp:     `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z",2],["2009-11-10T23:00:03Z",3],["2009-11-10T23:00:04Z",4],["2009-11-10T23:00:05Z",5]]}]}]}`,
+			command: `select foo from "limited" LIMIT 20`,
+			exp:     `{"results":[{"series":[{"name":"limited","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z",2],["2009-11-10T23:00:03Z",3],["2009-11-10T23:00:04Z",4],["2009-11-10T23:00:05Z",5]]}]}]}`,
 		},
 		&Query{
 			name:    "limit and offset",
 			params:  url.Values{"db": []string{"db0"}},
-			command: `select foo from "limit" LIMIT 2 OFFSET 1`,
-			exp:     `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:03Z",3],["2009-11-10T23:00:04Z",4]]}]}]}`,
+			command: `select foo from "limited" LIMIT 2 OFFSET 1`,
+			exp:     `{"results":[{"series":[{"name":"limited","columns":["time","foo"],"values":[["2009-11-10T23:00:03Z",3],["2009-11-10T23:00:04Z",4]]}]}]}`,
 		},
 		&Query{
 			name:    "limit + offset equal to total number of points",
 			params:  url.Values{"db": []string{"db0"}},
-			command: `select foo from "limit" LIMIT 3 OFFSET 3`,
-			exp:     `{"results":[{"series":[{"name":"limit","columns":["time","foo"],"values":[["2009-11-10T23:00:05Z",5]]}]}]}`,
+			command: `select foo from "limited" LIMIT 3 OFFSET 3`,
+			exp:     `{"results":[{"series":[{"name":"limited","columns":["time","foo"],"values":[["2009-11-10T23:00:05Z",5]]}]}]}`,
 		},
 		&Query{
 			name:    "limit - offset higher than number of points",
-			command: `select foo from "limit" LIMIT 2 OFFSET 20`,
-			exp:     `{"results":[{"series":[{"name":"limit","columns":["time","foo"]}]}]}`,
+			command: `select foo from "limited" LIMIT 2 OFFSET 20`,
+			exp:     `{"results":[{"series":[{"name":"limited","columns":["time","foo"]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
 			name:    "limit on points with group by time",
-			command: `select mean(foo) from "limit" WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY TIME(1s) LIMIT 2`,
-			exp:     `{"results":[{"series":[{"name":"limit","columns":["time","mean"],"values":[["2009-11-10T23:00:02Z",2],["2009-11-10T23:00:03Z",3]]}]}]}`,
+			command: `select mean(foo) from "limited" WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY TIME(1s) LIMIT 2`,
+			exp:     `{"results":[{"series":[{"name":"limited","columns":["time","mean"],"values":[["2009-11-10T23:00:02Z",2],["2009-11-10T23:00:03Z",3]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
 			name:    "limit higher than the number of data points with group by time",
-			command: `select mean(foo) from "limit" WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY TIME(1s) LIMIT 20`,
-			exp:     `{"results":[{"series":[{"name":"limit","columns":["time","mean"],"values":[["2009-11-10T23:00:02Z",2],["2009-11-10T23:00:03Z",3],["2009-11-10T23:00:04Z",4],["2009-11-10T23:00:05Z",5]]}]}]}`,
+			command: `select mean(foo) from "limited" WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY TIME(1s) LIMIT 20`,
+			exp:     `{"results":[{"series":[{"name":"limited","columns":["time","mean"],"values":[["2009-11-10T23:00:02Z",2],["2009-11-10T23:00:03Z",3],["2009-11-10T23:00:04Z",4],["2009-11-10T23:00:05Z",5]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
 			name:    "limit and offset with group by time",
-			command: `select mean(foo) from "limit" WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY TIME(1s) LIMIT 2 OFFSET 1`,
-			exp:     `{"results":[{"series":[{"name":"limit","columns":["time","mean"],"values":[["2009-11-10T23:00:03Z",3],["2009-11-10T23:00:04Z",4]]}]}]}`,
+			command: `select mean(foo) from "limited" WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY TIME(1s) LIMIT 2 OFFSET 1`,
+			exp:     `{"results":[{"series":[{"name":"limited","columns":["time","mean"],"values":[["2009-11-10T23:00:03Z",3],["2009-11-10T23:00:04Z",4]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
 			name:    "limit + offset equal to the  number of points with group by time",
-			command: `select mean(foo) from "limit" WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY TIME(1s) LIMIT 3 OFFSET 3`,
-			exp:     `{"results":[{"series":[{"name":"limit","columns":["time","mean"],"values":[["2009-11-10T23:00:05Z",5]]}]}]}`,
-			params:  url.Values{"db": []string{"db0"}},
-		},
-		&Query{
-			name:    "limit + offset equal to the  number of points with group by time",
-			command: `select mean(foo) from "limit" WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY TIME(1s) LIMIT 3 OFFSET 3`,
-			exp:     `{"results":[{"series":[{"name":"limit","columns":["time","mean"],"values":[["2009-11-10T23:00:05Z",5]]}]}]}`,
+			command: `select mean(foo) from "limited" WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY TIME(1s) LIMIT 3 OFFSET 3`,
+			exp:     `{"results":[{"series":[{"name":"limited","columns":["time","mean"],"values":[["2009-11-10T23:00:05Z",5]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
 			name:    "limit - offset higher than number of points with group by time",
-			command: `select mean(foo) from "limit" WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY TIME(1s) LIMIT 2 OFFSET 20`,
+			command: `select mean(foo) from "limited" WHERE time >= '2009-11-10T23:00:02Z' AND time < '2009-11-10T23:00:06Z' GROUP BY TIME(1s) LIMIT 2 OFFSET 20`,
 			exp:     `{"results":[{}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
 			name:    "limit higher than the number of data points should error",
-			command: `select mean(foo)  from "limit"  where  time > '2000-01-01T00:00:00Z' group by time(1s), * fill(0)  limit 2147483647`,
+			command: `select mean(foo)  from "limited"  where  time > '2000-01-01T00:00:00Z' group by time(1s), * fill(0)  limit 2147483647`,
 			exp:     `{"results":[{"error":"too many points in the group by interval. maybe you forgot to specify a where time clause?"}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
 			name:    "limit1 higher than MaxGroupBy but the number of data points is less than MaxGroupBy",
-			command: `select mean(foo)  from "limit"  where  time >= '2009-11-10T23:00:02Z' and time < '2009-11-10T23:00:03Z' group by time(1s), * fill(0)  limit 2147483647`,
-			exp:     `{"results":[{"series":[{"name":"limit","tags":{"tennant":"paul"},"columns":["time","mean"],"values":[["2009-11-10T23:00:02Z",2]]}]}]}`,
+			command: `select mean(foo)  from "limited"  where  time >= '2009-11-10T23:00:02Z' and time < '2009-11-10T23:00:03Z' group by time(1s), * fill(0)  limit 2147483647`,
+			exp:     `{"results":[{"series":[{"name":"limited","tags":{"tennant":"paul"},"columns":["time","mean"],"values":[["2009-11-10T23:00:02Z",2]]},{"name":"limited","tags":{"tennant":"todd"},"columns":["time","mean"],"values":[["2009-11-10T23:00:02Z",0]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 	}...)

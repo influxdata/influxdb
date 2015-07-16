@@ -7,6 +7,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta"
@@ -26,11 +27,18 @@ type QueryExecutor struct {
 		Authenticate(username, password string) (*meta.UserInfo, error)
 		RetentionPolicy(database, name string) (rpi *meta.RetentionPolicyInfo, err error)
 		UserCount() (int, error)
+		ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error)
+		NodeID() uint64
 	}
 
 	// Executes statements relating to meta data.
 	MetaStatementExecutor interface {
 		ExecuteStatement(stmt influxql.Statement) *influxql.Result
+	}
+
+	// Maps shards for queries.
+	ShardMapper interface {
+		CreateMapper(shard meta.ShardInfo, stmt string, chunkSize int) (Mapper, error)
 	}
 
 	Logger *log.Logger
@@ -45,11 +53,6 @@ func NewQueryExecutor(store *Store) *QueryExecutor {
 		store:  store,
 		Logger: log.New(os.Stderr, "[query] ", log.LstdFlags),
 	}
-}
-
-// Begin is for influxql/engine.go to use to get a transaction object to start the query
-func (q *QueryExecutor) Begin() (influxql.Tx, error) {
-	return newTx(q.MetaStore, q.store), nil
 }
 
 // Authorize user u to execute query q on database.
@@ -201,6 +204,59 @@ func (q *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chu
 	return results, nil
 }
 
+// Plan creates an execution plan for the given SelectStatement and returns an Executor.
+func (q *QueryExecutor) plan(stmt *influxql.SelectStatement, chunkSize int) (Executor, error) {
+	shards := map[uint64]meta.ShardInfo{} // Shards requiring mappers.
+
+	// Replace instances of "now()" with the current time, and check the resultant times.
+	stmt.Condition = influxql.Reduce(stmt.Condition, &influxql.NowValuer{Now: time.Now().UTC()})
+	tmin, tmax := influxql.TimeRange(stmt.Condition)
+	if tmax.IsZero() {
+		tmax = time.Now()
+	}
+	if tmin.IsZero() {
+		tmin = time.Unix(0, 0)
+	}
+
+	for _, src := range stmt.Sources {
+		mm, ok := src.(*influxql.Measurement)
+		if !ok {
+			return nil, fmt.Errorf("invalid source type: %#v", src)
+		}
+
+		// Build the set of target shards. Using shard IDs as keys ensures each shard ID
+		// occurs only once.
+		shardGroups, err := q.MetaStore.ShardGroupsByTimeRange(mm.Database, mm.RetentionPolicy, tmin, tmax)
+		if err != nil {
+			return nil, err
+		}
+		for _, g := range shardGroups {
+			for _, sh := range g.Shards {
+				shards[sh.ID] = sh
+			}
+		}
+	}
+
+	// Build the Mappers, one per shard.
+	mappers := []Mapper{}
+	for _, sh := range shards {
+		m, err := q.ShardMapper.CreateMapper(sh, stmt.String(), chunkSize)
+		if err != nil {
+			return nil, err
+		}
+		if m == nil {
+			// No data for this shard, skip it.
+			continue
+		}
+		mappers = append(mappers, m)
+	}
+
+	if stmt.IsRawQuery && !stmt.HasDistinct() {
+		return NewRawExecutor(stmt, mappers, chunkSize), nil
+	}
+	return NewAggregateExecutor(stmt, mappers), nil
+}
+
 // executeSelectStatement plans and executes a select statement against a database.
 func (q *QueryExecutor) executeSelectStatement(statementID int, stmt *influxql.SelectStatement, results chan *influxql.Result, chunkSize int) error {
 	// Perform any necessary query re-writing.
@@ -210,8 +266,7 @@ func (q *QueryExecutor) executeSelectStatement(statementID int, stmt *influxql.S
 	}
 
 	// Plan statement execution.
-	p := influxql.NewPlanner(q)
-	e, err := p.Plan(stmt, chunkSize)
+	e, err := q.plan(stmt, chunkSize)
 	if err != nil {
 		return err
 	}

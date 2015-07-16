@@ -315,6 +315,19 @@ func (m *Measurement) SeriesKeys() []string {
 	return keys
 }
 
+// ValidateGroupBy ensures that the GROUP BY is not a field.
+func (m *Measurement) ValidateGroupBy(stmt *influxql.SelectStatement) error {
+	for _, d := range stmt.Dimensions {
+		switch e := d.Expr.(type) {
+		case *influxql.VarRef:
+			if !m.HasTagKey(e.Val) {
+				return fmt.Errorf("can not use field in GROUP BY clause: %s", e.Val)
+			}
+		}
+	}
+	return nil
+}
+
 // HasTagKey returns true if at least one series in this measurement has written a value for the passed in tag key
 func (m *Measurement) HasTagKey(k string) bool {
 	m.mu.RLock()
