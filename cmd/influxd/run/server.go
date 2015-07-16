@@ -86,7 +86,7 @@ func NewServer(c *Config, version string) (*Server, error) {
 	s.TSDBStore.WALPartitionFlushDelay = time.Duration(c.Data.WALPartitionFlushDelay)
 
 	// Set the shard mapper
-	s.ShardMapper = cluster.NewShardMapper()
+	s.ShardMapper = cluster.NewShardMapper(time.Duration(c.Cluster.ShardMapperTimeout))
 	s.ShardMapper.MetaStore = s.MetaStore
 	s.ShardMapper.TSDBStore = s.TSDBStore
 
@@ -174,7 +174,6 @@ func (s *Server) appendHTTPDService(c httpd.Config) {
 	srv := httpd.NewService(c)
 	srv.Handler.MetaStore = s.MetaStore
 	srv.Handler.QueryExecutor = s.QueryExecutor
-	srv.Handler.TSDBStore = s.TSDBStore
 	srv.Handler.PointsWriter = s.PointsWriter
 	srv.Handler.Version = s.version
 
