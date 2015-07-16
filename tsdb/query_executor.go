@@ -38,7 +38,7 @@ type QueryExecutor struct {
 
 	// Maps shards for queries.
 	ShardMapper interface {
-		CreateMapper(shardID uint64, stmt string, chunkSize int) (Mapper, error)
+		CreateMapper(shard meta.ShardInfo, stmt string, chunkSize int) (Mapper, error)
 	}
 
 	Logger *log.Logger
@@ -240,7 +240,7 @@ func (q *QueryExecutor) plan(stmt *influxql.SelectStatement, chunkSize int) (Exe
 	// Build the Mappers, one per shard.
 	mappers := []Mapper{}
 	for _, sh := range shards {
-		m, err := q.ShardMapper.CreateMapper(sh.ID, stmt.String(), chunkSize)
+		m, err := q.ShardMapper.CreateMapper(sh, stmt.String(), chunkSize)
 		if err != nil {
 			return nil, err
 		}

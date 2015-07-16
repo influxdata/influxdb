@@ -470,8 +470,8 @@ type testShardMapper struct {
 	store *Store
 }
 
-func (t *testShardMapper) CreateMapper(shardID uint64, stmt string, chunkSize int) (Mapper, error) {
-	m, err := t.store.CreateMapper(shardID, stmt, chunkSize)
+func (t *testShardMapper) CreateMapper(shard meta.ShardInfo, stmt string, chunkSize int) (Mapper, error) {
+	m, err := t.store.CreateMapper(shard.ID, stmt, chunkSize)
 	return m, err
 }
 
