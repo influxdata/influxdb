@@ -257,9 +257,7 @@ func TestWritePointsAndExecuteTwoShardsTagSetOrdering(t *testing.T) {
 		sgFunc: func(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error) {
 			return []meta.ShardGroupInfo{
 				{
-					ID:        sgID,
-					StartTime: time.Now().Add(-4 * time.Hour),
-					EndTime:   time.Now().Add(-3 * time.Hour),
+					ID: sgID,
 					Shards: []meta.ShardInfo{
 						{
 							ID:       uint64(sID0),
@@ -268,9 +266,7 @@ func TestWritePointsAndExecuteTwoShardsTagSetOrdering(t *testing.T) {
 					},
 				},
 				{
-					ID:        sgID,
-					StartTime: time.Now().Add(-3 * time.Hour),
-					EndTime:   time.Now().Add(-2 * time.Hour),
+					ID: sgID,
 					Shards: []meta.ShardInfo{
 						{
 							ID:       uint64(sID1),
@@ -333,9 +329,12 @@ func TestWritePointsAndExecuteTwoShardsTagSetOrdering(t *testing.T) {
 		expected  string // Expected results, rendered as a string
 	}{
 		{
-			stmt:      `SELECT sum(value) FROM cpu GROUP BY host`,
-			chunkSize: 1,
-			expected:  `[{"name":"cpu","tags":{"host":"x"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",300]]},{"name":"cpu","tags":{"host":"y"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",500]]},{"name":"cpu","tags":{"host":"z"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",700]]}]`,
+			stmt:     `SELECT sum(value) FROM cpu GROUP BY host`,
+			expected: `[{"name":"cpu","tags":{"host":"x"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",300]]},{"name":"cpu","tags":{"host":"y"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",500]]},{"name":"cpu","tags":{"host":"z"},"columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",700]]}]`,
+		},
+		{
+			stmt:     `SELECT value FROM cpu GROUP BY host`,
+			expected: `[{"name":"cpu","tags":{"host":"x"},"columns":["time","value"],"values":[["1970-01-01T00:00:02Z",300]]},{"name":"cpu","tags":{"host":"y"},"columns":["time","value"],"values":[["1970-01-01T00:00:01Z",100],["1970-01-01T00:00:03Z",400]]},{"name":"cpu","tags":{"host":"z"},"columns":["time","value"],"values":[["1970-01-01T00:00:01Z",200],["1970-01-01T00:00:03Z",500]]}]`,
 		},
 	}
 
