@@ -208,20 +208,20 @@ func (q *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chu
 func (q *QueryExecutor) plan(stmt *influxql.SelectStatement, chunkSize int) (Executor, error) {
 	shards := map[uint64]meta.ShardInfo{} // Shards requiring mappers.
 
+	// Replace instances of "now()" with the current time, and check the resultant times.
+	stmt.Condition = influxql.Reduce(stmt.Condition, &influxql.NowValuer{Now: time.Now().UTC()})
+	tmin, tmax := influxql.TimeRange(stmt.Condition)
+	if tmax.IsZero() {
+		tmax = time.Now()
+	}
+	if tmin.IsZero() {
+		tmin = time.Unix(0, 0)
+	}
+
 	for _, src := range stmt.Sources {
 		mm, ok := src.(*influxql.Measurement)
 		if !ok {
 			return nil, fmt.Errorf("invalid source type: %#v", src)
-		}
-
-		// Replace instances of "now()" with the current time, and check the resultant times.
-		stmt.Condition = influxql.Reduce(stmt.Condition, &influxql.NowValuer{Now: time.Now().UTC()})
-		tmin, tmax := influxql.TimeRange(stmt.Condition)
-		if tmax.IsZero() {
-			tmax = time.Now()
-		}
-		if tmin.IsZero() {
-			tmin = time.Unix(0, 0)
 		}
 
 		// Build the set of target shards. Using shard IDs as keys ensures each shard ID
