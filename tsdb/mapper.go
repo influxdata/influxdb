@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/boltdb/bolt"
 	"github.com/influxdb/influxdb/influxql"
@@ -28,7 +29,7 @@ type rawMapperOutput struct {
 }
 
 func (mo *rawMapperOutput) key() string {
-	return mo.Name + string(marshalTags(mo.Tags))
+	return formMeasurementTagSetKey(mo.Name, mo.Tags)
 }
 
 // RawMapper is for retrieving data, for a raw query, for a single shard.
@@ -196,7 +197,7 @@ type aggMapperOutput struct {
 }
 
 func (amo *aggMapperOutput) key() string {
-	return amo.Name + string(marshalTags(amo.Tags))
+	return formMeasurementTagSetKey(amo.Name, amo.Tags)
 }
 
 // AggMapper is for retrieving data, for an aggregate query, from a given shard.
@@ -521,7 +522,7 @@ func newTagSetCursor(m string, t map[string]string, c []*seriesCursor, d *FieldC
 }
 
 func (tsc *tagSetCursor) key() string {
-	return tsc.measurement + string(marshalTags(tsc.tags))
+	return formMeasurementTagSetKey(tsc.measurement, tsc.tags)
 }
 
 // Next returns the next matching series-key, timestamp and byte slice for the tagset. Filtering
@@ -767,6 +768,13 @@ func matchesWhere(f influxql.Expr, fields map[string]interface{}) bool {
 		return false
 	}
 	return true
+}
+
+func formMeasurementTagSetKey(name string, tags map[string]string) string {
+	if len(tags) == 0 {
+		return name
+	}
+	return strings.Join([]string{name, string(marshalTags(tags))}, "|")
 }
 
 // btou64 converts an 8-byte slice into an uint64.
