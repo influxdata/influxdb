@@ -1227,16 +1227,44 @@ func (m *ErrorResponse) GetHeader() *ResponseHeader {
 }
 
 type FetchDataRequest struct {
-	XXX_unrecognized []byte `json:"-"`
+	Index            *uint64 `protobuf:"varint,1,req" json:"Index,omitempty"`
+	Term             *uint64 `protobuf:"varint,2,req" json:"Term,omitempty"`
+	Blocking         *bool   `protobuf:"varint,3,opt,def=0" json:"Blocking,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
 }
 
 func (m *FetchDataRequest) Reset()         { *m = FetchDataRequest{} }
 func (m *FetchDataRequest) String() string { return proto.CompactTextString(m) }
 func (*FetchDataRequest) ProtoMessage()    {}
 
+const Default_FetchDataRequest_Blocking bool = false
+
+func (m *FetchDataRequest) GetIndex() uint64 {
+	if m != nil && m.Index != nil {
+		return *m.Index
+	}
+	return 0
+}
+
+func (m *FetchDataRequest) GetTerm() uint64 {
+	if m != nil && m.Term != nil {
+		return *m.Term
+	}
+	return 0
+}
+
+func (m *FetchDataRequest) GetBlocking() bool {
+	if m != nil && m.Blocking != nil {
+		return *m.Blocking
+	}
+	return Default_FetchDataRequest_Blocking
+}
+
 type FetchDataResponse struct {
 	Header           *ResponseHeader `protobuf:"bytes,1,req" json:"Header,omitempty"`
-	Data             []byte          `protobuf:"bytes,2,opt" json:"Data,omitempty"`
+	Index            *uint64         `protobuf:"varint,2,req" json:"Index,omitempty"`
+	Term             *uint64         `protobuf:"varint,3,req" json:"Term,omitempty"`
+	Data             []byte          `protobuf:"bytes,4,opt" json:"Data,omitempty"`
 	XXX_unrecognized []byte          `json:"-"`
 }
 
@@ -1249,6 +1277,20 @@ func (m *FetchDataResponse) GetHeader() *ResponseHeader {
 		return m.Header
 	}
 	return nil
+}
+
+func (m *FetchDataResponse) GetIndex() uint64 {
+	if m != nil && m.Index != nil {
+		return *m.Index
+	}
+	return 0
+}
+
+func (m *FetchDataResponse) GetTerm() uint64 {
+	if m != nil && m.Term != nil {
+		return *m.Term
+	}
+	return 0
 }
 
 func (m *FetchDataResponse) GetData() []byte {

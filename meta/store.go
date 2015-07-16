@@ -85,6 +85,7 @@ type Store struct {
 	err     chan error
 	closing chan struct{}
 	wg      sync.WaitGroup
+	changed chan struct{}
 
 	retentionAutoCreate bool
 
@@ -135,6 +136,7 @@ type raftState interface {
 	RaftEnabled() bool
 	Sync(index uint64, timeout time.Duration) error
 	Invalidate() error
+	Close() error
 }
 
 // localRaft is a consensus strategy that uses a local raft implementation fo
@@ -166,7 +168,7 @@ func (r *localRaft) OpenRaft() error {
 	config.EnableSingleNode = (len(s.peers) == 0)
 
 	// Ensure our addr is in the peer list
-	if !contains(s.peers, s.Addr.String()) {
+	if config.EnableSingleNode {
 		s.peers = append(s.peers, s.Addr.String())
 	}
 
@@ -199,6 +201,10 @@ func (r *localRaft) OpenRaft() error {
 	}
 	s.raft = ra
 
+	return nil
+}
+
+func (r *localRaft) Close() error {
 	return nil
 }
 
@@ -264,19 +270,58 @@ func (r *remoteRaft) RaftEnabled() bool {
 	return false
 }
 
+func (r *remoteRaft) updateMetaData(ms *Data) {
+	if ms == nil {
+		return
+	}
+
+	updated := false
+	r.store.mu.RLock()
+	if ms.Index > r.store.data.Index {
+		updated = true
+	}
+	r.store.mu.RUnlock()
+
+	if updated {
+		r.store.Logger.Printf("Updating metastore to term=%v index=%v", ms.Term, ms.Index)
+		r.store.mu.Lock()
+		r.store.data = ms
+		r.store.mu.Unlock()
+	}
+}
+
 func (r *remoteRaft) Invalidate() error {
-	ms, err := r.store.rpc.fetchMetaData()
+	ms, err := r.store.rpc.fetchMetaData(false)
 	if err != nil {
 		return err
 	}
 
-	r.store.mu.Lock()
-	r.store.data = ms
-	r.store.mu.Unlock()
+	r.updateMetaData(ms)
 	return nil
 }
 
 func (r *remoteRaft) OpenRaft() error {
+	go func() {
+		for {
+			select {
+			case <-r.store.closing:
+				return
+			default:
+			}
+
+			ms, err := r.store.rpc.fetchMetaData(true)
+			if err != nil {
+				r.store.Logger.Printf("fetch metastore: %v", err)
+				time.Sleep(time.Second)
+				continue
+			}
+			r.updateMetaData(ms)
+		}
+	}()
+	return nil
+}
+
+func (r *remoteRaft) Close() error {
 	return nil
 }
 
@@ -308,6 +353,7 @@ func NewStore(c Config) *Store {
 		ready:   make(chan struct{}),
 		err:     make(chan error),
 		closing: make(chan struct{}),
+		changed: make(chan struct{}),
 
 		retentionAutoCreate: c.RetentionAutoCreate,
 
@@ -449,6 +495,19 @@ func (s *Store) Close() error {
 	return s.close()
 }
 
+// WaitForDataChanged will block the current goroutine until the metastore index has
+// be updated.
+func (s *Store) WaitForDataChanged() error {
+	for {
+		select {
+		case <-s.closing:
+			return errors.New("closing")
+		case <-s.changed:
+			return nil
+		}
+	}
+}
+
 func (s *Store) close() error {
 	// Check if store has already been closed.
 	if !s.opened {
@@ -460,6 +519,10 @@ func (s *Store) close() error {
 	close(s.closing)
 	// FIXME(benbjohnson): s.wg.Wait()
 
+	if s.raftState != nil {
+		s.raftState.Close()
+		s.raftState = nil
+	}
 	// Shutdown raft.
 	if s.raft != nil {
 		s.raft.Shutdown()
@@ -1697,6 +1760,8 @@ func (fsm *storeFSM) Apply(l *raft.Log) interface{} {
 	// Copy term and index to new metadata.
 	fsm.data.Term = l.Term
 	fsm.data.Index = l.Index
+	close(s.changed)
+	s.changed = make(chan struct{})
 
 	return err
 }

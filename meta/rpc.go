@@ -26,6 +26,7 @@ type RPC struct {
 		AddPeer(host string) error
 		CreateNode(host string) (*NodeInfo, error)
 		NodeByHost(host string) (*NodeInfo, error)
+		WaitForDataChanged() error
 	}
 }
 
@@ -92,12 +93,16 @@ func (r *RPC) handleRPCConn(conn net.Conn) {
 		r.Logger.Printf("recv %v request from: %v", rpcType, conn.RemoteAddr())
 		switch rpcType {
 		case internal.RPCType_FetchData:
-			resp, err := r.handleFetchData()
+			var req internal.FetchDataRequest
+			if err := proto.Unmarshal(buf, &req); err != nil {
+				return internal.RPCType_Error, nil, fmt.Errorf("fetch request unmarshal: %v", err)
+			}
+			resp, err := r.handleFetchData(&req)
 			return rpcType, resp, err
 		case internal.RPCType_Join:
 			var req internal.JoinRequest
 			if err := proto.Unmarshal(buf, &req); err != nil {
-				r.Logger.Printf("join request unmarshal: %v", err)
+				return internal.RPCType_Error, nil, fmt.Errorf("join request unmarshal: %v", err)
 			}
 			resp, err := r.handleJoinRequest(&req)
 			return rpcType, resp, err
@@ -153,15 +158,39 @@ func (r *RPC) sendError(conn net.Conn, msg string) {
 }
 
 // handleFetchData handles a request for the current nodes meta data
-func (r *RPC) handleFetchData() (*internal.FetchDataResponse, error) {
-	data := r.store.cachedData()
-	b, err := data.MarshalBinary()
+func (r *RPC) handleFetchData(req *internal.FetchDataRequest) (*internal.FetchDataResponse, error) {
+	var (
+		b    []byte
+		data *Data
+		err  error
+	)
+
+	for {
+		data = r.store.cachedData()
+		if data.Index != req.GetIndex() {
+			b, err = data.MarshalBinary()
+			if err != nil {
+				return nil, err
+			}
+			break
+		}
+
+		if !req.GetBlocking() {
+			break
+		}
+
+		if err := r.store.WaitForDataChanged(); err != nil {
+			return nil, err
+		}
+	}
 
 	return &internal.FetchDataResponse{
 		Header: &internal.ResponseHeader{
 			OK: proto.Bool(true),
 		},
-		Data: b}, err
+		Index: proto.Uint64(data.Index),
+		Term:  proto.Uint64(data.Term),
+		Data:  b}, nil
 }
 
 // handleJoinRequest handles a request to join the cluster
@@ -224,23 +253,37 @@ func (r *RPC) pack(typ internal.RPCType, b []byte) []byte {
 
 // fetchMetaData returns the latest copy of the meta store data from the current
 // leader.
-func (r *RPC) fetchMetaData() (*Data, error) {
+func (r *RPC) fetchMetaData(blocking bool) (*Data, error) {
 	// Retrieve the current known leader.
 	leader := r.store.Leader()
 	if leader == "" {
 		return nil, errors.New("no leader")
 	}
 
-	resp, err := r.call(leader, &internal.FetchDataRequest{})
+	var index, term uint64
+	data := r.store.cachedData()
+	if data != nil {
+		index = data.Index
+		term = data.Index
+	}
+	resp, err := r.call(leader, &internal.FetchDataRequest{
+		Index:    proto.Uint64(index),
+		Term:     proto.Uint64(term),
+		Blocking: proto.Bool(blocking),
+	})
 	if err != nil {
 		return nil, err
 	}
 
 	switch t := resp.(type) {
 	case *internal.FetchDataResponse:
+		// If data is nil, then the term and index we sent matches the leader
+		if t.GetData() == nil {
+			return nil, nil
+		}
 		ms := &Data{}
 		if err := ms.UnmarshalBinary(t.GetData()); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("rpc unmarshal metadata: %v", err)
 		}
 		return ms, nil
 	case *internal.ErrorResponse:
@@ -306,22 +349,27 @@ func (r *RPC) call(dest string, req proto.Message) (proto.Message, error) {
 
 	b, err := proto.Marshal(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("rpc marshal: %v", err)
 	}
 
 	// Write request size & bytes.
 	if _, err := conn.Write(r.pack(rpcType, b)); err != nil {
-		return nil, fmt.Errorf("write rpc: %s", err)
+		return nil, fmt.Errorf("write %v rpc: %s", rpcType, err)
 	}
 
 	data, err := ioutil.ReadAll(conn)
 	if err != nil {
-		return nil, fmt.Errorf("read rpc: %v", err)
+		return nil, fmt.Errorf("read %v rpc: %v", rpcType, err)
+	}
+
+	// Should always have a size and type
+	if exp := 16; len(data) < exp {
+		return nil, fmt.Errorf("rpc %v failed: short read: got %v, exp %v", rpcType, len(data), exp)
 	}
 
 	sz := btou64(data[0:8])
 	if len(data[8:]) != int(sz) {
-		return nil, fmt.Errorf("rpc failed: short read: got %v, exp %v", len(data[8:]), sz)
+		return nil, fmt.Errorf("rpc %v failed: short read: got %v, exp %v", rpcType, len(data[8:]), sz)
 	}
 
 	// See what response type we got back, could get a general error response
@@ -341,12 +389,12 @@ func (r *RPC) call(dest string, req proto.Message) (proto.Message, error) {
 	}
 
 	if err := proto.Unmarshal(data, resp); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("rpc unmarshal: %v", err)
 	}
 
 	if reply, ok := resp.(Reply); ok {
 		if !reply.GetHeader().GetOK() {
-			return nil, fmt.Errorf("rpc failed: %s", reply.GetHeader().GetError())
+			return nil, fmt.Errorf("rpc %v failed: %s", rpcType, reply.GetHeader().GetError())
 		}
 	}
 
