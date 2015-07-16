@@ -11,8 +11,10 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"reflect"
 	"sort"
 	"strings"
+	"time"
 )
 
 // Iterator represents a forward-only iterator over a set of points.
@@ -39,19 +41,8 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 		return MapRawQuery, nil
 	}
 
-	// Ensure that there is either a single argument or if for percentile, two
-	if c.Name == "percentile" {
-		if len(c.Args) != 2 {
-			return nil, fmt.Errorf("expected two arguments for %s()", c.Name)
-		}
-	} else if strings.HasSuffix(c.Name, "derivative") {
-		// derivatives require a field name and optional duration
-		if len(c.Args) == 0 {
-			return nil, fmt.Errorf("expected field name argument for %s()", c.Name)
-		}
-	} else if len(c.Args) != 1 {
-		return nil, fmt.Errorf("expected one argument for %s()", c.Name)
-	}
+	// Note: We can assume each function has a valid number of arguments
+	// after checks in `validateAggregates`.
 
 	// derivative can take a nested aggregate function, everything else expects
 	// a variable reference as the first arg
@@ -117,6 +108,12 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 			return InitializeMapFunc(fn)
 		}
 		return MapRawQuery, nil
+	case "integral":
+		timeUnit, err := timeUnitForIntegral(c)
+		if err != nil {
+			return nil, err
+		}
+		return makeMapIntegral(timeUnit), nil
 	default:
 		return nil, fmt.Errorf("function not found: %q", c.Name)
 	}
@@ -173,6 +170,12 @@ func InitializeReduceFunc(c *Call) (ReduceFunc, error) {
 			return InitializeReduceFunc(fn)
 		}
 		return nil, fmt.Errorf("expected function argument to %s", c.Name)
+	case "integral":
+		timeUnit, err := timeUnitForIntegral(c)
+		if err != nil {
+			return nil, err
+		}
+		return makeReduceIntegral(timeUnit), nil
 	default:
 		return nil, fmt.Errorf("function not found: %q", c.Name)
 	}
@@ -1112,3 +1115,118 @@ type rawOutputs []*rawQueryMapOutput
 func (a rawOutputs) Len() int           { return len(a) }
 func (a rawOutputs) Less(i, j int) bool { return a[i].Time < a[j].Time }
 func (a rawOutputs) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+
+// Higher-order function for making a map function for integration with a left Riemann sum.
+func makeMapIntegral(timeUnit time.Duration) MapFunc {
+	return func(iter Iterator) interface{} {
+		result := chunkIntegral{}
+
+		// Fetch the first point, bailing out if there isn't one.
+		_, firstTime, firstVal := iter.Next()
+		if firstTime == 0 {
+			return nil
+		}
+		result.StartTime = float64(firstTime)
+
+		// Fetch the second value (we need at least two values for an integral).
+		_, secondTime, secondVal := iter.Next()
+
+		if secondTime == 0 {
+			// NOTE: relies on a multi-point block never being split into single point map chunks.
+			return nil
+		}
+
+		// Compute the area of the first block.
+		result.Area = computeArea(toFloat64(firstVal), float64(firstTime), float64(secondTime), timeUnit)
+
+		// Now, we use `result.EndTime` to store the timestamp of the *previous* data point
+		// whilst iterating. Similarly `result.EndValue` is used to store the value.
+		// The equation we're computing is: area_i = val_(i - 1) * (t_i - t_(i - 1))
+		result.EndTime = float64(secondTime)
+		result.EndValue = toFloat64(secondVal)
+
+		// Compute the area of subsequent blocks.
+		for _, currTime, currVal := iter.Next(); currTime != 0; _, currTime, currVal = iter.Next() {
+			currTimeFloat := float64(currTime)
+
+			result.Area += computeArea(result.EndValue, result.EndTime, currTimeFloat, timeUnit)
+
+			// Update the previous values for the next iteration.
+			result.EndTime = currTimeFloat
+			result.EndValue = toFloat64(currVal)
+		}
+
+		return result
+	}
+}
+
+// Sum the areas computed by MapIntegral.
+func makeReduceIntegral(timeUnit time.Duration) ReduceFunc {
+	return func(values []interface{}) interface{} {
+		var total float64
+
+		length := reflect.ValueOf(values).Len()
+
+		for i := 0; i < length; i++ {
+			if values[i] == nil {
+				continue
+			}
+			v := values[i].(chunkIntegral)
+
+			// Add area from chunk.
+			total += v.Area
+
+			// Add area between this chunk and the next one.
+			if i+1 < length {
+				nextChunk := values[i+1].(chunkIntegral)
+				total += computeArea(v.EndValue, v.EndTime, nextChunk.StartTime, timeUnit)
+			}
+		}
+
+		return total
+	}
+}
+
+// Compute the area of a single block (for use during integration).
+func computeArea(val float64, startTime float64, endTime float64, timeUnit time.Duration) float64 {
+	return val * (endTime - startTime) / float64(timeUnit.Nanoseconds())
+}
+
+// Return the time unit for a given call to `integral`.
+func timeUnitForIntegral(c *Call) (time.Duration, error) {
+	oneSec, _ := time.ParseDuration("1s")
+	switch len(c.Args) {
+	case 1:
+		return oneSec, nil
+	case 2:
+		switch c.Args[1].(type) {
+		case *DurationLiteral:
+			return c.Args[1].(*DurationLiteral).Val, nil
+		default:
+			return oneSec, fmt.Errorf("Second argument to integral aggregator isn't a duration.")
+		}
+	default:
+		return oneSec, fmt.Errorf("Unreachable: wrong number of arguments to integral aggregator")
+	}
+}
+
+type chunkIntegral struct {
+	Area      float64
+	StartTime float64
+	EndTime   float64
+	EndValue  float64
+}
+
+// Convert a value of a numeric type to a float64.
+func toFloat64(x interface{}) float64 {
+	switch x.(type) {
+	case uint64:
+		return float64(x.(uint64))
+	case int64:
+		return float64(x.(int64))
+	case float64:
+		return x.(float64)
+	default:
+		panic("Not a numeric type used in InfluxDB")
+	}
+}
