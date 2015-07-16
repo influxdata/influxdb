@@ -21,13 +21,6 @@ const (
 	IgnoredChunkSize = 0
 )
 
-// MapperResponse is the structure responses from mappers take over the network. Tagsets
-// is only set with the first response. Data will be nil when the Mapper has no more data.
-type MapperResponse struct {
-	TagSets []string `json:"tagSets,omitempty"`
-	Data    []byte   `json:"data"`
-}
-
 // Mapper is the interface all Mapper types must implement.
 type Mapper interface {
 	Open() error
