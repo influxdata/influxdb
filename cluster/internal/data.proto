@@ -41,6 +41,8 @@ message MapShardRequest {
 }
 
 message MapShardResponse {
-    required bytes Data = 1;
-    repeated string TagSets = 2;
+    required int32 Code = 1;
+    optional string Message = 2;
+    required bytes Data = 3;
+    repeated string TagSets = 4;
 }

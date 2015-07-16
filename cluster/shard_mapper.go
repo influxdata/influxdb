@@ -1,14 +1,12 @@
 package cluster
 
 import (
-	"encoding/json"
-	"io"
-	"net/http"
-	"net/url"
-	"strconv"
+	"net"
+	"time"
 
 	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/tsdb"
+	"gopkg.in/fatih/pool.v2"
 )
 
 const (
@@ -66,10 +64,10 @@ type RemoteMapper struct {
 
 	tagsets []string
 
-	resp    *http.Response
-	decoder *json.Decoder
+	pool    *clientPool
+	timeout time.Duration
 
-	buffer     tsdb.MapperResponse
+	buffer     []byte
 	bufferSent bool
 }
 
@@ -85,41 +83,61 @@ func NewRemoteMaper(nodeID, shardID uint64, stmt string, chunkSize int) *RemoteM
 
 // Open connects to the remote node and starts receiving data.
 func (r *RemoteMapper) Open() error {
-	node, err := r.MetaStore.Node(r.nodeID)
+	c, err := r.dial(r.nodeID)
 	if err != nil {
 		return err
 	}
 
-	v := url.Values{}
-	v.Set("shard", string(r.shardID))
-	v.Set("q", r.stmt)
-	if r.chunkSize != 0 {
-		v.Set("chunksize", strconv.Itoa(r.chunkSize))
+	conn, ok := c.(*pool.PoolConn)
+	if !ok {
+		panic("wrong connection type")
 	}
+	defer func(conn net.Conn) {
+		conn.Close() // return to pool
+	}(conn)
 
-	u := url.URL{
-		Scheme:   "http",
-		Host:     node.Host,
-		RawQuery: v.Encode(),
-		Path:     "/shard_mapping",
-	}
+	// Build Map request.
+	var request MapShardRequest
+	request.SetShardID(r.shardID)
+	request.SetQuery(r.stmt)
+	request.SetChunkSize(int32(r.chunkSize))
 
-	resp, err := http.Get(u.String())
+	// Marshal into protocol buffers.
+	buf, err := request.MarshalBinary()
 	if err != nil {
 		return err
 	}
-	r.resp = resp
 
-	// Set up the decoder.
-	lr := io.LimitReader(r.resp.Body, MAX_MAP_RESPONSE_SIZE)
-	r.decoder = json.NewDecoder(lr)
+	// Write request.
+	conn.SetWriteDeadline(time.Now().Add(r.timeout))
+	if err := WriteTLV(conn, mapShardRequestMessage, buf); err != nil {
+		conn.MarkUnusable()
+		return err
+	}
+
+	// Read the response.
+	conn.SetReadDeadline(time.Now().Add(r.timeout))
+	_, buf, err = ReadTLV(conn)
+	if err != nil {
+		conn.MarkUnusable()
+		return err
+	}
+
+	// Unmarshal response.
+	var response MapShardResponse
+	if err := response.UnmarshalBinary(buf); err != nil {
+		return err
+	}
+
+	if r.Code() != 0 {
+		return fmt.Errorf("error code %d: %s", response.Code(), response.Message())
+	}
 
 	// Decode the first response to get the TagSets.
-	err = r.decoder.Decode(&r.buffer)
-	if err != nil {
-		return err
-	}
-	r.tagsets = r.buffer.TagSets
+	r.tagsets = response.TagSets()
+
+	// Buffer the remaining data.
+	r.buffer = response.Data()
 
 	return nil
 }
@@ -132,21 +150,27 @@ func (r *RemoteMapper) TagSets() []string {
 func (r *RemoteMapper) NextChunk() (interface{}, error) {
 	if !r.bufferSent {
 		r.bufferSent = true
-		return r.buffer.Data, nil
+		// Decode buffer and return
 	}
-
-	mr := tsdb.MapperResponse{}
-	err := r.decoder.Decode(&mr)
-	if err != nil {
-		return nil, err
-	}
-
-	return mr.Data, nil
+	return nil, nil
 }
 
-// Close the response body
+// Close the Mapper
 func (r *RemoteMapper) Close() {
-	if r.resp != nil && r.resp.Body != nil {
-		r.resp.Body.Close()
+}
+
+func (r *RemoteMapper) dial(nodeID uint64) (net.Conn, error) {
+	// If we don't have a connection pool for that addr yet, create one
+	_, ok := r.pool.getPool(nodeID)
+	if !ok {
+		factory := &connFactory{nodeID: nodeID, clientPool: r.pool, timeout: r.timeout}
+		factory.metaStore = r.MetaStore
+
+		p, err := pool.NewChannelPool(1, 3, factory.dial)
+		if err != nil {
+			return nil, err
+		}
+		r.pool.setPool(nodeID, p)
 	}
+	return r.pool.conn(nodeID)
 }

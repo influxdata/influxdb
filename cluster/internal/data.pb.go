@@ -235,14 +235,30 @@ func (m *MapShardRequest) GetChunkSize() int32 {
 }
 
 type MapShardResponse struct {
-	Data             []byte   `protobuf:"bytes,1,req" json:"Data,omitempty"`
-	TagSets          []string `protobuf:"bytes,2,rep" json:"TagSets,omitempty"`
+	Code             *int32   `protobuf:"varint,1,req" json:"Code,omitempty"`
+	Message          *string  `protobuf:"bytes,2,opt" json:"Message,omitempty"`
+	Data             []byte   `protobuf:"bytes,3,req" json:"Data,omitempty"`
+	TagSets          []string `protobuf:"bytes,4,rep" json:"TagSets,omitempty"`
 	XXX_unrecognized []byte   `json:"-"`
 }
 
 func (m *MapShardResponse) Reset()         { *m = MapShardResponse{} }
 func (m *MapShardResponse) String() string { return proto.CompactTextString(m) }
 func (*MapShardResponse) ProtoMessage()    {}
+
+func (m *MapShardResponse) GetCode() int32 {
+	if m != nil && m.Code != nil {
+		return *m.Code
+	}
+	return 0
+}
+
+func (m *MapShardResponse) GetMessage() string {
+	if m != nil && m.Message != nil {
+		return *m.Message
+	}
+	return ""
+}
 
 func (m *MapShardResponse) GetData() []byte {
 	if m != nil {
