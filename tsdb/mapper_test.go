@@ -48,11 +48,11 @@ func TestShardMapper_RawMapperTagSets(t *testing.T) {
 		},
 		{
 			stmt:     `SELECT value FROM cpu GROUP BY host`,
-			expected: []string{"cpuhost|serverA", "cpuhost|serverB"},
+			expected: []string{"cpu|host|serverA", "cpu|host|serverB"},
 		},
 		{
 			stmt:     `SELECT value FROM cpu GROUP BY region`,
-			expected: []string{"cpuregion|us-east"},
+			expected: []string{"cpu|region|us-east"},
 		},
 		{
 			stmt:     `SELECT value FROM cpu WHERE host='serverA'`,
@@ -365,11 +365,11 @@ func TestShardMapper_AggMapperTagSets(t *testing.T) {
 		},
 		{
 			stmt:     `SELECT sum(value) FROM cpu GROUP BY host`,
-			expected: []string{"cpuhost|serverA", "cpuhost|serverB"},
+			expected: []string{"cpu|host|serverA", "cpu|host|serverB"},
 		},
 		{
 			stmt:     `SELECT sum(value) FROM cpu GROUP BY region`,
-			expected: []string{"cpuregion|us-east"},
+			expected: []string{"cpu|region|us-east"},
 		},
 		{
 			stmt:     `SELECT sum(value) FROM cpu WHERE host='serverA'`,
