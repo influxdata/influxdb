@@ -134,6 +134,7 @@ type raftState interface {
 	Leader() string
 	RaftEnabled() bool
 	Sync(index uint64, timeout time.Duration) error
+	Invalidate() error
 }
 
 // localRaft is a consensus strategy that uses a local raft implementation fo
@@ -144,6 +145,11 @@ type localRaft struct {
 
 func (r *localRaft) RaftEnabled() bool {
 	return true
+}
+
+func (r *localRaft) Invalidate() error {
+	time.Sleep(time.Second)
+	return nil
 }
 
 func (r *localRaft) OpenRaft() error {
@@ -256,6 +262,18 @@ type remoteRaft struct {
 
 func (r *remoteRaft) RaftEnabled() bool {
 	return false
+}
+
+func (r *remoteRaft) Invalidate() error {
+	ms, err := r.store.rpc.fetchMetaData()
+	if err != nil {
+		return err
+	}
+
+	r.store.mu.Lock()
+	r.store.data = ms
+	r.store.mu.Unlock()
+	return nil
 }
 
 func (r *remoteRaft) OpenRaft() error {
@@ -1487,18 +1505,7 @@ func (s *Store) read(fn func(*Data) error) error {
 var errInvalidate = errors.New("invalidate cache")
 
 func (s *Store) invalidate() error {
-	time.Sleep(time.Second)
-
-	ms, err := s.rpc.fetchMetaData()
-	if err != nil {
-		return err
-	}
-
-	s.mu.Lock()
-	s.data = ms
-	s.mu.Unlock()
-
-	return nil
+	return s.raftState.Invalidate()
 }
 
 func (s *Store) exec(typ internal.Command_Type, desc *proto.ExtensionDesc, value interface{}) error {
