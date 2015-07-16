@@ -2,14 +2,11 @@ package tsdb
 
 import (
 	"fmt"
-	"log"
 	"math"
-	"os"
 	"sort"
 	"time"
 
 	"github.com/influxdb/influxdb/influxql"
-	"github.com/influxdb/influxdb/meta"
 )
 
 const (
@@ -42,92 +39,6 @@ type Mapper interface {
 // Executor is the interface all Executor types must implement.
 type Executor interface {
 	Execute() <-chan *influxql.Row
-}
-
-// Planner plans all types of queries.
-type Planner struct {
-	MetaStore interface {
-		ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error)
-		NodeID() uint64
-	}
-
-	Cluster interface {
-		NewMapper(shardID uint64, stmt string, chunkSize int) (Mapper, error)
-	}
-
-	store *Store
-
-	Logger *log.Logger
-}
-
-// NewPlanner returns a new planner.
-func NewPlanner(store *Store) *Planner {
-	return &Planner{
-		store:  store,
-		Logger: log.New(os.Stderr, "[planner] ", log.LstdFlags),
-	}
-}
-
-// Plan creates an execution plan for the given SelectStatement and returns an Executor.
-func (p *Planner) Plan(stmt *influxql.SelectStatement, chunkSize int) (Executor, error) {
-	shards := map[uint64]meta.ShardInfo{} // Shards requiring mappers.
-
-	for _, src := range stmt.Sources {
-		mm, ok := src.(*influxql.Measurement)
-		if !ok {
-			return nil, fmt.Errorf("invalid source type: %#v", src)
-		}
-
-		// Replace instances of "now()" with the current time, and check the resultant times.
-		stmt.Condition = influxql.Reduce(stmt.Condition, &influxql.NowValuer{Now: time.Now().UTC()})
-		tmin, tmax := influxql.TimeRange(stmt.Condition)
-		if tmax.IsZero() {
-			tmax = time.Now()
-		}
-		if tmin.IsZero() {
-			tmin = time.Unix(0, 0)
-		}
-
-		// Build the set of target shards. Using shard IDs as keys ensures each shard ID
-		// occurs only once.
-		shardGroups, err := p.MetaStore.ShardGroupsByTimeRange(mm.Database, mm.RetentionPolicy, tmin, tmax)
-		if err != nil {
-			return nil, err
-		}
-		for _, g := range shardGroups {
-			for _, sh := range g.Shards {
-				shards[sh.ID] = sh
-			}
-		}
-	}
-
-	// Build the Mappers, one per shard. If the shard is local to this node, always use
-	// that one, versus asking the cluster.
-	mappers := []Mapper{}
-	for _, sh := range shards {
-		if sh.OwnedBy(p.MetaStore.NodeID()) {
-			m, err := p.store.CreateMapper(sh.ID, stmt.String(), chunkSize)
-			if err != nil {
-				return nil, err
-			}
-			if m == nil {
-				// No data locally for this shard, skip it.
-				continue
-			}
-			mappers = append(mappers, m)
-		} else {
-			m, err := p.Cluster.NewMapper(sh.ID, stmt.String(), chunkSize)
-			if err != nil {
-				return nil, err
-			}
-			mappers = append(mappers, m)
-		}
-	}
-
-	if stmt.IsRawQuery && !stmt.HasDistinct() {
-		return NewRawExecutor(stmt, mappers, chunkSize), nil
-	}
-	return NewAggregateExecutor(stmt, mappers), nil
 }
 
 // StatefulRawMapper encapsulates a RawMapper and some state that the executor needs to

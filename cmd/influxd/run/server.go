@@ -47,6 +47,7 @@ type Server struct {
 	QueryExecutor *tsdb.QueryExecutor
 	PointsWriter  *cluster.PointsWriter
 	ShardWriter   *cluster.ShardWriter
+	ShardMapper   *cluster.ShardMapper
 	HintedHandoff *hh.Service
 
 	Services []Service
@@ -85,10 +86,16 @@ func NewServer(c *Config, version string) (*Server, error) {
 	s.TSDBStore.WALFlushInterval = time.Duration(c.Data.WALFlushInterval)
 	s.TSDBStore.WALPartitionFlushDelay = time.Duration(c.Data.WALPartitionFlushDelay)
 
+	// Set the shard mapper
+	s.ShardMapper = cluster.NewShardMapper()
+	s.ShardMapper.MetaStore = s.MetaStore
+	s.ShardMapper.TSDBStore = s.TSDBStore
+
 	// Initialize query executor.
 	s.QueryExecutor = tsdb.NewQueryExecutor(s.TSDBStore)
 	s.QueryExecutor.MetaStore = s.MetaStore
 	s.QueryExecutor.MetaStatementExecutor = &meta.StatementExecutor{Store: s.MetaStore}
+	s.QueryExecutor.ShardMapper = s.ShardMapper
 
 	// Set the shard writer
 	s.ShardWriter = cluster.NewShardWriter(time.Duration(c.Cluster.ShardWriterTimeout))
