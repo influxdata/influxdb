@@ -144,6 +144,11 @@ func (s *Service) handleConn(conn net.Conn) {
 				s.Logger.Printf("process write shard error: %s", err)
 			}
 			s.writeShardResponse(conn, err)
+		case mapShardRequestMessage:
+			err := s.processMapShardRequest(conn, buf)
+			if err != nil {
+				// XXX handle error
+			}
 		default:
 			s.Logger.Printf("cluster service message type not found: %d", typ)
 		}
@@ -211,6 +216,10 @@ func (s *Service) writeShardResponse(w io.Writer, e error) {
 	if err := WriteTLV(w, writeShardResponseMessage, buf); err != nil {
 		s.Logger.Printf("write shard response error: %s", err)
 	}
+}
+
+func (s *Service) processMapShardRequest(w io.Writer, buf []byte) error {
+	return nil
 }
 
 // ReadTLV reads a type-length-value record from r.
