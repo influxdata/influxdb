@@ -5,6 +5,7 @@ import "time"
 type BufferConfig struct {
 	FlushMaxPoints   int
 	FlushMaxWaitTime time.Duration
+	Database         string
 }
 
 func NewBufferedClient(clientConfig Config, bufferConfig BufferConfig) (bufferedClient *BufferedClient, err error) {
@@ -63,7 +64,8 @@ func (b *BufferedClient) ingestAndFlushLoop() {
 func (b *BufferedClient) flushBatch() {
 	b.flushTimer.Stop()
 	b.Client.Write(BatchPoints{
-		Points: b.pointsBuf[0:b.pointsIndex],
+		Points:   b.pointsBuf[0:b.pointsIndex],
+		Database: b.bufferConfig.Database,
 	})
 	b.pointsIndex = 0
 	b.flushTimer.Reset(b.bufferConfig.FlushMaxWaitTime)
