@@ -21,6 +21,7 @@ const (
 type ShardMapper struct {
 	MetaStore interface {
 		NodeID() uint64
+		Node(id uint64) (ni *meta.NodeInfo, err error)
 	}
 
 	TSDBStore interface {
@@ -43,7 +44,9 @@ func (r *ShardMapper) CreateMapper(sh meta.ShardInfo, stmt string, chunkSize int
 			return nil, err
 		}
 	} else {
-		m = NewRemoteMaper(sh.OwnerIDs[0], sh.ID, stmt, chunkSize)
+		rm := NewRemoteMaper(sh.OwnerIDs[0], sh.ID, stmt, chunkSize)
+		rm.MetaStore = r.MetaStore
+		m = rm
 	}
 
 	return m, nil
