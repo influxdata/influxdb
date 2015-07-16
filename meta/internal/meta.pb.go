@@ -39,6 +39,7 @@ It has these top-level messages:
 	SetAdminPrivilegeCommand
 	Response
 	ResponseHeader
+	ErrorResponse
 	FetchDataRequest
 	FetchDataResponse
 	JoinRequest
@@ -56,17 +57,20 @@ var _ = math.Inf
 type RPCType int32
 
 const (
-	RPCType_FetchData RPCType = 1
-	RPCType_Join      RPCType = 2
+	RPCType_Error     RPCType = 1
+	RPCType_FetchData RPCType = 2
+	RPCType_Join      RPCType = 3
 )
 
 var RPCType_name = map[int32]string{
-	1: "FetchData",
-	2: "Join",
+	1: "Error",
+	2: "FetchData",
+	3: "Join",
 }
 var RPCType_value = map[string]int32{
-	"FetchData": 1,
-	"Join":      2,
+	"Error":     1,
+	"FetchData": 2,
+	"Join":      3,
 }
 
 func (x RPCType) Enum() *RPCType {
@@ -1204,6 +1208,22 @@ func (m *ResponseHeader) GetError() string {
 		return *m.Error
 	}
 	return ""
+}
+
+type ErrorResponse struct {
+	Header           *ResponseHeader `protobuf:"bytes,1,req" json:"Header,omitempty"`
+	XXX_unrecognized []byte          `json:"-"`
+}
+
+func (m *ErrorResponse) Reset()         { *m = ErrorResponse{} }
+func (m *ErrorResponse) String() string { return proto.CompactTextString(m) }
+func (*ErrorResponse) ProtoMessage()    {}
+
+func (m *ErrorResponse) GetHeader() *ResponseHeader {
+	if m != nil {
+		return m.Header
+	}
+	return nil
 }
 
 type FetchDataRequest struct {

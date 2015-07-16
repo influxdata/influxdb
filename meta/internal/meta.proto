@@ -265,13 +265,18 @@ message Response {
 //========================================================================
 
 enum RPCType {
-    FetchData = 1;
-    Join = 2;
+    Error = 1;
+    FetchData = 2;
+    Join = 3;
 }
 
 message ResponseHeader {
     required bool OK = 1;
     optional string Error = 2;
+}
+
+message ErrorResponse {
+    required ResponseHeader Header = 1;
 }
 
 message FetchDataRequest {
@@ -288,7 +293,6 @@ message JoinRequest {
 
 message JoinResponse {
     required ResponseHeader Header = 1;
-
 
     // Indicates that this node should take part in the raft cluster.
     optional bool EnableRaft = 2;

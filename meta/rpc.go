@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net"
 	"time"
@@ -41,48 +42,47 @@ type Reply interface {
 // proxyLeader proxies the connection to the current raft leader
 func (r *RPC) proxyLeader(conn *net.TCPConn) {
 	if r.store.Leader() == "" {
-		// FIXME: return error to client
-		r.Logger.Printf("no leader")
+		r.sendError(conn, "no leader")
 		return
 	}
 
 	leaderConn, err := net.DialTimeout("tcp", r.store.Leader(), 10*time.Second)
 	if err != nil {
-		r.Logger.Printf("dial leader: %v", err)
+		r.sendError(conn, fmt.Sprintf("dial leader: %v", err))
 		return
 	}
 	defer leaderConn.Close()
+
 	leaderConn.Write([]byte{MuxRPCHeader})
 	if err := proxy(leaderConn.(*net.TCPConn), conn); err != nil {
-		r.Logger.Printf("leader proxy error: %v", err)
+		r.sendError(conn, fmt.Sprintf("leader proxy error: %v", err))
 	}
 }
 
 // handleRPCConn reads a command from the connection and executes it.
 func (r *RPC) handleRPCConn(conn net.Conn) {
-
+	defer conn.Close()
 	// RPC connections should execute on the leader.  If we are not the leader,
 	// proxy the connection to the leader so that clients an connect to any node
 	// in the cluster.
 	r.Logger.Printf("rpc connection from: %v", conn.RemoteAddr())
 	if !r.store.IsLeader() {
 		r.proxyLeader(conn.(*net.TCPConn))
-		conn.Close()
 		return
 	}
 
 	// Read and execute request.
-	resp, err := func() (proto.Message, error) {
+	typ, resp, err := func() (internal.RPCType, proto.Message, error) {
 		// Read request size.
 		var sz uint64
 		if err := binary.Read(conn, binary.BigEndian, &sz); err != nil {
-			return nil, fmt.Errorf("read size: %s", err)
+			return internal.RPCType_Error, nil, fmt.Errorf("read size: %s", err)
 		}
 
 		// Read request.
 		buf := make([]byte, sz)
 		if _, err := io.ReadFull(conn, buf); err != nil {
-			return nil, fmt.Errorf("read request: %s", err)
+			return internal.RPCType_Error, nil, fmt.Errorf("read request: %s", err)
 		}
 
 		// Determine the RPC type
@@ -92,17 +92,29 @@ func (r *RPC) handleRPCConn(conn net.Conn) {
 		r.Logger.Printf("recv %v request from: %v", rpcType, conn.RemoteAddr())
 		switch rpcType {
 		case internal.RPCType_FetchData:
-			return r.handleFetchData()
+			resp, err := r.handleFetchData()
+			return rpcType, resp, err
 		case internal.RPCType_Join:
 			var req internal.JoinRequest
 			if err := proto.Unmarshal(buf, &req); err != nil {
 				r.Logger.Printf("join request unmarshal: %v", err)
 			}
-			return r.handleJoinRequest(&req)
+			resp, err := r.handleJoinRequest(&req)
+			return rpcType, resp, err
 		default:
-			return nil, fmt.Errorf("unknown rpc type:%v", rpcType)
+			return internal.RPCType_Error, nil, fmt.Errorf("unknown rpc type:%v", rpcType)
 		}
 	}()
+
+	// Handle unexpected RPC errors
+	if err != nil {
+		resp = &internal.ErrorResponse{
+			Header: &internal.ResponseHeader{
+				OK: proto.Bool(false),
+			},
+		}
+		typ = internal.RPCType_Error
+	}
 
 	// Set the status header and error message
 	if reply, ok := resp.(Reply); ok {
@@ -112,19 +124,32 @@ func (r *RPC) handleRPCConn(conn net.Conn) {
 		}
 	}
 
+	r.sendResponse(conn, typ, resp)
+}
+
+func (r *RPC) sendResponse(conn net.Conn, typ internal.RPCType, resp proto.Message) {
 	// Marshal the response back to a protobuf
 	buf, err := proto.Marshal(resp)
 	if err != nil {
 		r.Logger.Printf("unable to marshal response: %v", err)
+		return
 	}
 
 	// Encode response back to connection.
-	if err = binary.Write(conn, binary.BigEndian, uint64(len(buf))); err != nil {
-		r.Logger.Printf("unable to write rpc response size: %s", err)
-	} else if _, err = conn.Write(buf); err != nil {
+	if _, err := conn.Write(r.pack(typ, buf)); err != nil {
 		r.Logger.Printf("unable to write rpc response: %s", err)
 	}
-	conn.Close()
+}
+
+func (r *RPC) sendError(conn net.Conn, msg string) {
+	resp := &internal.ErrorResponse{
+		Header: &internal.ResponseHeader{
+			OK:    proto.Bool(false),
+			Error: proto.String(msg),
+		},
+	}
+
+	r.sendResponse(conn, internal.RPCType_Error, resp)
 }
 
 // handleFetchData handles a request for the current nodes meta data
@@ -141,6 +166,7 @@ func (r *RPC) handleFetchData() (*internal.FetchDataResponse, error) {
 
 // handleJoinRequest handles a request to join the cluster
 func (r *RPC) handleJoinRequest(req *internal.JoinRequest) (*internal.JoinResponse, error) {
+	r.Logger.Printf("recv join request from: %v", *req.Addr)
 
 	node, err := func() (*NodeInfo, error) {
 		// attempt to create the node
@@ -172,10 +198,9 @@ func (r *RPC) handleJoinRequest(req *internal.JoinRequest) (*internal.JoinRespon
 	}
 
 	if err != nil {
-		r.Logger.Printf("join request failed: create node: %v", err)
+		return nil, err
 	}
 
-	r.Logger.Printf("recv join request from: %v", *req.Addr)
 	return &internal.JoinResponse{
 		Header: &internal.ResponseHeader{
 			OK: proto.Bool(true),
@@ -206,26 +231,23 @@ func (r *RPC) fetchMetaData() (*Data, error) {
 		return nil, errors.New("no leader")
 	}
 
-	data, err := r.call(leader, r.pack(internal.RPCType_FetchData, nil))
+	resp, err := r.call(leader, &internal.FetchDataRequest{})
 	if err != nil {
 		return nil, err
 	}
 
-	// Unmarshal response.
-	var resp internal.FetchDataResponse
-	if err := proto.Unmarshal(data, &resp); err != nil {
-		return nil, fmt.Errorf("unmarshal response: %s", err)
+	switch t := resp.(type) {
+	case *internal.FetchDataResponse:
+		ms := &Data{}
+		if err := ms.UnmarshalBinary(t.GetData()); err != nil {
+			return nil, err
+		}
+		return ms, nil
+	case *internal.ErrorResponse:
+		return nil, fmt.Errorf("rpc failed: %s", t.GetHeader().GetError())
+	default:
+		return nil, fmt.Errorf("rpc failed: unknown response type: %v", t.String())
 	}
-
-	if !resp.GetHeader().GetOK() {
-		return nil, fmt.Errorf("rpc failed: %s", resp.GetHeader().GetError())
-	}
-
-	ms := &Data{}
-	if err := ms.UnmarshalBinary(resp.GetData()); err != nil {
-		return nil, err
-	}
-	return ms, nil
 }
 
 // join attempts to join a cluster at remoteAddr using localAddr as the current
@@ -234,35 +256,41 @@ func (r *RPC) join(localAddr, remoteAddr string) (*JoinResult, error) {
 	req := &internal.JoinRequest{
 		Addr: proto.String(localAddr),
 	}
-	b, err := proto.Marshal(req)
+
+	resp, err := r.call(remoteAddr, req)
 	if err != nil {
 		return nil, err
 	}
 
-	data, err := r.call(remoteAddr, r.pack(internal.RPCType_Join, b))
-	if err != nil {
-		return nil, err
+	switch t := resp.(type) {
+	case *internal.JoinResponse:
+		return &JoinResult{
+			RaftEnabled: t.GetEnableRaft(),
+			Peers:       t.GetPeers(),
+			NodeID:      t.GetNodeID(),
+		}, nil
+	case *internal.ErrorResponse:
+		return nil, fmt.Errorf("rpc failed: %s", t.GetHeader().GetError())
+	default:
+		return nil, fmt.Errorf("rpc failed: unknown response type: %v", t.String())
 	}
-
-	resp := &internal.JoinResponse{}
-	if err := proto.Unmarshal(data, resp); err != nil {
-		return nil, err
-	}
-
-	if !resp.GetHeader().GetOK() {
-		return nil, fmt.Errorf("rpc failed: %s", resp.GetHeader().GetError())
-	}
-	return &JoinResult{
-		RaftEnabled: resp.GetEnableRaft(),
-		Peers:       resp.GetPeers(),
-		NodeID:      resp.GetNodeID(),
-	}, nil
-
 }
 
 // call sends an encoded request to the remote leader and returns
 // an encoded response value.
-func (r *RPC) call(dest string, b []byte) ([]byte, error) {
+func (r *RPC) call(dest string, req proto.Message) (proto.Message, error) {
+
+	// Determine type of request
+	var rpcType internal.RPCType
+	switch t := req.(type) {
+	case *internal.JoinRequest:
+		rpcType = internal.RPCType_Join
+	case *internal.FetchDataRequest:
+		rpcType = internal.RPCType_FetchData
+	default:
+		return nil, fmt.Errorf("unknown rpc request type: %v", t)
+	}
+
 	// Create a connection to the leader.
 	conn, err := net.DialTimeout("tcp", dest, 10*time.Second)
 	if err != nil {
@@ -276,23 +304,53 @@ func (r *RPC) call(dest string, b []byte) ([]byte, error) {
 		return nil, err
 	}
 
+	b, err := proto.Marshal(req)
+	if err != nil {
+		return nil, err
+	}
+
 	// Write request size & bytes.
-	if _, err := conn.Write(b); err != nil {
+	if _, err := conn.Write(r.pack(rpcType, b)); err != nil {
 		return nil, fmt.Errorf("write rpc: %s", err)
 	}
 
-	// Read response bytes.
-	var sz uint64
-	if err := binary.Read(conn, binary.BigEndian, &sz); err != nil {
-		return nil, fmt.Errorf("read response size: %s", err)
+	data, err := ioutil.ReadAll(conn)
+	if err != nil {
+		return nil, fmt.Errorf("read rpc: %v", err)
 	}
 
-	buf := make([]byte, sz)
-	if _, err := io.ReadFull(conn, buf); err != nil {
-		return nil, fmt.Errorf("read response: %s", err)
+	sz := btou64(data[0:8])
+	if len(data[8:]) != int(sz) {
+		return nil, fmt.Errorf("rpc failed: short read: got %v, exp %v", len(data[8:]), sz)
 	}
 
-	return buf, nil
+	// See what response type we got back, could get a general error response
+	rpcType = internal.RPCType(btou64(data[8:16]))
+	data = data[16:]
+
+	var resp proto.Message
+	switch rpcType {
+	case internal.RPCType_Join:
+		resp = &internal.JoinResponse{}
+	case internal.RPCType_FetchData:
+		resp = &internal.FetchDataResponse{}
+	case internal.RPCType_Error:
+		resp = &internal.ErrorResponse{}
+	default:
+		return nil, fmt.Errorf("unknown rpc response type: %v", rpcType)
+	}
+
+	if err := proto.Unmarshal(data, resp); err != nil {
+		return nil, err
+	}
+
+	if reply, ok := resp.(Reply); ok {
+		if !reply.GetHeader().GetOK() {
+			return nil, fmt.Errorf("rpc failed: %s", reply.GetHeader().GetError())
+		}
+	}
+
+	return resp, nil
 }
 
 func u64tob(v uint64) []byte {
