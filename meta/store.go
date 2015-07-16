@@ -159,6 +159,11 @@ func (r *localRaft) OpenRaft() error {
 	// If no peers are set in the config then start as a single server.
 	config.EnableSingleNode = (len(s.peers) == 0)
 
+	// Ensure our addr is in the peer list
+	if !contains(s.peers, s.Addr.String()) {
+		s.peers = append(s.peers, s.Addr.String())
+	}
+
 	// Build raft layer to multiplex listener.
 	s.raftLayer = newRaftLayer(s.RaftListener, s.Addr)
 
