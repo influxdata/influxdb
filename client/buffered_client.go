@@ -34,11 +34,15 @@ type BufferedClient struct {
 	pointsIndex  int
 }
 
-func (b *BufferedClient) Add(measurement string, val interface{}, tags map[string]string) {
+func (b *BufferedClient) Add(measurement string, val interface{}, tags map[string]string, fields map[string]interface{}) {
+	if fields == nil {
+		fields = make(map[string]interface{}, 1)
+	}
+	fields["value"] = val
 	b.ingestChan <- Point{
 		Measurement: measurement,
 		Tags:        tags,
-		Fields:      map[string]interface{}{"value": val},
+		Fields:      fields,
 		Time:        time.Now(),
 	}
 }

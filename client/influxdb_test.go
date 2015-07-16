@@ -564,7 +564,7 @@ func TestBufferedClient_Write(t *testing.T) {
 		}
 	}
 	for i := 0; i < sampleSize; i++ {
-		c.Add("shapes", rand.Intn(sampleSize), makeTags())
+		c.Add("shapes", rand.Intn(sampleSize), makeTags(), nil)
 	}
 	<-time.After(100 * time.Millisecond)
 	expectedFlushCount := sampleSize / bufferConfig.FlushMaxPoints
