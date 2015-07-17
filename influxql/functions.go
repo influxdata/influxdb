@@ -550,10 +550,9 @@ func ReduceMedian(values []interface{}) interface{} {
 		sortedRange = getSortedRange(data, middle-1, 2)
 		var low, high = sortedRange[0], sortedRange[1]
 		return low + (high-low)/2
-	} else {
-		sortedRange = getSortedRange(data, middle, 1)
-		return sortedRange[0]
 	}
+	sortedRange = getSortedRange(data, middle, 1)
+	return sortedRange[0]
 }
 
 // getSortedRange returns a sorted subset of data. By using discardLowerRange and discardUpperRange to get the target

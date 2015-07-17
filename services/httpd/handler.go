@@ -667,9 +667,8 @@ func parseCredentials(r *http.Request) (string, string, error) {
 	}
 	if u, p, ok := r.BasicAuth(); ok {
 		return u, p, nil
-	} else {
-		return "", "", fmt.Errorf("unable to parse Basic Auth credentials")
 	}
+	return "", "", fmt.Errorf("unable to parse Basic Auth credentials")
 }
 
 // authenticate wraps a handler and ensures that if user credentials are passed in

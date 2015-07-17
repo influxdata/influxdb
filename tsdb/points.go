@@ -411,18 +411,17 @@ func scanFields(buf []byte, i int) (int, []byte, error) {
 				i, _, err = scanNumber(buf, i+1)
 				if err != nil {
 					return i, buf[start:i], err
-				} else {
-					continue
 				}
-				// If next byte is not a double-quote, the value must be a boolean
-			} else if buf[i+1] != '"' {
+				continue
+			}
+			// If next byte is not a double-quote, the value must be a boolean
+			if buf[i+1] != '"' {
 				var err error
 				i, _, err = scanBoolean(buf, i+1)
 				if err != nil {
 					return i, buf[start:i], err
-				} else {
-					continue
 				}
+				continue
 			}
 		}
 

@@ -237,12 +237,12 @@ func (c *CommandLine) connect(cmd string) {
 		}
 		if strings.Contains(cmd, ":") {
 			h := strings.Split(cmd, ":")
-			if i, e := strconv.Atoi(h[1]); e != nil {
+			i, e := strconv.Atoi(h[1])
+			if e != nil {
 				fmt.Printf("Connect error: Invalid port number %q: %s\n", cmd, e)
 				return
-			} else {
-				c.Port = i
 			}
+			c.Port = i
 			if h[0] == "" {
 				c.Host = default_host
 			} else {
@@ -351,12 +351,10 @@ func (c *CommandLine) dump() error {
 	if err != nil {
 		fmt.Printf("Dump failed. %s\n", err)
 		return err
-	} else {
-		_, err := io.Copy(os.Stdout, response)
-		if err != nil {
-			fmt.Printf("Dump failed. %s\n", err)
-			return err
-		}
+	}
+	if _, err := io.Copy(os.Stdout, response); err != nil {
+		fmt.Printf("Dump failed. %s\n", err)
+		return err
 	}
 	return nil
 }

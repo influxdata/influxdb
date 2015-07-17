@@ -1045,11 +1045,11 @@ func (f *FieldCodec) DecodeByID(targetID uint8, b []byte) (interface{}, error) {
 // DecodeByName scans a byte slice for a field with the given name, converts it to its
 // expected type, and return that value.
 func (f *FieldCodec) DecodeByName(name string, b []byte) (interface{}, error) {
-	if fi := f.fieldByName(name); fi == nil {
+	fi := f.fieldByName(name)
+	if fi == nil {
 		return 0, ErrFieldNotFound
-	} else {
-		return f.DecodeByID(fi.ID, b)
 	}
+	return f.DecodeByID(fi.ID, b)
 }
 
 // FieldByName returns the field by its name. It will return a nil if not found
