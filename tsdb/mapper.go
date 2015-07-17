@@ -11,24 +11,28 @@ import (
 	"github.com/influxdb/influxdb/influxql"
 )
 
-type rawMapperValue struct {
-	Time  int64       `json:"time,omitempty"`
-	Value interface{} `json:"value,omitempty"`
+// mapperValue is a complex type, which can encapsulate data from both raw and aggregate
+// mappers. This currently allows marshalling and network system to remain simpler. For
+// aggregate output Time is ignored, and actual Time-Value pairs are contained soley
+// within the Value field.
+type mapperValue struct {
+	Time  int64       `json:"time,omitempty"`  // Ignored for aggregate output.
+	Value interface{} `json:"value,omitempty"` // For aggregate, contains interval time multiple values.
 }
 
-type rawMapperValues []*rawMapperValue
+type mapperValues []*mapperValue
 
-func (a rawMapperValues) Len() int           { return len(a) }
-func (a rawMapperValues) Less(i, j int) bool { return a[i].Time < a[j].Time }
-func (a rawMapperValues) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a mapperValues) Len() int           { return len(a) }
+func (a mapperValues) Less(i, j int) bool { return a[i].Time < a[j].Time }
+func (a mapperValues) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
-type rawMapperOutput struct {
+type mapperOutput struct {
 	Name   string            `json:"name,omitempty"`
 	Tags   map[string]string `json:"tags,omitempty"`
-	Values rawMapperValues   `json:"values,omitempty"`
+	Values []*mapperValue    `json:"values,omitempty"` // For aggregates contains a single value at [0]
 }
 
-func (mo *rawMapperOutput) key() string {
+func (mo *mapperOutput) key() string {
 	return formMeasurementTagSetKey(mo.Name, mo.Tags)
 }
 
@@ -147,7 +151,7 @@ func (rm *RawMapper) TagSets() []string {
 // tags return by TagSets. A chunk never contains data for more than 1 tagset.
 // If there is no more data for any tagset, nil will be returned.
 func (rm *RawMapper) NextChunk() (interface{}, error) {
-	var output *rawMapperOutput
+	var output *mapperOutput
 	for {
 		if rm.currCursorIndex == len(rm.cursors) {
 			// All tagset cursors processed. NextChunk'ing complete.
@@ -169,12 +173,12 @@ func (rm *RawMapper) NextChunk() (interface{}, error) {
 		}
 
 		if output == nil {
-			output = &rawMapperOutput{
+			output = &mapperOutput{
 				Name: cursor.measurement,
 				Tags: cursor.tags,
 			}
 		}
-		value := &rawMapperValue{Time: k, Value: v}
+		value := &mapperValue{Time: k, Value: v}
 		output.Values = append(output.Values, value)
 		if len(output.Values) == rm.chunkSize {
 			return output, nil
@@ -187,17 +191,6 @@ func (rm *RawMapper) Close() {
 	if rm != nil && rm.tx != nil {
 		_ = rm.tx.Rollback()
 	}
-}
-
-type aggMapperOutput struct {
-	Name   string            `json:"name,omitempty"`
-	Tags   map[string]string `json:"tags,omitempty"`
-	Time   int64             `json:"time,omitempty"`
-	Values []interface{}     `json:"values,omitempty"` // 1 entry per map function.
-}
-
-func (amo *aggMapperOutput) key() string {
-	return formMeasurementTagSetKey(amo.Name, amo.Tags)
 }
 
 // AggMapper is for retrieving data, for an aggregate query, from a given shard.
@@ -384,7 +377,7 @@ func (am *AggMapper) Open() error {
 // returned by AvailTagsSets(). When there is no more data for any tagset nil
 // is returned.
 func (am *AggMapper) NextChunk() (interface{}, error) {
-	var output *aggMapperOutput
+	var output *mapperOutput
 	for {
 		if am.currCursorIndex == len(am.cursors) {
 			// All tagset cursors processed. NextChunk'ing complete.
@@ -403,12 +396,16 @@ func (am *AggMapper) NextChunk() (interface{}, error) {
 		// Prep the return data for this tagset. This will hold data for a single interval
 		// for a single tagset.
 		if output == nil {
-			output = &aggMapperOutput{
+			output = &mapperOutput{
 				Name:   cursor.measurement,
 				Tags:   cursor.tags,
-				Time:   tmin,
-				Values: make([]interface{}, 0),
+				Values: make([]*mapperValue, 1),
 			}
+			// Aggregate values only use the first entry in the Values field. Set the time
+			// to the start of the interval.
+			output.Values[0] = &mapperValue{
+				Time:  tmin,
+				Value: make([]interface{}, 0)}
 		}
 
 		// Always clamp tmin. This can happen as bucket-times are bucketed to the nearest
@@ -435,7 +432,8 @@ func (am *AggMapper) NextChunk() (interface{}, error) {
 
 			// Execute the map function which walks the entire interval, and aggregates
 			// the result.
-			output.Values = append(output.Values, am.mapFuncs[i](tagSetCursor))
+			values := output.Values[0].Value.([]interface{})
+			output.Values[0].Value = append(values, am.mapFuncs[i](tagSetCursor))
 		}
 		return output, nil
 	}
