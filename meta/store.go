@@ -443,10 +443,7 @@ func (s *Store) Leader() string {
 // LeaderCh returns a channel that notifies on leadership change.
 // Panics when the store has not been opened yet.
 func (s *Store) LeaderCh() <-chan bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	assert(s.raft != nil, "cannot retrieve leadership channel when closed")
-	return s.raft.LeaderCh()
+	return s.raftState.leaderCh()
 }
 
 // SetPeers sets a list of peers in the cluster.
