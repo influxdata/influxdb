@@ -193,7 +193,7 @@ type aggMapperOutput struct {
 	Name   string            `json:"name,omitempty"`
 	Tags   map[string]string `json:"tags,omitempty"`
 	Time   int64             `json:"time,omitempty"`
-	Values []interface{}     `json:"values,omitempty"` // 1 entry per map function.
+	Values interface{}       `json:"values,omitempty"` // 1 entry per map function.
 }
 
 func (amo *aggMapperOutput) key() string {
@@ -435,7 +435,8 @@ func (am *AggMapper) NextChunk() (interface{}, error) {
 
 			// Execute the map function which walks the entire interval, and aggregates
 			// the result.
-			output.Values = append(output.Values, am.mapFuncs[i](tagSetCursor))
+			values := output.Values.([]interface{})
+			output.Values = append(values, am.mapFuncs[i](tagSetCursor))
 		}
 		return output, nil
 	}
