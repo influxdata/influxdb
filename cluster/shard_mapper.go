@@ -3,6 +3,7 @@ package cluster
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"time"
 
@@ -10,11 +11,6 @@ import (
 	"github.com/influxdb/influxdb/tsdb"
 	"gopkg.in/fatih/pool.v2"
 )
-
-type remoteShardConn interface {
-	net.Conn
-	MarkUnusable()
-}
 
 // ShardMapper is responsible for providing mappers for requested shards. It is
 // responsible for creating those mappers from the local store, or reaching
@@ -76,6 +72,12 @@ func (s *ShardMapper) dial(nodeID uint64) (net.Conn, error) {
 		s.pool.setPool(nodeID, p)
 	}
 	return s.pool.conn(nodeID)
+}
+
+type remoteShardConn interface {
+	io.ReadWriter
+	Close() error
+	MarkUnusable()
 }
 
 // RemoteMapper implements the tsdb.Mapper interface. It connects to a remote node,
