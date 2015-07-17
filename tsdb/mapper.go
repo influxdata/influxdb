@@ -189,11 +189,15 @@ func (rm *RawMapper) Close() {
 	}
 }
 
+type aggMapperValue struct {
+	Time  int64       `json:"time,omitempty"`
+	Value interface{} `json:"value,omitempty"` // 1 entry per map function.
+}
+
 type aggMapperOutput struct {
 	Name   string            `json:"name,omitempty"`
 	Tags   map[string]string `json:"tags,omitempty"`
-	Time   int64             `json:"time,omitempty"`
-	Values interface{}       `json:"values,omitempty"` // 1 entry per map function.
+	Values []*aggMapperValue `json:"values,omitempty"`
 }
 
 func (amo *aggMapperOutput) key() string {
@@ -406,9 +410,13 @@ func (am *AggMapper) NextChunk() (interface{}, error) {
 			output = &aggMapperOutput{
 				Name:   cursor.measurement,
 				Tags:   cursor.tags,
-				Time:   tmin,
-				Values: make([]interface{}, 0),
+				Values: make([]*aggMapperValue, 1),
 			}
+			// Aggregate values only use the first entry in the Values field. Set the time
+			// to the start of the interval.
+			output.Values[0] = &aggMapperValue{
+				Time:  tmin,
+				Value: make([]interface{}, 0)}
 		}
 
 		// Always clamp tmin. This can happen as bucket-times are bucketed to the nearest
@@ -435,8 +443,8 @@ func (am *AggMapper) NextChunk() (interface{}, error) {
 
 			// Execute the map function which walks the entire interval, and aggregates
 			// the result.
-			values := output.Values.([]interface{})
-			output.Values = append(values, am.mapFuncs[i](tagSetCursor))
+			values := output.Values[0].Value.([]interface{})
+			output.Values[0].Value = append(values, am.mapFuncs[i](tagSetCursor))
 		}
 		return output, nil
 	}

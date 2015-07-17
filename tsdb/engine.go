@@ -470,13 +470,14 @@ func (ae *AggregateExecutor) execute(out chan *influxql.Row) {
 				}
 			}
 
-			_, ok := buckets[chunk.Time]
-			values := chunk.Values.([]interface{})
+			startTime := chunk.Values[0].Time
+			_, ok := buckets[startTime]
+			values := chunk.Values[0].Value.([]interface{})
 			if !ok {
-				buckets[chunk.Time] = make([][]interface{}, len(values))
+				buckets[startTime] = make([][]interface{}, len(values))
 			}
 			for i, v := range values {
-				buckets[chunk.Time][i] = append(buckets[chunk.Time][i], v)
+				buckets[startTime][i] = append(buckets[startTime][i], v)
 			}
 		}
 

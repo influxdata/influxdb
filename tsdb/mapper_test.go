@@ -265,54 +265,54 @@ func TestShardMapper_WriteAndSingleMapperAggregateQuery(t *testing.T) {
 	}{
 		{
 			stmt:     `SELECT sum(value) FROM cpu`,
-			expected: []string{`{"name":"cpu","values":[61]}`, `null`},
+			expected: []string{`{"name":"cpu","values":[{"value":[61]}]}`, `null`},
 		},
 		{
 			stmt:     `SELECT sum(value),mean(value) FROM cpu`,
-			expected: []string{`{"name":"cpu","values":[61,{"Count":2,"Mean":30.5,"ResultType":1}]}`, `null`},
+			expected: []string{`{"name":"cpu","values":[{"value":[61,{"Count":2,"Mean":30.5,"ResultType":1}]}]}`, `null`},
 		},
 		{
 			stmt: `SELECT sum(value) FROM cpu GROUP BY host`,
 			expected: []string{
-				`{"name":"cpu","tags":{"host":"serverA"},"values":[1]}`,
-				`{"name":"cpu","tags":{"host":"serverB"},"values":[60]}`,
+				`{"name":"cpu","tags":{"host":"serverA"},"values":[{"value":[1]}]}`,
+				`{"name":"cpu","tags":{"host":"serverB"},"values":[{"value":[60]}]}`,
 				`null`},
 		},
 		{
 			stmt: `SELECT sum(value) FROM cpu GROUP BY region`,
 			expected: []string{
-				`{"name":"cpu","tags":{"region":"us-east"},"values":[61]}`,
+				`{"name":"cpu","tags":{"region":"us-east"},"values":[{"value":[61]}]}`,
 				`null`},
 		},
 		{
 			stmt: `SELECT sum(value) FROM cpu GROUP BY region,host`,
 			expected: []string{
-				`{"name":"cpu","tags":{"host":"serverA","region":"us-east"},"values":[1]}`,
-				`{"name":"cpu","tags":{"host":"serverB","region":"us-east"},"values":[60]}`,
+				`{"name":"cpu","tags":{"host":"serverA","region":"us-east"},"values":[{"value":[1]}]}`,
+				`{"name":"cpu","tags":{"host":"serverB","region":"us-east"},"values":[{"value":[60]}]}`,
 				`null`},
 		},
 		{
 			stmt: `SELECT sum(value) FROM cpu WHERE host='serverB'`,
 			expected: []string{
-				`{"name":"cpu","values":[60]}`,
+				`{"name":"cpu","values":[{"value":[60]}]}`,
 				`null`},
 		},
 		{
 			stmt: fmt.Sprintf(`SELECT sum(value) FROM cpu WHERE time = '%s'`, pt1time.Format(influxql.DateTimeFormat)),
 			expected: []string{
-				`{"name":"cpu","time":10000000000,"values":[1]}`,
+				`{"name":"cpu","values":[{"time":10000000000,"value":[1]}]}`,
 				`null`},
 		},
 		{
 			stmt: fmt.Sprintf(`SELECT sum(value) FROM cpu WHERE time > '%s'`, pt1time.Format(influxql.DateTimeFormat)),
 			expected: []string{
-				`{"name":"cpu","values":[60]}`,
+				`{"name":"cpu","values":[{"value":[60]}]}`,
 				`null`},
 		},
 		{
 			stmt: fmt.Sprintf(`SELECT sum(value) FROM cpu WHERE time > '%s'`, pt2time.Format(influxql.DateTimeFormat)),
 			expected: []string{
-				`{"name":"cpu","values":[null]}`,
+				`{"name":"cpu","values":[{"value":[null]}]}`,
 				`null`},
 		},
 	}
