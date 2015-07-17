@@ -440,12 +440,6 @@ func (s *Store) Leader() string {
 	return s.raftState.leader()
 }
 
-// LeaderCh returns a channel that notifies on leadership change.
-// Panics when the store has not been opened yet.
-func (s *Store) LeaderCh() <-chan bool {
-	return s.raftState.leaderCh()
-}
-
 // SetPeers sets a list of peers in the cluster.
 func (s *Store) SetPeers(addrs []string) error {
 	return s.raftState.setPeers(addrs)

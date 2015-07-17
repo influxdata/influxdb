@@ -21,7 +21,6 @@ type raftState interface {
 	initialize() error
 	leader() string
 	isLeader() bool
-	leaderCh() <-chan bool
 	raftEnabled() bool
 	sync(index uint64, timeout time.Duration) error
 	setPeers(addrs []string) error
@@ -185,13 +184,6 @@ func (r *localRaft) isLeader() bool {
 	return r.store.raft.State() == raft.Leader
 }
 
-func (r *localRaft) leaderCh() <-chan bool {
-	r.store.mu.RLock()
-	defer r.store.mu.RUnlock()
-	assert(r.store.raft != nil, "cannot retrieve leadership channel when closed")
-	return r.store.raft.LeaderCh()
-}
-
 // remoteRaft is a consensus strategy that uses a remote raft cluster for
 // consensus operations.
 type remoteRaft struct {
@@ -200,10 +192,6 @@ type remoteRaft struct {
 
 func (r *remoteRaft) raftEnabled() bool {
 	return false
-}
-
-func (r *remoteRaft) leaderCh() <-chan bool {
-	panic("cannot retrieve leadership channel using remote raft")
 }
 
 func (r *remoteRaft) updateMetaData(ms *Data) {
