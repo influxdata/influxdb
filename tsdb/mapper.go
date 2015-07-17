@@ -184,7 +184,7 @@ func (rm *RawMapper) NextChunk() (interface{}, error) {
 
 // Close closes the mapper.
 func (rm *RawMapper) Close() {
-	if rm.tx != nil {
+	if rm != nil && rm.tx != nil {
 		_ = rm.tx.Rollback()
 	}
 }
@@ -469,7 +469,7 @@ func (am *AggMapper) TagSets() []string {
 
 // Close closes the mapper.
 func (am *AggMapper) Close() {
-	if am.tx != nil {
+	if am != nil && am.tx != nil {
 		_ = am.tx.Rollback()
 	}
 }

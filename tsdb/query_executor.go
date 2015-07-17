@@ -251,10 +251,19 @@ func (q *QueryExecutor) plan(stmt *influxql.SelectStatement, chunkSize int) (Exe
 		mappers = append(mappers, m)
 	}
 
-	if stmt.IsRawQuery && !stmt.HasDistinct() {
-		return NewRawExecutor(stmt, mappers, chunkSize), nil
+	var executor Executor
+	if len(mappers) > 0 {
+		// All Mapper are of same type, so check first to determine correct Executor type.
+		if _, ok := mappers[0].(*RawMapper); ok {
+			executor = NewRawExecutor(stmt, mappers, chunkSize)
+		} else {
+			executor = NewAggregateExecutor(stmt, mappers)
+		}
+	} else {
+		// With no mappers, the Executor type doesn't matter.
+		executor = NewRawExecutor(stmt, nil, chunkSize)
 	}
-	return NewAggregateExecutor(stmt, mappers), nil
+	return executor, nil
 }
 
 // executeSelectStatement plans and executes a select statement against a database.
