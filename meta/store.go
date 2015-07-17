@@ -167,25 +167,36 @@ func (s *Store) IDPath() string { return filepath.Join(s.path, "id") }
 func (s *Store) Open() error {
 	// If we have a join addr, attempt to join
 	if s.join != "" {
-		res, err := s.rpc.join(s.Addr.String(), s.join)
-		if err != nil {
-			return err
-		}
 
-		s.Logger.Printf("Joined remote node %v", s.join)
-		s.Logger.Printf("raftEnabled=%v peers=%v", res.RaftEnabled, res.Peers)
-		s.peers = res.Peers
-		s.id = res.NodeID
+		joined := false
+		for _, join := range strings.Split(s.join, ",") {
+			res, err := s.rpc.join(s.Addr.String(), join)
+			if err != nil {
+				s.Logger.Printf("join failed: %v", err)
+				continue
+			}
+			joined = true
 
-		if err := s.writeNodeID(res.NodeID); err != nil {
-			return err
-		}
+			s.Logger.Printf("joined remote node %v", join)
+			s.Logger.Printf("raftEnabled=%v peers=%v", res.RaftEnabled, res.Peers)
 
-		if !res.RaftEnabled {
-			s.raftState = &remoteRaft{s}
-			if err := s.invalidate(); err != nil {
+			s.peers = res.Peers
+			s.id = res.NodeID
+
+			if err := s.writeNodeID(res.NodeID); err != nil {
 				return err
 			}
+
+			if !res.RaftEnabled {
+				s.raftState = &remoteRaft{s}
+				if err := s.invalidate(); err != nil {
+					return err
+				}
+			}
+		}
+
+		if !joined {
+			return fmt.Errorf("failed to join existing cluster at %v", s.join)
 		}
 	}
 
