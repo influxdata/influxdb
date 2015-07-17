@@ -1329,21 +1329,7 @@ func (s *Store) exec(typ internal.Command_Type, desc *proto.ExtensionDesc, value
 
 // apply applies a serialized command to the raft log.
 func (s *Store) apply(b []byte) error {
-	// Apply to raft log.
-	f := s.raft.Apply(b, 0)
-	if err := f.Error(); err != nil {
-		return err
-	}
-
-	// Return response if it's an error.
-	// No other non-nil objects should be returned.
-	resp := f.Response()
-	if err, ok := resp.(error); ok {
-		return lookupError(err)
-	}
-	assert(resp == nil, "unexpected response: %#v", resp)
-
-	return nil
+	return s.raftState.apply(b)
 }
 
 // remoteExec sends an encoded command to the remote leader.

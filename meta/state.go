@@ -27,6 +27,7 @@ type raftState interface {
 	invalidate() error
 	close() error
 	lastIndex() uint64
+	apply(b []byte) error
 }
 
 // localRaft is a consensus strategy that uses a local raft implementation fo
@@ -122,6 +123,26 @@ func (r *localRaft) initialize() error {
 	if err := s.SetPeers(s.peers); err != nil {
 		return fmt.Errorf("set raft peers: %s", err)
 	}
+
+	return nil
+}
+
+// apply applies a serialized command to the raft log.
+func (r *localRaft) apply(b []byte) error {
+	s := r.store
+	// Apply to raft log.
+	f := s.raft.Apply(b, 0)
+	if err := f.Error(); err != nil {
+		return err
+	}
+
+	// Return response if it's an error.
+	// No other non-nil objects should be returned.
+	resp := f.Response()
+	if err, ok := resp.(error); ok {
+		return lookupError(err)
+	}
+	assert(resp == nil, "unexpected response: %#v", resp)
 
 	return nil
 }
@@ -270,6 +291,11 @@ func (r *remoteRaft) openRaft() error {
 
 func (r *remoteRaft) close() error {
 	return nil
+}
+
+// apply applies a serialized command to the raft log.
+func (r *remoteRaft) apply(b []byte) error {
+	return fmt.Errorf("cannot apply log while in remote raft state")
 }
 
 func (r *remoteRaft) initialize() error {
