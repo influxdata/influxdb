@@ -843,6 +843,12 @@ func (p *Parser) parseShowMeasurementsStatement() (*ShowMeasurementsStatement, e
 func (p *Parser) parseShowRetentionPoliciesStatement() (*ShowRetentionPoliciesStatement, error) {
 	stmt := &ShowRetentionPoliciesStatement{}
 
+	// Expect an "ON" keyword.
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != ON {
+		return nil, newParseError(tokstr(tok, lit), []string{"ON"}, pos)
+	}
+
+	// Parse the database.
 	ident, err := p.parseIdent()
 	if err != nil {
 		return nil, err

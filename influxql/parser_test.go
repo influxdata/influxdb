@@ -624,7 +624,7 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// SHOW RETENTION POLICIES
 		{
-			s: `SHOW RETENTION POLICIES mydb`,
+			s: `SHOW RETENTION POLICIES ON mydb`,
 			stmt: &influxql.ShowRetentionPoliciesStatement{
 				Database: "mydb",
 			},
@@ -1233,7 +1233,10 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `DROP SERIES FROM src WHERE`, err: `found EOF, expected identifier, string, number, bool at line 1, char 28`},
 		{s: `SHOW CONTINUOUS`, err: `found EOF, expected QUERIES at line 1, char 17`},
 		{s: `SHOW RETENTION`, err: `found EOF, expected POLICIES at line 1, char 16`},
-		{s: `SHOW RETENTION POLICIES`, err: `found EOF, expected identifier at line 1, char 25`},
+		{s: `SHOW RETENTION ON`, err: `found ON, expected POLICIES at line 1, char 16`},
+		{s: `SHOW RETENTION POLICIES`, err: `found EOF, expected ON at line 1, char 25`},
+		{s: `SHOW RETENTION POLICIES mydb`, err: `found mydb, expected ON at line 1, char 25`},
+		{s: `SHOW RETENTION POLICIES ON`, err: `found EOF, expected identifier at line 1, char 28`},
 		{s: `SHOW FOO`, err: `found FOO, expected CONTINUOUS, DATABASES, FIELD, GRANTS, MEASUREMENTS, RETENTION, SERIES, SERVERS, TAG, USERS at line 1, char 6`},
 		{s: `SHOW STATS ON`, err: `found EOF, expected string at line 1, char 15`},
 		{s: `SHOW GRANTS`, err: `found EOF, expected FOR at line 1, char 13`},

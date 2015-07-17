@@ -513,7 +513,7 @@ func TestStatementExecutor_ExecuteStatement_ShowRetentionPolicies(t *testing.T) 
 		}, nil
 	}
 
-	if res := e.ExecuteStatement(influxql.MustParseStatement(`SHOW RETENTION POLICIES db0`)); res.Err != nil {
+	if res := e.ExecuteStatement(influxql.MustParseStatement(`SHOW RETENTION POLICIES ON db0`)); res.Err != nil {
 		t.Fatal(res.Err)
 	} else if !reflect.DeepEqual(res.Series, influxql.Rows{
 		{
@@ -535,7 +535,7 @@ func TestStatementExecutor_ExecuteStatement_ShowRetentionPolicies_Err(t *testing
 		return nil, errors.New("marker")
 	}
 
-	if res := e.ExecuteStatement(influxql.MustParseStatement(`SHOW RETENTION POLICIES db0`)); res.Err == nil || res.Err.Error() != "marker" {
+	if res := e.ExecuteStatement(influxql.MustParseStatement(`SHOW RETENTION POLICIES ON db0`)); res.Err == nil || res.Err.Error() != "marker" {
 		t.Fatalf("unexpected error: %s", res.Err)
 	}
 }
@@ -547,7 +547,7 @@ func TestStatementExecutor_ExecuteStatement_ShowRetentionPolicies_ErrDatabaseNot
 		return nil, nil
 	}
 
-	if res := e.ExecuteStatement(influxql.MustParseStatement(`SHOW RETENTION POLICIES db0`)); res.Err != meta.ErrDatabaseNotFound {
+	if res := e.ExecuteStatement(influxql.MustParseStatement(`SHOW RETENTION POLICIES ON db0`)); res.Err != meta.ErrDatabaseNotFound {
 		t.Fatalf("unexpected error: %s", res.Err)
 	}
 }

@@ -236,7 +236,7 @@ func TestServer_RetentionPolicyCommands(t *testing.T) {
 			},
 			&Query{
 				name:    "show retention policy should succeed",
-				command: `SHOW RETENTION POLICIES db0`,
+				command: `SHOW RETENTION POLICIES ON db0`,
 				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["rp0","1h0m0s",1,false]]}]}]}`,
 			},
 			&Query{
@@ -246,7 +246,7 @@ func TestServer_RetentionPolicyCommands(t *testing.T) {
 			},
 			&Query{
 				name:    "show retention policy should have new altered information",
-				command: `SHOW RETENTION POLICIES db0`,
+				command: `SHOW RETENTION POLICIES ON db0`,
 				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["rp0","2h0m0s",3,true]]}]}]}`,
 			},
 			&Query{
@@ -256,7 +256,7 @@ func TestServer_RetentionPolicyCommands(t *testing.T) {
 			},
 			&Query{
 				name:    "show retention policy should be empty after dropping them",
-				command: `SHOW RETENTION POLICIES db0`,
+				command: `SHOW RETENTION POLICIES ON db0`,
 				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"]}]}]}`,
 			},
 			&Query{
@@ -300,7 +300,7 @@ func TestServer_DatabaseRetentionPolicyAutoCreate(t *testing.T) {
 			},
 			&Query{
 				name:    "show retention policies should return auto-created policy",
-				command: `SHOW RETENTION POLICIES db0`,
+				command: `SHOW RETENTION POLICIES ON db0`,
 				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["default","0",1,true]]}]}]}`,
 			},
 		},
@@ -565,7 +565,7 @@ func TestServer_Query_DefaultDBAndRP(t *testing.T) {
 		},
 		&Query{
 			name:    "default rp exists",
-			command: `show retention policies db0`,
+			command: `show retention policies ON db0`,
 			exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["default","0",1,false],["rp0","1h0m0s",1,true]]}]}]}`,
 		},
 		&Query{
