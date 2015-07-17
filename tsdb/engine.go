@@ -33,7 +33,7 @@ type Mapper interface {
 // track for that mapper.
 type StatefulMapper struct {
 	Mapper
-	bufferedChunk *mapperOutput // Last read chunk.
+	bufferedChunk *MapperOutput // Last read chunk.
 	drained       bool
 }
 
@@ -43,12 +43,12 @@ type Executor interface {
 }
 
 // NextChunk wraps a RawMapper and some state.
-func (srm *StatefulMapper) NextChunk() (*mapperOutput, error) {
+func (srm *StatefulMapper) NextChunk() (*MapperOutput, error) {
 	c, err := srm.Mapper.NextChunk()
 	if err != nil {
 		return nil, err
 	}
-	chunk, ok := c.(*mapperOutput)
+	chunk, ok := c.(*MapperOutput)
 	if !ok {
 		if chunk == interface{}(nil) {
 			return nil, nil
@@ -159,7 +159,7 @@ func (re *RawExecutor) execute(out chan *influxql.Row) {
 		minTime := re.nextMapperLowestTime(tagset)
 
 		// Now empty out all the chunks up to the min time. Create new output struct for this data.
-		var chunkedOutput *mapperOutput
+		var chunkedOutput *MapperOutput
 		for _, m := range re.mappers {
 			if m.drained {
 				continue
@@ -182,7 +182,7 @@ func (re *RawExecutor) execute(out chan *influxql.Row) {
 
 			// Add up to the index to the values
 			if chunkedOutput == nil {
-				chunkedOutput = &mapperOutput{
+				chunkedOutput = &MapperOutput{
 					Name: m.bufferedChunk.Name,
 					Tags: m.bufferedChunk.Tags,
 				}
@@ -392,7 +392,7 @@ func (ae *AggregateExecutor) execute(out chan *influxql.Row) {
 		// Send out data for the next alphabetically-lowest tagset. All Mappers send out in this order
 		// so collect data for this tagset, ignoring all others.
 		tagset := ae.nextMapperTagSet()
-		chunks := []*mapperOutput{}
+		chunks := []*MapperOutput{}
 
 		// Pull as much as possible from each mapper. Stop when a mapper offers
 		// data for a new tagset, or empties completely.
