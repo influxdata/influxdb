@@ -130,13 +130,13 @@ type authUser struct {
 // raftState abstracts the interaction of the raft consensus layer
 // across local or remote nodes.
 type raftState interface {
-	OpenRaft() error
-	Initialize() error
-	Leader() string
-	RaftEnabled() bool
-	Sync(index uint64, timeout time.Duration) error
-	Invalidate() error
-	Close() error
+	openRaft() error
+	initialize() error
+	leader() string
+	raftEnabled() bool
+	sync(index uint64, timeout time.Duration) error
+	invalidate() error
+	close() error
 }
 
 // localRaft is a consensus strategy that uses a local raft implementation fo
@@ -145,16 +145,16 @@ type localRaft struct {
 	store *Store
 }
 
-func (r *localRaft) RaftEnabled() bool {
+func (r *localRaft) raftEnabled() bool {
 	return true
 }
 
-func (r *localRaft) Invalidate() error {
+func (r *localRaft) invalidate() error {
 	time.Sleep(time.Second)
 	return nil
 }
 
-func (r *localRaft) OpenRaft() error {
+func (r *localRaft) openRaft() error {
 	s := r.store
 	// Setup raft configuration.
 	config := raft.DefaultConfig()
@@ -204,11 +204,11 @@ func (r *localRaft) OpenRaft() error {
 	return nil
 }
 
-func (r *localRaft) Close() error {
+func (r *localRaft) close() error {
 	return nil
 }
 
-func (r *localRaft) Initialize() error {
+func (r *localRaft) initialize() error {
 	s := r.store
 	// If we have committed entries then the store is already in the cluster.
 	if index, err := s.store.LastIndex(); err != nil {
@@ -225,7 +225,7 @@ func (r *localRaft) Initialize() error {
 	return nil
 }
 
-func (r *localRaft) Sync(index uint64, timeout time.Duration) error {
+func (r *localRaft) sync(index uint64, timeout time.Duration) error {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
@@ -252,7 +252,7 @@ func (r *localRaft) Sync(index uint64, timeout time.Duration) error {
 	}
 }
 
-func (r *localRaft) Leader() string {
+func (r *localRaft) leader() string {
 	if r.store.raft == nil {
 		return ""
 	}
@@ -266,7 +266,7 @@ type remoteRaft struct {
 	store *Store
 }
 
-func (r *remoteRaft) RaftEnabled() bool {
+func (r *remoteRaft) raftEnabled() bool {
 	return false
 }
 
@@ -290,7 +290,7 @@ func (r *remoteRaft) updateMetaData(ms *Data) {
 	}
 }
 
-func (r *remoteRaft) Invalidate() error {
+func (r *remoteRaft) invalidate() error {
 	ms, err := r.store.rpc.fetchMetaData(false)
 	if err != nil {
 		return err
@@ -300,7 +300,7 @@ func (r *remoteRaft) Invalidate() error {
 	return nil
 }
 
-func (r *remoteRaft) OpenRaft() error {
+func (r *remoteRaft) openRaft() error {
 	go func() {
 		for {
 			select {
@@ -321,15 +321,15 @@ func (r *remoteRaft) OpenRaft() error {
 	return nil
 }
 
-func (r *remoteRaft) Close() error {
+func (r *remoteRaft) close() error {
 	return nil
 }
 
-func (r *remoteRaft) Initialize() error {
+func (r *remoteRaft) initialize() error {
 	return nil
 }
 
-func (r *remoteRaft) Leader() string {
+func (r *remoteRaft) leader() string {
 	if len(r.store.peers) == 0 {
 		return ""
 	}
@@ -337,7 +337,7 @@ func (r *remoteRaft) Leader() string {
 	return r.store.peers[rand.Intn(len(r.store.peers))]
 }
 
-func (r *remoteRaft) Sync(index uint64, timeout time.Duration) error {
+func (r *remoteRaft) sync(index uint64, timeout time.Duration) error {
 	//FIXME: jwilder: check index and timeout
 	return r.store.invalidate()
 }
@@ -480,12 +480,12 @@ func (s *Store) Open() error {
 
 // openRaft initializes the raft store.
 func (s *Store) openRaft() error {
-	return s.raftState.OpenRaft()
+	return s.raftState.openRaft()
 }
 
 // initialize attempts to bootstrap the raft store if there are no committed entries.
 func (s *Store) initialize() error {
-	return s.raftState.Initialize()
+	return s.raftState.initialize()
 }
 
 // Close closes the store and shuts down the node in the cluster.
@@ -520,7 +520,7 @@ func (s *Store) close() error {
 	// FIXME(benbjohnson): s.wg.Wait()
 
 	if s.raftState != nil {
-		s.raftState.Close()
+		s.raftState.close()
 		s.raftState = nil
 	}
 	// Shutdown raft.
@@ -670,7 +670,7 @@ func (s *Store) IsLeader() bool {
 func (s *Store) Leader() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.raftState.Leader()
+	return s.raftState.leader()
 }
 
 // LeaderCh returns a channel that notifies on leadership change.
@@ -1568,7 +1568,7 @@ func (s *Store) read(fn func(*Data) error) error {
 var errInvalidate = errors.New("invalidate cache")
 
 func (s *Store) invalidate() error {
-	return s.raftState.Invalidate()
+	return s.raftState.invalidate()
 }
 
 func (s *Store) exec(typ internal.Command_Type, desc *proto.ExtensionDesc, value interface{}) error {
@@ -1583,7 +1583,7 @@ func (s *Store) exec(typ internal.Command_Type, desc *proto.ExtensionDesc, value
 
 	// Apply the command if this is the leader.
 	// Otherwise remotely execute the command against the current leader.
-	if s.raftState.RaftEnabled() && s.raft.State() == raft.Leader {
+	if s.raftState.raftEnabled() && s.raft.State() == raft.Leader {
 		return s.apply(b)
 	}
 	return s.remoteExec(b)
@@ -1611,7 +1611,7 @@ func (s *Store) apply(b []byte) error {
 // remoteExec sends an encoded command to the remote leader.
 func (s *Store) remoteExec(b []byte) error {
 	// Retrieve the current known leader.
-	leader := s.raftState.Leader()
+	leader := s.raftState.leader()
 	if leader == "" {
 		return errors.New("no leader")
 	}
@@ -1670,7 +1670,7 @@ func (s *Store) remoteExec(b []byte) error {
 
 // sync polls the state machine until it reaches a given index.
 func (s *Store) sync(index uint64, timeout time.Duration) error {
-	return s.raftState.Sync(index, timeout)
+	return s.raftState.sync(index, timeout)
 }
 
 func (s *Store) cachedData() *Data {
