@@ -314,17 +314,17 @@ func (re *RawExecutor) close() {
 // track for that mapper.
 type StatefulAggMapper struct {
 	Mapper
-	bufferedChunk *aggMapperOutput // Last read chunk.
+	bufferedChunk *rawMapperOutput // Last read chunk.
 	drained       bool
 }
 
 // NextChunk wraps an AggregateMapper and some state.
-func (sam *StatefulAggMapper) NextChunk() (*aggMapperOutput, error) {
+func (sam *StatefulAggMapper) NextChunk() (*rawMapperOutput, error) {
 	c, err := sam.Mapper.NextChunk()
 	if err != nil {
 		return nil, err
 	}
-	chunk, ok := c.(*aggMapperOutput)
+	chunk, ok := c.(*rawMapperOutput)
 	if !ok {
 		if chunk == interface{}(nil) {
 			return nil, nil
@@ -422,7 +422,7 @@ func (ae *AggregateExecutor) execute(out chan *influxql.Row) {
 		// Send out data for the next alphabetically-lowest tagset. All Mappers send out in this order
 		// so collect data for this tagset, ignoring all others.
 		tagset := ae.nextMapperTagSet()
-		chunks := []*aggMapperOutput{}
+		chunks := []*rawMapperOutput{}
 
 		// Pull as much as possible from each mapper. Stop when a mapper offers
 		// data for a new tagset, or empties completely.

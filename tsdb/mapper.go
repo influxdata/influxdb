@@ -189,16 +189,6 @@ func (rm *RawMapper) Close() {
 	}
 }
 
-type aggMapperOutput struct {
-	Name   string            `json:"name,omitempty"`
-	Tags   map[string]string `json:"tags,omitempty"`
-	Values []*rawMapperValue `json:"values,omitempty"`
-}
-
-func (amo *aggMapperOutput) key() string {
-	return formMeasurementTagSetKey(amo.Name, amo.Tags)
-}
-
 // AggMapper is for retrieving data, for an aggregate query, from a given shard.
 type AggMapper struct {
 	shard *Shard
@@ -383,7 +373,7 @@ func (am *AggMapper) Open() error {
 // returned by AvailTagsSets(). When there is no more data for any tagset nil
 // is returned.
 func (am *AggMapper) NextChunk() (interface{}, error) {
-	var output *aggMapperOutput
+	var output *rawMapperOutput
 	for {
 		if am.currCursorIndex == len(am.cursors) {
 			// All tagset cursors processed. NextChunk'ing complete.
@@ -402,7 +392,7 @@ func (am *AggMapper) NextChunk() (interface{}, error) {
 		// Prep the return data for this tagset. This will hold data for a single interval
 		// for a single tagset.
 		if output == nil {
-			output = &aggMapperOutput{
+			output = &rawMapperOutput{
 				Name:   cursor.measurement,
 				Tags:   cursor.tags,
 				Values: make([]*rawMapperValue, 1),
