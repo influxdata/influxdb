@@ -189,15 +189,10 @@ func (rm *RawMapper) Close() {
 	}
 }
 
-type aggMapperValue struct {
-	Time  int64       `json:"time,omitempty"`
-	Value interface{} `json:"value,omitempty"` // 1 entry per map function.
-}
-
 type aggMapperOutput struct {
 	Name   string            `json:"name,omitempty"`
 	Tags   map[string]string `json:"tags,omitempty"`
-	Values []*aggMapperValue `json:"values,omitempty"`
+	Values []*rawMapperValue `json:"values,omitempty"`
 }
 
 func (amo *aggMapperOutput) key() string {
@@ -410,11 +405,11 @@ func (am *AggMapper) NextChunk() (interface{}, error) {
 			output = &aggMapperOutput{
 				Name:   cursor.measurement,
 				Tags:   cursor.tags,
-				Values: make([]*aggMapperValue, 1),
+				Values: make([]*rawMapperValue, 1),
 			}
 			// Aggregate values only use the first entry in the Values field. Set the time
 			// to the start of the interval.
-			output.Values[0] = &aggMapperValue{
+			output.Values[0] = &rawMapperValue{
 				Time:  tmin,
 				Value: make([]interface{}, 0)}
 		}
