@@ -447,19 +447,7 @@ func (s *Store) SetPeers(addrs []string) error {
 
 // AddPeer adds addr to the list of peers in the cluster.
 func (s *Store) AddPeer(addr string) error {
-	peers, err := s.peerStore.Peers()
-	if err != nil {
-		return err
-	}
-
-	if len(peers) >= 3 {
-		return nil
-	}
-
-	if fut := s.raft.AddPeer(addr); fut.Error() != nil {
-		return fut.Error()
-	}
-	return nil
+	return s.raftState.addPeer(addr)
 }
 
 // Peers returns the list of peers in the cluster.

@@ -24,6 +24,7 @@ type raftState interface {
 	raftEnabled() bool
 	sync(index uint64, timeout time.Duration) error
 	setPeers(addrs []string) error
+	addPeer(addr string) error
 	invalidate() error
 	close() error
 }
@@ -157,6 +158,24 @@ func (r *localRaft) sync(index uint64, timeout time.Duration) error {
 	}
 }
 
+// addPeer adds addr to the list of peers in the cluster.
+func (r *localRaft) addPeer(addr string) error {
+	s := r.store
+	peers, err := s.peerStore.Peers()
+	if err != nil {
+		return err
+	}
+
+	if len(peers) >= 3 {
+		return nil
+	}
+
+	if fut := s.raft.AddPeer(addr); fut.Error() != nil {
+		return fut.Error()
+	}
+	return nil
+}
+
 // setPeers sets a list of peers in the cluster.
 func (r *localRaft) setPeers(addrs []string) error {
 	a := make([]string, len(addrs))
@@ -226,6 +245,11 @@ func (r *remoteRaft) invalidate() error {
 
 func (r *remoteRaft) setPeers(addrs []string) error {
 	return nil
+}
+
+// addPeer adds addr to the list of peers in the cluster.
+func (r *remoteRaft) addPeer(addr string) error {
+	return fmt.Errorf("cannot add peer using remote raft")
 }
 
 func (r *remoteRaft) openRaft() error {
