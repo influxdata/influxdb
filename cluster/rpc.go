@@ -15,6 +15,10 @@ type MapShardRequest struct {
 	pb internal.MapShardRequest
 }
 
+func (m *MapShardRequest) ShardID() uint64  { return m.pb.GetShardID() }
+func (m *MapShardRequest) Query() string    { return m.pb.GetQuery() }
+func (m *MapShardRequest) ChunkSize() int32 { return m.pb.GetChunkSize() }
+
 func (m *MapShardRequest) SetShardID(id uint64)         { m.pb.ShardID = &id }
 func (m *MapShardRequest) SetQuery(query string)        { m.pb.Query = &query }
 func (m *MapShardRequest) SetChunkSize(chunkSize int32) { m.pb.ChunkSize = &chunkSize }
@@ -41,6 +45,11 @@ func (r *MapShardResponse) Code() int         { return int(r.pb.GetCode()) }
 func (r *MapShardResponse) Message() string   { return r.pb.GetMessage() }
 func (r *MapShardResponse) TagSets() []string { return r.pb.GetTagSets() }
 func (r *MapShardResponse) Data() []byte      { return r.pb.GetData() }
+
+func (r *MapShardResponse) SetCode(code int)            { r.pb.Code = proto.Int32(int32(code)) }
+func (r *MapShardResponse) SetMessage(message string)   { r.pb.Message = &message }
+func (r *MapShardResponse) SetTagSets(tagsets []string) { r.pb.TagSets = tagsets }
+func (r *MapShardResponse) SetData(data []byte)         { r.pb.Data = data }
 
 // MarshalBinary encodes the object to a binary format.
 func (r *MapShardResponse) MarshalBinary() ([]byte, error) {

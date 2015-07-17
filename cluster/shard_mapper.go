@@ -1,6 +1,8 @@
 package cluster
 
 import (
+	"encoding/json"
+	"fmt"
 	"net"
 	"time"
 
@@ -66,9 +68,9 @@ type RemoteMapper struct {
 
 	pool    *clientPool
 	timeout time.Duration
+	conn    *pool.PoolConn
 
-	buffer     []byte
-	bufferSent bool
+	bufferedResponse *MapShardResponse
 }
 
 // NewRemoteMaper returns a new remote mapper.
@@ -82,19 +84,20 @@ func NewRemoteMaper(nodeID, shardID uint64, stmt string, chunkSize int) *RemoteM
 }
 
 // Open connects to the remote node and starts receiving data.
-func (r *RemoteMapper) Open() error {
+func (r *RemoteMapper) Open() (err error) {
+	defer func() {
+		if err != nil {
+			r.conn.MarkUnusable()
+			r.conn.Close()
+		}
+	}()
+
 	c, err := r.dial(r.nodeID)
 	if err != nil {
 		return err
 	}
 
-	conn, ok := c.(*pool.PoolConn)
-	if !ok {
-		panic("wrong connection type")
-	}
-	defer func(conn net.Conn) {
-		conn.Close() // return to pool
-	}(conn)
+	r.conn = c.(*pool.PoolConn)
 
 	// Build Map request.
 	var request MapShardRequest
@@ -109,35 +112,30 @@ func (r *RemoteMapper) Open() error {
 	}
 
 	// Write request.
-	conn.SetWriteDeadline(time.Now().Add(r.timeout))
-	if err := WriteTLV(conn, mapShardRequestMessage, buf); err != nil {
-		conn.MarkUnusable()
+	r.conn.SetWriteDeadline(time.Now().Add(r.timeout))
+	if err := WriteTLV(r.conn, mapShardRequestMessage, buf); err != nil {
 		return err
 	}
 
 	// Read the response.
-	conn.SetReadDeadline(time.Now().Add(r.timeout))
-	_, buf, err = ReadTLV(conn)
+	r.conn.SetReadDeadline(time.Now().Add(r.timeout))
+	_, buf, err = ReadTLV(r.conn)
 	if err != nil {
-		conn.MarkUnusable()
 		return err
 	}
 
 	// Unmarshal response.
-	var response MapShardResponse
-	if err := response.UnmarshalBinary(buf); err != nil {
+	r.bufferedResponse = &MapShardResponse{}
+	if err := r.bufferedResponse.UnmarshalBinary(buf); err != nil {
 		return err
 	}
 
-	if r.Code() != 0 {
-		return fmt.Errorf("error code %d: %s", response.Code(), response.Message())
+	if r.bufferedResponse.Code() != 0 {
+		return fmt.Errorf("error code %d: %s", r.bufferedResponse.Code(), r.bufferedResponse.Message())
 	}
 
 	// Decode the first response to get the TagSets.
-	r.tagsets = response.TagSets()
-
-	// Buffer the remaining data.
-	r.buffer = response.Data()
+	r.tagsets = r.bufferedResponse.TagSets()
 
 	return nil
 }
@@ -148,15 +146,40 @@ func (r *RemoteMapper) TagSets() []string {
 
 // NextChunk returns the next chunk read from the remote node to the client.
 func (r *RemoteMapper) NextChunk() (interface{}, error) {
-	if !r.bufferSent {
-		r.bufferSent = true
-		// Decode buffer and return
+	var v interface{}
+	var response *MapShardResponse
+
+	if r.bufferedResponse != nil {
+		response = r.bufferedResponse
+		r.bufferedResponse = nil
+	} else {
+		response = &MapShardResponse{}
+
+		// Read the response.
+		r.conn.SetReadDeadline(time.Now().Add(r.timeout))
+		_, buf, err := ReadTLV(r.conn)
+		if err != nil {
+			r.conn.MarkUnusable()
+			return nil, err
+		}
+
+		// Unmarshal response.
+		if err := response.UnmarshalBinary(buf); err != nil {
+			return nil, err
+		}
+
+		if response.Code() != 0 {
+			return nil, fmt.Errorf("error code %d: %s", response.Code(), response.Message())
+		}
 	}
-	return nil, nil
+
+	err := json.Unmarshal(response.Data(), v)
+	return v, err
 }
 
 // Close the Mapper
 func (r *RemoteMapper) Close() {
+	r.conn.Close()
 }
 
 func (r *RemoteMapper) dial(nodeID uint64) (net.Conn, error) {

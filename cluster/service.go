@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -36,6 +37,7 @@ type Service struct {
 	TSDBStore interface {
 		CreateShard(database, policy string, shardID uint64) error
 		WriteToShard(shardID uint64, points []tsdb.Point) error
+		CreateMapper(shardID uint64, query string, chunkSize int) (tsdb.Mapper, error)
 	}
 
 	Logger *log.Logger
@@ -147,7 +149,7 @@ func (s *Service) handleConn(conn net.Conn) {
 		case mapShardRequestMessage:
 			err := s.processMapShardRequest(conn, buf)
 			if err != nil {
-				// XXX handle error
+				s.Logger.Printf("process map shard error: %s", err)
 			}
 		default:
 			s.Logger.Printf("cluster service message type not found: %d", typ)
@@ -219,6 +221,63 @@ func (s *Service) writeShardResponse(w io.Writer, e error) {
 }
 
 func (s *Service) processMapShardRequest(w io.Writer, buf []byte) error {
+	// Decode request
+	var req MapShardRequest
+	if err := req.UnmarshalBinary(buf); err != nil {
+		return err
+	}
+
+	m, err := s.TSDBStore.CreateMapper(req.ShardID(), req.Query(), int(req.ChunkSize()))
+	if err != nil {
+		// XXX  send error to user.
+		return fmt.Errorf("create mapper: %s", err)
+	}
+	if m == nil {
+		// XXX send empty response.
+	}
+
+	if err := m.Open(); err != nil {
+		return fmt.Errorf("mapper open: %s", err)
+	}
+	defer m.Close()
+
+	var tagSetsSent bool
+	for {
+		var resp MapShardResponse
+
+		if !tagSetsSent {
+			resp.SetTagSets(m.TagSets())
+			tagSetsSent = true
+		}
+
+		chunk, err := m.NextChunk()
+		if err != nil {
+			return fmt.Errorf("next chunk: %s", err)
+		}
+		if chunk != nil {
+			b, err := json.Marshal(chunk)
+			if err != nil {
+				return fmt.Errorf("encoding: %s", err)
+			}
+			resp.SetData(b)
+		}
+
+		// Marshal response to binary.
+		buf, err := resp.MarshalBinary()
+		if err != nil {
+			return fmt.Errorf("error marshalling shard response: %s", err)
+		}
+
+		// Write to connection.
+		if err := WriteTLV(w, mapShardResponseMessage, buf); err != nil {
+			return fmt.Errorf("write shard response error: %s", err)
+		}
+
+		if chunk == nil {
+			// All mapper data sent.
+			return nil
+		}
+	}
 	return nil
 }
 
