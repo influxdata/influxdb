@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"net"
 	"os"
 	"path/filepath"
 	"time"
@@ -23,6 +24,7 @@ type raftState interface {
 	leaderCh() <-chan bool
 	raftEnabled() bool
 	sync(index uint64, timeout time.Duration) error
+	setPeers(addrs []string) error
 	invalidate() error
 	close() error
 }
@@ -156,6 +158,19 @@ func (r *localRaft) sync(index uint64, timeout time.Duration) error {
 	}
 }
 
+// setPeers sets a list of peers in the cluster.
+func (r *localRaft) setPeers(addrs []string) error {
+	a := make([]string, len(addrs))
+	for i, s := range addrs {
+		addr, err := net.ResolveTCPAddr("tcp", s)
+		if err != nil {
+			return fmt.Errorf("cannot resolve addr: %s, err=%s", s, err)
+		}
+		a[i] = addr.String()
+	}
+	return r.store.raft.SetPeers(a).Error()
+}
+
 func (r *localRaft) leader() string {
 	if r.store.raft == nil {
 		return ""
@@ -218,6 +233,10 @@ func (r *remoteRaft) invalidate() error {
 	}
 
 	r.updateMetaData(ms)
+	return nil
+}
+
+func (r *remoteRaft) setPeers(addrs []string) error {
 	return nil
 }
 

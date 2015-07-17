@@ -448,15 +448,7 @@ func (s *Store) LeaderCh() <-chan bool {
 
 // SetPeers sets a list of peers in the cluster.
 func (s *Store) SetPeers(addrs []string) error {
-	a := make([]string, len(addrs))
-	for i, s := range addrs {
-		addr, err := net.ResolveTCPAddr("tcp", s)
-		if err != nil {
-			return fmt.Errorf("cannot resolve addr: %s, err=%s", s, err)
-		}
-		a[i] = addr.String()
-	}
-	return s.raft.SetPeers(a).Error()
+	return s.raftState.setPeers(addrs)
 }
 
 // AddPeer adds addr to the list of peers in the cluster.
