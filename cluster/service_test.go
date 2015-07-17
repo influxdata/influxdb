@@ -48,23 +48,6 @@ func newTestWriteService(f func(shardID uint64, points []tsdb.Point) error) test
 	}
 }
 
-func newTestMapperService(f func(shardID uint64, query string, chunkSize int) (tsdb.Mapper, error)) testService {
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		panic(err)
-	}
-
-	mux := tcp.NewMux()
-	muxln := mux.Listen(cluster.MuxHeader)
-	go mux.Serve(ln)
-
-	return testService{
-		createMapperFunc: f,
-		ln:               ln,
-		muxln:            muxln,
-	}
-}
-
 func (ts *testService) Close() {
 	if ts.ln != nil {
 		ts.ln.Close()

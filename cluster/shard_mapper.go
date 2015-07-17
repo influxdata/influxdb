@@ -11,6 +11,11 @@ import (
 	"gopkg.in/fatih/pool.v2"
 )
 
+type remoteShardConn interface {
+	net.Conn
+	MarkUnusable()
+}
+
 // ShardMapper is responsible for providing mappers for requested shards. It is
 // responsible for creating those mappers from the local store, or reaching
 // out to another node on the cluster.
@@ -25,6 +30,8 @@ type ShardMapper struct {
 	}
 
 	timeout time.Duration
+	pool    *clientPool
+	conn    *pool.PoolConn
 }
 
 // NewShardMapper returns a mapper of local and remote shards.
@@ -33,50 +40,61 @@ func NewShardMapper(timeout time.Duration) *ShardMapper {
 }
 
 // CreateMapper returns a Mapper for the given shard ID.
-func (r *ShardMapper) CreateMapper(sh meta.ShardInfo, stmt string, chunkSize int) (tsdb.Mapper, error) {
+func (s *ShardMapper) CreateMapper(sh meta.ShardInfo, stmt string, chunkSize int) (tsdb.Mapper, error) {
 	var err error
 	var m tsdb.Mapper
-	if sh.OwnedBy(r.MetaStore.NodeID()) {
-		m, err = r.TSDBStore.CreateMapper(sh.ID, stmt, chunkSize)
+	if sh.OwnedBy(s.MetaStore.NodeID()) {
+		m, err = s.TSDBStore.CreateMapper(sh.ID, stmt, chunkSize)
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		rm := NewRemoteMaper(sh.OwnerIDs[0], sh.ID, stmt, chunkSize)
-		rm.MetaStore = r.MetaStore
-		rm.Timeout = r.timeout
+		conn, err := s.dial(sh.OwnerIDs[0])
+		if err != nil {
+			return nil, err
+		}
+		s.conn.SetDeadline(time.Now().Add(s.timeout))
+
+		rm := NewRemoteMapper(conn.(*pool.PoolConn), sh.ID, stmt, chunkSize)
 		m = rm
 	}
 
 	return m, nil
 }
 
+func (s *ShardMapper) dial(nodeID uint64) (net.Conn, error) {
+	// If we don't have a connection pool for that addr yet, create one
+	_, ok := s.pool.getPool(nodeID)
+	if !ok {
+		factory := &connFactory{nodeID: nodeID, clientPool: s.pool, timeout: s.timeout}
+		factory.metaStore = s.MetaStore
+
+		p, err := pool.NewChannelPool(1, 3, factory.dial)
+		if err != nil {
+			return nil, err
+		}
+		s.pool.setPool(nodeID, p)
+	}
+	return s.pool.conn(nodeID)
+}
+
 // RemoteMapper implements the tsdb.Mapper interface. It connects to a remote node,
 // sends a query, and interprets the stream of data that comes back.
 type RemoteMapper struct {
-	MetaStore interface {
-		Node(id uint64) (ni *meta.NodeInfo, err error)
-	}
-
-	Timeout time.Duration
-
-	nodeID    uint64
 	shardID   uint64
 	stmt      string
 	chunkSize int
 
 	tagsets []string
 
-	pool *clientPool
-	conn *pool.PoolConn
-
+	conn             remoteShardConn
 	bufferedResponse *MapShardResponse
 }
 
-// NewRemoteMaper returns a new remote mapper.
-func NewRemoteMaper(nodeID, shardID uint64, stmt string, chunkSize int) *RemoteMapper {
+// NewRemoteMapper returns a new remote mapper using the given connection.
+func NewRemoteMapper(c remoteShardConn, shardID uint64, stmt string, chunkSize int) *RemoteMapper {
 	return &RemoteMapper{
-		nodeID:    nodeID,
+		conn:      c,
 		shardID:   shardID,
 		stmt:      stmt,
 		chunkSize: chunkSize,
@@ -92,13 +110,6 @@ func (r *RemoteMapper) Open() (err error) {
 		}
 	}()
 
-	c, err := r.dial(r.nodeID)
-	if err != nil {
-		return err
-	}
-
-	r.conn = c.(*pool.PoolConn)
-
 	// Build Map request.
 	var request MapShardRequest
 	request.SetShardID(r.shardID)
@@ -112,13 +123,11 @@ func (r *RemoteMapper) Open() (err error) {
 	}
 
 	// Write request.
-	r.conn.SetWriteDeadline(time.Now().Add(r.Timeout))
 	if err := WriteTLV(r.conn, mapShardRequestMessage, buf); err != nil {
 		return err
 	}
 
 	// Read the response.
-	r.conn.SetReadDeadline(time.Now().Add(r.Timeout))
 	_, buf, err = ReadTLV(r.conn)
 	if err != nil {
 		return err
@@ -145,7 +154,14 @@ func (r *RemoteMapper) TagSets() []string {
 }
 
 // NextChunk returns the next chunk read from the remote node to the client.
-func (r *RemoteMapper) NextChunk() (interface{}, error) {
+func (r *RemoteMapper) NextChunk() (chunk interface{}, err error) {
+	defer func() {
+		if err != nil {
+			r.conn.MarkUnusable()
+			r.conn.Close()
+		}
+	}()
+
 	output := &tsdb.MapperOutput{}
 	var response *MapShardResponse
 
@@ -156,7 +172,6 @@ func (r *RemoteMapper) NextChunk() (interface{}, error) {
 		response = &MapShardResponse{}
 
 		// Read the response.
-		r.conn.SetReadDeadline(time.Now().Add(r.Timeout))
 		_, buf, err := ReadTLV(r.conn)
 		if err != nil {
 			r.conn.MarkUnusable()
@@ -173,27 +188,11 @@ func (r *RemoteMapper) NextChunk() (interface{}, error) {
 		}
 	}
 
-	err := json.Unmarshal(response.Data(), output)
+	err = json.Unmarshal(response.Data(), output)
 	return output, err
 }
 
 // Close the Mapper
 func (r *RemoteMapper) Close() {
 	r.conn.Close()
-}
-
-func (r *RemoteMapper) dial(nodeID uint64) (net.Conn, error) {
-	// If we don't have a connection pool for that addr yet, create one
-	_, ok := r.pool.getPool(nodeID)
-	if !ok {
-		factory := &connFactory{nodeID: nodeID, clientPool: r.pool, timeout: r.Timeout}
-		factory.metaStore = r.MetaStore
-
-		p, err := pool.NewChannelPool(1, 3, factory.dial)
-		if err != nil {
-			return nil, err
-		}
-		r.pool.setPool(nodeID, p)
-	}
-	return r.pool.conn(nodeID)
 }
