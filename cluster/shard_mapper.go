@@ -11,10 +11,6 @@ import (
 	"gopkg.in/fatih/pool.v2"
 )
 
-const (
-	MAX_MAP_RESPONSE_SIZE = 1024 * 1024 * 1024
-)
-
 // ShardMapper is responsible for providing mappers for requested shards. It is
 // responsible for creating those mappers from the local store, or reaching
 // out to another node on the cluster.
@@ -146,7 +142,7 @@ func (r *RemoteMapper) TagSets() []string {
 
 // NextChunk returns the next chunk read from the remote node to the client.
 func (r *RemoteMapper) NextChunk() (interface{}, error) {
-	var v interface{}
+	output := &tsdb.MapperOutput{}
 	var response *MapShardResponse
 
 	if r.bufferedResponse != nil {
@@ -173,8 +169,8 @@ func (r *RemoteMapper) NextChunk() (interface{}, error) {
 		}
 	}
 
-	err := json.Unmarshal(response.Data(), v)
-	return v, err
+	err := json.Unmarshal(response.Data(), output)
+	return output, err
 }
 
 // Close the Mapper
