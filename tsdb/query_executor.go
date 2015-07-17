@@ -60,27 +60,24 @@ func NewQueryExecutor(store *Store) *QueryExecutor {
 // If no user is provided it will return an error unless the query's first statement is to create
 // a root user.
 func (q *QueryExecutor) Authorize(u *meta.UserInfo, query *influxql.Query, database string) error {
-	const authErrLogFmt = "unauthorized request | user: %q | query: %q | database %q\n"
-
 	// Special case if no users exist.
 	if count, err := q.MetaStore.UserCount(); count == 0 && err == nil {
-		// Get the first statement in the query.
-		stmt := query.Statements[0]
-		// First statement must create a root user.
-		if cu, ok := stmt.(*influxql.CreateUserStatement); !ok ||
-			cu.Privilege == nil ||
-			*cu.Privilege != influxql.AllPrivileges {
-			return ErrAuthorize{text: "no users exist. create root user first or disable authentication"}
+		// Ensure there is at least one statement.
+		if len(query.Statements) > 0 {
+			// First statement in the query must create a user with admin privilege.
+			cu, ok := query.Statements[0].(*influxql.CreateUserStatement)
+			if ok && cu.Admin == true {
+				return nil
+			}
 		}
-		return nil
+		return NewErrAuthorize(q, query, "", database, "create admin user first or disable authentication")
 	}
 
 	if u == nil {
-		q.Logger.Printf(authErrLogFmt, "", query.String(), database)
-		return ErrAuthorize{text: "no user provided"}
+		return NewErrAuthorize(q, query, "", database, "no user provided")
 	}
 
-	// Cluster admins can do anything.
+	// Admin privilege allows the user to execute all statements.
 	if u.Admin {
 		return nil
 	}
@@ -90,29 +87,26 @@ func (q *QueryExecutor) Authorize(u *meta.UserInfo, query *influxql.Query, datab
 		// Get the privileges required to execute the statement.
 		privs := stmt.RequiredPrivileges()
 
-		// Make sure the user has each privilege required to execute
-		// the statement.
+		// Make sure the user has the privileges required to execute
+		// each statement.
 		for _, p := range privs {
+			if p.Admin {
+				// Admin privilege already checked so statement requiring admin
+				// privilege cannot be run.
+				msg := fmt.Sprintf("statement '%s', requires admin privilege", stmt)
+				return NewErrAuthorize(q, query, u.Name, database, msg)
+			}
+
 			// Use the db name specified by the statement or the db
 			// name passed by the caller if one wasn't specified by
 			// the statement.
-			dbname := p.Name
-			if dbname == "" {
-				dbname = database
+			db := p.Name
+			if db == "" {
+				db = database
 			}
-
-			// Check if user has required privilege.
-			if !u.Authorize(p.Privilege, dbname) {
-				var msg string
-				if dbname == "" {
-					msg = "requires cluster admin"
-				} else {
-					msg = fmt.Sprintf("requires %s privilege on %s", p.Privilege.String(), dbname)
-				}
-				q.Logger.Printf(authErrLogFmt, u.Name, query.String(), database)
-				return ErrAuthorize{
-					text: fmt.Sprintf("%s not authorized to execute '%s'.  %s", u.Name, stmt.String(), msg),
-				}
+			if !u.Authorize(p.Privilege, db) {
+				msg := fmt.Sprintf("statement '%s', requires %s on %s", stmt, p.Privilege.String(), db)
+				return NewErrAuthorize(q, query, u.Name, database, msg)
 			}
 		}
 	}
@@ -1000,16 +994,28 @@ func (q *QueryExecutor) executeShowDiagnosticsStatement(stmt *influxql.ShowDiagn
 
 // ErrAuthorize represents an authorization error.
 type ErrAuthorize struct {
-	text string
+	q        *QueryExecutor
+	query    *influxql.Query
+	user     string
+	database string
+	message  string
+}
+
+const authErrLogFmt string = "unauthorized request | user: %q | query: %q | database %q\n"
+
+// newAuthorizationError returns a new instance of AuthorizationError.
+func NewErrAuthorize(qe *QueryExecutor, q *influxql.Query, u, db, m string) *ErrAuthorize {
+	return &ErrAuthorize{q: qe, query: q, user: u, database: db, message: m}
 }
 
 // Error returns the text of the error.
 func (e ErrAuthorize) Error() string {
-	return e.text
+	e.q.Logger.Printf(authErrLogFmt, e.user, e.query.String(), e.database)
+	if e.user == "" {
+		return fmt.Sprint(e.message)
+	}
+	return fmt.Sprintf("%s not authorized to execute %s", e.user, e.message)
 }
-
-// authorize satisfies isAuthorizationError
-func (ErrAuthorize) authorize() {}
 
 var (
 	// ErrInvalidQuery is returned when executing an unknown query type.
