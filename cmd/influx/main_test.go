@@ -76,6 +76,7 @@ func TestParseCommand_Use(t *testing.T) {
 		{cmd: " use db"},
 		{cmd: "use db "},
 		{cmd: "use db;"},
+		{cmd: "use db; "},
 		{cmd: "Use db"},
 	}
 
