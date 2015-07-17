@@ -1,6 +1,7 @@
 package httpd
 
 import (
+	"crypto/tls"
 	"fmt"
 	"log"
 	"net"
@@ -11,9 +12,11 @@ import (
 
 // Service manages the listener and handler for an HTTP endpoint.
 type Service struct {
-	ln   net.Listener
-	addr string
-	err  chan error
+	ln    net.Listener
+	addr  string
+	https bool
+	cert  string
+	err   chan error
 
 	Handler *Handler
 
@@ -23,8 +26,10 @@ type Service struct {
 // NewService returns a new instance of Service.
 func NewService(c Config) *Service {
 	s := &Service{
-		addr: c.BindAddress,
-		err:  make(chan error),
+		addr:  c.BindAddress,
+		https: c.HttpsEnabled,
+		cert:  c.HttpsCertificate,
+		err:   make(chan error),
 		Handler: NewHandler(
 			c.AuthEnabled,
 			c.LogEnabled,
@@ -41,13 +46,35 @@ func (s *Service) Open() error {
 	s.Logger.Println("authentication enabled:", s.Handler.requireAuthentication)
 
 	// Open listener.
-	ln, err := net.Listen("tcp", s.addr)
-	if err != nil {
-		return err
-	}
-	s.ln = ln
+	if s.https {
+		cert, err := tls.LoadX509KeyPair(s.cert, s.cert)
+		if err != nil {
+			s.Logger.Printf("Failed to load HTTPS certificate '%s': %s", s.cert, err)
+			s.Logger.Println("Reverting to HTTP")
+		}
 
-	s.Logger.Println("listening on HTTP:", ln.Addr().String())
+		listener, err := tls.Listen("tcp", s.addr, &tls.Config{
+			Certificates: []tls.Certificate{cert},
+		})
+		if err != nil {
+			s.Logger.Printf("Failed to bind HTTPS on %s: %s", s.addr, err)
+			s.Logger.Println("Reverting to HTTP")
+		}
+
+		s.Logger.Println("listening on HTTPS:", listener.Addr().String())
+		s.ln = listener
+	}
+
+	// Assume that the HTTPS configuration failed
+	if s.ln == nil {
+		listener, err := net.Listen("tcp", s.addr)
+		if err != nil {
+			return err
+		}
+
+		s.Logger.Println("listening on HTTP:", listener.Addr().String())
+		s.ln = listener
+	}
 
 	// Begin listening for requests in a separate goroutine.
 	go s.serve()

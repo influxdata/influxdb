@@ -85,6 +85,8 @@ reporting-disabled = false
   log-enabled = true
   write-tracing = false
   pprof-enabled = false
+  https-enabled = false
+  https-certificate = "/etc/ssl/influxdb.pem"
 
 ###
 ### [[graphite]]
