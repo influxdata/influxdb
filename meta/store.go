@@ -1321,7 +1321,7 @@ func (s *Store) exec(typ internal.Command_Type, desc *proto.ExtensionDesc, value
 
 	// Apply the command if this is the leader.
 	// Otherwise remotely execute the command against the current leader.
-	if s.raftState.raftEnabled() && s.raft.State() == raft.Leader {
+	if s.raftState.isLeader() {
 		return s.apply(b)
 	}
 	return s.remoteExec(b)

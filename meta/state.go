@@ -21,7 +21,6 @@ type raftState interface {
 	initialize() error
 	leader() string
 	isLeader() bool
-	raftEnabled() bool
 	sync(index uint64, timeout time.Duration) error
 	setPeers(addrs []string) error
 	addPeer(addr string) error
@@ -33,11 +32,6 @@ type raftState interface {
 // consensus operations.
 type localRaft struct {
 	store *Store
-}
-
-// raftEnable always return true for localRaft
-func (r *localRaft) raftEnabled() bool {
-	return true
 }
 
 func (r *localRaft) invalidate() error {
@@ -207,10 +201,6 @@ func (r *localRaft) isLeader() bool {
 // consensus operations.
 type remoteRaft struct {
 	store *Store
-}
-
-func (r *remoteRaft) raftEnabled() bool {
-	return false
 }
 
 func (r *remoteRaft) updateMetaData(ms *Data) {
