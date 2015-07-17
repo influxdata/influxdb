@@ -23,7 +23,7 @@ func (a rawMapperValues) Less(i, j int) bool { return a[i].Time < a[j].Time }
 func (a rawMapperValues) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
 type rawMapperOutput struct {
-	Name   string            `json:"Name,omitempty"`
+	Name   string            `json:"name,omitempty"`
 	Tags   map[string]string `json:"tags,omitempty"`
 	Values rawMapperValues   `json:"values,omitempty"`
 }
