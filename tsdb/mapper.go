@@ -11,9 +11,13 @@ import (
 	"github.com/influxdb/influxdb/influxql"
 )
 
+// mapperValue is a complex type, which can encapsulate data from both raw and aggregate
+// mappers. This currently allows marshalling and network system to remain simpler. For
+// aggregate output Time is ignored, and actual Time-Value pairs are contained soley
+// within the Value field.
 type mapperValue struct {
-	Time  int64       `json:"time,omitempty"`
-	Value interface{} `json:"value,omitempty"`
+	Time  int64       `json:"time,omitempty"`  // Ignored for aggregate output.
+	Value interface{} `json:"value,omitempty"` // For aggregate, contains interval time multiple values.
 }
 
 type mapperValues []*mapperValue
@@ -25,7 +29,7 @@ func (a mapperValues) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 type mapperOutput struct {
 	Name   string            `json:"name,omitempty"`
 	Tags   map[string]string `json:"tags,omitempty"`
-	Values mapperValues      `json:"values,omitempty"`
+	Values []*mapperValue    `json:"values,omitempty"` // For aggregates contains a single value at [0]
 }
 
 func (mo *mapperOutput) key() string {
