@@ -19,6 +19,7 @@ type raftState interface {
 	openRaft() error
 	initialize() error
 	leader() string
+	isLeader() bool
 	raftEnabled() bool
 	sync(index uint64, timeout time.Duration) error
 	invalidate() error
@@ -162,6 +163,12 @@ func (r *localRaft) leader() string {
 	return r.store.raft.Leader()
 }
 
+func (r *localRaft) isLeader() bool {
+	r.store.mu.RLock()
+	defer r.store.mu.RUnlock()
+	return r.store.raft.State() == raft.Leader
+}
+
 // remoteRaft is a consensus strategy that uses a remote raft cluster for
 // consensus operations.
 type remoteRaft struct {
@@ -237,6 +244,10 @@ func (r *remoteRaft) leader() string {
 	}
 
 	return r.store.peers[rand.Intn(len(r.store.peers))]
+}
+
+func (r *remoteRaft) isLeader() bool {
+	return false
 }
 
 func (r *remoteRaft) sync(index uint64, timeout time.Duration) error {

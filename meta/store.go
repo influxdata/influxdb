@@ -429,12 +429,7 @@ func (s *Store) Err() <-chan error { return s.err }
 
 // IsLeader returns true if the store is currently the leader.
 func (s *Store) IsLeader() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if s.raft == nil {
-		return false
-	}
-	return s.raft.State() == raft.Leader
+	return s.raftState.isLeader()
 }
 
 // Leader returns what the store thinks is the current leader. An empty
