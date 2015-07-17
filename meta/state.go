@@ -26,6 +26,7 @@ type raftState interface {
 	addPeer(addr string) error
 	invalidate() error
 	close() error
+	lastIndex() uint64
 }
 
 // localRaft is a consensus strategy that uses a local raft implementation fo
@@ -123,6 +124,10 @@ func (r *localRaft) initialize() error {
 	}
 
 	return nil
+}
+
+func (r *localRaft) lastIndex() uint64 {
+	return r.store.raft.LastIndex()
 }
 
 func (r *localRaft) sync(index uint64, timeout time.Duration) error {
@@ -281,6 +286,10 @@ func (r *remoteRaft) leader() string {
 
 func (r *remoteRaft) isLeader() bool {
 	return false
+}
+
+func (r *remoteRaft) lastIndex() uint64 {
+	return r.store.cachedData().Index
 }
 
 func (r *remoteRaft) sync(index uint64, timeout time.Duration) error {

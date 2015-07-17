@@ -539,7 +539,7 @@ func (s *Store) handleExecConn(conn net.Conn) {
 	// Build response message.
 	var resp internal.Response
 	resp.OK = proto.Bool(err == nil)
-	resp.Index = proto.Uint64(s.raft.LastIndex())
+	resp.Index = proto.Uint64(s.raftState.lastIndex())
 	if err != nil {
 		resp.Error = proto.String(err.Error())
 	}
