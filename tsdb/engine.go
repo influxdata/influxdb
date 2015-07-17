@@ -36,21 +36,21 @@ type Mapper interface {
 	Close()
 }
 
-// Executor is the interface all Executor types must implement.
-type Executor interface {
-	Execute() <-chan *influxql.Row
-}
-
-// StatefulRawMapper encapsulates a RawMapper and some state that the executor needs to
+// StatefulMapper encapsulates a Mapper and some state that the executor needs to
 // track for that mapper.
-type StatefulRawMapper struct {
+type StatefulMapper struct {
 	Mapper
 	bufferedChunk *mapperOutput // Last read chunk.
 	drained       bool
 }
 
+// Executor is the interface all Executor types must implement.
+type Executor interface {
+	Execute() <-chan *influxql.Row
+}
+
 // NextChunk wraps a RawMapper and some state.
-func (srm *StatefulRawMapper) NextChunk() (*mapperOutput, error) {
+func (srm *StatefulMapper) NextChunk() (*mapperOutput, error) {
 	c, err := srm.Mapper.NextChunk()
 	if err != nil {
 		return nil, err
@@ -67,16 +67,16 @@ func (srm *StatefulRawMapper) NextChunk() (*mapperOutput, error) {
 // RawExecutor is an executor for RawMappers.
 type RawExecutor struct {
 	stmt           *influxql.SelectStatement
-	mappers        []*StatefulRawMapper
+	mappers        []*StatefulMapper
 	chunkSize      int
 	limitedTagSets map[string]struct{} // Set tagsets for which data has reached the LIMIT.
 }
 
 // NewRawExecutor returns a new RawExecutor.
 func NewRawExecutor(stmt *influxql.SelectStatement, mappers []Mapper, chunkSize int) *RawExecutor {
-	a := []*StatefulRawMapper{}
+	a := []*StatefulMapper{}
 	for _, m := range mappers {
-		a = append(a, &StatefulRawMapper{m, nil, false})
+		a = append(a, &StatefulMapper{m, nil, false})
 	}
 	return &RawExecutor{
 		stmt:           stmt,
@@ -310,42 +310,19 @@ func (re *RawExecutor) close() {
 	}
 }
 
-// StatefulAggregateMapper encapsulates an AggregateMapper and some state that the executor needs to
-// track for that mapper.
-type StatefulAggMapper struct {
-	Mapper
-	bufferedChunk *mapperOutput // Last read chunk.
-	drained       bool
-}
-
-// NextChunk wraps an AggregateMapper and some state.
-func (sam *StatefulAggMapper) NextChunk() (*mapperOutput, error) {
-	c, err := sam.Mapper.NextChunk()
-	if err != nil {
-		return nil, err
-	}
-	chunk, ok := c.(*mapperOutput)
-	if !ok {
-		if chunk == interface{}(nil) {
-			return nil, nil
-		}
-	}
-	return chunk, nil
-}
-
 // AggregateExecutor is an executor for AggregateMappers.
 type AggregateExecutor struct {
 	stmt      *influxql.SelectStatement
 	queryTMin int64 // Needed?
 	queryTMax int64 // Needed?
-	mappers   []*StatefulAggMapper
+	mappers   []*StatefulMapper
 }
 
 // NewAggregateExecutor returns a new AggregateExecutor.
 func NewAggregateExecutor(stmt *influxql.SelectStatement, mappers []Mapper) *AggregateExecutor {
-	a := []*StatefulAggMapper{}
+	a := []*StatefulMapper{}
 	for _, m := range mappers {
-		a = append(a, &StatefulAggMapper{m, nil, false})
+		a = append(a, &StatefulMapper{m, nil, false})
 	}
 	return &AggregateExecutor{
 		stmt:    stmt,
