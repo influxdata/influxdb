@@ -1760,6 +1760,11 @@ func (p *Parser) ParseExpr() (Expr, error) {
 			if rhs, err = p.parseRegex(); err != nil {
 				return nil, err
 			}
+			// parseRegex can return an empty type, but we need it to be present
+			if rhs.(*RegexLiteral) == nil {
+				tok, pos, lit := p.scanIgnoreWhitespace()
+				return nil, newParseError(tokstr(tok, lit), []string{"regex"}, pos)
+			}
 		} else {
 			if rhs, err = p.parseUnaryExpr(); err != nil {
 				return nil, err
