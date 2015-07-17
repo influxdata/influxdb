@@ -309,7 +309,7 @@ func (s *Store) CreateMapper(shardID uint64, query string, chunkSize int) (Mappe
 		return nil, nil
 	}
 
-	if stmt.IsRawQuery && !stmt.HasDistinct() {
+	if (stmt.IsRawQuery && !stmt.HasDistinct()) || stmt.IsSimpleDerivative() {
 		return NewRawMapper(shard, stmt, chunkSize), nil
 	}
 	return NewAggMapper(shard, stmt), nil
