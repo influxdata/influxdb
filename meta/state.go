@@ -92,6 +92,21 @@ func (r *localRaft) openRaft() error {
 }
 
 func (r *localRaft) close() error {
+	s := r.store
+	// Shutdown raft.
+	if s.raft != nil {
+		s.raft.Shutdown()
+		s.raft = nil
+	}
+	if s.transport != nil {
+		s.transport.Close()
+		s.transport = nil
+	}
+	if s.store != nil {
+		s.store.Close()
+		s.store = nil
+	}
+
 	return nil
 }
 
