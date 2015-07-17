@@ -28,6 +28,7 @@ type raftState interface {
 	close() error
 	lastIndex() uint64
 	apply(b []byte) error
+	snapshot() error
 }
 
 // localRaft is a consensus strategy that uses a local raft implementation fo
@@ -178,6 +179,11 @@ func (r *localRaft) sync(index uint64, timeout time.Duration) error {
 	}
 }
 
+func (r *localRaft) snapshot() error {
+	future := r.store.raft.Snapshot()
+	return future.Error()
+}
+
 // addPeer adds addr to the list of peers in the cluster.
 func (r *localRaft) addPeer(addr string) error {
 	s := r.store
@@ -321,4 +327,8 @@ func (r *remoteRaft) lastIndex() uint64 {
 func (r *remoteRaft) sync(index uint64, timeout time.Duration) error {
 	//FIXME: jwilder: check index and timeout
 	return r.store.invalidate()
+}
+
+func (r *remoteRaft) snapshot() error {
+	return fmt.Errorf("cannot snapshot while in remote raft state")
 }

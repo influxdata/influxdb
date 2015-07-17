@@ -387,8 +387,7 @@ func (s *Store) writeNodeID(id uint64) error {
 
 // Snapshot saves a snapshot of the current state.
 func (s *Store) Snapshot() error {
-	future := s.raft.Snapshot()
-	return future.Error()
+	return s.raftState.snapshot()
 }
 
 // WaitForLeader sleeps until a leader is found or a timeout occurs.
