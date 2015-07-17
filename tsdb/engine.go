@@ -45,17 +45,17 @@ type Executor interface {
 // track for that mapper.
 type StatefulRawMapper struct {
 	Mapper
-	bufferedChunk *rawMapperOutput // Last read chunk.
+	bufferedChunk *mapperOutput // Last read chunk.
 	drained       bool
 }
 
 // NextChunk wraps a RawMapper and some state.
-func (srm *StatefulRawMapper) NextChunk() (*rawMapperOutput, error) {
+func (srm *StatefulRawMapper) NextChunk() (*mapperOutput, error) {
 	c, err := srm.Mapper.NextChunk()
 	if err != nil {
 		return nil, err
 	}
-	chunk, ok := c.(*rawMapperOutput)
+	chunk, ok := c.(*mapperOutput)
 	if !ok {
 		if chunk == interface{}(nil) {
 			return nil, nil
@@ -166,7 +166,7 @@ func (re *RawExecutor) execute(out chan *influxql.Row) {
 		minTime := re.nextMapperLowestTime(tagset)
 
 		// Now empty out all the chunks up to the min time. Create new output struct for this data.
-		var chunkedOutput *rawMapperOutput
+		var chunkedOutput *mapperOutput
 		for _, m := range re.mappers {
 			if m.drained {
 				continue
@@ -189,7 +189,7 @@ func (re *RawExecutor) execute(out chan *influxql.Row) {
 
 			// Add up to the index to the values
 			if chunkedOutput == nil {
-				chunkedOutput = &rawMapperOutput{
+				chunkedOutput = &mapperOutput{
 					Name: m.bufferedChunk.Name,
 					Tags: m.bufferedChunk.Tags,
 				}
@@ -208,7 +208,7 @@ func (re *RawExecutor) execute(out chan *influxql.Row) {
 		}
 
 		// Sort the values by time first so we can then handle offset and limit
-		sort.Sort(rawMapperValues(chunkedOutput.Values))
+		sort.Sort(mapperValues(chunkedOutput.Values))
 
 		// Now that we have full name and tag details, initialize the rowWriter.
 		// The Name and Tags will be the same for all mappers.
@@ -314,17 +314,17 @@ func (re *RawExecutor) close() {
 // track for that mapper.
 type StatefulAggMapper struct {
 	Mapper
-	bufferedChunk *rawMapperOutput // Last read chunk.
+	bufferedChunk *mapperOutput // Last read chunk.
 	drained       bool
 }
 
 // NextChunk wraps an AggregateMapper and some state.
-func (sam *StatefulAggMapper) NextChunk() (*rawMapperOutput, error) {
+func (sam *StatefulAggMapper) NextChunk() (*mapperOutput, error) {
 	c, err := sam.Mapper.NextChunk()
 	if err != nil {
 		return nil, err
 	}
-	chunk, ok := c.(*rawMapperOutput)
+	chunk, ok := c.(*mapperOutput)
 	if !ok {
 		if chunk == interface{}(nil) {
 			return nil, nil
@@ -422,7 +422,7 @@ func (ae *AggregateExecutor) execute(out chan *influxql.Row) {
 		// Send out data for the next alphabetically-lowest tagset. All Mappers send out in this order
 		// so collect data for this tagset, ignoring all others.
 		tagset := ae.nextMapperTagSet()
-		chunks := []*rawMapperOutput{}
+		chunks := []*mapperOutput{}
 
 		// Pull as much as possible from each mapper. Stop when a mapper offers
 		// data for a new tagset, or empties completely.
@@ -632,21 +632,21 @@ type limitedRowWriter struct {
 	fields      influxql.Fields
 	c           chan *influxql.Row
 
-	currValues  []*rawMapperValue
+	currValues  []*mapperValue
 	totalOffSet int
 	totalSent   int
 
 	transformer interface {
-		process(input []*rawMapperValue) []*rawMapperValue
+		process(input []*mapperValue) []*mapperValue
 	}
 }
 
 // Add accepts a slice of values, and will emit those values as per chunking requirements.
 // If limited is returned as true, the limit was also reached and no more values should be
 // added. In that case only up the limit of values are emitted.
-func (r *limitedRowWriter) Add(values []*rawMapperValue) (limited bool) {
+func (r *limitedRowWriter) Add(values []*mapperValue) (limited bool) {
 	if r.currValues == nil {
-		r.currValues = make([]*rawMapperValue, 0, r.chunkSize)
+		r.currValues = make([]*mapperValue, 0, r.chunkSize)
 	}
 
 	// Enforce offset.
@@ -718,7 +718,7 @@ func (r *limitedRowWriter) Flush() {
 }
 
 // processValues emits the given values in a single row.
-func (r *limitedRowWriter) processValues(values []*rawMapperValue) *influxql.Row {
+func (r *limitedRowWriter) processValues(values []*mapperValue) *influxql.Row {
 	defer func() {
 		r.totalSent += len(values)
 	}()
@@ -799,12 +799,12 @@ func (r *limitedRowWriter) processValues(values []*rawMapperValue) *influxql.Row
 }
 
 type rawQueryDerivativeProcessor struct {
-	lastValueFromPreviousChunk *rawMapperValue
+	lastValueFromPreviousChunk *mapperValue
 	isNonNegative              bool // Whether to drop negative differences
 	derivativeInterval         time.Duration
 }
 
-func (rqdp *rawQueryDerivativeProcessor) process(input []*rawMapperValue) []*rawMapperValue {
+func (rqdp *rawQueryDerivativeProcessor) process(input []*mapperValue) []*mapperValue {
 	if len(input) == 0 {
 		return input
 	}
@@ -812,8 +812,8 @@ func (rqdp *rawQueryDerivativeProcessor) process(input []*rawMapperValue) []*raw
 	// If we only have 1 value, then the value did not change, so return
 	// a single row with 0.0
 	if len(input) == 1 {
-		return []*rawMapperValue{
-			&rawMapperValue{
+		return []*mapperValue{
+			&mapperValue{
 				Time:  input[0].Time,
 				Value: 0.0,
 			},
@@ -824,7 +824,7 @@ func (rqdp *rawQueryDerivativeProcessor) process(input []*rawMapperValue) []*raw
 		rqdp.lastValueFromPreviousChunk = input[0]
 	}
 
-	derivativeValues := []*rawMapperValue{}
+	derivativeValues := []*mapperValue{}
 	for i := 1; i < len(input); i++ {
 		v := input[i]
 
@@ -846,7 +846,7 @@ func (rqdp *rawQueryDerivativeProcessor) process(input []*rawMapperValue) []*raw
 			continue
 		}
 
-		derivativeValues = append(derivativeValues, &rawMapperValue{
+		derivativeValues = append(derivativeValues, &mapperValue{
 			Time:  v.Time,
 			Value: value,
 		})
