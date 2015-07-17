@@ -16,7 +16,8 @@ import (
 
 // RPC handles request/response style messaging between cluster nodes
 type RPC struct {
-	Logger *log.Logger
+	Logger         *log.Logger
+	tracingEnabled bool
 
 	store interface {
 		cachedData() *Data
@@ -66,7 +67,8 @@ func (r *RPC) handleRPCConn(conn net.Conn) {
 	// RPC connections should execute on the leader.  If we are not the leader,
 	// proxy the connection to the leader so that clients an connect to any node
 	// in the cluster.
-	r.Logger.Printf("rpc connection from: %v", conn.RemoteAddr())
+	r.traceCluster("rpc connection from: %v", conn.RemoteAddr())
+
 	if !r.store.IsLeader() {
 		r.proxyLeader(conn.(*net.TCPConn))
 		return
@@ -90,7 +92,7 @@ func (r *RPC) handleRPCConn(conn net.Conn) {
 		rpcType := internal.RPCType(btou64(buf[0:8]))
 		buf = buf[8:]
 
-		r.Logger.Printf("recv %v request from: %v", rpcType, conn.RemoteAddr())
+		r.traceCluster("recv %v request on: %v", rpcType, conn.RemoteAddr())
 		switch rpcType {
 		case internal.RPCType_FetchData:
 			var req internal.FetchDataRequest
@@ -147,6 +149,7 @@ func (r *RPC) sendResponse(conn net.Conn, typ internal.RPCType, resp proto.Messa
 }
 
 func (r *RPC) sendError(conn net.Conn, msg string) {
+	r.traceCluster(msg)
 	resp := &internal.ErrorResponse{
 		Header: &internal.ResponseHeader{
 			OK:    proto.Bool(false),
@@ -195,7 +198,7 @@ func (r *RPC) handleFetchData(req *internal.FetchDataRequest) (*internal.FetchDa
 
 // handleJoinRequest handles a request to join the cluster
 func (r *RPC) handleJoinRequest(req *internal.JoinRequest) (*internal.JoinResponse, error) {
-	r.Logger.Printf("recv join request from: %v", *req.Addr)
+	r.traceCluster("join request from: %v", *req.Addr)
 
 	node, err := func() (*NodeInfo, error) {
 		// attempt to create the node
@@ -399,6 +402,12 @@ func (r *RPC) call(dest string, req proto.Message) (proto.Message, error) {
 	}
 
 	return resp, nil
+}
+
+func (r *RPC) traceCluster(msg string, args ...interface{}) {
+	if r.tracingEnabled {
+		r.Logger.Printf("rpc error: "+msg, args...)
+	}
 }
 
 func u64tob(v uint64) []byte {

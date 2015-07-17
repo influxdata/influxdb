@@ -817,7 +817,7 @@ type Store struct {
 }
 
 // NewStore returns a new test wrapper for Store.
-func NewStore(c meta.Config) *Store {
+func NewStore(c *meta.Config) *Store {
 	s := &Store{
 		Store: meta.NewStore(c),
 	}
@@ -881,8 +881,8 @@ func (s *Store) Close() error {
 }
 
 // NewConfig returns the default test configuration.
-func NewConfig(path string) meta.Config {
-	return meta.Config{
+func NewConfig(path string) *meta.Config {
+	return &meta.Config{
 		Dir:                path,
 		Hostname:           "localhost",
 		BindAddress:        "127.0.0.1:0",

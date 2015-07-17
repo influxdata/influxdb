@@ -82,6 +82,10 @@ type Store struct {
 	wg      sync.WaitGroup
 	changed chan struct{}
 
+	// clusterTracingEnabled controls whether low-level cluster communcation is logged.
+	// Useful for troubleshooting
+	clusterTracingEnabled bool
+
 	retentionAutoCreate bool
 
 	// The listeners to accept raft and remote exec connections from.
@@ -123,7 +127,7 @@ type authUser struct {
 }
 
 // NewStore returns a new instance of Store.
-func NewStore(c Config) *Store {
+func NewStore(c *Config) *Store {
 	s := &Store{
 		path:  c.Dir,
 		peers: c.Peers,
@@ -135,7 +139,8 @@ func NewStore(c Config) *Store {
 		closing: make(chan struct{}),
 		changed: make(chan struct{}),
 
-		retentionAutoCreate: c.RetentionAutoCreate,
+		clusterTracingEnabled: c.ClusterTracing,
+		retentionAutoCreate:   c.RetentionAutoCreate,
 
 		HeartbeatTimeout:   time.Duration(c.HeartbeatTimeout),
 		ElectionTimeout:    time.Duration(c.ElectionTimeout),
@@ -150,8 +155,9 @@ func NewStore(c Config) *Store {
 
 	s.raftState = &localRaft{store: s}
 	s.rpc = &RPC{
-		store:  s,
-		Logger: s.Logger,
+		store:          s,
+		tracingEnabled: c.ClusterTracing,
+		Logger:         s.Logger,
 	}
 	return s
 }
