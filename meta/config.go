@@ -39,7 +39,11 @@ type Config struct {
 	CommitTimeout       toml.Duration `toml:"commit-timeout"`
 
 	// The join command-line argument
-	Join string
+	join string
+}
+
+func (c Config) SetJoin(join string) {
+	c.join = join
 }
 
 func NewConfig() Config {

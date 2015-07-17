@@ -83,7 +83,7 @@ func (cmd *Command) Run(args ...string) error {
 	}
 
 	if options.Join != "" {
-		config.Meta.Join = options.Join
+		config.Meta.SetJoin(options.Join)
 	}
 
 	// Validate the configuration.
