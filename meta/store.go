@@ -21,7 +21,6 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/hashicorp/raft"
-	"github.com/hashicorp/raft-boltdb"
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta/internal"
 	"golang.org/x/crypto/bcrypt"
@@ -74,12 +73,8 @@ type Store struct {
 	rpc *RPC
 
 	remoteAddr net.Addr
-	raft       *raft.Raft
-	raftLayer  *raftLayer
-	peerStore  raft.PeerStore
-	transport  *raft.NetworkTransport
-	store      *raftboltdb.BoltStore
-	raftState  raftState
+
+	raftState raftState
 
 	ready   chan struct{}
 	err     chan error
@@ -153,6 +148,7 @@ func NewStore(c Config) *Store {
 		Logger: log.New(os.Stderr, "[metastore] ", log.LstdFlags),
 	}
 
+	s.raftState = &localRaft{store: s}
 	s.rpc = &RPC{
 		store:  s,
 		Logger: s.Logger,
@@ -169,8 +165,6 @@ func (s *Store) IDPath() string { return filepath.Join(s.path, "id") }
 
 // Open opens and initializes the raft store.
 func (s *Store) Open() error {
-
-	s.raftState = &localRaft{s}
 	// If we have a join addr, attempt to join
 	if s.join != "" {
 		res, err := s.rpc.join(s.Addr.String(), s.join)
@@ -428,6 +422,11 @@ func (s *Store) Err() <-chan error { return s.err }
 
 // IsLeader returns true if the store is currently the leader.
 func (s *Store) IsLeader() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.raftState == nil {
+		return false
+	}
 	return s.raftState.isLeader()
 }
 
