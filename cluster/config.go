@@ -12,12 +12,16 @@ const (
 
 	// DefaultShardWriterTimeout is the default timeout set on shard writers.
 	DefaultShardWriterTimeout = 5 * time.Second
+
+	// DefaultShardMapperTimeout is the default timeout set on shard mappers.
+	DefaultShardMapperTimeout = 5 * time.Second
 )
 
-// Config represents the configuration for the the clustering service.
+// Config represents the configuration for the clustering service.
 type Config struct {
 	WriteTimeout       toml.Duration `toml:"write-timeout"`
 	ShardWriterTimeout toml.Duration `toml:"shard-writer-timeout"`
+	ShardMapperTimeout toml.Duration `toml:"shard-mapper-timeout"`
 }
 
 // NewConfig returns an instance of Config with defaults.
@@ -25,5 +29,6 @@ func NewConfig() Config {
 	return Config{
 		WriteTimeout:       toml.Duration(DefaultWriteTimeout),
 		ShardWriterTimeout: toml.Duration(DefaultShardWriterTimeout),
+		ShardMapperTimeout: toml.Duration(DefaultShardMapperTimeout),
 	}
 }

@@ -23,11 +23,13 @@ type ShardMapper struct {
 	TSDBStore interface {
 		CreateMapper(shardID uint64, query string, chunkSize int) (tsdb.Mapper, error)
 	}
+
+	timeout time.Duration
 }
 
 // NewShardMapper returns a mapper of local and remote shards.
-func NewShardMapper() *ShardMapper {
-	return &ShardMapper{}
+func NewShardMapper(timeout time.Duration) *ShardMapper {
+	return &ShardMapper{timeout: timeout}
 }
 
 // CreateMapper returns a Mapper for the given shard ID.
@@ -42,6 +44,7 @@ func (r *ShardMapper) CreateMapper(sh meta.ShardInfo, stmt string, chunkSize int
 	} else {
 		rm := NewRemoteMaper(sh.OwnerIDs[0], sh.ID, stmt, chunkSize)
 		rm.MetaStore = r.MetaStore
+		rm.Timeout = r.timeout
 		m = rm
 	}
 
@@ -55,6 +58,8 @@ type RemoteMapper struct {
 		Node(id uint64) (ni *meta.NodeInfo, err error)
 	}
 
+	Timeout time.Duration
+
 	nodeID    uint64
 	shardID   uint64
 	stmt      string
@@ -62,9 +67,8 @@ type RemoteMapper struct {
 
 	tagsets []string
 
-	pool    *clientPool
-	timeout time.Duration
-	conn    *pool.PoolConn
+	pool *clientPool
+	conn *pool.PoolConn
 
 	bufferedResponse *MapShardResponse
 }
@@ -108,13 +112,13 @@ func (r *RemoteMapper) Open() (err error) {
 	}
 
 	// Write request.
-	r.conn.SetWriteDeadline(time.Now().Add(r.timeout))
+	r.conn.SetWriteDeadline(time.Now().Add(r.Timeout))
 	if err := WriteTLV(r.conn, mapShardRequestMessage, buf); err != nil {
 		return err
 	}
 
 	// Read the response.
-	r.conn.SetReadDeadline(time.Now().Add(r.timeout))
+	r.conn.SetReadDeadline(time.Now().Add(r.Timeout))
 	_, buf, err = ReadTLV(r.conn)
 	if err != nil {
 		return err
@@ -152,7 +156,7 @@ func (r *RemoteMapper) NextChunk() (interface{}, error) {
 		response = &MapShardResponse{}
 
 		// Read the response.
-		r.conn.SetReadDeadline(time.Now().Add(r.timeout))
+		r.conn.SetReadDeadline(time.Now().Add(r.Timeout))
 		_, buf, err := ReadTLV(r.conn)
 		if err != nil {
 			r.conn.MarkUnusable()
@@ -182,7 +186,7 @@ func (r *RemoteMapper) dial(nodeID uint64) (net.Conn, error) {
 	// If we don't have a connection pool for that addr yet, create one
 	_, ok := r.pool.getPool(nodeID)
 	if !ok {
-		factory := &connFactory{nodeID: nodeID, clientPool: r.pool, timeout: r.timeout}
+		factory := &connFactory{nodeID: nodeID, clientPool: r.pool, timeout: r.Timeout}
 		factory.metaStore = r.MetaStore
 
 		p, err := pool.NewChannelPool(1, 3, factory.dial)
