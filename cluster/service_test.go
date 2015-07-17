@@ -30,7 +30,7 @@ type testService struct {
 	createShardFunc func(database, policy string, shardID uint64) error
 }
 
-func newTestService(f func(shardID uint64, points []tsdb.Point) error) testService {
+func newTestWriteService(f func(shardID uint64, points []tsdb.Point) error) testService {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		panic(err)
