@@ -41,6 +41,13 @@ type MapShardResponse struct {
 	pb internal.MapShardResponse
 }
 
+func NewMapShardResponse(code int, message string) *MapShardResponse {
+	m := &MapShardResponse{}
+	m.SetCode(code)
+	m.SetMessage(message)
+	return m
+}
+
 func (r *MapShardResponse) Code() int         { return int(r.pb.GetCode()) }
 func (r *MapShardResponse) Message() string   { return r.pb.GetMessage() }
 func (r *MapShardResponse) TagSets() []string { return r.pb.GetTagSets() }

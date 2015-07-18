@@ -150,10 +150,7 @@ func (s *Service) handleConn(conn net.Conn) {
 			err := s.processMapShardRequest(conn, buf)
 			if err != nil {
 				s.Logger.Printf("process map shard error: %s", err)
-				msg := &MapShardResponse{}
-				msg.SetCode(1)
-				msg.SetMessage(err.Error())
-				_ = writeMapShardResponseMessage(conn, msg)
+				_ = writeMapShardResponseMessage(conn, NewMapShardResponse(1, err.Error()))
 			}
 		default:
 			s.Logger.Printf("cluster service message type not found: %d", typ)
@@ -236,9 +233,7 @@ func (s *Service) processMapShardRequest(w io.Writer, buf []byte) error {
 		return fmt.Errorf("create mapper: %s", err)
 	}
 	if m == nil {
-		msg := &MapShardResponse{}
-		msg.SetCode(0)
-		return writeMapShardResponseMessage(w, msg)
+		return writeMapShardResponseMessage(w, NewMapShardResponse(0, ""))
 	}
 
 	if err := m.Open(); err != nil {
