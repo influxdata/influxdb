@@ -27,12 +27,14 @@ type ShardMapper struct {
 
 	timeout time.Duration
 	pool    *clientPool
-	conn    *pool.PoolConn
 }
 
 // NewShardMapper returns a mapper of local and remote shards.
 func NewShardMapper(timeout time.Duration) *ShardMapper {
-	return &ShardMapper{timeout: timeout}
+	return &ShardMapper{
+		pool:    newClientPool(),
+		timeout: timeout,
+	}
 }
 
 // CreateMapper returns a Mapper for the given shard ID.
@@ -49,7 +51,7 @@ func (s *ShardMapper) CreateMapper(sh meta.ShardInfo, stmt string, chunkSize int
 		if err != nil {
 			return nil, err
 		}
-		s.conn.SetDeadline(time.Now().Add(s.timeout))
+		conn.SetDeadline(time.Now().Add(s.timeout))
 
 		rm := NewRemoteMapper(conn.(*pool.PoolConn), sh.ID, stmt, chunkSize)
 		m = rm
