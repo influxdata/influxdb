@@ -199,7 +199,7 @@ func (q *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chu
 }
 
 // Plan creates an execution plan for the given SelectStatement and returns an Executor.
-func (q *QueryExecutor) plan(stmt *influxql.SelectStatement, chunkSize int) (Executor, error) {
+func (q *QueryExecutor) plan(stmt *influxql.SelectStatement, chunkSize int) (*Executor, error) {
 	shards := map[uint64]meta.ShardInfo{} // Shards requiring mappers.
 
 	// Replace instances of "now()" with the current time, and check the resultant times.
@@ -245,18 +245,7 @@ func (q *QueryExecutor) plan(stmt *influxql.SelectStatement, chunkSize int) (Exe
 		mappers = append(mappers, m)
 	}
 
-	var executor Executor
-	if len(mappers) > 0 {
-		// All Mapper are of same type, so check first to determine correct Executor type.
-		if _, ok := mappers[0].(*RawMapper); ok {
-			executor = NewRawExecutor(stmt, mappers, chunkSize)
-		} else {
-			executor = NewAggregateExecutor(stmt, mappers)
-		}
-	} else {
-		// With no mappers, the Executor type doesn't matter.
-		executor = NewRawExecutor(stmt, nil, chunkSize)
-	}
+	executor := NewExecutor(stmt, mappers, chunkSize)
 	return executor, nil
 }
 
