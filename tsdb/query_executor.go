@@ -248,7 +248,7 @@ func (q *QueryExecutor) plan(stmt *influxql.SelectStatement, chunkSize int) (Exe
 	var executor Executor
 	if len(mappers) > 0 {
 		// All Mapper are of same type, so check first to determine correct Executor type.
-		if _, ok := mappers[0].(*RawMapper); ok {
+		if (stmt.IsRawQuery && !stmt.HasDistinct()) || stmt.IsSimpleDerivative() {
 			executor = NewRawExecutor(stmt, mappers, chunkSize)
 		} else {
 			executor = NewAggregateExecutor(stmt, mappers)
