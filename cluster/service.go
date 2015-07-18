@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -36,6 +37,7 @@ type Service struct {
 	TSDBStore interface {
 		CreateShard(database, policy string, shardID uint64) error
 		WriteToShard(shardID uint64, points []tsdb.Point) error
+		CreateMapper(shardID uint64, query string, chunkSize int) (tsdb.Mapper, error)
 	}
 
 	Logger *log.Logger
@@ -144,6 +146,12 @@ func (s *Service) handleConn(conn net.Conn) {
 				s.Logger.Printf("process write shard error: %s", err)
 			}
 			s.writeShardResponse(conn, err)
+		case mapShardRequestMessage:
+			err := s.processMapShardRequest(conn, buf)
+			if err != nil {
+				s.Logger.Printf("process map shard error: %s", err)
+				_ = writeMapShardResponseMessage(conn, NewMapShardResponse(1, err.Error()))
+			}
 		default:
 			s.Logger.Printf("cluster service message type not found: %d", typ)
 		}
@@ -211,6 +219,68 @@ func (s *Service) writeShardResponse(w io.Writer, e error) {
 	if err := WriteTLV(w, writeShardResponseMessage, buf); err != nil {
 		s.Logger.Printf("write shard response error: %s", err)
 	}
+}
+
+func (s *Service) processMapShardRequest(w io.Writer, buf []byte) error {
+	// Decode request
+	var req MapShardRequest
+	if err := req.UnmarshalBinary(buf); err != nil {
+		return err
+	}
+
+	m, err := s.TSDBStore.CreateMapper(req.ShardID(), req.Query(), int(req.ChunkSize()))
+	if err != nil {
+		return fmt.Errorf("create mapper: %s", err)
+	}
+	if m == nil {
+		return writeMapShardResponseMessage(w, NewMapShardResponse(0, ""))
+	}
+
+	if err := m.Open(); err != nil {
+		return fmt.Errorf("mapper open: %s", err)
+	}
+	defer m.Close()
+
+	var tagSetsSent bool
+	for {
+		var resp MapShardResponse
+
+		if !tagSetsSent {
+			resp.SetTagSets(m.TagSets())
+			tagSetsSent = true
+		}
+
+		chunk, err := m.NextChunk()
+		if err != nil {
+			return fmt.Errorf("next chunk: %s", err)
+		}
+		if chunk != nil {
+			b, err := json.Marshal(chunk)
+			if err != nil {
+				return fmt.Errorf("encoding: %s", err)
+			}
+			resp.SetData(b)
+		}
+
+		// Write to connection.
+		resp.SetCode(0)
+		if err := writeMapShardResponseMessage(w, &resp); err != nil {
+			return err
+		}
+
+		if chunk == nil {
+			// All mapper data sent.
+			return nil
+		}
+	}
+}
+
+func writeMapShardResponseMessage(w io.Writer, msg *MapShardResponse) error {
+	buf, err := msg.MarshalBinary()
+	if err != nil {
+		return err
+	}
+	return WriteTLV(w, mapShardResponseMessage, buf)
 }
 
 // ReadTLV reads a type-length-value record from r.

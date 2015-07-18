@@ -26,13 +26,13 @@ func (a mapperValues) Len() int           { return len(a) }
 func (a mapperValues) Less(i, j int) bool { return a[i].Time < a[j].Time }
 func (a mapperValues) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
-type mapperOutput struct {
+type MapperOutput struct {
 	Name   string            `json:"name,omitempty"`
 	Tags   map[string]string `json:"tags,omitempty"`
 	Values []*mapperValue    `json:"values,omitempty"` // For aggregates contains a single value at [0]
 }
 
-func (mo *mapperOutput) key() string {
+func (mo *MapperOutput) key() string {
 	return formMeasurementTagSetKey(mo.Name, mo.Tags)
 }
 
@@ -151,7 +151,7 @@ func (rm *RawMapper) TagSets() []string {
 // tags return by TagSets. A chunk never contains data for more than 1 tagset.
 // If there is no more data for any tagset, nil will be returned.
 func (rm *RawMapper) NextChunk() (interface{}, error) {
-	var output *mapperOutput
+	var output *MapperOutput
 	for {
 		if rm.currCursorIndex == len(rm.cursors) {
 			// All tagset cursors processed. NextChunk'ing complete.
@@ -173,7 +173,7 @@ func (rm *RawMapper) NextChunk() (interface{}, error) {
 		}
 
 		if output == nil {
-			output = &mapperOutput{
+			output = &MapperOutput{
 				Name: cursor.measurement,
 				Tags: cursor.tags,
 			}
@@ -377,7 +377,7 @@ func (am *AggMapper) Open() error {
 // returned by AvailTagsSets(). When there is no more data for any tagset nil
 // is returned.
 func (am *AggMapper) NextChunk() (interface{}, error) {
-	var output *mapperOutput
+	var output *MapperOutput
 	for {
 		if am.currCursorIndex == len(am.cursors) {
 			// All tagset cursors processed. NextChunk'ing complete.
@@ -396,7 +396,7 @@ func (am *AggMapper) NextChunk() (interface{}, error) {
 		// Prep the return data for this tagset. This will hold data for a single interval
 		// for a single tagset.
 		if output == nil {
-			output = &mapperOutput{
+			output = &MapperOutput{
 				Name:   cursor.measurement,
 				Tags:   cursor.tags,
 				Values: make([]*mapperValue, 1),

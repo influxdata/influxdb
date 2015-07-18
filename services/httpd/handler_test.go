@@ -264,56 +264,6 @@ func TestHandler_Query_ErrResult(t *testing.T) {
 	}
 }
 
-// Ensure the shard mapper handler responds correctly to common errors
-func TestHandler_Mapper_BadRequest(t *testing.T) {
-	h := NewHandler(false)
-
-	w := httptest.NewRecorder()
-	h.ServeHTTP(w, MustNewJSONRequest("GET", "/shard_mapping?q=SELECT+foo+FROM+cpu", nil))
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("unexpected status: %d", w.Code)
-	} else if w.Body.String() != `{"error":"no shard ID specified"}` {
-		t.Fatalf("unexpected body: %s", w.Body.String())
-	}
-	w = httptest.NewRecorder()
-	h.ServeHTTP(w, MustNewJSONRequest("GET", "/shard_mapping?shard=1", nil))
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("unexpected status: %d", w.Code)
-	} else if w.Body.String() != `{"error":"no query specified"}` {
-		t.Fatalf("unexpected body: %s", w.Body.String())
-	}
-	w = httptest.NewRecorder()
-	h.ServeHTTP(w, MustNewJSONRequest("GET", "/shard_mapping?shard=xxx", nil))
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("unexpected status: %d", w.Code)
-	} else if w.Body.String() != `{"error":"shard ID is not valid"}` {
-		t.Fatalf("unexpected body: %s", w.Body.String())
-	}
-	w = httptest.NewRecorder()
-	h.ServeHTTP(w, MustNewJSONRequest("GET", "/shard_mapping?shard=3&q=SELECT+foo+FROM+cpu&chunksize=d", nil))
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("unexpected status: %d", w.Code)
-	} else if w.Body.String() != `{"error":"chunk size is not valid"}` {
-		t.Fatalf("unexpected body: %s", w.Body.String())
-	}
-}
-
-// Ensure the shard mapper handler responds correctly if the shard does not exist.
-func TestHandler_Mapper_ShardDoesNotExist(t *testing.T) {
-	h := NewHandler(false)
-	h.TSDBStore.CreateMapperFn = func(shardID uint64, query string, chunkSize int) (tsdb.Mapper, error) {
-		return nil, nil
-	}
-
-	w := httptest.NewRecorder()
-	h.ServeHTTP(w, MustNewJSONRequest("GET", "/shard_mapping?shard=1&q=SELECT+foo+FROM+cpu", nil))
-	if w.Code != http.StatusOK {
-		t.Fatalf("unexpected status: %d", w.Code)
-	} else if w.Body.String() != `{"data":null}` {
-		t.Fatalf("unexpected body: %s", w.Body.String())
-	}
-}
-
 func TestMarshalJSON_NoPretty(t *testing.T) {
 	if b := httpd.MarshalJSON(struct {
 		Name string `json:"name"`
@@ -420,7 +370,6 @@ func NewHandler(requireAuthentication bool) *Handler {
 	}
 	h.Handler.MetaStore = &h.MetaStore
 	h.Handler.QueryExecutor = &h.QueryExecutor
-	h.Handler.TSDBStore = &h.TSDBStore
 	h.Handler.Version = "0.0.0"
 	return h
 }

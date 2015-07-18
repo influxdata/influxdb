@@ -64,10 +64,6 @@ type Handler struct {
 		ExecuteQuery(q *influxql.Query, db string, chunkSize int) (<-chan *influxql.Result, error)
 	}
 
-	TSDBStore interface {
-		CreateMapper(shardID uint64, query string, chunkSize int) (tsdb.Mapper, error)
-	}
-
 	PointsWriter interface {
 		WritePoints(p *cluster.WritePointsRequest) error
 	}
@@ -93,10 +89,6 @@ func NewHandler(requireAuthentication, loggingEnabled, writeTrace bool) *Handler
 		route{
 			"query", // Query serving route.
 			"GET", "/query", true, true, h.serveQuery,
-		},
-		route{
-			"shard-mapping", // Shard mapping route.
-			"GET", "/shard_mapping", true, true, h.serveShardMapping,
 		},
 		route{
 			"write", // Data-ingest route.
@@ -293,85 +285,6 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 	// If it's not chunked we buffered everything in memory, so write it out
 	if !chunked {
 		w.Write(MarshalJSON(resp, pretty))
-	}
-}
-
-// serveShardMapping maps the requested shard and streams data back to the client.
-func (h *Handler) serveShardMapping(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("content-type", "application/json")
-	var err error
-
-	// Pull out shard ID, query statement, and chunking size.
-	q := r.URL.Query()
-	pretty := q.Get("pretty") == "true"
-	id, s, cs := q.Get("shard"), q.Get("q"), q.Get("chunksize")
-
-	var chunkSize int
-	if id == "" {
-		httpError(w, `no shard ID specified`, pretty, http.StatusBadRequest)
-		return
-	}
-	shardID, err := strconv.Atoi(id)
-	if err != nil {
-		httpError(w, `shard ID is not valid`, pretty, http.StatusBadRequest)
-		return
-	}
-	if s == "" {
-		httpError(w, `no query specified`, pretty, http.StatusBadRequest)
-		return
-	}
-	if cs == "" {
-		chunkSize = 0
-	} else {
-		chunkSize, err = strconv.Atoi(cs)
-		if err != nil {
-			httpError(w, `chunk size is not valid`, pretty, http.StatusBadRequest)
-			return
-		}
-	}
-
-	mapper, err := h.TSDBStore.CreateMapper(uint64(shardID), s, chunkSize)
-	if err != nil {
-		httpError(w, fmt.Sprintf("mapper create: %s", err), pretty, http.StatusInternalServerError)
-	}
-	if mapper == nil {
-		b := MarshalJSON(&tsdb.MapperResponse{}, pretty)
-		w.Write(b)
-		w.(http.Flusher).Flush()
-		return
-	}
-
-	if err := mapper.Open(); err != nil {
-		httpError(w, fmt.Sprintf("mapper open: %s", err), pretty, http.StatusInternalServerError)
-	}
-	defer mapper.Close()
-
-	var tagSetsSent bool
-	for {
-		var r tsdb.MapperResponse
-
-		if !tagSetsSent {
-			r.TagSets = mapper.TagSets()
-			tagSetsSent = true
-		}
-
-		chunk, err := mapper.NextChunk()
-		if err != nil {
-			httpError(w, fmt.Sprintf("next chunk: %s", err), pretty, http.StatusInternalServerError)
-			return
-		}
-		if chunk != nil {
-			data := MarshalJSON(&chunk, pretty)
-			r.Data = data
-		}
-
-		b := MarshalJSON(&r, pretty)
-		w.Write(b)
-		w.(http.Flusher).Flush()
-
-		if chunk == nil {
-			return
-		}
 	}
 }
 
