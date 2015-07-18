@@ -150,6 +150,10 @@ func (s *Service) handleConn(conn net.Conn) {
 			err := s.processMapShardRequest(conn, buf)
 			if err != nil {
 				s.Logger.Printf("process map shard error: %s", err)
+				msg := &MapShardResponse{}
+				msg.SetCode(1)
+				msg.SetMessage(err.Error())
+				_ = writeMapShardResponseMessage(conn, msg)
 			}
 		default:
 			s.Logger.Printf("cluster service message type not found: %d", typ)
@@ -229,11 +233,12 @@ func (s *Service) processMapShardRequest(w io.Writer, buf []byte) error {
 
 	m, err := s.TSDBStore.CreateMapper(req.ShardID(), req.Query(), int(req.ChunkSize()))
 	if err != nil {
-		// XXX  send error to user.
 		return fmt.Errorf("create mapper: %s", err)
 	}
 	if m == nil {
-		// XXX send empty response.
+		msg := &MapShardResponse{}
+		msg.SetCode(0)
+		return writeMapShardResponseMessage(w, msg)
 	}
 
 	if err := m.Open(); err != nil {
@@ -262,15 +267,10 @@ func (s *Service) processMapShardRequest(w io.Writer, buf []byte) error {
 			resp.SetData(b)
 		}
 
-		// Marshal response to binary.
-		buf, err := resp.MarshalBinary()
-		if err != nil {
-			return fmt.Errorf("error marshalling shard response: %s", err)
-		}
-
 		// Write to connection.
-		if err := WriteTLV(w, mapShardResponseMessage, buf); err != nil {
-			return fmt.Errorf("write shard response error: %s", err)
+		resp.SetCode(0)
+		if err := writeMapShardResponseMessage(w, &resp); err != nil {
+			return err
 		}
 
 		if chunk == nil {
@@ -279,6 +279,14 @@ func (s *Service) processMapShardRequest(w io.Writer, buf []byte) error {
 		}
 	}
 	return nil
+}
+
+func writeMapShardResponseMessage(w io.Writer, msg *MapShardResponse) error {
+	buf, err := msg.MarshalBinary()
+	if err != nil {
+		return err
+	}
+	return WriteTLV(w, mapShardResponseMessage, buf)
 }
 
 // ReadTLV reads a type-length-value record from r.
