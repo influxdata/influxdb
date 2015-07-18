@@ -16,6 +16,8 @@ import (
 // responsible for creating those mappers from the local store, or reaching
 // out to another node on the cluster.
 type ShardMapper struct {
+	ForceRemoteMapping bool // All shards treated as remote. Useful for testing.
+
 	MetaStore interface {
 		NodeID() uint64
 		Node(id uint64) (ni *meta.NodeInfo, err error)
@@ -41,7 +43,7 @@ func NewShardMapper(timeout time.Duration) *ShardMapper {
 func (s *ShardMapper) CreateMapper(sh meta.ShardInfo, stmt string, chunkSize int) (tsdb.Mapper, error) {
 	var err error
 	var m tsdb.Mapper
-	if sh.OwnedBy(s.MetaStore.NodeID()) {
+	if sh.OwnedBy(s.MetaStore.NodeID()) && !s.ForceRemoteMapping {
 		m, err = s.TSDBStore.CreateMapper(sh.ID, stmt, chunkSize)
 		if err != nil {
 			return nil, err

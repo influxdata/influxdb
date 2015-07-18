@@ -19,9 +19,10 @@ const (
 
 // Config represents the configuration for the clustering service.
 type Config struct {
-	WriteTimeout       toml.Duration `toml:"write-timeout"`
-	ShardWriterTimeout toml.Duration `toml:"shard-writer-timeout"`
-	ShardMapperTimeout toml.Duration `toml:"shard-mapper-timeout"`
+	ForceRemoteShardMapping bool          `toml:"force-remote-mapping"`
+	WriteTimeout            toml.Duration `toml:"write-timeout"`
+	ShardWriterTimeout      toml.Duration `toml:"shard-writer-timeout"`
+	ShardMapperTimeout      toml.Duration `toml:"shard-mapper-timeout"`
 }
 
 // NewConfig returns an instance of Config with defaults.
