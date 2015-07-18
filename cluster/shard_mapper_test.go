@@ -72,6 +72,7 @@ func TestShardWriter_RemoteMapper_Success(t *testing.T) {
 		t.Fatalf("incorrect tagsets received, exp %v, got %v", expTagSets, r.TagSets())
 	}
 
+	// Get first chunk from mapper.
 	chunk, err := r.NextChunk()
 	if err != nil {
 		t.Fatalf("failed to get next chunk from mapper: %s", err.Error())
@@ -84,7 +85,7 @@ func TestShardWriter_RemoteMapper_Success(t *testing.T) {
 		t.Fatalf("received output incorrect, exp: %v, got %v", expOutput, output)
 	}
 
-	// Next chunk should be nil.
+	// Next chunk should be nil, indicating no more data.
 	chunk, err = r.NextChunk()
 	if err != nil {
 		t.Fatalf("failed to get next chunk from mapper: %s", err.Error())
