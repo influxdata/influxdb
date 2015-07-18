@@ -237,7 +237,7 @@ func (m *MapShardRequest) GetChunkSize() int32 {
 type MapShardResponse struct {
 	Code             *int32   `protobuf:"varint,1,req" json:"Code,omitempty"`
 	Message          *string  `protobuf:"bytes,2,opt" json:"Message,omitempty"`
-	Data             []byte   `protobuf:"bytes,3,req" json:"Data,omitempty"`
+	Data             []byte   `protobuf:"bytes,3,opt" json:"Data,omitempty"`
 	TagSets          []string `protobuf:"bytes,4,rep" json:"TagSets,omitempty"`
 	XXX_unrecognized []byte   `json:"-"`
 }

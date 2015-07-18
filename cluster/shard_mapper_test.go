@@ -17,13 +17,24 @@ type remoteShardResponder struct {
 	buffer *bytes.Buffer
 }
 
-func newRemoteShardResponder(resp *MapShardResponse) *remoteShardResponder {
+func newRemoteShardResponder(outputs []*tsdb.MapperOutput, tagsets []string) *remoteShardResponder {
 	r := &remoteShardResponder{}
-
-	a := make([]byte, 0, 256)
+	a := make([]byte, 0, 1024)
 	r.buffer = bytes.NewBuffer(a)
-	d, _ := resp.MarshalBinary()
-	WriteTLV(r.buffer, mapShardResponseMessage, d)
+
+	// Pump the outputs in the buffer for later reading.
+	for _, o := range outputs {
+		resp := &MapShardResponse{}
+		resp.SetCode(0)
+		if o != nil {
+			d, _ := json.Marshal(o)
+			resp.SetData(d)
+			resp.SetTagSets(tagsets)
+		}
+
+		g, _ := resp.MarshalBinary()
+		WriteTLV(r.buffer, mapShardResponseMessage, g)
+	}
 
 	return r
 }
@@ -47,18 +58,10 @@ func TestShardWriter_RemoteMapper_Success(t *testing.T) {
 	expTagSets := []string{"tagsetA"}
 	expOutput := &tsdb.MapperOutput{
 		Name: "cpu",
-	}
-	d, err := json.Marshal(expOutput)
-	if err != nil {
-		t.Fatalf("failed to marshal output: %s", err.Error())
+		Tags: map[string]string{"host": "serverA"},
 	}
 
-	resp := &MapShardResponse{}
-	resp.SetCode(0)
-	resp.SetData(d)
-	resp.SetTagSets(expTagSets)
-
-	c := newRemoteShardResponder(resp)
+	c := newRemoteShardResponder([]*tsdb.MapperOutput{expOutput, nil}, expTagSets)
 
 	r := NewRemoteMapper(c, 1234, "SELECT * FROM CPU", 10)
 	if err := r.Open(); err != nil {
@@ -79,5 +82,14 @@ func TestShardWriter_RemoteMapper_Success(t *testing.T) {
 	}
 	if output.Name != "cpu" {
 		t.Fatalf("received output incorrect, exp: %v, got %v", expOutput, output)
+	}
+
+	// Next chunk should be nil.
+	chunk, err = r.NextChunk()
+	if err != nil {
+		t.Fatalf("failed to get next chunk from mapper: %s", err.Error())
+	}
+	if chunk != nil {
+		t.Fatal("received more chunks when none expected")
 	}
 }
