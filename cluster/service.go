@@ -278,7 +278,6 @@ func (s *Service) processMapShardRequest(w io.Writer, buf []byte) error {
 			return nil
 		}
 	}
-	return nil
 }
 
 func writeMapShardResponseMessage(w io.Writer, msg *MapShardResponse) error {
