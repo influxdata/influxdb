@@ -46,11 +46,10 @@ type RawMapper struct {
 	queryTMin int64
 	queryTMax int64
 
-	whereFields  []string               // field names that occur in the where clause
-	selectFields []string               // field names that occur in the select clause
-	selectTags   []string               // tag keys that occur in the select clause
-	fieldName    string                 // the field name being read.
-	decoders     map[string]*FieldCodec // byte decoder per measurement
+	whereFields  []string // field names that occur in the where clause
+	selectFields []string // field names that occur in the select clause
+	selectTags   []string // tag keys that occur in the select clause
+	fieldName    string   // the field name being read.
 
 	cursors         []*tagSetCursor // Cursors per tag sets.
 	currCursorIndex int             // Current tagset cursor being drained.
