@@ -7,8 +7,6 @@ import (
 )
 
 const (
-	DefaultRecomputePreviousN = 2
-
 	DefaultRecomputeNoOlderThan = 10 * time.Minute
 
 	DefaultComputeRunsPerInterval = 10
@@ -20,12 +18,6 @@ const (
 type Config struct {
 	// If this flag is set to false, both the brokers and data nodes should ignore any CQ processing.
 	Enabled bool `toml:"enabled"`
-
-	// when continuous queries are run we'll automatically recompute previous intervals
-	// in case lagged data came in. Set to zero if you never have lagged data. We do
-	// it this way because invalidating previously computed intervals would be insanely hard
-	// and expensive.
-	RecomputePreviousN int `toml:"recompute-previous-n"`
 
 	// The RecomputePreviousN setting provides guidance for how far back to recompute, the RecomputeNoOlderThan
 	// setting sets a ceiling on how far back in time it will go. For example, if you have 2 PreviousN
@@ -53,7 +45,6 @@ type Config struct {
 func NewConfig() Config {
 	return Config{
 		Enabled:                true,
-		RecomputePreviousN:     DefaultRecomputePreviousN,
 		RecomputeNoOlderThan:   toml.Duration(DefaultRecomputeNoOlderThan),
 		ComputeRunsPerInterval: DefaultComputeRunsPerInterval,
 		ComputeNoMoreThan:      toml.Duration(DefaultComputeNoMoreThan),

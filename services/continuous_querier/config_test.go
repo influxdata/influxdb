@@ -12,7 +12,6 @@ func TestConfig_Parse(t *testing.T) {
 	// Parse configuration.
 	var c continuous_querier.Config
 	if _, err := toml.Decode(`
-recompute-previous-n = 1
 recompute-no-older-than = "10s"
 compute-runs-per-interval = 2
 compute-no-more-than = "20s"
@@ -22,9 +21,7 @@ enabled = true
 	}
 
 	// Validate configuration.
-	if c.RecomputePreviousN != 1 {
-		t.Fatalf("unexpected recompute previous n: %d", c.RecomputePreviousN)
-	} else if time.Duration(c.RecomputeNoOlderThan) != 10*time.Second {
+	if time.Duration(c.RecomputeNoOlderThan) != 10*time.Second {
 		t.Fatalf("unexpected recompute no older than: %v", c.RecomputeNoOlderThan)
 	} else if c.ComputeRunsPerInterval != 2 {
 		t.Fatalf("unexpected compute runs per interval: %d", c.ComputeRunsPerInterval)
