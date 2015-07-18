@@ -804,7 +804,7 @@ func (t *testQEShardMapper) CreateMapper(shard meta.ShardInfo, stmt string, chun
 	return t.store.CreateMapper(shard.ID, stmt, chunkSize)
 }
 
-func executeAndGetResults(executor Executor) string {
+func executeAndGetResults(executor *Executor) string {
 	ch := executor.Execute()
 
 	var rows []*influxql.Row
