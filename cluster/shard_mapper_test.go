@@ -45,8 +45,13 @@ func (r remoteShardResponder) Write(p []byte) (n int, err error) {
 // Ensure a RemoteMapper can process valid responses from a remote shard.
 func TestShardWriter_RemoteMapper_Success(t *testing.T) {
 	expTagSets := []string{"tagsetA"}
-	expOutput := tsdb.MapperOutput{}
-	d, _ := json.Marshal(expOutput)
+	expOutput := &tsdb.MapperOutput{
+		Name: "cpu",
+	}
+	d, err := json.Marshal(expOutput)
+	if err != nil {
+		t.Fatalf("failed to marshal output: %s", err.Error())
+	}
 
 	resp := &MapShardResponse{}
 	resp.SetCode(0)
@@ -72,5 +77,7 @@ func TestShardWriter_RemoteMapper_Success(t *testing.T) {
 	if !ok {
 		t.Fatal("chunk is not of expected type")
 	}
-	_ = output
+	if output.Name != "cpu" {
+		t.Fatalf("received output incorrect, exp: %v, got %v", expOutput, output)
+	}
 }

@@ -190,6 +190,9 @@ func (r *RemoteMapper) NextChunk() (chunk interface{}, err error) {
 		}
 	}
 
+	if len(response.Data()) == 0 {
+		return nil, nil
+	}
 	err = json.Unmarshal(response.Data(), output)
 	return output, err
 }
