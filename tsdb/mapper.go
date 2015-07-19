@@ -36,7 +36,7 @@ func (mo *mapperOutput) key() string {
 	return formMeasurementTagSetKey(mo.Name, mo.Tags)
 }
 
-// LocalMapper is for retrieving data, for an aggregate query, from a given shard.
+// LocalMapper is for retrieving data for a query, from a given shard.
 type LocalMapper struct {
 	shard           *Shard
 	stmt            *influxql.SelectStatement
