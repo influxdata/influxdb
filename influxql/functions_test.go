@@ -71,55 +71,12 @@ func TestMapMean(t *testing.T) {
 		}
 	}
 }
-func TestInitializeMapFuncPercentile(t *testing.T) {
-	// No args
-	c := &Call{
-		Name: "percentile",
-		Args: []Expr{},
-	}
-	_, err := InitializeMapFunc(c)
-	if err == nil {
-		t.Errorf("InitializeMapFunc(%v) expected error. got nil", c)
-	}
-
-	if exp := "expected two arguments for percentile()"; err.Error() != exp {
-		t.Errorf("InitializeMapFunc(%v) mismatch. exp %v got %v", c, exp, err.Error())
-	}
-
-	// No percentile arg
-	c = &Call{
-		Name: "percentile",
-		Args: []Expr{
-			&VarRef{Val: "field1"},
-		},
-	}
-
-	_, err = InitializeMapFunc(c)
-	if err == nil {
-		t.Errorf("InitializeMapFunc(%v) expected error. got nil", c)
-	}
-
-	if exp := "expected two arguments for percentile()"; err.Error() != exp {
-		t.Errorf("InitializeMapFunc(%v) mismatch. exp %v got %v", c, exp, err.Error())
-	}
-}
 
 func TestInitializeMapFuncDerivative(t *testing.T) {
 
 	for _, fn := range []string{"derivative", "non_negative_derivative"} {
-		// No args should fail
-		c := &Call{
-			Name: fn,
-			Args: []Expr{},
-		}
-
-		_, err := InitializeMapFunc(c)
-		if err == nil {
-			t.Errorf("InitializeMapFunc(%v) expected error.  got nil", c)
-		}
-
 		// Single field arg should return MapEcho
-		c = &Call{
+		c := &Call{
 			Name: fn,
 			Args: []Expr{
 				&VarRef{Val: " field1"},
@@ -127,7 +84,7 @@ func TestInitializeMapFuncDerivative(t *testing.T) {
 			},
 		}
 
-		_, err = InitializeMapFunc(c)
+		_, err := InitializeMapFunc(c)
 		if err != nil {
 			t.Errorf("InitializeMapFunc(%v) unexpected error.  got %v", c, err)
 		}
