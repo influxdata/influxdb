@@ -89,71 +89,12 @@ func (lm *LocalMapper) Open() error {
 	lm.queryTMin, lm.queryTMax = influxql.TimeRangeAsEpochNano(lm.stmt.Condition)
 
 	if !lm.rawMode {
-		// Set up each mapping function for this statement.
-		aggregates := lm.stmt.FunctionCalls()
-		lm.mapFuncs = make([]influxql.MapFunc, len(aggregates))
-		lm.fieldNames = make([]string, len(lm.mapFuncs))
-		for i, c := range aggregates {
-			lm.mapFuncs[i], err = influxql.InitializeMapFunc(c)
-			if err != nil {
-				return err
-			}
-
-			// Check for calls like `derivative(lmean(value), 1d)`
-			var nested *influxql.Call = c
-			if fn, ok := c.Args[0].(*influxql.Call); ok {
-				nested = fn
-			}
-			switch lit := nested.Args[0].(type) {
-			case *influxql.VarRef:
-				lm.fieldNames[i] = lit.Val
-			case *influxql.Distinct:
-				if c.Name != "count" {
-					return fmt.Errorf("aggregate call didn't contain a field %s", c.String())
-				}
-				lm.fieldNames[i] = lit.Val
-			default:
-				return fmt.Errorf("aggregate call didn't contain a field %s", c.String())
-			}
-		}
-
-		// For GROUP BY time queries, limit the number of data points returned by the limit and offset
-		d, err := lm.stmt.GroupByInterval()
-		if err != nil {
+		if err := lm.initializeMapFunctions(); err != nil {
 			return err
 		}
-		lm.intervalSize = d.Nanoseconds()
-		if lm.queryTMin == 0 || lm.intervalSize == 0 {
-			lm.numIntervals = 1
-			lm.intervalSize = lm.queryTMax - lm.queryTMin
-		} else {
-			intervalTop := lm.queryTMax/lm.intervalSize*lm.intervalSize + lm.intervalSize
-			intervalBottom := lm.queryTMin / lm.intervalSize * lm.intervalSize
-			lm.numIntervals = int((intervalTop - intervalBottom) / lm.intervalSize)
-		}
 
-		if lm.stmt.Limit > 0 || lm.stmt.Offset > 0 {
-			// ensure that the offset isn't higher than the number of points we'd get
-			if lm.stmt.Offset > lm.numIntervals {
-				return nil
-			}
-
-			// Take the lesser of either the pre computed number of GROUP BY buckets that
-			// will be in the result or the limit passed in by the user
-			if lm.stmt.Limit < lm.numIntervals {
-				lm.numIntervals = lm.stmt.Limit
-			}
-		}
-
-		// If we are exceeding our MaxGroupByPoints error out
-		if lm.numIntervals > MaxGroupByPoints {
-			return errors.New("too many points in the group by interval. maybe you forgot to specify a where time clause?")
-		}
-
-		// Ensure that the start time for the results is on the start of the window.
-		lm.queryTMinWindow = lm.queryTMin
-		if lm.intervalSize > 0 {
-			lm.queryTMinWindow = lm.queryTMinWindow / lm.intervalSize * lm.intervalSize
+		if err := lm.calculateIntervals(); err != nil {
+			return err
 		}
 	}
 
@@ -358,6 +299,86 @@ func (lm *LocalMapper) nextInterval() (start, end int64) {
 		start, end = t, t+lm.intervalSize
 	}
 	return
+}
+
+// initializeMapFunctions initialize the mapping functions for the mapper. This only applies
+// to aggregate queries.
+func (lm *LocalMapper) initializeMapFunctions() error {
+	var err error
+	// Set up each mapping function for this statement.
+	aggregates := lm.stmt.FunctionCalls()
+	lm.mapFuncs = make([]influxql.MapFunc, len(aggregates))
+	lm.fieldNames = make([]string, len(lm.mapFuncs))
+	for i, c := range aggregates {
+		lm.mapFuncs[i], err = influxql.InitializeMapFunc(c)
+		if err != nil {
+			return err
+		}
+
+		// Check for calls like `derivative(lmean(value), 1d)`
+		var nested *influxql.Call = c
+		if fn, ok := c.Args[0].(*influxql.Call); ok {
+			nested = fn
+		}
+		switch lit := nested.Args[0].(type) {
+		case *influxql.VarRef:
+			lm.fieldNames[i] = lit.Val
+		case *influxql.Distinct:
+			if c.Name != "count" {
+				return fmt.Errorf("aggregate call didn't contain a field %s", c.String())
+			}
+			lm.fieldNames[i] = lit.Val
+		default:
+			return fmt.Errorf("aggregate call didn't contain a field %s", c.String())
+		}
+	}
+
+	return nil
+}
+
+// calculateIntervals determines the time intervals for the Mapper. This only applies
+// to aggregate queries.
+func (lm *LocalMapper) calculateIntervals() error {
+	// For GROUP BY time queries, limit the number of data points returned by the limit and offset
+	d, err := lm.stmt.GroupByInterval()
+	if err != nil {
+		return err
+	}
+	lm.intervalSize = d.Nanoseconds()
+	if lm.queryTMin == 0 || lm.intervalSize == 0 {
+		lm.numIntervals = 1
+		lm.intervalSize = lm.queryTMax - lm.queryTMin
+	} else {
+		intervalTop := lm.queryTMax/lm.intervalSize*lm.intervalSize + lm.intervalSize
+		intervalBottom := lm.queryTMin / lm.intervalSize * lm.intervalSize
+		lm.numIntervals = int((intervalTop - intervalBottom) / lm.intervalSize)
+	}
+
+	if lm.stmt.Limit > 0 || lm.stmt.Offset > 0 {
+		// ensure that the offset isn't higher than the number of points we'd get
+		if lm.stmt.Offset > lm.numIntervals {
+			return nil
+		}
+
+		// Take the lesser of either the pre computed number of GROUP BY buckets that
+		// will be in the result or the limit passed in by the user
+		if lm.stmt.Limit < lm.numIntervals {
+			lm.numIntervals = lm.stmt.Limit
+		}
+	}
+
+	// If we are exceeding our MaxGroupByPoints error out
+	if lm.numIntervals > MaxGroupByPoints {
+		return errors.New("too many points in the group by interval. maybe you forgot to specify a where time clause?")
+	}
+
+	// Ensure that the start time for the results is on the start of the window.
+	lm.queryTMinWindow = lm.queryTMin
+	if lm.intervalSize > 0 {
+		lm.queryTMinWindow = lm.queryTMinWindow / lm.intervalSize * lm.intervalSize
+	}
+
+	return nil
 }
 
 // TagSets returns the list of TagSets for which this mapper has data.
