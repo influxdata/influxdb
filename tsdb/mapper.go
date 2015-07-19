@@ -36,84 +36,176 @@ func (mo *mapperOutput) key() string {
 	return formMeasurementTagSetKey(mo.Name, mo.Tags)
 }
 
-// RawMapper is for retrieving data, for a raw query, for a single shard.
-type RawMapper struct {
-	shard     *Shard
-	stmt      *influxql.SelectStatement
-	chunkSize int
-
-	tx        *bolt.Tx // Read transaction for this shard.
-	queryTMin int64
-	queryTMax int64
-
-	whereFields  []string // field names that occur in the where clause
-	selectFields []string // field names that occur in the select clause
-	selectTags   []string // tag keys that occur in the select clause
-
+// LocalMapper is for retrieving data, for an aggregate query, from a given shard.
+type LocalMapper struct {
+	shard           *Shard
+	stmt            *influxql.SelectStatement
+	rawMode         bool
+	chunkSize       int
+	tx              *bolt.Tx        // Read transaction for this shard.
+	queryTMin       int64           // Minimum time of the query.
+	queryTMax       int64           // Maximum time of the query.
+	whereFields     []string        // field names that occur in the where clause
+	selectFields    []string        // field names that occur in the select clause
+	selectTags      []string        // tag keys that occur in the select clause
 	cursors         []*tagSetCursor // Cursors per tag sets.
 	currCursorIndex int             // Current tagset cursor being drained.
+
+	// The following attributes are only used when mappers are for aggregate queries.
+
+	queryTMinWindow int64              // Minimum time of the query floored to start of interval.
+	intervalSize    int64              // Size of each interval.
+	numIntervals    int                // Maximum number of intervals to return.
+	currInterval    int                // Current interval for which data is being fetched.
+	mapFuncs        []influxql.MapFunc // The mapping functions.
+	fieldNames      []string           // the field name being read for mapping.
 }
 
-// NewRawMapper returns a mapper for the given shard, which will return data for the SELECT statement.
-func NewRawMapper(shard *Shard, stmt *influxql.SelectStatement, chunkSize int) *RawMapper {
-	return &RawMapper{
+// NewLocalMapper returns a mapper for the given shard, which will return data for the SELECT statement.
+func NewLocalMapper(shard *Shard, stmt *influxql.SelectStatement, chunkSize int) *LocalMapper {
+	m := &LocalMapper{
 		shard:     shard,
 		stmt:      stmt,
 		chunkSize: chunkSize,
 		cursors:   make([]*tagSetCursor, 0),
 	}
+
+	m.rawMode = (stmt.IsRawQuery && !stmt.HasDistinct()) || stmt.IsSimpleDerivative()
+	return m
 }
 
-// Open opens the raw mapper.
-func (rm *RawMapper) Open() error {
+// Open opens the aggregate mapper.
+func (lm *LocalMapper) Open() error {
+	var err error
+
 	// Get a read-only transaction.
-	tx, err := rm.shard.DB().Begin(false)
+	tx, err := lm.shard.DB().Begin(false)
 	if err != nil {
 		return err
 	}
-	rm.tx = tx
+	lm.tx = tx
 
 	// Set all time-related parameters on the mapper.
-	rm.queryTMin, rm.queryTMax = influxql.TimeRangeAsEpochNano(rm.stmt.Condition)
+	lm.queryTMin, lm.queryTMax = influxql.TimeRangeAsEpochNano(lm.stmt.Condition)
+
+	if !lm.rawMode {
+		// Set up each mapping function for this statement.
+		aggregates := lm.stmt.FunctionCalls()
+		lm.mapFuncs = make([]influxql.MapFunc, len(aggregates))
+		lm.fieldNames = make([]string, len(lm.mapFuncs))
+		for i, c := range aggregates {
+			lm.mapFuncs[i], err = influxql.InitializeMapFunc(c)
+			if err != nil {
+				return err
+			}
+
+			// Check for calls like `derivative(lmean(value), 1d)`
+			var nested *influxql.Call = c
+			if fn, ok := c.Args[0].(*influxql.Call); ok {
+				nested = fn
+			}
+			switch lit := nested.Args[0].(type) {
+			case *influxql.VarRef:
+				lm.fieldNames[i] = lit.Val
+			case *influxql.Distinct:
+				if c.Name != "count" {
+					return fmt.Errorf("aggregate call didn't contain a field %s", c.String())
+				}
+				lm.fieldNames[i] = lit.Val
+			default:
+				return fmt.Errorf("aggregate call didn't contain a field %s", c.String())
+			}
+		}
+
+		// For GROUP BY time queries, limit the number of data points returned by the limit and offset
+		d, err := lm.stmt.GroupByInterval()
+		if err != nil {
+			return err
+		}
+		lm.intervalSize = d.Nanoseconds()
+		if lm.queryTMin == 0 || lm.intervalSize == 0 {
+			lm.numIntervals = 1
+			lm.intervalSize = lm.queryTMax - lm.queryTMin
+		} else {
+			intervalTop := lm.queryTMax/lm.intervalSize*lm.intervalSize + lm.intervalSize
+			intervalBottom := lm.queryTMin / lm.intervalSize * lm.intervalSize
+			lm.numIntervals = int((intervalTop - intervalBottom) / lm.intervalSize)
+		}
+
+		if lm.stmt.Limit > 0 || lm.stmt.Offset > 0 {
+			// ensure that the offset isn't higher than the number of points we'd get
+			if lm.stmt.Offset > lm.numIntervals {
+				return nil
+			}
+
+			// Take the lesser of either the pre computed number of GROUP BY buckets that
+			// will be in the result or the limit passed in by the user
+			if lm.stmt.Limit < lm.numIntervals {
+				lm.numIntervals = lm.stmt.Limit
+			}
+		}
+
+		// If we are exceeding our MaxGroupByPoints error out
+		if lm.numIntervals > MaxGroupByPoints {
+			return errors.New("too many points in the group by interval. maybe you forgot to specify a where time clause?")
+		}
+
+		// Ensure that the start time for the results is on the start of the window.
+		lm.queryTMinWindow = lm.queryTMin
+		if lm.intervalSize > 0 {
+			lm.queryTMinWindow = lm.queryTMinWindow / lm.intervalSize * lm.intervalSize
+		}
+	}
 
 	// Create the TagSet cursors for the Mapper.
-	for _, src := range rm.stmt.Sources {
+	for _, src := range lm.stmt.Sources {
 		mm, ok := src.(*influxql.Measurement)
 		if !ok {
 			return fmt.Errorf("invalid source type: %#v", src)
 		}
 
-		m := rm.shard.index.Measurement(mm.Name)
+		m := lm.shard.index.Measurement(mm.Name)
 		if m == nil {
 			// This shard have never received data for the measurement. No Mapper
 			// required.
 			return nil
 		}
 
+		// Validate that ANY GROUP BY is not a field for thie measurement.
+		if err := m.ValidateGroupBy(lm.stmt); err != nil {
+			return err
+		}
+
 		// Create tagset cursors and determine various field types within SELECT statement.
-		tsf, err := createTagSetsAndFields(m, rm.stmt)
+		tsf, err := createTagSetsAndFields(m, lm.stmt)
 		if err != nil {
 			return err
 		}
 		tagSets := tsf.tagSets
-		rm.selectFields = tsf.selectFields
-		rm.selectTags = tsf.selectTags
-		rm.whereFields = tsf.whereFields
+		lm.selectFields = tsf.selectFields
+		lm.selectTags = tsf.selectTags
+		lm.whereFields = tsf.whereFields
 
-		if len(rm.selectFields) == 0 {
+		// Validate that any GROUP BY is not on a field
+		if err := m.ValidateGroupBy(lm.stmt); err != nil {
+			return err
+		}
+
+		// If the query does not aggregate, then at least 1 SELECT field should be present.
+		if lm.rawMode && len(lm.selectFields) == 0 {
 			return fmt.Errorf("select statement must include at least one field")
 		}
 
 		// SLIMIT and SOFFSET the unique series
-		if rm.stmt.SLimit > 0 || rm.stmt.SOffset > 0 {
-			if rm.stmt.SOffset > len(tagSets) {
+		if lm.stmt.SLimit > 0 || lm.stmt.SOffset > 0 {
+			if lm.stmt.SOffset > len(tagSets) {
 				tagSets = nil
 			} else {
-				if rm.stmt.SOffset+rm.stmt.SLimit > len(tagSets) {
-					rm.stmt.SLimit = len(tagSets) - rm.stmt.SOffset
+				if lm.stmt.SOffset+lm.stmt.SLimit > len(tagSets) {
+					lm.stmt.SLimit = len(tagSets) - lm.stmt.SOffset
 				}
 
-				tagSets = tagSets[rm.stmt.SOffset : rm.stmt.SOffset+rm.stmt.SLimit]
+				tagSets = tagSets[lm.stmt.SOffset : lm.stmt.SOffset+lm.stmt.SLimit]
 			}
 		}
 
@@ -122,45 +214,47 @@ func (rm *RawMapper) Open() error {
 			cursors := []*seriesCursor{}
 
 			for i, key := range t.SeriesKeys {
-				c := createCursorForSeries(rm.tx, rm.shard, key)
+				c := createCursorForSeries(lm.tx, lm.shard, key)
 				if c == nil {
 					// No data exists for this key.
 					continue
 				}
 				cm := newSeriesCursor(c, t.Filters[i])
-				cm.SeekTo(rm.queryTMin)
+				cm.SeekTo(lm.queryTMin)
 				cursors = append(cursors, cm)
 			}
-			tsc := newTagSetCursor(m.Name, t.Tags, cursors, rm.shard.FieldCodec(m.Name))
-			rm.cursors = append(rm.cursors, tsc)
+			tsc := newTagSetCursor(m.Name, t.Tags, cursors, lm.shard.FieldCodec(m.Name))
+			lm.cursors = append(lm.cursors, tsc)
 		}
-		sort.Sort(tagSetCursors(rm.cursors))
+		sort.Sort(tagSetCursors(lm.cursors))
 	}
 
 	return nil
 }
 
-// TagSets returns the list of TagSets for which this mapper has data.
-func (rm *RawMapper) TagSets() []string {
-	return tagSetCursors(rm.cursors).Keys()
+func (lm *LocalMapper) NextChunk() (interface{}, error) {
+	if lm.rawMode {
+		return lm.nextChunkRaw()
+	}
+	return lm.nextChunkAgg()
 }
 
-// NextChunk returns the next chunk of data. Data comes in the same order as the
+// nextChunkRaw returns the next chunk of data. Data comes in the same order as the
 // tags return by TagSets. A chunk never contains data for more than 1 tagset.
 // If there is no more data for any tagset, nil will be returned.
-func (rm *RawMapper) NextChunk() (interface{}, error) {
+func (lm *LocalMapper) nextChunkRaw() (interface{}, error) {
 	var output *mapperOutput
 	for {
-		if rm.currCursorIndex == len(rm.cursors) {
+		if lm.currCursorIndex == len(lm.cursors) {
 			// All tagset cursors processed. NextChunk'ing complete.
 			return nil, nil
 		}
-		cursor := rm.cursors[rm.currCursorIndex]
+		cursor := lm.cursors[lm.currCursorIndex]
 
-		_, k, v := cursor.Next(rm.queryTMin, rm.queryTMax, rm.selectFields, rm.whereFields)
+		_, k, v := cursor.Next(lm.queryTMin, lm.queryTMax, lm.selectFields, lm.whereFields)
 		if v == nil {
 			// Tagset cursor is empty, move to next one.
-			rm.currCursorIndex++
+			lm.currCursorIndex++
 			if output != nil {
 				// There is data, so return it and continue when next called.
 				return output, nil
@@ -178,216 +272,30 @@ func (rm *RawMapper) NextChunk() (interface{}, error) {
 		}
 		value := &mapperValue{Time: k, Value: v}
 		output.Values = append(output.Values, value)
-		if len(output.Values) == rm.chunkSize {
+		if len(output.Values) == lm.chunkSize {
 			return output, nil
 		}
 	}
 }
 
-// Close closes the mapper.
-func (rm *RawMapper) Close() {
-	if rm != nil && rm.tx != nil {
-		_ = rm.tx.Rollback()
-	}
-}
-
-// AggMapper is for retrieving data, for an aggregate query, from a given shard.
-type AggMapper struct {
-	shard *Shard
-	stmt  *influxql.SelectStatement
-
-	tx              *bolt.Tx // Read transaction for this shard.
-	queryTMin       int64    // Minimum time of the query.
-	queryTMinWindow int64    // Minimum time of the query floored to start of interval.
-	queryTMax       int64    // Maximum time of the query.
-	intervalSize    int64    // Size of each interval.
-
-	mapFuncs   []influxql.MapFunc // The mapping functions.
-	fieldNames []string           // the field name being read for mapping.
-
-	whereFields  []string // field names that occur in the where clause
-	selectFields []string // field names that occur in the select clause
-	selectTags   []string // tag keys that occur in the select clause
-
-	numIntervals int // Maximum number of intervals to return.
-	currInterval int // Current interval for which data is being fetched.
-
-	cursors         []*tagSetCursor // Cursors per tag sets.
-	currCursorIndex int             // Current tagset cursor being drained.
-}
-
-// NewAggMapper returns a mapper for the given shard, which will return data for the SELECT statement.
-func NewAggMapper(shard *Shard, stmt *influxql.SelectStatement) *AggMapper {
-	return &AggMapper{
-		shard:   shard,
-		stmt:    stmt,
-		cursors: make([]*tagSetCursor, 0),
-	}
-}
-
-// Open opens the aggregate mapper.
-func (am *AggMapper) Open() error {
-	var err error
-
-	// Get a read-only transaction.
-	tx, err := am.shard.DB().Begin(false)
-	if err != nil {
-		return err
-	}
-	am.tx = tx
-
-	// Set up each mapping function for this statement.
-	aggregates := am.stmt.FunctionCalls()
-	am.mapFuncs = make([]influxql.MapFunc, len(aggregates))
-	am.fieldNames = make([]string, len(am.mapFuncs))
-	for i, c := range aggregates {
-		am.mapFuncs[i], err = influxql.InitializeMapFunc(c)
-		if err != nil {
-			return err
-		}
-
-		// Check for calls like `derivative(mean(value), 1d)`
-		var nested *influxql.Call = c
-		if fn, ok := c.Args[0].(*influxql.Call); ok {
-			nested = fn
-		}
-		switch lit := nested.Args[0].(type) {
-		case *influxql.VarRef:
-			am.fieldNames[i] = lit.Val
-		case *influxql.Distinct:
-			if c.Name != "count" {
-				return fmt.Errorf("aggregate call didn't contain a field %s", c.String())
-			}
-			am.fieldNames[i] = lit.Val
-		default:
-			return fmt.Errorf("aggregate call didn't contain a field %s", c.String())
-		}
-	}
-
-	// Set all time-related parameters on the mapper.
-	am.queryTMin, am.queryTMax = influxql.TimeRangeAsEpochNano(am.stmt.Condition)
-
-	// For GROUP BY time queries, limit the number of data points returned by the limit and offset
-	d, err := am.stmt.GroupByInterval()
-	if err != nil {
-		return err
-	}
-	am.intervalSize = d.Nanoseconds()
-	if am.queryTMin == 0 || am.intervalSize == 0 {
-		am.numIntervals = 1
-		am.intervalSize = am.queryTMax - am.queryTMin
-	} else {
-		intervalTop := am.queryTMax/am.intervalSize*am.intervalSize + am.intervalSize
-		intervalBottom := am.queryTMin / am.intervalSize * am.intervalSize
-		am.numIntervals = int((intervalTop - intervalBottom) / am.intervalSize)
-	}
-
-	if am.stmt.Limit > 0 || am.stmt.Offset > 0 {
-		// ensure that the offset isn't higher than the number of points we'd get
-		if am.stmt.Offset > am.numIntervals {
-			return nil
-		}
-
-		// Take the lesser of either the pre computed number of GROUP BY buckets that
-		// will be in the result or the limit passed in by the user
-		if am.stmt.Limit < am.numIntervals {
-			am.numIntervals = am.stmt.Limit
-		}
-	}
-
-	// If we are exceeding our MaxGroupByPoints error out
-	if am.numIntervals > MaxGroupByPoints {
-		return errors.New("too many points in the group by interval. maybe you forgot to specify a where time clause?")
-	}
-
-	// Ensure that the start time for the results is on the start of the window.
-	am.queryTMinWindow = am.queryTMin
-	if am.intervalSize > 0 {
-		am.queryTMinWindow = am.queryTMinWindow / am.intervalSize * am.intervalSize
-	}
-
-	// Create the TagSet cursors for the Mapper.
-	for _, src := range am.stmt.Sources {
-		mm, ok := src.(*influxql.Measurement)
-		if !ok {
-			return fmt.Errorf("invalid source type: %#v", src)
-		}
-
-		m := am.shard.index.Measurement(mm.Name)
-		if m == nil {
-			// This shard have never received data for the measurement. No Mapper
-			// required.
-			return nil
-		}
-
-		// Create tagset cursors and determine various field types within SELECT statement.
-		tsf, err := createTagSetsAndFields(m, am.stmt)
-		if err != nil {
-			return err
-		}
-		tagSets := tsf.tagSets
-		am.selectFields = tsf.selectFields
-		am.selectTags = tsf.selectTags
-		am.whereFields = tsf.whereFields
-
-		// Validate that group by is not a field
-		if err := m.ValidateGroupBy(am.stmt); err != nil {
-			return err
-		}
-
-		// SLIMIT and SOFFSET the unique series
-		if am.stmt.SLimit > 0 || am.stmt.SOffset > 0 {
-			if am.stmt.SOffset > len(tagSets) {
-				tagSets = nil
-			} else {
-				if am.stmt.SOffset+am.stmt.SLimit > len(tagSets) {
-					am.stmt.SLimit = len(tagSets) - am.stmt.SOffset
-				}
-
-				tagSets = tagSets[am.stmt.SOffset : am.stmt.SOffset+am.stmt.SLimit]
-			}
-		}
-
-		// Create all cursors for reading the data from this shard.
-		for _, t := range tagSets {
-			cursors := []*seriesCursor{}
-
-			for i, key := range t.SeriesKeys {
-				c := createCursorForSeries(am.tx, am.shard, key)
-				if c == nil {
-					// No data exists for this key.
-					continue
-				}
-				cm := newSeriesCursor(c, t.Filters[i])
-				cursors = append(cursors, cm)
-			}
-			tsc := newTagSetCursor(m.Name, t.Tags, cursors, am.shard.FieldCodec(m.Name))
-			am.cursors = append(am.cursors, tsc)
-		}
-		sort.Sort(tagSetCursors(am.cursors))
-	}
-
-	return nil
-}
-
-// NextChunk returns the next chunk of data, which is the next interval of data
+// nextChunkAgg returns the next chunk of data, which is the next interval of data
 // for the current tagset. Tagsets are always processed in the same order as that
 // returned by AvailTagsSets(). When there is no more data for any tagset nil
 // is returned.
-func (am *AggMapper) NextChunk() (interface{}, error) {
+func (lm *LocalMapper) nextChunkAgg() (interface{}, error) {
 	var output *mapperOutput
 	for {
-		if am.currCursorIndex == len(am.cursors) {
+		if lm.currCursorIndex == len(lm.cursors) {
 			// All tagset cursors processed. NextChunk'ing complete.
 			return nil, nil
 		}
-		cursor := am.cursors[am.currCursorIndex]
-		tmin, tmax := am.nextInterval()
+		cursor := lm.cursors[lm.currCursorIndex]
+		tmin, tmax := lm.nextInterval()
 
 		if tmin < 0 {
 			// All intervals complete for this tagset. Move to the next tagset.
-			am.resetIntervals()
-			am.currCursorIndex++
+			lm.currInterval = 0
+			lm.currCursorIndex++
 			continue
 		}
 
@@ -409,11 +317,11 @@ func (am *AggMapper) NextChunk() (interface{}, error) {
 		// Always clamp tmin. This can happen as bucket-times are bucketed to the nearest
 		// interval, and this can be less than the times in the query.
 		qmin := tmin
-		if qmin < am.queryTMin {
-			qmin = am.queryTMin
+		if qmin < lm.queryTMin {
+			qmin = lm.queryTMin
 		}
 
-		for i := range am.mapFuncs {
+		for i := range lm.mapFuncs {
 			// Set the cursor to the start of the interval. This is not ideal, as it should
 			// really calculate the values all in 1 pass, but that would require changes
 			// to the mapper functions, which can come later.
@@ -421,7 +329,7 @@ func (am *AggMapper) NextChunk() (interface{}, error) {
 
 			// Wrap the tagset cursor so it implements the mapping functions interface.
 			f := func() (seriesKey string, time int64, value interface{}) {
-				return cursor.Next(qmin, tmax, []string{am.fieldNames[i]}, am.whereFields)
+				return cursor.Next(qmin, tmax, []string{lm.fieldNames[i]}, lm.whereFields)
 			}
 
 			tagSetCursor := &aggTagSetCursor{
@@ -431,7 +339,7 @@ func (am *AggMapper) NextChunk() (interface{}, error) {
 			// Execute the map function which walks the entire interval, and aggregates
 			// the result.
 			values := output.Values[0].Value.([]interface{})
-			output.Values[0].Value = append(values, am.mapFuncs[i](tagSetCursor))
+			output.Values[0].Value = append(values, lm.mapFuncs[i](tagSetCursor))
 		}
 		return output, nil
 	}
@@ -439,34 +347,28 @@ func (am *AggMapper) NextChunk() (interface{}, error) {
 
 // nextInterval returns the next interval for which to return data. If start is less than 0
 // there are no more intervals.
-func (am *AggMapper) nextInterval() (start, end int64) {
-	t := am.queryTMinWindow + int64(am.currInterval+am.stmt.Offset)*am.intervalSize
+func (lm *LocalMapper) nextInterval() (start, end int64) {
+	t := lm.queryTMinWindow + int64(lm.currInterval+lm.stmt.Offset)*lm.intervalSize
 
 	// Onto next interval.
-	am.currInterval++
-	if t > am.queryTMax || am.currInterval > am.numIntervals {
+	lm.currInterval++
+	if t > lm.queryTMax || lm.currInterval > lm.numIntervals {
 		start, end = -1, 1
 	} else {
-		start, end = t, t+am.intervalSize
+		start, end = t, t+lm.intervalSize
 	}
 	return
 }
 
-// resetIntervals starts the Mapper at the first interval. Subsequent intervals
-// should be retrieved via nextInterval().
-func (am *AggMapper) resetIntervals() {
-	am.currInterval = 0
-}
-
 // TagSets returns the list of TagSets for which this mapper has data.
-func (am *AggMapper) TagSets() []string {
-	return tagSetCursors(am.cursors).Keys()
+func (lm *LocalMapper) TagSets() []string {
+	return tagSetCursors(lm.cursors).Keys()
 }
 
 // Close closes the mapper.
-func (am *AggMapper) Close() {
-	if am != nil && am.tx != nil {
-		_ = am.tx.Rollback()
+func (lm *LocalMapper) Close() {
+	if lm != nil && lm.tx != nil {
+		_ = lm.tx.Rollback()
 	}
 }
 
