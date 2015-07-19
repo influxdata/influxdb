@@ -27,9 +27,11 @@ func (a mapperValues) Less(i, j int) bool { return a[i].Time < a[j].Time }
 func (a mapperValues) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
 type mapperOutput struct {
-	Name   string            `json:"name,omitempty"`
-	Tags   map[string]string `json:"tags,omitempty"`
-	Values []*mapperValue    `json:"values,omitempty"` // For aggregates contains a single value at [0]
+	Name        string            `json:"name,omitempty"`
+	Tags        map[string]string `json:"tags,omitempty"`
+	SelectNames []string          `json:"selectNames,omitempty"`
+	Fields      []string          `json:"fields,omitempty"`
+	Values      []*mapperValue    `json:"values,omitempty"` // For aggregates contains a single value at [0]
 }
 
 func (mo *mapperOutput) key() string {
@@ -242,8 +244,10 @@ func (lm *LocalMapper) nextChunkRaw() (interface{}, error) {
 
 		if output == nil {
 			output = &mapperOutput{
-				Name: cursor.measurement,
-				Tags: cursor.tags,
+				Name:        cursor.measurement,
+				Tags:        cursor.tags,
+				SelectNames: lm.stmt.NamesInSelect(),
+				Fields:      lm.selectFields,
 			}
 		}
 		value := &mapperValue{Time: k, Value: v}
@@ -279,9 +283,11 @@ func (lm *LocalMapper) nextChunkAgg() (interface{}, error) {
 		// for a single tagset.
 		if output == nil {
 			output = &mapperOutput{
-				Name:   cursor.measurement,
-				Tags:   cursor.tags,
-				Values: make([]*mapperValue, 1),
+				Name:        cursor.measurement,
+				Tags:        cursor.tags,
+				SelectNames: lm.stmt.NamesInSelect(),
+				Fields:      lm.selectFields,
+				Values:      make([]*mapperValue, 1),
 			}
 			// Aggregate values only use the first entry in the Values field. Set the time
 			// to the start of the interval.

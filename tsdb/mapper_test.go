@@ -109,38 +109,44 @@ func TestShardMapper_WriteAndSingleMapperRawQuery(t *testing.T) {
 	}{
 		{
 			stmt:     `SELECT value FROM cpu`,
-			expected: []string{`{"name":"cpu","values":[{"time":1000000000,"value":42},{"time":2000000000,"value":60}]}`, `null`},
+			expected: []string{`{"name":"cpu","SelectNames":["value"],"Fields":["value"],"values":[{"time":1000000000,"value":42},{"time":2000000000,"value":60}]}`, `null`},
 		},
 		{
 			stmt:      `SELECT value FROM cpu`,
 			chunkSize: 1,
-			expected:  []string{`{"name":"cpu","values":[{"time":1000000000,"value":42}]}`, `{"name":"cpu","values":[{"time":2000000000,"value":60}]}`, `null`},
+			expected: []string{
+				`{"name":"cpu","SelectNames":["value"],"Fields":["value"],"values":[{"time":1000000000,"value":42}]}`,
+				`{"name":"cpu","SelectNames":["value"],"Fields":["value"],"values":[{"time":2000000000,"value":60}]}`, `null`},
 		},
 		{
 			stmt:      `SELECT value FROM cpu`,
 			chunkSize: 2,
-			expected:  []string{`{"name":"cpu","values":[{"time":1000000000,"value":42},{"time":2000000000,"value":60}]}`},
+			expected:  []string{`{"name":"cpu","SelectNames":["value"],"Fields":["value"],"values":[{"time":1000000000,"value":42},{"time":2000000000,"value":60}]}`},
 		},
 		{
 			stmt:      `SELECT value FROM cpu`,
 			chunkSize: 3,
-			expected:  []string{`{"name":"cpu","values":[{"time":1000000000,"value":42},{"time":2000000000,"value":60}]}`},
+			expected:  []string{`{"name":"cpu","SelectNames":["value"],"Fields":["value"],"values":[{"time":1000000000,"value":42},{"time":2000000000,"value":60}]}`},
 		},
 		{
-			stmt:     `SELECT value FROM cpu GROUP BY host`,
-			expected: []string{`{"name":"cpu","tags":{"host":"serverA"},"values":[{"time":1000000000,"value":42}]}`, `{"name":"cpu","tags":{"host":"serverB"},"values":[{"time":2000000000,"value":60}]}`, `null`},
+			stmt: `SELECT value FROM cpu GROUP BY host`,
+			expected: []string{
+				`{"name":"cpu","tags":{"host":"serverA"},"SelectNames":["value"],"Fields":["value"],"values":[{"time":1000000000,"value":42}]}`,
+				`{"name":"cpu","tags":{"host":"serverB"},"SelectNames":["value"],"Fields":["value"],"values":[{"time":2000000000,"value":60}]}`, `null`},
 		},
 		{
-			stmt:     `SELECT value FROM cpu GROUP BY region`,
-			expected: []string{`{"name":"cpu","tags":{"region":"us-east"},"values":[{"time":1000000000,"value":42},{"time":2000000000,"value":60}]}`, `null`},
+			stmt: `SELECT value FROM cpu GROUP BY region`,
+			expected: []string{
+				`{"name":"cpu","tags":{"region":"us-east"},"SelectNames":["value"],"Fields":["value"],"values":[{"time":1000000000,"value":42},{"time":2000000000,"value":60}]}`,
+				`null`},
 		},
 		{
 			stmt:     `SELECT value FROM cpu WHERE host='serverA'`,
-			expected: []string{`{"name":"cpu","values":[{"time":1000000000,"value":42}]}`, `null`},
+			expected: []string{`{"name":"cpu","SelectNames":["value"],"Fields":["value"],"values":[{"time":1000000000,"value":42}]}`, `null`},
 		},
 		{
 			stmt:     `SELECT value FROM cpu WHERE host='serverB'`,
-			expected: []string{`{"name":"cpu","values":[{"time":2000000000,"value":60}]}`, `null`},
+			expected: []string{`{"name":"cpu","SelectNames":["value"],"Fields":["value"],"values":[{"time":2000000000,"value":60}]}`, `null`},
 		},
 		{
 			stmt:     `SELECT value FROM cpu WHERE host='serverC'`,
@@ -148,19 +154,19 @@ func TestShardMapper_WriteAndSingleMapperRawQuery(t *testing.T) {
 		},
 		{
 			stmt:     `SELECT value FROM cpu WHERE value = 60`,
-			expected: []string{`{"name":"cpu","values":[{"time":2000000000,"value":60}]}`, `null`},
+			expected: []string{`{"name":"cpu","SelectNames":["value"],"Fields":["value"],"values":[{"time":2000000000,"value":60}]}`, `null`},
 		},
 		{
 			stmt:     `SELECT value FROM cpu WHERE value != 60`,
-			expected: []string{`{"name":"cpu","values":[{"time":1000000000,"value":42}]}`, `null`},
+			expected: []string{`{"name":"cpu","SelectNames":["value"],"Fields":["value"],"values":[{"time":1000000000,"value":42}]}`, `null`},
 		},
 		{
 			stmt:     fmt.Sprintf(`SELECT value FROM cpu WHERE time = '%s'`, pt1time.Format(influxql.DateTimeFormat)),
-			expected: []string{`{"name":"cpu","values":[{"time":1000000000,"value":42}]}`, `null`},
+			expected: []string{`{"name":"cpu","SelectNames":["value"],"Fields":["value"],"values":[{"time":1000000000,"value":42}]}`, `null`},
 		},
 		{
 			stmt:     fmt.Sprintf(`SELECT value FROM cpu WHERE time > '%s'`, pt1time.Format(influxql.DateTimeFormat)),
-			expected: []string{`{"name":"cpu","values":[{"time":2000000000,"value":60}]}`, `null`},
+			expected: []string{`{"name":"cpu","SelectNames":["value"],"Fields":["value"],"values":[{"time":2000000000,"value":60}]}`, `null`},
 		},
 		{
 			stmt:     fmt.Sprintf(`SELECT value FROM cpu WHERE time > '%s'`, pt2time.Format(influxql.DateTimeFormat)),
@@ -213,11 +219,13 @@ func TestShardMapper_WriteAndSingleMapperRawQueryMultiValue(t *testing.T) {
 	}{
 		{
 			stmt:     `SELECT foo FROM cpu`,
-			expected: []string{`{"name":"cpu","values":[{"time":1000000000,"value":42},{"time":2000000000,"value":60}]}`, `null`},
+			expected: []string{`{"name":"cpu","SelectNames":["foo"],"Fields":["foo"],"values":[{"time":1000000000,"value":42},{"time":2000000000,"value":60}]}`, `null`},
 		},
 		{
-			stmt:     `SELECT foo,bar FROM cpu`,
-			expected: []string{`{"name":"cpu","values":[{"time":1000000000,"value":{"bar":43,"foo":42}},{"time":2000000000,"value":{"bar":61,"foo":60}}]}`, `null`},
+			stmt: `SELECT foo,bar FROM cpu`,
+			expected: []string{
+				`{"name":"cpu","SelectNames":["foo","bar"],"Fields":["bar","foo"],"values":[{"time":1000000000,"value":{"bar":43,"foo":42}},{"time":2000000000,"value":{"bar":61,"foo":60}}]}`,
+				`null`},
 		},
 	}
 
@@ -265,54 +273,54 @@ func TestShardMapper_WriteAndSingleMapperAggregateQuery(t *testing.T) {
 	}{
 		{
 			stmt:     `SELECT sum(value) FROM cpu`,
-			expected: []string{`{"name":"cpu","values":[{"value":[61]}]}`, `null`},
+			expected: []string{`{"name":"cpu","SelectNames":["value"],"Fields":["value"],"values":[{"value":[61]}]}`, `null`},
 		},
 		{
 			stmt:     `SELECT sum(value),mean(value) FROM cpu`,
-			expected: []string{`{"name":"cpu","values":[{"value":[61,{"Count":2,"Mean":30.5,"ResultType":1}]}]}`, `null`},
+			expected: []string{`{"name":"cpu","SelectNames":["value","value"],"Fields":["value"],"values":[{"value":[61,{"Count":2,"Mean":30.5,"ResultType":1}]}]}`, `null`},
 		},
 		{
 			stmt: `SELECT sum(value) FROM cpu GROUP BY host`,
 			expected: []string{
-				`{"name":"cpu","tags":{"host":"serverA"},"values":[{"value":[1]}]}`,
-				`{"name":"cpu","tags":{"host":"serverB"},"values":[{"value":[60]}]}`,
+				`{"name":"cpu","tags":{"host":"serverA"},"SelectNames":["value"],"Fields":["value"],"values":[{"value":[1]}]}`,
+				`{"name":"cpu","tags":{"host":"serverB"},"SelectNames":["value"],"Fields":["value"],"values":[{"value":[60]}]}`,
 				`null`},
 		},
 		{
 			stmt: `SELECT sum(value) FROM cpu GROUP BY region`,
 			expected: []string{
-				`{"name":"cpu","tags":{"region":"us-east"},"values":[{"value":[61]}]}`,
+				`{"name":"cpu","tags":{"region":"us-east"},"SelectNames":["value"],"Fields":["value"],"values":[{"value":[61]}]}`,
 				`null`},
 		},
 		{
 			stmt: `SELECT sum(value) FROM cpu GROUP BY region,host`,
 			expected: []string{
-				`{"name":"cpu","tags":{"host":"serverA","region":"us-east"},"values":[{"value":[1]}]}`,
-				`{"name":"cpu","tags":{"host":"serverB","region":"us-east"},"values":[{"value":[60]}]}`,
+				`{"name":"cpu","tags":{"host":"serverA","region":"us-east"},"SelectNames":["value"],"Fields":["value"],"values":[{"value":[1]}]}`,
+				`{"name":"cpu","tags":{"host":"serverB","region":"us-east"},"SelectNames":["value"],"Fields":["value"],"values":[{"value":[60]}]}`,
 				`null`},
 		},
 		{
 			stmt: `SELECT sum(value) FROM cpu WHERE host='serverB'`,
 			expected: []string{
-				`{"name":"cpu","values":[{"value":[60]}]}`,
+				`{"name":"cpu","SelectNames":["value"],"Fields":["value"],"values":[{"value":[60]}]}`,
 				`null`},
 		},
 		{
 			stmt: fmt.Sprintf(`SELECT sum(value) FROM cpu WHERE time = '%s'`, pt1time.Format(influxql.DateTimeFormat)),
 			expected: []string{
-				`{"name":"cpu","values":[{"time":10000000000,"value":[1]}]}`,
+				`{"name":"cpu","SelectNames":["value"],"Fields":["value"],"values":[{"time":10000000000,"value":[1]}]}`,
 				`null`},
 		},
 		{
 			stmt: fmt.Sprintf(`SELECT sum(value) FROM cpu WHERE time > '%s'`, pt1time.Format(influxql.DateTimeFormat)),
 			expected: []string{
-				`{"name":"cpu","values":[{"value":[60]}]}`,
+				`{"name":"cpu","SelectNames":["value"],"Fields":["value"],"values":[{"value":[60]}]}`,
 				`null`},
 		},
 		{
 			stmt: fmt.Sprintf(`SELECT sum(value) FROM cpu WHERE time > '%s'`, pt2time.Format(influxql.DateTimeFormat)),
 			expected: []string{
-				`{"name":"cpu","values":[{"value":[null]}]}`,
+				`{"name":"cpu","SelectNames":["value"],"Fields":["value"],"values":[{"value":[null]}]}`,
 				`null`},
 		},
 	}
