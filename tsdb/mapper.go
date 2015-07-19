@@ -371,6 +371,132 @@ func (lm *LocalMapper) initializeMapFunctions() error {
 	return nil
 }
 
+// rewriteSelectStatement performs any necessary query re-writing.
+func (lm *LocalMapper) rewriteSelectStatement(stmt *influxql.SelectStatement) (*influxql.SelectStatement, error) {
+	var err error
+
+	// Expand regex expressions in the FROM clause.
+	sources, err := lm.expandSources(stmt.Sources)
+	if err != nil {
+		return nil, err
+	}
+	stmt.Sources = sources
+
+	// Expand wildcards in the fields or GROUP BY.
+	stmt, err = lm.expandWildcards(stmt)
+	if err != nil {
+		return nil, err
+	}
+
+	stmt.RewriteDistinct()
+
+	return stmt, nil
+}
+
+// expandWildcards returns a new SelectStatement with wildcards in the fields
+// and/or GROUP BY expanded with actual field names.
+func (lm *LocalMapper) expandWildcards(stmt *influxql.SelectStatement) (*influxql.SelectStatement, error) {
+	// If there are no wildcards in the statement, return it as-is.
+	if !stmt.HasWildcard() {
+		return stmt, nil
+	}
+
+	// Use sets to avoid duplicate field names.
+	fieldSet := map[string]struct{}{}
+	dimensionSet := map[string]struct{}{}
+
+	var fields influxql.Fields
+	var dimensions influxql.Dimensions
+
+	// Iterate measurements in the FROM clause getting the fields & dimensions for each.
+	for _, src := range stmt.Sources {
+		if m, ok := src.(*influxql.Measurement); ok {
+			// Lookup the measurement in the database.
+			mm := lm.shard.index.Measurement(m.Name)
+			if mm == nil {
+				// This shard have never received data for the measurement. No Mapper
+				// required.
+				return stmt, nil
+			}
+
+			// Get the fields for this measurement.
+			for _, name := range mm.FieldNames() {
+				if _, ok := fieldSet[name]; ok {
+					continue
+				}
+				fieldSet[name] = struct{}{}
+				fields = append(fields, &influxql.Field{Expr: &influxql.VarRef{Val: name}})
+			}
+
+			// Get the dimensions for this measurement.
+			for _, t := range mm.TagKeys() {
+				if _, ok := dimensionSet[t]; ok {
+					continue
+				}
+				dimensionSet[t] = struct{}{}
+				dimensions = append(dimensions, &influxql.Dimension{Expr: &influxql.VarRef{Val: t}})
+			}
+		}
+	}
+
+	// Return a new SelectStatement with the wild cards rewritten.
+	return stmt.RewriteWildcards(fields, dimensions), nil
+}
+
+// expandSources expands regex sources and removes duplicates.
+// NOTE: sources must be normalized (db and rp set) before calling this function.
+func (lm *LocalMapper) expandSources(sources influxql.Sources) (influxql.Sources, error) {
+	// Use a map as a set to prevent duplicates. Two regexes might produce
+	// duplicates when expanded.
+	set := map[string]influxql.Source{}
+	names := []string{}
+
+	// Iterate all sources, expanding regexes when they're found.
+	for _, source := range sources {
+		switch src := source.(type) {
+		case *influxql.Measurement:
+			if src.Regex == nil {
+				name := src.String()
+				set[name] = src
+				names = append(names, name)
+				continue
+			}
+
+			// Get measurements from the database that match the regex.
+			measurements := lm.shard.index.measurementsByRegex(src.Regex.Val)
+
+			// Add those measurements to the set.
+			for _, m := range measurements {
+				m2 := &influxql.Measurement{
+					Database:        src.Database,
+					RetentionPolicy: src.RetentionPolicy,
+					Name:            m.Name,
+				}
+
+				name := m2.String()
+				if _, ok := set[name]; !ok {
+					set[name] = m2
+					names = append(names, name)
+				}
+			}
+
+		default:
+			return nil, fmt.Errorf("expandSources: unsuported source type: %T", source)
+		}
+	}
+
+	// Sort the list of source names.
+	sort.Strings(names)
+
+	// Convert set to a list of Sources.
+	expanded := make(influxql.Sources, 0, len(set))
+	for _, name := range names {
+		expanded = append(expanded, set[name])
+	}
+
+	return expanded, nil
+}
+
 // TagSets returns the list of TagSets for which this mapper has data.
 func (lm *LocalMapper) TagSets() []string {
 	return tagSetCursors(lm.cursors).Keys()
