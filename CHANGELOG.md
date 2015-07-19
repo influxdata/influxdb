@@ -26,6 +26,7 @@
 - [#2761](https://github.com/influxdb/influxdb/issues/2761): Make SHOW RETENTION POLICIES consistent with other queries.
 - [#3356](https://github.com/influxdb/influxdb/pull/3356): Disregard semicolons after database name in use command. Thanks @timraymond.
 - [#3351](https://github.com/influxdb/influxdb/pull/3351): Handle malformed regex comparisons during parsing. Thanks @rnubel
+- [#3256](https://github.com/influxdb/influxdb/pull/3256): Remove unnecessary timeout in WaitForLeader(). Thanks @cannium.
 
 ## v0.9.1 [2015-07-02]
 
