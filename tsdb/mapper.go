@@ -77,6 +77,10 @@ func NewLocalMapper(shard *Shard, stmt *influxql.SelectStatement, chunkSize int)
 // Open opens the aggregate mapper.
 func (lm *LocalMapper) Open() error {
 	var err error
+	lm.stmt, err = lm.rewriteSelectStatement(lm.stmt)
+	if err != nil {
+		return err
+	}
 
 	// Get a read-only transaction.
 	tx, err := lm.shard.DB().Begin(false)
