@@ -30,6 +30,7 @@
 - [#3351](https://github.com/influxdb/influxdb/pull/3351): Handle malformed regex comparisons during parsing. Thanks @rnubel
 - [#3244](https://github.com/influxdb/influxdb/pull/3244): Wire up admin privilege grant and revoke.
 - [#3259](https://github.com/influxdb/influxdb/issues/3259): Respect privileges for queries.
+- [#3256](https://github.com/influxdb/influxdb/pull/3256): Remove unnecessary timeout in WaitForLeader(). Thanks @cannium.
 
 ## v0.9.1 [2015-07-02]
 
