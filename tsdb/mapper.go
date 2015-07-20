@@ -39,7 +39,8 @@ func (mo *MapperOutput) key() string {
 // LocalMapper is for retrieving data for a query, from a given shard.
 type LocalMapper struct {
 	shard           *Shard
-	stmt            *influxql.SelectStatement
+	stmt            influxql.Statement
+	selectStmt      *influxql.SelectStatement
 	rawMode         bool
 	chunkSize       int
 	tx              *bolt.Tx        // Read transaction for this shard.
@@ -62,7 +63,7 @@ type LocalMapper struct {
 }
 
 // NewLocalMapper returns a mapper for the given shard, which will return data for the SELECT statement.
-func NewLocalMapper(shard *Shard, stmt *influxql.SelectStatement, chunkSize int) *LocalMapper {
+func NewLocalMapper(shard *Shard, stmt influxql.Statement, chunkSize int) *LocalMapper {
 	m := &LocalMapper{
 		shard:     shard,
 		stmt:      stmt,
@@ -70,11 +71,19 @@ func NewLocalMapper(shard *Shard, stmt *influxql.SelectStatement, chunkSize int)
 		cursors:   make([]*tagSetCursor, 0),
 	}
 
-	m.rawMode = (stmt.IsRawQuery && !stmt.HasDistinct()) || stmt.IsSimpleDerivative()
+	if s, ok := stmt.(*influxql.SelectStatement); ok {
+		m.selectStmt = s
+		m.rawMode = (s.IsRawQuery && !s.HasDistinct()) || s.IsSimpleDerivative()
+	}
 	return m
 }
 
-// Open opens the aggregate mapper.
+// openMeta opens the mapper for a meta query.
+func (lm *LocalMapper) openMeta() error {
+	return errors.New("not implemented")
+}
+
+// Open opens the local mapper.
 func (lm *LocalMapper) Open() error {
 	var err error
 
@@ -85,8 +94,12 @@ func (lm *LocalMapper) Open() error {
 	}
 	lm.tx = tx
 
+	if lm.selectStmt == nil {
+		return lm.openMeta()
+	}
+
 	// Set all time-related parameters on the mapper.
-	lm.queryTMin, lm.queryTMax = influxql.TimeRangeAsEpochNano(lm.stmt.Condition)
+	lm.queryTMin, lm.queryTMax = influxql.TimeRangeAsEpochNano(lm.selectStmt.Condition)
 
 	if !lm.rawMode {
 		if err := lm.initializeMapFunctions(); err != nil {
@@ -94,7 +107,7 @@ func (lm *LocalMapper) Open() error {
 		}
 
 		// For GROUP BY time queries, limit the number of data points returned by the limit and offset
-		d, err := lm.stmt.GroupByInterval()
+		d, err := lm.selectStmt.GroupByInterval()
 		if err != nil {
 			return err
 		}
@@ -108,16 +121,16 @@ func (lm *LocalMapper) Open() error {
 			lm.numIntervals = int((intervalTop - intervalBottom) / lm.intervalSize)
 		}
 
-		if lm.stmt.Limit > 0 || lm.stmt.Offset > 0 {
+		if lm.selectStmt.Limit > 0 || lm.selectStmt.Offset > 0 {
 			// ensure that the offset isn't higher than the number of points we'd get
-			if lm.stmt.Offset > lm.numIntervals {
+			if lm.selectStmt.Offset > lm.numIntervals {
 				return nil
 			}
 
 			// Take the lesser of either the pre computed number of GROUP BY buckets that
 			// will be in the result or the limit passed in by the user
-			if lm.stmt.Limit < lm.numIntervals {
-				lm.numIntervals = lm.stmt.Limit
+			if lm.selectStmt.Limit < lm.numIntervals {
+				lm.numIntervals = lm.selectStmt.Limit
 			}
 		}
 
@@ -134,7 +147,7 @@ func (lm *LocalMapper) Open() error {
 	}
 
 	// Create the TagSet cursors for the Mapper.
-	for _, src := range lm.stmt.Sources {
+	for _, src := range lm.selectStmt.Sources {
 		mm, ok := src.(*influxql.Measurement)
 		if !ok {
 			return fmt.Errorf("invalid source type: %#v", src)
@@ -148,12 +161,12 @@ func (lm *LocalMapper) Open() error {
 		}
 
 		// Validate that ANY GROUP BY is not a field for thie measurement.
-		if err := m.ValidateGroupBy(lm.stmt); err != nil {
+		if err := m.ValidateGroupBy(lm.selectStmt); err != nil {
 			return err
 		}
 
 		// Create tagset cursors and determine various field types within SELECT statement.
-		tsf, err := createTagSetsAndFields(m, lm.stmt)
+		tsf, err := createTagSetsAndFields(m, lm.selectStmt)
 		if err != nil {
 			return err
 		}
@@ -163,7 +176,7 @@ func (lm *LocalMapper) Open() error {
 		lm.whereFields = tsf.whereFields
 
 		// Validate that any GROUP BY is not on a field
-		if err := m.ValidateGroupBy(lm.stmt); err != nil {
+		if err := m.ValidateGroupBy(lm.selectStmt); err != nil {
 			return err
 		}
 
@@ -173,15 +186,15 @@ func (lm *LocalMapper) Open() error {
 		}
 
 		// SLIMIT and SOFFSET the unique series
-		if lm.stmt.SLimit > 0 || lm.stmt.SOffset > 0 {
-			if lm.stmt.SOffset > len(tagSets) {
+		if lm.selectStmt.SLimit > 0 || lm.selectStmt.SOffset > 0 {
+			if lm.selectStmt.SOffset > len(tagSets) {
 				tagSets = nil
 			} else {
-				if lm.stmt.SOffset+lm.stmt.SLimit > len(tagSets) {
-					lm.stmt.SLimit = len(tagSets) - lm.stmt.SOffset
+				if lm.selectStmt.SOffset+lm.selectStmt.SLimit > len(tagSets) {
+					lm.selectStmt.SLimit = len(tagSets) - lm.selectStmt.SOffset
 				}
 
-				tagSets = tagSets[lm.stmt.SOffset : lm.stmt.SOffset+lm.stmt.SLimit]
+				tagSets = tagSets[lm.selectStmt.SOffset : lm.selectStmt.SOffset+lm.selectStmt.SLimit]
 			}
 		}
 
@@ -324,7 +337,7 @@ func (lm *LocalMapper) nextChunkAgg() (interface{}, error) {
 // nextInterval returns the next interval for which to return data. If start is less than 0
 // there are no more intervals.
 func (lm *LocalMapper) nextInterval() (start, end int64) {
-	t := lm.queryTMinWindow + int64(lm.currInterval+lm.stmt.Offset)*lm.intervalSize
+	t := lm.queryTMinWindow + int64(lm.currInterval+lm.selectStmt.Offset)*lm.intervalSize
 
 	// Onto next interval.
 	lm.currInterval++
@@ -341,7 +354,7 @@ func (lm *LocalMapper) nextInterval() (start, end int64) {
 func (lm *LocalMapper) initializeMapFunctions() error {
 	var err error
 	// Set up each mapping function for this statement.
-	aggregates := lm.stmt.FunctionCalls()
+	aggregates := lm.selectStmt.FunctionCalls()
 	lm.mapFuncs = make([]influxql.MapFunc, len(aggregates))
 	lm.fieldNames = make([]string, len(lm.mapFuncs))
 	for i, c := range aggregates {
