@@ -1670,7 +1670,7 @@ func (p *Parser) parseFill() (FillOption, interface{}, error) {
 		return NullFill, nil, nil
 	}
 	if len(lit.Args) != 1 {
-		return NullFill, nil, errors.New("fill requires an argument, e.g.: 0, null, none, previous")
+		return NullFill, nil, errors.New("fill requires an argument, e.g.: 0, null, none, previous, mean")
 	}
 	switch lit.Args[0].String() {
 	case "null":
@@ -1679,6 +1679,8 @@ func (p *Parser) parseFill() (FillOption, interface{}, error) {
 		return NoFill, nil, nil
 	case "previous":
 		return PreviousFill, nil, nil
+	case "mean":
+		return MeanFill, nil, nil
 	default:
 		num, ok := lit.Args[0].(*NumberLiteral)
 		if !ok {

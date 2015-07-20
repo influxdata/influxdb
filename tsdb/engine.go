@@ -489,6 +489,50 @@ func (e *Executor) processFill(results [][]interface{}) [][]interface{} {
 		return newResults
 	}
 
+	// mean fill
+	if e.stmt.Fill == influxql.MeanFill {
+		var (
+			nullFirst bool
+			nullCount = make(map[int]int)
+		)
+
+		for i, vals := range results {
+			// start at 1 because the first value is always time
+			for j := 1; j < len(vals); j++ {
+				if vals[j] == nil {
+					// record the number of nulls since the last measurement for this value
+					nullCount[j]++
+					if i == 0 {
+						nullFirst = true
+					}
+					continue
+				}
+				if nullCount[j] > 0 {
+					// back-fill null values with the mean over those windows
+					if i-nullCount[j] <= 0 {
+						// can't fill without previous value
+						nullCount[j] = 0
+						continue
+					}
+					step := (int64toFloat64(vals[j]) - int64toFloat64(results[i-nullCount[j]-1][j])) / float64(nullCount[j]+1)
+					current := int64toFloat64(vals[j])
+					var count int
+					if nullFirst {
+						count = i
+						nullFirst = false
+					} else {
+						count = nullCount[j]
+					}
+					for k := 1; k <= count; k++ {
+						current -= step
+						results[i-k][j] = current
+					}
+					nullCount[j] = 0
+				}
+			}
+		}
+	}
+
 	// They're either filling with previous values or a specific number
 	for i, vals := range results {
 		// start at 1 because the first value is always time
