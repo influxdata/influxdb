@@ -98,7 +98,7 @@ message Command {
 		UpdateUserCommand                = 15;
 		SetPrivilegeCommand              = 16;
 		SetDataCommand                   = 17;
-        SetAdminPrivilegeCommand         = 18;
+		SetAdminPrivilegeCommand         = 18;
     }
 
     required Type type = 1;
@@ -301,9 +301,10 @@ message JoinResponse {
 
     // Indicates that this node should take part in the raft cluster.
     optional bool EnableRaft = 2;
+
     // The addresses of raft peers to use if joining as a raft member. If not joining
     // as a raft member, these are the nodes running raft.
-    repeated string Peers = 3;
+    repeated string RaftNodes = 3;
 
     // The node ID assigned to the requesting node.
     optional uint64 NodeID = 4;

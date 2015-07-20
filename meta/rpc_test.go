@@ -161,12 +161,12 @@ func TestRPCJoin(t *testing.T) {
 		t.Fatalf("raft enabled mismatch: got %v, exp %v", res.RaftEnabled, exp)
 	}
 
-	if exp := 1; len(res.Peers) != exp {
-		t.Fatalf("raft peer mismatch: got %v, exp %v", len(res.Peers), exp)
+	if exp := 1; len(res.RaftNodes) != exp {
+		t.Fatalf("raft peer mismatch: got %v, exp %v", len(res.RaftNodes), exp)
 	}
 
-	if exp := "1.2.3.4:1234"; res.Peers[0] != exp {
-		t.Fatalf("raft peer mismatch: got %v, exp %v", res.Peers[0], exp)
+	if exp := "1.2.3.4:1234"; res.RaftNodes[0] != exp {
+		t.Fatalf("raft peer mismatch: got %v, exp %v", res.RaftNodes[0], exp)
 	}
 
 	if exp := uint64(100); res.NodeID != exp {

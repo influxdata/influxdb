@@ -15,7 +15,7 @@ import (
 
 // raftState abstracts the interaction of the raft consensus layer
 // across local or remote nodes.  It is a form of the state design pattern and allows
-// the meta.Store to change how its behavior with the raft layer at runtime.
+// the meta.Store to change its behavior with the raft layer at runtime.
 type raftState interface {
 	openRaft() error
 	initialize() error
@@ -31,7 +31,7 @@ type raftState interface {
 	snapshot() error
 }
 
-// localRaft is a consensus strategy that uses a local raft implementation fo
+// localRaft is a consensus strategy that uses a local raft implementation for
 // consensus operations.
 type localRaft struct {
 	store     *Store

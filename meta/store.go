@@ -184,9 +184,9 @@ func (s *Store) Open() error {
 			joined = true
 
 			s.Logger.Printf("joined remote node %v", join)
-			s.Logger.Printf("raftEnabled=%v peers=%v", res.RaftEnabled, res.Peers)
+			s.Logger.Printf("raftEnabled=%v raftNodes=%v", res.RaftEnabled, res.RaftNodes)
 
-			s.peers = res.Peers
+			s.peers = res.RaftNodes
 			s.id = res.NodeID
 
 			if err := s.writeNodeID(res.NodeID); err != nil {
@@ -573,9 +573,8 @@ func (s *Store) handleExecConn(conn net.Conn) {
 // serveRPCListener processes remote exec connections.
 // This function runs in a separate goroutine.
 func (s *Store) serveRPCListener() {
-	<-s.ready
-
 	defer s.wg.Done()
+	<-s.ready
 
 	for {
 		// Accept next TCP connection.

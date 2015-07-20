@@ -15,7 +15,10 @@ import (
 )
 
 // Max size of a message before we treat the size as invalid
-const MaxMessageSize = 1024 * 1024 * 1024
+const (
+	MaxMessageSize    = 1024 * 1024 * 1024
+	leaderDialTimeout = 10 * time.Second
+)
 
 // RPC handles request/response style messaging between cluster nodes
 type RPC struct {
@@ -36,7 +39,7 @@ type RPC struct {
 
 type JoinResult struct {
 	RaftEnabled bool
-	Peers       []string
+	RaftNodes   []string
 	NodeID      uint64
 }
 
@@ -51,7 +54,7 @@ func (r *RPC) proxyLeader(conn *net.TCPConn) {
 		return
 	}
 
-	leaderConn, err := net.DialTimeout("tcp", r.store.Leader(), 10*time.Second)
+	leaderConn, err := net.DialTimeout("tcp", r.store.Leader(), leaderDialTimeout)
 	if err != nil {
 		r.sendError(conn, fmt.Sprintf("dial leader: %v", err))
 		return
@@ -250,7 +253,7 @@ func (r *RPC) handleJoinRequest(req *internal.JoinRequest) (*internal.JoinRespon
 		},
 		//EnableRaft: proto.Bool(contains(r.store.Peers(), *req.Addr)),
 		EnableRaft: proto.Bool(false),
-		Peers:      r.store.Peers(),
+		RaftNodes:  r.store.Peers(),
 		NodeID:     proto.Uint64(nodeID),
 	}, err
 
@@ -325,7 +328,7 @@ func (r *RPC) join(localAddr, remoteAddr string) (*JoinResult, error) {
 	case *internal.JoinResponse:
 		return &JoinResult{
 			RaftEnabled: t.GetEnableRaft(),
-			Peers:       t.GetPeers(),
+			RaftNodes:   t.GetRaftNodes(),
 			NodeID:      t.GetNodeID(),
 		}, nil
 	case *internal.ErrorResponse:
@@ -338,7 +341,6 @@ func (r *RPC) join(localAddr, remoteAddr string) (*JoinResult, error) {
 // call sends an encoded request to the remote leader and returns
 // an encoded response value.
 func (r *RPC) call(dest string, req proto.Message) (proto.Message, error) {
-
 	// Determine type of request
 	var rpcType internal.RPCType
 	switch t := req.(type) {
@@ -351,7 +353,7 @@ func (r *RPC) call(dest string, req proto.Message) (proto.Message, error) {
 	}
 
 	// Create a connection to the leader.
-	conn, err := net.DialTimeout("tcp", dest, 10*time.Second)
+	conn, err := net.DialTimeout("tcp", dest, leaderDialTimeout)
 	if err != nil {
 		return nil, err
 	}
