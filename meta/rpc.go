@@ -14,6 +14,9 @@ import (
 	"github.com/influxdb/influxdb/meta/internal"
 )
 
+// Max size of a message before we treat the size as invalid
+const MaxMessageSize = 1024 * 1024 * 1024
+
 // RPC handles request/response style messaging between cluster nodes
 type RPC struct {
 	Logger         *log.Logger
@@ -80,6 +83,14 @@ func (r *RPC) handleRPCConn(conn net.Conn) {
 		var sz uint64
 		if err := binary.Read(conn, binary.BigEndian, &sz); err != nil {
 			return internal.RPCType_Error, nil, fmt.Errorf("read size: %s", err)
+		}
+
+		if sz == 0 {
+			return 0, nil, fmt.Errorf("invalid message size: %d", sz)
+		}
+
+		if sz >= MaxMessageSize {
+			return 0, nil, fmt.Errorf("max message size of %d exceeded: %d", MaxMessageSize, sz)
 		}
 
 		// Read request.
@@ -203,7 +214,7 @@ func (r *RPC) handleJoinRequest(req *internal.JoinRequest) (*internal.JoinRespon
 	node, err := func() (*NodeInfo, error) {
 		// attempt to create the node
 		node, err := r.store.CreateNode(*req.Addr)
-		// if it exists, return the exting node
+		// if it exists, return the existing node
 		if err == ErrNodeExists {
 			return r.store.NodeByHost(*req.Addr)
 		} else if err != nil {
@@ -257,6 +268,8 @@ func (r *RPC) pack(typ internal.RPCType, b []byte) []byte {
 // fetchMetaData returns the latest copy of the meta store data from the current
 // leader.
 func (r *RPC) fetchMetaData(blocking bool) (*Data, error) {
+	assert(r.store != nil, "store is nil")
+
 	// Retrieve the current known leader.
 	leader := r.store.Leader()
 	if leader == "" {
