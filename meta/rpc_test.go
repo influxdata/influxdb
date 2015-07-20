@@ -121,7 +121,9 @@ func TestRPCFetchDataMatchesBlocking(t *testing.T) {
 	}()
 
 	// Simulate the rmote index changing and unblocking
+	fs.mu.Lock()
 	fs.md.Index = 100
+	fs.mu.Unlock()
 	close(fs.blockChan)
 	wg.Wait()
 }
@@ -175,6 +177,7 @@ func TestRPCJoin(t *testing.T) {
 }
 
 type fakeStore struct {
+	mu        sync.RWMutex
 	leader    string
 	newNodeID uint64
 	md        *Data
@@ -219,7 +222,12 @@ func (s *testServer) Serve() {
 	s.rpc.handleRPCConn(conn)
 }
 
-func (f *fakeStore) cachedData() *Data         { return f.md }
+func (f *fakeStore) cachedData() *Data {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	return f.md
+}
+
 func (f *fakeStore) IsLeader() bool            { return true }
 func (f *fakeStore) Leader() string            { return f.leader }
 func (f *fakeStore) Peers() []string           { return []string{f.leader} }
