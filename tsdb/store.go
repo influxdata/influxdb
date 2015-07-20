@@ -45,6 +45,27 @@ type Store struct {
 // Path returns the store's root path.
 func (s *Store) Path() string { return s.path }
 
+// DatabaseIndexN returns the number of databases indicies in the store.
+func (s *Store) DatabaseIndexN() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.databaseIndexes)
+}
+
+// Shard returns a shard by id.
+func (s *Store) Shard(id uint64) *Shard {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.shards[id]
+}
+
+// ShardN returns the number of shard in the store.
+func (s *Store) ShardN() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.shards)
+}
+
 func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -125,12 +146,6 @@ func (s *Store) DeleteDatabase(name string, shardIDs []uint64) error {
 	}
 	delete(s.databaseIndexes, name)
 	return nil
-}
-
-func (s *Store) Shard(shardID uint64) *Shard {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.shards[shardID]
 }
 
 // ShardIDs returns a slice of all ShardIDs under management.

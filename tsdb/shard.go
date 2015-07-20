@@ -226,7 +226,7 @@ func (s *Shard) WritePoints(points []Point) error {
 	if len(seriesToCreate) > 0 {
 		s.index.mu.Lock()
 		for _, ss := range seriesToCreate {
-			s.index.createSeriesIndexIfNotExists(ss.measurement, ss.series)
+			s.index.CreateSeriesIndexIfNotExists(ss.measurement, ss.series)
 		}
 		s.index.mu.Unlock()
 	}
@@ -717,7 +717,7 @@ func (s *Shard) loadMetadataIndex() error {
 			if err := series.UnmarshalBinary(v); err != nil {
 				return err
 			}
-			s.index.createSeriesIndexIfNotExists(measurementFromSeriesKey(string(k)), series)
+			s.index.CreateSeriesIndexIfNotExists(measurementFromSeriesKey(string(k)), series)
 		}
 		return nil
 	})

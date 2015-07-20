@@ -1,6 +1,7 @@
-package tsdb
+package tsdb_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"math"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/tsdb"
 )
 
 var sID0 = uint64(1)
@@ -22,7 +24,7 @@ var nID = uint64(42)
 func TestWritePointsAndExecuteTwoShards(t *testing.T) {
 	// Create the mock planner and its metastore
 	store, query_executor := testStoreAndQueryExecutor()
-	defer os.RemoveAll(store.path)
+	defer os.RemoveAll(store.Path())
 	query_executor.MetaStore = &testQEMetastore{
 		sgFunc: func(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error) {
 			return []meta.ShardGroupInfo{
@@ -54,7 +56,7 @@ func TestWritePointsAndExecuteTwoShards(t *testing.T) {
 
 	// Write two points across shards.
 	pt1time := time.Unix(1, 0).UTC()
-	if err := store.WriteToShard(sID0, []Point{NewPoint(
+	if err := store.WriteToShard(sID0, []tsdb.Point{tsdb.NewPoint(
 		"cpu",
 		map[string]string{"host": "serverA", "region": "us-east"},
 		map[string]interface{}{"value": 100},
@@ -63,7 +65,7 @@ func TestWritePointsAndExecuteTwoShards(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 	pt2time := time.Unix(2, 0).UTC()
-	if err := store.WriteToShard(sID1, []Point{NewPoint(
+	if err := store.WriteToShard(sID1, []tsdb.Point{tsdb.NewPoint(
 		"cpu",
 		map[string]string{"host": "serverB", "region": "us-east"},
 		map[string]interface{}{"value": 200},
@@ -137,7 +139,7 @@ func TestWritePointsAndExecuteTwoShards(t *testing.T) {
 			t.Logf("Skipping test %s", tt.stmt)
 			continue
 		}
-		executor, err := query_executor.plan(mustParseSelectStatement(tt.stmt), tt.chunkSize)
+		executor, err := query_executor.Plan(mustParseSelectStatement(tt.stmt), tt.chunkSize)
 		if err != nil {
 			t.Fatalf("failed to plan query: %s", err.Error())
 		}
@@ -152,7 +154,7 @@ func TestWritePointsAndExecuteTwoShards(t *testing.T) {
 func TestWritePointsAndExecuteTwoShardsAlign(t *testing.T) {
 	// Create the mock planner and its metastore
 	store, query_executor := testStoreAndQueryExecutor()
-	defer os.RemoveAll(store.path)
+	defer os.RemoveAll(store.Path())
 	query_executor.MetaStore = &testQEMetastore{
 		sgFunc: func(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error) {
 			return []meta.ShardGroupInfo{
@@ -183,7 +185,7 @@ func TestWritePointsAndExecuteTwoShardsAlign(t *testing.T) {
 	}
 
 	// Write interleaving, by time, chunks to the shards.
-	if err := store.WriteToShard(sID0, []Point{NewPoint(
+	if err := store.WriteToShard(sID0, []tsdb.Point{tsdb.NewPoint(
 		"cpu",
 		map[string]string{"host": "serverA"},
 		map[string]interface{}{"value": 100},
@@ -191,7 +193,7 @@ func TestWritePointsAndExecuteTwoShardsAlign(t *testing.T) {
 	)}); err != nil {
 		t.Fatalf(err.Error())
 	}
-	if err := store.WriteToShard(sID1, []Point{NewPoint(
+	if err := store.WriteToShard(sID1, []tsdb.Point{tsdb.NewPoint(
 		"cpu",
 		map[string]string{"host": "serverB"},
 		map[string]interface{}{"value": 200},
@@ -199,7 +201,7 @@ func TestWritePointsAndExecuteTwoShardsAlign(t *testing.T) {
 	)}); err != nil {
 		t.Fatalf(err.Error())
 	}
-	if err := store.WriteToShard(sID1, []Point{NewPoint(
+	if err := store.WriteToShard(sID1, []tsdb.Point{tsdb.NewPoint(
 		"cpu",
 		map[string]string{"host": "serverA"},
 		map[string]interface{}{"value": 300},
@@ -236,7 +238,7 @@ func TestWritePointsAndExecuteTwoShardsAlign(t *testing.T) {
 			t.Logf("Skipping test %s", tt.stmt)
 			continue
 		}
-		executor, err := query_executor.plan(mustParseSelectStatement(tt.stmt), tt.chunkSize)
+		executor, err := query_executor.Plan(mustParseSelectStatement(tt.stmt), tt.chunkSize)
 		if err != nil {
 			t.Fatalf("failed to plan query: %s", err.Error())
 		}
@@ -252,7 +254,7 @@ func TestWritePointsAndExecuteTwoShardsAlign(t *testing.T) {
 func TestWritePointsAndExecuteTwoShardsTagSetOrdering(t *testing.T) {
 	// Create the mock planner and its metastore
 	store, query_executor := testStoreAndQueryExecutor()
-	defer os.RemoveAll(store.path)
+	defer os.RemoveAll(store.Path())
 	query_executor.MetaStore = &testQEMetastore{
 		sgFunc: func(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error) {
 			return []meta.ShardGroupInfo{
@@ -279,7 +281,7 @@ func TestWritePointsAndExecuteTwoShardsTagSetOrdering(t *testing.T) {
 	}
 
 	// Write tagsets "y" and "z" to first shard.
-	if err := store.WriteToShard(sID0, []Point{NewPoint(
+	if err := store.WriteToShard(sID0, []tsdb.Point{tsdb.NewPoint(
 		"cpu",
 		map[string]string{"host": "y"},
 		map[string]interface{}{"value": 100},
@@ -287,7 +289,7 @@ func TestWritePointsAndExecuteTwoShardsTagSetOrdering(t *testing.T) {
 	)}); err != nil {
 		t.Fatalf(err.Error())
 	}
-	if err := store.WriteToShard(sID0, []Point{NewPoint(
+	if err := store.WriteToShard(sID0, []tsdb.Point{tsdb.NewPoint(
 		"cpu",
 		map[string]string{"host": "z"},
 		map[string]interface{}{"value": 200},
@@ -297,7 +299,7 @@ func TestWritePointsAndExecuteTwoShardsTagSetOrdering(t *testing.T) {
 	}
 
 	// Write tagsets "x", y" and "z" to second shard.
-	if err := store.WriteToShard(sID1, []Point{NewPoint(
+	if err := store.WriteToShard(sID1, []tsdb.Point{tsdb.NewPoint(
 		"cpu",
 		map[string]string{"host": "x"},
 		map[string]interface{}{"value": 300},
@@ -305,7 +307,7 @@ func TestWritePointsAndExecuteTwoShardsTagSetOrdering(t *testing.T) {
 	)}); err != nil {
 		t.Fatalf(err.Error())
 	}
-	if err := store.WriteToShard(sID1, []Point{NewPoint(
+	if err := store.WriteToShard(sID1, []tsdb.Point{tsdb.NewPoint(
 		"cpu",
 		map[string]string{"host": "y"},
 		map[string]interface{}{"value": 400},
@@ -313,7 +315,7 @@ func TestWritePointsAndExecuteTwoShardsTagSetOrdering(t *testing.T) {
 	)}); err != nil {
 		t.Fatalf(err.Error())
 	}
-	if err := store.WriteToShard(sID1, []Point{NewPoint(
+	if err := store.WriteToShard(sID1, []tsdb.Point{tsdb.NewPoint(
 		"cpu",
 		map[string]string{"host": "z"},
 		map[string]interface{}{"value": 500},
@@ -343,7 +345,7 @@ func TestWritePointsAndExecuteTwoShardsTagSetOrdering(t *testing.T) {
 			t.Logf("Skipping test %s", tt.stmt)
 			continue
 		}
-		executor, err := query_executor.plan(mustParseSelectStatement(tt.stmt), tt.chunkSize)
+		executor, err := query_executor.Plan(mustParseSelectStatement(tt.stmt), tt.chunkSize)
 		if err != nil {
 			t.Fatalf("failed to plan query: %s", err.Error())
 		}
@@ -354,7 +356,7 @@ func TestWritePointsAndExecuteTwoShardsTagSetOrdering(t *testing.T) {
 	}
 }
 
-// TestProccessAggregateDerivative tests the rawQueryDerivativeProcessor transformation function on the engine.
+// TestProccessAggregateDerivative tests the RawQueryDerivativeProcessor transformation function on the engine.
 // The is called for a query with a GROUP BY.
 func TestProcessAggregateDerivative(t *testing.T) {
 	tests := []struct {
@@ -538,49 +540,49 @@ func TestProcessAggregateDerivative(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		got := processAggregateDerivative(test.in, test.fn == "non_negative_derivative", test.interval)
+		got := tsdb.ProcessAggregateDerivative(test.in, test.fn == "non_negative_derivative", test.interval)
 
 		if len(got) != len(test.exp) {
-			t.Fatalf("processAggregateDerivative(%s) - %s\nlen mismatch: got %d, exp %d", test.fn, test.name, len(got), len(test.exp))
+			t.Fatalf("ProcessAggregateDerivative(%s) - %s\nlen mismatch: got %d, exp %d", test.fn, test.name, len(got), len(test.exp))
 		}
 
 		for i := 0; i < len(test.exp); i++ {
 			if test.exp[i][0] != got[i][0] || test.exp[i][1] != got[i][1] {
-				t.Fatalf("processAggregateDerivative - %s results mismatch:\ngot %v\nexp %v", test.name, got, test.exp)
+				t.Fatalf("ProcessAggregateDerivative - %s results mismatch:\ngot %v\nexp %v", test.name, got, test.exp)
 			}
 		}
 	}
 }
 
-// TestProcessRawQueryDerivative tests the rawQueryDerivativeProcessor transformation function on the engine.
+// TestProcessRawQueryDerivative tests the RawQueryDerivativeProcessor transformation function on the engine.
 // The is called for a queries that do not have a group by.
 func TestProcessRawQueryDerivative(t *testing.T) {
 	tests := []struct {
 		name     string
 		fn       string
 		interval time.Duration
-		in       []*mapperValue
-		exp      []*mapperValue
+		in       []*tsdb.MapperValue
+		exp      []*tsdb.MapperValue
 	}{
 		{
 			name:     "empty input",
 			fn:       "derivative",
 			interval: 24 * time.Hour,
-			in:       []*mapperValue{},
-			exp:      []*mapperValue{},
+			in:       []*tsdb.MapperValue{},
+			exp:      []*tsdb.MapperValue{},
 		},
 
 		{
 			name:     "single row returns 0.0",
 			fn:       "derivative",
 			interval: 24 * time.Hour,
-			in: []*mapperValue{
+			in: []*tsdb.MapperValue{
 				{
 					Time:  time.Unix(0, 0).Unix(),
 					Value: 1.0,
 				},
 			},
-			exp: []*mapperValue{
+			exp: []*tsdb.MapperValue{
 				{
 					Time:  time.Unix(0, 0).Unix(),
 					Value: 0.0,
@@ -591,7 +593,7 @@ func TestProcessRawQueryDerivative(t *testing.T) {
 			name:     "basic derivative",
 			fn:       "derivative",
 			interval: 24 * time.Hour,
-			in: []*mapperValue{
+			in: []*tsdb.MapperValue{
 				{
 					Time:  time.Unix(0, 0).Unix(),
 					Value: 0.0,
@@ -609,7 +611,7 @@ func TestProcessRawQueryDerivative(t *testing.T) {
 					Value: 9.0,
 				},
 			},
-			exp: []*mapperValue{
+			exp: []*tsdb.MapperValue{
 				{
 					Time:  time.Unix(0, 0).Add(24 * time.Hour).UnixNano(),
 					Value: 3.0,
@@ -628,7 +630,7 @@ func TestProcessRawQueryDerivative(t *testing.T) {
 			name:     "12h interval",
 			fn:       "derivative",
 			interval: 12 * time.Hour,
-			in: []*mapperValue{
+			in: []*tsdb.MapperValue{
 				{
 					Time:  time.Unix(0, 0).UnixNano(),
 					Value: 1.0,
@@ -646,7 +648,7 @@ func TestProcessRawQueryDerivative(t *testing.T) {
 					Value: 4.0,
 				},
 			},
-			exp: []*mapperValue{
+			exp: []*tsdb.MapperValue{
 				{
 					Time:  time.Unix(0, 0).Add(24 * time.Hour).UnixNano(),
 					Value: 0.5,
@@ -665,7 +667,7 @@ func TestProcessRawQueryDerivative(t *testing.T) {
 			name:     "negative derivatives",
 			fn:       "derivative",
 			interval: 24 * time.Hour,
-			in: []*mapperValue{
+			in: []*tsdb.MapperValue{
 				{
 					Time:  time.Unix(0, 0).Unix(),
 					Value: 1.0,
@@ -684,7 +686,7 @@ func TestProcessRawQueryDerivative(t *testing.T) {
 					Value: 4.0,
 				},
 			},
-			exp: []*mapperValue{
+			exp: []*tsdb.MapperValue{
 				{
 					Time:  time.Unix(0, 0).Add(24 * time.Hour).UnixNano(),
 					Value: 1.0,
@@ -703,7 +705,7 @@ func TestProcessRawQueryDerivative(t *testing.T) {
 			name:     "negative derivatives",
 			fn:       "non_negative_derivative",
 			interval: 24 * time.Hour,
-			in: []*mapperValue{
+			in: []*tsdb.MapperValue{
 				{
 					Time:  time.Unix(0, 0).Unix(),
 					Value: 1.0,
@@ -722,7 +724,7 @@ func TestProcessRawQueryDerivative(t *testing.T) {
 					Value: 4.0,
 				},
 			},
-			exp: []*mapperValue{
+			exp: []*tsdb.MapperValue{
 				{
 					Time:  time.Unix(0, 0).Add(24 * time.Hour).UnixNano(),
 					Value: 1.0,
@@ -736,20 +738,20 @@ func TestProcessRawQueryDerivative(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		p := rawQueryDerivativeProcessor{
-			isNonNegative:      test.fn == "non_negative_derivative",
-			derivativeInterval: test.interval,
+		p := tsdb.RawQueryDerivativeProcessor{
+			IsNonNegative:      test.fn == "non_negative_derivative",
+			DerivativeInterval: test.interval,
 		}
-		got := p.process(test.in)
+		got := p.Process(test.in)
 
 		if len(got) != len(test.exp) {
-			t.Fatalf("rawQueryDerivativeProcessor(%s) - %s\nlen mismatch: got %d, exp %d", test.fn, test.name, len(got), len(test.exp))
+			t.Fatalf("RawQueryDerivativeProcessor(%s) - %s\nlen mismatch: got %d, exp %d", test.fn, test.name, len(got), len(test.exp))
 		}
 
 		for i := 0; i < len(test.exp); i++ {
 			fmt.Println("Times:", test.exp[i].Time, got[i].Time)
 			if test.exp[i].Time != got[i].Time || math.Abs((test.exp[i].Value.(float64)-got[i].Value.(float64))) > 0.0000001 {
-				t.Fatalf("rawQueryDerivativeProcessor - %s results mismatch:\ngot %v\nexp %v", test.name, got, test.exp)
+				t.Fatalf("RawQueryDerivativeProcessor - %s results mismatch:\ngot %v\nexp %v", test.name, got, test.exp)
 			}
 		}
 	}
@@ -777,10 +779,10 @@ func (t *testQEMetastore) UserCount() (int, error) { return 0, nil }
 
 func (t *testQEMetastore) NodeID() uint64 { return nID }
 
-func testStore() *Store {
+func testStore() *tsdb.Store {
 	path, _ := ioutil.TempDir("", "")
 
-	store := NewStore(path)
+	store := tsdb.NewStore(path)
 	err := store.Open()
 	if err != nil {
 		panic(err)
@@ -788,33 +790,38 @@ func testStore() *Store {
 	return store
 }
 
-func testStoreAndQueryExecutor() (*Store, *QueryExecutor) {
+func testStoreAndQueryExecutor() (*tsdb.Store, *tsdb.QueryExecutor) {
 	store := testStore()
 	database := "foo"
 	retentionPolicy := "bar"
 	store.CreateShard(database, retentionPolicy, sID0)
 	store.CreateShard(database, retentionPolicy, sID1)
 
-	query_executor := NewQueryExecutor(store)
+	query_executor := tsdb.NewQueryExecutor(store)
 	query_executor.ShardMapper = &testQEShardMapper{store}
 
 	return store, query_executor
 }
 
 type testQEShardMapper struct {
-	store *Store
+	store *tsdb.Store
 }
 
-func (t *testQEShardMapper) CreateMapper(shard meta.ShardInfo, stmt string, chunkSize int) (Mapper, error) {
+func (t *testQEShardMapper) CreateMapper(shard meta.ShardInfo, stmt string, chunkSize int) (tsdb.Mapper, error) {
 	return t.store.CreateMapper(shard.ID, stmt, chunkSize)
 }
 
-func executeAndGetResults(executor *Executor) string {
+func executeAndGetResults(executor *tsdb.Executor) string {
 	ch := executor.Execute()
 
 	var rows []*influxql.Row
 	for r := range ch {
 		rows = append(rows, r)
 	}
-	return string(mustMarshalJSON(rows))
+
+	b, err := json.Marshal(rows)
+	if err != nil {
+		panic(err)
+	}
+	return string(b)
 }

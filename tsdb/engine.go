@@ -253,7 +253,7 @@ func (e *Executor) executeRaw(out chan *influxql.Row) {
 		}
 
 		// Sort the values by time first so we can then handle offset and limit
-		sort.Sort(mapperValues(chunkedOutput.Values))
+		sort.Sort(MapperValues(chunkedOutput.Values))
 
 		// Now that we have full name and tag details, initialize the rowWriter.
 		// The Name and Tags will be the same for all mappers.
@@ -275,9 +275,9 @@ func (e *Executor) executeRaw(out chan *influxql.Row) {
 				out <- &influxql.Row{Err: err}
 				return
 			}
-			rowWriter.transformer = &rawQueryDerivativeProcessor{
-				isNonNegative:      e.stmt.FunctionCalls()[0].Name == "non_negative_derivative",
-				derivativeInterval: interval,
+			rowWriter.transformer = &RawQueryDerivativeProcessor{
+				IsNonNegative:      e.stmt.FunctionCalls()[0].Name == "non_negative_derivative",
+				DerivativeInterval: interval,
 			}
 		}
 
@@ -512,7 +512,7 @@ func (e *Executor) processDerivative(results [][]interface{}) [][]interface{} {
 
 		// Determines whether to drop negative differences
 		isNonNegative := e.stmt.FunctionCalls()[0].Name == "non_negative_derivative"
-		return processAggregateDerivative(results, isNonNegative, interval)
+		return ProcessAggregateDerivative(results, isNonNegative, interval)
 	}
 	return results
 }
@@ -540,21 +540,21 @@ type limitedRowWriter struct {
 	fields      influxql.Fields
 	c           chan *influxql.Row
 
-	currValues  []*mapperValue
+	currValues  []*MapperValue
 	totalOffSet int
 	totalSent   int
 
 	transformer interface {
-		process(input []*mapperValue) []*mapperValue
+		Process(input []*MapperValue) []*MapperValue
 	}
 }
 
 // Add accepts a slice of values, and will emit those values as per chunking requirements.
 // If limited is returned as true, the limit was also reached and no more values should be
 // added. In that case only up the limit of values are emitted.
-func (r *limitedRowWriter) Add(values []*mapperValue) (limited bool) {
+func (r *limitedRowWriter) Add(values []*MapperValue) (limited bool) {
 	if r.currValues == nil {
-		r.currValues = make([]*mapperValue, 0, r.chunkSize)
+		r.currValues = make([]*MapperValue, 0, r.chunkSize)
 	}
 
 	// Enforce offset.
@@ -626,7 +626,7 @@ func (r *limitedRowWriter) Flush() {
 }
 
 // processValues emits the given values in a single row.
-func (r *limitedRowWriter) processValues(values []*mapperValue) *influxql.Row {
+func (r *limitedRowWriter) processValues(values []*MapperValue) *influxql.Row {
 	defer func() {
 		r.totalSent += len(values)
 	}()
@@ -634,7 +634,7 @@ func (r *limitedRowWriter) processValues(values []*mapperValue) *influxql.Row {
 	selectNames := r.selectNames
 
 	if r.transformer != nil {
-		values = r.transformer.process(values)
+		values = r.transformer.Process(values)
 	}
 
 	// ensure that time is in the select names and in the first position
@@ -706,13 +706,13 @@ func (r *limitedRowWriter) processValues(values []*mapperValue) *influxql.Row {
 	return row
 }
 
-type rawQueryDerivativeProcessor struct {
-	lastValueFromPreviousChunk *mapperValue
-	isNonNegative              bool // Whether to drop negative differences
-	derivativeInterval         time.Duration
+type RawQueryDerivativeProcessor struct {
+	LastValueFromPreviousChunk *MapperValue
+	IsNonNegative              bool // Whether to drop negative differences
+	DerivativeInterval         time.Duration
 }
 
-func (rqdp *rawQueryDerivativeProcessor) process(input []*mapperValue) []*mapperValue {
+func (rqdp *RawQueryDerivativeProcessor) Process(input []*MapperValue) []*MapperValue {
 	if len(input) == 0 {
 		return input
 	}
@@ -720,41 +720,41 @@ func (rqdp *rawQueryDerivativeProcessor) process(input []*mapperValue) []*mapper
 	// If we only have 1 value, then the value did not change, so return
 	// a single row with 0.0
 	if len(input) == 1 {
-		return []*mapperValue{
-			&mapperValue{
+		return []*MapperValue{
+			&MapperValue{
 				Time:  input[0].Time,
 				Value: 0.0,
 			},
 		}
 	}
 
-	if rqdp.lastValueFromPreviousChunk == nil {
-		rqdp.lastValueFromPreviousChunk = input[0]
+	if rqdp.LastValueFromPreviousChunk == nil {
+		rqdp.LastValueFromPreviousChunk = input[0]
 	}
 
-	derivativeValues := []*mapperValue{}
+	derivativeValues := []*MapperValue{}
 	for i := 1; i < len(input); i++ {
 		v := input[i]
 
 		// Calculate the derivative of successive points by dividing the difference
 		// of each value by the elapsed time normalized to the interval
-		diff := int64toFloat64(v.Value) - int64toFloat64(rqdp.lastValueFromPreviousChunk.Value)
+		diff := int64toFloat64(v.Value) - int64toFloat64(rqdp.LastValueFromPreviousChunk.Value)
 
-		elapsed := v.Time - rqdp.lastValueFromPreviousChunk.Time
+		elapsed := v.Time - rqdp.LastValueFromPreviousChunk.Time
 
 		value := 0.0
 		if elapsed > 0 {
-			value = diff / (float64(elapsed) / float64(rqdp.derivativeInterval))
+			value = diff / (float64(elapsed) / float64(rqdp.DerivativeInterval))
 		}
 
-		rqdp.lastValueFromPreviousChunk = v
+		rqdp.LastValueFromPreviousChunk = v
 
 		// Drop negative values for non-negative derivatives
-		if rqdp.isNonNegative && diff < 0 {
+		if rqdp.IsNonNegative && diff < 0 {
 			continue
 		}
 
-		derivativeValues = append(derivativeValues, &mapperValue{
+		derivativeValues = append(derivativeValues, &MapperValue{
 			Time:  v.Time,
 			Value: value,
 		})
@@ -798,8 +798,8 @@ func processForMath(fields influxql.Fields, results [][]interface{}) [][]interfa
 	return mathResults
 }
 
-// processAggregateDerivative returns the derivatives of an aggregate result set
-func processAggregateDerivative(results [][]interface{}, isNonNegative bool, interval time.Duration) [][]interface{} {
+// ProcessAggregateDerivative returns the derivatives of an aggregate result set
+func ProcessAggregateDerivative(results [][]interface{}, isNonNegative bool, interval time.Duration) [][]interface{} {
 	// Return early if we can't calculate derivatives
 	if len(results) == 0 {
 		return results
