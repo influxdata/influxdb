@@ -235,6 +235,71 @@ func TestShardMapper_WriteAndSingleMapperRawQueryMultiValue(t *testing.T) {
 	}
 }
 
+func TestShardMapper_WriteAndSingleMapperRawQueryMultiSource(t *testing.T) {
+	tmpDir, _ := ioutil.TempDir("", "shard_test")
+	defer os.RemoveAll(tmpDir)
+	shard := mustCreateShard(tmpDir)
+
+	pt1time := time.Unix(1, 0).UTC()
+	pt1 := NewPoint(
+		"cpu0",
+		map[string]string{"host": "serverA", "region": "us-east"},
+		map[string]interface{}{"foo": 42},
+		pt1time,
+	)
+	pt2time := time.Unix(2, 0).UTC()
+	pt2 := NewPoint(
+		"cpu1",
+		map[string]string{"host": "serverB", "region": "us-east"},
+		map[string]interface{}{"bar": 60},
+		pt2time,
+	)
+	err := shard.WritePoints([]Point{pt1, pt2})
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	var tests = []struct {
+		stmt      string
+		chunkSize int
+		expected  []string
+	}{
+		{
+			stmt:     `SELECT foo FROM cpu0,cpu1`,
+			expected: []string{`{"name":"cpu0","values":[{"time":1000000000,"value":42}]}`, `null`},
+		},
+		{
+			stmt:     `SELECT foo FROM cpu0,cpu1 WHERE foo=42`,
+			expected: []string{`{"name":"cpu0","values":[{"time":1000000000,"value":42}]}`, `null`},
+		},
+		{
+			stmt:     `SELECT bar FROM cpu0,cpu1`,
+			expected: []string{`{"name":"cpu1","values":[{"time":2000000000,"value":60}]}`, `null`},
+		},
+		{
+			stmt:     `SELECT bar FROM cpu0,cpu1 WHERE foo=42`,
+			expected: []string{`null`},
+		},
+		{
+			stmt:     `SELECT bar FROM cpu0,cpu1 WHERE bar!=60`,
+			expected: []string{`null`},
+		},
+	}
+
+	for _, tt := range tests {
+		stmt := mustParseSelectStatement(tt.stmt)
+		mapper := openRawMapperOrFail(t, shard, stmt, tt.chunkSize)
+
+		for i, s := range tt.expected {
+			got := nextRawChunkAsJson(t, mapper)
+			if got != s {
+				t.Errorf("test '%s'\n\tgot      %s\n\texpected %s", tt.stmt, got, tt.expected[i])
+				break
+			}
+		}
+	}
+}
+
 func TestShardMapper_WriteAndSingleMapperAggregateQuery(t *testing.T) {
 	tmpDir, _ := ioutil.TempDir("", "shard_test")
 	defer os.RemoveAll(tmpDir)

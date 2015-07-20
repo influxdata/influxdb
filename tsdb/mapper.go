@@ -642,7 +642,7 @@ type tagSetsAndFields struct {
 }
 
 // createTagSetsAndFields returns the tagsets and various fields given a measurement and
-// SELECT statement. It also ensures that the fields and tags exist.
+// SELECT statement.
 func createTagSetsAndFields(m *Measurement, stmt *influxql.SelectStatement) (*tagSetsAndFields, error) {
 	_, tagKeys, err := stmt.Dimensions.Normalize()
 	if err != nil {
@@ -659,11 +659,10 @@ func createTagSetsAndFields(m *Measurement, stmt *influxql.SelectStatement) (*ta
 			sfs.add(n)
 			continue
 		}
-		if !m.HasTagKey(n) {
-			return nil, fmt.Errorf("unknown field or tag name in select clause: %s", n)
+		if m.HasTagKey(n) {
+			sts.add(n)
+			tagKeys = append(tagKeys, n)
 		}
-		sts.add(n)
-		tagKeys = append(tagKeys, n)
 	}
 	for _, n := range stmt.NamesInWhere() {
 		if n == "time" {
@@ -672,9 +671,6 @@ func createTagSetsAndFields(m *Measurement, stmt *influxql.SelectStatement) (*ta
 		if m.HasField(n) {
 			wfs.add(n)
 			continue
-		}
-		if !m.HasTagKey(n) {
-			return nil, fmt.Errorf("unknown field or tag name in where clause: %s", n)
 		}
 	}
 
