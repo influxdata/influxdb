@@ -1,5 +1,8 @@
 ## v0.9.3 [unreleased]
 
+### Features
+- [#3376](https://github.com/influxdb/influxdb/pull/3376): Support for remote shard query mapping
+
 ## v0.9.2 [unreleased]
 
 ### Features
