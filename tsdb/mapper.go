@@ -223,7 +223,8 @@ func (lm *LocalMapper) Open() error {
 
 	// If the query does not aggregate, then at least 1 SELECT field should be present.
 	if lm.rawMode && len(lm.selectFields) == 0 {
-		return fmt.Errorf("select statement must include at least one field")
+		// None of the SELECT fields exist in this data. Wipe out all tagset cursors.
+		lm.cursors = nil
 	}
 
 	return nil
