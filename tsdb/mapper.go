@@ -146,6 +146,10 @@ func (lm *LocalMapper) Open() error {
 		}
 	}
 
+	selectFields := newStringSet()
+	selectTags := newStringSet()
+	whereFields := newStringSet()
+
 	// Create the TagSet cursors for the Mapper.
 	for _, src := range lm.selectStmt.Sources {
 		mm, ok := src.(*influxql.Measurement)
@@ -171,18 +175,13 @@ func (lm *LocalMapper) Open() error {
 			return err
 		}
 		tagSets := tsf.tagSets
-		lm.selectFields = tsf.selectFields
-		lm.selectTags = tsf.selectTags
-		lm.whereFields = tsf.whereFields
+		selectFields.add(tsf.selectFields...)
+		selectTags.add(tsf.selectTags...)
+		whereFields.add(tsf.whereFields...)
 
 		// Validate that any GROUP BY is not on a field
 		if err := m.ValidateGroupBy(lm.selectStmt); err != nil {
 			return err
-		}
-
-		// If the query does not aggregate, then at least 1 SELECT field should be present.
-		if lm.rawMode && len(lm.selectFields) == 0 {
-			return fmt.Errorf("select statement must include at least one field")
 		}
 
 		// SLIMIT and SOFFSET the unique series
@@ -216,6 +215,16 @@ func (lm *LocalMapper) Open() error {
 			lm.cursors = append(lm.cursors, tsc)
 		}
 		sort.Sort(tagSetCursors(lm.cursors))
+	}
+
+	lm.selectFields = selectFields.list()
+	lm.selectTags = selectTags.list()
+	lm.whereFields = whereFields.list()
+
+	// If the query does not aggregate, then at least 1 SELECT field should be present.
+	if lm.rawMode && len(lm.selectFields) == 0 {
+		// None of the SELECT fields exist in this data. Wipe out all tagset cursors.
+		lm.cursors = nil
 	}
 
 	return nil
@@ -634,7 +643,7 @@ type tagSetsAndFields struct {
 }
 
 // createTagSetsAndFields returns the tagsets and various fields given a measurement and
-// SELECT statement. It also ensures that the fields and tags exist.
+// SELECT statement.
 func createTagSetsAndFields(m *Measurement, stmt *influxql.SelectStatement) (*tagSetsAndFields, error) {
 	_, tagKeys, err := stmt.Dimensions.Normalize()
 	if err != nil {
@@ -651,11 +660,10 @@ func createTagSetsAndFields(m *Measurement, stmt *influxql.SelectStatement) (*ta
 			sfs.add(n)
 			continue
 		}
-		if !m.HasTagKey(n) {
-			return nil, fmt.Errorf("unknown field or tag name in select clause: %s", n)
+		if m.HasTagKey(n) {
+			sts.add(n)
+			tagKeys = append(tagKeys, n)
 		}
-		sts.add(n)
-		tagKeys = append(tagKeys, n)
 	}
 	for _, n := range stmt.NamesInWhere() {
 		if n == "time" {
@@ -664,9 +672,6 @@ func createTagSetsAndFields(m *Measurement, stmt *influxql.SelectStatement) (*ta
 		if m.HasField(n) {
 			wfs.add(n)
 			continue
-		}
-		if !m.HasTagKey(n) {
-			return nil, fmt.Errorf("unknown field or tag name in where clause: %s", n)
 		}
 	}
 

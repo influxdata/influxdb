@@ -1221,9 +1221,11 @@ func newStringSet() stringSet {
 	return make(map[string]struct{})
 }
 
-// add adds a string to the set.
-func (s stringSet) add(ss string) {
-	s[ss] = struct{}{}
+// add adds strings to the set.
+func (s stringSet) add(ss ...string) {
+	for _, n := range ss {
+		s[n] = struct{}{}
+	}
 }
 
 // contains returns whether the set contains the given string.

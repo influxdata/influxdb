@@ -891,7 +891,7 @@ func TestServer_Query_Tags(t *testing.T) {
 		&Query{
 			name:    "tag without field should return error",
 			command: `SELECT host FROM db0.rp0.cpu`,
-			exp:     `{"results":[{"error":"select statement must include at least one field"}]}`,
+			exp:     `{"results":[{}]}`,
 		},
 		&Query{
 			name:    "field with tag should succeed",
@@ -1039,14 +1039,14 @@ func TestServer_Query_Common(t *testing.T) {
 			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",1]]}]}]}`, now.Format(time.RFC3339Nano)),
 		},
 		&Query{
-			name:    "selecting a measurement that doesn't exist should error",
+			name:    "selecting a measurement that doesn't exist should result in empty set",
 			command: `SELECT value FROM db0.rp0.idontexist`,
 			exp:     `{"results":[{}]}`,
 		},
 		&Query{
-			name:    "selecting a field that doesn't exist should error",
+			name:    "selecting a field that doesn't exist should result in empty set",
 			command: `SELECT idontexist FROM db0.rp0.cpu`,
-			exp:     `{"results":[{"error":"unknown field or tag name in select clause: idontexist"}]}`,
+			exp:     `{"results":[{}]}`,
 		},
 		&Query{
 			name:    "selecting wildcard without specifying a database should error",
@@ -2030,10 +2030,10 @@ func TestServer_Query_AcrossShardsAndFields(t *testing.T) {
 			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","core"],"values":[["2015-01-01T00:00:00Z",4]]}]}]}`,
 		},
 		&Query{
-			name:    "error for non-existent field",
+			name:    "empty result set from non-existent field",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT foo FROM cpu`,
-			exp:     `{"results":[{"error":"unknown field or tag name in select clause: foo"}]}`,
+			exp:     `{"results":[{}]}`,
 		},
 	}...)
 
