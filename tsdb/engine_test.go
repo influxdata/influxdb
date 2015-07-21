@@ -777,7 +777,7 @@ func (t *testQEMetastore) UserCount() (int, error) { return 0, nil }
 
 func (t *testQEMetastore) NodeID() uint64 { return nID }
 
-func testStoreAndQueryExecutor() (*Store, *QueryExecutor) {
+func testStore() *Store {
 	path, _ := ioutil.TempDir("", "")
 
 	store := NewStore(path)
@@ -785,6 +785,11 @@ func testStoreAndQueryExecutor() (*Store, *QueryExecutor) {
 	if err != nil {
 		panic(err)
 	}
+	return store
+}
+
+func testStoreAndQueryExecutor() (*Store, *QueryExecutor) {
+	store := testStore()
 	database := "foo"
 	retentionPolicy := "bar"
 	store.CreateShard(database, retentionPolicy, sID0)
