@@ -514,6 +514,8 @@ func ScanString(r io.RuneScanner) (string, error) {
 				_, _ = buf.WriteRune('\\')
 			} else if ch1 == '"' {
 				_, _ = buf.WriteRune('"')
+			} else if ch1 == '\'' {
+				_, _ = buf.WriteRune('\'')
 			} else {
 				return string(ch0) + string(ch1), errBadEscape
 			}
