@@ -23,14 +23,14 @@ func TestShardMapper_RawMapperTagSets(t *testing.T) {
 	pt1 := NewPoint(
 		"cpu",
 		map[string]string{"host": "serverA", "region": "us-east"},
-		map[string]interface{}{"value": 42},
+		map[string]interface{}{"load": 42},
 		pt1time,
 	)
 	pt2time := time.Unix(2, 0).UTC()
 	pt2 := NewPoint(
 		"cpu",
 		map[string]string{"host": "serverB", "region": "us-east"},
-		map[string]interface{}{"value": 60},
+		map[string]interface{}{"load": 60},
 		pt2time,
 	)
 	err := shard.WritePoints([]Point{pt1, pt2})
@@ -43,27 +43,27 @@ func TestShardMapper_RawMapperTagSets(t *testing.T) {
 		expected []string
 	}{
 		{
-			stmt:     `SELECT value FROM cpu`,
+			stmt:     `SELECT load FROM cpu`,
 			expected: []string{"cpu"},
 		},
 		{
-			stmt:     `SELECT value FROM cpu GROUP BY host`,
+			stmt:     `SELECT load FROM cpu GROUP BY host`,
 			expected: []string{"cpu|host|serverA", "cpu|host|serverB"},
 		},
 		{
-			stmt:     `SELECT value FROM cpu GROUP BY region`,
+			stmt:     `SELECT load FROM cpu GROUP BY region`,
 			expected: []string{"cpu|region|us-east"},
 		},
 		{
-			stmt:     `SELECT value FROM cpu WHERE host='serverA'`,
+			stmt:     `SELECT load FROM cpu WHERE host='serverA'`,
 			expected: []string{"cpu"},
 		},
 		{
-			stmt:     `SELECT value FROM cpu WHERE host='serverB'`,
+			stmt:     `SELECT load FROM cpu WHERE host='serverB'`,
 			expected: []string{"cpu"},
 		},
 		{
-			stmt:     `SELECT value FROM cpu WHERE host='serverC'`,
+			stmt:     `SELECT load FROM cpu WHERE host='serverC'`,
 			expected: []string{},
 		},
 	}
@@ -87,14 +87,14 @@ func TestShardMapper_WriteAndSingleMapperRawQuery(t *testing.T) {
 	pt1 := NewPoint(
 		"cpu",
 		map[string]string{"host": "serverA", "region": "us-east"},
-		map[string]interface{}{"value": 42},
+		map[string]interface{}{"load": 42},
 		pt1time,
 	)
 	pt2time := time.Unix(2, 0).UTC()
 	pt2 := NewPoint(
 		"cpu",
 		map[string]string{"host": "serverB", "region": "us-east"},
-		map[string]interface{}{"value": 60},
+		map[string]interface{}{"load": 60},
 		pt2time,
 	)
 	err := shard.WritePoints([]Point{pt1, pt2})
@@ -108,62 +108,62 @@ func TestShardMapper_WriteAndSingleMapperRawQuery(t *testing.T) {
 		expected  []string
 	}{
 		{
-			stmt:     `SELECT value FROM cpu`,
+			stmt:     `SELECT load FROM cpu`,
 			expected: []string{`{"name":"cpu","values":[{"time":1000000000,"value":42},{"time":2000000000,"value":60}]}`, `null`},
 		},
 		{
-			stmt:      `SELECT value FROM cpu`,
+			stmt:      `SELECT load FROM cpu`,
 			chunkSize: 1,
 			expected:  []string{`{"name":"cpu","values":[{"time":1000000000,"value":42}]}`, `{"name":"cpu","values":[{"time":2000000000,"value":60}]}`, `null`},
 		},
 		{
-			stmt:      `SELECT value FROM cpu`,
+			stmt:      `SELECT load FROM cpu`,
 			chunkSize: 2,
 			expected:  []string{`{"name":"cpu","values":[{"time":1000000000,"value":42},{"time":2000000000,"value":60}]}`},
 		},
 		{
-			stmt:      `SELECT value FROM cpu`,
+			stmt:      `SELECT load FROM cpu`,
 			chunkSize: 3,
 			expected:  []string{`{"name":"cpu","values":[{"time":1000000000,"value":42},{"time":2000000000,"value":60}]}`},
 		},
 		{
-			stmt:     `SELECT value FROM cpu GROUP BY host`,
+			stmt:     `SELECT load FROM cpu GROUP BY host`,
 			expected: []string{`{"name":"cpu","tags":{"host":"serverA"},"values":[{"time":1000000000,"value":42}]}`, `{"name":"cpu","tags":{"host":"serverB"},"values":[{"time":2000000000,"value":60}]}`, `null`},
 		},
 		{
-			stmt:     `SELECT value FROM cpu GROUP BY region`,
+			stmt:     `SELECT load FROM cpu GROUP BY region`,
 			expected: []string{`{"name":"cpu","tags":{"region":"us-east"},"values":[{"time":1000000000,"value":42},{"time":2000000000,"value":60}]}`, `null`},
 		},
 		{
-			stmt:     `SELECT value FROM cpu WHERE host='serverA'`,
+			stmt:     `SELECT load FROM cpu WHERE host='serverA'`,
 			expected: []string{`{"name":"cpu","values":[{"time":1000000000,"value":42}]}`, `null`},
 		},
 		{
-			stmt:     `SELECT value FROM cpu WHERE host='serverB'`,
+			stmt:     `SELECT load FROM cpu WHERE host='serverB'`,
 			expected: []string{`{"name":"cpu","values":[{"time":2000000000,"value":60}]}`, `null`},
 		},
 		{
-			stmt:     `SELECT value FROM cpu WHERE host='serverC'`,
+			stmt:     `SELECT load FROM cpu WHERE host='serverC'`,
 			expected: []string{`null`},
 		},
 		{
-			stmt:     `SELECT value FROM cpu WHERE value = 60`,
+			stmt:     `SELECT load FROM cpu WHERE load = 60`,
 			expected: []string{`{"name":"cpu","values":[{"time":2000000000,"value":60}]}`, `null`},
 		},
 		{
-			stmt:     `SELECT value FROM cpu WHERE value != 60`,
+			stmt:     `SELECT load FROM cpu WHERE load != 60`,
 			expected: []string{`{"name":"cpu","values":[{"time":1000000000,"value":42}]}`, `null`},
 		},
 		{
-			stmt:     fmt.Sprintf(`SELECT value FROM cpu WHERE time = '%s'`, pt1time.Format(influxql.DateTimeFormat)),
+			stmt:     fmt.Sprintf(`SELECT load FROM cpu WHERE time = '%s'`, pt1time.Format(influxql.DateTimeFormat)),
 			expected: []string{`{"name":"cpu","values":[{"time":1000000000,"value":42}]}`, `null`},
 		},
 		{
-			stmt:     fmt.Sprintf(`SELECT value FROM cpu WHERE time > '%s'`, pt1time.Format(influxql.DateTimeFormat)),
+			stmt:     fmt.Sprintf(`SELECT load FROM cpu WHERE time > '%s'`, pt1time.Format(influxql.DateTimeFormat)),
 			expected: []string{`{"name":"cpu","values":[{"time":2000000000,"value":60}]}`, `null`},
 		},
 		{
-			stmt:     fmt.Sprintf(`SELECT value FROM cpu WHERE time > '%s'`, pt2time.Format(influxql.DateTimeFormat)),
+			stmt:     fmt.Sprintf(`SELECT load FROM cpu WHERE time > '%s'`, pt2time.Format(influxql.DateTimeFormat)),
 			expected: []string{`null`},
 		},
 	}
