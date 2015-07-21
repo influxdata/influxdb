@@ -27,9 +27,8 @@ func (a mapperValues) Less(i, j int) bool { return a[i].Time < a[j].Time }
 func (a mapperValues) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
 type mapperMeta struct {
-	Tags        []string `json:"tags,omitempty"`
-	SelectNames []string `json:"selectNames,omitempty"`
-	Fields      []string `json:"fields,omitempty"`
+	Tags         []string `json:"tags,omitempty"`
+	SelectFields []string `json:"selectFields,omitempty"`
 }
 
 type MapperOutput struct {
