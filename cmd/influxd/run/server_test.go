@@ -2038,6 +2038,18 @@ func TestServer_Query_AcrossShardsAndFields(t *testing.T) {
 			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","load"],"values":[["2000-01-01T00:00:00Z",100],["2010-01-01T00:00:00Z",200]]}]}]}`,
 		},
 		&Query{
+			name:    "two results for cpu, multi-select",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT core,load FROM cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","core","load"],"values":[["2000-01-01T00:00:00Z",null,100],["2010-01-01T00:00:00Z",null,200],["2015-01-01T00:00:00Z",4,null]]}]}]}`,
+		},
+		&Query{
+			name:    "two results for cpu, wildcard select",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT * FROM cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","core","load"],"values":[["2000-01-01T00:00:00Z",null,100],["2010-01-01T00:00:00Z",null,200],["2015-01-01T00:00:00Z",4,null]]}]}]}`,
+		},
+		&Query{
 			name:    "one result for core",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT core FROM cpu`,
