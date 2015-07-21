@@ -572,6 +572,17 @@ func TestParsePointUnescape(t *testing.T) {
 				"value": 1.0,
 			},
 			time.Unix(0, 0)))
+
+	// field name using escape char.
+	test(t, `cpu \a=1`,
+		NewPoint(
+			"cpu",
+			Tags{},
+			Fields{
+				"\\a": 1, // Left as parsed since it's not a known escape sequence.
+			},
+			time.Unix(0, 0)))
+
 }
 
 func TestParsePointWithTags(t *testing.T) {

@@ -5,6 +5,7 @@
 
 ### Bugfixes
 - [#3405](https://github.com/influxdb/influxdb/pull/3405): Prevent database panic when fields are missing. Thanks @jhorwit2
+- [#3411](https://github.com/influxdb/influxdb/issues/3411): 500 timeout on write
 
 ## v0.9.2 [unreleased]
 

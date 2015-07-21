@@ -638,10 +638,6 @@ func skipWhitespace(buf []byte, i int) int {
 			return i
 		}
 
-		if buf[i] == '\\' {
-			i += 2
-			continue
-		}
 		if buf[i] == ' ' || buf[i] == '\t' {
 			i += 1
 			continue
@@ -1029,6 +1025,7 @@ func newFieldsFromBinary(buf []byte) Fields {
 		if len(name) == 0 {
 			continue
 		}
+		name = unescape(name)
 
 		i, valueBuf = scanFieldValue(buf, i+1)
 		if len(valueBuf) == 0 {
@@ -1056,7 +1053,7 @@ func newFieldsFromBinary(buf []byte) Fields {
 				panic(fmt.Sprintf("unable to parse bool value '%v': %v\n", string(valueBuf), err))
 			}
 		}
-		fields[string(unescape(name))] = value
+		fields[string(name)] = value
 		i += 1
 	}
 	return fields
