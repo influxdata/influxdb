@@ -268,9 +268,15 @@ type SortField struct {
 // String returns a string representation of a sort field
 func (field *SortField) String() string {
 	var buf bytes.Buffer
-	_, _ = buf.WriteString(field.Name)
-	_, _ = buf.WriteString(" ")
-	_, _ = buf.WriteString(strconv.FormatBool(field.Ascending))
+	if field.Name == "" {
+		_, _ = buf.WriteString(field.Name)
+		_, _ = buf.WriteString(" ")
+	}
+	if field.Ascending {
+		_, _ = buf.WriteString("ASC")
+	} else {
+		_, _ = buf.WriteString("DESC")
+	}
 	return buf.String()
 }
 
