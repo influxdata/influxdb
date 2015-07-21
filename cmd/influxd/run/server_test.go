@@ -1796,6 +1796,20 @@ func TestServer_Query_Aggregates(t *testing.T) {
 			command: `SELECT sum(value) FROM cpu WHERE region='uk' AND host='serverZ'`,
 			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","sum"],"values":[["1970-01-01T00:00:00Z",50]]}]}]}`,
 		},
+
+		// Mathematics
+		&Query{
+			name:    "group by multiple dimensions",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT sum(value)*2 FROM load`,
+			exp:     `{"results":[{"series":[{"name":"load","columns":["time",""],"values":[["1970-01-01T00:00:00Z",300]]}]}]}`,
+		},
+		&Query{
+			name:    "group by multiple dimensions",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT sum(value)/2 FROM load`,
+			exp:     `{"results":[{"series":[{"name":"load","columns":["time",""],"values":[["1970-01-01T00:00:00Z",75]]}]}]}`,
+		},
 	}...)
 
 	for i, query := range test.queries {
