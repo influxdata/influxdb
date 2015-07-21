@@ -94,6 +94,7 @@ type RemoteMapper struct {
 	chunkSize int
 
 	tagsets []string
+	fields  []string
 
 	conn             remoteShardConn
 	bufferedResponse *MapShardResponse
@@ -159,6 +160,10 @@ func (r *RemoteMapper) Open() (err error) {
 
 func (r *RemoteMapper) TagSets() []string {
 	return r.tagsets
+}
+
+func (r *RemoteMapper) Fields() []string {
+	return r.fields
 }
 
 // NextChunk returns the next chunk read from the remote node to the client.
