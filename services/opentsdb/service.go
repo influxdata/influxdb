@@ -216,7 +216,7 @@ func (s *Service) handleTelnetConn(conn net.Conn) {
 		tags := make(map[string]string)
 		for t := range tagStrs {
 			parts := strings.SplitN(tagStrs[t], "=", 2)
-			if len(parts) != 2 {
+			if len(parts) != 2 || len(parts[0]) == 0 || len(parts[1]) == 0 {
 				s.Logger.Println("TSDBServer: malformed tag data", tagStrs[t])
 				continue
 			}
