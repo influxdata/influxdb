@@ -26,10 +26,15 @@ func (a mapperValues) Len() int           { return len(a) }
 func (a mapperValues) Less(i, j int) bool { return a[i].Time < a[j].Time }
 func (a mapperValues) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
+type mapperMeta struct {
+	Tags         []string `json:"tags,omitempty"`
+	SelectFields []string `json:"selectFields,omitempty"`
+}
+
 type MapperOutput struct {
-	Name   string            `json:"name,omitempty"`
-	Tags   map[string]string `json:"tags,omitempty"`
-	Values []*mapperValue    `json:"values,omitempty"` // For aggregates contains a single value at [0]
+	Name   string         `json:"name,omitempty"`
+	Meta   *mapperMeta    `json:"meta,omitempty"`
+	Values []*mapperValue `json:"values,omitempty"` // For aggregates contains a single value at [0]
 }
 
 func (mo *MapperOutput) key() string {
