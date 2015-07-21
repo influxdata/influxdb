@@ -148,6 +148,88 @@ func TestWritePointsAndExecuteTwoShards(t *testing.T) {
 	}
 }
 
+// Test to ensure the engine handles query re-writing across shards.
+func TestWritePointsAndExecuteTwoShardsQueryRewrite(t *testing.T) {
+	// Create the mock planner and its metastore
+	store, query_executor := testStoreAndQueryExecutor()
+	defer os.RemoveAll(store.path)
+	query_executor.MetaStore = &testQEMetastore{
+		sgFunc: func(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error) {
+			return []meta.ShardGroupInfo{
+				{
+					ID:        sgID,
+					StartTime: time.Now().Add(-time.Hour),
+					EndTime:   time.Now().Add(time.Hour),
+					Shards: []meta.ShardInfo{
+						{
+							ID:       uint64(sID0),
+							OwnerIDs: []uint64{nID},
+						},
+					},
+				},
+				{
+					ID:        sgID,
+					StartTime: time.Now().Add(-2 * time.Hour),
+					EndTime:   time.Now().Add(-time.Hour),
+					Shards: []meta.ShardInfo{
+						{
+							ID:       uint64(sID1),
+							OwnerIDs: []uint64{nID},
+						},
+					},
+				},
+			}, nil
+		},
+	}
+
+	// Write two points across shards.
+	pt1time := time.Unix(1, 0).UTC()
+	if err := store.WriteToShard(sID0, []Point{NewPoint(
+		"cpu",
+		map[string]string{"host": "serverA"},
+		map[string]interface{}{"value1": 100},
+		pt1time,
+	)}); err != nil {
+		t.Fatalf(err.Error())
+	}
+	pt2time := time.Unix(2, 0).UTC()
+	if err := store.WriteToShard(sID1, []Point{NewPoint(
+		"cpu",
+		map[string]string{"host": "serverB"},
+		map[string]interface{}{"value2": 200},
+		pt2time,
+	)}); err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	var tests = []struct {
+		skip      bool   // Skip test
+		stmt      string // Query statement
+		chunkSize int    // Chunk size for driving the executor
+		expected  string // Expected results, rendered as a string
+	}{
+		{
+			stmt:     `SELECT * FROM cpu`,
+			expected: `[{"name":"cpu","columns":["time","value"],"values":[["1970-01-01T00:00:01Z",100],["1970-01-01T00:00:02Z",200]]}]`,
+		},
+	}
+
+	for _, tt := range tests {
+		if tt.skip {
+			t.Logf("Skipping test %s", tt.stmt)
+			continue
+		}
+		executor, err := query_executor.plan(mustParseSelectStatement(tt.stmt), tt.chunkSize)
+		if err != nil {
+			t.Fatalf("failed to plan query: %s", err.Error())
+		}
+		got := executeAndGetResults(executor)
+		if got != tt.expected {
+			t.Fatalf("Test %s\nexp: %s\ngot: %s\n", tt.stmt, tt.expected, got)
+		}
+	}
+}
+
 // Test that executor correctly orders data across shards.
 func TestWritePointsAndExecuteTwoShardsAlign(t *testing.T) {
 	// Create the mock planner and its metastore
