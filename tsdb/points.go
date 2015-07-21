@@ -286,6 +286,12 @@ func scanKey(buf []byte, i int) (int, []byte, error) {
 		return i, buf[start:i], fmt.Errorf("invalid tag format")
 	}
 
+	// This check makes sure we actually received fields from the user. #3379
+	// This will catch invalid syntax such as: `cpu,host=serverA,region=us-west`
+	if i >= len(buf) {
+		return i, buf[start:i], fmt.Errorf("missing fields")
+	}
+
 	// Now we know where the key region is within buf, and the locations of tags, we
 	// need to deterimine if duplicate tags exist and if the tags are sorted.  This iterates
 	// 1/2 of the list comparing each end with each other, walking towards the center from
