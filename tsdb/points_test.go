@@ -150,7 +150,12 @@ func TestParsePointNoValue(t *testing.T) {
 }
 
 func TestParsePointNoFields(t *testing.T) {
-	_, err := ParsePointsString("cpu")
+	_, err := ParsePointsString("cpu_load_short,host=server01,region=us-west")
+	if err == nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, "cpu_load_short,host=server01,region=us-west")
+	}
+
+	_, err = ParsePointsString("cpu")
 	if err == nil {
 		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, "cpu")
 	}

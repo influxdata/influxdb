@@ -3,6 +3,9 @@
 ### Features
 - [#3376](https://github.com/influxdb/influxdb/pull/3376): Support for remote shard query mapping
 
+### Bugfixes
+- [#3405](https://github.com/influxdb/influxdb/pull/3405): Prevent database panic when fields are missing. Thanks @jhorwit2
+
 ## v0.9.2 [unreleased]
 
 ### Features
