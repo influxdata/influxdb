@@ -99,6 +99,13 @@ reporting-disabled = false
   # consistency-level = "one"
   # name-separator = "."
 
+  # These next lines control how batching works. You should have this enabled
+  # otherwise you could get dropped metrics or poor performance. Batching 
+  # will buffer points in memory if you have many coming in.
+
+  # batch-size = 1000 # will flush if this many points get buffered
+  # batch-timeout = "1s" # will flush at least this often even if we haven't hit buffer limit
+
   ## "name-schema" configures tag names for parsing the metric name from graphite protocol;
   ## separated by `name-separator`.
   ## The "measurement" tag is special and the corresponding field will become
@@ -131,6 +138,13 @@ reporting-disabled = false
   # database = ""
   # typesdb = ""
 
+  # These next lines control how batching works. You should have this enabled
+  # otherwise you could get dropped metrics or poor performance. Batching 
+  # will buffer points in memory if you have many coming in.
+
+  # batch-size = 1000 # will flush if this many points get buffered
+  # batch-timeout = "1s" # will flush at least this often even if we haven't hit buffer limit
+
 ###
 ### [opentsdb]
 ###
@@ -153,8 +167,13 @@ reporting-disabled = false
   enabled = false
   # bind-address = ""
   # database = ""
-  # batch-size = 0
-  # batch-timeout = "0"
+
+  # These next lines control how batching works. You should have this enabled
+  # otherwise you could get dropped metrics or poor performance. Batching 
+  # will buffer points in memory if you have many coming in.
+
+  # batch-size = 1000 # will flush if this many points get buffered
+  # batch-timeout = "1s" # will flush at least this often even if we haven't hit buffer limit
 
 ###
 ### [monitoring]
