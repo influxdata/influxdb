@@ -4,6 +4,7 @@
 - [#3376](https://github.com/influxdb/influxdb/pull/3376): Support for remote shard query mapping
 
 ### Bugfixes
+- [#3414](https://github.com/influxdb/influxdb/issues/3414): Shard mappers perform query re-writing
 - [#3405](https://github.com/influxdb/influxdb/pull/3405): Prevent database panic when fields are missing. Thanks @jhorwit2
 - [#3411](https://github.com/influxdb/influxdb/issues/3411): 500 timeout on write
 - [#3420](https://github.com/influxdb/influxdb/pull/3420): Catch opentsdb malformed tags. Thanks @nathanielc.
