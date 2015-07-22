@@ -437,8 +437,7 @@ type tagSetCursor struct {
 	decoder     *FieldCodec       // decoder for the raw data bytes
 
 	// Lookahead buffers for the cursors. Performance analysis shows that it is critical
-	// that these buffers are part of the tagSetCursor type and not part of the the
-	// cursors type.
+	// that these buffers are part of the tagSetCursor type and not part of the cursors type.
 	keyBuffer   []int64  // The current timestamp key for each cursor
 	valueBuffer [][]byte // The current value for each cursor
 }
