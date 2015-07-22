@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/boltdb/bolt"
 	"github.com/influxdb/influxdb/influxql"
 )
 
@@ -44,7 +43,7 @@ type LocalMapper struct {
 	selectStmt      *influxql.SelectStatement
 	rawMode         bool
 	chunkSize       int
-	tx              *bolt.Tx        // Read transaction for this shard.
+	tx              Tx              // Read transaction for this shard.
 	queryTMin       int64           // Minimum time of the query.
 	queryTMax       int64           // Maximum time of the query.
 	whereFields     []string        // field names that occur in the where clause
@@ -89,7 +88,7 @@ func (lm *LocalMapper) Open() error {
 	var err error
 
 	// Get a read-only transaction.
-	tx, err := lm.shard.DB().Begin(false)
+	tx, err := lm.shard.engine.Begin(false)
 	if err != nil {
 		return err
 	}
@@ -203,7 +202,7 @@ func (lm *LocalMapper) Open() error {
 			cursors := []*seriesCursor{}
 
 			for i, key := range t.SeriesKeys {
-				c := createCursorForSeries(lm.tx, lm.shard, key)
+				c := lm.tx.Cursor(key)
 				if c == nil {
 					// No data exists for this key.
 					continue
@@ -549,14 +548,14 @@ func (tsc *tagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []stri
 
 // seriesCursor is a cursor that walks a single series. It provides lookahead functionality.
 type seriesCursor struct {
-	cursor *shardCursor // BoltDB cursor for a series
+	cursor Cursor // BoltDB cursor for a series
 	filter influxql.Expr
 }
 
 // newSeriesCursor returns a new instance of a series cursor.
-func newSeriesCursor(b *shardCursor, filter influxql.Expr) *seriesCursor {
+func newSeriesCursor(cur Cursor, filter influxql.Expr) *seriesCursor {
 	return &seriesCursor{
-		cursor: b,
+		cursor: cur,
 		filter: filter,
 	}
 }
@@ -581,30 +580,6 @@ func (sc *seriesCursor) Next() (key int64, value []byte) {
 		key, value = int64(btou64(k)), v
 	}
 	return
-}
-
-// createCursorForSeries creates a cursor for walking the given series key. The cursor
-// consolidates both the Bolt store and any WAL cache.
-func createCursorForSeries(tx *bolt.Tx, shard *Shard, key string) *shardCursor {
-	// Retrieve key bucket.
-	b := tx.Bucket([]byte(key))
-
-	// Ignore if there is no bucket or points in the cache.
-	partitionID := WALPartition([]byte(key))
-	if b == nil && len(shard.cache[partitionID][key]) == 0 {
-		return nil
-	}
-
-	// Retrieve a copy of the in-cache points for the key.
-	cache := make([][]byte, len(shard.cache[partitionID][key]))
-	copy(cache, shard.cache[partitionID][key])
-
-	// Build a cursor that merges the bucket and cache together.
-	cur := &shardCursor{cache: cache}
-	if b != nil {
-		cur.cursor = b.Cursor()
-	}
-	return cur
 }
 
 type tagSetsAndFields struct {

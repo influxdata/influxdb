@@ -85,7 +85,7 @@ func (s *DatabaseIndex) CreateSeriesIndexIfNotExists(measurementName string, ser
 	}
 
 	// get or create the measurement index
-	m := s.createMeasurementIndexIfNotExists(measurementName)
+	m := s.CreateMeasurementIndexIfNotExists(measurementName)
 
 	// set the in memory ID for query processing on this shard
 	series.id = s.lastID + 1
@@ -99,8 +99,8 @@ func (s *DatabaseIndex) CreateSeriesIndexIfNotExists(measurementName string, ser
 	return series
 }
 
-// createMeasurementIndexIfNotExists creates or retrieves an in memory index object for the measurement
-func (s *DatabaseIndex) createMeasurementIndexIfNotExists(name string) *Measurement {
+// CreateMeasurementIndexIfNotExists creates or retrieves an in memory index object for the measurement
+func (s *DatabaseIndex) CreateMeasurementIndexIfNotExists(name string) *Measurement {
 	m := s.measurements[name]
 	if m == nil {
 		m = NewMeasurement(name, s)
@@ -1190,6 +1190,13 @@ func (m *Measurement) TagKeys() []string {
 	return keys
 }
 
+// SetFieldName adds the field name to the measurement.
+func (m *Measurement) SetFieldName(name string) {
+	m.mu.Lock()
+	m.fieldNames[name] = struct{}{}
+	m.mu.Unlock()
+}
+
 // FieldNames returns a list of the measurement's field names
 func (m *Measurement) FieldNames() (a []string) {
 	m.mu.RLock()
@@ -1293,7 +1300,7 @@ func (s stringSet) intersect(o stringSet) stringSet {
 	return ns
 }
 
-func measurementFromSeriesKey(key string) string {
+func MeasurementFromSeriesKey(key string) string {
 	idx := strings.Index(key, ",")
 	if idx == -1 {
 		return key
