@@ -124,10 +124,6 @@ func (s *Shard) close() error {
 }
 
 // TODO: this is temporarily exported to make tx.go work. When the query engine gets refactored
-// into the tsdb package this should be removed. No one outside tsdb should know the underlying store.
-func (s *Shard) DB() *bolt.DB { return s.engine.DB() }
-
-// TODO: this is temporarily exported to make tx.go work. When the query engine gets refactored
 // into the tsdb package this should be removed. No one outside tsdb should know the underlying field encoding scheme.
 func (s *Shard) FieldCodec(measurementName string) *FieldCodec {
 	s.mu.RLock()

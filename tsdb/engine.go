@@ -27,7 +27,6 @@ type Engine interface {
 	LoadMetadataIndex(index *DatabaseIndex, measurementFields map[string]*MeasurementFields) error
 
 	Begin(writable bool) (Tx, error)
-	DB() *bolt.DB
 	WritePoints(points []Point, measurementFieldsToSave map[string]*MeasurementFields, seriesToCreate []*SeriesCreate) error
 	DeleteSeries(keys []string) error
 	DeleteMeasurement(name string, seriesKeys []string) error
