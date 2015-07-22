@@ -51,11 +51,13 @@ func NewMapShardResponse(code int, message string) *MapShardResponse {
 func (r *MapShardResponse) Code() int         { return int(r.pb.GetCode()) }
 func (r *MapShardResponse) Message() string   { return r.pb.GetMessage() }
 func (r *MapShardResponse) TagSets() []string { return r.pb.GetTagSets() }
+func (r *MapShardResponse) Fields() []string  { return r.pb.GetFields() }
 func (r *MapShardResponse) Data() []byte      { return r.pb.GetData() }
 
 func (r *MapShardResponse) SetCode(code int)            { r.pb.Code = proto.Int32(int32(code)) }
 func (r *MapShardResponse) SetMessage(message string)   { r.pb.Message = &message }
 func (r *MapShardResponse) SetTagSets(tagsets []string) { r.pb.TagSets = tagsets }
+func (r *MapShardResponse) SetFields(fields []string)   { r.pb.Fields = fields }
 func (r *MapShardResponse) SetData(data []byte)         { r.pb.Data = data }
 
 // MarshalBinary encodes the object to a binary format.

@@ -160,7 +160,7 @@ func TestDropMeasurementStatement(t *testing.T) {
 			t.Fatalf("exp: %s\ngot: %s", exepected, got)
 		}
 		got = executeAndGetJSON("select * from memory", executor)
-		exepected = `[{"error":"measurement not found: \"foo\".\"foo\".memory"}]`
+		exepected = `[{}]`
 		if exepected != got {
 			t.Fatalf("exp: %s\ngot: %s", exepected, got)
 		}

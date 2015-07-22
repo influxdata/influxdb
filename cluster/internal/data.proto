@@ -45,4 +45,5 @@ message MapShardResponse {
     optional string Message = 2;
     optional bytes Data = 3;
     repeated string TagSets = 4;
+    repeated string Fields = 5;
 }
