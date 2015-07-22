@@ -40,11 +40,7 @@ type Config struct {
 	ClusterTracing      bool          `toml:"cluster-tracing"`
 
 	// The join command-line argument
-	join string
-}
-
-func (c *Config) SetJoin(join string) {
-	c.join = join
+	Join string `toml:"-"`
 }
 
 func NewConfig() *Config {
