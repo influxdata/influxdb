@@ -7,6 +7,7 @@
 - [#3405](https://github.com/influxdb/influxdb/pull/3405): Prevent database panic when fields are missing. Thanks @jhorwit2
 - [#3411](https://github.com/influxdb/influxdb/issues/3411): 500 timeout on write
 - [#3420](https://github.com/influxdb/influxdb/pull/3420): Catch opentsdb malformed tags. Thanks @nathanielc.
+- [#3404](https://github.com/influxdb/influxdb/pull/3404): Added support for escaped single quotes in query string. Thanks @jhorwit2
 
 ## v0.9.2 [unreleased]
 
