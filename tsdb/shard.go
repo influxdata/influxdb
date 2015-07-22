@@ -706,7 +706,7 @@ func (s *Shard) loadMetadataIndex() error {
 				m.fieldNames[name] = struct{}{}
 			}
 			mf.codec = newFieldCodec(mf.Fields)
-			s.measurementFields[string(k)] = mf
+			s.measurementFields[m.Name] = mf
 		}
 
 		// load series metadata
