@@ -428,6 +428,35 @@ func (a *aggTagSetCursor) Next() (time int64, value interface{}) {
 	return a.nextFunc()
 }
 
+type rawPoint struct {
+	timestamp int64
+	value     []byte
+}
+
+type rawPoints []*rawPoint
+
+func (a rawPoints) Add(timestamp int64, value []byte) rawPoints {
+	i := sort.Search(len(a), func(i int) bool { return a[i] >= timestamp })
+
+	p := &rawPoint{
+		timestamp: timestamp,
+		value:     value,
+	}
+
+	switch i {
+	case 0:
+		a = append(rawPoints{p}, a...)
+	case len(a):
+		a = append(a, p)
+	default:
+		a = append(a[:i])
+	}
+}
+
+func (a rawPoints) Len() int           { return len(a) }
+func (a rawPoints) Less(i, j int) bool { return a[i].timestamp < a[j].timestamp }
+func (a rawPoints) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+
 // tagSetCursor is virtual cursor that iterates over mutiple series cursors, as though it were
 // a single series.
 type tagSetCursor struct {
@@ -437,9 +466,11 @@ type tagSetCursor struct {
 	decoder     *FieldCodec       // decoder for the raw data bytes
 
 	// Lookahead buffers for the cursors. Performance analysis shows that it is critical
-	// that these buffers are part of the tagSetCursor type and not part of the cursors type.
-	keyBuffer   []int64  // The current timestamp key for each cursor
-	valueBuffer [][]byte // The current value for each cursor
+	// that these buffers are part of the tagSetCursor type and not part of the the
+	// cursors type.
+	// keyBuffer   []int64  // The current timestamp key for each cursor
+	// valueBuffer [][]byte // The current value for each cursor
+	buffer rawPoints
 }
 
 // tagSetCursors represents a sortable slice of tagSetCursors.
