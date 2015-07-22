@@ -80,6 +80,7 @@ func (s *DatabaseIndex) createSeriesIndexIfNotExists(measurementName string, ser
 
 // createMeasurementIndexIfNotExists creates or retrieves an in memory index object for the measurement
 func (s *DatabaseIndex) createMeasurementIndexIfNotExists(name string) *Measurement {
+	name = unescapeString(name)
 	m := s.measurements[name]
 	if m == nil {
 		m = NewMeasurement(name, s)
@@ -437,7 +438,6 @@ func (m *Measurement) DropSeries(seriesID uint64) {
 // filters walks the where clause of a select statement and returns a map with all series ids
 // matching the where clause and any filter expression that should be applied to each
 func (m *Measurement) filters(stmt *influxql.SelectStatement) (map[uint64]influxql.Expr, error) {
-
 	if stmt.Condition == nil || stmt.OnlyTimeDimensions() {
 		seriesIdsToExpr := make(map[uint64]influxql.Expr)
 		for _, id := range m.seriesIDs {
