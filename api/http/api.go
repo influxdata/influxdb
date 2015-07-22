@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	log "code.google.com/p/log4go"
@@ -280,6 +281,59 @@ func (self *ChunkWriter) yield(series *protocol.Series) error {
 }
 
 func (self *ChunkWriter) done() {
+}
+
+type ExportPointsWriter struct {
+	name      string
+	memSeries map[string]*protocol.Series
+	w         libhttp.ResponseWriter
+}
+
+func (self *ExportPointsWriter) yield(series *protocol.Series) error {
+	oldSeries := self.memSeries[*series.Name]
+	if oldSeries == nil {
+		self.memSeries[*series.Name] = series
+		return nil
+	}
+
+	self.memSeries[series.GetName()] = MergeSeries(self.memSeries[series.GetName()], series)
+	return nil
+}
+
+func (self *ExportPointsWriter) done() {
+	series := SerializeSeries(self.memSeries, MillisecondPrecision)
+	for _, s := range series {
+		for _, rows := range s.Points {
+			fields := make(Fields)
+			var epoch int64
+			for i, p := range rows {
+				if i == 0 {
+					epoch = p.(int64)
+				}
+				if i > 1 {
+					fields[s.Columns[i]] = p
+				}
+			}
+			data := fields.MarshalBinary()
+			// Write the series name
+			self.w.Write(escape([]byte(self.name)))
+
+			// Write space
+			self.w.Write([]byte{' '})
+
+			// Write the values
+			self.w.Write(data)
+
+			// Write space
+			self.w.Write([]byte{' '})
+
+			// Write the timestamp
+			self.w.Write([]byte(strconv.FormatInt(epoch*1000*1000, 10)))
+
+			// Write a line return
+			self.w.Write([]byte{'\n'})
+		}
+	}
 }
 
 func TimePrecisionFromString(s string) (TimePrecision, error) {
@@ -1306,7 +1360,7 @@ func (self *HttpServer) exportDatabases(w libhttp.ResponseWriter, r *libhttp.Req
 		}
 	}
 	w.Header().Add("Content-Type", "text/plain")
-	fmt.Fprintf(w, "#DDL\n")
+	fmt.Fprintf(w, "# DDL\n")
 	for db, sps := range schema {
 		fmt.Fprintf(w, "CREATE DATABASE %q;\n", db)
 		for _, sp := range sps {
@@ -1318,19 +1372,55 @@ func (self *HttpServer) exportDatabases(w libhttp.ResponseWriter, r *libhttp.Req
 		}
 	}
 
+	fmt.Fprintf(w, "# DML\n")
+	var seriesMap = make(map[string][]string)
+
+	// gather series for each database
+	// TODO change this to use the schema to match series by regex so we
+	// put the proper series in the correct retention policies in 0.9
 	for _, db := range dbs {
-		// gather measurements for each database
-		var measurements = []string{}
-
-		// Walk through each database and measurement and select all data
-
-		// Start ripping through data
-		writer := &AllPointsWriter{map[string]*protocol.Series{}, w, MicrosecondPrecision, pretty}
-		seriesWriter := NewSeriesWriter(writer.yield)
+		s := []string{}
+		query := "list series"
+		yield := func(series *protocol.Series) error {
+			for _, p := range series.Points {
+				for _, v := range p.Values {
+					s = append(s, *v.StringValue)
+				}
+			}
+			seriesMap[db] = s
+			return nil
+		}
+		seriesWriter := NewSeriesWriter(yield)
 		err = self.coordinator.RunQuery(user, db, query, seriesWriter)
 		if err != nil {
-			libhttp.Error(w, fmt.Sprintf("failed to query data for for database %s, measurement %s: %s", shardSpace, dbs[0]), libhttp.StatusNotFound)
+			libhttp.Error(w, fmt.Sprintf("failed to query data: database: %s, query: %s, err: %s", db, query, err), libhttp.StatusNotFound)
 		}
 	}
 
+	// because this can be a long running request, we should play nice and bail if the client closed the connection
+	var disconnected int32
+	notify := w.(libhttp.CloseNotifier).CloseNotify()
+
+	go func() {
+		<-notify
+		atomic.StoreInt32(&disconnected, 1)
+	}()
+
+	// Walk through each database and series and select all data
+	for db, series := range seriesMap {
+		fmt.Fprintf(w, "# Exporting data for %s\n", db)
+		for _, s := range series {
+			if d := atomic.LoadInt32(&disconnected); d > 0 {
+				return
+			}
+			query := fmt.Sprintf(`select * from %q`, s)
+			fmt.Fprintf(w, "# %s\n", query)
+			writer := &ExportPointsWriter{s, map[string]*protocol.Series{}, w}
+			seriesWriter := NewSeriesWriter(writer.yield)
+			if err := self.coordinator.RunQuery(user, db, query, seriesWriter); err != nil {
+				libhttp.Error(w, fmt.Sprintf("failed to query data: database: %s, query: %s, err: %s", db, query, err), libhttp.StatusNotFound)
+			}
+			writer.done()
+		}
+	}
 }
