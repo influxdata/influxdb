@@ -32,8 +32,6 @@ type Engine interface {
 	DeleteSeries(keys []string) error
 	DeleteMeasurement(name string, seriesKeys []string) error
 	SeriesCount() (n int, err error)
-
-	Flush(partitionFlushDelay time.Duration) error
 }
 
 // NewEngineFunc creates a new engine.

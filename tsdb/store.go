@@ -281,18 +281,6 @@ func (s *Store) WriteToShard(shardID uint64, points []Point) error {
 	return sh.WritePoints(points)
 }
 
-// Flush forces all shards to write their WAL data to the index.
-func (s *Store) Flush() error {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	for shardID, sh := range s.shards {
-		if err := sh.engine.Flush(s.EngineOptions.WALPartitionFlushDelay); err != nil {
-			return fmt.Errorf("flush: shard=%d, err=%s", shardID, err)
-		}
-	}
-	return nil
-}
-
 func (s *Store) CreateMapper(shardID uint64, query string, chunkSize int) (Mapper, error) {
 	q, err := influxql.NewParser(strings.NewReader(query)).ParseStatement()
 	if err != nil {

@@ -61,63 +61,6 @@ func TestWritePointsAndExecuteQuery(t *testing.T) {
 	}
 }
 
-// Ensure that points can be written and flushed even after a restart.
-func TestWritePointsAndExecuteQuery_FlushRestart(t *testing.T) {
-	store, executor := testStoreAndExecutor()
-	defer os.RemoveAll(store.Path())
-
-	// Write first point.
-	if err := store.WriteToShard(shardID, []tsdb.Point{tsdb.NewPoint(
-		"cpu",
-		map[string]string{"host": "server"},
-		map[string]interface{}{"value": 1.0},
-		time.Unix(1, 2),
-	)}); err != nil {
-		t.Fatalf(err.Error())
-	}
-
-	// Write second point.
-	if err := store.WriteToShard(shardID, []tsdb.Point{tsdb.NewPoint(
-		"cpu",
-		map[string]string{"host": "server"},
-		map[string]interface{}{"value": 1.0},
-		time.Unix(2, 3),
-	)}); err != nil {
-		t.Fatalf(err.Error())
-	}
-
-	// Restart the store.
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	} else if err = store.Open(); err != nil {
-		t.Fatal(err)
-	}
-
-	// Flush WAL data to the index.
-	if err := store.Flush(); err != nil {
-		t.Fatal(err)
-	}
-
-	got := executeAndGetJSON("select * from cpu", executor)
-	exepected := `[{"series":[{"name":"cpu","tags":{"host":"server"},"columns":["time","value"],"values":[["1970-01-01T00:00:01.000000002Z",1],["1970-01-01T00:00:02.000000003Z",1]]}]}]`
-	if exepected != got {
-		t.Fatalf("exp: %s\ngot: %s", exepected, got)
-	}
-
-	store.Close()
-	store = tsdb.NewStore(store.Path())
-	if err := store.Open(); err != nil {
-		t.Fatalf(err.Error())
-	}
-	executor.Store = store
-	executor.ShardMapper = &testShardMapper{store: store}
-
-	got = executeAndGetJSON("select * from cpu", executor)
-	if exepected != got {
-		t.Fatalf("exp: %s\ngot: %s", exepected, got)
-	}
-}
-
 func TestDropSeriesStatement(t *testing.T) {
 	store, executor := testStoreAndExecutor()
 	defer os.RemoveAll(store.Path())
