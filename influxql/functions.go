@@ -244,7 +244,7 @@ func InitializeUnmarshaller(c *Call) (UnmarshalFunc, error) {
 // MapCount computes the number of values in an iterator.
 func MapCount(itr Iterator) interface{} {
 	n := float64(0)
-	for _, k, _ := itr.Next(); k != 0; _, k, _ = itr.Next() {
+	for _, k, _ := itr.Next(); k != -1; _, k, _ = itr.Next() {
 		n++
 	}
 	if n > 0 {
@@ -330,7 +330,7 @@ func (d distinctValues) Less(i, j int) bool {
 func MapDistinct(itr Iterator) interface{} {
 	var index = make(map[interface{}]struct{})
 
-	for _, time, value := itr.Next(); time != 0; _, time, value = itr.Next() {
+	for _, time, value := itr.Next(); time != -1; _, time, value = itr.Next() {
 		index[value] = struct{}{}
 	}
 
@@ -384,7 +384,7 @@ func ReduceDistinct(values []interface{}) interface{} {
 func MapCountDistinct(itr Iterator) interface{} {
 	var index = make(map[interface{}]struct{})
 
-	for _, time, value := itr.Next(); time != 0; _, time, value = itr.Next() {
+	for _, time, value := itr.Next(); time != -1; _, time, value = itr.Next() {
 		index[value] = struct{}{}
 	}
 
@@ -429,7 +429,7 @@ func MapSum(itr Iterator) interface{} {
 	n := float64(0)
 	count := 0
 	var resultType NumberType
-	for _, k, v := itr.Next(); k != 0; _, k, v = itr.Next() {
+	for _, k, v := itr.Next(); k != -1; _, k, v = itr.Next() {
 		count++
 		switch n1 := v.(type) {
 		case float64:
@@ -483,7 +483,7 @@ func ReduceSum(values []interface{}) interface{} {
 func MapMean(itr Iterator) interface{} {
 	out := &meanMapOutput{}
 
-	for _, k, v := itr.Next(); k != 0; _, k, v = itr.Next() {
+	for _, k, v := itr.Next(); k != -1; _, k, v = itr.Next() {
 		out.Count++
 		switch n1 := v.(type) {
 		case float64:
@@ -692,7 +692,7 @@ func MapMin(itr Iterator) interface{} {
 	pointsYielded := false
 	var val float64
 
-	for _, k, v := itr.Next(); k != 0; _, k, v = itr.Next() {
+	for _, k, v := itr.Next(); k != -1; _, k, v = itr.Next() {
 		switch n := v.(type) {
 		case float64:
 			val = n
@@ -755,7 +755,7 @@ func MapMax(itr Iterator) interface{} {
 	pointsYielded := false
 	var val float64
 
-	for _, k, v := itr.Next(); k != 0; _, k, v = itr.Next() {
+	for _, k, v := itr.Next(); k != -1; _, k, v = itr.Next() {
 		switch n := v.(type) {
 		case float64:
 			val = n
@@ -822,7 +822,7 @@ func MapSpread(itr Iterator) interface{} {
 	pointsYielded := false
 	var val float64
 
-	for _, k, v := itr.Next(); k != 0; _, k, v = itr.Next() {
+	for _, k, v := itr.Next(); k != -1; _, k, v = itr.Next() {
 		switch n := v.(type) {
 		case float64:
 			val = n
@@ -881,7 +881,7 @@ func ReduceSpread(values []interface{}) interface{} {
 func MapStddev(itr Iterator) interface{} {
 	var values []float64
 
-	for _, k, v := itr.Next(); k != 0; _, k, v = itr.Next() {
+	for _, k, v := itr.Next(); k != -1; _, k, v = itr.Next() {
 		switch n := v.(type) {
 		case float64:
 			values = append(values, n)
@@ -939,7 +939,7 @@ func MapFirst(itr Iterator) interface{} {
 	out := &firstLastMapOutput{}
 	pointsYielded := false
 
-	for _, k, v := itr.Next(); k != 0; _, k, v = itr.Next() {
+	for _, k, v := itr.Next(); k != -1; _, k, v = itr.Next() {
 		// Initialize first
 		if !pointsYielded {
 			out.Time = k
@@ -989,7 +989,7 @@ func MapLast(itr Iterator) interface{} {
 	out := &firstLastMapOutput{}
 	pointsYielded := false
 
-	for _, k, v := itr.Next(); k != 0; _, k, v = itr.Next() {
+	for _, k, v := itr.Next(); k != -1; _, k, v = itr.Next() {
 		// Initialize last
 		if !pointsYielded {
 			out.Time = k
@@ -1039,7 +1039,7 @@ func ReduceLast(values []interface{}) interface{} {
 func MapEcho(itr Iterator) interface{} {
 	var values []interface{}
 
-	for _, k, v := itr.Next(); k != 0; _, k, v = itr.Next() {
+	for _, k, v := itr.Next(); k != -1; _, k, v = itr.Next() {
 		values = append(values, v)
 	}
 	return values
@@ -1091,7 +1091,7 @@ func IsNumeric(c *Call) bool {
 // MapRawQuery is for queries without aggregates
 func MapRawQuery(itr Iterator) interface{} {
 	var values []*rawQueryMapOutput
-	for _, k, v := itr.Next(); k != 0; _, k, v = itr.Next() {
+	for _, k, v := itr.Next(); k != -1; _, k, v = itr.Next() {
 		val := &rawQueryMapOutput{k, v}
 		values = append(values, val)
 	}

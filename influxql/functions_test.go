@@ -27,7 +27,7 @@ func (t *testIterator) Next() (seriesKey string, timestamp int64, value interfac
 		return v.seriesKey, v.time, v.value
 	}
 
-	return "0", 0, nil
+	return "0", -1, nil
 }
 
 func TestMapMeanNoValues(t *testing.T) {
