@@ -246,6 +246,7 @@ func InitializeUnmarshaller(c *Call) (UnmarshalFunc, error) {
 
 // MapCount computes the number of values in an iterator.
 func MapCount(itr Iterator) interface{} {
+	fmt.Println("MapCount called")
 	n := float64(0)
 	for k, _ := itr.Next(); k != -1; k, _ = itr.Next() {
 		n++
@@ -455,6 +456,7 @@ func MapSum(itr Iterator) interface{} {
 
 // ReduceSum computes the sum of values for each key.
 func ReduceSum(values []interface{}) interface{} {
+	fmt.Println("ReduceSum called on ", values)
 	var n float64
 	count := 0
 	var resultType NumberType
@@ -1124,19 +1126,25 @@ func makeMapIntegral(timeUnit time.Duration) MapFunc {
 		// Fetch the first point, bailing out if there isn't one.
 		_, firstTime, firstVal := iter.Next()
 		if firstTime == 0 {
+			fmt.Println("NO VALUES")
 			return nil
 		}
 		result.StartTime = float64(firstTime)
+		fmt.Println("FIRST VALUE IS: ", firstTime, firstVal)
 
 		// Fetch the second value (we need at least two values for an integral).
 		_, secondTime, secondVal := iter.Next()
 
 		if secondTime == 0 {
 			// NOTE: relies on a multi-point block never being split into single point map chunks.
-			return nil
+			fmt.Println("ONLY ONE VALUE", secondTime, secondVal)
+			result.EndValue = toFloat64(firstVal)
+			result.EndTime = float64(firstTime)
+			return result
 		}
 
 		// Compute the area of the first block.
+		fmt.Println("computed the area of the first block")
 		result.Area = computeArea(toFloat64(firstVal), float64(firstTime), float64(secondTime), timeUnit)
 
 		// Now, we use `result.EndTime` to store the timestamp of the *previous* data point
@@ -1166,6 +1174,8 @@ func makeReduceIntegral(timeUnit time.Duration) ReduceFunc {
 		var total float64
 
 		length := reflect.ValueOf(values).Len()
+		fmt.Printf("%#v\n", values)
+		fmt.Printf("REDUCING %d CHUNKS\n", length)
 
 		for i := 0; i < length; i++ {
 			if values[i] == nil {
@@ -1189,7 +1199,9 @@ func makeReduceIntegral(timeUnit time.Duration) ReduceFunc {
 
 // Compute the area of a single block (for use during integration).
 func computeArea(val float64, startTime float64, endTime float64, timeUnit time.Duration) float64 {
-	return val * (endTime - startTime) / float64(timeUnit.Nanoseconds())
+	// To avoid overflow, do the time division first.
+	duration := (endTime - startTime) / float64(timeUnit.Nanoseconds())
+	return val * duration
 }
 
 // Return the time unit for a given call to `integral`.

@@ -2,6 +2,7 @@ package run_test
 
 import (
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -1239,6 +1240,136 @@ func TestServer_Query_SelectRawCalculus(t *testing.T) {
 			t.Error(query.failureMessage())
 		}
 	}
+}
+
+func TestServer_Query_Integral(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	// Infinite retention for past data.
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 1000000*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+
+	test := NewTest("db0", "rp0")
+	test.params = make(map[string][]string)
+	test.params.Set("precision", "s")
+
+	// Write 1000 alternate measurements of 100 watts lasting for 10 seconds and 200 watts
+	// lasting for 5 seconds. The area of each integration block is then 1000 Ws (1000 J).
+	var startTime int64
+	startTime = 60 * 60 * 24
+	writes := []string{}
+	numPoints := 100
+	for i := 0; i < numPoints; i++ {
+		value := integralTestDataValue(i)
+		time := integralTestDataTime(startTime, int64(i))
+		data := fmt.Sprintf(`power value=%d %d`, value, time)
+		writes = append(writes, data)
+	}
+	test.write = strings.Join(writes, "\n")
+
+	test.addQueries([]*Query{
+		&Query{
+			name: "one point integral",
+			command: fmt.Sprintf(`SELECT integral(value) FROM db0.rp0.power WHERE time >= %ds AND time < %ds`,
+				startTime, integralTestDataTime(startTime, 1)),
+		},
+		&Query{
+			// FIXME: + 1 shouldn't be necessary (see issue #3425).
+			name: "two point integral",
+			command: fmt.Sprintf(`SELECT integral(value) FROM db0.rp0.power WHERE time >= %ds AND time <= %ds`,
+				startTime, integralTestDataTime(startTime, 1)+5),
+		},
+		&Query{
+			name: "eleven point integral",
+			command: fmt.Sprintf(`SELECT count(value) FROM db0.rp0.power WHERE time >= %ds AND time <= %ds`,
+				integralTestDataTime(startTime, 5),
+				integralTestDataTime(startTime, 15)+1),
+		},
+		&Query{
+			name:    "full range integral",
+			command: `SELECT integral(value) FROM db0.rp0.power`,
+		},
+	}...)
+
+	results := []float64{
+		// one point
+		integralTestArea(0),
+		// two point
+		integralTestArea(1),
+		// eleven point
+		integralTestArea(10),
+		// full series
+		integralTestArea(numPoints - 1),
+	}
+
+	for i, query := range test.queries {
+		fmt.Println("NEW QUERY")
+		if i == 0 {
+			if err := test.init(s); err != nil {
+				t.Fatalf("test init failed: %s", err)
+			}
+		}
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		}
+		result, err := getIntegrationResult(query.act)
+		if err != nil {
+			t.Error(err)
+		}
+		if !approxEqual(results[i], result) {
+			t.Fatalf("integration test failed: %s\nexpected: %f actual: %f\nquery: %s\nresponse: %s", query.name, results[i], result, query.command, query.act)
+		}
+	}
+}
+
+// Helper functions for the integration test.
+// Fetch the value for the ith data point.
+func integralTestDataValue(i int) int {
+	// 100 if i is even, 200 if i is odd
+	return 100 + (i%2)*100
+}
+
+// Fetch the time in seconds for the ith data point inserted as described above.
+func integralTestDataTime(startTime int64, i int64) int64 {
+	// Even numbered points last 10 secs, odd last 5 secs.
+	numEvenCycles := (i + 1) / 2
+	numOddCycles := i / 2
+	return startTime + (numEvenCycles * 10) + (numOddCycles * 5)
+}
+
+// Fetch the area upto the start of the ith block.
+func integralTestArea(i int) float64 {
+	return float64(i) * 1000.0
+}
+
+// Extract the value from an integration query response.
+func getIntegrationResult(res string) (float64, error) {
+	var obsResult float64
+	// NOTE: Date not checked.
+	var obsDate string
+	numScanned, err := fmt.Sscanf(res,
+		`{"results":[{"series":[{"name":"power","columns":["time","integral"],"values":[[%q,%f]]}]}]}`,
+		&obsDate, &obsResult)
+	if err != nil {
+		return 0.0, err
+	}
+	if numScanned != 2 {
+		return 0.0, fmt.Errorf("unexpected error in integration response: %s", res)
+	}
+	return obsResult, nil
+}
+
+// Check if two floats are approximately equal (for integration purposes).
+func approxEqual(x float64, y float64) bool {
+	epsilon := 0.0001
+	return math.Abs(x-y) <= epsilon
 }
 
 // mergeMany ensures that when merging many series together and some of them have a different number
