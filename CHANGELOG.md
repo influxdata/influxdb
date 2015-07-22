@@ -40,6 +40,7 @@
 - [#3259](https://github.com/influxdb/influxdb/issues/3259): Respect privileges for queries.
 - [#3256](https://github.com/influxdb/influxdb/pull/3256): Remove unnecessary timeout in WaitForLeader(). Thanks @cannium.
 - [#3380](https://github.com/influxdb/influxdb/issue/3380): Parser fix, only allow ORDER BY ASC and ORDER BY time ASC.
+- [#3319](https://github.com/influxdb/influxdb/issues/3319): restarting process irrevocably BREAKS measurements with spaces
 
 ## v0.9.1 [2015-07-02]
 
