@@ -256,7 +256,7 @@ func (lm *LocalMapper) nextChunkRaw() (interface{}, error) {
 		}
 		cursor := lm.cursors[lm.currCursorIndex]
 
-		_, k, v := cursor.Next(lm.queryTMin, lm.queryTMax, lm.selectFields, lm.whereFields)
+		k, v := cursor.Next(lm.queryTMin, lm.queryTMax, lm.selectFields, lm.whereFields)
 		if v == nil {
 			// Tagset cursor is empty, move to next one.
 			lm.currCursorIndex++
@@ -338,7 +338,7 @@ func (lm *LocalMapper) nextChunkAgg() (interface{}, error) {
 			}
 
 			// Wrap the tagset cursor so it implements the mapping functions interface.
-			f := func() (seriesKey string, time int64, value interface{}) {
+			f := func() (time int64, value interface{}) {
 				return tsc.Next(qmin, tmax, []string{lm.fieldNames[i]}, lm.whereFields)
 			}
 
@@ -420,12 +420,12 @@ func (lm *LocalMapper) Close() {
 // aggTagSetCursor wraps a standard tagSetCursor, such that the values it emits are aggregated
 // by intervals.
 type aggTagSetCursor struct {
-	nextFunc func() (seriesKey string, time int64, value interface{})
+	nextFunc func() (time int64, value interface{})
 }
 
 // Next returns the next value for the aggTagSetCursor. It implements the interface expected
 // by the mapping functions.
-func (a *aggTagSetCursor) Next() (seriesKey string, time int64, value interface{}) {
+func (a *aggTagSetCursor) Next() (time int64, value interface{}) {
 	return a.nextFunc()
 }
 
@@ -478,14 +478,13 @@ func (tsc *tagSetCursor) key() string {
 
 // Next returns the next matching series-key, timestamp and byte slice for the tagset. Filtering
 // is enforced on the values. If there is no matching value, then a nil result is returned.
-func (tsc *tagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []string) (string, int64, interface{}) {
-	_ = "breakpoint"
+func (tsc *tagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []string) (int64, interface{}) {
 	for {
-		// find the minimum timestamp
+		// Find the next lowest timestamp
 		min := -1
 		minKey := int64(math.MaxInt64)
 		for i, k := range tsc.keyBuffer {
-			if k != -1 && (k == tmin) || k < tmax && k < minKey && k >= tmin {
+			if k != -1 && (k == tmin) || k < minKey && k >= tmin && k < tmax {
 				min = i
 				minKey = k
 			}
@@ -493,7 +492,7 @@ func (tsc *tagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []stri
 
 		// Return if there is no more data for this tagset.
 		if min == -1 {
-			return "", -1, nil
+			return -1, nil
 		}
 
 		// set the current timestamp and seriesID
@@ -544,7 +543,7 @@ func (tsc *tagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []stri
 			continue
 		}
 
-		return "", timestamp, value
+		return timestamp, value
 	}
 }
 
