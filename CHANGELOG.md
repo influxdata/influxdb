@@ -1,6 +1,7 @@
 ## v0.9.3 [unreleased]
 
 ### Features
+- [#3414](https://github.com/influxdb/influxdb/issues/3414): Shard mappers perform query re-writing.
 - [#3376](https://github.com/influxdb/influxdb/pull/3376): Support for remote shard query mapping
 
 ### Bugfixes
