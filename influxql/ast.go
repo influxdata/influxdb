@@ -372,7 +372,7 @@ func (s *CreateUserStatement) String() string {
 	_, _ = buf.WriteString("CREATE USER ")
 	_, _ = buf.WriteString(s.Name)
 	_, _ = buf.WriteString(" WITH PASSWORD ")
-	_, _ = buf.WriteString(s.Password)
+	_, _ = buf.WriteString("[REDACTED]")
 	if s.Admin {
 		_, _ = buf.WriteString(" WITH ALL PRIVILEGES")
 	}
@@ -498,7 +498,7 @@ func (s *SetPasswordUserStatement) String() string {
 	_, _ = buf.WriteString("SET PASSWORD FOR ")
 	_, _ = buf.WriteString(s.Name)
 	_, _ = buf.WriteString(" = ")
-	_, _ = buf.WriteString(s.Password)
+	_, _ = buf.WriteString("[REDACTED]")
 	return buf.String()
 }
 
