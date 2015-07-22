@@ -901,7 +901,7 @@ func TestServer_Query_Tags(t *testing.T) {
 		&Query{
 			name:    "field with two tags should succeed",
 			command: `SELECT host, value, core FROM db0.rp0.cpu`,
-			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","value","core"],"values":[["%s",100,4]]},{"name":"cpu","tags":{"host":"server02"},"columns":["time","value","core"],"values":[["%s",50,2]]}]}]}`, now.Format(time.RFC3339Nano), now.Add(1).Format(time.RFC3339Nano)),
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","core","value"],"values":[["%s",4,100]]},{"name":"cpu","tags":{"host":"server02"},"columns":["time","core","value"],"values":[["%s",2,50]]}]}]}`, now.Format(time.RFC3339Nano), now.Add(1).Format(time.RFC3339Nano)),
 		},
 		&Query{
 			name:    "select * with tags should succeed",
@@ -2113,7 +2113,7 @@ func TestServer_Query_Where_Fields(t *testing.T) {
 			name:    "missing measurement with group by",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT load from missing group by *`,
-			exp:     `{"results":[{"error":"measurement not found: \"db0\".\"rp0\".missing"}]}`,
+			exp:     `{"results":[{}]}`,
 		},
 
 		// string
@@ -2127,7 +2127,7 @@ func TestServer_Query_Where_Fields(t *testing.T) {
 			name:    "string AND query, all fields in SELECT",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT alert_id,tenant_id,_cust FROM cpu WHERE alert_id='alert' AND tenant_id='tenant'`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","alert_id","tenant_id","_cust"],"values":[["2015-02-28T01:03:36.703820946Z","alert","tenant","johnson brothers"]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","_cust","alert_id","tenant_id"],"values":[["2015-02-28T01:03:36.703820946Z","johnson brothers","alert","tenant"]]}]}]}`,
 		},
 		&Query{
 			name:    "string AND query, all fields in SELECT, one in parenthesis",
@@ -2610,7 +2610,7 @@ func TestServer_Query_DropAndRecreateMeasurement(t *testing.T) {
 		&Query{
 			name:    "verify cpu measurement is gone",
 			command: `SELECT * FROM cpu`,
-			exp:     `{"results":[{"error":"measurement not found: \"db0\".\"rp0\".cpu"}]}`,
+			exp:     `{"results":[{}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{

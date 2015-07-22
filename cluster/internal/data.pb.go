@@ -239,6 +239,7 @@ type MapShardResponse struct {
 	Message          *string  `protobuf:"bytes,2,opt" json:"Message,omitempty"`
 	Data             []byte   `protobuf:"bytes,3,opt" json:"Data,omitempty"`
 	TagSets          []string `protobuf:"bytes,4,rep" json:"TagSets,omitempty"`
+	Fields           []string `protobuf:"bytes,5,rep" json:"Fields,omitempty"`
 	XXX_unrecognized []byte   `json:"-"`
 }
 
@@ -270,6 +271,13 @@ func (m *MapShardResponse) GetData() []byte {
 func (m *MapShardResponse) GetTagSets() []string {
 	if m != nil {
 		return m.TagSets
+	}
+	return nil
+}
+
+func (m *MapShardResponse) GetFields() []string {
+	if m != nil {
+		return m.Fields
 	}
 	return nil
 }
