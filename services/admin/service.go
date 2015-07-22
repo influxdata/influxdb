@@ -1,9 +1,12 @@
 package admin
 
 import (
+	"crypto/tls"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 
 	// Register static assets via statik.
@@ -15,25 +18,56 @@ import (
 type Service struct {
 	listener net.Listener
 	addr     string
+	https    bool
+	cert     string
 	err      chan error
+
+	logger *log.Logger
 }
 
 // NewService returns a new instance of Service.
 func NewService(c Config) *Service {
 	return &Service{
-		addr: c.BindAddress,
-		err:  make(chan error),
+		addr:   c.BindAddress,
+		https:  c.HttpsEnabled,
+		cert:   c.HttpsCertificate,
+		err:    make(chan error),
+		logger: log.New(os.Stderr, "[admin] ", log.LstdFlags),
 	}
 }
 
 // Open starts the service
 func (s *Service) Open() error {
 	// Open listener.
-	listener, err := net.Listen("tcp", s.addr)
-	if err != nil {
-		return err
+	if s.https {
+		cert, err := tls.LoadX509KeyPair(s.cert, s.cert)
+		if err != nil {
+			s.logger.Printf("Failed to load HTTPS certificate '%s': %s", s.cert, err)
+			s.logger.Println("Reverting to HTTP")
+		}
+
+		listener, err := tls.Listen("tcp", s.addr, &tls.Config{
+			Certificates: []tls.Certificate{cert},
+		})
+		if err != nil {
+			s.logger.Printf("Failed to bind HTTPS on %s: %s", s.addr, err)
+			s.logger.Println("Reverting to HTTP")
+		}
+
+		s.logger.Println("listening on HTTPS:", listener.Addr().String())
+		s.listener = listener
 	}
-	s.listener = listener
+
+	// Assume that the HTTPS configuration failed
+	if s.listener == nil {
+		listener, err := net.Listen("tcp", s.addr)
+		if err != nil {
+			return err
+		}
+
+		s.logger.Println("listening on HTTP:", listener.Addr().String())
+		s.listener = listener
+	}
 
 	// Begin listening for requests in a separate goroutine.
 	go s.serve()
@@ -46,6 +80,11 @@ func (s *Service) Close() error {
 		return s.listener.Close()
 	}
 	return nil
+}
+
+// SetLogger sets the internal logger to the logger passed in.
+func (s *Service) SetLogger(l *log.Logger) {
+	s.logger = l
 }
 
 // Err returns a channel for fatal errors that occur on the listener.
