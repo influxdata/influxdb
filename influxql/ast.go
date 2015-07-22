@@ -1990,10 +1990,32 @@ func (f *Field) Name() string {
 
 // String returns a string representation of the field.
 func (f *Field) String() string {
-	if f.Alias == "" {
-		return f.Expr.String()
+	str := f.Expr.String()
+
+	switch f.Expr.(type) {
+	case *VarRef:
+		quoted := false
+		// Escape any double-quotes in the field
+		if strings.Contains(str, `"`) {
+			str = strings.Replace(str, `"`, `\"`, -1)
+			quoted = true
+		}
+
+		// Escape any single-quotes in the field
+		if strings.Contains(str, `'`) {
+			quoted = true
+		}
+
+		// Double-quote field names with spaces or that were previously escaped
+		if strings.Contains(str, " ") || quoted {
+			str = fmt.Sprintf("\"%s\"", str)
+		}
 	}
-	return fmt.Sprintf("%s AS %s", f.Expr.String(), f.Alias)
+
+	if f.Alias == "" {
+		return str
+	}
+	return fmt.Sprintf("%s AS %s", str, fmt.Sprintf(`"%s"`, f.Alias))
 }
 
 // Sort Interface for Fields
