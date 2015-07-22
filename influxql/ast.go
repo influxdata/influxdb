@@ -660,6 +660,8 @@ const (
 	NumberFill
 	// PreviousFill means that empty aggregate windows will be filled with whatever the previous aggregate window had
 	PreviousFill
+	// MeanFill means that empty aggregate windows will be filled with values derived from the previous and next windows
+	MeanFill
 )
 
 // SelectStatement represents a command for extracting data from the database.
