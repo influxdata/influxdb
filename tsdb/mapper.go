@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 
@@ -130,10 +131,16 @@ func (rm *RawMapper) Open() error {
 					continue
 				}
 				cm := newSeriesCursor(c, t.Filters[i])
-				cm.SeekTo(rm.queryTMin)
 				cursors = append(cursors, cm)
 			}
+
 			tsc := newTagSetCursor(m.Name, t.Tags, cursors, rm.shard.FieldCodec(m.Name))
+			// Prime the buffers.
+			for i := 0; i < len(tsc.cursors); i++ {
+				k, v := tsc.cursors[i].SeekTo(rm.queryTMin)
+				tsc.keyBuffer[i] = k
+				tsc.valueBuffer[i] = v
+			}
 			rm.cursors = append(rm.cursors, tsc)
 		}
 		sort.Sort(tagSetCursors(rm.cursors))
@@ -159,7 +166,7 @@ func (rm *RawMapper) NextChunk() (interface{}, error) {
 		}
 		cursor := rm.cursors[rm.currCursorIndex]
 
-		_, k, v := cursor.Next(rm.queryTMin, rm.queryTMax, rm.selectFields, rm.whereFields)
+		k, v := cursor.Next(rm.queryTMin, rm.queryTMax, rm.selectFields, rm.whereFields)
 		if v == nil {
 			// Tagset cursor is empty, move to next one.
 			rm.currCursorIndex++
@@ -383,7 +390,7 @@ func (am *AggMapper) NextChunk() (interface{}, error) {
 			// All tagset cursors processed. NextChunk'ing complete.
 			return nil, nil
 		}
-		cursor := am.cursors[am.currCursorIndex]
+		tsc := am.cursors[am.currCursorIndex]
 		tmin, tmax := am.nextInterval()
 
 		if tmin < 0 {
@@ -397,8 +404,8 @@ func (am *AggMapper) NextChunk() (interface{}, error) {
 		// for a single tagset.
 		if output == nil {
 			output = &mapperOutput{
-				Name:   cursor.measurement,
-				Tags:   cursor.tags,
+				Name:   tsc.measurement,
+				Tags:   tsc.tags,
 				Values: make([]*mapperValue, 1),
 			}
 			// Aggregate values only use the first entry in the Values field. Set the time
@@ -416,14 +423,19 @@ func (am *AggMapper) NextChunk() (interface{}, error) {
 		}
 
 		for i := range am.mapFuncs {
-			// Set the cursor to the start of the interval. This is not ideal, as it should
-			// really calculate the values all in 1 pass, but that would require changes
-			// to the mapper functions, which can come later.
-			cursor.SeekTo(tmin)
+			// Prime the tagset cursor for the start of the interval. This is not ideal, as
+			// it should really calculate the values all in 1 pass, but that would require
+			// changes to the mapper functions, which can come later.
+			// Prime the buffers.
+			for i := 0; i < len(tsc.cursors); i++ {
+				k, v := tsc.cursors[i].SeekTo(tmin)
+				tsc.keyBuffer[i] = k
+				tsc.valueBuffer[i] = v
+			}
 
 			// Wrap the tagset cursor so it implements the mapping functions interface.
-			f := func() (seriesKey string, time int64, value interface{}) {
-				return cursor.Next(qmin, tmax, []string{am.fieldNames[i]}, am.whereFields)
+			f := func() (time int64, value interface{}) {
+				return tsc.Next(qmin, tmax, []string{am.fieldNames[i]}, am.whereFields)
 			}
 
 			tagSetCursor := &aggTagSetCursor{
@@ -475,12 +487,12 @@ func (am *AggMapper) Close() {
 // aggTagSetCursor wraps a standard tagSetCursor, such that the values it emits are aggregated
 // by intervals.
 type aggTagSetCursor struct {
-	nextFunc func() (seriesKey string, time int64, value interface{})
+	nextFunc func() (time int64, value interface{})
 }
 
 // Next returns the next value for the aggTagSetCursor. It implements the interface expected
 // by the mapping functions.
-func (a *aggTagSetCursor) Next() (seriesKey string, time int64, value interface{}) {
+func (a *aggTagSetCursor) Next() (time int64, value interface{}) {
 	return a.nextFunc()
 }
 
@@ -491,6 +503,12 @@ type tagSetCursor struct {
 	tags        map[string]string // Tag key-value pairs
 	cursors     []*seriesCursor   // Underlying series cursors.
 	decoder     *FieldCodec       // decoder for the raw data bytes
+
+	// Lookahead buffers for the cursors. Performance analysis shows that it is critical
+	// that these buffers are part of the tagSetCursor type and not part of the the
+	// cursors type.
+	keyBuffer   []int64  // The current timestamp key for each cursor
+	valueBuffer [][]byte // The current value for each cursor
 }
 
 // tagSetCursors represents a sortable slice of tagSetCursors.
@@ -516,6 +534,8 @@ func newTagSetCursor(m string, t map[string]string, c []*seriesCursor, d *FieldC
 		tags:        t,
 		cursors:     c,
 		decoder:     d,
+		keyBuffer:   make([]int64, len(c)),
+		valueBuffer: make([][]byte, len(c)),
 	}
 }
 
@@ -525,155 +545,107 @@ func (tsc *tagSetCursor) key() string {
 
 // Next returns the next matching series-key, timestamp and byte slice for the tagset. Filtering
 // is enforced on the values. If there is no matching value, then a nil result is returned.
-func (tsc *tagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []string) (string, int64, interface{}) {
+func (tsc *tagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []string) (int64, interface{}) {
 	for {
-		// Find the cursor with the lowest timestamp, as that is the one to be read next.
-		minCursor := tsc.nextCursor(tmin, tmax)
-		if minCursor == nil {
-			// No cursor of this tagset has any matching data.
-			return "", 0, nil
+		// Find the next lowest timestamp
+		min := -1
+		minKey := int64(math.MaxInt64)
+		for i, k := range tsc.keyBuffer {
+			if k != -1 && (k == tmin) || k < minKey && k >= tmin && k < tmax {
+				min = i
+				minKey = k
+			}
 		}
-		timestamp, bytes := minCursor.Next()
+
+		// Return if there is no more data for this tagset.
+		if min == -1 {
+			return -1, nil
+		}
+
+		// set the current timestamp and seriesID
+		timestamp := tsc.keyBuffer[min]
 
 		var value interface{}
 		if len(selectFields) > 1 {
-			if fieldsWithNames, err := tsc.decoder.DecodeFieldsWithNames(bytes); err == nil {
+			if fieldsWithNames, err := tsc.decoder.DecodeFieldsWithNames(tsc.valueBuffer[min]); err == nil {
 				value = fieldsWithNames
 
 				// if there's a where clause, make sure we don't need to filter this value
-				if minCursor.filter != nil && !matchesWhere(minCursor.filter, fieldsWithNames) {
+				if tsc.cursors[min].filter != nil && !matchesWhere(tsc.cursors[min].filter, fieldsWithNames) {
 					value = nil
 				}
 			}
 		} else {
 			// With only 1 field SELECTed, decoding all fields may be avoidable, which is faster.
 			var err error
-			value, err = tsc.decoder.DecodeByName(selectFields[0], bytes)
+			value, err = tsc.decoder.DecodeByName(selectFields[0], tsc.valueBuffer[min])
 			if err != nil {
-				continue
-			}
-
-			// If there's a WHERE clase, see if we need to filter
-			if minCursor.filter != nil {
-				// See if the WHERE is only on this field or on one or more other fields.
-				// If the latter, we'll have to decode everything
-				if len(whereFields) == 1 && whereFields[0] == selectFields[0] {
-					if !matchesWhere(minCursor.filter, map[string]interface{}{selectFields[0]: value}) {
-						value = nil
-					}
-				} else { // Decode everything
-					fieldsWithNames, err := tsc.decoder.DecodeFieldsWithNames(bytes)
-					if err != nil || !matchesWhere(minCursor.filter, fieldsWithNames) {
-						value = nil
+				value = nil
+			} else {
+				// If there's a WHERE clase, see if we need to filter
+				if tsc.cursors[min].filter != nil {
+					// See if the WHERE is only on this field or on one or more other fields.
+					// If the latter, we'll have to decode everything
+					if len(whereFields) == 1 && whereFields[0] == selectFields[0] {
+						if !matchesWhere(tsc.cursors[min].filter, map[string]interface{}{selectFields[0]: value}) {
+							value = nil
+						}
+					} else { // Decode everything
+						fieldsWithNames, err := tsc.decoder.DecodeFieldsWithNames(tsc.valueBuffer[min])
+						if err != nil || !matchesWhere(tsc.cursors[min].filter, fieldsWithNames) {
+							value = nil
+						}
 					}
 				}
 			}
 		}
+
+		// Advance the cursor
+		nextKey, nextVal := tsc.cursors[min].Next()
+		tsc.keyBuffer[min] = nextKey
+		tsc.valueBuffer[min] = nextVal
 
 		// Value didn't match, look for the next one.
 		if value == nil {
 			continue
 		}
 
-		return "", timestamp, value
+		return timestamp, value
 	}
-}
-
-// SeekTo seeks each underlying cursor to the specified key.
-func (tsc *tagSetCursor) SeekTo(key int64) {
-	for _, c := range tsc.cursors {
-		c.SeekTo(key)
-	}
-}
-
-// IsEmpty returns whether the tagsetCursor has any more data for the given interval.
-func (tsc *tagSetCursor) IsEmptyForInterval(tmin, tmax int64) bool {
-	for _, c := range tsc.cursors {
-		k, _ := c.Peek()
-		if k != 0 && k >= tmin && k <= tmax {
-			return false
-		}
-	}
-	return true
-}
-
-// nextCursor returns the series cursor with the lowest next timestamp, within in the specified
-// range. If none exists, nil is returned.
-func (tsc *tagSetCursor) nextCursor(tmin, tmax int64) *seriesCursor {
-	var minCursor *seriesCursor
-	var timestamp int64
-	for _, c := range tsc.cursors {
-		timestamp, _ = c.Peek()
-		if timestamp != 0 && ((timestamp == tmin) || (timestamp >= tmin && timestamp < tmax)) {
-			if minCursor == nil {
-				minCursor = c
-			} else {
-				if currMinTimestamp, _ := minCursor.Peek(); timestamp < currMinTimestamp {
-					minCursor = c
-				}
-			}
-		}
-	}
-	return minCursor
 }
 
 // seriesCursor is a cursor that walks a single series. It provides lookahead functionality.
 type seriesCursor struct {
-	cursor      *shardCursor // BoltDB cursor for a series
-	filter      influxql.Expr
-	keyBuffer   int64  // The current timestamp key for the cursor
-	valueBuffer []byte // The current value for the cursor
+	cursor *shardCursor // BoltDB cursor for a series
+	filter influxql.Expr
 }
 
 // newSeriesCursor returns a new instance of a series cursor.
 func newSeriesCursor(b *shardCursor, filter influxql.Expr) *seriesCursor {
 	return &seriesCursor{
-		cursor:    b,
-		filter:    filter,
-		keyBuffer: -1, // Nothing buffered.
+		cursor: b,
+		filter: filter,
 	}
 }
 
-// Peek returns the next timestamp and value, without changing what will be
-// be returned by a call to Next()
-func (mc *seriesCursor) Peek() (key int64, value []byte) {
-	if mc.keyBuffer == -1 {
-		k, v := mc.cursor.Next()
-		if k == nil {
-			mc.keyBuffer = 0
-		} else {
-			mc.keyBuffer = int64(btou64(k))
-			mc.valueBuffer = v
-		}
+// Seek positions returning the timestamp and value at that key.
+func (sc *seriesCursor) SeekTo(key int64) (timestamp int64, value []byte) {
+	k, v := sc.cursor.Seek(u64tob(uint64(key)))
+	if k == nil {
+		timestamp = -1
+	} else {
+		timestamp, value = int64(btou64(k)), v
 	}
-
-	key, value = mc.keyBuffer, mc.valueBuffer
 	return
 }
 
-// SeekTo positions the cursor at the key, such that Next() will return
-// the key and value at key.
-func (mc *seriesCursor) SeekTo(key int64) {
-	k, v := mc.cursor.Seek(u64tob(uint64(key)))
-	if k == nil {
-		mc.keyBuffer = 0
-	} else {
-		mc.keyBuffer, mc.valueBuffer = int64(btou64(k)), v
-	}
-}
-
 // Next returns the next timestamp and value from the cursor.
-func (mc *seriesCursor) Next() (key int64, value []byte) {
-	if mc.keyBuffer != -1 {
-		key, value = mc.keyBuffer, mc.valueBuffer
-		mc.keyBuffer, mc.valueBuffer = -1, nil
+func (sc *seriesCursor) Next() (key int64, value []byte) {
+	k, v := sc.cursor.Next()
+	if k == nil {
+		key = -1
 	} else {
-		k, v := mc.cursor.Next()
-		if k == nil {
-			key = 0
-		} else {
-			key, value = int64(btou64(k)), v
-		}
+		key, value = int64(btou64(k)), v
 	}
 	return
 }
