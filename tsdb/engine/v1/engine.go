@@ -184,7 +184,7 @@ func (e *Engine) LoadMetadataIndex(index *tsdb.DatabaseIndex, measurementFields 
 				m.SetFieldName(name)
 			}
 			mf.Codec = tsdb.NewFieldCodec(mf.Fields)
-			measurementFields[string(k)] = mf
+			measurementFields[m.Name] = mf
 		}
 
 		// load series metadata
