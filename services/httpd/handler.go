@@ -220,6 +220,25 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 		return
 	}
 
+	// Sanitize statements with passwords.
+	for _, s := range query.Statements {
+		switch stmt := s.(type) {
+		case *influxql.CreateUserStatement:
+			sanitize(r, stmt.Password)
+		case *influxql.SetPasswordUserStatement:
+			sanitize(r, stmt.Password)
+		}
+	}
+
+	// Check authorization.
+	if h.requireAuthentication {
+		err = h.QueryExecutor.Authorize(user, query, db)
+		if err != nil {
+			httpError(w, "error authorizing query: "+err.Error(), pretty, http.StatusUnauthorized)
+			return
+		}
+	}
+
 	// Parse chunk size. Use default if not provided or unparsable.
 	chunked := (q.Get("chunked") == "true")
 	chunkSize := DefaultChunkSize
@@ -668,6 +687,8 @@ func parseCredentials(r *http.Request) (string, string, error) {
 	q := r.URL.Query()
 
 	if u, p := q.Get("u"), q.Get("p"); u != "" && p != "" {
+		q.Set("p", "[REDACTED]")
+		r.URL.RawQuery = q.Encode()
 		return u, p, nil
 	}
 	if u, p, ok := r.BasicAuth(); ok {
