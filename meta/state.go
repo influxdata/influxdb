@@ -42,8 +42,37 @@ type localRaft struct {
 	raftLayer *raftLayer
 }
 
+func (r *localRaft) updateMetaData(ms *Data) {
+	if ms == nil {
+		return
+	}
+
+	updated := false
+	r.store.mu.RLock()
+	if ms.Index > r.store.data.Index {
+		updated = true
+	}
+	r.store.mu.RUnlock()
+
+	if updated {
+		r.store.Logger.Printf("Updating metastore to term=%v index=%v", ms.Term, ms.Index)
+		r.store.mu.Lock()
+		r.store.data = ms
+		r.store.mu.Unlock()
+	}
+}
+
 func (r *localRaft) invalidate() error {
-	time.Sleep(time.Second)
+	if r.store.IsLeader() {
+		return nil
+	}
+
+	ms, err := r.store.rpc.fetchMetaData(false)
+	if err != nil {
+		return err
+	}
+
+	r.updateMetaData(ms)
 	return nil
 }
 
