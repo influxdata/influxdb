@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"math"
 	"sort"
 	"strings"
 
@@ -219,6 +218,7 @@ func (lm *LocalMapper) Open() error {
 				tsc.keyBuffer[i] = k
 				tsc.valueBuffer[i] = v
 			}
+			sort.Sort(keyBuffers(tsc.keyBuffer))
 			lm.cursors = append(lm.cursors, tsc)
 		}
 		sort.Sort(tagSetCursors(lm.cursors))
@@ -429,6 +429,12 @@ func (a *aggTagSetCursor) Next() (time int64, value interface{}) {
 	return a.nextFunc()
 }
 
+type keyBuffers []int64
+
+func (a keyBuffers) Len() int           { return len(a) }
+func (a keyBuffers) Less(i, j int) bool { return a[i] < a[j] }
+func (a keyBuffers) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+
 // tagSetCursor is virtual cursor that iterates over mutiple series cursors, as though it were
 // a single series.
 type tagSetCursor struct {
@@ -482,11 +488,10 @@ func (tsc *tagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []stri
 	for {
 		// Find the next lowest timestamp
 		min := -1
-		minKey := int64(math.MaxInt64)
 		for i, k := range tsc.keyBuffer {
-			if k != -1 && (k == tmin) || k < minKey && k >= tmin && k < tmax {
+			if k != -1 {
 				min = i
-				minKey = k
+				break
 			}
 		}
 
@@ -537,6 +542,7 @@ func (tsc *tagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []stri
 		nextKey, nextVal := tsc.cursors[min].Next()
 		tsc.keyBuffer[min] = nextKey
 		tsc.valueBuffer[min] = nextVal
+		sort.Sort(keyBuffers(tsc.keyBuffer))
 
 		// Value didn't match, look for the next one.
 		if value == nil {
