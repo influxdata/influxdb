@@ -8,29 +8,28 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/boltdb/bolt"
 	"github.com/influxdb/influxdb/influxql"
 )
 
-// mapperValue is a complex type, which can encapsulate data from both raw and aggregate
+// MapperValue is a complex type, which can encapsulate data from both raw and aggregate
 // mappers. This currently allows marshalling and network system to remain simpler. For
 // aggregate output Time is ignored, and actual Time-Value pairs are contained soley
 // within the Value field.
-type mapperValue struct {
+type MapperValue struct {
 	Time  int64       `json:"time,omitempty"`  // Ignored for aggregate output.
 	Value interface{} `json:"value,omitempty"` // For aggregate, contains interval time multiple values.
 }
 
-type mapperValues []*mapperValue
+type MapperValues []*MapperValue
 
-func (a mapperValues) Len() int           { return len(a) }
-func (a mapperValues) Less(i, j int) bool { return a[i].Time < a[j].Time }
-func (a mapperValues) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a MapperValues) Len() int           { return len(a) }
+func (a MapperValues) Less(i, j int) bool { return a[i].Time < a[j].Time }
+func (a MapperValues) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
 type MapperOutput struct {
 	Name   string            `json:"name,omitempty"`
 	Tags   map[string]string `json:"tags,omitempty"`
-	Values []*mapperValue    `json:"values,omitempty"` // For aggregates contains a single value at [0]
+	Values []*MapperValue    `json:"values,omitempty"` // For aggregates contains a single value at [0]
 }
 
 func (mo *MapperOutput) key() string {
@@ -44,7 +43,7 @@ type LocalMapper struct {
 	selectStmt      *influxql.SelectStatement
 	rawMode         bool
 	chunkSize       int
-	tx              *bolt.Tx        // Read transaction for this shard.
+	tx              Tx              // Read transaction for this shard.
 	queryTMin       int64           // Minimum time of the query.
 	queryTMax       int64           // Maximum time of the query.
 	whereFields     []string        // field names that occur in the where clause
@@ -89,7 +88,7 @@ func (lm *LocalMapper) Open() error {
 	var err error
 
 	// Get a read-only transaction.
-	tx, err := lm.shard.DB().Begin(false)
+	tx, err := lm.shard.engine.Begin(false)
 	if err != nil {
 		return err
 	}
@@ -203,7 +202,7 @@ func (lm *LocalMapper) Open() error {
 			cursors := []*seriesCursor{}
 
 			for i, key := range t.SeriesKeys {
-				c := createCursorForSeries(lm.tx, lm.shard, key)
+				c := lm.tx.Cursor(key)
 				if c == nil {
 					// No data exists for this key.
 					continue
@@ -275,7 +274,7 @@ func (lm *LocalMapper) nextChunkRaw() (interface{}, error) {
 				Tags: cursor.tags,
 			}
 		}
-		value := &mapperValue{Time: k, Value: v}
+		value := &MapperValue{Time: k, Value: v}
 		output.Values = append(output.Values, value)
 		if len(output.Values) == lm.chunkSize {
 			return output, nil
@@ -310,11 +309,11 @@ func (lm *LocalMapper) nextChunkAgg() (interface{}, error) {
 			output = &MapperOutput{
 				Name:   tsc.measurement,
 				Tags:   tsc.tags,
-				Values: make([]*mapperValue, 1),
+				Values: make([]*MapperValue, 1),
 			}
 			// Aggregate values only use the first entry in the Values field. Set the time
 			// to the start of the interval.
-			output.Values[0] = &mapperValue{
+			output.Values[0] = &MapperValue{
 				Time:  tmin,
 				Value: make([]interface{}, 0)}
 		}
@@ -549,14 +548,14 @@ func (tsc *tagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []stri
 
 // seriesCursor is a cursor that walks a single series. It provides lookahead functionality.
 type seriesCursor struct {
-	cursor *shardCursor // BoltDB cursor for a series
+	cursor Cursor // BoltDB cursor for a series
 	filter influxql.Expr
 }
 
 // newSeriesCursor returns a new instance of a series cursor.
-func newSeriesCursor(b *shardCursor, filter influxql.Expr) *seriesCursor {
+func newSeriesCursor(cur Cursor, filter influxql.Expr) *seriesCursor {
 	return &seriesCursor{
-		cursor: b,
+		cursor: cur,
 		filter: filter,
 	}
 }
@@ -581,30 +580,6 @@ func (sc *seriesCursor) Next() (key int64, value []byte) {
 		key, value = int64(btou64(k)), v
 	}
 	return
-}
-
-// createCursorForSeries creates a cursor for walking the given series key. The cursor
-// consolidates both the Bolt store and any WAL cache.
-func createCursorForSeries(tx *bolt.Tx, shard *Shard, key string) *shardCursor {
-	// Retrieve key bucket.
-	b := tx.Bucket([]byte(key))
-
-	// Ignore if there is no bucket or points in the cache.
-	partitionID := WALPartition([]byte(key))
-	if b == nil && len(shard.cache[partitionID][key]) == 0 {
-		return nil
-	}
-
-	// Retrieve a copy of the in-cache points for the key.
-	cache := make([][]byte, len(shard.cache[partitionID][key]))
-	copy(cache, shard.cache[partitionID][key])
-
-	// Build a cursor that merges the bucket and cache together.
-	cur := &shardCursor{cache: cache}
-	if b != nil {
-		cur.cursor = b.Cursor()
-	}
-	return cur
 }
 
 type tagSetsAndFields struct {
@@ -673,7 +648,7 @@ func formMeasurementTagSetKey(name string, tags map[string]string) string {
 	if len(tags) == 0 {
 		return name
 	}
-	return strings.Join([]string{name, string(marshalTags(tags))}, "|")
+	return strings.Join([]string{name, string(MarshalTags(tags))}, "|")
 }
 
 // btou64 converts an 8-byte slice into an uint64.

@@ -26,6 +26,7 @@ import (
 	"github.com/influxdb/influxdb/services/udp"
 	"github.com/influxdb/influxdb/tcp"
 	"github.com/influxdb/influxdb/tsdb"
+	_ "github.com/influxdb/influxdb/tsdb/engine"
 )
 
 // Server represents a container for the metadata and storage data and services.
@@ -81,9 +82,9 @@ func NewServer(c *Config, version string) (*Server, error) {
 	}
 
 	// Copy TSDB configuration.
-	s.TSDBStore.MaxWALSize = c.Data.MaxWALSize
-	s.TSDBStore.WALFlushInterval = time.Duration(c.Data.WALFlushInterval)
-	s.TSDBStore.WALPartitionFlushDelay = time.Duration(c.Data.WALPartitionFlushDelay)
+	s.TSDBStore.EngineOptions.MaxWALSize = c.Data.MaxWALSize
+	s.TSDBStore.EngineOptions.WALFlushInterval = time.Duration(c.Data.WALFlushInterval)
+	s.TSDBStore.EngineOptions.WALPartitionFlushDelay = time.Duration(c.Data.WALPartitionFlushDelay)
 
 	// Set the shard mapper
 	s.ShardMapper = cluster.NewShardMapper(time.Duration(c.Cluster.ShardMapperTimeout))

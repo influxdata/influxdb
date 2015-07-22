@@ -865,7 +865,7 @@ func (p *point) Tags() Tags {
 }
 
 func makeKey(name []byte, tags Tags) []byte {
-	return append(escape(name), tags.hashKey()...)
+	return append(escape(name), tags.HashKey()...)
 }
 
 // SetTags replaces the tags for the point
@@ -951,7 +951,7 @@ func (p *point) UnixNano() int64 {
 
 type Tags map[string]string
 
-func (t Tags) hashKey() []byte {
+func (t Tags) HashKey() []byte {
 	// Empty maps marshal to empty bytes.
 	if len(t) == 0 {
 		return nil
