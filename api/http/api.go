@@ -12,6 +12,7 @@ import (
 	"net"
 	libhttp "net/http"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -165,9 +166,7 @@ func (self *HttpServer) Serve(listener net.Listener) {
 	self.registerEndpoint("get", "/sync", self.isInSync)
 
 	// export endpoints
-	self.registerEndpoint("get", "/export", self.exportDatabases)
-	self.registerEndpoint("get", "/export/db/:db", self.exportDatabases)
-	self.registerEndpoint("get", "/export/db/:db/sp/:sp", self.exportDatabases)
+	self.registerEndpoint("get", "/export/:db/:sp", self.exportDatabases)
 
 	if listener == nil {
 		self.startSsl(self.p)
@@ -1302,7 +1301,6 @@ func (self *HttpServer) exportDatabases(w libhttp.ResponseWriter, r *libhttp.Req
 
 	go func() {
 		<-notify
-		log.Info("Client disconnected")
 		atomic.StoreInt32(&disconnected, 1)
 	}()
 
@@ -1330,106 +1328,101 @@ func (self *HttpServer) exportDatabases(w libhttp.ResponseWriter, r *libhttp.Req
 		return
 	}
 
-	// First determine if they specified a database
-	schema := make(map[string][]*cluster.ShardSpace)
-	dbs := []string{}
-	db := r.URL.Query().Get(":db")
-	if db != "" {
-		// They sent us a db, lets see if it exists
-		if !self.clusterConfig.DatabaseExists(db) {
-			libhttp.Error(w, fmt.Sprintf("database not found %s", db), libhttp.StatusNotFound)
-			return
-		}
-		dbs = append(dbs, db)
-	}
-	if len(dbs) == 0 {
-		databases, err := self.coordinator.ListDatabases(user)
-		if err != nil {
-			libhttp.Error(w, err.Error(), errorToStatusCode(err))
-			return
-		}
-		for _, db := range databases {
-			dbs = append(dbs, db.Name)
-		}
+	var schema struct {
+		db                string
+		retentionPolicy   string
+		replicationFactor uint32
+		duration          string
+		regex             string
+		series            []string
 	}
 
-	// Now that we have the databases, let's see if they sent in a shard space
-	shardSpace := strings.ToLower(r.URL.Query().Get(":sp"))
-	if shardSpace != "" && len(dbs) == 1 {
-		// TODO validate shard space exists and belongs to specified database
-		var found bool
-		for _, sp := range self.coordinator.GetShardSpacesForDatabase(dbs[0]) {
-			if strings.ToLower(sp.Name) == shardSpace {
-				found = true
-				schema[db] = []*cluster.ShardSpace{sp}
-				break
+	// Validate the db exsists
+	dbParam := r.URL.Query().Get(":db")
+	if !self.clusterConfig.DatabaseExists(dbParam) {
+		libhttp.Error(w, fmt.Sprintf("database not found %s", dbParam), libhttp.StatusNotFound)
+		return
+	}
+	schema.db = dbParam
+
+	// Validate shard space exists
+	spParam := strings.ToLower(r.URL.Query().Get(":sp"))
+	var found bool
+	for _, sp := range self.coordinator.GetShardSpacesForDatabase(schema.db) {
+		if strings.ToLower(sp.Name) == spParam {
+			schema.retentionPolicy = sp.Name
+			schema.replicationFactor = sp.ReplicationFactor
+			schema.duration = sp.RetentionPolicy
+			schema.regex = sp.Regex
+			if schema.duration == "inf" {
+				schema.duration = "INF"
 			}
-		}
-		if !found {
-			libhttp.Error(w, fmt.Sprintf("shard space %s for database %s not found", shardSpace, dbs[0]), libhttp.StatusNotFound)
-			return
+			found = true
+			break
 		}
 	}
 
-	// fill any db's or rp's if they weren't specified
-	if len(schema) == 0 {
-		for _, db := range dbs {
-			schema[db] = self.coordinator.GetShardSpacesForDatabase(db)
-		}
+	if !found {
+		libhttp.Error(w, fmt.Sprintf("shard space %s for database %s not found", spParam, dbParam), libhttp.StatusNotFound)
+		return
 	}
+
 	w.Header().Add("Content-Type", "text/plain")
 	fmt.Fprintf(w, "# DDL\n")
-	for db, sps := range schema {
-		fmt.Fprintf(w, "CREATE DATABASE %q;\n", db)
-		for _, sp := range sps {
-			rp := sp.RetentionPolicy
-			if rp == "inf" {
-				rp = strings.ToUpper(rp)
-			}
-			fmt.Fprintf(w, "CREATE RETENTION POLICY %q ON %q DURATION %s REPLICATION %d;\n", sp.Name, sp.Database, rp, sp.ReplicationFactor)
-		}
-	}
+	fmt.Fprintf(w, "CREATE DATABASE %q;\n", schema.db)
+	fmt.Fprintf(w, "CREATE RETENTION POLICY %q ON %q DURATION %s REPLICATION %d;\n", schema.retentionPolicy, schema.db, schema.duration, schema.replicationFactor)
 
 	fmt.Fprintf(w, "# DML\n")
-	var seriesMap = make(map[string][]string)
 
-	// gather series for each database
-	// TODO change this to use the schema to match series by regex so we
-	// put the proper series in the correct retention policies in 0.9
-	for _, db := range dbs {
+	// gather series for shard space
+	// compile the regex
+	if strings.HasPrefix(schema.regex, "/") {
+		if strings.HasSuffix(schema.regex, "/i") {
+			schema.regex = fmt.Sprintf("(?i)%s", schema.regex[1:len(schema.regex)-2])
+		} else {
+			schema.regex = schema.regex[1 : len(schema.regex)-1]
+		}
+	}
+	reg, err := regexp.Compile(schema.regex)
+	if err != nil {
+		libhttp.Error(w, fmt.Sprintf("invalid regex %s for shard space %s for database %s", schema.regex, schema.retentionPolicy, schema.db), libhttp.StatusNotFound)
+		return
+	}
+
+	query := "list series"
+
+	// inline func to yeild/collect series names
+	yield := func(series *protocol.Series) error {
 		s := []string{}
-		query := "list series"
-		yield := func(series *protocol.Series) error {
-			for _, p := range series.Points {
-				for _, v := range p.Values {
+		for _, p := range series.Points {
+			for _, v := range p.Values {
+				if reg.MatchString(*v.StringValue) {
 					s = append(s, *v.StringValue)
 				}
 			}
-			seriesMap[db] = s
-			return nil
 		}
-		seriesWriter := NewSeriesWriter(yield)
-		err = self.coordinator.RunQuery(user, db, query, seriesWriter)
-		if err != nil {
-			libhttp.Error(w, fmt.Sprintf("failed to query data: database: %s, query: %s, err: %s", db, query, err), libhttp.StatusNotFound)
-		}
+		schema.series = append(schema.series, s...)
+		return nil
+	}
+
+	seriesWriter := NewSeriesWriter(yield)
+	err = self.coordinator.RunQuery(user, schema.db, query, seriesWriter)
+	if err != nil {
+		libhttp.Error(w, fmt.Sprintf("failed to query data: database: %s, query: %s, err: %s", schema.db, query, err), libhttp.StatusNotFound)
 	}
 
 	// Walk through each database and series and select all data
-	for db, series := range seriesMap {
-		fmt.Fprintf(w, "# Exporting data for %s\n", db)
-		for _, s := range series {
-			if d := atomic.LoadInt32(&disconnected); d > 0 {
-				return
-			}
-			query := fmt.Sprintf(`select * from %q`, s)
-			fmt.Fprintf(w, "# %s\n", query)
-			writer := &ExportPointsWriter{s, map[string]*protocol.Series{}, w}
-			seriesWriter := NewSeriesWriter(writer.yield)
-			if err := self.coordinator.RunQuery(user, db, query, seriesWriter); err != nil {
-				libhttp.Error(w, fmt.Sprintf("failed to query data: database: %s, query: %s, err: %s", db, query, err), libhttp.StatusNotFound)
-			}
-			writer.done()
+	for _, series := range schema.series {
+		if d := atomic.LoadInt32(&disconnected); d > 0 {
+			return
 		}
+		query := fmt.Sprintf(`select * from %q`, series)
+		fmt.Fprintf(w, "# %s\n", query)
+		writer := &ExportPointsWriter{series, map[string]*protocol.Series{}, w}
+		seriesWriter := NewSeriesWriter(writer.yield)
+		if err := self.coordinator.RunQuery(user, schema.db, query, seriesWriter); err != nil {
+			libhttp.Error(w, fmt.Sprintf("failed to query data: database: %s, query: %s, err: %s", schema.db, query, err), libhttp.StatusNotFound)
+		}
+		writer.done()
 	}
 }
