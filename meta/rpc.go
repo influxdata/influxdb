@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/hashicorp/raft"
 	"github.com/influxdb/influxdb/meta/internal"
 )
 
@@ -29,7 +30,7 @@ type rpc struct {
 		cachedData() *Data
 		IsLeader() bool
 		Leader() string
-		Peers() []string
+		Peers() ([]string, error)
 		AddPeer(host string) error
 		CreateNode(host string) (*NodeInfo, error)
 		NodeByHost(host string) (*NodeInfo, error)
@@ -215,26 +216,33 @@ func (r *rpc) handleJoinRequest(req *internal.JoinRequest) (*internal.JoinRespon
 	r.traceCluster("join request from: %v", *req.Addr)
 
 	node, err := func() (*NodeInfo, error) {
+
 		// attempt to create the node
 		node, err := r.store.CreateNode(*req.Addr)
 		// if it exists, return the existing node
 		if err == ErrNodeExists {
-			return r.store.NodeByHost(*req.Addr)
+			node, err = r.store.NodeByHost(*req.Addr)
+			if err != nil {
+				return node, err
+			}
+			r.logger.Printf("existing node re-joined: id=%v addr=%v", node.ID, node.Host)
 		} else if err != nil {
 			return nil, fmt.Errorf("create node: %v", err)
 		}
 
-		// FIXME: jwilder: adding raft nodes is tricky since going
-		// from 1 node (leader) to two kills the cluster because
-		// quorum is lost after adding the second node.  For now,
-		// can only add non-raft enabled nodes
+		peers, err := r.store.Peers()
+		if err != nil {
+			return nil, fmt.Errorf("list peers: %v", err)
+		}
 
-		// If we have less than 3 nodes, add them as raft peers
-		// if len(r.store.Peers()) < MaxRaftNodes {
-		// 	if err = r.store.AddPeer(*req.Addr); err != nil {
-		// 		return node, fmt.Errorf("add peer: %v", err)
-		// 	}
-		// }
+		// If we have less than 3 nodes, add them as raft peers if they are not
+		// already a peer
+		if len(peers) < MaxRaftNodes && !raft.PeerContained(peers, *req.Addr) {
+			r.logger.Printf("adding new raft peer: nodeId=%v addr=%v", node.ID, *req.Addr)
+			if err = r.store.AddPeer(*req.Addr); err != nil {
+				return node, fmt.Errorf("add peer: %v", err)
+			}
+		}
 		return node, err
 	}()
 
@@ -247,13 +255,18 @@ func (r *rpc) handleJoinRequest(req *internal.JoinRequest) (*internal.JoinRespon
 		return nil, err
 	}
 
+	// get the current raft peers
+	peers, err := r.store.Peers()
+	if err != nil {
+		return nil, fmt.Errorf("list peers: %v", err)
+	}
+
 	return &internal.JoinResponse{
 		Header: &internal.ResponseHeader{
 			OK: proto.Bool(true),
 		},
-		//EnableRaft: proto.Bool(contains(r.store.Peers(), *req.Addr)),
-		EnableRaft: proto.Bool(false),
-		RaftNodes:  r.store.Peers(),
+		EnableRaft: proto.Bool(raft.PeerContained(peers, *req.Addr)),
+		RaftNodes:  peers,
 		NodeID:     proto.Uint64(nodeID),
 	}, err
 
@@ -355,7 +368,7 @@ func (r *rpc) call(dest string, req proto.Message) (proto.Message, error) {
 	// Create a connection to the leader.
 	conn, err := net.DialTimeout("tcp", dest, leaderDialTimeout)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("rpc dial: %v", err)
 	}
 	defer conn.Close()
 
@@ -421,7 +434,7 @@ func (r *rpc) call(dest string, req proto.Message) (proto.Message, error) {
 
 func (r *rpc) traceCluster(msg string, args ...interface{}) {
 	if r.tracingEnabled {
-		r.logger.Printf("rpc error: "+msg, args...)
+		r.logger.Printf("rpc: "+msg, args...)
 	}
 }
 

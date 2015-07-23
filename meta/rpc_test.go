@@ -159,7 +159,7 @@ func TestRPCJoin(t *testing.T) {
 		t.Fatalf("failed to join: %v", err)
 	}
 
-	if exp := false; res.RaftEnabled != false {
+	if exp := true; res.RaftEnabled != true {
 		t.Fatalf("raft enabled mismatch: got %v, exp %v", res.RaftEnabled, exp)
 	}
 
@@ -230,7 +230,7 @@ func (f *fakeStore) cachedData() *Data {
 
 func (f *fakeStore) IsLeader() bool            { return true }
 func (f *fakeStore) Leader() string            { return f.leader }
-func (f *fakeStore) Peers() []string           { return []string{f.leader} }
+func (f *fakeStore) Peers() ([]string, error)  { return []string{f.leader}, nil }
 func (f *fakeStore) AddPeer(host string) error { return nil }
 func (f *fakeStore) CreateNode(host string) (*NodeInfo, error) {
 	return &NodeInfo{ID: f.newNodeID, Host: host}, nil

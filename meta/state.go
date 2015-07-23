@@ -1,8 +1,11 @@
 package meta
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"math/rand"
 	"net"
 	"os"
@@ -18,12 +21,14 @@ import (
 // the meta.Store to change its behavior with the raft layer at runtime.
 type raftState interface {
 	open() error
+	remove() error
 	initialize() error
 	leader() string
 	isLeader() bool
 	sync(index uint64, timeout time.Duration) error
 	setPeers(addrs []string) error
 	addPeer(addr string) error
+	peers() ([]string, error)
 	invalidate() error
 	close() error
 	lastIndex() uint64
@@ -40,6 +45,19 @@ type localRaft struct {
 	peerStore raft.PeerStore
 	raftStore *raftboltdb.BoltStore
 	raftLayer *raftLayer
+}
+
+func (r *localRaft) remove() error {
+	if err := os.RemoveAll(filepath.Join(r.store.path, "raft.db")); err != nil {
+		return err
+	}
+	if err := os.RemoveAll(filepath.Join(r.store.path, "peers.json")); err != nil {
+		return err
+	}
+	if err := os.RemoveAll(filepath.Join(r.store.path, "snapshots")); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (r *localRaft) updateMetaData(ms *Data) {
@@ -88,11 +106,6 @@ func (r *localRaft) open() error {
 
 	// If no peers are set in the config then start as a single server.
 	config.EnableSingleNode = (len(s.peers) == 0)
-
-	// Ensure our addr is in the peer list
-	if config.EnableSingleNode {
-		s.peers = append(s.peers, s.Addr.String())
-	}
 
 	// Build raft layer to multiplex listener.
 	r.raftLayer = newRaftLayer(s.RaftListener, s.Addr)
@@ -246,6 +259,10 @@ func (r *localRaft) setPeers(addrs []string) error {
 	return r.raft.SetPeers(a).Error()
 }
 
+func (r *localRaft) peers() ([]string, error) {
+	return r.peerStore.Peers()
+}
+
 func (r *localRaft) leader() string {
 	if r.raft == nil {
 		return ""
@@ -267,6 +284,10 @@ func (r *localRaft) isLeader() bool {
 // consensus operations.
 type remoteRaft struct {
 	store *Store
+}
+
+func (r *remoteRaft) remove() error {
+	return nil
 }
 
 func (r *remoteRaft) updateMetaData(ms *Data) {
@@ -300,7 +321,15 @@ func (r *remoteRaft) invalidate() error {
 }
 
 func (r *remoteRaft) setPeers(addrs []string) error {
-	return nil
+	// Convert to JSON
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	if err := enc.Encode(addrs); err != nil {
+		return err
+	}
+
+	// Write out as JSON
+	return ioutil.WriteFile(filepath.Join(r.store.path, "peers.json"), buf.Bytes(), 0755)
 }
 
 // addPeer adds addr to the list of peers in the cluster.
@@ -308,7 +337,15 @@ func (r *remoteRaft) addPeer(addr string) error {
 	return fmt.Errorf("cannot add peer using remote raft")
 }
 
+func (r *remoteRaft) peers() ([]string, error) {
+	return readPeersJSON(filepath.Join(r.store.path, "peers.json"))
+}
+
 func (r *remoteRaft) open() error {
+	if err := r.setPeers(r.store.peers); err != nil {
+		return err
+	}
+
 	go func() {
 		for {
 			select {
@@ -365,4 +402,26 @@ func (r *remoteRaft) sync(index uint64, timeout time.Duration) error {
 
 func (r *remoteRaft) snapshot() error {
 	return fmt.Errorf("cannot snapshot while in remote raft state")
+}
+
+func readPeersJSON(path string) ([]string, error) {
+	// Read the file
+	buf, err := ioutil.ReadFile(path)
+	if err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
+
+	// Check for no peers
+	if len(buf) == 0 {
+		return nil, nil
+	}
+
+	// Decode the peers
+	var peers []string
+	dec := json.NewDecoder(bytes.NewReader(buf))
+	if err := dec.Decode(&peers); err != nil {
+		return nil, err
+	}
+
+	return peers, nil
 }
