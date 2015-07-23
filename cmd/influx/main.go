@@ -43,7 +43,6 @@ type CommandLine struct {
 	Version         string
 	Pretty          bool   // controls pretty print for json
 	Format          string // controls the output format.  Valid values are json, csv, or column
-	ShouldDump      bool
 	Execute         string
 	ShowVersion     bool
 }
@@ -60,7 +59,6 @@ func main() {
 	fs.BoolVar(&c.Ssl, "ssl", false, "Use https for connecting to cluster.")
 	fs.StringVar(&c.Format, "format", default_format, "Format specifies the format of the server responses:  json, csv, or column.")
 	fs.BoolVar(&c.Pretty, "pretty", false, "Turns on pretty print for the json format.")
-	fs.BoolVar(&c.ShouldDump, "dump", false, "Dump the contents of the given database to stdout.")
 	fs.StringVar(&c.Execute, "execute", c.Execute, "Execute command and quit.")
 	fs.BoolVar(&c.ShowVersion, "version", false, "Displays the InfluxDB version.")
 
@@ -92,9 +90,6 @@ Examples:
 
     # Use influx in a non-interactive mode to query the database "metrics" and pretty print json:
     $ influx -database 'metrics' -execute 'select * from cpu' -format 'json' -pretty
-
-	# Dumping out your data:
-    $ influx  -database 'metrics' -dump
 
 	# Connect to a specific database on startup and set database context:
     $ influx -database 'metrics' -host 'localhost' -port '8086'
@@ -130,14 +125,6 @@ Examples:
 	}
 
 	c.connect("")
-
-	if c.ShouldDump {
-		if err := c.dump(); err != nil {
-			os.Exit(1)
-		} else {
-			os.Exit(0)
-		}
-	}
 
 	if c.Execute != "" {
 		if err := c.ExecuteQuery(c.Execute); err != nil {
@@ -280,7 +267,7 @@ func (c *CommandLine) connect(cmd string) {
 		fmt.Printf("Failed to connect to %s\n", c.Client.Addr())
 	} else {
 		c.Version = v
-		if !c.ShouldDump && c.Execute == "" {
+		if c.Execute == "" {
 			fmt.Printf("Connected to %s version %s\n", c.Client.Addr(), c.Version)
 		}
 	}
@@ -341,22 +328,6 @@ func (c *CommandLine) SetFormat(cmd string) {
 	default:
 		fmt.Printf("Unknown format %q. Please use json, csv, or column.\n", cmd)
 	}
-}
-
-func (c *CommandLine) dump() error {
-	response, err := c.Client.Dump(c.Database)
-	defer response.Close()
-	if err != nil {
-		fmt.Printf("Dump failed. %s\n", err)
-		return err
-	} else {
-		_, err := io.Copy(os.Stdout, response)
-		if err != nil {
-			fmt.Printf("Dump failed. %s\n", err)
-			return err
-		}
-	}
-	return nil
 }
 
 // isWhitespace returns true if the rune is a space, tab, or newline.
