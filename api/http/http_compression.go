@@ -46,7 +46,7 @@ func (self *CompressedResponseWriter) Header() libhttp.Header {
 }
 
 func (self *CompressedResponseWriter) CloseNotify() <-chan bool {
-	return self.writer.(libhttp.CloseNotifier).CloseNotify()
+	return self.responseWriter.(libhttp.CloseNotifier).CloseNotify()
 }
 
 func (self *CompressedResponseWriter) Write(bs []byte) (int, error) {

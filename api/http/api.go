@@ -1288,6 +1288,24 @@ func (self *HttpServer) getClusterConfiguration(w libhttp.ResponseWriter, r *lib
 // Export Endpoints
 
 func (self *HttpServer) exportDatabases(w libhttp.ResponseWriter, r *libhttp.Request) {
+	// Support compression
+	if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+		w.Header().Set("Content-Encoding", "gzip")
+		gz := gzip.NewWriter(w)
+		defer gz.Close()
+		w = gzipResponseWriter{Writer: gz, ResponseWriter: w}
+	}
+
+	// because this can be a long running request, we should play nice and bail if the client closed the connection
+	var disconnected int32
+	notify := w.(libhttp.CloseNotifier).CloseNotify()
+
+	go func() {
+		<-notify
+		log.Info("Client disconnected")
+		atomic.StoreInt32(&disconnected, 1)
+	}()
+
 	username, password, err := getUsernameAndPassword(r)
 	if err != nil {
 		w.WriteHeader(libhttp.StatusBadRequest)
@@ -1396,15 +1414,6 @@ func (self *HttpServer) exportDatabases(w libhttp.ResponseWriter, r *libhttp.Req
 			libhttp.Error(w, fmt.Sprintf("failed to query data: database: %s, query: %s, err: %s", db, query, err), libhttp.StatusNotFound)
 		}
 	}
-
-	// because this can be a long running request, we should play nice and bail if the client closed the connection
-	var disconnected int32
-	notify := w.(libhttp.CloseNotifier).CloseNotify()
-
-	go func() {
-		<-notify
-		atomic.StoreInt32(&disconnected, 1)
-	}()
 
 	// Walk through each database and series and select all data
 	for db, series := range seriesMap {
