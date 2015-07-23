@@ -1,4 +1,4 @@
-package v1
+package b1
 
 import (
 	"bytes"
@@ -18,7 +18,7 @@ import (
 )
 
 // Format is the file format name of this engine.
-const Format = "v1"
+const Format = "b1"
 
 func init() {
 	tsdb.RegisterEngine(Format, NewEngine)
@@ -122,7 +122,7 @@ func (e *Engine) Open() error {
 		e.flushTimer = time.NewTimer(e.WALFlushInterval)
 
 		// Initialize logger.
-		e.logger = log.New(e.LogOutput, "[v1] ", log.LstdFlags)
+		e.logger = log.New(e.LogOutput, "[b1] ", log.LstdFlags)
 
 		// Start background goroutines.
 		e.wg.Add(1)
