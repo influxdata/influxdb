@@ -38,6 +38,8 @@ func NewService(c Config) *Service {
 
 // Open starts the service
 func (s *Service) Open() error {
+	s.Logger.Println("authentication enabled:", s.Handler.requireAuthentication)
+
 	// Open listener.
 	ln, err := net.Listen("tcp", s.addr)
 	if err != nil {
