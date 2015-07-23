@@ -48,7 +48,7 @@ func (s *Service) Open() error {
 		cert, err := tls.LoadX509KeyPair(s.cert, s.cert)
 		if err != nil {
 			s.Logger.Printf("Failed to load HTTPS certificate '%s': %s", s.cert, err)
-			s.Logger.Println("Reverting to HTTP")
+			return err
 		}
 
 		listener, err := tls.Listen("tcp", s.addr, &tls.Config{
@@ -56,7 +56,7 @@ func (s *Service) Open() error {
 		})
 		if err != nil {
 			s.Logger.Printf("Failed to bind HTTPS on %s: %s", s.addr, err)
-			s.Logger.Println("Reverting to HTTP")
+			return err
 		}
 
 		s.Logger.Println("listening on HTTPS:", listener.Addr().String())
