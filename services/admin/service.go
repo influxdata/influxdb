@@ -42,24 +42,19 @@ func (s *Service) Open() error {
 	if s.https {
 		cert, err := tls.LoadX509KeyPair(s.cert, s.cert)
 		if err != nil {
-			s.logger.Printf("Failed to load HTTPS certificate '%s': %s", s.cert, err)
-			s.logger.Println("Reverting to HTTP")
+			return err
 		}
 
 		listener, err := tls.Listen("tcp", s.addr, &tls.Config{
 			Certificates: []tls.Certificate{cert},
 		})
 		if err != nil {
-			s.logger.Printf("Failed to bind HTTPS on %s: %s", s.addr, err)
-			s.logger.Println("Reverting to HTTP")
+			return err
 		}
 
 		s.logger.Println("listening on HTTPS:", listener.Addr().String())
 		s.listener = listener
-	}
-
-	// Assume that the HTTPS configuration failed
-	if s.listener == nil {
+	} else {
 		listener, err := net.Listen("tcp", s.addr)
 		if err != nil {
 			return err
