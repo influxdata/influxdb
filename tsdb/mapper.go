@@ -470,7 +470,7 @@ type rawPoints []*rawPoint
 func (pq rawPoints) Len() int { return len(pq) }
 
 func (pq rawPoints) Less(i, j int) bool {
-	// We want Pop to give us the highest, not lowest, priority so we use greater than here.
+	// We want a min-heap (points in chronological order), so use less than.
 	return pq[i].timestamp < pq[j].timestamp
 }
 
@@ -551,7 +551,7 @@ func newTagSetCursor(m string, t map[string]string, c []*seriesCursor, d *FieldC
 		//pqueue: &make(rawPoints, len(c)),
 	}
 	//q := make(rawPoints, len(c))
-	q := make(rawPoints, 0)
+	q := make(rawPoints, 0, len(c))
 	//heap.Init(&q)
 	tsc.pqueue = &q
 	return tsc
