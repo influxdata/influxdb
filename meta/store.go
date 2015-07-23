@@ -70,7 +70,7 @@ type Store struct {
 
 	data *Data
 
-	rpc *RPC
+	rpc *rpc
 
 	remoteAddr net.Addr
 
@@ -154,10 +154,10 @@ func NewStore(c *Config) *Store {
 	}
 
 	s.raftState = &localRaft{store: s}
-	s.rpc = &RPC{
+	s.rpc = &rpc{
 		store:          s,
 		tracingEnabled: c.ClusterTracing,
-		Logger:         s.Logger,
+		logger:         s.Logger,
 	}
 	return s
 }

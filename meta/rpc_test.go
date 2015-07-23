@@ -8,7 +8,7 @@ import (
 
 func TestRPCFetchData(t *testing.T) {
 
-	serverRPC := &RPC{
+	serverRPC := &rpc{
 		store: &fakeStore{
 			md: &Data{Index: 99},
 		},
@@ -22,7 +22,7 @@ func TestRPCFetchData(t *testing.T) {
 	<-srv.Ready
 
 	// create a new RPC with no existing meta.Data cache
-	clientRPC := &RPC{
+	clientRPC := &rpc{
 		store: &fakeStore{
 			leader: srv.Listener.Addr().String(),
 		},
@@ -44,7 +44,7 @@ func TestRPCFetchData(t *testing.T) {
 }
 
 func TestRPCFetchDataMatchesLeader(t *testing.T) {
-	serverRPC := &RPC{
+	serverRPC := &rpc{
 		store: &fakeStore{
 			md: &Data{Index: 99},
 		},
@@ -58,7 +58,7 @@ func TestRPCFetchDataMatchesLeader(t *testing.T) {
 	<-srv.Ready
 
 	// create a new RPC with a matching index as the server
-	clientRPC := &RPC{
+	clientRPC := &rpc{
 		store: &fakeStore{
 			leader: srv.Listener.Addr().String(),
 			md:     &Data{Index: 99},
@@ -81,7 +81,7 @@ func TestRPCFetchDataMatchesBlocking(t *testing.T) {
 		md:        &Data{Index: 99},
 		blockChan: make(chan struct{}),
 	}
-	serverRPC := &RPC{
+	serverRPC := &rpc{
 		store: fs,
 	}
 
@@ -93,7 +93,7 @@ func TestRPCFetchDataMatchesBlocking(t *testing.T) {
 	<-srv.Ready
 
 	// create a new RPC with a matching index as the server
-	clientRPC := &RPC{
+	clientRPC := &rpc{
 		store: &fakeStore{
 			leader: srv.Listener.Addr().String(),
 			md:     &Data{Index: 99},
@@ -135,7 +135,7 @@ func TestRPCJoin(t *testing.T) {
 		newNodeID: uint64(100),
 		blockChan: make(chan struct{}),
 	}
-	serverRPC := &RPC{
+	serverRPC := &rpc{
 		store: fs,
 	}
 
@@ -147,7 +147,7 @@ func TestRPCJoin(t *testing.T) {
 	<-srv.Ready
 
 	// create a new RPC with a matching index as the server
-	clientRPC := &RPC{
+	clientRPC := &rpc{
 		store: &fakeStore{
 			leader: srv.Listener.Addr().String(),
 			md:     &Data{Index: 99},
@@ -187,11 +187,11 @@ type fakeStore struct {
 type testServer struct {
 	Listener net.Listener
 	Ready    chan struct{}
-	rpc      *RPC
+	rpc      *rpc
 	t        *testing.T
 }
 
-func newTestServer(t *testing.T, rpc *RPC) *testServer {
+func newTestServer(t *testing.T, rpc *rpc) *testServer {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("failed to listen: %v", err)

@@ -20,9 +20,9 @@ const (
 	leaderDialTimeout = 10 * time.Second
 )
 
-// RPC handles request/response style messaging between cluster nodes
-type RPC struct {
-	Logger         *log.Logger
+// rpc handles request/response style messaging between cluster nodes
+type rpc struct {
+	logger         *log.Logger
 	tracingEnabled bool
 
 	store interface {
@@ -48,7 +48,7 @@ type Reply interface {
 }
 
 // proxyLeader proxies the connection to the current raft leader
-func (r *RPC) proxyLeader(conn *net.TCPConn) {
+func (r *rpc) proxyLeader(conn *net.TCPConn) {
 	if r.store.Leader() == "" {
 		r.sendError(conn, "no leader")
 		return
@@ -68,7 +68,7 @@ func (r *RPC) proxyLeader(conn *net.TCPConn) {
 }
 
 // handleRPCConn reads a command from the connection and executes it.
-func (r *RPC) handleRPCConn(conn net.Conn) {
+func (r *rpc) handleRPCConn(conn net.Conn) {
 	defer conn.Close()
 	// RPC connections should execute on the leader.  If we are not the leader,
 	// proxy the connection to the leader so that clients an connect to any node
@@ -148,21 +148,21 @@ func (r *RPC) handleRPCConn(conn net.Conn) {
 	r.sendResponse(conn, typ, resp)
 }
 
-func (r *RPC) sendResponse(conn net.Conn, typ internal.RPCType, resp proto.Message) {
+func (r *rpc) sendResponse(conn net.Conn, typ internal.RPCType, resp proto.Message) {
 	// Marshal the response back to a protobuf
 	buf, err := proto.Marshal(resp)
 	if err != nil {
-		r.Logger.Printf("unable to marshal response: %v", err)
+		r.logger.Printf("unable to marshal response: %v", err)
 		return
 	}
 
 	// Encode response back to connection.
 	if _, err := conn.Write(r.pack(typ, buf)); err != nil {
-		r.Logger.Printf("unable to write rpc response: %s", err)
+		r.logger.Printf("unable to write rpc response: %s", err)
 	}
 }
 
-func (r *RPC) sendError(conn net.Conn, msg string) {
+func (r *rpc) sendError(conn net.Conn, msg string) {
 	r.traceCluster(msg)
 	resp := &internal.ErrorResponse{
 		Header: &internal.ResponseHeader{
@@ -175,7 +175,7 @@ func (r *RPC) sendError(conn net.Conn, msg string) {
 }
 
 // handleFetchData handles a request for the current nodes meta data
-func (r *RPC) handleFetchData(req *internal.FetchDataRequest) (*internal.FetchDataResponse, error) {
+func (r *rpc) handleFetchData(req *internal.FetchDataRequest) (*internal.FetchDataResponse, error) {
 	var (
 		b    []byte
 		data *Data
@@ -211,7 +211,7 @@ func (r *RPC) handleFetchData(req *internal.FetchDataRequest) (*internal.FetchDa
 }
 
 // handleJoinRequest handles a request to join the cluster
-func (r *RPC) handleJoinRequest(req *internal.JoinRequest) (*internal.JoinResponse, error) {
+func (r *rpc) handleJoinRequest(req *internal.JoinRequest) (*internal.JoinResponse, error) {
 	r.traceCluster("join request from: %v", *req.Addr)
 
 	node, err := func() (*NodeInfo, error) {
@@ -261,7 +261,7 @@ func (r *RPC) handleJoinRequest(req *internal.JoinRequest) (*internal.JoinRespon
 
 // pack returns a TLV style byte slice encoding the size of the payload, the RPC type
 // and the RPC data
-func (r *RPC) pack(typ internal.RPCType, b []byte) []byte {
+func (r *rpc) pack(typ internal.RPCType, b []byte) []byte {
 	buf := u64tob(uint64(len(b)) + 8)
 	buf = append(buf, u64tob(uint64(typ))...)
 	buf = append(buf, b...)
@@ -270,7 +270,7 @@ func (r *RPC) pack(typ internal.RPCType, b []byte) []byte {
 
 // fetchMetaData returns the latest copy of the meta store data from the current
 // leader.
-func (r *RPC) fetchMetaData(blocking bool) (*Data, error) {
+func (r *rpc) fetchMetaData(blocking bool) (*Data, error) {
 	assert(r.store != nil, "store is nil")
 
 	// Retrieve the current known leader.
@@ -314,7 +314,7 @@ func (r *RPC) fetchMetaData(blocking bool) (*Data, error) {
 
 // join attempts to join a cluster at remoteAddr using localAddr as the current
 // node's cluster address
-func (r *RPC) join(localAddr, remoteAddr string) (*JoinResult, error) {
+func (r *rpc) join(localAddr, remoteAddr string) (*JoinResult, error) {
 	req := &internal.JoinRequest{
 		Addr: proto.String(localAddr),
 	}
@@ -340,7 +340,7 @@ func (r *RPC) join(localAddr, remoteAddr string) (*JoinResult, error) {
 
 // call sends an encoded request to the remote leader and returns
 // an encoded response value.
-func (r *RPC) call(dest string, req proto.Message) (proto.Message, error) {
+func (r *rpc) call(dest string, req proto.Message) (proto.Message, error) {
 	// Determine type of request
 	var rpcType internal.RPCType
 	switch t := req.(type) {
@@ -419,9 +419,9 @@ func (r *RPC) call(dest string, req proto.Message) (proto.Message, error) {
 	return resp, nil
 }
 
-func (r *RPC) traceCluster(msg string, args ...interface{}) {
+func (r *rpc) traceCluster(msg string, args ...interface{}) {
 	if r.tracingEnabled {
-		r.Logger.Printf("rpc error: "+msg, args...)
+		r.logger.Printf("rpc error: "+msg, args...)
 	}
 }
 
