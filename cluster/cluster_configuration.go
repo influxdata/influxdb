@@ -768,12 +768,10 @@ func (self *ClusterConfiguration) AuthenticateClusterAdmin(username, password st
 	if user == nil {
 		return nil, common.NewAuthorizationError("Invalid username/password")
 	}
-	// TODO return this to normal auth after testing is finished
-	return user, nil
-	//if user.isValidPwd(password) {
-	//return user, nil
-	//}
-	//return nil, common.NewAuthorizationError("Invalid username/password")
+	if user.isValidPwd(password) {
+		return user, nil
+	}
+	return nil, common.NewAuthorizationError("Invalid username/password")
 }
 
 func (self *ClusterConfiguration) HasContinuousQueries() bool {
