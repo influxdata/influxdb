@@ -1295,7 +1295,7 @@ func (self *HttpServer) exportDatabases(w libhttp.ResponseWriter, r *libhttp.Req
 		w = gzipResponseWriter{Writer: gz, ResponseWriter: w}
 	}
 
-	// because this can be a long running request, we should play nice and bail if the client closed the connection
+	// detect disconnected clients and exit routine
 	var disconnected int32
 	notify := w.(libhttp.CloseNotifier).CloseNotify()
 
@@ -1389,8 +1389,6 @@ func (self *HttpServer) exportDatabases(w libhttp.ResponseWriter, r *libhttp.Req
 		return
 	}
 
-	query := "list series"
-
 	// inline func to yeild/collect series names
 	yield := func(series *protocol.Series) error {
 		s := []string{}
@@ -1406,18 +1404,18 @@ func (self *HttpServer) exportDatabases(w libhttp.ResponseWriter, r *libhttp.Req
 	}
 
 	seriesWriter := NewSeriesWriter(yield)
-	err = self.coordinator.RunQuery(user, schema.db, query, seriesWriter)
+	err = self.coordinator.RunQuery(user, schema.db, "list series", seriesWriter)
 	if err != nil {
-		libhttp.Error(w, fmt.Sprintf("failed to query data: database: %s, query: %s, err: %s", schema.db, query, err), libhttp.StatusNotFound)
+		libhttp.Error(w, fmt.Sprintf("failed to query data: database: %s, query: \"list series\", err: %s", schema.db, err), libhttp.StatusNotFound)
 	}
 
 	// Walk through each database and series and select all data
 	for _, series := range schema.series {
+		// Check to see if the client disconnected, if so, exit the routine
 		if d := atomic.LoadInt32(&disconnected); d > 0 {
 			return
 		}
 		query := fmt.Sprintf(`select * from %q`, series)
-		fmt.Fprintf(w, "# %s\n", query)
 		writer := &ExportPointsWriter{series, map[string]*protocol.Series{}, w}
 		seriesWriter := NewSeriesWriter(writer.yield)
 		if err := self.coordinator.RunQuery(user, schema.db, query, seriesWriter); err != nil {
