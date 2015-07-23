@@ -160,3 +160,12 @@ const gitSha = `foo`
 
 build it with `go build -o ~/go/bin/influxd.0.8.9 -tags rocksdb ./daemon`
 run it with `influxd.0.8.9 -config=/Users/corylanou/go/src/github.com/influxdb/sample_data/config.toml`
+
+### Configuration Changes
+
+To make sure the export endpoint does not timeout, you will need to change your timeout in the config as follows:
+
+```toml
+[api]
+read-timeout = "0s"
+```
