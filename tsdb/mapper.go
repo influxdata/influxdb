@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"runtime/debug"
 	"sort"
 	"strings"
 
@@ -564,6 +565,8 @@ func (tsc *tagSetCursor) key() string {
 // Next returns the next matching series-key, timestamp and byte slice for the tagset. Filtering
 // is enforced on the values. If there is no matching value, then a nil result is returned.
 func (tsc *tagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []string) (int64, interface{}) {
+	fmt.Printf("\n%p: tagSetCursor.Next: tmin, tmax = %d, %d\n\n", tsc, tmin, tmax)
+	debug.PrintStack()
 	for {
 		// Find the next lowest timestamp
 		//min := -1
