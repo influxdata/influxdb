@@ -757,12 +757,10 @@ func (self *ClusterConfiguration) AuthenticateDbUser(db, username, password stri
 		return nil, common.NewAuthorizationError("Invalid username/password")
 	}
 	user := dbUsers[username]
-	// TODO return this to normal auth after testing is finished
-	return user, nil
-	//if user.isValidPwd(password) {
-	//return user, nil
-	//}
-	//return nil, common.NewAuthorizationError("Invalid username/password")
+	if user.isValidPwd(password) {
+		return user, nil
+	}
+	return nil, common.NewAuthorizationError("Invalid username/password")
 }
 
 func (self *ClusterConfiguration) AuthenticateClusterAdmin(username, password string) (common.User, error) {
