@@ -216,12 +216,19 @@ func (lm *LocalMapper) Open() error {
 			// Prime the buffers.
 			for i := 0; i < len(tsc.cursors); i++ {
 				k, v := tsc.cursors[i].SeekTo(lm.queryTMin)
-				(*tsc.pqueue)[i] = &rawPoint{
+				p := &rawPoint{
 					timestamp: k,
 					value:     v,
-					index:     i,
-					cursor:    tsc.cursors[i],
+					//index:     i,
+					cursor: tsc.cursors[i],
 				}
+				heap.Push(tsc.pqueue, p)
+				// (*tsc.pqueue)[i] = &rawPoint{
+				// 	timestamp: k,
+				// 	value:     v,
+				// 	//index:     i,
+				// 	cursor:    tsc.cursors[i],
+				// }
 				// tsc.keyBuffer[i] = k
 				// tsc.valueBuffer[i] = v
 			}
@@ -341,12 +348,19 @@ func (lm *LocalMapper) nextChunkAgg() (interface{}, error) {
 			// Prime the buffers.
 			for i := 0; i < len(tsc.cursors); i++ {
 				k, v := tsc.cursors[i].SeekTo(tmin)
-				(*tsc.pqueue)[i] = &rawPoint{
+				p := &rawPoint{
 					timestamp: k,
 					value:     v,
-					index:     i,
-					cursor:    tsc.cursors[i],
+					//index:     i,
+					cursor: tsc.cursors[i],
 				}
+				heap.Push(tsc.pqueue, p)
+				// (*tsc.pqueue)[i] = &rawPoint{
+				// 	timestamp: k,
+				// 	value:     v,
+				// 	//index:     i,
+				// 	cursor:    tsc.cursors[i],
+				// }
 				// tsc.keyBuffer[i] = k
 				// tsc.valueBuffer[i] = v
 			}
@@ -447,8 +461,8 @@ func (a *aggTagSetCursor) Next() (time int64, value interface{}) {
 type rawPoint struct {
 	timestamp int64
 	value     []byte
-	index     int
-	cursor    *seriesCursor // cursor whence rawPoint came
+	//index     int
+	cursor *seriesCursor // cursor whence rawPoint came
 }
 
 type rawPoints []*rawPoint
@@ -462,14 +476,14 @@ func (pq rawPoints) Less(i, j int) bool {
 
 func (pq rawPoints) Swap(i, j int) {
 	pq[i], pq[j] = pq[j], pq[i]
-	pq[i].index = i
-	pq[j].index = j
+	//pq[i].index = i
+	//pq[j].index = j
 }
 
 func (pq *rawPoints) Push(x interface{}) {
-	n := len(*pq)
+	//n := len(*pq)
 	item := x.(*rawPoint)
-	item.index = n
+	//item.index = n
 	*pq = append(*pq, item)
 }
 
@@ -483,11 +497,11 @@ func (pq *rawPoints) Pop() interface{} {
 }
 
 // update modifies the priority and value of an Item in the queue.
-func (pq *rawPoints) update(item *rawPoint, value []byte, timestamp int64) {
-	item.value = value
-	item.timestamp = timestamp
-	heap.Fix(pq, item.index)
-}
+// func (pq *rawPoints) update(item *rawPoint, value []byte, timestamp int64) {
+// 	item.value = value
+// 	item.timestamp = timestamp
+// 	heap.Fix(pq, item.index)
+// }
 
 // func (a rawPoints) Len() int           { return len(a) }
 // func (a rawPoints) Less(i, j int) bool { return a[i].timestamp < a[j].timestamp }
@@ -536,7 +550,9 @@ func newTagSetCursor(m string, t map[string]string, c []*seriesCursor, d *FieldC
 		// valueBuffer: make([][]byte, len(c)),
 		//pqueue: &make(rawPoints, len(c)),
 	}
-	q := make(rawPoints, len(c))
+	//q := make(rawPoints, len(c))
+	q := make(rawPoints, 0)
+	//heap.Init(&q)
 	tsc.pqueue = &q
 	return tsc
 }
