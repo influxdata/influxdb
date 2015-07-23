@@ -17,7 +17,7 @@ import (
 // across local or remote nodes.  It is a form of the state design pattern and allows
 // the meta.Store to change its behavior with the raft layer at runtime.
 type raftState interface {
-	openRaft() error
+	open() error
 	initialize() error
 	leader() string
 	isLeader() bool
@@ -76,7 +76,7 @@ func (r *localRaft) invalidate() error {
 	return nil
 }
 
-func (r *localRaft) openRaft() error {
+func (r *localRaft) open() error {
 	s := r.store
 	// Setup raft configuration.
 	config := raft.DefaultConfig()
@@ -308,7 +308,7 @@ func (r *remoteRaft) addPeer(addr string) error {
 	return fmt.Errorf("cannot add peer using remote raft")
 }
 
-func (r *remoteRaft) openRaft() error {
+func (r *remoteRaft) open() error {
 	go func() {
 		for {
 			select {

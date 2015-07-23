@@ -276,7 +276,7 @@ func (s *Store) Open() error {
 
 // openRaft initializes the raft store.
 func (s *Store) openRaft() error {
-	return s.raftState.openRaft()
+	return s.raftState.open()
 }
 
 // initialize attempts to bootstrap the raft store if there are no committed entries.
