@@ -81,8 +81,6 @@ func main() {
        Username to connect to the server.
   -ssl
         Use https for requests.
-  -dump
-       Dump the contents of the given database to stdout.
   -execute 'command'
        Execute command and quit.
   -format 'json|csv|column'
