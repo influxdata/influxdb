@@ -232,7 +232,7 @@ func (lm *LocalMapper) Open() error {
 				// tsc.keyBuffer[i] = k
 				// tsc.valueBuffer[i] = v
 			}
-			heap.Init(tsc.pqueue)
+			//heap.Init(tsc.pqueue)
 			fmt.Printf("lm.Open: len(pqueue) = %d\n", tsc.pqueue.Len())
 			lm.cursors = append(lm.cursors, tsc)
 		}
@@ -364,7 +364,7 @@ func (lm *LocalMapper) nextChunkAgg() (interface{}, error) {
 				// tsc.keyBuffer[i] = k
 				// tsc.valueBuffer[i] = v
 			}
-			heap.Init(tsc.pqueue)
+			//heap.Init(tsc.pqueue)
 			fmt.Printf("lm.nextChunkAgg: len(pqueue) = %d\n", tsc.pqueue.Len())
 			// Wrap the tagset cursor so it implements the mapping functions interface.
 			f := func() (time int64, value interface{}) {
@@ -552,7 +552,7 @@ func newTagSetCursor(m string, t map[string]string, c []*seriesCursor, d *FieldC
 	}
 	//q := make(rawPoints, len(c))
 	q := make(rawPoints, 0, len(c))
-	//heap.Init(&q)
+	heap.Init(&q)
 	tsc.pqueue = &q
 	return tsc
 }
