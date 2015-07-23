@@ -64,12 +64,15 @@ reporting-disabled = false
 ###
 ### [admin]
 ###
-### Controls the availability of the built-in, web-based admin interface.
+### Controls the availability of the built-in, web-based admin interface. If HTTPS is
+### enabled for the admin interface, HTTPS must also be enabled on the [http] service.
 ###
 
 [admin]
   enabled = true
   bind-address = ":8083"
+  https-enabled = false
+  https-certificate = "/etc/ssl/influxdb.pem"
 
 ###
 ### [http]
