@@ -6,9 +6,9 @@ import (
 	"sort"
 	"strconv"
 
-	"math"
+	"github.com/gogo/protobuf/proto"
 
-	"code.google.com/p/goprotobuf/proto"
+	"math"
 )
 
 var String = proto.String

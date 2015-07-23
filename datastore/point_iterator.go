@@ -3,8 +3,8 @@ package datastore
 import (
 	"time"
 
-	"code.google.com/p/goprotobuf/proto"
 	"code.google.com/p/log4go"
+	"github.com/gogo/protobuf/proto"
 	"github.com/influxdb/influxdb/datastore/storage"
 	"github.com/influxdb/influxdb/metastore"
 	"github.com/influxdb/influxdb/protocol"

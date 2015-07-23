@@ -12,8 +12,10 @@ import (
 	"net"
 	libhttp "net/http"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	log "code.google.com/p/log4go"
@@ -163,6 +165,9 @@ func (self *HttpServer) Serve(listener net.Listener) {
 	// return whether the cluster is in sync or not
 	self.registerEndpoint("get", "/sync", self.isInSync)
 
+	// export endpoints
+	self.registerEndpoint("get", "/export/:db/:sp", self.exportDatabases)
+
 	if listener == nil {
 		self.startSsl(self.p)
 		return
@@ -275,6 +280,59 @@ func (self *ChunkWriter) yield(series *protocol.Series) error {
 }
 
 func (self *ChunkWriter) done() {
+}
+
+type ExportPointsWriter struct {
+	name      string
+	memSeries map[string]*protocol.Series
+	w         libhttp.ResponseWriter
+}
+
+func (self *ExportPointsWriter) yield(series *protocol.Series) error {
+	oldSeries := self.memSeries[*series.Name]
+	if oldSeries == nil {
+		self.memSeries[*series.Name] = series
+		return nil
+	}
+
+	self.memSeries[series.GetName()] = MergeSeries(self.memSeries[series.GetName()], series)
+	return nil
+}
+
+func (self *ExportPointsWriter) done() {
+	series := SerializeSeries(self.memSeries, MillisecondPrecision)
+	for _, s := range series {
+		for _, rows := range s.Points {
+			fields := make(Fields)
+			var epoch int64
+			for i, p := range rows {
+				if i == 0 {
+					epoch = p.(int64)
+				}
+				if i > 1 {
+					fields[s.Columns[i]] = p
+				}
+			}
+			data := fields.MarshalBinary()
+			// Write the series name
+			self.w.Write(escape([]byte(self.name)))
+
+			// Write space
+			self.w.Write([]byte{' '})
+
+			// Write the values
+			self.w.Write(data)
+
+			// Write space
+			self.w.Write([]byte{' '})
+
+			// Write the timestamp
+			self.w.Write([]byte(strconv.FormatInt(epoch*1000*1000, 10)))
+
+			// Write a line return
+			self.w.Write([]byte{'\n'})
+		}
+	}
 }
 
 func TimePrecisionFromString(s string) (TimePrecision, error) {
@@ -1224,4 +1282,145 @@ func (self *HttpServer) getClusterConfiguration(w libhttp.ResponseWriter, r *lib
 	self.tryAsClusterAdmin(w, r, func(u User) (int, interface{}) {
 		return libhttp.StatusOK, self.clusterConfig.SerializableConfiguration()
 	})
+}
+
+// Export Endpoints
+
+func (self *HttpServer) exportDatabases(w libhttp.ResponseWriter, r *libhttp.Request) {
+	// Support compression
+	if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+		w.Header().Set("Content-Encoding", "gzip")
+		gz := gzip.NewWriter(w)
+		defer gz.Close()
+		w = gzipResponseWriter{Writer: gz, ResponseWriter: w}
+	}
+
+	// detect disconnected clients and exit routine
+	var disconnected int32
+	notify := w.(libhttp.CloseNotifier).CloseNotify()
+
+	go func() {
+		<-notify
+		atomic.StoreInt32(&disconnected, 1)
+	}()
+
+	username, password, err := getUsernameAndPassword(r)
+	if err != nil {
+		w.WriteHeader(libhttp.StatusBadRequest)
+		w.Write([]byte(err.Error()))
+		return
+	}
+
+	if username == "" {
+		w.Header().Add("WWW-Authenticate", "Basic realm=\"influxdb\"")
+		w.Header().Add("Content-Type", "text/plain")
+		w.WriteHeader(libhttp.StatusUnauthorized)
+		w.Write([]byte(INVALID_CREDENTIALS_MSG))
+		return
+	}
+
+	user, err := self.userManager.AuthenticateClusterAdmin(username, password)
+	if err != nil {
+		w.Header().Add("WWW-Authenticate", "Basic realm=\"influxdb\"")
+		w.Header().Add("Content-Type", "text/plain")
+		w.WriteHeader(libhttp.StatusUnauthorized)
+		w.Write([]byte(err.Error()))
+		return
+	}
+
+	var schema struct {
+		db                string
+		retentionPolicy   string
+		replicationFactor uint32
+		duration          string
+		regex             string
+		series            []string
+	}
+
+	// Validate the db exsists
+	dbParam := r.URL.Query().Get(":db")
+	if !self.clusterConfig.DatabaseExists(dbParam) {
+		libhttp.Error(w, fmt.Sprintf("database not found %s", dbParam), libhttp.StatusNotFound)
+		return
+	}
+	schema.db = dbParam
+
+	// Validate shard space exists
+	spParam := strings.ToLower(r.URL.Query().Get(":sp"))
+	var found bool
+	for _, sp := range self.coordinator.GetShardSpacesForDatabase(schema.db) {
+		if strings.ToLower(sp.Name) == spParam {
+			schema.retentionPolicy = sp.Name
+			schema.replicationFactor = sp.ReplicationFactor
+			schema.duration = sp.RetentionPolicy
+			schema.regex = sp.Regex
+			if schema.duration == "inf" {
+				schema.duration = "INF"
+			}
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		libhttp.Error(w, fmt.Sprintf("shard space %s for database %s not found", spParam, dbParam), libhttp.StatusNotFound)
+		return
+	}
+
+	w.Header().Add("Content-Type", "text/plain")
+	fmt.Fprintf(w, "# DDL\n")
+	fmt.Fprintf(w, "CREATE DATABASE %q;\n", schema.db)
+	fmt.Fprintf(w, "CREATE RETENTION POLICY %q ON %q DURATION %s REPLICATION %d;\n", schema.retentionPolicy, schema.db, schema.duration, schema.replicationFactor)
+
+	fmt.Fprintf(w, "# DML\n")
+
+	// gather series for shard space
+	// compile the regex
+	if strings.HasPrefix(schema.regex, "/") {
+		if strings.HasSuffix(schema.regex, "/i") {
+			schema.regex = fmt.Sprintf("(?i)%s", schema.regex[1:len(schema.regex)-2])
+		} else {
+			schema.regex = schema.regex[1 : len(schema.regex)-1]
+		}
+	}
+	reg, err := regexp.Compile(schema.regex)
+	if err != nil {
+		libhttp.Error(w, fmt.Sprintf("invalid regex %s for shard space %s for database %s", schema.regex, schema.retentionPolicy, schema.db), libhttp.StatusNotFound)
+		return
+	}
+
+	// inline func to yeild/collect series names
+	yield := func(series *protocol.Series) error {
+		s := []string{}
+		for _, p := range series.Points {
+			for _, v := range p.Values {
+				if reg.MatchString(*v.StringValue) {
+					s = append(s, *v.StringValue)
+				}
+			}
+		}
+		schema.series = append(schema.series, s...)
+		return nil
+	}
+
+	seriesWriter := NewSeriesWriter(yield)
+	err = self.coordinator.RunQuery(user, schema.db, "list series", seriesWriter)
+	if err != nil {
+		libhttp.Error(w, fmt.Sprintf("failed to query data: database: %s, query: \"list series\", err: %s", schema.db, err), libhttp.StatusNotFound)
+	}
+
+	// Walk through each database and series and select all data
+	for _, series := range schema.series {
+		// Check to see if the client disconnected, if so, exit the routine
+		if d := atomic.LoadInt32(&disconnected); d > 0 {
+			return
+		}
+		query := fmt.Sprintf(`select * from %q`, series)
+		writer := &ExportPointsWriter{series, map[string]*protocol.Series{}, w}
+		seriesWriter := NewSeriesWriter(writer.yield)
+		if err := self.coordinator.RunQuery(user, schema.db, query, seriesWriter); err != nil {
+			libhttp.Error(w, fmt.Sprintf("failed to query data: database: %s, query: %s, err: %s", schema.db, query, err), libhttp.StatusNotFound)
+		}
+		writer.done()
+	}
 }
