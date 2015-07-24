@@ -230,7 +230,7 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 		startTime = startTime.Add(-interval)
 	}
 
-	if err := cq.q.SetTimeRange(now.Add(-time.Duration(s.Config.RecomputeNoOlderThan)), startTime.Add(interval)); err != nil {
+	if err := cq.q.SetTimeRange(startTime, startTime.Add(interval)); err != nil {
 		s.Logger.Printf("error setting time range: %s\n", err)
 	}
 
@@ -240,6 +240,27 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 		return err
 	}
 
+	recomputeNoOlderThan := time.Duration(s.Config.RecomputeNoOlderThan)
+
+	for i := 0; i < s.Config.RecomputePreviousN; i++ {
+		// if we're already more time past the previous window than we're going to look back, stop
+		if now.Sub(startTime) > recomputeNoOlderThan {
+			return nil
+		}
+		newStartTime := startTime.Add(-interval)
+
+		if err := cq.q.SetTimeRange(newStartTime, startTime); err != nil {
+			s.Logger.Printf("error setting time range: %s\n", err)
+			return err
+		}
+
+		if err := s.runContinuousQueryAndWriteResult(cq); err != nil {
+			s.Logger.Printf("error during recompute previous: %s. running: %s\n", err, cq.q.String())
+			return err
+		}
+
+		startTime = newStartTime
+	}
 	return nil
 }
 
