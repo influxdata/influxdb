@@ -45,7 +45,7 @@
 - [#3319](https://github.com/influxdb/influxdb/issues/3319): restarting process irrevocably BREAKS measurements with spaces
 - [#3453](https://github.com/influxdb/influxdb/issues/3453): Remove outdated `dump` command from CLI.
 - [#3463](https://github.com/influxdb/influxdb/issues/3463): Fix aggregate queries and time precision on where clauses.
-- 
+
 ## v0.9.1 [2015-07-02]
 
 ### Features
