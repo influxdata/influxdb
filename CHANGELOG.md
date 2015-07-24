@@ -10,7 +10,7 @@
 - [#3420](https://github.com/influxdb/influxdb/pull/3420): Catch opentsdb malformed tags. Thanks @nathanielc.
 - [#3404](https://github.com/influxdb/influxdb/pull/3404): Added support for escaped single quotes in query string. Thanks @jhorwit2
 
-## v0.9.2 [unreleased]
+## v0.9.2 [2015-07-23]
 
 ### Features
 - [#3177](https://github.com/influxdb/influxdb/pull/3177): Client supports making HTTPS requests. Thanks @jipperinbham
@@ -43,6 +43,7 @@
 - [#3256](https://github.com/influxdb/influxdb/pull/3256): Remove unnecessary timeout in WaitForLeader(). Thanks @cannium.
 - [#3380](https://github.com/influxdb/influxdb/issue/3380): Parser fix, only allow ORDER BY ASC and ORDER BY time ASC.
 - [#3319](https://github.com/influxdb/influxdb/issues/3319): restarting process irrevocably BREAKS measurements with spaces
+- [#3453](https://github.com/influxdb/influxdb/issues/3453): Remove outdated `dump` command from CLI.
 
 ## v0.9.1 [2015-07-02]
 
