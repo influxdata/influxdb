@@ -311,7 +311,7 @@ func (am *AggMapper) Open() error {
 
 	// Ensure that the start time for the results is on the start of the window.
 	am.queryTMinWindow = am.queryTMin
-	if am.intervalSize > 0 {
+	if am.intervalSize > 0 && am.numIntervals > 1 {
 		am.queryTMinWindow = am.queryTMinWindow / am.intervalSize * am.intervalSize
 	}
 
