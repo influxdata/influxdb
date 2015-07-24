@@ -532,7 +532,7 @@ func TestClient_Timeout(t *testing.T) {
 	}
 }
 
-func TestBufferedClient_Write(t *testing.T) {
+func TestBufferedClient_Write_And_Close(t *testing.T) {
 	flushChan := make(chan bool)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var data client.Response
@@ -566,9 +566,11 @@ func TestBufferedClient_Write(t *testing.T) {
 	for i := 0; i < sampleSize; i++ {
 		c.Add("shapes", rand.Intn(sampleSize), makeTags(), nil)
 	}
+	didCloseChan := c.Close()
 	<-time.After(100 * time.Millisecond)
 	expectedFlushCount := sampleSize / bufferConfig.FlushMaxPoints
 	for i := 0; i < expectedFlushCount; i++ {
 		<-flushChan
 	}
+	<-didCloseChan
 }
