@@ -2225,7 +2225,7 @@ type TimeLiteral struct {
 
 // String returns a string representation of the literal.
 func (l *TimeLiteral) String() string {
-	return `'` + l.Val.UTC().Format(DateTimeFormat) + `'`
+	return `'` + l.Val.UTC().Format(time.RFC3339Nano) + `'`
 }
 
 // DurationLiteral represents a duration literal.
@@ -2358,11 +2358,11 @@ func TimeRange(expr Expr) (min, max time.Time) {
 			}
 
 			// Update the min/max depending on the operator.
-			// The GT & LT update the value by +/- 1µs not make them "not equal".
+			// The GT & LT update the value by +/- 1ns not make them "not equal".
 			switch op {
 			case GT:
 				if min.IsZero() || value.After(min) {
-					min = value.Add(time.Microsecond)
+					min = value.Add(time.Nanosecond)
 				}
 			case GTE:
 				if min.IsZero() || value.After(min) {
@@ -2370,7 +2370,7 @@ func TimeRange(expr Expr) (min, max time.Time) {
 				}
 			case LT:
 				if max.IsZero() || value.Before(max) {
-					max = value.Add(-time.Microsecond)
+					max = value.Add(-time.Nanosecond)
 				}
 			case LTE:
 				if max.IsZero() || value.Before(max) {

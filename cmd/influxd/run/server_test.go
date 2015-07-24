@@ -710,11 +710,18 @@ func TestServer_Query_Count(t *testing.T) {
 	test := NewTest("db0", "rp0")
 	test.write = `cpu,host=server01 value=1.0 ` + strconv.FormatInt(now.UnixNano(), 10)
 
+	hour_ago := now.Add(-time.Hour).UTC()
+
 	test.addQueries([]*Query{
 		&Query{
 			name:    "selecting count(value) should succeed",
 			command: `SELECT count(value) FROM db0.rp0.cpu`,
 			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]}]}]}`,
+		},
+		&Query{
+			name:    "selecting count(value) with where time should return result",
+			command: fmt.Sprintf(`SELECT count(value) FROM db0.rp0.cpu WHERE time >= '%s'`, hour_ago.Format(time.RFC3339Nano)),
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","count"],"values":[["%s",1]]}]}]}`, hour_ago.Format(time.RFC3339Nano)),
 		},
 		&Query{
 			name:    "selecting count(*) should error",
