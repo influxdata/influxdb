@@ -7,6 +7,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta"
@@ -26,6 +27,8 @@ type QueryExecutor struct {
 		Authenticate(username, password string) (*meta.UserInfo, error)
 		RetentionPolicy(database, name string) (rpi *meta.RetentionPolicyInfo, err error)
 		UserCount() (int, error)
+		ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error)
+		NodeID() uint64
 	}
 
 	// Executes statements relating to meta data.
@@ -33,23 +36,23 @@ type QueryExecutor struct {
 		ExecuteStatement(stmt influxql.Statement) *influxql.Result
 	}
 
+	// Maps shards for queries.
+	ShardMapper interface {
+		CreateMapper(shard meta.ShardInfo, stmt string, chunkSize int) (Mapper, error)
+	}
+
 	Logger *log.Logger
 
 	// the local data store
-	store *Store
+	Store *Store
 }
 
 // NewQueryExecutor returns an initialized QueryExecutor
 func NewQueryExecutor(store *Store) *QueryExecutor {
 	return &QueryExecutor{
-		store:  store,
+		Store:  store,
 		Logger: log.New(os.Stderr, "[query] ", log.LstdFlags),
 	}
-}
-
-// Begin is for influxql/engine.go to use to get a transaction object to start the query
-func (q *QueryExecutor) Begin() (influxql.Tx, error) {
-	return newTx(q.MetaStore, q.store), nil
 }
 
 // Authorize user u to execute query q on database.
@@ -57,27 +60,24 @@ func (q *QueryExecutor) Begin() (influxql.Tx, error) {
 // If no user is provided it will return an error unless the query's first statement is to create
 // a root user.
 func (q *QueryExecutor) Authorize(u *meta.UserInfo, query *influxql.Query, database string) error {
-	const authErrLogFmt = "unauthorized request | user: %q | query: %q | database %q\n"
-
 	// Special case if no users exist.
 	if count, err := q.MetaStore.UserCount(); count == 0 && err == nil {
-		// Get the first statement in the query.
-		stmt := query.Statements[0]
-		// First statement must create a root user.
-		if cu, ok := stmt.(*influxql.CreateUserStatement); !ok ||
-			cu.Privilege == nil ||
-			*cu.Privilege != influxql.AllPrivileges {
-			return ErrAuthorize{text: "no users exist. create root user first or disable authentication"}
+		// Ensure there is at least one statement.
+		if len(query.Statements) > 0 {
+			// First statement in the query must create a user with admin privilege.
+			cu, ok := query.Statements[0].(*influxql.CreateUserStatement)
+			if ok && cu.Admin == true {
+				return nil
+			}
 		}
-		return nil
+		return NewErrAuthorize(q, query, "", database, "create admin user first or disable authentication")
 	}
 
 	if u == nil {
-		q.Logger.Printf(authErrLogFmt, "", query.String(), database)
-		return ErrAuthorize{text: "no user provided"}
+		return NewErrAuthorize(q, query, "", database, "no user provided")
 	}
 
-	// Cluster admins can do anything.
+	// Admin privilege allows the user to execute all statements.
 	if u.Admin {
 		return nil
 	}
@@ -87,29 +87,26 @@ func (q *QueryExecutor) Authorize(u *meta.UserInfo, query *influxql.Query, datab
 		// Get the privileges required to execute the statement.
 		privs := stmt.RequiredPrivileges()
 
-		// Make sure the user has each privilege required to execute
-		// the statement.
+		// Make sure the user has the privileges required to execute
+		// each statement.
 		for _, p := range privs {
+			if p.Admin {
+				// Admin privilege already checked so statement requiring admin
+				// privilege cannot be run.
+				msg := fmt.Sprintf("statement '%s', requires admin privilege", stmt)
+				return NewErrAuthorize(q, query, u.Name, database, msg)
+			}
+
 			// Use the db name specified by the statement or the db
 			// name passed by the caller if one wasn't specified by
 			// the statement.
-			dbname := p.Name
-			if dbname == "" {
-				dbname = database
+			db := p.Name
+			if db == "" {
+				db = database
 			}
-
-			// Check if user has required privilege.
-			if !u.Authorize(p.Privilege, dbname) {
-				var msg string
-				if dbname == "" {
-					msg = "requires cluster admin"
-				} else {
-					msg = fmt.Sprintf("requires %s privilege on %s", p.Privilege.String(), dbname)
-				}
-				q.Logger.Printf(authErrLogFmt, u.Name, query.String(), database)
-				return ErrAuthorize{
-					text: fmt.Sprintf("%s not authorized to execute '%s'.  %s", u.Name, stmt.String(), msg),
-				}
+			if !u.Authorize(p.Privilege, db) {
+				msg := fmt.Sprintf("statement '%s', requires %s on %s", stmt, p.Privilege.String(), db)
+				return NewErrAuthorize(q, query, u.Name, database, msg)
 			}
 		}
 	}
@@ -201,6 +198,57 @@ func (q *QueryExecutor) ExecuteQuery(query *influxql.Query, database string, chu
 	return results, nil
 }
 
+// Plan creates an execution plan for the given SelectStatement and returns an Executor.
+func (q *QueryExecutor) Plan(stmt *influxql.SelectStatement, chunkSize int) (*Executor, error) {
+	shards := map[uint64]meta.ShardInfo{} // Shards requiring mappers.
+
+	// Replace instances of "now()" with the current time, and check the resultant times.
+	stmt.Condition = influxql.Reduce(stmt.Condition, &influxql.NowValuer{Now: time.Now().UTC()})
+	tmin, tmax := influxql.TimeRange(stmt.Condition)
+	if tmax.IsZero() {
+		tmax = time.Now()
+	}
+	if tmin.IsZero() {
+		tmin = time.Unix(0, 0)
+	}
+
+	for _, src := range stmt.Sources {
+		mm, ok := src.(*influxql.Measurement)
+		if !ok {
+			return nil, fmt.Errorf("invalid source type: %#v", src)
+		}
+
+		// Build the set of target shards. Using shard IDs as keys ensures each shard ID
+		// occurs only once.
+		shardGroups, err := q.MetaStore.ShardGroupsByTimeRange(mm.Database, mm.RetentionPolicy, tmin, tmax)
+		if err != nil {
+			return nil, err
+		}
+		for _, g := range shardGroups {
+			for _, sh := range g.Shards {
+				shards[sh.ID] = sh
+			}
+		}
+	}
+
+	// Build the Mappers, one per shard.
+	mappers := []Mapper{}
+	for _, sh := range shards {
+		m, err := q.ShardMapper.CreateMapper(sh, stmt.String(), chunkSize)
+		if err != nil {
+			return nil, err
+		}
+		if m == nil {
+			// No data for this shard, skip it.
+			continue
+		}
+		mappers = append(mappers, m)
+	}
+
+	executor := NewExecutor(stmt, mappers, chunkSize)
+	return executor, nil
+}
+
 // executeSelectStatement plans and executes a select statement against a database.
 func (q *QueryExecutor) executeSelectStatement(statementID int, stmt *influxql.SelectStatement, results chan *influxql.Result, chunkSize int) error {
 	// Perform any necessary query re-writing.
@@ -210,8 +258,7 @@ func (q *QueryExecutor) executeSelectStatement(statementID int, stmt *influxql.S
 	}
 
 	// Plan statement execution.
-	p := influxql.NewPlanner(q)
-	e, err := p.Plan(stmt, chunkSize)
+	e, err := q.Plan(stmt, chunkSize)
 	if err != nil {
 		return err
 	}
@@ -224,10 +271,9 @@ func (q *QueryExecutor) executeSelectStatement(statementID int, stmt *influxql.S
 	for row := range ch {
 		if row.Err != nil {
 			return row.Err
-		} else {
-			resultSent = true
-			results <- &influxql.Result{StatementID: statementID, Series: []*influxql.Row{row}}
 		}
+		resultSent = true
+		results <- &influxql.Result{StatementID: statementID, Series: []*influxql.Row{row}}
 	}
 
 	if !resultSent {
@@ -281,7 +327,7 @@ func (q *QueryExecutor) expandWildcards(stmt *influxql.SelectStatement) (*influx
 		if m, ok := src.(*influxql.Measurement); ok {
 			// Lookup the database. The database may not exist if no data for this database
 			// was ever written to the shard.
-			db := q.store.DatabaseIndex(m.Database)
+			db := q.Store.DatabaseIndex(m.Database)
 			if db == nil {
 				return stmt, nil
 			}
@@ -336,7 +382,7 @@ func (q *QueryExecutor) expandSources(sources influxql.Sources) (influxql.Source
 			}
 
 			// Lookup the database.
-			db := q.store.DatabaseIndex(src.Database)
+			db := q.Store.DatabaseIndex(src.Database)
 			if db == nil {
 				return nil, nil
 			}
@@ -395,7 +441,7 @@ func (q *QueryExecutor) executeDropDatabaseStatement(stmt *influxql.DropDatabase
 		}
 	}
 
-	err = q.store.DeleteDatabase(stmt.Name, shardIDs)
+	err = q.Store.DeleteDatabase(stmt.Name, shardIDs)
 	if err != nil {
 		return &influxql.Result{Err: err}
 	}
@@ -406,7 +452,7 @@ func (q *QueryExecutor) executeDropDatabaseStatement(stmt *influxql.DropDatabase
 // executeDropMeasurementStatement removes the measurement and all series data from the local store for the given measurement
 func (q *QueryExecutor) executeDropMeasurementStatement(stmt *influxql.DropMeasurementStatement, database string) *influxql.Result {
 	// Find the database.
-	db := q.store.DatabaseIndex(database)
+	db := q.Store.DatabaseIndex(database)
 	if db == nil {
 		return &influxql.Result{}
 	}
@@ -420,7 +466,7 @@ func (q *QueryExecutor) executeDropMeasurementStatement(stmt *influxql.DropMeasu
 	db.DropMeasurement(m.Name)
 
 	// now drop the raw data
-	if err := q.store.deleteMeasurement(m.Name, m.SeriesKeys()); err != nil {
+	if err := q.Store.deleteMeasurement(m.Name, m.SeriesKeys()); err != nil {
 		return &influxql.Result{Err: err}
 	}
 
@@ -430,7 +476,7 @@ func (q *QueryExecutor) executeDropMeasurementStatement(stmt *influxql.DropMeasu
 // executeDropSeriesStatement removes all series from the local store that match the drop query
 func (q *QueryExecutor) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, database string) *influxql.Result {
 	// Find the database.
-	db := q.store.DatabaseIndex(database)
+	db := q.Store.DatabaseIndex(database)
 	if db == nil {
 		return &influxql.Result{}
 	}
@@ -448,7 +494,7 @@ func (q *QueryExecutor) executeDropSeriesStatement(stmt *influxql.DropSeriesStat
 
 	var seriesKeys []string
 	for _, m := range measurements {
-		var ids seriesIDs
+		var ids SeriesIDs
 		if stmt.Condition != nil {
 			// Get series IDs that match the WHERE clause.
 			ids, _, err = m.walkWhereForSeriesIds(stmt.Condition)
@@ -466,7 +512,7 @@ func (q *QueryExecutor) executeDropSeriesStatement(stmt *influxql.DropSeriesStat
 	}
 
 	// delete the raw series data
-	if err := q.store.deleteSeries(seriesKeys); err != nil {
+	if err := q.Store.deleteSeries(seriesKeys); err != nil {
 		return &influxql.Result{Err: err}
 	}
 	// remove them from the index
@@ -477,7 +523,7 @@ func (q *QueryExecutor) executeDropSeriesStatement(stmt *influxql.DropSeriesStat
 
 func (q *QueryExecutor) executeShowSeriesStatement(stmt *influxql.ShowSeriesStatement, database string) *influxql.Result {
 	// Find the database.
-	db := q.store.DatabaseIndex(database)
+	db := q.Store.DatabaseIndex(database)
 	if db == nil {
 		return &influxql.Result{}
 	}
@@ -501,7 +547,7 @@ func (q *QueryExecutor) executeShowSeriesStatement(stmt *influxql.ShowSeriesStat
 
 	// Loop through measurements to build result. One result row / measurement.
 	for _, m := range measurements {
-		var ids seriesIDs
+		var ids SeriesIDs
 
 		if stmt.Condition != nil {
 			// Get series IDs that match the WHERE clause.
@@ -588,7 +634,7 @@ func (q *QueryExecutor) filterShowSeriesResult(limit, offset int, rows influxql.
 
 func (q *QueryExecutor) executeShowMeasurementsStatement(stmt *influxql.ShowMeasurementsStatement, database string) *influxql.Result {
 	// Find the database.
-	db := q.store.DatabaseIndex(database)
+	db := q.Store.DatabaseIndex(database)
 	if db == nil {
 		return &influxql.Result{}
 	}
@@ -647,7 +693,7 @@ func (q *QueryExecutor) executeShowMeasurementsStatement(stmt *influxql.ShowMeas
 
 func (q *QueryExecutor) executeShowTagKeysStatement(stmt *influxql.ShowTagKeysStatement, database string) *influxql.Result {
 	// Find the database.
-	db := q.store.DatabaseIndex(database)
+	db := q.Store.DatabaseIndex(database)
 	if db == nil {
 		return &influxql.Result{}
 	}
@@ -700,7 +746,7 @@ func (q *QueryExecutor) executeShowTagKeysStatement(stmt *influxql.ShowTagKeysSt
 
 func (q *QueryExecutor) executeShowTagValuesStatement(stmt *influxql.ShowTagValuesStatement, database string) *influxql.Result {
 	// Find the database.
-	db := q.store.DatabaseIndex(database)
+	db := q.Store.DatabaseIndex(database)
 	if db == nil {
 		return &influxql.Result{}
 	}
@@ -724,7 +770,7 @@ func (q *QueryExecutor) executeShowTagValuesStatement(stmt *influxql.ShowTagValu
 
 	tagValues := make(map[string]stringSet)
 	for _, m := range measurements {
-		var ids seriesIDs
+		var ids SeriesIDs
 
 		if stmt.Condition != nil {
 			// Get series IDs that match the WHERE clause.
@@ -778,7 +824,7 @@ func (q *QueryExecutor) executeShowFieldKeysStatement(stmt *influxql.ShowFieldKe
 	var err error
 
 	// Find the database.
-	db := q.store.DatabaseIndex(database)
+	db := q.Store.DatabaseIndex(database)
 	if db == nil {
 		return &influxql.Result{}
 	}
@@ -936,16 +982,28 @@ func (q *QueryExecutor) executeShowDiagnosticsStatement(stmt *influxql.ShowDiagn
 
 // ErrAuthorize represents an authorization error.
 type ErrAuthorize struct {
-	text string
+	q        *QueryExecutor
+	query    *influxql.Query
+	user     string
+	database string
+	message  string
+}
+
+const authErrLogFmt string = "unauthorized request | user: %q | query: %q | database %q\n"
+
+// newAuthorizationError returns a new instance of AuthorizationError.
+func NewErrAuthorize(qe *QueryExecutor, q *influxql.Query, u, db, m string) *ErrAuthorize {
+	return &ErrAuthorize{q: qe, query: q, user: u, database: db, message: m}
 }
 
 // Error returns the text of the error.
 func (e ErrAuthorize) Error() string {
-	return e.text
+	e.q.Logger.Printf(authErrLogFmt, e.user, e.query.String(), e.database)
+	if e.user == "" {
+		return fmt.Sprint(e.message)
+	}
+	return fmt.Sprintf("%s not authorized to execute %s", e.user, e.message)
 }
-
-// authorize satisfies isAuthorizationError
-func (ErrAuthorize) authorize() {}
 
 var (
 	// ErrInvalidQuery is returned when executing an unknown query type.

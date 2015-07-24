@@ -521,40 +521,75 @@ func (p *Parser) parseString() (string, error) {
 
 // parseRevokeStatement parses a string and returns a revoke statement.
 // This function assumes the REVOKE token has already been consumed.
-func (p *Parser) parseRevokeStatement() (*RevokeStatement, error) {
-	stmt := &RevokeStatement{}
-
+func (p *Parser) parseRevokeStatement() (Statement, error) {
 	// Parse the privilege to be revoked.
 	priv, err := p.parsePrivilege()
 	if err != nil {
 		return nil, err
 	}
-	stmt.Privilege = priv
 
-	// Parse ON clause.
+	// Check for ON or FROM clauses.
 	tok, pos, lit := p.scanIgnoreWhitespace()
 	if tok == ON {
-		// Parse the name of the thing we're revoking a privilege to use.
-		lit, err := p.parseIdent()
+		stmt, err := p.parseRevokeOnStatement()
 		if err != nil {
 			return nil, err
 		}
-		stmt.On = lit
-
-		tok, pos, lit = p.scanIgnoreWhitespace()
-	} else if priv != AllPrivileges {
-		// ALL PRIVILEGES is the only privilege allowed cluster-wide.
-		// No ON clause means query is requesting cluster-wide.
-		return nil, newParseError(tokstr(tok, lit), []string{"ON"}, pos)
+		stmt.Privilege = priv
+		return stmt, nil
+	} else if tok == FROM {
+		// Admin privilege is only revoked on ALL PRIVILEGES.
+		if priv != AllPrivileges {
+			return nil, newParseError(tokstr(tok, lit), []string{"ON"}, pos)
+		}
+		return p.parseRevokeAdminStatement()
 	}
+
+	// Only ON or FROM clauses are allowed after privilege.
+	if priv == AllPrivileges {
+		return nil, newParseError(tokstr(tok, lit), []string{"ON", "FROM"}, pos)
+	}
+	return nil, newParseError(tokstr(tok, lit), []string{"ON"}, pos)
+}
+
+// parseRevokeOnStatement parses a string and returns a revoke statement.
+// This function assumes the [PRIVILEGE] ON tokens have already been consumed.
+func (p *Parser) parseRevokeOnStatement() (*RevokeStatement, error) {
+	stmt := &RevokeStatement{}
+
+	// Parse the name of the database.
+	lit, err := p.parseIdent()
+	if err != nil {
+		return nil, err
+	}
+	stmt.On = lit
+
+	// Parse FROM clause.
+	tok, pos, lit := p.scanIgnoreWhitespace()
 
 	// Check for required FROM token.
 	if tok != FROM {
 		return nil, newParseError(tokstr(tok, lit), []string{"FROM"}, pos)
 	}
 
-	// Parse the name of the user we're revoking the privilege from.
+	// Parse the name of the user.
 	lit, err = p.parseIdent()
+	if err != nil {
+		return nil, err
+	}
+	stmt.User = lit
+
+	return stmt, nil
+}
+
+// parseRevokeAdminStatement parses a string and returns a revoke admin statement.
+// This function assumes the ALL [PRVILEGES] FROM token has already been consumed.
+func (p *Parser) parseRevokeAdminStatement() (*RevokeAdminStatement, error) {
+	// Admin privilege is always false when revoke admin clause is called.
+	stmt := &RevokeAdminStatement{}
+
+	// Parse the name of the user.
+	lit, err := p.parseIdent()
 	if err != nil {
 		return nil, err
 	}
@@ -565,40 +600,75 @@ func (p *Parser) parseRevokeStatement() (*RevokeStatement, error) {
 
 // parseGrantStatement parses a string and returns a grant statement.
 // This function assumes the GRANT token has already been consumed.
-func (p *Parser) parseGrantStatement() (*GrantStatement, error) {
-	stmt := &GrantStatement{}
-
+func (p *Parser) parseGrantStatement() (Statement, error) {
 	// Parse the privilege to be granted.
 	priv, err := p.parsePrivilege()
 	if err != nil {
 		return nil, err
 	}
-	stmt.Privilege = priv
 
-	// Parse ON clause.
+	// Check for ON or TO clauses.
 	tok, pos, lit := p.scanIgnoreWhitespace()
 	if tok == ON {
-		// Parse the name of the thing we're granting a privilege to use.
-		lit, err := p.parseIdent()
+		stmt, err := p.parseGrantOnStatement()
 		if err != nil {
 			return nil, err
 		}
-		stmt.On = lit
-
-		tok, pos, lit = p.scanIgnoreWhitespace()
-	} else if priv != AllPrivileges {
-		// ALL PRIVILEGES is the only privilege allowed cluster-wide.
-		// No ON clause means query is requesting cluster-wide.
-		return nil, newParseError(tokstr(tok, lit), []string{"ON"}, pos)
+		stmt.Privilege = priv
+		return stmt, nil
+	} else if tok == TO {
+		// Admin privilege is only granted on ALL PRIVILEGES.
+		if priv != AllPrivileges {
+			return nil, newParseError(tokstr(tok, lit), []string{"ON"}, pos)
+		}
+		return p.parseGrantAdminStatement()
 	}
+
+	// Only ON or TO clauses are allowed after privilege.
+	if priv == AllPrivileges {
+		return nil, newParseError(tokstr(tok, lit), []string{"ON", "TO"}, pos)
+	}
+	return nil, newParseError(tokstr(tok, lit), []string{"ON"}, pos)
+}
+
+// parseGrantOnStatement parses a string and returns a grant statement.
+// This function assumes the [PRIVILEGE] ON tokens have already been consumed.
+func (p *Parser) parseGrantOnStatement() (*GrantStatement, error) {
+	stmt := &GrantStatement{}
+
+	// Parse the name of the database.
+	lit, err := p.parseIdent()
+	if err != nil {
+		return nil, err
+	}
+	stmt.On = lit
+
+	// Parse TO clause.
+	tok, pos, lit := p.scanIgnoreWhitespace()
 
 	// Check for required TO token.
 	if tok != TO {
 		return nil, newParseError(tokstr(tok, lit), []string{"TO"}, pos)
 	}
 
-	// Parse the name of the user we're granting the privilege to.
+	// Parse the name of the user.
 	lit, err = p.parseIdent()
+	if err != nil {
+		return nil, err
+	}
+	stmt.User = lit
+
+	return stmt, nil
+}
+
+// parseGrantAdminStatement parses a string and returns a grant admin statement.
+// This function assumes the ALL [PRVILEGES] TO tokens have already been consumed.
+func (p *Parser) parseGrantAdminStatement() (*GrantAdminStatement, error) {
+	// Admin privilege is always true when grant admin clause is called.
+	stmt := &GrantAdminStatement{}
+
+	// Parse the name of the user.
+	lit, err := p.parseIdent()
 	if err != nil {
 		return nil, err
 	}
@@ -843,6 +913,12 @@ func (p *Parser) parseShowMeasurementsStatement() (*ShowMeasurementsStatement, e
 func (p *Parser) parseShowRetentionPoliciesStatement() (*ShowRetentionPoliciesStatement, error) {
 	stmt := &ShowRetentionPoliciesStatement{}
 
+	// Expect an "ON" keyword.
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != ON {
+		return nil, newParseError(tokstr(tok, lit), []string{"ON"}, pos)
+	}
+
+	// Parse the database.
 	ident, err := p.parseIdent()
 	if err != nil {
 		return nil, err
@@ -1253,12 +1329,12 @@ func (p *Parser) parseCreateUserStatement() (*CreateUserStatement, error) {
 		return stmt, nil
 	}
 
-	// We only allow granting of "ALL PRIVILEGES" during CREATE USER.
-	// All other privileges must be granted using a GRANT statement.
+	// "WITH ALL PRIVILEGES" grants the new user admin privilege.
+	// Only admin privilege can be set on user creation.
 	if err := p.parseTokens([]Token{ALL, PRIVILEGES}); err != nil {
 		return nil, err
 	}
-	stmt.Privilege = NewPrivilege(AllPrivileges)
+	stmt.Admin = true
 
 	return stmt, nil
 }
@@ -1584,31 +1660,31 @@ func (p *Parser) parseFill() (FillOption, interface{}, error) {
 		p.unscan()
 		return NullFill, nil, nil
 	}
-	if lit, ok := expr.(*Call); !ok {
+	lit, ok := expr.(*Call)
+	if !ok {
 		p.unscan()
 		return NullFill, nil, nil
-	} else {
-		if strings.ToLower(lit.Name) != "fill" {
-			p.unscan()
-			return NullFill, nil, nil
+	}
+	if strings.ToLower(lit.Name) != "fill" {
+		p.unscan()
+		return NullFill, nil, nil
+	}
+	if len(lit.Args) != 1 {
+		return NullFill, nil, errors.New("fill requires an argument, e.g.: 0, null, none, previous")
+	}
+	switch lit.Args[0].String() {
+	case "null":
+		return NullFill, nil, nil
+	case "none":
+		return NoFill, nil, nil
+	case "previous":
+		return PreviousFill, nil, nil
+	default:
+		num, ok := lit.Args[0].(*NumberLiteral)
+		if !ok {
+			return NullFill, nil, fmt.Errorf("expected number argument in fill()")
 		}
-		if len(lit.Args) != 1 {
-			return NullFill, nil, errors.New("fill requires an argument, e.g.: 0, null, none, previous")
-		}
-		switch lit.Args[0].String() {
-		case "null":
-			return NullFill, nil, nil
-		case "none":
-			return NoFill, nil, nil
-		case "previous":
-			return PreviousFill, nil, nil
-		default:
-			num, ok := lit.Args[0].(*NumberLiteral)
-			if !ok {
-				return NullFill, nil, fmt.Errorf("expected number argument in fill()")
-			}
-			return NumberFill, num.Val, nil
-		}
+		return NumberFill, num.Val, nil
 	}
 }
 
@@ -1666,9 +1742,21 @@ func (p *Parser) parseOrderBy() (SortFields, error) {
 	return fields, nil
 }
 
-// parseSortFields parses all fields of and ORDER BY clause.
+// parseSortFields parses the sort fields for an ORDER BY clause.
 func (p *Parser) parseSortFields() (SortFields, error) {
 	var fields SortFields
+
+	// If first token is ASC or DESC, all fields are sorted.
+	if tok, pos, lit := p.scanIgnoreWhitespace(); tok == ASC || tok == DESC {
+		if tok == DESC {
+			// Token must be ASC, until other sort orders are supported.
+			return nil, errors.New("only ORDER BY time ASC supported at this time")
+		}
+		return append(fields, &SortField{Ascending: (tok == ASC)}), nil
+	} else if tok != IDENT {
+		return nil, newParseError(tokstr(tok, lit), []string{"identifier", "ASC", "DESC"}, pos)
+	}
+	p.unscan()
 
 	// At least one field is required.
 	field, err := p.parseSortField()
@@ -1694,6 +1782,11 @@ func (p *Parser) parseSortFields() (SortFields, error) {
 		fields = append(fields, field)
 	}
 
+	// First SortField must be time ASC, until other sort orders are supported.
+	if len(fields) > 1 || fields[0].Name != "time" || !fields[0].Ascending {
+		return nil, errors.New("only ORDER BY time ASC supported at this time")
+	}
+
 	return fields, nil
 }
 
@@ -1701,13 +1794,21 @@ func (p *Parser) parseSortFields() (SortFields, error) {
 func (p *Parser) parseSortField() (*SortField, error) {
 	field := &SortField{}
 
-	// Next token must be ASC, until other sort orders are supported.
-	tok, _, _ := p.scanIgnoreWhitespace()
-	if tok != ASC {
-		return nil, errors.New("only ORDER BY ASC supported at this time")
+	// Parse sort field name.
+	ident, err := p.parseIdent()
+	if err != nil {
+		return nil, err
 	}
+	field.Name = ident
 
-	field.Ascending = true
+	// Check for optional ASC or DESC clause. Default is ASC.
+	tok, _, _ := p.scanIgnoreWhitespace()
+	if tok != ASC && tok != DESC {
+		p.unscan()
+		tok = ASC
+	}
+	field.Ascending = (tok == ASC)
+
 	return field, nil
 }
 
@@ -1753,6 +1854,11 @@ func (p *Parser) ParseExpr() (Expr, error) {
 			p.consumeWhitespace()
 			if rhs, err = p.parseRegex(); err != nil {
 				return nil, err
+			}
+			// parseRegex can return an empty type, but we need it to be present
+			if rhs.(*RegexLiteral) == nil {
+				tok, pos, lit := p.scanIgnoreWhitespace()
+				return nil, newParseError(tokstr(tok, lit), []string{"regex"}, pos)
 			}
 		} else {
 			if rhs, err = p.parseUnaryExpr(); err != nil {

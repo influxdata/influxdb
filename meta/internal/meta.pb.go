@@ -36,7 +36,14 @@ It has these top-level messages:
 	UpdateUserCommand
 	SetPrivilegeCommand
 	SetDataCommand
+	SetAdminPrivilegeCommand
 	Response
+	ResponseHeader
+	ErrorResponse
+	FetchDataRequest
+	FetchDataResponse
+	JoinRequest
+	JoinResponse
 */
 package internal
 
@@ -46,6 +53,42 @@ import math "math"
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
 var _ = math.Inf
+
+type RPCType int32
+
+const (
+	RPCType_Error     RPCType = 1
+	RPCType_FetchData RPCType = 2
+	RPCType_Join      RPCType = 3
+)
+
+var RPCType_name = map[int32]string{
+	1: "Error",
+	2: "FetchData",
+	3: "Join",
+}
+var RPCType_value = map[string]int32{
+	"Error":     1,
+	"FetchData": 2,
+	"Join":      3,
+}
+
+func (x RPCType) Enum() *RPCType {
+	p := new(RPCType)
+	*p = x
+	return p
+}
+func (x RPCType) String() string {
+	return proto.EnumName(RPCType_name, int32(x))
+}
+func (x *RPCType) UnmarshalJSON(data []byte) error {
+	value, err := proto.UnmarshalJSONEnum(RPCType_value, data, "RPCType")
+	if err != nil {
+		return err
+	}
+	*x = RPCType(value)
+	return nil
+}
 
 type Command_Type int32
 
@@ -67,6 +110,7 @@ const (
 	Command_UpdateUserCommand                Command_Type = 15
 	Command_SetPrivilegeCommand              Command_Type = 16
 	Command_SetDataCommand                   Command_Type = 17
+	Command_SetAdminPrivilegeCommand         Command_Type = 18
 )
 
 var Command_Type_name = map[int32]string{
@@ -87,6 +131,7 @@ var Command_Type_name = map[int32]string{
 	15: "UpdateUserCommand",
 	16: "SetPrivilegeCommand",
 	17: "SetDataCommand",
+	18: "SetAdminPrivilegeCommand",
 }
 var Command_Type_value = map[string]int32{
 	"CreateNodeCommand":                1,
@@ -106,6 +151,7 @@ var Command_Type_value = map[string]int32{
 	"UpdateUserCommand":                15,
 	"SetPrivilegeCommand":              16,
 	"SetDataCommand":                   17,
+	"SetAdminPrivilegeCommand":         18,
 }
 
 func (x Command_Type) Enum() *Command_Type {
@@ -1076,6 +1122,38 @@ var E_SetDataCommand_Command = &proto.ExtensionDesc{
 	Tag:           "bytes,117,opt,name=command",
 }
 
+type SetAdminPrivilegeCommand struct {
+	Username         *string `protobuf:"bytes,1,req" json:"Username,omitempty"`
+	Admin            *bool   `protobuf:"varint,2,req" json:"Admin,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *SetAdminPrivilegeCommand) Reset()         { *m = SetAdminPrivilegeCommand{} }
+func (m *SetAdminPrivilegeCommand) String() string { return proto.CompactTextString(m) }
+func (*SetAdminPrivilegeCommand) ProtoMessage()    {}
+
+func (m *SetAdminPrivilegeCommand) GetUsername() string {
+	if m != nil && m.Username != nil {
+		return *m.Username
+	}
+	return ""
+}
+
+func (m *SetAdminPrivilegeCommand) GetAdmin() bool {
+	if m != nil && m.Admin != nil {
+		return *m.Admin
+	}
+	return false
+}
+
+var E_SetAdminPrivilegeCommand_Command = &proto.ExtensionDesc{
+	ExtendedType:  (*Command)(nil),
+	ExtensionType: (*SetAdminPrivilegeCommand)(nil),
+	Field:         118,
+	Name:          "internal.SetAdminPrivilegeCommand.command",
+	Tag:           "bytes,118,opt,name=command",
+}
+
 type Response struct {
 	OK               *bool   `protobuf:"varint,1,req" json:"OK,omitempty"`
 	Error            *string `protobuf:"bytes,2,opt" json:"Error,omitempty"`
@@ -1108,7 +1186,182 @@ func (m *Response) GetIndex() uint64 {
 	return 0
 }
 
+type ResponseHeader struct {
+	OK               *bool   `protobuf:"varint,1,req" json:"OK,omitempty"`
+	Error            *string `protobuf:"bytes,2,opt" json:"Error,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *ResponseHeader) Reset()         { *m = ResponseHeader{} }
+func (m *ResponseHeader) String() string { return proto.CompactTextString(m) }
+func (*ResponseHeader) ProtoMessage()    {}
+
+func (m *ResponseHeader) GetOK() bool {
+	if m != nil && m.OK != nil {
+		return *m.OK
+	}
+	return false
+}
+
+func (m *ResponseHeader) GetError() string {
+	if m != nil && m.Error != nil {
+		return *m.Error
+	}
+	return ""
+}
+
+type ErrorResponse struct {
+	Header           *ResponseHeader `protobuf:"bytes,1,req" json:"Header,omitempty"`
+	XXX_unrecognized []byte          `json:"-"`
+}
+
+func (m *ErrorResponse) Reset()         { *m = ErrorResponse{} }
+func (m *ErrorResponse) String() string { return proto.CompactTextString(m) }
+func (*ErrorResponse) ProtoMessage()    {}
+
+func (m *ErrorResponse) GetHeader() *ResponseHeader {
+	if m != nil {
+		return m.Header
+	}
+	return nil
+}
+
+type FetchDataRequest struct {
+	Index            *uint64 `protobuf:"varint,1,req" json:"Index,omitempty"`
+	Term             *uint64 `protobuf:"varint,2,req" json:"Term,omitempty"`
+	Blocking         *bool   `protobuf:"varint,3,opt,def=0" json:"Blocking,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *FetchDataRequest) Reset()         { *m = FetchDataRequest{} }
+func (m *FetchDataRequest) String() string { return proto.CompactTextString(m) }
+func (*FetchDataRequest) ProtoMessage()    {}
+
+const Default_FetchDataRequest_Blocking bool = false
+
+func (m *FetchDataRequest) GetIndex() uint64 {
+	if m != nil && m.Index != nil {
+		return *m.Index
+	}
+	return 0
+}
+
+func (m *FetchDataRequest) GetTerm() uint64 {
+	if m != nil && m.Term != nil {
+		return *m.Term
+	}
+	return 0
+}
+
+func (m *FetchDataRequest) GetBlocking() bool {
+	if m != nil && m.Blocking != nil {
+		return *m.Blocking
+	}
+	return Default_FetchDataRequest_Blocking
+}
+
+type FetchDataResponse struct {
+	Header           *ResponseHeader `protobuf:"bytes,1,req" json:"Header,omitempty"`
+	Index            *uint64         `protobuf:"varint,2,req" json:"Index,omitempty"`
+	Term             *uint64         `protobuf:"varint,3,req" json:"Term,omitempty"`
+	Data             []byte          `protobuf:"bytes,4,opt" json:"Data,omitempty"`
+	XXX_unrecognized []byte          `json:"-"`
+}
+
+func (m *FetchDataResponse) Reset()         { *m = FetchDataResponse{} }
+func (m *FetchDataResponse) String() string { return proto.CompactTextString(m) }
+func (*FetchDataResponse) ProtoMessage()    {}
+
+func (m *FetchDataResponse) GetHeader() *ResponseHeader {
+	if m != nil {
+		return m.Header
+	}
+	return nil
+}
+
+func (m *FetchDataResponse) GetIndex() uint64 {
+	if m != nil && m.Index != nil {
+		return *m.Index
+	}
+	return 0
+}
+
+func (m *FetchDataResponse) GetTerm() uint64 {
+	if m != nil && m.Term != nil {
+		return *m.Term
+	}
+	return 0
+}
+
+func (m *FetchDataResponse) GetData() []byte {
+	if m != nil {
+		return m.Data
+	}
+	return nil
+}
+
+type JoinRequest struct {
+	Addr             *string `protobuf:"bytes,1,req" json:"Addr,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *JoinRequest) Reset()         { *m = JoinRequest{} }
+func (m *JoinRequest) String() string { return proto.CompactTextString(m) }
+func (*JoinRequest) ProtoMessage()    {}
+
+func (m *JoinRequest) GetAddr() string {
+	if m != nil && m.Addr != nil {
+		return *m.Addr
+	}
+	return ""
+}
+
+type JoinResponse struct {
+	Header *ResponseHeader `protobuf:"bytes,1,req" json:"Header,omitempty"`
+	// Indicates that this node should take part in the raft cluster.
+	EnableRaft *bool `protobuf:"varint,2,opt" json:"EnableRaft,omitempty"`
+	// The addresses of raft peers to use if joining as a raft member. If not joining
+	// as a raft member, these are the nodes running raft.
+	RaftNodes []string `protobuf:"bytes,3,rep" json:"RaftNodes,omitempty"`
+	// The node ID assigned to the requesting node.
+	NodeID           *uint64 `protobuf:"varint,4,opt" json:"NodeID,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *JoinResponse) Reset()         { *m = JoinResponse{} }
+func (m *JoinResponse) String() string { return proto.CompactTextString(m) }
+func (*JoinResponse) ProtoMessage()    {}
+
+func (m *JoinResponse) GetHeader() *ResponseHeader {
+	if m != nil {
+		return m.Header
+	}
+	return nil
+}
+
+func (m *JoinResponse) GetEnableRaft() bool {
+	if m != nil && m.EnableRaft != nil {
+		return *m.EnableRaft
+	}
+	return false
+}
+
+func (m *JoinResponse) GetRaftNodes() []string {
+	if m != nil {
+		return m.RaftNodes
+	}
+	return nil
+}
+
+func (m *JoinResponse) GetNodeID() uint64 {
+	if m != nil && m.NodeID != nil {
+		return *m.NodeID
+	}
+	return 0
+}
+
 func init() {
+	proto.RegisterEnum("internal.RPCType", RPCType_name, RPCType_value)
 	proto.RegisterEnum("internal.Command_Type", Command_Type_name, Command_Type_value)
 	proto.RegisterExtension(E_CreateNodeCommand_Command)
 	proto.RegisterExtension(E_DeleteNodeCommand_Command)
@@ -1127,4 +1380,5 @@ func init() {
 	proto.RegisterExtension(E_UpdateUserCommand_Command)
 	proto.RegisterExtension(E_SetPrivilegeCommand_Command)
 	proto.RegisterExtension(E_SetDataCommand_Command)
+	proto.RegisterExtension(E_SetAdminPrivilegeCommand_Command)
 }

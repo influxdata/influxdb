@@ -229,8 +229,8 @@ restore uses a snapshot of a data node to rebuild a cluster.
 
 // Config represents a partial config for rebuilding the server.
 type Config struct {
-	Meta meta.Config `toml:"meta"`
-	Data tsdb.Config `toml:"data"`
+	Meta *meta.Config `toml:"meta"`
+	Data tsdb.Config  `toml:"data"`
 }
 
 type nopListener struct {

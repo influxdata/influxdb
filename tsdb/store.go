@@ -9,18 +9,15 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/influxdb/influxdb/influxql"
 )
 
 func NewStore(path string) *Store {
 	return &Store{
-		path:                   path,
-		MaxWALSize:             DefaultMaxWALSize,
-		WALFlushInterval:       DefaultWALFlushInterval,
-		WALPartitionFlushDelay: DefaultWALPartitionFlushDelay,
-		Logger:                 log.New(os.Stderr, "[store] ", log.LstdFlags),
+		path:          path,
+		EngineOptions: NewEngineOptions(),
+		Logger:        log.New(os.Stderr, "[store] ", log.LstdFlags),
 	}
 }
 
@@ -35,15 +32,33 @@ type Store struct {
 	databaseIndexes map[string]*DatabaseIndex
 	shards          map[uint64]*Shard
 
-	MaxWALSize             int
-	WALFlushInterval       time.Duration
-	WALPartitionFlushDelay time.Duration
-
-	Logger *log.Logger
+	EngineOptions EngineOptions
+	Logger        *log.Logger
 }
 
 // Path returns the store's root path.
 func (s *Store) Path() string { return s.path }
+
+// DatabaseIndexN returns the number of databases indicies in the store.
+func (s *Store) DatabaseIndexN() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.databaseIndexes)
+}
+
+// Shard returns a shard by id.
+func (s *Store) Shard(id uint64) *Shard {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.shards[id]
+}
+
+// ShardN returns the number of shard in the store.
+func (s *Store) ShardN() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.shards)
+}
 
 func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64) error {
 	s.mu.Lock()
@@ -67,7 +82,7 @@ func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64) er
 	}
 
 	shardPath := filepath.Join(s.path, database, retentionPolicy, strconv.FormatUint(shardID, 10))
-	shard := s.newShard(db, shardPath)
+	shard := NewShard(db, shardPath, s.EngineOptions)
 	if err := shard.Open(); err != nil {
 		return err
 	}
@@ -101,15 +116,6 @@ func (s *Store) DeleteShard(shardID uint64) error {
 	return nil
 }
 
-// newShard returns a shard and copies configuration settings from the store.
-func (s *Store) newShard(index *DatabaseIndex, path string) *Shard {
-	sh := NewShard(index, path)
-	sh.MaxWALSize = s.MaxWALSize
-	sh.WALFlushInterval = s.WALFlushInterval
-	sh.WALPartitionFlushDelay = s.WALPartitionFlushDelay
-	return sh
-}
-
 // DeleteDatabase will close all shards associated with a database and remove the directory and files from disk.
 func (s *Store) DeleteDatabase(name string, shardIDs []uint64) error {
 	s.mu.Lock()
@@ -120,17 +126,11 @@ func (s *Store) DeleteDatabase(name string, shardIDs []uint64) error {
 			shard.Close()
 		}
 	}
-	if err := os.RemoveAll(s.path); err != nil {
+	if err := os.RemoveAll(filepath.Join(s.path, name)); err != nil {
 		return err
 	}
 	delete(s.databaseIndexes, name)
 	return nil
-}
-
-func (s *Store) Shard(shardID uint64) *Shard {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.shards[shardID]
 }
 
 // ShardIDs returns a slice of all ShardIDs under management.
@@ -173,7 +173,7 @@ func (s *Store) deleteSeries(keys []string) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, sh := range s.shards {
-		if err := sh.deleteSeries(keys); err != nil {
+		if err := sh.DeleteSeries(keys); err != nil {
 			return err
 		}
 	}
@@ -185,7 +185,7 @@ func (s *Store) deleteMeasurement(name string, seriesKeys []string) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, sh := range s.shards {
-		if err := sh.deleteMeasurement(name, seriesKeys); err != nil {
+		if err := sh.DeleteMeasurement(name, seriesKeys); err != nil {
 			return err
 		}
 	}
@@ -236,7 +236,7 @@ func (s *Store) loadShards() error {
 					continue
 				}
 
-				shard := s.newShard(s.databaseIndexes[db], path)
+				shard := NewShard(s.databaseIndexes[db], path, s.EngineOptions)
 				shard.Open()
 				s.shards[shardID] = shard
 			}
@@ -281,16 +281,23 @@ func (s *Store) WriteToShard(shardID uint64, points []Point) error {
 	return sh.WritePoints(points)
 }
 
-// Flush forces all shards to write their WAL data to the index.
-func (s *Store) Flush() error {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	for shardID, sh := range s.shards {
-		if err := sh.Flush(s.WALPartitionFlushDelay); err != nil {
-			return fmt.Errorf("flush: shard=%d, err=%s", shardID, err)
-		}
+func (s *Store) CreateMapper(shardID uint64, query string, chunkSize int) (Mapper, error) {
+	q, err := influxql.NewParser(strings.NewReader(query)).ParseStatement()
+	if err != nil {
+		return nil, err
 	}
-	return nil
+	stmt, ok := q.(*influxql.SelectStatement)
+	if !ok {
+		return nil, fmt.Errorf("query is not a SELECT statement: %s", err.Error())
+	}
+
+	shard := s.Shard(shardID)
+	if shard == nil {
+		// This can happen if the shard has been assigned, but hasn't actually been created yet.
+		return nil, nil
+	}
+
+	return NewLocalMapper(shard, stmt, chunkSize), nil
 }
 
 func (s *Store) Close() error {

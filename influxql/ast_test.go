@@ -577,6 +577,45 @@ func TestRewrite(t *testing.T) {
 	}
 }
 
+// Ensure that the String() value of a statement is parseable
+func TestParseString(t *testing.T) {
+	var tests = []struct {
+		stmt string
+	}{
+		{
+			stmt: `SELECT "cpu load" FROM myseries`,
+		},
+		{
+			stmt: `SELECT "cpu load" FROM "my series"`,
+		},
+		{
+			stmt: `SELECT "cpu\"load" FROM myseries`,
+		},
+		{
+			stmt: `SELECT "cpu'load" FROM myseries`,
+		},
+		{
+			stmt: `SELECT "cpu load" FROM "my\"series"`,
+		},
+		{
+			stmt: `SELECT * FROM myseries`,
+		},
+	}
+
+	for _, tt := range tests {
+		// Parse statement.
+		stmt, err := influxql.NewParser(strings.NewReader(tt.stmt)).ParseStatement()
+		if err != nil {
+			t.Fatalf("invalid statement: %q: %s", tt.stmt, err)
+		}
+
+		_, err = influxql.NewParser(strings.NewReader(stmt.String())).ParseStatement()
+		if err != nil {
+			t.Fatalf("failed to parse string: %v\norig: %v\ngot: %v", err, tt.stmt, stmt.String())
+		}
+	}
+}
+
 // Ensure an expression can be reduced.
 func TestEval(t *testing.T) {
 	for i, tt := range []struct {

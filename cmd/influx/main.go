@@ -43,7 +43,6 @@ type CommandLine struct {
 	Version         string
 	Pretty          bool   // controls pretty print for json
 	Format          string // controls the output format.  Valid values are json, csv, or column
-	ShouldDump      bool
 	Execute         string
 	ShowVersion     bool
 }
@@ -52,15 +51,14 @@ func main() {
 	c := CommandLine{}
 
 	fs := flag.NewFlagSet("InfluxDB shell version "+version, flag.ExitOnError)
-	fs.StringVar(&c.Host, "host", default_host, "influxdb host to connect to")
-	fs.IntVar(&c.Port, "port", default_port, "influxdb port to connect to")
-	fs.StringVar(&c.Username, "username", c.Username, "username to connect to the server.")
-	fs.StringVar(&c.Password, "password", c.Password, `password to connect to the server.  Leaving blank will prompt for password (--password="")`)
-	fs.StringVar(&c.Database, "database", c.Database, "database to connect to the server.")
-	fs.BoolVar(&c.Ssl, "ssl", false, "use https for connecting to cluster")
-	fs.StringVar(&c.Format, "format", default_format, "format specifies the format of the server responses:  json, csv, or column")
-	fs.BoolVar(&c.Pretty, "pretty", false, "turns on pretty print for the json format")
-	fs.BoolVar(&c.ShouldDump, "dump", false, "dump the contents of the given database to stdout")
+	fs.StringVar(&c.Host, "host", default_host, "Influxdb host to connect to.")
+	fs.IntVar(&c.Port, "port", default_port, "Influxdb port to connect to.")
+	fs.StringVar(&c.Username, "username", c.Username, "Username to connect to the server.")
+	fs.StringVar(&c.Password, "password", c.Password, `Password to connect to the server.  Leaving blank will prompt for password (--password="").`)
+	fs.StringVar(&c.Database, "database", c.Database, "Database to connect to the server.")
+	fs.BoolVar(&c.Ssl, "ssl", false, "Use https for connecting to cluster.")
+	fs.StringVar(&c.Format, "format", default_format, "Format specifies the format of the server responses:  json, csv, or column.")
+	fs.BoolVar(&c.Pretty, "pretty", false, "Turns on pretty print for the json format.")
 	fs.StringVar(&c.Execute, "execute", c.Execute, "Execute command and quit.")
 	fs.BoolVar(&c.ShowVersion, "version", false, "Displays the InfluxDB version.")
 
@@ -76,13 +74,11 @@ func main() {
   -database 'database name'
        Database to connect to the server.
   -password 'password'
-      Password to connect to the server.  Leaving blank will prompt for password (--password '')
+      Password to connect to the server.  Leaving blank will prompt for password (--password '').
   -username 'username'
        Username to connect to the server.
   -ssl
         Use https for requests.
-  -dump
-       Dump the contents of the given database to stdout.
   -execute 'command'
        Execute command and quit.
   -format 'json|csv|column'
@@ -92,13 +88,10 @@ func main() {
 
 Examples:
 
-    # Use influx in a non-interactive mode to query the database "metrics" and pretty print json
+    # Use influx in a non-interactive mode to query the database "metrics" and pretty print json:
     $ influx -database 'metrics' -execute 'select * from cpu' -format 'json' -pretty
 
-    # Dumping out your data
-    $ influx  -database 'metrics' -dump
-
-    # Connect to a specific database on startup and set database context
+	# Connect to a specific database on startup and set database context:
     $ influx -database 'metrics' -host 'localhost' -port '8086'
 `)
 	}
@@ -132,14 +125,6 @@ Examples:
 	}
 
 	c.connect("")
-
-	if c.ShouldDump {
-		if err := c.dump(); err != nil {
-			os.Exit(1)
-		} else {
-			os.Exit(0)
-		}
-	}
 
 	if c.Execute != "" {
 		if err := c.ExecuteQuery(c.Execute); err != nil {
@@ -237,12 +222,12 @@ func (c *CommandLine) connect(cmd string) {
 		}
 		if strings.Contains(cmd, ":") {
 			h := strings.Split(cmd, ":")
-			if i, e := strconv.Atoi(h[1]); e != nil {
+			i, e := strconv.Atoi(h[1])
+			if e != nil {
 				fmt.Printf("Connect error: Invalid port number %q: %s\n", cmd, e)
 				return
-			} else {
-				c.Port = i
 			}
+			c.Port = i
 			if h[0] == "" {
 				c.Host = default_host
 			} else {
@@ -282,7 +267,7 @@ func (c *CommandLine) connect(cmd string) {
 		fmt.Printf("Failed to connect to %s\n", c.Client.Addr())
 	} else {
 		c.Version = v
-		if !c.ShouldDump && c.Execute == "" {
+		if c.Execute == "" {
 			fmt.Printf("Connected to %s version %s\n", c.Client.Addr(), c.Version)
 		}
 	}
@@ -321,7 +306,7 @@ func (c *CommandLine) SetAuth(cmd string) {
 }
 
 func (c *CommandLine) use(cmd string) {
-	args := strings.Split(strings.TrimSpace(cmd), " ")
+	args := strings.Split(strings.TrimSuffix(strings.TrimSpace(cmd), ";"), " ")
 	if len(args) != 2 {
 		fmt.Printf("Could not parse database name from %q.\n", cmd)
 		return
@@ -343,22 +328,6 @@ func (c *CommandLine) SetFormat(cmd string) {
 	default:
 		fmt.Printf("Unknown format %q. Please use json, csv, or column.\n", cmd)
 	}
-}
-
-func (c *CommandLine) dump() error {
-	response, err := c.Client.Dump(c.Database)
-	defer response.Close()
-	if err != nil {
-		fmt.Printf("Dump failed. %s\n", err)
-		return err
-	} else {
-		_, err := io.Copy(os.Stdout, response)
-		if err != nil {
-			fmt.Printf("Dump failed. %s\n", err)
-			return err
-		}
-	}
-	return nil
 }
 
 // isWhitespace returns true if the rune is a space, tab, or newline.
@@ -665,7 +634,7 @@ func (c *CommandLine) help() {
         show tag values       show tag value information
 
         a full list of influxql commands can be found at:
-        http://influxdb.com/docs
+        https://influxdb.com/docs/v0.9/query_language/spec.html
 `)
 }
 

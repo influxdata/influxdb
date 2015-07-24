@@ -7,9 +7,9 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/signal"
 	"runtime"
 	"runtime/pprof"
+	"strings"
 	"time"
 
 	"github.com/influxdb/influxdb/cluster"
@@ -27,6 +27,7 @@ import (
 	"github.com/influxdb/influxdb/services/udp"
 	"github.com/influxdb/influxdb/tcp"
 	"github.com/influxdb/influxdb/tsdb"
+	_ "github.com/influxdb/influxdb/tsdb/engine"
 )
 
 // Server represents a container for the metadata and storage data and services.
@@ -47,6 +48,7 @@ type Server struct {
 	QueryExecutor *tsdb.QueryExecutor
 	PointsWriter  *cluster.PointsWriter
 	ShardWriter   *cluster.ShardWriter
+	ShardMapper   *cluster.ShardMapper
 	HintedHandoff *hh.Service
 
 	Services []Service
@@ -81,14 +83,21 @@ func NewServer(c *Config, version string) (*Server, error) {
 	}
 
 	// Copy TSDB configuration.
-	s.TSDBStore.MaxWALSize = c.Data.MaxWALSize
-	s.TSDBStore.WALFlushInterval = time.Duration(c.Data.WALFlushInterval)
-	s.TSDBStore.WALPartitionFlushDelay = time.Duration(c.Data.WALPartitionFlushDelay)
+	s.TSDBStore.EngineOptions.MaxWALSize = c.Data.MaxWALSize
+	s.TSDBStore.EngineOptions.WALFlushInterval = time.Duration(c.Data.WALFlushInterval)
+	s.TSDBStore.EngineOptions.WALPartitionFlushDelay = time.Duration(c.Data.WALPartitionFlushDelay)
+
+	// Set the shard mapper
+	s.ShardMapper = cluster.NewShardMapper(time.Duration(c.Cluster.ShardMapperTimeout))
+	s.ShardMapper.ForceRemoteMapping = c.Cluster.ForceRemoteShardMapping
+	s.ShardMapper.MetaStore = s.MetaStore
+	s.ShardMapper.TSDBStore = s.TSDBStore
 
 	// Initialize query executor.
 	s.QueryExecutor = tsdb.NewQueryExecutor(s.TSDBStore)
 	s.QueryExecutor.MetaStore = s.MetaStore
 	s.QueryExecutor.MetaStatementExecutor = &meta.StatementExecutor{Store: s.MetaStore}
+	s.QueryExecutor.ShardMapper = s.ShardMapper
 
 	// Set the shard writer
 	s.ShardWriter = cluster.NewShardWriter(time.Duration(c.Cluster.ShardWriterTimeout))
@@ -282,10 +291,17 @@ func (s *Server) Open() error {
 		}
 		s.Listener = ln
 
+		// The port 0 is used, we need to retrieve the port assigned by the kernel
+		if strings.HasSuffix(s.BindAddress, ":0") {
+			s.MetaStore.Addr = ln.Addr()
+		}
+
 		// Multiplex listener.
 		mux := tcp.NewMux()
 		s.MetaStore.RaftListener = mux.Listen(meta.MuxRaftHeader)
 		s.MetaStore.ExecListener = mux.Listen(meta.MuxExecHeader)
+		s.MetaStore.RPCListener = mux.Listen(meta.MuxRPCHeader)
+
 		s.ClusterService.Listener = mux.Listen(cluster.MuxHeader)
 		s.SnapshotterService.Listener = mux.Listen(snapshotter.MuxHeader)
 		go mux.Serve(ln)
@@ -349,6 +365,7 @@ func (s *Server) Close() error {
 	for _, service := range s.Services {
 		service.Close()
 	}
+
 	close(s.closing)
 	return nil
 }
@@ -456,13 +473,6 @@ func startProfile(cpuprofile, memprofile string) {
 		runtime.MemProfileRate = 4096
 	}
 
-	go func() {
-		c := make(chan os.Signal, 1)
-		signal.Notify(c, os.Interrupt)
-		<-c
-		stopProfile()
-		os.Exit(0)
-	}()
 }
 
 // StopProfile closes the cpu and memory profiles if they are running.

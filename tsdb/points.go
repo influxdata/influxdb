@@ -286,6 +286,12 @@ func scanKey(buf []byte, i int) (int, []byte, error) {
 		return i, buf[start:i], fmt.Errorf("invalid tag format")
 	}
 
+	// This check makes sure we actually received fields from the user. #3379
+	// This will catch invalid syntax such as: `cpu,host=serverA,region=us-west`
+	if i >= len(buf) {
+		return i, buf[start:i], fmt.Errorf("missing fields")
+	}
+
 	// Now we know where the key region is within buf, and the locations of tags, we
 	// need to deterimine if duplicate tags exist and if the tags are sorted.  This iterates
 	// 1/2 of the list comparing each end with each other, walking towards the center from
@@ -411,18 +417,17 @@ func scanFields(buf []byte, i int) (int, []byte, error) {
 				i, _, err = scanNumber(buf, i+1)
 				if err != nil {
 					return i, buf[start:i], err
-				} else {
-					continue
 				}
-				// If next byte is not a double-quote, the value must be a boolean
-			} else if buf[i+1] != '"' {
+				continue
+			}
+			// If next byte is not a double-quote, the value must be a boolean
+			if buf[i+1] != '"' {
 				var err error
 				i, _, err = scanBoolean(buf, i+1)
 				if err != nil {
 					return i, buf[start:i], err
-				} else {
-					continue
 				}
+				continue
 			}
 		}
 
@@ -612,9 +617,9 @@ func scanBoolean(buf []byte, i int) (int, []byte, error) {
 	case 'f':
 		valid = bytes.Equal(buf[start:i], []byte("false"))
 	case 'T':
-		valid = bytes.Equal(buf[start:i], []byte("TRUE"))
+		valid = bytes.Equal(buf[start:i], []byte("TRUE")) || bytes.Equal(buf[start:i], []byte("True"))
 	case 'F':
-		valid = bytes.Equal(buf[start:i], []byte("FALSE"))
+		valid = bytes.Equal(buf[start:i], []byte("FALSE")) || bytes.Equal(buf[start:i], []byte("False"))
 	}
 
 	if !valid {
@@ -633,10 +638,6 @@ func skipWhitespace(buf []byte, i int) int {
 			return i
 		}
 
-		if buf[i] == '\\' {
-			i += 2
-			continue
-		}
 		if buf[i] == ' ' || buf[i] == '\t' {
 			i += 1
 			continue
@@ -864,7 +865,7 @@ func (p *point) Tags() Tags {
 }
 
 func makeKey(name []byte, tags Tags) []byte {
-	return append(escape(name), tags.hashKey()...)
+	return append(escape(name), tags.HashKey()...)
 }
 
 // SetTags replaces the tags for the point
@@ -950,7 +951,7 @@ func (p *point) UnixNano() int64 {
 
 type Tags map[string]string
 
-func (t Tags) hashKey() []byte {
+func (t Tags) HashKey() []byte {
 	// Empty maps marshal to empty bytes.
 	if len(t) == 0 {
 		return nil
@@ -997,7 +998,7 @@ type Fields map[string]interface{}
 func parseNumber(val []byte) (interface{}, error) {
 	for i := 0; i < len(val); i++ {
 		// If there is a decimal or an N (NaN), I (Inf), parse as float
-		if val[i] == '.' || val[i] == 'N' || val[i] == 'n' || val[i] == 'I' || val[i] == 'i' {
+		if val[i] == '.' || val[i] == 'N' || val[i] == 'n' || val[i] == 'I' || val[i] == 'i' || val[i] == 'e' {
 			return strconv.ParseFloat(string(val), 64)
 		}
 		if val[i] < '0' && val[i] > '9' {
@@ -1024,6 +1025,7 @@ func newFieldsFromBinary(buf []byte) Fields {
 		if len(name) == 0 {
 			continue
 		}
+		name = unescape(name)
 
 		i, valueBuf = scanFieldValue(buf, i+1)
 		if len(valueBuf) == 0 {
@@ -1051,7 +1053,7 @@ func newFieldsFromBinary(buf []byte) Fields {
 				panic(fmt.Sprintf("unable to parse bool value '%v': %v\n", string(valueBuf), err))
 			}
 		}
-		fields[string(unescape(name))] = value
+		fields[string(name)] = value
 		i += 1
 	}
 	return fields

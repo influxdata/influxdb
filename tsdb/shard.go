@@ -1,19 +1,14 @@
 package tsdb
 
 import (
-	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"hash/fnv"
 	"io"
-	"log"
 	"math"
 	"os"
-	"sort"
 	"sync"
-	"time"
 
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/tsdb/internal"
@@ -35,14 +30,7 @@ var (
 	// ErrFieldUnmappedID is returned when the system is presented, during decode, with a field ID
 	// there is no mapping for.
 	ErrFieldUnmappedID = errors.New("field ID not mapped")
-
-	// ErrWALPartitionNotFound is returns when flushing a WAL partition that
-	// does not exist.
-	ErrWALPartitionNotFound = errors.New("wal partition not found")
 )
-
-// topLevelBucketN is the number of non-series buckets in the bolt db.
-const topLevelBucketN = 3
 
 // Shard represents a self-contained time series database. An inverted index of
 // the measurement and tag data is kept along with the raw time series data.
@@ -52,53 +40,27 @@ type Shard struct {
 	db    *bolt.DB // underlying data store
 	index *DatabaseIndex
 	path  string
-	cache map[uint8]map[string][][]byte // values by <wal partition,series>
 
-	walSize    int           // approximate size of the WAL, in bytes
-	flush      chan struct{} // signals background flush
-	flushTimer *time.Timer   // signals time-based flush
+	engine  Engine
+	options EngineOptions
 
 	mu                sync.RWMutex
-	measurementFields map[string]*measurementFields // measurement name to their fields
-
-	// These coordinate closing and waiting for running goroutines.
-	wg      sync.WaitGroup
-	closing chan struct{}
-
-	// Used for out-of-band error messages.
-	logger *log.Logger
-
-	// The maximum size and time thresholds for flushing the WAL.
-	MaxWALSize             int
-	WALFlushInterval       time.Duration
-	WALPartitionFlushDelay time.Duration
+	measurementFields map[string]*MeasurementFields // measurement name to their fields
 
 	// The writer used by the logger.
 	LogOutput io.Writer
 }
 
 // NewShard returns a new initialized Shard
-func NewShard(index *DatabaseIndex, path string) *Shard {
-	s := &Shard{
+func NewShard(index *DatabaseIndex, path string, options EngineOptions) *Shard {
+	return &Shard{
 		index:             index,
 		path:              path,
-		flush:             make(chan struct{}, 1),
-		measurementFields: make(map[string]*measurementFields),
-
-		MaxWALSize:             DefaultMaxWALSize,
-		WALFlushInterval:       DefaultWALFlushInterval,
-		WALPartitionFlushDelay: DefaultWALPartitionFlushDelay,
+		options:           options,
+		measurementFields: make(map[string]*MeasurementFields),
 
 		LogOutput: os.Stderr,
 	}
-
-	// Initialize all partitions of the cache.
-	s.cache = make(map[uint8]map[string][][]byte)
-	for i := uint8(0); i < WALPartitionN; i++ {
-		s.cache[i] = make(map[string][][]byte)
-	}
-
-	return s
 }
 
 // Path returns the path set on the shard when it was created.
@@ -110,53 +72,38 @@ func (s *Shard) Open() error {
 		s.mu.Lock()
 		defer s.mu.Unlock()
 
+		s.index.mu.Lock()
+		defer s.index.mu.Unlock()
+
 		// Return if the shard is already open
-		if s.db != nil {
+		if s.engine != nil {
 			return nil
 		}
 
-		// Open store on shard.
-		store, err := bolt.Open(s.path, 0666, &bolt.Options{Timeout: 1 * time.Second})
+		// Initialize underlying engine.
+		e, err := NewEngine(s.path, s.options)
 		if err != nil {
-			return err
+			return fmt.Errorf("new engine: %s", err)
 		}
-		s.db = store
+		s.engine = e
 
-		// Initialize store.
-		if err := s.db.Update(func(tx *bolt.Tx) error {
-			_, _ = tx.CreateBucketIfNotExists([]byte("series"))
-			_, _ = tx.CreateBucketIfNotExists([]byte("fields"))
-			_, _ = tx.CreateBucketIfNotExists([]byte("wal"))
+		// Set log output on the engine.
+		s.engine.SetLogOutput(s.LogOutput)
 
-			return nil
-		}); err != nil {
-			return fmt.Errorf("init: %s", err)
+		// Open engine.
+		if err := s.engine.Open(); err != nil {
+			return fmt.Errorf("open engine: %s", err)
 		}
 
-		if err := s.loadMetadataIndex(); err != nil {
+		// Load metadata index.
+		if err := s.engine.LoadMetadataIndex(s.index, s.measurementFields); err != nil {
 			return fmt.Errorf("load metadata index: %s", err)
 		}
-
-		// Initialize logger.
-		s.logger = log.New(s.LogOutput, "[shard] ", log.LstdFlags)
-
-		// Start flush interval timer.
-		s.flushTimer = time.NewTimer(s.WALFlushInterval)
-
-		// Start background goroutines.
-		s.wg.Add(1)
-		s.closing = make(chan struct{})
-		go s.autoflusher(s.closing)
 
 		return nil
 	}(); err != nil {
 		s.close()
 		return err
-	}
-
-	// Flush on-disk WAL before we return to the caller.
-	if err := s.Flush(0); err != nil {
-		return fmt.Errorf("flush: %s", err)
 	}
 
 	return nil
@@ -165,30 +112,15 @@ func (s *Shard) Open() error {
 // Close shuts down the shard's store.
 func (s *Shard) Close() error {
 	s.mu.Lock()
-	err := s.close()
-	s.mu.Unlock()
-
-	// Wait for open goroutines to finish.
-	s.wg.Wait()
-
-	return err
+	defer s.mu.Unlock()
+	return s.close()
 }
 
 func (s *Shard) close() error {
-	if s.db != nil {
-		s.db.Close()
-	}
-	if s.closing != nil {
-		close(s.closing)
-		s.closing = nil
+	if s.engine != nil {
+		return s.engine.Close()
 	}
 	return nil
-}
-
-// TODO: this is temporarily exported to make tx.go work. When the query engine gets refactored
-// into the tsdb package this should be removed. No one outside tsdb should know the underlying store.
-func (s *Shard) DB() *bolt.DB {
-	return s.db
 }
 
 // TODO: this is temporarily exported to make tx.go work. When the query engine gets refactored
@@ -200,19 +132,19 @@ func (s *Shard) FieldCodec(measurementName string) *FieldCodec {
 	if m == nil {
 		return nil
 	}
-	return m.codec
+	return m.Codec
 }
 
 // struct to hold information for a field to create on a measurement
-type fieldCreate struct {
-	measurement string
-	field       *field
+type FieldCreate struct {
+	Measurement string
+	Field       *field
 }
 
 // struct to hold information for a series to create
-type seriesCreate struct {
-	measurement string
-	series      *Series
+type SeriesCreate struct {
+	Measurement string
+	Series      *Series
 }
 
 // WritePoints will write the raw data points and any new metadata to the index in the shard
@@ -226,7 +158,7 @@ func (s *Shard) WritePoints(points []Point) error {
 	if len(seriesToCreate) > 0 {
 		s.index.mu.Lock()
 		for _, ss := range seriesToCreate {
-			s.index.createSeriesIndexIfNotExists(ss.measurement, ss.series)
+			s.index.CreateSeriesIndexIfNotExists(ss.Measurement, ss.Series)
 		}
 		s.index.mu.Unlock()
 	}
@@ -239,245 +171,34 @@ func (s *Shard) WritePoints(points []Point) error {
 
 	// make sure all data is encoded before attempting to save to bolt
 	for _, p := range points {
-		// marshal the raw data if it hasn't been marshaled already
-		if p.Data() == nil {
-			// this was populated earlier, don't need to validate that it's there.
-			s.mu.RLock()
-			mf := s.measurementFields[p.Name()]
-			s.mu.RUnlock()
-
-			// If a measurement is dropped while writes for it are in progress, this could be nil
-			if mf == nil {
-				return ErrFieldNotFound
-			}
-
-			data, err := mf.codec.EncodeFields(p.Fields())
-			if err != nil {
-				return err
-			}
-			p.SetData(data)
+		// Ignore if raw data has already been marshaled.
+		if p.Data() != nil {
+			continue
 		}
+
+		// This was populated earlier, don't need to validate that it's there.
+		s.mu.RLock()
+		mf := s.measurementFields[p.Name()]
+		s.mu.RUnlock()
+
+		// If a measurement is dropped while writes for it are in progress, this could be nil
+		if mf == nil {
+			return ErrFieldNotFound
+		}
+
+		data, err := mf.Codec.EncodeFields(p.Fields())
+		if err != nil {
+			return err
+		}
+		p.SetData(data)
 	}
 
-	// save to the underlying bolt instance
-	if err := s.db.Update(func(tx *bolt.Tx) error {
-		// save any new metadata
-		if len(seriesToCreate) > 0 {
-			b := tx.Bucket([]byte("series"))
-			for _, sc := range seriesToCreate {
-				data, err := sc.series.MarshalBinary()
-				if err != nil {
-					return err
-				}
-				if err := b.Put([]byte(sc.series.Key), data); err != nil {
-					return err
-				}
-			}
-		}
-		if len(measurementFieldsToSave) > 0 {
-			b := tx.Bucket([]byte("fields"))
-			for name, m := range measurementFieldsToSave {
-				data, err := m.MarshalBinary()
-				if err != nil {
-					return err
-				}
-				if err := b.Put([]byte(name), data); err != nil {
-					return err
-				}
-			}
-		}
-
-		// Write points to WAL bucket.
-		wal := tx.Bucket([]byte("wal"))
-		for _, p := range points {
-			// Retrieve partition bucket.
-			key := p.Key()
-			b, err := wal.CreateBucketIfNotExists([]byte{WALPartition(key)})
-			if err != nil {
-				return fmt.Errorf("create WAL partition bucket: %s", err)
-			}
-
-			// Generate an autoincrementing index for the WAL partition.
-			id, _ := b.NextSequence()
-
-			// Append points sequentially to the WAL bucket.
-			v := marshalWALEntry(key, p.UnixNano(), p.Data())
-			if err := b.Put(u64tob(id), v); err != nil {
-				return fmt.Errorf("put wal: %s", err)
-			}
-		}
-
-		return nil
-	}); err != nil {
-		return err
-	}
-
-	// If successful then save points to in-memory cache.
-	if err := func() error {
-		s.mu.Lock()
-		defer s.mu.Unlock()
-
-		for _, p := range points {
-			// Generate in-memory cache entry of <timestamp,data>.
-			key, data := p.Key(), p.Data()
-			v := make([]byte, 8+len(data))
-			binary.BigEndian.PutUint64(v[0:8], uint64(p.UnixNano()))
-			copy(v[8:], data)
-
-			// Determine if we are appending.
-			partitionID := WALPartition(key)
-			a := s.cache[partitionID][string(key)]
-			appending := (len(a) == 0 || bytes.Compare(a[len(a)-1], v) == -1)
-
-			// Append to cache list.
-			a = append(a, v)
-
-			// Sort by timestamp if not appending.
-			if !appending {
-				sort.Sort(byteSlices(a))
-			}
-
-			s.cache[partitionID][string(key)] = a
-
-			// Calculate estimated WAL size.
-			s.walSize += len(key) + len(v)
-		}
-
-		// Check for flush threshold.
-		s.triggerAutoFlush()
-
-		return nil
-	}(); err != nil {
-		return err
+	// Write to the engine.
+	if err := s.engine.WritePoints(points, measurementFieldsToSave, seriesToCreate); err != nil {
+		return fmt.Errorf("engine: %s", err)
 	}
 
 	return nil
-}
-
-// Flush writes all points from the write ahead log to the index.
-func (s *Shard) Flush(partitionFlushDelay time.Duration) error {
-	// Retrieve a list of WAL buckets.
-	var partitionIDs []uint8
-	if err := s.db.View(func(tx *bolt.Tx) error {
-		return tx.Bucket([]byte("wal")).ForEach(func(key, _ []byte) error {
-			partitionIDs = append(partitionIDs, uint8(key[0]))
-			return nil
-		})
-	}); err != nil {
-		return err
-	}
-
-	// Continue flushing until there are no more partition buckets.
-	for _, partitionID := range partitionIDs {
-		if err := s.FlushPartition(partitionID); err != nil {
-			return fmt.Errorf("flush partition: id=%d, err=%s", partitionID, err)
-		}
-
-		// Wait momentarily so other threads can process.
-		time.Sleep(partitionFlushDelay)
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	// Reset WAL size.
-	s.walSize = 0
-
-	// Reset the timer.
-	s.flushTimer.Reset(s.WALFlushInterval)
-
-	return nil
-}
-
-// FlushPartition flushes a single WAL partition.
-func (s *Shard) FlushPartition(partitionID uint8) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	startTime := time.Now()
-
-	var pointN int
-	if err := s.db.Update(func(tx *bolt.Tx) error {
-		// Retrieve partition bucket. Exit if it doesn't exist.
-		pb := tx.Bucket([]byte("wal")).Bucket([]byte{byte(partitionID)})
-		if pb == nil {
-			return ErrWALPartitionNotFound
-		}
-
-		// Iterate over keys in the WAL partition bucket.
-		c := pb.Cursor()
-		for k, v := c.First(); k != nil; k, v = c.Next() {
-			key, timestamp, data := unmarshalWALEntry(v)
-
-			// Create bucket for entry.
-			b, err := tx.CreateBucketIfNotExists(key)
-			if err != nil {
-				return fmt.Errorf("create bucket: %s", err)
-			}
-
-			// Write point to bucket.
-			if err := b.Put(u64tob(uint64(timestamp)), data); err != nil {
-				return fmt.Errorf("put: %s", err)
-			}
-
-			// Remove entry in the WAL.
-			if err := c.Delete(); err != nil {
-				return fmt.Errorf("delete: %s", err)
-			}
-
-			pointN++
-		}
-
-		return nil
-	}); err != nil {
-		return err
-	}
-
-	// Reset cache.
-	s.cache[partitionID] = make(map[string][][]byte)
-
-	if pointN > 0 {
-		s.logger.Printf("flush %d points in %.3fs", pointN, time.Since(startTime).Seconds())
-	}
-
-	return nil
-}
-
-// autoflusher waits for notification of a flush and kicks it off in the background.
-// This method runs in a separate goroutine.
-func (s *Shard) autoflusher(closing chan struct{}) {
-	defer s.wg.Done()
-
-	for {
-		// Wait for close or flush signal.
-		select {
-		case <-closing:
-			return
-		case <-s.flushTimer.C:
-			if err := s.Flush(s.WALPartitionFlushDelay); err != nil {
-				s.logger.Printf("flush error: %s", err)
-			}
-		case <-s.flush:
-			if err := s.Flush(s.WALPartitionFlushDelay); err != nil {
-				s.logger.Printf("flush error: %s", err)
-			}
-		}
-	}
-}
-
-// triggerAutoFlush signals that a flush should occur if the size is above the threshold.
-// This function must be called within the context of a lock.
-func (s *Shard) triggerAutoFlush() {
-	// Ignore if we haven't reached the threshold.
-	if s.walSize < s.MaxWALSize {
-		return
-	}
-
-	// Otherwise send a non-blocking signal.
-	select {
-	case s.flush <- struct{}{}:
-	default:
-	}
 }
 
 func (s *Shard) ValidateAggregateFieldsInStatement(measurementName string, stmt *influxql.SelectStatement) error {
@@ -532,62 +253,27 @@ func (s *Shard) ValidateAggregateFieldsInStatement(measurementName string, stmt 
 	return nil
 }
 
-// deleteSeries deletes the buckets and the metadata for the given series keys
-func (s *Shard) deleteSeries(keys []string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if err := s.db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte("series"))
-		for _, k := range keys {
-			if err := b.Delete([]byte(k)); err != nil {
-				return err
-			}
-			if err := tx.DeleteBucket([]byte(k)); err != nil && err != bolt.ErrBucketNotFound {
-				return err
-			}
-			delete(s.cache[WALPartition([]byte(k))], k)
-		}
-		return nil
-	}); err != nil {
-		return err
-	}
-
-	return nil
+// DeleteSeries deletes a list of series.
+func (s *Shard) DeleteSeries(keys []string) error {
+	return s.engine.DeleteSeries(keys)
 }
 
-// deleteMeasurement deletes the measurement field encoding information and all underlying series from the shard
-func (s *Shard) deleteMeasurement(name string, seriesKeys []string) error {
+// DeleteMeasurement deletes a measurement and all underlying series.
+func (s *Shard) DeleteMeasurement(name string, seriesKeys []string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if err := s.db.Update(func(tx *bolt.Tx) error {
-		bm := tx.Bucket([]byte("fields"))
-		if err := bm.Delete([]byte(name)); err != nil {
-			return err
-		}
-		b := tx.Bucket([]byte("series"))
-		for _, k := range seriesKeys {
-			if err := b.Delete([]byte(k)); err != nil {
-				return err
-			}
-			if err := tx.DeleteBucket([]byte(k)); err != nil && err != bolt.ErrBucketNotFound {
-				return err
-			}
-			delete(s.cache[WALPartition([]byte(k))], k)
-		}
-
-		return nil
-	}); err != nil {
+	if err := s.engine.DeleteMeasurement(name, seriesKeys); err != nil {
 		return err
 	}
 
 	// Remove entry from shard index.
 	delete(s.measurementFields, name)
+
 	return nil
 }
 
-func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*fieldCreate) (map[string]*measurementFields, error) {
+func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) (map[string]*MeasurementFields, error) {
 	if len(fieldsToCreate) == 0 {
 		return nil, nil
 	}
@@ -598,37 +284,37 @@ func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*fieldCreate) (map[
 	defer s.mu.Unlock()
 
 	// add fields
-	measurementsToSave := make(map[string]*measurementFields)
+	measurementsToSave := make(map[string]*MeasurementFields)
 	for _, f := range fieldsToCreate {
 
-		m := s.measurementFields[f.measurement]
+		m := s.measurementFields[f.Measurement]
 		if m == nil {
-			m = measurementsToSave[f.measurement]
+			m = measurementsToSave[f.Measurement]
 			if m == nil {
-				m = &measurementFields{Fields: make(map[string]*field)}
+				m = &MeasurementFields{Fields: make(map[string]*field)}
 			}
-			s.measurementFields[f.measurement] = m
+			s.measurementFields[f.Measurement] = m
 		}
 
-		measurementsToSave[f.measurement] = m
+		measurementsToSave[f.Measurement] = m
 
 		// add the field to the in memory index
-		if err := m.createFieldIfNotExists(f.field.Name, f.field.Type); err != nil {
+		if err := m.createFieldIfNotExists(f.Field.Name, f.Field.Type); err != nil {
 			return nil, err
 		}
 
 		// ensure the measurement is in the index and the field is there
-		measurement := s.index.createMeasurementIndexIfNotExists(f.measurement)
-		measurement.fieldNames[f.field.Name] = struct{}{}
+		measurement := s.index.CreateMeasurementIndexIfNotExists(f.Measurement)
+		measurement.fieldNames[f.Field.Name] = struct{}{}
 	}
 
 	return measurementsToSave, nil
 }
 
 // validateSeriesAndFields checks which series and fields are new and whose metadata should be saved and indexed
-func (s *Shard) validateSeriesAndFields(points []Point) ([]*seriesCreate, []*fieldCreate, error) {
-	var seriesToCreate []*seriesCreate
-	var fieldsToCreate []*fieldCreate
+func (s *Shard) validateSeriesAndFields(points []Point) ([]*SeriesCreate, []*FieldCreate, error) {
+	var seriesToCreate []*SeriesCreate
+	var fieldsToCreate []*FieldCreate
 
 	// get the mutex for the in memory index, which is shared across shards
 	s.index.mu.RLock()
@@ -642,14 +328,14 @@ func (s *Shard) validateSeriesAndFields(points []Point) ([]*seriesCreate, []*fie
 		// see if the series should be added to the index
 		if ss := s.index.series[string(p.Key())]; ss == nil {
 			series := &Series{Key: string(p.Key()), Tags: p.Tags()}
-			seriesToCreate = append(seriesToCreate, &seriesCreate{p.Name(), series})
+			seriesToCreate = append(seriesToCreate, &SeriesCreate{p.Name(), series})
 		}
 
 		// see if the field definitions need to be saved to the shard
 		mf := s.measurementFields[p.Name()]
 		if mf == nil {
 			for name, value := range p.Fields() {
-				fieldsToCreate = append(fieldsToCreate, &fieldCreate{p.Name(), &field{Name: name, Type: influxql.InspectDataType(value)}})
+				fieldsToCreate = append(fieldsToCreate, &FieldCreate{p.Name(), &field{Name: name, Type: influxql.InspectDataType(value)}})
 			}
 			continue // skip validation since all fields are new
 		}
@@ -665,72 +351,23 @@ func (s *Shard) validateSeriesAndFields(points []Point) ([]*seriesCreate, []*fie
 				continue // Field is present, and it's of the same type. Nothing more to do.
 			}
 
-			fieldsToCreate = append(fieldsToCreate, &fieldCreate{p.Name(), &field{Name: name, Type: influxql.InspectDataType(value)}})
+			fieldsToCreate = append(fieldsToCreate, &FieldCreate{p.Name(), &field{Name: name, Type: influxql.InspectDataType(value)}})
 		}
 	}
 
 	return seriesToCreate, fieldsToCreate, nil
 }
 
-// loadsMetadataIndex loads the shard metadata into memory. This should only be called by Open
-func (s *Shard) loadMetadataIndex() error {
-	return s.db.View(func(tx *bolt.Tx) error {
-		s.index.mu.Lock()
-		defer s.index.mu.Unlock()
-
-		// load measurement metadata
-		meta := tx.Bucket([]byte("fields"))
-		c := meta.Cursor()
-		for k, v := c.First(); k != nil; k, v = c.Next() {
-			m := s.index.createMeasurementIndexIfNotExists(string(k))
-			mf := &measurementFields{}
-			if err := mf.UnmarshalBinary(v); err != nil {
-				return err
-			}
-			for name, _ := range mf.Fields {
-				m.fieldNames[name] = struct{}{}
-			}
-			mf.codec = newFieldCodec(mf.Fields)
-			s.measurementFields[string(k)] = mf
-		}
-
-		// load series metadata
-		meta = tx.Bucket([]byte("series"))
-		c = meta.Cursor()
-		for k, v := c.First(); k != nil; k, v = c.Next() {
-			series := &Series{}
-			if err := series.UnmarshalBinary(v); err != nil {
-				return err
-			}
-			s.index.createSeriesIndexIfNotExists(measurementFromSeriesKey(string(k)), series)
-		}
-		return nil
-	})
-}
-
 // SeriesCount returns the number of series buckets on the shard.
-// This does not include a count from the WAL.
-func (s *Shard) SeriesCount() (n int, err error) {
-	err = s.db.View(func(tx *bolt.Tx) error {
-		return tx.ForEach(func(_ []byte, _ *bolt.Bucket) error {
-			n++
-			return nil
-		})
-	})
+func (s *Shard) SeriesCount() (int, error) { return s.engine.SeriesCount() }
 
-	// Remove top-level buckets.
-	n -= topLevelBucketN
-
-	return
-}
-
-type measurementFields struct {
+type MeasurementFields struct {
 	Fields map[string]*field `json:"fields"`
-	codec  *FieldCodec
+	Codec  *FieldCodec
 }
 
 // MarshalBinary encodes the object to a binary format.
-func (m *measurementFields) MarshalBinary() ([]byte, error) {
+func (m *MeasurementFields) MarshalBinary() ([]byte, error) {
 	var pb internal.MeasurementFields
 	for _, f := range m.Fields {
 		id := int32(f.ID)
@@ -742,7 +379,7 @@ func (m *measurementFields) MarshalBinary() ([]byte, error) {
 }
 
 // UnmarshalBinary decodes the object from a binary format.
-func (m *measurementFields) UnmarshalBinary(buf []byte) error {
+func (m *MeasurementFields) UnmarshalBinary(buf []byte) error {
 	var pb internal.MeasurementFields
 	if err := proto.Unmarshal(buf, &pb); err != nil {
 		return err
@@ -757,7 +394,7 @@ func (m *measurementFields) UnmarshalBinary(buf []byte) error {
 // createFieldIfNotExists creates a new field with an autoincrementing ID.
 // Returns an error if 255 fields have already been created on the measurement or
 // the fields already exists with a different type.
-func (m *measurementFields) createFieldIfNotExists(name string, typ influxql.DataType) error {
+func (m *MeasurementFields) createFieldIfNotExists(name string, typ influxql.DataType) error {
 	// Ignore if the field already exists.
 	if f := m.Fields[name]; f != nil {
 		if f.Type != typ {
@@ -778,7 +415,7 @@ func (m *measurementFields) createFieldIfNotExists(name string, typ influxql.Dat
 		Type: typ,
 	}
 	m.Fields[name] = f
-	m.codec = newFieldCodec(m.Fields)
+	m.Codec = NewFieldCodec(m.Fields)
 
 	return nil
 }
@@ -804,7 +441,7 @@ type FieldCodec struct {
 
 // NewFieldCodec returns a FieldCodec for the given Measurement. Must be called with
 // a RLock that protects the Measurement.
-func newFieldCodec(fields map[string]*field) *FieldCodec {
+func NewFieldCodec(fields map[string]*field) *FieldCodec {
 	fieldsByID := make(map[uint8]*field, len(fields))
 	fieldsByName := make(map[string]*field, len(fields))
 	for _, f := range fields {
@@ -1030,11 +667,11 @@ func (f *FieldCodec) DecodeByID(targetID uint8, b []byte) (interface{}, error) {
 // DecodeByName scans a byte slice for a field with the given name, converts it to its
 // expected type, and return that value.
 func (f *FieldCodec) DecodeByName(name string, b []byte) (interface{}, error) {
-	if fi := f.fieldByName(name); fi == nil {
+	fi := f.fieldByName(name)
+	if fi == nil {
 		return 0, ErrFieldNotFound
-	} else {
-		return f.DecodeByID(fi.ID, b)
 	}
+	return f.DecodeByID(fi.ID, b)
 }
 
 // FieldByName returns the field by its name. It will return a nil if not found
@@ -1067,137 +704,4 @@ func u64tob(v uint64) []byte {
 	b := make([]byte, 8)
 	binary.BigEndian.PutUint64(b, v)
 	return b
-}
-
-// marshalWALEntry encodes point data into a single byte slice.
-//
-// The format of the byte slice is:
-//
-//     uint64 timestamp
-//     uint32 key length
-//     []byte key
-//     []byte data
-//
-func marshalWALEntry(key []byte, timestamp int64, data []byte) []byte {
-	v := make([]byte, 8+4, 8+4+len(key)+len(data))
-	binary.BigEndian.PutUint64(v[0:8], uint64(timestamp))
-	binary.BigEndian.PutUint32(v[8:12], uint32(len(key)))
-	v = append(v, key...)
-	v = append(v, data...)
-	return v
-}
-
-// unmarshalWALEntry decodes a WAL entry into it's separate parts.
-// Returned byte slices point to the original slice.
-func unmarshalWALEntry(v []byte) (key []byte, timestamp int64, data []byte) {
-	keyLen := binary.BigEndian.Uint32(v[8:12])
-	key = v[12 : 12+keyLen]
-	timestamp = int64(binary.BigEndian.Uint64(v[0:8]))
-	data = v[12+keyLen:]
-	return
-}
-
-// marshalCacheEntry encodes the timestamp and data to a single byte slice.
-//
-// The format of the byte slice is:
-//
-//     uint64 timestamp
-//     []byte data
-//
-func marshalCacheEntry(timestamp int64, data []byte) []byte {
-	buf := make([]byte, 8, 8+len(data))
-	binary.BigEndian.PutUint64(buf[0:8], uint64(timestamp))
-	return append(buf, data...)
-}
-
-// unmarshalCacheEntry returns the timestamp and data from an encoded byte slice.
-func unmarshalCacheEntry(buf []byte) (timestamp int64, data []byte) {
-	timestamp = int64(binary.BigEndian.Uint64(buf[0:8]))
-	data = buf[8:]
-	return
-}
-
-// byteSlices represents a sortable slice of byte slices.
-type byteSlices [][]byte
-
-func (a byteSlices) Len() int           { return len(a) }
-func (a byteSlices) Less(i, j int) bool { return bytes.Compare(a[i], a[j]) == -1 }
-func (a byteSlices) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-
-// shardCursor provides ordered iteration across a Bolt bucket and shard cache.
-type shardCursor struct {
-	// Bolt cursor and readahead buffer.
-	cursor *bolt.Cursor
-	buf    struct {
-		key, value []byte
-	}
-
-	// Cache and current cache index.
-	cache [][]byte
-	index int
-}
-
-// Seek moves the cursor to a position and returns the closest key/value pair.
-func (sc *shardCursor) Seek(seek []byte) (key, value []byte) {
-	// Seek bolt cursor.
-	if sc.cursor != nil {
-		sc.buf.key, sc.buf.value = sc.cursor.Seek(seek)
-	}
-
-	// Seek cache index.
-	sc.index = sort.Search(len(sc.cache), func(i int) bool {
-		return bytes.Compare(sc.cache[i][0:8], seek) != -1
-	})
-
-	return sc.read()
-}
-
-// Next returns the next key/value pair from the cursor.
-func (sc *shardCursor) Next() (key, value []byte) {
-	// Read next bolt key/value if not bufferred.
-	if sc.buf.key == nil && sc.cursor != nil {
-		sc.buf.key, sc.buf.value = sc.cursor.Next()
-	}
-
-	return sc.read()
-}
-
-// read returns the next key/value in the cursor buffer or cache.
-func (sc *shardCursor) read() (key, value []byte) {
-	// If neither a buffer or cache exists then return nil.
-	if sc.buf.key == nil && sc.index >= len(sc.cache) {
-		return nil, nil
-	}
-
-	// Use the buffer if it exists and there's no cache or if it is lower than the cache.
-	if sc.buf.key != nil && (sc.index >= len(sc.cache) || bytes.Compare(sc.buf.key, sc.cache[sc.index][0:8]) == -1) {
-		key, value = sc.buf.key, sc.buf.value
-		sc.buf.key, sc.buf.value = nil, nil
-		return
-	}
-
-	// Otherwise read from the cache.
-	// Continue skipping ahead through duplicate keys in the cache list.
-	for {
-		// Read the current cache key/value pair.
-		key, value = sc.cache[sc.index][0:8], sc.cache[sc.index][8:]
-		sc.index++
-
-		// Exit loop if we're at the end of the cache or the next key is different.
-		if sc.index >= len(sc.cache) || !bytes.Equal(key, sc.cache[sc.index][0:8]) {
-			break
-		}
-	}
-
-	return
-}
-
-// WALPartitionN is the number of partitions in the write ahead log.
-const WALPartitionN = 8
-
-// WALPartition returns the partition number that key belongs to.
-func WALPartition(key []byte) uint8 {
-	h := fnv.New64a()
-	h.Write(key)
-	return uint8(h.Sum64() % WALPartitionN)
 }

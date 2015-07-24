@@ -98,6 +98,7 @@ message Command {
 		UpdateUserCommand                = 15;
 		SetPrivilegeCommand              = 16;
 		SetDataCommand                   = 17;
+		SetAdminPrivilegeCommand         = 18;
     }
 
     required Type type = 1;
@@ -242,8 +243,69 @@ message SetDataCommand {
     required Data Data = 1;
 }
 
+message SetAdminPrivilegeCommand {
+    extend Command {
+        optional SetAdminPrivilegeCommand command = 118;
+    }
+    required string Username = 1;
+    required bool Admin = 2;
+}
+
 message Response {
 	required bool OK = 1;
 	optional string Error = 2;
 	optional uint64 Index = 3;
+}
+
+
+//========================================================================
+//
+// RPC - higher-level cluster communication operations
+//
+//========================================================================
+
+enum RPCType {
+    Error = 1;
+    FetchData = 2;
+    Join = 3;
+}
+
+message ResponseHeader {
+    required bool OK = 1;
+    optional string Error = 2;
+}
+
+message ErrorResponse {
+    required ResponseHeader Header = 1;
+}
+
+message FetchDataRequest {
+    required uint64 Index = 1;
+    required uint64 Term = 2;
+    optional bool Blocking = 3 [default = false];
+}
+
+message FetchDataResponse {
+    required ResponseHeader Header = 1;
+    required uint64 Index = 2;
+    required uint64 Term = 3;
+    optional bytes Data = 4;
+}
+
+message JoinRequest {
+    required string Addr = 1;
+}
+
+message JoinResponse {
+    required ResponseHeader Header = 1;
+
+    // Indicates that this node should take part in the raft cluster.
+    optional bool EnableRaft = 2;
+
+    // The addresses of raft peers to use if joining as a raft member. If not joining
+    // as a raft member, these are the nodes running raft.
+    repeated string RaftNodes = 3;
+
+    // The node ID assigned to the requesting node.
+    optional uint64 NodeID = 4;
 }

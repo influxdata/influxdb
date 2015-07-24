@@ -14,6 +14,8 @@ It has these top-level messages:
 	Tag
 	Point
 	WriteShardResponse
+	MapShardRequest
+	MapShardResponse
 */
 package internal
 
@@ -198,6 +200,78 @@ func (m *WriteShardResponse) GetMessage() string {
 		return *m.Message
 	}
 	return ""
+}
+
+type MapShardRequest struct {
+	ShardID          *uint64 `protobuf:"varint,1,req" json:"ShardID,omitempty"`
+	Query            *string `protobuf:"bytes,2,req" json:"Query,omitempty"`
+	ChunkSize        *int32  `protobuf:"varint,3,req" json:"ChunkSize,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *MapShardRequest) Reset()         { *m = MapShardRequest{} }
+func (m *MapShardRequest) String() string { return proto.CompactTextString(m) }
+func (*MapShardRequest) ProtoMessage()    {}
+
+func (m *MapShardRequest) GetShardID() uint64 {
+	if m != nil && m.ShardID != nil {
+		return *m.ShardID
+	}
+	return 0
+}
+
+func (m *MapShardRequest) GetQuery() string {
+	if m != nil && m.Query != nil {
+		return *m.Query
+	}
+	return ""
+}
+
+func (m *MapShardRequest) GetChunkSize() int32 {
+	if m != nil && m.ChunkSize != nil {
+		return *m.ChunkSize
+	}
+	return 0
+}
+
+type MapShardResponse struct {
+	Code             *int32   `protobuf:"varint,1,req" json:"Code,omitempty"`
+	Message          *string  `protobuf:"bytes,2,opt" json:"Message,omitempty"`
+	Data             []byte   `protobuf:"bytes,3,opt" json:"Data,omitempty"`
+	TagSets          []string `protobuf:"bytes,4,rep" json:"TagSets,omitempty"`
+	XXX_unrecognized []byte   `json:"-"`
+}
+
+func (m *MapShardResponse) Reset()         { *m = MapShardResponse{} }
+func (m *MapShardResponse) String() string { return proto.CompactTextString(m) }
+func (*MapShardResponse) ProtoMessage()    {}
+
+func (m *MapShardResponse) GetCode() int32 {
+	if m != nil && m.Code != nil {
+		return *m.Code
+	}
+	return 0
+}
+
+func (m *MapShardResponse) GetMessage() string {
+	if m != nil && m.Message != nil {
+		return *m.Message
+	}
+	return ""
+}
+
+func (m *MapShardResponse) GetData() []byte {
+	if m != nil {
+		return m.Data
+	}
+	return nil
+}
+
+func (m *MapShardResponse) GetTagSets() []string {
+	if m != nil {
+		return m.TagSets
+	}
+	return nil
 }
 
 func init() {

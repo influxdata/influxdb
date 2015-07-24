@@ -75,12 +75,18 @@ func TestParseCommand_Use(t *testing.T) {
 		{cmd: "use db"},
 		{cmd: " use db"},
 		{cmd: "use db "},
+		{cmd: "use db;"},
+		{cmd: "use db; "},
 		{cmd: "Use db"},
 	}
 
 	for _, test := range tests {
 		if !c.ParseCommand(test.cmd) {
 			t.Fatalf(`Command "use" failed for %q.`, test.cmd)
+		}
+
+		if c.Database != "db" {
+			t.Fatalf(`Command "use" changed database to %q. Expected db`, c.Database)
 		}
 	}
 }

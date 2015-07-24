@@ -1,6 +1,7 @@
 package meta
 
 import (
+	"sort"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -255,7 +256,7 @@ func (data *Data) ShardGroups(database, policy string) ([]ShardGroupInfo, error)
 }
 
 // ShardGroupsByTimeRange returns a list of all shard groups on a database and policy that may contain data
-// for the specified time range.
+// for the specified time range. Shard groups are sorted by start time.
 func (data *Data) ShardGroupsByTimeRange(database, policy string, tmin, tmax time.Time) ([]ShardGroupInfo, error) {
 	// Find retention policy.
 	rpi, err := data.RetentionPolicy(database, policy)
@@ -271,6 +272,7 @@ func (data *Data) ShardGroupsByTimeRange(database, policy string, tmin, tmax tim
 		}
 		groups = append(groups, g)
 	}
+	sort.Sort(ShardGroupInfos(groups))
 	return groups, nil
 }
 
@@ -478,7 +480,19 @@ func (data *Data) SetPrivilege(name, database string, p influxql.Privilege) erro
 	return nil
 }
 
-// UserPrivileges get privileges for a user.
+// SetAdminPrivilege sets the admin privilege for a user.
+func (data *Data) SetAdminPrivilege(name string, admin bool) error {
+	ui := data.User(name)
+	if ui == nil {
+		return ErrUserNotFound
+	}
+
+	ui.Admin = admin
+
+	return nil
+}
+
+// UserPrivileges gets the privileges for a user.
 func (data *Data) UserPrivileges(name string) (map[string]influxql.Privilege, error) {
 	ui := data.User(name)
 	if ui == nil {
@@ -486,6 +500,22 @@ func (data *Data) UserPrivileges(name string) (map[string]influxql.Privilege, er
 	}
 
 	return ui.Privileges, nil
+}
+
+// UserPrivilege gets the privilege for a user on a database.
+func (data *Data) UserPrivilege(name, database string) (*influxql.Privilege, error) {
+	ui := data.User(name)
+	if ui == nil {
+		return nil, ErrUserNotFound
+	}
+
+	for db, p := range ui.Privileges {
+		if db == database {
+			return &p, nil
+		}
+	}
+
+	return influxql.NewPrivilege(influxql.NoPrivileges), nil
 }
 
 // Clone returns a copy of data with a new version.
@@ -676,14 +706,18 @@ func (di *DatabaseInfo) unmarshal(pb *internal.DatabaseInfo) {
 	di.Name = pb.GetName()
 	di.DefaultRetentionPolicy = pb.GetDefaultRetentionPolicy()
 
-	di.RetentionPolicies = make([]RetentionPolicyInfo, len(pb.GetRetentionPolicies()))
-	for i, x := range pb.GetRetentionPolicies() {
-		di.RetentionPolicies[i].unmarshal(x)
+	if len(pb.GetRetentionPolicies()) > 0 {
+		di.RetentionPolicies = make([]RetentionPolicyInfo, len(pb.GetRetentionPolicies()))
+		for i, x := range pb.GetRetentionPolicies() {
+			di.RetentionPolicies[i].unmarshal(x)
+		}
 	}
 
-	di.ContinuousQueries = make([]ContinuousQueryInfo, len(pb.GetContinuousQueries()))
-	for i, x := range pb.GetContinuousQueries() {
-		di.ContinuousQueries[i].unmarshal(x)
+	if len(pb.GetContinuousQueries()) > 0 {
+		di.ContinuousQueries = make([]ContinuousQueryInfo, len(pb.GetContinuousQueries()))
+		for i, x := range pb.GetContinuousQueries() {
+			di.ContinuousQueries[i].unmarshal(x)
+		}
 	}
 }
 
@@ -764,9 +798,11 @@ func (rpi *RetentionPolicyInfo) unmarshal(pb *internal.RetentionPolicyInfo) {
 	rpi.Duration = time.Duration(pb.GetDuration())
 	rpi.ShardGroupDuration = time.Duration(pb.GetShardGroupDuration())
 
-	rpi.ShardGroups = make([]ShardGroupInfo, len(pb.GetShardGroups()))
-	for i, x := range pb.GetShardGroups() {
-		rpi.ShardGroups[i].unmarshal(x)
+	if len(pb.GetShardGroups()) > 0 {
+		rpi.ShardGroups = make([]ShardGroupInfo, len(pb.GetShardGroups()))
+		for i, x := range pb.GetShardGroups() {
+			rpi.ShardGroups[i].unmarshal(x)
+		}
 	}
 }
 
@@ -805,6 +841,12 @@ type ShardGroupInfo struct {
 	DeletedAt time.Time
 	Shards    []ShardInfo
 }
+
+type ShardGroupInfos []ShardGroupInfo
+
+func (a ShardGroupInfos) Len() int           { return len(a) }
+func (a ShardGroupInfos) Less(i, j int) bool { return a[i].StartTime.Before(a[j].StartTime) }
+func (a ShardGroupInfos) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
 // Contains return true if the shard group contains data for the timestamp.
 func (sgi *ShardGroupInfo) Contains(timestamp time.Time) bool {
@@ -864,9 +906,11 @@ func (sgi *ShardGroupInfo) unmarshal(pb *internal.ShardGroupInfo) {
 	sgi.EndTime = UnmarshalTime(pb.GetEndTime())
 	sgi.DeletedAt = UnmarshalTime(pb.GetDeletedAt())
 
-	sgi.Shards = make([]ShardInfo, len(pb.GetShards()))
-	for i, x := range pb.GetShards() {
-		sgi.Shards[i].unmarshal(x)
+	if len(pb.GetShards()) > 0 {
+		sgi.Shards = make([]ShardInfo, len(pb.GetShards()))
+		for i, x := range pb.GetShards() {
+			sgi.Shards[i].unmarshal(x)
+		}
 	}
 }
 
@@ -950,8 +994,11 @@ type UserInfo struct {
 
 // Authorize returns true if the user is authorized and false if not.
 func (ui *UserInfo) Authorize(privilege influxql.Privilege, database string) bool {
+	if ui.Admin {
+		return true
+	}
 	p, ok := ui.Privileges[database]
-	return (ok && p >= privilege) || (ui.Admin)
+	return ok && (p == privilege || p == influxql.AllPrivileges)
 }
 
 // clone returns a deep copy of si.

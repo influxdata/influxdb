@@ -60,6 +60,7 @@ type Handler struct {
 	}
 
 	QueryExecutor interface {
+		Authorize(u *meta.UserInfo, q *influxql.Query, db string) error
 		ExecuteQuery(q *influxql.Query, db string, chunkSize int) (<-chan *influxql.Result, error)
 	}
 
@@ -212,6 +213,25 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 		return
 	}
 
+	// Sanitize statements with passwords.
+	for _, s := range query.Statements {
+		switch stmt := s.(type) {
+		case *influxql.CreateUserStatement:
+			sanitize(r, stmt.Password)
+		case *influxql.SetPasswordUserStatement:
+			sanitize(r, stmt.Password)
+		}
+	}
+
+	// Check authorization.
+	if h.requireAuthentication {
+		err = h.QueryExecutor.Authorize(user, query, db)
+		if err != nil {
+			httpError(w, "error authorizing query: "+err.Error(), pretty, http.StatusUnauthorized)
+			return
+		}
+	}
+
 	// Parse chunk size. Use default if not provided or unparsable.
 	chunked := (q.Get("chunked") == "true")
 	chunkSize := DefaultChunkSize
@@ -225,34 +245,19 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 	w.Header().Add("content-type", "application/json")
 	results, err := h.QueryExecutor.ExecuteQuery(query, db, chunkSize)
 
-	if _, ok := err.(meta.AuthError); ok {
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	} else if err != nil {
+	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	// if we're not chunking, this will be the in memory buffer for all results before sending to client
 	resp := Response{Results: make([]*influxql.Result, 0)}
-	statusWritten := false
+
+	// Status header is OK once this point is reached.
+	w.WriteHeader(http.StatusOK)
 
 	// pull all results from the channel
 	for r := range results {
-		// write the status header based on the first result returned in the channel
-		if !statusWritten {
-			status := http.StatusOK
-
-			if r != nil && r.Err != nil {
-				if _, ok := r.Err.(meta.AuthError); ok {
-					status = http.StatusUnauthorized
-				}
-			}
-
-			w.WriteHeader(status)
-			statusWritten = true
-		}
-
 		// Ignore nil results.
 		if r == nil {
 			continue
@@ -581,13 +586,14 @@ func parseCredentials(r *http.Request) (string, string, error) {
 	q := r.URL.Query()
 
 	if u, p := q.Get("u"), q.Get("p"); u != "" && p != "" {
+		q.Set("p", "[REDACTED]")
+		r.URL.RawQuery = q.Encode()
 		return u, p, nil
 	}
 	if u, p, ok := r.BasicAuth(); ok {
 		return u, p, nil
-	} else {
-		return "", "", fmt.Errorf("unable to parse Basic Auth credentials")
 	}
+	return "", "", fmt.Errorf("unable to parse Basic Auth credentials")
 }
 
 // authenticate wraps a handler and ensures that if user credentials are passed in

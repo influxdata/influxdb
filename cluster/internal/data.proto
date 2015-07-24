@@ -23,7 +23,7 @@ message Tag {
 }
 
 message Point {
-	required string Name = 1;
+    required string Name = 1;
     required int64 Time = 2;
     repeated Field Fields = 3;
     repeated Tag Tags = 4;
@@ -34,3 +34,15 @@ message WriteShardResponse {
     optional string Message = 2;
 }
 
+message MapShardRequest {
+    required uint64 ShardID = 1;
+    required string Query = 2;
+    required int32 ChunkSize = 3;
+}
+
+message MapShardResponse {
+    required int32 Code = 1;
+    optional string Message = 2;
+    optional bytes Data = 3;
+    repeated string TagSets = 4;
+}

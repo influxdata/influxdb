@@ -20,14 +20,14 @@ type testIterator struct {
 	values []point
 }
 
-func (t *testIterator) Next() (seriesKey string, timestamp int64, value interface{}) {
+func (t *testIterator) Next() (timestamp int64, value interface{}) {
 	if len(t.values) > 0 {
 		v := t.values[0]
 		t.values = t.values[1:]
-		return v.seriesKey, v.time, v.value
+		return v.time, v.value
 	}
 
-	return "0", 0, nil
+	return -1, nil
 }
 
 func TestMapMeanNoValues(t *testing.T) {

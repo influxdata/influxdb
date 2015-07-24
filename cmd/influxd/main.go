@@ -4,9 +4,12 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log"
 	"math/rand"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/influxdb/influxdb/cmd/influxd/backup"
@@ -40,6 +43,8 @@ func main() {
 
 // Main represents the program execution.
 type Main struct {
+	Logger *log.Logger
+
 	Stdin  io.Reader
 	Stdout io.Writer
 	Stderr io.Writer
@@ -48,6 +53,7 @@ type Main struct {
 // NewMain return a new instance of Main.
 func NewMain() *Main {
 	return &Main{
+		Logger: log.New(os.Stderr, "[run] ", log.LstdFlags),
 		Stdin:  os.Stdin,
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
@@ -71,8 +77,32 @@ func (m *Main) Run(args ...string) error {
 			return fmt.Errorf("run: %s", err)
 		}
 
-		// Wait indefinitely.
-		<-(chan struct{})(nil)
+		signalCh := make(chan os.Signal, 1)
+		signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
+		m.Logger.Println("listening for signals")
+
+		// Block until one of the signals above is received
+		select {
+		case <-signalCh:
+			m.Logger.Println("signal received, initializing clean shutdown...")
+			go func() {
+				cmd.Close()
+			}()
+		}
+
+		// Block again until another signal is received, a shutdown timeout elapses,
+		// or the Command is gracefully closed
+		m.Logger.Println("waiting for clean shutdown...")
+		select {
+		case <-signalCh:
+			m.Logger.Println("second signal received, initializing hard shutdown")
+		case <-time.After(time.Second * 30):
+			m.Logger.Println("time limit reached, initializing hard shutdown")
+		case <-cmd.Closed:
+			m.Logger.Println("server shutdown completed")
+		}
+
+		// goodbye.
 
 	case "backup":
 		name := backup.NewCommand()

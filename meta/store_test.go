@@ -218,14 +218,18 @@ func TestStore_DropDatabase(t *testing.T) {
 	}
 
 	// Ensure remaining nodes are correct.
-	if di, _ := s.Database("db0"); !reflect.DeepEqual(di, &meta.DatabaseInfo{Name: "db0"}) {
-		t.Fatalf("unexpected database(0): %#v", di)
+	exp := &meta.DatabaseInfo{Name: "db0"}
+	if di, _ := s.Database("db0"); !reflect.DeepEqual(di, exp) {
+		t.Fatalf("unexpected database(0): \ngot: %#v\nexp: %#v", di, exp)
+
 	}
 	if di, _ := s.Database("db1"); di != nil {
 		t.Fatalf("unexpected database(1): %#v", di)
 	}
-	if di, _ := s.Database("db2"); !reflect.DeepEqual(di, &meta.DatabaseInfo{Name: "db2"}) {
-		t.Fatalf("unexpected database(2): %#v", di)
+
+	exp = &meta.DatabaseInfo{Name: "db2"}
+	if di, _ := s.Database("db2"); !reflect.DeepEqual(di, exp) {
+		t.Fatalf("unexpected database(2): \ngot: %#v\nexp: %#v", di, exp)
 	}
 }
 
@@ -300,8 +304,9 @@ func TestStore_DropRetentionPolicy(t *testing.T) {
 	if rpi, _ := s.RetentionPolicy("db0", "rp1"); rpi != nil {
 		t.Fatalf("unexpected policy(1): %#v", rpi)
 	}
-	if rpi, _ := s.RetentionPolicy("db0", "rp2"); !reflect.DeepEqual(rpi, &meta.RetentionPolicyInfo{Name: "rp2", ReplicaN: 1, ShardGroupDuration: 7 * 24 * time.Hour}) {
-		t.Fatalf("unexpected policy(2): %#v", rpi)
+	exp := &meta.RetentionPolicyInfo{Name: "rp2", ReplicaN: 1, ShardGroupDuration: 7 * 24 * time.Hour}
+	if rpi, _ := s.RetentionPolicy("db0", "rp2"); !reflect.DeepEqual(rpi, exp) {
+		t.Fatalf("unexpected policy(2): \ngot: %#v\nexp: %#v", rpi, exp)
 	}
 }
 
@@ -812,7 +817,7 @@ type Store struct {
 }
 
 // NewStore returns a new test wrapper for Store.
-func NewStore(c meta.Config) *Store {
+func NewStore(c *meta.Config) *Store {
 	s := &Store{
 		Store: meta.NewStore(c),
 	}
@@ -852,6 +857,8 @@ func (s *Store) Open() error {
 	mux := tcp.NewMux()
 	s.RaftListener = mux.Listen(meta.MuxRaftHeader)
 	s.ExecListener = mux.Listen(meta.MuxExecHeader)
+	s.RPCListener = mux.Listen(meta.MuxRPCHeader)
+
 	go mux.Serve(ln)
 
 	// Open store.
@@ -874,8 +881,8 @@ func (s *Store) Close() error {
 }
 
 // NewConfig returns the default test configuration.
-func NewConfig(path string) meta.Config {
-	return meta.Config{
+func NewConfig(path string) *meta.Config {
+	return &meta.Config{
 		Dir:                path,
 		Hostname:           "localhost",
 		BindAddress:        "127.0.0.1:0",

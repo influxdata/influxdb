@@ -36,9 +36,9 @@ reporting-disabled = false
 
 [data]
   dir = "/var/opt/influxdb/data"
-  MaxWALSize = 104857600 # Maximum size the WAL can reach before a flush. Defaults to 100MB.
-  WALFlushInterval = "10m" # Maximum time data can sit in WAL before a flush.
-  WALPartitionFlushDelay = "2s" # The delay time between each WAL partition being flushed.
+  max-wal-size = 104857600 # Maximum size the WAL can reach before a flush. Defaults to 100MB.
+  wal-flush-interval = "10m" # Maximum time data can sit in WAL before a flush.
+  wal-partition-flush-delay = "2s" # The delay time between each WAL partition being flushed.
 
 ###
 ### [cluster]
@@ -64,12 +64,15 @@ reporting-disabled = false
 ###
 ### [admin]
 ###
-### Controls the availability of the built-in, web-based admin interface.
+### Controls the availability of the built-in, web-based admin interface. If HTTPS is
+### enabled for the admin interface, HTTPS must also be enabled on the [http] service.
 ###
 
 [admin]
   enabled = true
   bind-address = ":8083"
+  https-enabled = false
+  https-certificate = "/etc/ssl/influxdb.pem"
 
 ###
 ### [http]
@@ -85,6 +88,8 @@ reporting-disabled = false
   log-enabled = true
   write-tracing = false
   pprof-enabled = false
+  https-enabled = false
+  https-certificate = "/etc/ssl/influxdb.pem"
 
 ###
 ### [[graphite]]
@@ -98,6 +103,13 @@ reporting-disabled = false
   # protocol = "tcp"
   # consistency-level = "one"
   # name-separator = "."
+
+  # These next lines control how batching works. You should have this enabled
+  # otherwise you could get dropped metrics or poor performance. Batching 
+  # will buffer points in memory if you have many coming in.
+
+  # batch-size = 1000 # will flush if this many points get buffered
+  # batch-timeout = "1s" # will flush at least this often even if we haven't hit buffer limit
 
   ## "name-schema" configures tag names for parsing the metric name from graphite protocol;
   ## separated by `name-separator`.
@@ -131,6 +143,13 @@ reporting-disabled = false
   # database = ""
   # typesdb = ""
 
+  # These next lines control how batching works. You should have this enabled
+  # otherwise you could get dropped metrics or poor performance. Batching 
+  # will buffer points in memory if you have many coming in.
+
+  # batch-size = 1000 # will flush if this many points get buffered
+  # batch-timeout = "1s" # will flush at least this often even if we haven't hit buffer limit
+
 ###
 ### [opentsdb]
 ###
@@ -153,8 +172,13 @@ reporting-disabled = false
   enabled = false
   # bind-address = ""
   # database = ""
-  # batch-size = 0
-  # batch-timeout = "0"
+
+  # These next lines control how batching works. You should have this enabled
+  # otherwise you could get dropped metrics or poor performance. Batching 
+  # will buffer points in memory if you have many coming in.
+
+  # batch-size = 1000 # will flush if this many points get buffered
+  # batch-timeout = "1s" # will flush at least this often even if we haven't hit buffer limit
 
 ###
 ### [monitoring]

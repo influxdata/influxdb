@@ -1,7 +1,21 @@
-## v0.9.2 [unreleased]
+## v0.9.3 [unreleased]
+
+### Features
+- [#3376](https://github.com/influxdb/influxdb/pull/3376): Support for remote shard query mapping
+- [#3372](https://github.com/influxdb/influxdb/pull/3372): Support joining nodes to existing cluster
+
+### Bugfixes
+- [#3405](https://github.com/influxdb/influxdb/pull/3405): Prevent database panic when fields are missing. Thanks @jhorwit2
+- [#3411](https://github.com/influxdb/influxdb/issues/3411): 500 timeout on write
+- [#3420](https://github.com/influxdb/influxdb/pull/3420): Catch opentsdb malformed tags. Thanks @nathanielc.
+- [#3404](https://github.com/influxdb/influxdb/pull/3404): Added support for escaped single quotes in query string. Thanks @jhorwit2
+
+## v0.9.2 [2015-07-23]
 
 ### Features
 - [#3177](https://github.com/influxdb/influxdb/pull/3177): Client supports making HTTPS requests. Thanks @jipperinbham
+- [#3299](https://github.com/influxdb/influxdb/pull/3299): Refactor query engine for distributed query support.
+- [#3334](https://github.com/influxdb/influxdb/pull/3334): Clean shutdown of influxd. Thanks @mcastilho
 
 ### Bugfixes
 
@@ -14,6 +28,22 @@
 - [#3245](https://github.com/influxdb/influxdb/issues/3245): Error using graphite plugin with multiple filters
 - [#3223](https://github.com/influxdb/influxdb/issues/323): default graphite template cannot have extra tags
 - [#3255](https://github.com/influxdb/influxdb/pull/3255): Flush WAL on start-up as soon as possible.
+- [#3289](https://github.com/influxdb/influxdb/issues/3289): InfluxDB crashes on floats without decimal
+- [#3298](https://github.com/influxdb/influxdb/pull/3298): Corrected WAL & flush parameters in default config. Thanks @jhorwit2
+- [#3152](https://github.com/influxdb/influxdb/issues/3159): High CPU Usage with unsorted writes
+- [#3307](https://github.com/influxdb/influxdb/pull/3307): Fix regression parsing boolean values True/False
+- [#3304](https://github.com/influxdb/influxdb/pull/3304): Fixed httpd logger to log user from query params. Thanks @jhorwit2
+- [#3332](https://github.com/influxdb/influxdb/pull/3332): Add SLIMIT and SOFFSET to string version of AST.
+- [#3335](https://github.com/influxdb/influxdb/pull/3335): Don't drop all data on DROP DATABASE. Thanks to @PierreF for the report
+- [#2761](https://github.com/influxdb/influxdb/issues/2761): Make SHOW RETENTION POLICIES consistent with other queries.
+- [#3356](https://github.com/influxdb/influxdb/pull/3356): Disregard semicolons after database name in use command. Thanks @timraymond.
+- [#3351](https://github.com/influxdb/influxdb/pull/3351): Handle malformed regex comparisons during parsing. Thanks @rnubel
+- [#3244](https://github.com/influxdb/influxdb/pull/3244): Wire up admin privilege grant and revoke.
+- [#3259](https://github.com/influxdb/influxdb/issues/3259): Respect privileges for queries.
+- [#3256](https://github.com/influxdb/influxdb/pull/3256): Remove unnecessary timeout in WaitForLeader(). Thanks @cannium.
+- [#3380](https://github.com/influxdb/influxdb/issue/3380): Parser fix, only allow ORDER BY ASC and ORDER BY time ASC.
+- [#3319](https://github.com/influxdb/influxdb/issues/3319): restarting process irrevocably BREAKS measurements with spaces
+- [#3453](https://github.com/influxdb/influxdb/issues/3453): Remove outdated `dump` command from CLI.
 
 ## v0.9.1 [2015-07-02]
 
