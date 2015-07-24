@@ -93,6 +93,9 @@ func TestService_Run(t *testing.T) {
 	// Set RunInterval high so we can trigger using Run method.
 	s.RunInterval = 10 * time.Minute
 
+	// Only want one call to ExecuteQueryFn per CQ.
+	s.Config.RecomputePreviousN = 0
+
 	done := make(chan struct{})
 	expectCallCnt := 2
 	callCnt := 0

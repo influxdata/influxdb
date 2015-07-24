@@ -19,7 +19,10 @@ type Config struct {
 	// If this flag is set to false, both the brokers and data nodes should ignore any CQ processing.
 	Enabled bool `toml:"enabled"`
 
-	// RecomputeNoOlderThan sets a ceiling on how far back in time recomputes will go.
+	// The RecomputePreviousN setting provides guidance for how far back to recompute, the RecomputeNoOlderThan
+	// setting sets a ceiling on how far back in time it will go. For example, if you have 2 PreviousN
+	// and have this set to 10m, then we'd only compute the previous two intervals for any
+	// CQs that have a group by time <= 5m. For all others, we'd only recompute the previous window
 	RecomputeNoOlderThan toml.Duration `toml:"recompute-no-older-than"`
 
 	// ComputeRunsPerInterval will determine how many times the current and previous N intervals
@@ -32,7 +35,7 @@ type Config struct {
 
 	// ComputeNoMoreThan paired with the RunsPerInterval will determine the ceiling of how many times smaller
 	// group by times will be computed. For example, if you have RunsPerInterval set to 10 and this setting
-	// to 1m. Then for a group by time(1m) will actually only get computed once per interval.
+	// to 1m. Then for a group by time(1m) will actually only get computed once per interval (and once per PreviousN).
 	// If you have a group by time(5m) then you'll get five computes per interval. Any group by time window larger
 	// than 10m will get computed 10 times for each interval.
 	ComputeNoMoreThan toml.Duration `toml:"compute-no-more-than"`
