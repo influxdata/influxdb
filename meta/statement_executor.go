@@ -10,6 +10,7 @@ import (
 type StatementExecutor struct {
 	Store interface {
 		Nodes() ([]NodeInfo, error)
+		Peers() ([]string, error)
 
 		Database(name string) (*DatabaseInfo, error)
 		Databases() ([]DatabaseInfo, error)
@@ -127,9 +128,14 @@ func (e *StatementExecutor) executeShowServersStatement(q *influxql.ShowServersS
 		return &influxql.Result{Err: err}
 	}
 
-	row := &influxql.Row{Columns: []string{"id", "url"}}
+	peers, err := e.Store.Peers()
+	if err != nil {
+		return &influxql.Result{Err: err}
+	}
+
+	row := &influxql.Row{Columns: []string{"id", "url", "raft"}}
 	for _, ni := range nis {
-		row.Values = append(row.Values, []interface{}{ni.ID, "http://" + ni.Host})
+		row.Values = append(row.Values, []interface{}{ni.ID, "http://" + ni.Host, contains(peers, ni.Host)})
 	}
 	return &influxql.Result{Series: []*influxql.Row{row}}
 }

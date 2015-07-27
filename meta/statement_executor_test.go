@@ -121,15 +121,18 @@ func TestStatementExecutor_ExecuteStatement_ShowServers(t *testing.T) {
 			{ID: 2, Host: "node1"},
 		}, nil
 	}
+	e.Store.PeersFn = func() ([]string, error) {
+		return []string{"node0"}, nil
+	}
 
 	if res := e.ExecuteStatement(influxql.MustParseStatement(`SHOW SERVERS`)); res.Err != nil {
 		t.Fatal(res.Err)
 	} else if !reflect.DeepEqual(res.Series, influxql.Rows{
 		{
-			Columns: []string{"id", "url"},
+			Columns: []string{"id", "url", "raft"},
 			Values: [][]interface{}{
-				{uint64(1), "http://node0"},
-				{uint64(2), "http://node1"},
+				{uint64(1), "http://node0", true},
+				{uint64(2), "http://node1", false},
 			},
 		},
 	}) {
@@ -778,6 +781,7 @@ func NewStatementExecutor() *StatementExecutor {
 // StatementExecutorStore represents a mock implementation of StatementExecutor.Store.
 type StatementExecutorStore struct {
 	NodesFn                     func() ([]meta.NodeInfo, error)
+	PeersFn                     func() ([]string, error)
 	DatabaseFn                  func(name string) (*meta.DatabaseInfo, error)
 	DatabasesFn                 func() ([]meta.DatabaseInfo, error)
 	CreateDatabaseFn            func(name string) (*meta.DatabaseInfo, error)
@@ -802,6 +806,10 @@ type StatementExecutorStore struct {
 
 func (s *StatementExecutorStore) Nodes() ([]meta.NodeInfo, error) {
 	return s.NodesFn()
+}
+
+func (s *StatementExecutorStore) Peers() ([]string, error) {
+	return s.PeersFn()
 }
 
 func (s *StatementExecutorStore) Database(name string) (*meta.DatabaseInfo, error) {
