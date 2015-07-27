@@ -283,39 +283,25 @@ func (self *ChunkWriter) done() {
 }
 
 type ExportPointsWriter struct {
-	name      string
-	memSeries map[string]*protocol.Series
-	w         libhttp.ResponseWriter
+	w libhttp.ResponseWriter
 }
 
 func (self *ExportPointsWriter) yield(series *protocol.Series) error {
-	oldSeries := self.memSeries[*series.Name]
-	if oldSeries == nil {
-		self.memSeries[*series.Name] = series
-		return nil
-	}
-
-	self.memSeries[series.GetName()] = MergeSeries(self.memSeries[series.GetName()], series)
-	return nil
-}
-
-func (self *ExportPointsWriter) done() {
-	series := SerializeSeries(self.memSeries, MillisecondPrecision)
-	for _, s := range series {
-		for _, rows := range s.Points {
-			fields := make(Fields)
-			var epoch int64
-			for i, p := range rows {
-				if i == 0 {
-					epoch = p.(int64)
-				}
-				if i > 1 {
-					fields[s.Columns[i]] = p
-				}
+	arg := map[string]*protocol.Series{"": series}
+	s := SerializeSeries(arg, MicrosecondPrecision)[0]
+	fields := make(Fields)
+	var epoch int64
+	for _, rows := range s.Points {
+		for i, p := range rows {
+			if i == 0 {
+				epoch = p.(int64)
+			}
+			if i > 1 && p != nil {
+				fields[s.Columns[i]] = p
 			}
 			data := fields.MarshalBinary()
 			// Write the series name
-			self.w.Write(escape([]byte(self.name)))
+			self.w.Write(escape([]byte(*series.Name)))
 
 			// Write space
 			self.w.Write([]byte{' '})
@@ -333,6 +319,10 @@ func (self *ExportPointsWriter) done() {
 			self.w.Write([]byte{'\n'})
 		}
 	}
+	return nil
+}
+
+func (self *ExportPointsWriter) done() {
 }
 
 func TimePrecisionFromString(s string) (TimePrecision, error) {
@@ -1416,7 +1406,7 @@ func (self *HttpServer) exportDatabases(w libhttp.ResponseWriter, r *libhttp.Req
 			return
 		}
 		query := fmt.Sprintf(`select * from %q`, series)
-		writer := &ExportPointsWriter{series, map[string]*protocol.Series{}, w}
+		writer := &ExportPointsWriter{w}
 		seriesWriter := NewSeriesWriter(writer.yield)
 		if err := self.coordinator.RunQuery(user, schema.db, query, seriesWriter); err != nil {
 			libhttp.Error(w, fmt.Sprintf("failed to query data: database: %s, query: %s, err: %s", schema.db, query, err), libhttp.StatusNotFound)
