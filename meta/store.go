@@ -66,7 +66,6 @@ type Store struct {
 
 	// All peers in cluster. Used during bootstrapping.
 	peers []string
-	join  string
 
 	data *Data
 
@@ -131,7 +130,6 @@ func NewStore(c *Config) *Store {
 	s := &Store{
 		path:  c.Dir,
 		peers: c.Peers,
-		join:  c.Join,
 		data:  &Data{},
 
 		ready:   make(chan struct{}),
@@ -277,8 +275,9 @@ func (s *Store) loadState() error {
 }
 
 func (s *Store) joinCluster() error {
+
 	// No join options, so nothing to do
-	if s.join == "" {
+	if len(s.peers) == 0 {
 		return nil
 	}
 
@@ -290,9 +289,9 @@ func (s *Store) joinCluster() error {
 		return nil
 	}
 
-	s.Logger.Printf("joining cluster at: %v", s.join)
+	s.Logger.Printf("joining cluster at: %v", s.peers)
 	for {
-		for _, join := range strings.Split(s.join, ",") {
+		for _, join := range s.peers {
 			res, err := s.rpc.join(s.Addr.String(), join)
 			if err != nil {
 				s.Logger.Printf("join failed: %v", err)
@@ -663,7 +662,6 @@ func (s *Store) handleExecConn(conn net.Conn) {
 // This function runs in a separate goroutine.
 func (s *Store) serveRPCListener() {
 	defer s.wg.Done()
-	<-s.ready
 
 	for {
 		// Accept next TCP connection.

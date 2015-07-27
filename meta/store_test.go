@@ -1025,7 +1025,7 @@ func MustOpenCluster(n int) *Cluster {
 
 func (c *Cluster) Join() error {
 	config := NewConfig(filepath.Join(c.path, strconv.Itoa(len(c.Stores))))
-	config.Join = c.Stores[0].Addr.String()
+	config.Peers = []string{c.Stores[0].Addr.String()}
 	s := NewStore(config)
 	if err := s.Open(); err != nil {
 		return err

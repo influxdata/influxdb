@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 )
@@ -83,7 +84,7 @@ func (cmd *Command) Run(args ...string) error {
 	}
 
 	if options.Join != "" {
-		config.Meta.Join = options.Join
+		config.Meta.Peers = strings.Split(options.Join, ",")
 	}
 
 	// Validate the configuration.

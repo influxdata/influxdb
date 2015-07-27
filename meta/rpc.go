@@ -395,11 +395,13 @@ func (r *rpc) call(dest string, req proto.Message) (proto.Message, error) {
 
 	// Should always have a size and type
 	if exp := 16; len(data) < exp {
+		r.traceCluster("recv: %v", string(data))
 		return nil, fmt.Errorf("rpc %v failed: short read: got %v, exp %v", rpcType, len(data), exp)
 	}
 
 	sz := btou64(data[0:8])
 	if len(data[8:]) != int(sz) {
+		r.traceCluster("recv: %v", string(data))
 		return nil, fmt.Errorf("rpc %v failed: short read: got %v, exp %v", rpcType, len(data[8:]), sz)
 	}
 
