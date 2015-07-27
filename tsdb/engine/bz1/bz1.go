@@ -30,7 +30,7 @@ func init() {
 
 const (
 	// DefaultBlockSize is the default size of uncompressed points blocks.
-	DefaultBlockSize = 4 * 1024 * 1024 // 4MB
+	DefaultBlockSize = 32 * 1024 // 32KB
 )
 
 // Ensure Engine implements the interface.
@@ -340,6 +340,20 @@ func (e *Engine) Begin(writable bool) (tsdb.Tx, error) {
 		return nil, err
 	}
 	return &Tx{Tx: tx, engine: e}, nil
+}
+
+// Stats returns internal statistics for the engine.
+func (e *Engine) Stats() (stats Stats, err error) {
+	err = e.db.View(func(tx *bolt.Tx) error {
+		stats.Size = tx.Size()
+		return nil
+	})
+	return stats, err
+}
+
+// Stats represents internal engine statistics.
+type Stats struct {
+	Size int64 // BoltDB data size
 }
 
 // Tx represents a transaction.

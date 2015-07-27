@@ -141,6 +141,94 @@ func TestEngine_WritePoints_Quick(t *testing.T) {
 	}, nil)
 }
 
+func BenchmarkEngine_WritePoints_0b_1(b *testing.B)     { benchmarkEngine_WritePoints_0b(b, 1) }
+func BenchmarkEngine_WritePoints_0b_10(b *testing.B)    { benchmarkEngine_WritePoints_0b(b, 10) }
+func BenchmarkEngine_WritePoints_0b_100(b *testing.B)   { benchmarkEngine_WritePoints_0b(b, 100) }
+func BenchmarkEngine_WritePoints_0b_1000(b *testing.B)  { benchmarkEngine_WritePoints_0b(b, 1000) }
+func BenchmarkEngine_WritePoints_0b_10000(b *testing.B) { benchmarkEngine_WritePoints_0b(b, 10000) }
+func benchmarkEngine_WritePoints_0b(b *testing.B, seriesN int) {
+	benchmarkEngine_WritePoints(b, 0, seriesN)
+}
+
+func BenchmarkEngine_WritePoints_512b_100(b *testing.B)   { benchmarkEngine_WritePoints_512b(b, 100) }
+func BenchmarkEngine_WritePoints_512b_1000(b *testing.B)  { benchmarkEngine_WritePoints_512b(b, 1000) }
+func BenchmarkEngine_WritePoints_512b_10000(b *testing.B) { benchmarkEngine_WritePoints_512b(b, 10000) }
+func benchmarkEngine_WritePoints_512b(b *testing.B, seriesN int) {
+	benchmarkEngine_WritePoints(b, 512, seriesN)
+}
+
+func BenchmarkEngine_WritePoints_1KB_100(b *testing.B)   { benchmarkEngine_WritePoints_1KB(b, 100) }
+func BenchmarkEngine_WritePoints_1KB_1000(b *testing.B)  { benchmarkEngine_WritePoints_1KB(b, 1000) }
+func BenchmarkEngine_WritePoints_1KB_10000(b *testing.B) { benchmarkEngine_WritePoints_1KB(b, 10000) }
+func benchmarkEngine_WritePoints_1KB(b *testing.B, seriesN int) {
+	benchmarkEngine_WritePoints(b, 1024, seriesN)
+}
+
+func BenchmarkEngine_WritePoints_2KB_100(b *testing.B)   { benchmarkEngine_WritePoints_2KB(b, 100) }
+func BenchmarkEngine_WritePoints_2KB_1000(b *testing.B)  { benchmarkEngine_WritePoints_2KB(b, 1000) }
+func BenchmarkEngine_WritePoints_2KB_10000(b *testing.B) { benchmarkEngine_WritePoints_2KB(b, 10000) }
+func benchmarkEngine_WritePoints_2KB(b *testing.B, seriesN int) {
+	benchmarkEngine_WritePoints(b, 2*1024, seriesN)
+}
+
+func BenchmarkEngine_WritePoints_4KB_100(b *testing.B)   { benchmarkEngine_WritePoints_4KB(b, 100) }
+func BenchmarkEngine_WritePoints_4KB_1000(b *testing.B)  { benchmarkEngine_WritePoints_4KB(b, 1000) }
+func BenchmarkEngine_WritePoints_4KB_10000(b *testing.B) { benchmarkEngine_WritePoints_4KB(b, 10000) }
+func benchmarkEngine_WritePoints_4KB(b *testing.B, seriesN int) {
+	benchmarkEngine_WritePoints(b, 4*1024, seriesN)
+}
+
+func BenchmarkEngine_WritePoints_8KB_100(b *testing.B)   { benchmarkEngine_WritePoints_8KB(b, 100) }
+func BenchmarkEngine_WritePoints_8KB_1000(b *testing.B)  { benchmarkEngine_WritePoints_8KB(b, 1000) }
+func BenchmarkEngine_WritePoints_8KB_10000(b *testing.B) { benchmarkEngine_WritePoints_8KB(b, 10000) }
+func benchmarkEngine_WritePoints_8KB(b *testing.B, seriesN int) {
+	benchmarkEngine_WritePoints(b, 8*1024, seriesN)
+}
+
+func BenchmarkEngine_WritePoints_16KB_100(b *testing.B)   { benchmarkEngine_WritePoints_16KB(b, 100) }
+func BenchmarkEngine_WritePoints_16KB_1000(b *testing.B)  { benchmarkEngine_WritePoints_16KB(b, 1000) }
+func BenchmarkEngine_WritePoints_16KB_10000(b *testing.B) { benchmarkEngine_WritePoints_16KB(b, 10000) }
+func benchmarkEngine_WritePoints_16KB(b *testing.B, seriesN int) {
+	benchmarkEngine_WritePoints(b, 16*1024, seriesN)
+}
+
+func BenchmarkEngine_WritePoints_32KB_100(b *testing.B)   { benchmarkEngine_WritePoints_32KB(b, 100) }
+func BenchmarkEngine_WritePoints_32KB_1000(b *testing.B)  { benchmarkEngine_WritePoints_32KB(b, 1000) }
+func BenchmarkEngine_WritePoints_32KB_10000(b *testing.B) { benchmarkEngine_WritePoints_32KB(b, 10000) }
+func benchmarkEngine_WritePoints_32KB(b *testing.B, seriesN int) {
+	benchmarkEngine_WritePoints(b, 32*1024, seriesN)
+}
+
+func benchmarkEngine_WritePoints(b *testing.B, blockSize, seriesN int) {
+	e := OpenDefaultEngine()
+	e.BlockSize = blockSize
+	defer e.Close()
+
+	// Generate data.
+	var points []tsdb.Point
+	for i := 0; i < b.N; i++ {
+		points = append(points, tsdb.NewPoint(
+			strconv.Itoa(i/seriesN),
+			tsdb.Tags{},
+			tsdb.Fields{"value": float64(i)},
+			time.Unix(0, 0).Add(time.Duration(i))))
+	}
+	b.ResetTimer()
+
+	// Write points against two separate series.
+	if err := e.WritePoints(points, nil, nil); err != nil {
+		b.Fatal(err)
+	}
+
+	// Stop timer and measure size per point.
+	b.StopTimer()
+	if stats, err := e.Stats(); err != nil {
+		b.Fatal(err)
+	} else {
+		b.Logf("n=%d, %.1f b/pt", b.N, float64(stats.Size)/float64(b.N))
+	}
+}
+
 // Engine represents a test wrapper for bz1.Engine.
 type Engine struct {
 	*bz1.Engine
