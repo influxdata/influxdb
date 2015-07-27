@@ -145,10 +145,10 @@ func (p *Processor) Process() error {
 				// unmarshal the byte slice back to shard ID and points
 				shardID, points, err := p.unmarshalWrite(buf)
 				if err != nil {
-					// TODO: If we ever get and error here, we should probably drop the
-					// the write and let anti-entropy resolve it.  This would be an urecoverable
-					// error and could block the queue indefinitely.
-					res <- err
+					p.Logger.Printf("unmarshal write failed: %v", err)
+					if err := q.Advance(); err != nil {
+						res <- err
+					}
 					return
 				}
 
@@ -197,6 +197,9 @@ func (p *Processor) marshalWrite(shardID uint64, points []tsdb.Point) []byte {
 }
 
 func (p *Processor) unmarshalWrite(b []byte) (uint64, []tsdb.Point, error) {
+	if len(b) < 8 {
+		return 0, nil, fmt.Errorf("too short: len = %d", len(b))
+	}
 	ownerID := binary.BigEndian.Uint64(b[:8])
 	points, err := tsdb.ParsePoints(b[8:])
 	return ownerID, points, err
