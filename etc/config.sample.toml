@@ -195,6 +195,7 @@ reporting-disabled = false
 ###
 
 [continuous_queries]
+  log-enabled = true
   enabled = true
   recompute-previous-n = 2
   recompute-no-older-than = "10m"
