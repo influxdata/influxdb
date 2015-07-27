@@ -383,11 +383,15 @@ func (s *Store) Close() error {
 // WaitForDataChanged will block the current goroutine until the metastore index has
 // be updated.
 func (s *Store) WaitForDataChanged() error {
+	s.mu.RLock()
+	changed := s.changed
+	s.mu.RUnlock()
+
 	for {
 		select {
 		case <-s.closing:
 			return errors.New("closing")
-		case <-s.changed:
+		case <-changed:
 			return nil
 		}
 	}
