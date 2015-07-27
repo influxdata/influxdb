@@ -129,13 +129,32 @@ Useful links
 Getting v08.8.9 Running
 --------------
 
+
+### getting protobufs working
+
+Download and install protobuf.
+
+run:
+
+```
+protoc --go_out=. protocol/*.proto
+```
+
+
+### build parser files
+
+```sh
+cd ./parser
+build_parser.sh
+```
+
 ### leveldb files:
 ```
+brew install leveldb
 mkdir -p /tmp/leveldb.influxdb.amd64
 cd /tmp/leveldb.influxdb.amd64
 wget https://leveldb.googlecode.com/files/leveldb-1.15.0.tar.gz
 tar --strip-components=1 -xvzf leveldb-1.15.0.tar.gz
-
 ```
 
 
@@ -146,10 +165,9 @@ mkdir -p /tmp/rocksdb.influxdb.amd64
 cd /tmp/rocksdb.influxdb.amd64
 wget https://github.com/facebook/rocksdb/archive/rocksdb-3.5.1.tar.gz
 tar --strip-components=1 -xvzf rocksdb-3.5.1.tar.gz
-
 ```
 
-Create a version file in `daemon` called `influxd_version.go` and put the following content in it:
+Create a version file in `daemon` called `version.go` and put the following content in it:
 
 ``` go
 package main
