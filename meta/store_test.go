@@ -787,33 +787,101 @@ func TestCluster_Open(t *testing.T) {
 		t.Fatal("no leader found")
 	}
 
-	// Add a database to each node.
-	for i, s := range c.Stores {
-		if di, err := s.CreateDatabase(fmt.Sprintf("db%d", i)); err != nil {
-			t.Fatal(err)
-		} else if di == nil {
-			t.Fatal("expected database")
+	// ensure all the nodes see the same metastore data
+	assertDatabaseReplicated(t, c)
+}
+
+// Ensure a multi-node cluster can start, join the cluster, and the first three members are raft nodes.
+func TestCluster_OpenRaft(t *testing.T) {
+	// Start a single node.
+	c := MustOpenCluster(1)
+	defer c.Close()
+
+	// Check that the node becomes leader.
+	if s := c.Leader(); s == nil {
+		t.Fatal("no leader found")
+	}
+
+	// Add 5 more nodes.
+	for i := 0; i < 5; i++ {
+		if err := c.Join(); err != nil {
+			t.Fatalf("failed to join cluster: %v", err)
 		}
 	}
 
-	// Verify that each store has all databases.
-	for i := 0; i < len(c.Stores); i++ {
-		for _, s := range c.Stores {
-			if di, err := s.Database(fmt.Sprintf("db%d", i)); err != nil {
-				t.Fatal(err)
-			} else if di == nil {
-				t.Fatal("expected database")
-			}
+	// ensure we have 3 raft nodes
+	assertRaftPeerNodes(t, c, 3)
+
+	// ensure all the nodes see the same metastore data
+	assertDatabaseReplicated(t, c)
+}
+
+// Ensure a multi-node cluster can restart
+func TestCluster_Restart(t *testing.T) {
+	// Start a single node.
+	c := MustOpenCluster(1)
+	defer c.Close()
+
+	// Check that one node is leader.
+	if s := c.Leader(); s == nil {
+		t.Fatal("no leader found")
+	}
+
+	// Add 5 more ndes, 2 should become raft peers, 3 remote raft clients
+	for i := 0; i < 5; i++ {
+		if err := c.Join(); err != nil {
+			t.Fatalf("failed to join cluster: %v", err)
 		}
 	}
+
+	// The tests use a host host assigned listener port.  We need to re-use
+	// the original ports when the new cluster is restarted so that the existing
+	// peer store addresses can be reached.
+	addrs := []string{}
+
+	// Make sure we keep files on disk when we shutdown as well as record the
+	// current cluster IP addresses
+	for _, s := range c.Stores {
+		s.LeaveFiles = true
+		addrs = append(addrs, s.Addr.String())
+	}
+
+	// Stop the cluster
+	if err := c.Close(); err != nil {
+		t.Fatalf("failed to close cluster: %v", err)
+	}
+
+	// Wait a bit to avoid spurious port in use conflict errors from trying to
+	// start the new cluster to fast
+	time.Sleep(100 * time.Millisecond)
+
+	// Re-create the cluster nodes from existing disk paths and addresses
+	stores := []*Store{}
+	for i, s := range c.Stores {
+		store := MustOpenStoreWithPath(addrs[i], s.Path())
+		stores = append(stores, store)
+	}
+	c.Stores = stores
+
+	// Wait for the cluster to stabilize
+	if err := c.WaitForLeader(); err != nil {
+		t.Fatal("no leader found")
+	}
+
+	// ensure we have 3 raft nodes
+	assertRaftPeerNodes(t, c, 3)
+
+	// ensure all the nodes see the same metastore data
+	assertDatabaseReplicated(t, c)
 }
 
 // Store is a test wrapper for meta.Store.
 type Store struct {
 	*meta.Store
-	Listener   net.Listener
-	Stderr     bytes.Buffer
-	LeaveFiles bool // set to true to leave temporary files on close
+	BindAddress string
+	Listener    net.Listener
+	Stderr      bytes.Buffer
+	LeaveFiles  bool // set to true to leave temporary files on close
 }
 
 // NewStore returns a new test wrapper for Store.
@@ -828,7 +896,16 @@ func NewStore(c *meta.Config) *Store {
 
 // MustOpenStore opens a store in a temporary path. Panic on error.
 func MustOpenStore() *Store {
-	s := NewStore(NewConfig(MustTempFile()))
+	return MustOpenStoreWithPath("", MustTempFile())
+}
+
+// MustOpenStoreWith opens a store from a given path. Panic on error.
+func MustOpenStoreWithPath(addr, path string) *Store {
+	c := NewConfig(path)
+	s := NewStore(c)
+	if addr != "" {
+		s.BindAddress = addr
+	}
 	if err := s.Open(); err != nil {
 		panic(err)
 	}
@@ -845,8 +922,13 @@ func MustOpenStore() *Store {
 
 // Open opens the store on a random TCP port.
 func (s *Store) Open() error {
+
+	addr := "127.0.0.1:0"
+	if s.BindAddress != "" {
+		addr = s.BindAddress
+	}
 	// Open a TCP port.
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return fmt.Errorf("listen: %s", err)
 	}
@@ -895,17 +977,21 @@ func NewConfig(path string) *meta.Config {
 
 // Cluster represents a group of stores joined as a raft cluster.
 type Cluster struct {
+	path   string
 	Stores []*Store
 }
 
 // NewCluster returns a cluster of n stores within path.
 func NewCluster(path string, n int) *Cluster {
-	c := &Cluster{}
+	c := &Cluster{path: path}
 
-	// Construct a list of temporary peers.
-	peers := make([]string, n)
-	for i := range peers {
-		peers[i] = "127.0.0.1:0"
+	peers := []string{}
+	if n > 1 {
+		// Construct a list of temporary peers.
+		peers := make([]string, n)
+		for i := range peers {
+			peers[i] = "127.0.0.1:0"
+		}
 	}
 
 	// Create new stores with temporary peers.
@@ -935,6 +1021,23 @@ func MustOpenCluster(n int) *Cluster {
 		}
 	}
 	return c
+}
+
+func (c *Cluster) Join() error {
+	config := NewConfig(filepath.Join(c.path, strconv.Itoa(len(c.Stores))))
+	config.Join = c.Stores[0].Addr.String()
+	s := NewStore(config)
+	if err := s.Open(); err != nil {
+		return err
+	}
+	select {
+	case err := <-s.Err():
+		panic(fmt.Sprintf("store: i=%d, addr=%s, err=%s", len(c.Stores), s.Addr.String(), err))
+	case <-s.Ready():
+	}
+
+	c.Stores = append(c.Stores, s)
+	return nil
 }
 
 // Open opens and initializes all stores in the cluster.
@@ -972,6 +1075,15 @@ func (c *Cluster) Close() error {
 	return nil
 }
 
+func (c *Cluster) WaitForLeader() error {
+	for _, s := range c.Stores {
+		if err := s.WaitForLeader(5 * time.Second); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Leader returns the store that is currently leader.
 func (c *Cluster) Leader() *Store {
 	for _, s := range c.Stores {
@@ -993,4 +1105,45 @@ func MustTempFile() string {
 // mockHashPassword is used for most tests to avoid slow calls to bcrypt.
 func mockHashPassword(password string) ([]byte, error) {
 	return []byte(password), nil
+}
+
+// assertRaftPeerNodes counts the number of nodes running with a local raft
+// database and asserts that the count is equal to n
+func assertRaftPeerNodes(t *testing.T, c *Cluster, n int) {
+	// Ensure we have the required number of raft nodes
+	raftCount := 0
+	for _, s := range c.Stores {
+		if _, err := os.Stat(filepath.Join(s.Path(), "raft.db")); err == nil {
+			raftCount += 1
+		}
+	}
+
+	if raftCount != n {
+		t.Errorf("raft nodes mismatch: got %v, exp %v", raftCount, n)
+	}
+}
+
+// assertDatabaseReplicated creates a new database named after each node and
+// then verifies that each node can see all the created databases from their
+// local meta data
+func assertDatabaseReplicated(t *testing.T, c *Cluster) {
+	// Add a database to each node.
+	for i, s := range c.Stores {
+		if di, err := s.CreateDatabase(fmt.Sprintf("db%d", i)); err != nil {
+			t.Fatal(err)
+		} else if di == nil {
+			t.Fatal("expected database")
+		}
+	}
+
+	// Verify that each store has all databases.
+	for i := 0; i < len(c.Stores); i++ {
+		for _, s := range c.Stores {
+			if di, err := s.Database(fmt.Sprintf("db%d", i)); err != nil {
+				t.Fatal(err)
+			} else if di == nil {
+				t.Fatal("expected database")
+			}
+		}
+	}
 }
