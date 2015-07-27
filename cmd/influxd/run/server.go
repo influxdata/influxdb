@@ -380,6 +380,7 @@ func (s *Server) startServerReporting() {
 		}
 		if err := s.MetaStore.WaitForLeader(30 * time.Second); err != nil {
 			log.Printf("no leader available for reporting: %s", err.Error())
+			time.Sleep(time.Second)
 			continue
 		}
 		s.reportServer()
