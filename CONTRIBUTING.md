@@ -204,6 +204,20 @@ If generating the protobuf code is failing for you, check each of the following:
  * Ensure the protobuf library can be found. Make sure that `LD_LIBRRARY_PATH` includes the directory in which the library `libprotoc.so` has been installed.
  * Ensure the command `protoc-gen-gogo`, found in `GOPATH/bin`, is on your path. This can be done by adding `GOPATH/bin` to `PATH`.
 
+Profiling
+-----
+When troubleshooting problems with CPU or memory the Go toolchain can be helpful. You can start InfluxDB with CPU or memory profiling turned on. For example:
+
+```sh
+# start influx with profiling
+./influxd -cpuprofile influxd.prof
+# run queries, writes, whatever you're testing
+# open up pprof
+go tool pprof influxd influxd.prof
+# once inside run "web", opens up browser with the CPU graph
+# can also run "web <function name>" to zoom in. Or "list <function name>" to see specific lines
+```
+
 Continuous Integration testing
 -----
 InfluxDB uses CirceCI for continuous integration testing. To see how the code is built and tested, check out [this file](https://github.com/influxdb/influxdb/blob/master/circle-test.sh). It closely follows the build and test process outlined above. You can see the exact version of Go InfluxDB uses for testing by consulting that file.
