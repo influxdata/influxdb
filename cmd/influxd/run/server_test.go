@@ -882,6 +882,9 @@ func TestServer_Query_Tags(t *testing.T) {
 
 		fmt.Sprintf("cpu3,company=acme01 value=100 %d", mustParseTime(time.RFC3339Nano, "2015-02-28T01:03:36.703820946Z").UnixNano()),
 		fmt.Sprintf("cpu3 value=200 %d", mustParseTime(time.RFC3339Nano, "2012-02-28T01:03:38.703820946Z").UnixNano()),
+
+		fmt.Sprintf("status_code,url=http://www.akamai.com value=404 %d", mustParseTime(time.RFC3339Nano, "2015-07-22T08:13:54.929026672Z").UnixNano()),
+		fmt.Sprintf("status_code,url=https://influxdb.com value=418 %d", mustParseTime(time.RFC3339Nano, "2015-07-22T09:52:24.914395083Z").UnixNano()),
 	}
 
 	test := NewTest("db0", "rp0")
@@ -987,6 +990,16 @@ func TestServer_Query_Tags(t *testing.T) {
 			name:    "single field (regex tag match)",
 			command: `SELECT value FROM db0.rp0.cpu3 WHERE company !~ /acme[23]/`,
 			exp:     `{"results":[{"series":[{"name":"cpu3","columns":["time","value"],"values":[["2012-02-28T01:03:38.703820946Z",200],["2015-02-28T01:03:36.703820946Z",100]]}]}]}`,
+		},
+		&Query{
+			name:    "single field (regex tag match with escaping)",
+			command: `SELECT value FROM db0.rp0.status_code WHERE url =~ /http\:\/\/www\.akamai\.com/`,
+			exp:     `{"results":[{"series":[{"name":"status_code","columns":["time","value"],"values":[["2015-07-22T08:13:54.929026672Z",404]]}]}]}`,
+		},
+		&Query{
+			name:    "single field (regex tag match with escaping)",
+			command: `SELECT value FROM db0.rp0.status_code WHERE url !~ /http\:\/\/www\.akamai\.com/`,
+			exp:     `{"results":[{"series":[{"name":"status_code","columns":["time","value"],"values":[["2015-07-22T09:52:24.914395083Z",418]]}]}]}`,
 		},
 	}...)
 
