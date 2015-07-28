@@ -251,12 +251,6 @@ func (q *QueryExecutor) Plan(stmt *influxql.SelectStatement, chunkSize int) (*Ex
 
 // executeSelectStatement plans and executes a select statement against a database.
 func (q *QueryExecutor) executeSelectStatement(statementID int, stmt *influxql.SelectStatement, results chan *influxql.Result, chunkSize int) error {
-	// Perform any necessary query re-writing.
-	stmt, err := q.rewriteSelectStatement(stmt)
-	if err != nil {
-		return err
-	}
-
 	// Plan statement execution.
 	e, err := q.Plan(stmt, chunkSize)
 	if err != nil {
@@ -281,85 +275,6 @@ func (q *QueryExecutor) executeSelectStatement(statementID int, stmt *influxql.S
 	}
 
 	return nil
-}
-
-// rewriteSelectStatement performs any necessary query re-writing.
-func (q *QueryExecutor) rewriteSelectStatement(stmt *influxql.SelectStatement) (*influxql.SelectStatement, error) {
-	var err error
-
-	// Expand regex expressions in the FROM clause.
-	sources, err := q.expandSources(stmt.Sources)
-	if err != nil {
-		return nil, err
-	}
-	stmt.Sources = sources
-
-	// Expand wildcards in the fields or GROUP BY.
-	if stmt.HasWildcard() {
-		stmt, err = q.expandWildcards(stmt)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	stmt.RewriteDistinct()
-
-	return stmt, nil
-}
-
-// expandWildcards returns a new SelectStatement with wildcards in the fields
-// and/or GROUP BY expanded with actual field names.
-func (q *QueryExecutor) expandWildcards(stmt *influxql.SelectStatement) (*influxql.SelectStatement, error) {
-	// If there are no wildcards in the statement, return it as-is.
-	if !stmt.HasWildcard() {
-		return stmt, nil
-	}
-
-	// Use sets to avoid duplicate field names.
-	fieldSet := map[string]struct{}{}
-	dimensionSet := map[string]struct{}{}
-
-	var fields influxql.Fields
-	var dimensions influxql.Dimensions
-
-	// Iterate measurements in the FROM clause getting the fields & dimensions for each.
-	for _, src := range stmt.Sources {
-		if m, ok := src.(*influxql.Measurement); ok {
-			// Lookup the database. The database may not exist if no data for this database
-			// was ever written to the shard.
-			db := q.Store.DatabaseIndex(m.Database)
-			if db == nil {
-				return stmt, nil
-			}
-
-			// Lookup the measurement in the database.
-			mm := db.measurements[m.Name]
-			if mm == nil {
-				return nil, ErrMeasurementNotFound(m.String())
-			}
-
-			// Get the fields for this measurement.
-			for _, name := range mm.FieldNames() {
-				if _, ok := fieldSet[name]; ok {
-					continue
-				}
-				fieldSet[name] = struct{}{}
-				fields = append(fields, &influxql.Field{Expr: &influxql.VarRef{Val: name}})
-			}
-
-			// Get the dimensions for this measurement.
-			for _, t := range mm.TagKeys() {
-				if _, ok := dimensionSet[t]; ok {
-					continue
-				}
-				dimensionSet[t] = struct{}{}
-				dimensions = append(dimensions, &influxql.Dimension{Expr: &influxql.VarRef{Val: t}})
-			}
-		}
-	}
-
-	// Return a new SelectStatement with the wild cards rewritten.
-	return stmt.RewriteWildcards(fields, dimensions), nil
 }
 
 // expandSources expands regex sources and removes duplicates.

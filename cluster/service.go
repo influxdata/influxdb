@@ -243,13 +243,14 @@ func (s *Service) processMapShardRequest(w io.Writer, buf []byte) error {
 	}
 	defer m.Close()
 
-	var tagSetsSent bool
+	var metaSent bool
 	for {
 		var resp MapShardResponse
 
-		if !tagSetsSent {
+		if !metaSent {
 			resp.SetTagSets(m.TagSets())
-			tagSetsSent = true
+			resp.SetFields(m.Fields())
+			metaSent = true
 		}
 
 		chunk, err := m.NextChunk()
