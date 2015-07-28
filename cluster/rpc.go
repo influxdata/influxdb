@@ -8,7 +8,7 @@ import (
 	"github.com/influxdb/influxdb/tsdb"
 )
 
-//go:generate protoc --gogo_out=. internal/data.proto
+//go:generate protoc --gogo_out=. meta/internal/data.proto
 
 // MapShardRequest represents the request to map a remote shard for a query.
 type MapShardRequest struct {
