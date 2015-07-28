@@ -37,6 +37,7 @@ It has these top-level messages:
 	SetPrivilegeCommand
 	SetDataCommand
 	SetAdminPrivilegeCommand
+	UpdateNodeCommand
 	Response
 	ResponseHeader
 	ErrorResponse
@@ -111,6 +112,7 @@ const (
 	Command_SetPrivilegeCommand              Command_Type = 16
 	Command_SetDataCommand                   Command_Type = 17
 	Command_SetAdminPrivilegeCommand         Command_Type = 18
+	Command_UpdateNodeCommand                Command_Type = 19
 )
 
 var Command_Type_name = map[int32]string{
@@ -132,6 +134,7 @@ var Command_Type_name = map[int32]string{
 	16: "SetPrivilegeCommand",
 	17: "SetDataCommand",
 	18: "SetAdminPrivilegeCommand",
+	19: "UpdateNodeCommand",
 }
 var Command_Type_value = map[string]int32{
 	"CreateNodeCommand":                1,
@@ -152,6 +155,7 @@ var Command_Type_value = map[string]int32{
 	"SetPrivilegeCommand":              16,
 	"SetDataCommand":                   17,
 	"SetAdminPrivilegeCommand":         18,
+	"UpdateNodeCommand":                19,
 }
 
 func (x Command_Type) Enum() *Command_Type {
@@ -1154,6 +1158,38 @@ var E_SetAdminPrivilegeCommand_Command = &proto.ExtensionDesc{
 	Tag:           "bytes,118,opt,name=command",
 }
 
+type UpdateNodeCommand struct {
+	ID               *uint64 `protobuf:"varint,1,req" json:"ID,omitempty"`
+	Host             *string `protobuf:"bytes,2,req" json:"Host,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *UpdateNodeCommand) Reset()         { *m = UpdateNodeCommand{} }
+func (m *UpdateNodeCommand) String() string { return proto.CompactTextString(m) }
+func (*UpdateNodeCommand) ProtoMessage()    {}
+
+func (m *UpdateNodeCommand) GetID() uint64 {
+	if m != nil && m.ID != nil {
+		return *m.ID
+	}
+	return 0
+}
+
+func (m *UpdateNodeCommand) GetHost() string {
+	if m != nil && m.Host != nil {
+		return *m.Host
+	}
+	return ""
+}
+
+var E_UpdateNodeCommand_Command = &proto.ExtensionDesc{
+	ExtendedType:  (*Command)(nil),
+	ExtensionType: (*UpdateNodeCommand)(nil),
+	Field:         119,
+	Name:          "internal.UpdateNodeCommand.command",
+	Tag:           "bytes,119,opt,name=command",
+}
+
 type Response struct {
 	OK               *bool   `protobuf:"varint,1,req" json:"OK,omitempty"`
 	Error            *string `protobuf:"bytes,2,opt" json:"Error,omitempty"`
@@ -1381,4 +1417,5 @@ func init() {
 	proto.RegisterExtension(E_SetPrivilegeCommand_Command)
 	proto.RegisterExtension(E_SetDataCommand_Command)
 	proto.RegisterExtension(E_SetAdminPrivilegeCommand_Command)
+	proto.RegisterExtension(E_UpdateNodeCommand_Command)
 }

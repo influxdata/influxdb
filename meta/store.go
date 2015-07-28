@@ -755,6 +755,19 @@ func (s *Store) CreateNode(host string) (*NodeInfo, error) {
 	return s.NodeByHost(host)
 }
 
+// CreateNode creates a new node in the store.
+func (s *Store) UpdateNode(id uint64, host string) (*NodeInfo, error) {
+	if err := s.exec(internal.Command_UpdateNodeCommand, internal.E_UpdateNodeCommand_Command,
+		&internal.UpdateNodeCommand{
+			ID:   proto.Uint64(id),
+			Host: proto.String(host),
+		},
+	); err != nil {
+		return nil, err
+	}
+	return s.NodeByHost(host)
+}
+
 // DeleteNode removes a node from the metastore by id.
 func (s *Store) DeleteNode(id uint64) error {
 	return s.exec(internal.Command_DeleteNodeCommand, internal.E_DeleteNodeCommand_Command,
@@ -1581,6 +1594,8 @@ func (fsm *storeFSM) Apply(l *raft.Log) interface{} {
 			return fsm.applySetAdminPrivilegeCommand(&cmd)
 		case internal.Command_SetDataCommand:
 			return fsm.applySetDataCommand(&cmd)
+		case internal.Command_UpdateNodeCommand:
+			return fsm.applyUpdateNodeCommand(&cmd)
 		default:
 			panic(fmt.Errorf("cannot apply command: %x", l.Data))
 		}
@@ -1609,6 +1624,23 @@ func (fsm *storeFSM) applyCreateNodeCommand(cmd *internal.Command) interface{} {
 	if other.ClusterID == 0 {
 		other.ClusterID = uint64(v.GetRand())
 	}
+
+	fsm.data = other
+	return nil
+}
+
+func (fsm *storeFSM) applyUpdateNodeCommand(cmd *internal.Command) interface{} {
+	ext, _ := proto.GetExtension(cmd, internal.E_UpdateNodeCommand_Command)
+	v := ext.(*internal.UpdateNodeCommand)
+
+	// Copy data and update.
+	other := fsm.data.Clone()
+	ni := other.Node(v.GetID())
+	if ni == nil {
+		return ErrNodeNotFound
+	}
+
+	ni.Host = v.GetHost()
 
 	fsm.data = other
 	return nil
