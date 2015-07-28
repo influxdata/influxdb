@@ -283,7 +283,8 @@ func (self *ChunkWriter) done() {
 }
 
 type ExportPointsWriter struct {
-	w libhttp.ResponseWriter
+	w         libhttp.ResponseWriter
+	separator string
 }
 
 func (self *ExportPointsWriter) yield(series *protocol.Series) error {
@@ -299,21 +300,28 @@ func (self *ExportPointsWriter) yield(series *protocol.Series) error {
 			if i > 1 && p != nil {
 				fields[s.Columns[i]] = p
 			}
-			data := fields.MarshalBinary()
+			name, tags, err := parseSeriesName(*series.Name, self.separator)
+			if err != nil {
+				log.Error(err)
+				continue
+			}
+
+			p9 := NewPoint9(name, tags, fields, time.Unix(0, epoch*1000))
+			self.w.Write([]byte(p9.String()))
 			// Write the series name
-			self.w.Write(escape([]byte(*series.Name)))
+			//self.w.Write(escape([]byte(*series.Name)))
 
-			// Write space
-			self.w.Write([]byte{' '})
+			//// Write space
+			//self.w.Write([]byte{' '})
 
-			// Write the values
-			self.w.Write(data)
+			//// Write the values
+			//self.w.Write(data)
 
-			// Write space
-			self.w.Write([]byte{' '})
+			//// Write space
+			//self.w.Write([]byte{' '})
 
-			// Write the timestamp
-			self.w.Write([]byte(strconv.FormatInt(epoch*1000*1000, 10)))
+			//// Write the timestamp
+			//self.w.Write([]byte(strconv.FormatInt(epoch*1000*1000, 10)))
 
 			// Write a line return
 			self.w.Write([]byte{'\n'})
@@ -1318,6 +1326,15 @@ func (self *HttpServer) exportDatabases(w libhttp.ResponseWriter, r *libhttp.Req
 		return
 	}
 
+	// Determine if they want only DML or DDL
+	dml, ddl := true, true
+	if strings.ToLower(r.URL.Query().Get("l")) == "dml" {
+		ddl = false
+	}
+	if strings.ToLower(r.URL.Query().Get("l")) == "ddl" {
+		dml = false
+	}
+
 	var schema struct {
 		db                string
 		retentionPolicy   string
@@ -1357,60 +1374,69 @@ func (self *HttpServer) exportDatabases(w libhttp.ResponseWriter, r *libhttp.Req
 		return
 	}
 
-	w.Header().Add("Content-Type", "text/plain")
-	fmt.Fprintf(w, "# DDL\n")
-	fmt.Fprintf(w, "CREATE DATABASE %q;\n", schema.db)
-	fmt.Fprintf(w, "CREATE RETENTION POLICY %q ON %q DURATION %s REPLICATION %d;\n", schema.retentionPolicy, schema.db, schema.duration, schema.replicationFactor)
-
-	fmt.Fprintf(w, "# DML\n")
-
-	// gather series for shard space
-	// compile the regex
-	if strings.HasPrefix(schema.regex, "/") {
-		if strings.HasSuffix(schema.regex, "/i") {
-			schema.regex = fmt.Sprintf("(?i)%s", schema.regex[1:len(schema.regex)-2])
-		} else {
-			schema.regex = schema.regex[1 : len(schema.regex)-1]
-		}
-	}
-	reg, err := regexp.Compile(schema.regex)
-	if err != nil {
-		libhttp.Error(w, fmt.Sprintf("invalid regex %s for shard space %s for database %s", schema.regex, schema.retentionPolicy, schema.db), libhttp.StatusNotFound)
-		return
+	separator := r.URL.Query().Get("s")
+	if separator == "" {
+		separator = "."
 	}
 
-	// inline func to yeild/collect series names
-	yield := func(series *protocol.Series) error {
-		s := []string{}
-		for _, p := range series.Points {
-			for _, v := range p.Values {
-				if reg.MatchString(*v.StringValue) {
-					s = append(s, *v.StringValue)
-				}
+	if ddl {
+		w.Header().Add("Content-Type", "text/plain")
+		fmt.Fprintf(w, "# DDL\n")
+		fmt.Fprintf(w, "CREATE DATABASE %q;\n", schema.db)
+		fmt.Fprintf(w, "CREATE RETENTION POLICY %q ON %q DURATION %s REPLICATION %d;\n", schema.retentionPolicy, schema.db, schema.duration, schema.replicationFactor)
+	}
+
+	if dml {
+		fmt.Fprintf(w, "# DML\n")
+
+		// gather series for shard space
+		// compile the regex
+		if strings.HasPrefix(schema.regex, "/") {
+			if strings.HasSuffix(schema.regex, "/i") {
+				schema.regex = fmt.Sprintf("(?i)%s", schema.regex[1:len(schema.regex)-2])
+			} else {
+				schema.regex = schema.regex[1 : len(schema.regex)-1]
 			}
 		}
-		schema.series = append(schema.series, s...)
-		return nil
-	}
-
-	seriesWriter := NewSeriesWriter(yield)
-	err = self.coordinator.RunQuery(user, schema.db, "list series", seriesWriter)
-	if err != nil {
-		libhttp.Error(w, fmt.Sprintf("failed to query data: database: %s, query: \"list series\", err: %s", schema.db, err), libhttp.StatusNotFound)
-	}
-
-	// Walk through each database and series and select all data
-	for _, series := range schema.series {
-		// Check to see if the client disconnected, if so, exit the routine
-		if d := atomic.LoadInt32(&disconnected); d > 0 {
+		reg, err := regexp.Compile(schema.regex)
+		if err != nil {
+			libhttp.Error(w, fmt.Sprintf("invalid regex %s for shard space %s for database %s", schema.regex, schema.retentionPolicy, schema.db), libhttp.StatusNotFound)
 			return
 		}
-		query := fmt.Sprintf(`select * from %q`, series)
-		writer := &ExportPointsWriter{w}
-		seriesWriter := NewSeriesWriter(writer.yield)
-		if err := self.coordinator.RunQuery(user, schema.db, query, seriesWriter); err != nil {
-			libhttp.Error(w, fmt.Sprintf("failed to query data: database: %s, query: %s, err: %s", schema.db, query, err), libhttp.StatusNotFound)
+
+		// inline func to yeild/collect series names
+		yield := func(series *protocol.Series) error {
+			s := []string{}
+			for _, p := range series.Points {
+				for _, v := range p.Values {
+					if reg.MatchString(*v.StringValue) {
+						s = append(s, *v.StringValue)
+					}
+				}
+			}
+			schema.series = append(schema.series, s...)
+			return nil
 		}
-		writer.done()
+
+		seriesWriter := NewSeriesWriter(yield)
+		err = self.coordinator.RunQuery(user, schema.db, "list series", seriesWriter)
+		if err != nil {
+			libhttp.Error(w, fmt.Sprintf("failed to query data: database: %s, query: \"list series\", err: %s", schema.db, err), libhttp.StatusNotFound)
+		}
+
+		// Walk through each database and series and select all data
+		for _, series := range schema.series {
+			// Check to see if the client disconnected, if so, exit the routine
+			if d := atomic.LoadInt32(&disconnected); d > 0 {
+				return
+			}
+			query := fmt.Sprintf(`select * from %q`, series)
+			writer := &ExportPointsWriter{w, separator}
+			seriesWriter := NewSeriesWriter(writer.yield)
+			if err := self.coordinator.RunQuery(user, schema.db, query, seriesWriter); err != nil {
+				libhttp.Error(w, fmt.Sprintf("failed to query data: database: %s, query: %s, err: %s", schema.db, query, err), libhttp.StatusNotFound)
+			}
+			writer.done()
+		}
 	}
 }
