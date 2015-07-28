@@ -125,3 +125,65 @@ Useful links
 - [Go in production](http://peter.bourgon.org/go-in-production/)
 - [Principles of designing Go APIs with channels](https://inconshreveable.com/07-08-2014/principles-of-designing-go-apis-with-channels/)
 - [Common mistakes in Golang](http://soryy.com/blog/2014/common-mistakes-with-go-lang/). Especially this section `Loops, Closures, and Local Variables`
+
+Getting v08.8.9 Running
+--------------
+
+
+### getting protobufs working
+
+Download and install protobuf.
+
+run:
+
+```
+protoc --go_out=. protocol/*.proto
+```
+
+
+### build parser files
+
+```sh
+cd ./parser
+build_parser.sh
+```
+
+### leveldb files:
+```
+brew install leveldb
+mkdir -p /tmp/leveldb.influxdb.amd64
+cd /tmp/leveldb.influxdb.amd64
+wget https://leveldb.googlecode.com/files/leveldb-1.15.0.tar.gz
+tar --strip-components=1 -xvzf leveldb-1.15.0.tar.gz
+```
+
+
+### rocksdb files:
+```
+brew install rocksdb
+mkdir -p /tmp/rocksdb.influxdb.amd64
+cd /tmp/rocksdb.influxdb.amd64
+wget https://github.com/facebook/rocksdb/archive/rocksdb-3.5.1.tar.gz
+tar --strip-components=1 -xvzf rocksdb-3.5.1.tar.gz
+```
+
+Create a version file in `daemon` called `version.go` and put the following content in it:
+
+``` go
+package main
+
+const version = `08.8.9`
+const gitSha = `foo`
+```
+
+build it with `go build -o ~/go/bin/influxd.0.8.9 -tags rocksdb ./daemon`
+run it with `influxd.0.8.9 -config=/Users/corylanou/go/src/github.com/influxdb/sample_data/config.toml`
+
+### Configuration Changes
+
+To make sure the export endpoint does not timeout, you will need to change your timeout in the config as follows:
+
+```toml
+[api]
+read-timeout = "0s"
+```

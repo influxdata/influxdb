@@ -51,6 +51,7 @@ Makefile
 
 # log file
 influxdb.log
+influxdb.log.*
 benchmark.log
 
 # config file

@@ -645,7 +645,7 @@ func (self *ClusterConfiguration) convertNewShardDataToShards(newShards []*NewSh
 			if serverId == self.LocalServer.Id {
 				err := shard.SetLocalStore(self.shardStore, self.LocalServer.Id)
 				if err != nil {
-					log.Error("CliusterConfig convertNewShardDataToShards: ", err)
+					log.Error("ClusterConfig convertNewShardDataToShards: %s", err)
 				}
 			} else {
 				server := self.GetServerById(&serverId)
@@ -1072,7 +1072,7 @@ func (self *ClusterConfiguration) AddShards(shards []*NewShardData) ([]*ShardDat
 			if self.LocalServer != nil && serverId == self.LocalServer.Id {
 				err := shard.SetLocalStore(self.shardStore, self.LocalServer.Id)
 				if err != nil {
-					log.Error("AddShards: error setting local store: ", err)
+					log.Error("AddShards: error setting local store: %s", err)
 					return nil, err
 				}
 			} else {

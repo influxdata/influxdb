@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"code.google.com/p/goprotobuf/proto"
 	log "code.google.com/p/log4go"
+	"github.com/gogo/protobuf/proto"
 	"github.com/influxdb/influxdb/common"
 	"github.com/influxdb/influxdb/datastore/storage"
 	"github.com/influxdb/influxdb/engine"

@@ -21,4 +21,5 @@ type Coordinator interface {
 	CreateDatabase(cmn.User, string) error
 	ListDatabases(cmn.User) ([]*cluster.Database, error)
 	DropDatabase(cmn.User, string) error
+	GetShardSpacesForDatabase(database string) []*cluster.ShardSpace
 }

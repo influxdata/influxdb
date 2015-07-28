@@ -298,9 +298,6 @@ func parseTomlConfiguration(filename string) (*Configuration, error) {
 	}
 
 	apiReadTimeout := tomlConfiguration.HttpApi.ReadTimeout.Duration
-	if apiReadTimeout == 0 {
-		apiReadTimeout = 5 * time.Second
-	}
 
 	if tomlConfiguration.Cluster.MinBackoff.Duration == 0 {
 		tomlConfiguration.Cluster.MinBackoff = duration{time.Second}

@@ -8,8 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"code.google.com/p/goprotobuf/proto"
-
+	"github.com/gogo/protobuf/proto"
 	"github.com/influxdb/influxdb/common"
 	"github.com/influxdb/influxdb/parser"
 	"github.com/influxdb/influxdb/protocol"

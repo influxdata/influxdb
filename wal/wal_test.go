@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"code.google.com/p/goprotobuf/proto"
 	logger "code.google.com/p/log4go"
+	"github.com/gogo/protobuf/proto"
 	. "github.com/influxdb/influxdb/checkers"
 	"github.com/influxdb/influxdb/configuration"
 	"github.com/influxdb/influxdb/protocol"

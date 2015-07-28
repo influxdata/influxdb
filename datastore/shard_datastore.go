@@ -162,7 +162,7 @@ func (self *ShardDatastore) GetOrCreateShard(id uint32) (cluster.LocalShardDb, e
 	}
 	init, err := storage.GetInitializer(engine)
 	if err != nil {
-		log.Error("Error opening shard: ", err)
+		log.Error("Error opening shard: %s", err)
 		return nil, err
 	}
 	c := init.NewConfig()
