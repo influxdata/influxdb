@@ -38,9 +38,6 @@ type Config struct {
 	LeaderLeaseTimeout  toml.Duration `toml:"leader-lease-timeout"`
 	CommitTimeout       toml.Duration `toml:"commit-timeout"`
 	ClusterTracing      bool          `toml:"cluster-tracing"`
-
-	// The join command-line argument
-	Join string `toml:"-"`
 }
 
 func NewConfig() *Config {

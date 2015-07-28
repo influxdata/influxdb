@@ -66,7 +66,6 @@ type Store struct {
 
 	// All peers in cluster. Used during bootstrapping.
 	peers []string
-	join  string
 
 	data *Data
 
@@ -131,7 +130,6 @@ func NewStore(c *Config) *Store {
 	s := &Store{
 		path:  c.Dir,
 		peers: c.Peers,
-		join:  c.Join,
 		data:  &Data{},
 
 		ready:   make(chan struct{}),
@@ -171,41 +169,6 @@ func (s *Store) IDPath() string { return filepath.Join(s.path, "id") }
 
 // Open opens and initializes the raft store.
 func (s *Store) Open() error {
-	// If we have a join addr, attempt to join
-	if s.join != "" {
-
-		joined := false
-		for _, join := range strings.Split(s.join, ",") {
-			res, err := s.rpc.join(s.Addr.String(), join)
-			if err != nil {
-				s.Logger.Printf("join failed: %v", err)
-				continue
-			}
-			joined = true
-
-			s.Logger.Printf("joined remote node %v", join)
-			s.Logger.Printf("raftEnabled=%v raftNodes=%v", res.RaftEnabled, res.RaftNodes)
-
-			s.peers = res.RaftNodes
-			s.id = res.NodeID
-
-			if err := s.writeNodeID(res.NodeID); err != nil {
-				return err
-			}
-
-			if !res.RaftEnabled {
-				s.raftState = &remoteRaft{s}
-				if err := s.invalidate(); err != nil {
-					return err
-				}
-			}
-		}
-
-		if !joined {
-			return fmt.Errorf("failed to join existing cluster at %v", s.join)
-		}
-	}
-
 	// Verify that no more than 3 peers.
 	// https://github.com/influxdb/influxdb/issues/2750
 	if len(s.peers) > MaxRaftNodes {
@@ -230,6 +193,11 @@ func (s *Store) Open() error {
 			return ErrStoreOpen
 		}
 		s.opened = true
+
+		// load our raft state
+		if err := s.loadState(); err != nil {
+			return err
+		}
 
 		// Create the root directory if it doesn't already exist.
 		if err := s.createRootDir(); err != nil {
@@ -264,6 +232,11 @@ func (s *Store) Open() error {
 	s.wg.Add(1)
 	go s.serveRPCListener()
 
+	// Join an existing cluster if we needed
+	if err := s.joinCluster(); err != nil {
+		return fmt.Errorf("join: %v", err)
+	}
+
 	// If the ID doesn't exist then create a new node.
 	if s.id == 0 {
 		go s.init()
@@ -274,9 +247,125 @@ func (s *Store) Open() error {
 	return nil
 }
 
+// loadState sets the appropriate raftState from our persistent storage
+func (s *Store) loadState() error {
+	peers, err := readPeersJSON(filepath.Join(s.path, "peers.json"))
+	if err != nil {
+		return err
+	}
+
+	// If we have existing peers, use those.  This will override what's in the
+	// config.
+	if len(peers) > 0 {
+		s.peers = peers
+	}
+
+	// if no peers on disk, we need to start raft in order to initialize a new
+	// cluster or join an existing one.
+	if len(peers) == 0 {
+		s.raftState = &localRaft{store: s}
+		// if we have a raft database, (maybe restored), we should start raft locally
+	} else if _, err := os.Stat(filepath.Join(s.path, "raft.db")); err == nil {
+		s.raftState = &localRaft{store: s}
+		// otherwise, we should use remote raft
+	} else {
+		s.raftState = &remoteRaft{store: s}
+	}
+	return nil
+}
+
+func (s *Store) joinCluster() error {
+
+	// No join options, so nothing to do
+	if len(s.peers) == 0 {
+		return nil
+	}
+
+	// We already have a node ID so were already part of a cluster,
+	// don't join again so we can use our existing state.
+	if s.id != 0 {
+		s.Logger.Printf("skipping join: already member of cluster: nodeId=%v raftEnabled=%v raftNodes=%v",
+			s.id, raft.PeerContained(s.peers, s.Addr.String()), s.peers)
+		return nil
+	}
+
+	s.Logger.Printf("joining cluster at: %v", s.peers)
+	for {
+		for _, join := range s.peers {
+			res, err := s.rpc.join(s.Addr.String(), join)
+			if err != nil {
+				s.Logger.Printf("join failed: %v", err)
+				continue
+			}
+
+			s.Logger.Printf("joined remote node %v", join)
+			s.Logger.Printf("nodeId=%v raftEnabled=%v raftNodes=%v", res.NodeID, res.RaftEnabled, res.RaftNodes)
+
+			s.peers = res.RaftNodes
+			s.id = res.NodeID
+
+			if err := s.writeNodeID(res.NodeID); err != nil {
+				s.Logger.Printf("write node id failed: %v", err)
+				break
+			}
+
+			if !res.RaftEnabled {
+				// Shutdown our local raft and transition to a remote raft state
+				if err := s.enableRemoteRaft(); err != nil {
+					s.Logger.Printf("enable remote raft failed: %v", err)
+					break
+				}
+			}
+			return nil
+		}
+
+		s.Logger.Printf("join failed: retrying...")
+		time.Sleep(time.Second)
+	}
+}
+
+func (s *Store) enableLocalRaft() error {
+	if _, ok := s.raftState.(*localRaft); ok {
+		return nil
+	}
+	s.Logger.Printf("switching to local raft")
+
+	lr := &localRaft{store: s}
+	return s.changeState(lr)
+}
+
+func (s *Store) enableRemoteRaft() error {
+	if _, ok := s.raftState.(*remoteRaft); ok {
+		return nil
+	}
+
+	s.Logger.Printf("switching to remote raft")
+	rr := &remoteRaft{store: s}
+	return s.changeState(rr)
+}
+
+func (s *Store) changeState(state raftState) error {
+	if err := s.raftState.close(); err != nil {
+		return err
+	}
+
+	// Clear out any persistent state
+	if err := s.raftState.remove(); err != nil {
+		return err
+	}
+
+	s.raftState = state
+
+	if err := s.raftState.open(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // openRaft initializes the raft store.
 func (s *Store) openRaft() error {
-	return s.raftState.openRaft()
+	return s.raftState.open()
 }
 
 // initialize attempts to bootstrap the raft store if there are no committed entries.
@@ -294,11 +383,15 @@ func (s *Store) Close() error {
 // WaitForDataChanged will block the current goroutine until the metastore index has
 // be updated.
 func (s *Store) WaitForDataChanged() error {
+	s.mu.RLock()
+	changed := s.changed
+	s.mu.RUnlock()
+
 	for {
 		select {
 		case <-s.closing:
 			return errors.New("closing")
-		case <-s.changed:
+		case <-changed:
 			return nil
 		}
 	}
@@ -404,10 +497,6 @@ func (s *Store) Snapshot() error {
 // WaitForLeader sleeps until a leader is found or a timeout occurs.
 // timeout == 0 means to wait forever.
 func (s *Store) WaitForLeader(timeout time.Duration) error {
-	if s.Leader() != "" {
-		return nil
-	}
-
 	// Begin timeout timer.
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
@@ -452,6 +541,9 @@ func (s *Store) IsLeader() bool {
 func (s *Store) Leader() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	if s.raftState == nil {
+		return ""
+	}
 	return s.raftState.leader()
 }
 
@@ -466,10 +558,10 @@ func (s *Store) AddPeer(addr string) error {
 }
 
 // Peers returns the list of peers in the cluster.
-func (s *Store) Peers() []string {
+func (s *Store) Peers() ([]string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.peers
+	return s.raftState.peers()
 }
 
 // serveExecListener processes remote exec connections.
@@ -574,7 +666,6 @@ func (s *Store) handleExecConn(conn net.Conn) {
 // This function runs in a separate goroutine.
 func (s *Store) serveRPCListener() {
 	defer s.wg.Done()
-	<-s.ready
 
 	for {
 		// Accept next TCP connection.
