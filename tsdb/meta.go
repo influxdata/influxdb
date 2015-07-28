@@ -14,7 +14,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 )
 
-//go:generate protoc --gogo_out=. internal/meta.proto
+//go:generate protoc --gogo_out=. meta/internal/meta.proto
 
 const (
 	maxStringLength = 64 * 1024

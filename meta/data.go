@@ -9,7 +9,7 @@ import (
 	"github.com/influxdb/influxdb/meta/internal"
 )
 
-//go:generate protoc --gogo_out=. internal/meta.proto
+//go:generate protoc --gogo_out=. meta/internal/meta.proto
 
 const (
 	// DefaultRetentionPolicyReplicaN is the default value of RetentionPolicyInfo.ReplicaN.
