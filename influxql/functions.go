@@ -19,9 +19,12 @@ import (
 
 // Iterator represents a forward-only iterator over a set of points.
 // These are used by the MapFunctions in this file
+// Returns a time of -1 when no more values remain.
 type Iterator interface {
 	Next() (time int64, value interface{})
 }
+
+const iterEnd int64 = -1
 
 // MapFunc represents a function used for mapping over a sequential series of data.
 // The iterator represents a single group by interval
@@ -248,7 +251,7 @@ func InitializeUnmarshaller(c *Call) (UnmarshalFunc, error) {
 func MapCount(itr Iterator) interface{} {
 	fmt.Println("MapCount called")
 	n := float64(0)
-	for k, _ := itr.Next(); k != -1; k, _ = itr.Next() {
+	for k, _ := itr.Next(); k != iterEnd; k, _ = itr.Next() {
 		n++
 	}
 	if n > 0 {
@@ -334,7 +337,7 @@ func (d distinctValues) Less(i, j int) bool {
 func MapDistinct(itr Iterator) interface{} {
 	var index = make(map[interface{}]struct{})
 
-	for time, value := itr.Next(); time != -1; time, value = itr.Next() {
+	for time, value := itr.Next(); time != iterEnd; time, value = itr.Next() {
 		index[value] = struct{}{}
 	}
 
@@ -388,7 +391,7 @@ func ReduceDistinct(values []interface{}) interface{} {
 func MapCountDistinct(itr Iterator) interface{} {
 	var index = make(map[interface{}]struct{})
 
-	for time, value := itr.Next(); time != -1; time, value = itr.Next() {
+	for time, value := itr.Next(); time != iterEnd; time, value = itr.Next() {
 		index[value] = struct{}{}
 	}
 
@@ -433,7 +436,7 @@ func MapSum(itr Iterator) interface{} {
 	n := float64(0)
 	count := 0
 	var resultType NumberType
-	for k, v := itr.Next(); k != -1; k, v = itr.Next() {
+	for k, v := itr.Next(); k != iterEnd; k, v = itr.Next() {
 		count++
 		switch n1 := v.(type) {
 		case float64:
@@ -488,7 +491,7 @@ func ReduceSum(values []interface{}) interface{} {
 func MapMean(itr Iterator) interface{} {
 	out := &meanMapOutput{}
 
-	for k, v := itr.Next(); k != -1; k, v = itr.Next() {
+	for k, v := itr.Next(); k != iterEnd; k, v = itr.Next() {
 		out.Count++
 		switch n1 := v.(type) {
 		case float64:
@@ -697,7 +700,7 @@ func MapMin(itr Iterator) interface{} {
 	pointsYielded := false
 	var val float64
 
-	for k, v := itr.Next(); k != -1; k, v = itr.Next() {
+	for k, v := itr.Next(); k != iterEnd; k, v = itr.Next() {
 		switch n := v.(type) {
 		case float64:
 			val = n
@@ -760,7 +763,7 @@ func MapMax(itr Iterator) interface{} {
 	pointsYielded := false
 	var val float64
 
-	for k, v := itr.Next(); k != -1; k, v = itr.Next() {
+	for k, v := itr.Next(); k != iterEnd; k, v = itr.Next() {
 		switch n := v.(type) {
 		case float64:
 			val = n
@@ -827,7 +830,7 @@ func MapSpread(itr Iterator) interface{} {
 	pointsYielded := false
 	var val float64
 
-	for k, v := itr.Next(); k != -1; k, v = itr.Next() {
+	for k, v := itr.Next(); k != iterEnd; k, v = itr.Next() {
 		switch n := v.(type) {
 		case float64:
 			val = n
@@ -886,7 +889,7 @@ func ReduceSpread(values []interface{}) interface{} {
 func MapStddev(itr Iterator) interface{} {
 	var values []float64
 
-	for k, v := itr.Next(); k != -1; k, v = itr.Next() {
+	for k, v := itr.Next(); k != iterEnd; k, v = itr.Next() {
 		switch n := v.(type) {
 		case float64:
 			values = append(values, n)
@@ -944,7 +947,7 @@ func MapFirst(itr Iterator) interface{} {
 	out := &firstLastMapOutput{}
 	pointsYielded := false
 
-	for k, v := itr.Next(); k != -1; k, v = itr.Next() {
+	for k, v := itr.Next(); k != iterEnd; k, v = itr.Next() {
 		// Initialize first
 		if !pointsYielded {
 			out.Time = k
@@ -994,7 +997,7 @@ func MapLast(itr Iterator) interface{} {
 	out := &firstLastMapOutput{}
 	pointsYielded := false
 
-	for k, v := itr.Next(); k != -1; k, v = itr.Next() {
+	for k, v := itr.Next(); k != iterEnd; k, v = itr.Next() {
 		// Initialize last
 		if !pointsYielded {
 			out.Time = k
@@ -1044,7 +1047,7 @@ func ReduceLast(values []interface{}) interface{} {
 func MapEcho(itr Iterator) interface{} {
 	var values []interface{}
 
-	for k, v := itr.Next(); k != -1; k, v = itr.Next() {
+	for k, v := itr.Next(); k != iterEnd; k, v = itr.Next() {
 		values = append(values, v)
 	}
 	return values
@@ -1096,7 +1099,7 @@ func IsNumeric(c *Call) bool {
 // MapRawQuery is for queries without aggregates
 func MapRawQuery(itr Iterator) interface{} {
 	var values []*rawQueryMapOutput
-	for k, v := itr.Next(); k != -1; k, v = itr.Next() {
+	for k, v := itr.Next(); k != iterEnd; k, v = itr.Next() {
 		val := &rawQueryMapOutput{k, v}
 		values = append(values, val)
 	}
@@ -1124,18 +1127,19 @@ func makeMapIntegral(timeUnit time.Duration) MapFunc {
 		result := chunkIntegral{}
 
 		// Fetch the first point, bailing out if there isn't one.
-		_, firstTime, firstVal := iter.Next()
-		if firstTime == 0 {
+		firstTime, firstVal := iter.Next()
+		fmt.Println("FIRST IS: ", firstTime, firstVal)
+		if firstTime == iterEnd {
 			fmt.Println("NO VALUES")
 			return nil
 		}
 		result.StartTime = float64(firstTime)
-		fmt.Println("FIRST VALUE IS: ", firstTime, firstVal)
 
 		// Fetch the second value (we need at least two values for an integral).
-		_, secondTime, secondVal := iter.Next()
+		secondTime, secondVal := iter.Next()
+		fmt.Println("SECOND IS:", secondTime, secondVal)
 
-		if secondTime == 0 {
+		if secondTime == iterEnd {
 			// NOTE: relies on a multi-point block never being split into single point map chunks.
 			fmt.Println("ONLY ONE VALUE", secondTime, secondVal)
 			result.EndValue = toFloat64(firstVal)
@@ -1144,7 +1148,7 @@ func makeMapIntegral(timeUnit time.Duration) MapFunc {
 		}
 
 		// Compute the area of the first block.
-		fmt.Println("computed the area of the first block")
+		fmt.Println("Computed the area of the first block")
 		result.Area = computeArea(toFloat64(firstVal), float64(firstTime), float64(secondTime), timeUnit)
 
 		// Now, we use `result.EndTime` to store the timestamp of the *previous* data point
@@ -1154,7 +1158,7 @@ func makeMapIntegral(timeUnit time.Duration) MapFunc {
 		result.EndValue = toFloat64(secondVal)
 
 		// Compute the area of subsequent blocks.
-		for _, currTime, currVal := iter.Next(); currTime != 0; _, currTime, currVal = iter.Next() {
+		for currTime, currVal := iter.Next(); currTime != iterEnd; currTime, currVal = iter.Next() {
 			currTimeFloat := float64(currTime)
 
 			result.Area += computeArea(result.EndValue, result.EndTime, currTimeFloat, timeUnit)
@@ -1239,6 +1243,6 @@ func toFloat64(x interface{}) float64 {
 	case float64:
 		return x.(float64)
 	default:
-		panic("Not a numeric type used in InfluxDB")
+		panic(fmt.Sprintf("Not a numeric type used in InfluxDB: %v", x))
 	}
 }
