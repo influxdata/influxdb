@@ -307,21 +307,8 @@ func (self *ExportPointsWriter) yield(series *protocol.Series) error {
 			}
 
 			p9 := NewPoint9(name, tags, fields, time.Unix(0, epoch*1000))
+			// Write line protocol
 			self.w.Write([]byte(p9.String()))
-			// Write the series name
-			//self.w.Write(escape([]byte(*series.Name)))
-
-			//// Write space
-			//self.w.Write([]byte{' '})
-
-			//// Write the values
-			//self.w.Write(data)
-
-			//// Write space
-			//self.w.Write([]byte{' '})
-
-			//// Write the timestamp
-			//self.w.Write([]byte(strconv.FormatInt(epoch*1000*1000, 10)))
 
 			// Write a line return
 			self.w.Write([]byte{'\n'})
