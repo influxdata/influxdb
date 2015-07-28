@@ -566,11 +566,13 @@ func TestBufferedClient_Write_And_Close(t *testing.T) {
 	for i := 0; i < sampleSize; i++ {
 		c.Add("shapes", rand.Intn(sampleSize), makeTags(), nil)
 	}
-	didCloseChan := c.Close()
+	err = c.Close()
+	if err != nil {
+		panic(err)
+	}
 	<-time.After(100 * time.Millisecond)
 	expectedFlushCount := sampleSize / bufferConfig.FlushMaxPoints
 	for i := 0; i < expectedFlushCount; i++ {
 		<-flushChan
 	}
-	<-didCloseChan
 }

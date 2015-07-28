@@ -22,7 +22,7 @@ func NewBufferedClient(clientConfig Config, bufferConfig BufferConfig) (buffered
 		Client:       client,
 		bufferConfig: bufferConfig,
 		ingestChan:   make(chan Point, bufferConfig.FlushMaxPoints/3),
-		closeChan:    make(chan chan bool, 1),
+		closeChan:    make(chan chan error, 1),
 		flushTimer:   time.NewTimer(bufferConfig.FlushMaxWaitTime),
 		pointsBuf:    make([]Point, bufferConfig.FlushMaxPoints),
 		pointsIndex:  0,
@@ -36,7 +36,7 @@ type BufferedClient struct {
 	*Client
 	bufferConfig BufferConfig
 	ingestChan   chan Point
-	closeChan    chan chan bool
+	closeChan    chan chan error
 	flushTimer   *time.Timer
 	pointsBuf    []Point
 	pointsIndex  int
@@ -66,10 +66,10 @@ func (b *BufferedClient) Add(measurement string, val interface{}, tags map[strin
 // Close will close the BufferedClient. While closing, it will flush any points from Add()
 // This method executes asynchronously, but it returns a channel which can be read from to ensure that the buffered client
 // Once the client
-func (b *BufferedClient) Close() (didCloseChan chan bool) {
-	didCloseChan = make(chan bool)
-	b.closeChan <- didCloseChan
-	return didCloseChan
+func (b *BufferedClient) Close() error {
+	closeResultChan := make(chan error)
+	b.closeChan <- closeResultChan
+	return <-closeResultChan
 }
 
 // Async ingest and flush loop
@@ -84,12 +84,12 @@ func (b *BufferedClient) ingestAndFlushLoop() {
 			b.processIngestedPoint(point)
 		case <-b.flushTimer.C:
 			b.flushBatch()
-		case didCloseChan := <-b.closeChan:
+		case closeResultChan := <-b.closeChan:
 			ingestChan := b.ingestChan
 			b.ingestChan = nil // At this point b.Add() becomes a no-op and starts returning false
 			b.drainChan(ingestChan)
 			b.flushBatch()
-			didCloseChan <- true
+			closeResultChan <- nil
 		}
 	}
 }
