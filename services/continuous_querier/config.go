@@ -18,6 +18,9 @@ const (
 
 // Config represents a configuration for the continuous query service.
 type Config struct {
+	// Enables logging in CQ service to display when CQ's are processed and how many points are wrote.
+	LogEnabled bool `toml:"log-enabled"`
+
 	// If this flag is set to false, both the brokers and data nodes should ignore any CQ processing.
 	Enabled bool `toml:"enabled"`
 
@@ -52,6 +55,7 @@ type Config struct {
 // NewConfig returns a new instance of Config with defaults.
 func NewConfig() Config {
 	return Config{
+		LogEnabled:             true,
 		Enabled:                true,
 		RecomputePreviousN:     DefaultRecomputePreviousN,
 		RecomputeNoOlderThan:   toml.Duration(DefaultRecomputeNoOlderThan),

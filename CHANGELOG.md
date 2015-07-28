@@ -2,12 +2,16 @@
 
 ### Features
 - [#3376](https://github.com/influxdb/influxdb/pull/3376): Support for remote shard query mapping
+- [#3372](https://github.com/influxdb/influxdb/pull/3372): Support joining nodes to existing cluster
+- [#3426](https://github.com/influxdb/influxdb/pull/3426): Additional logging for continuous queries. Thanks @jhorwit2
 
 ### Bugfixes
 - [#3405](https://github.com/influxdb/influxdb/pull/3405): Prevent database panic when fields are missing. Thanks @jhorwit2
 - [#3411](https://github.com/influxdb/influxdb/issues/3411): 500 timeout on write
+- [#3420](https://github.com/influxdb/influxdb/pull/3420): Catch opentsdb malformed tags. Thanks @nathanielc.
+- [#3404](https://github.com/influxdb/influxdb/pull/3404): Added support for escaped single quotes in query string. Thanks @jhorwit2
 
-## v0.9.2 [unreleased]
+## v0.9.2 [2015-07-24]
 
 ### Features
 - [#3177](https://github.com/influxdb/influxdb/pull/3177): Client supports making HTTPS requests. Thanks @jipperinbham
@@ -39,6 +43,9 @@
 - [#3259](https://github.com/influxdb/influxdb/issues/3259): Respect privileges for queries.
 - [#3256](https://github.com/influxdb/influxdb/pull/3256): Remove unnecessary timeout in WaitForLeader(). Thanks @cannium.
 - [#3380](https://github.com/influxdb/influxdb/issue/3380): Parser fix, only allow ORDER BY ASC and ORDER BY time ASC.
+- [#3319](https://github.com/influxdb/influxdb/issues/3319): restarting process irrevocably BREAKS measurements with spaces
+- [#3453](https://github.com/influxdb/influxdb/issues/3453): Remove outdated `dump` command from CLI.
+- [#3463](https://github.com/influxdb/influxdb/issues/3463): Fix aggregate queries and time precision on where clauses.
 
 ## v0.9.1 [2015-07-02]
 

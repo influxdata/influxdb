@@ -51,8 +51,9 @@ type Service struct {
 	Config        *Config
 	RunInterval   time.Duration
 	// RunCh can be used by clients to signal service to run CQs.
-	RunCh  chan struct{}
-	Logger *log.Logger
+	RunCh          chan struct{}
+	Logger         *log.Logger
+	loggingEnabled bool
 	// lastRuns maps CQ name to last time it was run.
 	lastRuns map[string]time.Time
 	stop     chan struct{}
@@ -62,12 +63,15 @@ type Service struct {
 // NewService returns a new instance of Service.
 func NewService(c Config) *Service {
 	s := &Service{
-		Config:      &c,
-		RunInterval: time.Second,
-		RunCh:       make(chan struct{}),
-		Logger:      log.New(os.Stderr, "[continuous_querier] ", log.LstdFlags),
-		lastRuns:    map[string]time.Time{},
+		Config:         &c,
+		RunInterval:    time.Second,
+		RunCh:          make(chan struct{}),
+		loggingEnabled: c.LogEnabled,
+		Logger:         log.New(os.Stderr, "[continuous_querier] ", log.LstdFlags),
+		lastRuns:       map[string]time.Time{},
 	}
+
+	s.Logger.Println("starting continuous query service")
 	return s
 }
 
@@ -150,6 +154,7 @@ func (s *Service) backgroundLoop() {
 	for {
 		select {
 		case <-s.stop:
+			s.Logger.Println("continuous query service terminating")
 			return
 		case <-s.RunCh:
 			if s.MetaStore.IsLeader() {
@@ -232,6 +237,10 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 
 	if err := cq.q.SetTimeRange(startTime, startTime.Add(interval)); err != nil {
 		s.Logger.Printf("error setting time range: %s\n", err)
+	}
+
+	if s.loggingEnabled {
+		s.Logger.Printf("executing continuous query %s", cq.Info.Name)
 	}
 
 	// Do the actual processing of the query & writing of results.
@@ -318,6 +327,10 @@ func (s *Service) runContinuousQueryAndWriteResult(cq *ContinuousQuery) error {
 			if err := s.PointsWriter.WritePoints(req); err != nil {
 				s.Logger.Println(err)
 				return err
+			}
+
+			if s.loggingEnabled {
+				s.Logger.Printf("wrote %d point(s) to %s.%s.%s", len(points), cq.intoDB(), cq.intoRP(), cq.Info.Name)
 			}
 		}
 	}

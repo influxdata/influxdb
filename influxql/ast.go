@@ -378,7 +378,7 @@ func (s *CreateUserStatement) String() string {
 	_, _ = buf.WriteString("CREATE USER ")
 	_, _ = buf.WriteString(s.Name)
 	_, _ = buf.WriteString(" WITH PASSWORD ")
-	_, _ = buf.WriteString(s.Password)
+	_, _ = buf.WriteString("[REDACTED]")
 	if s.Admin {
 		_, _ = buf.WriteString(" WITH ALL PRIVILEGES")
 	}
@@ -504,7 +504,7 @@ func (s *SetPasswordUserStatement) String() string {
 	_, _ = buf.WriteString("SET PASSWORD FOR ")
 	_, _ = buf.WriteString(s.Name)
 	_, _ = buf.WriteString(" = ")
-	_, _ = buf.WriteString(s.Password)
+	_, _ = buf.WriteString("[REDACTED]")
 	return buf.String()
 }
 
@@ -1990,10 +1990,32 @@ func (f *Field) Name() string {
 
 // String returns a string representation of the field.
 func (f *Field) String() string {
-	if f.Alias == "" {
-		return f.Expr.String()
+	str := f.Expr.String()
+
+	switch f.Expr.(type) {
+	case *VarRef:
+		quoted := false
+		// Escape any double-quotes in the field
+		if strings.Contains(str, `"`) {
+			str = strings.Replace(str, `"`, `\"`, -1)
+			quoted = true
+		}
+
+		// Escape any single-quotes in the field
+		if strings.Contains(str, `'`) {
+			quoted = true
+		}
+
+		// Double-quote field names with spaces or that were previously escaped
+		if strings.Contains(str, " ") || quoted {
+			str = fmt.Sprintf("\"%s\"", str)
+		}
 	}
-	return fmt.Sprintf("%s AS %s", f.Expr.String(), f.Alias)
+
+	if f.Alias == "" {
+		return str
+	}
+	return fmt.Sprintf("%s AS %s", str, fmt.Sprintf(`"%s"`, f.Alias))
 }
 
 // Sort Interface for Fields

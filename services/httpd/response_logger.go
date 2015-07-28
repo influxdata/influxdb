@@ -134,3 +134,8 @@ func parseUsername(r *http.Request) string {
 	}
 	return username
 }
+
+// Sanitize passwords from query string for logging.
+func sanitize(r *http.Request, s string) {
+	r.URL.RawQuery = strings.Replace(r.URL.RawQuery, s, "[REDACTED]", -1)
+}

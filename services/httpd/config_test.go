@@ -17,6 +17,8 @@ auth-enabled = true
 log-enabled = true
 write-tracing = true
 pprof-enabled = true
+https-enabled = true
+https-certificate = "/dev/null"
 `, &c); err != nil {
 		t.Fatal(err)
 	}
@@ -34,6 +36,10 @@ pprof-enabled = true
 		t.Fatalf("unexpected write tracing: %v", c.WriteTracing)
 	} else if c.PprofEnabled != true {
 		t.Fatalf("unexpected pprof enabled: %v", c.PprofEnabled)
+	} else if c.HttpsEnabled != true {
+		t.Fatalf("unexpected https enabled: %v", c.HttpsEnabled)
+	} else if c.HttpsCertificate != "/dev/null" {
+		t.Fatalf("unexpected https certificate: %v", c.HttpsCertificate)
 	}
 }
 

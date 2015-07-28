@@ -9,6 +9,7 @@ import (
 	"os"
 	"runtime"
 	"runtime/pprof"
+	"strings"
 	"time"
 
 	"github.com/influxdb/influxdb/cluster"
@@ -26,6 +27,7 @@ import (
 	"github.com/influxdb/influxdb/services/udp"
 	"github.com/influxdb/influxdb/tcp"
 	"github.com/influxdb/influxdb/tsdb"
+	_ "github.com/influxdb/influxdb/tsdb/engine"
 )
 
 // Server represents a container for the metadata and storage data and services.
@@ -81,9 +83,9 @@ func NewServer(c *Config, version string) (*Server, error) {
 	}
 
 	// Copy TSDB configuration.
-	s.TSDBStore.MaxWALSize = c.Data.MaxWALSize
-	s.TSDBStore.WALFlushInterval = time.Duration(c.Data.WALFlushInterval)
-	s.TSDBStore.WALPartitionFlushDelay = time.Duration(c.Data.WALPartitionFlushDelay)
+	s.TSDBStore.EngineOptions.MaxWALSize = c.Data.MaxWALSize
+	s.TSDBStore.EngineOptions.WALFlushInterval = time.Duration(c.Data.WALFlushInterval)
+	s.TSDBStore.EngineOptions.WALPartitionFlushDelay = time.Duration(c.Data.WALPartitionFlushDelay)
 
 	// Set the shard mapper
 	s.ShardMapper = cluster.NewShardMapper(time.Duration(c.Cluster.ShardMapperTimeout))
@@ -289,10 +291,17 @@ func (s *Server) Open() error {
 		}
 		s.Listener = ln
 
+		// The port 0 is used, we need to retrieve the port assigned by the kernel
+		if strings.HasSuffix(s.BindAddress, ":0") {
+			s.MetaStore.Addr = ln.Addr()
+		}
+
 		// Multiplex listener.
 		mux := tcp.NewMux()
 		s.MetaStore.RaftListener = mux.Listen(meta.MuxRaftHeader)
 		s.MetaStore.ExecListener = mux.Listen(meta.MuxExecHeader)
+		s.MetaStore.RPCListener = mux.Listen(meta.MuxRPCHeader)
+
 		s.ClusterService.Listener = mux.Listen(cluster.MuxHeader)
 		s.SnapshotterService.Listener = mux.Listen(snapshotter.MuxHeader)
 		go mux.Serve(ln)
