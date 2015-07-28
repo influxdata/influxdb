@@ -792,7 +792,7 @@ func unescapeQuoteString(in string) string {
 // NewPoint returns a new point with the given measurement name, tags, fields and timestamp
 func NewPoint(name string, tags Tags, fields Fields, time time.Time) Point {
 	return &point{
-		key:    makeKey([]byte(name), tags),
+		key:    MakeKey([]byte(name), tags),
 		time:   time,
 		fields: fields.MarshalBinary(),
 	}
@@ -822,7 +822,7 @@ func (p *point) Name() string {
 
 // SetName updates the measurement name for the point
 func (p *point) SetName(name string) {
-	p.key = makeKey([]byte(name), p.Tags())
+	p.key = MakeKey([]byte(name), p.Tags())
 }
 
 // Time return the timestamp for the point
@@ -864,20 +864,20 @@ func (p *point) Tags() Tags {
 	return tags
 }
 
-func makeKey(name []byte, tags Tags) []byte {
+func MakeKey(name []byte, tags Tags) []byte {
 	return append(escape(name), tags.HashKey()...)
 }
 
 // SetTags replaces the tags for the point
 func (p *point) SetTags(tags Tags) {
-	p.key = makeKey(p.name(), tags)
+	p.key = MakeKey(p.name(), tags)
 }
 
 // AddTag adds or replaces a tag value for a point
 func (p *point) AddTag(key, value string) {
 	tags := p.Tags()
 	tags[key] = value
-	p.key = makeKey(p.name(), tags)
+	p.key = MakeKey(p.name(), tags)
 }
 
 // Fields returns the fields for the point

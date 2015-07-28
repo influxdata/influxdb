@@ -86,6 +86,9 @@ func NewEngine(path string, opt tsdb.EngineOptions) tsdb.Engine {
 	return e
 }
 
+// Path returns the path the engine was initialized with.
+func (e *Engine) Path() string { return e.path }
+
 // Open opens and initializes the engine.
 func (e *Engine) Open() error {
 	if err := func() error {
@@ -594,11 +597,24 @@ func (c *Cursor) read() (key, value []byte) {
 		return nil, nil
 	}
 
-	// Use the buffer if it exists and there's no cache or if it is lower than the cache.
-	if c.buf.key != nil && (c.index >= len(c.cache) || bytes.Compare(c.buf.key, c.cache[c.index][0:8]) == -1) {
-		key, value = c.buf.key, c.buf.value
-		c.buf.key, c.buf.value = nil, nil
-		return
+	// Check if the buffer exists.
+	if c.buf.key != nil {
+		// Return the buffer if the cache is drained.
+		if c.index >= len(c.cache) {
+			return c.readBuf()
+		}
+
+		// Return the buffer if less than the cache.
+		cmp := bytes.Compare(c.buf.key, c.cache[c.index][0:8])
+		if cmp == -1 {
+			return c.readBuf()
+		}
+
+		// If the buffer and cache have equal keys then remove the buffer.
+		// The cache will be read at the end of the function.
+		if cmp == 0 {
+			c.buf.key, c.buf.value = nil, nil
+		}
 	}
 
 	// Otherwise read from the cache.
@@ -614,6 +630,13 @@ func (c *Cursor) read() (key, value []byte) {
 		}
 	}
 
+	return
+}
+
+// readBuf returns the value from the cursor buffer and then clears the buffer.
+func (c *Cursor) readBuf() (key, value []byte) {
+	key, value = c.buf.key, c.buf.value
+	c.buf.key, c.buf.value = nil, nil
 	return
 }
 
