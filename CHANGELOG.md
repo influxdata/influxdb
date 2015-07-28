@@ -10,6 +10,7 @@
 - [#3411](https://github.com/influxdb/influxdb/issues/3411): 500 timeout on write
 - [#3420](https://github.com/influxdb/influxdb/pull/3420): Catch opentsdb malformed tags. Thanks @nathanielc.
 - [#3404](https://github.com/influxdb/influxdb/pull/3404): Added support for escaped single quotes in query string. Thanks @jhorwit2
+- [#3429](https://github.com/influxdb/influxdb/issues/3429)): Incorrect parsing of regex containing '/'
 
 ## v0.9.2 [2015-07-24]
 
