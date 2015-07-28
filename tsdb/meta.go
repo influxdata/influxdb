@@ -326,6 +326,13 @@ func (m *Measurement) HasField(name string) bool {
 	return hasField
 }
 
+// SeriesByID returns a series by identifier.
+func (m *Measurement) SeriesByID(id uint64) *Series {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.seriesByID[id]
+}
+
 // SeriesKeys returns the keys of every series in this measurement
 func (m *Measurement) SeriesKeys() []string {
 	m.mu.RLock()
