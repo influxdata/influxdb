@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/rand"
-	"net"
 	"os"
 	"path/filepath"
 	"time"
@@ -105,10 +104,10 @@ func (r *localRaft) open() error {
 	config.CommitTimeout = s.CommitTimeout
 
 	// If no peers are set in the config or there is one and we are it, then start as a single server.
-	config.EnableSingleNode = (len(s.peers) == 0) || len(s.peers) == 1 && raft.PeerContained(s.peers, s.Addr.String())
+	config.EnableSingleNode = (len(s.peers) == 0) || len(s.peers) == 1 && raft.PeerContained(s.peers, s.RemoteAddr.String())
 
 	// Build raft layer to multiplex listener.
-	r.raftLayer = newRaftLayer(s.RaftListener, s.Addr)
+	r.raftLayer = newRaftLayer(s.RaftListener, s.RemoteAddr)
 
 	// Create a transport layer
 	r.transport = raft.NewNetworkTransport(r.raftLayer, 3, 10*time.Second, os.Stderr)
@@ -248,15 +247,7 @@ func (r *localRaft) addPeer(addr string) error {
 
 // setPeers sets a list of peers in the cluster.
 func (r *localRaft) setPeers(addrs []string) error {
-	a := make([]string, len(addrs))
-	for i, s := range addrs {
-		addr, err := net.ResolveTCPAddr("tcp", s)
-		if err != nil {
-			return fmt.Errorf("cannot resolve addr: %s, err=%s", s, err)
-		}
-		a[i] = addr.String()
-	}
-	return r.raft.SetPeers(a).Error()
+	return r.raft.SetPeers(addrs).Error()
 }
 
 func (r *localRaft) peers() ([]string, error) {

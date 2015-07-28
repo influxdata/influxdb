@@ -283,6 +283,7 @@ func (s *Server) Open() error {
 			return fmt.Errorf("resolve tcp: addr=%s, err=%s", hostport, err)
 		}
 		s.MetaStore.Addr = addr
+		s.MetaStore.RemoteAddr = &tcpaddr{hostport}
 
 		// Open shared TCP connection.
 		ln, err := net.Listen("tcp", s.BindAddress)
@@ -494,3 +495,8 @@ func stopProfile() {
 		log.Println("mem profile stopped")
 	}
 }
+
+type tcpaddr struct{ host string }
+
+func (a *tcpaddr) Network() string { return "tcp" }
+func (a *tcpaddr) String() string  { return a.host }

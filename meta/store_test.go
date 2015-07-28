@@ -934,6 +934,7 @@ func (s *Store) Open() error {
 	}
 	s.Addr = ln.Addr()
 	s.Listener = ln
+	s.RemoteAddr = s.Addr
 
 	// Wrap listener in a muxer.
 	mux := tcp.NewMux()

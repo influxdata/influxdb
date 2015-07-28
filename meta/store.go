@@ -71,7 +71,7 @@ type Store struct {
 
 	rpc *rpc
 
-	remoteAddr net.Addr
+	RemoteAddr net.Addr
 
 	raftState raftState
 
@@ -283,16 +283,16 @@ func (s *Store) joinCluster() error {
 
 	// We already have a node ID so were already part of a cluster,
 	// don't join again so we can use our existing state.
-	if s.id != 0 {
+	if s.id != 0 || raft.PeerContained(s.peers, s.RemoteAddr.String()) {
 		s.Logger.Printf("skipping join: already member of cluster: nodeId=%v raftEnabled=%v raftNodes=%v",
-			s.id, raft.PeerContained(s.peers, s.Addr.String()), s.peers)
+			s.id, raft.PeerContained(s.peers, s.RemoteAddr.String()), s.peers)
 		return nil
 	}
 
 	s.Logger.Printf("joining cluster at: %v", s.peers)
 	for {
 		for _, join := range s.peers {
-			res, err := s.rpc.join(s.Addr.String(), join)
+			res, err := s.rpc.join(s.RemoteAddr.String(), join)
 			if err != nil {
 				s.Logger.Printf("join failed: %v", err)
 				continue
@@ -460,7 +460,7 @@ func (s *Store) createLocalNode() error {
 	}
 
 	// Create new node.
-	ni, err := s.CreateNode(s.Addr.String())
+	ni, err := s.CreateNode(s.RemoteAddr.String())
 	if err != nil {
 		return fmt.Errorf("create node: %s", err)
 	}
@@ -473,7 +473,7 @@ func (s *Store) createLocalNode() error {
 	// Set ID locally.
 	s.id = ni.ID
 
-	s.Logger.Printf("created local node: id=%d, host=%s", s.id, s.Addr.String())
+	s.Logger.Printf("created local node: id=%d, host=%s", s.id, s.RemoteAddr)
 
 	return nil
 }
