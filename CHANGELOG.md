@@ -43,6 +43,7 @@
 - [#4354](https://github.com/influxdb/influxdb/pull/4353): Fully lock node queues during hinted handoff. Fixes one cause of missing data on clusters.
 - [#4357](https://github.com/influxdb/influxdb/issues/4357): Fix similar float values encoding overflow Thanks @dgryski!
 - [#4344](https://github.com/influxdb/influxdb/issues/4344): Make client.Write default to client.precision if none is given.
+- [#3429](https://github.com/influxdb/influxdb/issues/3429)): Incorrect parsing of regex containing '/'
 
 ## v0.9.4 [2015-09-14]
 

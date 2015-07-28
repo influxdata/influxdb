@@ -2635,7 +2635,7 @@ type RegexLiteral struct {
 // String returns a string representation of the literal.
 func (r *RegexLiteral) String() string {
 	if r.Val != nil {
-		return fmt.Sprintf("/%s/", r.Val.String())
+		return fmt.Sprintf("/%s/", strings.Replace(r.Val.String(), `/`, `\/`, -1))
 	}
 	return ""
 }
