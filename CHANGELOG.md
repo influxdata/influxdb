@@ -4,6 +4,7 @@
 - [#3376](https://github.com/influxdb/influxdb/pull/3376): Support for remote shard query mapping
 - [#3372](https://github.com/influxdb/influxdb/pull/3372): Support joining nodes to existing cluster
 - [#3426](https://github.com/influxdb/influxdb/pull/3426): Additional logging for continuous queries. Thanks @jhorwit2
+- [#3344](https://github.com/influxdb/influxdb/pull/3344): Experimental support for an integration aggregation function, by @michaelsproul.
 
 ### Bugfixes
 - [#3405](https://github.com/influxdb/influxdb/pull/3405): Prevent database panic when fields are missing. Thanks @jhorwit2

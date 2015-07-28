@@ -11,15 +11,20 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"reflect"
 	"sort"
 	"strings"
+	"time"
 )
 
 // Iterator represents a forward-only iterator over a set of points.
 // These are used by the MapFunctions in this file
+// Returns a time of -1 when no more values remain.
 type Iterator interface {
 	Next() (time int64, value interface{})
 }
+
+const iterEnd int64 = -1
 
 // MapFunc represents a function used for mapping over a sequential series of data.
 // The iterator represents a single group by interval
@@ -39,19 +44,8 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 		return MapRawQuery, nil
 	}
 
-	// Ensure that there is either a single argument or if for percentile, two
-	if c.Name == "percentile" {
-		if len(c.Args) != 2 {
-			return nil, fmt.Errorf("expected two arguments for %s()", c.Name)
-		}
-	} else if strings.HasSuffix(c.Name, "derivative") {
-		// derivatives require a field name and optional duration
-		if len(c.Args) == 0 {
-			return nil, fmt.Errorf("expected field name argument for %s()", c.Name)
-		}
-	} else if len(c.Args) != 1 {
-		return nil, fmt.Errorf("expected one argument for %s()", c.Name)
-	}
+	// Note: We can assume each function has a valid number of arguments
+	// after checks in `validateAggregates`.
 
 	// derivative can take a nested aggregate function, everything else expects
 	// a variable reference as the first arg
@@ -117,6 +111,12 @@ func InitializeMapFunc(c *Call) (MapFunc, error) {
 			return InitializeMapFunc(fn)
 		}
 		return MapRawQuery, nil
+	case "integral":
+		timeUnit, err := timeUnitForIntegral(c)
+		if err != nil {
+			return nil, err
+		}
+		return makeMapIntegral(timeUnit), nil
 	default:
 		return nil, fmt.Errorf("function not found: %q", c.Name)
 	}
@@ -173,6 +173,12 @@ func InitializeReduceFunc(c *Call) (ReduceFunc, error) {
 			return InitializeReduceFunc(fn)
 		}
 		return nil, fmt.Errorf("expected function argument to %s", c.Name)
+	case "integral":
+		timeUnit, err := timeUnitForIntegral(c)
+		if err != nil {
+			return nil, err
+		}
+		return makeReduceIntegral(timeUnit), nil
 	default:
 		return nil, fmt.Errorf("function not found: %q", c.Name)
 	}
@@ -243,8 +249,9 @@ func InitializeUnmarshaller(c *Call) (UnmarshalFunc, error) {
 
 // MapCount computes the number of values in an iterator.
 func MapCount(itr Iterator) interface{} {
+	fmt.Println("MapCount called")
 	n := float64(0)
-	for k, _ := itr.Next(); k != -1; k, _ = itr.Next() {
+	for k, _ := itr.Next(); k != iterEnd; k, _ = itr.Next() {
 		n++
 	}
 	if n > 0 {
@@ -330,7 +337,7 @@ func (d distinctValues) Less(i, j int) bool {
 func MapDistinct(itr Iterator) interface{} {
 	var index = make(map[interface{}]struct{})
 
-	for time, value := itr.Next(); time != -1; time, value = itr.Next() {
+	for time, value := itr.Next(); time != iterEnd; time, value = itr.Next() {
 		index[value] = struct{}{}
 	}
 
@@ -384,7 +391,7 @@ func ReduceDistinct(values []interface{}) interface{} {
 func MapCountDistinct(itr Iterator) interface{} {
 	var index = make(map[interface{}]struct{})
 
-	for time, value := itr.Next(); time != -1; time, value = itr.Next() {
+	for time, value := itr.Next(); time != iterEnd; time, value = itr.Next() {
 		index[value] = struct{}{}
 	}
 
@@ -429,7 +436,7 @@ func MapSum(itr Iterator) interface{} {
 	n := float64(0)
 	count := 0
 	var resultType NumberType
-	for k, v := itr.Next(); k != -1; k, v = itr.Next() {
+	for k, v := itr.Next(); k != iterEnd; k, v = itr.Next() {
 		count++
 		switch n1 := v.(type) {
 		case float64:
@@ -452,6 +459,7 @@ func MapSum(itr Iterator) interface{} {
 
 // ReduceSum computes the sum of values for each key.
 func ReduceSum(values []interface{}) interface{} {
+	fmt.Println("ReduceSum called on ", values)
 	var n float64
 	count := 0
 	var resultType NumberType
@@ -483,7 +491,7 @@ func ReduceSum(values []interface{}) interface{} {
 func MapMean(itr Iterator) interface{} {
 	out := &meanMapOutput{}
 
-	for k, v := itr.Next(); k != -1; k, v = itr.Next() {
+	for k, v := itr.Next(); k != iterEnd; k, v = itr.Next() {
 		out.Count++
 		switch n1 := v.(type) {
 		case float64:
@@ -692,7 +700,7 @@ func MapMin(itr Iterator) interface{} {
 	pointsYielded := false
 	var val float64
 
-	for k, v := itr.Next(); k != -1; k, v = itr.Next() {
+	for k, v := itr.Next(); k != iterEnd; k, v = itr.Next() {
 		switch n := v.(type) {
 		case float64:
 			val = n
@@ -755,7 +763,7 @@ func MapMax(itr Iterator) interface{} {
 	pointsYielded := false
 	var val float64
 
-	for k, v := itr.Next(); k != -1; k, v = itr.Next() {
+	for k, v := itr.Next(); k != iterEnd; k, v = itr.Next() {
 		switch n := v.(type) {
 		case float64:
 			val = n
@@ -822,7 +830,7 @@ func MapSpread(itr Iterator) interface{} {
 	pointsYielded := false
 	var val float64
 
-	for k, v := itr.Next(); k != -1; k, v = itr.Next() {
+	for k, v := itr.Next(); k != iterEnd; k, v = itr.Next() {
 		switch n := v.(type) {
 		case float64:
 			val = n
@@ -881,7 +889,7 @@ func ReduceSpread(values []interface{}) interface{} {
 func MapStddev(itr Iterator) interface{} {
 	var values []float64
 
-	for k, v := itr.Next(); k != -1; k, v = itr.Next() {
+	for k, v := itr.Next(); k != iterEnd; k, v = itr.Next() {
 		switch n := v.(type) {
 		case float64:
 			values = append(values, n)
@@ -939,7 +947,7 @@ func MapFirst(itr Iterator) interface{} {
 	out := &firstLastMapOutput{}
 	pointsYielded := false
 
-	for k, v := itr.Next(); k != -1; k, v = itr.Next() {
+	for k, v := itr.Next(); k != iterEnd; k, v = itr.Next() {
 		// Initialize first
 		if !pointsYielded {
 			out.Time = k
@@ -989,7 +997,7 @@ func MapLast(itr Iterator) interface{} {
 	out := &firstLastMapOutput{}
 	pointsYielded := false
 
-	for k, v := itr.Next(); k != -1; k, v = itr.Next() {
+	for k, v := itr.Next(); k != iterEnd; k, v = itr.Next() {
 		// Initialize last
 		if !pointsYielded {
 			out.Time = k
@@ -1039,7 +1047,7 @@ func ReduceLast(values []interface{}) interface{} {
 func MapEcho(itr Iterator) interface{} {
 	var values []interface{}
 
-	for k, v := itr.Next(); k != -1; k, v = itr.Next() {
+	for k, v := itr.Next(); k != iterEnd; k, v = itr.Next() {
 		values = append(values, v)
 	}
 	return values
@@ -1091,7 +1099,7 @@ func IsNumeric(c *Call) bool {
 // MapRawQuery is for queries without aggregates
 func MapRawQuery(itr Iterator) interface{} {
 	var values []*rawQueryMapOutput
-	for k, v := itr.Next(); k != -1; k, v = itr.Next() {
+	for k, v := itr.Next(); k != iterEnd; k, v = itr.Next() {
 		val := &rawQueryMapOutput{k, v}
 		values = append(values, val)
 	}
@@ -1112,3 +1120,129 @@ type rawOutputs []*rawQueryMapOutput
 func (a rawOutputs) Len() int           { return len(a) }
 func (a rawOutputs) Less(i, j int) bool { return a[i].Time < a[j].Time }
 func (a rawOutputs) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+
+// Higher-order function for making a map function for integration with a left Riemann sum.
+func makeMapIntegral(timeUnit time.Duration) MapFunc {
+	return func(iter Iterator) interface{} {
+		result := chunkIntegral{}
+
+		// Fetch the first point, bailing out if there isn't one.
+		firstTime, firstVal := iter.Next()
+		fmt.Println("FIRST IS: ", firstTime, firstVal)
+		if firstTime == iterEnd {
+			fmt.Println("NO VALUES")
+			return nil
+		}
+		result.StartTime = float64(firstTime)
+
+		// Fetch the second value (we need at least two values for an integral).
+		secondTime, secondVal := iter.Next()
+		fmt.Println("SECOND IS:", secondTime, secondVal)
+
+		if secondTime == iterEnd {
+			// NOTE: relies on a multi-point block never being split into single point map chunks.
+			fmt.Println("ONLY ONE VALUE", secondTime, secondVal)
+			result.EndValue = toFloat64(firstVal)
+			result.EndTime = float64(firstTime)
+			return result
+		}
+
+		// Compute the area of the first block.
+		fmt.Println("Computed the area of the first block")
+		result.Area = computeArea(toFloat64(firstVal), float64(firstTime), float64(secondTime), timeUnit)
+
+		// Now, we use `result.EndTime` to store the timestamp of the *previous* data point
+		// whilst iterating. Similarly `result.EndValue` is used to store the value.
+		// The equation we're computing is: area_i = val_(i - 1) * (t_i - t_(i - 1))
+		result.EndTime = float64(secondTime)
+		result.EndValue = toFloat64(secondVal)
+
+		// Compute the area of subsequent blocks.
+		for currTime, currVal := iter.Next(); currTime != iterEnd; currTime, currVal = iter.Next() {
+			currTimeFloat := float64(currTime)
+
+			result.Area += computeArea(result.EndValue, result.EndTime, currTimeFloat, timeUnit)
+
+			// Update the previous values for the next iteration.
+			result.EndTime = currTimeFloat
+			result.EndValue = toFloat64(currVal)
+		}
+
+		return result
+	}
+}
+
+// Sum the areas computed by MapIntegral.
+func makeReduceIntegral(timeUnit time.Duration) ReduceFunc {
+	return func(values []interface{}) interface{} {
+		var total float64
+
+		length := reflect.ValueOf(values).Len()
+		fmt.Printf("%#v\n", values)
+		fmt.Printf("REDUCING %d CHUNKS\n", length)
+
+		for i := 0; i < length; i++ {
+			if values[i] == nil {
+				continue
+			}
+			v := values[i].(chunkIntegral)
+
+			// Add area from chunk.
+			total += v.Area
+
+			// Add area between this chunk and the next one.
+			if i+1 < length {
+				nextChunk := values[i+1].(chunkIntegral)
+				total += computeArea(v.EndValue, v.EndTime, nextChunk.StartTime, timeUnit)
+			}
+		}
+
+		return total
+	}
+}
+
+// Compute the area of a single block (for use during integration).
+func computeArea(val float64, startTime float64, endTime float64, timeUnit time.Duration) float64 {
+	// To avoid overflow, do the time division first.
+	duration := (endTime - startTime) / float64(timeUnit.Nanoseconds())
+	return val * duration
+}
+
+// Return the time unit for a given call to `integral`.
+func timeUnitForIntegral(c *Call) (time.Duration, error) {
+	oneSec, _ := time.ParseDuration("1s")
+	switch len(c.Args) {
+	case 1:
+		return oneSec, nil
+	case 2:
+		switch c.Args[1].(type) {
+		case *DurationLiteral:
+			return c.Args[1].(*DurationLiteral).Val, nil
+		default:
+			return oneSec, fmt.Errorf("Second argument to integral aggregator isn't a duration.")
+		}
+	default:
+		return oneSec, fmt.Errorf("Unreachable: wrong number of arguments to integral aggregator")
+	}
+}
+
+type chunkIntegral struct {
+	Area      float64
+	StartTime float64
+	EndTime   float64
+	EndValue  float64
+}
+
+// Convert a value of a numeric type to a float64.
+func toFloat64(x interface{}) float64 {
+	switch x.(type) {
+	case uint64:
+		return float64(x.(uint64))
+	case int64:
+		return float64(x.(int64))
+	case float64:
+		return x.(float64)
+	default:
+		panic(fmt.Sprintf("Not a numeric type used in InfluxDB: %v", x))
+	}
+}
