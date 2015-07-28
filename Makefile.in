@@ -221,8 +221,7 @@ dependencies: $(storage_engines)
 	$(GO) get $(GO_BUILD_OPTIONS) -d -t github.com/influxdb/influxdb/...
 
 $(root)/bin/protoc-gen-go:
-	$(GO) get code.google.com/p/goprotobuf/protoc-gen-go
-
+	$(GO) get github.com/gogo/protobuf/protoc-gen-gogo 
 protobuf: $(root)/bin/protoc-gen-go
 	rm -f protocol/*.pb.go
 	PATH=$(root)/bin:$$PATH $(PROTOC) --go_out=. protocol/*.proto
