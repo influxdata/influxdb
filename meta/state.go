@@ -104,8 +104,8 @@ func (r *localRaft) open() error {
 	config.LeaderLeaseTimeout = s.LeaderLeaseTimeout
 	config.CommitTimeout = s.CommitTimeout
 
-	// If no peers are set in the config then start as a single server.
-	config.EnableSingleNode = (len(s.peers) == 0)
+	// If no peers are set in the config or there is one and we are it, then start as a single server.
+	config.EnableSingleNode = (len(s.peers) == 0) || len(s.peers) == 1 && raft.PeerContained(s.peers, s.Addr.String())
 
 	// Build raft layer to multiplex listener.
 	r.raftLayer = newRaftLayer(s.RaftListener, s.Addr)
