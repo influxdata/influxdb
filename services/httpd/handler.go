@@ -87,11 +87,15 @@ func NewHandler(requireAuthentication, loggingEnabled, writeTrace bool) *Handler
 
 	h.SetRoutes([]route{
 		route{
+			"query", // Satisfy CORS checks.
+			"OPTIONS", "/query", true, true, h.serveOptions,
+		},
+		route{
 			"query", // Query serving route.
 			"GET", "/query", true, true, h.serveQuery,
 		},
 		route{
-			"write", // Data-ingest route.
+			"write", // Satisfy CORS checks.
 			"OPTIONS", "/write", true, true, h.serveOptions,
 		},
 		route{
