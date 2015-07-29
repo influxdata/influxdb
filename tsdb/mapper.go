@@ -214,7 +214,10 @@ func (lm *LocalMapper) Open() error {
 			}
 
 			tsc := newTagSetCursor(m.Name, t.Tags, cursors, lm.shard.FieldCodec(m.Name))
-			// Prime the buffers.
+			q := make(rawPoints, 0)
+			heap.Init(&q)
+			tsc.pqueue = &q
+			//Prime the buffers.
 			for i := 0; i < len(tsc.cursors); i++ {
 				k, v := tsc.cursors[i].SeekTo(lm.queryTMin)
 				p := &rawPoint{
@@ -342,6 +345,10 @@ func (lm *LocalMapper) nextChunkAgg() (interface{}, error) {
 			qmin = lm.queryTMin
 		}
 
+		fmt.Printf("LocalMapper.nextChunkAgg: len(lm.mapFuncs) = %v\n", len(lm.mapFuncs))
+		q := make(rawPoints, 0)
+		heap.Init(&q)
+		tsc.pqueue = &q
 		for i := range lm.mapFuncs {
 			// Prime the tagset cursor for the start of the interval. This is not ideal, as
 			// it should really calculate the values all in 1 pass, but that would require
@@ -552,7 +559,7 @@ func newTagSetCursor(m string, t map[string]string, c []*seriesCursor, d *FieldC
 		//pqueue: &make(rawPoints, len(c)),
 	}
 	//q := make(rawPoints, len(c))
-	q := make(rawPoints, 0, len(c))
+	q := make(rawPoints, 0)
 	heap.Init(&q)
 	tsc.pqueue = &q
 	return tsc
