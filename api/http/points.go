@@ -197,16 +197,15 @@ func escape(in []byte) []byte {
 	return in
 }
 
-func parseSeriesName(series, separator string) (string, map[string]string, error) {
-	var name string
+func parseSeriesName(series, separator string) (string, map[string]string) {
 	tags := make(map[string]string)
 	vals := strings.Split(series, separator)
+	name := vals[len(vals)-1]
 	if len(vals)%2 != 1 {
-		return "", tags, fmt.Errorf("invalid series name format: %s", series)
+		vals = append(vals[:len(vals)-1], "upgrade_artifacts", name)
 	}
-	name = vals[len(vals)-1]
 	for i := 0; i < len(vals)-1; i += 2 {
 		tags[vals[i]] = vals[i+1]
 	}
-	return name, tags, nil
+	return name, tags
 }

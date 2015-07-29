@@ -293,26 +293,23 @@ func (self *ExportPointsWriter) yield(series *protocol.Series) error {
 	fields := make(Fields)
 	var epoch int64
 	for _, rows := range s.Points {
-		for i, p := range rows {
+		name, tags := parseSeriesName(*series.Name, self.separator)
+		// Gather all the values for this point
+		for i, v := range rows {
 			if i == 0 {
-				epoch = p.(int64)
+				epoch = v.(int64)
 			}
-			if i > 1 && p != nil {
-				fields[s.Columns[i]] = p
+			if i > 1 && v != nil {
+				fields[s.Columns[i]] = v
 			}
-			name, tags, err := parseSeriesName(*series.Name, self.separator)
-			if err != nil {
-				log.Error(err)
-				continue
-			}
-
-			p9 := NewPoint9(name, tags, fields, time.Unix(0, epoch*1000))
-			// Write line protocol
-			self.w.Write([]byte(p9.String()))
-
-			// Write a line return
-			self.w.Write([]byte{'\n'})
 		}
+		// Create a version 9 point based on the information gathered
+		p9 := NewPoint9(name, tags, fields, time.Unix(0, epoch*1000))
+		// Write line protocol
+		self.w.Write([]byte(p9.String()))
+
+		// Write a line return
+		self.w.Write([]byte{'\n'})
 	}
 	return nil
 }
@@ -1375,6 +1372,8 @@ func (self *HttpServer) exportDatabases(w libhttp.ResponseWriter, r *libhttp.Req
 
 	if dml {
 		fmt.Fprintf(w, "# DML\n")
+		fmt.Fprintf(w, "# CONTEXT-DATABASE: %s\n", schema.db)
+		fmt.Fprintf(w, "# CONTEXT-RETENTION-POLICY: %s\n", schema.retentionPolicy)
 
 		// gather series for shard space
 		// compile the regex
