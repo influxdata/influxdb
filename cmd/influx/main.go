@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"net/url"
 	"os"
 	"os/user"
@@ -16,6 +17,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/influxdb/influxdb/client"
+	"github.com/influxdb/influxdb/cmd/influx/importer"
 	"github.com/peterh/liner"
 )
 
@@ -25,8 +27,6 @@ var (
 )
 
 const (
-	default_host   = "localhost"
-	default_port   = 8086
 	default_format = "column"
 )
 
@@ -45,14 +45,17 @@ type CommandLine struct {
 	Format          string // controls the output format.  Valid values are json, csv, or column
 	Execute         string
 	ShowVersion     bool
+	Import          bool
+	File            string
+	Compressed      bool
 }
 
 func main() {
 	c := CommandLine{}
 
 	fs := flag.NewFlagSet("InfluxDB shell version "+version, flag.ExitOnError)
-	fs.StringVar(&c.Host, "host", default_host, "Influxdb host to connect to.")
-	fs.IntVar(&c.Port, "port", default_port, "Influxdb port to connect to.")
+	fs.StringVar(&c.Host, "host", client.DEFAULT_HOST, "Influxdb host to connect to.")
+	fs.IntVar(&c.Port, "port", client.DEFAULT_PORT, "Influxdb port to connect to.")
 	fs.StringVar(&c.Username, "username", c.Username, "Username to connect to the server.")
 	fs.StringVar(&c.Password, "password", c.Password, `Password to connect to the server.  Leaving blank will prompt for password (--password="").`)
 	fs.StringVar(&c.Database, "database", c.Database, "Database to connect to the server.")
@@ -61,6 +64,9 @@ func main() {
 	fs.BoolVar(&c.Pretty, "pretty", false, "Turns on pretty print for the json format.")
 	fs.StringVar(&c.Execute, "execute", c.Execute, "Execute command and quit.")
 	fs.BoolVar(&c.ShowVersion, "version", false, "Displays the InfluxDB version.")
+	fs.BoolVar(&c.Import, "import", false, "Import a previous database.")
+	fs.StringVar(&c.File, "file", "", "file to import")
+	fs.BoolVar(&c.Compressed, "compressed", false, "set to true if the import file is compressed")
 
 	// Define our own custom usage to print
 	fs.Usage = func() {
@@ -85,13 +91,19 @@ func main() {
        Format specifies the format of the server responses:  json, csv, or column.
   -pretty
        Turns on pretty print for the json format.
+  -import
+       Import a previous database export from file
+ -file
+       Path to file to import
+ -compressed
+       Set to true if the import file is compressed
 
 Examples:
 
     # Use influx in a non-interactive mode to query the database "metrics" and pretty print json:
     $ influx -database 'metrics' -execute 'select * from cpu' -format 'json' -pretty
 
-	# Connect to a specific database on startup and set database context:
+    # Connect to a specific database on startup and set database context:
     $ influx -database 'metrics' -host 'localhost' -port '8086'
 `)
 	}
@@ -128,6 +140,27 @@ Examples:
 
 	if c.Execute != "" {
 		if err := c.ExecuteQuery(c.Execute); err != nil {
+			c.Line.Close()
+			os.Exit(1)
+		} else {
+			c.Line.Close()
+			os.Exit(0)
+		}
+	}
+
+	if c.Import {
+		path := net.JoinHostPort(c.Host, strconv.Itoa(c.Port))
+		u, e := client.ParseConnectionString(path, c.Ssl)
+		if e != nil {
+			fmt.Println(e)
+			return
+		}
+
+		config := importer.NewV8Config(c.Username, c.Password, "ns", "any", c.File, version, u, c.Compressed)
+
+		v8 := importer.NewV8(config)
+		if err := v8.Import(); err != nil {
+			fmt.Printf("ERROR: %s\n", err)
 			c.Line.Close()
 			os.Exit(1)
 		} else {
@@ -213,51 +246,25 @@ func (c *CommandLine) ParseCommand(cmd string) bool {
 
 func (c *CommandLine) connect(cmd string) {
 	var cl *client.Client
+	var u url.URL
 
-	if cmd != "" {
-		// Remove the "connect" keyword if it exists
-		cmd = strings.TrimSpace(strings.Replace(cmd, "connect", "", -1))
-		if cmd == "" {
-			return
-		}
-		if strings.Contains(cmd, ":") {
-			h := strings.Split(cmd, ":")
-			i, e := strconv.Atoi(h[1])
-			if e != nil {
-				fmt.Printf("Connect error: Invalid port number %q: %s\n", cmd, e)
-				return
-			}
-			c.Port = i
-			if h[0] == "" {
-				c.Host = default_host
-			} else {
-				c.Host = h[0]
-			}
-		} else {
-			c.Host = cmd
-			// If they didn't specify a port, always use the default port
-			c.Port = default_port
-		}
+	// Remove the "connect" keyword if it exists
+	path := strings.TrimSpace(strings.Replace(cmd, "connect", "", -1))
+
+	// If they didn't provide a connection string, use the current settings
+	if path == "" {
+		path = net.JoinHostPort(c.Host, strconv.Itoa(c.Port))
 	}
 
-	u := url.URL{
-		Scheme: "http",
+	var e error
+	u, e = client.ParseConnectionString(path, c.Ssl)
+	if e != nil {
+		fmt.Println(e)
+		return
 	}
-	if c.Ssl {
-		u.Scheme = "https"
-	}
-	if c.Port > 0 {
-		u.Host = fmt.Sprintf("%s:%d", c.Host, c.Port)
-	} else {
-		u.Host = c.Host
-	}
-	cl, err := client.NewClient(
-		client.Config{
-			URL:       u,
-			Username:  c.Username,
-			Password:  c.Password,
-			UserAgent: "InfluxDBShell/" + version,
-		})
+
+	config := client.NewConfig(u, c.Username, c.Password, "InfluxDBShell/"+version, client.DEFAULT_TIMEOUT)
+	cl, err := client.NewClient(config)
 	if err != nil {
 		fmt.Printf("Could not create client %s", err)
 		return

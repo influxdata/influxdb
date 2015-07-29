@@ -7,18 +7,64 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
+const (
+	// DEFAULT_HOST is the default host used to connect to an InfluxDB instance
+	DEFAULT_HOST = "localhost"
+	// DEFAULT_PORT is the default port used to connect to an InfluxDB instance
+	DEFAULT_PORT = 8086
+	// DEFAULT_TIMEOUT is the default connection timeout used to connect to an InfluxDB instance
+	DEFAULT_TIMEOUT = 0
+)
+
 // Query is used to send a command to the server. Both Command and Database are required.
 type Query struct {
 	Command  string
 	Database string
+}
+
+// ParseConnectionString will parse a string to create a valid connection URL
+func ParseConnectionString(path string, ssl bool) (url.URL, error) {
+	var host string
+	var port int
+
+	if strings.Contains(path, ":") {
+		h := strings.Split(path, ":")
+		i, e := strconv.Atoi(h[1])
+		if e != nil {
+			return url.URL{}, fmt.Errorf("invalid port number %q: %s\n", path, e)
+		}
+		port = i
+		if h[0] == "" {
+			host = DEFAULT_HOST
+		} else {
+			host = h[0]
+		}
+	} else {
+		host = path
+		// If they didn't specify a port, always use the default port
+		port = DEFAULT_PORT
+	}
+
+	u := url.URL{
+		Scheme: "http",
+	}
+	if ssl {
+		u.Scheme = "https"
+	}
+	u.Host = net.JoinHostPort(host, strconv.Itoa(port))
+
+	return u, nil
 }
 
 // Config is used to specify what server to connect to.
@@ -32,6 +78,16 @@ type Config struct {
 	Password  string
 	UserAgent string
 	Timeout   time.Duration
+}
+
+// NewConfig will create a config to be used in connecting to the client
+func NewConfig(u url.URL, username, password, userAgent string, timeout time.Duration) *Config {
+	return &Config{
+		URL:       u,
+		Username:  username,
+		Password:  password,
+		UserAgent: userAgent,
+	}
 }
 
 // Client is used to make calls to the server.
@@ -51,7 +107,7 @@ const (
 )
 
 // NewClient will instantiate and return a connected client to issue commands to the server.
-func NewClient(c Config) (*Client, error) {
+func NewClient(c *Config) (*Client, error) {
 	client := Client{
 		url:        c.URL,
 		username:   c.Username,
@@ -160,6 +216,52 @@ func (c *Client) Write(bp BatchPoints) (*Response, error) {
 	params.Add("rp", bp.RetentionPolicy)
 	params.Add("precision", bp.Precision)
 	params.Add("consistency", bp.WriteConsistency)
+	req.URL.RawQuery = params.Encode()
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var response Response
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil && err.Error() != "EOF" {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
+		var err = fmt.Errorf(string(body))
+		response.Err = err
+		return &response, err
+	}
+
+	return nil, nil
+}
+
+// WriteLineProtocol takes a string with line returns to delimit each write
+// If successful, error is nil and Response is nil
+// If an error occurs, Response may contain additional information if populated.
+func (c *Client) WriteLineProtocol(data, database, retentionPolicy, precision, writeConsistency string) (*Response, error) {
+	c.url.Path = "write"
+
+	var b bytes.Buffer
+	b.WriteString(data)
+
+	req, err := http.NewRequest("POST", c.url.String(), &b)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "")
+	req.Header.Set("User-Agent", c.userAgent)
+	if c.username != "" {
+		req.SetBasicAuth(c.username, c.password)
+	}
+	params := req.URL.Query()
+	params.Add("db", database)
+	params.Add("rp", retentionPolicy)
+	params.Add("precision", precision)
+	params.Add("consistency", writeConsistency)
 	req.URL.RawQuery = params.Encode()
 
 	resp, err := c.httpClient.Do(req)
