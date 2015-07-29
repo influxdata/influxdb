@@ -132,8 +132,8 @@ func TestSelectStatement_SetTimeRange(t *testing.T) {
 	if min != start {
 		t.Fatalf("start time wasn't set properly.\n  exp: %s\n  got: %s", start, min)
 	}
-	// the end range is actually one microsecond before the given one since end is exclusive
-	end = end.Add(-time.Microsecond)
+	// the end range is actually one nanosecond before the given one since end is exclusive
+	end = end.Add(-time.Nanosecond)
 	if max != end {
 		t.Fatalf("end time wasn't set properly.\n  exp: %s\n  got: %s", end, max)
 	}
@@ -165,8 +165,8 @@ func TestSelectStatement_SetTimeRange(t *testing.T) {
 	if min != start {
 		t.Fatalf("start time wasn't set properly.\n  exp: %s\n  got: %s", start, min)
 	}
-	// the end range is actually one microsecond before the given one since end is exclusive
-	end = end.Add(-time.Microsecond)
+	// the end range is actually one nanosecond before the given one since end is exclusive
+	end = end.Add(-time.Nanosecond)
 	if max != end {
 		t.Fatalf("end time wasn't set properly.\n  exp: %s\n  got: %s", end, max)
 	}
@@ -189,8 +189,8 @@ func TestSelectStatement_SetTimeRange(t *testing.T) {
 	if min != start {
 		t.Fatalf("start time wasn't set properly.\n  exp: %s\n  got: %s", start, min)
 	}
-	// the end range is actually one microsecond before the given one since end is exclusive
-	end = end.Add(-time.Microsecond)
+	// the end range is actually one nanosecond before the given one since end is exclusive
+	end = end.Add(-time.Nanosecond)
 	if max != end {
 		t.Fatalf("end time wasn't set properly.\n  exp: %s\n  got: %s", end, max)
 	}
@@ -472,45 +472,45 @@ func TestTimeRange(t *testing.T) {
 		min, max string
 	}{
 		// LHS VarRef
-		{expr: `time > '2000-01-01 00:00:00'`, min: `2000-01-01 00:00:00.000001`, max: `0001-01-01 00:00:00`},
-		{expr: `time >= '2000-01-01 00:00:00'`, min: `2000-01-01 00:00:00`, max: `0001-01-01 00:00:00`},
-		{expr: `time < '2000-01-01 00:00:00'`, min: `0001-01-01 00:00:00`, max: `1999-12-31 23:59:59.999999`},
-		{expr: `time <= '2000-01-01 00:00:00'`, min: `0001-01-01 00:00:00`, max: `2000-01-01 00:00:00`},
+		{expr: `time > '2000-01-01 00:00:00'`, min: `2000-01-01T00:00:00.000000001Z`, max: `0001-01-01T00:00:00Z`},
+		{expr: `time >= '2000-01-01 00:00:00'`, min: `2000-01-01T00:00:00Z`, max: `0001-01-01T00:00:00Z`},
+		{expr: `time < '2000-01-01 00:00:00'`, min: `0001-01-01T00:00:00Z`, max: `1999-12-31T23:59:59.999999999Z`},
+		{expr: `time <= '2000-01-01 00:00:00'`, min: `0001-01-01T00:00:00Z`, max: `2000-01-01T00:00:00Z`},
 
 		// RHS VarRef
-		{expr: `'2000-01-01 00:00:00' > time`, min: `0001-01-01 00:00:00`, max: `1999-12-31 23:59:59.999999`},
-		{expr: `'2000-01-01 00:00:00' >= time`, min: `0001-01-01 00:00:00`, max: `2000-01-01 00:00:00`},
-		{expr: `'2000-01-01 00:00:00' < time`, min: `2000-01-01 00:00:00.000001`, max: `0001-01-01 00:00:00`},
-		{expr: `'2000-01-01 00:00:00' <= time`, min: `2000-01-01 00:00:00`, max: `0001-01-01 00:00:00`},
+		{expr: `'2000-01-01 00:00:00' > time`, min: `0001-01-01T00:00:00Z`, max: `1999-12-31T23:59:59.999999999Z`},
+		{expr: `'2000-01-01 00:00:00' >= time`, min: `0001-01-01T00:00:00Z`, max: `2000-01-01T00:00:00Z`},
+		{expr: `'2000-01-01 00:00:00' < time`, min: `2000-01-01T00:00:00.000000001Z`, max: `0001-01-01T00:00:00Z`},
+		{expr: `'2000-01-01 00:00:00' <= time`, min: `2000-01-01T00:00:00Z`, max: `0001-01-01T00:00:00Z`},
 
 		// Equality
-		{expr: `time = '2000-01-01 00:00:00'`, min: `2000-01-01 00:00:00`, max: `2000-01-01 00:00:00`},
+		{expr: `time = '2000-01-01 00:00:00'`, min: `2000-01-01T00:00:00Z`, max: `2000-01-01T00:00:00Z`},
 
 		// Multiple time expressions.
-		{expr: `time >= '2000-01-01 00:00:00' AND time < '2000-01-02 00:00:00'`, min: `2000-01-01 00:00:00`, max: `2000-01-01 23:59:59.999999`},
+		{expr: `time >= '2000-01-01 00:00:00' AND time < '2000-01-02 00:00:00'`, min: `2000-01-01T00:00:00Z`, max: `2000-01-01T23:59:59.999999999Z`},
 
 		// Min/max crossover
-		{expr: `time >= '2000-01-01 00:00:00' AND time <= '1999-01-01 00:00:00'`, min: `2000-01-01 00:00:00`, max: `1999-01-01 00:00:00`},
+		{expr: `time >= '2000-01-01 00:00:00' AND time <= '1999-01-01 00:00:00'`, min: `2000-01-01T00:00:00Z`, max: `1999-01-01T00:00:00Z`},
 
 		// Absolute time
-		{expr: `time = 1388534400s`, min: `2014-01-01 00:00:00`, max: `2014-01-01 00:00:00`},
+		{expr: `time = 1388534400s`, min: `2014-01-01T00:00:00Z`, max: `2014-01-01T00:00:00Z`},
 
 		// Non-comparative expressions.
-		{expr: `time`, min: `0001-01-01 00:00:00`, max: `0001-01-01 00:00:00`},
-		{expr: `time + 2`, min: `0001-01-01 00:00:00`, max: `0001-01-01 00:00:00`},
-		{expr: `time - '2000-01-01 00:00:00'`, min: `0001-01-01 00:00:00`, max: `0001-01-01 00:00:00`},
-		{expr: `time AND '2000-01-01 00:00:00'`, min: `0001-01-01 00:00:00`, max: `0001-01-01 00:00:00`},
+		{expr: `time`, min: `0001-01-01T00:00:00Z`, max: `0001-01-01T00:00:00Z`},
+		{expr: `time + 2`, min: `0001-01-01T00:00:00Z`, max: `0001-01-01T00:00:00Z`},
+		{expr: `time - '2000-01-01 00:00:00'`, min: `0001-01-01T00:00:00Z`, max: `0001-01-01T00:00:00Z`},
+		{expr: `time AND '2000-01-01 00:00:00'`, min: `0001-01-01T00:00:00Z`, max: `0001-01-01T00:00:00Z`},
 	} {
 		// Extract time range.
 		expr := MustParseExpr(tt.expr)
 		min, max := influxql.TimeRange(expr)
 
 		// Compare with expected min/max.
-		if min := min.Format(influxql.DateTimeFormat); tt.min != min {
+		if min := min.Format(time.RFC3339Nano); tt.min != min {
 			t.Errorf("%d. %s: unexpected min:\n\nexp=%s\n\ngot=%s\n\n", i, tt.expr, tt.min, min)
 			continue
 		}
-		if max := max.Format(influxql.DateTimeFormat); tt.max != max {
+		if max := max.Format(time.RFC3339Nano); tt.max != max {
 			t.Errorf("%d. %s: unexpected max:\n\nexp=%s\n\ngot=%s\n\n", i, tt.expr, tt.max, max)
 			continue
 		}
@@ -694,9 +694,9 @@ func TestReduce(t *testing.T) {
 		{in: `true + false`, out: `true + false`},
 
 		// Time literals.
-		{in: `now() + 2h`, out: `'2000-01-01 02:00:00'`, data: map[string]interface{}{"now()": now}},
-		{in: `now() / 2h`, out: `'2000-01-01 00:00:00' / 2h`, data: map[string]interface{}{"now()": now}},
-		{in: `4µ + now()`, out: `'2000-01-01 00:00:00.000004'`, data: map[string]interface{}{"now()": now}},
+		{in: `now() + 2h`, out: `'2000-01-01T02:00:00Z'`, data: map[string]interface{}{"now()": now}},
+		{in: `now() / 2h`, out: `'2000-01-01T00:00:00Z' / 2h`, data: map[string]interface{}{"now()": now}},
+		{in: `4µ + now()`, out: `'2000-01-01T00:00:00.000004Z'`, data: map[string]interface{}{"now()": now}},
 		{in: `now() = now()`, out: `true`, data: map[string]interface{}{"now()": now}},
 		{in: `now() <> now()`, out: `false`, data: map[string]interface{}{"now()": now}},
 		{in: `now() < now() + 1h`, out: `true`, data: map[string]interface{}{"now()": now}},
@@ -704,7 +704,7 @@ func TestReduce(t *testing.T) {
 		{in: `now() >= now() - 1h`, out: `true`, data: map[string]interface{}{"now()": now}},
 		{in: `now() > now() - 1h`, out: `true`, data: map[string]interface{}{"now()": now}},
 		{in: `now() - (now() - 60s)`, out: `1m`, data: map[string]interface{}{"now()": now}},
-		{in: `now() AND now()`, out: `'2000-01-01 00:00:00' AND '2000-01-01 00:00:00'`, data: map[string]interface{}{"now()": now}},
+		{in: `now() AND now()`, out: `'2000-01-01T00:00:00Z' AND '2000-01-01T00:00:00Z'`, data: map[string]interface{}{"now()": now}},
 		{in: `now()`, out: `now()`},
 
 		// Duration literals.
