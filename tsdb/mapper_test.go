@@ -372,13 +372,13 @@ func TestShardMapper_WriteAndSingleMapperAggregateQuery(t *testing.T) {
 		{
 			stmt: fmt.Sprintf(`SELECT sum(value) FROM cpu WHERE time > '%s'`, pt1time.Format(influxql.DateTimeFormat)),
 			expected: []string{
-				`{"name":"cpu","values":[{"value":[60]}]}`,
+				`{"name":"cpu","values":[{"time":10000000001,"value":[60]}]}`,
 				`null`},
 		},
 		{
 			stmt: fmt.Sprintf(`SELECT sum(value) FROM cpu WHERE time > '%s'`, pt2time.Format(influxql.DateTimeFormat)),
 			expected: []string{
-				`{"name":"cpu","values":[{"value":[null]}]}`,
+				`{"name":"cpu","values":[{"time":20000000001,"value":[null]}]}`,
 				`null`},
 		},
 	}

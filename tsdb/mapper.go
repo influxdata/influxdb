@@ -141,7 +141,7 @@ func (lm *LocalMapper) Open() error {
 
 		// Ensure that the start time for the results is on the start of the window.
 		lm.queryTMinWindow = lm.queryTMin
-		if lm.intervalSize > 0 {
+		if lm.intervalSize > 0 && lm.numIntervals > 1 {
 			lm.queryTMinWindow = lm.queryTMinWindow / lm.intervalSize * lm.intervalSize
 		}
 	}
