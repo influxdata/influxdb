@@ -16,7 +16,7 @@ var (
 )
 
 // DefaultEngine is the default engine used by the shard when initializing.
-const DefaultEngine = "v1"
+const DefaultEngine = "b1"
 
 // Engine represents a swappable storage engine for the shard.
 type Engine interface {
@@ -68,14 +68,17 @@ func NewEngine(path string, options EngineOptions) (Engine, error) {
 			// Retrieve the meta bucket.
 			b := tx.Bucket([]byte("meta"))
 
-			// If no format is specified then it must be an original v1 database.
+			// If no format is specified then it must be an original b1 database.
 			if b == nil {
-				format = "v1"
+				format = "b1"
 				return nil
 			}
 
 			// Save the format.
 			format = string(b.Get([]byte("format")))
+			if format == "v1" {
+				format = "b1"
+			}
 			return nil
 		})
 	}(); err != nil {
