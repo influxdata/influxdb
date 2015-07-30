@@ -16,6 +16,7 @@ import (
 
 const batchSize = 5000
 
+// V8Config is the config used to initialize a V8 importer
 type V8Config struct {
 	username, password string
 	url                url.URL
@@ -25,6 +26,7 @@ type V8Config struct {
 	compressed         bool
 }
 
+// NewV8Config returns an initialized *V8Config
 func NewV8Config(username, password, precision, writeConsistency, file, version string, u url.URL, compressed bool) *V8Config {
 	return &V8Config{
 		username:         username,
@@ -38,6 +40,7 @@ func NewV8Config(username, password, precision, writeConsistency, file, version 
 	}
 }
 
+// V8 is the importer used for importing 0.8 data
 type V8 struct {
 	client                                     *client.Client
 	database                                   string
@@ -50,6 +53,7 @@ type V8 struct {
 	totalInserts, failedInserts, totalCommands int
 }
 
+// NewV8 will return an intialized V8 struct
 func NewV8(config *V8Config) *V8 {
 	return &V8{
 		config:  config,
@@ -60,6 +64,7 @@ func NewV8(config *V8Config) *V8 {
 	}
 }
 
+// Import processes the specified file in the V8Config and writes the data to the databases in chukes specified by batchSize
 func (v8 *V8) Import() error {
 	// Create a client and try to connect
 	config := client.NewConfig(v8.config.url, v8.config.username, v8.config.password, v8.config.version, client.DEFAULT_TIMEOUT)
