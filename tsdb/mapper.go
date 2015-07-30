@@ -5,8 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"math"
-	"runtime/debug"
+	"runtime"
 	"sort"
 	"strings"
 
@@ -66,6 +65,7 @@ type LocalMapper struct {
 
 // NewLocalMapper returns a mapper for the given shard, which will return data for the SELECT statement.
 func NewLocalMapper(shard *Shard, stmt influxql.Statement, chunkSize int) *LocalMapper {
+	fmt.Printf("stmt = %v\n", stmt)
 	m := &LocalMapper{
 		shard:     shard,
 		stmt:      stmt,
@@ -219,7 +219,11 @@ func (lm *LocalMapper) Open() error {
 			tsc.pqueue = &q
 			//Prime the buffers.
 			for i := 0; i < len(tsc.cursors); i++ {
+				//fmt.Printf("lm.queryTMin = %v\n", lm.queryTMin)
 				k, v := tsc.cursors[i].SeekTo(lm.queryTMin)
+				if k == -1 {
+					continue
+				}
 				p := &rawPoint{
 					timestamp: k,
 					value:     v,
@@ -237,7 +241,7 @@ func (lm *LocalMapper) Open() error {
 				// tsc.valueBuffer[i] = v
 			}
 			//heap.Init(tsc.pqueue)
-			fmt.Printf("lm.Open: len(pqueue) = %d\n", tsc.pqueue.Len())
+			//fmt.Printf("lm.Open: len(pqueue) = %d\n", tsc.pqueue.Len())
 			lm.cursors = append(lm.cursors, tsc)
 		}
 		sort.Sort(tagSetCursors(lm.cursors))
@@ -345,7 +349,7 @@ func (lm *LocalMapper) nextChunkAgg() (interface{}, error) {
 			qmin = lm.queryTMin
 		}
 
-		fmt.Printf("LocalMapper.nextChunkAgg: len(lm.mapFuncs) = %v\n", len(lm.mapFuncs))
+		//fmt.Printf("LocalMapper.nextChunkAgg: len(lm.mapFuncs) = %v\n", len(lm.mapFuncs))
 		q := make(rawPoints, 0)
 		heap.Init(&q)
 		tsc.pqueue = &q
@@ -356,6 +360,9 @@ func (lm *LocalMapper) nextChunkAgg() (interface{}, error) {
 			// Prime the buffers.
 			for i := 0; i < len(tsc.cursors); i++ {
 				k, v := tsc.cursors[i].SeekTo(tmin)
+				if k == -1 {
+					continue
+				}
 				p := &rawPoint{
 					timestamp: k,
 					value:     v,
@@ -373,7 +380,7 @@ func (lm *LocalMapper) nextChunkAgg() (interface{}, error) {
 				// tsc.valueBuffer[i] = v
 			}
 			//heap.Init(tsc.pqueue)
-			fmt.Printf("lm.nextChunkAgg: len(pqueue) = %d\n", tsc.pqueue.Len())
+			//fmt.Printf("lm.nextChunkAgg: len(pqueue) = %d\n", tsc.pqueue.Len())
 			// Wrap the tagset cursor so it implements the mapping functions interface.
 			f := func() (time int64, value interface{}) {
 				return tsc.Next(qmin, tmax, []string{lm.fieldNames[i]}, lm.whereFields)
@@ -491,6 +498,7 @@ func (pq rawPoints) Swap(i, j int) {
 func (pq *rawPoints) Push(x interface{}) {
 	//n := len(*pq)
 	item := x.(*rawPoint)
+	//fmt.Printf("Push: %v  (%s)\n", item, caller(3))
 	//item.index = n
 	*pq = append(*pq, item)
 }
@@ -501,7 +509,16 @@ func (pq *rawPoints) Pop() interface{} {
 	item := old[n-1]
 	//item.index = -1 // for safety
 	*pq = old[0 : n-1]
+	//fmt.Printf("Pop: %v  (%s)\n", item, caller(3))
 	return item
+}
+
+func caller(skip int) string {
+	pc, file, line, ok := runtime.Caller(skip)
+	if !ok {
+		return ""
+	}
+	return fmt.Sprintf("%s:%d (%d)", file, line, pc)
 }
 
 // update modifies the priority and value of an Item in the queue.
@@ -572,12 +589,14 @@ func (tsc *tagSetCursor) key() string {
 // Next returns the next matching series-key, timestamp and byte slice for the tagset. Filtering
 // is enforced on the values. If there is no matching value, then a nil result is returned.
 func (tsc *tagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []string) (int64, interface{}) {
-	fmt.Printf("\n%p: tagSetCursor.Next: tmin, tmax = %d, %d\n\n", tsc, tmin, tmax)
-	debug.PrintStack()
+	//fmt.Printf("tmin, tmax = %d, %d\n", tmin, tmax)
+	//defer fmt.Println(" ")
+	//debug.PrintStack()
+
 	for {
 		// Find the next lowest timestamp
 		//min := -1
-		minKey := int64(math.MaxInt64)
+		//minKey := int64(math.MaxInt64)
 		// for i, k := range tsc.keyBuffer {
 		// 	if k != -1 && (k == tmin) || k < minKey && k >= tmin && k < tmax {
 		// 		min = i
@@ -585,16 +604,16 @@ func (tsc *tagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []stri
 		// 	}
 		// }
 		//fmt.Printf("tagSetCursor.Next: len(pqueue) = %d\n", len(tsc.pqueue))
-		var p *rawPoint
-		if tsc.pqueue.Len() > 0 {
-			p = heap.Pop(tsc.pqueue).(*rawPoint)
-			k := p.timestamp
-			if k != -1 && (k == tmin) || k < minKey && k >= tmin && k < tmax {
-				//fmt.Printf("tagSetCursor.Next: p = %v\n", p)
-				//min = p.index
-				minKey = p.timestamp
-			}
-		} else {
+		if tsc.pqueue.Len() == 0 {
+			return -1, nil
+		}
+
+		p := heap.Pop(tsc.pqueue).(*rawPoint)
+		//if k != -1 && (k == tmin) || k < minKey && k >= tmin && k < tmax {
+		if (p.timestamp != tmin) && (p.timestamp == -1 || tmin > p.timestamp || p.timestamp >= tmax) {
+			//fmt.Printf("tagSetCursor.Next: p = %v\n", p)
+			//min = p.index
+			//minKey = p.timestamp
 			return -1, nil
 		}
 
