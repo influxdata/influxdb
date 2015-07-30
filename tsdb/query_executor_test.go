@@ -1,6 +1,7 @@
-package tsdb
+package tsdb_test
 
 import (
+	"encoding/json"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta"
+	"github.com/influxdb/influxdb/tsdb"
 )
 
 var sgID = uint64(2)
@@ -17,10 +19,10 @@ var shardID = uint64(1)
 
 func TestWritePointsAndExecuteQuery(t *testing.T) {
 	store, executor := testStoreAndExecutor()
-	defer os.RemoveAll(store.path)
+	defer os.RemoveAll(store.Path())
 
 	// Write first point.
-	if err := store.WriteToShard(shardID, []Point{NewPoint(
+	if err := store.WriteToShard(shardID, []tsdb.Point{tsdb.NewPoint(
 		"cpu",
 		map[string]string{"host": "server"},
 		map[string]interface{}{"value": 1.0},
@@ -30,7 +32,7 @@ func TestWritePointsAndExecuteQuery(t *testing.T) {
 	}
 
 	// Write second point.
-	if err := store.WriteToShard(shardID, []Point{NewPoint(
+	if err := store.WriteToShard(shardID, []tsdb.Point{tsdb.NewPoint(
 		"cpu",
 		map[string]string{"host": "server"},
 		map[string]interface{}{"value": 1.0},
@@ -46,68 +48,11 @@ func TestWritePointsAndExecuteQuery(t *testing.T) {
 	}
 
 	store.Close()
-	store = NewStore(store.path)
+	store = tsdb.NewStore(store.Path())
 	if err := store.Open(); err != nil {
 		t.Fatalf(err.Error())
 	}
-	executor.store = store
-	executor.ShardMapper = &testShardMapper{store: store}
-
-	got = executeAndGetJSON("select * from cpu", executor)
-	if exepected != got {
-		t.Fatalf("exp: %s\ngot: %s", exepected, got)
-	}
-}
-
-// Ensure that points can be written and flushed even after a restart.
-func TestWritePointsAndExecuteQuery_FlushRestart(t *testing.T) {
-	store, executor := testStoreAndExecutor()
-	defer os.RemoveAll(store.path)
-
-	// Write first point.
-	if err := store.WriteToShard(shardID, []Point{NewPoint(
-		"cpu",
-		map[string]string{"host": "server"},
-		map[string]interface{}{"value": 1.0},
-		time.Unix(1, 2),
-	)}); err != nil {
-		t.Fatalf(err.Error())
-	}
-
-	// Write second point.
-	if err := store.WriteToShard(shardID, []Point{NewPoint(
-		"cpu",
-		map[string]string{"host": "server"},
-		map[string]interface{}{"value": 1.0},
-		time.Unix(2, 3),
-	)}); err != nil {
-		t.Fatalf(err.Error())
-	}
-
-	// Restart the store.
-	if err := store.Close(); err != nil {
-		t.Fatal(err)
-	} else if err = store.Open(); err != nil {
-		t.Fatal(err)
-	}
-
-	// Flush WAL data to the index.
-	if err := store.Flush(); err != nil {
-		t.Fatal(err)
-	}
-
-	got := executeAndGetJSON("select * from cpu", executor)
-	exepected := `[{"series":[{"name":"cpu","tags":{"host":"server"},"columns":["time","value"],"values":[["1970-01-01T00:00:01.000000002Z",1],["1970-01-01T00:00:02.000000003Z",1]]}]}]`
-	if exepected != got {
-		t.Fatalf("exp: %s\ngot: %s", exepected, got)
-	}
-
-	store.Close()
-	store = NewStore(store.path)
-	if err := store.Open(); err != nil {
-		t.Fatalf(err.Error())
-	}
-	executor.store = store
+	executor.Store = store
 	executor.ShardMapper = &testShardMapper{store: store}
 
 	got = executeAndGetJSON("select * from cpu", executor)
@@ -118,16 +63,16 @@ func TestWritePointsAndExecuteQuery_FlushRestart(t *testing.T) {
 
 func TestDropSeriesStatement(t *testing.T) {
 	store, executor := testStoreAndExecutor()
-	defer os.RemoveAll(store.path)
+	defer os.RemoveAll(store.Path())
 
-	pt := NewPoint(
+	pt := tsdb.NewPoint(
 		"cpu",
 		map[string]string{"host": "server"},
 		map[string]interface{}{"value": 1.0},
 		time.Unix(1, 2),
 	)
 
-	err := store.WriteToShard(shardID, []Point{pt})
+	err := store.WriteToShard(shardID, []tsdb.Point{pt})
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -153,9 +98,9 @@ func TestDropSeriesStatement(t *testing.T) {
 	}
 
 	store.Close()
-	store = NewStore(store.path)
+	store = tsdb.NewStore(store.Path())
 	store.Open()
-	executor.store = store
+	executor.Store = store
 
 	got = executeAndGetJSON("select * from cpu", executor)
 	exepected = `[{}]`
@@ -172,22 +117,22 @@ func TestDropSeriesStatement(t *testing.T) {
 
 func TestDropMeasurementStatement(t *testing.T) {
 	store, executor := testStoreAndExecutor()
-	defer os.RemoveAll(store.path)
+	defer os.RemoveAll(store.Path())
 
-	pt := NewPoint(
+	pt := tsdb.NewPoint(
 		"cpu",
 		map[string]string{"host": "server"},
 		map[string]interface{}{"value": 1.0},
 		time.Unix(1, 2),
 	)
-	pt2 := NewPoint(
+	pt2 := tsdb.NewPoint(
 		"memory",
 		map[string]string{"host": "server"},
 		map[string]interface{}{"value": 1.0},
 		time.Unix(1, 2),
 	)
 
-	if err := store.WriteToShard(shardID, []Point{pt, pt2}); err != nil {
+	if err := store.WriteToShard(shardID, []tsdb.Point{pt, pt2}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -223,9 +168,9 @@ func TestDropMeasurementStatement(t *testing.T) {
 
 	validateDrop()
 	store.Close()
-	store = NewStore(store.path)
+	store = tsdb.NewStore(store.Path())
 	store.Open()
-	executor.store = store
+	executor.Store = store
 	validateDrop()
 }
 
@@ -240,16 +185,16 @@ func (m *metaExec) ExecuteStatement(stmt influxql.Statement) *influxql.Result {
 
 func TestDropDatabase(t *testing.T) {
 	store, executor := testStoreAndExecutor()
-	defer os.RemoveAll(store.path)
+	defer os.RemoveAll(store.Path())
 
-	pt := NewPoint(
+	pt := tsdb.NewPoint(
 		"cpu",
 		map[string]string{"host": "server"},
 		map[string]interface{}{"value": 1.0},
 		time.Unix(1, 2),
 	)
 
-	if err := store.WriteToShard(shardID, []Point{pt}); err != nil {
+	if err := store.WriteToShard(shardID, []tsdb.Point{pt}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -267,7 +212,7 @@ func TestDropDatabase(t *testing.T) {
 	executor.MetaStatementExecutor = me
 
 	// verify the database is there on disk
-	dbPath := filepath.Join(store.path, "foo")
+	dbPath := filepath.Join(store.Path(), "foo")
 	if _, err := os.Stat(dbPath); err != nil {
 		t.Fatalf("execpted database dir %s to exist", dbPath)
 	}
@@ -287,12 +232,12 @@ func TestDropDatabase(t *testing.T) {
 	}
 
 	store.Close()
-	store = NewStore(store.path)
+	store = tsdb.NewStore(store.Path())
 	store.Open()
-	executor.store = store
+	executor.Store = store
 	executor.ShardMapper = &testShardMapper{store: store}
 
-	if err := store.WriteToShard(shardID, []Point{pt}); err == nil || err.Error() != "shard not found" {
+	if err := store.WriteToShard(shardID, []tsdb.Point{pt}); err == nil || err.Error() != "shard not found" {
 		t.Fatalf("expected shard to not be found")
 	}
 }
@@ -300,7 +245,7 @@ func TestDropDatabase(t *testing.T) {
 // Ensure that queries for which there is no data result in an empty set.
 func TestQueryNoData(t *testing.T) {
 	store, executor := testStoreAndExecutor()
-	defer os.RemoveAll(store.path)
+	defer os.RemoveAll(store.Path())
 
 	got := executeAndGetJSON("select * from /.*/", executor)
 	expected := `[{}]`
@@ -321,7 +266,7 @@ func TestQueryNoData(t *testing.T) {
 // to create a user.
 func TestAuthenticateIfUserCountZeroAndCreateUser(t *testing.T) {
 	store, executor := testStoreAndExecutor()
-	defer os.RemoveAll(store.path)
+	defer os.RemoveAll(store.Path())
 	ms := &testMetastore{userCount: 0}
 	executor.MetaStore = ms
 
@@ -348,10 +293,10 @@ func TestAuthenticateIfUserCountZeroAndCreateUser(t *testing.T) {
 	}
 }
 
-func testStoreAndExecutor() (*Store, *QueryExecutor) {
+func testStoreAndExecutor() (*tsdb.Store, *tsdb.QueryExecutor) {
 	path, _ := ioutil.TempDir("", "")
 
-	store := NewStore(path)
+	store := tsdb.NewStore(path)
 	err := store.Open()
 	if err != nil {
 		panic(err)
@@ -361,14 +306,14 @@ func testStoreAndExecutor() (*Store, *QueryExecutor) {
 	shardID := uint64(1)
 	store.CreateShard(database, retentionPolicy, shardID)
 
-	executor := NewQueryExecutor(store)
+	executor := tsdb.NewQueryExecutor(store)
 	executor.MetaStore = &testMetastore{}
 	executor.ShardMapper = &testShardMapper{store: store}
 
 	return store, executor
 }
 
-func executeAndGetJSON(query string, executor *QueryExecutor) string {
+func executeAndGetJSON(query string, executor *tsdb.QueryExecutor) string {
 	ch, err := executor.ExecuteQuery(mustParseQuery(query), "foo", 20)
 	if err != nil {
 		panic(err.Error())
@@ -378,7 +323,12 @@ func executeAndGetJSON(query string, executor *QueryExecutor) string {
 	for r := range ch {
 		results = append(results, r)
 	}
-	return string(mustMarshalJSON(results))
+
+	b, err := json.Marshal(results)
+	if err != nil {
+		panic(err)
+	}
+	return string(b)
 }
 
 type testMetastore struct {
@@ -467,10 +417,10 @@ func (t *testMetastore) NodeID() uint64 {
 }
 
 type testShardMapper struct {
-	store *Store
+	store *tsdb.Store
 }
 
-func (t *testShardMapper) CreateMapper(shard meta.ShardInfo, stmt string, chunkSize int) (Mapper, error) {
+func (t *testShardMapper) CreateMapper(shard meta.ShardInfo, stmt string, chunkSize int) (tsdb.Mapper, error) {
 	m, err := t.store.CreateMapper(shard.ID, stmt, chunkSize)
 	return m, err
 }

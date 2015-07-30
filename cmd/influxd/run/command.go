@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 )
@@ -80,6 +81,10 @@ func (cmd *Command) Run(args ...string) error {
 	// Override config hostname if specified in the command line args.
 	if options.Hostname != "" {
 		config.Meta.Hostname = options.Hostname
+	}
+
+	if options.Join != "" {
+		config.Meta.Peers = strings.Split(options.Join, ",")
 	}
 
 	// Validate the configuration.

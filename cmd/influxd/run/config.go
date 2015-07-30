@@ -24,7 +24,7 @@ import (
 
 // Config represents the configuration format for the influxd binary.
 type Config struct {
-	Meta       meta.Config       `toml:"meta"`
+	Meta       *meta.Config      `toml:"meta"`
 	Data       tsdb.Config       `toml:"data"`
 	Cluster    cluster.Config    `toml:"cluster"`
 	Retention  retention.Config  `toml:"retention"`

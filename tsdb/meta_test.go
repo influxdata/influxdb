@@ -1,4 +1,4 @@
-package tsdb
+package tsdb_test
 
 import (
 	"bytes"
@@ -6,86 +6,87 @@ import (
 	"testing"
 
 	"github.com/influxdb/influxdb/influxql"
+	"github.com/influxdb/influxdb/tsdb"
 )
 
-// Test comparing seriesIDs for equality.
-func Test_seriesIDs_equals(t *testing.T) {
-	ids1 := seriesIDs{1, 2, 3}
-	ids2 := seriesIDs{1, 2, 3}
-	ids3 := seriesIDs{4, 5, 6}
+// Test comparing SeriesIDs for equality.
+func Test_SeriesIDs_Equals(t *testing.T) {
+	ids1 := tsdb.SeriesIDs{1, 2, 3}
+	ids2 := tsdb.SeriesIDs{1, 2, 3}
+	ids3 := tsdb.SeriesIDs{4, 5, 6}
 
-	if !ids1.equals(ids2) {
+	if !ids1.Equals(ids2) {
 		t.Fatal("expected ids1 == ids2")
-	} else if ids1.equals(ids3) {
+	} else if ids1.Equals(ids3) {
 		t.Fatal("expected ids1 != ids3")
 	}
 }
 
-// Test intersecting sets of seriesIDs.
-func Test_seriesIDs_intersect(t *testing.T) {
+// Test intersecting sets of SeriesIDs.
+func Test_SeriesIDs_Intersect(t *testing.T) {
 	// Test swaping l & r, all branches of if-else, and exit loop when 'j < len(r)'
-	ids1 := seriesIDs{1, 3, 4, 5, 6}
-	ids2 := seriesIDs{1, 2, 3, 7}
-	exp := seriesIDs{1, 3}
-	got := ids1.intersect(ids2)
+	ids1 := tsdb.SeriesIDs{1, 3, 4, 5, 6}
+	ids2 := tsdb.SeriesIDs{1, 2, 3, 7}
+	exp := tsdb.SeriesIDs{1, 3}
+	got := ids1.Intersect(ids2)
 
-	if !exp.equals(got) {
+	if !exp.Equals(got) {
 		t.Fatalf("exp=%v, got=%v", exp, got)
 	}
 
 	// Test exit for loop when 'i < len(l)'
-	ids1 = seriesIDs{1}
-	ids2 = seriesIDs{1, 2}
-	exp = seriesIDs{1}
-	got = ids1.intersect(ids2)
+	ids1 = tsdb.SeriesIDs{1}
+	ids2 = tsdb.SeriesIDs{1, 2}
+	exp = tsdb.SeriesIDs{1}
+	got = ids1.Intersect(ids2)
 
-	if !exp.equals(got) {
+	if !exp.Equals(got) {
 		t.Fatalf("exp=%v, got=%v", exp, got)
 	}
 }
 
-// Test union sets of seriesIDs.
-func Test_seriesIDs_union(t *testing.T) {
+// Test union sets of SeriesIDs.
+func Test_SeriesIDs_Union(t *testing.T) {
 	// Test all branches of if-else, exit loop because of 'j < len(r)', and append remainder from left.
-	ids1 := seriesIDs{1, 2, 3, 7}
-	ids2 := seriesIDs{1, 3, 4, 5, 6}
-	exp := seriesIDs{1, 2, 3, 4, 5, 6, 7}
-	got := ids1.union(ids2)
+	ids1 := tsdb.SeriesIDs{1, 2, 3, 7}
+	ids2 := tsdb.SeriesIDs{1, 3, 4, 5, 6}
+	exp := tsdb.SeriesIDs{1, 2, 3, 4, 5, 6, 7}
+	got := ids1.Union(ids2)
 
-	if !exp.equals(got) {
+	if !exp.Equals(got) {
 		t.Fatalf("exp=%v, got=%v", exp, got)
 	}
 
 	// Test exit because of 'i < len(l)' and append remainder from right.
-	ids1 = seriesIDs{1}
-	ids2 = seriesIDs{1, 2}
-	exp = seriesIDs{1, 2}
-	got = ids1.union(ids2)
+	ids1 = tsdb.SeriesIDs{1}
+	ids2 = tsdb.SeriesIDs{1, 2}
+	exp = tsdb.SeriesIDs{1, 2}
+	got = ids1.Union(ids2)
 
-	if !exp.equals(got) {
+	if !exp.Equals(got) {
 		t.Fatalf("exp=%v, got=%v", exp, got)
 	}
 }
 
-// Test removing one set of seriesIDs from another.
-func Test_seriesIDs_reject(t *testing.T) {
+// Test removing one set of SeriesIDs from another.
+func Test_SeriesIDs_Reject(t *testing.T) {
 	// Test all branches of if-else, exit loop because of 'j < len(r)', and append remainder from left.
-	ids1 := seriesIDs{1, 2, 3, 7}
-	ids2 := seriesIDs{1, 3, 4, 5, 6}
-	exp := seriesIDs{2, 7}
-	got := ids1.reject(ids2)
+	ids1 := tsdb.SeriesIDs{1, 2, 3, 7}
+	ids2 := tsdb.SeriesIDs{1, 3, 4, 5, 6}
+	exp := tsdb.SeriesIDs{2, 7}
+	got := ids1.Reject(ids2)
 
-	if !exp.equals(got) {
+	if !exp.Equals(got) {
 		t.Fatalf("exp=%v, got=%v", exp, got)
 	}
 
 	// Test exit because of 'i < len(l)'.
-	ids1 = seriesIDs{1}
-	ids2 = seriesIDs{1, 2}
-	exp = seriesIDs{}
-	got = ids1.reject(ids2)
+	ids1 = tsdb.SeriesIDs{1}
+	ids2 = tsdb.SeriesIDs{1, 2}
+	exp = tsdb.SeriesIDs{}
+	got = ids1.Reject(ids2)
 
-	if !exp.equals(got) {
+	if !exp.Equals(got) {
 		t.Fatalf("exp=%v, got=%v", exp, got)
 	}
 }
@@ -113,7 +114,7 @@ func TestMarshalTags(t *testing.T) {
 			result: []byte(`baz|foo|battttt|bar`),
 		},
 	} {
-		result := marshalTags(tt.tags)
+		result := tsdb.MarshalTags(tt.tags)
 		if !bytes.Equal(result, tt.result) {
 			t.Fatalf("%d. unexpected result: exp=%s, got=%s", i, tt.result, result)
 		}
@@ -137,7 +138,7 @@ func benchmarkMarshalTags(b *testing.B, keyN int) {
 	// Unmarshal map into byte slice.
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		marshalTags(tags)
+		tsdb.MarshalTags(tags)
 	}
 }
 
@@ -154,23 +155,23 @@ func BenchmarkCreateSeriesIndex_1M(b *testing.B) {
 }
 
 func benchmarkCreateSeriesIndex(b *testing.B, series []*TestSeries) {
-	idxs := make([]*DatabaseIndex, 0, b.N)
+	idxs := make([]*tsdb.DatabaseIndex, 0, b.N)
 	for i := 0; i < b.N; i++ {
-		idxs = append(idxs, NewDatabaseIndex())
+		idxs = append(idxs, tsdb.NewDatabaseIndex())
 	}
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		idx := idxs[n]
 		for _, s := range series {
-			idx.createSeriesIndexIfNotExists(s.Measurement, s.Series)
+			idx.CreateSeriesIndexIfNotExists(s.Measurement, s.Series)
 		}
 	}
 }
 
 type TestSeries struct {
 	Measurement string
-	Series      *Series
+	Series      *tsdb.Series
 }
 
 func genTestSeries(mCnt, tCnt, vCnt int) []*TestSeries {
@@ -181,8 +182,8 @@ func genTestSeries(mCnt, tCnt, vCnt int) []*TestSeries {
 		for _, ts := range tagSets {
 			series = append(series, &TestSeries{
 				Measurement: m,
-				Series: &Series{
-					Key:  fmt.Sprintf("%s:%s", m, string(marshalTags(ts))),
+				Series: &tsdb.Series{
+					Key:  fmt.Sprintf("%s:%s", m, string(tsdb.MarshalTags(ts))),
 					Tags: ts,
 				},
 			})

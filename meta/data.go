@@ -706,14 +706,18 @@ func (di *DatabaseInfo) unmarshal(pb *internal.DatabaseInfo) {
 	di.Name = pb.GetName()
 	di.DefaultRetentionPolicy = pb.GetDefaultRetentionPolicy()
 
-	di.RetentionPolicies = make([]RetentionPolicyInfo, len(pb.GetRetentionPolicies()))
-	for i, x := range pb.GetRetentionPolicies() {
-		di.RetentionPolicies[i].unmarshal(x)
+	if len(pb.GetRetentionPolicies()) > 0 {
+		di.RetentionPolicies = make([]RetentionPolicyInfo, len(pb.GetRetentionPolicies()))
+		for i, x := range pb.GetRetentionPolicies() {
+			di.RetentionPolicies[i].unmarshal(x)
+		}
 	}
 
-	di.ContinuousQueries = make([]ContinuousQueryInfo, len(pb.GetContinuousQueries()))
-	for i, x := range pb.GetContinuousQueries() {
-		di.ContinuousQueries[i].unmarshal(x)
+	if len(pb.GetContinuousQueries()) > 0 {
+		di.ContinuousQueries = make([]ContinuousQueryInfo, len(pb.GetContinuousQueries()))
+		for i, x := range pb.GetContinuousQueries() {
+			di.ContinuousQueries[i].unmarshal(x)
+		}
 	}
 }
 
@@ -794,9 +798,11 @@ func (rpi *RetentionPolicyInfo) unmarshal(pb *internal.RetentionPolicyInfo) {
 	rpi.Duration = time.Duration(pb.GetDuration())
 	rpi.ShardGroupDuration = time.Duration(pb.GetShardGroupDuration())
 
-	rpi.ShardGroups = make([]ShardGroupInfo, len(pb.GetShardGroups()))
-	for i, x := range pb.GetShardGroups() {
-		rpi.ShardGroups[i].unmarshal(x)
+	if len(pb.GetShardGroups()) > 0 {
+		rpi.ShardGroups = make([]ShardGroupInfo, len(pb.GetShardGroups()))
+		for i, x := range pb.GetShardGroups() {
+			rpi.ShardGroups[i].unmarshal(x)
+		}
 	}
 }
 
@@ -900,9 +906,11 @@ func (sgi *ShardGroupInfo) unmarshal(pb *internal.ShardGroupInfo) {
 	sgi.EndTime = UnmarshalTime(pb.GetEndTime())
 	sgi.DeletedAt = UnmarshalTime(pb.GetDeletedAt())
 
-	sgi.Shards = make([]ShardInfo, len(pb.GetShards()))
-	for i, x := range pb.GetShards() {
-		sgi.Shards[i].unmarshal(x)
+	if len(pb.GetShards()) > 0 {
+		sgi.Shards = make([]ShardInfo, len(pb.GetShards()))
+		for i, x := range pb.GetShards() {
+			sgi.Shards[i].unmarshal(x)
+		}
 	}
 }
 

@@ -1,21 +1,23 @@
-package tsdb
+package tsdb_test
 
 import (
 	"testing"
 	"time"
+
+	"github.com/influxdb/influxdb/tsdb"
 )
 
 // TestBatch_Size ensures that a batcher generates a batch when the size threshold is reached.
 func TestBatch_Size(t *testing.T) {
 	batchSize := 5
-	batcher := NewPointBatcher(batchSize, time.Hour)
+	batcher := tsdb.NewPointBatcher(batchSize, time.Hour)
 	if batcher == nil {
 		t.Fatal("failed to create batcher for size test")
 	}
 
 	batcher.Start()
 
-	var p Point
+	var p tsdb.Point
 	go func() {
 		for i := 0; i < batchSize; i++ {
 			batcher.In() <- p
@@ -31,14 +33,14 @@ func TestBatch_Size(t *testing.T) {
 // TestBatch_Size ensures that a batcher generates a batch when the timeout triggers.
 func TestBatch_Timeout(t *testing.T) {
 	batchSize := 5
-	batcher := NewPointBatcher(batchSize+1, 100*time.Millisecond)
+	batcher := tsdb.NewPointBatcher(batchSize+1, 100*time.Millisecond)
 	if batcher == nil {
 		t.Fatal("failed to create batcher for timeout test")
 	}
 
 	batcher.Start()
 
-	var p Point
+	var p tsdb.Point
 	go func() {
 		for i := 0; i < batchSize; i++ {
 			batcher.In() <- p
@@ -54,14 +56,14 @@ func TestBatch_Timeout(t *testing.T) {
 // TestBatch_Flush ensures that a batcher generates a batch when flushed
 func TestBatch_Flush(t *testing.T) {
 	batchSize := 2
-	batcher := NewPointBatcher(batchSize, time.Hour)
+	batcher := tsdb.NewPointBatcher(batchSize, time.Hour)
 	if batcher == nil {
 		t.Fatal("failed to create batcher for flush test")
 	}
 
 	batcher.Start()
 
-	var p Point
+	var p tsdb.Point
 	go func() {
 		batcher.In() <- p
 		batcher.Flush()
@@ -76,15 +78,15 @@ func TestBatch_Flush(t *testing.T) {
 // TestBatch_MultipleBatches ensures that a batcher correctly processes multiple batches.
 func TestBatch_MultipleBatches(t *testing.T) {
 	batchSize := 2
-	batcher := NewPointBatcher(batchSize, 100*time.Millisecond)
+	batcher := tsdb.NewPointBatcher(batchSize, 100*time.Millisecond)
 	if batcher == nil {
 		t.Fatal("failed to create batcher for size test")
 	}
 
 	batcher.Start()
 
-	var p Point
-	var b []Point
+	var p tsdb.Point
+	var b []tsdb.Point
 
 	batcher.In() <- p
 	batcher.In() <- p
@@ -102,7 +104,7 @@ func TestBatch_MultipleBatches(t *testing.T) {
 	checkPointBatcherStats(t, batcher, -1, 3, 1, 1)
 }
 
-func checkPointBatcherStats(t *testing.T, b *PointBatcher, batchTotal, pointTotal, sizeTotal, timeoutTotal int) {
+func checkPointBatcherStats(t *testing.T, b *tsdb.PointBatcher, batchTotal, pointTotal, sizeTotal, timeoutTotal int) {
 	stats := b.Stats()
 
 	if batchTotal != -1 && stats.BatchTotal != uint64(batchTotal) {

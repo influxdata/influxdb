@@ -87,11 +87,15 @@ func NewHandler(requireAuthentication, loggingEnabled, writeTrace bool) *Handler
 
 	h.SetRoutes([]route{
 		route{
+			"query", // Satisfy CORS checks.
+			"OPTIONS", "/query", true, true, h.serveOptions,
+		},
+		route{
 			"query", // Query serving route.
 			"GET", "/query", true, true, h.serveQuery,
 		},
 		route{
-			"write", // Data-ingest route.
+			"write", // Satisfy CORS checks.
 			"OPTIONS", "/write", true, true, h.serveOptions,
 		},
 		route{
@@ -211,6 +215,16 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 	if err != nil {
 		httpError(w, "error parsing query: "+err.Error(), pretty, http.StatusBadRequest)
 		return
+	}
+
+	// Sanitize statements with passwords.
+	for _, s := range query.Statements {
+		switch stmt := s.(type) {
+		case *influxql.CreateUserStatement:
+			sanitize(r, stmt.Password)
+		case *influxql.SetPasswordUserStatement:
+			sanitize(r, stmt.Password)
+		}
 	}
 
 	// Check authorization.
@@ -576,6 +590,8 @@ func parseCredentials(r *http.Request) (string, string, error) {
 	q := r.URL.Query()
 
 	if u, p := q.Get("u"), q.Get("p"); u != "" && p != "" {
+		q.Set("p", "[REDACTED]")
+		r.URL.RawQuery = q.Encode()
 		return u, p, nil
 	}
 	if u, p, ok := r.BasicAuth(); ok {

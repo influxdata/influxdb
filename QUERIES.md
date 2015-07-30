@@ -110,7 +110,7 @@ SHOW SERIES FROM cpu_load WHERE region = 'uswest' LIMIT 10
 SHOW SERIES FROM cpu_load WHERE region = 'uswest' LIMIT 10 OFFSET 100
 
 -- show all retention policies on a database
-SHOW RETENTION POLICIES mydb
+SHOW RETENTION POLICIES ON mydb
 
 -- get a show of all tag keys across all measurements
 SHOW TAG KEYS

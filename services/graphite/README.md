@@ -16,7 +16,7 @@ The special value _measurement_ is used to define the measurement name.  It can 
 
 `servers.localhost.cpu.loadavg.10`
 * Template: `.host.resource.measurement*`
-* Output:  _measurement_ =`loading.10` _tags_ =`host=localhost resource=cpu`
+* Output:  _measurement_ =`loadavg.10` _tags_ =`host=localhost resource=cpu`
 
 ### Multiple Measurement Matching
 

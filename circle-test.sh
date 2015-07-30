@@ -55,9 +55,9 @@ case $CIRCLE_NODE_INDEX in
         rc=${PIPESTATUS[0]}
         ;;
     1)
-        GORACE="halt_on_error=1" go test $PARALLELISM $TIMEOUT -v -race ./... 2>&1 | tee $CIRCLE_ARTIFACTS/test_logs_race.txt
-        rc=${PIPESTATUS[0]}
-        ;;
+       GORACE="halt_on_error=1" go test $PARALLELISM $TIMEOUT -v -race ./... 2>&1 | tee $CIRCLE_ARTIFACTS/test_logs_race.txt
+       rc=${PIPESTATUS[0]}
+       ;;
 esac
 
 exit $rc

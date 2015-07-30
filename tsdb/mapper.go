@@ -1,36 +1,36 @@
 package tsdb
 
 import (
+	"container/heap"
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"math"
+	"runtime"
 	"sort"
 	"strings"
 
-	"github.com/boltdb/bolt"
 	"github.com/influxdb/influxdb/influxql"
 )
 
-// mapperValue is a complex type, which can encapsulate data from both raw and aggregate
+// MapperValue is a complex type, which can encapsulate data from both raw and aggregate
 // mappers. This currently allows marshalling and network system to remain simpler. For
 // aggregate output Time is ignored, and actual Time-Value pairs are contained soley
 // within the Value field.
-type mapperValue struct {
+type MapperValue struct {
 	Time  int64       `json:"time,omitempty"`  // Ignored for aggregate output.
 	Value interface{} `json:"value,omitempty"` // For aggregate, contains interval time multiple values.
 }
 
-type mapperValues []*mapperValue
+type MapperValues []*MapperValue
 
-func (a mapperValues) Len() int           { return len(a) }
-func (a mapperValues) Less(i, j int) bool { return a[i].Time < a[j].Time }
-func (a mapperValues) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a MapperValues) Len() int           { return len(a) }
+func (a MapperValues) Less(i, j int) bool { return a[i].Time < a[j].Time }
+func (a MapperValues) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
 type MapperOutput struct {
 	Name   string            `json:"name,omitempty"`
 	Tags   map[string]string `json:"tags,omitempty"`
-	Values []*mapperValue    `json:"values,omitempty"` // For aggregates contains a single value at [0]
+	Values []*MapperValue    `json:"values,omitempty"` // For aggregates contains a single value at [0]
 }
 
 func (mo *MapperOutput) key() string {
@@ -44,7 +44,7 @@ type LocalMapper struct {
 	selectStmt      *influxql.SelectStatement
 	rawMode         bool
 	chunkSize       int
-	tx              *bolt.Tx        // Read transaction for this shard.
+	tx              Tx              // Read transaction for this shard.
 	queryTMin       int64           // Minimum time of the query.
 	queryTMax       int64           // Maximum time of the query.
 	whereFields     []string        // field names that occur in the where clause
@@ -65,6 +65,7 @@ type LocalMapper struct {
 
 // NewLocalMapper returns a mapper for the given shard, which will return data for the SELECT statement.
 func NewLocalMapper(shard *Shard, stmt influxql.Statement, chunkSize int) *LocalMapper {
+	fmt.Printf("stmt = %v\n", stmt)
 	m := &LocalMapper{
 		shard:     shard,
 		stmt:      stmt,
@@ -89,7 +90,7 @@ func (lm *LocalMapper) Open() error {
 	var err error
 
 	// Get a read-only transaction.
-	tx, err := lm.shard.DB().Begin(false)
+	tx, err := lm.shard.engine.Begin(false)
 	if err != nil {
 		return err
 	}
@@ -142,7 +143,7 @@ func (lm *LocalMapper) Open() error {
 
 		// Ensure that the start time for the results is on the start of the window.
 		lm.queryTMinWindow = lm.queryTMin
-		if lm.intervalSize > 0 {
+		if lm.intervalSize > 0 && lm.numIntervals > 1 {
 			lm.queryTMinWindow = lm.queryTMinWindow / lm.intervalSize * lm.intervalSize
 		}
 	}
@@ -203,7 +204,7 @@ func (lm *LocalMapper) Open() error {
 			cursors := []*seriesCursor{}
 
 			for i, key := range t.SeriesKeys {
-				c := createCursorForSeries(lm.tx, lm.shard, key)
+				c := lm.tx.Cursor(key)
 				if c == nil {
 					// No data exists for this key.
 					continue
@@ -213,12 +214,34 @@ func (lm *LocalMapper) Open() error {
 			}
 
 			tsc := newTagSetCursor(m.Name, t.Tags, cursors, lm.shard.FieldCodec(m.Name))
-			// Prime the buffers.
+			q := make(rawPoints, 0)
+			heap.Init(&q)
+			tsc.pqueue = &q
+			//Prime the buffers.
 			for i := 0; i < len(tsc.cursors); i++ {
+				//fmt.Printf("lm.queryTMin = %v\n", lm.queryTMin)
 				k, v := tsc.cursors[i].SeekTo(lm.queryTMin)
-				tsc.keyBuffer[i] = k
-				tsc.valueBuffer[i] = v
+				if k == -1 {
+					continue
+				}
+				p := &rawPoint{
+					timestamp: k,
+					value:     v,
+					//index:     i,
+					cursor: tsc.cursors[i],
+				}
+				heap.Push(tsc.pqueue, p)
+				// (*tsc.pqueue)[i] = &rawPoint{
+				// 	timestamp: k,
+				// 	value:     v,
+				// 	//index:     i,
+				// 	cursor:    tsc.cursors[i],
+				// }
+				// tsc.keyBuffer[i] = k
+				// tsc.valueBuffer[i] = v
 			}
+			//heap.Init(tsc.pqueue)
+			//fmt.Printf("lm.Open: len(pqueue) = %d\n", tsc.pqueue.Len())
 			lm.cursors = append(lm.cursors, tsc)
 		}
 		sort.Sort(tagSetCursors(lm.cursors))
@@ -275,7 +298,7 @@ func (lm *LocalMapper) nextChunkRaw() (interface{}, error) {
 				Tags: cursor.tags,
 			}
 		}
-		value := &mapperValue{Time: k, Value: v}
+		value := &MapperValue{Time: k, Value: v}
 		output.Values = append(output.Values, value)
 		if len(output.Values) == lm.chunkSize {
 			return output, nil
@@ -310,11 +333,11 @@ func (lm *LocalMapper) nextChunkAgg() (interface{}, error) {
 			output = &MapperOutput{
 				Name:   tsc.measurement,
 				Tags:   tsc.tags,
-				Values: make([]*mapperValue, 1),
+				Values: make([]*MapperValue, 1),
 			}
 			// Aggregate values only use the first entry in the Values field. Set the time
 			// to the start of the interval.
-			output.Values[0] = &mapperValue{
+			output.Values[0] = &MapperValue{
 				Time:  tmin,
 				Value: make([]interface{}, 0)}
 		}
@@ -326,6 +349,10 @@ func (lm *LocalMapper) nextChunkAgg() (interface{}, error) {
 			qmin = lm.queryTMin
 		}
 
+		//fmt.Printf("LocalMapper.nextChunkAgg: len(lm.mapFuncs) = %v\n", len(lm.mapFuncs))
+		q := make(rawPoints, 0)
+		heap.Init(&q)
+		tsc.pqueue = &q
 		for i := range lm.mapFuncs {
 			// Prime the tagset cursor for the start of the interval. This is not ideal, as
 			// it should really calculate the values all in 1 pass, but that would require
@@ -333,10 +360,27 @@ func (lm *LocalMapper) nextChunkAgg() (interface{}, error) {
 			// Prime the buffers.
 			for i := 0; i < len(tsc.cursors); i++ {
 				k, v := tsc.cursors[i].SeekTo(tmin)
-				tsc.keyBuffer[i] = k
-				tsc.valueBuffer[i] = v
+				if k == -1 {
+					continue
+				}
+				p := &rawPoint{
+					timestamp: k,
+					value:     v,
+					//index:     i,
+					cursor: tsc.cursors[i],
+				}
+				heap.Push(tsc.pqueue, p)
+				// (*tsc.pqueue)[i] = &rawPoint{
+				// 	timestamp: k,
+				// 	value:     v,
+				// 	//index:     i,
+				// 	cursor:    tsc.cursors[i],
+				// }
+				// tsc.keyBuffer[i] = k
+				// tsc.valueBuffer[i] = v
 			}
-
+			//heap.Init(tsc.pqueue)
+			//fmt.Printf("lm.nextChunkAgg: len(pqueue) = %d\n", tsc.pqueue.Len())
 			// Wrap the tagset cursor so it implements the mapping functions interface.
 			f := func() (time int64, value interface{}) {
 				return tsc.Next(qmin, tmax, []string{lm.fieldNames[i]}, lm.whereFields)
@@ -429,6 +473,65 @@ func (a *aggTagSetCursor) Next() (time int64, value interface{}) {
 	return a.nextFunc()
 }
 
+type rawPoint struct {
+	timestamp int64
+	value     []byte
+	//index     int
+	cursor *seriesCursor // cursor whence rawPoint came
+}
+
+type rawPoints []*rawPoint
+
+func (pq rawPoints) Len() int { return len(pq) }
+
+func (pq rawPoints) Less(i, j int) bool {
+	// We want a min-heap (points in chronological order), so use less than.
+	return pq[i].timestamp < pq[j].timestamp
+}
+
+func (pq rawPoints) Swap(i, j int) {
+	pq[i], pq[j] = pq[j], pq[i]
+	//pq[i].index = i
+	//pq[j].index = j
+}
+
+func (pq *rawPoints) Push(x interface{}) {
+	//n := len(*pq)
+	item := x.(*rawPoint)
+	//fmt.Printf("Push: %v  (%s)\n", item, caller(3))
+	//item.index = n
+	*pq = append(*pq, item)
+}
+
+func (pq *rawPoints) Pop() interface{} {
+	old := *pq
+	n := len(old)
+	item := old[n-1]
+	//item.index = -1 // for safety
+	*pq = old[0 : n-1]
+	//fmt.Printf("Pop: %v  (%s)\n", item, caller(3))
+	return item
+}
+
+func caller(skip int) string {
+	pc, file, line, ok := runtime.Caller(skip)
+	if !ok {
+		return ""
+	}
+	return fmt.Sprintf("%s:%d (%d)", file, line, pc)
+}
+
+// update modifies the priority and value of an Item in the queue.
+// func (pq *rawPoints) update(item *rawPoint, value []byte, timestamp int64) {
+// 	item.value = value
+// 	item.timestamp = timestamp
+// 	heap.Fix(pq, item.index)
+// }
+
+// func (a rawPoints) Len() int           { return len(a) }
+// func (a rawPoints) Less(i, j int) bool { return a[i].timestamp < a[j].timestamp }
+// func (a rawPoints) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+
 // tagSetCursor is virtual cursor that iterates over mutiple series cursors, as though it were
 // a single series.
 type tagSetCursor struct {
@@ -440,8 +543,9 @@ type tagSetCursor struct {
 	// Lookahead buffers for the cursors. Performance analysis shows that it is critical
 	// that these buffers are part of the tagSetCursor type and not part of the the
 	// cursors type.
-	keyBuffer   []int64  // The current timestamp key for each cursor
-	valueBuffer [][]byte // The current value for each cursor
+	// keyBuffer   []int64  // The current timestamp key for each cursor
+	// valueBuffer [][]byte // The current value for each cursor
+	pqueue *rawPoints
 }
 
 // tagSetCursors represents a sortable slice of tagSetCursors.
@@ -462,14 +566,20 @@ func (a tagSetCursors) Keys() []string {
 
 // newTagSetCursor returns a tagSetCursor
 func newTagSetCursor(m string, t map[string]string, c []*seriesCursor, d *FieldCodec) *tagSetCursor {
-	return &tagSetCursor{
+	tsc := &tagSetCursor{
 		measurement: m,
 		tags:        t,
 		cursors:     c,
 		decoder:     d,
-		keyBuffer:   make([]int64, len(c)),
-		valueBuffer: make([][]byte, len(c)),
+		// keyBuffer:   make([]int64, len(c)),
+		// valueBuffer: make([][]byte, len(c)),
+		//pqueue: &make(rawPoints, len(c)),
 	}
+	//q := make(rawPoints, len(c))
+	q := make(rawPoints, 0)
+	heap.Init(&q)
+	tsc.pqueue = &q
+	return tsc
 }
 
 func (tsc *tagSetCursor) key() string {
@@ -479,53 +589,72 @@ func (tsc *tagSetCursor) key() string {
 // Next returns the next matching series-key, timestamp and byte slice for the tagset. Filtering
 // is enforced on the values. If there is no matching value, then a nil result is returned.
 func (tsc *tagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []string) (int64, interface{}) {
+	//fmt.Printf("tmin, tmax = %d, %d\n", tmin, tmax)
+	//defer fmt.Println(" ")
+	//debug.PrintStack()
+
 	for {
 		// Find the next lowest timestamp
-		min := -1
-		minKey := int64(math.MaxInt64)
-		for i, k := range tsc.keyBuffer {
-			if k != -1 && (k == tmin) || k < minKey && k >= tmin && k < tmax {
-				min = i
-				minKey = k
-			}
-		}
-
-		// Return if there is no more data for this tagset.
-		if min == -1 {
+		//min := -1
+		//minKey := int64(math.MaxInt64)
+		// for i, k := range tsc.keyBuffer {
+		// 	if k != -1 && (k == tmin) || k < minKey && k >= tmin && k < tmax {
+		// 		min = i
+		// 		minKey = k
+		// 	}
+		// }
+		//fmt.Printf("tagSetCursor.Next: len(pqueue) = %d\n", len(tsc.pqueue))
+		if tsc.pqueue.Len() == 0 {
 			return -1, nil
 		}
 
+		p := heap.Pop(tsc.pqueue).(*rawPoint)
+		//if k != -1 && (k == tmin) || k < minKey && k >= tmin && k < tmax {
+		if (p.timestamp != tmin) && (p.timestamp == -1 || tmin > p.timestamp || p.timestamp >= tmax) {
+			//fmt.Printf("tagSetCursor.Next: p = %v\n", p)
+			//min = p.index
+			//minKey = p.timestamp
+			return -1, nil
+		}
+
+		// Return if there is no more data for this tagset.
+		// if min == -1 {
+		// 	return -1, nil
+		// }
+
 		// set the current timestamp and seriesID
-		timestamp := tsc.keyBuffer[min]
+		//timestamp := tsc.keyBuffer[min]
+		timestamp := p.timestamp
 
 		var value interface{}
 		if len(selectFields) > 1 {
-			if fieldsWithNames, err := tsc.decoder.DecodeFieldsWithNames(tsc.valueBuffer[min]); err == nil {
+			if fieldsWithNames, err := tsc.decoder.DecodeFieldsWithNames(p.value); err == nil {
 				value = fieldsWithNames
 
 				// if there's a where clause, make sure we don't need to filter this value
-				if tsc.cursors[min].filter != nil && !matchesWhere(tsc.cursors[min].filter, fieldsWithNames) {
+				if p.cursor.filter != nil && !matchesWhere(p.cursor.filter, fieldsWithNames) {
 					value = nil
 				}
 			}
 		} else {
 			// With only 1 field SELECTed, decoding all fields may be avoidable, which is faster.
 			var err error
-			value, err = tsc.decoder.DecodeByName(selectFields[0], tsc.valueBuffer[min])
+			value, err = tsc.decoder.DecodeByName(selectFields[0], p.value)
 			if err != nil {
 				value = nil
 			} else {
 				// If there's a WHERE clase, see if we need to filter
-				if tsc.cursors[min].filter != nil {
+				//fmt.Printf("min = %d\n", min)
+				if p.cursor.filter != nil {
 					// See if the WHERE is only on this field or on one or more other fields.
 					// If the latter, we'll have to decode everything
 					if len(whereFields) == 1 && whereFields[0] == selectFields[0] {
-						if !matchesWhere(tsc.cursors[min].filter, map[string]interface{}{selectFields[0]: value}) {
+						if !matchesWhere(p.cursor.filter, map[string]interface{}{selectFields[0]: value}) {
 							value = nil
 						}
 					} else { // Decode everything
-						fieldsWithNames, err := tsc.decoder.DecodeFieldsWithNames(tsc.valueBuffer[min])
-						if err != nil || !matchesWhere(tsc.cursors[min].filter, fieldsWithNames) {
+						fieldsWithNames, err := tsc.decoder.DecodeFieldsWithNames(p.value)
+						if err != nil || !matchesWhere(p.cursor.filter, fieldsWithNames) {
 							value = nil
 						}
 					}
@@ -534,9 +663,18 @@ func (tsc *tagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []stri
 		}
 
 		// Advance the cursor
-		nextKey, nextVal := tsc.cursors[min].Next()
-		tsc.keyBuffer[min] = nextKey
-		tsc.valueBuffer[min] = nextVal
+		nextKey, nextVal := p.cursor.Next()
+		if nextKey != -1 {
+			p = &rawPoint{
+				timestamp: nextKey,
+				value:     nextVal,
+				cursor:    p.cursor,
+			}
+			heap.Push(tsc.pqueue, p)
+		}
+		//tsc.pqueue.update(p, p.value)
+		// tsc.keyBuffer[min] = nextKey
+		// tsc.valueBuffer[min] = nextVal
 
 		// Value didn't match, look for the next one.
 		if value == nil {
@@ -549,14 +687,14 @@ func (tsc *tagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []stri
 
 // seriesCursor is a cursor that walks a single series. It provides lookahead functionality.
 type seriesCursor struct {
-	cursor *shardCursor // BoltDB cursor for a series
+	cursor Cursor // BoltDB cursor for a series
 	filter influxql.Expr
 }
 
 // newSeriesCursor returns a new instance of a series cursor.
-func newSeriesCursor(b *shardCursor, filter influxql.Expr) *seriesCursor {
+func newSeriesCursor(cur Cursor, filter influxql.Expr) *seriesCursor {
 	return &seriesCursor{
-		cursor: b,
+		cursor: cur,
 		filter: filter,
 	}
 }
@@ -581,30 +719,6 @@ func (sc *seriesCursor) Next() (key int64, value []byte) {
 		key, value = int64(btou64(k)), v
 	}
 	return
-}
-
-// createCursorForSeries creates a cursor for walking the given series key. The cursor
-// consolidates both the Bolt store and any WAL cache.
-func createCursorForSeries(tx *bolt.Tx, shard *Shard, key string) *shardCursor {
-	// Retrieve key bucket.
-	b := tx.Bucket([]byte(key))
-
-	// Ignore if there is no bucket or points in the cache.
-	partitionID := WALPartition([]byte(key))
-	if b == nil && len(shard.cache[partitionID][key]) == 0 {
-		return nil
-	}
-
-	// Retrieve a copy of the in-cache points for the key.
-	cache := make([][]byte, len(shard.cache[partitionID][key]))
-	copy(cache, shard.cache[partitionID][key])
-
-	// Build a cursor that merges the bucket and cache together.
-	cur := &shardCursor{cache: cache}
-	if b != nil {
-		cur.cursor = b.Cursor()
-	}
-	return cur
 }
 
 type tagSetsAndFields struct {
@@ -673,7 +787,7 @@ func formMeasurementTagSetKey(name string, tags map[string]string) string {
 	if len(tags) == 0 {
 		return name
 	}
-	return strings.Join([]string{name, string(marshalTags(tags))}, "|")
+	return strings.Join([]string{name, string(MarshalTags(tags))}, "|")
 }
 
 // btou64 converts an 8-byte slice into an uint64.
