@@ -6,6 +6,7 @@
 - [#3426](https://github.com/influxdb/influxdb/pull/3426): Additional logging for continuous queries. Thanks @jhorwit2
 - [#3478](https://github.com/influxdb/influxdb/pull/3478): Support incremental cluster joins
 - [#3519](https://github.com/influxdb/influxdb/pull/3519): **--BREAKING CHANGE--** Update line protocol to require trailing i for field values that are integers
+- [#3529](https://github.com/influxdb/influxdb/pull/3529): Add TLS support for OpenTSDB plugin. Thanks @nathanielc
 
 ### Bugfixes
 - [#3405](https://github.com/influxdb/influxdb/pull/3405): Prevent database panic when fields are missing. Thanks @jhorwit2
