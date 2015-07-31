@@ -3,6 +3,7 @@ package opentsdb
 import (
 	"bufio"
 	"bytes"
+	"crypto/tls"
 	"io"
 	"log"
 	"net"
@@ -26,8 +27,10 @@ type Service struct {
 	ln     net.Listener  // main listener
 	httpln *chanListener // http channel-based listener
 
-	wg  sync.WaitGroup
-	err chan error
+	wg   sync.WaitGroup
+	err  chan error
+	tls  bool
+	cert string
 
 	BindAddress      string
 	Database         string
@@ -53,6 +56,8 @@ func NewService(c Config) (*Service, error) {
 	}
 
 	s := &Service{
+		tls:              c.TLSEnabled,
+		cert:             c.Certificate,
 		err:              make(chan error),
 		BindAddress:      c.BindAddress,
 		Database:         c.Database,
@@ -77,14 +82,31 @@ func (s *Service) Open() error {
 	s.Logger.Printf("ensured target database %s exists", s.Database)
 
 	// Open listener.
-	ln, err := net.Listen("tcp", s.BindAddress)
-	if err != nil {
-		return err
-	}
-	s.ln = ln
-	s.httpln = newChanListener(ln.Addr())
+	if s.tls {
+		cert, err := tls.LoadX509KeyPair(s.cert, s.cert)
+		if err != nil {
+			return err
+		}
 
-	s.Logger.Println("listening on:", ln.Addr().String())
+		listener, err := tls.Listen("tcp", s.BindAddress, &tls.Config{
+			Certificates: []tls.Certificate{cert},
+		})
+		if err != nil {
+			return err
+		}
+
+		s.Logger.Println("listening on TLS:", listener.Addr().String())
+		s.ln = listener
+	} else {
+		listener, err := net.Listen("tcp", s.BindAddress)
+		if err != nil {
+			return err
+		}
+
+		s.Logger.Println("listening on:", listener.Addr().String())
+		s.ln = listener
+	}
+	s.httpln = newChanListener(s.ln.Addr())
 
 	// Begin listening for connections.
 	s.wg.Add(2)
