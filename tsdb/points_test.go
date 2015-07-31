@@ -286,6 +286,10 @@ func TestParsePointBadNumber(t *testing.T) {
 	if err == nil {
 		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west value=1ii`)
 	}
+	_, err = tsdb.ParsePointsString(`cpu,host=serverA,region=us-west value=1.0i`)
+	if err == nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west value=1.0i`)
+	}
 }
 
 func TestParsePointMaxInt64(t *testing.T) {
