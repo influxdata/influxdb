@@ -20,6 +20,8 @@ type Config struct {
 	Database         string `toml:"database"`
 	RetentionPolicy  string `toml:"retention-policy"`
 	ConsistencyLevel string `toml:"consistency-level"`
+	TLSEnabled       bool   `toml:"tls-enabled"`
+	Certificate      string `toml:"certificate"`
 }
 
 func NewConfig() Config {
@@ -28,5 +30,7 @@ func NewConfig() Config {
 		Database:         DefaultDatabase,
 		RetentionPolicy:  DefaultRetentionPolicy,
 		ConsistencyLevel: DefaultConsistencyLevel,
+		TLSEnabled:       false,
+		Certificate:      "/etc/ssl/influxdb.pem",
 	}
 }
