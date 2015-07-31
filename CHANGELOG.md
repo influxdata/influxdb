@@ -4,7 +4,8 @@
 - [#3376](https://github.com/influxdb/influxdb/pull/3376): Support for remote shard query mapping
 - [#3372](https://github.com/influxdb/influxdb/pull/3372): Support joining nodes to existing cluster
 - [#3426](https://github.com/influxdb/influxdb/pull/3426): Additional logging for continuous queries. Thanks @jhorwit2
-- [#3478](https://github.com/influxdb/influxdb/pull/3478)): Support incremental cluster joins
+- [#3478](https://github.com/influxdb/influxdb/pull/3478): Support incremental cluster joins
+- [#3519](https://github.com/influxdb/influxdb/pull/3519): **--BREAKING CHANGE--** Update line protocol to require trailing i for field values that are integers
 
 ### Bugfixes
 - [#3405](https://github.com/influxdb/influxdb/pull/3405): Prevent database panic when fields are missing. Thanks @jhorwit2

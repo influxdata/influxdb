@@ -414,7 +414,7 @@ func scanFields(buf []byte, i int) (int, []byte, error) {
 
 			if isNumeric(buf[i+1]) || buf[i+1] == '-' || buf[i+1] == 'N' || buf[i+1] == 'n' {
 				var err error
-				i, _, err = scanNumber(buf, i+1)
+				i, err = scanNumber(buf, i+1)
 				if err != nil {
 					return i, buf[start:i], err
 				}
@@ -488,8 +488,9 @@ func isNumeric(b byte) bool {
 // scanNumber returns the end position within buf, start at i after
 // scanning over buf for an integer, or float.  It returns an
 // error if a invalid number is scanned.
-func scanNumber(buf []byte, i int) (int, []byte, error) {
+func scanNumber(buf []byte, i int) (int, error) {
 	start := i
+	var isInt bool
 
 	// Is negative number?
 	if i < len(buf) && buf[i] == '-' {
@@ -511,13 +512,19 @@ func scanNumber(buf []byte, i int) (int, []byte, error) {
 			break
 		}
 
+		if buf[i] == 'i' && i > start && !isInt {
+			isInt = true
+			i += 1
+			continue
+		}
+
 		if buf[i] == '.' {
 			decimals += 1
 		}
 
 		// Can't have more than 1 decimal (e.g. 1.1.1 should fail)
 		if decimals > 1 {
-			return i, buf[start:i], fmt.Errorf("invalid number")
+			return i, fmt.Errorf("invalid number")
 		}
 
 		// `e` is valid for floats but not as the first char
@@ -539,36 +546,40 @@ func scanNumber(buf []byte, i int) (int, []byte, error) {
 				i += 3
 				continue
 			}
-			return i, buf[start:i], fmt.Errorf("invalid number")
+			return i, fmt.Errorf("invalid number")
 		}
 
 		if !isNumeric(buf[i]) {
-			return i, buf[start:i], fmt.Errorf("invalid number")
+			return i, fmt.Errorf("invalid number")
 		}
 		i += 1
+	}
+	if isInt && decimals > 0 {
+		return i, fmt.Errorf("invalid number")
 	}
 
 	// It's more common that numbers will be within min/max range for their type but we need to prevent
 	// out or range numbers from being parsed successfully.  This uses some simple heuristics to decide
 	// if we should parse the number to the actual type.  It does not do it all the time because it incurs
 	// extra allocations and we end up converting the type again when writing points to disk.
-	if decimals == 0 {
+	if isInt {
 		// Parse the int to check bounds the number of digits could be larger than the max range
-		if len(buf[start:i]) >= maxInt64Digits || len(buf[start:i]) >= minInt64Digits {
-			if _, err := strconv.ParseInt(string(buf[start:i]), 10, 64); err != nil {
-				return i, buf[start:i], fmt.Errorf("invalid integer")
+		// We subtract 1 from the index to remove the `i` from our tests
+		if len(buf[start:i-1]) >= maxInt64Digits || len(buf[start:i-1]) >= minInt64Digits {
+			if _, err := strconv.ParseInt(string(buf[start:i-1]), 10, 64); err != nil {
+				return i, fmt.Errorf("unable to parse integer %s: %s", buf[start:i-1], err)
 			}
 		}
 	} else {
 		// Parse the float to check bounds if it's scientific or the number of digits could be larger than the max range
 		if scientific || len(buf[start:i]) >= maxFloat64Digits || len(buf[start:i]) >= minFloat64Digits {
 			if _, err := strconv.ParseFloat(string(buf[start:i]), 10); err != nil {
-				return i, buf[start:i], fmt.Errorf("invalid float")
+				return i, fmt.Errorf("invalid float")
 			}
 		}
 	}
 
-	return i, buf[start:i], nil
+	return i, nil
 }
 
 // scanBoolean returns the end position within buf, start at i after
@@ -996,6 +1007,10 @@ func (t Tags) HashKey() []byte {
 type Fields map[string]interface{}
 
 func parseNumber(val []byte) (interface{}, error) {
+	if val[len(val)-1] == 'i' {
+		val = val[:len(val)-1]
+		return strconv.ParseInt(string(val), 10, 64)
+	}
 	for i := 0; i < len(val); i++ {
 		// If there is a decimal or an N (NaN), I (Inf), parse as float
 		if val[i] == '.' || val[i] == 'N' || val[i] == 'n' || val[i] == 'I' || val[i] == 'i' || val[i] == 'e' {
@@ -1005,7 +1020,7 @@ func parseNumber(val []byte) (interface{}, error) {
 			return string(val), nil
 		}
 	}
-	return strconv.ParseInt(string(val), 10, 64)
+	return strconv.ParseFloat(string(val), 64)
 }
 
 func newFieldsFromBinary(buf []byte) Fields {
@@ -1076,12 +1091,16 @@ func (p Fields) MarshalBinary() []byte {
 		switch t := v.(type) {
 		case int:
 			b = append(b, []byte(strconv.FormatInt(int64(t), 10))...)
+			b = append(b, 'i')
 		case int32:
 			b = append(b, []byte(strconv.FormatInt(int64(t), 10))...)
+			b = append(b, 'i')
 		case uint64:
 			b = append(b, []byte(strconv.FormatUint(t, 10))...)
+			b = append(b, 'i')
 		case int64:
 			b = append(b, []byte(strconv.FormatInt(t, 10))...)
+			b = append(b, 'i')
 		case float64:
 			// ensure there is a decimal in the encoded for
 
