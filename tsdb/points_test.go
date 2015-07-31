@@ -35,7 +35,7 @@ func BenchmarkMarshal(b *testing.B) {
 }
 
 func BenchmarkParsePointNoTags(b *testing.B) {
-	line := `cpu value=1 1000000000`
+	line := `cpu value=1i 1000000000`
 	for i := 0; i < b.N; i++ {
 		tsdb.ParsePoints([]byte(line))
 		b.SetBytes(int64(len(line)))
@@ -43,7 +43,7 @@ func BenchmarkParsePointNoTags(b *testing.B) {
 }
 
 func BenchmarkParsePointsTagsSorted2(b *testing.B) {
-	line := `cpu,host=serverA,region=us-west value=1 1000000000`
+	line := `cpu,host=serverA,region=us-west value=1i 1000000000`
 	for i := 0; i < b.N; i++ {
 		tsdb.ParsePoints([]byte(line))
 		b.SetBytes(int64(len(line)))
@@ -51,7 +51,7 @@ func BenchmarkParsePointsTagsSorted2(b *testing.B) {
 }
 
 func BenchmarkParsePointsTagsSorted5(b *testing.B) {
-	line := `cpu,env=prod,host=serverA,region=us-west,target=servers,zone=1c value=1 1000000000`
+	line := `cpu,env=prod,host=serverA,region=us-west,target=servers,zone=1c value=1i 1000000000`
 	for i := 0; i < b.N; i++ {
 		tsdb.ParsePoints([]byte(line))
 		b.SetBytes(int64(len(line)))
@@ -59,7 +59,7 @@ func BenchmarkParsePointsTagsSorted5(b *testing.B) {
 }
 
 func BenchmarkParsePointsTagsSorted10(b *testing.B) {
-	line := `cpu,env=prod,host=serverA,region=us-west,tag1=value1,tag2=value2,tag3=value3,tag4=value4,tag5=value5,target=servers,zone=1c value=1 1000000000`
+	line := `cpu,env=prod,host=serverA,region=us-west,tag1=value1,tag2=value2,tag3=value3,tag4=value4,tag5=value5,target=servers,zone=1c value=1i 1000000000`
 	for i := 0; i < b.N; i++ {
 		tsdb.ParsePoints([]byte(line))
 		b.SetBytes(int64(len(line)))
@@ -67,7 +67,7 @@ func BenchmarkParsePointsTagsSorted10(b *testing.B) {
 }
 
 func BenchmarkParsePointsTagsUnSorted2(b *testing.B) {
-	line := `cpu,region=us-west,host=serverA value=1 1000000000`
+	line := `cpu,region=us-west,host=serverA value=1i 1000000000`
 	for i := 0; i < b.N; i++ {
 		pt, _ := tsdb.ParsePoints([]byte(line))
 		b.SetBytes(int64(len(line)))
@@ -76,7 +76,7 @@ func BenchmarkParsePointsTagsUnSorted2(b *testing.B) {
 }
 
 func BenchmarkParsePointsTagsUnSorted5(b *testing.B) {
-	line := `cpu,region=us-west,host=serverA,env=prod,target=servers,zone=1c value=1 1000000000`
+	line := `cpu,region=us-west,host=serverA,env=prod,target=servers,zone=1c value=1i 1000000000`
 	for i := 0; i < b.N; i++ {
 		pt, _ := tsdb.ParsePoints([]byte(line))
 		b.SetBytes(int64(len(line)))
@@ -85,7 +85,7 @@ func BenchmarkParsePointsTagsUnSorted5(b *testing.B) {
 }
 
 func BenchmarkParsePointsTagsUnSorted10(b *testing.B) {
-	line := `cpu,region=us-west,host=serverA,env=prod,target=servers,zone=1c,tag1=value1,tag2=value2,tag3=value3,tag4=value4,tag5=value5 value=1 1000000000`
+	line := `cpu,region=us-west,host=serverA,env=prod,target=servers,zone=1c,tag1=value1,tag2=value2,tag3=value3,tag4=value4,tag5=value5 value=1i 1000000000`
 	for i := 0; i < b.N; i++ {
 		pt, _ := tsdb.ParsePoints([]byte(line))
 		b.SetBytes(int64(len(line)))
@@ -191,40 +191,40 @@ func TestParsePointMissingQuote(t *testing.T) {
 }
 
 func TestParsePointMissingTagName(t *testing.T) {
-	_, err := tsdb.ParsePointsString(`cpu,host=serverA,=us-east value=1`)
+	_, err := tsdb.ParsePointsString(`cpu,host=serverA,=us-east value=1i`)
 	if err == nil {
-		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,=us-east value=1`)
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,=us-east value=1i`)
 	}
 
-	_, err = tsdb.ParsePointsString(`cpu,host=serverAa\,,=us-east value=1`)
+	_, err = tsdb.ParsePointsString(`cpu,host=serverAa\,,=us-east value=1i`)
 	if err == nil {
-		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverAa\,,=us-east value=1`)
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverAa\,,=us-east value=1i`)
 	}
 
-	_, err = tsdb.ParsePointsString(`cpu,host=serverA\,,=us-east value=1`)
+	_, err = tsdb.ParsePointsString(`cpu,host=serverA\,,=us-east value=1i`)
 	if err == nil {
-		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA\,,=us-east value=1`)
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA\,,=us-east value=1i`)
 	}
 
-	_, err = tsdb.ParsePointsString(`cpu,host=serverA,\ =us-east value=1`)
+	_, err = tsdb.ParsePointsString(`cpu,host=serverA,\ =us-east value=1i`)
 	if err != nil {
-		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,\ =us-east value=1`, err)
+		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,\ =us-east value=1i`, err)
 	}
 }
 
 func TestParsePointMissingTagValue(t *testing.T) {
-	_, err := tsdb.ParsePointsString(`cpu,host value=1`)
+	_, err := tsdb.ParsePointsString(`cpu,host value=1i`)
 	if err == nil {
-		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host value=1`)
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host value=1i`)
 	}
 
-	_, err = tsdb.ParsePointsString(`cpu,host=serverA,region value=1`)
+	_, err = tsdb.ParsePointsString(`cpu,host=serverA,region value=1i`)
 	if err == nil {
-		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region value=1`)
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region value=1i`)
 	}
-	_, err = tsdb.ParsePointsString(`cpu,host=serverA,region= value=1`)
+	_, err = tsdb.ParsePointsString(`cpu,host=serverA,region= value=1i`)
 	if err == nil {
-		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region= value=1`)
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region= value=1i`)
 	}
 }
 
@@ -234,18 +234,18 @@ func TestParsePointMissingFieldName(t *testing.T) {
 		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west =`)
 	}
 
-	_, err = tsdb.ParsePointsString(`cpu,host=serverA,region=us-west =123`)
+	_, err = tsdb.ParsePointsString(`cpu,host=serverA,region=us-west =123i`)
 	if err == nil {
-		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west =123`)
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west =123i`)
 	}
 
-	_, err = tsdb.ParsePointsString(`cpu,host=serverA,region=us-west a\ =123`)
+	_, err = tsdb.ParsePointsString(`cpu,host=serverA,region=us-west a\ =123i`)
 	if err != nil {
-		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west a\ =123`)
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west a\ =123i`)
 	}
-	_, err = tsdb.ParsePointsString(`cpu,host=serverA,region=us-west value=123,=456`)
+	_, err = tsdb.ParsePointsString(`cpu,host=serverA,region=us-west value=123i,=456i`)
 	if err == nil {
-		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west value=123,=456`)
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west value=123i,=456i`)
 	}
 
 }
@@ -256,24 +256,24 @@ func TestParsePointMissingFieldValue(t *testing.T) {
 		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west value=`)
 	}
 
-	_, err = tsdb.ParsePointsString(`cpu,host=serverA,region=us-west value= 1000000000`)
+	_, err = tsdb.ParsePointsString(`cpu,host=serverA,region=us-west value= 1000000000i`)
 	if err == nil {
-		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west value= 1000000000`)
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west value= 1000000000i`)
 	}
 
-	_, err = tsdb.ParsePointsString(`cpu,host=serverA,region=us-west value=,value2=1`)
+	_, err = tsdb.ParsePointsString(`cpu,host=serverA,region=us-west value=,value2=1i`)
 	if err == nil {
-		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west value=,value2=1`)
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west value=,value2=1i`)
 	}
 
-	_, err = tsdb.ParsePointsString(`cpu,host=server01,region=us-west 1434055562000000000`)
+	_, err = tsdb.ParsePointsString(`cpu,host=server01,region=us-west 1434055562000000000i`)
 	if err == nil {
-		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=server01,region=us-west 1434055562000000000`)
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=server01,region=us-west 1434055562000000000i`)
 	}
 
-	_, err = tsdb.ParsePointsString(`cpu,host=server01,region=us-west value=1,b`)
+	_, err = tsdb.ParsePointsString(`cpu,host=server01,region=us-west value=1i,b`)
 	if err == nil {
-		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=server01,region=us-west value=1,b`)
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=server01,region=us-west value=1i,b`)
 	}
 }
 
@@ -282,45 +282,53 @@ func TestParsePointBadNumber(t *testing.T) {
 	if err == nil {
 		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west value=1a`)
 	}
+	_, err = tsdb.ParsePointsString(`cpu,host=serverA,region=us-west value=1ii`)
+	if err == nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west value=1ii`)
+	}
 }
 
 func TestParsePointMaxInt64(t *testing.T) {
 	// out of range
-	_, err := tsdb.ParsePointsString(`cpu,host=serverA,region=us-west value=9223372036854775808`)
-	if err == nil {
-		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west value=9223372036854775808`)
+	_, err := tsdb.ParsePointsString(`cpu,host=serverA,region=us-west value=9223372036854775808i`)
+	exp := `unable to parse 'cpu,host=serverA,region=us-west value=9223372036854775808i': unable to parse integer 9223372036854775808: strconv.ParseInt: parsing "9223372036854775808": value out of range`
+	if err == nil || (err != nil && err.Error() != exp) {
+		t.Fatalf("Error mismatch:\nexp: %s\ngot: %v", exp, err)
 	}
 
 	// max int
-	_, err = tsdb.ParsePointsString(`cpu,host=serverA,region=us-west value=9223372036854775807`)
+	p, err := tsdb.ParsePointsString(`cpu,host=serverA,region=us-west value=9223372036854775807i`)
 	if err != nil {
-		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,region=us-west value=9223372036854775807`, err)
+		t.Fatalf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,region=us-west value=9223372036854775807i`, err)
+	}
+	if exp, got := int64(9223372036854775807), p[0].Fields()["value"].(int64); exp != got {
+		t.Fatalf("ParsePoints Value mistmatch. \nexp: %v\ngot: %v", exp, got)
 	}
 
 	// leading zeros
-	_, err = tsdb.ParsePointsString(`cpu,host=serverA,region=us-west value=0009223372036854775807`)
+	_, err = tsdb.ParsePointsString(`cpu,host=serverA,region=us-west value=0009223372036854775807i`)
 	if err != nil {
-		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,region=us-west value=0009223372036854775807`, err)
+		t.Fatalf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,region=us-west value=0009223372036854775807i`, err)
 	}
 }
 
 func TestParsePointMinInt64(t *testing.T) {
 	// out of range
-	_, err := tsdb.ParsePointsString(`cpu,host=serverA,region=us-west value=-9223372036854775809`)
+	_, err := tsdb.ParsePointsString(`cpu,host=serverA,region=us-west value=-9223372036854775809i`)
 	if err == nil {
-		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west value=-9223372036854775809`)
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west value=-9223372036854775809i`)
 	}
 
 	// min int
-	_, err = tsdb.ParsePointsString(`cpu,host=serverA,region=us-west value=-9223372036854775808`)
+	_, err = tsdb.ParsePointsString(`cpu,host=serverA,region=us-west value=-9223372036854775808i`)
 	if err != nil {
-		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,region=us-west value=-9223372036854775808`, err)
+		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,region=us-west value=-9223372036854775808i`, err)
 	}
 
 	// leading zeros
-	_, err = tsdb.ParsePointsString(`cpu,host=serverA,region=us-west value=-0009223372036854775808`)
+	_, err = tsdb.ParsePointsString(`cpu,host=serverA,region=us-west value=-0009223372036854775808i`)
 	if err != nil {
-		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,region=us-west value=-0009223372036854775808`, err)
+		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,region=us-west value=-0009223372036854775808i`, err)
 	}
 }
 
@@ -387,16 +395,16 @@ func TestParsePointFloatMultipleDecimals(t *testing.T) {
 }
 
 func TestParsePointInteger(t *testing.T) {
-	_, err := tsdb.ParsePointsString(`cpu,host=serverA,region=us-west value=1`)
+	_, err := tsdb.ParsePointsString(`cpu,host=serverA,region=us-west value=1i`)
 	if err != nil {
-		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,region=us-west value=1`, err)
+		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,region=us-west value=1i`, err)
 	}
 }
 
 func TestParsePointNegativeInteger(t *testing.T) {
-	_, err := tsdb.ParsePointsString(`cpu,host=serverA,region=us-west value=-1`)
+	_, err := tsdb.ParsePointsString(`cpu,host=serverA,region=us-west value=-1i`)
 	if err != nil {
-		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,region=us-west value=-1`, err)
+		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, `cpu,host=serverA,region=us-west value=-1i`, err)
 	}
 }
 
@@ -453,7 +461,7 @@ func TestParsePointBooleanInvalid(t *testing.T) {
 }
 
 func TestParsePointUnescape(t *testing.T) {
-	test(t, `foo\,bar value=1`,
+	test(t, `foo\,bar value=1i`,
 		tsdb.NewPoint(
 			"foo,bar", // comma in the name
 			tsdb.Tags{},
@@ -576,7 +584,7 @@ func TestParsePointUnescape(t *testing.T) {
 			time.Unix(0, 0)))
 
 	// field name using escape char.
-	test(t, `cpu \a=1`,
+	test(t, `cpu \a=1i`,
 		tsdb.NewPoint(
 			"cpu",
 			tsdb.Tags{},
@@ -596,7 +604,7 @@ func TestParsePointWithTags(t *testing.T) {
 }
 
 func TestParsPointWithDuplicateTags(t *testing.T) {
-	_, err := tsdb.ParsePoints([]byte(`cpu,host=serverA,host=serverB value=1 1000000000`))
+	_, err := tsdb.ParsePoints([]byte(`cpu,host=serverA,host=serverB value=1i 1000000000`))
 	if err == nil {
 		t.Fatalf(`ParsePoint() expected error. got nil`)
 	}
@@ -766,6 +774,17 @@ func TestParsePointUnicodeString(t *testing.T) {
 	)
 }
 
+func TestNewPointFloatWithoutDecimal(t *testing.T) {
+	test(t, `cpu value=1 1000000000`,
+		tsdb.NewPoint(
+			"cpu",
+			tsdb.Tags{},
+			tsdb.Fields{
+				"value": 1.0,
+			},
+			time.Unix(1, 0)),
+	)
+}
 func TestNewPointNegativeFloat(t *testing.T) {
 	test(t, `cpu value=-0.64 1000000000`,
 		tsdb.NewPoint(
@@ -803,7 +822,7 @@ func TestNewPointFloatScientific(t *testing.T) {
 }
 
 func TestNewPointLargeInteger(t *testing.T) {
-	test(t, `cpu value=6632243 1000000000`,
+	test(t, `cpu value=6632243i 1000000000`,
 		tsdb.NewPoint(
 			"cpu",
 			tsdb.Tags{},
@@ -838,7 +857,7 @@ func TestNewPointNaN(t *testing.T) {
 }
 
 func TestParsePointIntsFloats(t *testing.T) {
-	pts, err := tsdb.ParsePoints([]byte(`cpu,host=serverA,region=us-east int=10,float=11.0,float2=12.1 1000000000`))
+	pts, err := tsdb.ParsePoints([]byte(`cpu,host=serverA,region=us-east int=10i,float=11.0,float2=12.1 1000000000`))
 	if err != nil {
 		t.Fatalf(`ParsePoints() failed. got %s`, err)
 	}
@@ -863,7 +882,7 @@ func TestParsePointIntsFloats(t *testing.T) {
 }
 
 func TestParsePointKeyUnsorted(t *testing.T) {
-	pts, err := tsdb.ParsePoints([]byte("cpu,last=1,first=2 value=1"))
+	pts, err := tsdb.ParsePoints([]byte("cpu,last=1,first=2 value=1i"))
 	if err != nil {
 		t.Fatalf(`ParsePoints() failed. got %s`, err)
 	}
@@ -879,7 +898,7 @@ func TestParsePointKeyUnsorted(t *testing.T) {
 }
 
 func TestParsePointToString(t *testing.T) {
-	line := `cpu,host=serverA,region=us-east bool=false,float=11.0,float2=12.123,int=10,str="string val" 1000000000`
+	line := `cpu,host=serverA,region=us-east bool=false,float=11.0,float2=12.123,int=10i,str="string val" 1000000000`
 	pts, err := tsdb.ParsePoints([]byte(line))
 	if err != nil {
 		t.Fatalf(`ParsePoints() failed. got %s`, err)
