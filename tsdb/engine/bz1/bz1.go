@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"math"
+	"sort"
 	"sync"
 	"time"
 
@@ -255,14 +256,61 @@ func (e *Engine) writeIndex(tx *bolt.Tx, key string, a [][]byte) error {
 	c := bkt.Cursor()
 
 	// Determine time range of new data.
-	tmin, _ := int64(btou64(a[0][0:8])), int64(btou64(a[len(a)-1][0:8]))
+	tmin, tmax := int64(btou64(a[0][0:8])), int64(btou64(a[len(a)-1][0:8]))
 
 	// If tmin is after the last block then append new blocks.
+	//
+	// This is the optimized fast path. Otherwise we need to merge the points
+	// with existing blocks on disk and rewrite all the blocks for that range.
 	if k, v := c.Last(); k == nil || int64(btou64(v[0:8])) < tmin {
-		return e.writeBlocks(bkt, a)
+		if err := e.writeBlocks(bkt, a); err != nil {
+			return fmt.Errorf("append blocks: %s", err)
+		}
 	}
 
-	panic("FIXME: If time range overlaps existing blocks then unpack full range and reinsert")
+	// Generate map of inserted keys.
+	m := make(map[int64]struct{})
+	for _, b := range a {
+		m[int64(btou64(b[0:8]))] = struct{}{}
+	}
+
+	// If time range overlaps existing blocks then unpack full range and reinsert.
+	for k, v := c.First(); k != nil; k, v = c.Next() {
+		// Determine block range.
+		bmin, bmax := int64(btou64(k)), int64(btou64(v[0:8]))
+
+		// Exit loop if the lowest block time is greater than the max insert time.
+		if bmin > tmax {
+			break
+		}
+
+		// If range overlaps with inserted range then read out data and delete block.
+		if (bmin >= tmin && bmin <= tmax) || (bmax >= tmin && bmax <= tmax) {
+			// Decode block.
+			buf, err := snappy.Decode(nil, v[8:])
+			if err != nil {
+				return fmt.Errorf("decode block: %s", err)
+			}
+
+			// Copy out any entries that aren't being overwritten.
+			for _, entry := range SplitEntries(buf) {
+				if _, ok := m[int64(btou64(entry[0:8]))]; !ok {
+					a = append(a, entry)
+				}
+			}
+
+			// Delete block in database.
+			c.Delete()
+		}
+	}
+
+	// Sort entries before rewriting.
+	sort.Sort(byteSlices(a))
+
+	// Rewrite points to new blocks.
+	if err := e.writeBlocks(bkt, a); err != nil {
+		return fmt.Errorf("rewrite blocks: %s", err)
+	}
 
 	return nil
 }
@@ -463,6 +511,7 @@ func (c *Cursor) setBuf(block []byte) {
 	// Skip over the first 8 bytes since they are the max timestamp.
 	buf, err := snappy.Decode(c.buf, block[8:])
 	if err != nil {
+		c.buf = c.buf[0:0]
 		log.Printf("block decode error: %s", err)
 	}
 	c.buf, c.off = buf, 0
@@ -507,6 +556,24 @@ func UnmarshalEntry(v []byte) (timestamp int64, data []byte, n int) {
 	return timestamp, data, 12 + int(dataLen)
 }
 
+// SplitEntries returns a slice of individual entries from one continuous set.
+func SplitEntries(b []byte) [][]byte {
+	var a [][]byte
+	for {
+		// Exit if there's no more data left.
+		if len(b) == 0 {
+			return a
+		}
+
+		// Create slice that points to underlying entry.
+		dataSize := entryDataSize(b)
+		a = append(a, b[0:entryHeaderSize+dataSize])
+
+		// Move buffer forward.
+		b = b[entryHeaderSize+dataSize:]
+	}
+}
+
 // entryHeaderSize is the number of bytes required for the header.
 const entryHeaderSize = 8 + 4
 
@@ -522,3 +589,9 @@ func u64tob(v uint64) []byte {
 
 // btou64 converts an 8-byte slice into an uint64.
 func btou64(b []byte) uint64 { return binary.BigEndian.Uint64(b) }
+
+type byteSlices [][]byte
+
+func (a byteSlices) Len() int           { return len(a) }
+func (a byteSlices) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a byteSlices) Less(i, j int) bool { return bytes.Compare(a[i], a[j]) == -1 }
