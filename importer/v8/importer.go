@@ -59,7 +59,7 @@ func (i *Importer) Import() error {
 	config.URL = i.config.URL
 	config.Username = i.config.Username
 	config.Password = i.config.Password
-	config.UserAgent = fmt.Sprintf("influxDB importer version %s", i.config.Version)
+	config.UserAgent = fmt.Sprintf("influxDB importer/%s", i.config.Version)
 	cl, err := client.NewClient(config)
 	if err != nil {
 		return fmt.Errorf("could not create client %s", err)
