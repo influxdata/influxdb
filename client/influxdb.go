@@ -83,13 +83,9 @@ type Config struct {
 }
 
 // NewConfig will create a config to be used in connecting to the client
-func NewConfig(u url.URL, username, password, userAgent string, timeout time.Duration) *Config {
+func NewConfig() *Config {
 	return &Config{
-		URL:       u,
-		Username:  username,
-		Password:  password,
-		UserAgent: userAgent,
-		Timeout:   timeout,
+		Timeout: DefaultTimeout,
 	}
 }
 

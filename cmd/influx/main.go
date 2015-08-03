@@ -269,7 +269,11 @@ func (c *CommandLine) connect(cmd string) {
 		return
 	}
 
-	config := client.NewConfig(u, c.Username, c.Password, "InfluxDBShell/"+version, client.DefaultTimeout)
+	config := client.NewConfig()
+	config.URL = u
+	config.Username = c.Username
+	config.Password = c.Password
+	config.UserAgent = "InfluxDBShell/" + version
 	cl, err := client.NewClient(config)
 	if err != nil {
 		fmt.Printf("Could not create client %s", err)

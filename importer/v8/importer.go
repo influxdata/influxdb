@@ -55,7 +55,11 @@ func NewImporter(config *Config) *Importer {
 // Import processes the specified file in the Config and writes the data to the databases in chunks specified by batchSize
 func (i *Importer) Import() error {
 	// Create a client and try to connect
-	config := client.NewConfig(i.config.URL, i.config.Username, i.config.Password, i.config.Version, client.DefaultTimeout)
+	config := client.NewConfig()
+	config.URL = i.config.URL
+	config.Username = i.config.Username
+	config.Password = i.config.Password
+	config.UserAgent = fmt.Sprintf("influxDB importer version %s", i.config.Version)
 	cl, err := client.NewClient(config)
 	if err != nil {
 		return fmt.Errorf("could not create client %s", err)
