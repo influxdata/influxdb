@@ -93,9 +93,9 @@ func main() {
        Turns on pretty print for the json format.
   -import
        Import a previous database export from file
- -file
+  -path
        Path to file to import
- -compressed
+  -compressed
        Set to true if the import file is compressed
 
 Examples:
