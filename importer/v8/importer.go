@@ -171,6 +171,8 @@ func (i *Importer) batchAccumulator(line string) {
 	if len(i.batch) == batchSize {
 		if e := i.batchWrite(); e != nil {
 			log.Println("error writing batch: ", e)
+			// Output failed lines to STDOUT so users can capture lines that failed to import
+			fmt.Println(strings.Join(i.batch, "\n"))
 			i.failedInserts += len(i.batch)
 		} else {
 			i.totalInserts += len(i.batch)
