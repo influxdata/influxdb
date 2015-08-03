@@ -17,7 +17,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/influxdb/influxdb/client"
-	"github.com/influxdb/influxdb/cmd/influx/importer"
+	"github.com/influxdb/influxdb/importer/v8"
 	"github.com/peterh/liner"
 )
 
@@ -46,7 +46,7 @@ type CommandLine struct {
 	Execute         string
 	ShowVersion     bool
 	Import          bool
-	File            string
+	Path            string
 	Compressed      bool
 }
 
@@ -54,8 +54,8 @@ func main() {
 	c := CommandLine{}
 
 	fs := flag.NewFlagSet("InfluxDB shell version "+version, flag.ExitOnError)
-	fs.StringVar(&c.Host, "host", client.DEFAULT_HOST, "Influxdb host to connect to.")
-	fs.IntVar(&c.Port, "port", client.DEFAULT_PORT, "Influxdb port to connect to.")
+	fs.StringVar(&c.Host, "host", client.DefaultHost, "Influxdb host to connect to.")
+	fs.IntVar(&c.Port, "port", client.DefaultPort, "Influxdb port to connect to.")
 	fs.StringVar(&c.Username, "username", c.Username, "Username to connect to the server.")
 	fs.StringVar(&c.Password, "password", c.Password, `Password to connect to the server.  Leaving blank will prompt for password (--password="").`)
 	fs.StringVar(&c.Database, "database", c.Database, "Database to connect to the server.")
@@ -65,7 +65,7 @@ func main() {
 	fs.StringVar(&c.Execute, "execute", c.Execute, "Execute command and quit.")
 	fs.BoolVar(&c.ShowVersion, "version", false, "Displays the InfluxDB version.")
 	fs.BoolVar(&c.Import, "import", false, "Import a previous database.")
-	fs.StringVar(&c.File, "file", "", "file to import")
+	fs.StringVar(&c.Path, "path", "", "path to the file to import")
 	fs.BoolVar(&c.Compressed, "compressed", false, "set to true if the import file is compressed")
 
 	// Define our own custom usage to print
@@ -142,10 +142,9 @@ Examples:
 		if err := c.ExecuteQuery(c.Execute); err != nil {
 			c.Line.Close()
 			os.Exit(1)
-		} else {
-			c.Line.Close()
-			os.Exit(0)
 		}
+		c.Line.Close()
+		os.Exit(0)
 	}
 
 	if c.Import {
@@ -156,17 +155,24 @@ Examples:
 			return
 		}
 
-		config := importer.NewV8Config(c.Username, c.Password, "ns", "any", c.File, version, u, c.Compressed)
+		config := v8.NewConfig()
+		config.Username = c.Username
+		config.Password = c.Password
+		config.Precision = "ns"
+		config.WriteConsistency = "any"
+		config.Path = c.Path
+		config.Version = version
+		config.URL = u
+		config.Compressed = c.Compressed
 
-		v8 := importer.NewV8(config)
-		if err := v8.Import(); err != nil {
+		i := v8.NewImporter(config)
+		if err := i.Import(); err != nil {
 			fmt.Printf("ERROR: %s\n", err)
 			c.Line.Close()
 			os.Exit(1)
-		} else {
-			c.Line.Close()
-			os.Exit(0)
 		}
+		c.Line.Close()
+		os.Exit(0)
 	}
 
 	showVersion()
@@ -263,7 +269,7 @@ func (c *CommandLine) connect(cmd string) {
 		return
 	}
 
-	config := client.NewConfig(u, c.Username, c.Password, "InfluxDBShell/"+version, client.DEFAULT_TIMEOUT)
+	config := client.NewConfig(u, c.Username, c.Password, "InfluxDBShell/"+version, client.DefaultTimeout)
 	cl, err := client.NewClient(config)
 	if err != nil {
 		fmt.Printf("Could not create client %s", err)

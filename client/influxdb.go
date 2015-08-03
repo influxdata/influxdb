@@ -19,12 +19,14 @@ import (
 )
 
 const (
-	// DEFAULT_HOST is the default host used to connect to an InfluxDB instance
-	DEFAULT_HOST = "localhost"
-	// DEFAULT_PORT is the default port used to connect to an InfluxDB instance
-	DEFAULT_PORT = 8086
-	// DEFAULT_TIMEOUT is the default connection timeout used to connect to an InfluxDB instance
-	DEFAULT_TIMEOUT = 0
+	// DefaultHost is the default host used to connect to an InfluxDB instance
+	DefaultHost = "localhost"
+
+	// DefaultPort is the default port used to connect to an InfluxDB instance
+	DefaultPort = 8086
+
+	// DefaultTimeout is the default connection timeout used to connect to an InfluxDB instance
+	DefaultTimeout = 0
 )
 
 // Query is used to send a command to the server. Both Command and Database are required.
@@ -46,14 +48,14 @@ func ParseConnectionString(path string, ssl bool) (url.URL, error) {
 		}
 		port = i
 		if h[0] == "" {
-			host = DEFAULT_HOST
+			host = DefaultHost
 		} else {
 			host = h[0]
 		}
 	} else {
 		host = path
 		// If they didn't specify a port, always use the default port
-		port = DEFAULT_PORT
+		port = DefaultPort
 	}
 
 	u := url.URL{
@@ -87,6 +89,7 @@ func NewConfig(u url.URL, username, password, userAgent string, timeout time.Dur
 		Username:  username,
 		Password:  password,
 		UserAgent: userAgent,
+		Timeout:   timeout,
 	}
 }
 
@@ -176,7 +179,8 @@ func (c *Client) Query(q Query) (*Response, error) {
 // If successful, error is nil and Response is nil
 // If an error occurs, Response may contain additional information if populated.
 func (c *Client) Write(bp BatchPoints) (*Response, error) {
-	c.url.Path = "write"
+	u := c.url
+	u.Path = "write"
 
 	var b bytes.Buffer
 	for _, p := range bp.Points {
@@ -202,7 +206,7 @@ func (c *Client) Write(bp BatchPoints) (*Response, error) {
 		}
 	}
 
-	req, err := http.NewRequest("POST", c.url.String(), &b)
+	req, err := http.NewRequest("POST", u.String(), &b)
 	if err != nil {
 		return nil, err
 	}
@@ -212,10 +216,10 @@ func (c *Client) Write(bp BatchPoints) (*Response, error) {
 		req.SetBasicAuth(c.username, c.password)
 	}
 	params := req.URL.Query()
-	params.Add("db", bp.Database)
-	params.Add("rp", bp.RetentionPolicy)
-	params.Add("precision", bp.Precision)
-	params.Add("consistency", bp.WriteConsistency)
+	params.Set("db", bp.Database)
+	params.Set("rp", bp.RetentionPolicy)
+	params.Set("precision", bp.Precision)
+	params.Set("consistency", bp.WriteConsistency)
 	req.URL.RawQuery = params.Encode()
 
 	resp, err := c.httpClient.Do(req)
@@ -226,7 +230,7 @@ func (c *Client) Write(bp BatchPoints) (*Response, error) {
 
 	var response Response
 	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil && err.Error() != "EOF" {
+	if err != nil {
 		return nil, err
 	}
 
@@ -243,12 +247,12 @@ func (c *Client) Write(bp BatchPoints) (*Response, error) {
 // If successful, error is nil and Response is nil
 // If an error occurs, Response may contain additional information if populated.
 func (c *Client) WriteLineProtocol(data, database, retentionPolicy, precision, writeConsistency string) (*Response, error) {
-	c.url.Path = "write"
+	u := c.url
+	u.Path = "write"
 
-	var b bytes.Buffer
-	b.WriteString(data)
+	r := strings.NewReader(data)
 
-	req, err := http.NewRequest("POST", c.url.String(), &b)
+	req, err := http.NewRequest("POST", u.String(), r)
 	if err != nil {
 		return nil, err
 	}
@@ -258,10 +262,10 @@ func (c *Client) WriteLineProtocol(data, database, retentionPolicy, precision, w
 		req.SetBasicAuth(c.username, c.password)
 	}
 	params := req.URL.Query()
-	params.Add("db", database)
-	params.Add("rp", retentionPolicy)
-	params.Add("precision", precision)
-	params.Add("consistency", writeConsistency)
+	params.Set("db", database)
+	params.Set("rp", retentionPolicy)
+	params.Set("precision", precision)
+	params.Set("consistency", writeConsistency)
 	req.URL.RawQuery = params.Encode()
 
 	resp, err := c.httpClient.Do(req)
@@ -272,12 +276,12 @@ func (c *Client) WriteLineProtocol(data, database, retentionPolicy, precision, w
 
 	var response Response
 	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil && err.Error() != "EOF" {
+	if err != nil {
 		return nil, err
 	}
 
 	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
-		var err = fmt.Errorf(string(body))
+		err := fmt.Errorf(string(body))
 		response.Err = err
 		return &response, err
 	}
