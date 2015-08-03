@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"sort"
+	"math"
 	"sync"
 	"time"
 
@@ -41,6 +41,11 @@ type Engine struct {
 	mu   sync.Mutex
 	path string
 	db   *bolt.DB
+
+	// Write-ahead log storage.
+	PointsWriter interface {
+		WritePoints(points []tsdb.Point) error
+	}
 
 	// Size of uncompressed points to write to a block.
 	BlockSize int
@@ -151,8 +156,8 @@ func (e *Engine) LoadMetadataIndex(index *tsdb.DatabaseIndex, measurementFields 
 // WritePoints writes metadata and point data into the engine.
 // Returns an error if new points are added to an existing key.
 func (e *Engine) WritePoints(points []tsdb.Point, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
+	// Write series & field metadata.
 	if err := e.db.Update(func(tx *bolt.Tx) error {
-		// Write series & field metadata.
 		if err := e.writeSeries(tx, seriesToCreate); err != nil {
 			return fmt.Errorf("write series: %s", err)
 		}
@@ -160,16 +165,14 @@ func (e *Engine) WritePoints(points []tsdb.Point, measurementFieldsToSave map[st
 			return fmt.Errorf("write fields: %s", err)
 		}
 
-		// Group points together by key.
-		for key, a := range groupPointsByKey(points) {
-			if err := e.writePoints(tx, key, a); err != nil {
-				return fmt.Errorf("write points: key=%s, err=%s", key, err)
-			}
-		}
-
 		return nil
 	}); err != nil {
 		return err
+	}
+
+	// Write points to the WAL.
+	if err := e.PointsWriter.WritePoints(points); err != nil {
+		return fmt.Errorf("write points: %s", err)
 	}
 
 	return nil
@@ -225,65 +228,83 @@ func (e *Engine) writeFields(tx *bolt.Tx, m map[string]*tsdb.MeasurementFields) 
 	return nil
 }
 
-// writePoints writes a set of points for a single key.
-func (e *Engine) writePoints(tx *bolt.Tx, key string, a []tsdb.Point) error {
+// WriteIndex writes marshaled points to the engine's underlying index.
+func (e *Engine) WriteIndex(pointsByKey map[string][][]byte) error {
+	return e.db.Update(func(tx *bolt.Tx) error {
+		for key, values := range pointsByKey {
+			if err := e.writeIndex(tx, key, values); err != nil {
+				return fmt.Errorf("write: key=%x, err=%s", key, err)
+			}
+		}
+		return nil
+	})
+}
+
+// writeIndex writes a set of points for a single key.
+func (e *Engine) writeIndex(tx *bolt.Tx, key string, a [][]byte) error {
 	// Ignore if there are no points.
 	if len(a) == 0 {
 		return nil
 	}
 
-	// Ensure points are sorted.
-	sort.Sort(tsdb.Points(a))
-
-	// Group points into blocks by size.
-	blocks := make([][]byte, 1)
-	for _, p := range a {
-		// Add a new block if the last one is too large.
-		if len(blocks[len(blocks)-1]) > e.BlockSize {
-			blocks = append(blocks, nil)
-		}
-
-		// Append point to the end of the block.
-		buf := marshalEntry(p.UnixNano(), p.Data())
-		blocks[len(blocks)-1] = append(blocks[len(blocks)-1], buf...)
-	}
-
-	// Create bucket for key.
-	bkt, err := tx.Bucket([]byte("points")).CreateBucket([]byte(key))
-	if err == bolt.ErrBucketExists {
-		return ErrSeriesExists
-	} else if err != nil {
+	// Create or retrieve series bucket.
+	bkt, err := tx.Bucket([]byte("points")).CreateBucketIfNotExists([]byte(key))
+	if err != nil {
 		return fmt.Errorf("create series bucket: %s", err)
 	}
+	c := bkt.Cursor()
 
-	// Write blocks to the bucket.
-	for _, block := range blocks {
-		// Use the first timestamp as the key for the block.
-		timestamp := block[0:8]
+	// Determine time range of new data.
+	tmin, _ := int64(btou64(a[0][0:8])), int64(btou64(a[len(a)-1][0:8]))
 
-		// Compress block using Snappy.
-		value := snappy.Encode(nil, block)
-
-		// Write block to the bucket.
-		if err := bkt.Put(timestamp, value); err != nil {
-			return fmt.Errorf("write block: series=%s, ts=%x, err=%s", timestamp, key, err)
-		}
+	// If tmin is after the last block then append new blocks.
+	if k, v := c.Last(); k == nil || int64(btou64(v[0:8])) < tmin {
+		return e.writeBlocks(bkt, a)
 	}
+
+	panic("FIXME: If time range overlaps existing blocks then unpack full range and reinsert")
 
 	return nil
 }
 
-// groupPointsByKey generates a map of points by key.
-func groupPointsByKey(a []tsdb.Point) map[string][]tsdb.Point {
-	m := make(map[string][]tsdb.Point)
+// writeBlocks writes point data to the bucket in blocks.
+func (e *Engine) writeBlocks(bkt *bolt.Bucket, a [][]byte) error {
+	var block []byte
 
-	// Group points by key.
-	for _, p := range a {
-		key := string(p.Key())
-		m[key] = append(m[key], p)
+	// Group points into blocks by size.
+	tmin, tmax := int64(math.MaxInt64), int64(math.MinInt64)
+	for i, p := range a {
+		// Update block time range.
+		timestamp := int64(btou64(p[0:8]))
+		if timestamp < tmin {
+			tmin = timestamp
+		}
+		if timestamp > tmax {
+			tmax = timestamp
+		}
+
+		// Append point to the end of the block.
+		block = append(block, p...)
+
+		// If the block is larger than the target block size or this is the
+		// last point then flush the block to the bucket.
+		if len(block) >= e.BlockSize || i == len(a)-1 {
+			// Encode block in the following format:
+			//   tmax int64
+			//   data []byte (snappy compressed)
+			value := append(u64tob(uint64(tmax)), snappy.Encode(nil, block)...)
+
+			// Write block to the bucket.
+			if err := bkt.Put(u64tob(uint64(tmin)), value); err != nil {
+				return fmt.Errorf("put: ts=%d-%d, err=%s", tmin, tmax, err)
+			}
+
+			// Reset the time range.
+			tmin, tmax = int64(math.MaxInt64), int64(math.MinInt64)
+		}
 	}
 
-	return m
+	return nil
 }
 
 // DeleteSeries deletes the series from the engine.
@@ -439,7 +460,8 @@ func (c *Cursor) setBuf(block []byte) {
 	}
 
 	// Otherwise decode block into buffer.
-	buf, err := snappy.Decode(c.buf, block)
+	// Skip over the first 8 bytes since they are the max timestamp.
+	buf, err := snappy.Decode(c.buf, block[8:])
 	if err != nil {
 		log.Printf("block decode error: %s", err)
 	}
@@ -459,7 +481,7 @@ func (c *Cursor) read() (key, value []byte) {
 	return buf[0:8], buf[entryHeaderSize : entryHeaderSize+dataSize]
 }
 
-// marshalEntry encodes point data into a single byte slice.
+// MarshalEntry encodes point data into a single byte slice.
 //
 // The format of the byte slice is:
 //
@@ -467,7 +489,7 @@ func (c *Cursor) read() (key, value []byte) {
 //     uint32 data length
 //     []byte data
 //
-func marshalEntry(timestamp int64, data []byte) []byte {
+func MarshalEntry(timestamp int64, data []byte) []byte {
 	v := make([]byte, 8+4, 8+4+len(data))
 	binary.BigEndian.PutUint64(v[0:8], uint64(timestamp))
 	binary.BigEndian.PutUint32(v[8:12], uint32(len(data)))
@@ -475,10 +497,10 @@ func marshalEntry(timestamp int64, data []byte) []byte {
 	return v
 }
 
-// unmarshalEntry decodes an entry into it's separate parts.
+// UnmarshalEntry decodes an entry into it's separate parts.
 // Returns the timestamp, data and the number of bytes read.
 // Returned byte slices point to the original slice.
-func unmarshalEntry(v []byte) (timestamp int64, data []byte, n int) {
+func UnmarshalEntry(v []byte) (timestamp int64, data []byte, n int) {
 	timestamp = int64(binary.BigEndian.Uint64(v[0:8]))
 	dataLen := binary.BigEndian.Uint32(v[8:12])
 	data = v[12+dataLen:]
@@ -490,3 +512,13 @@ const entryHeaderSize = 8 + 4
 
 // entryDataSize returns the size of an entry's data field, in bytes.
 func entryDataSize(v []byte) int { return int(binary.BigEndian.Uint32(v[8:12])) }
+
+// u64tob converts a uint64 into an 8-byte slice.
+func u64tob(v uint64) []byte {
+	b := make([]byte, 8)
+	binary.BigEndian.PutUint64(b, v)
+	return b
+}
+
+// btou64 converts an 8-byte slice into an uint64.
+func btou64(b []byte) uint64 { return binary.BigEndian.Uint64(b) }
