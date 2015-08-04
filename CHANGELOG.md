@@ -14,6 +14,7 @@
 - [#3420](https://github.com/influxdb/influxdb/pull/3420): Catch opentsdb malformed tags. Thanks @nathanielc.
 - [#3404](https://github.com/influxdb/influxdb/pull/3404): Added support for escaped single quotes in query string. Thanks @jhorwit2
 - [#3414](https://github.com/influxdb/influxdb/issues/3414): Shard mappers perform query re-writing
+- [#3525](https://github.com/influxdb/influxdb/pull/3525): check if fields are valid during parse time.
 
 ## v0.9.2 [2015-07-24]
 
