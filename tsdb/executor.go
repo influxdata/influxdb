@@ -25,6 +25,7 @@ const (
 type Mapper interface {
 	Open() error
 	TagSets() []string
+	Fields() []string
 	NextChunk() (interface{}, error)
 	Close()
 }
@@ -77,6 +78,11 @@ func NewExecutor(stmt *influxql.SelectStatement, mappers []Mapper, chunkSize int
 func (e *Executor) Execute() <-chan *influxql.Row {
 	// Create output channel and stream data in a separate goroutine.
 	out := make(chan *influxql.Row, 0)
+
+	// Certain operations on the SELECT statement can be performed by the Executor without
+	// assistance from the Mappers. This allows the Executor to prepare aggregation functions
+	// and mathematical functions.
+	e.stmt.RewriteDistinct()
 
 	if (e.stmt.IsRawQuery && !e.stmt.HasDistinct()) || e.stmt.IsSimpleDerivative() {
 		go e.executeRaw(out)
@@ -151,6 +157,12 @@ func (e *Executor) executeRaw(out chan *influxql.Row) {
 		}
 	}
 
+	// Get the union of SELECT fields across all mappers.
+	selectFields := newStringSet()
+	for _, m := range e.mappers {
+		selectFields.add(m.Fields()...)
+	}
+
 	// Used to read ahead chunks from mappers.
 	var rowWriter *limitedRowWriter
 	var currTagset string
@@ -176,6 +188,20 @@ func (e *Executor) executeRaw(out chan *influxql.Row) {
 						// Mapper can do no more for us.
 						m.drained = true
 						break
+					}
+
+					// If the SELECT query is on more than 1 field, but the chunks values from the Mappers
+					// only contain a single value, create k-v pairs using the field name of the chunk
+					// and the value of the chunk. If there is only 1 SELECT field across all mappers then
+					// there is no need to create k-v pairs, and there is no need to distinguish field data,
+					// as it is all for the *same* field.
+					if len(selectFields) > 1 && len(m.bufferedChunk.Fields) == 1 {
+						fieldKey := m.bufferedChunk.Fields[0]
+
+						for i := range m.bufferedChunk.Values {
+							field := map[string]interface{}{fieldKey: m.bufferedChunk.Values[i].Value}
+							m.bufferedChunk.Values[i].Value = field
+						}
 					}
 				}
 
@@ -264,7 +290,7 @@ func (e *Executor) executeRaw(out chan *influxql.Row) {
 				chunkSize:   e.chunkSize,
 				name:        chunkedOutput.Name,
 				tags:        chunkedOutput.Tags,
-				selectNames: e.stmt.NamesInSelect(),
+				selectNames: selectFields.list(),
 				fields:      e.stmt.Fields,
 				c:           out,
 			}
