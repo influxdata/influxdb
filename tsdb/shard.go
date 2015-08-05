@@ -138,7 +138,7 @@ func (s *Shard) FieldCodec(measurementName string) *FieldCodec {
 // struct to hold information for a field to create on a measurement
 type FieldCreate struct {
 	Measurement string
-	Field       *field
+	Field       *Field
 }
 
 // struct to hold information for a series to create
@@ -291,7 +291,7 @@ func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) (map[
 		if m == nil {
 			m = measurementsToSave[f.Measurement]
 			if m == nil {
-				m = &MeasurementFields{Fields: make(map[string]*field)}
+				m = &MeasurementFields{Fields: make(map[string]*Field)}
 			}
 			s.measurementFields[f.Measurement] = m
 		}
@@ -335,7 +335,7 @@ func (s *Shard) validateSeriesAndFields(points []Point) ([]*SeriesCreate, []*Fie
 		mf := s.measurementFields[p.Name()]
 		if mf == nil {
 			for name, value := range p.Fields() {
-				fieldsToCreate = append(fieldsToCreate, &FieldCreate{p.Name(), &field{Name: name, Type: influxql.InspectDataType(value)}})
+				fieldsToCreate = append(fieldsToCreate, &FieldCreate{p.Name(), &Field{Name: name, Type: influxql.InspectDataType(value)}})
 			}
 			continue // skip validation since all fields are new
 		}
@@ -351,7 +351,7 @@ func (s *Shard) validateSeriesAndFields(points []Point) ([]*SeriesCreate, []*Fie
 				continue // Field is present, and it's of the same type. Nothing more to do.
 			}
 
-			fieldsToCreate = append(fieldsToCreate, &FieldCreate{p.Name(), &field{Name: name, Type: influxql.InspectDataType(value)}})
+			fieldsToCreate = append(fieldsToCreate, &FieldCreate{p.Name(), &Field{Name: name, Type: influxql.InspectDataType(value)}})
 		}
 	}
 
@@ -362,7 +362,7 @@ func (s *Shard) validateSeriesAndFields(points []Point) ([]*SeriesCreate, []*Fie
 func (s *Shard) SeriesCount() (int, error) { return s.engine.SeriesCount() }
 
 type MeasurementFields struct {
-	Fields map[string]*field `json:"fields"`
+	Fields map[string]*Field `json:"fields"`
 	Codec  *FieldCodec
 }
 
@@ -384,9 +384,9 @@ func (m *MeasurementFields) UnmarshalBinary(buf []byte) error {
 	if err := proto.Unmarshal(buf, &pb); err != nil {
 		return err
 	}
-	m.Fields = make(map[string]*field)
+	m.Fields = make(map[string]*Field)
 	for _, f := range pb.Fields {
-		m.Fields[f.GetName()] = &field{ID: uint8(f.GetID()), Name: f.GetName(), Type: influxql.DataType(f.GetType())}
+		m.Fields[f.GetName()] = &Field{ID: uint8(f.GetID()), Name: f.GetName(), Type: influxql.DataType(f.GetType())}
 	}
 	return nil
 }
@@ -409,7 +409,7 @@ func (m *MeasurementFields) createFieldIfNotExists(name string, typ influxql.Dat
 	}
 
 	// Create and append a new field.
-	f := &field{
+	f := &Field{
 		ID:   uint8(len(m.Fields) + 1),
 		Name: name,
 		Type: typ,
@@ -421,7 +421,7 @@ func (m *MeasurementFields) createFieldIfNotExists(name string, typ influxql.Dat
 }
 
 // Field represents a series field.
-type field struct {
+type Field struct {
 	ID   uint8             `json:"id,omitempty"`
 	Name string            `json:"name,omitempty"`
 	Type influxql.DataType `json:"type,omitempty"`
@@ -435,15 +435,15 @@ type field struct {
 // TODO: this shouldn't be exported. nothing outside the shard should know about field encodings.
 //       However, this is here until tx.go and the engine get refactored into tsdb.
 type FieldCodec struct {
-	fieldsByID   map[uint8]*field
-	fieldsByName map[string]*field
+	fieldsByID   map[uint8]*Field
+	fieldsByName map[string]*Field
 }
 
 // NewFieldCodec returns a FieldCodec for the given Measurement. Must be called with
 // a RLock that protects the Measurement.
-func NewFieldCodec(fields map[string]*field) *FieldCodec {
-	fieldsByID := make(map[uint8]*field, len(fields))
-	fieldsByName := make(map[string]*field, len(fields))
+func NewFieldCodec(fields map[string]*Field) *FieldCodec {
+	fieldsByID := make(map[uint8]*Field, len(fields))
+	fieldsByName := make(map[string]*Field, len(fields))
 	for _, f := range fields {
 		fieldsByID[f.ID] = f
 		fieldsByName[f.Name] = f
@@ -675,7 +675,7 @@ func (f *FieldCodec) DecodeByName(name string, b []byte) (interface{}, error) {
 }
 
 // FieldByName returns the field by its name. It will return a nil if not found
-func (f *FieldCodec) fieldByName(name string) *field {
+func (f *FieldCodec) fieldByName(name string) *Field {
 	return f.fieldsByName[name]
 }
 
