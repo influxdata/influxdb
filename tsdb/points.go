@@ -254,6 +254,13 @@ func scanKey(buf []byte, i int) (int, []byte, error) {
 				return i, buf[start:i], fmt.Errorf("missing tag value")
 			}
 			i += 1
+
+			// grow our indices slice if we have too many tags
+			if commas >= len(indices) {
+				newIndics := make([]int, cap(indices)*2)
+				copy(newIndics, indices)
+				indices = newIndics
+			}
 			indices[commas] = i
 			commas += 1
 
@@ -273,6 +280,14 @@ func scanKey(buf []byte, i int) (int, []byte, error) {
 			if equals > 0 && commas-1 != equals-1 {
 				return i, buf[start:i], fmt.Errorf("missing tag value")
 			}
+
+			// grow our indices slice if we have too many tags
+			if commas >= len(indices) {
+				newIndics := make([]int, cap(indices)*2)
+				copy(newIndics, indices)
+				indices = newIndics
+			}
+
 			indices[commas] = i + 1
 			break
 		}

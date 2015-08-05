@@ -857,7 +857,22 @@ func TestNewPointNaN(t *testing.T) {
 			},
 			time.Unix(1, 0)),
 	)
+}
 
+func TestNewPointLargeNumberOfTags(t *testing.T) {
+	tags := ""
+	for i := 0; i < 255; i++ {
+		tags += fmt.Sprintf(",tag%d=value%d", i, i)
+	}
+
+	pt, err := tsdb.ParsePointsString(fmt.Sprintf("cpu%s value=1", tags))
+	if err != nil {
+		t.Fatalf("ParsePoints() with max tags failed: %v", err)
+	}
+
+	if len(pt[0].Tags()) != 255 {
+		t.Fatalf("ParsePoints() with max tags failed: %v", err)
+	}
 }
 
 func TestParsePointIntsFloats(t *testing.T) {
