@@ -147,7 +147,29 @@ func TestParsePointNoValue(t *testing.T) {
 	}
 
 	if exp := 0; len(pts) != exp {
-		t.Errorf(`ParsePoints("%s") len mismatch. got %v, exp %vr`, "", len(pts), exp)
+		t.Errorf(`ParsePoints("%s") len mismatch. got %v, exp %v`, "", len(pts), exp)
+	}
+}
+
+func TestParsePointWhitespaceValue(t *testing.T) {
+	pts, err := tsdb.ParsePointsString(" ")
+	if err != nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got %v, exp nil`, "", err)
+	}
+
+	if exp := 0; len(pts) != exp {
+		t.Errorf(`ParsePoints("%s") len mismatch. got %v, exp %v`, "", len(pts), exp)
+	}
+}
+
+func TestParsePointSingleEquals(t *testing.T) {
+	pts, err := tsdb.ParsePointsString("=")
+	if err == nil {
+		t.Errorf(`ParsePoints("%s") mismatch. expected error`, "=")
+	}
+
+	if exp := 0; len(pts) != exp {
+		t.Errorf(`ParsePoints("%s") len mismatch. got %v, exp %v`, "", len(pts), exp)
 	}
 }
 

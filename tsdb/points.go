@@ -117,7 +117,14 @@ func ParsePointsWithPrecision(buf []byte, defaultTime time.Time, precision strin
 		}
 
 		// lines which start with '#' are comments
-		if start := skipWhitespace(block, 0); block[start] == '#' {
+		start := skipWhitespace(block, 0)
+
+		// If line is all whitespace, just skip it
+		if start >= len(block) {
+			continue
+		}
+
+		if block[start] == '#' {
 			continue
 		}
 
@@ -222,6 +229,10 @@ func scanKey(buf []byte, i int) (int, []byte, error) {
 		}
 
 		if buf[i] == '=' {
+			if i-1 < 0 || i-2 < 0 {
+				return i, buf[start:i], fmt.Errorf("missing tag name")
+			}
+
 			// Check for "cpu,=value" but allow "cpu,a\,=value"
 			if buf[i-1] == ',' && buf[i-2] != '\\' {
 				return i, buf[start:i], fmt.Errorf("missing tag name")
