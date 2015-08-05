@@ -34,6 +34,8 @@ const (
 
 	// SaltBytes is the number of bytes used for salts
 	SaltBytes = 32
+
+	DefaultSyncNodeDelay = time.Second
 )
 
 // ExecMagic is the first 4 bytes sent to a remote exec connection to verify
@@ -71,7 +73,8 @@ type Store struct {
 
 	rpc *rpc
 
-	remoteAddr net.Addr
+	// The address used by other nodes to reach this node.
+	RemoteAddr net.Addr
 
 	raftState raftState
 
@@ -241,10 +244,50 @@ func (s *Store) Open() error {
 	if s.id == 0 {
 		go s.init()
 	} else {
+		go s.syncNodeInfo()
 		close(s.ready)
 	}
 
 	return nil
+}
+
+// syncNodeInfo continuously tries to update the current nodes hostname
+// in the meta store.  It will retry until successful.
+func (s *Store) syncNodeInfo() error {
+	<-s.ready
+
+	for {
+		if err := func() error {
+			if err := s.WaitForLeader(0); err != nil {
+				return err
+			}
+
+			ni, err := s.Node(s.id)
+			if err != nil {
+				return err
+			}
+
+			if ni == nil {
+				return ErrNodeNotFound
+			}
+
+			if ni.Host == s.RemoteAddr.String() {
+				s.Logger.Printf("updated node id=%d hostname=%v", s.id, s.RemoteAddr.String())
+				return nil
+			}
+
+			_, err = s.UpdateNode(s.id, s.RemoteAddr.String())
+			if err != nil {
+				return err
+			}
+			return nil
+		}(); err != nil {
+			// If we get an error, the cluster has not stabilized so just try again
+			time.Sleep(DefaultSyncNodeDelay)
+			continue
+		}
+		return nil
+	}
 }
 
 // loadState sets the appropriate raftState from our persistent storage
@@ -283,16 +326,16 @@ func (s *Store) joinCluster() error {
 
 	// We already have a node ID so were already part of a cluster,
 	// don't join again so we can use our existing state.
-	if s.id != 0 {
+	if s.id != 0 || raft.PeerContained(s.peers, s.RemoteAddr.String()) {
 		s.Logger.Printf("skipping join: already member of cluster: nodeId=%v raftEnabled=%v raftNodes=%v",
-			s.id, raft.PeerContained(s.peers, s.Addr.String()), s.peers)
+			s.id, raft.PeerContained(s.peers, s.RemoteAddr.String()), s.peers)
 		return nil
 	}
 
 	s.Logger.Printf("joining cluster at: %v", s.peers)
 	for {
 		for _, join := range s.peers {
-			res, err := s.rpc.join(s.Addr.String(), join)
+			res, err := s.rpc.join(s.RemoteAddr.String(), join)
 			if err != nil {
 				s.Logger.Printf("join failed: %v", err)
 				continue
@@ -460,7 +503,7 @@ func (s *Store) createLocalNode() error {
 	}
 
 	// Create new node.
-	ni, err := s.CreateNode(s.Addr.String())
+	ni, err := s.CreateNode(s.RemoteAddr.String())
 	if err != nil {
 		return fmt.Errorf("create node: %s", err)
 	}
@@ -473,7 +516,7 @@ func (s *Store) createLocalNode() error {
 	// Set ID locally.
 	s.id = ni.ID
 
-	s.Logger.Printf("created local node: id=%d, host=%s", s.id, s.Addr.String())
+	s.Logger.Printf("created local node: id=%d, host=%s", s.id, s.RemoteAddr)
 
 	return nil
 }
@@ -594,6 +637,12 @@ func (s *Store) handleExecConn(conn net.Conn) {
 	// but may not know who the current leader of the cluster.  If we are not
 	// the leader, proxy the request to the current leader.
 	if !s.IsLeader() {
+
+		if s.Leader() == s.RemoteAddr.String() {
+			s.Logger.Printf("no leader")
+			return
+		}
+
 		leaderConn, err := net.DialTimeout("tcp", s.Leader(), 10*time.Second)
 		if err != nil {
 			s.Logger.Printf("dial leader: %v", err)
@@ -748,6 +797,19 @@ func (s *Store) CreateNode(host string) (*NodeInfo, error) {
 		&internal.CreateNodeCommand{
 			Host: proto.String(host),
 			Rand: proto.Uint64(uint64(rand.Int63())),
+		},
+	); err != nil {
+		return nil, err
+	}
+	return s.NodeByHost(host)
+}
+
+// UpdateNode updates an existing node in the store.
+func (s *Store) UpdateNode(id uint64, host string) (*NodeInfo, error) {
+	if err := s.exec(internal.Command_UpdateNodeCommand, internal.E_UpdateNodeCommand_Command,
+		&internal.UpdateNodeCommand{
+			ID:   proto.Uint64(id),
+			Host: proto.String(host),
 		},
 	); err != nil {
 		return nil, err
@@ -1581,6 +1643,8 @@ func (fsm *storeFSM) Apply(l *raft.Log) interface{} {
 			return fsm.applySetAdminPrivilegeCommand(&cmd)
 		case internal.Command_SetDataCommand:
 			return fsm.applySetDataCommand(&cmd)
+		case internal.Command_UpdateNodeCommand:
+			return fsm.applyUpdateNodeCommand(&cmd)
 		default:
 			panic(fmt.Errorf("cannot apply command: %x", l.Data))
 		}
@@ -1609,6 +1673,23 @@ func (fsm *storeFSM) applyCreateNodeCommand(cmd *internal.Command) interface{} {
 	if other.ClusterID == 0 {
 		other.ClusterID = uint64(v.GetRand())
 	}
+
+	fsm.data = other
+	return nil
+}
+
+func (fsm *storeFSM) applyUpdateNodeCommand(cmd *internal.Command) interface{} {
+	ext, _ := proto.GetExtension(cmd, internal.E_UpdateNodeCommand_Command)
+	v := ext.(*internal.UpdateNodeCommand)
+
+	// Copy data and update.
+	other := fsm.data.Clone()
+	ni := other.Node(v.GetID())
+	if ni == nil {
+		return ErrNodeNotFound
+	}
+
+	ni.Host = v.GetHost()
 
 	fsm.data = other
 	return nil

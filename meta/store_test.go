@@ -735,6 +735,7 @@ func TestStore_Snapshot_And_Restore(t *testing.T) {
 
 	s := MustOpenStore()
 	s.LeaveFiles = true
+	addr := s.RemoteAddr.String()
 
 	// Create a bunch of databases in the Store
 	nDatabases := 5
@@ -749,12 +750,12 @@ func TestStore_Snapshot_And_Restore(t *testing.T) {
 
 	s.Close()
 
+	// Allow the kernel to free up the port so we can re-use it again
+	time.Sleep(100 * time.Millisecond)
+
 	// Test restoring the snapshot taken above.
 	existingDataPath := s.Path()
-	s = NewStore(NewConfig(existingDataPath))
-	if err := s.Open(); err != nil {
-		panic(err)
-	}
+	s = MustOpenStoreWithPath(addr, existingDataPath)
 	defer s.Close()
 
 	// Wait until the server is ready.
@@ -934,6 +935,7 @@ func (s *Store) Open() error {
 	}
 	s.Addr = ln.Addr()
 	s.Listener = ln
+	s.RemoteAddr = s.Addr
 
 	// Wrap listener in a muxer.
 	mux := tcp.NewMux()

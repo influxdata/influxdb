@@ -133,9 +133,9 @@ func (e *StatementExecutor) executeShowServersStatement(q *influxql.ShowServersS
 		return &influxql.Result{Err: err}
 	}
 
-	row := &influxql.Row{Columns: []string{"id", "url", "raft"}}
+	row := &influxql.Row{Columns: []string{"id", "cluster_addr", "raft"}}
 	for _, ni := range nis {
-		row.Values = append(row.Values, []interface{}{ni.ID, "http://" + ni.Host, contains(peers, ni.Host)})
+		row.Values = append(row.Values, []interface{}{ni.ID, ni.Host, contains(peers, ni.Host)})
 	}
 	return &influxql.Result{Series: []*influxql.Row{row}}
 }

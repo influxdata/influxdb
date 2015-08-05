@@ -99,6 +99,7 @@ message Command {
 		SetPrivilegeCommand              = 16;
 		SetDataCommand                   = 17;
 		SetAdminPrivilegeCommand         = 18;
+		UpdateNodeCommand                = 19;
     }
 
     required Type type = 1;
@@ -249,6 +250,14 @@ message SetAdminPrivilegeCommand {
     }
     required string Username = 1;
     required bool Admin = 2;
+}
+
+message UpdateNodeCommand {
+    extend Command {
+        optional UpdateNodeCommand command = 119;
+    }
+    required uint64 ID = 1;
+    required string Host = 2;
 }
 
 message Response {
