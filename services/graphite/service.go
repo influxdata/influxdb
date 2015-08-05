@@ -3,13 +3,13 @@ package graphite
 import (
 	"bufio"
 	"fmt"
-	"log"
 	"math"
 	"net"
-	"os"
 	"strings"
 	"sync"
 	"time"
+
+	log "github.com/Sirupsen/logrus"
 
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/meta"
@@ -32,7 +32,7 @@ type Service struct {
 	batcher *tsdb.PointBatcher
 	parser  *Parser
 
-	logger *log.Logger
+	logger log.StdLogger
 
 	ln   net.Listener
 	addr net.Addr
@@ -60,7 +60,7 @@ func NewService(c Config) (*Service, error) {
 		protocol:     d.Protocol,
 		batchSize:    d.BatchSize,
 		batchTimeout: time.Duration(d.BatchTimeout),
-		logger:       log.New(os.Stderr, "[graphite] ", log.LstdFlags),
+		logger:       log.New().WithField("service", "graphite"),
 		done:         make(chan struct{}),
 	}
 
@@ -132,7 +132,7 @@ func (s *Service) Close() error {
 }
 
 // SetLogger sets the internal logger to the logger passed in.
-func (s *Service) SetLogger(l *log.Logger) {
+func (s *Service) SetLogger(l log.StdLogger) {
 	s.logger = l
 }
 

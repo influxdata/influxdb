@@ -6,9 +6,10 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"os"
+
+	log "github.com/Sirupsen/logrus"
 
 	"github.com/influxdb/influxdb/services/snapshotter"
 	"github.com/influxdb/influxdb/snapshot"
@@ -20,7 +21,7 @@ const Suffix = ".pending"
 // Command represents the program execution for "influxd backup".
 type Command struct {
 	// The logger passed to the ticker during execution.
-	Logger *log.Logger
+	Logger log.StdLogger
 
 	// Standard input/output, overridden for testing.
 	Stderr io.Writer
@@ -36,7 +37,7 @@ func NewCommand() *Command {
 // Run executes the program.
 func (cmd *Command) Run(args ...string) error {
 	// Set up logger.
-	cmd.Logger = log.New(cmd.Stderr, "", log.LstdFlags)
+	cmd.Logger = log.New()
 	cmd.Logger.Printf("influxdb backup")
 
 	// Parse command line arguments.

@@ -1,10 +1,10 @@
 package retention
 
 import (
-	"log"
-	"os"
 	"sync"
 	"time"
+
+	log "github.com/Sirupsen/logrus"
 
 	"github.com/influxdb/influxdb/meta"
 )
@@ -26,7 +26,7 @@ type Service struct {
 	wg            sync.WaitGroup
 	done          chan struct{}
 
-	logger *log.Logger
+	logger log.StdLogger
 }
 
 // NewService returns a configure retention policy enforcement service.
@@ -34,7 +34,7 @@ func NewService(c Config) *Service {
 	return &Service{
 		checkInterval: time.Duration(c.CheckInterval),
 		done:          make(chan struct{}),
-		logger:        log.New(os.Stderr, "[retention] ", log.LstdFlags),
+		logger:        log.New().WithField("service", "retention"),
 	}
 }
 
@@ -54,7 +54,7 @@ func (s *Service) Close() error {
 }
 
 // SetLogger sets the internal logger to the logger passed in.
-func (s *Service) SetLogger(l *log.Logger) {
+func (s *Service) SetLogger(l log.StdLogger) {
 	s.logger = l
 }
 

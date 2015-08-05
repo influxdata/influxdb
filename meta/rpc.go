@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net"
 	"time"
+
+	log "github.com/Sirupsen/logrus"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/hashicorp/raft"
@@ -23,7 +24,7 @@ const (
 
 // rpc handles request/response style messaging between cluster nodes
 type rpc struct {
-	logger         *log.Logger
+	logger         log.StdLogger
 	tracingEnabled bool
 
 	store interface {

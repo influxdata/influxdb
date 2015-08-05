@@ -3,7 +3,7 @@ package run
 import (
 	"bytes"
 	"fmt"
-	"log"
+	log "github.com/Sirupsen/logrus"
 	"net"
 	"net/http"
 	"os"

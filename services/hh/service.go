@@ -3,10 +3,10 @@ package hh
 import (
 	"fmt"
 	"io"
-	"log"
-	"os"
 	"sync"
 	"time"
+
+	log "github.com/Sirupsen/logrus"
 
 	"github.com/influxdb/influxdb/tsdb"
 )
@@ -18,7 +18,7 @@ type Service struct {
 	wg      sync.WaitGroup
 	closing chan struct{}
 
-	Logger *log.Logger
+	Logger log.StdLogger
 	cfg    Config
 
 	ShardWriter shardWriter
@@ -38,7 +38,7 @@ type shardWriter interface {
 func NewService(c Config, w shardWriter) *Service {
 	s := &Service{
 		cfg:    c,
-		Logger: log.New(os.Stderr, "[handoff] ", log.LstdFlags),
+		Logger: log.New().WithField("service", "handoff"),
 	}
 	processor, err := NewProcessor(c.Dir, w, ProcessorOptions{
 		MaxSize:        c.MaxSize,
@@ -77,7 +77,7 @@ func (s *Service) Close() error {
 }
 
 // SetLogger sets the internal logger to the logger passed in.
-func (s *Service) SetLogger(l *log.Logger) {
+func (s *Service) SetLogger(l log.StdLogger) {
 	s.Logger = l
 }
 

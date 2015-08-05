@@ -6,10 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"math/rand"
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/Sirupsen/logrus"
 
 	"github.com/hashicorp/raft"
 	"github.com/hashicorp/raft-boltdb"
@@ -100,7 +103,7 @@ func (r *localRaft) open() error {
 	config.LogOutput = ioutil.Discard
 
 	if s.clusterTracingEnabled {
-		config.Logger = s.Logger
+		config.Logger = log.New(logrus.New().WithField("service", "metastore").Logger.Out, "", log.LstdFlags)
 	}
 	config.HeartbeatTimeout = s.HeartbeatTimeout
 	config.ElectionTimeout = s.ElectionTimeout

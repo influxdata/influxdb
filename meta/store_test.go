@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -13,6 +12,8 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	log "github.com/Sirupsen/logrus"
 
 	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/tcp"
@@ -890,7 +891,7 @@ func NewStore(c *meta.Config) *Store {
 	s := &Store{
 		Store: meta.NewStore(c),
 	}
-	s.Logger = log.New(&s.Stderr, "", log.LstdFlags)
+	s.Logger = log.NewEntry(log.New())
 	s.SetHashPasswordFn(mockHashPassword)
 	return s
 }

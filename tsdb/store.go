@@ -3,12 +3,13 @@ package tsdb
 import (
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+
+	log "github.com/Sirupsen/logrus"
 
 	"github.com/influxdb/influxdb/influxql"
 )
@@ -17,7 +18,7 @@ func NewStore(path string) *Store {
 	return &Store{
 		path:          path,
 		EngineOptions: NewEngineOptions(),
-		Logger:        log.New(os.Stderr, "[store] ", log.LstdFlags),
+		Logger:        log.New().WithField("service", "store"),
 	}
 }
 
@@ -33,7 +34,7 @@ type Store struct {
 	shards          map[uint64]*Shard
 
 	EngineOptions EngineOptions
-	Logger        *log.Logger
+	Logger        log.StdLogger
 }
 
 // Path returns the store's root path.

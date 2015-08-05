@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"math/rand"
 	"net"
 	"os"
@@ -18,6 +17,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	log "github.com/Sirupsen/logrus"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/hashicorp/raft"
@@ -120,7 +121,7 @@ type Store struct {
 	// Returns an error if the password is invalid or a hash cannot be generated.
 	hashPassword HashPasswordFn
 
-	Logger *log.Logger
+	Logger log.StdLogger
 }
 
 type authUser struct {
@@ -151,7 +152,7 @@ func NewStore(c *Config) *Store {
 		hashPassword: func(password string) ([]byte, error) {
 			return bcrypt.GenerateFromPassword([]byte(password), BcryptCost)
 		},
-		Logger: log.New(os.Stderr, "[metastore] ", log.LstdFlags),
+		Logger: log.New().WithField("service", "metastore"),
 	}
 
 	s.raftState = &localRaft{store: s}

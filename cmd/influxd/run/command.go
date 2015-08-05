@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
+
+	log "github.com/Sirupsen/logrus"
 
 	"github.com/BurntSushi/toml"
 )
@@ -125,7 +126,7 @@ func (cmd *Command) Close() error {
 }
 
 func (cmd *Command) monitorServerErrors() {
-	logger := log.New(cmd.Stderr, "", log.LstdFlags)
+	logger := log.New()
 	for {
 		select {
 		case err := <-cmd.Server.Err():

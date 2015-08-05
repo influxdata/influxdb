@@ -3,11 +3,11 @@ package admin
 import (
 	"crypto/tls"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
-	"os"
 	"strings"
+
+	log "github.com/Sirupsen/logrus"
 
 	// Register static assets via statik.
 	_ "github.com/influxdb/influxdb/statik"
@@ -22,7 +22,7 @@ type Service struct {
 	cert     string
 	err      chan error
 
-	logger *log.Logger
+	logger log.StdLogger
 }
 
 // NewService returns a new instance of Service.
@@ -32,7 +32,7 @@ func NewService(c Config) *Service {
 		https:  c.HttpsEnabled,
 		cert:   c.HttpsCertificate,
 		err:    make(chan error),
-		logger: log.New(os.Stderr, "[admin] ", log.LstdFlags),
+		logger: log.New().WithField("service", "admin"),
 	}
 }
 
@@ -78,7 +78,7 @@ func (s *Service) Close() error {
 }
 
 // SetLogger sets the internal logger to the logger passed in.
-func (s *Service) SetLogger(l *log.Logger) {
+func (s *Service) SetLogger(l log.StdLogger) {
 	s.logger = l
 }
 

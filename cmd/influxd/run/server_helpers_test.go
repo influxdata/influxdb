@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"math"
 	"net/http"
 	"net/url"
@@ -15,6 +14,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	log "github.com/Sirupsen/logrus"
 
 	"github.com/influxdb/influxdb/cmd/influxd/run"
 	"github.com/influxdb/influxdb/meta"
@@ -294,9 +295,10 @@ func configureLogging(s *Server) {
 	// Set the logger to discard unless verbose is on
 	if !testing.Verbose() {
 		type logSetter interface {
-			SetLogger(*log.Logger)
+			SetLogger(log.StdLogger)
 		}
-		nullLogger := log.New(ioutil.Discard, "", 0)
+		nullLogger := log.NewEntry(log.New())
+		nullLogger.Logger.Out = ioutil.Discard
 		s.MetaStore.Logger = nullLogger
 		s.TSDBStore.Logger = nullLogger
 		for _, service := range s.Services {

@@ -2,7 +2,7 @@ require "influxdb"
 require "colorize"
 require "benchmark"
 
-require_relative "log"
+require_relative log "github.com/Sirupsen/logrus"
 require_relative "random_gaussian"
 
 BATCH_SIZE = 10_000

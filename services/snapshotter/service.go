@@ -4,11 +4,11 @@ import (
 	"encoding"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net"
-	"os"
 	"strings"
 	"sync"
+
+	log "github.com/Sirupsen/logrus"
 
 	"github.com/influxdb/influxdb/snapshot"
 	"github.com/influxdb/influxdb/tsdb"
@@ -29,14 +29,14 @@ type Service struct {
 	TSDBStore *tsdb.Store
 
 	Listener net.Listener
-	Logger   *log.Logger
+	Logger   log.StdLogger
 }
 
 // NewService returns a new instance of Service.
 func NewService() *Service {
 	return &Service{
 		err:    make(chan error),
-		Logger: log.New(os.Stderr, "[snapshot] ", log.LstdFlags),
+		Logger: log.New().WithField("service", "snapshot"),
 	}
 }
 

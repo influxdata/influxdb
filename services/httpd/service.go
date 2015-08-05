@@ -3,11 +3,11 @@ package httpd
 import (
 	"crypto/tls"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
-	"os"
 	"strings"
+
+	log "github.com/Sirupsen/logrus"
 )
 
 // Service manages the listener and handler for an HTTP endpoint.
@@ -20,7 +20,7 @@ type Service struct {
 
 	Handler *Handler
 
-	Logger *log.Logger
+	Logger log.StdLogger
 }
 
 // NewService returns a new instance of Service.
@@ -35,7 +35,7 @@ func NewService(c Config) *Service {
 			c.LogEnabled,
 			c.WriteTracing,
 		),
-		Logger: log.New(os.Stderr, "[httpd] ", log.LstdFlags),
+		Logger: log.New().WithField("service", "httpd"),
 	}
 	s.Handler.Logger = s.Logger
 	return s
@@ -85,7 +85,7 @@ func (s *Service) Close() error {
 }
 
 // SetLogger sets the internal logger to the logger passed in.
-func (s *Service) SetLogger(l *log.Logger) {
+func (s *Service) SetLogger(l log.StdLogger) {
 	s.Logger = l
 }
 

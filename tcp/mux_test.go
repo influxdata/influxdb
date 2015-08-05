@@ -3,14 +3,14 @@ package tcp_test
 import (
 	"bytes"
 	"io"
-	"io/ioutil"
-	"log"
 	"net"
 	"strings"
 	"sync"
 	"testing"
 	"testing/quick"
 	"time"
+
+	log "github.com/Sirupsen/logrus"
 
 	"github.com/influxdb/influxdb/tcp"
 )
@@ -39,7 +39,7 @@ func TestMux(t *testing.T) {
 		mux := tcp.NewMux()
 		mux.Timeout = 200 * time.Millisecond
 		if !testing.Verbose() {
-			mux.Logger = log.New(ioutil.Discard, "", 0)
+			mux.Logger = log.New()
 		}
 		for i := uint8(0); i < n; i++ {
 			ln := mux.Listen(byte(i))

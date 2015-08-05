@@ -7,11 +7,12 @@ import (
 	"fmt"
 	"hash/fnv"
 	"io"
-	"log"
 	"os"
 	"sort"
 	"sync"
 	"time"
+
+	log "github.com/Sirupsen/logrus"
 
 	"github.com/boltdb/bolt"
 	"github.com/influxdb/influxdb/tsdb"
@@ -53,7 +54,7 @@ type Engine struct {
 	closing chan struct{}
 
 	// Used for out-of-band error messages.
-	logger *log.Logger
+	logger log.StdLogger
 
 	// The maximum size and time thresholds for flushing the WAL.
 	MaxWALSize             int
@@ -122,7 +123,7 @@ func (e *Engine) Open() error {
 		e.flushTimer = time.NewTimer(e.WALFlushInterval)
 
 		// Initialize logger.
-		e.logger = log.New(e.LogOutput, "[b1] ", log.LstdFlags)
+		e.logger = log.New().WithField("service", "b1")
 
 		// Start background goroutines.
 		e.wg.Add(1)

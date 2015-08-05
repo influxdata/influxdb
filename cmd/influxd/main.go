@@ -4,13 +4,14 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"math/rand"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
 	"time"
+
+	log "github.com/Sirupsen/logrus"
 
 	"github.com/influxdb/influxdb/cmd/influxd/backup"
 	"github.com/influxdb/influxdb/cmd/influxd/help"
@@ -43,7 +44,7 @@ func main() {
 
 // Main represents the program execution.
 type Main struct {
-	Logger *log.Logger
+	Logger log.StdLogger
 
 	Stdin  io.Reader
 	Stdout io.Writer
@@ -53,7 +54,7 @@ type Main struct {
 // NewMain return a new instance of Main.
 func NewMain() *Main {
 	return &Main{
-		Logger: log.New(os.Stderr, "[run] ", log.LstdFlags),
+		Logger: log.New().WithField("service", "run"),
 		Stdin:  os.Stdin,
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
