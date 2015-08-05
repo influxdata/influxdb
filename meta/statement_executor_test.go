@@ -129,10 +129,10 @@ func TestStatementExecutor_ExecuteStatement_ShowServers(t *testing.T) {
 		t.Fatal(res.Err)
 	} else if !reflect.DeepEqual(res.Series, influxql.Rows{
 		{
-			Columns: []string{"id", "url", "raft"},
+			Columns: []string{"id", "cluster_addr", "raft"},
 			Values: [][]interface{}{
-				{uint64(1), "http://node0", true},
-				{uint64(2), "http://node1", false},
+				{uint64(1), "node0", true},
+				{uint64(2), "node1", false},
 			},
 		},
 	}) {
