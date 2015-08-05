@@ -162,7 +162,9 @@ func (r *localRaft) open() error {
 func (r *localRaft) close() error {
 	// Shutdown raft.
 	if r.raft != nil {
-		r.raft.Shutdown()
+		if err := r.raft.Shutdown().Error(); err != nil {
+			return err
+		}
 		r.raft = nil
 	}
 	if r.transport != nil {
