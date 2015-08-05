@@ -34,6 +34,8 @@ const (
 
 	// SaltBytes is the number of bytes used for salts
 	SaltBytes = 32
+
+	DefaultSyncNodeDelay = time.Second
 )
 
 // ExecMagic is the first 4 bytes sent to a remote exec connection to verify
@@ -71,6 +73,7 @@ type Store struct {
 
 	rpc *rpc
 
+	// The address used by other nodes to reach this node.
 	RemoteAddr net.Addr
 
 	raftState raftState
@@ -280,7 +283,7 @@ func (s *Store) syncNodeInfo() error {
 			return nil
 		}(); err != nil {
 			// If we get an error, the cluster has not stabilized so just try again
-			time.Sleep(time.Second)
+			time.Sleep(DefaultSyncNodeDelay)
 			continue
 		}
 		return nil
