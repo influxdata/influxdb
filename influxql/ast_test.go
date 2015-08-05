@@ -44,35 +44,35 @@ func TestSelectStatement_Substatement(t *testing.T) {
 		{
 			stmt: `SELECT sum(aa.value) + sum(bb.value) FROM aa, bb`,
 			expr: &influxql.VarRef{Val: "aa.value"},
-			sub:  `SELECT aa.value FROM aa`,
+			sub:  `SELECT "aa.value" FROM aa`,
 		},
 
 		// 2. Simple merge
 		{
 			stmt: `SELECT sum(aa.value) + sum(bb.value) FROM aa, bb`,
 			expr: &influxql.VarRef{Val: "bb.value"},
-			sub:  `SELECT bb.value FROM bb`,
+			sub:  `SELECT "bb.value" FROM bb`,
 		},
 
 		// 3. Join with condition
 		{
 			stmt: `SELECT sum(aa.value) + sum(bb.value) FROM aa, bb WHERE aa.host = 'servera' AND bb.host = 'serverb'`,
 			expr: &influxql.VarRef{Val: "bb.value"},
-			sub:  `SELECT bb.value FROM bb WHERE bb.host = 'serverb'`,
+			sub:  `SELECT "bb.value" FROM bb WHERE "bb.host" = 'serverb'`,
 		},
 
 		// 4. Join with complex condition
 		{
 			stmt: `SELECT sum(aa.value) + sum(bb.value) FROM aa, bb WHERE aa.host = 'servera' AND (bb.host = 'serverb' OR bb.host = 'serverc') AND 1 = 2`,
 			expr: &influxql.VarRef{Val: "bb.value"},
-			sub:  `SELECT bb.value FROM bb WHERE (bb.host = 'serverb' OR bb.host = 'serverc') AND 1.000 = 2.000`,
+			sub:  `SELECT "bb.value" FROM bb WHERE ("bb.host" = 'serverb' OR "bb.host" = 'serverc') AND 1.000 = 2.000`,
 		},
 
 		// 5. 4 with different condition order
 		{
 			stmt: `SELECT sum(aa.value) + sum(bb.value) FROM aa, bb WHERE ((bb.host = 'serverb' OR bb.host = 'serverc') AND aa.host = 'servera') AND 1 = 2`,
 			expr: &influxql.VarRef{Val: "bb.value"},
-			sub:  `SELECT bb.value FROM bb WHERE ((bb.host = 'serverb' OR bb.host = 'serverc')) AND 1.000 = 2.000`,
+			sub:  `SELECT "bb.value" FROM bb WHERE (("bb.host" = 'serverb' OR "bb.host" = 'serverc')) AND 1.000 = 2.000`,
 		},
 	}
 

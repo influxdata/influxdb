@@ -1992,26 +1992,6 @@ func (f *Field) Name() string {
 func (f *Field) String() string {
 	str := f.Expr.String()
 
-	switch f.Expr.(type) {
-	case *VarRef:
-		quoted := false
-		// Escape any double-quotes in the field
-		if strings.Contains(str, `"`) {
-			str = strings.Replace(str, `"`, `\"`, -1)
-			quoted = true
-		}
-
-		// Escape any single-quotes in the field
-		if strings.Contains(str, `'`) {
-			quoted = true
-		}
-
-		// Double-quote field names with spaces or that were previously escaped
-		if strings.Contains(str, " ") || quoted {
-			str = fmt.Sprintf("\"%s\"", str)
-		}
-	}
-
 	if f.Alias == "" {
 		return str
 	}
@@ -2132,7 +2112,9 @@ type VarRef struct {
 }
 
 // String returns a string representation of the variable reference.
-func (r *VarRef) String() string { return r.Val }
+func (r *VarRef) String() string {
+	return QuoteIdent(r.Val)
+}
 
 // Call represents a function call.
 type Call struct {
