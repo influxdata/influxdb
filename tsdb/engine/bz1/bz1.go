@@ -255,6 +255,9 @@ func (e *Engine) writeIndex(tx *bolt.Tx, key string, a [][]byte) error {
 	}
 	c := bkt.Cursor()
 
+	// Ensure the slice is sorted before retrieving the time range.
+	sort.Sort(byteSlices(a))
+
 	// Determine time range of new data.
 	tmin, tmax := int64(btou64(a[0][0:8])), int64(btou64(a[len(a)-1][0:8]))
 
@@ -347,7 +350,8 @@ func (e *Engine) writeBlocks(bkt *bolt.Bucket, a [][]byte) error {
 				return fmt.Errorf("put: ts=%d-%d, err=%s", tmin, tmax, err)
 			}
 
-			// Reset the time range.
+			// Reset the block & time range.
+			block = nil
 			tmin, tmax = int64(math.MaxInt64), int64(math.MinInt64)
 		}
 	}
@@ -509,7 +513,7 @@ func (c *Cursor) setBuf(block []byte) {
 
 	// Otherwise decode block into buffer.
 	// Skip over the first 8 bytes since they are the max timestamp.
-	buf, err := snappy.Decode(c.buf, block[8:])
+	buf, err := snappy.Decode(nil, block[8:])
 	if err != nil {
 		c.buf = c.buf[0:0]
 		log.Printf("block decode error: %s", err)
