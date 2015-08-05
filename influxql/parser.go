@@ -2217,6 +2217,11 @@ func QuoteIdent(segments ...string) string {
 
 // IdentNeedsQuotes returns true if the ident string given would require quotes.
 func IdentNeedsQuotes(ident string) bool {
+	// check if this identifier is a keyword
+	tok := Lookup(ident)
+	if tok != IDENT {
+		return true
+	}
 	for i, r := range ident {
 		if i == 0 && !isIdentFirstChar(r) {
 			return true
