@@ -749,6 +749,8 @@ func TestStore_Snapshot_And_Restore(t *testing.T) {
 	}
 
 	s.Close()
+
+	// Allow the kernel to free up the port so we can re-use it again
 	time.Sleep(100 * time.Millisecond)
 
 	// Test restoring the snapshot taken above.

@@ -279,7 +279,7 @@ func (s *Store) syncNodeInfo() error {
 			}
 			return nil
 		}(); err != nil {
-			// If we get an error, the cluster has not stabilized so just retry again
+			// If we get an error, the cluster has not stabilized so just try again
 			time.Sleep(time.Second)
 			continue
 		}
@@ -801,7 +801,7 @@ func (s *Store) CreateNode(host string) (*NodeInfo, error) {
 	return s.NodeByHost(host)
 }
 
-// CreateNode creates a new node in the store.
+// UpdateNode updates an existing node in the store.
 func (s *Store) UpdateNode(id uint64, host string) (*NodeInfo, error) {
 	if err := s.exec(internal.Command_UpdateNodeCommand, internal.E_UpdateNodeCommand_Command,
 		&internal.UpdateNodeCommand{

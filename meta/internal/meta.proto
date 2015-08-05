@@ -99,7 +99,7 @@ message Command {
 		SetPrivilegeCommand              = 16;
 		SetDataCommand                   = 17;
 		SetAdminPrivilegeCommand         = 18;
-        UpdateNodeCommand                = 19;
+		UpdateNodeCommand                = 19;
     }
 
     required Type type = 1;
