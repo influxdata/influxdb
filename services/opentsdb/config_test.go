@@ -31,7 +31,7 @@ certificate = "/etc/ssl/cert.pem"
 	} else if c.ConsistencyLevel != "all" {
 		t.Fatalf("unexpected consistency-level: %s", c.ConsistencyLevel)
 	} else if c.TLSEnabled != true {
-		t.Fatalf("unexpected tls-enabled: %s", c.TLSEnabled)
+		t.Fatalf("unexpected tls-enabled: %v", c.TLSEnabled)
 	} else if c.Certificate != "/etc/ssl/cert.pem" {
 		t.Fatalf("unexpected certificate: %s", c.Certificate)
 	}
