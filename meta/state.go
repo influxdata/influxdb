@@ -97,23 +97,44 @@ func (r *localRaft) open() error {
 	s := r.store
 	// Setup raft configuration.
 	config := raft.DefaultConfig()
-	config.Logger = s.Logger
+	config.LogOutput = ioutil.Discard
+
+	if s.clusterTracingEnabled {
+		config.Logger = s.Logger
+	}
 	config.HeartbeatTimeout = s.HeartbeatTimeout
 	config.ElectionTimeout = s.ElectionTimeout
 	config.LeaderLeaseTimeout = s.LeaderLeaseTimeout
 	config.CommitTimeout = s.CommitTimeout
 
 	// If no peers are set in the config or there is one and we are it, then start as a single server.
-	config.EnableSingleNode = (len(s.peers) == 0) || len(s.peers) == 1 && raft.PeerContained(s.peers, s.RemoteAddr.String())
+	if len(s.peers) <= 1 {
+		config.EnableSingleNode = true
+		// Ensure we can always become the leader
+		config.DisableBootstrapAfterElect = false
+		// Don't shutdown raft automatically if we renamed our hostname back to a previous name
+		config.ShutdownOnRemove = false
+	}
 
 	// Build raft layer to multiplex listener.
 	r.raftLayer = newRaftLayer(s.RaftListener, s.RemoteAddr)
 
 	// Create a transport layer
-	r.transport = raft.NewNetworkTransport(r.raftLayer, 3, 10*time.Second, os.Stderr)
+	r.transport = raft.NewNetworkTransport(r.raftLayer, 3, 10*time.Second, config.LogOutput)
 
 	// Create peer storage.
 	r.peerStore = raft.NewJSONPeers(s.path, r.transport)
+
+	peers, err := r.peerStore.Peers()
+	if err != nil {
+		return err
+	}
+
+	// Make sure our address is in the raft peers or we won't be able to boot into the cluster
+	if len(peers) > 0 && !raft.PeerContained(peers, s.RemoteAddr.String()) {
+		s.Logger.Printf("%v is not in the list of raft peers. Please update %v/peers.json on all raft nodes to have the same contents.", s.RemoteAddr.String(), s.Path())
+		return fmt.Errorf("peers out of sync: %v not in %v", s.RemoteAddr.String(), peers)
+	}
 
 	// Create the log store and stable store.
 	store, err := raftboltdb.NewBoltStore(filepath.Join(s.path, "raft.db"))

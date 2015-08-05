@@ -241,10 +241,50 @@ func (s *Store) Open() error {
 	if s.id == 0 {
 		go s.init()
 	} else {
+		go s.syncNodeInfo()
 		close(s.ready)
 	}
 
 	return nil
+}
+
+// syncNodeInfo continuously tries to update the current nodes hostname
+// in the meta store.  It will retry until successful.
+func (s *Store) syncNodeInfo() error {
+	<-s.ready
+
+	for {
+		if err := func() error {
+			if err := s.WaitForLeader(0); err != nil {
+				return err
+			}
+
+			ni, err := s.Node(s.id)
+			if err != nil {
+				return err
+			}
+
+			if ni == nil {
+				return ErrNodeNotFound
+			}
+
+			if ni.Host == s.RemoteAddr.String() {
+				s.Logger.Printf("updated node id=%d hostname=%v", s.id, s.RemoteAddr.String())
+				return nil
+			}
+
+			_, err = s.UpdateNode(s.id, s.RemoteAddr.String())
+			if err != nil {
+				return err
+			}
+			return nil
+		}(); err != nil {
+			// If we get an error, the cluster has not stabilized so just retry again
+			time.Sleep(time.Second)
+			continue
+		}
+		return nil
+	}
 }
 
 // loadState sets the appropriate raftState from our persistent storage
@@ -594,6 +634,12 @@ func (s *Store) handleExecConn(conn net.Conn) {
 	// but may not know who the current leader of the cluster.  If we are not
 	// the leader, proxy the request to the current leader.
 	if !s.IsLeader() {
+
+		if s.Leader() == s.RemoteAddr.String() {
+			s.Logger.Printf("no leader")
+			return
+		}
+
 		leaderConn, err := net.DialTimeout("tcp", s.Leader(), 10*time.Second)
 		if err != nil {
 			s.Logger.Printf("dial leader: %v", err)
