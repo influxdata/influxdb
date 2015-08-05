@@ -681,6 +681,22 @@ func TestParsePointWithStringWithSpaces(t *testing.T) {
 	)
 }
 
+func TestParsePointWithStringWithNewline(t *testing.T) {
+	test(t, "cpu,host=serverA,region=us-east value=1.0,str=\"foo\nbar\" 1000000000",
+		tsdb.NewPoint(
+			"cpu",
+			tsdb.Tags{
+				"host":   "serverA",
+				"region": "us-east",
+			},
+			tsdb.Fields{
+				"value": 1.0,
+				"str":   "foo\nbar", // newline in string value
+			},
+			time.Unix(1, 0)),
+	)
+}
+
 func TestParsePointWithStringWithCommas(t *testing.T) {
 	// escaped comma
 	test(t, `cpu,host=serverA,region=us-east value=1.0,str="foo\,bar" 1000000000`,
