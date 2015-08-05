@@ -1964,6 +1964,32 @@ func (s *ShowFieldKeysStatement) RequiredPrivileges() ExecutionPrivileges {
 // Fields represents a list of fields.
 type Fields []*Field
 
+// AliasNames returns a list of calculated field names in
+// order of alias, function name, then field.
+func (a Fields) AliasNames() []string {
+	names := []string{}
+	for _, f := range a {
+		names = append(names, f.Name())
+	}
+	return names
+}
+
+// Names returns a list of raw field names.
+func (a Fields) Names() []string {
+	names := []string{}
+	for _, f := range a {
+		var name string
+		switch expr := f.Expr.(type) {
+		case *Call:
+			name = expr.Name
+		case *VarRef:
+			name = expr.Val
+		}
+		names = append(names, name)
+	}
+	return names
+}
+
 // String returns a string representation of the fields.
 func (a Fields) String() string {
 	var str []string
