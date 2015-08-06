@@ -21,6 +21,7 @@
 - [#3288](https://github.com/influxdb/influxdb/issues/3288): Run go fuzz on the line-protocol input
 - [#3545](https://github.com/influxdb/influxdb/issues/3545): Fix parsing string fields with newlines
 - [#3579](https://github.com/influxdb/influxdb/issues/3579): Revert breaking change to `client.NewClient` function
+- [#3580](https://github.com/influxdb/influxdb/issues/3580): Do not allow wildcards with fields in select statements
 
 ## v0.9.2 [2015-07-24]
 
