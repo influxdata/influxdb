@@ -18,6 +18,7 @@
 - [#3525](https://github.com/influxdb/influxdb/pull/3525): check if fields are valid during parse time.
 - [#3511](https://github.com/influxdb/influxdb/issues/3511): Sending a large number of tag causes panic
 - [#3288](https://github.com/influxdb/influxdb/issues/3288): Run go fuzz on the line-protocol input
+- [#3545](https://github.com/influxdb/influxdb/issues/3545): Fix parsing string fields with newlines
 
 ## v0.9.2 [2015-07-24]
 

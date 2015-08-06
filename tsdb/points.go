@@ -116,7 +116,7 @@ func ParsePointsWithPrecision(buf []byte, defaultTime time.Time, precision strin
 		block []byte
 	)
 	for {
-		pos, block = scanTo(buf, pos, '\n')
+		pos, block = scanLine(buf, pos)
 		pos += 1
 
 		if len(block) == 0 {
@@ -689,6 +689,39 @@ func skipWhitespace(buf []byte, i int) int {
 		break
 	}
 	return i
+}
+
+// scanLine returns the end position in buf and the next line found within
+// buf.
+func scanLine(buf []byte, i int) (int, []byte) {
+	start := i
+	quoted := false
+	for {
+		// reached the end of buf?
+		if i >= len(buf) {
+			break
+		}
+
+		// If we see a double quote, makes sure it is not escaped
+		if buf[i] == '"' && buf[i-1] != '\\' {
+			i += 1
+			quoted = !quoted
+			continue
+		}
+
+		if buf[i] == '\\' {
+			i += 2
+			continue
+		}
+
+		if buf[i] == '\n' && !quoted {
+			break
+		}
+
+		i += 1
+	}
+
+	return i, buf[start:i]
 }
 
 // scanTo returns the end position in buf and the next consecutive block
