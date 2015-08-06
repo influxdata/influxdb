@@ -990,6 +990,10 @@ func (s *SelectStatement) validate(tr targetRequirement) error {
 		return err
 	}
 
+	if err := s.validateWildcard(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -1029,6 +1033,13 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 		if !s.IsRawQuery && groupByDuration > 0 && !s.hasTimeDimensions(s.Condition) {
 			return fmt.Errorf("aggregate functions with GROUP BY time require a WHERE time clause")
 		}
+	}
+	return nil
+}
+
+func (s *SelectStatement) validateWildcard() error {
+	if s.HasWildcard() && len(s.Fields) > 1 {
+		return fmt.Errorf("wildcards can not be combined with other fields")
 	}
 	return nil
 }
