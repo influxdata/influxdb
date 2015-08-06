@@ -3,6 +3,7 @@ package run
 import (
 	"errors"
 	"fmt"
+	"os"
 	"os/user"
 	"path/filepath"
 
@@ -73,15 +74,20 @@ func NewConfig() *Config {
 func NewDemoConfig() (*Config, error) {
 	c := NewConfig()
 
+	var homeDir string
 	// By default, store meta and data files in current users home directory
 	u, err := user.Current()
-	if err != nil {
+	if err == nil {
+		homeDir = u.HomeDir
+	} else if os.Getenv("HOME") != "" {
+		homeDir = os.Getenv("HOME")
+	} else {
 		return nil, fmt.Errorf("failed to determine current user for storage")
 	}
 
-	c.Meta.Dir = filepath.Join(u.HomeDir, ".influxdb/meta")
-	c.Data.Dir = filepath.Join(u.HomeDir, ".influxdb/data")
-	c.HintedHandoff.Dir = filepath.Join(u.HomeDir, ".influxdb/hh")
+	c.Meta.Dir = filepath.Join(homeDir, ".influxdb/meta")
+	c.Data.Dir = filepath.Join(homeDir, ".influxdb/data")
+	c.HintedHandoff.Dir = filepath.Join(homeDir, ".influxdb/hh")
 
 	c.Admin.Enabled = true
 	c.Monitoring.Enabled = false
