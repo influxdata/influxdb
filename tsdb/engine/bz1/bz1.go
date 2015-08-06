@@ -256,6 +256,7 @@ func (e *Engine) writeIndex(tx *bolt.Tx, key string, a [][]byte) error {
 	c := bkt.Cursor()
 
 	// Ensure the slice is sorted before retrieving the time range.
+	a = DedupeEntries(a)
 	sort.Sort(byteSlices(a))
 
 	// Determine time range of new data.
@@ -278,36 +279,38 @@ func (e *Engine) writeIndex(tx *bolt.Tx, key string, a [][]byte) error {
 	}
 
 	// If time range overlaps existing blocks then unpack full range and reinsert.
+	var existing [][]byte
 	for k, v := c.First(); k != nil; k, v = c.Next() {
 		// Determine block range.
 		bmin, bmax := int64(btou64(k)), int64(btou64(v[0:8]))
 
-		// Exit loop if the lowest block time is greater than the max insert time.
-		if bmin > tmax {
+		// Skip over all blocks before the time range.
+		// Exit once we reach a block that is beyond our time range.
+		if bmax < tmin {
+			continue
+		} else if bmin > tmax {
 			break
 		}
 
-		// If range overlaps with inserted range then read out data and delete block.
-		if (bmin >= tmin && bmin <= tmax) || (bmax >= tmin && bmax <= tmax) {
-			// Decode block.
-			buf, err := snappy.Decode(nil, v[8:])
-			if err != nil {
-				return fmt.Errorf("decode block: %s", err)
-			}
-
-			// Copy out any entries that aren't being overwritten.
-			for _, entry := range SplitEntries(buf) {
-				if _, ok := m[int64(btou64(entry[0:8]))]; !ok {
-					a = append(a, entry)
-				}
-			}
-
-			// Delete block in database.
-			c.Delete()
+		// Decode block.
+		buf, err := snappy.Decode(nil, v[8:])
+		if err != nil {
+			return fmt.Errorf("decode block: %s", err)
 		}
+
+		// Copy out any entries that aren't being overwritten.
+		for _, entry := range SplitEntries(buf) {
+			if _, ok := m[int64(btou64(entry[0:8]))]; !ok {
+				existing = append(existing, entry)
+			}
+		}
+
+		// Delete block in database.
+		c.Delete()
 	}
 
-	// Sort entries before rewriting.
+	// Merge entries before rewriting.
+	a = append(existing, a...)
 	sort.Sort(byteSlices(a))
 
 	// Rewrite points to new blocks.
@@ -321,6 +324,9 @@ func (e *Engine) writeIndex(tx *bolt.Tx, key string, a [][]byte) error {
 // writeBlocks writes point data to the bucket in blocks.
 func (e *Engine) writeBlocks(bkt *bolt.Bucket, a [][]byte) error {
 	var block []byte
+
+	// Dedupe points by key.
+	a = DedupeEntries(a)
 
 	// Group points into blocks by size.
 	tmin, tmax := int64(math.MaxInt64), int64(math.MinInt64)
@@ -576,6 +582,26 @@ func SplitEntries(b []byte) [][]byte {
 		// Move buffer forward.
 		b = b[entryHeaderSize+dataSize:]
 	}
+}
+
+// DedupeEntries returns slices with unique keys (the first 8 bytes).
+func DedupeEntries(a [][]byte) [][]byte {
+	// Convert to a map where the last slice is used.
+	m := make(map[string][]byte)
+	for _, b := range a {
+		m[string(b[0:8])] = b
+	}
+
+	// Convert map back to a slice of byte slices.
+	other := make([][]byte, 0, len(m))
+	for _, v := range m {
+		other = append(other, v)
+	}
+
+	// Sort entries.
+	sort.Sort(byteSlices(other))
+
+	return other
 }
 
 // entryHeaderSize is the number of bytes required for the header.
