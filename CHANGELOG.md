@@ -17,6 +17,7 @@
 - [#3414](https://github.com/influxdb/influxdb/issues/3414): Shard mappers perform query re-writing
 - [#3525](https://github.com/influxdb/influxdb/pull/3525): check if fields are valid during parse time.
 - [#3511](https://github.com/influxdb/influxdb/issues/3511): Sending a large number of tag causes panic
+- [#3288](https://github.com/influxdb/influxdb/issues/3288): Run go fuzz on the line-protocol input
 
 ## v0.9.2 [2015-07-24]
 
