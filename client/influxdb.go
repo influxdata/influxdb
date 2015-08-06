@@ -83,8 +83,8 @@ type Config struct {
 }
 
 // NewConfig will create a config to be used in connecting to the client
-func NewConfig() *Config {
-	return &Config{
+func NewConfig() Config {
+	return Config{
 		Timeout: DefaultTimeout,
 	}
 }
@@ -106,7 +106,7 @@ const (
 )
 
 // NewClient will instantiate and return a connected client to issue commands to the server.
-func NewClient(c *Config) (*Client, error) {
+func NewClient(c Config) (*Client, error) {
 	client := Client{
 		url:        c.URL,
 		username:   c.Username,
