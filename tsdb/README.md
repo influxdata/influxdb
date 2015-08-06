@@ -48,6 +48,8 @@ a double-quote, it must be escaped with a backslash, e.g. `\"`.
 # integer value
 cpu value=1i
 
+cpu value=1.1i # will result in a parse error
+
 # float value
 cpu_load value=1
 
