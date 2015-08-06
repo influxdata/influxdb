@@ -136,7 +136,12 @@ Examples:
 		}
 	}
 
-	c.connect("")
+	if err := c.connect(""); err != nil {
+
+	}
+	if c.Execute == "" && !c.Import {
+		fmt.Printf("Connected to %s version %s\n", c.Client.Addr(), c.Version)
+	}
 
 	if c.Execute != "" {
 		if err := c.ExecuteQuery(c.Execute); err != nil {
@@ -250,7 +255,7 @@ func (c *CommandLine) ParseCommand(cmd string) bool {
 	return true
 }
 
-func (c *CommandLine) connect(cmd string) {
+func (c *CommandLine) connect(cmd string) error {
 	var cl *client.Client
 	var u url.URL
 
@@ -265,8 +270,7 @@ func (c *CommandLine) connect(cmd string) {
 	var e error
 	u, e = client.ParseConnectionString(path, c.Ssl)
 	if e != nil {
-		fmt.Println(e)
-		return
+		return e
 	}
 
 	config := client.NewConfig()
@@ -276,18 +280,15 @@ func (c *CommandLine) connect(cmd string) {
 	config.UserAgent = "InfluxDBShell/" + version
 	cl, err := client.NewClient(config)
 	if err != nil {
-		fmt.Printf("Could not create client %s", err)
-		return
+		return fmt.Errorf("Could not create client %s", err)
 	}
 	c.Client = cl
 	if _, v, e := c.Client.Ping(); e != nil {
-		fmt.Printf("Failed to connect to %s\n", c.Client.Addr())
+		return fmt.Errorf("Failed to connect to %s\n", c.Client.Addr())
 	} else {
 		c.Version = v
-		if c.Execute == "" {
-			fmt.Printf("Connected to %s version %s\n", c.Client.Addr(), c.Version)
-		}
 	}
+	return nil
 }
 
 func (c *CommandLine) SetAuth(cmd string) {
