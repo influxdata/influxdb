@@ -84,7 +84,7 @@ func BenchmarkUnmarshalJSON10Tags(b *testing.B) {
 }
 
 func TestNewClient(t *testing.T) {
-	config := client.Config{}
+	config := &client.Config{}
 	_, err := client.NewClient(config)
 	if err != nil {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
@@ -96,7 +96,7 @@ func TestClient_Ping(t *testing.T) {
 	defer ts.Close()
 
 	u, _ := url.Parse(ts.URL)
-	config := client.Config{URL: *u}
+	config := &client.Config{URL: *u}
 	c, err := client.NewClient(config)
 	if err != nil {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
@@ -122,7 +122,7 @@ func TestClient_Query(t *testing.T) {
 	defer ts.Close()
 
 	u, _ := url.Parse(ts.URL)
-	config := client.Config{URL: *u}
+	config := &client.Config{URL: *u}
 	c, err := client.NewClient(config)
 	if err != nil {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
@@ -154,7 +154,7 @@ func TestClient_BasicAuth(t *testing.T) {
 
 	u, _ := url.Parse(ts.URL)
 	u.User = url.UserPassword("username", "password")
-	config := client.Config{URL: *u, Username: "username", Password: "password"}
+	config := &client.Config{URL: *u, Username: "username", Password: "password"}
 	c, err := client.NewClient(config)
 	if err != nil {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
@@ -175,7 +175,7 @@ func TestClient_Write(t *testing.T) {
 	defer ts.Close()
 
 	u, _ := url.Parse(ts.URL)
-	config := client.Config{URL: *u}
+	config := &client.Config{URL: *u}
 	c, err := client.NewClient(config)
 	if err != nil {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
@@ -226,7 +226,7 @@ func TestClient_UserAgent(t *testing.T) {
 
 	for _, test := range tests {
 		u, _ := url.Parse(ts.URL)
-		config := client.Config{URL: *u, UserAgent: test.userAgent}
+		config := &client.Config{URL: *u, UserAgent: test.userAgent}
 		c, err := client.NewClient(config)
 		if err != nil {
 			t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
@@ -507,7 +507,7 @@ func TestClient_Timeout(t *testing.T) {
 	defer ts.Close()
 
 	u, _ := url.Parse(ts.URL)
-	config := client.Config{URL: *u, Timeout: 500 * time.Millisecond}
+	config := &client.Config{URL: *u, Timeout: 500 * time.Millisecond}
 	c, err := client.NewClient(config)
 	if err != nil {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
@@ -521,7 +521,7 @@ func TestClient_Timeout(t *testing.T) {
 		t.Fatalf("unexpected error.  expected 'use of closed network connection' error, got %v", err)
 	}
 
-	confignotimeout := client.Config{URL: *u}
+	confignotimeout := &client.Config{URL: *u}
 	cnotimeout, err := client.NewClient(confignotimeout)
 	_, err = cnotimeout.Query(query)
 	if err != nil {

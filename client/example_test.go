@@ -20,7 +20,7 @@ func ExampleNewClient() {
 
 	// NOTE: this assumes you've setup a user and have setup shell env variables,
 	// namely INFLUX_USER/INFLUX_PWD. If not just ommit Username/Password below.
-	conf := client.Config{
+	conf := &client.Config{
 		URL:      *host,
 		Username: os.Getenv("INFLUX_USER"),
 		Password: os.Getenv("INFLUX_PWD"),
@@ -37,7 +37,7 @@ func ExampleClient_Ping() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	con, err := client.NewClient(client.Config{URL: *host})
+	con, err := client.NewClient(&client.Config{URL: *host})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -54,7 +54,7 @@ func ExampleClient_Query() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	con, err := client.NewClient(client.Config{URL: *host})
+	con, err := client.NewClient(&client.Config{URL: *host})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -73,7 +73,7 @@ func ExampleClient_Write() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	con, err := client.NewClient(client.Config{URL: *host})
+	con, err := client.NewClient(&client.Config{URL: *host})
 	if err != nil {
 		log.Fatal(err)
 	}

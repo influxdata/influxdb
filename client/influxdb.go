@@ -7,18 +7,66 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
+const (
+	// DefaultHost is the default host used to connect to an InfluxDB instance
+	DefaultHost = "localhost"
+
+	// DefaultPort is the default port used to connect to an InfluxDB instance
+	DefaultPort = 8086
+
+	// DefaultTimeout is the default connection timeout used to connect to an InfluxDB instance
+	DefaultTimeout = 0
+)
+
 // Query is used to send a command to the server. Both Command and Database are required.
 type Query struct {
 	Command  string
 	Database string
+}
+
+// ParseConnectionString will parse a string to create a valid connection URL
+func ParseConnectionString(path string, ssl bool) (url.URL, error) {
+	var host string
+	var port int
+
+	if strings.Contains(path, ":") {
+		h := strings.Split(path, ":")
+		i, e := strconv.Atoi(h[1])
+		if e != nil {
+			return url.URL{}, fmt.Errorf("invalid port number %q: %s\n", path, e)
+		}
+		port = i
+		if h[0] == "" {
+			host = DefaultHost
+		} else {
+			host = h[0]
+		}
+	} else {
+		host = path
+		// If they didn't specify a port, always use the default port
+		port = DefaultPort
+	}
+
+	u := url.URL{
+		Scheme: "http",
+	}
+	if ssl {
+		u.Scheme = "https"
+	}
+	u.Host = net.JoinHostPort(host, strconv.Itoa(port))
+
+	return u, nil
 }
 
 // Config is used to specify what server to connect to.
@@ -32,6 +80,13 @@ type Config struct {
 	Password  string
 	UserAgent string
 	Timeout   time.Duration
+}
+
+// NewConfig will create a config to be used in connecting to the client
+func NewConfig() *Config {
+	return &Config{
+		Timeout: DefaultTimeout,
+	}
 }
 
 // Client is used to make calls to the server.
@@ -51,7 +106,7 @@ const (
 )
 
 // NewClient will instantiate and return a connected client to issue commands to the server.
-func NewClient(c Config) (*Client, error) {
+func NewClient(c *Config) (*Client, error) {
 	client := Client{
 		url:        c.URL,
 		username:   c.Username,
@@ -120,7 +175,8 @@ func (c *Client) Query(q Query) (*Response, error) {
 // If successful, error is nil and Response is nil
 // If an error occurs, Response may contain additional information if populated.
 func (c *Client) Write(bp BatchPoints) (*Response, error) {
-	c.url.Path = "write"
+	u := c.url
+	u.Path = "write"
 
 	var b bytes.Buffer
 	for _, p := range bp.Points {
@@ -146,7 +202,7 @@ func (c *Client) Write(bp BatchPoints) (*Response, error) {
 		}
 	}
 
-	req, err := http.NewRequest("POST", c.url.String(), &b)
+	req, err := http.NewRequest("POST", u.String(), &b)
 	if err != nil {
 		return nil, err
 	}
@@ -156,10 +212,10 @@ func (c *Client) Write(bp BatchPoints) (*Response, error) {
 		req.SetBasicAuth(c.username, c.password)
 	}
 	params := req.URL.Query()
-	params.Add("db", bp.Database)
-	params.Add("rp", bp.RetentionPolicy)
-	params.Add("precision", bp.Precision)
-	params.Add("consistency", bp.WriteConsistency)
+	params.Set("db", bp.Database)
+	params.Set("rp", bp.RetentionPolicy)
+	params.Set("precision", bp.Precision)
+	params.Set("consistency", bp.WriteConsistency)
 	req.URL.RawQuery = params.Encode()
 
 	resp, err := c.httpClient.Do(req)
@@ -170,12 +226,58 @@ func (c *Client) Write(bp BatchPoints) (*Response, error) {
 
 	var response Response
 	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil && err.Error() != "EOF" {
+	if err != nil {
 		return nil, err
 	}
 
 	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
 		var err = fmt.Errorf(string(body))
+		response.Err = err
+		return &response, err
+	}
+
+	return nil, nil
+}
+
+// WriteLineProtocol takes a string with line returns to delimit each write
+// If successful, error is nil and Response is nil
+// If an error occurs, Response may contain additional information if populated.
+func (c *Client) WriteLineProtocol(data, database, retentionPolicy, precision, writeConsistency string) (*Response, error) {
+	u := c.url
+	u.Path = "write"
+
+	r := strings.NewReader(data)
+
+	req, err := http.NewRequest("POST", u.String(), r)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "")
+	req.Header.Set("User-Agent", c.userAgent)
+	if c.username != "" {
+		req.SetBasicAuth(c.username, c.password)
+	}
+	params := req.URL.Query()
+	params.Set("db", database)
+	params.Set("rp", retentionPolicy)
+	params.Set("precision", precision)
+	params.Set("consistency", writeConsistency)
+	req.URL.RawQuery = params.Encode()
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var response Response
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
+		err := fmt.Errorf(string(body))
 		response.Err = err
 		return &response, err
 	}

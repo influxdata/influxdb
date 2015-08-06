@@ -101,7 +101,7 @@ func TestParseCommand_Insert(t *testing.T) {
 	defer ts.Close()
 
 	u, _ := url.Parse(ts.URL)
-	config := client.Config{URL: *u}
+	config := &client.Config{URL: *u}
 	c, err := client.NewClient(config)
 	if err != nil {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
@@ -138,7 +138,7 @@ func TestParseCommand_InsertInto(t *testing.T) {
 	defer ts.Close()
 
 	u, _ := url.Parse(ts.URL)
-	config := client.Config{URL: *u}
+	config := &client.Config{URL: *u}
 	c, err := client.NewClient(config)
 	if err != nil {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
