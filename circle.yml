@@ -1,7 +1,7 @@
 machine:
     pre:
         - bash < <(curl -s -S -L https://raw.githubusercontent.com/moovweb/gvm/master/binscripts/gvm-installer)
-        - source $HOME/.gvm/scripts/gvm; gvm install go1.5rc1
+        - source $HOME/.gvm/scripts/gvm; gvm install go1.4.2 --binary
 
 dependencies:
     override:
