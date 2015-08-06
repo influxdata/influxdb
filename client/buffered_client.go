@@ -89,6 +89,7 @@ func (b *BufferedClient) ingestAndFlushLoop() {
 			b.ingestChan = nil // At this point b.Add() becomes a no-op and starts returning false
 			b.drainChan(ingestChan)
 			b.flushBatch()
+			b.flushTimer.Stop()
 			closeResultChan <- nil
 		}
 	}
