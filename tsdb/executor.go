@@ -157,10 +157,18 @@ func (e *Executor) executeRaw(out chan *influxql.Row) {
 		}
 	}
 
-	// Get the union of SELECT fields across all mappers.
-	selectFields := newStringSet()
-	for _, m := range e.mappers {
-		selectFields.add(m.Fields()...)
+	// Get the distinct fields across all mappers.
+	var selectFields, aliasFields []string
+	if e.stmt.HasWildcard() {
+		sf := newStringSet()
+		for _, m := range e.mappers {
+			sf.add(m.Fields()...)
+		}
+		selectFields = sf.list()
+		aliasFields = selectFields
+	} else {
+		selectFields = e.stmt.Fields.Names()
+		aliasFields = e.stmt.Fields.AliasNames()
 	}
 
 	// Used to read ahead chunks from mappers.
@@ -290,7 +298,8 @@ func (e *Executor) executeRaw(out chan *influxql.Row) {
 				chunkSize:   e.chunkSize,
 				name:        chunkedOutput.Name,
 				tags:        chunkedOutput.Tags,
-				selectNames: selectFields.list(),
+				selectNames: selectFields,
+				aliasNames:  aliasFields,
 				fields:      e.stmt.Fields,
 				c:           out,
 			}
@@ -562,8 +571,9 @@ type limitedRowWriter struct {
 	offset      int
 	name        string
 	tags        map[string]string
-	selectNames []string
 	fields      influxql.Fields
+	selectNames []string
+	aliasNames  []string
 	c           chan *influxql.Row
 
 	currValues  []*MapperValue
@@ -658,6 +668,7 @@ func (r *limitedRowWriter) processValues(values []*MapperValue) *influxql.Row {
 	}()
 
 	selectNames := r.selectNames
+	aliasNames := r.aliasNames
 
 	if r.transformer != nil {
 		values = r.transformer.Process(values)
@@ -679,21 +690,24 @@ func (r *limitedRowWriter) processValues(values []*MapperValue) *influxql.Row {
 	// time should always be in the list of names they get back
 	if !hasTime {
 		selectNames = append([]string{"time"}, selectNames...)
+		aliasNames = append([]string{"time"}, aliasNames...)
 	}
 
 	// since selectNames can contain tags, we need to strip them out
 	selectFields := make([]string, 0, len(selectNames))
+	aliasFields := make([]string, 0, len(selectNames))
 
-	for _, n := range selectNames {
+	for i, n := range selectNames {
 		if _, found := r.tags[n]; !found {
 			selectFields = append(selectFields, n)
+			aliasFields = append(aliasFields, aliasNames[i])
 		}
 	}
 
 	row := &influxql.Row{
 		Name:    r.name,
 		Tags:    r.tags,
-		Columns: selectFields,
+		Columns: aliasFields,
 	}
 
 	// Kick out an empty row it no results available.
@@ -710,7 +724,12 @@ func (r *limitedRowWriter) processValues(values []*MapperValue) *influxql.Row {
 
 		if singleValue {
 			vals[0] = time.Unix(0, v.Time).UTC()
-			vals[1] = v.Value.(interface{})
+			switch val := v.Value.(type) {
+			case map[string]interface{}:
+				vals[1] = val[selectFields[1]]
+			default:
+				vals[1] = v.Value.(interface{})
+			}
 		} else {
 			fields := v.Value.(map[string]interface{})
 

@@ -9,6 +9,7 @@
 - [#3529](https://github.com/influxdb/influxdb/pull/3529): Add TLS support for OpenTSDB plugin. Thanks @nathanielc
 - [#3421](https://github.com/influxdb/influxdb/issues/3421): Should update metastore and cluster if IP or hostname changes
 - [#3502](https://github.com/influxdb/influxdb/pull/3502): Importer for 0.8.9 data via the CLI
+- [#3564](https://github.com/influxdb/influxdb/pull/3564): Fix alias, maintain column sort order
 
 ### Bugfixes
 - [#3405](https://github.com/influxdb/influxdb/pull/3405): Prevent database panic when fields are missing. Thanks @jhorwit2
@@ -22,6 +23,7 @@
 - [#3545](https://github.com/influxdb/influxdb/issues/3545): Fix parsing string fields with newlines
 - [#3579](https://github.com/influxdb/influxdb/issues/3579): Revert breaking change to `client.NewClient` function
 - [#3580](https://github.com/influxdb/influxdb/issues/3580): Do not allow wildcards with fields in select statements
+- [#3530](https://github.com/influxdb/influxdb/pull/3530): Aliasing a column no longer works
 
 ## v0.9.2 [2015-07-24]
 

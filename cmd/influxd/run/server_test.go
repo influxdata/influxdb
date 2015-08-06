@@ -908,7 +908,7 @@ func TestServer_Query_Tags(t *testing.T) {
 		&Query{
 			name:    "field with two tags should succeed",
 			command: `SELECT host, value, core FROM db0.rp0.cpu`,
-			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","core","value"],"values":[["%s",4,100]]},{"name":"cpu","tags":{"host":"server02"},"columns":["time","core","value"],"values":[["%s",2,50]]}]}]}`, now.Format(time.RFC3339Nano), now.Add(1).Format(time.RFC3339Nano)),
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","value","core"],"values":[["%s",100,4]]},{"name":"cpu","tags":{"host":"server02"},"columns":["time","value","core"],"values":[["%s",50,2]]}]}]}`, now.Format(time.RFC3339Nano), now.Add(1).Format(time.RFC3339Nano)),
 		},
 		&Query{
 			name:    "select * with tags should succeed",
@@ -994,6 +994,78 @@ func TestServer_Query_Tags(t *testing.T) {
 			name:    "single field (regex tag match)",
 			command: `SELECT value FROM db0.rp0.cpu3 WHERE company !~ /acme[23]/`,
 			exp:     `{"results":[{"series":[{"name":"cpu3","columns":["time","value"],"values":[["2012-02-28T01:03:38.703820946Z",200],["2015-02-28T01:03:36.703820946Z",100]]}]}]}`,
+		},
+	}...)
+
+	if err := test.init(s); err != nil {
+		t.Fatalf("test init failed: %s", err)
+	}
+
+	for _, query := range test.queries {
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
+// Ensure the server correctly queries with an alias.
+func TestServer_Query_Alias(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 1*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := []string{
+		fmt.Sprintf("cpu value=1i,steps=3i %d", mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		fmt.Sprintf("cpu value=2i,steps=4i %d", mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:00Z").UnixNano()),
+	}
+	test := NewTest("db0", "rp0")
+	test.write = strings.Join(writes, "\n")
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "baseline query - SELECT * FROM db0.rp0.cpu",
+			command: `SELECT * FROM db0.rp0.cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","steps","value"],"values":[["2000-01-01T00:00:00Z",3,1],["2000-01-01T00:01:00Z",4,2]]}]}]}`,
+		},
+		&Query{
+			name:    "basic query with alias - SELECT steps, value as v FROM db0.rp0.cpu",
+			command: `SELECT steps, value as v FROM db0.rp0.cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","steps","v"],"values":[["2000-01-01T00:00:00Z",3,1],["2000-01-01T00:01:00Z",4,2]]}]}]}`,
+		},
+		&Query{
+			name:    "double aggregate sum - SELECT sum(value), sum(steps) FROM db0.rp0.cpu",
+			command: `SELECT sum(value), sum(steps) FROM db0.rp0.cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","sum","sum"],"values":[["1970-01-01T00:00:00Z",3,7]]}]}]}`,
+		},
+		&Query{
+			name:    "double aggregate sum reverse order - SELECT sum(steps), sum(value) FROM db0.rp0.cpu",
+			command: `SELECT sum(steps), sum(value) FROM db0.rp0.cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","sum","sum"],"values":[["1970-01-01T00:00:00Z",7,3]]}]}]}`,
+		},
+		&Query{
+			name:    "double aggregate sum with alias - SELECT sum(value) as sumv, sum(steps) as sums FROM db0.rp0.cpu",
+			command: `SELECT sum(value) as sumv, sum(steps) as sums FROM db0.rp0.cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","sumv","sums"],"values":[["1970-01-01T00:00:00Z",3,7]]}]}]}`,
+		},
+		&Query{
+			name:    "double aggregate with same value - SELECT sum(value), mean(value) FROM db0.rp0.cpu",
+			command: `SELECT sum(value), mean(value) FROM db0.rp0.cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","sum","mean"],"values":[["1970-01-01T00:00:00Z",3,1.5]]}]}]}`,
+		},
+		&Query{
+			name:    "double aggregate with same value and same alias - SELECT mean(value) as mv, max(value) as mv FROM db0.rp0.cpu",
+			command: `SELECT mean(value) as mv, max(value) as mv FROM db0.rp0.cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","mv","mv"],"values":[["1970-01-01T00:00:00Z",1.5,2]]}]}]}`,
 		},
 	}...)
 
@@ -1226,7 +1298,7 @@ func TestServer_Query_SelectRawCalculus(t *testing.T) {
 		&Query{
 			name:    "calculate single derivate",
 			command: `SELECT derivative(value) from db0.rp0.cpu`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2010-07-01T18:47:02Z",-200]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",-200]]}]}]}`,
 		},
 	}...)
 
@@ -2134,7 +2206,7 @@ func TestServer_Query_Where_Fields(t *testing.T) {
 			name:    "string AND query, all fields in SELECT",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT alert_id,tenant_id,_cust FROM cpu WHERE alert_id='alert' AND tenant_id='tenant'`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","_cust","alert_id","tenant_id"],"values":[["2015-02-28T01:03:36.703820946Z","johnson brothers","alert","tenant"]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","alert_id","tenant_id","_cust"],"values":[["2015-02-28T01:03:36.703820946Z","alert","tenant","johnson brothers"]]}]}]}`,
 		},
 		&Query{
 			name:    "string AND query, all fields in SELECT, one in parenthesis",
@@ -3086,7 +3158,7 @@ func TestServer_Query_EvilIdentifiers(t *testing.T) {
 		&Query{
 			name:    `query evil identifiers`,
 			command: `SELECT "select", "in-bytes" FROM cpu`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","in-bytes","select"],"values":[["2000-01-01T00:00:00Z",2,1]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","select","in-bytes"],"values":[["2000-01-01T00:00:00Z",1,2]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 	}...)
