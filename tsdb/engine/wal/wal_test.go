@@ -16,9 +16,7 @@ import (
 func TestWAL_WritePoints(t *testing.T) {
 	log := openTestWAL()
 	defer log.Close()
-	defer func() {
-		os.RemoveAll(log.path)
-	}()
+	defer os.RemoveAll(log.path)
 
 	if err := log.Open(); err != nil {
 		t.Fatalf("couldn't open wal: %s", err.Error())
@@ -123,9 +121,7 @@ func TestWAL_WritePoints(t *testing.T) {
 func TestWAL_CorruptDataLengthSize(t *testing.T) {
 	log := openTestWAL()
 	defer log.Close()
-	defer func() {
-		os.RemoveAll(log.path)
-	}()
+	defer os.RemoveAll(log.path)
 
 	if err := log.Open(); err != nil {
 		t.Fatalf("couldn't open wal: %s", err.Error())
@@ -204,9 +200,7 @@ func TestWAL_CorruptDataLengthSize(t *testing.T) {
 func TestWAL_CorruptDataBlock(t *testing.T) {
 	log := openTestWAL()
 	defer log.Close()
-	defer func() {
-		os.RemoveAll(log.path)
-	}()
+	defer os.RemoveAll(log.path)
 
 	if err := log.Open(); err != nil {
 		t.Fatalf("couldn't open wal: %s", err.Error())
@@ -292,13 +286,11 @@ func TestWAL_CorruptDataBlock(t *testing.T) {
 // it with enough data to flush
 func TestWAL_CompactAfterPercentageThreshold(t *testing.T) {
 	log := openTestWAL()
-	log.PartitionCount = 2
+	log.partitionCount = 2
 	log.CompactionThreshold = 0.7
 
 	defer log.Close()
-	defer func() {
-		os.RemoveAll(log.path)
-	}()
+	defer os.RemoveAll(log.path)
 
 	if err := log.Open(); err != nil {
 		t.Fatalf("couldn't open wal: %s", err.Error())
@@ -313,7 +305,7 @@ func TestWAL_CompactAfterPercentageThreshold(t *testing.T) {
 	})
 
 	points := make([]map[string][][]byte, 0)
-	log.IndexWriter = &testIndexWriter{fn: func(pointsByKey map[string][][]byte) error {
+	log.Index = &testIndexWriter{fn: func(pointsByKey map[string][][]byte) error {
 		points = append(points, pointsByKey)
 		return nil
 	}}
@@ -359,7 +351,7 @@ func TestWAL_CompactAfterPercentageThreshold(t *testing.T) {
 		t.Fatal("expected partition 1 to return true from shouldFlush")
 	}
 
-	if err := log.partitions[1].flushAndCompact(log.IndexWriter, DefaultMaxSeriesSize, readySize); err != nil {
+	if err := log.partitions[1].flushAndCompact(log.Index, DefaultMaxSeriesSize, readySize); err != nil {
 		t.Fatalf("error flushing and compacting: %s", err.Error())
 	}
 
