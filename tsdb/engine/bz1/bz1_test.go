@@ -259,15 +259,20 @@ func TestEngine_WriteIndex_Quick(t *testing.T) {
 		t.Skip("short mode")
 	}
 
-	quick.Check(func(points Points, blockSize int) bool {
+	quick.Check(func(sets []Points, blockSize int) bool {
 		e := OpenDefaultEngine()
 		e.BlockSize = blockSize % 1024 // 1KB max block size
 		defer e.Close()
 
-		// Write points to index.
-		if err := e.WriteIndex(map[string][][]byte(points)); err != nil {
-			t.Fatal(err)
+		// Write points to index in multiple sets.
+		for _, set := range sets {
+			if err := e.WriteIndex(map[string][][]byte(set)); err != nil {
+				t.Fatal(err)
+			}
 		}
+
+		// Merge all points together.
+		points := MergePoints(sets)
 
 		// Retrieve a sorted list of keys so results are deterministic.
 		keys := points.Keys()
@@ -377,11 +382,11 @@ func (Points) Generate(rand *rand.Rand, size int) reflect.Value {
 	// Generate series with a random number of points in each.
 	m := make(map[string][][]byte)
 	for i, seriesN := 0, rand.Intn(size); i < seriesN; i++ {
-		key := strconv.Itoa(rand.Intn(1000))
+		key := strconv.Itoa(rand.Intn(20))
 
 		// Generate points for the series.
 		for j, pointN := 0, rand.Intn(size); j < pointN; j++ {
-			timestamp := time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC).Add(time.Duration(rand.Int63n(int64(365 * 24 * time.Hour))))
+			timestamp := time.Unix(0, 0).Add(time.Duration(rand.Intn(100)))
 			data, ok := quick.Value(reflect.TypeOf([]byte(nil)), rand)
 			if !ok {
 				panic("cannot generate data")
@@ -391,6 +396,25 @@ func (Points) Generate(rand *rand.Rand, size int) reflect.Value {
 	}
 
 	return reflect.ValueOf(Points(m))
+}
+
+// MergePoints returns a map of all points merged together by key.
+// Later points will overwrite earlier ones.
+func MergePoints(a []Points) Points {
+	// Combine all points into one set.
+	m := make(Points)
+	for _, set := range a {
+		for key, values := range set {
+			m[key] = append(m[key], values...)
+		}
+	}
+
+	// Dedupe points.
+	for key, values := range m {
+		m[key] = bz1.DedupeEntries(values)
+	}
+
+	return m
 }
 
 // copyBytes returns a copy of a byte slice.
