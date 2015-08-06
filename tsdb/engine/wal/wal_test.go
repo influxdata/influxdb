@@ -9,6 +9,10 @@ import (
 	"os"
 	"testing"
 
+	// "runtime"
+	// "sync"
+	// "time"
+
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/tsdb"
 )
@@ -288,9 +292,16 @@ func TestWAL_CompactAfterPercentageThreshold(t *testing.T) {
 	log := openTestWAL()
 	log.partitionCount = 2
 	log.CompactionThreshold = 0.7
+	log.ReadySeriesSize = 1024
 
 	defer log.Close()
 	defer os.RemoveAll(log.path)
+
+	points := make([]map[string][][]byte, 0)
+	log.Index = &testIndexWriter{fn: func(pointsByKey map[string][][]byte) error {
+		points = append(points, pointsByKey)
+		return nil
+	}}
 
 	if err := log.Open(); err != nil {
 		t.Fatalf("couldn't open wal: %s", err.Error())
@@ -303,14 +314,6 @@ func TestWAL_CompactAfterPercentageThreshold(t *testing.T) {
 			Type: influxql.Float,
 		},
 	})
-
-	points := make([]map[string][][]byte, 0)
-	log.Index = &testIndexWriter{fn: func(pointsByKey map[string][][]byte) error {
-		points = append(points, pointsByKey)
-		return nil
-	}}
-
-	readySize := 1024
 
 	numSeries := 100
 	b := make([]byte, 70*5000)
@@ -327,7 +330,7 @@ func TestWAL_CompactAfterPercentageThreshold(t *testing.T) {
 			buf.WriteString(fmt.Sprintf("cpu,host=A,region=useast3 value=%.3f %d\n", rand.Float64(), i))
 
 			// ensure that as a whole its not ready for flushing yet
-			if log.partitions[1].shouldFlush(DefaultMaxSeriesSize, readySize, DefaultCompactionThreshold, DefaultPartitionSizeThreshold) {
+			if log.partitions[1].shouldFlush(DefaultMaxSeriesSize, DefaultCompactionThreshold) {
 				t.Fatal("expected partition 1 to return false from shouldFlush")
 			}
 		}
@@ -347,11 +350,11 @@ func TestWAL_CompactAfterPercentageThreshold(t *testing.T) {
 	}
 
 	// ensure it is marked as should flush because of the threshold
-	if !log.partitions[1].shouldFlush(DefaultMaxSeriesSize, readySize, DefaultCompactionThreshold, DefaultPartitionSizeThreshold) {
+	if !log.partitions[1].shouldFlush(DefaultMaxSeriesSize, DefaultCompactionThreshold) {
 		t.Fatal("expected partition 1 to return true from shouldFlush")
 	}
 
-	if err := log.partitions[1].flushAndCompact(log.Index, DefaultMaxSeriesSize, readySize); err != nil {
+	if err := log.partitions[1].flushAndCompact(false); err != nil {
 		t.Fatalf("error flushing and compacting: %s", err.Error())
 	}
 
@@ -398,9 +401,14 @@ func TestWAL_CompactAfterPercentageThreshold(t *testing.T) {
 
 // 	log := openTestWAL()
 // 	defer log.Close()
-// 	// defer func() {
-// 	// 	os.RemoveAll(log.path)
-// 	// }()
+// 	defer os.RemoveAll(log.path)
+// 	log.PartitionSizeThreshold = 1024 * 1024 * 100
+// 	flushCount := 0
+// 	log.Index = &testIndexWriter{fn: func(pointsByKey map[string][][]byte) error {
+// 		flushCount += 1
+// 		fmt.Println("FLUSH: ", len(pointsByKey))
+// 		return nil
+// 	}}
 
 // 	if err := log.Open(); err != nil {
 // 		t.Fatalf("couldn't open wal: ", err.Error())
@@ -415,15 +423,17 @@ func TestWAL_CompactAfterPercentageThreshold(t *testing.T) {
 // 	})
 
 // 	startTime := time.Now()
-// 	numSeries := 250000
+// 	numSeries := 5000
 // 	perPost := 5000
 // 	b := make([]byte, 70*5000)
-// 	for i := 1; i <= 100; i++ {
+// 	totalPoints := 0
+// 	for i := 1; i <= 10000; i++ {
 // 		fmt.Println("WRITING: ", i*numSeries)
 // 		n := 0
 // 		buf := bytes.NewBuffer(b)
 // 		var wg sync.WaitGroup
 // 		for j := 1; j <= numSeries; j++ {
+// 			totalPoints += 1
 // 			n += 1
 // 			buf.WriteString(fmt.Sprintf("cpu,host=A,region=uswest%d value=%.3f %d\n", j, rand.Float64(), i))
 // 			if n >= perPost {
@@ -441,9 +451,21 @@ func TestWAL_CompactAfterPercentageThreshold(t *testing.T) {
 // 		wg.Wait()
 // 	}
 // 	fmt.Println("PATH: ", log.path)
-// 	fmt.Println("TIME TO WRITE: ", time.Now().Sub(startTime))
+// 	dur := time.Now().Sub(startTime)
+// 	fmt.Println("TIME TO WRITE: ", totalPoints, dur, float64(totalPoints)/dur.Seconds())
+// 	fmt.Println("FLUSH COUNT: ", flushCount)
 // 	for _, p := range log.partitions {
-// 		fmt.Println("SIZE: ", p.totalSize/1024/1024)
+// 		fmt.Println("SIZE: ", p.memorySize/1024/1024)
+// 	}
+
+// 	max := 0
+// 	for _, p := range log.partitions {
+// 		for k, s := range p.cacheSizes {
+// 			if s > max {
+// 				fmt.Println(k, s)
+// 				max = s
+// 			}
+// 		}
 // 	}
 
 // 	fmt.Println("CLOSING")
@@ -453,7 +475,7 @@ func TestWAL_CompactAfterPercentageThreshold(t *testing.T) {
 // 	log.Open()
 // 	fmt.Println("TIME TO OPEN: ", time.Now().Sub(startTime))
 // 	for _, p := range log.partitions {
-// 		fmt.Println("SIZE: ", p.totalSize)
+// 		fmt.Println("SIZE: ", p.memorySize)
 // 	}
 
 // 	c := log.Cursor("cpu,host=A,region=uswest10")

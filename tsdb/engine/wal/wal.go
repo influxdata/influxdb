@@ -1,3 +1,21 @@
+/*
+Package WAL implements a write ahead log optimized for write throughput
+that can be put in front of the database index.
+
+The WAL is broken into different partitions. The default number of
+partitions is 5. Each partition consists of a number of segment files.
+By default these files will get up to 2MB in size before a new segment
+file is opened. The files are numbered and start at 1. The number
+indicates the order in which the files should be read on startup to
+ensure data is recovered in the same order it was written.
+
+Partitions are flushed and compacted individually. One of the goals with
+having multiple partitions was to be able to flush only a portion of the
+WAL at a time.
+
+The WAL does not flush everything in a partition when it comes time. It will
+only flush series that are over a given threshold (32kb by default).
+*/
 package wal
 
 import (
@@ -31,7 +49,7 @@ const (
 	DefaultCompactionThreshold = 0.5
 
 	// DefaultMaxSeriesSize specifies the size at which a series will be forced to flush
-	DefaultMaxSeriesSize = 2 * 1024 * 1024
+	DefaultMaxSeriesSize = 1024 * 1024
 
 	// DefaultFlushColdInterval specifies how long after a partition has been cold
 	// for writes that a full flush and compaction are forced
@@ -39,19 +57,21 @@ const (
 
 	// DefaultParititionSizeThreshold specifies when a partition gets to this size in
 	// memory, we should slow down writes until it gets a chance to compact.
-	// This will force clients to get backpressure if they're writing too fast. We need this because the WAL can
-	// take writes much faster than the index. So eventually we'll need to create backpressure, otherwise we'll fill
-	// up the memory and die. This number multiplied by the parition count is roughly the max possible memory size for the in-memory WAL cache.
-	DefaultPartitionSizeThreshold = 200 * 1024 * 1024
+	// This will force clients to get backpressure if they're writing too fast. We need
+	// this because the WAL can take writes much faster than the index. So eventually
+	// we'll need to create backpressure, otherwise we'll fill up the memory and die.
+	// This number multiplied by the parition count is roughly the max possible memory
+	// size for the in-memory WAL cache.
+	DefaultPartitionSizeThreshold = 50 * 1024 * 1024 // 50MB
 
 	// PartitionCount is the number of partitions in the WAL
-	PartitionCount = 10
+	PartitionCount = 5
 
 	// FileExtension is the file extension we expect for wal segments
 	FileExtension = "wal"
 
 	// flushCheckInterval is how often flushes are triggered automatically by the flush criteria
-	flushCheckInterval = 500 * time.Millisecond
+	flushCheckInterval = time.Second
 )
 
 var (
@@ -60,6 +80,10 @@ var (
 
 	// ErrCompactionBlock gets returned if we're reading a compressed block and its a file compaction description
 	ErrCompactionBlock = errors.New("compaction description")
+
+	// ErrMemoryCompactionDone gets returned if we called to flushAndCompact to free up memory
+	// but a compaction has already been done to do so
+	ErrMemoryCompactionDone = errors.New("compaction already run to free up memory")
 
 	// CompactSequence is the byte sequence within a segment file that has been compacted
 	// that indicates the start of a compaction marker
@@ -141,7 +165,7 @@ func (l *Log) Open() error {
 	// open the partitions
 	l.partitions = make(map[uint8]*Partition)
 	for i := uint64(1); i <= l.partitionCount; i++ {
-		p, err := NewPartition(uint8(i), l.path, l.SegmentSize)
+		p, err := NewPartition(uint8(i), l.path, l.SegmentSize, l.PartitionSizeThreshold, l.ReadySeriesSize, l.Index)
 		if err != nil {
 			return err
 		}
@@ -276,8 +300,8 @@ func (l *Log) triggerAutoFlush() {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	for _, p := range l.partitions {
-		if p.shouldFlush(l.MaxSeriesSize, l.ReadySeriesSize, l.CompactionThreshold, l.PartitionSizeThreshold) {
-			if err := p.flushAndCompact(l.Index, l.MaxSeriesSize, l.ReadySeriesSize); err != nil {
+		if p.shouldFlush(l.MaxSeriesSize, l.CompactionThreshold) {
+			if err := p.flushAndCompact(false); err != nil {
 				l.logger.Printf("error flushing partition %d: %s\n", p.id, err)
 			}
 		}
@@ -296,6 +320,7 @@ func (l *Log) autoflusher(closing chan struct{}) {
 			return
 		case <-l.flushCheckTimer.C:
 			l.triggerAutoFlush()
+			l.flushCheckTimer.Reset(flushCheckInterval)
 		case <-l.flush:
 			if err := l.Flush(); err != nil {
 				l.logger.Printf("flush error: %s", err)
@@ -311,7 +336,7 @@ func (l *Log) partition(key []byte) *Partition {
 	id := uint8(h.Sum64()%l.partitionCount + 1)
 	p := l.partitions[id]
 	if p == nil {
-		if p, err := NewPartition(id, l.path, l.SegmentSize); err != nil {
+		if p, err := NewPartition(id, l.path, l.SegmentSize, l.PartitionSizeThreshold, l.ReadySeriesSize, l.Index); err != nil {
 			panic(err)
 
 		} else {
@@ -331,10 +356,20 @@ type Partition struct {
 	currentSegmentSize int64
 	currentSegmentID   uint32
 	lastFileID         uint32
-	totalSize          uint64
 	lastWrite          time.Time
 	maxSegmentSize     int64
 	cache              map[string][][]byte
+
+	index           IndexWriter
+	readySeriesSize int
+	// memorySize is the rough size in memory of all the cached series data
+	memorySize uint64
+	// sizeThreshold is the memory size after which writes start getting throttled
+	sizeThreshold uint64
+	// backoffCount is the number of times write has been called while memory is
+	// over the threshold. It's used to gradually increase write times to put
+	// backpressure on clients.
+	backoffCount int
 
 	// flushCache is a temporary placeholder to keep data while its being flushed
 	// and compacted. It's for cursors to combine the cache and this if a flush is occuring
@@ -344,15 +379,18 @@ type Partition struct {
 	compactionRunning bool
 }
 
-func NewPartition(id uint8, path string, segmentSize int64) (*Partition, error) {
+func NewPartition(id uint8, path string, segmentSize int64, sizeThreshold uint64, readySeriesSize int, index IndexWriter) (*Partition, error) {
 	return &Partition{
-		id:             id,
-		path:           path,
-		maxSegmentSize: segmentSize,
-		lastWrite:      time.Now(),
-		cache:          make(map[string][][]byte),
-		cacheDirtySort: make(map[string]bool),
-		cacheSizes:     make(map[string]int),
+		id:              id,
+		path:            path,
+		maxSegmentSize:  segmentSize,
+		sizeThreshold:   sizeThreshold,
+		lastWrite:       time.Now(),
+		cache:           make(map[string][][]byte),
+		cacheDirtySort:  make(map[string]bool),
+		cacheSizes:      make(map[string]int),
+		readySeriesSize: readySeriesSize,
+		index:           index,
 	}, nil
 }
 
@@ -381,6 +419,20 @@ func (p *Partition) Write(points []tsdb.Point) error {
 	}
 	b := snappy.Encode(nil, block)
 
+	if backoff, ok := func() (time.Duration, bool) {
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		// pause writes for a bit if we've hit the size threshold
+		if p.memorySize > p.sizeThreshold {
+			p.backoffCount += 1
+			return time.Duration(p.backoffCount*100) * time.Millisecond, true
+		}
+
+		return 0, false
+	}(); ok {
+		go p.flushAndCompact(true)
+		time.Sleep(backoff)
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -432,7 +484,9 @@ func (p *Partition) newSegmentFile() error {
 	if err != nil {
 		return err
 	}
+	p.currentSegmentSize = 0
 	p.currentSegmentFile = ff
+
 	return nil
 }
 
@@ -463,57 +517,63 @@ func (p *Partition) fileIDFromName(name string) (uint32, error) {
 // maxSeriesSize - flush if any series in the partition has exceeded this size threshold
 // readySeriesSize - a series is ready to flush once it has this much data in it
 // compactionThreshold - a partition is ready to flush if this percentage of series has hit the readySeriesSize or greater
-// partitionSizeThreshold - a partition should be flushed if it has reached this size in memory
-func (p *Partition) shouldFlush(maxSeriesSize, readySeriesSize int, compactionThreshold float64, partitionSizeThreshold uint64) bool {
+func (p *Partition) shouldFlush(maxSeriesSize int, compactionThreshold float64) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	if p.totalSize > partitionSizeThreshold {
+	if p.memorySize > p.sizeThreshold {
 		return true
 	}
 
-	countReady := float64(0)
+	countReady := 0
 	for _, s := range p.cacheSizes {
 		if s > maxSeriesSize {
 			return true
-		} else if s > readySeriesSize {
+		} else if s > p.readySeriesSize {
 			countReady += 1
 		}
 	}
 
-	if countReady/float64(len(p.cacheSizes)) > compactionThreshold {
+	if float64(countReady)/float64(len(p.cacheSizes)) > compactionThreshold {
 		return true
 	}
 
 	return false
 }
 
-func (p *Partition) prepareSeriesToFlush(maxSeriesSize, readySeriesSize int) (*compactionInfo, error) {
+// prepareSeriesToFlush will empty the cache of series that are ready based on their size
+// and return information for the compaction process to use.
+func (p *Partition) prepareSeriesToFlush(readySeriesSize int, triggerByMemory bool) (*compactionInfo, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+	// if there is either a compaction running or one just ran and relieved
+	// memory pressure, just return from here
 	if p.compactionRunning {
 		return nil, ErrCompactionRunning
+	} else if triggerByMemory && p.memorySize < p.sizeThreshold {
+		return nil, ErrMemoryCompactionDone
 	}
 	p.compactionRunning = true
 
-	c := &compactionInfo{seriesToFlush: make(map[string][][]byte)}
-
-	for k, s := range p.cacheSizes {
-		// if the series is over the threshold, save it in the map to flush later
-		if s >= maxSeriesSize || s >= readySeriesSize {
-			c.flushSize += s
-			c.seriesToFlush[k] = p.cache[k]
-			delete(p.cacheSizes, k)
-			delete(p.cache, k)
-
-			// always hand the index data that is sorted
-			if p.cacheDirtySort[k] {
-				sort.Sort(byteSlices(c.seriesToFlush[k]))
-				delete(p.cacheDirtySort, k)
-			}
+	// we've been ordered to flush and compact. iterate until we have at least
+	// some series to flush by cutting the ready size in half each iteration
+	// if we didn't come up with any
+	var seriesToFlush map[string][][]byte
+	var size int
+	for {
+		s, n := p.seriesToFlush(readySeriesSize)
+		if len(s) > 0 {
+			seriesToFlush = s
+			size += n
+			break
 		}
+		// we didn't get any series to flush so cut the ready size in half
+		// and see if there are series that are ready at that level
+		readySeriesSize = readySeriesSize / 2
 	}
+
+	c := &compactionInfo{seriesToFlush: seriesToFlush, flushSize: size}
 
 	// roll over a new segment file so we can compact all the old ones
 	if err := p.newSegmentFile(); err != nil {
@@ -525,27 +585,60 @@ func (p *Partition) prepareSeriesToFlush(maxSeriesSize, readySeriesSize int) (*c
 	return c, nil
 }
 
+// seriesToFlush will clear the cache of series over the give threshold and return
+// them in a new map along with their combined size
+func (p *Partition) seriesToFlush(readySeriesSize int) (map[string][][]byte, int) {
+	seriesToFlush := make(map[string][][]byte)
+	size := 0
+	for k, s := range p.cacheSizes {
+		// if the series is over the threshold, save it in the map to flush later
+		if s >= readySeriesSize {
+			size += s
+			seriesToFlush[k] = p.cache[k]
+			delete(p.cacheSizes, k)
+			delete(p.cache, k)
+
+			// always hand the index data that is sorted
+			if p.cacheDirtySort[k] {
+				sort.Sort(byteSlices(seriesToFlush[k]))
+				delete(p.cacheDirtySort, k)
+			}
+		}
+	}
+
+	return seriesToFlush, size
+}
+
 // flushAndCompact will flush any series that are over their threshold and then read in all old segment files and
 // write the data that was not flushed to a new file
-func (p *Partition) flushAndCompact(idx IndexWriter, maxSeriesSize, readySeriesSize int) error {
-	c, err := p.prepareSeriesToFlush(maxSeriesSize, readySeriesSize)
+func (p *Partition) flushAndCompact(triggerByMemory bool) error {
+	c, err := p.prepareSeriesToFlush(p.readySeriesSize, triggerByMemory)
 
-	if err == ErrCompactionRunning {
+	if err == ErrCompactionRunning || err == ErrMemoryCompactionDone {
 		return nil
 	} else if err != nil {
 		return err
 	}
 
 	// write the data to the index first
-	if err := idx.WriteIndex(c.seriesToFlush); err != nil {
+	if err := p.index.WriteIndex(c.seriesToFlush); err != nil {
 		// if we can't write the index, we should just bring down the server hard
 		panic(fmt.Sprintf("error writing the wal to the index: %s", err.Error()))
 	}
 
-	// clear the flush cache
+	// clear the flush cache and reset the memory thresholds
 	p.mu.Lock()
 	p.flushCache = nil
+	p.memorySize -= uint64(c.flushSize)
+	p.backoffCount = 0
 	p.mu.Unlock()
+
+	// ensure that we mark that compaction is no longer running
+	defer func() {
+		p.mu.Lock()
+		p.compactionRunning = false
+		p.mu.Unlock()
+	}()
 
 	// now compact all the old data
 	fileNames, err := p.segmentFileNames()
@@ -619,11 +712,6 @@ func (p *Partition) flushAndCompact(idx IndexWriter, maxSeriesSize, readySeriesS
 	if err := os.Rename(compactionFile.Name(), p.fileNameForSegment(1)); err != nil {
 		return err
 	}
-
-	// and mark the compaction as done
-	p.mu.Lock()
-	p.compactionRunning = false
-	p.mu.Unlock()
 
 	return nil
 }
@@ -721,7 +809,7 @@ func (p *Partition) readFile(path string) (entries []*entry, err error) {
 func (p *Partition) addToCache(key, data []byte, timestamp int64) {
 	// Generate in-memory cache entry of <timestamp,data>.
 	v := MarshalEntry(timestamp, data)
-	p.totalSize += uint64(len(v))
+	p.memorySize += uint64(len(v))
 	// Determine if we'll need to sort the values for this key later
 	a := p.cache[string(key)]
 	needSort := !(len(a) == 0 || bytes.Compare(a[len(a)-1], v) == -1)
@@ -775,8 +863,7 @@ func (p *Partition) idFromFileName(name string) (uint32, error) {
 // segmentFileNames returns all the segment files names for the partition
 func (p *Partition) segmentFileNames() ([]string, error) {
 	path := filepath.Join(p.path, fmt.Sprintf("%02d.*.%s", p.id, FileExtension))
-	fileNames, err := filepath.Glob(path)
-	return fileNames, err
+	return filepath.Glob(path)
 }
 
 // compactionInfo is a data object with information about a compaction running
