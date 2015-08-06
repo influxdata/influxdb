@@ -1058,9 +1058,14 @@ func TestServer_Query_Alias(t *testing.T) {
 			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","sumv","sums"],"values":[["1970-01-01T00:00:00Z",3,7]]}]}]}`,
 		},
 		&Query{
-			name:    "double aggregate sum with alias - SELECT sum(value), mean(steps) FROM db0.rp0.cpu",
+			name:    "double aggregate with same value - SELECT sum(value), mean(value) FROM db0.rp0.cpu",
 			command: `SELECT sum(value), mean(value) FROM db0.rp0.cpu`,
 			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","sum","mean"],"values":[["1970-01-01T00:00:00Z",3,1.5]]}]}]}`,
+		},
+		&Query{
+			name:    "double aggregate with same value and same alias - SELECT mean(value) as mv, max(value) as mv FROM db0.rp0.cpu",
+			command: `SELECT mean(value) as mv, max(value) as mv FROM db0.rp0.cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","mv","mv"],"values":[["1970-01-01T00:00:00Z",1.5,2]]}]}]}`,
 		},
 	}...)
 
@@ -3153,7 +3158,7 @@ func TestServer_Query_EvilIdentifiers(t *testing.T) {
 		&Query{
 			name:    `query evil identifiers`,
 			command: `SELECT "select", "in-bytes" FROM cpu`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","in-bytes","select"],"values":[["2000-01-01T00:00:00Z",2,1]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","select","in-bytes"],"values":[["2000-01-01T00:00:00Z",1,2]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 	}...)
