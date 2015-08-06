@@ -10,6 +10,7 @@
 - [#3421](https://github.com/influxdb/influxdb/issues/3421): Should update metastore and cluster if IP or hostname changes
 - [#3502](https://github.com/influxdb/influxdb/pull/3502): Importer for 0.8.9 data via the CLI
 - [#3564](https://github.com/influxdb/influxdb/pull/3564): Fix alias, maintain column sort order
+- [#3585](https://github.com/influxdb/influxdb/pull/3585): Additional test coverage for non-existent fields
 
 ### Bugfixes
 - [#3405](https://github.com/influxdb/influxdb/pull/3405): Prevent database panic when fields are missing. Thanks @jhorwit2
