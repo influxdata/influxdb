@@ -19,7 +19,6 @@ Please see the *Features* section below for full details.
 - [#3529](https://github.com/influxdb/influxdb/pull/3529): Add TLS support for OpenTSDB plugin. Thanks @nathanielc
 - [#3421](https://github.com/influxdb/influxdb/issues/3421): Should update metastore and cluster if IP or hostname changes
 - [#3502](https://github.com/influxdb/influxdb/pull/3502): Importer for 0.8.9 data via the CLI
-- [#3564](https://github.com/influxdb/influxdb/pull/3564): Fix alias, maintain column sort order
 - [#3585](https://github.com/influxdb/influxdb/pull/3585): Additional test coverage for non-existent fields
 - [#3246](https://github.com/influxdb/influxdb/issues/3246): Allow overriding of configuration parameters using environment variables
 - [#3599](https://github.com/influxdb/influxdb/pull/3599): **--BREAKING CHANGE--** Support multiple UDP inputs. Thanks @tpitale
@@ -32,6 +31,7 @@ Please see the *Features* section below for full details.
 - [#3514](https://github.com/influxdb/influxdb/issues/3514): Implement WAL outside BoltDB with compaction
 - [#3544](https://github.com/influxdb/influxdb/pull/3544): Implement compression on top of BoltDB
 - [#3795](https://github.com/influxdb/influxdb/pull/3795): Throttle import
+- [#3584](https://github.com/influxdb/influxdb/pull/3584): Import/export documenation
 
 ### Bugfixes
 - [#3405](https://github.com/influxdb/influxdb/pull/3405): Prevent database panic when fields are missing. Thanks @jhorwit2
