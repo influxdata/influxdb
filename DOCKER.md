@@ -1,7 +1,7 @@
 # Docker Setup
 ========================
 
-This document describes how to buidl and run a minimal InfluxDB container under Docker.   It has currently only be tested for local development and assumes that you have a working docker environment already.
+This document describes how to build and run a minimal InfluxDB container under Docker.   Currently, it has only been tested for local development and assumes that you have a working docker environment.
 
 ## Building Image
 
@@ -23,7 +23,7 @@ Available version can be found [here](https://hub.docker.com/_/golang/).
 
 ## Single Node Container
 
-This will start a interactive, single-node, that publishes the containers port `8086` and `8088` to the hosts ports `8086` and `8088` respectively.  This is identical to starting `influxd` manually.
+This will start an interactive, single-node, that publishes the containers port `8086` and `8088` to the hosts ports `8086` and `8088` respectively.  This is identical to starting `influxd` manually.
 
 ```
 $ docker run -it -p 8086:8086 -p 8088:8088 influxdb
