@@ -70,8 +70,8 @@ const (
 	// FileExtension is the file extension we expect for wal segments
 	FileExtension = "wal"
 
-	// flushCheckInterval is how often flushes are triggered automatically by the flush criteria
-	flushCheckInterval = time.Second
+	// defaultFlushCheckInterval is how often flushes are triggered automatically by the flush criteria
+	defaultFlushCheckInterval = time.Second
 )
 
 var (
@@ -93,8 +93,9 @@ var (
 type Log struct {
 	path string
 
-	flush           chan int    // signals a background flush on the given partition
-	flushCheckTimer *time.Timer // check this often to see if a background flush should happen
+	flush              chan int    // signals a background flush on the given partition
+	flushCheckTimer    *time.Timer // check this often to see if a background flush should happen
+	flushCheckInterval time.Duration
 
 	// These coordinate closing and waiting for running goroutines.
 	wg      sync.WaitGroup
@@ -157,6 +158,7 @@ func NewLog(path string) *Log {
 		PartitionSizeThreshold: DefaultPartitionSizeThreshold,
 		ReadySeriesSize:        DefaultReadySeriesSize,
 		partitionCount:         PartitionCount,
+		flushCheckInterval:     defaultFlushCheckInterval,
 	}
 }
 
@@ -177,7 +179,7 @@ func (l *Log) Open() error {
 
 	l.logger = log.New(l.LogOutput, "[wal] ", log.LstdFlags)
 
-	l.flushCheckTimer = time.NewTimer(flushCheckInterval)
+	l.flushCheckTimer = time.NewTimer(l.flushCheckInterval)
 
 	// Start background goroutines.
 	l.wg.Add(1)
@@ -320,7 +322,7 @@ func (l *Log) autoflusher(closing chan struct{}) {
 			return
 		case <-l.flushCheckTimer.C:
 			l.triggerAutoFlush()
-			l.flushCheckTimer.Reset(flushCheckInterval)
+			l.flushCheckTimer.Reset(l.flushCheckInterval)
 		case <-l.flush:
 			if err := l.Flush(); err != nil {
 				l.logger.Printf("flush error: %s", err)

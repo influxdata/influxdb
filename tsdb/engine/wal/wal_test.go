@@ -8,10 +8,10 @@ import (
 	"math/rand"
 	"os"
 	"testing"
+	"time"
 
 	// "runtime"
 	// "sync"
-	// "time"
 
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/tsdb"
@@ -293,6 +293,9 @@ func TestWAL_CompactAfterPercentageThreshold(t *testing.T) {
 	log.partitionCount = 2
 	log.CompactionThreshold = 0.7
 	log.ReadySeriesSize = 1024
+
+	// set this high so that a flush doesn't automatically kick in and mess up our test
+	log.flushCheckInterval = time.Minute
 
 	defer log.Close()
 	defer os.RemoveAll(log.path)
