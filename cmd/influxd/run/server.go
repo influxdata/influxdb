@@ -272,12 +272,12 @@ func (s *Server) Open() error {
 		// Start profiling, if set.
 		startProfile(s.CPUProfile, s.MemProfile)
 
-		// Resolve host to address.
-		_, port, err := net.SplitHostPort(s.BindAddress)
+		host, port, err := s.hostAddr()
 		if err != nil {
-			return fmt.Errorf("split bind address: %s", err)
+			return err
 		}
-		hostport := net.JoinHostPort(s.Hostname, port)
+
+		hostport := net.JoinHostPort(host, port)
 		addr, err := net.ResolveTCPAddr("tcp", hostport)
 		if err != nil {
 			return fmt.Errorf("resolve tcp: addr=%s, err=%s", hostport, err)
@@ -444,6 +444,35 @@ func (s *Server) monitorErrorChan(ch <-chan error) {
 			return
 		}
 	}
+}
+
+// hostAddr returns the host and port that remote nodes will use to reach this
+// node.
+func (s *Server) hostAddr() (string, string, error) {
+	// Resolve host to address.
+	_, port, err := net.SplitHostPort(s.BindAddress)
+	if err != nil {
+		return "", "", fmt.Errorf("split bind address: %s", err)
+	}
+
+	host := s.Hostname
+
+	// See if we might have a port that will override the BindAddress port
+	if host != "" && host[len(host)-1] >= '0' && host[len(host)-1] <= '9' {
+		hostArg, portArg, err := net.SplitHostPort(s.Hostname)
+		if err != nil {
+			return "", "", err
+		}
+
+		if hostArg != "" {
+			host = hostArg
+		}
+
+		if portArg != "" {
+			port = portArg
+		}
+	}
+	return host, port, nil
 }
 
 // Service represents a service attached to the server.
