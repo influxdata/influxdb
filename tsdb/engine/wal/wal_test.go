@@ -333,7 +333,7 @@ func TestWAL_CompactAfterPercentageThreshold(t *testing.T) {
 			buf.WriteString(fmt.Sprintf("cpu,host=A,region=useast3 value=%.3f %d\n", rand.Float64(), i))
 
 			// ensure that as a whole its not ready for flushing yet
-			if log.partitions[1].shouldFlush(DefaultMaxSeriesSize, DefaultCompactionThreshold) {
+			if log.partitions[1].shouldFlush(DefaultMaxSeriesSize, DefaultCompactionThreshold) != noFlush {
 				t.Fatal("expected partition 1 to return false from shouldFlush")
 			}
 		}
@@ -349,15 +349,15 @@ func TestWAL_CompactAfterPercentageThreshold(t *testing.T) {
 	c := log.Cursor("cpu,host=A,region=uswest23")
 	k, v := c.Next()
 	if btou64(k) != 1 {
-		fmt.Println("expected data ", k, v)
+		t.Fatalf("expected timestamp of 1, but got %v %v", k, v)
 	}
 
 	// ensure it is marked as should flush because of the threshold
-	if !log.partitions[1].shouldFlush(DefaultMaxSeriesSize, DefaultCompactionThreshold) {
+	if log.partitions[1].shouldFlush(DefaultMaxSeriesSize, DefaultCompactionThreshold) != thresholdFlush {
 		t.Fatal("expected partition 1 to return true from shouldFlush")
 	}
 
-	if err := log.partitions[1].flushAndCompact(false); err != nil {
+	if err := log.partitions[1].flushAndCompact(thresholdFlush); err != nil {
 		t.Fatalf("error flushing and compacting: %s", err.Error())
 	}
 
@@ -392,6 +392,75 @@ func TestWAL_CompactAfterPercentageThreshold(t *testing.T) {
 	k, v = c.Next()
 	if btou64(k) != 1 {
 		t.Fatal("expected cache to be there after flush and compact: ", k, v)
+	}
+}
+
+// Ensure the wal forces a full flush after not having a write in a given interval of time
+func TestWAL_CompactAfterTimeWithoutWrite(t *testing.T) {
+	log := openTestWAL()
+	log.partitionCount = 1
+
+	// set this low
+	log.flushCheckInterval = 10 * time.Millisecond
+	log.FlushColdInterval = 500 * time.Millisecond
+
+	defer log.Close()
+	defer os.RemoveAll(log.path)
+
+	points := make([]map[string][][]byte, 0)
+	log.Index = &testIndexWriter{fn: func(pointsByKey map[string][][]byte) error {
+		points = append(points, pointsByKey)
+		return nil
+	}}
+
+	if err := log.Open(); err != nil {
+		t.Fatalf("couldn't open wal: %s", err.Error())
+	}
+
+	codec := tsdb.NewFieldCodec(map[string]*tsdb.Field{
+		"value": {
+			ID:   uint8(1),
+			Name: "value",
+			Type: influxql.Float,
+		},
+	})
+
+	numSeries := 100
+	b := make([]byte, 70*5000)
+	for i := 1; i <= 10; i++ {
+		buf := bytes.NewBuffer(b)
+		for j := 1; j <= numSeries; j++ {
+			buf.WriteString(fmt.Sprintf("cpu,host=A,region=uswest%d value=%.3f %d\n", j, rand.Float64(), i))
+		}
+
+		// write the batch out
+		if err := log.WritePoints(parsePoints(buf.String(), codec)); err != nil {
+			t.Fatalf("failed to write points: %s", err.Error())
+		}
+		buf = bytes.NewBuffer(b)
+	}
+
+	// ensure we have some data
+	c := log.Cursor("cpu,host=A,region=uswest10")
+	k, _ := c.Next()
+	if btou64(k) != 1 {
+		t.Fatalf("expected first data point but got one with key: %v", k)
+	}
+
+	time.Sleep(700 * time.Millisecond)
+
+	// ensure that as a whole its not ready for flushing yet
+	if f := log.partitions[1].shouldFlush(DefaultMaxSeriesSize, DefaultCompactionThreshold); f != noFlush {
+		t.Fatalf("expected partition 1 to return noFlush from shouldFlush %v", f)
+	}
+
+	// ensure that the partition is empty
+	if log.partitions[1].memorySize != 0 || len(log.partitions[1].cache) != 0 {
+		t.Fatal("expected partition to be empty")
+	}
+	// ensure that we didn't bother to open a new segment file
+	if log.partitions[1].currentSegmentFile != nil {
+		t.Fatal("expected partition to not have an open segment file")
 	}
 }
 
