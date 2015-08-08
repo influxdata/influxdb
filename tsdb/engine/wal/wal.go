@@ -902,7 +902,7 @@ func (p *Partition) cursor(key string) *cursor {
 			copy(c, fc)
 			c = append(c, cache...)
 			sort.Sort(byteSlices(c))
-			return &cursor{cache: c, position: -1}
+			return &cursor{cache: c}
 		}
 	}
 
@@ -911,7 +911,7 @@ func (p *Partition) cursor(key string) *cursor {
 		delete(p.cacheDirtySort, key)
 	}
 
-	return &cursor{cache: cache, position: -1}
+	return &cursor{cache: cache}
 }
 
 // idFromFileName parses the segment file ID from its name
@@ -1067,24 +1067,25 @@ type cursor struct {
 
 // Seek will point the cursor to the given time (or key)
 func (c *cursor) Seek(seek []byte) (key, value []byte) {
-	for i, p := range c.cache {
-		if bytes.Compare(seek, p[0:8]) >= 0 {
-			c.position = i
-			return p[0:8], p[8:]
-		}
-	}
-	return nil, nil
+	// Seek cache index.
+	c.position = sort.Search(len(c.cache), func(i int) bool {
+		return bytes.Compare(c.cache[i][0:8], seek) != -1
+	})
+
+	return c.Next()
 }
 
 // Next moves the cursor to the next key/value. will return nil if at the end
 func (c *cursor) Next() (key, value []byte) {
-	pos := c.position + 1
-	if pos < len(c.cache) {
-		c.position = pos
-		v := c.cache[c.position]
-		return v[0:8], v[8:]
+	if c.position >= len(c.cache) {
+		return nil, nil
 	}
-	return nil, nil
+
+	v := c.cache[c.position]
+	c.position++
+
+	return v[0:8], v[8:]
+
 }
 
 // marshalWALEntry encodes point data into a single byte slice.

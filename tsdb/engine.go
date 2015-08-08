@@ -16,7 +16,7 @@ var (
 )
 
 // DefaultEngine is the default engine used by the shard when initializing.
-const DefaultEngine = "b1"
+const DefaultEngine = "bz1"
 
 // Engine represents a swappable storage engine for the shard.
 type Engine interface {
@@ -52,7 +52,7 @@ func RegisterEngine(name string, fn NewEngineFunc) {
 func NewEngine(path string, options EngineOptions) (Engine, error) {
 	// Create a new engine
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return newEngineFuncs[DefaultEngine](path, options), nil
+		return newEngineFuncs[options.EngineVersion](path, options), nil
 	}
 
 	// Only bolt-based backends are currently supported so open it and check the format.
@@ -96,6 +96,7 @@ func NewEngine(path string, options EngineOptions) (Engine, error) {
 
 // EngineOptions represents the options used to initialize the engine.
 type EngineOptions struct {
+	EngineVersion          string
 	MaxWALSize             int
 	WALFlushInterval       time.Duration
 	WALPartitionFlushDelay time.Duration
@@ -104,6 +105,7 @@ type EngineOptions struct {
 // NewEngineOptions returns the default options.
 func NewEngineOptions() EngineOptions {
 	return EngineOptions{
+		EngineVersion:          DefaultEngine,
 		MaxWALSize:             DefaultMaxWALSize,
 		WALFlushInterval:       DefaultWALFlushInterval,
 		WALPartitionFlushDelay: DefaultWALPartitionFlushDelay,
