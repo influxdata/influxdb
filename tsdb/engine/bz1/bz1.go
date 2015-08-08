@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"math"
+	"path/filepath"
 	"sort"
 	"sync"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/boltdb/bolt"
 	"github.com/golang/snappy"
 	"github.com/influxdb/influxdb/tsdb"
+	"github.com/influxdb/influxdb/tsdb/engine/wal"
 )
 
 var (
@@ -22,8 +24,14 @@ var (
 	ErrSeriesExists = errors.New("series exists")
 )
 
-// Format is the file format name of this engine.
-const Format = "bz1"
+const (
+	// Format is the file format name of this engine.
+	Format = "bz1"
+
+	// WALDir is the suffixe that is put on the path for
+	// where the WAL files should be kept for a given shard.
+	WALDir = "_wal"
+)
 
 func init() {
 	tsdb.RegisterEngine(Format, NewEngine)
@@ -44,20 +52,30 @@ type Engine struct {
 	db   *bolt.DB
 
 	// Write-ahead log storage.
-	PointsWriter interface {
-		WritePoints(points []tsdb.Point) error
-	}
+	WAL WAL
 
 	// Size of uncompressed points to write to a block.
 	BlockSize int
 }
 
+// WAL represents a write ahead log that can be queried
+type WAL interface {
+	WritePoints(points []tsdb.Point) error
+	Cursor(key string) tsdb.Cursor
+	Open() error
+	Close() error
+}
+
 // NewEngine returns a new instance of Engine.
 func NewEngine(path string, opt tsdb.EngineOptions) tsdb.Engine {
+	// create the writer with a directory of the same name as the shard, but with the wal extension
+	w := wal.NewLog(filepath.Join(filepath.Dir(path), filepath.Base(path)+WALDir))
+
 	return &Engine{
 		path: path,
 
 		BlockSize: DefaultBlockSize,
+		WAL:       w,
 	}
 }
 
@@ -101,14 +119,18 @@ func (e *Engine) Open() error {
 		e.close()
 		return err
 	}
-	return nil
+
+	return e.WAL.Open()
 }
 
 // Close closes the engine.
 func (e *Engine) Close() error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	return e.close()
+	if err := e.close(); err != nil {
+		return err
+	}
+	return e.WAL.Close()
 }
 
 func (e *Engine) close() error {
@@ -172,7 +194,7 @@ func (e *Engine) WritePoints(points []tsdb.Point, measurementFieldsToSave map[st
 	}
 
 	// Write points to the WAL.
-	if err := e.PointsWriter.WritePoints(points); err != nil {
+	if err := e.WAL.WritePoints(points); err != nil {
 		return fmt.Errorf("write points: %s", err)
 	}
 
@@ -418,7 +440,7 @@ func (e *Engine) Begin(writable bool) (tsdb.Tx, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Tx{Tx: tx, engine: e}, nil
+	return &Tx{Tx: tx, engine: e, wal: e.WAL}, nil
 }
 
 // Stats returns internal statistics for the engine.
@@ -439,19 +461,25 @@ type Stats struct {
 type Tx struct {
 	*bolt.Tx
 	engine *Engine
+	wal    WAL
 }
 
 // Cursor returns an iterator for a key.
 func (tx *Tx) Cursor(key string) tsdb.Cursor {
+	walCursor := tx.wal.Cursor(key)
+
 	// Retrieve points bucket. Ignore if there is no bucket.
 	b := tx.Bucket([]byte("points")).Bucket([]byte(key))
 	if b == nil {
-		return nil
+		return walCursor
 	}
-	return &Cursor{
+
+	c := &Cursor{
 		cursor: b.Cursor(),
 		buf:    make([]byte, DefaultBlockSize),
 	}
+
+	return tsdb.MultiCursor(walCursor, c)
 }
 
 // Cursor provides ordered iteration across a series.

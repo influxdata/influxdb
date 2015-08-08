@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb/tsdb"
+	"github.com/influxdb/influxdb/tsdb/engine/b1"
 )
 
 func TestShardWriteAndIndex(t *testing.T) {
@@ -143,6 +144,7 @@ func TestShard_Autoflush(t *testing.T) {
 
 	// Open shard with a really low size threshold, high flush interval.
 	sh := tsdb.NewShard(tsdb.NewDatabaseIndex(), filepath.Join(path, "shard"), tsdb.EngineOptions{
+		EngineVersion:          b1.Format,
 		MaxWALSize:             1024, // 1KB
 		WALFlushInterval:       1 * time.Hour,
 		WALPartitionFlushDelay: 1 * time.Millisecond,
@@ -182,6 +184,7 @@ func TestShard_Autoflush_FlushInterval(t *testing.T) {
 
 	// Open shard with a high size threshold, small time threshold.
 	sh := tsdb.NewShard(tsdb.NewDatabaseIndex(), filepath.Join(path, "shard"), tsdb.EngineOptions{
+		EngineVersion:          b1.Format,
 		MaxWALSize:             10 * 1024 * 1024, // 10MB
 		WALFlushInterval:       100 * time.Millisecond,
 		WALPartitionFlushDelay: 1 * time.Millisecond,

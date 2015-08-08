@@ -324,7 +324,7 @@ func NewEngine(opt tsdb.EngineOptions) *Engine {
 	e := &Engine{
 		Engine: bz1.NewEngine(f.Name(), opt).(*bz1.Engine),
 	}
-	e.Engine.PointsWriter = &e.PointsWriter
+	e.Engine.WAL = &e.PointsWriter
 	return e
 }
 
@@ -364,6 +364,20 @@ type EnginePointsWriter struct {
 func (w *EnginePointsWriter) WritePoints(points []tsdb.Point) error {
 	return w.WritePointsFn(points)
 }
+
+func (w *EnginePointsWriter) Open() error { return nil }
+
+func (w *EnginePointsWriter) Close() error { return nil }
+
+func (w *EnginePointsWriter) Cursor(key string) tsdb.Cursor { return &Cursor{} }
+
+// Cursor represents a mock that implements tsdb.Curosr.
+type Cursor struct {
+}
+
+func (c *Cursor) Seek(key []byte) ([]byte, []byte) { return nil, nil }
+
+func (c *Cursor) Next() ([]byte, []byte) { return nil, nil }
 
 // Points represents a set of encoded points by key. Implements quick.Generator.
 type Points map[string][][]byte
