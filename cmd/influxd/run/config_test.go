@@ -1,6 +1,7 @@
 package run_test
 
 import (
+	"os"
 	"testing"
 
 	"github.com/BurntSushi/toml"
@@ -75,5 +76,67 @@ enabled = true
 		t.Fatalf("unexpected monitoring enabled: %v", c.Monitoring.Enabled)
 	} else if c.ContinuousQuery.Enabled != true {
 		t.Fatalf("unexpected continuous query enabled: %v", c.ContinuousQuery.Enabled)
+	}
+}
+
+// Ensure the configuration can be parsed.
+func TestConfig_Parse_EnvOverride(t *testing.T) {
+	// Parse configuration.
+	var c run.Config
+	if _, err := toml.Decode(`
+[meta]
+dir = "/tmp/meta"
+
+[data]
+dir = "/tmp/data"
+
+[cluster]
+
+[admin]
+bind-address = ":8083"
+
+[http]
+bind-address = ":8087"
+
+[[graphite]]
+protocol = "udp"
+
+[[graphite]]
+protocol = "tcp"
+
+[collectd]
+bind-address = ":1000"
+
+[opentsdb]
+bind-address = ":2000"
+
+[udp]
+bind-address = ":4444"
+
+[monitoring]
+enabled = true
+
+[continuous_queries]
+enabled = true
+`, &c); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.Setenv("INFLUXDB_UDP_BIND_ADDRESS", ":1234"); err != nil {
+		t.Fatalf("failed to set env var: %v", err)
+	}
+
+	if err := os.Setenv("INFLUXDB_GRAPHITE_1_PROTOCOL", "udp"); err != nil {
+		t.Fatalf("failed to set env var: %v", err)
+	}
+
+	if err := c.ApplyEnvOverrides(); err != nil {
+		t.Fatalf("failed to apply env overrides: %v", err)
+	}
+
+	if c.UDP.BindAddress != ":1234" {
+		t.Fatalf("unexpected udp bind address: %s", c.UDP.BindAddress)
+	} else if c.Graphites[1].Protocol != "udp" {
+		t.Fatalf("unexpected graphite protocol(0): %s", c.Graphites[0].Protocol)
 	}
 }
