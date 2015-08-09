@@ -118,7 +118,7 @@ func (c *Config) Validate() error {
 }
 
 func (c *Config) ApplyEnvOverrides() error {
-	return c.applyEnvOverrides("", reflect.ValueOf(c))
+	return c.applyEnvOverrides("INFLUXDB", reflect.ValueOf(c))
 }
 
 func (c *Config) applyEnvOverrides(prefix string, spec reflect.Value) error {
