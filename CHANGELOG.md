@@ -11,6 +11,7 @@
 - [#3502](https://github.com/influxdb/influxdb/pull/3502): Importer for 0.8.9 data via the CLI
 - [#3564](https://github.com/influxdb/influxdb/pull/3564): Fix alias, maintain column sort order
 - [#3585](https://github.com/influxdb/influxdb/pull/3585): Additional test coverage for non-existent fields
+- [#3246](https://github.com/influxdb/influxdb/issues/3246): Allow overriding of configuration parameters using environment variables
 
 ### Bugfixes
 - [#3405](https://github.com/influxdb/influxdb/pull/3405): Prevent database panic when fields are missing. Thanks @jhorwit2

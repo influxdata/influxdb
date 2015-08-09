@@ -78,6 +78,11 @@ func (cmd *Command) Run(args ...string) error {
 		return fmt.Errorf("parse config: %s", err)
 	}
 
+	// Apply any environment variables on top of the parsed config
+	if err := config.ApplyEnvOverrides(); err != nil {
+		return fmt.Errorf("apply env config: %v", err)
+	}
+
 	// Override config hostname if specified in the command line args.
 	if options.Hostname != "" {
 		config.Meta.Hostname = options.Hostname
