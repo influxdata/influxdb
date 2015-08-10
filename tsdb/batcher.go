@@ -9,6 +9,8 @@ import (
 // PointBatcher accepts Points and will emit a batch of those points when either
 // a) the batch reaches a certain size, or b) a certain time passes.
 type PointBatcher struct {
+	stats PointBatcherStats
+
 	size     int
 	duration time.Duration
 
@@ -16,8 +18,6 @@ type PointBatcher struct {
 	in    chan Point
 	out   chan []Point
 	flush chan struct{}
-
-	stats PointBatcherStats
 
 	wg *sync.WaitGroup
 }
