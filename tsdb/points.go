@@ -587,7 +587,7 @@ func scanNumber(buf []byte, i int) (int, error) {
 		}
 		i += 1
 	}
-	if isInt && decimals > 0 {
+	if isInt && (decimals > 0 || scientific) {
 		return i, fmt.Errorf("invalid number")
 	}
 
@@ -596,6 +596,10 @@ func scanNumber(buf []byte, i int) (int, error) {
 	// if we should parse the number to the actual type.  It does not do it all the time because it incurs
 	// extra allocations and we end up converting the type again when writing points to disk.
 	if isInt {
+		// Make sure the last char is an 'i' for integers (e.g. 9i10 is not valid)
+		if buf[i-1] != 'i' {
+			return i, fmt.Errorf("invalid number")
+		}
 		// Parse the int to check bounds the number of digits could be larger than the max range
 		// We subtract 1 from the index to remove the `i` from our tests
 		if len(buf[start:i-1]) >= maxInt64Digits || len(buf[start:i-1]) >= minInt64Digits {

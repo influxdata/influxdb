@@ -486,6 +486,19 @@ func TestParsePointBooleanInvalid(t *testing.T) {
 	}
 }
 
+func TestParsePointScientificIntInvalid(t *testing.T) {
+	_, err := tsdb.ParsePointsString(`cpu,host=serverA,region=us-west value=9ie10`)
+	if err == nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west value=9ie10`)
+	}
+
+	_, err = tsdb.ParsePointsString(`cpu,host=serverA,region=us-west value=9e10i`)
+	if err == nil {
+		t.Errorf(`ParsePoints("%s") mismatch. got nil, exp error`, `cpu,host=serverA,region=us-west value=9e10i`)
+	}
+
+}
+
 func TestParsePointUnescape(t *testing.T) {
 	test(t, `foo\,bar value=1i`,
 		tsdb.NewPoint(
