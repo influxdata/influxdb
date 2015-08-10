@@ -873,7 +873,6 @@ func TestServer_Query_Now(t *testing.T) {
 			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","value"],"values":[["%s",1]]}]}]}`, now.Format(time.RFC3339Nano)),
 		},
 		&Query{
-			skip:    true,
 			name:    "where with time > now() should return an empty result - FIXME issue #2874",
 			command: `SELECT * FROM db0.rp0.cpu where time > now()`,
 			exp:     `{"results":[{}]}`,
