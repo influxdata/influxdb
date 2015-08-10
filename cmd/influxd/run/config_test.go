@@ -110,7 +110,7 @@ bind-address = ":1000"
 [opentsdb]
 bind-address = ":2000"
 
-[udp]
+[[udp]]
 bind-address = ":4444"
 
 [monitoring]
@@ -134,9 +134,11 @@ enabled = true
 		t.Fatalf("failed to apply env overrides: %v", err)
 	}
 
-	if c.UDP.BindAddress != ":1234" {
-		t.Fatalf("unexpected udp bind address: %s", c.UDP.BindAddress)
-	} else if c.Graphites[1].Protocol != "udp" {
+	if c.UDPs[0].BindAddress != ":4444" {
+		t.Fatalf("unexpected udp bind address: %s", c.UDPs[0].BindAddress)
+	}
+
+	if c.Graphites[1].Protocol != "udp" {
 		t.Fatalf("unexpected graphite protocol(0): %s", c.Graphites[0].Protocol)
 	}
 }
