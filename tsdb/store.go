@@ -237,7 +237,10 @@ func (s *Store) loadShards() error {
 				}
 
 				shard := NewShard(s.databaseIndexes[db], path, s.EngineOptions)
-				shard.Open()
+				err = shard.Open()
+				if err != nil {
+					return fmt.Errorf("failed to open shard %d: %s", shardID, err)
+				}
 				s.shards[shardID] = shard
 			}
 		}
