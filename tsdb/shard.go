@@ -299,7 +299,7 @@ func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) (map[
 		measurementsToSave[f.Measurement] = m
 
 		// add the field to the in memory index
-		if err := m.createFieldIfNotExists(f.Field.Name, f.Field.Type); err != nil {
+		if err := m.CreateFieldIfNotExists(f.Field.Name, f.Field.Type); err != nil {
 			return nil, err
 		}
 
@@ -391,10 +391,10 @@ func (m *MeasurementFields) UnmarshalBinary(buf []byte) error {
 	return nil
 }
 
-// createFieldIfNotExists creates a new field with an autoincrementing ID.
+// CreateFieldIfNotExists creates a new field with an autoincrementing ID.
 // Returns an error if 255 fields have already been created on the measurement or
 // the fields already exists with a different type.
-func (m *MeasurementFields) createFieldIfNotExists(name string, typ influxql.DataType) error {
+func (m *MeasurementFields) CreateFieldIfNotExists(name string, typ influxql.DataType) error {
 	// Ignore if the field already exists.
 	if f := m.Fields[name]; f != nil {
 		if f.Type != typ {

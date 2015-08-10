@@ -86,6 +86,9 @@ func NewEngine(path string, opt tsdb.EngineOptions) tsdb.Engine {
 	return e
 }
 
+// Path returns the path the engine was initialized with.
+func (e *Engine) Path() string { return e.path }
+
 // Open opens and initializes the engine.
 func (e *Engine) Open() error {
 	if err := func() error {
