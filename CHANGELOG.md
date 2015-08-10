@@ -36,6 +36,7 @@ There are breaking changes in this release. Please see the *Features* section be
 - [#3583](https://github.com/influxdb/influxdb/issues/3583): Inserting value in scientific notation with a trailing i causes panic
 - [#3611](https://github.com/influxdb/influxdb/pull/3611): Fix query arithmetic with integers
 - [#3326](https://github.com/influxdb/influxdb/issues/3326): simple regex query fails with cryptic error
+- [#3618](https://github.com/influxdb/influxdb/pull/3618): Fix collectd stats panic on i386. Thanks @richterger
 
 ## v0.9.2 [2015-07-24]
 
