@@ -740,6 +740,65 @@ func TestServer_Query_NonExistent(t *testing.T) {
 	}
 }
 
+// Ensure the server can perform basic math
+func TestServer_Query_Math(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db", newRetentionPolicyInfo("rp", 1, 1*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+
+	now := now()
+	writes := []string{
+		"float value=42 " + strconv.FormatInt(now.UnixNano(), 10),
+		"integer value=42i " + strconv.FormatInt(now.UnixNano(), 10),
+	}
+
+	test := NewTest("db", "rp")
+	test.write = strings.Join(writes, "\n")
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "SELECT multiple of float value",
+			command: `SELECT value * 2 from db.rp.float`,
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"float","columns":["time",""],"values":[["%s",84]]}]}]}`, now.Format(time.RFC3339Nano)),
+		},
+		&Query{
+			name:    "SELECT multiple of float value",
+			command: `SELECT 2 * value from db.rp.float`,
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"float","columns":["time",""],"values":[["%s",84]]}]}]}`, now.Format(time.RFC3339Nano)),
+		},
+		&Query{
+			name:    "SELECT multiple of integer value",
+			command: `SELECT value * 2 from db.rp.integer`,
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"integer","columns":["time",""],"values":[["%s",84]]}]}]}`, now.Format(time.RFC3339Nano)),
+		},
+		&Query{
+			name:    "SELECT float multiple of integer value",
+			command: `SELECT value * 2.0 from db.rp.integer`,
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"integer","columns":["time",""],"values":[["%s",84]]}]}]}`, now.Format(time.RFC3339Nano)),
+		},
+	}...)
+
+	if err := test.init(s); err != nil {
+		t.Fatalf("test init failed: %s", err)
+	}
+
+	for _, query := range test.queries {
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
 // Ensure the server can query with the count aggregate function
 func TestServer_Query_Count(t *testing.T) {
 	t.Parallel()
