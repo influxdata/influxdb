@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -309,34 +308,6 @@ func (c *Client) Ping() (time.Duration, string, error) {
 
 	version := resp.Header.Get("X-Influxdb-Version")
 	return time.Since(now), version, nil
-}
-
-// Dump connects to server and retrieves all data stored for specified database.
-// If successful, Dump returns the entire response body, which is an io.ReadCloser
-func (c *Client) Dump(db string) (io.ReadCloser, error) {
-	u := c.url
-	u.Path = "dump"
-	values := u.Query()
-	values.Set("db", db)
-	u.RawQuery = values.Encode()
-
-	req, err := http.NewRequest("GET", u.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("User-Agent", c.userAgent)
-	if c.username != "" {
-		req.SetBasicAuth(c.username, c.password)
-	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode != http.StatusOK {
-		return resp.Body, fmt.Errorf("HTTP Protocol error %d", resp.StatusCode)
-	}
-	return resp.Body, nil
 }
 
 // Structs
