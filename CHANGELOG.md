@@ -27,6 +27,7 @@
 - [#3580](https://github.com/influxdb/influxdb/issues/3580): Do not allow wildcards with fields in select statements
 - [#3530](https://github.com/influxdb/influxdb/pull/3530): Aliasing a column no longer works
 - [#3436](https://github.com/influxdb/influxdb/issues/3436): Fix panic in hinted handoff queue processor
+- [#3401](https://github.com/influxdb/influxdb/issues/3401): Derivative on non-numeric fields panics db
 
 ## v0.9.2 [2015-07-24]
 

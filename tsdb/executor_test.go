@@ -608,6 +608,30 @@ func TestProcessAggregateDerivative(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:     "string derivatives",
+			fn:       "derivative",
+			interval: 24 * time.Hour,
+			in: [][]interface{}{
+				[]interface{}{
+					time.Unix(0, 0), "1.0",
+				},
+				[]interface{}{
+					time.Unix(0, 0).Add(24 * time.Hour), "2.0",
+				},
+				[]interface{}{
+					time.Unix(0, 0).Add(48 * time.Hour), "3.0",
+				},
+				[]interface{}{
+					time.Unix(0, 0).Add(72 * time.Hour), "4.0",
+				},
+			},
+			exp: [][]interface{}{
+				[]interface{}{
+					time.Unix(0, 0), 0.0,
+				},
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -803,6 +827,35 @@ func TestProcessRawQueryDerivative(t *testing.T) {
 				{
 					Time:  time.Unix(0, 0).Add(72 * time.Hour).UnixNano(),
 					Value: 4.0,
+				},
+			},
+		},
+		{
+			name:     "string derivatives",
+			fn:       "derivative",
+			interval: 24 * time.Hour,
+			in: []*tsdb.MapperValue{
+				{
+					Time:  time.Unix(0, 0).Unix(),
+					Value: "1.0",
+				},
+				{
+					Time:  time.Unix(0, 0).Add(24 * time.Hour).UnixNano(),
+					Value: "2.0",
+				},
+				{
+					Time:  time.Unix(0, 0).Add(48 * time.Hour).UnixNano(),
+					Value: "3.0",
+				},
+				{
+					Time:  time.Unix(0, 0).Add(72 * time.Hour).UnixNano(),
+					Value: "4.0",
+				},
+			},
+			exp: []*tsdb.MapperValue{
+				{
+					Time:  time.Unix(0, 0).Unix(),
+					Value: 0.0,
 				},
 			},
 		},
