@@ -40,7 +40,7 @@ type Config struct {
 	Graphites []graphite.Config `toml:"graphite"`
 	Collectd  collectd.Config   `toml:"collectd"`
 	OpenTSDB  opentsdb.Config   `toml:"opentsdb"`
-	UDPs      []udp.Config      `toml:"udp"`
+	UDP       udp.Config        `toml:"udp"`
 
 	// Snapshot SnapshotConfig `toml:"snapshot"`
 	Monitoring      monitor.Config            `toml:"monitoring"`

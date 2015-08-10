@@ -125,9 +125,7 @@ func NewServer(c *Config, version string) (*Server, error) {
 	if err := s.appendOpenTSDBService(c.OpenTSDB); err != nil {
 		return nil, err
 	}
-	for _, g := range c.UDPs {
-		s.appendUDPService(g)
-	}
+	s.appendUDPService(c.UDP)
 	s.appendRetentionPolicyService(c.Retention)
 	for _, g := range c.Graphites {
 		if err := s.appendGraphiteService(g); err != nil {
