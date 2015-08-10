@@ -349,7 +349,7 @@ func (m *Measurement) ValidateGroupBy(stmt *influxql.SelectStatement) error {
 	for _, d := range stmt.Dimensions {
 		switch e := d.Expr.(type) {
 		case *influxql.VarRef:
-			if !m.HasTagKey(e.Val) {
+			if m.HasField(e.Val) {
 				return fmt.Errorf("can not use field in GROUP BY clause: %s", e.Val)
 			}
 		}
