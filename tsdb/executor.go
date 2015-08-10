@@ -167,6 +167,7 @@ func (e *Executor) executeRaw(out chan *influxql.Row) {
 		selectFields = sf.list()
 		aliasFields = selectFields
 	} else {
+		// TODO can you alias a tag?
 		selectFields = e.stmt.Fields.Names()
 		aliasFields = e.stmt.Fields.AliasNames()
 	}
@@ -732,14 +733,32 @@ func (r *limitedRowWriter) processValues(values []*MapperValue) *influxql.Row {
 				vals[1] = v.Value.(interface{})
 			}
 		} else {
-			fields := v.Value.(map[string]interface{})
+			var fields map[string]interface{}
+			var dp *decodedPoint
+			switch v := v.Value.(type) {
+			case *decodedPoint:
+				dp = v
+				fields = v.value.(map[string]interface{})
+			case map[string]interface{}:
+				fields = v
+			}
 
 			// time is always the first value
 			vals[0] = time.Unix(0, v.Time).UTC()
 
 			// populate the other values
 			for i := 1; i < len(selectFields); i++ {
-				vals[i] = fields[selectFields[i]]
+				v, ok := fields[selectFields[i]]
+				if ok {
+					vals[i] = v
+					continue
+				}
+				if dp != nil {
+					v, ok = dp.tags[selectFields[i]]
+					if ok {
+						vals[i] = v
+					}
+				}
 			}
 		}
 
@@ -801,7 +820,7 @@ func (rqdp *RawQueryDerivativeProcessor) Process(input []*MapperValue) []*Mapper
 
 		// Calculate the derivative of successive points by dividing the difference
 		// of each value by the elapsed time normalized to the interval
-		diff := int64toFloat64(v.Value) - int64toFloat64(rqdp.LastValueFromPreviousChunk.Value)
+		diff := int64toFloat64(v.Value.(*decodedPoint).value) - int64toFloat64(rqdp.LastValueFromPreviousChunk.Value.(*decodedPoint).value)
 
 		elapsed := v.Time - rqdp.LastValueFromPreviousChunk.Time
 

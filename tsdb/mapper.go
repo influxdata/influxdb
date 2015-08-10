@@ -209,7 +209,8 @@ func (lm *LocalMapper) Open() error {
 					// No data exists for this key.
 					continue
 				}
-				cm := newSeriesCursor(c, t.Filters[i])
+				seriesTags := lm.shard.index.series[key].Tags
+				cm := newSeriesCursor(c, t.Filters[i], seriesTags)
 				cursors = append(cursors, cm)
 			}
 
@@ -555,7 +556,7 @@ func (lm *LocalMapper) TagSets() []string {
 // Fields returns any SELECT fields. If this Mapper is not processing a SELECT query
 // then an empty slice is returned.
 func (lm *LocalMapper) Fields() []string {
-	return lm.selectFields
+	return append(lm.selectFields, lm.selectTags...)
 }
 
 // Close closes the mapper.
@@ -664,9 +665,15 @@ func (tsc *tagSetCursor) key() string {
 	return formMeasurementTagSetKey(tsc.measurement, tsc.tags)
 }
 
+type decodedPoint struct {
+	time  int64
+	value interface{}
+	tags  map[string]string
+}
+
 // Next returns the next matching series-key, timestamp and byte slice for the tagset. Filtering
 // is enforced on the values. If there is no matching value, then a nil result is returned.
-func (tsc *tagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []string) (int64, interface{}) {
+func (tsc *tagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []string) (int64, *decodedPoint) {
 	for {
 		// If we're out of points, we're done.
 		if tsc.pointHeap.Len() == 0 {
@@ -700,7 +707,7 @@ func (tsc *tagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []stri
 			continue
 		}
 
-		return p.timestamp, value
+		return p.timestamp, &decodedPoint{p.timestamp, value, p.cursor.tags}
 	}
 }
 
@@ -746,13 +753,15 @@ func (tsc *tagSetCursor) decodeRawPoint(p *pointHeapItem, selectFields, whereFie
 type seriesCursor struct {
 	cursor Cursor // BoltDB cursor for a series
 	filter influxql.Expr
+	tags   map[string]string
 }
 
 // newSeriesCursor returns a new instance of a series cursor.
-func newSeriesCursor(cur Cursor, filter influxql.Expr) *seriesCursor {
+func newSeriesCursor(cur Cursor, filter influxql.Expr, tags map[string]string) *seriesCursor {
 	return &seriesCursor{
 		cursor: cur,
 		filter: filter,
+		tags:   tags,
 	}
 }
 
