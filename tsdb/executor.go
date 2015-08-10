@@ -757,14 +757,31 @@ type RawQueryDerivativeProcessor struct {
 	DerivativeInterval         time.Duration
 }
 
+func (rqdp *RawQueryDerivativeProcessor) canProcess(input []*MapperValue) bool {
+	// If we only have 1 value, then the value did not change, so return
+	// a single row with 0.0
+	if len(input) == 1 {
+		return false
+	}
+
+	// See if the field value is numeric, if it's not, we can't process the derivative
+	validType := false
+	switch input[0].Value.(type) {
+	case int64:
+		validType = true
+	case float64:
+		validType = true
+	}
+
+	return validType
+}
+
 func (rqdp *RawQueryDerivativeProcessor) Process(input []*MapperValue) []*MapperValue {
 	if len(input) == 0 {
 		return input
 	}
 
-	// If we only have 1 value, then the value did not change, so return
-	// a single row with 0.0
-	if len(input) == 1 {
+	if !rqdp.canProcess(input) {
 		return []*MapperValue{
 			&MapperValue{
 				Time:  input[0].Time,
@@ -853,6 +870,22 @@ func ProcessAggregateDerivative(results [][]interface{}, isNonNegative bool, int
 	// If we only have 1 value, then the value did not change, so return
 	// a single row w/ 0.0
 	if len(results) == 1 {
+		return [][]interface{}{
+			[]interface{}{results[0][0], 0.0},
+		}
+	}
+
+	// Check the value's type to ensure it's an numeric, if not, return a 0 result. We only check the first value
+	// because derivatives cannot be combined with other aggregates currently.
+	validType := false
+	switch results[0][1].(type) {
+	case int64:
+		validType = true
+	case float64:
+		validType = true
+	}
+
+	if !validType {
 		return [][]interface{}{
 			[]interface{}{results[0][0], 0.0},
 		}
