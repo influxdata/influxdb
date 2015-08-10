@@ -29,6 +29,7 @@
 - [#3436](https://github.com/influxdb/influxdb/issues/3436): Fix panic in hinted handoff queue processor
 - [#3401](https://github.com/influxdb/influxdb/issues/3401): Derivative on non-numeric fields panics db
 - [#3583](https://github.com/influxdb/influxdb/issues/3583): Inserting value in scientific notation with a trailing i causes panic
+- [#3611](https://github.com/influxdb/influxdb/pull/3611): Fix query arithmetic with integers
 
 ## v0.9.2 [2015-07-24]
 
