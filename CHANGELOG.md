@@ -1,5 +1,9 @@
 ## v0.9.3 [unreleased]
 
+### Release Notes
+
+There are breaking changes in this release. Please see the *Features* section below for details.
+
 ### Features
 - [#3376](https://github.com/influxdb/influxdb/pull/3376): Support for remote shard query mapping
 - [#3372](https://github.com/influxdb/influxdb/pull/3372): Support joining nodes to existing cluster
@@ -12,6 +16,7 @@
 - [#3564](https://github.com/influxdb/influxdb/pull/3564): Fix alias, maintain column sort order
 - [#3585](https://github.com/influxdb/influxdb/pull/3585): Additional test coverage for non-existent fields
 - [#3246](https://github.com/influxdb/influxdb/issues/3246): Allow overriding of configuration parameters using environment variables
+- [#3599](https://github.com/influxdb/influxdb/pull/3599): **--BREAKING CHANGE--** Support multiple UDP inputs. Thanks @tpitale
 
 ### Bugfixes
 - [#3405](https://github.com/influxdb/influxdb/pull/3405): Prevent database panic when fields are missing. Thanks @jhorwit2
