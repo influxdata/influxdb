@@ -188,6 +188,7 @@ func (e *Executor) executeRaw(out chan *influxql.Row) {
 			for {
 				if m.bufferedChunk == nil {
 					m.bufferedChunk, err = m.NextChunk()
+					//spew.Dump(m.bufferedChunk)
 					if err != nil {
 						out <- &influxql.Row{Err: err}
 						return

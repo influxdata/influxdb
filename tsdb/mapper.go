@@ -443,6 +443,8 @@ func (lm *LocalMapper) rewriteSelectStatement(stmt *influxql.SelectStatement) (*
 
 // expandWildcards returns a new SelectStatement with wildcards in the fields
 // and/or GROUP BY expanded with actual field names.
+// Tags and Measurements are included in the select if a `SELECT *` is issued
+// There is no longer an explicit `GROUP BY *` when tags are used in the `SELECT` clause
 func (lm *LocalMapper) expandWildcards(stmt *influxql.SelectStatement) (*influxql.SelectStatement, error) {
 	// If there are no wildcards in the statement, return it as-is.
 	if !stmt.HasWildcard() {
@@ -471,13 +473,27 @@ func (lm *LocalMapper) expandWildcards(stmt *influxql.SelectStatement) (*influxq
 				fieldSet[name] = struct{}{}
 				fields = append(fields, &influxql.Field{Expr: &influxql.VarRef{Val: name}})
 			}
-			// Get the dimensions for this measurement.
-			for _, t := range mm.TagKeys() {
-				if _, ok := dimensionSet[t]; ok {
-					continue
+
+			// Add tags to fields if a wildcard was provided.
+			if stmt.HasFieldWildcard() {
+				for _, t := range mm.TagKeys() {
+					if _, ok := fieldSet[t]; ok {
+						continue
+					}
+					fieldSet[t] = struct{}{}
+					fields = append(fields, &influxql.Field{Expr: &influxql.VarRef{Val: t}})
 				}
-				dimensionSet[t] = struct{}{}
-				dimensions = append(dimensions, &influxql.Dimension{Expr: &influxql.VarRef{Val: t}})
+			}
+
+			// Get the dimensions for this measurement.
+			if stmt.HasDimensionWildcard() {
+				for _, t := range mm.TagKeys() {
+					if _, ok := dimensionSet[t]; ok {
+						continue
+					}
+					dimensionSet[t] = struct{}{}
+					dimensions = append(dimensions, &influxql.Dimension{Expr: &influxql.VarRef{Val: t}})
+				}
 			}
 		}
 	}
@@ -789,9 +805,15 @@ func createTagSetsAndFields(m *Measurement, stmt *influxql.SelectStatement) (*ta
 		}
 		if m.HasTagKey(n) {
 			sts.add(n)
+		}
+	}
+
+	for _, n := range stmt.NamesInDimension() {
+		if m.HasTagKey(n) {
 			tagKeys = append(tagKeys, n)
 		}
 	}
+
 	for _, n := range stmt.NamesInWhere() {
 		if n == "time" {
 			continue
