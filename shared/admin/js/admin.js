@@ -46,6 +46,8 @@ var loadSettings = function() {
     document.getElementById('username').value = connectionSettings.username;
     document.getElementById('password').value = connectionSettings.password;
     document.getElementById('ssl').checked = connectionSettings.ssl;
+
+    getDatabases();
 }
 
 var updateSettings = function() {
@@ -68,6 +70,16 @@ var updateSettings = function() {
     localStorage.setItem("connectionSettings", JSON.stringify(connectionSettings));
 
     getDatabases();
+}
+
+var showSettings = function() {
+    $("#settings").show();
+    $("input#query").prop('disabled', true);
+}
+
+var hideSettings = function() {
+    $("#settings").hide();
+    $("input#query").prop('disabled', false);
 }
 
 // hide errors within the Write Data modal
@@ -140,6 +152,8 @@ var handleSubmit = function(e) {
 
     clearResults();
 
+    if (q == "") { return };
+
     var query = $.get(connectionString() + "/query", {q: q, db: currentlySelectedDatabase}, function() {
         hideQueryError();
         hideQuerySuccess();
@@ -148,15 +162,7 @@ var handleSubmit = function(e) {
     recentQueries.push(q);
     queryPointer = recentQueries.length - 1;
 
-    query.fail(function (e) {
-        if (e.status == 400) {
-            var response = JSON.parse(e.responseText)
-            showQueryError(response.error);
-        }
-        else {
-            showQueryError("Couldn't connect to host (" + connectionString() + "): " + e.statusText);
-        }
-    });
+    query.fail(handleRequestError);
 
     query.done(function (data) {
         var firstRow = data.results[0];
@@ -168,7 +174,7 @@ var handleSubmit = function(e) {
         var series = getSeriesFromJSON(data);
 
         if (series == null) {
-            showQuerySuccess("Success!");
+            showQuerySuccess("Success! (no results to display)");
             getDatabases();
             return
         }
@@ -182,16 +188,43 @@ var handleSubmit = function(e) {
                 return value[0];
             });
 
+            hideDatabaseWarning();
             React.render(
               React.createElement(DataTable, {series: series}),
               document.getElementById('table')
             );
         }
-
     });
 
     if (e != null) { e.preventDefault(); }
     return false;
+};
+
+var handleRequestError = function(e) {
+    var errorText = e.status + " " + e.statusText;
+    showDatabaseWarning("Unable to fetch list of databases.");
+
+    if ("responseText" in e) {
+        try { errorText = "Server returned error: " + JSON.parse(e.responseText).error; } catch(e) {}
+    }
+
+    if (e.status == 400) {
+        hideSettings();
+    } else if (e.status == 401) {
+        if (errorText.indexOf("error authorizing query") > -1) {
+            hideSettings();
+            $("input#query").val("CREATE USER <username> WITH PASSWORD '<password>' WITH ALL PRIVILEGES").focus();
+        } else {
+            showSettings();
+            $("input#username").focus();
+        }
+    } else {
+        showSettings();
+        $("input#hostname").focus();
+        showDatabaseWarning("Hint: the InfluxDB API runs on port 8086 by default");
+        errorText = e.status + " " + e.statusText + " - Could not connect to " + connectionString();
+    }
+    showQueryError(errorText);
 };
 
 var handleKeypress = function(e) {
@@ -315,25 +348,14 @@ var chooseDatabase = function (databaseName) {
 
 var getDatabases = function () {
     var q = "SHOW DATABASES";
+    var query = $.get(connectionString() + "/query", {q: q, db: currentlySelectedDatabase});
 
-    var query = $.get(connectionString() + "/query", {q: q, db: currentlySelectedDatabase}, function() {
-        hideDatabaseWarning();
-    });
-
-    query.fail(function (e) {
-        if (e.status == 400) {
-            var response = JSON.parse(e.responseText)
-            showQueryError(response.error);
-        }
-        else {
-            showDatabaseWarning("Couldn't fetch database list from InfluxDB (" + connectionString() + "). Try updating your connection settings and make sure the server is running.")
-            availableDatabases = [];
-            currentlySelectedDatabase = null;
-            updateDatabaseList();
-        }
-    });
+    query.fail(handleRequestError);
 
     query.done(function (data) {
+        hideSettings();
+        hideDatabaseWarning();
+
         var firstRow = data.results[0];
         if (firstRow.error) {
             showDatabaseWarning(firstRow.error);
@@ -347,7 +369,7 @@ var getDatabases = function () {
             availableDatabases = [];
             updateDatabaseList();
 
-            showDatabaseWarning("Couldn't find any databases.")
+            showDatabaseWarning("No databases found.")
         } else {
             availableDatabases = values.map(function(value) {
                 return value[0];
@@ -381,8 +403,6 @@ var updateDatabaseList = function() {
 $(document).ready(function () {
     loadSettings();
 
-    getDatabases();
-
     // bind to the settings cog in the navbar
     $("#action-settings").click(function (e) {
         $("#settings").toggle();
@@ -390,7 +410,6 @@ $(document).ready(function () {
 
     // bind to the save button in the settings form
     $("#form-settings").submit(function (e) {
-        $("#settings").hide();
         updateSettings();
     });
 
