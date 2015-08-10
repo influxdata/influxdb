@@ -579,7 +579,7 @@ func TestProcessAggregateDerivative(t *testing.T) {
 			},
 		},
 		{
-			name:     "float derivatives",
+			name:     "integer derivatives",
 			fn:       "derivative",
 			interval: 24 * time.Hour,
 			in: [][]interface{}{
@@ -704,6 +704,43 @@ func TestProcessRawQueryDerivative(t *testing.T) {
 				{
 					Time:  time.Unix(0, 0).Add(72 * time.Hour).UnixNano(),
 					Value: 9.0,
+				},
+			},
+			exp: []*tsdb.MapperValue{
+				{
+					Time:  time.Unix(0, 0).Add(24 * time.Hour).UnixNano(),
+					Value: 3.0,
+				},
+				{
+					Time:  time.Unix(0, 0).Add(48 * time.Hour).UnixNano(),
+					Value: 2.0,
+				},
+				{
+					Time:  time.Unix(0, 0).Add(72 * time.Hour).UnixNano(),
+					Value: 4.0,
+				},
+			},
+		},
+		{
+			name:     "integer derivative",
+			fn:       "derivative",
+			interval: 24 * time.Hour,
+			in: []*tsdb.MapperValue{
+				{
+					Time:  time.Unix(0, 0).Unix(),
+					Value: int64(0),
+				},
+				{
+					Time:  time.Unix(0, 0).Add(24 * time.Hour).UnixNano(),
+					Value: int64(3),
+				},
+				{
+					Time:  time.Unix(0, 0).Add(48 * time.Hour).UnixNano(),
+					Value: int64(5),
+				},
+				{
+					Time:  time.Unix(0, 0).Add(72 * time.Hour).UnixNano(),
+					Value: int64(9),
 				},
 			},
 			exp: []*tsdb.MapperValue{
