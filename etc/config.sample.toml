@@ -163,12 +163,12 @@ reporting-disabled = false
   # retention-policy = ""
 
 ###
-### [udp]
+### [[udp]]
 ###
-### Controls the listener for InfluxDB line protocol data via UDP.
+### Controls the listeners for InfluxDB line protocol data via UDP.
 ###
 
-[udp]
+[[udp]]
   enabled = false
   # bind-address = ""
   # database = ""
