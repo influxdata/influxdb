@@ -998,7 +998,19 @@ func (s *SelectStatement) validate(tr targetRequirement) error {
 }
 
 func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
-	// First, determine if specific calls have at least one and only one argument
+	// First, if 1 field is an aggregate, then all fields must be an aggregate. This is
+	// a explicit limitation of the current system.
+	numAggregates := 0
+	for _, f := range s.Fields {
+		if _, ok := f.Expr.(*Call); ok {
+			numAggregates++
+		}
+	}
+	if numAggregates != 0 && numAggregates != len(s.Fields) {
+		return fmt.Errorf("mixing aggregate and non-aggregate queries is not supported")
+	}
+
+	// Secondly, determine if specific calls have at least one and only one argument
 	for _, f := range s.Fields {
 		if c, ok := f.Expr.(*Call); ok {
 			switch c.Name {
