@@ -288,7 +288,7 @@ func TestWritePointsAndExecuteTwoShardsQueryRewrite(t *testing.T) {
 		expected  string // Expected results, rendered as a string
 	}{
 		{
-			stmt:     `SELECT * FROM cpu`,
+			stmt:     `SELECT * FROM cpu GROUP BY *`,
 			expected: `[{"name":"cpu","tags":{"host":"serverA"},"columns":["time","value1","value2"],"values":[["1970-01-01T00:00:01Z",100,null]]},{"name":"cpu","tags":{"host":"serverB"},"columns":["time","value1","value2"],"values":[["1970-01-01T00:00:02Z",null,200]]}]`,
 		},
 	}
