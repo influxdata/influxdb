@@ -40,6 +40,11 @@ func TestEngine_WritePoints(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Flush to disk.
+	if err := e.Flush(0); err != nil {
+		t.Fatal(err)
+	}
+
 	// Parse new point.
 	points, err = tsdb.ParsePointsWithPrecision([]byte("temperature value=200 1434059627"), time.Now().UTC(), "s")
 	if err != nil {
@@ -65,7 +70,7 @@ func TestEngine_WritePoints(t *testing.T) {
 	} else if m, err := mf.Codec.DecodeFieldsWithNames(v); err != nil {
 		t.Fatal(err)
 	} else if m["value"] != float64(200) {
-		t.Fatalf("unexpected value: %#v", m)
+		t.Errorf("unexpected value: %#v", m)
 	}
 
 	if k, v := c.Next(); k != nil {

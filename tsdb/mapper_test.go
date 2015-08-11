@@ -419,7 +419,7 @@ func TestShardMapper_WriteAndSingleMapperAggregateQuery(t *testing.T) {
 		for i := range tt.expected {
 			got := aggIntervalAsJson(t, mapper)
 			if got != tt.expected[i] {
-				t.Errorf("test '%s'\n\tgot      %s\n\texpected %s", tt.stmt, got, tt.expected[i])
+				t.Fatalf("test '%s'\n\tgot      %s\n\texpected %s", tt.stmt, got, tt.expected[i])
 				break
 			}
 		}
