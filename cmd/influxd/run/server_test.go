@@ -569,8 +569,7 @@ func TestServer_Query_DefaultDBAndRP(t *testing.T) {
 			exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"],"values":[["default","0",1,false],["rp0","1h0m0s",1,true]]}]}]}`,
 		},
 		&Query{
-			skip:    true,
-			name:    "default rp - FIXME issue #2873",
+			name:    "default rp",
 			command: `SELECT * FROM db0..cpu`,
 			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T01:00:00Z",1]]}]}]}`,
 		},
