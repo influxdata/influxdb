@@ -61,6 +61,47 @@ func TestWritePointsAndExecuteQuery(t *testing.T) {
 	}
 }
 
+// Ensure writing a point and updating it results in only a single point.
+func TestWritePointsAndExecuteQuery_Update(t *testing.T) {
+	store, executor := testStoreAndExecutor()
+	defer os.RemoveAll(store.Path())
+
+	// Write original point.
+	if err := store.WriteToShard(1, []tsdb.Point{tsdb.NewPoint(
+		"temperature",
+		map[string]string{},
+		map[string]interface{}{"value": 100.0},
+		time.Unix(0, 0),
+	)}); err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	// Restart store.
+	store.Close()
+	store = tsdb.NewStore(store.Path())
+	if err := store.Open(); err != nil {
+		t.Fatalf(err.Error())
+	}
+	executor.Store = store
+	executor.ShardMapper = &testShardMapper{store: store}
+
+	// Rewrite point with new value.
+	if err := store.WriteToShard(1, []tsdb.Point{tsdb.NewPoint(
+		"temperature",
+		map[string]string{},
+		map[string]interface{}{"value": 200.0},
+		time.Unix(0, 0),
+	)}); err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	got := executeAndGetJSON("select * from temperature", executor)
+	exp := `[{"series":[{"name":"temperature","columns":["time","value"],"values":[["1970-01-01T00:00:00Z",200]]}]}]`
+	if exp != got {
+		t.Fatalf("\n\nexp: %s\ngot: %s", exp, got)
+	}
+}
+
 func TestDropSeriesStatement(t *testing.T) {
 	store, executor := testStoreAndExecutor()
 	defer os.RemoveAll(store.Path())
