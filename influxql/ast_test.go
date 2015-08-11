@@ -217,7 +217,7 @@ func TestSelectStatement_SetTimeRange(t *testing.T) {
 
 // Ensure the idents from the select clause can come out
 func TestSelect_NamesInSelect(t *testing.T) {
-	s := MustParseSelectStatement("select count(asdf), bar from cpu")
+	s := MustParseSelectStatement("select count(asdf), count(bar) from cpu")
 	a := s.NamesInSelect()
 	if !reflect.DeepEqual(a, []string{"asdf", "bar"}) {
 		t.Fatal("expected names asdf and bar")
