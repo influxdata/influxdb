@@ -17,7 +17,7 @@ var (
 	batchSize     = flag.Int("batchsize", 5000, "number of points per batch")
 	seriesCount   = flag.Int("series", 10000, "number of unique series to create")
 	pointCount    = flag.Int("points", 100, "number of points per series to create")
-	concurrency   = flag.Int("concurrency", 1, "number of simultaneous writes to run")
+	concurrency   = flag.Int("concurrency", 10, "number of simultaneous writes to run")
 	batchInterval = flag.Duration("batchinterval", 0*time.Second, "duration between batches")
 	database      = flag.String("database", "stress", "name of database")
 	address       = flag.String("addr", "localhost:8086", "IP address and port of database (e.g., localhost:8086)")
@@ -62,9 +62,8 @@ func main() {
 				counter.Increment()
 				totalPoints += len(batch.Points)
 				go func(b *client.BatchPoints, total int) {
-					fmt.Println("WRITING: ", len(b.Points))
 					st := time.Now()
-					if _, err := c.Write(*batch); err != nil {
+					if _, err := c.Write(*b); err != nil {
 						fmt.Println("ERROR: ", err.Error())
 					} else {
 						mu.Lock()

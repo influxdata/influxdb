@@ -220,7 +220,6 @@ func (l *Log) Cursor(key string) tsdb.Cursor {
 }
 
 func (l *Log) WritePoints(points []tsdb.Point) error {
-	fmt.Println("WRITING: ", len(points))
 	partitionsToWrite := l.pointsToPartitions(points)
 
 	// get it to disk
