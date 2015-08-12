@@ -168,7 +168,26 @@ func (r *localRaft) open() error {
 	}
 	r.raft = ra
 
+	go r.logLeaderChanges()
+
 	return nil
+}
+
+func (r *localRaft) logLeaderChanges() {
+	// Logs our current state (Node at 1.2.3.4:8088 [Follower])
+	r.store.Logger.Printf(r.raft.String())
+	for {
+		select {
+		case <-r.store.closing:
+			return
+		case <-r.raft.LeaderCh():
+			peers, err := r.peers()
+			if err != nil {
+				r.store.Logger.Printf("failed to lookup peers: %v", err)
+			}
+			r.store.Logger.Printf("%v. peers=%v", r.raft.String(), peers)
+		}
+	}
 }
 
 func (r *localRaft) close() error {
