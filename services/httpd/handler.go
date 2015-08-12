@@ -81,7 +81,7 @@ func NewHandler(requireAuthentication, loggingEnabled, writeTrace bool) *Handler
 		mux: pat.New(),
 		requireAuthentication: requireAuthentication,
 		Logger:                log.New(os.Stderr, "[http] ", log.LstdFlags),
-		loggingEnabled:        false,
+		loggingEnabled:        loggingEnabled,
 		WriteTrace:            writeTrace,
 	}
 

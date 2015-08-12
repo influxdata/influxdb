@@ -277,7 +277,6 @@ func (e *Engine) writeIndex(tx *bolt.Tx, key string, a [][]byte) error {
 	}
 
 	// Create or retrieve series bucket.
-	fmt.Println("WRITE: ", key, len(key))
 	bkt, err := tx.Bucket([]byte("points")).CreateBucketIfNotExists([]byte(key))
 	if err != nil {
 		return fmt.Errorf("create series bucket: %s", err)
@@ -471,7 +470,6 @@ type Tx struct {
 
 // Cursor returns an iterator for a key.
 func (tx *Tx) Cursor(key string) tsdb.Cursor {
-	fmt.Println("CURSOR: ", key)
 	walCursor := tx.wal.Cursor(key)
 
 	// Retrieve points bucket. Ignore if there is no bucket.
@@ -499,7 +497,6 @@ type Cursor struct {
 func (c *Cursor) Seek(seek []byte) (key, value []byte) {
 	// Move cursor to appropriate block and set to buffer.
 	_, v := c.cursor.Seek(seek)
-	fmt.Println("SEEK: ", key, v)
 	c.setBuf(v)
 
 	// Read current block up to seek position.
@@ -559,7 +556,6 @@ func (c *Cursor) setBuf(block []byte) {
 		c.buf = c.buf[0:0]
 		log.Printf("block decode error: %s", err)
 	}
-	fmt.Println("setBuf: ", buf)
 	c.buf, c.off = buf, 0
 }
 
@@ -573,7 +569,6 @@ func (c *Cursor) read() (key, value []byte) {
 	// Otherwise read the current entry.
 	buf := c.buf[c.off:]
 	dataSize := entryDataSize(buf)
-	fmt.Println("read: ", buf, dataSize, len(buf), entryHeaderSize, entryHeaderSize+dataSize)
 	return buf[0:8], buf[entryHeaderSize : entryHeaderSize+dataSize]
 }
 

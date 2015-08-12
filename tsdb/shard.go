@@ -149,7 +149,6 @@ type SeriesCreate struct {
 
 // WritePoints will write the raw data points and any new metadata to the index in the shard
 func (s *Shard) WritePoints(points []Point) error {
-	fmt.Println("SHARD: ", len(points))
 	seriesToCreate, fieldsToCreate, err := s.validateSeriesAndFields(points)
 	if err != nil {
 		return err
