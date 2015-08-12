@@ -248,9 +248,6 @@ func (l *Log) Flush() error {
 func (l *Log) pointsToPartitions(points []tsdb.Point) map[*Partition][]tsdb.Point {
 	m := make(map[*Partition][]tsdb.Point)
 	for _, p := range points {
-		if "cpu,host=host-5008,region=uswest" == string(p.Key()) {
-			fmt.Println("POINT: ", p.String())
-		}
 		pp := l.partition(p.Key())
 		m[pp] = append(m[pp], p)
 	}
