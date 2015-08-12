@@ -44,6 +44,8 @@ func (s *Service) Open() error {
 		return nil
 	}
 
+	s.Logger.Println("Starting precreation service")
+
 	s.done = make(chan struct{})
 
 	s.wg.Add(1)
@@ -81,7 +83,7 @@ func (s *Service) runPrecreation() {
 				s.Logger.Printf("failed to precreate shards: %s", err.Error())
 			}
 		case <-s.done:
-			s.Logger.Println("precreation service terminating")
+			s.Logger.Println("Precreation service terminating")
 			return
 		}
 	}

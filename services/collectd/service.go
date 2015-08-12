@@ -57,6 +57,9 @@ func NewService(c Config) *Service {
 
 // Open starts the service.
 func (s *Service) Open() error {
+
+	s.Logger.Printf("Starting collected service")
+
 	if s.Config.BindAddress == "" {
 		return fmt.Errorf("bind address is blank")
 	} else if s.Config.Database == "" {
@@ -66,12 +69,12 @@ func (s *Service) Open() error {
 	}
 
 	if err := s.MetaStore.WaitForLeader(leaderWaitTimeout); err != nil {
-		s.Logger.Printf("failed to detect a cluster leader: %s", err.Error())
+		s.Logger.Printf("Failed to detect a cluster leader: %s", err.Error())
 		return err
 	}
 
 	if _, err := s.MetaStore.CreateDatabaseIfNotExists(s.Config.Database); err != nil {
-		s.Logger.Printf("failed to ensure target database %s exists: %s", s.Config.Database, err.Error())
+		s.Logger.Printf("Failed to ensure target database %s exists: %s", s.Config.Database, err.Error())
 		return err
 	}
 
@@ -98,6 +101,8 @@ func (s *Service) Open() error {
 	}
 	s.ln = ln
 
+	s.Logger.Println("Listening on UDP: ", ln.LocalAddr().String())
+
 	// Start the points batcher.
 	s.batcher = tsdb.NewPointBatcher(s.Config.BatchSize, time.Duration(s.Config.BatchDuration))
 	s.batcher.Start()
@@ -109,8 +114,6 @@ func (s *Service) Open() error {
 	// Start goroutines that process collectd packets.
 	go s.serve()
 	go s.writePoints()
-
-	s.Logger.Println("collectd UDP started")
 
 	return nil
 }

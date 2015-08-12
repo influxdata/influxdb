@@ -42,6 +42,8 @@ func NewService() *Service {
 
 // Open starts the service.
 func (s *Service) Open() error {
+	s.Logger.Println("Starting snapshot service")
+
 	s.wg.Add(1)
 	go s.serve()
 	return nil

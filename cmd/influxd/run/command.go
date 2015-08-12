@@ -189,7 +189,7 @@ func (cmd *Command) ParseConfig(path string) (*Config, error) {
 		return NewDemoConfig()
 	}
 
-	fmt.Fprintf(cmd.Stdout, "using configuration at: %s\n", path)
+	fmt.Fprintf(cmd.Stdout, "Using configuration at: %s\n", path)
 
 	config := NewConfig()
 	if _, err := toml.DecodeFile(path, &config); err != nil {

@@ -70,16 +70,17 @@ func NewService(c Config) (*Service, error) {
 
 // Open starts the service
 func (s *Service) Open() error {
+	s.Logger.Println("Starting OpenTSDB service")
+
 	if err := s.MetaStore.WaitForLeader(leaderWaitTimeout); err != nil {
-		s.Logger.Printf("failed to detect a cluster leader: %s", err.Error())
+		s.Logger.Printf("Failed to detect a cluster leader: %s", err.Error())
 		return err
 	}
 
 	if _, err := s.MetaStore.CreateDatabaseIfNotExists(s.Database); err != nil {
-		s.Logger.Printf("failed to ensure target database %s exists: %s", s.Database, err.Error())
+		s.Logger.Printf("Failed to ensure target database %s exists: %s", s.Database, err.Error())
 		return err
 	}
-	s.Logger.Printf("ensured target database %s exists", s.Database)
 
 	// Open listener.
 	if s.tls {
@@ -95,7 +96,7 @@ func (s *Service) Open() error {
 			return err
 		}
 
-		s.Logger.Println("listening on TLS:", listener.Addr().String())
+		s.Logger.Println("Listening on TLS:", listener.Addr().String())
 		s.ln = listener
 	} else {
 		listener, err := net.Listen("tcp", s.BindAddress)
@@ -103,7 +104,7 @@ func (s *Service) Open() error {
 			return err
 		}
 
-		s.Logger.Println("listening on:", listener.Addr().String())
+		s.Logger.Println("Listening on:", listener.Addr().String())
 		s.ln = listener
 	}
 	s.httpln = newChanListener(s.ln.Addr())

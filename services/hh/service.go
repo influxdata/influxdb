@@ -47,16 +47,21 @@ func NewService(c Config, w shardWriter) *Service {
 	if err != nil {
 		s.Logger.Fatalf("Failed to start hinted handoff processor: %v", err)
 	}
+
 	processor.Logger = s.Logger
 	s.HintedHandoff = processor
 	return s
 }
 
 func (s *Service) Open() error {
+	s.Logger.Printf("Starting hinted handoff service")
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.closing = make(chan struct{})
+
+	s.Logger.Printf("Using data dir: %v", s.cfg.Dir)
 
 	s.wg.Add(2)
 	go s.retryWrites()
