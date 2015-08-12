@@ -47,6 +47,10 @@ const (
 	AutoCreateRetentionPolicyName   = "default"
 	AutoCreateRetentionPolicyPeriod = 0
 	RetentionPolicyMinDuration      = time.Hour
+
+	// MaxAutoCreatedRetentionPolicyReplicaN is the maximum replication factor that will
+	// be set for auto-created retention policies.
+	MaxAutoCreatedRetentionPolicyReplicaN = 3
 )
 
 // Raft configuration.
@@ -866,6 +870,10 @@ func (s *Store) CreateDatabase(name string) (*DatabaseInfo, error) {
 			return nil
 		}); err != nil {
 			return nil, fmt.Errorf("read: %s", err)
+		}
+
+		if nodeN > MaxAutoCreatedRetentionPolicyReplicaN {
+			nodeN = MaxAutoCreatedRetentionPolicyReplicaN
 		}
 
 		// Create a retention policy.

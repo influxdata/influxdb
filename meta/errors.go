@@ -58,10 +58,9 @@ var (
 	ErrRetentionPolicyDurationTooLow = errors.New(fmt.Sprintf("retention policy duration must be at least %s",
 		RetentionPolicyMinDuration))
 
-	// ErrReplicationFactorMismatch is returned when the replication factor
-	// does not match the number of nodes in the cluster. This is a temporary
-	// restriction until v0.9.1 is released.
-	ErrReplicationFactorMismatch = errors.New("replication factor must match cluster size; this limitation will be lifted in v0.9.1")
+	// ErrReplicationFactorTooLow is returned when the replication factor is not in an
+	// acceptable range.
+	ErrReplicationFactorTooLow = errors.New("replication factor must be greater than 0")
 )
 
 var (
