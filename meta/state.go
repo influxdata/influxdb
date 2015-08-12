@@ -130,7 +130,19 @@ func (r *localRaft) open() error {
 		return err
 	}
 
-	// Make sure our address is in the raft peers or we won't be able to boot into the cluster
+	// For single-node clusters, we can update the raft peers before we start the cluster if the hostname
+	// has changed.
+	if config.EnableSingleNode {
+		if err := r.peerStore.SetPeers([]string{s.RemoteAddr.String()}); err != nil {
+			return err
+		}
+		peers = []string{s.RemoteAddr.String()}
+	}
+
+	// If we have multiple nodes in the cluster, make sure our address is in the raft peers or
+	// we won't be able to boot into the cluster because the other peers will reject our new hostname.  This
+	// is difficult to resolve automatically because we need to have all the raft peers agree on the current members
+	// of the cluster before we can change them.
 	if len(peers) > 0 && !raft.PeerContained(peers, s.RemoteAddr.String()) {
 		s.Logger.Printf("%v is not in the list of raft peers. Please update %v/peers.json on all raft nodes to have the same contents.", s.RemoteAddr.String(), s.Path())
 		return fmt.Errorf("peers out of sync: %v not in %v", s.RemoteAddr.String(), peers)
