@@ -3,6 +3,7 @@ package graphite
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/influxdb/influxdb/toml"
 	"github.com/influxdb/influxdb/tsdb"
@@ -24,6 +25,12 @@ const (
 	// DefaultSeparator is the default join character to use when joining multiple
 	// measurment parts in a template.
 	DefaultSeparator = "."
+
+	// DefaultBatchSize is the default Graphite batch size.
+	DefaultBatchSize = 1000
+
+	// DefaultBatchTimeout is the default Graphite batch timeout.
+	DefaultBatchTimeout = time.Second
 )
 
 // Config represents the configuration for Graphite endpoints.
@@ -46,6 +53,8 @@ func NewConfig() Config {
 		BindAddress:      DefaultBindAddress,
 		Database:         DefaultDatabase,
 		Protocol:         DefaultProtocol,
+		BatchSize:        DefaultBatchSize,
+		BatchTimeout:     toml.Duration(DefaultBatchTimeout),
 		ConsistencyLevel: DefaultConsistencyLevel,
 		Separator:        DefaultSeparator,
 	}
