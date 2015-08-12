@@ -121,13 +121,15 @@ func (s *Service) Open() error {
 
 // Close stops all data processing on the Graphite input.
 func (s *Service) Close() error {
-	s.batcher.Flush()
-	close(s.done)
-	s.wg.Wait()
-	s.done = nil
 	if s.ln != nil {
 		s.ln.Close()
 	}
+
+	s.batcher.Stop()
+	close(s.done)
+	s.wg.Wait()
+	s.done = nil
+
 	return nil
 }
 

@@ -40,6 +40,7 @@ There are breaking changes in this release. Please see the *Features* section be
 - [#3625](https://github.com/influxdb/influxdb/pull/3625): Don't panic when aggregate and raw queries are in a single statement
 - [#3629](https://github.com/influxdb/influxdb/pull/3629): Use sensible batching defaults for Graphite.
 - [#3638](https://github.com/influxdb/influxdb/pull/3638): Cluster config fixes and removal of meta.peers config field
+- [#3640](https://github.com/influxdb/influxdb/pull/3640): Shutdown Graphite service when signal received.
 
 ## v0.9.2 [2015-07-24]
 
