@@ -30,6 +30,7 @@ const logo = `
 // Command represents the command executed by "influxd run".
 type Command struct {
 	Version string
+	Branch  string
 	Commit  string
 
 	closing chan struct{}
@@ -110,7 +111,7 @@ func (cmd *Command) Run(args ...string) error {
 	cmd.Server = s
 
 	// Mark start-up in log.
-	log.Printf("InfluxDB starting, version %s, commit %s", cmd.Version, cmd.Commit)
+	log.Printf("InfluxDB starting, version %s, branch %s, commit %s", cmd.Version, cmd.Branch, cmd.Commit)
 	log.Println("GOMAXPROCS set to", runtime.GOMAXPROCS(0))
 
 	// Begin monitoring the server's error channel.
