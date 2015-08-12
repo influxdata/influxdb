@@ -18,6 +18,7 @@ There are breaking changes in this release. Please see the *Features* section be
 - [#3246](https://github.com/influxdb/influxdb/issues/3246): Allow overriding of configuration parameters using environment variables
 - [#3599](https://github.com/influxdb/influxdb/pull/3599): **--BREAKING CHANGE--** Support multiple UDP inputs. Thanks @tpitale
 - [#3636](https://github.com/influxdb/influxdb/pull/3639): Cap auto-created retention policy replica count at 3
+- [#3641](https://github.com/influxdb/influxdb/pull/3641): Logging enhancements and single-node rename
 
 ### Bugfixes
 - [#3405](https://github.com/influxdb/influxdb/pull/3405): Prevent database panic when fields are missing. Thanks @jhorwit2
@@ -42,6 +43,7 @@ There are breaking changes in this release. Please see the *Features* section be
 - [#3629](https://github.com/influxdb/influxdb/pull/3629): Use sensible batching defaults for Graphite.
 - [#3638](https://github.com/influxdb/influxdb/pull/3638): Cluster config fixes and removal of meta.peers config field
 - [#3640](https://github.com/influxdb/influxdb/pull/3640): Shutdown Graphite service when signal received.
+- [#3632](https://github.com/influxdb/influxdb/issues/3632): Make single-node host renames more seamless
 
 ## v0.9.2 [2015-07-24]
 
