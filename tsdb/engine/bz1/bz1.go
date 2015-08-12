@@ -71,12 +71,16 @@ func NewEngine(path string, opt tsdb.EngineOptions) tsdb.Engine {
 	// create the writer with a directory of the same name as the shard, but with the wal extension
 	w := wal.NewLog(filepath.Join(filepath.Dir(path), filepath.Base(path)+WALDir))
 
-	return &Engine{
+	e := &Engine{
 		path: path,
 
 		BlockSize: DefaultBlockSize,
 		WAL:       w,
 	}
+
+	w.Index = e
+
+	return e
 }
 
 // Path returns the path the engine was opened with.
@@ -180,17 +184,19 @@ func (e *Engine) LoadMetadataIndex(index *tsdb.DatabaseIndex, measurementFields 
 // Returns an error if new points are added to an existing key.
 func (e *Engine) WritePoints(points []tsdb.Point, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
 	// Write series & field metadata.
-	if err := e.db.Update(func(tx *bolt.Tx) error {
-		if err := e.writeSeries(tx, seriesToCreate); err != nil {
-			return fmt.Errorf("write series: %s", err)
-		}
-		if err := e.writeFields(tx, measurementFieldsToSave); err != nil {
-			return fmt.Errorf("write fields: %s", err)
-		}
+	if len(measurementFieldsToSave) > 0 || len(seriesToCreate) > 0 {
+		if err := e.db.Update(func(tx *bolt.Tx) error {
+			if err := e.writeSeries(tx, seriesToCreate); err != nil {
+				return fmt.Errorf("write series: %s", err)
+			}
+			if err := e.writeFields(tx, measurementFieldsToSave); err != nil {
+				return fmt.Errorf("write fields: %s", err)
+			}
 
-		return nil
-	}); err != nil {
-		return err
+			return nil
+		}); err != nil {
+			return err
+		}
 	}
 
 	// Write points to the WAL.
@@ -271,6 +277,7 @@ func (e *Engine) writeIndex(tx *bolt.Tx, key string, a [][]byte) error {
 	}
 
 	// Create or retrieve series bucket.
+	fmt.Println("WRITE: ", key, len(key))
 	bkt, err := tx.Bucket([]byte("points")).CreateBucketIfNotExists([]byte(key))
 	if err != nil {
 		return fmt.Errorf("create series bucket: %s", err)
@@ -292,6 +299,7 @@ func (e *Engine) writeIndex(tx *bolt.Tx, key string, a [][]byte) error {
 		if err := e.writeBlocks(bkt, a); err != nil {
 			return fmt.Errorf("append blocks: %s", err)
 		}
+		return nil
 	}
 
 	// Generate map of inserted keys.
@@ -347,9 +355,6 @@ func (e *Engine) writeIndex(tx *bolt.Tx, key string, a [][]byte) error {
 func (e *Engine) writeBlocks(bkt *bolt.Bucket, a [][]byte) error {
 	var block []byte
 
-	// Dedupe points by key.
-	a = DedupeEntries(a)
-
 	// Group points into blocks by size.
 	tmin, tmax := int64(math.MaxInt64), int64(math.MinInt64)
 	for i, p := range a {
@@ -363,7 +368,7 @@ func (e *Engine) writeBlocks(bkt *bolt.Bucket, a [][]byte) error {
 		}
 
 		// Append point to the end of the block.
-		block = append(block, p...)
+		block = append(block, MarshalEntry(timestamp, p[8:])...)
 
 		// If the block is larger than the target block size or this is the
 		// last point then flush the block to the bucket.
@@ -466,6 +471,7 @@ type Tx struct {
 
 // Cursor returns an iterator for a key.
 func (tx *Tx) Cursor(key string) tsdb.Cursor {
+	fmt.Println("CURSOR: ", key)
 	walCursor := tx.wal.Cursor(key)
 
 	// Retrieve points bucket. Ignore if there is no bucket.
@@ -493,6 +499,7 @@ type Cursor struct {
 func (c *Cursor) Seek(seek []byte) (key, value []byte) {
 	// Move cursor to appropriate block and set to buffer.
 	_, v := c.cursor.Seek(seek)
+	fmt.Println("SEEK: ", key, v)
 	c.setBuf(v)
 
 	// Read current block up to seek position.
@@ -552,6 +559,7 @@ func (c *Cursor) setBuf(block []byte) {
 		c.buf = c.buf[0:0]
 		log.Printf("block decode error: %s", err)
 	}
+	fmt.Println("setBuf: ", buf)
 	c.buf, c.off = buf, 0
 }
 
@@ -565,6 +573,7 @@ func (c *Cursor) read() (key, value []byte) {
 	// Otherwise read the current entry.
 	buf := c.buf[c.off:]
 	dataSize := entryDataSize(buf)
+	fmt.Println("read: ", buf, dataSize, len(buf), entryHeaderSize, entryHeaderSize+dataSize)
 	return buf[0:8], buf[entryHeaderSize : entryHeaderSize+dataSize]
 }
 

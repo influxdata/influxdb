@@ -43,7 +43,7 @@ const (
 	DefaultSegmentSize = 2 * 1024 * 1024
 
 	// DefaultReadySeriesSize of 32KB specifies when a series is eligible to be flushed
-	DefaultReadySeriesSize = 32 * 1024
+	DefaultReadySeriesSize = 30 * 1024
 
 	// DefaultCompactionThreshold flush and compact a partition once this ratio of keys are over the flush size
 	DefaultCompactionThreshold = 0.5
@@ -53,7 +53,7 @@ const (
 
 	// DefaultFlushColdInterval specifies how long after a partition has been cold
 	// for writes that a full flush and compaction are forced
-	DefaultFlushColdInterval = 5 * time.Minute
+	DefaultFlushColdInterval = 20 * time.Second
 
 	// DefaultParititionSizeThreshold specifies when a partition gets to this size in
 	// memory, we should slow down writes until it gets a chance to compact.
@@ -220,6 +220,7 @@ func (l *Log) Cursor(key string) tsdb.Cursor {
 }
 
 func (l *Log) WritePoints(points []tsdb.Point) error {
+	fmt.Println("WRITING: ", len(points))
 	partitionsToWrite := l.pointsToPartitions(points)
 
 	// get it to disk
@@ -248,6 +249,9 @@ func (l *Log) Flush() error {
 func (l *Log) pointsToPartitions(points []tsdb.Point) map[*Partition][]tsdb.Point {
 	m := make(map[*Partition][]tsdb.Point)
 	for _, p := range points {
+		if "cpu,host=host-5008,region=uswest" == string(p.Key()) {
+			fmt.Println("POINT: ", p.String())
+		}
 		pp := l.partition(p.Key())
 		m[pp] = append(m[pp], p)
 	}
@@ -454,7 +458,7 @@ func (p *Partition) Write(points []tsdb.Point) error {
 		// pause writes for a bit if we've hit the size threshold
 		if p.memorySize > p.sizeThreshold {
 			p.backoffCount += 1
-			return time.Duration(p.backoffCount*100) * time.Millisecond, true
+			return time.Millisecond * 20, true
 		}
 
 		return 0, false
@@ -684,6 +688,9 @@ func (p *Partition) flushAndCompact(flush flushType) error {
 		return nil
 	}
 
+	startTime := time.Now()
+	fmt.Printf("compacting %d series from partition %d\n", len(c.seriesToFlush), p.id)
+
 	// write the data to the index first
 	if err := p.index.WriteIndex(c.seriesToFlush); err != nil {
 		// if we can't write the index, we should just bring down the server hard
@@ -773,11 +780,15 @@ func (p *Partition) flushAndCompact(flush flushType) error {
 	if err := compactionFile.Close(); err != nil {
 		return err
 	}
-	if err := os.Rename(compactionFile.Name(), p.fileNameForSegment(1)); err != nil {
-		return err
+
+	fmt.Printf("compaction of partition %d took %s\n", p.id, time.Since(startTime))
+
+	// if it's an idle flush remove the compaction file
+	if flush == idleFlush {
+		return os.Remove(compactionFile.Name())
 	}
 
-	return nil
+	return os.Rename(compactionFile.Name(), p.fileNameForSegment(1))
 }
 
 // writeCompactionEntry will write a marker for the beginning of the file we're compacting, a compressed block
@@ -916,7 +927,7 @@ func (p *Partition) cursor(key string) *cursor {
 
 // idFromFileName parses the segment file ID from its name
 func (p *Partition) idFromFileName(name string) (uint32, error) {
-	parts := strings.Split(name, ".")
+	parts := strings.Split(filepath.Base(name), ".")
 	if len(parts) != 3 {
 		return 0, fmt.Errorf("file %s has wrong name format to be a segment file", name)
 	}
