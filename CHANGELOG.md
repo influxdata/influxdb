@@ -38,6 +38,7 @@ There are breaking changes in this release. Please see the *Features* section be
 - [#3326](https://github.com/influxdb/influxdb/issues/3326): simple regex query fails with cryptic error
 - [#3618](https://github.com/influxdb/influxdb/pull/3618): Fix collectd stats panic on i386. Thanks @richterger
 - [#3625](https://github.com/influxdb/influxdb/pull/3625): Don't panic when aggregate and raw queries are in a single statement
+- [#3629](https://github.com/influxdb/influxdb/pull/3629): Use sensible batching defaults for Graphite.
 
 ## v0.9.2 [2015-07-24]
 
