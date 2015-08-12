@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/hashicorp/raft"
@@ -38,6 +39,8 @@ type raftState interface {
 // localRaft is a consensus strategy that uses a local raft implementation for
 // consensus operations.
 type localRaft struct {
+	wg        sync.WaitGroup
+	closing   chan struct{}
 	store     *Store
 	raft      *raft.Raft
 	transport *raft.NetworkTransport
@@ -94,6 +97,8 @@ func (r *localRaft) invalidate() error {
 }
 
 func (r *localRaft) open() error {
+	r.closing = make(chan struct{})
+
 	s := r.store
 	// Setup raft configuration.
 	config := raft.DefaultConfig()
@@ -168,17 +173,19 @@ func (r *localRaft) open() error {
 	}
 	r.raft = ra
 
+	r.wg.Add(1)
 	go r.logLeaderChanges()
 
 	return nil
 }
 
 func (r *localRaft) logLeaderChanges() {
+	defer r.wg.Done()
 	// Logs our current state (Node at 1.2.3.4:8088 [Follower])
 	r.store.Logger.Printf(r.raft.String())
 	for {
 		select {
-		case <-r.store.closing:
+		case <-r.closing:
 			return
 		case <-r.raft.LeaderCh():
 			peers, err := r.peers()
@@ -191,6 +198,9 @@ func (r *localRaft) logLeaderChanges() {
 }
 
 func (r *localRaft) close() error {
+	close(r.closing)
+	r.wg.Wait()
+
 	// Shutdown raft.
 	if r.raft != nil {
 		if err := r.raft.Shutdown().Error(); err != nil {
