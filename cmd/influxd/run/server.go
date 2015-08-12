@@ -460,7 +460,7 @@ func (s *Server) hostAddr() (string, string, error) {
 	host := s.Hostname
 
 	// See if we might have a port that will override the BindAddress port
-	if host != "" && host[len(host)-1] >= '0' && host[len(host)-1] <= '9' {
+	if host != "" && host[len(host)-1] >= '0' && host[len(host)-1] <= '9' && strings.Contains(host, ":") {
 		hostArg, portArg, err := net.SplitHostPort(s.Hostname)
 		if err != nil {
 			return "", "", err

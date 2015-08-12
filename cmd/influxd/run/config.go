@@ -128,6 +128,11 @@ func (c *Config) applyEnvOverrides(prefix string, spec reflect.Value) error {
 		s = spec.Elem()
 	}
 
+	// Make sure we have struct
+	if s.Kind() != reflect.Struct {
+		return nil
+	}
+
 	typeOfSpec := s.Type()
 	for i := 0; i < s.NumField(); i++ {
 		f := s.Field(i)
