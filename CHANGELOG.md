@@ -17,6 +17,7 @@ There are breaking changes in this release. Please see the *Features* section be
 - [#3585](https://github.com/influxdb/influxdb/pull/3585): Additional test coverage for non-existent fields
 - [#3246](https://github.com/influxdb/influxdb/issues/3246): Allow overriding of configuration parameters using environment variables
 - [#3599](https://github.com/influxdb/influxdb/pull/3599): **--BREAKING CHANGE--** Support multiple UDP inputs. Thanks @tpitale
+- [#3636](https://github.com/influxdb/influxdb/pull/3639): Cap auto-created retention policy replica count at 3
 
 ### Bugfixes
 - [#3405](https://github.com/influxdb/influxdb/pull/3405): Prevent database panic when fields are missing. Thanks @jhorwit2
