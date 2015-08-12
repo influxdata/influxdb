@@ -31,7 +31,7 @@ type Config struct {
 	Dir                 string        `toml:"dir"`
 	Hostname            string        `toml:"hostname"`
 	BindAddress         string        `toml:"bind-address"`
-	Peers               []string      `toml:"peers"`
+	Peers               []string      `toml:"-"`
 	RetentionAutoCreate bool          `toml:"retention-autocreate"`
 	ElectionTimeout     toml.Duration `toml:"election-timeout"`
 	HeartbeatTimeout    toml.Duration `toml:"heartbeat-timeout"`
