@@ -19,6 +19,7 @@ There are breaking changes in this release. Please see the *Features* section be
 - [#3599](https://github.com/influxdb/influxdb/pull/3599): **--BREAKING CHANGE--** Support multiple UDP inputs. Thanks @tpitale
 - [#3636](https://github.com/influxdb/influxdb/pull/3639): Cap auto-created retention policy replica count at 3
 - [#3641](https://github.com/influxdb/influxdb/pull/3641): Logging enhancements and single-node rename
+- [#3635](https://github.com/influxdb/influxdb/pull/3635): Add build branch to version output.
 
 ### Bugfixes
 - [#3405](https://github.com/influxdb/influxdb/pull/3405): Prevent database panic when fields are missing. Thanks @jhorwit2
