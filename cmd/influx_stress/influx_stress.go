@@ -15,7 +15,7 @@ import (
 
 var (
 	batchSize     = flag.Int("batchsize", 5000, "number of points per batch")
-	seriesCount   = flag.Int("series", 10000, "number of unique series to create")
+	seriesCount   = flag.Int("series", 100000, "number of unique series to create")
 	pointCount    = flag.Int("points", 100, "number of points per series to create")
 	concurrency   = flag.Int("concurrency", 10, "number of simultaneous writes to run")
 	batchInterval = flag.Duration("batchinterval", 0*time.Second, "duration between batches")
