@@ -184,12 +184,13 @@ do_build() {
     git checkout $TARGET_BRANCH # go get switches to master, so ensure we're back.
     version=$1
     commit=`git rev-parse HEAD`
+    branch=`current_branch`
     if [ $? -ne 0 ]; then
         echo "Unable to retrieve current commit -- aborting"
         cleanup_exit 1
     fi
 
-    go install -a -ldflags="-X main.version $version -X main.commit $commit" ./...
+    go install -a -ldflags="-X main.version $version -X main.branch $branch -X main.commit $commit" ./...
     if [ $? -ne 0 ]; then
         echo "Build failed, unable to create package -- aborting"
         cleanup_exit 1

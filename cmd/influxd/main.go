@@ -22,12 +22,16 @@ import (
 var (
 	version string = "0.9"
 	commit  string
+	branch  string
 )
 
 func init() {
-	// If commit not set, make that clear.
+	// If commit or branch are not set, make that clear.
 	if commit == "" {
 		commit = "unknown"
+	}
+	if branch == "" {
+		branch = "unknown"
 	}
 }
 
@@ -72,6 +76,7 @@ func (m *Main) Run(args ...string) error {
 		// Tell the server the build details.
 		cmd.Version = version
 		cmd.Commit = commit
+		cmd.Branch = branch
 
 		if err := cmd.Run(args...); err != nil {
 			return fmt.Errorf("run: %s", err)
@@ -183,7 +188,7 @@ func (cmd *VersionCommand) Run(args ...string) error {
 	}
 
 	// Print version info.
-	fmt.Fprintf(cmd.Stdout, "InfluxDB v%s (git: %s)\n", version, commit)
+	fmt.Fprintf(cmd.Stdout, "InfluxDB v%s (git: %s %s)\n", version, branch, commit)
 
 	return nil
 }
@@ -191,5 +196,5 @@ func (cmd *VersionCommand) Run(args ...string) error {
 var versionUsage = `
 usage: version
 
-	version displays the InfluxDB version and build git commit hash
+	version displays the InfluxDB version, build branch and git commit hash
 `
