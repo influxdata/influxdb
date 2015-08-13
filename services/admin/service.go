@@ -38,7 +38,6 @@ func NewService(c Config) *Service {
 
 // Open starts the service
 func (s *Service) Open() error {
-
 	s.logger.Printf("Starting admin service")
 
 	// Open listener.

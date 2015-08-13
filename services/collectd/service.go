@@ -57,8 +57,7 @@ func NewService(c Config) *Service {
 
 // Open starts the service.
 func (s *Service) Open() error {
-
-	s.Logger.Printf("Starting collected service")
+	s.Logger.Printf("Starting collectd service")
 
 	if s.Config.BindAddress == "" {
 		return fmt.Errorf("bind address is blank")
