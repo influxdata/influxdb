@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/BurntSushi/toml"
 )
@@ -72,6 +73,9 @@ func (cmd *Command) Run(args ...string) error {
 
 	// Set parallelism.
 	runtime.GOMAXPROCS(runtime.NumCPU())
+
+	// Turn on block profiling to debug stuck databases
+	runtime.SetBlockProfileRate(int(10 * time.Second))
 
 	// Parse config
 	config, err := cmd.ParseConfig(options.ConfigPath)
