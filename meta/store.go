@@ -343,7 +343,7 @@ func (s *Store) joinCluster() error {
 		for _, join := range s.peers {
 			res, err := s.rpc.join(s.RemoteAddr.String(), join)
 			if err != nil {
-				s.Logger.Printf("Join failed: %v", err)
+				s.Logger.Printf("Join node %v failed: %v: retrying...", join, err)
 				continue
 			}
 
@@ -367,8 +367,6 @@ func (s *Store) joinCluster() error {
 			}
 			return nil
 		}
-
-		s.Logger.Printf("Join failed: retrying...")
 		time.Sleep(time.Second)
 	}
 }
