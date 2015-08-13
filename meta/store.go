@@ -332,7 +332,7 @@ func (s *Store) joinCluster() error {
 
 	// We already have a node ID so were already part of a cluster,
 	// don't join again so we can use our existing state.
-	if s.id != 0 || raft.PeerContained(s.peers, s.RemoteAddr.String()) {
+	if s.id != 0 {
 		s.Logger.Printf("Skipping cluster join: already member of cluster: nodeId=%v raftEnabled=%v peers=%v",
 			s.id, raft.PeerContained(s.peers, s.RemoteAddr.String()), s.peers)
 		return nil
@@ -343,7 +343,7 @@ func (s *Store) joinCluster() error {
 		for _, join := range s.peers {
 			res, err := s.rpc.join(s.RemoteAddr.String(), join)
 			if err != nil {
-				s.Logger.Printf("Join failed: %v", err)
+				s.Logger.Printf("Join node %v failed: %v: retrying...", join, err)
 				continue
 			}
 
@@ -367,8 +367,6 @@ func (s *Store) joinCluster() error {
 			}
 			return nil
 		}
-
-		s.Logger.Printf("Join failed: retrying...")
 		time.Sleep(time.Second)
 	}
 }
