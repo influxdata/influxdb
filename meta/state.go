@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/hashicorp/raft"
@@ -38,6 +39,8 @@ type raftState interface {
 // localRaft is a consensus strategy that uses a local raft implementation for
 // consensus operations.
 type localRaft struct {
+	wg        sync.WaitGroup
+	closing   chan struct{}
 	store     *Store
 	raft      *raft.Raft
 	transport *raft.NetworkTransport
@@ -94,6 +97,8 @@ func (r *localRaft) invalidate() error {
 }
 
 func (r *localRaft) open() error {
+	r.closing = make(chan struct{})
+
 	s := r.store
 	// Setup raft configuration.
 	config := raft.DefaultConfig()
@@ -130,7 +135,19 @@ func (r *localRaft) open() error {
 		return err
 	}
 
-	// Make sure our address is in the raft peers or we won't be able to boot into the cluster
+	// For single-node clusters, we can update the raft peers before we start the cluster if the hostname
+	// has changed.
+	if config.EnableSingleNode {
+		if err := r.peerStore.SetPeers([]string{s.RemoteAddr.String()}); err != nil {
+			return err
+		}
+		peers = []string{s.RemoteAddr.String()}
+	}
+
+	// If we have multiple nodes in the cluster, make sure our address is in the raft peers or
+	// we won't be able to boot into the cluster because the other peers will reject our new hostname.  This
+	// is difficult to resolve automatically because we need to have all the raft peers agree on the current members
+	// of the cluster before we can change them.
 	if len(peers) > 0 && !raft.PeerContained(peers, s.RemoteAddr.String()) {
 		s.Logger.Printf("%v is not in the list of raft peers. Please update %v/peers.json on all raft nodes to have the same contents.", s.RemoteAddr.String(), s.Path())
 		return fmt.Errorf("peers out of sync: %v not in %v", s.RemoteAddr.String(), peers)
@@ -156,10 +173,34 @@ func (r *localRaft) open() error {
 	}
 	r.raft = ra
 
+	r.wg.Add(1)
+	go r.logLeaderChanges()
+
 	return nil
 }
 
+func (r *localRaft) logLeaderChanges() {
+	defer r.wg.Done()
+	// Logs our current state (Node at 1.2.3.4:8088 [Follower])
+	r.store.Logger.Printf(r.raft.String())
+	for {
+		select {
+		case <-r.closing:
+			return
+		case <-r.raft.LeaderCh():
+			peers, err := r.peers()
+			if err != nil {
+				r.store.Logger.Printf("failed to lookup peers: %v", err)
+			}
+			r.store.Logger.Printf("%v. peers=%v", r.raft.String(), peers)
+		}
+	}
+}
+
 func (r *localRaft) close() error {
+	close(r.closing)
+	r.wg.Wait()
+
 	// Shutdown raft.
 	if r.raft != nil {
 		if err := r.raft.Shutdown().Error(); err != nil {

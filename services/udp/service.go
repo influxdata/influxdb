@@ -66,7 +66,7 @@ func (s *Service) Open() (err error) {
 		return err
 	}
 
-	s.Logger.Printf("Started listening on %s", s.config.BindAddress)
+	s.Logger.Printf("Started listening on UDP: %s", s.config.BindAddress)
 
 	s.wg.Add(2)
 	go s.serve()

@@ -38,6 +38,8 @@ func NewService(c Config) *Service {
 
 // Open starts the service
 func (s *Service) Open() error {
+	s.logger.Printf("Starting admin service")
+
 	// Open listener.
 	if s.https {
 		cert, err := tls.LoadX509KeyPair(s.cert, s.cert)
@@ -52,7 +54,7 @@ func (s *Service) Open() error {
 			return err
 		}
 
-		s.logger.Println("listening on HTTPS:", listener.Addr().String())
+		s.logger.Println("Listening on HTTPS:", listener.Addr().String())
 		s.listener = listener
 	} else {
 		listener, err := net.Listen("tcp", s.addr)
@@ -60,7 +62,7 @@ func (s *Service) Open() error {
 			return err
 		}
 
-		s.logger.Println("listening on HTTP:", listener.Addr().String())
+		s.logger.Println("Listening on HTTP:", listener.Addr().String())
 		s.listener = listener
 	}
 

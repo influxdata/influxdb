@@ -53,6 +53,8 @@ func NewService(c Config) *Service {
 
 // Open opens the network listener and begins serving requests.
 func (s *Service) Open() error {
+
+	s.Logger.Println("Starting cluster service")
 	// Begin serving conections.
 	s.wg.Add(1)
 	go s.serve()

@@ -256,6 +256,8 @@ func (s *Store) Open() error {
 	s.shards = map[uint64]*Shard{}
 	s.databaseIndexes = map[string]*DatabaseIndex{}
 
+	s.Logger.Printf("Using data dir: %v", s.Path())
+
 	// Create directory.
 	if err := os.MkdirAll(s.path, 0777); err != nil {
 		return err

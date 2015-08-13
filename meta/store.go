@@ -191,6 +191,8 @@ func (s *Store) Open() error {
 		panic("Store.RPCListener not set")
 	}
 
+	s.Logger.Printf("Using data dir: %v", s.Path())
+
 	if err := func() error {
 		s.mu.Lock()
 		defer s.mu.Unlock()
@@ -276,7 +278,7 @@ func (s *Store) syncNodeInfo() error {
 			}
 
 			if ni.Host == s.RemoteAddr.String() {
-				s.Logger.Printf("updated node id=%d hostname=%v", s.id, s.RemoteAddr.String())
+				s.Logger.Printf("Updated node id=%d hostname=%v", s.id, s.RemoteAddr.String())
 				return nil
 			}
 
@@ -331,42 +333,42 @@ func (s *Store) joinCluster() error {
 	// We already have a node ID so were already part of a cluster,
 	// don't join again so we can use our existing state.
 	if s.id != 0 || raft.PeerContained(s.peers, s.RemoteAddr.String()) {
-		s.Logger.Printf("skipping join: already member of cluster: nodeId=%v raftEnabled=%v raftNodes=%v",
+		s.Logger.Printf("Skipping cluster join: already member of cluster: nodeId=%v raftEnabled=%v peers=%v",
 			s.id, raft.PeerContained(s.peers, s.RemoteAddr.String()), s.peers)
 		return nil
 	}
 
-	s.Logger.Printf("joining cluster at: %v", s.peers)
+	s.Logger.Printf("Joining cluster at: %v", s.peers)
 	for {
 		for _, join := range s.peers {
 			res, err := s.rpc.join(s.RemoteAddr.String(), join)
 			if err != nil {
-				s.Logger.Printf("join failed: %v", err)
+				s.Logger.Printf("Join failed: %v", err)
 				continue
 			}
 
-			s.Logger.Printf("joined remote node %v", join)
-			s.Logger.Printf("nodeId=%v raftEnabled=%v raftNodes=%v", res.NodeID, res.RaftEnabled, res.RaftNodes)
+			s.Logger.Printf("Joined remote node %v", join)
+			s.Logger.Printf("nodeId=%v raftEnabled=%v peers=%v", res.NodeID, res.RaftEnabled, res.RaftNodes)
 
 			s.peers = res.RaftNodes
 			s.id = res.NodeID
 
 			if err := s.writeNodeID(res.NodeID); err != nil {
-				s.Logger.Printf("write node id failed: %v", err)
+				s.Logger.Printf("Write node id failed: %v", err)
 				break
 			}
 
 			if !res.RaftEnabled {
 				// Shutdown our local raft and transition to a remote raft state
 				if err := s.enableRemoteRaft(); err != nil {
-					s.Logger.Printf("enable remote raft failed: %v", err)
+					s.Logger.Printf("Enable remote raft failed: %v", err)
 					break
 				}
 			}
 			return nil
 		}
 
-		s.Logger.Printf("join failed: retrying...")
+		s.Logger.Printf("Join failed: retrying...")
 		time.Sleep(time.Second)
 	}
 }
@@ -375,7 +377,7 @@ func (s *Store) enableLocalRaft() error {
 	if _, ok := s.raftState.(*localRaft); ok {
 		return nil
 	}
-	s.Logger.Printf("switching to local raft")
+	s.Logger.Printf("Switching to local raft")
 
 	lr := &localRaft{store: s}
 	return s.changeState(lr)
@@ -386,7 +388,7 @@ func (s *Store) enableRemoteRaft() error {
 		return nil
 	}
 
-	s.Logger.Printf("switching to remote raft")
+	s.Logger.Printf("Switching to remote raft")
 	rr := &remoteRaft{store: s}
 	return s.changeState(rr)
 }
@@ -479,8 +481,6 @@ func (s *Store) readID() error {
 	}
 	s.id = id
 
-	s.Logger.Printf("read local node id: %d", s.id)
-
 	return nil
 }
 
@@ -520,7 +520,7 @@ func (s *Store) createLocalNode() error {
 	// Set ID locally.
 	s.id = ni.ID
 
-	s.Logger.Printf("created local node: id=%d, host=%s", s.id, s.RemoteAddr)
+	s.Logger.Printf("Created local node: id=%d, host=%s", s.id, s.RemoteAddr)
 
 	return nil
 }
@@ -643,20 +643,20 @@ func (s *Store) handleExecConn(conn net.Conn) {
 	if !s.IsLeader() {
 
 		if s.Leader() == s.RemoteAddr.String() {
-			s.Logger.Printf("no leader")
+			s.Logger.Printf("No leader")
 			return
 		}
 
 		leaderConn, err := net.DialTimeout("tcp", s.Leader(), 10*time.Second)
 		if err != nil {
-			s.Logger.Printf("dial leader: %v", err)
+			s.Logger.Printf("Dial leader: %v", err)
 			return
 		}
 		defer leaderConn.Close()
 		leaderConn.Write([]byte{MuxExecHeader})
 
 		if err := proxy(leaderConn.(*net.TCPConn), conn.(*net.TCPConn)); err != nil {
-			s.Logger.Printf("leader proxy error: %v", err)
+			s.Logger.Printf("Leader proxy error: %v", err)
 		}
 		conn.Close()
 		return
@@ -708,9 +708,9 @@ func (s *Store) handleExecConn(conn net.Conn) {
 	if b, err := proto.Marshal(&resp); err != nil {
 		panic(err)
 	} else if err = binary.Write(conn, binary.BigEndian, uint64(len(b))); err != nil {
-		s.Logger.Printf("unable to write exec response size: %s", err)
+		s.Logger.Printf("Unable to write exec response size: %s", err)
 	} else if _, err = conn.Write(b); err != nil {
-		s.Logger.Printf("unable to write exec response: %s", err)
+		s.Logger.Printf("Unable to write exec response: %s", err)
 	}
 	conn.Close()
 }

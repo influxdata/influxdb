@@ -85,16 +85,17 @@ func NewService(c Config) (*Service, error) {
 
 // Open starts the Graphite input processing data.
 func (s *Service) Open() error {
+	s.logger.Println("Starting graphite service")
+
 	if err := s.MetaStore.WaitForLeader(leaderWaitTimeout); err != nil {
-		s.logger.Printf("failed to detect a cluster leader: %s", err.Error())
+		s.logger.Printf("Failed to detect a cluster leader: %s", err.Error())
 		return err
 	}
 
 	if _, err := s.MetaStore.CreateDatabaseIfNotExists(s.database); err != nil {
-		s.logger.Printf("failed to ensure target database %s exists: %s", s.database, err.Error())
+		s.logger.Printf("Failed to ensure target database %s exists: %s", s.database, err.Error())
 		return err
 	}
-	s.logger.Printf("ensured target database %s exists", s.database)
 
 	s.batcher = tsdb.NewPointBatcher(s.batchSize, s.batchTimeout)
 	s.batcher.Start()
@@ -115,7 +116,7 @@ func (s *Service) Open() error {
 		return err
 	}
 
-	s.logger.Printf("%s Graphite input opened on %s", s.protocol, s.addr.String())
+	s.logger.Printf("Listening on %s: %s", strings.ToUpper(s.protocol), s.addr.String())
 	return nil
 }
 

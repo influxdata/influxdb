@@ -71,12 +71,14 @@ func NewService(c Config) *Service {
 		lastRuns:       map[string]time.Time{},
 	}
 
-	s.Logger.Println("starting continuous query service")
 	return s
 }
 
 // Open starts the service.
 func (s *Service) Open() error {
+
+	s.Logger.Println("Starting continuous query service")
+
 	if s.stop != nil {
 		return nil
 	}
