@@ -694,6 +694,46 @@ func TestServer_Query_IdenticalTagValues(t *testing.T) {
 	}
 }
 
+// Ensure the server can handle a query that involves accessing no shards.
+func TestServer_Query_NoShards(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 1*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+
+	now := now()
+
+	test := NewTest("db0", "rp0")
+	test.write = `cpu,host=server01 value=1 ` + strconv.FormatInt(now.UnixNano(), 10)
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "selecting value should succeed",
+			command: `SELECT value FROM db0.rp0.cpu WHERE time < now() - 1d`,
+			exp:     `{"results":[{}]}`,
+		},
+	}...)
+
+	if err := test.init(s); err != nil {
+		t.Fatalf("test init failed: %s", err)
+	}
+
+	for _, query := range test.queries {
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
 // Ensure the server can query a non-existent field
 func TestServer_Query_NonExistent(t *testing.T) {
 	t.Parallel()
