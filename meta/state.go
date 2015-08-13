@@ -201,6 +201,16 @@ func (r *localRaft) close() error {
 	close(r.closing)
 	r.wg.Wait()
 
+	if r.transport != nil {
+		r.transport.Close()
+		r.transport = nil
+	}
+
+	if r.raftLayer != nil {
+		r.raftLayer.Close()
+		r.raftLayer = nil
+	}
+
 	// Shutdown raft.
 	if r.raft != nil {
 		if err := r.raft.Shutdown().Error(); err != nil {
@@ -208,10 +218,7 @@ func (r *localRaft) close() error {
 		}
 		r.raft = nil
 	}
-	if r.transport != nil {
-		r.transport.Close()
-		r.transport = nil
-	}
+
 	if r.raftStore != nil {
 		r.raftStore.Close()
 		r.raftStore = nil
