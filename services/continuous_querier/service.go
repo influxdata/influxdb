@@ -3,11 +3,11 @@ package continuous_querier
 import (
 	"errors"
 	"fmt"
-	"log"
-	"os"
 	"strings"
 	"sync"
 	"time"
+
+	log "github.com/Sirupsen/logrus"
 
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/influxql"
@@ -52,7 +52,7 @@ type Service struct {
 	RunInterval   time.Duration
 	// RunCh can be used by clients to signal service to run CQs.
 	RunCh          chan struct{}
-	Logger         *log.Logger
+	Logger         log.StdLogger
 	loggingEnabled bool
 	// lastRuns maps CQ name to last time it was run.
 	lastRuns map[string]time.Time
@@ -67,7 +67,7 @@ func NewService(c Config) *Service {
 		RunInterval:    time.Second,
 		RunCh:          make(chan struct{}),
 		loggingEnabled: c.LogEnabled,
-		Logger:         log.New(os.Stderr, "[continuous_querier] ", log.LstdFlags),
+		Logger:         log.New().WithField("service", "continuos_querier"),
 		lastRuns:       map[string]time.Time{},
 	}
 
@@ -107,7 +107,7 @@ func (s *Service) Close() error {
 }
 
 // SetLogger sets the internal logger to the logger passed in.
-func (s *Service) SetLogger(l *log.Logger) {
+func (s *Service) SetLogger(l log.StdLogger) {
 	s.Logger = l
 }
 

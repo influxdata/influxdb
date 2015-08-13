@@ -5,15 +5,15 @@ import (
 	"bytes"
 	"crypto/tls"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"net/textproto"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	log "github.com/Sirupsen/logrus"
 
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/meta"
@@ -45,7 +45,7 @@ type Service struct {
 		CreateDatabaseIfNotExists(name string) (*meta.DatabaseInfo, error)
 	}
 
-	Logger *log.Logger
+	Logger log.StdLogger
 }
 
 // NewService returns a new instance of Service.
@@ -63,7 +63,7 @@ func NewService(c Config) (*Service, error) {
 		Database:         c.Database,
 		RetentionPolicy:  c.RetentionPolicy,
 		ConsistencyLevel: consistencyLevel,
-		Logger:           log.New(os.Stderr, "[opentsdb] ", log.LstdFlags),
+		Logger:           log.New().WithField("service", "opentsdb"),
 	}
 	return s, nil
 }
@@ -128,7 +128,7 @@ func (s *Service) Close() error {
 }
 
 // SetLogger sets the internal logger to the logger passed in.
-func (s *Service) SetLogger(l *log.Logger) { s.Logger = l }
+func (s *Service) SetLogger(l log.StdLogger) { s.Logger = l }
 
 // Err returns a channel for fatal errors that occur on the listener.
 func (s *Service) Err() <-chan error { return s.err }

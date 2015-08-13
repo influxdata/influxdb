@@ -1,17 +1,17 @@
 package precreator
 
 import (
-	"log"
-	"os"
 	"sync"
 	"time"
+
+	log "github.com/Sirupsen/logrus"
 )
 
 type Service struct {
 	checkInterval time.Duration
 	advancePeriod time.Duration
 
-	Logger *log.Logger
+	Logger log.StdLogger
 
 	done chan struct{}
 	wg   sync.WaitGroup
@@ -27,14 +27,14 @@ func NewService(c Config) (*Service, error) {
 	s := Service{
 		checkInterval: time.Duration(c.CheckInterval),
 		advancePeriod: time.Duration(c.AdvancePeriod),
-		Logger:        log.New(os.Stderr, "[shard-precreation] ", log.LstdFlags),
+		Logger:        log.New().WithField("service", "shard-precreation"),
 	}
 
 	return &s, nil
 }
 
 // SetLogger sets the internal logger to the logger passed in.
-func (s *Service) SetLogger(l *log.Logger) {
+func (s *Service) SetLogger(l log.StdLogger) {
 	s.Logger = l
 }
 

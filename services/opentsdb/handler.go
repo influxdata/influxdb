@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"log"
+	log "github.com/Sirupsen/logrus"
 	"net"
 	"net/http"
 	"time"
@@ -25,7 +25,7 @@ type Handler struct {
 		WritePoints(p *cluster.WritePointsRequest) error
 	}
 
-	Logger *log.Logger
+	Logger log.StdLogger
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {

@@ -2,7 +2,7 @@ package client_test
 
 import (
 	"fmt"
-	"log"
+	log "github.com/Sirupsen/logrus"
 	"math/rand"
 	"net/url"
 	"os"

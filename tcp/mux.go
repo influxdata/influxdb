@@ -4,10 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net"
-	"os"
 	"time"
+
+	log "github.com/Sirupsen/logrus"
 )
 
 const (
@@ -24,7 +24,7 @@ type Mux struct {
 	Timeout time.Duration
 
 	// Out-of-band error logger
-	Logger *log.Logger
+	Logger log.StdLogger
 }
 
 // NewMux returns a new instance of Mux for ln.
@@ -32,7 +32,7 @@ func NewMux() *Mux {
 	return &Mux{
 		m:       make(map[byte]*listener),
 		Timeout: DefaultTimeout,
-		Logger:  log.New(os.Stderr, "", log.LstdFlags),
+		Logger:  log.New(),
 	}
 }
 

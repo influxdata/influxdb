@@ -4,10 +4,11 @@ import (
 	"encoding/hex"
 	"errors"
 	"io/ioutil"
-	"log"
 	"net"
 	"testing"
 	"time"
+
+	log "github.com/Sirupsen/logrus"
 
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/meta"
@@ -202,7 +203,9 @@ func newTestService(batchSize int, batchDuration time.Duration) *testService {
 	}
 
 	if !testing.Verbose() {
-		s.Logger = log.New(ioutil.Discard, "", log.LstdFlags)
+		logger := log.New()
+		logger.Out = ioutil.Discard
+		s.Logger = logger
 	}
 
 	return s

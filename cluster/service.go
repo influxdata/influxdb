@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net"
-	"os"
 	"strings"
 	"sync"
+
+	log "github.com/Sirupsen/logrus"
 
 	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/tsdb"
@@ -40,14 +40,14 @@ type Service struct {
 		CreateMapper(shardID uint64, query string, chunkSize int) (tsdb.Mapper, error)
 	}
 
-	Logger *log.Logger
+	Logger log.StdLogger
 }
 
 // NewService returns a new instance of Service.
 func NewService(c Config) *Service {
 	return &Service{
 		closing: make(chan struct{}),
-		Logger:  log.New(os.Stderr, "[tcp] ", log.LstdFlags),
+		Logger:  log.New().WithField("service", "tcp"),
 	}
 }
 
@@ -63,7 +63,7 @@ func (s *Service) Open() error {
 }
 
 // SetLogger sets the internal logger to the logger passed in.
-func (s *Service) SetLogger(l *log.Logger) {
+func (s *Service) SetLogger(l log.StdLogger) {
 	s.Logger = l
 }
 

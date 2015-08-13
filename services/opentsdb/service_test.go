@@ -2,7 +2,6 @@ package opentsdb_test
 
 import (
 	"io/ioutil"
-	"log"
 	"net"
 	"net/http"
 	"reflect"
@@ -10,6 +9,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	log "github.com/Sirupsen/logrus"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/influxdb/influxdb/cluster"
@@ -140,7 +141,9 @@ func NewService(database string) *Service {
 	s.Service.MetaStore = &DatabaseCreator{}
 
 	if !testing.Verbose() {
-		s.Logger = log.New(ioutil.Discard, "", log.LstdFlags)
+		logger := log.New()
+		log.SetOutput(ioutil.Discard)
+		s.Logger = logger
 	}
 
 	return s

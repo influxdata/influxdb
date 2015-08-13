@@ -8,13 +8,13 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/http/pprof"
-	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	log "github.com/Sirupsen/logrus"
 
 	"github.com/bmizerany/pat"
 	"github.com/influxdb/influxdb"
@@ -70,7 +70,7 @@ type Handler struct {
 
 	ContinuousQuerier continuous_querier.ContinuousQuerier
 
-	Logger         *log.Logger
+	Logger         log.StdLogger
 	loggingEnabled bool // Log every HTTP access.
 	WriteTrace     bool // Detailed logging of write path
 }
@@ -80,7 +80,7 @@ func NewHandler(requireAuthentication, loggingEnabled, writeTrace bool) *Handler
 	h := &Handler{
 		mux: pat.New(),
 		requireAuthentication: requireAuthentication,
-		Logger:                log.New(os.Stderr, "[http] ", log.LstdFlags),
+		Logger:                log.New().WithField("service", "http"),
 		loggingEnabled:        loggingEnabled,
 		WriteTrace:            writeTrace,
 	}
@@ -719,7 +719,7 @@ func requestID(inner http.Handler) http.Handler {
 	})
 }
 
-func logging(inner http.Handler, name string, weblog *log.Logger) http.Handler {
+func logging(inner http.Handler, name string, weblog log.StdLogger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		l := &responseLogger{w: w}
@@ -729,7 +729,7 @@ func logging(inner http.Handler, name string, weblog *log.Logger) http.Handler {
 	})
 }
 
-func recovery(inner http.Handler, name string, weblog *log.Logger) http.Handler {
+func recovery(inner http.Handler, name string, weblog log.StdLogger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		l := &responseLogger{w: w}

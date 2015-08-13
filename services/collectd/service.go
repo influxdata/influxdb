@@ -2,11 +2,11 @@ package collectd
 
 import (
 	"fmt"
-	"log"
 	"net"
-	"os"
 	"sync"
 	"time"
+
+	log "github.com/Sirupsen/logrus"
 
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/meta"
@@ -33,7 +33,7 @@ type Service struct {
 	Config       *Config
 	MetaStore    metaStore
 	PointsWriter pointsWriter
-	Logger       *log.Logger
+	Logger       log.StdLogger
 
 	wg      sync.WaitGroup
 	err     chan error
@@ -48,7 +48,7 @@ type Service struct {
 func NewService(c Config) *Service {
 	s := &Service{
 		Config: &c,
-		Logger: log.New(os.Stderr, "[collectd] ", log.LstdFlags),
+		Logger: log.New().WithField("service", "collectd"),
 		err:    make(chan error),
 	}
 
@@ -140,7 +140,7 @@ func (s *Service) Close() error {
 }
 
 // SetLogger sets the internal logger to the logger passed in.
-func (s *Service) SetLogger(l *log.Logger) {
+func (s *Service) SetLogger(l log.StdLogger) {
 	s.Logger = l
 }
 

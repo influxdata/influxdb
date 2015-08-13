@@ -3,11 +3,11 @@ package tsdb
 import (
 	"errors"
 	"fmt"
-	"log"
-	"os"
 	"sort"
 	"strings"
 	"time"
+
+	log "github.com/Sirupsen/logrus"
 
 	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta"
@@ -41,7 +41,7 @@ type QueryExecutor struct {
 		CreateMapper(shard meta.ShardInfo, stmt string, chunkSize int) (Mapper, error)
 	}
 
-	Logger *log.Logger
+	Logger log.StdLogger
 
 	// the local data store
 	Store *Store
@@ -51,7 +51,7 @@ type QueryExecutor struct {
 func NewQueryExecutor(store *Store) *QueryExecutor {
 	return &QueryExecutor{
 		Store:  store,
-		Logger: log.New(os.Stderr, "[query] ", log.LstdFlags),
+		Logger: log.New().WithField("service", "query"),
 	}
 }
 

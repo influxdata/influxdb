@@ -2,11 +2,11 @@ package udp
 
 import (
 	"errors"
-	"log"
 	"net"
-	"os"
 	"sync"
 	"time"
+
+	log "github.com/Sirupsen/logrus"
 
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/tsdb"
@@ -34,7 +34,7 @@ type Service struct {
 		WritePoints(p *cluster.WritePointsRequest) error
 	}
 
-	Logger *log.Logger
+	Logger log.StdLogger
 }
 
 func NewService(c Config) *Service {
@@ -42,7 +42,7 @@ func NewService(c Config) *Service {
 		config:  c,
 		done:    make(chan struct{}),
 		batcher: tsdb.NewPointBatcher(c.BatchSize, time.Duration(c.BatchTimeout)),
-		Logger:  log.New(os.Stderr, "[udp] ", log.LstdFlags),
+		Logger:  log.New().WithField("service", "udp"),
 	}
 }
 
@@ -150,7 +150,7 @@ func (s *Service) Close() error {
 }
 
 // SetLogger sets the internal logger to the logger passed in.
-func (s *Service) SetLogger(l *log.Logger) {
+func (s *Service) SetLogger(l log.StdLogger) {
 	s.Logger = l
 }
 

@@ -4,12 +4,13 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
+
+	log "github.com/Sirupsen/logrus"
 
 	"github.com/influxdb/influxdb/tsdb"
 )
@@ -24,7 +25,7 @@ type Processor struct {
 
 	queues map[uint64]*queue
 	writer shardWriter
-	Logger *log.Logger
+	Logger log.StdLogger
 }
 
 type ProcessorOptions struct {
@@ -37,7 +38,7 @@ func NewProcessor(dir string, writer shardWriter, options ProcessorOptions) (*Pr
 		dir:    dir,
 		queues: map[uint64]*queue{},
 		writer: writer,
-		Logger: log.New(os.Stderr, "[handoff] ", log.LstdFlags),
+		Logger: log.New().WithField("service", "handoff"),
 	}
 	p.setOptions(options)
 

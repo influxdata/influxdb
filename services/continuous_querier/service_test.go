@@ -4,10 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"sync"
 	"testing"
 	"time"
+
+	log "github.com/Sirupsen/logrus"
 
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/influxql"
@@ -244,7 +245,9 @@ func NewTestService(t *testing.T) *Service {
 
 	// Set Logger to write to dev/null so stdout isn't polluted.
 	if !testing.Verbose() {
-		s.Logger = log.New(ioutil.Discard, "", log.LstdFlags)
+		logger := log.New()
+		logger.Out = ioutil.Discard
+		s.Logger = logger
 	}
 
 	// Add a couple test databases and CQs.

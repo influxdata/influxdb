@@ -3,11 +3,11 @@ package cluster
 import (
 	"errors"
 	"fmt"
-	"log"
-	"os"
 	"strings"
 	"sync"
 	"time"
+
+	log "github.com/Sirupsen/logrus"
 
 	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/meta"
@@ -68,7 +68,7 @@ type PointsWriter struct {
 	mu           sync.RWMutex
 	closing      chan struct{}
 	WriteTimeout time.Duration
-	Logger       *log.Logger
+	Logger       log.StdLogger
 
 	MetaStore interface {
 		NodeID() uint64
@@ -97,7 +97,7 @@ func NewPointsWriter() *PointsWriter {
 	return &PointsWriter{
 		closing:      make(chan struct{}),
 		WriteTimeout: DefaultWriteTimeout,
-		Logger:       log.New(os.Stderr, "[write] ", log.LstdFlags),
+		Logger:       log.New().WithField("service", "write"),
 	}
 }
 
