@@ -20,24 +20,46 @@
 
 # Command-line options that can be set in /etc/default/influxdb.  These will override
 # any config file values. Example: "-join http://1.2.3.4:8086"
+DEFAULT=/etc/default/influxdb
+
+# Daemon options
 INFLUXD_OPTS=
 
+# Process name ( For display )
+NAME=influxdb
+
+# User and group
 USER=influxdb
 GROUP=influxdb
+
+# Daemon name, where is the actual executable
+# If the daemon is not there, then exit.
+DAEMON=/opt/influxdb/influxd
+[ -x $DAEMON ] || exit 5
+
+# Configuration file
+CONFIG=/etc/opt/influxdb/influxdb.conf
+
+# PID file for the daemon
+PIDFILE=/var/run/influxdb/influxd.pid
+PIDDIR=`dirname $PIDFILE`
+if [ ! -d "$PIDDIR" ]; then
+    mkdir -p $PIDDIR
+    chown $GROUP:$USER $PIDDIR
+fi
+
+# Max open files
+OPEN_FILE_LIMIT=65536
 
 if [ -r /lib/lsb/init-functions ]; then
     source /lib/lsb/init-functions
 fi
 
-DEFAULT=/etc/default/influxdb
-
-if [ -r $DEFAULT ]; then
-    source $DEFAULT
-fi
-
+# Logging
 if [ -z "$STDOUT" ]; then
     STDOUT=/dev/null
 fi
+
 if [ ! -f "$STDOUT" ]; then
     mkdir -p $(dirname $STDOUT)
 fi
@@ -45,26 +67,29 @@ fi
 if [ -z "$STDERR" ]; then
     STDERR=/var/log/influxdb/influxd.log
 fi
+
 if [ ! -f "$STDERR" ]; then
     mkdir -p $(dirname $STDERR)
 fi
 
-
-OPEN_FILE_LIMIT=65536
+# Overwrite init script variables with /etc/default/influxdb values
+if [ -r $DEFAULT ]; then
+    source $DEFAULT
+fi
 
 function pidofproc() {
     if [ $# -ne 3 ]; then
         echo "Expected three arguments, e.g. $0 -p pidfile daemon-name"
     fi
 
-    pid=$(pgrep -f $3)
-    local pidfile=$(cat $2)
+    PID=`pgrep -f $3`
+    local PIDFILE=`cat $2`
 
-    if [ "x$pidfile" == "x" ]; then
+    if [ "x$PIDFILE" == "x" ]; then
         return 1
     fi
 
-    if [ "x$pid" != "x" -a "$pidfile" == "$pid" ]; then
+    if [ "x$PID" != "x" -a "$PIDFILE" == "$PID" ]; then
         return 0
     fi
 
@@ -76,9 +101,9 @@ function killproc() {
         echo "Expected three arguments, e.g. $0 -p pidfile signal"
     fi
 
-    pid=$(cat $2)
+    PID=`cat $2`
 
-    kill -s $3 $pid
+    kill -s $3 $PID
 }
 
 function log_failure_msg() {
@@ -89,61 +114,29 @@ function log_success_msg() {
     echo "$@" "[ OK ]"
 }
 
-# Process name ( For display )
-name=influxd
-
-# Daemon name, where is the actual executable
-daemon=/opt/influxdb/influxd
-
-# pid file for the daemon
-pidfile=/var/run/influxdb/influxd.pid
-piddir=$(dirname $pidfile)
-
-if [ ! -d "$piddir" ]; then
-    mkdir -p $piddir
-    chown $GROUP:$USER $piddir
-fi
-
-# Configuration file
-config=/etc/opt/influxdb/influxdb.conf
-
-# If the daemon is not there, then exit.
-[ -x $daemon ] || exit 5
-
-function wait_for_startup() {
-    control=1
-    while [ $control -lt 5 ]
-    do
-        if [ ! -e $pidfile ]; then
-            sleep 1
-            control=$((control+1))
-        else
-            break
-        fi
-    done
-}
-
-function is_process_running() {
-    # Checked the PID file exists and check the actual status of process
-    if [ -e $pidfile ]; then
-        pidofproc -p $pidfile $daemon > /dev/null 2>&1 && status="0" || status="$?"
-        # If the status is SUCCESS then don't need to start again.
-        if [ "x$status" = "x0" ]; then
-            return 0
-        else
-            return 1
-        fi
-    else
-        return 1
-    fi
-}
-
 case $1 in
     start)
-        is_process_running
-        if [ $? -eq 0 ]; then
-            log_success_msg "$name process is running"
-            exit 0 # Exit
+        # Check if config file exist
+        if [ ! -r $CONFIG ]; then
+            log_failure_msg "config file doesn't exists"
+            exit 4
+        fi
+
+        # Checked the PID file exists and check the actual status of process
+        if [ -e $PIDFILE ]; then
+            pidofproc -p $PIDFILE $DAEMON > /dev/null 2>&1 && STATUS="0" || STATUS="$?"
+            # If the status is SUCCESS then don't need to start again.
+            if [ "x$STATUS" = "x0" ]; then
+                log_failure_msg "$NAME process is running"
+                exit 0 # Exit
+            fi
+        # if PID file does not exist, check if writable
+        else
+            su -c "touch $PIDFILE" $USER > /dev/null 2>&1
+            if [ $? -ne 0 ]; then
+                log_failure_msg "$PIDFILE not writable, check permissions"
+                exit 5
+            fi
         fi
 
         # Bump the file limits, before launching the daemon. These will carry over to
@@ -154,37 +147,28 @@ case $1 in
             exit 1
         fi
 
-        log_success_msg "Starting the process" "$name"
+        log_success_msg "Starting the process" "$NAME"
         if which start-stop-daemon > /dev/null 2>&1; then
-            start-stop-daemon --chuid $GROUP:$USER --start --quiet --pidfile $pidfile --exec $daemon -- -pidfile $pidfile -config $config $INFLUXD_OPTS >>$STDOUT 2>>$STDERR &
+            start-stop-daemon --chuid $GROUP:$USER --start --quiet --pidfile $PIDFILE --exec $DAEMON -- -pidfile $PIDFILE -config $CONFIG $INFLUXD_OPTS >>$STDOUT 2>>$STDERR &
         else
-            su $USER -c "nohup $daemon -pidfile $pidfile -config $config $INFLUXD_OPTS >>$STDOUT 2>>$STDERR &"
+            nohup $DAEMON -pidfile $PIDFILE -config $CONFIG $INFLUXD_OPTS >>$STDOUT 2>>$STDERR &
         fi
-
-        wait_for_startup && is_process_running
-        if [ $? -ne 0 ]; then
-            log_failure_msg "$name process failed to start"
-            exit 1
-        else
-            log_success_msg "$name process was started"
-            exit 0
-        fi
+        log_success_msg "$NAME process was started"
         ;;
 
     stop)
         # Stop the daemon.
-        is_process_running
-        if [ $? -ne 0 ]; then
-            log_success_msg "$name process is not running"
-            exit 0 # Exit
-        else
-            if killproc -p $pidfile SIGTERM && /bin/rm -rf $pidfile; then
-                log_success_msg "$name process was stopped"
-                exit 0
-            else
-                log_failure_msg "$name failed to stop service"
-                exit 1
+        if [ -e $PIDFILE ]; then
+            pidofproc -p $PIDFILE $DAEMON > /dev/null 2>&1 && STATUS="0" || STATUS="$?"
+            if [ "$STATUS" = 0 ]; then
+                if killproc -p $PIDFILE SIGTERM && /bin/rm -rf $PIDFILE; then
+                    log_success_msg "$NAME process was stopped"
+                else
+                    log_failure_msg "$NAME failed to stop service"
+                fi
             fi
+        else
+            log_failure_msg "$NAME process is not running"
         fi
         ;;
 
@@ -195,18 +179,22 @@ case $1 in
 
     status)
         # Check the status of the process.
-        is_process_running
-        if [ $? -eq 0 ]; then
-            log_success_msg "$name Process is running"
-            exit 0
+        if [ -e $PIDFILE ]; then
+            if pidofproc -p $PIDFILE $DAEMON > /dev/null; then
+                log_success_msg "$NAME Process is running"
+                exit 0
+            else
+                log_failure_msg "$NAME Process is not running"
+                exit 1
+            fi
         else
-            log_failure_msg "$name Process is not running"
+            log_failure_msg "$NAME Process is not running"
             exit 3
         fi
         ;;
 
     version)
-        $daemon version
+        $DAEMON version
         ;;
 
     *)
