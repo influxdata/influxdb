@@ -707,6 +707,11 @@ func TestServer_Query_Multiple_Measurements(t *testing.T) {
 	test.addQueries([]*Query{
 		&Query{
 			name:    "measurement in one shard but not another shouldn't panic server",
+			command: `SELECT host,value  FROM db0.rp0.cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","host","value"],"values":[["2000-01-01T00:00:00Z","server01",100]]}]}]}`,
+		},
+		&Query{
+			name:    "measurement in one shard but not another shouldn't panic server",
 			command: `SELECT host,value  FROM db0.rp0.cpu GROUP BY host`,
 			exp:     `{"results":[{"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","value"],"values":[["2000-01-01T00:00:00Z",100]]}]}]}`,
 		},
@@ -1132,11 +1137,21 @@ func TestServer_Query_Tags(t *testing.T) {
 		},
 		&Query{
 			name:    "field with tag should succeed",
+			command: `SELECT host, value FROM db0.rp0.cpu`,
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","host","value"],"values":[["%s","server01",100],["%s","server02",50]]}]}]}`, now.Format(time.RFC3339Nano), now.Add(1).Format(time.RFC3339Nano)),
+		},
+		&Query{
+			name:    "field with tag and GROUP BY should succeed",
 			command: `SELECT host, value FROM db0.rp0.cpu GROUP BY host`,
 			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","value"],"values":[["%s",100]]},{"name":"cpu","tags":{"host":"server02"},"columns":["time","value"],"values":[["%s",50]]}]}]}`, now.Format(time.RFC3339Nano), now.Add(1).Format(time.RFC3339Nano)),
 		},
 		&Query{
 			name:    "field with two tags should succeed",
+			command: `SELECT host, value, core FROM db0.rp0.cpu`,
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","host","value","core"],"values":[["%s","server01",100,4],["%s","server02",50,2]]}]}]}`, now.Format(time.RFC3339Nano), now.Add(1).Format(time.RFC3339Nano)),
+		},
+		&Query{
+			name:    "field with two tags and GROUP BY should succeed",
 			command: `SELECT host, value, core FROM db0.rp0.cpu GROUP BY host`,
 			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","value","core"],"values":[["%s",100,4]]},{"name":"cpu","tags":{"host":"server02"},"columns":["time","value","core"],"values":[["%s",50,2]]}]}]}`, now.Format(time.RFC3339Nano), now.Add(1).Format(time.RFC3339Nano)),
 		},
