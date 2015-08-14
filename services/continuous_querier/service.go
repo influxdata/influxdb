@@ -288,6 +288,12 @@ func (s *Service) runContinuousQueryAndWriteResult(cq *ContinuousQuery) error {
 		return err
 	}
 
+	// Drain results
+	defer func() {
+		for _ = range ch {
+		}
+	}()
+
 	// Read all rows from the result channel.
 	for result := range ch {
 		if result.Err != nil {
