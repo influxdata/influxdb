@@ -46,6 +46,7 @@ There are breaking changes in this release. Please see the *Features* section be
 - [#3638](https://github.com/influxdb/influxdb/pull/3638): Cluster config fixes and removal of meta.peers config field
 - [#3640](https://github.com/influxdb/influxdb/pull/3640): Shutdown Graphite service when signal received.
 - [#3632](https://github.com/influxdb/influxdb/issues/3632): Make single-node host renames more seamless
+- [#3656](https://github.com/influxdb/influxdb/issues/3656): Silence snapshotter logger for testing
 
 ## v0.9.2 [2015-07-24]
 
