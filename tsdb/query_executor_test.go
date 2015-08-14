@@ -41,8 +41,14 @@ func TestWritePointsAndExecuteQuery(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 
-	got := executeAndGetJSON("SELECT * FROM cpu GROUP BY *", executor)
-	exepected := `[{"series":[{"name":"cpu","tags":{"host":"server"},"columns":["time","value"],"values":[["1970-01-01T00:00:01.000000002Z",1],["1970-01-01T00:00:02.000000003Z",1]]}]}]`
+	got := executeAndGetJSON("SELECT * FROM cpu", executor)
+	exepected := `[{"series":[{"name":"cpu","columns":["time","host","value"],"values":[["1970-01-01T00:00:01.000000002Z","server",1],["1970-01-01T00:00:02.000000003Z","server",1]]}]}]`
+	if exepected != got {
+		t.Fatalf("\nexp: %s\ngot: %s", exepected, got)
+	}
+
+	got = executeAndGetJSON("SELECT * FROM cpu GROUP BY *", executor)
+	exepected = `[{"series":[{"name":"cpu","tags":{"host":"server"},"columns":["time","value"],"values":[["1970-01-01T00:00:01.000000002Z",1],["1970-01-01T00:00:02.000000003Z",1]]}]}]`
 	if exepected != got {
 		t.Fatalf("\nexp: %s\ngot: %s", exepected, got)
 	}
