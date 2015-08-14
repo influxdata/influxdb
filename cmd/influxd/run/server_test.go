@@ -1154,7 +1154,7 @@ func TestServer_Query_Tags(t *testing.T) {
 		&Query{
 			name:    "tag without field should return error",
 			command: `SELECT host FROM db0.rp0.cpu`,
-			exp:     `{"results":[{}]}`,
+			exp:     `{"results":[{"error":"statement must have at least one field in select clause"}]}`,
 		},
 		&Query{
 			name:    "field with tag should succeed",
@@ -1919,13 +1919,13 @@ func TestServer_Query_Aggregates(t *testing.T) {
 			name:    "distinct select tag - int",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT DISTINCT(host) FROM intmany`,
-			exp:     `{"results":[{}]}`,
+			exp:     `{"results":[{"error":"statement must have at least one field in select clause"}]}`,
 		},
 		&Query{
 			name:    "distinct alt select tag - int",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT DISTINCT host FROM intmany`,
-			exp:     `{"results":[{}]}`,
+			exp:     `{"results":[{"error":"statement must have at least one field in select clause"}]}`,
 		},
 		&Query{
 			name:    "count distinct - int",
@@ -2048,13 +2048,13 @@ func TestServer_Query_Aggregates(t *testing.T) {
 			name:    "distinct select tag - float",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT DISTINCT(host) FROM floatmany`,
-			exp:     `{"results":[{}]}`,
+			exp:     `{"results":[{"error":"statement must have at least one field in select clause"}]}`,
 		},
 		&Query{
 			name:    "distinct alt select tag - float",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT DISTINCT host FROM floatmany`,
-			exp:     `{"results":[{}]}`,
+			exp:     `{"results":[{"error":"statement must have at least one field in select clause"}]}`,
 		},
 		&Query{
 			name:    "count distinct - float",
@@ -2425,6 +2425,13 @@ func TestServer_Query_WildcardExpansion(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT host, cpu, region, value  FROM wildcard`,
 			exp:     `{"results":[{"series":[{"name":"wildcard","columns":["time","host","cpu","region","value"],"values":[["2000-01-01T00:00:00Z","A",80,"us-east",10],["2000-01-01T00:00:10Z","B",90,"us-east",20],["2000-01-01T00:00:20Z","B",70,"us-west",30],["2000-01-01T00:00:30Z","A",60,"us-east",40]]}]}]}`,
+		},
+
+		&Query{
+			name:    "only tags, no fields",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT host, region FROM wildcard`,
+			exp:     `{"results":[{"error":"statement must have at least one field in select clause"}]}`,
 		},
 
 		&Query{

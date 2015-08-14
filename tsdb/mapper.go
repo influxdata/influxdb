@@ -184,7 +184,7 @@ func (lm *LocalMapper) Open() error {
 
 		// If we only have tags in our select clause we just return
 		if len(selectFields) == 0 && len(selectTags) > 0 {
-			return nil
+			return fmt.Errorf("statement must have at least one field in select clause")
 		}
 
 		// Validate that any GROUP BY is not on a field
