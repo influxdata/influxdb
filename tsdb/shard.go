@@ -130,7 +130,7 @@ func (s *Shard) FieldCodec(measurementName string) *FieldCodec {
 	defer s.mu.RUnlock()
 	m := s.measurementFields[measurementName]
 	if m == nil {
-		return nil
+		return NewFieldCodec(nil)
 	}
 	return m.Codec
 }
