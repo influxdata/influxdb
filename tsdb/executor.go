@@ -478,7 +478,7 @@ func (e *Executor) executeAggregate(out chan *influxql.Row) {
 		values = e.processDerivative(values)
 
 		// If we have multiple tag sets we'll want to filter out the empty ones
-		if len(availTagSets.list()) > 1 && resultsEmpty(values) {
+		if len(availTagSets) > 1 && resultsEmpty(values) {
 			continue
 		}
 
