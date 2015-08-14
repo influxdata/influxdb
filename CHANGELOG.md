@@ -52,6 +52,7 @@ There are breaking changes in this release. Please see the *Features* section be
 - [#3517](https://github.com/influxdb/influxdb/pull/3517): Batch CQ writes to avoid timeouts. Thanks @dim.
 - [#3522](https://github.com/influxdb/influxdb/pull/3522): Consume CQ results on request timeouts. Thanks @dim.
 - [#3646](https://github.com/influxdb/influxdb/pull/3646): Fix nil FieldCodec panic.
+- [#3672](https://github.com/influxdb/influxdb/pull/3672): Reduce in-memory index by 20%-30%
 
 ## v0.9.2 [2015-07-24]
 
