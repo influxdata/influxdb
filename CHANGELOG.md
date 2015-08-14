@@ -47,6 +47,7 @@ There are breaking changes in this release. Please see the *Features* section be
 - [#3640](https://github.com/influxdb/influxdb/pull/3640): Shutdown Graphite service when signal received.
 - [#3632](https://github.com/influxdb/influxdb/issues/3632): Make single-node host renames more seamless
 - [#3656](https://github.com/influxdb/influxdb/issues/3656): Silence snapshotter logger for testing
+- [#3651](https://github.com/influxdb/influxdb/pull/3651): Fully remove series when dropped.
 
 ## v0.9.2 [2015-07-24]
 

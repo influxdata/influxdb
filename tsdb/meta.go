@@ -284,6 +284,7 @@ func (db *DatabaseIndex) DropSeries(keys []string) {
 			continue
 		}
 		series.measurement.DropSeries(series.id)
+		delete(db.series, k)
 	}
 }
 
