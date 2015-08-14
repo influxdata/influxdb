@@ -3285,6 +3285,91 @@ func TestServer_Query_CreateContinuousQuery(t *testing.T) {
 	}
 }
 
+// Tests that a known CQ query with concurrent writes does not deadlock the server
+func TestServer_ContinuousQuery_Deadlock(t *testing.T) {
+
+	// Skip until #3517 & #3522 are merged
+	t.Skip("Skipping CQ deadlock test")
+	if testing.Short() {
+		t.Skip("skipping CQ deadlock test")
+	}
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer func() {
+		s.Close()
+		// Nil the server so our deadlock detector goroutine can determine if we completed writes
+		// without timing out
+		s.Server = nil
+	}()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MetaStore.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+		t.Fatal(err)
+	}
+
+	test := NewTest("db0", "rp0")
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "create continuous query",
+			command: `CREATE CONTINUOUS QUERY "my.query" ON db0 BEGIN SELECT sum(visits) as visits INTO test_1m FROM myseries GROUP BY time(1m), host END`,
+			exp:     `{"results":[{}]}`,
+		},
+	}...)
+
+	for i, query := range test.queries {
+		if i == 0 {
+			if err := test.init(s); err != nil {
+				t.Fatalf("test init failed: %s", err)
+			}
+		}
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+
+	// Deadlock detector.  If the deadlock is fixed, this test should complete all the writes in ~2.5s seconds (with artifical delays
+	// added).  After 10 seconds, if the server has not been closed then we hit the deadlock bug.
+	iterations := 0
+	go func(s *Server) {
+		<-time.After(10 * time.Second)
+
+		// If the server is not nil then the test is still running and stuck.  We panic to avoid
+		// having the whole test suite hang indefinitely.
+		if s.Server != nil {
+			panic("possible deadlock. writes did not complete in time")
+		}
+	}(s)
+
+	for {
+
+		// After the second write, if the deadlock exists, we'll get a write timeout and
+		// all subsequent writes will timeout
+		if iterations > 5 {
+			break
+		}
+		writes := []string{}
+		for i := 0; i < 1000; i++ {
+			writes = append(writes, fmt.Sprintf(`myseries,host=host-%d visits=1i`, i))
+		}
+		write := strings.Join(writes, "\n")
+
+		if _, err := s.Write(test.db, test.rp, write, test.params); err != nil {
+			t.Fatal(err)
+		}
+		iterations += 1
+		time.Sleep(500 * time.Millisecond)
+	}
+}
+
 func TestServer_Query_EvilIdentifiers(t *testing.T) {
 	t.Parallel()
 	s := OpenServer(NewConfig(), "")
