@@ -174,6 +174,12 @@ func TestServer_Query_DropDatabaseIsolated(t *testing.T) {
 	test.addQueries([]*Query{
 		&Query{
 			name:    "Query data from 1st database",
+			command: `SELECT * FROM cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","host","region","val"],"values":[["2000-01-01T00:00:00Z","serverA","uswest",23.2]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "Query data from 1st database with GROUP BY *",
 			command: `SELECT * FROM cpu GROUP BY *`,
 			exp:     `{"results":[{"series":[{"name":"cpu","tags":{"host":"serverA","region":"uswest"},"columns":["time","val"],"values":[["2000-01-01T00:00:00Z",23.2]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
@@ -185,6 +191,12 @@ func TestServer_Query_DropDatabaseIsolated(t *testing.T) {
 		},
 		&Query{
 			name:    "Query data from 1st database and ensure it's still there",
+			command: `SELECT * FROM cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","host","region","val"],"values":[["2000-01-01T00:00:00Z","serverA","uswest",23.2]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "Query data from 1st database and ensure it's still there with GROUP BY *",
 			command: `SELECT * FROM cpu GROUP BY *`,
 			exp:     `{"results":[{"series":[{"name":"cpu","tags":{"host":"serverA","region":"uswest"},"columns":["time","val"],"values":[["2000-01-01T00:00:00Z",23.2]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
@@ -348,7 +360,7 @@ func TestServer_RetentionPolicyCommands(t *testing.T) {
 				exp:     `{"results":[{"series":[{"columns":["name","duration","replicaN","default"]}]}]}`,
 			},
 			&Query{
-				name:    "Ensure retention policy with unacceptable retention cannot be created - FIXME issue #2991",
+				name:    "Ensure retention policy with unacceptable retention cannot be created",
 				command: `CREATE RETENTION POLICY rp3 ON db0 DURATION 1s REPLICATION 1`,
 				exp:     `{"results":[{"error":"retention policy duration must be at least 1h0m0s"}]}`,
 			},
@@ -441,8 +453,7 @@ func TestServer_UserCommands(t *testing.T) {
 				exp:     `{"results":[{}]}`,
 			},
 			&Query{
-				skip:    true,
-				name:    "show users, existing user as admin - FIXME issue #2872",
+				name:    "show users, existing user as admin",
 				command: `SHOW USERS`,
 				exp:     `{"results":[{"series":[{"columns":["user","admin"],"values":[["jdoe",true]]}]}]}`,
 			},
@@ -1001,11 +1012,21 @@ func TestServer_Query_Now(t *testing.T) {
 	test.addQueries([]*Query{
 		&Query{
 			name:    "where with time < now() should work",
+			command: `SELECT * FROM db0.rp0.cpu where time < now()`,
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","host","value"],"values":[["%s","server01",1]]}]}]}`, now.Format(time.RFC3339Nano)),
+		},
+		&Query{
+			name:    "where with time < now() and GROUP BY * should work",
 			command: `SELECT * FROM db0.rp0.cpu where time < now() GROUP BY *`,
 			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","value"],"values":[["%s",1]]}]}]}`, now.Format(time.RFC3339Nano)),
 		},
 		&Query{
-			name:    "where with time > now() should return an empty result - FIXME issue #2874",
+			name:    "where with time > now() should return an empty result",
+			command: `SELECT * FROM db0.rp0.cpu where time > now()`,
+			exp:     `{"results":[{}]}`,
+		},
+		&Query{
+			name:    "where with time > now() with GROUP BY * should return an empty result",
 			command: `SELECT * FROM db0.rp0.cpu where time > now() GROUP BY *`,
 			exp:     `{"results":[{}]}`,
 		},
@@ -1157,6 +1178,11 @@ func TestServer_Query_Tags(t *testing.T) {
 		},
 		&Query{
 			name:    "select * with tags should succeed",
+			command: `SELECT * FROM db0.rp0.cpu`,
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","core","host","value"],"values":[["%s",4,"server01",100],["%s",2,"server02",50]]}]}]}`, now.Format(time.RFC3339Nano), now.Add(1).Format(time.RFC3339Nano)),
+		},
+		&Query{
+			name:    "select * with tags with GROUP BY * should succeed",
 			command: `SELECT * FROM db0.rp0.cpu GROUP BY *`,
 			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","core","value"],"values":[["%s",4,100]]},{"name":"cpu","tags":{"host":"server02"},"columns":["time","core","value"],"values":[["%s",2,50]]}]}]}`, now.Format(time.RFC3339Nano), now.Add(1).Format(time.RFC3339Nano)),
 		},
@@ -1279,7 +1305,7 @@ func TestServer_Query_Alias(t *testing.T) {
 	test.addQueries([]*Query{
 		&Query{
 			name:    "baseline query - SELECT * FROM db0.rp0.cpu",
-			command: `SELECT * FROM db0.rp0.cpu GROUP BY *`,
+			command: `SELECT * FROM db0.rp0.cpu`,
 			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","steps","value"],"values":[["2000-01-01T00:00:00Z",3,1],["2000-01-01T00:01:00Z",4,2]]}]}]}`,
 		},
 		&Query{
@@ -1379,7 +1405,7 @@ func TestServer_Query_Common(t *testing.T) {
 		},
 		&Query{
 			name:    "selecting wildcard without specifying a database should error",
-			command: `SELECT * FROM cpu GROUP BY *`,
+			command: `SELECT * FROM cpu`,
 			exp:     `{"results":[{"error":"database name required"}]}`,
 		},
 		&Query{
@@ -1421,11 +1447,18 @@ func TestServer_Query_SelectTwoPoints(t *testing.T) {
 	test := NewTest("db0", "rp0")
 	test.write = fmt.Sprintf("cpu value=100 %s\ncpu value=200 %s", strconv.FormatInt(now.UnixNano(), 10), strconv.FormatInt(now.Add(1).UnixNano(), 10))
 
-	test.addQueries(&Query{
-		name:    "selecting two points should result in two points",
-		command: `SELECT * FROM db0.rp0.cpu GROUP BY *`,
-		exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",100],["%s",200]]}]}]}`, now.Format(time.RFC3339Nano), now.Add(1).Format(time.RFC3339Nano)),
-	})
+	test.addQueries(
+		&Query{
+			name:    "selecting two points should result in two points",
+			command: `SELECT * FROM db0.rp0.cpu`,
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",100],["%s",200]]}]}]}`, now.Format(time.RFC3339Nano), now.Add(1).Format(time.RFC3339Nano)),
+		},
+		&Query{
+			name:    "selecting two points with GROUP BY * should result in two points",
+			command: `SELECT * FROM db0.rp0.cpu GROUP BY *`,
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",100],["%s",200]]}]}]}`, now.Format(time.RFC3339Nano), now.Add(1).Format(time.RFC3339Nano)),
+		},
+	)
 
 	for i, query := range test.queries {
 		if i == 0 {
@@ -1462,7 +1495,7 @@ func TestServer_Query_SelectTwoNegativePoints(t *testing.T) {
 
 	test.addQueries(&Query{
 		name:    "selecting two negative points should succeed",
-		command: `SELECT * FROM db0.rp0.cpu GROUP BY *`,
+		command: `SELECT * FROM db0.rp0.cpu`,
 		exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",-100],["%s",-200]]}]}]}`, now.Format(time.RFC3339Nano), now.Add(1).Format(time.RFC3339Nano)),
 	})
 
@@ -1709,6 +1742,12 @@ func TestServer_Query_Regex(t *testing.T) {
 	test.addQueries([]*Query{
 		&Query{
 			name:    "default db and rp",
+			command: `SELECT * FROM /cpu[13]/`,
+			params:  url.Values{"db": []string{"db0"}},
+			exp:     `{"results":[{"series":[{"name":"cpu1","columns":["time","host","value"],"values":[["2015-02-28T01:03:36.703820946Z","server01",10]]},{"name":"cpu3","columns":["time","host","value"],"values":[["2015-02-28T01:03:36.703820946Z","server01",30]]}]}]}`,
+		},
+		&Query{
+			name:    "default db and rp with GROUP BY *",
 			command: `SELECT * FROM /cpu[13]/ GROUP BY *`,
 			params:  url.Values{"db": []string{"db0"}},
 			exp:     `{"results":[{"series":[{"name":"cpu1","tags":{"host":"server01"},"columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",10]]},{"name":"cpu3","tags":{"host":"server01"},"columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",30]]}]}]}`,
@@ -1814,7 +1853,6 @@ func TestServer_Query_Aggregates(t *testing.T) {
 	test := NewTest("db0", "rp0")
 	test.write = strings.Join(writes, "\n")
 
-	//FIXME add all of the int style tests once it is fixed.
 	test.addQueries([]*Query{
 		// int64
 		&Query{
@@ -3138,13 +3176,13 @@ func TestServer_Query_ShowSeries(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
-			name:    `show series from measurement - FIXME issue #2942`,
+			name:    `show series from measurement`,
 			command: "SHOW SERIES FROM cpu",
 			exp:     `{"results":[{"series":[{"name":"cpu","columns":["_key","host","region"],"values":[["cpu,host=server01","server01",""],["cpu,host=server01,region=uswest","server01","uswest"],["cpu,host=server01,region=useast","server01","useast"],["cpu,host=server02,region=useast","server02","useast"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
-			name:    `show series from regular expression - FIXME issue #2942`,
+			name:    `show series from regular expression`,
 			command: "SHOW SERIES FROM /[cg]pu/",
 			exp:     `{"results":[{"series":[{"name":"cpu","columns":["_key","host","region"],"values":[["cpu,host=server01","server01",""],["cpu,host=server01,region=uswest","server01","uswest"],["cpu,host=server01,region=useast","server01","useast"],["cpu,host=server02,region=useast","server02","useast"]]},{"name":"gpu","columns":["_key","host","region"],"values":[["gpu,host=server02,region=useast","server02","useast"],["gpu,host=server03,region=caeast","server03","caeast"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
