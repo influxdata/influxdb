@@ -449,10 +449,10 @@ func (lm *LocalMapper) rewriteSelectStatement(stmt *influxql.SelectStatement) (*
 	return stmt, nil
 }
 
-// expandWildcards returns a new SelectStatement with wildcards in the fields
-// and/or GROUP BY expanded with actual field names.
-// Tags and Measurements are included in the select if a `SELECT *` is issued
-// There is no longer an explicit `GROUP BY *` when tags are used in the `SELECT` clause
+// expandWildcards returns a new SelectStatement with wildcards expanded
+// If only a `SELECT *` is present, without a `GROUP BY *`, both tags and fields expand in the SELECT
+// If a `SELECT *` and a `GROUP BY *` are both present, then only fiels are expanded in the `SELECT` and only
+// tags are expanded in the `GROUP BY`
 func (lm *LocalMapper) expandWildcards(stmt *influxql.SelectStatement) (*influxql.SelectStatement, error) {
 	// If there are no wildcards in the statement, return it as-is.
 	if !stmt.HasWildcard() {
@@ -464,7 +464,7 @@ func (lm *LocalMapper) expandWildcards(stmt *influxql.SelectStatement) (*influxq
 	var fields influxql.Fields
 	var dimensions influxql.Dimensions
 
-	// keep track of where the wildcards are in the selec statement
+	// keep track of where the wildcards are in the select statement
 	hasFieldWildcard := stmt.HasFieldWildcard()
 	hasDimensionWildcard := stmt.HasDimensionWildcard()
 
