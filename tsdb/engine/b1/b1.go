@@ -37,7 +37,7 @@ var _ tsdb.Engine = &Engine{}
 
 // Engine represents a version 1 storage engine.
 type Engine struct {
-	mu sync.Mutex
+	mu sync.RWMutex
 
 	path string   // path to data file
 	db   *bolt.DB // underlying database
@@ -533,6 +533,9 @@ type Tx struct {
 func (tx *Tx) Cursor(key string) tsdb.Cursor {
 	// Retrieve key bucket.
 	b := tx.Bucket([]byte(key))
+
+	tx.engine.mu.RLock()
+	defer tx.engine.mu.RUnlock()
 
 	// Ignore if there is no bucket or points in the cache.
 	partitionID := WALPartition([]byte(key))
