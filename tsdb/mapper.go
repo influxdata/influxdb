@@ -16,8 +16,9 @@ import (
 // aggregate output Time is ignored, and actual Time-Value pairs are contained soley
 // within the Value field.
 type MapperValue struct {
-	Time  int64       `json:"time,omitempty"`  // Ignored for aggregate output.
-	Value interface{} `json:"value,omitempty"` // For aggregate, contains interval time multiple values.
+	Time  int64             `json:"time,omitempty"`  // Ignored for aggregate output.
+	Value interface{}       `json:"value,omitempty"` // For aggregate, contains interval time multiple values.
+	Tags  map[string]string `json:"tags,omitempty"`  // Meta tags for results
 }
 
 type MapperValues []*MapperValue
@@ -181,6 +182,11 @@ func (lm *LocalMapper) Open() error {
 		selectTags.add(tsf.selectTags...)
 		whereFields.add(tsf.whereFields...)
 
+		// If we only have tags in our select clause we just return
+		if len(selectFields) == 0 && len(selectTags) > 0 {
+			return fmt.Errorf("statement must have at least one field in select clause")
+		}
+
 		// Validate that any GROUP BY is not on a field
 		if err := m.ValidateGroupBy(lm.selectStmt); err != nil {
 			return err
@@ -209,7 +215,8 @@ func (lm *LocalMapper) Open() error {
 					// No data exists for this key.
 					continue
 				}
-				cm := newSeriesCursor(c, t.Filters[i])
+				seriesTags := lm.shard.index.series[key].Tags
+				cm := newSeriesCursor(c, t.Filters[i], seriesTags)
 				cursors = append(cursors, cm)
 			}
 
@@ -256,7 +263,7 @@ func (lm *LocalMapper) NextChunk() (interface{}, error) {
 // nextChunkRaw returns the next chunk of data. Data comes in the same order as the
 // tags return by TagSets. A chunk never contains data for more than 1 tagset.
 // If there is no more data for any tagset, nil will be returned.
-func (lm *LocalMapper) nextChunkRaw() (interface{}, error) {
+func (lm *LocalMapper) nextChunkRaw() (*MapperOutput, error) {
 	var output *MapperOutput
 	for {
 		if lm.currCursorIndex == len(lm.cursors) {
@@ -265,7 +272,7 @@ func (lm *LocalMapper) nextChunkRaw() (interface{}, error) {
 		}
 		cursor := lm.cursors[lm.currCursorIndex]
 
-		k, v := cursor.Next(lm.queryTMin, lm.queryTMax, lm.selectFields, lm.whereFields)
+		k, v, t := cursor.Next(lm.queryTMin, lm.queryTMax, lm.selectFields, lm.whereFields)
 		if v == nil {
 			// Tagset cursor is empty, move to next one.
 			lm.currCursorIndex++
@@ -285,7 +292,7 @@ func (lm *LocalMapper) nextChunkRaw() (interface{}, error) {
 				Fields: lm.selectFields,
 			}
 		}
-		value := &MapperValue{Time: k, Value: v}
+		value := &MapperValue{Time: k, Value: v, Tags: t}
 		output.Values = append(output.Values, value)
 		if len(output.Values) == lm.chunkSize {
 			return output, nil
@@ -297,7 +304,7 @@ func (lm *LocalMapper) nextChunkRaw() (interface{}, error) {
 // for the current tagset. Tagsets are always processed in the same order as that
 // returned by AvailTagsSets(). When there is no more data for any tagset nil
 // is returned.
-func (lm *LocalMapper) nextChunkAgg() (interface{}, error) {
+func (lm *LocalMapper) nextChunkAgg() (*MapperOutput, error) {
 	var output *MapperOutput
 	for {
 		if lm.currCursorIndex == len(lm.cursors) {
@@ -357,7 +364,8 @@ func (lm *LocalMapper) nextChunkAgg() (interface{}, error) {
 			}
 			// Wrap the tagset cursor so it implements the mapping functions interface.
 			f := func() (time int64, value interface{}) {
-				return tsc.Next(qmin, tmax, []string{lm.fieldNames[i]}, lm.whereFields)
+				k, v, _ := tsc.Next(qmin, tmax, []string{lm.fieldNames[i]}, lm.whereFields)
+				return k, v
 			}
 
 			tagSetCursor := &aggTagSetCursor{
@@ -441,8 +449,10 @@ func (lm *LocalMapper) rewriteSelectStatement(stmt *influxql.SelectStatement) (*
 	return stmt, nil
 }
 
-// expandWildcards returns a new SelectStatement with wildcards in the fields
-// and/or GROUP BY expanded with actual field names.
+// expandWildcards returns a new SelectStatement with wildcards expanded
+// If only a `SELECT *` is present, without a `GROUP BY *`, both tags and fields expand in the SELECT
+// If a `SELECT *` and a `GROUP BY *` are both present, then only fiels are expanded in the `SELECT` and only
+// tags are expanded in the `GROUP BY`
 func (lm *LocalMapper) expandWildcards(stmt *influxql.SelectStatement) (*influxql.SelectStatement, error) {
 	// If there are no wildcards in the statement, return it as-is.
 	if !stmt.HasWildcard() {
@@ -453,6 +463,11 @@ func (lm *LocalMapper) expandWildcards(stmt *influxql.SelectStatement) (*influxq
 	dimensionSet := map[string]struct{}{}
 	var fields influxql.Fields
 	var dimensions influxql.Dimensions
+
+	// keep track of where the wildcards are in the select statement
+	hasFieldWildcard := stmt.HasFieldWildcard()
+	hasDimensionWildcard := stmt.HasDimensionWildcard()
+
 	// Iterate measurements in the FROM clause getting the fields & dimensions for each.
 	for _, src := range stmt.Sources {
 		if m, ok := src.(*influxql.Measurement); ok {
@@ -471,16 +486,31 @@ func (lm *LocalMapper) expandWildcards(stmt *influxql.SelectStatement) (*influxq
 				fieldSet[name] = struct{}{}
 				fields = append(fields, &influxql.Field{Expr: &influxql.VarRef{Val: name}})
 			}
-			// Get the dimensions for this measurement.
-			for _, t := range mm.TagKeys() {
-				if _, ok := dimensionSet[t]; ok {
-					continue
+
+			// Add tags to fields if a field wildcard was provided and a dimension wildcard was not.
+			if hasFieldWildcard && !hasDimensionWildcard {
+				for _, t := range mm.TagKeys() {
+					if _, ok := fieldSet[t]; ok {
+						continue
+					}
+					fieldSet[t] = struct{}{}
+					fields = append(fields, &influxql.Field{Expr: &influxql.VarRef{Val: t}})
 				}
-				dimensionSet[t] = struct{}{}
-				dimensions = append(dimensions, &influxql.Dimension{Expr: &influxql.VarRef{Val: t}})
+			}
+
+			// Get the dimensions for this measurement.
+			if hasDimensionWildcard {
+				for _, t := range mm.TagKeys() {
+					if _, ok := dimensionSet[t]; ok {
+						continue
+					}
+					dimensionSet[t] = struct{}{}
+					dimensions = append(dimensions, &influxql.Dimension{Expr: &influxql.VarRef{Val: t}})
+				}
 			}
 		}
 	}
+
 	// Return a new SelectStatement with the wild cards rewritten.
 	return stmt.RewriteWildcards(fields, dimensions), nil
 }
@@ -539,7 +569,7 @@ func (lm *LocalMapper) TagSets() []string {
 // Fields returns any SELECT fields. If this Mapper is not processing a SELECT query
 // then an empty slice is returned.
 func (lm *LocalMapper) Fields() []string {
-	return lm.selectFields
+	return append(lm.selectFields, lm.selectTags...)
 }
 
 // Close closes the mapper.
@@ -648,13 +678,13 @@ func (tsc *tagSetCursor) key() string {
 	return formMeasurementTagSetKey(tsc.measurement, tsc.tags)
 }
 
-// Next returns the next matching series-key, timestamp and byte slice for the tagset. Filtering
+// Next returns the next matching series-key, timestamp byte slice and meta tags for the tagset. Filtering
 // is enforced on the values. If there is no matching value, then a nil result is returned.
-func (tsc *tagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []string) (int64, interface{}) {
+func (tsc *tagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []string) (int64, interface{}, map[string]string) {
 	for {
 		// If we're out of points, we're done.
 		if tsc.pointHeap.Len() == 0 {
-			return -1, nil
+			return -1, nil, nil
 		}
 
 		// Grab the next point with the lowest timestamp.
@@ -662,7 +692,7 @@ func (tsc *tagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []stri
 
 		// We're done if the point is outside the query's time range [tmin:tmax).
 		if p.timestamp != tmin && (tmin > p.timestamp || p.timestamp >= tmax) {
-			return -1, nil
+			return -1, nil, nil
 		}
 
 		// Advance the cursor
@@ -684,7 +714,7 @@ func (tsc *tagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []stri
 			continue
 		}
 
-		return p.timestamp, value
+		return p.timestamp, value, p.cursor.tags
 	}
 }
 
@@ -730,13 +760,15 @@ func (tsc *tagSetCursor) decodeRawPoint(p *pointHeapItem, selectFields, whereFie
 type seriesCursor struct {
 	cursor Cursor // BoltDB cursor for a series
 	filter influxql.Expr
+	tags   map[string]string
 }
 
 // newSeriesCursor returns a new instance of a series cursor.
-func newSeriesCursor(cur Cursor, filter influxql.Expr) *seriesCursor {
+func newSeriesCursor(cur Cursor, filter influxql.Expr, tags map[string]string) *seriesCursor {
 	return &seriesCursor{
 		cursor: cur,
 		filter: filter,
+		tags:   tags,
 	}
 }
 
@@ -789,9 +821,15 @@ func createTagSetsAndFields(m *Measurement, stmt *influxql.SelectStatement) (*ta
 		}
 		if m.HasTagKey(n) {
 			sts.add(n)
+		}
+	}
+
+	for _, n := range stmt.NamesInDimension() {
+		if m.HasTagKey(n) {
 			tagKeys = append(tagKeys, n)
 		}
 	}
+
 	for _, n := range stmt.NamesInWhere() {
 		if n == "time" {
 			continue

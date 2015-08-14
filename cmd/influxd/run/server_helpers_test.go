@@ -146,6 +146,7 @@ func (s *Server) Write(db, rp, body string, params url.Values) (results string, 
 // NewConfig returns the default config with temporary paths.
 func NewConfig() *run.Config {
 	c := run.NewConfig()
+	c.ReportingDisabled = true
 	c.Meta.Dir = MustTempFile()
 	c.Meta.BindAddress = "127.0.0.1:0"
 	c.Meta.HeartbeatTimeout = toml.Duration(50 * time.Millisecond)
@@ -299,6 +300,7 @@ func configureLogging(s *Server) {
 		nullLogger := log.New(ioutil.Discard, "", 0)
 		s.MetaStore.Logger = nullLogger
 		s.TSDBStore.Logger = nullLogger
+		s.HintedHandoff.SetLogger(nullLogger)
 		for _, service := range s.Services {
 			if service, ok := service.(logSetter); ok {
 				service.SetLogger(nullLogger)

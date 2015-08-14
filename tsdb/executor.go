@@ -728,7 +728,7 @@ func (r *limitedRowWriter) processValues(values []*MapperValue) *influxql.Row {
 			case map[string]interface{}:
 				vals[1] = val[selectFields[1]]
 			default:
-				vals[1] = v.Value.(interface{})
+				vals[1] = val
 			}
 		} else {
 			fields := v.Value.(map[string]interface{})
@@ -738,7 +738,17 @@ func (r *limitedRowWriter) processValues(values []*MapperValue) *influxql.Row {
 
 			// populate the other values
 			for i := 1; i < len(selectFields); i++ {
-				vals[i] = fields[selectFields[i]]
+				f, ok := fields[selectFields[i]]
+				if ok {
+					vals[i] = f
+					continue
+				}
+				if v.Tags != nil {
+					f, ok = v.Tags[selectFields[i]]
+					if ok {
+						vals[i] = f
+					}
+				}
 			}
 		}
 

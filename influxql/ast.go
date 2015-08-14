@@ -936,6 +936,11 @@ func (s *SelectStatement) walkForTime(node Node) bool {
 
 // HasWildcard returns whether or not the select statement has at least 1 wildcard
 func (s *SelectStatement) HasWildcard() bool {
+	return s.HasFieldWildcard() || s.HasDimensionWildcard()
+}
+
+// HasFieldWildcard returns whether or not the select statement has at least 1 wildcard in the fields
+func (s *SelectStatement) HasFieldWildcard() bool {
 	for _, f := range s.Fields {
 		_, ok := f.Expr.(*Wildcard)
 		if ok {
@@ -943,6 +948,12 @@ func (s *SelectStatement) HasWildcard() bool {
 		}
 	}
 
+	return false
+}
+
+// HasDimensionWildcard returns whether or not the select statement has
+// at least 1 wildcard in the dimensions aka `GROUP BY`
+func (s *SelectStatement) HasDimensionWildcard() bool {
 	for _, d := range s.Dimensions {
 		_, ok := d.Expr.(*Wildcard)
 		if ok {
@@ -1339,6 +1350,17 @@ func (s *SelectStatement) NamesInSelect() []string {
 
 	for _, f := range s.Fields {
 		a = append(a, walkNames(f.Expr)...)
+	}
+
+	return a
+}
+
+// NamesInDimension returns the field and tag names (idents) in the group by
+func (s *SelectStatement) NamesInDimension() []string {
+	var a []string
+
+	for _, d := range s.Dimensions {
+		a = append(a, walkNames(d.Expr)...)
 	}
 
 	return a
