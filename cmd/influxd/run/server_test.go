@@ -2368,18 +2368,24 @@ func TestServer_Query_WildcardExpansion(t *testing.T) {
 			exp:     `{"results":[{"series":[{"name":"wildcard","columns":["time","cpu","host","region","value"],"values":[["2000-01-01T00:00:00Z",80,"A","us-east",10],["2000-01-01T00:00:10Z",90,"B","us-east",20],["2000-01-01T00:00:20Z",70,"B","us-west",30],["2000-01-01T00:00:30Z",60,"A","us-east",40]]}]}]}`,
 		},
 		&Query{
+			name:    "no wildcard in select, preserve column order",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT host, cpu, region, value  FROM wildcard`,
+			exp:     `{"results":[{"series":[{"name":"wildcard","columns":["time","host","cpu","region","value"],"values":[["2000-01-01T00:00:00Z","A",80,"us-east",10],["2000-01-01T00:00:10Z","B",90,"us-east",20],["2000-01-01T00:00:20Z","B",70,"us-west",30],["2000-01-01T00:00:30Z","A",60,"us-east",40]]}]}]}`,
+		},
+
+		&Query{
 			name:    "no wildcard with alias",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT cpu as c, host as h, region, value  FROM wildcard`,
 			exp:     `{"results":[{"series":[{"name":"wildcard","columns":["time","c","h","region","value"],"values":[["2000-01-01T00:00:00Z",80,"A","us-east",10],["2000-01-01T00:00:10Z",90,"B","us-east",20],["2000-01-01T00:00:20Z",70,"B","us-west",30],["2000-01-01T00:00:30Z",60,"A","us-east",40]]}]}]}`,
 		},
-
-		//&Query{
-		//name:    "duplicate tag and field name",
-		//params:  url.Values{"db": []string{"db0"}},
-		//command: `SELECT * FROM dupnames`,
-		//exp:     `{}`,
-		//},
+		&Query{
+			name:    "duplicate tag and field name, always favor field over tag",
+			command: `SELECT * FROM dupnames`,
+			params:  url.Values{"db": []string{"db0"}},
+			exp:     `{"results":[{"series":[{"name":"dupnames","columns":["time","day","region","value"],"values":[["2000-01-01T00:00:00Z",3,"us-east",10],["2000-01-01T00:00:10Z",2,"us-east",20],["2000-01-01T00:00:20Z",1,"us-west",30]]}]}]}`,
+		},
 	}...)
 
 	for i, query := range test.queries {
