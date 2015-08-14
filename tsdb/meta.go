@@ -298,7 +298,6 @@ type Measurement struct {
 	index      *DatabaseIndex
 
 	// in-memory index fields
-	series              map[string]*Series // sorted tagset string to the series object
 	seriesByID          map[uint64]*Series // lookup table for series by their id
 	measurement         *Measurement
 	seriesByTagKeyValue map[string]map[string]SeriesIDs // map from tag key to value to sorted set of series ids
@@ -312,7 +311,6 @@ func NewMeasurement(name string, idx *DatabaseIndex) *Measurement {
 		fieldNames: make(map[string]struct{}),
 		index:      idx,
 
-		series:              make(map[string]*Series),
 		seriesByID:          make(map[uint64]*Series),
 		seriesByTagKeyValue: make(map[string]map[string]SeriesIDs),
 		seriesIDs:           make(SeriesIDs, 0),
@@ -382,8 +380,6 @@ func (m *Measurement) AddSeries(s *Series) bool {
 		return false
 	}
 	m.seriesByID[s.id] = s
-	tagset := string(MarshalTags(s.Tags))
-	m.series[tagset] = s
 	m.seriesIDs = append(m.seriesIDs, s.id)
 
 	// the series ID should always be higher than all others because it's a new
@@ -421,10 +417,6 @@ func (m *Measurement) DropSeries(seriesID uint64) {
 	if _, ok := m.seriesByID[seriesID]; !ok {
 		return
 	}
-	s := m.seriesByID[seriesID]
-	tagset := string(MarshalTags(s.Tags))
-
-	delete(m.series, tagset)
 	delete(m.seriesByID, seriesID)
 
 	var ids []uint64
