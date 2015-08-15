@@ -73,6 +73,7 @@ func NewLocalMapper(shard *Shard, stmt influxql.Statement, chunkSize int) *Local
 		shard:     shard,
 		stmt:      stmt,
 		chunkSize: chunkSize,
+		cursors:   make([]*tagSetCursor, 0),
 	}
 }
 
