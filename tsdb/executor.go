@@ -269,8 +269,9 @@ func (e *Executor) executeRaw(out chan *influxql.Row) {
 			// Add up to the index to the values
 			if chunkedOutput == nil {
 				chunkedOutput = &MapperOutput{
-					Name: m.bufferedChunk.Name,
-					Tags: m.bufferedChunk.Tags,
+					Name:      m.bufferedChunk.Name,
+					Tags:      m.bufferedChunk.Tags,
+					cursorKey: m.bufferedChunk.key(),
 				}
 				chunkedOutput.Values = m.bufferedChunk.Values[:ind]
 			} else {

@@ -28,14 +28,15 @@ func (a MapperValues) Less(i, j int) bool { return a[i].Time < a[j].Time }
 func (a MapperValues) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
 type MapperOutput struct {
-	Name   string            `json:"name,omitempty"`
-	Tags   map[string]string `json:"tags,omitempty"`
-	Fields []string          `json:"fields,omitempty"` // Field names of returned data.
-	Values []*MapperValue    `json:"values,omitempty"` // For aggregates contains a single value at [0]
+	Name      string            `json:"name,omitempty"`
+	Tags      map[string]string `json:"tags,omitempty"`
+	Fields    []string          `json:"fields,omitempty"` // Field names of returned data.
+	Values    []*MapperValue    `json:"values,omitempty"` // For aggregates contains a single value at [0]
+	cursorKey string            // Tagset-based key for the source cursor. Cached for performance reasons.
 }
 
 func (mo *MapperOutput) key() string {
-	return formMeasurementTagSetKey(mo.Name, mo.Tags)
+	return mo.cursorKey
 }
 
 // LocalMapper is for retrieving data for a query, from a given shard.
@@ -287,9 +288,10 @@ func (lm *LocalMapper) nextChunkRaw() (*MapperOutput, error) {
 
 		if output == nil {
 			output = &MapperOutput{
-				Name:   cursor.measurement,
-				Tags:   cursor.tags,
-				Fields: lm.selectFields,
+				Name:      cursor.measurement,
+				Tags:      cursor.tags,
+				Fields:    lm.selectFields,
+				cursorKey: cursor.key(),
 			}
 		}
 		value := &MapperValue{Time: k, Value: v, Tags: t}
@@ -325,10 +327,11 @@ func (lm *LocalMapper) nextChunkAgg() (*MapperOutput, error) {
 		// for a single tagset.
 		if output == nil {
 			output = &MapperOutput{
-				Name:   tsc.measurement,
-				Tags:   tsc.tags,
-				Fields: lm.selectFields,
-				Values: make([]*MapperValue, 1),
+				Name:      tsc.measurement,
+				Tags:      tsc.tags,
+				Fields:    lm.selectFields,
+				Values:    make([]*MapperValue, 1),
+				cursorKey: tsc.key(),
 			}
 			// Aggregate values only use the first entry in the Values field. Set the time
 			// to the start of the interval.
@@ -643,6 +646,10 @@ type tagSetCursor struct {
 	// Performance profiling shows that this lookahead needs to be part
 	// of the tagSetCursor type and not part of the the cursors type.
 	pointHeap *pointHeap
+
+	// Memomize the cursor's tagset-based key. Profiling shows that calculating this
+	// is significant CPU cost, and it only needs to be done once.
+	memokey string
 }
 
 // tagSetCursors represents a sortable slice of tagSetCursors.
@@ -675,7 +682,10 @@ func newTagSetCursor(m string, t map[string]string, c []*seriesCursor, d *FieldC
 }
 
 func (tsc *tagSetCursor) key() string {
-	return formMeasurementTagSetKey(tsc.measurement, tsc.tags)
+	if tsc.memokey == "" {
+		tsc.memokey = formMeasurementTagSetKey(tsc.measurement, tsc.tags)
+	}
+	return tsc.memokey
 }
 
 // Next returns the next matching series-key, timestamp byte slice and meta tags for the tagset. Filtering
