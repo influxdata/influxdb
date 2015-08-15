@@ -159,7 +159,7 @@ type IndexWriter interface {
 	// time ascending points where each byte array is:
 	//   int64 time
 	//   data
-	WriteIndex(pointsByKey map[string][][]byte) error
+	WriteIndex(pointsByKey map[string]*CacheItem) error
 }
 
 func NewLog(path string) *Log {
@@ -370,6 +370,12 @@ func (l *Log) partition(key []byte) *Partition {
 	return p
 }
 
+type CacheItem struct {
+	Data      [][]byte
+	dirtySort bool
+	size      int
+}
+
 // Partition is a set of files for a partition of the WAL. We use multiple partitions so when compactions occur
 // only a portion of the WAL must be flushed and compacted
 type Partition struct {
@@ -381,7 +387,7 @@ type Partition struct {
 	currentSegmentID   uint32
 	lastFileID         uint32
 	maxSegmentSize     int64
-	cache              map[string][][]byte
+	cache              map[string]*CacheItem
 
 	index           IndexWriter
 	readySeriesSize int
@@ -396,9 +402,7 @@ type Partition struct {
 
 	// flushCache is a temporary placeholder to keep data while its being flushed
 	// and compacted. It's for cursors to combine the cache and this if a flush is occuring
-	flushCache        map[string][][]byte
-	cacheDirtySort    map[string]bool // will be true if the key needs to be sorted
-	cacheSizes        map[string]int
+	flushCache        map[string]*CacheItem
 	compactionRunning bool
 
 	// flushColdInterval and lastWriteTime are used to determin if a partition should
@@ -414,9 +418,7 @@ func NewPartition(id uint8, path string, segmentSize int64, sizeThreshold uint64
 		maxSegmentSize:    segmentSize,
 		sizeThreshold:     sizeThreshold,
 		lastWriteTime:     time.Now(),
-		cache:             make(map[string][][]byte),
-		cacheDirtySort:    make(map[string]bool),
-		cacheSizes:        make(map[string]int),
+		cache:             make(map[string]*CacheItem),
 		readySeriesSize:   readySeriesSize,
 		index:             index,
 		flushColdInterval: flushColdInterval,
@@ -429,8 +431,6 @@ func (p *Partition) Close() error {
 	defer p.mu.Unlock()
 
 	p.cache = nil
-	p.cacheDirtySort = nil
-	p.cacheSizes = nil
 	if err := p.currentSegmentFile.Close(); err != nil {
 		return err
 	}
@@ -563,15 +563,15 @@ func (p *Partition) shouldFlush(maxSeriesSize int, compactionThreshold float64) 
 	}
 
 	countReady := 0
-	for _, s := range p.cacheSizes {
-		if s > maxSeriesSize {
+	for _, c := range p.cache {
+		if c.size > maxSeriesSize {
 			return thresholdFlush
-		} else if s > p.readySeriesSize {
+		} else if c.size > p.readySeriesSize {
 			countReady += 1
 		}
 	}
 
-	if float64(countReady)/float64(len(p.cacheSizes)) > compactionThreshold {
+	if float64(countReady)/float64(len(p.cache)) > compactionThreshold {
 		return thresholdFlush
 	}
 
@@ -596,18 +596,16 @@ func (p *Partition) prepareSeriesToFlush(readySeriesSize int, flush flushType) (
 	// we've been ordered to flush and compact. iterate until we have at least
 	// some series to flush by cutting the ready size in half each iteration
 	// if we didn't come up with any
-	var seriesToFlush map[string][][]byte
+	var seriesToFlush map[string]*CacheItem
 	var size int
 
 	// if this flush is being triggered because the partition is idle, all series hit the threshold
 	if flush == idleFlush {
-		for _, s := range p.cacheSizes {
-			size += s
+		for _, c := range p.cache {
+			size += c.size
 		}
 		seriesToFlush = p.cache
-		p.cache = make(map[string][][]byte)
-		p.cacheDirtySort = make(map[string]bool)
-		p.cacheSizes = make(map[string]int)
+		p.cache = make(map[string]*CacheItem)
 	} else { // only grab the series that hit the thresold
 		for {
 			s, n := p.seriesToFlush(readySeriesSize)
@@ -649,21 +647,19 @@ func (p *Partition) prepareSeriesToFlush(readySeriesSize int, flush flushType) (
 
 // seriesToFlush will clear the cache of series over the give threshold and return
 // them in a new map along with their combined size
-func (p *Partition) seriesToFlush(readySeriesSize int) (map[string][][]byte, int) {
-	seriesToFlush := make(map[string][][]byte)
+func (p *Partition) seriesToFlush(readySeriesSize int) (map[string]*CacheItem, int) {
+	seriesToFlush := make(map[string]*CacheItem)
 	size := 0
-	for k, s := range p.cacheSizes {
+	for k, s := range p.cache {
 		// if the series is over the threshold, save it in the map to flush later
-		if s >= readySeriesSize {
-			size += s
+		if s.size >= readySeriesSize {
+			size += s.size
 			seriesToFlush[k] = p.cache[k]
-			delete(p.cacheSizes, k)
 			delete(p.cache, k)
 
-			// always hand the index data that is sorted
-			if p.cacheDirtySort[k] {
-				sort.Sort(byteSlices(seriesToFlush[k]))
-				delete(p.cacheDirtySort, k)
+			// always hand the index Data that is sorted
+			if s.dirtySort {
+				sort.Sort(byteSlices(seriesToFlush[k].Data))
 			}
 		}
 	}
@@ -882,13 +878,17 @@ func (p *Partition) addToCache(key, data []byte, timestamp int64) {
 	v := MarshalEntry(timestamp, data)
 	p.memorySize += uint64(len(v))
 	// Determine if we'll need to sort the values for this key later
-	a := p.cache[string(key)]
+	itm := p.cache[string(key)]
+	if itm == nil {
+		itm = &CacheItem{}
+	}
+	a := itm.Data
 	needSort := !(len(a) == 0 || bytes.Compare(a[len(a)-1], v) == -1)
-	p.cacheDirtySort[string(key)] = needSort
+	itm.dirtySort = needSort
 
 	// Append to cache list.
-	p.cache[string(key)] = append(a, v)
-	p.cacheSizes[string(key)] += len(v)
+	itm.Data = append(a, v)
+	itm.size += len(v)
 }
 
 // cursor will combine the in memory cache and flush cache (if a flush is currently happening) to give a single ordered cursor for the key
@@ -905,20 +905,20 @@ func (p *Partition) cursor(key string) *cursor {
 	// with this one for the cursor
 	if p.flushCache != nil {
 		if fc, ok := p.flushCache[key]; ok {
-			c := make([][]byte, len(fc), len(fc)+len(cache))
-			copy(c, fc)
-			c = append(c, cache...)
+			c := make([][]byte, len(fc.Data), len(fc.Data)+len(cache.Data))
+			copy(c, fc.Data)
+			c = append(c, cache.Data...)
 			sort.Sort(byteSlices(c))
 			return &cursor{cache: c}
 		}
 	}
 
-	if p.cacheDirtySort[key] {
-		sort.Sort(byteSlices(cache))
-		delete(p.cacheDirtySort, key)
+	if p.cache[key].dirtySort {
+		sort.Sort(byteSlices(cache.Data))
+		p.cache[key].dirtySort = false
 	}
 
-	return &cursor{cache: cache}
+	return &cursor{cache: cache.Data}
 }
 
 // idFromFileName parses the segment file ID from its name
@@ -942,7 +942,7 @@ func (p *Partition) segmentFileNames() ([]string, error) {
 // compactionInfo is a data object with information about a compaction running
 // and the series that will be flushed to the index
 type compactionInfo struct {
-	seriesToFlush        map[string][][]byte
+	seriesToFlush        map[string]*CacheItem
 	compactFilesLessThan uint32
 	flushSize            int
 }

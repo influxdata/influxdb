@@ -258,10 +258,10 @@ func (e *Engine) writeFields(tx *bolt.Tx, m map[string]*tsdb.MeasurementFields) 
 }
 
 // WriteIndex writes marshaled points to the engine's underlying index.
-func (e *Engine) WriteIndex(pointsByKey map[string][][]byte) error {
+func (e *Engine) WriteIndex(pointsByKey map[string]*wal.CacheItem) error {
 	return e.db.Update(func(tx *bolt.Tx) error {
 		for key, values := range pointsByKey {
-			if err := e.writeIndex(tx, key, values); err != nil {
+			if err := e.writeIndex(tx, key, values.Data); err != nil {
 				return fmt.Errorf("write: key=%x, err=%s", key, err)
 			}
 		}
