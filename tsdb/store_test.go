@@ -213,6 +213,61 @@ func TestStoreOpenShardBadShardPath(t *testing.T) {
 
 }
 
+func TestStoreEnsureSeriesPersistedInNewShards(t *testing.T) {
+	dir, err := ioutil.TempDir("", "store_test")
+	if err != nil {
+		t.Fatalf("Store.Open() failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(dir)
+
+	s := tsdb.NewStore(dir)
+	if err := s.Open(); err != nil {
+		t.Fatalf("Store.Open() failed: %v", err)
+	}
+
+	if err := s.CreateShard("foo", "default", 1); err != nil {
+		t.Fatalf("error creating shard: %v", err)
+	}
+
+	p, _ := tsdb.ParsePoints([]byte("cpu val=1"))
+	if err := s.WriteToShard(1, p); err != nil {
+		t.Fatalf("error writing to shard: %v", err)
+	}
+
+	if err := s.CreateShard("foo", "default", 2); err != nil {
+		t.Fatalf("error creating shard: %v", err)
+	}
+
+	if err := s.WriteToShard(2, p); err != nil {
+		t.Fatalf("error writing to shard: %v", err)
+	}
+
+	d := s.DatabaseIndex("foo")
+	if d == nil {
+		t.Fatal("expected to have database index for foo")
+	}
+	if d.Series("cpu") == nil {
+		t.Fatal("expected series cpu to be in the index")
+	}
+
+	// delete the shard, close the store and reopen it and confirm the measurement is still there
+	s.DeleteShard(1)
+	s.Close()
+
+	s = tsdb.NewStore(dir)
+	if err := s.Open(); err != nil {
+		t.Fatalf("Store.Open() failed: %v", err)
+	}
+
+	d = s.DatabaseIndex("foo")
+	if d == nil {
+		t.Fatal("expected to have database index for foo")
+	}
+	if d.Series("cpu") == nil {
+		t.Fatal("expected series cpu to be in the index")
+	}
+}
+
 func BenchmarkStoreOpen_200KSeries_100Shards(b *testing.B) { benchmarkStoreOpen(b, 64, 5, 5, 1, 100) }
 
 func benchmarkStoreOpen(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt, shardCnt int) {
