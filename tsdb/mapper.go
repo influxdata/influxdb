@@ -32,10 +32,12 @@ type MapperOutput struct {
 	Tags   map[string]string `json:"tags,omitempty"`
 	Fields []string          `json:"fields,omitempty"` // Field names of returned data.
 	Values []*MapperValue    `json:"values,omitempty"` // For aggregates contains a single value at [0]
+
+	memokey string // The cursor key for this point. Precomputed for optimization reasons.
 }
 
 func (mo *MapperOutput) key() string {
-	return formMeasurementTagSetKey(mo.Name, mo.Tags)
+	return mo.memokey
 }
 
 // LocalMapper is for retrieving data for a query, from a given shard.
@@ -52,6 +54,7 @@ type LocalMapper struct {
 	selectFields    []string        // field names that occur in the select clause
 	selectTags      []string        // tag keys that occur in the select clause
 	cursors         []*tagSetCursor // Cursors per tag sets.
+	cursorKeys      []string        // Precomputed tagset keys for each cursor.
 	currCursorIndex int             // Current tagset cursor being drained.
 
 	// The following attributes are only used when mappers are for aggregate queries.
@@ -70,7 +73,6 @@ func NewLocalMapper(shard *Shard, stmt influxql.Statement, chunkSize int) *Local
 		shard:     shard,
 		stmt:      stmt,
 		chunkSize: chunkSize,
-		cursors:   make([]*tagSetCursor, 0),
 	}
 }
 
@@ -240,6 +242,12 @@ func (lm *LocalMapper) Open() error {
 		sort.Sort(tagSetCursors(lm.cursors))
 	}
 
+	// Precompute the tagset keys for each cursor.
+	lm.cursorKeys = make([]string, len(lm.cursors))
+	for i, c := range lm.cursors {
+		lm.cursorKeys[i] = formMeasurementTagSetKey(c.measurement, c.tags)
+	}
+
 	lm.selectFields = selectFields.list()
 	lm.selectTags = selectTags.list()
 	lm.whereFields = whereFields.list()
@@ -287,9 +295,10 @@ func (lm *LocalMapper) nextChunkRaw() (*MapperOutput, error) {
 
 		if output == nil {
 			output = &MapperOutput{
-				Name:   cursor.measurement,
-				Tags:   cursor.tags,
-				Fields: lm.selectFields,
+				Name:    cursor.measurement,
+				Tags:    cursor.tags,
+				Fields:  lm.selectFields,
+				memokey: lm.cursorKeys[lm.currCursorIndex],
 			}
 		}
 		value := &MapperValue{Time: k, Value: v, Tags: t}
@@ -325,10 +334,11 @@ func (lm *LocalMapper) nextChunkAgg() (*MapperOutput, error) {
 		// for a single tagset.
 		if output == nil {
 			output = &MapperOutput{
-				Name:   tsc.measurement,
-				Tags:   tsc.tags,
-				Fields: lm.selectFields,
-				Values: make([]*MapperValue, 1),
+				Name:    tsc.measurement,
+				Tags:    tsc.tags,
+				Fields:  lm.selectFields,
+				Values:  make([]*MapperValue, 1),
+				memokey: lm.cursorKeys[lm.currCursorIndex],
 			}
 			// Aggregate values only use the first entry in the Values field. Set the time
 			// to the start of the interval.
