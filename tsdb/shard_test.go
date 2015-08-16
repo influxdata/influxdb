@@ -20,7 +20,7 @@ func TestShardWriteAndIndex(t *testing.T) {
 	tmpShard := path.Join(tmpDir, "shard")
 
 	index := tsdb.NewDatabaseIndex()
-	sh := tsdb.NewShard(index, tmpShard, tsdb.NewEngineOptions())
+	sh := tsdb.NewShard(1, index, tmpShard, tsdb.NewEngineOptions())
 	if err := sh.Open(); err != nil {
 		t.Fatalf("error openeing shard: %s", err.Error())
 	}
@@ -66,7 +66,7 @@ func TestShardWriteAndIndex(t *testing.T) {
 	sh.Close()
 
 	index = tsdb.NewDatabaseIndex()
-	sh = tsdb.NewShard(index, tmpShard, tsdb.NewEngineOptions())
+	sh = tsdb.NewShard(1, index, tmpShard, tsdb.NewEngineOptions())
 	if err := sh.Open(); err != nil {
 		t.Fatalf("error openeing shard: %s", err.Error())
 	}
@@ -87,7 +87,7 @@ func TestShardWriteAddNewField(t *testing.T) {
 	tmpShard := path.Join(tmpDir, "shard")
 
 	index := tsdb.NewDatabaseIndex()
-	sh := tsdb.NewShard(index, tmpShard, tsdb.NewEngineOptions())
+	sh := tsdb.NewShard(1, index, tmpShard, tsdb.NewEngineOptions())
 	if err := sh.Open(); err != nil {
 		t.Fatalf("error openeing shard: %s", err.Error())
 	}
@@ -143,7 +143,7 @@ func TestShard_Autoflush(t *testing.T) {
 	defer os.RemoveAll(path)
 
 	// Open shard with a really low size threshold, high flush interval.
-	sh := tsdb.NewShard(tsdb.NewDatabaseIndex(), filepath.Join(path, "shard"), tsdb.EngineOptions{
+	sh := tsdb.NewShard(1, tsdb.NewDatabaseIndex(), filepath.Join(path, "shard"), tsdb.EngineOptions{
 		EngineVersion:          b1.Format,
 		MaxWALSize:             1024, // 1KB
 		WALFlushInterval:       1 * time.Hour,
@@ -183,7 +183,7 @@ func TestShard_Autoflush_FlushInterval(t *testing.T) {
 	defer os.RemoveAll(path)
 
 	// Open shard with a high size threshold, small time threshold.
-	sh := tsdb.NewShard(tsdb.NewDatabaseIndex(), filepath.Join(path, "shard"), tsdb.EngineOptions{
+	sh := tsdb.NewShard(1, tsdb.NewDatabaseIndex(), filepath.Join(path, "shard"), tsdb.EngineOptions{
 		EngineVersion:          b1.Format,
 		MaxWALSize:             10 * 1024 * 1024, // 10MB
 		WALFlushInterval:       100 * time.Millisecond,
@@ -266,7 +266,7 @@ func benchmarkWritePoints(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt int) {
 	for n := 0; n < b.N; n++ {
 		tmpDir, _ := ioutil.TempDir("", "shard_test")
 		tmpShard := path.Join(tmpDir, "shard")
-		shard := tsdb.NewShard(index, tmpShard, tsdb.NewEngineOptions())
+		shard := tsdb.NewShard(1, index, tmpShard, tsdb.NewEngineOptions())
 		shard.Open()
 
 		b.StartTimer()
@@ -301,7 +301,7 @@ func benchmarkWritePointsExistingSeries(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt
 	tmpDir, _ := ioutil.TempDir("", "")
 	defer os.RemoveAll(tmpDir)
 	tmpShard := path.Join(tmpDir, "shard")
-	shard := tsdb.NewShard(index, tmpShard, tsdb.NewEngineOptions())
+	shard := tsdb.NewShard(1, index, tmpShard, tsdb.NewEngineOptions())
 	shard.Open()
 	defer shard.Close()
 	chunkedWrite(shard, points)

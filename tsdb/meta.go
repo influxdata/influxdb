@@ -980,6 +980,16 @@ type Series struct {
 
 	id          uint64
 	measurement *Measurement
+	shardIDs    map[uint64]bool // shards that have this series defined
+}
+
+// NewSeries returns an initialized series struct
+func NewSeries(key string, tags map[string]string) *Series {
+	return &Series{
+		Key:      key,
+		Tags:     tags,
+		shardIDs: make(map[uint64]bool),
+	}
 }
 
 // MarshalBinary encodes the object to a binary format.

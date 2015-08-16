@@ -22,7 +22,7 @@ func TestEngine_WritePoints(t *testing.T) {
 	mf := &tsdb.MeasurementFields{Fields: make(map[string]*tsdb.Field)}
 	mf.CreateFieldIfNotExists("value", influxql.Float)
 	seriesToCreate := []*tsdb.SeriesCreate{
-		{Series: &tsdb.Series{Key: string(tsdb.MakeKey([]byte("temperature"), nil))}},
+		{Series: tsdb.NewSeries(string(tsdb.MakeKey([]byte("temperature"), nil)), nil)},
 	}
 
 	// Parse point.

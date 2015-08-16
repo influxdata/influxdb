@@ -662,7 +662,7 @@ func (p *Partition) seriesToFlush(readySeriesSize int) (map[string][][]byte, int
 
 			// always hand the index data that is sorted
 			if p.cacheDirtySort[k] {
-				sort.Sort(byteSlices(seriesToFlush[k]))
+				sort.Sort(tsdb.ByteSlices(seriesToFlush[k]))
 				delete(p.cacheDirtySort, k)
 			}
 		}
@@ -881,9 +881,10 @@ func (p *Partition) addToCache(key, data []byte, timestamp int64) {
 	// Generate in-memory cache entry of <timestamp,data>.
 	v := MarshalEntry(timestamp, data)
 	p.memorySize += uint64(len(v))
+
 	// Determine if we'll need to sort the values for this key later
 	a := p.cache[string(key)]
-	needSort := !(len(a) == 0 || bytes.Compare(a[len(a)-1], v) == -1)
+	needSort := !(len(a) == 0 || bytes.Compare(a[len(a)-1][0:8], v[0:8]) == -1)
 	p.cacheDirtySort[string(key)] = needSort
 
 	// Append to cache list.
@@ -908,13 +909,14 @@ func (p *Partition) cursor(key string) *cursor {
 			c := make([][]byte, len(fc), len(fc)+len(cache))
 			copy(c, fc)
 			c = append(c, cache...)
-			sort.Sort(byteSlices(c))
+			tsdb.DedupeEntries(c)
 			return &cursor{cache: c}
 		}
 	}
 
 	if p.cacheDirtySort[key] {
-		sort.Sort(byteSlices(cache))
+		cache = tsdb.DedupeEntries(cache)
+		p.cache[key] = cache
 		delete(p.cacheDirtySort, key)
 	}
 
@@ -1161,10 +1163,3 @@ func u64tob(v uint64) []byte {
 func btou64(b []byte) uint64 {
 	return binary.BigEndian.Uint64(b)
 }
-
-// byteSlices represents a sortable slice of byte slices.
-type byteSlices [][]byte
-
-func (a byteSlices) Len() int           { return len(a) }
-func (a byteSlices) Less(i, j int) bool { return bytes.Compare(a[i], a[j]) == -1 }
-func (a byteSlices) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }

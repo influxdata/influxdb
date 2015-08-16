@@ -170,7 +170,7 @@ func (e *Engine) LoadMetadataIndex(index *tsdb.DatabaseIndex, measurementFields 
 		meta = tx.Bucket([]byte("series"))
 		c = meta.Cursor()
 		for k, v := c.First(); k != nil; k, v = c.Next() {
-			series := &tsdb.Series{}
+			series := tsdb.NewSeries("", nil)
 			if err := series.UnmarshalBinary(v); err != nil {
 				return err
 			}
@@ -284,8 +284,13 @@ func (e *Engine) writeIndex(tx *bolt.Tx, key string, a [][]byte) error {
 	c := bkt.Cursor()
 
 	// Ensure the slice is sorted before retrieving the time range.
-	a = DedupeEntries(a)
-	sort.Sort(byteSlices(a))
+	a = tsdb.DedupeEntries(a)
+
+	// Convert the raw time and byte slices to entries with lengths
+	for i, p := range a {
+		timestamp := int64(btou64(p[0:8]))
+		a[i] = MarshalEntry(timestamp, p[8:])
+	}
 
 	// Determine time range of new data.
 	tmin, tmax := int64(btou64(a[0][0:8])), int64(btou64(a[len(a)-1][0:8]))
@@ -340,7 +345,7 @@ func (e *Engine) writeIndex(tx *bolt.Tx, key string, a [][]byte) error {
 
 	// Merge entries before rewriting.
 	a = append(existing, a...)
-	sort.Sort(byteSlices(a))
+	sort.Sort(tsdb.ByteSlices(a))
 
 	// Rewrite points to new blocks.
 	if err := e.writeBlocks(bkt, a); err != nil {
@@ -367,7 +372,7 @@ func (e *Engine) writeBlocks(bkt *bolt.Bucket, a [][]byte) error {
 		}
 
 		// Append point to the end of the block.
-		block = append(block, MarshalEntry(timestamp, p[8:])...)
+		block = append(block, p...)
 
 		// If the block is larger than the target block size or this is the
 		// last point then flush the block to the bucket.
@@ -616,26 +621,6 @@ func SplitEntries(b []byte) [][]byte {
 	}
 }
 
-// DedupeEntries returns slices with unique keys (the first 8 bytes).
-func DedupeEntries(a [][]byte) [][]byte {
-	// Convert to a map where the last slice is used.
-	m := make(map[string][]byte)
-	for _, b := range a {
-		m[string(b[0:8])] = b
-	}
-
-	// Convert map back to a slice of byte slices.
-	other := make([][]byte, 0, len(m))
-	for _, v := range m {
-		other = append(other, v)
-	}
-
-	// Sort entries.
-	sort.Sort(byteSlices(other))
-
-	return other
-}
-
 // entryHeaderSize is the number of bytes required for the header.
 const entryHeaderSize = 8 + 4
 
@@ -651,9 +636,3 @@ func u64tob(v uint64) []byte {
 
 // btou64 converts an 8-byte slice into an uint64.
 func btou64(b []byte) uint64 { return binary.BigEndian.Uint64(b) }
-
-type byteSlices [][]byte
-
-func (a byteSlices) Len() int           { return len(a) }
-func (a byteSlices) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a byteSlices) Less(i, j int) bool { return bytes.Compare(a[i], a[j]) == -1 }
