@@ -75,7 +75,7 @@ func (cmd *Command) Run(args ...string) error {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	// Turn on block profiling to debug stuck databases
-	runtime.SetBlockProfileRate(int(10 * time.Second))
+	runtime.SetBlockProfileRate(int(1 * time.Second))
 
 	// Parse config
 	config, err := cmd.ParseConfig(options.ConfigPath)
