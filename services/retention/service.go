@@ -49,6 +49,7 @@ func (s *Service) Open() error {
 
 // Close stops retention policy enforcement.
 func (s *Service) Close() error {
+	s.logger.Println("retention policy enforcement terminating")
 	close(s.done)
 	s.wg.Wait()
 	return nil
@@ -67,7 +68,6 @@ func (s *Service) deleteShardGroups() {
 	for {
 		select {
 		case <-s.done:
-			s.logger.Println("retention policy enforcement terminating")
 			return
 
 		case <-ticker.C:
@@ -101,7 +101,6 @@ func (s *Service) deleteShards() {
 	for {
 		select {
 		case <-s.done:
-			s.logger.Println("retention policy enforcement terminating")
 			return
 
 		case <-ticker.C:
