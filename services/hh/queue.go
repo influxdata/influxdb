@@ -496,6 +496,10 @@ func (l *segment) current() ([]byte, error) {
 	}
 	l.currentSize = int64(sz)
 
+	if int64(sz) > l.maxSize {
+		return nil, fmt.Errorf("record size out of range: max %d: got %d", l.maxSize, sz)
+	}
+
 	b := make([]byte, sz)
 	if err := l.readBytes(b); err != nil {
 		return nil, err
