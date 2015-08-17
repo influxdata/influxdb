@@ -60,7 +60,7 @@ type Executor struct {
 	limitedTagSets map[string]struct{} // Set tagsets for which data has reached the LIMIT.
 }
 
-// NewRawExecutor returns a new RawExecutor.
+// NewExecutor returns a new Executor.
 func NewExecutor(stmt *influxql.SelectStatement, mappers []Mapper, chunkSize int) *Executor {
 	a := []*StatefulMapper{}
 	for _, m := range mappers {
