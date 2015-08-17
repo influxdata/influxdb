@@ -56,6 +56,7 @@ There are breaking changes in this release. Please see the *Features* section be
 - [#3673](https://github.com/influxdb/influxdb/pull/3673): Improve query performance by removing unnecessary tagset sorting.
 - [#3676](https://github.com/influxdb/influxdb/pull/3676): Improve query performance by memomizing mapper output keys.
 - [#3687](https://github.com/influxdb/influxdb/issues/3687): Fix panic: runtime error: makeslice: len out of range in hinted handoff
+- [#3697](https://github.com/influxdb/influxdb/issues/3697):  Correctly merge non-chunked results for same series. Fix issue #3242.
 
 ## v0.9.2 [2015-07-24]
 
