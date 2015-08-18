@@ -23,15 +23,16 @@ func TestEngine_LoadMetadataIndex_Series(t *testing.T) {
 	e := OpenDefaultEngine()
 	defer e.Close()
 
-	// Setup nop mock.
-	e.PointsWriter.WritePointsFn = func(a []tsdb.Point) error { return nil }
-
-	// Write series metadata.
-	if err := e.WritePoints(nil, nil, []*tsdb.SeriesCreate{
+	// Setup mock that writes the index
+	seriesToCreate := []*tsdb.SeriesCreate{
 		{Series: tsdb.NewSeries(string(tsdb.MakeKey([]byte("cpu"), map[string]string{"host": "server0"})), map[string]string{"host": "server0"})},
 		{Series: tsdb.NewSeries(string(tsdb.MakeKey([]byte("cpu"), map[string]string{"host": "server1"})), map[string]string{"host": "server1"})},
 		{Series: tsdb.NewSeries("series with spaces", nil)},
-	}); err != nil {
+	}
+	e.PointsWriter.WritePointsFn = func(a []tsdb.Point) error { return e.WriteIndex(nil, nil, seriesToCreate) }
+
+	// Write series metadata.
+	if err := e.WritePoints(nil, nil, seriesToCreate); err != nil {
 		t.Fatal(err)
 	}
 
@@ -62,17 +63,18 @@ func TestEngine_LoadMetadataIndex_Fields(t *testing.T) {
 	e := OpenDefaultEngine()
 	defer e.Close()
 
-	// Setup nop mock.
-	e.PointsWriter.WritePointsFn = func(a []tsdb.Point) error { return nil }
-
-	// Write series metadata.
-	if err := e.WritePoints(nil, map[string]*tsdb.MeasurementFields{
+	// Setup mock that writes the index
+	fields := map[string]*tsdb.MeasurementFields{
 		"cpu": &tsdb.MeasurementFields{
 			Fields: map[string]*tsdb.Field{
 				"value": &tsdb.Field{ID: 0, Name: "value"},
 			},
 		},
-	}, nil); err != nil {
+	}
+	e.PointsWriter.WritePointsFn = func(a []tsdb.Point) error { return e.WriteIndex(nil, fields, nil) }
+
+	// Write series metadata.
+	if err := e.WritePoints(nil, fields, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -150,7 +152,7 @@ func TestEngine_WriteIndex_Append(t *testing.T) {
 		"mem": [][]byte{
 			append(u64tob(0), 0x30),
 		},
-	}); err != nil {
+	}, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -189,7 +191,7 @@ func TestEngine_WriteIndex_Insert(t *testing.T) {
 			append(u64tob(20), 0x20),
 			append(u64tob(30), 0x30),
 		},
-	}); err != nil {
+	}, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -201,7 +203,7 @@ func TestEngine_WriteIndex_Insert(t *testing.T) {
 			append(u64tob(25), 0x25),
 			append(u64tob(31), 0x31),
 		},
-	}); err != nil {
+	}, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -210,7 +212,7 @@ func TestEngine_WriteIndex_Insert(t *testing.T) {
 		"cpu": [][]byte{
 			append(u64tob(31), 0xFF),
 		},
-	}); err != nil {
+	}, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -239,7 +241,7 @@ func TestEngine_WriteIndex_Insert(t *testing.T) {
 func TestEngine_WriteIndex_NoKeys(t *testing.T) {
 	e := OpenDefaultEngine()
 	defer e.Close()
-	if err := e.WriteIndex(nil); err != nil {
+	if err := e.WriteIndex(nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -248,7 +250,7 @@ func TestEngine_WriteIndex_NoKeys(t *testing.T) {
 func TestEngine_WriteIndex_NoPoints(t *testing.T) {
 	e := OpenDefaultEngine()
 	defer e.Close()
-	if err := e.WriteIndex(map[string][][]byte{"cpu": nil}); err != nil {
+	if err := e.WriteIndex(map[string][][]byte{"cpu": nil}, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -266,7 +268,7 @@ func TestEngine_WriteIndex_Quick(t *testing.T) {
 
 		// Write points to index in multiple sets.
 		for _, set := range sets {
-			if err := e.WriteIndex(map[string][][]byte(set)); err != nil {
+			if err := e.WriteIndex(map[string][][]byte(set), nil, nil); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -354,9 +356,15 @@ type EnginePointsWriter struct {
 	WritePointsFn func(points []tsdb.Point) error
 }
 
-func (w *EnginePointsWriter) WritePoints(points []tsdb.Point) error {
+func (w *EnginePointsWriter) WritePoints(points []tsdb.Point, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
 	return w.WritePointsFn(points)
 }
+
+func (w *EnginePointsWriter) LoadMetadataIndex(index *tsdb.DatabaseIndex, measurementFields map[string]*tsdb.MeasurementFields) error {
+	return nil
+}
+
+func (w *EnginePointsWriter) DeleteSeries(keys []string) error { return nil }
 
 func (w *EnginePointsWriter) Open() error { return nil }
 

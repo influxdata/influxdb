@@ -21,6 +21,7 @@ package wal
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"hash/fnv"
@@ -70,6 +71,13 @@ const (
 	// FileExtension is the file extension we expect for wal segments
 	FileExtension = "wal"
 
+	// MetaFileExtension is the file extension for the log files of new fields and measurements that get created
+	MetaFileExtension = "meta"
+
+	// MetaFlushInterval is the period after which any compressed meta data in the .meta file will get
+	// flushed to the index
+	MetaFlushInterval = 10 * time.Minute
+
 	// defaultFlushCheckInterval is how often flushes are triggered automatically by the flush criteria
 	defaultFlushCheckInterval = time.Second
 )
@@ -90,6 +98,8 @@ const (
 	// thresholdFlush indicates that we should flush all series over the ReadySize
 	// and compact all other series
 	thresholdFlush
+	// deleteFlush indicates that we're flushing because series need to be removed from the WAL
+	deleteFlush
 )
 
 var (
@@ -126,6 +136,9 @@ type Log struct {
 	mu         sync.RWMutex
 	partitions map[uint8]*Partition
 
+	// metaFile is the file that compressed metadata like series and fields are written to
+	metaFile *os.File
+
 	// FlushColdInterval is the period of time after which a partition will do a
 	// full flush and compaction if it has been cold for writes.
 	FlushColdInterval time.Duration
@@ -136,13 +149,17 @@ type Log struct {
 	// MaxSeriesSize controls when a partition should get flushed to index and compacted
 	// if any series in the partition has exceeded this size threshold
 	MaxSeriesSize int
+
 	// ReadySeriesSize is the minimum size a series of points must get to before getting flushed.
 	ReadySeriesSize int
+
 	// CompactionThreshold controls when a parition will be flushed. Once this
 	// percentage of series in a partition are ready, a flush and compaction will be triggered.
 	CompactionThreshold float64
+
 	// PartitionSizeThreshold specifies when a partition should be forced to be flushed.
 	PartitionSizeThreshold uint64
+
 	// partitionCount is the number of separate partitions to create for the WAL.
 	// Compactions happen per partition. So this number will affect what percentage
 	// of the WAL gets compacted at a time. For instance, a setting of 10 means
@@ -159,7 +176,7 @@ type IndexWriter interface {
 	// time ascending points where each byte array is:
 	//   int64 time
 	//   data
-	WriteIndex(pointsByKey map[string][][]byte) error
+	WriteIndex(pointsByKey map[string][][]byte, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error
 }
 
 func NewLog(path string) *Log {
@@ -183,6 +200,11 @@ func NewLog(path string) *Log {
 // Open opens and initializes the Log. Will recover from previous unclosed shutdowns
 func (l *Log) Open() error {
 	if err := os.MkdirAll(l.path, 0777); err != nil {
+		return err
+	}
+
+	// open the metafile for writing
+	if err := l.nextMetaFile(); err != nil {
 		return err
 	}
 
@@ -219,29 +241,255 @@ func (l *Log) Cursor(key string) tsdb.Cursor {
 	return l.partition([]byte(key)).cursor(key)
 }
 
-func (l *Log) WritePoints(points []tsdb.Point) error {
+func (l *Log) WritePoints(points []tsdb.Point, fields map[string]*tsdb.MeasurementFields, series []*tsdb.SeriesCreate) error {
 	partitionsToWrite := l.pointsToPartitions(points)
 
-	// get it to disk
-	if err := func() error {
-		l.mu.RLock()
-		defer l.mu.RUnlock()
+	if err := l.writeSeriesAndFields(fields, series); err != nil {
+		l.logger.Println("error writing series and fields: ", err.Error())
+		return err
+	}
 
-		for p, points := range partitionsToWrite {
-			if err := p.Write(points); err != nil {
-				return err
+	// get it to disk
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+
+	for p, points := range partitionsToWrite {
+		if err := p.Write(points); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// Flush will force a flush on all paritions
+func (l *Log) Flush() error {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+
+	for _, p := range l.partitions {
+		if err := p.flushAndCompact(idleFlush); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// LoadMetadatIndex loads the new series and fields files into memory and flushes them to the BoltDB index. This function
+// should be called before making a call to Open()
+func (l *Log) LoadMetadataIndex(index *tsdb.DatabaseIndex, measurementFields map[string]*tsdb.MeasurementFields) error {
+	metaFiles, err := l.metadataFiles()
+	if err != nil {
+		return err
+	}
+
+	measurementFieldsToSave := make(map[string]*tsdb.MeasurementFields)
+	seriesToCreate := make([]*tsdb.SeriesCreate, 0)
+
+	// read all the metafiles off disk
+	for _, fn := range metaFiles {
+		a, err := l.readMetadataFile(fn)
+		if err != nil {
+			return err
+		}
+
+		// loop through the seriesAndFields and add them to the index and the collection to be written to the index
+		for _, sf := range a {
+			for k, mf := range sf.Fields {
+				measurementFieldsToSave[k] = mf
+
+				m := index.CreateMeasurementIndexIfNotExists(string(k))
+				for name, _ := range mf.Fields {
+					m.SetFieldName(name)
+				}
+				mf.Codec = tsdb.NewFieldCodec(mf.Fields)
+				measurementFields[m.Name] = mf
+			}
+
+			for _, sc := range sf.Series {
+				seriesToCreate = append(seriesToCreate, sc)
+
+				sc.Series.InitializeShards()
+				index.CreateSeriesIndexIfNotExists(tsdb.MeasurementFromSeriesKey(string(sc.Series.Key)), sc.Series)
 			}
 		}
+	}
+
+	if err := l.Index.WriteIndex(nil, measurementFieldsToSave, seriesToCreate); err != nil {
+		return err
+	}
+
+	// now remove all the old metafiles
+	for _, fn := range metaFiles {
+		if err := os.Remove(fn); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// DeleteSeries will flush the metadata that is in the WAL to the index and remove
+// all series specified from the cache and the segment files in each partition. This
+// will block all writes while a compaction is done against all partitions. This function
+// is meant to be called by bz1 BEFORE it updates its own index, since the metadata
+// is flushed here first.
+func (l *Log) DeleteSeries(keys []string) error {
+	// we want to stop any writes from happening to ensure the data gets cleared
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if err := l.flushMetadata(); err != nil {
+		return err
+	}
+
+	for _, p := range l.partitions {
+		p.deleteSeries(keys)
+	}
+
+	return nil
+}
+
+// readMetadataFile will read the entire contents of the meta file and return a slice of the
+// seriesAndFields objects that were written in. It ignores file errors since those can't be
+// recovered.
+func (l *Log) readMetadataFile(fileName string) ([]*seriesAndFields, error) {
+	f, err := os.OpenFile(fileName, os.O_RDONLY, 0666)
+	if err != nil {
+		return nil, err
+	}
+
+	a := make([]*seriesAndFields, 0)
+
+	length := make([]byte, 8)
+	for {
+		// get the length of the compressed seriesAndFields blob
+		_, err := f.Read(length)
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			f.Close()
+			return nil, err
+		}
+
+		dataLength := btou64(length)
+		if dataLength == 0 {
+			break
+		}
+
+		// read in the compressed block and decod it
+		b := make([]byte, dataLength)
+
+		_, err = f.Read(b)
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			// print the error and move on since we can't recover the file
+			l.logger.Println("error reading lenght of metadata: ", err.Error())
+			break
+		}
+
+		buf, err := snappy.Decode(nil, b)
+		if err != nil {
+			// print the error and move on since we can't recover the file
+			l.logger.Println("error reading compressed metadata info: ", err.Error())
+			break
+		}
+
+		sf := &seriesAndFields{}
+		if err := json.Unmarshal(buf, sf); err != nil {
+			// print the error and move on since we can't recover the file
+			l.logger.Println("error unmarshaling json for new series and fields: ", err.Error())
+			break
+		}
+
+		a = append(a, sf)
+	}
+
+	if err := f.Close(); err != nil {
+		return nil, err
+	}
+
+	return a, nil
+}
+
+// writeSeriesAndFields will write the compressed fields and series to the meta file. This file persists the data
+// in case the server gets shutdown before the WAL has a chance to flush everything to the cache. By default this
+// file is flushed on start when bz1 calls LoadMetaDataIndex
+func (l *Log) writeSeriesAndFields(fields map[string]*tsdb.MeasurementFields, series []*tsdb.SeriesCreate) error {
+	if len(fields) == 0 && len(series) == 0 {
 		return nil
-	}(); err != nil {
+	}
+
+	sf := &seriesAndFields{Fields: fields, Series: series}
+	b, err := json.Marshal(sf)
+	if err != nil {
+		return err
+	}
+	cb := snappy.Encode(nil, b)
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if _, err := l.metaFile.Write(u64tob(uint64(len(cb)))); err != nil {
+		return err
+	}
+
+	if _, err := l.metaFile.Write(cb); err != nil {
+		return err
+	}
+
+	return l.metaFile.Sync()
+}
+
+// nextMetaFile will close the current file if there is one open and open a new file to log
+// metadata updates to. This function assumes that you've locked l.mu elsewhere.
+func (l *Log) nextMetaFile() error {
+	if l.metaFile != nil {
+		if err := l.metaFile.Close(); err != nil {
+			return err
+		}
+	}
+
+	metaFiles, err := l.metadataFiles()
+	if err != nil {
+		return err
+	}
+
+	id := 0
+	if len(metaFiles) > 0 {
+		num := strings.Split(filepath.Base(metaFiles[len(metaFiles)-1]), ".")[0]
+		n, err := strconv.ParseInt(num, 10, 32)
+
+		if err != nil {
+			return err
+		}
+
+		id = int(n)
+	}
+
+	nextFileName := filepath.Join(l.path, fmt.Sprintf("%06d.%s", id, MetaFileExtension))
+	l.metaFile, err = os.OpenFile(nextFileName, os.O_CREATE|os.O_RDWR, 0666)
+	if err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (l *Log) Flush() error {
-	return fmt.Errorf("explicit call to flush isn't implemented yet")
+// metadataFiles returns the files in the WAL directory with the MetaFileExtension
+func (l *Log) metadataFiles() ([]string, error) {
+	path := filepath.Join(l.path, fmt.Sprintf("*.%s", MetaFileExtension))
+
+	a, err := filepath.Glob(path)
+	if err != nil {
+		return nil, err
+	}
+
+	sort.Strings(a)
+
+	return a, nil
 }
 
 // pointsToPartitions returns a map that organizes the points into the partitions they should be mapped to
@@ -316,6 +564,11 @@ func (l *Log) close() error {
 		}
 	}
 
+	if err := l.metaFile.Close(); err != nil {
+		return err
+	}
+
+	l.metaFile = nil
 	return nil
 }
 
@@ -337,10 +590,13 @@ func (l *Log) triggerAutoFlush() {
 func (l *Log) autoflusher(closing chan struct{}) {
 	defer l.wg.Done()
 
+	metaFlushTicker := time.NewTicker(MetaFlushInterval)
+
 	for {
 		// Wait for close or flush signal.
 		select {
 		case <-closing:
+			metaFlushTicker.Stop()
 			return
 		case <-l.flushCheckTimer.C:
 			l.triggerAutoFlush()
@@ -349,8 +605,59 @@ func (l *Log) autoflusher(closing chan struct{}) {
 			if err := l.Flush(); err != nil {
 				l.logger.Printf("flush error: %s", err)
 			}
+		case <-metaFlushTicker.C:
+			if err := l.flushMetadata(); err != nil {
+				l.logger.Printf("metadata flush error: %s", err.Error())
+			}
 		}
 	}
+}
+
+// flushMetadata will write start a new metafile for writes to go through and then flush all
+// metadata from previous files to the index. After a sucessful write, the metadata files
+// will be removed. While the flush to index is happening we aren't blocked for new metadata writes.
+func (l *Log) flushMetadata() error {
+	files, err := l.metadataFiles()
+	if err != nil {
+		return err
+	}
+
+	if err := l.nextMetaFile(); err != nil {
+		return err
+	}
+
+	measurements := make(map[string]*tsdb.MeasurementFields)
+	series := make([]*tsdb.SeriesCreate, 0)
+
+	// read all the measurement fields and series from the metafiles
+	for _, fn := range files {
+		a, err := l.readMetadataFile(fn)
+		if err != nil {
+			return err
+		}
+
+		for _, sf := range a {
+			for k, mf := range sf.Fields {
+				measurements[k] = mf
+			}
+
+			series = append(series, sf.Series...)
+		}
+	}
+
+	// write them to the index
+	if err := l.Index.WriteIndex(nil, measurements, series); err != nil {
+		return err
+	}
+
+	// remove the old files now that we've persisted them elsewhere
+	for _, fn := range files {
+		if err := os.Remove(fn); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // walPartition returns the partition number that key belongs to.
@@ -688,7 +995,7 @@ func (p *Partition) flushAndCompact(flush flushType) error {
 	fmt.Printf("compacting %d series from partition %d\n", len(c.seriesToFlush), p.id)
 
 	// write the data to the index first
-	if err := p.index.WriteIndex(c.seriesToFlush); err != nil {
+	if err := p.index.WriteIndex(c.seriesToFlush, nil, nil); err != nil {
 		// if we can't write the index, we should just bring down the server hard
 		panic(fmt.Sprintf("error writing the wal to the index: %s", err.Error()))
 	}
@@ -707,6 +1014,12 @@ func (p *Partition) flushAndCompact(flush flushType) error {
 		p.mu.Unlock()
 	}()
 
+	err = p.compactFiles(c, flush)
+	fmt.Printf("compaction of partition %d took %s\n", p.id, time.Since(startTime))
+	return err
+}
+
+func (p *Partition) compactFiles(c *compactionInfo, flush flushType) error {
 	// now compact all the old data
 	fileNames, err := p.segmentFileNames()
 	if err != nil {
@@ -776,8 +1089,6 @@ func (p *Partition) flushAndCompact(flush flushType) error {
 	if err := compactionFile.Close(); err != nil {
 		return err
 	}
-
-	fmt.Printf("compaction of partition %d took %s\n", p.id, time.Since(startTime))
 
 	// if it's an idle flush remove the compaction file
 	if flush == idleFlush {
@@ -941,6 +1252,39 @@ func (p *Partition) segmentFileNames() ([]string, error) {
 	return filepath.Glob(path)
 }
 
+// deleteSeries will perform a compaction on the partition, removing all data
+// from any of the series passed in.
+func (p *Partition) deleteSeries(keys []string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	p.compactionRunning = true
+
+	// remove the series from the cache and prepare the compaction info
+	size := 0
+	seriesToFlush := make(map[string][][]byte)
+	for _, k := range keys {
+		s := p.cache[k]
+		if s != nil {
+			seriesToFlush[k] = s
+			size += p.cacheSizes[k]
+			delete(p.cache, k)
+			delete(p.cacheDirtySort, k)
+			delete(p.cacheSizes, k)
+		}
+	}
+
+	c := &compactionInfo{seriesToFlush: seriesToFlush, flushSize: size}
+
+	// roll over a new segment file so we can compact all the old ones
+	if err := p.newSegmentFile(); err != nil {
+		return err
+	}
+	c.compactFilesLessThan = p.currentSegmentID
+
+	return p.compactFiles(c, deleteFlush)
+}
+
 // compactionInfo is a data object with information about a compaction running
 // and the series that will be flushed to the index
 type compactionInfo struct {
@@ -1095,6 +1439,13 @@ func (c *cursor) Next() (key, value []byte) {
 
 	return v[0:8], v[8:]
 
+}
+
+// seriesAndFields is a data struct to serialize new series and fields
+// to get created into WAL segment files
+type seriesAndFields struct {
+	Fields map[string]*tsdb.MeasurementFields `json:"fields,omitempty"`
+	Series []*tsdb.SeriesCreate               `json:"series,omitempty"`
 }
 
 // marshalWALEntry encodes point data into a single byte slice.

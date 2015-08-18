@@ -1018,6 +1018,10 @@ func (s *Series) UnmarshalBinary(buf []byte) error {
 	return nil
 }
 
+func (s *Series) InitializeShards() {
+	s.shardIDs = make(map[uint64]bool)
+}
+
 // match returns true if all tags match the series' tags.
 func (s *Series) match(tags map[string]string) bool {
 	for k, v := range tags {

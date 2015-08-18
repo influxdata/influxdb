@@ -3,6 +3,7 @@ package bz1
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -60,7 +61,9 @@ type Engine struct {
 
 // WAL represents a write ahead log that can be queried
 type WAL interface {
-	WritePoints(points []tsdb.Point) error
+	WritePoints(points []tsdb.Point, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error
+	LoadMetadataIndex(index *tsdb.DatabaseIndex, measurementFields map[string]*tsdb.MeasurementFields) error
+	DeleteSeries(keys []string) error
 	Cursor(key string) tsdb.Cursor
 	Open() error
 	Close() error
@@ -101,8 +104,6 @@ func (e *Engine) Open() error {
 
 		// Initialize data file.
 		if err := e.db.Update(func(tx *bolt.Tx) error {
-			_, _ = tx.CreateBucketIfNotExists([]byte("series"))
-			_, _ = tx.CreateBucketIfNotExists([]byte("fields"))
 			_, _ = tx.CreateBucketIfNotExists([]byte("points"))
 
 			// Set file format, if not set yet.
@@ -124,7 +125,7 @@ func (e *Engine) Open() error {
 		return err
 	}
 
-	return e.WAL.Open()
+	return nil
 }
 
 // Close closes the engine.
@@ -149,16 +150,14 @@ func (e *Engine) SetLogOutput(w io.Writer) {}
 
 // LoadMetadataIndex loads the shard metadata into memory.
 func (e *Engine) LoadMetadataIndex(index *tsdb.DatabaseIndex, measurementFields map[string]*tsdb.MeasurementFields) error {
-	return e.db.View(func(tx *bolt.Tx) error {
+	if err := e.db.View(func(tx *bolt.Tx) error {
 		// Load measurement metadata
-		meta := tx.Bucket([]byte("fields"))
-		c := meta.Cursor()
-		for k, v := c.First(); k != nil; k, v = c.Next() {
+		fields, err := e.readFields(tx)
+		if err != nil {
+			return err
+		}
+		for k, mf := range fields {
 			m := index.CreateMeasurementIndexIfNotExists(string(k))
-			mf := &tsdb.MeasurementFields{}
-			if err := mf.UnmarshalBinary(v); err != nil {
-				return err
-			}
 			for name, _ := range mf.Fields {
 				m.SetFieldName(name)
 			}
@@ -167,99 +166,50 @@ func (e *Engine) LoadMetadataIndex(index *tsdb.DatabaseIndex, measurementFields 
 		}
 
 		// Load series metadata
-		meta = tx.Bucket([]byte("series"))
-		c = meta.Cursor()
-		for k, v := c.First(); k != nil; k, v = c.Next() {
-			series := tsdb.NewSeries("", nil)
-			if err := series.UnmarshalBinary(v); err != nil {
-				return err
-			}
+		series, err := e.readSeries(tx)
+		if err != nil {
+			return err
+		}
+		for k, series := range series {
+			series.InitializeShards()
 			index.CreateSeriesIndexIfNotExists(tsdb.MeasurementFromSeriesKey(string(k)), series)
 		}
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+
+	// now flush the metadata that was in the WAL, but hand't yet been flushed
+	if err := e.WAL.LoadMetadataIndex(index, measurementFields); err != nil {
+		return err
+	}
+
+	// finally open the WAL up
+	return e.WAL.Open()
 }
 
 // WritePoints writes metadata and point data into the engine.
 // Returns an error if new points are added to an existing key.
 func (e *Engine) WritePoints(points []tsdb.Point, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
-	// Write series & field metadata.
-	if len(measurementFieldsToSave) > 0 || len(seriesToCreate) > 0 {
-		if err := e.db.Update(func(tx *bolt.Tx) error {
-			if err := e.writeSeries(tx, seriesToCreate); err != nil {
-				return fmt.Errorf("write series: %s", err)
-			}
-			if err := e.writeFields(tx, measurementFieldsToSave); err != nil {
-				return fmt.Errorf("write fields: %s", err)
-			}
-
-			return nil
-		}); err != nil {
-			return err
-		}
-	}
-
 	// Write points to the WAL.
-	if err := e.WAL.WritePoints(points); err != nil {
+	if err := e.WAL.WritePoints(points, measurementFieldsToSave, seriesToCreate); err != nil {
 		return fmt.Errorf("write points: %s", err)
 	}
 
 	return nil
 }
 
-// writeSeries writes a list of series to the metadata.
-func (e *Engine) writeSeries(tx *bolt.Tx, a []*tsdb.SeriesCreate) error {
-	// Ignore if there are no series.
-	if len(a) == 0 {
-		return nil
-	}
-
-	// Marshal and insert each series into the metadata.
-	b := tx.Bucket([]byte("series"))
-	for _, sc := range a {
-		// Marshal series into bytes.
-		data, err := sc.Series.MarshalBinary()
-		if err != nil {
-			return fmt.Errorf("marshal series: %s", err)
-		}
-
-		// Insert marshaled data into appropriate key.
-		if err := b.Put([]byte(sc.Series.Key), data); err != nil {
-			return fmt.Errorf("put: %s", err)
-		}
-	}
-
-	return nil
-}
-
-// writeFields writes a list of measurement fields to the metadata.
-func (e *Engine) writeFields(tx *bolt.Tx, m map[string]*tsdb.MeasurementFields) error {
-	// Ignore if there are no fields to save.
-	if len(m) == 0 {
-		return nil
-	}
-
-	// Persist each measurement field in the map.
-	b := tx.Bucket([]byte("fields"))
-	for k, f := range m {
-		// Marshal field into bytes.
-		data, err := f.MarshalBinary()
-		if err != nil {
-			return fmt.Errorf("marshal measurement field: %s", err)
-		}
-
-		// Insert marshaled data into key.
-		if err := b.Put([]byte(k), data); err != nil {
-			return fmt.Errorf("put: %s", err)
-		}
-	}
-
-	return nil
-}
-
 // WriteIndex writes marshaled points to the engine's underlying index.
-func (e *Engine) WriteIndex(pointsByKey map[string][][]byte) error {
+func (e *Engine) WriteIndex(pointsByKey map[string][][]byte, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
 	return e.db.Update(func(tx *bolt.Tx) error {
+		// Write series & field metadata.
+		if err := e.writeNewSeries(tx, seriesToCreate); err != nil {
+			return fmt.Errorf("write series: %s", err)
+		}
+		if err := e.writeNewFields(tx, measurementFieldsToSave); err != nil {
+			return fmt.Errorf("write fields: %s", err)
+		}
+
 		for key, values := range pointsByKey {
 			if err := e.writeIndex(tx, key, values); err != nil {
 				return fmt.Errorf("write: key=%x, err=%s", key, err)
@@ -267,6 +217,103 @@ func (e *Engine) WriteIndex(pointsByKey map[string][][]byte) error {
 		}
 		return nil
 	})
+}
+
+func (e *Engine) writeNewFields(tx *bolt.Tx, measurementFieldsToSave map[string]*tsdb.MeasurementFields) error {
+	if len(measurementFieldsToSave) == 0 {
+		return nil
+	}
+
+	// read in all the previously saved fields
+	fields, err := e.readFields(tx)
+	if err != nil {
+		return err
+	}
+
+	// add the new ones or overwrite old ones
+	for name, mf := range measurementFieldsToSave {
+		fields[name] = mf
+	}
+
+	return e.writeFields(tx, fields)
+}
+
+func (e *Engine) writeFields(tx *bolt.Tx, fields map[string]*tsdb.MeasurementFields) error {
+	// compress and save everything
+	data, err := json.Marshal(fields)
+	if err != nil {
+		return err
+	}
+
+	return tx.Bucket([]byte("meta")).Put([]byte("fields"), snappy.Encode(nil, data))
+}
+
+func (e *Engine) readFields(tx *bolt.Tx) (map[string]*tsdb.MeasurementFields, error) {
+	fields := make(map[string]*tsdb.MeasurementFields)
+
+	b := tx.Bucket([]byte("meta")).Get([]byte("fields"))
+	if b == nil {
+		return fields, nil
+	}
+
+	data, err := snappy.Decode(nil, b)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return nil, err
+	}
+
+	return fields, nil
+}
+
+func (e *Engine) writeNewSeries(tx *bolt.Tx, seriesToCreate []*tsdb.SeriesCreate) error {
+	if len(seriesToCreate) == 0 {
+		return nil
+	}
+
+	// read in previously saved series
+	series, err := e.readSeries(tx)
+	if err != nil {
+		return err
+	}
+
+	// add new ones, compress and save
+	for _, s := range seriesToCreate {
+		series[s.Series.Key] = s.Series
+	}
+
+	return e.writeSeries(tx, series)
+}
+
+func (e *Engine) writeSeries(tx *bolt.Tx, series map[string]*tsdb.Series) error {
+	data, err := json.Marshal(series)
+	if err != nil {
+		return err
+	}
+
+	return tx.Bucket([]byte("meta")).Put([]byte("series"), snappy.Encode(nil, data))
+}
+
+func (e *Engine) readSeries(tx *bolt.Tx) (map[string]*tsdb.Series, error) {
+	series := make(map[string]*tsdb.Series)
+
+	b := tx.Bucket([]byte("meta")).Get([]byte("series"))
+	if b == nil {
+		return series, nil
+	}
+
+	data, err := snappy.Decode(nil, b)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := json.Unmarshal(data, &series); err != nil {
+		return nil, err
+	}
+
+	return series, nil
 }
 
 // writeIndex writes a set of points for a single key.
@@ -398,36 +445,56 @@ func (e *Engine) writeBlocks(bkt *bolt.Bucket, a [][]byte) error {
 
 // DeleteSeries deletes the series from the engine.
 func (e *Engine) DeleteSeries(keys []string) error {
+	// remove it from the WAL first
+	if err := e.WAL.DeleteSeries(keys); err != nil {
+		return err
+	}
+
 	return e.db.Update(func(tx *bolt.Tx) error {
+		series, err := e.readSeries(tx)
+		if err != nil {
+			return err
+		}
 		for _, k := range keys {
-			if err := tx.Bucket([]byte("series")).Delete([]byte(k)); err != nil {
-				return fmt.Errorf("delete series metadata: %s", err)
-			}
+			delete(series, k)
 			if err := tx.Bucket([]byte("points")).DeleteBucket([]byte(k)); err != nil && err != bolt.ErrBucketNotFound {
 				return fmt.Errorf("delete series data: %s", err)
 			}
 		}
-		return nil
+
+		return e.writeSeries(tx, series)
 	})
 }
 
 // DeleteMeasurement deletes a measurement and all related series.
 func (e *Engine) DeleteMeasurement(name string, seriesKeys []string) error {
+	// remove from the WAL first so it won't get flushed after removing from Bolt
+	if err := e.WAL.DeleteSeries(seriesKeys); err != nil {
+		return err
+	}
+
 	return e.db.Update(func(tx *bolt.Tx) error {
-		if err := tx.Bucket([]byte("fields")).Delete([]byte(name)); err != nil {
+		fields, err := e.readFields(tx)
+		if err != nil {
+			return err
+		}
+		delete(fields, name)
+		if err := e.writeFields(tx, fields); err != nil {
 			return err
 		}
 
+		series, err := e.readSeries(tx)
+		if err != nil {
+			return err
+		}
 		for _, k := range seriesKeys {
-			if err := tx.Bucket([]byte("series")).Delete([]byte(k)); err != nil {
-				return fmt.Errorf("delete series metadata: %s", err)
-			}
+			delete(series, k)
 			if err := tx.Bucket([]byte("points")).DeleteBucket([]byte(k)); err != nil && err != bolt.ErrBucketNotFound {
 				return fmt.Errorf("delete series data: %s", err)
 			}
 		}
 
-		return nil
+		return e.writeSeries(tx, series)
 	})
 }
 

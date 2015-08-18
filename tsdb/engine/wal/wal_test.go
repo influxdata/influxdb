@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"os"
+	"reflect"
 	"testing"
 	"time"
 
@@ -38,7 +39,7 @@ func TestWAL_WritePoints(t *testing.T) {
 	p1 := parsePoint("cpu,host=A value=23.2 1", codec)
 	p2 := parsePoint("cpu,host=A value=25.3 4", codec)
 	p3 := parsePoint("cpu,host=B value=1.0 1", codec)
-	if err := log.WritePoints([]tsdb.Point{p1, p2, p3}); err != nil {
+	if err := log.WritePoints([]tsdb.Point{p1, p2, p3}, nil, nil); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
@@ -84,7 +85,7 @@ func TestWAL_WritePoints(t *testing.T) {
 	p6 := parsePoint("cpu,host=A value=1.3 2", codec)
 	// // ensure we can write to a new partition
 	// p7 := parsePoint("cpu,region=west value=2.2", codec)
-	if err := log.WritePoints([]tsdb.Point{p4, p5, p6}); err != nil {
+	if err := log.WritePoints([]tsdb.Point{p4, p5, p6}, nil, nil); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
@@ -142,7 +143,7 @@ func TestWAL_CorruptDataLengthSize(t *testing.T) {
 	// test that we can write to two different series
 	p1 := parsePoint("cpu,host=A value=23.2 1", codec)
 	p2 := parsePoint("cpu,host=A value=25.3 4", codec)
-	if err := log.WritePoints([]tsdb.Point{p1, p2}); err != nil {
+	if err := log.WritePoints([]tsdb.Point{p1, p2}, nil, nil); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
@@ -175,7 +176,7 @@ func TestWAL_CorruptDataLengthSize(t *testing.T) {
 
 	// now write new data and ensure it's all good
 	p3 := parsePoint("cpu,host=A value=29.2 6", codec)
-	if err := log.WritePoints([]tsdb.Point{p3}); err != nil {
+	if err := log.WritePoints([]tsdb.Point{p3}, nil, nil); err != nil {
 		t.Fatalf("failed to write point: %s", err.Error())
 	}
 
@@ -221,7 +222,7 @@ func TestWAL_CorruptDataBlock(t *testing.T) {
 	// test that we can write to two different series
 	p1 := parsePoint("cpu,host=A value=23.2 1", codec)
 	p2 := parsePoint("cpu,host=A value=25.3 4", codec)
-	if err := log.WritePoints([]tsdb.Point{p1, p2}); err != nil {
+	if err := log.WritePoints([]tsdb.Point{p1, p2}, nil, nil); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
@@ -260,7 +261,7 @@ func TestWAL_CorruptDataBlock(t *testing.T) {
 
 	// now write new data and ensure it's all good
 	p3 := parsePoint("cpu,host=A value=29.2 6", codec)
-	if err := log.WritePoints([]tsdb.Point{p3}); err != nil {
+	if err := log.WritePoints([]tsdb.Point{p3}, nil, nil); err != nil {
 		t.Fatalf("failed to write point: %s", err.Error())
 	}
 
@@ -301,7 +302,7 @@ func TestWAL_CompactAfterPercentageThreshold(t *testing.T) {
 	defer os.RemoveAll(log.path)
 
 	points := make([]map[string][][]byte, 0)
-	log.Index = &testIndexWriter{fn: func(pointsByKey map[string][][]byte) error {
+	log.Index = &testIndexWriter{fn: func(pointsByKey map[string][][]byte, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
 		points = append(points, pointsByKey)
 		return nil
 	}}
@@ -339,7 +340,7 @@ func TestWAL_CompactAfterPercentageThreshold(t *testing.T) {
 		}
 
 		// write the batch out
-		if err := log.WritePoints(parsePoints(buf.String(), codec)); err != nil {
+		if err := log.WritePoints(parsePoints(buf.String(), codec), nil, nil); err != nil {
 			t.Fatalf("failed to write points: %s", err.Error())
 		}
 		buf = bytes.NewBuffer(b)
@@ -408,7 +409,7 @@ func TestWAL_CompactAfterTimeWithoutWrite(t *testing.T) {
 	defer os.RemoveAll(log.path)
 
 	points := make([]map[string][][]byte, 0)
-	log.Index = &testIndexWriter{fn: func(pointsByKey map[string][][]byte) error {
+	log.Index = &testIndexWriter{fn: func(pointsByKey map[string][][]byte, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
 		points = append(points, pointsByKey)
 		return nil
 	}}
@@ -434,7 +435,7 @@ func TestWAL_CompactAfterTimeWithoutWrite(t *testing.T) {
 		}
 
 		// write the batch out
-		if err := log.WritePoints(parsePoints(buf.String(), codec)); err != nil {
+		if err := log.WritePoints(parsePoints(buf.String(), codec), nil, nil); err != nil {
 			t.Fatalf("failed to write points: %s", err.Error())
 		}
 		buf = bytes.NewBuffer(b)
@@ -461,6 +462,226 @@ func TestWAL_CompactAfterTimeWithoutWrite(t *testing.T) {
 	// ensure that we didn't bother to open a new segment file
 	if log.partitions[1].currentSegmentFile != nil {
 		t.Fatal("expected partition to not have an open segment file")
+	}
+}
+
+func TestWAL_SeriesAndFieldsGetPersisted(t *testing.T) {
+	log := openTestWAL()
+	defer log.Close()
+	defer os.RemoveAll(log.path)
+
+	if err := log.Open(); err != nil {
+		t.Fatalf("couldn't open wal: %s", err.Error())
+	}
+
+	codec := tsdb.NewFieldCodec(map[string]*tsdb.Field{
+		"value": {
+			ID:   uint8(1),
+			Name: "value",
+			Type: influxql.Float,
+		},
+	})
+
+	var measurementsToIndex map[string]*tsdb.MeasurementFields
+	var seriesToIndex []*tsdb.SeriesCreate
+	log.Index = &testIndexWriter{fn: func(pointsByKey map[string][][]byte, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
+		measurementsToIndex = measurementFieldsToSave
+		seriesToIndex = append(seriesToIndex, seriesToCreate...)
+		return nil
+	}}
+
+	// test that we can write to two different series
+	p1 := parsePoint("cpu,host=A value=23.2 1", codec)
+	p2 := parsePoint("cpu,host=A value=25.3 4", codec)
+	p3 := parsePoint("cpu,host=B value=1.0 1", codec)
+
+	seriesToCreate := []*tsdb.SeriesCreate{
+		{Series: tsdb.NewSeries(string(tsdb.MakeKey([]byte("cpu"), map[string]string{"host": "A"})), map[string]string{"host": "A"})},
+		{Series: tsdb.NewSeries(string(tsdb.MakeKey([]byte("cpu"), map[string]string{"host": "B"})), map[string]string{"host": "B"})},
+	}
+
+	measaurementsToCreate := map[string]*tsdb.MeasurementFields{
+		"cpu": {
+			Fields: map[string]*tsdb.Field{
+				"value": {ID: 1, Name: "value"},
+			},
+		},
+	}
+
+	if err := log.WritePoints([]tsdb.Point{p1, p2, p3}, measaurementsToCreate, seriesToCreate); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	// now close it and see if loading the metadata index will populate the measurement and series info
+	log.Close()
+
+	idx := tsdb.NewDatabaseIndex()
+	mf := make(map[string]*tsdb.MeasurementFields)
+
+	if err := log.LoadMetadataIndex(idx, mf); err != nil {
+		t.Fatalf("error loading metadata index: %s", err.Error())
+	}
+
+	s := idx.Series("cpu,host=A")
+	if s == nil {
+		t.Fatal("expected to find series cpu,host=A in index %v", idx)
+	}
+
+	s = idx.Series("cpu,host=B")
+	if s == nil {
+		t.Fatal("expected to find series cpu,host=B in index")
+	}
+
+	m := mf["cpu"]
+	if m == nil {
+		t.Fatal("expected to find measurement fields for cpu", mf)
+	}
+	if m.Fields["value"] == nil {
+		t.Fatal("expected to find field definition for 'value'")
+	}
+
+	// ensure that they were actually flushed to the index. do it this way because the annoying deepequal doessn't really work for these
+	for i, s := range seriesToCreate {
+		if seriesToIndex[i].Measurement != s.Measurement {
+			t.Fatal("expected measurement to be the same")
+		}
+		if seriesToIndex[i].Series.Key != s.Series.Key {
+			t.Fatal("expected series key to be the same")
+		}
+		if !reflect.DeepEqual(seriesToIndex[i].Series.Tags, s.Series.Tags) {
+			t.Fatal("expected series tags to be the same")
+		}
+	}
+
+	// ensure that the measurement fields were flushed to the index
+	for k, v := range measaurementsToCreate {
+		m := measurementsToIndex[k]
+		if m == nil {
+			t.Fatalf("measurement %s wasn't indexed", k)
+		}
+
+		if !reflect.DeepEqual(m.Fields, v.Fields) {
+			t.Fatal("measurement fields not equal")
+		}
+	}
+
+	// now open and close the log and try to reload the metadata index, which should now be empty
+	if err := log.Open(); err != nil {
+		t.Fatalf("error opening log: %s", err.Error())
+	}
+	if err := log.Close(); err != nil {
+		t.Fatalf("error closing log: %s", err.Error())
+	}
+
+	idx = tsdb.NewDatabaseIndex()
+	mf = make(map[string]*tsdb.MeasurementFields)
+
+	if err := log.LoadMetadataIndex(idx, mf); err != nil {
+		t.Fatalf("error loading metadata index: %s", err.Error())
+	}
+
+	if len(idx.Measurements()) != 0 || len(mf) != 0 {
+		t.Fatal("expected index and measurement fields to be empty")
+	}
+}
+
+func TestWAL_DeleteSeries(t *testing.T) {
+	log := openTestWAL()
+	defer log.Close()
+	defer os.RemoveAll(log.path)
+
+	if err := log.Open(); err != nil {
+		t.Fatalf("couldn't open wal: %s", err.Error())
+	}
+
+	codec := tsdb.NewFieldCodec(map[string]*tsdb.Field{
+		"value": {
+			ID:   uint8(1),
+			Name: "value",
+			Type: influxql.Float,
+		},
+	})
+
+	var seriesToIndex []*tsdb.SeriesCreate
+	log.Index = &testIndexWriter{fn: func(pointsByKey map[string][][]byte, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
+		seriesToIndex = append(seriesToIndex, seriesToCreate...)
+		return nil
+	}}
+
+	seriesToCreate := []*tsdb.SeriesCreate{
+		{Series: tsdb.NewSeries(string(tsdb.MakeKey([]byte("cpu"), map[string]string{"host": "A"})), map[string]string{"host": "A"})},
+		{Series: tsdb.NewSeries(string(tsdb.MakeKey([]byte("cpu"), map[string]string{"host": "B"})), map[string]string{"host": "B"})},
+	}
+
+	// test that we can write to two different series
+	p1 := parsePoint("cpu,host=A value=23.2 1", codec)
+	p2 := parsePoint("cpu,host=B value=0.9 2", codec)
+	p3 := parsePoint("cpu,host=A value=25.3 4", codec)
+	p4 := parsePoint("cpu,host=B value=1.0 3", codec)
+	if err := log.WritePoints([]tsdb.Point{p1, p2, p3, p4}, nil, seriesToCreate); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	// ensure data is there
+	c := log.Cursor("cpu,host=A")
+	if k, _ := c.Next(); btou64(k) != 1 {
+		t.Fatal("expected data point for cpu,host=A")
+	}
+
+	c = log.Cursor("cpu,host=B")
+	if k, _ := c.Next(); btou64(k) != 2 {
+		t.Fatal("expected data point for cpu,host=B")
+	}
+
+	// delete the series and ensure metadata was flushed and data is gone
+	if err := log.DeleteSeries([]string{"cpu,host=B"}); err != nil {
+		t.Fatalf("error deleting series: %s", err.Error())
+	}
+
+	// ensure data is there
+	c = log.Cursor("cpu,host=A")
+	if k, _ := c.Next(); btou64(k) != 1 {
+		t.Fatal("expected data point for cpu,host=A")
+	}
+
+	// ensure series is deleted
+	c = log.Cursor("cpu,host=B")
+	if k, _ := c.Next(); k != nil {
+		t.Fatal("expected no data for cpu,host=B")
+	}
+
+	// ensure that they were actually flushed to the index. do it this way because the annoying deepequal doessn't really work for these
+	for i, s := range seriesToCreate {
+		if seriesToIndex[i].Measurement != s.Measurement {
+			t.Fatal("expected measurement to be the same")
+		}
+		if seriesToIndex[i].Series.Key != s.Series.Key {
+			t.Fatal("expected series key to be the same")
+		}
+		if !reflect.DeepEqual(seriesToIndex[i].Series.Tags, s.Series.Tags) {
+			t.Fatal("expected series tags to be the same")
+		}
+	}
+
+	// close and re-open the WAL to ensure that the data didn't show back up
+	if err := log.Close(); err != nil {
+		t.Fatalf("error closing log: %s", err.Error())
+	}
+
+	if err := log.Open(); err != nil {
+		t.Fatalf("error opening log: %s", err.Error())
+	}
+
+	// ensure data is there
+	c = log.Cursor("cpu,host=A")
+	if k, _ := c.Next(); btou64(k) != 1 {
+		t.Fatal("expected data point for cpu,host=A")
+	}
+
+	// ensure series is deleted
+	c = log.Cursor("cpu,host=B")
+	if k, _ := c.Next(); k != nil {
+		t.Fatal("expected no data for cpu,host=B")
 	}
 }
 
@@ -557,11 +778,11 @@ func TestWAL_CompactAfterTimeWithoutWrite(t *testing.T) {
 // }
 
 type testIndexWriter struct {
-	fn func(pointsByKey map[string][][]byte) error
+	fn func(pointsByKey map[string][][]byte, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error
 }
 
-func (t *testIndexWriter) WriteIndex(pointsByKey map[string][][]byte) error {
-	return t.fn(pointsByKey)
+func (t *testIndexWriter) WriteIndex(pointsByKey map[string][][]byte, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
+	return t.fn(pointsByKey, measurementFieldsToSave, seriesToCreate)
 }
 
 func openTestWAL() *Log {
