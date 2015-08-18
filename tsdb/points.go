@@ -96,6 +96,12 @@ var (
 		',': []byte(`\,`),
 		' ': []byte(`\ `),
 	}
+
+	tagEscapeCodes = map[byte][]byte{
+		',': []byte(`\,`),
+		' ': []byte(`\ `),
+		'=': []byte(`\=`),
+	}
 )
 
 func init() {
@@ -846,6 +852,20 @@ func unescapeMeasurement(in []byte) []byte {
 	return in
 }
 
+func escapeTag(in []byte) []byte {
+	for b, esc := range tagEscapeCodes {
+		in = bytes.Replace(in, []byte{b}, esc, -1)
+	}
+	return in
+}
+
+func unescapeTag(in []byte) []byte {
+	for b, esc := range tagEscapeCodes {
+		in = bytes.Replace(in, esc, []byte{b}, -1)
+	}
+	return in
+}
+
 func escape(in []byte) []byte {
 	for b, esc := range escapeCodes {
 		in = bytes.Replace(in, []byte{b}, esc, -1)
@@ -956,7 +976,7 @@ func (p *point) Tags() Tags {
 			i, key = scanTo(p.key, i, '=')
 			i, value = scanTagValue(p.key, i+1)
 
-			tags[string(unescape(key))] = string(unescape(value))
+			tags[string(unescapeTag(key))] = string(unescapeTag(value))
 
 			i += 1
 		}
@@ -1061,9 +1081,9 @@ func (t Tags) HashKey() []byte {
 
 	escaped := Tags{}
 	for k, v := range t {
-		ek := escapeString(k)
-		ev := escapeString(v)
-		escaped[ek] = ev
+		ek := escapeTag([]byte(k))
+		ev := escapeTag([]byte(v))
+		escaped[string(ek)] = string(ev)
 	}
 
 	// Extract keys and determine final size.

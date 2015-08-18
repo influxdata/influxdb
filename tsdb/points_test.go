@@ -758,6 +758,21 @@ func TestParsePointQuotedMeasurement(t *testing.T) {
 	)
 }
 
+func TestParsePointQuotedTags(t *testing.T) {
+	test(t, `cpu,"host"="serverA",region=us-east value=1.0 1000000000`,
+		tsdb.NewPoint(
+			"cpu",
+			tsdb.Tags{
+				`"host"`: `"serverA"`,
+				"region": "us-east",
+			},
+			tsdb.Fields{
+				"value": 1.0,
+			},
+			time.Unix(1, 0)),
+	)
+}
+
 func TestParsePointEscapedStringsAndCommas(t *testing.T) {
 	// non-escaped comma and quotes
 	test(t, `cpu,host=serverA,region=us-east value="{Hello\"{,}\" World}" 1000000000`,
