@@ -14,7 +14,9 @@ having multiple partitions was to be able to flush only a portion of the
 WAL at a time.
 
 The WAL does not flush everything in a partition when it comes time. It will
-only flush series that are over a given threshold (32kb by default).
+only flush series that are over a given threshold (32kb by default). The rest
+will be written into a new segment file so they can be flushed later. This
+is like a compaction in an LSM Tree.
 */
 package wal
 
@@ -63,7 +65,7 @@ const (
 	// we'll need to create backpressure, otherwise we'll fill up the memory and die.
 	// This number multiplied by the parition count is roughly the max possible memory
 	// size for the in-memory WAL cache.
-	DefaultPartitionSizeThreshold = 50 * 1024 * 1024 // 50MB
+	DefaultPartitionSizeThreshold = 20 * 1024 * 1024 // 20MB
 
 	// PartitionCount is the number of partitions in the WAL
 	PartitionCount = 5
@@ -688,14 +690,17 @@ type Partition struct {
 	currentSegmentID   uint32
 	lastFileID         uint32
 	maxSegmentSize     int64
-	cache              map[string][][]byte
+	cache              map[string]*cacheEntry
 
 	index           IndexWriter
 	readySeriesSize int
+
 	// memorySize is the rough size in memory of all the cached series data
 	memorySize uint64
+
 	// sizeThreshold is the memory size after which writes start getting throttled
 	sizeThreshold uint64
+
 	// backoffCount is the number of times write has been called while memory is
 	// over the threshold. It's used to gradually increase write times to put
 	// backpressure on clients.
@@ -704,8 +709,6 @@ type Partition struct {
 	// flushCache is a temporary placeholder to keep data while its being flushed
 	// and compacted. It's for cursors to combine the cache and this if a flush is occuring
 	flushCache        map[string][][]byte
-	cacheDirtySort    map[string]bool // will be true if the key needs to be sorted
-	cacheSizes        map[string]int
 	compactionRunning bool
 
 	// flushColdInterval and lastWriteTime are used to determin if a partition should
@@ -721,9 +724,7 @@ func NewPartition(id uint8, path string, segmentSize int64, sizeThreshold uint64
 		maxSegmentSize:    segmentSize,
 		sizeThreshold:     sizeThreshold,
 		lastWriteTime:     time.Now(),
-		cache:             make(map[string][][]byte),
-		cacheDirtySort:    make(map[string]bool),
-		cacheSizes:        make(map[string]int),
+		cache:             make(map[string]*cacheEntry),
 		readySeriesSize:   readySeriesSize,
 		index:             index,
 		flushColdInterval: flushColdInterval,
@@ -736,8 +737,6 @@ func (p *Partition) Close() error {
 	defer p.mu.Unlock()
 
 	p.cache = nil
-	p.cacheDirtySort = nil
-	p.cacheSizes = nil
 	if err := p.currentSegmentFile.Close(); err != nil {
 		return err
 	}
@@ -870,15 +869,16 @@ func (p *Partition) shouldFlush(maxSeriesSize int, compactionThreshold float64) 
 	}
 
 	countReady := 0
-	for _, s := range p.cacheSizes {
-		if s > maxSeriesSize {
+	for _, c := range p.cache {
+		// if we have a series with the max possible size, shortcut out because we need to flush
+		if c.size > maxSeriesSize {
 			return thresholdFlush
-		} else if s > p.readySeriesSize {
+		} else if c.size > p.readySeriesSize {
 			countReady += 1
 		}
 	}
 
-	if float64(countReady)/float64(len(p.cacheSizes)) > compactionThreshold {
+	if float64(countReady)/float64(len(p.cache)) > compactionThreshold {
 		return thresholdFlush
 	}
 
@@ -908,14 +908,16 @@ func (p *Partition) prepareSeriesToFlush(readySeriesSize int, flush flushType) (
 
 	// if this flush is being triggered because the partition is idle, all series hit the threshold
 	if flush == idleFlush {
-		for _, s := range p.cacheSizes {
-			size += s
+		for _, c := range p.cache {
+			size += c.size
 		}
-		seriesToFlush = p.cache
-		p.cache = make(map[string][][]byte)
-		p.cacheDirtySort = make(map[string]bool)
-		p.cacheSizes = make(map[string]int)
-	} else { // only grab the series that hit the thresold
+		seriesToFlush = make(map[string][][]byte)
+		for k, c := range p.cache {
+			seriesToFlush[k] = c.points
+		}
+		p.cache = make(map[string]*cacheEntry)
+	} else {
+		// only grab the series that hit the thresold. loop until we have series to flush
 		for {
 			s, n := p.seriesToFlush(readySeriesSize)
 			if len(s) > 0 {
@@ -959,19 +961,18 @@ func (p *Partition) prepareSeriesToFlush(readySeriesSize int, flush flushType) (
 func (p *Partition) seriesToFlush(readySeriesSize int) (map[string][][]byte, int) {
 	seriesToFlush := make(map[string][][]byte)
 	size := 0
-	for k, s := range p.cacheSizes {
+	for k, c := range p.cache {
 		// if the series is over the threshold, save it in the map to flush later
-		if s >= readySeriesSize {
-			size += s
-			seriesToFlush[k] = p.cache[k]
-			delete(p.cacheSizes, k)
-			delete(p.cache, k)
+		if c.size >= readySeriesSize {
+			size += c.size
+			seriesToFlush[k] = c.points
 
 			// always hand the index data that is sorted
-			if p.cacheDirtySort[k] {
+			if c.isDirtySort {
 				sort.Sort(tsdb.ByteSlices(seriesToFlush[k]))
-				delete(p.cacheDirtySort, k)
 			}
+
+			delete(p.cache, k)
 		}
 	}
 
@@ -1193,14 +1194,21 @@ func (p *Partition) addToCache(key, data []byte, timestamp int64) {
 	v := MarshalEntry(timestamp, data)
 	p.memorySize += uint64(len(v))
 
-	// Determine if we'll need to sort the values for this key later
-	a := p.cache[string(key)]
-	needSort := !(len(a) == 0 || bytes.Compare(a[len(a)-1][0:8], v[0:8]) == -1)
-	p.cacheDirtySort[string(key)] = needSort
+	entry := p.cache[string(key)]
+	if entry == nil {
+		entry = &cacheEntry{
+			points: [][]byte{v},
+			size:   len(v),
+		}
+		p.cache[string(key)] = entry
 
-	// Append to cache list.
-	p.cache[string(key)] = append(a, v)
-	p.cacheSizes[string(key)] += len(v)
+		return
+	}
+
+	// Determine if we'll need to sort the values for this key later
+	entry.isDirtySort = bytes.Compare(entry.points[len(entry.points)-1][0:8], v[0:8]) != -1
+	entry.points = append(entry.points, v)
+	entry.size += len(v)
 }
 
 // cursor will combine the in memory cache and flush cache (if a flush is currently happening) to give a single ordered cursor for the key
@@ -1208,8 +1216,8 @@ func (p *Partition) cursor(key string) *cursor {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	cache := p.cache[key]
-	if cache == nil {
+	entry := p.cache[key]
+	if entry == nil {
 		return &cursor{}
 	}
 
@@ -1217,21 +1225,20 @@ func (p *Partition) cursor(key string) *cursor {
 	// with this one for the cursor
 	if p.flushCache != nil {
 		if fc, ok := p.flushCache[key]; ok {
-			c := make([][]byte, len(fc), len(fc)+len(cache))
+			c := make([][]byte, len(fc), len(fc)+len(entry.points))
 			copy(c, fc)
-			c = append(c, cache...)
-			tsdb.DedupeEntries(c)
-			return &cursor{cache: c}
+			c = append(c, entry.points...)
+
+			return &cursor{cache: tsdb.DedupeEntries(c)}
 		}
 	}
 
-	if p.cacheDirtySort[key] {
-		cache = tsdb.DedupeEntries(cache)
-		p.cache[key] = cache
-		delete(p.cacheDirtySort, key)
+	if entry.isDirtySort {
+		entry.points = tsdb.DedupeEntries(entry.points)
+		entry.isDirtySort = false
 	}
 
-	return &cursor{cache: cache}
+	return &cursor{cache: entry.points}
 }
 
 // idFromFileName parses the segment file ID from its name
@@ -1264,15 +1271,14 @@ func (p *Partition) deleteSeries(keys []string) error {
 	size := 0
 	seriesToFlush := make(map[string][][]byte)
 	for _, k := range keys {
-		s := p.cache[k]
-		if s != nil {
-			seriesToFlush[k] = s
-			size += p.cacheSizes[k]
+		entry := p.cache[k]
+		if entry != nil {
+			seriesToFlush[k] = entry.points
+			size += entry.size
 			delete(p.cache, k)
-			delete(p.cacheDirtySort, k)
-			delete(p.cacheSizes, k)
 		}
 	}
+	p.memorySize -= uint64(size)
 
 	c := &compactionInfo{seriesToFlush: seriesToFlush, flushSize: size}
 
@@ -1446,6 +1452,13 @@ func (c *cursor) Next() (key, value []byte) {
 type seriesAndFields struct {
 	Fields map[string]*tsdb.MeasurementFields `json:"fields,omitempty"`
 	Series []*tsdb.SeriesCreate               `json:"series,omitempty"`
+}
+
+// cacheEntry holds the cached data for a series
+type cacheEntry struct {
+	points      [][]byte
+	isDirtySort bool
+	size        int
 }
 
 // marshalWALEntry encodes point data into a single byte slice.
