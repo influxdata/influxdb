@@ -44,7 +44,8 @@ func (s *Service) Open() error {
 		return nil
 	}
 
-	s.Logger.Println("Starting precreation service")
+	s.Logger.Printf("Starting precreation service with check interval of %s, advance period of %s",
+		s.checkInterval, s.advancePeriod)
 
 	s.done = make(chan struct{})
 
