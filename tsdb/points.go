@@ -91,6 +91,11 @@ var (
 	}
 
 	escapeCodesStr = map[string]string{}
+
+	measurementEscapeCodes = map[byte][]byte{
+		',': []byte(`\,`),
+		' ': []byte(`\ `),
+	}
 )
 
 func init() {
@@ -707,7 +712,7 @@ func scanLine(buf []byte, i int) (int, []byte) {
 		}
 
 		// If we see a double quote, makes sure it is not escaped
-		if buf[i] == '"' && buf[i-1] != '\\' {
+		if buf[i] == '"' && (i-1 > 0 && buf[i-1] != '\\') {
 			i += 1
 			quoted = !quoted
 			continue
@@ -825,6 +830,20 @@ func scanFieldValue(buf []byte, i int) (int, []byte) {
 		i += 1
 	}
 	return i, buf[start:i]
+}
+
+func escapeMeasurement(in []byte) []byte {
+	for b, esc := range measurementEscapeCodes {
+		in = bytes.Replace(in, []byte{b}, esc, -1)
+	}
+	return in
+}
+
+func unescapeMeasurement(in []byte) []byte {
+	for b, esc := range measurementEscapeCodes {
+		in = bytes.Replace(in, esc, []byte{b}, -1)
+	}
+	return in
 }
 
 func escape(in []byte) []byte {
@@ -948,7 +967,7 @@ func (p *point) Tags() Tags {
 func MakeKey(name []byte, tags Tags) []byte {
 	// unescape the name and then re-escape it to avoid double escaping.
 	// The key should always be stored in escaped form.
-	return append(escape(unescape(name)), tags.HashKey()...)
+	return append(escapeMeasurement(unescapeMeasurement(name)), tags.HashKey()...)
 }
 
 // SetTags replaces the tags for the point

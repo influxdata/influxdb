@@ -740,7 +740,22 @@ func TestParsePointWithStringWithCommas(t *testing.T) {
 			},
 			time.Unix(1, 0)),
 	)
+}
 
+func TestParsePointQuotedMeasurement(t *testing.T) {
+	// non-escaped comma
+	test(t, `"cpu",host=serverA,region=us-east value=1.0 1000000000`,
+		tsdb.NewPoint(
+			`"cpu"`,
+			tsdb.Tags{
+				"host":   "serverA",
+				"region": "us-east",
+			},
+			tsdb.Fields{
+				"value": 1.0,
+			},
+			time.Unix(1, 0)),
+	)
 }
 
 func TestParsePointEscapedStringsAndCommas(t *testing.T) {
@@ -771,7 +786,6 @@ func TestParsePointEscapedStringsAndCommas(t *testing.T) {
 			},
 			time.Unix(1, 0)),
 	)
-
 }
 
 func TestParsePointWithStringWithEquals(t *testing.T) {
@@ -1193,7 +1207,7 @@ func TestNewPointEscaped(t *testing.T) {
 
 	// equals
 	pt = tsdb.NewPoint("cpu=main", tsdb.Tags{"tag=bar": "value=foo"}, tsdb.Fields{"name=bar": 1.0}, time.Unix(0, 0))
-	if exp := `cpu\=main,tag\=bar=value\=foo name\=bar=1.0 0`; pt.String() != exp {
+	if exp := `cpu=main,tag\=bar=value\=foo name\=bar=1.0 0`; pt.String() != exp {
 		t.Errorf("NewPoint().String() mismatch.\ngot %v\nexp %v", pt.String(), exp)
 	}
 }
