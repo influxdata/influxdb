@@ -58,11 +58,23 @@ func (l *responseLogger) Size() int {
 	return l.size
 }
 
+// redact any occurrence of a password parameter, 'p'
+func redactPassword(r *http.Request) {
+	q := r.URL.Query()
+	if p := q.Get("p"); p != "" {
+		q.Set("p", "[REDACTED]")
+		r.URL.RawQuery = q.Encode()
+	}
+}
+
 // Common Log Format: http://en.wikipedia.org/wiki/Common_Log_Format
 
 // buildLogLine creates a common log format
 // in addition to the common fields, we also append referrer, user agent and request ID
 func buildLogLine(l *responseLogger, r *http.Request, start time.Time) string {
+
+	redactPassword(r)
+
 	username := parseUsername(r)
 
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
