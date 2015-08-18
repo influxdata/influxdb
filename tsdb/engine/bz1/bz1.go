@@ -170,9 +170,18 @@ func (e *Engine) LoadMetadataIndex(index *tsdb.DatabaseIndex, measurementFields 
 		if err != nil {
 			return err
 		}
-		for k, series := range series {
-			series.InitializeShards()
-			index.CreateSeriesIndexIfNotExists(tsdb.MeasurementFromSeriesKey(string(k)), series)
+
+		// Load the series into the in-memory index in sorted order to ensure
+		// it's always consistent for testing purposes
+		a := make([]string, 0, len(series))
+		for k, _ := range series {
+			a = append(a, k)
+		}
+		sort.Strings(a)
+		for _, key := range a {
+			s := series[key]
+			s.InitializeShards()
+			index.CreateSeriesIndexIfNotExists(tsdb.MeasurementFromSeriesKey(string(key)), s)
 		}
 		return nil
 	}); err != nil {
