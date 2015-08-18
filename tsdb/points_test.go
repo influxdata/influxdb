@@ -1216,3 +1216,22 @@ func TestNewPointUnhandledType(t *testing.T) {
 		t.Errorf("NewPoint().String() mismatch.\ngot %v\nexp %v", pt.String(), exp)
 	}
 }
+
+func TestMakeKeyEscaped(t *testing.T) {
+	if exp, got := `cpu\ load`, tsdb.MakeKey([]byte(`cpu\ load`), tsdb.Tags{}); string(got) != exp {
+		t.Errorf("MakeKey() mismatch.\ngot %v\nexp %v", got, exp)
+	}
+
+	if exp, got := `cpu\ load`, tsdb.MakeKey([]byte(`cpu load`), tsdb.Tags{}); string(got) != exp {
+		t.Errorf("MakeKey() mismatch.\ngot %v\nexp %v", got, exp)
+	}
+
+	if exp, got := `cpu\,load`, tsdb.MakeKey([]byte(`cpu\,load`), tsdb.Tags{}); string(got) != exp {
+		t.Errorf("MakeKey() mismatch.\ngot %v\nexp %v", got, exp)
+	}
+
+	if exp, got := `cpu\,load`, tsdb.MakeKey([]byte(`cpu,load`), tsdb.Tags{}); string(got) != exp {
+		t.Errorf("MakeKey() mismatch.\ngot %v\nexp %v", got, exp)
+	}
+
+}
