@@ -3025,6 +3025,57 @@ func TestServer_Query_Fill(t *testing.T) {
 	}
 }
 
+func TestServer_Query_Chunk(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig(), "")
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MetaStore.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := make([]string, 10001) // 10,000 is the default chunking size, even when no chunking requested.
+	expectedValues := make([]string, len(writes))
+	for i := 0; i < len(writes); i++ {
+		writes[i] = fmt.Sprintf(`cpu value=%d %d`, i, time.Unix(0, int64(i)).UnixNano())
+		expectedValues[i] = fmt.Sprintf(`["%s",%d]`, time.Unix(0, int64(i)).UTC().Format(time.RFC3339Nano), i)
+	}
+	expected := fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[%s]}]}]}`, strings.Join(expectedValues, ","))
+
+	test := NewTest("db0", "rp0")
+	test.write = strings.Join(writes, "\n")
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "SELECT all values, no chunking",
+			command: `SELECT value FROM cpu`,
+			exp:     expected,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+	}...)
+
+	for i, query := range test.queries {
+		if i == 0 {
+			if err := test.init(s); err != nil {
+				t.Fatalf("test init failed: %s", err)
+			}
+		}
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+
+}
+
 func TestServer_Query_DropAndRecreateMeasurement(t *testing.T) {
 	t.Parallel()
 	s := OpenServer(NewConfig(), "")

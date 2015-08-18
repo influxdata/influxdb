@@ -31,6 +31,11 @@ type Row struct {
 	Err     error             `json:"err,omitempty"`
 }
 
+// SameSeries returns true if r contains values for the same series as o.
+func (r *Row) SameSeries(o *Row) bool {
+	return r.tagsHash() == o.tagsHash() && r.Name == o.Name
+}
+
 // tagsHash returns a hash of tag key/value pairs.
 func (r *Row) tagsHash() uint64 {
 	h := fnv.New64a()
