@@ -524,7 +524,7 @@ func TestWAL_SeriesAndFieldsGetPersisted(t *testing.T) {
 
 	s := idx.Series("cpu,host=A")
 	if s == nil {
-		t.Fatal("expected to find series cpu,host=A in index %v", idx)
+		t.Fatal("expected to find series cpu,host=A in index")
 	}
 
 	s = idx.Series("cpu,host=B")
