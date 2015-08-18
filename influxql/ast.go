@@ -2469,6 +2469,8 @@ func timeExprValue(ref Expr, lit Expr) time.Time {
 			return lit.Val
 		case *DurationLiteral:
 			return time.Unix(0, int64(lit.Val)).UTC()
+		case *NumberLiteral:
+			return time.Unix(0, int64(lit.Val)).UTC()
 		}
 	}
 	return time.Time{}

@@ -22,6 +22,7 @@ There are breaking changes in this release. Please see the *Features* section be
 - [#3635](https://github.com/influxdb/influxdb/pull/3635): Add build branch to version output.
 - [#3115](https://github.com/influxdb/influxdb/pull/3115): Various init.d script improvements. Thanks @KoeSystems.
 - [#3628](https://github.com/influxdb/influxdb/pull/3628): Wildcard expansion of tags and fields for raw queries
+- [#3721](https://github.com/influxdb/influxdb/pull/3721): interpret number literals compared against time as nanoseconds from epoch
 
 ### Bugfixes
 - [#3405](https://github.com/influxdb/influxdb/pull/3405): Prevent database panic when fields are missing. Thanks @jhorwit2
