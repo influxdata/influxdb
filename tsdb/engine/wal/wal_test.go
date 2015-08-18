@@ -3,10 +3,12 @@ package wal
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
 	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
@@ -682,6 +684,91 @@ func TestWAL_DeleteSeries(t *testing.T) {
 	c = log.Cursor("cpu,host=B")
 	if k, _ := c.Next(); k != nil {
 		t.Fatal("expected no data for cpu,host=B")
+	}
+}
+
+// Ensure a partial compaction can be recovered from.
+func TestWAL_Compact_Recovery(t *testing.T) {
+	log := openTestWAL()
+	log.partitionCount = 1
+	log.CompactionThreshold = 0.7
+	log.ReadySeriesSize = 1024
+	log.flushCheckInterval = time.Minute
+	defer log.Close()
+	defer os.RemoveAll(log.path)
+
+	points := make([]map[string][][]byte, 0)
+	log.Index = &testIndexWriter{fn: func(pointsByKey map[string][][]byte, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
+		points = append(points, pointsByKey)
+		return nil
+	}}
+
+	if err := log.Open(); err != nil {
+		t.Fatalf("couldn't open wal: %s", err.Error())
+	}
+
+	// Retrieve partition.
+	p := log.partitions[1]
+
+	codec := tsdb.NewFieldCodec(map[string]*tsdb.Field{
+		"value": {
+			ID:   uint8(1),
+			Name: "value",
+			Type: influxql.Float,
+		},
+	})
+
+	b := make([]byte, 70*5000)
+	for i := 1; i <= 100; i++ {
+		buf := bytes.NewBuffer(b)
+		for j := 1; j <= 1000; j++ {
+			buf.WriteString(fmt.Sprintf("cpu,host=A,region=uswest%d value=%.3f %d\n", j, rand.Float64(), i))
+		}
+		buf.WriteString(fmt.Sprintf("cpu,host=A,region=uswest%d value=%.3f %d\n", rand.Int(), rand.Float64(), i))
+
+		// Write the batch out.
+		if err := log.WritePoints(parsePoints(buf.String(), codec), nil, nil); err != nil {
+			t.Fatalf("failed to write points: %s", err.Error())
+		}
+	}
+
+	// Mock second open call to fail.
+	p.os.OpenSegmentFile = func(name string, flag int, perm os.FileMode) (file *os.File, err error) {
+		if filepath.Base(name) == "01.000001.wal" {
+			return os.OpenFile(name, flag, perm)
+		}
+		return nil, errors.New("marker")
+	}
+	if err := p.flushAndCompact(thresholdFlush); err == nil || err.Error() != "marker" {
+		t.Fatalf("unexpected flush error: %s", err)
+	}
+	p.os.OpenSegmentFile = os.OpenFile
+
+	// Append second file to simulate partial write.
+	func() {
+		f, err := os.OpenFile(p.compactionFileName(), os.O_RDWR|os.O_APPEND, 0666)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer f.Close()
+
+		// Append filename and partial data.
+		if err := p.writeCompactionEntry(f, "01.000002.wal", []*entry{{key: []byte("foo"), data: []byte("bar"), timestamp: 100}}); err != nil {
+			t.Fatal(err)
+		}
+
+		// Truncate by a few bytes.
+		if fi, err := f.Stat(); err != nil {
+			t.Fatal(err)
+		} else if err = f.Truncate(fi.Size() - 2); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	// Now close and re-open the wal and ensure there are no errors.
+	log.Close()
+	if err := log.Open(); err != nil {
+		t.Fatalf("unexpected open error: %s", err)
 	}
 }
 
