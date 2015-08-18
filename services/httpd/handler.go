@@ -590,8 +590,6 @@ func parseCredentials(r *http.Request) (string, string, error) {
 	q := r.URL.Query()
 
 	if u, p := q.Get("u"), q.Get("p"); u != "" && p != "" {
-		q.Set("p", "[REDACTED]")
-		r.URL.RawQuery = q.Encode()
 		return u, p, nil
 	}
 	if u, p, ok := r.BasicAuth(); ok {
