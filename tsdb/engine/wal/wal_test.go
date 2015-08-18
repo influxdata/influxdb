@@ -334,7 +334,7 @@ func TestWAL_CompactAfterPercentageThreshold(t *testing.T) {
 			buf.WriteString(fmt.Sprintf("cpu,host=A,region=useast3 value=%.3f %d\n", rand.Float64(), i))
 
 			// ensure that as a whole its not ready for flushing yet
-			if log.partitions[1].shouldFlush(DefaultMaxSeriesSize, DefaultCompactionThreshold) != noFlush {
+			if log.partitions[1].shouldFlush(tsdb.DefaultMaxSeriesSize, tsdb.DefaultCompactionThreshold) != noFlush {
 				t.Fatal("expected partition 1 to return false from shouldFlush")
 			}
 		}
@@ -354,7 +354,7 @@ func TestWAL_CompactAfterPercentageThreshold(t *testing.T) {
 	}
 
 	// ensure it is marked as should flush because of the threshold
-	if log.partitions[1].shouldFlush(DefaultMaxSeriesSize, DefaultCompactionThreshold) != thresholdFlush {
+	if log.partitions[1].shouldFlush(tsdb.DefaultMaxSeriesSize, tsdb.DefaultCompactionThreshold) != thresholdFlush {
 		t.Fatal("expected partition 1 to return true from shouldFlush")
 	}
 
@@ -451,7 +451,7 @@ func TestWAL_CompactAfterTimeWithoutWrite(t *testing.T) {
 	time.Sleep(700 * time.Millisecond)
 
 	// ensure that as a whole its not ready for flushing yet
-	if f := log.partitions[1].shouldFlush(DefaultMaxSeriesSize, DefaultCompactionThreshold); f != noFlush {
+	if f := log.partitions[1].shouldFlush(tsdb.DefaultMaxSeriesSize, tsdb.DefaultCompactionThreshold); f != noFlush {
 		t.Fatalf("expected partition 1 to return noFlush from shouldFlush %v", f)
 	}
 

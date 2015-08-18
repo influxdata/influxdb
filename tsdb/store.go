@@ -14,9 +14,12 @@ import (
 )
 
 func NewStore(path string) *Store {
+	opts := NewEngineOptions()
+	opts.Config = NewConfig()
+
 	return &Store{
 		path:          path,
-		EngineOptions: NewEngineOptions(),
+		EngineOptions: opts,
 		Logger:        log.New(os.Stderr, "[store] ", log.LstdFlags),
 	}
 }

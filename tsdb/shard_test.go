@@ -20,7 +20,10 @@ func TestShardWriteAndIndex(t *testing.T) {
 	tmpShard := path.Join(tmpDir, "shard")
 
 	index := tsdb.NewDatabaseIndex()
-	sh := tsdb.NewShard(1, index, tmpShard, tsdb.NewEngineOptions())
+	opts := tsdb.NewEngineOptions()
+	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
+
+	sh := tsdb.NewShard(1, index, tmpShard, opts)
 	if err := sh.Open(); err != nil {
 		t.Fatalf("error openeing shard: %s", err.Error())
 	}
@@ -66,7 +69,7 @@ func TestShardWriteAndIndex(t *testing.T) {
 	sh.Close()
 
 	index = tsdb.NewDatabaseIndex()
-	sh = tsdb.NewShard(1, index, tmpShard, tsdb.NewEngineOptions())
+	sh = tsdb.NewShard(1, index, tmpShard, opts)
 	if err := sh.Open(); err != nil {
 		t.Fatalf("error openeing shard: %s", err.Error())
 	}
@@ -87,7 +90,10 @@ func TestShardWriteAddNewField(t *testing.T) {
 	tmpShard := path.Join(tmpDir, "shard")
 
 	index := tsdb.NewDatabaseIndex()
-	sh := tsdb.NewShard(1, index, tmpShard, tsdb.NewEngineOptions())
+	opts := tsdb.NewEngineOptions()
+	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
+
+	sh := tsdb.NewShard(1, index, tmpShard, opts)
 	if err := sh.Open(); err != nil {
 		t.Fatalf("error openeing shard: %s", err.Error())
 	}

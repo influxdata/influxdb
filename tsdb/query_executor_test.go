@@ -54,7 +54,9 @@ func TestWritePointsAndExecuteQuery(t *testing.T) {
 	}
 
 	store.Close()
+	conf := store.EngineOptions.Config
 	store = tsdb.NewStore(store.Path())
+	store.EngineOptions.Config = conf
 	if err := store.Open(); err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -84,7 +86,9 @@ func TestWritePointsAndExecuteQuery_Update(t *testing.T) {
 
 	// Restart store.
 	store.Close()
+	conf := store.EngineOptions.Config
 	store = tsdb.NewStore(store.Path())
+	store.EngineOptions.Config = conf
 	if err := store.Open(); err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -145,7 +149,9 @@ func TestDropSeriesStatement(t *testing.T) {
 	}
 
 	store.Close()
+	conf := store.EngineOptions.Config
 	store = tsdb.NewStore(store.Path())
+	store.EngineOptions.Config = conf
 	store.Open()
 	executor.Store = store
 
@@ -215,7 +221,9 @@ func TestDropMeasurementStatement(t *testing.T) {
 
 	validateDrop()
 	store.Close()
+	conf := store.EngineOptions.Config
 	store = tsdb.NewStore(store.Path())
+	store.EngineOptions.Config = conf
 	store.Open()
 	executor.Store = store
 	validateDrop()
@@ -279,7 +287,9 @@ func TestDropDatabase(t *testing.T) {
 	}
 
 	store.Close()
+	conf := store.EngineOptions.Config
 	store = tsdb.NewStore(store.Path())
+	store.EngineOptions.Config = conf
 	store.Open()
 	executor.Store = store
 	executor.ShardMapper = &testShardMapper{store: store}
@@ -344,6 +354,8 @@ func testStoreAndExecutor() (*tsdb.Store, *tsdb.QueryExecutor) {
 	path, _ := ioutil.TempDir("", "")
 
 	store := tsdb.NewStore(path)
+	store.EngineOptions.Config.WALDir = filepath.Join(path, "wal")
+
 	err := store.Open()
 	if err != nil {
 		panic(err)

@@ -28,10 +28,6 @@ var (
 const (
 	// Format is the file format name of this engine.
 	Format = "bz1"
-
-	// WALDir is the suffixe that is put on the path for
-	// where the WAL files should be kept for a given shard.
-	WALDir = "_wal"
 )
 
 func init() {
@@ -72,7 +68,14 @@ type WAL interface {
 // NewEngine returns a new instance of Engine.
 func NewEngine(path string, opt tsdb.EngineOptions) tsdb.Engine {
 	// create the writer with a directory of the same name as the shard, but with the wal extension
-	w := wal.NewLog(filepath.Join(filepath.Dir(path), filepath.Base(path)+WALDir))
+	w := wal.NewLog(filepath.Join(opt.Config.WALDir, filepath.Base(path)))
+
+	w.ReadySeriesSize = opt.Config.WALReadySeriesSize
+	w.FlushColdInterval = time.Duration(opt.Config.WALFlushColdInterval)
+	w.MaxSeriesSize = opt.Config.WALMaxSeriesSize
+	w.CompactionThreshold = opt.Config.WALCompactionThreshold
+	w.PartitionSizeThreshold = opt.Config.WALPartitionSizeThreshold
+	w.ReadySeriesSize = opt.Config.WALReadySeriesSize
 
 	e := &Engine{
 		path: path,

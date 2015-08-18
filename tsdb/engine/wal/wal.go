@@ -45,28 +45,6 @@ const (
 	// DefaultSegmentSize of 2MB is the size at which segment files will be rolled over
 	DefaultSegmentSize = 2 * 1024 * 1024
 
-	// DefaultReadySeriesSize of 32KB specifies when a series is eligible to be flushed
-	DefaultReadySeriesSize = 30 * 1024
-
-	// DefaultCompactionThreshold flush and compact a partition once this ratio of keys are over the flush size
-	DefaultCompactionThreshold = 0.5
-
-	// DefaultMaxSeriesSize specifies the size at which a series will be forced to flush
-	DefaultMaxSeriesSize = 1024 * 1024
-
-	// DefaultFlushColdInterval specifies how long after a partition has been cold
-	// for writes that a full flush and compaction are forced
-	DefaultFlushColdInterval = 20 * time.Second
-
-	// DefaultParititionSizeThreshold specifies when a partition gets to this size in
-	// memory, we should slow down writes until it gets a chance to compact.
-	// This will force clients to get backpressure if they're writing too fast. We need
-	// this because the WAL can take writes much faster than the index. So eventually
-	// we'll need to create backpressure, otherwise we'll fill up the memory and die.
-	// This number multiplied by the parition count is roughly the max possible memory
-	// size for the in-memory WAL cache.
-	DefaultPartitionSizeThreshold = 20 * 1024 * 1024 // 20MB
-
 	// PartitionCount is the number of partitions in the WAL
 	PartitionCount = 5
 
@@ -171,6 +149,9 @@ type Log struct {
 	// Index is the database that series data gets flushed to once it gets compacted
 	// out of the WAL.
 	Index IndexWriter
+
+	// EnableLogging specifies if detailed logs should be output
+	EnableLogging bool
 }
 
 // IndexWriter is an interface for the indexed database the WAL flushes data to
@@ -188,12 +169,12 @@ func NewLog(path string) *Log {
 
 		// these options should be overriden by any options in the config
 		LogOutput:              os.Stderr,
-		FlushColdInterval:      DefaultFlushColdInterval,
+		FlushColdInterval:      tsdb.DefaultFlushColdInterval,
 		SegmentSize:            DefaultSegmentSize,
-		MaxSeriesSize:          DefaultMaxSeriesSize,
-		CompactionThreshold:    DefaultCompactionThreshold,
-		PartitionSizeThreshold: DefaultPartitionSizeThreshold,
-		ReadySeriesSize:        DefaultReadySeriesSize,
+		MaxSeriesSize:          tsdb.DefaultMaxSeriesSize,
+		CompactionThreshold:    tsdb.DefaultCompactionThreshold,
+		PartitionSizeThreshold: tsdb.DefaultPartitionSizeThreshold,
+		ReadySeriesSize:        tsdb.DefaultReadySeriesSize,
 		partitionCount:         PartitionCount,
 		flushCheckInterval:     defaultFlushCheckInterval,
 	}
@@ -217,6 +198,7 @@ func (l *Log) Open() error {
 		if err != nil {
 			return err
 		}
+		p.enableLogging = l.EnableLogging
 		l.partitions[uint8(i)] = p
 	}
 	if err := l.openPartitionFiles(); err != nil {
@@ -671,8 +653,8 @@ func (l *Log) partition(key []byte) *Partition {
 	if p == nil {
 		if p, err := NewPartition(id, l.path, l.SegmentSize, l.PartitionSizeThreshold, l.ReadySeriesSize, l.FlushColdInterval, l.Index); err != nil {
 			panic(err)
-
 		} else {
+			p.enableLogging = l.EnableLogging
 			l.partitions[id] = p
 		}
 	}
@@ -715,6 +697,8 @@ type Partition struct {
 	// be flushed because it has been idle for writes.
 	flushColdInterval time.Duration
 	lastWriteTime     time.Time
+
+	enableLogging bool
 }
 
 func NewPartition(id uint8, path string, segmentSize int64, sizeThreshold uint64, readySeriesSize int, flushColdInterval time.Duration, index IndexWriter) (*Partition, error) {

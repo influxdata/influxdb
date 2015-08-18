@@ -102,6 +102,8 @@ type EngineOptions struct {
 	MaxWALSize             int
 	WALFlushInterval       time.Duration
 	WALPartitionFlushDelay time.Duration
+
+	Config Config
 }
 
 // NewEngineOptions returns the default options.
@@ -111,6 +113,7 @@ func NewEngineOptions() EngineOptions {
 		MaxWALSize:             DefaultMaxWALSize,
 		WALFlushInterval:       DefaultWALFlushInterval,
 		WALPartitionFlushDelay: DefaultWALPartitionFlushDelay,
+		Config:                 NewConfig(),
 	}
 }
 

@@ -68,6 +68,9 @@ type Server struct {
 // NewServer returns a new instance of Server built from a config.
 func NewServer(c *Config, version string) (*Server, error) {
 	// Construct base meta store and data store.
+	tsdbStore := tsdb.NewStore(c.Data.Dir)
+	tsdbStore.EngineOptions.Config = c.Data
+
 	s := &Server{
 		version: version,
 		err:     make(chan error),
@@ -77,7 +80,7 @@ func NewServer(c *Config, version string) (*Server, error) {
 		BindAddress: c.Meta.BindAddress,
 
 		MetaStore: meta.NewStore(c.Meta),
-		TSDBStore: tsdb.NewStore(c.Data.Dir),
+		TSDBStore: tsdbStore,
 
 		reportingDisabled: c.ReportingDisabled,
 	}

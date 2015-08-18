@@ -22,6 +22,7 @@ func TestStoreOpen(t *testing.T) {
 	}
 
 	s := tsdb.NewStore(dir)
+	s.EngineOptions.Config.WALDir = filepath.Join(dir, "wal")
 	if err := s.Open(); err != nil {
 		t.Fatalf("Store.Open() failed: %v", err)
 	}
@@ -49,6 +50,7 @@ func TestStoreOpenShard(t *testing.T) {
 	}
 
 	s := tsdb.NewStore(dir)
+	s.EngineOptions.Config.WALDir = filepath.Join(dir, "wal")
 	if err := s.Open(); err != nil {
 		t.Fatalf("Store.Open() failed: %v", err)
 	}
@@ -82,6 +84,7 @@ func TestStoreOpenShardCreateDelete(t *testing.T) {
 	}
 
 	s := tsdb.NewStore(dir)
+	s.EngineOptions.Config.WALDir = filepath.Join(dir, "wal")
 	if err := s.Open(); err != nil {
 		t.Fatalf("Store.Open() failed: %v", err)
 	}
@@ -129,6 +132,7 @@ func TestStoreOpenNotDatabaseDir(t *testing.T) {
 	}
 
 	s := tsdb.NewStore(dir)
+	s.EngineOptions.Config.WALDir = filepath.Join(dir, "wal")
 	if err := s.Open(); err != nil {
 		t.Fatalf("Store.Open() failed: %v", err)
 	}
@@ -159,6 +163,7 @@ func TestStoreOpenNotRPDir(t *testing.T) {
 	}
 
 	s := tsdb.NewStore(dir)
+	s.EngineOptions.Config.WALDir = filepath.Join(dir, "wal")
 	if err := s.Open(); err != nil {
 		t.Fatalf("Store.Open() failed: %v", err)
 	}
@@ -195,6 +200,7 @@ func TestStoreOpenShardBadShardPath(t *testing.T) {
 	}
 
 	s := tsdb.NewStore(dir)
+	s.EngineOptions.Config.WALDir = filepath.Join(dir, "wal")
 	if err := s.Open(); err != nil {
 		t.Fatalf("Store.Open() failed: %v", err)
 	}
@@ -221,6 +227,7 @@ func TestStoreEnsureSeriesPersistedInNewShards(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	s := tsdb.NewStore(dir)
+	s.EngineOptions.Config.WALDir = filepath.Join(dir, "wal")
 	if err := s.Open(); err != nil {
 		t.Fatalf("Store.Open() failed: %v", err)
 	}
@@ -255,6 +262,7 @@ func TestStoreEnsureSeriesPersistedInNewShards(t *testing.T) {
 	s.Close()
 
 	s = tsdb.NewStore(dir)
+	s.EngineOptions.Config.WALDir = filepath.Join(dir, "wal")
 	if err := s.Open(); err != nil {
 		t.Fatalf("Store.Open() failed: %v", err)
 	}
