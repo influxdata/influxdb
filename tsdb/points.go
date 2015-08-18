@@ -946,7 +946,9 @@ func (p *point) Tags() Tags {
 }
 
 func MakeKey(name []byte, tags Tags) []byte {
-	return append(escape(name), tags.HashKey()...)
+	// unescape the name and then re-escape it to avoid double escaping.
+	// The key should always be stored in escaped form.
+	return append(escape(unescape(name)), tags.HashKey()...)
 }
 
 // SetTags replaces the tags for the point

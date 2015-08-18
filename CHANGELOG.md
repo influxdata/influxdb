@@ -65,6 +65,10 @@ Please see the *Features* section below for full details.
 - [#3686](https://github.com/influxdb/influxdb/pull/3686): Ensure 'p' parameter is not logged, even on OPTIONS requests.
 - [#3687](https://github.com/influxdb/influxdb/issues/3687): Fix panic: runtime error: makeslice: len out of range in hinted handoff
 - [#3697](https://github.com/influxdb/influxdb/issues/3697):  Correctly merge non-chunked results for same series. Fix issue #3242.
+- [#3708](https://github.com/influxdb/influxdb/issues/3708): Fix double escaping measurement name during cluster replication
+- [#3704](https://github.com/influxdb/influxdb/issues/3704): cluster replication issue for measurement name containing backslash
+
+>>>>>>> Fix measurement name being double-escaped during replication
 
 ## v0.9.2 [2015-07-24]
 
