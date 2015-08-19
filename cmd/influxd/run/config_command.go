@@ -42,9 +42,19 @@ func (cmd *PrintConfigCommand) Run(args ...string) error {
 		return fmt.Errorf("parse config: %s", err)
 	}
 
+	// Apply any environment variables on top of the parsed config
+	if err := config.ApplyEnvOverrides(); err != nil {
+		return fmt.Errorf("apply env config: %v", err)
+	}
+
 	// Override config properties.
 	if *hostname != "" {
 		config.Meta.Hostname = *hostname
+	}
+
+	// Validate the configuration.
+	if err := config.Validate(); err != nil {
+		return fmt.Errorf("%s. To generate a valid configuration file run `influxd config > influxdb.generated.conf`.", err)
 	}
 
 	toml.NewEncoder(cmd.Stdout).Encode(config)
