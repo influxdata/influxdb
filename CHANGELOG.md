@@ -71,6 +71,7 @@ Please see the *Features* section below for full details.
 - [#3704](https://github.com/influxdb/influxdb/issues/3704): cluster replication issue for measurement name containing backslash
 - [#3681](https://github.com/influxdb/influxdb/issues/3681): Quoted measurement names fail
 - [#3681](https://github.com/influxdb/influxdb/issues/3682): Fix inserting string value with backslashes
+- [#3736](https://github.com/influxdb/influxdb/pull/3736): Update shard group duration with retention policy changes. Thanks for the report @papylhomme
 
 ## v0.9.2 [2015-07-24]
 

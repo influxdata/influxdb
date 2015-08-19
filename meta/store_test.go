@@ -361,7 +361,7 @@ func TestStore_UpdateRetentionPolicy(t *testing.T) {
 	} else if !reflect.DeepEqual(rpi, &meta.RetentionPolicyInfo{
 		Name:               "rp1",
 		Duration:           10 * time.Hour,
-		ShardGroupDuration: 7 * 24 * time.Hour,
+		ShardGroupDuration: 1 * time.Hour,
 		ReplicaN:           1,
 	}) {
 		t.Fatalf("unexpected policy: %#v", rpi)
