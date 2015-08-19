@@ -1309,7 +1309,10 @@ func (p *Partition) cursor(key string) *cursor {
 		entry.isDirtySort = false
 	}
 
-	return &cursor{cache: entry.points}
+	// build a copy so modifications to the partition don't change the result set
+	a := make([][]byte, len(entry.points))
+	copy(a, entry.points)
+	return &cursor{cache: a}
 }
 
 // idFromFileName parses the segment file ID from its name
