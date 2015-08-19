@@ -37,8 +37,8 @@ Fields are key-value metrics associated with the measurement.  Every line must h
 
 Field keys are always strings and follow the same syntactical rules as described above for tag keys and values. Field values can be one of four types.  The first value written for a given field on a given measurement defines the type of that field for all series under that measurement.
 
-* _integer_ - Numeric values that do not include a decimal.  (e.g. 1, 345, 2015, -10)
-* _float_ - Numeric values that include a decimal.  (e.g. 1.0, -3.14, 6.0+e5).  Note that all values _must_ have a decimal even if the decimal value is zero (1 is an _integer_, 1.0 is a _float_).
+* _integer_ - Numeric values that do not include a decimal and are followed by a trailing i when inserted (e.g. 1i, 345i, 2015i, -10i). Note that all values must have a trailing i. If they do not they will be written as floats.
+* _float_ - Numeric values tha are not followed by a trailing i. (e.g. 1, 1.0, -3.14, 6.0+e5, 10).
 * _boolean_ - A value indicating true or false.  Valid boolean strings are (t, T, true, TRUE, f, F, false, and FALSE).
 * _string_ - A text value.  All string values _must_ be surrounded in double-quotes `"`.  If the string contains
 a double-quote, it must be escaped with a backslash, e.g. `\"`.
@@ -46,9 +46,15 @@ a double-quote, it must be escaped with a backslash, e.g. `\"`.
 
 ```
 # integer value
-cpu value=1
+cpu value=1i
+
+cpu value=1.1i # will result in a parse error
 
 # float value
+cpu_load value=1
+
+cpu_load value=1.0
+
 cpu_load value=1.2
 
 # boolean value
@@ -58,7 +64,7 @@ error fatal=true
 event msg="logged out"
 
 # multiple values
-cpu load=10.0,alert=true,reason="value above maximum threshold"
+cpu load=10,alert=true,reason="value above maximum threshold"
 ```
 
 ## Timestamp
@@ -71,13 +77,13 @@ an integer epoch in microseconds, milliseconds, seconds, minutes or hours.
 ## Full Example
 A full example is shown below.
 ```
-cpu,host=server01,region=uswest value=1.0 1434055562000000000
-cpu,host=server02,region=uswest value=3.0 1434055562000010000
+cpu,host=server01,region=uswest value=1 1434055562000000000
+cpu,host=server02,region=uswest value=3 1434055562000010000
 ```
 In this example the first line shows a `measurement` of "cpu", there are two tags "host" and "region, the `value` is 1.0, and the `timestamp` is 1434055562000000000. Following this is a second line, also a point in the `measurement` "cpu" but belonging to a different "host".
 ```
-cpu,host=server\ 01,region=uswest value=1.0,msg="all systems nominal"
-cpu,host=server\ 01,region=us\,west value_int=1
+cpu,host=server\ 01,region=uswest value=1,msg="all systems nominal"
+cpu,host=server\ 01,region=us\,west value_int=1i
 ```
 In these examples, the "host" is set to `server 01`. The field value associated with field key `msg` is double-quoted, as it is a string. The second example shows a region of `us,west` with the comma properly escaped. In the first example `value` is written as a floating point number. In the second, `value_int` is an integer. 
 
