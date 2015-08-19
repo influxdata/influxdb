@@ -259,6 +259,7 @@ func (s *Service) processMapShardRequest(w io.Writer, buf []byte) error {
 		if err != nil {
 			return fmt.Errorf("next chunk: %s", err)
 		}
+
 		if chunk != nil {
 			b, err := json.Marshal(chunk)
 			if err != nil {
@@ -269,11 +270,12 @@ func (s *Service) processMapShardRequest(w io.Writer, buf []byte) error {
 
 		// Write to connection.
 		resp.SetCode(0)
+		v := chunk.(*tsdb.MapperOutput)
 		if err := writeMapShardResponseMessage(w, &resp); err != nil {
 			return err
 		}
 
-		if chunk == nil {
+		if v == nil {
 			// All mapper data sent.
 			return nil
 		}
