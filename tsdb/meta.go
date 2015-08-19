@@ -112,6 +112,17 @@ func (s *DatabaseIndex) CreateMeasurementIndexIfNotExists(name string) *Measurem
 	return m
 }
 
+// TagsForSeries returns the tag map for the passed in series
+func (s *DatabaseIndex) TagsForSeries(key string) map[string]string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	ss := s.series[key]
+	if ss == nil {
+		return nil
+	}
+	return ss.Tags
+}
+
 // measurementsByExpr takes and expression containing only tags and returns
 // a list of matching *Measurement.
 func (db *DatabaseIndex) measurementsByExpr(expr influxql.Expr) (Measurements, error) {
