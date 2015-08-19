@@ -4,7 +4,7 @@
 
 There are breaking changes in this release.
  - To store data points as integers you must now append i to the number if using the line protocol.
- - If you have a UDP input configured, you should check the new sample configuration file to learn how to modify existing configuration files, as the 0.9.3 now expects multiple UDP inputs. 
+ - If you have a UDP input configured, you should check the UDP section of [the new sample configuration file](https://github.com/influxdb/influxdb/blob/master/etc/config.sample.toml) to learn how to modify existing configuration files, as the 0.9.3 now expects multiple UDP inputs. 
 
 Please see the *Features* section below for full details. 
 
