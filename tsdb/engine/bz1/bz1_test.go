@@ -14,8 +14,10 @@ import (
 	"testing/quick"
 	"time"
 
+	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/tsdb"
 	"github.com/influxdb/influxdb/tsdb/engine/bz1"
+	"github.com/influxdb/influxdb/tsdb/engine/wal"
 )
 
 // Ensure the engine can write series metadata and reload it.
@@ -302,6 +304,62 @@ func TestEngine_WriteIndex_Quick(t *testing.T) {
 	}, nil)
 }
 
+func BenchmarkEngine_WriteIndex_512b(b *testing.B)  { benchmarkEngine_WriteIndex(b, 512) }
+func BenchmarkEngine_WriteIndex_1KB(b *testing.B)   { benchmarkEngine_WriteIndex(b, 1*1024) }
+func BenchmarkEngine_WriteIndex_4KB(b *testing.B)   { benchmarkEngine_WriteIndex(b, 4*1024) }
+func BenchmarkEngine_WriteIndex_16KB(b *testing.B)  { benchmarkEngine_WriteIndex(b, 16*1024) }
+func BenchmarkEngine_WriteIndex_32KB(b *testing.B)  { benchmarkEngine_WriteIndex(b, 32*1024) }
+func BenchmarkEngine_WriteIndex_64KB(b *testing.B)  { benchmarkEngine_WriteIndex(b, 64*1024) }
+func BenchmarkEngine_WriteIndex_128KB(b *testing.B) { benchmarkEngine_WriteIndex(b, 128*1024) }
+func BenchmarkEngine_WriteIndex_256KB(b *testing.B) { benchmarkEngine_WriteIndex(b, 256*1024) }
+
+func benchmarkEngine_WriteIndex(b *testing.B, blockSize int) {
+	// Skip small iterations.
+	if b.N < 1000000 {
+		return
+	}
+
+	// Create a simple engine.
+	e := OpenDefaultEngine()
+	e.BlockSize = blockSize
+	defer e.Close()
+
+	// Create codec.
+	codec := tsdb.NewFieldCodec(map[string]*tsdb.Field{
+		"value": {
+			ID:   uint8(1),
+			Name: "value",
+			Type: influxql.Float,
+		},
+	})
+
+	// Generate points.
+	a := make(map[string][][]byte)
+	a["cpu"] = make([][]byte, b.N)
+	for i := 0; i < b.N; i++ {
+		a["cpu"][i] = wal.MarshalEntry(int64(i), MustEncodeFields(codec, tsdb.Fields{"value": float64(i)}))
+	}
+
+	b.ResetTimer()
+
+	// Insert into engine.
+	if err := e.WriteIndex(a, nil, nil); err != nil {
+		b.Fatal(err)
+	}
+
+	// Calculate on-disk size per point.
+	bs, _ := e.SeriesBucketStats("cpu")
+	stats, err := e.Stats()
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.Logf("pts=%9d  bytes/pt=%4.01f  leaf-util=%3.0f%%",
+		b.N,
+		float64(stats.Size)/float64(b.N),
+		(float64(bs.LeafInuse)/float64(bs.LeafAlloc))*100.0,
+	)
+}
+
 // Engine represents a test wrapper for bz1.Engine.
 type Engine struct {
 	*bz1.Engine
@@ -430,6 +488,15 @@ func MergePoints(a []Points) Points {
 	}
 
 	return m
+}
+
+// MustEncodeFields encodes fields with codec. Panic on error.
+func MustEncodeFields(codec *tsdb.FieldCodec, fields tsdb.Fields) []byte {
+	b, err := codec.EncodeFields(fields)
+	if err != nil {
+		panic(err)
+	}
+	return b
 }
 
 // copyBytes returns a copy of a byte slice.
