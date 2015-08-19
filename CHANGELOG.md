@@ -67,8 +67,8 @@ Please see the *Features* section below for full details.
 - [#3697](https://github.com/influxdb/influxdb/issues/3697):  Correctly merge non-chunked results for same series. Fix issue #3242.
 - [#3708](https://github.com/influxdb/influxdb/issues/3708): Fix double escaping measurement name during cluster replication
 - [#3704](https://github.com/influxdb/influxdb/issues/3704): cluster replication issue for measurement name containing backslash
-
->>>>>>> Fix measurement name being double-escaped during replication
+- [#3681](https://github.com/influxdb/influxdb/issues/3681): Quoted measurement names fail
+- [#3681](https://github.com/influxdb/influxdb/issues/3682): Fix inserting string value with backslashes
 
 ## v0.9.2 [2015-07-24]
 

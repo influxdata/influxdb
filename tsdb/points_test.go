@@ -819,6 +819,48 @@ func TestParsePointWithStringWithEquals(t *testing.T) {
 	)
 }
 
+func TestParsePointWithStringWithBackslash(t *testing.T) {
+	test(t, `cpu value="test\\\"" 1000000000`,
+		tsdb.NewPoint(
+			"cpu",
+			tsdb.Tags{},
+			tsdb.Fields{
+				"value": `test\"`,
+			},
+			time.Unix(1, 0)),
+	)
+
+	test(t, `cpu value="test\\" 1000000000`,
+		tsdb.NewPoint(
+			"cpu",
+			tsdb.Tags{},
+			tsdb.Fields{
+				"value": `test\`,
+			},
+			time.Unix(1, 0)),
+	)
+
+	test(t, `cpu value="test\\\"" 1000000000`,
+		tsdb.NewPoint(
+			"cpu",
+			tsdb.Tags{},
+			tsdb.Fields{
+				"value": `test\"`,
+			},
+			time.Unix(1, 0)),
+	)
+
+	test(t, `cpu value="test\"" 1000000000`,
+		tsdb.NewPoint(
+			"cpu",
+			tsdb.Tags{},
+			tsdb.Fields{
+				"value": `test"`,
+			},
+			time.Unix(1, 0)),
+	)
+}
+
 func TestParsePointWithBoolField(t *testing.T) {
 	test(t, `cpu,host=serverA,region=us-east true=true,t=t,T=T,TRUE=TRUE,True=True,false=false,f=f,F=F,FALSE=FALSE,False=False 1000000000`,
 		tsdb.NewPoint(
