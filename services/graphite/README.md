@@ -40,7 +40,7 @@ Additional tags can be added to a metric that don't exist on the received metric
 
 `servers.localhost.cpu.loadavg.10`
 * Template: `.host.resource.measurement* region=us-west,zone=1a`
-* Output:  _measurement_ = `loading.10` _tags_ = `host=localhost resource=cpu region=us-west zone=1a`
+* Output:  _measurement_ = `loadavg.10` _tags_ = `host=localhost resource=cpu region=us-west zone=1a`
 
 ## Multiple Templates
 
