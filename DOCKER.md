@@ -37,8 +37,8 @@ The `HOST_IP` env variable should be your host IP if running under linux or the 
 
 ```
 $ export HOST_IP=<your host/VM IP>
-$ docker run -it -p 8086:8088 -p 8088:8088 influxdb -hostname $HOST_IP:8088
-$ docker run -it -p 8186:8088 -p 8188:8088 influxdb -hostname $HOST_IP:8188 -join $HOST_IP:8088
-$ docker run -it -p 8286:8088 -p 8288:8088 influxdb -hostname $HOST_IP:8288 -join $HOST_IP:8088
+$ docker run -it -p 8086:8086 -p 8088:8088 influxdb -hostname $HOST_IP:8088
+$ docker run -it -p 8186:8086 -p 8188:8088 influxdb -hostname $HOST_IP:8188 -join $HOST_IP:8088
+$ docker run -it -p 8286:8086 -p 8288:8088 influxdb -hostname $HOST_IP:8288 -join $HOST_IP:8088
 ```
 
