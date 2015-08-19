@@ -41,7 +41,7 @@ Field keys are always strings and follow the same syntactical rules as described
 * _float_ - Numeric values tha are not followed by a trailing i. (e.g. 1, 1.0, -3.14, 6.0+e5, 10).
 * _boolean_ - A value indicating true or false.  Valid boolean strings are (t, T, true, TRUE, f, F, false, and FALSE).
 * _string_ - A text value.  All string values _must_ be surrounded in double-quotes `"`.  If the string contains
-a double-quote, it must be escaped with a backslash, e.g. `\"`.
+a double-quote or backslashes, it must be escaped with a backslash, e.g. `\"`, `\\`.
 
 
 ```
