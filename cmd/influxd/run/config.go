@@ -92,6 +92,7 @@ func NewDemoConfig() (*Config, error) {
 	c.Meta.Dir = filepath.Join(homeDir, ".influxdb/meta")
 	c.Data.Dir = filepath.Join(homeDir, ".influxdb/data")
 	c.HintedHandoff.Dir = filepath.Join(homeDir, ".influxdb/hh")
+	c.Data.WALDir = filepath.Join(homeDir, ".influxdb/wal")
 
 	c.Admin.Enabled = true
 	c.Monitoring.Enabled = false
@@ -107,6 +108,8 @@ func (c *Config) Validate() error {
 		return errors.New("Data.Dir must be specified")
 	} else if c.HintedHandoff.Dir == "" {
 		return errors.New("HintedHandoff.Dir must be specified")
+	} else if c.Data.WALDir == "" {
+		return errors.New("Data.WALDir must be specified")
 	}
 
 	for _, g := range c.Graphites {
