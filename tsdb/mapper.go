@@ -216,7 +216,7 @@ func (lm *LocalMapper) Open() error {
 					// No data exists for this key.
 					continue
 				}
-				seriesTags := lm.shard.index.series[key].Tags
+				seriesTags := lm.shard.index.TagsForSeries(key)
 				cm := newSeriesCursor(c, t.Filters[i], seriesTags)
 				cursors = append(cursors, cm)
 			}
