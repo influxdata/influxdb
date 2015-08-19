@@ -4,7 +4,11 @@
 
 ### Release Notes
 
-There are breaking changes in this release. Please see the *Features* section below for details.
+There are breaking changes in this release.
+ - To store data points as integers you must now append i to the number if using the line protocol.
+ - If you have a UDP input configured, you should check the new sample configuration file to learn how to modify existing configuration files, as the 0.9.3 now expects multiple UDP inputs. 
+
+Please see the *Features* section below for full details. 
 
 ### Features
 - [#3376](https://github.com/influxdb/influxdb/pull/3376): Support for remote shard query mapping
