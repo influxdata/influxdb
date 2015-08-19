@@ -182,6 +182,12 @@ func NewLog(path string) *Log {
 
 // Open opens and initializes the Log. Will recover from previous unclosed shutdowns
 func (l *Log) Open() error {
+	l.logger = log.New(l.LogOutput, "[wal] ", log.LstdFlags)
+
+	if l.EnableLogging {
+		l.logger.Printf("WAL starting with %d ready series size, %0.2f compaction threshold, and %d partition size threshold.", l.ReadySeriesSize, l.CompactionThreshold, l.PartitionSizeThreshold)
+		l.logger.Printf("WAL writing to %s", l.path)
+	}
 	if err := os.MkdirAll(l.path, 0777); err != nil {
 		return err
 	}
@@ -204,8 +210,6 @@ func (l *Log) Open() error {
 	if err := l.openPartitionFiles(); err != nil {
 		return err
 	}
-
-	l.logger = log.New(l.LogOutput, "[wal] ", log.LstdFlags)
 
 	l.flushCheckTimer = time.NewTimer(l.flushCheckInterval)
 

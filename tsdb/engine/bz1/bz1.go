@@ -76,6 +76,7 @@ func NewEngine(path string, opt tsdb.EngineOptions) tsdb.Engine {
 	w.CompactionThreshold = opt.Config.WALCompactionThreshold
 	w.PartitionSizeThreshold = opt.Config.WALPartitionSizeThreshold
 	w.ReadySeriesSize = opt.Config.WALReadySeriesSize
+	w.EnableLogging = opt.Config.WALEnableLogging
 
 	e := &Engine{
 		path: path,
