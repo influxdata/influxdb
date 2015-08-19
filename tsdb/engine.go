@@ -1,10 +1,12 @@
 package tsdb
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"time"
 
 	"github.com/boltdb/bolt"
@@ -16,7 +18,7 @@ var (
 )
 
 // DefaultEngine is the default engine used by the shard when initializing.
-const DefaultEngine = "b1"
+const DefaultEngine = "bz1"
 
 // Engine represents a swappable storage engine for the shard.
 type Engine interface {
@@ -52,7 +54,7 @@ func RegisterEngine(name string, fn NewEngineFunc) {
 func NewEngine(path string, options EngineOptions) (Engine, error) {
 	// Create a new engine
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return newEngineFuncs[DefaultEngine](path, options), nil
+		return newEngineFuncs[options.EngineVersion](path, options), nil
 	}
 
 	// Only bolt-based backends are currently supported so open it and check the format.
@@ -96,17 +98,22 @@ func NewEngine(path string, options EngineOptions) (Engine, error) {
 
 // EngineOptions represents the options used to initialize the engine.
 type EngineOptions struct {
+	EngineVersion          string
 	MaxWALSize             int
 	WALFlushInterval       time.Duration
 	WALPartitionFlushDelay time.Duration
+
+	Config Config
 }
 
 // NewEngineOptions returns the default options.
 func NewEngineOptions() EngineOptions {
 	return EngineOptions{
+		EngineVersion:          DefaultEngine,
 		MaxWALSize:             DefaultMaxWALSize,
 		WALFlushInterval:       DefaultWALFlushInterval,
 		WALPartitionFlushDelay: DefaultWALPartitionFlushDelay,
+		Config:                 NewConfig(),
 	}
 }
 
@@ -125,3 +132,29 @@ type Cursor interface {
 	Seek(seek []byte) (key, value []byte)
 	Next() (key, value []byte)
 }
+
+// DedupeEntries returns slices with unique keys (the first 8 bytes).
+func DedupeEntries(a [][]byte) [][]byte {
+	// Convert to a map where the last slice is used.
+	m := make(map[string][]byte)
+	for _, b := range a {
+		m[string(b[0:8])] = b
+	}
+
+	// Convert map back to a slice of byte slices.
+	other := make([][]byte, 0, len(m))
+	for _, v := range m {
+		other = append(other, v)
+	}
+
+	// Sort entries.
+	sort.Sort(ByteSlices(other))
+
+	return other
+}
+
+type ByteSlices [][]byte
+
+func (a ByteSlices) Len() int           { return len(a) }
+func (a ByteSlices) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a ByteSlices) Less(i, j int) bool { return bytes.Compare(a[i], a[j]) == -1 }

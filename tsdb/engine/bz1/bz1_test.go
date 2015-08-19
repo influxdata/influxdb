@@ -23,15 +23,16 @@ func TestEngine_LoadMetadataIndex_Series(t *testing.T) {
 	e := OpenDefaultEngine()
 	defer e.Close()
 
-	// Setup nop mock.
-	e.PointsWriter.WritePointsFn = func(a []tsdb.Point) error { return nil }
+	// Setup mock that writes the index
+	seriesToCreate := []*tsdb.SeriesCreate{
+		{Series: tsdb.NewSeries(string(tsdb.MakeKey([]byte("cpu"), map[string]string{"host": "server0"})), map[string]string{"host": "server0"})},
+		{Series: tsdb.NewSeries(string(tsdb.MakeKey([]byte("cpu"), map[string]string{"host": "server1"})), map[string]string{"host": "server1"})},
+		{Series: tsdb.NewSeries("series with spaces", nil)},
+	}
+	e.PointsWriter.WritePointsFn = func(a []tsdb.Point) error { return e.WriteIndex(nil, nil, seriesToCreate) }
 
 	// Write series metadata.
-	if err := e.WritePoints(nil, nil, []*tsdb.SeriesCreate{
-		{Series: &tsdb.Series{Key: string(tsdb.MakeKey([]byte("cpu"), map[string]string{"host": "server0"})), Tags: map[string]string{"host": "server0"}}},
-		{Series: &tsdb.Series{Key: string(tsdb.MakeKey([]byte("cpu"), map[string]string{"host": "server1"})), Tags: map[string]string{"host": "server1"}}},
-		{Series: &tsdb.Series{Key: "series with spaces"}},
-	}); err != nil {
+	if err := e.WritePoints(nil, nil, seriesToCreate); err != nil {
 		t.Fatal(err)
 	}
 
@@ -62,17 +63,18 @@ func TestEngine_LoadMetadataIndex_Fields(t *testing.T) {
 	e := OpenDefaultEngine()
 	defer e.Close()
 
-	// Setup nop mock.
-	e.PointsWriter.WritePointsFn = func(a []tsdb.Point) error { return nil }
-
-	// Write series metadata.
-	if err := e.WritePoints(nil, map[string]*tsdb.MeasurementFields{
+	// Setup mock that writes the index
+	fields := map[string]*tsdb.MeasurementFields{
 		"cpu": &tsdb.MeasurementFields{
 			Fields: map[string]*tsdb.Field{
 				"value": &tsdb.Field{ID: 0, Name: "value"},
 			},
 		},
-	}, nil); err != nil {
+	}
+	e.PointsWriter.WritePointsFn = func(a []tsdb.Point) error { return e.WriteIndex(nil, fields, nil) }
+
+	// Write series metadata.
+	if err := e.WritePoints(nil, fields, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -144,13 +146,13 @@ func TestEngine_WriteIndex_Append(t *testing.T) {
 	// Append points to index.
 	if err := e.WriteIndex(map[string][][]byte{
 		"cpu": [][]byte{
-			bz1.MarshalEntry(1, []byte{0x10}),
-			bz1.MarshalEntry(2, []byte{0x20}),
+			append(u64tob(1), 0x10),
+			append(u64tob(2), 0x20),
 		},
 		"mem": [][]byte{
-			bz1.MarshalEntry(0, []byte{0x30}),
+			append(u64tob(0), 0x30),
 		},
-	}); err != nil {
+	}, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -185,32 +187,32 @@ func TestEngine_WriteIndex_Insert(t *testing.T) {
 	// Write initial points to index.
 	if err := e.WriteIndex(map[string][][]byte{
 		"cpu": [][]byte{
-			bz1.MarshalEntry(10, []byte{0x10}),
-			bz1.MarshalEntry(20, []byte{0x20}),
-			bz1.MarshalEntry(30, []byte{0x30}),
+			append(u64tob(10), 0x10),
+			append(u64tob(20), 0x20),
+			append(u64tob(30), 0x30),
 		},
-	}); err != nil {
+	}, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 
 	// Write overlapping points to index.
 	if err := e.WriteIndex(map[string][][]byte{
 		"cpu": [][]byte{
-			bz1.MarshalEntry(9, []byte{0x09}),
-			bz1.MarshalEntry(10, []byte{0xFF}),
-			bz1.MarshalEntry(25, []byte{0x25}),
-			bz1.MarshalEntry(31, []byte{0x31}),
+			append(u64tob(9), 0x09),
+			append(u64tob(10), 0xFF),
+			append(u64tob(25), 0x25),
+			append(u64tob(31), 0x31),
 		},
-	}); err != nil {
+	}, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 
 	// Write overlapping points to index again.
 	if err := e.WriteIndex(map[string][][]byte{
 		"cpu": [][]byte{
-			bz1.MarshalEntry(31, []byte{0xFF}),
+			append(u64tob(31), 0xFF),
 		},
-	}); err != nil {
+	}, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -239,7 +241,7 @@ func TestEngine_WriteIndex_Insert(t *testing.T) {
 func TestEngine_WriteIndex_NoKeys(t *testing.T) {
 	e := OpenDefaultEngine()
 	defer e.Close()
-	if err := e.WriteIndex(nil); err != nil {
+	if err := e.WriteIndex(nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -248,7 +250,7 @@ func TestEngine_WriteIndex_NoKeys(t *testing.T) {
 func TestEngine_WriteIndex_NoPoints(t *testing.T) {
 	e := OpenDefaultEngine()
 	defer e.Close()
-	if err := e.WriteIndex(map[string][][]byte{"cpu": nil}); err != nil {
+	if err := e.WriteIndex(map[string][][]byte{"cpu": nil}, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -266,7 +268,7 @@ func TestEngine_WriteIndex_Quick(t *testing.T) {
 
 		// Write points to index in multiple sets.
 		for _, set := range sets {
-			if err := e.WriteIndex(map[string][][]byte(set)); err != nil {
+			if err := e.WriteIndex(map[string][][]byte(set), nil, nil); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -291,15 +293,8 @@ func TestEngine_WriteIndex_Quick(t *testing.T) {
 				got = append(got, append(copyBytes(k), v...))
 			}
 
-			// Generate expected values.
-			// We need to remove the data length from the slice.
-			var exp [][]byte
-			for _, b := range points[key] {
-				exp = append(exp, append(copyBytes(b[0:8]), b[12:]...)) // remove data len
-			}
-
-			if !reflect.DeepEqual(got, exp) {
-				t.Fatalf("points: block size=%d, key=%s:\n\ngot=%x\n\nexp=%x\n\n", e.BlockSize, key, got, exp)
+			if !reflect.DeepEqual(got, points[key]) {
+				t.Fatalf("points: block size=%d, key=%s:\n\ngot=%x\n\nexp=%x\n\n", e.BlockSize, key, got, points[key])
 			}
 		}
 
@@ -324,7 +319,7 @@ func NewEngine(opt tsdb.EngineOptions) *Engine {
 	e := &Engine{
 		Engine: bz1.NewEngine(f.Name(), opt).(*bz1.Engine),
 	}
-	e.Engine.PointsWriter = &e.PointsWriter
+	e.Engine.WAL = &e.PointsWriter
 	return e
 }
 
@@ -361,9 +356,29 @@ type EnginePointsWriter struct {
 	WritePointsFn func(points []tsdb.Point) error
 }
 
-func (w *EnginePointsWriter) WritePoints(points []tsdb.Point) error {
+func (w *EnginePointsWriter) WritePoints(points []tsdb.Point, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
 	return w.WritePointsFn(points)
 }
+
+func (w *EnginePointsWriter) LoadMetadataIndex(index *tsdb.DatabaseIndex, measurementFields map[string]*tsdb.MeasurementFields) error {
+	return nil
+}
+
+func (w *EnginePointsWriter) DeleteSeries(keys []string) error { return nil }
+
+func (w *EnginePointsWriter) Open() error { return nil }
+
+func (w *EnginePointsWriter) Close() error { return nil }
+
+func (w *EnginePointsWriter) Cursor(key string) tsdb.Cursor { return &Cursor{} }
+
+// Cursor represents a mock that implements tsdb.Curosr.
+type Cursor struct {
+}
+
+func (c *Cursor) Seek(key []byte) ([]byte, []byte) { return nil, nil }
+
+func (c *Cursor) Next() ([]byte, []byte) { return nil, nil }
 
 // Points represents a set of encoded points by key. Implements quick.Generator.
 type Points map[string][][]byte
@@ -411,7 +426,7 @@ func MergePoints(a []Points) Points {
 
 	// Dedupe points.
 	for key, values := range m {
-		m[key] = bz1.DedupeEntries(values)
+		m[key] = tsdb.DedupeEntries(values)
 	}
 
 	return m

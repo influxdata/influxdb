@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -506,7 +507,9 @@ func TestShardMapper_LocalMapperTagSetsFields(t *testing.T) {
 func mustCreateShard(dir string) *tsdb.Shard {
 	tmpShard := path.Join(dir, "shard")
 	index := tsdb.NewDatabaseIndex()
-	sh := tsdb.NewShard(index, tmpShard, tsdb.NewEngineOptions())
+	opts := tsdb.NewEngineOptions()
+	opts.Config.WALDir = filepath.Join(dir, "wal")
+	sh := tsdb.NewShard(1, index, tmpShard, opts)
 	if err := sh.Open(); err != nil {
 		panic(fmt.Sprintf("error opening shard: %s", err.Error()))
 	}

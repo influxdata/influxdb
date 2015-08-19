@@ -3,11 +3,13 @@ package bz1
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"math"
+	"path/filepath"
 	"sort"
 	"sync"
 	"time"
@@ -15,6 +17,7 @@ import (
 	"github.com/boltdb/bolt"
 	"github.com/golang/snappy"
 	"github.com/influxdb/influxdb/tsdb"
+	"github.com/influxdb/influxdb/tsdb/engine/wal"
 )
 
 var (
@@ -22,8 +25,10 @@ var (
 	ErrSeriesExists = errors.New("series exists")
 )
 
-// Format is the file format name of this engine.
-const Format = "bz1"
+const (
+	// Format is the file format name of this engine.
+	Format = "bz1"
+)
 
 func init() {
 	tsdb.RegisterEngine(Format, NewEngine)
@@ -44,21 +49,44 @@ type Engine struct {
 	db   *bolt.DB
 
 	// Write-ahead log storage.
-	PointsWriter interface {
-		WritePoints(points []tsdb.Point) error
-	}
+	WAL WAL
 
 	// Size of uncompressed points to write to a block.
 	BlockSize int
 }
 
+// WAL represents a write ahead log that can be queried
+type WAL interface {
+	WritePoints(points []tsdb.Point, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error
+	LoadMetadataIndex(index *tsdb.DatabaseIndex, measurementFields map[string]*tsdb.MeasurementFields) error
+	DeleteSeries(keys []string) error
+	Cursor(key string) tsdb.Cursor
+	Open() error
+	Close() error
+}
+
 // NewEngine returns a new instance of Engine.
 func NewEngine(path string, opt tsdb.EngineOptions) tsdb.Engine {
-	return &Engine{
+	// create the writer with a directory of the same name as the shard, but with the wal extension
+	w := wal.NewLog(filepath.Join(opt.Config.WALDir, filepath.Base(path)))
+
+	w.ReadySeriesSize = opt.Config.WALReadySeriesSize
+	w.FlushColdInterval = time.Duration(opt.Config.WALFlushColdInterval)
+	w.MaxSeriesSize = opt.Config.WALMaxSeriesSize
+	w.CompactionThreshold = opt.Config.WALCompactionThreshold
+	w.PartitionSizeThreshold = opt.Config.WALPartitionSizeThreshold
+	w.ReadySeriesSize = opt.Config.WALReadySeriesSize
+
+	e := &Engine{
 		path: path,
 
 		BlockSize: DefaultBlockSize,
+		WAL:       w,
 	}
+
+	w.Index = e
+
+	return e
 }
 
 // Path returns the path the engine was opened with.
@@ -79,8 +107,6 @@ func (e *Engine) Open() error {
 
 		// Initialize data file.
 		if err := e.db.Update(func(tx *bolt.Tx) error {
-			_, _ = tx.CreateBucketIfNotExists([]byte("series"))
-			_, _ = tx.CreateBucketIfNotExists([]byte("fields"))
 			_, _ = tx.CreateBucketIfNotExists([]byte("points"))
 
 			// Set file format, if not set yet.
@@ -101,6 +127,7 @@ func (e *Engine) Open() error {
 		e.close()
 		return err
 	}
+
 	return nil
 }
 
@@ -108,7 +135,10 @@ func (e *Engine) Open() error {
 func (e *Engine) Close() error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	return e.close()
+	if err := e.close(); err != nil {
+		return err
+	}
+	return e.WAL.Close()
 }
 
 func (e *Engine) close() error {
@@ -123,16 +153,14 @@ func (e *Engine) SetLogOutput(w io.Writer) {}
 
 // LoadMetadataIndex loads the shard metadata into memory.
 func (e *Engine) LoadMetadataIndex(index *tsdb.DatabaseIndex, measurementFields map[string]*tsdb.MeasurementFields) error {
-	return e.db.View(func(tx *bolt.Tx) error {
+	if err := e.db.View(func(tx *bolt.Tx) error {
 		// Load measurement metadata
-		meta := tx.Bucket([]byte("fields"))
-		c := meta.Cursor()
-		for k, v := c.First(); k != nil; k, v = c.Next() {
+		fields, err := e.readFields(tx)
+		if err != nil {
+			return err
+		}
+		for k, mf := range fields {
 			m := index.CreateMeasurementIndexIfNotExists(string(k))
-			mf := &tsdb.MeasurementFields{}
-			if err := mf.UnmarshalBinary(v); err != nil {
-				return err
-			}
 			for name, _ := range mf.Fields {
 				m.SetFieldName(name)
 			}
@@ -141,97 +169,59 @@ func (e *Engine) LoadMetadataIndex(index *tsdb.DatabaseIndex, measurementFields 
 		}
 
 		// Load series metadata
-		meta = tx.Bucket([]byte("series"))
-		c = meta.Cursor()
-		for k, v := c.First(); k != nil; k, v = c.Next() {
-			series := &tsdb.Series{}
-			if err := series.UnmarshalBinary(v); err != nil {
-				return err
-			}
-			index.CreateSeriesIndexIfNotExists(tsdb.MeasurementFromSeriesKey(string(k)), series)
-		}
-		return nil
-	})
-}
-
-// WritePoints writes metadata and point data into the engine.
-// Returns an error if new points are added to an existing key.
-func (e *Engine) WritePoints(points []tsdb.Point, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
-	// Write series & field metadata.
-	if err := e.db.Update(func(tx *bolt.Tx) error {
-		if err := e.writeSeries(tx, seriesToCreate); err != nil {
-			return fmt.Errorf("write series: %s", err)
-		}
-		if err := e.writeFields(tx, measurementFieldsToSave); err != nil {
-			return fmt.Errorf("write fields: %s", err)
+		series, err := e.readSeries(tx)
+		if err != nil {
+			return err
 		}
 
+		// Load the series into the in-memory index in sorted order to ensure
+		// it's always consistent for testing purposes
+		a := make([]string, 0, len(series))
+		for k, _ := range series {
+			a = append(a, k)
+		}
+		sort.Strings(a)
+		for _, key := range a {
+			s := series[key]
+			s.InitializeShards()
+			index.CreateSeriesIndexIfNotExists(tsdb.MeasurementFromSeriesKey(string(key)), s)
+		}
 		return nil
 	}); err != nil {
 		return err
 	}
 
+	// now flush the metadata that was in the WAL, but hand't yet been flushed
+	if err := e.WAL.LoadMetadataIndex(index, measurementFields); err != nil {
+		return err
+	}
+
+	// finally open the WAL up
+	return e.WAL.Open()
+}
+
+// WritePoints writes metadata and point data into the engine.
+// Returns an error if new points are added to an existing key.
+func (e *Engine) WritePoints(points []tsdb.Point, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
 	// Write points to the WAL.
-	if err := e.PointsWriter.WritePoints(points); err != nil {
+	if err := e.WAL.WritePoints(points, measurementFieldsToSave, seriesToCreate); err != nil {
 		return fmt.Errorf("write points: %s", err)
 	}
 
 	return nil
 }
 
-// writeSeries writes a list of series to the metadata.
-func (e *Engine) writeSeries(tx *bolt.Tx, a []*tsdb.SeriesCreate) error {
-	// Ignore if there are no series.
-	if len(a) == 0 {
-		return nil
-	}
-
-	// Marshal and insert each series into the metadata.
-	b := tx.Bucket([]byte("series"))
-	for _, sc := range a {
-		// Marshal series into bytes.
-		data, err := sc.Series.MarshalBinary()
-		if err != nil {
-			return fmt.Errorf("marshal series: %s", err)
-		}
-
-		// Insert marshaled data into appropriate key.
-		if err := b.Put([]byte(sc.Series.Key), data); err != nil {
-			return fmt.Errorf("put: %s", err)
-		}
-	}
-
-	return nil
-}
-
-// writeFields writes a list of measurement fields to the metadata.
-func (e *Engine) writeFields(tx *bolt.Tx, m map[string]*tsdb.MeasurementFields) error {
-	// Ignore if there are no fields to save.
-	if len(m) == 0 {
-		return nil
-	}
-
-	// Persist each measurement field in the map.
-	b := tx.Bucket([]byte("fields"))
-	for k, f := range m {
-		// Marshal field into bytes.
-		data, err := f.MarshalBinary()
-		if err != nil {
-			return fmt.Errorf("marshal measurement field: %s", err)
-		}
-
-		// Insert marshaled data into key.
-		if err := b.Put([]byte(k), data); err != nil {
-			return fmt.Errorf("put: %s", err)
-		}
-	}
-
-	return nil
-}
-
 // WriteIndex writes marshaled points to the engine's underlying index.
-func (e *Engine) WriteIndex(pointsByKey map[string][][]byte) error {
+func (e *Engine) WriteIndex(pointsByKey map[string][][]byte, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
 	return e.db.Update(func(tx *bolt.Tx) error {
+		// Write series & field metadata.
+		if err := e.writeNewSeries(tx, seriesToCreate); err != nil {
+			return fmt.Errorf("write series: %s", err)
+		}
+		if err := e.writeNewFields(tx, measurementFieldsToSave); err != nil {
+			return fmt.Errorf("write fields: %s", err)
+		}
+
 		for key, values := range pointsByKey {
 			if err := e.writeIndex(tx, key, values); err != nil {
 				return fmt.Errorf("write: key=%x, err=%s", key, err)
@@ -239,6 +229,103 @@ func (e *Engine) WriteIndex(pointsByKey map[string][][]byte) error {
 		}
 		return nil
 	})
+}
+
+func (e *Engine) writeNewFields(tx *bolt.Tx, measurementFieldsToSave map[string]*tsdb.MeasurementFields) error {
+	if len(measurementFieldsToSave) == 0 {
+		return nil
+	}
+
+	// read in all the previously saved fields
+	fields, err := e.readFields(tx)
+	if err != nil {
+		return err
+	}
+
+	// add the new ones or overwrite old ones
+	for name, mf := range measurementFieldsToSave {
+		fields[name] = mf
+	}
+
+	return e.writeFields(tx, fields)
+}
+
+func (e *Engine) writeFields(tx *bolt.Tx, fields map[string]*tsdb.MeasurementFields) error {
+	// compress and save everything
+	data, err := json.Marshal(fields)
+	if err != nil {
+		return err
+	}
+
+	return tx.Bucket([]byte("meta")).Put([]byte("fields"), snappy.Encode(nil, data))
+}
+
+func (e *Engine) readFields(tx *bolt.Tx) (map[string]*tsdb.MeasurementFields, error) {
+	fields := make(map[string]*tsdb.MeasurementFields)
+
+	b := tx.Bucket([]byte("meta")).Get([]byte("fields"))
+	if b == nil {
+		return fields, nil
+	}
+
+	data, err := snappy.Decode(nil, b)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return nil, err
+	}
+
+	return fields, nil
+}
+
+func (e *Engine) writeNewSeries(tx *bolt.Tx, seriesToCreate []*tsdb.SeriesCreate) error {
+	if len(seriesToCreate) == 0 {
+		return nil
+	}
+
+	// read in previously saved series
+	series, err := e.readSeries(tx)
+	if err != nil {
+		return err
+	}
+
+	// add new ones, compress and save
+	for _, s := range seriesToCreate {
+		series[s.Series.Key] = s.Series
+	}
+
+	return e.writeSeries(tx, series)
+}
+
+func (e *Engine) writeSeries(tx *bolt.Tx, series map[string]*tsdb.Series) error {
+	data, err := json.Marshal(series)
+	if err != nil {
+		return err
+	}
+
+	return tx.Bucket([]byte("meta")).Put([]byte("series"), snappy.Encode(nil, data))
+}
+
+func (e *Engine) readSeries(tx *bolt.Tx) (map[string]*tsdb.Series, error) {
+	series := make(map[string]*tsdb.Series)
+
+	b := tx.Bucket([]byte("meta")).Get([]byte("series"))
+	if b == nil {
+		return series, nil
+	}
+
+	data, err := snappy.Decode(nil, b)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := json.Unmarshal(data, &series); err != nil {
+		return nil, err
+	}
+
+	return series, nil
 }
 
 // writeIndex writes a set of points for a single key.
@@ -256,8 +343,13 @@ func (e *Engine) writeIndex(tx *bolt.Tx, key string, a [][]byte) error {
 	c := bkt.Cursor()
 
 	// Ensure the slice is sorted before retrieving the time range.
-	a = DedupeEntries(a)
-	sort.Sort(byteSlices(a))
+	a = tsdb.DedupeEntries(a)
+
+	// Convert the raw time and byte slices to entries with lengths
+	for i, p := range a {
+		timestamp := int64(btou64(p[0:8]))
+		a[i] = MarshalEntry(timestamp, p[8:])
+	}
 
 	// Determine time range of new data.
 	tmin, tmax := int64(btou64(a[0][0:8])), int64(btou64(a[len(a)-1][0:8]))
@@ -270,6 +362,7 @@ func (e *Engine) writeIndex(tx *bolt.Tx, key string, a [][]byte) error {
 		if err := e.writeBlocks(bkt, a); err != nil {
 			return fmt.Errorf("append blocks: %s", err)
 		}
+		return nil
 	}
 
 	// Generate map of inserted keys.
@@ -311,7 +404,7 @@ func (e *Engine) writeIndex(tx *bolt.Tx, key string, a [][]byte) error {
 
 	// Merge entries before rewriting.
 	a = append(existing, a...)
-	sort.Sort(byteSlices(a))
+	sort.Sort(tsdb.ByteSlices(a))
 
 	// Rewrite points to new blocks.
 	if err := e.writeBlocks(bkt, a); err != nil {
@@ -324,9 +417,6 @@ func (e *Engine) writeIndex(tx *bolt.Tx, key string, a [][]byte) error {
 // writeBlocks writes point data to the bucket in blocks.
 func (e *Engine) writeBlocks(bkt *bolt.Bucket, a [][]byte) error {
 	var block []byte
-
-	// Dedupe points by key.
-	a = DedupeEntries(a)
 
 	// Group points into blocks by size.
 	tmin, tmax := int64(math.MaxInt64), int64(math.MinInt64)
@@ -367,36 +457,56 @@ func (e *Engine) writeBlocks(bkt *bolt.Bucket, a [][]byte) error {
 
 // DeleteSeries deletes the series from the engine.
 func (e *Engine) DeleteSeries(keys []string) error {
+	// remove it from the WAL first
+	if err := e.WAL.DeleteSeries(keys); err != nil {
+		return err
+	}
+
 	return e.db.Update(func(tx *bolt.Tx) error {
+		series, err := e.readSeries(tx)
+		if err != nil {
+			return err
+		}
 		for _, k := range keys {
-			if err := tx.Bucket([]byte("series")).Delete([]byte(k)); err != nil {
-				return fmt.Errorf("delete series metadata: %s", err)
-			}
+			delete(series, k)
 			if err := tx.Bucket([]byte("points")).DeleteBucket([]byte(k)); err != nil && err != bolt.ErrBucketNotFound {
 				return fmt.Errorf("delete series data: %s", err)
 			}
 		}
-		return nil
+
+		return e.writeSeries(tx, series)
 	})
 }
 
 // DeleteMeasurement deletes a measurement and all related series.
 func (e *Engine) DeleteMeasurement(name string, seriesKeys []string) error {
+	// remove from the WAL first so it won't get flushed after removing from Bolt
+	if err := e.WAL.DeleteSeries(seriesKeys); err != nil {
+		return err
+	}
+
 	return e.db.Update(func(tx *bolt.Tx) error {
-		if err := tx.Bucket([]byte("fields")).Delete([]byte(name)); err != nil {
+		fields, err := e.readFields(tx)
+		if err != nil {
+			return err
+		}
+		delete(fields, name)
+		if err := e.writeFields(tx, fields); err != nil {
 			return err
 		}
 
+		series, err := e.readSeries(tx)
+		if err != nil {
+			return err
+		}
 		for _, k := range seriesKeys {
-			if err := tx.Bucket([]byte("series")).Delete([]byte(k)); err != nil {
-				return fmt.Errorf("delete series metadata: %s", err)
-			}
+			delete(series, k)
 			if err := tx.Bucket([]byte("points")).DeleteBucket([]byte(k)); err != nil && err != bolt.ErrBucketNotFound {
 				return fmt.Errorf("delete series data: %s", err)
 			}
 		}
 
-		return nil
+		return e.writeSeries(tx, series)
 	})
 }
 
@@ -418,7 +528,7 @@ func (e *Engine) Begin(writable bool) (tsdb.Tx, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Tx{Tx: tx, engine: e}, nil
+	return &Tx{Tx: tx, engine: e, wal: e.WAL}, nil
 }
 
 // Stats returns internal statistics for the engine.
@@ -439,19 +549,25 @@ type Stats struct {
 type Tx struct {
 	*bolt.Tx
 	engine *Engine
+	wal    WAL
 }
 
 // Cursor returns an iterator for a key.
 func (tx *Tx) Cursor(key string) tsdb.Cursor {
+	walCursor := tx.wal.Cursor(key)
+
 	// Retrieve points bucket. Ignore if there is no bucket.
 	b := tx.Bucket([]byte("points")).Bucket([]byte(key))
 	if b == nil {
-		return nil
+		return walCursor
 	}
-	return &Cursor{
+
+	c := &Cursor{
 		cursor: b.Cursor(),
 		buf:    make([]byte, DefaultBlockSize),
 	}
+
+	return tsdb.MultiCursor(walCursor, c)
 }
 
 // Cursor provides ordered iteration across a series.
@@ -584,26 +700,6 @@ func SplitEntries(b []byte) [][]byte {
 	}
 }
 
-// DedupeEntries returns slices with unique keys (the first 8 bytes).
-func DedupeEntries(a [][]byte) [][]byte {
-	// Convert to a map where the last slice is used.
-	m := make(map[string][]byte)
-	for _, b := range a {
-		m[string(b[0:8])] = b
-	}
-
-	// Convert map back to a slice of byte slices.
-	other := make([][]byte, 0, len(m))
-	for _, v := range m {
-		other = append(other, v)
-	}
-
-	// Sort entries.
-	sort.Sort(byteSlices(other))
-
-	return other
-}
-
 // entryHeaderSize is the number of bytes required for the header.
 const entryHeaderSize = 8 + 4
 
@@ -619,9 +715,3 @@ func u64tob(v uint64) []byte {
 
 // btou64 converts an 8-byte slice into an uint64.
 func btou64(b []byte) uint64 { return binary.BigEndian.Uint64(b) }
-
-type byteSlices [][]byte
-
-func (a byteSlices) Len() int           { return len(a) }
-func (a byteSlices) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a byteSlices) Less(i, j int) bool { return bytes.Compare(a[i], a[j]) == -1 }

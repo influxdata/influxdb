@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"math"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -947,6 +948,8 @@ func testStore() *tsdb.Store {
 	path, _ := ioutil.TempDir("", "")
 
 	store := tsdb.NewStore(path)
+
+	store.EngineOptions.Config.WALDir = filepath.Join(path, "wal")
 	err := store.Open()
 	if err != nil {
 		panic(err)

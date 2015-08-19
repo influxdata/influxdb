@@ -40,6 +40,7 @@ type Shard struct {
 	db    *bolt.DB // underlying data store
 	index *DatabaseIndex
 	path  string
+	id    uint64
 
 	engine  Engine
 	options EngineOptions
@@ -52,10 +53,11 @@ type Shard struct {
 }
 
 // NewShard returns a new initialized Shard
-func NewShard(index *DatabaseIndex, path string, options EngineOptions) *Shard {
+func NewShard(id uint64, index *DatabaseIndex, path string, options EngineOptions) *Shard {
 	return &Shard{
 		index:             index,
 		path:              path,
+		id:                id,
 		options:           options,
 		measurementFields: make(map[string]*MeasurementFields),
 
@@ -327,8 +329,12 @@ func (s *Shard) validateSeriesAndFields(points []Point) ([]*SeriesCreate, []*Fie
 	for _, p := range points {
 		// see if the series should be added to the index
 		if ss := s.index.series[string(p.Key())]; ss == nil {
-			series := &Series{Key: string(p.Key()), Tags: p.Tags()}
+			series := NewSeries(string(p.Key()), p.Tags())
 			seriesToCreate = append(seriesToCreate, &SeriesCreate{p.Name(), series})
+		} else if !ss.shardIDs[s.id] {
+			// this is the first time this series is being written into this shard, persist it
+			ss.shardIDs[s.id] = true
+			seriesToCreate = append(seriesToCreate, &SeriesCreate{p.Name(), ss})
 		}
 
 		// see if the field definitions need to be saved to the shard

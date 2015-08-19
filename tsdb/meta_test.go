@@ -182,10 +182,7 @@ func genTestSeries(mCnt, tCnt, vCnt int) []*TestSeries {
 		for _, ts := range tagSets {
 			series = append(series, &TestSeries{
 				Measurement: m,
-				Series: &tsdb.Series{
-					Key:  fmt.Sprintf("%s:%s", m, string(tsdb.MarshalTags(ts))),
-					Tags: ts,
-				},
+				Series:      tsdb.NewSeries(fmt.Sprintf("%s:%s", m, string(tsdb.MarshalTags(ts))), ts),
 			})
 		}
 	}

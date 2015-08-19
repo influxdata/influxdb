@@ -194,7 +194,7 @@ func (e *Engine) LoadMetadataIndex(index *tsdb.DatabaseIndex, measurementFields 
 		meta = tx.Bucket([]byte("series"))
 		c = meta.Cursor()
 		for k, v := c.First(); k != nil; k, v = c.Next() {
-			series := &tsdb.Series{}
+			series := tsdb.NewSeries("", nil)
 			if err := series.UnmarshalBinary(v); err != nil {
 				return err
 			}

@@ -35,6 +35,7 @@ func NewServer(c *run.Config) *Server {
 		Server: srv,
 		Config: c,
 	}
+	s.TSDBStore.EngineOptions.Config = c.Data
 	configureLogging(&s)
 	return &s
 }
@@ -155,6 +156,7 @@ func NewConfig() *run.Config {
 	c.Meta.CommitTimeout = toml.Duration(5 * time.Millisecond)
 
 	c.Data.Dir = MustTempFile()
+	c.Data.WALDir = MustTempFile()
 
 	c.HintedHandoff.Dir = MustTempFile()
 
