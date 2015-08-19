@@ -19,9 +19,9 @@ func TestSize_UnmarshalText_MB(t *testing.T) {
 // Ensure that gigabyte sizes can be parsed.
 func TestSize_UnmarshalText_GB(t *testing.T) {
 	var s toml.Size
-	if err := s.UnmarshalText([]byte("2g")); err != nil {
+	if err := s.UnmarshalText([]byte("1g")); err != nil {
 		t.Fatalf("unexpected error: %s", err)
-	} else if s != 2147483648 {
+	} else if s != 1073741824 {
 		t.Fatalf("unexpected size: %d", s)
 	}
 }
