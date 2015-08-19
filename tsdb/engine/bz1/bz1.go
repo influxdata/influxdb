@@ -36,7 +36,7 @@ func init() {
 
 const (
 	// DefaultBlockSize is the default size of uncompressed points blocks.
-	DefaultBlockSize = 32 * 1024 // 32KB
+	DefaultBlockSize = 64 * 1024 // 64KB
 )
 
 // Ensure Engine implements the interface.
@@ -359,11 +359,30 @@ func (e *Engine) writeIndex(tx *bolt.Tx, key string, a [][]byte) error {
 	//
 	// This is the optimized fast path. Otherwise we need to merge the points
 	// with existing blocks on disk and rewrite all the blocks for that range.
-	if k, v := c.Last(); k == nil || int64(btou64(v[0:8])) < tmin {
+	if k, v := c.Last(); k == nil {
+		bkt.FillPercent = 1.0
 		if err := e.writeBlocks(bkt, a); err != nil {
-			return fmt.Errorf("append blocks: %s", err)
+			return fmt.Errorf("new blocks: %s", err)
 		}
 		return nil
+	} else {
+		// Determine uncompressed block size.
+		sz, err := snappy.DecodedLen(v[8:])
+		if err != nil {
+			return fmt.Errorf("snappy decoded len: %s", err)
+		}
+
+		// Append new blocks if our time range is past the last on-disk time
+		// and if our previous block was at least the minimum block size.
+		if int64(btou64(v[0:8])) < tmin && sz >= e.BlockSize {
+			bkt.FillPercent = 1.0
+			if err := e.writeBlocks(bkt, a); err != nil {
+				return fmt.Errorf("append blocks: %s", err)
+			}
+			return nil
+		}
+
+		// Otherwise fallthrough to slower insert mode.
 	}
 
 	// Generate map of inserted keys.
@@ -536,6 +555,18 @@ func (e *Engine) Begin(writable bool) (tsdb.Tx, error) {
 func (e *Engine) Stats() (stats Stats, err error) {
 	err = e.db.View(func(tx *bolt.Tx) error {
 		stats.Size = tx.Size()
+		return nil
+	})
+	return stats, err
+}
+
+// SeriesBucketStats returns internal BoltDB stats for a series bucket.
+func (e *Engine) SeriesBucketStats(key string) (stats bolt.BucketStats, err error) {
+	err = e.db.View(func(tx *bolt.Tx) error {
+		bkt := tx.Bucket([]byte("points")).Bucket([]byte(key))
+		if bkt != nil {
+			stats = bkt.Stats()
+		}
 		return nil
 	})
 	return stats, err

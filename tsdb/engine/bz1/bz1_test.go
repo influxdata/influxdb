@@ -14,8 +14,10 @@ import (
 	"testing/quick"
 	"time"
 
+	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/tsdb"
 	"github.com/influxdb/influxdb/tsdb/engine/bz1"
+	"github.com/influxdb/influxdb/tsdb/engine/wal"
 )
 
 // Ensure the engine can write series metadata and reload it.
@@ -255,15 +257,15 @@ func TestEngine_WriteIndex_NoPoints(t *testing.T) {
 	}
 }
 
-// Ensure the engine ignores writes without points in a key.
+// Ensure the engine can accept randomly generated points.
 func TestEngine_WriteIndex_Quick(t *testing.T) {
 	if testing.Short() {
 		t.Skip("short mode")
 	}
 
-	quick.Check(func(sets []Points, blockSize int) bool {
+	quick.Check(func(sets []Points, blockSize uint) bool {
 		e := OpenDefaultEngine()
-		e.BlockSize = blockSize % 1024 // 1KB max block size
+		e.BlockSize = int(blockSize % 1024) // 1KB max block size
 		defer e.Close()
 
 		// Write points to index in multiple sets.
@@ -300,6 +302,109 @@ func TestEngine_WriteIndex_Quick(t *testing.T) {
 
 		return true
 	}, nil)
+}
+
+// Ensure the engine can accept randomly generated append-only points.
+func TestEngine_WriteIndex_Quick_Append(t *testing.T) {
+	if testing.Short() {
+		t.Skip("short mode")
+	}
+
+	quick.Check(func(sets appendPointSets, blockSize uint) bool {
+		e := OpenDefaultEngine()
+		e.BlockSize = int(blockSize % 1024) // 1KB max block size
+		defer e.Close()
+
+		// Write points to index in multiple sets.
+		for _, set := range sets {
+			if err := e.WriteIndex(map[string][][]byte(set), nil, nil); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		// Merge all points together.
+		points := MergePoints([]Points(sets))
+
+		// Retrieve a sorted list of keys so results are deterministic.
+		keys := points.Keys()
+
+		// Start transaction to read index.
+		tx := e.MustBegin(false)
+		defer tx.Rollback()
+
+		// Iterate over results to ensure they are correct.
+		for _, key := range keys {
+			c := tx.Cursor(key)
+
+			// Read list of key/values.
+			var got [][]byte
+			for k, v := c.Seek(u64tob(0)); k != nil; k, v = c.Next() {
+				got = append(got, append(copyBytes(k), v...))
+			}
+
+			if !reflect.DeepEqual(got, points[key]) {
+				t.Fatalf("points: block size=%d, key=%s:\n\ngot=%x\n\nexp=%x\n\n", e.BlockSize, key, got, points[key])
+			}
+		}
+
+		return true
+	}, nil)
+}
+
+func BenchmarkEngine_WriteIndex_512b(b *testing.B)  { benchmarkEngine_WriteIndex(b, 512) }
+func BenchmarkEngine_WriteIndex_1KB(b *testing.B)   { benchmarkEngine_WriteIndex(b, 1*1024) }
+func BenchmarkEngine_WriteIndex_4KB(b *testing.B)   { benchmarkEngine_WriteIndex(b, 4*1024) }
+func BenchmarkEngine_WriteIndex_16KB(b *testing.B)  { benchmarkEngine_WriteIndex(b, 16*1024) }
+func BenchmarkEngine_WriteIndex_32KB(b *testing.B)  { benchmarkEngine_WriteIndex(b, 32*1024) }
+func BenchmarkEngine_WriteIndex_64KB(b *testing.B)  { benchmarkEngine_WriteIndex(b, 64*1024) }
+func BenchmarkEngine_WriteIndex_128KB(b *testing.B) { benchmarkEngine_WriteIndex(b, 128*1024) }
+func BenchmarkEngine_WriteIndex_256KB(b *testing.B) { benchmarkEngine_WriteIndex(b, 256*1024) }
+
+func benchmarkEngine_WriteIndex(b *testing.B, blockSize int) {
+	// Skip small iterations.
+	if b.N < 1000000 {
+		return
+	}
+
+	// Create a simple engine.
+	e := OpenDefaultEngine()
+	e.BlockSize = blockSize
+	defer e.Close()
+
+	// Create codec.
+	codec := tsdb.NewFieldCodec(map[string]*tsdb.Field{
+		"value": {
+			ID:   uint8(1),
+			Name: "value",
+			Type: influxql.Float,
+		},
+	})
+
+	// Generate points.
+	a := make(map[string][][]byte)
+	a["cpu"] = make([][]byte, b.N)
+	for i := 0; i < b.N; i++ {
+		a["cpu"][i] = wal.MarshalEntry(int64(i), MustEncodeFields(codec, tsdb.Fields{"value": float64(i)}))
+	}
+
+	b.ResetTimer()
+
+	// Insert into engine.
+	if err := e.WriteIndex(a, nil, nil); err != nil {
+		b.Fatal(err)
+	}
+
+	// Calculate on-disk size per point.
+	bs, _ := e.SeriesBucketStats("cpu")
+	stats, err := e.Stats()
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.Logf("pts=%9d  bytes/pt=%4.01f  leaf-util=%3.0f%%",
+		b.N,
+		float64(stats.Size)/float64(b.N),
+		(float64(bs.LeafInuse)/float64(bs.LeafAlloc))*100.0,
+	)
 }
 
 // Engine represents a test wrapper for bz1.Engine.
@@ -394,14 +499,37 @@ func (m Points) Keys() []string {
 }
 
 func (Points) Generate(rand *rand.Rand, size int) reflect.Value {
+	return reflect.ValueOf(Points(GeneratePoints(rand, size,
+		rand.Intn(size),
+		func(_ int) time.Time { return time.Unix(0, 0).Add(time.Duration(rand.Intn(100))) },
+	)))
+}
+
+// appendPointSets represents sets of sequential points. Implements quick.Generator.
+type appendPointSets []Points
+
+func (appendPointSets) Generate(rand *rand.Rand, size int) reflect.Value {
+	sets := make([]Points, 0)
+	for i, n := 0, rand.Intn(size); i < n; i++ {
+		sets = append(sets, GeneratePoints(rand, size,
+			rand.Intn(size),
+			func(j int) time.Time {
+				return time.Unix(0, 0).Add((time.Duration(i) * time.Second) + (time.Duration(j) * time.Nanosecond))
+			},
+		))
+	}
+	return reflect.ValueOf(appendPointSets(sets))
+}
+
+func GeneratePoints(rand *rand.Rand, size, seriesN int, timestampFn func(int) time.Time) Points {
 	// Generate series with a random number of points in each.
-	m := make(map[string][][]byte)
-	for i, seriesN := 0, rand.Intn(size); i < seriesN; i++ {
-		key := strconv.Itoa(rand.Intn(20))
+	m := make(Points)
+	for i := 0; i < seriesN; i++ {
+		key := strconv.Itoa(i)
 
 		// Generate points for the series.
 		for j, pointN := 0, rand.Intn(size); j < pointN; j++ {
-			timestamp := time.Unix(0, 0).Add(time.Duration(rand.Intn(100)))
+			timestamp := timestampFn(j)
 			data, ok := quick.Value(reflect.TypeOf([]byte(nil)), rand)
 			if !ok {
 				panic("cannot generate data")
@@ -409,8 +537,7 @@ func (Points) Generate(rand *rand.Rand, size int) reflect.Value {
 			m[key] = append(m[key], bz1.MarshalEntry(timestamp.UnixNano(), data.Interface().([]byte)))
 		}
 	}
-
-	return reflect.ValueOf(Points(m))
+	return m
 }
 
 // MergePoints returns a map of all points merged together by key.
@@ -430,6 +557,15 @@ func MergePoints(a []Points) Points {
 	}
 
 	return m
+}
+
+// MustEncodeFields encodes fields with codec. Panic on error.
+func MustEncodeFields(codec *tsdb.FieldCodec, fields tsdb.Fields) []byte {
+	b, err := codec.EncodeFields(fields)
+	if err != nil {
+		panic(err)
+	}
+	return b
 }
 
 // copyBytes returns a copy of a byte slice.
