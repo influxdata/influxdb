@@ -23,6 +23,8 @@ There are breaking changes in this release. Please see the *Features* section be
 - [#3115](https://github.com/influxdb/influxdb/pull/3115): Various init.d script improvements. Thanks @KoeSystems.
 - [#3628](https://github.com/influxdb/influxdb/pull/3628): Wildcard expansion of tags and fields for raw queries
 - [#3721](https://github.com/influxdb/influxdb/pull/3721): interpret number literals compared against time as nanoseconds from epoch
+- [#3514](https://github.com/influxdb/influxdb/issues/3514): Implement WAL outside BoltDB with compaction
+- [#3544](https://github.com/influxdb/influxdb/pull/3544): Implement compression on top of BoltDB
 
 ### Bugfixes
 - [#3405](https://github.com/influxdb/influxdb/pull/3405): Prevent database panic when fields are missing. Thanks @jhorwit2
