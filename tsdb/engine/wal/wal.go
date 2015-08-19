@@ -198,7 +198,7 @@ func (l *Log) Open() error {
 		if err != nil {
 			return err
 		}
-		p.enableLogging = l.EnableLogging
+		p.log = l
 		l.partitions[uint8(i)] = p
 	}
 	if err := l.openPartitionFiles(); err != nil {
@@ -661,7 +661,7 @@ func (l *Log) partition(key []byte) *Partition {
 		if err != nil {
 			panic(err)
 		}
-		p.enableLogging = l.EnableLogging
+		p.log = l
 		l.partitions[id] = p
 	}
 	return p
@@ -704,7 +704,7 @@ type Partition struct {
 	flushColdInterval time.Duration
 	lastWriteTime     time.Time
 
-	enableLogging bool
+	log *Log
 
 	// Used for mocking OS calls
 	os struct {
@@ -995,7 +995,9 @@ func (p *Partition) flushAndCompact(flush flushType) error {
 	}
 
 	startTime := time.Now()
-	fmt.Printf("compacting %d series from partition %d\n", len(c.seriesToFlush), p.id)
+	if p.log.EnableLogging {
+		p.log.logger.Printf("compacting %d series from partition %d\n", len(c.seriesToFlush), p.id)
+	}
 
 	// write the data to the index first
 	if err := p.index.WriteIndex(c.seriesToFlush, nil, nil); err != nil {
@@ -1018,7 +1020,10 @@ func (p *Partition) flushAndCompact(flush flushType) error {
 	}()
 
 	err = p.compactFiles(c, flush)
-	fmt.Printf("compaction of partition %d took %s\n", p.id, time.Since(startTime))
+	if p.log.EnableLogging {
+		p.log.logger.Printf("compaction of partition %d took %s\n", p.id, time.Since(startTime))
+	}
+
 	return err
 }
 
