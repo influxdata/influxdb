@@ -230,16 +230,17 @@ func (l *Log) Cursor(key string) tsdb.Cursor {
 }
 
 func (l *Log) WritePoints(points []tsdb.Point, fields map[string]*tsdb.MeasurementFields, series []*tsdb.SeriesCreate) error {
-	partitionsToWrite := l.pointsToPartitions(points)
-
+	// persist the series and fields if there are any
 	if err := l.writeSeriesAndFields(fields, series); err != nil {
 		l.logger.Println("error writing series and fields:", err.Error())
 		return err
 	}
 
-	// get it to disk
+	// persist the raw point data
 	l.mu.RLock()
 	defer l.mu.RUnlock()
+
+	partitionsToWrite := l.pointsToPartitions(points)
 
 	for p, points := range partitionsToWrite {
 		if err := p.Write(points); err != nil {
@@ -534,20 +535,27 @@ func (l *Log) openPartitionFiles() error {
 // Close will finish any flush that is currently in process and close file handles
 func (l *Log) Close() error {
 	// stop the autoflushing process so it doesn't try to kick another one off
+	l.mu.Lock()
 	if l.closing != nil {
 		close(l.closing)
 		l.closing = nil
 	}
+	l.mu.Unlock()
 
+	// Allow goroutines to finish running.
 	l.wg.Wait()
 
+	// Lock the remainder of the closing process.
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
 	// clear the cache
-	l.partitions = nil
+	if err := l.close(); err != nil {
+		return err
+	}
 
-	return l.close()
+	l.partitions = nil
+	return nil
 }
 
 // close all the open Log partitions and file handles
@@ -745,6 +753,9 @@ func (p *Partition) Close() error {
 	defer p.mu.Unlock()
 
 	p.cache = nil
+	if p.currentSegmentFile == nil {
+		return nil
+	}
 	if err := p.currentSegmentFile.Close(); err != nil {
 		return err
 	}
