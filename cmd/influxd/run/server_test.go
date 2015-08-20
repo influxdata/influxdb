@@ -3026,7 +3026,6 @@ func TestServer_Query_Fill(t *testing.T) {
 }
 
 func TestServer_Query_Chunk(t *testing.T) {
-	t.Skip()
 	t.Parallel()
 	s := OpenServer(NewConfig(), "")
 	defer s.Close()
