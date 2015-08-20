@@ -61,6 +61,12 @@ type point struct {
 
 	// binary encoded field data
 	data []byte
+
+	// cached version of parsed fields from data
+	cachedFields map[string]interface{}
+
+	// cached version of parsed name from key
+	cachedName string
 }
 
 const (
@@ -998,11 +1004,16 @@ func (p *point) name() []byte {
 
 // Name return the measurement name for the point
 func (p *point) Name() string {
-	return string(unescape(p.name()))
+	if p.cachedName != "" {
+		return p.cachedName
+	}
+	p.cachedName = string(unescape(p.name()))
+	return p.cachedName
 }
 
 // SetName updates the measurement name for the point
 func (p *point) SetName(name string) {
+	p.cachedName = ""
 	p.key = MakeKey([]byte(name), p.Tags())
 }
 
@@ -1053,19 +1064,23 @@ func MakeKey(name []byte, tags Tags) []byte {
 
 // SetTags replaces the tags for the point
 func (p *point) SetTags(tags Tags) {
-	p.key = MakeKey(p.name(), tags)
+	p.key = MakeKey([]byte(p.Name()), tags)
 }
 
 // AddTag adds or replaces a tag value for a point
 func (p *point) AddTag(key, value string) {
 	tags := p.Tags()
 	tags[key] = value
-	p.key = MakeKey(p.name(), tags)
+	p.key = MakeKey([]byte(p.Name()), tags)
 }
 
 // Fields returns the fields for the point
 func (p *point) Fields() Fields {
-	return p.unmarshalBinary()
+	if p.cachedFields != nil {
+		return p.cachedFields
+	}
+	p.cachedFields = p.unmarshalBinary()
+	return p.cachedFields
 }
 
 // AddField adds or replaces a field value for a point
@@ -1073,6 +1088,7 @@ func (p *point) AddField(name string, value interface{}) {
 	fields := p.Fields()
 	fields[name] = value
 	p.fields = fields.MarshalBinary()
+	p.cachedFields = nil
 }
 
 // SetPrecision will round a time to the specified precision

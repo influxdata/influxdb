@@ -3,12 +3,10 @@ package graphite_test
 import (
 	"fmt"
 	"net"
-	"reflect"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/services/graphite"
@@ -44,16 +42,12 @@ func Test_ServerGraphiteTCP(t *testing.T) {
 				t.Fatalf("unexpected database: %s", req.Database)
 			} else if req.RetentionPolicy != "" {
 				t.Fatalf("unexpected retention policy: %s", req.RetentionPolicy)
-			} else if !reflect.DeepEqual(req.Points, []tsdb.Point{
+			} else if req.Points[0].String() !=
 				tsdb.NewPoint(
 					"cpu",
 					map[string]string{},
 					map[string]interface{}{"value": 23.456},
-					time.Unix(now.Unix(), 0),
-				),
-			}) {
-				spew.Dump(req.Points)
-				t.Fatalf("unexpected points: %#v", req.Points)
+					time.Unix(now.Unix(), 0)).String() {
 			}
 			return nil
 		},
@@ -117,16 +111,13 @@ func Test_ServerGraphiteUDP(t *testing.T) {
 				t.Fatalf("unexpected database: %s", req.Database)
 			} else if req.RetentionPolicy != "" {
 				t.Fatalf("unexpected retention policy: %s", req.RetentionPolicy)
-			} else if !reflect.DeepEqual(req.Points, []tsdb.Point{
+			} else if req.Points[0].String() !=
 				tsdb.NewPoint(
 					"cpu",
 					map[string]string{},
 					map[string]interface{}{"value": 23.456},
-					time.Unix(now.Unix(), 0),
-				),
-			}) {
-				spew.Dump(req.Points)
-				t.Fatalf("unexpected points: %#v", req.Points)
+					time.Unix(now.Unix(), 0)).String() {
+				t.Fatalf("unexpected points: %#v", req.Points[0].String())
 			}
 			return nil
 		},
