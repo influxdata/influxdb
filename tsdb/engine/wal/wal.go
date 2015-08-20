@@ -531,15 +531,19 @@ func (l *Log) openPartitionFiles() error {
 // Close will finish any flush that is currently in process and close file handles
 func (l *Log) Close() error {
 	// stop the autoflushing process so it doesn't try to kick another one off
+	l.mu.Lock()
 	if l.closing != nil {
 		close(l.closing)
 		l.closing = nil
 	}
+	l.mu.Unlock()
 
+	// Allow goroutines to finish running.
+	l.wg.Wait()
+
+	// Lock the remainder of the closing process.
 	l.mu.Lock()
 	defer l.mu.Unlock()
-
-	l.wg.Wait()
 
 	// clear the cache
 	if err := l.close(); err != nil {
