@@ -996,7 +996,13 @@ func (p *Partition) flushAndCompact(flush flushType) error {
 
 	startTime := time.Now()
 	if p.log.EnableLogging {
-		p.log.logger.Printf("compacting %d series from partition %d\n", len(c.seriesToFlush), p.id)
+		ftype := "idle"
+		if flush == thresholdFlush {
+			ftype = "threshold"
+		} else if flush == memoryFlush {
+			ftype = "memory"
+		}
+		p.log.logger.Printf("Flush due to %s. Compacting %d series from partition %d\n", ftype, len(c.seriesToFlush), p.id)
 	}
 
 	// write the data to the index first
@@ -1289,7 +1295,7 @@ func (p *Partition) cursor(key string) *cursor {
 
 	entry := p.cache[key]
 	if entry == nil {
-		return &cursor{}
+		entry = &cacheEntry{}
 	}
 
 	// if we're in the middle of a flush, combine the previous cache
@@ -1300,7 +1306,8 @@ func (p *Partition) cursor(key string) *cursor {
 			copy(c, fc)
 			c = append(c, entry.points...)
 
-			return &cursor{cache: tsdb.DedupeEntries(c)}
+			dedupe := tsdb.DedupeEntries(c)
+			return &cursor{cache: dedupe}
 		}
 	}
 
