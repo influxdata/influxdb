@@ -85,7 +85,7 @@ func NewService(c Config) (*Service, error) {
 
 // Open starts the Graphite input processing data.
 func (s *Service) Open() error {
-	s.logger.Println("Starting graphite service")
+	s.logger.Printf("Starting graphite service, batch size %d, batch timeout %s", s.batchSize, s.batchTimeout)
 
 	if err := s.MetaStore.WaitForLeader(leaderWaitTimeout); err != nil {
 		s.logger.Printf("Failed to detect a cluster leader: %s", err.Error())
