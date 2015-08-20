@@ -8,6 +8,7 @@ There are breaking changes in this release.
  - To store data points as integers you must now append i to the number if using the line protocol.
  - If you have a UDP input configured, you should check the UDP section of [the new sample configuration file](https://github.com/influxdb/influxdb/blob/master/etc/config.sample.toml) to learn how to modify existing configuration files, as 0.9.3 now expects multiple UDP inputs. 
  - Configuration files must now have an entry for `wal-dir` in the `[data]` section. Check [new sample configuration file](https://github.com/influxdb/influxdb/blob/master/etc/config.sample.toml) for more details.
+ - The implicit `GROUP BY *` that was added to every `SELECT *` has been removed. Instead any tags in the data are now part of the columns in the returned query.
 
 Please see the *Features* section below for full details. 
 
