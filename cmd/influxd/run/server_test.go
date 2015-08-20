@@ -1394,6 +1394,11 @@ func TestServer_Query_Common(t *testing.T) {
 			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",1]]}]}]}`, now.Format(time.RFC3339Nano)),
 		},
 		&Query{
+			name:    "explicitly selecting time and a valid measurement and field should succeed",
+			command: `SELECT time,value FROM db0.rp0.cpu`,
+			exp:     fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["%s",1]]}]}]}`, now.Format(time.RFC3339Nano)),
+		},
+		&Query{
 			name:    "selecting a measurement that doesn't exist should result in empty set",
 			command: `SELECT value FROM db0.rp0.idontexist`,
 			exp:     `{"results":[{}]}`,
