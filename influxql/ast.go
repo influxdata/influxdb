@@ -985,6 +985,10 @@ func (s *SelectStatement) hasTimeDimensions(node Node) bool {
 }
 
 func (s *SelectStatement) validate(tr targetRequirement) error {
+	if err := s.validateFields(); err != nil {
+		return err
+	}
+
 	if err := s.validateDistinct(); err != nil {
 		return err
 	}
@@ -1005,6 +1009,15 @@ func (s *SelectStatement) validate(tr targetRequirement) error {
 		return err
 	}
 
+	return nil
+}
+
+func (s *SelectStatement) validateFields() error {
+	for _, f := range s.NamesInSelect() {
+		if f == "time" {
+			return fmt.Errorf("'time' is an invalid field for SELECT")
+		}
+	}
 	return nil
 }
 
