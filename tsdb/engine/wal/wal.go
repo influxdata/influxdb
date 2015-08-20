@@ -185,8 +185,8 @@ func (l *Log) Open() error {
 	l.logger = log.New(l.LogOutput, "[wal] ", log.LstdFlags)
 
 	if l.EnableLogging {
-		l.logger.Printf("WAL starting with %d ready series size, %0.2f compaction threshold, and %d partition size threshold.", l.ReadySeriesSize, l.CompactionThreshold, l.PartitionSizeThreshold)
-		l.logger.Printf("WAL writing to %s", l.path)
+		l.logger.Printf("WAL starting with %d ready series size, %0.2f compaction threshold, and %d partition size threshold\n", l.ReadySeriesSize, l.CompactionThreshold, l.PartitionSizeThreshold)
+		l.logger.Printf("WAL writing to %s\n", l.path)
 	}
 	if err := os.MkdirAll(l.path, 0777); err != nil {
 		return err
@@ -233,7 +233,7 @@ func (l *Log) WritePoints(points []tsdb.Point, fields map[string]*tsdb.Measureme
 	partitionsToWrite := l.pointsToPartitions(points)
 
 	if err := l.writeSeriesAndFields(fields, series); err != nil {
-		l.logger.Println("error writing series and fields: ", err.Error())
+		l.logger.Println("error writing series and fields:", err.Error())
 		return err
 	}
 
@@ -374,21 +374,21 @@ func (l *Log) readMetadataFile(fileName string) ([]*seriesAndFields, error) {
 			break
 		} else if err != nil {
 			// print the error and move on since we can't recover the file
-			l.logger.Println("error reading lenght of metadata: ", err.Error())
+			l.logger.Println("error reading lenght of metadata:", err.Error())
 			break
 		}
 
 		buf, err := snappy.Decode(nil, b)
 		if err != nil {
 			// print the error and move on since we can't recover the file
-			l.logger.Println("error reading compressed metadata info: ", err.Error())
+			l.logger.Println("error reading compressed metadata info:", err.Error())
 			break
 		}
 
 		sf := &seriesAndFields{}
 		if err := json.Unmarshal(buf, sf); err != nil {
 			// print the error and move on since we can't recover the file
-			l.logger.Println("error unmarshaling json for new series and fields: ", err.Error())
+			l.logger.Println("error unmarshaling json for new series and fields:", err.Error())
 			break
 		}
 
@@ -597,11 +597,11 @@ func (l *Log) autoflusher(closing chan struct{}) {
 			l.flushCheckTimer.Reset(l.flushCheckInterval)
 		case <-l.flush:
 			if err := l.Flush(); err != nil {
-				l.logger.Printf("flush error: %s", err)
+				l.logger.Println("flush error:", err)
 			}
 		case <-metaFlushTicker.C:
 			if err := l.flushMetadata(); err != nil {
-				l.logger.Printf("metadata flush error: %s", err.Error())
+				l.logger.Println("metadata flush error:", err)
 			}
 		}
 	}
@@ -1060,7 +1060,7 @@ func (p *Partition) compactFiles(c *compactionInfo, flush flushType) error {
 			return err
 		}
 
-		sf := newSegment(f)
+		sf := newSegment(f, p.log.logger)
 		var entries []*entry
 		for {
 			name, a, err := sf.readCompressedBlock()
@@ -1165,7 +1165,7 @@ func (p *Partition) recoverCompactionFile() error {
 	defer f.Close()
 
 	// Iterate through all named blocks.
-	sf := newSegment(f)
+	sf := newSegment(f, p.log.logger)
 	var hasData bool
 	for {
 		// Only read named blocks.
@@ -1235,7 +1235,7 @@ func (p *Partition) readFile(path string) (entries []*entry, err error) {
 		return nil, err
 	}
 
-	sf := newSegment(f)
+	sf := newSegment(f, p.log.logger)
 	for {
 		name, a, err := sf.readCompressedBlock()
 		if name != "" {
@@ -1383,12 +1383,14 @@ type segment struct {
 	block  []byte
 	length []byte
 	size   int64
+	logger *log.Logger
 }
 
-func newSegment(f *os.File) *segment {
+func newSegment(f *os.File, l *log.Logger) *segment {
 	return &segment{
 		length: make([]byte, 8),
 		f:      f,
+		logger: l,
 	}
 }
 
@@ -1404,7 +1406,7 @@ func (s *segment) readCompressedBlock() (name string, entries []*entry, err erro
 		return "", nil, fmt.Errorf("read length: %s", err)
 	} else if n != len(s.length) {
 		// seek back before this length so we can start overwriting the file from here
-		log.Println("unable to read the size of a data block from file: ", s.f.Name())
+		s.logger.Println("unable to read the size of a data block from file:", s.f.Name())
 		s.f.Seek(-int64(n), 1)
 		return "", nil, nil
 	}
@@ -1438,7 +1440,7 @@ func (s *segment) readCompressedBlock() (name string, entries []*entry, err erro
 	// read the compressed block and decompress it. if partial or corrupt,
 	// overwrite with zeroes so we can start over on this wal file
 	if n != int(dataLength) {
-		log.Println("partial compressed block in file: ", s.f.Name())
+		s.logger.Println("partial compressed block in file:", s.f.Name())
 
 		// seek back to before this block and its size so we can overwrite the corrupt data
 		s.f.Seek(-int64(len(s.length)+n), 1)
@@ -1457,7 +1459,7 @@ func (s *segment) readCompressedBlock() (name string, entries []*entry, err erro
 	// if there was an error decoding, this is a corrupt block so we zero out the rest of the file
 	buf, err := snappy.Decode(nil, s.block[:dataLength])
 	if err != nil {
-		log.Println("corrupt compressed block in file: ", err.Error(), s.f.Name())
+		s.logger.Println("corrupt compressed block in file:", err.Error(), s.f.Name())
 
 		// go back to the start of this block and zero out the rest of the file
 		s.f.Seek(-int64(len(s.length)+n), 1)
