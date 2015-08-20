@@ -132,11 +132,14 @@ reporting-disabled = false
   # name-separator = "."
 
   # These next lines control how batching works. You should have this enabled
-  # otherwise you could get dropped metrics or poor performance. Batching 
+  # otherwise you could get dropped metrics or poor performance. Batching
   # will buffer points in memory if you have many coming in.
 
   # batch-size = 1000 # will flush if this many points get buffered
   # batch-timeout = "1s" # will flush at least this often even if we haven't hit buffer limit
+
+  # Time after which idle TCP connections will be closed. 0s for no timeout.
+  # tcp-conn-timeout = "900s"
 
   ## "name-schema" configures tag names for parsing the metric name from graphite protocol;
   ## separated by `name-separator`.
