@@ -21,11 +21,7 @@ func Test_ServerGraphiteTCP(t *testing.T) {
 
 	now := time.Now().UTC().Round(time.Second)
 
-	config := graphite.NewConfig()
-	config.Database = "graphitedb"
-	config.BatchSize = 0 // No batching.
-	config.BatchTimeout = toml.Duration(time.Second)
-	config.BindAddress = ":0"
+	config := NewServerConfig("tcp", 0)
 
 	service, err := graphite.NewService(config)
 	if err != nil {
@@ -93,12 +89,7 @@ func Test_ServerGraphiteUDP(t *testing.T) {
 
 	now := time.Now().UTC().Round(time.Second)
 
-	config := graphite.NewConfig()
-	config.Database = "graphitedb"
-	config.BatchSize = 0 // No batching.
-	config.BatchTimeout = toml.Duration(time.Second)
-	config.BindAddress = ":10000"
-	config.Protocol = "udp"
+	config := NewServerConfig("udp", 0)
 
 	service, err := graphite.NewService(config)
 	if err != nil {
@@ -159,6 +150,16 @@ func Test_ServerGraphiteUDP(t *testing.T) {
 
 	wg.Wait()
 	conn.Close()
+}
+
+func NewServerConfig(protocol string, batchSize int) graphite.Config {
+	config := graphite.NewConfig()
+	config.Database = "graphitedb"
+	config.BatchSize = batchSize
+	config.BatchTimeout = toml.Duration(time.Second)
+	config.BindAddress = ":0"
+	config.Protocol = protocol
+	return config
 }
 
 // PointsWriter represents a mock impl of PointsWriter.
