@@ -353,7 +353,7 @@ func (l *Log) readMetadataFile(fileName string) ([]*seriesAndFields, error) {
 	length := make([]byte, 8)
 	for {
 		// get the length of the compressed seriesAndFields blob
-		_, err := f.Read(length)
+		_, err := io.ReadFull(f, length)
 		if err == io.EOF {
 			break
 		} else if err != nil {
@@ -369,7 +369,7 @@ func (l *Log) readMetadataFile(fileName string) ([]*seriesAndFields, error) {
 		// read in the compressed block and decod it
 		b := make([]byte, dataLength)
 
-		_, err = f.Read(b)
+		_, err = io.ReadFull(f, b)
 		if err == io.EOF {
 			break
 		} else if err != nil {
@@ -554,7 +554,8 @@ func (l *Log) Close() error {
 func (l *Log) close() error {
 	for _, p := range l.partitions {
 		if err := p.Close(); err != nil {
-			return err
+			// log and skip so we can close the other partitions
+			l.logger.Println("error closing partition:", err)
 		}
 	}
 
