@@ -1013,10 +1013,9 @@ func (s *SelectStatement) validate(tr targetRequirement) error {
 }
 
 func (s *SelectStatement) validateFields() error {
-	for _, f := range s.NamesInSelect() {
-		if f == "time" {
-			return fmt.Errorf("'time' is an invalid field for SELECT")
-		}
+	ns := s.NamesInSelect()
+	if len(ns) == 1 && ns[0] == "time" {
+		return fmt.Errorf("at least 1 non-time field must be queried")
 	}
 	return nil
 }
