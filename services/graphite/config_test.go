@@ -18,6 +18,7 @@ enabled = true
 protocol = "tcp"
 batch-size=100
 batch-timeout="1s"
+tcp-conn-timeout="5s"
 consistency-level="one"
 templates=["servers.* .host.measurement*"]
 tags=["region=us-east"]
@@ -38,6 +39,8 @@ tags=["region=us-east"]
 		t.Fatalf("unexpected graphite batch size: %d", c.BatchSize)
 	} else if time.Duration(c.BatchTimeout) != time.Second {
 		t.Fatalf("unexpected graphite batch timeout: %v", c.BatchTimeout)
+	} else if time.Duration(c.TCPTimeout) != 5*time.Second {
+		t.Fatalf("unexpected idle TCP connection timeout: %v", c.TCPTimeout)
 	} else if c.ConsistencyLevel != "one" {
 		t.Fatalf("unexpected graphite consistency setting: %s", c.ConsistencyLevel)
 	}
