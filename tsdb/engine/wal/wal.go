@@ -542,9 +542,12 @@ func (l *Log) Close() error {
 	l.wg.Wait()
 
 	// clear the cache
-	l.partitions = nil
+	if err := l.close(); err != nil {
+		return err
+	}
 
-	return l.close()
+	l.partitions = nil
+	return nil
 }
 
 // close all the open Log partitions and file handles
