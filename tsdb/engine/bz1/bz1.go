@@ -135,10 +135,12 @@ func (e *Engine) Open() error {
 func (e *Engine) Close() error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if err := e.close(); err != nil {
+
+	if err := e.WAL.Close(); err != nil {
 		return err
 	}
-	return e.WAL.Close()
+
+	return e.close()
 }
 
 func (e *Engine) close() error {

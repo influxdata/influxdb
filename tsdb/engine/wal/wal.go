@@ -226,16 +226,17 @@ func (l *Log) Cursor(key string) tsdb.Cursor {
 }
 
 func (l *Log) WritePoints(points []tsdb.Point, fields map[string]*tsdb.MeasurementFields, series []*tsdb.SeriesCreate) error {
-	partitionsToWrite := l.pointsToPartitions(points)
-
+	// persist the series and fields if there are any
 	if err := l.writeSeriesAndFields(fields, series); err != nil {
 		l.logger.Println("error writing series and fields: ", err.Error())
 		return err
 	}
 
-	// get it to disk
+	// persist the raw point data
 	l.mu.RLock()
 	defer l.mu.RUnlock()
+
+	partitionsToWrite := l.pointsToPartitions(points)
 
 	for p, points := range partitionsToWrite {
 		if err := p.Write(points); err != nil {
@@ -535,10 +536,10 @@ func (l *Log) Close() error {
 		l.closing = nil
 	}
 
-	l.wg.Wait()
-
 	l.mu.Lock()
 	defer l.mu.Unlock()
+
+	l.wg.Wait()
 
 	// clear the cache
 	l.partitions = nil
