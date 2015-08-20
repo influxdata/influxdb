@@ -753,6 +753,9 @@ func (p *Partition) Close() error {
 	defer p.mu.Unlock()
 
 	p.cache = nil
+	if p.currentSegmentFile == nil {
+		return nil
+	}
 	if err := p.currentSegmentFile.Close(); err != nil {
 		return err
 	}
