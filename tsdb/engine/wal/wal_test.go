@@ -772,6 +772,59 @@ func TestWAL_Compact_Recovery(t *testing.T) {
 	}
 }
 
+func TestWAL_QueryDuringCompaction(t *testing.T) {
+	log := openTestWAL()
+	log.partitionCount = 1
+	defer log.Close()
+	defer os.RemoveAll(log.path)
+
+	var points []map[string][][]byte
+	finishCompaction := make(chan struct{})
+	log.Index = &testIndexWriter{fn: func(pointsByKey map[string][][]byte, measurementFieldsToSave map[string]*tsdb.MeasurementFields, seriesToCreate []*tsdb.SeriesCreate) error {
+		points = append(points, pointsByKey)
+		finishCompaction <- struct{}{}
+		return nil
+	}}
+
+	if err := log.Open(); err != nil {
+		t.Fatalf("couldn't open wal: %s", err.Error())
+	}
+
+	codec := tsdb.NewFieldCodec(map[string]*tsdb.Field{
+		"value": {
+			ID:   uint8(1),
+			Name: "value",
+			Type: influxql.Float,
+		},
+	})
+
+	// test that we can write to two different series
+	p1 := parsePoint("cpu,host=A value=23.2 1", codec)
+	if err := log.WritePoints([]tsdb.Point{p1}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	verify := func() {
+		c := log.Cursor("cpu,host=A")
+		k, v := c.Seek(inttob(1))
+		// ensure the series are there and points are in order
+		if bytes.Compare(v, p1.Data()) != 0 {
+			<-finishCompaction
+			t.Fatalf("expected to seek to first point but got key and value: %v %v", k, v)
+		}
+	}
+
+	verify()
+	go func() {
+		log.Flush()
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+	verify()
+	<-finishCompaction
+	verify()
+}
+
 // test that partitions get compacted and flushed when number of series hits compaction threshold
 // test that partitions get compacted and flushed when a single series hits the compaction threshold
 // test that writes slow down when the partition size threshold is hit
