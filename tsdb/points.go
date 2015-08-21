@@ -257,7 +257,9 @@ func scanKey(buf []byte, i int) (int, []byte, error) {
 			break
 		}
 
-		if buf[i] == '=' {
+		// equals is special in the tags section.  It must be escaped if part of a tag name or value.
+		// It does not need to be escaped if part of the measurement.
+		if buf[i] == '=' && commas > 0 {
 			if i-1 < 0 || i-2 < 0 {
 				return i, buf[start:i], fmt.Errorf("missing tag name")
 			}

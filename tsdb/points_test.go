@@ -632,6 +632,18 @@ func TestParsePointUnescape(t *testing.T) {
 			},
 			time.Unix(0, 0)))
 
+	// measurement, tag and tag value with equals
+	test(t, `cpu=load,equals\=foo=tag\=value value=1i`,
+		tsdb.NewPoint(
+			"cpu=load", // Not escaped
+			tsdb.Tags{
+				"equals=foo": "tag=value", // Tag and value unescaped
+			},
+			tsdb.Fields{
+				"value": 1,
+			},
+			time.Unix(0, 0)))
+
 }
 
 func TestParsePointWithTags(t *testing.T) {
