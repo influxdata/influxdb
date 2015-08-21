@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"os"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strconv"
@@ -419,10 +420,11 @@ func NewEngine(opt tsdb.EngineOptions) *Engine {
 	f, _ := ioutil.TempFile("", "bz1-")
 	f.Close()
 	os.Remove(f.Name())
+	walPath := filepath.Join(f.Name(), "wal")
 
 	// Create test wrapper and attach mocks.
 	e := &Engine{
-		Engine: bz1.NewEngine(f.Name(), opt).(*bz1.Engine),
+		Engine: bz1.NewEngine(f.Name(), walPath, opt).(*bz1.Engine),
 	}
 	e.Engine.WAL = &e.PointsWriter
 	return e

@@ -506,10 +506,11 @@ func TestShardMapper_LocalMapperTagSetsFields(t *testing.T) {
 
 func mustCreateShard(dir string) *tsdb.Shard {
 	tmpShard := path.Join(dir, "shard")
+	tmpWal := path.Join(dir, "wal")
 	index := tsdb.NewDatabaseIndex()
 	opts := tsdb.NewEngineOptions()
 	opts.Config.WALDir = filepath.Join(dir, "wal")
-	sh := tsdb.NewShard(1, index, tmpShard, opts)
+	sh := tsdb.NewShard(1, index, tmpShard, tmpWal, opts)
 	if err := sh.Open(); err != nil {
 		panic(fmt.Sprintf("error opening shard: %s", err.Error()))
 	}
