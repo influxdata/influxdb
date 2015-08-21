@@ -82,6 +82,7 @@ Please see the *Features* section below for full details.
 - [#3736](https://github.com/influxdb/influxdb/pull/3736): Update shard group duration with retention policy changes. Thanks for the report @papylhomme
 - [#3539](https://github.com/influxdb/influxdb/issues/3539): parser incorrectly accepts NaN as numerical value, but not always
 - [#3790](https://github.com/influxdb/influxdb/pull/3790): Fix line protocol parsing equals in measurements and NaN values
+- [#3778](https://github.com/influxdb/influxdb/pull/3778): Don't panic if SELECT on time.
 
 ## v0.9.2 [2015-07-24]
 

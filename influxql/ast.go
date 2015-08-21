@@ -985,6 +985,10 @@ func (s *SelectStatement) hasTimeDimensions(node Node) bool {
 }
 
 func (s *SelectStatement) validate(tr targetRequirement) error {
+	if err := s.validateFields(); err != nil {
+		return err
+	}
+
 	if err := s.validateDistinct(); err != nil {
 		return err
 	}
@@ -1005,6 +1009,14 @@ func (s *SelectStatement) validate(tr targetRequirement) error {
 		return err
 	}
 
+	return nil
+}
+
+func (s *SelectStatement) validateFields() error {
+	ns := s.NamesInSelect()
+	if len(ns) == 1 && ns[0] == "time" {
+		return fmt.Errorf("at least 1 non-time field must be queried")
+	}
 	return nil
 }
 
