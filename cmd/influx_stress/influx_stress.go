@@ -42,14 +42,13 @@ func main() {
 
 	totalPoints := 0
 
+	batch := &client.BatchPoints{
+		Database:         *database,
+		WriteConsistency: "any",
+		Time:             time.Now(),
+		Precision:        "n",
+	}
 	for i := 1; i <= *pointCount; i++ {
-		batch := &client.BatchPoints{
-			Database:         *database,
-			WriteConsistency: "any",
-			Time:             time.Now(),
-			Precision:        "n",
-		}
-
 		for j := 1; j <= *seriesCount; j++ {
 			p := client.Point{
 				Measurement: "cpu",
@@ -72,7 +71,7 @@ func main() {
 					}
 					wg.Done()
 					counter.Decrement()
-					if total%1000000 == 0 {
+					if total%500000 == 0 {
 						fmt.Printf("%d total points. %d in %s\n", total, *batchSize, time.Since(st))
 					}
 				}(batch, totalPoints)
@@ -81,6 +80,7 @@ func main() {
 					Database:         *database,
 					WriteConsistency: "any",
 					Precision:        "n",
+					Time:             time.Now(),
 				}
 			}
 		}
