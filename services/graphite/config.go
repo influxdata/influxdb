@@ -31,6 +31,11 @@ const (
 
 	// DefaultBatchTimeout is the default Graphite batch timeout.
 	DefaultBatchTimeout = time.Second
+
+	// DefaultTCPConnTimeout is the time after which if no data is received on
+	// a TCP connection, the connection will close. Only applies when the protocol
+	// is TCP. 0 means no timeout.
+	DefaultTCPConnTimeout = 15 * time.Minute
 )
 
 // Config represents the configuration for Graphite endpoints.
@@ -41,6 +46,7 @@ type Config struct {
 	Protocol         string        `toml:"protocol"`
 	BatchSize        int           `toml:"batch-size"`
 	BatchTimeout     toml.Duration `toml:"batch-timeout"`
+	TCPTimeout       toml.Duration `toml:"tcp-conn-timeout"`
 	ConsistencyLevel string        `toml:"consistency-level"`
 	Templates        []string      `toml:"templates"`
 	Tags             []string      `toml:"tags"`
@@ -55,6 +61,7 @@ func NewConfig() Config {
 		Protocol:         DefaultProtocol,
 		BatchSize:        DefaultBatchSize,
 		BatchTimeout:     toml.Duration(DefaultBatchTimeout),
+		TCPTimeout:       toml.Duration(DefaultTCPConnTimeout),
 		ConsistencyLevel: DefaultConsistencyLevel,
 		Separator:        DefaultSeparator,
 	}

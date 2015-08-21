@@ -27,6 +27,7 @@ type Service struct {
 	protocol         string
 	batchSize        int
 	batchTimeout     time.Duration
+	tcpTimeout       time.Duration
 	consistencyLevel cluster.ConsistencyLevel
 
 	batcher *tsdb.PointBatcher
@@ -60,6 +61,7 @@ func NewService(c Config) (*Service, error) {
 		protocol:     d.Protocol,
 		batchSize:    d.BatchSize,
 		batchTimeout: time.Duration(d.BatchTimeout),
+		tcpTimeout:   time.Duration(d.TCPTimeout),
 		logger:       log.New(os.Stderr, "[graphite] ", log.LstdFlags),
 		done:         make(chan struct{}),
 	}
@@ -181,8 +183,14 @@ func (s *Service) handleTCPConnection(conn net.Conn) {
 
 	for {
 		// Read up to the next newline.
+		if s.tcpTimeout > 0 {
+			conn.SetReadDeadline(time.Now().Add(s.tcpTimeout))
+		}
 		buf, err := reader.ReadBytes('\n')
 		if err != nil {
+			if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
+				s.logger.Println("timeout on TCP connection read, closing connection")
+			}
 			return
 		}
 
