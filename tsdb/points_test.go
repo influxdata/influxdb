@@ -991,6 +991,17 @@ func TestNewPointNaN(t *testing.T) {
 			},
 			time.Unix(1, 0)),
 	)
+
+	test(t, `nan value=NaN`,
+		tsdb.NewPoint(
+			"nan",
+			tsdb.Tags{},
+			tsdb.Fields{
+				"value": math.NaN(),
+			},
+			time.Unix(0, 0)),
+	)
+
 }
 
 func TestNewPointLargeNumberOfTags(t *testing.T) {

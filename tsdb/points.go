@@ -615,14 +615,13 @@ func scanNumber(buf []byte, i int) (int, error) {
 		}
 
 		// NaN is a valid float
-		if i+3 < len(buf) && (buf[i] == 'N' || buf[i] == 'n') {
+		if i+2 < len(buf) && (buf[i] == 'N' || buf[i] == 'n') {
 			if (buf[i+1] == 'a' || buf[i+1] == 'A') && (buf[i+2] == 'N' || buf[i+2] == 'n') {
 				i += 3
 				continue
 			}
 			return i, fmt.Errorf("invalid number")
 		}
-
 		if !isNumeric(buf[i]) {
 			return i, fmt.Errorf("invalid number")
 		}
