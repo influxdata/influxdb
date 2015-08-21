@@ -1286,14 +1286,15 @@ func (p *Partition) addToCache(key, data []byte, timestamp int64) {
 	// Generate in-memory cache entry of <timestamp,data>.
 	v := MarshalEntry(timestamp, data)
 	p.memorySize += uint64(len(v))
+	keystr := string(key)
 
-	entry := p.cache[string(key)]
+	entry := p.cache[keystr]
 	if entry == nil {
 		entry = &cacheEntry{
 			points: [][]byte{v},
 			size:   len(v),
 		}
-		p.cache[string(key)] = entry
+		p.cache[keystr] = entry
 
 		return
 	}
