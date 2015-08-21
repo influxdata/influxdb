@@ -51,6 +51,22 @@ type Config struct {
 	Address       string
 }
 
+// ResponseTime is a struct that contains `Value`
+// `Time` pairing.
+type ResponseTime struct {
+	Value int
+	Time  time.Time
+}
+
+// newResponseTime returns a new response time
+// with value `v` and time `time.Now()`.
+func newResponseTime(v int) ResponseTime {
+	r := ResponseTime{Value: v, Time: time.Now()}
+	return r
+}
+
+type ResponseTimes []ResponseTime
+
 // newClient returns a pointer to an InfluxDB client for
 // a `Config`'s `Address` field. If an error is encountered
 // when creating a new client, the function panics.
@@ -67,7 +83,7 @@ func (cfg *Config) newClient() *client.Client {
 // It returns the total number of points that were during the test,
 // an slice of all of the stress tests response times,
 // and the times that the test started at and ended as a `Timer`
-func Run(cfg *Config) (totalPoints int, responseTimes []int, timer *Timer) {
+func Run(cfg *Config) (totalPoints int, responseTimes ResponseTimes, timer *Timer) {
 	timer = NewTimer()
 	defer timer.Stop()
 
@@ -77,7 +93,7 @@ func Run(cfg *Config) (totalPoints int, responseTimes []int, timer *Timer) {
 
 	var mu sync.Mutex
 	var wg sync.WaitGroup
-	responseTimes = make([]int, 0)
+	responseTimes = make(ResponseTimes, 0)
 
 	totalPoints = 0
 
@@ -105,7 +121,7 @@ func Run(cfg *Config) (totalPoints int, responseTimes []int, timer *Timer) {
 						fmt.Println("ERROR: ", err.Error())
 					} else {
 						mu.Lock()
-						responseTimes = append(responseTimes, int(time.Since(st).Nanoseconds()))
+						responseTimes = append(responseTimes, newResponseTime(int(time.Since(st).Nanoseconds())))
 						mu.Unlock()
 					}
 					wg.Done()
