@@ -87,6 +87,24 @@ It will export as:
 metric,disk=c,host=server01,single=upgrade_artifacts
 ```
 
+### Export Metrics
+
+When you export, you will now get comments inline in the `DML`:
+
+`# Found 999 Series for export`
+
+As well as count totals for each series exported:
+
+`# Series FOO - Points Exported: 999`
+
+With a total at the bottom:
+
+`# Points Exported: 999`
+
+You can grep the file that was exported at the end to get all the export metrics:
+
+`cat myexport | grep Exported`
+
 ## Importing
 
 Version `0.9.3` of InfluxDB adds support to import your data from version `0.8.9`.
