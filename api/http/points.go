@@ -23,6 +23,17 @@ var (
 	}
 
 	escapeCodesStr = map[string]string{}
+
+	measurementEscapeCodes = map[byte][]byte{
+		',': []byte(`\,`),
+		' ': []byte(`\ `),
+	}
+
+	tagEscapeCodes = map[byte][]byte{
+		',': []byte(`\,`),
+		' ': []byte(`\ `),
+		'=': []byte(`\=`),
+	}
 )
 
 func init() {
@@ -53,7 +64,7 @@ type Point9 struct {
 // NewPoint returns a new point with the given measurement name, tags, fields and timestamp
 func NewPoint9(name string, tags Tags, fields Fields, time time.Time) *Point9 {
 	return &Point9{
-		key:    makeKey([]byte(name), tags),
+		key:    MakeKey([]byte(name), tags),
 		time:   time,
 		fields: fields.MarshalBinary(),
 	}
@@ -66,8 +77,31 @@ func (p *Point9) String() string {
 	return fmt.Sprintf("%s %s %d", p.key, string(p.fields), p.time.UnixNano())
 }
 
-func makeKey(name []byte, tags Tags) []byte {
-	return append(escape(name), tags.HashKey()...)
+func MakeKey(name []byte, tags Tags) []byte {
+	// unescape the name and then re-escape it to avoid double escaping.
+	// The key should always be stored in escaped form.
+	return append(escapeMeasurement(unescapeMeasurement(name)), tags.HashKey()...)
+}
+
+func escapeMeasurement(in []byte) []byte {
+	for b, esc := range measurementEscapeCodes {
+		in = bytes.Replace(in, []byte{b}, esc, -1)
+	}
+	return in
+}
+
+func unescapeMeasurement(in []byte) []byte {
+	for b, esc := range measurementEscapeCodes {
+		in = bytes.Replace(in, esc, []byte{b}, -1)
+	}
+	return in
+}
+
+func escapeTag(in []byte) []byte {
+	for b, esc := range tagEscapeCodes {
+		in = bytes.Replace(in, []byte{b}, esc, -1)
+	}
+	return in
 }
 
 type Tags map[string]string
@@ -80,9 +114,9 @@ func (t Tags) HashKey() []byte {
 
 	escaped := Tags{}
 	for k, v := range t {
-		ek := escapeString(k)
-		ev := escapeString(v)
-		escaped[ek] = ev
+		ek := escapeTag([]byte(k))
+		ev := escapeTag([]byte(v))
+		escaped[string(ek)] = string(ev)
 	}
 
 	// Extract keys and determine final size.
@@ -133,12 +167,16 @@ func (p Fields) MarshalBinary() []byte {
 		switch t := v.(type) {
 		case int:
 			b = append(b, []byte(strconv.FormatInt(int64(t), 10))...)
+			b = append(b, 'i')
 		case int32:
 			b = append(b, []byte(strconv.FormatInt(int64(t), 10))...)
+			b = append(b, 'i')
 		case uint64:
 			b = append(b, []byte(strconv.FormatUint(t, 10))...)
+			b = append(b, 'i')
 		case int64:
 			b = append(b, []byte(strconv.FormatInt(t, 10))...)
+			b = append(b, 'i')
 		case float64:
 			// ensure there is a decimal in the encoded for
 
@@ -155,14 +193,14 @@ func (p Fields) MarshalBinary() []byte {
 			b = append(b, t...)
 		case string:
 			b = append(b, '"')
-			b = append(b, []byte(escapeQuoteString(t))...)
+			b = append(b, []byte(escapeStringField(t))...)
 			b = append(b, '"')
 		case nil:
 			// skip
 		default:
 			// Can't determine the type, so convert to string
 			b = append(b, '"')
-			b = append(b, []byte(escapeQuoteString(fmt.Sprintf("%v", v)))...)
+			b = append(b, []byte(escapeStringField(fmt.Sprintf("%v", v)))...)
 			b = append(b, '"')
 
 		}
@@ -181,20 +219,34 @@ func escapeString(in string) string {
 	return in
 }
 
-// escapeQuoteString returns a copy of in with any double quotes that
-// have not been escaped with escaped quotes
-func escapeQuoteString(in string) string {
-	if strings.IndexAny(in, `"`) == -1 {
-		return in
-	}
-	return quoteReplacer.ReplaceAllString(in, `$1\"`)
-}
+// escapeStringField returns a copy of in with any double quotes or
+// backslashes with escaped values
+func escapeStringField(in string) string {
+	var out []byte
+	i := 0
+	for {
+		if i >= len(in) {
+			break
+		}
+		// escape double-quotes
+		if in[i] == '\\' {
+			out = append(out, '\\')
+			out = append(out, '\\')
+			i += 1
+			continue
+		}
+		// escape double-quotes
+		if in[i] == '"' {
+			out = append(out, '\\')
+			out = append(out, '"')
+			i += 1
+			continue
+		}
+		out = append(out, in[i])
+		i += 1
 
-func escape(in []byte) []byte {
-	for b, esc := range escapeCodes {
-		in = bytes.Replace(in, []byte{b}, esc, -1)
 	}
-	return in
+	return string(out)
 }
 
 func parseSeriesName(series, separator string) (string, map[string]string) {
@@ -202,7 +254,8 @@ func parseSeriesName(series, separator string) (string, map[string]string) {
 	vals := strings.Split(series, separator)
 	name := vals[len(vals)-1]
 	if len(vals)%2 != 1 {
-		vals = append(vals[:len(vals)-1], "upgrade_artifacts", name)
+		// If we can't parse the series name to strings, return the series name as the measurement name and no tags
+		return series, map[string]string{}
 	}
 	for i := 0; i < len(vals)-1; i += 2 {
 		tags[vals[i]] = vals[i+1]

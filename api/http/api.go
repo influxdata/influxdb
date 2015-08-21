@@ -15,7 +15,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	log "code.google.com/p/log4go"
@@ -285,6 +284,7 @@ func (self *ChunkWriter) done() {
 type ExportPointsWriter struct {
 	w         libhttp.ResponseWriter
 	separator string
+	count     int
 }
 
 func (self *ExportPointsWriter) yield(series *protocol.Series) error {
@@ -307,6 +307,7 @@ func (self *ExportPointsWriter) yield(series *protocol.Series) error {
 		p9 := NewPoint9(name, tags, fields, time.Unix(0, epoch*1000))
 		// Write line protocol
 		self.w.Write([]byte(p9.String()))
+		self.count++
 
 		// Write a line return
 		self.w.Write([]byte{'\n'})
@@ -1277,15 +1278,6 @@ func (self *HttpServer) exportDatabases(w libhttp.ResponseWriter, r *libhttp.Req
 		w = gzipResponseWriter{Writer: gz, ResponseWriter: w}
 	}
 
-	// detect disconnected clients and exit routine
-	var disconnected int32
-	notify := w.(libhttp.CloseNotifier).CloseNotify()
-
-	go func() {
-		<-notify
-		atomic.StoreInt32(&disconnected, 1)
-	}()
-
 	username, password, err := getUsernameAndPassword(r)
 	if err != nil {
 		w.WriteHeader(libhttp.StatusBadRequest)
@@ -1410,19 +1402,22 @@ func (self *HttpServer) exportDatabases(w libhttp.ResponseWriter, r *libhttp.Req
 			libhttp.Error(w, fmt.Sprintf("failed to query data: database: %s, query: \"list series\", err: %s", schema.db, err), libhttp.StatusNotFound)
 		}
 
+		fmt.Fprintf(w, "# Found %d Series for export\n", len(schema.series))
+
+		pointsExported := 0
 		// Walk through each database and series and select all data
 		for _, series := range schema.series {
-			// Check to see if the client disconnected, if so, exit the routine
-			if d := atomic.LoadInt32(&disconnected); d > 0 {
-				return
-			}
 			query := fmt.Sprintf(`select * from %q`, series)
-			writer := &ExportPointsWriter{w, separator}
+			writer := &ExportPointsWriter{w, separator, 0}
 			seriesWriter := NewSeriesWriter(writer.yield)
 			if err := self.coordinator.RunQuery(user, schema.db, query, seriesWriter); err != nil {
 				libhttp.Error(w, fmt.Sprintf("failed to query data: database: %s, query: %s, err: %s", schema.db, query, err), libhttp.StatusNotFound)
 			}
 			writer.done()
+			fmt.Fprintf(w, "# Series %s - Points Exported: %d\n", series, writer.count)
+			pointsExported += writer.count
 		}
+
+		fmt.Fprintf(w, "# Points Exported: %d\n", pointsExported)
 	}
 }
