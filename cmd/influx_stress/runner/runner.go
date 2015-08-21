@@ -10,31 +10,37 @@ import (
 	"github.com/influxdb/influxdb/client"
 )
 
+// Timer is struct that can be used to track elaspsed time
 type Timer struct {
 	start time.Time
 	end   time.Time
 }
 
+// Start sets a timers `start` field to the current time
 func (t *Timer) Start() {
 	t.start = time.Now()
 }
 
+// Start sets a timers `end` field to the current time
 func (t *Timer) Stop() {
 	t.end = time.Now()
 }
 
+// Elapsed returns the total elapsed time between the `start`
+// and `end` fields on a timer.
 func (t *Timer) Elapsed() time.Duration {
 	return t.end.Sub(t.start)
 }
 
-func newTimer() *Timer {
+// NewTimer returns a pointer to a `Timer` struct where the
+// timers `start` field has been set to `time.Now()`
+func NewTimer() *Timer {
 	t := &Timer{}
 	t.Start()
 	return t
 }
 
-// Config
-
+// Config is a struct that is passed into the `Run()` function.
 type Config struct {
 	BatchSize     int
 	SeriesCount   int
@@ -45,6 +51,9 @@ type Config struct {
 	Address       string
 }
 
+// newClient returns a pointer to an InfluxDB client for
+// a `Config`'s `Address` field. If an error is encountered
+// when creating a new client, the function panics.
 func (cfg *Config) newClient() *client.Client {
 	u, _ := url.Parse(fmt.Sprintf("http://%s", cfg.Address))
 	c, err := client.NewClient(client.Config{URL: *u})
@@ -54,9 +63,12 @@ func (cfg *Config) newClient() *client.Client {
 	return c
 }
 
-// main runner
+// Run runs the stress test that is specified by a `Config`.
+// It returns the total number of points that were during the test,
+// an slice of all of the stress tests response times,
+// and the times that the test started at and ended as a `Timer`
 func Run(cfg *Config) (totalPoints int, responseTimes []int, timer *Timer) {
-	timer = newTimer()
+	timer = NewTimer()
 	defer timer.Stop()
 
 	c := cfg.newClient()
