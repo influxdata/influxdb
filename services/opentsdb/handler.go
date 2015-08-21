@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/influxdb/influxdb"
 	"github.com/influxdb/influxdb/cluster"
 	"github.com/influxdb/influxdb/tsdb"
 )
@@ -21,9 +20,7 @@ type Handler struct {
 	RetentionPolicy  string
 	ConsistencyLevel cluster.ConsistencyLevel
 
-	PointsWriter interface {
-		WritePoints(p *cluster.WritePointsRequest) error
-	}
+	batcher *tsdb.PointBatcher
 
 	Logger *log.Logger
 }
@@ -96,7 +93,6 @@ func (h *Handler) servePut(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Convert points into TSDB points.
-	points := make([]tsdb.Point, 0, len(dps))
 	for i := range dps {
 		p := dps[i]
 
@@ -109,23 +105,8 @@ func (h *Handler) servePut(w http.ResponseWriter, r *http.Request) {
 			ts = time.Unix(p.Time/1000, (p.Time%1000)*1000)
 		}
 
-		points = append(points, tsdb.NewPoint(p.Metric, p.Tags, map[string]interface{}{"value": p.Value}, ts))
-	}
-
-	// Write points.
-	if err := h.PointsWriter.WritePoints(&cluster.WritePointsRequest{
-		Database:         h.Database,
-		RetentionPolicy:  h.RetentionPolicy,
-		ConsistencyLevel: h.ConsistencyLevel,
-		Points:           points,
-	}); influxdb.IsClientError(err) {
-		h.Logger.Println("write series error: ", err)
-		http.Error(w, "write series error: "+err.Error(), http.StatusBadRequest)
-		return
-	} else if err != nil {
-		h.Logger.Println("write series error: ", err)
-		http.Error(w, "write series error: "+err.Error(), http.StatusInternalServerError)
-		return
+		point := tsdb.NewPoint(p.Metric, p.Tags, map[string]interface{}{"value": p.Value}, ts)
+		h.batcher.In() <- point
 	}
 
 	w.WriteHeader(http.StatusNoContent)
