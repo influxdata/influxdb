@@ -15,7 +15,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	log "code.google.com/p/log4go"
@@ -1279,15 +1278,6 @@ func (self *HttpServer) exportDatabases(w libhttp.ResponseWriter, r *libhttp.Req
 		w = gzipResponseWriter{Writer: gz, ResponseWriter: w}
 	}
 
-	// detect disconnected clients and exit routine
-	var disconnected int32
-	notify := w.(libhttp.CloseNotifier).CloseNotify()
-
-	go func() {
-		<-notify
-		atomic.StoreInt32(&disconnected, 1)
-	}()
-
 	username, password, err := getUsernameAndPassword(r)
 	if err != nil {
 		w.WriteHeader(libhttp.StatusBadRequest)
@@ -1417,10 +1407,6 @@ func (self *HttpServer) exportDatabases(w libhttp.ResponseWriter, r *libhttp.Req
 		pointsExported := 0
 		// Walk through each database and series and select all data
 		for _, series := range schema.series {
-			// Check to see if the client disconnected, if so, exit the routine
-			//if d := atomic.LoadInt32(&disconnected); d > 0 {
-			//return
-			//}
 			query := fmt.Sprintf(`select * from %q`, series)
 			writer := &ExportPointsWriter{w, separator, 0}
 			seriesWriter := NewSeriesWriter(writer.yield)
