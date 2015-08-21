@@ -116,9 +116,8 @@ func (i *Importer) Import() error {
 	// Process the DDL
 	i.processDDL(scanner)
 
-	// set up our throttle channel.  Effectively check every millisecond if it's time to process again
-	// Since there is no other activity at this point the smaller resolution gets us much closer to the
-	// requested PPS
+	// Set up our throttle channel.  Since there is effectively no other activity at this point
+	// the smaller resolution gets us much closer to the requested PPS
 	i.throttle = time.NewTicker(time.Microsecond)
 	defer i.throttle.Stop()
 
@@ -200,7 +199,7 @@ func (i *Importer) batchAccumulator(line string, start time.Time) {
 		if processed%100000 == 0 {
 			since := time.Since(start)
 			pps := float64(processed) / since.Seconds()
-			log.Printf("Processed %d lines.  Time elapsed: %s.  Lines per second: %d", processed, since.String(), int64(pps))
+			log.Printf("Processed %d lines.  Time elapsed: %s.  Points per second (PPS): %d", processed, since.String(), int64(pps))
 		}
 	}
 }
@@ -222,7 +221,6 @@ func (i *Importer) batchWrite() error {
 
 	// If our currentPPS is greater than the PPS specified, then we wait and retry
 	if int(currentPPS) > i.config.PPS && i.config.PPS != 0 {
-		//log.Printf("Throttling - Calculated PPS: %d.  Last wrote %s ago", currentPPS, since.String())
 		// Wait for the next tick
 		<-i.throttle.C
 
