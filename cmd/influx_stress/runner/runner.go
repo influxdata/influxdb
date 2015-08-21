@@ -55,7 +55,7 @@ func (cfg *Config) newClient() *client.Client {
 }
 
 // main runner
-func Runner(cfg *Config) (totalPoints int, responseTimes []int, timer *Timer) {
+func Run(cfg *Config) (totalPoints int, responseTimes []int, timer *Timer) {
 	timer = newTimer()
 	defer timer.Stop()
 

@@ -34,7 +34,7 @@ func main() {
 		Address:       *address,
 	}
 
-	totalPoints, responseTimes, timer := runner.Runner(cfg)
+	totalPoints, responseTimes, timer := runner.Run(cfg)
 
 	sort.Sort(sort.Reverse(sort.IntSlice(responseTimes)))
 
