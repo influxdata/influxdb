@@ -1299,7 +1299,9 @@ func (p *Partition) addToCache(key, data []byte, timestamp int64) {
 	}
 
 	// Determine if we'll need to sort the values for this key later
-	entry.isDirtySort = bytes.Compare(entry.points[len(entry.points)-1][0:8], v[0:8]) != -1
+	if !entry.isDirtySort { // don't bother if we already know it has to be sorted
+		entry.isDirtySort = bytes.Compare(entry.points[len(entry.points)-1][0:8], v[0:8]) != -1
+	}
 	entry.points = append(entry.points, v)
 	entry.size += len(v)
 }

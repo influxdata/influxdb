@@ -825,6 +825,51 @@ func TestWAL_QueryDuringCompaction(t *testing.T) {
 	verify()
 }
 
+func TestWAL_PointsSorted(t *testing.T) {
+	log := openTestWAL()
+	defer log.Close()
+	defer os.RemoveAll(log.path)
+
+	if err := log.Open(); err != nil {
+		t.Fatalf("couldn't open wal: %s", err.Error())
+	}
+
+	codec := tsdb.NewFieldCodec(map[string]*tsdb.Field{
+		"value": {
+			ID:   uint8(1),
+			Name: "value",
+			Type: influxql.Float,
+		},
+	})
+
+	// test that we can write to two different series
+	p1 := parsePoint("cpu,host=A value=1.1 1", codec)
+	p2 := parsePoint("cpu,host=A value=4.4 4", codec)
+	p3 := parsePoint("cpu,host=A value=2.2 2", codec)
+	p4 := parsePoint("cpu,host=A value=6.6 6", codec)
+	if err := log.WritePoints([]tsdb.Point{p1, p2, p3, p4}, nil, nil); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	c := log.Cursor("cpu,host=A")
+	k, _ := c.Next()
+	if btou64(k) != 1 {
+		t.Fatal("points out of order")
+	}
+	k, _ = c.Next()
+	if btou64(k) != 2 {
+		t.Fatal("points out of order")
+	}
+	k, _ = c.Next()
+	if btou64(k) != 4 {
+		t.Fatal("points out of order")
+	}
+	k, _ = c.Next()
+	if btou64(k) != 6 {
+		t.Fatal("points out of order")
+	}
+}
+
 // test that partitions get compacted and flushed when number of series hits compaction threshold
 // test that partitions get compacted and flushed when a single series hits the compaction threshold
 // test that writes slow down when the partition size threshold is hit
