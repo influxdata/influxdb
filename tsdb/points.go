@@ -257,7 +257,9 @@ func scanKey(buf []byte, i int) (int, []byte, error) {
 			break
 		}
 
-		if buf[i] == '=' {
+		// equals is special in the tags section.  It must be escaped if part of a tag name or value.
+		// It does not need to be escaped if part of the measurement.
+		if buf[i] == '=' && commas > 0 {
 			if i-1 < 0 || i-2 < 0 {
 				return i, buf[start:i], fmt.Errorf("missing tag name")
 			}
@@ -613,14 +615,13 @@ func scanNumber(buf []byte, i int) (int, error) {
 		}
 
 		// NaN is a valid float
-		if i+3 < len(buf) && (buf[i] == 'N' || buf[i] == 'n') {
+		if i+2 < len(buf) && (buf[i] == 'N' || buf[i] == 'n') {
 			if (buf[i+1] == 'a' || buf[i+1] == 'A') && (buf[i+2] == 'N' || buf[i+2] == 'n') {
 				i += 3
 				continue
 			}
 			return i, fmt.Errorf("invalid number")
 		}
-
 		if !isNumeric(buf[i]) {
 			return i, fmt.Errorf("invalid number")
 		}
