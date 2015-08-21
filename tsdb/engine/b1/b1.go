@@ -64,8 +64,9 @@ type Engine struct {
 	LogOutput io.Writer
 }
 
-// NewEngine returns a new instance of Engine.
-func NewEngine(path string, opt tsdb.EngineOptions) tsdb.Engine {
+// NewEngine returns a new instance of Engine. walPath isn't used in b1, but had
+// to be added for later engine versions.
+func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine {
 	e := &Engine{
 		path:  path,
 		flush: make(chan struct{}, 1),

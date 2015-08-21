@@ -91,7 +91,7 @@ func NewEngine(opt tsdb.EngineOptions) *Engine {
 	os.Remove(f.Name())
 
 	return &Engine{
-		Engine: b1.NewEngine(f.Name(), opt).(*b1.Engine),
+		Engine: b1.NewEngine(f.Name(), "", opt).(*b1.Engine),
 	}
 }
 

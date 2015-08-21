@@ -36,7 +36,7 @@ type Engine interface {
 }
 
 // NewEngineFunc creates a new engine.
-type NewEngineFunc func(path string, options EngineOptions) Engine
+type NewEngineFunc func(path string, walPath string, options EngineOptions) Engine
 
 // newEngineFuncs is a lookup of engine constructors by name.
 var newEngineFuncs = make(map[string]NewEngineFunc)
@@ -51,10 +51,10 @@ func RegisterEngine(name string, fn NewEngineFunc) {
 
 // NewEngine returns an instance of an engine based on its format.
 // If the path does not exist then the DefaultFormat is used.
-func NewEngine(path string, options EngineOptions) (Engine, error) {
+func NewEngine(path string, walPath string, options EngineOptions) (Engine, error) {
 	// Create a new engine
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return newEngineFuncs[options.EngineVersion](path, options), nil
+		return newEngineFuncs[options.EngineVersion](path, walPath, options), nil
 	}
 
 	// Only bolt-based backends are currently supported so open it and check the format.
@@ -93,7 +93,7 @@ func NewEngine(path string, options EngineOptions) (Engine, error) {
 		return nil, fmt.Errorf("invalid engine format: %q", format)
 	}
 
-	return fn(path, options), nil
+	return fn(path, walPath, options), nil
 }
 
 // EngineOptions represents the options used to initialize the engine.

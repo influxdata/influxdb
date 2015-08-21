@@ -9,7 +9,6 @@ import (
 	"io"
 	"log"
 	"math"
-	"path/filepath"
 	"sort"
 	"sync"
 	"time"
@@ -66,9 +65,9 @@ type WAL interface {
 }
 
 // NewEngine returns a new instance of Engine.
-func NewEngine(path string, opt tsdb.EngineOptions) tsdb.Engine {
+func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine {
 	// create the writer with a directory of the same name as the shard, but with the wal extension
-	w := wal.NewLog(filepath.Join(opt.Config.WALDir, filepath.Base(path)))
+	w := wal.NewLog(walPath)
 
 	w.ReadySeriesSize = opt.Config.WALReadySeriesSize
 	w.FlushColdInterval = time.Duration(opt.Config.WALFlushColdInterval)
