@@ -37,10 +37,11 @@ var (
 // Data can be split across many shards. The query engine in TSDB is responsible
 // for combining the output of many shards into a single query result.
 type Shard struct {
-	db    *bolt.DB // underlying data store
-	index *DatabaseIndex
-	path  string
-	id    uint64
+	db      *bolt.DB // underlying data store
+	index   *DatabaseIndex
+	path    string
+	walPath string
+	id      uint64
 
 	engine  Engine
 	options EngineOptions
@@ -52,11 +53,12 @@ type Shard struct {
 	LogOutput io.Writer
 }
 
-// NewShard returns a new initialized Shard
-func NewShard(id uint64, index *DatabaseIndex, path string, options EngineOptions) *Shard {
+// NewShard returns a new initialized Shard. walPath doesn't apply to the b1 type index
+func NewShard(id uint64, index *DatabaseIndex, path string, walPath string, options EngineOptions) *Shard {
 	return &Shard{
 		index:             index,
 		path:              path,
+		walPath:           walPath,
 		id:                id,
 		options:           options,
 		measurementFields: make(map[string]*MeasurementFields),
@@ -83,7 +85,7 @@ func (s *Shard) Open() error {
 		}
 
 		// Initialize underlying engine.
-		e, err := NewEngine(s.path, s.options)
+		e, err := NewEngine(s.path, s.walPath, s.options)
 		if err != nil {
 			return fmt.Errorf("new engine: %s", err)
 		}
