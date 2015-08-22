@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -84,9 +85,29 @@ func (rs ResponseTimes) Swap(i, j int) {
 	rs[i], rs[j] = rs[j], rs[i]
 }
 
+type Measurements []string
+
+// String returns a string and implements the `String` method for
+// the flag.Value interface.
+func (ms *Measurements) String() string {
+	return fmt.Sprint(*ms)
+}
+
+// Set implements the `Set` method for the flag.Value
+// interface. Set splits a string of comma separated values
+// into a `Measurement`.
+func (ms *Measurements) Set(value string) error {
+	values := strings.Split(value, ",")
+	for _, m := range values {
+		*ms = append(*ms, m)
+	}
+	return nil
+}
+
 // Config is a struct that is passed into the `Run()` function.
 type Config struct {
 	BatchSize     int
+	Measurements  Measurements
 	SeriesCount   int
 	PointCount    int
 	Concurrency   int
@@ -134,39 +155,42 @@ func Run(cfg *Config) (totalPoints int, responseTimes ResponseTimes, timer *Time
 		Time:             time.Now(),
 		Precision:        "n",
 	}
+
 	for i := 1; i <= cfg.PointCount; i++ {
 		for j := 1; j <= cfg.SeriesCount; j++ {
-			p := client.Point{
-				Measurement: "cpu",
-				Tags:        map[string]string{"region": "uswest", "host": fmt.Sprintf("host-%d", j)},
-				Fields:      map[string]interface{}{"value": rand.Float64()},
-			}
-			batch.Points = append(batch.Points, p)
-			if len(batch.Points) >= cfg.BatchSize {
-				wg.Add(1)
-				counter.Increment()
-				totalPoints += len(batch.Points)
-				go func(b *client.BatchPoints, total int) {
-					st := time.Now()
-					if _, err := c.Write(*b); err != nil {
-						fmt.Println("ERROR: ", err.Error())
-					} else {
-						mu.Lock()
-						responseTimes = append(responseTimes, NewResponseTime(int(time.Since(st).Nanoseconds())))
-						mu.Unlock()
-					}
-					wg.Done()
-					counter.Decrement()
-					if total%500000 == 0 {
-						fmt.Printf("%d total points. %d in %s\n", total, cfg.BatchSize, time.Since(st))
-					}
-				}(batch, totalPoints)
+			for _, m := range cfg.Measurements {
+				p := client.Point{
+					Measurement: m,
+					Tags:        map[string]string{"region": "uswest", "host": fmt.Sprintf("host-%d", j)},
+					Fields:      map[string]interface{}{"value": rand.Float64()},
+				}
+				batch.Points = append(batch.Points, p)
+				if len(batch.Points) >= cfg.BatchSize {
+					wg.Add(1)
+					counter.Increment()
+					totalPoints += len(batch.Points)
+					go func(b *client.BatchPoints, total int) {
+						st := time.Now()
+						if _, err := c.Write(*b); err != nil {
+							fmt.Println("ERROR: ", err.Error())
+						} else {
+							mu.Lock()
+							responseTimes = append(responseTimes, NewResponseTime(int(time.Since(st).Nanoseconds())))
+							mu.Unlock()
+						}
+						wg.Done()
+						counter.Decrement()
+						if total%500000 == 0 {
+							fmt.Printf("%d total points. %d in %s\n", total, cfg.BatchSize, time.Since(st))
+						}
+					}(batch, totalPoints)
 
-				batch = &client.BatchPoints{
-					Database:         cfg.Database,
-					WriteConsistency: "any",
-					Precision:        "n",
-					Time:             time.Now(),
+					batch = &client.BatchPoints{
+						Database:         cfg.Database,
+						WriteConsistency: "any",
+						Precision:        "n",
+						Time:             time.Now(),
+					}
 				}
 			}
 		}

@@ -20,12 +20,23 @@ var (
 	address       = flag.String("addr", "localhost:8086", "IP address and port of database (e.g., localhost:8086)")
 )
 
+var ms runner.Measurements
+
+func init() {
+	flag.Var(&ms, "m", "comma-separated list of intervals to use between events")
+}
+
 func main() {
 	flag.Parse()
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
+	if len(ms) == 0 {
+		ms = append(ms, "cpu")
+	}
+
 	cfg := &runner.Config{
 		BatchSize:     *batchSize,
+		Measurements:  ms,
 		SeriesCount:   *seriesCount,
 		PointCount:    *pointCount,
 		Concurrency:   *concurrency,
