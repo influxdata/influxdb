@@ -1,7 +1,6 @@
 package cluster
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"math/rand"
@@ -42,14 +41,12 @@ func NewShardMapper(timeout time.Duration) *ShardMapper {
 
 // CreateMapper returns a Mapper for the given shard ID.
 func (s *ShardMapper) CreateMapper(sh meta.ShardInfo, stmt string, chunkSize int) (tsdb.Mapper, error) {
-	var err error
-	var m tsdb.Mapper
-	if sh.OwnedBy(s.MetaStore.NodeID()) && !s.ForceRemoteMapping {
-		m, err = s.TSDBStore.CreateMapper(sh.ID, stmt, chunkSize)
-		if err != nil {
-			return nil, err
-		}
-	} else {
+	m, err := s.TSDBStore.CreateMapper(sh.ID, stmt, chunkSize)
+	if err != nil {
+		return nil, err
+	}
+
+	if !sh.OwnedBy(s.MetaStore.NodeID()) || s.ForceRemoteMapping {
 		// Pick a node in a pseudo-random manner.
 		conn, err := s.dial(sh.OwnerIDs[rand.Intn(len(sh.OwnerIDs))])
 		if err != nil {
@@ -57,8 +54,7 @@ func (s *ShardMapper) CreateMapper(sh meta.ShardInfo, stmt string, chunkSize int
 		}
 		conn.SetDeadline(time.Now().Add(s.timeout))
 
-		rm := NewRemoteMapper(conn.(*pool.PoolConn), sh.ID, stmt, chunkSize)
-		m = rm
+		m.SetRemote(NewRemoteMapper(conn.(*pool.PoolConn), sh.ID, stmt, chunkSize))
 	}
 
 	return m, nil
@@ -154,8 +150,13 @@ func (r *RemoteMapper) Open() (err error) {
 
 	// Decode the first response to get the TagSets.
 	r.tagsets = r.bufferedResponse.TagSets()
+	r.fields = r.bufferedResponse.Fields()
 
 	return nil
+}
+
+func (r *RemoteMapper) SetRemote(m tsdb.Mapper) error {
+	return fmt.Errorf("cannot set remote mapper on a remote mapper")
 }
 
 func (r *RemoteMapper) TagSets() []string {
@@ -168,9 +169,7 @@ func (r *RemoteMapper) Fields() []string {
 
 // NextChunk returns the next chunk read from the remote node to the client.
 func (r *RemoteMapper) NextChunk() (chunk interface{}, err error) {
-	output := &tsdb.MapperOutput{}
 	var response *MapShardResponse
-
 	if r.bufferedResponse != nil {
 		response = r.bufferedResponse
 		r.bufferedResponse = nil
@@ -197,8 +196,8 @@ func (r *RemoteMapper) NextChunk() (chunk interface{}, err error) {
 	if response.Data() == nil {
 		return nil, nil
 	}
-	err = json.Unmarshal(response.Data(), output)
-	return output, err
+
+	return response.Data(), err
 }
 
 // Close the Mapper

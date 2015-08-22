@@ -3,6 +3,7 @@ package tsdb
 import (
 	"container/heap"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -42,6 +43,7 @@ func (mo *MapperOutput) key() string {
 // LocalMapper is for retrieving data for a query, from a given shard.
 type LocalMapper struct {
 	shard           *Shard
+	remote          Mapper
 	stmt            influxql.Statement
 	selectStmt      *influxql.SelectStatement
 	rawMode         bool
@@ -82,6 +84,10 @@ func (lm *LocalMapper) openMeta() error {
 
 // Open opens the local mapper.
 func (lm *LocalMapper) Open() error {
+	if lm.remote != nil {
+		return lm.remote.Open()
+	}
+
 	var err error
 
 	// Get a read-only transaction.
@@ -254,17 +260,43 @@ func (lm *LocalMapper) Open() error {
 	return nil
 }
 
+func (lm *LocalMapper) SetRemote(m Mapper) error {
+	lm.remote = m
+	return nil
+}
+
 func (lm *LocalMapper) NextChunk() (interface{}, error) {
+	// If set, use remote mapper.
+	if lm.remote != nil {
+		b, err := lm.remote.NextChunk()
+		if err != nil {
+			return nil, err
+		} else if b == nil {
+			return nil, nil
+		}
+
+		mo := &MapperOutput{}
+		if err := json.Unmarshal(b.([]byte), mo); err != nil {
+			return nil, err
+		} else if len(mo.Values) == 0 {
+			// Mapper on other node sent 0 values so it's done.
+			return nil, nil
+		}
+		return mo, nil
+	}
+
+	// Remote mapper not set so get values from local shard.
 	if lm.rawMode {
 		return lm.nextChunkRaw()
 	}
+
 	return lm.nextChunkAgg()
 }
 
 // nextChunkRaw returns the next chunk of data. Data comes in the same order as the
 // tags return by TagSets. A chunk never contains data for more than 1 tagset.
 // If there is no more data for any tagset, nil will be returned.
-func (lm *LocalMapper) nextChunkRaw() (*MapperOutput, error) {
+func (lm *LocalMapper) nextChunkRaw() (interface{}, error) {
 	var output *MapperOutput
 	for {
 		if lm.currCursorIndex == len(lm.cursors) {
@@ -306,7 +338,7 @@ func (lm *LocalMapper) nextChunkRaw() (*MapperOutput, error) {
 // for the current tagset. Tagsets are always processed in the same order as that
 // returned by AvailTagsSets(). When there is no more data for any tagset nil
 // is returned.
-func (lm *LocalMapper) nextChunkAgg() (*MapperOutput, error) {
+func (lm *LocalMapper) nextChunkAgg() (interface{}, error) {
 	var output *MapperOutput
 	for {
 		if lm.currCursorIndex == len(lm.cursors) {
@@ -566,17 +598,27 @@ func (lm *LocalMapper) expandSources(sources influxql.Sources) (influxql.Sources
 
 // TagSets returns the list of TagSets for which this mapper has data.
 func (lm *LocalMapper) TagSets() []string {
+	if lm.remote != nil {
+		return lm.remote.TagSets()
+	}
 	return tagSetCursors(lm.cursors).Keys()
 }
 
 // Fields returns any SELECT fields. If this Mapper is not processing a SELECT query
 // then an empty slice is returned.
 func (lm *LocalMapper) Fields() []string {
+	if lm.remote != nil {
+		return lm.remote.Fields()
+	}
 	return append(lm.selectFields, lm.selectTags...)
 }
 
 // Close closes the mapper.
 func (lm *LocalMapper) Close() {
+	if lm.remote != nil {
+		lm.remote.Close()
+		return
+	}
 	if lm != nil && lm.tx != nil {
 		_ = lm.tx.Rollback()
 	}

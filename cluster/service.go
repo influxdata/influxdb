@@ -259,6 +259,10 @@ func (s *Service) processMapShardRequest(w io.Writer, buf []byte) error {
 		if err != nil {
 			return fmt.Errorf("next chunk: %s", err)
 		}
+
+		// NOTE: Even if the chunk is nil, we still need to send one
+		// empty response to let the other side know we're out of data.
+
 		if chunk != nil {
 			b, err := json.Marshal(chunk)
 			if err != nil {

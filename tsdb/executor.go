@@ -24,6 +24,7 @@ const (
 // Mapper is the interface all Mapper types must implement.
 type Mapper interface {
 	Open() error
+	SetRemote(m Mapper) error
 	TagSets() []string
 	Fields() []string
 	NextChunk() (interface{}, error)
