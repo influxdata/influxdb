@@ -26,6 +26,7 @@ Please see the *Features* section below for full details.
 - [#3529](https://github.com/influxdb/influxdb/pull/3529): Add TLS support for OpenTSDB plugin. Thanks @nathanielc
 - [#3421](https://github.com/influxdb/influxdb/issues/3421): Should update metastore and cluster if IP or hostname changes
 - [#3502](https://github.com/influxdb/influxdb/pull/3502): Importer for 0.8.9 data via the CLI
+- [#3564](https://github.com/influxdb/influxdb/pull/3564): Fix alias, maintain column sort order
 - [#3585](https://github.com/influxdb/influxdb/pull/3585): Additional test coverage for non-existent fields
 - [#3246](https://github.com/influxdb/influxdb/issues/3246): Allow overriding of configuration parameters using environment variables
 - [#3599](https://github.com/influxdb/influxdb/pull/3599): **--BREAKING CHANGE--** Support multiple UDP inputs. Thanks @tpitale
