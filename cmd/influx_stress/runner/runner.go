@@ -46,7 +46,7 @@ func (t *Timer) Elapsed() time.Duration {
 // timers `start` field has been set to `time.Now()`
 func NewTimer() *Timer {
 	t := &Timer{}
-	t.Start()
+	t.StartTimer()
 	return t
 }
 
