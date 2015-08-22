@@ -260,6 +260,9 @@ func (s *Service) processMapShardRequest(w io.Writer, buf []byte) error {
 			return fmt.Errorf("next chunk: %s", err)
 		}
 
+		// NOTE: Even if the chunk is nil, we still need to send one
+		// empty response to let the other side know we're out of data.
+
 		if chunk != nil {
 			b, err := json.Marshal(chunk)
 			if err != nil {
@@ -270,12 +273,11 @@ func (s *Service) processMapShardRequest(w io.Writer, buf []byte) error {
 
 		// Write to connection.
 		resp.SetCode(0)
-		v := chunk.(*tsdb.MapperOutput)
 		if err := writeMapShardResponseMessage(w, &resp); err != nil {
 			return err
 		}
 
-		if v == nil {
+		if chunk == nil {
 			// All mapper data sent.
 			return nil
 		}
