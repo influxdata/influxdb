@@ -36,11 +36,11 @@ func main() {
 
 	totalPoints, responseTimes, timer := runner.Run(cfg)
 
-	sort.Sort(sort.Reverse(sort.IntSlice(responseTimes)))
+	sort.Sort(sort.Reverse(sort.Interface(responseTimes)))
 
 	total := int64(0)
 	for _, t := range responseTimes {
-		total += int64(t)
+		total += int64(t.Value)
 	}
 	mean := total / int64(len(responseTimes))
 
@@ -48,6 +48,6 @@ func main() {
 	fmt.Println("Average response time: ", time.Duration(mean))
 	fmt.Println("Slowest response times:")
 	for _, r := range responseTimes[:100] {
-		fmt.Println(time.Duration(r))
+		fmt.Println(time.Duration(r.Value))
 	}
 }

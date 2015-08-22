@@ -58,6 +58,24 @@ type ResponseTime struct {
 	Time  time.Time
 }
 
+// Implements the `Len` method for the
+// sort.Interface type
+func (rs ResponseTimes) Len() int {
+	return len(rs)
+}
+
+// Implements the `Less` method for the
+// sort.Interface type
+func (rs ResponseTimes) Less(i, j int) bool {
+	return rs[i].Value < rs[j].Value
+}
+
+// Implements the `Swap` method for the
+// sort.Interface type
+func (rs ResponseTimes) Swap(i, j int) {
+	rs[i], rs[j] = rs[j], rs[i]
+}
+
 // newResponseTime returns a new response time
 // with value `v` and time `time.Now()`.
 func newResponseTime(v int) ResponseTime {
