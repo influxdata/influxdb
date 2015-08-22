@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/influxdb/influxdb/client"
 )
@@ -25,6 +26,7 @@ type Config struct {
 	Path             string
 	Version          string
 	Compressed       bool
+	PPS              int
 }
 
 // NewConfig returns an initialized *Config
@@ -34,14 +36,17 @@ func NewConfig() *Config {
 
 // Importer is the importer used for importing 0.8 data
 type Importer struct {
-	client          *client.Client
-	database        string
-	retentionPolicy string
-	config          *Config
-	batch           []string
-	totalInserts    int
-	failedInserts   int
-	totalCommands   int
+	client                *client.Client
+	database              string
+	retentionPolicy       string
+	config                *Config
+	batch                 []string
+	totalInserts          int
+	failedInserts         int
+	totalCommands         int
+	throttlePointsWritten int
+	lastWrite             time.Time
+	throttle              *time.Ticker
 }
 
 // NewImporter will return an intialized Importer struct
@@ -108,8 +113,18 @@ func (i *Importer) Import() error {
 	// Get our reader
 	scanner := bufio.NewScanner(r)
 
-	// Process the scanner
+	// Process the DDL
 	i.processDDL(scanner)
+
+	// Set up our throttle channel.  Since there is effectively no other activity at this point
+	// the smaller resolution gets us much closer to the requested PPS
+	i.throttle = time.NewTicker(time.Microsecond)
+	defer i.throttle.Stop()
+
+	// Prime the last write
+	i.lastWrite = time.Now()
+
+	// Process the DML
 	i.processDML(scanner)
 
 	// Check if we had any errors scanning the file
@@ -135,6 +150,7 @@ func (i *Importer) processDDL(scanner *bufio.Scanner) {
 }
 
 func (i *Importer) processDML(scanner *bufio.Scanner) {
+	start := time.Now()
 	for scanner.Scan() {
 		line := scanner.Text()
 		if strings.HasPrefix(line, "# CONTEXT-DATABASE:") {
@@ -146,7 +162,7 @@ func (i *Importer) processDML(scanner *bufio.Scanner) {
 		if strings.HasPrefix(line, "#") {
 			continue
 		}
-		i.batchAccumulator(line)
+		i.batchAccumulator(line, start)
 	}
 }
 
@@ -166,7 +182,7 @@ func (i *Importer) queryExecutor(command string) {
 	i.execute(command)
 }
 
-func (i *Importer) batchAccumulator(line string) {
+func (i *Importer) batchAccumulator(line string, start time.Time) {
 	i.batch = append(i.batch, line)
 	if len(i.batch) == batchSize {
 		if e := i.batchWrite(); e != nil {
@@ -178,10 +194,43 @@ func (i *Importer) batchAccumulator(line string) {
 			i.totalInserts += len(i.batch)
 		}
 		i.batch = i.batch[:0]
+		// Give some status feedback every 100000 lines processed
+		processed := i.totalInserts + i.failedInserts
+		if processed%100000 == 0 {
+			since := time.Since(start)
+			pps := float64(processed) / since.Seconds()
+			log.Printf("Processed %d lines.  Time elapsed: %s.  Points per second (PPS): %d", processed, since.String(), int64(pps))
+		}
 	}
 }
 
 func (i *Importer) batchWrite() error {
+	// Accumulate the batch size to see how many points we have written this second
+	i.throttlePointsWritten += len(i.batch)
+
+	// Find out when we last wrote data
+	since := time.Since(i.lastWrite)
+
+	// Check to see if we've exceeded our points per second for the current timeframe
+	var currentPPS int
+	if since.Seconds() > 0 {
+		currentPPS = int(float64(i.throttlePointsWritten) / since.Seconds())
+	} else {
+		currentPPS = i.throttlePointsWritten
+	}
+
+	// If our currentPPS is greater than the PPS specified, then we wait and retry
+	if int(currentPPS) > i.config.PPS && i.config.PPS != 0 {
+		// Wait for the next tick
+		<-i.throttle.C
+
+		// Decrement the batch size back out as it is going to get called again
+		i.throttlePointsWritten -= len(i.batch)
+		return i.batchWrite()
+	}
+
 	_, e := i.client.WriteLineProtocol(strings.Join(i.batch, "\n"), i.database, i.retentionPolicy, i.config.Precision, i.config.WriteConsistency)
+	i.throttlePointsWritten = 0
+	i.lastWrite = time.Now()
 	return e
 }

@@ -27,7 +27,12 @@ var (
 )
 
 const (
-	default_format = "column"
+	// defaultFormat is the default format of the results when issuing queries
+	defaultFormat = "column"
+
+	// defaultPPS is the default points per second that the import will throttle at
+	// by default it's 0, which means it will not throttle
+	defaultPPS = 0
 )
 
 type CommandLine struct {
@@ -46,6 +51,7 @@ type CommandLine struct {
 	Execute         string
 	ShowVersion     bool
 	Import          bool
+	PPS             int // Controls how many points per second the import will allow via throttling
 	Path            string
 	Compressed      bool
 }
@@ -60,11 +66,12 @@ func main() {
 	fs.StringVar(&c.Password, "password", c.Password, `Password to connect to the server.  Leaving blank will prompt for password (--password="").`)
 	fs.StringVar(&c.Database, "database", c.Database, "Database to connect to the server.")
 	fs.BoolVar(&c.Ssl, "ssl", false, "Use https for connecting to cluster.")
-	fs.StringVar(&c.Format, "format", default_format, "Format specifies the format of the server responses:  json, csv, or column.")
+	fs.StringVar(&c.Format, "format", defaultFormat, "Format specifies the format of the server responses:  json, csv, or column.")
 	fs.BoolVar(&c.Pretty, "pretty", false, "Turns on pretty print for the json format.")
 	fs.StringVar(&c.Execute, "execute", c.Execute, "Execute command and quit.")
 	fs.BoolVar(&c.ShowVersion, "version", false, "Displays the InfluxDB version.")
 	fs.BoolVar(&c.Import, "import", false, "Import a previous database.")
+	fs.IntVar(&c.PPS, "pps", defaultPPS, "How many points per second the import will allow.  By default it is zero and will not throttle importing.")
 	fs.StringVar(&c.Path, "path", "", "path to the file to import")
 	fs.BoolVar(&c.Compressed, "compressed", false, "set to true if the import file is compressed")
 
@@ -93,6 +100,8 @@ func main() {
        Turns on pretty print for the json format.
   -import
        Import a previous database export from file
+  -pps
+       How many points per second the import will allow.  By default it is zero and will not throttle importing.
   -path
        Path to file to import
   -compressed
@@ -169,6 +178,7 @@ Examples:
 		config.Version = version
 		config.URL = u
 		config.Compressed = c.Compressed
+		config.PPS = c.PPS
 
 		i := v8.NewImporter(config)
 		if err := i.Import(); err != nil {
