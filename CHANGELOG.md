@@ -39,6 +39,7 @@ Please see the *Features* section below for full details.
 - [#3514](https://github.com/influxdb/influxdb/issues/3514): Implement WAL outside BoltDB with compaction
 - [#3544](https://github.com/influxdb/influxdb/pull/3544): Implement compression on top of BoltDB
 - [#3795](https://github.com/influxdb/influxdb/pull/3795): Throttle import
+- [#3584](https://github.com/influxdb/influxdb/pull/3584): Import/export documenation
 
 ### Bugfixes
 - [#3405](https://github.com/influxdb/influxdb/pull/3405): Prevent database panic when fields are missing. Thanks @jhorwit2
