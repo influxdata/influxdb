@@ -50,17 +50,6 @@ func NewTimer() *Timer {
 	return t
 }
 
-// Config is a struct that is passed into the `Run()` function.
-type Config struct {
-	BatchSize     int
-	SeriesCount   int
-	PointCount    int
-	Concurrency   int
-	BatchInterval time.Duration
-	Database      string
-	Address       string
-}
-
 // ResponseTime is a struct that contains `Value`
 // `Time` pairing.
 type ResponseTime struct {
@@ -95,16 +84,27 @@ func (rs ResponseTimes) Swap(i, j int) {
 	rs[i], rs[j] = rs[j], rs[i]
 }
 
+// Config is a struct that is passed into the `Run()` function.
+type Config struct {
+	BatchSize     int
+	SeriesCount   int
+	PointCount    int
+	Concurrency   int
+	BatchInterval time.Duration
+	Database      string
+	Address       string
+}
+
 // newClient returns a pointer to an InfluxDB client for
 // a `Config`'s `Address` field. If an error is encountered
 // when creating a new client, the function panics.
-func (cfg *Config) newClient() *client.Client {
+func (cfg *Config) NewClient() (*client.Client, error) {
 	u, _ := url.Parse(fmt.Sprintf("http://%s", cfg.Address))
 	c, err := client.NewClient(client.Config{URL: *u})
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-	return c
+	return c, nil
 }
 
 // Run runs the stress test that is specified by a `Config`.
@@ -115,7 +115,10 @@ func Run(cfg *Config) (totalPoints int, responseTimes ResponseTimes, timer *Time
 	timer = NewTimer()
 	defer timer.StopTimer()
 
-	c := cfg.newClient()
+	c, err := cfg.NewClient()
+	if err != nil {
+		panic(err)
+	}
 
 	counter := NewConcurrencyLimiter(cfg.Concurrency)
 
