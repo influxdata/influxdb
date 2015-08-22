@@ -16,13 +16,23 @@ type Timer struct {
 	end   time.Time
 }
 
-// Start sets a timers `start` field to the current time
-func (t *Timer) Start() {
+// Start returns a Timers start field
+func (t *Timer) Start() time.Time {
+	return t.start
+}
+
+// End returns a Timers end field
+func (t *Timer) End() time.Time {
+	return t.end
+}
+
+// StartTimer sets a timers `start` field to the current time
+func (t *Timer) StartTimer() {
 	t.start = time.Now()
 }
 
-// Start sets a timers `end` field to the current time
-func (t *Timer) Stop() {
+// StopTimer sets a timers `end` field to the current time
+func (t *Timer) StopTimer() {
 	t.end = time.Now()
 }
 
@@ -103,7 +113,7 @@ func (cfg *Config) newClient() *client.Client {
 // and the times that the test started at and ended as a `Timer`
 func Run(cfg *Config) (totalPoints int, responseTimes ResponseTimes, timer *Timer) {
 	timer = NewTimer()
-	defer timer.Stop()
+	defer timer.StopTimer()
 
 	c := cfg.newClient()
 
