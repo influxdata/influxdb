@@ -58,6 +58,15 @@ type ResponseTime struct {
 	Time  time.Time
 }
 
+// newResponseTime returns a new response time
+// with value `v` and time `time.Now()`.
+func NewResponseTime(v int) ResponseTime {
+	r := ResponseTime{Value: v, Time: time.Now()}
+	return r
+}
+
+type ResponseTimes []ResponseTime
+
 // Implements the `Len` method for the
 // sort.Interface type
 func (rs ResponseTimes) Len() int {
@@ -75,15 +84,6 @@ func (rs ResponseTimes) Less(i, j int) bool {
 func (rs ResponseTimes) Swap(i, j int) {
 	rs[i], rs[j] = rs[j], rs[i]
 }
-
-// newResponseTime returns a new response time
-// with value `v` and time `time.Now()`.
-func newResponseTime(v int) ResponseTime {
-	r := ResponseTime{Value: v, Time: time.Now()}
-	return r
-}
-
-type ResponseTimes []ResponseTime
 
 // newClient returns a pointer to an InfluxDB client for
 // a `Config`'s `Address` field. If an error is encountered
@@ -139,7 +139,7 @@ func Run(cfg *Config) (totalPoints int, responseTimes ResponseTimes, timer *Time
 						fmt.Println("ERROR: ", err.Error())
 					} else {
 						mu.Lock()
-						responseTimes = append(responseTimes, newResponseTime(int(time.Since(st).Nanoseconds())))
+						responseTimes = append(responseTimes, NewResponseTime(int(time.Since(st).Nanoseconds())))
 						mu.Unlock()
 					}
 					wg.Done()
