@@ -72,8 +72,9 @@ read-timeout = "0s"
 ### Exceptions
 
 If a series can't be exported to tags based on the guidelines mentioned above,
-we will insert an `upgrade_artifact` marker in that row.  You can either allow that to import into the new InfluxDB instance,
-or you can do your own data massage on it prior to importing it.
+we will insert the entire series name as the measurement name.  You can either 
+allow that to import into the new InfluxDB instance, or you can do your own 
+data massage on it prior to importing it.
 
 For example, if you have the following series name:
 
@@ -81,10 +82,10 @@ For example, if you have the following series name:
 metric.disk.c.host.server01.single
 ```
 
-It will export as:
+It will export as exactly thta as the measurement name and no tags:
 
 ```
-metric,disk=c,host=server01,single=upgrade_artifacts
+metric.disk.c.host.server01.single
 ```
 
 ### Export Metrics
@@ -149,8 +150,24 @@ See below for more information.
  ```
 
  The import will use the line protocol in batches of 5,000 lines per batch when sending data to the server.
+ 
+### Throttiling the import
+ 
+ If you need to throttle the import so the database has time to ingest, you can use the `-pps` flag.  This will limit the points per second that will be sent to the server.
+ 
+  ```sh
+ influx -import -path=metrics-default.gz -compressed -pps 50000 > failures
+ ```
+ 
+ Which is stating that you don't want MORE than 50,000 points per second to write to the database. Due to the processing that is taking place however, you will likely never get exactly 50,000 pps, more like 35,000 pps, etc. 
 
 ## Understanding the results of the import
+
+During the import, a status message will write out for every 100,000 points imported and report stats on the progress of the import:
+
+```
+2015/08/21 14:48:01 Processed 3100000 lines.  Time elapsed: 56.740578415s.  Points per second (PPS): 54634
+```
 
  The batch will give some basic stats when finished:
 
