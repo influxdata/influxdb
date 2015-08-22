@@ -86,6 +86,31 @@ func TestNewResponseTime(t *testing.T) {
 
 }
 
+func TestMeasurments_Set(t *testing.T) {
+	ms := make(runner.Measurements, 0)
+
+	ms.Set("this,is,a,test")
+
+	if ms[0] != "this" {
+		t.Errorf("expected value to be %v, got %v", "this", ms[0])
+	}
+
+	if ms[1] != "is" {
+		t.Errorf("expected value to be %v, got %v", "is", ms[1])
+	}
+
+	ms.Set("more,here")
+
+	if ms[4] != "more" {
+		t.Errorf("expected value to be %v, got %v", "more", ms[4])
+	}
+
+	if len(ms) != 6 {
+		t.Errorf("expected the length of ms to be %v, got %v", 6, len(ms))
+	}
+
+}
+
 func TestConfig_newClient(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Influxdb-Version", "x.x")
@@ -93,10 +118,14 @@ func TestConfig_newClient(t *testing.T) {
 	}))
 	defer ts.Close()
 
+	ms := make(runner.Measurements, 0)
+	ms.Set("this,is,a,test")
+
 	url := ts.URL[7:]
 
 	cfg := &runner.Config{
 		BatchSize:     5000,
+		Measurements:  ms,
 		SeriesCount:   10000,
 		PointCount:    100,
 		Concurrency:   10,
@@ -139,12 +168,16 @@ func TestRun(t *testing.T) {
 	}))
 	defer ts.Close()
 
+	ms := make(runner.Measurements, 0)
+	ms.Set("this,is,a,test")
+
 	url := ts.URL[7:]
 
 	cfg := &runner.Config{
 		BatchSize:     5000,
+		Measurements:  ms,
 		SeriesCount:   10000,
-		PointCount:    100,
+		PointCount:    10,
 		Concurrency:   10,
 		BatchInterval: time.Duration(0),
 		Database:      "stress",
@@ -153,12 +186,14 @@ func TestRun(t *testing.T) {
 
 	tp, rts, tmr := runner.Run(cfg)
 
-	if tp != cfg.SeriesCount*cfg.PointCount {
-		t.Fatalf("unexpected error. expected %v, actual %v", 1000000, tp)
+	ps := cfg.SeriesCount * cfg.PointCount * len(cfg.Measurements)
+
+	if tp != ps {
+		t.Fatalf("unexpected error. expected %v, actual %v", ps, tp)
 	}
 
-	if len(rts) != cfg.SeriesCount*cfg.PointCount/cfg.BatchSize {
-		t.Fatalf("unexpected error. expected %v, actual %v", 1000000, len(rts))
+	if len(rts) != ps/cfg.BatchSize {
+		t.Fatalf("unexpected error. expected %v, actual %v", ps/cfg.BatchSize, len(rts))
 	}
 
 	var epoch time.Time
