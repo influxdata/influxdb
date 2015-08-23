@@ -648,9 +648,16 @@ func (l *Log) flushMetadata() error {
 		}
 	}
 
+	startTime := time.Now()
+	if l.EnableLogging {
+		l.logger.Printf("Flushing %d measurements and %d series to index\n", len(measurements), len(series))
+	}
 	// write them to the index
 	if err := l.Index.WriteIndex(nil, measurements, series); err != nil {
 		return err
+	}
+	if l.EnableLogging {
+		l.logger.Println("Metadata flush took", time.Since(startTime))
 	}
 
 	// remove the old files now that we've persisted them elsewhere
@@ -970,6 +977,7 @@ func (p *Partition) prepareSeriesToFlush(readySeriesSize int, flush flushType) (
 
 	p.flushCache = c.seriesToFlush
 	c.compactFilesLessThan = p.currentSegmentID
+	c.countCompacting = len(p.cache)
 
 	return c, nil
 }
@@ -1018,7 +1026,7 @@ func (p *Partition) flushAndCompact(flush flushType) error {
 		} else if flush == memoryFlush {
 			ftype = "memory"
 		}
-		p.log.logger.Printf("Flush due to %s. Compacting %d series from partition %d\n", ftype, len(c.seriesToFlush), p.id)
+		p.log.logger.Printf("Flush due to %s. Flushing %d series with %d bytes from partition %d. Compacting %d series\n", ftype, len(c.seriesToFlush), c.flushSize, p.id, c.countCompacting)
 	}
 
 	// write the data to the index first
@@ -1396,6 +1404,7 @@ type compactionInfo struct {
 	seriesToFlush        map[string][][]byte
 	compactFilesLessThan uint32
 	flushSize            int
+	countCompacting      int
 }
 
 // segmentFile is a struct for reading in segment files from the WAL. Used on startup only while loading
