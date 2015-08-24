@@ -45,7 +45,7 @@ PIDFILE=/var/run/influxdb/influxd.pid
 PIDDIR=`dirname $PIDFILE`
 if [ ! -d "$PIDDIR" ]; then
     mkdir -p $PIDDIR
-    chown $GROUP:$USER $PIDDIR
+    chown $USER:$GROUP $PIDDIR
 fi
 
 # Max open files
@@ -151,7 +151,7 @@ case $1 in
         if which start-stop-daemon > /dev/null 2>&1; then
             start-stop-daemon --chuid $GROUP:$USER --start --quiet --pidfile $PIDFILE --exec $DAEMON -- -pidfile $PIDFILE -config $CONFIG $INFLUXD_OPTS >>$STDOUT 2>>$STDERR &
         else
-            nohup $DAEMON -pidfile $PIDFILE -config $CONFIG $INFLUXD_OPTS >>$STDOUT 2>>$STDERR &
+            su -c "nohup $DAEMON -pidfile $PIDFILE -config $CONFIG $INFLUXD_OPTS >>$STDOUT 2>>$STDERR &" $USER
         fi
         log_success_msg "$NAME process was started"
         ;;
