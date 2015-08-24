@@ -724,9 +724,8 @@ type Partition struct {
 	// buffers for reading and writing compressed blocks
 	// We constrain blocks so that we can read and write into a partition
 	// without allocating
-	buf [partitionBufLen]byte
-	// snappy buffer calculation taken from snappy.EncodedLen
-	snappybuf [32 + partitionBufLen + partitionBufLen/6]byte
+	buf       []byte
+	snappybuf []byte
 }
 
 const partitionBufLen = 16 << 10 // 16kb
@@ -747,6 +746,9 @@ func NewPartition(id uint8, path string, segmentSize int64, sizeThreshold uint64
 	p.os.OpenCompactionFile = os.OpenFile
 	p.os.OpenSegmentFile = os.OpenFile
 	p.os.Rename = os.Rename
+
+	p.buf = make([]byte, partitionBufLen)
+	p.snappybuf = make([]byte, snappy.MaxEncodedLen(partitionBufLen))
 
 	return p, nil
 }
@@ -794,11 +796,11 @@ func (p *Partition) Write(points []tsdb.Point) error {
 		for i = 0; i < len(remainingPoints); i++ {
 			pp := remainingPoints[i]
 			n := walEntryLength(pp)
-			
+
 			// we might have a single point which is larger than the buffer
 			// If this is the case, then marshal it anyway and fall back to
 			// slice allocation. The appends below should handle it.
-			if block.Len() + n > partitionBufLen && i > 0 {
+			if block.Len()+n > partitionBufLen && i > 0 {
 				break
 			}
 			marshalWALEntry(block, pp.Key(), pp.UnixNano(), pp.Data())
@@ -826,7 +828,6 @@ func (p *Partition) Write(points []tsdb.Point) error {
 		} else if n != len(b) {
 			return fmt.Errorf("expected to write %d bytes but wrote %d", len(b), n)
 		}
-
 
 		p.currentSegmentSize += int64(8 + len(b))
 		p.lastWriteTime = time.Now()
@@ -1599,7 +1600,7 @@ func marshalWALEntry(buf *bytes.Buffer, key []byte, timestamp int64, data []byte
 }
 
 func walEntryLength(p tsdb.Point) int {
-	return 8+4+4+len(p.Key())+len(p.Data())
+	return 8 + 4 + 4 + len(p.Key()) + len(p.Data())
 }
 
 // unmarshalWALEntry decodes a WAL entry into it's separate parts.
