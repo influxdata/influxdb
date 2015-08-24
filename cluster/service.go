@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/tsdb"
 )
@@ -37,7 +38,7 @@ type Service struct {
 	TSDBStore interface {
 		CreateShard(database, policy string, shardID uint64) error
 		WriteToShard(shardID uint64, points []tsdb.Point) error
-		CreateMapper(shardID uint64, query string, chunkSize int) (tsdb.Mapper, error)
+		CreateMapper(shardID uint64, stmt influxql.Statement, chunkSize int) (tsdb.Mapper, error)
 	}
 
 	Logger *log.Logger
@@ -232,7 +233,15 @@ func (s *Service) processMapShardRequest(w io.Writer, buf []byte) error {
 		return err
 	}
 
-	m, err := s.TSDBStore.CreateMapper(req.ShardID(), req.Query(), int(req.ChunkSize()))
+	// Parse the statement.
+	q, err := influxql.ParseQuery(req.Query())
+	if err != nil {
+		return fmt.Errorf("processing map shard: %s", err)
+	} else if len(q.Statements) != 1 {
+		return fmt.Errorf("processing map shard: expected 1 statement but got %d", len(q.Statements))
+	}
+
+	m, err := s.TSDBStore.CreateMapper(req.ShardID(), q.Statements[0], int(req.ChunkSize()))
 	if err != nil {
 		return fmt.Errorf("create mapper: %s", err)
 	}

@@ -303,23 +303,21 @@ func (s *Store) WriteToShard(shardID uint64, points []Point) error {
 	return sh.WritePoints(points)
 }
 
-func (s *Store) CreateMapper(shardID uint64, query string, chunkSize int) (Mapper, error) {
-	q, err := influxql.NewParser(strings.NewReader(query)).ParseStatement()
-	if err != nil {
-		return nil, err
-	}
-	stmt, ok := q.(*influxql.SelectStatement)
-	if !ok {
-		return nil, fmt.Errorf("query is not a SELECT statement: %s", err.Error())
-	}
-
+func (s *Store) CreateMapper(shardID uint64, stmt influxql.Statement, chunkSize int) (Mapper, error) {
 	shard := s.Shard(shardID)
 	if shard == nil {
 		// This can happen if the shard has been assigned, but hasn't actually been created yet.
 		return nil, nil
 	}
 
-	return NewLocalMapper(shard, stmt, chunkSize), nil
+	switch st := stmt.(type) {
+	case *influxql.SelectStatement:
+		return NewSelectMapper(shard, st, chunkSize), nil
+	case *influxql.ShowMeasurementsStatement:
+		return NewShowMeasurementsMapper(shard, st, chunkSize), nil
+	default:
+		return nil, fmt.Errorf("can't create mapper for statement type: %v", st)
+	}
 }
 
 func (s *Store) Close() error {

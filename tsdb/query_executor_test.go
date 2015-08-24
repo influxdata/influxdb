@@ -479,7 +479,7 @@ type testShardMapper struct {
 	store *tsdb.Store
 }
 
-func (t *testShardMapper) CreateMapper(shard meta.ShardInfo, stmt string, chunkSize int) (tsdb.Mapper, error) {
+func (t *testShardMapper) CreateMapper(shard meta.ShardInfo, stmt influxql.Statement, chunkSize int) (tsdb.Mapper, error) {
 	m, err := t.store.CreateMapper(shard.ID, stmt, chunkSize)
 	return m, err
 }
