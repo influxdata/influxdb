@@ -4,6 +4,7 @@
 With this release InfluxDB is moving to Go 1.5.
 
 ### Features
+- [#3771](https://github.com/influxdb/influxdb/pull/3771): Close idle Graphite TCP connections
 - [#3755](https://github.com/influxdb/influxdb/issues/3755): Add option to build script. Thanks @fg2it
 - [#3863](https://github.com/influxdb/influxdb/pull/3863): Move to Go 1.5
 - [#3892](https://github.com/influxdb/influxdb/pull/3892): Support IF NOT EXISTS for CREATE DATABASE
@@ -16,6 +17,7 @@ With this release InfluxDB is moving to Go 1.5.
 - [#3996](https://github.com/influxdb/influxdb/pull/3996): Add statistics to httpd package
 
 ### Bugfixes
+- [#3785](https://github.com/influxdb/influxdb/issues/3785): Invalid time stamp in graphite metric causes panic
 - [#3804](https://github.com/influxdb/influxdb/pull/3804): init.d script fixes, fixes issue 3803.
 - [#3823](https://github.com/influxdb/influxdb/pull/3823): Deterministic ordering for first() and last()
 - [#3869](https://github.com/influxdb/influxdb/issues/3869): Seemingly deadlocked when ingesting metrics via graphite plugin
