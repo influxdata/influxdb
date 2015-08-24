@@ -2,7 +2,6 @@ package graphite_test
 
 import (
 	"fmt"
-	"io"
 	"net"
 	"sync"
 	"testing"
@@ -81,52 +80,6 @@ func Test_ServerGraphiteTCP(t *testing.T) {
 	}
 
 	wg.Wait()
-}
-
-func Test_ServerGraphiteTCPTimeout(t *testing.T) {
-	t.Parallel()
-
-	config := graphite.NewConfig()
-	config.Database = "graphitedb"
-	config.BindAddress = ":0"
-	config.TCPTimeout = toml.Duration(100 * time.Millisecond)
-
-	service, err := graphite.NewService(config)
-	if err != nil {
-		t.Fatalf("failed to create Graphite service: %s", err.Error())
-	}
-
-	pointsWriter := PointsWriter{
-		WritePointsFn: func(req *cluster.WritePointsRequest) error {
-			return nil
-		},
-	}
-	service.PointsWriter = &pointsWriter
-	dbCreator := DatabaseCreator{}
-	service.MetaStore = &dbCreator
-
-	if err := service.Open(); err != nil {
-		t.Fatalf("failed to open Graphite service: %s", err.Error())
-	}
-
-	if !dbCreator.Created {
-		t.Fatalf("failed to create target database")
-	}
-
-	// Connect to the graphite endpoint we just spun up
-	_, port, _ := net.SplitHostPort(service.Addr().String())
-	conn, err := net.Dial("tcp", "127.0.0.1:"+port)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// The only way to be sure a connection has closed is to try reading from it.
-	time.Sleep(200 * time.Millisecond)
-	data := make([]byte, 256)
-	_, err = conn.Read(data)
-	if err != io.EOF {
-		t.Fatal("expected Graphite write timeout error")
-	}
 }
 
 func Test_ServerGraphiteUDP(t *testing.T) {
