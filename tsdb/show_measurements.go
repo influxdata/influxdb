@@ -99,7 +99,9 @@ func (e *ShowMeasurementsExecutor) Execute() <-chan *influxql.Row {
 			row.Values = append(row.Values, v)
 		}
 
-		out <- row
+		if len(row.Values) > 0 {
+			out <- row
+		}
 
 		close(out)
 	}()
