@@ -1,9 +1,9 @@
 ## v0.9.4 [unreleased]
 
 ### Features
-- [#3771](https://github.com/influxdb/influxdb/pull/3771): Close idle Graphite TCP connections
 
 ### Bugfixes
+- [#3804](https://github.com/influxdb/influxdb/pull/3804): init.d script fixes, fixes issue 3803.
 
 ## v0.9.3 [unreleased]
 
