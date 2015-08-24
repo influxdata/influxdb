@@ -11,7 +11,11 @@ import (
 	"github.com/influxdb/influxdb/tsdb"
 )
 
-var defaultTemplate *template
+var (
+	defaultTemplate *template
+	MinDate         = time.Date(1901, 12, 13, 0, 0, 0, 0, time.UTC)
+	MaxDate         = time.Date(2038, 1, 19, 0, 0, 0, 0, time.UTC)
+)
 
 func init() {
 	var err error
@@ -124,6 +128,9 @@ func (p *Parser) Parse(line string) (tsdb.Point, error) {
 		if unixTime != float64(-1) {
 			// Check if we have fractional seconds
 			timestamp = time.Unix(int64(unixTime), int64((unixTime-math.Floor(unixTime))*float64(time.Second)))
+			if timestamp.Before(MinDate) || timestamp.After(MaxDate) {
+				return nil, fmt.Errorf("timestamp out of range")
+			}
 		}
 	}
 
