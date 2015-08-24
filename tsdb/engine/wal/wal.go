@@ -702,11 +702,6 @@ type Partition struct {
 	// sizeThreshold is the memory size after which writes start getting throttled
 	sizeThreshold uint64
 
-	// backoffCount is the number of times write has been called while memory is
-	// over the threshold. It's used to gradually increase write times to put
-	// backpressure on clients.
-	backoffCount int
-
 	// flushCache is a temporary placeholder to keep data while its being flushed
 	// and compacted. It's for cursors to combine the cache and this if a flush is occuring
 	flushCache        map[string][][]byte
@@ -773,19 +768,17 @@ func (p *Partition) Write(points []tsdb.Point) error {
 	}
 	b := snappy.Encode(nil, block)
 
-	if backoff, ok := func() (time.Duration, bool) {
+	if func() bool {
 		p.mu.Lock()
 		defer p.mu.Unlock()
 		// pause writes for a bit if we've hit the size threshold
 		if p.memorySize > p.sizeThreshold {
-			p.backoffCount += 1
-			return time.Millisecond * 20, true
+			return true
 		}
-
-		return 0, false
-	}(); ok {
+		return false
+	}() {
 		go p.flushAndCompact(memoryFlush)
-		time.Sleep(backoff)
+		time.Sleep(time.Millisecond * 20)
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -1031,7 +1024,6 @@ func (p *Partition) flushAndCompact(flush flushType) error {
 	p.mu.Lock()
 	p.flushCache = nil
 	p.memorySize -= uint64(c.flushSize)
-	p.backoffCount = 0
 	p.mu.Unlock()
 
 	// ensure that we mark that compaction is no longer running
