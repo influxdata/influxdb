@@ -240,6 +240,41 @@ func TestEngine_WriteIndex_Insert(t *testing.T) {
 	}
 }
 
+// Ensure that the engine properly seeks to a block when the seek value is in the middle.
+func TestEngine_WriteIndex_SeekAgainstInBlockValue(t *testing.T) {
+	e := OpenDefaultEngine()
+	defer e.Close()
+
+	// make sure we have data split across two blocks
+	dataSize := (bz1.DefaultBlockSize - 16) / 2
+	data := make([]byte, dataSize, dataSize)
+	// Write initial points to index.
+	if err := e.WriteIndex(map[string][][]byte{
+		"cpu": [][]byte{
+			append(u64tob(10), data...),
+			append(u64tob(20), data...),
+			append(u64tob(30), data...),
+			append(u64tob(40), data...),
+		},
+	}, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	// Start transaction.
+	tx := e.MustBegin(false)
+	defer tx.Rollback()
+
+	// Ensure that we can seek to a block in the middle
+	c := tx.Cursor("cpu")
+	if k, _ := c.Seek(u64tob(15)); btou64(k) != 20 {
+		t.Fatalf("expected to seek to time 20, but got %d", btou64(k))
+	}
+	// Ensure that we can seek to the block on the end
+	if k, _ := c.Seek(u64tob(35)); btou64(k) != 40 {
+		t.Fatalf("expected to seek to time 40, but got %d", btou64(k))
+	}
+}
+
 // Ensure the engine ignores writes without keys.
 func TestEngine_WriteIndex_NoKeys(t *testing.T) {
 	e := OpenDefaultEngine()
@@ -478,6 +513,8 @@ func (w *EnginePointsWriter) Open() error { return nil }
 func (w *EnginePointsWriter) Close() error { return nil }
 
 func (w *EnginePointsWriter) Cursor(key string) tsdb.Cursor { return &Cursor{} }
+
+func (w *EnginePointsWriter) Flush() error { return nil }
 
 // Cursor represents a mock that implements tsdb.Curosr.
 type Cursor struct {

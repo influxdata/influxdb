@@ -62,6 +62,7 @@ type WAL interface {
 	Cursor(key string) tsdb.Cursor
 	Open() error
 	Close() error
+	Flush() error
 }
 
 // NewEngine returns a new instance of Engine.
@@ -613,7 +614,17 @@ type Cursor struct {
 // Seek moves the cursor to a position and returns the closest key/value pair.
 func (c *Cursor) Seek(seek []byte) (key, value []byte) {
 	// Move cursor to appropriate block and set to buffer.
-	_, v := c.cursor.Seek(seek)
+	k, v := c.cursor.Seek(seek)
+	if v == nil { // get the last block, it might have this time
+		_, v = c.cursor.Last()
+	} else if bytes.Compare(seek, k) == -1 { // the seek key is less than this block, go back one and check
+		_, v = c.cursor.Prev()
+
+		// if the previous block max time is less than the seek value, reset to where we were originally
+		if v == nil || bytes.Compare(seek, v[0:8]) > 0 {
+			_, v = c.cursor.Seek(seek)
+		}
+	}
 	c.setBuf(v)
 
 	// Read current block up to seek position.
