@@ -193,7 +193,7 @@ func (e *Engine) LoadMetadataIndex(index *tsdb.DatabaseIndex, measurementFields 
 		return err
 	}
 
-	// now flush the metadata that was in the WAL, but hand't yet been flushed
+	// now flush the metadata that was in the WAL, but hadn't yet been flushed
 	if err := e.WAL.LoadMetadataIndex(index, measurementFields); err != nil {
 		return err
 	}

@@ -553,7 +553,6 @@ func (q *QueryExecutor) filterShowSeriesResult(limit, offset int, rows influxql.
 // PlanShowMeasurements creates an execution plan for the given SelectStatement and returns an Executor.
 func (q *QueryExecutor) PlanShowMeasurements(stmt *influxql.ShowMeasurementsStatement, database string, chunkSize int) (Executor, error) {
 	// Get the database info.
-	fmt.Printf("database = %s\n", database)
 	di, err := q.MetaStore.Database(database)
 	if err != nil {
 		return nil, err

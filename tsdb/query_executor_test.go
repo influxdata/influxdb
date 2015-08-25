@@ -18,7 +18,7 @@ var sgID = uint64(2)
 var shardID = uint64(1)
 
 func TestWritePointsAndExecuteQuery(t *testing.T) {
-	store, executor := testStoreAndExecutor()
+	store, executor := testStoreAndExecutor("")
 	defer os.RemoveAll(store.Path())
 
 	// Write first point.
@@ -71,7 +71,7 @@ func TestWritePointsAndExecuteQuery(t *testing.T) {
 
 // Ensure writing a point and updating it results in only a single point.
 func TestWritePointsAndExecuteQuery_Update(t *testing.T) {
-	store, executor := testStoreAndExecutor()
+	store, executor := testStoreAndExecutor("")
 	defer os.RemoveAll(store.Path())
 
 	// Write original point.
@@ -113,7 +113,7 @@ func TestWritePointsAndExecuteQuery_Update(t *testing.T) {
 }
 
 func TestDropSeriesStatement(t *testing.T) {
-	store, executor := testStoreAndExecutor()
+	store, executor := testStoreAndExecutor("")
 	defer os.RemoveAll(store.Path())
 
 	pt := tsdb.NewPoint(
@@ -169,7 +169,7 @@ func TestDropSeriesStatement(t *testing.T) {
 }
 
 func TestDropMeasurementStatement(t *testing.T) {
-	store, executor := testStoreAndExecutor()
+	store, executor := testStoreAndExecutor("")
 	defer os.RemoveAll(store.Path())
 
 	pt := tsdb.NewPoint(
@@ -221,11 +221,7 @@ func TestDropMeasurementStatement(t *testing.T) {
 
 	validateDrop()
 	store.Close()
-	conf := store.EngineOptions.Config
-	store = tsdb.NewStore(store.Path())
-	store.EngineOptions.Config = conf
-	store.Open()
-	executor.Store = store
+	store, executor = testStoreAndExecutor(store.Path())
 	validateDrop()
 }
 
@@ -239,7 +235,7 @@ func (m *metaExec) ExecuteStatement(stmt influxql.Statement) *influxql.Result {
 }
 
 func TestDropDatabase(t *testing.T) {
-	store, executor := testStoreAndExecutor()
+	store, executor := testStoreAndExecutor("")
 	defer os.RemoveAll(store.Path())
 
 	pt := tsdb.NewPoint(
@@ -301,7 +297,7 @@ func TestDropDatabase(t *testing.T) {
 
 // Ensure that queries for which there is no data result in an empty set.
 func TestQueryNoData(t *testing.T) {
-	store, executor := testStoreAndExecutor()
+	store, executor := testStoreAndExecutor("")
 	defer os.RemoveAll(store.Path())
 
 	got := executeAndGetJSON("select * from /.*/", executor)
@@ -322,7 +318,7 @@ func TestQueryNoData(t *testing.T) {
 // ensure that authenticate doesn't return an error if the user count is zero and they're attempting
 // to create a user.
 func TestAuthenticateIfUserCountZeroAndCreateUser(t *testing.T) {
-	store, executor := testStoreAndExecutor()
+	store, executor := testStoreAndExecutor("")
 	defer os.RemoveAll(store.Path())
 	ms := &testMetastore{userCount: 0}
 	executor.MetaStore = ms
@@ -350,11 +346,13 @@ func TestAuthenticateIfUserCountZeroAndCreateUser(t *testing.T) {
 	}
 }
 
-func testStoreAndExecutor() (*tsdb.Store, *tsdb.QueryExecutor) {
-	path, _ := ioutil.TempDir("", "")
+func testStoreAndExecutor(storePath string) (*tsdb.Store, *tsdb.QueryExecutor) {
+	if storePath == "" {
+		storePath, _ = ioutil.TempDir("", "")
+	}
 
-	store := tsdb.NewStore(path)
-	store.EngineOptions.Config.WALDir = filepath.Join(path, "wal")
+	store := tsdb.NewStore(storePath)
+	store.EngineOptions.Config.WALDir = filepath.Join(storePath, "wal")
 
 	err := store.Open()
 	if err != nil {
