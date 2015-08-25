@@ -747,26 +747,28 @@ func (tsc *tagSetCursor) Next(tmin, tmax int64, selectFields, whereFields []stri
 			return -1, nil, nil
 		}
 
+		// Decode the raw point.
+		value := tsc.decodeRawPoint(p, selectFields, whereFields)
+		timestamp := p.timestamp
+		tags := p.cursor.tags
+
 		// Advance the cursor
 		nextKey, nextVal := p.cursor.Next()
 		if nextKey != -1 {
-			nextPoint := &pointHeapItem{
+			*p = pointHeapItem{
 				timestamp: nextKey,
 				value:     nextVal,
 				cursor:    p.cursor,
 			}
-			heap.Push(tsc.pointHeap, nextPoint)
+			heap.Push(tsc.pointHeap, p)
 		}
-
-		// Decode the raw point.
-		value := tsc.decodeRawPoint(p, selectFields, whereFields)
 
 		// Value didn't match, look for the next one.
 		if value == nil {
 			continue
 		}
 
-		return p.timestamp, value, p.cursor.tags
+		return timestamp, value, tags
 	}
 }
 
