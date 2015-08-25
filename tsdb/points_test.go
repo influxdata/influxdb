@@ -1062,7 +1062,7 @@ func TestParsePointKeyUnsorted(t *testing.T) {
 }
 
 func TestParsePointToString(t *testing.T) {
-	line := `cpu,host=serverA,region=us-east bool=false,float=11.0,float2=12.123,int=10i,str="string val" 1000000000`
+	line := `cpu,host=serverA,region=us-east bool=false,float=11,float2=12.123,int=10i,str="string val" 1000000000`
 	pts, err := tsdb.ParsePoints([]byte(line))
 	if err != nil {
 		t.Fatalf(`ParsePoints() failed. got %s`, err)
@@ -1275,19 +1275,19 @@ cpu,host=serverA,region=us-east value=1.0 946730096789012345`,
 func TestNewPointEscaped(t *testing.T) {
 	// commas
 	pt := tsdb.NewPoint("cpu,main", tsdb.Tags{"tag,bar": "value"}, tsdb.Fields{"name,bar": 1.0}, time.Unix(0, 0))
-	if exp := `cpu\,main,tag\,bar=value name\,bar=1.0 0`; pt.String() != exp {
+	if exp := `cpu\,main,tag\,bar=value name\,bar=1 0`; pt.String() != exp {
 		t.Errorf("NewPoint().String() mismatch.\ngot %v\nexp %v", pt.String(), exp)
 	}
 
 	// spaces
 	pt = tsdb.NewPoint("cpu main", tsdb.Tags{"tag bar": "value"}, tsdb.Fields{"name bar": 1.0}, time.Unix(0, 0))
-	if exp := `cpu\ main,tag\ bar=value name\ bar=1.0 0`; pt.String() != exp {
+	if exp := `cpu\ main,tag\ bar=value name\ bar=1 0`; pt.String() != exp {
 		t.Errorf("NewPoint().String() mismatch.\ngot %v\nexp %v", pt.String(), exp)
 	}
 
 	// equals
 	pt = tsdb.NewPoint("cpu=main", tsdb.Tags{"tag=bar": "value=foo"}, tsdb.Fields{"name=bar": 1.0}, time.Unix(0, 0))
-	if exp := `cpu=main,tag\=bar=value\=foo name\=bar=1.0 0`; pt.String() != exp {
+	if exp := `cpu=main,tag\=bar=value\=foo name\=bar=1 0`; pt.String() != exp {
 		t.Errorf("NewPoint().String() mismatch.\ngot %v\nexp %v", pt.String(), exp)
 	}
 }
