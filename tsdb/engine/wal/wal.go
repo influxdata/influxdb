@@ -709,11 +709,6 @@ type Partition struct {
 	// sizeThreshold is the memory size after which writes start getting throttled
 	sizeThreshold uint64
 
-	// backoffCount is the number of times write has been called while memory is
-	// over the threshold. It's used to gradually increase write times to put
-	// backpressure on clients.
-	backoffCount int
-
 	// flushCache is a temporary placeholder to keep data while its being flushed
 	// and compacted. It's for cursors to combine the cache and this if a flush is occuring
 	flushCache        map[string][][]byte
@@ -732,7 +727,15 @@ type Partition struct {
 		OpenSegmentFile    func(name string, flag int, perm os.FileMode) (file *os.File, err error)
 		Rename             func(oldpath, newpath string) error
 	}
+
+	// buffers for reading and writing compressed blocks
+	// We constrain blocks so that we can read and write into a partition
+	// without allocating
+	buf       []byte
+	snappybuf []byte
 }
+
+const partitionBufLen = 16 << 10 // 16kb
 
 func NewPartition(id uint8, path string, segmentSize int64, sizeThreshold uint64, readySeriesSize int, flushColdInterval time.Duration, index IndexWriter) (*Partition, error) {
 	p := &Partition{
@@ -750,6 +753,9 @@ func NewPartition(id uint8, path string, segmentSize int64, sizeThreshold uint64
 	p.os.OpenCompactionFile = os.OpenFile
 	p.os.OpenSegmentFile = os.OpenFile
 	p.os.Rename = os.Rename
+
+	p.buf = make([]byte, partitionBufLen)
+	p.snappybuf = make([]byte, snappy.MaxEncodedLen(partitionBufLen))
 
 	return p, nil
 }
@@ -774,58 +780,71 @@ func (p *Partition) Close() error {
 // file is larger than the max size, it will roll over to a new file before performing the write.
 // This method will also add the points to the in memory cache
 func (p *Partition) Write(points []tsdb.Point) error {
-	block := make([]byte, 0)
-	for _, pp := range points {
-		block = append(block, marshalWALEntry(pp.Key(), pp.UnixNano(), pp.Data())...)
-	}
-	b := snappy.Encode(nil, block)
 
-	if backoff, ok := func() (time.Duration, bool) {
+	if func() bool {
 		p.mu.Lock()
 		defer p.mu.Unlock()
 		// pause writes for a bit if we've hit the size threshold
 		if p.memorySize > p.sizeThreshold {
-			p.backoffCount += 1
-			return time.Millisecond * 20, true
+			return true
 		}
-
-		return 0, false
-	}(); ok {
+		return false
+	}() {
 		go p.flushAndCompact(memoryFlush)
-		time.Sleep(backoff)
+		time.Sleep(time.Millisecond * 20)
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	// rotate to a new file if we've gone over our limit
-	if p.currentSegmentFile == nil || p.currentSegmentSize > p.maxSegmentSize {
-		err := p.newSegmentFile()
-		if err != nil {
+	remainingPoints := points
+	for len(remainingPoints) > 0 {
+		block := bytes.NewBuffer(p.buf[:0])
+		var i int
+		for i = 0; i < len(remainingPoints); i++ {
+			pp := remainingPoints[i]
+			n := walEntryLength(pp)
+
+			// we might have a single point which is larger than the buffer
+			// If this is the case, then marshal it anyway and fall back to
+			// slice allocation. The appends below should handle it.
+			if block.Len()+n > partitionBufLen && i > 0 {
+				break
+			}
+			marshalWALEntry(block, pp.Key(), pp.UnixNano(), pp.Data())
+		}
+		marshaledPoints := remainingPoints[:i]
+		remainingPoints = remainingPoints[i:]
+		b := snappy.Encode(p.snappybuf[:], block.Bytes())
+
+		// rotate to a new file if we've gone over our limit
+		if p.currentSegmentFile == nil || p.currentSegmentSize > p.maxSegmentSize {
+			err := p.newSegmentFile()
+			if err != nil {
+				return err
+			}
+		}
+
+		if n, err := p.currentSegmentFile.Write(u64tob(uint64(len(b)))); err != nil {
 			return err
+		} else if n != 8 {
+			return fmt.Errorf("expected to write %d bytes but wrote %d", 8, n)
+		}
+
+		if n, err := p.currentSegmentFile.Write(b); err != nil {
+			return err
+		} else if n != len(b) {
+			return fmt.Errorf("expected to write %d bytes but wrote %d", len(b), n)
+		}
+
+		p.currentSegmentSize += int64(8 + len(b))
+		p.lastWriteTime = time.Now()
+
+		for _, pp := range marshaledPoints {
+			p.addToCache(pp.Key(), pp.Data(), pp.UnixNano())
 		}
 	}
-
-	if n, err := p.currentSegmentFile.Write(u64tob(uint64(len(b)))); err != nil {
-		return err
-	} else if n != 8 {
-		return fmt.Errorf("expected to write %d bytes but wrote %d", 8, n)
-	}
-
-	if n, err := p.currentSegmentFile.Write(b); err != nil {
-		return err
-	} else if n != len(b) {
-		return fmt.Errorf("expected to write %d bytes but wrote %d", len(b), n)
-	}
-
 	if err := p.currentSegmentFile.Sync(); err != nil {
 		return err
-	}
-
-	p.currentSegmentSize += int64(8 + len(b))
-	p.lastWriteTime = time.Now()
-
-	for _, pp := range points {
-		p.addToCache(pp.Key(), pp.Data(), pp.UnixNano())
 	}
 	return nil
 }
@@ -1039,7 +1058,6 @@ func (p *Partition) flushAndCompact(flush flushType) error {
 	p.mu.Lock()
 	p.flushCache = nil
 	p.memorySize -= uint64(c.flushSize)
-	p.backoffCount = 0
 	p.mu.Unlock()
 
 	// ensure that we mark that compaction is no longer running
@@ -1140,12 +1158,12 @@ func (p *Partition) writeCompactionEntry(f *os.File, filename string, entries []
 		return err
 	}
 
-	block := make([]byte, 0)
+	var block bytes.Buffer
 	for _, e := range entries {
-		block = append(block, marshalWALEntry(e.key, e.timestamp, e.data)...)
+		marshalWALEntry(&block, e.key, e.timestamp, e.data)
 	}
 
-	b := snappy.Encode(nil, block)
+	b := snappy.Encode(nil, block.Bytes())
 	if _, err := f.Write(u64tob(uint64(len(b)))); err != nil {
 		return err
 	}
@@ -1294,14 +1312,15 @@ func (p *Partition) addToCache(key, data []byte, timestamp int64) {
 	// Generate in-memory cache entry of <timestamp,data>.
 	v := MarshalEntry(timestamp, data)
 	p.memorySize += uint64(len(v))
+	keystr := string(key)
 
-	entry := p.cache[string(key)]
+	entry := p.cache[keystr]
 	if entry == nil {
 		entry = &cacheEntry{
 			points: [][]byte{v},
 			size:   len(v),
 		}
-		p.cache[string(key)] = entry
+		p.cache[keystr] = entry
 
 		return
 	}
@@ -1577,16 +1596,22 @@ type cacheEntry struct {
 //     []byte key
 //     []byte data
 //
-func marshalWALEntry(key []byte, timestamp int64, data []byte) []byte {
-	v := make([]byte, 8+4+4, 8+4+4+len(key)+len(data))
-	binary.BigEndian.PutUint64(v[0:8], uint64(timestamp))
-	binary.BigEndian.PutUint32(v[8:12], uint32(len(key)))
-	binary.BigEndian.PutUint32(v[12:16], uint32(len(data)))
+func marshalWALEntry(buf *bytes.Buffer, key []byte, timestamp int64, data []byte) {
+	// bytes.Buffer can't error, so ignore error checking in this code
+	var tmpbuf [8]byte
+	binary.BigEndian.PutUint64(tmpbuf[:], uint64(timestamp))
+	buf.Write(tmpbuf[:])
+	binary.BigEndian.PutUint32(tmpbuf[:4], uint32(len(key)))
+	buf.Write(tmpbuf[:4])
+	binary.BigEndian.PutUint32(tmpbuf[:4], uint32(len(data)))
+	buf.Write(tmpbuf[:4])
 
-	v = append(v, key...)
-	v = append(v, data...)
+	buf.Write(key)
+	buf.Write(data)
+}
 
-	return v
+func walEntryLength(p tsdb.Point) int {
+	return 8 + 4 + 4 + len(p.Key()) + len(p.Data())
 }
 
 // unmarshalWALEntry decodes a WAL entry into it's separate parts.
