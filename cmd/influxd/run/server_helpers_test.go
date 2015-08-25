@@ -232,6 +232,7 @@ type Query struct {
 	exp, act string
 	pattern  bool
 	skip     bool
+	repeat   int
 }
 
 // Execute runs the command and returns an err if it fails
