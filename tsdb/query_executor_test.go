@@ -144,7 +144,8 @@ func TestDropSeriesStatement(t *testing.T) {
 	}
 
 	got = executeAndGetJSON("show tag keys from cpu", executor)
-	exepected = `[{"series":[{"name":"cpu","columns":["tagKey"]}]}]`
+	exepected = `[{}]`
+	//exepected = `[{"series":[{"name":"cpu","columns":["tagKey"]}]}]`
 	if exepected != got {
 		t.Fatalf("exp: %s\ngot: %s", exepected, got)
 	}
@@ -163,7 +164,7 @@ func TestDropSeriesStatement(t *testing.T) {
 	}
 
 	got = executeAndGetJSON("show tag keys from cpu", executor)
-	exepected = `[{"series":[{"name":"cpu","columns":["tagKey"]}]}]`
+	exepected = `[{}]`
 	if exepected != got {
 		t.Fatalf("exp: %s\ngot: %s", exepected, got)
 	}

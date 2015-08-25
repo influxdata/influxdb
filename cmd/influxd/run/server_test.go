@@ -3849,8 +3849,8 @@ func TestServer_Query_ShowTagKeys(t *testing.T) {
 		},
 		&Query{
 			name:    "show tag keys measurement not found",
-			command: "SHOW TAG KEYS FROM bad",
-			exp:     `{"results":[{"error":"measurement not found: bad"}]}`,
+			command: "SHOW TAG KEYS FROM doesntexist",
+			exp:     `{"results":[{}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
