@@ -174,6 +174,17 @@ func (s *Store) DatabaseIndex(name string) *DatabaseIndex {
 	return s.databaseIndexes[name]
 }
 
+// Databases returns all the databases in the indexes
+func (s *Store) Databases() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	databases := []string{}
+	for db := range s.databaseIndexes {
+		databases = append(databases, db)
+	}
+	return databases
+}
+
 func (s *Store) Measurement(database, name string) *Measurement {
 	s.mu.RLock()
 	db := s.databaseIndexes[database]
@@ -182,6 +193,22 @@ func (s *Store) Measurement(database, name string) *Measurement {
 		return nil
 	}
 	return db.Measurement(name)
+}
+
+// DiskSize returns the size of all the shard files in bytes.  This size does not include the WAL size.
+func (s *Store) DiskSize() (int64, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var size int64
+	for _, shardID := range s.ShardIDs() {
+		shard := s.Shard(shardID)
+		sz, err := shard.DiskSize()
+		if err != nil {
+			return 0, err
+		}
+		size += sz
+	}
+	return size, nil
 }
 
 // deleteSeries loops through the local shards and deletes the series data and metadata for the passed in series keys

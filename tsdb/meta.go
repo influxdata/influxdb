@@ -1196,6 +1196,17 @@ func (m *Measurement) TagKeys() []string {
 	return keys
 }
 
+// TagValues returns all the values for the given tag key
+func (m *Measurement) TagValues(key string) []string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	values := []string{}
+	for v := range m.seriesByTagKeyValue[key] {
+		values = append(values, v)
+	}
+	return values
+}
+
 // SetFieldName adds the field name to the measurement.
 func (m *Measurement) SetFieldName(name string) {
 	m.mu.Lock()

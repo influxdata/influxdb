@@ -127,6 +127,25 @@ func (s *Shard) close() error {
 	return nil
 }
 
+// DiskSize returns the size on disk of this shard
+func (s *Shard) DiskSize() (int64, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	stats, err := os.Stat(s.path)
+	var size int64
+	if err != nil {
+		return 0, err
+	}
+	size += stats.Size()
+	return size, nil
+}
+
+// ReadOnlyTx returns a read-only transaction for the shard.  The transaction must be rolled back to
+// release resources.
+func (s *Shard) ReadOnlyTx() (Tx, error) {
+	return s.engine.Begin(false)
+}
+
 // TODO: this is temporarily exported to make tx.go work. When the query engine gets refactored
 // into the tsdb package this should be removed. No one outside tsdb should know the underlying field encoding scheme.
 func (s *Shard) FieldCodec(measurementName string) *FieldCodec {
