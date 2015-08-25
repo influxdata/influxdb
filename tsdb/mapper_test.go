@@ -526,6 +526,15 @@ func mustParseSelectStatement(s string) *influxql.SelectStatement {
 	return stmt.(*influxql.SelectStatement)
 }
 
+// mustParseStatement parses a statement. Panic on error.
+func mustParseStatement(s string) influxql.Statement {
+	stmt, err := influxql.NewParser(strings.NewReader(s)).ParseStatement()
+	if err != nil {
+		panic(err)
+	}
+	return stmt
+}
+
 func openRawMapperOrFail(t *testing.T, shard *tsdb.Shard, stmt *influxql.SelectStatement, chunkSize int) tsdb.Mapper {
 	mapper := tsdb.NewSelectMapper(shard, stmt, chunkSize)
 
