@@ -325,12 +325,6 @@ else
 fi
 
 COMMON_FPM_ARGS="-C $TMP_WORK_DIR --vendor $VENDOR --url $URL --license $LICENSE --maintainer $MAINTAINER --after-install $POST_INSTALL_PATH --name influxdb --version $VERSION --config-files $CONFIG_ROOT_DIR ."
-$rpm_args $FPM -s dir -t rpm --description "$DESCRIPTION" $COMMON_FPM_ARGS
-if [ $? -ne 0 ]; then
-    echo "Failed to create RPM package -- aborting."
-    cleanup_exit 1
-fi
-echo "RPM package created successfully."
 
 $FPM -s dir -t deb $deb_args --description "$DESCRIPTION" $COMMON_FPM_ARGS
 if [ $? -ne 0 ]; then
@@ -345,6 +339,13 @@ if [ $? -ne 0 ]; then
     cleanup_exit 1
 fi
 echo "Tar package created successfully."
+
+$rpm_args $FPM -s dir -t rpm --description "$DESCRIPTION" $COMMON_FPM_ARGS
+if [ $? -ne 0 ]; then
+    echo "Failed to create RPM package -- aborting."
+    cleanup_exit 1
+fi
+echo "RPM package created successfully."
 
 ###########################################################################
 # Offer to tag the repo.
