@@ -479,6 +479,10 @@ func TestWritePointsAndExecuteTwoShardsShowMeasurements(t *testing.T) {
 			stmt:     `SHOW MEASUREMENTS WHERE host='serverB'`,
 			expected: `[{"name":"measurements","columns":["name"],"values":[["mem"]]}]`,
 		},
+		{
+			stmt:     `SHOW MEASUREMENTS WHERE host='serverX'`,
+			expected: `null`,
+		},
 	}
 	for _, tt := range tests {
 		if tt.skip {
