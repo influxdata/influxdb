@@ -1290,6 +1290,10 @@ func newFieldsFromBinary(buf []byte) Fields {
 	return fields
 }
 
+// MarshalBinary encodes all the fields to their proper type and returns the binary
+// represenation
+// NOTE: uint64 is specifically not supported due to potential overflow when we decode
+// again later to an int64
 func (p Fields) MarshalBinary() []byte {
 	b := []byte{}
 	keys := make([]string, len(p))
@@ -1321,19 +1325,16 @@ func (p Fields) MarshalBinary() []byte {
 			b = append(b, []byte(strconv.FormatInt(t, 10))...)
 			b = append(b, 'i')
 		case uint:
-			b = append(b, []byte(strconv.FormatUint(uint64(t), 10))...)
+			b = append(b, []byte(strconv.FormatInt(int64(t), 10))...)
 			b = append(b, 'i')
 		case uint8:
-			b = append(b, []byte(strconv.FormatUint(uint64(t), 10))...)
+			b = append(b, []byte(strconv.FormatInt(int64(t), 10))...)
 			b = append(b, 'i')
 		case uint16:
-			b = append(b, []byte(strconv.FormatUint(uint64(t), 10))...)
+			b = append(b, []byte(strconv.FormatInt(int64(t), 10))...)
 			b = append(b, 'i')
 		case uint32:
-			b = append(b, []byte(strconv.FormatUint(uint64(t), 10))...)
-			b = append(b, 'i')
-		case uint64:
-			b = append(b, []byte(strconv.FormatUint(t, 10))...)
+			b = append(b, []byte(strconv.FormatInt(int64(t), 10))...)
 			b = append(b, 'i')
 		case float32:
 			val := []byte(strconv.FormatFloat(float64(t), 'f', -1, 32))
