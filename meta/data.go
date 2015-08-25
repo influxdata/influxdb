@@ -667,7 +667,12 @@ func (di DatabaseInfo) ShardInfos() []ShardInfo {
 	shards := map[uint64]*ShardInfo{}
 	for i := range di.RetentionPolicies {
 		for j := range di.RetentionPolicies[i].ShardGroups {
-			for k := range di.RetentionPolicies[i].ShardGroups[j].Shards {
+			sg := di.RetentionPolicies[i].ShardGroups[j]
+			// Skip deleted shard groups
+			if sg.Deleted() {
+				continue
+			}
+			for k := range sg.Shards {
 				si := &di.RetentionPolicies[i].ShardGroups[j].Shards[k]
 				shards[si.ID] = si
 			}
