@@ -85,6 +85,8 @@ Please see the *Features* section below for full details.
 - [#3539](https://github.com/influxdb/influxdb/issues/3539): parser incorrectly accepts NaN as numerical value, but not always
 - [#3790](https://github.com/influxdb/influxdb/pull/3790): Fix line protocol parsing equals in measurements and NaN values
 - [#3778](https://github.com/influxdb/influxdb/pull/3778): Don't panic if SELECT on time.
+- [#3824](https://github.com/influxdb/influxdb/issues/3824): tsdb.Point.MarshalBinary needs to support all number types
+- [#3828](https://github.com/influxdb/influxdb/pull/3828): Support all number types when decoding a point
 
 ## v0.9.2 [2015-07-24]
 

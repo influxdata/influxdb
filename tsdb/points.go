@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"hash/fnv"
-	"math"
 	"regexp"
 	"sort"
 	"strconv"
@@ -1291,6 +1290,10 @@ func newFieldsFromBinary(buf []byte) Fields {
 	return fields
 }
 
+// MarshalBinary encodes all the fields to their proper type and returns the binary
+// represenation
+// NOTE: uint64 is specifically not supported due to potential overflow when we decode
+// again later to an int64
 func (p Fields) MarshalBinary() []byte {
 	b := []byte{}
 	keys := make([]string, len(p))
@@ -1309,25 +1312,36 @@ func (p Fields) MarshalBinary() []byte {
 		case int:
 			b = append(b, []byte(strconv.FormatInt(int64(t), 10))...)
 			b = append(b, 'i')
-		case int32:
+		case int8:
 			b = append(b, []byte(strconv.FormatInt(int64(t), 10))...)
 			b = append(b, 'i')
-		case uint64:
-			b = append(b, []byte(strconv.FormatUint(t, 10))...)
+		case int16:
+			b = append(b, []byte(strconv.FormatInt(int64(t), 10))...)
+			b = append(b, 'i')
+		case int32:
+			b = append(b, []byte(strconv.FormatInt(int64(t), 10))...)
 			b = append(b, 'i')
 		case int64:
 			b = append(b, []byte(strconv.FormatInt(t, 10))...)
 			b = append(b, 'i')
-		case float64:
-			// ensure there is a decimal in the encoded for
-
-			val := []byte(strconv.FormatFloat(t, 'f', -1, 64))
-			_, frac := math.Modf(t)
-			hasDecimal := frac != 0
+		case uint:
+			b = append(b, []byte(strconv.FormatInt(int64(t), 10))...)
+			b = append(b, 'i')
+		case uint8:
+			b = append(b, []byte(strconv.FormatInt(int64(t), 10))...)
+			b = append(b, 'i')
+		case uint16:
+			b = append(b, []byte(strconv.FormatInt(int64(t), 10))...)
+			b = append(b, 'i')
+		case uint32:
+			b = append(b, []byte(strconv.FormatInt(int64(t), 10))...)
+			b = append(b, 'i')
+		case float32:
+			val := []byte(strconv.FormatFloat(float64(t), 'f', -1, 32))
 			b = append(b, val...)
-			if !hasDecimal {
-				b = append(b, []byte(".0")...)
-			}
+		case float64:
+			val := []byte(strconv.FormatFloat(t, 'f', -1, 64))
+			b = append(b, val...)
 		case bool:
 			b = append(b, []byte(strconv.FormatBool(t))...)
 		case []byte:
