@@ -598,7 +598,6 @@ func (tx *Tx) Cursor(key string) tsdb.Cursor {
 
 	c := &Cursor{
 		cursor: b.Cursor(),
-		buf:    make([]byte, DefaultBlockSize),
 	}
 
 	return tsdb.MultiCursor(walCursor, c)
