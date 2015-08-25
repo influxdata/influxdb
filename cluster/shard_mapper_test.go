@@ -3,9 +3,11 @@ package cluster
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"testing"
 
+	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/tsdb"
 )
 
@@ -63,7 +65,7 @@ func TestShardWriter_RemoteMapper_Success(t *testing.T) {
 
 	c := newRemoteShardResponder([]*tsdb.MapperOutput{expOutput, nil}, expTagSets)
 
-	r := NewRemoteMapper(c, 1234, "SELECT * FROM CPU", 10)
+	r := NewRemoteMapper(c, 1234, mustParseStmt("SELECT * FROM CPU"), 10)
 	if err := r.Open(); err != nil {
 		t.Fatalf("failed to open remote mapper: %s", err.Error())
 	}
@@ -97,4 +99,15 @@ func TestShardWriter_RemoteMapper_Success(t *testing.T) {
 	if chunk != nil {
 		t.Fatal("received more chunks when none expected")
 	}
+}
+
+// mustParseStmt parses a single statement or panics.
+func mustParseStmt(stmt string) influxql.Statement {
+	q, err := influxql.ParseQuery(stmt)
+	if err != nil {
+		panic(err)
+	} else if len(q.Statements) != 1 {
+		panic(fmt.Sprintf("expected 1 statement but got %d", len(q.Statements)))
+	}
+	return q.Statements[0]
 }
