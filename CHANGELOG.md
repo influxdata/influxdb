@@ -6,7 +6,7 @@
 - [#3804](https://github.com/influxdb/influxdb/pull/3804): init.d script fixes, fixes issue 3803.
 - [#3823](https://github.com/influxdb/influxdb/pull/3823): Deterministic ordering for first() and last()
 
-## v0.9.3 [unreleased]
+## v0.9.3 [2015-08-26]]
 
 ### Release Notes
 
