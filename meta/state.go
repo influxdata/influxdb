@@ -334,8 +334,6 @@ func (r *localRaft) leader() string {
 }
 
 func (r *localRaft) isLeader() bool {
-	r.store.mu.RLock()
-	defer r.store.mu.RUnlock()
 	if r.raft == nil {
 		return false
 	}
