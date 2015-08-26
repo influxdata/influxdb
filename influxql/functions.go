@@ -949,6 +949,8 @@ func MapFirst(itr Iterator) interface{} {
 		if k < out.Time {
 			out.Time = k
 			out.Val = v
+		} else if k == out.Time && greaterThan(v, out.Val) {
+			out.Val = v
 		}
 	}
 	if pointsYielded {
@@ -976,6 +978,8 @@ func ReduceFirst(values []interface{}) interface{} {
 		if val.Time < out.Time {
 			out.Time = val.Time
 			out.Val = val.Val
+		} else if val.Time == out.Time && greaterThan(val.Val, out.Val) {
+			out.Val = val.Val
 		}
 	}
 	if pointsYielded {
@@ -998,6 +1002,8 @@ func MapLast(itr Iterator) interface{} {
 		}
 		if k > out.Time {
 			out.Time = k
+			out.Val = v
+		} else if k == out.Time && greaterThan(v, out.Val) {
 			out.Val = v
 		}
 	}
@@ -1026,6 +1032,8 @@ func ReduceLast(values []interface{}) interface{} {
 		}
 		if val.Time > out.Time {
 			out.Time = val.Time
+			out.Val = val.Val
+		} else if val.Time == out.Time && greaterThan(val.Val, out.Val) {
 			out.Val = val.Val
 		}
 	}
@@ -1112,3 +1120,17 @@ type rawOutputs []*rawQueryMapOutput
 func (a rawOutputs) Len() int           { return len(a) }
 func (a rawOutputs) Less(i, j int) bool { return a[i].Time < a[j].Time }
 func (a rawOutputs) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+
+func greaterThan(a, b interface{}) bool {
+	switch t := a.(type) {
+	case int64:
+		return t > b.(int64)
+	case float64:
+		return t > b.(float64)
+	case string:
+		return t > b.(string)
+	case bool:
+		return t == true
+	}
+	return false
+}
