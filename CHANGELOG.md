@@ -9,7 +9,8 @@ With this release InfluxDB is moving to Go 1.5.
 ### Bugfixes
 - [#3804](https://github.com/influxdb/influxdb/pull/3804): init.d script fixes, fixes issue 3803.
 - [#3823](https://github.com/influxdb/influxdb/pull/3823): Deterministic ordering for first() and last()
-- [#3869](https://github.com/influxdb/influxdb/issues/3869): Seemingly deadlocked when ingesting metrics via graphite plugin 
+- [#3869](https://github.com/influxdb/influxdb/issues/3869): Seemingly deadlocked when ingesting metrics via graphite plugin
+- [#3856](https://github.com/influxdb/influxdb/pull/3856): Minor changes to retention enforcement.
 
 ## v0.9.3 [2015-08-26]
 
@@ -17,11 +18,11 @@ With this release InfluxDB is moving to Go 1.5.
 
 There are breaking changes in this release.
  - To store data points as integers you must now append `i` to the number if using the line protocol.
- - If you have a UDP input configured, you should check the UDP section of [the new sample configuration file](https://github.com/influxdb/influxdb/blob/master/etc/config.sample.toml) to learn how to modify existing configuration files, as 0.9.3 now expects multiple UDP inputs. 
+ - If you have a UDP input configured, you should check the UDP section of [the new sample configuration file](https://github.com/influxdb/influxdb/blob/master/etc/config.sample.toml) to learn how to modify existing configuration files, as 0.9.3 now expects multiple UDP inputs.
  - Configuration files must now have an entry for `wal-dir` in the `[data]` section. Check [new sample configuration file](https://github.com/influxdb/influxdb/blob/master/etc/config.sample.toml) for more details.
  - The implicit `GROUP BY *` that was added to every `SELECT *` has been removed. Instead any tags in the data are now part of the columns in the returned query.
 
-Please see the *Features* section below for full details. 
+Please see the *Features* section below for full details.
 
 ### Features
 - [#3376](https://github.com/influxdb/influxdb/pull/3376): Support for remote shard query mapping
