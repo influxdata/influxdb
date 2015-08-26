@@ -139,7 +139,7 @@ func TestWritePointsAndExecuteTwoShards(t *testing.T) {
 			t.Logf("Skipping test %s", tt.stmt)
 			continue
 		}
-		executor, err := query_executor.Plan(mustParseSelectStatement(tt.stmt), tt.chunkSize)
+		executor, err := query_executor.PlanSelect(mustParseSelectStatement(tt.stmt), tt.chunkSize)
 		if err != nil {
 			t.Fatalf("failed to plan query: %s", err.Error())
 		}
@@ -238,7 +238,7 @@ func TestWritePointsAndExecuteTwoShardsAlign(t *testing.T) {
 			t.Logf("Skipping test %s", tt.stmt)
 			continue
 		}
-		executor, err := query_executor.Plan(mustParseSelectStatement(tt.stmt), tt.chunkSize)
+		executor, err := query_executor.PlanSelect(mustParseSelectStatement(tt.stmt), tt.chunkSize)
 		if err != nil {
 			t.Fatalf("failed to plan query: %s", err.Error())
 		}
@@ -306,15 +306,15 @@ func TestWritePointsAndExecuteTwoShardsQueryRewrite(t *testing.T) {
 		parsedSelectStmt := mustParseSelectStatement(tt.stmt)
 
 		// Create Mappers and Executor.
-		mapper0, err := store0.CreateMapper(sID0, tt.stmt, tt.chunkSize)
+		mapper0, err := store0.CreateMapper(sID0, parsedSelectStmt, tt.chunkSize)
 		if err != nil {
 			t.Fatalf("failed to create mapper0: %s", err.Error())
 		}
-		mapper1, err := store1.CreateMapper(sID1, tt.stmt, tt.chunkSize)
+		mapper1, err := store1.CreateMapper(sID1, parsedSelectStmt, tt.chunkSize)
 		if err != nil {
 			t.Fatalf("failed to create mapper1: %s", err.Error())
 		}
-		executor := tsdb.NewExecutor(parsedSelectStmt, []tsdb.Mapper{mapper0, mapper1}, tt.chunkSize)
+		executor := tsdb.NewSelectExecutor(parsedSelectStmt, []tsdb.Mapper{mapper0, mapper1}, tt.chunkSize)
 
 		// Check the results.
 		got := executeAndGetResults(executor)
@@ -421,7 +421,7 @@ func TestWritePointsAndExecuteTwoShardsTagSetOrdering(t *testing.T) {
 			t.Logf("Skipping test %s", tt.stmt)
 			continue
 		}
-		executor, err := query_executor.Plan(mustParseSelectStatement(tt.stmt), tt.chunkSize)
+		executor, err := query_executor.PlanSelect(mustParseSelectStatement(tt.stmt), tt.chunkSize)
 		if err != nil {
 			t.Fatalf("failed to plan query: %s", err.Error())
 		}
@@ -429,6 +429,86 @@ func TestWritePointsAndExecuteTwoShardsTagSetOrdering(t *testing.T) {
 		if got != tt.expected {
 			t.Fatalf("Test %s\nexp: %s\ngot: %s\n", tt.stmt, tt.expected, got)
 		}
+	}
+}
+
+// Test to ensure the engine handles measurements across stores.
+func TestWritePointsAndExecuteTwoShardsShowMeasurements(t *testing.T) {
+	// Create two distinct stores, ensuring shard mappers will shard nothing.
+	store0 := testStore()
+	defer os.RemoveAll(store0.Path())
+	store1 := testStore()
+	defer os.RemoveAll(store1.Path())
+
+	// Create a shard in each store.
+	database := "foo"
+	retentionPolicy := "bar"
+	store0.CreateShard(database, retentionPolicy, sID0)
+	store1.CreateShard(database, retentionPolicy, sID1)
+
+	// Write two points across shards.
+	pt1time := time.Unix(1, 0).UTC()
+	if err := store0.WriteToShard(sID0, []tsdb.Point{tsdb.NewPoint(
+		"cpu",
+		map[string]string{"host": "serverA"},
+		map[string]interface{}{"value1": 100},
+		pt1time,
+	)}); err != nil {
+		t.Fatalf(err.Error())
+	}
+	pt2time := time.Unix(2, 0).UTC()
+	if err := store1.WriteToShard(sID1, []tsdb.Point{tsdb.NewPoint(
+		"mem",
+		map[string]string{"host": "serverB"},
+		map[string]interface{}{"value2": 200},
+		pt2time,
+	)}); err != nil {
+		t.Fatalf(err.Error())
+	}
+	var tests = []struct {
+		skip      bool   // Skip test
+		stmt      string // Query statement
+		chunkSize int    // Chunk size for driving the executor
+		expected  string // Expected results, rendered as a string
+	}{
+		{
+			stmt:     `SHOW MEASUREMENTS`,
+			expected: `[{"name":"measurements","columns":["name"],"values":[["cpu"],["mem"]]}]`,
+		},
+		{
+			stmt:     `SHOW MEASUREMENTS WHERE host='serverB'`,
+			expected: `[{"name":"measurements","columns":["name"],"values":[["mem"]]}]`,
+		},
+		{
+			stmt:     `SHOW MEASUREMENTS WHERE host='serverX'`,
+			expected: `null`,
+		},
+	}
+	for _, tt := range tests {
+		if tt.skip {
+			t.Logf("Skipping test %s", tt.stmt)
+			continue
+		}
+
+		parsedStmt := mustParseStatement(tt.stmt).(*influxql.ShowMeasurementsStatement)
+
+		// Create Mappers and Executor.
+		mapper0, err := store0.CreateMapper(sID0, parsedStmt, tt.chunkSize)
+		if err != nil {
+			t.Fatalf("failed to create mapper0: %s", err.Error())
+		}
+		mapper1, err := store1.CreateMapper(sID1, parsedStmt, tt.chunkSize)
+		if err != nil {
+			t.Fatalf("failed to create mapper1: %s", err.Error())
+		}
+		executor := tsdb.NewShowMeasurementsExecutor(parsedStmt, []tsdb.Mapper{mapper0, mapper1}, tt.chunkSize)
+
+		// Check the results.
+		got := executeAndGetResults(executor)
+		if got != tt.expected {
+			t.Fatalf("Test %s\nexp: %s\ngot: %s\n", tt.stmt, tt.expected, got)
+		}
+
 	}
 }
 
@@ -974,11 +1054,11 @@ type testQEShardMapper struct {
 	store *tsdb.Store
 }
 
-func (t *testQEShardMapper) CreateMapper(shard meta.ShardInfo, stmt string, chunkSize int) (tsdb.Mapper, error) {
+func (t *testQEShardMapper) CreateMapper(shard meta.ShardInfo, stmt influxql.Statement, chunkSize int) (tsdb.Mapper, error) {
 	return t.store.CreateMapper(shard.ID, stmt, chunkSize)
 }
 
-func executeAndGetResults(executor *tsdb.Executor) string {
+func executeAndGetResults(executor tsdb.Executor) string {
 	ch := executor.Execute()
 
 	var rows []*influxql.Row

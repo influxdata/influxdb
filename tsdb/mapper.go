@@ -40,8 +40,8 @@ func (mo *MapperOutput) key() string {
 	return mo.cursorKey
 }
 
-// LocalMapper is for retrieving data for a query, from a given shard.
-type LocalMapper struct {
+// SelectMapper is for retrieving data for a query, from a given shard.
+type SelectMapper struct {
 	shard           *Shard
 	remote          Mapper
 	stmt            influxql.Statement
@@ -67,9 +67,9 @@ type LocalMapper struct {
 	fieldNames      []string           // the field name being read for mapping.
 }
 
-// NewLocalMapper returns a mapper for the given shard, which will return data for the SELECT statement.
-func NewLocalMapper(shard *Shard, stmt influxql.Statement, chunkSize int) *LocalMapper {
-	return &LocalMapper{
+// NewSelectMapper returns a mapper for the given shard, which will return data for the SELECT statement.
+func NewSelectMapper(shard *Shard, stmt influxql.Statement, chunkSize int) *SelectMapper {
+	return &SelectMapper{
 		shard:     shard,
 		stmt:      stmt,
 		chunkSize: chunkSize,
@@ -78,12 +78,12 @@ func NewLocalMapper(shard *Shard, stmt influxql.Statement, chunkSize int) *Local
 }
 
 // openMeta opens the mapper for a meta query.
-func (lm *LocalMapper) openMeta() error {
+func (lm *SelectMapper) openMeta() error {
 	return errors.New("not implemented")
 }
 
 // Open opens the local mapper.
-func (lm *LocalMapper) Open() error {
+func (lm *SelectMapper) Open() error {
 	if lm.remote != nil {
 		return lm.remote.Open()
 	}
@@ -260,12 +260,12 @@ func (lm *LocalMapper) Open() error {
 	return nil
 }
 
-func (lm *LocalMapper) SetRemote(m Mapper) error {
+func (lm *SelectMapper) SetRemote(m Mapper) error {
 	lm.remote = m
 	return nil
 }
 
-func (lm *LocalMapper) NextChunk() (interface{}, error) {
+func (lm *SelectMapper) NextChunk() (interface{}, error) {
 	// If set, use remote mapper.
 	if lm.remote != nil {
 		b, err := lm.remote.NextChunk()
@@ -296,7 +296,7 @@ func (lm *LocalMapper) NextChunk() (interface{}, error) {
 // nextChunkRaw returns the next chunk of data. Data comes in the same order as the
 // tags return by TagSets. A chunk never contains data for more than 1 tagset.
 // If there is no more data for any tagset, nil will be returned.
-func (lm *LocalMapper) nextChunkRaw() (interface{}, error) {
+func (lm *SelectMapper) nextChunkRaw() (interface{}, error) {
 	var output *MapperOutput
 	for {
 		if lm.currCursorIndex == len(lm.cursors) {
@@ -338,7 +338,7 @@ func (lm *LocalMapper) nextChunkRaw() (interface{}, error) {
 // for the current tagset. Tagsets are always processed in the same order as that
 // returned by AvailTagsSets(). When there is no more data for any tagset nil
 // is returned.
-func (lm *LocalMapper) nextChunkAgg() (interface{}, error) {
+func (lm *SelectMapper) nextChunkAgg() (interface{}, error) {
 	var output *MapperOutput
 	for {
 		if lm.currCursorIndex == len(lm.cursors) {
@@ -418,7 +418,7 @@ func (lm *LocalMapper) nextChunkAgg() (interface{}, error) {
 
 // nextInterval returns the next interval for which to return data. If start is less than 0
 // there are no more intervals.
-func (lm *LocalMapper) nextInterval() (start, end int64) {
+func (lm *SelectMapper) nextInterval() (start, end int64) {
 	t := lm.queryTMinWindow + int64(lm.currInterval+lm.selectStmt.Offset)*lm.intervalSize
 
 	// Onto next interval.
@@ -433,7 +433,7 @@ func (lm *LocalMapper) nextInterval() (start, end int64) {
 
 // initializeMapFunctions initialize the mapping functions for the mapper. This only applies
 // to aggregate queries.
-func (lm *LocalMapper) initializeMapFunctions() error {
+func (lm *SelectMapper) initializeMapFunctions() error {
 	var err error
 	// Set up each mapping function for this statement.
 	aggregates := lm.selectStmt.FunctionCalls()
@@ -467,10 +467,10 @@ func (lm *LocalMapper) initializeMapFunctions() error {
 }
 
 // rewriteSelectStatement performs any necessary query re-writing.
-func (lm *LocalMapper) rewriteSelectStatement(stmt *influxql.SelectStatement) (*influxql.SelectStatement, error) {
+func (lm *SelectMapper) rewriteSelectStatement(stmt *influxql.SelectStatement) (*influxql.SelectStatement, error) {
 	var err error
 	// Expand regex expressions in the FROM clause.
-	sources, err := lm.expandSources(stmt.Sources)
+	sources, err := expandSources(stmt.Sources, lm.shard.index)
 	if err != nil {
 		return nil, err
 	}
@@ -488,7 +488,7 @@ func (lm *LocalMapper) rewriteSelectStatement(stmt *influxql.SelectStatement) (*
 // If only a `SELECT *` is present, without a `GROUP BY *`, both tags and fields expand in the SELECT
 // If a `SELECT *` and a `GROUP BY *` are both present, then only fiels are expanded in the `SELECT` and only
 // tags are expanded in the `GROUP BY`
-func (lm *LocalMapper) expandWildcards(stmt *influxql.SelectStatement) (*influxql.SelectStatement, error) {
+func (lm *SelectMapper) expandWildcards(stmt *influxql.SelectStatement) (*influxql.SelectStatement, error) {
 	// If there are no wildcards in the statement, return it as-is.
 	if !stmt.HasWildcard() {
 		return stmt, nil
@@ -550,54 +550,8 @@ func (lm *LocalMapper) expandWildcards(stmt *influxql.SelectStatement) (*influxq
 	return stmt.RewriteWildcards(fields, dimensions), nil
 }
 
-// expandSources expands regex sources and removes duplicates.
-// NOTE: sources must be normalized (db and rp set) before calling this function.
-func (lm *LocalMapper) expandSources(sources influxql.Sources) (influxql.Sources, error) {
-	// Use a map as a set to prevent duplicates. Two regexes might produce
-	// duplicates when expanded.
-	set := map[string]influxql.Source{}
-	names := []string{}
-	// Iterate all sources, expanding regexes when they're found.
-	for _, source := range sources {
-		switch src := source.(type) {
-		case *influxql.Measurement:
-			if src.Regex == nil {
-				name := src.String()
-				set[name] = src
-				names = append(names, name)
-				continue
-			}
-			// Get measurements from the database that match the regex.
-			measurements := lm.shard.index.measurementsByRegex(src.Regex.Val)
-			// Add those measurements to the set.
-			for _, m := range measurements {
-				m2 := &influxql.Measurement{
-					Database:        src.Database,
-					RetentionPolicy: src.RetentionPolicy,
-					Name:            m.Name,
-				}
-				name := m2.String()
-				if _, ok := set[name]; !ok {
-					set[name] = m2
-					names = append(names, name)
-				}
-			}
-		default:
-			return nil, fmt.Errorf("expandSources: unsuported source type: %T", source)
-		}
-	}
-	// Sort the list of source names.
-	sort.Strings(names)
-	// Convert set to a list of Sources.
-	expanded := make(influxql.Sources, 0, len(set))
-	for _, name := range names {
-		expanded = append(expanded, set[name])
-	}
-	return expanded, nil
-}
-
 // TagSets returns the list of TagSets for which this mapper has data.
-func (lm *LocalMapper) TagSets() []string {
+func (lm *SelectMapper) TagSets() []string {
 	if lm.remote != nil {
 		return lm.remote.TagSets()
 	}
@@ -606,7 +560,7 @@ func (lm *LocalMapper) TagSets() []string {
 
 // Fields returns any SELECT fields. If this Mapper is not processing a SELECT query
 // then an empty slice is returned.
-func (lm *LocalMapper) Fields() []string {
+func (lm *SelectMapper) Fields() []string {
 	if lm.remote != nil {
 		return lm.remote.Fields()
 	}
@@ -614,7 +568,7 @@ func (lm *LocalMapper) Fields() []string {
 }
 
 // Close closes the mapper.
-func (lm *LocalMapper) Close() {
+func (lm *SelectMapper) Close() {
 	if lm.remote != nil {
 		lm.remote.Close()
 		return
@@ -853,6 +807,52 @@ type tagSetsAndFields struct {
 	selectFields []string
 	selectTags   []string
 	whereFields  []string
+}
+
+// expandSources expands regex sources and removes duplicates.
+// NOTE: sources must be normalized (db and rp set) before calling this function.
+func expandSources(sources influxql.Sources, di *DatabaseIndex) (influxql.Sources, error) {
+	// Use a map as a set to prevent duplicates. Two regexes might produce
+	// duplicates when expanded.
+	set := map[string]influxql.Source{}
+	names := []string{}
+	// Iterate all sources, expanding regexes when they're found.
+	for _, source := range sources {
+		switch src := source.(type) {
+		case *influxql.Measurement:
+			if src.Regex == nil {
+				name := src.String()
+				set[name] = src
+				names = append(names, name)
+				continue
+			}
+			// Get measurements from the database that match the regex.
+			measurements := di.measurementsByRegex(src.Regex.Val)
+			// Add those measurements to the set.
+			for _, m := range measurements {
+				m2 := &influxql.Measurement{
+					Database:        src.Database,
+					RetentionPolicy: src.RetentionPolicy,
+					Name:            m.Name,
+				}
+				name := m2.String()
+				if _, ok := set[name]; !ok {
+					set[name] = m2
+					names = append(names, name)
+				}
+			}
+		default:
+			return nil, fmt.Errorf("expandSources: unsuported source type: %T", source)
+		}
+	}
+	// Sort the list of source names.
+	sort.Strings(names)
+	// Convert set to a list of Sources.
+	expanded := make(influxql.Sources, 0, len(set))
+	for _, name := range names {
+		expanded = append(expanded, set[name])
+	}
+	return expanded, nil
 }
 
 // createTagSetsAndFields returns the tagsets and various fields given a measurement and

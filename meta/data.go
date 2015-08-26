@@ -662,6 +662,31 @@ func (di DatabaseInfo) RetentionPolicy(name string) *RetentionPolicyInfo {
 	return nil
 }
 
+// ShardInfos returns a list of all shards' info for the database.
+func (di DatabaseInfo) ShardInfos() []ShardInfo {
+	shards := map[uint64]*ShardInfo{}
+	for i := range di.RetentionPolicies {
+		for j := range di.RetentionPolicies[i].ShardGroups {
+			sg := di.RetentionPolicies[i].ShardGroups[j]
+			// Skip deleted shard groups
+			if sg.Deleted() {
+				continue
+			}
+			for k := range sg.Shards {
+				si := &di.RetentionPolicies[i].ShardGroups[j].Shards[k]
+				shards[si.ID] = si
+			}
+		}
+	}
+
+	infos := make([]ShardInfo, 0, len(shards))
+	for _, info := range shards {
+		infos = append(infos, *info)
+	}
+
+	return infos
+}
+
 // clone returns a deep copy of di.
 func (di DatabaseInfo) clone() DatabaseInfo {
 	other := di

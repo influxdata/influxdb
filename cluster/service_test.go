@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/influxdb/influxdb/cluster"
+	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/tcp"
 	"github.com/influxdb/influxdb/tsdb"
@@ -28,7 +29,7 @@ type testService struct {
 	muxln            net.Listener
 	writeShardFunc   func(shardID uint64, points []tsdb.Point) error
 	createShardFunc  func(database, policy string, shardID uint64) error
-	createMapperFunc func(shardID uint64, query string, chunkSize int) (tsdb.Mapper, error)
+	createMapperFunc func(shardID uint64, stmt influxql.Statement, chunkSize int) (tsdb.Mapper, error)
 }
 
 func newTestWriteService(f func(shardID uint64, points []tsdb.Point) error) testService {
@@ -69,8 +70,8 @@ func (t testService) CreateShard(database, policy string, shardID uint64) error 
 	return t.createShardFunc(database, policy, shardID)
 }
 
-func (t testService) CreateMapper(shardID uint64, query string, chunkSize int) (tsdb.Mapper, error) {
-	return t.createMapperFunc(shardID, query, chunkSize)
+func (t testService) CreateMapper(shardID uint64, stmt influxql.Statement, chunkSize int) (tsdb.Mapper, error) {
+	return t.createMapperFunc(shardID, stmt, chunkSize)
 }
 
 func writeShardSuccess(shardID uint64, points []tsdb.Point) error {

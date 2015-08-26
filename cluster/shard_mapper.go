@@ -7,6 +7,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/influxdb/influxdb/influxql"
 	"github.com/influxdb/influxdb/meta"
 	"github.com/influxdb/influxdb/tsdb"
 	"gopkg.in/fatih/pool.v2"
@@ -24,7 +25,7 @@ type ShardMapper struct {
 	}
 
 	TSDBStore interface {
-		CreateMapper(shardID uint64, query string, chunkSize int) (tsdb.Mapper, error)
+		CreateMapper(shardID uint64, stmt influxql.Statement, chunkSize int) (tsdb.Mapper, error)
 	}
 
 	timeout time.Duration
@@ -40,7 +41,7 @@ func NewShardMapper(timeout time.Duration) *ShardMapper {
 }
 
 // CreateMapper returns a Mapper for the given shard ID.
-func (s *ShardMapper) CreateMapper(sh meta.ShardInfo, stmt string, chunkSize int) (tsdb.Mapper, error) {
+func (s *ShardMapper) CreateMapper(sh meta.ShardInfo, stmt influxql.Statement, chunkSize int) (tsdb.Mapper, error) {
 	m, err := s.TSDBStore.CreateMapper(sh.ID, stmt, chunkSize)
 	if err != nil {
 		return nil, err
@@ -86,7 +87,7 @@ type remoteShardConn interface {
 // sends a query, and interprets the stream of data that comes back.
 type RemoteMapper struct {
 	shardID   uint64
-	stmt      string
+	stmt      influxql.Statement
 	chunkSize int
 
 	tagsets []string
@@ -97,7 +98,7 @@ type RemoteMapper struct {
 }
 
 // NewRemoteMapper returns a new remote mapper using the given connection.
-func NewRemoteMapper(c remoteShardConn, shardID uint64, stmt string, chunkSize int) *RemoteMapper {
+func NewRemoteMapper(c remoteShardConn, shardID uint64, stmt influxql.Statement, chunkSize int) *RemoteMapper {
 	return &RemoteMapper{
 		conn:      c,
 		shardID:   shardID,
@@ -116,7 +117,7 @@ func (r *RemoteMapper) Open() (err error) {
 	// Build Map request.
 	var request MapShardRequest
 	request.SetShardID(r.shardID)
-	request.SetQuery(r.stmt)
+	request.SetQuery(r.stmt.String())
 	request.SetChunkSize(int32(r.chunkSize))
 
 	// Marshal into protocol buffers.
