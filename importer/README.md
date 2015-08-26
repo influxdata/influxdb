@@ -4,6 +4,13 @@
 
 Version `0.8.9` of InfluxDB adds support to export your data to a format that can be imported into `0.9.3` and later.
 
+Note that `0.8.9` can be found here:
+
+```
+http://get.influxdb.org.s3.amazonaws.com/influxdb_0.8.9_amd64.deb
+http://get.influxdb.org.s3.amazonaws.com/influxdb-0.8.9-1.x86_64.rpm
+```
+
 ### Design
 
 `0.8.9` exports raw data to a flat file that includes two sections, `DDL` and `DML`.  You can choose to export them independently (see below).
