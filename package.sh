@@ -36,8 +36,8 @@ AWS_FILE=~/aws.conf
 
 INSTALL_ROOT_DIR=/opt/influxdb
 INFLUXDB_LOG_DIR=/var/log/influxdb
-INFLUXDB_DATA_DIR=/var/opt/influxdb
-CONFIG_ROOT_DIR=/etc/opt/influxdb
+INFLUXDB_DATA_DIR=/var/influxdb
+CONFIG_ROOT_DIR=/etc/influxdb
 
 SAMPLE_CONFIGURATION=etc/config.sample.toml
 INITD_SCRIPT=scripts/init.sh
