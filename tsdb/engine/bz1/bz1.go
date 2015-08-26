@@ -35,7 +35,7 @@ func init() {
 
 const (
 	// DefaultBlockSize is the default size of uncompressed points blocks.
-	DefaultBlockSize = 64 * 1024 // 64KB
+	DefaultBlockSize = 4 * 1024 // 4KB
 )
 
 // Ensure Engine implements the interface.
