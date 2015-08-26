@@ -116,7 +116,7 @@ func (cmd *Command) Run(args ...string) error {
 
 	// Mark start-up in log.
 	log.Printf("InfluxDB starting, version %s, branch %s, commit %s", cmd.Version, cmd.Branch, cmd.Commit)
-	log.Println("GOMAXPROCS set to", runtime.GOMAXPROCS(0))
+	log.Printf("Go version %s, GOMAXPROCS set to %d", runtime.Version(), runtime.GOMAXPROCS(0))
 
 	// Begin monitoring the server's error channel.
 	go cmd.monitorServerErrors()
