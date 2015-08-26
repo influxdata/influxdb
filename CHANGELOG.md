@@ -88,6 +88,7 @@ Please see the *Features* section below for full details.
 - [#3778](https://github.com/influxdb/influxdb/pull/3778): Don't panic if SELECT on time.
 - [#3824](https://github.com/influxdb/influxdb/issues/3824): tsdb.Point.MarshalBinary needs to support all number types
 - [#3828](https://github.com/influxdb/influxdb/pull/3828): Support all number types when decoding a point
+- [#3853](https://github.com/influxdb/influxdb/pull/3853): Use 4KB default block size for bz1
 
 ## v0.9.2 [2015-07-24]
 
