@@ -50,6 +50,7 @@ const (
 	LPAREN    // (
 	RPAREN    // )
 	COMMA     // ,
+	COLON     // :
 	SEMICOLON // ;
 	DOT       // .
 
@@ -160,6 +161,7 @@ var tokens = [...]string{
 	LPAREN:    "(",
 	RPAREN:    ")",
 	COMMA:     ",",
+	COLON:     ":",
 	SEMICOLON: ";",
 	DOT:       ".",
 

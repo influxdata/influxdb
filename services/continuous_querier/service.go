@@ -302,8 +302,13 @@ func (s *Service) runContinuousQueryAndWriteResult(cq *ContinuousQuery) error {
 		}
 
 		for _, row := range result.Series {
+			// Get the measurement name for the result.
+			measurement := cq.intoMeasurement()
+			if measurement == "" {
+				measurement = row.Name
+			}
 			// Convert the result row to points.
-			part, err := s.convertRowToPoints(cq.intoMeasurement(), row)
+			part, err := s.convertRowToPoints(measurement, row)
 			if err != nil {
 				log.Println(err)
 				continue
@@ -346,7 +351,11 @@ func (s *Service) runContinuousQueryAndWriteResult(cq *ContinuousQuery) error {
 	}
 
 	if s.loggingEnabled {
-		s.Logger.Printf("wrote %d point(s) to %s.%s.%s", len(points), cq.intoDB(), cq.intoRP(), cq.Info.Name)
+		db := cq.intoDB()
+		if db == "" {
+			db = cq.Database
+		}
+		s.Logger.Printf("wrote %d point(s) to %s.%s", len(points), db, cq.intoRP())
 	}
 
 	return nil

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -61,6 +62,45 @@ func TestExecuteContinuousQuery_HappyPath(t *testing.T) {
 	}
 }
 
+// Test ExecuteContinuousQuery when INTO measurements are taken from the FROM clause.
+func TestExecuteContinuousQuery_ReferenceSource(t *testing.T) {
+	s := NewTestService(t)
+	dbis, _ := s.MetaStore.Databases()
+	dbi := dbis[2]
+	cqi := dbi.ContinuousQueries[0]
+
+	rowCnt := 2
+	pointCnt := 1
+	qe := s.QueryExecutor.(*QueryExecutor)
+	qe.Results = []*influxql.Result{genResult(rowCnt, pointCnt)}
+
+	pw := s.PointsWriter.(*PointsWriter)
+	pw.WritePointsFn = func(p *cluster.WritePointsRequest) error {
+		if len(p.Points) != pointCnt*rowCnt {
+			return fmt.Errorf("exp = %d, got = %d", pointCnt, len(p.Points))
+		}
+
+		exp := "cpu,host=server01 value=0"
+		got := p.Points[0].String()
+		if !strings.Contains(got, exp) {
+			return fmt.Errorf("\n\tExpected ':MEASUREMENT' to be expanded to the measurement name(s) in the FROM regexp.\n\tqry = %s\n\texp = %s\n\tgot = %s\n", cqi.Query, got, exp)
+		}
+
+		exp = "cpu2,host=server01 value=0"
+		got = p.Points[1].String()
+		if !strings.Contains(got, exp) {
+			return fmt.Errorf("\n\tExpected ':MEASUREMENT' to be expanded to the measurement name(s) in the FROM regexp.\n\tqry = %s\n\texp = %s\n\tgot = %s\n", cqi.Query, got, exp)
+		}
+
+		return nil
+	}
+
+	err := s.ExecuteContinuousQuery(&dbi, &cqi)
+	if err != nil {
+		t.Error(err)
+	}
+}
+
 // Test the service happy path.
 func TestService_HappyPath(t *testing.T) {
 	s := NewTestService(t)
@@ -70,7 +110,7 @@ func TestService_HappyPath(t *testing.T) {
 	qe.Results = []*influxql.Result{genResult(1, pointCnt)}
 
 	pw := s.PointsWriter.(*PointsWriter)
-	ch := make(chan int, 5)
+	ch := make(chan int, 10)
 	defer close(ch)
 	pw.WritePointsFn = func(p *cluster.WritePointsRequest) error {
 		ch <- len(p.Points)
@@ -97,7 +137,7 @@ func TestService_Run(t *testing.T) {
 	s.Config.RecomputePreviousN = 0
 
 	done := make(chan struct{})
-	expectCallCnt := 2
+	expectCallCnt := 3
 	callCnt := 0
 
 	// Set a callback for ExecuteQuery.
@@ -252,6 +292,8 @@ func NewTestService(t *testing.T) *Service {
 	ms.CreateContinuousQuery("db", "cq", `CREATE CONTINUOUS QUERY cq ON db BEGIN SELECT count(cpu) INTO cpu_count FROM cpu WHERE time > now() - 1h GROUP BY time(1s) END`)
 	ms.CreateDatabase("db2", "default")
 	ms.CreateContinuousQuery("db2", "cq2", `CREATE CONTINUOUS QUERY cq2 ON db2 BEGIN SELECT mean(value) INTO cpu_mean FROM cpu WHERE time > now() - 10m GROUP BY time(1m) END`)
+	ms.CreateDatabase("db3", "default")
+	ms.CreateContinuousQuery("db3", "cq3", `CREATE CONTINUOUS QUERY cq3 ON db3 BEGIN SELECT mean(value) INTO "1hAverages".:MEASUREMENT FROM /cpu[0-9]?/ GROUP BY time(10s) END`)
 
 	return s
 }
@@ -470,6 +512,9 @@ func genResult(rowCnt, valCnt int) *influxql.Result {
 			Tags:    map[string]string{"host": "server01"},
 			Columns: []string{"time", "value"},
 			Values:  vals,
+		}
+		if len(rows) > 0 {
+			row.Name = fmt.Sprintf("cpu%d", len(rows)+1)
 		}
 		rows = append(rows, row)
 	}

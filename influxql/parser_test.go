@@ -921,6 +921,32 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// CREATE CONTINUOUS QUERY with backreference measurement name
+		{
+			s: `CREATE CONTINUOUS QUERY myquery ON testdb BEGIN SELECT mean(value) INTO "policy1".:measurement FROM /^[a-z]+.*/ GROUP BY time(1m) END`,
+			stmt: &influxql.CreateContinuousQueryStatement{
+				Name:     "myquery",
+				Database: "testdb",
+				Source: &influxql.SelectStatement{
+					Fields: []*influxql.Field{{Expr: &influxql.Call{Name: "mean", Args: []influxql.Expr{&influxql.VarRef{Val: "value"}}}}},
+					Target: &influxql.Target{
+						Measurement: &influxql.Measurement{RetentionPolicy: "policy1"},
+					},
+					Sources: []influxql.Source{&influxql.Measurement{Regex: &influxql.RegexLiteral{Val: regexp.MustCompile(`^[a-z]+.*`)}}},
+					Dimensions: []*influxql.Dimension{
+						{
+							Expr: &influxql.Call{
+								Name: "time",
+								Args: []influxql.Expr{
+									&influxql.DurationLiteral{Val: 1 * time.Minute},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+
 		// CREATE DATABASE statement
 		{
 			s: `CREATE DATABASE testdb`,
